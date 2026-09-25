@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	_ "modernc.org/sqlite" // pure Go driver, keeps the binary static
@@ -102,10 +103,19 @@ func (s *Store) migrate() error {
 }
 
 // Backup writes a consistent copy of the database to path, for the backup
-// prepare step (SPEC.md §5.1).
+// prepare step (SPEC.md §5.1). VACUUM INTO refuses to overwrite, so the copy
+// goes to a temporary file that replaces path atomically.
 func (s *Store) Backup(ctx context.Context, path string) error {
-	_, err := s.db.ExecContext(ctx, `VACUUM INTO ?`, path)
-	return err
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	os.Remove(tmp)
+	if _, err := s.db.ExecContext(ctx, `VACUUM INTO ?`, tmp); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // User is a MyLab account.

@@ -22,9 +22,10 @@ PrivateTmp=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
-# NoNewPrivileges=yes is NOT set: rootless podman runs the setuid helpers
-# newuidmap/newgidmap, which NoNewPrivileges disables. See
-# docs/ASSUMPTIONS.md A8 for options.
+# mylab never runs podman itself; it goes through the user manager with
+# systemd-run --user, so this sandbox doesn't break rootless podman's setuid
+# helpers (SPEC.md §6.1).
+NoNewPrivileges=yes
 
 [Install]
 WantedBy=multi-user.target

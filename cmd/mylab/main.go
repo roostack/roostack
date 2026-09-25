@@ -20,6 +20,7 @@ Commands:
   serve    Run the web UI
   apply    Make the host match desired state (use --dry-run to preview)
   user     Add a user or reset a password
+  backup   Set up backups, back up now, list backups
   render   Show or write the files generated for a service (no side effects)
   validate Check a package file
 
@@ -39,6 +40,10 @@ func main() {
 		err = apply(args)
 	case "user":
 		err = user(args)
+	case "backup":
+		err = backupCmd(args)
+	case "backup-helper": // internal: run inside podman unshare
+		err = backupHelper(args)
 	case "render":
 		err = render(args)
 	case "validate":
