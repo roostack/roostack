@@ -1,0 +1,301 @@
+# MyLab Specification
+
+This document records decisions (locked and pending) and the reasoning behind them. See PLAN.md for the project brief and TASKS.md for progress.
+
+Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = not yet discussed.
+
+---
+
+## 1. Guiding Principles — Locked
+
+1. **Recoverable by default.** A user can rebuild their entire lab on new hardware from a single backup. This is the main test for design decisions.
+2. **Declarative state.** MyLab stores the *desired* state (services, domains, settings) as files; podman is reconciled to match. This simplifies backups, workers, and debugging.
+3. **Local-first.** Everything works without MyLab Cloud or internet access, except public TLS issuance and image pulls.
+4. **Transparent output.** Generated artifacts (container definitions, proxy config) are human-readable and inspectable. A comfortable homelabber can always find where things live and what MyLab did.
+5. **Simplicity.** Small codebase, minimal dependencies, each chosen collaboratively for maintainability.
+6. **Secure by default.** Rootless where possible, nothing public unless explicitly opted in.
+
+## 2. Target Users — Locked
+
+- **Primary:** less technical users who manage a lab after someone else has installed it (e.g. a NUC set up by a family member). Day-to-day management, including installing new services, must be possible entirely from the web UI.
+- **Secondary:** comfortable homelabbers, who must be able to inspect and understand everything on disk.
+- **Rationale:** Installing Linux and MyLab is an acceptable technical barrier; managing the lab afterwards must not be.
+
+## 3. Deployment Targets — Locked
+
+- **v1:** a dedicated, freshly installed machine. MyLab assumes it owns the host.
+- **Reference hardware:** x86_64 Intel NUC-style device.
+- **Later:** ARM64 (Raspberry Pi, ARM VPS).
+- **Rationale:** A dedicated host avoids conflicts with existing software (ports, podman config, firewall) and greatly reduces the support burden.
+
+### 3.1 Supported Distros — Locked
+
+| Tier | Distros | Meaning |
+|---|---|---|
+| **Fully supported** | Debian 13 | Tested; installer supported; full host OS management (§3.2) |
+| **Planned** | Ubuntu 26.04 LTS | Add when practical; avoid Debian-only assumptions that would make it hard |
+| **Unsupported** | Anything else with Podman 5+ | May work; no host OS management, no support |
+
+- **Rationale:** Debian 13 ships Podman 5.4, has a ~5-year support cycle, rarely changes, and has built-in unattended security updates, which makes it well suited to machines nobody logs into. Supporting a single distro keeps the installer, testing and docs simple.
+- **Rejected:** Fedora Server (a major upgrade every ~13 months doesn't suit unattended machines); Ubuntu 24.04 (Podman 4.9 has no `.pod` Quadlets); Fedora CoreOS (unfamiliar and harder to troubleshoot).
+- Distro-specific logic (package management, update tooling) should sit behind a small internal interface so Ubuntu can be added cleanly.
+
+### 3.2 Host OS Management — Locked
+
+- On fully supported distros, MyLab manages the host OS: security/package updates, reboot handling, and eventually major version upgrades.
+- Users must be told clearly (docs and UI) that major manual changes to the host OS may limit MyLab's ability to manage it.
+- **Rationale:** The primary user (§2) cannot maintain a Linux host. An unpatched host undermines everything else.
+
+#### Update & reboot policy — Locked
+
+| What | Policy |
+|---|---|
+| Security updates | Automatic, daily (`unattended-upgrades`, managed by `mylab-agent`) |
+| Other Debian stable updates | Automatic (stable only receives bug and security fixes) |
+| Reboots | "Reboot pending" shown in the UI; automatic reboot in a maintenance window (default 04:00). The Owner can change the window or choose notify-only |
+| After reboot | Services return through systemd; MyLab health-checks them and flags failures |
+| Major upgrades (e.g. 13 → 14) | Never automatic. Owner-initiated, guided, only once MyLab supports the new release, and only after a fresh successful backup |
+| MyLab itself | Patch releases automatic; minor/major releases notify and need approval (same as services, §7) |
+| Unknown host changes | Basic detection (extra apt sources, held packages, a changed firewall) triggers a warning; more thorough checks later |
+
+- `unattended-upgrades`' own automatic-reboot option is **disabled**; only MyLab decides when to reboot.
+- **Rationale for automatic reboots:** otherwise the primary user may run an unpatched kernel indefinitely. A brief overnight interruption is the better trade-off.
+
+#### Maintenance coordinator — Locked
+
+A single coordinator in `mylab` sequences every disruptive operation (backups, prunes, restores, service updates, package upgrades, reboots) so that conflicting operations never overlap.
+
+- **Nightly order:** backup → automatic service updates → reboot if needed. This means there's always a fresh backup just before any automatic change.
+- **Reboots wait** for running backups, restores and updates, then happen once they finish, within the window.
+- **Never interrupted:** restores, major OS upgrades, and a backup's prepare step (services stopped or database dumps being written).
+- **Resumable long jobs** (e.g. a multi-day first off-site upload) may be paused for a reboot that has been pending for longer than a deadline (default 24h, configurable), and they resume automatically afterwards. restic's repository stays consistent when interrupted.
+- The UI explains why a reboot is waiting (e.g. "waiting for backup to finish, 62%").
+- **Rationale:** fixed time windows can't handle jobs of unpredictable length. Delaying kernel security fixes for days is worse than pausing a resumable upload.
+
+## 4. MyLab Cloud — Locked (scope), Open (design)
+
+- A future paid hosting service for: resilience (critical services away from home internet), off-site backup targets, and users without their own hardware who still want to own their data.
+- **Out of scope for v1**, but worker communication and backup formats must not preclude it.
+- Implication: data portability is essential. A user must be able to move services and backups between home, VPS, and Cloud freely.
+
+## 5. Users & Access — Locked
+
+- **MyLab accounts are separate from service accounts in v1.** MyLab manages who can log in to MyLab; each service (Immich, Vaultwarden, …) manages its own users. Unifying them is part of the deferred SSO decision, and the design should allow MyLab to become the identity source later.
+- **Fixed roles (not customisable in v1):**
+
+| Role | Permissions |
+|---|---|
+| **Owner** | Everything: host settings, OS updates, backups and restore, recovery key, user management. At least one Owner must exist. |
+| **Admin** | Install, configure, update and remove services; run backups; view logs. No host-level settings, no user management. |
+| **Member** | View the dashboard (service links, status) only. |
+
+  - Rationale: the person who sets up the lab (Owner) keeps control of risky host settings, while the day-to-day user (Admin) can still manage services freely.
+- **Authentication:** local accounts, passwords hashed with argon2id. **TOTP 2FA** in v1, required for Owners and for any public admin UI. Passkeys later.
+- **Password recovery:** host command line only (`sudo mylab user reset-password <name>`). No email reset (it would need mail setup and adds attack surface).
+- **Audit log:** records who did what and when, to support remote help and troubleshooting.
+
+### 5.1 MyLab Data Storage — Locked
+
+- **Desired state:** readable YAML files in `/var/lib/mylab/` (Principles 2 and 4).
+- **Runtime data** (users, sessions, audit log, job history): a **SQLite** database in `/var/lib/mylab/`. A single file, no server, easy to back up. The backup prepare step must take a consistent copy (SQLite online backup / `VACUUM INTO`), not a raw copy of the file.
+
+## 6. Container Runtime — Locked (principle)
+
+- Podman, **rootless where possible**; rootful only where a service genuinely requires it (e.g. low ports, host networking, device access), and this is visible to the user.
+- **Rationale:** security is a priority; rootless limits the blast radius of a compromised container.
+
+### 6.1 MyLab Process Architecture — Locked
+
+MyLab runs **directly on the host** (not in a container), as two processes shipped in one `.deb` package:
+
+| Component | Runs as | Responsibilities |
+|---|---|---|
+| `mylab` | Unprivileged `mylab` user, strict systemd sandboxing | Web UI, API, desired state, rootless service management (Quadlets, status, logs) |
+| `mylab-agent` | root | A small fixed set of privileged operations only: OS updates, reboots, rootful Quadlets, firewall. Listens on a local socket reachable only by `mylab`. |
+
+- Workers (master/worker) run the same package in worker mode.
+- MyLab updates itself through apt, alongside host OS updates (§3.2).
+- `mylab` is hardened with systemd sandboxing (`ProtectSystem`, `ProtectHome`, `NoNewPrivileges`, `PrivateTmp`, system call filtering, limited writable paths) to get most of a container's isolation.
+- **Rationale:**
+  - Keeps root code small and easy to review; privileged operations are explicit, not implied by broad socket access.
+  - Podman/Quadlets rely on host systemd for lifecycle, so a containerised manager would need root-equivalent host access anyway.
+  - Two components, a standard Debian install and update path, and no "container updating itself" problem.
+- **Considered:**
+  - *Container + many host mounts (Portainer/Komodo style):* those tools rely on the Docker daemon socket, which is root-equivalent. Under Podman they would also need the Quadlet directory, systemd D-Bus access, and a root agent regardless.
+  - *Container web UI + host agent (A′):* a valid design that isolates the web-facing part. Rejected for now: it means either much more root code or three components, and the gain is limited because the agent API must allow arbitrary service deployment. The mylab↔agent API boundary leaves this option open later.
+  - *Single root process:* rejected; the web UI would run as root.
+- This deviates from PLAN.md's original "mylab orchestration container" wording. Services still run in containers; MyLab itself does not.
+
+### 6.2 Language: Go — Locked
+
+- Both `mylab` and `mylab-agent` are written in Go, in a single codebase.
+- **Rationale:** Builds a single static binary, which makes `.deb` packaging trivial. Low memory use suits NUC-class hardware. Podman is written in Go and there are mature systemd/D-Bus libraries. The language is small, readable and widely known, which fits the simplicity principle. The maintainer wants to learn it.
+- **Considered:** Rust (steeper learning curve, slower to build with); Python (easiest to write, but harder to package and ship as a host service).
+
+### 6.3 Web UI: Go templates + htmx + Alpine.js — Locked
+
+- Server-rendered HTML, embedded in the `mylab` binary. No JavaScript build step.
+- Step-up approach for interactivity. Use the lowest level that works:
+  1. **htmx** for server interactions (default)
+  2. **Alpine.js** for small in-browser behaviour (toggles, show/hide, simple validation)
+  3. **Standalone JS libraries** for heavy widgets (e.g. xterm.js for a terminal, a chart library)
+  4. **A separately built component** only when a feature genuinely needs it, decided case by case
+- **Architecture rule:** business logic lives in core Go packages. HTTP handlers are a thin layer on top. This keeps the UI replaceable and supports the master/worker API and a possible CLI.
+- **Rationale:** MyLab's UI is mostly forms, lists, status and logs, with state held on the server, which is htmx's strength. Validation lives in one place (Go). A small toolchain suits the simplicity principle and a maintainer learning Go.
+- **Rejected:** React islands. They bring back a Node build toolchain and a second UI paradigm for limited gain.
+- **Known limits:** UIs with a lot of browser-side state (drag-and-drop dashboards, visual editors) would need step 4.
+
+### 6.4 Service Execution: Podman Quadlets — Locked
+
+- MyLab generates **Quadlet** files (`.container`, `.volume`, `.network`, etc.) and systemd runs them. Rootless units go in `~/.config/containers/systemd/`.
+- Users never write Quadlets directly. They are generated from MyLab's own service definitions (see §8).
+- **Rationale:**
+  - Official Podman feature (4.4+), maintained by the Podman project, and an open, well-supported format.
+  - systemd provides start-at-boot, restart-on-failure, dependency ordering, and logging (`journalctl`) with nothing extra to build.
+  - Designed for rootless operation (§6).
+  - The generated files are plain text a homelabber can inspect (Principle 4), and they are declarative (Principle 2).
+- **Rejected:** podman-compose. It is community-maintained, supports only part of the Compose spec, and needs extra pieces for boot and restart handling. Also rejected: running docker-compose against the Podman API socket, which brings back a daemon-style model with the same lifecycle gaps.
+- Rootless services need `loginctl enable-linger` for the service user so they start at boot without anyone logging in.
+
+### 6.5 Reverse Proxy & TLS — Locked
+
+- **Proxy: Caddy**, run as a rootless container from a MyLab-built image that includes common DNS provider plugins (e.g. Cloudflare, Route53, Porkbun, deSEC).
+- MyLab generates a readable Caddyfile from desired state and reloads Caddy (same pattern as Quadlet generation).
+- **Not user-selectable.** One proxy keeps testing and config generation manageable. Users can add custom Caddy snippets, globally and per service.
+- **Rootless on 80/443:** `mylab-agent` lowers `net.ipv4.ip_unprivileged_port_start` so the proxy needs no root.
+- **TLS: Let's Encrypt via DNS-01.** This is required so that private (LAN/VPN-only) services get valid certificates without being reachable from the internet.
+- **Wildcard certificate by default** (e.g. `*.lab.example.com`), with services on subdomains sharing it. Rationale:
+  - One issuance and renewal instead of one per service, so fewer rate-limit issues.
+  - Subdomain names don't appear in public Certificate Transparency logs, so the list of services you run isn't published.
+  - DNS-01 is already required, so there's no extra setup.
+  - Trade-off: one certificate covers all services. That's acceptable on a single-owner host.
+- **Rationale for Caddy:** best automatic HTTPS, readable config, easy custom snippets. **Considered:** Traefik (many DNS providers built in, but verbose config tied to container labels); Nginx + certbot (familiar, but TLS is a separate tool and config is verbose).
+
+### 6.6 Domains — Locked
+
+- **v1 requires a user-owned domain** with a supported DNS provider (API token for DNS-01). This is set up once, at install time.
+- **Future:** free MyLab-provided subdomains (e.g. `name.mylab.cloud`) with DNS managed for the user, which also links to MyLab Cloud (§4).
+- **Rejected for v1:** a local CA (a root certificate on every device is bad UX); plain HTTP (browser warnings, and some clients such as Bitwarden require HTTPS).
+
+### 6.7 Storage Layout — Locked (defaults may change before launch)
+
+Default paths:
+
+```
+/var/lib/mylab/                 # MyLab's own state: desired state, secrets, users
+/srv/mylab/services/<service>/  # per-service data (bind mounts)
+    data/
+    db/
+/srv/mylab/media/               # large shared media; can be a separate disk
+```
+
+- **Paths are configurable**, and all defaults are defined in **one central place** in the code so they can be changed easily. No migration support is needed before launch; the defaults will be locked before release.
+- **Bind mounts, not Podman named volumes.** Data sits in a visible, predictable location (Principle 4), and it's easy to back up and move (Principle 1).
+- The media location can be configured separately, e.g. a small system SSD plus a large data drive.
+- **Open / to prototype early:** rootless user ID mapping. Files owned by UIDs inside containers appear as mapped IDs (e.g. 100000+) on the host. We need to settle how this affects browsing, backups, and media shared between services (e.g. Jellyfin and Immich), and where Podman's `keep-id` option helps.
+
+### 6.8 Databases — Locked
+
+- **One database container per service** (e.g. Immich gets its own Postgres), not a shared instance.
+- MyLab **standardises the pattern**: every package uses the same MyLab-managed Postgres/Redis setup, with the same data location (`<service>/db/`), backup method, health checks and upgrade process.
+- **Rationale:**
+  - Each app runs the exact database version and extensions it's tested with (e.g. Immich needs specific Postgres versions and a vector extension).
+  - Upgrades and failures are isolated to one service.
+  - Each service is self-contained, so moving it to another host or MyLab Cloud means moving one folder plus its definition (§4 portability).
+  - The cost, roughly 30–50 MB RAM per idle instance, is acceptable on NUC-class hardware.
+- **Rejected:** a single shared Postgres. It saves RAM, but it couples versions and upgrades, makes it a single point of failure, and makes backing up or moving one service harder.
+
+### 6.9 Backups — Locked
+
+**Tool: restic**, called as a CLI (`--json` output) behind a small internal interface (backup, restore, list snapshots, prune, check), so the tool can be swapped later.
+
+- **Rationale:**
+  - A Go single binary; encrypted and deduplicated, with many backends (local, SFTP, S3, B2, rclone, REST server).
+  - Users can recover independently with the plain `restic` CLI and the recovery key, even if MyLab is broken. There's a large community and many docs (Principles 1 and 4).
+  - MyLab owns scheduling and retention as part of desired state, so there's no competing policy engine.
+  - The append-only `rest-server` gives simple ransomware protection and is a natural future MyLab Cloud target.
+- **Considered: Kopia.** It's faster, uses less memory (≈4 MB average chunks vs ≈1 MB, plus a memory-mapped index) and has a richer server. It's a realistic fallback if restic's memory or performance becomes a problem with very large libraries; the interface keeps switching cheap.
+- **Expected resources** (estimate, ~750 GB / 100k photos and videos): ~150–400 MB RAM for nightly backups, up to ~1 GB for prune/check. Mitigations: `GOGC=20`, infrequent pruning, a systemd memory limit on backup jobs, quiet-hours scheduling.
+
+**Backup process:**
+1. **Prepare:** per-package hooks create a consistent state (e.g. `pg_dump` to `<service>/db-dump/`, SQLite's backup command, or a brief stop if there's no safe live method).
+2. **Snapshot:** `/var/lib/mylab` plus each service's folder.
+3. **Verify:** periodic `restic check` and occasional test restores.
+
+**Restore:** per service, or the full lab onto a new machine (install MyLab → point at the backup → enter the recovery key).
+
+**Defaults & policy:**
+- Nightly; keep 7 daily, 4 weekly and 6 monthly.
+- Packages classify data as **critical** (backed up by default: photos, passwords, repos) or **replaceable** (not backed up by default: media libraries, caches).
+- **Destinations:** local disk, remote (S3/B2/SFTP), later MyLab Cloud. **Local-only is allowed, with a persistent warning** recommending off-site.
+- **Recovery key:** shown at setup; the user must save or print it, with a strong prompt for the person doing the setup to keep a copy. Optional key escrow via MyLab Cloud later.
+- **Large first uploads:** resumable, with progress and an estimated finish time shown in the UI, a configurable bandwidth limit, and possibly a "seed locally, then take off-site" option.
+
+### 6.10 Host Security — Locked
+
+Layered defaults:
+
+1. **Firewall:** default-deny inbound. Allow 80/443 plus ports that specific services need (e.g. WireGuard, Pi-hole DNS on the LAN). `mylab-agent` generates a readable **nftables** ruleset file and reloads it (nftables is Debian 13's default, so no extra dependency).
+2. **Admin UI is LAN/VPN-only by default.** Public access requires explicit opt-in **and** mandatory 2FA. Rationale: the UI controls the whole host and is the highest-value target.
+3. **SSH hardening:** key-only authentication, no password login, no root login. Applied by the installer with a warning and confirmation to avoid lockout. The user can opt out, but **the UI shows a persistent warning** while hardening is disabled.
+4. **Intrusion protection: CrowdSec**, enabled automatically once any service is public. It uses a Caddy module ("bouncer") to block at the proxy, and scenarios for Caddy and SSH logs. Not run on fully private labs (little benefit, saves resources).
+   - **fail2ban is not run alongside it.** CrowdSec covers the same local log-parsing and banning, and running both would mean duplicate bans, two configs, and two tools changing the firewall.
+   - **Signal sharing: on by default, opt-out.** Opting out is a **prominent choice during install** (and can be changed later in the UI). Only attack data is shared (attacker IPs, attack types, timestamps), nothing about the user's own users or data.
+   - **If the user opts out:** local detection and banning keep working fully, like fail2ban but with better parsers and blocking at the proxy. They lose the community blocklist, i.e. pre-emptive blocking of IPs already seen attacking others. Rule and parser updates from the CrowdSec Hub are separate and still work.
+5. **Baseline:** automatic security updates (§3.2), Caddy rate limiting on login pages, secrets in files readable only by MyLab (0600), and container images only from trusted registries, pinned to specific versions.
+
+## 7. Updates — Locked
+
+- **Default:** notify when updates are available; user applies them manually.
+- **Per-service opt-in:** automatic updates for all versions, or only minor/patch versions.
+- MyLab self-update: patch releases automatic; minor/major notify (see §3.2).
+
+## 8. Service Definitions & Catalog — Locked (principle)
+
+- The service definition format is user-facing from early on (custom services is a nice-to-have).
+- Breaking changes to the format are acceptable before 1.0.
+- **Official packages are curated and opinionated.** Upstream `docker-compose.yml` files are a starting reference, not something we import directly. Each official package includes MyLab-specific configuration so it runs production-ready in the MyLab ecosystem:
+  - automatic TLS / reverse proxy wiring
+  - backup definitions (what data to back up, how to quiesce it)
+  - use of MyLab-managed shared resources (e.g. common databases)
+  - standard storage locations
+- **Rationale:** Upstream compose files are rarely production-ready as a one-click install. Being opinionated is what makes one-click install and management reliable for less technical users.
+
+### 8.1 Format — Locked (initial; may be revisited)
+
+- **Two file kinds:**
+  - **Package** (`catalog/<name>/package.yaml`): authored by MyLab or the community. Describes how to run the app well: containers, settings, storage, databases, routes, health checks.
+  - **Instance** (`/var/lib/mylab/services/<name>.yaml`): the user's choices (package version, subdomain, exposure, setting values, update policy). This is part of desired state.
+- MyLab combines package + instance and **generates** Quadlets, Caddy site snippets, and backup jobs.
+- **Our own YAML schema** (`schema: mylab/v1alpha1`) models what MyLab needs to understand, with a **raw Quadlet passthrough** for unusual needs.
+  - Rejected: packages shipping Quadlet templates plus a manifest. Every package would do things differently, and MyLab couldn't reason about them as well.
+- **Backups are declared, not scripted:** `databases` entries (`sqlite`, `postgres`, …) and `storage` classes (`critical` / `replaceable`) drive MyLab's standard backup methods.
+- **Secrets** are declared (optionally `generate: true`) and delivered as Podman secrets, so they never appear in generated unit files.
+- **Images are pinned** by tag + digest.
+- **Templating:** Go templates (e.g. `{{ .Routes.web.Host }}`, `{{ .Settings.x }}`).
+- **Versioning:** `<upstream version>-mylab.<package revision>`.
+- **Additional schema features** (from the Immich stress test):
+  - **`when:` conditions** on containers and devices, for optional components (e.g. Immich machine learning), so disabled features don't use RAM.
+  - **`devices:`** as abstract requests (e.g. `gpu: intel`) that MyLab maps to device paths and groups (rootless `/dev/dri` needs `keep-groups`).
+  - **`depends_on:`**, which becomes systemd ordering (`After=`/`Requires=`).
+  - **Route options** at the Caddy level (e.g. `max_body_size`; more expected: timeouts, websockets).
+  - **Storage `location:`** (e.g. `media` → the large data disk) and **per-directory storage classes**, so regenerable data (thumbnails, transcodes, caches) is excluded from backups.
+  - **Database `image` override** for custom builds (e.g. Immich's Postgres), still following the standard database pattern; **`backup: false`** for transient stores (e.g. Redis job queues).
+- **Future:** storage shared between services (e.g. Jellyfin reading Immich's library, read-only); package upgrade notes and migration steps for upstream breaking changes.
+- **Reference examples:** `docs/examples/vaultwarden.yaml` (simple), `docs/examples/immich.yaml` (complex).
+
+## 9. MVP Scope — Locked
+
+Single node: web UI, reverse proxy with automatic TLS, three catalog services (e.g. Vaultwarden, Forgejo, Immich — increasing complexity), backup and restore. Master/worker, SSO, DNS, and monitoring follow after the core is solid, but the design should anticipate master/worker.
+
+---
+
+## Deferred Decisions (post-MVP)
+
+- SSO platform, and whether it is mandatory (linked to unifying MyLab and service accounts, §5)
+- Default DNS manager (e.g. Pi-hole) and split-horizon DNS
+- Built-in uptime monitoring
+- Remote access / remote support for the person who set up the lab
+- Master/worker protocol
+- MyLab Cloud design (§4)
+- Shared storage between services (§8.1)
