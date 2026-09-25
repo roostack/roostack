@@ -15,7 +15,7 @@ Description=MyLab immich: database cache (redis)
 
 [Container]
 ContainerName=mylab-immich-db-cache
-Image=docker.io/valkey/valkey:8-alpine
+Image=docker.io/valkey/valkey:8-alpine@sha256:081c2f5cb575efc901aa80ff9cdbd1ec6a301682fd35e1ebb4b0990a4a4a8507
 Network=mylab-immich.network
 HealthCmd=valkey-cli ping || redis-cli ping
 HealthInterval=10s
@@ -39,7 +39,7 @@ Description=MyLab immich: database main (postgres)
 
 [Container]
 ContainerName=mylab-immich-db-main
-Image=ghcr.io/immich-app/postgres:14-vectorchord0.4.3@sha256:TODO
+Image=ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
 Network=mylab-immich.network
 Environment=POSTGRES_USER=immich
 Environment=POSTGRES_DB=immich
@@ -69,7 +69,7 @@ Description=MyLab immich: machine-learning
 
 [Container]
 ContainerName=mylab-immich-machine-learning
-Image=ghcr.io/immich-app/immich-machine-learning:v2.1.0@sha256:TODO
+Image=ghcr.io/immich-app/immich-machine-learning:v2.1.0@sha256:24bfef29bc5c0923c64c98810931eda1449a4b237e6704a715605761bc107ae4
 Network=mylab-immich.network
 Volume=/srv/mylab/services/immich/model-cache:/cache
 Label=io.mylab.service=immich
@@ -94,7 +94,7 @@ After=mylab-immich-db-cache.service
 
 [Container]
 ContainerName=mylab-immich-server
-Image=ghcr.io/immich-app/immich-server:v2.1.0@sha256:TODO
+Image=ghcr.io/immich-app/immich-server:v2.1.0@sha256:72a9b9de6c6abfa7a9c9cdc244ae4d2bd9fea2ae00997f194cbd10aca72ea210
 Network=mylab-immich.network
 Network=mylab-proxy.network
 Environment=DB_DATABASE_NAME=immich

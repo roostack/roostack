@@ -1,0 +1,16 @@
+[Unit]
+Description=MyLab agent (privileged helper)
+Documentation=file:///usr/share/doc/mylab/ARCHITECTURE.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/mylab-agent
+Restart=on-failure
+# The agent needs root for sysctl and nftables, but nothing in /home.
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,30 @@
+[Unit]
+Description=MyLab management service
+Documentation=file:///usr/share/doc/mylab/ARCHITECTURE.md
+After=network-online.target mylab-agent.service user@@MYLAB_UID@.service
+Wants=network-online.target mylab-agent.service
+Requires=user@@MYLAB_UID@.service
+
+[Service]
+User=mylab
+Group=mylab
+# @MYLAB_UID@ is replaced by the installer: systemd specifiers can't give
+# the UID of User= in a system unit.
+Environment=XDG_RUNTIME_DIR=/run/user/@MYLAB_UID@
+ExecStart=/usr/local/bin/mylab serve
+Restart=on-failure
+
+# Sandboxing (SPEC.md §6.1).
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mylab /srv/mylab /run/user/@MYLAB_UID@
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+# NoNewPrivileges=yes is NOT set: rootless podman runs the setuid helpers
+# newuidmap/newgidmap, which NoNewPrivileges disables. See
+# docs/ASSUMPTIONS.md A8 for options.
+
+[Install]
+WantedBy=multi-user.target

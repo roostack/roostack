@@ -15,6 +15,8 @@ Status: **Unverified** until checked on Debian 13. Items marked ⚠️ could for
 | A5 | Debian uses AppArmor, not SELinux, so bind mounts need no `:z`/`:Z` relabel options. (Fedora support would need these.) | `internal/generate` |
 | A6 | Podman 5.4 Quadlet supports `Notify=healthy`, so `After=` a database unit waits until the database passes its health check. | database units |
 | A7 | `GroupAdd=keep-groups` + `AddDevice=/dev/dri` gives rootless containers Intel GPU access if `mylab` is in the `render` and `video` groups (needs crun, Debian's default). | `devices: gpu` |
+| A8 ⚠️ | **`NoNewPrivileges=yes` can't be used on `mylab.service`.** Rootless Podman calls the setuid helpers `newuidmap`/`newgidmap`, which NoNewPrivileges disables. SPEC §6.1 listed it as planned sandboxing. Options: (a) drop it (current unit file); (b) have `mylab` never run `podman` directly, only `systemctl --user` and `systemd-run --user` (the user manager runs podman outside the sandbox); (c) give the helpers file capabilities instead of setuid. (b) is the cleanest, but `podman secret create` and `podman exec` (backups) would need to go through the user manager. | `packaging/systemd/mylab.service` |
+| A9 | System users get no `/etc/subuid` range from `useradd --system`; the installer adds `200000-265535` explicitly. | `scripts/dev-install.sh` |
 
 ## B. UID mapping & storage
 
@@ -33,13 +35,16 @@ Status: **Unverified** until checked on Debian 13. Items marked ⚠️ could for
 | C2 | A shared `mylab-proxy` network is joined by Caddy and by every container that has a route. Caddy reaches services by container name. |
 | C3 | Caddy publishes 80/443 rootless once `net.ipv4.ip_unprivileged_port_start=80` is set (by `mylab-agent`). |
 | C4 ⚠️ | **Rootless port forwarding (pasta, Podman 5 default) preserves the client's real source IP.** The "private" route check (`remote_ip`) and CrowdSec both depend on this. If it's wrong, every request looks like it comes from an internal address and **private routes become reachable from the internet**. Must be verified before anything is made public. |
-| C5 | "Private" means RFC1918 + loopback + IPv6 ULA/link-local + `100.64.0.0/10` (Tailscale/CGNAT). The CGNAT range can include ISP addresses on some connections; revisit when remote access is designed. |
+| C5 | "Private" means Caddy's `private_ranges` (RFC1918, loopback, `fd00::/8`) + `100.64.0.0/10` (Tailscale/CGNAT). The CGNAT range can include ISP addresses on some connections; revisit when remote access is designed. The firewall's LAN set also includes `fc00::/7` and `fe80::/10`. |
+| C6 | Caddy reaches the `mylab` UI on the host at `host.containers.internal:8480`. With pasta this may need `mylab` to listen on a non-loopback address; the firewall then keeps 8480 closed to the network (only 22/80/443 are open). |
+| C7 | Containers resolve each other by container name on the shared `mylab-proxy` network (Caddy → `mylab-<svc>-<container>`). |
+| C8 | Changing a `.network` file and restarting its unit doesn't recreate an existing network. Rare, but the reconciler may need to remove the network first. |
 
 ## D. TLS / Caddy
 
 | # | Assumption |
 |---|---|
-| D1 | One wildcard site block (`*.domain`) with a `host` matcher per route, so every route shares the wildcard certificate. Site snippets are imported from `sites/*.caddy`. |
+| D1 ✅ | One wildcard site block (`*.domain`) with a `host` matcher per route, so every route shares the wildcard certificate. Site snippets are imported from `sites/*.caddy`. **Verified with `caddy adapt` (Caddy 2.11.4 + Cloudflare plugin):** routes are mutually exclusive, the catch-all is last, the wildcard is issued via DNS-01, and an empty or missing `sites/` directory is only a warning. (Syntax only; certificate issuance still needs a real test.) |
 | D2 | DNS-01 provider config differs per provider; v1 code supports Cloudflare, plus a raw override directive for anything else. The MyLab Caddy image (with plugins) isn't built yet. |
 
 ## E. Secrets
@@ -60,6 +65,20 @@ Status: **Unverified** until checked on Debian 13. Items marked ⚠️ could for
 | # | Concern |
 |---|---|
 | G1 | `default: auto` (Immich hardware acceleration) currently means "true if the host has any GPU". It may need a more specific rule, e.g. `auto: gpu.intel`. |
+
+## I. Databases
+
+| # | Assumption / concern |
+|---|---|
+| I1 | Postgres data is mounted at `/var/lib/postgresql/data`. The official Postgres 18+ images changed this layout (`/var/lib/postgresql/<major>/docker`), so the path will need to depend on the image/version. |
+| I2 | Postgres reads its password from a Podman secret mounted as a file (`POSTGRES_PASSWORD_FILE`); the app gets the same secret as an env var. Assumes the default secret mount mode is readable by the Postgres user in the container. |
+
+## J. Firewall
+
+| # | Assumption / concern |
+|---|---|
+| J1 ⚠️ | SSH defaults to **LAN-only**. On a VPS that would lock the user out. The installer must ask (or detect) before applying the firewall. |
+| J2 | MyLab's `inet mylab` table drops anything it doesn't accept, even if other tables accept it. Ruleset verified with `nft -c` and applied twice in a network namespace. Not yet tested alongside Podman/pasta on a real host. |
 
 ## H. Dependencies chosen without discussion
 
