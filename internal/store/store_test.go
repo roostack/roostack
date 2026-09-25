@@ -85,6 +85,25 @@ func TestAuditAndBackup(t *testing.T) {
 	}
 }
 
+func TestTOTPSteps(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	id, _ := s.CreateUser(ctx, User{Username: "tyris", PasswordHash: "h", Role: "owner"})
+	if err := s.SetTOTP(ctx, id, "SECRET", 100); err != nil {
+		t.Fatal(err)
+	}
+	u, _ := s.UserByID(ctx, id)
+	if u.TOTPSecret != "SECRET" || u.TOTPLastStep != 100 {
+		t.Errorf("got %+v", u)
+	}
+	if ok, _ := s.UseTOTPStep(ctx, id, 100); ok {
+		t.Error("the same step must not be usable twice")
+	}
+	if ok, _ := s.UseTOTPStep(ctx, id, 101); !ok {
+		t.Error("a newer step should be accepted")
+	}
+}
+
 func TestFilePermissions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mylab.db")
 	s, err := Open(path)

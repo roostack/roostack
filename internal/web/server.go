@@ -30,6 +30,11 @@ var staticFS embed.FS
 const (
 	sessionCookie   = "mylab_session"
 	sessionDuration = 7 * 24 * time.Hour
+	// pendingCookie links the password step of a login to the 2FA step.
+	pendingCookie   = "mylab_pending"
+	pendingDuration = 5 * time.Minute
+	// maxTOTPAttempts before the password must be entered again.
+	maxTOTPAttempts = 5
 	// failedLoginDelay slows down password guessing. Caddy rate limiting is
 	// the main defence (SPEC.md §6.10).
 	failedLoginDelay = 500 * time.Millisecond
@@ -60,13 +65,25 @@ type Server struct {
 	// delete the token file).
 	OnSetupComplete func()
 
+	// pending holds logins that passed the password check and are waiting
+	// for a 2FA code, keyed by token hash. In memory: a restart just means
+	// logging in again.
+	pending map[string]*pendingLogin
+
 	pages map[string]*template.Template
+}
+
+type pendingLogin struct {
+	userID   int64
+	expires  time.Time
+	attempts int
 }
 
 // NewServer prepares templates. setupToken is empty if users already exist.
 func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, error), setupToken string, log *slog.Logger) (*Server, error) {
-	s := &Server{Store: st, Services: services, Log: log, setupToken: setupToken, pages: map[string]*template.Template{}}
-	for _, page := range []string{"login", "setup", "dashboard"} {
+	s := &Server{Store: st, Services: services, Log: log, setupToken: setupToken,
+		pending: map[string]*pendingLogin{}, pages: map[string]*template.Template{}}
+	for _, page := range []string{"login", "totp", "setup", "dashboard", "twofactor"} {
 		t, err := template.New("layout.html").ParseFS(templateFS, "templates/layout.html", "templates/"+page+".html")
 		if err != nil {
 			return nil, err
@@ -86,7 +103,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /setup", s.setupSubmit)
 	mux.HandleFunc("GET /login", s.loginPage)
 	mux.HandleFunc("POST /login", s.loginSubmit)
+	mux.HandleFunc("POST /login/totp", s.loginTOTP)
 	mux.HandleFunc("POST /logout", s.logout)
+
+	mux.Handle("GET /account/2fa", s.requireLogin(s.twoFactorPage))
+	mux.Handle("POST /account/2fa", s.requireLogin(s.twoFactorSubmit))
 
 	mux.Handle("GET /{$}", s.require(auth.ViewDashboard, s.dashboard))
 	mux.Handle("GET /partials/services", s.require(auth.ViewDashboard, s.servicesPartial))
@@ -118,16 +139,28 @@ func (s *Server) loadSession(next http.Handler) http.Handler {
 	})
 }
 
-// require checks the user is logged in and has a permission.
-func (s *Server) require(p auth.Permission, h http.HandlerFunc) http.Handler {
+// requireLogin checks the user is logged in.
+func (s *Server) requireLogin(h http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.needsSetup() {
 			http.Redirect(w, r, "/setup", http.StatusSeeOther)
 			return
 		}
-		u := currentUser(r)
-		if u == nil {
+		if currentUser(r) == nil {
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		h(w, r)
+	})
+}
+
+// require checks the user is logged in and has a permission. Owners must
+// set up two-factor authentication before doing anything else (SPEC.md §5).
+func (s *Server) require(p auth.Permission, h http.HandlerFunc) http.Handler {
+	return s.requireLogin(func(w http.ResponseWriter, r *http.Request) {
+		u := currentUser(r)
+		if u.Role == auth.RoleOwner && u.TOTPSecret == "" {
+			http.Redirect(w, r, "/account/2fa", http.StatusSeeOther)
 			return
 		}
 		if !auth.Can(u.Role, p) {

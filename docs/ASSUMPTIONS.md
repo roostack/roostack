@@ -86,7 +86,7 @@ Status: **Unverified** until checked on Debian 13. Items marked ⚠️ could for
 |---|---|
 | K1 | Alpine.js's standard build needs `'unsafe-eval'` in the Content-Security-Policy. Its CSP build avoids that but supports fewer expressions. Revisit once the UI uses Alpine more. |
 | K2 | The UI listens on all interfaces (`:8480`) so Caddy can reach it via `host.containers.internal` (C6). It relies on the firewall to keep 8480 off the network. Binding to a specific address may be possible once C6 is verified. |
-| K3 ⚠️ | **TOTP 2FA isn't implemented yet**, although SPEC §5 requires it for Owners. The `totp_secret` column exists. |
+| K3 | TOTP 2FA is implemented (RFC 6238, standard library only; replay-protected; 5 wrong codes means entering the password again). Owners are forced to enroll; others get a reminder. **No QR code yet**: enrollment shows the key and an `otpauth://` link, since a QR library would be another dependency. Pending 2FA logins live in memory, so a restart means logging in again. There are no recovery codes yet: a lost phone means `mylab user reset-password` plus an Owner-side 2FA reset, which doesn't exist yet. |
 | K4 | Failed logins only get a 500 ms delay; real rate limiting is expected from Caddy (SPEC §6.10) and isn't configured yet. |
 | K5 | First-run setup requires a one-time setup code (logged, and saved to `/var/lib/mylab/setup-token` with mode 0600), so whoever reaches the UI first on the network can't claim the Owner account. Not in SPEC yet. |
 | K6 | `mylab user add/reset-password` print a random temporary password instead of prompting, to avoid a terminal dependency. Users can't change their password in the UI yet. |

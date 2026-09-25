@@ -1,0 +1,28 @@
+{{define "title"}}Two-factor authentication{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <h1>Two-factor authentication</h1>
+  {{if .Enabled}}
+  <p>Two-factor authentication is <strong>on</strong> for your account.</p>
+  <p><a href="/">Back to your services</a></p>
+  {{else}}
+  {{if .Required}}<p>As the Owner, you need to turn on two-factor authentication before continuing. It protects the lab if your password is ever stolen.</p>{{end}}
+  <ol class="steps">
+    <li>Install an authenticator app on your phone, such as Aegis, 2FAS, Google Authenticator or your password manager.</li>
+    <li>Add a new account and enter this key:
+      <code class="secret">{{.SecretFmt}}</code>
+      <small>On a device with an authenticator app, you can <a href="{{.URL}}">open this link</a> instead.</small>
+    </li>
+    <li>Enter the 6-digit code the app shows.</li>
+  </ol>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  <form method="post" action="/account/2fa">
+    <input type="hidden" name="secret" value="{{.Secret}}">
+    <label>Code
+      <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required autofocus>
+    </label>
+    <button type="submit">Turn on</button>
+  </form>
+  {{end}}
+</section>
+{{end}}

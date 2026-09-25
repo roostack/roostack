@@ -98,10 +98,11 @@ Templates use Go `text/template` syntax with these values:
 
 - **First run:** creating the Owner needs a one-time setup code, printed in the log and saved to `/var/lib/mylab/setup-token`.
 - **Sessions:** random tokens in an `HttpOnly`, `SameSite=Lax` cookie. Only a SHA-256 hash is stored.
+- **Two-factor (TOTP):** Owners must enroll before using the UI. A login with 2FA first passes the password, then the code (`/login/totp`). Each code works once.
 - **CSRF:** every non-GET request must carry an `Origin` header matching the host.
 - **Headers:** a strict Content-Security-Policy, `nosniff`, and no framing.
 - **Roles** are checked per route (`auth.Can`).
 
 ## Not built yet
 
-TOTP 2FA, managing services and users from the UI, backups, the maintenance coordinator, host OS updates, packaging (.deb). See [TASKS.md](TASKS.md).
+2FA QR codes and recovery codes, managing services and users from the UI, backups, the maintenance coordinator, host OS updates, packaging (.deb). See [TASKS.md](TASKS.md).
