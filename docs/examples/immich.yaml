@@ -27,6 +27,7 @@ containers:
       DB_DATABASE_NAME: "{{ .Databases.main.Name }}"
       REDIS_HOSTNAME: "{{ .Databases.cache.Host }}"
       IMMICH_MACHINE_LEARNING_ENABLED: "{{ .Settings.machine_learning }}"
+      IMMICH_MACHINE_LEARNING_URL: 'http://{{ (index .Containers "machine-learning").Host }}:3003'
     secrets:
       DB_PASSWORD: databases.main.password   # created by MyLab
     mounts:

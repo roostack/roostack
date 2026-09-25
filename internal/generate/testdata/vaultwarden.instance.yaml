@@ -1,0 +1,7 @@
+package: vaultwarden
+version: 1.34.3-mylab.1
+routes:
+  web: { subdomain: passwords }
+settings:
+  signups_allowed: false
+updates: minor
