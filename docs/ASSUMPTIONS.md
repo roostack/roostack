@@ -80,6 +80,17 @@ Status: **Unverified** until checked on Debian 13. Items marked ⚠️ could for
 | J1 ⚠️ | SSH defaults to **LAN-only**. On a VPS that would lock the user out. The installer must ask (or detect) before applying the firewall. |
 | J2 | MyLab's `inet mylab` table drops anything it doesn't accept, even if other tables accept it. Ruleset verified with `nft -c` and applied twice in a network namespace. Not yet tested alongside Podman/pasta on a real host. |
 
+## K. Web UI
+
+| # | Assumption / concern |
+|---|---|
+| K1 | Alpine.js's standard build needs `'unsafe-eval'` in the Content-Security-Policy. Its CSP build avoids that but supports fewer expressions. Revisit once the UI uses Alpine more. |
+| K2 | The UI listens on all interfaces (`:8480`) so Caddy can reach it via `host.containers.internal` (C6). It relies on the firewall to keep 8480 off the network. Binding to a specific address may be possible once C6 is verified. |
+| K3 ⚠️ | **TOTP 2FA isn't implemented yet**, although SPEC §5 requires it for Owners. The `totp_secret` column exists. |
+| K4 | Failed logins only get a 500 ms delay; real rate limiting is expected from Caddy (SPEC §6.10) and isn't configured yet. |
+| K5 | First-run setup requires a one-time setup code (logged, and saved to `/var/lib/mylab/setup-token` with mode 0600), so whoever reaches the UI first on the network can't claim the Owner account. Not in SPEC yet. |
+| K6 | `mylab user add/reset-password` print a random temporary password instead of prompting, to avoid a terminal dependency. Users can't change their password in the UI yet. |
+
 ## H. Dependencies chosen without discussion
 
 Per PLAN.md, dependencies should be chosen collaboratively. These were picked overnight to keep moving and are open for review:
@@ -87,5 +98,8 @@ Per PLAN.md, dependencies should be chosen collaboratively. These were picked ov
 | Dependency | Why | Alternative |
 |---|---|---|
 | `go.yaml.in/yaml/v3` | The maintained continuation of `gopkg.in/yaml.v3` (now archived); same API | `sigs.k8s.io/yaml` |
+| `modernc.org/sqlite` | Pure Go SQLite, so the binary stays static with no C toolchain. Large (it's a C-to-Go translation) | `github.com/ncruces/go-sqlite3` (WASM-based, also pure Go); `mattn/go-sqlite3` (needs cgo) |
+| `golang.org/x/crypto` | argon2id password hashing (SPEC §5). Maintained by the Go team | none realistic |
+| htmx 2.0.11, Alpine.js 3.17.4 | Already agreed (SPEC §6.3); vendored into `internal/web/static` with checksums | — |
 
 Everything else so far uses the standard library. systemd is driven via `systemctl` (not D-Bus) to avoid a dependency and keep behaviour transparent; revisit if it proves slow or fragile.

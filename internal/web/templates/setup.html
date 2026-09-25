@@ -1,0 +1,26 @@
+{{define "title"}}Welcome{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <h1>Welcome to MyLab</h1>
+  <p>Create the <strong>Owner</strong> account. The Owner can change every setting, including host updates, backups and other accounts.</p>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  <form method="post" action="/setup" x-data="{ pw: '', confirm: '' }">
+    <label>Setup code
+      <input name="token" autocomplete="off" required autofocus>
+      <small>Shown in the MyLab log, and saved in <code>/var/lib/mylab/setup-token</code>.</small>
+    </label>
+    <label>Username
+      <input name="username" value="{{.Username}}" autocomplete="username" required>
+    </label>
+    <label>Password
+      <input name="password" type="password" x-model="pw" autocomplete="new-password" required minlength="12">
+      <small>At least 12 characters. A few random words works well.</small>
+    </label>
+    <label>Confirm password
+      <input name="confirm" type="password" x-model="confirm" autocomplete="new-password" required>
+      <small class="error" x-show="confirm && pw !== confirm" x-cloak>The passwords don't match.</small>
+    </label>
+    <button type="submit">Create account</button>
+  </form>
+</section>
+{{end}}

@@ -59,7 +59,6 @@ sed "s/@MYLAB_UID@/$MYLAB_UID/g" "$REPO/packaging/systemd/mylab.service" \
     > /etc/systemd/system/mylab.service
 systemctl daemon-reload
 systemctl enable --now mylab-agent.service
-# mylab.service needs `mylab serve`, which doesn't exist yet (TASKS 1.9).
 
 step "Building the MyLab Caddy image (as mylab)"
 tmp=$(mktemp -d)
@@ -69,10 +68,17 @@ sudo -u mylab XDG_RUNTIME_DIR="/run/user/$MYLAB_UID" \
     podman build -t mylab-caddy "$tmp"
 rm -rf "$tmp"
 
+step "Starting the web UI"
+systemctl enable --now mylab.service
+
 cat <<EOF
 
 Done. Next steps:
-  1. Edit /var/lib/mylab/lab.yaml (domain, email, DNS provider).
+  0. Open http://<vm-ip>:8480 and create the Owner account with the setup
+     code from: sudo cat /var/lib/mylab/setup-token
+     (The firewall isn't applied by this script, so 8480 is reachable.)
+  1. Edit /var/lib/mylab/lab.yaml (domain, email, DNS provider), then
+     restart the UI: sudo systemctl restart mylab
   2. Install a service by creating /var/lib/mylab/services/<name>.yaml, e.g.:
        printf 'package: vaultwarden\nversion: 1.34.3-mylab.1\n' \\
          | sudo -u mylab tee /var/lib/mylab/services/vaultwarden.yaml

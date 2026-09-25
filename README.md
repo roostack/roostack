@@ -54,6 +54,8 @@ bin/mylab render -lab docs/examples/lab.yaml \
   -instance internal/generate/testdata/immich.instance.yaml
 ```
 
+Run the web UI locally against a throwaway state directory: point `paths` in a copy of `docs/examples/lab.yaml` at a temp dir and run `bin/mylab serve -lab <file> -listen 127.0.0.1:8480`.
+
 To try it on a Debian 13 VM, see [scripts/dev-install.sh](scripts/dev-install.sh) (development only, not the real installer).
 
 ## Project documents

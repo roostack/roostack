@@ -17,7 +17,9 @@ import (
 const usage = `Usage: mylab <command> [flags]
 
 Commands:
+  serve    Run the web UI
   apply    Make the host match desired state (use --dry-run to preview)
+  user     Add a user or reset a password
   render   Show or write the files generated for a service (no side effects)
   validate Check a package file
 
@@ -31,8 +33,12 @@ func main() {
 	}
 	var err error
 	switch cmd, args := os.Args[1], os.Args[2:]; cmd {
+	case "serve":
+		err = serve(args)
 	case "apply":
 		err = apply(args)
+	case "user":
+		err = user(args)
 	case "render":
 		err = render(args)
 	case "validate":
