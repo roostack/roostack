@@ -116,6 +116,7 @@ MyLab runs **directly on the host** (not in a container), as two processes shipp
 - Workers (master/worker) run the same package in worker mode.
 - MyLab updates itself through apt, alongside host OS updates (§3.2).
 - `mylab` is hardened with systemd sandboxing (`ProtectSystem`, `ProtectHome`, `NoNewPrivileges`, `PrivateTmp`, system call filtering, limited writable paths) to get most of a container's isolation.
+- **`mylab` never runs `podman` directly — Locked (2026-09-26).** Rootless Podman needs the setuid `newuidmap`/`newgidmap` helpers, which `NoNewPrivileges` disables. So `mylab` only talks to the `mylab` user's systemd manager (`systemctl --user`, `systemd-run --user`), which runs Podman outside the sandbox. One-off commands (creating secrets, database dumps, `podman unshare` for backups) go through `systemd-run --user`.
 - **Rationale:**
   - Keeps root code small and easy to review; privileged operations are explicit, not implied by broad socket access.
   - Podman/Quadlets rely on host systemd for lifecycle, so a containerised manager would need root-equivalent host access anyway.

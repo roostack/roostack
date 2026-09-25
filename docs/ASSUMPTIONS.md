@@ -15,7 +15,7 @@ Status: **Unverified** until checked on Debian 13. Items marked ⚠️ could for
 | A5 | Debian uses AppArmor, not SELinux, so bind mounts need no `:z`/`:Z` relabel options. (Fedora support would need these.) | `internal/generate` |
 | A6 | Podman 5.4 Quadlet supports `Notify=healthy`, so `After=` a database unit waits until the database passes its health check. | database units |
 | A7 | `GroupAdd=keep-groups` + `AddDevice=/dev/dri` gives rootless containers Intel GPU access if `mylab` is in the `render` and `video` groups (needs crun, Debian's default). | `devices: gpu` |
-| A8 ⚠️ | **`NoNewPrivileges=yes` can't be used on `mylab.service`.** Rootless Podman calls the setuid helpers `newuidmap`/`newgidmap`, which NoNewPrivileges disables. SPEC §6.1 listed it as planned sandboxing. Options: (a) drop it (current unit file); (b) have `mylab` never run `podman` directly, only `systemctl --user` and `systemd-run --user` (the user manager runs podman outside the sandbox); (c) give the helpers file capabilities instead of setuid. (b) is the cleanest, but `podman secret create` and `podman exec` (backups) would need to go through the user manager. | `packaging/systemd/mylab.service` |
+| A8 ✅ decided | **Decided (option b, SPEC §6.1):** `mylab` never runs podman directly, only `systemctl --user` / `systemd-run --user`. Background: **`NoNewPrivileges=yes` can't be used on `mylab.service`** Rootless Podman calls the setuid helpers `newuidmap`/`newgidmap`, which NoNewPrivileges disables. SPEC §6.1 listed it as planned sandboxing. Options: (a) drop it (current unit file); (b) have `mylab` never run `podman` directly, only `systemctl --user` and `systemd-run --user` (the user manager runs podman outside the sandbox); (c) give the helpers file capabilities instead of setuid. (b) is the cleanest, but `podman secret create` and `podman exec` (backups) would need to go through the user manager. | `packaging/systemd/mylab.service` |
 | A9 | System users get no `/etc/subuid` range from `useradd --system`; the installer adds `200000-265535` explicitly. | `scripts/dev-install.sh` |
 
 ## B. UID mapping & storage
@@ -91,9 +91,9 @@ Status: **Unverified** until checked on Debian 13. Items marked ⚠️ could for
 | K5 | First-run setup requires a one-time setup code (logged, and saved to `/var/lib/mylab/setup-token` with mode 0600), so whoever reaches the UI first on the network can't claim the Owner account. Not in SPEC yet. |
 | K6 | `mylab user add/reset-password` print a random temporary password instead of prompting, to avoid a terminal dependency. Users can't change their password in the UI yet. |
 
-## H. Dependencies chosen without discussion
+## H. Dependencies
 
-Per PLAN.md, dependencies should be chosen collaboratively. These were picked overnight to keep moving and are open for review:
+Picked overnight to keep moving; **approved by the user on 2026-09-26.**
 
 | Dependency | Why | Alternative |
 |---|---|---|

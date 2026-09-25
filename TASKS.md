@@ -28,7 +28,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] **1.2 Verify assumptions on Debian 13** (see `docs/ASSUMPTIONS.md`; ⚠️ items first)
   - [ ] Run `scripts/dev-install.sh` and fix what breaks
   - [ ] ⚠️ C4: client source IP is preserved through rootless Caddy (pasta)
-  - [ ] ⚠️ A8: NoNewPrivileges vs rootless podman; decide how `mylab` runs podman
+  - [ ] A8 (decided: via `systemd-run --user`): route `podman secret` calls through the user manager and restore `NoNewPrivileges=yes`
   - [ ] B1/B2: UID mapping, reading data for backups via `podman unshare`
   - [ ] A7: Intel GPU (`/dev/dri`) passthrough with `keep-groups`
   - [ ] A1/A3: linger, boot start, `systemctl --user` from the `mylab` system unit
@@ -58,7 +58,5 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 ## To discuss with the user
 
-- Dependencies picked overnight (ASSUMPTIONS H): `go.yaml.in/yaml/v3`, `modernc.org/sqlite`, `golang.org/x/crypto`
-- A8: how `mylab` should run podman given the sandboxing conflict
 - K5: setup-code approach for first-run setup (add to SPEC?)
-- Go module path is a placeholder (`github.com/mylab/mylab`); where will the repo live?
+- Go module path is a placeholder (`github.com/mylab/mylab`); repo location not decided yet
