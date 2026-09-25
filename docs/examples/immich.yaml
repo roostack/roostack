@@ -1,6 +1,6 @@
 # Reference example: complex package (multiple containers, custom Postgres,
-# Redis, optional ML, GPU, large media). Illustrative only. Versions and
-# digests are placeholders. See SPEC.md §8.1.
+# Redis, optional ML, GPU, large media). Image digests looked up 2026-09-26.
+# See SPEC.md §8.1.
 schema: mylab/v1alpha1
 name: immich
 title: Immich
@@ -20,7 +20,7 @@ settings:
 
 containers:
   server:
-    image: ghcr.io/immich-app/immich-server:v2.1.0@sha256:TODO
+    image: ghcr.io/immich-app/immich-server:v2.1.0@sha256:72a9b9de6c6abfa7a9c9cdc244ae4d2bd9fea2ae00997f194cbd10aca72ea210
     env:
       DB_HOSTNAME: "{{ .Databases.main.Host }}"
       DB_USERNAME: "{{ .Databases.main.User }}"
@@ -43,7 +43,7 @@ containers:
 
   machine-learning:
     when: "{{ .Settings.machine_learning }}"
-    image: ghcr.io/immich-app/immich-machine-learning:v2.1.0@sha256:TODO
+    image: ghcr.io/immich-app/immich-machine-learning:v2.1.0@sha256:24bfef29bc5c0923c64c98810931eda1449a4b237e6704a715605761bc107ae4
     mounts:
       - { storage: model-cache, path: /cache }
     health:
@@ -65,7 +65,7 @@ storage:
 databases:
   main:
     type: postgres
-    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3@sha256:TODO
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
     quadlet:                     # raw Quadlet passthrough
       Container:
         ShmSize: 128m
