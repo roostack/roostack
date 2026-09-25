@@ -24,17 +24,18 @@
 
 Order changed on 2026-09-25: coding started before the Debian 13 prototype, based on the assumptions in `docs/ASSUMPTIONS.md`. Everything marked 🟡 is written and unit-tested, but **not yet run on Debian 13**.
 
-- [ ] **1.1 Test environment:** Debian 13 VM (or NUC) to prototype on
+- [x] **1.1 Test environment:** `scripts/dev-vm.sh` (Debian 13 under QEMU/KVM); `dev-install.sh` runs cleanly
 - [ ] **1.2 Verify assumptions on Debian 13** (see `docs/ASSUMPTIONS.md`; ⚠️ items first)
-  - [ ] Run `scripts/dev-install.sh` and fix what breaks
-  - [ ] ⚠️ C4: client source IP is preserved through rootless Caddy (pasta)
-  - [ ] A8 (decided: via `systemd-run --user`): route `podman secret` calls through the user manager and restore `NoNewPrivileges=yes`
-  - [ ] B1/B2: UID mapping, reading data for backups via `podman unshare`
+  - [x] Run `scripts/dev-install.sh` and fix what breaks
+  - [ ] ❌ C4 FAILED: client IP lost on bridge networks. **Approve the fix** (Caddy on host network, services on 127.0.0.1 ports), then implement
+  - [x] A8: podman via `systemd-run --user`; `NoNewPrivileges=yes` restored and verified
+  - [x] B1/B2: UID mapping; backups and restores via `podman unshare`
   - [ ] A7: Intel GPU (`/dev/dri`) passthrough with `keep-groups`
-  - [ ] A1/A3: linger, boot start, `systemctl --user` from the `mylab` system unit
-  - [ ] C3/C6: ports 80/443 rootless; Caddy → `host.containers.internal:8480`
-  - [ ] D1: real wildcard certificate via Cloudflare DNS-01
-  - [ ] Install Vaultwarden end-to-end with `mylab apply`
+  - [x] A1/A3: linger, `systemctl --user` from a system context (needs the D-Bus address too)
+  - [ ] A1: survives a reboot (not yet tested)
+  - [x] C3/C6: ports 80/443 rootless; Caddy → `host.containers.internal:8480`
+  - [ ] D1: real wildcard certificate via Cloudflare DNS-01 (needs a real domain and token)
+  - [x] Install Vaultwarden end-to-end with `mylab apply` (running; Caddy up)
 - [x] **1.3 Project skeleton:** git repo, Go module, central defaults (`internal/config`), README.md, ARCHITECTURE.md, Makefile
 - [x] **1.4 Package schema:** types, parsing, validation; both examples parse (`internal/pkgspec`, `internal/instance`)
 - [x] **1.5 Generator:** package + instance → Quadlets, Caddy snippet, secrets, dirs, backup plan; golden-file tests (`internal/generate`)
@@ -50,9 +51,16 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] 2FA: QR code, recovery codes, CLI reset of a user's 2FA
   - [ ] Install/remove services from the UI (writes instance files, runs the reconciler)
   - [ ] Collect user-provided secrets (DNS token) in the UI instead of env vars
-- [ ] **1.10 Backups:** restic interface, sqlite/postgres prepare, schedule, restore, recovery key
+- [ ] 🟡 **1.10 Backups**
+  - [x] restic wrapper (tested against real restic), recovery key, `mylab backup init|run|snapshots`
+  - [x] Prepare steps: SQLite copy (concurrent-write tested), Postgres dump (command tested; no Postgres service run yet)
+  - [x] Lab plan: state + Podman secrets included; images, live DBs, key excluded (verified on the VM)
+  - [ ] Nightly schedule through the coordinator; results in the UI
+  - [ ] Restore command (per service and full lab)
   - [ ] Measure restic RAM/time on a realistic photo/video dataset
-- [ ] **1.11 Maintenance coordinator + host OS updates**
+- [ ] 🟡 **1.11 Maintenance coordinator + host OS updates**
+  - [x] Coordinator: reboot policy, job chains, interrupt/resume (unit-tested)
+  - [ ] Wire into `mylab serve`; agent `reboot` and OS update operations; reboot-required detection
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow (`scripts/dev-install.sh` is a stand-in)
 - [ ] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)
 

@@ -71,9 +71,11 @@ func TestAuditAndBackup(t *testing.T) {
 		t.Errorf("audit: %+v %v", entries, err)
 	}
 
-	backup := filepath.Join(t.TempDir(), "copy.db")
-	if err := s.Backup(ctx, backup); err != nil {
-		t.Fatal(err)
+	backup := filepath.Join(t.TempDir(), "db-dump", "copy.db")
+	for i := 0; i < 2; i++ { // missing directory, then overwriting
+		if err := s.Backup(ctx, backup); err != nil {
+			t.Fatal(err)
+		}
 	}
 	copy, err := Open(backup)
 	if err != nil {

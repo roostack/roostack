@@ -15,7 +15,7 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | A5 | Debian uses AppArmor, not SELinux, so bind mounts need no `:z`/`:Z` relabel options. (Fedora support would need these.) | `internal/generate` |
 | A6 | Podman 5.4 Quadlet supports `Notify=healthy`, so `After=` a database unit waits until the database passes its health check. | database units |
 | A7 | `GroupAdd=keep-groups` + `AddDevice=/dev/dri` gives rootless containers Intel GPU access if `mylab` is in the `render` and `video` groups (needs crun, Debian's default). | `devices: gpu` |
-| A8 ✅ decided | **Decided (option b, SPEC §6.1):** `mylab` never runs podman directly, only `systemctl --user` / `systemd-run --user`. Background: **`NoNewPrivileges=yes` can't be used on `mylab.service`** Rootless Podman calls the setuid helpers `newuidmap`/`newgidmap`, which NoNewPrivileges disables. SPEC §6.1 listed it as planned sandboxing. Options: (a) drop it (current unit file); (b) have `mylab` never run `podman` directly, only `systemctl --user` and `systemd-run --user` (the user manager runs podman outside the sandbox); (c) give the helpers file capabilities instead of setuid. (b) is the cleanest, but `podman secret create` and `podman exec` (backups) would need to go through the user manager. | `packaging/systemd/mylab.service` |
+| A8 ✅ decided + verified | **Verified on the VM:** `mylab.service` runs with `NoNewPrivileges=yes`; `mylab apply` inside such a sandbox creates secrets via `systemd-run --user`. Direct podman under NoNewPrivileges is unreliable: `podman unshare` worked only because podman's pause process already held the namespace, while a fresh `podman run` failed. **Decided (option b, SPEC §6.1):** `mylab` never runs podman directly, only `systemctl --user` / `systemd-run --user`. Background: **`NoNewPrivileges=yes` can't be used on `mylab.service`** Rootless Podman calls the setuid helpers `newuidmap`/`newgidmap`, which NoNewPrivileges disables. SPEC §6.1 listed it as planned sandboxing. Options: (a) drop it (current unit file); (b) have `mylab` never run `podman` directly, only `systemctl --user` and `systemd-run --user` (the user manager runs podman outside the sandbox); (c) give the helpers file capabilities instead of setuid. (b) is the cleanest, but `podman secret create` and `podman exec` (backups) would need to go through the user manager. | `packaging/systemd/mylab.service` |
 | A9 ✅ | System users get no `/etc/subuid` range from `useradd --system`; the installer adds `200000-265535` explicitly. | `scripts/dev-install.sh` **Verified:** `mylab:200000:65536` added; rootless podman works. |
 
 ## B. UID mapping & storage
@@ -23,7 +23,7 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | # | Assumption |
 |---|---|
 | B1 ✅ | Root inside a rootless container = the `mylab` user on the host, so files written by container root appear owned by `mylab`. Files written by a non-root container user (e.g. Postgres uid 999) appear as `subuid_start + uid - 1` (e.g. `100998`). **Verified:** container root → uid 999 (`mylab`) on the host. |
-| B2 | Backups can read every file by running restic inside `podman unshare` as `mylab`. Restores must also go through `podman unshare` to keep ownership correct. |
+| B2 ✅ | Backups can read every file by running restic inside `podman unshare` as `mylab`. Restores must also go through `podman unshare` to keep ownership correct. **Verified:** restic runs via `systemd-run --user` + `podman unshare`; a restore inside `podman unshare` brought files back owned by `mylab` (uid 999), and the restored Vaultwarden database opened cleanly. Snapshot contents checked: live SQLite files, the backup key and container images excluded; dumps, state and Podman secrets included. |
 | B3 | `keep-id` is **not** used by default; it will be a per-container option once a package needs it. |
 | B4 | Bind-mounting subdirectories inside another bind mount (Immich `/data` + `/data/thumbs`) works; mounts are emitted parent-first. |
 
@@ -76,6 +76,10 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | L3 | The `mylab` user can't read its own user journal ("insufficient permissions"). To show service logs in the UI, `mylab` needs to be in `systemd-journal`, or logs must be read through the agent. |
 | L4 | Stopping a `systemd-run --user` unit that wraps `podman run` does **not** stop the container (conmon leaves the unit's cgroup). Quadlet handles this correctly; one-off commands via `systemd-run` should use `podman exec`/`unshare`, not `podman run`. |
 | L5 | The Cloudflare DNS plugin validates the token format when Caddy starts, so a bad token stops Caddy entirely, taking every service offline. The UI must validate the token before saving it. |
+| L7 | restic excludes a directory's contents even when a path inside it is listed explicitly. To keep only the Podman secrets out of the mylab home directory, the backup uses a chain of `*` / `!` patterns (`backup.excludeAllBut`). |
+| L8 | `VACUUM INTO` refuses to overwrite an existing file; the database copies go to a temporary file and are renamed. (Fixed.) |
+| L9 | Debian 13 ships restic 0.18.0 (tested on the VM); the wrapper's tests also pass with 0.19.1. |
+| L10 | A local backup repository (e.g. a second disk) must be added to `ReadWritePaths=` of `mylab.service` once backups run from the service rather than the CLI. |
 | L6 | Bridge-network ports go through Podman's `rootlessport` userspace proxy, which is why client IPs are lost (C4). |
 
 ## I. Databases

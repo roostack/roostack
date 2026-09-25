@@ -42,6 +42,11 @@ type Repo struct {
 	LimitUploadKiB int
 	// CacheDir is restic's local cache.
 	CacheDir string
+	// Launch builds the command to run. Nil runs restic directly. In
+	// production it runs restic via systemd-run --user inside podman
+	// unshare, so it can read files owned by container users
+	// (docs/ASSUMPTIONS.md B2). Launch must handle cancellation.
+	Launch func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd
 }
 
 // Retention is how many snapshots to keep (SPEC.md §6.9 defaults).
@@ -78,19 +83,28 @@ type Snapshot struct {
 }
 
 func (r *Repo) command(ctx context.Context, args ...string) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, r.Bin, args...)
-	cmd.Env = append(os.Environ(),
-		"RESTIC_REPOSITORY="+r.URL,
-		"RESTIC_PASSWORD_FILE="+r.PasswordFile,
+	env := []string{
+		"RESTIC_REPOSITORY=" + r.URL,
+		"RESTIC_PASSWORD_FILE=" + r.PasswordFile,
 		// Lower peak memory at a small CPU cost (SPEC.md §6.9).
 		"GOGC=20",
-	)
-	if r.CacheDir != "" {
-		cmd.Env = append(cmd.Env, "RESTIC_CACHE_DIR="+r.CacheDir)
 	}
-	cmd.Env = append(cmd.Env, r.Env...)
-	// On cancel, ask restic to stop cleanly (it removes its lock and the
-	// next run continues where it left off), then kill it if it hangs.
+	if r.CacheDir != "" {
+		env = append(env, "RESTIC_CACHE_DIR="+r.CacheDir)
+	}
+	env = append(env, r.Env...)
+	if r.Launch != nil {
+		return r.Launch(ctx, env, r.Bin, args...)
+	}
+	return DirectLaunch(ctx, env, r.Bin, args...)
+}
+
+// DirectLaunch runs a command as the current user. On cancel it sends
+// SIGINT so restic stops cleanly (removing its lock; the next run continues
+// where it left off), then kills it if it hangs.
+func DirectLaunch(ctx context.Context, env []string, name string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = append(os.Environ(), env...)
 	cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
 	cmd.WaitDelay = 30 * time.Second
 	return cmd

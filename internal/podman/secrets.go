@@ -6,8 +6,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
+	"os"
 	"strings"
+	"sync/atomic"
+
+	"github.com/mylab/mylab/internal/systemd"
 )
 
 // Secrets manages Podman secrets for the mylab user.
@@ -19,11 +22,16 @@ type Secrets struct {
 	Run func(ctx context.Context, stdin []byte, args ...string) ([]byte, error)
 }
 
-// NewSecrets returns a Secrets that runs podman for real.
+// NewSecrets returns a Secrets that runs podman through the mylab user's
+// systemd manager (systemd-run --user), so it works from mylab's sandbox
+// (SPEC.md §6.1).
 func NewSecrets() *Secrets { return &Secrets{Run: run} }
 
+var seq atomic.Int64
+
 func run(ctx context.Context, stdin []byte, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "podman", args...)
+	unit := fmt.Sprintf("mylab-podman-%d-%d", os.Getpid(), seq.Add(1))
+	cmd := systemd.UserCommand(ctx, unit, nil, "podman", args...)
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}

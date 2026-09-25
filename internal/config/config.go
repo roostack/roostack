@@ -72,6 +72,17 @@ type DNS struct {
 	Directive string `yaml:"directive,omitempty"`
 }
 
+// Backup configures the backup destination (SPEC.md §6.9).
+type Backup struct {
+	// Repository is a restic repository: a local path (e.g. a second disk)
+	// or a remote such as s3:... or sftp:... Empty disables backups.
+	Repository string `yaml:"repository"`
+	// Env holds backend credentials as KEY=value (e.g. for S3).
+	Env []string `yaml:"env,omitempty"`
+	// LimitUploadKiB caps upload speed; 0 is unlimited.
+	LimitUploadKiB int `yaml:"limit_upload_kib,omitempty"`
+}
+
 // Lab is the lab-wide configuration (/var/lib/mylab/lab.yaml).
 type Lab struct {
 	// Domain is the base domain; services live on subdomains of it.
@@ -81,7 +92,8 @@ type Lab struct {
 	DNS   DNS    `yaml:"dns"`
 	Paths Paths  `yaml:"paths"`
 	// UIPort is the host port of the mylab web UI.
-	UIPort int `yaml:"ui_port"`
+	UIPort int    `yaml:"ui_port"`
+	Backup Backup `yaml:"backup"`
 	// HasGPU is detected at runtime, not configured. It resolves settings
 	// with `default: auto` (docs/ASSUMPTIONS.md G1).
 	HasGPU bool `yaml:"-"`
