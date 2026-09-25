@@ -68,10 +68,15 @@ func (r Route) validate() error {
 	return nil
 }
 
-// dnsDirectives are the tls "dns" lines for known DNS-01 providers. Tokens
-// come from environment variables injected as Podman secrets.
+// DNSTokenEnv is the environment variable holding the DNS provider API token,
+// injected into the Caddy container from a Podman secret.
+const DNSTokenEnv = "DNS_API_TOKEN"
+
+// dnsDirectives are the tls "dns" lines for known DNS-01 providers. Providers
+// needing more than one credential must use a custom directive for now
+// (docs/ASSUMPTIONS.md D2).
 var dnsDirectives = map[string]string{
-	"cloudflare": "dns cloudflare {env.CLOUDFLARE_API_TOKEN}",
+	"cloudflare": "dns cloudflare {env." + DNSTokenEnv + "}",
 }
 
 // MainConfig is the input for the main Caddyfile.

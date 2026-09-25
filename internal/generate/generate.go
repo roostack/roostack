@@ -54,7 +54,9 @@ type Output struct {
 	Dirs []string
 	// Units are the systemd services to start. systemd orders them using
 	// the generated Requires=/After= dependencies.
-	Units  []string
+	Units []string
+	// Hosts are the hostnames this service's routes use.
+	Hosts  []string
 	Backup BackupPlan
 }
 
@@ -341,6 +343,7 @@ func (g *gen) caddySite() error {
 			return fmt.Errorf("routes.%s: container %q is disabled by its when: condition", name, r.Container)
 		}
 		rc := g.ctx.Routes[name]
+		g.out.Hosts = append(g.out.Hosts, rc.Host)
 		routes = append(routes, caddy.Route{
 			ID:          g.pkg.Name + "-" + name,
 			Host:        rc.Host,
