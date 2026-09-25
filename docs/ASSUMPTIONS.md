@@ -8,7 +8,7 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 
 | # | Assumption | Code that depends on it |
 |---|---|---|
-| A1 ✅ | A dedicated `mylab` system user runs all rootless services, with `loginctl enable-linger mylab` so its systemd user manager starts at boot. | `internal/config` (paths), reconciler **Verified:** linger starts the user manager at boot; units run under it. |
+| A1 ✅ | A dedicated `mylab` system user runs all rootless services, with `loginctl enable-linger mylab` so its systemd user manager starts at boot. | `internal/config` (paths), reconciler **Verified:** linger starts the user manager at boot; units run under it. **Survives a reboot:** after `systemctl reboot` with nobody logged in, mylab, mylab-agent, Caddy and Vaultwarden were all running again and the port sysctl was persisted. |
 | A2 | Quadlet files for that user go in `$HOME/.config/containers/systemd/`, with the `mylab` home set to `/var/lib/mylab/home` (kept separate from desired state). | `config.Paths.QuadletDir` |
 | A3 ✅ | The `mylab` daemon (a *system* unit running as `User=mylab`) can drive the user manager with `systemctl --user` if `XDG_RUNTIME_DIR=/run/user/<uid>` is set. | `internal/systemd` **Verified:** works with `XDG_RUNTIME_DIR` **and** `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus`; podman needs the latter for systemd cgroups outside a login session. |
 | A4 ✅ | Unit naming: `mylab-<svc>-<container>.container` → `mylab-<svc>-<container>.service`; `mylab-<svc>.network` → `mylab-<svc>-network.service`. | `internal/generate` **Verified:** `mylab-<svc>-network.service` etc. as expected. |

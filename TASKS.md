@@ -32,7 +32,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] B1/B2: UID mapping; backups and restores via `podman unshare`
   - [ ] A7: Intel GPU (`/dev/dri`) passthrough with `keep-groups`
   - [x] A1/A3: linger, `systemctl --user` from a system context (needs the D-Bus address too)
-  - [ ] A1: survives a reboot (not yet tested)
+  - [x] A1: everything comes back after a reboot with nobody logged in
   - [x] C3/C6: ports 80/443 rootless; Caddy → `host.containers.internal:8480`
   - [ ] D1: real wildcard certificate via Cloudflare DNS-01 (needs a real domain and token)
   - [x] Install Vaultwarden end-to-end with `mylab apply` (running; Caddy up)
