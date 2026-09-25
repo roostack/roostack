@@ -45,7 +45,7 @@ Status: **Unverified** until checked on Debian 13. Items marked ⚠️ could for
 | # | Assumption |
 |---|---|
 | D1 ✅ | One wildcard site block (`*.domain`) with a `host` matcher per route, so every route shares the wildcard certificate. Site snippets are imported from `sites/*.caddy`. **Verified with `caddy adapt` (Caddy 2.11.4 + Cloudflare plugin):** routes are mutually exclusive, the catch-all is last, the wildcard is issued via DNS-01, and an empty or missing `sites/` directory is only a warning. (Syntax only; certificate issuance still needs a real test.) |
-| D2 | DNS-01 provider config differs per provider; v1 code supports Cloudflare, plus a raw override directive for anything else. The MyLab Caddy image (with plugins) isn't built yet. |
+| D2 | DNS-01 provider config differs per provider; v1 code supports Cloudflare (single API token), plus a raw override directive for anything else. The MyLab Caddy image is defined in `build/caddy/Containerfile` but not yet built or published; the unit uses `localhost/mylab-caddy:latest`. |
 
 ## E. Secrets
 
