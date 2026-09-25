@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/store"
@@ -100,8 +101,12 @@ func TestFirstRunSetup(t *testing.T) {
 
 	form.Set("confirm", "a long password")
 	code, body := h.post("/setup", form, h.srv.URL)
-	if code != http.StatusOK || !strings.Contains(body, "Your services") || !strings.Contains(body, "Vaultwarden") {
-		t.Fatalf("after setup expected the dashboard, got %d", code)
+	// Owners must turn on 2FA before anything else.
+	if code != http.StatusOK || !strings.Contains(body, "need to turn on two-factor") {
+		t.Fatalf("after setup expected 2FA enrollment, got %d", code)
+	}
+	if _, body := h.get("/"); !strings.Contains(body, "need to turn on two-factor") {
+		t.Fatal("the dashboard must be blocked until the Owner enrolls")
 	}
 	if !h.setup {
 		t.Error("OnSetupComplete not called")
@@ -111,9 +116,73 @@ func TestFirstRunSetup(t *testing.T) {
 		t.Errorf("owner not created: %+v %v", u, err)
 	}
 
+	secret, enrolledAt := h.enrollTOTP(body)
+	if _, body := h.get("/"); !strings.Contains(body, "Vaultwarden") {
+		t.Fatal("after enrolling, the Owner should see the dashboard")
+	}
+
+	// Logging in again needs the password and a code; a used code is refused.
+	h.post("/logout", nil, h.srv.URL)
+	_, body = h.post("/login", url.Values{"username": {"tyris"}, "password": {"a long password"}}, h.srv.URL)
+	if !strings.Contains(body, "Enter your code") {
+		t.Fatal("expected the 2FA step")
+	}
+	used, _ := auth.TOTPCode(secret, enrolledAt)
+	if code, _ := h.post("/login/totp", url.Values{"code": {used}}, h.srv.URL); code != http.StatusUnauthorized {
+		t.Errorf("reusing the enrollment code: status %d, want 401", code)
+	}
+	next, _ := auth.TOTPCode(secret, enrolledAt.Add(30*time.Second))
+	if _, body := h.post("/login/totp", url.Values{"code": {next}}, h.srv.URL); !strings.Contains(body, "Your services") {
+		t.Error("a fresh code should complete the login")
+	}
+
 	// Setup can't be repeated.
 	if _, body := h.get("/setup"); strings.Contains(body, "Welcome to MyLab") {
 		t.Error("setup page must not be available after setup")
+	}
+}
+
+// enrollTOTP reads the key from the 2FA page and submits a valid code. It
+// returns the secret and the time the code was generated for.
+func (h *harness) enrollTOTP(page string) (string, time.Time) {
+	h.t.Helper()
+	_, rest, ok := strings.Cut(page, `name="secret" value="`)
+	if !ok {
+		h.t.Fatal("no secret on the 2FA page")
+	}
+	secret, _, _ := strings.Cut(rest, `"`)
+	now := time.Now()
+	code, err := auth.TOTPCode(secret, now)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	if status, _ := h.post("/account/2fa", url.Values{"secret": {secret}, "code": {"000000"}}, h.srv.URL); status != http.StatusBadRequest {
+		h.t.Errorf("a wrong enrollment code: status %d, want 400", status)
+	}
+	if status, _ := h.post("/account/2fa", url.Values{"secret": {secret}, "code": {code}}, h.srv.URL); status != http.StatusOK {
+		h.t.Fatalf("enrollment failed: %d", status)
+	}
+	return secret, now
+}
+
+func TestTooManyCodes(t *testing.T) {
+	h := newHarness(t, "")
+	hash, _ := auth.HashPassword("a long password")
+	id, _ := h.store.CreateUser(context.Background(), store.User{Username: "tyris", PasswordHash: hash, Role: auth.RoleOwner})
+	secret, _ := auth.NewTOTPSecret()
+	h.store.SetTOTP(context.Background(), id, secret, 0)
+
+	h.post("/login", url.Values{"username": {"tyris"}, "password": {"a long password"}}, h.srv.URL)
+	var body string
+	for i := 0; i < maxTOTPAttempts; i++ {
+		_, body = h.post("/login/totp", url.Values{"code": {"000000"}}, h.srv.URL)
+	}
+	if !strings.Contains(body, "Too many wrong codes") {
+		t.Fatal("expected lockout after too many codes")
+	}
+	good, _ := auth.TOTPCode(secret, time.Now())
+	if _, body := h.post("/login/totp", url.Values{"code": {good}}, h.srv.URL); strings.Contains(body, "Your services") {
+		t.Error("after lockout the password must be entered again")
 	}
 }
 
@@ -132,6 +201,9 @@ func TestLoginLogout(t *testing.T) {
 	code, body = h.post("/login", url.Values{"username": {"mum"}, "password": {"a long password"}}, h.srv.URL)
 	if code != http.StatusOK || !strings.Contains(body, "Your services") {
 		t.Fatalf("login failed: %d", code)
+	}
+	if !strings.Contains(body, "turn on two-factor authentication") {
+		t.Error("admins without 2FA should see a reminder, not be forced")
 	}
 	if _, body := h.get("/partials/services"); !strings.Contains(body, "status-running") {
 		t.Error("services partial should render")

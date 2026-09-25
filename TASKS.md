@@ -46,7 +46,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] First-run Owner setup (setup code), login/logout, sessions, roles, CSRF, security headers
   - [x] Read-only dashboard with live status (htmx polling)
   - [x] `mylab user add` / `reset-password`
-  - [ ] TOTP 2FA (required for Owners, SPEC §5)
+  - [x] TOTP 2FA: Owners must enroll; replay protection; attempt limit
+  - [ ] 2FA: QR code, recovery codes, CLI reset of a user's 2FA
   - [ ] Install/remove services from the UI (writes instance files, runs the reconciler)
   - [ ] Collect user-provided secrets (DNS token) in the UI instead of env vars
 - [ ] **1.10 Backups:** restic interface, sqlite/postgres prepare, schedule, restore, recovery key

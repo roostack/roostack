@@ -44,6 +44,8 @@ var migrations = []string{
 		action   TEXT NOT NULL,
 		detail   TEXT NOT NULL DEFAULT ''
 	);`,
+	// The last accepted TOTP time step, so a code can't be reused.
+	`ALTER TABLE users ADD COLUMN totp_last_step INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -113,6 +115,7 @@ type User struct {
 	PasswordHash string
 	Role         string
 	TOTPSecret   string
+	TOTPLastStep int64
 	CreatedAt    time.Time
 }
 
@@ -152,7 +155,7 @@ func (s *Store) CreateFirstUser(ctx context.Context, u User) (bool, error) {
 // UserByUsername looks up an account (case-insensitive).
 func (s *Store) UserByUsername(ctx context.Context, username string) (*User, error) {
 	return s.scanUser(s.db.QueryRowContext(ctx,
-		`SELECT id, username, password_hash, role, totp_secret, created_at FROM users WHERE username = ?`, username))
+		`SELECT `+userColumns+` FROM users WHERE username = ?`, username))
 }
 
 // SetPassword replaces a user's password hash (used by the CLI reset).
@@ -170,10 +173,38 @@ func (s *Store) SetPassword(ctx context.Context, username, hash string) error {
 	return err
 }
 
+const userColumns = `users.id, users.username, users.password_hash, users.role,
+	users.totp_secret, users.totp_last_step, users.created_at`
+
+// UserByID looks up an account.
+func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
+	return s.scanUser(s.db.QueryRowContext(ctx, `SELECT `+userColumns+` FROM users WHERE id = ?`, id))
+}
+
+// SetTOTP enables two-factor authentication for a user.
+func (s *Store) SetTOTP(ctx context.Context, userID int64, secret string, step int64) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE users SET totp_secret = ?, totp_last_step = ? WHERE id = ?`, secret, step, userID)
+	return err
+}
+
+// UseTOTPStep records an accepted code's time step. It fails if the step
+// isn't newer than the last one, so two concurrent logins can't both use
+// the same code.
+func (s *Store) UseTOTPStep(ctx context.Context, userID, step int64) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE users SET totp_last_step = ? WHERE id = ? AND totp_last_step < ?`, step, userID, step)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
 func (s *Store) scanUser(row *sql.Row) (*User, error) {
 	var u User
 	var created int64
-	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &created)
+	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &u.TOTPLastStep, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -195,8 +226,8 @@ func (s *Store) CreateSession(ctx context.Context, tokenHash string, userID int6
 // SessionUser returns the user for a valid, unexpired session.
 func (s *Store) SessionUser(ctx context.Context, tokenHash string) (*User, error) {
 	return s.scanUser(s.db.QueryRowContext(ctx,
-		`SELECT u.id, u.username, u.password_hash, u.role, u.totp_secret, u.created_at
-		 FROM sessions s JOIN users u ON u.id = s.user_id
+		`SELECT `+userColumns+`
+		 FROM sessions s JOIN users ON users.id = s.user_id
 		 WHERE s.token_hash = ? AND s.expires_at > ?`, tokenHash, time.Now().Unix()))
 }
 

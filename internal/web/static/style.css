@@ -50,3 +50,9 @@ code { font-size: 0.9em; }
 .status-starting { color: var(--warn); }
 .status-failed { color: var(--bad); }
 .status-stopped, .status-unknown { color: var(--muted); }
+
+.notice { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--warn);
+  border-radius: 8px; padding: 10px 14px; }
+.steps li { margin-bottom: 12px; }
+.secret { display: block; margin: 8px 0; padding: 10px; font-size: 1.1rem; letter-spacing: 0.05em;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow-wrap: anywhere; }

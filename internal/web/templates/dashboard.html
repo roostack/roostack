@@ -2,6 +2,7 @@
 {{define "content"}}
 <section>
   <h1>Your services</h1>
+  {{if .No2FA}}<p class="notice">Protect your account: <a href="/account/2fa">turn on two-factor authentication</a>.</p>{{end}}
   <div hx-get="/partials/services" hx-trigger="every 10s" hx-swap="innerHTML">
     {{template "services" .}}
   </div>
