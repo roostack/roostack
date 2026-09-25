@@ -1,0 +1,27 @@
+{{define "title"}}Services{{end}}
+{{define "content"}}
+<section>
+  <h1>Your services</h1>
+  <div hx-get="/partials/services" hx-trigger="every 10s" hx-swap="innerHTML">
+    {{template "services" .}}
+  </div>
+</section>
+{{end}}
+
+{{define "services"}}
+{{if .Services}}
+<ul class="services">
+  {{range .Services}}
+  <li class="card service">
+    <div>
+      <h2>{{.Title}}</h2>
+      {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}</a>{{end}}
+    </div>
+    <span class="status status-{{.Status}}">{{.Status}}</span>
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<p class="card">No services are installed yet.</p>
+{{end}}
+{{end}}

@@ -41,7 +41,7 @@ The reconciler only touches files it owns (`mylab-*` Quadlets and `*.caddy` snip
 
 | Package | Purpose |
 |---|---|
-| `cmd/mylab` | CLI and (soon) the web service: `apply`, `render`, `validate` |
+| `cmd/mylab` | Web service and CLI: `serve`, `apply`, `user`, `render`, `validate` |
 | `cmd/mylab-agent` | The root helper |
 | `internal/config` | Lab settings and **all default paths** in one place |
 | `internal/pkgspec` | The package format (`schema: mylab/v1alpha1`) and its validation |
@@ -54,6 +54,9 @@ The reconciler only touches files it owns (`mylab-*` Quadlets and `*.caddy` snip
 | `internal/systemd` | `systemctl --user` wrapper |
 | `internal/podman` | The few direct `podman` calls (secrets) |
 | `internal/agent` | Agent server, client, and firewall ruleset |
+| `internal/store` | SQLite runtime data: users, sessions, audit log |
+| `internal/auth` | Password hashing (argon2id), session tokens, roles |
+| `internal/web` | Web UI: handlers, templates, vendored htmx/Alpine |
 
 Rules that keep this maintainable:
 - **Business logic stays out of HTTP handlers**, so the UI can change without touching the core (SPEC.md §6.3).
@@ -89,6 +92,16 @@ Templates use Go `text/template` syntax with these values:
 | `(index .Containers "<name>").Host` | Another container in the same service |
 | `.Lab.Domain`, `.Service.Name` | Lab and service names |
 
+## Web UI
+
+`mylab serve` serves server-rendered pages (Go `html/template`), using htmx for live updates such as the service list refreshing every 10 seconds. Protections:
+
+- **First run:** creating the Owner needs a one-time setup code, printed in the log and saved to `/var/lib/mylab/setup-token`.
+- **Sessions:** random tokens in an `HttpOnly`, `SameSite=Lax` cookie. Only a SHA-256 hash is stored.
+- **CSRF:** every non-GET request must carry an `Origin` header matching the host.
+- **Headers:** a strict Content-Security-Policy, `nosniff`, and no framing.
+- **Roles** are checked per route (`auth.Can`).
+
 ## Not built yet
 
-Web UI and users, backups, the maintenance coordinator, host OS updates, packaging (.deb). See [TASKS.md](TASKS.md).
+TOTP 2FA, managing services and users from the UI, backups, the maintenance coordinator, host OS updates, packaging (.deb). See [TASKS.md](TASKS.md).

@@ -1,0 +1,17 @@
+{{define "title"}}Log in{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <h1>Log in</h1>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  <form method="post" action="/login">
+    <label>Username
+      <input name="username" value="{{.Username}}" autocomplete="username" required autofocus>
+    </label>
+    <label>Password
+      <input name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit">Log in</button>
+  </form>
+  <p class="hint">Forgotten your password? Whoever set up this lab can reset it.</p>
+</section>
+{{end}}

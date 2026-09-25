@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
+  <title>{{template "title" .}} · MyLab</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx-2.0.11.min.js" defer></script>
+  <script src="/static/alpine-3.17.4.min.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">MyLab</a>
+    {{with .User}}
+    <form method="post" action="/logout" class="user">
+      <span>{{.Username}} <small>({{.Role}})</small></span>
+      <button type="submit" class="link">Log out</button>
+    </form>
+    {{end}}
+  </header>
+  <main>
+    {{template "content" .}}
+  </main>
+</body>
+</html>
