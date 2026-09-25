@@ -2,27 +2,27 @@
 
 Code was started before the Debian 13 rootless prototype (TASKS 1.2) was run. This file lists what the code **assumes** that prototype will show, so each item can be checked on a real VM and the code adjusted.
 
-Status: **Unverified** until checked on Debian 13. Items marked ⚠️ could force a redesign if wrong.
+Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 dev VM (`scripts/dev-vm.sh`, Podman 5.4.2, 2026-09-26). ❌ = failed. ⚠️ = could force a redesign if wrong.
 
 ## A. Rootless Podman & systemd
 
 | # | Assumption | Code that depends on it |
 |---|---|---|
-| A1 | A dedicated `mylab` system user runs all rootless services, with `loginctl enable-linger mylab` so its systemd user manager starts at boot. | `internal/config` (paths), reconciler |
+| A1 ✅ | A dedicated `mylab` system user runs all rootless services, with `loginctl enable-linger mylab` so its systemd user manager starts at boot. | `internal/config` (paths), reconciler **Verified:** linger starts the user manager at boot; units run under it. |
 | A2 | Quadlet files for that user go in `$HOME/.config/containers/systemd/`, with the `mylab` home set to `/var/lib/mylab/home` (kept separate from desired state). | `config.Paths.QuadletDir` |
-| A3 | The `mylab` daemon (a *system* unit running as `User=mylab`) can drive the user manager with `systemctl --user` if `XDG_RUNTIME_DIR=/run/user/<uid>` is set. | `internal/systemd` |
-| A4 | Unit naming: `mylab-<svc>-<container>.container` → `mylab-<svc>-<container>.service`; `mylab-<svc>.network` → `mylab-<svc>-network.service`. | `internal/generate` |
+| A3 ✅ | The `mylab` daemon (a *system* unit running as `User=mylab`) can drive the user manager with `systemctl --user` if `XDG_RUNTIME_DIR=/run/user/<uid>` is set. | `internal/systemd` **Verified:** works with `XDG_RUNTIME_DIR` **and** `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus`; podman needs the latter for systemd cgroups outside a login session. |
+| A4 ✅ | Unit naming: `mylab-<svc>-<container>.container` → `mylab-<svc>-<container>.service`; `mylab-<svc>.network` → `mylab-<svc>-network.service`. | `internal/generate` **Verified:** `mylab-<svc>-network.service` etc. as expected. |
 | A5 | Debian uses AppArmor, not SELinux, so bind mounts need no `:z`/`:Z` relabel options. (Fedora support would need these.) | `internal/generate` |
 | A6 | Podman 5.4 Quadlet supports `Notify=healthy`, so `After=` a database unit waits until the database passes its health check. | database units |
 | A7 | `GroupAdd=keep-groups` + `AddDevice=/dev/dri` gives rootless containers Intel GPU access if `mylab` is in the `render` and `video` groups (needs crun, Debian's default). | `devices: gpu` |
 | A8 ✅ decided | **Decided (option b, SPEC §6.1):** `mylab` never runs podman directly, only `systemctl --user` / `systemd-run --user`. Background: **`NoNewPrivileges=yes` can't be used on `mylab.service`** Rootless Podman calls the setuid helpers `newuidmap`/`newgidmap`, which NoNewPrivileges disables. SPEC §6.1 listed it as planned sandboxing. Options: (a) drop it (current unit file); (b) have `mylab` never run `podman` directly, only `systemctl --user` and `systemd-run --user` (the user manager runs podman outside the sandbox); (c) give the helpers file capabilities instead of setuid. (b) is the cleanest, but `podman secret create` and `podman exec` (backups) would need to go through the user manager. | `packaging/systemd/mylab.service` |
-| A9 | System users get no `/etc/subuid` range from `useradd --system`; the installer adds `200000-265535` explicitly. | `scripts/dev-install.sh` |
+| A9 ✅ | System users get no `/etc/subuid` range from `useradd --system`; the installer adds `200000-265535` explicitly. | `scripts/dev-install.sh` **Verified:** `mylab:200000:65536` added; rootless podman works. |
 
 ## B. UID mapping & storage
 
 | # | Assumption |
 |---|---|
-| B1 | Root inside a rootless container = the `mylab` user on the host, so files written by container root appear owned by `mylab`. Files written by a non-root container user (e.g. Postgres uid 999) appear as `subuid_start + uid - 1` (e.g. `100998`). |
+| B1 ✅ | Root inside a rootless container = the `mylab` user on the host, so files written by container root appear owned by `mylab`. Files written by a non-root container user (e.g. Postgres uid 999) appear as `subuid_start + uid - 1` (e.g. `100998`). **Verified:** container root → uid 999 (`mylab`) on the host. |
 | B2 | Backups can read every file by running restic inside `podman unshare` as `mylab`. Restores must also go through `podman unshare` to keep ownership correct. |
 | B3 | `keep-id` is **not** used by default; it will be a per-container option once a package needs it. |
 | B4 | Bind-mounting subdirectories inside another bind mount (Immich `/data` + `/data/thumbs`) works; mounts are emitted parent-first. |
@@ -31,13 +31,14 @@ Status: **Unverified** until checked on Debian 13. Items marked ⚠️ could for
 
 | # | Assumption |
 |---|---|
-| C1 | Each service gets its own Podman network `mylab-<svc>`. Containers find each other by container name (aardvark-dns). |
+| C1 ✅ | Each service gets its own Podman network `mylab-<svc>`. Containers find each other by container name (aardvark-dns). |
 | C2 | A shared `mylab-proxy` network is joined by Caddy and by every container that has a route. Caddy reaches services by container name. |
-| C3 | Caddy publishes 80/443 rootless once `net.ipv4.ip_unprivileged_port_start=80` is set (by `mylab-agent`). |
-| C4 ⚠️ | **Rootless port forwarding (pasta, Podman 5 default) preserves the client's real source IP.** The "private" route check (`remote_ip`) and CrowdSec both depend on this. If it's wrong, every request looks like it comes from an internal address and **private routes become reachable from the internet**. Must be verified before anything is made public. |
+| C3 ✅ | Caddy publishes 80/443 rootless once `net.ipv4.ip_unprivileged_port_start=80` is set (by `mylab-agent`). **Verified:** Caddy listens on 80/443 rootless; HTTP redirects to HTTPS. |
+| C4 ❌ **FAILED on Debian 13 (2026-09-26)** | Tested with a `whoami` container on Podman 5.4.2 (pasta). **Default pasta network:** the real client IP is preserved ✅. **Named bridge network (our Caddy design):** every client appears as `10.89.0.x` ❌. That address is inside `10.0.0.0/8`, so Caddy's "private only" check would **let the whole internet through**. **Host network (`--network host`):** the real IP is preserved ✅. Connections from the host itself arrive as `169.254.1.2`, outside the private ranges, so they are safely treated as external. See "Proposed fix" below. |
+| C4 fix (proposed, needs approval) | Run Caddy with `Network=host`. Each routed container publishes on `127.0.0.1:<allocated port>` (still on its own service network for database access), and Caddy proxies to `127.0.0.1:<port>`. **Verified in the VM:** host-network proxy sees the real client IP; loopback-published ports work from the host network and are not reachable from the LAN. Also lets the MyLab UI listen on `127.0.0.1:8480` only (fixes C6/K2). Cost: MyLab must allocate and store a stable port per route (e.g. in the instance file), and the `mylab-proxy` network goes away. |
 | C5 | "Private" means Caddy's `private_ranges` (RFC1918, loopback, `fd00::/8`) + `100.64.0.0/10` (Tailscale/CGNAT). The CGNAT range can include ISP addresses on some connections; revisit when remote access is designed. The firewall's LAN set also includes `fc00::/7` and `fe80::/10`. |
-| C6 | Caddy reaches the `mylab` UI on the host at `host.containers.internal:8480`. With pasta this may need `mylab` to listen on a non-loopback address; the firewall then keeps 8480 closed to the network (only 22/80/443 are open). |
-| C7 | Containers resolve each other by container name on the shared `mylab-proxy` network (Caddy → `mylab-<svc>-<container>`). |
+| C6 ✅ | Caddy reaches the `mylab` UI on the host at `host.containers.internal:8480`. With pasta this may need `mylab` to listen on a non-loopback address; the firewall then keeps 8480 closed to the network (only 22/80/443 are open). **Verified:** Caddy → `host.containers.internal:8480` reaches the UI. |
+| C7 ✅ | Containers resolve each other by container name on the shared `mylab-proxy` network (Caddy → `mylab-<svc>-<container>`). **Verified:** Caddy → `mylab-vaultwarden-app:80` works. |
 | C8 | Changing a `.network` file and restarting its unit doesn't recreate an existing network. Rare, but the reconciler may need to remove the network first. |
 
 ## D. TLS / Caddy
@@ -51,7 +52,7 @@ Status: **Unverified** until checked on Debian 13. Items marked ⚠️ could for
 
 | # | Assumption / concern |
 |---|---|
-| E1 | Secrets are Podman secrets named `mylab-<svc>-<name>` (DB passwords: `mylab-<svc>-db-<db>-password`), injected with `Secret=...,type=env` or `type=mount`. |
+| E1 ✅ | Secrets are Podman secrets named `mylab-<svc>-<name>` (DB passwords: `mylab-<svc>-db-<db>-password`), injected with `Secret=...,type=env` or `type=mount`. **Verified:** Caddy received the DNS token from a Podman secret as an env var. |
 | E2 ⚠️ | Podman's default `file` secret driver stores secret values **unencrypted** under the user's container storage. That's acceptable only because the directory is readable just by `mylab`. Revisit (e.g. `pass` driver or a MyLab driver). |
 
 ## F. Health checks
@@ -65,6 +66,17 @@ Status: **Unverified** until checked on Debian 13. Items marked ⚠️ could for
 | # | Concern |
 |---|---|
 | G1 | `default: auto` (Immich hardware acceleration) currently means "true if the host has any GPU". It may need a more specific rule, e.g. `auto: gpu.intel`. |
+
+## L. Other findings from the VM (2026-09-26)
+
+| # | Finding |
+|---|---|
+| L1 | `systemctl start` succeeds even if the container exits a moment later (Caddy did, with a bad token). The reconciler must check unit status after starting and report failures. |
+| L2 | `systemctl --user reload` fails if the unit isn't active. Use `reload-or-restart`. (Fixed.) |
+| L3 | The `mylab` user can't read its own user journal ("insufficient permissions"). To show service logs in the UI, `mylab` needs to be in `systemd-journal`, or logs must be read through the agent. |
+| L4 | Stopping a `systemd-run --user` unit that wraps `podman run` does **not** stop the container (conmon leaves the unit's cgroup). Quadlet handles this correctly; one-off commands via `systemd-run` should use `podman exec`/`unshare`, not `podman run`. |
+| L5 | The Cloudflare DNS plugin validates the token format when Caddy starts, so a bad token stops Caddy entirely, taking every service offline. The UI must validate the token before saving it. |
+| L6 | Bridge-network ports go through Podman's `rootlessport` userspace proxy, which is why client IPs are lost (C4). |
 
 ## I. Databases
 

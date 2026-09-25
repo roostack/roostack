@@ -38,7 +38,7 @@ type Systemd interface {
 	Start(ctx context.Context, units ...string) error
 	Restart(ctx context.Context, units ...string) error
 	Stop(ctx context.Context, units ...string) error
-	Reload(ctx context.Context, units ...string) error
+	ReloadOrRestart(ctx context.Context, units ...string) error
 }
 
 // Secrets is the subset of Podman secret handling the reconciler needs.
@@ -286,10 +286,10 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 	if err := r.Systemd.Start(ctx, p.StartUnits...); err != nil {
 		return err
 	}
-	// Caddy was just (re)started if its unit changed; reloading again is
-	// harmless and simpler than tracking that case.
+	// reload-or-restart also starts Caddy if it isn't running
+	// (docs/ASSUMPTIONS.md L2).
 	if p.ReloadCaddy {
-		return r.Systemd.Reload(ctx, generate.CaddyUnit+".service")
+		return r.Systemd.ReloadOrRestart(ctx, generate.CaddyUnit+".service")
 	}
 	return nil
 }

@@ -15,6 +15,17 @@ REPO=$(cd "$(dirname "$0")/.." && pwd)
 
 step() { printf '\n==> %s\n' "$*"; }
 
+# as_mylab runs a command as the mylab user, from its home directory, with
+# the environment rootless podman and systemctl --user need outside a login
+# session (docs/ASSUMPTIONS.md A3).
+as_mylab() {
+    local uid
+    uid=$(id -u mylab)
+    (cd / && sudo -u mylab -H env XDG_RUNTIME_DIR="/run/user/$uid" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+        sh -c 'cd "$HOME" && exec "$@"' sh "$@")
+}
+
 step "Installing packages"
 apt-get update -q
 apt-get install -y -q podman passt nftables uidmap crun catatonit
@@ -64,8 +75,7 @@ step "Building the MyLab Caddy image (as mylab)"
 tmp=$(mktemp -d)
 cp "$REPO/build/caddy/Containerfile" "$tmp/"
 chown -R mylab:mylab "$tmp"
-sudo -u mylab XDG_RUNTIME_DIR="/run/user/$MYLAB_UID" \
-    podman build -t mylab-caddy "$tmp"
+as_mylab podman build -t mylab-caddy "$tmp"
 rm -rf "$tmp"
 
 step "Starting the web UI"
