@@ -31,8 +31,8 @@ func (f *fakeSystemd) Restart(_ context.Context, u ...string) error {
 	return f.record("restart", u)
 }
 func (f *fakeSystemd) Stop(_ context.Context, u ...string) error { return f.record("stop", u) }
-func (f *fakeSystemd) Reload(_ context.Context, u ...string) error {
-	return f.record("reload", u)
+func (f *fakeSystemd) ReloadOrRestart(_ context.Context, u ...string) error {
+	return f.record("reload-or-restart", u)
 }
 
 type fakeSecrets struct{ values map[string][]byte }

@@ -67,6 +67,11 @@ func (m *Manager) Reload(ctx context.Context, units ...string) error {
 	return m.each(ctx, "reload", units)
 }
 
+// ReloadOrRestart reloads running units and starts stopped ones.
+func (m *Manager) ReloadOrRestart(ctx context.Context, units ...string) error {
+	return m.each(ctx, "reload-or-restart", units)
+}
+
 // Starting units is done without --no-block, so errors (e.g. a failed image
 // pull) are reported to the caller. That makes a first start slow.
 func (m *Manager) each(ctx context.Context, verb string, units []string) error {
