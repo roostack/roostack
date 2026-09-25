@@ -108,3 +108,33 @@ containers:
 		t.Fatal("expected an error: secret settings must not be available to templates")
 	}
 }
+
+func TestSystemGolden(t *testing.T) {
+	lab := testLab()
+	lab.Email = "admin@example.com"
+	lab.DNS.Provider = "cloudflare"
+	out, err := System(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var b strings.Builder
+	for _, f := range out.Quadlets {
+		b.WriteString("==> quadlet/" + f.Name + "\n" + f.Content + "\n")
+	}
+	b.WriteString("==> caddy/" + out.Caddyfile.Name + "\n" + out.Caddyfile.Content)
+	got := b.String()
+
+	golden := filepath.Join("testdata", "golden", "system.txt")
+	if *update {
+		if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(golden)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != string(want) {
+		t.Errorf("output differs from %s:\n%s", golden, got)
+	}
+}

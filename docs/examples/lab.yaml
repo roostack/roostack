@@ -1,0 +1,8 @@
+# Reference example: lab-wide config (/var/lib/mylab/lab.yaml).
+domain: lab.example.com
+email: admin@example.com
+dns:
+  provider: cloudflare
+# paths:            # all optional; defaults in internal/config
+#   services_dir: /srv/mylab/services
+#   media_dir: /mnt/bigdisk/mylab

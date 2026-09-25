@@ -5,11 +5,11 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -20,6 +20,12 @@ const (
 	DefaultHomeDir     = "/var/lib/mylab/home"
 	DefaultServicesDir = "/srv/mylab/services"
 	DefaultMediaDir    = "/srv/mylab/media"
+	// DefaultCatalogDir holds official packages shipped with MyLab.
+	DefaultCatalogDir = "/usr/share/mylab/catalog"
+	// DefaultUIPort is where the mylab web UI listens on the host. Caddy
+	// reaches it via host.containers.internal (docs/ASSUMPTIONS.md C6); the
+	// firewall blocks it from the network.
+	DefaultUIPort = 8480
 )
 
 // Paths are the filesystem locations MyLab reads and writes.
@@ -28,6 +34,7 @@ type Paths struct {
 	HomeDir     string `yaml:"home_dir"`     // home of the mylab user
 	ServicesDir string `yaml:"services_dir"` // per-service data (bind mounts)
 	MediaDir    string `yaml:"media_dir"`    // large data, e.g. a separate disk
+	CatalogDir  string `yaml:"catalog_dir"`  // packages: <name>/package.yaml
 }
 
 // QuadletDir is where rootless Quadlet files for the mylab user live.
@@ -35,11 +42,26 @@ func (p Paths) QuadletDir() string {
 	return filepath.Join(p.HomeDir, ".config", "containers", "systemd")
 }
 
+// LabFile is the lab-wide config file.
+func (p Paths) LabFile() string { return filepath.Join(p.StateDir, "lab.yaml") }
+
+// PackageFile is where a catalog package is defined.
+func (p Paths) PackageFile(name string) string {
+	return filepath.Join(p.CatalogDir, name, "package.yaml")
+}
+
 // InstancesDir holds one instance YAML file per installed service.
 func (p Paths) InstancesDir() string { return filepath.Join(p.StateDir, "services") }
 
-// CaddyDir holds the generated Caddyfile and per-service site snippets.
+// CaddyDir holds the generated Caddyfile and per-service site snippets
+// (mounted read-only at /etc/caddy).
 func (p Paths) CaddyDir() string { return filepath.Join(p.StateDir, "caddy") }
+
+// CaddySitesDir holds one snippet per service.
+func (p Paths) CaddySitesDir() string { return filepath.Join(p.CaddyDir(), "sites") }
+
+// CaddyDataDir holds certificates and the ACME account.
+func (p Paths) CaddyDataDir() string { return filepath.Join(p.StateDir, "caddy-data") }
 
 // DNS configures the DNS-01 challenge used for the wildcard certificate.
 type DNS struct {
@@ -58,6 +80,8 @@ type Lab struct {
 	Email string `yaml:"email"`
 	DNS   DNS    `yaml:"dns"`
 	Paths Paths  `yaml:"paths"`
+	// UIPort is the host port of the mylab web UI.
+	UIPort int `yaml:"ui_port"`
 	// HasGPU is detected at runtime, not configured. It resolves settings
 	// with `default: auto` (docs/ASSUMPTIONS.md G1).
 	HasGPU bool `yaml:"-"`
@@ -65,11 +89,12 @@ type Lab struct {
 
 // Default returns a Lab with default paths and no domain.
 func Default() Lab {
-	return Lab{Paths: Paths{
+	return Lab{UIPort: DefaultUIPort, Paths: Paths{
 		StateDir:    DefaultStateDir,
 		HomeDir:     DefaultHomeDir,
 		ServicesDir: DefaultServicesDir,
 		MediaDir:    DefaultMediaDir,
+		CatalogDir:  DefaultCatalogDir,
 	}}
 }
 
@@ -80,7 +105,7 @@ func Load(path string) (Lab, error) {
 	if err != nil {
 		return lab, err
 	}
-	dec := yaml.NewDecoder(strings.NewReader(string(data)))
+	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&lab); err != nil {
 		return lab, fmt.Errorf("%s: %w", path, err)
@@ -97,6 +122,7 @@ func (l Lab) Validate() error {
 	for _, p := range []struct{ name, path string }{
 		{"state_dir", l.Paths.StateDir}, {"home_dir", l.Paths.HomeDir},
 		{"services_dir", l.Paths.ServicesDir}, {"media_dir", l.Paths.MediaDir},
+		{"catalog_dir", l.Paths.CatalogDir},
 	} {
 		if !filepath.IsAbs(p.path) {
 			errs = append(errs, fmt.Errorf("paths.%s must be absolute, got %q", p.name, p.path))

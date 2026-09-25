@@ -1,0 +1,90 @@
+// Package state loads MyLab's desired state from disk (SPEC.md §5.1): the
+// lab config plus one instance file per installed service, combined with
+// their catalog packages.
+package state
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+
+	"github.com/mylab/mylab/internal/caddy"
+	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/generate"
+	"github.com/mylab/mylab/internal/instance"
+	"github.com/mylab/mylab/internal/pkgspec"
+	"github.com/mylab/mylab/internal/reconcile"
+)
+
+// Service is one installed service with its package.
+type Service struct {
+	Instance *instance.Instance
+	Package  *pkgspec.Package
+}
+
+// LoadServices reads every instance file and its package from the catalog.
+func LoadServices(lab config.Lab) ([]Service, error) {
+	dir := lab.Paths.InstancesDir()
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var services []Service
+	var errs []error
+	for _, e := range entries {
+		name, ok := strings.CutSuffix(e.Name(), ".yaml")
+		if e.IsDir() || !ok {
+			continue
+		}
+		in, err := instance.Load(filepath.Join(dir, e.Name()))
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if in.Package != name {
+			errs = append(errs, fmt.Errorf("%s: file name must match package %q", e.Name(), in.Package))
+			continue
+		}
+		p, err := pkgspec.Load(lab.Paths.PackageFile(in.Package))
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		services = append(services, Service{Instance: in, Package: p})
+	}
+	return services, errors.Join(errs...)
+}
+
+// Desired generates the full desired state for the reconciler.
+func Desired(lab config.Lab, services []Service) (reconcile.Desired, error) {
+	sys, err := generate.System(lab)
+	if err != nil {
+		return reconcile.Desired{}, err
+	}
+	d := reconcile.Desired{System: sys}
+	// Every hostname must be unique across the lab, including the admin UI.
+	hosts := map[string]string{caddy.AdminSubdomain + "." + lab.Domain: "the MyLab admin UI"}
+	var errs []error
+	for _, s := range services {
+		out, err := generate.Service(lab, s.Package, s.Instance)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		for _, h := range out.Hosts {
+			if other, dup := hosts[h]; dup {
+				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Package.Name, h, other))
+			}
+			hosts[h] = s.Package.Name
+		}
+		d.Services = append(d.Services, out)
+	}
+	slices.SortFunc(d.Services, func(a, b *generate.Output) int { return strings.Compare(a.Service, b.Service) })
+	return d, errors.Join(errs...)
+}
