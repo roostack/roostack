@@ -26,7 +26,7 @@ import (
 func serve(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	labPath := fs.String("lab", config.Default().Paths.LabFile(), "lab config file")
-	listen := fs.String("listen", "", "address to listen on (default :<ui_port> from lab config)")
+	listen := fs.String("listen", "", "address to listen on (default <ui_bind>:<ui_port> from lab config)")
 	fs.Parse(args)
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -66,7 +66,7 @@ func serve(args []string) error {
 
 	addr := *listen
 	if addr == "" {
-		addr = fmt.Sprintf(":%d", lab.UIPort)
+		addr = fmt.Sprintf("%s:%d", lab.UIBind, lab.UIPort)
 	}
 	httpSrv := &http.Server{Addr: addr, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	go func() {

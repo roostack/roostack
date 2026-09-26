@@ -84,9 +84,9 @@ systemctl enable --now mylab.service
 cat <<EOF
 
 Done. Next steps:
-  0. Open http://<vm-ip>:8480 and create the Owner account with the setup
-     code from: sudo cat /var/lib/mylab/setup-token
-     (The firewall isn't applied by this script, so 8480 is reachable.)
+  0. The UI listens on 127.0.0.1:8480 only. From the dev machine run
+     scripts/dev-vm.sh ui, open http://127.0.0.1:18481, and create the
+     Owner account with the setup code from: sudo cat /var/lib/mylab/setup-token
   1. Edit /var/lib/mylab/lab.yaml (domain, email, DNS provider), then
      restart the UI: sudo systemctl restart mylab
   2. Install a service by creating /var/lib/mylab/services/<name>.yaml, e.g.:

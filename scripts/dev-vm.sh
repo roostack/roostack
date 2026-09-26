@@ -5,6 +5,7 @@
 #   scripts/dev-vm.sh ssh [cmd] open a shell, or run a command, as user "dev"
 #   scripts/dev-vm.sh sync      build and copy the repo to ~/mylab in the VM
 #   scripts/dev-vm.sh install   sync, then run scripts/dev-install.sh in the VM
+#   scripts/dev-vm.sh ui        tunnel the MyLab UI (loopback-only) to http://127.0.0.1:18481
 #   scripts/dev-vm.sh down      shut the VM down
 #   scripts/dev-vm.sh destroy   delete the VM disk (keeps the downloaded image)
 #   scripts/dev-vm.sh status
@@ -174,8 +175,9 @@ up) start ;;
 ssh) shift; vm_ssh -t "$@" ;;
 sync) sync_repo ;;
 install) sync_repo; vm_ssh -t 'cd ~/mylab && sudo scripts/dev-install.sh' ;;
+ui) log "MyLab UI: http://127.0.0.1:18481 (Ctrl-C to stop)"; vm_ssh -N -L 127.0.0.1:18481:127.0.0.1:8480 ;;
 down) stop ;;
 destroy) stop; rm -rf "$DISK" "$VM_DIR/seed" "$VM_DIR/console.log"; log "Disk deleted" ;;
 status) if running; then echo "running (pid $(cat "$PIDFILE"))"; else echo "stopped"; fi ;;
-*) sed -n '2,17p' "$0"; exit 2 ;;
+*) sed -n '2,18p' "$0"; exit 2 ;;
 esac

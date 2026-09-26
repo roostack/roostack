@@ -22,10 +22,6 @@ import (
 	"github.com/mylab/mylab/internal/quadlet"
 )
 
-// ProxyNetwork is the shared network joined by Caddy and every routed
-// container (docs/ASSUMPTIONS.md C2).
-const ProxyNetwork = "mylab-proxy"
-
 // File is a generated file, named relative to its target directory.
 type File struct {
 	Name    string
@@ -56,7 +52,9 @@ type Output struct {
 	// the generated Requires=/After= dependencies.
 	Units []string
 	// Hosts are the hostnames this service's routes use.
-	Hosts  []string
+	Hosts []string
+	// Ports are the host loopback ports its routes are published on.
+	Ports  []int
 	Backup BackupPlan
 }
 
@@ -186,8 +184,18 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 		cs.Exec(args)
 	}
 	cs.Add("Network", "mylab-"+svc+".network")
-	if g.routed(name) {
-		cs.Add("Network", ProxyNetwork+".network")
+	// Routed containers are published on the host's loopback only; Caddy
+	// reaches them through pasta's loopback mapping (SPEC.md §6.5).
+	for _, rn := range slices.Sorted(maps.Keys(g.pkg.Routes)) {
+		r := g.pkg.Routes[rn]
+		if r.Container != name {
+			continue
+		}
+		port := g.ctx.Routes[rn].Port
+		if port == 0 {
+			return fmt.Errorf("routes.%s: no host port allocated (run mylab apply)", rn)
+		}
+		cs.Add("PublishPort", fmt.Sprintf("127.0.0.1:%d:%d", port, r.Port))
 	}
 	for _, k := range slices.Sorted(maps.Keys(c.Env)) {
 		v, err := g.ctx.render(at+".env."+k, c.Env[k])
@@ -343,11 +351,15 @@ func (g *gen) caddySite() error {
 			return fmt.Errorf("routes.%s: container %q is disabled by its when: condition", name, r.Container)
 		}
 		rc := g.ctx.Routes[name]
+		if rc.Port == 0 {
+			return fmt.Errorf("routes.%s: no host port allocated (run mylab apply)", name)
+		}
 		g.out.Hosts = append(g.out.Hosts, rc.Host)
+		g.out.Ports = append(g.out.Ports, rc.Port)
 		routes = append(routes, caddy.Route{
 			ID:          g.pkg.Name + "-" + name,
 			Host:        rc.Host,
-			Upstream:    fmt.Sprintf("%s:%d", containerUnitName(g.pkg.Name, r.Container), r.Port),
+			Upstream:    fmt.Sprintf("%s:%d", CaddyHostLoopback, rc.Port),
 			Private:     rc.Exposure != pkgspec.ExposurePublic,
 			MaxBodySize: r.MaxBodySize,
 		})
@@ -387,16 +399,6 @@ func (g *gen) storage() {
 	slices.Sort(g.out.Dirs)
 	slices.Sort(g.out.Backup.Include)
 	slices.Sort(g.out.Backup.Exclude)
-}
-
-// routed reports whether a container is the target of any route.
-func (g *gen) routed(container string) bool {
-	for _, r := range g.pkg.Routes {
-		if r.Container == container {
-			return true
-		}
-	}
-	return false
 }
 
 func (g *gen) addQuadlet(name string, u *quadlet.Unit) error {

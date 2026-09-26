@@ -96,7 +96,7 @@ After=mylab-immich-db-cache.service
 ContainerName=mylab-immich-server
 Image=ghcr.io/immich-app/immich-server:v2.1.0@sha256:72a9b9de6c6abfa7a9c9cdc244ae4d2bd9fea2ae00997f194cbd10aca72ea210
 Network=mylab-immich.network
-Network=mylab-proxy.network
+PublishPort=127.0.0.1:20002:2283
 Environment=DB_DATABASE_NAME=immich
 Environment=DB_HOSTNAME=mylab-immich-db-main
 Environment=DB_USERNAME=immich
@@ -129,7 +129,7 @@ handle @immich-web {
 	request_body {
 		max_size 50GB
 	}
-	reverse_proxy mylab-immich-server:2283
+	reverse_proxy 169.254.1.3:20002
 }
 
 ==> units

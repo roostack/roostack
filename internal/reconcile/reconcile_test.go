@@ -90,7 +90,8 @@ func (e *env) desired(t *testing.T, services ...string) Desired {
 		if err != nil {
 			t.Fatal(err)
 		}
-		out, err := generate.Service(e.lab, p, &instance.Instance{Package: name, Version: p.Version, Updates: "notify"})
+		out, err := generate.Service(e.lab, p, &instance.Instance{Package: name, Version: p.Version, Updates: "notify",
+			Routes: map[string]instance.RouteOverride{"web": {Port: 20001}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,6 +150,7 @@ func TestInstallUpdateRemove(t *testing.T) {
 	out, err := generate.Service(e.lab, p, &instance.Instance{
 		Package: "vaultwarden", Version: p.Version, Updates: "notify",
 		Settings: map[string]any{"signups_allowed": true},
+		Routes:   map[string]instance.RouteOverride{"web": {Port: 20001}},
 	})
 	if err != nil {
 		t.Fatal(err)

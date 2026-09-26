@@ -17,7 +17,7 @@ Description=MyLab vaultwarden: app
 ContainerName=mylab-vaultwarden-app
 Image=docker.io/vaultwarden/server:1.34.3@sha256:84fd8a47f58d79a1ad824c27be0a9492750c0fa5216b35c749863093bfa3c3d7
 Network=mylab-vaultwarden.network
-Network=mylab-proxy.network
+PublishPort=127.0.0.1:20001:80
 Environment=DOMAIN=https://passwords.lab.example.com
 Environment=SIGNUPS_ALLOWED=false
 Secret=mylab-vaultwarden-admin_token,type=env,target=ADMIN_TOKEN
@@ -39,7 +39,7 @@ WantedBy=default.target
 handle @vaultwarden-web {
 	@vaultwarden-web-external not remote_ip private_ranges 100.64.0.0/10
 	abort @vaultwarden-web-external
-	reverse_proxy mylab-vaultwarden-app:80
+	reverse_proxy 169.254.1.3:20001
 }
 
 ==> units
