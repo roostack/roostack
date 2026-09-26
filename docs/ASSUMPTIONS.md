@@ -101,7 +101,7 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 
 | # | Assumption / concern |
 |---|---|
-| J1 ⚠️ | SSH defaults to **LAN-only**. On a VPS that would lock the user out. The installer must ask (or detect) before applying the firewall. |
+| J1 ✅ | SSH defaults to **LAN-only**. On a VPS that would lock the user out. **Resolved:** the Owner chooses in setup step 2, which shows current SSH connections and asks before cutting one off; MyLab applies no firewall until then. |
 | J2 | MyLab's `inet mylab` table drops anything it doesn't accept, even if other tables accept it. Ruleset verified with `nft -c` and applied twice in a network namespace. Not yet tested alongside Podman/pasta on a real host. |
 
 ## K. Web UI
