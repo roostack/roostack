@@ -96,3 +96,6 @@ table.compare th { text-align: left; padding: 6px 12px 6px 0; color: var(--muted
 table.compare td { padding: 6px 0; overflow-wrap: anywhere; }
 .dns-manage { margin-top: 12px; }
 .dns-manage small { display: block; margin-top: 6px; }
+
+ul.scope { margin: 4px 0 12px; padding-left: 20px; }
+ul.scope li { margin-bottom: 4px; }
