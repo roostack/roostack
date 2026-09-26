@@ -34,7 +34,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] A1/A3: linger, `systemctl --user` from a system context (needs the D-Bus address too)
   - [x] A1: everything comes back after a reboot with nobody logged in
   - [x] C3/C6: ports 80/443 rootless; Caddy → `host.containers.internal:8480`
-  - [ ] D1: real wildcard certificate via Cloudflare DNS-01 (needs a real domain and token)
+  - [x] D1: real wildcard certificate via Cloudflare DNS-01, set up through the wizard; services served over verified HTTPS
   - [x] Install Vaultwarden end-to-end with `mylab apply` (running; Caddy up)
 - [x] **1.3 Project skeleton:** git repo, Go module, central defaults (`internal/config`), README.md, ARCHITECTURE.md, Makefile
 - [x] **1.4 Package schema:** types, parsing, validation; both examples parse (`internal/pkgspec`, `internal/instance`)
@@ -54,7 +54,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] First-run setup wizard (Owner): domain + Cloudflare token (checked with Cloudflare before saving), backup destination (local folder or S3-compatible), recovery key shown with "I've saved it" confirmation; "later" options with dashboard reminders
   - [ ] Wizard: SFTP destination; changing settings later from a Settings page
   - [x] **More DNS providers**: Cloudflare, Route 53, Porkbun, Gandi, GoDaddy, Namecheap, Spaceship (`internal/dns` registry; TXT-record check over each provider's HTTP API, no SDKs; all plugins in the Caddy image)
-  - [ ] Test each DNS provider with a real account (only Cloudflare's error responses and the generated Caddy config are checked so far)
+  - [ ] Test each DNS provider with a real account (Cloudflare done; the other six only against fake APIs)
+  - [ ] Local name resolution: devices on the LAN need `*.<domain>` to point at the lab. Options: MyLab creates the wildcard DNS record through the same provider API (note: some routers block public DNS answers with private IPs, "DNS rebinding protection"), or local DNS (Pi-hole, deferred). Decide with the user
   - [ ] Maybe later: deSEC, DigitalOcean, Hetzner, OVH, DuckDNS
 - [ ] 🟡 **1.10 Backups**
   - [x] restic wrapper (tested against real restic), recovery key, `mylab backup init|run|snapshots`
