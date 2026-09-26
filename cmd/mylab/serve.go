@@ -22,6 +22,7 @@ import (
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/podman"
 	"github.com/mylab/mylab/internal/reconcile"
+	"github.com/mylab/mylab/internal/setup"
 	"github.com/mylab/mylab/internal/state"
 	"github.com/mylab/mylab/internal/store"
 	"github.com/mylab/mylab/internal/systemd"
@@ -76,6 +77,33 @@ func serve(args []string) error {
 		return err
 	}
 	srv.Backups = backups
+
+	wizard := &setup.Setup{
+		Lab: lab, LabPath: *labPath, Store: st, Secrets: podman.NewSecrets(),
+		HTTP: &http.Client{Timeout: 30 * time.Second},
+		NewRepo: func(repository string, env []string) *backup.Repo {
+			l := lab
+			l.Backup = config.Backup{Repository: repository, Env: env}
+			repo, err := newRepo(l, userLaunch)
+			if err != nil { // restic missing: Init will report it
+				return &backup.Repo{Bin: "restic", URL: repository, PasswordFile: backup.KeyFile(lab.Paths), Env: env}
+			}
+			return repo
+		},
+		// New settings reach every part of MyLab by restarting it; systemd
+		// starts it again (Restart=always).
+		Restart: func() {
+			go func() {
+				time.Sleep(time.Second) // let the response reach the browser
+				log.Info("restarting to apply new settings")
+				stop()
+			}()
+		},
+	}
+	if err := wizard.AdoptExisting(ctx); err != nil {
+		return err
+	}
+	srv.Setup = wizard
 
 	go func() {
 		for range time.Tick(time.Hour) {

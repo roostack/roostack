@@ -134,6 +134,22 @@ func Load(path string) (Lab, error) {
 	return lab, lab.Validate()
 }
 
+// Save writes the lab config atomically (mode 0640: it can hold backup
+// credentials).
+func (l Lab) Save(path string) error {
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(l); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, buf.Bytes(), 0o640); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
 // Validate checks the config is usable.
 func (l Lab) Validate() error {
 	var errs []error

@@ -57,6 +57,11 @@ var migrations = []string{
 		data_added  INTEGER NOT NULL DEFAULT 0,
 		error       TEXT NOT NULL DEFAULT ''
 	);`,
+	// Small runtime flags, e.g. setup wizard progress.
+	`CREATE TABLE settings (
+		key   TEXT PRIMARY KEY,
+		value TEXT NOT NULL
+	);`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -350,4 +355,21 @@ func (s *Store) scanBackup(row *sql.Row) (*BackupRun, error) {
 	}
 	r.Started, r.Finished = time.Unix(started, 0), time.Unix(finished, 0)
 	return &r, nil
+}
+
+// Setting returns a runtime setting, or "" if unset.
+func (s *Store) Setting(ctx context.Context, key string) (string, error) {
+	var v string
+	err := s.db.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = ?`, key).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return v, err
+}
+
+// SetSetting stores a runtime setting.
+func (s *Store) SetSetting(ctx context.Context, key, value string) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, key, value)
+	return err
 }

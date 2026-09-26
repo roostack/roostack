@@ -112,6 +112,15 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | K5 | First-run setup requires a one-time setup code (logged, and saved to `/var/lib/mylab/setup-token` with mode 0600), so whoever reaches the UI first on the network can't claim the Owner account. Not in SPEC yet. |
 | K6 | `mylab user add/reset-password` print a random temporary password instead of prompting, to avoid a terminal dependency. Users can't change their password in the UI yet. |
 
+## M. Setup wizard
+
+| # | Assumption / concern |
+|---|---|
+| M1 | Applying wizard settings restarts MyLab (`Restart=always`) instead of hot-reloading config everywhere. Verified on the VM: a self-exit is restarted within a second. The "restarting" page waits for a new boot ID before continuing. |
+| M2 | The Cloudflare check calls `/user/tokens/verify` and `/zones?name=` (walking up from the domain). A malformed token gets HTTP 400 with `success:false` (checked against the real API). Requires Zone:Read in addition to DNS:Edit. |
+| M3 ⚠️ | S3 credentials are stored in `lab.yaml` (mode 0640, owned by mylab). They're also inside the encrypted backups. Consider moving them to a separate 0600 file or a Podman secret. |
+| M4 | A local backup folder must be writable by the `mylab` user (e.g. a disk mounted for it). Otherwise the wizard shows restic's error. Preparing disks belongs to the installer/agent later. |
+
 ## H. Dependencies
 
 Picked overnight to keep moving; **approved by the user on 2026-09-26.**

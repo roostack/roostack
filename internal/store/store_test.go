@@ -157,3 +157,16 @@ func TestBackupRuns(t *testing.T) {
 		t.Errorf("last=%+v ok=%+v err=%v", last, ok, err)
 	}
 }
+
+func TestSettings(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	if v, err := s.Setting(ctx, "a"); v != "" || err != nil {
+		t.Fatalf("unset: %q %v", v, err)
+	}
+	s.SetSetting(ctx, "a", "1")
+	s.SetSetting(ctx, "a", "2")
+	if v, _ := s.Setting(ctx, "a"); v != "2" {
+		t.Errorf("got %q", v)
+	}
+}

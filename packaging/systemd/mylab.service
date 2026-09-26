@@ -12,7 +12,9 @@ Group=mylab
 # the UID of User= in a system unit.
 Environment=XDG_RUNTIME_DIR=/run/user/@MYLAB_UID@
 ExecStart=/usr/local/bin/mylab serve
-Restart=on-failure
+# Always: MyLab restarts itself to apply settings from the setup wizard.
+Restart=always
+RestartSec=1
 
 # Sandboxing (SPEC.md §6.1).
 ProtectSystem=strict

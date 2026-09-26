@@ -66,3 +66,9 @@ func (s *Secrets) Create(ctx context.Context, name string, value []byte) error {
 	_, err := s.Run(ctx, value, "secret", "create", name, "-")
 	return err
 }
+
+// Replace creates or overwrites a secret (e.g. a new DNS token).
+func (s *Secrets) Replace(ctx context.Context, name string, value []byte) error {
+	_, err := s.Run(ctx, value, "secret", "create", "--replace", name, "-")
+	return err
+}

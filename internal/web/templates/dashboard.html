@@ -5,6 +5,7 @@
     <h1>Your services</h1>
     {{if .CanManage}}<a class="button" href="/catalog">Add a service</a>{{end}}
   </div>
+  {{if .DomainTodo}}<p class="notice notice-error">Your domain isn't set up, so services can't get HTTPS certificates yet. <a href="/setup/domain">Set up your domain</a>.</p>{{end}}
   {{if .No2FA}}<p class="notice">Protect your account: <a href="/account/2fa">turn on two-factor authentication</a>.</p>{{end}}
   <div hx-get="/partials/services" hx-trigger="every 10s" hx-swap="innerHTML">
     {{template "services" .}}
