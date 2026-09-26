@@ -67,14 +67,14 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Maybe later: deSEC, DigitalOcean, Hetzner, OVH, DuckDNS
 - [ ] 🟡 **1.10 Backups**
   - [x] restic wrapper (tested against real restic), recovery key, `mylab backup init|run|snapshots`
-  - [x] Prepare steps: SQLite copy (concurrent-write tested), Postgres dump (command tested; no Postgres service run yet)
+  - [x] Prepare steps: SQLite copy (concurrent-write tested), Postgres dump (tested with Forgejo)
   - [x] Lab plan: state + Podman secrets included; images, live DBs, key excluded (verified on the VM)
   - [x] Nightly schedule (02:00) and weekly prune + 5% check (Sun 03:00) through the coordinator, running in `mylab serve`
   - [x] Dashboard backup card: last success, failures, staleness (>2 days), local-only warning, next run, "Back up now"
   - [x] `mylab backup restore <service>`: moves current data aside, restores, puts the database back, restarts. Drill passed on the VM (SQLite)
   - [ ] Restore from the UI (Owner only), and full-lab restore onto a new machine
   - [ ] 3-2-1 guidance and multiple destinations (SPEC §6.9): suggestions in the UI, primary + `restic copy` to extra destinations, per-destination status
-  - [ ] Postgres restore (pg_restore) untested until a Postgres package runs
+  - [x] Postgres restore (pg_restore): Forgejo repo deleted, restored, back with its git data
   - [ ] Measure restic RAM/time on a realistic photo/video dataset
 - [ ] 🟡 **1.11 Maintenance coordinator + host OS updates**
   - [x] Coordinator: reboot policy, job chains, interrupt/resume (unit-tested)
@@ -82,8 +82,16 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Agent `reboot` and OS update operations; reboot-required detection
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow (`scripts/dev-install.sh` is a stand-in)
 - [ ] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)
+  - [x] Forgejo v15 LTS: rootless image, MyLab Postgres, HTTPS clone; backup/restore tested on the VM
+  - [ ] Forgejo: git over SSH (needs a host port outside Caddy; see "To discuss")
+  - [ ] Forgejo: first admin account (currently the first sign-up becomes admin; see "To discuss")
+  - [ ] Immich on the VM
+  - [ ] `mylab validate` should render templates with default settings (a bool/string mismatch only showed at render time)
 
 ## To discuss with the user
+
+- Forgejo SSH: git over SSH needs a published host port (e.g. 2222) outside Caddy, opened in the firewall. Suggest a generic `ports:` package field, off by default.
+- Forgejo first admin: first sign-up becomes admin (sign-ups on by default). Alternatives: MyLab creates the admin at install (needs a package "setup command" hook), or SSO later.
 
 - K5: setup-code approach for first-run setup (add to SPEC?)
 - Go module path is a placeholder (`github.com/mylab/mylab`); repo location not decided yet

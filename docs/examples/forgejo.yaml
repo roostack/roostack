@@ -1,0 +1,61 @@
+# Reference example: medium package (single container, MyLab-managed
+# Postgres). Image digests looked up 2026-09-26. See SPEC.md §8.1.
+#
+# v15 is Forgejo's LTS release (supported until 2027-07-15); v16 is newer but
+# supported only until the next major release. LTS suits a lab that
+# shouldn't need a major upgrade every few months.
+schema: mylab/v1alpha1
+name: forgejo
+title: Forgejo
+description: Git hosting with issues and pull requests, a self-hosted alternative to GitHub
+version: 15.0.9-mylab.1
+
+settings:
+  - key: signups_allowed
+    title: Allow anyone to create an account
+    description: The first account created becomes the administrator
+    type: bool
+    default: true
+
+containers:
+  app:
+    # The rootless image runs as uid 1000 and keeps everything under
+    # /var/lib/gitea, including app.ini (which holds generated keys, so it
+    # must be backed up with the data).
+    image: codeberg.org/forgejo/forgejo:15.0.9-rootless@sha256:caf1bca332f95cdcf124227a4bfa3b49bbbfbbc8a5e4a97406921cb581165413
+    env:
+      GITEA_APP_INI: /var/lib/gitea/custom/conf/app.ini
+      FORGEJO__server__ROOT_URL: "https://{{ .Routes.web.Host }}/"
+      FORGEJO__server__DISABLE_SSH: "true"      # clone over HTTPS for now
+      FORGEJO__security__INSTALL_LOCK: "true"   # skip Forgejo's install page
+      FORGEJO__service__DISABLE_REGISTRATION: "{{ not .Settings.signups_allowed }}"
+      FORGEJO__database__DB_TYPE: postgres
+      FORGEJO__database__HOST: "{{ .Databases.main.Host }}:5432"
+      FORGEJO__database__NAME: "{{ .Databases.main.Name }}"
+      FORGEJO__database__USER: "{{ .Databases.main.User }}"
+    secrets:
+      FORGEJO__database__PASSWD: databases.main.password
+    mounts:
+      - { storage: data, path: /var/lib/gitea }
+    health:
+      http: { port: 3000, path: /api/healthz }
+    depends_on: [databases.main]
+    quadlet:
+      Container:
+        UserNS: keep-id:uid=1000,gid=1000   # data dir writable by uid 1000
+
+storage:
+  data:
+    class: critical              # repositories, attachments, app.ini
+
+databases:
+  main:
+    type: postgres               # MyLab's default Postgres image
+
+routes:
+  web:
+    container: app
+    port: 3000
+    subdomain: git
+    exposure: private
+    max_body_size: 1GB           # large pushes and release attachments
