@@ -53,12 +53,9 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Public exposure option (after firewall + CrowdSec)
   - [x] First-run setup wizard (Owner): domain + Cloudflare token (checked with Cloudflare before saving), backup destination (local folder or S3-compatible), recovery key shown with "I've saved it" confirmation; "later" options with dashboard reminders
   - [ ] Wizard: SFTP destination; changing settings later from a Settings page
-  - [ ] **More DNS providers** (currently Cloudflare only). Design:
-    - A provider registry: name, Caddy plugin module, credential fields (some need 2+ values), Caddyfile directive template
-    - Add each provider's plugin to `build/caddy/Containerfile`
-    - Wizard fields generated from the registry; credentials stored as Podman secrets
-    - Generic check before saving: create and delete a temporary TXT record using the same libdns library Caddy uses (one small Go dependency per provider). This replaces the Cloudflare-specific check and protects against a bad token stopping Caddy (ASSUMPTIONS L5)
-    - Candidates, to prioritise with the user: Route 53, Porkbun, deSEC, DigitalOcean, Hetzner, Namecheap, Gandi, OVH, DuckDNS
+  - [x] **More DNS providers**: Cloudflare, Route 53, Porkbun, Gandi, GoDaddy, Namecheap, Spaceship (`internal/dns` registry; generic TXT-record check; all plugins in the Caddy image)
+  - [ ] Test each DNS provider with a real account (only Cloudflare's error responses and the generated Caddy config are checked so far)
+  - [ ] Maybe later: deSEC, DigitalOcean, Hetzner, OVH, DuckDNS
 - [ ] 🟡 **1.10 Backups**
   - [x] restic wrapper (tested against real restic), recovery key, `mylab backup init|run|snapshots`
   - [x] Prepare steps: SQLite copy (concurrent-write tested), Postgres dump (command tested; no Postgres service run yet)

@@ -20,9 +20,9 @@ func TestSiteRejectsInjection(t *testing.T) {
 	}
 }
 
-func TestMainUnknownProvider(t *testing.T) {
-	if _, err := Main(MainConfig{Domain: "example.com", DNSProvider: "nope"}); err == nil {
-		t.Error("expected an error for an unknown DNS provider")
+func TestMainNeedsDNS(t *testing.T) {
+	if _, err := Main(MainConfig{Domain: "example.com"}); err == nil {
+		t.Error("expected an error without a DNS directive")
 	}
 }
 
@@ -35,7 +35,7 @@ func TestCaddyAdapt(t *testing.T) {
 	}
 	dir := t.TempDir()
 	main, err := Main(MainConfig{
-		Domain: "lab.example.com", Email: "a@example.com", DNSProvider: "cloudflare",
+		Domain: "lab.example.com", Email: "a@example.com", DNSDirective: "dns cloudflare {env.DNS_API_TOKEN}",
 		AdminUpstream: "host.containers.internal:8480",
 	})
 	if err != nil {
@@ -54,7 +54,7 @@ func TestCaddyAdapt(t *testing.T) {
 
 	cmd := exec.Command(bin, "adapt", "--config", "Caddyfile")
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), DNSTokenEnv+"=test")
+	cmd.Env = append(os.Environ(), "DNS_API_TOKEN=test")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("caddy adapt failed: %v\n%s", err, out)

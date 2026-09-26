@@ -78,6 +78,8 @@ type Server struct {
 	Manager ServiceManager
 	// Domain is the lab's base domain, shown next to subdomain fields.
 	Domain string
+	// DNSProvider is the lab's current DNS provider ID (wizard default).
+	DNSProvider string
 	// HasGPU pre-ticks settings whose default is "auto".
 	HasGPU bool
 	// Backups shows backup status and runs backups. Nil hides the card.
@@ -104,7 +106,7 @@ type ServiceManager interface {
 // LabSetup is what the UI needs from internal/setup.
 type LabSetup interface {
 	Progress(ctx context.Context) (setup.Progress, error)
-	SaveDomain(ctx context.Context, domain, email, token string) error
+	SaveDomain(ctx context.Context, domain, email, provider string, values map[string]string) error
 	DomainLater(ctx context.Context) error
 	SaveBackup(ctx context.Context, c setup.BackupChoice) error
 	BackupLater(ctx context.Context) error

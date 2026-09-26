@@ -160,7 +160,8 @@ MyLab runs **directly on the host** (not in a container), as two processes shipp
 
 ### 6.5 Reverse Proxy & TLS — Locked
 
-- **Proxy: Caddy**, run as a rootless container from a MyLab-built image that includes common DNS provider plugins (e.g. Cloudflare, Route53, Porkbun, deSEC).
+- **Proxy: Caddy**, run as a rootless container from a MyLab-built image that includes the DNS provider plugins.
+- **DNS providers — Locked (2026-09-26):** Cloudflare, Amazon Route 53, Porkbun, Gandi, GoDaddy, Namecheap and Spaceship, defined in one registry (`internal/dns`). Each provider's credentials are stored as Podman secrets and passed to Caddy as environment variables, so they never appear in the Caddyfile. Before saving, the wizard checks credentials by **creating and deleting a temporary TXT record** with the same library Caddy uses (libdns). That tests exactly what certificate issuance needs, for every provider.
 - MyLab generates a readable Caddyfile from desired state and reloads Caddy (same pattern as Quadlet generation).
 - **Not user-selectable.** One proxy keeps testing and config generation manageable. Users can add custom Caddy snippets, globally and per service.
 - **Rootless on 80/443:** `mylab-agent` lowers `net.ipv4.ip_unprivileged_port_start` so the proxy needs no root.

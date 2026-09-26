@@ -13,7 +13,7 @@ PublishPort=443:443
 PublishPort=443:443/udp
 Volume=/var/lib/mylab/caddy:/etc/caddy:ro
 Volume=/var/lib/mylab/caddy-data:/data
-Secret=mylab-caddy-dns-token,type=env,target=DNS_API_TOKEN
+Secret=mylab-caddy-dns-api_token,type=env,target=DNS_API_TOKEN
 Label=io.mylab.service=_system
 Label=io.mylab.component=caddy
 

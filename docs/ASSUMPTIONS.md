@@ -48,7 +48,7 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | # | Assumption |
 |---|---|
 | D1 ✅ | One wildcard site block (`*.domain`) with a `host` matcher per route, so every route shares the wildcard certificate. Site snippets are imported from `sites/*.caddy`. **Verified with `caddy adapt` (Caddy 2.11.4 + Cloudflare plugin):** routes are mutually exclusive, the catch-all is last, the wildcard is issued via DNS-01, and an empty or missing `sites/` directory is only a warning. (Syntax only; certificate issuance still needs a real test.) |
-| D2 | DNS-01 provider config differs per provider; v1 code supports Cloudflare (single API token), plus a raw override directive for anything else. The MyLab Caddy image is defined in `build/caddy/Containerfile` but not yet built or published; the unit uses `localhost/mylab-caddy:latest`. |
+| D2 | DNS-01: seven providers from the `internal/dns` registry (fields, Caddy directive, libdns client), plus a raw override directive for anything else. Checked: every provider's libdns library is on libdns v1.x (no version conflicts), and every Caddy plugin expands `{env.…}` placeholders anywhere in a value (so GoDaddy's `key:secret` works). The MyLab Caddy image is defined in `build/caddy/Containerfile` but not yet built or published; the unit uses `localhost/mylab-caddy:latest`. |
 
 ## E. Secrets
 
@@ -117,7 +117,9 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | # | Assumption / concern |
 |---|---|
 | M1 | Applying wizard settings restarts MyLab (`Restart=always`) instead of hot-reloading config everywhere. Verified on the VM: a self-exit is restarted within a second. The "restarting" page waits for a new boot ID before continuing. |
-| M2 | The Cloudflare check calls `/user/tokens/verify` and `/zones?name=` (walking up from the domain). A malformed token gets HTTP 400 with `success:false` (checked against the real API). Requires Zone:Read in addition to DNS:Edit. |
+| M2 | The wizard's DNS check creates and deletes `_mylab-check.<domain>` (TXT), trying zones from the domain itself upwards. Tested with a fake provider only; each real provider still needs a real test account. Namecheap's API replaces all records when changing one (a limitation of its API, which Caddy shares). |
+| M5 | Provider notes in the wizard (GoDaddy and Namecheap only allow API access for some accounts; Namecheap needs this lab's public IP whitelisted) are from their public documentation at the time of writing and may change. |
+| M6 | The libdns libraries (especially the AWS SDK behind Route 53) grew the `mylab` binary from 22 MB to 31 MB. |
 | M3 ⚠️ | S3 credentials are stored in `lab.yaml` (mode 0640, owned by mylab). They're also inside the encrypted backups. Consider moving them to a separate 0600 file or a Podman secret. |
 | M4 | A local backup folder must be writable by the `mylab` user (e.g. a disk mounted for it). Otherwise the wizard shows restic's error. Preparing disks belongs to the installer/agent later. |
 

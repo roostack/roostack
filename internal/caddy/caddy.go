@@ -68,23 +68,12 @@ func (r Route) validate() error {
 	return nil
 }
 
-// DNSTokenEnv is the environment variable holding the DNS provider API token,
-// injected into the Caddy container from a Podman secret.
-const DNSTokenEnv = "DNS_API_TOKEN"
-
-// dnsDirectives are the tls "dns" lines for known DNS-01 providers. Providers
-// needing more than one credential must use a custom directive for now
-// (docs/ASSUMPTIONS.md D2).
-var dnsDirectives = map[string]string{
-	"cloudflare": "dns cloudflare {env." + DNSTokenEnv + "}",
-}
-
 // MainConfig is the input for the main Caddyfile.
 type MainConfig struct {
-	Domain      string
-	Email       string
-	DNSProvider string
-	// DNSDirective overrides the provider template when set.
+	Domain string
+	Email  string
+	// DNSDirective is the tls "dns ..." directive for the DNS-01 challenge
+	// (from internal/dns); it may span several lines.
 	DNSDirective string
 	// AdminUpstream is where the MyLab web UI listens, as seen from the
 	// Caddy container. Always private. Empty disables the admin route.
@@ -96,12 +85,8 @@ const AdminSubdomain = "mylab"
 
 // Main renders the main Caddyfile.
 func Main(c MainConfig) (string, error) {
-	dns := c.DNSDirective
-	if dns == "" {
-		dns = dnsDirectives[c.DNSProvider]
-	}
-	if dns == "" {
-		return "", fmt.Errorf("caddy: unknown DNS provider %q; set dns.directive", c.DNSProvider)
+	if strings.TrimSpace(c.DNSDirective) == "" {
+		return "", errors.New("caddy: no DNS provider configured")
 	}
 	if c.Domain == "" || strings.ContainsAny(c.Domain+c.Email, " \t\n{}\"#") {
 		return "", fmt.Errorf("caddy: invalid domain or email")
@@ -115,7 +100,11 @@ func Main(c MainConfig) (string, error) {
 	}
 	b.WriteString("}\n\n")
 	fmt.Fprintf(&b, "*.%s {\n", c.Domain)
-	fmt.Fprintf(&b, "\ttls {\n\t\t%s\n\t}\n", dns)
+	b.WriteString("\ttls {\n")
+	for _, line := range strings.Split(strings.TrimSpace(c.DNSDirective), "\n") {
+		fmt.Fprintf(&b, "\t\t%s\n", line)
+	}
+	b.WriteString("\t}\n")
 	if c.AdminUpstream != "" {
 		admin, err := Site("mylab", []Route{{
 			ID: "mylab-admin", Host: AdminSubdomain + "." + c.Domain,

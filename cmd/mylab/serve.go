@@ -80,7 +80,6 @@ func serve(args []string) error {
 
 	wizard := &setup.Setup{
 		Lab: lab, LabPath: *labPath, Store: st, Secrets: podman.NewSecrets(),
-		HTTP: &http.Client{Timeout: 30 * time.Second},
 		NewRepo: func(repository string, env []string) *backup.Repo {
 			l := lab
 			l.Backup = config.Backup{Repository: repository, Env: env}
@@ -103,7 +102,7 @@ func serve(args []string) error {
 	if err := wizard.AdoptExisting(ctx); err != nil {
 		return err
 	}
-	srv.Setup = wizard
+	srv.Setup, srv.DNSProvider = wizard, lab.DNS.Provider
 
 	go func() {
 		for range time.Tick(time.Hour) {

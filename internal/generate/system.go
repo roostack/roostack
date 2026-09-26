@@ -5,6 +5,7 @@ import (
 
 	"github.com/mylab/mylab/internal/caddy"
 	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/quadlet"
 )
 
@@ -14,9 +15,6 @@ const DefaultCaddyImage = "localhost/mylab-caddy:latest"
 
 // CaddyUnit is the systemd service running the reverse proxy.
 const CaddyUnit = "mylab-caddy"
-
-// CaddyDNSSecret holds the DNS provider API token.
-const CaddyDNSSecret = "mylab-caddy-dns-token"
 
 // CaddyHostLoopback is the address inside Caddy's network namespace that
 // pasta maps to the host's loopback (--map-host-loopback). Caddy reaches
@@ -55,7 +53,16 @@ func System(lab config.Lab) (*SystemOutput, error) {
 	cs.Add("PublishPort", "443:443/udp") // HTTP/3
 	cs.Add("Volume", lab.Paths.CaddyDir()+":/etc/caddy:ro")
 	cs.Add("Volume", lab.Paths.CaddyDataDir()+":/data")
-	cs.Add("Secret", fmt.Sprintf("%s,type=env,target=%s", CaddyDNSSecret, caddy.DNSTokenEnv))
+	// DNS provider credentials, one Podman secret per field (internal/dns).
+	directive, fields, err := dnsConfig(lab)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range fields {
+		cs.Add("Secret", fmt.Sprintf("%s,type=env,target=%s", dns.SecretName(f), dns.EnvName(f)))
+		// Entered by the user in the setup wizard.
+		out.Secrets = append(out.Secrets, Secret{Name: dns.SecretName(f)})
+	}
 	cs.Add("Label", "io.mylab.service=_system")
 	cs.Add("Label", "io.mylab.component=caddy")
 	svc := u.Section("Service")
@@ -71,17 +78,36 @@ func System(lab config.Lab) (*SystemOutput, error) {
 	main, err := caddy.Main(caddy.MainConfig{
 		Domain:        lab.Domain,
 		Email:         lab.Email,
-		DNSProvider:   lab.DNS.Provider,
-		DNSDirective:  lab.DNS.Directive,
+		DNSDirective:  directive,
 		AdminUpstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, lab.UIPort),
 	})
 	if err != nil {
 		return nil, err
 	}
 	out.Caddyfile = File{Name: "Caddyfile", Content: main}
-	// The DNS token is entered by the user during setup.
-	out.Secrets = []Secret{{Name: CaddyDNSSecret}}
 	out.Dirs = []string{lab.Paths.CaddyDataDir(), lab.Paths.CaddySitesDir()}
 	out.Units = []string{CaddyUnit + ".service"}
 	return out, nil
+}
+
+// dnsConfig returns the Caddyfile directive and the credential fields for
+// the lab's DNS provider.
+func dnsConfig(lab config.Lab) (string, []string, error) {
+	p := dns.Get(lab.DNS.Provider)
+	if p == nil {
+		return "", nil, fmt.Errorf("unknown DNS provider %q", lab.DNS.Provider)
+	}
+	fields := lab.DNS.Fields
+	if len(fields) == 0 {
+		for _, f := range p.Fields {
+			if !f.Optional {
+				fields = append(fields, f.Key)
+			}
+		}
+	}
+	directive := lab.DNS.Directive
+	if directive == "" {
+		directive = p.Directive(fields)
+	}
+	return directive, fields, nil
 }

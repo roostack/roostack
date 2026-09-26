@@ -71,10 +71,14 @@ func (p Paths) CaddyDataDir() string { return filepath.Join(p.StateDir, "caddy-d
 
 // DNS configures the DNS-01 challenge used for the wildcard certificate.
 type DNS struct {
-	// Provider is a known provider name (e.g. "cloudflare").
+	// Provider is a provider ID from internal/dns (e.g. "cloudflare").
 	Provider string `yaml:"provider"`
+	// Fields lists which of the provider's credential fields are set. Their
+	// values are Podman secrets, never stored here. Empty means the
+	// provider's required fields.
+	Fields []string `yaml:"fields,omitempty"`
 	// Directive, if set, is used verbatim inside Caddy's tls block instead of
-	// the built-in provider template (e.g. "dns porkbun {...}").
+	// the provider's generated one (advanced use).
 	Directive string `yaml:"directive,omitempty"`
 }
 

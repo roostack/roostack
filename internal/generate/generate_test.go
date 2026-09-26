@@ -3,11 +3,13 @@ package generate
 import (
 	"flag"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/instance"
 	"github.com/mylab/mylab/internal/pkgspec"
 )
@@ -137,4 +139,96 @@ func TestSystemGolden(t *testing.T) {
 	if got != string(want) {
 		t.Errorf("output differs from %s:\n%s", golden, got)
 	}
+}
+
+func TestSystemRoute53(t *testing.T) {
+	lab := testLab()
+	lab.DNS.Provider = "route53"
+	lab.DNS.Fields = []string{"access_key_id", "secret_access_key", "region"}
+	out, err := System(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unit := out.Quadlets[0].Content
+	for _, want := range []string{
+		"Secret=mylab-caddy-dns-access_key_id,type=env,target=DNS_ACCESS_KEY_ID",
+		"Secret=mylab-caddy-dns-secret_access_key,type=env,target=DNS_SECRET_ACCESS_KEY",
+		"Secret=mylab-caddy-dns-region,type=env,target=DNS_REGION",
+	} {
+		if !strings.Contains(unit, want) {
+			t.Errorf("caddy unit missing %s", want)
+		}
+	}
+	if !strings.Contains(out.Caddyfile.Content, "\t\tdns route53 {\n\t\t\taccess_key_id {env.DNS_ACCESS_KEY_ID}") {
+		t.Errorf("Caddyfile:\n%s", out.Caddyfile.Content)
+	}
+	if len(out.Secrets) != 3 {
+		t.Errorf("secrets = %v", out.Secrets)
+	}
+	lab.DNS.Provider = "nope"
+	if _, err := System(lab); err == nil {
+		t.Error("unknown provider must be an error")
+	}
+}
+
+// TestCaddyAdaptAllProviders checks the generated Caddyfile for every DNS
+// provider with a real Caddy built with all plugins (build/caddy). Only runs
+// when MYLAB_CADDY_BIN is set.
+func TestCaddyAdaptAllProviders(t *testing.T) {
+	bin := os.Getenv("MYLAB_CADDY_BIN")
+	if bin == "" {
+		t.Skip("set MYLAB_CADDY_BIN to a caddy binary with all DNS plugins")
+	}
+	for _, p := range dns.Providers() {
+		t.Run(p.ID, func(t *testing.T) {
+			lab := testLab()
+			lab.DNS.Provider = p.ID
+			var env []string
+			for _, f := range p.Fields {
+				lab.DNS.Fields = append(lab.DNS.Fields, f.Key)
+				// Realistically shaped values: some plugins check the format.
+				v := "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-Ab"
+				switch f.Key {
+				case "region":
+					v = "us-east-1"
+				case "client_ip":
+					v = "203.0.113.10"
+				case "user":
+					v = "someone"
+				}
+				env = append(env, dns.EnvName(f.Key)+"="+v)
+			}
+			out, err := System(lab)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := t.TempDir()
+			os.WriteFile(filepath.Join(dir, "Caddyfile"), []byte(out.Caddyfile.Content), 0o644)
+			cmd := exec.Command(bin, "adapt", "--config", "Caddyfile")
+			cmd.Dir = dir
+			cmd.Env = append(os.Environ(), env...)
+			got, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("caddy adapt: %v\n%s\n--- Caddyfile:\n%s", err, got, out.Caddyfile.Content)
+			}
+			// validate also provisions the DNS module with the env values.
+			v := exec.Command(bin, "validate", "--config", "Caddyfile")
+			v.Dir = dir
+			v.Env = append(os.Environ(), env...)
+			if vout, err := v.CombinedOutput(); err != nil {
+				t.Errorf("caddy validate: %v\n%s", err, lastLines(string(vout), 3))
+			}
+			if !strings.Contains(string(got), `"name":"`+p.ID+`"`) {
+				t.Errorf("adapted config doesn't use the %s provider:\n%s", p.ID, got)
+			}
+		})
+	}
+}
+
+func lastLines(s string, n int) string {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, "\n")
 }
