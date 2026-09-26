@@ -1,0 +1,21 @@
+{{define "title"}}Your account{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <h1>Your account</h1>
+  <dl class="facts">
+    <dt>Username</dt><dd>{{.User.Username}}</dd>
+    <dt>Role</dt><dd>{{.User.Role}}</dd>
+    <dt>Two-factor</dt><dd>{{if .User.TOTPSecret}}On{{else}}Off · <a href="/account/2fa">Turn it on</a>{{end}}</dd>
+  </dl>
+  <h2>Change password</h2>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{with .Done}}<p class="notice" role="status">{{.}}</p>{{end}}
+  <form method="post" action="/account/password">
+    <label>Current password <input name="current" type="password" autocomplete="current-password" required></label>
+    <label>New password <input name="password" type="password" autocomplete="new-password" required minlength="12">
+      <small>At least 12 characters. A few random words works well.</small></label>
+    <label>Confirm new password <input name="confirm" type="password" autocomplete="new-password" required></label>
+    <button type="submit">Change password</button>
+  </form>
+</section>
+{{end}}

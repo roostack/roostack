@@ -1,0 +1,26 @@
+{{define "title"}}Settings{{end}}
+{{define "content"}}
+<section>
+  <h1>Settings</h1>
+  <section class="card section">
+    <div class="heading">
+      <h2>Domain &amp; certificates</h2>
+      <a href="/setup/domain">Change…</a>
+    </div>
+    {{if .DomainSet}}
+    <dl class="facts">
+      <dt>Domain</dt><dd>{{.LabDomain}}</dd>
+      <dt>DNS provider</dt><dd>{{.ProviderTitle}}</dd>
+      <dt>Services</dt><dd>Addresses like <code>photos.{{.LabDomain}}</code>, with a free certificate from Let's Encrypt</dd>
+    </dl>
+    {{else}}
+    <p class="notice notice-error">Your domain isn't set up yet. <a href="/setup/domain">Set it up</a>.</p>
+    {{end}}
+  </section>
+  {{template "dns-card" .}}
+  <section class="card section">
+    <div class="heading"><h2>Backups</h2><a href="/backups">Open backups →</a></div>
+    <p class="hint">Backup status, destinations and restoring live on the Backups page.</p>
+  </section>
+</section>
+{{end}}

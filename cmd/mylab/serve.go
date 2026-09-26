@@ -69,7 +69,7 @@ func serve(args []string) error {
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets()},
 		Log:        log,
 	}
-	srv.Manager, srv.Domain, srv.HasGPU = mgr, lab.Domain, lab.HasGPU
+	srv.Manager, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, lab.Domain, lab.HasGPU, lab.Backup.Repository
 	// Converge on startup, e.g. after MyLab itself was upgraded.
 	mgr.Apply()
 

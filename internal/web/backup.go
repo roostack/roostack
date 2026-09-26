@@ -14,26 +14,31 @@ import (
 const backupStale = 48 * time.Hour
 
 var templateFuncs = template.FuncMap{
-	// when formats a time for people, e.g. "today 02:00" or "Mon 3 Oct 02:00".
-	"when": func(t time.Time) string {
-		if t.IsZero() {
-			return "never"
-		}
-		now := time.Now()
-		y1, m1, d1 := now.Date()
-		y2, m2, d2 := t.Date()
-		switch {
-		case y1 == y2 && m1 == m2 && d1 == d2:
-			return "today " + t.Format("15:04")
-		case y1 == y2 && m1 == m2 && d2 == d1-1:
-			return "yesterday " + t.Format("15:04")
-		case y1 == y2 && m1 == m2 && d2 == d1+1:
-			return "tomorrow " + t.Format("15:04")
-		}
-		return t.Format("Mon 2 Jan 15:04")
-	},
-	"stale": func(t time.Time) bool { return time.Since(t) > backupStale },
+	"when":  whenText,
+	"stale": isStale,
 }
+
+// whenText formats a time for people, e.g. "today 02:00" or "Mon 3 Oct 02:00".
+func whenText(t time.Time) string {
+	if t.IsZero() {
+		return "never"
+	}
+	now := time.Now()
+	y1, m1, d1 := now.Date()
+	y2, m2, d2 := t.Date()
+	switch {
+	case y1 == y2 && m1 == m2 && d1 == d2:
+		return "today " + t.Format("15:04")
+	case y1 == y2 && m1 == m2 && d2 == d1-1:
+		return "yesterday " + t.Format("15:04")
+	case y1 == y2 && m1 == m2 && d2 == d1+1:
+		return "tomorrow " + t.Format("15:04")
+	}
+	return t.Format("Mon 2 Jan 15:04")
+}
+
+// isStale reports whether the last backup is too old.
+func isStale(t time.Time) bool { return time.Since(t) > backupStale }
 
 // backupView is the dashboard's backup card.
 func (s *Server) backupView(r *http.Request) any {

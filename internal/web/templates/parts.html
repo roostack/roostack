@@ -1,0 +1,106 @@
+{{/* Pieces shared by several pages. */}}
+
+{{define "attention"}}
+{{if .Attention}}
+<section class="attention">
+  <h2>Needs attention</h2>
+  <ul>
+    {{range .Attention}}
+    <li class="item item-{{.Level}}">
+      <span>{{.Text}}</span>
+      {{if .Link}}<a href="{{.Link}}">{{.LinkText}}</a>{{end}}
+    </li>
+    {{end}}
+  </ul>
+</section>
+{{else}}
+<p class="all-good">✓ Everything's working.</p>
+{{end}}
+{{end}}
+
+{{define "service-tiles"}}
+{{if .Services}}
+<ul class="tiles">
+  {{range .Services}}
+  <li class="card tile">
+    <h2>{{.Title}}</h2>
+    {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">Open ↗</a>{{end}}
+    <span class="status status-{{.Status}}">{{.Status}}</span>
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<p class="card">No services are installed yet.{{if .CanManage}} <a href="/catalog">Add one</a>.{{end}}</p>
+{{end}}
+{{end}}
+
+{{define "backup-card"}}
+{{with .Backup}}
+<section class="card section">
+  <div class="heading">
+    <h2>Backups</h2>
+    {{if and $.CanManage .Configured (not .Running) (not .Queued)}}
+    <form method="post" action="/backup/run"><button type="submit">Back up now</button></form>
+    {{end}}
+  </div>
+  {{if not .Configured}}
+    <p class="notice notice-error">Backups are not set up yet. Until they are, a failed disk means losing everything.</p>
+  {{else}}
+    {{if .Running}}<p class="notice">Backing up{{if ge .Progress 0}}… {{.Progress}}%{{else}}…{{end}}</p>
+    {{else if .Queued}}<p class="notice">A backup is waiting to start.</p>{{end}}
+    {{with .Last}}{{if not .OK}}
+      <p class="notice notice-error">The last backup ({{when .Finished}}) didn't finish: {{.Error}}</p>
+    {{end}}{{end}}
+    {{with .LastOK}}
+      <p>Last backup: <strong>{{when .Finished}}</strong>{{if stale .Finished}} <span class="error">(over 2 days ago)</span>{{end}}</p>
+    {{else}}
+      <p class="error">No backup has finished yet.</p>
+    {{end}}
+    <p class="hint">Next backup: {{when .Next}}</p>
+    {{if .LocalOnly}}
+      <p class="notice">Backups are only stored on this machine. Add an off-site copy to protect against theft, fire or a failed disk.</p>
+    {{end}}
+  {{end}}
+</section>
+{{end}}
+{{end}}
+
+{{define "dns-card"}}
+{{with .DNS}}
+<section class="card section" id="dns">
+  <h2>Home network access</h2>
+  {{if eq .State "ok"}}<p>✓ {{.Message}} <span class="hint">({{.Record}} → {{.IP}})</span></p>
+  {{else if eq .State "manual"}}<p class="notice">{{.Message}}</p>
+  {{else if eq .State "pending"}}<p class="notice">{{.Message}}</p>
+  {{else if .State}}<p class="notice notice-error">{{.Message}}</p>
+  {{else}}<p class="hint">Checking…</p>{{end}}
+  {{if not .Checked.IsZero}}<p class="hint">Last checked {{when .Checked}}. This machine's home network address: {{.IP}}. Give it a fixed address in your router (a "DHCP reservation") so it doesn't change.</p>{{end}}
+  {{if eq .State "conflict"}}<p><a class="button" href="/dns/take-over">Take over this record…</a></p>{{end}}
+  {{if and .CanManage (not .Managing)}}
+  <form method="post" action="/dns/manage" class="dns-manage">
+    <input type="hidden" name="manage" value="on">
+    <p><strong>Let MyLab manage DNS records at {{.Provider}}?</strong> This is one setting for the whole lab:</p>
+    <ul class="scope">
+      <li><strong>Now:</strong> {{.Record}} → this machine, so devices at home can reach your services.</li>
+      <li><strong>Later:</strong> records for services you make public, kept up to date when your internet address changes.</li>
+      <li><strong>Never:</strong> records MyLab didn't create, unless you choose to take one over.</li>
+    </ul>
+    {{if .Risky}}
+    <p class="notice notice-error"><strong>{{.Provider}}'s API is risky for this:</strong> to change one record it rewrites
+      every record on your domain. We strongly recommend moving your DNS to another provider, such as Cloudflare (free).</p>
+    <label class="check"><input type="checkbox" name="accept_risk" required>
+      <span>I understand the risk; let MyLab manage {{.Provider}} records anyway</span></label>
+    {{end}}
+    <button type="submit">Let MyLab manage DNS records</button>
+  </form>
+  {{else if .Managing}}
+  <p class="hint">MyLab manages DNS records at {{.Provider}}: {{.Record}} → {{.IP}}.</p>
+  <form method="post" action="/dns/manage" class="later">
+    <input type="hidden" name="manage" value="off">
+    <button type="submit" class="link">Stop managing DNS records</button>
+    <small>Records stay in place; MyLab just stops creating and updating them.</small>
+  </form>
+  {{end}}
+</section>
+{{end}}
+{{end}}

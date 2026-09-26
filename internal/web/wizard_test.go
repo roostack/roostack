@@ -189,15 +189,18 @@ func TestDNSCard(t *testing.T) {
 	h.server.Setup = &fakeSetup{p: setup.Progress{DomainDone: true, BackupLater: true}}
 	h.server.DNS = &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateBlocked, Record: "*.lab.example.com", IP: "192.168.1.20",
 		Message: "your router's DNS rebinding protection", Checked: time.Now()}}
-	_, body := h.get("/partials/services")
+	_, body := h.get("/settings")
 	if !strings.Contains(body, "Home network access") || !strings.Contains(body, "rebinding protection") || !strings.Contains(body, "DHCP reservation") {
 		t.Error("owner should see the home network card with the problem")
+	}
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "rebinding protection") || !strings.Contains(body, `href="/settings#dns"`) {
+		t.Error("the problem should also be on the home page's attention list, linking to settings")
 	}
 
 	a, _ := loggedIn(t, auth.RoleAdmin)
 	a.server.DNS = h.server.DNS
-	if _, body := a.get("/partials/services"); strings.Contains(body, "Home network access") {
-		t.Error("the card is for the Owner only")
+	if _, body := a.get("/partials/home"); strings.Contains(body, "rebinding") {
+		t.Error("DNS problems are for the Owner only")
 	}
 }
 
@@ -208,7 +211,7 @@ func TestDNSControls(t *testing.T) {
 		Provider: "Namecheap", CanManage: true, Risky: true, Checked: time.Now()}}
 	h.server.DNS = fd
 
-	_, body := h.get("/partials/services")
+	_, body := h.get("/settings")
 	if !strings.Contains(body, "Let MyLab manage DNS records at Namecheap?") || !strings.Contains(body, "one setting for the whole lab") ||
 		!strings.Contains(body, "API is risky") {
 		t.Error("manual mode should offer opting in, with the risk warning for Namecheap")
@@ -224,7 +227,7 @@ func TestDNSControls(t *testing.T) {
 	// A conflict offers taking over, which needs confirmation.
 	fd.st = dnsrecords.Status{State: dnsrecords.StateConflict, Record: "*.lab.example.com", IP: "192.168.1.20",
 		Current: "203.0.113.5", Managing: true, CanManage: true, Provider: "Cloudflare", Checked: time.Now()}
-	if _, body := h.get("/partials/services"); !strings.Contains(body, "/dns/take-over") || !strings.Contains(body, "Stop managing") {
+	if _, body := h.get("/settings"); !strings.Contains(body, "/dns/take-over") || !strings.Contains(body, "Stop managing") {
 		t.Error("conflict should offer taking over; managed mode should offer stopping")
 	}
 	_, body = h.get("/dns/take-over")
