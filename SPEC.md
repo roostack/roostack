@@ -180,6 +180,25 @@ MyLab runs **directly on the host** (not in a container), as two processes shipp
   - Trade-off: one certificate covers all services. That's acceptable on a single-owner host.
 - **Rationale for Caddy:** best automatic HTTPS, readable config, easy custom snippets. **Considered:** Traefik (many DNS providers built in, but verbose config tied to container labels); Nginx + certbot (familiar, but TLS is a separate tool and config is verbose).
 
+### 6.5.1 DNS Records & Local Access — Locked (2026-09-26)
+
+MyLab manages the DNS records its services need, through the same DNS provider credentials used for certificates.
+
+- **Private services (default):** one **wildcard record** (`*.<domain>`) pointing at the lab's **LAN IP**, in public DNS. Devices at home reach services without local DNS. Anyone can look the record up, but only the home network can reach the address, and service names stay out of public DNS (like the wildcard certificate).
+- **Router DNS rebinding protection:** some routers drop DNS answers containing private IPs. MyLab **detects** this by comparing the home network's resolver with a public resolver, and shows instructions (allow the domain in the router, or use local DNS).
+- **Local DNS** (e.g. Pi-hole) is optional, for later. Getting every device to use it means changing the router's DHCP DNS setting (router-specific, sometimes impossible). MyLab running DHCP itself was **rejected**: if the lab dies, the home network stops working.
+- **Public services (stage 2):** explicit records pointing at the **public IP**; explicit records override the wildcard. Devices at home reach them via the router's NAT loopback (MyLab can test this).
+- **Dynamic public IPs (stage 2):** handled by a dynamic DNS container, [qdm12/ddns-updater](https://github.com/qdm12/ddns-updater) (broad provider support), configured by MyLab.
+- **Cloudflare proxy (stage 3):** offered per public service, **off by default**, with advantages and disadvantages listed in the UI:
+  - For: hides the home IP; DDoS protection; works around some ISP port blocking.
+  - Against: Cloudflare decrypts the traffic (at odds with "own your data"); free plan upload limit of 100 MB per request; Cloudflare's terms restrict large media streaming on the free plan.
+  - When proxied, Caddy trusts `CF-Connecting-IP` **only from Cloudflare's published IP ranges**, so the private check and CrowdSec still see real visitors.
+  - Packages declare proxy warnings, e.g. large uploads (Immich, until its chunked uploads land) or media streaming (Plex, Jellyfin, stricter). The format is to be designed.
+- **Ownership:** MyLab only changes records it created (tracked in its state, plus a comment where the provider supports it). An existing record with the same name that MyLab didn't create is never overwritten; the UI explains the conflict.
+- **Namecheap:** its API can only replace a domain's whole record set, so record management there is **off unless the Owner ticks an opt-in** with a clear warning, and strongly recommends another provider (e.g. Cloudflare).
+- **No usable public IP (CGNAT):** public exposure needs a relay. Future options: Cloudflare Tunnel, or a MyLab Cloud relay (§4).
+- **Stages:** 1) wildcard to LAN IP + rebinding check; 2) public records + dynamic DNS (with public exposure, firewall, CrowdSec); 3) Cloudflare proxy.
+
 ### 6.6 Domains — Locked
 
 - **v1 requires a user-owned domain** with a supported DNS provider (API token for DNS-01). This is set up once, at install time.

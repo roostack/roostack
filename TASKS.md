@@ -55,7 +55,11 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Wizard: SFTP destination; changing settings later from a Settings page
   - [x] **More DNS providers**: Cloudflare, Route 53, Porkbun, Gandi, GoDaddy, Namecheap, Spaceship (`internal/dns` registry; TXT-record check over each provider's HTTP API, no SDKs; all plugins in the Caddy image)
   - [ ] Test each DNS provider with a real account (Cloudflare done; the other six only against fake APIs)
-  - [ ] Local name resolution: devices on the LAN need `*.<domain>` to point at the lab. Options: MyLab creates the wildcard DNS record through the same provider API (note: some routers block public DNS answers with private IPs, "DNS rebinding protection"), or local DNS (Pi-hole, deferred). Decide with the user
+  - [ ] **DNS records (SPEC §6.5.1)**
+    - [ ] Stage 1: wildcard record → LAN IP via the provider API; ownership tracking; router rebinding check; status on the dashboard; Namecheap opt-in
+    - [ ] Stage 2: public records → public IP; dynamic DNS via qdm12/ddns-updater; NAT loopback check (with public exposure)
+    - [ ] Stage 3: Cloudflare proxy option (CF-Connecting-IP from Cloudflare ranges only; package proxy warnings)
+    - [ ] Later: CGNAT detection → Cloudflare Tunnel / MyLab Cloud relay; optional local DNS (Pi-hole)
   - [ ] Maybe later: deSEC, DigitalOcean, Hetzner, OVH, DuckDNS
 - [ ] 🟡 **1.10 Backups**
   - [x] restic wrapper (tested against real restic), recovery key, `mylab backup init|run|snapshots`
