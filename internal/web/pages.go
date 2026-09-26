@@ -9,6 +9,7 @@ import (
 	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/manager"
+	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/store"
 )
 
@@ -87,12 +88,24 @@ func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) servicePage(w http.ResponseWriter, r *http.Request) {
-	s.renderService(w, r, nil)
+	s.renderServiceWith(w, r, nil, false)
 }
 
 // renderService shows a service's page; portErr is a form error for one of
 // its ports ({"port": name, "msg": text}).
 func (s *Server) renderService(w http.ResponseWriter, r *http.Request, portErr map[string]string) {
+	s.renderServiceWith(w, r, map[string]any{"PortError": portErr}, portErr != nil)
+}
+
+// serviceAction is an action button on the service page.
+type serviceAction struct {
+	Name, Title, Description string
+	Fields                   []formField
+}
+
+// renderServiceWith shows a service's page with extra data (form errors,
+// an action's result); failed sets a 400 status.
+func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra map[string]any, failed bool) {
 	data, err := s.pageData(r)
 	if err != nil {
 		s.serverError(w, err)
@@ -111,7 +124,13 @@ func (s *Server) renderService(w http.ResponseWriter, r *http.Request, portErr m
 	if s.Manager != nil {
 		if p, err := s.Manager.Package(name); err == nil {
 			data["Package"] = p
+			var actions []serviceAction
+			for _, h := range p.HooksOn(pkgspec.HookAction) {
+				actions = append(actions, serviceAction{Name: h.Name, Title: h.Title, Description: h.Description, Fields: inputFields(h)})
+			}
+			data["Actions"] = actions
 		}
+		data["Setup"] = s.Manager.InstallStatus(r.Context(), name)
 		data["DataDirs"] = s.Manager.DataDirs(name)
 		ports, err := s.Manager.Ports(name)
 		if err != nil && !errors.Is(err, manager.ErrNotFound) {
@@ -123,8 +142,10 @@ func (s *Server) renderService(w http.ResponseWriter, r *http.Request, portErr m
 	if urls := data["Service"].(ServiceView).URLs; len(urls) > 0 {
 		data["Host"] = strings.TrimPrefix(urls[0], "https://")
 	}
-	if portErr != nil {
-		data["PortError"] = portErr
+	for k, v := range extra {
+		data[k] = v
+	}
+	if failed {
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	s.render(w, "service", data)

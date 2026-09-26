@@ -25,6 +25,8 @@ type Context struct {
 	// Containers lets containers find each other, e.g.
 	// {{ (index .Containers "machine-learning").Host }}.
 	Containers map[string]ContainerContext
+	// Inputs are an action hook's inputs (non-secret only).
+	Inputs map[string]string
 }
 
 // ContainerContext describes a sibling container.

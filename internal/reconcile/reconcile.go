@@ -185,6 +185,9 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 		return nil, err
 	}
 	for _, s := range secrets {
+		if s.InstallOnly && !r.hasUserSecret(s.Name) {
+			continue // already used and deleted, or never given
+		}
 		if !existing[s.Name] {
 			plan.Secrets = append(plan.Secrets, s)
 			existing[s.Name] = true // shared secrets are listed once
@@ -292,6 +295,14 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 		return r.Systemd.ReloadOrRestart(ctx, generate.CaddyUnit+".service")
 	}
 	return nil
+}
+
+func (r *Reconciler) hasUserSecret(name string) bool {
+	if r.UserSecret == nil {
+		return false
+	}
+	_, ok := r.UserSecret(name)
+	return ok
 }
 
 func (r *Reconciler) secretValue(s generate.Secret) ([]byte, error) {

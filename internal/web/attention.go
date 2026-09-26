@@ -49,6 +49,18 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		case st.LastErr != nil:
 			add(levelProblem, "The last change didn't finish: "+st.LastErr.Error(), "/services", "View services")
 		}
+		if services, err := s.Services(r.Context()); err == nil {
+			for _, svc := range services {
+				hs := s.Manager.InstallStatus(r.Context(), svc.Name)
+				link := "/services/" + svc.Name
+				switch {
+				case hs.Failed != "":
+					add(levelProblem, svc.Title+" didn't finish setting up.", link, "See what went wrong")
+				case hs.Running || hs.Pending:
+					add(levelInfo, "Finishing setting up "+svc.Title+"…", link, "View")
+				}
+			}
+		}
 	}
 
 	if admin && s.Backups != nil {

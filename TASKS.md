@@ -87,13 +87,14 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Forgejo v15 LTS: rootless image, MyLab Postgres, HTTPS clone; backup/restore tested on the VM
   - [x] Package `ports:` option; Forgejo git over SSH (tested on the VM: clone via LAN IP on 2222)
   - [ ] ⚠️ Before release: package ports rely on the firewall to stay home-network-only, but the firewall isn't applied yet (1.8). Generated `HostPorts` must feed the agent's ruleset.
-  - [ ] Forgejo: first admin account (currently the first sign-up becomes admin; see "To discuss")
+  - [x] Package hooks (`install`, `action`); Forgejo creates its admin at install and has "Reset a password" (hook scripts tested on the VM)
+  - [ ] Forgejo: fresh install through the UI (user to test: remove Forgejo, install again)
+  - [ ] If an install hook fails because of what was typed (e.g. an invalid username), "Try again" repeats it; offer to edit those settings instead
   - [ ] Immich on the VM
   - [ ] `mylab validate` should render templates with default settings (a bool/string mismatch only showed at render time)
 
 ## To discuss with the user
 
-- Forgejo first admin: first sign-up becomes admin (sign-ups on by default). Alternatives: MyLab creates the admin at install (needs a package "setup command" hook), or SSO later.
 
 - K5: setup-code approach for first-run setup (add to SPEC?)
 - Go module path is a placeholder (`github.com/mylab/mylab`); repo location not decided yet

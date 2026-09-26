@@ -27,6 +27,71 @@ type Package struct {
 	Databases   map[string]*Database  `yaml:"databases"`
 	Routes      map[string]*Route     `yaml:"routes"`
 	Ports       map[string]*Port      `yaml:"ports"`
+	Hooks       []*Hook               `yaml:"hooks"`
+}
+
+// Hook events.
+const (
+	// HookInstall runs once, after the service's first successful start
+	// (e.g. creating the admin account). It is retried until the service
+	// is ready, so it must be safe to run more than once.
+	HookInstall = "install"
+	// HookAction is a button on the service page (e.g. "Reset admin
+	// password"), run by an Admin.
+	HookAction = "action"
+)
+
+// Hook runs a command inside one of the service's containers.
+//
+// User-provided values (settings, inputs) reach the command only through
+// environment variables, never templated into the command itself, so they
+// can't change what a shell script does.
+type Hook struct {
+	On          string `yaml:"on"`   // install or action
+	Name        string `yaml:"name"` // actions: used in URLs
+	Title       string `yaml:"title"`
+	Description string `yaml:"description"`
+	Container   string `yaml:"container"`
+	// Command is run as-is (no templating).
+	Command []string `yaml:"command"`
+	// Env values are templates: {{ .Settings.x }}, {{ .Inputs.x }}, ...
+	Env map[string]string `yaml:"env"`
+	// Secrets maps an environment variable to a secret setting, or for
+	// actions "inputs.<key>" for a secret input.
+	Secrets map[string]string `yaml:"secrets"`
+	// Inputs are asked for when an action runs (string or secret).
+	Inputs []Setting `yaml:"inputs"`
+}
+
+// HooksOn returns the package's hooks for an event, in order.
+func (p *Package) HooksOn(event string) []*Hook {
+	var hooks []*Hook
+	for _, h := range p.Hooks {
+		if h.On == event {
+			hooks = append(hooks, h)
+		}
+	}
+	return hooks
+}
+
+// Action returns the action hook with this name, or nil.
+func (p *Package) Action(name string) *Hook {
+	for _, h := range p.HooksOn(HookAction) {
+		if h.Name == name {
+			return h
+		}
+	}
+	return nil
+}
+
+// Input returns an action's input, or nil.
+func (h *Hook) Input(key string) *Setting {
+	for i := range h.Inputs {
+		if h.Inputs[i].Key == key {
+			return &h.Inputs[i]
+		}
+	}
+	return nil
 }
 
 // Setting types.
@@ -49,6 +114,14 @@ type Setting struct {
 	Default     any    `yaml:"default"`
 	// Generate makes MyLab create a random value (secret settings only).
 	Generate bool `yaml:"generate"`
+	// Required means a string can't be left empty.
+	Required bool `yaml:"required"`
+	// MinLength is the shortest value accepted (string and secret).
+	MinLength int `yaml:"min_length"`
+	// InstallOnly settings are asked for at install and used only by
+	// install hooks. InstallOnly secrets are deleted once those succeed,
+	// so no copy of e.g. an admin password is kept.
+	InstallOnly bool `yaml:"install_only"`
 }
 
 // Container is one container in the service.

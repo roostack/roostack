@@ -47,6 +47,18 @@ type Manager struct {
 	userSecrets map[string][]byte
 	// done is closed when the current apply finishes (for tests).
 	done chan struct{}
+
+	// Hooks (hooks.go). State records install hook progress; without
+	// State and Exec, hooks don't run.
+	State   KV
+	Secrets SecretStore
+	Exec    ExecFunc
+	// HookRetry and HookDeadline tune install hook retries (0: defaults).
+	HookRetry, HookDeadline time.Duration
+
+	hooksBusy, hooksAgain bool
+	hooksRunning          map[string]bool
+	hooksDone             chan struct{}
 }
 
 // ApplyStatus is shown on the dashboard.
@@ -141,7 +153,14 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		case pkgspec.SettingBool:
 			in.Settings[s.Key] = given && (raw == "on" || raw == "true")
 		case pkgspec.SettingString:
-			in.Settings[s.Key] = strings.TrimSpace(raw)
+			v := strings.TrimSpace(raw)
+			if s.Required && v == "" {
+				return formErrorf("%s is required.", s.Title)
+			}
+			if s.MinLength > 0 && len([]rune(v)) < s.MinLength {
+				return formErrorf("%s must be at least %d characters.", s.Title, s.MinLength)
+			}
+			in.Settings[s.Key] = v
 		case pkgspec.SettingInt:
 			n, err := strconv.Atoi(strings.TrimSpace(raw))
 			if err != nil {
@@ -155,6 +174,12 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 			v := req.Secrets[s.Key]
 			if v == "" {
 				return formErrorf("%s is required.", s.Title)
+			}
+			if s.MinLength > 0 && len([]rune(v)) < s.MinLength {
+				return formErrorf("%s must be at least %d characters.", s.Title, s.MinLength)
+			}
+			if strings.ContainsAny(v, "\n\r\x00") {
+				return formErrorf("%s can't contain line breaks.", s.Title)
 			}
 			secrets[secretName(p.Name, s.Key)] = []byte(v)
 		}
@@ -195,6 +220,13 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 			return formErrorf("That web address is already used by another service. Choose a different one.")
 		}
 		return err
+	}
+	// Install hooks (e.g. creating the admin account) run once the
+	// service has started.
+	if m.State != nil && len(p.HooksOn(pkgspec.HookInstall)) > 0 {
+		if err := m.State.SetSetting(ctx, hookKey(p.Name), hookPending); err != nil {
+			return err
+		}
 	}
 	if err := in.Save(state.InstanceFile(m.Lab, p.Name)); err != nil {
 		return err
@@ -313,6 +345,9 @@ func (m *Manager) Remove(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
+	if m.State != nil {
+		m.State.SetSetting(ctx, hookKey(name), "")
+	}
 	m.startApplyLocked()
 	return nil
 }
@@ -360,6 +395,8 @@ func (m *Manager) applyLoop(done chan struct{}) {
 		m.status.LastRun, m.status.LastErr, m.status.Finished = time.Now(), err, true
 		if err != nil {
 			m.Log.Error("applying changes", "err", err)
+		} else {
+			defer m.startInstallHooks() // after unlocking
 		}
 		if !m.again {
 			m.status.Running = false

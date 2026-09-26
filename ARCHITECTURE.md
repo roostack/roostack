@@ -57,12 +57,12 @@ The reconciler only touches files it owns (`mylab-*` Quadlets and `*.caddy` snip
 | `internal/reconcile` | Plan and apply changes to the host |
 | `internal/state` | Load desired state from disk |
 | `internal/systemd` | `systemctl --user` wrapper |
-| `internal/podman` | The few direct `podman` calls (secrets) |
+| `internal/podman` | The few direct `podman` calls (secrets, `exec` for package hooks) |
 | `internal/agent` | Agent server, client, firewall ruleset, time zone |
 | `internal/store` | SQLite runtime data: users, sessions, audit log |
 | `internal/auth` | Password hashing (argon2id), session tokens, roles |
 | `internal/web` | Web UI: handlers, templates, vendored htmx/Alpine |
-| `internal/manager` | Business logic behind the UI: catalog, install, remove, background apply |
+| `internal/manager` | Business logic behind the UI: catalog, install, remove, ports, background apply, package hooks |
 | `internal/maintenance` | Maintenance coordinator: job queue and reboot policy |
 | `internal/backup` | restic wrapper, prepare steps, backup plan and job |
 
@@ -125,6 +125,8 @@ Shared pieces (attention list, backup and DNS cards) live in `templates/parts.ht
 - **Roles** are checked per route (`auth.Can`).
 
 Installing or removing a service from the UI only changes desired state (an instance file); `internal/manager` then applies it in the background, one apply at a time, and the dashboard shows progress or the last error. Removing a service never deletes its data. For now, services installed from the UI are always private.
+
+**Package hooks** run commands inside a service's containers with `podman exec`. After an apply succeeds, `install` hooks run once, retried every 10 s for up to 10 minutes while the app starts; their progress is kept in the settings table (`hooks.<service>.install`). `action` hooks are buttons on the service page. Values from users (settings, action inputs, secrets) reach the command only as environment variables, passed as an env file on stdin, so they never appear in a command line, a unit file or a process listing. `install_only` secrets (e.g. Forgejo's admin password) are deleted once the install hooks succeed.
 
 ## Not built yet
 
