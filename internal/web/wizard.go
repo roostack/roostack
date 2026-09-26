@@ -9,15 +9,22 @@ import (
 	"github.com/mylab/mylab/internal/setup"
 )
 
-// requireWizard allows the setup wizard to the Owner (host settings,
-// SPEC.md §5) once they have 2FA.
+// requireWizard allows the setup wizard to the Owner.
 func (s *Server) requireWizard(h http.HandlerFunc) http.Handler {
-	return s.requireLogin(func(w http.ResponseWriter, r *http.Request) {
-		u := currentUser(r)
+	return s.requireOwner(func(w http.ResponseWriter, r *http.Request) {
 		if s.Setup == nil {
 			http.NotFound(w, r)
 			return
 		}
+		h(w, r)
+	})
+}
+
+// requireOwner allows host settings (SPEC.md §5) to the Owner, once they
+// have 2FA.
+func (s *Server) requireOwner(h http.HandlerFunc) http.Handler {
+	return s.requireLogin(func(w http.ResponseWriter, r *http.Request) {
+		u := currentUser(r)
 		if !auth.Can(u.Role, auth.ManageHost) {
 			http.Error(w, "Only the Owner can change these settings.", http.StatusForbidden)
 			return

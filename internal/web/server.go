@@ -120,6 +120,8 @@ type LabSetup interface {
 // DNSStatus is what the UI needs from internal/dnsrecords.
 type DNSStatus interface {
 	Status() dnsrecords.Status
+	SetManaging(on, acceptRisk bool) error
+	TakeOver(ctx context.Context) error
 }
 
 // BackupService is what the UI needs from internal/backup.
@@ -143,7 +145,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		return nil, err
 	}
 	for _, page := range []string{"login", "totp", "setup", "dashboard", "twofactor", "catalog", "install", "remove",
-		"setup-domain", "setup-backup", "recovery-key", "restarting"} {
+		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS, "templates/layout.html", "templates/"+page+".html")
 		if err != nil {
 			return nil, err
@@ -173,6 +175,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /partials/services", s.require(auth.ViewDashboard, s.servicesPartial))
 
 	mux.HandleFunc("GET /healthz", s.healthz)
+	mux.Handle("POST /dns/manage", s.requireOwner(s.dnsManage))
+	mux.Handle("GET /dns/take-over", s.requireOwner(s.dnsTakeOverPage))
+	mux.Handle("POST /dns/take-over", s.requireOwner(s.dnsTakeOver))
 	mux.Handle("GET /setup/domain", s.requireWizard(s.domainPage))
 	mux.Handle("POST /setup/domain", s.requireWizard(s.domainSubmit))
 	mux.Handle("POST /setup/domain/later", s.requireWizard(s.domainLater))

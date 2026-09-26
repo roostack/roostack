@@ -28,3 +28,24 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 		t.Errorf("mode = %o", info.Mode().Perm())
 	}
 }
+
+func TestUpdateKeepsOtherFields(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lab.yaml")
+	lab := Default()
+	lab.Domain = "lab.example.com"
+	lab.DNS.Provider = "cloudflare"
+	lab.Save(path)
+	// Two settings changed by different parts of MyLab, one after the other.
+	Update(path, func(l *Lab) { l.Backup.Repository = "/mnt/backup" })
+	Update(path, func(l *Lab) { l.DNS.ManageRecords = true })
+	got, err := Load(path)
+	if err != nil || got.Backup.Repository != "/mnt/backup" || !got.DNS.ManageRecords || got.Domain != "lab.example.com" {
+		t.Errorf("got %+v, %v", got, err)
+	}
+	// A config that isn't complete yet can still be updated.
+	fresh := filepath.Join(t.TempDir(), "lab.yaml")
+	Default().Save(fresh)
+	if err := Update(fresh, func(l *Lab) { l.Domain = "new.example.com" }); err != nil {
+		t.Error(err)
+	}
+}

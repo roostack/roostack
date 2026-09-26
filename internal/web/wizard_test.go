@@ -168,14 +168,26 @@ func TestDomainRecordOptions(t *testing.T) {
 	}
 }
 
-type fakeDNS struct{ st dnsrecords.Status }
+type fakeDNS struct {
+	st        dnsrecords.Status
+	managing  []bool
+	takenOver bool
+}
 
-func (f fakeDNS) Status() dnsrecords.Status { return f.st }
+func (f *fakeDNS) Status() dnsrecords.Status { return f.st }
+func (f *fakeDNS) SetManaging(on, risk bool) error {
+	if on && f.st.Risky && !risk {
+		return dnsrecords.ErrNeedsRisk
+	}
+	f.managing = append(f.managing, on)
+	return nil
+}
+func (f *fakeDNS) TakeOver(context.Context) error { f.takenOver = true; return nil }
 
 func TestDNSCard(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	h.server.Setup = &fakeSetup{p: setup.Progress{DomainDone: true, BackupLater: true}}
-	h.server.DNS = fakeDNS{dnsrecords.Status{State: dnsrecords.StateBlocked, Record: "*.lab.example.com", IP: "192.168.1.20",
+	h.server.DNS = &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateBlocked, Record: "*.lab.example.com", IP: "192.168.1.20",
 		Message: "your router's DNS rebinding protection", Checked: time.Now()}}
 	_, body := h.get("/partials/services")
 	if !strings.Contains(body, "Home network access") || !strings.Contains(body, "rebinding protection") || !strings.Contains(body, "DHCP reservation") {
@@ -186,5 +198,49 @@ func TestDNSCard(t *testing.T) {
 	a.server.DNS = h.server.DNS
 	if _, body := a.get("/partials/services"); strings.Contains(body, "Home network access") {
 		t.Error("the card is for the Owner only")
+	}
+}
+
+func TestDNSControls(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.server.Setup = &fakeSetup{p: setup.Progress{DomainDone: true, BackupLater: true}}
+	fd := &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateManual, Record: "*.lab.example.com", IP: "192.168.1.20",
+		Provider: "Namecheap", CanManage: true, Risky: true, Checked: time.Now()}}
+	h.server.DNS = fd
+
+	_, body := h.get("/partials/services")
+	if !strings.Contains(body, "Let MyLab manage this record") || !strings.Contains(body, "API is risky") {
+		t.Error("manual mode should offer opting in, with the risk warning for Namecheap")
+	}
+	if code, _ := h.post("/dns/manage", url.Values{"manage": {"on"}}, h.srv.URL); code != http.StatusBadRequest {
+		t.Errorf("opting in without accepting the risk: %d", code)
+	}
+	h.post("/dns/manage", url.Values{"manage": {"on"}, "accept_risk": {"on"}}, h.srv.URL)
+	if len(fd.managing) != 1 || !fd.managing[0] {
+		t.Errorf("managing = %v", fd.managing)
+	}
+
+	// A conflict offers taking over, which needs confirmation.
+	fd.st = dnsrecords.Status{State: dnsrecords.StateConflict, Record: "*.lab.example.com", IP: "192.168.1.20",
+		Current: "203.0.113.5", Managing: true, CanManage: true, Provider: "Cloudflare", Checked: time.Now()}
+	if _, body := h.get("/partials/services"); !strings.Contains(body, "/dns/take-over") || !strings.Contains(body, "Stop managing") {
+		t.Error("conflict should offer taking over; managed mode should offer stopping")
+	}
+	_, body = h.get("/dns/take-over")
+	if !strings.Contains(body, "203.0.113.5") || !strings.Contains(body, "192.168.1.20") || !strings.Contains(body, "stop working") {
+		t.Error("the take-over page must show old and new values and the warning")
+	}
+	if code, _ := h.post("/dns/take-over", nil, h.srv.URL); code != http.StatusBadRequest || fd.takenOver {
+		t.Error("taking over needs the confirmation box")
+	}
+	h.post("/dns/take-over", url.Values{"confirm": {"on"}}, h.srv.URL)
+	if !fd.takenOver {
+		t.Error("confirmed take-over not applied")
+	}
+
+	a, _ := loggedIn(t, auth.RoleAdmin)
+	a.server.DNS = fd
+	if code, _ := a.post("/dns/manage", url.Values{"manage": {"off"}}, a.srv.URL); code != http.StatusForbidden {
+		t.Errorf("admins can't change DNS settings: %d", code)
 	}
 }

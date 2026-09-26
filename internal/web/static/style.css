@@ -90,3 +90,9 @@ button.secondary { background: var(--bg); color: var(--fg); border: 1px solid va
 select { display: block; width: 100%; margin-top: 6px; padding: 10px 12px; font: inherit; color: inherit;
   background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
 .provider { border-left: 3px solid var(--border); padding-left: 12px; margin-bottom: 12px; }
+
+table.compare { border-collapse: collapse; margin: 12px 0; width: 100%; }
+table.compare th { text-align: left; padding: 6px 12px 6px 0; color: var(--muted); font-weight: 600; width: 5em; }
+table.compare td { padding: 6px 0; overflow-wrap: anywhere; }
+.dns-manage { margin-top: 12px; }
+.dns-manage small { display: block; margin-top: 6px; }

@@ -165,6 +165,22 @@ func (l Lab) Save(path string) error {
 	return os.Rename(tmp, path)
 }
 
+// Update re-reads the config at path, applies change, and saves it. Callers
+// change only their own fields, so concurrent edits of different settings
+// don't overwrite each other.
+func Update(path string, change func(*Lab)) error {
+	lab, err := Load(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		// An incomplete config (e.g. no domain yet) is still updatable.
+		var perr *os.PathError
+		if errors.As(err, &perr) {
+			return err
+		}
+	}
+	change(&lab)
+	return lab.Save(path)
+}
+
 // Validate checks the config is usable.
 func (l Lab) Validate() error {
 	var errs []error
