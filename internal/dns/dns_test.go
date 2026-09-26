@@ -3,76 +3,48 @@ package dns
 import (
 	"context"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
-
-	"github.com/libdns/libdns"
 )
 
-// fakeDNS hosts one zone and records every change.
-type fakeDNS struct {
-	mu        sync.Mutex
-	zone      string
-	records   map[string]string
-	failDel   bool
-	appended  []string
-	zonesSeen []string
-}
-
-func (f *fakeDNS) AppendRecords(_ context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.zonesSeen = append(f.zonesSeen, zone)
-	if zone != f.zone {
-		return nil, errors.New("zone not found")
-	}
-	for _, r := range recs {
-		rr := r.RR()
-		f.records[rr.Name] = rr.Data
-		f.appended = append(f.appended, rr.Name)
-	}
-	return recs, nil
-}
-
-func (f *fakeDNS) DeleteRecords(_ context.Context, zone string, recs []libdns.Record) ([]libdns.Record, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.failDel {
-		return nil, errors.New("permission denied")
-	}
-	for _, r := range recs {
-		delete(f.records, r.RR().Name)
-	}
-	return recs, nil
-}
-
 func TestCheckFindsParentZone(t *testing.T) {
-	f := &fakeDNS{zone: "example.com.", records: map[string]string{}}
-	zone, err := check(context.Background(), f, "Lab.Example.com")
+	var tried []string
+	deleted := false
+	pr := func(_ context.Context, _ *http.Client, _ map[string]string, zone, name, value string) (func(context.Context) error, error) {
+		tried = append(tried, zone+" "+name)
+		if zone != "example.com" {
+			return nil, errors.New("zone not found")
+		}
+		return func(context.Context) error { deleted = true; return nil }, nil
+	}
+	zone, err := check(context.Background(), http.DefaultClient, pr, nil, "Lab.Example.com")
 	if err != nil || zone != "example.com" {
 		t.Fatalf("zone %q err %v", zone, err)
 	}
-	if f.appended[0] != "_mylab-check.lab" {
-		t.Errorf("record name %q, want it relative to the zone", f.appended[0])
+	if strings.Join(tried, ",") != "lab.example.com _mylab-check,example.com _mylab-check.lab" {
+		t.Errorf("tried %v: most specific zone first, name relative to the zone", tried)
 	}
-	if len(f.records) != 0 {
+	if !deleted {
 		t.Error("the test record must be deleted")
-	}
-	if f.zonesSeen[0] != "lab.example.com." {
-		t.Error("the most specific zone should be tried first")
 	}
 }
 
 func TestCheckErrors(t *testing.T) {
-	f := &fakeDNS{zone: "other.org.", records: map[string]string{}}
-	if _, err := check(context.Background(), f, "lab.example.com"); err == nil || !strings.Contains(err.Error(), "zone example.com") {
-		t.Errorf("no matching zone: %v", err)
+	fail := func(context.Context, *http.Client, map[string]string, string, string, string) (func(context.Context) error, error) {
+		return nil, errors.New("403 Forbidden")
 	}
-	f = &fakeDNS{zone: "example.com.", records: map[string]string{}, failDel: true}
-	if _, err := check(context.Background(), f, "example.com"); err == nil || !strings.Contains(err.Error(), "remove _mylab-check.example.com by hand") {
+	if _, err := check(context.Background(), http.DefaultClient, fail, nil, "lab.example.com"); err == nil ||
+		!strings.Contains(err.Error(), "example.com: 403 Forbidden") {
+		t.Errorf("no zone worked: %v", err)
+	}
+	undoFails := func(context.Context, *http.Client, map[string]string, string, string, string) (func(context.Context) error, error) {
+		return func(context.Context) error { return errors.New("permission denied") }, nil
+	}
+	if _, err := check(context.Background(), http.DefaultClient, undoFails, nil, "example.com"); err == nil ||
+		!strings.Contains(err.Error(), "remove _mylab-check.example.com by hand") {
 		t.Errorf("delete failure: %v", err)
 	}
 }
@@ -84,13 +56,8 @@ func TestRegistry(t *testing.T) {
 		if p == nil {
 			t.Fatalf("missing provider %s", id)
 		}
-		// Every provider builds a client from its fields.
-		values := map[string]string{}
-		for _, f := range p.Fields {
-			values[f.Key] = "x"
-		}
-		if p.client(values) == nil {
-			t.Errorf("%s: no client", id)
+		if p.probe == nil {
+			t.Errorf("%s: no check", id)
 		}
 	}
 	if Get("nope") != nil {

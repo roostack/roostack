@@ -11,15 +11,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-
-	"github.com/libdns/cloudflare"
-	"github.com/libdns/gandi"
-	"github.com/libdns/godaddy"
-	"github.com/libdns/libdns"
-	"github.com/libdns/namecheap"
-	"github.com/libdns/porkbun"
-	"github.com/libdns/route53"
-	spaceship "github.com/libdns/spaceship" // package libdnsspaceship
 )
 
 // Field is one value the user enters for a provider.
@@ -43,14 +34,8 @@ type Provider struct {
 	Fields []Field
 	// directive is the Caddyfile "dns" line; set lists the fields given.
 	directive func(set []string) string
-	// client builds the libdns client used to check the credentials.
-	client func(v map[string]string) Client
-}
-
-// Client can create and delete DNS records (what the check needs).
-type Client interface {
-	libdns.RecordAppender
-	libdns.RecordDeleter
+	// probe checks credentials against the provider's API (probes.go).
+	probe probe
 }
 
 // SecretName is the Podman secret holding a field's value.
@@ -81,7 +66,7 @@ var providers = []*Provider{
 			"template for your domain. Also add the permission Zone → Zone → Read.",
 		Fields:    []Field{{Key: "api_token", Label: "API token", Sensitive: true}},
 		directive: func([]string) string { return "dns cloudflare " + env("api_token") },
-		client:    func(v map[string]string) Client { return &cloudflare.Provider{APIToken: v["api_token"]} },
+		probe:     cloudflareProbe,
 	},
 	{
 		ID: "route53", Title: "Amazon Route 53 (AWS)", Plugin: "github.com/caddy-dns/route53",
@@ -95,9 +80,7 @@ var providers = []*Provider{
 		directive: func(set []string) string {
 			return block("route53", set, "access_key_id", "secret_access_key", "region")
 		},
-		client: func(v map[string]string) Client {
-			return &route53.Provider{AccessKeyId: v["access_key_id"], SecretAccessKey: v["secret_access_key"], Region: v["region"]}
-		},
+		probe: route53Probe,
 	},
 	{
 		ID: "porkbun", Title: "Porkbun", Plugin: "github.com/caddy-dns/porkbun",
@@ -108,9 +91,7 @@ var providers = []*Provider{
 			{Key: "api_secret_key", Label: "Secret API key", Sensitive: true},
 		},
 		directive: func(set []string) string { return block("porkbun", set, "api_key", "api_secret_key") },
-		client: func(v map[string]string) Client {
-			return &porkbun.Provider{APIKey: v["api_key"], APISecretKey: v["api_secret_key"]}
-		},
+		probe:     porkbunProbe,
 	},
 	{
 		ID: "gandi", Title: "Gandi", Plugin: "github.com/caddy-dns/gandi",
@@ -118,7 +99,7 @@ var providers = []*Provider{
 			"one that can manage your domain's technical configuration.",
 		Fields:    []Field{{Key: "bearer_token", Label: "Personal access token", Sensitive: true}},
 		directive: func([]string) string { return "dns gandi " + env("bearer_token") },
-		client:    func(v map[string]string) Client { return &gandi.Provider{BearerToken: v["bearer_token"]} },
+		probe:     gandiProbe,
 	},
 	{
 		ID: "godaddy", Title: "GoDaddy", Plugin: "github.com/caddy-dns/godaddy",
@@ -130,14 +111,13 @@ var providers = []*Provider{
 		},
 		// The plugin expects "key:secret" in one value.
 		directive: func([]string) string { return "dns godaddy " + env("api_key") + ":" + env("api_secret") },
-		client: func(v map[string]string) Client {
-			return &godaddy.Provider{APIToken: v["api_key"] + ":" + v["api_secret"]}
-		},
+		probe:     godaddyProbe,
 	},
 	{
 		ID: "namecheap", Title: "Namecheap", Plugin: "github.com/caddy-dns/namecheap",
 		Help: "In Namecheap, go to Profile → Tools → Namecheap API Access, turn it on, and add this " +
-			"lab's public IP address to the whitelist. Namecheap only enables the API for some accounts.",
+			"lab's public IP address to the whitelist. Namecheap only enables the API for some accounts. " +
+			"(MyLab's check only reads your DNS records: Namecheap's API can't add one record on its own.)",
 		Fields: []Field{
 			{Key: "user", Label: "Namecheap username"},
 			{Key: "api_key", Label: "API key", Sensitive: true},
@@ -145,9 +125,7 @@ var providers = []*Provider{
 				Help: "Optional: detected automatically if left empty."},
 		},
 		directive: func(set []string) string { return block("namecheap", set, "api_key", "user", "client_ip") },
-		client: func(v map[string]string) Client {
-			return &namecheap.Provider{APIKey: v["api_key"], User: v["user"], ClientIP: v["client_ip"]}
-		},
+		probe:     namecheapProbe,
 	},
 	{
 		ID: "spaceship", Title: "Spaceship", Plugin: "github.com/caddy-dns/spaceship",
@@ -158,9 +136,7 @@ var providers = []*Provider{
 			{Key: "api_secret", Label: "API secret", Sensitive: true},
 		},
 		directive: func(set []string) string { return block("spaceship", set, "api_key", "api_secret") },
-		client: func(v map[string]string) Client {
-			return &spaceship.Provider{APIKey: v["api_key"], APISecret: v["api_secret"]}
-		},
+		probe:     spaceshipProbe,
 	},
 }
 

@@ -117,9 +117,9 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | # | Assumption / concern |
 |---|---|
 | M1 | Applying wizard settings restarts MyLab (`Restart=always`) instead of hot-reloading config everywhere. Verified on the VM: a self-exit is restarted within a second. The "restarting" page waits for a new boot ID before continuing. |
-| M2 | The wizard's DNS check creates and deletes `_mylab-check.<domain>` (TXT), trying zones from the domain itself upwards. Tested with a fake provider only; each real provider still needs a real test account. Namecheap's API replaces all records when changing one (a limitation of its API, which Caddy shares). |
+| M2 | The wizard's DNS check creates and deletes `_mylab-check.<domain>` (TXT), trying zones from the domain itself upwards. **Namecheap is read-only** (lists records): its API can only replace all of a domain's records at once, so a test write would rewrite the zone. Tested against fake APIs only; each real provider still needs a real account test. |
 | M5 | Provider notes in the wizard (GoDaddy and Namecheap only allow API access for some accounts; Namecheap needs this lab's public IP whitelisted) are from their public documentation at the time of writing and may change. |
-| M6 | The libdns libraries (especially the AWS SDK behind Route 53) grew the `mylab` binary from 22 MB to 31 MB. |
+| M6 | MyLab's DNS check uses each provider's public HTTP API directly (standard library only), not libdns or the AWS SDK, which had grown the binary from 22 to 31 MB. Route 53 needs AWS SigV4 signing, implemented in `internal/dns/sigv4.go` and checked to produce identical signatures to the AWS SDK's signer. Request formats follow the libdns implementations Caddy's plugins use. We maintain these ourselves; if a provider changes its API, only the wizard's check breaks, not certificates. |
 | M3 ⚠️ | S3 credentials are stored in `lab.yaml` (mode 0640, owned by mylab). They're also inside the encrypted backups. Consider moving them to a separate 0600 file or a Podman secret. |
 | M4 | A local backup folder must be writable by the `mylab` user (e.g. a disk mounted for it). Otherwise the wizard shows restic's error. Preparing disks belongs to the installer/agent later. |
 
