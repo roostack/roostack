@@ -40,6 +40,26 @@ type Instance struct {
 type RouteOverride struct {
 	Subdomain string `yaml:"subdomain,omitempty"`
 	Exposure  string `yaml:"exposure,omitempty"`
+	// Port is the host loopback port the route's container is published
+	// on. MyLab allocates it once (state.AllocatePorts); it isn't meant
+	// to be edited.
+	Port int `yaml:"port,omitempty"`
+}
+
+// Save writes an instance file atomically. Comments in a hand-edited file
+// are not preserved.
+func (in *Instance) Save(path string) error {
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(in); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, buf.Bytes(), 0o640); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // Load reads an instance file.
@@ -84,6 +104,9 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 		}
 		if r.Exposure != "" && r.Exposure != pkgspec.ExposurePrivate && r.Exposure != pkgspec.ExposurePublic {
 			add("routes.%s.exposure: must be private or public", name)
+		}
+		if r.Port != 0 && (r.Port < 1024 || r.Port > 65535) {
+			add("routes.%s.port: %d is outside 1024-65535", name, r.Port)
 		}
 	}
 	for _, key := range slices.Sorted(maps.Keys(in.Settings)) {

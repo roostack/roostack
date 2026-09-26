@@ -1,7 +1,7 @@
 package: immich
 version: 2.1.0-mylab.1
 routes:
-  web: { exposure: public }
+  web: { exposure: public, port: 20002 }
 settings:
   machine_learning: false
   hardware_acceleration: false

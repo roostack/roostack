@@ -28,6 +28,20 @@ func apply(args []string) error {
 	if err != nil {
 		return err
 	}
+	// New routes get a host port once; it is saved in the instance file.
+	changed, err := state.AllocatePorts(services)
+	if err != nil {
+		return err
+	}
+	for _, s := range changed {
+		if *dryRun {
+			fmt.Printf("Would allocate ports for %s: %v\n", s.Package.Name, s.Instance.Routes)
+			continue
+		}
+		if err := s.Instance.Save(state.InstanceFile(lab, s.Package.Name)); err != nil {
+			return err
+		}
+	}
 	desired, err := state.Desired(lab, services)
 	if err != nil {
 		return err

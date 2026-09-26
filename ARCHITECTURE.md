@@ -5,23 +5,24 @@ How the code fits together. For *why* things are the way they are, see [SPEC.md]
 ## Processes
 
 ```
-                ┌─────────────────────── host (Debian 13) ─────────────────────────┐
-                │                                                                  │
-  browser ──443─┼─▶ Caddy container ──mylab-proxy network──▶ service containers   │
-                │        │                                     (rootless Podman)   │
-                │        └─ host.containers.internal:8480 ─▶ mylab (user: mylab)   │
-                │                                                │                 │
-                │                     systemctl --user, podman ◀─┤                 │
-                │                                                │ Unix socket     │
-                │                                                ▼                 │
-                │                                     mylab-agent (root)           │
-                │                                     sysctl, nftables, apt        │
-                └──────────────────────────────────────────────────────────────────┘
+               ┌──────────────────────────── host (Debian 13) ─────────────────────────────┐
+               │                                                                           │
+ browser ─443──┼─▶ Caddy (own pasta netns, sees real client IPs)                           │
+               │      │  169.254.1.3 = host loopback (pasta --map-host-loopback)           │
+               │      ├──▶ 127.0.0.1:20000 ──▶ service container (own private network)   │
+               │      └──▶ 127.0.0.1:8480  ──▶ mylab (user: mylab)                        │
+               │                                  │                                        │
+               │               systemctl --user,  │                                        │
+               │               systemd-run --user ◀┤ (podman runs outside mylab's sandbox) │
+               │                                  │ Unix socket                            │
+               │                                  ▼                                        │
+               │                          mylab-agent (root): sysctl, nftables, apt       │
+               └───────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **`mylab`** (unprivileged, user `mylab`): web UI, desired state, generating and applying config. It owns every rootless container through the `mylab` user's systemd manager.
 - **`mylab-agent`** (root): a small, fixed set of privileged operations, reached over `/run/mylab-agent.sock`. Callers are identified by the kernel (`SO_PEERCRED`); only root and `mylab` are accepted.
-- **Caddy** (rootless container): the only thing listening on 80/443. It routes subdomains to service containers over the shared `mylab-proxy` network.
+- **Caddy** (rootless container): the only thing listening on 80/443. It runs in its own pasta network namespace so it sees visitors' real IP addresses. It reaches routed containers, which are published on `127.0.0.1:<port>`, through pasta's loopback mapping (`169.254.1.3`). See SPEC.md §6.5 for why.
 
 ## Data flow: desired state → running services
 
@@ -71,6 +72,7 @@ For a service `<svc>`:
 |---|---|
 | Service network | `mylab-<svc>` (file `mylab-<svc>.network`) |
 | Container | `mylab-<svc>-<container>` (unit `mylab-<svc>-<container>.service`) |
+| Route port | `127.0.0.1:<port>`, from 20000–29999, stored as `routes.<name>.port` in the instance file |
 | Database container | `mylab-<svc>-db-<name>` |
 | Secret | `mylab-<svc>-<setting>`, or `mylab-<svc>-db-<name>-password` |
 | Caddy snippet | `sites/<svc>.caddy` |

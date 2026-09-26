@@ -22,10 +22,16 @@ const (
 	DefaultMediaDir    = "/srv/mylab/media"
 	// DefaultCatalogDir holds official packages shipped with MyLab.
 	DefaultCatalogDir = "/usr/share/mylab/catalog"
-	// DefaultUIPort is where the mylab web UI listens on the host. Caddy
-	// reaches it via host.containers.internal (docs/ASSUMPTIONS.md C6); the
-	// firewall blocks it from the network.
+	// DefaultUIPort is where the mylab web UI listens on the host.
 	DefaultUIPort = 8480
+	// DefaultUIBind keeps the UI on the host's loopback; Caddy reaches it
+	// through pasta's loopback mapping (SPEC.md §6.5).
+	DefaultUIBind = "127.0.0.1"
+	// Route ports: each routed container is published on
+	// 127.0.0.1:<port>, allocated from this range and stored in its
+	// instance file so it never changes (SPEC.md §6.5).
+	DefaultRoutePortMin = 20000
+	DefaultRoutePortMax = 29999
 )
 
 // Paths are the filesystem locations MyLab reads and writes.
@@ -92,7 +98,10 @@ type Lab struct {
 	DNS   DNS    `yaml:"dns"`
 	Paths Paths  `yaml:"paths"`
 	// UIPort is the host port of the mylab web UI.
-	UIPort int    `yaml:"ui_port"`
+	UIPort int `yaml:"ui_port"`
+	// UIBind is the address the UI listens on. Only change it for
+	// development (e.g. 0.0.0.0 to reach it directly in a VM).
+	UIBind string `yaml:"ui_bind"`
 	Backup Backup `yaml:"backup"`
 	// HasGPU is detected at runtime, not configured. It resolves settings
 	// with `default: auto` (docs/ASSUMPTIONS.md G1).
@@ -101,7 +110,7 @@ type Lab struct {
 
 // Default returns a Lab with default paths and no domain.
 func Default() Lab {
-	return Lab{UIPort: DefaultUIPort, Paths: Paths{
+	return Lab{UIPort: DefaultUIPort, UIBind: DefaultUIBind, Paths: Paths{
 		StateDir:    DefaultStateDir,
 		HomeDir:     DefaultHomeDir,
 		ServicesDir: DefaultServicesDir,

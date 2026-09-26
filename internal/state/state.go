@@ -6,6 +6,7 @@ package state
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -70,6 +71,7 @@ func Desired(lab config.Lab, services []Service) (reconcile.Desired, error) {
 	d := reconcile.Desired{System: sys}
 	// Every hostname must be unique across the lab, including the admin UI.
 	hosts := map[string]string{caddy.AdminSubdomain + "." + lab.Domain: "the MyLab admin UI"}
+	ports := map[int]string{lab.UIPort: "the MyLab admin UI"}
 	var errs []error
 	for _, s := range services {
 		out, err := generate.Service(lab, s.Package, s.Instance)
@@ -83,8 +85,63 @@ func Desired(lab config.Lab, services []Service) (reconcile.Desired, error) {
 			}
 			hosts[h] = s.Package.Name
 		}
+		for _, p := range out.Ports {
+			if other, dup := ports[p]; dup {
+				errs = append(errs, fmt.Errorf("%s: port %d is already used by %s", s.Package.Name, p, other))
+			}
+			ports[p] = s.Package.Name
+		}
 		d.Services = append(d.Services, out)
 	}
 	slices.SortFunc(d.Services, func(a, b *generate.Output) int { return strings.Compare(a.Service, b.Service) })
 	return d, errors.Join(errs...)
+}
+
+// AllocatePorts gives every route without a host port the lowest free port
+// in the lab's range (SPEC.md §6.5). It returns the services whose instance
+// changed, so the caller can save them. Once stored, a port never changes.
+func AllocatePorts(services []Service) ([]Service, error) {
+	used := map[int]bool{}
+	for _, s := range services {
+		for _, r := range s.Instance.Routes {
+			if r.Port != 0 {
+				used[r.Port] = true
+			}
+		}
+	}
+	next := config.DefaultRoutePortMin
+	var changed []Service
+	sorted := slices.Clone(services)
+	slices.SortFunc(sorted, func(a, b Service) int { return strings.Compare(a.Package.Name, b.Package.Name) })
+	for _, s := range sorted {
+		dirty := false
+		for _, name := range slices.Sorted(maps.Keys(s.Package.Routes)) {
+			r := s.Instance.Routes[name]
+			if r.Port != 0 {
+				continue
+			}
+			for used[next] {
+				next++
+			}
+			if next > config.DefaultRoutePortMax {
+				return changed, errors.New("no free route ports left")
+			}
+			r.Port = next
+			used[next] = true
+			if s.Instance.Routes == nil {
+				s.Instance.Routes = map[string]instance.RouteOverride{}
+			}
+			s.Instance.Routes[name] = r
+			dirty = true
+		}
+		if dirty {
+			changed = append(changed, s)
+		}
+	}
+	return changed, nil
+}
+
+// InstanceFile is where a service's instance is stored.
+func InstanceFile(lab config.Lab, name string) string {
+	return filepath.Join(lab.Paths.InstancesDir(), name+".yaml")
 }

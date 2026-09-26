@@ -27,7 +27,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [x] **1.1 Test environment:** `scripts/dev-vm.sh` (Debian 13 under QEMU/KVM); `dev-install.sh` runs cleanly
 - [ ] **1.2 Verify assumptions on Debian 13** (see `docs/ASSUMPTIONS.md`; ⚠️ items first)
   - [x] Run `scripts/dev-install.sh` and fix what breaks
-  - [ ] ❌ C4 FAILED: client IP lost on bridge networks. **Approve the fix** (Caddy on host network, services on 127.0.0.1 ports), then implement
+  - [x] C4: client IP was lost on bridge networks; fixed with Option C (Caddy on pasta, services on 127.0.0.1 ports) and verified with the real Caddy
   - [x] A8: podman via `systemd-run --user`; `NoNewPrivileges=yes` restored and verified
   - [x] B1/B2: UID mapping; backups and restores via `podman unshare`
   - [ ] A7: Intel GPU (`/dev/dri`) passthrough with `keep-groups`

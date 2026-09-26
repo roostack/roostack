@@ -47,6 +47,9 @@ type RouteContext struct {
 	Host      string // e.g. passwords.lab.example.com
 	URL       string // e.g. https://passwords.lab.example.com
 	Exposure  string
+	// Port is the host loopback port the route's container is published
+	// on (0 until allocated).
+	Port int
 }
 
 // DatabaseContext gives an app what it needs to connect to its database.
@@ -82,7 +85,7 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 	}
 
 	for name, r := range p.Routes {
-		sub, exp := r.Subdomain, r.Exposure
+		sub, exp, port := r.Subdomain, r.Exposure, 0
 		if o, ok := in.Routes[name]; ok {
 			if o.Subdomain != "" {
 				sub = o.Subdomain
@@ -90,9 +93,10 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 			if o.Exposure != "" {
 				exp = o.Exposure
 			}
+			port = o.Port
 		}
 		host := sub + "." + lab.Domain
-		ctx.Routes[name] = RouteContext{Subdomain: sub, Host: host, URL: "https://" + host, Exposure: exp}
+		ctx.Routes[name] = RouteContext{Subdomain: sub, Host: host, URL: "https://" + host, Exposure: exp, Port: port}
 	}
 
 	for name, d := range p.Databases {

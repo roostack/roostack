@@ -1,3 +1,5 @@
 package: immich
 version: 2.1.0-mylab.1
+routes:
+  web: { port: 20002 }
 updates: notify

@@ -164,6 +164,12 @@ MyLab runs **directly on the host** (not in a container), as two processes shipp
 - MyLab generates a readable Caddyfile from desired state and reloads Caddy (same pattern as Quadlet generation).
 - **Not user-selectable.** One proxy keeps testing and config generation manageable. Users can add custom Caddy snippets, globally and per service.
 - **Rootless on 80/443:** `mylab-agent` lowers `net.ipv4.ip_unprivileged_port_start` so the proxy needs no root.
+- **Proxy networking (Option C) — Locked (2026-09-26):**
+  - Caddy runs in its **own pasta network namespace** (`Network=pasta:--map-host-loopback,169.254.1.3`), publishing 80/443. Pasta keeps each visitor's **real IP**, which the private-route check and CrowdSec rely on.
+  - Each routed container stays on its service's private network and is **published on `127.0.0.1:<port>`** only. Caddy reaches it at `169.254.1.3:<port>`, which pasta maps to the host's loopback. The MyLab UI listens on `127.0.0.1:8480` and is reached the same way.
+  - Ports come from a central range (20000–29999), are allocated once, and are stored in the instance file (`routes.<name>.port`) so they never change.
+  - **Why:** on the Debian 13 VM, rootless bridge networks replaced client IPs with `10.89.0.x` (Podman's `rootlessport`), which Caddy would treat as private, exposing "private" services to the internet. Rootless Podman can't put one container on both pasta/host networking and a bridge network, and the host side can't reach bridge addresses.
+  - **Rejected:** Caddy on host networking (works, but shares the host's network namespace); a host-network forwarder using the PROXY protocol in front of a bridge-network Caddy (two proxies, no HTTP/3).
 - **TLS: Let's Encrypt via DNS-01.** This is required so that private (LAN/VPN-only) services get valid certificates without being reachable from the internet.
 - **Wildcard certificate by default** (e.g. `*.lab.example.com`), with services on subdomains sharing it. Rationale:
   - One issuance and renewal instead of one per service, so fewer rate-limit issues.
