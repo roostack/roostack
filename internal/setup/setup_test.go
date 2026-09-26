@@ -69,7 +69,7 @@ func TestDomainStep(t *testing.T) {
 		{"home.example.com", "me@example.com", "route53", map[string]string{"access_key_id": "good"}, "Enter the secret access key"},
 		{"home.example.com", "me@example.com", "cloudflare", map[string]string{"api_token": "bad"}, "Cloudflare said: 403 Forbidden"},
 	} {
-		err := s.SaveDomain(ctx, tc.domain, tc.email, tc.provider, tc.values)
+		err := s.SaveDomain(ctx, tc.domain, tc.email, tc.provider, tc.values, DomainOptions{})
 		var ce *CheckError
 		if !errors.As(err, &ce) || !strings.Contains(ce.Msg, tc.want) {
 			t.Errorf("%+v: err %v", tc, err)
@@ -80,8 +80,15 @@ func TestDomainStep(t *testing.T) {
 	}
 
 	// Route 53 with the optional region left empty.
+	// Namecheap record management without accepting the risk is refused.
+	var ce *CheckError
+	if err := s.SaveDomain(ctx, "home.example.com", "me@example.com", "namecheap",
+		map[string]string{"user": "good", "api_key": "good"}, DomainOptions{ManageRecords: true}); !errors.As(err, &ce) {
+		t.Errorf("risky provider without opt-in: %v", err)
+	}
+
 	err := s.SaveDomain(ctx, " Home.Example.com ", "me@example.com", "route53",
-		map[string]string{"access_key_id": "good", "secret_access_key": " good ", "region": ""})
+		map[string]string{"access_key_id": "good", "secret_access_key": " good ", "region": ""}, DomainOptions{ManageRecords: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +97,8 @@ func TestDomainStep(t *testing.T) {
 		t.Fatal(err)
 	}
 	if lab.Domain != "home.example.com" || lab.DNS.Provider != "route53" ||
-		strings.Join(lab.DNS.Fields, ",") != "access_key_id,secret_access_key" {
+		strings.Join(lab.DNS.Fields, ",") != "access_key_id,secret_access_key" ||
+		lab.DNS.Zone != "example.com" || !lab.DNS.ManageRecords || lab.DNS.AllowRiskyRecords {
 		t.Errorf("saved lab: %+v", lab)
 	}
 	if string(secrets[dns.SecretName("secret_access_key")]) != "good" || len(secrets) != 2 || *restarts != 1 {

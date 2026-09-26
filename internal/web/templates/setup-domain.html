@@ -5,7 +5,7 @@
   <h1>Your domain</h1>
   <p>Your services will live at addresses like <strong>photos.{{if .Domain}}{{.Domain}}{{else}}lab.example.com{{end}}</strong>, with a secure (HTTPS) certificate for each.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  <form method="post" action="/setup/domain" x-data="{ provider: '{{.Provider}}' }">
+  <form method="post" action="/setup/domain" x-data="{ provider: '{{.Provider}}', manage: {{if .Manage}}true{{else}}false{{end}} }">
     <label>Domain
       <input name="domain" value="{{.Domain}}" placeholder="lab.example.com" autocapitalize="off" required>
       <small>A domain you own, or a subdomain of it.</small>
@@ -34,6 +34,19 @@
       {{end}}
     </div>
     {{end}}
+    <label class="check"><input type="checkbox" name="manage_records" x-model="manage" {{if .Manage}}checked{{end}}>
+      <span>Create DNS records for me
+        <small>MyLab points *.{{if .Domain}}{{.Domain}}{{else}}your domain{{end}} at this machine's address on your home network,
+          so devices at home can reach your services. It only changes records it created.</small></span></label>
+    {{range $p := .Providers}}{{if $p.RiskyRecords}}
+    <div class="notice notice-error" x-show="manage && provider === '{{$p.ID}}'" x-cloak>
+      <p><strong>{{$p.Title}}'s API is risky for this.</strong> To change one record, it has to rewrite every record
+        on your domain. MyLab keeps them as they were, but a mistake or an API problem could affect email or other services.
+        We strongly recommend moving the domain's DNS to another provider, such as Cloudflare (free).</p>
+      <label class="check"><input type="checkbox" name="accept_risk" {{if $.AcceptRisk}}checked{{end}}>
+        <span>I understand the risk; let MyLab manage {{$p.Title}} records anyway</span></label>
+    </div>
+    {{end}}{{end}}
     <p class="hint">MyLab checks these details by creating and removing a temporary DNS record before saving them.</p>
     <button type="submit">Check and save</button>
   </form>

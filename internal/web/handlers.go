@@ -286,7 +286,17 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		"Apply":      s.applyStatus(),
 		"Backup":     s.backupView(r),
 		"DomainTodo": s.domainTodo(r),
+		"DNS":        s.dnsView(r),
 	})
+}
+
+// dnsView is the Owner's "home network access" card.
+func (s *Server) dnsView(r *http.Request) any {
+	if s.DNS == nil || !auth.Can(currentUser(r).Role, auth.ManageHost) {
+		return nil
+	}
+	st := s.DNS.Status()
+	return &st
 }
 
 // domainTodo reports whether the Owner postponed setting up the domain.
@@ -321,6 +331,7 @@ func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
 		"CanManage": s.Manager != nil && auth.Can(u.Role, auth.ManageServices),
 		"Apply":     s.applyStatus(),
 		"Backup":    s.backupView(r),
+		"DNS":       s.dnsView(r),
 	}
 	if err := s.pages["dashboard"].ExecuteTemplate(w, "services", data); err != nil {
 		s.Log.Error("render partial", "err", err)

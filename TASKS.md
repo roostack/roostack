@@ -56,7 +56,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] **More DNS providers**: Cloudflare, Route 53, Porkbun, Gandi, GoDaddy, Namecheap, Spaceship (`internal/dns` registry; TXT-record check over each provider's HTTP API, no SDKs; all plugins in the Caddy image)
   - [ ] Test each DNS provider with a real account (Cloudflare done; the other six only against fake APIs)
   - [ ] **DNS records (SPEC §6.5.1)**
-    - [ ] Stage 1: wildcard record → LAN IP via the provider API; ownership tracking; router rebinding check; status on the dashboard; Namecheap opt-in
+    - [x] Stage 1: wildcard record → LAN IP via the provider API; ownership tracking (never overwrites others' records, adopts matching ones); router rebinding check (home resolver vs 1.1.1.1); Owner dashboard card; wizard checkbox (on by default); Namecheap opt-in with warning
+    - [ ] Stage 1 real test: record management against a real provider (awaiting the user's OK to write to their Cloudflare zone)
     - [ ] Stage 2: public records → public IP; dynamic DNS via qdm12/ddns-updater; NAT loopback check (with public exposure)
     - [ ] Stage 3: Cloudflare proxy option (CF-Connecting-IP from Cloudflare ranges only; package proxy warnings)
     - [ ] Later: CGNAT detection → Cloudflare Tunnel / MyLab Cloud relay; optional local DNS (Pi-hole)

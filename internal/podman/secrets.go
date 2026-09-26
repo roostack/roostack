@@ -72,3 +72,10 @@ func (s *Secrets) Replace(ctx context.Context, name string, value []byte) error 
 	_, err := s.Run(ctx, value, "secret", "create", "--replace", name, "-")
 	return err
 }
+
+// Read returns a secret's value (e.g. DNS credentials MyLab needs to
+// manage records). Requires Podman 4.5+ (--showsecret).
+func (s *Secrets) Read(ctx context.Context, name string) ([]byte, error) {
+	out, err := s.Run(ctx, nil, "secret", "inspect", "--showsecret", "--format", "{{.SecretData}}", name)
+	return bytes.TrimRight(out, "\n"), err
+}

@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -273,47 +272,15 @@ func spaceshipProbe(ctx context.Context, hc *http.Client, v map[string]string, z
 // rewrite the whole zone. Reading still proves the key, username, IP
 // whitelist and access to the domain.
 func namecheapProbe(ctx context.Context, hc *http.Client, v map[string]string, zone, _, _ string) (func(context.Context) error, error) {
-	ip := v["client_ip"]
-	if ip == "" {
-		req, err := http.NewRequestWithContext(ctx, "GET", publicIPURL, nil)
-		if err != nil {
-			return nil, err
-		}
-		resp, err := hc.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't find this lab's public IP address; enter it instead (%v)", reachError(err))
-		}
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 100))
-		resp.Body.Close()
-		ip = strings.TrimSpace(string(b))
-	}
-	sld, tld, ok := strings.Cut(zone, ".")
-	if !ok {
+	if !strings.Contains(zone, ".") {
 		return nil, errors.New("not a domain")
 	}
-	q := url.Values{
-		"ApiUser": {v["user"]}, "UserName": {v["user"]}, "ApiKey": {v["api_key"]}, "ClientIp": {ip},
-		"Command": {"namecheap.domains.dns.getHosts"}, "SLD": {sld}, "TLD": {tld},
-	}
-	var res struct {
-		Status string `xml:"Status,attr"`
-		Errors []struct {
-			Number string `xml:"Number,attr"`
-			Text   string `xml:",chardata"`
-		} `xml:"Errors>Error"`
-	}
-	if err := call(ctx, hc, "GET", namecheapAPI+"?"+q.Encode(), map[string]string{"Accept": "application/xml"}, nil, &res); err != nil {
-		return nil, err
-	}
-	if res.Status != "OK" {
-		var msgs []string
-		for _, e := range res.Errors {
-			msgs = append(msgs, strings.TrimSpace(e.Text)+" (error "+e.Number+")")
+	if _, err := namecheapRequest(ctx, hc, v, zone, "namecheap.domains.dns.getHosts", nil); err != nil {
+		ip := v["client_ip"]
+		if ip == "" {
+			ip, _ = publicIP(ctx, hc)
 		}
-		if len(msgs) == 0 {
-			msgs = append(msgs, "status "+strconv.Quote(res.Status))
-		}
-		return nil, errors.New(strings.Join(msgs, "; ") + " (this lab's IP is " + ip + ")")
+		return nil, fmt.Errorf("%w (this lab's IP is %s)", err, ip)
 	}
 	return nil, nil
 }

@@ -80,6 +80,17 @@ type DNS struct {
 	// Directive, if set, is used verbatim inside Caddy's tls block instead of
 	// the provider's generated one (advanced use).
 	Directive string `yaml:"directive,omitempty"`
+	// Zone is the provider's DNS zone for the domain (e.g. example.com for
+	// lab.example.com), found by the setup wizard's check.
+	Zone string `yaml:"zone,omitempty"`
+	// ManageRecords lets MyLab create the DNS records services need
+	// (SPEC.md §6.5.1).
+	ManageRecords bool `yaml:"manage_records,omitempty"`
+	// AllowRiskyRecords is the Owner's opt-in for providers whose API
+	// rewrites every record to change one (Namecheap).
+	AllowRiskyRecords bool `yaml:"allow_risky_records,omitempty"`
+	// LANIP overrides the detected LAN address used for private services.
+	LANIP string `yaml:"lan_ip,omitempty"`
 }
 
 // Backup configures the backup destination (SPEC.md §6.9).

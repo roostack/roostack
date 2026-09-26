@@ -95,10 +95,19 @@ func (s *Setup) Progress(ctx context.Context) (Progress, error) {
 
 var domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$`)
 
+// DomainOptions are the wizard's DNS record choices (SPEC.md §6.5.1).
+type DomainOptions struct {
+	// ManageRecords lets MyLab create the records services need.
+	ManageRecords bool
+	// AcceptRisk is the explicit opt-in for providers whose API rewrites
+	// every record to change one (Namecheap).
+	AcceptRisk bool
+}
+
 // SaveDomain checks and saves the lab's domain and DNS provider
 // credentials, then restarts MyLab so Caddy and every service use them.
 // values holds the provider's fields (internal/dns).
-func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string, values map[string]string) error {
+func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string, values map[string]string, opts DomainOptions) error {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	email = strings.TrimSpace(email)
 	if !domainRe.MatchString(domain) {
@@ -125,7 +134,11 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string
 			return p.Check(ctx, v, d)
 		}
 	}
-	if _, err := check(ctx, p, clean, domain); err != nil {
+	if opts.ManageRecords && p.RiskyRecords() && !opts.AcceptRisk {
+		return &CheckError{"To let MyLab manage " + p.Title + " records, tick the box confirming you understand the risk, or untick \"Create DNS records for me\"."}
+	}
+	zone, err := check(ctx, p, clean, domain)
+	if err != nil {
 		return &CheckError{fmt.Sprintf("MyLab couldn't create a test DNS record for %s with those details. "+
 			"Check them and the permissions they have. %s said: %s", domain, p.Title, firstLine(err.Error()))}
 	}
@@ -136,7 +149,9 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string
 	}
 	lab := s.Lab
 	lab.Domain, lab.Email = domain, email
-	lab.DNS = config.DNS{Provider: p.ID, Fields: set}
+	lab.DNS = config.DNS{Provider: p.ID, Fields: set, Zone: zone,
+		ManageRecords: opts.ManageRecords && p.CanManageRecords(), AllowRiskyRecords: opts.AcceptRisk && p.RiskyRecords(),
+		LANIP: s.Lab.DNS.LANIP}
 	if err := lab.Save(s.LabPath); err != nil {
 		return err
 	}

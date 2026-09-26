@@ -37,6 +37,21 @@
 <p class="card">No services are installed yet.</p>
 {{end}}
 {{template "backup" .}}
+{{template "dns" .}}
+{{end}}
+
+{{define "dns"}}
+{{with .DNS}}
+<section class="card backup">
+  <h2>Home network access</h2>
+  {{if eq .State "ok"}}<p>✓ {{.Message}} <span class="hint">({{.Record}} → {{.IP}})</span></p>
+  {{else if eq .State "manual"}}<p class="notice">{{.Message}}</p>
+  {{else if eq .State "pending"}}<p class="notice">{{.Message}}</p>
+  {{else if .State}}<p class="notice notice-error">{{.Message}}</p>
+  {{else}}<p class="hint">Checking…</p>{{end}}
+  {{if not .Checked.IsZero}}<p class="hint">Last checked {{when .Checked}}. This machine's home network address: {{.IP}}. Give it a fixed address in your router (a "DHCP reservation") so it doesn't change.</p>{{end}}
+</section>
+{{end}}
 {{end}}
 
 {{define "backup"}}

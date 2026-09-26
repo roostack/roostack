@@ -19,6 +19,7 @@ import (
 
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/backup"
+	"github.com/mylab/mylab/internal/dnsrecords"
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/setup"
@@ -86,6 +87,8 @@ type Server struct {
 	Backups BackupService
 	// Setup is the first-run setup wizard. Nil disables it.
 	Setup LabSetup
+	// DNS reports whether home devices can reach services (SPEC.md §6.5.1).
+	DNS DNSStatus
 	// bootID changes each time MyLab starts; the "restarting" page waits
 	// for a new one.
 	bootID string
@@ -106,12 +109,17 @@ type ServiceManager interface {
 // LabSetup is what the UI needs from internal/setup.
 type LabSetup interface {
 	Progress(ctx context.Context) (setup.Progress, error)
-	SaveDomain(ctx context.Context, domain, email, provider string, values map[string]string) error
+	SaveDomain(ctx context.Context, domain, email, provider string, values map[string]string, opts setup.DomainOptions) error
 	DomainLater(ctx context.Context) error
 	SaveBackup(ctx context.Context, c setup.BackupChoice) error
 	BackupLater(ctx context.Context) error
 	RecoveryKey() (string, error)
 	ConfirmRecoveryKey(ctx context.Context) error
+}
+
+// DNSStatus is what the UI needs from internal/dnsrecords.
+type DNSStatus interface {
+	Status() dnsrecords.Status
 }
 
 // BackupService is what the UI needs from internal/backup.

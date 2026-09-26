@@ -130,8 +130,9 @@ func startFakeAPIs(t *testing.T) *fakeAPIs {
 	})
 
 	// Namecheap (read-only) and the public IP service
-	mux.HandleFunc("GET /nc", func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
+	mux.HandleFunc("/nc", func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		q := r.Form
 		f.log(r, q.Get("ApiKey")+"@"+q.Get("ClientIp"))
 		if q.Get("SLD") == "example" && q.Get("TLD") == "com" && q.Get("ApiKey") == "good" {
 			w.Write([]byte(`<ApiResponse Status="OK"><CommandResponse/></ApiResponse>`))
