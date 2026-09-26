@@ -61,6 +61,7 @@ func (p *Package) Validate() error {
 	for _, name := range slices.Sorted(maps.Keys(p.Ports)) {
 		p.validatePort(v, name, p.Ports[name])
 	}
+	p.validateHooks(v)
 	return v.err()
 }
 
@@ -118,6 +119,92 @@ func (p *Package) validateSettings(v *validator) {
 		}
 		if s.Generate && s.Type != SettingSecret {
 			v.addf("%s.generate: only valid for secret settings", at)
+		}
+		if s.Generate && s.InstallOnly {
+			v.addf("%s: a generated secret can't be install_only (nobody would know it)", at)
+		}
+		if s.Required && s.Type != SettingString {
+			v.addf("%s.required: only for strings (secrets are always required)", at)
+		}
+		if s.MinLength != 0 && s.Type != SettingString && s.Type != SettingSecret {
+			v.addf("%s.min_length: only for strings and secrets", at)
+		}
+	}
+}
+
+func (p *Package) validateHooks(v *validator) {
+	actions := map[string]bool{}
+	for i, h := range p.Hooks {
+		at := fmt.Sprintf("hooks[%d]", i)
+		if h == nil {
+			v.addf("%s: empty hook", at)
+			continue
+		}
+		switch h.On {
+		case HookInstall:
+			if len(h.Inputs) > 0 {
+				v.addf("%s.inputs: only actions take inputs; install hooks use settings", at)
+			}
+		case HookAction:
+			if !nameRe.MatchString(h.Name) {
+				v.addf("%s.name: %q must be lowercase letters, digits and dashes", at, h.Name)
+			}
+			if actions[h.Name] {
+				v.addf("%s.name: duplicate action %q", at, h.Name)
+			}
+			actions[h.Name] = true
+			if h.Title == "" {
+				v.addf("%s.title: required (the button's label)", at)
+			}
+		default:
+			v.addf("%s.on: must be %q or %q", at, HookInstall, HookAction)
+		}
+		if p.Containers[h.Container] == nil {
+			v.addf("%s.container: unknown container %q", at, h.Container)
+		}
+		if len(h.Command) == 0 {
+			v.addf("%s.command: required", at)
+		}
+		inputs := map[string]bool{}
+		for j, in := range h.Inputs {
+			iat := fmt.Sprintf("%s.inputs[%d]", at, j)
+			if !settingKeyRe.MatchString(in.Key) || inputs[in.Key] {
+				v.addf("%s.key: %q must be a unique lowercase key", iat, in.Key)
+			}
+			inputs[in.Key] = true
+			if in.Type != SettingString && in.Type != SettingSecret {
+				v.addf("%s.type: inputs are string or secret", iat)
+			}
+			if in.Default != nil || in.Generate || in.InstallOnly {
+				v.addf("%s: inputs take no default, generate or install_only", iat)
+			}
+		}
+		for _, k := range slices.Sorted(maps.Keys(h.Env)) {
+			if !envNameRe.MatchString(k) {
+				v.addf("%s.env: invalid variable name %q", at, k)
+			}
+		}
+		for _, k := range slices.Sorted(maps.Keys(h.Secrets)) {
+			if !envNameRe.MatchString(k) {
+				v.addf("%s.secrets: invalid variable name %q", at, k)
+			}
+			if _, dup := h.Env[k]; dup {
+				v.addf("%s.secrets.%s: also set in env", at, k)
+			}
+			ref := h.Secrets[k]
+			if key, ok := strings.CutPrefix(ref, "inputs."); ok {
+				if in := h.Input(key); in == nil || in.Type != SettingSecret {
+					v.addf("%s.secrets.%s: %q is not a secret input", at, k, ref)
+				}
+				continue
+			}
+			s := p.Setting(ref)
+			switch {
+			case s == nil || s.Type != SettingSecret:
+				v.addf("%s.secrets.%s: %q is not a secret setting", at, k, ref)
+			case s.InstallOnly && h.On != HookInstall:
+				v.addf("%s.secrets.%s: %q is install_only and is deleted after install", at, k, ref)
+			}
 		}
 	}
 }
@@ -200,6 +287,8 @@ func (p *Package) validateContainer(v *validator, name string, c *Container) {
 		}
 		if err := p.checkSecretRef(c.Secrets[k]); err != nil {
 			v.addf("%s.secrets.%s: %v", at, k, err)
+		} else if s := p.Setting(c.Secrets[k]); s != nil && s.InstallOnly {
+			v.addf("%s.secrets.%s: %q is install_only, so only install hooks can use it", at, k, c.Secrets[k])
 		}
 	}
 	for i, m := range c.Mounts {

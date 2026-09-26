@@ -70,6 +70,11 @@ func serve(args []string) error {
 		Lab:        lab,
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets()},
 		Log:        log,
+		// Package hooks (e.g. creating Forgejo's admin) run with podman exec.
+		State: st, Secrets: podman.NewSecrets(),
+		Exec: func(ctx context.Context, container string, env map[string]string, command []string) ([]byte, error) {
+			return podman.Exec(ctx, podman.Run, container, env, command...)
+		},
 	}
 	srv.Manager, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, lab.Domain, lab.HasGPU, lab.Backup.Repository
 	// Converge on startup, e.g. after MyLab itself was upgraded.

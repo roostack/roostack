@@ -7,6 +7,20 @@
     <span class="status status-{{.Service.Status}}">{{.Service.Status}}</span>
   </div>
   {{with .Package}}<p class="hint">{{.Description}}</p>{{end}}
+  {{with .Setup}}
+  {{if or .Running .Pending}}
+  {{/* Polls this page but swaps only this notice, so forms aren't reset. */}}
+  <p id="setup-status" class="notice" role="status" hx-get="/services/{{$.Service.Name}}" hx-trigger="every 5s"
+    hx-select="#setup-status" hx-swap="outerHTML">
+    Finishing setup (for example, creating the administrator account). This can take a few minutes after installing.</p>
+  {{else if .Failed}}
+  <div id="setup-status" class="notice notice-error" role="alert">
+    <p><strong>Setup didn't finish.</strong> {{$.Service.Title}} is running, but a setup step failed:</p>
+    <pre class="output">{{.Failed}}</pre>
+    <form method="post" action="/services/{{$.Service.Name}}/setup/retry"><button type="submit">Try again</button></form>
+  </div>
+  {{end}}
+  {{end}}
   <dl class="facts">
     {{range .Service.URLs}}<dt>Address</dt><dd><a href="{{.}}" target="_blank" rel="noopener">{{.}}</a></dd>{{end}}
     <dt>Reachable from</dt><dd>Your home network (or VPN)</dd>
@@ -29,6 +43,29 @@
     {{if and $.PortError (eq (index $.PortError "port") .Name)}}<p class="error" role="alert">{{index $.PortError "msg"}}</p>{{end}}
     <button type="submit">Save</button>
   </form>
+  {{end}}
+  {{end}}
+  {{with .Actions}}
+  <h2>Actions</h2>
+  {{range .}}
+  <details class="action" {{if and $.ActionResult (eq (index $.ActionResult "action") .Name)}}open{{end}}>
+    <summary>{{.Title}}</summary>
+    {{with .Description}}<p class="hint">{{.}}</p>{{end}}
+    {{if and $.ActionResult (eq (index $.ActionResult "action") .Name)}}
+      {{with index $.ActionResult "error"}}<p class="error" role="alert">{{.}}</p>{{end}}
+      {{with index $.ActionResult "output"}}<pre class="output">{{.}}</pre>{{end}}
+    {{end}}
+    <form method="post" action="/services/{{$.Service.Name}}/actions/{{.Name}}">
+      {{range .Fields}}
+      <label>{{.Title}}
+        <input type="{{.Kind}}" name="{{.Key}}" {{if eq .Kind "password"}}autocomplete="new-password"{{else}}autocomplete="off" autocapitalize="off"{{end}}
+          {{if .Required}}required{{end}} {{with .MinLength}}minlength="{{.}}"{{end}}>
+        {{with .Description}}<small>{{.}}</small>{{end}}
+      </label>
+      {{end}}
+      <button type="submit">{{.Title}}</button>
+    </form>
+  </details>
   {{end}}
   {{end}}
   <p class="hint">Changing settings after installing is coming later.</p>

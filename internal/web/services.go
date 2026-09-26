@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/http"
@@ -19,6 +20,22 @@ type formField struct {
 	Kind        string // checkbox, text, number, password
 	Value       string
 	Checked     bool
+	Required    bool
+	MinLength   int
+}
+
+// inputFields builds the form fields for an action's inputs.
+func inputFields(h *pkgspec.Hook) []formField {
+	var fields []formField
+	for _, in := range h.Inputs {
+		kind := "text"
+		if in.Type == pkgspec.SettingSecret {
+			kind = "password"
+		}
+		fields = append(fields, formField{Key: "input." + in.Key, Title: cmp.Or(in.Title, in.Key),
+			Description: in.Description, Kind: kind, Required: true, MinLength: in.MinLength})
+	}
+	return fields
 }
 
 func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +114,8 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		if st.Type == pkgspec.SettingSecret && st.Generate {
 			continue // MyLab creates these
 		}
-		f := formField{Key: "setting." + st.Key, Title: st.Title, Description: st.Description}
+		f := formField{Key: "setting." + st.Key, Title: st.Title, Description: st.Description,
+			Required: st.Required || st.Type == pkgspec.SettingSecret, MinLength: st.MinLength}
 		if f.Title == "" {
 			f.Title = st.Key
 		}
@@ -197,6 +215,64 @@ func (s *Server) portSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "port", fmt.Sprintf("%s %s %s", name, port, state))
 	redirect(w, r, "/services/"+name)
+}
+
+func (s *Server) retrySetupSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	name := r.PathValue("name")
+	if err := s.Manager.RetryInstall(r.Context(), name); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "setup", "retry "+name)
+	redirect(w, r, "/services/"+name)
+}
+
+func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	name, action := r.PathValue("name"), r.PathValue("action")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad form.", http.StatusBadRequest)
+		return
+	}
+	inputs := map[string]string{}
+	for k, v := range r.PostForm {
+		if key, ok := strings.CutPrefix(k, "input."); ok && len(v) > 0 {
+			inputs[key] = v[0]
+		}
+	}
+	out, err := s.Manager.RunAction(r.Context(), name, action, inputs)
+	var fe *manager.FormError
+	var ae *manager.ActionError
+	result := map[string]string{"action": action}
+	switch {
+	case errors.Is(err, manager.ErrNotFound):
+		http.NotFound(w, r)
+		return
+	case errors.As(err, &fe):
+		result["error"] = fe.Msg
+	case errors.As(err, &ae):
+		result["error"] = ae.Title + " didn't work."
+		result["output"] = ae.Output
+	case err != nil:
+		s.serverError(w, err)
+		return
+	default:
+		result["output"] = out
+	}
+	status := "ok"
+	if result["error"] != "" {
+		status = "failed"
+	}
+	// Only the action's name: inputs may be sensitive.
+	s.Store.Audit(r.Context(), currentUser(r), "action", fmt.Sprintf("%s %s: %s", name, action, status))
+	s.renderServiceWith(w, r, map[string]any{"ActionResult": result}, result["error"] != "")
 }
 
 // pkg loads the package named in the URL, writing a 404 if there is none.

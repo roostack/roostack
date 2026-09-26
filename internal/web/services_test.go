@@ -26,6 +26,12 @@ type fakeManager struct {
 	ports   []manager.PortStatus
 	portErr error
 	setPort []string
+
+	setup     map[string]manager.HookStatus
+	retried   []string
+	actions   []string
+	actionOut string
+	actionErr error
 }
 
 func (f *fakeManager) Catalog() ([]manager.CatalogItem, error) {
@@ -36,7 +42,7 @@ func (f *fakeManager) Catalog() ([]manager.CatalogItem, error) {
 }
 
 func (f *fakeManager) Package(name string) (*pkgspec.Package, error) {
-	if name != "immich" && name != "vaultwarden" {
+	if name != "immich" && name != "vaultwarden" && name != "forgejo" {
 		return nil, manager.ErrNotFound
 	}
 	return pkgspec.Load(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
@@ -55,8 +61,19 @@ func (f *fakeManager) Remove(_ context.Context, name string) error {
 	return nil
 }
 
-func (f *fakeManager) DataDirs(name string) []string { return []string{"/srv/mylab/services/" + name} }
+func (f *fakeManager) DataDirs(name string) []string              { return []string{"/srv/mylab/services/" + name} }
 func (f *fakeManager) Ports(string) ([]manager.PortStatus, error) { return f.ports, nil }
+func (f *fakeManager) InstallStatus(_ context.Context, name string) manager.HookStatus {
+	return f.setup[name]
+}
+func (f *fakeManager) RetryInstall(_ context.Context, name string) error {
+	f.retried = append(f.retried, name)
+	return nil
+}
+func (f *fakeManager) RunAction(_ context.Context, name, action string, inputs map[string]string) (string, error) {
+	f.actions = append(f.actions, fmt.Sprintf("%s %s %v", name, action, inputs))
+	return f.actionOut, f.actionErr
+}
 func (f *fakeManager) SetPort(_ context.Context, name, port string, enabled bool, hostPort int) error {
 	if f.portErr != nil {
 		return f.portErr
@@ -64,7 +81,7 @@ func (f *fakeManager) SetPort(_ context.Context, name, port string, enabled bool
 	f.setPort = append(f.setPort, fmt.Sprintf("%s %s %v %d", name, port, enabled, hostPort))
 	return nil
 }
-func (f *fakeManager) Status() manager.ApplyStatus   { return f.status }
+func (f *fakeManager) Status() manager.ApplyStatus { return f.status }
 
 // loggedIn returns a harness with a fake manager and a logged-in user.
 func loggedIn(t *testing.T, role string) (*harness, *fakeManager) {
@@ -258,5 +275,63 @@ func TestServicePorts(t *testing.T) {
 	h.post("/services/vaultwarden/ports/ssh", url.Values{"host_port": {"2200"}}, h.srv.URL)
 	if got := strings.Join(fm.setPort, "; "); got != "vaultwarden ssh true 2200; vaultwarden ssh false 2200" {
 		t.Errorf("SetPort calls: %s", got)
+	}
+}
+
+func TestServiceSetupAndActions(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "forgejo", Title: "Forgejo", Status: "running", URLs: []string{"https://git.lab.example.com"}}}, nil
+	}
+
+	// The install form enforces what the package asks for.
+	_, body := h.get("/install/forgejo")
+	if !strings.Contains(body, `name="setting.admin_password" value="" autocomplete="new-password"`) ||
+		!strings.Contains(body, `minlength="8"`) || strings.Count(body, "required") < 4 {
+		t.Error("install form: admin fields should be required, the password at least 8 characters")
+	}
+
+	fm.setup = map[string]manager.HookStatus{"forgejo": {Pending: true}}
+	_, body = h.get("/services/forgejo")
+	if !strings.Contains(body, `id="setup-status"`) || !strings.Contains(body, `hx-select="#setup-status"`) {
+		t.Error("pending setup: want a polling notice that only swaps itself")
+	}
+	if _, home := h.get("/"); !strings.Contains(home, "Finishing setting up Forgejo") {
+		t.Error("home: pending setup should be listed")
+	}
+
+	fm.setup["forgejo"] = manager.HookStatus{Failed: "Forgejo didn't finish setting up: username is invalid"}
+	_, body = h.get("/services/forgejo")
+	if !strings.Contains(body, "username is invalid") || !strings.Contains(body, `action="/services/forgejo/setup/retry"`) {
+		t.Error("failed setup: want the reason and a retry button")
+	}
+	if _, home := h.get("/"); !strings.Contains(home, "Forgejo didn&#39;t finish setting up.") {
+		t.Error("home: failed setup should need attention")
+	}
+	h.post("/services/forgejo/setup/retry", nil, h.srv.URL)
+	if len(fm.retried) != 1 {
+		t.Error("retry not called")
+	}
+
+	fm.setup = nil
+	_, body = h.get("/services/forgejo")
+	if !strings.Contains(body, `action="/services/forgejo/actions/reset-password"`) || !strings.Contains(body, `name="input.password"`) {
+		t.Fatal("service page should offer the package's actions")
+	}
+	fm.actionOut = "Password changed for mum."
+	code, body := h.post("/services/forgejo/actions/reset-password", url.Values{"input.username": {"mum"}, "input.password": {"a new password"}}, h.srv.URL)
+	if code != http.StatusOK || !strings.Contains(body, "Password changed for mum.") || !strings.Contains(body, "<details class=\"action\" open>") {
+		t.Errorf("action result not shown: %d", code)
+	}
+	fm.actionErr = &manager.ActionError{Title: "Reset a password", Output: "user does not exist"}
+	if code, body := h.post("/services/forgejo/actions/reset-password", url.Values{"input.username": {"dad"}, "input.password": {"a new password"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "Reset a password didn&#39;t work.") || !strings.Contains(body, "user does not exist") {
+		t.Errorf("failed action: %d", code)
+	}
+	logs, _ := h.store.RecentAudit(context.Background(), 10)
+	for _, l := range logs {
+		if strings.Contains(l.Detail, "a new password") {
+			t.Error("action inputs must not be written to the audit log")
+		}
 	}
 }

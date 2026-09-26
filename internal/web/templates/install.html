@@ -23,7 +23,8 @@
       </label>
       {{else}}
       <label>{{.Title}}
-        <input type="{{.Kind}}" name="{{.Key}}" value="{{.Value}}" {{if eq .Kind "password"}}autocomplete="new-password" required{{end}}>
+        <input type="{{.Kind}}" name="{{.Key}}" value="{{.Value}}" {{if eq .Kind "password"}}autocomplete="new-password"{{end}}
+          {{if .Required}}required{{end}} {{with .MinLength}}minlength="{{.}}"{{end}}>
         {{with .Description}}<small>{{.}}</small>{{end}}
       </label>
       {{end}}

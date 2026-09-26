@@ -79,3 +79,9 @@ func (s *Secrets) Read(ctx context.Context, name string) ([]byte, error) {
 	out, err := s.Run(ctx, nil, "secret", "inspect", "--showsecret", "--format", "{{.SecretData}}", name)
 	return bytes.TrimRight(out, "\n"), err
 }
+
+// Remove deletes a secret. A missing secret is not an error.
+func (s *Secrets) Remove(ctx context.Context, name string) error {
+	_, err := s.Run(ctx, nil, "secret", "rm", "--ignore", name)
+	return err
+}

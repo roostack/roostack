@@ -109,6 +109,9 @@ type ServiceManager interface {
 	DataDirs(name string) []string
 	Ports(name string) ([]manager.PortStatus, error)
 	SetPort(ctx context.Context, name, port string, enabled bool, hostPort int) error
+	InstallStatus(ctx context.Context, name string) manager.HookStatus
+	RetryInstall(ctx context.Context, name string) error
+	RunAction(ctx context.Context, name, action string, inputs map[string]string) (string, error)
 	Status() manager.ApplyStatus
 }
 
@@ -213,6 +216,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /install/{name}", s.require(auth.ManageServices, s.installPage))
 	mux.Handle("POST /install/{name}", s.require(auth.ManageServices, s.installSubmit))
 	mux.Handle("POST /services/{name}/ports/{port}", s.require(auth.ManageServices, s.portSubmit))
+	mux.Handle("POST /services/{name}/setup/retry", s.require(auth.ManageServices, s.retrySetupSubmit))
+	mux.Handle("POST /services/{name}/actions/{action}", s.require(auth.ManageServices, s.actionSubmit))
 	mux.Handle("GET /services/{name}/remove", s.require(auth.ManageServices, s.removePage))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))
 

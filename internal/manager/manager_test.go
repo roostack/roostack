@@ -51,6 +51,21 @@ func (f *fakeSecrets) List(context.Context) (map[string]bool, error) {
 	}
 	return out, nil
 }
+func (f *fakeSecrets) Read(_ context.Context, name string) ([]byte, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	v, ok := f.values[name]
+	if !ok {
+		return nil, errors.New("no such secret")
+	}
+	return v, nil
+}
+func (f *fakeSecrets) Remove(_ context.Context, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.values, name)
+	return nil
+}
 func (f *fakeSecrets) Create(_ context.Context, name string, v []byte) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -195,13 +210,8 @@ func TestApplyErrorIsReported(t *testing.T) {
 func TestPorts(t *testing.T) {
 	m, _ := newManager(t)
 	ctx := context.Background()
-	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "examples", "forgejo.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	os.MkdirAll(filepath.Dir(m.Lab.Paths.PackageFile("forgejo")), 0o755)
-	os.WriteFile(m.Lab.Paths.PackageFile("forgejo"), data, 0o644)
-	if err := m.Install(ctx, "forgejo", InstallRequest{Settings: map[string]string{}}); err != nil {
+	addForgejo(t, m)
+	if err := m.Install(ctx, "forgejo", forgejoRequest()); err != nil {
 		t.Fatal(err)
 	}
 	m.Wait()
@@ -236,5 +246,22 @@ func TestPorts(t *testing.T) {
 	in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo"))
 	if o := in.Ports["ssh"]; o.HostPort != 0 || o.Enabled == nil || *o.Enabled {
 		t.Errorf("override = %+v, want disabled with the default port", o)
+	}
+}
+
+func addForgejo(t *testing.T, m *Manager) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "examples", "forgejo.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.MkdirAll(filepath.Dir(m.Lab.Paths.PackageFile("forgejo")), 0o755)
+	os.WriteFile(m.Lab.Paths.PackageFile("forgejo"), data, 0o644)
+}
+
+func forgejoRequest() InstallRequest {
+	return InstallRequest{
+		Settings: map[string]string{"admin_username": "mum", "admin_email": "mum@example.com"},
+		Secrets:  map[string]string{"admin_password": "correct horse"},
 	}
 }

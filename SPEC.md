@@ -323,6 +323,12 @@ Layered defaults:
   - **Storage `location:`** (e.g. `media` → the large data disk) and **per-directory storage classes**, so regenerable data (thumbnails, transcodes, caches) is excluded from backups.
   - **Database `image` override** for custom builds (e.g. Immich's Postgres), still following the standard database pattern; **`backup: false`** for transient stores (e.g. Redis job queues).
 - **`ports:` — Locked (2026-09-26):** for protocols Caddy can't proxy (SSH, DNS, WireGuard), a package declares a container port with a title, a suggested host port (≥1024) and a protocol. Ports are **off unless the package enables them**; an Admin turns them on per service and can move them. Enabled ports are published on every host address (`PublishPort=<host>:<container>/<proto>`) and are **private** (home network only) via the firewall. Public ports come with the firewall and CrowdSec, like public routes. MyLab rejects clashes with other ports, the UI port and the web-service range (20000–29999). Templates see `{{ .Ports.<name>.Enabled }}` and `.HostPort` (e.g. for clone URLs).
+- **`hooks:` — Locked (2026-09-27):** commands run inside a service's container.
+  - `on: install` runs once after the first successful start (e.g. creating Forgejo's admin). It is retried while the app starts, so it must be safe to re-run; a failure shows under "Needs attention" with **Try again**.
+  - `on: action` is a button on the service page for Admins (e.g. "Reset a password"), with optional `inputs` (string or secret).
+  - User-provided values reach hooks **only as environment variables** (`env:` templates, `secrets:`), never templated into the command, so they can't change what a shell script does.
+  - Settings can be `required`, have a `min_length`, and be `install_only`: asked at install, used only by install hooks. An `install_only` secret is **deleted once the install hooks succeed**, so MyLab doesn't keep a copy of e.g. the admin password.
+  - Only `install` and `action` for now; `upgrade` hooks when a package needs them.
 - **Future:** storage shared between services (e.g. Jellyfin reading Immich's library, read-only); package upgrade notes and migration steps for upstream breaking changes.
 - **Reference examples:** `docs/examples/vaultwarden.yaml` (simple), `docs/examples/forgejo.yaml` (Postgres, an optional SSH port), `docs/examples/immich.yaml` (complex).
 

@@ -1,0 +1,158 @@
+package manager
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+)
+
+type memKV struct {
+	mu sync.Mutex
+	m  map[string]string
+}
+
+func (k *memKV) Setting(_ context.Context, key string) (string, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.m[key], nil
+}
+func (k *memKV) SetSetting(_ context.Context, key, v string) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.m[key] = v
+	return nil
+}
+
+// fakeExec records podman exec calls; fail decides whether call n fails.
+type fakeExec struct {
+	mu    sync.Mutex
+	calls []map[string]string
+	fail  func(n int) bool
+}
+
+func (f *fakeExec) exec(_ context.Context, container string, env map[string]string, cmd []string) ([]byte, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, env)
+	if container != "mylab-forgejo-app" || cmd[0] != "sh" {
+		return nil, errors.New("unexpected command")
+	}
+	if f.fail != nil && f.fail(len(f.calls)) {
+		return []byte("database not ready"), errors.New("exit status 1")
+	}
+	return []byte("ok"), nil
+}
+
+func newHookManager(t *testing.T) (*Manager, *fakeSecrets, *memKV, *fakeExec) {
+	m, secrets := newManager(t)
+	addForgejo(t, m)
+	kv, ex := &memKV{m: map[string]string{}}, &fakeExec{}
+	m.State, m.Secrets, m.Exec = kv, secrets, ex.exec
+	m.HookRetry, m.HookDeadline = time.Millisecond, time.Second
+	return m, secrets, kv, ex
+}
+
+func TestInstallHook(t *testing.T) {
+	m, secrets, _, ex := newHookManager(t)
+	ctx := context.Background()
+	ex.fail = func(n int) bool { return n == 1 } // not ready at first
+
+	var fe *FormError
+	short := forgejoRequest()
+	short.Secrets["admin_password"] = "short"
+	if err := m.Install(ctx, "forgejo", short); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "at least 8") {
+		t.Fatalf("short password: %v", err)
+	}
+
+	if err := m.Install(ctx, "forgejo", forgejoRequest()); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	m.WaitHooks()
+
+	if st := m.InstallStatus(ctx, "forgejo"); st.Pending || st.Running || st.Failed != "" {
+		t.Errorf("status = %+v, want done", st)
+	}
+	if len(ex.calls) != 2 {
+		t.Fatalf("exec calls = %d, want a retry after the first failure", len(ex.calls))
+	}
+	env := ex.calls[1]
+	if env["ADMIN_USERNAME"] != "mum" || env["ADMIN_EMAIL"] != "mum@example.com" || env["ADMIN_PASSWORD"] != "correct horse" {
+		t.Errorf("env = %v", env)
+	}
+	if _, kept := secrets.values["mylab-forgejo-admin_password"]; kept {
+		t.Error("the admin password must be deleted once the hook succeeded")
+	}
+
+	// Later applies neither need the deleted secret nor run the hook again.
+	m.Apply()
+	m.Wait()
+	m.WaitHooks()
+	if st := m.Status(); st.LastErr != nil {
+		t.Errorf("apply after the secret was deleted: %v", st.LastErr)
+	}
+	if len(ex.calls) != 2 {
+		t.Errorf("hook ran again: %d calls", len(ex.calls))
+	}
+}
+
+func TestInstallHookFailsThenRetry(t *testing.T) {
+	m, secrets, _, ex := newHookManager(t)
+	ctx := context.Background()
+	failing := true
+	ex.fail = func(int) bool { return failing }
+
+	m.Install(ctx, "forgejo", forgejoRequest())
+	m.Wait()
+	m.WaitHooks()
+	st := m.InstallStatus(ctx, "forgejo")
+	if !strings.Contains(st.Failed, "database not ready") {
+		t.Fatalf("status = %+v, want the command's output", st)
+	}
+	if _, kept := secrets.values["mylab-forgejo-admin_password"]; !kept {
+		t.Fatal("the password must be kept until the hook succeeds")
+	}
+
+	failing = false
+	if err := m.RetryInstall(ctx, "forgejo"); err != nil {
+		t.Fatal(err)
+	}
+	m.WaitHooks()
+	if st := m.InstallStatus(ctx, "forgejo"); st.Failed != "" || st.Pending {
+		t.Errorf("after retry: %+v", st)
+	}
+}
+
+func TestRunAction(t *testing.T) {
+	m, _, _, ex := newHookManager(t)
+	ctx := context.Background()
+	m.Install(ctx, "forgejo", forgejoRequest())
+	m.Wait()
+	m.WaitHooks()
+
+	var fe *FormError
+	if _, err := m.RunAction(ctx, "forgejo", "reset-password", map[string]string{"username": "mum", "password": "short"}); !errors.As(err, &fe) {
+		t.Errorf("short password: %v", err)
+	}
+	if _, err := m.RunAction(ctx, "forgejo", "nope", nil); !errors.Is(err, ErrNotFound) {
+		t.Errorf("unknown action: %v", err)
+	}
+	out, err := m.RunAction(ctx, "forgejo", "reset-password", map[string]string{"username": " mum ", "password": "a new password"})
+	if err != nil || out != "ok" {
+		t.Fatalf("out %q, err %v", out, err)
+	}
+	env := ex.calls[len(ex.calls)-1]
+	if env["USERNAME"] != "mum" || env["NEW_PASSWORD"] != "a new password" {
+		t.Errorf("env = %v", env)
+	}
+
+	ex.fail = func(int) bool { return true }
+	var ae *ActionError
+	if _, err := m.RunAction(ctx, "forgejo", "reset-password", map[string]string{"username": "x", "password": "a new password"}); !errors.As(err, &ae) ||
+		!strings.Contains(ae.Output, "database not ready") {
+		t.Errorf("failed action: %v", err)
+	}
+}

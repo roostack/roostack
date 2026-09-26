@@ -36,6 +36,10 @@ type Secret struct {
 	Generate bool
 	// Setting is the secret setting key, if any.
 	Setting string
+	// InstallOnly secrets are only needed by install hooks and are deleted
+	// once those succeed: create them if a value is at hand, but a missing
+	// one is not an error.
+	InstallOnly bool
 }
 
 // Output is everything generated for one service.
@@ -400,7 +404,8 @@ func (g *gen) caddySite() error {
 func (g *gen) secrets() {
 	for _, s := range g.pkg.Settings {
 		if s.Type == pkgspec.SettingSecret {
-			g.out.Secrets = append(g.out.Secrets, Secret{Name: secretName(g.pkg.Name, s.Key), Generate: s.Generate, Setting: s.Key})
+			g.out.Secrets = append(g.out.Secrets, Secret{Name: secretName(g.pkg.Name, s.Key), Generate: s.Generate,
+				Setting: s.Key, InstallOnly: s.InstallOnly})
 		}
 	}
 	slices.SortFunc(g.out.Secrets, func(a, b Secret) int { return strings.Compare(a.Name, b.Name) })

@@ -11,11 +11,28 @@ description: Git hosting with issues and pull requests, a self-hosted alternativ
 version: 15.0.9-mylab.1
 
 settings:
+  # The administrator account, created by the install hook below.
+  - key: admin_username
+    title: Administrator username
+    type: string
+    required: true
+    install_only: true
+  - key: admin_email
+    title: Administrator email
+    type: string
+    required: true
+    install_only: true
+  - key: admin_password
+    title: Administrator password
+    description: At least 8 characters. MyLab forgets it once the account exists.
+    type: secret
+    min_length: 8
+    install_only: true           # deleted once the install hook succeeds
   - key: signups_allowed
     title: Allow anyone to create an account
-    description: The first account created becomes the administrator
+    description: Otherwise the administrator creates accounts
     type: bool
-    default: true
+    default: false
 
 containers:
   app:
@@ -65,6 +82,46 @@ routes:
     subdomain: git
     exposure: private
     max_body_size: 1GB           # large pushes and release attachments
+
+hooks:
+  # Create the administrator. Values arrive as environment variables, never
+  # in the command itself. Safe to re-run: an existing admin is kept (e.g.
+  # reinstalling on top of existing data).
+  - on: install
+    container: app
+    env:
+      ADMIN_USERNAME: "{{ .Settings.admin_username }}"
+      ADMIN_EMAIL: "{{ .Settings.admin_email }}"
+    secrets:
+      ADMIN_PASSWORD: admin_password
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        if forgejo admin user list --admin | awk 'NR > 1 { print $2 }' | grep -qxF "$ADMIN_USERNAME"; then
+          echo "The administrator $ADMIN_USERNAME already exists."
+          exit 0
+        fi
+        # They chose the password themselves: don't ask them to change it.
+        forgejo admin user create --admin --username "$ADMIN_USERNAME" --email "$ADMIN_EMAIL" \
+          --password "$ADMIN_PASSWORD" --must-change-password=false
+
+  - on: action
+    name: reset-password
+    title: Reset a password
+    description: Sets a new password for a Forgejo account, e.g. if the administrator forgot theirs.
+    container: app
+    inputs:
+      - { key: username, title: Username, type: string }
+      - { key: password, title: New password, type: secret, min_length: 8 }
+    env:
+      USERNAME: "{{ .Inputs.username }}"
+    secrets:
+      NEW_PASSWORD: inputs.password
+    # --must-change-password is only changed when given, so clear it
+    # explicitly (accounts created by "admin user create" have it set).
+    command: [sh, -c, 'forgejo admin user change-password --username "$USERNAME" --password "$NEW_PASSWORD" --must-change-password=false && echo "Password changed for $USERNAME."']
 
 ports:
   ssh:
