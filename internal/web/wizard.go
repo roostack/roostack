@@ -22,7 +22,7 @@ func (s *Server) requireWizard(h http.HandlerFunc) http.Handler {
 			return
 		}
 		if u.TOTPSecret == "" {
-			http.Redirect(w, r, "/account/2fa", http.StatusSeeOther)
+			redirect(w, r, "/account/2fa")
 			return
 		}
 		h(w, r)
@@ -54,7 +54,7 @@ func (s *Server) domainSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "domain set to "+domain)
-	http.Redirect(w, r, "/restarting", http.StatusSeeOther)
+	redirect(w, r, "/restarting")
 }
 
 func (s *Server) domainLater(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +62,7 @@ func (s *Server) domainLater(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	redirect(w, r, "/")
 }
 
 func (s *Server) backupPage(w http.ResponseWriter, r *http.Request) {
@@ -82,7 +82,7 @@ func (s *Server) backupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "backup destination set")
-	http.Redirect(w, r, "/setup/recovery-key", http.StatusSeeOther)
+	redirect(w, r, "/setup/recovery-key")
 }
 
 func (s *Server) backupLater(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +90,7 @@ func (s *Server) backupLater(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	redirect(w, r, "/")
 }
 
 func (s *Server) recoveryPage(w http.ResponseWriter, r *http.Request) {
@@ -121,7 +121,7 @@ func (s *Server) recoveryConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "recovery key confirmed")
-	http.Redirect(w, r, "/restarting", http.StatusSeeOther)
+	redirect(w, r, "/restarting")
 }
 
 // wizardError re-renders a wizard page for a user-fixable error. It returns

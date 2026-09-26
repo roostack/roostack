@@ -13,7 +13,7 @@ import (
 
 func (s *Server) setupPage(w http.ResponseWriter, r *http.Request) {
 	if !s.needsSetup() {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		redirect(w, r, "/")
 		return
 	}
 	s.render(w, "setup", map[string]any{})
@@ -21,7 +21,7 @@ func (s *Server) setupPage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 	if !s.needsSetup() {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		redirect(w, r, "/")
 		return
 	}
 	username := strings.TrimSpace(r.FormValue("username"))
@@ -61,7 +61,7 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !created {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		redirect(w, r, "/login")
 		return
 	}
 
@@ -81,12 +81,12 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	redirect(w, r, "/")
 }
 
 func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 	if s.needsSetup() {
-		http.Redirect(w, r, "/setup", http.StatusSeeOther)
+		redirect(w, r, "/setup")
 		return
 	}
 	s.render(w, "login", map[string]any{})
@@ -118,7 +118,7 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), u, "login", "")
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	redirect(w, r, "/")
 }
 
 // startPending records a login that passed the password step and asks for
@@ -148,7 +148,7 @@ func (s *Server) startPending(w http.ResponseWriter, r *http.Request, u *store.U
 func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie(pendingCookie)
 	if err != nil {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		redirect(w, r, "/login")
 		return
 	}
 	key := auth.HashToken(c.Value)
@@ -206,7 +206,7 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), u, "login", "with two-factor code")
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	redirect(w, r, "/")
 }
 
 func (s *Server) twoFactorPage(w http.ResponseWriter, r *http.Request) {
@@ -226,7 +226,7 @@ func (s *Server) twoFactorPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) twoFactorSubmit(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	if u.TOTPSecret != "" {
-		http.Redirect(w, r, "/account/2fa", http.StatusSeeOther)
+		redirect(w, r, "/account/2fa")
 		return
 	}
 	// The new secret round-trips through the form. Tampering with it only
@@ -244,7 +244,7 @@ func (s *Server) twoFactorSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), u, "2fa enabled", "")
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	redirect(w, r, "/")
 }
 
 func (s *Server) twoFactorData(u *store.User, secret, errMsg string) map[string]any {
@@ -268,7 +268,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 		s.Store.DeleteSession(r.Context(), auth.HashToken(c.Value))
 	}
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true})
-	http.Redirect(w, r, "/login", http.StatusSeeOther)
+	redirect(w, r, "/login")
 }
 
 func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
