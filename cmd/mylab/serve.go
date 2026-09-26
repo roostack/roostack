@@ -19,6 +19,7 @@ import (
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dnsrecords"
+	"github.com/mylab/mylab/internal/firewall"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/maintenance"
@@ -66,7 +67,9 @@ func serve(args []string) error {
 	}
 	srv.OnSetupComplete = func() { os.Remove(setupTokenPath(lab)) }
 
+	agentClient := agent.NewClient(agent.DefaultSocket)
 	mgr := &manager.Manager{
+		Firewall:   agentClient,
 		Lab:        lab,
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets()},
 		Log:        log,
@@ -99,8 +102,9 @@ func serve(args []string) error {
 		},
 		// New settings reach every part of MyLab by restarting it; systemd
 		// starts it again (Restart=always).
-		Host: agent.NewClient(agent.DefaultSocket),
+		Host: agentClient,
 		Zone: hosttime.Zone, Zones: hosttime.Zones,
+		SSHClients: firewall.SSHClients,
 		Restart: func() {
 			go func() {
 				time.Sleep(time.Second) // let the response reach the browser

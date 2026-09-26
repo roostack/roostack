@@ -7,6 +7,7 @@ import (
 	"net/mail"
 	"os"
 	"path/filepath"
+	"net/netip"
 	"regexp"
 	"slices"
 	"strings"
@@ -16,12 +17,14 @@ import (
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dns"
+	"github.com/mylab/mylab/internal/firewall"
 	"github.com/mylab/mylab/internal/store"
 )
 
 // Wizard progress, stored as runtime settings.
 const (
 	keyTimezone = "setup.timezone" // "done" once the Owner confirmed it
+	keySSH      = "setup.ssh"      // "done" once the Owner chose SSH access
 	keyDomain   = "setup.domain"   // "done" or "later"
 	keyBackup   = "setup.backup"   // "done" or "later"
 	keyRecovery = "setup.recovery" // "confirmed" once the key was saved
@@ -55,6 +58,8 @@ type Setup struct {
 	// Zone and Zones read the host's time zone (internal/hosttime).
 	Zone  func() string
 	Zones func() ([]string, error)
+	// SSHClients lists who is connected over SSH now (internal/firewall).
+	SSHClients func() ([]netip.Addr, error)
 }
 
 // Host is what the wizard needs from mylab-agent.
@@ -65,6 +70,7 @@ type Host interface {
 // Progress is how far the wizard got.
 type Progress struct {
 	TimezoneDone  bool
+	SSHDone       bool
 	DomainDone    bool
 	DomainLater   bool
 	BackupDone    bool
@@ -77,6 +83,8 @@ func (p Progress) Next() string {
 	switch {
 	case !p.TimezoneDone:
 		return "/setup/timezone"
+	case !p.SSHDone:
+		return "/setup/ssh"
 	case !p.DomainDone && !p.DomainLater:
 		return "/setup/domain"
 	case !p.BackupDone && !p.BackupLater:
@@ -94,6 +102,10 @@ func (s *Setup) Progress(ctx context.Context) (Progress, error) {
 	if err != nil {
 		return p, err
 	}
+	ssh, err := s.Store.Setting(ctx, keySSH)
+	if err != nil {
+		return p, err
+	}
 	d, err := s.Store.Setting(ctx, keyDomain)
 	if err != nil {
 		return p, err
@@ -107,6 +119,7 @@ func (s *Setup) Progress(ctx context.Context) (Progress, error) {
 		return p, err
 	}
 	p.TimezoneDone = tz == "done"
+	p.SSHDone = ssh == "done"
 	p.DomainDone, p.DomainLater = d == "done", d == "later"
 	p.BackupDone, p.BackupLater = b == "done", b == "later"
 	p.RecoverySaved = r == "confirmed"
@@ -144,6 +157,45 @@ func (s *Setup) SaveTimezone(ctx context.Context, name string) (bool, error) {
 		s.Restart()
 	}
 	return changed, nil
+}
+
+// SSHAccess is the current SSH choice and who is connected now.
+type SSHAccess struct {
+	Choice  string // config.SSH*, or "" if not chosen yet
+	Clients []netip.Addr
+}
+
+// SSHAccess reads the SSH choice and current connections.
+func (s *Setup) SSHAccess() (SSHAccess, error) {
+	clients, err := s.SSHClients()
+	return SSHAccess{Choice: s.Lab.Firewall.SSH, Clients: clients}, err
+}
+
+// SaveSSH saves who may connect over SSH. It refuses a choice that would
+// cut off a current SSH connection unless confirmed, then restarts MyLab,
+// which applies the firewall.
+func (s *Setup) SaveSSH(ctx context.Context, choice string, confirmed bool) error {
+	switch choice {
+	case config.SSHFromLAN, config.SSHFromAny, config.SSHOff:
+	default:
+		return &CheckError{"Choose who can connect."}
+	}
+	clients, err := s.SSHClients()
+	if err != nil {
+		return err
+	}
+	if cut := firewall.CutsOff(choice, clients); len(cut) > 0 && !confirmed {
+		return &CheckError{fmt.Sprintf("That would disconnect the SSH connection from %s. "+
+			"Tick the box if that's what you want.", cut[0])}
+	}
+	if err := config.Update(s.LabPath, func(l *config.Lab) { l.Firewall.SSH = choice }); err != nil {
+		return err
+	}
+	if err := s.Store.SetSetting(ctx, keySSH, "done"); err != nil {
+		return err
+	}
+	s.Restart()
+	return nil
 }
 
 var domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$`)

@@ -7,10 +7,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/instance"
@@ -263,5 +265,42 @@ func forgejoRequest() InstallRequest {
 	return InstallRequest{
 		Settings: map[string]string{"admin_username": "mum", "admin_email": "mum@example.com"},
 		Secrets:  map[string]string{"admin_password": "correct horse"},
+	}
+}
+
+type fakeFirewall struct {
+	mu      sync.Mutex
+	applied []agent.Firewall
+}
+
+func (f *fakeFirewall) ApplyFirewall(_ context.Context, fw agent.Firewall) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.applied = append(f.applied, fw)
+	return nil
+}
+
+func TestFirewallFollowsServices(t *testing.T) {
+	m, _ := newManager(t)
+	ctx := context.Background()
+	fw := &fakeFirewall{}
+	m.Firewall = fw
+	addForgejo(t, m)
+
+	m.Apply()
+	m.Wait()
+	if len(fw.applied) != 0 {
+		t.Fatal("the firewall must be left alone until the Owner chose SSH access")
+	}
+
+	m.Lab.Firewall.SSH = config.SSHFromLAN
+	m.Install(ctx, "forgejo", forgejoRequest())
+	m.Wait()
+	m.SetPort(ctx, "forgejo", "ssh", true, 2222)
+	m.Wait()
+	last := fw.applied[len(fw.applied)-1]
+	want := agent.Rule{Port: 2222, Proto: "tcp", From: agent.FromLAN, Reason: "forgejo ssh"}
+	if last.SSHFrom != agent.FromLAN || !slices.Contains(last.Allow, want) {
+		t.Errorf("firewall = %+v, want SSH from the LAN and forgejo's port", last)
 	}
 }

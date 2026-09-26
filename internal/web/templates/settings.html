@@ -18,6 +18,16 @@
     {{end}}
   </section>
   {{template "dns-card" .}}
+  {{if .SSH}}
+  <section class="card section">
+    <div class="heading"><h2>Firewall</h2><a href="/setup/ssh">Change…</a></div>
+    <dl class="facts">
+      <dt>SSH</dt><dd>{{if eq .SSH "lan"}}Home network only{{else if eq .SSH "any"}}From anywhere{{else}}Nobody{{end}}</dd>
+      <dt>Web</dt><dd>Open (ports 80 and 443); private services only answer your home network</dd>
+    </dl>
+    <p class="hint">Everything else is blocked. Extra connections you turn on for a service are opened for your home network.</p>
+  </section>
+  {{end}}
   {{with .HostClock}}
   <section class="card section">
     <div class="heading"><h2>Time zone</h2><a href="/setup/timezone">Change…</a></div>

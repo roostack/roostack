@@ -18,7 +18,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/firewall"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/instance"
 	"github.com/mylab/mylab/internal/pkgspec"
@@ -53,12 +55,21 @@ type Manager struct {
 	State   KV
 	Secrets SecretStore
 	Exec    ExecFunc
+	// Firewall applies the host firewall through mylab-agent after each
+	// apply. Nil leaves the firewall alone.
+	Firewall FirewallApplier
+
 	// HookRetry and HookDeadline tune install hook retries (0: defaults).
 	HookRetry, HookDeadline time.Duration
 
 	hooksBusy, hooksAgain bool
 	hooksRunning          map[string]bool
 	hooksDone             chan struct{}
+}
+
+// FirewallApplier is mylab-agent's firewall operation.
+type FirewallApplier interface {
+	ApplyFirewall(ctx context.Context, fw agent.Firewall) error
 }
 
 // ApplyStatus is shown on the dashboard.
@@ -443,6 +454,13 @@ func (m *Manager) applyOnce(ctx context.Context) error {
 		delete(m.userSecrets, s.Name)
 	}
 	m.mu.Unlock()
+
+	// The firewall follows the services, e.g. a package port just turned on.
+	if fw, ok := firewall.Desired(m.Lab, desired.Services); ok && m.Firewall != nil {
+		if err := m.Firewall.ApplyFirewall(ctx, fw); err != nil {
+			return fmt.Errorf("applying the firewall: %w", err)
+		}
+	}
 	return nil
 }
 

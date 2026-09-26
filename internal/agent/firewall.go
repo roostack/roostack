@@ -3,6 +3,7 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"slices"
 	"strings"
 )
@@ -10,7 +11,7 @@ import (
 // Firewall is the desired inbound firewall (SPEC.md §6.10). Everything not
 // listed is dropped.
 type Firewall struct {
-	// SSHFrom is "lan" (private ranges only) or "any".
+	// SSHFrom is "lan" (private ranges only), "any" or "off" (no SSH).
 	SSHFrom string `json:"ssh_from"`
 	Allow   []Rule `json:"allow"`
 }
@@ -28,13 +29,38 @@ type Rule struct {
 const (
 	FromLAN = "lan"
 	FromAny = "any"
+	FromOff = "off" // SSHFrom only
 )
 
-// lanRanges match caddy.PrivateRanges (docs/ASSUMPTIONS.md C5).
-var (
-	lanV4 = "10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10"
-	lanV6 = "fc00::/7, fe80::/10"
-)
+// LANRanges are the "home network" (and VPN) sources. They match
+// caddy.PrivateRanges (docs/ASSUMPTIONS.md C5).
+var LANRanges = []netip.Prefix{
+	netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("172.16.0.0/12"),
+	netip.MustParsePrefix("192.168.0.0/16"), netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("fc00::/7"), netip.MustParsePrefix("fe80::/10"),
+}
+
+// IsLAN reports whether addr is on the home network (or a VPN) as the
+// firewall sees it.
+func IsLAN(addr netip.Addr) bool {
+	addr = addr.Unmap()
+	for _, p := range LANRanges {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+func lanElements(v6 bool) string {
+	var out []string
+	for _, p := range LANRanges {
+		if p.Addr().Is6() == v6 {
+			out = append(out, p.String())
+		}
+	}
+	return strings.Join(out, ", ")
+}
 
 // DefaultFirewall is the baseline: web traffic from anywhere (Caddy decides
 // what is private), SSH from the LAN only.
@@ -49,8 +75,8 @@ func DefaultFirewall() Firewall {
 // Validate checks the firewall request. The agent never trusts its input.
 func (f Firewall) Validate() error {
 	var errs []error
-	if f.SSHFrom != FromLAN && f.SSHFrom != FromAny {
-		errs = append(errs, fmt.Errorf("ssh_from must be %q or %q", FromLAN, FromAny))
+	if f.SSHFrom != FromLAN && f.SSHFrom != FromAny && f.SSHFrom != FromOff {
+		errs = append(errs, fmt.Errorf("ssh_from must be %q, %q or %q", FromLAN, FromAny, FromOff))
 	}
 	for i, r := range f.Allow {
 		if r.Port < 1 || r.Port > 65535 {
@@ -78,16 +104,22 @@ func (f Firewall) Ruleset() string {
 	// Declare then delete, so the file loads whether or not the table exists.
 	b.WriteString("table inet mylab\ndelete table inet mylab\n\n")
 	b.WriteString("table inet mylab {\n")
-	b.WriteString("\tset lan4 {\n\t\ttype ipv4_addr\n\t\tflags interval\n\t\telements = { " + lanV4 + " }\n\t}\n\n")
-	b.WriteString("\tset lan6 {\n\t\ttype ipv6_addr\n\t\tflags interval\n\t\telements = { " + lanV6 + " }\n\t}\n\n")
+	b.WriteString("\tset lan4 {\n\t\ttype ipv4_addr\n\t\tflags interval\n\t\telements = { " + lanElements(false) + " }\n\t}\n\n")
+	b.WriteString("\tset lan6 {\n\t\ttype ipv6_addr\n\t\tflags interval\n\t\telements = { " + lanElements(true) + " }\n\t}\n\n")
 	b.WriteString("\tchain input {\n")
 	b.WriteString("\t\ttype filter hook input priority filter; policy drop;\n\n")
 	b.WriteString("\t\tct state established,related accept\n")
 	b.WriteString("\t\tct state invalid drop\n")
 	b.WriteString("\t\tiif \"lo\" accept\n")
-	b.WriteString("\t\tmeta l4proto { icmp, ipv6-icmp } accept\n\n")
+	b.WriteString("\t\tmeta l4proto { icmp, ipv6-icmp } accept\n")
+	// DHCPv6 replies come from the router's link-local address to a port
+	// conntrack doesn't pair with the multicast request.
+	b.WriteString("\t\tip6 saddr fe80::/10 udp dport 546 accept\n\n")
 
-	rules := append([]Rule{{Port: 22, Proto: "tcp", From: f.SSHFrom, Reason: "ssh"}}, f.Allow...)
+	rules := slices.Clone(f.Allow)
+	if f.SSHFrom != FromOff {
+		rules = append(rules, Rule{Port: 22, Proto: "tcp", From: f.SSHFrom, Reason: "ssh"})
+	}
 	slices.SortStableFunc(rules, func(a, b Rule) int {
 		if a.Port != b.Port {
 			return a.Port - b.Port

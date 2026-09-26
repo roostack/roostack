@@ -277,6 +277,8 @@ Default paths:
 Layered defaults:
 
 1. **Firewall:** default-deny inbound. Allow 80/443 plus ports that specific services need (e.g. WireGuard, Pi-hole DNS on the LAN). `mylab-agent` generates a readable **nftables** ruleset file and reloads it (nftables is Debian 13's default, so no extra dependency).
+   - **SSH access — Locked (2026-09-27):** the Owner chooses in the setup wizard (step 2) and in Settings: home network only (recommended, default), anywhere, or nobody. The page lists current SSH connections (read from `/proc/net/tcp`) and a choice that would cut one off must be confirmed. Stored in `lab.yaml` (`firewall.ssh`).
+   - MyLab applies the firewall after every apply, so enabled package ports are opened (home network only unless public). Until the SSH question is answered, MyLab leaves the firewall alone.
 2. **Admin UI is LAN/VPN-only by default.** Public access requires explicit opt-in **and** mandatory 2FA. Rationale: the UI controls the whole host and is the highest-value target.
 3. **SSH hardening:** key-only authentication, no password login, no root login. Applied by the installer with a warning and confirmation to avoid lockout. The user can opt out, but **the UI shows a persistent warning** while hardening is disabled.
 4. **Intrusion protection: CrowdSec**, enabled automatically once any service is public. It uses a Caddy module ("bouncer") to block at the proxy, and scenarios for Caddy and SSH logs. Not run on fully private labs (little benefit, saves resources).

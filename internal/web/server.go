@@ -120,6 +120,8 @@ type LabSetup interface {
 	Progress(ctx context.Context) (setup.Progress, error)
 	Timezones() (current string, zones []string, err error)
 	SaveTimezone(ctx context.Context, name string) (changed bool, err error)
+	SSHAccess() (setup.SSHAccess, error)
+	SaveSSH(ctx context.Context, choice string, confirmed bool) error
 	SaveDomain(ctx context.Context, domain, email, provider string, values map[string]string, opts setup.DomainOptions) error
 	DomainLater(ctx context.Context) error
 	SaveBackup(ctx context.Context, c setup.BackupChoice) error
@@ -155,7 +157,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	if s.bootID, err = auth.NewToken(); err != nil {
 		return nil, err
 	}
-	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone",
+	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover",
 		"home", "services", "service", "backups", "settings", "account"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
@@ -201,6 +203,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /dns/take-over", s.requireOwner(s.dnsTakeOver))
 	mux.Handle("GET /setup/timezone", s.requireWizard(s.timezonePage))
 	mux.Handle("POST /setup/timezone", s.requireWizard(s.timezoneSubmit))
+	mux.Handle("GET /setup/ssh", s.requireWizard(s.sshPage))
+	mux.Handle("POST /setup/ssh", s.requireWizard(s.sshSubmit))
 	mux.Handle("GET /setup/domain", s.requireWizard(s.domainPage))
 	mux.Handle("POST /setup/domain", s.requireWizard(s.domainSubmit))
 	mux.Handle("POST /setup/domain/later", s.requireWizard(s.domainLater))
