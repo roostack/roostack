@@ -238,3 +238,11 @@ func TestSetManaging(t *testing.T) {
 		t.Errorf("namecheap with the risk accepted: %v", err)
 	}
 }
+
+func TestSetManagingWithoutSaverIsAnError(t *testing.T) {
+	m, _ := newManager(t, managed, nil, nil)
+	m.UpdateLab = nil
+	if err := m.SetManaging(true, false); err == nil {
+		t.Error("expected an error, not a crash")
+	}
+}

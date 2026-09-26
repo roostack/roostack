@@ -96,6 +96,9 @@ func (m *Manager) SetManaging(on, acceptRisk bool) error {
 	if p == nil {
 		return errors.New("set up your domain first")
 	}
+	if m.UpdateLab == nil {
+		return errors.New("dnsrecords: UpdateLab is not set")
+	}
 	if on && p.RiskyRecords() && !acceptRisk {
 		return ErrNeedsRisk
 	}

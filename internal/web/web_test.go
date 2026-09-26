@@ -313,3 +313,15 @@ func newClientFor(h *harness) *harness {
 	jar, _ := cookiejar.New(nil)
 	return &harness{t: h.t, srv: h.srv, store: h.store, server: h.server, client: &http.Client{Jar: jar}}
 }
+
+func TestCrashBecomesErrorPage(t *testing.T) {
+	h := newHarness(t, "")
+	h.server.Services = func(context.Context) ([]ServiceView, error) { panic("boom") }
+	hash, _ := auth.HashPassword("a long password")
+	h.store.CreateUser(context.Background(), store.User{Username: "mum", PasswordHash: hash, Role: auth.RoleMember})
+	h.post("/login", url.Values{"username": {"mum"}, "password": {"a long password"}}, h.srv.URL)
+	code, body := h.get("/")
+	if code != http.StatusInternalServerError || !strings.Contains(body, "Something went wrong") {
+		t.Errorf("a crash should give an error page, got %d %q", code, body)
+	}
+}
