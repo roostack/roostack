@@ -15,6 +15,8 @@ import (
 
 type fakeSetup struct {
 	p          setup.Progress
+	zone       string
+	restarted  bool
 	domainErr  error
 	backupErr  error
 	lastBackup setup.BackupChoice
@@ -25,6 +27,17 @@ type fakeSetup struct {
 }
 
 func (f *fakeSetup) Progress(context.Context) (setup.Progress, error) { return f.p, nil }
+func (f *fakeSetup) Timezones() (string, []string, error) {
+	return f.zone, []string{"Australia/Melbourne", "Etc/UTC"}, nil
+}
+func (f *fakeSetup) SaveTimezone(_ context.Context, name string) (bool, error) {
+	if name != "Australia/Melbourne" && name != "Etc/UTC" {
+		return false, &setup.CheckError{Msg: "Choose a time zone from the list."}
+	}
+	changed := name != f.zone
+	f.zone, f.p.TimezoneDone, f.restarted = name, true, f.restarted || changed
+	return changed, nil
+}
 func (f *fakeSetup) SaveDomain(_ context.Context, d, e, provider string, values map[string]string, opts setup.DomainOptions) error {
 	f.lastProvider, f.lastValues, f.lastOpts = provider, values, opts
 	if f.domainErr != nil {
@@ -48,14 +61,25 @@ func (f *fakeSetup) ConfirmRecoveryKey(context.Context) error { f.p.RecoverySave
 
 func TestWizardFlow(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	fs := &fakeSetup{}
+	fs := &fakeSetup{zone: "Etc/UTC"}
 	h.server.Setup = fs
 
-	if _, body := h.get("/"); !strings.Contains(body, "Your domain") {
-		t.Fatal("an Owner with setup unfinished should land on the domain step")
+	_, body := h.get("/")
+	if !strings.Contains(body, "Setup · step 1 of 3") || !strings.Contains(body, `data-zone="Etc/UTC"`) ||
+		!strings.Contains(body, `<option value="Australia/Melbourne">`) {
+		t.Fatalf("an Owner with setup unfinished should land on the time zone step:\n%.3000s", body)
+	}
+	if code, body := h.post("/setup/timezone", url.Values{"timezone": {"Mars/Base"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "Choose a time zone") || !strings.Contains(body, `data-zone="Mars/Base"`) {
+		t.Errorf("bad zone: %d", code)
+	}
+	// Keeping the zone goes straight on to the next step.
+	h.post("/setup/timezone", url.Values{"timezone": {"Etc/UTC"}}, h.srv.URL)
+	if _, body := h.get("/"); fs.restarted || !strings.Contains(body, "Your domain") {
+		t.Fatal("after the time zone comes the domain step, without a restart")
 	}
 
-	_, body := h.get("/setup/domain")
+	_, body = h.get("/setup/domain")
 	for _, want := range []string{"Amazon Route 53", "Porkbun", "Gandi", "GoDaddy", "Namecheap", "Spaceship",
 		`name="dns.route53.secret_access_key"`} {
 		if !strings.Contains(body, want) {
@@ -115,7 +139,7 @@ func TestWizardFlow(t *testing.T) {
 
 func TestDomainLaterReminder(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	fs := &fakeSetup{}
+	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true}}
 	h.server.Setup = fs
 	h.post("/setup/domain/later", nil, h.srv.URL)
 	h.post("/setup/backup/later", nil, h.srv.URL)
@@ -130,7 +154,7 @@ func TestWizardOwnerOnly(t *testing.T) {
 	if _, body := h.get("/"); !strings.Contains(body, "Your services") {
 		t.Error("admins are not sent into the wizard")
 	}
-	for _, path := range []string{"/setup/domain", "/setup/backup", "/setup/recovery-key"} {
+	for _, path := range []string{"/setup/timezone", "/setup/domain", "/setup/backup", "/setup/recovery-key"} {
 		if code, _ := h.get(path); code != http.StatusForbidden {
 			t.Errorf("GET %s as admin: %d", path, code)
 		}
@@ -186,7 +210,7 @@ func (f *fakeDNS) TakeOver(context.Context) error { f.takenOver = true; return n
 
 func TestDNSCard(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	h.server.Setup = &fakeSetup{p: setup.Progress{DomainDone: true, BackupLater: true}}
+	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, DomainDone: true, BackupLater: true}}
 	h.server.DNS = &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateBlocked, Record: "*.lab.example.com", IP: "192.168.1.20",
 		Message: "your router's DNS rebinding protection", Checked: time.Now()}}
 	_, body := h.get("/settings")
@@ -206,7 +230,7 @@ func TestDNSCard(t *testing.T) {
 
 func TestDNSControls(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	h.server.Setup = &fakeSetup{p: setup.Progress{DomainDone: true, BackupLater: true}}
+	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, DomainDone: true, BackupLater: true}}
 	fd := &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateManual, Record: "*.lab.example.com", IP: "192.168.1.20",
 		Provider: "Namecheap", CanManage: true, Risky: true, Checked: time.Now()}}
 	h.server.DNS = fd
@@ -251,7 +275,7 @@ func TestDNSControls(t *testing.T) {
 
 func TestSetupFormsAsSettingsPages(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	fs := &fakeSetup{p: setup.Progress{DomainDone: true, BackupDone: true, RecoverySaved: true}}
+	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}}
 	h.server.Setup = fs
 	h.server.BackupRepo = "/mnt/backup/mylab"
 
@@ -263,19 +287,39 @@ func TestSetupFormsAsSettingsPages(t *testing.T) {
 		t.Error("the settings version should say Change, show the current destination and link back")
 	}
 	_, body = h.get("/setup/domain")
-	if strings.Contains(body, "step 1 of 2") || !strings.Contains(body, "Change your domain") || strings.Contains(body, "/setup/domain/later") {
+	if strings.Contains(body, "step 2 of 3") || !strings.Contains(body, "Change your domain") || strings.Contains(body, "/setup/domain/later") {
 		t.Error("changing the domain later must not look like the wizard")
 	}
 
 	// A postponed step is "Set up", still without the wizard's framing.
-	fs.p = setup.Progress{DomainDone: true, BackupLater: true}
+	fs.p = setup.Progress{TimezoneDone: true, DomainDone: true, BackupLater: true}
 	if _, body := h.get("/setup/backup"); !strings.Contains(body, "<h1>Set up backups</h1>") || strings.Contains(body, "step 2") {
 		t.Error("a postponed step should read as setting it up now")
 	}
 
 	// During first-run setup the wizard framing stays.
-	fs.p = setup.Progress{DomainDone: true}
-	if _, body := h.get("/setup/backup"); !strings.Contains(body, "step 2 of 2") || !strings.Contains(body, "Set this up later") {
+	fs.p = setup.Progress{TimezoneDone: true, DomainDone: true}
+	if _, body := h.get("/setup/backup"); !strings.Contains(body, "step 3 of 3") || !strings.Contains(body, "Set this up later") {
 		t.Error("first-run setup keeps its steps")
+	}
+}
+
+func TestTimezoneBanner(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{zone: "Etc/UTC", p: setup.Progress{TimezoneDone: true, DomainDone: true, BackupLater: true}}
+	h.server.Setup = fs
+
+	// The browser compares its UTC offset with the host's.
+	_, body := h.get("/")
+	if !strings.Contains(body, "Times in MyLab are this machine's time") || !strings.Contains(body, `href="/setup/timezone"`) {
+		t.Error("home page: missing the time zone banner for the Owner")
+	}
+	_, body = h.get("/settings")
+	if !strings.Contains(body, "<h2>Time zone</h2>") {
+		t.Error("settings: missing the time zone card")
+	}
+	// Changing it from Settings restarts MyLab.
+	if code, _ := h.post("/setup/timezone", url.Values{"timezone": {"Australia/Melbourne"}}, h.srv.URL); code >= 400 || !fs.restarted {
+		t.Errorf("change zone: %d restarted=%v", code, fs.restarted)
 	}
 }

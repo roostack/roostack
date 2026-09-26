@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 
 // Wizard progress, stored as runtime settings.
 const (
+	keyTimezone = "setup.timezone" // "done" once the Owner confirmed it
 	keyDomain   = "setup.domain"   // "done" or "later"
 	keyBackup   = "setup.backup"   // "done" or "later"
 	keyRecovery = "setup.recovery" // "confirmed" once the key was saved
@@ -48,10 +50,21 @@ type Setup struct {
 	NewRepo func(repository string, env []string) *backup.Repo
 	// Restart restarts MyLab so every part picks up the new settings.
 	Restart func()
+	// Host changes host settings through mylab-agent.
+	Host Host
+	// Zone and Zones read the host's time zone (internal/hosttime).
+	Zone  func() string
+	Zones func() ([]string, error)
+}
+
+// Host is what the wizard needs from mylab-agent.
+type Host interface {
+	SetTimezone(ctx context.Context, name string) error
 }
 
 // Progress is how far the wizard got.
 type Progress struct {
+	TimezoneDone  bool
 	DomainDone    bool
 	DomainLater   bool
 	BackupDone    bool
@@ -62,6 +75,8 @@ type Progress struct {
 // Next returns the wizard page still to do, or "" when finished.
 func (p Progress) Next() string {
 	switch {
+	case !p.TimezoneDone:
+		return "/setup/timezone"
 	case !p.DomainDone && !p.DomainLater:
 		return "/setup/domain"
 	case !p.BackupDone && !p.BackupLater:
@@ -75,6 +90,10 @@ func (p Progress) Next() string {
 // Progress reads the wizard state.
 func (s *Setup) Progress(ctx context.Context) (Progress, error) {
 	var p Progress
+	tz, err := s.Store.Setting(ctx, keyTimezone)
+	if err != nil {
+		return p, err
+	}
 	d, err := s.Store.Setting(ctx, keyDomain)
 	if err != nil {
 		return p, err
@@ -87,10 +106,44 @@ func (s *Setup) Progress(ctx context.Context) (Progress, error) {
 	if err != nil {
 		return p, err
 	}
+	p.TimezoneDone = tz == "done"
 	p.DomainDone, p.DomainLater = d == "done", d == "later"
 	p.BackupDone, p.BackupLater = b == "done", b == "later"
 	p.RecoverySaved = r == "confirmed"
 	return p, nil
+}
+
+// Timezones returns the host's time zone and the zones it can be set to.
+func (s *Setup) Timezones() (string, []string, error) {
+	zones, err := s.Zones()
+	return s.Zone(), zones, err
+}
+
+// SaveTimezone sets the host's time zone. It returns true if the zone
+// changed, in which case MyLab restarts: Go reads the local time zone once
+// at startup, and schedules (nightly backups) depend on it.
+func (s *Setup) SaveTimezone(ctx context.Context, name string) (bool, error) {
+	name = strings.TrimSpace(name)
+	zones, err := s.Zones()
+	if err != nil {
+		return false, err
+	}
+	if !slices.Contains(zones, name) {
+		return false, &CheckError{"Choose a time zone from the list, such as Europe/London."}
+	}
+	changed := name != s.Zone()
+	if changed {
+		if err := s.Host.SetTimezone(ctx, name); err != nil {
+			return false, &CheckError{"MyLab couldn't change the time zone: " + err.Error()}
+		}
+	}
+	if err := s.Store.SetSetting(ctx, keyTimezone, "done"); err != nil {
+		return false, err
+	}
+	if changed {
+		s.Restart()
+	}
+	return changed, nil
 }
 
 var domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$`)

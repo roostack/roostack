@@ -14,10 +14,12 @@ import (
 type fakeHost struct {
 	portsSet bool
 	ruleset  string
+	tz       string
 }
 
 func (f *fakeHost) SetUnprivilegedPortStart() error { f.portsSet = true; return nil }
 func (f *fakeHost) ApplyFirewall(r string) error    { f.ruleset = r; return nil }
+func (f *fakeHost) SetTimezone(name string) error   { f.tz = name; return nil }
 
 // start runs a real server on a Unix socket, so SO_PEERCRED is exercised.
 func start(t *testing.T, allowed []uint32) (*Client, *fakeHost) {
@@ -59,6 +61,15 @@ func TestAPI(t *testing.T) {
 	}
 	if !strings.Contains(host.ruleset, "tcp dport 443 accept") {
 		t.Errorf("ruleset not applied:\n%s", host.ruleset)
+	}
+
+	if err := c.SetTimezone(ctx, "Australia/Melbourne"); err != nil || host.tz != "Australia/Melbourne" {
+		t.Errorf("timezone: %v, set=%q", err, host.tz)
+	}
+	for _, tz := range []string{"", "../etc/passwd", "-h", "Europe/../../x", "a/b/c/d", "Europe/Berlin;id"} {
+		if err := c.SetTimezone(ctx, tz); err == nil {
+			t.Errorf("timezone %q accepted", tz)
+		}
 	}
 
 	bad := DefaultFirewall()

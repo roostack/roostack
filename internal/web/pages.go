@@ -6,6 +6,7 @@ import (
 
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/dns"
+	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/store"
 )
@@ -23,7 +24,7 @@ func navFor(u *store.User, page string) nav {
 	active := map[string]string{
 		"home": "home", "services": "services", "service": "services", "catalog": "services",
 		"install": "services", "remove": "services", "backups": "backups",
-		"settings": "settings", "setup-domain": "settings", "setup-backup": "settings",
+		"settings": "settings", "setup-timezone": "settings", "setup-domain": "settings", "setup-backup": "settings",
 		"recovery-key": "settings", "dns-takeover": "settings", "account": "account", "twofactor": "account",
 	}[page]
 	return nav{Active: active, Username: u.Username,
@@ -137,6 +138,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["DNS"] = s.dnsView(r)
+	data["HostClock"] = hosttime.Now()
 	data["LabDomain"] = s.Domain
 	data["DomainSet"] = s.Domain != "" && s.Setup != nil && s.domainDone(r)
 	if p := dns.Get(s.DNSProvider); p != nil {

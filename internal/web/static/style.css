@@ -65,6 +65,7 @@ button.danger { background: var(--bad); color: #fff; }
 .link-danger { color: var(--bad); font-size: 0.9rem; }
 .actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .notice-error { border-left-color: var(--bad); }
+.tz-banner { margin-bottom: 20px; }
 .service p.hint { margin: 4px 0 0; }
 .with-suffix { display: flex; align-items: center; gap: 6px; }
 .with-suffix input { flex: 1; }

@@ -21,6 +21,7 @@ import (
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/dnsrecords"
+	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/setup"
@@ -112,6 +113,8 @@ type ServiceManager interface {
 // LabSetup is what the UI needs from internal/setup.
 type LabSetup interface {
 	Progress(ctx context.Context) (setup.Progress, error)
+	Timezones() (current string, zones []string, err error)
+	SaveTimezone(ctx context.Context, name string) (changed bool, err error)
 	SaveDomain(ctx context.Context, domain, email, provider string, values map[string]string, opts setup.DomainOptions) error
 	DomainLater(ctx context.Context) error
 	SaveBackup(ctx context.Context, c setup.BackupChoice) error
@@ -147,7 +150,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	if s.bootID, err = auth.NewToken(); err != nil {
 		return nil, err
 	}
-	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove",
+	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover",
 		"home", "services", "service", "backups", "settings", "account"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
@@ -191,6 +194,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /dns/manage", s.requireOwner(s.dnsManage))
 	mux.Handle("GET /dns/take-over", s.requireOwner(s.dnsTakeOverPage))
 	mux.Handle("POST /dns/take-over", s.requireOwner(s.dnsTakeOver))
+	mux.Handle("GET /setup/timezone", s.requireWizard(s.timezonePage))
+	mux.Handle("POST /setup/timezone", s.requireWizard(s.timezoneSubmit))
 	mux.Handle("GET /setup/domain", s.requireWizard(s.domainPage))
 	mux.Handle("POST /setup/domain", s.requireWizard(s.domainSubmit))
 	mux.Handle("POST /setup/domain/later", s.requireWizard(s.domainLater))
@@ -365,6 +370,11 @@ func isHTTPS(r *http.Request) bool {
 func (s *Server) render(w http.ResponseWriter, page string, data map[string]any) {
 	if u, ok := data["User"].(*store.User); ok && u != nil {
 		data["Nav"] = navFor(u, page)
+		// For the banner shown when the browser's clock differs from the
+		// host's (every time MyLab shows is host time).
+		if page != "setup-timezone" {
+			data["Clock"] = clockView{hosttime.Now(), auth.Can(u.Role, auth.ManageHost)}
+		}
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.pages[page].Execute(w, data); err != nil {

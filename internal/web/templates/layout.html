@@ -26,6 +26,15 @@
     {{end}}
   </header>
   <main>
+    {{with .Clock}}
+    <div class="notice tz-banner" role="status" x-cloak
+      x-data="{ device: Intl.DateTimeFormat().resolvedOptions().timeZone, offset: -new Date().getTimezoneOffset() }"
+      x-show="offset !== {{.Offset}}">
+      <strong>Times in MyLab are this machine's time, not yours.</strong>
+      This machine is set to {{.Zone}}, where it's {{.Time}} now. The device you're using is in <span x-text="device"></span>.
+      {{if .Owner}}<a href="/setup/timezone">Change the machine's time zone</a> if it's wrong.{{else}}If that's wrong, ask the Owner to change it.{{end}}
+    </div>
+    {{end}}
     {{template "content" .}}
   </main>
 </body>
