@@ -112,7 +112,8 @@ func serve(args []string) error {
 			Lab: lab, Secrets: podman.NewSecrets(), Store: st, Log: log,
 			HTTP:        &http.Client{Timeout: 30 * time.Second},
 			LocalLookup: dnsrecords.SystemLookup, PublicLookup: dnsrecords.PublicLookup,
-			Wait: 90 * time.Second,
+			Wait:      90 * time.Second,
+			UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) },
 		}
 		go records.Run(ctx, 30*time.Minute)
 		srv.DNS = records

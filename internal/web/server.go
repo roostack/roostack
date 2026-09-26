@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -207,7 +208,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /services/{name}/remove", s.require(auth.ManageServices, s.removePage))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))
 
-	return securityHeaders(sameOrigin(s.loadSession(mux)))
+	return s.recoverPanics(securityHeaders(sameOrigin(s.loadSession(mux))))
 }
 
 type userKey struct{}
@@ -299,6 +300,23 @@ func securityHeaders(next http.Handler) http.Handler {
 			"style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
+		next.ServeHTTP(w, r)
+	})
+}
+
+// recoverPanics turns a crash in one request into a logged error and an
+// error page, instead of the browser getting an empty response.
+func (s *Server) recoverPanics(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if v := recover(); v != nil {
+				if v == http.ErrAbortHandler {
+					panic(v)
+				}
+				s.Log.Error("request crashed", "method", r.Method, "path", r.URL.Path, "panic", v, "stack", string(debug.Stack()))
+				http.Error(w, "Something went wrong. Details are in the MyLab log.", http.StatusInternalServerError)
+			}
+		}()
 		next.ServeHTTP(w, r)
 	})
 }
