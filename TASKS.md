@@ -60,6 +60,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Dashboard backup card: last success, failures, staleness (>2 days), local-only warning, next run, "Back up now"
   - [x] `mylab backup restore <service>`: moves current data aside, restores, puts the database back, restarts. Drill passed on the VM (SQLite)
   - [ ] Restore from the UI (Owner only), and full-lab restore onto a new machine
+  - [ ] 3-2-1 guidance and multiple destinations (SPEC §6.9): suggestions in the UI, primary + `restic copy` to extra destinations, per-destination status
   - [ ] Postgres restore (pg_restore) untested until a Postgres package runs
   - [ ] Measure restic RAM/time on a realistic photo/video dataset
 - [ ] 🟡 **1.11 Maintenance coordinator + host OS updates**
