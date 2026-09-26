@@ -107,6 +107,8 @@ type ServiceManager interface {
 	Install(ctx context.Context, name string, req manager.InstallRequest) error
 	Remove(ctx context.Context, name string) error
 	DataDirs(name string) []string
+	Ports(name string) ([]manager.PortStatus, error)
+	SetPort(ctx context.Context, name, port string, enabled bool, hostPort int) error
 	Status() manager.ApplyStatus
 }
 
@@ -210,6 +212,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /catalog", s.require(auth.ManageServices, s.catalogPage))
 	mux.Handle("GET /install/{name}", s.require(auth.ManageServices, s.installPage))
 	mux.Handle("POST /install/{name}", s.require(auth.ManageServices, s.installSubmit))
+	mux.Handle("POST /services/{name}/ports/{port}", s.require(auth.ManageServices, s.portSubmit))
 	mux.Handle("GET /services/{name}/remove", s.require(auth.ManageServices, s.removePage))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))
 

@@ -1,12 +1,14 @@
 package state
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/generate"
 )
 
 // newLab sets up a catalog with the reference examples and an empty state dir.
@@ -18,7 +20,7 @@ func newLab(t *testing.T) config.Lab {
 	lab.DNS.Provider = "cloudflare"
 	lab.Paths.StateDir = filepath.Join(root, "state")
 	lab.Paths.CatalogDir = filepath.Join(root, "catalog")
-	for _, name := range []string{"vaultwarden", "immich"} {
+	for _, name := range []string{"vaultwarden", "immich", "forgejo"} {
 		data, err := os.ReadFile(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
 		if err != nil {
 			t.Fatal(err)
@@ -103,6 +105,59 @@ func TestDuplicatePort(t *testing.T) {
 	services, _ := LoadServices(lab)
 	if _, err := Desired(lab, services); err == nil || !strings.Contains(err.Error(), "port 20005 is already used") {
 		t.Errorf("err = %v, want duplicate port", err)
+	}
+}
+
+func TestHostPorts(t *testing.T) {
+	lab := newLab(t)
+	file := filepath.Join(lab.Paths.InstancesDir(), "forgejo.yaml")
+	desired := func(ports string) (*generate.Output, error) {
+		t.Helper()
+		writeFile(t, file, "package: forgejo\nversion: 15.0.9-mylab.1\nroutes:\n  web: { port: 20000 }\n"+ports)
+		services, err := LoadServices(lab)
+		if err != nil {
+			t.Fatal(err)
+		}
+		d, err := Desired(lab, services)
+		if err != nil {
+			return nil, err
+		}
+		return d.Services[0], nil
+	}
+
+	// Off by default.
+	out, err := desired("")
+	if err != nil || len(out.HostPorts) != 0 {
+		t.Fatalf("default: %v, host ports %v", err, out.HostPorts)
+	}
+	out, err = desired("ports:\n  ssh: { enabled: true }\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := generate.HostPort{Name: "ssh", Title: "Git over SSH", Port: 2222, Protocol: "tcp", Exposure: "private"}
+	if len(out.HostPorts) != 1 || out.HostPorts[0] != want {
+		t.Errorf("host ports = %+v, want %+v", out.HostPorts, want)
+	}
+	var app string
+	for _, f := range out.Quadlets {
+		if f.Name == "mylab-forgejo-app.container" {
+			app = f.Content
+		}
+	}
+	for _, line := range []string{"PublishPort=2222:2222/tcp", "FORGEJO__server__DISABLE_SSH=false", "FORGEJO__server__SSH_PORT=2222"} {
+		if !strings.Contains(app, line) {
+			t.Errorf("app unit missing %s", line)
+		}
+	}
+
+	for ports, want := range map[string]string{
+		"ports:\n  ssh: { enabled: true, host_port: 8480 }\n":  "already used by the MyLab admin UI",
+		"ports:\n  ssh: { enabled: true, host_port: 20000 }\n": "reserved for MyLab's web services",
+	} {
+		var pe *PortInUseError
+		if _, err := desired(ports); !errors.As(err, &pe) || !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: err = %v, want %q", ports, err, want)
+		}
 	}
 }
 

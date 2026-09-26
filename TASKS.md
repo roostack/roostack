@@ -85,14 +85,14 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow (`scripts/dev-install.sh` is a stand-in)
 - [ ] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)
   - [x] Forgejo v15 LTS: rootless image, MyLab Postgres, HTTPS clone; backup/restore tested on the VM
-  - [ ] Forgejo: git over SSH (needs a host port outside Caddy; see "To discuss")
+  - [x] Package `ports:` option; Forgejo git over SSH (tested on the VM: clone via LAN IP on 2222)
+  - [ ] ⚠️ Before release: package ports rely on the firewall to stay home-network-only, but the firewall isn't applied yet (1.8). Generated `HostPorts` must feed the agent's ruleset.
   - [ ] Forgejo: first admin account (currently the first sign-up becomes admin; see "To discuss")
   - [ ] Immich on the VM
   - [ ] `mylab validate` should render templates with default settings (a bool/string mismatch only showed at render time)
 
 ## To discuss with the user
 
-- Forgejo SSH: git over SSH needs a published host port (e.g. 2222) outside Caddy, opened in the firewall. Suggest a generic `ports:` package field, off by default.
 - Forgejo first admin: first sign-up becomes admin (sign-ups on by default). Alternatives: MyLab creates the admin at install (needs a package "setup command" hook), or SSO later.
 
 - K5: setup-code approach for first-run setup (add to SPEC?)

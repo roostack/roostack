@@ -20,6 +20,7 @@ type Context struct {
 	Lab       LabContext
 	Settings  map[string]any
 	Routes    map[string]RouteContext
+	Ports     map[string]PortContext
 	Databases map[string]DatabaseContext
 	// Containers lets containers find each other, e.g.
 	// {{ (index .Containers "machine-learning").Host }}.
@@ -52,6 +53,15 @@ type RouteContext struct {
 	Port int
 }
 
+// PortContext is a resolved package port, e.g. for an app to show
+// "ssh://git@host:{{ .Ports.ssh.HostPort }}" in its clone URLs.
+type PortContext struct {
+	Enabled  bool
+	HostPort int
+	Protocol string
+	Exposure string
+}
+
 // DatabaseContext gives an app what it needs to connect to its database.
 type DatabaseContext struct {
 	Host string // container name on the service network
@@ -66,6 +76,7 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 		Lab:        LabContext{Domain: lab.Domain},
 		Settings:   map[string]any{},
 		Routes:     map[string]RouteContext{},
+		Ports:      map[string]PortContext{},
 		Databases:  map[string]DatabaseContext{},
 		Containers: map[string]ContainerContext{},
 	}
@@ -99,6 +110,8 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 		ctx.Routes[name] = RouteContext{Subdomain: sub, Host: host, URL: "https://" + host, Exposure: exp, Port: port}
 	}
 
+	ctx.Ports = ResolvePorts(p, in)
+
 	for name, d := range p.Databases {
 		switch d.Type {
 		case pkgspec.DBPostgres:
@@ -111,6 +124,28 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 		}
 	}
 	return ctx
+}
+
+// ResolvePorts applies an instance's port overrides to the package's
+// defaults.
+func ResolvePorts(p *pkgspec.Package, in *instance.Instance) map[string]PortContext {
+	ports := map[string]PortContext{}
+	for name, pp := range p.Ports {
+		pc := PortContext{Enabled: pp.Enabled, HostPort: pp.HostPort, Protocol: pp.Proto(), Exposure: pp.DefaultExposure()}
+		if o, ok := in.Ports[name]; ok {
+			if o.Enabled != nil {
+				pc.Enabled = *o.Enabled
+			}
+			if o.HostPort != 0 {
+				pc.HostPort = o.HostPort
+			}
+			if o.Exposure != "" {
+				pc.Exposure = o.Exposure
+			}
+		}
+		ports[name] = pc
+	}
+	return ports
 }
 
 func defaultValue(s pkgspec.Setting, lab config.Lab) any {

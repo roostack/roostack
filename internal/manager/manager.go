@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/instance"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/reconcile"
@@ -205,6 +207,95 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	}
 	m.startApplyLocked()
 	return nil
+}
+
+// PortStatus is a package port with its current settings, for the
+// service page.
+type PortStatus struct {
+	Name        string
+	Title       string
+	Description string
+	generate.PortContext
+}
+
+// Ports lists an installed service's package ports.
+func (m *Manager) Ports(name string) ([]PortStatus, error) {
+	p, in, err := m.installedService(name)
+	if err != nil {
+		return nil, err
+	}
+	resolved := generate.ResolvePorts(p, in)
+	var ports []PortStatus
+	for _, pn := range slices.Sorted(maps.Keys(p.Ports)) {
+		pp := p.Ports[pn]
+		ports = append(ports, PortStatus{Name: pn, Title: pp.Title, Description: pp.Description, PortContext: resolved[pn]})
+	}
+	return ports, nil
+}
+
+// SetPort turns a package port on or off, or moves it to another host
+// port, and applies the change. Ports stay private (home network only);
+// public ports come with the firewall and CrowdSec (SPEC.md §6.10).
+func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, hostPort int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	services, err := state.LoadServices(m.Lab)
+	if err != nil {
+		return err
+	}
+	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Package.Name == name })
+	if i < 0 {
+		return ErrNotFound
+	}
+	p, in := services[i].Package, services[i].Instance
+	pp := p.Ports[port]
+	if pp == nil {
+		return ErrNotFound
+	}
+	if hostPort < pkgspec.MinHostPort || hostPort > 65535 {
+		return formErrorf("Choose a port number from %d to 65535.", pkgspec.MinHostPort)
+	}
+	if in.Ports == nil {
+		in.Ports = map[string]instance.PortOverride{}
+	}
+	o := in.Ports[port]
+	o.Enabled, o.HostPort = &enabled, hostPort
+	if hostPort == pp.HostPort {
+		o.HostPort = 0 // keep following the package's default
+	}
+	in.Ports[port] = o
+	if _, err := state.Desired(m.Lab, services); err != nil {
+		var pe *state.PortInUseError
+		switch {
+		case errors.As(err, &pe) && pe.UsedBy == "":
+			return formErrorf("MyLab keeps ports %d-%d for its web services. Choose another port.",
+				config.DefaultRoutePortMin, config.DefaultRoutePortMax)
+		case errors.As(err, &pe):
+			return formErrorf("Port %d is already used by %s. Choose another port.", pe.Port, pe.UsedBy)
+		}
+		return err
+	}
+	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
+		return err
+	}
+	m.startApplyLocked()
+	return nil
+}
+
+// installedService loads an installed service's package and instance.
+func (m *Manager) installedService(name string) (*pkgspec.Package, *instance.Instance, error) {
+	if !validName(name) {
+		return nil, nil, ErrNotFound
+	}
+	p, err := m.Package(name)
+	if err != nil {
+		return nil, nil, err
+	}
+	in, err := instance.Load(state.InstanceFile(m.Lab, name))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil, ErrNotFound
+	}
+	return p, in, err
 }
 
 // Remove takes a service out of desired state and applies the change. Its

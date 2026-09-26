@@ -111,6 +111,33 @@ containers:
   web: { image: x }
 routes:
   web: { container: api, port: 80, subdomain: app }`, `unknown container "api"`},
+		{"port below 1024", `
+schema: mylab/v1alpha1
+name: app
+title: App
+version: "1"
+containers:
+  web: { image: x }
+ports:
+  ssh: { title: SSH, container: web, port: 22, host_port: 22 }`, "host_port: must be 1024-65535"},
+		{"port protocol", `
+schema: mylab/v1alpha1
+name: app
+title: App
+version: "1"
+containers:
+  web: { image: x }
+ports:
+  ssh: { title: DNS, container: web, port: 53, host_port: 5353, protocol: sctp }`, "protocol: must be tcp or udp"},
+		{"port without title", `
+schema: mylab/v1alpha1
+name: app
+title: App
+version: "1"
+containers:
+  web: { image: x }
+ports:
+  ssh: { container: web, port: 22, host_port: 2222 }`, "title: required"},
 		{"quadlet section", `
 schema: mylab/v1alpha1
 name: app

@@ -322,8 +322,9 @@ Layered defaults:
   - **Route options** at the Caddy level (e.g. `max_body_size`; more expected: timeouts, websockets).
   - **Storage `location:`** (e.g. `media` → the large data disk) and **per-directory storage classes**, so regenerable data (thumbnails, transcodes, caches) is excluded from backups.
   - **Database `image` override** for custom builds (e.g. Immich's Postgres), still following the standard database pattern; **`backup: false`** for transient stores (e.g. Redis job queues).
+- **`ports:` — Locked (2026-09-26):** for protocols Caddy can't proxy (SSH, DNS, WireGuard), a package declares a container port with a title, a suggested host port (≥1024) and a protocol. Ports are **off unless the package enables them**; an Admin turns them on per service and can move them. Enabled ports are published on every host address (`PublishPort=<host>:<container>/<proto>`) and are **private** (home network only) via the firewall. Public ports come with the firewall and CrowdSec, like public routes. MyLab rejects clashes with other ports, the UI port and the web-service range (20000–29999). Templates see `{{ .Ports.<name>.Enabled }}` and `.HostPort` (e.g. for clone URLs).
 - **Future:** storage shared between services (e.g. Jellyfin reading Immich's library, read-only); package upgrade notes and migration steps for upstream breaking changes.
-- **Reference examples:** `docs/examples/vaultwarden.yaml` (simple), `docs/examples/immich.yaml` (complex).
+- **Reference examples:** `docs/examples/vaultwarden.yaml` (simple), `docs/examples/forgejo.yaml` (Postgres, an optional SSH port), `docs/examples/immich.yaml` (complex).
 
 ## 9. MVP Scope — Locked
 

@@ -54,8 +54,20 @@ type Output struct {
 	// Hosts are the hostnames this service's routes use.
 	Hosts []string
 	// Ports are the host loopback ports its routes are published on.
-	Ports  []int
-	Backup BackupPlan
+	Ports []int
+	// HostPorts are the package ports published on every host address,
+	// which the firewall must let in.
+	HostPorts []HostPort
+	Backup    BackupPlan
+}
+
+// HostPort is an enabled package port (pkgspec.Port).
+type HostPort struct {
+	Name     string // the package's port name
+	Title    string
+	Port     int // on the host
+	Protocol string
+	Exposure string
 }
 
 // BackupPlan says what to back up for a service (SPEC.md §6.9).
@@ -196,6 +208,16 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 			return fmt.Errorf("routes.%s: no host port allocated (run mylab apply)", rn)
 		}
 		cs.Add("PublishPort", fmt.Sprintf("127.0.0.1:%d:%d", port, r.Port))
+	}
+	for _, pn := range slices.Sorted(maps.Keys(g.pkg.Ports)) {
+		pp, pc := g.pkg.Ports[pn], g.ctx.Ports[pn]
+		if pp.Container != name || !pc.Enabled {
+			continue
+		}
+		// All host addresses: the firewall limits who can reach it.
+		cs.Add("PublishPort", fmt.Sprintf("%d:%d/%s", pc.HostPort, pp.Port, pc.Protocol))
+		g.out.HostPorts = append(g.out.HostPorts, HostPort{Name: pn, Title: pp.Title, Port: pc.HostPort,
+			Protocol: pc.Protocol, Exposure: pc.Exposure})
 	}
 	for _, k := range slices.Sorted(maps.Keys(c.Env)) {
 		v, err := g.ctx.render(at+".env."+k, c.Env[k])

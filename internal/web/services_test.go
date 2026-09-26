@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/mylab/mylab/internal/auth"
+	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/store"
@@ -20,6 +22,10 @@ type fakeManager struct {
 	removed  []string
 	failWith error
 	status   manager.ApplyStatus
+
+	ports   []manager.PortStatus
+	portErr error
+	setPort []string
 }
 
 func (f *fakeManager) Catalog() ([]manager.CatalogItem, error) {
@@ -50,6 +56,14 @@ func (f *fakeManager) Remove(_ context.Context, name string) error {
 }
 
 func (f *fakeManager) DataDirs(name string) []string { return []string{"/srv/mylab/services/" + name} }
+func (f *fakeManager) Ports(string) ([]manager.PortStatus, error) { return f.ports, nil }
+func (f *fakeManager) SetPort(_ context.Context, name, port string, enabled bool, hostPort int) error {
+	if f.portErr != nil {
+		return f.portErr
+	}
+	f.setPort = append(f.setPort, fmt.Sprintf("%s %s %v %d", name, port, enabled, hostPort))
+	return nil
+}
 func (f *fakeManager) Status() manager.ApplyStatus   { return f.status }
 
 // loggedIn returns a harness with a fake manager and a logged-in user.
@@ -216,5 +230,33 @@ func TestHomeAllGood(t *testing.T) {
 	}
 	if !strings.Contains(body, "Vaultwarden") {
 		t.Error("home should show the services")
+	}
+}
+
+func TestServicePorts(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	fm.ports = []manager.PortStatus{{Name: "ssh", Title: "Git over SSH", Description: "Clone with SSH keys",
+		PortContext: generate.PortContext{HostPort: 2222, Protocol: "tcp", Exposure: "private"}}}
+
+	_, body := h.get("/services/vaultwarden")
+	if !strings.Contains(body, "Git over SSH") || !strings.Contains(body, `action="/services/vaultwarden/ports/ssh"`) ||
+		!strings.Contains(body, `value="2222"`) {
+		t.Fatal("service page should list the package's ports")
+	}
+
+	if code, body := h.post("/services/vaultwarden/ports/ssh", url.Values{"enabled": {"on"}, "host_port": {"ssh"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "Enter a port number") {
+		t.Errorf("bad number: %d", code)
+	}
+	fm.portErr = &manager.FormError{Msg: "Port 8480 is already used by the MyLab admin UI."}
+	if code, body := h.post("/services/vaultwarden/ports/ssh", url.Values{"enabled": {"on"}, "host_port": {"8480"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "already used by the MyLab admin UI") {
+		t.Errorf("clash: %d", code)
+	}
+	fm.portErr = nil
+	h.post("/services/vaultwarden/ports/ssh", url.Values{"enabled": {"on"}, "host_port": {"2200"}}, h.srv.URL)
+	h.post("/services/vaultwarden/ports/ssh", url.Values{"host_port": {"2200"}}, h.srv.URL)
+	if got := strings.Join(fm.setPort, "; "); got != "vaultwarden ssh true 2200; vaultwarden ssh false 2200" {
+		t.Errorf("SetPort calls: %s", got)
 	}
 }

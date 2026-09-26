@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/pkgspec"
@@ -162,6 +164,39 @@ func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "remove", p.Name)
 	redirect(w, r, "/")
+}
+
+func (s *Server) portSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	name, port := r.PathValue("name"), r.PathValue("port")
+	enabled := r.FormValue("enabled") == "on"
+	hostPort, err := strconv.Atoi(strings.TrimSpace(r.FormValue("host_port")))
+	if err != nil {
+		err = &manager.FormError{Msg: "Enter a port number, such as 2222."}
+	} else {
+		err = s.Manager.SetPort(r.Context(), name, port, enabled, hostPort)
+	}
+	var fe *manager.FormError
+	switch {
+	case errors.Is(err, manager.ErrNotFound):
+		http.NotFound(w, r)
+		return
+	case errors.As(err, &fe):
+		s.renderService(w, r, map[string]string{"port": port, "msg": fe.Msg})
+		return
+	case err != nil:
+		s.serverError(w, err)
+		return
+	}
+	state := "off"
+	if enabled {
+		state = fmt.Sprintf("on (port %d)", hostPort)
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "port", fmt.Sprintf("%s %s %s", name, port, state))
+	redirect(w, r, "/services/"+name)
 }
 
 // pkg loads the package named in the URL, writing a 404 if there is none.

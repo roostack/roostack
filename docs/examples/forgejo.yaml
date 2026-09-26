@@ -26,7 +26,13 @@ containers:
     env:
       GITEA_APP_INI: /var/lib/gitea/custom/conf/app.ini
       FORGEJO__server__ROOT_URL: "https://{{ .Routes.web.Host }}/"
-      FORGEJO__server__DISABLE_SSH: "true"      # clone over HTTPS for now
+      # Git over SSH uses Forgejo's built-in SSH server on 2222, published
+      # on the host when the Admin turns the ssh port on.
+      FORGEJO__server__DISABLE_SSH: "{{ not .Ports.ssh.Enabled }}"
+      FORGEJO__server__START_SSH_SERVER: "true"
+      FORGEJO__server__SSH_LISTEN_PORT: "2222"
+      FORGEJO__server__SSH_PORT: "{{ .Ports.ssh.HostPort }}"   # shown in clone URLs
+      FORGEJO__server__SSH_DOMAIN: "{{ .Routes.web.Host }}"
       FORGEJO__security__INSTALL_LOCK: "true"   # skip Forgejo's install page
       FORGEJO__service__DISABLE_REGISTRATION: "{{ not .Settings.signups_allowed }}"
       FORGEJO__database__DB_TYPE: postgres
@@ -59,3 +65,12 @@ routes:
     subdomain: git
     exposure: private
     max_body_size: 1GB           # large pushes and release attachments
+
+ports:
+  ssh:
+    title: Git over SSH
+    description: Lets people clone and push with SSH keys (git@…). HTTPS works without it.
+    container: app
+    port: 2222
+    host_port: 2222              # port 22 is the machine's own SSH
+    # off by default; private (home network only) by default

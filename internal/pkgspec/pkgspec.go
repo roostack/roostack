@@ -26,6 +26,7 @@ type Package struct {
 	Storage     map[string]*Storage   `yaml:"storage"`
 	Databases   map[string]*Database  `yaml:"databases"`
 	Routes      map[string]*Route     `yaml:"routes"`
+	Ports       map[string]*Port      `yaml:"ports"`
 }
 
 // Setting types.
@@ -147,6 +148,42 @@ type Route struct {
 	Exposure    string `yaml:"exposure"`
 	MaxBodySize string `yaml:"max_body_size"`
 }
+
+// Port publishes a container port directly on the host, for protocols
+// Caddy can't proxy (SSH, DNS, WireGuard, ...). Ports are off unless the
+// package enables one by default; an Admin turns them on per service.
+type Port struct {
+	Title       string `yaml:"title"`
+	Description string `yaml:"description"`
+	Container   string `yaml:"container"`
+	Port        int    `yaml:"port"`     // inside the container
+	Protocol    string `yaml:"protocol"` // tcp (default) or udp
+	// HostPort is the suggested port on the host; the Admin can change it.
+	HostPort int  `yaml:"host_port"`
+	Enabled  bool `yaml:"enabled"` // on by default
+	// Exposure is private (home network only, the default) or public.
+	Exposure string `yaml:"exposure"`
+}
+
+// Proto returns the port's protocol, defaulting to tcp.
+func (p *Port) Proto() string {
+	if p.Protocol == "" {
+		return "tcp"
+	}
+	return p.Protocol
+}
+
+// DefaultExposure returns the port's exposure, defaulting to private.
+func (p *Port) DefaultExposure() string {
+	if p.Exposure == "" {
+		return ExposurePrivate
+	}
+	return p.Exposure
+}
+
+// MinHostPort is the lowest host port a package port may use: lower ports
+// are system services (and 80/443 belong to Caddy).
+const MinHostPort = 1024
 
 // Quadlet is a raw passthrough: section -> key -> scalar or list of scalars.
 type Quadlet map[string]map[string]any
