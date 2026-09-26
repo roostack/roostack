@@ -82,6 +82,7 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | L8 | `VACUUM INTO` refuses to overwrite an existing file; the database copies go to a temporary file and are renamed. (Fixed.) |
 | L9 | Debian 13 ships restic 0.18.0 (tested on the VM); the wrapper's tests also pass with 0.19.1. |
 | L10 | A local backup repository (e.g. a second disk) must be added to `ReadWritePaths=` of `mylab.service` once backups run from the service rather than the CLI. |
+| L11 | `ProtectHome=yes` also hides `/run/user`, so the sandboxed `mylab` couldn't reach its user manager (the dashboard showed every service as "unknown"). Fixed with `ProtectHome=tmpfs` + `BindPaths=/run/user/<uid>`. The earlier NoNewPrivileges test ran without the full sandbox; test with the real unit's options. |
 | L6 | Bridge-network ports go through Podman's `rootlessport` userspace proxy, which is why client IPs are lost (C4). |
 
 ## I. Databases
