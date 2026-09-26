@@ -46,6 +46,13 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
 - Users must be told clearly (docs and UI) that major manual changes to the host OS may limit MyLab's ability to manage it.
 - **Rationale:** The primary user (§2) cannot maintain a Linux host. An unpatched host undermines everything else.
 
+#### Time zone — Locked (2026-09-26)
+
+- MyLab shows and schedules everything (nightly backups, maintenance windows) in the **host's** time zone.
+- The setup wizard's first step confirms it, pre-filled from the browser's zone; the Owner can change it in Settings. `mylab-agent` applies it with `timedatectl set-timezone`, then MyLab restarts, because Go reads the local zone once at startup.
+- If the browser's UTC offset differs from the host's, every page shows a prominent banner saying times are the machine's, with a link for the Owner to change it.
+- **Rationale:** cloud images and VMs default to UTC, which silently moved the "02:00" backup to midday for a user in Melbourne.
+
 #### Update & reboot policy — Locked
 
 | What | Policy |
@@ -111,7 +118,7 @@ MyLab runs **directly on the host** (not in a container), as two processes shipp
 | Component | Runs as | Responsibilities |
 |---|---|---|
 | `mylab` | Unprivileged `mylab` user, strict systemd sandboxing | Web UI, API, desired state, rootless service management (Quadlets, status, logs) |
-| `mylab-agent` | root | A small fixed set of privileged operations only: OS updates, reboots, rootful Quadlets, firewall. Listens on a local socket reachable only by `mylab`. |
+| `mylab-agent` | root | A small fixed set of privileged operations only: OS updates, reboots, rootful Quadlets, firewall. Also sets the host time zone. Listens on a local socket reachable only by `mylab`. |
 
 - Workers (master/worker) run the same package in worker mode.
 - MyLab updates itself through apt, alongside host OS updates (§3.2).

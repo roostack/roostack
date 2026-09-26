@@ -52,12 +52,13 @@ The reconciler only touches files it owns (`mylab-*` Quadlets and `*.caddy` snip
 | `internal/caddy` | Writing the main Caddyfile and per-service snippets |
 | `internal/dns` | Supported DNS providers: credential fields, Caddy directive, and the create-and-delete-a-TXT-record check |
 | `internal/dnsrecords` | Keeps `*.<domain>` pointing at the LAN IP (only records MyLab created) and checks home devices can resolve it |
-| `internal/setup` | First-run setup wizard logic: domain and DNS credentials, backup destination, recovery key |
+| `internal/setup` | First-run setup wizard logic: time zone, domain and DNS credentials, backup destination, recovery key |
+| `internal/hosttime` | Reads the host's time zone and the valid zone names (tzdata); changing it is the agent's job |
 | `internal/reconcile` | Plan and apply changes to the host |
 | `internal/state` | Load desired state from disk |
 | `internal/systemd` | `systemctl --user` wrapper |
 | `internal/podman` | The few direct `podman` calls (secrets) |
-| `internal/agent` | Agent server, client, and firewall ruleset |
+| `internal/agent` | Agent server, client, firewall ruleset, time zone |
 | `internal/store` | SQLite runtime data: users, sessions, audit log |
 | `internal/auth` | Password hashing (argon2id), session tokens, roles |
 | `internal/web` | Web UI: handlers, templates, vendored htmx/Alpine |
@@ -109,7 +110,7 @@ Pages (top navigation; links hidden where the role can't use them):
 | Home `/` | everyone | "Needs attention" list (problems gathered from setup, applying changes, backups, DNS and 2FA, filtered by role, each linking to where it's fixed), then service tiles. Shows "Everything's working" when there's nothing to do |
 | Services `/services`, `/services/{name}` | view: everyone; manage: Admin+ | list, catalog/install, per-service page, remove |
 | Backups `/backups` | Admin+ | status, "Back up now", destination, restore notes |
-| Settings `/settings` | Owner | domain and certificates (Change reuses the wizard forms), DNS records |
+| Settings `/settings` | Owner | domain and certificates (Change reuses the wizard forms), DNS records, time zone |
 | Account `/account` | everyone | two-factor status, change password |
 
 Shared pieces (attention list, backup and DNS cards) live in `templates/parts.html`, which every page can use. Live sections refresh via `/partials/*`.

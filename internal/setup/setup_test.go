@@ -22,6 +22,11 @@ func (f fakeSecrets) Replace(_ context.Context, name string, v []byte) error {
 	return nil
 }
 
+// fakeHost stands in for mylab-agent.
+type fakeHost struct{ zone string }
+
+func (f *fakeHost) SetTimezone(_ context.Context, name string) error { f.zone = name; return nil }
+
 func newSetup(t *testing.T) (*Setup, fakeSecrets, *int) {
 	t.Helper()
 	dir := t.TempDir()
@@ -35,9 +40,13 @@ func newSetup(t *testing.T) (*Setup, fakeSecrets, *int) {
 	lab.Paths.StateDir = dir
 	restarts := 0
 	secrets := fakeSecrets{}
+	host := &fakeHost{zone: "Etc/UTC"}
 	s := &Setup{
 		Lab: lab, LabPath: filepath.Join(dir, "lab.yaml"), Store: st, Secrets: secrets,
 		Restart: func() { restarts++ },
+		Host:    host,
+		Zone:    func() string { return host.zone },
+		Zones:   func() ([]string, error) { return []string{"Australia/Melbourne", "Etc/UTC", "UTC"}, nil },
 		// Stand-in for the provider: only the value "good" works.
 		CheckDNS: func(_ context.Context, p *dns.Provider, v map[string]string, domain string) (string, error) {
 			for _, f := range p.Fields {
@@ -55,8 +64,15 @@ func TestDomainStep(t *testing.T) {
 	s, secrets, restarts := newSetup(t)
 	ctx := context.Background()
 
+	if p, _ := s.Progress(ctx); p.Next() != "/setup/timezone" {
+		t.Fatalf("a new lab starts at the time zone step, got %q", p.Next())
+	}
+	// Confirming the current zone needs no restart.
+	if changed, err := s.SaveTimezone(ctx, "Etc/UTC"); changed || err != nil || *restarts != 0 {
+		t.Fatalf("unchanged zone: changed=%v err=%v restarts=%d", changed, err, *restarts)
+	}
 	if p, _ := s.Progress(ctx); p.Next() != "/setup/domain" {
-		t.Fatalf("a new lab starts at the domain step, got %q", p.Next())
+		t.Fatalf("after the time zone comes the domain step, got %q", p.Next())
 	}
 	for _, tc := range []struct {
 		domain, email, provider string
@@ -174,10 +190,34 @@ func TestBackupStep(t *testing.T) {
 func TestSkipping(t *testing.T) {
 	s, _, _ := newSetup(t)
 	ctx := context.Background()
+	s.SaveTimezone(ctx, "Etc/UTC") // the time zone step can't be skipped
 	s.DomainLater(ctx)
 	s.BackupLater(ctx)
 	p, _ := s.Progress(ctx)
 	if p.Next() != "" || !p.DomainLater || !p.BackupLater {
 		t.Errorf("progress %+v", p)
+	}
+}
+
+func TestTimezoneStep(t *testing.T) {
+	s, _, restarts := newSetup(t)
+	ctx := context.Background()
+
+	var ce *CheckError
+	if _, err := s.SaveTimezone(ctx, "Mars/Olympus_Mons"); !errors.As(err, &ce) {
+		t.Errorf("unknown zone: want a CheckError, got %v", err)
+	}
+	if p, _ := s.Progress(ctx); p.TimezoneDone {
+		t.Error("a rejected zone must not finish the step")
+	}
+	changed, err := s.SaveTimezone(ctx, " Australia/Melbourne ")
+	if err != nil || !changed {
+		t.Fatalf("changed=%v err=%v", changed, err)
+	}
+	if got := s.Host.(*fakeHost).zone; got != "Australia/Melbourne" || *restarts != 1 {
+		t.Errorf("host zone %q, restarts %d: want the zone set and MyLab restarted", got, *restarts)
+	}
+	if p, _ := s.Progress(ctx); !p.TimezoneDone {
+		t.Error("step not marked done")
 	}
 }

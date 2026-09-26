@@ -14,11 +14,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dnsrecords"
 	"github.com/mylab/mylab/internal/generate"
+	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/maintenance"
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/podman"
@@ -92,6 +94,8 @@ func serve(args []string) error {
 		},
 		// New settings reach every part of MyLab by restarting it; systemd
 		// starts it again (Restart=always).
+		Host: agent.NewClient(agent.DefaultSocket),
+		Zone: hosttime.Zone, Zones: hosttime.Zones,
 		Restart: func() {
 			go func() {
 				time.Sleep(time.Second) // let the response reach the browser

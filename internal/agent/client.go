@@ -48,6 +48,11 @@ func (c *Client) ApplyFirewall(ctx context.Context, fw Firewall) error {
 	return c.call(ctx, http.MethodPut, "/v1/firewall", fw, nil)
 }
 
+// SetTimezone sets the host's time zone (an IANA name like Europe/Berlin).
+func (c *Client) SetTimezone(ctx context.Context, name string) error {
+	return c.call(ctx, http.MethodPut, "/v1/timezone", map[string]string{"timezone": name}, nil)
+}
+
 func (c *Client) call(ctx context.Context, method, path string, in, out any) error {
 	var body bytes.Buffer
 	if in != nil {

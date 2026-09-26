@@ -80,6 +80,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Coordinator: reboot policy, job chains, interrupt/resume (unit-tested)
   - [x] Running in `mylab serve` with a file journal (interrupted backups resume after reboot)
   - [ ] Agent `reboot` and OS update operations; reboot-required detection
+  - [x] Host time zone: wizard step 1, Settings card, agent `timedatectl`, banner when the browser's clock differs
+  - [ ] Containers still run in UTC (they don't get the host's zone); pass `TZ` to services whose UIs show times
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow (`scripts/dev-install.sh` is a stand-in)
 - [ ] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)
   - [x] Forgejo v15 LTS: rootless image, MyLab Postgres, HTTPS clone; backup/restore tested on the VM

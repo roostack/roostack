@@ -38,6 +38,9 @@ type Host interface {
 	// ApplyFirewall checks and loads an nftables ruleset, and saves it so it
 	// is re-applied when the agent starts.
 	ApplyFirewall(ruleset string) error
+	// SetTimezone sets the host's time zone (an IANA name, already checked
+	// with ValidTimezone).
+	SetTimezone(name string) error
 }
 
 // Server is the agent's HTTP API.
@@ -73,6 +76,22 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		s.do(w, r, "apply firewall", func() error { return s.Host.ApplyFirewall(fw.Ruleset()) })
+	})
+	mux.HandleFunc("PUT /v1/timezone", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Timezone string `json:"timezone"`
+		}
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		if !ValidTimezone(req.Timezone) {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid time zone %q", req.Timezone))
+			return
+		}
+		s.do(w, r, "set time zone "+req.Timezone, func() error { return s.Host.SetTimezone(req.Timezone) })
 	})
 	return s.checkCaller(mux)
 }
@@ -209,6 +228,14 @@ func (h LinuxHost) ApplyFirewall(ruleset string) error {
 		return err
 	}
 	return os.WriteFile(h.FirewallFile, []byte(ruleset), 0o644)
+}
+
+// SetTimezone runs timedatectl, which also checks the zone exists.
+func (h LinuxHost) SetTimezone(name string) error {
+	if out, err := exec.Command("timedatectl", "set-timezone", name).CombinedOutput(); err != nil {
+		return fmt.Errorf("timedatectl: %w: %s", err, out)
+	}
+	return nil
 }
 
 // RestoreFirewall re-applies the saved ruleset at agent start, if any.

@@ -18,6 +18,16 @@
     {{end}}
   </section>
   {{template "dns-card" .}}
+  {{with .HostClock}}
+  <section class="card section">
+    <div class="heading"><h2>Time zone</h2><a href="/setup/timezone">Change…</a></div>
+    <dl class="facts">
+      <dt>Time zone</dt><dd>{{.Zone}}</dd>
+      <dt>Time now</dt><dd>{{.Time}}</dd>
+    </dl>
+    <p class="hint">Backups and other maintenance are scheduled in this time zone.</p>
+  </section>
+  {{end}}
   <section class="card section">
     <div class="heading"><h2>Backups</h2><a href="/backups">Open backups →</a></div>
     <p class="hint">Backup status, destinations and restoring live on the Backups page.</p>

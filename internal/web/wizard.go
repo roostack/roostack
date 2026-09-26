@@ -6,6 +6,7 @@ import (
 
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/dns"
+	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/setup"
 )
 
@@ -61,12 +62,55 @@ func (s *Server) formMode(r *http.Request, step string, data map[string]any) map
 	if err != nil {
 		return data
 	}
-	done := map[string]bool{"domain": p.DomainDone, "backup": p.BackupDone}[step]
+	done := map[string]bool{"timezone": p.TimezoneDone, "domain": p.DomainDone, "backup": p.BackupDone}[step]
 	postponed := map[string]bool{"domain": p.DomainLater, "backup": p.BackupLater}[step]
 	data["Wizard"] = !done && !postponed
 	data["StepDone"] = done
-	data["Back"] = map[string]string{"domain": "/settings", "backup": "/backups"}[step]
+	data["Back"] = map[string]string{"timezone": "/settings", "domain": "/settings", "backup": "/backups"}[step]
 	return data
+}
+
+// clockView is the host's clock for the layout's time zone banner.
+type clockView struct {
+	hosttime.Clock
+	Owner bool // may change the time zone
+}
+
+func (s *Server) timezonePage(w http.ResponseWriter, r *http.Request) {
+	current, zones, err := s.Setup.Timezones()
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.render(w, "setup-timezone", s.formMode(r, "timezone", map[string]any{"User": currentUser(r),
+		"Current": current, "Zone": current, "Zones": zones, "HostClock": hosttime.Now()}))
+}
+
+func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
+	zone := r.FormValue("timezone")
+	p, err := s.Setup.Progress(r.Context())
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	changed, err := s.Setup.SaveTimezone(r.Context(), zone)
+	if err != nil {
+		current, zones, zerr := s.Setup.Timezones()
+		if zerr != nil {
+			s.serverError(w, zerr)
+			return
+		}
+		s.wizardError(w, r, err, "setup-timezone", s.formMode(r, "timezone", map[string]any{
+			"Current": current, "Zone": zone, "Zones": zones, "HostClock": hosttime.Now()}))
+		return
+	}
+	if !changed {
+		// On to the next wizard step, or back to Settings.
+		redirect(w, r, map[bool]string{true: "/settings", false: "/"}[p.TimezoneDone])
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "setup", "time zone set to "+zone)
+	redirect(w, r, "/restarting")
 }
 
 func (s *Server) domainPage(w http.ResponseWriter, r *http.Request) {
