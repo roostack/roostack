@@ -104,6 +104,20 @@ type Backup struct {
 	LimitUploadKiB int `yaml:"limit_upload_kib,omitempty"`
 }
 
+// SSH access choices (Firewall.SSH).
+const (
+	SSHFromLAN = "lan" // home network (and VPN) only
+	SSHFromAny = "any" // anywhere, e.g. with port 22 forwarded
+	SSHOff     = "off" // blocked
+)
+
+// Firewall configures the host firewall that mylab-agent applies.
+type Firewall struct {
+	// SSH is who may reach this machine's SSH server. Empty means the
+	// Owner hasn't chosen yet, and MyLab leaves the firewall alone.
+	SSH string `yaml:"ssh,omitempty"`
+}
+
 // Lab is the lab-wide configuration (/var/lib/mylab/lab.yaml).
 type Lab struct {
 	// Domain is the base domain; services live on subdomains of it.
@@ -118,6 +132,8 @@ type Lab struct {
 	// development (e.g. 0.0.0.0 to reach it directly in a VM).
 	UIBind string `yaml:"ui_bind"`
 	Backup Backup `yaml:"backup"`
+	// Firewall is the host firewall (SPEC.md §6.10).
+	Firewall Firewall `yaml:"firewall,omitempty"`
 	// HasGPU is detected at runtime, not configured. It resolves settings
 	// with `default: auto` (docs/ASSUMPTIONS.md G1).
 	HasGPU bool `yaml:"-"`
@@ -184,6 +200,11 @@ func Update(path string, change func(*Lab)) error {
 // Validate checks the config is usable.
 func (l Lab) Validate() error {
 	var errs []error
+	switch l.Firewall.SSH {
+	case "", SSHFromLAN, SSHFromAny, SSHOff:
+	default:
+		errs = append(errs, fmt.Errorf("firewall.ssh must be %q, %q or %q", SSHFromLAN, SSHFromAny, SSHOff))
+	}
 	if l.Domain == "" {
 		errs = append(errs, errors.New("domain is required"))
 	}

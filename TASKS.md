@@ -42,7 +42,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] 🟡 **1.6 Reconciler:** plan/apply, `mylab apply [--dry-run]` (`internal/reconcile`, `internal/state`)
 - [ ] 🟡 **1.7 Proxy:** Caddyfile generation ✅ (checked with real Caddy); Caddy image Containerfile written, not built
 - [ ] 🟡 **1.8 mylab-agent:** socket API with peer-credential checks; port sysctl; nftables firewall (ruleset checked with `nft -c`)
-  - [ ] Installer must ask about SSH access before applying the firewall (ASSUMPTIONS J1)
+  - [x] Firewall applied: SSH choice in the wizard (step 2) and Settings, package ports opened after each apply (tested on the VM: SSH off blocks new connections, HTTPS and outbound traffic keep working)
+  - [ ] `mylab apply` (CLI) doesn't apply the firewall yet; only the running service does
 - [ ] 🟡 **1.9 Web UI skeleton**
   - [x] First-run Owner setup (setup code), login/logout, sessions, roles, CSRF, security headers
   - [x] Read-only dashboard with live status (htmx polling)
@@ -86,7 +87,6 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)
   - [x] Forgejo v15 LTS: rootless image, MyLab Postgres, HTTPS clone; backup/restore tested on the VM
   - [x] Package `ports:` option; Forgejo git over SSH (tested on the VM: clone via LAN IP on 2222)
-  - [ ] ⚠️ Before release: package ports rely on the firewall to stay home-network-only, but the firewall isn't applied yet (1.8). Generated `HostPorts` must feed the agent's ruleset.
   - [x] Package hooks (`install`, `action`); Forgejo creates its admin at install and has "Reset a password" (hook scripts tested on the VM)
   - [ ] Forgejo: fresh install through the UI (user to test: remove Forgejo, install again)
   - [ ] If an install hook fails because of what was typed (e.g. an invalid username), "Try again" repeats it; offer to edit those settings instead

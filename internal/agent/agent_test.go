@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -107,6 +108,28 @@ func TestRuleset(t *testing.T) {
 	}
 	if strings.Index(got, "dport 22") > strings.Index(got, "dport 53") {
 		t.Error("rules should be sorted by port")
+	}
+}
+
+func TestRulesetSSHOff(t *testing.T) {
+	fw := DefaultFirewall()
+	fw.SSHFrom = FromOff
+	got := fw.Ruleset()
+	if strings.Contains(got, "dport 22") || !strings.Contains(got, "udp dport 546 accept") {
+		t.Errorf("ssh off: want no port 22 rule and DHCPv6 allowed:\n%s", got)
+	}
+	if !strings.Contains(got, "elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10 }") ||
+		!strings.Contains(got, "elements = { fc00::/7, fe80::/10 }") {
+		t.Errorf("LAN sets wrong:\n%s", got)
+	}
+}
+
+func TestIsLAN(t *testing.T) {
+	for addr, want := range map[string]bool{"192.168.86.20": true, "10.0.2.2": true, "100.101.1.1": true,
+		"::ffff:192.168.1.5": true, "fe80::1": true, "8.8.8.8": false, "2001:db8::1": false} {
+		if got := IsLAN(netip.MustParseAddr(addr)); got != want {
+			t.Errorf("IsLAN(%s) = %v", addr, got)
+		}
 	}
 }
 

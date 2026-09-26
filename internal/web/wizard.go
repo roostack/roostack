@@ -1,10 +1,13 @@
 package web
 
 import (
+	"cmp"
 	"errors"
 	"net/http"
 
+	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/auth"
+	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/setup"
@@ -62,11 +65,11 @@ func (s *Server) formMode(r *http.Request, step string, data map[string]any) map
 	if err != nil {
 		return data
 	}
-	done := map[string]bool{"timezone": p.TimezoneDone, "domain": p.DomainDone, "backup": p.BackupDone}[step]
+	done := map[string]bool{"timezone": p.TimezoneDone, "ssh": p.SSHDone, "domain": p.DomainDone, "backup": p.BackupDone}[step]
 	postponed := map[string]bool{"domain": p.DomainLater, "backup": p.BackupLater}[step]
 	data["Wizard"] = !done && !postponed
 	data["StepDone"] = done
-	data["Back"] = map[string]string{"timezone": "/settings", "domain": "/settings", "backup": "/backups"}[step]
+	data["Back"] = map[string]string{"timezone": "/settings", "ssh": "/settings", "domain": "/settings", "backup": "/backups"}[step]
 	return data
 }
 
@@ -110,6 +113,63 @@ func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "time zone set to "+zone)
+	redirect(w, r, "/restarting")
+}
+
+// sshClient is a current SSH connection, and which choices would cut it off.
+type sshClient struct {
+	Addr     string
+	LAN      bool
+	CutByLAN bool
+}
+
+func (s *Server) sshData(r *http.Request, choice, errMsg string) (map[string]any, error) {
+	a, err := s.Setup.SSHAccess()
+	if err != nil {
+		return nil, err
+	}
+	var clients []sshClient
+	cutByLAN := false
+	for _, c := range a.Clients {
+		lan := agent.IsLAN(c)
+		clients = append(clients, sshClient{Addr: c.String(), LAN: lan, CutByLAN: !lan})
+		cutByLAN = cutByLAN || !lan
+	}
+	if choice == "" {
+		choice = cmp.Or(a.Choice, config.SSHFromLAN)
+	}
+	return s.formMode(r, "ssh", map[string]any{"User": currentUser(r), "Choice": choice, "Clients": clients,
+		"CutByLAN": cutByLAN, "Error": errMsg}), nil
+}
+
+func (s *Server) sshPage(w http.ResponseWriter, r *http.Request) {
+	data, err := s.sshData(r, "", "")
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.render(w, "setup-ssh", data)
+}
+
+func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
+	choice := r.FormValue("ssh")
+	err := s.Setup.SaveSSH(r.Context(), choice, r.FormValue("confirm") == "on")
+	var ce *setup.CheckError
+	if errors.As(err, &ce) {
+		data, derr := s.sshData(r, choice, ce.Msg)
+		if derr != nil {
+			s.serverError(w, derr)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		s.render(w, "setup-ssh", data)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "setup", "SSH access set to "+choice)
 	redirect(w, r, "/restarting")
 }
 

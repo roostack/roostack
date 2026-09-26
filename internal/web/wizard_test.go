@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"testing"
@@ -17,6 +18,8 @@ type fakeSetup struct {
 	p          setup.Progress
 	zone       string
 	restarted  bool
+	ssh        string
+	clients    []netip.Addr
 	domainErr  error
 	backupErr  error
 	lastBackup setup.BackupChoice
@@ -29,6 +32,16 @@ type fakeSetup struct {
 func (f *fakeSetup) Progress(context.Context) (setup.Progress, error) { return f.p, nil }
 func (f *fakeSetup) Timezones() (string, []string, error) {
 	return f.zone, []string{"Australia/Melbourne", "Etc/UTC"}, nil
+}
+func (f *fakeSetup) SSHAccess() (setup.SSHAccess, error) {
+	return setup.SSHAccess{Choice: f.ssh, Clients: f.clients}, nil
+}
+func (f *fakeSetup) SaveSSH(_ context.Context, choice string, confirmed bool) error {
+	if choice == "off" && len(f.clients) > 0 && !confirmed {
+		return &setup.CheckError{Msg: "That would disconnect the SSH connection."}
+	}
+	f.ssh, f.p.SSHDone, f.restarted = choice, true, true
+	return nil
 }
 func (f *fakeSetup) SaveTimezone(_ context.Context, name string) (bool, error) {
 	if name != "Australia/Melbourne" && name != "Etc/UTC" {
@@ -65,7 +78,7 @@ func TestWizardFlow(t *testing.T) {
 	h.server.Setup = fs
 
 	_, body := h.get("/")
-	if !strings.Contains(body, "Setup · step 1 of 3") || !strings.Contains(body, `data-zone="Etc/UTC"`) ||
+	if !strings.Contains(body, "Setup · step 1 of 4") || !strings.Contains(body, `data-zone="Etc/UTC"`) ||
 		!strings.Contains(body, `<option value="Australia/Melbourne">`) {
 		t.Fatalf("an Owner with setup unfinished should land on the time zone step:\n%.3000s", body)
 	}
@@ -75,8 +88,21 @@ func TestWizardFlow(t *testing.T) {
 	}
 	// Keeping the zone goes straight on to the next step.
 	h.post("/setup/timezone", url.Values{"timezone": {"Etc/UTC"}}, h.srv.URL)
-	if _, body := h.get("/"); fs.restarted || !strings.Contains(body, "Your domain") {
-		t.Fatal("after the time zone comes the domain step, without a restart")
+	if _, body := h.get("/"); fs.restarted || !strings.Contains(body, "Who can log in to this machine?") {
+		t.Fatal("after the time zone comes the SSH step, without a restart")
+	}
+	fs.clients = []netip.Addr{netip.MustParseAddr("192.168.86.20")}
+	_, body = h.get("/setup/ssh")
+	if !strings.Contains(body, "<code>192.168.86.20</code> (your home network)") || !strings.Contains(body, `data-choice="lan"`) {
+		t.Error("SSH step: should list current connections and default to home network only")
+	}
+	if code, body := h.post("/setup/ssh", url.Values{"ssh": {"off"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "would disconnect") || !strings.Contains(body, `data-choice="off"`) {
+		t.Errorf("cutting off a connection must be confirmed: %d", code)
+	}
+	h.post("/setup/ssh", url.Values{"ssh": {"lan"}}, h.srv.URL)
+	if _, body := h.get("/"); fs.ssh != "lan" || !strings.Contains(body, "Your domain") {
+		t.Fatal("after the SSH step comes the domain step")
 	}
 
 	_, body = h.get("/setup/domain")
@@ -139,7 +165,7 @@ func TestWizardFlow(t *testing.T) {
 
 func TestDomainLaterReminder(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true}}
+	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true}}
 	h.server.Setup = fs
 	h.post("/setup/domain/later", nil, h.srv.URL)
 	h.post("/setup/backup/later", nil, h.srv.URL)
@@ -210,7 +236,7 @@ func (f *fakeDNS) TakeOver(context.Context) error { f.takenOver = true; return n
 
 func TestDNSCard(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, DomainDone: true, BackupLater: true}}
+	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
 	h.server.DNS = &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateBlocked, Record: "*.lab.example.com", IP: "192.168.1.20",
 		Message: "your router's DNS rebinding protection", Checked: time.Now()}}
 	_, body := h.get("/settings")
@@ -230,7 +256,7 @@ func TestDNSCard(t *testing.T) {
 
 func TestDNSControls(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, DomainDone: true, BackupLater: true}}
+	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
 	fd := &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateManual, Record: "*.lab.example.com", IP: "192.168.1.20",
 		Provider: "Namecheap", CanManage: true, Risky: true, Checked: time.Now()}}
 	h.server.DNS = fd
@@ -275,7 +301,7 @@ func TestDNSControls(t *testing.T) {
 
 func TestSetupFormsAsSettingsPages(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}}
+	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}}
 	h.server.Setup = fs
 	h.server.BackupRepo = "/mnt/backup/mylab"
 
@@ -287,26 +313,26 @@ func TestSetupFormsAsSettingsPages(t *testing.T) {
 		t.Error("the settings version should say Change, show the current destination and link back")
 	}
 	_, body = h.get("/setup/domain")
-	if strings.Contains(body, "step 2 of 3") || !strings.Contains(body, "Change your domain") || strings.Contains(body, "/setup/domain/later") {
+	if strings.Contains(body, "step 3 of 4") || !strings.Contains(body, "Change your domain") || strings.Contains(body, "/setup/domain/later") {
 		t.Error("changing the domain later must not look like the wizard")
 	}
 
 	// A postponed step is "Set up", still without the wizard's framing.
-	fs.p = setup.Progress{TimezoneDone: true, DomainDone: true, BackupLater: true}
+	fs.p = setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}
 	if _, body := h.get("/setup/backup"); !strings.Contains(body, "<h1>Set up backups</h1>") || strings.Contains(body, "step 2") {
 		t.Error("a postponed step should read as setting it up now")
 	}
 
 	// During first-run setup the wizard framing stays.
-	fs.p = setup.Progress{TimezoneDone: true, DomainDone: true}
-	if _, body := h.get("/setup/backup"); !strings.Contains(body, "step 3 of 3") || !strings.Contains(body, "Set this up later") {
+	fs.p = setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true}
+	if _, body := h.get("/setup/backup"); !strings.Contains(body, "step 4 of 4") || !strings.Contains(body, "Set this up later") {
 		t.Error("first-run setup keeps its steps")
 	}
 }
 
 func TestTimezoneBanner(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	fs := &fakeSetup{zone: "Etc/UTC", p: setup.Progress{TimezoneDone: true, DomainDone: true, BackupLater: true}}
+	fs := &fakeSetup{zone: "Etc/UTC", p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
 	h.server.Setup = fs
 
 	// The browser compares its UTC offset with the host's.
