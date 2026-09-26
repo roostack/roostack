@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/mylab/mylab/internal/auth"
+	"github.com/mylab/mylab/internal/manager"
+	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/store"
 )
 
@@ -70,7 +72,24 @@ type Server struct {
 	// logging in again.
 	pending map[string]*pendingLogin
 
+	// Manager installs and removes services. Nil disables those pages.
+	Manager ServiceManager
+	// Domain is the lab's base domain, shown next to subdomain fields.
+	Domain string
+	// HasGPU pre-ticks settings whose default is "auto".
+	HasGPU bool
+
 	pages map[string]*template.Template
+}
+
+// ServiceManager is what the UI needs from internal/manager.
+type ServiceManager interface {
+	Catalog() ([]manager.CatalogItem, error)
+	Package(name string) (*pkgspec.Package, error)
+	Install(ctx context.Context, name string, req manager.InstallRequest) error
+	Remove(ctx context.Context, name string) error
+	DataDirs(name string) []string
+	Status() manager.ApplyStatus
 }
 
 type pendingLogin struct {
@@ -83,7 +102,7 @@ type pendingLogin struct {
 func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, error), setupToken string, log *slog.Logger) (*Server, error) {
 	s := &Server{Store: st, Services: services, Log: log, setupToken: setupToken,
 		pending: map[string]*pendingLogin{}, pages: map[string]*template.Template{}}
-	for _, page := range []string{"login", "totp", "setup", "dashboard", "twofactor"} {
+	for _, page := range []string{"login", "totp", "setup", "dashboard", "twofactor", "catalog", "install", "remove"} {
 		t, err := template.New("layout.html").ParseFS(templateFS, "templates/layout.html", "templates/"+page+".html")
 		if err != nil {
 			return nil, err
@@ -111,6 +130,12 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("GET /{$}", s.require(auth.ViewDashboard, s.dashboard))
 	mux.Handle("GET /partials/services", s.require(auth.ViewDashboard, s.servicesPartial))
+
+	mux.Handle("GET /catalog", s.require(auth.ManageServices, s.catalogPage))
+	mux.Handle("GET /install/{name}", s.require(auth.ManageServices, s.installPage))
+	mux.Handle("POST /install/{name}", s.require(auth.ManageServices, s.installSubmit))
+	mux.Handle("GET /services/{name}/remove", s.require(auth.ManageServices, s.removePage))
+	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))
 
 	return securityHeaders(sameOrigin(s.loadSession(mux)))
 }

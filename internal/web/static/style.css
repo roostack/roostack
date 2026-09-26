@@ -56,3 +56,19 @@ code { font-size: 0.9em; }
 .steps li { margin-bottom: 12px; }
 .secret { display: block; margin: 8px 0; padding: 10px; font-size: 1.1rem; letter-spacing: 0.05em;
   background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow-wrap: anywhere; }
+
+.heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+.heading h1 { margin: 0; }
+a.button { display: inline-block; padding: 10px 18px; border-radius: 8px; background: var(--accent);
+  color: var(--accent-fg); text-decoration: none; white-space: nowrap; }
+button.danger { background: var(--bad); color: #fff; }
+.link-danger { color: var(--bad); font-size: 0.9rem; }
+.actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.notice-error { border-left-color: var(--bad); }
+.service p.hint { margin: 4px 0 0; }
+.with-suffix { display: flex; align-items: center; gap: 6px; }
+.with-suffix input { flex: 1; }
+.with-suffix span { color: var(--muted); font-weight: 400; margin-top: 6px; }
+label.check { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; }
+label.check input { width: auto; margin-top: 4px; }
+label.check small { display: block; font-weight: 400; }

@@ -17,6 +17,9 @@ import (
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/generate"
+	"github.com/mylab/mylab/internal/manager"
+	"github.com/mylab/mylab/internal/podman"
+	"github.com/mylab/mylab/internal/reconcile"
 	"github.com/mylab/mylab/internal/state"
 	"github.com/mylab/mylab/internal/store"
 	"github.com/mylab/mylab/internal/systemd"
@@ -34,6 +37,7 @@ func serve(args []string) error {
 	if err != nil {
 		return err
 	}
+	lab.HasGPU = config.DetectGPU()
 	st, err := store.Open(dbPath(lab))
 	if err != nil {
 		return err
@@ -55,6 +59,15 @@ func serve(args []string) error {
 		return err
 	}
 	srv.OnSetupComplete = func() { os.Remove(setupTokenPath(lab)) }
+
+	mgr := &manager.Manager{
+		Lab:        lab,
+		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets()},
+		Log:        log,
+	}
+	srv.Manager, srv.Domain, srv.HasGPU = mgr, lab.Domain, lab.HasGPU
+	// Converge on startup, e.g. after MyLab itself was upgraded.
+	mgr.Apply()
 
 	go func() {
 		for range time.Tick(time.Hour) {

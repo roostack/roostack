@@ -58,6 +58,9 @@ The reconciler only touches files it owns (`mylab-*` Quadlets and `*.caddy` snip
 | `internal/store` | SQLite runtime data: users, sessions, audit log |
 | `internal/auth` | Password hashing (argon2id), session tokens, roles |
 | `internal/web` | Web UI: handlers, templates, vendored htmx/Alpine |
+| `internal/manager` | Business logic behind the UI: catalog, install, remove, background apply |
+| `internal/maintenance` | Maintenance coordinator: job queue and reboot policy |
+| `internal/backup` | restic wrapper, prepare steps, backup plan and job |
 
 Rules that keep this maintainable:
 - **Business logic stays out of HTTP handlers**, so the UI can change without touching the core (SPEC.md §6.3).
@@ -104,6 +107,8 @@ Templates use Go `text/template` syntax with these values:
 - **CSRF:** every non-GET request must carry an `Origin` header matching the host.
 - **Headers:** a strict Content-Security-Policy, `nosniff`, and no framing.
 - **Roles** are checked per route (`auth.Can`).
+
+Installing or removing a service from the UI only changes desired state (an instance file); `internal/manager` then applies it in the background, one apply at a time, and the dashboard shows progress or the last error. Removing a service never deletes its data. For now, services installed from the UI are always private.
 
 ## Not built yet
 
