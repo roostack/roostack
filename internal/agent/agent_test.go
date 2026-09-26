@@ -16,11 +16,18 @@ type fakeHost struct {
 	portsSet bool
 	ruleset  string
 	tz       string
+	updated  bool
+	rebooted bool
 }
 
 func (f *fakeHost) SetUnprivilegedPortStart() error { f.portsSet = true; return nil }
 func (f *fakeHost) ApplyFirewall(r string) error    { f.ruleset = r; return nil }
 func (f *fakeHost) SetTimezone(name string) error   { f.tz = name; return nil }
+func (f *fakeHost) RunUpdates(context.Context) (string, error) {
+	f.updated = true
+	return "No packages found that can be upgraded unattended", nil
+}
+func (f *fakeHost) Reboot() error { f.rebooted = true; return nil }
 
 // start runs a real server on a Unix socket, so SO_PEERCRED is exercised.
 func start(t *testing.T, allowed []uint32) (*Client, *fakeHost) {
@@ -71,6 +78,13 @@ func TestAPI(t *testing.T) {
 		if err := c.SetTimezone(ctx, tz); err == nil {
 			t.Errorf("timezone %q accepted", tz)
 		}
+	}
+
+	if out, err := c.RunUpdates(ctx); err != nil || !host.updated || !strings.Contains(out, "No packages") {
+		t.Errorf("updates: %q %v", out, err)
+	}
+	if err := c.Reboot(ctx); err != nil || !host.rebooted {
+		t.Errorf("reboot: %v", err)
 	}
 
 	bad := DefaultFirewall()

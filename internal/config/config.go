@@ -118,6 +118,33 @@ type Firewall struct {
 	SSH string `yaml:"ssh,omitempty"`
 }
 
+// Restart choices (Maintenance.Restart).
+const (
+	RestartAuto   = "auto"   // restart in the window when updates need it (default)
+	RestartNotify = "notify" // only tell the Owner
+)
+
+// Maintenance configures automatic restarts after OS updates.
+type Maintenance struct {
+	// Restart is RestartAuto (default when empty) or RestartNotify.
+	Restart string `yaml:"restart,omitempty"`
+	// RestartHour is when the restart window opens (0-23, local time).
+	// Nil means the default, 4 (04:00).
+	RestartHour *int `yaml:"restart_hour,omitempty"`
+}
+
+// Hour returns the restart window's start hour.
+func (m Maintenance) Hour() int {
+	if m.RestartHour == nil {
+		return DefaultRestartHour
+	}
+	return *m.RestartHour
+}
+
+// DefaultRestartHour opens the restart window at 04:00, after the 02:00
+// backup and OS updates (SPEC.md §3.2).
+const DefaultRestartHour = 4
+
 // Lab is the lab-wide configuration (/var/lib/mylab/lab.yaml).
 type Lab struct {
 	// Domain is the base domain; services live on subdomains of it.
@@ -134,6 +161,8 @@ type Lab struct {
 	Backup Backup `yaml:"backup"`
 	// Firewall is the host firewall (SPEC.md §6.10).
 	Firewall Firewall `yaml:"firewall,omitempty"`
+	// Maintenance is when the host may restart (SPEC.md §3.2).
+	Maintenance Maintenance `yaml:"maintenance,omitempty"`
 	// HasGPU is detected at runtime, not configured. It resolves settings
 	// with `default: auto` (docs/ASSUMPTIONS.md G1).
 	HasGPU bool `yaml:"-"`
@@ -200,6 +229,12 @@ func Update(path string, change func(*Lab)) error {
 // Validate checks the config is usable.
 func (l Lab) Validate() error {
 	var errs []error
+	if r := l.Maintenance.Restart; r != "" && r != RestartAuto && r != RestartNotify {
+		errs = append(errs, fmt.Errorf("maintenance.restart must be %q or %q", RestartAuto, RestartNotify))
+	}
+	if h := l.Maintenance.Hour(); h < 0 || h > 23 {
+		errs = append(errs, errors.New("maintenance.restart_hour must be 0-23"))
+	}
 	switch l.Firewall.SSH {
 	case "", SSHFromLAN, SSHFromAny, SSHOff:
 	default:

@@ -58,7 +58,9 @@ The reconciler only touches files it owns (`mylab-*` Quadlets and `*.caddy` snip
 | `internal/state` | Load desired state from disk |
 | `internal/systemd` | `systemctl --user` wrapper |
 | `internal/podman` | The few direct `podman` calls (secrets, `exec` for package hooks) |
-| `internal/agent` | Agent server, client, firewall ruleset, time zone |
+| `internal/agent` | Agent server, client, firewall ruleset, time zone, OS updates, reboot |
+| `internal/osupdate` | Nightly OS updates job, restart-needed detection, "restart now" |
+| `internal/firewall` | Builds the firewall from the lab and its services; lists current SSH connections |
 | `internal/store` | SQLite runtime data: users, sessions, audit log |
 | `internal/auth` | Password hashing (argon2id), session tokens, roles |
 | `internal/web` | Web UI: handlers, templates, vendored htmx/Alpine |

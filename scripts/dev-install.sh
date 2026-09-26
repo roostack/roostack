@@ -28,7 +28,7 @@ as_mylab() {
 
 step "Installing packages"
 apt-get update -q
-apt-get install -y -q podman passt nftables uidmap crun catatonit restic
+apt-get install -y -q podman passt nftables uidmap crun catatonit restic unattended-upgrades
 
 step "Creating the mylab user"
 if ! id mylab &>/dev/null; then
@@ -63,6 +63,9 @@ if [[ ! -f /var/lib/mylab/lab.yaml ]]; then
     install -o mylab -g mylab -m 0640 "$REPO/docs/examples/lab.yaml" /var/lib/mylab/lab.yaml
     echo "Edit /var/lib/mylab/lab.yaml to set your domain and DNS provider."
 fi
+
+step "Configuring automatic OS updates"
+install -m 0644 "$REPO/packaging/apt/52mylab-unattended-upgrades" /etc/apt/apt.conf.d/
 
 step "Installing systemd units"
 install -m 0644 "$REPO/packaging/systemd/mylab-agent.service" /etc/systemd/system/

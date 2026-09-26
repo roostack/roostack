@@ -19,7 +19,7 @@ type Client struct {
 func NewClient(socket string) *Client {
 	return &Client{http: &http.Client{
 		// Firewall and package operations can take a while.
-		Timeout: 5 * time.Minute,
+		Timeout: 75 * time.Minute, // OS updates can take a while
 		Transport: &http.Transport{
 			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 				var d net.Dialer
@@ -51,6 +51,20 @@ func (c *Client) ApplyFirewall(ctx context.Context, fw Firewall) error {
 // SetTimezone sets the host's time zone (an IANA name like Europe/Berlin).
 func (c *Client) SetTimezone(ctx context.Context, name string) error {
 	return c.call(ctx, http.MethodPut, "/v1/timezone", map[string]string{"timezone": name}, nil)
+}
+
+// RunUpdates installs available OS updates and returns the output.
+func (c *Client) RunUpdates(ctx context.Context) (string, error) {
+	var resp struct {
+		Output string `json:"output"`
+	}
+	err := c.call(ctx, http.MethodPost, "/v1/updates/run", nil, &resp)
+	return resp.Output, err
+}
+
+// Reboot restarts the host a few seconds after answering.
+func (c *Client) Reboot(ctx context.Context) error {
+	return c.call(ctx, http.MethodPost, "/v1/reboot", nil, nil)
 }
 
 func (c *Client) call(ctx context.Context, method, path string, in, out any) error {

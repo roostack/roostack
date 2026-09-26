@@ -198,6 +198,24 @@ func (s *Setup) SaveSSH(ctx context.Context, choice string, confirmed bool) erro
 	return nil
 }
 
+// SaveRestartPolicy saves when the host may restart after updates, then
+// restarts MyLab so the maintenance coordinator uses it.
+func (s *Setup) SaveRestartPolicy(ctx context.Context, mode string, hour int) error {
+	if mode != config.RestartAuto && mode != config.RestartNotify {
+		return &CheckError{"Choose whether to restart automatically."}
+	}
+	if hour < 0 || hour > 23 {
+		return &CheckError{"Choose an hour between 0 and 23."}
+	}
+	if err := config.Update(s.LabPath, func(l *config.Lab) {
+		l.Maintenance.Restart, l.Maintenance.RestartHour = mode, &hour
+	}); err != nil {
+		return err
+	}
+	s.Restart()
+	return nil
+}
+
 var domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$`)
 
 // DomainOptions are the wizard's DNS record choices (SPEC.md §6.5.1).

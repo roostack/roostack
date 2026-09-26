@@ -173,6 +173,12 @@ func (s *Server) backupsPartial(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
+	s.renderSettings(w, r, "")
+}
+
+// renderSettings shows the Settings page; updatesErr is shown on the
+// updates card (with a 400 status).
+func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, updatesErr string) {
 	data, err := s.pageData(r)
 	if err != nil {
 		s.serverError(w, err)
@@ -180,6 +186,10 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	data["DNS"] = s.dnsView(r)
 	data["HostClock"] = hosttime.Now()
+	data["Updates"] = s.updatesView(r, updatesErr)
+	if updatesErr != "" {
+		w.WriteHeader(http.StatusBadRequest)
+	}
 	if s.Setup != nil {
 		if a, err := s.Setup.SSHAccess(); err == nil {
 			data["SSH"] = a.Choice

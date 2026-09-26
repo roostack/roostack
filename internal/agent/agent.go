@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 )
 
 // Default locations.
@@ -41,6 +42,11 @@ type Host interface {
 	// SetTimezone sets the host's time zone (an IANA name, already checked
 	// with ValidTimezone).
 	SetTimezone(name string) error
+	// RunUpdates refreshes the package lists and installs available
+	// updates with unattended-upgrades, returning its output.
+	RunUpdates(ctx context.Context) (string, error)
+	// Reboot restarts the host shortly after returning.
+	Reboot() error
 }
 
 // Server is the agent's HTTP API.
@@ -92,6 +98,20 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		s.do(w, r, "set time zone "+req.Timezone, func() error { return s.Host.SetTimezone(req.Timezone) })
+	})
+	mux.HandleFunc("POST /v1/updates/run", func(w http.ResponseWriter, r *http.Request) {
+		uid, _ := r.Context().Value(ctxKey{}).(uint32)
+		out, err := s.Host.RunUpdates(r.Context())
+		if err != nil {
+			s.Log.Error("OS updates failed", "uid", uid, "err", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error(), "output": out})
+			return
+		}
+		s.Log.Info("OS updates", "uid", uid)
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "output": out})
+	})
+	mux.HandleFunc("POST /v1/reboot", func(w http.ResponseWriter, r *http.Request) {
+		s.do(w, r, "reboot", s.Host.Reboot)
 	})
 	return s.checkCaller(mux)
 }
@@ -236,6 +256,37 @@ func (h LinuxHost) SetTimezone(name string) error {
 		return fmt.Errorf("timedatectl: %w: %s", err, out)
 	}
 	return nil
+}
+
+// updatesTimeout bounds one run of OS updates.
+const updatesTimeout = time.Hour
+
+// RunUpdates runs apt-get update and unattended-upgrade in a transient
+// systemd unit, outside the agent's own sandbox (dpkg scripts may touch
+// anything), and returns their output.
+func (h LinuxHost) RunUpdates(ctx context.Context) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, updatesTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "systemd-run", "--unit=mylab-os-updates", "--wait", "--pipe", "--quiet",
+		"--collect", "--setenv=DEBIAN_FRONTEND=noninteractive", "--",
+		"sh", "-c", "apt-get update -q && unattended-upgrade -v")
+	out, err := cmd.CombinedOutput()
+	return headTail(string(out), 3<<10, 5<<10), err
+}
+
+// Reboot asks systemd to reboot after a moment, so the API call returns.
+func (h LinuxHost) Reboot() error {
+	return exec.Command("systemd-run", "--on-active=5", "--unit=mylab-reboot", "--collect",
+		"systemctl", "reboot").Run()
+}
+
+// headTail shortens long output, keeping its start (unattended-upgrade's
+// summary of what it will install) and its end (the outcome).
+func headTail(s string, head, tail int) string {
+	if len(s) <= head+tail {
+		return s
+	}
+	return s[:head] + "\n…\n" + s[len(s)-tail:]
 }
 
 // RestoreFirewall re-applies the saved ruleset at agent start, if any.
