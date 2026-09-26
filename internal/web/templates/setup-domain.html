@@ -35,9 +35,10 @@
     </div>
     {{end}}
     <label class="check"><input type="checkbox" name="manage_records" x-model="manage" {{if .Manage}}checked{{end}}>
-      <span>Create DNS records for me
-        <small>MyLab points *.{{if .Domain}}{{.Domain}}{{else}}your domain{{end}} at this machine's address on your home network,
-          so devices at home can reach your services. It only changes records it created.</small></span></label>
+      <span>Let MyLab manage DNS records for me
+        <small>One setting for the whole lab. Now: MyLab points *.{{if .Domain}}{{.Domain}}{{else}}your domain{{end}} at this machine,
+          so devices at home can reach your services. Later: records for services you make public.
+          It never changes records it didn't create unless you choose to take one over.</small></span></label>
     {{range $p := .Providers}}{{if $p.RiskyRecords}}
     <div class="notice notice-error" x-show="manage && provider === '{{$p.ID}}'" x-cloak>
       <p><strong>{{$p.Title}}'s API is risky for this.</strong> To change one record, it has to rewrite every record

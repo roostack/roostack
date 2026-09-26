@@ -209,7 +209,8 @@ func TestDNSControls(t *testing.T) {
 	h.server.DNS = fd
 
 	_, body := h.get("/partials/services")
-	if !strings.Contains(body, "Let MyLab manage this record") || !strings.Contains(body, "API is risky") {
+	if !strings.Contains(body, "Let MyLab manage DNS records at Namecheap?") || !strings.Contains(body, "one setting for the whole lab") ||
+		!strings.Contains(body, "API is risky") {
 		t.Error("manual mode should offer opting in, with the risk warning for Namecheap")
 	}
 	if code, _ := h.post("/dns/manage", url.Values{"manage": {"on"}}, h.srv.URL); code != http.StatusBadRequest {
