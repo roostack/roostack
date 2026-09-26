@@ -278,6 +278,21 @@ func (r *Repo) Check(ctx context.Context, subset string) error {
 	return err
 }
 
+// RestoreDir restores one directory from a snapshot into the same place.
+// Only the directory's own contents are written: restoring a whole path
+// would also restore its parents' metadata (e.g. /srv), which fails inside
+// podman unshare. Returns ErrNotInSnapshot if the snapshot doesn't have it.
+func (r *Repo) RestoreDir(ctx context.Context, snapshotID, dir string) error {
+	_, err := r.run(ctx, "restore", snapshotID+":"+dir, "--target", dir)
+	if err != nil && strings.Contains(err.Error(), "not found") {
+		return ErrNotInSnapshot
+	}
+	return err
+}
+
+// ErrNotInSnapshot means a restored path isn't in the snapshot.
+var ErrNotInSnapshot = errors.New("not in this backup")
+
 // Restore extracts a snapshot into target. Paths are kept as they were at
 // backup time under target (e.g. target/srv/mylab/services/...). Include
 // limits the restore to some paths.

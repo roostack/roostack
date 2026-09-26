@@ -56,12 +56,16 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] restic wrapper (tested against real restic), recovery key, `mylab backup init|run|snapshots`
   - [x] Prepare steps: SQLite copy (concurrent-write tested), Postgres dump (command tested; no Postgres service run yet)
   - [x] Lab plan: state + Podman secrets included; images, live DBs, key excluded (verified on the VM)
-  - [ ] Nightly schedule through the coordinator; results in the UI
-  - [ ] Restore command (per service and full lab)
+  - [x] Nightly schedule (02:00) and weekly prune + 5% check (Sun 03:00) through the coordinator, running in `mylab serve`
+  - [x] Dashboard backup card: last success, failures, staleness (>2 days), local-only warning, next run, "Back up now"
+  - [x] `mylab backup restore <service>`: moves current data aside, restores, puts the database back, restarts. Drill passed on the VM (SQLite)
+  - [ ] Restore from the UI (Owner only), and full-lab restore onto a new machine
+  - [ ] Postgres restore (pg_restore) untested until a Postgres package runs
   - [ ] Measure restic RAM/time on a realistic photo/video dataset
 - [ ] 🟡 **1.11 Maintenance coordinator + host OS updates**
   - [x] Coordinator: reboot policy, job chains, interrupt/resume (unit-tested)
-  - [ ] Wire into `mylab serve`; agent `reboot` and OS update operations; reboot-required detection
+  - [x] Running in `mylab serve` with a file journal (interrupted backups resume after reboot)
+  - [ ] Agent `reboot` and OS update operations; reboot-required detection
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow (`scripts/dev-install.sh` is a stand-in)
 - [ ] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)
 

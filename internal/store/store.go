@@ -47,6 +47,16 @@ var migrations = []string{
 	);`,
 	// The last accepted TOTP time step, so a code can't be reused.
 	`ALTER TABLE users ADD COLUMN totp_last_step INTEGER NOT NULL DEFAULT 0;`,
+	`CREATE TABLE backup_runs (
+		id          INTEGER PRIMARY KEY,
+		started_at  INTEGER NOT NULL,
+		finished_at INTEGER NOT NULL,
+		ok          INTEGER NOT NULL,
+		snapshot_id TEXT NOT NULL DEFAULT '',
+		files_new   INTEGER NOT NULL DEFAULT 0,
+		data_added  INTEGER NOT NULL DEFAULT 0,
+		error       TEXT NOT NULL DEFAULT ''
+	);`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -294,4 +304,50 @@ func (s *Store) RecentAudit(ctx context.Context, limit int) ([]AuditEntry, error
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// BackupRun is one finished backup attempt.
+type BackupRun struct {
+	Started, Finished time.Time
+	OK                bool
+	SnapshotID        string
+	FilesNew          int
+	DataAdded         uint64
+	Error             string
+}
+
+// RecordBackup stores the result of a backup.
+func (s *Store) RecordBackup(ctx context.Context, r BackupRun) error {
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO backup_runs (started_at, finished_at, ok, snapshot_id, files_new, data_added, error)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		r.Started.Unix(), r.Finished.Unix(), r.OK, r.SnapshotID, r.FilesNew, r.DataAdded, r.Error)
+	return err
+}
+
+// LastBackup returns the most recent attempt, and the most recent success
+// (which may be the same run). Either may be nil.
+func (s *Store) LastBackup(ctx context.Context) (last, lastOK *BackupRun, err error) {
+	last, err = s.scanBackup(s.db.QueryRowContext(ctx, backupQuery+` ORDER BY id DESC LIMIT 1`))
+	if err != nil {
+		return nil, nil, err
+	}
+	lastOK, err = s.scanBackup(s.db.QueryRowContext(ctx, backupQuery+` WHERE ok = 1 ORDER BY id DESC LIMIT 1`))
+	return last, lastOK, err
+}
+
+const backupQuery = `SELECT started_at, finished_at, ok, snapshot_id, files_new, data_added, error FROM backup_runs`
+
+func (s *Store) scanBackup(row *sql.Row) (*BackupRun, error) {
+	var r BackupRun
+	var started, finished int64
+	err := row.Scan(&started, &finished, &r.OK, &r.SnapshotID, &r.FilesNew, &r.DataAdded, &r.Error)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	r.Started, r.Finished = time.Unix(started, 0), time.Unix(finished, 0)
+	return &r, nil
 }

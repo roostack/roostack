@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -136,9 +137,17 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 	if err := d.Repo.Init(ctx); err != nil {
 		return nil, err
 	}
+	// Skip paths that don't exist yet (e.g. no Podman secrets on a fresh
+	// install); restic treats a missing source as an error.
+	var paths []string
+	for _, p := range plan.Paths {
+		if _, err := os.Stat(p); err == nil {
+			paths = append(paths, p)
+		}
+	}
 	r.SetInterruptible(true)
 	return d.Repo.Backup(ctx, BackupOptions{
-		Paths: plan.Paths, Excludes: plan.Excludes, Tags: []string{"mylab"}, Host: d.Host,
+		Paths: paths, Excludes: plan.Excludes, Tags: []string{"mylab"}, Host: d.Host,
 		OnProgress: func(p Progress) { r.SetProgress(int(p.PercentDone)) },
 	})
 }

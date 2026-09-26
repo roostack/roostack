@@ -284,6 +284,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		"Services":  services,
 		"CanManage": s.Manager != nil && auth.Can(u.Role, auth.ManageServices),
 		"Apply":     s.applyStatus(),
+		"Backup":    s.backupView(r),
 	})
 }
 
@@ -308,6 +309,7 @@ func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
 		"Services":  services,
 		"CanManage": s.Manager != nil && auth.Can(u.Role, auth.ManageServices),
 		"Apply":     s.applyStatus(),
+		"Backup":    s.backupView(r),
 	}
 	if err := s.pages["dashboard"].ExecuteTemplate(w, "services", data); err != nil {
 		s.Log.Error("render partial", "err", err)

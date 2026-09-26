@@ -53,7 +53,7 @@ func TestBackupJob(t *testing.T) {
 	writeFile(t, filepath.Join(paths.HomeDir, ".local", "share", "containers", "storage", "overlay", "big-image"), "layers")
 	writeFile(t, KeyFile(paths), "key")
 
-	var done error = errNotCalled
+	result := make(chan error, 1)
 	job := NewJob(JobDeps{
 		Repo: repo, Preparer: &Preparer{}, Paths: paths, Host: "test",
 		DumpState: func(_ context.Context, path string) error {
@@ -61,7 +61,7 @@ func TestBackupJob(t *testing.T) {
 			return nil
 		},
 		Plan:   func() (Plan, error) { return LabPlan(paths, nil), nil },
-		OnDone: func(_ *Summary, err error) { done = err },
+		OnDone: func(_ *Summary, err error) { result <- err },
 	})
 
 	c := &maintenance.Coordinator{
@@ -72,11 +72,13 @@ func TestBackupJob(t *testing.T) {
 	defer cancel()
 	go c.Run(ctx)
 	c.Submit(job)
-	for i := 0; i < 600 && done == errNotCalled; i++ {
-		time.Sleep(50 * time.Millisecond)
-	}
-	if done != nil {
-		t.Fatalf("backup job: %v", done)
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatalf("backup job: %v", err)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("backup job did not finish")
 	}
 
 	snaps, err := repo.Snapshots(context.Background(), "mylab")
@@ -95,12 +97,6 @@ func TestBackupJob(t *testing.T) {
 		t.Error("container images or the backup key were backed up")
 	}
 }
-
-var errNotCalled = errorString("not called")
-
-type errorString string
-
-func (e errorString) Error() string { return string(e) }
 
 type nopJournal struct{}
 

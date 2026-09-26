@@ -15,8 +15,10 @@ import (
 	"time"
 
 	"github.com/mylab/mylab/internal/auth"
+	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/generate"
+	"github.com/mylab/mylab/internal/maintenance"
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/podman"
 	"github.com/mylab/mylab/internal/reconcile"
@@ -68,6 +70,12 @@ func serve(args []string) error {
 	srv.Manager, srv.Domain, srv.HasGPU = mgr, lab.Domain, lab.HasGPU
 	// Converge on startup, e.g. after MyLab itself was upgraded.
 	mgr.Apply()
+
+	backups, err := startMaintenance(ctx, lab, st, log)
+	if err != nil {
+		return err
+	}
+	srv.Backups = backups
 
 	go func() {
 		for range time.Tick(time.Hour) {
@@ -172,4 +180,63 @@ func summarize(units []systemd.UnitStatus) string {
 		}
 	}
 	return status
+}
+
+// startMaintenance runs the maintenance coordinator with the nightly backup
+// and weekly repository maintenance (SPEC.md §3.2, §6.9).
+func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger) (*backup.Service, error) {
+	ticker := time.NewTicker(time.Minute)
+	coord := &maintenance.Coordinator{
+		Policy:  maintenance.DefaultPolicy(),
+		Now:     time.Now,
+		Journal: maintenance.FileJournal{Path: filepath.Join(lab.Paths.StateDir, "maintenance-journal.json")},
+		Ticks:   ticker.C,
+		Log:     log,
+		// Nothing requests reboots yet: host OS updates come later (TASKS 1.11).
+		Reboot: func() error { return errors.New("rebooting is not implemented yet") },
+	}
+	svc := &backup.Service{
+		Coord:      coord,
+		Store:      st,
+		Repository: lab.Backup.Repository,
+		NextRun:    func() time.Time { return maintenance.NextDaily(time.Now(), maintenance.DefaultBackupAt) },
+	}
+	if lab.Backup.Repository != "" {
+		if _, err := os.Stat(backup.KeyFile(lab.Paths)); err != nil {
+			log.Warn("backups are configured but not initialised; run: mylab backup init")
+		} else {
+			repo, err := newRepo(lab, userLaunch)
+			if err != nil {
+				return nil, err
+			}
+			if svc.Deps, err = newBackupDeps(lab, st, repo, userLaunch); err != nil {
+				return nil, err
+			}
+		}
+	}
+	coord.Resume = func(name string) (maintenance.Job, bool) {
+		if name == backup.JobName && svc.Configured() {
+			return svc.Job(), true
+		}
+		return maintenance.Job{}, false
+	}
+	go func() {
+		coord.Run(ctx)
+		ticker.Stop()
+	}()
+	if svc.Configured() {
+		go maintenance.Every(ctx,
+			func(now time.Time) time.Time { return maintenance.NextDaily(now, maintenance.DefaultBackupAt) },
+			func() {
+				if err := svc.Submit(); err != nil {
+					log.Warn("nightly backup not started", "err", err)
+				}
+			})
+		go maintenance.Every(ctx,
+			func(now time.Time) time.Time {
+				return maintenance.NextWeekly(now, maintenance.DefaultMaintenanceOn, maintenance.DefaultMaintenanceAt)
+			},
+			func() { coord.Submit(svc.MaintenanceJob()) })
+	}
+	return svc, nil
 }

@@ -35,4 +35,36 @@
 {{else}}
 <p class="card">No services are installed yet.</p>
 {{end}}
+{{template "backup" .}}
+{{end}}
+
+{{define "backup"}}
+{{with .Backup}}
+<section class="card backup">
+  <div class="heading">
+    <h2>Backups</h2>
+    {{if and $.CanManage .Configured (not .Running) (not .Queued)}}
+    <form method="post" action="/backup/run"><button type="submit">Back up now</button></form>
+    {{end}}
+  </div>
+  {{if not .Configured}}
+    <p class="notice notice-error">Backups are not set up yet. Until they are, a failed disk means losing everything.</p>
+  {{else}}
+    {{if .Running}}<p class="notice">Backing up{{if ge .Progress 0}}… {{.Progress}}%{{else}}…{{end}}</p>
+    {{else if .Queued}}<p class="notice">A backup is waiting to start.</p>{{end}}
+    {{with .Last}}{{if not .OK}}
+      <p class="notice notice-error">The last backup ({{when .Finished}}) didn't finish: {{.Error}}</p>
+    {{end}}{{end}}
+    {{with .LastOK}}
+      <p>Last backup: <strong>{{when .Finished}}</strong>{{if stale .Finished}} <span class="error">(over 2 days ago)</span>{{end}}</p>
+    {{else}}
+      <p class="error">No backup has finished yet.</p>
+    {{end}}
+    <p class="hint">Next backup: {{when .Next}}</p>
+    {{if .LocalOnly}}
+      <p class="notice">Backups are only stored on this machine. Add an off-site copy to protect against theft, fire or a failed disk.</p>
+    {{end}}
+  {{end}}
+</section>
+{{end}}
 {{end}}
