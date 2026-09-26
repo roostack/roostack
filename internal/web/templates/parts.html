@@ -74,6 +74,7 @@
   {{else if eq .State "pending"}}<p class="notice">{{.Message}}</p>
   {{else if .State}}<p class="notice notice-error">{{.Message}}</p>
   {{else}}<p class="hint">Checking…</p>{{end}}
+  {{if .Syncing}}<p class="notice">Updating DNS records and checking them… This can take a minute or two; refresh to see the result.</p>{{end}}
   {{if not .Checked.IsZero}}<p class="hint">Last checked {{when .Checked}}. This machine's home network address: {{.IP}}. Give it a fixed address in your router (a "DHCP reservation") so it doesn't change.</p>{{end}}
   {{if eq .State "conflict"}}<p><a class="button" href="/dns/take-over">Take over this record…</a></p>{{end}}
   {{if and .CanManage (not .Managing)}}

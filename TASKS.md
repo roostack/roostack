@@ -60,7 +60,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] **DNS records (SPEC §6.5.1)**
     - [x] Stage 1: wildcard record → LAN IP via the provider API; ownership tracking (never overwrites others' records, adopts matching ones); router rebinding check (home resolver vs 1.1.1.1); Owner dashboard card; wizard checkbox (on by default); Namecheap opt-in with warning
     - [x] Take over a conflicting record (Owner, confirmation, audit log); switch management on/off from the dashboard
-    - [ ] Stage 1 real test: record management against a real provider (the user can switch it on from the dashboard)
+    - [x] Stage 1 real test with Cloudflare: record created and visible in public DNS; home DNS override detected
     - [ ] Stage 2: public records → public IP; dynamic DNS via qdm12/ddns-updater; NAT loopback check (with public exposure)
     - [ ] Stage 3: Cloudflare proxy option (CF-Connecting-IP from Cloudflare ranges only; package proxy warnings)
     - [ ] Later: CGNAT detection → Cloudflare Tunnel / MyLab Cloud relay; optional local DNS (Pi-hole)

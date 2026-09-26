@@ -28,7 +28,7 @@ func (s *Server) dnsManage(w http.ResponseWriter, r *http.Request) {
 		what = "started managing DNS records"
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "dns", what)
-	redirect(w, r, "/")
+	redirect(w, r, "/settings#dns")
 }
 
 func (s *Server) dnsTakeOverPage(w http.ResponseWriter, r *http.Request) {
@@ -63,5 +63,5 @@ func (s *Server) dnsTakeOver(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "dns", "took over "+st.Record+" (was "+st.Current+")")
-	redirect(w, r, "/")
+	redirect(w, r, "/settings#dns")
 }
