@@ -1,0 +1,14 @@
+{{define "title"}}Home{{end}}
+{{define "content"}}
+<div hx-get="/partials/home" hx-trigger="every 10s" hx-swap="innerHTML">
+  {{template "home-live" .}}
+</div>
+{{end}}
+
+{{define "home-live"}}
+{{template "attention" .}}
+<section>
+  <h1>Your services</h1>
+  {{template "service-tiles" .}}
+</section>
+{{end}}

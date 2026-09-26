@@ -102,6 +102,18 @@ Templates use Go `text/template` syntax with these values:
 
 ## Web UI
 
+Pages (top navigation; links hidden where the role can't use them):
+
+| Page | Who | Contents |
+|---|---|---|
+| Home `/` | everyone | "Needs attention" list (problems gathered from setup, applying changes, backups, DNS and 2FA, filtered by role, each linking to where it's fixed), then service tiles. Shows "Everything's working" when there's nothing to do |
+| Services `/services`, `/services/{name}` | view: everyone; manage: Admin+ | list, catalog/install, per-service page, remove |
+| Backups `/backups` | Admin+ | status, "Back up now", destination, restore notes |
+| Settings `/settings` | Owner | domain and certificates (Change reuses the wizard forms), DNS records |
+| Account `/account` | everyone | two-factor status, change password |
+
+Shared pieces (attention list, backup and DNS cards) live in `templates/parts.html`, which every page can use. Live sections refresh via `/partials/*`.
+
 `mylab serve` serves server-rendered pages (Go `html/template`), using htmx for live updates such as the service list refreshing every 10 seconds. Protections:
 
 - **First run:** creating the Owner needs a one-time setup code, printed in the log and saved to `/var/lib/mylab/setup-token`.

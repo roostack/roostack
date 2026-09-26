@@ -99,3 +99,47 @@ table.compare td { padding: 6px 0; overflow-wrap: anywhere; }
 
 ul.scope { margin: 4px 0 12px; padding-left: 20px; }
 ul.scope li { margin-bottom: 4px; }
+
+/* Navigation */
+.topbar { gap: 16px; flex-wrap: wrap; }
+.topbar nav { display: flex; align-items: center; gap: 4px; flex: 1; }
+.topbar nav a { color: var(--fg); text-decoration: none; padding: 6px 10px; border-radius: 6px; }
+.topbar nav a:hover { background: var(--bg); }
+.topbar nav a.active { background: var(--bg); font-weight: 600; }
+.topbar nav .spacer { flex: 1; }
+.topbar nav form { margin: 0; }
+.menu-toggle { display: none; background: none; color: var(--fg); font-size: 1.3rem; padding: 4px 8px; }
+@media (max-width: 640px) {
+  .menu-toggle { display: block; }
+  .topbar nav { display: none; flex-basis: 100%; flex-direction: column; align-items: stretch; }
+  .topbar nav.open { display: flex; }
+  .topbar nav .spacer { display: none; }
+}
+
+/* Home */
+.attention { margin-bottom: 24px; }
+.attention h2 { font-size: 1.1rem; }
+.attention ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.attention .item { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--muted);
+  border-radius: 8px; padding: 10px 14px; }
+.attention .item a { white-space: nowrap; font-weight: 600; }
+.item-problem { border-left-color: var(--bad) !important; }
+.item-warning { border-left-color: var(--warn) !important; }
+.all-good { color: var(--ok); font-weight: 600; margin: 0 0 20px; }
+.tiles { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.tile { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.tile h2 { margin: 0; }
+
+/* Pages */
+.section { margin-top: 16px; }
+.section h2 { margin: 0; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 12px 0; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+.service h2 a { color: var(--fg); }
+@media (max-width: 640px) {
+  .attention .item { flex-direction: column; align-items: flex-start; }
+  .topbar nav form { padding: 6px 10px; }
+}

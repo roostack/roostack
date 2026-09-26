@@ -1,0 +1,34 @@
+{{define "title"}}Services{{end}}
+{{define "content"}}
+<section>
+  <div class="heading">
+    <h1>Services</h1>
+    {{if .CanManage}}<a class="button" href="/catalog">Add a service</a>{{end}}
+  </div>
+  <div hx-get="/partials/services" hx-trigger="every 10s" hx-swap="innerHTML">
+    {{template "services-live" .}}
+  </div>
+</section>
+{{end}}
+
+{{define "services-live"}}
+{{with .Apply}}
+  {{if .Running}}<p class="notice">Applying changes… Downloading a new service can take a few minutes.</p>
+  {{else if .LastErr}}<p class="notice notice-error">The last change didn't finish: {{.LastErr}}</p>{{end}}
+{{end}}
+{{if .Services}}
+<ul class="services">
+  {{range .Services}}
+  <li class="card service">
+    <div>
+      <h2>{{if $.CanManage}}<a href="/services/{{.Name}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</h2>
+      {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}</a>{{end}}
+    </div>
+    <span class="status status-{{.Status}}">{{.Status}}</span>
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<p class="card">No services are installed yet.{{if .CanManage}} <a href="/catalog">Add one</a>.{{end}}</p>
+{{end}}
+{{end}}

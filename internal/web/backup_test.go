@@ -25,7 +25,7 @@ func TestBackupCard(t *testing.T) {
 	fb := &fakeBackups{}
 	h.server.Backups = fb
 	card := func() string {
-		_, body := h.get("/partials/services")
+		_, body := h.get("/partials/backups")
 		return body
 	}
 
@@ -68,8 +68,11 @@ func TestMembersCannotStartBackups(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleMember)
 	fb := &fakeBackups{status: backup.Status{Configured: true, Progress: -1}}
 	h.server.Backups = fb
-	if _, body := h.get("/"); strings.Contains(body, "Back up now") {
-		t.Error("members must not see the backup button")
+	if _, body := h.get("/"); strings.Contains(body, "Back up now") || strings.Contains(body, `href="/backups"`) {
+		t.Error("members must not see backups")
+	}
+	if code, _ := h.get("/backups"); code != http.StatusForbidden {
+		t.Errorf("members can't open the backups page: %d", code)
 	}
 	if code, _ := h.post("/backup/run", nil, h.srv.URL); code != http.StatusForbidden || fb.runs != 0 {
 		t.Errorf("member backup: %d", code)

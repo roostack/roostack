@@ -1,0 +1,19 @@
+{{define "title"}}{{.Service.Title}}{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <p><a href="/services">← Services</a></p>
+  <div class="heading">
+    <h1>{{.Service.Title}}</h1>
+    <span class="status status-{{.Service.Status}}">{{.Service.Status}}</span>
+  </div>
+  {{with .Package}}<p class="hint">{{.Description}}</p>{{end}}
+  <dl class="facts">
+    {{range .Service.URLs}}<dt>Address</dt><dd><a href="{{.}}" target="_blank" rel="noopener">{{.}}</a></dd>{{end}}
+    <dt>Reachable from</dt><dd>Your home network (or VPN)</dd>
+    {{with .Package}}<dt>Version</dt><dd>{{.Version}}</dd>{{end}}
+    {{with .DataDirs}}<dt>Data</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}</dd>{{end}}
+  </dl>
+  <p class="hint">Changing settings after installing is coming later.</p>
+  <p><a class="link-danger" href="/services/{{.Service.Name}}/remove">Remove {{.Service.Title}}…</a></p>
+</section>
+{{end}}

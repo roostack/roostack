@@ -10,13 +10,19 @@
   <script src="/static/alpine-3.17.4.min.js" defer></script>
 </head>
 <body>
-  <header class="topbar">
+  <header class="topbar" x-data="{ open: false }">
     <a class="brand" href="/">MyLab</a>
-    {{with .User}}
-    <form method="post" action="/logout" class="user">
-      <span>{{.Username}} <small>({{.Role}})</small></span>
-      <button type="submit" class="link">Log out</button>
-    </form>
+    {{with .Nav}}
+    <button type="button" class="menu-toggle" x-on:click="open = !open" aria-label="Menu">☰</button>
+    <nav x-bind:class="open && 'open'">
+      <a href="/" {{if eq .Active "home"}}class="active"{{end}}>Home</a>
+      <a href="/services" {{if eq .Active "services"}}class="active"{{end}}>Services</a>
+      {{if .Backups}}<a href="/backups" {{if eq .Active "backups"}}class="active"{{end}}>Backups</a>{{end}}
+      {{if .Settings}}<a href="/settings" {{if eq .Active "settings"}}class="active"{{end}}>Settings</a>{{end}}
+      <span class="spacer"></span>
+      <a href="/account" {{if eq .Active "account"}}class="active"{{end}}>{{.Username}}</a>
+      <form method="post" action="/logout"><button type="submit" class="link">Log out</button></form>
+    </nav>
     {{end}}
   </header>
   <main>

@@ -205,7 +205,7 @@ func TestLoginLogout(t *testing.T) {
 	if code != http.StatusOK || !strings.Contains(body, "Your services") {
 		t.Fatalf("login failed: %d", code)
 	}
-	if !strings.Contains(body, "turn on two-factor authentication") {
+	if !strings.Contains(body, "Protect your account with two-factor authentication") {
 		t.Error("admins without 2FA should see a reminder, not be forced")
 	}
 	if _, body := h.get("/partials/services"); !strings.Contains(body, "status-running") {
@@ -273,4 +273,43 @@ func TestHtmxRequestsGetFullPageRedirects(t *testing.T) {
 	if _, body := h.get("/partials/services"); !strings.Contains(body, "Log in") {
 		t.Error("plain requests should follow the redirect to the login page")
 	}
+}
+
+func TestChangePassword(t *testing.T) {
+	h := newHarness(t, "")
+	hash, _ := auth.HashPassword("old password here")
+	h.store.CreateUser(context.Background(), store.User{Username: "mum", PasswordHash: hash, Role: auth.RoleMember})
+	h.post("/login", url.Values{"username": {"mum"}, "password": {"old password here"}}, h.srv.URL)
+
+	// A second device logged in too.
+	other := newClientFor(h)
+	other.post("/login", url.Values{"username": {"mum"}, "password": {"old password here"}}, h.srv.URL)
+
+	for _, tc := range []struct{ current, pw, confirm, want string }{
+		{"wrong", "new password here", "new password here", "current password is wrong"},
+		{"old password here", "new password here", "different", "don&#39;t match"},
+		{"old password here", "short", "short", "at least 12"},
+	} {
+		code, body := h.post("/account/password", url.Values{"current": {tc.current}, "password": {tc.pw}, "confirm": {tc.confirm}}, h.srv.URL)
+		if code != http.StatusBadRequest || !strings.Contains(body, tc.want) {
+			t.Errorf("%+v: %d", tc, code)
+		}
+	}
+	code, body := h.post("/account/password", url.Values{"current": {"old password here"},
+		"password": {"new password here"}, "confirm": {"new password here"}}, h.srv.URL)
+	if code != http.StatusOK || !strings.Contains(body, "Password changed") {
+		t.Fatalf("change: %d", code)
+	}
+	if _, body := h.get("/account"); !strings.Contains(body, "Your account") {
+		t.Error("this device should stay logged in")
+	}
+	if _, body := other.get("/"); !strings.Contains(body, "Log in") {
+		t.Error("other devices must be logged out")
+	}
+}
+
+// newClientFor is a second browser (its own cookies) for the same server.
+func newClientFor(h *harness) *harness {
+	jar, _ := cookiejar.New(nil)
+	return &harness{t: h.t, srv: h.srv, store: h.store, server: h.server, client: &http.Client{Jar: jar}}
 }

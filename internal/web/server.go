@@ -81,6 +81,8 @@ type Server struct {
 	Domain string
 	// DNSProvider is the lab's current DNS provider ID (wizard default).
 	DNSProvider string
+	// BackupRepo is the backup destination, shown on the Backups page.
+	BackupRepo string
 	// HasGPU pre-ticks settings whose default is "auto".
 	HasGPU bool
 	// Backups shows backup status and runs backups. Nil hides the card.
@@ -144,9 +146,11 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	if s.bootID, err = auth.NewToken(); err != nil {
 		return nil, err
 	}
-	for _, page := range []string{"login", "totp", "setup", "dashboard", "twofactor", "catalog", "install", "remove",
-		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover"} {
-		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS, "templates/layout.html", "templates/"+page+".html")
+	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove",
+		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover",
+		"home", "services", "service", "backups", "settings", "account"} {
+		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
+			"templates/layout.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
 			return nil, err
 		}
@@ -171,8 +175,16 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /account/2fa", s.requireLogin(s.twoFactorPage))
 	mux.Handle("POST /account/2fa", s.requireLogin(s.twoFactorSubmit))
 
-	mux.Handle("GET /{$}", s.require(auth.ViewDashboard, s.dashboard))
+	mux.Handle("GET /{$}", s.require(auth.ViewDashboard, s.homePage))
+	mux.Handle("GET /partials/home", s.require(auth.ViewDashboard, s.homePartial))
+	mux.Handle("GET /services", s.require(auth.ViewDashboard, s.servicesPage))
 	mux.Handle("GET /partials/services", s.require(auth.ViewDashboard, s.servicesPartial))
+	mux.Handle("GET /services/{name}", s.require(auth.ManageServices, s.servicePage))
+	mux.Handle("GET /backups", s.require(auth.ManageServices, s.backupsPage))
+	mux.Handle("GET /partials/backups", s.require(auth.ManageServices, s.backupsPartial))
+	mux.Handle("GET /settings", s.requireOwner(s.settingsPage))
+	mux.Handle("GET /account", s.requireLogin(s.accountPage))
+	mux.Handle("POST /account/password", s.requireLogin(s.passwordSubmit))
 
 	mux.HandleFunc("GET /healthz", s.healthz)
 	mux.Handle("POST /dns/manage", s.requireOwner(s.dnsManage))
@@ -333,6 +345,9 @@ func isHTTPS(r *http.Request) bool {
 }
 
 func (s *Server) render(w http.ResponseWriter, page string, data map[string]any) {
+	if u, ok := data["User"].(*store.User); ok && u != nil {
+		data["Nav"] = navFor(u, page)
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.pages[page].Execute(w, data); err != nil {
 		s.Log.Error("render", "page", page, "err", err)

@@ -44,6 +44,8 @@ type Status struct {
 	Checked time.Time
 	// Current is the record's existing value, on a conflict.
 	Current string
+	// Reachable: the home network's resolver returns this machine's address.
+	Reachable bool
 	// Provider details for the dashboard's controls.
 	Provider     string // title, e.g. "Cloudflare"
 	CanManage    bool   // the provider supports record management
@@ -307,6 +309,7 @@ func (m *Manager) check(ctx context.Context, st Status) Status {
 	}
 	local, _ := m.LocalLookup(ctx, host)
 	homeOK := slices.Contains(local, st.IP)
+	st.Reachable = homeOK
 
 	switch {
 	case homeOK:

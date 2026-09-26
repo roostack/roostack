@@ -77,9 +77,16 @@ func loggedIn(t *testing.T, role string) (*harness, *fakeManager) {
 func TestInstallFlow(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleAdmin)
 
-	_, body := h.get("/")
-	if !strings.Contains(body, `href="/catalog"`) || !strings.Contains(body, "/services/") {
-		t.Error("admins should see Add and Remove controls")
+	_, body := h.get("/services")
+	if !strings.Contains(body, `href="/catalog"`) || !strings.Contains(body, `href="/services/vaultwarden"`) {
+		t.Error("admins should see Add, and links to each service")
+	}
+	_, body = h.get("/services/vaultwarden")
+	if !strings.Contains(body, "/services/vaultwarden/remove") || !strings.Contains(body, "passwords.lab.example.com") {
+		t.Error("the service page should show its address and a Remove link")
+	}
+	if code, _ := h.get("/services/nope"); code != http.StatusNotFound {
+		t.Errorf("unknown service page: %d", code)
 	}
 	if _, body := h.get("/catalog"); !strings.Contains(body, `href="/install/immich"`) || strings.Contains(body, `/install/vaultwarden"`) {
 		t.Error("catalog should offer Immich and mark Vaultwarden installed")
@@ -151,10 +158,10 @@ func TestSecretFieldsAreNotEchoed(t *testing.T) {
 
 func TestMembersCannotManage(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleMember)
-	if _, body := h.get("/"); strings.Contains(body, `href="/catalog"`) || strings.Contains(body, "/remove") {
+	if _, body := h.get("/services"); strings.Contains(body, `href="/catalog"`) || strings.Contains(body, `href="/services/vaultwarden"`) {
 		t.Error("members must not see management controls")
 	}
-	for _, path := range []string{"/catalog", "/install/immich", "/services/vaultwarden/remove"} {
+	for _, path := range []string{"/catalog", "/install/immich", "/services/vaultwarden", "/services/vaultwarden/remove", "/settings"} {
 		if code, _ := h.get(path); code != http.StatusForbidden {
 			t.Errorf("GET %s: %d, want 403", path, code)
 		}
@@ -167,11 +174,47 @@ func TestMembersCannotManage(t *testing.T) {
 func TestApplyBanner(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleAdmin)
 	fm.status = manager.ApplyStatus{Running: true}
-	if _, body := h.get("/partials/services"); !strings.Contains(body, "Applying changes") {
-		t.Error("expected the applying banner")
+	for _, path := range []string{"/partials/services", "/partials/home"} {
+		if _, body := h.get(path); !strings.Contains(body, "Applying changes") {
+			t.Errorf("%s: expected the applying banner", path)
+		}
 	}
 	fm.status = manager.ApplyStatus{Finished: true, LastErr: errors.New("image pull failed")}
-	if _, body := h.get("/partials/services"); !strings.Contains(body, "image pull failed") {
-		t.Error("expected the last error")
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "image pull failed") || !strings.Contains(body, "Needs attention") {
+		t.Error("expected the last error on the home page's attention list")
+	}
+}
+
+func TestNavigationByRole(t *testing.T) {
+	for role, want := range map[string][]string{
+		auth.RoleOwner:  {`href="/services"`, `href="/backups"`, `href="/settings"`, `href="/account"`},
+		auth.RoleAdmin:  {`href="/services"`, `href="/backups"`, `href="/account"`},
+		auth.RoleMember: {`href="/services"`, `href="/account"`},
+	} {
+		h, _ := loggedIn(t, role)
+		_, body := h.get("/account")
+		for _, w := range want {
+			if !strings.Contains(body, w) {
+				t.Errorf("%s: nav missing %s", role, w)
+			}
+		}
+		if role != auth.RoleOwner && strings.Contains(body, `href="/settings"`) {
+			t.Errorf("%s must not see Settings", role)
+		}
+		if role == auth.RoleMember && strings.Contains(body, `href="/backups"`) {
+			t.Error("members must not see Backups")
+		}
+	}
+}
+
+func TestHomeAllGood(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner) // owners have 2FA in this harness
+	h.server.Manager = nil
+	_, body := h.get("/")
+	if !strings.Contains(body, "Everything&#39;s working") && !strings.Contains(body, "Everything's working") {
+		t.Error("with nothing to do, home should say everything's working")
+	}
+	if !strings.Contains(body, "Vaultwarden") {
+		t.Error("home should show the services")
 	}
 }

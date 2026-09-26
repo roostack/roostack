@@ -1,0 +1,21 @@
+{{define "title"}}Backups{{end}}
+{{define "content"}}
+<section>
+  <h1>Backups</h1>
+  <div hx-get="/partials/backups" hx-trigger="every 10s" hx-swap="innerHTML">
+    {{template "backup-card" .}}
+  </div>
+  <section class="card section">
+    <h2>Where backups go</h2>
+    {{if .BackupRepo}}<p><code>{{.BackupRepo}}</code></p>{{else}}<p>Not set up.</p>{{end}}
+    <p class="hint">Good practice is "3-2-1": three copies of your data, on two different kinds of storage, with one
+      somewhere else (not at home). Adding more destinations is coming later.</p>
+    {{if .IsOwner}}<p><a href="/setup/backup">Change where backups go…</a></p>{{end}}
+  </section>
+  <section class="card section">
+    <h2>Restoring</h2>
+    <p>For now, restore a service from the command line: <code>sudo -u mylab mylab backup restore &lt;service&gt;</code>.
+      MyLab moves the current data aside first; nothing is deleted.</p>
+  </section>
+</section>
+{{end}}
