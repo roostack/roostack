@@ -250,3 +250,27 @@ func TestStaticAssets(t *testing.T) {
 		}
 	}
 }
+
+// Background refreshes must never have another page swapped into them
+// (the setup form appeared inside the dashboard and reset every 10s).
+func TestHtmxRequestsGetFullPageRedirects(t *testing.T) {
+	h := newHarness(t, "")
+	req, _ := http.NewRequest(http.MethodGet, h.srv.URL+"/partials/services", nil)
+	req.Header.Set("HX-Request", "true")
+	resp, err := h.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if got := resp.Header.Get("HX-Redirect"); got != "/login" {
+		t.Errorf("HX-Redirect = %q, want /login", got)
+	}
+	if strings.Contains(string(body), "<form") {
+		t.Error("the login page must not be returned into the partial")
+	}
+	// Normal requests still get a regular redirect.
+	if _, body := h.get("/partials/services"); !strings.Contains(body, "Log in") {
+		t.Error("plain requests should follow the redirect to the login page")
+	}
+}

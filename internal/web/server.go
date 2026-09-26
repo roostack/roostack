@@ -211,11 +211,11 @@ func (s *Server) loadSession(next http.Handler) http.Handler {
 func (s *Server) requireLogin(h http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.needsSetup() {
-			http.Redirect(w, r, "/setup", http.StatusSeeOther)
+			redirect(w, r, "/setup")
 			return
 		}
 		if currentUser(r) == nil {
-			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			redirect(w, r, "/login")
 			return
 		}
 		h(w, r)
@@ -228,13 +228,13 @@ func (s *Server) require(p auth.Permission, h http.HandlerFunc) http.Handler {
 	return s.requireLogin(func(w http.ResponseWriter, r *http.Request) {
 		u := currentUser(r)
 		if u.Role == auth.RoleOwner && u.TOTPSecret == "" {
-			http.Redirect(w, r, "/account/2fa", http.StatusSeeOther)
+			redirect(w, r, "/account/2fa")
 			return
 		}
 		// Owners finish the setup wizard next.
 		if u.Role == auth.RoleOwner && s.Setup != nil {
 			if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
-				http.Redirect(w, r, p.Next(), http.StatusSeeOther)
+				redirect(w, r, p.Next())
 				return
 			}
 		}
@@ -274,6 +274,19 @@ func securityHeaders(next http.Handler) http.Handler {
 		h.Set("Referrer-Policy", "same-origin")
 		next.ServeHTTP(w, r)
 	})
+}
+
+// redirect sends the browser elsewhere. For htmx background requests (like
+// the dashboard's live refresh) a normal redirect would be followed
+// silently and the other page's HTML swapped into the current page, so htmx
+// is told to navigate the whole page instead.
+func redirect(w http.ResponseWriter, r *http.Request, url string) {
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Redirect", url)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	http.Redirect(w, r, url, http.StatusSeeOther)
 }
 
 func (s *Server) needsSetup() bool {

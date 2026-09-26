@@ -76,7 +76,7 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "install", p.Name)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	redirect(w, r, "/")
 }
 
 // installData builds the form. submitted is nil on first display, so
@@ -153,7 +153,7 @@ func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	err := s.Manager.Remove(r.Context(), p.Name)
 	if errors.Is(err, manager.ErrNotFound) {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		redirect(w, r, "/")
 		return
 	}
 	if err != nil {
@@ -161,7 +161,7 @@ func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "remove", p.Name)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	redirect(w, r, "/")
 }
 
 // pkg loads the package named in the URL, writing a 404 if there is none.

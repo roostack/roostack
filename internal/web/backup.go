@@ -59,5 +59,5 @@ func (s *Server) backupRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "backup", "started manually")
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	redirect(w, r, "/")
 }
