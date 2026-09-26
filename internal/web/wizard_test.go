@@ -6,8 +6,10 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mylab/mylab/internal/auth"
+	"github.com/mylab/mylab/internal/dnsrecords"
 	"github.com/mylab/mylab/internal/setup"
 )
 
@@ -19,11 +21,12 @@ type fakeSetup struct {
 
 	lastProvider string
 	lastValues   map[string]string
+	lastOpts     setup.DomainOptions
 }
 
 func (f *fakeSetup) Progress(context.Context) (setup.Progress, error) { return f.p, nil }
-func (f *fakeSetup) SaveDomain(_ context.Context, d, e, provider string, values map[string]string) error {
-	f.lastProvider, f.lastValues = provider, values
+func (f *fakeSetup) SaveDomain(_ context.Context, d, e, provider string, values map[string]string, opts setup.DomainOptions) error {
+	f.lastProvider, f.lastValues, f.lastOpts = provider, values, opts
 	if f.domainErr != nil {
 		return f.domainErr
 	}
@@ -146,5 +149,42 @@ func TestHealthzBootID(t *testing.T) {
 	resp.Body.Close()
 	if resp.Header.Get("HX-Redirect") != "/" {
 		t.Error("new process: move on")
+	}
+}
+
+func TestDomainRecordOptions(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{}
+	h.server.Setup = fs
+	_, body := h.get("/setup/domain")
+	if !strings.Contains(body, `name="manage_records" x-model="manage" checked`) || !strings.Contains(body, "Namecheap&#39;s API is risky") &&
+		!strings.Contains(body, "Namecheap's API is risky") {
+		t.Error("domain page should offer record management (on by default) and the Namecheap warning")
+	}
+	h.post("/setup/domain", url.Values{"domain": {"home.example.com"}, "email": {"a@b.c"}, "provider": {"namecheap"},
+		"manage_records": {"on"}, "accept_risk": {"on"}}, h.srv.URL)
+	if !fs.lastOpts.ManageRecords || !fs.lastOpts.AcceptRisk {
+		t.Errorf("options not passed on: %+v", fs.lastOpts)
+	}
+}
+
+type fakeDNS struct{ st dnsrecords.Status }
+
+func (f fakeDNS) Status() dnsrecords.Status { return f.st }
+
+func TestDNSCard(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.server.Setup = &fakeSetup{p: setup.Progress{DomainDone: true, BackupLater: true}}
+	h.server.DNS = fakeDNS{dnsrecords.Status{State: dnsrecords.StateBlocked, Record: "*.lab.example.com", IP: "192.168.1.20",
+		Message: "your router's DNS rebinding protection", Checked: time.Now()}}
+	_, body := h.get("/partials/services")
+	if !strings.Contains(body, "Home network access") || !strings.Contains(body, "rebinding protection") || !strings.Contains(body, "DHCP reservation") {
+		t.Error("owner should see the home network card with the problem")
+	}
+
+	a, _ := loggedIn(t, auth.RoleAdmin)
+	a.server.DNS = h.server.DNS
+	if _, body := a.get("/partials/services"); strings.Contains(body, "Home network access") {
+		t.Error("the card is for the Owner only")
 	}
 }

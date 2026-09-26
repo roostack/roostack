@@ -36,6 +36,8 @@ type Provider struct {
 	directive func(set []string) string
 	// probe checks credentials against the provider's API (probes.go).
 	probe probe
+	// records manages DNS records (records.go); nil if unsupported.
+	records *recordsAPI
 }
 
 // SecretName is the Podman secret holding a field's value.
@@ -67,6 +69,7 @@ var providers = []*Provider{
 		Fields:    []Field{{Key: "api_token", Label: "API token", Sensitive: true}},
 		directive: func([]string) string { return "dns cloudflare " + env("api_token") },
 		probe:     cloudflareProbe,
+		records:   cloudflareRecords,
 	},
 	{
 		ID: "route53", Title: "Amazon Route 53 (AWS)", Plugin: "github.com/caddy-dns/route53",
@@ -80,7 +83,8 @@ var providers = []*Provider{
 		directive: func(set []string) string {
 			return block("route53", set, "access_key_id", "secret_access_key", "region")
 		},
-		probe: route53Probe,
+		probe:   route53Probe,
+		records: route53Records,
 	},
 	{
 		ID: "porkbun", Title: "Porkbun", Plugin: "github.com/caddy-dns/porkbun",
@@ -92,6 +96,7 @@ var providers = []*Provider{
 		},
 		directive: func(set []string) string { return block("porkbun", set, "api_key", "api_secret_key") },
 		probe:     porkbunProbe,
+		records:   porkbunRecords,
 	},
 	{
 		ID: "gandi", Title: "Gandi", Plugin: "github.com/caddy-dns/gandi",
@@ -100,6 +105,7 @@ var providers = []*Provider{
 		Fields:    []Field{{Key: "bearer_token", Label: "Personal access token", Sensitive: true}},
 		directive: func([]string) string { return "dns gandi " + env("bearer_token") },
 		probe:     gandiProbe,
+		records:   gandiRecords,
 	},
 	{
 		ID: "godaddy", Title: "GoDaddy", Plugin: "github.com/caddy-dns/godaddy",
@@ -112,6 +118,7 @@ var providers = []*Provider{
 		// The plugin expects "key:secret" in one value.
 		directive: func([]string) string { return "dns godaddy " + env("api_key") + ":" + env("api_secret") },
 		probe:     godaddyProbe,
+		records:   godaddyRecords,
 	},
 	{
 		ID: "namecheap", Title: "Namecheap", Plugin: "github.com/caddy-dns/namecheap",
@@ -126,6 +133,7 @@ var providers = []*Provider{
 		},
 		directive: func(set []string) string { return block("namecheap", set, "api_key", "user", "client_ip") },
 		probe:     namecheapProbe,
+		records:   namecheapRecords,
 	},
 	{
 		ID: "spaceship", Title: "Spaceship", Plugin: "github.com/caddy-dns/spaceship",
@@ -137,6 +145,7 @@ var providers = []*Provider{
 		},
 		directive: func(set []string) string { return block("spaceship", set, "api_key", "api_secret") },
 		probe:     spaceshipProbe,
+		records:   spaceshipRecords,
 	},
 }
 

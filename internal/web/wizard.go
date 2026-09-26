@@ -50,7 +50,7 @@ func (s *Server) domainPage(w http.ResponseWriter, r *http.Request) {
 		provider = dns.Providers()[0].ID
 	}
 	s.render(w, "setup-domain", map[string]any{"User": currentUser(r), "Domain": s.Domain,
-		"Providers": dns.Providers(), "Provider": provider, "Values": map[string]string{}})
+		"Providers": dns.Providers(), "Provider": provider, "Values": map[string]string{}, "Manage": true})
 }
 
 func (s *Server) domainSubmit(w http.ResponseWriter, r *http.Request) {
@@ -67,9 +67,10 @@ func (s *Server) domainSubmit(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	err := s.Setup.SaveDomain(r.Context(), domain, email, provider, values)
+	opts := setup.DomainOptions{ManageRecords: r.FormValue("manage_records") == "on", AcceptRisk: r.FormValue("accept_risk") == "on"}
+	err := s.Setup.SaveDomain(r.Context(), domain, email, provider, values, opts)
 	if s.wizardError(w, r, err, "setup-domain", map[string]any{"Domain": domain, "Email": email,
-		"Providers": dns.Providers(), "Provider": provider, "Values": kept}) {
+		"Providers": dns.Providers(), "Provider": provider, "Values": kept, "Manage": opts.ManageRecords, "AcceptRisk": opts.AcceptRisk}) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "domain set to "+domain)

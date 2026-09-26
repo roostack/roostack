@@ -51,6 +51,7 @@ The reconciler only touches files it owns (`mylab-*` Quadlets and `*.caddy` snip
 | `internal/quadlet` | Writing Quadlet/systemd unit files, with escaping |
 | `internal/caddy` | Writing the main Caddyfile and per-service snippets |
 | `internal/dns` | Supported DNS providers: credential fields, Caddy directive, and the create-and-delete-a-TXT-record check |
+| `internal/dnsrecords` | Keeps `*.<domain>` pointing at the LAN IP (only records MyLab created) and checks home devices can resolve it |
 | `internal/setup` | First-run setup wizard logic: domain and DNS credentials, backup destination, recovery key |
 | `internal/reconcile` | Plan and apply changes to the host |
 | `internal/state` | Load desired state from disk |

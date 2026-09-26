@@ -17,6 +17,7 @@ import (
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/dnsrecords"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/maintenance"
 	"github.com/mylab/mylab/internal/manager"
@@ -103,6 +104,19 @@ func serve(args []string) error {
 		return err
 	}
 	srv.Setup, srv.DNSProvider = wizard, lab.DNS.Provider
+
+	// Keep *.<domain> pointing at this machine for devices at home, and
+	// check they can see it (SPEC.md §6.5.1).
+	if lab.DNS.Provider != "" {
+		records := &dnsrecords.Manager{
+			Lab: lab, Secrets: podman.NewSecrets(), Store: st, Log: log,
+			HTTP:        &http.Client{Timeout: 30 * time.Second},
+			LocalLookup: dnsrecords.SystemLookup, PublicLookup: dnsrecords.PublicLookup,
+			Wait: 90 * time.Second,
+		}
+		go records.Run(ctx, 30*time.Minute)
+		srv.DNS = records
+	}
 
 	go func() {
 		for range time.Tick(time.Hour) {

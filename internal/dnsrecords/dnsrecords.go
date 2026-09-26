@@ -1,0 +1,280 @@
+// Package dnsrecords keeps the lab's DNS records in place (SPEC.md §6.5.1,
+// stage 1): a wildcard record *.<domain> pointing at the lab's LAN IP, so
+// devices at home reach private services without any local DNS. It also
+// checks that the home network's resolver actually returns that record
+// (some routers block private IPs in DNS answers).
+package dnsrecords
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net"
+	"net/http"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/dns"
+	"github.com/mylab/mylab/internal/store"
+)
+
+// States shown on the dashboard.
+const (
+	StateOK          = "ok"          // record in place and reachable from home
+	StatePending     = "pending"     // not visible yet (DNS propagation)
+	StateBlocked     = "blocked"     // the router drops the answer
+	StateConflict    = "conflict"    // a record MyLab didn't create is in the way
+	StateError       = "error"       // the provider API failed
+	StateManual      = "manual"      // MyLab doesn't manage records; add it by hand
+	StateUnsupported = "unsupported" // provider can't manage records
+)
+
+// Status is the latest result, for the dashboard.
+type Status struct {
+	State   string
+	Record  string // e.g. *.lab.example.com
+	IP      string
+	Message string
+	Checked time.Time
+}
+
+// Secrets reads Podman secret values (the DNS credentials).
+type Secrets interface {
+	Read(ctx context.Context, name string) ([]byte, error)
+}
+
+// Manager keeps the wildcard record in place.
+type Manager struct {
+	Lab     config.Lab
+	Secrets Secrets
+	Store   *store.Store
+	HTTP    *http.Client
+	Log     *slog.Logger
+	// LANIP finds the lab's LAN address (tests replace it).
+	LANIP func() (string, error)
+	// LocalLookup resolves through the home network's DNS; PublicLookup
+	// through a public resolver. Tests replace both.
+	LocalLookup, PublicLookup func(ctx context.Context, host string) ([]string, error)
+	// Wait is how long to wait for a new record to become visible.
+	Wait time.Duration
+
+	mu     sync.Mutex
+	status Status
+}
+
+// Status returns the latest result.
+func (m *Manager) Status() Status {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.status
+}
+
+func (m *Manager) set(st Status) Status {
+	st.Checked = time.Now()
+	m.mu.Lock()
+	m.status = st
+	m.mu.Unlock()
+	if st.State != StateOK && st.State != StateManual {
+		m.Log.Warn("DNS records", "state", st.State, "record", st.Record, "detail", st.Message)
+	}
+	return st
+}
+
+// Run syncs now and then every interval (catching a changed LAN IP).
+func (m *Manager) Run(ctx context.Context, interval time.Duration) {
+	for {
+		m.Sync(ctx)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(interval):
+		}
+	}
+}
+
+// Sync makes sure the wildcard record points at the LAN IP, then checks
+// what the home network sees.
+func (m *Manager) Sync(ctx context.Context) Status {
+	lab := m.Lab
+	record := "*." + lab.Domain
+	ip := lab.DNS.LANIP
+	if ip == "" {
+		var err error
+		if ip, err = m.lanIP(); err != nil {
+			return m.set(Status{State: StateError, Record: record, Message: "Couldn't find this machine's LAN address: " + err.Error()})
+		}
+	}
+	st := Status{Record: record, IP: ip}
+
+	p := dns.Get(lab.DNS.Provider)
+	if p == nil || lab.Domain == "" {
+		st.State, st.Message = StateManual, "Set up your domain first."
+		return m.set(st)
+	}
+	ok, risky := p.ManagesRecords()
+	switch {
+	case !ok:
+		st.State, st.Message = StateUnsupported, p.Title+" records can't be managed by MyLab yet."
+		return m.set(st)
+	case !lab.DNS.ManageRecords, risky && !lab.DNS.AllowRiskyRecords:
+		st.State = StateManual
+		return m.set(m.check(ctx, st))
+	}
+
+	values := map[string]string{}
+	for _, f := range lab.DNS.Fields {
+		v, err := m.Secrets.Read(ctx, dns.SecretName(f))
+		if err != nil {
+			st.State, st.Message = StateError, "Couldn't read the DNS credentials: "+err.Error()
+			return m.set(st)
+		}
+		values[f] = string(v)
+	}
+	zone := lab.DNS.Zone
+	if zone == "" {
+		var err error
+		if zone, err = p.Check(ctx, values, lab.Domain); err != nil {
+			st.State, st.Message = StateError, err.Error()
+			return m.set(st)
+		}
+	}
+	name := "*"
+	if rel := strings.TrimSuffix(lab.Domain, "."+zone); rel != lab.Domain {
+		name += "." + rel
+	} else if lab.Domain != zone {
+		st.State, st.Message = StateError, fmt.Sprintf("%s isn't in the zone %s", lab.Domain, zone)
+		return m.set(st)
+	}
+
+	if err := m.ensure(ctx, p, values, zone, name, ip); err != nil {
+		var conflict *conflictError
+		if errors.As(err, &conflict) {
+			st.State, st.Message = StateConflict, conflict.Error()
+		} else {
+			st.State, st.Message = StateError, err.Error()
+		}
+		return m.set(st)
+	}
+	return m.set(m.check(ctx, st))
+}
+
+type conflictError struct{ record, current, want string }
+
+func (e *conflictError) Error() string {
+	return fmt.Sprintf("%s already points at %s, and MyLab didn't create that record, so it won't change it. "+
+		"Delete it at your DNS provider, or point it at %s.", e.record, e.current, e.want)
+}
+
+// ownerKey is where MyLab remembers a record it created and its value.
+func ownerKey(fqdn, typ string) string { return "dns.owned." + fqdn + "/" + typ }
+
+// ensure creates or updates the record, but only if MyLab owns it (or it
+// doesn't exist, or already has the right value).
+func (m *Manager) ensure(ctx context.Context, p *dns.Provider, values map[string]string, zone, name, ip string) error {
+	fqdn := name + "." + zone
+	key := ownerKey(fqdn, "A")
+	owned, err := m.Store.Setting(ctx, key)
+	if err != nil {
+		return err
+	}
+	current, err := p.GetRecord(ctx, m.HTTP, values, zone, name, "A")
+	if err != nil {
+		return fmt.Errorf("reading %s from %s: %w", fqdn, p.Title, err)
+	}
+	switch {
+	case len(current) == 1 && current[0] == ip:
+		// Already right; adopt it if MyLab didn't create it.
+	case len(current) == 0 || owned != "":
+		if err := p.SetRecord(ctx, m.HTTP, values, zone, name, "A", ip); err != nil {
+			return fmt.Errorf("updating %s at %s: %w", fqdn, p.Title, err)
+		}
+		m.Log.Info("DNS record set", "record", fqdn, "ip", ip)
+	default:
+		return &conflictError{record: fqdn, current: strings.Join(current, ", "), want: ip}
+	}
+	return m.Store.SetSetting(ctx, key, ip)
+}
+
+// check looks up a random name under the wildcard through a public
+// resolver and through the home network's resolver.
+func (m *Manager) check(ctx context.Context, st Status) Status {
+	token := make([]byte, 4)
+	rand.Read(token)
+	host := "mylab-check-" + hex.EncodeToString(token) + "." + m.Lab.Domain
+
+	deadline := time.Now().Add(m.Wait)
+	public := false
+	for {
+		addrs, _ := m.PublicLookup(ctx, host)
+		if slices.Contains(addrs, st.IP) {
+			public = true
+			break
+		}
+		if time.Now().After(deadline) || ctx.Err() != nil {
+			break
+		}
+		time.Sleep(3 * time.Second)
+	}
+	local, _ := m.LocalLookup(ctx, host)
+	homeOK := slices.Contains(local, st.IP)
+
+	switch {
+	case homeOK:
+		if st.State == "" {
+			st.State = StateOK
+		}
+		st.Message = "Devices on your home network can reach your services."
+	case st.State == StateManual:
+		st.Message = fmt.Sprintf("Add this record at your DNS provider: %s  A  %s", st.Record, st.IP)
+	case public:
+		st.State = StateBlocked
+		st.Message = "The record exists, but your home network's DNS won't return it. This is usually " +
+			"the router's \"DNS rebinding protection\", which blocks answers that point at home addresses. " +
+			"Allow " + m.Lab.Domain + " in the router's settings (often called rebind protection or " +
+			"private domain exceptions), or use a local DNS server."
+	default:
+		st.State = StatePending
+		st.Message = "The record isn't visible yet. DNS changes can take a few minutes; MyLab checks again automatically."
+	}
+	return st
+}
+
+func (m *Manager) lanIP() (string, error) {
+	if m.LANIP != nil {
+		return m.LANIP()
+	}
+	return DetectLANIP()
+}
+
+// DetectLANIP returns the address this machine uses to reach the internet
+// (its LAN address behind a home router). No packets are sent.
+func DetectLANIP() (string, error) {
+	c, err := net.Dial("udp4", "192.0.2.1:9") // TEST-NET-1: routing lookup only
+	if err != nil {
+		return "", err
+	}
+	defer c.Close()
+	return c.LocalAddr().(*net.UDPAddr).IP.String(), nil
+}
+
+// SystemLookup resolves through this machine's configured DNS (normally
+// the home router).
+func SystemLookup(ctx context.Context, host string) ([]string, error) {
+	return net.DefaultResolver.LookupHost(ctx, host)
+}
+
+// PublicLookup resolves through Cloudflare's public resolver, bypassing the
+// router, to tell "not published yet" apart from "blocked at home".
+func PublicLookup(ctx context.Context, host string) ([]string, error) {
+	r := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "udp", "1.1.1.1:53")
+	}}
+	return r.LookupHost(ctx, host)
+}
