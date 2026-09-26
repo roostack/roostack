@@ -51,13 +51,31 @@ func (s *Server) restartingPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "restarting", map[string]any{"User": currentUser(r), "BootID": s.bootID})
 }
 
+// formMode says how a setup form is being used, for its wording:
+//   - Wizard: the Owner is being walked through first-run setup ("step 1
+//     of 2", "set this up later")
+//   - otherwise it's a settings page: "Set up ..." if the step was
+//     postponed, "Change ..." if it's done, with a back link instead.
+func (s *Server) formMode(r *http.Request, step string, data map[string]any) map[string]any {
+	p, err := s.Setup.Progress(r.Context())
+	if err != nil {
+		return data
+	}
+	done := map[string]bool{"domain": p.DomainDone, "backup": p.BackupDone}[step]
+	postponed := map[string]bool{"domain": p.DomainLater, "backup": p.BackupLater}[step]
+	data["Wizard"] = !done && !postponed
+	data["StepDone"] = done
+	data["Back"] = map[string]string{"domain": "/settings", "backup": "/backups"}[step]
+	return data
+}
+
 func (s *Server) domainPage(w http.ResponseWriter, r *http.Request) {
 	provider := s.DNSProvider
 	if dns.Get(provider) == nil {
 		provider = dns.Providers()[0].ID
 	}
-	s.render(w, "setup-domain", map[string]any{"User": currentUser(r), "Domain": s.Domain,
-		"Providers": dns.Providers(), "Provider": provider, "Values": map[string]string{}, "Manage": true})
+	s.render(w, "setup-domain", s.formMode(r, "domain", map[string]any{"User": currentUser(r), "Domain": s.Domain,
+		"Providers": dns.Providers(), "Provider": provider, "Values": map[string]string{}, "Manage": true}))
 }
 
 func (s *Server) domainSubmit(w http.ResponseWriter, r *http.Request) {
@@ -76,8 +94,8 @@ func (s *Server) domainSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	opts := setup.DomainOptions{ManageRecords: r.FormValue("manage_records") == "on", AcceptRisk: r.FormValue("accept_risk") == "on"}
 	err := s.Setup.SaveDomain(r.Context(), domain, email, provider, values, opts)
-	if s.wizardError(w, r, err, "setup-domain", map[string]any{"Domain": domain, "Email": email,
-		"Providers": dns.Providers(), "Provider": provider, "Values": kept, "Manage": opts.ManageRecords, "AcceptRisk": opts.AcceptRisk}) {
+	if s.wizardError(w, r, err, "setup-domain", s.formMode(r, "domain", map[string]any{"Domain": domain, "Email": email,
+		"Providers": dns.Providers(), "Provider": provider, "Values": kept, "Manage": opts.ManageRecords, "AcceptRisk": opts.AcceptRisk})) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "domain set to "+domain)
@@ -93,7 +111,8 @@ func (s *Server) domainLater(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) backupPage(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "setup-backup", map[string]any{"User": currentUser(r), "Kind": "local"})
+	s.render(w, "setup-backup", s.formMode(r, "backup", map[string]any{"User": currentUser(r), "Kind": "local",
+		"Current": s.BackupRepo}))
 }
 
 func (s *Server) backupSubmit(w http.ResponseWriter, r *http.Request) {
@@ -104,8 +123,8 @@ func (s *Server) backupSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	err := s.Setup.SaveBackup(r.Context(), c)
 	// Keep what was typed, except the secret key.
-	if s.wizardError(w, r, err, "setup-backup", map[string]any{"Kind": c.Kind, "Path": c.Path,
-		"Endpoint": c.Endpoint, "Bucket": c.Bucket, "Prefix": c.Prefix, "AccessKey": c.AccessKey}) {
+	if s.wizardError(w, r, err, "setup-backup", s.formMode(r, "backup", map[string]any{"Kind": c.Kind, "Path": c.Path,
+		"Endpoint": c.Endpoint, "Bucket": c.Bucket, "Prefix": c.Prefix, "AccessKey": c.AccessKey, "Current": s.BackupRepo})) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "backup destination set")

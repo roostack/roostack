@@ -1,8 +1,12 @@
 {{define "title"}}Your domain{{end}}
 {{define "content"}}
 <section class="card narrow">
-  <p class="hint">Setup · step 1 of 2</p>
+  {{if .Wizard}}<p class="hint">Setup · step 1 of 2</p>
   <h1>Your domain</h1>
+  {{else}}<p><a href="{{.Back}}">← Settings</a></p>
+  <h1>{{if .StepDone}}Change your domain{{else}}Set up your domain{{end}}</h1>
+  {{if .StepDone}}<p class="hint">Saving checks the new details, then restarts MyLab to use them. Your services keep their data.</p>{{end}}
+  {{end}}
   <p>Your services will live at addresses like <strong>photos.{{if .Domain}}{{.Domain}}{{else}}lab.example.com{{end}}</strong>, with a secure (HTTPS) certificate for each.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <form method="post" action="/setup/domain" x-data="{ provider: '{{.Provider}}', manage: {{if .Manage}}true{{else}}false{{end}} }">
@@ -51,9 +55,11 @@
     <p class="hint">MyLab checks these details by creating and removing a temporary DNS record before saving them.</p>
     <button type="submit">Check and save</button>
   </form>
+  {{if .Wizard}}
   <form method="post" action="/setup/domain/later" class="later">
     <button type="submit" class="link">Set this up later</button>
     <small>Services won't be reachable over HTTPS until this is done.</small>
   </form>
+  {{end}}
 </section>
 {{end}}

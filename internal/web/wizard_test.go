@@ -248,3 +248,34 @@ func TestDNSControls(t *testing.T) {
 		t.Errorf("admins can't change DNS settings: %d", code)
 	}
 }
+
+func TestSetupFormsAsSettingsPages(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{p: setup.Progress{DomainDone: true, BackupDone: true, RecoverySaved: true}}
+	h.server.Setup = fs
+	h.server.BackupRepo = "/mnt/backup/mylab"
+
+	_, body := h.get("/setup/backup")
+	if strings.Contains(body, "step 2 of 2") || strings.Contains(body, "Set this up later") {
+		t.Error("changing backups later must not look like the first-run wizard")
+	}
+	if !strings.Contains(body, "Change where backups go") || !strings.Contains(body, "/mnt/backup/mylab") || !strings.Contains(body, `href="/backups"`) {
+		t.Error("the settings version should say Change, show the current destination and link back")
+	}
+	_, body = h.get("/setup/domain")
+	if strings.Contains(body, "step 1 of 2") || !strings.Contains(body, "Change your domain") || strings.Contains(body, "/setup/domain/later") {
+		t.Error("changing the domain later must not look like the wizard")
+	}
+
+	// A postponed step is "Set up", still without the wizard's framing.
+	fs.p = setup.Progress{DomainDone: true, BackupLater: true}
+	if _, body := h.get("/setup/backup"); !strings.Contains(body, "<h1>Set up backups</h1>") || strings.Contains(body, "step 2") {
+		t.Error("a postponed step should read as setting it up now")
+	}
+
+	// During first-run setup the wizard framing stays.
+	fs.p = setup.Progress{DomainDone: true}
+	if _, body := h.get("/setup/backup"); !strings.Contains(body, "step 2 of 2") || !strings.Contains(body, "Set this up later") {
+		t.Error("first-run setup keeps its steps")
+	}
+}
