@@ -22,8 +22,11 @@ type harness struct {
 	srv    *httptest.Server
 	client *http.Client
 	store  *store.Store
+	server *Server
 	setup  bool // OnSetupComplete called
 }
+
+var nowFunc = time.Now
 
 func newHarness(t *testing.T, setupToken string) *harness {
 	t.Helper()
@@ -40,7 +43,7 @@ func newHarness(t *testing.T, setupToken string) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{t: t, store: st}
+	h := &harness{t: t, store: st, server: s}
 	s.OnSetupComplete = func() { h.setup = true }
 	h.srv = httptest.NewServer(s.Handler())
 	t.Cleanup(h.srv.Close)

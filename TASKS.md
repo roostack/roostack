@@ -49,7 +49,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] `mylab user add` / `reset-password`
   - [x] TOTP 2FA: Owners must enroll; replay protection; attempt limit
   - [ ] 2FA: QR code, recovery codes, CLI reset of a user's 2FA
-  - [ ] Install/remove services from the UI (writes instance files, runs the reconciler)
+  - [x] Install/remove services from the UI (catalog, settings form, remove keeps data, background apply with status)
+  - [ ] Public exposure option (after firewall + CrowdSec)
   - [ ] Collect user-provided secrets (DNS token) in the UI instead of env vars
 - [ ] 🟡 **1.10 Backups**
   - [x] restic wrapper (tested against real restic), recovery key, `mylab backup init|run|snapshots`

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mylab/mylab/internal/auth"
+	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/store"
 )
 
@@ -281,8 +282,17 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		"User":      u,
 		"No2FA":     u.TOTPSecret == "",
 		"Services":  services,
-		"CanManage": auth.Can(u.Role, auth.ManageServices),
+		"CanManage": s.Manager != nil && auth.Can(u.Role, auth.ManageServices),
+		"Apply":     s.applyStatus(),
 	})
+}
+
+func (s *Server) applyStatus() *manager.ApplyStatus {
+	if s.Manager == nil {
+		return nil
+	}
+	st := s.Manager.Status()
+	return &st
 }
 
 // servicesPartial re-renders just the service list; htmx polls it.
@@ -292,8 +302,14 @@ func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	u := currentUser(r)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.pages["dashboard"].ExecuteTemplate(w, "services", map[string]any{"Services": services}); err != nil {
+	data := map[string]any{
+		"Services":  services,
+		"CanManage": s.Manager != nil && auth.Can(u.Role, auth.ManageServices),
+		"Apply":     s.applyStatus(),
+	}
+	if err := s.pages["dashboard"].ExecuteTemplate(w, "services", data); err != nil {
 		s.Log.Error("render partial", "err", err)
 	}
 }

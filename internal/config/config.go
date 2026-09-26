@@ -151,3 +151,10 @@ func (l Lab) Validate() error {
 	}
 	return errors.Join(errs...)
 }
+
+// DetectGPU reports whether the host has a GPU render device (Intel iGPU
+// on the reference hardware). It resolves settings with `default: auto`.
+func DetectGPU() bool {
+	matches, _ := filepath.Glob("/dev/dri/renderD*")
+	return len(matches) > 0
+}

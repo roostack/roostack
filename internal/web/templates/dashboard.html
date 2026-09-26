@@ -1,7 +1,10 @@
 {{define "title"}}Services{{end}}
 {{define "content"}}
 <section>
-  <h1>Your services</h1>
+  <div class="heading">
+    <h1>Your services</h1>
+    {{if .CanManage}}<a class="button" href="/catalog">Add a service</a>{{end}}
+  </div>
   {{if .No2FA}}<p class="notice">Protect your account: <a href="/account/2fa">turn on two-factor authentication</a>.</p>{{end}}
   <div hx-get="/partials/services" hx-trigger="every 10s" hx-swap="innerHTML">
     {{template "services" .}}
@@ -10,6 +13,10 @@
 {{end}}
 
 {{define "services"}}
+{{with .Apply}}
+  {{if .Running}}<p class="notice">Applying changes… Downloading a new service can take a few minutes.</p>
+  {{else if .LastErr}}<p class="notice notice-error">The last change didn't finish: {{.LastErr}}</p>{{end}}
+{{end}}
 {{if .Services}}
 <ul class="services">
   {{range .Services}}
@@ -18,7 +25,10 @@
       <h2>{{.Title}}</h2>
       {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}</a>{{end}}
     </div>
-    <span class="status status-{{.Status}}">{{.Status}}</span>
+    <div class="actions">
+      <span class="status status-{{.Status}}">{{.Status}}</span>
+      {{if $.CanManage}}<a href="/services/{{.Name}}/remove" class="link-danger">Remove</a>{{end}}
+    </div>
   </li>
   {{end}}
 </ul>

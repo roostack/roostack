@@ -1,0 +1,21 @@
+{{define "title"}}Add a service{{end}}
+{{define "content"}}
+<section>
+  <p><a href="/">← Your services</a></p>
+  <h1>Add a service</h1>
+  <ul class="services">
+    {{range .Items}}
+    <li class="card service">
+      <div>
+        <h2>{{.Title}}</h2>
+        <p class="hint">{{.Description}}</p>
+      </div>
+      {{if .Installed}}<span class="status status-running">Installed</span>
+      {{else}}<a class="button" href="/install/{{.Name}}">Install</a>{{end}}
+    </li>
+    {{else}}
+    <li class="card">The catalog is empty.</li>
+    {{end}}
+  </ul>
+</section>
+{{end}}

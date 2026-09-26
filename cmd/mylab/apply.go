@@ -24,6 +24,7 @@ func apply(args []string) error {
 	if err != nil {
 		return err
 	}
+	lab.HasGPU = config.DetectGPU()
 	services, err := state.LoadServices(lab)
 	if err != nil {
 		return err

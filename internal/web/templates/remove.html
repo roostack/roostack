@@ -1,0 +1,14 @@
+{{define "title"}}Remove {{.Package.Title}}{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <p><a href="/">← Back</a></p>
+  <h1>Remove {{.Package.Title}}?</h1>
+  <p>{{.Package.Title}} will be stopped and removed from your lab.</p>
+  <p><strong>Your data is kept.</strong> It stays in:</p>
+  <ul>{{range .DataDirs}}<li><code>{{.}}</code></li>{{end}}</ul>
+  <p class="hint">Installing {{.Package.Title}} again later will use this data.</p>
+  <form method="post" action="/services/{{.Package.Name}}/remove">
+    <button type="submit" class="danger">Remove {{.Package.Title}}</button>
+  </form>
+</section>
+{{end}}

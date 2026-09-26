@@ -1,0 +1,34 @@
+{{define "title"}}Install {{.Package.Title}}{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <p><a href="/catalog">← Back</a></p>
+  <h1>Install {{.Package.Title}}</h1>
+  <p class="hint">{{.Package.Description}}</p>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  <form method="post" action="/install/{{.Package.Name}}">
+    {{if .HasRoute}}
+    <label>Web address
+      <span class="with-suffix">
+        <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off">
+        <span>.{{.Domain}}</span>
+      </span>
+      <small>Only reachable from your home network (or VPN).</small>
+    </label>
+    {{end}}
+    {{range .Fields}}
+      {{if eq .Kind "checkbox"}}
+      <label class="check">
+        <input type="checkbox" name="{{.Key}}" {{if .Checked}}checked{{end}}>
+        <span>{{.Title}}{{with .Description}}<small>{{.}}</small>{{end}}</span>
+      </label>
+      {{else}}
+      <label>{{.Title}}
+        <input type="{{.Kind}}" name="{{.Key}}" value="{{.Value}}" {{if eq .Kind "password"}}autocomplete="new-password" required{{end}}>
+        {{with .Description}}<small>{{.}}</small>{{end}}
+      </label>
+      {{end}}
+    {{end}}
+    <button type="submit">Install</button>
+  </form>
+</section>
+{{end}}
