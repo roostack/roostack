@@ -31,6 +31,7 @@ type Instance struct {
 	Package  string                   `yaml:"package"`
 	Version  string                   `yaml:"version"`
 	Routes   map[string]RouteOverride `yaml:"routes,omitempty"`
+	Ports    map[string]PortOverride  `yaml:"ports,omitempty"`
 	Settings map[string]any           `yaml:"settings,omitempty"`
 	Updates  string                   `yaml:"updates"`
 }
@@ -48,6 +49,14 @@ type RouteOverride struct {
 
 // Save writes an instance file atomically. Comments in a hand-edited file
 // are not preserved.
+// PortOverride changes a package port (pkgspec.Port). Unset fields keep
+// the package's defaults.
+type PortOverride struct {
+	Enabled  *bool  `yaml:"enabled,omitempty"`
+	HostPort int    `yaml:"host_port,omitempty"`
+	Exposure string `yaml:"exposure,omitempty"`
+}
+
 func (in *Instance) Save(path string) error {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
@@ -107,6 +116,18 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 		}
 		if r.Port != 0 && (r.Port < 1024 || r.Port > 65535) {
 			add("routes.%s.port: %d is outside 1024-65535", name, r.Port)
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(in.Ports)) {
+		o := in.Ports[name]
+		if p.Ports[name] == nil {
+			add("ports.%s: package has no such port", name)
+		}
+		if o.HostPort != 0 && (o.HostPort < pkgspec.MinHostPort || o.HostPort > 65535) {
+			add("ports.%s.host_port: %d is outside %d-65535", name, o.HostPort, pkgspec.MinHostPort)
+		}
+		if o.Exposure != "" && o.Exposure != pkgspec.ExposurePrivate && o.Exposure != pkgspec.ExposurePublic {
+			add("ports.%s.exposure: must be private or public", name)
 		}
 	}
 	for _, key := range slices.Sorted(maps.Keys(in.Settings)) {

@@ -191,3 +191,50 @@ func TestApplyErrorIsReported(t *testing.T) {
 		t.Errorf("status: %+v, want the missing DNS secret reported", st)
 	}
 }
+
+func TestPorts(t *testing.T) {
+	m, _ := newManager(t)
+	ctx := context.Background()
+	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "examples", "forgejo.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.MkdirAll(filepath.Dir(m.Lab.Paths.PackageFile("forgejo")), 0o755)
+	os.WriteFile(m.Lab.Paths.PackageFile("forgejo"), data, 0o644)
+	if err := m.Install(ctx, "forgejo", InstallRequest{Settings: map[string]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+
+	ports, err := m.Ports("forgejo")
+	if err != nil || len(ports) != 1 || ports[0].Name != "ssh" || ports[0].Enabled || ports[0].HostPort != 2222 {
+		t.Fatalf("ports = %+v, %v; want ssh off on 2222", ports, err)
+	}
+
+	var fe *FormError
+	if err := m.SetPort(ctx, "forgejo", "ssh", true, m.Lab.UIPort); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "admin UI") {
+		t.Errorf("UI port: %v", err)
+	}
+	if err := m.SetPort(ctx, "forgejo", "ssh", true, 22); !errors.As(err, &fe) {
+		t.Errorf("port 22: %v", err)
+	}
+	if err := m.SetPort(ctx, "forgejo", "nope", true, 2222); !errors.Is(err, ErrNotFound) {
+		t.Errorf("unknown port: %v", err)
+	}
+
+	if err := m.SetPort(ctx, "forgejo", "ssh", true, 2200); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	unit, _ := os.ReadFile(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-forgejo-app.container"))
+	if !strings.Contains(string(unit), "PublishPort=2200:2222/tcp") {
+		t.Errorf("ssh port not published:\n%s", unit)
+	}
+	// Back to the package's default port: the override is dropped.
+	m.SetPort(ctx, "forgejo", "ssh", false, 2222)
+	m.Wait()
+	in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo"))
+	if o := in.Ports["ssh"]; o.HostPort != 0 || o.Enabled == nil || *o.Enabled {
+		t.Errorf("override = %+v, want disabled with the default port", o)
+	}
+}

@@ -144,3 +144,4 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
   .attention .item { flex-direction: column; align-items: flex-start; }
   .topbar nav form { padding: 6px 10px; }
 }
+form.port { border-top: 1px solid var(--border); padding-top: 16px; margin-bottom: 16px; }

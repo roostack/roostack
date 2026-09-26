@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -86,6 +87,12 @@ func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) servicePage(w http.ResponseWriter, r *http.Request) {
+	s.renderService(w, r, nil)
+}
+
+// renderService shows a service's page; portErr is a form error for one of
+// its ports ({"port": name, "msg": text}).
+func (s *Server) renderService(w http.ResponseWriter, r *http.Request, portErr map[string]string) {
 	data, err := s.pageData(r)
 	if err != nil {
 		s.serverError(w, err)
@@ -106,6 +113,19 @@ func (s *Server) servicePage(w http.ResponseWriter, r *http.Request) {
 			data["Package"] = p
 		}
 		data["DataDirs"] = s.Manager.DataDirs(name)
+		ports, err := s.Manager.Ports(name)
+		if err != nil && !errors.Is(err, manager.ErrNotFound) {
+			s.serverError(w, err)
+			return
+		}
+		data["Ports"] = ports
+	}
+	if urls := data["Service"].(ServiceView).URLs; len(urls) > 0 {
+		data["Host"] = strings.TrimPrefix(urls[0], "https://")
+	}
+	if portErr != nil {
+		data["PortError"] = portErr
+		w.WriteHeader(http.StatusBadRequest)
 	}
 	s.render(w, "service", data)
 }

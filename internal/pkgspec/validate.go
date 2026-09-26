@@ -58,6 +58,9 @@ func (p *Package) Validate() error {
 	for _, name := range slices.Sorted(maps.Keys(p.Routes)) {
 		p.validateRoute(v, name, p.Routes[name])
 	}
+	for _, name := range slices.Sorted(maps.Keys(p.Ports)) {
+		p.validatePort(v, name, p.Ports[name])
+	}
 	return v.err()
 }
 
@@ -257,6 +260,35 @@ func (p *Package) validateRoute(v *validator, name string, r *Route) {
 		v.addf("%s.subdomain: %q is not a valid DNS label", at, r.Subdomain)
 	}
 	if r.Exposure != ExposurePrivate && r.Exposure != ExposurePublic {
+		v.addf("%s.exposure: must be %q or %q", at, ExposurePrivate, ExposurePublic)
+	}
+}
+
+func (p *Package) validatePort(v *validator, name string, r *Port) {
+	at := "ports." + name
+	if !nameRe.MatchString(name) {
+		v.addf("%s: invalid name", at)
+	}
+	if r == nil {
+		v.addf("%s: title, container, port and host_port are required", at)
+		return
+	}
+	if r.Title == "" {
+		v.addf("%s.title: required (shown in the UI)", at)
+	}
+	if p.Containers[r.Container] == nil {
+		v.addf("%s.container: unknown container %q", at, r.Container)
+	}
+	if !validPort(r.Port) {
+		v.addf("%s.port: must be 1-65535", at)
+	}
+	if r.HostPort < MinHostPort || r.HostPort > 65535 {
+		v.addf("%s.host_port: must be %d-65535", at, MinHostPort)
+	}
+	if r.Proto() != "tcp" && r.Proto() != "udp" {
+		v.addf("%s.protocol: must be tcp or udp", at)
+	}
+	if e := r.DefaultExposure(); e != ExposurePrivate && e != ExposurePublic {
 		v.addf("%s.exposure: must be %q or %q", at, ExposurePrivate, ExposurePublic)
 	}
 }

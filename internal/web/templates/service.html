@@ -13,6 +13,24 @@
     {{with .Package}}<dt>Version</dt><dd>{{.Version}}</dd>{{end}}
     {{with .DataDirs}}<dt>Data</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}</dd>{{end}}
   </dl>
+  {{with .Ports}}
+  <h2>Extra connections</h2>
+  <p class="hint">Most things go through the web address above. These connect directly to this machine, from your home network only.</p>
+  {{range .}}
+  <form method="post" action="/services/{{$.Service.Name}}/ports/{{.Name}}" class="port" x-data="{ on: {{.Enabled}} }">
+    <label class="check"><input type="checkbox" name="enabled" x-model="on" {{if .Enabled}}checked{{end}}>
+      <span>{{.Title}}{{with .Description}}<small>{{.}}</small>{{end}}</span></label>
+    <div x-show="on" {{if not .Enabled}}x-cloak{{end}}>
+      <label>Port on this machine
+        <input name="host_port" type="number" min="1024" max="65535" value="{{.HostPort}}" inputmode="numeric">
+        {{if and .Enabled $.Host}}<small>Connect to <code>{{$.Host}}:{{.HostPort}}</code>.</small>{{end}}
+      </label>
+    </div>
+    {{if and $.PortError (eq (index $.PortError "port") .Name)}}<p class="error" role="alert">{{index $.PortError "msg"}}</p>{{end}}
+    <button type="submit">Save</button>
+  </form>
+  {{end}}
+  {{end}}
   <p class="hint">Changing settings after installing is coming later.</p>
   <p><a class="link-danger" href="/services/{{.Service.Name}}/remove">Remove {{.Service.Title}}…</a></p>
 </section>
