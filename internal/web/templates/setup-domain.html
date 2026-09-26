@@ -5,20 +5,36 @@
   <h1>Your domain</h1>
   <p>Your services will live at addresses like <strong>photos.{{if .Domain}}{{.Domain}}{{else}}lab.example.com{{end}}</strong>, with a secure (HTTPS) certificate for each.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  <form method="post" action="/setup/domain">
+  <form method="post" action="/setup/domain" x-data="{ provider: '{{.Provider}}' }">
     <label>Domain
       <input name="domain" value="{{.Domain}}" placeholder="lab.example.com" autocapitalize="off" required>
-      <small>A domain you own, or a subdomain of it. It must be managed by Cloudflare.</small>
+      <small>A domain you own, or a subdomain of it.</small>
     </label>
     <label>Email address
       <input name="email" type="email" value="{{.Email}}" autocomplete="email" required>
       <small>Let's Encrypt, which issues the certificates, emails here if something goes wrong.</small>
     </label>
-    <label>Cloudflare API token
-      <input name="token" type="password" autocomplete="off" required>
-      <small>In Cloudflare, go to My Profile → API Tokens → Create Token, and use the
-        <em>Edit zone DNS</em> template for your domain. MyLab checks the token with Cloudflare before saving it.</small>
+    <label>Who manages your domain's DNS?
+      <select name="provider" x-model="provider">
+        {{range .Providers}}<option value="{{.ID}}" {{if eq .ID $.Provider}}selected{{end}}>{{.Title}}</option>{{end}}
+      </select>
+      <small>Usually where you bought the domain. MyLab uses it to prove you own the domain.</small>
     </label>
+    {{range $p := .Providers}}
+    <div class="provider" x-show="provider === '{{$p.ID}}'" {{if ne $p.ID $.Provider}}x-cloak{{end}}>
+      <p class="hint">{{$p.Help}}</p>
+      {{range $p.Fields}}
+      {{$name := printf "dns.%s.%s" $p.ID .Key}}
+      <label>{{.Label}}
+        <input name="{{$name}}" autocomplete="off" autocapitalize="off"
+          {{if .Sensitive}}type="password"{{else}}value="{{index $.Values $name}}"{{end}}
+          {{if not .Optional}}x-bind:required="provider === '{{$p.ID}}'"{{end}}>
+        {{with .Help}}<small>{{.}}</small>{{end}}
+      </label>
+      {{end}}
+    </div>
+    {{end}}
+    <p class="hint">MyLab checks these details by creating and removing a temporary DNS record before saving them.</p>
     <button type="submit">Check and save</button>
   </form>
   <form method="post" action="/setup/domain/later" class="later">

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/mylab/mylab/internal/auth"
+	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/setup"
 )
 
@@ -44,13 +45,31 @@ func (s *Server) restartingPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) domainPage(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "setup-domain", map[string]any{"User": currentUser(r), "Domain": s.Domain})
+	provider := s.DNSProvider
+	if dns.Get(provider) == nil {
+		provider = dns.Providers()[0].ID
+	}
+	s.render(w, "setup-domain", map[string]any{"User": currentUser(r), "Domain": s.Domain,
+		"Providers": dns.Providers(), "Provider": provider, "Values": map[string]string{}})
 }
 
 func (s *Server) domainSubmit(w http.ResponseWriter, r *http.Request) {
-	domain, email := r.FormValue("domain"), r.FormValue("email")
-	err := s.Setup.SaveDomain(r.Context(), domain, email, r.FormValue("token"))
-	if s.wizardError(w, r, err, "setup-domain", map[string]any{"Domain": domain, "Email": email}) {
+	domain, email, provider := r.FormValue("domain"), r.FormValue("email"), r.FormValue("provider")
+	// Fields are named dns.<provider>.<key>; only the chosen provider's count.
+	values := map[string]string{}
+	kept := map[string]string{} // re-shown on error: never the sensitive ones
+	if p := dns.Get(provider); p != nil {
+		for _, f := range p.Fields {
+			name := "dns." + p.ID + "." + f.Key
+			values[f.Key] = r.FormValue(name)
+			if !f.Sensitive {
+				kept[name] = values[f.Key]
+			}
+		}
+	}
+	err := s.Setup.SaveDomain(r.Context(), domain, email, provider, values)
+	if s.wizardError(w, r, err, "setup-domain", map[string]any{"Domain": domain, "Email": email,
+		"Providers": dns.Providers(), "Provider": provider, "Values": kept}) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "domain set to "+domain)

@@ -16,10 +16,14 @@ type fakeSetup struct {
 	domainErr  error
 	backupErr  error
 	lastBackup setup.BackupChoice
+
+	lastProvider string
+	lastValues   map[string]string
 }
 
 func (f *fakeSetup) Progress(context.Context) (setup.Progress, error) { return f.p, nil }
-func (f *fakeSetup) SaveDomain(_ context.Context, d, e, tok string) error {
+func (f *fakeSetup) SaveDomain(_ context.Context, d, e, provider string, values map[string]string) error {
+	f.lastProvider, f.lastValues = provider, values
 	if f.domainErr != nil {
 		return f.domainErr
 	}
@@ -48,13 +52,26 @@ func TestWizardFlow(t *testing.T) {
 		t.Fatal("an Owner with setup unfinished should land on the domain step")
 	}
 
-	fs.domainErr = &setup.CheckError{Msg: "Cloudflare didn't accept that token."}
-	code, body := h.post("/setup/domain", url.Values{"domain": {"home.example.com"}, "email": {"a@b.c"}, "token": {"secret-token-value"}}, h.srv.URL)
+	_, body := h.get("/setup/domain")
+	for _, want := range []string{"Amazon Route 53", "Porkbun", "Gandi", "GoDaddy", "Namecheap", "Spaceship",
+		`name="dns.route53.secret_access_key"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("domain page missing %s", want)
+		}
+	}
+
+	fs.domainErr = &setup.CheckError{Msg: "Route 53 didn't accept those details."}
+	code, body := h.post("/setup/domain", url.Values{"domain": {"home.example.com"}, "email": {"a@b.c"}, "provider": {"route53"},
+		"dns.route53.access_key_id": {"AKIAEXAMPLE"}, "dns.route53.secret_access_key": {"secret-value"},
+		"dns.cloudflare.api_token": {"ignored"}}, h.srv.URL)
 	if code != http.StatusBadRequest || !strings.Contains(body, "didn&#39;t accept") || !strings.Contains(body, `value="home.example.com"`) {
 		t.Errorf("domain error: %d", code)
 	}
-	if strings.Contains(body, "secret-token-value") {
-		t.Error("the token must never be echoed back")
+	if fs.lastProvider != "route53" || fs.lastValues["secret_access_key"] != "secret-value" || fs.lastValues["api_token"] != "" {
+		t.Errorf("provider %q values %v: only the chosen provider's fields count", fs.lastProvider, fs.lastValues)
+	}
+	if strings.Contains(body, "secret-value") || !strings.Contains(body, `value="AKIAEXAMPLE"`) {
+		t.Error("keep non-sensitive fields; never echo sensitive ones")
 	}
 	fs.domainErr = nil
 	if _, body := h.post("/setup/domain", url.Values{"domain": {"home.example.com"}}, h.srv.URL); !strings.Contains(body, "restarting") {

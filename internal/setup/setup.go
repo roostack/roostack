@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/mail"
 	"os"
 	"path/filepath"
@@ -15,7 +14,7 @@ import (
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
+	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/store"
 )
 
@@ -25,6 +24,11 @@ const (
 	keyBackup   = "setup.backup"   // "done" or "later"
 	keyRecovery = "setup.recovery" // "confirmed" once the key was saved
 )
+
+// CheckError is a problem with what the user entered, safe to show them.
+type CheckError struct{ Msg string }
+
+func (e *CheckError) Error() string { return e.Msg }
 
 // Secrets replaces a Podman secret's value.
 type Secrets interface {
@@ -37,7 +41,9 @@ type Setup struct {
 	LabPath string
 	Store   *store.Store
 	Secrets Secrets
-	HTTP    *http.Client
+	// CheckDNS tests DNS credentials before they are saved. Nil uses the
+	// provider's real check (create and delete a TXT record).
+	CheckDNS func(ctx context.Context, p *dns.Provider, values map[string]string, domain string) (string, error)
 	// NewRepo returns a restic repository for a destination (to create it).
 	NewRepo func(repository string, env []string) *backup.Repo
 	// Restart restarts MyLab so every part picks up the new settings.
@@ -89,9 +95,10 @@ func (s *Setup) Progress(ctx context.Context) (Progress, error) {
 
 var domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$`)
 
-// SaveDomain checks and saves the lab's domain and Cloudflare token, then
-// restarts MyLab so Caddy and every service use it.
-func (s *Setup) SaveDomain(ctx context.Context, domain, email, token string) error {
+// SaveDomain checks and saves the lab's domain and DNS provider
+// credentials, then restarts MyLab so Caddy and every service use them.
+// values holds the provider's fields (internal/dns).
+func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string, values map[string]string) error {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	email = strings.TrimSpace(email)
 	if !domainRe.MatchString(domain) {
@@ -100,15 +107,36 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, token string) err
 	if _, err := mail.ParseAddress(email); err != nil || strings.ContainsAny(email, " <>") {
 		return &CheckError{"Enter an email address. Let's Encrypt uses it to warn about certificate problems."}
 	}
-	if _, err := CheckCloudflare(ctx, s.HTTP, token, domain); err != nil {
-		return err
+	p := dns.Get(providerID)
+	if p == nil {
+		return &CheckError{"Choose who manages your domain's DNS."}
 	}
-	if err := s.Secrets.Replace(ctx, generate.CaddyDNSSecret, []byte(strings.TrimSpace(token))); err != nil {
-		return err
+	clean := map[string]string{}
+	for _, f := range p.Fields {
+		clean[f.Key] = strings.TrimSpace(values[f.Key])
+	}
+	set, err := p.Validate(clean)
+	if err != nil {
+		return &CheckError{capitalize(err.Error()) + "."}
+	}
+	check := s.CheckDNS
+	if check == nil {
+		check = func(ctx context.Context, p *dns.Provider, v map[string]string, d string) (string, error) {
+			return p.Check(ctx, v, d)
+		}
+	}
+	if _, err := check(ctx, p, clean, domain); err != nil {
+		return &CheckError{fmt.Sprintf("MyLab couldn't create a test DNS record for %s with those details. "+
+			"Check them and the permissions they have. %s said: %s", domain, p.Title, firstLine(err.Error()))}
+	}
+	for _, k := range set {
+		if err := s.Secrets.Replace(ctx, dns.SecretName(k), []byte(clean[k])); err != nil {
+			return err
+		}
 	}
 	lab := s.Lab
 	lab.Domain, lab.Email = domain, email
-	lab.DNS = config.DNS{Provider: "cloudflare"}
+	lab.DNS = config.DNS{Provider: p.ID, Fields: set}
 	if err := lab.Save(s.LabPath); err != nil {
 		return err
 	}
@@ -117,6 +145,13 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, token string) err
 	}
 	s.Restart()
 	return nil
+}
+
+func capitalize(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // DomainLater skips the domain step for now. Services can't get HTTPS

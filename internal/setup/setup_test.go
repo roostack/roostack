@@ -3,7 +3,6 @@ package setup
 import (
 	"context"
 	"errors"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,7 +11,7 @@ import (
 
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
+	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/store"
 )
 
@@ -37,26 +36,40 @@ func newSetup(t *testing.T) (*Setup, fakeSecrets, *int) {
 	restarts := 0
 	secrets := fakeSecrets{}
 	s := &Setup{
-		Lab: lab, LabPath: filepath.Join(dir, "lab.yaml"), Store: st, Secrets: secrets, HTTP: http.DefaultClient,
+		Lab: lab, LabPath: filepath.Join(dir, "lab.yaml"), Store: st, Secrets: secrets,
 		Restart: func() { restarts++ },
+		// Stand-in for the provider: only the value "good" works.
+		CheckDNS: func(_ context.Context, p *dns.Provider, v map[string]string, domain string) (string, error) {
+			for _, f := range p.Fields {
+				if !f.Optional && v[f.Key] != "good" {
+					return "", errors.New("403 Forbidden: invalid credentials")
+				}
+			}
+			return "example.com", nil
+		},
 	}
 	return s, secrets, &restarts
 }
 
 func TestDomainStep(t *testing.T) {
-	fakeCloudflare(t)
 	s, secrets, restarts := newSetup(t)
 	ctx := context.Background()
 
 	if p, _ := s.Progress(ctx); p.Next() != "/setup/domain" {
 		t.Fatalf("a new lab starts at the domain step, got %q", p.Next())
 	}
-	for _, tc := range []struct{ domain, email, token, want string }{
-		{"not a domain", "me@example.com", "good", "domain like"},
-		{"home.example.com", "nope", "good", "email address"},
-		{"home.example.com", "me@example.com", "bad", "didn't accept"},
+	for _, tc := range []struct {
+		domain, email, provider string
+		values                  map[string]string
+		want                    string
+	}{
+		{"not a domain", "me@example.com", "cloudflare", map[string]string{"api_token": "good"}, "domain like"},
+		{"home.example.com", "nope", "cloudflare", map[string]string{"api_token": "good"}, "email address"},
+		{"home.example.com", "me@example.com", "", nil, "Choose who manages"},
+		{"home.example.com", "me@example.com", "route53", map[string]string{"access_key_id": "good"}, "Enter the secret access key"},
+		{"home.example.com", "me@example.com", "cloudflare", map[string]string{"api_token": "bad"}, "Cloudflare said: 403 Forbidden"},
 	} {
-		err := s.SaveDomain(ctx, tc.domain, tc.email, tc.token)
+		err := s.SaveDomain(ctx, tc.domain, tc.email, tc.provider, tc.values)
 		var ce *CheckError
 		if !errors.As(err, &ce) || !strings.Contains(ce.Msg, tc.want) {
 			t.Errorf("%+v: err %v", tc, err)
@@ -66,18 +79,22 @@ func TestDomainStep(t *testing.T) {
 		t.Fatal("nothing may be saved or restarted after a failed check")
 	}
 
-	if err := s.SaveDomain(ctx, " Home.Example.com ", "me@example.com", "good"); err != nil {
+	// Route 53 with the optional region left empty.
+	err := s.SaveDomain(ctx, " Home.Example.com ", "me@example.com", "route53",
+		map[string]string{"access_key_id": "good", "secret_access_key": " good ", "region": ""})
+	if err != nil {
 		t.Fatal(err)
 	}
 	lab, err := config.Load(s.LabPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if lab.Domain != "home.example.com" || lab.Email != "me@example.com" || lab.DNS.Provider != "cloudflare" {
+	if lab.Domain != "home.example.com" || lab.DNS.Provider != "route53" ||
+		strings.Join(lab.DNS.Fields, ",") != "access_key_id,secret_access_key" {
 		t.Errorf("saved lab: %+v", lab)
 	}
-	if string(secrets[generate.CaddyDNSSecret]) != "good" || *restarts != 1 {
-		t.Errorf("secret %q, restarts %d", secrets[generate.CaddyDNSSecret], *restarts)
+	if string(secrets[dns.SecretName("secret_access_key")]) != "good" || len(secrets) != 2 || *restarts != 1 {
+		t.Errorf("secrets %v, restarts %d", secrets, *restarts)
 	}
 	if p, _ := s.Progress(ctx); p.Next() != "/setup/backup" {
 		t.Errorf("next = %q, want the backup step", p.Next())

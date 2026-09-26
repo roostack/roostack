@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/instance"
 	"github.com/mylab/mylab/internal/pkgspec"
@@ -72,7 +73,7 @@ func newEnv(t *testing.T) *env {
 	e.r = &Reconciler{
 		Paths: lab.Paths, Systemd: e.systemd, Secrets: e.secrets,
 		UserSecret: func(name string) ([]byte, bool) {
-			return []byte("dns-token"), name == generate.CaddyDNSSecret
+			return []byte("dns-token"), name == dns.SecretName("api_token")
 		},
 	}
 	return e
@@ -121,7 +122,7 @@ func TestInstallUpdateRemove(t *testing.T) {
 	if !plan.DaemonReload || !plan.ReloadCaddy || len(plan.RestartUnits) != 0 {
 		t.Errorf("first apply plan unexpected:\n%s", plan)
 	}
-	if got := string(e.secrets.values[generate.CaddyDNSSecret]); got != "dns-token" {
+	if got := string(e.secrets.values[dns.SecretName("api_token")]); got != "dns-token" {
 		t.Errorf("DNS secret = %q, want the user-provided value", got)
 	}
 	if v := e.secrets.values["mylab-vaultwarden-admin_token"]; len(v) < 32 {
@@ -206,7 +207,7 @@ func TestMissingUserSecret(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.r.Apply(ctx, plan); err == nil || !strings.Contains(err.Error(), generate.CaddyDNSSecret) {
+	if err := e.r.Apply(ctx, plan); err == nil || !strings.Contains(err.Error(), dns.SecretName("api_token")) {
 		t.Errorf("error = %v, want missing DNS secret", err)
 	}
 }

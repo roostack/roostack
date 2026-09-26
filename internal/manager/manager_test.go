@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
+	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/instance"
 	"github.com/mylab/mylab/internal/reconcile"
 	"github.com/mylab/mylab/internal/state"
@@ -78,7 +78,7 @@ func newManager(t *testing.T) (*Manager, *fakeSecrets) {
 		os.WriteFile(lab.Paths.PackageFile(name), data, 0o644)
 	}
 	os.MkdirAll(lab.Paths.InstancesDir(), 0o755)
-	secrets := &fakeSecrets{values: map[string][]byte{generate.CaddyDNSSecret: []byte("existing")}}
+	secrets := &fakeSecrets{values: map[string][]byte{dns.SecretName("api_token"): []byte("existing")}}
 	m := &Manager{
 		Lab:        lab,
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: &fakeSystemd{}, Secrets: secrets},
@@ -182,12 +182,12 @@ func TestBadNames(t *testing.T) {
 
 func TestApplyErrorIsReported(t *testing.T) {
 	m, secrets := newManager(t)
-	delete(secrets.values, generate.CaddyDNSSecret) // the DNS token was never entered
+	delete(secrets.values, dns.SecretName("api_token")) // the DNS token was never entered
 	if err := m.Install(context.Background(), "vaultwarden", InstallRequest{}); err != nil {
 		t.Fatal(err)
 	}
 	m.Wait()
-	if st := m.Status(); st.LastErr == nil || !strings.Contains(st.LastErr.Error(), generate.CaddyDNSSecret) {
+	if st := m.Status(); st.LastErr == nil || !strings.Contains(st.LastErr.Error(), dns.SecretName("api_token")) {
 		t.Errorf("status: %+v, want the missing DNS secret reported", st)
 	}
 }

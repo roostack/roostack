@@ -50,6 +50,8 @@ The reconciler only touches files it owns (`mylab-*` Quadlets and `*.caddy` snip
 | `internal/generate` | Desired state → Quadlets, Caddy config, secrets, dirs, backup plan |
 | `internal/quadlet` | Writing Quadlet/systemd unit files, with escaping |
 | `internal/caddy` | Writing the main Caddyfile and per-service snippets |
+| `internal/dns` | Supported DNS providers: credential fields, Caddy directive, and the create-and-delete-a-TXT-record check |
+| `internal/setup` | First-run setup wizard logic: domain and DNS credentials, backup destination, recovery key |
 | `internal/reconcile` | Plan and apply changes to the host |
 | `internal/state` | Load desired state from disk |
 | `internal/systemd` | `systemctl --user` wrapper |
