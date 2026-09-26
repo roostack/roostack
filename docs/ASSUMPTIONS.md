@@ -85,6 +85,7 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | L12 | Restoring with `--target /` also restores parent directories' metadata; inside `podman unshare` restic then fails to `lchown /srv`. Local tests missed it because restic only changes owners when running as root. Fixed by restoring each directory with `snapshot:dir --target dir`. The failed attempt was safely rolled back, and the rollback path is now verified too. |
 | L13 | Restore drill on the VM: corrupted Vaultwarden's database and deleted a file, then ran `mylab backup restore vaultwarden`. Vaultwarden came back healthy with the file, the database owned by `mylab`, and the broken data kept in `*.before-restore-*`. |
 | L11 | `ProtectHome=yes` also hides `/run/user`, so the sandboxed `mylab` couldn't reach its user manager (the dashboard showed every service as "unknown"). Fixed with `ProtectHome=tmpfs` + `BindPaths=/run/user/<uid>`. The earlier NoNewPrivileges test ran without the full sandbox; test with the real unit's options. |
+| L14 | **Real record management test (Cloudflare):** enabling management from Settings created `*.labtest.example.com → 10.0.2.15`; public resolvers returned it. The home network's router answered with a *different* address (a local override on the user's network), which the check would have misreported as rebinding protection. It now has its own state, "overridden". |
 | L6 | Bridge-network ports go through Podman's `rootlessport` userspace proxy, which is why client IPs are lost (C4). |
 
 ## I. Databases

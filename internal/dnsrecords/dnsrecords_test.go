@@ -246,3 +246,11 @@ func TestSetManagingWithoutSaverIsAnError(t *testing.T) {
 		t.Error("expected an error, not a crash")
 	}
 }
+
+func TestHomeDNSOverridesDomain(t *testing.T) {
+	m, _ := newManager(t, managed, []string{"192.168.86.48"}, []string{"192.168.1.20"})
+	st := m.Sync(context.Background())
+	if st.State != StateOverridden || !strings.Contains(st.Message, "192.168.86.48 instead of this machine (192.168.1.20)") {
+		t.Errorf("status %+v", st)
+	}
+}

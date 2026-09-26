@@ -29,6 +29,7 @@ const (
 	StateOK          = "ok"          // record in place and reachable from home
 	StatePending     = "pending"     // not visible yet (DNS propagation)
 	StateBlocked     = "blocked"     // the router drops the answer
+	StateOverridden  = "overridden"  // home DNS answers with a different address
 	StateConflict    = "conflict"    // a record MyLab didn't create is in the way
 	StateError       = "error"       // the provider API failed
 	StateManual      = "manual"      // MyLab doesn't manage records; add it by hand
@@ -46,6 +47,8 @@ type Status struct {
 	Current string
 	// Reachable: the home network's resolver returns this machine's address.
 	Reachable bool
+	// Syncing: a sync (update and check) is running now.
+	Syncing bool
 	// Provider details for the dashboard's controls.
 	Provider     string // title, e.g. "Cloudflare"
 	CanManage    bool   // the provider supports record management
@@ -79,8 +82,9 @@ type Manager struct {
 	mu     sync.Mutex
 	status Status
 	// syncMu makes sure only one sync runs at a time.
-	syncMu sync.Mutex
-	wake   chan struct{}
+	syncMu  sync.Mutex
+	syncing bool
+	wake    chan struct{}
 }
 
 // ErrNeedsRisk means the provider needs the explicit risk opt-in.
@@ -110,6 +114,7 @@ func (m *Manager) SetManaging(on, acceptRisk bool) error {
 	}
 	m.mu.Lock()
 	m.Lab.DNS.ManageRecords, m.Lab.DNS.AllowRiskyRecords = on, risk
+	m.syncing = true // shown straight away; the sync clears it
 	m.mu.Unlock()
 	m.Refresh()
 	return nil
@@ -148,7 +153,9 @@ func (m *Manager) Refresh() {
 func (m *Manager) Status() Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.status
+	st := m.status
+	st.Syncing = m.syncing
+	return st
 }
 
 func (m *Manager) set(st Status) Status {
@@ -187,7 +194,13 @@ func (m *Manager) Sync(ctx context.Context) Status {
 	defer m.syncMu.Unlock()
 	m.mu.Lock()
 	lab := m.Lab
+	m.syncing = true
 	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		m.syncing = false
+		m.mu.Unlock()
+	}()
 	record := "*." + lab.Domain
 	ip := lab.DNS.LANIP
 	if ip == "" {
@@ -322,6 +335,14 @@ func (m *Manager) check(ctx context.Context, st Status) Status {
 		st.Message = "Devices on your home network can reach your services."
 	case st.State == StateManual:
 		st.Message = fmt.Sprintf("Add this record at your DNS provider: %s  A  %s", st.Record, st.IP)
+	case len(local) > 0:
+		// Home DNS has its own answer for the domain: a local DNS server,
+		// a DNS rewrite, or a router setting overrides public DNS.
+		st.State = StateOverridden
+		st.Message = fmt.Sprintf("Your home network's DNS answers %s with %s instead of this machine (%s). "+
+			"Something on your network overrides this domain, such as a local DNS server (Pi-hole, AdGuard) "+
+			"or a router setting. Point %s at %s there, or remove the override.",
+			st.Record, strings.Join(local, ", "), st.IP, st.Record, st.IP)
 	case public:
 		st.State = StateBlocked
 		st.Message = "The record exists, but your home network's DNS won't return it. This is usually " +

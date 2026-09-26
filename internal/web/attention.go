@@ -83,7 +83,7 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 	if owner && s.DNS != nil {
 		st := s.DNS.Status()
 		switch st.State {
-		case dnsrecords.StateBlocked, dnsrecords.StateConflict, dnsrecords.StateError:
+		case dnsrecords.StateBlocked, dnsrecords.StateOverridden, dnsrecords.StateConflict, dnsrecords.StateError:
 			add(levelProblem, st.Message, "/settings#dns", "Home network settings")
 		case dnsrecords.StatePending:
 			add(levelInfo, st.Message, "/settings#dns", "View")
