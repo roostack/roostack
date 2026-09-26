@@ -235,6 +235,10 @@ Default paths:
 - Nightly; keep 7 daily, 4 weekly and 6 monthly.
 - Packages classify data as **critical** (backed up by default: photos, passwords, repos) or **replaceable** (not backed up by default: media libraries, caches).
 - **Destinations:** local disk, remote (S3/B2/SFTP), later MyLab Cloud. **Local-only is allowed, with a persistent warning** recommending off-site.
+- **3-2-1 backups — Locked (requirement), Open (design), 2026-09-26:** MyLab should guide users towards 3-2-1 (3 copies of the data, on 2 different kinds of storage, 1 off-site), not just warn. That means:
+  - **Suggestions in the UI** explaining what's missing and why, e.g. "Your backups are only on this machine" → suggest a USB disk, then an off-site destination.
+  - **Multiple backup destinations**, e.g. a local disk *and* an off-site repository. Likely design: back up to a primary repository, then `restic copy` to the others (efficient, same snapshots everywhere; secondaries initialised with `--copy-chunker-params`). To be designed.
+  - The dashboard shows the status of each destination, so a quietly failing off-site copy is noticed.
 - **Recovery key:** shown at setup; the user must save or print it, with a strong prompt for the person doing the setup to keep a copy. Optional key escrow via MyLab Cloud later.
 - **Large first uploads:** resumable, with progress and an estimated finish time shown in the UI, a configurable bandwidth limit, and possibly a "seed locally, then take off-site" option.
 
