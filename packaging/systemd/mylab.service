@@ -17,7 +17,11 @@ Restart=on-failure
 # Sandboxing (SPEC.md §6.1).
 ProtectSystem=strict
 ReadWritePaths=/var/lib/mylab /srv/mylab /run/user/@MYLAB_UID@
-ProtectHome=yes
+# ProtectHome=yes would also hide /run/user, where the mylab user's systemd
+# manager listens. Hide /home and /root, and bind back only mylab's own
+# runtime directory.
+ProtectHome=tmpfs
+BindPaths=/run/user/@MYLAB_UID@
 PrivateTmp=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes

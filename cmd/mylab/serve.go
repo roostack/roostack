@@ -49,7 +49,7 @@ func serve(args []string) error {
 	}
 	sd := systemd.New()
 	srv, err := web.NewServer(st, func(ctx context.Context) ([]web.ServiceView, error) {
-		return serviceViews(ctx, lab, sd)
+		return serviceViews(ctx, lab, sd, log)
 	}, token, log)
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func setupToken(ctx context.Context, lab config.Lab, st *store.Store, log *slog.
 
 // serviceViews builds the dashboard list from desired state plus live
 // systemd status.
-func serviceViews(ctx context.Context, lab config.Lab, sd *systemd.Manager) ([]web.ServiceView, error) {
+func serviceViews(ctx context.Context, lab config.Lab, sd *systemd.Manager, log *slog.Logger) ([]web.ServiceView, error) {
 	services, err := state.LoadServices(lab)
 	if err != nil {
 		return nil, err
@@ -123,6 +123,7 @@ func serviceViews(ctx context.Context, lab config.Lab, sd *systemd.Manager) ([]w
 		v := web.ServiceView{Name: s.Package.Name, Title: s.Package.Title, Status: "unknown"}
 		out, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
+			log.Error("generating service for status", "service", s.Package.Name, "err", err)
 			v.Status = "failed"
 			views = append(views, v)
 			continue
@@ -130,7 +131,10 @@ func serviceViews(ctx context.Context, lab config.Lab, sd *systemd.Manager) ([]w
 		for _, h := range out.Hosts {
 			v.URLs = append(v.URLs, "https://"+h)
 		}
-		if statuses, err := sd.Status(ctx, out.Units...); err == nil {
+		statuses, err := sd.Status(ctx, out.Units...)
+		if err != nil {
+			log.Error("reading service status", "service", s.Package.Name, "err", err)
+		} else {
 			v.Status = summarize(statuses)
 		}
 		views = append(views, v)
