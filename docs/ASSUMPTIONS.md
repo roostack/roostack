@@ -81,7 +81,9 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | L7 | restic excludes a directory's contents even when a path inside it is listed explicitly. To keep only the Podman secrets out of the mylab home directory, the backup uses a chain of `*` / `!` patterns (`backup.excludeAllBut`). |
 | L8 | `VACUUM INTO` refuses to overwrite an existing file; the database copies go to a temporary file and are renamed. (Fixed.) |
 | L9 | Debian 13 ships restic 0.18.0 (tested on the VM); the wrapper's tests also pass with 0.19.1. |
-| L10 | A local backup repository (e.g. a second disk) must be added to `ReadWritePaths=` of `mylab.service` once backups run from the service rather than the CLI. |
+| L10 | ~~A local backup repository must be added to `ReadWritePaths=`~~: not needed. restic runs via `systemd-run --user`, outside mylab's sandbox. Verified: a backup inside the full sandbox wrote to `/srv/backup-test`. |
+| L12 | Restoring with `--target /` also restores parent directories' metadata; inside `podman unshare` restic then fails to `lchown /srv`. Local tests missed it because restic only changes owners when running as root. Fixed by restoring each directory with `snapshot:dir --target dir`. The failed attempt was safely rolled back, and the rollback path is now verified too. |
+| L13 | Restore drill on the VM: corrupted Vaultwarden's database and deleted a file, then ran `mylab backup restore vaultwarden`. Vaultwarden came back healthy with the file, the database owned by `mylab`, and the broken data kept in `*.before-restore-*`. |
 | L11 | `ProtectHome=yes` also hides `/run/user`, so the sandboxed `mylab` couldn't reach its user manager (the dashboard showed every service as "unknown"). Fixed with `ProtectHome=tmpfs` + `BindPaths=/run/user/<uid>`. The earlier NoNewPrivileges test ran without the full sandbox; test with the real unit's options. |
 | L6 | Bridge-network ports go through Podman's `rootlessport` userspace proxy, which is why client IPs are lost (C4). |
 

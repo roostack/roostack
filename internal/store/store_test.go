@@ -142,3 +142,18 @@ func TestReopenKeepsSchema(t *testing.T) {
 		t.Errorf("users = %d, want 1", n)
 	}
 }
+
+func TestBackupRuns(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	if last, ok, err := s.LastBackup(ctx); last != nil || ok != nil || err != nil {
+		t.Fatalf("empty: %v %v %v", last, ok, err)
+	}
+	now := time.Now()
+	s.RecordBackup(ctx, BackupRun{Started: now, Finished: now, OK: true, SnapshotID: "aaa", FilesNew: 3})
+	s.RecordBackup(ctx, BackupRun{Started: now, Finished: now, OK: false, Error: "disk full"})
+	last, ok, err := s.LastBackup(ctx)
+	if err != nil || last.OK || last.Error != "disk full" || ok.SnapshotID != "aaa" || ok.FilesNew != 3 {
+		t.Errorf("last=%+v ok=%+v err=%v", last, ok, err)
+	}
+}

@@ -11,19 +11,24 @@ import (
 	"strings"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/state"
 	"github.com/mylab/mylab/internal/store"
 	"github.com/mylab/mylab/internal/systemd"
 )
 
 const backupUsage = `Usage:
-  mylab backup init        Create the recovery key (first time) and the repository
-  mylab backup run         Back up now
-  mylab backup snapshots   List backups
+  mylab backup init                          Create the recovery key (first time) and the repository
+  mylab backup run                           Back up now
+  mylab backup snapshots                     List backups
+  mylab backup restore <service> [-snapshot ID]
+                                             Restore a service (latest backup by default).
+                                             Current data is moved aside, never deleted.
 
 The repository is set in lab.yaml (backup.repository).
 `
@@ -36,7 +41,13 @@ func backupCmd(args []string) error {
 	fs := flag.NewFlagSet("backup", flag.ExitOnError)
 	labPath := fs.String("lab", config.Default().Paths.LabFile(), "lab config file")
 	direct := fs.Bool("direct", false, "run restic and podman directly instead of via systemd-run --user (development)")
-	fs.Parse(args[1:])
+	snapshot := fs.String("snapshot", "", "backup to restore (ID from 'mylab backup snapshots'; default latest)")
+	rest := args[1:]
+	var target string
+	if args[0] == "restore" && len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
+		target, rest = rest[0], rest[1:]
+	}
+	fs.Parse(rest)
 
 	lab, err := config.Load(*labPath)
 	if err != nil {
@@ -52,13 +63,9 @@ func backupCmd(args []string) error {
 	if *direct {
 		launch = backup.DirectLaunch
 	}
-	restic, err := exec.LookPath("restic")
+	repo, err := newRepo(lab, launch)
 	if err != nil {
-		return errors.New("backup: restic is not installed")
-	}
-	repo := &backup.Repo{
-		Bin: restic, URL: lab.Backup.Repository, PasswordFile: backup.KeyFile(lab.Paths),
-		Env: lab.Backup.Env, LimitUploadKiB: lab.Backup.LimitUploadKiB, Launch: unshared(launch),
+		return err
 	}
 
 	switch args[0] {
@@ -75,6 +82,11 @@ func backupCmd(args []string) error {
 		return nil
 	case "run":
 		return backupRun(ctx, lab, repo, launch)
+	case "restore":
+		if target == "" {
+			return errors.New("backup: restore needs a service name")
+		}
+		return backupRestore(ctx, lab, repo, launch, target, *snapshot)
 	}
 	fmt.Print(backupUsage)
 	return fmt.Errorf("backup: unknown command %q", args[0])
@@ -107,18 +119,47 @@ func backupInit(ctx context.Context, lab config.Lab, repo *backup.Repo) error {
 }
 
 func backupRun(ctx context.Context, lab config.Lab, repo *backup.Repo, launch backupLaunch) error {
-	mylabBin, err := os.Executable()
-	if err != nil {
-		return err
-	}
 	st, err := store.Open(dbPath(lab))
 	if err != nil {
 		return err
 	}
 	defer st.Close()
-	host, _ := os.Hostname()
+	deps, err := newBackupDeps(lab, st, repo, launch)
+	if err != nil {
+		return err
+	}
+	sum, err := backup.Run(ctx, *deps, &printReporter{})
+	fmt.Println()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Backup %s done: %d new files, %d bytes added, took %s.\n",
+		sum.SnapshotID[:8], sum.FilesNew, sum.DataAdded, sum.Duration.Round(1e9))
+	return nil
+}
 
-	sum, err := backup.Run(ctx, backup.JobDeps{
+// newRepo returns the configured restic repository, run inside podman
+// unshare so it can read and restore files of container users.
+func newRepo(lab config.Lab, launch backupLaunch) (*backup.Repo, error) {
+	restic, err := exec.LookPath("restic")
+	if err != nil {
+		return nil, errors.New("backup: restic is not installed")
+	}
+	return &backup.Repo{
+		Bin: restic, URL: lab.Backup.Repository, PasswordFile: backup.KeyFile(lab.Paths),
+		Env: lab.Backup.Env, LimitUploadKiB: lab.Backup.LimitUploadKiB, Launch: unshared(launch),
+	}, nil
+}
+
+// newBackupDeps wires a backup job to this lab. Used by the CLI and by
+// mylab serve's nightly backups.
+func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch backupLaunch) (*backup.JobDeps, error) {
+	mylabBin, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	host, _ := os.Hostname()
+	return &backup.JobDeps{
 		Repo:      repo,
 		Preparer:  &backup.Preparer{Launch: launch, MylabBin: mylabBin},
 		DumpState: st.Backup,
@@ -135,13 +176,44 @@ func backupRun(ctx context.Context, lab config.Lab, repo *backup.Repo, launch ba
 			}
 			return backup.LabPlan(lab.Paths, d.Services), nil
 		},
-	}, &printReporter{})
-	fmt.Println()
+	}, nil
+}
+
+func backupRestore(ctx context.Context, lab config.Lab, repo *backup.Repo, launch backupLaunch, name, snapshot string) error {
+	services, err := state.LoadServices(lab)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Backup %s done: %d new files, %d bytes added, took %s.\n",
-		sum.SnapshotID[:8], sum.FilesNew, sum.DataAdded, sum.Duration.Round(1e9))
+	var svc *state.Service
+	for i := range services {
+		if services[i].Package.Name == name {
+			svc = &services[i]
+		}
+	}
+	if svc == nil {
+		return fmt.Errorf("restore: %s is not installed", name)
+	}
+	out, err := generate.Service(lab, svc.Package, svc.Instance)
+	if err != nil {
+		return err
+	}
+	mylabBin, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	r := &backup.Restorer{Repo: repo, Units: systemd.New(), Launch: launch, MylabBin: mylabBin, Now: time.Now}
+	fmt.Printf("Restoring %s...\n", svc.Package.Title)
+	res, err := r.RestoreService(ctx, out, snapshot)
+	if res != nil {
+		fmt.Printf("Restored from the backup taken %s (%s).\n", res.Snapshot.Time.Local().Format("2006-01-02 15:04"), res.Snapshot.Short)
+		for dir, aside := range res.MovedAside {
+			fmt.Printf("  previous %s kept in %s\n", dir, aside)
+		}
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Println("Done. Remove the kept copies once you're happy with the restore.")
 	return nil
 }
 
@@ -179,8 +251,13 @@ func (p *printReporter) SetProgress(pct int) {
 
 // backupHelper holds commands run by MyLab itself inside podman unshare.
 func backupHelper(args []string) error {
-	if len(args) == 3 && args[0] == "sqlite-copy" {
-		return backup.SQLiteCopy(context.Background(), args[1], args[2])
+	if len(args) == 3 {
+		switch args[0] {
+		case "sqlite-copy":
+			return backup.SQLiteCopy(context.Background(), args[1], args[2])
+		case "sqlite-restore":
+			return backup.SQLiteRestore(context.Background(), args[1], args[2])
+		}
 	}
-	return errors.New("backup-helper: usage: sqlite-copy <src> <dst>")
+	return errors.New("backup-helper: usage: sqlite-copy|sqlite-restore <src> <dst>")
 }

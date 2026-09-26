@@ -72,3 +72,8 @@ button.danger { background: var(--bad); color: #fff; }
 label.check { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; }
 label.check input { width: auto; margin-top: 4px; }
 label.check small { display: block; font-weight: 400; }
+
+.backup { margin-top: 16px; }
+.backup h2 { margin: 0; }
+.backup form { margin: 0; }
+.backup p { margin: 8px 0; }

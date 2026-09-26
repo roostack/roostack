@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/mylab/mylab/internal/auth"
+	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/store"
@@ -78,6 +79,8 @@ type Server struct {
 	Domain string
 	// HasGPU pre-ticks settings whose default is "auto".
 	HasGPU bool
+	// Backups shows backup status and runs backups. Nil hides the card.
+	Backups BackupService
 
 	pages map[string]*template.Template
 }
@@ -92,6 +95,12 @@ type ServiceManager interface {
 	Status() manager.ApplyStatus
 }
 
+// BackupService is what the UI needs from internal/backup.
+type BackupService interface {
+	Status(ctx context.Context) (backup.Status, error)
+	RunNow() error
+}
+
 type pendingLogin struct {
 	userID   int64
 	expires  time.Time
@@ -103,7 +112,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	s := &Server{Store: st, Services: services, Log: log, setupToken: setupToken,
 		pending: map[string]*pendingLogin{}, pages: map[string]*template.Template{}}
 	for _, page := range []string{"login", "totp", "setup", "dashboard", "twofactor", "catalog", "install", "remove"} {
-		t, err := template.New("layout.html").ParseFS(templateFS, "templates/layout.html", "templates/"+page+".html")
+		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS, "templates/layout.html", "templates/"+page+".html")
 		if err != nil {
 			return nil, err
 		}
@@ -131,6 +140,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /{$}", s.require(auth.ViewDashboard, s.dashboard))
 	mux.Handle("GET /partials/services", s.require(auth.ViewDashboard, s.servicesPartial))
 
+	mux.Handle("POST /backup/run", s.require(auth.ManageServices, s.backupRun))
 	mux.Handle("GET /catalog", s.require(auth.ManageServices, s.catalogPage))
 	mux.Handle("GET /install/{name}", s.require(auth.ManageServices, s.installPage))
 	mux.Handle("POST /install/{name}", s.require(auth.ManageServices, s.installSubmit))
