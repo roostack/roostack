@@ -53,7 +53,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Public exposure option (after firewall + CrowdSec)
   - [x] First-run setup wizard (Owner): domain + Cloudflare token (checked with Cloudflare before saving), backup destination (local folder or S3-compatible), recovery key shown with "I've saved it" confirmation; "later" options with dashboard reminders
   - [ ] Wizard: SFTP destination; changing settings later from a Settings page
-  - [x] **More DNS providers**: Cloudflare, Route 53, Porkbun, Gandi, GoDaddy, Namecheap, Spaceship (`internal/dns` registry; generic TXT-record check; all plugins in the Caddy image)
+  - [x] **More DNS providers**: Cloudflare, Route 53, Porkbun, Gandi, GoDaddy, Namecheap, Spaceship (`internal/dns` registry; TXT-record check over each provider's HTTP API, no SDKs; all plugins in the Caddy image)
   - [ ] Test each DNS provider with a real account (only Cloudflare's error responses and the generated Caddy config are checked so far)
   - [ ] Maybe later: deSEC, DigitalOcean, Hetzner, OVH, DuckDNS
 - [ ] 🟡 **1.10 Backups**
