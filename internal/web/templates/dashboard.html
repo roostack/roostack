@@ -50,6 +50,26 @@
   {{else if .State}}<p class="notice notice-error">{{.Message}}</p>
   {{else}}<p class="hint">Checking…</p>{{end}}
   {{if not .Checked.IsZero}}<p class="hint">Last checked {{when .Checked}}. This machine's home network address: {{.IP}}. Give it a fixed address in your router (a "DHCP reservation") so it doesn't change.</p>{{end}}
+  {{if eq .State "conflict"}}<p><a class="button" href="/dns/take-over">Take over this record…</a></p>{{end}}
+  {{if and .CanManage (not .Managing)}}
+  <form method="post" action="/dns/manage" class="dns-manage">
+    <input type="hidden" name="manage" value="on">
+    {{if .Risky}}
+    <p class="notice notice-error"><strong>{{.Provider}}'s API is risky for this:</strong> to change one record it rewrites
+      every record on your domain. We strongly recommend moving your DNS to another provider, such as Cloudflare (free).</p>
+    <label class="check"><input type="checkbox" name="accept_risk" required>
+      <span>I understand the risk; let MyLab manage {{.Provider}} records anyway</span></label>
+    {{end}}
+    <button type="submit">Let MyLab manage this record</button>
+    <small class="hint">MyLab creates {{.Record}} at {{.Provider}} and keeps it up to date. It never changes records it didn't create unless you ask it to.</small>
+  </form>
+  {{else if .Managing}}
+  <form method="post" action="/dns/manage" class="later">
+    <input type="hidden" name="manage" value="off">
+    <button type="submit" class="link">Stop managing DNS records</button>
+    <small>The record stays in place; MyLab just stops updating it.</small>
+  </form>
+  {{end}}
 </section>
 {{end}}
 {{end}}

@@ -42,6 +42,14 @@ type Status struct {
 	IP      string
 	Message string
 	Checked time.Time
+	// Current is the record's existing value, on a conflict.
+	Current string
+	// Provider details for the dashboard's controls.
+	Provider     string // title, e.g. "Cloudflare"
+	CanManage    bool   // the provider supports record management
+	Risky        bool   // it needs the Namecheap-style opt-in
+	Managing     bool   // record management is switched on
+	AcceptedRisk bool
 }
 
 // Secrets reads Podman secret values (the DNS credentials).
@@ -63,9 +71,72 @@ type Manager struct {
 	LocalLookup, PublicLookup func(ctx context.Context, host string) ([]string, error)
 	// Wait is how long to wait for a new record to become visible.
 	Wait time.Duration
+	// UpdateLab saves a change to lab.yaml (config.Update).
+	UpdateLab func(change func(*config.Lab)) error
 
 	mu     sync.Mutex
 	status Status
+	// syncMu makes sure only one sync runs at a time.
+	syncMu sync.Mutex
+	wake   chan struct{}
+}
+
+// ErrNeedsRisk means the provider needs the explicit risk opt-in.
+var ErrNeedsRisk = errors.New("tick the box confirming you understand the risk")
+
+// SetManaging switches record management on or off from the UI. Turning it
+// off leaves existing records in place. The change is saved and applied
+// straight away.
+func (m *Manager) SetManaging(on, acceptRisk bool) error {
+	m.mu.Lock()
+	p := dns.Get(m.Lab.DNS.Provider)
+	m.mu.Unlock()
+	if p == nil {
+		return errors.New("set up your domain first")
+	}
+	if on && p.RiskyRecords() && !acceptRisk {
+		return ErrNeedsRisk
+	}
+	risk := acceptRisk && p.RiskyRecords()
+	if err := m.UpdateLab(func(l *config.Lab) {
+		l.DNS.ManageRecords, l.DNS.AllowRiskyRecords = on, risk
+	}); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.Lab.DNS.ManageRecords, m.Lab.DNS.AllowRiskyRecords = on, risk
+	m.mu.Unlock()
+	m.Refresh()
+	return nil
+}
+
+// TakeOver lets MyLab manage a record it didn't create (the conflict shown
+// on the dashboard), overwriting its current value on the next sync.
+func (m *Manager) TakeOver(ctx context.Context) error {
+	st := m.Status()
+	if st.State != StateConflict {
+		return errors.New("there is no conflicting record to take over")
+	}
+	if err := m.Store.SetSetting(ctx, ownerKey(st.Record, "A"), "taken over"); err != nil {
+		return err
+	}
+	m.Log.Warn("taking over DNS record", "record", st.Record, "was", st.Current)
+	m.Refresh()
+	return nil
+}
+
+// Refresh asks Run to sync now.
+func (m *Manager) Refresh() {
+	m.mu.Lock()
+	if m.wake == nil {
+		m.wake = make(chan struct{}, 1)
+	}
+	w := m.wake
+	m.mu.Unlock()
+	select {
+	case w <- struct{}{}:
+	default:
+	}
 }
 
 // Status returns the latest result.
@@ -86,14 +157,20 @@ func (m *Manager) set(st Status) Status {
 	return st
 }
 
-// Run syncs now and then every interval (catching a changed LAN IP).
+// Run syncs now, then every interval (catching a changed LAN IP), or
+// sooner when Refresh is called.
 func (m *Manager) Run(ctx context.Context, interval time.Duration) {
+	m.Refresh() // make sure wake exists
+	m.mu.Lock()
+	wake := m.wake
+	m.mu.Unlock()
 	for {
 		m.Sync(ctx)
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(interval):
+		case <-wake:
 		}
 	}
 }
@@ -101,7 +178,11 @@ func (m *Manager) Run(ctx context.Context, interval time.Duration) {
 // Sync makes sure the wildcard record points at the LAN IP, then checks
 // what the home network sees.
 func (m *Manager) Sync(ctx context.Context) Status {
+	m.syncMu.Lock()
+	defer m.syncMu.Unlock()
+	m.mu.Lock()
 	lab := m.Lab
+	m.mu.Unlock()
 	record := "*." + lab.Domain
 	ip := lab.DNS.LANIP
 	if ip == "" {
@@ -110,9 +191,12 @@ func (m *Manager) Sync(ctx context.Context) Status {
 			return m.set(Status{State: StateError, Record: record, Message: "Couldn't find this machine's LAN address: " + err.Error()})
 		}
 	}
-	st := Status{Record: record, IP: ip}
+	st := Status{Record: record, IP: ip, Managing: lab.DNS.ManageRecords, AcceptedRisk: lab.DNS.AllowRiskyRecords}
 
 	p := dns.Get(lab.DNS.Provider)
+	if p != nil {
+		st.Provider, st.CanManage, st.Risky = p.Title, p.CanManageRecords(), p.RiskyRecords()
+	}
 	if p == nil || lab.Domain == "" {
 		st.State, st.Message = StateManual, "Set up your domain first."
 		return m.set(st)
@@ -155,7 +239,7 @@ func (m *Manager) Sync(ctx context.Context) Status {
 	if err := m.ensure(ctx, p, values, zone, name, ip); err != nil {
 		var conflict *conflictError
 		if errors.As(err, &conflict) {
-			st.State, st.Message = StateConflict, conflict.Error()
+			st.State, st.Message, st.Current = StateConflict, conflict.Error(), conflict.current
 		} else {
 			st.State, st.Message = StateError, err.Error()
 		}

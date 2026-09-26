@@ -1,0 +1,24 @@
+{{define "title"}}Take over a DNS record{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <p><a href="/">← Back</a></p>
+  <h1>Take over {{.DNS.Record}}?</h1>
+  <p>This record already exists at {{.DNS.Provider}}, and MyLab didn't create it.</p>
+  <table class="compare">
+    <tr><th>Now</th><td><code>{{.DNS.Record}} → {{.DNS.Current}}</code></td></tr>
+    <tr><th>After</th><td><code>{{.DNS.Record}} → {{.DNS.IP}}</code></td></tr>
+  </table>
+  <div class="notice notice-error">
+    <p><strong>Anything that relies on the current value will stop working</strong>, for example services on another
+      server that use addresses under {{.DNS.Record}}.</p>
+    <p>From now on, MyLab will keep this record pointing at this machine and change it whenever this machine's
+      address changes.</p>
+  </div>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  <form method="post" action="/dns/take-over">
+    <label class="check"><input type="checkbox" name="confirm" required>
+      <span>I understand; replace the current value and let MyLab manage this record</span></label>
+    <button type="submit" class="danger">Take over the record</button>
+  </form>
+</section>
+{{end}}

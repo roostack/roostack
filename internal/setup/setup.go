@@ -147,12 +147,13 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string
 			return err
 		}
 	}
-	lab := s.Lab
-	lab.Domain, lab.Email = domain, email
-	lab.DNS = config.DNS{Provider: p.ID, Fields: set, Zone: zone,
-		ManageRecords: opts.ManageRecords && p.CanManageRecords(), AllowRiskyRecords: opts.AcceptRisk && p.RiskyRecords(),
-		LANIP: s.Lab.DNS.LANIP}
-	if err := lab.Save(s.LabPath); err != nil {
+	err = config.Update(s.LabPath, func(lab *config.Lab) {
+		lab.Domain, lab.Email = domain, email
+		lab.DNS = config.DNS{Provider: p.ID, Fields: set, Zone: zone,
+			ManageRecords: opts.ManageRecords && p.CanManageRecords(), AllowRiskyRecords: opts.AcceptRisk && p.RiskyRecords(),
+			LANIP: lab.DNS.LANIP}
+	})
+	if err != nil {
 		return err
 	}
 	if err := s.Store.SetSetting(ctx, keyDomain, "done"); err != nil {
@@ -238,9 +239,9 @@ func (s *Setup) SaveBackup(ctx context.Context, c BackupChoice) error {
 		return &CheckError{fmt.Sprintf("Couldn't create the backup there: %s", firstLine(err.Error()))}
 	}
 
-	lab := s.Lab
-	lab.Backup = config.Backup{Repository: repoURL, Env: env}
-	if err := lab.Save(s.LabPath); err != nil {
+	if err := config.Update(s.LabPath, func(lab *config.Lab) {
+		lab.Backup = config.Backup{Repository: repoURL, Env: env}
+	}); err != nil {
 		return err
 	}
 	if err := s.Store.SetSetting(ctx, keyBackup, "done"); err != nil {
