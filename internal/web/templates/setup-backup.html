@@ -1,8 +1,12 @@
 {{define "title"}}Backups{{end}}
 {{define "content"}}
 <section class="card narrow">
-  <p class="hint">Setup · step 2 of 2</p>
+  {{if .Wizard}}<p class="hint">Setup · step 2 of 2</p>
   <h1>Where should backups go?</h1>
+  {{else}}<p><a href="{{.Back}}">← Backups</a></p>
+  <h1>{{if .StepDone}}Change where backups go{{else}}Set up backups{{end}}</h1>
+  {{if and .StepDone .Current}}<p>Backups currently go to <code>{{.Current}}</code>. Backups already there stay where they are.</p>{{end}}
+  {{end}}
   <p>MyLab backs everything up every night. Choose somewhere that isn't this machine's main disk if you can.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <form method="post" action="/setup/backup" x-data="{ kind: '{{.Kind}}' }">
@@ -30,12 +34,14 @@
       <label>Secret access key <input name="secret_key" type="password" autocomplete="off"></label>
     </div>
 
-    <p class="hint">Backups are encrypted. The next page shows the recovery key needed to read them.</p>
-    <button type="submit">Set up backups</button>
+    <p class="hint">Backups are encrypted. The next page shows the recovery key needed to read them{{if .StepDone}} (it stays the same){{end}}.</p>
+    <button type="submit">{{if .StepDone}}Save{{else}}Set up backups{{end}}</button>
   </form>
+  {{if .Wizard}}
   <form method="post" action="/setup/backup/later" class="later">
     <button type="submit" class="link">Set this up later</button>
     <small>Until backups are set up, a failed disk means losing everything.</small>
   </form>
+  {{end}}
 </section>
 {{end}}
