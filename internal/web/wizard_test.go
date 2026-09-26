@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -10,7 +11,9 @@ import (
 	"time"
 
 	"github.com/mylab/mylab/internal/auth"
+	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dnsrecords"
+	"github.com/mylab/mylab/internal/osupdate"
 	"github.com/mylab/mylab/internal/setup"
 )
 
@@ -19,6 +22,7 @@ type fakeSetup struct {
 	zone       string
 	restarted  bool
 	ssh        string
+	policy     string
 	clients    []netip.Addr
 	domainErr  error
 	backupErr  error
@@ -41,6 +45,13 @@ func (f *fakeSetup) SaveSSH(_ context.Context, choice string, confirmed bool) er
 		return &setup.CheckError{Msg: "That would disconnect the SSH connection."}
 	}
 	f.ssh, f.p.SSHDone, f.restarted = choice, true, true
+	return nil
+}
+func (f *fakeSetup) SaveRestartPolicy(_ context.Context, mode string, hour int) error {
+	if hour < 0 || hour > 23 {
+		return &setup.CheckError{Msg: "Choose an hour between 0 and 23."}
+	}
+	f.policy, f.restarted = fmt.Sprintf("%s %d", mode, hour), true
 	return nil
 }
 func (f *fakeSetup) SaveTimezone(_ context.Context, name string) (bool, error) {
@@ -347,5 +358,75 @@ func TestTimezoneBanner(t *testing.T) {
 	// Changing it from Settings restarts MyLab.
 	if code, _ := h.post("/setup/timezone", url.Values{"timezone": {"Australia/Melbourne"}}, h.srv.URL); code >= 400 || !fs.restarted {
 		t.Errorf("change zone: %d restarted=%v", code, fs.restarted)
+	}
+}
+
+type fakeUpdates struct {
+	last      *osupdate.Result
+	restart   osupdate.RestartStatus
+	submitted int
+	restarted bool
+	busy      bool
+}
+
+func (f *fakeUpdates) Last(context.Context) (*osupdate.Result, error) { return f.last, nil }
+func (f *fakeUpdates) Pending() bool                                  { return f.submitted > 0 }
+func (f *fakeUpdates) Submit() error                                  { f.submitted++; return nil }
+func (f *fakeUpdates) RestartStatus() osupdate.RestartStatus          { return f.restart }
+func (f *fakeUpdates) RestartNow(context.Context) error {
+	if f.busy {
+		return osupdate.ErrBusy{Job: "backup"}
+	}
+	f.restarted = true
+	return nil
+}
+
+func TestUpdatesCard(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
+	h.server.Setup = fs
+	fu := &fakeUpdates{
+		last:    &osupdate.Result{At: time.Now(), OK: false, Summary: "Updating didn't finish: exit status 100", Output: "E: Could not get lock"},
+		restart: osupdate.RestartStatus{Needed: true, Packages: []string{"linux-image-amd64"}, Waiting: "reboot pending: waiting for the maintenance window"},
+	}
+	h.server.Updates = fu
+
+	_, body := h.get("/settings")
+	for _, want := range []string{`id="updates"`, "Could not get lock", "linux-image-amd64", "Restart now", `<option value="4" selected>04:00</option>`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("settings missing %q", want)
+		}
+	}
+	_, home := h.get("/")
+	if !strings.Contains(home, "OS updates didn&#39;t finish") || !strings.Contains(home, "will restart around 04:00") {
+		t.Error("home: want the failed update and the planned restart")
+	}
+	h.server.Maintenance.Restart = config.RestartNotify
+	if _, home := h.get("/"); !strings.Contains(home, "needs a restart to finish installing updates") {
+		t.Error("home: notify-only should ask the Owner to restart")
+	}
+
+	h.post("/settings/updates/run", nil, h.srv.URL)
+	if fu.submitted != 1 {
+		t.Error("update now not submitted")
+	}
+	fu.busy = true
+	if code, body := h.post("/settings/restart", nil, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "wait until backup has finished") {
+		t.Errorf("restart during a backup: %d", code)
+	}
+	fu.busy = false
+	if _, body := h.post("/settings/restart", nil, h.srv.URL); !fu.restarted || !strings.Contains(body, "Restarting this machine") {
+		t.Error("restart now")
+	}
+	h.post("/settings/restart-policy", url.Values{"restart": {"notify"}, "hour": {"3"}}, h.srv.URL)
+	if fs.policy != "notify 3" {
+		t.Errorf("policy = %q", fs.policy)
+	}
+
+	// Admins don't see host updates.
+	ha, _ := loggedIn(t, auth.RoleAdmin)
+	ha.server.Updates = fu
+	if _, home := ha.get("/"); strings.Contains(home, "OS updates") {
+		t.Error("admins shouldn't see OS update problems")
 	}
 }

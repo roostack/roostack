@@ -20,6 +20,7 @@ import (
 
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/backup"
+	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dnsrecords"
 	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/manager"
@@ -93,6 +94,10 @@ type Server struct {
 	Setup LabSetup
 	// DNS reports whether home devices can reach services (SPEC.md §6.5.1).
 	DNS DNSStatus
+	// Updates runs OS updates and restarts (Owner). Nil hides the card.
+	Updates HostUpdates
+	// Maintenance is the lab's restart policy, shown in Settings.
+	Maintenance config.Maintenance
 	// bootID changes each time MyLab starts; the "restarting" page waits
 	// for a new one.
 	bootID string
@@ -122,6 +127,7 @@ type LabSetup interface {
 	SaveTimezone(ctx context.Context, name string) (changed bool, err error)
 	SSHAccess() (setup.SSHAccess, error)
 	SaveSSH(ctx context.Context, choice string, confirmed bool) error
+	SaveRestartPolicy(ctx context.Context, mode string, hour int) error
 	SaveDomain(ctx context.Context, domain, email, provider string, values map[string]string, opts setup.DomainOptions) error
 	DomainLater(ctx context.Context) error
 	SaveBackup(ctx context.Context, c setup.BackupChoice) error
@@ -203,6 +209,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /dns/take-over", s.requireOwner(s.dnsTakeOver))
 	mux.Handle("GET /setup/timezone", s.requireWizard(s.timezonePage))
 	mux.Handle("POST /setup/timezone", s.requireWizard(s.timezoneSubmit))
+	mux.Handle("POST /settings/updates/run", s.requireOwner(s.updateNowSubmit))
+	mux.Handle("POST /settings/restart", s.requireOwner(s.restartNowSubmit))
+	mux.Handle("POST /settings/restart-policy", s.requireWizard(s.restartPolicySubmit))
 	mux.Handle("GET /setup/ssh", s.requireWizard(s.sshPage))
 	mux.Handle("POST /setup/ssh", s.requireWizard(s.sshSubmit))
 	mux.Handle("GET /setup/domain", s.requireWizard(s.domainPage))

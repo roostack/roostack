@@ -80,7 +80,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] 🟡 **1.11 Maintenance coordinator + host OS updates**
   - [x] Coordinator: reboot policy, job chains, interrupt/resume (unit-tested)
   - [x] Running in `mylab serve` with a file journal (interrupted backups resume after reboot)
-  - [ ] Agent `reboot` and OS update operations; reboot-required detection
+  - [x] OS updates: apt config, agent runs unattended-upgrade after the nightly backup, results in Settings, restart-needed detection, automatic restart in the window or notify-only, "Check for updates now" / "Restart now". Tested on the VM: downgraded curl/libcurl/tzdata from snapshot.debian.org were upgraded by the agent; a flagged reboot happened in the window through the coordinator and every service came back
+  - [ ] Unknown host changes (extra apt sources, held packages, changed firewall) warning (SPEC §3.2)
   - [x] Host time zone: wizard step 1, Settings card, agent `timedatectl`, banner when the browser's clock differs
   - [ ] Containers still run in UTC (they don't get the host's zone); pass `TZ` to services whose UIs show times
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow (`scripts/dev-install.sh` is a stand-in)

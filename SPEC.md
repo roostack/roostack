@@ -66,6 +66,8 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
 | Unknown host changes | Basic detection (extra apt sources, held packages, a changed firewall) triggers a warning; more thorough checks later |
 
 - `unattended-upgrades`' own automatic-reboot option is **disabled**; only MyLab decides when to reboot.
+- **How it runs (2026-09-27):** MyLab ships `/etc/apt/apt.conf.d/52mylab-unattended-upgrades` (adds stable-updates, no automatic reboot, removes old kernels). Every night after the 02:00 backup, the coordinator runs an "OS updates" job: `mylab-agent` runs `apt-get update && unattended-upgrade` in a transient unit (outside its own sandbox). The job is queued separately from the backup, so a failing backup doesn't hold back security fixes. Debian's own apt timers stay enabled as a fallback. `/run/reboot-required` (written by the kernel's postinst hook) is checked after each run and every 30 minutes; the coordinator then reboots in the window through the agent.
+- The Owner sees the last run, any pending restart and why it waits, and can **check for updates now**, **restart now** (refused while a maintenance job runs), and choose automatic restarts at a chosen hour or notify-only (`lab.yaml`: `maintenance.restart`, `maintenance.restart_hour`).
 - **Rationale for automatic reboots:** otherwise the primary user may run an unpatched kernel indefinitely. A brief overnight interruption is the better trade-off.
 
 #### Maintenance coordinator — Locked

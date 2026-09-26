@@ -28,6 +28,43 @@
     <p class="hint">Everything else is blocked. Extra connections you turn on for a service are opened for your home network.</p>
   </section>
   {{end}}
+  {{with .Updates}}
+  <section class="card section" id="updates">
+    <div class="heading"><h2>Updates &amp; restarts</h2></div>
+    <p class="hint">This machine installs Debian's security and bug-fix updates every night after the backup.</p>
+    {{with .ErrorMsg}}<p class="error" role="alert">{{.}}</p>{{end}}
+    <dl class="facts">
+      <dt>Last update</dt>
+      <dd>{{with .Last}}{{when .At}}: {{.Summary}}{{else}}Not run yet; the first runs tonight.{{end}}</dd>
+    </dl>
+    {{with .Last}}{{if not .OK}}<details><summary>What happened</summary><pre class="output">{{.Output}}</pre></details>{{end}}{{end}}
+    {{if .Restart.Needed}}
+    <div class="notice" role="status">
+      <p><strong>A restart is needed to finish installing updates</strong>{{with .Restart.Packages}} ({{range $i, $p := .}}{{if $i}}, {{end}}{{$p}}{{end}}){{end}}.
+        {{.Restart.Waiting}}.</p>
+      <form method="post" action="/settings/restart" x-data
+        x-on:submit="if (!confirm('Restart this machine now? Your services will be unavailable for a minute or two.')) $event.preventDefault()">
+        <button type="submit">Restart now</button>
+      </form>
+    </div>
+    {{end}}
+    <form method="post" action="/settings/updates/run">
+      <button type="submit" {{if .Pending}}disabled{{end}}>{{if .Pending}}Updating…{{else}}Check for updates now{{end}}</button>
+    </form>
+    <form method="post" action="/settings/restart-policy" class="section">
+      <fieldset>
+        <legend>When updates need a restart</legend>
+        <label class="check"><input type="radio" name="restart" value="auto" {{if eq .Mode "auto"}}checked{{end}}>
+          <span>Restart automatically at
+            <select name="hour" aria-label="Hour">{{range .Hours}}<option value="{{.}}" {{if eq . $.Updates.Hour}}selected{{end}}>{{printf "%02d:00" .}}</option>{{end}}</select>
+            <small>Recommended. Waits for backups to finish. Services are unavailable for a minute or two.</small></span></label>
+        <label class="check"><input type="radio" name="restart" value="notify" {{if eq .Mode "notify"}}checked{{end}}>
+          <span>Only tell me<small>Security fixes for the system's core (the kernel) don't take effect until you restart.</small></span></label>
+      </fieldset>
+      <button type="submit">Save</button>
+    </form>
+  </section>
+  {{end}}
   {{with .HostClock}}
   <section class="card section">
     <div class="heading"><h2>Time zone</h2><a href="/setup/timezone">Change…</a></div>

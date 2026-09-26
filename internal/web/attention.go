@@ -1,9 +1,11 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/mylab/mylab/internal/auth"
+	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dnsrecords"
 )
 
@@ -102,6 +104,21 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		case dnsrecords.StateManual:
 			if !st.Reachable {
 				add(levelWarning, "Devices at home can't find your services yet. "+st.Message, "/settings#dns", "Home network settings")
+			}
+		}
+	}
+
+	if owner && s.Updates != nil {
+		if last, err := s.Updates.Last(r.Context()); err == nil && last != nil && !last.OK {
+			add(levelProblem, "OS updates didn't finish last time. The machine may be missing security fixes.",
+				"/settings#updates", "See what happened")
+		}
+		if rs := s.Updates.RestartStatus(); rs.Needed {
+			if s.Maintenance.Restart == config.RestartNotify {
+				add(levelWarning, "This machine needs a restart to finish installing updates.", "/settings#updates", "Restart")
+			} else {
+				add(levelInfo, fmt.Sprintf("This machine will restart around %02d:00 to finish installing updates.",
+					s.Maintenance.Hour()), "/settings#updates", "Details")
 			}
 		}
 	}

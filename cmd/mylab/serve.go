@@ -24,6 +24,7 @@ import (
 	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/maintenance"
 	"github.com/mylab/mylab/internal/manager"
+	"github.com/mylab/mylab/internal/osupdate"
 	"github.com/mylab/mylab/internal/podman"
 	"github.com/mylab/mylab/internal/reconcile"
 	"github.com/mylab/mylab/internal/setup"
@@ -83,11 +84,11 @@ func serve(args []string) error {
 	// Converge on startup, e.g. after MyLab itself was upgraded.
 	mgr.Apply()
 
-	backups, err := startMaintenance(ctx, lab, st, log)
+	backups, updates, err := startMaintenance(ctx, lab, st, log, agentClient)
 	if err != nil {
 		return err
 	}
-	srv.Backups = backups
+	srv.Backups, srv.Updates, srv.Maintenance = backups, updates, lab.Maintenance
 
 	wizard := &setup.Setup{
 		Lab: lab, LabPath: *labPath, Store: st, Secrets: podman.NewSecrets(),
@@ -239,17 +240,22 @@ func summarize(units []systemd.UnitStatus) string {
 
 // startMaintenance runs the maintenance coordinator with the nightly backup
 // and weekly repository maintenance (SPEC.md §3.2, §6.9).
-func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger) (*backup.Service, error) {
+func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger, ag *agent.Client) (*backup.Service, *osupdate.Service, error) {
 	ticker := time.NewTicker(time.Minute)
+	policy := maintenance.DefaultPolicy()
+	policy.WindowStart = time.Duration(lab.Maintenance.Hour()) * time.Hour
+	if lab.Maintenance.Restart == config.RestartNotify {
+		policy.Mode = maintenance.RebootNotify
+	}
 	coord := &maintenance.Coordinator{
-		Policy:  maintenance.DefaultPolicy(),
+		Policy:  policy,
 		Now:     time.Now,
 		Journal: maintenance.FileJournal{Path: filepath.Join(lab.Paths.StateDir, "maintenance-journal.json")},
 		Ticks:   ticker.C,
 		Log:     log,
-		// Nothing requests reboots yet: host OS updates come later (TASKS 1.11).
-		Reboot: func() error { return errors.New("rebooting is not implemented yet") },
+		Reboot:  func() error { return ag.Reboot(context.Background()) },
 	}
+	updates := &osupdate.Service{Agent: ag, Store: st, Coord: coord, Now: time.Now, Log: log}
 	svc := &backup.Service{
 		Coord:      coord,
 		Store:      st,
@@ -262,10 +268,10 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 		} else {
 			repo, err := newRepo(lab, userLaunch)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if svc.Deps, err = newBackupDeps(lab, st, repo, userLaunch); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 		}
 	}
@@ -279,19 +285,41 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 		coord.Run(ctx)
 		ticker.Stop()
 	}()
-	if svc.Configured() {
-		go maintenance.Every(ctx,
-			func(now time.Time) time.Time { return maintenance.NextDaily(now, maintenance.DefaultBackupAt) },
-			func() {
+	// Nightly: backup, then OS updates (SPEC.md §3.2). Updates are queued
+	// separately, so a failing backup doesn't hold back security fixes.
+	go maintenance.Every(ctx,
+		func(now time.Time) time.Time { return maintenance.NextDaily(now, maintenance.DefaultBackupAt) },
+		func() {
+			if svc.Configured() {
 				if err := svc.Submit(); err != nil {
 					log.Warn("nightly backup not started", "err", err)
 				}
-			})
+			}
+			if err := updates.Submit(); err != nil {
+				log.Warn("nightly OS updates not started", "err", err)
+			}
+		})
+	// Debian's own apt timers may also install an update that needs a
+	// restart; notice it.
+	updates.CheckReboot()
+	go func() {
+		t := time.NewTicker(30 * time.Minute)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				updates.CheckReboot()
+			}
+		}
+	}()
+	if svc.Configured() {
 		go maintenance.Every(ctx,
 			func(now time.Time) time.Time {
 				return maintenance.NextWeekly(now, maintenance.DefaultMaintenanceOn, maintenance.DefaultMaintenanceAt)
 			},
 			func() { coord.Submit(svc.MaintenanceJob()) })
 	}
-	return svc, nil
+	return svc, updates, nil
 }

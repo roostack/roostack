@@ -1,8 +1,13 @@
-{{define "title"}}Applying settings{{end}}
+{{define "title"}}{{if .Host}}Restarting{{else}}Applying settings{{end}}{{end}}
 {{define "content"}}
 <section class="card narrow">
+  {{if .Host}}
+  <h1>Restarting this machine…</h1>
+  <p>This usually takes a minute or two. This page continues by itself once MyLab is back.</p>
+  {{else}}
   <h1>Applying your settings…</h1>
   <p>MyLab is restarting to use the new settings. This page continues by itself in a few seconds.</p>
+  {{end}}
   <div hx-get="/healthz?since={{.BootID}}" hx-trigger="every 2s" hx-swap="none"></div>
 </section>
 {{end}}
