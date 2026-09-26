@@ -51,7 +51,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] 2FA: QR code, recovery codes, CLI reset of a user's 2FA
   - [x] Install/remove services from the UI (catalog, settings form, remove keeps data, background apply with status)
   - [ ] Public exposure option (after firewall + CrowdSec)
-  - [ ] Collect user-provided secrets (DNS token) in the UI instead of env vars
+  - [x] First-run setup wizard (Owner): domain + Cloudflare token (checked with Cloudflare before saving), backup destination (local folder or S3-compatible), recovery key shown with "I've saved it" confirmation; "later" options with dashboard reminders
+  - [ ] Wizard: SFTP destination; other DNS providers; changing settings later from a Settings page
 - [ ] 🟡 **1.10 Backups**
   - [x] restic wrapper (tested against real restic), recovery key, `mylab backup init|run|snapshots`
   - [x] Prepare steps: SQLite copy (concurrent-write tested), Postgres dump (command tested; no Postgres service run yet)

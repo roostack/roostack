@@ -77,3 +77,12 @@ label.check small { display: block; font-weight: 400; }
 .backup h2 { margin: 0; }
 .backup form { margin: 0; }
 .backup p { margin: 8px 0; }
+
+fieldset { border: 0; padding: 0; margin: 0 0 12px; }
+form.later { margin-top: 16px; display: flex; flex-direction: column; gap: 4px; }
+button.secondary { background: var(--bg); color: var(--fg); border: 1px solid var(--border); }
+.recovery { font-size: 1.2rem; text-align: center; }
+@media print {
+  .topbar, button, form, .hint { display: none !important; }
+  .recovery { border: 2px solid #000; }
+}

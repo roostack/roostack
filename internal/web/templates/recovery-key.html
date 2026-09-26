@@ -1,0 +1,18 @@
+{{define "title"}}Your recovery key{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <h1>Save your recovery key</h1>
+  <p>Your backups are encrypted with this key. <strong>If this machine is lost or breaks, you need it to get your data back.</strong>
+    Nobody else can recover it for you, and MyLab can't reset it.</p>
+  <code class="secret recovery">{{.Key}}</code>
+  <p>Print it, or write it down, and keep it somewhere safe away from this machine. A password manager works too.
+    If someone else set up this lab for you, give them a copy as well.</p>
+  <p x-data><button type="button" class="secondary" x-on:click="window.print()">Print</button></p>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  <form method="post" action="/setup/recovery-key">
+    <label class="check"><input type="checkbox" name="saved" required>
+      <span>I've saved my recovery key somewhere safe</span></label>
+    <button type="submit">Continue</button>
+  </form>
+</section>
+{{end}}

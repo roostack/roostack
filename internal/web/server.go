@@ -21,6 +21,7 @@ import (
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/pkgspec"
+	"github.com/mylab/mylab/internal/setup"
 	"github.com/mylab/mylab/internal/store"
 )
 
@@ -81,6 +82,11 @@ type Server struct {
 	HasGPU bool
 	// Backups shows backup status and runs backups. Nil hides the card.
 	Backups BackupService
+	// Setup is the first-run setup wizard. Nil disables it.
+	Setup LabSetup
+	// bootID changes each time MyLab starts; the "restarting" page waits
+	// for a new one.
+	bootID string
 
 	pages map[string]*template.Template
 }
@@ -93,6 +99,17 @@ type ServiceManager interface {
 	Remove(ctx context.Context, name string) error
 	DataDirs(name string) []string
 	Status() manager.ApplyStatus
+}
+
+// LabSetup is what the UI needs from internal/setup.
+type LabSetup interface {
+	Progress(ctx context.Context) (setup.Progress, error)
+	SaveDomain(ctx context.Context, domain, email, token string) error
+	DomainLater(ctx context.Context) error
+	SaveBackup(ctx context.Context, c setup.BackupChoice) error
+	BackupLater(ctx context.Context) error
+	RecoveryKey() (string, error)
+	ConfirmRecoveryKey(ctx context.Context) error
 }
 
 // BackupService is what the UI needs from internal/backup.
@@ -111,7 +128,12 @@ type pendingLogin struct {
 func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, error), setupToken string, log *slog.Logger) (*Server, error) {
 	s := &Server{Store: st, Services: services, Log: log, setupToken: setupToken,
 		pending: map[string]*pendingLogin{}, pages: map[string]*template.Template{}}
-	for _, page := range []string{"login", "totp", "setup", "dashboard", "twofactor", "catalog", "install", "remove"} {
+	var err error
+	if s.bootID, err = auth.NewToken(); err != nil {
+		return nil, err
+	}
+	for _, page := range []string{"login", "totp", "setup", "dashboard", "twofactor", "catalog", "install", "remove",
+		"setup-domain", "setup-backup", "recovery-key", "restarting"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS, "templates/layout.html", "templates/"+page+".html")
 		if err != nil {
 			return nil, err
@@ -139,6 +161,17 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("GET /{$}", s.require(auth.ViewDashboard, s.dashboard))
 	mux.Handle("GET /partials/services", s.require(auth.ViewDashboard, s.servicesPartial))
+
+	mux.HandleFunc("GET /healthz", s.healthz)
+	mux.Handle("GET /setup/domain", s.requireWizard(s.domainPage))
+	mux.Handle("POST /setup/domain", s.requireWizard(s.domainSubmit))
+	mux.Handle("POST /setup/domain/later", s.requireWizard(s.domainLater))
+	mux.Handle("GET /setup/backup", s.requireWizard(s.backupPage))
+	mux.Handle("POST /setup/backup", s.requireWizard(s.backupSubmit))
+	mux.Handle("POST /setup/backup/later", s.requireWizard(s.backupLater))
+	mux.Handle("GET /setup/recovery-key", s.requireWizard(s.recoveryPage))
+	mux.Handle("POST /setup/recovery-key", s.requireWizard(s.recoveryConfirm))
+	mux.Handle("GET /restarting", s.requireLogin(s.restartingPage))
 
 	mux.Handle("POST /backup/run", s.require(auth.ManageServices, s.backupRun))
 	mux.Handle("GET /catalog", s.require(auth.ManageServices, s.catalogPage))
@@ -197,6 +230,13 @@ func (s *Server) require(p auth.Permission, h http.HandlerFunc) http.Handler {
 		if u.Role == auth.RoleOwner && u.TOTPSecret == "" {
 			http.Redirect(w, r, "/account/2fa", http.StatusSeeOther)
 			return
+		}
+		// Owners finish the setup wizard next.
+		if u.Role == auth.RoleOwner && s.Setup != nil {
+			if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
+				http.Redirect(w, r, p.Next(), http.StatusSeeOther)
+				return
+			}
 		}
 		if !auth.Can(u.Role, p) {
 			http.Error(w, "You don't have permission to do that.", http.StatusForbidden)

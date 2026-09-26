@@ -279,13 +279,24 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	u := currentUser(r)
 	s.render(w, "dashboard", map[string]any{
-		"User":      u,
-		"No2FA":     u.TOTPSecret == "",
-		"Services":  services,
-		"CanManage": s.Manager != nil && auth.Can(u.Role, auth.ManageServices),
-		"Apply":     s.applyStatus(),
-		"Backup":    s.backupView(r),
+		"User":       u,
+		"No2FA":      u.TOTPSecret == "",
+		"Services":   services,
+		"CanManage":  s.Manager != nil && auth.Can(u.Role, auth.ManageServices),
+		"Apply":      s.applyStatus(),
+		"Backup":     s.backupView(r),
+		"DomainTodo": s.domainTodo(r),
 	})
+}
+
+// domainTodo reports whether the Owner postponed setting up the domain.
+func (s *Server) domainTodo(r *http.Request) bool {
+	u := currentUser(r)
+	if s.Setup == nil || !auth.Can(u.Role, auth.ManageHost) {
+		return false
+	}
+	p, err := s.Setup.Progress(r.Context())
+	return err == nil && p.DomainLater && !p.DomainDone
 }
 
 func (s *Server) applyStatus() *manager.ApplyStatus {

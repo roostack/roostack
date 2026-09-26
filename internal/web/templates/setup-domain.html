@@ -1,0 +1,29 @@
+{{define "title"}}Your domain{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <p class="hint">Setup · step 1 of 2</p>
+  <h1>Your domain</h1>
+  <p>Your services will live at addresses like <strong>photos.{{if .Domain}}{{.Domain}}{{else}}lab.example.com{{end}}</strong>, with a secure (HTTPS) certificate for each.</p>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  <form method="post" action="/setup/domain">
+    <label>Domain
+      <input name="domain" value="{{.Domain}}" placeholder="lab.example.com" autocapitalize="off" required>
+      <small>A domain you own, or a subdomain of it. It must be managed by Cloudflare.</small>
+    </label>
+    <label>Email address
+      <input name="email" type="email" value="{{.Email}}" autocomplete="email" required>
+      <small>Let's Encrypt, which issues the certificates, emails here if something goes wrong.</small>
+    </label>
+    <label>Cloudflare API token
+      <input name="token" type="password" autocomplete="off" required>
+      <small>In Cloudflare, go to My Profile → API Tokens → Create Token, and use the
+        <em>Edit zone DNS</em> template for your domain. MyLab checks the token with Cloudflare before saving it.</small>
+    </label>
+    <button type="submit">Check and save</button>
+  </form>
+  <form method="post" action="/setup/domain/later" class="later">
+    <button type="submit" class="link">Set this up later</button>
+    <small>Services won't be reachable over HTTPS until this is done.</small>
+  </form>
+</section>
+{{end}}
