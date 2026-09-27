@@ -21,9 +21,9 @@ const (
 	Apply     = "apply" // applying service changes
 	Setup     = "setup" // a new service's install hooks
 	Restore   = "restore"
-	// Move: moving a service to another machine (SPEC.md §10.10).
+	// Move: moving a service to another server (SPEC.md §10.10).
 	Move = "move"
-	// BackupSetup: creating a machine's backup repository (SPEC.md §10.10).
+	// BackupSetup: creating a server's backup repository (SPEC.md §10.10).
 	BackupSetup = "backup-setup"
 )
 

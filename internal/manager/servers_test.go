@@ -14,14 +14,14 @@ import (
 	"github.com/mylab/mylab/internal/nodeid"
 )
 
-// fakeRemote is another machine that records its assignments.
+// fakeRemote is another server that records its assignments.
 type fakeRemote struct {
 	mu       sync.Mutex
 	last     node.Assignment
 	n        int
 	left     bool
 	name     string
-	settings *fakeMachineSettings
+	settings *fakeServerSettings
 }
 
 func (f *fakeRemote) Identity() nodeid.Identity {
@@ -62,21 +62,21 @@ func (f *fakeRemote) Settings() node.Settings {
 	return f.settings
 }
 
-// fakeMachineSettings records a backup destination.
-type fakeMachineSettings struct {
+// fakeServerSettings records a backup destination.
+type fakeServerSettings struct {
 	mu   sync.Mutex
 	dest *node.BackupDestination
 }
 
-func (f *fakeMachineSettings) Timezones() (string, []string, error)              { return "", nil, nil }
-func (f *fakeMachineSettings) SetTimezone(context.Context, string) (bool, error) { return false, nil }
-func (f *fakeMachineSettings) SSHAccess() (node.SSHAccess, error)                { return node.SSHAccess{}, nil }
-func (f *fakeMachineSettings) SetSSH(context.Context, string, bool) error        { return nil }
-func (f *fakeMachineSettings) SetRestartPolicy(context.Context, string, int) error {
+func (f *fakeServerSettings) Timezones() (string, []string, error)              { return "", nil, nil }
+func (f *fakeServerSettings) SetTimezone(context.Context, string) (bool, error) { return false, nil }
+func (f *fakeServerSettings) SSHAccess() (node.SSHAccess, error)                { return node.SSHAccess{}, nil }
+func (f *fakeServerSettings) SetSSH(context.Context, string, bool) error        { return nil }
+func (f *fakeServerSettings) SetRestartPolicy(context.Context, string, int) error {
 	return nil
 }
-func (f *fakeMachineSettings) RestartPolicy() (string, int) { return "auto", 4 }
-func (f *fakeMachineSettings) SetBackupDestination(_ context.Context, d node.BackupDestination) error {
+func (f *fakeServerSettings) RestartPolicy() (string, int) { return "auto", 4 }
+func (f *fakeServerSettings) SetBackupDestination(_ context.Context, d node.BackupDestination) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.dest = &d
@@ -106,18 +106,18 @@ func (f *fakeRegistry) Rename(_ context.Context, id, name string) error {
 	return nil
 }
 
-func TestAssignmentsPerMachine(t *testing.T) {
+func TestAssignmentsPerServer(t *testing.T) {
 	m, _ := newManager(t)
 	addForgejo(t, m)
 	m.Lab.NodeID = "n-0000000001"
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
 	vps := &fakeRemote{}
-	m.Others = func() []RemoteMachine { return []RemoteMachine{vps} }
+	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	ctx := context.Background()
 
 	var fe *FormError
 	if err := m.Install(ctx, "forgejo", InstallRequest{Host: "n-0000000009"}); !errors.As(err, &fe) {
-		t.Errorf("unknown machine: %v", err)
+		t.Errorf("unknown server: %v", err)
 	}
 	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {
 		t.Fatal(err)
@@ -136,7 +136,7 @@ func TestAssignmentsPerMachine(t *testing.T) {
 		t.Fatalf("the vps runs forgejo only: %+v", a)
 	}
 	if string(a.Secrets["mylab-forgejo-admin_password"]) != "correct horse" || len(a.SetUp) != 1 {
-		t.Errorf("forgejo's typed secret and set-up go to its machine: %v %v", a.Secrets, a.SetUp)
+		t.Errorf("forgejo's typed secret and set-up go to its server: %v %v", a.Secrets, a.SetUp)
 	}
 	if len(a.Proxied) != 0 {
 		t.Error("only the controller proxies")
@@ -147,12 +147,12 @@ func TestAssignmentsPerMachine(t *testing.T) {
 	m.Apply()
 	m.Wait()
 	st := m.ServiceStates(ctx)
-	if st["forgejo"].Machine != "vps" || st["forgejo"].Status != "running" {
+	if st["forgejo"].Server != "vps" || st["forgejo"].Status != "running" {
 		t.Errorf("states = %+v", st)
 	}
-	machines, _ := m.Machines()
-	if len(machines) != 2 || machines[1].Name != "vps" || len(machines[1].Services) != 1 {
-		t.Errorf("machines = %+v", machines)
+	servers, _ := m.Servers()
+	if len(servers) != 2 || servers[1].Name != "vps" || len(servers[1].Services) != 1 {
+		t.Errorf("servers = %+v", servers)
 	}
 	site, _ := os.ReadFile(filepath.Join(m.Lab.Paths.CaddySitesDir(), "forgejo.caddy"))
 	if !strings.Contains(string(site), "reverse_proxy 100.96.0.2:") {
@@ -163,7 +163,7 @@ func TestAssignmentsPerMachine(t *testing.T) {
 	}
 	// Removing forgejo takes it off the vps.
 	m.Remove(ctx, "forgejo")
-	m.Wait() // this machine's apply writes into the test's folders
+	m.Wait() // this server's apply writes into the test's folders
 	vps.mu.Lock()
 	defer vps.mu.Unlock()
 	if len(vps.last.Services) != 0 {
@@ -171,12 +171,12 @@ func TestAssignmentsPerMachine(t *testing.T) {
 	}
 }
 
-func TestRemoveAndRenameMachine(t *testing.T) {
+func TestRemoveAndRenameServer(t *testing.T) {
 	m, _ := newManager(t)
 	addForgejo(t, m)
 	m.Lab.NodeID = "n-0000000001"
 	vps, reg := &fakeRemote{}, &fakeRegistry{}
-	m.Others = func() []RemoteMachine { return []RemoteMachine{vps} }
+	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	m.Registry = reg
 	ctx := context.Background()
 	req := forgejoRequest()
@@ -187,28 +187,28 @@ func TestRemoveAndRenameMachine(t *testing.T) {
 	m.Wait()
 
 	var fe *FormError
-	if err := m.RemoveMachine(ctx, "n-0000000002"); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "still runs Forgejo") {
-		t.Errorf("removing a machine with services: %v", err)
+	if err := m.RemoveServer(ctx, "n-0000000002"); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "still runs Forgejo") {
+		t.Errorf("removing a server with services: %v", err)
 	}
-	if err := m.RemoveMachine(ctx, "n-0000000001"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("this machine can't be removed: %v", err)
+	if err := m.RemoveServer(ctx, "n-0000000001"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("this server can't be removed: %v", err)
 	}
-	if err := m.RenameMachine(ctx, "n-0000000002", "  cloud  "); err != nil || vps.name != "cloud" ||
+	if err := m.RenameServer(ctx, "n-0000000002", "  cloud  "); err != nil || vps.name != "cloud" ||
 		len(reg.renamed) != 1 || reg.renamed[0] != "n-0000000002=cloud" {
 		t.Errorf("rename: %v %q %v", err, vps.name, reg.renamed)
 	}
-	if err := m.RenameMachine(ctx, "n-0000000002", ""); !errors.As(err, &fe) {
+	if err := m.RenameServer(ctx, "n-0000000002", ""); !errors.As(err, &fe) {
 		t.Errorf("empty name: %v", err)
 	}
 	var renamedSelf string
 	m.RenameSelf = func(name string) error { renamedSelf = name; return nil }
-	if err := m.RenameMachine(ctx, "n-0000000001", "nuc"); err != nil || renamedSelf != "nuc" {
+	if err := m.RenameServer(ctx, "n-0000000001", "nuc"); err != nil || renamedSelf != "nuc" {
 		t.Errorf("rename self: %v %q", err, renamedSelf)
 	}
 
 	m.Remove(ctx, "forgejo")
 	m.Wait()
-	if err := m.RemoveMachine(ctx, "n-0000000002"); err != nil || !vps.left || len(reg.removed) != 1 {
+	if err := m.RemoveServer(ctx, "n-0000000002"); err != nil || !vps.left || len(reg.removed) != 1 {
 		t.Errorf("remove: %v left=%v removed=%v", err, vps.left, reg.removed)
 	}
 }

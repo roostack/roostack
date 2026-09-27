@@ -19,7 +19,7 @@ import (
 	"github.com/mylab/mylab/internal/store"
 )
 
-func TestBackupDestinationOnAMachinesDisk(t *testing.T) {
+func TestBackupDestinationOnAServersDisk(t *testing.T) {
 	bin := os.Getenv("MYLAB_RESTIC_BIN")
 	if bin == "" {
 		var err error
@@ -30,8 +30,8 @@ func TestBackupDestinationOnAMachinesDisk(t *testing.T) {
 	m, _ := newManager(t)
 	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
-	vps := &fakeRemote{settings: &fakeMachineSettings{}}
-	m.Others = func() []RemoteMachine { return []RemoteMachine{vps} }
+	vps := &fakeRemote{settings: &fakeServerSettings{}}
+	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
 	local(m).Activity = m.Activity
@@ -53,13 +53,13 @@ func TestBackupDestinationOnAMachinesDisk(t *testing.T) {
 	ctx := context.Background()
 
 	choices, _ := m.BackupChoices(ctx)
-	if len(choices) != 2 || choices[0].Ref != "machine:n-0000000001" || choices[0].Title != "nuc's disk" {
+	if len(choices) != 2 || choices[0].Ref != "server:n-0000000001" || choices[0].Title != "nuc's disk" {
 		t.Fatalf("choices = %+v", choices)
 	}
-	if err := m.SetBackupDestination(ctx, "n-0000000002", "machine:nope"); err == nil {
+	if err := m.SetBackupDestination(ctx, "n-0000000002", "server:nope"); err == nil {
 		t.Error("unknown choice")
 	}
-	if err := m.SetBackupDestination(ctx, "n-0000000002", "machine:n-0000000001"); err != nil {
+	if err := m.SetBackupDestination(ctx, "n-0000000002", "server:n-0000000001"); err != nil {
 		t.Fatal(err)
 	}
 	var log activity.Snapshot
@@ -82,11 +82,11 @@ func TestBackupDestinationOnAMachinesDisk(t *testing.T) {
 		t.Errorf("the controller creates it through the admin store: %v", urls)
 	}
 	// Its key opens the repository; the recovery key does too.
-	machine := filepath.Join(dir, "machine")
-	os.WriteFile(machine, []byte(d.Key+"\n"), 0o600)
-	r := &backup.Repo{Bin: bin, URL: filepath.Join(dir, "repo"), PasswordFile: machine, CacheDir: filepath.Join(dir, "cache")}
+	server := filepath.Join(dir, "server")
+	os.WriteFile(server, []byte(d.Key+"\n"), 0o600)
+	r := &backup.Repo{Bin: bin, URL: filepath.Join(dir, "repo"), PasswordFile: server, CacheDir: filepath.Join(dir, "cache")}
 	if _, err := r.Snapshots(ctx); err != nil {
-		t.Errorf("machine key: %v", err)
+		t.Errorf("server key: %v", err)
 	}
 	// nuc's store lets the vps and the controller in.
 	stg := m.storageFor(ctx, "n-0000000001")
@@ -144,8 +144,8 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 
 	m, _ := newManager(t)
 	m.Lab.NodeID = "n-0000000001"
-	vps := &fakeRemote{settings: &fakeMachineSettings{}}
-	m.Others = func() []RemoteMachine { return []RemoteMachine{vps} }
+	vps := &fakeRemote{settings: &fakeServerSettings{}}
+	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
 	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
@@ -189,8 +189,8 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	if !strings.HasSuffix(d.Repository, "backblazeb2.com/backups/mylab/"+labID+"/n-0000000002") {
 		t.Errorf("repository = %q", d.Repository)
 	}
-	// Removing the machine deletes its key.
-	if err := m.RemoveMachine(ctx, "n-0000000002"); err != nil {
+	// Removing the server deletes its key.
+	if err := m.RemoveServer(ctx, "n-0000000002"); err != nil {
 		t.Fatal(err)
 	}
 	if len(deleted) != 1 || deleted[0] != "scoped-id" {

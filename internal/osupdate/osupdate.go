@@ -179,7 +179,7 @@ type RestartStatus struct {
 	Packages []string  // which updates asked for it
 	Waiting  string    // the coordinator's reason, when needed
 	Running  string    // a job that's running now, if any
-	// LastBoot is when the machine last started.
+	// LastBoot is when the server last started.
 	LastBoot time.Time
 }
 
@@ -214,7 +214,7 @@ func (s *Service) RestartNow(ctx context.Context) error {
 	return s.Agent.Reboot(ctx)
 }
 
-// LastBoot is when the machine last started (btime in /proc/stat), or
+// LastBoot is when the server last started (btime in /proc/stat), or
 // zero if unknown.
 func LastBoot() time.Time {
 	data, err := os.ReadFile(ProcStat)

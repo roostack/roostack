@@ -1,5 +1,5 @@
 // Package b2 creates and deletes Backblaze B2 application keys limited to
-// one folder of a bucket, so each machine's backup credentials reach only
+// one folder of a bucket, so each server's backup credentials reach only
 // its own repository (SPEC.md §10.10). Plain HTTP against B2's native API
 // (v2); restic itself uses B2's S3-compatible API with the key.
 //
@@ -24,7 +24,7 @@ import (
 const DefaultAPI = "https://api.backblazeb2.com"
 
 // ErrCantCreateKeys means the account's key isn't allowed to create keys
-// (it lacks the writeKeys capability), so machines share it instead.
+// (it lacks the writeKeys capability), so servers share it instead.
 var ErrCantCreateKeys = errors.New("this key can't create other keys (it needs the writeKeys capability)")
 
 // Capabilities restic needs in its own folder: list, read and write, and
@@ -90,7 +90,7 @@ func (c *Client) CreateKey(ctx context.Context, name, bucket, prefix string) (Ke
 	return Key{ID: created.ApplicationKeyID, Secret: created.ApplicationKey}, nil
 }
 
-// DeleteKey removes a key (e.g. of a machine that left the lab).
+// DeleteKey removes a key (e.g. of a server that left the lab).
 func (c *Client) DeleteKey(ctx context.Context, id string) error {
 	s, err := c.authorize(ctx)
 	if err != nil {

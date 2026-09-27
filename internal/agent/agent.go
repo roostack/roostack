@@ -56,7 +56,7 @@ type Host interface {
 	// WireGuardStatus reads an interface's configuration.
 	WireGuardStatus(iface string) (WireGuardStatus, error)
 	// RemoveWireGuard takes an interface down and deletes its
-	// configuration (e.g. the machine left its lab).
+	// configuration (e.g. the server left its lab).
 	RemoveWireGuard(iface string) error
 }
 

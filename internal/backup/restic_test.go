@@ -137,14 +137,14 @@ func TestAddKey(t *testing.T) {
 	if err := r.Init(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.AddKey(ctx, "machine key", "n-0000000002"); err != nil {
+	if err := r.AddKey(ctx, "server key", "n-0000000002"); err != nil {
 		t.Fatal(err)
 	}
-	// The machine opens the repository with its own key.
+	// The server opens the repository with its own key.
 	other := *r
-	other.PasswordFile = filepath.Join(t.TempDir(), "machine")
-	os.WriteFile(other.PasswordFile, []byte("machine key\n"), 0o600)
+	other.PasswordFile = filepath.Join(t.TempDir(), "server")
+	os.WriteFile(other.PasswordFile, []byte("server key\n"), 0o600)
 	if _, err := other.Snapshots(ctx); err != nil {
-		t.Errorf("machine key: %v", err)
+		t.Errorf("server key: %v", err)
 	}
 }

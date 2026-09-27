@@ -160,7 +160,7 @@ func (r *Repo) Dump(ctx context.Context, snapshotID, dir string, w io.Writer) er
 	return r.wrap("dump", err, stderr.String())
 }
 
-// AddKey adds another key (password) to the repository, e.g. a machine's
+// AddKey adds another key (password) to the repository, e.g. a server's
 // own key next to the recovery key (SPEC.md §10.10). user names it in
 // `restic key list`.
 func (r *Repo) AddKey(ctx context.Context, key, user string) error {

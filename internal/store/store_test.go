@@ -237,22 +237,22 @@ func TestJoinCodes(t *testing.T) {
 	if codes, err := s.JoinCodes(ctx, now); err != nil || len(codes) != 1 || codes[0].Addr != "100.96.0.2" {
 		t.Fatalf("codes = %+v, %v (expired ones dropped)", codes, err)
 	}
-	if _, err := s.Join(ctx, "nope", Machine{ID: "n-0000000002"}, now); !errors.Is(err, ErrJoinCode) {
+	if _, err := s.Join(ctx, "nope", Server{ID: "n-0000000002"}, now); !errors.Is(err, ErrJoinCode) {
 		t.Errorf("unknown code: %v", err)
 	}
-	m, err := s.Join(ctx, "h1", Machine{ID: "n-0000000002", Name: "vps", PublicKey: "own"}, now)
+	m, err := s.Join(ctx, "h1", Server{ID: "n-0000000002", Name: "vps", PublicKey: "own"}, now)
 	if err != nil || m.Addr != "100.96.0.2" {
 		t.Fatalf("join: %+v %v", m, err)
 	}
-	if _, err := s.Join(ctx, "h1", Machine{ID: "n-0000000009"}, now); !errors.Is(err, ErrJoinCode) {
+	if _, err := s.Join(ctx, "h1", Server{ID: "n-0000000009"}, now); !errors.Is(err, ErrJoinCode) {
 		t.Error("a code must work once")
 	}
-	ms, _ := s.Machines(ctx)
+	ms, _ := s.Servers(ctx)
 	if len(ms) != 1 || ms[0].Name != "vps" || ms[0].PublicKey != "own" {
-		t.Errorf("machines = %+v", ms)
+		t.Errorf("servers = %+v", ms)
 	}
-	s.RemoveMachine(ctx, "n-0000000002")
-	if ms, _ := s.Machines(ctx); len(ms) != 0 {
+	s.RemoveServer(ctx, "n-0000000002")
+	if ms, _ := s.Servers(ctx); len(ms) != 0 {
 		t.Error("not removed")
 	}
 }
@@ -267,9 +267,9 @@ func TestBackupTargets(t *testing.T) {
 	if ps, _ := s.BackupProviders(ctx); len(ps) != 1 || ps[0].Name != "B2" {
 		t.Errorf("providers = %+v", ps)
 	}
-	s.SetBackupTarget(ctx, BackupTarget{MachineID: "n-0000000002", Provider: "machine:n-0000000001",
+	s.SetBackupTarget(ctx, BackupTarget{ServerID: "n-0000000002", Provider: "server:n-0000000001",
 		Repository: "rest:http://100.96.0.1:8000/n-0000000002/lab", StoreHost: "n-0000000001", StoreHash: "$2a$x", Created: time.Now()})
-	s.SetBackupTarget(ctx, BackupTarget{MachineID: "n-0000000002", Provider: "provider:1", Repository: "s3:x", Created: time.Now()})
+	s.SetBackupTarget(ctx, BackupTarget{ServerID: "n-0000000002", Provider: "provider:1", Repository: "s3:x", Created: time.Now()})
 	if ts, _ := s.BackupTargets(ctx); len(ts) != 1 || ts[0].Provider != "provider:1" || ts[0].StoreHost != "" {
 		t.Errorf("targets = %+v", ts)
 	}

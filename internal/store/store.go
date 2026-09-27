@@ -126,6 +126,11 @@ var migrations = []string{
 		admin_hash  TEXT NOT NULL,
 		created_at  INTEGER NOT NULL
 	);`,
+	// Machines are called servers everywhere (SPEC.md §10.1).
+	`ALTER TABLE machines RENAME TO servers;
+	ALTER TABLE backup_targets RENAME COLUMN machine_id TO server_id;
+	ALTER TABLE store_admins RENAME COLUMN machine_id TO server_id;
+	UPDATE backup_targets SET provider = 'server:' || substr(provider, 9) WHERE provider LIKE 'machine:%';`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -561,8 +566,8 @@ func (s *Store) SetSetting(ctx context.Context, key, value string) error {
 	return err
 }
 
-// Machine is another machine in the lab (SPEC.md §10).
-type Machine struct {
+// Server is another server in the lab (SPEC.md §10).
+type Server struct {
 	ID, Name string
 	Addr     string // on MyLab's network
 	// PublicKey is its WireGuard key.
@@ -610,9 +615,9 @@ func (s *Store) JoinCodes(ctx context.Context, now time.Time) ([]JoinCode, error
 	return out, rows.Err()
 }
 
-// Join uses a join code: it adds the machine at the code's address and
+// Join uses a join code: it adds the server at the code's address and
 // deletes the code, in one transaction, so a code works once.
-func (s *Store) Join(ctx context.Context, tokenHash string, m Machine, now time.Time) (Machine, error) {
+func (s *Store) Join(ctx context.Context, tokenHash string, m Server, now time.Time) (Server, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return m, err
@@ -631,7 +636,7 @@ func (s *Store) Join(ctx context.Context, tokenHash string, m Machine, now time.
 	}
 	m.JoinedAt = now
 	// Joining again (e.g. after reinstalling) replaces the old entry.
-	if _, err := tx.ExecContext(ctx, `INSERT INTO machines (id, name, addr, public_key, joined_at) VALUES (?, ?, ?, ?, ?)
+	if _, err := tx.ExecContext(ctx, `INSERT INTO servers (id, name, addr, public_key, joined_at) VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET name = excluded.name, addr = excluded.addr, public_key = excluded.public_key,
 		joined_at = excluded.joined_at`, m.ID, m.Name, m.Addr, m.PublicKey, now.Unix()); err != nil {
 		return m, err
@@ -639,16 +644,16 @@ func (s *Store) Join(ctx context.Context, tokenHash string, m Machine, now time.
 	return m, tx.Commit()
 }
 
-// Machines lists the other machines in the lab.
-func (s *Store) Machines(ctx context.Context) ([]Machine, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, addr, public_key, joined_at FROM machines ORDER BY name`)
+// Servers lists the other servers in the lab.
+func (s *Store) Servers(ctx context.Context) ([]Server, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, addr, public_key, joined_at FROM servers ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Machine
+	var out []Server
 	for rows.Next() {
-		var m Machine
+		var m Server
 		var joined int64
 		if err := rows.Scan(&m.ID, &m.Name, &m.Addr, &m.PublicKey, &joined); err != nil {
 			return nil, err
@@ -659,15 +664,15 @@ func (s *Store) Machines(ctx context.Context) ([]Machine, error) {
 	return out, rows.Err()
 }
 
-// RemoveMachine forgets a machine.
-func (s *Store) RemoveMachine(ctx context.Context, id string) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM machines WHERE id = ?`, id)
+// RemoveServer forgets a server.
+func (s *Store) RemoveServer(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM servers WHERE id = ?`, id)
 	return err
 }
 
-// RenameMachine changes a machine's name.
-func (s *Store) RenameMachine(ctx context.Context, id, name string) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE machines SET name = ? WHERE id = ?`, name, id)
+// RenameServer changes a server's name.
+func (s *Store) RenameServer(ctx context.Context, id, name string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE servers SET name = ? WHERE id = ?`, name, id)
 	return err
 }
 
@@ -707,34 +712,34 @@ func (s *Store) BackupProviders(ctx context.Context) ([]BackupProvider, error) {
 	return out, rows.Err()
 }
 
-// BackupTarget is where a machine backs up.
+// BackupTarget is where a server backs up.
 type BackupTarget struct {
-	MachineID string
-	// Provider names it: "machine:<id>" (a machine's disk) or "provider:<id>".
+	ServerID string
+	// Provider names it: "server:<id>" (a server's disk) or "provider:<id>".
 	Provider   string
 	Repository string
-	// StoreHost and StoreHash: for a machine's disk, the storing machine
-	// and the bcrypt hash of this machine's password there.
+	// StoreHost and StoreHash: for a server's disk, the storing server
+	// and the bcrypt hash of this server's password there.
 	StoreHost, StoreHash string
-	// ScopedKey is the ID of a provider key made for this machine alone.
+	// ScopedKey is the ID of a provider key made for this server alone.
 	ScopedKey string
 	Created   time.Time
 }
 
-// SetBackupTarget records where a machine backs up.
+// SetBackupTarget records where a server backs up.
 func (s *Store) SetBackupTarget(ctx context.Context, t BackupTarget) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO backup_targets (machine_id, provider, repository, store_host, store_hash, scoped_key, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(machine_id) DO UPDATE SET provider = excluded.provider,
+	_, err := s.db.ExecContext(ctx, `INSERT INTO backup_targets (server_id, provider, repository, store_host, store_hash, scoped_key, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(server_id) DO UPDATE SET provider = excluded.provider,
 		repository = excluded.repository, store_host = excluded.store_host, store_hash = excluded.store_hash,
 		scoped_key = excluded.scoped_key, created_at = excluded.created_at`,
-		t.MachineID, t.Provider, t.Repository, t.StoreHost, t.StoreHash, t.ScopedKey, t.Created.Unix())
+		t.ServerID, t.Provider, t.Repository, t.StoreHost, t.StoreHash, t.ScopedKey, t.Created.Unix())
 	return err
 }
 
-// BackupTargets lists where each machine backs up.
+// BackupTargets lists where each server backs up.
 func (s *Store) BackupTargets(ctx context.Context) ([]BackupTarget, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT machine_id, provider, repository, store_host, store_hash, scoped_key, created_at
-		FROM backup_targets ORDER BY machine_id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT server_id, provider, repository, store_host, store_hash, scoped_key, created_at
+		FROM backup_targets ORDER BY server_id`)
 	if err != nil {
 		return nil, err
 	}
@@ -743,7 +748,7 @@ func (s *Store) BackupTargets(ctx context.Context) ([]BackupTarget, error) {
 	for rows.Next() {
 		var t BackupTarget
 		var created int64
-		if err := rows.Scan(&t.MachineID, &t.Provider, &t.Repository, &t.StoreHost, &t.StoreHash, &t.ScopedKey, &created); err != nil {
+		if err := rows.Scan(&t.ServerID, &t.Provider, &t.Repository, &t.StoreHost, &t.StoreHash, &t.ScopedKey, &created); err != nil {
 			return nil, err
 		}
 		t.Created = time.Unix(created, 0)
@@ -753,9 +758,9 @@ func (s *Store) BackupTargets(ctx context.Context) ([]BackupTarget, error) {
 }
 
 // StoreAdmin returns the controller's admin password (and its hash) for
-// a machine's backup store, ok false if none yet.
-func (s *Store) StoreAdmin(ctx context.Context, machineID string) (password, hash string, ok bool, err error) {
-	err = s.db.QueryRowContext(ctx, `SELECT password, hash FROM store_admins WHERE machine_id = ?`, machineID).Scan(&password, &hash)
+// a server's backup store, ok false if none yet.
+func (s *Store) StoreAdmin(ctx context.Context, serverID string) (password, hash string, ok bool, err error) {
+	err = s.db.QueryRowContext(ctx, `SELECT password, hash FROM store_admins WHERE server_id = ?`, serverID).Scan(&password, &hash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", false, nil
 	}
@@ -763,9 +768,9 @@ func (s *Store) StoreAdmin(ctx context.Context, machineID string) (password, has
 }
 
 // SetStoreAdmin records the controller's admin password for a store.
-func (s *Store) SetStoreAdmin(ctx context.Context, machineID, password, hash string) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO store_admins (machine_id, password, hash) VALUES (?, ?, ?)
-		ON CONFLICT(machine_id) DO UPDATE SET password = excluded.password, hash = excluded.hash`, machineID, password, hash)
+func (s *Store) SetStoreAdmin(ctx context.Context, serverID, password, hash string) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO store_admins (server_id, password, hash) VALUES (?, ?, ?)
+		ON CONFLICT(server_id) DO UPDATE SET password = excluded.password, hash = excluded.hash`, serverID, password, hash)
 	return err
 }
 

@@ -9,11 +9,11 @@ import (
 	"slices"
 )
 
-// Port is where every machine serves the lab API, on its overlay address
+// Port is where every server serves the lab API, on its overlay address
 // only (reachable over WireGuard).
 const Port = 8471
 
-// ServerTLS is the lab API's TLS: this machine's certificate, and client
+// ServerTLS is the lab API's TLS: this server's certificate, and client
 // certificates from the lab's CA. A client without a certificate gets
 // through the handshake (it may be joining); handlers check PeerNode.
 func (id Identity) ServerTLS() (*tls.Config, error) {
@@ -25,7 +25,7 @@ func (id Identity) ServerTLS() (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Send the CA too, so a joining machine can check it against the
+	// Send the CA too, so a joining server can check it against the
 	// fingerprint in its join code.
 	cert.Certificate = append(cert.Certificate, ca.Raw)
 	return &tls.Config{
@@ -36,7 +36,7 @@ func (id Identity) ServerTLS() (*tls.Config, error) {
 	}, nil
 }
 
-// ClientTLS is for calling another machine: it must present a certificate
+// ClientTLS is for calling another server: it must present a certificate
 // from the lab's CA naming peerID.
 func (id Identity) ClientTLS(peerID string) (*tls.Config, error) {
 	cert, pool, err := id.load()
@@ -51,7 +51,7 @@ func (id Identity) ClientTLS(peerID string) (*tls.Config, error) {
 	}, nil
 }
 
-// JoinTLS is for a machine that is joining: it has no certificate yet and
+// JoinTLS is for a server that is joining: it has no certificate yet and
 // trusts the server only if its chain includes the CA named in the join
 // code (by fingerprint).
 func JoinTLS(caFingerprint, controllerID string) *tls.Config {
@@ -82,13 +82,13 @@ func PeerNode(cs *tls.ConnectionState) string {
 	return cs.VerifiedChains[0][0].Subject.CommonName
 }
 
-// CAPEM returns the CA certificate this machine trusts.
+// CAPEM returns the CA certificate this server trusts.
 func (id Identity) CAPEM() ([]byte, error) { return os.ReadFile(id.caFile()) }
 
 func (id Identity) load() (tls.Certificate, *x509.CertPool, error) {
 	cert, err := tls.LoadX509KeyPair(id.certFile(), id.keyFile())
 	if err != nil {
-		return cert, nil, fmt.Errorf("this machine's lab certificate: %w", err)
+		return cert, nil, fmt.Errorf("this server's lab certificate: %w", err)
 	}
 	ca, err := readCert(id.caFile())
 	if err != nil {

@@ -423,7 +423,7 @@ var namecheapRecords = &recordsAPI{
 	},
 }
 
-// publicIP asks an external service for this machine's public IP (used
+// publicIP asks an external service for this server's public IP (used
 // by Namecheap, whose API needs it).
 func publicIP(ctx context.Context, hc *http.Client) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", publicIPURL, nil)

@@ -17,11 +17,11 @@ import (
 	"github.com/mylab/mylab/internal/state"
 )
 
-// Moving a service to another machine by copying its data directly
+// Moving a service to another server by copying its data directly
 // (SPEC.md §10.10): copy while it runs, stop it, copy what changed, bring
-// its secrets, then switch where it runs. The old machine's copy is kept.
+// its secrets, then switch where it runs. The old server's copy is kept.
 
-// dataDirs is how many data folders a service has on every machine
+// dataDirs is how many data folders a service has on every server
 // (node.Local.DataDirs: its services folder and its media folder).
 const dataDirs = 2
 
@@ -30,10 +30,10 @@ const mtimeMargin = 2 * time.Second
 
 // MoveInfo describes a possible move, for the move page.
 type MoveInfo struct {
-	From Machine
+	From Server
 	// Size is the service's data in bytes (-1 if unknown).
 	Size int64
-	// ViaBackup: moving through a backup is possible (the old machine's
+	// ViaBackup: moving through a backup is possible (the old server's
 	// backups are set up through MyLab).
 	ViaBackup bool
 	// Suggested is the way the move page suggests.
@@ -51,7 +51,7 @@ func (m *Manager) MoveInfo(ctx context.Context, name string) (MoveInfo, error) {
 		return MoveInfo{}, err
 	}
 	info := MoveInfo{Size: -1}
-	machines, err := m.Machines()
+	servers, err := m.Servers()
 	if err != nil {
 		return info, err
 	}
@@ -59,7 +59,7 @@ func (m *Manager) MoveInfo(ctx context.Context, name string) (MoveInfo, error) {
 	if host == "" {
 		host = m.Lab.NodeID
 	}
-	for _, mc := range machines {
+	for _, mc := range servers {
 		if mc.ID == host {
 			info.From = mc
 		}
@@ -85,7 +85,7 @@ const (
 	MoveBackup = "backup" // through a fresh backup
 )
 
-// MoveService moves a service to another machine in the background
+// MoveService moves a service to another server in the background
 // (activity.Move), one of the ways above.
 func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	p, in, err := m.installedService(name)
@@ -105,7 +105,7 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 		return formErrorf("Choose a server in this lab.")
 	}
 	for _, id := range []string{from, to} {
-		if r, ok := m.node(id).(RemoteMachine); ok && r.Settings() == nil {
+		if r, ok := m.node(id).(RemoteServer); ok && r.Settings() == nil {
 			return formErrorf("MyLab can't reach %s right now.", r.Identity().Name)
 		}
 	}
@@ -180,8 +180,8 @@ func (m *Manager) move(ctx context.Context, act *activity.Log, name, title, from
 
 // finishMove brings the service's secrets, puts the copied data in place,
 // switches where it runs and sets the old copy aside. loadDumps loads its
-// databases from their dumps on the new machine (after a backup).
-// It reports whether the service is still stopped on the old machine.
+// databases from their dumps on the new server (after a backup).
+// It reports whether the service is still stopped on the old server.
 func (m *Manager) finishMove(ctx context.Context, act *activity.Log, name, title, from, to string,
 	src, dst node.Mover, loadDumps bool) (stillStopped bool, err error) {
 	act.Step("Copying its secrets (e.g. database passwords)")
@@ -206,7 +206,7 @@ func (m *Manager) finishMove(ctx context.Context, act *activity.Log, name, title
 	if err := m.switchHost(name, to); err != nil {
 		return true, err
 	}
-	// It runs on the new machine now; its old copy stays put.
+	// It runs on the new server now; its old copy stays put.
 	if loadDumps {
 		act.Step("Loading its databases from the backup")
 		if err := waitApplied(ctx, m.node(to), switched); err != nil {
@@ -227,7 +227,7 @@ func (m *Manager) finishMove(ctx context.Context, act *activity.Log, name, title
 	return false, nil
 }
 
-// waitApplied waits until a machine has applied changes made after t.
+// waitApplied waits until a server has applied changes made after t.
 func waitApplied(ctx context.Context, n node.Node, t time.Time) error {
 	deadline := time.Now().Add(applyWait)
 	for time.Now().Before(deadline) {
@@ -243,16 +243,16 @@ func waitApplied(ctx context.Context, n node.Node, t time.Time) error {
 	return fmt.Errorf("%s didn't finish applying in time", n.Identity().Name)
 }
 
-// applyWait bounds waiting for a machine to start a moved service (its
+// applyWait bounds waiting for a server to start a moved service (its
 // first start may download images).
 var applyWait = 20 * time.Minute
 
-// moveViaBackup moves a service through a fresh backup: the old machine
+// moveViaBackup moves a service through a fresh backup: the old server
 // backs up, the service stops, and the controller streams its folders
-// from that snapshot to the new machine, which loads its databases from
+// from that snapshot to the new server, which loads its databases from
 // their dumps. For large data or slow links: the backup is incremental,
 // and the controller reads the repository itself (with the recovery key),
-// so no keys are shared between machines.
+// so no keys are shared between servers.
 func (m *Manager) moveViaBackup(ctx context.Context, act *activity.Log, name, title, from, to string,
 	target store.BackupTarget, src, dst node.Mover) (err error) {
 	stopped := false
@@ -341,14 +341,14 @@ func pipe(ctx context.Context, write func(io.Writer) error, read func(io.Reader)
 	return errors.Join(werr, err)
 }
 
-// copyData streams one data folder from one machine to the other.
+// copyData streams one data folder from one server to the other.
 func copyData(ctx context.Context, src, dst node.Mover, name string, dir int, since time.Time) error {
 	return pipe(ctx, func(w io.Writer) error { return src.ExportData(ctx, name, dir, since, w) },
 		func(r io.Reader) error { return dst.ImportData(ctx, name, dir, r, 0) })
 }
 
-// switchHost places the service on another machine: its routes get ports
-// there, and the machines apply the change.
+// switchHost places the service on another server: its routes get ports
+// there, and the servers apply the change.
 func (m *Manager) switchHost(name, to string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -358,7 +358,7 @@ func (m *Manager) switchHost(name, to string) error {
 		return err
 	}
 	in.Host = to
-	// Ports are per machine; the new one gives them again.
+	// Ports are per server; the new one gives them again.
 	for route, r := range in.Routes {
 		r.Port = 0
 		in.Routes[route] = r
@@ -370,18 +370,18 @@ func (m *Manager) switchHost(name, to string) error {
 	return m.assignErr
 }
 
-// KeptData lists folders moves left on a machine.
-func (m *Manager) KeptData(ctx context.Context, machineID string) ([]node.KeptFolder, error) {
-	mv, ok := m.node(machineID).(node.Mover)
+// KeptData lists folders moves left on a server.
+func (m *Manager) KeptData(ctx context.Context, serverID string) ([]node.KeptFolder, error) {
+	mv, ok := m.node(serverID).(node.Mover)
 	if !ok {
 		return nil, ErrNotFound
 	}
 	return mv.KeptData(ctx)
 }
 
-// RemoveKeptData deletes a folder a move left on a machine, for good.
-func (m *Manager) RemoveKeptData(ctx context.Context, machineID, path string) error {
-	mv, ok := m.node(machineID).(node.Mover)
+// RemoveKeptData deletes a folder a move left on a server, for good.
+func (m *Manager) RemoveKeptData(ctx context.Context, serverID, path string) error {
+	mv, ok := m.node(serverID).(node.Mover)
 	if !ok {
 		return ErrNotFound
 	}

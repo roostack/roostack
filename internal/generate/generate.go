@@ -115,8 +115,8 @@ func Service(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (*Output
 }
 
 // ProxySite generates only the Caddy site for a service running on
-// another machine (SPEC.md §10.5): the controller's Caddy forwards its
-// routes over MyLab's network to addr, where that machine publishes them.
+// another server (SPEC.md §10.5): the controller's Caddy forwards its
+// routes over MyLab's network to addr, where that server publishes them.
 func ProxySite(lab config.Lab, p *pkgspec.Package, in *instance.Instance, addr string) (*Output, error) {
 	if err := in.Validate(p); err != nil {
 		return nil, err
@@ -132,7 +132,7 @@ func ProxySite(lab config.Lab, p *pkgspec.Package, in *instance.Instance, addr s
 	if err := g.caddySite(); err != nil {
 		return nil, fmt.Errorf("%s: %w", p.Name, err)
 	}
-	// The ports are the other machine's, not this one's.
+	// The ports are the other server's, not this one's.
 	g.out.Ports = nil
 	return g.out, nil
 }

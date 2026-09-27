@@ -22,14 +22,14 @@ import (
 	"github.com/mylab/mylab/internal/osupdate"
 )
 
-// Timeouts for calls to another machine.
+// Timeouts for calls to another server.
 const (
 	statusTimeout = 4 * time.Second
 	statusCache   = 5 * time.Second
 	pushRetry     = 30 * time.Second
 )
 
-// Remote is another machine, as the controller sees it: every operation
+// Remote is another server, as the controller sees it: every operation
 // is a request over MyLab's network (SPEC.md §10.3).
 type Remote struct {
 	ID   nodeid.Identity
@@ -38,7 +38,7 @@ type Remote struct {
 	Lab    config.Lab
 	Client *http.Client
 	Log    *slog.Logger
-	// URL is where the machine's lab API is; set by NewRemote.
+	// URL is where the server's lab API is; set by NewRemote.
 	URL string
 
 	mu sync.Mutex
@@ -52,7 +52,7 @@ type Remote struct {
 	statusAt  time.Time
 }
 
-// NewRemote returns a machine reached with this machine's certificate.
+// NewRemote returns a server reached with this server's certificate.
 func NewRemote(self labnet.Identity, id nodeid.Identity, addr netip.Addr, lab config.Lab, log *slog.Logger) (*Remote, error) {
 	tlsConf, err := self.ClientTLS(id.ID)
 	if err != nil {
@@ -64,26 +64,26 @@ func NewRemote(self labnet.Identity, id nodeid.Identity, addr netip.Addr, lab co
 
 func (r *Remote) Identity() nodeid.Identity { return r.ID }
 
-// Leave asks the machine to leave the lab: it takes down its WireGuard
+// Leave asks the server to leave the lab: it takes down its WireGuard
 // interface and becomes a lab of its own.
 func (r *Remote) Leave(ctx context.Context) error {
 	return r.call(ctx, http.MethodPost, "/v1/leave", struct{}{}, nil)
 }
 
-// Rename tells the machine its new name.
+// Rename tells the server its new name.
 func (r *Remote) Rename(ctx context.Context, name string) error {
 	return r.call(ctx, http.MethodPut, "/v1/name", map[string]string{"Name": name}, nil)
 }
 
-// Address is the machine's address on MyLab's network.
+// Address is the server's address on MyLab's network.
 func (r *Remote) Address() string { return r.Addr.String() }
 
-// Apply sends the machine its assignment in the background, retrying
-// until it has it. A machine also fetches it when it starts (Pending).
+// Apply sends the server its assignment in the background, retrying
+// until it has it. A server also fetches it when it starts (Pending).
 func (r *Remote) Apply(a Assignment) {
 	w, err := Encode(r.Lab, a, time.Now().UnixNano())
 	if err != nil {
-		r.Log.Error("encoding assignment", "machine", r.ID.Name, "err", err)
+		r.Log.Error("encoding assignment", "server", r.ID.Name, "err", err)
 		return
 	}
 	r.mu.Lock()
@@ -124,13 +124,13 @@ func (r *Remote) push() {
 		}
 		r.mu.Unlock()
 		if err != nil {
-			r.Log.Warn("machine didn't take its assignment; retrying", "machine", r.ID.Name, "err", err)
+			r.Log.Warn("server didn't take its assignment; retrying", "server", r.ID.Name, "err", err)
 			time.Sleep(pushRetry)
 		}
 	}
 }
 
-// deliveredLocked records that the machine has version v: its secrets
+// deliveredLocked records that the server has version v: its secrets
 // and set-ups needn't be sent again.
 func (r *Remote) deliveredLocked(v int64) {
 	r.delivered = max(r.delivered, v)
@@ -140,7 +140,7 @@ func (r *Remote) deliveredLocked(v int64) {
 	r.statusAt = time.Time{} // refresh
 }
 
-// Pending returns the latest assignment for the machine to fetch, and
+// Pending returns the latest assignment for the server to fetch, and
 // counts it as delivered.
 func (r *Remote) Pending() (WireAssignment, bool) {
 	r.mu.Lock()
@@ -153,7 +153,7 @@ func (r *Remote) Pending() (WireAssignment, bool) {
 	return w, true
 }
 
-// Status is the machine's apply status; an unreachable machine reports
+// Status is the server's apply status; an unreachable server reports
 // why as its last error.
 func (r *Remote) Status() ApplyStatus {
 	st, err := r.wireStatus()
@@ -163,7 +163,7 @@ func (r *Remote) Status() ApplyStatus {
 	return st.apply()
 }
 
-// Reachable reports whether the machine answered recently.
+// Reachable reports whether the server answered recently.
 func (r *Remote) Reachable() bool {
 	_, err := r.wireStatus()
 	return err == nil
@@ -229,7 +229,7 @@ func (r *Remote) RevealSecret(ctx context.Context, service, key string) (string,
 	return out.Value, err
 }
 
-// Maintenance and settings are offered if the machine has them (as of its
+// Maintenance and settings are offered if the server has them (as of its
 // last status).
 func (r *Remote) Backups() Backups {
 	if st, err := r.wireStatus(); err != nil || !st.Backups {
@@ -373,7 +373,7 @@ func (x remoteSettings) SetRestartPolicy(ctx context.Context, mode string, hour 
 	return x.r.call(ctx, http.MethodPut, "/v1/settings/restart-policy", map[string]any{"Mode": mode, "Hour": hour}, nil)
 }
 
-// call makes a lab API request to the machine.
+// call makes a lab API request to the server.
 func (r *Remote) call(ctx context.Context, method, path string, in, out any) error {
 	var body *bytes.Reader
 	if in != nil {
@@ -406,7 +406,7 @@ func (r *Remote) streamClient() *http.Client {
 	return &http.Client{Transport: r.Client.Transport}
 }
 
-func (r *Remote) DataDirs(string) []string { return nil } // only the machine itself knows
+func (r *Remote) DataDirs(string) []string { return nil } // only the server itself knows
 
 func (r *Remote) ExportData(ctx context.Context, service string, dir int, since time.Time, w io.Writer) error {
 	q := url.Values{"dir": {strconv.Itoa(dir)}}

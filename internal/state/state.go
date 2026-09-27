@@ -54,7 +54,7 @@ func LoadServices(lab config.Lab) ([]Service, error) {
 			continue
 		}
 		// Checked here, not only when generating: a service with a bad host
-		// would otherwise belong to no machine and silently never run.
+		// would otherwise belong to no server and silently never run.
 		if in.Host != "" && !nodeid.ValidID(in.Host) {
 			errs = append(errs, fmt.Errorf("%s: host %q is not a node ID", e.Name(), in.Host))
 			continue
@@ -69,15 +69,15 @@ func LoadServices(lab config.Lab) ([]Service, error) {
 	return services, errors.Join(errs...)
 }
 
-// Proxied is a service running on another machine whose routes this
-// machine's Caddy serves (SPEC.md §10.5), reached at Addr.
+// Proxied is a service running on another server whose routes this
+// server's Caddy serves (SPEC.md §10.5), reached at Addr.
 type Proxied struct {
 	Service
 	Addr string
 }
 
 // Desired generates the full desired state for the reconciler: this
-// machine's services, and Caddy sites for services it proxies.
+// server's services, and Caddy sites for services it proxies.
 func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.Desired, error) {
 	sys, err := generate.System(lab)
 	if err != nil {
@@ -169,7 +169,7 @@ func checkHostPort(hp generate.HostPort, service string, ports map[int]string, h
 }
 
 // AssignHosts places services that have no host yet on nodeID (services
-// installed before a lab could span several machines, SPEC.md §10.4).
+// installed before a lab could span several servers, SPEC.md §10.4).
 // It returns the ones it changed, to be saved.
 func AssignHosts(services []Service, nodeID string) []Service {
 	var changed []Service

@@ -23,7 +23,7 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
 
 ## 3. Deployment Targets — Locked
 
-- **v1:** a dedicated, freshly installed machine. MyLab assumes it owns the host.
+- **v1:** a dedicated, freshly installed server. MyLab assumes it owns the host.
 - **Reference hardware:** x86_64 Intel NUC-style device.
 - **Later:** ARM64 (Raspberry Pi, ARM VPS).
 - **Rationale:** A dedicated host avoids conflicts with existing software (ports, podman config, firewall) and greatly reduces the support burden.
@@ -36,8 +36,8 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
 | **Planned** | Ubuntu 26.04 LTS | Add when practical; avoid Debian-only assumptions that would make it hard |
 | **Unsupported** | Anything else with Podman 5+ | May work; no host OS management, no support |
 
-- **Rationale:** Debian 13 ships Podman 5.4, has a ~5-year support cycle, rarely changes, and has built-in unattended security updates, which makes it well suited to machines nobody logs into. Supporting a single distro keeps the installer, testing and docs simple.
-- **Rejected:** Fedora Server (a major upgrade every ~13 months doesn't suit unattended machines); Ubuntu 24.04 (Podman 4.9 has no `.pod` Quadlets); Fedora CoreOS (unfamiliar and harder to troubleshoot).
+- **Rationale:** Debian 13 ships Podman 5.4, has a ~5-year support cycle, rarely changes, and has built-in unattended security updates, which makes it well suited to servers nobody logs into. Supporting a single distro keeps the installer, testing and docs simple.
+- **Rejected:** Fedora Server (a major upgrade every ~13 months doesn't suit unattended servers); Ubuntu 24.04 (Podman 4.9 has no `.pod` Quadlets); Fedora CoreOS (unfamiliar and harder to troubleshoot).
 - Distro-specific logic (package management, update tooling) should sit behind a small internal interface so Ubuntu can be added cleanly.
 
 ### 3.2 Host OS Management — Locked
@@ -53,7 +53,7 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
 
 - MyLab shows and schedules everything (nightly backups, maintenance windows) in the **host's** time zone.
 - The setup wizard's first step confirms it, pre-filled from the browser's zone; the Owner can change it in Settings. `mylab-agent` applies it with `timedatectl set-timezone`, then MyLab restarts, because Go reads the local zone once at startup.
-- If the browser's UTC offset differs from the host's, every page shows a prominent banner saying times are the machine's, with a link for the Owner to change it.
+- If the browser's UTC offset differs from the host's, every page shows a prominent banner saying times are the server's, with a link for the Owner to change it.
 - **Rationale:** cloud images and VMs default to UTC, which silently moved the "02:00" backup to midday for a user in Melbourne.
 
 #### Update & reboot policy — Locked
@@ -126,7 +126,7 @@ MyLab runs **directly on the host** (not in a container), as two processes shipp
 | `mylab` | Unprivileged `mylab` user, strict systemd sandboxing | Web UI, API, desired state, rootless service management (Quadlets, status, logs) |
 | `mylab-agent` | root | A small fixed set of privileged operations only: OS updates, reboots, rootful Quadlets, firewall. Also sets the host time zone. Listens on a local socket reachable only by `mylab`. |
 
-- Nodes in a multi-machine lab run the same package (§10).
+- Nodes in a multi-server lab run the same package (§10).
 - MyLab updates itself through apt, alongside host OS updates (§3.2).
 - `mylab` is hardened with systemd sandboxing (`ProtectSystem`, `ProtectHome`, `NoNewPrivileges`, `PrivateTmp`, system call filtering, limited writable paths) to get most of a container's isolation.
 - **`mylab` never runs `podman` directly — Locked (2026-09-26).** Rootless Podman needs the setuid `newuidmap`/`newgidmap` helpers, which `NoNewPrivileges` disables. So `mylab` only talks to the `mylab` user's systemd manager (`systemctl --user`, `systemd-run --user`), which runs Podman outside the sandbox. One-off commands (creating secrets, database dumps, `podman unshare` for backups) go through `systemd-run --user`.
@@ -264,16 +264,16 @@ Default paths:
 1. **Prepare:** per-package hooks create a consistent state (e.g. `pg_dump` to `<service>/db-dump/`, SQLite's backup command, or a brief stop if there's no safe live method).
 2. **Snapshot:** `/var/lib/mylab` plus each service's folder.
 3. **Verify:** periodic `restic check` and occasional test restores.
-4. **Restore — Locked (2026-09-27):** per service, by the Owner, from the Backups page: choose one of the backups that contain the service (newest first), confirm, and it runs as an uninterruptible coordinator job with a live log. The service stops, its current data is moved aside (`<dir>.before-restore-<time>`), the backup's files and database dump come back, and it starts again. Kept copies are listed on the restore page and deleted only when the Owner chooses. Restoring a whole lab onto a new machine comes with the installer.
+4. **Restore — Locked (2026-09-27):** per service, by the Owner, from the Backups page: choose one of the backups that contain the service (newest first), confirm, and it runs as an uninterruptible coordinator job with a live log. The service stops, its current data is moved aside (`<dir>.before-restore-<time>`), the backup's files and database dump come back, and it starts again. Kept copies are listed on the restore page and deleted only when the Owner chooses. Restoring a whole lab onto a new server comes with the installer.
 
-**Restore:** per service, or the full lab onto a new machine (install MyLab → point at the backup → enter the recovery key).
+**Restore:** per service, or the full lab onto a new server (install MyLab → point at the backup → enter the recovery key).
 
 **Defaults & policy:**
 - Nightly; keep 7 daily, 4 weekly and 6 monthly.
 - Packages classify data as **critical** (backed up by default: photos, passwords, repos) or **replaceable** (not backed up by default: media libraries, caches).
 - **Destinations:** local disk, remote (S3/B2/SFTP), later MyLab Cloud. **Local-only is allowed, with a persistent warning** recommending off-site.
 - **3-2-1 backups — Locked (requirement), Open (design), 2026-09-26:** MyLab should guide users towards 3-2-1 (3 copies of the data, on 2 different kinds of storage, 1 off-site), not just warn. That means:
-  - **Suggestions in the UI** explaining what's missing and why, e.g. "Your backups are only on this machine" → suggest a USB disk, then an off-site destination.
+  - **Suggestions in the UI** explaining what's missing and why, e.g. "Your backups are only on this server" → suggest a USB disk, then an off-site destination.
   - **Multiple backup destinations**, e.g. a local disk *and* an off-site repository. Likely design: back up to a primary repository, then `restic copy` to the others (efficient, same snapshots everywhere; secondaries initialised with `--copy-chunker-params`). To be designed.
   - The dashboard shows the status of each destination, so a quietly failing off-site copy is noticed.
 - **Recovery key:** shown at setup; the user must save or print it, with a strong prompt for the person doing the setup to keep a copy. Optional key escrow via MyLab Cloud later.
@@ -344,34 +344,34 @@ Layered defaults:
 
 ## 9. MVP Scope — Locked
 
-Single node: web UI, reverse proxy with automatic TLS, three catalog services (e.g. Vaultwarden, Forgejo, Immich — increasing complexity), backup and restore. Multiple machines (§10), SSO, DNS, and monitoring follow after the core is solid, but the design should anticipate multiple machines.
+Single node: web UI, reverse proxy with automatic TLS, three catalog services (e.g. Vaultwarden, Forgejo, Immich — increasing complexity), backup and restore. Multiple servers (§10), SSO, DNS, and monitoring follow after the core is solid, but the design should anticipate multiple servers.
 
 ---
 
-## 10. Multiple Machines — Locked (2026-09-27)
+## 10. Multiple Servers — Locked (2026-09-27)
 
-One lab can span several machines: extra boxes at home, VPSes in the cloud, and later MyLab Cloud. This section is the design to build towards; nothing here is built yet except where marked. It replaces "master/worker" elsewhere in this document.
+One lab can span several servers: extra boxes at home, VPSes in the cloud, and later MyLab Cloud. This section is the design to build towards; nothing here is built yet except where marked. It replaces "master/worker" elsewhere in this document.
 
 ### 10.1 Roles
 
-**Naming (2026-09-28):** the UI calls machines **servers** ("My Servers", Settings → Servers, "Move to another server"); this document and the code keep "machine" and "node".
+**Naming (2026-09-28):** the computers in a lab are **servers** everywhere: the UI ("My Servers", Settings → Servers, "Move to another server"), this document and the code (earlier drafts said "machine"; the database was migrated). A **node** is a server's role when it isn't the controller, and `node.Node` is the code's handle on any server.
 
 **Servers in the UI (2026-09-28):** Home shows **My Servers** beside My Services (status, backups, updates, services, a link to each server's settings). Settings that differ per server (updates and restarts, time zone, remote access, backups) are grouped under "Each server": the overview summarises every server, and each area's page opens on a summary row per server that also switches between them. Each server has its own page (`/settings/servers/<id>`) with its card and its settings. Service cards say which server a service runs on and when it was last backed up, with details (containers and images, web routes, ports, data folders and size); MyLab's own services (MyLab and its agent, Caddy, backup stores, network links) are shown per server behind a toggle, so nothing is hidden from a technical user.
 
-- **Node:** any machine running MyLab. Every node runs its own services (Quadlets, reconciler), its own Caddy and certificates, its own backups, OS updates, firewall and agent, exactly as a single-machine lab does today.
+- **Node:** any server running MyLab. Every node runs its own services (Quadlets, reconciler), its own Caddy and certificates, its own backups, OS updates, firewall and agent, exactly as a single-server lab does today.
 - **Controller:** one node also holds the lab's desired state (§1.2: services, placement, settings), users and sessions, and serves the UI. It decides placement; nodes do the work.
 - **The controller can move to any node** (chosen, not automatic), e.g. from a home NUC to a VPS:
   - Every node keeps a **replica of the lab's state** (desired state and the MyLab database), pulled with its assignments. The controller encrypts it with the **recovery key** (§6.9) before sending it; nodes store it but can't read it, because the recovery key is never stored on a node other than the controller.
   - **Planned move:** the controller hands over (freezes changes, sends the latest state, the new controller takes the address and certificate authority) and becomes a plain node.
   - **Disaster:** the Owner promotes a node from its replica by entering the recovery key (they have it written down for exactly this). At worst it misses changes since its last pull. Two controllers must never both be active: promotion revokes the old one's authority (a new epoch number that nodes follow).
-- The first machine installed is the controller; a lab with one machine is a lab with one node that is also the controller. Single-machine labs stay exactly as simple as today.
+- The first server installed is the controller; a lab with one server is a lab with one node that is also the controller. Single-server labs stay exactly as simple as today.
 
 ### 10.2 Private network: MyLab-managed WireGuard
 
 - MyLab runs a **WireGuard** network between its nodes (WireGuard is in Debian's kernel; `mylab-agent` manages the interface and keys). Every node gets an overlay address (e.g. `100.96.0.x`).
 - **No inbound ports at home:** home nodes dial out to reachable nodes (a VPS with a public IP), so a home controller needs no port forwarding. Nodes that can reach each other directly do; others go via a reachable node (hub and spoke first, a mesh later).
 - All controller ↔ node traffic runs inside WireGuard **and** uses mutual TLS, so a leaked WireGuard key alone isn't enough.
-- **Joining:** the Owner creates a one-time join code in the UI (short-lived, single use) and runs `mylab node join <code>` on the new machine (or picks "Join an existing lab" in its setup wizard). The code carries the controller's address and a CA fingerprint; the node gets its WireGuard peer config and a client certificate from the controller's CA.
+- **Joining:** the Owner creates a one-time join code in the UI (short-lived, single use) and runs `mylab node join <code>` on the new server (or picks "Join an existing lab" in its setup wizard). The code carries the controller's address and a CA fingerprint; the node gets its WireGuard peer config and a client certificate from the controller's CA.
 - "Private" (home network only, §6.10) widens to **home network or MyLab's WireGuard network**. The same network is the base for remote access for people later (a phone joining over WireGuard).
 
 ### 10.3 Controller ↔ node protocol
@@ -409,62 +409,62 @@ Failover is service-specific, so packages declare what they support:
 
 ### 10.7 What to build now (no networking yet): seams
 
-So single-machine code doesn't paint us into a corner:
+So single-server code doesn't paint us into a corner:
 
 1. **`host` on every instance**, defaulting to the controller; loading services filters by host.
-2. **Controller/node split in code:** the UI-facing manager (desired state, users, placement) talks to a **`Node` interface** for everything that touches a machine (apply, status, hooks, actions, restores, activity, updates, restarts, firewall). Today: one in-process implementation. Later: a remote implementation speaking the same plain-data requests.
-3. **Status, activity and restart state are per node**, and the UI's "This machine" areas are per node (e.g. `/settings/servers/<id>/updates`) once there's more than one.
+2. **Controller/node split in code:** the UI-facing manager (desired state, users, placement) talks to a **`Node` interface** for everything that touches a server (apply, status, hooks, actions, restores, activity, updates, restarts, firewall). Today: one in-process implementation. Later: a remote implementation speaking the same plain-data requests.
+3. **Status, activity and restart state are per node**, and the UI's "This server" areas are per node (e.g. `/settings/servers/<id>/updates`) once there's more than one.
 4. **Node identity:** every install gets a stable node ID and name at setup.
 
 Then a **two-VM prototype**: a second dev VM joins the first over WireGuard and runs one service placed on it.
 
 ### 10.8 Decisions (2026-09-27)
 
-- **Network layout:** hub and spoke (machines talk through a reachable node, usually a VPS). Direct links between two networks behind NAT (hole-punching, full mesh) only when a real case needs them.
+- **Network layout:** hub and spoke (servers talk through a reachable node, usually a VPS). Direct links between two networks behind NAT (hole-punching, full mesh) only when a real case needs them.
 - **Edge forwarding:** Caddy's `caddy-l4` plugin, not a forwarder of our own.
 - **Keys:** the recovery key protects the state replicas and is added to every node's backup repository, but is stored only on the controller; each node has its own backup key (§10.3).
-- **MyLab Cloud:** nodes run by MyLab Cloud are trusted like any hosting provider (a machine running your services can see them; there's no real alternative). Roles that don't run services stay **zero-knowledge**: a relay or edge uses TLS passthrough, and a backup target only ever receives restic-encrypted data. Billing is out of scope until MyLab Cloud exists.
+- **MyLab Cloud:** nodes run by MyLab Cloud are trusted like any hosting provider (a server running your services can see them; there's no real alternative). Roles that don't run services stay **zero-knowledge**: a relay or edge uses TLS passthrough, and a backup target only ever receives restic-encrypted data. Billing is out of scope until MyLab Cloud exists.
 
 ### 10.9 Prototype as built (2026-09-27)
 
 What the two-VM prototype does, where it refines the design above:
 
 - **Hub:** the controller is the WireGuard hub (`100.96.0.1`, UDP 51820; network `100.96.0.0/24`). A reachable hub other than the controller comes later.
-- **Joining:** the Owner makes a code in Settings → Servers and runs `sudo mylab node join <code>` on the new machine. The code carries a **one-time WireGuard key**, so only the hub's UDP port needs to be reachable (no public TLS endpoint). Over WireGuard, the machine checks the controller's CA against the code's fingerprint, sends its own WireGuard key and a CSR, and gets its certificate; the hub then replaces the one-time key with the machine's own. Codes work once and expire after an hour.
-- **Protocol:** every machine serves a lab API on its overlay address (port 8471), mutual TLS with the lab's CA. The controller **sends** assignments and makes requests directly (status, service states, activity, hooks, actions, secrets, backups, restores, updates, restarts, settings); a node also **pulls** its assignment when it starts and every 15 minutes, and keeps its last one (without secrets) to run while the controller is away. Assignments carry a version; older ones are ignored. Typed-in secrets travel once and are never stored on disk.
-- **Web routes of a service on another machine:** the machine publishes them on its overlay address (firewall: WireGuard interface only) and the controller's Caddy forwards to it (TLS ends on the controller for now; passthrough is §10.5's edge).
-- **Nodes** run no UI, Caddy or DNS. Per-machine pages live under `/settings/servers/<id>/…`.
+- **Joining:** the Owner makes a code in Settings → Servers and runs `sudo mylab node join <code>` on the new server. The code carries a **one-time WireGuard key**, so only the hub's UDP port needs to be reachable (no public TLS endpoint). Over WireGuard, the server checks the controller's CA against the code's fingerprint, sends its own WireGuard key and a CSR, and gets its certificate; the hub then replaces the one-time key with the server's own. Codes work once and expire after an hour.
+- **Protocol:** every server serves a lab API on its overlay address (port 8471), mutual TLS with the lab's CA. The controller **sends** assignments and makes requests directly (status, service states, activity, hooks, actions, secrets, backups, restores, updates, restarts, settings); a node also **pulls** its assignment when it starts and every 15 minutes, and keeps its last one (without secrets) to run while the controller is away. Assignments carry a version; older ones are ignored. Typed-in secrets travel once and are never stored on disk.
+- **Web routes of a service on another server:** the server publishes them on its overlay address (firewall: WireGuard interface only) and the controller's Caddy forwards to it (TLS ends on the controller for now; passthrough is §10.5's edge).
+- **Nodes** run no UI, Caddy or DNS. Per-server pages live under `/settings/servers/<id>/…`.
 
-### 10.10 Backups across machines, and moving services — Locked (2026-09-27)
+### 10.10 Backups across servers, and moving services — Locked (2026-09-27)
 
-Builds on §6.9 (restic, recovery key, 3-2-1) and §10.3 (each machine backs up its own services to its own repository with its own key).
+Builds on §6.9 (restic, recovery key, 3-2-1) and §10.3 (each server backs up its own services to its own repository with its own key).
 
-**Destinations are chosen per machine, from providers the lab knows.**
-- A **provider** is a place backups can go: a cloud account (B2, S3, …), an SFTP server, **a machine's own disk**, or **another machine offering storage** (below). A provider is set up once (its credentials) and any machine can use it; the Backups page of each machine picks one (and later extra copies, for 3-2-1).
-- Every machine's repository goes in **its own folder**, always, even if only one machine uses the provider: `<provider path>/mylab/<lab id>/<machine id>/`. Moving a lab or adding machines never reshuffles folders. On a rest-server store the machine's own area comes first instead (`/<machine id>/<lab id>`), because private repositories are named after the user; at another lab's store it is `/<guest user>/<machine id>` (the user is the lab's own, and rest-server allows at most two levels).
-- **The controller creates each repository** (decided 2026-09-27): it runs `restic init` at the destination with the recovery key, adds a new key for the machine, and gives the machine only that key. The recovery key never leaves the controller. So the controller must reach every destination, which the next point guarantees.
+**Destinations are chosen per server, from providers the lab knows.**
+- A **provider** is a place backups can go: a cloud account (B2, S3, …), an SFTP server, **a server's own disk**, or **another server offering storage** (below). A provider is set up once (its credentials) and any server can use it; the Backups page of each server picks one (and later extra copies, for 3-2-1).
+- Every server's repository goes in **its own folder**, always, even if only one server uses the provider: `<provider path>/mylab/<lab id>/<server id>/`. Moving a lab or adding servers never reshuffles folders. On a rest-server store the server's own area comes first instead (`/<server id>/<lab id>`), because private repositories are named after the user; at another lab's store it is `/<guest user>/<server id>` (the user is the lab's own, and rest-server allows at most two levels).
+- **The controller creates each repository** (decided 2026-09-27): it runs `restic init` at the destination with the recovery key, adds a new key for the server, and gives the server only that key. The recovery key never leaves the controller. So the controller must reach every destination, which the next point guarantees.
 
 **Disks are offered over MyLab's network (restic's rest-server).**
-- A machine's own disk is used through a small **rest-server** on that machine, listening only on MyLab's network. The controller creates repositories through it like any other destination, and the machine backs up to itself through it too. One mechanism covers "local disk", "the NAS at home" and "a friend's machine".
-- rest-server runs **append-only** for backup clients, so a compromised machine can add backups but not delete old ones (ransomware protection, §6.9). Pruning is done by a key that can delete, held by the controller (see open question 2).
+- A server's own disk is used through a small **rest-server** on that server, listening only on MyLab's network. The controller creates repositories through it like any other destination, and the server backs up to itself through it too. One mechanism covers "local disk", "the NAS at home" and "a friend's server".
+- rest-server runs **append-only** for backup clients, so a compromised server can add backups but not delete old ones (ransomware protection, §6.9). Pruning is done by a key that can delete, held by the controller (see open question 2).
 
-**A machine can be a backup target for other labs (friends and family).**
-- The Owner of the storage machine creates a **storage invite** (like a join code) with a **quota**; the other lab's Owner adds it as a provider. Each invited lab gets its **own rest-server repository area with its own size limit**, reached over a WireGuard link that allows **only** that port (it isn't a machine in the host's lab and can reach nothing else).
+**A server can be a backup target for other labs (friends and family).**
+- The Owner of the storage server creates a **storage invite** (like a join code) with a **quota**; the other lab's Owner adds it as a provider. Each invited lab gets its **own rest-server repository area with its own size limit**, reached over a WireGuard link that allows **only** that port (it isn't a server in the host's lab and can reach nothing else).
 - The host only ever sees encrypted data and sizes (zero-knowledge, like §10.8's backup targets).
 - **Storage management:** the host sets and can change each guest's quota; MyLab keeps free-space headroom on the disk and refuses quotas that don't fit; both sides see usage (the guest: "8.2 of 50 GB used at Mum's"); warnings at 80% and when a backup fails for lack of space; the host can remove a guest (their data is deleted after a grace period, with notice).
 
-**Moving a service between machines: two ways, the UI suggests one.**
-- **Copy directly** (quick, for smaller data or machines on the same network): copy the data to the new machine over MyLab's network *while the service keeps running*, then stop it, copy what changed, start it on the new machine and switch its web address. Downtime is only the final pass. The old copy is kept until the Owner confirms.
-- **Through a backup** (large data, slow or unreliable links, or machines far apart): back up on the old machine, then restore on the new one from the old machine's repository. The controller adds a temporary key to that repository for the new machine and removes it afterwards. Resumable, and reuses restore (§6.9).
-- The move page shows the data size and suggests a way (through a backup above 10 GB, when the old machine's backups are set up through MyLab).
-- As built (2026-09-28): data travels **through the controller** in both ways (it is the hub every machine already connects through); in the backup way the controller reads the old machine's repository itself with the recovery key (`restic dump`), so no repository keys or store passwords are shared between machines. The service's Podman secrets are copied from the old machine. Data already on the new machine is kept aside (`<dir>.before-move-<time>`), and the old machine's copy is renamed (`<dir>.moved-to-<machine>-<time>`), both kept until the Owner deletes them.
+**Moving a service between servers: two ways, the UI suggests one.**
+- **Copy directly** (quick, for smaller data or servers on the same network): copy the data to the new server over MyLab's network *while the service keeps running*, then stop it, copy what changed, start it on the new server and switch its web address. Downtime is only the final pass. The old copy is kept until the Owner confirms.
+- **Through a backup** (large data, slow or unreliable links, or servers far apart): back up on the old server, then restore on the new one from the old server's repository. The controller adds a temporary key to that repository for the new server and removes it afterwards. Resumable, and reuses restore (§6.9).
+- The move page shows the data size and suggests a way (through a backup above 10 GB, when the old server's backups are set up through MyLab).
+- As built (2026-09-28): data travels **through the controller** in both ways (it is the hub every server already connects through); in the backup way the controller reads the old server's repository itself with the recovery key (`restic dump`), so no repository keys or store passwords are shared between servers. The service's Podman secrets are copied from the old server. Data already on the new server is kept aside (`<dir>.before-move-<time>`), and the old server's copy is renamed (`<dir>.moved-to-<server>-<time>`), both kept until the Owner deletes them.
 
 **Decisions (2026-09-27)**
-1. ~~Provider credentials~~ **Decided (2026-09-27): scoped where cheap and stable, shared elsewhere.** rest-server gets a user per machine (`--private-repos`); B2 gets an application key per machine limited to its folder (plain HTTP API, deleted when the machine is removed). Other providers use the shared credentials, and the machine's Backups page says so ("these credentials can reach the whole bucket"). More providers get scoped keys one at a time when there's a need.
+1. ~~Provider credentials~~ **Decided (2026-09-27): scoped where cheap and stable, shared elsewhere.** rest-server gets a user per server (`--private-repos`); B2 gets an application key per server limited to its folder (plain HTTP API, deleted when the server is removed). Other providers use the shared credentials, and the server's Backups page says so ("these credentials can reach the whole bucket"). More providers get scoped keys one at a time when there's a need.
 2. ~~Pruning~~ **Decided (2026-09-27):** the controller runs `restic forget/prune` weekly with the recovery key, over a separate non-append-only credential. For friends' storage, the guest lab's controller does it.
 3. ~~rest-server as a dependency~~ **Decided (2026-09-27):** run it as a pinned container (`docker.io/restic/rest-server`), like Caddy: containers where possible make other distributions easier to support later.
 4. ~~Guest link~~ **Decided (2026-09-27): a separate WireGuard interface for guests** (`mylab-guests`, its own address range, e.g. `100.97.0.0/24`, and its own UDP port, default 51821). The firewall drops everything arriving on it except the rest-server port; the lab API and web routes are never reachable from it. Turning "storage for others" off takes the interface down.
-   - **UDP and port forwarding:** a guest must be able to reach the host's port from the internet. MyLab opens the UDP port in its own firewall, then **explains port forwarding** on the storage page: which port (UDP, not TCP), to which machine (its home-network address), a short how-to with common router names, and a **reachability check** (the guest's first connection, or a check from MyLab Cloud later) so the Owner knows it worked. The same applies to the machines port (51820) when a machine outside the home joins; the join page gets the same explanation. A MyLab Cloud relay can later remove the need for port forwarding (§10.5).
+   - **UDP and port forwarding:** a guest must be able to reach the host's port from the internet. MyLab opens the UDP port in its own firewall, then **explains port forwarding** on the storage page: which port (UDP, not TCP), to which server (its home-network address), a short how-to with common router names, and a **reachability check** (the guest's first connection, or a check from MyLab Cloud later) so the Owner knows it worked. The same applies to the servers port (51820) when a server outside the home joins; the join page gets the same explanation. A MyLab Cloud relay can later remove the need for port forwarding (§10.5).
 
 
 ## Deferred Decisions (post-MVP)

@@ -148,7 +148,7 @@ func TestBackupStep(t *testing.T) {
 	if err := s.SaveBackup(ctx, BackupChoice{Kind: "local", Path: dest}); err != nil {
 		t.Fatal(err)
 	}
-	// Each machine has its own folder in the destination (SPEC.md §10.10).
+	// Each server has its own folder in the destination (SPEC.md §10.10).
 	labID, _ := s.Store.LabID(ctx)
 	repo := filepath.Join(dest, "mylab", labID, "n-0000000001")
 	if _, err := os.Stat(filepath.Join(repo, "config")); err != nil {

@@ -53,11 +53,11 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 	}
 
 	if admin && s.Manager != nil {
-		// Each machine applies its own changes; name it once there are several.
-		machines, _ := s.Manager.Machines()
-		for _, mc := range machines {
+		// Each server applies its own changes; name it once there are several.
+		servers, _ := s.Manager.Servers()
+		for _, mc := range servers {
 			on := ""
-			if len(machines) > 1 {
+			if len(servers) > 1 {
 				on = " on " + mc.Name
 			}
 			switch st := mc.Status; {
@@ -66,8 +66,8 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			case st.LastErr != nil:
 				add(levelProblem, "The last change"+on+" didn't finish: "+st.LastErr.Error(), "/services", "View services")
 			}
-			// A machine that joined has no firewall until the Owner chooses
-			// who can log in over SSH (this machine's is a setup step).
+			// A server that joined has no firewall until the Owner chooses
+			// who can log in over SSH (this server's is a setup step).
 			if owner && !mc.This {
 				if n := s.Manager.NodeByID(mc.ID); n != nil {
 					if set := n.Settings(); set != nil {
@@ -81,7 +81,7 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		}
 		if services, err := s.Services(r.Context()); err == nil {
 			for _, svc := range services {
-				// Asked of the machine each service runs on.
+				// Asked of the server each service runs on.
 				n := s.Manager.NodeFor(svc.Name)
 				if n == nil {
 					continue
@@ -99,7 +99,7 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 	}
 
 	if admin {
-		for _, mn := range s.machineNodes(r) {
+		for _, mn := range s.serverNodes(r) {
 			s.backupAttention(r, mn.view, mn.node, owner, add)
 		}
 	}
@@ -120,7 +120,7 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 	}
 
 	if owner {
-		for _, mn := range s.machineNodes(r) {
+		for _, mn := range s.serverNodes(r) {
 			s.updatesAttention(r, mn.view, mn.node, add)
 		}
 	}
@@ -131,23 +131,23 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 	return items
 }
 
-// machineNode is a machine with what the UI needs from it.
-type machineNode struct {
-	view machineView
+// serverNode is a server with what the UI needs from it.
+type serverNode struct {
+	view serverRef
 	node ServiceNode
 }
 
-// machineNodes lists this machine, then the lab's other reachable ones.
-func (s *Server) machineNodes(r *http.Request) []machineNode {
-	var out []machineNode
+// serverNodes lists this server, then the lab's other reachable ones.
+func (s *Server) serverNodes(r *http.Request) []serverNode {
+	var out []serverNode
 	if s.Node != nil {
-		out = append(out, machineNode{machineView{ID: s.Node.Identity().ID, Name: s.Node.Identity().Name, This: true}, s.Node})
+		out = append(out, serverNode{serverRef{ID: s.Node.Identity().ID, Name: s.Node.Identity().Name, This: true}, s.Node})
 	}
 	if s.Manager == nil {
 		return out
 	}
-	machines, _ := s.Manager.Machines()
-	for _, mc := range machines {
+	servers, _ := s.Manager.Servers()
+	for _, mc := range servers {
 		if mc.This {
 			continue
 		}
@@ -155,20 +155,20 @@ func (s *Server) machineNodes(r *http.Request) []machineNode {
 		if n == nil || mc.Status.LastErr != nil && strings.HasPrefix(mc.Status.LastErr.Error(), "MyLab can't reach") {
 			continue // already flagged as unreachable
 		}
-		out = append(out, machineNode{machineView{ID: mc.ID, Name: mc.Name}, n})
+		out = append(out, serverNode{serverRef{ID: mc.ID, Name: mc.Name}, n})
 	}
 	return out
 }
 
-// on names another machine in a message ("" for this one).
-func (m machineView) on() string {
+// on names another server in a message ("" for this one).
+func (m serverRef) on() string {
 	if m.This {
 		return ""
 	}
 	return " on " + m.Name
 }
 
-func (s *Server) backupAttention(r *http.Request, m machineView, n ServiceNode, owner bool, add func(level, text, link, linkText string)) {
+func (s *Server) backupAttention(r *http.Request, m serverRef, n ServiceNode, owner bool, add func(level, text, link, linkText string)) {
 	b := n.Backups()
 	if b == nil {
 		return
@@ -210,7 +210,7 @@ func (s *Server) backupAttention(r *http.Request, m machineView, n ServiceNode, 
 	}
 }
 
-func (s *Server) updatesAttention(r *http.Request, m machineView, n ServiceNode, add func(level, text, link, linkText string)) {
+func (s *Server) updatesAttention(r *http.Request, m serverRef, n ServiceNode, add func(level, text, link, linkText string)) {
 	u := n.Updates()
 	if u == nil {
 		return

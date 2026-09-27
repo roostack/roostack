@@ -41,12 +41,12 @@ func Desired(lab config.Lab, services []*generate.Output) (fw agent.Firewall, ok
 				Reason: s.Service + " " + hp.Name})
 		}
 	}
-	// MyLab's network between machines (SPEC.md §10.2).
+	// MyLab's network between servers (SPEC.md §10.2).
 	if lab.OverlayAddr != "" {
 		fw.Allow = append(fw.Allow, agent.Rule{Port: labnet.Port, Proto: "tcp", Iface: agent.WireGuardInterface,
-			Reason: "mylab machines"})
+			Reason: "mylab servers"})
 		if !lab.IsNode() {
-			// The controller is the hub other machines dial.
+			// The controller is the hub other servers dial.
 			fw.Allow = append(fw.Allow, agent.Rule{Port: agent.WireGuardPort, Proto: "udp", From: agent.FromAny,
 				Reason: "mylab wireguard"})
 		}
@@ -69,7 +69,7 @@ var (
 	ProcTCP6 = "/proc/net/tcp6"
 )
 
-// SSHClients returns the addresses connected to this machine's SSH server
+// SSHClients returns the addresses connected to this server's SSH server
 // (port 22) right now, from the kernel's TCP table.
 func SSHClients() ([]netip.Addr, error) {
 	var addrs []netip.Addr

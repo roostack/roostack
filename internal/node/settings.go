@@ -15,11 +15,11 @@ import (
 	"github.com/mylab/mylab/internal/firewall"
 )
 
-// Settings are a machine's own settings: its clock, who may reach it over
+// Settings are a server's own settings: its clock, who may reach it over
 // SSH, and when it may restart after updates. Changing one restarts MyLab
-// on that machine so every part picks it up.
+// on that server so every part picks it up.
 type Settings interface {
-	// Timezones returns the machine's time zone and those it can use.
+	// Timezones returns the server's time zone and those it can use.
 	Timezones() (current string, zones []string, err error)
 	// SetTimezone returns true if the zone changed (MyLab then restarts:
 	// Go reads the local zone once, and schedules depend on it).
@@ -29,21 +29,21 @@ type Settings interface {
 	// unless confirmed.
 	SetSSH(ctx context.Context, choice string, confirmed bool) error
 	SetRestartPolicy(ctx context.Context, mode string, hour int) error
-	// RestartPolicy is when the machine may restart after updates.
+	// RestartPolicy is when the server may restart after updates.
 	RestartPolicy() (mode string, hour int)
-	// SetBackupDestination points the machine's backups at a repository
+	// SetBackupDestination points the server's backups at a repository
 	// the controller created for it (SPEC.md §10.10).
 	SetBackupDestination(ctx context.Context, d BackupDestination) error
 }
 
-// BackupDestination is a machine's backup repository: where it is, the
-// credentials to reach it, and the machine's own key to it. An empty Key
-// keeps the machine's key file (the controller's is the recovery key).
+// BackupDestination is a server's backup repository: where it is, the
+// credentials to reach it, and the server's own key to it. An empty Key
+// keeps the server's key file (the controller's is the recovery key).
 type BackupDestination struct {
 	Repository string   `json:"repository"`
 	Env        []string `json:"env,omitempty"`
 	Key        string   `json:"key,omitempty"`
-	// PrunedByController: this machine only adds backups.
+	// PrunedByController: this server only adds backups.
 	PrunedByController bool `json:"pruned_by_controller,omitempty"`
 }
 
@@ -53,7 +53,7 @@ type SSHAccess struct {
 	Clients []netip.Addr
 }
 
-// HostSettings changes this machine's settings: the time zone through
+// HostSettings changes this server's settings: the time zone through
 // mylab-agent, the rest in lab.yaml.
 type HostSettings struct {
 	Lab     config.Lab
@@ -69,8 +69,8 @@ type HostSettings struct {
 	Restart func()
 }
 
-// Settings is this machine's settings, or nil.
-func (n *Local) Settings() Settings { return n.Machine }
+// Settings is this server's settings, or nil.
+func (n *Local) Settings() Settings { return n.Host }
 
 func (h *HostSettings) Timezones() (string, []string, error) {
 	zones, err := h.Zones()

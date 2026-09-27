@@ -43,19 +43,19 @@ type (
 var ErrNotFound = node.ErrNotFound
 
 // Manager is the controller side of the lab (SPEC.md §10.3): it keeps
-// desired state (instance files), decides what each machine runs, and
-// hands that to the machine as an Assignment. Machine work (applying,
+// desired state (instance files), decides what each server runs, and
+// hands that to the server as an Assignment. Server work (applying,
 // install hooks, actions) happens in the Node.
 type Manager struct {
 	Lab config.Lab
 	Log *slog.Logger
-	// Node is this machine (the controller).
+	// Node is this server (the controller).
 	Node node.Node
-	// Others lists the lab's other machines (SPEC.md §10); nil if none.
-	Others func() []RemoteMachine
-	// Registry records the other machines (removing, renaming).
-	Registry MachineRegistry
-	// RenameSelf renames this machine (optional).
+	// Others lists the lab's other servers (SPEC.md §10); nil if none.
+	Others func() []RemoteServer
+	// Registry records the other servers (removing, renaming).
+	Registry ServerRegistry
+	// RenameSelf renames this server (optional).
 	RenameSelf func(name string) error
 	// BackupStore records backup providers and targets, and OpenRepo opens
 	// a repository with the recovery key (backups.go; optional).
@@ -83,7 +83,7 @@ type Manager struct {
 	// over to the node.
 	mu sync.Mutex
 	// secrets holds values typed into install forms, by service, until
-	// the next assignment hands them to the service's machine. Never
+	// the next assignment hands them to the service's server. Never
 	// written to disk.
 	secrets map[string]map[string][]byte
 	// setUp lists newly installed services whose install hooks the node
@@ -150,7 +150,7 @@ type InstallRequest struct {
 	Settings map[string]string
 	// Secrets holds secret settings the user must provide.
 	Secrets map[string]string
-	// Host is the machine to run it on (a node ID); empty is this one.
+	// Host is the server to run it on (a node ID); empty is this one.
 	Host string
 }
 
@@ -229,7 +229,7 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	if _, err := state.AllocatePorts(onNode); err != nil {
 		return err
 	}
-	// Check the machine's services still generate, and no hostname is used
+	// Check the server's services still generate, and no hostname is used
 	// twice in the lab, before saving anything.
 	if _, err := state.Desired(m.Lab, onNode, m.proxied(services, in.Host)...); err != nil {
 		if strings.Contains(err.Error(), "already used") {

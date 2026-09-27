@@ -9,7 +9,7 @@ import (
 	"github.com/mylab/mylab/internal/manager"
 )
 
-// Moving a service to another machine (SPEC.md §10.10).
+// Moving a service to another server (SPEC.md §10.10).
 
 func (s *Server) movePage(w http.ResponseWriter, r *http.Request) {
 	s.renderMove(w, r, "")
@@ -40,9 +40,9 @@ func (s *Server) renderMove(w http.ResponseWriter, r *http.Request, errMsg strin
 		s.serverError(w, err)
 		return
 	}
-	machines, _ := s.Manager.Machines()
-	var targets []manager.Machine
-	for _, mc := range machines {
+	servers, _ := s.Manager.Servers()
+	var targets []manager.Server
+	for _, mc := range servers {
 		if mc.ID != info.From.ID {
 			targets = append(targets, mc)
 		}

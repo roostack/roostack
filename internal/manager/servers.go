@@ -13,12 +13,12 @@ import (
 	"github.com/mylab/mylab/internal/state"
 )
 
-// A lab's machines (SPEC.md §10): this one, the controller, which keeps
+// A lab's servers (SPEC.md §10): this one, the controller, which keeps
 // desired state, and any others, which run the services placed on them.
 // Each gets its own Assignment.
 
-// RemoteMachine is another machine (node.Remote).
-type RemoteMachine interface {
+// RemoteServer is another server (node.Remote).
+type RemoteServer interface {
 	node.Node
 	// Address is where the controller's Caddy reaches its web services.
 	Address() string
@@ -27,33 +27,33 @@ type RemoteMachine interface {
 	Rename(ctx context.Context, name string) error
 }
 
-// MachineRegistry is the controller's record of the other machines
+// ServerRegistry is the controller's record of the other servers
 // (labnet.Hub).
-type MachineRegistry interface {
+type ServerRegistry interface {
 	Remove(ctx context.Context, id string) error
 	Rename(ctx context.Context, id, name string) error
 }
 
-// Machine is one machine in the lab, for the UI.
-type Machine struct {
+// Server is one server in the lab, for the UI.
+type Server struct {
 	ID, Name string
 	// Controller holds the lab's desired state and serves the UI.
 	Controller bool
-	// This is the machine serving this request.
+	// This is the server serving this request.
 	This bool
 	// Services are the names of the services placed on it.
 	Services []string
 	Status   ApplyStatus
 }
 
-func (m *Manager) others() []RemoteMachine {
+func (m *Manager) others() []RemoteServer {
 	if m.Others == nil {
 		return nil
 	}
 	return m.Others()
 }
 
-// node returns the machine with a node ID, or nil.
+// node returns the server with a node ID, or nil.
 func (m *Manager) node(id string) node.Node {
 	if id == "" || id == m.Lab.NodeID {
 		return m.Node
@@ -66,11 +66,11 @@ func (m *Manager) node(id string) node.Node {
 	return nil
 }
 
-// NodeByID returns a machine by its node ID, or nil.
+// NodeByID returns a server by its node ID, or nil.
 func (m *Manager) NodeByID(id string) node.Node { return m.node(id) }
 
-// NodeFor returns the machine a service runs on, or nil if it isn't
-// installed (or its machine has left the lab).
+// NodeFor returns the server a service runs on, or nil if it isn't
+// installed (or its server has left the lab).
 func (m *Manager) NodeFor(service string) node.Node {
 	_, in, err := m.installedService(service)
 	if err != nil {
@@ -79,7 +79,7 @@ func (m *Manager) NodeFor(service string) node.Node {
 	return m.node(in.Host)
 }
 
-// onNode returns the services placed on a machine.
+// onNode returns the services placed on a server.
 func (m *Manager) onNode(services []state.Service, id string) []state.Service {
 	if id == m.Lab.NodeID {
 		return state.OnNode(services, id) // including any with no host yet
@@ -93,7 +93,7 @@ func (m *Manager) onNode(services []state.Service, id string) []state.Service {
 	return out
 }
 
-// proxied returns the services on other machines than id whose routes
+// proxied returns the services on other servers than id whose routes
 // the controller's Caddy serves. Only the controller proxies.
 func (m *Manager) proxied(services []state.Service, id string) []state.Proxied {
 	var out []state.Proxied
@@ -108,15 +108,15 @@ func (m *Manager) proxied(services []state.Service, id string) []state.Proxied {
 	return out
 }
 
-// Apply hands every machine its latest assignment (e.g. at startup).
+// Apply hands every server its latest assignment (e.g. at startup).
 func (m *Manager) Apply() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.startApplyLocked()
 }
 
-// startApplyLocked builds each machine's assignment and hands it over;
-// machines apply in the background.
+// startApplyLocked builds each server's assignment and hands it over;
+// servers apply in the background.
 func (m *Manager) startApplyLocked() {
 	services, err := state.LoadServices(m.Lab)
 	if err == nil {
@@ -155,7 +155,7 @@ func (m *Manager) startApplyLocked() {
 		if n == m.Node {
 			a.Proxied = m.proxied(services, id)
 			// Other labs' stores live on the controller, and it forwards its
-			// machines' backups to other labs (SPEC.md §10.10).
+			// servers' backups to other labs (SPEC.md §10.10).
 			a.Guests, a.GuestAddr = m.guestStores(context.Background())
 			a.ProxyPorts = m.proxyPorts(context.Background())
 		}
@@ -165,8 +165,8 @@ func (m *Manager) startApplyLocked() {
 	m.secrets, m.setUp = nil, nil
 }
 
-// allocateAndSave places services that have no host yet on this machine
-// and gives every machine's routes their ports (per machine: each has its
+// allocateAndSave places services that have no host yet on this server
+// and gives every server's routes their ports (per server: each has its
 // own), saving what changed so ports never change. Callers hold m.mu.
 func (m *Manager) allocateAndSave(services []state.Service) error {
 	changed := state.AssignHosts(services, m.Lab.NodeID)
@@ -193,7 +193,7 @@ func (m *Manager) allocateAndSave(services []state.Service) error {
 	return nil
 }
 
-// Status reports this machine's current or last apply.
+// Status reports this server's current or last apply.
 func (m *Manager) Status() ApplyStatus {
 	st := m.Node.Status()
 	m.mu.Lock()
@@ -204,8 +204,8 @@ func (m *Manager) Status() ApplyStatus {
 	return st
 }
 
-// Machines lists the lab's machines: this one (the controller) first.
-func (m *Manager) Machines() ([]Machine, error) {
+// Servers lists the lab's servers: this one (the controller) first.
+func (m *Manager) Servers() ([]Server, error) {
 	all, err := state.LoadServices(m.Lab)
 	if err != nil {
 		return nil, err
@@ -219,11 +219,11 @@ func (m *Manager) Machines() ([]Machine, error) {
 		return out
 	}
 	id := m.Node.Identity()
-	machines := []Machine{{ID: id.ID, Name: id.Name, Controller: true, This: true, Status: m.Status(),
+	servers := []Server{{ID: id.ID, Name: id.Name, Controller: true, This: true, Status: m.Status(),
 		Services: names(m.Lab.NodeID)}}
 	others := m.others()
 	statuses := make([]ApplyStatus, len(others))
-	// Ask every machine at once: an unreachable one takes a few seconds.
+	// Ask every server at once: an unreachable one takes a few seconds.
 	var wg sync.WaitGroup
 	for i, r := range others {
 		wg.Go(func() { statuses[i] = r.Status() })
@@ -231,19 +231,19 @@ func (m *Manager) Machines() ([]Machine, error) {
 	wg.Wait()
 	for i, r := range others {
 		rid := r.Identity()
-		machines = append(machines, Machine{ID: rid.ID, Name: rid.Name, Status: statuses[i], Services: names(rid.ID)})
+		servers = append(servers, Server{ID: rid.ID, Name: rid.Name, Status: statuses[i], Services: names(rid.ID)})
 	}
-	return machines, nil
+	return servers, nil
 }
 
 // ServiceState is a service's state and where it runs.
 type ServiceState struct {
 	Status string
-	// Machine is the name of the machine it runs on.
-	Machine string
+	// Server is the name of the server it runs on.
+	Server string
 }
 
-// ServiceStates reports every service's state, asking each machine.
+// ServiceStates reports every service's state, asking each server.
 func (m *Manager) ServiceStates(ctx context.Context) map[string]ServiceState {
 	nodes := []node.Node{m.Node}
 	for _, r := range m.others() {
@@ -255,7 +255,7 @@ func (m *Manager) ServiceStates(ctx context.Context) map[string]ServiceState {
 		wg.Go(func() {
 			states, err := n.ServiceStates(ctx)
 			if err != nil {
-				m.Log.Warn("reading service states", "machine", n.Identity().Name, "err", err)
+				m.Log.Warn("reading service states", "server", n.Identity().Name, "err", err)
 			}
 			results[i] = states
 		})
@@ -264,13 +264,13 @@ func (m *Manager) ServiceStates(ctx context.Context) map[string]ServiceState {
 	out := map[string]ServiceState{}
 	for i, n := range nodes {
 		for name, st := range results[i] {
-			out[name] = ServiceState{Status: st, Machine: n.Identity().Name}
+			out[name] = ServiceState{Status: st, Server: n.Identity().Name}
 		}
 	}
 	return out
 }
 
-// PendingFor returns the assignment a machine fetches when it starts
+// PendingFor returns the assignment a server fetches when it starts
 // (SPEC.md §10.3: nodes pull), building fresh assignments first.
 func (m *Manager) PendingFor(id string) (node.WireAssignment, bool) {
 	m.Apply()
@@ -287,14 +287,14 @@ func (m *Manager) PendingFor(id string) (node.WireAssignment, bool) {
 	return node.WireAssignment{}, false
 }
 
-// RemoveMachine takes another machine out of the lab. Its services must be
+// RemoveServer takes another server out of the lab. Its services must be
 // moved or removed first. It is asked to leave (it may be switched off);
 // either way, it loses its access to the lab's network.
-func (m *Manager) RemoveMachine(ctx context.Context, id string) error {
+func (m *Manager) RemoveServer(ctx context.Context, id string) error {
 	if m.Registry == nil || id == m.Lab.NodeID {
 		return ErrNotFound
 	}
-	var r RemoteMachine
+	var r RemoteServer
 	for _, o := range m.others() {
 		if o.Identity().ID == id {
 			r = o
@@ -312,15 +312,15 @@ func (m *Manager) RemoveMachine(ctx context.Context, id string) error {
 			r.Identity().Name, on[0].Package.Title)
 	}
 	if err := r.Leave(ctx); err != nil {
-		m.Log.Warn("server didn't answer; removing it anyway", "machine", r.Identity().Name, "err", err)
+		m.Log.Warn("server didn't answer; removing it anyway", "server", r.Identity().Name, "err", err)
 	}
-	m.forgetMachineBackups(ctx, id)
+	m.forgetServerBackups(ctx, id)
 	return m.Registry.Remove(ctx, id)
 }
 
-// RenameMachine changes a machine's name. Renaming this machine restarts
+// RenameServer changes a server's name. Renaming this server restarts
 // MyLab (RenameSelf), which reads its name at startup.
-func (m *Manager) RenameMachine(ctx context.Context, id, name string) error {
+func (m *Manager) RenameServer(ctx context.Context, id, name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" || len([]rune(name)) > 40 || strings.ContainsFunc(name, unicode.IsControl) {
 		return formErrorf("Choose a name of up to 40 characters.")
@@ -339,7 +339,7 @@ func (m *Manager) RenameMachine(ctx context.Context, id, name string) error {
 			return err
 		}
 		if err := o.Rename(ctx, name); err != nil {
-			m.Log.Warn("server didn't take its new name", "machine", name, "err", err)
+			m.Log.Warn("server didn't take its new name", "server", name, "err", err)
 		}
 		return nil
 	}
@@ -350,8 +350,8 @@ func (m *Manager) RenameMachine(ctx context.Context, id, name string) error {
 // and what its server reports about it.
 type ServiceInfo struct {
 	node.ServiceDetail
-	// Machine names the server it runs on; MachineID is its ID.
-	Machine, MachineID string
+	// Server names the server it runs on; ServerID is its ID.
+	Server, ServerID string
 	// LastBackup is when its server last finished a backup (zero: never,
 	// or backups aren't set up there).
 	LastBackup time.Time
@@ -384,30 +384,30 @@ func (m *Manager) ServiceInfos(ctx context.Context) map[string]ServiceInfo {
 	out := map[string]ServiceInfo{}
 	for i, n := range nodes {
 		for name, d := range results[i].details {
-			out[name] = ServiceInfo{ServiceDetail: d, Machine: n.Identity().Name, MachineID: n.Identity().ID,
+			out[name] = ServiceInfo{ServiceDetail: d, Server: n.Identity().Name, ServerID: n.Identity().ID,
 				LastBackup: results[i].backup}
 		}
 	}
 	return out
 }
 
-// MachineBuiltIns is MyLab's own parts on one server.
-type MachineBuiltIns struct {
-	Machine string
-	Items   []node.BuiltIn
+// ServerBuiltIns is MyLab's own parts on one server.
+type ServerBuiltIns struct {
+	Server string
+	Items  []node.BuiltIn
 	// Err is why the server couldn't say (e.g. unreachable).
 	Err error
 }
 
 // AllBuiltIns lists MyLab's own parts on every server.
-func (m *Manager) AllBuiltIns(ctx context.Context) []MachineBuiltIns {
+func (m *Manager) AllBuiltIns(ctx context.Context) []ServerBuiltIns {
 	nodes := m.allNodes()
-	out := make([]MachineBuiltIns, len(nodes))
+	out := make([]ServerBuiltIns, len(nodes))
 	var wg sync.WaitGroup
 	for i, n := range nodes {
 		wg.Go(func() {
 			items, err := n.BuiltIns(ctx)
-			out[i] = MachineBuiltIns{Machine: n.Identity().Name, Items: items, Err: err}
+			out[i] = ServerBuiltIns{Server: n.Identity().Name, Items: items, Err: err}
 		})
 	}
 	wg.Wait()

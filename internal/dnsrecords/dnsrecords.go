@@ -45,7 +45,7 @@ type Status struct {
 	Checked time.Time
 	// Current is the record's existing value, on a conflict.
 	Current string
-	// Reachable: the home network's resolver returns this machine's address.
+	// Reachable: the home network's resolver returns this server's address.
 	Reachable bool
 	// Syncing: a sync (update and check) is running now.
 	Syncing bool
@@ -391,7 +391,7 @@ func (m *Manager) lanIP() (string, error) {
 	return DetectLANIP()
 }
 
-// DetectLANIP returns the address this machine uses to reach the internet
+// DetectLANIP returns the address this server uses to reach the internet
 // (its LAN address behind a home router). No packets are sent.
 func DetectLANIP() (string, error) {
 	c, err := net.Dial("udp4", "192.0.2.1:9") // TEST-NET-1: routing lookup only
@@ -402,7 +402,7 @@ func DetectLANIP() (string, error) {
 	return c.LocalAddr().(*net.UDPAddr).IP.String(), nil
 }
 
-// SystemLookup resolves through this machine's configured DNS (normally
+// SystemLookup resolves through this server's configured DNS (normally
 // the home router).
 func SystemLookup(ctx context.Context, host string) ([]string, error) {
 	return net.DefaultResolver.LookupHost(ctx, host)

@@ -18,8 +18,8 @@ import (
 // codePrefix marks a join code, so a pasted code is recognisable.
 const codePrefix = "mylab-join-"
 
-// JoinCode is everything a new machine needs to join a lab (SPEC.md
-// §10.2). It carries a one-time WireGuard key, so the machine can reach
+// JoinCode is everything a new server needs to join a lab (SPEC.md
+// §10.2). It carries a one-time WireGuard key, so the server can reach
 // the controller over WireGuard before it has registered its own key;
 // the controller accepts that key only until the code is used or expires.
 type JoinCode struct {
@@ -30,13 +30,13 @@ type JoinCode struct {
 	// ControllerID and ControllerAddr name the controller on the network.
 	ControllerID   string     `json:"c"`
 	ControllerAddr netip.Addr `json:"ca"`
-	// Addr is the address the new machine gets on MyLab's network.
+	// Addr is the address the new server gets on MyLab's network.
 	Addr netip.Addr `json:"a"`
 	// PrefixBits is the network's prefix length (e.g. 24).
 	PrefixBits int `json:"b"`
 	// JoinKey is the one-time WireGuard private key.
 	JoinKey string `json:"j"`
-	// CA is the controller's CA fingerprint, so the new machine can tell
+	// CA is the controller's CA fingerprint, so the new server can tell
 	// it reached the real controller.
 	CA string `json:"f"`
 	// Token proves the code to the controller.
@@ -89,20 +89,20 @@ func HashToken(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// JoinRequest is what a joining machine sends the controller, over
+// JoinRequest is what a joining server sends the controller, over
 // WireGuard, with TLS checked against the code's CA fingerprint.
 type JoinRequest struct {
 	Token  string `json:"token"`
 	NodeID string `json:"node_id"`
 	Name   string `json:"name"`
-	// PublicKey is the machine's own WireGuard key, replacing the
+	// PublicKey is the server's own WireGuard key, replacing the
 	// one-time key from the code.
 	PublicKey string `json:"public_key"`
 	// CSR is the certificate signing request (DER).
 	CSR []byte `json:"csr"`
 }
 
-// JoinResponse is the machine's certificate and the CA.
+// JoinResponse is the server's certificate and the CA.
 type JoinResponse struct {
 	Cert []byte `json:"cert"` // PEM
 	CA   []byte `json:"ca"`   // PEM

@@ -19,7 +19,7 @@ import (
 	"github.com/mylab/mylab/internal/systemd"
 )
 
-// newLocal builds this machine (SPEC.md §10.1): it applies its services,
+// newLocal builds this server (SPEC.md §10.1): it applies its services,
 // runs their hooks, its maintenance jobs and its own settings, whether it
 // is the controller or a node.
 func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Identity, st *store.Store,
@@ -45,7 +45,7 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		Exec: func(ctx context.Context, container string, env map[string]string, command []string) ([]byte, error) {
 			return podman.Exec(ctx, podman.Run, container, env, command...)
 		},
-		Machine: &node.HostSettings{
+		Host: &node.HostSettings{
 			Lab: lab, LabPath: labPath,
 			SetZone: agentClient.SetTimezone,
 			Zone:    hosttime.Zone, Zones: hosttime.Zones,
@@ -53,7 +53,7 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 			Restart:    restart,
 		},
 	}
-	// Backups and restores cover the services this machine runs, as its
+	// Backups and restores cover the services this server runs, as its
 	// assignment says (a node keeps no instance files of its own).
 	assigned := func() (config.Lab, []state.Service, error) {
 		lab, services := local.Assigned()

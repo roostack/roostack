@@ -12,24 +12,24 @@ import (
 	"github.com/mylab/mylab/internal/store"
 )
 
-// Fleet is the controller's other machines: one Remote each, kept so their
+// Fleet is the controller's other servers: one Remote each, kept so their
 // pending assignments and status survive between requests.
 type Fleet struct {
 	Self labnet.Identity
 	Lab  config.Lab
 	Log  *slog.Logger
-	// List reads the machines that have joined (store.Machines).
-	List func(ctx context.Context) ([]store.Machine, error)
+	// List reads the servers that have joined (store.Servers).
+	List func(ctx context.Context) ([]store.Server, error)
 
 	mu      sync.Mutex
 	remotes map[string]*Remote
 }
 
-// Remotes returns the lab's other machines.
+// Remotes returns the lab's other servers.
 func (f *Fleet) Remotes() []*Remote {
-	machines, err := f.List(context.Background())
+	servers, err := f.List(context.Background())
 	if err != nil {
-		f.Log.Error("listing machines", "err", err)
+		f.Log.Error("listing servers", "err", err)
 		return nil
 	}
 	f.mu.Lock()
@@ -38,7 +38,7 @@ func (f *Fleet) Remotes() []*Remote {
 		f.remotes = map[string]*Remote{}
 	}
 	var out []*Remote
-	for _, m := range machines {
+	for _, m := range servers {
 		addr, err := netip.ParseAddr(m.Addr)
 		if err != nil {
 			continue
@@ -46,7 +46,7 @@ func (f *Fleet) Remotes() []*Remote {
 		r := f.remotes[m.ID]
 		if r == nil || r.Addr != addr || r.ID.Name != m.Name {
 			if r, err = NewRemote(f.Self, nodeid.Identity{ID: m.ID, Name: m.Name}, addr, f.Lab, f.Log); err != nil {
-				f.Log.Error("reaching a machine", "machine", m.Name, "err", err)
+				f.Log.Error("reaching a server", "server", m.Name, "err", err)
 				continue
 			}
 			f.remotes[m.ID] = r

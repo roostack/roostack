@@ -41,8 +41,8 @@ type WireService struct {
 	Package  []byte `json:"package"`
 }
 
-// WireProxied is a service whose routes the receiving machine serves for
-// another machine.
+// WireProxied is a service whose routes the receiving server serves for
+// another server.
 type WireProxied struct {
 	WireService
 	Addr string `json:"addr"`

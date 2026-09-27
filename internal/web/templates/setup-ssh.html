@@ -5,7 +5,7 @@
   {{if .Wizard}}<p class="hint">Setup · step 2 of 4</p>
   <h1>Who can log in to this server?</h1>
   {{else}}{{back .Back .BackText}}
-  <h1>Change remote access{{if not .Machine.This}} to {{.Machine.Name}}{{end}}</h1>
+  <h1>Change remote access{{if not .Server.This}} to {{.Server.Name}}{{end}}</h1>
   {{end}}
   <p>SSH lets someone log in to this server from another computer to fix things MyLab can't. MyLab's firewall
     blocks everything else except your services' web addresses.</p>
@@ -16,7 +16,7 @@
   </div>
   {{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  <form method="post" action="{{.Machine.RemoteAccessPost}}" data-choice="{{.Choice}}" x-data="{ choice: $el.dataset.choice }">
+  <form method="post" action="{{.Server.RemoteAccessPost}}" data-choice="{{.Choice}}" x-data="{ choice: $el.dataset.choice }">
     <fieldset>
       <label class="check"><input type="radio" name="ssh" value="lan" x-model="choice">
         <span>Only from my home network (recommended)<small>From computers at home, or over a VPN.</small></span></label>

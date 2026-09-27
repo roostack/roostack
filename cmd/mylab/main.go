@@ -25,7 +25,7 @@ Commands:
   backup   Set up backups, back up now, list backups
   render   Show or write the files generated for a service (no side effects)
   validate Check a package file
-  node     Join this machine to a lab
+  node     Join this server to a lab
 
 Run 'mylab <command> -h' for command flags.
 `
@@ -177,16 +177,16 @@ func writeFiles(root string, files []generate.File) error {
 	return nil
 }
 
-// withNode loads this machine's identity into lab (creating it on first
+// withNode loads this server's identity into lab (creating it on first
 // use), so only its own services are generated and run (SPEC.md §10.4).
 func withNode(lab *config.Lab) (nodeid.Identity, error) {
 	id, err := nodeid.LoadOrCreate(lab.Paths.StateDir)
 	if err != nil {
-		return id, fmt.Errorf("this machine's identity: %w", err)
+		return id, fmt.Errorf("this server's identity: %w", err)
 	}
 	lab.NodeID = id.ID
 	lab.Role = config.RoleController
-	// A machine in a lab with a network (SPEC.md §10.2) knows its role.
+	// A server in a lab with a network (SPEC.md §10.2) knows its role.
 	m, ok, err := labnet.LoadMembership(lab.Paths.StateDir)
 	if err != nil {
 		return id, err

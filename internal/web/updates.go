@@ -35,8 +35,8 @@ func (s *Server) updatesView(r *http.Request, errMsg string) *updatesView {
 	v := &updatesView{Last: last, Pending: s.updates(r).Pending(), Restart: s.updates(r).RestartStatus(),
 		Mode: s.Maintenance.Restart, Hour: s.Maintenance.Hour(), ErrorMsg: errMsg,
 		Activity: s.activityFor(r, activity.OSUpdates)}
-	// Each machine has its own policy.
-	if m := s.machine(r); m != nil {
+	// Each server has its own policy.
+	if m := s.server(r); m != nil {
 		v.Mode, v.Hour = m.RestartPolicy()
 	}
 	if a := v.Activity; a != nil && a.Running() {
@@ -60,7 +60,7 @@ func (s *Server) updateNowSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	m := s.machineViewOf(r)
+	m := s.serverRefOf(r)
 	s.Store.Audit(r.Context(), currentUser(r), "updates", "OS updates started on "+m.Label())
 	redirect(w, r, m.Updates())
 }
@@ -80,10 +80,10 @@ func (s *Server) restartNowSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	m := s.machineViewOf(r)
+	m := s.serverRefOf(r)
 	s.Store.Audit(r.Context(), currentUser(r), "restart", m.Label()+" restarted")
 	if !m.This {
-		// This UI stays up; the other machine comes back on its own.
+		// This UI stays up; the other server comes back on its own.
 		redirect(w, r, "/settings/servers")
 		return
 	}
@@ -95,11 +95,11 @@ func (s *Server) restartPolicySubmit(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		hour = -1
 	}
-	if s.machine(r) == nil {
+	if s.server(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
-	err = s.machine(r).SetRestartPolicy(r.Context(), r.FormValue("restart"), hour)
+	err = s.server(r).SetRestartPolicy(r.Context(), r.FormValue("restart"), hour)
 	if msg, ok := userMessage(err); ok {
 		s.renderUpdates(w, r, msg)
 		return
@@ -108,7 +108,7 @@ func (s *Server) restartPolicySubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	m := s.machineViewOf(r)
+	m := s.serverRefOf(r)
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "restart policy changed on "+m.Label())
 	if !m.This {
 		redirect(w, r, m.Updates())

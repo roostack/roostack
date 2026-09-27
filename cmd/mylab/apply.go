@@ -37,7 +37,7 @@ func apply(args []string) error {
 	if err != nil {
 		return err
 	}
-	// Services get a host (this machine, if they have none) and new routes
+	// Services get a host (this server, if they have none) and new routes
 	// a host port, once; both are saved in the instance file.
 	changed := state.AssignHosts(all, lab.NodeID)
 	services := state.OnNode(all, lab.NodeID)

@@ -27,7 +27,7 @@ import (
 // Storage for other labs (SPEC.md §10.10): a lab offers space for another
 // lab's backups over its own WireGuard interface (mylab-guests), which
 // reaches only the guests' backup stores. The guest lab links to it with
-// an invite, much like a machine joins with a code.
+// an invite, much like a server joins with a code.
 
 // Guest link ports on the host's address on the guests' link.
 const (
@@ -214,7 +214,7 @@ func (h *GuestHub) Start(ctx context.Context) {
 }
 
 // NewInvite makes an invite for another lab to store up to quota bytes
-// here. endpoint is this machine's address and guests port as the other
+// here. endpoint is this server's address and guests port as the other
 // lab sees it.
 func (h *GuestHub) NewInvite(ctx context.Context, name string, quota int64, endpoint string) (StorageInvite, error) {
 	p, err := h.subnet(ctx)
@@ -408,7 +408,7 @@ func JoinStorage(ctx context.Context, inv StorageInvite, iface string, ag WireGu
 	var refused *RemoteError
 	if err != nil && !errors.As(err, &refused) {
 		_, port, _ := net.SplitHostPort(inv.Endpoint)
-		return fmt.Errorf("couldn't reach %s at %s (%v). They need to forward UDP port %s to their MyLab machine; "+
+		return fmt.Errorf("couldn't reach %s at %s (%v). They need to forward UDP port %s to their MyLab server; "+
 			"their Storage for others page explains how", inv.HostName, inv.Endpoint, err, port)
 	}
 	if err != nil {

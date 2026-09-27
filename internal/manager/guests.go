@@ -36,7 +36,7 @@ type LinkAgent interface {
 	RemoveWireGuard(ctx context.Context, iface string) error
 }
 
-// FirstProxyPort is where the controller forwards its machines' backups
+// FirstProxyPort is where the controller forwards its servers' backups
 // to the first other lab it stores at (the next one +1, …).
 const FirstProxyPort = 8200
 
@@ -87,7 +87,7 @@ func (m *Manager) StorageGuests(ctx context.Context) ([]GuestView, error) {
 }
 
 // InviteGuest makes a storage invite for another lab, with quota bytes.
-// endpoint is this machine's address and guests port as they see it.
+// endpoint is this server's address and guests port as they see it.
 func (m *Manager) InviteGuest(ctx context.Context, name string, quota int64, endpoint string) (labnet.StorageInvite, error) {
 	if m.GuestHub == nil {
 		return labnet.StorageInvite{}, ErrNotFound
@@ -199,12 +199,12 @@ type RemoteStorage struct {
 	AdminPassword string     `json:"admin_password"`
 	Port          int        `json:"port"`
 	Quota         int64      `json:"quota"`
-	// ProxyPort is where the controller forwards its machines' backups.
+	// ProxyPort is where the controller forwards its servers' backups.
 	ProxyPort int `json:"proxy_port"`
 }
 
 // AddRemoteStorage links this lab to another lab's storage with its
-// invite; its machines can then choose it on their Backups page.
+// invite; its servers can then choose it on their Backups page.
 func (m *Manager) AddRemoteStorage(ctx context.Context, code string) error {
 	if m.BackupStore == nil || m.LinkAgent == nil {
 		return ErrNotFound
@@ -243,7 +243,7 @@ func (m *Manager) AddRemoteStorage(ctx context.Context, code string) error {
 	if m.RemoteAdded != nil {
 		m.RemoteAdded(r)
 	}
-	m.Apply() // the controller's firewall lets its machines reach the proxy
+	m.Apply() // the controller's firewall lets its servers reach the proxy
 	return nil
 }
 
@@ -291,18 +291,18 @@ func (m *Manager) proxyPorts(ctx context.Context) []int {
 	return ports
 }
 
-// remoteRepos returns a machine's repository at another lab: as the
-// machine reaches it (through the controller's proxy) and as the
+// remoteRepos returns a server's repository at another lab: as the
+// server reaches it (through the controller's proxy) and as the
 // controller does (directly, with the lab's admin access there).
-func (m *Manager) remoteRepos(r RemoteStorage, labID, machineID string) (machineURL string, machineEnv []string, adminURL string, adminEnv []string) {
+func (m *Manager) remoteRepos(r RemoteStorage, labID, serverID string) (serverURL string, serverEnv []string, adminURL string, adminEnv []string) {
 	// rest-server takes at most two levels; the user is this lab's own.
-	path := "/" + r.User + "/" + machineID
+	path := "/" + r.User + "/" + serverID
 	host := m.addressOf(m.Lab.NodeID)
-	if machineID == m.Lab.NodeID {
+	if serverID == m.Lab.NodeID {
 		host = "127.0.0.1"
 	}
-	machineURL = fmt.Sprintf("rest:http://%s:%d%s", host, r.ProxyPort, path)
-	machineEnv = []string{"RESTIC_REST_USERNAME=" + r.User, "RESTIC_REST_PASSWORD=" + r.StorePassword}
+	serverURL = fmt.Sprintf("rest:http://%s:%d%s", host, r.ProxyPort, path)
+	serverEnv = []string{"RESTIC_REST_USERNAME=" + r.User, "RESTIC_REST_PASSWORD=" + r.StorePassword}
 	adminURL = fmt.Sprintf("rest:http://%s:%d%s", r.HostAddr, r.Port+1, path)
 	adminEnv = []string{"RESTIC_REST_USERNAME=" + r.User, "RESTIC_REST_PASSWORD=" + r.AdminPassword}
 	return

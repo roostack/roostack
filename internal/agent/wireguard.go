@@ -14,7 +14,7 @@ import (
 
 // MyLab's WireGuard interfaces, managed with Debian's wg-quick so they are
 // easy to inspect:
-//   - mylab: the network between a lab's machines (SPEC.md §10.2);
+//   - mylab: the network between a lab's servers (SPEC.md §10.2);
 //   - mylab-guests: other labs that store backups here (§10.10);
 //   - mylab-st1…9: this lab's links to other labs' storage.
 const (
@@ -24,7 +24,7 @@ const (
 	GuestsPort         = 51821
 )
 
-// OverlayRange holds every machine's address on MyLab's network. It is
+// OverlayRange holds every server's address on MyLab's network. It is
 // inside 100.64.0.0/10, so the firewall and Caddy treat it as private.
 var OverlayRange = netip.MustParsePrefix("100.96.0.0/16")
 
@@ -53,28 +53,28 @@ func wireGuardConf(iface string) string { return "/etc/wireguard/" + iface + ".c
 // WireGuardConf is the lab network's wg-quick file.
 var WireGuardConf = wireGuardConf(WireGuardInterface)
 
-// WireGuard is the desired WireGuard interface. The machine's private key
+// WireGuard is the desired WireGuard interface. The server's private key
 // stays with the agent (in the config file, readable by root only); the
 // mylab service only ever sees the public key.
 type WireGuard struct {
 	// Interface is which one ("" is mylab).
 	Interface string `json:"interface,omitempty"`
-	// Address is this machine's overlay address with the network's prefix
+	// Address is this server's overlay address with the network's prefix
 	// length, e.g. 100.96.0.2/24.
 	Address string `json:"address"`
-	// ListenPort is the UDP port; 0 lets the kernel choose (machines that
+	// ListenPort is the UDP port; 0 lets the kernel choose (servers that
 	// only dial out).
 	ListenPort int    `json:"listen_port"`
 	Peers      []Peer `json:"peers"`
 	// JoinKey is a one-time private key from a join code (base64), used
-	// until the machine has registered its own key. Empty keeps (or
-	// creates) the machine's own key.
+	// until the server has registered its own key. Empty keeps (or
+	// creates) the server's own key.
 	JoinKey string `json:"join_key,omitempty"`
-	// NewKey replaces the machine's key with a fresh one (after joining).
+	// NewKey replaces the server's key with a fresh one (after joining).
 	NewKey bool `json:"new_key,omitempty"`
 }
 
-// Peer is another machine.
+// Peer is another server.
 type Peer struct {
 	PublicKey  string   `json:"public_key"`
 	AllowedIPs []string `json:"allowed_ips"`

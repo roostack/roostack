@@ -61,7 +61,7 @@ func (s *Server) pageData(r *http.Request) (map[string]any, error) {
 		"CanManage": s.Manager != nil && auth.Can(u.Role, auth.ManageServices),
 		"IsOwner":   auth.Can(u.Role, auth.ManageHost),
 		"Apply":     s.applyStatus(),
-		"Machine":   s.machineViewOf(r),
+		"Server":    s.serverRefOf(r),
 	}, nil
 }
 
@@ -153,8 +153,8 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		if svc.Name == name {
 			data["Service"] = svc
 			if s.Manager != nil {
-				if ms, err := s.Manager.Machines(); err == nil && len(ms) > 1 {
-					data["MultiMachine"] = true
+				if ms, err := s.Manager.Servers(); err == nil && len(ms) > 1 {
+					data["MultiServer"] = true
 				}
 			}
 		}
@@ -173,7 +173,7 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			data["Actions"] = actions
 			s.addSettingsData(data, name, p, nil)
 		}
-		if n := s.machineOf(r); n != nil {
+		if n := s.serverOf(r); n != nil {
 			data["Setup"] = n.InstallStatus(r.Context(), name)
 		}
 		// The latest setup log, if it's this service's.
@@ -214,9 +214,9 @@ func (s *Server) backupsPage(w http.ResponseWriter, r *http.Request) {
 	s.renderBackups(w, r, data)
 }
 
-// renderBackups shows a machine's Backups page; data may carry an error.
+// renderBackups shows a server's Backups page; data may carry an error.
 func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[string]any) {
-	m := s.machineViewOf(r)
+	m := s.serverRefOf(r)
 	data["Backup"] = s.backupView(r)
 	if auth.Can(currentUser(r).Role, auth.ManageHost) {
 		data["Switcher"] = s.serverTabs(r, "backups")
@@ -228,17 +228,17 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	if a := s.activityFor(r, activity.Backup); a != nil {
 		data["BackupActivity"] = a
 	}
-	// Only this machine's services can be restored here.
+	// Only this server's services can be restored here.
 	var services []ServiceView
 	if all, ok := data["Services"].([]ServiceView); ok {
 		for _, sv := range all {
-			if (m.This && sv.Machine == "") || (!m.This && sv.Machine == m.Name) {
+			if (m.This && sv.Server == "") || (!m.This && sv.Server == m.Name) {
 				services = append(services, sv)
 			}
 		}
 	}
-	data["MachineServices"] = services
-	// Where backups go: any machine's disk or a provider (SPEC.md §10.10).
+	data["ServerServices"] = services
+	// Where backups go: any server's disk or a provider (SPEC.md §10.10).
 	if s.Manager != nil && auth.Can(currentUser(r).Role, auth.ManageHost) {
 		if choices, err := s.Manager.BackupChoices(r.Context()); err == nil && len(choices) > 0 {
 			data["Choices"] = choices
@@ -260,11 +260,11 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 }
 
 func (s *Server) backupDestinationSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil || s.machineOf(r) == nil {
+	if s.Manager == nil || s.serverOf(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
-	m := s.machineViewOf(r)
+	m := s.serverRefOf(r)
 	err := s.Manager.SetBackupDestination(r.Context(), m.ID, r.FormValue("destination"))
 	if msg, ok := userMessage(err); ok {
 		data, derr := s.pageData(r)

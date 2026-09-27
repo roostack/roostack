@@ -56,8 +56,8 @@ func (p Paths) PackageFile(name string) string {
 	return filepath.Join(p.CatalogDir, name, "package.yaml")
 }
 
-// BackupStoreDir is where this machine keeps backups it stores for other
-// machines (SPEC.md §10.10), next to the media folder on the big disk.
+// BackupStoreDir is where this server keeps backups it stores for other
+// servers (SPEC.md §10.10), next to the media folder on the big disk.
 func (p Paths) BackupStoreDir() string { return filepath.Join(filepath.Dir(p.MediaDir), "backups") }
 
 // InstancesDir holds one instance YAML file per installed service.
@@ -107,7 +107,7 @@ type Backup struct {
 	// LimitUploadKiB caps upload speed; 0 is unlimited.
 	LimitUploadKiB int `yaml:"limit_upload_kib,omitempty"`
 	// PrunedByController: the controller removes old backups (SPEC.md
-	// §10.10); this machine may only add them, so it only checks.
+	// §10.10); this server may only add them, so it only checks.
 	PrunedByController bool `yaml:"pruned_by_controller,omitempty"`
 }
 
@@ -120,7 +120,7 @@ const (
 
 // Firewall configures the host firewall that mylab-agent applies.
 type Firewall struct {
-	// SSH is who may reach this machine's SSH server. Empty means the
+	// SSH is who may reach this server's SSH server. Empty means the
 	// Owner hasn't chosen yet, and MyLab leaves the firewall alone.
 	SSH string `yaml:"ssh,omitempty"`
 }
@@ -170,7 +170,7 @@ type Lab struct {
 	Firewall Firewall `yaml:"firewall,omitempty"`
 	// Maintenance is when the host may restart (SPEC.md §3.2).
 	Maintenance Maintenance `yaml:"maintenance,omitempty"`
-	// NodeID is this machine's node ID (internal/node), set at runtime.
+	// NodeID is this server's node ID (internal/node), set at runtime.
 	// Services are placed on nodes (SPEC.md §10.4).
 	NodeID string `yaml:"-"`
 	// Timezone is the host's time zone (e.g. "Europe/Berlin"), detected at
@@ -179,22 +179,22 @@ type Lab struct {
 	// HasGPU is detected at runtime, not configured. It resolves settings
 	// with `default: auto` (docs/ASSUMPTIONS.md G1).
 	HasGPU bool `yaml:"-"`
-	// Role is this machine's part in the lab (SPEC.md §10.1), set at
+	// Role is this server's part in the lab (SPEC.md §10.1), set at
 	// runtime from its membership (internal/labnet).
 	Role string `yaml:"-"`
-	// OverlayAddr is this machine's address on MyLab's network, "" until
+	// OverlayAddr is this server's address on MyLab's network, "" until
 	// the lab has a network. A node publishes its web services there, for
 	// the controller's Caddy.
 	OverlayAddr string `yaml:"-"`
 }
 
-// Roles (SPEC.md §10.1). A lab with one machine has a controller only.
+// Roles (SPEC.md §10.1). A lab with one server has a controller only.
 const (
 	RoleController = "controller"
 	RoleNode       = "node"
 )
 
-// IsNode reports whether this machine is a node run by another machine
+// IsNode reports whether this server is a node run by another server
 // (the controller): it runs services but no UI, Caddy or DNS.
 func (l Lab) IsNode() bool { return l.Role == RoleNode }
 

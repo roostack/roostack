@@ -29,8 +29,8 @@ type file struct {
 	Mod  time.Time
 }
 
-// movingMachine is a machine whose data lives in memory; "tar" is JSON.
-type movingMachine struct {
+// movingServer is a server whose data lives in memory; "tar" is JSON.
+type movingServer struct {
 	*fakeRemote
 	id      nodeid.Identity
 	mu      sync.Mutex
@@ -45,16 +45,16 @@ type movingMachine struct {
 	status     node.ApplyStatus
 }
 
-func (m *movingMachine) Backups() node.Backups { return m.backups }
-func (m *movingMachine) Status() node.ApplyStatus {
+func (m *movingServer) Backups() node.Backups { return m.backups }
+func (m *movingServer) Status() node.ApplyStatus {
 	if m.status.Finished {
 		return m.status
 	}
 	return node.ApplyStatus{Finished: true}
 }
 
-func newMoving(id, name string) *movingMachine {
-	m := &movingMachine{fakeRemote: &fakeRemote{settings: &fakeMachineSettings{}}, id: nodeid.Identity{ID: id, Name: name},
+func newMoving(id, name string) *movingServer {
+	m := &movingServer{fakeRemote: &fakeRemote{settings: &fakeServerSettings{}}, id: nodeid.Identity{ID: id, Name: name},
 		secrets: map[string][]byte{}}
 	for i := range dataDirs {
 		m.data[i], m.staged[i] = map[string]file{}, map[string]file{}
@@ -62,9 +62,9 @@ func newMoving(id, name string) *movingMachine {
 	return m
 }
 
-func (m *movingMachine) Identity() nodeid.Identity { return m.id }
-func (m *movingMachine) Address() string           { return "100.96.0.9" }
-func (m *movingMachine) did(op string) error {
+func (m *movingServer) Identity() nodeid.Identity { return m.id }
+func (m *movingServer) Address() string           { return "100.96.0.9" }
+func (m *movingServer) did(op string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.log = append(m.log, op)
@@ -73,8 +73,8 @@ func (m *movingMachine) did(op string) error {
 	}
 	return nil
 }
-func (m *movingMachine) DataDirs(string) []string { return nil }
-func (m *movingMachine) ExportData(_ context.Context, _ string, dir int, since time.Time, w io.Writer) error {
+func (m *movingServer) DataDirs(string) []string { return nil }
+func (m *movingServer) ExportData(_ context.Context, _ string, dir int, since time.Time, w io.Writer) error {
 	m.mu.Lock()
 	out := map[string]file{}
 	for p, f := range m.data[dir] {
@@ -85,7 +85,7 @@ func (m *movingMachine) ExportData(_ context.Context, _ string, dir int, since t
 	m.mu.Unlock()
 	return json.NewEncoder(w).Encode(out)
 }
-func (m *movingMachine) ImportData(_ context.Context, _ string, dir int, r io.Reader, strip int) error {
+func (m *movingServer) ImportData(_ context.Context, _ string, dir int, r io.Reader, strip int) error {
 	var in map[string]file
 	if strip > 0 { // a real tar stream, from a backup
 		in = map[string]file{}
@@ -116,7 +116,7 @@ func (m *movingMachine) ImportData(_ context.Context, _ string, dir int, r io.Re
 	}
 	return nil
 }
-func (m *movingMachine) ListData(_ context.Context, _ string, dir int) ([]string, error) {
+func (m *movingServer) ListData(_ context.Context, _ string, dir int) ([]string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var out []string
@@ -125,7 +125,7 @@ func (m *movingMachine) ListData(_ context.Context, _ string, dir int) ([]string
 	}
 	return out, nil
 }
-func (m *movingMachine) PruneData(_ context.Context, _ string, dir int, keep []string) error {
+func (m *movingServer) PruneData(_ context.Context, _ string, dir int, keep []string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for p := range m.staged[dir] {
@@ -135,7 +135,7 @@ func (m *movingMachine) PruneData(_ context.Context, _ string, dir int, keep []s
 	}
 	return nil
 }
-func (m *movingMachine) CommitData(context.Context, string) ([]string, error) {
+func (m *movingServer) CommitData(context.Context, string) ([]string, error) {
 	if err := m.did("commit"); err != nil {
 		return nil, err
 	}
@@ -146,20 +146,20 @@ func (m *movingMachine) CommitData(context.Context, string) ([]string, error) {
 	}
 	return nil, nil
 }
-func (m *movingMachine) SetAsideData(context.Context, string, string) ([]string, error) {
+func (m *movingServer) SetAsideData(context.Context, string, string) ([]string, error) {
 	return []string{"/srv/mylab/services/forgejo.moved"}, m.did("set aside")
 }
-func (m *movingMachine) StopService(context.Context, string) error {
+func (m *movingServer) StopService(context.Context, string) error {
 	if m.beforeStop != nil {
 		m.beforeStop()
 	}
 	return m.did("stop")
 }
-func (m *movingMachine) StartService(context.Context, string) error { return m.did("start") }
-func (m *movingMachine) ExportSecrets(context.Context, string) (map[string][]byte, error) {
+func (m *movingServer) StartService(context.Context, string) error { return m.did("start") }
+func (m *movingServer) ExportSecrets(context.Context, string) (map[string][]byte, error) {
 	return m.secrets, m.did("export secrets")
 }
-func (m *movingMachine) ImportSecrets(_ context.Context, s map[string][]byte) error {
+func (m *movingServer) ImportSecrets(_ context.Context, s map[string][]byte) error {
 	m.mu.Lock()
 	for k, v := range s {
 		m.secrets[k] = v
@@ -167,22 +167,22 @@ func (m *movingMachine) ImportSecrets(_ context.Context, s map[string][]byte) er
 	m.mu.Unlock()
 	return m.did("import secrets")
 }
-func (m *movingMachine) DataSize(context.Context, string) (int64, error) { return 1234, nil }
-func (m *movingMachine) LoadDumps(context.Context, string) error         { return m.did("load dumps") }
-func (m *movingMachine) KeptData(context.Context) ([]node.KeptFolder, error) {
+func (m *movingServer) DataSize(context.Context, string) (int64, error) { return 1234, nil }
+func (m *movingServer) LoadDumps(context.Context, string) error         { return m.did("load dumps") }
+func (m *movingServer) KeptData(context.Context) ([]node.KeptFolder, error) {
 	return []node.KeptFolder{{Path: "/srv/mylab/services/forgejo.moved-to-vps-20260928-002806", Service: "forgejo", MovedAway: true}}, nil
 }
-func (m *movingMachine) RemoveKeptData(_ context.Context, path string) error {
+func (m *movingServer) RemoveKeptData(_ context.Context, path string) error {
 	return m.did("remove " + path)
 }
 
-func setUpMove(t *testing.T) (*Manager, *movingMachine, *movingMachine) {
+func setUpMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 	t.Helper()
 	m, _ := newManager(t)
 	addForgejo(t, m)
 	m.Lab.NodeID = "n-0000000001"
 	a, b := newMoving("n-0000000002", "home"), newMoving("n-0000000003", "vps")
-	m.Others = func() []RemoteMachine { return []RemoteMachine{a, b} }
+	m.Others = func() []RemoteServer { return []RemoteServer{a, b} }
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
 	req := forgejoRequest()
@@ -346,9 +346,9 @@ func TestMoveThroughBackup(t *testing.T) {
 	defer st.Close()
 	m.BackupStore = st
 	m.OpenRepo = func(string, []string) *backup.Repo { return repo }
-	st.SetBackupTarget(ctx, store.BackupTarget{MachineID: "n-0000000002", Provider: "local:" + repo.URL,
+	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: "local:" + repo.URL,
 		Repository: repo.URL, Created: time.Now()})
-	// The new machine "applies" at once.
+	// The new server "applies" at once.
 	b.status = node.ApplyStatus{Finished: true, LastRun: time.Now().Add(time.Hour)}
 
 	if info, _ := m.MoveInfo(ctx, "forgejo"); !info.ViaBackup {

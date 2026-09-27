@@ -12,8 +12,8 @@ import (
 	"github.com/mylab/mylab/internal/agent"
 )
 
-// newMachine creates a machine identity signed by ca.
-func newMachine(t *testing.T, ca *CA, id string, addr netip.Addr) Identity {
+// newServer creates a server identity signed by ca.
+func newServer(t *testing.T, ca *CA, id string, addr netip.Addr) Identity {
 	t.Helper()
 	m := Identity{Dir: t.TempDir()}
 	csr, err := m.CSR(id)
@@ -58,22 +58,22 @@ func TestMutualTLS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctrl := newMachine(t, ca, "n-0000000001", netip.MustParseAddr("100.96.0.1"))
-	node := newMachine(t, ca, "n-0000000002", netip.MustParseAddr("100.96.0.2"))
+	ctrl := newServer(t, ca, "n-0000000001", netip.MustParseAddr("100.96.0.1"))
+	node := newServer(t, ca, "n-0000000002", netip.MustParseAddr("100.96.0.2"))
 	srv, _ := ctrl.ServerTLS()
 
 	cli, _ := node.ClientTLS("n-0000000001")
 	if peer, err := handshake(t, srv, cli); err != nil || peer != "n-0000000002" {
 		t.Errorf("node → controller: peer %q, err %v", peer, err)
 	}
-	// Expecting a different machine fails.
+	// Expecting a different server fails.
 	cli, _ = node.ClientTLS("n-0000000009")
 	if _, err := handshake(t, srv, cli); err == nil {
-		t.Error("connected to the wrong machine")
+		t.Error("connected to the wrong server")
 	}
 	// A certificate from another lab's CA isn't trusted.
 	other, _ := LoadOrCreateCA(t.TempDir(), "other")
-	stranger := newMachine(t, other, "n-0000000003", netip.MustParseAddr("100.96.0.3"))
+	stranger := newServer(t, other, "n-0000000003", netip.MustParseAddr("100.96.0.3"))
 	cli, _ = stranger.ClientTLS("n-0000000001")
 	if peer, err := handshake(t, srv, cli); err == nil && peer != "" {
 		t.Errorf("a stranger was accepted as %q", peer)

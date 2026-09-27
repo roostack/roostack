@@ -13,7 +13,7 @@ import (
 	"github.com/mylab/mylab/internal/osupdate"
 )
 
-// Server serves a machine's operations to its controller over MyLab's
+// Server serves a server's operations to its controller over MyLab's
 // network (SPEC.md §10.3). Only the controller's certificate is accepted.
 type Server struct {
 	Node         Node
@@ -21,10 +21,10 @@ type Server struct {
 	// Saved is called with every new assignment (without its secrets),
 	// so the node can keep running it after a restart (optional).
 	Saved func(WireAssignment)
-	// Leave takes the machine out of the lab, after the reply has gone
+	// Leave takes the server out of the lab, after the reply has gone
 	// (optional).
 	Leave func()
-	// Rename saves the machine's new name (optional).
+	// Rename saves the server's new name (optional).
 	Rename func(name string) error
 
 	mu      sync.Mutex
@@ -65,7 +65,7 @@ func (s *Server) Handler() http.Handler {
 	handle := func(pattern string, fn func(r *http.Request) (any, error)) {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 			if labnet.Caller(r) != s.ControllerID {
-				labnet.WriteError(w, http.StatusForbidden, errors.New("only the lab's controller may call this machine"))
+				labnet.WriteError(w, http.StatusForbidden, errors.New("only the lab's controller may call this server"))
 				return
 			}
 			out, err := fn(r)
@@ -270,7 +270,7 @@ func (s *Server) Handler() http.Handler {
 	stream := func(pattern string, fn func(w http.ResponseWriter, r *http.Request, mv Mover) error) {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 			if labnet.Caller(r) != s.ControllerID {
-				labnet.WriteError(w, http.StatusForbidden, errors.New("only the lab's controller may call this machine"))
+				labnet.WriteError(w, http.StatusForbidden, errors.New("only the lab's controller may call this server"))
 				return
 			}
 			mv, err := mover()
@@ -405,7 +405,7 @@ func (s *Server) Handler() http.Handler {
 		return nil, mv.ImportSecrets(ctx(r), secrets)
 	})
 
-	// The machine's own settings.
+	// The server's own settings.
 	settings := func() (Settings, error) {
 		if x := n.Settings(); x != nil {
 			return x, nil

@@ -21,8 +21,8 @@ var activityPerm = map[string]auth.Permission{
 // activityView is one activity's live status and log (parts.html).
 type activityView struct {
 	Kind string
-	// Machine is the ID of the machine it ran on, if not this one.
-	Machine string
+	// Server is the ID of the server it ran on, if not this one.
+	Server string
 	activity.Snapshot
 	// Example is set in the design gallery: it never polls.
 	Example bool
@@ -35,7 +35,7 @@ func (s *Server) activityFor(r *http.Request, kind string) *activityView {
 	if !ok || !auth.Can(currentUser(r).Role, perm) {
 		return nil
 	}
-	n := s.machineOf(r)
+	n := s.serverOf(r)
 	if n == nil {
 		return nil
 	}
@@ -44,9 +44,9 @@ func (s *Server) activityFor(r *http.Request, kind string) *activityView {
 		return nil
 	}
 	v := &activityView{Kind: kind, Snapshot: snap}
-	// Polling asks the same machine.
-	if m := s.machineViewOf(r); !m.This {
-		v.Machine = m.ID
+	// Polling asks the same server.
+	if m := s.serverRefOf(r); !m.This {
+		v.Server = m.ID
 	}
 	return v
 }
