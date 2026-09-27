@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"slices"
 
+	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"go.yaml.in/yaml/v3"
 )
@@ -28,7 +29,11 @@ var subdomainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 // Instance is the user's desired state for one installed service.
 type Instance struct {
-	Package  string                   `yaml:"package"`
+	Package string `yaml:"package"`
+	// Host is the node the service runs on (SPEC.md §10.4). Always set
+	// explicitly (state.AssignHosts), so moving the controller can never
+	// move services with it by accident.
+	Host     string                   `yaml:"host,omitempty"`
 	Version  string                   `yaml:"version"`
 	Routes   map[string]RouteOverride `yaml:"routes,omitempty"`
 	Ports    map[string]PortOverride  `yaml:"ports,omitempty"`
@@ -99,6 +104,9 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 	}
 	if in.Version != p.Version {
 		add("version: instance wants %q but package is %q", in.Version, p.Version)
+	}
+	if in.Host != "" && !node.ValidID(in.Host) {
+		add("host: %q is not a node ID", in.Host)
 	}
 	if !slices.Contains([]string{UpdatesNotify, UpdatesPatch, UpdatesMinor, UpdatesAll}, in.Updates) {
 		add("updates: must be notify, patch, minor or all; got %q", in.Updates)

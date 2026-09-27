@@ -163,6 +163,9 @@ type Lab struct {
 	Firewall Firewall `yaml:"firewall,omitempty"`
 	// Maintenance is when the host may restart (SPEC.md §3.2).
 	Maintenance Maintenance `yaml:"maintenance,omitempty"`
+	// NodeID is this machine's node ID (internal/node), set at runtime.
+	// Services are placed on nodes (SPEC.md §10.4).
+	NodeID string `yaml:"-"`
 	// Timezone is the host's time zone (e.g. "Europe/Berlin"), detected at
 	// runtime so containers use it too. Empty leaves them on UTC.
 	Timezone string `yaml:"-"`

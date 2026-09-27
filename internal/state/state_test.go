@@ -197,3 +197,30 @@ func TestInstanceFileNameMustMatch(t *testing.T) {
 		t.Error("expected an error when the file name doesn't match the package")
 	}
 }
+
+func TestHostsAndNodes(t *testing.T) {
+	lab := newLab(t)
+	dir := lab.Paths.InstancesDir()
+	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-mylab.1\n")
+	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 2.1.0-mylab.1\nhost: n-0000000002\n")
+	services, err := LoadServices(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := AssignHosts(services, "n-0000000001")
+	if len(changed) != 1 || changed[0].Package.Name != "vaultwarden" || changed[0].Instance.Host != "n-0000000001" {
+		t.Fatalf("AssignHosts changed %+v", changed)
+	}
+	mine := OnNode(services, "n-0000000001")
+	if len(mine) != 1 || mine[0].Package.Name != "vaultwarden" {
+		t.Errorf("this node's services: %+v", mine)
+	}
+	if other := OnNode(services, "n-0000000002"); len(other) != 1 || other[0].Package.Name != "immich" {
+		t.Errorf("the other node's services: %+v", other)
+	}
+	// A bad host is rejected when the instance is validated.
+	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-mylab.1\nhost: ../x\n")
+	if _, err := LoadServices(lab); err == nil || !strings.Contains(err.Error(), "not a node ID") {
+		t.Errorf("bad host: %v", err)
+	}
+}

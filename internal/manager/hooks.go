@@ -145,11 +145,12 @@ func (m *Manager) WaitHooks() {
 }
 
 func (m *Manager) runPendingHooks(ctx context.Context) {
-	services, err := state.LoadServices(m.Lab)
+	all, err := state.LoadServices(m.Lab)
 	if err != nil {
 		m.Log.Error("install hooks: loading services", "err", err)
 		return
 	}
+	services := state.OnNode(all, m.Lab.NodeID)
 	for _, s := range services {
 		name := s.Package.Name
 		if v, err := m.State.Setting(ctx, hookKey(name)); err != nil || v != hookPending {

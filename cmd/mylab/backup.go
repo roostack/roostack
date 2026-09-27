@@ -53,6 +53,9 @@ func backupCmd(args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := withNode(&lab); err != nil {
+		return err
+	}
 	if lab.Backup.Repository == "" {
 		return errors.New("backup: no repository configured (backup.repository in lab.yaml)")
 	}
@@ -170,7 +173,7 @@ func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch ba
 			if err != nil {
 				return backup.Plan{}, err
 			}
-			d, err := state.Desired(lab, services)
+			d, err := state.Desired(lab, state.OnNode(services, lab.NodeID))
 			if err != nil {
 				return backup.Plan{}, err
 			}
@@ -180,10 +183,11 @@ func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch ba
 }
 
 func backupRestore(ctx context.Context, lab config.Lab, repo *backup.Repo, launch backupLaunch, name, snapshot string) error {
-	services, err := state.LoadServices(lab)
+	all, err := state.LoadServices(lab)
 	if err != nil {
 		return err
 	}
+	services := state.OnNode(all, lab.NodeID)
 	var svc *state.Service
 	for i := range services {
 		if services[i].Package.Name == name {
