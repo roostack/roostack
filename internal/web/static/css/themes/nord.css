@@ -1,0 +1,24 @@
+/* Nord. Colours from Nord by Arctic Ice Studio (https://www.nordtheme.com), MIT licence. Frost blue for actions, Aurora purple as the highlight.
+   Adjusted for readability (WCAG contrast): accent (light) #5e81ac -> #486384; highlight (light) #b48ead -> #94748e; ok (light) #a3be8c -> #5d6c50; warn (light) #ebcb8b -> #786847; bad (light) #bf616a -> #974d54; ok (dark) #a3be8c -> #bbcfaa; bad (dark) #bf616a -> #deadb2. */
+[data-palette="nord"] {
+  --pal-bg-l: #e5e9f0; --pal-bg-d: #2e3440;
+  --pal-surface-l: #eceff4; --pal-surface-d: #3b4252;
+  --pal-surface-2-l: #d8dee9; --pal-surface-2-d: #2e3440;
+  --pal-fg-l: #2e3440; --pal-fg-d: #eceff4;
+  --pal-muted-l: #4c566a; --pal-muted-d: #d8dee9;
+  --pal-border-l: #d8dee9; --pal-border-d: #434c5e;
+  --pal-border-strong-l: #c2cad8; --pal-border-strong-d: #4c566a;
+  --pal-accent-l: #486384; --pal-accent-d: #88c0d0;
+  --pal-accent-fg-l: #ffffff; --pal-accent-fg-d: #2e3440;
+  --pal-accent-soft-l: #d5dbe4; --pal-accent-soft-d: #475666;
+  --pal-highlight-l: #94748e; --pal-highlight-d: #b48ead;
+  --pal-highlight-fg-l: #ffffff; --pal-highlight-fg-d: #2e3440;
+  --pal-highlight-soft-l: #e0dee6; --pal-highlight-soft-d: #515062;
+  --pal-ok-l: #5d6c50; --pal-ok-d: #bbcfaa;
+  --pal-ok-bg-l: #e3e9e6; --pal-ok-bg-d: #4c565b;
+  --pal-warn-l: #786847; --pal-warn-d: #ebcb8b;
+  --pal-warn-bg-l: #eceae6; --pal-warn-bg-d: #57585b;
+  --pal-bad-l: #974d54; --pal-bad-d: #deadb2;
+  --pal-bad-bg-l: #e6dde2; --pal-bad-bg-d: #504756;
+  --pal-bad-fg-l: #e5e9f0; --pal-bad-fg-d: #2e3440;
+}

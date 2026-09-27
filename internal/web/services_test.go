@@ -451,12 +451,12 @@ func TestServiceSettings(t *testing.T) {
 func TestAppearance(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleMember)
 	_, body := h.get("/account")
-	if !strings.Contains(body, `name="palette" value="teal" checked`) || !strings.Contains(body, `data-palette="catppuccin-mocha" data-mode="dark"`) {
+	if !strings.Contains(body, `name="palette" value="teal" checked`) || !strings.Contains(body, `data-palette="catppuccin" data-mode="dark"`) {
 		t.Fatal("account page should offer every theme, with the default chosen")
 	}
-	h.post("/account/appearance", url.Values{"palette": {"catppuccin-mocha"}, "mode": {"dark"}}, h.srv.URL)
+	h.post("/account/appearance", url.Values{"palette": {"catppuccin"}, "mode": {"dark"}}, h.srv.URL)
 	_, body = h.get("/services")
-	if !strings.Contains(body, `<html lang="en" data-palette="catppuccin-mocha" data-mode="dark">`) {
+	if !strings.Contains(body, `<html lang="en" data-palette="catppuccin" data-mode="dark">`) {
 		t.Error("pages should use the chosen theme and mode")
 	}
 	if code, _ := h.post("/account/appearance", url.Values{"palette": {"../../evil"}, "mode": {"dark"}}, h.srv.URL); code != http.StatusBadRequest {

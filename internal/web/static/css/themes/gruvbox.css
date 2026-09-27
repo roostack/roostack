@@ -1,0 +1,24 @@
+/* Gruvbox. Colours from Gruvbox by Pavel Pertsev (https://github.com/morhetz/gruvbox), MIT licence. Orange for actions, yellow as the highlight.
+   Adjusted for readability (WCAG contrast): muted (light) #7c6f64 -> #6b5f56; accent (light) #af3a03 -> #ad3903; highlight (light) #b57614 -> #ac7013; ok (light) #79740e -> #6a660c; warn (light) #b57614 -> #8a5a0f; bad (dark) #fb4934 -> #fc7161. */
+[data-palette="gruvbox"] {
+  --pal-bg-l: #f2e5bc; --pal-bg-d: #1d2021;
+  --pal-surface-l: #fbf1c7; --pal-surface-d: #282828;
+  --pal-surface-2-l: #ebdbb2; --pal-surface-2-d: #32302f;
+  --pal-fg-l: #3c3836; --pal-fg-d: #ebdbb2;
+  --pal-muted-l: #6b5f56; --pal-muted-d: #a89984;
+  --pal-border-l: #d5c4a1; --pal-border-d: #3c3836;
+  --pal-border-strong-l: #bdae93; --pal-border-strong-d: #504945;
+  --pal-accent-l: #ad3903; --pal-accent-d: #fe8019;
+  --pal-accent-fg-l: #fbf1c7; --pal-accent-fg-d: #282828;
+  --pal-accent-soft-l: #f0d7ac; --pal-accent-soft-d: #4a3626;
+  --pal-highlight-l: #ac7013; --pal-highlight-d: #fabd2f;
+  --pal-highlight-fg-l: #ffffff; --pal-highlight-fg-d: #1d2021;
+  --pal-highlight-soft-l: #f0dfae; --pal-highlight-soft-d: #4e4329;
+  --pal-ok-l: #6a660c; --pal-ok-d: #b8bb26;
+  --pal-ok-bg-l: #eae1af; --pal-ok-bg-d: #3f4028;
+  --pal-warn-l: #8a5a0f; --pal-warn-d: #fabd2f;
+  --pal-warn-bg-l: #f2e1b0; --pal-warn-bg-d: #4a4029;
+  --pal-bad-l: #9d0006; --pal-bad-d: #fc7161;
+  --pal-bad-bg-l: #efd2ae; --pal-bad-bg-d: #4a2d2a;
+  --pal-bad-fg-l: #f2e5bc; --pal-bad-fg-d: #1d2021;
+}

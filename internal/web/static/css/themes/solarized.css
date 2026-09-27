@@ -1,0 +1,24 @@
+/* Solarized. Colours from Solarized by Ethan Schoonover (https://ethanschoonover.com/solarized), MIT licence. Blue for actions, magenta as the highlight.
+   Adjusted for readability (WCAG contrast): muted (light) #586e75 -> #566c73; accent (light) #268bd2 -> #1e6ca4; ok (light) #859900 -> #606e00; warn (light) #b58900 -> #846400; bad (light) #dc322f -> #bf2c29; accent (dark) #268bd2 -> #4b9fda; highlight (dark) #d33682 -> #d53e87; ok (dark) #859900 -> #96a724; warn (dark) #b58900 -> #be971f; bad (dark) #dc322f -> #e66d6b. */
+[data-palette="solarized"] {
+  --pal-bg-l: #eee8d5; --pal-bg-d: #00212b;
+  --pal-surface-l: #fdf6e3; --pal-surface-d: #002b36;
+  --pal-surface-2-l: #eee8d5; --pal-surface-2-d: #073642;
+  --pal-fg-l: #073642; --pal-fg-d: #eee8d5;
+  --pal-muted-l: #566c73; --pal-muted-d: #93a1a1;
+  --pal-border-l: #e4ddc8; --pal-border-d: #073642;
+  --pal-border-strong-l: #d3cbb7; --pal-border-strong-d: #0e4a59;
+  --pal-accent-l: #1e6ca4; --pal-accent-d: #4b9fda;
+  --pal-accent-fg-l: #ffffff; --pal-accent-fg-d: #002b36;
+  --pal-accent-soft-l: #dee3da; --pal-accent-soft-d: #0c3e50;
+  --pal-highlight-l: #d33682; --pal-highlight-d: #d53e87;
+  --pal-highlight-fg-l: #ffffff; --pal-highlight-fg-d: #ffffff;
+  --pal-highlight-soft-l: #f7dbd5; --pal-highlight-soft-d: #262e45;
+  --pal-ok-l: #606e00; --pal-ok-d: #96a724;
+  --pal-ok-bg-l: #edeac5; --pal-ok-bg-d: #153d2d;
+  --pal-warn-l: #846400; --pal-warn-d: #be971f;
+  --pal-warn-bg-l: #f4e8c5; --pal-warn-bg-d: #1d3a2d;
+  --pal-bad-l: #bf2c29; --pal-bad-d: #e66d6b;
+  --pal-bad-bg-l: #f9ddcc; --pal-bad-bg-d: #232c35;
+  --pal-bad-fg-l: #eee8d5; --pal-bad-fg-d: #00212b;
+}

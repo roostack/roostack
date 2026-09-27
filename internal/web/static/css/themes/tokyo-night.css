@@ -1,0 +1,24 @@
+/* Tokyo Night. Day when light, Night when dark; colours from Tokyo Night (https://github.com/folke/tokyonight.nvim), Apache 2.0 licence. Blue for actions, magenta as the highlight.
+   Adjusted for readability (WCAG contrast): fg (light) #3760bf -> #3358b0; muted (light) #6172b0 -> #4d5a8b; accent (light) #2e7de9 -> #225baa; highlight (light) #9854f1 -> #9552ec; ok (light) #587539 -> #4a6230; warn (light) #8c6c3e -> #715732; bad (light) #f52a65 -> #ab1d47; fg (light) #3358b0 -> #3154a9. */
+[data-palette="tokyo-night"] {
+  --pal-bg-l: #d0d5e3; --pal-bg-d: #16161e;
+  --pal-surface-l: #e1e2e7; --pal-surface-d: #1a1b26;
+  --pal-surface-2-l: #d8dae3; --pal-surface-2-d: #292e42;
+  --pal-fg-l: #3154a9; --pal-fg-d: #c0caf5;
+  --pal-muted-l: #4d5a8b; --pal-muted-d: #a9b1d6;
+  --pal-border-l: #c4c8da; --pal-border-d: #292e42;
+  --pal-border-strong-l: #a8aecb; --pal-border-strong-d: #414868;
+  --pal-accent-l: #225baa; --pal-accent-d: #7aa2f7;
+  --pal-accent-fg-l: #ffffff; --pal-accent-fg-d: #16161e;
+  --pal-accent-soft-l: #c6cfde; --pal-accent-soft-d: #293147;
+  --pal-highlight-l: #9552ec; --pal-highlight-d: #bb9af7;
+  --pal-highlight-fg-l: #ffffff; --pal-highlight-fg-d: #16161e;
+  --pal-highlight-soft-l: #d6cee8; --pal-highlight-soft-d: #37324c;
+  --pal-ok-l: #4a6230; --pal-ok-d: #9ece6a;
+  --pal-ok-bg-l: #cfd4d0; --pal-ok-bg-d: #2f3831;
+  --pal-warn-l: #715732; --pal-warn-d: #e0af68;
+  --pal-warn-bg-l: #d6d3d1; --pal-warn-bg-d: #3a3331;
+  --pal-bad-l: #ab1d47; --pal-bad-d: #f7768e;
+  --pal-bad-bg-l: #e4cad6; --pal-bad-bg-d: #3d2a37;
+  --pal-bad-fg-l: #d0d5e3; --pal-bad-fg-d: #16161e;
+}

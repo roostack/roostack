@@ -1,0 +1,17 @@
+/* Rosé Pine. Dawn when light, Moon when dark; colours from Rosé Pine (https://rosepinetheme.com), MIT licence. Pine for actions, Rose as the highlight; MyLab status colours (Rosé Pine has no green).
+   Adjusted for readability (WCAG contrast): muted (light) #797593 -> #6a6781; highlight (light) #d7827e -> #bd726f; muted (dark) #908caa -> #a3a0b8. */
+[data-palette="rose-pine"] {
+  --pal-bg-l: #f2e9e1; --pal-bg-d: #232136;
+  --pal-surface-l: #fffaf3; --pal-surface-d: #2a273f;
+  --pal-surface-2-l: #faf4ed; --pal-surface-2-d: #393552;
+  --pal-fg-l: #575279; --pal-fg-d: #e0def4;
+  --pal-muted-l: #6a6781; --pal-muted-d: #a3a0b8;
+  --pal-border-l: #dfdad9; --pal-border-d: #393552;
+  --pal-border-strong-l: #cecacd; --pal-border-strong-d: #56526e;
+  --pal-accent-l: #286983; --pal-accent-d: #9ccfd8;
+  --pal-accent-fg-l: #fffaf3; --pal-accent-fg-d: #232136;
+  --pal-accent-soft-l: #e1e6e3; --pal-accent-soft-d: #3c4257;
+  --pal-highlight-l: #bd726f; --pal-highlight-d: #ea9a97;
+  --pal-highlight-fg-l: #ffffff; --pal-highlight-fg-d: #232136;
+  --pal-highlight-soft-l: #f6e7e1; --pal-highlight-soft-d: #4d3c4f;
+}
