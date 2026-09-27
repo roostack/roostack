@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/mylab/mylab/internal/backup"
@@ -16,6 +17,14 @@ const backupStale = 48 * time.Hour
 var templateFuncs = template.FuncMap{
 	"when":  whenText,
 	"stale": isStale,
+	"bytes": backup.Bytes,
+	// roleName shows a role as people say it ("Owner").
+	"roleName": func(role string) string {
+		if role == "" {
+			return ""
+		}
+		return strings.ToUpper(role[:1]) + role[1:]
+	},
 }
 
 // whenText formats a time for people, e.g. "today 02:00" or "Mon 3 Oct 02:00".

@@ -50,6 +50,9 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] `mylab user add` / `reset-password`
   - [x] TOTP 2FA: Owners must enroll; replay protection; attempt limit
   - [ ] 2FA: QR code, recovery codes, CLI reset of a user's 2FA
+  - [x] UI review pass (2026-09-27): temporary passwords must be changed at first login; phone layout of fact lists; dark-mode form controls; shorter "Needs attention" DNS items; service page layout (technical details collapsed); backups status shows what the last backup did; clearer end states for applies
+  - [ ] Users page for the Owner (add, change role, reset password, remove); today only the CLI can
+  - [ ] Mark untested catalog packages (Immich) or hide them until tested
   - [x] Split the UI into pages: Home (needs attention + services), Services, Backups, Settings, Account; role-aware navigation; works on phones
   - [x] Change your own password (logs out other devices)
   - [x] Install/remove services from the UI (catalog, settings form, remove keeps data, background apply with status)

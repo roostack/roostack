@@ -260,7 +260,7 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	if err := s.Store.SetPassword(r.Context(), u.Username, hash); err != nil {
+	if err := s.Store.SetPassword(r.Context(), u.Username, hash, false); err != nil {
 		s.serverError(w, err)
 		return
 	}
@@ -269,6 +269,10 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), u, "password changed", "")
+	if u.MustChangePassword { // done with the temporary password: carry on
+		redirect(w, r, "/")
+		return
+	}
 	s.render(w, "account", map[string]any{"User": u,
 		"Done": "Password changed. Other devices you were logged in on need to log in again."})
 }

@@ -59,7 +59,7 @@
         <legend>When updates need a restart</legend>
         <label class="check"><input type="radio" name="restart" value="auto" {{if eq .Mode "auto"}}checked{{end}}>
           <span>Restart automatically at
-            <select name="hour" aria-label="Hour">{{range .Hours}}<option value="{{.}}" {{if eq . $.Updates.Hour}}selected{{end}}>{{printf "%02d:00" .}}</option>{{end}}</select>
+            <select name="hour" class="inline" aria-label="Hour">{{range .Hours}}<option value="{{.}}" {{if eq . $.Updates.Hour}}selected{{end}}>{{printf "%02d:00" .}}</option>{{end}}</select>
             <small>Recommended. Waits for backups to finish. Services are unavailable for a minute or two.</small></span></label>
         <label class="check"><input type="radio" name="restart" value="notify" {{if eq .Mode "notify"}}checked{{end}}>
           <span>Only tell me<small>Security fixes for the system's core (the kernel) don't take effect until you restart.</small></span></label>

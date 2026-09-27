@@ -479,6 +479,7 @@ func (m *Manager) applyOnce(ctx context.Context) (err error) {
 			return fmt.Errorf("applying the firewall: %w", err)
 		}
 	}
+	act.Step("All changes applied")
 	return nil
 }
 
