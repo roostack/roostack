@@ -78,3 +78,10 @@ func TestUsersPage(t *testing.T) {
 		t.Errorf("admin users page: %d", code)
 	}
 }
+
+func TestQRSVG(t *testing.T) {
+	svg, err := qrSVG("otpauth://totp/MyLab:mum?secret=ABC&issuer=MyLab")
+	if err != nil || !strings.HasPrefix(string(svg), `<svg class="qr"`) || !strings.Contains(string(svg), `fill="#fff"`) {
+		t.Errorf("svg = %.80s, %v", svg, err)
+	}
+}

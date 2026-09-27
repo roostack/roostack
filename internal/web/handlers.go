@@ -252,11 +252,17 @@ func (s *Server) twoFactorData(u *store.User, secret, errMsg string) map[string]
 	for i := 0; i < len(secret); i += 4 {
 		groups = append(groups, secret[i:min(i+4, len(secret))])
 	}
+	url := auth.TOTPURL("MyLab", u.Username, secret)
+	code, err := qrSVG(url)
+	if err != nil {
+		s.Log.Error("drawing the 2FA QR code", "err", err) // the typed key still works
+	}
 	return map[string]any{
 		"User":      u,
 		"Secret":    secret,
 		"SecretFmt": strings.Join(groups, " "),
-		"URL":       template.URL(auth.TOTPURL("MyLab", u.Username, secret)),
+		"URL":       template.URL(url),
+		"QR":        code,
 		"Required":  u.Role == auth.RoleOwner,
 		"Error":     errMsg,
 	}

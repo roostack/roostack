@@ -195,3 +195,5 @@ ul.users > li { border-top: 1px solid var(--border); padding: 12px 0; }
 .inline-form label { margin: 0; }
 code.secret { font-size: 1.2em; padding: 4px 8px; user-select: all; }
 button.link-danger { background: none; padding: 0; }
+.qr-box { margin: 10px 0; }
+svg.qr { display: block; width: 200px; height: 200px; border-radius: 6px; }
