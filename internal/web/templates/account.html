@@ -25,12 +25,14 @@
   <form method="post" action="/account/appearance">
     <fieldset>
       <legend>Colours</legend>
-      {{range themes}}
+      {{range $t := themes}}
       <label class="check theme-choice">
         <input type="radio" name="palette" value="{{.ID}}" {{if eq .ID $.Nav.Palette}}checked{{end}}>
         <span class="theme-previews" aria-hidden="true">
-          <span class="theme-preview" data-palette="{{.ID}}" data-mode="light"><span class="tp-accent"></span><span class="tp-highlight"></span></span>
-          <span class="theme-preview" data-palette="{{.ID}}" data-mode="dark"><span class="tp-accent"></span><span class="tp-highlight"></span></span>
+          {{range $m := list "light" "dark"}}
+          <span class="theme-preview" data-palette="{{$t.ID}}" data-mode="{{$m}}"><span class="tp-card"><span class="tp-text"></span>
+            <span class="tp-dots"><span class="tp-accent"></span><span class="tp-highlight"></span></span></span></span>
+          {{end}}
         </span>
         <span>{{.Name}}<small>{{.Description}}</small></span>
       </label>
