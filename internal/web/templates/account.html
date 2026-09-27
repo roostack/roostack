@@ -3,7 +3,7 @@
 <section class="card narrow">
   <h1>Your account</h1>
   {{if .User.MustChangePassword}}
-  <p class="notice" role="status">You're using a temporary password. Choose your own below to continue.</p>
+  <p class="notice notice-warn" role="status">You're using a temporary password. Choose your own below to continue.</p>
   {{end}}
   <dl class="facts">
     <dt>Username</dt><dd>{{.User.Username}}</dd>
@@ -12,7 +12,7 @@
   </dl>
   <h2>Change password</h2>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  {{with .Done}}<p class="notice" role="status">{{.}}</p>{{end}}
+  {{with .Done}}<p class="notice notice-ok" role="status">{{.}}</p>{{end}}
   <form method="post" action="/account/password">
     <label>Current password <input name="current" type="password" autocomplete="current-password" required></label>
     <label>New password <input name="password" type="password" autocomplete="new-password" required minlength="12">

@@ -1,0 +1,82 @@
+/* MyLab design tokens (docs/DESIGN.md).
+
+   Three layers:
+   1. Palette   themes/<name>.css: a theme's raw colours for light (-l)
+                and dark (-d), selected by data-palette on <html>.
+   2. Purpose   below: what components use (--accent, --surface, ...),
+                picked from the palette for the current mode.
+   3. Scales    below: spacing, type, radius, shadow.
+
+   Components only use purpose tokens and scales, never palette colours,
+   so a new built-in theme is just a new palette file.
+
+   Mode is data-mode on <html> ("light" or "dark"; absent = follow the
+   device). It also works on any element, e.g. the gallery's side-by-side
+   light and dark panels. */
+
+:root {
+  /* Spacing: 4px steps at the small end. */
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-7: 48px;
+
+  /* Type: base is 17px, large and clear for non-technical users. */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --text-sm: 0.875rem; --text-base: 1rem; --text-lg: 1.15rem;
+  --text-xl: 1.35rem; --text-2xl: 1.7rem;
+  --weight-normal: 400; --weight-medium: 500; --weight-bold: 600;
+  --leading: 1.5;
+
+  --radius-sm: 6px; --radius: 8px; --radius-lg: 12px; --radius-pill: 999px;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 6%), 0 1px 3px rgb(0 0 0 / 4%);
+  --focus-ring: 0 0 0 3px var(--highlight-soft), 0 0 0 1px var(--highlight);
+
+  /* Status colours are the same for every theme, so "problem" always
+     looks like a problem. */
+  --status-ok-l: #17603f; --status-ok-bg-l: #e3f5ec;
+  --status-warn-l: #8a4b00; --status-warn-bg-l: #fdf1dc;
+  --status-bad-l: #b3261e; --status-bad-bg-l: #fce8e6; --status-bad-fg-l: #ffffff;
+  --status-ok-d: #7ee2ae; --status-ok-bg-d: #133426;
+  --status-warn-d: #f5c16c; --status-warn-bg-d: #3a2a0e;
+  --status-bad-d: #ff8a80; --status-bad-bg-d: #3d1714; --status-bad-fg-d: #2a0806;
+}
+
+/* Light (the default, and data-mode="light" anywhere). */
+:root, [data-mode="light"] {
+  color-scheme: light;
+  --bg: var(--pal-bg-l); --surface: var(--pal-surface-l); --surface-2: var(--pal-surface-2-l);
+  --fg: var(--pal-fg-l); --muted: var(--pal-muted-l);
+  --border: var(--pal-border-l); --border-strong: var(--pal-border-strong-l);
+  --accent: var(--pal-accent-l); --accent-fg: var(--pal-accent-fg-l); --accent-soft: var(--pal-accent-soft-l);
+  --highlight: var(--pal-highlight-l); --highlight-fg: var(--pal-highlight-fg-l); --highlight-soft: var(--pal-highlight-soft-l);
+  --ok: var(--status-ok-l); --ok-bg: var(--status-ok-bg-l);
+  --warn: var(--status-warn-l); --warn-bg: var(--status-warn-bg-l);
+  --bad: var(--status-bad-l); --bad-bg: var(--status-bad-bg-l); --bad-fg: var(--status-bad-fg-l);
+}
+
+/* Dark: when the device prefers it and the user hasn't chosen light, or
+   when data-mode="dark". The two blocks must stay identical. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode="light"]) {
+    color-scheme: dark;
+    --bg: var(--pal-bg-d); --surface: var(--pal-surface-d); --surface-2: var(--pal-surface-2-d);
+    --fg: var(--pal-fg-d); --muted: var(--pal-muted-d);
+    --border: var(--pal-border-d); --border-strong: var(--pal-border-strong-d);
+    --accent: var(--pal-accent-d); --accent-fg: var(--pal-accent-fg-d); --accent-soft: var(--pal-accent-soft-d);
+    --highlight: var(--pal-highlight-d); --highlight-fg: var(--pal-highlight-fg-d); --highlight-soft: var(--pal-highlight-soft-d);
+    --ok: var(--status-ok-d); --ok-bg: var(--status-ok-bg-d);
+    --warn: var(--status-warn-d); --warn-bg: var(--status-warn-bg-d);
+    --bad: var(--status-bad-d); --bad-bg: var(--status-bad-bg-d); --bad-fg: var(--status-bad-fg-d);
+  }
+}
+[data-mode="dark"] {
+  color-scheme: dark;
+  --bg: var(--pal-bg-d); --surface: var(--pal-surface-d); --surface-2: var(--pal-surface-2-d);
+  --fg: var(--pal-fg-d); --muted: var(--pal-muted-d);
+  --border: var(--pal-border-d); --border-strong: var(--pal-border-strong-d);
+  --accent: var(--pal-accent-d); --accent-fg: var(--pal-accent-fg-d); --accent-soft: var(--pal-accent-soft-d);
+  --highlight: var(--pal-highlight-d); --highlight-fg: var(--pal-highlight-fg-d); --highlight-soft: var(--pal-highlight-soft-d);
+  --ok: var(--status-ok-d); --ok-bg: var(--status-ok-bg-d);
+  --warn: var(--status-warn-d); --warn-bg: var(--status-warn-bg-d);
+  --bad: var(--status-bad-d); --bad-bg: var(--status-bad-bg-d); --bad-fg: var(--status-bad-fg-d);
+}

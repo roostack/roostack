@@ -5,7 +5,7 @@
   <h1>People</h1>
   <p class="hint">Who can log in to MyLab. Each service (Forgejo, Vaultwarden, …) still has its own accounts.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  {{with .Done}}<p class="notice" role="status">{{.}}</p>{{end}}
+  {{with .Done}}<p class="notice notice-ok" role="status">{{.}}</p>{{end}}
   {{with .TempPassword}}
   <div class="notice" role="status">
     <p><strong>{{if $.TempNew}}{{$.TempFor}} can now log in{{else}}New password for {{$.TempFor}}{{end}}</strong> with this temporary password.
@@ -41,7 +41,7 @@
         {{/* The name goes through a data attribute, never into the expression. */}}
         <form method="post" action="/users/{{.ID}}/remove" data-name="{{.Username}}" x-data
           x-on:submit="if (!confirm('Remove ' + $el.dataset.name + '? They will no longer be able to log in.')) $event.preventDefault()">
-          <button type="submit" class="link-danger">Remove {{.Username}}</button>
+          <button type="submit" class="quiet danger">Remove {{.Username}}</button>
         </form>
       </details>
       {{end}}

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en" data-palette="{{palette}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Design system · MyLab</title>
+  <link rel="stylesheet" href="{{.Static}}css/tokens.css">
+  <link rel="stylesheet" href="{{.Static}}css/themes/{{palette}}.css">
+  <link rel="stylesheet" href="{{.Static}}css/app.css">
+  <link rel="stylesheet" href="{{.Static}}css/gallery.css">
+  <script src="{{.Static}}alpine-3.17.4.min.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{if .Standalone}}#top{{else}}/{{end}}"><span class="brand-mark" aria-hidden="true"></span>MyLab</a>
+    <nav><a class="active" href="#top">Design system</a></nav>
+  </header>
+  <main id="top" class="gallery">
+    <h1>Design system</h1>
+    <p>Every colour, size and component MyLab's pages use, in light and dark. Pages should only use what's here;
+      if something new is needed, add it to the design system first (<code>docs/DESIGN.md</code>).</p>
+    {{if .Standalone}}<p class="hint">This file is generated from the same templates as the <code>/design</code> page in MyLab
+      (<code>go test ./internal/web -run TestGalleryFile -update-gallery</code>). Don't edit it by hand.</p>{{end}}
+    <nav class="gallery-toc">
+      <a href="#tokens">Colours</a> <a href="#scales">Sizes</a>
+      {{range .Sections}}<a href="#{{.ID}}">{{.Title}}</a> {{end}}
+    </nav>
+
+    <section id="tokens">
+      <h2>Colours</h2>
+      <p class="hint">Theme: {{palette}}. Pages use these names, never raw colours, so themes can change them.</p>
+      <div class="panels">
+        {{range $mode := list "light" "dark"}}
+        <div class="panel" data-mode="{{$mode}}">
+          <p class="panel-label">{{$mode}}</p>
+          <ul class="swatches">
+            {{range $.Tokens}}<li><span class="swatch swatch-{{.Name}}"></span><code>--{{.Name}}</code><small>{{.Use}}</small></li>{{end}}
+          </ul>
+        </div>
+        {{end}}
+      </div>
+    </section>
+
+    <section id="scales">
+      <h2>Sizes</h2>
+      <h3>Spacing</h3>
+      <ul class="scale">{{range .Spacing}}<li><span class="space-bar space-{{.}}"></span><code>--space-{{.}}</code></li>{{end}}</ul>
+      <h3>Text</h3>
+      <ul class="scale">{{range .TypeScale}}<li class="type-{{.Name}}">{{.Sample}} <code>--text-{{.Name}}</code></li>{{end}}</ul>
+      <h3>Corners</h3>
+      <ul class="scale corners"><li class="radius-sm"><code>--radius-sm</code></li><li class="radius"><code>--radius</code></li>
+        <li class="radius-lg"><code>--radius-lg</code></li><li class="radius-pill"><code>--radius-pill</code></li></ul>
+    </section>
+
+    {{range .Sections}}
+    <section id="{{.ID}}">
+      <h2>{{.Title}}</h2>
+      {{with .Intro}}<p class="hint">{{.}}</p>{{end}}
+      {{range .Examples}}
+      <div class="example">
+        <h3>{{.Name}}</h3>
+        {{with .Description}}<p class="hint">{{.}}</p>{{end}}
+        <div class="panels">
+          <div class="panel" data-mode="light">{{.HTML}}</div>
+          <div class="panel" data-mode="dark">{{.HTML}}</div>
+        </div>
+        <details><summary>Markup</summary><pre class="output">{{.Source}}</pre></details>
+      </div>
+      {{end}}
+    </section>
+    {{end}}
+  </main>
+</body>
+</html>

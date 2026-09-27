@@ -17,7 +17,7 @@
         <span>{{when $s.Time}}{{if eq $i 0}} (newest){{end}}<small>{{$s.Short}}</small></span></label>
       {{end}}
     </fieldset>
-    <p class="notice">Anything changed in {{.Service.Title}} since that backup will be undone. The current data isn't deleted:
+    <p class="notice notice-warn">Anything changed in {{.Service.Title}} since that backup will be undone. The current data isn't deleted:
       it's kept aside, listed below, until you delete it.</p>
     <label class="check"><input type="checkbox" name="confirm" required>
       <span>I understand, restore {{.Service.Title}}</span></label>
@@ -37,7 +37,7 @@
       <form method="post" action="/backups/restore/{{$.Service.Name}}/kept/remove" x-data
         x-on:submit="if (!confirm('Delete this copy permanently?')) $event.preventDefault()">
         <input type="hidden" name="path" value="{{.Path}}">
-        <button type="submit" class="link-danger">Delete</button>
+        <button type="submit" class="quiet danger">Delete</button>
       </form>
     </li>
     {{end}}

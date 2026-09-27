@@ -17,6 +17,26 @@ const backupStale = 48 * time.Hour
 var templateFuncs = template.FuncMap{
 	"when":  whenText,
 	"stale": isStale,
+	// dict builds a map for calling components:
+	// {{template "notice" (dict "Kind" "warn" "Text" "...")}}.
+	"dict": func(kv ...any) (map[string]any, error) {
+		if len(kv)%2 != 0 {
+			return nil, errors.New("dict: odd number of arguments")
+		}
+		m := make(map[string]any, len(kv)/2)
+		for i := 0; i < len(kv); i += 2 {
+			k, ok := kv[i].(string)
+			if !ok {
+				return nil, fmt.Errorf("dict: key %v is not a string", kv[i])
+			}
+			m[k] = kv[i+1]
+		}
+		return m, nil
+	},
+	// list makes a slice, e.g. {{range list "light" "dark"}}.
+	"list": func(items ...string) []string { return items },
+	// palette is the built-in theme (internal/web/static/css/themes).
+	"palette": func() string { return DefaultPalette },
 	"bytes": backup.Bytes,
 	// roleName shows a role as people say it ("Owner").
 	"roleName": func(role string) string {

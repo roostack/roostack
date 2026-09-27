@@ -26,6 +26,13 @@ type nav struct {
 	Theme, NextTheme string
 }
 
+// Built-in themes: each is a palette file in static/css/themes. Only one
+// for now; users will be able to choose later.
+const DefaultPalette = "ocean"
+
+// Palettes lists the built-in themes.
+var Palettes = []string{DefaultPalette}
+
 // navFor picks the links a role can use and marks the current section.
 func navFor(u *store.User, page string) nav {
 	active := map[string]string{
