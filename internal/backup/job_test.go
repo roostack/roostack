@@ -110,3 +110,39 @@ func TestBytes(t *testing.T) {
 		}
 	}
 }
+
+// Each copy gets its own backup after the main one, even when the main
+// destination fails: that's what copies are for.
+func TestBackupCopies(t *testing.T) {
+	copyRepo := testRepo(t)
+	root := t.TempDir()
+	paths := config.Paths{StateDir: filepath.Join(root, "state"), HomeDir: filepath.Join(root, "state", "home")}
+	writeFile(t, filepath.Join(paths.StateDir, "lab.yaml"), "domain: x")
+	// The main destination refuses the key (fails at once; restic retries
+	// an unreachable one for minutes).
+	main := testRepo(t)
+	if err := main.Init(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, main.PasswordFile, "another key")
+	var copied []string
+	var copyErr error
+	d := JobDeps{
+		Repo: main, Preparer: &Preparer{}, Paths: paths, Host: "test",
+		DumpState: func(_ context.Context, path string) error { writeFile(t, path, "db copy"); return nil },
+		Plan:      func() (Plan, error) { return LabPlan(paths, nil), nil },
+		Copies:    []Copy{{Name: "provider:1", Title: "Backblaze", Repo: copyRepo}},
+		OnCopy: func(c Copy, _ time.Time, sum *Summary, err error) {
+			copied, copyErr = append(copied, c.Name), err
+		},
+	}
+	if _, err := Run(context.Background(), d, nopReporter{}); err == nil {
+		t.Fatal("the main destination can't be reached")
+	}
+	if !slices.Equal(copied, []string{"provider:1"}) || copyErr != nil {
+		t.Fatalf("copies: %v %v", copied, copyErr)
+	}
+	if snaps, err := copyRepo.Snapshots(context.Background(), "mylab"); err != nil || len(snaps) != 1 {
+		t.Errorf("the copy should have its own backup: %v %v", snaps, err)
+	}
+}

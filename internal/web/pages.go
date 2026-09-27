@@ -243,8 +243,23 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 		if choices, err := s.Manager.BackupChoices(r.Context()); err == nil && len(choices) > 0 {
 			data["Choices"] = choices
 		}
-		if t, title, ok := s.Manager.BackupTargetOf(r.Context(), m.ID); ok {
+		t, title, hasTarget := s.Manager.BackupTargetOf(r.Context(), m.ID)
+		if hasTarget {
 			data["Target"], data["TargetTitle"] = t, title
+		}
+		// Extra copies go anywhere but the main destination.
+		copies := s.Manager.BackupCopiesOf(r.Context(), m.ID)
+		data["Copies"] = copies
+		if choices, ok := data["Choices"].([]manager.BackupChoice); ok && hasTarget {
+			var free []manager.BackupChoice
+			for _, c := range choices {
+				if c.Ref == t.Provider || c.Ref == "server:"+t.StoreHost ||
+					slices.ContainsFunc(copies, func(x manager.BackupCopy) bool { return x.Ref == c.Ref }) {
+					continue
+				}
+				free = append(free, c)
+			}
+			data["CopyChoices"] = free
 		}
 		if a := s.activityFor(r, activity.BackupSetup); a != nil {
 			data["SetupActivity"] = a
@@ -281,6 +296,46 @@ func (s *Server) backupDestinationSubmit(w http.ResponseWriter, r *http.Request)
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "backup", "destination for "+m.Label()+" set to "+r.FormValue("destination"))
 	redirect(w, r, m.Backups())
+}
+
+// backupCopySubmit adds (or with remove, stops) an extra copy of a
+// server's backups somewhere else.
+func (s *Server) backupCopySubmit(remove bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.Manager == nil || s.serverOf(r) == nil {
+			http.NotFound(w, r)
+			return
+		}
+		m := s.serverRefOf(r)
+		ref := r.FormValue("destination")
+		var err error
+		verb := "added a backup copy for "
+		if remove {
+			err, verb = s.Manager.RemoveBackupCopy(r.Context(), m.ID, ref), "stopped a backup copy for "
+		} else {
+			err = s.Manager.AddBackupCopy(r.Context(), m.ID, ref)
+		}
+		if msg, ok := userMessage(err); ok {
+			data, derr := s.pageData(r)
+			if derr != nil {
+				s.serverError(w, derr)
+				return
+			}
+			data["Error"] = msg
+			s.renderBackups(w, r, data)
+			return
+		}
+		if errors.Is(err, manager.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			s.serverError(w, err)
+			return
+		}
+		s.Store.Audit(r.Context(), currentUser(r), "backup", verb+m.Label()+": "+ref)
+		redirect(w, r, m.Backups()+"#copies")
+	}
 }
 
 func (s *Server) addProviderSubmit(w http.ResponseWriter, r *http.Request) {

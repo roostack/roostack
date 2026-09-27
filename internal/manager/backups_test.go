@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/mylab/mylab/internal/b2"
 	"net/http"
 	"net/http/httptest"
@@ -195,5 +196,92 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	}
 	if len(deleted) != 1 || deleted[0] != "scoped-id" {
 		t.Errorf("deleted = %v", deleted)
+	}
+}
+
+// An extra copy of the vps's backups on nuc's disk: its own repository,
+// key and store user, never at the main destination.
+func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
+	bin := os.Getenv("MYLAB_RESTIC_BIN")
+	if bin == "" {
+		var err error
+		if bin, err = exec.LookPath("restic"); err != nil {
+			t.Skip("restic not found; set MYLAB_RESTIC_BIN")
+		}
+	}
+	m, _ := newManager(t)
+	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
+	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
+	vps := &fakeRemote{settings: &fakeServerSettings{}}
+	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
+	m.Registry = &fakeRegistry{}
+	m.Activity = activity.New()
+	local(m).Activity = m.Activity
+	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	m.BackupStore = st
+	dir := t.TempDir()
+	recovery := filepath.Join(dir, "recovery")
+	os.WriteFile(recovery, []byte("the recovery key\n"), 0o600)
+	m.OpenRepo = func(url string, env []string) *backup.Repo {
+		return &backup.Repo{Bin: bin, URL: filepath.Join(dir, "repo"), PasswordFile: recovery, CacheDir: filepath.Join(dir, "cache")}
+	}
+	ctx := context.Background()
+	var fe *FormError
+	if err := m.AddBackupCopy(ctx, "n-0000000002", "server:n-0000000001"); !errors.As(err, &fe) {
+		t.Errorf("a copy needs a main destination first: %v", err)
+	}
+	// The vps backs up to a provider.
+	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: "provider:9", Repository: "s3:https://s3.example.com/b/x"})
+	if err := m.AddBackupCopy(ctx, "n-0000000002", "server:n-0000000001"); err != nil {
+		t.Fatal(err)
+	}
+	var log activity.Snapshot
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if log, _ = m.Activity.Latest(activity.BackupSetup); !log.Running() {
+			break
+		}
+	}
+	if log.Err != "" {
+		t.Fatalf("setup: %q\n%s", log.Err, strings.Join(log.Lines, "\n"))
+	}
+	vps.settings.mu.Lock()
+	copies := vps.settings.copies
+	vps.settings.mu.Unlock()
+	if len(copies) != 1 || copies[0].Name != "server:n-0000000001" || copies[0].Title != "nuc's disk" || copies[0].Key == "" ||
+		!strings.HasPrefix(copies[0].Repository, "rest:http://100.96.0.1:8000/n-0000000002/lab-") {
+		t.Fatalf("copies = %+v", copies)
+	}
+	if vps.settings.dest != nil {
+		t.Error("the main destination is unchanged")
+	}
+	if stg := m.storageFor(ctx, "n-0000000001"); stg == nil || stg.Users["n-0000000002"] == "" {
+		t.Errorf("nuc's store should let the vps in: %+v", stg)
+	}
+	if got := m.BackupCopiesOf(ctx, "n-0000000002"); len(got) != 1 || got[0].Title != "nuc's disk" {
+		t.Errorf("copies of the vps = %+v", got)
+	}
+	if err := m.AddBackupCopy(ctx, "n-0000000002", "server:n-0000000001"); !errors.As(err, &fe) {
+		t.Errorf("the same copy twice: %v", err)
+	}
+	if err := m.AddBackupCopy(ctx, "n-0000000002", "provider:9"); !errors.As(err, &fe) {
+		t.Errorf("a copy at the main destination: %v", err)
+	}
+
+	// Stopping it tells the vps, and nuc's store forgets it.
+	if err := m.RemoveBackupCopy(ctx, "n-0000000002", "server:n-0000000001"); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	vps.settings.mu.Lock()
+	defer vps.settings.mu.Unlock()
+	if len(vps.settings.copies) != 0 || len(m.BackupCopiesOf(ctx, "n-0000000002")) != 0 {
+		t.Errorf("after stopping: %+v", vps.settings.copies)
+	}
+	if stg := m.storageFor(ctx, "n-0000000001"); stg != nil && stg.Users["n-0000000002"] != "" {
+		t.Error("nuc's store should forget the vps")
 	}
 }

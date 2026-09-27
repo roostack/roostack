@@ -101,8 +101,21 @@ type JobDeps struct {
 	Plan func() (Plan, error)
 	// OnDone is called with the result (e.g. to record it for the UI).
 	OnDone func(*Summary, error)
+	// Copies are extra copies of the backup, somewhere else (SPEC.md §6.9,
+	// 3-2-1): each gets its own backup of the same files after the main
+	// one, so each can be read on its own.
+	Copies []Copy
+	// OnCopy is called with each copy's result.
+	OnCopy func(c Copy, started time.Time, sum *Summary, err error)
 	// Log shows the run's steps live in the UI (optional, per run).
 	Log *activity.Log
+}
+
+// Copy is an extra copy of a server's backups.
+type Copy struct {
+	// Name identifies it (the destination's reference); Title is for people.
+	Name, Title string
+	Repo        *Repo
 }
 
 // Reporter receives progress while a backup runs. *maintenance.Handle
@@ -148,11 +161,6 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 			return nil, fmt.Errorf("preparing %s: %w", step.Target, err)
 		}
 	}
-	d.Log.Step("Opening the backup storage")
-	d.Log.Printf("Repository: %s", d.Repo.URL)
-	if err := d.Repo.Init(ctx); err != nil {
-		return nil, err
-	}
 	// Skip paths that don't exist yet (e.g. no Podman secrets on a fresh
 	// install); restic treats a missing source as an error.
 	var paths []string
@@ -162,13 +170,45 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 		}
 	}
 	r.SetInterruptible(true)
-	d.Log.Step("Uploading changes")
-	for _, p := range paths {
-		d.Log.Printf("Including %s", p)
+	summary, err = upload(ctx, d, d.Repo, "", paths, plan.Excludes, r)
+	// The copies go ahead even if the main destination failed: that's
+	// what they're for.
+	for _, c := range d.Copies {
+		started := time.Now()
+		csum, cerr := upload(ctx, d, c.Repo, c.Title, paths, plan.Excludes, r)
+		if cerr != nil {
+			d.Log.Printf("The copy at %s didn't finish: %v", c.Title, cerr)
+		}
+		if d.OnCopy != nil {
+			d.OnCopy(c, started, csum, cerr)
+		}
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	return summary, err
+}
+
+// upload backs the paths up to one repository (to is "" for the main one).
+func upload(ctx context.Context, d JobDeps, repo *Repo, to string, paths, excludes []string, r Reporter) (*Summary, error) {
+	if to == "" {
+		d.Log.Step("Opening the backup storage")
+	} else {
+		d.Log.Step("Copying to %s", to)
+	}
+	d.Log.Printf("Repository: %s", repo.URL)
+	if err := repo.Init(ctx); err != nil {
+		return nil, err
+	}
+	if to == "" {
+		d.Log.Step("Uploading changes")
+		for _, p := range paths {
+			d.Log.Printf("Including %s", p)
+		}
 	}
 	lastTen := -1
-	sum, err := d.Repo.Backup(ctx, BackupOptions{
-		Paths: paths, Excludes: plan.Excludes, Tags: []string{"mylab"}, Host: d.Host,
+	sum, err := repo.Backup(ctx, BackupOptions{
+		Paths: paths, Excludes: excludes, Tags: []string{"mylab"}, Host: d.Host,
 		OnProgress: func(p Progress) {
 			r.SetProgress(int(p.PercentDone))
 			if ten := int(p.PercentDone) / 10; ten > lastTen {

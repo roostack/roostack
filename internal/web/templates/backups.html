@@ -66,9 +66,33 @@
     {{end}}
     {{if .Server.This}}<p><a href="/setup/backup">Set up this server's backups with the setup wizard instead…</a></p>{{end}}
     {{end}}
-    <p class="hint">Good practice is "3-2-1": three copies of your data, on two different kinds of storage, with one
-      somewhere else (not at home). Extra copies per server are coming later.</p>
+    {{if not (and .IsOwner .Target)}}<p class="hint">Good practice is "3-2-1": three copies of your data, on two different kinds
+      of storage, with one somewhere else (not at home).</p>{{end}}
   </section>
+  {{if and .IsOwner .Target}}
+  <section class="card section" id="copies">
+    <h2>Extra copies</h2>
+    <p class="hint">Good practice is "3-2-1": three copies of your data, on two different kinds of storage, with one
+      somewhere else (not at home). Each copy is a backup of its own, made right after the main one, so it can be read even
+      if the main destination is lost.</p>
+    {{with .Copies}}
+    <ul class="plain">
+      {{range .}}<li><strong>{{.Title}}</strong> <span class="hint">· <code>{{shownRepo .Repository}}</code></span>
+        {{confirm (printf "/settings/servers/%s/backup-copies/remove" $.Server.ID) (printf "Stop copying %s's backups to %s? The copies made so far stay there." $.Server.Label .Title) "Stop copying" "quiet danger" (printf "destination=%s" .Ref)}}</li>{{end}}
+    </ul>
+    {{else}}<p>{{if $.Server.This}}This server's{{else}}{{$.Server.Name}}'s{{end}} backups go to one place only.</p>{{end}}
+    {{with .CopyChoices}}
+    <form method="post" action="/settings/servers/{{$.Server.ID}}/backup-copies">
+      <fieldset>
+        <legend>Also copy backups to</legend>
+        {{range .}}<label class="check"><input type="radio" name="destination" value="{{.Ref}}" required>
+          <span>{{.Title}}<small>{{.Note}}</small></span></label>{{end}}
+      </fieldset>
+      <button type="submit" class="secondary">Add this copy</button>
+    </form>
+    {{else}}<p class="hint">To add a copy, add somewhere else to keep backups: a cloud storage provider, or storage from another lab (above).</p>{{end}}
+  </section>
+  {{end}}
   <section class="card section">
     <h2>Restoring</h2>
     {{if .CanRestore}}

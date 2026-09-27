@@ -136,6 +136,20 @@ var migrations = []string{
 	`ALTER TABLE servers ADD COLUMN cert_serial TEXT NOT NULL DEFAULT '';
 	ALTER TABLE servers ADD COLUMN prev_serial TEXT NOT NULL DEFAULT '';
 	ALTER TABLE servers ADD COLUMN cert_expires INTEGER NOT NULL DEFAULT 0;`,
+	// Extra copies of a server's backups, somewhere else (SPEC.md §6.9,
+	// 3-2-1), and which destination each backup run went to ('' is the
+	// server's main one).
+	`CREATE TABLE backup_copies (
+		server_id   TEXT NOT NULL,
+		provider    TEXT NOT NULL,
+		repository  TEXT NOT NULL,
+		store_host  TEXT NOT NULL DEFAULT '',
+		store_hash  TEXT NOT NULL DEFAULT '',
+		scoped_key  TEXT NOT NULL DEFAULT '',
+		created_at  INTEGER NOT NULL,
+		PRIMARY KEY (server_id, provider)
+	);
+	ALTER TABLE backup_runs ADD COLUMN destination TEXT NOT NULL DEFAULT '';`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -496,34 +510,42 @@ type BackupRun struct {
 	FilesNew          int
 	DataAdded         uint64
 	Error             string
+	// Destination is the extra copy it went to, or "" for the main one.
+	Destination string
 }
 
 // RecordBackup stores the result of a backup.
 func (s *Store) RecordBackup(ctx context.Context, r BackupRun) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO backup_runs (started_at, finished_at, ok, snapshot_id, files_new, data_added, error)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		r.Started.Unix(), r.Finished.Unix(), r.OK, r.SnapshotID, r.FilesNew, r.DataAdded, r.Error)
+		`INSERT INTO backup_runs (started_at, finished_at, ok, snapshot_id, files_new, data_added, error, destination)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.Started.Unix(), r.Finished.Unix(), r.OK, r.SnapshotID, r.FilesNew, r.DataAdded, r.Error, r.Destination)
 	return err
 }
 
-// LastBackup returns the most recent attempt, and the most recent success
-// (which may be the same run). Either may be nil.
+// LastBackup returns the most recent attempt to the main destination, and
+// the most recent success (which may be the same run). Either may be nil.
 func (s *Store) LastBackup(ctx context.Context) (last, lastOK *BackupRun, err error) {
-	last, err = s.scanBackup(s.db.QueryRowContext(ctx, backupQuery+` ORDER BY id DESC LIMIT 1`))
+	return s.LastBackupTo(ctx, "")
+}
+
+// LastBackupTo is LastBackup for one destination ("" is the main one).
+func (s *Store) LastBackupTo(ctx context.Context, destination string) (last, lastOK *BackupRun, err error) {
+	last, err = s.scanBackup(s.db.QueryRowContext(ctx, backupQuery+` WHERE destination = ? ORDER BY id DESC LIMIT 1`, destination))
 	if err != nil {
 		return nil, nil, err
 	}
-	lastOK, err = s.scanBackup(s.db.QueryRowContext(ctx, backupQuery+` WHERE ok = 1 ORDER BY id DESC LIMIT 1`))
+	lastOK, err = s.scanBackup(s.db.QueryRowContext(ctx,
+		backupQuery+` WHERE ok = 1 AND destination = ? ORDER BY id DESC LIMIT 1`, destination))
 	return last, lastOK, err
 }
 
-const backupQuery = `SELECT started_at, finished_at, ok, snapshot_id, files_new, data_added, error FROM backup_runs`
+const backupQuery = `SELECT started_at, finished_at, ok, snapshot_id, files_new, data_added, error, destination FROM backup_runs`
 
 func (s *Store) scanBackup(row *sql.Row) (*BackupRun, error) {
 	var r BackupRun
 	var started, finished int64
-	err := row.Scan(&started, &finished, &r.OK, &r.SnapshotID, &r.FilesNew, &r.DataAdded, &r.Error)
+	err := row.Scan(&started, &finished, &r.OK, &r.SnapshotID, &r.FilesNew, &r.DataAdded, &r.Error, &r.Destination)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -788,6 +810,44 @@ func (s *Store) BackupTargets(ctx context.Context) ([]BackupTarget, error) {
 		out = append(out, t)
 	}
 	return out, rows.Err()
+}
+
+// SetBackupCopy records an extra copy of a server's backups (one per
+// destination: Provider).
+func (s *Store) SetBackupCopy(ctx context.Context, t BackupTarget) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO backup_copies (server_id, provider, repository, store_host, store_hash, scoped_key, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(server_id, provider) DO UPDATE SET repository = excluded.repository,
+		store_host = excluded.store_host, store_hash = excluded.store_hash, scoped_key = excluded.scoped_key,
+		created_at = excluded.created_at`,
+		t.ServerID, t.Provider, t.Repository, t.StoreHost, t.StoreHash, t.ScopedKey, t.Created.Unix())
+	return err
+}
+
+// BackupCopies lists every server's extra copies.
+func (s *Store) BackupCopies(ctx context.Context) ([]BackupTarget, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT server_id, provider, repository, store_host, store_hash, scoped_key, created_at
+		FROM backup_copies ORDER BY server_id, created_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []BackupTarget
+	for rows.Next() {
+		var t BackupTarget
+		var created int64
+		if err := rows.Scan(&t.ServerID, &t.Provider, &t.Repository, &t.StoreHost, &t.StoreHash, &t.ScopedKey, &created); err != nil {
+			return nil, err
+		}
+		t.Created = time.Unix(created, 0)
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// RemoveBackupCopy forgets an extra copy (its backups stay where they are).
+func (s *Store) RemoveBackupCopy(ctx context.Context, serverID, provider string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM backup_copies WHERE server_id = ? AND provider = ?`, serverID, provider)
+	return err
 }
 
 // StoreAdmin returns the controller's admin password (and its hash) for

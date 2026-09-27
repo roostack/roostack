@@ -50,6 +50,7 @@ type fakeManager struct {
 	servers     []manager.Server
 	serverOps   []string
 	destination string
+	copies      []manager.BackupCopy
 	providers   []string
 	moves       []string
 	guests      []manager.GuestView
@@ -140,6 +141,18 @@ func (f *fakeManager) MoveService(_ context.Context, name, to, way string) error
 }
 func (f *fakeManager) BackupChoices(context.Context) ([]manager.BackupChoice, error) {
 	return []manager.BackupChoice{{Ref: "server:n-0123456789", Title: "nuc's disk"}, {Ref: "provider:1", Title: "Backblaze"}}, nil
+}
+func (f *fakeManager) BackupCopiesOf(context.Context, string) []manager.BackupCopy { return f.copies }
+func (f *fakeManager) AddBackupCopy(_ context.Context, id, ref string) error {
+	if ref == f.destination {
+		return &manager.FormError{Msg: "That's where its backups already go."}
+	}
+	f.copies = append(f.copies, manager.BackupCopy{Ref: ref, Title: "Backblaze", Repository: "s3:https://s3.example.com/b/mylab/l/" + id})
+	return nil
+}
+func (f *fakeManager) RemoveBackupCopy(_ context.Context, _, ref string) error {
+	f.copies = slices.DeleteFunc(f.copies, func(c manager.BackupCopy) bool { return c.Ref == ref })
+	return nil
 }
 func (f *fakeManager) BackupTargetOf(_ context.Context, id string) (store.BackupTarget, string, bool) {
 	if f.destination == "" {
@@ -985,5 +998,31 @@ func TestCertificateExpiry(t *testing.T) {
 	fm.servers[1].CertExpires = time.Now().Add(-time.Hour)
 	if _, body := h.get("/"); !strings.Contains(body, "has expired") {
 		t.Error("an expired certificate")
+	}
+}
+
+func TestBackupCopies(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.destination = "server:n-0123456789"
+	_, body := h.get("/backups")
+	i := strings.Index(body, `id="copies"`)
+	if i < 0 || !strings.Contains(body[i:], `value="provider:1"`) || strings.Contains(body[i:], `value="server:n-0123456789"`) {
+		t.Fatalf("the copies section should offer Backblaze, not the main destination:\n%s", body)
+	}
+	if code, _ := h.post("/settings/servers/n-0123456789/backup-copies", url.Values{"destination": {"provider:1"}}, h.srv.URL); code != http.StatusOK ||
+		len(fm.copies) != 1 {
+		t.Fatalf("add: %d %+v", code, fm.copies)
+	}
+	_, body = h.get("/backups")
+	if !strings.Contains(body, "Stop copying") || strings.Contains(body, `name="destination" value="provider:1" required`) {
+		t.Errorf("an added copy is listed, and not offered again")
+	}
+	if code, body := h.post("/settings/servers/n-0123456789/backup-copies", url.Values{"destination": {"server:n-0123456789"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "already go") {
+		t.Errorf("a copy at the main destination: %d", code)
+	}
+	h.post("/settings/servers/n-0123456789/backup-copies/remove", url.Values{"destination": {"provider:1"}}, h.srv.URL)
+	if len(fm.copies) != 0 {
+		t.Error("remove")
 	}
 }

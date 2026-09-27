@@ -451,6 +451,17 @@ func (s *Server) Handler() http.Handler {
 		}
 		return nil, x.SetSSH(ctx(r), req.Choice, req.Confirmed)
 	})
+	handle("PUT /v1/settings/backup-copies", func(r *http.Request) (any, error) {
+		x, err := settings()
+		if err != nil {
+			return nil, err
+		}
+		var copies []BackupCopy
+		if err := decode(r, &copies); err != nil {
+			return nil, err
+		}
+		return nil, x.SetBackupCopies(ctx(r), copies)
+	})
 	handle("PUT /v1/settings/backup-destination", func(r *http.Request) (any, error) {
 		x, err := settings()
 		if err != nil {

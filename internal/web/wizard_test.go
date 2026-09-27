@@ -69,6 +69,7 @@ func (f *fakeSetup) SetSSH(_ context.Context, choice string, confirmed bool) err
 func (f *fakeSetup) RestartPolicy() (string, int) {
 	return cmp.Or(f.restartMode, config.RestartAuto), config.Maintenance{}.Hour()
 }
+func (f *fakeSetup) SetBackupCopies(context.Context, []node.BackupCopy) error { return nil }
 func (f *fakeSetup) SetBackupDestination(_ context.Context, d node.BackupDestination) error {
 	f.destination = d.Repository
 	return nil

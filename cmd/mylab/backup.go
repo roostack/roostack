@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"flag"
@@ -154,6 +155,22 @@ func newRepo(lab config.Lab, launch backupLaunch) (*backup.Repo, error) {
 	}, nil
 }
 
+// copyRepos opens this server's extra backup copies (SPEC.md §6.9).
+func copyRepos(lab config.Lab, launch backupLaunch) []backup.Copy {
+	restic, err := exec.LookPath("restic")
+	if err != nil {
+		restic = "restic"
+	}
+	var out []backup.Copy
+	for _, c := range lab.Backup.Copies {
+		keyFile := cmp.Or(c.KeyFile, backup.KeyFile(lab.Paths))
+		out = append(out, backup.Copy{Name: c.Name, Title: c.Title, Repo: &backup.Repo{
+			Bin: restic, URL: c.Repository, PasswordFile: keyFile, Env: c.Env,
+			LimitUploadKiB: lab.Backup.LimitUploadKiB, Launch: unshared(launch)}})
+	}
+	return out
+}
+
 // newBackupDeps wires a backup job to this lab. Used by the CLI and by
 // mylab serve's nightly backups.
 // serverServices returns this server's services and the lab config to
@@ -179,6 +196,7 @@ func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch ba
 		Repo:      repo,
 		Preparer:  &backup.Preparer{Launch: launch, MylabBin: mylabBin},
 		DumpState: st.Backup,
+		Copies:    copyRepos(lab, launch),
 		Paths:     lab.Paths,
 		Host:      host,
 		Plan: func() (backup.Plan, error) {

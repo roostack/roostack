@@ -81,7 +81,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Restore from the UI (Owner only): choose a backup that contains the service, confirm, runs through the coordinator with a live log; kept copies listed and deletable
   - [x] Full-lab restore onto a new server: first-run "Restore a lab" (folder, S3-compatible bucket or restic address + recovery key), restores the controller's backup, database at the next start, services' databases after the first apply; WireGuard keys in backups. Tested end to end on a rebuilt VM (`MYLAB_VM=4`)
   - [ ] Full-lab restore from storage at a friend's lab; restoring a lone node; a disk whose files belong to another UID (hint to chown)
-  - [ ] 3-2-1 guidance and multiple destinations (SPEC §6.9): suggestions in the UI, primary + `restic copy` to extra destinations, per-destination status
+  - [x] 3-2-1: extra copies per server (SPEC §6.9): each its own backup after the main one (not `restic copy`, see SPEC), status and attention per copy, pruned and checked with the main one. Tested live on VM1 (main on vps's disk, copy on its own)
   - [x] Postgres restore (pg_restore): Forgejo repo deleted, restored, back with its git data
   - [ ] Measure restic RAM/time on a realistic photo/video dataset
 - [ ] 🟡 **1.11 Maintenance coordinator + host OS updates**
