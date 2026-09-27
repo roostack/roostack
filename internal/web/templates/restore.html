@@ -1,12 +1,12 @@
 {{define "title"}}Restore {{.Service.Title}}{{end}}
 {{define "content"}}
 <section class="card narrow">
-  <p><a href="/backups">← Backups</a></p>
+  {{template "back" (dict "Href" "/backups" "Text" "Backups")}}
   <h1>Restore {{.Service.Title}}</h1>
   {{with .RestoreActivity}}{{template "activity" .}}{{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{if .Pending}}
-    <p class="notice">A restore is in progress. This page shows how it's going.</p>
+    {{template "notice" (dict "Text" "A restore is in progress. This page shows how it's going.")}}
   {{else if .Snapshots}}
   <p>Puts {{.Service.Title}}'s data back to how it was in a backup. {{.Service.Title}} stops for a few minutes while this happens.</p>
   <form method="post" action="/backups/restore/{{.Service.Name}}">
@@ -24,7 +24,7 @@
     <button type="submit">Restore {{.Service.Title}}</button>
   </form>
   {{else}}
-    <p class="notice">There's no backup of {{.Service.Title}} yet. Backups made before it was installed don't contain it.</p>
+    {{template "notice" (dict "Text" (printf "There's no backup of %s yet. Backups made before it was installed don't contain it." .Service.Title))}}
   {{end}}
 
   {{with .Kept}}
@@ -34,11 +34,8 @@
     {{range .}}
     <li>
       <span>{{if .Failed}}From a restore that didn't finish{{else}}Before the restore{{end}} on {{when .Time}}<br><code>{{.Path}}</code></span>
-      <form method="post" action="/backups/restore/{{$.Service.Name}}/kept/remove" x-data
-        x-on:submit="if (!confirm('Delete this copy permanently?')) $event.preventDefault()">
-        <input type="hidden" name="path" value="{{.Path}}">
-        <button type="submit" class="quiet danger">Delete</button>
-      </form>
+      {{template "confirm-button" (dict "Action" (printf "/backups/restore/%s/kept/remove" $.Service.Name)
+        "Confirm" "Delete this copy permanently?" "Text" "Delete" "Kind" "quiet danger" "HiddenName" "path" "HiddenValue" .Path)}}
     </li>
     {{end}}
   </ul>

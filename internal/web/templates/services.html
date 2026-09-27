@@ -19,8 +19,8 @@
 
 {{define "services-live"}}
 {{with .Apply}}
-  {{if .Running}}<p class="notice">Applying changes… Downloading a new service can take a few minutes.</p>
-  {{else if .LastErr}}<p class="notice notice-error">The last change didn't finish: {{.LastErr}}</p>{{end}}
+  {{if .Running}}{{template "notice" (dict "Text" "Applying changes… Downloading a new service can take a few minutes.")}}
+  {{else if .LastErr}}{{template "notice" (dict "Kind" "error" "Text" (printf "The last change didn't finish: %v" .LastErr))}}{{end}}
 {{end}}
 {{if .Services}}
 <ul class="services">
@@ -30,7 +30,7 @@
       <h2>{{if $.CanManage}}<a href="/services/{{.Name}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</h2>
       {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}</a>{{end}}
     </div>
-    <span class="status status-{{.Status}}">{{.Status}}</span>
+    {{template "status" .Status}}
   </li>
   {{end}}
 </ul>

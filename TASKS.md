@@ -97,7 +97,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Tokens: palette → purpose → scales (tokens.css, themes/ocean.css); app.css uses only tokens
   - [x] Components: buttons, notice, status, badge, back, confirm, card/heading, facts, forms, rows, attention, activity, technical details, secret (docs/DESIGN.md)
   - [x] Component gallery: /design in the UI and docs/design/gallery.html (same templates; a test keeps the file current)
-  - [ ] Move existing pages onto the components (fix inconsistencies found in the UI review)
+  - [x] Move existing pages onto the components: back links, status pills, notices and confirm dialogs all use the shared templates; headings without ampersands
 - [ ] **1.15 Settings structure** (after 1.14)
   - [ ] /settings as a grid of overview cards (current state + status per area)
   - [ ] Area pages with a sidebar on desktop, back link on phones: People & access (People, Remote access), Network (Domain & certificates, Home network), This machine (Updates & restarts, Time zone)

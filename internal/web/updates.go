@@ -22,7 +22,7 @@ type HostUpdates interface {
 	RestartNow(ctx context.Context) error
 }
 
-// updatesView is the Settings page's "Updates & restarts" card.
+// updatesView is the Settings page's "Updates and restarts" card.
 type updatesView struct {
 	Last     *osupdate.Result
 	Pending  bool

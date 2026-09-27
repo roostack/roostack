@@ -1,11 +1,11 @@
 {{define "title"}}People{{end}}
 {{define "content"}}
 <section class="card medium">
-  <p><a href="/settings">← Settings</a></p>
+  {{template "back" (dict "Href" "/settings" "Text" "Settings")}}
   <h1>People</h1>
   <p class="hint">Who can log in to MyLab. Each service (Forgejo, Vaultwarden, …) still has its own accounts.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  {{with .Done}}<p class="notice notice-ok" role="status">{{.}}</p>{{end}}
+  {{with .Done}}{{template "notice" (dict "Kind" "ok" "Text" .)}}{{end}}
   {{with .TempPassword}}
   <div class="notice" role="status">
     <p><strong>{{if $.TempNew}}{{$.TempFor}} can now log in{{else}}New password for {{$.TempFor}}{{end}}</strong> with this temporary password.
@@ -38,11 +38,9 @@
           <button type="submit" class="secondary">Turn off two-factor (lost phone)</button>
         </form>
         {{end}}
-        {{/* The name goes through a data attribute, never into the expression. */}}
-        <form method="post" action="/users/{{.ID}}/remove" data-name="{{.Username}}" x-data
-          x-on:submit="if (!confirm('Remove ' + $el.dataset.name + '? They will no longer be able to log in.')) $event.preventDefault()">
-          <button type="submit" class="quiet danger">Remove {{.Username}}</button>
-        </form>
+        {{template "confirm-button" (dict "Action" (printf "/users/%d/remove" .ID)
+          "Confirm" (printf "Remove %s? They will no longer be able to log in." .Username)
+          "Text" (printf "Remove %s" .Username) "Kind" "quiet danger")}}
       </details>
       {{end}}
     </li>

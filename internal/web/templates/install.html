@@ -1,7 +1,7 @@
 {{define "title"}}Install {{.Package.Title}}{{end}}
 {{define "content"}}
 <section class="card narrow">
-  <p><a href="/catalog">← Back</a></p>
+  {{template "back" (dict "Href" "/catalog" "Text" "Back")}}
   <h1>Install {{.Package.Title}}</h1>
   <p class="hint">{{.Package.Description}}</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}

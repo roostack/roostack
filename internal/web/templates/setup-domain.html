@@ -3,7 +3,7 @@
 <section class="card narrow">
   {{if .Wizard}}<p class="hint">Setup · step 3 of 4</p>
   <h1>Your domain</h1>
-  {{else}}<p><a href="{{.Back}}">← Settings</a></p>
+  {{else}}{{template "back" (dict "Href" .Back "Text" "Settings")}}
   <h1>{{if .StepDone}}Change your domain{{else}}Set up your domain{{end}}</h1>
   {{if .StepDone}}<p class="hint">Saving checks the new details, then restarts MyLab to use them. Your services keep their data.</p>{{end}}
   {{end}}

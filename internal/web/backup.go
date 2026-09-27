@@ -35,6 +35,13 @@ var templateFuncs = template.FuncMap{
 	},
 	// list makes a slice, e.g. {{range list "light" "dark"}}.
 	"list": func(items ...string) []string { return items },
+	// percent shows progress, or nothing if it's unknown (-1).
+	"percent": func(p int) string {
+		if p < 0 {
+			return ""
+		}
+		return fmt.Sprintf("%d%%", p)
+	},
 	// palette is the built-in theme (internal/web/static/css/themes).
 	"palette": func() string { return DefaultPalette },
 	"themes":  func() []Theme { return Themes },
