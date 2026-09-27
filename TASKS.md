@@ -130,7 +130,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Revoke a removed machine's certificate (today it loses its WireGuard peer, so it can't reach the lab API)
   - [ ] Move a service between machines (backup → restore → switch route, SPEC.md §10.4)
   - [ ] Per-machine backups set up from the UI (own repository, recovery key as second key)
-  - [ ] Needs-attention items for other machines' backups, updates and restarts
+  - [x] Needs-attention items for other machines' backups, updates and restarts
   - [ ] Certificate renewal; nodes behind a hub that isn't the controller
   - [x] A machine without an SSH choice (firewall off) is flagged in "needs attention"
 - [x] A settings change that restarts MyLab waits for the running maintenance job and starts no new ones (`Coordinator.Hold`); the agent also lets an update finish if MyLab goes away

@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/config"
@@ -97,32 +98,9 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		}
 	}
 
-	if admin && s.backups(r) != nil {
-		if st, err := s.backups(r).Status(r.Context()); err == nil {
-			backupLink := "/backups"
-			switch {
-			case !st.Configured:
-				if owner {
-					backupLink = "/setup/backup"
-				}
-				add(levelProblem, "Backups aren't set up. Until they are, a failed disk means losing everything.",
-					backupLink, "Set up backups")
-			case st.Running:
-				add(levelInfo, "Backing up…", "/backups", "View")
-			case st.Last != nil && !st.Last.OK:
-				add(levelProblem, "The last backup didn't finish: "+st.Last.Error, "/backups", "View backups")
-			}
-			switch {
-			case !st.Configured || st.Running || (st.Last != nil && !st.Last.OK):
-			case st.LastOK == nil:
-				add(levelInfo, "The first backup runs "+whenText(st.Next)+". You can also back up now.", "/backups", "Back up now")
-			case isStale(st.LastOK.Finished):
-				add(levelWarning, "No backup has finished in the last two days.", "/backups", "View backups")
-			}
-			if st.Configured && st.LocalOnly {
-				add(levelWarning, "Backups are only stored on this machine. Add a copy somewhere else to protect "+
-					"against theft, fire or a failed disk.", "/backups", "Improve backups")
-			}
+	if admin {
+		for _, mn := range s.machineNodes(r) {
+			s.backupAttention(r, mn.view, mn.node, owner, add)
 		}
 	}
 
@@ -141,18 +119,9 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		}
 	}
 
-	if owner && s.updates(r) != nil {
-		if last, err := s.updates(r).Last(r.Context()); err == nil && last != nil && !last.OK {
-			add(levelProblem, "OS updates didn't finish last time. The machine may be missing security fixes.",
-				"/settings/updates", "See what happened")
-		}
-		if rs := s.updates(r).RestartStatus(); rs.Needed {
-			if s.Maintenance.Restart == config.RestartNotify {
-				add(levelWarning, "This machine needs a restart to finish installing updates.", "/settings/updates", "Restart")
-			} else {
-				add(levelInfo, fmt.Sprintf("This machine will restart around %02d:00 to finish installing updates.",
-					s.Maintenance.Hour()), "/settings/updates", "Details")
-			}
+	if owner {
+		for _, mn := range s.machineNodes(r) {
+			s.updatesAttention(r, mn.view, mn.node, add)
 		}
 	}
 
@@ -160,4 +129,108 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		add(levelInfo, "Protect your account with two-factor authentication.", "/account/2fa", "Turn it on")
 	}
 	return items
+}
+
+// machineNode is a machine with what the UI needs from it.
+type machineNode struct {
+	view machineView
+	node ServiceNode
+}
+
+// machineNodes lists this machine, then the lab's other reachable ones.
+func (s *Server) machineNodes(r *http.Request) []machineNode {
+	var out []machineNode
+	if s.Node != nil {
+		out = append(out, machineNode{machineView{ID: s.Node.Identity().ID, Name: s.Node.Identity().Name, This: true}, s.Node})
+	}
+	if s.Manager == nil {
+		return out
+	}
+	machines, _ := s.Manager.Machines()
+	for _, mc := range machines {
+		if mc.This {
+			continue
+		}
+		n := s.Manager.NodeByID(mc.ID)
+		if n == nil || mc.Status.LastErr != nil && strings.HasPrefix(mc.Status.LastErr.Error(), "MyLab can't reach") {
+			continue // already flagged as unreachable
+		}
+		out = append(out, machineNode{machineView{ID: mc.ID, Name: mc.Name}, n})
+	}
+	return out
+}
+
+// on names another machine in a message ("" for this one).
+func (m machineView) on() string {
+	if m.This {
+		return ""
+	}
+	return " on " + m.Name
+}
+
+func (s *Server) backupAttention(r *http.Request, m machineView, n ServiceNode, owner bool, add func(level, text, link, linkText string)) {
+	b := n.Backups()
+	if b == nil {
+		return
+	}
+	st, err := b.Status(r.Context())
+	if err != nil {
+		return
+	}
+	link := m.Backups()
+	switch {
+	case !st.Configured && m.This:
+		setup := link
+		if owner {
+			setup = "/setup/backup"
+		}
+		add(levelProblem, "Backups aren't set up. Until they are, a failed disk means losing everything.", setup, "Set up backups")
+	case !st.Configured:
+		add(levelProblem, "Backups aren't set up"+m.on()+". Until they are, a failed disk there means losing its services' data.",
+			link, "View")
+	case st.Running:
+		add(levelInfo, "Backing up"+m.on()+"…", link, "View")
+	case st.Last != nil && !st.Last.OK:
+		add(levelProblem, "The last backup"+m.on()+" didn't finish: "+st.Last.Error, link, "View backups")
+	}
+	switch {
+	case !st.Configured || st.Running || (st.Last != nil && !st.Last.OK):
+	case st.LastOK == nil:
+		add(levelInfo, "The first backup"+m.on()+" runs "+whenText(st.Next)+". You can also back up now.", link, "Back up now")
+	case isStale(st.LastOK.Finished):
+		add(levelWarning, "No backup has finished"+m.on()+" in the last two days.", link, "View backups")
+	}
+	if st.Configured && st.LocalOnly {
+		where := "this machine"
+		if !m.This {
+			where = m.Name
+		}
+		add(levelWarning, "Backups are only stored on "+where+". Add a copy somewhere else to protect "+
+			"against theft, fire or a failed disk.", link, "Improve backups")
+	}
+}
+
+func (s *Server) updatesAttention(r *http.Request, m machineView, n ServiceNode, add func(level, text, link, linkText string)) {
+	u := n.Updates()
+	if u == nil {
+		return
+	}
+	if last, err := u.Last(r.Context()); err == nil && last != nil && !last.OK {
+		add(levelProblem, "OS updates didn't finish last time"+m.on()+". The machine may be missing security fixes.",
+			m.Updates(), "See what happened")
+	}
+	rs := u.RestartStatus()
+	if !rs.Needed {
+		return
+	}
+	mode, hour := s.Maintenance.Restart, s.Maintenance.Hour()
+	if set := n.Settings(); set != nil {
+		mode, hour = set.RestartPolicy()
+	}
+	if mode == config.RestartNotify {
+		add(levelWarning, m.Label()+" needs a restart to finish installing updates.", m.Updates(), "Restart")
+	} else {
+		add(levelInfo, fmt.Sprintf("%s will restart around %02d:00 to finish installing updates.", m.Label(), hour),
+			m.Updates(), "Details")
+	}
 }

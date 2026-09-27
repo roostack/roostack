@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -21,15 +22,16 @@ import (
 )
 
 type fakeSetup struct {
-	p          setup.Progress
-	zone       string
-	restarted  bool
-	ssh        string
-	policy     string
-	clients    []netip.Addr
-	domainErr  error
-	backupErr  error
-	lastBackup setup.BackupChoice
+	restartMode string
+	p           setup.Progress
+	zone        string
+	restarted   bool
+	ssh         string
+	policy      string
+	clients     []netip.Addr
+	domainErr   error
+	backupErr   error
+	lastBackup  setup.BackupChoice
 
 	lastProvider string
 	lastValues   map[string]string
@@ -63,7 +65,9 @@ func (f *fakeSetup) SetSSH(_ context.Context, choice string, confirmed bool) err
 	f.ssh, f.restarted = choice, true
 	return nil
 }
-func (f *fakeSetup) RestartPolicy() (string, int) { return "auto", config.Maintenance{}.Hour() }
+func (f *fakeSetup) RestartPolicy() (string, int) {
+	return cmp.Or(f.restartMode, config.RestartAuto), config.Maintenance{}.Hour()
+}
 func (f *fakeSetup) SetRestartPolicy(_ context.Context, mode string, hour int) error {
 	if hour < 0 || hour > 23 {
 		return &node.FormError{Msg: "Choose an hour between 0 and 23."}
@@ -421,7 +425,7 @@ func TestUpdatesCard(t *testing.T) {
 	if !strings.Contains(home, "OS updates didn&#39;t finish") || !strings.Contains(home, "will restart around 04:00") {
 		t.Error("home: want the failed update and the planned restart")
 	}
-	h.server.Maintenance.Restart = config.RestartNotify
+	fs.restartMode = config.RestartNotify
 	if _, home := h.get("/"); !strings.Contains(home, "needs a restart to finish installing updates") {
 		t.Error("home: notify-only should ask the Owner to restart")
 	}
