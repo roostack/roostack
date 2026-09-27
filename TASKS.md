@@ -115,7 +115,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 ## Phase 2: Multiple machines (SPEC §10, draft)
 
-- [ ] Review the §10 design with the user
+- [x] Review the §10 design with the user (locked 2026-09-27)
 - [ ] Seams: `host` on instances; `Node` interface between manager and machine operations; per-node status/activity; stable node ID
 - [ ] Two-VM prototype: second dev VM joins over MyLab-managed WireGuard (join code, mTLS), runs one service placed on it
 - [ ] Controller move (planned hand-over) and promotion from a node's replica
