@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/mylab/mylab/internal/labnet"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -70,6 +73,13 @@ type Assignment struct {
 	// Storage, if set, makes the machine offer its disk for backups
 	// (SPEC.md §10.10).
 	Storage *Storage
+	// Guests are other labs storing backups here, reached on GuestAddr,
+	// this lab's address on the guests' link (the controller only).
+	Guests    []generate.GuestStorage
+	GuestAddr string
+	// ProxyPorts are where the controller forwards its machines' backups
+	// to other labs' storage (on MyLab's network).
+	ProxyPorts []int
 }
 
 // Storage is who may use a machine's backup store: bcrypt password hashes
@@ -166,7 +176,8 @@ func (n *Local) Apply(a Assignment) {
 		n.userSecrets[k] = v
 	}
 	old := n.assignment.Services
-	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage}
+	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage,
+		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts}
 	if n.State != nil {
 		// A service taken off this machine forgets its setup progress.
 		for _, s := range old {
@@ -250,6 +261,9 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	if err := n.addStorage(&desired, a.Storage); err != nil {
 		return err
 	}
+	if err := n.addGuestStorage(&desired, a); err != nil {
+		return err
+	}
 	r := *n.Reconciler
 	r.UserSecret = func(name string) ([]byte, bool) {
 		n.mu.Lock()
@@ -281,6 +295,22 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 			for _, port := range []int{generate.StoragePort, generate.StorageAdminPort} {
 				fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", Iface: agent.WireGuardInterface,
 					Reason: "backup store"})
+			}
+		}
+		for _, port := range a.ProxyPorts {
+			fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", Iface: agent.WireGuardInterface,
+				Reason: "backups to another lab"})
+		}
+		// Other labs reach only their own stores and the guest API.
+		if a.GuestAddr != "" {
+			fw.Allow = append(fw.Allow,
+				agent.Rule{Port: agent.GuestsPort, Proto: "udp", From: agent.FromAny, Reason: "storage for other labs (wireguard)"},
+				agent.Rule{Port: labnet.GuestAPIPort, Proto: "tcp", Iface: agent.GuestsInterface, Reason: "storage for other labs"})
+			for _, g := range a.Guests {
+				for _, port := range []int{g.Port, g.Port + 1} {
+					fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", Iface: agent.GuestsInterface,
+						Reason: "storage for " + g.User})
+				}
 			}
 		}
 		act.Step("Updating the firewall")
@@ -426,3 +456,92 @@ func (n *Local) addStorage(d *reconcile.Desired, st *Storage) error {
 	}
 	return write(generate.AdminPasswords, []string{"controller:" + st.Admin})
 }
+
+// addGuestStorage adds other labs' stores to desired state and writes
+// their password files.
+func (n *Local) addGuestStorage(d *reconcile.Desired, a Assignment) error {
+	if a.GuestAddr == "" {
+		return nil
+	}
+	for _, g := range a.Guests {
+		files, units, err := generate.GuestStorageUnits(n.Lab, a.GuestAddr, g)
+		if err != nil {
+			return err
+		}
+		d.System.Quadlets = append(d.System.Quadlets, files...)
+		d.System.Units = append(d.System.Units, units...)
+		dir := generate.GuestStoreDir(n.Lab, g.User)
+		if err := os.MkdirAll(dir, 0o750); err != nil {
+			return err
+		}
+		for name, hash := range map[string]string{generate.StorePasswords: g.StoreHash, generate.AdminPasswords: g.AdminHash} {
+			if err := writeIfChanged(filepath.Join(dir, name), g.User+":"+hash+"\n"); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// writeIfChanged writes a private file unless it already has data.
+func writeIfChanged(path, data string) error {
+	if old, err := os.ReadFile(path); err == nil && string(old) == data {
+		return nil
+	}
+	if err := os.WriteFile(path+".tmp", []byte(data), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(path+".tmp", path)
+}
+
+// GuestUsage is how much a guest lab stores on this machine, in bytes.
+func (n *Local) GuestUsage(user string) (int64, error) {
+	var total int64
+	err := filepath.WalkDir(generate.GuestStoreDir(n.Lab, user), func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			if info, err := d.Info(); err == nil {
+				total += info.Size()
+			}
+		}
+		return nil
+	})
+	return total, err
+}
+
+// GuestDirs lists the guest users with data on this machine.
+func (n *Local) GuestDirs() ([]string, error) {
+	entries, err := os.ReadDir(filepath.Join(n.Lab.Paths.BackupStoreDir(), "guests"))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var users []string
+	for _, e := range entries {
+		if e.IsDir() && guestUser.MatchString(e.Name()) {
+			users = append(users, e.Name())
+		}
+	}
+	return users, nil
+}
+
+// RemoveGuestDir deletes a removed guest's data for good.
+func (n *Local) RemoveGuestDir(ctx context.Context, user string) error {
+	if !guestUser.MatchString(user) {
+		return ErrNotFound
+	}
+	dir := generate.GuestStoreDir(n.Lab, user)
+	if _, err := os.Stat(dir); err != nil {
+		return ErrNotFound
+	}
+	if out, err := n.unshare(ctx, "rm", "-rf", "--", dir).CombinedOutput(); err != nil {
+		return fmt.Errorf("deleting %s: %w: %s", dir, err, out)
+	}
+	return nil
+}
+
+var guestUser = regexp.MustCompile(`^g[0-9]{1,9}$`)

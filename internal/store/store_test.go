@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -278,5 +279,40 @@ func TestBackupTargets(t *testing.T) {
 	s.SetStoreAdmin(ctx, "n-0000000001", "pw", "hash")
 	if pw, hash, ok, err := s.StoreAdmin(ctx, "n-0000000001"); !ok || pw != "pw" || hash != "hash" || err != nil {
 		t.Errorf("admin = %q %q %v %v", pw, hash, ok, err)
+	}
+}
+
+func TestGuests(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	now := time.Now()
+	id, err := s.AddGuest(ctx, Guest{Name: "Tyris's lab", Quota: 50 << 30, Addr: "100.101.23.2", PublicKey: "onetime",
+		TokenHash: "h", Expires: now.Add(time.Hour), Port: 8100, StoreHash: "sh", AdminHash: "ah"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.AddGuest(ctx, Guest{Name: "expired", Addr: "100.101.23.3", PublicKey: "x", TokenHash: "old", Expires: now.Add(-time.Minute), Port: 8102})
+	gs, _ := s.Guests(ctx, now)
+	if len(gs) != 1 || gs[0].User() != fmt.Sprintf("g%d", id) || gs[0].Joined {
+		t.Fatalf("guests = %+v (expired invites dropped)", gs)
+	}
+	if _, err := s.JoinGuest(ctx, "wrong", "own", now); !errors.Is(err, ErrJoinCode) {
+		t.Errorf("wrong token: %v", err)
+	}
+	g, err := s.JoinGuest(ctx, "h", "own", now)
+	if err != nil || !g.Joined || g.PublicKey != "own" {
+		t.Fatalf("join: %+v %v", g, err)
+	}
+	if _, err := s.JoinGuest(ctx, "h", "again", now); !errors.Is(err, ErrJoinCode) {
+		t.Error("an invite works once")
+	}
+	// A joined guest stays, even past the invite's expiry.
+	if gs, _ := s.Guests(ctx, now.Add(2*time.Hour)); len(gs) != 1 {
+		t.Error("joined guests don't expire")
+	}
+	s.SetGuestQuota(ctx, id, 10<<30)
+	s.RemoveGuest(ctx, id)
+	if gs, _ := s.Guests(ctx, now); len(gs) != 0 {
+		t.Error("not removed")
 	}
 }

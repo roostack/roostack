@@ -228,6 +228,9 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 		if a := s.activityFor(r, activity.BackupSetup); a != nil {
 			data["SetupActivity"] = a
 		}
+		if m.This {
+			data["Remotes"] = s.remoteViews(r)
+		}
 	}
 	if data["Error"] != nil {
 		w.WriteHeader(http.StatusBadRequest)
