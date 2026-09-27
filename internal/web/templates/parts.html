@@ -59,7 +59,7 @@
     {{end}}
     <p class="hint">Next backup: {{when .Next}}</p>
     {{if .LocalOnly}}
-      <p class="notice">Backups are only stored on this machine. Add an off-site copy to protect against theft, fire or a failed disk.</p>
+      <p class="notice notice-warn">Backups are only stored on this machine. Add an off-site copy to protect against theft, fire or a failed disk.</p>
     {{end}}
   {{end}}
 </section>
@@ -71,7 +71,7 @@
 <section class="card section" id="dns">
   <h2>Home network access</h2>
   {{if eq .State "ok"}}<p>✓ {{.Message}} <span class="hint">({{.Record}} → {{.IP}})</span></p>
-  {{else if eq .State "manual"}}<p class="notice">{{.Message}}</p>
+  {{else if eq .State "manual"}}<p class="notice notice-warn">{{.Message}}</p>
   {{else if eq .State "pending"}}<p class="notice">{{.Message}}</p>
   {{else if .State}}<p class="notice notice-error">{{.Message}}</p>
   {{else}}<p class="hint">Checking…</p>{{end}}
@@ -122,8 +122,8 @@
 {{end}}{{end}}
 
 {{define "activity-status"}}{{with .Activity}}
-<p id="activity-status-{{.Kind}}" class="activity-status {{if .Running}}running{{else if .Err}}failed{{else}}ok{{end}}"
-  {{if .Running}}hx-get="/activity/{{.Kind}}/status?was=running" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+<p {{if not .Example}}id="activity-status-{{.Kind}}" {{end}} class="activity-status {{if .Running}}running{{else if .Err}}failed{{else}}ok{{end}}"
+  {{if and .Running (not .Example)}}hx-get="/activity/{{.Kind}}/status?was=running" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
   {{if .Running}}<span class="spinner" aria-hidden="true"></span> {{.Title}}: {{with .Status}}{{.}}…{{else}}starting…{{end}}
     <small>started {{when .Started}}</small>
   {{else if .Err}}✗ {{.Title}} failed {{when .Finished}}: {{.Err}}
@@ -132,8 +132,8 @@
 {{end}}{{end}}
 
 {{define "activity-log"}}{{with .Activity}}
-<pre id="activity-log-{{.Kind}}" class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
-  {{if .Running}}hx-get="/activity/{{.Kind}}/log" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+<pre {{if not .Example}}id="activity-log-{{.Kind}}" {{end}} class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
+  {{if and .Running (not .Example)}}hx-get="/activity/{{.Kind}}/log" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
 {{- if .Dropped}}… {{.Dropped}} earlier lines not shown
 {{end}}{{range .Lines}}{{.}}
 {{end}}</pre>

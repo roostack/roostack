@@ -244,7 +244,7 @@ func TestSecurityHeaders(t *testing.T) {
 
 func TestStaticAssets(t *testing.T) {
 	h := newHarness(t, "")
-	for _, path := range []string{"/static/style.css", "/static/htmx-2.0.11.min.js", "/static/alpine-3.17.4.min.js"} {
+	for _, path := range []string{"/static/css/tokens.css", "/static/css/themes/ocean.css", "/static/css/app.css", "/static/htmx-2.0.11.min.js", "/static/alpine-3.17.4.min.js"} {
 		if code, _ := h.get(path); code != http.StatusOK {
 			t.Errorf("%s: %d", path, code)
 		}

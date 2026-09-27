@@ -1,0 +1,23 @@
+/* Ocean and magenta: the default MyLab theme (chosen 2026-09-27).
+   A clear ocean blue for actions; a magenta highlight for the brand mark,
+   where you are, and focus.
+
+   A theme sets every --pal-* colour for light (-l) and dark (-d). Copy
+   this file to add a theme, and register its name in internal/web. */
+:root, [data-palette="ocean"] {
+  --pal-bg-l: #f5f7fa;        --pal-bg-d: #11151a;
+  --pal-surface-l: #ffffff;   --pal-surface-d: #1a1f26;
+  --pal-surface-2-l: #eef2f6; --pal-surface-2-d: #141920;
+  --pal-fg-l: #1b2330;        --pal-fg-d: #e6e9ef;
+  --pal-muted-l: #586377;     --pal-muted-d: #9aa4b4;
+  --pal-border-l: #dce2ea;    --pal-border-d: #2b323d;
+  --pal-border-strong-l: #c3ccd8; --pal-border-strong-d: #3b4450;
+
+  --pal-accent-l: #0369a1;      --pal-accent-d: #38bdf8;
+  --pal-accent-fg-l: #ffffff;   --pal-accent-fg-d: #062135;
+  --pal-accent-soft-l: #e0f2fe; --pal-accent-soft-d: #0c2a3d;
+
+  --pal-highlight-l: #db2777;      --pal-highlight-d: #f472b6;
+  --pal-highlight-fg-l: #ffffff;   --pal-highlight-fg-d: #3b0a22;
+  --pal-highlight-soft-l: #fce7f3; --pal-highlight-soft-d: #3f1330;
+}

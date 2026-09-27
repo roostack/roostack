@@ -381,7 +381,7 @@ func TestTemporaryPasswordMustBeChanged(t *testing.T) {
 
 func TestThemeToggle(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleAdmin)
-	if _, body := h.get("/services"); !strings.Contains(body, `<html lang="en" data-theme="auto">`) ||
+	if _, body := h.get("/services"); !strings.Contains(body, `<html lang="en" data-palette="ocean">`) ||
 		!strings.Contains(body, `name="theme" value="light"`) {
 		t.Fatal("new users follow the device; the toggle offers light next")
 	}
@@ -395,7 +395,7 @@ func TestThemeToggle(t *testing.T) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if !strings.Contains(string(body), `data-theme="dark"`) || !strings.Contains(string(body), "<title>Services") {
+	if !strings.Contains(string(body), `data-palette="ocean" data-mode="dark"`) || !strings.Contains(string(body), "<title>Services") {
 		t.Error("choosing dark should return to the same page, in dark")
 	}
 	if code, _ := h.post("/account/theme", url.Values{"theme": {"purple"}}, h.srv.URL); code != http.StatusBadRequest {

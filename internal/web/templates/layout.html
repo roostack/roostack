@@ -1,17 +1,19 @@
 <!doctype html>
-<html lang="en"{{with .Nav}} data-theme="{{.Theme}}"{{end}}>
+<html lang="en" data-palette="{{palette}}"{{with .Nav}}{{if ne .Theme "auto"}} data-mode="{{.Theme}}"{{end}}{{end}}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
   <title>{{template "title" .}} · MyLab</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/themes/{{palette}}.css">
+  <link rel="stylesheet" href="/static/css/app.css">
   <script src="/static/htmx-2.0.11.min.js" defer></script>
   <script src="/static/alpine-3.17.4.min.js" defer></script>
 </head>
 <body>
   <header class="topbar" x-data="{ open: false }">
-    <a class="brand" href="/">MyLab</a>
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>MyLab</a>
     {{with .Nav}}
     <button type="button" class="menu-toggle" x-on:click="open = !open" aria-label="Menu">☰</button>
     <nav x-bind:class="open && 'open'">
@@ -26,13 +28,13 @@
           aria-label="Theme: {{.Theme}}. Switch to {{.NextTheme}}.">{{if eq .Theme "light"}}☀ Light{{else if eq .Theme "dark"}}☾ Dark{{else}}◐ Auto{{end}}</button>
       </form>
       <a href="/account" {{if eq .Active "account"}}class="active"{{end}}>{{.Username}}</a>
-      <form method="post" action="/logout"><button type="submit" class="link">Log out</button></form>
+      <form method="post" action="/logout"><button type="submit" class="quiet">Log out</button></form>
     </nav>
     {{end}}
   </header>
   <main>
     {{with .Clock}}
-    <div class="notice tz-banner" role="status" x-cloak
+    <div class="notice notice-warn tz-banner" role="status" x-cloak
       x-data="{ device: Intl.DateTimeFormat().resolvedOptions().timeZone, offset: -new Date().getTimezoneOffset() }"
       x-show="offset !== {{.Offset}}">
       <strong>Times in MyLab are this machine's time, not yours.</strong>
@@ -42,5 +44,6 @@
     {{end}}
     {{template "content" .}}
   </main>
+  {{if .Nav}}<footer class="site">MyLab · <a href="/design">Design system</a></footer>{{end}}
 </body>
 </html>

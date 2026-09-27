@@ -20,6 +20,8 @@ var activityPerm = map[string]auth.Permission{
 type activityView struct {
 	Kind string
 	activity.Snapshot
+	// Example is set in the design gallery: it never polls.
+	Example bool
 }
 
 // activityFor returns kind's latest activity for the page, or nil if

@@ -176,7 +176,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover",
 		"home", "services", "service", "backups", "restore", "settings", "account", "users"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
-			"templates/layout.html", "templates/parts.html", "templates/"+page+".html")
+			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
 			return nil, err
 		}
@@ -210,6 +210,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /partials/backups", s.require(auth.ManageServices, s.backupsPartial))
 	mux.Handle("GET /settings", s.requireOwner(s.settingsPage))
 	mux.Handle("GET /account", s.requireLogin(s.accountPage))
+	mux.Handle("GET /design", s.requireLogin(s.galleryPage))
 	mux.Handle("POST /account/theme", s.requireLogin(s.themeSubmit))
 	mux.Handle("POST /account/password", s.requireLogin(s.passwordSubmit))
 
