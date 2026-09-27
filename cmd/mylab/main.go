@@ -137,6 +137,10 @@ func validate(args []string) error {
 		for _, w := range p.Warnings() {
 			fmt.Printf("%s: warning: %s\n", path, w)
 		}
+		if err := generate.Check(p); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", path, err))
+			continue
+		}
 		fmt.Printf("%s: ok\n", path)
 	}
 	return errors.Join(errs...)

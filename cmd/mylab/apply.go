@@ -7,7 +7,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/firewall"
+	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/podman"
 	"github.com/mylab/mylab/internal/reconcile"
 	"github.com/mylab/mylab/internal/state"
@@ -25,6 +28,7 @@ func apply(args []string) error {
 		return err
 	}
 	lab.HasGPU = config.DetectGPU()
+	lab.Timezone = hosttime.Zone()
 	services, err := state.LoadServices(lab)
 	if err != nil {
 		return err
@@ -60,10 +64,24 @@ func apply(args []string) error {
 		return err
 	}
 	fmt.Print(plan)
+	fw, fwOK := firewall.Desired(lab, desired.Services)
+	if fwOK {
+		fmt.Printf("Firewall: SSH from %s", fw.SSHFrom)
+		for _, rule := range fw.Allow {
+			fmt.Printf(", %d/%s from %s", rule.Port, rule.Proto, rule.From)
+		}
+		fmt.Println()
+	}
 	if *dryRun {
 		return nil
 	}
-	return r.Apply(ctx, plan)
+	if err := r.Apply(ctx, plan); err != nil {
+		return err
+	}
+	if fwOK {
+		return agent.NewClient(agent.DefaultSocket).ApplyFirewall(ctx, fw)
+	}
+	return nil
 }
 
 // envSecret reads user-provided secrets from the environment, e.g.
