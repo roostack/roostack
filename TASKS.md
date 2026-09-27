@@ -136,7 +136,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [x] The controller creates each machine's repository (recovery key + the machine's own key) and hands over only the machine's key and credentials
     - [x] Each machine's Backups page chooses its provider; status per machine
     - [x] Weekly forget/prune by the controller (admin store access or provider credentials, recovery key); machines only check
-    - [ ] B2: an application key per machine limited to its folder
+    - [x] B2: an application key per machine limited to its folder, deleted when the machine leaves (UNTESTED against Backblaze: built from the API docs, tested with a fake server)
   - [ ] Storage for other labs: storage invites with quotas, `mylab-guests` WireGuard interface (UDP 51821), usage on both sides, port-forwarding guide and reachability check
   - [ ] Move a service between machines: copy directly (live copy, then a short stop) or through a backup; the UI suggests one
   - [x] Needs-attention items for other machines' backups, updates and restarts

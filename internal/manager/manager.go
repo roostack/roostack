@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/mylab/mylab/internal/activity"
+	"github.com/mylab/mylab/internal/b2"
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/generate"
@@ -61,6 +62,8 @@ type Manager struct {
 	OpenRepo    func(url string, env []string) *backup.Repo
 	// HasRecoveryKey reports whether the lab has its recovery key yet.
 	HasRecoveryKey func() bool
+	// NewB2 makes a Backblaze client (tests; nil uses the real service).
+	NewB2 func(keyID, key string) *b2.Client
 	// Activity shows problems building an assignment (optional).
 	Activity *activity.Registry
 

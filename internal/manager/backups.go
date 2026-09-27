@@ -13,6 +13,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/mylab/mylab/internal/activity"
+	"github.com/mylab/mylab/internal/b2"
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/labnet"
@@ -187,7 +188,22 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, machin
 		target.Repository = s3.Repository(labID, machineID)
 		env := s3.Env()
 		dest = node.BackupDestination{Repository: target.Repository, Env: env}
+		// The controller keeps using the account's key; the machine gets
+		// one limited to its folder where the provider can make one.
 		admin = m.OpenRepo(target.Repository, env)
+		if b2.IsB2(s3.Endpoint) {
+			act.Step("Making a Backblaze key for %s, limited to its folder", m.nameOf(machineID))
+			folder := backup.MachineFolder(s3.Prefix, labID, machineID) + "/"
+			key, err := m.b2(s3).CreateKey(ctx, "mylab-"+labID+"-"+machineID, s3.Bucket, folder)
+			if err != nil {
+				act.Printf("%v. %s uses the account's key instead.", err, m.nameOf(machineID))
+			} else {
+				target.ScopedKey = key.ID
+				scoped := s3
+				scoped.AccessKey, scoped.SecretKey = key.ID, key.Secret
+				dest.Env = scoped.Env()
+			}
+		}
 	default:
 		return fmt.Errorf("unknown backup destination %q", choice.Ref)
 	}
@@ -230,6 +246,46 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, machin
 	}
 	act.Step("Backups for %s go to %s", m.nameOf(machineID), choice.Title)
 	return nil
+}
+
+// b2 is a Backblaze client for an account.
+func (m *Manager) b2(s3 S3Provider) *b2.Client {
+	if m.NewB2 != nil {
+		return m.NewB2(s3.AccessKey, s3.SecretKey)
+	}
+	return &b2.Client{KeyID: s3.AccessKey, Key: s3.SecretKey}
+}
+
+// forgetMachineBackups deletes provider keys made for a machine that left
+// the lab. Its backups stay (the recovery key still reads them).
+func (m *Manager) forgetMachineBackups(ctx context.Context, machineID string) {
+	if m.BackupStore == nil {
+		return
+	}
+	targets, err := m.BackupStore.BackupTargets(ctx)
+	if err != nil {
+		return
+	}
+	for _, t := range targets {
+		if t.MachineID != machineID || t.ScopedKey == "" {
+			continue
+		}
+		kind, id, _ := strings.Cut(t.Provider, ":")
+		if kind != "provider" {
+			continue
+		}
+		p, err := m.provider(ctx, id)
+		if err != nil {
+			continue
+		}
+		var s3 S3Provider
+		if json.Unmarshal([]byte(p.Config), &s3) != nil {
+			continue
+		}
+		if err := m.b2(s3).DeleteKey(ctx, t.ScopedKey); err != nil {
+			m.Log.Warn("deleting a removed machine's Backblaze key", "machine", machineID, "err", err)
+		}
+	}
 }
 
 // storageFor is what a machine's backup store must allow: the machines

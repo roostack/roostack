@@ -309,6 +309,7 @@ func (m *Manager) RemoveMachine(ctx context.Context, id string) error {
 	if err := r.Leave(ctx); err != nil {
 		m.Log.Warn("machine didn't answer; removing it anyway", "machine", r.Identity().Name, "err", err)
 	}
+	m.forgetMachineBackups(ctx, id)
 	return m.Registry.Remove(ctx, id)
 }
 

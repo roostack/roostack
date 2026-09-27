@@ -2,6 +2,10 @@ package manager
 
 import (
 	"context"
+	"encoding/json"
+	"github.com/mylab/mylab/internal/b2"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -102,5 +106,94 @@ func TestBackupDestinationOnAMachinesDisk(t *testing.T) {
 	}
 	if len(urls) != 1 || !strings.Contains(urls[0], ":8001/n-0000000002/") {
 		t.Errorf("prune used %v", urls)
+	}
+}
+
+func TestBackupDestinationB2ScopedKey(t *testing.T) {
+	bin := os.Getenv("MYLAB_RESTIC_BIN")
+	if bin == "" {
+		var err error
+		if bin, err = exec.LookPath("restic"); err != nil {
+			t.Skip("restic not found; set MYLAB_RESTIC_BIN")
+		}
+	}
+	// A fake Backblaze: authorises the account key, makes and deletes keys.
+	var created map[string]any
+	var deleted []string
+	mux := http.NewServeMux()
+	var api *httptest.Server
+	mux.HandleFunc("GET /b2api/v2/b2_authorize_account", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"accountId": "acct", "apiUrl": api.URL, "authorizationToken": "tok",
+			"allowed": map[string]any{"capabilities": []string{"writeKeys", "deleteKeys", "listBuckets"}}})
+	})
+	mux.HandleFunc("POST /b2api/v2/b2_list_buckets", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"buckets": []any{map[string]string{"bucketId": "bkt1"}}})
+	})
+	mux.HandleFunc("POST /b2api/v2/b2_create_key", func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&created)
+		json.NewEncoder(w).Encode(map[string]string{"applicationKeyId": "scoped-id", "applicationKey": "scoped-secret"})
+	})
+	mux.HandleFunc("POST /b2api/v2/b2_delete_key", func(w http.ResponseWriter, r *http.Request) {
+		var in map[string]string
+		json.NewDecoder(r.Body).Decode(&in)
+		deleted = append(deleted, in["applicationKeyId"])
+		w.Write([]byte("{}"))
+	})
+	api = httptest.NewServer(mux)
+	defer api.Close()
+
+	m, _ := newManager(t)
+	m.Lab.NodeID = "n-0000000001"
+	vps := &fakeRemote{settings: &fakeMachineSettings{}}
+	m.Others = func() []RemoteMachine { return []RemoteMachine{vps} }
+	m.Registry = &fakeRegistry{}
+	m.Activity = activity.New()
+	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	m.BackupStore = st
+	dir := t.TempDir()
+	recovery := filepath.Join(dir, "recovery")
+	os.WriteFile(recovery, []byte("the recovery key\n"), 0o600)
+	m.OpenRepo = func(url string, env []string) *backup.Repo {
+		return &backup.Repo{Bin: bin, URL: filepath.Join(dir, "repo"), PasswordFile: recovery, CacheDir: filepath.Join(dir, "cache")}
+	}
+	m.NewB2 = func(id, key string) *b2.Client { return &b2.Client{KeyID: id, Key: key, API: api.URL} }
+	ctx := context.Background()
+	if err := m.AddS3Provider(ctx, "Backblaze", S3Provider{Endpoint: "https://s3.us-west-004.backblazeb2.com",
+		Bucket: "backups", AccessKey: "master-id", SecretKey: "master-key"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SetBackupDestination(ctx, "n-0000000002", "provider:1"); err != nil {
+		t.Fatal(err)
+	}
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if l, _ := m.Activity.Latest(activity.BackupSetup); !l.Running() {
+			if l.Err != "" {
+				t.Fatalf("setup: %s", l.Err)
+			}
+			break
+		}
+	}
+	d := vps.settings.dest
+	env := strings.Join(d.Env, " ")
+	if d == nil || !strings.Contains(env, "AWS_ACCESS_KEY_ID=scoped-id") || strings.Contains(env, "master") {
+		t.Fatalf("the vps must get only its scoped key: %+v", d)
+	}
+	labID, _ := st.LabID(ctx)
+	if created["namePrefix"] != "mylab/"+labID+"/n-0000000002/" || created["bucketId"] != "bkt1" {
+		t.Errorf("key made with %v", created)
+	}
+	if !strings.HasSuffix(d.Repository, "backblazeb2.com/backups/mylab/"+labID+"/n-0000000002") {
+		t.Errorf("repository = %q", d.Repository)
+	}
+	// Removing the machine deletes its key.
+	if err := m.RemoveMachine(ctx, "n-0000000002"); err != nil {
+		t.Fatal(err)
+	}
+	if len(deleted) != 1 || deleted[0] != "scoped-id" {
+		t.Errorf("deleted = %v", deleted)
 	}
 }
