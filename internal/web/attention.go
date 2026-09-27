@@ -65,6 +65,18 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			case st.LastErr != nil:
 				add(levelProblem, "The last change"+on+" didn't finish: "+st.LastErr.Error(), "/services", "View services")
 			}
+			// A machine that joined has no firewall until the Owner chooses
+			// who can log in over SSH (this machine's is a setup step).
+			if owner && !mc.This {
+				if n := s.Manager.NodeByID(mc.ID); n != nil {
+					if set := n.Settings(); set != nil {
+						if a, err := set.SSHAccess(); err == nil && a.Choice == "" {
+							add(levelWarning, mc.Name+"'s firewall is off until you choose who can log in to it over SSH.",
+								"/settings/machines/"+mc.ID+"/remote-access", "Choose")
+						}
+					}
+				}
+			}
 		}
 		if services, err := s.Services(r.Context()); err == nil {
 			for _, svc := range services {

@@ -70,6 +70,16 @@ type Coordinator struct {
 	running      *Running
 	pendingSince time.Time
 	wake         chan struct{}
+	// held stops new jobs and reboots (Hold).
+	held bool
+}
+
+// Hold stops the coordinator starting jobs or rebooting, e.g. while MyLab
+// waits to restart. A running job finishes; queued ones stay queued.
+func (c *Coordinator) Hold() {
+	c.mu.Lock()
+	c.held = true
+	c.mu.Unlock()
 }
 
 // Submit queues a chain of jobs. They run in order; if one fails, the rest
@@ -154,7 +164,7 @@ func (c *Coordinator) Run(ctx context.Context) error {
 func (c *Coordinator) next() ([]Job, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if len(c.queue) == 0 {
+	if len(c.queue) == 0 || c.held {
 		return nil, false
 	}
 	chain := c.queue[0]
@@ -167,6 +177,10 @@ func (c *Coordinator) next() ([]Job, bool) {
 // order is backup, then updates, then reboot (SPEC.md §3.2).
 func (c *Coordinator) maybeReboot() (bool, error) {
 	c.mu.Lock()
+	if c.held {
+		c.mu.Unlock()
+		return false, nil
+	}
 	d := Decide(c.Policy, c.Now(), c.pendingSince, nil)
 	if d.Action != Reboot || len(c.queue) > 0 {
 		c.mu.Unlock()

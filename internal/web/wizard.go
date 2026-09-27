@@ -57,7 +57,11 @@ func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) restartingPage(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "restarting", map[string]any{"User": currentUser(r), "BootID": s.bootID})
+	data := map[string]any{"User": currentUser(r), "BootID": s.bootID}
+	if s.RunningJob != nil {
+		data["Waiting"] = s.RunningJob()
+	}
+	s.render(w, "restarting", data)
 }
 
 // formMode says how a setup form is being used, for its wording:

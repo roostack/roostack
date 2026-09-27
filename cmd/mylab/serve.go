@@ -62,14 +62,24 @@ func serve(args []string) error {
 	defer stop()
 	// New settings reach every part of MyLab by restarting it; systemd
 	// starts it again (Restart=always).
+	// A running job (e.g. OS updates) finishes first, and no new one
+	// starts; the restart then happens by itself.
+	var coord *maintenance.Coordinator
 	restart := func() {
 		go func() {
 			time.Sleep(time.Second) // let the response reach the browser
+			if coord != nil {
+				coord.Hold()
+				for st := coord.Status(); st.Running != nil; st = coord.Status() {
+					log.Info("restart waits for a job to finish", "job", st.Running.Name)
+					time.Sleep(5 * time.Second)
+				}
+			}
 			log.Info("restarting to apply new settings")
 			stop()
 		}()
 	}
-	local, agentClient, err := newLocal(ctx, lab, *labPath, id, st, log, restart)
+	local, agentClient, coord, err := newLocal(ctx, lab, *labPath, id, st, log, restart)
 	if err != nil {
 		return err
 	}
@@ -124,6 +134,12 @@ func serve(args []string) error {
 	})
 	go labnet.Serve(ctx, lab.Paths.StateDir, labAPI, log)
 	srv.Maintenance = lab.Maintenance
+	srv.RunningJob = func() string {
+		if st := coord.Status(); st.Running != nil {
+			return st.Running.Name
+		}
+		return ""
+	}
 	// Converge on startup, e.g. after MyLab itself was upgraded.
 	mgr.Apply()
 
@@ -252,7 +268,7 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 // nightly backup and OS updates and weekly repository maintenance
 // (SPEC.md §3.2, §6.9).
 func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger, ag *agent.Client,
-	acts *activity.Registry) (node.Maintenance, error) {
+	acts *activity.Registry) (node.Maintenance, *maintenance.Coordinator, error) {
 	ticker := time.NewTicker(time.Minute)
 	policy := maintenance.DefaultPolicy()
 	policy.WindowStart = time.Duration(lab.Maintenance.Hour()) * time.Hour
@@ -282,10 +298,10 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 		} else {
 			repo, err := newRepo(lab, userLaunch)
 			if err != nil {
-				return jobs, err
+				return jobs, nil, err
 			}
 			if svc.Deps, err = newBackupDeps(lab, st, repo, userLaunch); err != nil {
-				return jobs, err
+				return jobs, nil, err
 			}
 			jobs.Restores = &backup.Restores{Coord: coord, Repo: repo, Activity: acts,
 				Restorer: &backup.Restorer{Repo: repo, Units: systemd.New(), Launch: userLaunch,
@@ -341,7 +357,7 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 			func() { coord.Submit(svc.MaintenanceJob()) })
 	}
 	jobs.Backups, jobs.Updates = svc, updates
-	return jobs, nil
+	return jobs, coord, nil
 }
 
 // lookupService generates an installed service's output (e.g. to restore

@@ -9,6 +9,7 @@ import (
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/firewall"
 	"github.com/mylab/mylab/internal/hosttime"
+	"github.com/mylab/mylab/internal/maintenance"
 	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/nodeid"
 	"github.com/mylab/mylab/internal/podman"
@@ -21,7 +22,7 @@ import (
 // runs their hooks, its maintenance jobs and its own settings, whether it
 // is the controller or a node.
 func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Identity, st *store.Store,
-	log *slog.Logger, restart func()) (*node.Local, *agent.Client, error) {
+	log *slog.Logger, restart func()) (*node.Local, *agent.Client, *maintenance.Coordinator, error) {
 	agentClient := agent.NewClient(agent.DefaultSocket)
 	sd := systemd.New()
 	local := &node.Local{
@@ -46,9 +47,10 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 			Restart:    restart,
 		},
 	}
-	var err error
-	if local.Jobs, err = startMaintenance(ctx, lab, st, log, agentClient, local.Activity); err != nil {
-		return nil, nil, err
+	jobs, coord, err := startMaintenance(ctx, lab, st, log, agentClient, local.Activity)
+	if err != nil {
+		return nil, nil, nil, err
 	}
-	return local, agentClient, nil
+	local.Jobs = jobs
+	return local, agentClient, coord, nil
 }

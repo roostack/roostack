@@ -61,8 +61,11 @@ func (f *fakeManager) ServiceStates(context.Context) (map[string]string, error) 
 }
 func (f *fakeManager) NodeFor(string) node.Node { return f }
 func (f *fakeManager) NodeByID(id string) node.Node {
-	if id == "n-0123456789" {
-		return f
+	ms, _ := f.Machines()
+	for _, m := range ms {
+		if m.ID == id {
+			return f // one fake plays every machine
+		}
 	}
 	return nil
 }
@@ -585,6 +588,12 @@ func TestMachines(t *testing.T) {
 	}
 	if _, body := h.get("/settings"); !strings.Contains(body, "A change on vps didn&#39;t finish") {
 		t.Error("settings overview should flag the machine")
+	}
+	// The vps (the same fake here) has no SSH choice yet: its firewall is off.
+	fm.settings = &fakeSetup{}
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "vps&#39;s firewall is off") ||
+		!strings.Contains(body, `href="/settings/machines/n-9876543210/remote-access"`) {
+		t.Errorf("home should ask for vps's SSH choice:\n%s", body)
 	}
 
 	ha, _ := loggedIn(t, auth.RoleAdmin)
