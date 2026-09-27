@@ -243,6 +243,9 @@ func (s *Server) renderMachines(w http.ResponseWriter, r *http.Request, extra ma
 			endpoint = defaultEndpoint()
 		}
 		data["CanAdd"], data["Endpoint"] = true, endpoint
+		if host, _, err := net.SplitHostPort(defaultEndpoint()); err == nil {
+			data["LANAddr"] = host
+		}
 	}
 	for k, v := range extra {
 		data[k] = v

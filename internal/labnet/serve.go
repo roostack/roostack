@@ -118,8 +118,15 @@ func JoinLab(ctx context.Context, code JoinCode, self nodeid.Identity, stateDir 
 		}
 		time.Sleep(2 * time.Second)
 	}
+	var refused *RemoteError
+	if err != nil && !errors.As(err, &refused) {
+		_, port, _ := net.SplitHostPort(code.Endpoint)
+		return fmt.Errorf("couldn't reach the controller at %s over WireGuard (%v).\n"+
+			"Check the address, and if the controller is on another network, that UDP port %s is forwarded to it on "+
+			"that network's router (Settings → Machines explains how)", code.Endpoint, err, port)
+	}
 	if err != nil {
-		return fmt.Errorf("joining: %w", err)
+		return fmt.Errorf("the controller refused to add this machine: %w", err)
 	}
 	if err := id.Save(resp.Cert, resp.CA); err != nil {
 		return err
