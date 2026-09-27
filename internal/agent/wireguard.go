@@ -12,22 +12,53 @@ import (
 	"strings"
 )
 
-// MyLab's private network between machines (SPEC.md §10.2): one WireGuard
-// interface, managed with Debian's wg-quick so it is easy to inspect.
+// MyLab's WireGuard interfaces, managed with Debian's wg-quick so they are
+// easy to inspect:
+//   - mylab: the network between a lab's machines (SPEC.md §10.2);
+//   - mylab-guests: other labs that store backups here (§10.10);
+//   - mylab-st1…9: this lab's links to other labs' storage.
 const (
 	WireGuardInterface = "mylab"
-	WireGuardConf      = "/etc/wireguard/" + WireGuardInterface + ".conf"
+	GuestsInterface    = "mylab-guests"
 	WireGuardPort      = 51820
+	GuestsPort         = 51821
 )
 
 // OverlayRange holds every machine's address on MyLab's network. It is
 // inside 100.64.0.0/10, so the firewall and Caddy treat it as private.
 var OverlayRange = netip.MustParsePrefix("100.96.0.0/16")
 
+// GuestRange holds the addresses of links between labs (storage for
+// others). Each storing lab picks its own /24 in it at random, so a lab
+// with links to several can tell them apart.
+var GuestRange = netip.MustParsePrefix("100.100.0.0/14")
+
+var storeLink = regexp.MustCompile(`^mylab-st[1-9]$`)
+
+// ValidInterface reports whether name is one of MyLab's interfaces.
+func ValidInterface(name string) bool {
+	return name == WireGuardInterface || name == GuestsInterface || storeLink.MatchString(name)
+}
+
+// rangeFor is the address range an interface's addresses must be in.
+func rangeFor(iface string) netip.Prefix {
+	if iface == WireGuardInterface {
+		return OverlayRange
+	}
+	return GuestRange
+}
+
+func wireGuardConf(iface string) string { return "/etc/wireguard/" + iface + ".conf" }
+
+// WireGuardConf is the lab network's wg-quick file.
+var WireGuardConf = wireGuardConf(WireGuardInterface)
+
 // WireGuard is the desired WireGuard interface. The machine's private key
 // stays with the agent (in the config file, readable by root only); the
 // mylab service only ever sees the public key.
 type WireGuard struct {
+	// Interface is which one ("" is mylab).
+	Interface string `json:"interface,omitempty"`
 	// Address is this machine's overlay address with the network's prefix
 	// length, e.g. 100.96.0.2/24.
 	Address string `json:"address"`
@@ -58,6 +89,31 @@ type WireGuardStatus struct {
 	Configured bool   `json:"configured"`
 	PublicKey  string `json:"public_key"`
 	Address    string `json:"address"`
+	// Handshakes is when each peer (by public key) last connected, as a
+	// Unix time (0: never).
+	Handshakes map[string]int64 `json:"handshakes,omitempty"`
+}
+
+// Iface is the interface's name.
+func (wg WireGuard) Iface() string {
+	if wg.Interface == "" {
+		return WireGuardInterface
+	}
+	return wg.Interface
+}
+
+// parseHandshakes reads `wg show <iface> latest-handshakes`.
+func parseHandshakes(out string) map[string]int64 {
+	hs := map[string]int64{}
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) == 2 {
+			if t, err := strconv.ParseInt(f[1], 10, 64); err == nil {
+				hs[f[0]] = t
+			}
+		}
+	}
+	return hs
 }
 
 var endpointHost = regexp.MustCompile(`^[a-zA-Z0-9.-]{1,253}$`)
@@ -66,8 +122,12 @@ var endpointHost = regexp.MustCompile(`^[a-zA-Z0-9.-]{1,253}$`)
 // nothing free-form gets through.
 func (wg WireGuard) Validate() error {
 	var errs []error
-	if p, err := netip.ParsePrefix(wg.Address); err != nil || !OverlayRange.Contains(p.Addr()) || p.Bits() < OverlayRange.Bits() {
-		errs = append(errs, fmt.Errorf("address %q must be inside %s", wg.Address, OverlayRange))
+	if !ValidInterface(wg.Iface()) {
+		errs = append(errs, fmt.Errorf("invalid interface %q", wg.Interface))
+	}
+	allowed := rangeFor(wg.Iface())
+	if p, err := netip.ParsePrefix(wg.Address); err != nil || !allowed.Contains(p.Addr()) || p.Bits() < allowed.Bits() {
+		errs = append(errs, fmt.Errorf("address %q must be inside %s", wg.Address, allowed))
 	}
 	if wg.ListenPort < 0 || wg.ListenPort > 65535 {
 		errs = append(errs, fmt.Errorf("invalid listen port %d", wg.ListenPort))
@@ -88,8 +148,8 @@ func (wg WireGuard) Validate() error {
 			errs = append(errs, fmt.Errorf("peers[%d]: no allowed IPs", i))
 		}
 		for _, a := range p.AllowedIPs {
-			if pr, err := netip.ParsePrefix(a); err != nil || !OverlayRange.Contains(pr.Addr()) || pr.Bits() < OverlayRange.Bits() {
-				errs = append(errs, fmt.Errorf("peers[%d]: allowed IP %q must be inside %s", i, a, OverlayRange))
+			if pr, err := netip.ParsePrefix(a); err != nil || !allowed.Contains(pr.Addr()) || pr.Bits() < allowed.Bits() {
+				errs = append(errs, fmt.Errorf("peers[%d]: allowed IP %q must be inside %s", i, a, allowed))
 			}
 		}
 		if p.Endpoint != "" {

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -140,14 +141,15 @@ func (c *Client) ApplyWireGuard(ctx context.Context, wg WireGuard) (string, erro
 	return resp.PublicKey, err
 }
 
-// WireGuardStatus reads the WireGuard interface's configuration.
-func (c *Client) WireGuardStatus(ctx context.Context) (WireGuardStatus, error) {
+// WireGuardStatus reads a WireGuard interface's configuration.
+func (c *Client) WireGuardStatus(ctx context.Context, iface string) (WireGuardStatus, error) {
 	var st WireGuardStatus
-	err := c.call(ctx, http.MethodGet, "/v1/wireguard", nil, &st)
+	err := c.call(ctx, http.MethodGet, "/v1/wireguard?interface="+url.QueryEscape(iface), nil, &st)
 	return st, err
 }
 
-// RemoveWireGuard takes MyLab's WireGuard interface down and deletes it.
-func (c *Client) RemoveWireGuard(ctx context.Context) error {
-	return c.call(ctx, http.MethodDelete, "/v1/wireguard", nil, nil)
+// RemoveWireGuard takes one of MyLab's WireGuard interfaces down and
+// deletes it.
+func (c *Client) RemoveWireGuard(ctx context.Context, iface string) error {
+	return c.call(ctx, http.MethodDelete, "/v1/wireguard?interface="+url.QueryEscape(iface), nil, nil)
 }

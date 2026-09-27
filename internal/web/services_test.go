@@ -699,7 +699,7 @@ func TestMachines(t *testing.T) {
 		t.Errorf("ops = %v", fm.machineOps)
 	}
 
-		// A machine's own pages; an unknown machine is not found.
+	// A machine's own pages; an unknown machine is not found.
 	fm.updates = &fakeUpdates{}
 	if code, body := h.get("/settings/machines/n-0123456789/updates"); code != http.StatusOK || !strings.Contains(body, "Updates and restarts") {
 		t.Errorf("machine updates page: %d", code)

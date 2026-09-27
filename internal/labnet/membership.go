@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/nodeid"
 )
@@ -87,8 +88,10 @@ func (m Membership) ControllerURL() string {
 // Leave takes this machine out of its lab: MyLab's WireGuard interface
 // goes, and so do its certificate, membership and saved assignment. It is
 // then a lab of its own again.
-func Leave(ctx context.Context, stateDir string, ag interface{ RemoveWireGuard(context.Context) error }) error {
-	if err := ag.RemoveWireGuard(ctx); err != nil {
+func Leave(ctx context.Context, stateDir string, ag interface {
+	RemoveWireGuard(context.Context, string) error
+}) error {
+	if err := ag.RemoveWireGuard(ctx, agent.WireGuardInterface); err != nil {
 		return err
 	}
 	return os.RemoveAll(IdentityDir(stateDir))

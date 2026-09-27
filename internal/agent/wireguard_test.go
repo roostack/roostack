@@ -82,3 +82,33 @@ func TestInterfaceRule(t *testing.T) {
 		t.Error("only MyLab's interface is allowed")
 	}
 }
+
+func TestInterfaces(t *testing.T) {
+	for _, name := range []string{"mylab", "mylab-guests", "mylab-st1", "mylab-st9"} {
+		if !ValidInterface(name) {
+			t.Errorf("%s should be valid", name)
+		}
+	}
+	for _, name := range []string{"", "eth0", "mylab-st0", "mylab-st10", "mylab-guests2", "../x"} {
+		if ValidInterface(name) {
+			t.Errorf("%q should be invalid", name)
+		}
+	}
+	// Guest links use their own range, never the machines' one.
+	guest := WireGuard{Interface: GuestsInterface, Address: "100.101.23.1/24", ListenPort: GuestsPort,
+		Peers: []Peer{{PublicKey: "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", AllowedIPs: []string{"100.101.23.2/32"}}}}
+	if err := guest.Validate(); err != nil {
+		t.Error(err)
+	}
+	guest.Address = "100.96.0.1/24"
+	if guest.Validate() == nil {
+		t.Error("a guest link can't use the machines' range")
+	}
+	lab := WireGuard{Address: "100.101.23.1/24"}
+	if lab.Validate() == nil {
+		t.Error("the lab network can't use the guests' range")
+	}
+	if hs := parseHandshakes("abc= 1790000000\nxyz= 0\n"); hs["abc="] != 1790000000 || hs["xyz="] != 0 || len(hs) != 2 {
+		t.Errorf("handshakes = %v", hs)
+	}
+}
