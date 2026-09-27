@@ -69,7 +69,7 @@ Catppuccin's flavours only differ in how dark they are, so MyLab offers one Catp
 ### Adding a built-in theme
 
 1. Copy `themes/teal.css` to `themes/<name>.css`, change the selector to `[data-palette="<name>"]`, and change the `--pal-*` values (hex only). Credit the source and licence at the top.
-2. Add it to `Themes` in `internal/web/themes.go`.
+2. Add it to `Themes` in `internal/web/themes.go`, with a `Source` credit if it comes from an open-source palette (shown on the theme's row and the About page), then regenerate `THIRD_PARTY.md` (`go test ./internal/web -run TestThirdPartyFile -update-credits`).
 3. Run `go test ./internal/web`: the contrast test tells you which colours to adjust.
 4. Regenerate the gallery and compare it with the others (the gallery has a theme picker).
 

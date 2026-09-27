@@ -27,6 +27,10 @@ Commands:
 Run 'mylab <command> -h' for command flags.
 `
 
+// version is set at build time (-ldflags "-X main.version=..."; see the
+// Makefile).
+var version = "dev"
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprint(os.Stderr, usage)

@@ -102,6 +102,8 @@ type Server struct {
 	Restores RestoreService
 	// Updates runs OS updates and restarts (Owner). Nil hides the card.
 	Updates HostUpdates
+	// Version is MyLab's version, shown on the About page.
+	Version string
 	// Maintenance is the lab's restart policy, shown in Settings.
 	Maintenance config.Maintenance
 	// bootID changes each time MyLab starts; the "restarting" page waits
@@ -174,7 +176,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover",
-		"home", "services", "service", "backups", "restore", "settings", "account", "users"} {
+		"home", "services", "service", "backups", "restore", "settings", "account", "users", "about"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -211,6 +213,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /settings", s.requireOwner(s.settingsPage))
 	mux.Handle("GET /account", s.requireLogin(s.accountPage))
 	mux.Handle("GET /design", s.requireLogin(s.galleryPage))
+	mux.Handle("GET /about", s.requireLogin(s.aboutPage))
 	mux.Handle("POST /account/theme", s.requireLogin(s.themeSubmit))
 	mux.Handle("POST /account/appearance", s.requireLogin(s.appearanceSubmit))
 	mux.Handle("POST /account/password", s.requireLogin(s.passwordSubmit))
