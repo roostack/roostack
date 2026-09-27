@@ -3,7 +3,9 @@ package manager
 import (
 	"context"
 	"slices"
+	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/node"
@@ -19,6 +21,16 @@ type RemoteMachine interface {
 	node.Node
 	// Address is where the controller's Caddy reaches its web services.
 	Address() string
+	// Leave asks it to leave the lab; Rename tells it its new name.
+	Leave(ctx context.Context) error
+	Rename(ctx context.Context, name string) error
+}
+
+// MachineRegistry is the controller's record of the other machines
+// (labnet.Hub).
+type MachineRegistry interface {
+	Remove(ctx context.Context, id string) error
+	Rename(ctx context.Context, id, name string) error
 }
 
 // Machine is one machine in the lab, for the UI.
@@ -267,4 +279,62 @@ func (m *Manager) PendingFor(id string) (node.WireAssignment, bool) {
 		}
 	}
 	return node.WireAssignment{}, false
+}
+
+// RemoveMachine takes another machine out of the lab. Its services must be
+// moved or removed first. It is asked to leave (it may be switched off);
+// either way, it loses its access to the lab's network.
+func (m *Manager) RemoveMachine(ctx context.Context, id string) error {
+	if m.Registry == nil || id == m.Lab.NodeID {
+		return ErrNotFound
+	}
+	var r RemoteMachine
+	for _, o := range m.others() {
+		if o.Identity().ID == id {
+			r = o
+		}
+	}
+	if r == nil {
+		return ErrNotFound
+	}
+	all, err := state.LoadServices(m.Lab)
+	if err != nil {
+		return err
+	}
+	if on := m.onNode(all, id); len(on) > 0 {
+		return formErrorf("%s still runs %s. Remove it first, or move it to another machine.",
+			r.Identity().Name, on[0].Package.Title)
+	}
+	if err := r.Leave(ctx); err != nil {
+		m.Log.Warn("machine didn't answer; removing it anyway", "machine", r.Identity().Name, "err", err)
+	}
+	return m.Registry.Remove(ctx, id)
+}
+
+// RenameMachine changes a machine's name. Renaming this machine restarts
+// MyLab (RenameSelf), which reads its name at startup.
+func (m *Manager) RenameMachine(ctx context.Context, id, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" || len([]rune(name)) > 40 || strings.ContainsFunc(name, unicode.IsControl) {
+		return formErrorf("Choose a name of up to 40 characters.")
+	}
+	if id == m.Lab.NodeID {
+		if m.RenameSelf == nil {
+			return ErrNotFound
+		}
+		return m.RenameSelf(name)
+	}
+	for _, o := range m.others() {
+		if o.Identity().ID != id {
+			continue
+		}
+		if err := m.Registry.Rename(ctx, id, name); err != nil {
+			return err
+		}
+		if err := o.Rename(ctx, name); err != nil {
+			m.Log.Warn("machine didn't take its new name", "machine", name, "err", err)
+		}
+		return nil
+	}
+	return ErrNotFound
 }

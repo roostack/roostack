@@ -146,3 +146,8 @@ func (c *Client) WireGuardStatus(ctx context.Context) (WireGuardStatus, error) {
 	err := c.call(ctx, http.MethodGet, "/v1/wireguard", nil, &st)
 	return st, err
 }
+
+// RemoveWireGuard takes MyLab's WireGuard interface down and deletes it.
+func (c *Client) RemoveWireGuard(ctx context.Context) error {
+	return c.call(ctx, http.MethodDelete, "/v1/wireguard", nil, nil)
+}

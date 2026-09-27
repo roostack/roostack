@@ -26,6 +26,21 @@
     <a href="/settings/machines/{{.ID}}/time-zone">Time zone</a> ·
     <a href="/settings/machines/{{.ID}}/remote-access">Remote access</a> ·
     <a href="/settings/machines/{{.ID}}/backups">Backups</a></p>
+  {{if and $.ErrorMachine (eq $.ErrorMachine .ID)}}<p class="error" role="alert">{{$.Error}}</p>{{end}}
+  <details{{if and $.ErrorMachine (eq $.ErrorMachine .ID)}} open{{end}}>
+    <summary>Rename{{if not .This}} or remove{{end}}</summary>
+    <form method="post" action="/settings/machines/{{.ID}}/rename" class="inline-form">
+      <label for="name-{{.ID}}" class="sr-only">Name</label>
+      <input id="name-{{.ID}}" name="name" value="{{.Name}}" maxlength="40" required>
+      <button type="submit" class="secondary">Rename</button>
+    </form>
+    {{if .This}}<p class="hint">Renaming this machine restarts MyLab.</p>
+    {{else}}
+    <p class="hint">Removing {{.Name}} takes it out of the lab: it leaves MyLab's network and runs on its own again.
+      Remove or move its services first.</p>
+    {{confirm (printf "/settings/machines/%s/remove" .ID) (printf "Remove %s from the lab?" .Name) (printf "Remove %s" .Name) "quiet danger"}}
+    {{end}}
+  </details>
 </section>
 {{end}}
 {{if .CanAdd}}
@@ -33,7 +48,7 @@
   <h2>Add a machine</h2>
   <p class="hint">Another computer at home or in the cloud can run some of your services. Install MyLab on it,
     then run the command below on it. The machines connect over their own private network (WireGuard).</p>
-  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if not .ErrorMachine}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
   {{with .JoinCode}}
   <p>On the new machine, run this within an hour (the code works once):</p>
   <pre class="output copyable">sudo mylab node join {{.}}</pre>

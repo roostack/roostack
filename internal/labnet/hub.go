@@ -29,6 +29,8 @@ type HubStore interface {
 	JoinCodes(ctx context.Context, now time.Time) ([]store.JoinCode, error)
 	Join(ctx context.Context, tokenHash string, m store.Machine, now time.Time) (store.Machine, error)
 	Machines(ctx context.Context) ([]store.Machine, error)
+	RemoveMachine(ctx context.Context, id string) error
+	RenameMachine(ctx context.Context, id, name string) error
 }
 
 // WireGuardAgent is mylab-agent's WireGuard operation.
@@ -65,28 +67,36 @@ func (h *Hub) Enabled() bool {
 
 // Start brings up the hub's WireGuard interface if the lab has a network
 // (e.g. after a restart; wg-quick also starts it at boot). It retries in
-// the background while mylab-agent isn't reachable yet.
+// the background while mylab-agent isn't reachable yet, then re-syncs now
+// and then, so an unused join code's one-time key stops working when the
+// code expires.
 func (h *Hub) Start(ctx context.Context) {
-	if !h.Enabled() {
-		return
-	}
 	go func() {
+		wait := 3 * time.Second
 		for attempt := 1; ; attempt++ {
-			err := h.SyncPeers(ctx)
-			if err == nil {
-				return
-			}
-			if attempt == 1 || attempt%10 == 0 {
-				h.Log.Error("starting MyLab's network", "err", err)
+			if h.Enabled() {
+				if err := h.SyncPeers(ctx); err != nil {
+					if attempt == 1 || attempt%10 == 0 {
+						h.Log.Error("syncing MyLab's network", "err", err)
+					}
+					wait = 3 * time.Second
+				} else {
+					wait = peerSync
+				}
+			} else {
+				wait = peerSync
 			}
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(3 * time.Second):
+			case <-time.After(wait):
 			}
 		}
 	}()
 }
+
+// peerSync is how often the hub re-syncs its WireGuard peers.
+const peerSync = 5 * time.Minute
 
 // init sets up the network on first use: the CA, the controller's own
 // certificate, its membership and its WireGuard interface.
@@ -262,4 +272,19 @@ func (h *Hub) switchDelay() time.Duration {
 		return h.SwitchDelay
 	}
 	return 2 * time.Second
+}
+
+// Remove forgets a machine and drops its WireGuard peer, so it can no
+// longer reach the lab's network.
+func (h *Hub) Remove(ctx context.Context, id string) error {
+	if err := h.Store.RemoveMachine(ctx, id); err != nil {
+		return err
+	}
+	h.Log.Info("machine removed", "id", id)
+	return h.SyncPeers(ctx)
+}
+
+// Rename changes a machine's name in the lab.
+func (h *Hub) Rename(ctx context.Context, id, name string) error {
+	return h.Store.RenameMachine(ctx, id, name)
 }

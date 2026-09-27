@@ -55,6 +55,9 @@ type Host interface {
 	ApplyWireGuard(wg WireGuard) (publicKey string, err error)
 	// WireGuardStatus reads the interface's configuration.
 	WireGuardStatus() (WireGuardStatus, error)
+	// RemoveWireGuard takes the interface down and deletes its
+	// configuration (the machine left its lab).
+	RemoveWireGuard() error
 }
 
 // Server is the agent's HTTP API.
@@ -141,6 +144,9 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, st)
+	})
+	mux.HandleFunc("DELETE /v1/wireguard", func(w http.ResponseWriter, r *http.Request) {
+		s.do(w, r, "remove wireguard", s.Host.RemoveWireGuard)
 	})
 	mux.HandleFunc("PUT /v1/wireguard", func(w http.ResponseWriter, r *http.Request) {
 		var wg WireGuard
@@ -427,6 +433,18 @@ func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
 		return "", fmt.Errorf("starting %s: %w: %s", unit, err, out)
 	}
 	return pub, nil
+}
+
+// RemoveWireGuard stops and disables the interface and deletes its file.
+func (h LinuxHost) RemoveWireGuard() error {
+	unit := "wg-quick@" + WireGuardInterface
+	if out, err := exec.Command("systemctl", "disable", "--now", unit).CombinedOutput(); err != nil {
+		return fmt.Errorf("stopping %s: %w: %s", unit, err, out)
+	}
+	if err := os.Remove(WireGuardConf); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 // WireGuardStatus reads the wg-quick file.

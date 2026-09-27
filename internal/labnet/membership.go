@@ -1,6 +1,7 @@
 package labnet
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -81,4 +82,14 @@ func (m Membership) Apply(lab *config.Lab) {
 // ControllerURL is the lab API on the controller.
 func (m Membership) ControllerURL() string {
 	return fmt.Sprintf("https://%s:%d", m.ControllerAddr, Port)
+}
+
+// Leave takes this machine out of its lab: MyLab's WireGuard interface
+// goes, and so do its certificate, membership and saved assignment. It is
+// then a lab of its own again.
+func Leave(ctx context.Context, stateDir string, ag interface{ RemoveWireGuard(context.Context) error }) error {
+	if err := ag.RemoveWireGuard(ctx); err != nil {
+		return err
+	}
+	return os.RemoveAll(IdentityDir(stateDir))
 }
