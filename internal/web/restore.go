@@ -10,7 +10,7 @@ import (
 
 // restoreService finds the installed service named in the URL.
 func (s *Server) restoreService(w http.ResponseWriter, r *http.Request) (ServiceView, bool) {
-	if s.restores() == nil {
+	if s.restores(r) == nil {
 		http.NotFound(w, r)
 		return ServiceView{}, false
 	}
@@ -37,18 +37,18 @@ func (s *Server) restorePage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc ServiceView, errMsg string, status int) {
-	snaps, err := s.restores().Snapshots(r.Context(), svc.Name)
+	snaps, err := s.restores(r).Snapshots(r.Context(), svc.Name)
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	kept, err := s.restores().Kept(svc.Name)
+	kept, err := s.restores(r).Kept(svc.Name)
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
 	data := map[string]any{"User": currentUser(r), "Service": svc, "Snapshots": snaps, "Kept": kept,
-		"Pending": s.restores().Pending(), "Error": errMsg}
+		"Pending": s.restores(r).Pending(), "Error": errMsg}
 	// The latest restore's log, if it's this service's.
 	if a := s.activityFor(r, activity.Restore); a != nil && a.Title == "Restoring "+svc.Title {
 		data["RestoreActivity"] = a
@@ -72,7 +72,7 @@ func (s *Server) restoreSubmit(w http.ResponseWriter, r *http.Request) {
 		s.renderRestore(w, r, svc, "Choose a backup to restore.", http.StatusBadRequest)
 		return
 	}
-	err := s.restores().Restore(svc.Name, snapshot)
+	err := s.restores(r).Restore(svc.Name, snapshot)
 	if errors.Is(err, backup.ErrRestoreQueued) {
 		s.renderRestore(w, r, svc, "Another restore is already running. Wait until it has finished.", http.StatusConflict)
 		return
@@ -91,7 +91,7 @@ func (s *Server) removeKeptSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := r.FormValue("path")
-	if err := s.restores().RemoveKept(r.Context(), svc.Name, path); err != nil {
+	if err := s.restores(r).RemoveKept(r.Context(), svc.Name, path); err != nil {
 		s.renderRestore(w, r, svc, "Couldn't delete the copy: "+err.Error(), http.StatusBadRequest)
 		return
 	}

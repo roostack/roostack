@@ -20,15 +20,14 @@ import (
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dnsrecords"
-	"github.com/mylab/mylab/internal/firewall"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/hosttime"
+	"github.com/mylab/mylab/internal/labnet"
 	"github.com/mylab/mylab/internal/maintenance"
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/osupdate"
 	"github.com/mylab/mylab/internal/podman"
-	"github.com/mylab/mylab/internal/reconcile"
 	"github.com/mylab/mylab/internal/setup"
 	"github.com/mylab/mylab/internal/state"
 	"github.com/mylab/mylab/internal/store"
@@ -61,47 +60,6 @@ func serve(args []string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-
-	token, err := setupToken(ctx, lab, st, log)
-	if err != nil {
-		return err
-	}
-	sd := systemd.New()
-	srv, err := web.NewServer(st, func(ctx context.Context) ([]web.ServiceView, error) {
-		return serviceViews(ctx, lab, sd, log)
-	}, token, log)
-	if err != nil {
-		return err
-	}
-	srv.OnSetupComplete = func() { os.Remove(setupTokenPath(lab)) }
-	srv.Version = version
-
-	agentClient := agent.NewClient(agent.DefaultSocket)
-	// Live logs of host operations, shown in the UI.
-	acts := activity.New()
-	// This machine, which runs every service while a lab has one machine.
-	local := &node.Local{
-		ID:         id,
-		Activity:   acts,
-		Firewall:   agentClient,
-		Lab:        lab,
-		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets()},
-		Log:        log,
-		// Package hooks (e.g. creating Forgejo's admin) run with podman exec.
-		State: st, Secrets: podman.NewSecrets(),
-		Exec: func(ctx context.Context, container string, env map[string]string, command []string) ([]byte, error) {
-			return podman.Exec(ctx, podman.Run, container, env, command...)
-		},
-	}
-	mgr := &manager.Manager{Lab: lab, Log: log, Node: local, Activity: acts}
-	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
-	if local.Jobs, err = startMaintenance(ctx, lab, st, log, agentClient, acts); err != nil {
-		return err
-	}
-	srv.Maintenance = lab.Maintenance
-	// Converge on startup, e.g. after MyLab itself was upgraded.
-	mgr.Apply()
-
 	// New settings reach every part of MyLab by restarting it; systemd
 	// starts it again (Restart=always).
 	restart := func() {
@@ -111,6 +69,64 @@ func serve(args []string) error {
 			stop()
 		}()
 	}
+	local, agentClient, err := newLocal(ctx, lab, *labPath, id, st, log, restart)
+	if err != nil {
+		return err
+	}
+	if lab.IsNode() {
+		// Run by another machine (the controller): no UI of its own.
+		return serveNode(ctx, lab, local, log)
+	}
+
+	token, err := setupToken(ctx, lab, st, log)
+	if err != nil {
+		return err
+	}
+	var mgrRef *manager.Manager
+	srv, err := web.NewServer(st, func(ctx context.Context) ([]web.ServiceView, error) {
+		return serviceViews(ctx, lab, mgrRef, log)
+	}, token, log)
+	if err != nil {
+		return err
+	}
+	srv.OnSetupComplete = func() { os.Remove(setupTokenPath(lab)) }
+	srv.Version = version
+
+	// The lab's other machines (SPEC.md §10), reached over its network.
+	fleet := &node.Fleet{Self: labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, Lab: lab, Log: log,
+		List: st.Machines}
+	mgr := &manager.Manager{Lab: lab, Log: log, Node: local, Activity: local.Activity,
+		Others: func() []manager.RemoteMachine {
+			var out []manager.RemoteMachine
+			for _, r := range fleet.Remotes() {
+				out = append(out, r)
+			}
+			return out
+		}}
+	mgrRef = mgr
+	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
+	// MyLab's network between machines (SPEC.md §10.2): this machine is
+	// the hub others join.
+	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: lab.Domain, Self: id, Store: st, Agent: agentClient,
+		Log: log, Now: time.Now, Started: restart}
+	hub.Start(ctx)
+	srv.Network = hub
+	labAPI := http.NewServeMux()
+	labAPI.Handle("POST /v1/join", hub.JoinHandler())
+	// A machine fetches its assignment when it starts (SPEC.md §10.3).
+	labAPI.HandleFunc("GET /v1/assignment", func(w http.ResponseWriter, r *http.Request) {
+		a, ok := mgr.PendingFor(labnet.Caller(r))
+		if !ok {
+			labnet.WriteError(w, http.StatusNotFound, errors.New("no assignment for this machine"))
+			return
+		}
+		labnet.WriteJSON(w, http.StatusOK, a)
+	})
+	go labnet.Serve(ctx, lab.Paths.StateDir, labAPI, log)
+	srv.Maintenance = lab.Maintenance
+	// Converge on startup, e.g. after MyLab itself was upgraded.
+	mgr.Apply()
+
 	wizard := &setup.Setup{
 		Lab: lab, LabPath: *labPath, Store: st, Secrets: podman.NewSecrets(),
 		NewRepo: func(repository string, env []string) *backup.Repo {
@@ -123,13 +139,6 @@ func serve(args []string) error {
 			return repo
 		},
 		Restart: restart,
-	}
-	local.Machine = &node.HostSettings{
-		Lab: lab, LabPath: *labPath,
-		SetZone: agentClient.SetTimezone,
-		Zone:    hosttime.Zone, Zones: hosttime.Zones,
-		SSHClients: firewall.SSHClients,
-		Restart:    restart,
 	}
 	if err := wizard.AdoptExisting(ctx); err != nil {
 		return err
@@ -207,17 +216,23 @@ func setupToken(ctx context.Context, lab config.Lab, st *store.Store, log *slog.
 
 // serviceViews builds the dashboard list from desired state plus live
 // systemd status.
-func serviceViews(ctx context.Context, lab config.Lab, sd *systemd.Manager, log *slog.Logger) ([]web.ServiceView, error) {
+func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log *slog.Logger) ([]web.ServiceView, error) {
 	all, err := state.LoadServices(lab)
 	if err != nil {
 		return nil, err
 	}
-	// Status is known only for this machine's services until nodes report
-	// theirs (SPEC.md §10.3).
-	services := state.OnNode(all, lab.NodeID)
+	// Each machine reports its own services (SPEC.md §10.3).
+	states := mgr.ServiceStates(ctx)
 	var views []web.ServiceView
-	for _, s := range services {
+	for _, s := range all {
 		v := web.ServiceView{Name: s.Package.Name, Title: s.Package.Title, Status: "unknown"}
+		if st, ok := states[s.Package.Name]; ok {
+			v.Status = st.Status
+			// Named only when it's not this machine.
+			if s.Instance.Host != lab.NodeID {
+				v.Machine = st.Machine
+			}
+		}
 		out, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
 			log.Error("generating service for status", "service", s.Package.Name, "err", err)
@@ -228,34 +243,9 @@ func serviceViews(ctx context.Context, lab config.Lab, sd *systemd.Manager, log 
 		for _, h := range out.Hosts {
 			v.URLs = append(v.URLs, "https://"+h)
 		}
-		statuses, err := sd.Status(ctx, out.Units...)
-		if err != nil {
-			log.Error("reading service status", "service", s.Package.Name, "err", err)
-		} else {
-			v.Status = summarize(statuses)
-		}
 		views = append(views, v)
 	}
 	return views, nil
-}
-
-// summarize turns unit states into one status for people.
-func summarize(units []systemd.UnitStatus) string {
-	if len(units) == 0 {
-		return "unknown"
-	}
-	status := "running"
-	for _, u := range units {
-		switch {
-		case u.ActiveState == "failed":
-			return "failed"
-		case u.ActiveState == "activating" || u.ActiveState == "reloading":
-			status = "starting"
-		case u.ActiveState != "active" && status == "running":
-			status = "stopped"
-		}
-	}
-	return status
 }
 
 // startMaintenance runs this machine's maintenance coordinator with the

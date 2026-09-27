@@ -25,16 +25,20 @@ type updatesView struct {
 }
 
 func (s *Server) updatesView(r *http.Request, errMsg string) *updatesView {
-	if s.updates() == nil || !auth.Can(currentUser(r).Role, auth.ManageHost) {
+	if s.updates(r) == nil || !auth.Can(currentUser(r).Role, auth.ManageHost) {
 		return nil
 	}
-	last, err := s.updates().Last(r.Context())
+	last, err := s.updates(r).Last(r.Context())
 	if err != nil {
 		s.Log.Error("reading the last OS update", "err", err)
 	}
-	v := &updatesView{Last: last, Pending: s.updates().Pending(), Restart: s.updates().RestartStatus(),
+	v := &updatesView{Last: last, Pending: s.updates(r).Pending(), Restart: s.updates(r).RestartStatus(),
 		Mode: s.Maintenance.Restart, Hour: s.Maintenance.Hour(), ErrorMsg: errMsg,
 		Activity: s.activityFor(r, activity.OSUpdates)}
+	// Each machine has its own policy.
+	if m := s.machine(r); m != nil {
+		v.Mode, v.Hour = m.RestartPolicy()
+	}
 	if a := v.Activity; a != nil && a.Running() {
 		v.Pending = true // queued runs show as pending too
 	}
@@ -48,24 +52,25 @@ func (s *Server) updatesView(r *http.Request, errMsg string) *updatesView {
 }
 
 func (s *Server) updateNowSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.updates() == nil {
+	if s.updates(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
-	if err := s.updates().Submit(); err != nil && !errors.Is(err, osupdate.ErrAlreadyQueued) {
+	if err := s.updates(r).Submit(); err != nil && !errors.Is(err, osupdate.ErrAlreadyQueued) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "updates", "OS updates started")
-	redirect(w, r, "/settings/updates")
+	m := s.machineViewOf(r)
+	s.Store.Audit(r.Context(), currentUser(r), "updates", "OS updates started on "+m.Label())
+	redirect(w, r, m.Updates())
 }
 
 func (s *Server) restartNowSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.updates() == nil {
+	if s.updates(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
-	err := s.updates().RestartNow(r.Context())
+	err := s.updates(r).RestartNow(r.Context())
 	var busy osupdate.ErrBusy
 	if errors.As(err, &busy) {
 		s.renderUpdates(w, r, "MyLab can't restart right now: "+busy.Error()+".")
@@ -75,7 +80,13 @@ func (s *Server) restartNowSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "restart", "machine restarted")
+	m := s.machineViewOf(r)
+	s.Store.Audit(r.Context(), currentUser(r), "restart", m.Label()+" restarted")
+	if !m.This {
+		// This UI stays up; the other machine comes back on its own.
+		redirect(w, r, "/settings/machines")
+		return
+	}
 	s.render(w, "restarting", map[string]any{"User": currentUser(r), "BootID": s.bootID, "Host": true})
 }
 
@@ -84,11 +95,11 @@ func (s *Server) restartPolicySubmit(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		hour = -1
 	}
-	if s.machine() == nil {
+	if s.machine(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
-	err = s.machine().SetRestartPolicy(r.Context(), r.FormValue("restart"), hour)
+	err = s.machine(r).SetRestartPolicy(r.Context(), r.FormValue("restart"), hour)
 	if msg, ok := userMessage(err); ok {
 		s.renderUpdates(w, r, msg)
 		return
@@ -97,6 +108,11 @@ func (s *Server) restartPolicySubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "setup", "restart policy changed")
+	m := s.machineViewOf(r)
+	s.Store.Audit(r.Context(), currentUser(r), "setup", "restart policy changed on "+m.Label())
+	if !m.This {
+		redirect(w, r, m.Updates())
+		return
+	}
 	redirect(w, r, "/restarting")
 }

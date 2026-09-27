@@ -13,9 +13,11 @@ import (
 	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/firewall"
+	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/nodeid"
 	"github.com/mylab/mylab/internal/reconcile"
 	"github.com/mylab/mylab/internal/state"
+	"github.com/mylab/mylab/internal/systemd"
 )
 
 // Node is a machine in the lab, as the controller sees it (SPEC.md §10.3).
@@ -28,6 +30,9 @@ type Node interface {
 	Apply(a Assignment)
 	// Status reports the current or last apply.
 	Status() ApplyStatus
+	// ServiceStates reports each of its services as running, starting,
+	// stopped, failed or unknown.
+	ServiceStates(ctx context.Context) (map[string]string, error)
 	InstallStatus(ctx context.Context, service string) HookStatus
 	RetryInstall(ctx context.Context, service string) error
 	RunAction(ctx context.Context, service, action string, inputs map[string]string) (string, error)
@@ -53,6 +58,12 @@ type Assignment struct {
 	Secrets map[string][]byte
 	// SetUp names newly installed services whose install hooks should run.
 	SetUp []string
+	// Lab is the lab-wide settings the services need (e.g. the domain).
+	// Empty uses the node's own.
+	Lab LabContext
+	// Proxied are services on other machines whose routes this machine's
+	// Caddy serves (the controller, SPEC.md §10.5).
+	Proxied []state.Proxied
 }
 
 // ErrNotFound means no such service or action on this node.
@@ -91,6 +102,8 @@ type Local struct {
 	// Firewall applies the host firewall through mylab-agent after each
 	// apply. Nil leaves the firewall alone.
 	Firewall FirewallApplier
+	// Units reads systemd unit states, for ServiceStates (optional).
+	Units UnitStatuser
 
 	// Hooks (hooks.go). State records install hook progress; without
 	// State and Exec, hooks don't run.
@@ -136,7 +149,7 @@ func (n *Local) Apply(a Assignment) {
 		n.userSecrets[k] = v
 	}
 	old := n.assignment.Services
-	n.assignment = Assignment{Services: a.Services}
+	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied}
 	if n.State != nil {
 		// A service taken off this machine forgets its setup progress.
 		for _, s := range old {
@@ -211,9 +224,9 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 		act.Finish(err)
 	}()
 	n.mu.Lock()
-	services := n.assignment.Services
+	a := n.assignment
 	n.mu.Unlock()
-	desired, err := state.Desired(n.Lab, services)
+	desired, err := state.Desired(n.lab(a), a.Services, a.Proxied...)
 	if err != nil {
 		return err
 	}
@@ -243,7 +256,7 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	n.mu.Unlock()
 
 	// The firewall follows the services, e.g. a package port just turned on.
-	if fw, ok := firewall.Desired(n.Lab, desired.Services); ok && n.Firewall != nil {
+	if fw, ok := firewall.Desired(n.lab(a), desired.Services); ok && n.Firewall != nil {
 		act.Step("Updating the firewall")
 		if err := n.Firewall.ApplyFirewall(ctx, fw); err != nil {
 			return fmt.Errorf("applying the firewall: %w", err)
@@ -251,6 +264,23 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	}
 	act.Step("All changes applied")
 	return nil
+}
+
+// lab is the node's lab config with the assignment's lab-wide settings.
+func (n *Local) lab(a Assignment) config.Lab {
+	lab := n.Lab
+	if a.Lab.Domain != "" {
+		lab.Domain, lab.Email = a.Lab.Domain, a.Lab.Email
+	}
+	return lab
+}
+
+// currentLab is the lab config for the current assignment.
+func (n *Local) currentLab() config.Lab {
+	n.mu.Lock()
+	a := n.assignment
+	n.mu.Unlock()
+	return n.lab(a)
 }
 
 // service finds a service in the current assignment.
@@ -266,4 +296,56 @@ func (n *Local) serviceLocked(name string) (state.Service, bool) {
 		return state.Service{}, false
 	}
 	return n.assignment.Services[i], true
+}
+
+// UnitStatuser reads systemd unit states (internal/systemd).
+type UnitStatuser interface {
+	Status(ctx context.Context, units ...string) ([]systemd.UnitStatus, error)
+}
+
+// ServiceStates reports each assigned service's state from its units.
+func (n *Local) ServiceStates(ctx context.Context) (map[string]string, error) {
+	n.mu.Lock()
+	a := n.assignment
+	n.mu.Unlock()
+	lab := n.lab(a)
+	out := map[string]string{}
+	for _, s := range a.Services {
+		name := s.Package.Name
+		out[name] = "unknown"
+		gen, err := generate.Service(lab, s.Package, s.Instance)
+		if err != nil {
+			out[name] = "failed"
+			continue
+		}
+		if n.Units == nil {
+			continue
+		}
+		units, err := n.Units.Status(ctx, gen.Units...)
+		if err != nil {
+			n.Log.Error("reading service status", "service", name, "err", err)
+			continue
+		}
+		out[name] = Summarize(units)
+	}
+	return out, nil
+}
+
+// Summarize turns unit states into one status for people.
+func Summarize(units []systemd.UnitStatus) string {
+	if len(units) == 0 {
+		return "unknown"
+	}
+	status := "running"
+	for _, u := range units {
+		switch {
+		case u.ActiveState == "failed":
+			return "failed"
+		case u.ActiveState == "activating" || u.ActiveState == "reloading":
+			status = "starting"
+		case u.ActiveState != "active" && status == "running":
+			status = "stopped"
+		}
+	}
+	return status
 }

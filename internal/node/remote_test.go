@@ -1,0 +1,240 @@
+package node
+
+import (
+	"context"
+	"crypto/tls"
+	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/netip"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/mylab/mylab/internal/activity"
+	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/instance"
+	"github.com/mylab/mylab/internal/labnet"
+	"github.com/mylab/mylab/internal/nodeid"
+	"github.com/mylab/mylab/internal/pkgspec"
+	"github.com/mylab/mylab/internal/state"
+)
+
+// fakeNode records what the controller asked of it.
+type fakeNode struct {
+	applied  chan Assignment
+	settings *fakeSettings
+}
+
+func (f *fakeNode) Identity() nodeid.Identity {
+	return nodeid.Identity{ID: "n-0000000002", Name: "vps"}
+}
+func (f *fakeNode) Apply(a Assignment) { f.applied <- a }
+func (f *fakeNode) Status() ApplyStatus {
+	return ApplyStatus{Finished: true, LastErr: errors.New("image pull failed")}
+}
+func (f *fakeNode) ServiceStates(context.Context) (map[string]string, error) {
+	return map[string]string{"vaultwarden": "running"}, nil
+}
+func (f *fakeNode) InstallStatus(_ context.Context, s string) HookStatus {
+	return HookStatus{Pending: s == "forgejo"}
+}
+func (f *fakeNode) RetryInstall(_ context.Context, s string) error {
+	if s != "forgejo" {
+		return ErrNotFound
+	}
+	return nil
+}
+func (f *fakeNode) RunAction(_ context.Context, s, a string, in map[string]string) (string, error) {
+	switch {
+	case in["password"] == "short":
+		return "", &FormError{Msg: "Password must be at least 8 characters."}
+	case a == "fail":
+		return "", &ActionError{Title: "Reset a password", Output: "database not ready", Err: errors.New("exit status 1")}
+	}
+	return "ok " + in["username"], nil
+}
+func (f *fakeNode) RevealSecret(_ context.Context, s, k string) (string, error) { return "s3cret", nil }
+func (f *fakeNode) LatestActivity(kind string) (activity.Snapshot, bool) {
+	return activity.Snapshot{Title: "Applying changes", Status: "All changes applied"}, kind == activity.Apply
+}
+func (f *fakeNode) Backups() Backups   { return nil }
+func (f *fakeNode) Restores() Restores { return nil }
+func (f *fakeNode) Updates() Updates   { return nil }
+func (f *fakeNode) Settings() Settings { return f.settings }
+
+type fakeSettings struct{ zone string }
+
+func (f *fakeSettings) Timezones() (string, []string, error) {
+	return f.zone, []string{"Etc/UTC", "Europe/London"}, nil
+}
+func (f *fakeSettings) SetTimezone(_ context.Context, name string) (bool, error) {
+	if name == "Mars" {
+		return false, &FormError{Msg: "Choose a time zone from the list."}
+	}
+	f.zone = name
+	return true, nil
+}
+func (f *fakeSettings) SSHAccess() (SSHAccess, error)                       { return SSHAccess{Choice: "lan"}, nil }
+func (f *fakeSettings) SetSSH(context.Context, string, bool) error          { return nil }
+func (f *fakeSettings) SetRestartPolicy(context.Context, string, int) error { return nil }
+func (f *fakeSettings) RestartPolicy() (string, int)                        { return "notify", 3 }
+
+// lab returns a controller identity, a node identity and a catalog.
+func machines(t *testing.T) (ctrl, node labnet.Identity, lab config.Lab) {
+	t.Helper()
+	ca, err := labnet.LoadOrCreateCA(t.TempDir(), "home")
+	if err != nil {
+		t.Fatal(err)
+	}
+	issue := func(id string, addr string) labnet.Identity {
+		m := labnet.Identity{Dir: t.TempDir()}
+		csr, _ := m.CSR(id)
+		cert, err := ca.Issue(csr, id, netip.MustParseAddr(addr))
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.Save(cert, labnet.CertPEM(ca.Cert))
+		return m
+	}
+	lab = config.Default()
+	lab.Domain = "lab.example.com"
+	lab.Paths.CatalogDir = t.TempDir()
+	data, _ := os.ReadFile(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	os.MkdirAll(filepath.Dir(lab.Paths.PackageFile("vaultwarden")), 0o755)
+	os.WriteFile(lab.Paths.PackageFile("vaultwarden"), data, 0o644)
+	return issue("n-0000000001", "100.96.0.1"), issue("n-0000000002", "100.96.0.2"), lab
+}
+
+func TestRemote(t *testing.T) {
+	ctrl, nodeID, lab := machines(t)
+	fn := &fakeNode{applied: make(chan Assignment, 1), settings: &fakeSettings{zone: "Etc/UTC"}}
+	saved := make(chan WireAssignment, 1)
+	api := &Server{Node: fn, ControllerID: "n-0000000001", Saved: func(w WireAssignment) { saved <- w }}
+	srv := httptest.NewUnstartedServer(api.Handler())
+	srv.TLS, _ = nodeID.ServerTLS()
+	srv.StartTLS()
+	defer srv.Close()
+
+	r, err := NewRemote(ctrl, nodeid.Identity{ID: "n-0000000002", Name: "vps"}, netip.MustParseAddr("100.96.0.2"), lab,
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.URL = srv.URL
+	ctx := context.Background()
+
+	if st := r.Status(); st.LastErr == nil || st.LastErr.Error() != "image pull failed" || !st.Finished {
+		t.Errorf("status = %+v", st)
+	}
+	if states, err := r.ServiceStates(ctx); err != nil || states["vaultwarden"] != "running" {
+		t.Errorf("states = %v, %v", states, err)
+	}
+	if snap, ok := r.LatestActivity(activity.Apply); !ok || snap.Status != "All changes applied" {
+		t.Errorf("activity = %+v", snap)
+	}
+	if _, ok := r.LatestActivity(activity.Backup); ok {
+		t.Error("no backup activity")
+	}
+	if st := r.InstallStatus(ctx, "forgejo"); !st.Pending {
+		t.Errorf("setup = %+v", st)
+	}
+	if err := r.RetryInstall(ctx, "nope"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("retry unknown: %v", err)
+	}
+	if out, err := r.RunAction(ctx, "forgejo", "reset", map[string]string{"username": "mum"}); err != nil || out != "ok mum" {
+		t.Errorf("action: %q %v", out, err)
+	}
+	var fe *FormError
+	if _, err := r.RunAction(ctx, "forgejo", "reset", map[string]string{"password": "short"}); !errors.As(err, &fe) {
+		t.Errorf("form error lost: %v", err)
+	}
+	var ae *ActionError
+	if _, err := r.RunAction(ctx, "forgejo", "fail", nil); !errors.As(err, &ae) || ae.Output != "database not ready" {
+		t.Errorf("action error lost: %v", err)
+	}
+	if v, err := r.RevealSecret(ctx, "vaultwarden", "admin_token"); v != "s3cret" || err != nil {
+		t.Errorf("reveal: %q %v", v, err)
+	}
+	if r.Backups() != nil || r.Settings() == nil {
+		t.Error("maintenance should follow what the node has")
+	}
+	if changed, err := r.Settings().SetTimezone(ctx, "Europe/London"); !changed || err != nil || fn.settings.zone != "Europe/London" {
+		t.Errorf("set zone: %v %v", changed, err)
+	}
+	if mode, hour := r.Settings().RestartPolicy(); mode != "notify" || hour != 3 {
+		t.Errorf("restart policy %q %d", mode, hour)
+	}
+	if _, err := r.Settings().SetTimezone(ctx, "Mars"); !errors.As(err, &fe) {
+		t.Errorf("set zone form error: %v", err)
+	}
+
+	// Assignments: pushed, with services and secrets; saved without them.
+	svcs := loadVaultwarden(t, lab)
+	r.Apply(Assignment{Services: svcs, Secrets: map[string][]byte{"mylab-vaultwarden-x": []byte("typed")}, Lab: LabContext{Domain: lab.Domain}})
+	select {
+	case a := <-fn.applied:
+		if len(a.Services) != 1 || string(a.Secrets["mylab-vaultwarden-x"]) != "typed" || a.Lab.Domain != "lab.example.com" {
+			t.Errorf("assignment = %+v", a)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("assignment not delivered")
+	}
+	if w := <-saved; w.Secrets != nil || len(w.Services) != 1 {
+		t.Error("saved assignments keep services, never secrets")
+	}
+	// Once the send has finished, the secrets aren't kept.
+	for deadline := time.Now().Add(5 * time.Second); ; {
+		r.mu.Lock()
+		pushing := r.pushing
+		r.mu.Unlock()
+		if !pushing || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if w, ok := r.Pending(); !ok || w.Secrets != nil {
+		t.Error("delivered secrets must not be sent again")
+	}
+	// An older assignment is ignored.
+	if err := api.Take(WireAssignment{Version: 1}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-fn.applied:
+		t.Error("an older assignment was applied")
+	default:
+	}
+
+	// Only the controller may call.
+	other := &http.Client{Transport: &http.Transport{TLSClientConfig: mustTLS(t, nodeID, "n-0000000002")}}
+	resp, err := other.Get(srv.URL + "/v1/status")
+	if err == nil {
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("another machine calling: %d", resp.StatusCode)
+		}
+	}
+}
+
+func mustTLS(t *testing.T, id labnet.Identity, peer string) *tls.Config {
+	c, err := id.ClientTLS(peer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func loadVaultwarden(t *testing.T, lab config.Lab) []state.Service {
+	t.Helper()
+	p, err := pkgspec.Load(lab.Paths.PackageFile("vaultwarden"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := &instance.Instance{Package: "vaultwarden", Version: p.Version, Settings: map[string]any{},
+		Routes: map[string]instance.RouteOverride{"web": {Port: 18000}}}
+	return []state.Service{{Instance: in, Package: p}}
+}

@@ -78,7 +78,22 @@ func (s *Server) formMode(r *http.Request, step string, data map[string]any) map
 		withArea(data, area)
 	}
 	data["Back"] = map[string]string{"timezone": "/settings", "ssh": "/settings", "domain": "/settings/domain", "backup": "/backups"}[step]
+	m := s.machineViewOf(r)
+	data["Machine"], data["BackText"] = m, "Settings"
+	if !m.This {
+		// Another machine's settings are never a wizard step.
+		data["Wizard"], data["Back"], data["BackText"] = false, "/settings/machines", "Machines"
+	}
 	return data
+}
+
+// clockOf is the clock of the machine a request is about; only this
+// machine's is known.
+func (s *Server) clockOf(r *http.Request) hosttime.Clock {
+	if !s.machineViewOf(r).This {
+		return hosttime.Clock{}
+	}
+	return hosttime.Now()
 }
 
 // clockView is the host's clock for the layout's time zone banner.
@@ -88,22 +103,22 @@ type clockView struct {
 }
 
 func (s *Server) timezonePage(w http.ResponseWriter, r *http.Request) {
-	if s.machine() == nil {
+	if s.machine(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
-	current, zones, err := s.machine().Timezones()
+	current, zones, err := s.machine(r).Timezones()
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
 	s.render(w, "setup-timezone", s.formMode(r, "timezone", map[string]any{"User": currentUser(r),
-		"Current": current, "Zone": current, "Zones": zones, "HostClock": hosttime.Now()}))
+		"Current": current, "Zone": current, "Zones": zones, "HostClock": s.clockOf(r)}))
 }
 
 func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
 	zone := r.FormValue("timezone")
-	if s.machine() == nil {
+	if s.machine(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
@@ -112,27 +127,34 @@ func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	changed, err := s.machine().SetTimezone(r.Context(), zone)
-	if err == nil {
+	m := s.machineViewOf(r)
+	changed, err := s.machine(r).SetTimezone(r.Context(), zone)
+	if err == nil && m.This {
+		// The setup wizard is about this machine.
 		err = s.Setup.Done(r.Context(), setup.StepTimezone)
 	}
 	if err != nil {
-		current, zones, zerr := s.machine().Timezones()
+		current, zones, zerr := s.machine(r).Timezones()
 		if zerr != nil {
 			s.serverError(w, zerr)
 			return
 		}
 		s.wizardError(w, r, err, "setup-timezone", s.formMode(r, "timezone", map[string]any{
-			"Current": current, "Zone": zone, "Zones": zones, "HostClock": hosttime.Now()}))
+			"Current": current, "Zone": zone, "Zones": zones, "HostClock": s.clockOf(r)}))
 		return
 	}
-	if !changed {
+	if changed {
+		s.Store.Audit(r.Context(), currentUser(r), "setup", m.Label()+" time zone set to "+zone)
+	}
+	switch {
+	case !m.This:
+		redirect(w, r, m.TimeZone())
+	case !changed:
 		// On to the next wizard step, or back to Settings.
 		redirect(w, r, map[bool]string{true: "/settings/time-zone", false: "/"}[p.TimezoneDone])
-		return
+	default:
+		redirect(w, r, "/restarting")
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "setup", "time zone set to "+zone)
-	redirect(w, r, "/restarting")
 }
 
 // sshClient is a current SSH connection, and which choices would cut it off.
@@ -143,10 +165,10 @@ type sshClient struct {
 }
 
 func (s *Server) sshData(r *http.Request, choice, errMsg string) (map[string]any, error) {
-	if s.machine() == nil {
+	if s.machine(r) == nil {
 		return nil, errNoMachine
 	}
-	a, err := s.machine().SSHAccess()
+	a, err := s.machine(r).SSHAccess()
 	if err != nil {
 		return nil, err
 	}
@@ -175,12 +197,13 @@ func (s *Server) sshPage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
 	choice := r.FormValue("ssh")
-	if s.machine() == nil {
+	if s.machine(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
-	err := s.machine().SetSSH(r.Context(), choice, r.FormValue("confirm") == "on")
-	if err == nil {
+	m := s.machineViewOf(r)
+	err := s.machine(r).SetSSH(r.Context(), choice, r.FormValue("confirm") == "on")
+	if err == nil && m.This {
 		err = s.Setup.Done(r.Context(), setup.StepSSH)
 	}
 	if msg, ok := userMessage(err); ok {
@@ -197,7 +220,11 @@ func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "setup", "SSH access set to "+choice)
+	s.Store.Audit(r.Context(), currentUser(r), "setup", m.Label()+" SSH access set to "+choice)
+	if !m.This {
+		redirect(w, r, m.RemoteAccess())
+		return
+	}
 	redirect(w, r, "/restarting")
 }
 

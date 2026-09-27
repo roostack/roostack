@@ -66,9 +66,14 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 				add(levelProblem, "The last change"+on+" didn't finish: "+st.LastErr.Error(), "/services", "View services")
 			}
 		}
-		if services, err := s.Services(r.Context()); err == nil && s.Node != nil {
+		if services, err := s.Services(r.Context()); err == nil {
 			for _, svc := range services {
-				hs := s.Node.InstallStatus(r.Context(), svc.Name)
+				// Asked of the machine each service runs on.
+				n := s.Manager.NodeFor(svc.Name)
+				if n == nil {
+					continue
+				}
+				hs := n.InstallStatus(r.Context(), svc.Name)
 				link := "/services/" + svc.Name
 				switch {
 				case hs.Failed != "":
@@ -80,8 +85,8 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		}
 	}
 
-	if admin && s.backups() != nil {
-		if st, err := s.backups().Status(r.Context()); err == nil {
+	if admin && s.backups(r) != nil {
+		if st, err := s.backups(r).Status(r.Context()); err == nil {
 			backupLink := "/backups"
 			switch {
 			case !st.Configured:
@@ -124,12 +129,12 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		}
 	}
 
-	if owner && s.updates() != nil {
-		if last, err := s.updates().Last(r.Context()); err == nil && last != nil && !last.OK {
+	if owner && s.updates(r) != nil {
+		if last, err := s.updates(r).Last(r.Context()); err == nil && last != nil && !last.OK {
 			add(levelProblem, "OS updates didn't finish last time. The machine may be missing security fixes.",
 				"/settings/updates", "See what happened")
 		}
-		if rs := s.updates().RestartStatus(); rs.Needed {
+		if rs := s.updates(r).RestartStatus(); rs.Needed {
 			if s.Maintenance.Restart == config.RestartNotify {
 				add(levelWarning, "This machine needs a restart to finish installing updates.", "/settings/updates", "Restart")
 			} else {

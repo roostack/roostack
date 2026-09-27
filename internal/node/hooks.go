@@ -201,7 +201,7 @@ func (n *Local) runInstallHooks(ctx context.Context, s state.Service) (err error
 	hooks := s.Package.HooksOn(pkgspec.HookInstall)
 	for i, h := range hooks {
 		act.Step("Setup step %d of %d (for example, creating the administrator account)", i+1, len(hooks))
-		run, err := generate.Hook(n.Lab, s.Package, s.Instance, h, nil)
+		run, err := generate.Hook(n.currentLab(), s.Package, s.Instance, h, nil)
 		if err != nil {
 			return err
 		}
@@ -270,7 +270,7 @@ func (n *Local) RunAction(ctx context.Context, name, action string, inputs map[s
 		}
 		values[i.Key] = v
 	}
-	run, err := generate.Hook(n.Lab, p, in, h, values)
+	run, err := generate.Hook(n.currentLab(), p, in, h, values)
 	if err != nil {
 		return "", err
 	}

@@ -69,8 +69,16 @@ func LoadServices(lab config.Lab) ([]Service, error) {
 	return services, errors.Join(errs...)
 }
 
-// Desired generates the full desired state for the reconciler.
-func Desired(lab config.Lab, services []Service) (reconcile.Desired, error) {
+// Proxied is a service running on another machine whose routes this
+// machine's Caddy serves (SPEC.md §10.5), reached at Addr.
+type Proxied struct {
+	Service
+	Addr string
+}
+
+// Desired generates the full desired state for the reconciler: this
+// machine's services, and Caddy sites for services it proxies.
+func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.Desired, error) {
 	sys, err := generate.System(lab)
 	if err != nil {
 		return reconcile.Desired{}, err
@@ -103,6 +111,20 @@ func Desired(lab config.Lab, services []Service) (reconcile.Desired, error) {
 			if err := checkHostPort(hp, s.Package.Name, ports, hostPorts); err != nil {
 				errs = append(errs, err)
 			}
+		}
+		d.Services = append(d.Services, out)
+	}
+	for _, s := range proxied {
+		out, err := generate.ProxySite(lab, s.Package, s.Instance, s.Addr)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		for _, h := range out.Hosts {
+			if other, dup := hosts[h]; dup {
+				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Package.Name, h, other))
+			}
+			hosts[h] = s.Package.Name
 		}
 		d.Services = append(d.Services, out)
 	}

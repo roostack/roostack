@@ -21,6 +21,9 @@ type Rule struct {
 	Port  int    `json:"port"`
 	Proto string `json:"proto"` // tcp or udp
 	From  string `json:"from"`  // lan or any
+	// Iface limits the rule to traffic arriving on an interface; only
+	// MyLab's WireGuard interface is allowed.
+	Iface string `json:"iface,omitempty"`
 	// Reason is shown in the generated file, e.g. "caddy https".
 	Reason string `json:"reason"`
 }
@@ -85,8 +88,11 @@ func (f Firewall) Validate() error {
 		if r.Proto != "tcp" && r.Proto != "udp" {
 			errs = append(errs, fmt.Errorf("allow[%d]: proto must be tcp or udp", i))
 		}
-		if r.From != FromLAN && r.From != FromAny {
+		if r.From != FromLAN && r.From != FromAny && !(r.Iface != "" && r.From == "") {
 			errs = append(errs, fmt.Errorf("allow[%d]: from must be %q or %q", i, FromLAN, FromAny))
+		}
+		if r.Iface != "" && r.Iface != WireGuardInterface {
+			errs = append(errs, fmt.Errorf("allow[%d]: iface must be %q", i, WireGuardInterface))
 		}
 		if strings.ContainsFunc(r.Reason, func(c rune) bool { return c < ' ' || c == '"' || c == '\\' }) {
 			errs = append(errs, fmt.Errorf("allow[%d]: invalid characters in reason", i))
@@ -128,10 +134,13 @@ func (f Firewall) Ruleset() string {
 	})
 	for _, r := range rules {
 		fmt.Fprintf(&b, "\t\t# %s\n", r.Reason)
-		if r.From == FromLAN {
+		switch {
+		case r.Iface != "":
+			fmt.Fprintf(&b, "\t\tiifname %q %s dport %d accept\n", r.Iface, r.Proto, r.Port)
+		case r.From == FromLAN:
 			fmt.Fprintf(&b, "\t\tip saddr @lan4 %s dport %d accept\n", r.Proto, r.Port)
 			fmt.Fprintf(&b, "\t\tip6 saddr @lan6 %s dport %d accept\n", r.Proto, r.Port)
-		} else {
+		default:
 			fmt.Fprintf(&b, "\t\t%s dport %d accept\n", r.Proto, r.Port)
 		}
 	}

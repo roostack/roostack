@@ -2,12 +2,12 @@
 {{define "content"}}
 {{with .Updates}}
 <section class="card" id="updates">
-  {{back "/settings" "Settings"}}
-  <h1>Updates and restarts</h1>
-  <p class="hint">This machine installs Debian's security and bug-fix updates every night after the backup.</p>
+  {{if $.Machine.This}}{{back "/settings" "Settings"}}{{else}}{{back "/settings/machines" "Machines"}}{{end}}
+  <h1>Updates and restarts{{if not $.Machine.This}} · {{$.Machine.Name}}{{end}}</h1>
+  <p class="hint">{{$.Machine.Label}} installs Debian's security and bug-fix updates every night after the backup.</p>
   {{activity .Activity}}
   {{/* Refreshed when the update run finishes (HX-Trigger from its status). */}}
-  <div id="updates-body" hx-get="/settings/updates" hx-select="#updates-body" hx-trigger="activity-done from:body" hx-swap="outerHTML">
+  <div id="updates-body" hx-get="{{$.Machine.Updates}}" hx-select="#updates-body" hx-trigger="activity-done from:body" hx-swap="outerHTML">
   {{with .ErrorMsg}}<p class="error" role="alert">{{.}}</p>{{end}}
   <dl class="facts">
     <dt>Last update</dt>
@@ -23,14 +23,14 @@
   <div class="notice notice-warn" role="status">
     <p><strong>A restart is needed to finish installing updates</strong>{{with .Restart.Packages}} ({{range $i, $p := .}}{{if $i}}, {{end}}{{$p}}{{end}}){{end}}.
       {{.Restart.Waiting}}.</p>
-    {{confirm "/settings/restart" "Restart this machine now? Your services will be unavailable for a minute or two." "Restart now" ""}}
+    {{confirm $.Machine.Restart "Restart this machine now? Your services will be unavailable for a minute or two." "Restart now" ""}}
   </div>
   {{end}}
-  <form method="post" action="/settings/updates/run">
+  <form method="post" action="{{$.Machine.UpdatesRun}}">
     <button type="submit" class="secondary" {{if .Pending}}disabled{{end}}>{{if .Pending}}Updating…{{else}}Check for updates now{{end}}</button>
   </form>
   <h2>When updates need a restart</h2>
-  <form method="post" action="/settings/restart-policy">
+  <form method="post" action="{{$.Machine.RestartPolicy}}">
     <fieldset>
       <legend class="sr-only">When updates need a restart</legend>
       <label class="check"><input type="radio" name="restart" value="auto" {{if eq .Mode "auto"}}checked{{end}}>

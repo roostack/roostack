@@ -1,0 +1,265 @@
+package labnet
+
+import (
+	"context"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/netip"
+	"sync"
+	"time"
+
+	"github.com/mylab/mylab/internal/agent"
+	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/nodeid"
+	"github.com/mylab/mylab/internal/store"
+)
+
+// JoinCodeLifetime is how long a join code works.
+const JoinCodeLifetime = time.Hour
+
+// Keepalive keeps a machine's WireGuard connection (and any NAT mapping
+// on the way) open, so the controller can always reach it.
+const Keepalive = 25
+
+// HubStore is the controller's record of machines and join codes.
+type HubStore interface {
+	AddJoinCode(ctx context.Context, c store.JoinCode) error
+	JoinCodes(ctx context.Context, now time.Time) ([]store.JoinCode, error)
+	Join(ctx context.Context, tokenHash string, m store.Machine, now time.Time) (store.Machine, error)
+	Machines(ctx context.Context) ([]store.Machine, error)
+}
+
+// WireGuardAgent is mylab-agent's WireGuard operation.
+type WireGuardAgent interface {
+	ApplyWireGuard(ctx context.Context, wg agent.WireGuard) (string, error)
+}
+
+// Hub is the controller's side of MyLab's network: the other machines
+// dial it over WireGuard, and it lets them join.
+type Hub struct {
+	StateDir string
+	LabName  string
+	Self     nodeid.Identity
+	Store    HubStore
+	Agent    WireGuardAgent
+	Log      *slog.Logger
+	Now      func() time.Time
+	// Started is called once the network is first set up (MyLab restarts
+	// to pick up its new role, e.g. for the firewall). Optional.
+	Started func()
+	// SwitchDelay is how long after a join the machine's own key replaces
+	// the one-time key (0: 2s).
+	SwitchDelay time.Duration
+
+	mu        sync.Mutex
+	publicKey string
+}
+
+// Enabled reports whether the lab has a network yet.
+func (h *Hub) Enabled() bool {
+	m, ok, err := LoadMembership(h.StateDir)
+	return err == nil && ok && m.Role == config.RoleController
+}
+
+// Start brings up the hub's WireGuard interface if the lab has a network
+// (e.g. after a restart; wg-quick also starts it at boot). It retries in
+// the background while mylab-agent isn't reachable yet.
+func (h *Hub) Start(ctx context.Context) {
+	if !h.Enabled() {
+		return
+	}
+	go func() {
+		for attempt := 1; ; attempt++ {
+			err := h.SyncPeers(ctx)
+			if err == nil {
+				return
+			}
+			if attempt == 1 || attempt%10 == 0 {
+				h.Log.Error("starting MyLab's network", "err", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(3 * time.Second):
+			}
+		}
+	}()
+}
+
+// init sets up the network on first use: the CA, the controller's own
+// certificate, its membership and its WireGuard interface.
+func (h *Hub) init(ctx context.Context) error {
+	if h.Enabled() {
+		return nil
+	}
+	ca, err := LoadOrCreateCA(CADir(h.StateDir), h.LabName)
+	if err != nil {
+		return err
+	}
+	id := Identity{Dir: IdentityDir(h.StateDir)}
+	csr, err := id.CSR(h.Self.ID)
+	if err != nil {
+		return err
+	}
+	cert, err := ca.Issue(csr, h.Self.ID, ControllerAddr)
+	if err != nil {
+		return err
+	}
+	if err := id.Save(cert, CertPEM(ca.Cert)); err != nil {
+		return err
+	}
+	m := Membership{Role: config.RoleController, Addr: ControllerAddr, PrefixBits: DefaultPrefix.Bits()}
+	if err := h.SyncPeers(ctx); err != nil {
+		return err
+	}
+	if err := m.Save(h.StateDir); err != nil {
+		return err
+	}
+	if h.Started != nil {
+		h.Started()
+	}
+	return nil
+}
+
+// SyncPeers configures the hub's WireGuard interface: every machine, plus
+// the one-time keys of join codes still waiting.
+func (h *Hub) SyncPeers(ctx context.Context) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	machines, err := h.Store.Machines(ctx)
+	if err != nil {
+		return err
+	}
+	codes, err := h.Store.JoinCodes(ctx, h.Now())
+	if err != nil {
+		return err
+	}
+	wg := agent.WireGuard{Address: fmt.Sprintf("%s/%d", ControllerAddr, DefaultPrefix.Bits()), ListenPort: agent.WireGuardPort}
+	for _, m := range machines {
+		wg.Peers = append(wg.Peers, agent.Peer{PublicKey: m.PublicKey, AllowedIPs: []string{m.Addr + "/32"}})
+	}
+	for _, c := range codes {
+		wg.Peers = append(wg.Peers, agent.Peer{PublicKey: c.PublicKey, AllowedIPs: []string{c.Addr + "/32"}})
+	}
+	pub, err := h.Agent.ApplyWireGuard(ctx, wg)
+	if err != nil {
+		return fmt.Errorf("setting up MyLab's network: %w", err)
+	}
+	h.publicKey = pub
+	return nil
+}
+
+// NewJoinCode makes a code for a new machine, which dials the controller
+// at endpoint (host:port of this machine's WireGuard, as the new machine
+// sees it). It sets up the network first if needed.
+func (h *Hub) NewJoinCode(ctx context.Context, endpoint string) (JoinCode, error) {
+	if err := h.init(ctx); err != nil {
+		return JoinCode{}, err
+	}
+	addr, err := h.freeAddr(ctx)
+	if err != nil {
+		return JoinCode{}, err
+	}
+	key, err := agent.NewWireGuardKey()
+	if err != nil {
+		return JoinCode{}, err
+	}
+	pub, _ := agent.WireGuardPublicKey(key)
+	token, hash := NewToken()
+	if err := h.Store.AddJoinCode(ctx, store.JoinCode{TokenHash: hash, Addr: addr.String(), PublicKey: pub,
+		Expires: h.Now().Add(JoinCodeLifetime)}); err != nil {
+		return JoinCode{}, err
+	}
+	if err := h.SyncPeers(ctx); err != nil {
+		return JoinCode{}, err
+	}
+	ca, err := LoadOrCreateCA(CADir(h.StateDir), h.LabName)
+	if err != nil {
+		return JoinCode{}, err
+	}
+	h.mu.Lock()
+	ctrlKey := h.publicKey
+	h.mu.Unlock()
+	c := JoinCode{Endpoint: endpoint, ControllerKey: ctrlKey, ControllerID: h.Self.ID, ControllerAddr: ControllerAddr,
+		Addr: addr, PrefixBits: DefaultPrefix.Bits(), JoinKey: key, CA: ca.Fingerprint(), Token: token}
+	// Check it the way the new machine will (e.g. the endpoint's format).
+	if _, err := ParseJoinCode(c.String()); err != nil {
+		return JoinCode{}, err
+	}
+	return c, nil
+}
+
+// freeAddr returns the lowest address no machine or code uses.
+func (h *Hub) freeAddr(ctx context.Context) (netip.Addr, error) {
+	used := map[netip.Addr]bool{ControllerAddr: true}
+	machines, err := h.Store.Machines(ctx)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	for _, m := range machines {
+		a, _ := netip.ParseAddr(m.Addr)
+		used[a] = true
+	}
+	codes, err := h.Store.JoinCodes(ctx, h.Now())
+	if err != nil {
+		return netip.Addr{}, err
+	}
+	for _, c := range codes {
+		a, _ := netip.ParseAddr(c.Addr)
+		used[a] = true
+	}
+	for a := ControllerAddr.Next(); DefaultPrefix.Contains(a); a = a.Next() {
+		if !used[a] && a != DefaultPrefix.Masked().Addr() && a.As4()[3] != 255 {
+			return a, nil
+		}
+	}
+	return netip.Addr{}, errors.New("MyLab's network is full")
+}
+
+// Join registers a machine that presented a join code, and signs its
+// certificate. Its own WireGuard key replaces the code's one-time key.
+func (h *Hub) Join(ctx context.Context, req JoinRequest) (JoinResponse, error) {
+	if !nodeid.ValidID(req.NodeID) || req.NodeID == h.Self.ID {
+		return JoinResponse{}, fmt.Errorf("invalid machine ID %q", req.NodeID)
+	}
+	if raw, err := base64.StdEncoding.DecodeString(req.PublicKey); err != nil || len(raw) != 32 {
+		return JoinResponse{}, errors.New("invalid WireGuard key")
+	}
+	name := req.Name
+	if name == "" || len(name) > 63 {
+		name = req.NodeID
+	}
+	m, err := h.Store.Join(ctx, HashToken(req.Token), store.Machine{ID: req.NodeID, Name: name, PublicKey: req.PublicKey}, h.Now())
+	if err != nil {
+		return JoinResponse{}, err
+	}
+	ca, err := LoadOrCreateCA(CADir(h.StateDir), h.LabName)
+	if err != nil {
+		return JoinResponse{}, err
+	}
+	addr, _ := netip.ParseAddr(m.Addr)
+	cert, err := ca.Issue(req.CSR, m.ID, addr)
+	if err != nil {
+		return JoinResponse{}, fmt.Errorf("signing the certificate: %w", err)
+	}
+	// The reply still travels over the one-time key, so switch to the
+	// machine's own key only after it has gone; the machine switches when
+	// it has the reply, and its handshakes succeed from then on.
+	go func() {
+		time.Sleep(h.switchDelay())
+		if err := h.SyncPeers(context.Background()); err != nil {
+			h.Log.Error("adding a machine to MyLab's network", "id", m.ID, "err", err)
+		}
+	}()
+	h.Log.Info("machine joined", "id", m.ID, "name", m.Name, "addr", m.Addr)
+	return JoinResponse{Cert: cert, CA: CertPEM(ca.Cert)}, nil
+}
+
+func (h *Hub) switchDelay() time.Duration {
+	if h.SwitchDelay != 0 {
+		return h.SwitchDelay
+	}
+	return 2 * time.Second
+}

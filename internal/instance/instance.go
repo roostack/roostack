@@ -63,17 +63,26 @@ type PortOverride struct {
 }
 
 func (in *Instance) Save(path string) error {
+	data, err := in.Marshal()
+	if err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o640); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+// Marshal encodes an instance as its file's YAML.
+func (in *Instance) Marshal() ([]byte, error) {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
 	if err := enc.Encode(in); err != nil {
-		return err
+		return nil, err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, buf.Bytes(), 0o640); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return buf.Bytes(), nil
 }
 
 // Load reads an instance file.
@@ -82,11 +91,20 @@ func Load(path string) (*Instance, error) {
 	if err != nil {
 		return nil, err
 	}
+	in, err := Parse(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return in, nil
+}
+
+// Parse decodes an instance file's YAML.
+func Parse(data []byte) (*Instance, error) {
 	var in Instance
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&in); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
+		return nil, err
 	}
 	if in.Updates == "" {
 		in.Updates = UpdatesNotify

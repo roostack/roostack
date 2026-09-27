@@ -292,3 +292,44 @@ containers:
 		t.Errorf("want the bool/string mismatch, got %v", err)
 	}
 }
+
+func TestNodeAndProxy(t *testing.T) {
+	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "vaultwarden.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lab := testLab()
+	lab.Role, lab.OverlayAddr = config.RoleNode, "100.96.0.2"
+	out, err := Service(lab, p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.CaddySite != nil || len(out.Hosts) == 0 {
+		t.Error("a node has no Caddy site but still knows its hostnames")
+	}
+	unit := out.Quadlets[len(out.Quadlets)-1].Content
+	for _, f := range out.Quadlets {
+		if strings.Contains(f.Content, "PublishPort=") {
+			unit = f.Content
+		}
+	}
+	if !strings.Contains(unit, "PublishPort=100.96.0.2:") || strings.Contains(unit, "127.0.0.1:") {
+		t.Errorf("a node publishes routes on its network address:\n%s", unit)
+	}
+	if sys, err := System(lab); err != nil || len(sys.Quadlets) != 0 || sys.Caddyfile.Name != "" {
+		t.Errorf("a node runs no Caddy: %+v %v", sys, err)
+	}
+
+	proxy, err := ProxySite(testLab(), p, in, "100.96.0.2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proxy.CaddySite == nil || !strings.Contains(proxy.CaddySite.Content, "reverse_proxy 100.96.0.2:") ||
+		len(proxy.Quadlets) != 0 || len(proxy.Ports) != 0 || len(proxy.Hosts) == 0 {
+		t.Errorf("proxy site: %+v", proxy)
+	}
+}

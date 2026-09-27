@@ -5,13 +5,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/mylab/mylab/internal/nodeid"
 	"os"
 	"path/filepath"
 
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/instance"
+	"github.com/mylab/mylab/internal/labnet"
+	"github.com/mylab/mylab/internal/nodeid"
 	"github.com/mylab/mylab/internal/pkgspec"
 )
 
@@ -24,6 +25,7 @@ Commands:
   backup   Set up backups, back up now, list backups
   render   Show or write the files generated for a service (no side effects)
   validate Check a package file
+  node     Join this machine to a lab
 
 Run 'mylab <command> -h' for command flags.
 `
@@ -53,6 +55,8 @@ func main() {
 		err = render(args)
 	case "validate":
 		err = validate(args)
+	case "node":
+		err = nodeCmd(args)
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:
@@ -181,5 +185,14 @@ func withNode(lab *config.Lab) (nodeid.Identity, error) {
 		return id, fmt.Errorf("this machine's identity: %w", err)
 	}
 	lab.NodeID = id.ID
+	lab.Role = config.RoleController
+	// A machine in a lab with a network (SPEC.md §10.2) knows its role.
+	m, ok, err := labnet.LoadMembership(lab.Paths.StateDir)
+	if err != nil {
+		return id, err
+	}
+	if ok {
+		m.Apply(lab)
+	}
 	return id, nil
 }

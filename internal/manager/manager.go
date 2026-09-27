@@ -46,17 +46,20 @@ var ErrNotFound = node.ErrNotFound
 type Manager struct {
 	Lab config.Lab
 	Log *slog.Logger
-	// Node is this machine. With one machine per lab it runs every service.
+	// Node is this machine (the controller).
 	Node node.Node
+	// Others lists the lab's other machines (SPEC.md §10); nil if none.
+	Others func() []RemoteMachine
 	// Activity shows problems building an assignment (optional).
 	Activity *activity.Registry
 
 	// mu guards state changes (install/remove) and what is still to hand
 	// over to the node.
 	mu sync.Mutex
-	// secrets holds values typed into install forms until the next
-	// assignment hands them to the node. Never written to disk.
-	secrets map[string][]byte
+	// secrets holds values typed into install forms, by service, until
+	// the next assignment hands them to the service's machine. Never
+	// written to disk.
+	secrets map[string]map[string][]byte
 	// setUp lists newly installed services whose install hooks the node
 	// should run.
 	setUp []string
@@ -121,6 +124,8 @@ type InstallRequest struct {
 	Settings map[string]string
 	// Secrets holds secret settings the user must provide.
 	Secrets map[string]string
+	// Host is the machine to run it on (a node ID); empty is this one.
+	Host string
 }
 
 func formErrorf(format string, args ...any) error {
@@ -134,8 +139,11 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	if err != nil {
 		return err
 	}
-	// Installed on this machine; choosing another comes with SPEC.md §10.4.
-	in := &instance.Instance{Package: p.Name, Host: m.Lab.NodeID, Version: p.Version, Updates: instance.UpdatesNotify,
+	host := cmp.Or(req.Host, m.Lab.NodeID)
+	if m.node(host) == nil {
+		return formErrorf("Choose which machine runs %s.", p.Title)
+	}
+	in := &instance.Instance{Package: p.Name, Host: host, Version: p.Version, Updates: instance.UpdatesNotify,
 		Settings: map[string]any{}}
 
 	secrets := map[string][]byte{}
@@ -191,13 +199,13 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	if err := m.allocateAndSave(services[:len(services)-1]); err != nil {
 		return err
 	}
-	onNode := state.OnNode(services, in.Host)
+	onNode := m.onNode(services, in.Host)
 	if _, err := state.AllocatePorts(onNode); err != nil {
 		return err
 	}
-	// Check the machine's services still generate (e.g. no hostname clash)
-	// before saving anything.
-	if _, err := state.Desired(m.Lab, onNode); err != nil {
+	// Check the machine's services still generate, and no hostname is used
+	// twice in the lab, before saving anything.
+	if _, err := state.Desired(m.Lab, onNode, m.proxied(services, in.Host)...); err != nil {
 		if strings.Contains(err.Error(), "already used") {
 			return formErrorf("That web address is already used by another service. Choose a different one.")
 		}
@@ -212,11 +220,9 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		m.setUp = append(m.setUp, p.Name)
 	}
 	if m.secrets == nil {
-		m.secrets = map[string][]byte{}
+		m.secrets = map[string]map[string][]byte{}
 	}
-	for k, v := range secrets {
-		m.secrets[k] = v
-	}
+	m.secrets[p.Name] = secrets
 	m.startApplyLocked()
 	return nil
 }
@@ -440,97 +446,6 @@ func (m *Manager) DataDirs(name string) []string {
 		filepath.Join(m.Lab.Paths.ServicesDir, name),
 		filepath.Join(m.Lab.Paths.MediaDir, name),
 	}
-}
-
-// Apply starts applying desired state in the background (e.g. at startup).
-func (m *Manager) Apply() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.startApplyLocked()
-}
-
-// Status reports the current or last apply.
-func (m *Manager) Status() ApplyStatus {
-	st := m.Node.Status()
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.assignErr != nil {
-		st.LastErr, st.Finished = m.assignErr, true
-	}
-	return st
-}
-
-// Machine is one node in the lab, for the UI (SPEC.md §10).
-type Machine struct {
-	ID, Name string
-	// Controller holds the lab's desired state and serves the UI.
-	Controller bool
-	// This is the machine serving this request.
-	This bool
-	// Services are the names of the services placed on it.
-	Services []string
-	Status   ApplyStatus
-}
-
-// Machines lists the lab's machines. For now a lab has one: this one,
-// which is also the controller.
-func (m *Manager) Machines() ([]Machine, error) {
-	all, err := state.LoadServices(m.Lab)
-	if err != nil {
-		return nil, err
-	}
-	id := m.Node.Identity()
-	mc := Machine{ID: id.ID, Name: id.Name, Controller: true, This: true, Status: m.Status()}
-	for _, s := range state.OnNode(all, id.ID) {
-		mc.Services = append(mc.Services, s.Package.Name)
-	}
-	slices.Sort(mc.Services)
-	return []Machine{mc}, nil
-}
-
-// startApplyLocked hands the node its latest assignment, which it applies
-// in the background.
-func (m *Manager) startApplyLocked() {
-	services, err := state.LoadServices(m.Lab)
-	if err == nil {
-		err = m.allocateAndSave(services)
-	}
-	m.assignErr = err
-	if err != nil {
-		// Typed-in secrets and set-ups wait for the next assignment.
-		m.Log.Error("applying changes", "err", err)
-		m.Activity.Start(activity.Apply, "Applying changes").Finish(err)
-		return
-	}
-	m.Node.Apply(node.Assignment{
-		// Only the services placed on this machine (SPEC.md §10.4).
-		Services: state.OnNode(services, m.Lab.NodeID),
-		Secrets:  m.secrets,
-		SetUp:    m.setUp,
-	})
-	m.secrets, m.setUp = nil, nil
-}
-
-// allocateAndSave places services that have no host yet on this machine
-// and gives this machine's routes their ports, saving what changed, so
-// ports never change. Callers hold m.mu.
-func (m *Manager) allocateAndSave(services []state.Service) error {
-	changed := state.AssignHosts(services, m.Lab.NodeID)
-	ported, err := state.AllocatePorts(state.OnNode(services, m.Lab.NodeID))
-	if err != nil {
-		return err
-	}
-	for _, s := range ported {
-		if !slices.ContainsFunc(changed, func(c state.Service) bool { return c.Package.Name == s.Package.Name }) {
-			changed = append(changed, s)
-		}
-	}
-	for _, s := range changed {
-		if err := s.Instance.Save(state.InstanceFile(m.Lab, s.Package.Name)); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // Wait blocks until the current apply finishes (for tests and tools).

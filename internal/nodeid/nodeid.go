@@ -54,10 +54,16 @@ func LoadOrCreate(stateDir string) (Identity, error) {
 	}
 	name, _ := os.Hostname()
 	id := Identity{ID: "n-" + hex.EncodeToString(b), Name: name}
-	data, _ = json.MarshalIndent(id, "", "  ")
+	return id, id.Save(stateDir)
+}
+
+// Save writes the identity (e.g. after renaming the machine).
+func (id Identity) Save(stateDir string) error {
+	path := File(stateDir)
+	data, _ := json.MarshalIndent(id, "", "  ")
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, append(data, '\n'), 0o640); err != nil {
-		return Identity{}, err
+		return err
 	}
-	return id, os.Rename(tmp, path)
+	return os.Rename(tmp, path)
 }

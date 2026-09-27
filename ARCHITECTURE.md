@@ -61,7 +61,8 @@ The reconciler only touches files it owns (`mylab-*` Quadlets and `*.caddy` snip
 | `internal/agent` | Agent server, client, firewall ruleset, time zone, OS updates, reboot |
 | `internal/web/static/css`, `docs/DESIGN.md` | Design system: tokens, built-in themes, components; gallery at `/design` and `docs/design/gallery.html` |
 | `internal/nodeid` | This machine's identity (node ID and name) |
-| `internal/node` | A machine in the lab (SPEC.md §10): the `Node` interface and `Local`, which applies its Assignment (reconcile, firewall), runs package hooks, actions and secret reveals, and holds the machine's maintenance jobs (backups, restores, OS updates and restarts), its own settings (time zone, SSH access, restart policy) and activity |
+| `internal/labnet` | The network between a lab's machines (SPEC.md §10.2, §10.9): the controller's CA and each machine's certificate, join codes, membership (role and overlay address), the hub (WireGuard peers, joining) and the mutual-TLS lab API server |
+| `internal/node` | A machine in the lab (SPEC.md §10): the `Node` interface and `Local`, which applies its Assignment (reconcile, firewall), runs package hooks, actions and secret reveals, and holds the machine's maintenance jobs (backups, restores, OS updates and restarts), its own settings (time zone, SSH access, restart policy) and activity. `Remote` is another machine over the lab API (`Server` serves it on each node); `Fleet` keeps one per joined machine |
 | `internal/activity` | Live logs of host operations (OS updates, backups, applies, setup hooks) for the UI: a status line plus collapsible details |
 | `internal/osupdate` | Nightly OS updates job, restart-needed detection, "restart now" |
 | `internal/firewall` | Builds the firewall from the lab and its services; lists current SSH connections |

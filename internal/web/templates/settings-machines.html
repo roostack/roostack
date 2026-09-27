@@ -21,8 +21,30 @@
     <dt>Machine ID</dt>
     <dd><code>{{.ID}}</code></dd>
   </dl>
-  {{if .This}}{{activity $.ApplyActivity}}
-  <p><a href="/settings/updates">Updates and restarts</a> · <a href="/settings/time-zone">Time zone</a></p>{{end}}
+  {{if .This}}{{activity $.ApplyActivity}}{{end}}
+  <p><a href="/settings/machines/{{.ID}}/updates">Updates and restarts</a> ·
+    <a href="/settings/machines/{{.ID}}/time-zone">Time zone</a> ·
+    <a href="/settings/machines/{{.ID}}/remote-access">Remote access</a> ·
+    <a href="/settings/machines/{{.ID}}/backups">Backups</a></p>
+</section>
+{{end}}
+{{if .CanAdd}}
+<section class="card section" id="add-machine">
+  <h2>Add a machine</h2>
+  <p class="hint">Another computer at home or in the cloud can run some of your services. Install MyLab on it,
+    then run the command below on it. The machines connect over their own private network (WireGuard).</p>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{with .JoinCode}}
+  <p>On the new machine, run this within an hour (the code works once):</p>
+  <pre class="output copyable">sudo mylab node join {{.}}</pre>
+  <p class="hint">Anyone with this code can add a machine to your lab until it's used, so don't share it.</p>
+  {{end}}
+  <form method="post" action="/settings/machines/join">
+    <label for="endpoint">Address the new machine reaches this one at</label>
+    <input id="endpoint" name="endpoint" value="{{.Endpoint}}" placeholder="192.168.1.20:51820" required>
+    <small class="hint">This machine's address and port {{"51820"}} (UDP). For a machine outside your home, forward that port on your router, or use your public address.</small>
+    <button type="submit">{{if .JoinCode}}Make another code{{else}}Make a join code{{end}}</button>
+  </form>
 </section>
 {{end}}
 {{end}}

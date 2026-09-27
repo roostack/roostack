@@ -42,7 +42,7 @@
 
 {{define "activity-status"}}
 <p {{if not .Example}}id="activity-status-{{.Kind}}" {{end}}class="activity-status {{if .Running}}running{{else if .Err}}failed{{else}}ok{{end}}"
-  {{if and .Running (not .Example)}}hx-get="/activity/{{.Kind}}/status?was=running" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+  {{if and .Running (not .Example)}}hx-get="/activity/{{.Kind}}/status?was=running{{with .Machine}}&machine={{.}}{{end}}" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
   {{if .Running}}<span class="spinner" aria-hidden="true"></span> {{.Title}}: {{with .Status}}{{.}}…{{else}}starting…{{end}}
     <small>started {{when .Started}}</small>
   {{else if .Err}}✗ {{.Title}} failed {{when .Finished}}: {{.Err}}
@@ -52,7 +52,7 @@
 
 {{define "activity-log"}}
 <pre {{if not .Example}}id="activity-log-{{.Kind}}" {{end}}class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
-  {{if and .Running (not .Example)}}hx-get="/activity/{{.Kind}}/log" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+  {{if and .Running (not .Example)}}hx-get="/activity/{{.Kind}}/log{{with .Machine}}?machine={{.}}{{end}}" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
 {{- if .Dropped}}… {{.Dropped}} earlier lines not shown
 {{end}}{{range .Lines}}{{.}}
 {{end}}</pre>

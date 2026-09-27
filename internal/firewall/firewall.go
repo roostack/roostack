@@ -16,6 +16,7 @@ import (
 	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/generate"
+	"github.com/mylab/mylab/internal/labnet"
 	"github.com/mylab/mylab/internal/pkgspec"
 )
 
@@ -38,6 +39,25 @@ func Desired(lab config.Lab, services []*generate.Output) (fw agent.Firewall, ok
 			}
 			fw.Allow = append(fw.Allow, agent.Rule{Port: hp.Port, Proto: hp.Protocol, From: from,
 				Reason: s.Service + " " + hp.Name})
+		}
+	}
+	// MyLab's network between machines (SPEC.md §10.2).
+	if lab.OverlayAddr != "" {
+		fw.Allow = append(fw.Allow, agent.Rule{Port: labnet.Port, Proto: "tcp", Iface: agent.WireGuardInterface,
+			Reason: "mylab machines"})
+		if !lab.IsNode() {
+			// The controller is the hub other machines dial.
+			fw.Allow = append(fw.Allow, agent.Rule{Port: agent.WireGuardPort, Proto: "udp", From: agent.FromAny,
+				Reason: "mylab wireguard"})
+		}
+	}
+	// A node's web services are reached by the controller's Caddy.
+	if lab.IsNode() {
+		for _, s := range services {
+			for _, p := range s.Ports {
+				fw.Allow = append(fw.Allow, agent.Rule{Port: p, Proto: "tcp", Iface: agent.WireGuardInterface,
+					Reason: s.Service + " web (via the controller)"})
+			}
 		}
 	}
 	return fw, true
