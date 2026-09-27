@@ -5,11 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
-	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 
@@ -17,7 +15,6 @@ import (
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dns"
-	"github.com/mylab/mylab/internal/firewall"
 	"github.com/mylab/mylab/internal/store"
 )
 
@@ -53,18 +50,6 @@ type Setup struct {
 	NewRepo func(repository string, env []string) *backup.Repo
 	// Restart restarts MyLab so every part picks up the new settings.
 	Restart func()
-	// Host changes host settings through mylab-agent.
-	Host Host
-	// Zone and Zones read the host's time zone (internal/hosttime).
-	Zone  func() string
-	Zones func() ([]string, error)
-	// SSHClients lists who is connected over SSH now (internal/firewall).
-	SSHClients func() ([]netip.Addr, error)
-}
-
-// Host is what the wizard needs from mylab-agent.
-type Host interface {
-	SetTimezone(ctx context.Context, name string) error
 }
 
 // Progress is how far the wizard got.
@@ -93,6 +78,22 @@ func (p Progress) Next() string {
 		return "/setup/recovery-key"
 	}
 	return ""
+}
+
+// Wizard steps whose settings belong to the machine (node.Settings): the
+// UI saves them there, then marks the step done.
+const (
+	StepTimezone = "timezone"
+	StepSSH      = "ssh"
+)
+
+// Done marks a machine settings step of the wizard as done.
+func (s *Setup) Done(ctx context.Context, step string) error {
+	key, ok := map[string]string{StepTimezone: keyTimezone, StepSSH: keySSH}[step]
+	if !ok {
+		return fmt.Errorf("unknown setup step %q", step)
+	}
+	return s.Store.SetSetting(ctx, key, "done")
 }
 
 // Progress reads the wizard state.
@@ -124,96 +125,6 @@ func (s *Setup) Progress(ctx context.Context) (Progress, error) {
 	p.BackupDone, p.BackupLater = b == "done", b == "later"
 	p.RecoverySaved = r == "confirmed"
 	return p, nil
-}
-
-// Timezones returns the host's time zone and the zones it can be set to.
-func (s *Setup) Timezones() (string, []string, error) {
-	zones, err := s.Zones()
-	return s.Zone(), zones, err
-}
-
-// SaveTimezone sets the host's time zone. It returns true if the zone
-// changed, in which case MyLab restarts: Go reads the local time zone once
-// at startup, and schedules (nightly backups) depend on it.
-func (s *Setup) SaveTimezone(ctx context.Context, name string) (bool, error) {
-	name = strings.TrimSpace(name)
-	zones, err := s.Zones()
-	if err != nil {
-		return false, err
-	}
-	if !slices.Contains(zones, name) {
-		return false, &CheckError{"Choose a time zone from the list, such as Europe/London."}
-	}
-	changed := name != s.Zone()
-	if changed {
-		if err := s.Host.SetTimezone(ctx, name); err != nil {
-			return false, &CheckError{"MyLab couldn't change the time zone: " + err.Error()}
-		}
-	}
-	if err := s.Store.SetSetting(ctx, keyTimezone, "done"); err != nil {
-		return false, err
-	}
-	if changed {
-		s.Restart()
-	}
-	return changed, nil
-}
-
-// SSHAccess is the current SSH choice and who is connected now.
-type SSHAccess struct {
-	Choice  string // config.SSH*, or "" if not chosen yet
-	Clients []netip.Addr
-}
-
-// SSHAccess reads the SSH choice and current connections.
-func (s *Setup) SSHAccess() (SSHAccess, error) {
-	clients, err := s.SSHClients()
-	return SSHAccess{Choice: s.Lab.Firewall.SSH, Clients: clients}, err
-}
-
-// SaveSSH saves who may connect over SSH. It refuses a choice that would
-// cut off a current SSH connection unless confirmed, then restarts MyLab,
-// which applies the firewall.
-func (s *Setup) SaveSSH(ctx context.Context, choice string, confirmed bool) error {
-	switch choice {
-	case config.SSHFromLAN, config.SSHFromAny, config.SSHOff:
-	default:
-		return &CheckError{"Choose who can connect."}
-	}
-	clients, err := s.SSHClients()
-	if err != nil {
-		return err
-	}
-	if cut := firewall.CutsOff(choice, clients); len(cut) > 0 && !confirmed {
-		return &CheckError{fmt.Sprintf("That would disconnect the SSH connection from %s. "+
-			"Tick the box if that's what you want.", cut[0])}
-	}
-	if err := config.Update(s.LabPath, func(l *config.Lab) { l.Firewall.SSH = choice }); err != nil {
-		return err
-	}
-	if err := s.Store.SetSetting(ctx, keySSH, "done"); err != nil {
-		return err
-	}
-	s.Restart()
-	return nil
-}
-
-// SaveRestartPolicy saves when the host may restart after updates, then
-// restarts MyLab so the maintenance coordinator uses it.
-func (s *Setup) SaveRestartPolicy(ctx context.Context, mode string, hour int) error {
-	if mode != config.RestartAuto && mode != config.RestartNotify {
-		return &CheckError{"Choose whether to restart automatically."}
-	}
-	if hour < 0 || hour > 23 {
-		return &CheckError{"Choose an hour between 0 and 23."}
-	}
-	if err := config.Update(s.LabPath, func(l *config.Lab) {
-		l.Maintenance.Restart, l.Maintenance.RestartHour = mode, &hour
-	}); err != nil {
-		return err
-	}
-	s.Restart()
-	return nil
 }
 
 var domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$`)

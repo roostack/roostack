@@ -121,7 +121,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] `host` on every instance, set explicitly (existing ones stamped on first apply); only this node's services are generated, applied, backed up and shown; ports are per node; invalid hosts are rejected
   - [x] `Node` interface between the manager (controller) and machine operations: the manager hands each machine an Assignment (its services, typed-in secrets, services to set up); `node.Local` applies it, runs the firewall, install hooks, actions and secret reveals
   - [x] Backups, restores, OS updates and restarts behind the node (`node.Maintenance`); the web reaches them through the node. Their construction still lives in `serve` (`startMaintenance`)
-  - [ ] Machine settings behind the node too: time zone, SSH access/firewall choice (today through `setup` and the agent)
+  - [x] Machine settings behind the node (`node.Settings`: time zone, SSH access, restart policy); the wizard only records its progress (`setup.Done`)
   - [ ] The web reaches a service's machine by its host (today `Server.Node` is this machine)
   - [x] Per-node status and activity in the UI: activity is read from the node; Settings → Machines lists each machine (role, services, apply status); problems name the machine once there are several. Per-machine URLs (`/settings/machines/<id>/…`) come with the second machine
 - [ ] Two-VM prototype: second dev VM joins over MyLab-managed WireGuard (join code, mTLS), runs one service placed on it

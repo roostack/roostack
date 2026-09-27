@@ -17,7 +17,7 @@ import (
 
 func TestUsersPage(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
+	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}})
 	ctx := context.Background()
 
 	if _, body := h.get("/settings"); !strings.Contains(body, `href="/settings/people"`) || !strings.Contains(body, "1 person can log in") {
@@ -89,7 +89,7 @@ func TestQRSVG(t *testing.T) {
 
 func TestSettingsOverview(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	h.server.Setup = &fakeSetup{ssh: "lan", p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
+	h.setSetup(&fakeSetup{ssh: "lan", p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}})
 	h.server.Domain = "lab.example.com"
 	h.node().updates = &fakeUpdates{restart: osupdate.RestartStatus{Needed: true}}
 
@@ -111,7 +111,7 @@ func TestSettingsOverview(t *testing.T) {
 		}
 	}
 	// The first-run wizard has no sidebar.
-	h.server.Setup = &fakeSetup{}
+	h.setSetup(&fakeSetup{})
 	if _, body := h.get("/setup/timezone"); strings.Contains(body, `class="settings-nav"`) {
 		t.Error("the wizard shouldn't show the settings sidebar")
 	}

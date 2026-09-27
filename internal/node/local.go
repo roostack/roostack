@@ -38,6 +38,9 @@ type Node interface {
 	Backups() Backups
 	Restores() Restores
 	Updates() Updates
+	// Settings are the machine's own settings (settings.go); nil when
+	// they can't be changed from MyLab.
+	Settings() Settings
 }
 
 // Assignment is what the controller wants a node to run.
@@ -99,6 +102,8 @@ type Local struct {
 
 	// Jobs are the machine's backups, restores and OS updates.
 	Jobs Maintenance
+	// Machine changes the machine's own settings (optional).
+	Machine Settings
 
 	mu         sync.Mutex
 	assignment Assignment

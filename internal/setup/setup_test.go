@@ -3,7 +3,6 @@ package setup
 import (
 	"context"
 	"errors"
-	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,11 +22,6 @@ func (f fakeSecrets) Replace(_ context.Context, name string, v []byte) error {
 	return nil
 }
 
-// fakeHost stands in for mylab-agent.
-type fakeHost struct{ zone string }
-
-func (f *fakeHost) SetTimezone(_ context.Context, name string) error { f.zone = name; return nil }
-
 func newSetup(t *testing.T) (*Setup, fakeSecrets, *int) {
 	t.Helper()
 	dir := t.TempDir()
@@ -41,16 +35,9 @@ func newSetup(t *testing.T) (*Setup, fakeSecrets, *int) {
 	lab.Paths.StateDir = dir
 	restarts := 0
 	secrets := fakeSecrets{}
-	host := &fakeHost{zone: "Etc/UTC"}
 	s := &Setup{
 		Lab: lab, LabPath: filepath.Join(dir, "lab.yaml"), Store: st, Secrets: secrets,
 		Restart: func() { restarts++ },
-		Host:    host,
-		Zone:    func() string { return host.zone },
-		Zones:   func() ([]string, error) { return []string{"Australia/Melbourne", "Etc/UTC", "UTC"}, nil },
-		SSHClients: func() ([]netip.Addr, error) {
-			return []netip.Addr{netip.MustParseAddr("203.0.113.9")}, nil // someone connected from outside
-		},
 		// Stand-in for the provider: only the value "good" works.
 		CheckDNS: func(_ context.Context, p *dns.Provider, v map[string]string, domain string) (string, error) {
 			for _, f := range p.Fields {
@@ -71,14 +58,11 @@ func TestDomainStep(t *testing.T) {
 	if p, _ := s.Progress(ctx); p.Next() != "/setup/timezone" {
 		t.Fatalf("a new lab starts at the time zone step, got %q", p.Next())
 	}
-	// Confirming the current zone needs no restart.
-	if changed, err := s.SaveTimezone(ctx, "Etc/UTC"); changed || err != nil || *restarts != 0 {
-		t.Fatalf("unchanged zone: changed=%v err=%v restarts=%d", changed, err, *restarts)
-	}
+	s.Done(ctx, StepTimezone)
 	if p, _ := s.Progress(ctx); p.Next() != "/setup/ssh" {
 		t.Fatalf("after the time zone comes the SSH step, got %q", p.Next())
 	}
-	s.Store.SetSetting(ctx, keySSH, "done") // tested in TestSSHStep
+	s.Done(ctx, StepSSH)
 	if p, _ := s.Progress(ctx); p.Next() != "/setup/domain" {
 		t.Fatalf("then the domain step, got %q", p.Next())
 	}
@@ -200,7 +184,7 @@ func TestBackupStep(t *testing.T) {
 func TestSkipping(t *testing.T) {
 	s, _, _ := newSetup(t)
 	ctx := context.Background()
-	s.SaveTimezone(ctx, "Etc/UTC") // the time zone and SSH steps can't be skipped
+	s.Done(ctx, StepTimezone) // the time zone and SSH steps can't be skipped
 	s.Store.SetSetting(ctx, keySSH, "done")
 	s.DomainLater(ctx)
 	s.BackupLater(ctx)
@@ -210,57 +194,18 @@ func TestSkipping(t *testing.T) {
 	}
 }
 
-func TestTimezoneStep(t *testing.T) {
-	s, _, restarts := newSetup(t)
+func TestDone(t *testing.T) {
+	s, _, _ := newSetup(t)
 	ctx := context.Background()
-
-	var ce *CheckError
-	if _, err := s.SaveTimezone(ctx, "Mars/Olympus_Mons"); !errors.As(err, &ce) {
-		t.Errorf("unknown zone: want a CheckError, got %v", err)
+	if err := s.Done(ctx, "nope"); err == nil {
+		t.Error("unknown step: want an error")
 	}
-	if p, _ := s.Progress(ctx); p.TimezoneDone {
-		t.Error("a rejected zone must not finish the step")
+	s.Done(ctx, StepTimezone)
+	if p, _ := s.Progress(ctx); !p.TimezoneDone || p.SSHDone || p.Next() != "/setup/ssh" {
+		t.Errorf("after the time zone: %+v", p)
 	}
-	changed, err := s.SaveTimezone(ctx, " Australia/Melbourne ")
-	if err != nil || !changed {
-		t.Fatalf("changed=%v err=%v", changed, err)
-	}
-	if got := s.Host.(*fakeHost).zone; got != "Australia/Melbourne" || *restarts != 1 {
-		t.Errorf("host zone %q, restarts %d: want the zone set and MyLab restarted", got, *restarts)
-	}
-	if p, _ := s.Progress(ctx); !p.TimezoneDone {
-		t.Error("step not marked done")
-	}
-}
-
-func TestSSHStep(t *testing.T) {
-	s, _, restarts := newSetup(t)
-	ctx := context.Background()
-	os.WriteFile(s.LabPath, []byte("domain: lab.example.com\n"), 0o640)
-
-	var ce *CheckError
-	if err := s.SaveSSH(ctx, "sometimes", false); !errors.As(err, &ce) {
-		t.Errorf("bad choice: %v", err)
-	}
-	// Home network only would cut off the connection from 203.0.113.9.
-	if err := s.SaveSSH(ctx, config.SSHFromLAN, false); !errors.As(err, &ce) || !strings.Contains(ce.Msg, "203.0.113.9") {
-		t.Fatalf("want a warning about the current connection, got %v", err)
-	}
-	if p, _ := s.Progress(ctx); p.SSHDone || *restarts != 0 {
-		t.Fatal("a refused choice must change nothing")
-	}
-	if err := s.SaveSSH(ctx, config.SSHFromLAN, true); err != nil {
-		t.Fatal(err)
-	}
-	lab, err := config.Load(s.LabPath)
-	if err != nil || lab.Firewall.SSH != config.SSHFromLAN {
-		t.Errorf("lab.yaml firewall = %+v, %v", lab.Firewall, err)
-	}
-	if p, _ := s.Progress(ctx); !p.SSHDone || *restarts != 1 {
-		t.Errorf("done=%v restarts=%d: want the step done and MyLab restarted to apply it", p.SSHDone, *restarts)
-	}
-	// Anywhere cuts nobody off: no confirmation needed.
-	if err := s.SaveSSH(ctx, config.SSHFromAny, false); err != nil {
-		t.Error(err)
+	s.Done(ctx, StepSSH)
+	if p, _ := s.Progress(ctx); !p.SSHDone || p.Next() != "/setup/domain" {
+		t.Errorf("after SSH: %+v", p)
 	}
 }

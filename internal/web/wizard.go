@@ -10,6 +10,7 @@ import (
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/hosttime"
+	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/setup"
 )
 
@@ -87,7 +88,11 @@ type clockView struct {
 }
 
 func (s *Server) timezonePage(w http.ResponseWriter, r *http.Request) {
-	current, zones, err := s.Setup.Timezones()
+	if s.machine() == nil {
+		http.NotFound(w, r)
+		return
+	}
+	current, zones, err := s.machine().Timezones()
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -98,14 +103,21 @@ func (s *Server) timezonePage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
 	zone := r.FormValue("timezone")
+	if s.machine() == nil {
+		http.NotFound(w, r)
+		return
+	}
 	p, err := s.Setup.Progress(r.Context())
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	changed, err := s.Setup.SaveTimezone(r.Context(), zone)
+	changed, err := s.machine().SetTimezone(r.Context(), zone)
+	if err == nil {
+		err = s.Setup.Done(r.Context(), setup.StepTimezone)
+	}
 	if err != nil {
-		current, zones, zerr := s.Setup.Timezones()
+		current, zones, zerr := s.machine().Timezones()
 		if zerr != nil {
 			s.serverError(w, zerr)
 			return
@@ -131,7 +143,10 @@ type sshClient struct {
 }
 
 func (s *Server) sshData(r *http.Request, choice, errMsg string) (map[string]any, error) {
-	a, err := s.Setup.SSHAccess()
+	if s.machine() == nil {
+		return nil, errNoMachine
+	}
+	a, err := s.machine().SSHAccess()
 	if err != nil {
 		return nil, err
 	}
@@ -160,10 +175,16 @@ func (s *Server) sshPage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
 	choice := r.FormValue("ssh")
-	err := s.Setup.SaveSSH(r.Context(), choice, r.FormValue("confirm") == "on")
-	var ce *setup.CheckError
-	if errors.As(err, &ce) {
-		data, derr := s.sshData(r, choice, ce.Msg)
+	if s.machine() == nil {
+		http.NotFound(w, r)
+		return
+	}
+	err := s.machine().SetSSH(r.Context(), choice, r.FormValue("confirm") == "on")
+	if err == nil {
+		err = s.Setup.Done(r.Context(), setup.StepSSH)
+	}
+	if msg, ok := userMessage(err); ok {
+		data, derr := s.sshData(r, choice, msg)
 		if derr != nil {
 			s.serverError(w, derr)
 			return
@@ -291,17 +312,34 @@ func (s *Server) recoveryConfirm(w http.ResponseWriter, r *http.Request) {
 
 // wizardError re-renders a wizard page for a user-fixable error. It returns
 // true if it handled err.
+// errNoMachine means this MyLab can't change its machine's settings.
+var errNoMachine = errors.New("machine settings aren't available")
+
+// userMessage returns an error's message if it is one the user can act on
+// (a problem with what they entered), rather than a server error.
+func userMessage(err error) (string, bool) {
+	var ce *setup.CheckError
+	var fe *node.FormError
+	switch {
+	case errors.As(err, &ce):
+		return ce.Msg, true
+	case errors.As(err, &fe):
+		return fe.Msg, true
+	}
+	return "", false
+}
+
 func (s *Server) wizardError(w http.ResponseWriter, r *http.Request, err error, page string, data map[string]any) bool {
 	if err == nil {
 		return false
 	}
-	var ce *setup.CheckError
-	if !errors.As(err, &ce) {
+	msg, ok := userMessage(err)
+	if !ok {
 		s.serverError(w, err)
 		return true
 	}
 	data["User"] = currentUser(r)
-	data["Error"] = ce.Msg
+	data["Error"] = msg
 	w.WriteHeader(http.StatusBadRequest)
 	s.render(w, page, data)
 	return true
