@@ -91,7 +91,7 @@ func TestSettingsOverview(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	h.server.Setup = &fakeSetup{ssh: "lan", p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
 	h.server.Domain = "lab.example.com"
-	h.server.Updates = &fakeUpdates{restart: osupdate.RestartStatus{Needed: true}}
+	h.node().updates = &fakeUpdates{restart: osupdate.RestartStatus{Needed: true}}
 
 	_, body := h.get("/settings")
 	for _, want := range []string{"People and access", "This machine", `href="/settings/remote-access"`,

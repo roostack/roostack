@@ -16,6 +16,7 @@ import (
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/manager"
+	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/store"
 )
@@ -41,7 +42,17 @@ type fakeManager struct {
 
 	acts     *activity.Registry
 	machines []manager.Machine
+	backups  BackupService
+	restores RestoreService
+	updates  HostUpdates
 }
+
+func (f *fakeManager) Backups() node.Backups   { return f.backups }
+func (f *fakeManager) Restores() node.Restores { return f.restores }
+func (f *fakeManager) Updates() node.Updates   { return f.updates }
+
+// node is the fake machine.
+func (h *harness) node() *fakeManager { return h.server.Node.(*fakeManager) }
 
 func (f *fakeManager) LatestActivity(kind string) (activity.Snapshot, bool) {
 	return f.acts.Latest(kind)

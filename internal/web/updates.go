@@ -1,7 +1,6 @@
 package web
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -12,15 +11,6 @@ import (
 	"github.com/mylab/mylab/internal/osupdate"
 	"github.com/mylab/mylab/internal/setup"
 )
-
-// HostUpdates is what the UI needs from internal/osupdate.
-type HostUpdates interface {
-	Last(ctx context.Context) (*osupdate.Result, error)
-	Pending() bool
-	Submit() error
-	RestartStatus() osupdate.RestartStatus
-	RestartNow(ctx context.Context) error
-}
 
 // updatesView is the Settings page's "Updates and restarts" card.
 type updatesView struct {
@@ -36,14 +26,14 @@ type updatesView struct {
 }
 
 func (s *Server) updatesView(r *http.Request, errMsg string) *updatesView {
-	if s.Updates == nil || !auth.Can(currentUser(r).Role, auth.ManageHost) {
+	if s.updates() == nil || !auth.Can(currentUser(r).Role, auth.ManageHost) {
 		return nil
 	}
-	last, err := s.Updates.Last(r.Context())
+	last, err := s.updates().Last(r.Context())
 	if err != nil {
 		s.Log.Error("reading the last OS update", "err", err)
 	}
-	v := &updatesView{Last: last, Pending: s.Updates.Pending(), Restart: s.Updates.RestartStatus(),
+	v := &updatesView{Last: last, Pending: s.updates().Pending(), Restart: s.updates().RestartStatus(),
 		Mode: s.Maintenance.Restart, Hour: s.Maintenance.Hour(), ErrorMsg: errMsg,
 		Activity: s.activityFor(r, activity.OSUpdates)}
 	if a := v.Activity; a != nil && a.Running() {
@@ -59,11 +49,11 @@ func (s *Server) updatesView(r *http.Request, errMsg string) *updatesView {
 }
 
 func (s *Server) updateNowSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Updates == nil {
+	if s.updates() == nil {
 		http.NotFound(w, r)
 		return
 	}
-	if err := s.Updates.Submit(); err != nil && !errors.Is(err, osupdate.ErrAlreadyQueued) {
+	if err := s.updates().Submit(); err != nil && !errors.Is(err, osupdate.ErrAlreadyQueued) {
 		s.serverError(w, err)
 		return
 	}
@@ -72,11 +62,11 @@ func (s *Server) updateNowSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) restartNowSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Updates == nil {
+	if s.updates() == nil {
 		http.NotFound(w, r)
 		return
 	}
-	err := s.Updates.RestartNow(r.Context())
+	err := s.updates().RestartNow(r.Context())
 	var busy osupdate.ErrBusy
 	if errors.As(err, &busy) {
 		s.renderUpdates(w, r, "MyLab can't restart right now: "+busy.Error()+".")

@@ -119,9 +119,9 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	} else {
 		set("home-network", "Set up a domain first", "")
 	}
-	if s.Updates != nil {
-		last, _ := s.Updates.Last(r.Context())
-		rs := s.Updates.RestartStatus()
+	if s.updates() != nil {
+		last, _ := s.updates().Last(r.Context())
+		rs := s.updates().RestartStatus()
 		switch {
 		case last != nil && !last.OK:
 			set("updates", "The last update didn't finish", "problem")
