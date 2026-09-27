@@ -136,6 +136,8 @@ type ServiceManager interface {
 	BackupTargetOf(ctx context.Context, machineID string) (store.BackupTarget, string, bool)
 	SetBackupDestination(ctx context.Context, machineID, ref string) error
 	AddS3Provider(ctx context.Context, name string, p manager.S3Provider) error
+	MoveInfo(ctx context.Context, name string) (manager.MoveInfo, error)
+	MoveService(ctx context.Context, name, to string) error
 	RemoveMachine(ctx context.Context, id string) error
 	RenameMachine(ctx context.Context, id, name string) error
 }
@@ -237,7 +239,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover",
 		"home", "services", "service", "backups", "restore", "settings", "account", "users", "about",
-		"settings-domain", "settings-network", "settings-updates", "settings-machines"} {
+		"settings-domain", "settings-network", "settings-updates", "settings-machines", "move"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -282,6 +284,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/machines/{machine}/remove", s.requireOwner(s.removeMachineSubmit))
 	mux.Handle("POST /settings/machines/{machine}/backup-destination", s.requireOwner(s.backupDestinationSubmit))
 	mux.Handle("POST /settings/backup-providers", s.requireOwner(s.addProviderSubmit))
+	mux.Handle("GET /services/{name}/move", s.requireOwner(s.movePage))
+	mux.Handle("POST /services/{name}/move", s.requireOwner(s.moveSubmit))
 	mux.Handle("POST /settings/machines/join", s.requireOwner(s.joinCodeSubmit))
 	mux.Handle("GET /settings/updates", s.requireOwner(s.updatesPage))
 	mux.Handle("GET /settings/time-zone", s.requireWizard(s.timezonePage))

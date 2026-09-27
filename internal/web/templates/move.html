@@ -1,0 +1,28 @@
+{{define "title"}}Move {{.Package.Title}}{{end}}
+{{define "content"}}
+<section class="card medium">
+  {{back (printf "/services/%s" .Package.Name) .Package.Title}}
+  <h1>Move {{.Package.Title}} to another machine</h1>
+  <dl class="facts">
+    <dt>Runs on</dt><dd>{{.Info.From.Name}}</dd>
+    <dt>Data</dt><dd>{{.Size}}</dd>
+  </dl>
+  {{with .MoveActivity}}{{activity .}}{{end}}
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{with .Targets}}
+  <form method="post">
+    <fieldset>
+      <legend>Move it to</legend>
+      {{range .}}<label class="check"><input type="radio" name="to" value="{{.ID}}" required>
+        <span>{{.Name}}{{if .This}} (this machine){{end}}</span></label>{{end}}
+    </fieldset>
+    <p class="hint">MyLab copies its data while it keeps running, then stops it for a final copy of what changed,
+      and starts it on the new machine. Its web address stays the same. Downtime is usually a minute or two.
+      The old copy stays on {{$.Info.From.Name}} until you delete it.</p>
+    <button type="submit">Move {{$.Package.Title}}</button>
+  </form>
+  {{else}}
+  <p>Add another machine first (Settings → Machines).</p>
+  {{end}}
+</section>
+{{end}}

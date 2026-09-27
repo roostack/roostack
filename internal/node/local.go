@@ -118,6 +118,9 @@ type Local struct {
 	Firewall FirewallApplier
 	// Units reads systemd unit states, for ServiceStates (optional).
 	Units UnitStatuser
+	// Launch runs commands as the mylab user outside MyLab's sandbox, for
+	// moving service data (move.go; optional).
+	Launch Launcher
 
 	// Hooks (hooks.go). State records install hook progress; without
 	// State and Exec, hooks don't run.

@@ -12,6 +12,7 @@ var activityPerm = map[string]auth.Permission{
 	activity.OSUpdates:   auth.ManageHost,
 	activity.Restore:     auth.ManageHost,
 	activity.BackupSetup: auth.ManageHost,
+	activity.Move:        auth.ManageHost,
 	activity.Backup:      auth.ManageServices,
 	activity.Apply:       auth.ManageServices,
 	activity.Setup:       auth.ManageServices,

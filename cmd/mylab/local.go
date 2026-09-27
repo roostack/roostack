@@ -29,9 +29,12 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 	local := &node.Local{
 		ID: id,
 		// Live logs of host operations, shown in the UI.
-		Activity:   activity.New(),
-		Firewall:   agentClient,
-		Units:      sd,
+		Activity: activity.New(),
+		Firewall: agentClient,
+		Units:    sd,
+		// Moving a service's data runs tar in podman unshare, outside the
+		// sandbox like backups.
+		Launch:     userLaunch,
 		Lab:        lab,
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets()},
 		Log:        log,
