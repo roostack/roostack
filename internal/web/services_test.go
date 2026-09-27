@@ -335,3 +335,23 @@ func TestServiceSetupAndActions(t *testing.T) {
 		}
 	}
 }
+
+func TestTemporaryPasswordMustBeChanged(t *testing.T) {
+	h := newHarness(t, "")
+	hash, _ := auth.HashPassword("temporary password")
+	h.store.CreateUser(context.Background(), store.User{Username: "dad", PasswordHash: hash, Role: auth.RoleMember,
+		MustChangePassword: true})
+	h.post("/login", url.Values{"username": {"dad"}, "password": {"temporary password"}}, h.srv.URL)
+
+	if _, body := h.get("/"); !strings.Contains(body, "using a temporary password") {
+		t.Fatal("a temporary password should send the user to choose their own first")
+	}
+	_, body := h.post("/account/password", url.Values{"current": {"temporary password"},
+		"password": {"my own long password"}, "confirm": {"my own long password"}}, h.srv.URL)
+	if !strings.Contains(body, "Your services") {
+		t.Error("after choosing a password, the user should carry on to the dashboard")
+	}
+	if u, _ := h.store.UserByUsername(context.Background(), "dad"); u.MustChangePassword {
+		t.Error("flag not cleared")
+	}
+}

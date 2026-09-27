@@ -2,9 +2,12 @@
 {{define "content"}}
 <section class="card narrow">
   <h1>Your account</h1>
+  {{if .User.MustChangePassword}}
+  <p class="notice" role="status">You're using a temporary password. Choose your own below to continue.</p>
+  {{end}}
   <dl class="facts">
     <dt>Username</dt><dd>{{.User.Username}}</dd>
-    <dt>Role</dt><dd>{{.User.Role}}</dd>
+    <dt>Role</dt><dd>{{roleName .User.Role}}</dd>
     <dt>Two-factor</dt><dd>{{if .User.TOTPSecret}}On{{else}}Off · <a href="/account/2fa">Turn it on</a>{{end}}</dd>
   </dl>
   <h2>Change password</h2>

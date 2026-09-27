@@ -294,6 +294,10 @@ func (s *Server) require(p auth.Permission, h http.HandlerFunc) http.Handler {
 			redirect(w, r, "/account/2fa")
 			return
 		}
+		if u.MustChangePassword {
+			redirect(w, r, "/account")
+			return
+		}
 		// Owners finish the setup wizard next.
 		if u.Role == auth.RoleOwner && s.Setup != nil {
 			if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {

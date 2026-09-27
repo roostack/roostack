@@ -37,6 +37,10 @@ func (s *Server) requireOwner(h http.HandlerFunc) http.Handler {
 			redirect(w, r, "/account/2fa")
 			return
 		}
+		if u.MustChangePassword {
+			redirect(w, r, "/account")
+			return
+		}
 		h(w, r)
 	})
 }

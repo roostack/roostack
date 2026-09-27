@@ -1,6 +1,6 @@
 {{define "title"}}{{.Service.Title}}{{end}}
 {{define "content"}}
-<section class="card narrow">
+<section class="card medium">
   <p><a href="/services">← Services</a></p>
   <div class="heading">
     <h1>{{.Service.Title}}</h1>
@@ -24,9 +24,14 @@
   <dl class="facts">
     {{range .Service.URLs}}<dt>Address</dt><dd><a href="{{.}}" target="_blank" rel="noopener">{{.}}</a></dd>{{end}}
     <dt>Reachable from</dt><dd>Your home network (or VPN)</dd>
-    {{with .Package}}<dt>Version</dt><dd>{{.Version}}</dd>{{end}}
-    {{with .DataDirs}}<dt>Data</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}</dd>{{end}}
   </dl>
+  <details class="technical">
+    <summary>Technical details</summary>
+    <dl class="facts">
+      {{with .Package}}<dt>Version</dt><dd>{{.Version}}</dd>{{end}}
+      {{with .DataDirs}}<dt>Data</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}</dd>{{end}}
+    </dl>
+  </details>
   {{with .Ports}}
   <h2>Extra connections</h2>
   <p class="hint">Most things go through the web address above. These connect directly to this machine, from your home network only.</p>

@@ -57,13 +57,13 @@ func user(args []string) error {
 		if !auth.ValidRole(*role) {
 			return fmt.Errorf("user: unknown role %q", *role)
 		}
-		if _, err := st.CreateUser(ctx, store.User{Username: name, PasswordHash: hash, Role: *role}); err != nil {
+		if _, err := st.CreateUser(ctx, store.User{Username: name, PasswordHash: hash, Role: *role, MustChangePassword: true}); err != nil {
 			return err
 		}
 		st.Audit(ctx, nil, "user add", fmt.Sprintf("%s (%s) via command line", name, *role))
 		fmt.Printf("Created %s (%s).\n", name, *role)
 	case "reset-password":
-		if err := st.SetPassword(ctx, name, hash); errors.Is(err, store.ErrNotFound) {
+		if err := st.SetPassword(ctx, name, hash, true); errors.Is(err, store.ErrNotFound) {
 			return fmt.Errorf("user: no user named %q", name)
 		} else if err != nil {
 			return err
@@ -75,5 +75,6 @@ func user(args []string) error {
 		return fmt.Errorf("user: unknown command %q", sub)
 	}
 	fmt.Printf("Temporary password: %s\n", password)
+	fmt.Println("They choose their own password when they next log in.")
 	return nil
 }

@@ -16,6 +16,14 @@ const (
 	levelInfo    = "info"    // in progress; nothing to do
 )
 
+// dnsHeadline summarises a DNS problem for the home page.
+var dnsHeadline = map[string]string{
+	dnsrecords.StateBlocked:    "Devices at home can't reach your services: your router blocks their addresses.",
+	dnsrecords.StateOverridden: "Devices at home are sent somewhere else when they open your services.",
+	dnsrecords.StateConflict:   "A DNS record for your services points somewhere else, so MyLab can't update it.",
+	dnsrecords.StateError:      "MyLab couldn't check or update your DNS records.",
+}
+
 // attentionItem is one entry in the home page's "Needs attention" list.
 // Each links to the page where it's dealt with.
 type attentionItem struct {
@@ -98,7 +106,8 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		st := s.DNS.Status()
 		switch st.State {
 		case dnsrecords.StateBlocked, dnsrecords.StateOverridden, dnsrecords.StateConflict, dnsrecords.StateError:
-			add(levelProblem, st.Message, "/settings#dns", "Home network settings")
+			// A headline here; the full explanation is on the Settings card.
+			add(levelProblem, dnsHeadline[st.State], "/settings#dns", "See how to fix it")
 		case dnsrecords.StatePending:
 			add(levelInfo, st.Message, "/settings#dns", "View")
 		case dnsrecords.StateManual:

@@ -50,13 +50,16 @@ func TestUsersAndSessions(t *testing.T) {
 	}
 
 	// A password reset logs the user out everywhere.
-	if err := s.SetPassword(ctx, "tyris", "new"); err != nil {
+	if err := s.SetPassword(ctx, "tyris", "new", true); err != nil {
 		t.Fatal(err)
+	}
+	if u, _ := s.UserByUsername(ctx, "tyris"); !u.MustChangePassword {
+		t.Error("a temporary password must be changed at the next login")
 	}
 	if _, err := s.SessionUser(ctx, "tok"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("sessions should be cleared after a password reset, got %v", err)
 	}
-	if err := s.SetPassword(ctx, "nobody", "x"); !errors.Is(err, ErrNotFound) {
+	if err := s.SetPassword(ctx, "nobody", "x", false); !errors.Is(err, ErrNotFound) {
 		t.Errorf("reset for unknown user: %v", err)
 	}
 }

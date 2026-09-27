@@ -62,6 +62,9 @@ var migrations = []string{
 		key   TEXT PRIMARY KEY,
 		value TEXT NOT NULL
 	);`,
+	// Set for passwords printed by the command line: the user chooses
+	// their own at the next login.
+	`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -141,7 +144,9 @@ type User struct {
 	Role         string
 	TOTPSecret   string
 	TOTPLastStep int64
-	CreatedAt    time.Time
+	// MustChangePassword is set for temporary passwords (CLI add/reset).
+	MustChangePassword bool
+	CreatedAt          time.Time
 }
 
 // CountUsers returns the number of accounts.
@@ -154,8 +159,8 @@ func (s *Store) CountUsers(ctx context.Context) (int, error) {
 // CreateUser adds an account and returns its ID.
 func (s *Store) CreateUser(ctx context.Context, u User) (int64, error) {
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)`,
-		u.Username, u.PasswordHash, u.Role, time.Now().Unix())
+		`INSERT INTO users (username, password_hash, role, must_change_password, created_at) VALUES (?, ?, ?, ?, ?)`,
+		u.Username, u.PasswordHash, u.Role, u.MustChangePassword, time.Now().Unix())
 	if err != nil {
 		return 0, err
 	}
@@ -183,9 +188,11 @@ func (s *Store) UserByUsername(ctx context.Context, username string) (*User, err
 		`SELECT `+userColumns+` FROM users WHERE username = ?`, username))
 }
 
-// SetPassword replaces a user's password hash (used by the CLI reset).
-func (s *Store) SetPassword(ctx context.Context, username, hash string) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE username = ?`, hash, username)
+// SetPassword replaces a user's password hash. A temporary password
+// (e.g. from the CLI reset) must be changed at the next login.
+func (s *Store) SetPassword(ctx context.Context, username, hash string, temporary bool) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE users SET password_hash = ?, must_change_password = ? WHERE username = ?`,
+		hash, temporary, username)
 	if err != nil {
 		return err
 	}
@@ -199,7 +206,7 @@ func (s *Store) SetPassword(ctx context.Context, username, hash string) error {
 }
 
 const userColumns = `users.id, users.username, users.password_hash, users.role,
-	users.totp_secret, users.totp_last_step, users.created_at`
+	users.totp_secret, users.totp_last_step, users.must_change_password, users.created_at`
 
 // UserByID looks up an account.
 func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
@@ -229,7 +236,8 @@ func (s *Store) UseTOTPStep(ctx context.Context, userID, step int64) (bool, erro
 func (s *Store) scanUser(row *sql.Row) (*User, error) {
 	var u User
 	var created int64
-	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &u.TOTPLastStep, &created)
+	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &u.TOTPLastStep,
+		&u.MustChangePassword, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

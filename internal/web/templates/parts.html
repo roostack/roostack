@@ -38,7 +38,7 @@
 {{with .Backup}}
 <section class="card section">
   <div class="heading">
-    <h2>Backups</h2>
+    <h2>Status</h2>
     {{if and $.CanManage .Configured (not .Running) (not .Queued)}}
     <form method="post" action="/backup/run"><button type="submit">Back up now</button></form>
     {{end}}
@@ -52,7 +52,8 @@
       <p class="notice notice-error">The last backup ({{when .Finished}}) didn't finish: {{.Error}}</p>
     {{end}}{{end}}
     {{with .LastOK}}
-      <p>Last backup: <strong>{{when .Finished}}</strong>{{if stale .Finished}} <span class="error">(over 2 days ago)</span>{{end}}</p>
+      <p>Last backup: <strong>{{when .Finished}}</strong>{{if stale .Finished}} <span class="error">(over 2 days ago)</span>{{end}}
+        <span class="hint">· {{.FilesNew}} new or changed files, {{bytes .DataAdded}} added</span></p>
     {{else}}
       <p class="error">No backup has finished yet.</p>
     {{end}}
@@ -96,10 +97,10 @@
   </form>
   {{else if .Managing}}
   <p class="hint">MyLab manages DNS records at {{.Provider}}: {{.Record}} → {{.IP}}.</p>
-  <form method="post" action="/dns/manage" class="later">
+  <form method="post" action="/dns/manage">
     <input type="hidden" name="manage" value="off">
-    <button type="submit" class="link">Stop managing DNS records</button>
-    <small>Records stay in place; MyLab just stops creating and updating them.</small>
+    <button type="submit" class="secondary">Stop managing DNS records</button>
+    <p class="hint">Records stay in place; MyLab just stops creating and updating them.</p>
   </form>
   {{end}}
 </section>

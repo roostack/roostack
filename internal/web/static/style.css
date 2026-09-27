@@ -5,6 +5,8 @@
   --border: #dde1e8; --accent: #2458d6; --accent-fg: #fff;
   --ok: #1d7a46; --warn: #a15c00; --bad: #b3261e;
   font-family: system-ui, sans-serif; font-size: 17px; line-height: 1.5;
+  color-scheme: light dark; /* native controls (radios, selects) match the theme */
+  accent-color: var(--accent);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -29,6 +31,9 @@ h2 { font-size: 1.15rem; margin: 0 0 4px; }
 
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
 .narrow { max-width: 440px; margin: 40px auto; }
+.medium { max-width: 680px; margin: 24px auto; }
+details.technical { margin: 4px 0 20px; }
+details.technical summary { cursor: pointer; color: var(--muted); font-size: 0.9em; }
 .hint, small { color: var(--muted); }
 .error { color: var(--bad); }
 
@@ -43,7 +48,7 @@ code { font-size: 0.9em; }
 
 .services { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .service { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.service a { display: block; overflow-wrap: anywhere; }
+.service a { display: block; overflow-wrap: break-word; }
 .status { padding: 4px 12px; border-radius: 999px; font-weight: 600; font-size: 0.9rem;
   border: 1px solid currentColor; white-space: nowrap; }
 .status-running { color: var(--ok); }
@@ -138,7 +143,13 @@ ul.scope li { margin-bottom: 4px; }
 .section h2 { margin: 0; }
 dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 12px 0; }
 dl.facts dt { color: var(--muted); }
-dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+/* break-word only breaks long words when they don't fit (anywhere also
+   shrinks the column, breaking domains mid-word). */
+dl.facts dd { margin: 0; min-width: 0; overflow-wrap: break-word; }
+@media (max-width: 480px) {
+  dl.facts { grid-template-columns: 1fr; gap: 0; }
+  dl.facts dt { margin-top: 8px; font-size: 0.9em; }
+}
 .service h2 a { color: var(--fg); }
 @media (max-width: 640px) {
   .attention .item { flex-direction: column; align-items: flex-start; }
@@ -162,3 +173,6 @@ ul.kept { list-style: none; padding: 0; }
 ul.kept li { display: flex; justify-content: space-between; align-items: center; gap: 12px;
   border-top: 1px solid var(--border); padding: 10px 0; overflow-wrap: anywhere; }
 ul.plain { list-style: none; padding: 0; } ul.plain li { margin: 6px 0; }
+
+/* A dropdown inside a sentence ("Restart automatically at [04:00]"). */
+select.inline { display: inline-block; width: auto; margin: 0 0 0 6px; padding: 4px 8px; }
