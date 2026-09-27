@@ -33,6 +33,7 @@ func newSetup(t *testing.T) (*Setup, fakeSecrets, *int) {
 	lab := config.Default()
 	lab.Domain = "lab.example.com" // the placeholder from the example config
 	lab.Paths.StateDir = dir
+	lab.NodeID = "n-0000000001"
 	restarts := 0
 	secrets := fakeSecrets{}
 	s := &Setup{
@@ -147,15 +148,21 @@ func TestBackupStep(t *testing.T) {
 	if err := s.SaveBackup(ctx, BackupChoice{Kind: "local", Path: dest}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dest, "config")); err != nil {
+	// Each machine has its own folder in the destination (SPEC.md §10.10).
+	labID, _ := s.Store.LabID(ctx)
+	repo := filepath.Join(dest, "mylab", labID, "n-0000000001")
+	if _, err := os.Stat(filepath.Join(repo, "config")); err != nil {
 		t.Error("restic repository not created:", err)
+	}
+	if ts, _ := s.Store.BackupTargets(ctx); len(ts) != 1 || ts[0].Repository != repo || ts[0].Provider != "local:"+repo {
+		t.Errorf("targets = %+v", ts)
 	}
 	key, err := s.RecoveryKey()
 	if err != nil || len(key) < 40 {
 		t.Errorf("recovery key %q: %v", key, err)
 	}
 	lab, _ := config.Load(s.LabPath)
-	if lab.Backup.Repository != dest {
+	if lab.Backup.Repository != repo || !lab.Backup.PrunedByController {
 		t.Errorf("saved repository %q", lab.Backup.Repository)
 	}
 	if p, _ := s.Progress(ctx); p.Next() != "/setup/recovery-key" || *restarts != 0 {

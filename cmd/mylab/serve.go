@@ -126,6 +126,9 @@ func serve(args []string) error {
 	// Backups across machines (SPEC.md §10.10): the controller creates
 	// each machine's repository with the recovery key.
 	mgr.BackupStore = st
+	if err := mgr.AdoptBackupDestination(ctx, lab.Backup.Repository); err != nil {
+		log.Error("recording this machine's backup destination", "err", err)
+	}
 	mgr.HasRecoveryKey = func() bool {
 		_, err := os.Stat(backup.KeyFile(lab.Paths))
 		return err == nil

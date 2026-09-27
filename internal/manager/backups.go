@@ -33,8 +33,7 @@ type BackupStore interface {
 	SetBackupTarget(ctx context.Context, t store.BackupTarget) error
 	StoreAdmin(ctx context.Context, machineID string) (password, hash string, ok bool, err error)
 	SetStoreAdmin(ctx context.Context, machineID, password, hash string) error
-	Setting(ctx context.Context, key string) (string, error)
-	SetSetting(ctx context.Context, key, value string) error
+	LabID(ctx context.Context) (string, error)
 }
 
 // BackupChoice is a place a machine can back up to.
@@ -46,14 +45,8 @@ type BackupChoice struct {
 	Note string
 }
 
-// S3Provider is an S3-compatible provider (Backblaze B2, Wasabi, AWS, …).
-type S3Provider struct {
-	Endpoint  string `json:"endpoint"`
-	Bucket    string `json:"bucket"`
-	Prefix    string `json:"prefix,omitempty"`
-	AccessKey string `json:"access_key"`
-	SecretKey string `json:"secret_key"`
-}
+// S3Provider is an S3-compatible provider.
+type S3Provider = backup.S3
 
 // storeReady is how long the controller waits for a machine's backup
 // store to start (its first start downloads rest-server).
@@ -89,18 +82,13 @@ func (m *Manager) BackupChoices(ctx context.Context) ([]BackupChoice, error) {
 
 // AddS3Provider records an S3-compatible provider any machine can use.
 func (m *Manager) AddS3Provider(ctx context.Context, name string, p S3Provider) error {
-	p.Endpoint = strings.TrimRight(strings.TrimSpace(p.Endpoint), "/")
-	p.Bucket = strings.Trim(strings.TrimSpace(p.Bucket), "/")
-	p.Prefix = strings.Trim(strings.TrimSpace(p.Prefix), "/")
-	p.AccessKey, p.SecretKey = strings.TrimSpace(p.AccessKey), strings.TrimSpace(p.SecretKey)
+	p = p.Clean()
 	name = strings.TrimSpace(name)
-	switch {
-	case name == "":
+	if name == "" {
 		return formErrorf("Give it a name, such as \"Backblaze\".")
-	case !strings.HasPrefix(p.Endpoint, "https://") || p.Bucket == "":
-		return formErrorf("Enter the storage endpoint (starting with https://) and a bucket name.")
-	case p.AccessKey == "" || p.SecretKey == "":
-		return formErrorf("Enter the access key and secret key.")
+	}
+	if msg := p.Problem(); msg != "" {
+		return formErrorf("%s", msg)
 	}
 	cfg, _ := json.Marshal(p)
 	_, err := m.BackupStore.AddBackupProvider(ctx, store.BackupProvider{Kind: "s3", Name: name, Config: string(cfg)})
@@ -196,9 +184,8 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, machin
 		if err := json.Unmarshal([]byte(p.Config), &s3); err != nil {
 			return err
 		}
-		folder := strings.Trim(strings.Join([]string{s3.Prefix, "mylab", labID, machineID}, "/"), "/")
-		target.Repository = "s3:" + s3.Endpoint + "/" + s3.Bucket + "/" + folder
-		env := []string{"AWS_ACCESS_KEY_ID=" + s3.AccessKey, "AWS_SECRET_ACCESS_KEY=" + s3.SecretKey}
+		target.Repository = s3.Repository(labID, machineID)
+		env := s3.Env()
 		dest = node.BackupDestination{Repository: target.Repository, Env: env}
 		admin = m.OpenRepo(target.Repository, env)
 	default:
@@ -284,17 +271,8 @@ func (m *Manager) storeAdmin(ctx context.Context, host string) (string, error) {
 	return pw, m.BackupStore.SetStoreAdmin(ctx, host, pw, hash)
 }
 
-// labID names the lab in repository folders; made once, never changed.
-func (m *Manager) labID(ctx context.Context) (string, error) {
-	id, err := m.BackupStore.Setting(ctx, "lab.id")
-	if err != nil || id != "" {
-		return id, err
-	}
-	b := make([]byte, 5)
-	rand.Read(b)
-	id = "lab-" + hex.EncodeToString(b)
-	return id, m.BackupStore.SetSetting(ctx, "lab.id", id)
-}
+// labID names the lab in repository folders.
+func (m *Manager) labID(ctx context.Context) (string, error) { return m.BackupStore.LabID(ctx) }
 
 func (m *Manager) provider(ctx context.Context, id string) (store.BackupProvider, error) {
 	ps, err := m.BackupStore.BackupProviders(ctx)
@@ -364,6 +342,12 @@ func (m *Manager) BackupTargetOf(ctx context.Context, machineID string) (t store
 			continue
 		}
 		title = x.Repository
+		switch {
+		case strings.HasPrefix(x.Provider, "local:"), x.Provider == "setup" && strings.HasPrefix(x.Repository, "/"):
+			title = "A folder on " + m.nameOf(x.MachineID)
+		case x.Provider == "setup":
+			title = "Chosen during setup"
+		}
 		for _, c := range choices {
 			if c.Ref == x.Provider {
 				title = c.Title
@@ -389,6 +373,9 @@ func (m *Manager) PruneJob() maintenance.Job {
 			}
 			var errs []error
 			for _, t := range targets {
+				if strings.HasPrefix(t.Provider, "setup") {
+					continue // set up before this; that machine prunes it itself
+				}
 				repo, err := m.adminRepo(ctx, t)
 				if err != nil {
 					errs = append(errs, err)
@@ -411,6 +398,8 @@ func (m *Manager) PruneJob() maintenance.Job {
 func (m *Manager) adminRepo(ctx context.Context, t store.BackupTarget) (*backup.Repo, error) {
 	kind, id, _ := strings.Cut(t.Provider, ":")
 	switch kind {
+	case "local": // a folder on the controller, from the setup wizard
+		return m.OpenRepo(t.Repository, nil), nil
 	case "machine":
 		pw, _, ok, err := m.BackupStore.StoreAdmin(ctx, t.StoreHost)
 		if err != nil || !ok {
@@ -427,7 +416,21 @@ func (m *Manager) adminRepo(ctx context.Context, t store.BackupTarget) (*backup.
 		if err := json.Unmarshal([]byte(p.Config), &s3); err != nil {
 			return nil, err
 		}
-		return m.OpenRepo(t.Repository, []string{"AWS_ACCESS_KEY_ID=" + s3.AccessKey, "AWS_SECRET_ACCESS_KEY=" + s3.SecretKey}), nil
+		return m.OpenRepo(t.Repository, s3.Env()), nil
 	}
 	return nil, fmt.Errorf("unknown backup destination %q", t.Provider)
+}
+
+// AdoptBackupDestination records a machine's destination set up before
+// destinations were recorded (e.g. by an older setup wizard), so its
+// Backups page shows it. That machine keeps pruning it itself.
+func (m *Manager) AdoptBackupDestination(ctx context.Context, repository string) error {
+	if m.BackupStore == nil || repository == "" {
+		return nil
+	}
+	if _, _, ok := m.BackupTargetOf(ctx, m.Lab.NodeID); ok {
+		return nil
+	}
+	return m.BackupStore.SetBackupTarget(ctx, store.BackupTarget{MachineID: m.Lab.NodeID, Provider: "setup",
+		Repository: repository, Created: time.Now()})
 }

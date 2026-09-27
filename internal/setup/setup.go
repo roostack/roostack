@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"encoding/json"
 	"context"
 	"errors"
 	"fmt"
@@ -219,38 +220,36 @@ type BackupChoice struct {
 	Endpoint, Bucket, Prefix, AccessKey, SecretKey string
 }
 
-func (c BackupChoice) repository() (string, []string, error) {
+// destination checks the choice and returns the machine's repository in
+// it (its own folder, SPEC.md §10.10), the credentials, and for S3 the
+// provider to record so other machines can use it too.
+func (c BackupChoice) destination(labID, machineID string) (repo string, env []string, provider *backup.S3, err error) {
 	switch c.Kind {
 	case "local":
 		p := filepath.Clean(strings.TrimSpace(c.Path))
 		if !filepath.IsAbs(p) {
-			return "", nil, &CheckError{"Enter a full folder path, starting with /."}
+			return "", nil, nil, &CheckError{"Enter a full folder path, starting with /."}
 		}
-		return p, nil, nil
+		return filepath.Join(p, backup.MachineFolder("", labID, machineID)), nil, nil, nil
 	case "s3":
-		endpoint := strings.TrimRight(strings.TrimSpace(c.Endpoint), "/")
-		bucket := strings.Trim(strings.TrimSpace(c.Bucket), "/")
-		if !strings.HasPrefix(endpoint, "https://") || bucket == "" {
-			return "", nil, &CheckError{"Enter the storage endpoint (starting with https://) and a bucket name."}
+		s3 := backup.S3{Endpoint: c.Endpoint, Bucket: c.Bucket, Prefix: c.Prefix, AccessKey: c.AccessKey, SecretKey: c.SecretKey}.Clean()
+		if msg := s3.Problem(); msg != "" {
+			return "", nil, nil, &CheckError{msg}
 		}
-		if strings.TrimSpace(c.AccessKey) == "" || strings.TrimSpace(c.SecretKey) == "" {
-			return "", nil, &CheckError{"Enter the access key and secret key."}
-		}
-		repo := "s3:" + endpoint + "/" + bucket
-		if prefix := strings.Trim(strings.TrimSpace(c.Prefix), "/"); prefix != "" {
-			repo += "/" + prefix
-		}
-		env := []string{"AWS_ACCESS_KEY_ID=" + strings.TrimSpace(c.AccessKey), "AWS_SECRET_ACCESS_KEY=" + strings.TrimSpace(c.SecretKey)}
-		return repo, env, nil
+		return s3.Repository(labID, machineID), s3.Env(), &s3, nil
 	}
-	return "", nil, &CheckError{"Choose where to keep backups."}
+	return "", nil, nil, &CheckError{"Choose where to keep backups."}
 }
 
 // SaveBackup creates the recovery key (if needed) and the backup
 // repository, and saves the destination. The recovery key is then shown
 // once (RecoveryKey) before MyLab restarts.
 func (s *Setup) SaveBackup(ctx context.Context, c BackupChoice) error {
-	repoURL, env, err := c.repository()
+	labID, err := s.Store.LabID(ctx)
+	if err != nil {
+		return err
+	}
+	repoURL, env, provider, err := c.destination(labID, s.Lab.NodeID)
 	if err != nil {
 		return err
 	}
@@ -273,8 +272,23 @@ func (s *Setup) SaveBackup(ctx context.Context, c BackupChoice) error {
 		return &CheckError{fmt.Sprintf("Couldn't create the backup there: %s", firstLine(err.Error()))}
 	}
 
+	// Recorded like any machine's destination; an S3 account becomes a
+	// provider the lab's other machines can use too.
+	target := store.BackupTarget{MachineID: s.Lab.NodeID, Provider: "local:" + repoURL, Repository: repoURL, Created: time.Now()}
+	if provider != nil {
+		cfg, _ := json.Marshal(provider)
+		id, err := s.Store.AddBackupProvider(ctx, store.BackupProvider{Kind: "s3", Name: providerName(*provider), Config: string(cfg)})
+		if err != nil {
+			return err
+		}
+		target.Provider = fmt.Sprintf("provider:%d", id)
+	}
+	if err := s.Store.SetBackupTarget(ctx, target); err != nil {
+		return err
+	}
 	if err := config.Update(s.LabPath, func(lab *config.Lab) {
-		lab.Backup = config.Backup{Repository: repoURL, Env: env}
+		// The controller's weekly job removes old backups (SPEC.md §10.10).
+		lab.Backup = config.Backup{Repository: repoURL, Env: env, PrunedByController: true}
 	}); err != nil {
 		return err
 	}
@@ -327,4 +341,11 @@ func (s *Setup) ConfirmRecoveryKey(ctx context.Context) error {
 func firstLine(s string) string {
 	s, _, _ = strings.Cut(s, "\n")
 	return s
+}
+
+// providerName names an S3 account from setup, e.g. "backups at
+// s3.us-west-004.backblazeb2.com".
+func providerName(p backup.S3) string {
+	host := strings.TrimPrefix(p.Endpoint, "https://")
+	return p.Bucket + " at " + host
 }
