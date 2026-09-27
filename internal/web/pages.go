@@ -174,7 +174,13 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			s.addSettingsData(data, name, p, nil)
 		}
 		if n := s.serverOf(r); n != nil {
-			data["Setup"] = n.InstallStatus(r.Context(), name)
+			st := n.InstallStatus(r.Context(), name)
+			data["Setup"] = st
+			if st.Failed != "" && auth.Can(currentUser(r).Role, auth.ManageServices) {
+				if p, ok := data["Package"].(*pkgspec.Package); ok {
+					data["InstallFields"] = s.installFields(name, p)
+				}
+			}
 		}
 		// The latest setup log, if it's this service's.
 		if a := s.activityFor(r, activity.Setup); a != nil && a.Title == "Setting up "+data["Service"].(ServiceView).Title {

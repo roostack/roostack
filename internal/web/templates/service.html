@@ -18,6 +18,23 @@
     <p><strong>Setup didn't finish.</strong> {{$.Service.Title}} is running, but a setup step failed:</p>
     <pre class="output">{{.Failed}}</pre>
     <form method="post" action="/services/{{$.Service.Name}}/setup/retry"><button type="submit">Try again</button></form>
+    {{with $.InstallFields}}
+    <details{{if $.RetryError}} open{{end}}>
+      <summary>Change what you entered, then try again</summary>
+      <p class="hint">If the error is about something you typed when installing (an invalid username, say), fix it here.</p>
+      {{with $.RetryError}}<p class="error" role="alert">{{.}}</p>{{end}}
+      <form method="post" action="/services/{{$.Service.Name}}/setup/retry-with">
+        {{range .}}
+        <label>{{if eq .Kind "checkbox"}}<input type="checkbox" name="{{.Key}}" {{if .Checked}}checked{{end}}> {{.Title}}{{else}}{{.Title}}
+          <input type="{{.Kind}}" name="{{.Key}}" value="{{.Value}}" {{if eq .Kind "password"}}autocomplete="new-password"{{else}}autocomplete="off" autocapitalize="off"{{end}}
+            {{if .Required}}required{{end}} {{with .MinLength}}minlength="{{.}}"{{end}}>{{end}}
+          {{with .Description}}<small>{{.}}</small>{{end}}
+        </label>
+        {{end}}
+        <button type="submit">Try again with these</button>
+      </form>
+    </details>
+    {{end}}
   </div>
   {{end}}
   {{end}}

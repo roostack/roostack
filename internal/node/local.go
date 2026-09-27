@@ -160,7 +160,11 @@ type Local struct {
 	// userSecrets holds typed-in values until an apply creates the Podman
 	// secrets. Never written to disk.
 	userSecrets map[string][]byte
-	status      ApplyStatus
+	// replaceSecrets are values typed again for a service being set up
+	// (a failed install retried with new values): they replace the Podman
+	// secrets it already has, before its install hooks run.
+	replaceSecrets map[string][]byte
+	status         ApplyStatus
 	// again is set when an assignment arrives during an apply, so another
 	// apply runs afterwards.
 	again bool
@@ -198,6 +202,14 @@ func (n *Local) Apply(a Assignment) {
 		for _, name := range a.SetUp {
 			if err := n.State.SetSetting(context.Background(), hookKey(name), hookPending); err != nil {
 				n.Log.Error("recording pending setup", "service", name, "err", err)
+			}
+			for k, v := range a.Secrets {
+				if strings.HasPrefix(k, SecretName(name, "")) {
+					if n.replaceSecrets == nil {
+						n.replaceSecrets = map[string][]byte{}
+					}
+					n.replaceSecrets[k] = v
+				}
 			}
 		}
 	}
@@ -296,8 +308,22 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	n.mu.Lock()
 	for _, s := range plan.Secrets {
 		delete(n.userSecrets, s.Name)
+		delete(n.replaceSecrets, s.Name) // new, so nothing to replace
 	}
+	replace := n.replaceSecrets
+	n.replaceSecrets = nil
 	n.mu.Unlock()
+	for name, v := range replace {
+		if n.Secrets == nil {
+			break
+		}
+		if err := n.Secrets.Replace(ctx, name, v); err != nil {
+			return fmt.Errorf("updating %s: %w", name, err)
+		}
+		n.mu.Lock()
+		delete(n.userSecrets, name)
+		n.mu.Unlock()
+	}
 
 	// The firewall follows the services, e.g. a package port just turned on.
 	if fw, ok := firewall.Desired(n.lab(a), desired.Services); ok && n.Firewall != nil {
