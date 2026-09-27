@@ -1,4 +1,6 @@
-package dns
+// Package awssig signs AWS-style API requests (Route 53, S3-compatible
+// storage).
+package awssig
 
 import (
 	"crypto/hmac"
@@ -12,12 +14,12 @@ import (
 	"time"
 )
 
-// signV4 signs an AWS API request with Signature Version 4, using only the
+// Sign signs an AWS API request with Signature Version 4, using only the
 // standard library (so MyLab needn't depend on the AWS SDK just to check
-// Route 53 credentials). It signs host, content-length (with a body),
+// credentials). It signs host, content-length (with a body),
 // x-amz-date and any other x-amz-* headers, plus the body hash. Checked
 // against the AWS SDK's signer: identical signatures.
-func signV4(req *http.Request, body []byte, accessKey, secretKey, region, service string, now time.Time) {
+func Sign(req *http.Request, body []byte, accessKey, secretKey, region, service string, now time.Time) {
 	amzDate := now.UTC().Format("20060102T150405Z")
 	day := amzDate[:8]
 	req.Header.Set("X-Amz-Date", amzDate)

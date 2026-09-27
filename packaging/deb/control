@@ -1,0 +1,12 @@
+Package: mylab
+Version: @VERSION@
+Architecture: amd64
+Maintainer: MyLab <mylab@localhost>
+Section: admin
+Priority: optional
+Depends: podman (>= 5.4), passt, nftables, uidmap, crun, catatonit, dbus-user-session, restic, unattended-upgrades, wireguard-tools, systemd
+Homepage: https://github.com/mylab/mylab
+Description: Homelab management for people who aren't sysadmins
+ MyLab installs and runs self-hosted services (as rootless Podman
+ containers), backs them up, keeps the server updated, and connects a
+ lab's servers over WireGuard, from a web UI.

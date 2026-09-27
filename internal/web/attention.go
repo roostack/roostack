@@ -46,6 +46,10 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		items = append(items, attentionItem{level, text, link, linkText})
 	}
 
+	if s.RestorePending != nil && s.RestorePending() {
+		add(levelInfo, "Finishing the restore: putting the services' databases back from the backup. Some services may not work until it's done.",
+			"", "")
+	}
 	if owner && s.Setup != nil {
 		if p, err := s.Setup.Progress(r.Context()); err == nil && p.DomainLater && !p.DomainDone {
 			add(levelProblem, "Your domain isn't set up, so services can't get secure (HTTPS) certificates.",

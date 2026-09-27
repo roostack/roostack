@@ -25,6 +25,8 @@ const (
 	Move = "move"
 	// BackupSetup: creating a server's backup repository (SPEC.md §10.10).
 	BackupSetup = "backup-setup"
+	// LabRestore is rebuilding a lab from its backups on a new server.
+	LabRestore = "lab-restore"
 )
 
 // maxLines is how many lines a log keeps; older ones are dropped.

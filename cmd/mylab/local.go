@@ -6,6 +6,7 @@ import (
 
 	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/agent"
+	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/firewall"
 	"github.com/mylab/mylab/internal/hosttime"
@@ -25,6 +26,7 @@ import (
 func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Identity, st *store.Store,
 	log *slog.Logger, restart func()) (*node.Local, *agent.Client, *maintenance.Coordinator, error) {
 	agentClient := agent.NewClient(agent.DefaultSocket)
+	agentClient.KeysFile = backup.WireGuardKeysFile(lab.Paths)
 	sd := systemd.New()
 	local := &node.Local{
 		ID: id,

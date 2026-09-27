@@ -1,0 +1,63 @@
+#!/bin/sh
+# Sets up the mylab user and its services (SPEC.md §6.1). Safe to run
+# again: dpkg-reconfigure mylab repeats it.
+set -e
+
+[ "$1" = configure ] || exit 0
+
+if ! id mylab >/dev/null 2>&1; then
+    useradd --system --create-home --home-dir /var/lib/mylab/home --shell /usr/sbin/nologin mylab
+fi
+# System users get no subordinate IDs by default; rootless podman needs them
+# (docs/ASSUMPTIONS.md B1).
+if ! grep -q '^mylab:' /etc/subuid; then
+    usermod --add-subuids 200000-265535 --add-subgids 200000-265535 mylab
+fi
+# GPU access for rootless containers (docs/ASSUMPTIONS.md A7).
+for g in render video; do
+    if getent group "$g" >/dev/null; then usermod -aG "$g" mylab; fi
+done
+# Start the mylab user's systemd manager at boot (docs/ASSUMPTIONS.md A1).
+loginctl enable-linger mylab
+uid=$(id -u mylab)
+
+install -d -o mylab -g mylab -m 0750 /var/lib/mylab /var/lib/mylab/services
+install -d -o mylab -g mylab -m 0750 /srv/mylab /srv/mylab/services /srv/mylab/media
+if [ ! -f /var/lib/mylab/lab.yaml ]; then
+    install -o mylab -g mylab -m 0640 /usr/share/mylab/lab.yaml /var/lib/mylab/lab.yaml
+fi
+
+# systemd specifiers can't give the UID of User= in a system unit, so the
+# parts that need it go in a drop-in.
+install -d /etc/systemd/system/mylab.service.d
+cat > /etc/systemd/system/mylab.service.d/user.conf <<CONF
+# Written by the mylab package: the mylab user's UID is $uid.
+[Unit]
+After=user@$uid.service
+Requires=user@$uid.service
+
+[Service]
+Environment=XDG_RUNTIME_DIR=/run/user/$uid
+ReadWritePaths=/run/user/$uid
+BindPaths=/run/user/$uid
+CONF
+
+systemctl daemon-reload
+systemctl enable mylab-agent.service mylab.service >/dev/null
+systemctl restart mylab-agent.service
+systemctl restart mylab.service
+
+if [ -z "$2" ]; then
+    cat <<MSG
+
+MyLab is installed. Open its setup page to create your lab (or restore
+one from its backups). The setup code is in /var/lib/mylab/setup-token:
+    sudo cat /var/lib/mylab/setup-token
+The setup page listens on this server only (127.0.0.1:8480); from another
+computer, forward it over SSH:
+    ssh -L 8480:127.0.0.1:8480 <this server>
+and open http://127.0.0.1:8480.
+
+MSG
+fi
+exit 0

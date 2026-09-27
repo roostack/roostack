@@ -10,12 +10,17 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 )
 
 // Client calls mylab-agent from the unprivileged mylab service.
 type Client struct {
 	http *http.Client
+	// KeysFile is where SaveWireGuardKeys keeps the WireGuard keys for
+	// backups; ApplyWireGuard offers the saved key to an interface that
+	// has none (a restored lab). Optional.
+	KeysFile string
 }
 
 // NewClient connects to the agent's Unix socket.
@@ -134,6 +139,14 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any) err
 // ApplyWireGuard configures MyLab's WireGuard interface and returns this
 // server's public key.
 func (c *Client) ApplyWireGuard(ctx context.Context, wg WireGuard) (string, error) {
+	if c.KeysFile != "" && wg.JoinKey == "" && !wg.NewKey {
+		if data, err := os.ReadFile(c.KeysFile); err == nil {
+			var keys map[string]string
+			if json.Unmarshal(data, &keys) == nil {
+				wg.SavedKey = keys[wg.Iface()]
+			}
+		}
+	}
 	var resp struct {
 		PublicKey string `json:"public_key"`
 	}
@@ -152,4 +165,22 @@ func (c *Client) WireGuardStatus(ctx context.Context, iface string) (WireGuardSt
 // deletes it.
 func (c *Client) RemoveWireGuard(ctx context.Context, iface string) error {
 	return c.call(ctx, http.MethodDelete, "/v1/wireguard?interface="+url.QueryEscape(iface), nil, nil)
+}
+
+// SaveWireGuardKeys copies MyLab's WireGuard keys into KeysFile (readable
+// by MyLab only), for the backup.
+func (c *Client) SaveWireGuardKeys(ctx context.Context) error {
+	var keys map[string]string
+	if err := c.call(ctx, http.MethodGet, "/v1/wireguard/keys", nil, &keys); err != nil {
+		return err
+	}
+	if len(keys) == 0 {
+		os.Remove(c.KeysFile)
+		return nil
+	}
+	data, _ := json.Marshal(keys)
+	if err := os.WriteFile(c.KeysFile+".tmp", data, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(c.KeysFile+".tmp", c.KeysFile)
 }

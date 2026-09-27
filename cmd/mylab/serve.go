@@ -24,6 +24,7 @@ import (
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/labnet"
+	"github.com/mylab/mylab/internal/labrestore"
 	"github.com/mylab/mylab/internal/maintenance"
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/node"
@@ -53,6 +54,12 @@ func serve(args []string) error {
 		return err
 	}
 	lab.Timezone = hosttime.Zone()
+	// Restarting after a lab restore: its database replaces the new one.
+	if restored, err := labrestore.StartFromBackup(lab.Paths); err != nil {
+		return err
+	} else if restored {
+		log.Info("starting as the restored lab", "domain", lab.Domain)
+	}
 	st, err := store.Open(dbPath(lab))
 	if err != nil {
 		return err
@@ -194,6 +201,15 @@ func serve(args []string) error {
 	}
 	// Converge on startup, e.g. after MyLab itself was upgraded.
 	mgr.Apply()
+	// After a lab restore, the services' databases go back once they're set
+	// up again.
+	if r, ok := local.Jobs.Restores.(*backup.Restores); ok {
+		assigned := func() (config.Lab, []state.Service, error) {
+			l, services := local.Assigned()
+			return l, services, nil
+		}
+		go finishLabRestore(lab, coord, r.Restorer, assigned, mgr.Wait, local.Activity, log)
+	}
 
 	wizard := &setup.Setup{
 		Lab: lab, LabPath: *labPath, Store: st, Secrets: podman.NewSecrets(),
@@ -212,6 +228,11 @@ func serve(args []string) error {
 		return err
 	}
 	srv.Setup, srv.DNSProvider = wizard, lab.DNS.Provider
+	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
+	// A new install can instead become a lab restored from its backups.
+	if token != "" {
+		srv.LabRestore = &labRestorer{lab: lab, acts: local.Activity, restart: restart, log: log}
+	}
 
 	// Keep *.<domain> pointing at this server for devices at home, and
 	// check they can see it (SPEC.md §6.5.1).
@@ -261,11 +282,14 @@ func setupTokenPath(lab config.Lab) string { return filepath.Join(lab.Paths.Stat
 // The code is kept in a file readable only by mylab (and root), so it
 // survives restarts until setup is done.
 func setupToken(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger) (string, error) {
+	path := setupTokenPath(lab)
 	n, err := st.CountUsers(ctx)
 	if err != nil || n > 0 {
+		if n > 0 { // e.g. a lab restored from its backups
+			os.Remove(path)
+		}
 		return "", err
 	}
-	path := setupTokenPath(lab)
 	if data, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(data))) > 0 {
 		token := strings.TrimSpace(string(data))
 		log.Info("waiting for first-run setup", "setup_code", token, "file", path)
@@ -352,6 +376,17 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 			}
 			if svc.Deps, err = newBackupDeps(lab, st, repo, userLaunch, services); err != nil {
 				return jobs, nil, err
+			}
+			// Back up the WireGuard keys too, so a restored lab keeps the keys
+			// its peers know.
+			dumpDB := svc.Deps.DumpState
+			svc.Deps.DumpState = func(ctx context.Context, path string) error {
+				if ag.KeysFile != "" {
+					if err := ag.SaveWireGuardKeys(ctx); err != nil {
+						return fmt.Errorf("saving the WireGuard keys: %w", err)
+					}
+				}
+				return dumpDB(ctx, path)
 			}
 			jobs.Restores = &backup.Restores{Coord: coord, Repo: repo, Activity: acts,
 				Restorer: &backup.Restorer{Repo: repo, Units: systemd.New(), Launch: userLaunch,

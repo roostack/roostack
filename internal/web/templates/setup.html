@@ -22,5 +22,7 @@
     </label>
     <button type="submit">Create account</button>
   </form>
+  {{if .CanRestore}}<p class="hint">Moving your lab to a new server, or rebuilding it after a failure?
+    <a href="/setup/restore">Restore a lab from its backups…</a></p>{{end}}
 </section>
 {{end}}

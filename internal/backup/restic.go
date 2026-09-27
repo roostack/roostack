@@ -26,6 +26,9 @@ var ErrNoRepository = errors.New("backup repository does not exist")
 // ErrLocked means another restic process holds the repository lock.
 var ErrLocked = errors.New("backup repository is locked")
 
+// ErrWrongKey means the key doesn't open the repository.
+var ErrWrongKey = errors.New("the key doesn't open this backup")
+
 // Repo is one restic repository (a backup destination).
 type Repo struct {
 	// Bin is the restic binary.
@@ -80,6 +83,8 @@ type Snapshot struct {
 	Time  time.Time `json:"time"`
 	Paths []string  `json:"paths"`
 	Tags  []string  `json:"tags"`
+	// Hostname is the computer that made it.
+	Hostname string `json:"hostname"`
 }
 
 func (r *Repo) command(ctx context.Context, args ...string) *exec.Cmd {
@@ -130,6 +135,8 @@ func (r *Repo) wrap(verb string, err error, stderr string) error {
 			return ErrNoRepository
 		case 11:
 			return ErrLocked
+		case 12:
+			return ErrWrongKey
 		}
 	}
 	return fmt.Errorf("restic %s: %w: %s", verb, err, strings.TrimSpace(stderr))
@@ -158,6 +165,19 @@ func (r *Repo) Dump(ctx context.Context, snapshotID, dir string, w io.Writer) er
 		return ErrNotInSnapshot
 	}
 	return r.wrap("dump", err, stderr.String())
+}
+
+// DumpFile reads one file from a snapshot. ErrNotInSnapshot if the
+// snapshot doesn't have it.
+func (r *Repo) DumpFile(ctx context.Context, snapshotID, file string) ([]byte, error) {
+	cmd := r.command(ctx, "dump", snapshotID, file)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := cmd.Run()
+	if err != nil && strings.Contains(stderr.String(), "not found") {
+		return nil, ErrNotInSnapshot
+	}
+	return stdout.Bytes(), r.wrap("dump", err, stderr.String())
 }
 
 // AddKey adds another key (password) to the repository, e.g. a server's

@@ -78,6 +78,12 @@ func excludeAllBut(root, keep string) []string {
 // KeyFile holds the repository password: the recovery key.
 func KeyFile(paths config.Paths) string { return filepath.Join(paths.StateDir, "backup-key") }
 
+// WireGuardKeysFile is where MyLab keeps a copy of its WireGuard keys for
+// backups (readable by MyLab only, like the lab CA's key).
+func WireGuardKeysFile(paths config.Paths) string {
+	return filepath.Join(paths.StateDir, "wireguard-keys.json")
+}
+
 // StateDumpFile is where the consistent copy of MyLab's own database goes.
 func StateDumpFile(paths config.Paths) string {
 	return filepath.Join(paths.StateDir, "db-dump", "mylab.db")

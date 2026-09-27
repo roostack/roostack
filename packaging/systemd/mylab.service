@@ -1,29 +1,26 @@
 [Unit]
 Description=MyLab management service
 Documentation=file:///usr/share/doc/mylab/ARCHITECTURE.md
-After=network-online.target mylab-agent.service user@@MYLAB_UID@.service
+After=network-online.target mylab-agent.service
 Wants=network-online.target mylab-agent.service
-Requires=user@@MYLAB_UID@.service
+# The mylab user's runtime directory (its UID) comes from a drop-in the
+# package writes: mylab.service.d/user.conf.
 
 [Service]
 User=mylab
 Group=mylab
-# @MYLAB_UID@ is replaced by the installer: systemd specifiers can't give
-# the UID of User= in a system unit.
-Environment=XDG_RUNTIME_DIR=/run/user/@MYLAB_UID@
-ExecStart=/usr/local/bin/mylab serve
+ExecStart=/usr/bin/mylab serve
 # Always: MyLab restarts itself to apply settings from the setup wizard.
 Restart=always
 RestartSec=1
 
 # Sandboxing (SPEC.md §6.1).
 ProtectSystem=strict
-ReadWritePaths=/var/lib/mylab /srv/mylab /run/user/@MYLAB_UID@
+ReadWritePaths=/var/lib/mylab /srv/mylab
 # ProtectHome=yes would also hide /run/user, where the mylab user's systemd
 # manager listens. Hide /home and /root, and bind back only mylab's own
-# runtime directory.
+# runtime directory (in the drop-in).
 ProtectHome=tmpfs
-BindPaths=/run/user/@MYLAB_UID@
 PrivateTmp=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
