@@ -146,6 +146,9 @@ type ServiceManager interface {
 	NodeByID(id string) node.Node
 	BackupChoices(ctx context.Context) ([]manager.BackupChoice, error)
 	BackupTargetOf(ctx context.Context, serverID string) (store.BackupTarget, string, bool)
+	BackupCopiesOf(ctx context.Context, serverID string) []manager.BackupCopy
+	AddBackupCopy(ctx context.Context, serverID, ref string) error
+	RemoveBackupCopy(ctx context.Context, serverID, ref string) error
 	SetBackupDestination(ctx context.Context, serverID, ref string) error
 	AddS3Provider(ctx context.Context, name string, p manager.S3Provider) error
 	MoveInfo(ctx context.Context, name string) (manager.MoveInfo, error)
@@ -315,6 +318,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
 	mux.Handle("POST /settings/servers/{server}/backup-destination", s.requireOwner(s.backupDestinationSubmit))
+	mux.Handle("POST /settings/servers/{server}/backup-copies", s.requireOwner(s.backupCopySubmit(false)))
+	mux.Handle("POST /settings/servers/{server}/backup-copies/remove", s.requireOwner(s.backupCopySubmit(true)))
 	mux.Handle("POST /settings/backup-providers", s.requireOwner(s.addProviderSubmit))
 	mux.Handle("GET /settings/storage", s.requireOwner(s.storagePage))
 	mux.Handle("POST /settings/storage/invite", s.requireOwner(s.inviteGuestSubmit))

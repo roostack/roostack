@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -57,6 +58,16 @@ func (s *Service) Job() maintenance.Job {
 			start := time.Now()
 			deps := *s.Deps
 			deps.Log = act
+			deps.OnCopy = func(c Copy, started time.Time, sum *Summary, err error) {
+				run := store.BackupRun{Started: started, Finished: time.Now(), OK: err == nil, Destination: c.Name}
+				if sum != nil {
+					run.SnapshotID, run.FilesNew, run.DataAdded = sum.SnapshotID, sum.FilesNew, sum.DataAdded
+				}
+				if err != nil {
+					run.Error = err.Error()
+				}
+				s.Store.RecordBackup(context.WithoutCancel(ctx), run)
+			}
 			sum, err := Run(ctx, deps, h)
 			if ctx.Err() != nil && err != nil {
 				act.Printf("Paused for a restart; the backup continues afterwards.")
@@ -95,9 +106,23 @@ func (s *Service) MaintenanceJob() maintenance.Job {
 				if err := s.Deps.Repo.Forget(ctx, DefaultRetention); err != nil {
 					return err
 				}
+				for _, c := range s.Deps.Copies {
+					if err := c.Repo.Forget(ctx, DefaultRetention); err != nil {
+						return fmt.Errorf("the copy at %s: %w", c.Title, err)
+					}
+				}
 			}
 			act.Step("Checking a sample (5%%) of the stored backups can be read")
-			return s.Deps.Repo.Check(ctx, "5%")
+			if err := s.Deps.Repo.Check(ctx, "5%"); err != nil {
+				return err
+			}
+			for _, c := range s.Deps.Copies {
+				act.Step("Checking a sample of the copy at %s", c.Title)
+				if err := c.Repo.Check(ctx, "5%"); err != nil {
+					return fmt.Errorf("the copy at %s: %w", c.Title, err)
+				}
+			}
+			return nil
 		},
 	}
 }
@@ -141,6 +166,15 @@ type Status struct {
 	Last      *store.BackupRun
 	LastOK    *store.BackupRun
 	Next      time.Time
+	// Copies are the extra copies somewhere else, with their own results.
+	Copies []CopyStatus
+}
+
+// CopyStatus is an extra copy's latest results.
+type CopyStatus struct {
+	Name, Title  string
+	Repository   string
+	Last, LastOK *store.BackupRun
 }
 
 // Status reports the current backup state.
@@ -152,6 +186,16 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	var err error
 	if st.Last, st.LastOK, err = s.Store.LastBackup(ctx); err != nil {
 		return st, err
+	}
+	for _, c := range s.Deps.Copies {
+		cs := CopyStatus{Name: c.Name, Title: c.Title, Repository: c.Repo.URL}
+		if cs.Last, cs.LastOK, err = s.Store.LastBackupTo(ctx, c.Name); err != nil {
+			return st, err
+		}
+		st.Copies = append(st.Copies, cs)
+		if !isLocal(c.Repo.URL) {
+			st.LocalOnly = false
+		}
 	}
 	if s.NextRun != nil {
 		st.Next = s.NextRun()

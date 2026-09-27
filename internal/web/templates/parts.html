@@ -90,6 +90,16 @@
       <p class="error">No backup has finished yet.</p>
     {{end}}
     <p class="hint">Next backup: {{when .Next}}</p>
+    {{with .Copies}}
+    <h3>Copies somewhere else</h3>
+    <ul class="plain">
+      {{range .}}<li><strong>{{.Title}}</strong>:
+        {{with .Last}}{{if .OK}}<span class="dot dot-{{if stale .Finished}}warn{{else}}ok{{end}}" aria-hidden="true"></span>copied {{when .Finished}}
+          <span class="hint">· {{.FilesNew}} new or changed files, {{bytes .DataAdded}} added</span>
+        {{- else}}<span class="dot dot-problem" aria-hidden="true"></span>the last copy ({{when .Finished}}) didn't finish: {{.Error}}{{end}}
+        {{- else}}the first copy is made with the next backup{{end}}</li>{{end}}
+    </ul>
+    {{end}}
     {{if .LocalOnly}}
       {{notice "warn" "Backups are only stored on this server. Add an off-site copy to protect against theft, fire or a failed disk."}}
     {{end}}

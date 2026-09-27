@@ -2,6 +2,7 @@ package node
 
 import (
 	"os"
+	"path/filepath"
 
 	"cmp"
 	"context"
@@ -34,6 +35,19 @@ type Settings interface {
 	// SetBackupDestination points the server's backups at a repository
 	// the controller created for it (SPEC.md §10.10).
 	SetBackupDestination(ctx context.Context, d BackupDestination) error
+	// SetBackupCopies sets the extra copies of its backups (SPEC.md §6.9);
+	// the server restarts MyLab to use them. A copy it already has keeps
+	// its key and credentials when none come with it.
+	SetBackupCopies(ctx context.Context, copies []BackupCopy) error
+}
+
+// BackupCopy is an extra copy of a server's backups, somewhere else.
+type BackupCopy struct {
+	Name       string   `json:"name"`
+	Title      string   `json:"title"`
+	Repository string   `json:"repository"`
+	Env        []string `json:"env,omitempty"`
+	Key        string   `json:"key,omitempty"`
 }
 
 // BackupDestination is a server's backup repository: where it is, the
@@ -164,4 +178,55 @@ func (h *HostSettings) SetBackupDestination(ctx context.Context, d BackupDestina
 	// Backups are set up when MyLab starts.
 	h.Restart()
 	return nil
+}
+
+func (h *HostSettings) SetBackupCopies(ctx context.Context, copies []BackupCopy) error {
+	lab, err := config.Load(h.LabPath)
+	if err != nil {
+		return err
+	}
+	have := map[string]config.BackupCopy{}
+	for _, c := range lab.Backup.Copies {
+		have[c.Name] = c
+	}
+	dir := filepath.Join(h.Lab.Paths.StateDir, "backup-copies")
+	var out []config.BackupCopy
+	for _, c := range copies {
+		if c.Repository == "" || c.Name == "" {
+			return formErrorf("A backup copy needs a name and a repository.")
+		}
+		old, known := have[c.Name]
+		keyFile := old.KeyFile
+		if known && c.Key == "" && len(c.Env) == 0 {
+			c.Env = old.Env // a copy it has keeps its credentials
+		}
+		if c.Key != "" {
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				return err
+			}
+			keyFile = filepath.Join(dir, fileName(c.Name)+".key")
+			if err := os.WriteFile(keyFile+".tmp", []byte(c.Key+"\n"), 0o600); err != nil {
+				return err
+			}
+			if err := os.Rename(keyFile+".tmp", keyFile); err != nil {
+				return err
+			}
+		}
+		out = append(out, config.BackupCopy{Name: c.Name, Title: c.Title, Repository: c.Repository, Env: c.Env, KeyFile: keyFile})
+	}
+	if err := config.Update(h.LabPath, func(l *config.Lab) { l.Backup.Copies = out }); err != nil {
+		return fmt.Errorf("saving the backup copies: %w", err)
+	}
+	h.Restart()
+	return nil
+}
+
+// fileName makes a destination reference ("provider:3") safe as a file name.
+func fileName(name string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' {
+			return r
+		}
+		return '_'
+	}, name)
 }

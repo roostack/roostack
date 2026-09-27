@@ -31,6 +31,9 @@ type BackupStore interface {
 	BackupProviders(ctx context.Context) ([]store.BackupProvider, error)
 	AddBackupProvider(ctx context.Context, p store.BackupProvider) (int64, error)
 	BackupTargets(ctx context.Context) ([]store.BackupTarget, error)
+	SetBackupCopy(ctx context.Context, t store.BackupTarget) error
+	BackupCopies(ctx context.Context) ([]store.BackupTarget, error)
+	RemoveBackupCopy(ctx context.Context, serverID, provider string) error
 	SetBackupTarget(ctx context.Context, t store.BackupTarget) error
 	StoreAdmin(ctx context.Context, serverID string) (password, hash string, ok bool, err error)
 	SetStoreAdmin(ctx context.Context, serverID, password, hash string) error
@@ -151,11 +154,36 @@ func (m *Manager) SetBackupDestination(ctx context.Context, serverID, ref string
 }
 
 func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, serverID string, n node.Node, choice BackupChoice) error {
-	labID, err := m.labID(ctx)
+	target, dest, err := m.createRepository(ctx, act, serverID, choice, m.BackupStore.SetBackupTarget)
 	if err != nil {
 		return err
 	}
+	if err := m.BackupStore.SetBackupTarget(ctx, target); err != nil {
+		return err
+	}
+	act.Step("Telling %s where to back up (it restarts MyLab)", m.nameOf(serverID))
+	if err := n.Settings().SetBackupDestination(ctx, dest); err != nil {
+		return err
+	}
+	act.Step("Backups for %s go to %s", m.nameOf(serverID), choice.Title)
+	return nil
+}
+
+// createRepository creates a server's repository at a choice, with the
+// recovery key and a key of the server's own, and returns its record and
+// what the server needs to use it. record saves the record early for a
+// server's disk, whose store must learn the new user before the
+// repository can be created.
+func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serverID string, choice BackupChoice,
+	record func(context.Context, store.BackupTarget) error) (store.BackupTarget, node.BackupDestination, error) {
+	labID, err := m.labID(ctx)
+	if err != nil {
+		return store.BackupTarget{}, node.BackupDestination{}, err
+	}
 	target := store.BackupTarget{ServerID: serverID, Provider: choice.Ref, Created: time.Now()}
+	fail := func(err error) (store.BackupTarget, node.BackupDestination, error) {
+		return store.BackupTarget{}, node.BackupDestination{}, err
+	}
 	var admin *backup.Repo // the controller's access, with the recovery key
 	var dest node.BackupDestination
 	kind, id, _ := strings.Cut(choice.Ref, ":")
@@ -164,15 +192,15 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, server
 		host := id
 		addr := m.addressOf(host)
 		if addr == "" {
-			return fmt.Errorf("no address for server %s", host)
+			return fail(fmt.Errorf("no address for server %s", host))
 		}
 		password, hash, err := newPassword()
 		if err != nil {
-			return err
+			return fail(err)
 		}
 		adminPW, err := m.storeAdmin(ctx, host)
 		if err != nil {
-			return err
+			return fail(err)
 		}
 		path := "/" + serverID + "/" + labID
 		target.Repository = fmt.Sprintf("rest:http://%s:%d%s", addr, generate.StoragePort, path)
@@ -183,19 +211,19 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, server
 			[]string{"RESTIC_REST_USERNAME=controller", "RESTIC_REST_PASSWORD=" + adminPW})
 		// The storing server starts its store (or learns the new user).
 		act.Step("Starting the backup store on %s", m.nameOf(host))
-		if err := m.BackupStore.SetBackupTarget(ctx, target); err != nil {
-			return err
+		if err := record(ctx, target); err != nil {
+			return fail(err)
 		}
 		m.Apply()
 	case "provider":
 		p, err := m.provider(ctx, id)
 		if err != nil {
-			return err
+			return fail(err)
 		}
 		if p.Kind == "remote" {
 			var r RemoteStorage
 			if err := json.Unmarshal([]byte(p.Config), &r); err != nil {
-				return err
+				return fail(err)
 			}
 			url, env, adminURL, adminEnv := m.remoteRepos(r, labID, serverID)
 			target.Repository = url
@@ -205,7 +233,7 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, server
 		}
 		var s3 S3Provider
 		if err := json.Unmarshal([]byte(p.Config), &s3); err != nil {
-			return err
+			return fail(err)
 		}
 		target.Repository = s3.Repository(labID, serverID)
 		env := s3.Env()
@@ -227,7 +255,7 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, server
 			}
 		}
 	default:
-		return fmt.Errorf("unknown backup destination %q", choice.Ref)
+		return fail(fmt.Errorf("unknown backup destination %q", choice.Ref))
 	}
 
 	act.Step("Creating the backup repository")
@@ -240,7 +268,7 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, server
 			break
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("creating the repository: %w", err)
+			return fail(fmt.Errorf("creating the repository: %w", err))
 		}
 		act.Printf("Attempt %d: %v; trying again shortly", attempt, firstLine(err.Error()))
 		time.Sleep(10 * time.Second)
@@ -251,23 +279,15 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, server
 	if serverID != m.Lab.NodeID {
 		key, _, err := newPassword()
 		if err != nil {
-			return err
+			return fail(err)
 		}
 		act.Step("Adding a key for %s", m.nameOf(serverID))
 		if err := admin.AddKey(ctx, key, serverID); err != nil {
-			return err
+			return fail(err)
 		}
 		dest.Key = key
 	}
-	if err := m.BackupStore.SetBackupTarget(ctx, target); err != nil {
-		return err
-	}
-	act.Step("Telling %s where to back up (it restarts MyLab)", m.nameOf(serverID))
-	if err := n.Settings().SetBackupDestination(ctx, dest); err != nil {
-		return err
-	}
-	act.Step("Backups for %s go to %s", m.nameOf(serverID), choice.Title)
-	return nil
+	return target, dest, nil
 }
 
 // b2 is a Backblaze client for an account.
@@ -288,8 +308,13 @@ func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 	if err != nil {
 		return
 	}
-	for _, t := range targets {
-		if t.ServerID != serverID || t.ScopedKey == "" {
+	copies, _ := m.BackupStore.BackupCopies(ctx)
+	for _, t := range append(targets, copies...) {
+		if t.ServerID != serverID {
+			continue
+		}
+		m.BackupStore.RemoveBackupCopy(ctx, t.ServerID, t.Provider)
+		if t.ScopedKey == "" {
 			continue
 		}
 		kind, id, _ := strings.Cut(t.Provider, ":")
@@ -321,8 +346,13 @@ func (m *Manager) storageFor(ctx context.Context, id string) *node.Storage {
 		m.Log.Error("reading backup targets", "err", err)
 		return nil
 	}
+	copies, err := m.BackupStore.BackupCopies(ctx)
+	if err != nil {
+		m.Log.Error("reading backup copies", "err", err)
+		return nil
+	}
 	st := &node.Storage{Users: map[string]string{}}
-	for _, t := range targets {
+	for _, t := range append(targets, copies...) {
 		if t.StoreHost == id {
 			st.Users[t.ServerID] = t.StoreHash
 		}
@@ -449,8 +479,12 @@ func (m *Manager) PruneJob() maintenance.Job {
 			if err != nil {
 				return err
 			}
+			copies, err := m.BackupStore.BackupCopies(ctx)
+			if err != nil {
+				return err
+			}
 			var errs []error
-			for _, t := range targets {
+			for _, t := range append(targets, copies...) {
 				if strings.HasPrefix(t.Provider, "setup") {
 					continue // set up before this; that server prunes it itself
 				}

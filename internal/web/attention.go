@@ -211,6 +211,17 @@ func (s *Server) backupAttention(r *http.Request, m serverRef, n ServiceNode, ow
 	case st.Last != nil && !st.Last.OK:
 		add(levelProblem, "The last backup"+m.on()+" didn't finish: "+st.Last.Error, link, "View backups")
 	}
+	// Extra copies (a first one is made with the next backup).
+	for _, c := range st.Copies {
+		switch {
+		case st.Running:
+		case c.Last != nil && !c.Last.OK:
+			add(levelWarning, "The last copy of backups"+m.on()+" to "+c.Title+" didn't finish: "+c.Last.Error, link, "View backups")
+		case c.LastOK != nil && isStale(c.LastOK.Finished):
+			add(levelWarning, "Backups"+m.on()+" haven't been copied to "+c.Title+" since "+whenText(c.LastOK.Finished)+".",
+				link, "View backups")
+		}
+	}
 	switch {
 	case !st.Configured || st.Running || (st.Last != nil && !st.Last.OK):
 	case st.LastOK == nil:

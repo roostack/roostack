@@ -109,6 +109,23 @@ type Backup struct {
 	// PrunedByController: the controller removes old backups (SPEC.md
 	// §10.10); this server may only add them, so it only checks.
 	PrunedByController bool `yaml:"pruned_by_controller,omitempty"`
+	// Copies are extra copies somewhere else (SPEC.md §6.9, 3-2-1).
+	Copies []BackupCopy `yaml:"copies,omitempty"`
+}
+
+// BackupCopy is an extra copy of this server's backups: each nightly
+// backup also goes there.
+type BackupCopy struct {
+	// Name identifies it (the controller's reference to the destination);
+	// Title is for people.
+	Name  string `yaml:"name"`
+	Title string `yaml:"title"`
+	// Repository and Env reach it, like Backup's.
+	Repository string   `yaml:"repository"`
+	Env        []string `yaml:"env,omitempty"`
+	// KeyFile holds this server's key to it; empty uses the main key file
+	// (the controller's recovery key).
+	KeyFile string `yaml:"key_file,omitempty"`
 }
 
 // SSH access choices (Firewall.SSH).

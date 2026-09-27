@@ -111,3 +111,39 @@ func TestBackupDestination(t *testing.T) {
 		t.Error("an empty key must keep the key file")
 	}
 }
+
+func TestBackupCopies(t *testing.T) {
+	h, _, restarts := newSettings(t)
+	h.Lab.Paths.StateDir = t.TempDir()
+	ctx := context.Background()
+	b2 := BackupCopy{Name: "provider:1", Title: "Backblaze", Repository: "s3:https://s3.example.com/b/mylab/l/n-2",
+		Env: []string{"AWS_ACCESS_KEY_ID=id", "AWS_SECRET_ACCESS_KEY=secret"}, Key: "copy key"}
+	if err := h.SetBackupCopies(ctx, []BackupCopy{b2}); err != nil {
+		t.Fatal(err)
+	}
+	lab, _ := config.Load(h.LabPath)
+	if len(lab.Backup.Copies) != 1 || lab.Backup.Copies[0].Title != "Backblaze" || lab.Backup.Copies[0].KeyFile == "" || *restarts != 1 {
+		t.Fatalf("copies = %+v", lab.Backup.Copies)
+	}
+	keyFile := lab.Backup.Copies[0].KeyFile
+	if key, _ := os.ReadFile(keyFile); string(key) != "copy key\n" {
+		t.Errorf("key = %q", key)
+	}
+	// Sent again without credentials or key (another copy was added): it
+	// keeps both.
+	disk := BackupCopy{Name: "server:n-1", Title: "nuc's disk", Repository: "rest:http://100.96.0.1:8000/n-2/l", Key: "disk key"}
+	if err := h.SetBackupCopies(ctx, []BackupCopy{{Name: "provider:1", Title: "Backblaze", Repository: b2.Repository}, disk}); err != nil {
+		t.Fatal(err)
+	}
+	lab, _ = config.Load(h.LabPath)
+	if len(lab.Backup.Copies) != 2 || len(lab.Backup.Copies[0].Env) != 2 || lab.Backup.Copies[0].KeyFile != keyFile ||
+		lab.Backup.Copies[1].KeyFile == keyFile {
+		t.Errorf("copies = %+v", lab.Backup.Copies)
+	}
+	if err := h.SetBackupCopies(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if lab, _ = config.Load(h.LabPath); len(lab.Backup.Copies) != 0 {
+		t.Error("no copies")
+	}
+}
