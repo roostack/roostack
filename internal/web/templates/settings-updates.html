@@ -2,10 +2,10 @@
 {{define "content"}}
 {{with .Updates}}
 <section class="card" id="updates">
-  {{template "back" (dict "Href" "/settings" "Text" "Settings")}}
+  {{back "/settings" "Settings"}}
   <h1>Updates and restarts</h1>
   <p class="hint">This machine installs Debian's security and bug-fix updates every night after the backup.</p>
-  {{template "activity" .ActivityData}}
+  {{activity .Activity}}
   {{/* Refreshed when the update run finishes (HX-Trigger from its status). */}}
   <div id="updates-body" hx-get="/settings/updates" hx-select="#updates-body" hx-trigger="activity-done from:body" hx-swap="outerHTML">
   {{with .ErrorMsg}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -18,8 +18,7 @@
   <div class="notice notice-warn" role="status">
     <p><strong>A restart is needed to finish installing updates</strong>{{with .Restart.Packages}} ({{range $i, $p := .}}{{if $i}}, {{end}}{{$p}}{{end}}){{end}}.
       {{.Restart.Waiting}}.</p>
-    {{template "confirm-button" (dict "Action" "/settings/restart"
-      "Confirm" "Restart this machine now? Your services will be unavailable for a minute or two." "Text" "Restart now")}}
+    {{confirm "/settings/restart" "Restart this machine now? Your services will be unavailable for a minute or two." "Restart now" ""}}
   </div>
   {{end}}
   <form method="post" action="/settings/updates/run">

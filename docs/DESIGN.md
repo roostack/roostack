@@ -20,7 +20,8 @@ Every page is built from the tokens and components here. The gallery shows them 
 | `internal/web/themes.go` | The list of built-in themes (names shown to users) |
 | `internal/web/static/css/app.css` | Base styles, components and page layouts. Uses purpose tokens and scales only |
 | `internal/web/static/css/gallery.css` | Styles for the gallery page itself |
-| `internal/web/templates/components.html` | Components with markup worth sharing (`notice`, `status`, `badge`, `back`, `confirm-button`) |
+| `internal/web/templates/components.html` | Templates of components with shared markup (notice, status, badge, back, confirm, activity) |
+| `internal/web/components.go` | The functions pages call for those components; they check their arguments |
 | `internal/web/gallery.go` | The gallery's examples |
 
 ## Tokens
@@ -81,26 +82,28 @@ Nothing else changes: components only see purpose tokens.
 
 ## Components
 
+Template components are called as functions; everything else is plain HTML with the classes below.
+
 | Component | How | Notes |
 |---|---|---|
 | Buttons | `<button>` (primary), `.secondary`, `.danger`, `.quiet` (looks like a link), `.quiet.danger`; `<a class="button">` for navigation | One primary per form or card |
-| Confirm | `{{template "confirm-button" (dict "Action" … "Confirm" … "Text" … "Kind" …)}}` | For anything hard to undo. User text goes through a data attribute, never into script |
-| Notice | `{{template "notice" (dict "Kind" "warn" "Text" … "Link" … "LinkText" …)}}` | Kind: none (info), `ok`, `warn`, `error` |
-| Status | `{{template "status" "running"}}` | Service state |
-| Badge | `{{template "badge" (dict "Text" "New" "Highlight" true)}}` | Highlight badges are rare |
-| Back link | `{{template "back" (dict "Href" "/settings" "Text" "Settings")}}` | |
+| Confirm | `{{confirm ACTION QUESTION TEXT KIND ["name=value"…]}}` | For anything hard to undo. KIND is the button class (`danger`, `secondary`, `quiet`, `""`); trailing `name=value` are hidden fields. The question goes through a data attribute, never into script |
+| Notice | `{{notice KIND TEXT ["link=…" "linkText=…"]}}` | KIND: `info`, `ok`, `warn`, `error` |
+| Status | `{{status .Status}}` | Service state |
+| Badge | `{{badge "New" ["highlight"]}}` | Highlight badges are rare |
+| Back link | `{{back "/settings" "Settings"}}` | |
 | Card | `.card`, with a `.heading` row for title plus link | One topic per card |
 | Facts | `<dl class="facts">` | Label/value pairs; stack on phones |
 | Forms | `<label>Text <input><small>hint</small></label>`, `label.check` for checkboxes and radios, `.with-suffix`, `select.inline` | Errors: `<p class="error" role="alert">` above the form |
 | Rows | `ul.rows` with `li.row-split` | Lists you act on (people, kept copies) |
 | Needs attention | `.attention .item` with `.item-problem` / `.item-warning` | Home page |
-| Activity | `{{template "activity" (dict "Activity" …)}}` | Host operations: status line plus collapsed log |
+| Activity | `{{activity .SomeActivity}}` | Host operations: status line plus collapsed log; nothing if there's none |
 | Technical details | `<details class="technical">` | Collapsed by default |
 | Secret | `<code class="secret">` | Values to copy, shown once |
 
 ### Adding a component
 
-1. Add its CSS to `app.css` (tokens only), and a template to `components.html` if its markup is worth sharing.
+1. Add its CSS to `app.css` (tokens only). If its markup is worth sharing, add a template to `components.html` and a function to `components.go` that checks its arguments (a wrong argument should be an error, not a quietly broken page).
 2. Add an example to `gallerySections` in `internal/web/gallery.go`.
 3. Regenerate `docs/design/gallery.html` (command above) and look at it in both modes.
 

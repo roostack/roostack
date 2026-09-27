@@ -90,7 +90,7 @@ func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a := s.activityFor(r, activity.Apply); a != nil {
-		data["ApplyActivity"] = map[string]any{"Activity": a}
+		data["ApplyActivity"] = a
 	}
 	s.render(w, "services", data)
 }
@@ -151,7 +151,7 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		data["Setup"] = s.Manager.InstallStatus(r.Context(), name)
 		// The latest setup log, if it's this service's.
 		if a := s.activityFor(r, activity.Setup); a != nil && a.Title == "Setting up "+data["Service"].(ServiceView).Title {
-			data["SetupActivity"] = map[string]any{"Activity": a}
+			data["SetupActivity"] = a
 		}
 		data["DataDirs"] = s.Manager.DataDirs(name)
 		ports, err := s.Manager.Ports(name)
@@ -188,7 +188,7 @@ func (s *Server) backupsPage(w http.ResponseWriter, r *http.Request) {
 	data["BackupRepo"] = s.BackupRepo
 	data["CanRestore"] = s.Restores != nil && auth.Can(currentUser(r).Role, auth.ManageHost)
 	if a := s.activityFor(r, activity.Backup); a != nil {
-		data["BackupActivity"] = map[string]any{"Activity": a}
+		data["BackupActivity"] = a
 	}
 	s.render(w, "backups", data)
 }
@@ -322,7 +322,7 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderPart renders one named template from a page (htmx partials).
-func (s *Server) renderPart(w http.ResponseWriter, page, name string, data map[string]any) {
+func (s *Server) renderPart(w http.ResponseWriter, page, name string, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.pages[page].ExecuteTemplate(w, name, data); err != nil {
 		s.Log.Error("render partial", "page", page, "part", name, "err", strings.TrimSpace(err.Error()))

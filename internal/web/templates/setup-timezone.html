@@ -3,7 +3,7 @@
 <section class="card narrow">
   {{if .Wizard}}<p class="hint">Setup · step 1 of 4</p>
   <h1>Where is this machine?</h1>
-  {{else}}{{template "back" (dict "Href" .Back "Text" "Settings")}}
+  {{else}}{{back .Back "Settings"}}
   <h1>Change the time zone</h1>
   {{end}}
   <p>MyLab uses this machine's time zone for everything it shows and schedules, such as the nightly backup at 2 am.

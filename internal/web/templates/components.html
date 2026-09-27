@@ -1,17 +1,9 @@
-{{/* MyLab components (docs/DESIGN.md). Call them with dict, e.g.
-     {{template "notice" (dict "Kind" "warn" "Text" "Backups are only stored on this machine.")}}
-     Each one is shown in the design gallery (/design). */}}
+{{/* MyLab components (docs/DESIGN.md). Pages call them as functions
+     (components.go), e.g. {{notice "warn" "Backups are only on this machine."}};
+     these are their templates. Each is shown in the design gallery (/design). */}}
 
-{{/* theme-toggle: the top bar's light/dark/auto switch (expects a nav).
-     OOB is set when it's sent back to replace the one on the page. */}}
-{{define "theme-toggle"}}<form method="post" action="/account/theme" id="theme-toggle"{{if .OOB}} hx-swap-oob="true"{{end}}>
-  <input type="hidden" name="theme" value="{{.NextTheme}}">
-  <button type="submit" class="theme-toggle" title="Switch to {{.NextTheme}} theme"
-    aria-label="Theme: {{.Theme}}. Switch to {{.NextTheme}}.">{{if eq .Theme "light"}}☀ Light{{else if eq .Theme "dark"}}☾ Dark{{else}}◐ Auto{{end}}</button>
-</form>{{end}}
-
-{{/* notice: Kind is "" (info), "ok", "warn" or "error"; Text, and an
-     optional Link and LinkText. */}}
+{{/* notice: Kind is "" (info), "ok", "warn" or "error". Link and LinkText
+     are optional. */}}
 {{define "notice"}}<p class="notice{{with .Kind}} notice-{{.}}{{end}}"{{if eq .Kind "error"}} role="alert"{{else}} role="status"{{end}}>
   {{.Text}}{{with .Link}} <a href="{{.}}">{{$.LinkText}}</a>{{end}}</p>{{end}}
 
@@ -24,13 +16,52 @@
 {{/* back: a link to the parent page. */}}
 {{define "back"}}<a class="back" href="{{.Href}}">← {{.Text}}</a>{{end}}
 
-{{/* confirm-button: a form that posts to Action after the browser asks
-     Confirm. Name is passed through a data attribute, never into the
-     script, so it can be any text. Kind is a button class ("danger",
-     "secondary", "quiet danger", ...). Optional HiddenName and HiddenValue
-     send one extra field. */}}
-{{define "confirm-button"}}<form method="post" action="{{.Action}}" data-confirm="{{.Confirm}}" x-data
+{{/* confirm: a form that posts to Action after the browser asks Question.
+     The question goes through a data attribute, never into the script,
+     so it can be any text. Kind is a button class ("danger", "secondary",
+     "quiet danger", ...); Fields are hidden form fields. */}}
+{{define "confirm"}}<form method="post" action="{{.Action}}" data-confirm="{{.Question}}" x-data
   x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
-  {{with .HiddenName}}<input type="hidden" name="{{.}}" value="{{$.HiddenValue}}">{{end}}
-  <button type="submit"{{with .Kind}} class="{{.}}"{{end}}>{{.Text}}</button>
+  {{range .Fields}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">
+  {{end}}<button type="submit"{{with .Kind}} class="{{.}}"{{end}}>{{.Text}}</button>
+</form>{{end}}
+
+{{/* activity: a host operation (*activityView): a status line for
+     everyone, and a collapsed log for the curious. While running, the
+     status line and the log poll separately; the <details> element itself
+     is never replaced, so it stays open or closed as the user left it. */}}
+{{define "activity"}}
+<div class="activity">
+  {{template "activity-status" .}}
+  <details class="activity-details">
+    <summary>Details</summary>
+    {{template "activity-log" .}}
+  </details>
+</div>
+{{end}}
+
+{{define "activity-status"}}
+<p {{if not .Example}}id="activity-status-{{.Kind}}" {{end}}class="activity-status {{if .Running}}running{{else if .Err}}failed{{else}}ok{{end}}"
+  {{if and .Running (not .Example)}}hx-get="/activity/{{.Kind}}/status?was=running" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+  {{if .Running}}<span class="spinner" aria-hidden="true"></span> {{.Title}}: {{with .Status}}{{.}}…{{else}}starting…{{end}}
+    <small>started {{when .Started}}</small>
+  {{else if .Err}}✗ {{.Title}} failed {{when .Finished}}: {{.Err}}
+  {{else}}✓ {{.Title}} finished {{when .Finished}}{{with .Status}}: {{.}}{{end}}{{end}}
+</p>
+{{end}}
+
+{{define "activity-log"}}
+<pre {{if not .Example}}id="activity-log-{{.Kind}}" {{end}}class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
+  {{if and .Running (not .Example)}}hx-get="/activity/{{.Kind}}/log" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+{{- if .Dropped}}… {{.Dropped}} earlier lines not shown
+{{end}}{{range .Lines}}{{.}}
+{{end}}</pre>
+{{end}}
+
+{{/* theme-toggle: the top bar's light/dark/auto switch (expects a nav).
+     OOB is set when it's sent back to replace the one on the page. */}}
+{{define "theme-toggle"}}<form method="post" action="/account/theme" id="theme-toggle"{{if .OOB}} hx-swap-oob="true"{{end}}>
+  <input type="hidden" name="theme" value="{{.NextTheme}}">
+  <button type="submit" class="theme-toggle" title="Switch to {{.NextTheme}} theme"
+    aria-label="Theme: {{.Theme}}. Switch to {{.NextTheme}}.">{{if eq .Theme "light"}}☀ Light{{else if eq .Theme "dark"}}☾ Dark{{else}}◐ Auto{{end}}</button>
 </form>{{end}}

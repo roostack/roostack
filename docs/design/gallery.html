@@ -50,8 +50,8 @@
       <h1>Design system</h1>
       <p>Every colour, size and component MyLab's pages use, in light and dark. Pages should only use what's here;
         if something new is needed, add it to the design system first (<code>docs/DESIGN.md</code>).</p>
-      <p class="hint">Two kinds of component: <strong>template components</strong> have shared markup and are called with
-        <code>{{template "name" …}}</code> (the markup shows the call and the HTML it renders);
+      <p class="hint">Two kinds of component: <strong>template components</strong> have shared markup and are called as
+        functions, e.g. <code>{{notice "warn" "…"}}</code> (the markup shows the call and the HTML it renders);
         <strong>HTML and CSS classes</strong> are written as plain HTML using the classes shown.</p>
       <p class="hint">This file is generated from the same templates as the <code>/design</code> page in MyLab
         (<code>go test ./internal/web -run TestGalleryFile -update-gallery</code>). Don't edit it by hand.</p>
@@ -216,16 +216,14 @@
         
         <div class="example">
           <h3>Confirm <span class="badge badge-highlight">Template component</span></h3>
-          <p class="hint">A button that asks the browser to confirm first. Use it for anything hard to undo. The question can contain any text (it&#39;s passed as a data attribute, never into script).</p>
+          <p class="hint">confirm ACTION QUESTION TEXT KIND: a button that asks the browser to confirm first. Use it for anything hard to undo. KIND is the button&#39;s class (danger, secondary, quiet, or &#34;&#34;). The question can contain any text (it&#39;s passed as a data attribute, never into script).</p>
           <div class="panels">
             <div class="panel" data-mode="light"><form method="post" action="/users/3/remove" data-confirm="Remove dad? They will no longer be able to log in." x-data
   x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
-  
   <button type="submit" class="quiet danger">Remove dad</button>
 </form></div>
             <div class="panel" data-mode="dark"><form method="post" action="/users/3/remove" data-confirm="Remove dad? They will no longer be able to log in." x-data
   x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
-  
   <button type="submit" class="quiet danger">Remove dad</button>
 </form></div>
           </div>
@@ -233,15 +231,41 @@
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
-            <pre class="output">{{template &#34;confirm-button&#34; (dict
-  &#34;Action&#34;  &#34;/users/3/remove&#34;
-  &#34;Confirm&#34; &#34;Remove dad? They will no longer be able to log in.&#34;
-  &#34;Text&#34;    &#34;Remove dad&#34;
-  &#34;Kind&#34;    &#34;quiet danger&#34;)}}</pre>
+            <pre class="output">{{confirm &#34;/users/3/remove&#34; &#34;Remove dad? They will no longer be able to log in.&#34; &#34;Remove dad&#34; &#34;quiet danger&#34;}}</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;form method=&#34;post&#34; action=&#34;/users/3/remove&#34; data-confirm=&#34;Remove dad? They will no longer be able to log in.&#34; x-data
   x-on:submit=&#34;if (!confirm($el.dataset.confirm)) $event.preventDefault()&#34;&gt;
   &lt;button type=&#34;submit&#34; class=&#34;quiet danger&#34;&gt;Remove dad&lt;/button&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Confirm with a hidden field <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">Trailing name=value arguments become hidden form fields.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form method="post" action="/backups/restore/forgejo/kept/remove" data-confirm="Delete this copy permanently?" x-data
+  x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
+  <input type="hidden" name="path" value="/srv/mylab/services/forgejo/data.before-restore-20260926-130602">
+  <button type="submit" class="quiet danger">Delete</button>
+</form></div>
+            <div class="panel" data-mode="dark"><form method="post" action="/backups/restore/forgejo/kept/remove" data-confirm="Delete this copy permanently?" x-data
+  x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
+  <input type="hidden" name="path" value="/srv/mylab/services/forgejo/data.before-restore-20260926-130602">
+  <button type="submit" class="quiet danger">Delete</button>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{confirm &#34;/backups/restore/forgejo/kept/remove&#34; &#34;Delete this copy permanently?&#34; &#34;Delete&#34; &#34;quiet danger&#34; &#34;path=/srv/mylab/services/forgejo/data.before-restore-20260926-130602&#34;}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;form method=&#34;post&#34; action=&#34;/backups/restore/forgejo/kept/remove&#34; data-confirm=&#34;Delete this copy permanently?&#34; x-data
+  x-on:submit=&#34;if (!confirm($el.dataset.confirm)) $event.preventDefault()&#34;&gt;
+  &lt;input type=&#34;hidden&#34; name=&#34;path&#34; value=&#34;/srv/mylab/services/forgejo/data.before-restore-20260926-130602&#34;&gt;
+  &lt;button type=&#34;submit&#34; class=&#34;quiet danger&#34;&gt;Delete&lt;/button&gt;
 &lt;/form&gt;</pre>
             
           </details>
@@ -255,7 +279,7 @@
         
         <div class="example">
           <h3>Info <span class="badge badge-highlight">Template component</span></h3>
-          <p class="hint">Something&#39;s happening, or worth knowing.</p>
+          <p class="hint">notice KIND TEXT, where KIND is info, ok, warn or error. Info: something&#39;s happening, or worth knowing.</p>
           <div class="panels">
             <div class="panel" data-mode="light"><p class="notice" role="status">
   Updating DNS records and checking them…</p></div>
@@ -266,7 +290,7 @@
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
-            <pre class="output">{{template &#34;notice&#34; (dict &#34;Text&#34; &#34;Updating DNS records and checking them…&#34;)}}</pre>
+            <pre class="output">{{notice &#34;info&#34; &#34;Updating DNS records and checking them…&#34;}}</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;p class=&#34;notice&#34; role=&#34;status&#34;&gt;Updating DNS records and checking them…&lt;/p&gt;</pre>
             
@@ -286,7 +310,7 @@
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
-            <pre class="output">{{template &#34;notice&#34; (dict &#34;Kind&#34; &#34;ok&#34; &#34;Text&#34; &#34;Password changed.&#34;)}}</pre>
+            <pre class="output">{{notice &#34;ok&#34; &#34;Password changed.&#34;}}</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;p class=&#34;notice notice-ok&#34; role=&#34;status&#34;&gt;Password changed.&lt;/p&gt;</pre>
             
@@ -295,7 +319,7 @@
         
         <div class="example">
           <h3>Warning <span class="badge badge-highlight">Template component</span></h3>
-          <p class="hint">Should be dealt with soon. Link and LinkText are optional.</p>
+          <p class="hint">Should be dealt with soon. Options link= and linkText= add a link.</p>
           <div class="panels">
             <div class="panel" data-mode="light"><p class="notice notice-warn" role="status">
   Backups are only stored on this machine. <a href="/backups">Improve backups</a></p></div>
@@ -306,11 +330,7 @@
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
-            <pre class="output">{{template &#34;notice&#34; (dict
-  &#34;Kind&#34;     &#34;warn&#34;
-  &#34;Text&#34;     &#34;Backups are only stored on this machine.&#34;
-  &#34;Link&#34;     &#34;/backups&#34;
-  &#34;LinkText&#34; &#34;Improve backups&#34;)}}</pre>
+            <pre class="output">{{notice &#34;warn&#34; &#34;Backups are only stored on this machine.&#34; &#34;link=/backups&#34; &#34;linkText=Improve backups&#34;}}</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;p class=&#34;notice notice-warn&#34; role=&#34;status&#34;&gt;Backups are only stored on this machine.&lt;a href=&#34;/backups&#34;&gt;Improve backups&lt;/a&gt;&lt;/p&gt;</pre>
             
@@ -330,7 +350,7 @@
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
-            <pre class="output">{{template &#34;notice&#34; (dict &#34;Kind&#34; &#34;error&#34; &#34;Text&#34; &#34;The last backup didn&#39;t finish: the disk is full.&#34;)}}</pre>
+            <pre class="output">{{notice &#34;error&#34; &#34;The last backup didn&#39;t finish: the disk is full.&#34;}}</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;p class=&#34;notice notice-error&#34; role=&#34;alert&#34;&gt;The last backup didn&amp;#39;t finish: the disk is full.&lt;/p&gt;</pre>
             
@@ -360,10 +380,10 @@
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
-            <pre class="output">{{template &#34;status&#34; &#34;running&#34;}}
-{{template &#34;status&#34; &#34;starting&#34;}}
-{{template &#34;status&#34; &#34;failed&#34;}}
-{{template &#34;status&#34; &#34;stopped&#34;}}</pre>
+            <pre class="output">{{status &#34;running&#34;}}
+{{status &#34;starting&#34;}}
+{{status &#34;failed&#34;}}
+{{status &#34;stopped&#34;}}</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;span class=&#34;status status-running&#34;&gt;running&lt;/span&gt;&lt;span class=&#34;status status-starting&#34;&gt;starting&lt;/span&gt;&lt;span class=&#34;status status-failed&#34;&gt;failed&lt;/span&gt;&lt;span class=&#34;status status-stopped&#34;&gt;stopped&lt;/span&gt;</pre>
             
@@ -383,8 +403,8 @@
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
-            <pre class="output">{{template &#34;badge&#34; (dict &#34;Text&#34; &#34;Preview&#34;)}}
-{{template &#34;badge&#34; (dict &#34;Text&#34; &#34;New&#34; &#34;Highlight&#34; true)}}</pre>
+            <pre class="output">{{badge &#34;Preview&#34;}}
+{{badge &#34;New&#34; &#34;highlight&#34;}}</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;span class=&#34;badge&#34;&gt;Preview&lt;/span&gt;&lt;span class=&#34;badge badge-highlight&#34;&gt;New&lt;/span&gt;</pre>
             
@@ -465,7 +485,7 @@
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
-            <pre class="output">{{template &#34;back&#34; (dict &#34;Href&#34; &#34;/services&#34; &#34;Text&#34; &#34;Services&#34;)}}
+            <pre class="output">{{back &#34;/services&#34; &#34;Services&#34;}}
 &lt;details class=&#34;technical&#34;&gt;
   &lt;summary&gt;Technical details&lt;/summary&gt;
   &lt;dl class=&#34;facts&#34;&gt;
@@ -879,12 +899,12 @@
         
         <div class="example">
           <h3>Running <span class="badge badge-highlight">Template component</span></h3>
-          <p class="hint">The handler looks up the latest run of a kind, e.g. data[&#34;UpdatesActivity&#34;] = map[string]any{&#34;Activity&#34;: s.activityFor(r, activity.OSUpdates)}, and the page passes that on. Steps come from the operation&#39;s own log (activity.Log.Step).</p>
+          <p class="hint">The handler looks up the latest run of a kind, e.g. data[&#34;UpdatesActivity&#34;] = s.activityFor(r, activity.OSUpdates), and the page passes it to activity (which shows nothing if there&#39;s none). Steps come from the operation&#39;s own log (activity.Log.Step).</p>
           <div class="panels">
             <div class="panel" data-mode="light">
 <div class="activity">
   
-<p  class="activity-status running"
+<p class="activity-status running"
   >
   <span class="spinner" aria-hidden="true"></span> OS updates: Installing updates…
     <small>started today 02:00</small>
@@ -894,7 +914,7 @@
   <details class="activity-details">
     <summary>Details</summary>
     
-<pre  class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
+<pre class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
   >==&gt; Installing updates
 Unpacking curl (8.14.1-2&#43;deb13u5) ...
 </pre>
@@ -905,7 +925,7 @@ Unpacking curl (8.14.1-2&#43;deb13u5) ...
             <div class="panel" data-mode="dark">
 <div class="activity">
   
-<p  class="activity-status running"
+<p class="activity-status running"
   >
   <span class="spinner" aria-hidden="true"></span> OS updates: Installing updates…
     <small>started today 02:00</small>
@@ -915,7 +935,7 @@ Unpacking curl (8.14.1-2&#43;deb13u5) ...
   <details class="activity-details">
     <summary>Details</summary>
     
-<pre  class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
+<pre class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
   >==&gt; Installing updates
 Unpacking curl (8.14.1-2&#43;deb13u5) ...
 </pre>
@@ -928,15 +948,15 @@ Unpacking curl (8.14.1-2&#43;deb13u5) ...
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
-            <pre class="output">{{template &#34;activity&#34; .UpdatesActivity}}</pre>
+            <pre class="output">{{activity .UpdatesActivity}}</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;div class=&#34;activity&#34;&gt;
-  &lt;p  class=&#34;activity-status running&#34;
+  &lt;p class=&#34;activity-status running&#34;
   &gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;OS updates: Installing updates…&lt;small&gt;started today 02:00&lt;/small&gt;
   &lt;/p&gt;
   &lt;details class=&#34;activity-details&#34;&gt;
     &lt;summary&gt;Details&lt;/summary&gt;
-    &lt;pre  class=&#34;output activity-log&#34; x-data x-init=&#34;$el.scrollTop = $el.scrollHeight&#34;
+    &lt;pre class=&#34;output activity-log&#34; x-data x-init=&#34;$el.scrollTop = $el.scrollHeight&#34;
   &gt;==&amp;gt; Installing updates
 Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
 &lt;/pre&gt;
@@ -953,7 +973,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
             <div class="panel" data-mode="light">
 <div class="activity">
   
-<p  class="activity-status ok"
+<p class="activity-status ok"
   >
   ✓ OS updates finished today 02:00: Installed 3 updates: curl, libcurl4t64, tzdata.
 </p>
@@ -961,7 +981,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
   <details class="activity-details">
     <summary>Details</summary>
     
-<pre  class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
+<pre class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
   >==&gt; Installing updates
 ==&gt; Done
 </pre>
@@ -972,7 +992,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
             <div class="panel" data-mode="dark">
 <div class="activity">
   
-<p  class="activity-status ok"
+<p class="activity-status ok"
   >
   ✓ OS updates finished today 02:00: Installed 3 updates: curl, libcurl4t64, tzdata.
 </p>
@@ -980,7 +1000,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
   <details class="activity-details">
     <summary>Details</summary>
     
-<pre  class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
+<pre class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
   >==&gt; Installing updates
 ==&gt; Done
 </pre>
@@ -993,15 +1013,15 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
-            <pre class="output">{{template &#34;activity&#34; .FinishedActivity}}</pre>
+            <pre class="output">{{activity .FinishedActivity}}</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;div class=&#34;activity&#34;&gt;
-  &lt;p  class=&#34;activity-status ok&#34;
+  &lt;p class=&#34;activity-status ok&#34;
   &gt;✓ OS updates finished today 02:00: Installed 3 updates: curl, libcurl4t64, tzdata.
   &lt;/p&gt;
   &lt;details class=&#34;activity-details&#34;&gt;
     &lt;summary&gt;Details&lt;/summary&gt;
-    &lt;pre  class=&#34;output activity-log&#34; x-data x-init=&#34;$el.scrollTop = $el.scrollHeight&#34;
+    &lt;pre class=&#34;output activity-log&#34; x-data x-init=&#34;$el.scrollTop = $el.scrollHeight&#34;
   &gt;==&amp;gt; Installing updates
 ==&amp;gt; Done
 &lt;/pre&gt;
@@ -1018,7 +1038,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
             <div class="panel" data-mode="light">
 <div class="activity">
   
-<p  class="activity-status failed"
+<p class="activity-status failed"
   >
   ✗ OS updates failed today 02:00: exit status 100
   
@@ -1027,7 +1047,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
   <details class="activity-details">
     <summary>Details</summary>
     
-<pre  class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
+<pre class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
   >E: Could not get lock /var/lib/dpkg/lock-frontend
 ==&gt; Failed: exit status 100
 </pre>
@@ -1038,7 +1058,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
             <div class="panel" data-mode="dark">
 <div class="activity">
   
-<p  class="activity-status failed"
+<p class="activity-status failed"
   >
   ✗ OS updates failed today 02:00: exit status 100
   
@@ -1047,7 +1067,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
   <details class="activity-details">
     <summary>Details</summary>
     
-<pre  class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
+<pre class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
   >E: Could not get lock /var/lib/dpkg/lock-frontend
 ==&gt; Failed: exit status 100
 </pre>
@@ -1060,15 +1080,15 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
-            <pre class="output">{{template &#34;activity&#34; .FailedActivity}}</pre>
+            <pre class="output">{{activity .FailedActivity}}</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;div class=&#34;activity&#34;&gt;
-  &lt;p  class=&#34;activity-status failed&#34;
+  &lt;p class=&#34;activity-status failed&#34;
   &gt;✗ OS updates failed today 02:00: exit status 100
   &lt;/p&gt;
   &lt;details class=&#34;activity-details&#34;&gt;
     &lt;summary&gt;Details&lt;/summary&gt;
-    &lt;pre  class=&#34;output activity-log&#34; x-data x-init=&#34;$el.scrollTop = $el.scrollHeight&#34;
+    &lt;pre class=&#34;output activity-log&#34; x-data x-init=&#34;$el.scrollTop = $el.scrollHeight&#34;
   &gt;E: Could not get lock /var/lib/dpkg/lock-frontend
 ==&amp;gt; Failed: exit status 100
 &lt;/pre&gt;

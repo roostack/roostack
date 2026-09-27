@@ -5,12 +5,12 @@
   <div hx-get="/partials/backups" hx-trigger="every 10s, activity-done from:body" hx-swap="innerHTML">
     {{template "backup-card" .}}
   </div>
-  {{with .BackupActivity}}{{if .Activity}}
+  {{with .BackupActivity}}
   <section class="card section">
     <h2>Latest run</h2>
-    {{template "activity" .}}
+    {{activity .}}
   </section>
-  {{end}}{{end}}
+  {{end}}
   <section class="card section">
     <h2>Where backups go</h2>
     {{if .BackupRepo}}<p><code>{{.BackupRepo}}</code></p>{{else}}<p>Not set up.</p>{{end}}

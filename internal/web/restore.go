@@ -61,7 +61,7 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 		"Pending": s.Restores.Pending(), "Error": errMsg}
 	// The latest restore's log, if it's this service's.
 	if a := s.activityFor(r, activity.Restore); a != nil && a.Title == "Restoring "+svc.Title {
-		data["RestoreActivity"] = map[string]any{"Activity": a}
+		data["RestoreActivity"] = a
 		data["Pending"] = data["Pending"].(bool) || a.Running()
 	}
 	w.WriteHeader(status)
