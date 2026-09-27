@@ -96,6 +96,15 @@ var gallerySections = []gallerySection{
 <li class="item item-problem"><span>Forgejo didn't finish setting up.</span><a href="#">See what went wrong</a></li>
 <li class="item"><span>Finishing setting up Immich…</span><a href="#">View</a></li></ul></div>`},
 		}},
+	{ID: "settings", Title: "Settings navigation", Intro: "Settings is a grid of areas, each showing its state in a line; area pages list every area in a sidebar on desktop.",
+		Examples: []galleryExample{
+			{"Area cards", "The dot says how things are; the text says what. Areas with nothing to judge have no dot.",
+				`<ul class="area-grid"><li><a class="card area-card" href="#"><span class="area-title">Remote access</span><span class="area-summary"><span class="dot dot-ok" aria-hidden="true"></span>SSH from your home network only</span></a></li>
+<li><a class="card area-card" href="#"><span class="area-title">Home network</span><span class="area-summary"><span class="dot dot-problem" aria-hidden="true"></span>Devices at home are sent somewhere else</span></a></li>
+<li><a class="card area-card" href="#"><span class="area-title">Time zone</span><span class="area-summary">Australia/Melbourne · 14:05 now</span></a></li></ul>`},
+			{"Sidebar", "Hidden on phones, where the page's back link leads to the overview.",
+				`{{template "settings-nav" .Settings}}`},
+		}},
 	{ID: "activity", Title: "Activity", Intro: "Operations on the host: a status line everyone can follow, with the full log under Details.",
 		Examples: []galleryExample{
 			{"Running", "", `{{template "activity" (dict "Activity" .Running)}}`},
@@ -164,6 +173,7 @@ func gallerySamples() map[string]any {
 		return &activityView{Kind: "gallery", Snapshot: s, Example: true}
 	}
 	return map[string]any{
+		"Settings": map[string]any{"SettingsGroups": settingsGroups(), "SettingsArea": "updates"},
 		"Running":  view("Installing updates", "", false, "==> Installing updates", "Unpacking curl (8.14.1-2+deb13u5) ..."),
 		"Finished": view("Installed 3 updates: curl, libcurl4t64, tzdata.", "", true, "==> Installing updates", "==> Done"),
 		"Failed":   view("Installing updates", "exit status 100", true, "E: Could not get lock /var/lib/dpkg/lock-frontend", "==> Failed: exit status 100"),

@@ -252,11 +252,11 @@ func TestDNSCard(t *testing.T) {
 	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
 	h.server.DNS = &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateBlocked, Record: "*.lab.example.com", IP: "192.168.1.20",
 		Message: "your router's DNS rebinding protection", Checked: time.Now()}}
-	_, body := h.get("/settings")
+	_, body := h.get("/settings/home-network")
 	if !strings.Contains(body, "Home network access") || !strings.Contains(body, "rebinding protection") || !strings.Contains(body, "DHCP reservation") {
 		t.Error("owner should see the home network card with the problem")
 	}
-	if _, body := h.get("/partials/home"); !strings.Contains(body, "your router blocks their addresses") || !strings.Contains(body, `href="/settings#dns"`) {
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "your router blocks their addresses") || !strings.Contains(body, `href="/settings/home-network"`) {
 		t.Error("the problem should also be on the home page's attention list, linking to settings")
 	}
 
@@ -274,7 +274,7 @@ func TestDNSControls(t *testing.T) {
 		Provider: "Namecheap", CanManage: true, Risky: true, Checked: time.Now()}}
 	h.server.DNS = fd
 
-	_, body := h.get("/settings")
+	_, body := h.get("/settings/home-network")
 	if !strings.Contains(body, "Let MyLab manage DNS records at Namecheap?") || !strings.Contains(body, "one setting for the whole lab") ||
 		!strings.Contains(body, "API is risky") {
 		t.Error("manual mode should offer opting in, with the risk warning for Namecheap")
@@ -290,7 +290,7 @@ func TestDNSControls(t *testing.T) {
 	// A conflict offers taking over, which needs confirmation.
 	fd.st = dnsrecords.Status{State: dnsrecords.StateConflict, Record: "*.lab.example.com", IP: "192.168.1.20",
 		Current: "203.0.113.5", Managing: true, CanManage: true, Provider: "Cloudflare", Checked: time.Now()}
-	if _, body := h.get("/settings"); !strings.Contains(body, "/dns/take-over") || !strings.Contains(body, "Stop managing") {
+	if _, body := h.get("/settings/home-network"); !strings.Contains(body, "/dns/take-over") || !strings.Contains(body, "Stop managing") {
 		t.Error("conflict should offer taking over; managed mode should offer stopping")
 	}
 	_, body = h.get("/dns/take-over")
@@ -354,8 +354,8 @@ func TestTimezoneBanner(t *testing.T) {
 		t.Error("home page: missing the time zone banner for the Owner")
 	}
 	_, body = h.get("/settings")
-	if !strings.Contains(body, "<h2>Time zone</h2>") {
-		t.Error("settings: missing the time zone card")
+	if !strings.Contains(body, `href="/settings/time-zone"`) || !strings.Contains(body, "Australia/Melbourne") && !strings.Contains(body, " now</span>") {
+		t.Error("settings overview: missing the time zone area")
 	}
 	// Changing it from Settings restarts MyLab.
 	if code, _ := h.post("/setup/timezone", url.Values{"timezone": {"Australia/Melbourne"}}, h.srv.URL); code >= 400 || !fs.restarted {
@@ -393,7 +393,7 @@ func TestUpdatesCard(t *testing.T) {
 	}
 	h.server.Updates = fu
 
-	_, body := h.get("/settings")
+	_, body := h.get("/settings/updates")
 	for _, want := range []string{`id="updates"`, "Could not get lock", "linux-image-amd64", "Restart now", `<option value="4" selected>04:00</option>`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("settings missing %q", want)
@@ -441,7 +441,7 @@ func TestActivity(t *testing.T) {
 	act := h.server.Activity.Start(activity.OSUpdates, "OS updates")
 	fmt.Fprint(act, "==> Installing updates\nUnpacking curl (8.14.1-2+deb13u5)\n")
 
-	_, body := h.get("/settings")
+	_, body := h.get("/settings/updates")
 	for _, want := range []string{"OS updates: Installing updates…", `hx-get="/activity/os-updates/status?was=running"`,
 		"<summary>Details</summary>", "Unpacking curl (8.14.1-2&#43;deb13u5)", `hx-trigger="activity-done from:body"`, "Updating…"} {
 		if !strings.Contains(body, want) {

@@ -176,7 +176,8 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover",
-		"home", "services", "service", "backups", "restore", "settings", "account", "users", "about"} {
+		"home", "services", "service", "backups", "restore", "settings", "account", "users", "about",
+		"settings-domain", "settings-network", "settings-updates"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -211,6 +212,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /backups", s.require(auth.ManageServices, s.backupsPage))
 	mux.Handle("GET /partials/backups", s.require(auth.ManageServices, s.backupsPartial))
 	mux.Handle("GET /settings", s.requireOwner(s.settingsPage))
+	mux.Handle("GET /settings/people", s.requireOwner(s.usersPage))
+	mux.Handle("GET /settings/remote-access", s.requireWizard(s.sshPage))
+	mux.Handle("GET /settings/domain", s.requireOwner(s.domainAreaPage))
+	mux.Handle("GET /settings/home-network", s.requireOwner(s.homeNetworkPage))
+	mux.Handle("GET /settings/updates", s.requireOwner(s.updatesPage))
+	mux.Handle("GET /settings/time-zone", s.requireWizard(s.timezonePage))
 	mux.Handle("GET /account", s.requireLogin(s.accountPage))
 	mux.Handle("GET /design", s.requireLogin(s.galleryPage))
 	mux.Handle("GET /about", s.requireLogin(s.aboutPage))

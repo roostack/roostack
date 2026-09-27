@@ -238,3 +238,42 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
 .accent-choice { align-items: center; margin-bottom: var(--space-2); font-weight: var(--weight-normal); }
 .accent-dots { display: inline-flex; gap: 2px; }
 .accent-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 1px solid var(--border); }
+
+/* ---------- Screen-reader-only text ---------- */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---------- Settings: overview grid and area pages ---------- */
+.settings-group-title { font-size: var(--text-base); color: var(--muted); font-weight: var(--weight-medium);
+  margin: var(--space-5) 0 var(--space-2); }
+.area-grid { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.area-card { display: flex; flex-direction: column; gap: var(--space-1); height: 100%; padding: var(--space-4);
+  color: var(--fg); text-decoration: none; }
+.area-card:hover { border-color: var(--accent); }
+.area-title { font-weight: var(--weight-bold); }
+.area-title::after { content: " →"; color: var(--muted); font-weight: var(--weight-normal); }
+.area-summary { color: var(--muted); font-size: var(--text-sm); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: var(--space-2);
+  vertical-align: 1px; background: var(--muted); }
+.dot-ok { background: var(--ok); } .dot-warn { background: var(--warn); } .dot-problem { background: var(--bad); }
+
+/* Area pages: a sidebar of every area on desktop; on phones the page's
+   back link leads to the overview instead. */
+.settings-shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+.settings-nav { display: flex; flex-direction: column; gap: 2px; position: sticky; top: var(--space-4); }
+.settings-nav a { color: var(--muted); text-decoration: none; padding: var(--space-2) var(--space-3);
+  border-left: 3px solid transparent; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.settings-nav a:hover { color: var(--fg); background: var(--surface); }
+.settings-nav a.active { color: var(--fg); font-weight: var(--weight-medium); border-left-color: var(--highlight);
+  background: var(--surface); }
+.settings-nav .settings-home { color: var(--accent); margin-bottom: var(--space-2); }
+.settings-group { margin: var(--space-3) 0 var(--space-1) var(--space-3); font-size: var(--text-sm);
+  color: var(--muted); font-weight: var(--weight-medium); }
+.settings-main > .card, .settings-main > section { margin: 0; max-width: none; }
+.settings-main .back { display: none; }
+@media (max-width: 760px) {
+  .settings-shell { grid-template-columns: 1fr; }
+  .settings-nav { display: none; }
+  .settings-main .back { display: inline-block; }
+}

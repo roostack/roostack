@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/mylab/mylab/internal/auth"
+	"github.com/mylab/mylab/internal/osupdate"
 	"github.com/mylab/mylab/internal/setup"
 	"github.com/mylab/mylab/internal/store"
 )
@@ -19,7 +20,7 @@ func TestUsersPage(t *testing.T) {
 	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
 	ctx := context.Background()
 
-	if _, body := h.get("/settings"); !strings.Contains(body, `href="/users"`) || !strings.Contains(body, "1 person can log in") {
+	if _, body := h.get("/settings"); !strings.Contains(body, `href="/settings/people"`) || !strings.Contains(body, "1 person can log in") {
 		t.Error("settings should link to People")
 	}
 
@@ -83,5 +84,35 @@ func TestQRSVG(t *testing.T) {
 	svg, err := qrSVG("otpauth://totp/MyLab:mum?secret=ABC&issuer=MyLab")
 	if err != nil || !strings.HasPrefix(string(svg), `<svg class="qr"`) || !strings.Contains(string(svg), `fill="#fff"`) {
 		t.Errorf("svg = %.80s, %v", svg, err)
+	}
+}
+
+func TestSettingsOverview(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.server.Setup = &fakeSetup{ssh: "lan", p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
+	h.server.Domain = "lab.example.com"
+	h.server.Updates = &fakeUpdates{restart: osupdate.RestartStatus{Needed: true}}
+
+	_, body := h.get("/settings")
+	for _, want := range []string{"People and access", "This machine", `href="/settings/remote-access"`,
+		"SSH from your home network only", `class="dot dot-ok"`, "lab.example.com", "Restarting around 04:00"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("overview missing %q", want)
+		}
+	}
+	// Area pages have the sidebar, with their own area marked.
+	for path, area := range map[string]string{"/settings/updates": "/settings/updates", "/settings/people": "/settings/people",
+		"/settings/remote-access": "/settings/remote-access", "/settings/time-zone": "/settings/time-zone",
+		"/settings/domain": "/settings/domain", "/settings/home-network": "/settings/home-network"} {
+		code, body := h.get(path)
+		if code != http.StatusOK || !strings.Contains(body, `class="settings-nav"`) ||
+			!strings.Contains(body, `href="`+area+`" class="active" aria-current="page"`) {
+			t.Errorf("%s: %d, want the sidebar with its area marked", path, code)
+		}
+	}
+	// The first-run wizard has no sidebar.
+	h.server.Setup = &fakeSetup{}
+	if _, body := h.get("/setup/timezone"); strings.Contains(body, `class="settings-nav"`) {
+		t.Error("the wizard shouldn't show the settings sidebar")
 	}
 }

@@ -37,7 +37,7 @@
     </label>
     <nav class="gallery-toc">
       <a href="#tokens">Colours</a> <a href="#scales">Sizes</a>
-      <a href="#buttons">Buttons</a> <a href="#notices">Notices</a> <a href="#status">Status and badges</a> <a href="#cards">Cards and facts</a> <a href="#forms">Forms</a> <a href="#lists">Lists</a> <a href="#activity">Activity</a> <a href="#secrets">Secrets and codes</a> 
+      <a href="#buttons">Buttons</a> <a href="#notices">Notices</a> <a href="#status">Status and badges</a> <a href="#cards">Cards and facts</a> <a href="#forms">Forms</a> <a href="#lists">Lists</a> <a href="#settings">Settings navigation</a> <a href="#activity">Activity</a> <a href="#secrets">Secrets and codes</a> 
     </nav>
 
     <section id="tokens">
@@ -312,6 +312,66 @@
         <details><summary>Markup</summary><pre class="output">&lt;div class=&#34;attention&#34;&gt;&lt;ul&gt;&lt;li class=&#34;item item-warning&#34;&gt;&lt;span&gt;Backups are only stored on this machine.&lt;/span&gt;&lt;a href=&#34;#&#34;&gt;Improve backups&lt;/a&gt;&lt;/li&gt;
 &lt;li class=&#34;item item-problem&#34;&gt;&lt;span&gt;Forgejo didn&#39;t finish setting up.&lt;/span&gt;&lt;a href=&#34;#&#34;&gt;See what went wrong&lt;/a&gt;&lt;/li&gt;
 &lt;li class=&#34;item&#34;&gt;&lt;span&gt;Finishing setting up Immich…&lt;/span&gt;&lt;a href=&#34;#&#34;&gt;View&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/div&gt;</pre></details>
+      </div>
+      
+    </section>
+    
+    <section id="settings">
+      <h2>Settings navigation</h2>
+      <p class="hint">Settings is a grid of areas, each showing its state in a line; area pages list every area in a sidebar on desktop.</p>
+      
+      <div class="example">
+        <h3>Area cards</h3>
+        <p class="hint">The dot says how things are; the text says what. Areas with nothing to judge have no dot.</p>
+        <div class="panels">
+          <div class="panel" data-mode="light"><ul class="area-grid"><li><a class="card area-card" href="#"><span class="area-title">Remote access</span><span class="area-summary"><span class="dot dot-ok" aria-hidden="true"></span>SSH from your home network only</span></a></li>
+<li><a class="card area-card" href="#"><span class="area-title">Home network</span><span class="area-summary"><span class="dot dot-problem" aria-hidden="true"></span>Devices at home are sent somewhere else</span></a></li>
+<li><a class="card area-card" href="#"><span class="area-title">Time zone</span><span class="area-summary">Australia/Melbourne · 14:05 now</span></a></li></ul></div>
+          <div class="panel" data-mode="dark"><ul class="area-grid"><li><a class="card area-card" href="#"><span class="area-title">Remote access</span><span class="area-summary"><span class="dot dot-ok" aria-hidden="true"></span>SSH from your home network only</span></a></li>
+<li><a class="card area-card" href="#"><span class="area-title">Home network</span><span class="area-summary"><span class="dot dot-problem" aria-hidden="true"></span>Devices at home are sent somewhere else</span></a></li>
+<li><a class="card area-card" href="#"><span class="area-title">Time zone</span><span class="area-summary">Australia/Melbourne · 14:05 now</span></a></li></ul></div>
+        </div>
+        <details><summary>Markup</summary><pre class="output">&lt;ul class=&#34;area-grid&#34;&gt;&lt;li&gt;&lt;a class=&#34;card area-card&#34; href=&#34;#&#34;&gt;&lt;span class=&#34;area-title&#34;&gt;Remote access&lt;/span&gt;&lt;span class=&#34;area-summary&#34;&gt;&lt;span class=&#34;dot dot-ok&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;SSH from your home network only&lt;/span&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a class=&#34;card area-card&#34; href=&#34;#&#34;&gt;&lt;span class=&#34;area-title&#34;&gt;Home network&lt;/span&gt;&lt;span class=&#34;area-summary&#34;&gt;&lt;span class=&#34;dot dot-problem&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;Devices at home are sent somewhere else&lt;/span&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a class=&#34;card area-card&#34; href=&#34;#&#34;&gt;&lt;span class=&#34;area-title&#34;&gt;Time zone&lt;/span&gt;&lt;span class=&#34;area-summary&#34;&gt;Australia/Melbourne · 14:05 now&lt;/span&gt;&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;</pre></details>
+      </div>
+      
+      <div class="example">
+        <h3>Sidebar</h3>
+        <p class="hint">Hidden on phones, where the page&#39;s back link leads to the overview.</p>
+        <div class="panels">
+          <div class="panel" data-mode="light">
+<nav class="settings-nav" aria-label="Settings">
+  <a href="/settings" class="settings-home">All settings</a>
+  
+  <p class="settings-group">People and access</p>
+  <a href="/settings/people">People</a><a href="/settings/remote-access">Remote access</a>
+  
+  <p class="settings-group">Network</p>
+  <a href="/settings/domain">Domain and certificates</a><a href="/settings/home-network">Home network</a>
+  
+  <p class="settings-group">This machine</p>
+  <a href="/settings/updates" class="active" aria-current="page">Updates and restarts</a><a href="/settings/time-zone">Time zone</a>
+  
+</nav>
+</div>
+          <div class="panel" data-mode="dark">
+<nav class="settings-nav" aria-label="Settings">
+  <a href="/settings" class="settings-home">All settings</a>
+  
+  <p class="settings-group">People and access</p>
+  <a href="/settings/people">People</a><a href="/settings/remote-access">Remote access</a>
+  
+  <p class="settings-group">Network</p>
+  <a href="/settings/domain">Domain and certificates</a><a href="/settings/home-network">Home network</a>
+  
+  <p class="settings-group">This machine</p>
+  <a href="/settings/updates" class="active" aria-current="page">Updates and restarts</a><a href="/settings/time-zone">Time zone</a>
+  
+</nav>
+</div>
+        </div>
+        <details><summary>Markup</summary><pre class="output">{{template &#34;settings-nav&#34; .Settings}}</pre></details>
       </div>
       
     </section>

@@ -114,7 +114,7 @@ Pages (top navigation; links hidden where the role can't use them):
 | Home `/` | everyone | "Needs attention" list (problems gathered from setup, applying changes, backups, DNS and 2FA, filtered by role, each linking to where it's fixed), then service tiles. Shows "Everything's working" when there's nothing to do |
 | Services `/services`, `/services/{name}` | view: everyone; manage: Admin+ | list, catalog/install, per-service page (incl. turning package ports on), remove |
 | Backups `/backups` | Admin+ | status, "Back up now", destination, restore notes |
-| Settings `/settings` | Owner | domain and certificates (Change reuses the wizard forms), DNS records, time zone |
+| Settings `/settings` | Owner | overview grid: each area's state in a line with a status dot; area pages `/settings/{people,remote-access,domain,home-network,updates,time-zone}` with a sidebar on desktop. The wizard's forms double as the change pages |
 | Account `/account` | everyone | two-factor status, change password |
 
 Shared pieces (attention list, backup and DNS cards) live in `templates/parts.html`, which every page can use. Live sections refresh via `/partials/*`.

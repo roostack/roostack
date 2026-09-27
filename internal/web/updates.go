@@ -68,7 +68,7 @@ func (s *Server) updateNowSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "updates", "OS updates started")
-	redirect(w, r, "/settings#updates")
+	redirect(w, r, "/settings/updates")
 }
 
 func (s *Server) restartNowSubmit(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +79,7 @@ func (s *Server) restartNowSubmit(w http.ResponseWriter, r *http.Request) {
 	err := s.Updates.RestartNow(r.Context())
 	var busy osupdate.ErrBusy
 	if errors.As(err, &busy) {
-		s.renderSettings(w, r, "MyLab can't restart right now: "+busy.Error()+".")
+		s.renderUpdates(w, r, "MyLab can't restart right now: "+busy.Error()+".")
 		return
 	}
 	if err != nil {
@@ -98,7 +98,7 @@ func (s *Server) restartPolicySubmit(w http.ResponseWriter, r *http.Request) {
 	err = s.Setup.SaveRestartPolicy(r.Context(), r.FormValue("restart"), hour)
 	var ce *setup.CheckError
 	if errors.As(err, &ce) {
-		s.renderSettings(w, r, ce.Msg)
+		s.renderUpdates(w, r, ce.Msg)
 		return
 	}
 	if err != nil {

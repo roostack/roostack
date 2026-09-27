@@ -1,0 +1,18 @@
+{{define "title"}}Domain and certificates{{end}}
+{{define "content"}}
+<section class="card">
+  {{template "back" (dict "Href" "/settings" "Text" "Settings")}}
+  <div class="heading"><h1>Domain and certificates</h1></div>
+  {{if .DomainSet}}
+  <dl class="facts">
+    <dt>Domain</dt><dd>{{.LabDomain}}</dd>
+    <dt>DNS provider</dt><dd>{{.ProviderTitle}}</dd>
+    <dt>Services</dt><dd>Addresses like <code>photos.{{.LabDomain}}</code>, with a free certificate from Let's Encrypt</dd>
+  </dl>
+  <p><a class="button secondary" href="/setup/domain">Change domain or DNS provider</a></p>
+  {{else}}
+  {{template "notice" (dict "Kind" "error" "Text" "Your domain isn't set up yet, so services can't get HTTPS certificates.")}}
+  <p><a class="button" href="/setup/domain">Set up your domain</a></p>
+  {{end}}
+</section>
+{{end}}

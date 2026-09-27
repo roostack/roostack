@@ -32,7 +32,7 @@ func (s *Server) renderUsers(w http.ResponseWriter, r *http.Request, status int,
 	// Temporary passwords must not be cached or shown again.
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	s.render(w, "users", data)
+	s.render(w, "users", withArea(data, "people"))
 }
 
 func (s *Server) userAddSubmit(w http.ResponseWriter, r *http.Request) {

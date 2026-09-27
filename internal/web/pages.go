@@ -9,8 +9,6 @@ import (
 
 	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/dns"
-	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/store"
@@ -38,7 +36,8 @@ func navFor(u *store.User, page string) nav {
 		"home": "home", "services": "services", "service": "services", "catalog": "services",
 		"install": "services", "remove": "services", "backups": "backups",
 		"settings": "settings", "setup-timezone": "settings", "setup-ssh": "settings", "setup-domain": "settings", "setup-backup": "settings",
-		"recovery-key": "settings", "restore": "backups", "users": "settings", "dns-takeover": "settings", "account": "account", "twofactor": "account",
+		"recovery-key": "settings", "restore": "backups", "users": "settings",
+		"settings-domain": "settings", "settings-network": "settings", "settings-updates": "settings", "dns-takeover": "settings", "account": "account", "twofactor": "account",
 	}[page]
 	next := map[string]string{"auto": "light", "light": "dark", "dark": "auto"}[u.Theme]
 	if next == "" {
@@ -204,39 +203,6 @@ func (s *Server) backupsPartial(w http.ResponseWriter, r *http.Request) {
 	s.renderPart(w, "backups", "backup-card", data)
 }
 
-func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
-	s.renderSettings(w, r, "")
-}
-
-// renderSettings shows the Settings page; updatesErr is shown on the
-// updates card (with a 400 status).
-func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, updatesErr string) {
-	data, err := s.pageData(r)
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	data["DNS"] = s.dnsView(r)
-	data["HostClock"] = hosttime.Now()
-	if users, err := s.Store.ListUsers(r.Context()); err == nil {
-		data["UserCount"] = len(users)
-	}
-	data["Updates"] = s.updatesView(r, updatesErr)
-	if updatesErr != "" {
-		w.WriteHeader(http.StatusBadRequest)
-	}
-	if s.Setup != nil {
-		if a, err := s.Setup.SSHAccess(); err == nil {
-			data["SSH"] = a.Choice
-		}
-	}
-	data["LabDomain"] = s.Domain
-	data["DomainSet"] = s.Domain != "" && s.Setup != nil && s.domainDone(r)
-	if p := dns.Get(s.DNSProvider); p != nil {
-		data["ProviderTitle"] = p.Title
-	}
-	s.render(w, "settings", data)
-}
 
 func (s *Server) domainDone(r *http.Request) bool {
 	p, err := s.Setup.Progress(r.Context())
