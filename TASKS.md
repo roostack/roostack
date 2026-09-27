@@ -91,6 +91,16 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Unknown host changes (extra apt sources, held packages, changed firewall) warning (SPEC §3.2)
   - [x] Host time zone: wizard step 1, Settings card, agent `timedatectl`, banner when the browser's clock differs
   - [x] Containers use the host's time zone (`Timezone=<zone>` in every unit; a change restarts them)
+- [ ] **1.14 Design system** (agreed 2026-09-27)
+  - [ ] Brand colours: primary + highlight, light and dark (choose together)
+  - [ ] Tokens: colours, spacing scale, type scale, radius, shadow; CSS uses only tokens
+  - [ ] Components as template partials: page header, card/section, facts, notice (info/warn/error/success), buttons (primary/secondary/danger/quiet), form field (label, hint, error), status pill, list row with actions, activity, confirm
+  - [ ] Component gallery: a page in the UI, and a standalone HTML file in the repo (generated from the same templates, kept in sync by a test)
+  - [ ] Move existing pages onto the components (fix inconsistencies found in the UI review)
+- [ ] **1.15 Settings structure** (after 1.14)
+  - [ ] /settings as a grid of overview cards (current state + status per area)
+  - [ ] Area pages with a sidebar on desktop, back link on phones: People & access (People, Remote access), Network (Domain & certificates, Home network), This machine (Updates & restarts, Time zone)
+  - [ ] Wizard forms double as the area "change" pages
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow (`scripts/dev-install.sh` is a stand-in)
 - [ ] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)
   - [x] Forgejo v15 LTS: rootless image, MyLab Postgres, HTTPS clone; backup/restore tested on the VM
