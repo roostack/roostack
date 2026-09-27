@@ -47,6 +47,9 @@ func serve(args []string) error {
 		return err
 	}
 	lab.HasGPU = config.DetectGPU()
+	if err := withNode(&lab); err != nil {
+		return err
+	}
 	lab.Timezone = hosttime.Zone()
 	st, err := store.Open(dbPath(lab))
 	if err != nil {
@@ -201,10 +204,13 @@ func setupToken(ctx context.Context, lab config.Lab, st *store.Store, log *slog.
 // serviceViews builds the dashboard list from desired state plus live
 // systemd status.
 func serviceViews(ctx context.Context, lab config.Lab, sd *systemd.Manager, log *slog.Logger) ([]web.ServiceView, error) {
-	services, err := state.LoadServices(lab)
+	all, err := state.LoadServices(lab)
 	if err != nil {
 		return nil, err
 	}
+	// Status is known only for this machine's services until nodes report
+	// theirs (SPEC.md §10.3).
+	services := state.OnNode(all, lab.NodeID)
 	var views []web.ServiceView
 	for _, s := range services {
 		v := web.ServiceView{Name: s.Package.Name, Title: s.Package.Title, Status: "unknown"}
@@ -345,10 +351,11 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 // lookupService generates an installed service's output (e.g. to restore
 // it), with its title.
 func lookupService(lab config.Lab, name string) (*generate.Output, string, error) {
-	services, err := state.LoadServices(lab)
+	all, err := state.LoadServices(lab)
 	if err != nil {
 		return nil, "", err
 	}
+	services := state.OnNode(all, lab.NodeID)
 	for _, s := range services {
 		if s.Package.Name == name {
 			out, err := generate.Service(lab, s.Package, s.Instance)

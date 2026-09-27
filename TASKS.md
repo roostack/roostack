@@ -116,7 +116,11 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 ## Phase 2: Multiple machines (SPEC §10, draft)
 
 - [x] Review the §10 design with the user (locked 2026-09-27)
-- [ ] Seams: `host` on instances; `Node` interface between manager and machine operations; per-node status/activity; stable node ID
+- [ ] Seams
+  - [x] Stable node ID and name (`internal/node`, `node.json`; never part of the replica)
+  - [x] `host` on every instance, set explicitly (existing ones stamped on first apply); only this node's services are generated, applied, backed up and shown; ports are per node; invalid hosts are rejected
+  - [ ] `Node` interface between the manager (controller) and machine operations (apply, status, hooks, actions, restores, activity, updates, firewall)
+  - [ ] Per-node status and activity in the UI
 - [ ] Two-VM prototype: second dev VM joins over MyLab-managed WireGuard (join code, mTLS), runs one service placed on it
 - [ ] Controller move (planned hand-over) and promotion from a node's replica
 - [ ] Edge: public service at home routed through a cloud node (TLS passthrough over WireGuard, PROXY protocol)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/mylab/mylab/internal/node"
 	"os"
 	"path/filepath"
 
@@ -169,5 +170,16 @@ func writeFiles(root string, files []generate.File) error {
 		}
 		fmt.Println("wrote", path)
 	}
+	return nil
+}
+
+// withNode loads this machine's identity into lab (creating it on first
+// use), so only its own services are generated and run (SPEC.md §10.4).
+func withNode(lab *config.Lab) error {
+	id, err := node.LoadOrCreate(lab.Paths.StateDir)
+	if err != nil {
+		return fmt.Errorf("this machine's identity: %w", err)
+	}
+	lab.NodeID = id.ID
 	return nil
 }

@@ -160,7 +160,9 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	if err != nil {
 		return err
 	}
-	in := &instance.Instance{Package: p.Name, Version: p.Version, Updates: instance.UpdatesNotify, Settings: map[string]any{}}
+	// Installed on this machine; choosing another comes with SPEC.md §10.4.
+	in := &instance.Instance{Package: p.Name, Host: m.Lab.NodeID, Version: p.Version, Updates: instance.UpdatesNotify,
+		Settings: map[string]any{}}
 
 	secrets := map[string][]byte{}
 	for _, s := range p.Settings {
@@ -215,12 +217,13 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	if err := m.allocateAndSave(services[:len(services)-1]); err != nil {
 		return err
 	}
-	if _, err := state.AllocatePorts(services); err != nil {
+	onNode := state.OnNode(services, in.Host)
+	if _, err := state.AllocatePorts(onNode); err != nil {
 		return err
 	}
-	// Check the whole lab still generates (e.g. no hostname clash) before
-	// saving anything.
-	if _, err := state.Desired(m.Lab, services); err != nil {
+	// Check the machine's services still generate (e.g. no hostname clash)
+	// before saving anything.
+	if _, err := state.Desired(m.Lab, onNode); err != nil {
 		if strings.Contains(err.Error(), "already used") {
 			return formErrorf("That web address is already used by another service. Choose a different one.")
 		}
@@ -301,7 +304,7 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 		o.HostPort = 0 // keep following the package's default
 	}
 	in.Ports[port] = o
-	if _, err := state.Desired(m.Lab, services); err != nil {
+	if _, err := state.Desired(m.Lab, state.OnNode(services, in.Host)); err != nil {
 		var pe *state.PortInUseError
 		switch {
 		case errors.As(err, &pe) && pe.UsedBy == "":
@@ -426,7 +429,7 @@ func (m *Manager) UpdateSettings(ctx context.Context, name string, req SettingsR
 	if err := in.Validate(p); err != nil {
 		return formErrorf("%s", err)
 	}
-	if _, err := state.Desired(m.Lab, services); err != nil {
+	if _, err := state.Desired(m.Lab, state.OnNode(services, in.Host)); err != nil {
 		if strings.Contains(err.Error(), "already used") {
 			return formErrorf("That web address is already used by another service. Choose a different one.")
 		}
@@ -553,7 +556,8 @@ func (m *Manager) applyOnce(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	desired, err := state.Desired(m.Lab, services)
+	// Only the services placed on this machine (SPEC.md §10.4).
+	desired, err := state.Desired(m.Lab, state.OnNode(services, m.Lab.NodeID))
 	if err != nil {
 		return err
 	}
@@ -595,10 +599,18 @@ func (m *Manager) applyOnce(ctx context.Context) (err error) {
 
 // allocateAndSave gives routes without a port one, and saves those
 // instances so the ports never change. Callers hold m.mu.
+// allocateAndSave places services that have no host yet on this machine
+// and gives this machine's routes their ports, saving what changed.
 func (m *Manager) allocateAndSave(services []state.Service) error {
-	changed, err := state.AllocatePorts(services)
+	changed := state.AssignHosts(services, m.Lab.NodeID)
+	ported, err := state.AllocatePorts(state.OnNode(services, m.Lab.NodeID))
 	if err != nil {
 		return err
+	}
+	for _, s := range ported {
+		if !slices.ContainsFunc(changed, func(c state.Service) bool { return c.Package.Name == s.Package.Name }) {
+			changed = append(changed, s)
+		}
 	}
 	for _, s := range changed {
 		if err := s.Instance.Save(state.InstanceFile(m.Lab, s.Package.Name)); err != nil {

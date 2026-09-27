@@ -304,3 +304,35 @@ func TestFirewallFollowsServices(t *testing.T) {
 		t.Errorf("firewall = %+v, want SSH from the LAN and forgejo's port", last)
 	}
 }
+
+func TestOnlyThisNodesServices(t *testing.T) {
+	m, _ := newManager(t)
+	m.Lab.NodeID = "n-0000000001"
+	ctx := context.Background()
+	// Vaultwarden is installed here; Immich is placed on another machine.
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	os.WriteFile(state.InstanceFile(m.Lab, "immich"), []byte("package: immich\nversion: 2.1.0-mylab.1\nhost: n-0000000002\n"), 0o640)
+	m.Apply()
+	m.Wait()
+	if st := m.Status(); st.LastErr != nil {
+		t.Fatal(st.LastErr)
+	}
+	in, _ := instance.Load(state.InstanceFile(m.Lab, "vaultwarden"))
+	if in.Host != "n-0000000001" {
+		t.Errorf("installed service's host = %q", in.Host)
+	}
+	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-vaultwarden-app.container")); err != nil {
+		t.Error("this machine's service should be applied:", err)
+	}
+	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-immich-server.container")); err == nil {
+		t.Error("a service placed on another machine must not be applied here")
+	}
+	// Its instance file is left alone (no ports allocated here).
+	other, _ := instance.Load(state.InstanceFile(m.Lab, "immich"))
+	if other.Routes["web"].Port != 0 {
+		t.Error("another machine's service shouldn't get ports from this one")
+	}
+}

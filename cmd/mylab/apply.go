@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/mylab/mylab/internal/agent"
@@ -29,18 +30,29 @@ func apply(args []string) error {
 	}
 	lab.HasGPU = config.DetectGPU()
 	lab.Timezone = hosttime.Zone()
-	services, err := state.LoadServices(lab)
+	if err := withNode(&lab); err != nil {
+		return err
+	}
+	all, err := state.LoadServices(lab)
 	if err != nil {
 		return err
 	}
-	// New routes get a host port once; it is saved in the instance file.
-	changed, err := state.AllocatePorts(services)
+	// Services get a host (this machine, if they have none) and new routes
+	// a host port, once; both are saved in the instance file.
+	changed := state.AssignHosts(all, lab.NodeID)
+	services := state.OnNode(all, lab.NodeID)
+	ported, err := state.AllocatePorts(services)
 	if err != nil {
 		return err
+	}
+	for _, s := range ported {
+		if !slices.ContainsFunc(changed, func(c state.Service) bool { return c.Package.Name == s.Package.Name }) {
+			changed = append(changed, s)
+		}
 	}
 	for _, s := range changed {
 		if *dryRun {
-			fmt.Printf("Would allocate ports for %s: %v\n", s.Package.Name, s.Instance.Routes)
+			fmt.Printf("Would save %s: host %s, ports %v\n", s.Package.Name, s.Instance.Host, s.Instance.Routes)
 			continue
 		}
 		if err := s.Instance.Save(state.InstanceFile(lab, s.Package.Name)); err != nil {

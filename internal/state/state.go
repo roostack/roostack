@@ -16,6 +16,7 @@ import (
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/instance"
+	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/reconcile"
 )
@@ -50,6 +51,12 @@ func LoadServices(lab config.Lab) ([]Service, error) {
 		}
 		if in.Package != name {
 			errs = append(errs, fmt.Errorf("%s: file name must match package %q", e.Name(), in.Package))
+			continue
+		}
+		// Checked here, not only when generating: a service with a bad host
+		// would otherwise belong to no machine and silently never run.
+		if in.Host != "" && !node.ValidID(in.Host) {
+			errs = append(errs, fmt.Errorf("%s: host %q is not a node ID", e.Name(), in.Host))
 			continue
 		}
 		p, err := pkgspec.Load(lab.Paths.PackageFile(in.Package))
@@ -137,6 +144,32 @@ func checkHostPort(hp generate.HostPort, service string, ports map[int]string, h
 	}
 	hostPorts[key] = service
 	return nil
+}
+
+// AssignHosts places services that have no host yet on nodeID (services
+// installed before a lab could span several machines, SPEC.md §10.4).
+// It returns the ones it changed, to be saved.
+func AssignHosts(services []Service, nodeID string) []Service {
+	var changed []Service
+	for _, s := range services {
+		if s.Instance.Host == "" && nodeID != "" {
+			s.Instance.Host = nodeID
+			changed = append(changed, s)
+		}
+	}
+	return changed
+}
+
+// OnNode returns the services placed on nodeID. A service with no host
+// yet counts as this node's (see AssignHosts).
+func OnNode(services []Service, nodeID string) []Service {
+	var out []Service
+	for _, s := range services {
+		if s.Instance.Host == nodeID || s.Instance.Host == "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // AllocatePorts gives every route without a host port the lowest free port
