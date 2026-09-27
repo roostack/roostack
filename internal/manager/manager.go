@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/mylab/mylab/internal/activity"
+	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/instance"
@@ -54,6 +55,12 @@ type Manager struct {
 	Registry MachineRegistry
 	// RenameSelf renames this machine (optional).
 	RenameSelf func(name string) error
+	// BackupStore records backup providers and targets, and OpenRepo opens
+	// a repository with the recovery key (backups.go; optional).
+	BackupStore BackupStore
+	OpenRepo    func(url string, env []string) *backup.Repo
+	// HasRecoveryKey reports whether the lab has its recovery key yet.
+	HasRecoveryKey func() bool
 	// Activity shows problems building an assignment (optional).
 	Activity *activity.Registry
 

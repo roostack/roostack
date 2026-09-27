@@ -82,6 +82,9 @@ func (f *fakeSettings) SSHAccess() (SSHAccess, error)                       { re
 func (f *fakeSettings) SetSSH(context.Context, string, bool) error          { return nil }
 func (f *fakeSettings) SetRestartPolicy(context.Context, string, int) error { return nil }
 func (f *fakeSettings) RestartPolicy() (string, int)                        { return "notify", 3 }
+func (f *fakeSettings) SetBackupDestination(context.Context, BackupDestination) error {
+	return nil
+}
 
 // lab returns a controller identity, a node identity and a catalog.
 func machines(t *testing.T) (ctrl, node labnet.Identity, lab config.Lab) {

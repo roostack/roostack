@@ -16,11 +16,12 @@ import (
 
 // fakeRemote is another machine that records its assignments.
 type fakeRemote struct {
-	mu   sync.Mutex
-	last node.Assignment
-	n    int
-	left bool
-	name string
+	mu       sync.Mutex
+	last     node.Assignment
+	n        int
+	left     bool
+	name     string
+	settings *fakeMachineSettings
 }
 
 func (f *fakeRemote) Identity() nodeid.Identity {
@@ -48,7 +49,33 @@ func (f *fakeRemote) LatestActivity(string) (activity.Snapshot, bool) {
 func (f *fakeRemote) Backups() node.Backups   { return nil }
 func (f *fakeRemote) Restores() node.Restores { return nil }
 func (f *fakeRemote) Updates() node.Updates   { return nil }
-func (f *fakeRemote) Settings() node.Settings { return nil }
+func (f *fakeRemote) Settings() node.Settings {
+	if f.settings == nil {
+		return nil
+	}
+	return f.settings
+}
+
+// fakeMachineSettings records a backup destination.
+type fakeMachineSettings struct {
+	mu   sync.Mutex
+	dest *node.BackupDestination
+}
+
+func (f *fakeMachineSettings) Timezones() (string, []string, error)              { return "", nil, nil }
+func (f *fakeMachineSettings) SetTimezone(context.Context, string) (bool, error) { return false, nil }
+func (f *fakeMachineSettings) SSHAccess() (node.SSHAccess, error)                { return node.SSHAccess{}, nil }
+func (f *fakeMachineSettings) SetSSH(context.Context, string, bool) error        { return nil }
+func (f *fakeMachineSettings) SetRestartPolicy(context.Context, string, int) error {
+	return nil
+}
+func (f *fakeMachineSettings) RestartPolicy() (string, int) { return "auto", 4 }
+func (f *fakeMachineSettings) SetBackupDestination(_ context.Context, d node.BackupDestination) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.dest = &d
+	return nil
+}
 func (f *fakeRemote) Leave(context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

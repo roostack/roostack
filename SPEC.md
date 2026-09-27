@@ -437,7 +437,7 @@ Builds on §6.9 (restic, recovery key, 3-2-1) and §10.3 (each machine backs up 
 
 **Destinations are chosen per machine, from providers the lab knows.**
 - A **provider** is a place backups can go: a cloud account (B2, S3, …), an SFTP server, **a machine's own disk**, or **another machine offering storage** (below). A provider is set up once (its credentials) and any machine can use it; the Backups page of each machine picks one (and later extra copies, for 3-2-1).
-- Every machine's repository goes in **its own folder**, always, even if only one machine uses the provider: `<provider path>/mylab/<lab id>/<machine id>/`. Moving a lab or adding machines never reshuffles folders.
+- Every machine's repository goes in **its own folder**, always, even if only one machine uses the provider: `<provider path>/mylab/<lab id>/<machine id>/`. Moving a lab or adding machines never reshuffles folders. On a rest-server store the machine's own area comes first instead (`/<machine id>/<lab id>`), because private repositories are named after the user.
 - **The controller creates each repository** (decided 2026-09-27): it runs `restic init` at the destination with the recovery key, adds a new key for the machine, and gives the machine only that key. The recovery key never leaves the controller. So the controller must reach every destination, which the next point guarantees.
 
 **Disks are offered over MyLab's network (restic's rest-server).**

@@ -127,7 +127,7 @@ func backupRun(ctx context.Context, lab config.Lab, repo *backup.Repo, launch ba
 		return err
 	}
 	defer st.Close()
-	deps, err := newBackupDeps(lab, st, repo, launch)
+	deps, err := newBackupDeps(lab, st, repo, launch, diskServices(lab))
 	if err != nil {
 		return err
 	}
@@ -156,7 +156,20 @@ func newRepo(lab config.Lab, launch backupLaunch) (*backup.Repo, error) {
 
 // newBackupDeps wires a backup job to this lab. Used by the CLI and by
 // mylab serve's nightly backups.
-func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch backupLaunch) (*backup.JobDeps, error) {
+// machineServices returns this machine's services and the lab config to
+// generate them with.
+type machineServices func() (config.Lab, []state.Service, error)
+
+// diskServices reads the services placed on this machine from the
+// instance files (on the controller, which keeps them).
+func diskServices(lab config.Lab) machineServices {
+	return func() (config.Lab, []state.Service, error) {
+		all, err := state.LoadServices(lab)
+		return lab, state.OnNode(all, lab.NodeID), err
+	}
+}
+
+func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch backupLaunch, services machineServices) (*backup.JobDeps, error) {
 	mylabBin, err := os.Executable()
 	if err != nil {
 		return nil, err
@@ -169,11 +182,11 @@ func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch ba
 		Paths:     lab.Paths,
 		Host:      host,
 		Plan: func() (backup.Plan, error) {
-			services, err := state.LoadServices(lab)
+			lab, services, err := services()
 			if err != nil {
 				return backup.Plan{}, err
 			}
-			d, err := state.Desired(lab, state.OnNode(services, lab.NodeID))
+			d, err := state.Desired(lab, services)
 			if err != nil {
 				return backup.Plan{}, err
 			}

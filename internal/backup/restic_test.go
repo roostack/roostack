@@ -130,3 +130,21 @@ warning: not json
 		t.Errorf("summary = %+v", sum)
 	}
 }
+
+func TestAddKey(t *testing.T) {
+	r := testRepo(t)
+	ctx := context.Background()
+	if err := r.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.AddKey(ctx, "machine key", "n-0000000002"); err != nil {
+		t.Fatal(err)
+	}
+	// The machine opens the repository with its own key.
+	other := *r
+	other.PasswordFile = filepath.Join(t.TempDir(), "machine")
+	os.WriteFile(other.PasswordFile, []byte("machine key\n"), 0o600)
+	if _, err := other.Snapshots(ctx); err != nil {
+		t.Errorf("machine key: %v", err)
+	}
+}

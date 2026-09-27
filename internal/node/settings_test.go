@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
 )
 
@@ -85,5 +86,28 @@ func TestRestartPolicy(t *testing.T) {
 	lab, _ := config.Load(h.LabPath)
 	if lab.Maintenance.Restart != config.RestartNotify || lab.Maintenance.Hour() != 3 || *restarts != 1 {
 		t.Errorf("maintenance = %+v, restarts %d", lab.Maintenance, *restarts)
+	}
+}
+
+func TestBackupDestination(t *testing.T) {
+	h, _, restarts := newSettings(t)
+	h.Lab.Paths.StateDir = t.TempDir()
+	ctx := context.Background()
+	d := BackupDestination{Repository: "rest:http://100.96.0.1:8000/n-0000000002/lab",
+		Env: []string{"RESTIC_REST_USERNAME=n-0000000002", "RESTIC_REST_PASSWORD=pw"}, Key: "machine key"}
+	if err := h.SetBackupDestination(ctx, d); err != nil {
+		t.Fatal(err)
+	}
+	lab, _ := config.Load(h.LabPath)
+	key, _ := os.ReadFile(backup.KeyFile(h.Lab.Paths))
+	if lab.Backup.Repository != d.Repository || len(lab.Backup.Env) != 2 || string(key) != "machine key\n" || *restarts != 1 {
+		t.Errorf("backup = %+v, key %q, restarts %d", lab.Backup, key, *restarts)
+	}
+	// The controller keeps its key (the recovery key).
+	if err := h.SetBackupDestination(ctx, BackupDestination{Repository: "/srv/backup"}); err != nil {
+		t.Fatal(err)
+	}
+	if key, _ := os.ReadFile(backup.KeyFile(h.Lab.Paths)); string(key) != "machine key\n" {
+		t.Error("an empty key must keep the key file")
 	}
 }

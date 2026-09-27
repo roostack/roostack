@@ -84,6 +84,27 @@ var migrations = []string{
 		public_key TEXT NOT NULL,
 		expires_at INTEGER NOT NULL
 	);`,
+	// Where each machine backs up (SPEC.md §10.10). A provider's config is
+	// JSON and may hold credentials; the database is readable by MyLab only.
+	`CREATE TABLE backup_providers (
+		id     INTEGER PRIMARY KEY,
+		kind   TEXT NOT NULL,
+		name   TEXT NOT NULL,
+		config TEXT NOT NULL
+	);
+	CREATE TABLE backup_targets (
+		machine_id  TEXT PRIMARY KEY,
+		provider    TEXT NOT NULL,
+		repository  TEXT NOT NULL,
+		store_host  TEXT NOT NULL DEFAULT '',
+		store_hash  TEXT NOT NULL DEFAULT '',
+		created_at  INTEGER NOT NULL
+	);
+	CREATE TABLE store_admins (
+		machine_id TEXT PRIMARY KEY,
+		password   TEXT NOT NULL,
+		hash       TEXT NOT NULL
+	);`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -626,5 +647,100 @@ func (s *Store) RemoveMachine(ctx context.Context, id string) error {
 // RenameMachine changes a machine's name.
 func (s *Store) RenameMachine(ctx context.Context, id, name string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE machines SET name = ? WHERE id = ?`, name, id)
+	return err
+}
+
+// BackupProvider is a place backups can go (SPEC.md §10.10).
+type BackupProvider struct {
+	ID     int64
+	Kind   string
+	Name   string
+	Config string // JSON, by kind
+}
+
+// AddBackupProvider records a provider and returns its ID.
+func (s *Store) AddBackupProvider(ctx context.Context, p BackupProvider) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `INSERT INTO backup_providers (kind, name, config) VALUES (?, ?, ?)`,
+		p.Kind, p.Name, p.Config)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// BackupProviders lists the providers.
+func (s *Store) BackupProviders(ctx context.Context) ([]BackupProvider, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, kind, name, config FROM backup_providers ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []BackupProvider
+	for rows.Next() {
+		var p BackupProvider
+		if err := rows.Scan(&p.ID, &p.Kind, &p.Name, &p.Config); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// BackupTarget is where a machine backs up.
+type BackupTarget struct {
+	MachineID string
+	// Provider names it: "machine:<id>" (a machine's disk) or "provider:<id>".
+	Provider   string
+	Repository string
+	// StoreHost and StoreHash: for a machine's disk, the storing machine
+	// and the bcrypt hash of this machine's password there.
+	StoreHost, StoreHash string
+	Created              time.Time
+}
+
+// SetBackupTarget records where a machine backs up.
+func (s *Store) SetBackupTarget(ctx context.Context, t BackupTarget) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO backup_targets (machine_id, provider, repository, store_host, store_hash, created_at)
+		VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(machine_id) DO UPDATE SET provider = excluded.provider,
+		repository = excluded.repository, store_host = excluded.store_host, store_hash = excluded.store_hash,
+		created_at = excluded.created_at`, t.MachineID, t.Provider, t.Repository, t.StoreHost, t.StoreHash, t.Created.Unix())
+	return err
+}
+
+// BackupTargets lists where each machine backs up.
+func (s *Store) BackupTargets(ctx context.Context) ([]BackupTarget, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT machine_id, provider, repository, store_host, store_hash, created_at
+		FROM backup_targets ORDER BY machine_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []BackupTarget
+	for rows.Next() {
+		var t BackupTarget
+		var created int64
+		if err := rows.Scan(&t.MachineID, &t.Provider, &t.Repository, &t.StoreHost, &t.StoreHash, &created); err != nil {
+			return nil, err
+		}
+		t.Created = time.Unix(created, 0)
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// StoreAdmin returns the controller's admin password (and its hash) for
+// a machine's backup store, ok false if none yet.
+func (s *Store) StoreAdmin(ctx context.Context, machineID string) (password, hash string, ok bool, err error) {
+	err = s.db.QueryRowContext(ctx, `SELECT password, hash FROM store_admins WHERE machine_id = ?`, machineID).Scan(&password, &hash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", false, nil
+	}
+	return password, hash, err == nil, err
+}
+
+// SetStoreAdmin records the controller's admin password for a store.
+func (s *Store) SetStoreAdmin(ctx context.Context, machineID, password, hash string) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO store_admins (machine_id, password, hash) VALUES (?, ?, ?)
+		ON CONFLICT(machine_id) DO UPDATE SET password = excluded.password, hash = excluded.hash`, machineID, password, hash)
 	return err
 }

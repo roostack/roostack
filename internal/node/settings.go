@@ -1,9 +1,12 @@
 package node
 
 import (
+	"os"
+
 	"cmp"
 	"context"
 	"fmt"
+	"github.com/mylab/mylab/internal/backup"
 	"net/netip"
 	"slices"
 	"strings"
@@ -28,6 +31,18 @@ type Settings interface {
 	SetRestartPolicy(ctx context.Context, mode string, hour int) error
 	// RestartPolicy is when the machine may restart after updates.
 	RestartPolicy() (mode string, hour int)
+	// SetBackupDestination points the machine's backups at a repository
+	// the controller created for it (SPEC.md §10.10).
+	SetBackupDestination(ctx context.Context, d BackupDestination) error
+}
+
+// BackupDestination is a machine's backup repository: where it is, the
+// credentials to reach it, and the machine's own key to it. An empty Key
+// keeps the machine's key file (the controller's is the recovery key).
+type BackupDestination struct {
+	Repository string   `json:"repository"`
+	Env        []string `json:"env,omitempty"`
+	Key        string   `json:"key,omitempty"`
 }
 
 // SSHAccess is the current SSH choice and who is connected now.
@@ -122,6 +137,29 @@ func (h *HostSettings) SetRestartPolicy(ctx context.Context, mode string, hour i
 	}); err != nil {
 		return fmt.Errorf("saving the restart policy: %w", err)
 	}
+	h.Restart()
+	return nil
+}
+
+func (h *HostSettings) SetBackupDestination(ctx context.Context, d BackupDestination) error {
+	if d.Repository == "" {
+		return formErrorf("No backup repository.")
+	}
+	if d.Key != "" {
+		file := backup.KeyFile(h.Lab.Paths)
+		if err := os.WriteFile(file+".tmp", []byte(d.Key+"\n"), 0o600); err != nil {
+			return err
+		}
+		if err := os.Rename(file+".tmp", file); err != nil {
+			return err
+		}
+	}
+	if err := config.Update(h.LabPath, func(l *config.Lab) {
+		l.Backup.Repository, l.Backup.Env = d.Repository, d.Env
+	}); err != nil {
+		return fmt.Errorf("saving the backup destination: %w", err)
+	}
+	// Backups are set up when MyLab starts.
 	h.Restart()
 	return nil
 }

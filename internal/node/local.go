@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -64,6 +67,17 @@ type Assignment struct {
 	// Proxied are services on other machines whose routes this machine's
 	// Caddy serves (the controller, SPEC.md §10.5).
 	Proxied []state.Proxied
+	// Storage, if set, makes the machine offer its disk for backups
+	// (SPEC.md §10.10).
+	Storage *Storage
+}
+
+// Storage is who may use a machine's backup store: bcrypt password hashes
+// (never the passwords) for each machine, and for the controller's admin
+// access.
+type Storage struct {
+	Users map[string]string `json:"users"`
+	Admin string            `json:"admin"`
 }
 
 // ErrNotFound means no such service or action on this node.
@@ -149,7 +163,7 @@ func (n *Local) Apply(a Assignment) {
 		n.userSecrets[k] = v
 	}
 	old := n.assignment.Services
-	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied}
+	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage}
 	if n.State != nil {
 		// A service taken off this machine forgets its setup progress.
 		for _, s := range old {
@@ -230,6 +244,9 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	if err := n.addStorage(&desired, a.Storage); err != nil {
+		return err
+	}
 	r := *n.Reconciler
 	r.UserSecret = func(name string) ([]byte, bool) {
 		n.mu.Lock()
@@ -257,6 +274,12 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 
 	// The firewall follows the services, e.g. a package port just turned on.
 	if fw, ok := firewall.Desired(n.lab(a), desired.Services); ok && n.Firewall != nil {
+		if a.Storage != nil {
+			for _, port := range []int{generate.StoragePort, generate.StorageAdminPort} {
+				fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", Iface: agent.WireGuardInterface,
+					Reason: "backup store"})
+			}
+		}
 		act.Step("Updating the firewall")
 		if err := n.Firewall.ApplyFirewall(ctx, fw); err != nil {
 			return fmt.Errorf("applying the firewall: %w", err)
@@ -273,6 +296,15 @@ func (n *Local) lab(a Assignment) config.Lab {
 		lab.Domain, lab.Email = a.Lab.Domain, a.Lab.Email
 	}
 	return lab
+}
+
+// Assigned is this machine's services and the lab config to generate
+// them with, as of its current assignment (e.g. for backups and restores).
+func (n *Local) Assigned() (config.Lab, []state.Service) {
+	n.mu.Lock()
+	a := n.assignment
+	n.mu.Unlock()
+	return n.lab(a), a.Services
 }
 
 // currentLab is the lab config for the current assignment.
@@ -348,4 +380,46 @@ func Summarize(units []systemd.UnitStatus) string {
 		}
 	}
 	return status
+}
+
+// addStorage adds the backup store to desired state and writes its
+// password files (rest-server reloads them when they change).
+func (n *Local) addStorage(d *reconcile.Desired, st *Storage) error {
+	if st == nil {
+		return nil
+	}
+	lab := n.Lab
+	if lab.OverlayAddr == "" {
+		return fmt.Errorf("offering this machine's disk for backups needs MyLab's network")
+	}
+	files, units, err := generate.Storage(lab, lab.OverlayAddr)
+	if err != nil {
+		return err
+	}
+	d.System.Quadlets = append(d.System.Quadlets, files...)
+	d.System.Units = append(d.System.Units, units...)
+	dir := lab.Paths.BackupStoreDir()
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return err
+	}
+	var users []string
+	for name, hash := range st.Users {
+		users = append(users, name+":"+hash)
+	}
+	slices.Sort(users)
+	write := func(name string, lines []string) error {
+		data := strings.Join(lines, "\n") + "\n"
+		path := filepath.Join(dir, name)
+		if old, err := os.ReadFile(path); err == nil && string(old) == data {
+			return nil
+		}
+		if err := os.WriteFile(path+".tmp", []byte(data), 0o600); err != nil {
+			return err
+		}
+		return os.Rename(path+".tmp", path)
+	}
+	if err := write(generate.StorePasswords, users); err != nil {
+		return err
+	}
+	return write(generate.AdminPasswords, []string{"controller:" + st.Admin})
 }

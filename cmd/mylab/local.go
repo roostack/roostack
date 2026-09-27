@@ -14,6 +14,7 @@ import (
 	"github.com/mylab/mylab/internal/nodeid"
 	"github.com/mylab/mylab/internal/podman"
 	"github.com/mylab/mylab/internal/reconcile"
+	"github.com/mylab/mylab/internal/state"
 	"github.com/mylab/mylab/internal/store"
 	"github.com/mylab/mylab/internal/systemd"
 )
@@ -47,7 +48,13 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 			Restart:    restart,
 		},
 	}
-	jobs, coord, err := startMaintenance(ctx, lab, st, log, agentClient, local.Activity)
+	// Backups and restores cover the services this machine runs, as its
+	// assignment says (a node keeps no instance files of its own).
+	assigned := func() (config.Lab, []state.Service, error) {
+		lab, services := local.Assigned()
+		return lab, services, nil
+	}
+	jobs, coord, err := startMaintenance(ctx, lab, st, log, agentClient, local.Activity, assigned)
 	if err != nil {
 		return nil, nil, nil, err
 	}

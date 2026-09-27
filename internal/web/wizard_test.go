@@ -23,6 +23,7 @@ import (
 
 type fakeSetup struct {
 	restartMode string
+	destination string
 	p           setup.Progress
 	zone        string
 	restarted   bool
@@ -67,6 +68,10 @@ func (f *fakeSetup) SetSSH(_ context.Context, choice string, confirmed bool) err
 }
 func (f *fakeSetup) RestartPolicy() (string, int) {
 	return cmp.Or(f.restartMode, config.RestartAuto), config.Maintenance{}.Hour()
+}
+func (f *fakeSetup) SetBackupDestination(_ context.Context, d node.BackupDestination) error {
+	f.destination = d.Repository
+	return nil
 }
 func (f *fakeSetup) SetRestartPolicy(_ context.Context, mode string, hour int) error {
 	if hour < 0 || hour > 23 {

@@ -358,6 +358,10 @@ func (x remoteSettings) SetSSH(ctx context.Context, choice string, confirmed boo
 	return x.r.call(ctx, http.MethodPut, "/v1/settings/ssh", map[string]any{"Choice": choice, "Confirmed": confirmed}, nil)
 }
 
+func (x remoteSettings) SetBackupDestination(ctx context.Context, d BackupDestination) error {
+	return x.r.call(ctx, http.MethodPut, "/v1/settings/backup-destination", d, nil)
+}
+
 func (x remoteSettings) RestartPolicy() (string, int) {
 	w, _ := x.get()
 	return w.RestartMode, w.RestartHour
