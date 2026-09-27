@@ -7,6 +7,7 @@ LDFLAGS := -X main.version=$(VERSION)
 
 build:
 	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o bin/ ./cmd/...
+	scripts/copyright.sh > bin/copyright
 
 test:
 	go test ./...

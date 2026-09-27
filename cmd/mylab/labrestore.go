@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -79,7 +80,7 @@ func (l *labRestorer) Start(fd labrestore.Found) error {
 		return errors.New("a restore is already running")
 	}
 	l.running = true
-	alog := l.acts.Start(activity.LabRestore, "Restoring "+fd.Domain)
+	alog := l.acts.Start(activity.LabRestore, "Restoring "+cmp.Or(fd.Name, fd.Domain, "the lab"))
 	go func() {
 		err := labrestore.Restore(context.Background(), l.lab.Paths, l.openRepo(fd.Repository, fd.Env), fd, l.keyFile(), alog)
 		alog.Finish(err)

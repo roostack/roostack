@@ -281,7 +281,27 @@ func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
 	if len(vps.settings.copies) != 0 || len(m.BackupCopiesOf(ctx, "n-0000000002")) != 0 {
 		t.Errorf("after stopping: %+v", vps.settings.copies)
 	}
-	if stg := m.storageFor(ctx, "n-0000000001"); stg != nil && stg.Users["n-0000000002"] != "" {
-		t.Error("nuc's store should forget the vps")
+	if m.storageFor(ctx, "n-0000000001") != nil {
+		t.Error("nuc's store has no users left, so it stops")
+	}
+}
+
+func TestRemoteStorageFollowsRename(t *testing.T) {
+	m, _ := newManager(t)
+	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	m.BackupStore = st
+	ctx := context.Background()
+	cfg, _ := json.Marshal(RemoteStorage{HostName: "lab.example.com", Quota: 5 << 30})
+	id, _ := st.AddBackupProvider(ctx, store.BackupProvider{Kind: "remote", Name: "lab.example.com's storage", Config: string(cfg)})
+	r := m.RemoteStorages(ctx)[0]
+	m.renameRemote(ctx, r, "Mum's lab")
+	ps, _ := st.BackupProviders(ctx)
+	if ps[0].ID != id || ps[0].Name != "Mum's lab's storage" || m.RemoteStorages(ctx)[0].HostName != "Mum's lab" ||
+		m.RemoteStorages(ctx)[0].Quota != 5<<30 {
+		t.Errorf("after the host's rename: %+v", ps[0])
 	}
 }

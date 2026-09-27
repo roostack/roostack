@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mylab/mylab/internal/activity"
@@ -176,5 +177,21 @@ func TestShownHidesPasswords(t *testing.T) {
 		if got := Shown(in); got != want {
 			t.Errorf("Shown(%q) = %q", in, got)
 		}
+	}
+}
+
+func TestUnreadableFolder(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	disk := t.TempDir()
+	locked := filepath.Join(disk, "mylab")
+	os.MkdirAll(filepath.Join(locked, "lab-1", "n-1"), 0o755)
+	os.Chmod(locked, 0)
+	defer os.Chmod(locked, 0o755)
+	f := &Finder{OpenRepo: func(string, []string) *backup.Repo { return nil }}
+	_, _, err := f.Find(context.Background(), Source{Kind: "folder", Folder: disk})
+	if err == nil || !strings.Contains(err.Error(), "sudo chown -R mylab:mylab "+disk) {
+		t.Errorf("err = %v", err)
 	}
 }

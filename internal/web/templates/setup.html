@@ -9,6 +9,10 @@
       <input name="token" autocomplete="off" required autofocus>
       <small>Shown in the MyLab log, and saved in <code>/var/lib/mylab/setup-token</code>.</small>
     </label>
+    <label>Name your lab <small>(optional)</small>
+      <input name="lab_name" value="{{.LabName}}" maxlength="60" placeholder="The Smiths' lab">
+      <small>Shown at the top of every page, and to other labs you share backup storage with. You can change it later.</small>
+    </label>
     <label>Username
       <input name="username" value="{{.Username}}" autocomplete="username" required>
     </label>

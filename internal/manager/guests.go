@@ -281,7 +281,26 @@ func (m *Manager) RemoteStorages(ctx context.Context) []RemoteStorage {
 
 // RemoteUsage asks the host how much this lab stores there.
 func (m *Manager) RemoteUsage(ctx context.Context, r RemoteStorage) (labnet.GuestUsage, error) {
-	return labnet.Usage(ctx, r.HostAddr, r.User, r.AdminPassword)
+	u, err := labnet.Usage(ctx, r.HostAddr, r.User, r.AdminPassword)
+	if err == nil && u.Host != "" && u.Host != r.HostName {
+		m.renameRemote(ctx, r, u.Host)
+	}
+	return u, err
+}
+
+// renameRemote follows a host lab's new name.
+func (m *Manager) renameRemote(ctx context.Context, r RemoteStorage, name string) {
+	_, id, _ := strings.Cut(r.Ref, ":")
+	p, err := m.provider(ctx, id)
+	if err != nil {
+		return
+	}
+	r.HostName = name
+	cfg, _ := json.Marshal(r)
+	p.Name, p.Config = name+"'s storage", string(cfg)
+	if err := m.BackupStore.UpdateBackupProvider(ctx, p); err != nil {
+		m.Log.Warn("renaming another lab's storage", "err", err)
+	}
 }
 
 // proxyPorts are the controller's forwarding ports, for its firewall.

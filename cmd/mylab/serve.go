@@ -125,14 +125,14 @@ func serve(args []string) error {
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
 	// MyLab's network between servers (SPEC.md §10.2): this server is
 	// the hub others join.
-	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: lab.Domain, Self: id, Store: st, Agent: agentClient,
+	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: lab.DisplayName(), Self: id, Store: st, Agent: agentClient,
 		Log: log, Now: time.Now, Started: restart}
 	hub.Start(ctx)
 	srv.Network = hub
 	mgr.Registry = hub
 	// Storage for other labs (SPEC.md §10.10): this lab can keep other
 	// labs' backups, and store its own at other labs.
-	guestHub := &labnet.GuestHub{LabName: lab.Domain, Store: st, Agent: agentClient, Log: log, Now: time.Now,
+	guestHub := &labnet.GuestHub{LabName: lab.DisplayName(), Store: st, Agent: agentClient, Log: log, Now: time.Now,
 		Usage: func(ctx context.Context, g store.Guest) (int64, error) { return local.GuestUsage(g.User()) }}
 	guestHub.Start(ctx)
 	go guestHub.ServeGuests(ctx)
@@ -227,7 +227,7 @@ func serve(args []string) error {
 	if err := wizard.AdoptExisting(ctx); err != nil {
 		return err
 	}
-	srv.Setup, srv.DNSProvider = wizard, lab.DNS.Provider
+	srv.Setup, srv.DNSProvider, srv.LabName = wizard, lab.DNS.Provider, lab.DisplayName()
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
 	// A new install can instead become a lab restored from its backups.
 	if token != "" {

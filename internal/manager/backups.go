@@ -30,6 +30,7 @@ import (
 type BackupStore interface {
 	BackupProviders(ctx context.Context) ([]store.BackupProvider, error)
 	AddBackupProvider(ctx context.Context, p store.BackupProvider) (int64, error)
+	UpdateBackupProvider(ctx context.Context, p store.BackupProvider) error
 	BackupTargets(ctx context.Context) ([]store.BackupTarget, error)
 	SetBackupCopy(ctx context.Context, t store.BackupTarget) error
 	BackupCopies(ctx context.Context) ([]store.BackupTarget, error)
@@ -336,7 +337,8 @@ func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 }
 
 // storageFor is what a server's backup store must allow: the servers
-// backing up to it and the controller's admin access.
+// backing up to it and the controller's admin access. Nil when no server
+// backs up there: the store doesn't run.
 func (m *Manager) storageFor(ctx context.Context, id string) *node.Storage {
 	if m.BackupStore == nil {
 		return nil
@@ -356,6 +358,10 @@ func (m *Manager) storageFor(ctx context.Context, id string) *node.Storage {
 		if t.StoreHost == id {
 			st.Users[t.ServerID] = t.StoreHash
 		}
+	}
+	// A store nobody backs up to any more stops (its backups stay on disk).
+	if len(st.Users) == 0 {
+		return nil
 	}
 	_, hash, ok, err := m.BackupStore.StoreAdmin(ctx, id)
 	if err != nil || !ok {

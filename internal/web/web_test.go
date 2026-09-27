@@ -79,6 +79,18 @@ func (h *harness) post(path string, form url.Values, origin string) (int, string
 	return resp.StatusCode, string(body)
 }
 
+func TestFirstRunNamesTheLab(t *testing.T) {
+	h := newHarness(t, "the-setup-code")
+	fs := &fakeSetup{}
+	h.server.Setup = fs
+	form := url.Values{"token": {"the-setup-code"}, "lab_name": {"The Smiths' lab"}, "username": {"tyris"},
+		"password": {"a long password"}, "confirm": {"a long password"}}
+	h.post("/setup", form, h.srv.URL)
+	if fs.labName != "The Smiths' lab" || fs.restarted || h.server.LabName != "The Smiths' lab" {
+		t.Errorf("first run: %q restart=%v %q", fs.labName, fs.restarted, h.server.LabName)
+	}
+}
+
 func TestFirstRunSetup(t *testing.T) {
 	h := newHarness(t, "the-setup-code")
 

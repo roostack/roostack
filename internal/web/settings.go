@@ -31,6 +31,7 @@ type settingsArea struct {
 }
 
 var settingsAreas = []settingsArea{
+	{"lab", "Lab", "Lab name", "/settings/lab"},
 	{"people", "People and access", "People", "/settings/people"},
 	{"domain", "Network", "Domain and certificates", "/settings/domain"},
 	{"home-network", "Network", "Home network", "/settings/home-network"},
@@ -148,6 +149,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 			set("updates", "Updates install every night after the backup", "")
 		}
 	}
+	set("lab", s.LabName, "")
 	if s.Manager != nil {
 		if servers, err := s.Manager.Servers(); err == nil {
 			summary, level := fmt.Sprintf("%d servers", len(servers)), "ok"

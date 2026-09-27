@@ -749,6 +749,12 @@ func (s *Store) AddBackupProvider(ctx context.Context, p BackupProvider) (int64,
 	return res.LastInsertId()
 }
 
+// UpdateBackupProvider changes a provider's name and config.
+func (s *Store) UpdateBackupProvider(ctx context.Context, p BackupProvider) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE backup_providers SET name = ?, config = ? WHERE id = ?`, p.Name, p.Config, p.ID)
+	return err
+}
+
 // BackupProviders lists the providers.
 func (s *Store) BackupProviders(ctx context.Context) ([]BackupProvider, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT id, kind, name, config FROM backup_providers ORDER BY name`)

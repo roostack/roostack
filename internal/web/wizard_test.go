@@ -22,6 +22,7 @@ import (
 )
 
 type fakeSetup struct {
+	labName     string
 	restartMode string
 	destination string
 	p           setup.Progress
@@ -68,6 +69,13 @@ func (f *fakeSetup) SetSSH(_ context.Context, choice string, confirmed bool) err
 }
 func (f *fakeSetup) RestartPolicy() (string, int) {
 	return cmp.Or(f.restartMode, config.RestartAuto), config.Maintenance{}.Hour()
+}
+func (f *fakeSetup) SetLabName(_ context.Context, name string, restart bool) error {
+	if strings.TrimSpace(name) == "" {
+		return &setup.CheckError{Msg: "Give the lab a name."}
+	}
+	f.labName, f.restarted = name, restart
+	return nil
 }
 func (f *fakeSetup) SetBackupCopies(context.Context, []node.BackupCopy) error { return nil }
 func (f *fakeSetup) SetBackupDestination(_ context.Context, d node.BackupDestination) error {

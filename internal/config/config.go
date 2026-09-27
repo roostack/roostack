@@ -171,6 +171,9 @@ const DefaultRestartHour = 4
 
 // Lab is the lab-wide configuration (/var/lib/mylab/lab.yaml).
 type Lab struct {
+	// Name is what people call the lab (e.g. "The Smiths' lab"): shown in
+	// the UI, and to other labs it shares storage with.
+	Name string `yaml:"name,omitempty"`
 	// Domain is the base domain; services live on subdomains of it.
 	Domain string `yaml:"domain"`
 	// Email is used for the ACME (Let's Encrypt) account.
@@ -214,6 +217,18 @@ const (
 // IsNode reports whether this server is a node run by another server
 // (the controller): it runs services but no UI, Caddy or DNS.
 func (l Lab) IsNode() bool { return l.Role == RoleNode }
+
+// DisplayName is the lab's name, or its domain for a lab that has none
+// (named before names existed).
+func (l Lab) DisplayName() string {
+	if l.Name != "" {
+		return l.Name
+	}
+	if l.Domain != "" && l.Domain != "lab.example.com" {
+		return l.Domain
+	}
+	return "My lab"
+}
 
 // Default returns a Lab with default paths and no domain.
 func Default() Lab {
