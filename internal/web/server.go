@@ -162,6 +162,7 @@ type ServiceManager interface {
 	StorageGuests(ctx context.Context) ([]manager.GuestView, error)
 	InviteGuest(ctx context.Context, name string, quota int64, endpoint string) (labnet.StorageInvite, error)
 	RemoveGuest(ctx context.Context, id int64) error
+	RetryInstallWith(ctx context.Context, name string, settings, secrets map[string]string) error
 	DeleteRemovedGuest(ctx context.Context, id int64) error
 	EndingStorages(ctx context.Context) []manager.EndingStorage
 	SetGuestQuota(ctx context.Context, id, quota int64) error
@@ -386,6 +387,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /services/{name}/settings", s.require(auth.ManageServices, s.settingsSubmit))
 	mux.Handle("POST /services/{name}/reveal/{key}", s.require(auth.ManageServices, s.revealSubmit))
 	mux.Handle("POST /services/{name}/setup/retry", s.require(auth.ManageServices, s.retrySetupSubmit))
+	mux.Handle("POST /services/{name}/setup/retry-with", s.require(auth.ManageServices, s.retryWithSubmit))
 	mux.Handle("POST /services/{name}/actions/{action}", s.require(auth.ManageServices, s.actionSubmit))
 	mux.Handle("GET /services/{name}/remove", s.require(auth.ManageServices, s.removePage))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))

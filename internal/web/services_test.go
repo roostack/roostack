@@ -52,6 +52,7 @@ type fakeManager struct {
 	destination string
 	copies      []manager.BackupCopy
 	ending      []manager.EndingStorage
+	retriedWith []string
 	providers   []string
 	moves       []string
 	guests      []manager.GuestView
@@ -83,6 +84,13 @@ func (f *fakeManager) InviteGuest(_ context.Context, name string, quota int64, e
 	}
 	f.guestOps = append(f.guestOps, fmt.Sprintf("invite %s %d %s", name, quota>>30, endpoint))
 	return labnet.StorageInvite{Token: "t", User: "g1"}, nil
+}
+func (f *fakeManager) RetryInstallWith(_ context.Context, name string, settings, secrets map[string]string) error {
+	if settings["admin_username"] == "" {
+		return &manager.FormError{Msg: "Administrator username is required."}
+	}
+	f.retriedWith = append(f.retriedWith, name+" "+settings["admin_username"]+" "+secrets["admin_password"])
+	return nil
 }
 func (f *fakeManager) DeleteRemovedGuest(_ context.Context, id int64) error {
 	f.guestOps = append(f.guestOps, fmt.Sprintf("delete now %d", id))
@@ -1070,5 +1078,30 @@ func TestRemovedGuestLabs(t *testing.T) {
 	fm.ending = []manager.EndingStorage{{HostName: "Mum's lab", DeleteOn: time.Now().Add(29 * 24 * time.Hour)}}
 	if _, body := h.get("/"); !strings.Contains(body, "Mum&#39;s lab has stopped storing your backups") {
 		t.Error("an ending storage needs attention")
+	}
+}
+
+func TestRetryInstallWithChangedSettings(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "forgejo", Title: "Forgejo", Status: "running"}}, nil
+	}
+	fm.values = map[string]any{"admin_username": "Tyris Smith", "admin_email": "tyris@example.com", "signups_allowed": false}
+	fm.setup = map[string]manager.HookStatus{"forgejo": {Failed: "username is invalid"}}
+	_, body := h.get("/services/forgejo")
+	if !strings.Contains(body, "Change what you entered") || !strings.Contains(body, `name="setting.admin_username" value="Tyris Smith"`) ||
+		!strings.Contains(body, "Leave empty to keep what you typed before") {
+		t.Fatalf("a failed install offers its settings:\n%s", body)
+	}
+	form := url.Values{"setting.admin_username": {""}, "setting.admin_email": {"tyris@example.com"}}
+	if code, body := h.post("/services/forgejo/setup/retry-with", form, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "username is required") {
+		t.Errorf("an empty username: %d", code)
+	}
+	form.Set("setting.admin_username", "tyris")
+	form.Set("setting.admin_password", "a better password")
+	h.post("/services/forgejo/setup/retry-with", form, h.srv.URL)
+	if !slices.Equal(fm.retriedWith, []string{"forgejo tyris a better password"}) {
+		t.Errorf("retried with %v", fm.retriedWith)
 	}
 }

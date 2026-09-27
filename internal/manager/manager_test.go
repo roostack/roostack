@@ -70,6 +70,12 @@ func (f *fakeSecrets) Remove(_ context.Context, name string) error {
 	delete(f.values, name)
 	return nil
 }
+func (f *fakeSecrets) Replace(_ context.Context, name string, v []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.values[name] = v
+	return nil
+}
 func (f *fakeSecrets) Create(_ context.Context, name string, v []byte) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

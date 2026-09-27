@@ -115,7 +115,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Package `ports:` option; Forgejo git over SSH (tested on the VM: clone via LAN IP on 2222)
   - [x] Package hooks (`install`, `action`); Forgejo creates its admin at install and has "Reset a password" (hook scripts tested on the VM)
   - [ ] Forgejo: fresh install through the UI (user to test: remove Forgejo, install again)
-  - [ ] If an install hook fails because of what was typed (e.g. an invalid username), "Try again" repeats it; offer to edit those settings instead
+  - [x] If an install hook fails because of what was typed (e.g. an invalid username), the service page offers the install settings to fix (passwords kept unless retyped) and runs the hooks again with them
   - [ ] Immich on the VM
   - [x] `mylab validate` renders every template (default and flipped settings, with and without GPU, hooks too)
 

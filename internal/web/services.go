@@ -240,6 +240,78 @@ func (s *Server) retrySetupSubmit(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, "/services/"+name)
 }
 
+// installFields are a failed install's settings, to fix and try again
+// (manager.InstallSettings); secrets are left empty to keep them.
+func (s *Server) installFields(name string, p *pkgspec.Package) []formField {
+	values, _, err := s.Manager.CurrentSettings(name)
+	if err != nil {
+		return nil
+	}
+	var out []formField
+	for _, st := range manager.InstallSettings(p) {
+		f := formField{Key: "setting." + st.Key, Title: cmp.Or(st.Title, st.Key), Description: st.Description,
+			Required: st.Required, MinLength: st.MinLength}
+		switch st.Type {
+		case pkgspec.SettingSecret:
+			f.Kind, f.Required, f.MinLength = "password", false, 0
+			f.Description = "Leave empty to keep what you typed before."
+		case pkgspec.SettingBool:
+			f.Kind, f.Checked = "checkbox", values[st.Key] == true
+		case pkgspec.SettingInt:
+			f.Kind, f.Value = "number", fmt.Sprint(values[st.Key])
+		default:
+			f.Kind = "text"
+			if v, ok := values[st.Key].(string); ok {
+				f.Value = v
+			}
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+// retryWithSubmit runs a failed install again with changed settings.
+func (s *Server) retryWithSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	name := r.PathValue("name")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad form.", http.StatusBadRequest)
+		return
+	}
+	settings, secrets := map[string]string{}, map[string]string{}
+	if p, err := s.Manager.Package(name); err == nil {
+		for _, st := range manager.InstallSettings(p) {
+			v, given := r.PostForm["setting."+st.Key]
+			if !given || len(v) == 0 {
+				continue
+			}
+			if st.Type == pkgspec.SettingSecret {
+				secrets[st.Key] = v[0]
+			} else {
+				settings[st.Key] = v[0]
+			}
+		}
+	}
+	err := s.Manager.RetryInstallWith(r.Context(), name, settings, secrets)
+	if msg, ok := userMessage(err); ok {
+		s.renderServiceWith(w, r, map[string]any{"RetryError": msg}, true)
+		return
+	}
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "setup", "retry "+name+" with changed settings")
+	redirect(w, r, "/services/"+name)
+}
+
 func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
 	if s.serverOf(r) == nil {
 		http.NotFound(w, r)

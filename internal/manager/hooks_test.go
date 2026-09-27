@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"errors"
+	"github.com/mylab/mylab/internal/pkgspec"
 	"os"
 	"path/filepath"
 	"slices"
@@ -144,6 +145,44 @@ func TestInstallHookFailsThenRetry(t *testing.T) {
 	}
 }
 
+// A hook that failed on what was typed runs again with corrected values:
+// new settings, and a new password replacing the one kept.
+func TestRetryInstallWithNewValues(t *testing.T) {
+	m, secrets, _, ex := newHookManager(t)
+	ctx := context.Background()
+	ex.fail = func(int) bool { return true }
+	m.Install(ctx, "forgejo", forgejoRequest())
+	m.Wait()
+	local(m).WaitHooks()
+	if st := local(m).InstallStatus(ctx, "forgejo"); st.Failed == "" {
+		t.Fatal("the hook should fail")
+	}
+	if got := InstallSettings(m.mustPackage(t, "forgejo")); len(got) != 3 {
+		t.Errorf("install settings = %+v", got)
+	}
+	var fe *FormError
+	if err := m.RetryInstallWith(ctx, "forgejo", map[string]string{"admin_username": "", "admin_email": "x@example.com"}, nil); !errors.As(err, &fe) {
+		t.Errorf("an empty username: %v", err)
+	}
+	ex.fail = func(int) bool { return false }
+	if err := m.RetryInstallWith(ctx, "forgejo", map[string]string{"admin_username": "tyris", "admin_email": "tyris@example.com"},
+		map[string]string{"admin_password": "a better password"}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	local(m).WaitHooks()
+	if st := local(m).InstallStatus(ctx, "forgejo"); st.Failed != "" || st.Pending {
+		t.Fatalf("after retrying with new values: %+v", st)
+	}
+	env := ex.calls[len(ex.calls)-1]
+	if env["ADMIN_USERNAME"] != "tyris" || env["ADMIN_PASSWORD"] != "a better password" {
+		t.Errorf("env = %v", env)
+	}
+	if _, kept := secrets.values["mylab-forgejo-admin_password"]; kept {
+		t.Error("the password goes once the hook succeeded")
+	}
+}
+
 func TestRunAction(t *testing.T) {
 	m, _, _, ex := newHookManager(t)
 	ctx := context.Background()
@@ -217,4 +256,13 @@ func TestUpdateSettingsAndReveal(t *testing.T) {
 	if _, err := local(m).RevealSecret(ctx, "forgejo", "admin_password"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("revealing a non-revealable secret: %v", err)
 	}
+}
+
+func (m *Manager) mustPackage(t *testing.T, name string) *pkgspec.Package {
+	t.Helper()
+	p, err := m.Package(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
 }

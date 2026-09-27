@@ -38,6 +38,7 @@ type KV interface {
 type SecretStore interface {
 	Read(ctx context.Context, name string) ([]byte, error)
 	Remove(ctx context.Context, name string) error
+	Replace(ctx context.Context, name string, value []byte) error
 }
 
 // ExecFunc runs a command in a container (podman exec) with env passed
