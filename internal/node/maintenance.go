@@ -33,6 +33,9 @@ type Updates interface {
 	Submit() error
 	RestartStatus() osupdate.RestartStatus
 	RestartNow(ctx context.Context) error
+	// HostChanges are changes to the host MyLab didn't make (SPEC.md §3.2).
+	HostChanges(ctx context.Context) (osupdate.HostCheck, error)
+	AcknowledgeHostChanges(ctx context.Context) error
 }
 
 // Maintenance is this server's maintenance jobs. A nil job isn't

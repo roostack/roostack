@@ -66,7 +66,7 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
 | After reboot | Services return through systemd; MyLab health-checks them and flags failures |
 | Major upgrades (e.g. 13 → 14) | Never automatic. Owner-initiated, guided, only once MyLab supports the new release, and only after a fresh successful backup |
 | MyLab itself | Patch releases automatic; minor/major releases notify and need approval (same as services, §7) |
-| Unknown host changes | Basic detection (extra apt sources, held packages, a changed firewall) triggers a warning; more thorough checks later |
+| Unknown host changes | Basic detection (extra apt sources, held packages, a changed firewall) triggers a warning; more thorough checks later. As built (2026-09-28): per server, on its Updates page and in "needs attention"; the Owner can mark the current changes as made on purpose, and anything new warns again |
 
 - `unattended-upgrades`' own automatic-reboot option is **disabled**; only MyLab decides when to reboot.
 - **How it runs (2026-09-27):** MyLab ships `/etc/apt/apt.conf.d/52mylab-unattended-upgrades` (adds stable-updates, no automatic reboot, removes old kernels). Every night after the 02:00 backup, the coordinator runs an "OS updates" job: `mylab-agent` runs `apt-get update && unattended-upgrade` in a transient unit (outside its own sandbox). The job is queued separately from the backup, so a failing backup doesn't hold back security fixes. Debian's own apt timers stay enabled as a fallback. `/run/reboot-required` (written by the kernel's postinst hook) is checked after each run and every 30 minutes; the coordinator then reboots in the window through the agent.

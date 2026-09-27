@@ -90,7 +90,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Running in `mylab serve` with a file journal (interrupted backups resume after reboot)
   - [x] OS updates: apt config, agent runs unattended-upgrade after the nightly backup, results in Settings, restart-needed detection, automatic restart in the window or notify-only, "Check for updates now" / "Restart now". Tested on the VM: downgraded curl/libcurl/tzdata from snapshot.debian.org were upgraded by the agent; a flagged reboot happened in the window through the coordinator and every service came back
   - [x] Live activity logs (status line + collapsed details) for OS updates (streamed from the agent), backups (steps and upload progress), applying service changes, and setup hooks
-  - [ ] Unknown host changes (extra apt sources, held packages, changed firewall) warning (SPEC §3.2)
+  - [x] Unknown host changes (SPEC §3.2): mylab-agent reports non-Debian apt sources (following Debian's mirror lists), held packages, other nftables tables or ufw/firewalld, and a missing MyLab firewall; "needs attention" and the Updates page show them per server until the Owner marks them known (a fingerprint: new changes warn again). Tested on the VMs
   - [x] Host time zone: wizard step 1, Settings card, agent `timedatectl`, banner when the browser's clock differs
   - [x] Containers use the host's time zone (`Timezone=<zone>` in every unit; a change restarts them)
 - [ ] **1.14 Design system** (agreed 2026-09-27)

@@ -3,6 +3,7 @@ package osupdate
 import (
 	"context"
 	"errors"
+	"github.com/mylab/mylab/internal/agent"
 	"io"
 	"log/slog"
 	"os"
@@ -40,6 +41,9 @@ func (f fakeAgent) RunUpdates(_ context.Context, w io.Writer) error {
 	return f.err
 }
 func (f fakeAgent) Reboot(context.Context) error { return nil }
+func (f fakeAgent) HostChanges(context.Context) (agent.HostChanges, error) {
+	return agent.HostChanges{AptSources: []string{"docker.list: https://download.docker.com/linux/debian"}}, nil
+}
 
 type memKV struct {
 	mu sync.Mutex
@@ -144,5 +148,20 @@ func TestRestartNow(t *testing.T) {
 	coord.running = nil
 	if err := s.RestartNow(context.Background()); err != nil {
 		t.Error(err)
+	}
+}
+
+func TestHostChanges(t *testing.T) {
+	s, _ := newService(t, fakeAgent{})
+	ctx := context.Background()
+	c, err := s.HostChanges(ctx)
+	if err != nil || len(c.AptSources) != 1 || c.Known {
+		t.Fatalf("changes = %+v, %v", c, err)
+	}
+	if err := s.AcknowledgeHostChanges(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := s.HostChanges(ctx); !c.Known {
+		t.Error("the Owner said they know")
 	}
 }

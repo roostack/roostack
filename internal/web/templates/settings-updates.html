@@ -45,6 +45,27 @@
   </form>
   </div>
 </section>
+{{with $.HostChanges}}
+<section class="card section" id="host-changes">
+  <h2>Changes MyLab didn't make</h2>
+  <p class="hint">Someone changed this server outside MyLab. That's fine if it was on purpose, but these can stop updates or the
+    firewall from working as MyLab expects.</p>
+  <dl class="facts">
+    {{with .AptSources}}<dt>Software from outside Debian</dt>
+    <dd>{{range .}}<code>{{.}}</code><br>{{end}}<small class="hint">Updates from these aren't checked by Debian, and can
+      conflict with Debian's own packages.</small></dd>{{end}}
+    {{with .Held}}<dt>Held back from updates</dt>
+    <dd>{{range $i, $p := .}}{{if $i}}, {{end}}<code>{{$p}}</code>{{end}}<br><small class="hint">These don't get security fixes
+      (<code>sudo apt-mark unhold …</code> releases them).</small></dd>{{end}}
+    {{with .Firewalls}}<dt>Another firewall</dt>
+    <dd>{{range .}}<code>{{.}}</code><br>{{end}}<small class="hint">Its rules apply as well as MyLab's, and can block services.</small></dd>{{end}}
+    {{if .FirewallMissing}}<dt>MyLab's firewall</dt><dd><span class="error">Not loaded: something removed it.</span> Saving this
+      server's remote access choice loads it again.</dd>{{end}}
+  </dl>
+  {{if .Known}}<p class="hint">✓ You said these were made on purpose. MyLab tells you again if anything else changes.</p>
+  {{else}}{{confirm $.Server.HostChangesKnown "Mark these changes as made on purpose? MyLab stops warning about them, until something else changes." "I made these changes" "secondary"}}{{end}}
+</section>
+{{end}}
 {{else}}
 <section class="card"><h1>Updates and restarts</h1><p>Not available.</p></section>
 {{end}}

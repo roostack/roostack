@@ -345,6 +345,13 @@ func (s *Server) renderUpdates(w http.ResponseWriter, r *http.Request, errMsg st
 		return
 	}
 	data["Updates"] = s.updatesView(r, errMsg)
+	if n := s.serverOf(r); n != nil {
+		m := s.serverRefOf(r)
+		s.forgetHostCheck(m.ID) // this page always checks afresh
+		if c, ok := s.hostChanges(r, m, n); ok && c.Any() {
+			data["HostChanges"] = c
+		}
+	}
 	data["Switcher"] = s.serverTabs(r, "updates")
 	if errMsg != "" {
 		w.WriteHeader(http.StatusBadRequest)

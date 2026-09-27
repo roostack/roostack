@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/mylab/mylab/internal/activity"
+	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/maintenance"
 )
 
@@ -44,6 +45,37 @@ const lastKey = "os.updates.last"
 type Agent interface {
 	RunUpdates(ctx context.Context, w io.Writer) error
 	Reboot(ctx context.Context) error
+	HostChanges(ctx context.Context) (agent.HostChanges, error)
+}
+
+// HostCheck is what changed on the host without MyLab (SPEC.md §3.2), and
+// whether the Owner said they made those changes on purpose.
+type HostCheck struct {
+	agent.HostChanges
+	Known bool `json:"known"`
+}
+
+// hostKnownKey stores the fingerprint of changes the Owner knows about.
+const hostKnownKey = "host.changes.known"
+
+// HostChanges checks the host for changes MyLab didn't make.
+func (s *Service) HostChanges(ctx context.Context) (HostCheck, error) {
+	c, err := s.Agent.HostChanges(ctx)
+	if err != nil {
+		return HostCheck{}, err
+	}
+	known, _ := s.Store.Setting(ctx, hostKnownKey)
+	return HostCheck{HostChanges: c, Known: c.Any() && known == c.Fingerprint()}, nil
+}
+
+// AcknowledgeHostChanges records that the Owner made the current changes
+// on purpose: they're not flagged again until something else changes.
+func (s *Service) AcknowledgeHostChanges(ctx context.Context) error {
+	c, err := s.Agent.HostChanges(ctx)
+	if err != nil {
+		return err
+	}
+	return s.Store.SetSetting(ctx, hostKnownKey, c.Fingerprint())
 }
 
 // KV stores the last result (the store's settings table).

@@ -237,6 +237,20 @@ func (s *Server) Handler() http.Handler {
 		}
 		return wireUpdates{Last: last, Pending: u.Pending(), Restart: u.RestartStatus()}, nil
 	})
+	handle("GET /v1/host/changes", func(r *http.Request) (any, error) {
+		u, err := updates()
+		if err != nil {
+			return nil, err
+		}
+		return u.HostChanges(ctx(r))
+	})
+	handle("POST /v1/host/changes/known", func(r *http.Request) (any, error) {
+		u, err := updates()
+		if err != nil {
+			return nil, err
+		}
+		return nil, u.AcknowledgeHostChanges(ctx(r))
+	})
 	handle("POST /v1/updates/run", func(r *http.Request) (any, error) {
 		u, err := updates()
 		if err != nil {
