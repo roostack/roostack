@@ -148,7 +148,9 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			data["Actions"] = actions
 			s.addSettingsData(data, name, p, nil)
 		}
-		data["Setup"] = s.Manager.InstallStatus(r.Context(), name)
+		if s.Node != nil {
+			data["Setup"] = s.Node.InstallStatus(r.Context(), name)
+		}
 		// The latest setup log, if it's this service's.
 		if a := s.activityFor(r, activity.Setup); a != nil && a.Title == "Setting up "+data["Service"].(ServiceView).Title {
 			data["SetupActivity"] = a

@@ -16,7 +16,7 @@ import (
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/node"
+	"github.com/mylab/mylab/internal/nodeid"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/reconcile"
 )
@@ -55,7 +55,7 @@ func LoadServices(lab config.Lab) ([]Service, error) {
 		}
 		// Checked here, not only when generating: a service with a bad host
 		// would otherwise belong to no machine and silently never run.
-		if in.Host != "" && !node.ValidID(in.Host) {
+		if in.Host != "" && !nodeid.ValidID(in.Host) {
 			errs = append(errs, fmt.Errorf("%s: host %q is not a node ID", e.Name(), in.Host))
 			continue
 		}

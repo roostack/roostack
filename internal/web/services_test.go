@@ -111,7 +111,7 @@ func loggedIn(t *testing.T, role string) (*harness, *fakeManager) {
 	t.Helper()
 	h := newHarness(t, "")
 	fm := &fakeManager{}
-	h.server.Manager = fm
+	h.server.Manager, h.server.Node = fm, fm
 	h.server.Domain = "lab.example.com"
 	h.server.HasGPU = true
 	hash, _ := auth.HashPassword("a long password")
@@ -263,7 +263,7 @@ func TestNavigationByRole(t *testing.T) {
 
 func TestHomeAllGood(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner) // owners have 2FA in this harness
-	h.server.Manager = nil
+	h.server.Manager, h.server.Node = nil, nil
 	_, body := h.get("/")
 	if !strings.Contains(body, "Everything&#39;s working") && !strings.Contains(body, "Everything's working") {
 		t.Error("with nothing to do, home should say everything's working")

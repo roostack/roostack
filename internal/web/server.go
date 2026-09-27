@@ -82,6 +82,8 @@ type Server struct {
 
 	// Manager installs and removes services. Nil disables those pages.
 	Manager ServiceManager
+	// Node is the machine running the services. Set with Manager.
+	Node ServiceNode
 	// Domain is the lab's base domain, shown next to subdomain fields.
 	Domain string
 	// DNSProvider is the lab's current DNS provider ID (wizard default).
@@ -122,13 +124,18 @@ type ServiceManager interface {
 	DataDirs(name string) []string
 	Ports(name string) ([]manager.PortStatus, error)
 	SetPort(ctx context.Context, name, port string, enabled bool, hostPort int) error
+	CurrentSettings(name string) (map[string]any, string, error)
+	UpdateSettings(ctx context.Context, name string, req manager.SettingsRequest) error
+	Status() manager.ApplyStatus
+}
+
+// ServiceNode is what the UI needs from the machine running a service
+// (internal/node): its setup, actions and secrets.
+type ServiceNode interface {
 	InstallStatus(ctx context.Context, name string) manager.HookStatus
 	RetryInstall(ctx context.Context, name string) error
 	RunAction(ctx context.Context, name, action string, inputs map[string]string) (string, error)
-	CurrentSettings(name string) (map[string]any, string, error)
-	UpdateSettings(ctx context.Context, name string, req manager.SettingsRequest) error
 	RevealSecret(ctx context.Context, name, key string) (string, error)
-	Status() manager.ApplyStatus
 }
 
 // LabSetup is what the UI needs from internal/setup.

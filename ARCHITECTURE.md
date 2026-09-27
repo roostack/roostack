@@ -60,14 +60,15 @@ The reconciler only touches files it owns (`mylab-*` Quadlets and `*.caddy` snip
 | `internal/podman` | The few direct `podman` calls (secrets, `exec` for package hooks) |
 | `internal/agent` | Agent server, client, firewall ruleset, time zone, OS updates, reboot |
 | `internal/web/static/css`, `docs/DESIGN.md` | Design system: tokens, built-in themes, components; gallery at `/design` and `docs/design/gallery.html` |
-| `internal/node` | This machine's identity (node ID and name); later the controller/node split (SPEC.md §10) |
+| `internal/nodeid` | This machine's identity (node ID and name) |
+| `internal/node` | A machine in the lab (SPEC.md §10): the `Node` interface and `Local`, which applies its Assignment (reconcile, firewall) and runs package hooks, actions and secret reveals |
 | `internal/activity` | Live logs of host operations (OS updates, backups, applies, setup hooks) for the UI: a status line plus collapsible details |
 | `internal/osupdate` | Nightly OS updates job, restart-needed detection, "restart now" |
 | `internal/firewall` | Builds the firewall from the lab and its services; lists current SSH connections |
 | `internal/store` | SQLite runtime data: users, sessions, audit log |
 | `internal/auth` | Password hashing (argon2id), session tokens, roles |
 | `internal/web` | Web UI: handlers, templates, vendored htmx/Alpine |
-| `internal/manager` | Business logic behind the UI: catalog, install, remove, ports, background apply, package hooks |
+| `internal/manager` | The controller: catalog, install, remove, ports and settings (desired state), and each machine's Assignment |
 | `internal/maintenance` | Maintenance coordinator: job queue and reboot policy |
 | `internal/backup` | restic wrapper, prepare steps, backup plan and job |
 
@@ -129,7 +130,7 @@ Shared pieces (attention list, backup and DNS cards) live in `templates/parts.ht
 - **Headers:** a strict Content-Security-Policy, `nosniff`, and no framing.
 - **Roles** are checked per route (`auth.Can`).
 
-Installing or removing a service from the UI only changes desired state (an instance file); `internal/manager` then applies it in the background, one apply at a time, and the dashboard shows progress or the last error. Removing a service never deletes its data. For now, services installed from the UI are always private.
+Installing or removing a service from the UI only changes desired state (an instance file); `internal/manager` then builds this machine's Assignment (the services placed on it, plus any values typed into the install form, which the manager forgets once handed over) and gives it to the node, which applies it in the background, one apply at a time; the dashboard shows progress or the last error. Assignments are the seam for more machines: a remote node will receive the same thing over MyLab's network. Removing a service never deletes its data. For now, services installed from the UI are always private.
 
 **Package hooks** run commands inside a service's containers with `podman exec`. After an apply succeeds, `install` hooks run once, retried every 10 s for up to 10 minutes while the app starts; their progress is kept in the settings table (`hooks.<service>.install`). `action` hooks are buttons on the service page. Values from users (settings, action inputs, secrets) reach the command only as environment variables, passed as an env file on stdin, so they never appear in a command line, a unit file or a process listing. `install_only` secrets (e.g. Forgejo's admin password) are deleted once the install hooks succeed.
 

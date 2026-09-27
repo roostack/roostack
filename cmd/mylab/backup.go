@@ -53,7 +53,7 @@ func backupCmd(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := withNode(&lab); err != nil {
+	if _, err := withNode(&lab); err != nil {
 		return err
 	}
 	if lab.Backup.Repository == "" {

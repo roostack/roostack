@@ -17,72 +17,51 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/firewall"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/instance"
+	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/pkgspec"
-	"github.com/mylab/mylab/internal/reconcile"
 	"github.com/mylab/mylab/internal/state"
 )
 
-// ErrNotFound means no such package or installed service.
-var ErrNotFound = errors.New("not found")
+// Types shared with the node that does the work (internal/node), under
+// the names the web layer uses.
+type (
+	FormError   = node.FormError
+	ApplyStatus = node.ApplyStatus
+	HookStatus  = node.HookStatus
+	ActionError = node.ActionError
+)
 
-// Manager installs, removes and applies services.
+// ErrNotFound means no such package or installed service.
+var ErrNotFound = node.ErrNotFound
+
+// Manager is the controller side of the lab (SPEC.md §10.3): it keeps
+// desired state (instance files), decides what each machine runs, and
+// hands that to the machine as an Assignment. Machine work (applying,
+// install hooks, actions) happens in the Node.
 type Manager struct {
 	Lab config.Lab
-	// Reconciler applies desired state. Its UserSecret is set by Manager.
-	Reconciler *reconcile.Reconciler
-	Log        *slog.Logger
-
-	// mu guards state changes (install/remove) and the apply status.
-	mu     sync.Mutex
-	status ApplyStatus
-	// again is set when a change arrives during an apply, so another
-	// apply runs afterwards.
-	again bool
-	// userSecrets holds values typed into install forms until the next
-	// apply creates the Podman secrets. Never written to disk.
-	userSecrets map[string][]byte
-	// done is closed when the current apply finishes (for tests).
-	done chan struct{}
-
-	// Hooks (hooks.go). State records install hook progress; without
-	// State and Exec, hooks don't run.
-	State   KV
-	Secrets SecretStore
-	Exec    ExecFunc
-	// Activity shows applies and install hooks live in the UI (optional).
+	Log *slog.Logger
+	// Node is this machine. With one machine per lab it runs every service.
+	Node node.Node
+	// Activity shows problems building an assignment (optional).
 	Activity *activity.Registry
 
-	// Firewall applies the host firewall through mylab-agent after each
-	// apply. Nil leaves the firewall alone.
-	Firewall FirewallApplier
-
-	// HookRetry and HookDeadline tune install hook retries (0: defaults).
-	HookRetry, HookDeadline time.Duration
-
-	hooksBusy, hooksAgain bool
-	hooksRunning          map[string]bool
-	hooksDone             chan struct{}
-}
-
-// FirewallApplier is mylab-agent's firewall operation.
-type FirewallApplier interface {
-	ApplyFirewall(ctx context.Context, fw agent.Firewall) error
-}
-
-// ApplyStatus is shown on the dashboard.
-type ApplyStatus struct {
-	Running  bool
-	LastRun  time.Time
-	LastErr  error
-	Finished bool // at least one apply has finished
+	// mu guards state changes (install/remove) and what is still to hand
+	// over to the node.
+	mu sync.Mutex
+	// secrets holds values typed into install forms until the next
+	// assignment hands them to the node. Never written to disk.
+	secrets map[string][]byte
+	// setUp lists newly installed services whose install hooks the node
+	// should run.
+	setUp []string
+	// assignErr is why the last assignment couldn't be built, if it failed.
+	assignErr error
 }
 
 // CatalogItem is one package in the catalog.
@@ -144,13 +123,8 @@ type InstallRequest struct {
 	Secrets map[string]string
 }
 
-// FormError is a problem the user can fix in the form.
-type FormError struct{ Msg string }
-
-func (e *FormError) Error() string { return e.Msg }
-
 func formErrorf(format string, args ...any) error {
-	return &FormError{fmt.Sprintf(format, args...)}
+	return &FormError{Msg: fmt.Sprintf(format, args...)}
 }
 
 // Install adds a service to desired state and starts applying it. The
@@ -188,7 +162,7 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 			if strings.ContainsAny(v, "\n\r\x00") {
 				return formErrorf("%s can't contain line breaks.", s.Title)
 			}
-			secrets[secretName(p.Name, s.Key)] = []byte(v)
+			secrets[node.SecretName(p.Name, s.Key)] = []byte(v)
 		}
 	}
 	if sub := strings.ToLower(strings.TrimSpace(req.Subdomain)); sub != "" {
@@ -229,21 +203,19 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		}
 		return err
 	}
-	// Install hooks (e.g. creating the admin account) run once the
-	// service has started.
-	if m.State != nil && len(p.HooksOn(pkgspec.HookInstall)) > 0 {
-		if err := m.State.SetSetting(ctx, hookKey(p.Name), hookPending); err != nil {
-			return err
-		}
-	}
 	if err := in.Save(state.InstanceFile(m.Lab, p.Name)); err != nil {
 		return err
 	}
-	if m.userSecrets == nil {
-		m.userSecrets = map[string][]byte{}
+	// Install hooks (e.g. creating the admin account) run once the
+	// service has started.
+	if len(p.HooksOn(pkgspec.HookInstall)) > 0 {
+		m.setUp = append(m.setUp, p.Name)
+	}
+	if m.secrets == nil {
+		m.secrets = map[string][]byte{}
 	}
 	for k, v := range secrets {
-		m.userSecrets[k] = v
+		m.secrets[k] = v
 	}
 	m.startApplyLocked()
 	return nil
@@ -442,22 +414,6 @@ func (m *Manager) UpdateSettings(ctx context.Context, name string, req SettingsR
 	return nil
 }
 
-// RevealSecret returns a secret setting's value for people who need it
-// (e.g. Vaultwarden's admin token, to open its admin page). Only settings
-// the package marks reveal: true.
-func (m *Manager) RevealSecret(ctx context.Context, name, key string) (string, error) {
-	p, _, err := m.installedService(name)
-	if err != nil {
-		return "", err
-	}
-	s := p.Setting(key)
-	if s == nil || s.Type != pkgspec.SettingSecret || !s.Reveal || m.Secrets == nil {
-		return "", ErrNotFound
-	}
-	v, err := m.Secrets.Read(ctx, secretName(name, key))
-	return string(v), err
-}
-
 // Remove takes a service out of desired state and applies the change. Its
 // data stays on disk (SPEC.md: the reconciler never deletes data).
 func (m *Manager) Remove(ctx context.Context, name string) error {
@@ -472,9 +428,6 @@ func (m *Manager) Remove(ctx context.Context, name string) error {
 	}
 	if err != nil {
 		return err
-	}
-	if m.State != nil {
-		m.State.SetSetting(ctx, hookKey(name), "")
 	}
 	m.startApplyLocked()
 	return nil
@@ -498,109 +451,41 @@ func (m *Manager) Apply() {
 
 // Status reports the current or last apply.
 func (m *Manager) Status() ApplyStatus {
+	st := m.Node.Status()
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.status
+	if m.assignErr != nil {
+		st.LastErr, st.Finished = m.assignErr, true
+	}
+	return st
 }
 
-// startApplyLocked runs an apply in the background. If one is already
-// running, another runs when it finishes, so the latest change is applied.
+// startApplyLocked hands the node its latest assignment, which it applies
+// in the background.
 func (m *Manager) startApplyLocked() {
-	if m.status.Running {
-		m.again = true
-		return
-	}
-	m.status.Running = true
-	m.done = make(chan struct{})
-	go m.applyLoop(m.done)
-}
-
-func (m *Manager) applyLoop(done chan struct{}) {
-	defer close(done)
-	for {
-		err := m.applyOnce(context.Background())
-		m.mu.Lock()
-		m.status.LastRun, m.status.LastErr, m.status.Finished = time.Now(), err, true
-		if err != nil {
-			m.Log.Error("applying changes", "err", err)
-		} else {
-			defer m.startInstallHooks() // after unlocking
-		}
-		if !m.again {
-			m.status.Running = false
-			m.mu.Unlock()
-			return
-		}
-		m.again = false
-		m.mu.Unlock()
-	}
-}
-
-func (m *Manager) applyOnce(ctx context.Context) (err error) {
-	// A log only for applies that change something (or fail): the one at
-	// every startup usually has nothing to do.
-	var act *activity.Log
-	defer func() {
-		if err != nil && act == nil {
-			act = m.Activity.Start(activity.Apply, "Applying changes")
-		}
-		act.Finish(err)
-	}()
-	// Load and allocate under the lock so an install can't interleave.
-	m.mu.Lock()
 	services, err := state.LoadServices(m.Lab)
 	if err == nil {
 		err = m.allocateAndSave(services)
 	}
-	m.mu.Unlock()
+	m.assignErr = err
 	if err != nil {
-		return err
+		// Typed-in secrets and set-ups wait for the next assignment.
+		m.Log.Error("applying changes", "err", err)
+		m.Activity.Start(activity.Apply, "Applying changes").Finish(err)
+		return
 	}
-	// Only the services placed on this machine (SPEC.md §10.4).
-	desired, err := state.Desired(m.Lab, state.OnNode(services, m.Lab.NodeID))
-	if err != nil {
-		return err
-	}
-	r := *m.Reconciler
-	r.UserSecret = func(name string) ([]byte, bool) {
-		m.mu.Lock()
-		defer m.mu.Unlock()
-		v, ok := m.userSecrets[name]
-		return v, ok
-	}
-	plan, err := r.Plan(ctx, desired)
-	if err != nil {
-		return err
-	}
-	if !plan.Empty() {
-		act = m.Activity.Start(activity.Apply, "Applying changes")
-		r.Log = act
-	}
-	if err := r.Apply(ctx, plan); err != nil {
-		return err
-	}
-	// Created secrets live in Podman now; forget the typed-in values.
-	m.mu.Lock()
-	for _, s := range plan.Secrets {
-		delete(m.userSecrets, s.Name)
-	}
-	m.mu.Unlock()
-
-	// The firewall follows the services, e.g. a package port just turned on.
-	if fw, ok := firewall.Desired(m.Lab, desired.Services); ok && m.Firewall != nil {
-		act.Step("Updating the firewall")
-		if err := m.Firewall.ApplyFirewall(ctx, fw); err != nil {
-			return fmt.Errorf("applying the firewall: %w", err)
-		}
-	}
-	act.Step("All changes applied")
-	return nil
+	m.Node.Apply(node.Assignment{
+		// Only the services placed on this machine (SPEC.md §10.4).
+		Services: state.OnNode(services, m.Lab.NodeID),
+		Secrets:  m.secrets,
+		SetUp:    m.setUp,
+	})
+	m.secrets, m.setUp = nil, nil
 }
 
-// allocateAndSave gives routes without a port one, and saves those
-// instances so the ports never change. Callers hold m.mu.
 // allocateAndSave places services that have no host yet on this machine
-// and gives this machine's routes their ports, saving what changed.
+// and gives this machine's routes their ports, saving what changed, so
+// ports never change. Callers hold m.mu.
 func (m *Manager) allocateAndSave(services []state.Service) error {
 	changed := state.AssignHosts(services, m.Lab.NodeID)
 	ported, err := state.AllocatePorts(state.OnNode(services, m.Lab.NodeID))
@@ -622,11 +507,8 @@ func (m *Manager) allocateAndSave(services []state.Service) error {
 
 // Wait blocks until the current apply finishes (for tests and tools).
 func (m *Manager) Wait() {
-	m.mu.Lock()
-	done := m.done
-	m.mu.Unlock()
-	if done != nil {
-		<-done
+	if w, ok := m.Node.(interface{ Wait() }); ok {
+		w.Wait()
 	}
 }
 
@@ -658,9 +540,6 @@ func MainRoute(p *pkgspec.Package) string {
 	}
 	return names[0]
 }
-
-// secretName matches generate's naming for secret settings.
-func secretName(svc, key string) string { return "mylab-" + svc + "-" + key }
 
 // validName guards against path tricks in names taken from URLs.
 func validName(name string) bool {

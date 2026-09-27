@@ -218,12 +218,12 @@ func (s *Server) portSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) retrySetupSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
+	if s.Node == nil {
 		http.NotFound(w, r)
 		return
 	}
 	name := r.PathValue("name")
-	if err := s.Manager.RetryInstall(r.Context(), name); err != nil {
+	if err := s.Node.RetryInstall(r.Context(), name); err != nil {
 		s.serverError(w, err)
 		return
 	}
@@ -232,7 +232,7 @@ func (s *Server) retrySetupSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
+	if s.Node == nil {
 		http.NotFound(w, r)
 		return
 	}
@@ -247,7 +247,7 @@ func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
 			inputs[key] = v[0]
 		}
 	}
-	out, err := s.Manager.RunAction(r.Context(), name, action, inputs)
+	out, err := s.Node.RunAction(r.Context(), name, action, inputs)
 	var fe *manager.FormError
 	var ae *manager.ActionError
 	result := map[string]string{"action": action}

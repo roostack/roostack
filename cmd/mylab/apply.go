@@ -30,7 +30,7 @@ func apply(args []string) error {
 	}
 	lab.HasGPU = config.DetectGPU()
 	lab.Timezone = hosttime.Zone()
-	if err := withNode(&lab); err != nil {
+	if _, err := withNode(&lab); err != nil {
 		return err
 	}
 	all, err := state.LoadServices(lab)
