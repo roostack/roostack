@@ -431,6 +431,35 @@ What the two-VM prototype does, where it refines the design above:
 - **Web routes of a service on another machine:** the machine publishes them on its overlay address (firewall: WireGuard interface only) and the controller's Caddy forwards to it (TLS ends on the controller for now; passthrough is §10.5's edge).
 - **Nodes** run no UI, Caddy or DNS. Per-machine pages live under `/settings/machines/<id>/…`.
 
+### 10.10 Backups across machines, and moving services — Draft (2026-09-27)
+
+Builds on §6.9 (restic, recovery key, 3-2-1) and §10.3 (each machine backs up its own services to its own repository with its own key).
+
+**Destinations are chosen per machine, from providers the lab knows.**
+- A **provider** is a place backups can go: a cloud account (B2, S3, …), an SFTP server, **a machine's own disk**, or **another machine offering storage** (below). A provider is set up once (its credentials) and any machine can use it; the Backups page of each machine picks one (and later extra copies, for 3-2-1).
+- Every machine's repository goes in **its own folder**, always, even if only one machine uses the provider: `<provider path>/mylab/<lab id>/<machine id>/`. Moving a lab or adding machines never reshuffles folders.
+- **The controller creates each repository** (decided 2026-09-27): it runs `restic init` at the destination with the recovery key, adds a new key for the machine, and gives the machine only that key. The recovery key never leaves the controller. So the controller must reach every destination, which the next point guarantees.
+
+**Disks are offered over MyLab's network (restic's rest-server).**
+- A machine's own disk is used through a small **rest-server** on that machine, listening only on MyLab's network. The controller creates repositories through it like any other destination, and the machine backs up to itself through it too. One mechanism covers "local disk", "the NAS at home" and "a friend's machine".
+- rest-server runs **append-only** for backup clients, so a compromised machine can add backups but not delete old ones (ransomware protection, §6.9). Pruning is done by a key that can delete, held by the controller (see open question 2).
+
+**A machine can be a backup target for other labs (friends and family).**
+- The Owner of the storage machine creates a **storage invite** (like a join code) with a **quota**; the other lab's Owner adds it as a provider. Each invited lab gets its **own rest-server repository area with its own size limit**, reached over a WireGuard link that allows **only** that port (it isn't a machine in the host's lab and can reach nothing else).
+- The host only ever sees encrypted data and sizes (zero-knowledge, like §10.8's backup targets).
+- **Storage management:** the host sets and can change each guest's quota; MyLab keeps free-space headroom on the disk and refuses quotas that don't fit; both sides see usage (the guest: "8.2 of 50 GB used at Mum's"); warnings at 80% and when a backup fails for lack of space; the host can remove a guest (their data is deleted after a grace period, with notice).
+
+**Moving a service between machines: two ways, the UI suggests one.**
+- **Copy directly** (quick, for smaller data or machines on the same network): copy the data to the new machine over MyLab's network *while the service keeps running*, then stop it, copy what changed, start it on the new machine and switch its web address. Downtime is only the final pass. The old copy is kept until the Owner confirms.
+- **Through a backup** (large data, slow or unreliable links, or machines far apart): back up on the old machine, then restore on the new one from the old machine's repository. The controller adds a temporary key to that repository for the new machine and removes it afterwards. Resumable, and reuses restore (§6.9).
+- The move page shows the data size and an estimate for each way, and suggests one.
+
+**Open questions**
+1. **Provider credentials on machines:** each machine needs credentials to reach its destination every night. Store the provider's credentials on each machine that uses it, or create a **scoped credential per machine** where the provider allows it (B2 application keys limited to a folder, S3 policies), falling back to the shared one?
+2. **Pruning append-only repositories:** who runs `restic forget/prune`? Proposal: the controller, using the recovery key over a separate non-append-only rest-server credential, weekly. For friends' storage the guest's own controller does this.
+3. **rest-server as a dependency:** restic's own server (BSD-2, Go, same project as restic). Run it as a container (`docker.io/restic/rest-server`, pinned) like Caddy, or install the binary?
+4. **Guest link:** the storage invite gives the guest lab a WireGuard peer on the host restricted by the firewall to the rest-server port. Is a separate WireGuard interface for guests worth it (clearer isolation), or one interface with per-peer rules?
+
 ## Deferred Decisions (post-MVP)
 
 - SSO platform, and whether it is mandatory (linked to unifying MyLab and service accounts, §5)
