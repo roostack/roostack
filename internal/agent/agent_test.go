@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -175,6 +176,19 @@ func TestFirewallValidate(t *testing.T) {
 	} {
 		if err := fw.Validate(); err == nil {
 			t.Errorf("expected an error for %+v", fw)
+		}
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("broken pipe") }
+
+func TestLineStreamOutlivesCaller(t *testing.T) {
+	st := &lineStream{enc: json.NewEncoder(failingWriter{}), flush: func() {}}
+	for range 3 {
+		if n, err := st.Write([]byte("Unpacking curl\n")); err != nil || n != 15 {
+			t.Fatalf("write after the caller went away: %d %v", n, err)
 		}
 	}
 }

@@ -114,7 +114,10 @@ func (s *Server) Handler() http.Handler {
 		w.Header().Set("Content-Type", "application/x-ndjson")
 		w.WriteHeader(http.StatusOK)
 		st := &lineStream{enc: json.NewEncoder(w), flush: w.(http.Flusher).Flush}
-		err := s.Host.RunUpdates(r.Context(), st)
+		// Once started, updates run to the end even if the caller goes
+		// away (e.g. MyLab restarts): stopping dpkg halfway leaves packages
+		// half-installed.
+		err := s.Host.RunUpdates(context.WithoutCancel(r.Context()), st)
 		st.close()
 		end := map[string]any{"done": true}
 		if err != nil {
@@ -328,22 +331,29 @@ func (h LinuxHost) RunUpdates(ctx context.Context, w io.Writer) error {
 	return cmd.Run()
 }
 
-// lineStream sends written output as {"line": ...} JSON lines.
+// lineStream sends written output as {"line": ...} JSON lines. If the
+// caller has gone, output is dropped rather than failing the write, which
+// would close the command's output and kill it (SIGPIPE).
 type lineStream struct {
 	mu      sync.Mutex
 	enc     *json.Encoder
 	flush   func()
 	partial string
+	gone    bool
 }
 
 func (s *lineStream) Write(p []byte) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.gone {
+		return len(p), nil
+	}
 	lines := strings.Split(s.partial+string(p), "\n")
 	s.partial = lines[len(lines)-1]
 	for _, line := range lines[:len(lines)-1] {
 		if err := s.enc.Encode(map[string]string{"line": line}); err != nil {
-			return 0, err
+			s.gone = true
+			return len(p), nil
 		}
 	}
 	s.flush()
