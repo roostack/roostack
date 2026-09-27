@@ -50,14 +50,14 @@ type Host interface {
 	RunUpdates(ctx context.Context, w io.Writer) error
 	// Reboot restarts the host shortly after returning.
 	Reboot() error
-	// ApplyWireGuard configures MyLab's WireGuard interface (already
-	// validated) and brings it up, returning the machine's public key.
+	// ApplyWireGuard configures one of MyLab's WireGuard interfaces
+	// (already validated) and brings it up, returning its public key.
 	ApplyWireGuard(wg WireGuard) (publicKey string, err error)
-	// WireGuardStatus reads the interface's configuration.
-	WireGuardStatus() (WireGuardStatus, error)
-	// RemoveWireGuard takes the interface down and deletes its
-	// configuration (the machine left its lab).
-	RemoveWireGuard() error
+	// WireGuardStatus reads an interface's configuration.
+	WireGuardStatus(iface string) (WireGuardStatus, error)
+	// RemoveWireGuard takes an interface down and deletes its
+	// configuration (e.g. the machine left its lab).
+	RemoveWireGuard(iface string) error
 }
 
 // Server is the agent's HTTP API.
@@ -137,8 +137,23 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/reboot", func(w http.ResponseWriter, r *http.Request) {
 		s.do(w, r, "reboot", s.Host.Reboot)
 	})
+	iface := func(w http.ResponseWriter, r *http.Request) (string, bool) {
+		name := r.URL.Query().Get("interface")
+		if name == "" {
+			name = WireGuardInterface
+		}
+		if !ValidInterface(name) {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid interface %q", name))
+			return "", false
+		}
+		return name, true
+	}
 	mux.HandleFunc("GET /v1/wireguard", func(w http.ResponseWriter, r *http.Request) {
-		st, err := s.Host.WireGuardStatus()
+		name, ok := iface(w, r)
+		if !ok {
+			return
+		}
+		st, err := s.Host.WireGuardStatus(name)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
@@ -146,7 +161,11 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, st)
 	})
 	mux.HandleFunc("DELETE /v1/wireguard", func(w http.ResponseWriter, r *http.Request) {
-		s.do(w, r, "remove wireguard", s.Host.RemoveWireGuard)
+		name, ok := iface(w, r)
+		if !ok {
+			return
+		}
+		s.do(w, r, "remove wireguard "+name, func() error { return s.Host.RemoveWireGuard(name) })
 	})
 	mux.HandleFunc("PUT /v1/wireguard", func(w http.ResponseWriter, r *http.Request) {
 		var wg WireGuard
@@ -381,11 +400,13 @@ func (h LinuxHost) Reboot() error {
 		"systemctl", "reboot").Run()
 }
 
-// ApplyWireGuard writes the wg-quick file and brings the interface up. A
+// ApplyWireGuard writes an interface's wg-quick file and brings it up. A
 // running interface takes new peers without dropping connections (wg
 // syncconf); a new address or key restarts it.
 func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
-	old, _ := os.ReadFile(WireGuardConf)
+	iface := wg.Iface()
+	file := wireGuardConf(iface)
+	old, _ := os.ReadFile(file)
 	key := confKey(string(old))
 	switch {
 	case wg.JoinKey != "":
@@ -401,28 +422,28 @@ func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
 		return "", err
 	}
 	conf := wg.Config(key)
-	if err := os.MkdirAll(filepath.Dir(WireGuardConf), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(WireGuardConf+".tmp", []byte(conf), 0o600); err != nil {
+	if err := os.WriteFile(file+".tmp", []byte(conf), 0o600); err != nil {
 		return "", err
 	}
-	if err := os.Rename(WireGuardConf+".tmp", WireGuardConf); err != nil {
+	if err := os.Rename(file+".tmp", file); err != nil {
 		return "", err
 	}
-	unit := "wg-quick@" + WireGuardInterface
+	unit := "wg-quick@" + iface
 	if out, err := exec.Command("systemctl", "enable", unit).CombinedOutput(); err != nil {
 		return "", fmt.Errorf("enabling %s: %w: %s", unit, err, out)
 	}
-	_, statErr := os.Stat("/sys/class/net/" + WireGuardInterface)
+	_, statErr := os.Stat("/sys/class/net/" + iface)
 	sameIface := statErr == nil && confKey(string(old)) == key && confAddress(string(old)) == wg.Address
 	if sameIface {
 		// wg syncconf takes the file without wg-quick's extra keys.
-		strip, err := exec.Command("wg-quick", "strip", WireGuardInterface).Output()
+		strip, err := exec.Command("wg-quick", "strip", iface).Output()
 		if err != nil {
 			return "", fmt.Errorf("wg-quick strip: %w", err)
 		}
-		cmd := exec.Command("wg", "syncconf", WireGuardInterface, "/dev/stdin")
+		cmd := exec.Command("wg", "syncconf", iface, "/dev/stdin")
 		cmd.Stdin = strings.NewReader(string(strip))
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return "", fmt.Errorf("wg syncconf: %w: %s", err, out)
@@ -435,21 +456,23 @@ func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
 	return pub, nil
 }
 
-// RemoveWireGuard stops and disables the interface and deletes its file.
-func (h LinuxHost) RemoveWireGuard() error {
-	unit := "wg-quick@" + WireGuardInterface
+// RemoveWireGuard stops and disables an interface and deletes its file.
+func (h LinuxHost) RemoveWireGuard(iface string) error {
+	unit := "wg-quick@" + iface
 	if out, err := exec.Command("systemctl", "disable", "--now", unit).CombinedOutput(); err != nil {
 		return fmt.Errorf("stopping %s: %w: %s", unit, err, out)
 	}
-	if err := os.Remove(WireGuardConf); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := os.Remove(wireGuardConf(iface)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return nil
 }
 
-// WireGuardStatus reads the wg-quick file.
-func (h LinuxHost) WireGuardStatus() (WireGuardStatus, error) {
-	conf, err := os.ReadFile(WireGuardConf)
+// WireGuardStatus reads an interface's wg-quick file and when each peer
+// last connected.
+func (h LinuxHost) WireGuardStatus(iface string) (WireGuardStatus, error) {
+	file := wireGuardConf(iface)
+	conf, err := os.ReadFile(file)
 	if errors.Is(err, os.ErrNotExist) {
 		return WireGuardStatus{}, nil
 	}
@@ -458,9 +481,13 @@ func (h LinuxHost) WireGuardStatus() (WireGuardStatus, error) {
 	}
 	pub, err := WireGuardPublicKey(confKey(string(conf)))
 	if err != nil {
-		return WireGuardStatus{}, fmt.Errorf("%s: %w", WireGuardConf, err)
+		return WireGuardStatus{}, fmt.Errorf("%s: %w", file, err)
 	}
-	return WireGuardStatus{Configured: true, PublicKey: pub, Address: confAddress(string(conf))}, nil
+	st := WireGuardStatus{Configured: true, PublicKey: pub, Address: confAddress(string(conf)), Handshakes: map[string]int64{}}
+	if out, err := exec.Command("wg", "show", iface, "latest-handshakes").Output(); err == nil {
+		st.Handshakes = parseHandshakes(string(out))
+	}
+	return st, nil
 }
 
 // RestoreFirewall re-applies the saved ruleset at agent start, if any.

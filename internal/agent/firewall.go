@@ -91,8 +91,8 @@ func (f Firewall) Validate() error {
 		if r.From != FromLAN && r.From != FromAny && !(r.Iface != "" && r.From == "") {
 			errs = append(errs, fmt.Errorf("allow[%d]: from must be %q or %q", i, FromLAN, FromAny))
 		}
-		if r.Iface != "" && r.Iface != WireGuardInterface {
-			errs = append(errs, fmt.Errorf("allow[%d]: iface must be %q", i, WireGuardInterface))
+		if r.Iface != "" && !ValidInterface(r.Iface) {
+			errs = append(errs, fmt.Errorf("allow[%d]: iface must be one of MyLab's WireGuard interfaces", i))
 		}
 		if strings.ContainsFunc(r.Reason, func(c rune) bool { return c < ' ' || c == '"' || c == '\\' }) {
 			errs = append(errs, fmt.Errorf("allow[%d]: invalid characters in reason", i))
