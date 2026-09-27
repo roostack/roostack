@@ -2,6 +2,14 @@
      {{template "notice" (dict "Kind" "warn" "Text" "Backups are only stored on this machine.")}}
      Each one is shown in the design gallery (/design). */}}
 
+{{/* theme-toggle: the top bar's light/dark/auto switch (expects a nav).
+     OOB is set when it's sent back to replace the one on the page. */}}
+{{define "theme-toggle"}}<form method="post" action="/account/theme" id="theme-toggle"{{if .OOB}} hx-swap-oob="true"{{end}}>
+  <input type="hidden" name="theme" value="{{.NextTheme}}">
+  <button type="submit" class="theme-toggle" title="Switch to {{.NextTheme}} theme"
+    aria-label="Theme: {{.Theme}}. Switch to {{.NextTheme}}.">{{if eq .Theme "light"}}☀ Light{{else if eq .Theme "dark"}}☾ Dark{{else}}◐ Auto{{end}}</button>
+</form>{{end}}
+
 {{/* notice: Kind is "" (info), "ok", "warn" or "error"; Text, and an
      optional Link and LinkText. */}}
 {{define "notice"}}<p class="notice{{with .Kind}} notice-{{.}}{{end}}"{{if eq .Kind "error"}} role="alert"{{else}} role="status"{{end}}>
