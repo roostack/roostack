@@ -201,6 +201,8 @@ type RemoteStorage struct {
 	Quota         int64      `json:"quota"`
 	// ProxyPort is where the controller forwards its servers' backups.
 	ProxyPort int `json:"proxy_port"`
+	// Ref is its backup choice ("provider:<id>"); not stored.
+	Ref string `json:"-"`
 }
 
 // AddRemoteStorage links this lab to another lab's storage with its
@@ -260,6 +262,7 @@ func (m *Manager) remoteStorage(ctx context.Context) ([]RemoteStorage, error) {
 		}
 		var r RemoteStorage
 		if json.Unmarshal([]byte(p.Config), &r) == nil {
+			r.Ref = fmt.Sprintf("provider:%d", p.ID)
 			out = append(out, r)
 		}
 	}

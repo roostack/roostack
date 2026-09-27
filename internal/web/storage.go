@@ -175,12 +175,20 @@ type remoteView struct {
 	Usage labnet.GuestUsage
 	// Reachable: the other lab answered just now.
 	Reachable bool
+	// UsedBy names the servers backing up there.
+	UsedBy []string
 }
 
 func (s *Server) remoteViews(r *http.Request) []remoteView {
+	servers, _ := s.Manager.Servers()
 	var out []remoteView
 	for _, rs := range s.Manager.RemoteStorages(r.Context()) {
 		v := remoteView{RemoteStorage: rs}
+		for _, sv := range servers {
+			if t, _, ok := s.Manager.BackupTargetOf(r.Context(), sv.ID); ok && t.Provider == rs.Ref {
+				v.UsedBy = append(v.UsedBy, sv.Name)
+			}
+		}
 		if u, err := s.Manager.RemoteUsage(r.Context(), rs); err == nil {
 			v.Usage, v.Reachable = u, true
 		}
