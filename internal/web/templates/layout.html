@@ -1,12 +1,14 @@
 <!doctype html>
-<html lang="en" data-palette="{{palette}}"{{with .Nav}}{{if ne .Theme "auto"}} data-mode="{{.Theme}}"{{end}}{{end}}>
+{{- $palette := palette}}{{with .Nav}}{{$palette = .Palette}}{{end -}}
+<html lang="en" data-palette="{{$palette}}"{{with .Nav}}{{if ne .Theme "auto"}} data-mode="{{.Theme}}"{{end}}{{end}}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
   <title>{{template "title" .}} · MyLab</title>
   <link rel="stylesheet" href="/static/css/tokens.css">
-  <link rel="stylesheet" href="/static/css/themes/{{palette}}.css">
+  {{range themes}}<link rel="stylesheet" href="/static/css/themes/{{.ID}}.css">
+  {{end}}
   <link rel="stylesheet" href="/static/css/app.css">
   <script src="/static/htmx-2.0.11.min.js" defer></script>
   <script src="/static/alpine-3.17.4.min.js" defer></script>

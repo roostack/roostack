@@ -4,7 +4,7 @@
 
    A theme sets every --pal-* colour for light (-l) and dark (-d). Copy
    this file to add a theme, and register its name in internal/web. */
-:root, [data-palette="ocean"] {
+[data-palette="ocean"] {
   --pal-bg-l: #f5f7fa;        --pal-bg-d: #11151a;
   --pal-surface-l: #ffffff;   --pal-surface-d: #1a1f26;
   --pal-surface-2-l: #eef2f6; --pal-surface-2-d: #141920;

@@ -17,6 +17,7 @@ Every page is built from the tokens and components here. The gallery shows them 
 |---|---|
 | `internal/web/static/css/tokens.css` | Scales (spacing, type, radius, shadow), status colours, and how the current mode picks purpose tokens from the palette |
 | `internal/web/static/css/themes/<name>.css` | A built-in theme: its raw colours for light and dark |
+| `internal/web/themes.go` | The list of built-in themes (names shown to users) |
 | `internal/web/static/css/app.css` | Base styles, components and page layouts. Uses purpose tokens and scales only |
 | `internal/web/static/css/gallery.css` | Styles for the gallery page itself |
 | `internal/web/templates/components.html` | Components with markup worth sharing (`notice`, `status`, `badge`, `back`, `confirm-button`) |
@@ -26,7 +27,7 @@ Every page is built from the tokens and components here. The gallery shows them 
 
 Three layers:
 
-1. **Palette** (`themes/ocean.css`): a theme's raw colours, `--pal-<name>-l` for light and `--pal-<name>-d` for dark. Selected by `data-palette` on `<html>`.
+1. **Palette** (`themes/<name>.css`): a theme's raw colours, `--pal-<name>-l` for light and `--pal-<name>-d` for dark, scoped to `[data-palette="<name>"]`. Every page loads all theme files (they're small); `data-palette` on `<html>` picks one, from the user's choice (Account → Appearance) or the default.
 2. **Purpose** (`tokens.css`): what components use. Picked from the palette for the current mode.
 3. **Scales** (`tokens.css`): `--space-1`…`--space-7`, `--text-sm`…`--text-2xl`, `--radius-sm`/`--radius`/`--radius-lg`/`--radius-pill`, `--shadow-1`, `--focus-ring`.
 
@@ -39,7 +40,7 @@ Purpose colours:
 | `--border`, `--border-strong` | Borders, input borders |
 | `--accent`, `--accent-fg`, `--accent-soft` | Actions and links; text on accent; info backgrounds |
 | `--highlight`, `--highlight-fg`, `--highlight-soft` | The brand's spark: the logo mark, where you are (current page), focus rings, "New" badges. Use sparingly |
-| `--ok`, `--warn`, `--bad` (+ `-bg`, and `--bad-fg`) | Status. The same in every theme, so a problem always looks like a problem |
+| `--ok`, `--warn`, `--bad` (+ `-bg`, and `--bad-fg`) | Status. MyLab's own themes share them, so a problem always looks like a problem; a palette may override them (`--pal-ok-l`…), as Catppuccin does |
 
 Never use raw colours (`#…`) or palette variables (`--pal-…`) in `app.css` or templates.
 
@@ -47,12 +48,23 @@ Never use raw colours (`#…`) or palette variables (`--pal-…`) in `app.css` o
 
 `data-mode` on `<html>` is `light` or `dark`; without it, the device's preference decides (the user's Auto setting). It also works on any element, which is how the gallery shows both at once. The two dark blocks in `tokens.css` (media query and attribute) must stay identical.
 
+### Built-in themes
+
+| Theme | Light | Dark |
+|---|---|---|
+| Teal and violet (default) | Teal actions, violet highlight | Same, brighter |
+| Ocean and magenta | Ocean blue, magenta highlight | Same, brighter |
+| Catppuccin Frappé / Macchiato / Mocha | Latte | Frappé / Macchiato / Mocha; Blue actions, Mauve highlight, Catppuccin's green/yellow/red for status |
+
+Catppuccin colours are from [Catppuccin](https://catppuccin.com) (MIT licence). Latte's green and yellow are darkened slightly towards Latte's text colour so status text stays readable.
+
 ### Adding a built-in theme
 
-1. Copy `themes/ocean.css` to `themes/<name>.css` and change the `--pal-*` values (keep text readable on every background: 4.5:1 contrast for text).
-2. Add `<name>` to `Palettes` in `internal/web/pages.go`.
+1. Copy `themes/teal.css` to `themes/<name>.css`, change the selector to `[data-palette="<name>"]`, and change the `--pal-*` values. Keep text readable on every background (4.5:1 contrast).
+2. Add it to `Themes` in `internal/web/themes.go`.
+3. Regenerate the gallery and compare it with the others (the gallery has a theme picker).
 
-Nothing else changes: components only see purpose tokens. (Choosing a theme per user comes later; for now everyone gets `DefaultPalette`.)
+Nothing else changes: components only see purpose tokens.
 
 ## Components
 

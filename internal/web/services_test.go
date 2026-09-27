@@ -381,7 +381,7 @@ func TestTemporaryPasswordMustBeChanged(t *testing.T) {
 
 func TestThemeToggle(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleAdmin)
-	if _, body := h.get("/services"); !strings.Contains(body, `<html lang="en" data-palette="ocean">`) ||
+	if _, body := h.get("/services"); !strings.Contains(body, `<html lang="en" data-palette="teal">`) ||
 		!strings.Contains(body, `name="theme" value="light"`) {
 		t.Fatal("new users follow the device; the toggle offers light next")
 	}
@@ -395,7 +395,7 @@ func TestThemeToggle(t *testing.T) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if !strings.Contains(string(body), `data-palette="ocean" data-mode="dark"`) || !strings.Contains(string(body), "<title>Services") {
+	if !strings.Contains(string(body), `data-palette="teal" data-mode="dark"`) || !strings.Contains(string(body), "<title>Services") {
 		t.Error("choosing dark should return to the same page, in dark")
 	}
 	if code, _ := h.post("/account/theme", url.Values{"theme": {"purple"}}, h.srv.URL); code != http.StatusBadRequest {
@@ -445,5 +445,21 @@ func TestServiceSettings(t *testing.T) {
 	logs, _ := h.store.RecentAudit(context.Background(), 5)
 	if len(logs) == 0 || logs[0].Action != "secret shown" {
 		t.Errorf("reveal not audited: %+v", logs)
+	}
+}
+
+func TestAppearance(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleMember)
+	_, body := h.get("/account")
+	if !strings.Contains(body, `name="palette" value="teal" checked`) || !strings.Contains(body, `data-palette="catppuccin-mocha" data-mode="dark"`) {
+		t.Fatal("account page should offer every theme, with the default chosen")
+	}
+	h.post("/account/appearance", url.Values{"palette": {"catppuccin-mocha"}, "mode": {"dark"}}, h.srv.URL)
+	_, body = h.get("/services")
+	if !strings.Contains(body, `<html lang="en" data-palette="catppuccin-mocha" data-mode="dark">`) {
+		t.Error("pages should use the chosen theme and mode")
+	}
+	if code, _ := h.post("/account/appearance", url.Values{"palette": {"../../evil"}, "mode": {"dark"}}, h.srv.URL); code != http.StatusBadRequest {
+		t.Errorf("unknown theme accepted: %d", code)
 	}
 }

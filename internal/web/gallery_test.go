@@ -33,7 +33,11 @@ func TestGalleryFile(t *testing.T) {
 		t.Fatalf("%s is out of date; run: go test ./internal/web -run TestGalleryFile -update-gallery", galleryFile)
 	}
 	// The relative paths must point at real files.
-	for _, css := range []string{"tokens.css", "themes/ocean.css", "app.css", "gallery.css"} {
+	files := []string{"tokens.css", "app.css", "gallery.css"}
+	for _, th := range Themes {
+		files = append(files, "themes/"+th.ID+".css")
+	}
+	for _, css := range files {
 		if _, err := os.Stat(filepath.Join("static", "css", css)); err != nil {
 			t.Errorf("gallery links %s: %v", css, err)
 		}

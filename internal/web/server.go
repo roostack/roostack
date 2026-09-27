@@ -212,6 +212,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /account", s.requireLogin(s.accountPage))
 	mux.Handle("GET /design", s.requireLogin(s.galleryPage))
 	mux.Handle("POST /account/theme", s.requireLogin(s.themeSubmit))
+	mux.Handle("POST /account/appearance", s.requireLogin(s.appearanceSubmit))
 	mux.Handle("POST /account/password", s.requireLogin(s.passwordSubmit))
 
 	mux.HandleFunc("GET /healthz", s.healthz)

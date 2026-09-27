@@ -92,7 +92,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Host time zone: wizard step 1, Settings card, agent `timedatectl`, banner when the browser's clock differs
   - [x] Containers use the host's time zone (`Timezone=<zone>` in every unit; a change restarts them)
 - [ ] **1.14 Design system** (agreed 2026-09-27)
-  - [x] Brand colours: "Ocean and magenta" (ocean blue actions, magenta highlight); themes are palette files so more can be added
+  - [x] Brand colours: "Teal and violet" is the default (changed from Ocean and magenta, which stays as a theme)
+  - [x] Built-in themes, chosen per user (Account → Appearance): Teal, Ocean, Catppuccin Frappé/Macchiato/Mocha (Latte when light)
   - [x] Tokens: palette → purpose → scales (tokens.css, themes/ocean.css); app.css uses only tokens
   - [x] Components: buttons, notice, status, badge, back, confirm, card/heading, facts, forms, rows, attention, activity, technical details, secret (docs/DESIGN.md)
   - [x] Component gallery: /design in the UI and docs/design/gallery.html (same templates; a test keeps the file current)
