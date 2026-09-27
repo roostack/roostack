@@ -3,6 +3,10 @@
 <section>
   <h1>Settings</h1>
   <section class="card section">
+    <div class="heading"><h2>People</h2><a href="/users">Manage…</a></div>
+    <p class="hint">{{.UserCount}} {{if eq .UserCount 1}}person{{else}}people{{end}} can log in to MyLab. Add family members, choose what they can do, or reset a forgotten password.</p>
+  </section>
+  <section class="card section">
     <div class="heading">
       <h2>Domain &amp; certificates</h2>
       <a href="/setup/domain">Change…</a>

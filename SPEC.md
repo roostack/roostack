@@ -102,7 +102,8 @@ A single coordinator in `mylab` sequences every disruptive operation (backups, p
 
   - Rationale: the person who sets up the lab (Owner) keeps control of risky host settings, while the day-to-day user (Admin) can still manage services freely.
 - **Authentication:** local accounts, passwords hashed with argon2id. **TOTP 2FA** in v1, required for Owners and for any public admin UI. Passkeys later.
-- **Password recovery:** host command line only (`sudo mylab user reset-password <name>`). No email reset (it would need mail setup and adds attack surface).
+- **Password recovery:** host command line only (`sudo mylab user reset-password <name>`, `reset-2fa <name>` for a lost phone). No email reset (it would need mail setup and adds attack surface), and no recovery codes: the command line is simpler for a home lab.
+- **People page (2026-09-27):** the Owner adds people (a temporary password is shown once and must be changed at first login), changes roles, gives someone a new temporary password, turns off someone's two-factor, and removes people. Not on their own account (use Account), and the last Owner can't be demoted or removed. An Owner who forgot their own password uses the command line.
 - **Audit log:** records who did what and when, to support remote help and troubleshooting.
 
 ### 5.1 MyLab Data Storage — Locked

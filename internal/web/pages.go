@@ -32,7 +32,7 @@ func navFor(u *store.User, page string) nav {
 		"home": "home", "services": "services", "service": "services", "catalog": "services",
 		"install": "services", "remove": "services", "backups": "backups",
 		"settings": "settings", "setup-timezone": "settings", "setup-ssh": "settings", "setup-domain": "settings", "setup-backup": "settings",
-		"recovery-key": "settings", "restore": "backups", "dns-takeover": "settings", "account": "account", "twofactor": "account",
+		"recovery-key": "settings", "restore": "backups", "users": "settings", "dns-takeover": "settings", "account": "account", "twofactor": "account",
 	}[page]
 	next := map[string]string{"auto": "light", "light": "dark", "dark": "auto"}[u.Theme]
 	if next == "" {
@@ -206,6 +206,9 @@ func (s *Server) renderSettings(w http.ResponseWriter, r *http.Request, updatesE
 	}
 	data["DNS"] = s.dnsView(r)
 	data["HostClock"] = hosttime.Now()
+	if users, err := s.Store.ListUsers(r.Context()); err == nil {
+		data["UserCount"] = len(users)
+	}
 	data["Updates"] = s.updatesView(r, updatesErr)
 	if updatesErr != "" {
 		w.WriteHeader(http.StatusBadRequest)

@@ -152,6 +152,75 @@ type User struct {
 	CreatedAt time.Time
 }
 
+// ErrLastOwner means a change would leave the lab without an Owner.
+var ErrLastOwner = errors.New("the lab must keep at least one Owner")
+
+// ListUsers returns every account, by username.
+func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+userColumns+` FROM users ORDER BY username COLLATE NOCASE`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []User
+	for rows.Next() {
+		u, err := scanUserRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, *u)
+	}
+	return users, rows.Err()
+}
+
+// SetRole changes a user's role. Demoting the last Owner fails with
+// ErrLastOwner; the check is part of the update, so two Owners demoting
+// each other at once can't both succeed.
+func (s *Store) SetRole(ctx context.Context, userID int64, role string) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE users SET role = ? WHERE id = ? AND (? = 'owner' OR role != 'owner'
+		OR (SELECT count(*) FROM users WHERE role = 'owner') > 1)`, role, userID, role)
+	if err != nil {
+		return err
+	}
+	return s.lastOwnerCheck(ctx, res, userID)
+}
+
+// DeleteUser removes an account and its sessions. Removing the last Owner
+// fails with ErrLastOwner.
+func (s *Store) DeleteUser(ctx context.Context, userID int64) error {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE id = ? AND (role != 'owner'
+		OR (SELECT count(*) FROM users WHERE role = 'owner') > 1)`, userID)
+	if err != nil {
+		return err
+	}
+	return s.lastOwnerCheck(ctx, res, userID)
+}
+
+// lastOwnerCheck explains why a guarded update changed nothing.
+func (s *Store) lastOwnerCheck(ctx context.Context, res sql.Result, userID int64) error {
+	if n, _ := res.RowsAffected(); n == 1 {
+		return nil
+	}
+	if _, err := s.UserByID(ctx, userID); err != nil {
+		return err // ErrNotFound
+	}
+	return ErrLastOwner
+}
+
+// ResetTOTP turns off a user's two-factor authentication (a lost phone)
+// and logs them out everywhere. Owners must set it up again at next login.
+func (s *Store) ResetTOTP(ctx context.Context, userID int64) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE users SET totp_secret = '', totp_last_step = 0 WHERE id = ?`, userID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	_, err = s.db.ExecContext(ctx, `DELETE FROM sessions WHERE user_id = ?`, userID)
+	return err
+}
+
 // Themes a user can choose.
 var Themes = []string{"auto", "light", "dark"}
 
@@ -245,7 +314,9 @@ func (s *Store) UseTOTPStep(ctx context.Context, userID, step int64) (bool, erro
 	return n == 1, err
 }
 
-func (s *Store) scanUser(row *sql.Row) (*User, error) {
+func (s *Store) scanUser(row *sql.Row) (*User, error) { return scanUserRow(row) }
+
+func scanUserRow(row interface{ Scan(...any) error }) (*User, error) {
 	var u User
 	var created int64
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &u.TOTPLastStep,

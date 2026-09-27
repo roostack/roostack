@@ -173,3 +173,56 @@ func TestSettings(t *testing.T) {
 		t.Errorf("got %q", v)
 	}
 }
+
+func TestUserManagement(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	mum, _ := s.CreateUser(ctx, User{Username: "mum", PasswordHash: "h", Role: "owner"})
+	dad, _ := s.CreateUser(ctx, User{Username: "Dad", PasswordHash: "h", Role: "member"})
+
+	users, err := s.ListUsers(ctx)
+	if err != nil || len(users) != 2 || users[0].Username != "Dad" || users[1].Theme != "auto" {
+		t.Fatalf("users = %+v, %v", users, err)
+	}
+
+	// The only Owner can't be demoted or removed.
+	if err := s.SetRole(ctx, mum, "admin"); !errors.Is(err, ErrLastOwner) {
+		t.Errorf("demote last owner: %v", err)
+	}
+	if err := s.DeleteUser(ctx, mum); !errors.Is(err, ErrLastOwner) {
+		t.Errorf("delete last owner: %v", err)
+	}
+	// With a second Owner, both are fine.
+	if err := s.SetRole(ctx, dad, "owner"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetRole(ctx, mum, "admin"); err != nil {
+		t.Errorf("demote with another owner: %v", err)
+	}
+	if err := s.SetRole(ctx, dad, "member"); !errors.Is(err, ErrLastOwner) {
+		t.Errorf("dad is now the last owner: %v", err)
+	}
+	if err := s.DeleteUser(ctx, 999); !errors.Is(err, ErrNotFound) {
+		t.Errorf("delete unknown: %v", err)
+	}
+
+	// Resetting 2FA turns it off and logs the user out.
+	s.SetTOTP(ctx, mum, "SECRET", 5)
+	s.CreateSession(ctx, "mum-session", mum, time.Now().Add(time.Hour))
+	if err := s.ResetTOTP(ctx, mum); err != nil {
+		t.Fatal(err)
+	}
+	if u, _ := s.UserByID(ctx, mum); u.TOTPSecret != "" || u.TOTPLastStep != 0 {
+		t.Errorf("2FA not reset: %+v", u)
+	}
+	if _, err := s.SessionUser(ctx, "mum-session"); !errors.Is(err, ErrNotFound) {
+		t.Error("sessions should end when 2FA is reset")
+	}
+
+	if err := s.DeleteUser(ctx, mum); err != nil {
+		t.Fatal(err)
+	}
+	if users, _ := s.ListUsers(ctx); len(users) != 1 {
+		t.Errorf("users after delete: %+v", users)
+	}
+}

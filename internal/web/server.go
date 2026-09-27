@@ -170,7 +170,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover",
-		"home", "services", "service", "backups", "restore", "settings", "account"} {
+		"home", "services", "service", "backups", "restore", "settings", "account", "users"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -216,6 +216,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /setup/timezone", s.requireWizard(s.timezonePage))
 	mux.Handle("POST /setup/timezone", s.requireWizard(s.timezoneSubmit))
 	mux.Handle("GET /activity/{kind}/{part}", s.require(auth.ManageServices, s.activityPart))
+	mux.Handle("GET /users", s.requireOwner(s.usersPage))
+	mux.Handle("POST /users", s.requireOwner(s.userAddSubmit))
+	mux.Handle("POST /users/{id}/role", s.requireOwner(s.userRoleSubmit))
+	mux.Handle("POST /users/{id}/reset-password", s.requireOwner(s.userResetPasswordSubmit))
+	mux.Handle("POST /users/{id}/reset-2fa", s.requireOwner(s.userReset2FASubmit))
+	mux.Handle("POST /users/{id}/remove", s.requireOwner(s.userRemoveSubmit))
 	mux.Handle("GET /backups/restore/{name}", s.requireOwner(s.restorePage))
 	mux.Handle("POST /backups/restore/{name}", s.requireOwner(s.restoreSubmit))
 	mux.Handle("POST /backups/restore/{name}/kept/remove", s.requireOwner(s.removeKeptSubmit))
