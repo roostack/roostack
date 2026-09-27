@@ -348,7 +348,7 @@ Single node: web UI, reverse proxy with automatic TLS, three catalog services (e
 
 ---
 
-## 10. Multiple Machines — Draft (2026-09-27, for review)
+## 10. Multiple Machines — Locked (2026-09-27)
 
 One lab can span several machines: extra boxes at home, VPSes in the cloud, and later MyLab Cloud. This section is the design to build towards; nothing here is built yet except where marked. It replaces "master/worker" elsewhere in this document.
 
@@ -357,9 +357,9 @@ One lab can span several machines: extra boxes at home, VPSes in the cloud, and 
 - **Node:** any machine running MyLab. Every node runs its own services (Quadlets, reconciler), its own Caddy and certificates, its own backups, OS updates, firewall and agent, exactly as a single-machine lab does today.
 - **Controller:** one node also holds the lab's desired state (§1.2: services, placement, settings), users and sessions, and serves the UI. It decides placement; nodes do the work.
 - **The controller can move to any node** (chosen, not automatic), e.g. from a home NUC to a VPS:
-  - Every node keeps a **replica of the lab's state** (desired state and the MyLab database, encrypted at rest), pulled with its assignments.
+  - Every node keeps a **replica of the lab's state** (desired state and the MyLab database), pulled with its assignments. The controller encrypts it with the **recovery key** (§6.9) before sending it; nodes store it but can't read it, because the recovery key is never stored on a node other than the controller.
   - **Planned move:** the controller hands over (freezes changes, sends the latest state, the new controller takes the address and certificate authority) and becomes a plain node.
-  - **Disaster:** the Owner promotes a node from its replica (at worst missing changes since its last pull). Two controllers must never both be active: promotion revokes the old one's authority (a new epoch number that nodes follow).
+  - **Disaster:** the Owner promotes a node from its replica by entering the recovery key (they have it written down for exactly this). At worst it misses changes since its last pull. Two controllers must never both be active: promotion revokes the old one's authority (a new epoch number that nodes follow).
 - The first machine installed is the controller; a lab with one machine is a lab with one node that is also the controller. Single-machine labs stay exactly as simple as today.
 
 ### 10.2 Private network: MyLab-managed WireGuard
@@ -376,6 +376,7 @@ One lab can span several machines: extra boxes at home, VPSes in the cloud, and 
 - **Offline-tolerant:** if the controller is unreachable, a node keeps running its last assignment and queues its reports (§1.3 local-first). Assignments carry a version; nodes apply only newer ones.
 - **Actions** (restart a service, run an action hook, restore, update now) are requests the node picks up on its next pull (or immediately when nudged), with results in the report. The same request types the in-process code uses today (e.g. the agent's JSON API) cross the network unchanged.
 - **Secrets:** user-provided secrets travel only to the nodes that need them, over mTLS inside WireGuard; generated secrets are made on the node that uses them and never leave it (backups hold them, encrypted).
+- **Backups per node:** each node backs up its own services to **its own repository** (or its own folder at the same destination) with **its own key**. The recovery key is added to every repository as a second key (restic supports several), so the Owner can restore anything with it, while a compromised node exposes only its own backups and its key can be revoked.
 - **Packages:** the controller's catalog is the source of truth; nodes fetch package files they don't have (same version pinning).
 
 ### 10.4 Placement and moving services
@@ -387,7 +388,7 @@ One lab can span several machines: extra boxes at home, VPSes in the cloud, and 
 
 For services hosted at home but public (e.g. Immich shared with family), without opening ports 80/443 at home:
 
-- A cloud node can act as an **edge**. Public DNS records point to the edge's public IP; the edge forwards each connection **over WireGuard** to the home node that runs the service.
+- A cloud node can act as an **edge**. It forwards with Caddy's layer-4 plugin (`caddy-l4`, added to MyLab's Caddy image like the DNS plugins; ASSUMPTIONS to verify SNI routing and PROXY protocol). Public DNS records point to the edge's public IP; the edge forwards each connection **over WireGuard** to the home node that runs the service.
 - **TLS passthrough by default:** the edge routes on the TLS SNI name and never decrypts; certificates and keys stay on the home node, so the cloud provider can't read the traffic (in line with "own your data", §4; unlike the Cloudflare proxy, §6.5.1). Visitors' IP addresses reach the home node via the PROXY protocol, so private checks, rate limiting and CrowdSec (§6.10) still see real visitors.
 - Terminating TLS at the edge (caching, fewer hops) is an option per service later, clearly marked as letting the edge see the traffic.
 - The home firewall stays closed to the internet; only WireGuard (outbound) is needed. The same mechanism is how a **MyLab Cloud relay** would work for people behind CGNAT (§6.5.1).
@@ -413,12 +414,12 @@ So single-machine code doesn't paint us into a corner:
 
 Then a **two-VM prototype**: a second dev VM joins the first over WireGuard and runs one service placed on it.
 
-### 10.8 Open questions
+### 10.8 Decisions (2026-09-27)
 
-- WireGuard topology beyond hub and spoke (full mesh, NAT traversal between two home networks).
-- How the edge's forwarding is implemented: Caddy with the layer-4 plugin (`caddy-l4`, already Caddy) or a small built-in forwarder.
-- Replica encryption: which key protects the state replica on nodes (the recovery key, §6.9, is a natural fit).
-- Billing and trust boundaries for MyLab Cloud nodes (§4).
+- **Network layout:** hub and spoke (machines talk through a reachable node, usually a VPS). Direct links between two networks behind NAT (hole-punching, full mesh) only when a real case needs them.
+- **Edge forwarding:** Caddy's `caddy-l4` plugin, not a forwarder of our own.
+- **Keys:** the recovery key protects the state replicas and is added to every node's backup repository, but is stored only on the controller; each node has its own backup key (§10.3).
+- **MyLab Cloud:** nodes run by MyLab Cloud are trusted like any hosting provider (a machine running your services can see them; there's no real alternative). Roles that don't run services stay **zero-knowledge**: a relay or edge uses TLS passthrough, and a backup target only ever receives restic-encrypted data. Billing is out of scope until MyLab Cloud exists.
 
 ## Deferred Decisions (post-MVP)
 
