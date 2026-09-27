@@ -9,7 +9,6 @@ import (
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/osupdate"
-	"github.com/mylab/mylab/internal/setup"
 )
 
 // updatesView is the Settings page's "Updates and restarts" card.
@@ -85,10 +84,13 @@ func (s *Server) restartPolicySubmit(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		hour = -1
 	}
-	err = s.Setup.SaveRestartPolicy(r.Context(), r.FormValue("restart"), hour)
-	var ce *setup.CheckError
-	if errors.As(err, &ce) {
-		s.renderUpdates(w, r, ce.Msg)
+	if s.machine() == nil {
+		http.NotFound(w, r)
+		return
+	}
+	err = s.machine().SetRestartPolicy(r.Context(), r.FormValue("restart"), hour)
+	if msg, ok := userMessage(err); ok {
+		s.renderUpdates(w, r, msg)
 		return
 	}
 	if err != nil {

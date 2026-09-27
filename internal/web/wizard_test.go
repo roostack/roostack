@@ -15,6 +15,7 @@ import (
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dnsrecords"
+	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/osupdate"
 	"github.com/mylab/mylab/internal/setup"
 )
@@ -36,32 +37,45 @@ type fakeSetup struct {
 }
 
 func (f *fakeSetup) Progress(context.Context) (setup.Progress, error) { return f.p, nil }
+func (f *fakeSetup) Done(_ context.Context, step string) error {
+	switch step {
+	case setup.StepTimezone:
+		f.p.TimezoneDone = true
+	case setup.StepSSH:
+		f.p.SSHDone = true
+	default:
+		return fmt.Errorf("unknown step %q", step)
+	}
+	return nil
+}
+
+// fakeSetup is also the machine's settings (node.Settings).
 func (f *fakeSetup) Timezones() (string, []string, error) {
 	return f.zone, []string{"Australia/Melbourne", "Etc/UTC"}, nil
 }
-func (f *fakeSetup) SSHAccess() (setup.SSHAccess, error) {
-	return setup.SSHAccess{Choice: f.ssh, Clients: f.clients}, nil
+func (f *fakeSetup) SSHAccess() (node.SSHAccess, error) {
+	return node.SSHAccess{Choice: f.ssh, Clients: f.clients}, nil
 }
-func (f *fakeSetup) SaveSSH(_ context.Context, choice string, confirmed bool) error {
+func (f *fakeSetup) SetSSH(_ context.Context, choice string, confirmed bool) error {
 	if choice == "off" && len(f.clients) > 0 && !confirmed {
-		return &setup.CheckError{Msg: "That would disconnect the SSH connection."}
+		return &node.FormError{Msg: "That would disconnect the SSH connection."}
 	}
-	f.ssh, f.p.SSHDone, f.restarted = choice, true, true
+	f.ssh, f.restarted = choice, true
 	return nil
 }
-func (f *fakeSetup) SaveRestartPolicy(_ context.Context, mode string, hour int) error {
+func (f *fakeSetup) SetRestartPolicy(_ context.Context, mode string, hour int) error {
 	if hour < 0 || hour > 23 {
-		return &setup.CheckError{Msg: "Choose an hour between 0 and 23."}
+		return &node.FormError{Msg: "Choose an hour between 0 and 23."}
 	}
 	f.policy, f.restarted = fmt.Sprintf("%s %d", mode, hour), true
 	return nil
 }
-func (f *fakeSetup) SaveTimezone(_ context.Context, name string) (bool, error) {
+func (f *fakeSetup) SetTimezone(_ context.Context, name string) (bool, error) {
 	if name != "Australia/Melbourne" && name != "Etc/UTC" {
-		return false, &setup.CheckError{Msg: "Choose a time zone from the list."}
+		return false, &node.FormError{Msg: "Choose a time zone from the list."}
 	}
 	changed := name != f.zone
-	f.zone, f.p.TimezoneDone, f.restarted = name, true, f.restarted || changed
+	f.zone, f.restarted = name, f.restarted || changed
 	return changed, nil
 }
 func (f *fakeSetup) SaveDomain(_ context.Context, d, e, provider string, values map[string]string, opts setup.DomainOptions) error {
@@ -88,7 +102,7 @@ func (f *fakeSetup) ConfirmRecoveryKey(context.Context) error { f.p.RecoverySave
 func TestWizardFlow(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	fs := &fakeSetup{zone: "Etc/UTC"}
-	h.server.Setup = fs
+	h.setSetup(fs)
 
 	_, body := h.get("/")
 	if !strings.Contains(body, "Setup · step 1 of 4") || !strings.Contains(body, `data-zone="Etc/UTC"`) ||
@@ -179,7 +193,7 @@ func TestWizardFlow(t *testing.T) {
 func TestDomainLaterReminder(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true}}
-	h.server.Setup = fs
+	h.setSetup(fs)
 	h.post("/setup/domain/later", nil, h.srv.URL)
 	h.post("/setup/backup/later", nil, h.srv.URL)
 	if _, body := h.get("/"); !strings.Contains(body, `href="/setup/domain">Set up your domain`) {
@@ -189,7 +203,7 @@ func TestDomainLaterReminder(t *testing.T) {
 
 func TestWizardOwnerOnly(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleAdmin)
-	h.server.Setup = &fakeSetup{}
+	h.setSetup(&fakeSetup{})
 	if _, body := h.get("/"); !strings.Contains(body, "Your services") {
 		t.Error("admins are not sent into the wizard")
 	}
@@ -218,7 +232,7 @@ func TestHealthzBootID(t *testing.T) {
 func TestDomainRecordOptions(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	fs := &fakeSetup{}
-	h.server.Setup = fs
+	h.setSetup(fs)
 	_, body := h.get("/setup/domain")
 	if !strings.Contains(body, `name="manage_records" x-model="manage" checked`) || !strings.Contains(body, "Namecheap&#39;s API is risky") &&
 		!strings.Contains(body, "Namecheap's API is risky") {
@@ -251,7 +265,7 @@ func (f *fakeDNS) TakeOver(context.Context) error { f.takenOver = true; return n
 
 func TestDNSCard(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
+	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}})
 	h.server.DNS = &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateBlocked, Record: "*.lab.example.com", IP: "192.168.1.20",
 		Message: "your router's DNS rebinding protection", Checked: time.Now()}}
 	_, body := h.get("/settings/home-network")
@@ -271,7 +285,7 @@ func TestDNSCard(t *testing.T) {
 
 func TestDNSControls(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
+	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}})
 	fd := &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateManual, Record: "*.lab.example.com", IP: "192.168.1.20",
 		Provider: "Namecheap", CanManage: true, Risky: true, Checked: time.Now()}}
 	h.server.DNS = fd
@@ -317,7 +331,7 @@ func TestDNSControls(t *testing.T) {
 func TestSetupFormsAsSettingsPages(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}}
-	h.server.Setup = fs
+	h.setSetup(fs)
 	h.server.BackupRepo = "/mnt/backup/mylab"
 
 	_, body := h.get("/setup/backup")
@@ -348,7 +362,7 @@ func TestSetupFormsAsSettingsPages(t *testing.T) {
 func TestTimezoneBanner(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	fs := &fakeSetup{zone: "Etc/UTC", p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
-	h.server.Setup = fs
+	h.setSetup(fs)
 
 	// The browser compares its UTC offset with the host's.
 	_, body := h.get("/")
@@ -388,7 +402,7 @@ func (f *fakeUpdates) RestartNow(context.Context) error {
 func TestUpdatesCard(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
-	h.server.Setup = fs
+	h.setSetup(fs)
 	fu := &fakeUpdates{
 		last:    &osupdate.Result{At: time.Now(), OK: false, Summary: "Updating didn't finish: exit status 100", Output: "E: Could not get lock"},
 		restart: osupdate.RestartStatus{Needed: true, Packages: []string{"linux-image-amd64"}, Waiting: "reboot pending: waiting for the maintenance window"},
@@ -438,7 +452,7 @@ func TestUpdatesCard(t *testing.T) {
 
 func TestActivity(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
+	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}})
 	h.node().updates = &fakeUpdates{}
 	act := h.acts().Start(activity.OSUpdates, "OS updates")
 	fmt.Fprint(act, "==> Installing updates\nUnpacking curl (8.14.1-2+deb13u5)\n")
@@ -477,7 +491,7 @@ func TestActivity(t *testing.T) {
 
 func TestDNSRecordsList(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
+	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}})
 	fd := &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateOK, Record: "*.lab.example.com", IP: "192.168.1.20",
 		Provider: "Cloudflare", Managing: true},
 		records: []dnsrecords.Record{{Name: "*.lab.example.com", Type: "A", Value: "192.168.1.20"}}}

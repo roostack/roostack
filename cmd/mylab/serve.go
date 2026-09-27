@@ -102,6 +102,15 @@ func serve(args []string) error {
 	// Converge on startup, e.g. after MyLab itself was upgraded.
 	mgr.Apply()
 
+	// New settings reach every part of MyLab by restarting it; systemd
+	// starts it again (Restart=always).
+	restart := func() {
+		go func() {
+			time.Sleep(time.Second) // let the response reach the browser
+			log.Info("restarting to apply new settings")
+			stop()
+		}()
+	}
 	wizard := &setup.Setup{
 		Lab: lab, LabPath: *labPath, Store: st, Secrets: podman.NewSecrets(),
 		NewRepo: func(repository string, env []string) *backup.Repo {
@@ -113,18 +122,14 @@ func serve(args []string) error {
 			}
 			return repo
 		},
-		// New settings reach every part of MyLab by restarting it; systemd
-		// starts it again (Restart=always).
-		Host: agentClient,
-		Zone: hosttime.Zone, Zones: hosttime.Zones,
+		Restart: restart,
+	}
+	local.Machine = &node.HostSettings{
+		Lab: lab, LabPath: *labPath,
+		SetZone: agentClient.SetTimezone,
+		Zone:    hosttime.Zone, Zones: hosttime.Zones,
 		SSHClients: firewall.SSHClients,
-		Restart: func() {
-			go func() {
-				time.Sleep(time.Second) // let the response reach the browser
-				log.Info("restarting to apply new settings")
-				stop()
-			}()
-		},
+		Restart:    restart,
 	}
 	if err := wizard.AdoptExisting(ctx); err != nil {
 		return err

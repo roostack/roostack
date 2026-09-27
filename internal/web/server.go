@@ -133,16 +133,14 @@ type ServiceNode interface {
 	Backups() node.Backups
 	Restores() node.Restores
 	Updates() node.Updates
+	Settings() node.Settings
 }
 
 // LabSetup is what the UI needs from internal/setup.
 type LabSetup interface {
 	Progress(ctx context.Context) (setup.Progress, error)
-	Timezones() (current string, zones []string, err error)
-	SaveTimezone(ctx context.Context, name string) (changed bool, err error)
-	SSHAccess() (setup.SSHAccess, error)
-	SaveSSH(ctx context.Context, choice string, confirmed bool) error
-	SaveRestartPolicy(ctx context.Context, mode string, hour int) error
+	// Done marks a machine settings step (setup.Step*) done.
+	Done(ctx context.Context, step string) error
 	SaveDomain(ctx context.Context, domain, email, provider string, values map[string]string, opts setup.DomainOptions) error
 	DomainLater(ctx context.Context) error
 	SaveBackup(ctx context.Context, c setup.BackupChoice) error
@@ -179,6 +177,14 @@ func (s *Server) restores() RestoreService {
 		return nil
 	}
 	return s.Node.Restores()
+}
+
+// machine is this machine's own settings, or nil.
+func (s *Server) machine() node.Settings {
+	if s.Node == nil {
+		return nil
+	}
+	return s.Node.Settings()
 }
 
 func (s *Server) updates() HostUpdates {

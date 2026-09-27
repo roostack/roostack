@@ -77,8 +77,8 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	if users, err := s.Store.ListUsers(r.Context()); err == nil {
 		set("people", fmt.Sprintf("%d %s can log in", len(users), map[bool]string{true: "person", false: "people"}[len(users) == 1]), "")
 	}
-	if s.Setup != nil {
-		if a, err := s.Setup.SSHAccess(); err == nil {
+	if s.machine() != nil {
+		if a, err := s.machine().SSHAccess(); err == nil {
 			switch a.Choice {
 			case config.SSHFromLAN:
 				set("remote-access", "SSH from your home network only", "ok")

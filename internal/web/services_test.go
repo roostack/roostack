@@ -45,6 +45,17 @@ type fakeManager struct {
 	backups  BackupService
 	restores RestoreService
 	updates  HostUpdates
+	settings node.Settings
+}
+
+func (f *fakeManager) Settings() node.Settings { return f.settings }
+
+// setSetup sets the wizard; a fakeSetup is also the machine's settings.
+func (h *harness) setSetup(ls LabSetup) {
+	h.server.Setup = ls
+	if fs, ok := ls.(*fakeSetup); ok {
+		h.node().settings = fs
+	}
 }
 
 func (f *fakeManager) Backups() node.Backups   { return f.backups }
