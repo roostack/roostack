@@ -5,6 +5,7 @@
 package manager
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -165,23 +166,12 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	for _, s := range p.Settings {
 		raw, given := req.Settings[s.Key]
 		switch s.Type {
-		case pkgspec.SettingBool:
-			in.Settings[s.Key] = given && (raw == "on" || raw == "true")
-		case pkgspec.SettingString:
-			v := strings.TrimSpace(raw)
-			if s.Required && v == "" {
-				return formErrorf("%s is required.", s.Title)
-			}
-			if s.MinLength > 0 && len([]rune(v)) < s.MinLength {
-				return formErrorf("%s must be at least %d characters.", s.Title, s.MinLength)
+		case pkgspec.SettingBool, pkgspec.SettingString, pkgspec.SettingInt:
+			v, err := parseSetting(s, raw, given)
+			if err != nil {
+				return err
 			}
 			in.Settings[s.Key] = v
-		case pkgspec.SettingInt:
-			n, err := strconv.Atoi(strings.TrimSpace(raw))
-			if err != nil {
-				return formErrorf("%s must be a whole number.", s.Title)
-			}
-			in.Settings[s.Key] = n
 		case pkgspec.SettingSecret:
 			if s.Generate {
 				continue
@@ -343,6 +333,126 @@ func (m *Manager) installedService(name string) (*pkgspec.Package, *instance.Ins
 		return nil, nil, ErrNotFound
 	}
 	return p, in, err
+}
+
+// parseSetting converts a form value for a bool, string or int setting.
+// A missing bool means false (an unticked checkbox).
+func parseSetting(s pkgspec.Setting, raw string, given bool) (any, error) {
+	title := cmp.Or(s.Title, s.Key)
+	switch s.Type {
+	case pkgspec.SettingBool:
+		return given && (raw == "on" || raw == "true"), nil
+	case pkgspec.SettingInt:
+		n, err := strconv.Atoi(strings.TrimSpace(raw))
+		if err != nil {
+			return nil, formErrorf("%s must be a whole number.", title)
+		}
+		return n, nil
+	}
+	v := strings.TrimSpace(raw)
+	if s.Required && v == "" {
+		return nil, formErrorf("%s is required.", title)
+	}
+	if s.MinLength > 0 && len([]rune(v)) < s.MinLength {
+		return nil, formErrorf("%s must be at least %d characters.", title, s.MinLength)
+	}
+	return v, nil
+}
+
+// SettingsRequest is what the service settings form collects.
+type SettingsRequest struct {
+	// Subdomain for the package's main route; empty keeps the current one.
+	Subdomain string
+	// Settings holds raw form values for the changeable settings.
+	Settings map[string]string
+}
+
+// Changeable reports whether a setting can be changed after install from
+// MyLab: not secrets, and not install-only settings (e.g. the first
+// admin's details).
+func Changeable(s pkgspec.Setting) bool {
+	return s.Type != pkgspec.SettingSecret && !s.InstallOnly
+}
+
+// CurrentSettings returns an installed service's setting values (with
+// package defaults filled in) and its main route's subdomain.
+func (m *Manager) CurrentSettings(name string) (map[string]any, string, error) {
+	p, in, err := m.installedService(name)
+	if err != nil {
+		return nil, "", err
+	}
+	values, routes := generate.Values(m.Lab, p, in)
+	return values, routes[MainRoute(p)].Subdomain, nil
+}
+
+// UpdateSettings changes an installed service's settings and web address,
+// then applies the change (which restarts it).
+func (m *Manager) UpdateSettings(ctx context.Context, name string, req SettingsRequest) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	services, err := state.LoadServices(m.Lab)
+	if err != nil {
+		return err
+	}
+	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Package.Name == name })
+	if i < 0 {
+		return ErrNotFound
+	}
+	p, in := services[i].Package, services[i].Instance
+	if in.Settings == nil {
+		in.Settings = map[string]any{}
+	}
+	for _, s := range p.Settings {
+		if !Changeable(s) {
+			continue
+		}
+		raw, given := req.Settings[s.Key]
+		v, err := parseSetting(s, raw, given)
+		if err != nil {
+			return err
+		}
+		in.Settings[s.Key] = v
+	}
+	if sub := strings.ToLower(strings.TrimSpace(req.Subdomain)); sub != "" {
+		if route := MainRoute(p); route != "" {
+			if in.Routes == nil {
+				in.Routes = map[string]instance.RouteOverride{}
+			}
+			o := in.Routes[route]
+			o.Subdomain = sub
+			in.Routes[route] = o
+		}
+	}
+	if err := in.Validate(p); err != nil {
+		return formErrorf("%s", err)
+	}
+	if _, err := state.Desired(m.Lab, services); err != nil {
+		if strings.Contains(err.Error(), "already used") {
+			return formErrorf("That web address is already used by another service. Choose a different one.")
+		}
+		return err
+	}
+	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
+		return err
+	}
+	m.startApplyLocked()
+	return nil
+}
+
+// RevealSecret returns a secret setting's value for people who need it
+// (e.g. Vaultwarden's admin token, to open its admin page). Only settings
+// the package marks reveal: true.
+func (m *Manager) RevealSecret(ctx context.Context, name, key string) (string, error) {
+	p, _, err := m.installedService(name)
+	if err != nil {
+		return "", err
+	}
+	s := p.Setting(key)
+	if s == nil || s.Type != pkgspec.SettingSecret || !s.Reveal || m.Secrets == nil {
+		return "", ErrNotFound
+	}
+	v, err := m.Secrets.Read(ctx, secretName(name, key))
+	return string(v), err
 }
 
 // Remove takes a service out of desired state and applies the change. Its

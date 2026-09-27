@@ -337,6 +337,7 @@ Layered defaults:
   - User-provided values reach hooks **only as environment variables** (`env:` templates, `secrets:`), never templated into the command, so they can't change what a shell script does.
   - Settings can be `required`, have a `min_length`, and be `install_only`: asked at install, used only by install hooks. An `install_only` secret is **deleted once the install hooks succeed**, so MyLab doesn't keep a copy of e.g. the admin password.
   - Only `install` and `action` for now; `upgrade` hooks when a package needs them.
+- **Service settings — Locked (2026-09-27):** most of an app's settings stay in the app. Packages list `links:` into its own admin pages (Forgejo's site administration, Vaultwarden's admin panel), shown first under Settings on the service page. MyLab's own settings (not secrets, not `install_only`) and the web address are editable there; saving regenerates and restarts the service. A secret marked `reveal: true` (e.g. Vaultwarden's admin token) can be shown to Admins on request, and each view is audited.
 - **Future:** storage shared between services (e.g. Jellyfin reading Immich's library, read-only); package upgrade notes and migration steps for upstream breaking changes.
 - **Reference examples:** `docs/examples/vaultwarden.yaml` (simple), `docs/examples/forgejo.yaml` (Postgres, an optional SSH port), `docs/examples/immich.yaml` (complex).
 

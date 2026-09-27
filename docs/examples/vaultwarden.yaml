@@ -12,8 +12,11 @@ settings:                        # shown in the UI at install and in settings
     type: bool
     default: false
   - key: admin_token
+    title: Admin token
+    description: Needed to open Vaultwarden's admin panel
     type: secret
     generate: true               # MyLab creates it; stored as a Podman secret
+    reveal: true                 # shown to Admins on request, for the admin panel
 
 containers:
   app:
@@ -36,6 +39,12 @@ databases:
   main:
     type: sqlite                 # MyLab handles consistent backups itself
     path: data/db.sqlite3
+
+links:                           # most settings live in the app itself
+  - title: Admin panel
+    description: Users, invitations, email and other Vaultwarden settings (asks for the admin token)
+    route: web
+    path: /admin
 
 routes:
   web:

@@ -141,6 +141,7 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 				actions = append(actions, serviceAction{Name: h.Name, Title: h.Title, Description: h.Description, Fields: inputFields(h)})
 			}
 			data["Actions"] = actions
+			s.addSettingsData(data, name, p, nil)
 		}
 		data["Setup"] = s.Manager.InstallStatus(r.Context(), name)
 		// The latest setup log, if it's this service's.
@@ -160,6 +161,11 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	}
 	for k, v := range extra {
 		data[k] = v
+	}
+	if sub, ok := extra["Submitted"].(url.Values); ok {
+		if p, ok := data["Package"].(*pkgspec.Package); ok {
+			s.addSettingsData(data, r.PathValue("name"), p, sub)
+		}
 	}
 	if failed {
 		w.WriteHeader(http.StatusBadRequest)

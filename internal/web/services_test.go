@@ -33,6 +33,9 @@ type fakeManager struct {
 	actions   []string
 	actionOut string
 	actionErr error
+
+	values  map[string]any
+	updated []manager.SettingsRequest
 }
 
 func (f *fakeManager) Catalog() ([]manager.CatalogItem, error) {
@@ -66,6 +69,25 @@ func (f *fakeManager) DataDirs(name string) []string              { return []str
 func (f *fakeManager) Ports(string) ([]manager.PortStatus, error) { return f.ports, nil }
 func (f *fakeManager) InstallStatus(_ context.Context, name string) manager.HookStatus {
 	return f.setup[name]
+}
+func (f *fakeManager) CurrentSettings(name string) (map[string]any, string, error) {
+	if f.values == nil {
+		return map[string]any{"signups_allowed": false}, "git", nil
+	}
+	return f.values, "git", nil
+}
+func (f *fakeManager) UpdateSettings(_ context.Context, name string, req manager.SettingsRequest) error {
+	if req.Subdomain == "taken" {
+		return &manager.FormError{Msg: "That web address is already used by another service."}
+	}
+	f.updated = append(f.updated, req)
+	return nil
+}
+func (f *fakeManager) RevealSecret(_ context.Context, name, key string) (string, error) {
+	if key != "admin_token" {
+		return "", manager.ErrNotFound
+	}
+	return "s3cret-token", nil
 }
 func (f *fakeManager) RetryInstall(_ context.Context, name string) error {
 	f.retried = append(f.retried, name)
@@ -378,5 +400,50 @@ func TestThemeToggle(t *testing.T) {
 	}
 	if code, _ := h.post("/account/theme", url.Values{"theme": {"purple"}}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("unknown theme: %d", code)
+	}
+}
+
+func TestServiceSettings(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "forgejo", Title: "Forgejo", Status: "running", URLs: []string{"https://git.lab.example.com"}},
+			{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", URLs: []string{"https://vault.lab.example.com"}}}, nil
+	}
+
+	_, body := h.get("/services/forgejo")
+	for _, want := range []string{`href="https://git.lab.example.com/-/admin"`, "Site administration ↗",
+		`name="subdomain" value="git"`, `name="setting.signups_allowed"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("forgejo settings missing %q", want)
+		}
+	}
+	if strings.Contains(body, "setting.admin_username") || strings.Contains(body, "setting.admin_password") {
+		t.Error("install-only settings must not be offered again")
+	}
+
+	h.post("/services/forgejo/settings", url.Values{"subdomain": {"code"}, "setting.signups_allowed": {"on"}}, h.srv.URL)
+	if len(fm.updated) != 1 || fm.updated[0].Subdomain != "code" || fm.updated[0].Settings["signups_allowed"] != "on" {
+		t.Errorf("updated %+v", fm.updated)
+	}
+	code, body := h.post("/services/forgejo/settings", url.Values{"subdomain": {"taken"}}, h.srv.URL)
+	if code != http.StatusBadRequest || !strings.Contains(body, "already used") || !strings.Contains(body, `value="taken"`) {
+		t.Errorf("clash: %d", code)
+	}
+
+	// Vaultwarden's admin token is shown on request, and audited.
+	_, body = h.get("/services/vaultwarden")
+	if !strings.Contains(body, `action="/services/vaultwarden/reveal/admin_token"`) || strings.Contains(body, "s3cret-token") {
+		t.Error("the token should be behind a Show button")
+	}
+	_, body = h.post("/services/vaultwarden/reveal/admin_token", nil, h.srv.URL)
+	if !strings.Contains(body, "s3cret-token") {
+		t.Error("token not shown")
+	}
+	if code, _ := h.post("/services/vaultwarden/reveal/signups_allowed", nil, h.srv.URL); code != http.StatusNotFound {
+		t.Errorf("revealing a non-revealable setting: %d", code)
+	}
+	logs, _ := h.store.RecentAudit(context.Background(), 5)
+	if len(logs) == 0 || logs[0].Action != "secret shown" {
+		t.Errorf("reveal not audited: %+v", logs)
 	}
 }

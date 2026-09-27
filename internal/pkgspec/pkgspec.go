@@ -28,6 +28,7 @@ type Package struct {
 	Routes      map[string]*Route     `yaml:"routes"`
 	Ports       map[string]*Port      `yaml:"ports"`
 	Hooks       []*Hook               `yaml:"hooks"`
+	Links       []Link                `yaml:"links"`
 }
 
 // Hook events.
@@ -122,6 +123,18 @@ type Setting struct {
 	// install hooks. InstallOnly secrets are deleted once those succeed,
 	// so no copy of e.g. an admin password is kept.
 	InstallOnly bool `yaml:"install_only"`
+	// Reveal lets Admins see a secret's value on the service page (e.g.
+	// the token for the app's own admin page).
+	Reveal bool `yaml:"reveal"`
+}
+
+// Link points into the app's own pages, where most of its settings live
+// (e.g. Forgejo's site administration).
+type Link struct {
+	Title       string `yaml:"title"`
+	Description string `yaml:"description"`
+	Route       string `yaml:"route"` // which route's address
+	Path        string `yaml:"path"`  // e.g. /-/admin
 }
 
 // Container is one container in the service.

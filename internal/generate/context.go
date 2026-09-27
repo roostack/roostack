@@ -128,6 +128,13 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 	return ctx
 }
 
+// Values returns a service's setting values (package defaults filled in,
+// secrets left out) and its resolved routes.
+func Values(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (map[string]any, map[string]RouteContext) {
+	ctx := buildContext(lab, p, in)
+	return ctx.Settings, ctx.Routes
+}
+
 // ResolvePorts applies an instance's port overrides to the package's
 // defaults.
 func ResolvePorts(p *pkgspec.Package, in *instance.Instance) map[string]PortContext {
