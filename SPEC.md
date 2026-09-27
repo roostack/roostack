@@ -126,7 +126,7 @@ MyLab runs **directly on the host** (not in a container), as two processes shipp
 | `mylab` | Unprivileged `mylab` user, strict systemd sandboxing | Web UI, API, desired state, rootless service management (Quadlets, status, logs) |
 | `mylab-agent` | root | A small fixed set of privileged operations only: OS updates, reboots, rootful Quadlets, firewall. Also sets the host time zone. Listens on a local socket reachable only by `mylab`. |
 
-- Workers (master/worker) run the same package in worker mode.
+- Nodes in a multi-machine lab run the same package (§10).
 - MyLab updates itself through apt, alongside host OS updates (§3.2).
 - `mylab` is hardened with systemd sandboxing (`ProtectSystem`, `ProtectHome`, `NoNewPrivileges`, `PrivateTmp`, system call filtering, limited writable paths) to get most of a container's isolation.
 - **`mylab` never runs `podman` directly — Locked (2026-09-26).** Rootless Podman needs the setuid `newuidmap`/`newgidmap` helpers, which `NoNewPrivileges` disables. So `mylab` only talks to the `mylab` user's systemd manager (`systemctl --user`, `systemd-run --user`), which runs Podman outside the sandbox. One-off commands (creating secrets, database dumps, `podman unshare` for backups) go through `systemd-run --user`.
@@ -344,9 +344,81 @@ Layered defaults:
 
 ## 9. MVP Scope — Locked
 
-Single node: web UI, reverse proxy with automatic TLS, three catalog services (e.g. Vaultwarden, Forgejo, Immich — increasing complexity), backup and restore. Master/worker, SSO, DNS, and monitoring follow after the core is solid, but the design should anticipate master/worker.
+Single node: web UI, reverse proxy with automatic TLS, three catalog services (e.g. Vaultwarden, Forgejo, Immich — increasing complexity), backup and restore. Multiple machines (§10), SSO, DNS, and monitoring follow after the core is solid, but the design should anticipate multiple machines.
 
 ---
+
+## 10. Multiple Machines — Draft (2026-09-27, for review)
+
+One lab can span several machines: extra boxes at home, VPSes in the cloud, and later MyLab Cloud. This section is the design to build towards; nothing here is built yet except where marked. It replaces "master/worker" elsewhere in this document.
+
+### 10.1 Roles
+
+- **Node:** any machine running MyLab. Every node runs its own services (Quadlets, reconciler), its own Caddy and certificates, its own backups, OS updates, firewall and agent, exactly as a single-machine lab does today.
+- **Controller:** one node also holds the lab's desired state (§1.2: services, placement, settings), users and sessions, and serves the UI. It decides placement; nodes do the work.
+- **The controller can move to any node** (chosen, not automatic), e.g. from a home NUC to a VPS:
+  - Every node keeps a **replica of the lab's state** (desired state and the MyLab database, encrypted at rest), pulled with its assignments.
+  - **Planned move:** the controller hands over (freezes changes, sends the latest state, the new controller takes the address and certificate authority) and becomes a plain node.
+  - **Disaster:** the Owner promotes a node from its replica (at worst missing changes since its last pull). Two controllers must never both be active: promotion revokes the old one's authority (a new epoch number that nodes follow).
+- The first machine installed is the controller; a lab with one machine is a lab with one node that is also the controller. Single-machine labs stay exactly as simple as today.
+
+### 10.2 Private network: MyLab-managed WireGuard
+
+- MyLab runs a **WireGuard** network between its nodes (WireGuard is in Debian's kernel; `mylab-agent` manages the interface and keys). Every node gets an overlay address (e.g. `100.96.0.x`).
+- **No inbound ports at home:** home nodes dial out to reachable nodes (a VPS with a public IP), so a home controller needs no port forwarding. Nodes that can reach each other directly do; others go via a reachable node (hub and spoke first, a mesh later).
+- All controller ↔ node traffic runs inside WireGuard **and** uses mutual TLS, so a leaked WireGuard key alone isn't enough.
+- **Joining:** the Owner creates a one-time join code in the UI (short-lived, single use) and runs `mylab node join <code>` on the new machine (or picks "Join an existing lab" in its setup wizard). The code carries the controller's address and a CA fingerprint; the node gets its WireGuard peer config and a client certificate from the controller's CA.
+- "Private" (home network only, §6.10) widens to **home network or MyLab's WireGuard network**. The same network is the base for remote access for people later (a phone joining over WireGuard).
+
+### 10.3 Controller ↔ node protocol
+
+- **Nodes pull.** Every node periodically (and when nudged) fetches **its assignment**: the instances placed on it (package, version, settings, secrets it needs) plus lab settings it needs (domain, DNS provider, backup destinations). It generates and reconciles locally with the same code as today, then reports back **status**: service health, apply results, activity logs, backups, updates, restart needs.
+- **Offline-tolerant:** if the controller is unreachable, a node keeps running its last assignment and queues its reports (§1.3 local-first). Assignments carry a version; nodes apply only newer ones.
+- **Actions** (restart a service, run an action hook, restore, update now) are requests the node picks up on its next pull (or immediately when nudged), with results in the report. The same request types the in-process code uses today (e.g. the agent's JSON API) cross the network unchanged.
+- **Secrets:** user-provided secrets travel only to the nodes that need them, over mTLS inside WireGuard; generated secrets are made on the node that uses them and never leave it (backups hold them, encrypted).
+- **Packages:** the controller's catalog is the source of truth; nodes fetch package files they don't have (same version pinning).
+
+### 10.4 Placement and moving services
+
+- Every instance has a **`host`** (a node ID); default: the controller. The install form asks where to run it when the lab has more than one node, with hints (RAM, disk, GPU, home or cloud).
+- **Moving** a service = back up on the old node, restore on the new one, switch its route, remove the old copy (existing per-service backup and restore, §6.9). Portability is the requirement from §4.
+
+### 10.5 Public access through a cloud node ("edge")
+
+For services hosted at home but public (e.g. Immich shared with family), without opening ports 80/443 at home:
+
+- A cloud node can act as an **edge**. Public DNS records point to the edge's public IP; the edge forwards each connection **over WireGuard** to the home node that runs the service.
+- **TLS passthrough by default:** the edge routes on the TLS SNI name and never decrypts; certificates and keys stay on the home node, so the cloud provider can't read the traffic (in line with "own your data", §4; unlike the Cloudflare proxy, §6.5.1). Visitors' IP addresses reach the home node via the PROXY protocol, so private checks, rate limiting and CrowdSec (§6.10) still see real visitors.
+- Terminating TLS at the edge (caching, fewer hops) is an option per service later, clearly marked as letting the edge see the traffic.
+- The home firewall stays closed to the internet; only WireGuard (outbound) is needed. The same mechanism is how a **MyLab Cloud relay** would work for people behind CGNAT (§6.5.1).
+- Home devices keep reaching home services directly (local DNS records, §6.5.1), not via the edge.
+
+### 10.6 Failover (later)
+
+Failover is service-specific, so packages declare what they support:
+
+- **none** (default): if the node is down, the service is down; the UI says so.
+- **cold standby:** a second node keeps recent backups of the service; if the primary is unreachable for a set time, the Owner (or, when enabled, MyLab) restores the latest backup there and switches the route. Data since the last backup is lost; suits most home services.
+- **replicated:** the service keeps a live copy on another node with its own replication (e.g. Postgres streaming, Vaultwarden via its database), declared per package. Much later.
+- Automatic failover needs a way to tell "node down" from "network split" (at least a third node or the edge as a witness), so it comes after manual failover.
+
+### 10.7 What to build now (no networking yet): seams
+
+So single-machine code doesn't paint us into a corner:
+
+1. **`host` on every instance**, defaulting to the controller; loading services filters by host.
+2. **Controller/node split in code:** the UI-facing manager (desired state, users, placement) talks to a **`Node` interface** for everything that touches a machine (apply, status, hooks, actions, restores, activity, updates, restarts, firewall). Today: one in-process implementation. Later: a remote implementation speaking the same plain-data requests.
+3. **Status, activity and restart state are per node**, and the UI's "This machine" areas are per node (e.g. `/settings/machines/<id>/updates`) once there's more than one.
+4. **Node identity:** every install gets a stable node ID and name at setup.
+
+Then a **two-VM prototype**: a second dev VM joins the first over WireGuard and runs one service placed on it.
+
+### 10.8 Open questions
+
+- WireGuard topology beyond hub and spoke (full mesh, NAT traversal between two home networks).
+- How the edge's forwarding is implemented: Caddy with the layer-4 plugin (`caddy-l4`, already Caddy) or a small built-in forwarder.
+- Replica encryption: which key protects the state replica on nodes (the recovery key, §6.9, is a natural fit).
+- Billing and trust boundaries for MyLab Cloud nodes (§4).
 
 ## Deferred Decisions (post-MVP)
 
@@ -354,6 +426,5 @@ Single node: web UI, reverse proxy with automatic TLS, three catalog services (e
 - Default DNS manager (e.g. Pi-hole) and split-horizon DNS
 - Built-in uptime monitoring
 - Remote access / remote support for the person who set up the lab
-- Master/worker protocol
 - MyLab Cloud design (§4)
 - Shared storage between services (§8.1)

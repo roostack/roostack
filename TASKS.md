@@ -113,6 +113,15 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Immich on the VM
   - [x] `mylab validate` renders every template (default and flipped settings, with and without GPU, hooks too)
 
+## Phase 2: Multiple machines (SPEC §10, draft)
+
+- [ ] Review the §10 design with the user
+- [ ] Seams: `host` on instances; `Node` interface between manager and machine operations; per-node status/activity; stable node ID
+- [ ] Two-VM prototype: second dev VM joins over MyLab-managed WireGuard (join code, mTLS), runs one service placed on it
+- [ ] Controller move (planned hand-over) and promotion from a node's replica
+- [ ] Edge: public service at home routed through a cloud node (TLS passthrough over WireGuard, PROXY protocol)
+- [ ] Failover: cold standby first
+
 ## To discuss with the user
 
 
