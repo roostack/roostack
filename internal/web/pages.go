@@ -203,7 +203,6 @@ func (s *Server) backupsPartial(w http.ResponseWriter, r *http.Request) {
 	s.renderPart(w, "backups", "backup-card", data)
 }
 
-
 func (s *Server) domainDone(r *http.Request) bool {
 	p, err := s.Setup.Progress(r.Context())
 	return err == nil && p.DomainDone
