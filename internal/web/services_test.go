@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mylab/mylab/internal/activity"
+	"github.com/mylab/mylab/internal/backup"
 	"io"
 	"net/http"
 	"net/url"
@@ -611,6 +612,15 @@ func TestMachines(t *testing.T) {
 	ha, _ := loggedIn(t, auth.RoleAdmin)
 	if code, _ := ha.get("/settings/machines"); code == http.StatusOK {
 		t.Error("only Owners see machines")
+	}
+
+	// Other machines' backups and updates show up too, named.
+	fm.backups = &fakeBackups{status: backup.Status{Configured: true, Progress: -1,
+		Last: &store.BackupRun{OK: false, Error: "repository locked"}}}
+	fm.settings = &fakeSetup{ssh: "lan"}
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "The last backup on vps didn&#39;t finish: repository locked") ||
+		!strings.Contains(body, `href="/settings/machines/n-9876543210/backups"`) {
+		t.Errorf("home should flag vps's backups:\n%s", body)
 	}
 
 	// Renaming and removing.
