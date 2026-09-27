@@ -43,6 +43,8 @@ type BackupDestination struct {
 	Repository string   `json:"repository"`
 	Env        []string `json:"env,omitempty"`
 	Key        string   `json:"key,omitempty"`
+	// PrunedByController: this machine only adds backups.
+	PrunedByController bool `json:"pruned_by_controller,omitempty"`
 }
 
 // SSHAccess is the current SSH choice and who is connected now.
@@ -155,7 +157,7 @@ func (h *HostSettings) SetBackupDestination(ctx context.Context, d BackupDestina
 		}
 	}
 	if err := config.Update(h.LabPath, func(l *config.Lab) {
-		l.Backup.Repository, l.Backup.Env = d.Repository, d.Env
+		l.Backup.Repository, l.Backup.Env, l.Backup.PrunedByController = d.Repository, d.Env, d.PrunedByController
 	}); err != nil {
 		return fmt.Errorf("saving the backup destination: %w", err)
 	}

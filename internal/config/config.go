@@ -106,6 +106,9 @@ type Backup struct {
 	Env []string `yaml:"env,omitempty"`
 	// LimitUploadKiB caps upload speed; 0 is unlimited.
 	LimitUploadKiB int `yaml:"limit_upload_kib,omitempty"`
+	// PrunedByController: the controller removes old backups (SPEC.md
+	// §10.10); this machine may only add them, so it only checks.
+	PrunedByController bool `yaml:"pruned_by_controller,omitempty"`
 }
 
 // SSH access choices (Firewall.SSH).
