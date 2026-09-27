@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -55,6 +56,9 @@ type Mover interface {
 	// LoadDumps stops the service, loads its databases from the dumps in
 	// its data (after a move through a backup), and starts it again.
 	LoadDumps(ctx context.Context, service string) error
+	// KeptData lists folders moves left behind; RemoveKeptData deletes one.
+	KeptData(ctx context.Context) ([]KeptFolder, error)
+	RemoveKeptData(ctx context.Context, path string) error
 }
 
 // Launcher runs a command as the mylab user outside MyLab's sandbox
@@ -334,4 +338,66 @@ func (n *Local) LoadDumps(ctx context.Context, service string) error {
 		return err
 	}
 	return n.Reconciler.Systemd.Start(ctx, out.Units...)
+}
+
+// KeptFolder is a service's data folder a move left behind.
+type KeptFolder struct {
+	Path    string
+	Service string
+	// MovedAway: the old copy of a service that moved to another machine
+	// (otherwise, data that was here before a service moved in).
+	MovedAway bool
+	Time      time.Time
+	Size      int64 // bytes, -1 if unknown
+}
+
+// keptName matches kept folders' names: <service>.before-move-<time> or
+// <service>.moved-<note>-<time>.
+var keptName = regexp.MustCompile(`^([a-z0-9-]+)\.(before-move-|moved-[a-z0-9-]*-)(\d{8}-\d{6})$`)
+
+// KeptData lists folders moves left on this machine, newest first.
+func (n *Local) KeptData(ctx context.Context) ([]KeptFolder, error) {
+	var kept []KeptFolder
+	for _, base := range []string{n.Lab.Paths.ServicesDir, n.Lab.Paths.MediaDir} {
+		entries, err := os.ReadDir(base)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range entries {
+			m := keptName.FindStringSubmatch(e.Name())
+			if m == nil || !e.IsDir() {
+				continue
+			}
+			t, _ := time.ParseInLocation(timeLayout, m[3], time.Local)
+			k := KeptFolder{Path: filepath.Join(base, e.Name()), Service: m[1], MovedAway: m[2] != "before-move-", Time: t, Size: -1}
+			if out, err := n.unshare(ctx, "du", "-sb", k.Path).Output(); err == nil {
+				if f := strings.Fields(string(out)); len(f) > 0 {
+					k.Size, _ = strconv.ParseInt(f[0], 10, 64)
+				}
+			}
+			kept = append(kept, k)
+		}
+	}
+	slices.SortFunc(kept, func(a, b KeptFolder) int { return b.Time.Compare(a.Time) })
+	return kept, nil
+}
+
+// RemoveKeptData deletes a kept folder for good. Only folders KeptData
+// lists can be removed.
+func (n *Local) RemoveKeptData(ctx context.Context, path string) error {
+	dir, name := filepath.Split(filepath.Clean(path))
+	dir = filepath.Clean(dir)
+	if (dir != filepath.Clean(n.Lab.Paths.ServicesDir) && dir != filepath.Clean(n.Lab.Paths.MediaDir)) || !keptName.MatchString(name) {
+		return ErrNotFound
+	}
+	if _, err := os.Stat(path); err != nil {
+		return ErrNotFound
+	}
+	if out, err := n.unshare(ctx, "rm", "-rf", "--", path).CombinedOutput(); err != nil {
+		return fmt.Errorf("deleting %s: %w: %s", path, err, out)
+	}
+	return nil
 }

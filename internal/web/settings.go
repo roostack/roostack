@@ -3,10 +3,12 @@ package web
 import (
 	"errors"
 	"fmt"
+	"github.com/mylab/mylab/internal/node"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mylab/mylab/internal/activity"
@@ -237,6 +239,18 @@ func (s *Server) renderMachines(w http.ResponseWriter, r *http.Request, extra ma
 	}
 	data["Machines"] = machines
 	data["ApplyActivity"] = s.activityFor(r, activity.Apply)
+	// Folders moves left behind, per machine (asked of each at once).
+	kept := make([][]node.KeptFolder, len(machines))
+	var wg sync.WaitGroup
+	for i, mc := range machines {
+		wg.Go(func() { kept[i], _ = s.Manager.KeptData(r.Context(), mc.ID) })
+	}
+	wg.Wait()
+	keptBy := map[string][]node.KeptFolder{}
+	for i, mc := range machines {
+		keptBy[mc.ID] = kept[i]
+	}
+	data["Kept"] = keptBy
 	if s.Network != nil {
 		endpoint, _ := s.Store.Setting(r.Context(), endpointKey)
 		if endpoint == "" {
@@ -358,4 +372,23 @@ func (s *Server) removeMachineSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "machines", "removed "+id)
 	redirect(w, r, "/settings/machines")
+}
+
+func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	id, path := r.PathValue("machine"), r.FormValue("path")
+	err := s.Manager.RemoveKeptData(r.Context(), id, path)
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "machines", "deleted kept folder "+path+" on "+id)
+	redirect(w, r, "/settings/machines#machine-"+id)
 }

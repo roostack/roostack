@@ -369,3 +369,21 @@ func (m *Manager) switchHost(name, to string) error {
 	m.startApplyLocked()
 	return m.assignErr
 }
+
+// KeptData lists folders moves left on a machine.
+func (m *Manager) KeptData(ctx context.Context, machineID string) ([]node.KeptFolder, error) {
+	mv, ok := m.node(machineID).(node.Mover)
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return mv.KeptData(ctx)
+}
+
+// RemoveKeptData deletes a folder a move left on a machine, for good.
+func (m *Manager) RemoveKeptData(ctx context.Context, machineID, path string) error {
+	mv, ok := m.node(machineID).(node.Mover)
+	if !ok {
+		return ErrNotFound
+	}
+	return mv.RemoveKeptData(ctx, path)
+}

@@ -352,6 +352,24 @@ func (s *Server) Handler() http.Handler {
 		}
 		return nil, mv.LoadDumps(ctx(r), svc(r))
 	})
+	handle("GET /v1/kept", func(r *http.Request) (any, error) {
+		mv, err := mover()
+		if err != nil {
+			return nil, err
+		}
+		return mv.KeptData(ctx(r))
+	})
+	handle("POST /v1/kept/remove", func(r *http.Request) (any, error) {
+		mv, err := mover()
+		if err != nil {
+			return nil, err
+		}
+		var req struct{ Path string }
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		return nil, mv.RemoveKeptData(ctx(r), req.Path)
+	})
 	handle("POST /v1/services/{service}/stop", func(r *http.Request) (any, error) {
 		mv, err := mover()
 		if err != nil {

@@ -20,6 +20,7 @@ var templateFuncs = template.FuncMap{
 	// list makes a slice, e.g. {{range list "light" "dark"}}.
 	"list": func(items ...string) []string { return items },
 	// percent shows progress, or nothing if it's unknown (-1).
+	"size": sizeText,
 	"percent": func(p int) string {
 		if p < 0 {
 			return ""
