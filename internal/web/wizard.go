@@ -84,6 +84,9 @@ func (s *Server) formMode(r *http.Request, step string, data map[string]any) map
 	data["Back"] = map[string]string{"timezone": "/settings", "ssh": "/settings", "domain": "/settings/domain", "backup": "/backups"}[step]
 	m := s.machineViewOf(r)
 	data["Machine"], data["BackText"] = m, "Settings"
+	if area := map[string]string{"timezone": "time-zone", "ssh": "remote-access"}[step]; area != "" && data["Wizard"] != true {
+		data["Switcher"] = s.serverTabs(r, area)
+	}
 	if !m.This {
 		// Another machine's settings are never a wizard step.
 		data["Wizard"], data["Back"], data["BackText"] = false, "/settings/servers", "Servers"

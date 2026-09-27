@@ -32,13 +32,15 @@ type settingsArea struct {
 
 var settingsAreas = []settingsArea{
 	{"people", "People and access", "People", "/settings/people"},
-	{"remote-access", "People and access", "Remote access", "/settings/remote-access"},
 	{"domain", "Network", "Domain and certificates", "/settings/domain"},
 	{"home-network", "Network", "Home network", "/settings/home-network"},
 	{"servers", "Servers", "Servers", "/settings/servers"},
 	{"storage", "Servers", "Storage for others", "/settings/storage"},
-	{"updates", "This server", "Updates and restarts", "/settings/updates"},
-	{"time-zone", "This server", "Time zone", "/settings/time-zone"},
+	// Settings that differ per server (switcher.go).
+	{"updates", "Each server", "Updates and restarts", "/settings/updates"},
+	{"time-zone", "Each server", "Time zone", "/settings/time-zone"},
+	{"remote-access", "Each server", "Remote access", "/settings/remote-access"},
+	{"backups", "Each server", "Backups", "/backups"},
 }
 
 // settingsGroup is a heading and its areas, for the sidebar and overview.
@@ -162,6 +164,23 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	clock := hosttime.Now()
 	set("time-zone", clock.Zone+" · "+clock.Time+" now", "")
+	if s.Node != nil {
+		sum, level := summarizeBackups(r, s.Node)
+		set("backups", sum, level)
+	}
+	set("storage", "Give family or friends space for their backups", "")
+	if s.Manager != nil && s.Manager.OfferStorage(r.Context()) {
+		if guests, err := s.Manager.StorageGuests(r.Context()); err == nil {
+			set("storage", fmt.Sprintf("%d %s storing backups here", len(guests),
+				map[bool]string{true: "lab", false: "labs"}[len(guests) == 1]), "ok")
+		}
+	}
+	// With several servers, per-server areas summarise each.
+	for _, area := range []string{"updates", "time-zone", "remote-access", "backups"} {
+		if sum, level := s.serverSummaries(r, area); sum != "" {
+			set(area, sum, level)
+		}
+	}
 
 	var groups []map[string]any
 	for _, g := range settingsGroups() {
@@ -319,6 +338,7 @@ func (s *Server) renderUpdates(w http.ResponseWriter, r *http.Request, errMsg st
 		return
 	}
 	data["Updates"] = s.updatesView(r, errMsg)
+	data["Switcher"] = s.serverTabs(r, "updates")
 	if errMsg != "" {
 		w.WriteHeader(http.StatusBadRequest)
 	}

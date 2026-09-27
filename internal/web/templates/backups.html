@@ -2,6 +2,7 @@
 {{define "content"}}
 <section>
   <h1>Backups{{if not .Machine.This}} · {{.Machine.Name}}{{end}}</h1>
+  {{template "server-switcher" .}}
   <div hx-get="/partials/backups{{if not .Machine.This}}?machine={{.Machine.ID}}{{end}}" hx-trigger="every 10s, activity-done from:body" hx-swap="innerHTML">
     {{template "backup-card" .}}
   </div>

@@ -356,6 +356,8 @@ One lab can span several machines: extra boxes at home, VPSes in the cloud, and 
 
 **Naming (2026-09-28):** the UI calls machines **servers** ("My Servers", Settings → Servers, "Move to another server"); this document and the code keep "machine" and "node".
 
+**Servers in the UI (2026-09-28):** Home shows **My Servers** beside My Services (status, backups, updates, services, a link to each server's settings). Settings that differ per server (updates and restarts, time zone, remote access, backups) are grouped under "Each server": the overview summarises every server, and each area's page opens on a summary row per server that also switches between them. Each server has its own page (`/settings/servers/<id>`) with its card and its settings. Service cards say which server a service runs on and when it was last backed up, with details (containers and images, web routes, ports, data folders and size); MyLab's own services (MyLab and its agent, Caddy, backup stores, network links) are shown per server behind a toggle, so nothing is hidden from a technical user.
+
 - **Node:** any machine running MyLab. Every node runs its own services (Quadlets, reconciler), its own Caddy and certificates, its own backups, OS updates, firewall and agent, exactly as a single-machine lab does today.
 - **Controller:** one node also holds the lab's desired state (§1.2: services, placement, settings), users and sessions, and serves the UI. It decides placement; nodes do the work.
 - **The controller can move to any node** (chosen, not automatic), e.g. from a home NUC to a VPS:

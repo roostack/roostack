@@ -72,6 +72,9 @@ func (s *Server) homePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["Attention"] = s.attention(r)
+	if data["CanManage"] == true {
+		data["Servers"] = s.serverViews(r)
+	}
 	s.render(w, "home", data)
 }
 
@@ -82,6 +85,9 @@ func (s *Server) homePartial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["Attention"] = s.attention(r)
+	if data["CanManage"] == true {
+		data["Servers"] = s.serverViews(r)
+	}
 	s.renderPart(w, "home", "home-live", data)
 }
 
@@ -212,6 +218,9 @@ func (s *Server) backupsPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[string]any) {
 	m := s.machineViewOf(r)
 	data["Backup"] = s.backupView(r)
+	if auth.Can(currentUser(r).Role, auth.ManageHost) {
+		data["Switcher"] = s.serverTabs(r, "backups")
+	}
 	if m.This {
 		data["BackupRepo"] = s.BackupRepo
 	}

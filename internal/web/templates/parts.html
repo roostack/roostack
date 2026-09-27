@@ -18,6 +18,19 @@
 {{end}}
 {{end}}
 
+{{/* server-switcher: a per-server settings area's state on each server,
+     which also switches between them (switcher.go). */}}
+{{define "server-switcher"}}{{with .Switcher}}
+<nav class="card server-switcher" aria-label="Servers">
+  <ul class="plain">
+    {{range .}}<li{{if .Current}} class="current"{{end}}>
+      <a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}><strong>{{.Name}}</strong></a>
+      <span class="hint">{{with .Level}}<span class="dot dot-{{.}}" aria-hidden="true"></span>{{end}}{{.Summary}}</span>
+    </li>{{end}}
+  </ul>
+</nav>
+{{end}}{{end}}
+
 {{/* service-summary: where a service runs and when it was last backed up. */}}
 {{define "service-summary"}}<p class="hint">{{with .Machine}}On {{.}}{{end}}
   {{- if not .LastBackup.IsZero}} · backed up {{when .LastBackup}}{{else if .Machine}} · not backed up yet{{end}}</p>{{end}}
