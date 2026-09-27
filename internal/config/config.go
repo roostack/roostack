@@ -163,6 +163,9 @@ type Lab struct {
 	Firewall Firewall `yaml:"firewall,omitempty"`
 	// Maintenance is when the host may restart (SPEC.md §3.2).
 	Maintenance Maintenance `yaml:"maintenance,omitempty"`
+	// Timezone is the host's time zone (e.g. "Europe/Berlin"), detected at
+	// runtime so containers use it too. Empty leaves them on UTC.
+	Timezone string `yaml:"-"`
 	// HasGPU is detected at runtime, not configured. It resolves settings
 	// with `default: auto` (docs/ASSUMPTIONS.md G1).
 	HasGPU bool `yaml:"-"`

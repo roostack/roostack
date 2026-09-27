@@ -47,6 +47,7 @@ func serve(args []string) error {
 		return err
 	}
 	lab.HasGPU = config.DetectGPU()
+	lab.Timezone = hosttime.Zone()
 	st, err := store.Open(dbPath(lab))
 	if err != nil {
 		return err

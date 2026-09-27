@@ -43,7 +43,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] 🟡 **1.7 Proxy:** Caddyfile generation ✅ (checked with real Caddy); Caddy image Containerfile written, not built
 - [ ] 🟡 **1.8 mylab-agent:** socket API with peer-credential checks; port sysctl; nftables firewall (ruleset checked with `nft -c`)
   - [x] Firewall applied: SSH choice in the wizard (step 2) and Settings, package ports opened after each apply (tested on the VM: SSH off blocks new connections, HTTPS and outbound traffic keep working)
-  - [ ] `mylab apply` (CLI) doesn't apply the firewall yet; only the running service does
+  - [x] `mylab apply` (CLI) applies the firewall too
 - [ ] 🟡 **1.9 Web UI skeleton**
   - [x] First-run Owner setup (setup code), login/logout, sessions, roles, CSRF, security headers
   - [x] Read-only dashboard with live status (htmx polling)
@@ -85,7 +85,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Live activity logs (status line + collapsed details) for OS updates (streamed from the agent), backups (steps and upload progress), applying service changes, and setup hooks
   - [ ] Unknown host changes (extra apt sources, held packages, changed firewall) warning (SPEC §3.2)
   - [x] Host time zone: wizard step 1, Settings card, agent `timedatectl`, banner when the browser's clock differs
-  - [ ] Containers still run in UTC (they don't get the host's zone); pass `TZ` to services whose UIs show times
+  - [x] Containers use the host's time zone (`Timezone=<zone>` in every unit; a change restarts them)
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow (`scripts/dev-install.sh` is a stand-in)
 - [ ] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)
   - [x] Forgejo v15 LTS: rootless image, MyLab Postgres, HTTPS clone; backup/restore tested on the VM
@@ -94,7 +94,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Forgejo: fresh install through the UI (user to test: remove Forgejo, install again)
   - [ ] If an install hook fails because of what was typed (e.g. an invalid username), "Try again" repeats it; offer to edit those settings instead
   - [ ] Immich on the VM
-  - [ ] `mylab validate` should render templates with default settings (a bool/string mismatch only showed at render time)
+  - [x] `mylab validate` renders every template (default and flipped settings, with and without GPU, hooks too)
 
 ## To discuss with the user
 

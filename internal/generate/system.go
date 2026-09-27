@@ -40,6 +40,7 @@ func System(lab config.Lab) (*SystemOutput, error) {
 	cs := u.Section("Container")
 	cs.Add("ContainerName", CaddyUnit)
 	cs.Add("Image", DefaultCaddyImage)
+	addTimezone(cs, lab)
 	// Caddy has its own pasta network namespace, not a bridge network:
 	// pasta's port forwarding keeps each visitor's real IP, which the
 	// "private" route check depends on. Rootless bridge networks replace it

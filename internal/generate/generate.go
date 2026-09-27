@@ -188,6 +188,7 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 	cs := u.Section("Container")
 	cs.Add("ContainerName", unit)
 	cs.Add("Image", c.Image)
+	addTimezone(cs, g.lab)
 	if len(c.Command) > 0 {
 		args := make([]string, len(c.Command))
 		for i, a := range c.Command {
@@ -308,6 +309,7 @@ func (g *gen) postgres(name string, d *pkgspec.Database) error {
 	cs := u.Section("Container")
 	cs.Add("ContainerName", unit)
 	cs.Add("Image", cmp.Or(d.Image, DefaultPostgresImage))
+	addTimezone(cs, g.lab)
 	cs.Add("Network", "mylab-"+svc+".network")
 	cs.Env("POSTGRES_USER", db.User)
 	cs.Env("POSTGRES_DB", db.Name)
@@ -346,6 +348,7 @@ func (g *gen) redis(name string, d *pkgspec.Database) error {
 	cs := u.Section("Container")
 	cs.Add("ContainerName", unit)
 	cs.Add("Image", cmp.Or(d.Image, DefaultRedisImage))
+	addTimezone(cs, g.lab)
 	cs.Add("Network", "mylab-"+svc+".network")
 	if d.BackedUp() {
 		// Persisted snapshots are consistent on disk, so the data directory is
@@ -448,6 +451,15 @@ func (g *gen) storagePath(name string) string {
 		return filepath.Join(g.lab.Paths.MediaDir, g.pkg.Name, name)
 	}
 	return filepath.Join(g.serviceDir(), name)
+}
+
+// addTimezone gives a container the host's time zone, so apps show local
+// times. The zone is named rather than "local": changing it changes the unit
+// file, and the reconciler restarts the container.
+func addTimezone(cs *quadlet.Section, lab config.Lab) {
+	if lab.Timezone != "" {
+		cs.Add("Timezone", lab.Timezone)
+	}
 }
 
 func containerUnitName(svc, container string) string { return "mylab-" + svc + "-" + container }

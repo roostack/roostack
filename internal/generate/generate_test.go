@@ -232,3 +232,63 @@ func lastLines(s string, n int) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+func TestTimezone(t *testing.T) {
+	lab := testLab()
+	lab.Timezone = "Australia/Melbourne"
+	lab.DNS.Provider = "cloudflare" // System needs one
+	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "immich.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "immich.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := Service(lab, p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range out.Quadlets {
+		if strings.HasSuffix(f.Name, ".container") && !strings.Contains(f.Content, "\nTimezone=Australia/Melbourne\n") {
+			t.Errorf("%s has no Timezone", f.Name)
+		}
+	}
+	sys, err := System(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sys.Quadlets[0].Content, "Timezone=Australia/Melbourne") {
+		t.Error("Caddy has no Timezone")
+	}
+}
+
+func TestCheck(t *testing.T) {
+	for _, name := range []string{"vaultwarden", "forgejo", "immich"} {
+		p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := Check(p); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	// The Forgejo mistake that only showed at install time.
+	p, err := pkgspec.Parse([]byte(`schema: mylab/v1alpha1
+name: app
+title: App
+version: "1"
+settings:
+  - { key: signups, type: bool, default: true }
+containers:
+  web:
+    image: x
+    env: { DISABLE: '{{ if eq .Settings.signups "true" }}no{{ end }}' }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Check(p); err == nil || !strings.Contains(err.Error(), "incompatible types") {
+		t.Errorf("want the bool/string mismatch, got %v", err)
+	}
+}
