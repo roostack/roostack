@@ -39,6 +39,13 @@ func (f *fakeNode) Status() ApplyStatus {
 func (f *fakeNode) ServiceStates(context.Context) (map[string]string, error) {
 	return map[string]string{"vaultwarden": "running"}, nil
 }
+func (f *fakeNode) ServiceDetails(context.Context) (map[string]ServiceDetail, error) {
+	return map[string]ServiceDetail{"vaultwarden": {Status: "running", Containers: []Container{{Name: "mylab-vaultwarden-app",
+		Image: "docker.io/vaultwarden/server:1.34", State: "active (running)"}}, DataSize: 1234}}, nil
+}
+func (f *fakeNode) BuiltIns(context.Context) ([]BuiltIn, error) {
+	return []BuiltIn{{Name: "MyLab agent", Kind: "mylab", Status: "active (running)"}}, nil
+}
 func (f *fakeNode) InstallStatus(_ context.Context, s string) HookStatus {
 	return HookStatus{Pending: s == "forgejo"}
 }
@@ -135,6 +142,13 @@ func TestRemote(t *testing.T) {
 	}
 	if states, err := r.ServiceStates(ctx); err != nil || states["vaultwarden"] != "running" {
 		t.Errorf("states = %v, %v", states, err)
+	}
+	if d, err := r.ServiceDetails(ctx); err != nil || d["vaultwarden"].Containers[0].Image != "docker.io/vaultwarden/server:1.34" ||
+		d["vaultwarden"].DataSize != 1234 {
+		t.Errorf("details = %+v, %v", d, err)
+	}
+	if b, err := r.BuiltIns(ctx); err != nil || len(b) != 1 || b[0].Name != "MyLab agent" {
+		t.Errorf("built-ins = %+v, %v", b, err)
 	}
 	if snap, ok := r.LatestActivity(activity.Apply); !ok || snap.Status != "All changes applied" {
 		t.Errorf("activity = %+v", snap)

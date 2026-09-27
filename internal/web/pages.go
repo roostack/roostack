@@ -94,6 +94,7 @@ func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
 	if a := s.activityFor(r, activity.Apply); a != nil {
 		data["ApplyActivity"] = a
 	}
+	s.addBuiltIns(r, data)
 	s.render(w, "services", data)
 }
 
@@ -103,7 +104,18 @@ func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	s.addBuiltIns(r, data)
 	s.renderPart(w, "services", "services-live", data)
+}
+
+// addBuiltIns adds MyLab's own parts on every server (?builtin=1): its
+// proxy, backup stores, the mylab service and agent, network links.
+func (s *Server) addBuiltIns(r *http.Request, data map[string]any) {
+	show := r.URL.Query().Get("builtin") == "1"
+	data["ShowBuiltIn"] = show
+	if show && s.Manager != nil && data["CanManage"] == true {
+		data["BuiltIns"] = s.Manager.AllBuiltIns(r.Context())
+	}
 }
 
 func (s *Server) servicePage(w http.ResponseWriter, r *http.Request) {

@@ -39,6 +39,10 @@ type Node interface {
 	// ServiceStates reports each of its services as running, starting,
 	// stopped, failed or unknown.
 	ServiceStates(ctx context.Context) (map[string]string, error)
+	// ServiceDetails and BuiltIns describe its services and MyLab's own
+	// parts on it (details.go).
+	ServiceDetails(ctx context.Context) (map[string]ServiceDetail, error)
+	BuiltIns(ctx context.Context) ([]BuiltIn, error)
 	InstallStatus(ctx context.Context, service string) HookStatus
 	RetryInstall(ctx context.Context, service string) error
 	RunAction(ctx context.Context, service, action string, inputs map[string]string) (string, error)
@@ -131,6 +135,12 @@ type Local struct {
 	// Launch runs commands as the mylab user outside MyLab's sandbox, for
 	// moving service data (move.go; optional).
 	Launch Launcher
+	// WireGuard reads the WireGuard interfaces, and Version is MyLab's, to
+	// describe this server (details.go; optional).
+	WireGuard WireGuardStatuser
+	Version   string
+
+	sizes sizes
 
 	// Hooks (hooks.go). State records install hook progress; without
 	// State and Exec, hooks don't run.

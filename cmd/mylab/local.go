@@ -35,6 +35,8 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		// Moving a service's data runs tar in podman unshare, outside the
 		// sandbox like backups.
 		Launch:     userLaunch,
+		WireGuard:  agentClient,
+		Version:    version,
 		Lab:        lab,
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets()},
 		Log:        log,

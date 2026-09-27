@@ -103,6 +103,8 @@ func (s *Server) Handler() http.Handler {
 		return nil, s.Take(wa)
 	})
 	handle("GET /v1/services", func(r *http.Request) (any, error) { return n.ServiceStates(ctx(r)) })
+	handle("GET /v1/services/details", func(r *http.Request) (any, error) { return n.ServiceDetails(ctx(r)) })
+	handle("GET /v1/builtins", func(r *http.Request) (any, error) { return n.BuiltIns(ctx(r)) })
 	handle("POST /v1/leave", func(r *http.Request) (any, error) {
 		if s.Leave == nil {
 			return nil, ErrNotFound

@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 
 	"github.com/mylab/mylab/internal/activity"
@@ -343,4 +344,81 @@ func (m *Manager) RenameMachine(ctx context.Context, id, name string) error {
 		return nil
 	}
 	return ErrNotFound
+}
+
+// ServiceInfo is everything the UI shows about a service: where it runs
+// and what its server reports about it.
+type ServiceInfo struct {
+	node.ServiceDetail
+	// Machine names the server it runs on; MachineID is its ID.
+	Machine, MachineID string
+	// LastBackup is when its server last finished a backup (zero: never,
+	// or backups aren't set up there).
+	LastBackup time.Time
+}
+
+// ServiceInfos describes every service, asking each server.
+func (m *Manager) ServiceInfos(ctx context.Context) map[string]ServiceInfo {
+	nodes := m.allNodes()
+	type result struct {
+		details map[string]node.ServiceDetail
+		backup  time.Time
+	}
+	results := make([]result, len(nodes))
+	var wg sync.WaitGroup
+	for i, n := range nodes {
+		wg.Go(func() {
+			d, err := n.ServiceDetails(ctx)
+			if err != nil {
+				m.Log.Warn("reading service details", "server", n.Identity().Name, "err", err)
+			}
+			results[i].details = d
+			if b := n.Backups(); b != nil {
+				if st, err := b.Status(ctx); err == nil && st.LastOK != nil {
+					results[i].backup = st.LastOK.Finished
+				}
+			}
+		})
+	}
+	wg.Wait()
+	out := map[string]ServiceInfo{}
+	for i, n := range nodes {
+		for name, d := range results[i].details {
+			out[name] = ServiceInfo{ServiceDetail: d, Machine: n.Identity().Name, MachineID: n.Identity().ID,
+				LastBackup: results[i].backup}
+		}
+	}
+	return out
+}
+
+// MachineBuiltIns is MyLab's own parts on one server.
+type MachineBuiltIns struct {
+	Machine string
+	Items   []node.BuiltIn
+	// Err is why the server couldn't say (e.g. unreachable).
+	Err error
+}
+
+// AllBuiltIns lists MyLab's own parts on every server.
+func (m *Manager) AllBuiltIns(ctx context.Context) []MachineBuiltIns {
+	nodes := m.allNodes()
+	out := make([]MachineBuiltIns, len(nodes))
+	var wg sync.WaitGroup
+	for i, n := range nodes {
+		wg.Go(func() {
+			items, err := n.BuiltIns(ctx)
+			out[i] = MachineBuiltIns{Machine: n.Identity().Name, Items: items, Err: err}
+		})
+	}
+	wg.Wait()
+	return out
+}
+
+// allNodes is this server, then the others.
+func (m *Manager) allNodes() []node.Node {
+	nodes := []node.Node{m.Node}
+	for _, r := range m.others() {
+		nodes = append(nodes, r)
+	}
+	return nodes
 }

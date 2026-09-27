@@ -37,6 +37,12 @@ func (f *fakeRemote) Status() node.ApplyStatus { return node.ApplyStatus{Finishe
 func (f *fakeRemote) ServiceStates(context.Context) (map[string]string, error) {
 	return map[string]string{"forgejo": "running"}, nil
 }
+func (f *fakeRemote) ServiceDetails(context.Context) (map[string]node.ServiceDetail, error) {
+	return map[string]node.ServiceDetail{"forgejo": {Status: "running", DataSize: -1}}, nil
+}
+func (f *fakeRemote) BuiltIns(context.Context) ([]node.BuiltIn, error) {
+	return []node.BuiltIn{{Name: "mylab", Kind: "network", Status: "up"}}, nil
+}
 func (f *fakeRemote) InstallStatus(context.Context, string) node.HookStatus { return node.HookStatus{} }
 func (f *fakeRemote) RetryInstall(context.Context, string) error            { return nil }
 func (f *fakeRemote) RunAction(context.Context, string, string, map[string]string) (string, error) {

@@ -136,3 +136,17 @@ func parseShow(out []byte) []UnitStatus {
 	flush()
 	return res
 }
+
+// SystemStatus returns the state of system units (e.g. mylab-agent), which
+// any user may read.
+func (m *Manager) SystemStatus(ctx context.Context, units ...string) ([]UnitStatus, error) {
+	if len(units) == 0 {
+		return nil, nil
+	}
+	args := append([]string{"show", "--property=Id,LoadState,ActiveState,SubState"}, units...)
+	out, err := m.Run(ctx, "systemctl", args...)
+	if err != nil {
+		return nil, err
+	}
+	return parseShow(out), nil
+}

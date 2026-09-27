@@ -867,3 +867,42 @@ func TestStorageForOthers(t *testing.T) {
 		t.Error("only Owners")
 	}
 }
+
+func TestServiceCardsAndBuiltIns(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", Machine: "nuc",
+			URLs: []string{"https://vault.lab.example.com"}, LastBackup: time.Now(),
+			ServiceDetail: node.ServiceDetail{Containers: []node.Container{{Name: "mylab-vaultwarden-app",
+				Image: "docker.io/vaultwarden/server:1.34.1", State: "active (running)"}},
+				Routes: []string{"vault.lab.example.com → 127.0.0.1:18000"}, DataDirs: []string{"/srv/mylab/services/vaultwarden"},
+				DataSize: 12 << 20}}}, nil
+	}
+	for _, path := range []string{"/", "/services"} {
+		_, body := h.get(path)
+		for _, want := range []string{"On nuc", "backed up today", "mylab-vaultwarden-app", "docker.io/vaultwarden/server:1.34.1",
+			"vault.lab.example.com → 127.0.0.1:18000", "/srv/mylab/services/vaultwarden", "12.0 MB"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s missing %q", path, want)
+			}
+		}
+	}
+	if _, body := h.get("/services"); strings.Contains(body, "MyLab&#39;s own services</h2>") {
+		t.Error("built-ins are hidden by default")
+	}
+	_, body := h.get("/services?builtin=1")
+	if !strings.Contains(body, "On nuc</h3>") || !strings.Contains(body, "Caddy") || !strings.Contains(body, `hx-get="/partials/services?builtin=1"`) {
+		t.Errorf("built-ins should show and stay shown:\n%s", body)
+	}
+}
+
+func (f *fakeManager) ServiceDetails(context.Context) (map[string]node.ServiceDetail, error) {
+	return nil, nil
+}
+func (f *fakeManager) AllBuiltIns(ctx context.Context) []manager.MachineBuiltIns {
+	items, _ := f.BuiltIns(ctx)
+	return []manager.MachineBuiltIns{{Machine: "nuc", Items: items}}
+}
+func (f *fakeManager) BuiltIns(context.Context) ([]node.BuiltIn, error) {
+	return []node.BuiltIn{{Name: "Caddy", Kind: "proxy", Status: "active (running)", Detail: "Web addresses"}}, nil
+}

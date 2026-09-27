@@ -286,16 +286,12 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 		return nil, err
 	}
 	// Each machine reports its own services (SPEC.md §10.3).
-	states := mgr.ServiceStates(ctx)
+	infos := mgr.ServiceInfos(ctx)
 	var views []web.ServiceView
 	for _, s := range all {
 		v := web.ServiceView{Name: s.Package.Name, Title: s.Package.Title, Status: "unknown"}
-		if st, ok := states[s.Package.Name]; ok {
-			v.Status = st.Status
-			// Named only when it's not this machine.
-			if s.Instance.Host != lab.NodeID {
-				v.Machine = st.Machine
-			}
+		if info, ok := infos[s.Package.Name]; ok {
+			v.ServiceDetail, v.Status, v.Machine, v.LastBackup = info.ServiceDetail, info.Status, info.Machine, info.LastBackup
 		}
 		out, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
