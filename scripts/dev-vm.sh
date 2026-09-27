@@ -175,7 +175,15 @@ up) start ;;
 ssh) shift; vm_ssh -t "$@" ;;
 sync) sync_repo ;;
 install) sync_repo; vm_ssh -t 'cd ~/mylab && sudo scripts/dev-install.sh' ;;
-ui) log "MyLab UI: http://127.0.0.1:18481 (Ctrl-C to stop)"; vm_ssh -N -L 127.0.0.1:18481:127.0.0.1:8480 ;;
+ui) log "MyLab UI: http://127.0.0.1:18481 (Ctrl-C to stop)"
+    # Reconnect when the VM restarts (e.g. after OS updates) or the
+    # connection drops; notice a dead connection within ~15s.
+    while true; do
+        vm_ssh -N -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes \
+            -L 127.0.0.1:18481:127.0.0.1:8480 || true
+        log "Tunnel closed; reconnecting…"
+        sleep 3
+    done ;;
 down) stop ;;
 destroy) stop; rm -rf "$DISK" "$VM_DIR/seed" "$VM_DIR/console.log"; log "Disk deleted" ;;
 status) if running; then echo "running (pid $(cat "$PIDFILE"))"; else echo "stopped"; fi ;;
