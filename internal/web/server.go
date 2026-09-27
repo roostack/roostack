@@ -58,8 +58,8 @@ type ServiceView struct {
 	Title  string
 	Status string // running, starting, stopped, failed, unknown
 	URLs   []string
-	// Machine is the name of the server it runs on.
-	Machine string
+	// Server is the name of the server it runs on.
+	Server string
 	// What its server reports: containers, ports, routes, data folders
 	// and size (nothing about a service should look like magic).
 	node.ServiceDetail
@@ -91,9 +91,9 @@ type Server struct {
 
 	// Manager installs and removes services. Nil disables those pages.
 	Manager ServiceManager
-	// Node is the machine running the services. Set with Manager.
+	// Node is the server running the services. Set with Manager.
 	Node ServiceNode
-	// Network adds machines to the lab (SPEC.md §10.2). Nil hides it.
+	// Network adds servers to the lab (SPEC.md §10.2). Nil hides it.
 	Network LabNetwork
 	// Domain is the lab's base domain, shown next to subdomain fields.
 	Domain string
@@ -111,7 +111,7 @@ type Server struct {
 	Version string
 	// Maintenance is the lab's restart policy, shown in Settings.
 	Maintenance config.Maintenance
-	// RunningJob names a maintenance job running on this machine, which a
+	// RunningJob names a maintenance job running on this server, which a
 	// restart waits for ("" if none; optional).
 	RunningJob func() string
 	// bootID changes each time MyLab starts; the "restarting" page waits
@@ -133,17 +133,17 @@ type ServiceManager interface {
 	CurrentSettings(name string) (map[string]any, string, error)
 	UpdateSettings(ctx context.Context, name string, req manager.SettingsRequest) error
 	Status() manager.ApplyStatus
-	Machines() ([]manager.Machine, error)
-	// NodeFor is the machine a service runs on; NodeByID a machine by ID.
+	Servers() ([]manager.Server, error)
+	// NodeFor is the server a service runs on; NodeByID a server by ID.
 	NodeFor(service string) node.Node
 	NodeByID(id string) node.Node
 	BackupChoices(ctx context.Context) ([]manager.BackupChoice, error)
-	BackupTargetOf(ctx context.Context, machineID string) (store.BackupTarget, string, bool)
-	SetBackupDestination(ctx context.Context, machineID, ref string) error
+	BackupTargetOf(ctx context.Context, serverID string) (store.BackupTarget, string, bool)
+	SetBackupDestination(ctx context.Context, serverID, ref string) error
 	AddS3Provider(ctx context.Context, name string, p manager.S3Provider) error
 	MoveInfo(ctx context.Context, name string) (manager.MoveInfo, error)
-	KeptData(ctx context.Context, machineID string) ([]node.KeptFolder, error)
-	RemoveKeptData(ctx context.Context, machineID, path string) error
+	KeptData(ctx context.Context, serverID string) ([]node.KeptFolder, error)
+	RemoveKeptData(ctx context.Context, serverID, path string) error
 	MoveService(ctx context.Context, name, to, way string) error
 	// Storage for other labs (SPEC.md §10.10).
 	OfferStorage(ctx context.Context) bool
@@ -156,12 +156,12 @@ type ServiceManager interface {
 	AddRemoteStorage(ctx context.Context, code string) error
 	RemoteStorages(ctx context.Context) []manager.RemoteStorage
 	RemoteUsage(ctx context.Context, r manager.RemoteStorage) (labnet.GuestUsage, error)
-	AllBuiltIns(ctx context.Context) []manager.MachineBuiltIns
-	RemoveMachine(ctx context.Context, id string) error
-	RenameMachine(ctx context.Context, id, name string) error
+	AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns
+	RemoveServer(ctx context.Context, id string) error
+	RenameServer(ctx context.Context, id, name string) error
 }
 
-// ServiceNode is what the UI needs from the machine running a service
+// ServiceNode is what the UI needs from the server running a service
 // (internal/node): its setup, actions and secrets.
 type ServiceNode interface {
 	Identity() nodeid.Identity
@@ -184,7 +184,7 @@ type LabNetwork interface {
 // LabSetup is what the UI needs from internal/setup.
 type LabSetup interface {
 	Progress(ctx context.Context) (setup.Progress, error)
-	// Done marks a machine settings step (setup.Step*) done.
+	// Done marks a server settings step (setup.Step*) done.
 	Done(ctx context.Context, step string) error
 	SaveDomain(ctx context.Context, domain, email, provider string, values map[string]string, opts setup.DomainOptions) error
 	DomainLater(ctx context.Context) error
@@ -202,7 +202,7 @@ type DNSStatus interface {
 	TakeOver(ctx context.Context) error
 }
 
-// The machine's maintenance jobs (internal/node). Each is nil when not
+// The server's maintenance jobs (internal/node). Each is nil when not
 // available, which hides its card or page.
 type (
 	BackupService  = node.Backups
@@ -210,32 +210,32 @@ type (
 	HostUpdates    = node.Updates
 )
 
-// The maintenance jobs and settings of the machine a request is about
-// (machineOf), or nil.
+// The maintenance jobs and settings of the server a request is about
+// (serverOf), or nil.
 
 func (s *Server) backups(r *http.Request) BackupService {
-	if n := s.machineOf(r); n != nil {
+	if n := s.serverOf(r); n != nil {
 		return n.Backups()
 	}
 	return nil
 }
 
 func (s *Server) restores(r *http.Request) RestoreService {
-	if n := s.machineOf(r); n != nil {
+	if n := s.serverOf(r); n != nil {
 		return n.Restores()
 	}
 	return nil
 }
 
-func (s *Server) machine(r *http.Request) node.Settings {
-	if n := s.machineOf(r); n != nil {
+func (s *Server) server(r *http.Request) node.Settings {
+	if n := s.serverOf(r); n != nil {
 		return n.Settings()
 	}
 	return nil
 }
 
 func (s *Server) updates(r *http.Request) HostUpdates {
-	if n := s.machineOf(r); n != nil {
+	if n := s.serverOf(r); n != nil {
 		return n.Updates()
 	}
 	return nil
@@ -297,13 +297,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /settings/remote-access", s.requireWizard(s.sshPage))
 	mux.Handle("GET /settings/domain", s.requireOwner(s.domainAreaPage))
 	mux.Handle("GET /settings/home-network", s.requireOwner(s.homeNetworkPage))
-	mux.Handle("GET /settings/servers", s.requireOwner(s.machinesPage))
-	mux.Handle("GET /settings/servers/{machine}", s.requireOwner(s.serverPage))
-	s.machineRoutes(mux)
-	mux.Handle("POST /settings/servers/{machine}/rename", s.requireOwner(s.renameMachineSubmit))
-	mux.Handle("POST /settings/servers/{machine}/remove", s.requireOwner(s.removeMachineSubmit))
-	mux.Handle("POST /settings/servers/{machine}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
-	mux.Handle("POST /settings/servers/{machine}/backup-destination", s.requireOwner(s.backupDestinationSubmit))
+	mux.Handle("GET /settings/servers", s.requireOwner(s.serversPage))
+	mux.Handle("GET /settings/servers/{server}", s.requireOwner(s.serverPage))
+	s.serverRoutes(mux)
+	mux.Handle("POST /settings/servers/{server}/rename", s.requireOwner(s.renameServerSubmit))
+	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))
+	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
+	mux.Handle("POST /settings/servers/{server}/backup-destination", s.requireOwner(s.backupDestinationSubmit))
 	mux.Handle("POST /settings/backup-providers", s.requireOwner(s.addProviderSubmit))
 	mux.Handle("GET /settings/storage", s.requireOwner(s.storagePage))
 	mux.Handle("POST /settings/storage/invite", s.requireOwner(s.inviteGuestSubmit))

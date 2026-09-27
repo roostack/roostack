@@ -133,7 +133,7 @@ func (s *Service) setPending(v bool) {
 // Status is what the dashboard shows about backups.
 type Status struct {
 	Configured bool
-	// LocalOnly: the only copy is on this machine (SPEC.md §6.9 warning).
+	// LocalOnly: the only copy is on this server (SPEC.md §6.9 warning).
 	LocalOnly bool
 	Running   bool
 	Queued    bool

@@ -19,18 +19,18 @@ import (
 // JoinCodeLifetime is how long a join code works.
 const JoinCodeLifetime = time.Hour
 
-// Keepalive keeps a machine's WireGuard connection (and any NAT mapping
+// Keepalive keeps a server's WireGuard connection (and any NAT mapping
 // on the way) open, so the controller can always reach it.
 const Keepalive = 25
 
-// HubStore is the controller's record of machines and join codes.
+// HubStore is the controller's record of servers and join codes.
 type HubStore interface {
 	AddJoinCode(ctx context.Context, c store.JoinCode) error
 	JoinCodes(ctx context.Context, now time.Time) ([]store.JoinCode, error)
-	Join(ctx context.Context, tokenHash string, m store.Machine, now time.Time) (store.Machine, error)
-	Machines(ctx context.Context) ([]store.Machine, error)
-	RemoveMachine(ctx context.Context, id string) error
-	RenameMachine(ctx context.Context, id, name string) error
+	Join(ctx context.Context, tokenHash string, m store.Server, now time.Time) (store.Server, error)
+	Servers(ctx context.Context) ([]store.Server, error)
+	RemoveServer(ctx context.Context, id string) error
+	RenameServer(ctx context.Context, id, name string) error
 }
 
 // WireGuardAgent is mylab-agent's WireGuard operation.
@@ -38,7 +38,7 @@ type WireGuardAgent interface {
 	ApplyWireGuard(ctx context.Context, wg agent.WireGuard) (string, error)
 }
 
-// Hub is the controller's side of MyLab's network: the other machines
+// Hub is the controller's side of MyLab's network: the other servers
 // dial it over WireGuard, and it lets them join.
 type Hub struct {
 	StateDir string
@@ -51,7 +51,7 @@ type Hub struct {
 	// Started is called once the network is first set up (MyLab restarts
 	// to pick up its new role, e.g. for the firewall). Optional.
 	Started func()
-	// SwitchDelay is how long after a join the machine's own key replaces
+	// SwitchDelay is how long after a join the server's own key replaces
 	// the one-time key (0: 2s).
 	SwitchDelay time.Duration
 
@@ -133,12 +133,12 @@ func (h *Hub) init(ctx context.Context) error {
 	return nil
 }
 
-// SyncPeers configures the hub's WireGuard interface: every machine, plus
+// SyncPeers configures the hub's WireGuard interface: every server, plus
 // the one-time keys of join codes still waiting.
 func (h *Hub) SyncPeers(ctx context.Context) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	machines, err := h.Store.Machines(ctx)
+	servers, err := h.Store.Servers(ctx)
 	if err != nil {
 		return err
 	}
@@ -147,7 +147,7 @@ func (h *Hub) SyncPeers(ctx context.Context) error {
 		return err
 	}
 	wg := agent.WireGuard{Address: fmt.Sprintf("%s/%d", ControllerAddr, DefaultPrefix.Bits()), ListenPort: agent.WireGuardPort}
-	for _, m := range machines {
+	for _, m := range servers {
 		wg.Peers = append(wg.Peers, agent.Peer{PublicKey: m.PublicKey, AllowedIPs: []string{m.Addr + "/32"}})
 	}
 	for _, c := range codes {
@@ -161,8 +161,8 @@ func (h *Hub) SyncPeers(ctx context.Context) error {
 	return nil
 }
 
-// NewJoinCode makes a code for a new machine, which dials the controller
-// at endpoint (host:port of this machine's WireGuard, as the new machine
+// NewJoinCode makes a code for a new server, which dials the controller
+// at endpoint (host:port of this server's WireGuard, as the new server
 // sees it). It sets up the network first if needed.
 func (h *Hub) NewJoinCode(ctx context.Context, endpoint string) (JoinCode, error) {
 	if err := h.init(ctx); err != nil {
@@ -194,21 +194,21 @@ func (h *Hub) NewJoinCode(ctx context.Context, endpoint string) (JoinCode, error
 	h.mu.Unlock()
 	c := JoinCode{Endpoint: endpoint, ControllerKey: ctrlKey, ControllerID: h.Self.ID, ControllerAddr: ControllerAddr,
 		Addr: addr, PrefixBits: DefaultPrefix.Bits(), JoinKey: key, CA: ca.Fingerprint(), Token: token}
-	// Check it the way the new machine will (e.g. the endpoint's format).
+	// Check it the way the new server will (e.g. the endpoint's format).
 	if _, err := ParseJoinCode(c.String()); err != nil {
 		return JoinCode{}, err
 	}
 	return c, nil
 }
 
-// freeAddr returns the lowest address no machine or code uses.
+// freeAddr returns the lowest address no server or code uses.
 func (h *Hub) freeAddr(ctx context.Context) (netip.Addr, error) {
 	used := map[netip.Addr]bool{ControllerAddr: true}
-	machines, err := h.Store.Machines(ctx)
+	servers, err := h.Store.Servers(ctx)
 	if err != nil {
 		return netip.Addr{}, err
 	}
-	for _, m := range machines {
+	for _, m := range servers {
 		a, _ := netip.ParseAddr(m.Addr)
 		used[a] = true
 	}
@@ -228,11 +228,11 @@ func (h *Hub) freeAddr(ctx context.Context) (netip.Addr, error) {
 	return netip.Addr{}, errors.New("MyLab's network is full")
 }
 
-// Join registers a machine that presented a join code, and signs its
+// Join registers a server that presented a join code, and signs its
 // certificate. Its own WireGuard key replaces the code's one-time key.
 func (h *Hub) Join(ctx context.Context, req JoinRequest) (JoinResponse, error) {
 	if !nodeid.ValidID(req.NodeID) || req.NodeID == h.Self.ID {
-		return JoinResponse{}, fmt.Errorf("invalid machine ID %q", req.NodeID)
+		return JoinResponse{}, fmt.Errorf("invalid server ID %q", req.NodeID)
 	}
 	if raw, err := base64.StdEncoding.DecodeString(req.PublicKey); err != nil || len(raw) != 32 {
 		return JoinResponse{}, errors.New("invalid WireGuard key")
@@ -241,7 +241,7 @@ func (h *Hub) Join(ctx context.Context, req JoinRequest) (JoinResponse, error) {
 	if name == "" || len(name) > 63 {
 		name = req.NodeID
 	}
-	m, err := h.Store.Join(ctx, HashToken(req.Token), store.Machine{ID: req.NodeID, Name: name, PublicKey: req.PublicKey}, h.Now())
+	m, err := h.Store.Join(ctx, HashToken(req.Token), store.Server{ID: req.NodeID, Name: name, PublicKey: req.PublicKey}, h.Now())
 	if err != nil {
 		return JoinResponse{}, err
 	}
@@ -255,15 +255,15 @@ func (h *Hub) Join(ctx context.Context, req JoinRequest) (JoinResponse, error) {
 		return JoinResponse{}, fmt.Errorf("signing the certificate: %w", err)
 	}
 	// The reply still travels over the one-time key, so switch to the
-	// machine's own key only after it has gone; the machine switches when
+	// server's own key only after it has gone; the server switches when
 	// it has the reply, and its handshakes succeed from then on.
 	go func() {
 		time.Sleep(h.switchDelay())
 		if err := h.SyncPeers(context.Background()); err != nil {
-			h.Log.Error("adding a machine to MyLab's network", "id", m.ID, "err", err)
+			h.Log.Error("adding a server to MyLab's network", "id", m.ID, "err", err)
 		}
 	}()
-	h.Log.Info("machine joined", "id", m.ID, "name", m.Name, "addr", m.Addr)
+	h.Log.Info("server joined", "id", m.ID, "name", m.Name, "addr", m.Addr)
 	return JoinResponse{Cert: cert, CA: CertPEM(ca.Cert)}, nil
 }
 
@@ -274,17 +274,17 @@ func (h *Hub) switchDelay() time.Duration {
 	return 2 * time.Second
 }
 
-// Remove forgets a machine and drops its WireGuard peer, so it can no
+// Remove forgets a server and drops its WireGuard peer, so it can no
 // longer reach the lab's network.
 func (h *Hub) Remove(ctx context.Context, id string) error {
-	if err := h.Store.RemoveMachine(ctx, id); err != nil {
+	if err := h.Store.RemoveServer(ctx, id); err != nil {
 		return err
 	}
-	h.Log.Info("machine removed", "id", id)
+	h.Log.Info("server removed", "id", id)
 	return h.SyncPeers(ctx)
 }
 
-// Rename changes a machine's name in the lab.
+// Rename changes a server's name in the lab.
 func (h *Hub) Rename(ctx context.Context, id, name string) error {
-	return h.Store.RenameMachine(ctx, id, name)
+	return h.Store.RenameServer(ctx, id, name)
 }

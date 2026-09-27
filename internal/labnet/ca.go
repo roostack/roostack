@@ -1,5 +1,5 @@
-// Package labnet is the network between a lab's machines (SPEC.md §10.2):
-// the controller's certificate authority, each machine's certificate,
+// Package labnet is the network between a lab's servers (SPEC.md §10.2):
+// the controller's certificate authority, each server's certificate,
 // join codes, and the mutual TLS every controller ↔ node request uses on
 // top of WireGuard.
 package labnet
@@ -59,7 +59,7 @@ func LoadOrCreateCA(dir, labName string) (*CA, error) {
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber:          serial(),
-		Subject:               pkix.Name{CommonName: "MyLab " + labName + " machines"},
+		Subject:               pkix.Name{CommonName: "MyLab " + labName + " servers"},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(caValidity),
 		IsCA:                  true,
@@ -93,7 +93,7 @@ func Fingerprint(c *x509.Certificate) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-// Issue signs a machine's certificate: its node ID as the name and its
+// Issue signs a server's certificate: its node ID as the name and its
 // overlay address, usable as both TLS server and client.
 func (ca *CA) Issue(csrDER []byte, nodeID string, addr netip.Addr) ([]byte, error) {
 	csr, err := x509.ParseCertificateRequest(csrDER)
@@ -120,20 +120,20 @@ func (ca *CA) Issue(csrDER []byte, nodeID string, addr netip.Addr) ([]byte, erro
 	return certPEM(der), nil
 }
 
-// Identity is this machine's key and certificate on the lab network, with
-// the CA that signed it. Every machine, the controller included, has one.
+// Identity is this server's key and certificate on the lab network, with
+// the CA that signed it. Every server, the controller included, has one.
 type Identity struct {
 	Dir string
 }
 
-// IdentityDir is where a machine keeps its network identity.
+// IdentityDir is where a server keeps its network identity.
 func IdentityDir(stateDir string) string { return filepath.Join(stateDir, "labnet") }
 
 func (id Identity) keyFile() string  { return filepath.Join(id.Dir, "node.key") }
 func (id Identity) certFile() string { return filepath.Join(id.Dir, "node.crt") }
 func (id Identity) caFile() string   { return filepath.Join(id.Dir, "ca.crt") }
 
-// CSR creates this machine's key (if needed) and a signing request.
+// CSR creates this server's key (if needed) and a signing request.
 func (id Identity) CSR(nodeID string) ([]byte, error) {
 	key, err := readKey(id.keyFile())
 	if errors.Is(err, os.ErrNotExist) {
@@ -159,7 +159,7 @@ func (id Identity) Save(certPEMBytes, caPEM []byte) error {
 	return os.WriteFile(id.caFile(), caPEM, 0o644)
 }
 
-// Exists reports whether the machine has a signed certificate.
+// Exists reports whether the server has a signed certificate.
 func (id Identity) Exists() bool {
 	_, err := os.Stat(id.certFile())
 	return err == nil

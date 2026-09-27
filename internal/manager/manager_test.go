@@ -77,7 +77,7 @@ func (f *fakeSecrets) Create(_ context.Context, name string, v []byte) error {
 	return nil
 }
 
-// local is the manager's machine, which does the work.
+// local is the manager's server, which does the work.
 func local(m *Manager) *node.Local { return m.Node.(*node.Local) }
 
 func newManager(t *testing.T) (*Manager, *fakeSecrets) {
@@ -317,7 +317,7 @@ func TestOnlyThisNodesServices(t *testing.T) {
 	m.Lab.NodeID = "n-0000000001"
 	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
 	ctx := context.Background()
-	// Vaultwarden is installed here; Immich is placed on another machine.
+	// Vaultwarden is installed here; Immich is placed on another server.
 	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {
 		t.Fatal(err)
 	}
@@ -333,25 +333,25 @@ func TestOnlyThisNodesServices(t *testing.T) {
 		t.Errorf("installed service's host = %q", in.Host)
 	}
 	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-vaultwarden-app.container")); err != nil {
-		t.Error("this machine's service should be applied:", err)
+		t.Error("this server's service should be applied:", err)
 	}
 	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-immich-server.container")); err == nil {
-		t.Error("a service placed on another machine must not be applied here")
+		t.Error("a service placed on another server must not be applied here")
 	}
-	// The controller gives every machine's routes ports, each machine from
-	// its own range: the other machine's first port is the same as ours.
+	// The controller gives every server's routes ports, each server from
+	// its own range: the other server's first port is the same as ours.
 	other, _ := instance.Load(state.InstanceFile(m.Lab, "immich"))
 	mine, _ := instance.Load(state.InstanceFile(m.Lab, "vaultwarden"))
 	if other.Routes["web"].Port == 0 || other.Routes["web"].Port != mine.Routes["web"].Port {
-		t.Errorf("ports: other machine %d, this one %d", other.Routes["web"].Port, mine.Routes["web"].Port)
+		t.Errorf("ports: other server %d, this one %d", other.Routes["web"].Port, mine.Routes["web"].Port)
 	}
-	machines, err := m.Machines()
-	if err != nil || len(machines) != 1 {
-		t.Fatal(machines, err)
+	servers, err := m.Servers()
+	if err != nil || len(servers) != 1 {
+		t.Fatal(servers, err)
 	}
-	if mc := machines[0]; mc.Name != "nuc" || !mc.Controller || !mc.This || !slices.Equal(mc.Services, []string{"vaultwarden"}) ||
+	if mc := servers[0]; mc.Name != "nuc" || !mc.Controller || !mc.This || !slices.Equal(mc.Services, []string{"vaultwarden"}) ||
 		!mc.Status.Finished {
-		t.Errorf("machine = %+v", mc)
+		t.Errorf("server = %+v", mc)
 	}
 }
 

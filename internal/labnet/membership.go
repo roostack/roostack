@@ -14,18 +14,18 @@ import (
 	"github.com/mylab/mylab/internal/nodeid"
 )
 
-// Network defaults. The controller is the hub other machines dial (SPEC.md
+// Network defaults. The controller is the hub other servers dial (SPEC.md
 // §10.2: hub and spoke).
 var (
 	DefaultPrefix  = netip.MustParsePrefix("100.96.0.0/24")
 	ControllerAddr = netip.MustParseAddr("100.96.0.1")
 )
 
-// Membership is this machine's place in a lab with a network. A machine
+// Membership is this server's place in a lab with a network. A server
 // without one is a lab of its own (the controller, with no network yet).
 type Membership struct {
 	Role string     `json:"role"` // config.RoleController or config.RoleNode
-	Addr netip.Addr `json:"addr"` // this machine on MyLab's network
+	Addr netip.Addr `json:"addr"` // this server on MyLab's network
 	// PrefixBits is the network's prefix length.
 	PrefixBits int `json:"prefix_bits"`
 	// ControllerID and ControllerAddr name the controller (for nodes).
@@ -33,12 +33,12 @@ type Membership struct {
 	ControllerAddr netip.Addr `json:"controller_addr,omitzero"`
 }
 
-// MembershipFile is where a machine keeps its membership.
+// MembershipFile is where a server keeps its membership.
 func MembershipFile(stateDir string) string {
 	return filepath.Join(IdentityDir(stateDir), "membership.json")
 }
 
-// LoadMembership reads the membership; ok is false if the machine has none.
+// LoadMembership reads the membership; ok is false if the server has none.
 func LoadMembership(stateDir string) (m Membership, ok bool, err error) {
 	data, err := os.ReadFile(MembershipFile(stateDir))
 	if errors.Is(err, os.ErrNotExist) {
@@ -85,7 +85,7 @@ func (m Membership) ControllerURL() string {
 	return fmt.Sprintf("https://%s:%d", m.ControllerAddr, Port)
 }
 
-// Leave takes this machine out of its lab: MyLab's WireGuard interface
+// Leave takes this server out of its lab: MyLab's WireGuard interface
 // goes, and so do its certificate, membership and saved assignment. It is
 // then a lab of its own again.
 func Leave(ctx context.Context, stateDir string, ag interface {

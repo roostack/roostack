@@ -3,7 +3,7 @@ package backup
 import "strings"
 
 // S3 is an S3-compatible provider (Backblaze B2, Wasabi, AWS, …) that any
-// of a lab's machines can back up to, each in its own folder (SPEC.md
+// of a lab's servers can back up to, each in its own folder (SPEC.md
 // §10.10).
 type S3 struct {
 	Endpoint  string `json:"endpoint"`
@@ -33,9 +33,9 @@ func (s S3) Problem() string {
 	return ""
 }
 
-// Repository is a machine's repository in the bucket.
-func (s S3) Repository(labID, machineID string) string {
-	return "s3:" + s.Endpoint + "/" + s.Bucket + "/" + MachineFolder(s.Prefix, labID, machineID)
+// Repository is a server's repository in the bucket.
+func (s S3) Repository(labID, serverID string) string {
+	return "s3:" + s.Endpoint + "/" + s.Bucket + "/" + ServerFolder(s.Prefix, labID, serverID)
 }
 
 // Env is the credentials restic needs.
@@ -43,8 +43,8 @@ func (s S3) Env() []string {
 	return []string{"AWS_ACCESS_KEY_ID=" + s.AccessKey, "AWS_SECRET_ACCESS_KEY=" + s.SecretKey}
 }
 
-// MachineFolder is where a machine's repository goes under a provider's
-// folder: every machine has its own, always (SPEC.md §10.10).
-func MachineFolder(base, labID, machineID string) string {
-	return strings.Trim(strings.Join([]string{strings.Trim(base, "/"), "mylab", labID, machineID}, "/"), "/")
+// ServerFolder is where a server's repository goes under a provider's
+// folder: every server has its own, always (SPEC.md §10.10).
+func ServerFolder(base, labID, serverID string) string {
+	return strings.Trim(strings.Join([]string{strings.Trim(base, "/"), "mylab", labID, serverID}, "/"), "/")
 }

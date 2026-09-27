@@ -19,15 +19,15 @@ import (
 	"github.com/mylab/mylab/internal/generate"
 )
 
-// Moving a service between machines by copying its data directly (SPEC.md
-// §10.10): the old machine sends each data folder as a tar stream, the new
+// Moving a service between servers by copying its data directly (SPEC.md
+// §10.10): the old server sends each data folder as a tar stream, the new
 // one unpacks it next to where it goes, and when the copy is complete it
 // takes its place. Files belong to container users, so both sides work
 // inside `podman unshare`.
 
-// Mover is what moving a service needs from a machine.
+// Mover is what moving a service needs from a server.
 type Mover interface {
-	// DataDirs are where a service keeps data on this machine.
+	// DataDirs are where a service keeps data on this server.
 	DataDirs(service string) []string
 	// ExportData writes dir (an index into DataDirs) as a tar stream: all
 	// of it, or only files changed since a time.
@@ -38,7 +38,7 @@ type Mover interface {
 	// the first strip path components (e.g. a backup's full paths).
 	ImportData(ctx context.Context, service string, dir int, r io.Reader, strip int) error
 	// PruneData removes from the staging folder what isn't in keep (files
-	// deleted on the old machine since the first copy).
+	// deleted on the old server since the first copy).
 	PruneData(ctx context.Context, service string, dir int, keep []string) error
 	// CommitData moves the staging folders into place; data already there
 	// is kept aside. It returns where.
@@ -248,7 +248,7 @@ func (n *Local) SetAsideData(ctx context.Context, service, note string) ([]strin
 	return aside, nil
 }
 
-// output is a service's generated units and secrets on this machine.
+// output is a service's generated units and secrets on this server.
 func (n *Local) output(service string) (*generate.Output, error) {
 	s, ok := n.service(service)
 	if !ok {
@@ -344,7 +344,7 @@ func (n *Local) LoadDumps(ctx context.Context, service string) error {
 type KeptFolder struct {
 	Path    string
 	Service string
-	// MovedAway: the old copy of a service that moved to another machine
+	// MovedAway: the old copy of a service that moved to another server
 	// (otherwise, data that was here before a service moved in).
 	MovedAway bool
 	Time      time.Time
@@ -355,7 +355,7 @@ type KeptFolder struct {
 // <service>.moved-<note>-<time>.
 var keptName = regexp.MustCompile(`^([a-z0-9-]+)\.(before-move-|moved-[a-z0-9-]*-)(\d{8}-\d{6})$`)
 
-// KeptData lists folders moves left on this machine, newest first.
+// KeptData lists folders moves left on this server, newest first.
 func (n *Local) KeptData(ctx context.Context) ([]KeptFolder, error) {
 	var kept []KeptFolder
 	for _, base := range []string{n.Lab.Paths.ServicesDir, n.Lab.Paths.MediaDir} {

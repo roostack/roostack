@@ -90,8 +90,8 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	if users, err := s.Store.ListUsers(r.Context()); err == nil {
 		set("people", fmt.Sprintf("%d %s can log in", len(users), map[bool]string{true: "person", false: "people"}[len(users) == 1]), "")
 	}
-	if s.machine(r) != nil {
-		if a, err := s.machine(r).SSHAccess(); err == nil {
+	if s.server(r) != nil {
+		if a, err := s.server(r).SSHAccess(); err == nil {
 			switch a.Choice {
 			case config.SSHFromLAN:
 				set("remote-access", "SSH from your home network only", "ok")
@@ -149,12 +149,12 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if s.Manager != nil {
-		if machines, err := s.Manager.Machines(); err == nil {
-			summary, level := fmt.Sprintf("%d servers", len(machines)), "ok"
-			if len(machines) == 1 {
-				summary = "1 server: " + machines[0].Name
+		if servers, err := s.Manager.Servers(); err == nil {
+			summary, level := fmt.Sprintf("%d servers", len(servers)), "ok"
+			if len(servers) == 1 {
+				summary = "1 server: " + servers[0].Name
 			}
-			for _, mc := range machines {
+			for _, mc := range servers {
 				if mc.Status.LastErr != nil {
 					summary, level = "A change on "+mc.Name+" didn't finish", "problem"
 				}
@@ -233,16 +233,16 @@ func (s *Server) homeNetworkPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "settings-network", withArea(data, "home-network"))
 }
 
-func (s *Server) machinesPage(w http.ResponseWriter, r *http.Request) {
-	s.renderMachines(w, r, nil)
+func (s *Server) serversPage(w http.ResponseWriter, r *http.Request) {
+	s.renderServers(w, r, nil)
 }
 
-// endpointKey remembers the address other machines reach this one at.
+// endpointKey remembers the address other servers reach this one at.
 const endpointKey = "network.endpoint"
 
-// renderMachines shows the Machines page; extra is added to its data
+// renderServers shows the Servers page; extra is added to its data
 // (e.g. a new join code).
-func (s *Server) renderMachines(w http.ResponseWriter, r *http.Request, extra map[string]any) {
+func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map[string]any) {
 	if s.Manager == nil {
 		http.NotFound(w, r)
 		return
@@ -252,22 +252,22 @@ func (s *Server) renderMachines(w http.ResponseWriter, r *http.Request, extra ma
 		s.serverError(w, err)
 		return
 	}
-	machines, err := s.Manager.Machines()
+	servers, err := s.Manager.Servers()
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	data["Machines"] = machines
+	data["Servers"] = servers
 	data["ApplyActivity"] = s.activityFor(r, activity.Apply)
-	// Folders moves left behind, per machine (asked of each at once).
-	kept := make([][]node.KeptFolder, len(machines))
+	// Folders moves left behind, per server (asked of each at once).
+	kept := make([][]node.KeptFolder, len(servers))
 	var wg sync.WaitGroup
-	for i, mc := range machines {
+	for i, mc := range servers {
 		wg.Go(func() { kept[i], _ = s.Manager.KeptData(r.Context(), mc.ID) })
 	}
 	wg.Wait()
 	keptBy := map[string][]node.KeptFolder{}
-	for i, mc := range machines {
+	for i, mc := range servers {
 		keptBy[mc.ID] = kept[i]
 	}
 	data["Kept"] = keptBy
@@ -292,7 +292,7 @@ func (s *Server) renderMachines(w http.ResponseWriter, r *http.Request, extra ma
 	s.render(w, "settings-servers", withArea(data, "servers"))
 }
 
-// joinCodeSubmit makes a join code for a new machine.
+// joinCodeSubmit makes a join code for a new server.
 func (s *Server) joinCodeSubmit(w http.ResponseWriter, r *http.Request) {
 	if s.Network == nil {
 		http.NotFound(w, r)
@@ -300,22 +300,22 @@ func (s *Server) joinCodeSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	endpoint := strings.TrimSpace(r.FormValue("endpoint"))
 	if host, port, err := net.SplitHostPort(endpoint); err != nil || host == "" || port == "" {
-		s.renderMachines(w, r, map[string]any{"Endpoint": endpoint,
+		s.renderServers(w, r, map[string]any{"Endpoint": endpoint,
 			"Error": "Enter the address and port other servers reach this one at, such as 192.168.1.20:51820."})
 		return
 	}
 	code, err := s.Network.NewJoinCode(r.Context(), endpoint)
 	if err != nil {
-		s.renderMachines(w, r, map[string]any{"Endpoint": endpoint, "Error": "MyLab couldn't make a join code: " + err.Error()})
+		s.renderServers(w, r, map[string]any{"Endpoint": endpoint, "Error": "MyLab couldn't make a join code: " + err.Error()})
 		return
 	}
 	s.Store.SetSetting(r.Context(), endpointKey, endpoint)
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "join code made for "+code.Addr.String())
-	s.renderMachines(w, r, map[string]any{"Endpoint": endpoint, "JoinCode": code.String(),
+	s.renderServers(w, r, map[string]any{"Endpoint": endpoint, "JoinCode": code.String(),
 		"JoinExpires": time.Now().Add(labnet.JoinCodeLifetime)})
 }
 
-// defaultEndpoint guesses this machine's address on the home network.
+// defaultEndpoint guesses this server's address on the home network.
 func defaultEndpoint() string {
 	addrs, _ := net.InterfaceAddrs()
 	for _, a := range addrs {
@@ -345,15 +345,15 @@ func (s *Server) renderUpdates(w http.ResponseWriter, r *http.Request, errMsg st
 	s.render(w, "settings-updates", withArea(data, "updates"))
 }
 
-func (s *Server) renameMachineSubmit(w http.ResponseWriter, r *http.Request) {
+func (s *Server) renameServerSubmit(w http.ResponseWriter, r *http.Request) {
 	if s.Manager == nil {
 		http.NotFound(w, r)
 		return
 	}
-	id, name := r.PathValue("machine"), r.FormValue("name")
-	err := s.Manager.RenameMachine(r.Context(), id, name)
+	id, name := r.PathValue("server"), r.FormValue("name")
+	err := s.Manager.RenameServer(r.Context(), id, name)
 	if msg, ok := userMessage(err); ok {
-		s.renderMachines(w, r, map[string]any{"Error": msg, "ErrorMachine": id})
+		s.renderServers(w, r, map[string]any{"Error": msg, "ErrorServer": id})
 		return
 	}
 	if errors.Is(err, manager.ErrNotFound) {
@@ -366,21 +366,21 @@ func (s *Server) renameMachineSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "renamed "+id+" to "+strings.TrimSpace(name))
 	if s.Node != nil && id == s.Node.Identity().ID {
-		redirect(w, r, "/restarting") // this machine reads its name at startup
+		redirect(w, r, "/restarting") // this server reads its name at startup
 		return
 	}
 	redirect(w, r, "/settings/servers")
 }
 
-func (s *Server) removeMachineSubmit(w http.ResponseWriter, r *http.Request) {
+func (s *Server) removeServerSubmit(w http.ResponseWriter, r *http.Request) {
 	if s.Manager == nil {
 		http.NotFound(w, r)
 		return
 	}
-	id := r.PathValue("machine")
-	err := s.Manager.RemoveMachine(r.Context(), id)
+	id := r.PathValue("server")
+	err := s.Manager.RemoveServer(r.Context(), id)
 	if msg, ok := userMessage(err); ok {
-		s.renderMachines(w, r, map[string]any{"Error": msg, "ErrorMachine": id})
+		s.renderServers(w, r, map[string]any{"Error": msg, "ErrorServer": id})
 		return
 	}
 	if errors.Is(err, manager.ErrNotFound) {
@@ -400,7 +400,7 @@ func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	id, path := r.PathValue("machine"), r.FormValue("path")
+	id, path := r.PathValue("server"), r.FormValue("path")
 	err := s.Manager.RemoveKeptData(r.Context(), id, path)
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
@@ -411,5 +411,5 @@ func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "deleted kept folder "+path+" on "+id)
-	redirect(w, r, "/settings/servers#machine-"+id)
+	redirect(w, r, "/settings/servers#server-"+id)
 }

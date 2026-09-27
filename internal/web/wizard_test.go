@@ -52,7 +52,7 @@ func (f *fakeSetup) Done(_ context.Context, step string) error {
 	return nil
 }
 
-// fakeSetup is also the machine's settings (node.Settings).
+// fakeSetup is also the server's settings (node.Settings).
 func (f *fakeSetup) Timezones() (string, []string, error) {
 	return f.zone, []string{"Australia/Melbourne", "Etc/UTC"}, nil
 }

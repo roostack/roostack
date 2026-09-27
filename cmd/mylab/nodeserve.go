@@ -23,7 +23,7 @@ const (
 	pullEvery = 15 * time.Minute
 )
 
-// serveNode runs a machine that another machine (the controller) manages
+// serveNode runs a server that another server (the controller) manages
 // (SPEC.md §10.3): it serves the lab API over MyLab's network, and no UI.
 func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent.Client, restart func(), log *slog.Logger) error {
 	m, _, err := labnet.LoadMembership(lab.Paths.StateDir)
@@ -83,7 +83,7 @@ func pullAssignments(ctx context.Context, lab config.Lab, m labnet.Membership, a
 	for {
 		wait := pullEvery
 		if err := pull(ctx, client, m, api); err != nil {
-			log.Warn("fetching this machine's assignment", "err", err)
+			log.Warn("fetching this server's assignment", "err", err)
 			wait = pullRetry
 		}
 		select {

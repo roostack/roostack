@@ -18,7 +18,7 @@ import (
 )
 
 const nodeUsage = `Usage:
-  mylab node join <code> [-name <name>]   join a lab (the code comes from its Settings → Machines)
+  mylab node join <code> [-name <name>]   join a lab (the code comes from its Settings → Servers)
 
 Run as root.
 `
@@ -30,7 +30,7 @@ func nodeCmd(args []string) error {
 	}
 	fs := flag.NewFlagSet("node join", flag.ExitOnError)
 	labPath := fs.String("lab", config.Default().Paths.LabFile(), "lab config file")
-	name := fs.String("name", "", "this machine's name in the lab (default: its hostname)")
+	name := fs.String("name", "", "this server's name in the lab (default: its hostname)")
 	code := args[1]
 	fs.Parse(args[2:])
 
@@ -69,7 +69,7 @@ func nodeCmd(args []string) error {
 	} else {
 		say("Restart MyLab to finish: sudo systemctl restart mylab")
 	}
-	say("Done: %s is now part of the lab. Manage it from the lab's Settings → Machines.", self.Name)
+	say("Done: %s is now part of the lab. Manage it from the lab's Settings → Servers.", self.Name)
 	return nil
 }
 

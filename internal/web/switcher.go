@@ -28,12 +28,12 @@ type areaSummary func(r *http.Request, n ServiceNode) (summary, level string)
 // each is summarised and where each server's page is.
 var perServerAreas = map[string]struct {
 	summary areaSummary
-	path    func(m machineView) string
+	path    func(m serverRef) string
 }{
-	"updates":       {summarizeUpdates, machineView.Updates},
-	"time-zone":     {summarizeTimezone, machineView.TimeZone},
-	"remote-access": {summarizeSSH, machineView.RemoteAccess},
-	"backups":       {summarizeBackups, machineView.Backups},
+	"updates":       {summarizeUpdates, serverRef.Updates},
+	"time-zone":     {summarizeTimezone, serverRef.TimeZone},
+	"remote-access": {summarizeSSH, serverRef.RemoteAccess},
+	"backups":       {summarizeBackups, serverRef.Backups},
 }
 
 func summarizeUpdates(r *http.Request, n ServiceNode) (string, string) {
@@ -113,16 +113,16 @@ func (s *Server) serverTabs(r *http.Request, area string) []serverTab {
 	if !ok || s.Manager == nil {
 		return nil
 	}
-	machines, err := s.Manager.Machines()
-	if err != nil || len(machines) < 2 {
+	servers, err := s.Manager.Servers()
+	if err != nil || len(servers) < 2 {
 		return nil
 	}
-	current := s.machineViewOf(r)
-	tabs := make([]serverTab, len(machines))
+	current := s.serverRefOf(r)
+	tabs := make([]serverTab, len(servers))
 	var wg sync.WaitGroup
-	for i, mc := range machines {
+	for i, mc := range servers {
 		wg.Go(func() {
-			m := machineView{ID: mc.ID, Name: mc.Name, This: mc.This}
+			m := serverRef{ID: mc.ID, Name: mc.Name, This: mc.This}
 			t := serverTab{Name: mc.Name, Href: a.path(m), Current: mc.ID == current.ID || (current.This && mc.This),
 				Summary: "Can't reach it right now", Level: "problem"}
 			if n := s.Manager.NodeByID(mc.ID); n != nil && (mc.This || n.Settings() != nil) {
@@ -163,12 +163,12 @@ type serverArea struct {
 
 // serverPage is one server: its card, and each of its own settings.
 func (s *Server) serverPage(w http.ResponseWriter, r *http.Request) {
-	n := s.machineOf(r)
+	n := s.serverOf(r)
 	if n == nil {
 		http.NotFound(w, r)
 		return
 	}
-	m := s.machineViewOf(r)
+	m := s.serverRefOf(r)
 	var areas []serverArea
 	for _, a := range settingsAreas {
 		pa, ok := perServerAreas[a.ID]
@@ -179,5 +179,5 @@ func (s *Server) serverPage(w http.ResponseWriter, r *http.Request) {
 		sa.Summary, sa.Level = pa.summary(r, n)
 		areas = append(areas, sa)
 	}
-	s.renderMachines(w, r, map[string]any{"Only": m.ID, "ServerAreas": areas})
+	s.renderServers(w, r, map[string]any{"Only": m.ID, "ServerAreas": areas})
 }

@@ -156,20 +156,20 @@ func newRepo(lab config.Lab, launch backupLaunch) (*backup.Repo, error) {
 
 // newBackupDeps wires a backup job to this lab. Used by the CLI and by
 // mylab serve's nightly backups.
-// machineServices returns this machine's services and the lab config to
+// serverServices returns this server's services and the lab config to
 // generate them with.
-type machineServices func() (config.Lab, []state.Service, error)
+type serverServices func() (config.Lab, []state.Service, error)
 
-// diskServices reads the services placed on this machine from the
+// diskServices reads the services placed on this server from the
 // instance files (on the controller, which keeps them).
-func diskServices(lab config.Lab) machineServices {
+func diskServices(lab config.Lab) serverServices {
 	return func() (config.Lab, []state.Service, error) {
 		all, err := state.LoadServices(lab)
 		return lab, state.OnNode(all, lab.NodeID), err
 	}
 }
 
-func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch backupLaunch, services machineServices) (*backup.JobDeps, error) {
+func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch backupLaunch, services serverServices) (*backup.JobDeps, error) {
 	mylabBin, err := os.Executable()
 	if err != nil {
 		return nil, err

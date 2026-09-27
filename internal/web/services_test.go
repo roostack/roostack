@@ -47,8 +47,8 @@ type fakeManager struct {
 	updated []manager.SettingsRequest
 
 	acts        *activity.Registry
-	machines    []manager.Machine
-	machineOps  []string
+	servers     []manager.Server
+	serverOps   []string
 	destination string
 	providers   []string
 	moves       []string
@@ -62,7 +62,7 @@ type fakeManager struct {
 
 func (f *fakeManager) Settings() node.Settings { return f.settings }
 
-// The fake is also the lab's one machine.
+// The fake is also the lab's one server.
 func (f *fakeManager) Identity() nodeid.Identity {
 	return nodeid.Identity{ID: "n-0123456789", Name: "nuc"}
 }
@@ -121,14 +121,14 @@ func (f *fakeManager) KeptData(_ context.Context, id string) ([]node.KeptFolder,
 		MovedAway: true, Time: time.Now(), Size: 70 << 20}}, nil
 }
 func (f *fakeManager) RemoveKeptData(_ context.Context, id, path string) error {
-	f.machineOps = append(f.machineOps, "delete "+path+" on "+id)
+	f.serverOps = append(f.serverOps, "delete "+path+" on "+id)
 	return nil
 }
 func (f *fakeManager) MoveInfo(_ context.Context, name string) (manager.MoveInfo, error) {
 	if name != "vaultwarden" {
 		return manager.MoveInfo{}, manager.ErrNotFound
 	}
-	return manager.MoveInfo{From: manager.Machine{ID: "n-0123456789", Name: "nuc", This: true}, Size: 5 << 20,
+	return manager.MoveInfo{From: manager.Server{ID: "n-0123456789", Name: "nuc", This: true}, Size: 5 << 20,
 		Suggested: manager.MoveCopy}, nil
 }
 func (f *fakeManager) MoveService(_ context.Context, name, to, way string) error {
@@ -139,13 +139,13 @@ func (f *fakeManager) MoveService(_ context.Context, name, to, way string) error
 	return nil
 }
 func (f *fakeManager) BackupChoices(context.Context) ([]manager.BackupChoice, error) {
-	return []manager.BackupChoice{{Ref: "machine:n-0123456789", Title: "nuc's disk"}, {Ref: "provider:1", Title: "Backblaze"}}, nil
+	return []manager.BackupChoice{{Ref: "server:n-0123456789", Title: "nuc's disk"}, {Ref: "provider:1", Title: "Backblaze"}}, nil
 }
 func (f *fakeManager) BackupTargetOf(_ context.Context, id string) (store.BackupTarget, string, bool) {
 	if f.destination == "" {
 		return store.BackupTarget{}, "", false
 	}
-	return store.BackupTarget{MachineID: id, Provider: f.destination, Repository: "rest:http://100.96.0.1:8000/x"}, "nuc's disk", true
+	return store.BackupTarget{ServerID: id, Provider: f.destination, Repository: "rest:http://100.96.0.1:8000/x"}, "nuc's disk", true
 }
 func (f *fakeManager) SetBackupDestination(_ context.Context, id, ref string) error {
 	if ref == "" {
@@ -161,28 +161,28 @@ func (f *fakeManager) AddS3Provider(_ context.Context, name string, p manager.S3
 	f.providers = append(f.providers, name)
 	return nil
 }
-func (f *fakeManager) RemoveMachine(_ context.Context, id string) error {
+func (f *fakeManager) RemoveServer(_ context.Context, id string) error {
 	if id == "n-9876543210" {
 		return &manager.FormError{Msg: "vps still runs Forgejo. Remove it first, or move it to another server."}
 	}
-	f.machineOps = append(f.machineOps, "remove "+id)
+	f.serverOps = append(f.serverOps, "remove "+id)
 	return nil
 }
-func (f *fakeManager) RenameMachine(_ context.Context, id, name string) error {
-	f.machineOps = append(f.machineOps, "rename "+id+" "+name)
+func (f *fakeManager) RenameServer(_ context.Context, id, name string) error {
+	f.serverOps = append(f.serverOps, "rename "+id+" "+name)
 	return nil
 }
 func (f *fakeManager) NodeByID(id string) node.Node {
-	ms, _ := f.Machines()
+	ms, _ := f.Servers()
 	for _, m := range ms {
 		if m.ID == id {
-			return f // one fake plays every machine
+			return f // one fake plays every server
 		}
 	}
 	return nil
 }
 
-// setSetup sets the wizard; a fakeSetup is also the machine's settings.
+// setSetup sets the wizard; a fakeSetup is also the server's settings.
 func (h *harness) setSetup(ls LabSetup) {
 	h.server.Setup = ls
 	if fs, ok := ls.(*fakeSetup); ok {
@@ -194,17 +194,17 @@ func (f *fakeManager) Backups() node.Backups   { return f.backups }
 func (f *fakeManager) Restores() node.Restores { return f.restores }
 func (f *fakeManager) Updates() node.Updates   { return f.updates }
 
-// node is the fake machine.
+// node is the fake server.
 func (h *harness) node() *fakeManager { return h.server.Node.(*fakeManager) }
 
 func (f *fakeManager) LatestActivity(kind string) (activity.Snapshot, bool) {
 	return f.acts.Latest(kind)
 }
-func (f *fakeManager) Machines() ([]manager.Machine, error) {
-	if f.machines != nil {
-		return f.machines, nil
+func (f *fakeManager) Servers() ([]manager.Server, error) {
+	if f.servers != nil {
+		return f.servers, nil
 	}
-	return []manager.Machine{{ID: "n-0123456789", Name: "nuc", Controller: true, This: true,
+	return []manager.Server{{ID: "n-0123456789", Name: "nuc", Controller: true, This: true,
 		Services: []string{"vaultwarden"}, Status: f.status}}, nil
 }
 
@@ -677,7 +677,7 @@ func TestAccent(t *testing.T) {
 	}
 }
 
-func TestMachines(t *testing.T) {
+func TestServers(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fm.status = manager.ApplyStatus{Finished: true, LastRun: time.Now()}
 	_, body := h.get("/settings/servers")
@@ -690,8 +690,8 @@ func TestMachines(t *testing.T) {
 		t.Error("settings overview should summarise the servers")
 	}
 
-	// With several machines, problems say which one.
-	fm.machines = []manager.Machine{
+	// With several servers, problems say which one.
+	fm.servers = []manager.Server{
 		{ID: "n-0123456789", Name: "nuc", Controller: true, This: true, Status: manager.ApplyStatus{Finished: true}},
 		{ID: "n-9876543210", Name: "vps", Status: manager.ApplyStatus{Finished: true, LastErr: errors.New("image pull failed")}},
 	}
@@ -713,7 +713,7 @@ func TestMachines(t *testing.T) {
 		t.Error("only Owners see servers")
 	}
 
-	// Other machines' backups and updates show up too, named.
+	// Other servers' backups and updates show up too, named.
 	fm.backups = &fakeBackups{status: backup.Status{Configured: true, Progress: -1,
 		Last: &store.BackupRun{OK: false, Error: "repository locked"}}}
 	fm.settings = &fakeSetup{ssh: "lan"}
@@ -728,26 +728,26 @@ func TestMachines(t *testing.T) {
 		t.Errorf("removing a server with services: %d", code)
 	}
 	h.post("/settings/servers/n-9876543210/rename", url.Values{"name": {"cloud"}}, h.srv.URL)
-	if len(fm.machineOps) != 1 || fm.machineOps[0] != "rename n-9876543210 cloud" {
-		t.Errorf("ops = %v", fm.machineOps)
+	if len(fm.serverOps) != 1 || fm.serverOps[0] != "rename n-9876543210 cloud" {
+		t.Errorf("ops = %v", fm.serverOps)
 	}
 	if _, body := h.post("/settings/servers/n-0123456789/rename", url.Values{"name": {"nuc2"}}, h.srv.URL); !strings.Contains(body, "Applying your settings") {
 		t.Error("renaming this server restarts MyLab")
 	}
 
 	// Kept copies moves left behind, and deleting one.
-	fm.machineOps = nil
+	fm.serverOps = nil
 	_, body = h.get("/settings/servers")
 	if !strings.Contains(body, "forgejo.moved-to-nuc-20260928-002806") || !strings.Contains(body, "70.0 MB") ||
 		!strings.Contains(body, "forgejo before it moved away") {
 		t.Errorf("servers page should list kept copies:\n%s", body)
 	}
 	h.post("/settings/servers/n-9876543210/kept/remove", url.Values{"path": {"/srv/mylab/services/forgejo.moved-to-nuc-20260928-002806"}}, h.srv.URL)
-	if len(fm.machineOps) != 1 || fm.machineOps[0] != "delete /srv/mylab/services/forgejo.moved-to-nuc-20260928-002806 on n-9876543210" {
-		t.Errorf("ops = %v", fm.machineOps)
+	if len(fm.serverOps) != 1 || fm.serverOps[0] != "delete /srv/mylab/services/forgejo.moved-to-nuc-20260928-002806 on n-9876543210" {
+		t.Errorf("ops = %v", fm.serverOps)
 	}
 
-	// A machine's own pages; an unknown machine is not found.
+	// A server's own pages; an unknown server is not found.
 	fm.updates = &fakeUpdates{}
 	if code, body := h.get("/settings/servers/n-0123456789/updates"); code != http.StatusOK || !strings.Contains(body, "Updates and restarts") {
 		t.Errorf("server updates page: %d", code)
@@ -760,7 +760,7 @@ func TestMachines(t *testing.T) {
 func TestBackupDestinations(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	_, body := h.get("/settings/servers/n-0123456789/backups")
-	for _, want := range []string{"Choose where backups go", `value="machine:n-0123456789"`, "Backblaze", "Add a cloud storage provider"} {
+	for _, want := range []string{"Choose where backups go", `value="server:n-0123456789"`, "Backblaze", "Add a cloud storage provider"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("backups page missing %q", want)
 		}
@@ -769,8 +769,8 @@ func TestBackupDestinations(t *testing.T) {
 		!strings.Contains(body, "Choose where backups go.") {
 		t.Errorf("no choice: %d", code)
 	}
-	h.post("/settings/servers/n-0123456789/backup-destination", url.Values{"destination": {"machine:n-0123456789"}}, h.srv.URL)
-	if fm.destination != "machine:n-0123456789" {
+	h.post("/settings/servers/n-0123456789/backup-destination", url.Values{"destination": {"server:n-0123456789"}}, h.srv.URL)
+	if fm.destination != "server:n-0123456789" {
 		t.Errorf("destination = %q", fm.destination)
 	}
 	if _, body := h.get("/settings/servers/n-0123456789/backups"); !strings.Contains(body, "nuc&#39;s disk") ||
@@ -794,7 +794,7 @@ func TestBackupDestinations(t *testing.T) {
 
 func TestMovePage(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
-	fm.machines = []manager.Machine{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true},
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true},
 		{ID: "n-9876543210", Name: "vps"}}
 	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, `href="/services/vaultwarden/move"`) {
 		t.Error("service page should offer moving when there are several servers")
@@ -873,7 +873,7 @@ func TestStorageForOthers(t *testing.T) {
 func TestServiceCardsAndBuiltIns(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	h.server.Services = func(context.Context) ([]ServiceView, error) {
-		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", Machine: "nuc",
+		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", Server: "nuc",
 			URLs: []string{"https://vault.lab.example.com"}, LastBackup: time.Now(),
 			ServiceDetail: node.ServiceDetail{Containers: []node.Container{{Name: "mylab-vaultwarden-app",
 				Image: "docker.io/vaultwarden/server:1.34.1", State: "active (running)"}},
@@ -901,9 +901,9 @@ func TestServiceCardsAndBuiltIns(t *testing.T) {
 func (f *fakeManager) ServiceDetails(context.Context) (map[string]node.ServiceDetail, error) {
 	return nil, nil
 }
-func (f *fakeManager) AllBuiltIns(ctx context.Context) []manager.MachineBuiltIns {
+func (f *fakeManager) AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns {
 	items, _ := f.BuiltIns(ctx)
-	return []manager.MachineBuiltIns{{Machine: "nuc", Items: items}}
+	return []manager.ServerBuiltIns{{Server: "nuc", Items: items}}
 }
 func (f *fakeManager) BuiltIns(context.Context) ([]node.BuiltIn, error) {
 	return []node.BuiltIn{{Name: "Caddy", Kind: "proxy", Status: "active (running)", Detail: "Web addresses"}}, nil
@@ -917,7 +917,7 @@ func TestPerServerSettings(t *testing.T) {
 	if _, body := h.get("/settings/updates"); strings.Contains(body, "server-switcher") {
 		t.Error("a single server needs no switcher")
 	}
-	fm.machines = []manager.Machine{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true, Status: manager.ApplyStatus{Finished: true}},
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true, Status: manager.ApplyStatus{Finished: true}},
 		{ID: "n-9876543210", Name: "vps", Status: manager.ApplyStatus{Finished: true}}}
 	_, body := h.get("/settings/updates")
 	for _, want := range []string{"server-switcher", `href="/settings/updates" aria-current="page"`,
@@ -937,7 +937,7 @@ func TestPerServerSettings(t *testing.T) {
 	// A server's own page.
 	_, body = h.get("/settings/servers/n-9876543210")
 	if !strings.Contains(body, "<h2>vps") || strings.Contains(body, "<h2>nuc") || !strings.Contains(body, "Its settings") ||
-		strings.Contains(body, "Add a machine") && strings.Contains(body, "Make a join code") {
+		strings.Contains(body, "Add a server") && strings.Contains(body, "Make a join code") {
 		t.Errorf("server page:\n%s", body)
 	}
 	if code, _ := h.get("/settings/servers/n-1111111111"); code != http.StatusNotFound {

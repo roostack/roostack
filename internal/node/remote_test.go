@@ -94,7 +94,7 @@ func (f *fakeSettings) SetBackupDestination(context.Context, BackupDestination) 
 }
 
 // lab returns a controller identity, a node identity and a catalog.
-func machines(t *testing.T) (ctrl, node labnet.Identity, lab config.Lab) {
+func servers(t *testing.T) (ctrl, node labnet.Identity, lab config.Lab) {
 	t.Helper()
 	ca, err := labnet.LoadOrCreateCA(t.TempDir(), "home")
 	if err != nil {
@@ -120,7 +120,7 @@ func machines(t *testing.T) (ctrl, node labnet.Identity, lab config.Lab) {
 }
 
 func TestRemote(t *testing.T) {
-	ctrl, nodeID, lab := machines(t)
+	ctrl, nodeID, lab := servers(t)
 	fn := &fakeNode{applied: make(chan Assignment, 1), settings: &fakeSettings{zone: "Etc/UTC"}}
 	saved := make(chan WireAssignment, 1)
 	api := &Server{Node: fn, ControllerID: "n-0000000001", Saved: func(w WireAssignment) { saved <- w }}
@@ -232,7 +232,7 @@ func TestRemote(t *testing.T) {
 	if err == nil {
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusForbidden {
-			t.Errorf("another machine calling: %d", resp.StatusCode)
+			t.Errorf("another server calling: %d", resp.StatusCode)
 		}
 	}
 }

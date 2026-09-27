@@ -19,7 +19,7 @@ import (
 	"github.com/mylab/mylab/internal/nodeid"
 )
 
-// Serve runs the lab API on this machine's address on MyLab's network
+// Serve runs the lab API on this server's address on MyLab's network
 // until ctx ends. The address appears once WireGuard is up (on a new
 // controller, when the first join code is made), so it keeps trying.
 func Serve(ctx context.Context, stateDir string, handler http.Handler, log *slog.Logger) {
@@ -55,10 +55,10 @@ func Serve(ctx context.Context, stateDir string, handler http.Handler, log *slog
 	}
 }
 
-// Caller is the verified machine making a lab API request, or "".
+// Caller is the verified server making a lab API request, or "".
 func Caller(r *http.Request) string { return PeerNode(r.TLS) }
 
-// JoinHandler serves POST /v1/join: a machine presenting a join code.
+// JoinHandler serves POST /v1/join: a server presenting a join code.
 func (h *Hub) JoinHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req JoinRequest
@@ -76,9 +76,9 @@ func (h *Hub) JoinHandler() http.HandlerFunc {
 	}
 }
 
-// JoinLab joins this machine to a lab with a code (`mylab node join`):
+// JoinLab joins this server to a lab with a code (`mylab node join`):
 // WireGuard comes up with the code's one-time key, the controller signs
-// this machine's certificate and learns its own key, then WireGuard
+// this server's certificate and learns its own key, then WireGuard
 // switches to that key.
 func JoinLab(ctx context.Context, code JoinCode, self nodeid.Identity, stateDir string, ag WireGuardAgent, log func(string, ...any)) error {
 	if m, ok, _ := LoadMembership(stateDir); ok {
@@ -140,7 +140,7 @@ func JoinLab(ctx context.Context, code JoinCode, self nodeid.Identity, stateDir 
 		ControllerID: code.ControllerID, ControllerAddr: code.ControllerAddr}.Save(stateDir)
 }
 
-// RemoteError is an error reported by the other machine.
+// RemoteError is an error reported by the other server.
 type RemoteError struct {
 	Status int
 	Msg    string

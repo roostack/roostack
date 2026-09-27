@@ -81,14 +81,14 @@ func (p Progress) Next() string {
 	return ""
 }
 
-// Wizard steps whose settings belong to the machine (node.Settings): the
+// Wizard steps whose settings belong to the server (node.Settings): the
 // UI saves them there, then marks the step done.
 const (
 	StepTimezone = "timezone"
 	StepSSH      = "ssh"
 )
 
-// Done marks a machine settings step of the wizard as done.
+// Done marks a server settings step of the wizard as done.
 func (s *Setup) Done(ctx context.Context, step string) error {
 	key, ok := map[string]string{StepTimezone: keyTimezone, StepSSH: keySSH}[step]
 	if !ok {
@@ -220,23 +220,23 @@ type BackupChoice struct {
 	Endpoint, Bucket, Prefix, AccessKey, SecretKey string
 }
 
-// destination checks the choice and returns the machine's repository in
+// destination checks the choice and returns the server's repository in
 // it (its own folder, SPEC.md §10.10), the credentials, and for S3 the
-// provider to record so other machines can use it too.
-func (c BackupChoice) destination(labID, machineID string) (repo string, env []string, provider *backup.S3, err error) {
+// provider to record so other servers can use it too.
+func (c BackupChoice) destination(labID, serverID string) (repo string, env []string, provider *backup.S3, err error) {
 	switch c.Kind {
 	case "local":
 		p := filepath.Clean(strings.TrimSpace(c.Path))
 		if !filepath.IsAbs(p) {
 			return "", nil, nil, &CheckError{"Enter a full folder path, starting with /."}
 		}
-		return filepath.Join(p, backup.MachineFolder("", labID, machineID)), nil, nil, nil
+		return filepath.Join(p, backup.ServerFolder("", labID, serverID)), nil, nil, nil
 	case "s3":
 		s3 := backup.S3{Endpoint: c.Endpoint, Bucket: c.Bucket, Prefix: c.Prefix, AccessKey: c.AccessKey, SecretKey: c.SecretKey}.Clean()
 		if msg := s3.Problem(); msg != "" {
 			return "", nil, nil, &CheckError{msg}
 		}
-		return s3.Repository(labID, machineID), s3.Env(), &s3, nil
+		return s3.Repository(labID, serverID), s3.Env(), &s3, nil
 	}
 	return "", nil, nil, &CheckError{"Choose where to keep backups."}
 }
@@ -272,9 +272,9 @@ func (s *Setup) SaveBackup(ctx context.Context, c BackupChoice) error {
 		return &CheckError{fmt.Sprintf("Couldn't create the backup there: %s", firstLine(err.Error()))}
 	}
 
-	// Recorded like any machine's destination; an S3 account becomes a
-	// provider the lab's other machines can use too.
-	target := store.BackupTarget{MachineID: s.Lab.NodeID, Provider: "local:" + repoURL, Repository: repoURL, Created: time.Now()}
+	// Recorded like any server's destination; an S3 account becomes a
+	// provider the lab's other servers can use too.
+	target := store.BackupTarget{ServerID: s.Lab.NodeID, Provider: "local:" + repoURL, Repository: repoURL, Created: time.Now()}
 	if provider != nil {
 		cfg, _ := json.Marshal(provider)
 		id, err := s.Store.AddBackupProvider(ctx, store.BackupProvider{Kind: "s3", Name: providerName(*provider), Config: string(cfg)})

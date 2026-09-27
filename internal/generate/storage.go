@@ -8,15 +8,15 @@ import (
 	"github.com/mylab/mylab/internal/quadlet"
 )
 
-// A machine can offer its disk for backups over MyLab's network (SPEC.md
+// A server can offer its disk for backups over MyLab's network (SPEC.md
 // §10.10) with restic's rest-server, in two containers sharing one folder:
-//   - the store, append-only: machines back up to it, each only to its own
-//     repositories (--private-repos), so a compromised machine can add
+//   - the store, append-only: servers back up to it, each only to its own
+//     repositories (--private-repos), so a compromised server can add
 //     backups but not delete old ones;
 //   - the admin one, only for the controller, which can also delete (to
 //     prune old backups).
 
-// Storage ports on the machine's address on MyLab's network.
+// Storage ports on the server's address on MyLab's network.
 const (
 	StoragePort      = 8000
 	StorageAdminPort = 8001
@@ -37,7 +37,7 @@ const (
 	AdminPasswords = ".htpasswd-admin"
 )
 
-// Storage generates the rest-server units for a machine at addr (its
+// Storage generates the rest-server units for a server at addr (its
 // address on MyLab's network).
 func Storage(lab config.Lab, addr string) ([]File, []string, error) {
 	var files []File
@@ -74,7 +74,7 @@ func Storage(lab config.Lab, addr string) ([]File, []string, error) {
 	return files, []string{StorageUnit + ".service", StorageAdminUnit + ".service"}, nil
 }
 
-// GuestStorage is one other lab's space on this machine (SPEC.md §10.10):
+// GuestStorage is one other lab's space on this server (SPEC.md §10.10):
 // its own folder, size limit and ports on the guests' WireGuard link.
 type GuestStorage struct {
 	User  string `json:"user"` // rest-server user, e.g. g3

@@ -149,6 +149,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Certificate renewal; nodes behind a hub that isn't the controller
   - [x] A machine without an SSH choice (firewall off) is flagged in "needs attention"
 - [x] UI for several servers: "server" in the UI (code and SPEC keep "machine"); confirmations are HTML dialogs; service cards show their server and last backup, with details (containers and images, web routes, ports, data folders and size); MyLab's own services (MyLab, Caddy, backup stores, network links) per server behind a toggle; Settings groups what differs per server under "Each server" with a summary per server and a switcher; each server has its own page (`/settings/servers/<id>`); Home shows My Servers beside My Services
+- [x] "Server" in the code and SPEC too (was "machine"); a migration renames the `machines` table, the `machine_id` columns and `machine:` backup references
 - [x] A settings change that restarts MyLab waits for the running maintenance job and starts no new ones (`Coordinator.Hold`); the agent also lets an update finish if MyLab goes away
 - [ ] Controller move (planned hand-over) and promotion from a node's replica
 - [ ] Edge: public service at home routed through a cloud node (TLS passthrough over WireGuard, PROXY protocol)

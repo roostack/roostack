@@ -1,4 +1,4 @@
-// Package nodeid is this machine's identity in a lab (SPEC.md §10): a
+// Package nodeid is this server's identity in a lab (SPEC.md §10): a
 // stable node ID and a name. It has no dependencies so any package can
 // check node IDs.
 package nodeid
@@ -14,7 +14,7 @@ import (
 	"regexp"
 )
 
-// Identity names this machine. It's local to the machine: it must never
+// Identity names this server. It's local to the server: it must never
 // be part of the state replica other nodes receive (SPEC.md §10.1).
 type Identity struct {
 	// ID is stable for the life of the install, e.g. "n-3f9c2a7b1d".
@@ -31,7 +31,7 @@ var idRe = regexp.MustCompile(`^n-[0-9a-f]{10}$`)
 // ValidID reports whether id looks like a node ID.
 func ValidID(id string) bool { return idRe.MatchString(id) }
 
-// LoadOrCreate reads this machine's identity, creating it on first use.
+// LoadOrCreate reads this server's identity, creating it on first use.
 func LoadOrCreate(stateDir string) (Identity, error) {
 	path := File(stateDir)
 	data, err := os.ReadFile(path)
@@ -57,7 +57,7 @@ func LoadOrCreate(stateDir string) (Identity, error) {
 	return id, id.Save(stateDir)
 }
 
-// Save writes the identity (e.g. after renaming the machine).
+// Save writes the identity (e.g. after renaming the server).
 func (id Identity) Save(stateDir string) error {
 	path := File(stateDir)
 	data, _ := json.MarshalIndent(id, "", "  ")

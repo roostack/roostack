@@ -123,12 +123,12 @@ func (s *Server) settingsSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) revealSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.machineOf(r) == nil {
+	if s.serverOf(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
 	name, key := r.PathValue("name"), r.PathValue("key")
-	v, err := s.machineOf(r).RevealSecret(r.Context(), name, key)
+	v, err := s.serverOf(r).RevealSecret(r.Context(), name, key)
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
 		return

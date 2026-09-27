@@ -16,10 +16,10 @@ import (
 	"github.com/mylab/mylab/internal/manager"
 )
 
-// forwardToRemote passes this lab's machines' backups to its storage at
+// forwardToRemote passes this lab's servers' backups to its storage at
 // another lab (SPEC.md §10.10): only the controller has the link there, so
 // it forwards on its own loopback and its address on MyLab's network.
-// Everything is restic-encrypted before it leaves the machine.
+// Everything is restic-encrypted before it leaves the server.
 func forwardToRemote(ctx context.Context, lab config.Lab, r manager.RemoteStorage, log *slog.Logger) {
 	target := &url.URL{Scheme: "http", Host: net.JoinHostPort(r.HostAddr.String(), strconv.Itoa(r.Port))}
 	proxy := httputil.NewSingleHostReverseProxy(target)

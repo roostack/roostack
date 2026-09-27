@@ -158,7 +158,7 @@ var gallerySections = []gallerySection{
 <div class="attention">
   <ul>
     <li class="item item-warning">
-      <span>Backups are only stored on this machine.</span>
+      <span>Backups are only stored on this server.</span>
       <a href="#">Improve backups</a>
     </li>
     <li class="item item-problem">

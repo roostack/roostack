@@ -70,7 +70,7 @@ func TestWireGuardAPI(t *testing.T) {
 
 func TestInterfaceRule(t *testing.T) {
 	fw := DefaultFirewall()
-	fw.Allow = append(fw.Allow, Rule{Port: 8471, Proto: "tcp", Iface: WireGuardInterface, Reason: "mylab machines"})
+	fw.Allow = append(fw.Allow, Rule{Port: 8471, Proto: "tcp", Iface: WireGuardInterface, Reason: "mylab servers"})
 	if err := fw.Validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestInterfaces(t *testing.T) {
 			t.Errorf("%q should be invalid", name)
 		}
 	}
-	// Guest links use their own range, never the machines' one.
+	// Guest links use their own range, never the servers' one.
 	guest := WireGuard{Interface: GuestsInterface, Address: "100.101.23.1/24", ListenPort: GuestsPort,
 		Peers: []Peer{{PublicKey: "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", AllowedIPs: []string{"100.101.23.2/32"}}}}
 	if err := guest.Validate(); err != nil {
@@ -102,7 +102,7 @@ func TestInterfaces(t *testing.T) {
 	}
 	guest.Address = "100.96.0.1/24"
 	if guest.Validate() == nil {
-		t.Error("a guest link can't use the machines' range")
+		t.Error("a guest link can't use the servers' range")
 	}
 	lab := WireGuard{Address: "100.101.23.1/24"}
 	if lab.Validate() == nil {

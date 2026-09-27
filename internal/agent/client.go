@@ -132,7 +132,7 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any) err
 }
 
 // ApplyWireGuard configures MyLab's WireGuard interface and returns this
-// machine's public key.
+// server's public key.
 func (c *Client) ApplyWireGuard(ctx context.Context, wg WireGuard) (string, error) {
 	var resp struct {
 		PublicKey string `json:"public_key"`

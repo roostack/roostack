@@ -24,9 +24,9 @@
   <dl class="facts">
     {{range .Service.URLs}}<dt>Address</dt><dd><a href="{{.}}" target="_blank" rel="noopener">{{.}}</a></dd>{{end}}
     <dt>Reachable from</dt><dd>Your home network (or VPN)</dd>
-    {{with .Service.Machine}}<dt>Runs on</dt><dd>{{.}}</dd>{{end}}
+    {{with .Service.Server}}<dt>Runs on</dt><dd>{{.}}</dd>{{end}}
   </dl>
-  {{if and .IsOwner .MultiMachine}}<p><a href="/services/{{.Service.Name}}/move">Move to another server…</a></p>{{end}}
+  {{if and .IsOwner .MultiServer}}<p><a href="/services/{{.Service.Name}}/move">Move to another server…</a></p>{{end}}
   <details class="technical">
     <summary>Technical details</summary>
     <dl class="facts">

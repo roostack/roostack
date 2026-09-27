@@ -85,7 +85,7 @@ func serve(args []string) error {
 		return err
 	}
 	if lab.IsNode() {
-		// Run by another machine (the controller): no UI of its own.
+		// Run by another server (the controller): no UI of its own.
 		return serveNode(ctx, lab, local, agentClient, restart, log)
 	}
 
@@ -103,12 +103,12 @@ func serve(args []string) error {
 	srv.OnSetupComplete = func() { os.Remove(setupTokenPath(lab)) }
 	srv.Version = version
 
-	// The lab's other machines (SPEC.md §10), reached over its network.
+	// The lab's other servers (SPEC.md §10), reached over its network.
 	fleet := &node.Fleet{Self: labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, Lab: lab, Log: log,
-		List: st.Machines}
+		List: st.Servers}
 	mgr := &manager.Manager{Lab: lab, Log: log, Node: local, Activity: local.Activity,
-		Others: func() []manager.RemoteMachine {
-			var out []manager.RemoteMachine
+		Others: func() []manager.RemoteServer {
+			var out []manager.RemoteServer
 			for _, r := range fleet.Remotes() {
 				out = append(out, r)
 			}
@@ -116,7 +116,7 @@ func serve(args []string) error {
 		}}
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
-	// MyLab's network between machines (SPEC.md §10.2): this machine is
+	// MyLab's network between servers (SPEC.md §10.2): this server is
 	// the hub others join.
 	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: lab.Domain, Self: id, Store: st, Agent: agentClient,
 		Log: log, Now: time.Now, Started: restart}
@@ -132,22 +132,22 @@ func serve(args []string) error {
 	mgr.GuestHub, mgr.GuestRecords, mgr.GuestUsage, mgr.LinkAgent = guestHub, st, local.GuestUsage, agentClient
 	mgr.GuestDirs, mgr.RemoveGuestDir = local.GuestDirs, local.RemoveGuestDir
 	mgr.RemoteAdded = func(r manager.RemoteStorage) { go forwardToRemote(ctx, lab, r, log) }
-	// Backups across machines (SPEC.md §10.10): the controller creates
-	// each machine's repository with the recovery key.
+	// Backups across servers (SPEC.md §10.10): the controller creates
+	// each server's repository with the recovery key.
 	mgr.BackupStore = st
-	// This lab's storage at other labs: forward its machines' backups.
+	// This lab's storage at other labs: forward its servers' backups.
 	for _, r := range mgr.RemoteStorages(ctx) {
 		go forwardToRemote(ctx, lab, r, log)
 	}
 	if err := mgr.AdoptBackupDestination(ctx, lab.Backup.Repository); err != nil {
-		log.Error("recording this machine's backup destination", "err", err)
+		log.Error("recording this server's backup destination", "err", err)
 	}
 	mgr.HasRecoveryKey = func() bool {
 		_, err := os.Stat(backup.KeyFile(lab.Paths))
 		return err == nil
 	}
-	// Weekly, the controller removes old backups from every machine's
-	// repository (machines may only add backups).
+	// Weekly, the controller removes old backups from every server's
+	// repository (servers may only add backups).
 	go maintenance.Every(ctx,
 		func(now time.Time) time.Time {
 			return maintenance.NextWeekly(now, maintenance.DefaultMaintenanceOn, maintenance.DefaultMaintenanceAt)
@@ -171,11 +171,11 @@ func serve(args []string) error {
 	}
 	labAPI := http.NewServeMux()
 	labAPI.Handle("POST /v1/join", hub.JoinHandler())
-	// A machine fetches its assignment when it starts (SPEC.md §10.3).
+	// A server fetches its assignment when it starts (SPEC.md §10.3).
 	labAPI.HandleFunc("GET /v1/assignment", func(w http.ResponseWriter, r *http.Request) {
 		a, ok := mgr.PendingFor(labnet.Caller(r))
 		if !ok {
-			labnet.WriteError(w, http.StatusNotFound, errors.New("no assignment for this machine"))
+			labnet.WriteError(w, http.StatusNotFound, errors.New("no assignment for this server"))
 			return
 		}
 		labnet.WriteJSON(w, http.StatusOK, a)
@@ -209,7 +209,7 @@ func serve(args []string) error {
 	}
 	srv.Setup, srv.DNSProvider = wizard, lab.DNS.Provider
 
-	// Keep *.<domain> pointing at this machine for devices at home, and
+	// Keep *.<domain> pointing at this server for devices at home, and
 	// check they can see it (SPEC.md §6.5.1).
 	if lab.DNS.Provider != "" {
 		records := &dnsrecords.Manager{
@@ -285,13 +285,13 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 	if err != nil {
 		return nil, err
 	}
-	// Each machine reports its own services (SPEC.md §10.3).
+	// Each server reports its own services (SPEC.md §10.3).
 	infos := mgr.ServiceInfos(ctx)
 	var views []web.ServiceView
 	for _, s := range all {
 		v := web.ServiceView{Name: s.Package.Name, Title: s.Package.Title, Status: "unknown"}
 		if info, ok := infos[s.Package.Name]; ok {
-			v.ServiceDetail, v.Status, v.Machine, v.LastBackup = info.ServiceDetail, info.Status, info.Machine, info.LastBackup
+			v.ServiceDetail, v.Status, v.Server, v.LastBackup = info.ServiceDetail, info.Status, info.Server, info.LastBackup
 		}
 		out, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
@@ -308,11 +308,11 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 	return views, nil
 }
 
-// startMaintenance runs this machine's maintenance coordinator with the
+// startMaintenance runs this server's maintenance coordinator with the
 // nightly backup and OS updates and weekly repository maintenance
 // (SPEC.md §3.2, §6.9).
 func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger, ag *agent.Client,
-	acts *activity.Registry, services machineServices) (node.Maintenance, *maintenance.Coordinator, error) {
+	acts *activity.Registry, services serverServices) (node.Maintenance, *maintenance.Coordinator, error) {
 	ticker := time.NewTicker(time.Minute)
 	policy := maintenance.DefaultPolicy()
 	policy.WindowStart = time.Duration(lab.Maintenance.Hour()) * time.Hour
@@ -408,7 +408,7 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 
 // lookupService generates an installed service's output (e.g. to restore
 // it), with its title.
-func lookupService(services machineServices, name string) (*generate.Output, string, error) {
+func lookupService(services serverServices, name string) (*generate.Output, string, error) {
 	lab, list, err := services()
 	if err != nil {
 		return nil, "", err

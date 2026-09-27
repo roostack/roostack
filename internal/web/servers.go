@@ -11,16 +11,16 @@ import (
 	"github.com/mylab/mylab/internal/node"
 )
 
-// A lab's machines each have their own maintenance, settings and
-// activity (SPEC.md §10.7). Pages about a machine other than this one
-// live under /settings/servers/<id>/…; this machine keeps its familiar
+// A lab's servers each have their own maintenance, settings and
+// activity (SPEC.md §10.7). Pages about a server other than this one
+// live under /settings/servers/<id>/…; this server keeps its familiar
 // addresses.
 
-// machineOf is the machine a request is about: named in the path or query
-// ("machine"), the one running the service in the path ("name"), or this
-// machine. Nil if there is none (or no such machine).
-func (s *Server) machineOf(r *http.Request) ServiceNode {
-	if id := cmp.Or(r.PathValue("machine"), r.URL.Query().Get("machine")); id != "" {
+// serverOf is the server a request is about: named in the path or query
+// ("server"), the one running the service in the path ("name"), or this
+// server. Nil if there is none (or no such server).
+func (s *Server) serverOf(r *http.Request) ServiceNode {
+	if id := cmp.Or(r.PathValue("server"), r.URL.Query().Get("server")); id != "" {
 		if s.Manager == nil {
 			return nil
 		}
@@ -40,67 +40,67 @@ func (s *Server) machineOf(r *http.Request) ServiceNode {
 	return s.Node
 }
 
-// machineView names a machine and where its pages and forms are.
-type machineView struct {
+// serverRef names a server and where its pages and forms are.
+type serverRef struct {
 	ID, Name string
-	// This is the machine serving the UI.
+	// This is the server serving the UI.
 	This bool
 }
 
-func (s *Server) machineViewOf(r *http.Request) machineView {
-	n := s.machineOf(r)
+func (s *Server) serverRefOf(r *http.Request) serverRef {
+	n := s.serverOf(r)
 	if n == nil || s.Node == nil {
-		return machineView{This: true}
+		return serverRef{This: true}
 	}
 	// A requested server is named as the lab lists it.
-	if id := cmp.Or(r.PathValue("machine"), r.URL.Query().Get("machine")); id != "" && s.Manager != nil {
-		if ms, err := s.Manager.Machines(); err == nil {
+	if id := cmp.Or(r.PathValue("server"), r.URL.Query().Get("server")); id != "" && s.Manager != nil {
+		if ms, err := s.Manager.Servers(); err == nil {
 			for _, m := range ms {
 				if m.ID == id {
-					return machineView{ID: m.ID, Name: m.Name, This: m.This}
+					return serverRef{ID: m.ID, Name: m.Name, This: m.This}
 				}
 			}
 		}
 	}
 	id := n.Identity()
-	return machineView{ID: id.ID, Name: id.Name, This: id.ID == s.Node.Identity().ID}
+	return serverRef{ID: id.ID, Name: id.Name, This: id.ID == s.Node.Identity().ID}
 }
 
-// Label is how pages refer to the machine.
-func (m machineView) Label() string {
+// Label is how pages refer to the server.
+func (m serverRef) Label() string {
 	if m.This || m.Name == "" {
 		return "This server"
 	}
 	return m.Name
 }
 
-func (m machineView) path(this, other string) string {
+func (m serverRef) path(this, other string) string {
 	if m.This {
 		return this
 	}
 	return "/settings/servers/" + m.ID + other
 }
 
-func (m machineView) Updates() string    { return m.path("/settings/updates", "/updates") }
-func (m machineView) UpdatesRun() string { return m.path("/settings/updates/run", "/updates/run") }
-func (m machineView) Restart() string    { return m.path("/settings/restart", "/restart") }
-func (m machineView) RestartPolicy() string {
+func (m serverRef) Updates() string    { return m.path("/settings/updates", "/updates") }
+func (m serverRef) UpdatesRun() string { return m.path("/settings/updates/run", "/updates/run") }
+func (m serverRef) Restart() string    { return m.path("/settings/restart", "/restart") }
+func (m serverRef) RestartPolicy() string {
 	return m.path("/settings/restart-policy", "/restart-policy")
 }
-func (m machineView) TimeZone() string     { return m.path("/settings/time-zone", "/time-zone") }
-func (m machineView) TimeZonePost() string { return m.path("/setup/timezone", "/time-zone") }
-func (m machineView) RemoteAccess() string {
+func (m serverRef) TimeZone() string     { return m.path("/settings/time-zone", "/time-zone") }
+func (m serverRef) TimeZonePost() string { return m.path("/setup/timezone", "/time-zone") }
+func (m serverRef) RemoteAccess() string {
 	return m.path("/settings/remote-access", "/remote-access")
 }
-func (m machineView) RemoteAccessPost() string {
+func (m serverRef) RemoteAccessPost() string {
 	return m.path("/setup/ssh", "/remote-access")
 }
-func (m machineView) Backups() string   { return m.path("/backups", "/backups") }
-func (m machineView) BackupRun() string { return m.path("/backup/run", "/backups/run") }
+func (m serverRef) Backups() string   { return m.path("/backups", "/backups") }
+func (m serverRef) BackupRun() string { return m.path("/backup/run", "/backups/run") }
 
-// machineRoutes serves this machine's settings pages for other machines.
-func (s *Server) machineRoutes(mux *http.ServeMux) {
-	const p = "/settings/servers/{machine}"
+// serverRoutes serves this server's settings pages for other servers.
+func (s *Server) serverRoutes(mux *http.ServeMux) {
+	const p = "/settings/servers/{server}"
 	for route, h := range map[string]http.HandlerFunc{
 		"GET " + p + "/updates":         s.updatesPage,
 		"POST " + p + "/updates/run":    s.updateNowSubmit,
@@ -114,7 +114,7 @@ func (s *Server) machineRoutes(mux *http.ServeMux) {
 		"POST " + p + "/backups/run":    s.backupRun,
 	} {
 		mux.Handle(route, s.requireOwner(func(w http.ResponseWriter, r *http.Request) {
-			if s.machineOf(r) == nil {
+			if s.serverOf(r) == nil {
 				http.NotFound(w, r)
 				return
 			}
@@ -127,7 +127,7 @@ var _ ServiceNode = node.Node(nil)
 
 // serverView is a server's card on the home page.
 type serverView struct {
-	manager.Machine
+	manager.Server
 	// Reachable: it answered (the controller always does).
 	Reachable  bool
 	LastBackup time.Time
@@ -143,15 +143,15 @@ func (s *Server) serverViews(r *http.Request) []serverView {
 	if s.Manager == nil {
 		return nil
 	}
-	machines, err := s.Manager.Machines()
+	servers, err := s.Manager.Servers()
 	if err != nil {
 		return nil
 	}
-	out := make([]serverView, len(machines))
+	out := make([]serverView, len(servers))
 	var wg sync.WaitGroup
-	for i, mc := range machines {
+	for i, mc := range servers {
 		wg.Go(func() {
-			v := serverView{Machine: mc, Reachable: mc.This || mc.Status.LastErr == nil ||
+			v := serverView{Server: mc, Reachable: mc.This || mc.Status.LastErr == nil ||
 				!strings.HasPrefix(mc.Status.LastErr.Error(), "MyLab can't reach")}
 			n := s.Manager.NodeByID(mc.ID)
 			if n != nil && v.Reachable {

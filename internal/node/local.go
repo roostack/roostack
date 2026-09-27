@@ -26,9 +26,9 @@ import (
 	"github.com/mylab/mylab/internal/systemd"
 )
 
-// Node is a machine in the lab, as the controller sees it (SPEC.md §10.3).
-// Local runs on this machine; a remote implementation will speak the same
-// operations to other machines over MyLab's network.
+// Node is a server in the lab, as the controller sees it (SPEC.md §10.3).
+// Local runs on this server; a remote implementation will speak the same
+// operations to other servers over MyLab's network.
 type Node interface {
 	Identity() nodeid.Identity
 	// Apply hands the node its latest assignment; the node works towards
@@ -53,7 +53,7 @@ type Node interface {
 	Backups() Backups
 	Restores() Restores
 	Updates() Updates
-	// Settings are the machine's own settings (settings.go); nil when
+	// Settings are the server's own settings (settings.go); nil when
 	// they can't be changed from MyLab.
 	Settings() Settings
 }
@@ -71,23 +71,23 @@ type Assignment struct {
 	// Lab is the lab-wide settings the services need (e.g. the domain).
 	// Empty uses the node's own.
 	Lab LabContext
-	// Proxied are services on other machines whose routes this machine's
+	// Proxied are services on other servers whose routes this server's
 	// Caddy serves (the controller, SPEC.md §10.5).
 	Proxied []state.Proxied
-	// Storage, if set, makes the machine offer its disk for backups
+	// Storage, if set, makes the server offer its disk for backups
 	// (SPEC.md §10.10).
 	Storage *Storage
 	// Guests are other labs storing backups here, reached on GuestAddr,
 	// this lab's address on the guests' link (the controller only).
 	Guests    []generate.GuestStorage
 	GuestAddr string
-	// ProxyPorts are where the controller forwards its machines' backups
+	// ProxyPorts are where the controller forwards its servers' backups
 	// to other labs' storage (on MyLab's network).
 	ProxyPorts []int
 }
 
-// Storage is who may use a machine's backup store: bcrypt password hashes
-// (never the passwords) for each machine, and for the controller's admin
+// Storage is who may use a server's backup store: bcrypt password hashes
+// (never the passwords) for each server, and for the controller's admin
 // access.
 type Storage struct {
 	Users map[string]string `json:"users"`
@@ -117,7 +117,7 @@ type FirewallApplier interface {
 	ApplyFirewall(ctx context.Context, fw agent.Firewall) error
 }
 
-// Local is this machine: it applies its assignment (Quadlets, secrets,
+// Local is this server: it applies its assignment (Quadlets, secrets,
 // Caddy, firewall) and runs package hooks.
 type Local struct {
 	ID  nodeid.Identity
@@ -150,10 +150,10 @@ type Local struct {
 	// HookRetry and HookDeadline tune install hook retries (0: defaults).
 	HookRetry, HookDeadline time.Duration
 
-	// Jobs are the machine's backups, restores and OS updates.
+	// Jobs are the server's backups, restores and OS updates.
 	Jobs Maintenance
-	// Machine changes the machine's own settings (optional).
-	Machine Settings
+	// Server changes the server's own settings (optional).
+	Host Settings
 
 	mu         sync.Mutex
 	assignment Assignment
@@ -171,7 +171,7 @@ type Local struct {
 	hooksDone             chan struct{}
 }
 
-// Identity is this machine's identity.
+// Identity is this server's identity.
 func (n *Local) Identity() nodeid.Identity { return n.ID }
 
 // Apply records the latest assignment and applies it in the background. If
@@ -189,7 +189,7 @@ func (n *Local) Apply(a Assignment) {
 	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage,
 		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts}
 	if n.State != nil {
-		// A service taken off this machine forgets its setup progress.
+		// A service taken off this server forgets its setup progress.
 		for _, s := range old {
 			if _, still := n.serviceLocked(s.Package.Name); !still {
 				n.State.SetSetting(context.Background(), hookKey(s.Package.Name), "")
@@ -210,7 +210,7 @@ func (n *Local) Apply(a Assignment) {
 	go n.applyLoop(n.done)
 }
 
-// LatestActivity is this machine's latest log of a kind.
+// LatestActivity is this server's latest log of a kind.
 func (n *Local) LatestActivity(kind string) (activity.Snapshot, bool) { return n.Activity.Latest(kind) }
 
 // Status reports the current or last apply.
@@ -341,7 +341,7 @@ func (n *Local) lab(a Assignment) config.Lab {
 	return lab
 }
 
-// Assigned is this machine's services and the lab config to generate
+// Assigned is this server's services and the lab config to generate
 // them with, as of its current assignment (e.g. for backups and restores).
 func (n *Local) Assigned() (config.Lab, []state.Service) {
 	n.mu.Lock()
@@ -433,7 +433,7 @@ func (n *Local) addStorage(d *reconcile.Desired, st *Storage) error {
 	}
 	lab := n.Lab
 	if lab.OverlayAddr == "" {
-		return fmt.Errorf("offering this machine's disk for backups needs MyLab's network")
+		return fmt.Errorf("offering this server's disk for backups needs MyLab's network")
 	}
 	files, units, err := generate.Storage(lab, lab.OverlayAddr)
 	if err != nil {
@@ -504,7 +504,7 @@ func writeIfChanged(path, data string) error {
 	return os.Rename(path+".tmp", path)
 }
 
-// GuestUsage is how much a guest lab stores on this machine, in bytes.
+// GuestUsage is how much a guest lab stores on this server, in bytes.
 func (n *Local) GuestUsage(user string) (int64, error) {
 	var total int64
 	err := filepath.WalkDir(generate.GuestStoreDir(n.Lab, user), func(_ string, d fs.DirEntry, err error) error {
@@ -521,7 +521,7 @@ func (n *Local) GuestUsage(user string) (int64, error) {
 	return total, err
 }
 
-// GuestDirs lists the guest users with data on this machine.
+// GuestDirs lists the guest users with data on this server.
 func (n *Local) GuestDirs() ([]string, error) {
 	entries, err := os.ReadDir(filepath.Join(n.Lab.Paths.BackupStoreDir(), "guests"))
 	if errors.Is(err, os.ErrNotExist) {

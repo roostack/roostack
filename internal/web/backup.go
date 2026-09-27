@@ -49,7 +49,7 @@ func whenText(t time.Time) string {
 	if t.IsZero() {
 		return "never"
 	}
-	// Times from another machine arrive in its time zone; show them in
+	// Times from another server arrive in its time zone; show them in
 	// this one's, like everything else (SPEC.md §3.2).
 	t = t.Local()
 	now := time.Now()
@@ -92,7 +92,7 @@ func (s *Server) backupRun(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, fmt.Errorf("starting backup: %w", err))
 		return
 	}
-	m := s.machineViewOf(r)
+	m := s.serverRefOf(r)
 	s.Store.Audit(r.Context(), currentUser(r), "backup", "started manually on "+m.Label())
 	redirect(w, r, m.Backups())
 }

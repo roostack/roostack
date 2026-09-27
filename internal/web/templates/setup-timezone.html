@@ -5,12 +5,12 @@
   {{if .Wizard}}<p class="hint">Setup · step 1 of 4</p>
   <h1>Where is this server?</h1>
   {{else}}{{back .Back .BackText}}
-  <h1>Change the time zone{{if not .Machine.This}} of {{.Machine.Name}}{{end}}</h1>
+  <h1>Change the time zone{{if not .Server.This}} of {{.Server.Name}}{{end}}</h1>
   {{end}}
-  <p>MyLab uses {{if .Machine.This}}this server's{{else}}each server's own{{end}} time zone for everything it shows and schedules{{if .Machine.This}}, such as the nightly backup at 2 am{{end}}.
+  <p>MyLab uses {{if .Server.This}}this server's{{else}}each server's own{{end}} time zone for everything it shows and schedules{{if .Server.This}}, such as the nightly backup at 2 am{{end}}.
     It's set to <strong>{{.Current}}</strong>{{with .HostClock.Time}}, where it's {{.}} now{{end}}.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  <form method="post" action="{{.Machine.TimeZonePost}}" data-zone="{{.Zone}}"
+  <form method="post" action="{{.Server.TimeZonePost}}" data-zone="{{.Zone}}"
     x-data="{ device: Intl.DateTimeFormat().resolvedOptions().timeZone, tz: $el.dataset.zone }"
     {{if and .Wizard (not .Error)}}x-init="tz = device"{{end}}>
     <label>Time zone

@@ -82,22 +82,22 @@ func (s *Server) formMode(r *http.Request, step string, data map[string]any) map
 		withArea(data, area)
 	}
 	data["Back"] = map[string]string{"timezone": "/settings", "ssh": "/settings", "domain": "/settings/domain", "backup": "/backups"}[step]
-	m := s.machineViewOf(r)
-	data["Machine"], data["BackText"] = m, "Settings"
+	m := s.serverRefOf(r)
+	data["Server"], data["BackText"] = m, "Settings"
 	if area := map[string]string{"timezone": "time-zone", "ssh": "remote-access"}[step]; area != "" && data["Wizard"] != true {
 		data["Switcher"] = s.serverTabs(r, area)
 	}
 	if !m.This {
-		// Another machine's settings are never a wizard step.
+		// Another server's settings are never a wizard step.
 		data["Wizard"], data["Back"], data["BackText"] = false, "/settings/servers", "Servers"
 	}
 	return data
 }
 
-// clockOf is the clock of the machine a request is about; only this
-// machine's is known.
+// clockOf is the clock of the server a request is about; only this
+// server's is known.
 func (s *Server) clockOf(r *http.Request) hosttime.Clock {
-	if !s.machineViewOf(r).This {
+	if !s.serverRefOf(r).This {
 		return hosttime.Clock{}
 	}
 	return hosttime.Now()
@@ -110,11 +110,11 @@ type clockView struct {
 }
 
 func (s *Server) timezonePage(w http.ResponseWriter, r *http.Request) {
-	if s.machine(r) == nil {
+	if s.server(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
-	current, zones, err := s.machine(r).Timezones()
+	current, zones, err := s.server(r).Timezones()
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -125,7 +125,7 @@ func (s *Server) timezonePage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
 	zone := r.FormValue("timezone")
-	if s.machine(r) == nil {
+	if s.server(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
@@ -134,14 +134,14 @@ func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	m := s.machineViewOf(r)
-	changed, err := s.machine(r).SetTimezone(r.Context(), zone)
+	m := s.serverRefOf(r)
+	changed, err := s.server(r).SetTimezone(r.Context(), zone)
 	if err == nil && m.This {
-		// The setup wizard is about this machine.
+		// The setup wizard is about this server.
 		err = s.Setup.Done(r.Context(), setup.StepTimezone)
 	}
 	if err != nil {
-		current, zones, zerr := s.machine(r).Timezones()
+		current, zones, zerr := s.server(r).Timezones()
 		if zerr != nil {
 			s.serverError(w, zerr)
 			return
@@ -172,10 +172,10 @@ type sshClient struct {
 }
 
 func (s *Server) sshData(r *http.Request, choice, errMsg string) (map[string]any, error) {
-	if s.machine(r) == nil {
-		return nil, errNoMachine
+	if s.server(r) == nil {
+		return nil, errNoServer
 	}
-	a, err := s.machine(r).SSHAccess()
+	a, err := s.server(r).SSHAccess()
 	if err != nil {
 		return nil, err
 	}
@@ -204,12 +204,12 @@ func (s *Server) sshPage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
 	choice := r.FormValue("ssh")
-	if s.machine(r) == nil {
+	if s.server(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
-	m := s.machineViewOf(r)
-	err := s.machine(r).SetSSH(r.Context(), choice, r.FormValue("confirm") == "on")
+	m := s.serverRefOf(r)
+	err := s.server(r).SetSSH(r.Context(), choice, r.FormValue("confirm") == "on")
 	if err == nil && m.This {
 		err = s.Setup.Done(r.Context(), setup.StepSSH)
 	}
@@ -346,8 +346,8 @@ func (s *Server) recoveryConfirm(w http.ResponseWriter, r *http.Request) {
 
 // wizardError re-renders a wizard page for a user-fixable error. It returns
 // true if it handled err.
-// errNoMachine means this MyLab can't change its machine's settings.
-var errNoMachine = errors.New("server settings aren't available")
+// errNoServer means this MyLab can't change its server's settings.
+var errNoServer = errors.New("server settings aren't available")
 
 // userMessage returns an error's message if it is one the user can act on
 // (a problem with what they entered), rather than a server error.
