@@ -19,9 +19,9 @@ const DefaultPalette = "teal"
 var Themes = []Theme{
 	{"teal", "Teal and violet", "MyLab's default"},
 	{"ocean", "Ocean and magenta", "Clear blue with a magenta spark"},
-	{"catppuccin-frappe", "Catppuccin Frappé", "Catppuccin Latte when light, Frappé when dark"},
-	{"catppuccin-macchiato", "Catppuccin Macchiato", "Catppuccin Latte when light, Macchiato when dark"},
-	{"catppuccin-mocha", "Catppuccin Mocha", "Catppuccin Latte when light, Mocha when dark"},
+	{"catppuccin-frappe", "Catppuccin Frappé", "Latte when light; when dark, Frappé: the softest, greyest dark"},
+	{"catppuccin-macchiato", "Catppuccin Macchiato", "Latte when light; when dark, Macchiato: a deeper blue-grey"},
+	{"catppuccin-mocha", "Catppuccin Mocha", "Latte when light; when dark, Mocha: the darkest and most contrasty"},
 }
 
 // validPalette reports whether id is a built-in theme. Only these ever

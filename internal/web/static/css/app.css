@@ -218,12 +218,17 @@ a.danger-link { color: var(--bad); font-size: var(--text-sm); }
 form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border); }
 
 /* ---------- Theme picker (Account) ---------- */
-/* Each preview sets its own palette and mode, so every theme shows in
-   its light and dark versions. */
+/* Each preview is a tiny page in its own palette and mode: the page
+   background, a card, a line of text, and the accent and highlight. The
+   backgrounds are what tell similar themes (Catppuccin flavours) apart. */
 .theme-choice { align-items: center; }
-.theme-previews { display: inline-flex; gap: var(--space-1); }
-.theme-preview { display: inline-flex; gap: 3px; padding: 5px; border-radius: var(--radius-sm);
-  background: var(--bg); border: 1px solid var(--border); }
-.tp-accent, .tp-highlight { width: 14px; height: 14px; border-radius: 3px; }
+.theme-previews { display: inline-flex; gap: var(--space-2); flex-shrink: 0; }
+.theme-preview { display: inline-flex; padding: 6px; border-radius: var(--radius-sm);
+  background: var(--bg); border: 1px solid var(--border-strong); }
+.tp-card { display: inline-flex; flex-direction: column; gap: 4px; padding: 5px 6px; border-radius: 4px;
+  background: var(--surface); border: 1px solid var(--border); }
+.tp-text { width: 34px; height: 4px; border-radius: 2px; background: var(--fg); opacity: 0.85; }
+.tp-dots { display: inline-flex; gap: 3px; }
+.tp-accent, .tp-highlight { width: 12px; height: 12px; border-radius: 3px; }
 .tp-accent { background: var(--accent); }
 .tp-highlight { background: var(--highlight); }
