@@ -232,3 +232,9 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
 .tp-accent, .tp-highlight { width: 12px; height: 12px; border-radius: 3px; }
 .tp-accent { background: var(--accent); }
 .tp-highlight { background: var(--highlight); }
+/* Accent choices: a light and a dark dot per colour. */
+.accents { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 var(--space-3); }
+.accents legend { grid-column: 1 / -1; }
+.accent-choice { align-items: center; margin-bottom: var(--space-2); font-weight: var(--weight-normal); }
+.accent-dots { display: inline-flex; gap: 2px; }
+.accent-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 1px solid var(--border); }

@@ -47,42 +47,93 @@ func contrast(a, b string) float64 {
 	return (math.Max(la, lb) + 0.05) / (math.Min(la, lb) + 0.05)
 }
 
+var cssBlock = regexp.MustCompile(`(?s)(\[data-palette="[a-z-]+"\](?:\[data-accent="([a-z-]+)"\])?)\s*\{(.*?)\}`)
+
+// themeVariants reads a theme file: the base palette, and one variant per
+// accent block with the accent's colours laid over the base.
+func themeVariants(t *testing.T, id string) map[string]map[string]string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("static", "css", "themes", id+".css"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	parse := func(body string) map[string]string {
+		vars := map[string]string{}
+		for _, m := range cssVar.FindAllStringSubmatch(body, -1) {
+			vars[m[1]] = m[2]
+		}
+		return vars
+	}
+	variants := map[string]map[string]string{}
+	var base map[string]string
+	for _, m := range cssBlock.FindAllStringSubmatch(string(data), -1) {
+		if m[2] == "" {
+			base = parse(m[3])
+			variants[""] = base
+		}
+	}
+	for _, m := range cssBlock.FindAllStringSubmatch(string(data), -1) {
+		if m[2] != "" {
+			v := map[string]string{}
+			for k, val := range base {
+				v[k] = val
+			}
+			for k, val := range parse(m[3]) {
+				v[k] = val
+			}
+			variants[m[2]] = v
+		}
+	}
+	return variants
+}
+
 func TestThemesAreReadable(t *testing.T) {
 	shared := readVars(t, filepath.Join("static", "css", "tokens.css"))
 	for _, th := range Themes {
-		pal := readVars(t, filepath.Join("static", "css", "themes", th.ID+".css"))
-		for _, mode := range []string{"l", "d"} {
-			// get resolves a purpose token like tokens.css does.
-			get := func(name string) string {
-				if v, ok := pal["pal-"+name+"-"+mode]; ok {
-					return v
+		variants := themeVariants(t, th.ID)
+		for _, a := range th.Accents {
+			if variants[a.ID] == nil {
+				t.Errorf("%s: accent %s has no [data-accent] block", th.ID, a.ID)
+			}
+		}
+		for variant, pal := range variants {
+			name := th.ID
+			if variant != "" {
+				name += "/" + variant
+			}
+			for _, mode := range []string{"l", "d"} {
+				// get resolves a purpose token like tokens.css does.
+				get := func(name string) string {
+					if v, ok := pal["pal-"+name+"-"+mode]; ok {
+						return v
+					}
+					if v, ok := shared["status-"+name+"-"+mode]; ok { // ok, warn, bad(-bg, -fg)
+						return v
+					}
+					t.Fatalf("%s: no --pal-%s-%s", th.ID, name, mode)
+					return ""
 				}
-				if v, ok := shared["status-"+name+"-"+mode]; ok { // ok, warn, bad(-bg, -fg)
-					return v
+				check := func(fg, bg string, min float64) {
+					if c := contrast(get(fg), get(bg)); c < min {
+						t.Errorf("%s (%s): %s %s on %s %s is %.2f:1, need %.1f", name, map[string]string{"l": "light", "d": "dark"}[mode],
+							fg, get(fg), bg, get(bg), c, min)
+					}
 				}
-				t.Fatalf("%s: no --pal-%s-%s", th.ID, name, mode)
-				return ""
-			}
-			check := func(fg, bg string, min float64) {
-				if c := contrast(get(fg), get(bg)); c < min {
-					t.Errorf("%s (%s): %s %s on %s %s is %.2f:1, need %.1f", th.ID, map[string]string{"l": "light", "d": "dark"}[mode],
-						fg, get(fg), bg, get(bg), c, min)
+				for _, bg := range []string{"bg", "surface", "surface-2"} {
+					check("fg", bg, 4.5)
+					check("muted", bg, 4.5)
+					check("accent", bg, 4.5)  // links
+					check("highlight", bg, 3) // brand mark, focus: not text
 				}
-			}
-			for _, bg := range []string{"bg", "surface", "surface-2"} {
-				check("fg", bg, 4.5)
-				check("muted", bg, 4.5)
-				check("accent", bg, 4.5) // links
-				check("highlight", bg, 3) // brand mark, focus: not text
-			}
-			check("accent-fg", "accent", 4.5)  // primary buttons
-			check("bad-fg", "bad", 4.5)        // danger buttons
-			for _, tint := range []string{"accent-soft", "ok-bg", "warn-bg", "bad-bg"} {
-				check("fg", tint, 4.5) // text in notices
-			}
-			for _, s := range []string{"ok", "warn", "bad"} {
-				check(s, s+"-bg", 4.5)    // status pills
-				check(s, "surface", 4.5) // status text on cards
+				check("accent-fg", "accent", 4.5) // primary buttons
+				check("bad-fg", "bad", 4.5)       // danger buttons
+				for _, tint := range []string{"accent-soft", "ok-bg", "warn-bg", "bad-bg"} {
+					check("fg", tint, 4.5) // text in notices
+				}
+				for _, s := range []string{"ok", "warn", "bad"} {
+					check(s, s+"-bg", 4.5)   // status pills
+					check(s, "surface", 4.5) // status text on cards
+				}
 			}
 		}
 	}

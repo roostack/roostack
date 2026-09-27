@@ -1,6 +1,6 @@
 <!doctype html>
 {{- $palette := palette}}{{with .Nav}}{{$palette = .Palette}}{{end -}}
-<html lang="en" data-palette="{{$palette}}"{{with .Nav}}{{if ne .Theme "auto"}} data-mode="{{.Theme}}"{{end}}{{end}}>
+<html lang="en" data-palette="{{$palette}}"{{with .Nav}}{{with .Accent}} data-accent="{{.}}"{{end}}{{if ne .Theme "auto"}} data-mode="{{.Theme}}"{{end}}{{end}}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">

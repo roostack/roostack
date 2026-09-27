@@ -93,7 +93,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Containers use the host's time zone (`Timezone=<zone>` in every unit; a change restarts them)
 - [ ] **1.14 Design system** (agreed 2026-09-27)
   - [x] Brand colours: "Teal and violet" is the default (changed from Ocean and magenta, which stays as a theme)
-  - [x] Built-in themes, chosen per user (Account → Appearance): Teal, Ocean, Catppuccin, Gruvbox, Nord, Solarized, Everforest, Rosé Pine, Tokyo Night; a test checks every theme's contrast in both modes
+  - [x] Built-in themes, chosen per user (Account → Appearance): Teal, Ocean, Catppuccin, Gruvbox, Nord, Solarized, Everforest, Rosé Pine, Tokyo Night; a test checks every theme's contrast in both modes. Catppuccin offers its named accent colours for actions; choices preview and save at once
   - [x] Tokens: palette → purpose → scales (tokens.css, themes/ocean.css); app.css uses only tokens
   - [x] Components: buttons, notice, status, badge, back, confirm, card/heading, facts, forms, rows, attention, activity, technical details, secret (docs/DESIGN.md)
   - [x] Component gallery: /design in the UI and docs/design/gallery.html (same templates; a test keeps the file current)

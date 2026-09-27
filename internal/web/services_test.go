@@ -478,3 +478,22 @@ func TestAppearance(t *testing.T) {
 		t.Errorf("unknown theme accepted: %d", code)
 	}
 }
+
+func TestAccent(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleMember)
+	h.post("/account/appearance", url.Values{"palette": {"catppuccin"}, "accent-catppuccin": {"peach"}, "mode": {"auto"}}, h.srv.URL)
+	_, body := h.get("/account")
+	if !strings.Contains(body, `<html lang="en" data-palette="catppuccin" data-accent="peach">`) ||
+		!strings.Contains(body, `name="accent-catppuccin" value="peach"
+          checked`) {
+		t.Error("the chosen accent should be applied and selected")
+	}
+	if code, _ := h.post("/account/appearance", url.Values{"palette": {"catppuccin"}, "accent-catppuccin": {"red"}, "mode": {"auto"}}, h.srv.URL); code != http.StatusBadRequest {
+		t.Errorf("red isn't offered: %d", code)
+	}
+	// Switching to a theme without accents drops it.
+	h.post("/account/appearance", url.Values{"palette": {"nord"}, "accent-catppuccin": {"peach"}, "mode": {"auto"}}, h.srv.URL)
+	if _, body := h.get("/services"); !strings.Contains(body, `<html lang="en" data-palette="nord">`) {
+		t.Error("nord has no accents")
+	}
+}

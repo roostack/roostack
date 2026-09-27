@@ -22,3 +22,92 @@
   --pal-bad-bg-l: #ebd4dd; --pal-bad-bg-d: #402f42;
   --pal-bad-fg-l: #e6e9ef; --pal-bad-fg-d: #181825;
 }
+
+/* Accent choices (Account → Appearance): Catppuccin's named colours for
+   actions, with a highlight that goes with them. Nudged for contrast where
+   Adjusted: rosewater (light) #dc8a78 -> #88564a; flamingo (light) #dd7878 -> #945050; pink (light) #ea76cb -> #91497e; mauve (light) #8839ef -> #7e35de; peach (light) #fe640b -> #aa4307; yellow (light) #df8e1d -> #8a5812; green (light) #40a02b -> #2d701e; teal (light) #179299 -> #116e73; sky (light) #04a5e5 -> #036a93; sapphire (light) #209fb5 -> #166c7b; blue (light) #1e66f5 -> #1a5ad8; lavender (light) #7287fd -> #4f5daf. */
+   needed, like the base theme. */
+[data-palette="catppuccin"][data-accent="rosewater"] {
+  --pal-accent-l: #88564a; --pal-accent-d: #f5e0dc;
+  --pal-accent-fg-l: #eff1f5; --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: #e1dbdd; --pal-accent-soft-d: #45414d;
+  --pal-highlight-l: #8839ef; --pal-highlight-d: #cba6f7;
+  --pal-highlight-soft-l: #e1d7f4; --pal-highlight-soft-d: #3d3652;
+}
+[data-palette="catppuccin"][data-accent="flamingo"] {
+  --pal-accent-l: #945050; --pal-accent-d: #f2cdcd;
+  --pal-accent-fg-l: #eff1f5; --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: #e2dade; --pal-accent-soft-d: #443e4b;
+  --pal-highlight-l: #8839ef; --pal-highlight-d: #cba6f7;
+  --pal-highlight-soft-l: #e1d7f4; --pal-highlight-soft-d: #3d3652;
+}
+[data-palette="catppuccin"][data-accent="pink"] {
+  --pal-accent-l: #91497e; --pal-accent-d: #f5c2e7;
+  --pal-accent-fg-l: #eff1f5; --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: #e2d9e4; --pal-accent-soft-d: #453c4f;
+  --pal-highlight-l: #8839ef; --pal-highlight-d: #cba6f7;
+  --pal-highlight-soft-l: #e1d7f4; --pal-highlight-soft-d: #3d3652;
+}
+[data-palette="catppuccin"][data-accent="mauve"] {
+  --pal-accent-l: #7e35de; --pal-accent-d: #cba6f7;
+  --pal-accent-fg-l: #eff1f5; --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: #dfd7f2; --pal-accent-soft-d: #3d3652;
+  --pal-highlight-l: #bb5ea2; --pal-highlight-d: #f5c2e7;
+  --pal-highlight-soft-l: #e8dce9; --pal-highlight-soft-d: #453c4f;
+}
+[data-palette="catppuccin"][data-accent="peach"] {
+  --pal-accent-l: #aa4307; --pal-accent-d: #fab387;
+  --pal-accent-fg-l: #eff1f5; --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: #e5d9d4; --pal-accent-soft-d: #46393e;
+  --pal-highlight-l: #8839ef; --pal-highlight-d: #cba6f7;
+  --pal-highlight-soft-l: #e1d7f4; --pal-highlight-soft-d: #3d3652;
+}
+[data-palette="catppuccin"][data-accent="yellow"] {
+  --pal-accent-l: #8a5812; --pal-accent-d: #f9e2af;
+  --pal-accent-fg-l: #eff1f5; --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: #e1dcd5; --pal-accent-soft-d: #454145;
+  --pal-highlight-l: #8839ef; --pal-highlight-d: #cba6f7;
+  --pal-highlight-soft-l: #e1d7f4; --pal-highlight-soft-d: #3d3652;
+}
+[data-palette="catppuccin"][data-accent="green"] {
+  --pal-accent-l: #2d701e; --pal-accent-d: #a6e3a1;
+  --pal-accent-fg-l: #eff1f5; --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: #d4dfd7; --pal-accent-soft-d: #364143;
+  --pal-highlight-l: #bb5ea2; --pal-highlight-d: #f5c2e7;
+  --pal-highlight-soft-l: #e8dce9; --pal-highlight-soft-d: #453c4f;
+}
+[data-palette="catppuccin"][data-accent="teal"] {
+  --pal-accent-l: #116e73; --pal-accent-d: #94e2d5;
+  --pal-accent-fg-l: #eff1f5; --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: #d0dfe3; --pal-accent-soft-d: #33414c;
+  --pal-highlight-l: #bb5ea2; --pal-highlight-d: #f5c2e7;
+  --pal-highlight-soft-l: #e8dce9; --pal-highlight-soft-d: #453c4f;
+}
+[data-palette="catppuccin"][data-accent="sky"] {
+  --pal-accent-l: #036a93; --pal-accent-d: #89dceb;
+  --pal-accent-fg-l: #eff1f5; --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: #cedee7; --pal-accent-soft-d: #314050;
+  --pal-highlight-l: #bb5ea2; --pal-highlight-d: #f5c2e7;
+  --pal-highlight-soft-l: #e8dce9; --pal-highlight-soft-d: #453c4f;
+}
+[data-palette="catppuccin"][data-accent="sapphire"] {
+  --pal-accent-l: #166c7b; --pal-accent-d: #74c7ec;
+  --pal-accent-fg-l: #eff1f5; --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: #d1dee4; --pal-accent-soft-d: #2d3c50;
+  --pal-highlight-l: #bb5ea2; --pal-highlight-d: #f5c2e7;
+  --pal-highlight-soft-l: #e8dce9; --pal-highlight-soft-d: #453c4f;
+}
+[data-palette="catppuccin"][data-accent="blue"] {
+  --pal-accent-l: #1a5ad8; --pal-accent-d: #89b4fa;
+  --pal-accent-fg-l: #eff1f5; --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: #d1dcf1; --pal-accent-soft-d: #313953;
+  --pal-highlight-l: #bb5ea2; --pal-highlight-d: #f5c2e7;
+  --pal-highlight-soft-l: #e8dce9; --pal-highlight-soft-d: #453c4f;
+}
+[data-palette="catppuccin"][data-accent="lavender"] {
+  --pal-accent-l: #4f5daf; --pal-accent-d: #b4befe;
+  --pal-accent-fg-l: #eff1f5; --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: #d9dceb; --pal-accent-soft-d: #393b53;
+  --pal-highlight-l: #bb5ea2; --pal-highlight-d: #f5c2e7;
+  --pal-highlight-soft-l: #e8dce9; --pal-highlight-soft-d: #453c4f;
+}
