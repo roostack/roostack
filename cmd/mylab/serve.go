@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/backup"
@@ -69,7 +70,11 @@ func serve(args []string) error {
 	srv.OnSetupComplete = func() { os.Remove(setupTokenPath(lab)) }
 
 	agentClient := agent.NewClient(agent.DefaultSocket)
+	// Live logs of host operations, shown in the UI.
+	acts := activity.New()
+	srv.Activity = acts
 	mgr := &manager.Manager{
+		Activity:   acts,
 		Firewall:   agentClient,
 		Lab:        lab,
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets()},
@@ -84,7 +89,7 @@ func serve(args []string) error {
 	// Converge on startup, e.g. after MyLab itself was upgraded.
 	mgr.Apply()
 
-	backups, updates, err := startMaintenance(ctx, lab, st, log, agentClient)
+	backups, updates, err := startMaintenance(ctx, lab, st, log, agentClient, acts)
 	if err != nil {
 		return err
 	}
@@ -240,7 +245,8 @@ func summarize(units []systemd.UnitStatus) string {
 
 // startMaintenance runs the maintenance coordinator with the nightly backup
 // and weekly repository maintenance (SPEC.md §3.2, §6.9).
-func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger, ag *agent.Client) (*backup.Service, *osupdate.Service, error) {
+func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger, ag *agent.Client,
+	acts *activity.Registry) (*backup.Service, *osupdate.Service, error) {
 	ticker := time.NewTicker(time.Minute)
 	policy := maintenance.DefaultPolicy()
 	policy.WindowStart = time.Duration(lab.Maintenance.Hour()) * time.Hour
@@ -255,12 +261,13 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 		Log:     log,
 		Reboot:  func() error { return ag.Reboot(context.Background()) },
 	}
-	updates := &osupdate.Service{Agent: ag, Store: st, Coord: coord, Now: time.Now, Log: log}
+	updates := &osupdate.Service{Agent: ag, Store: st, Coord: coord, Now: time.Now, Log: log, Activity: acts}
 	svc := &backup.Service{
 		Coord:      coord,
 		Store:      st,
 		Repository: lab.Backup.Repository,
 		NextRun:    func() time.Time { return maintenance.NextDaily(time.Now(), maintenance.DefaultBackupAt) },
+		Activity:   acts,
 	}
 	if lab.Backup.Repository != "" {
 		if _, err := os.Stat(backup.KeyFile(lab.Paths)); err != nil {

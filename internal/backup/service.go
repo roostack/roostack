@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/maintenance"
 	"github.com/mylab/mylab/internal/store"
 )
@@ -25,9 +26,12 @@ type Service struct {
 	Repository string
 	// NextRun reports when the nightly backup runs next.
 	NextRun func() time.Time
+	// Activity shows runs live in the UI (optional).
+	Activity *activity.Registry
 
 	mu      sync.Mutex
-	pending bool // queued or running
+	pending bool          // queued or running
+	act     *activity.Log // the queued run's log
 }
 
 // Configured reports whether a backup destination is set.
@@ -40,8 +44,21 @@ func (s *Service) Job() maintenance.Job {
 		Resumable: true,
 		Run: func(ctx context.Context, h *maintenance.Handle) error {
 			defer s.setPending(false)
+			s.mu.Lock()
+			act := s.act
+			s.act = nil
+			s.mu.Unlock()
+			if act == nil { // resumed after a reboot, or run directly
+				act = s.Activity.Start(activity.Backup, "Backup")
+			}
 			start := time.Now()
-			sum, err := Run(ctx, *s.Deps, h)
+			deps := *s.Deps
+			deps.Log = act
+			sum, err := Run(ctx, deps, h)
+			if ctx.Err() != nil && err != nil {
+				act.Printf("Paused for a restart; the backup continues afterwards.")
+			}
+			act.Finish(err)
 			run := store.BackupRun{Started: start, Finished: time.Now(), OK: err == nil}
 			if sum != nil {
 				run.SnapshotID, run.FilesNew, run.DataAdded = sum.SnapshotID, sum.FilesNew, sum.DataAdded
@@ -65,10 +82,14 @@ func (s *Service) Job() maintenance.Job {
 func (s *Service) MaintenanceJob() maintenance.Job {
 	return maintenance.Job{
 		Name: "backup maintenance",
-		Run: func(ctx context.Context, h *maintenance.Handle) error {
+		Run: func(ctx context.Context, h *maintenance.Handle) (err error) {
+			act := s.Activity.Start(activity.Backup, "Backup maintenance")
+			defer func() { act.Finish(err) }()
+			act.Step("Removing old backups (keeping 7 daily, 4 weekly and 6 monthly)")
 			if err := s.Deps.Repo.Forget(ctx, DefaultRetention); err != nil {
 				return err
 			}
+			act.Step("Checking a sample (5%%) of the stored backups can be read")
 			return s.Deps.Repo.Check(ctx, "5%")
 		},
 	}
@@ -88,6 +109,9 @@ func (s *Service) Submit(chain ...maintenance.Job) error {
 		return ErrAlreadyQueued
 	}
 	s.pending = true
+	// Start the log now, so a backup queued behind other work shows as waiting.
+	s.act = s.Activity.Start(activity.Backup, "Backup")
+	s.act.Step("Waiting for other maintenance to finish")
 	s.mu.Unlock()
 	s.Coord.Submit(append([]maintenance.Job{s.Job()}, chain...)...)
 	return nil

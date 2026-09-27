@@ -45,6 +45,10 @@
   </form>
   {{end}}
   {{end}}
+  {{with .SetupActivity}}
+  <h2>Setup</h2>
+  {{template "activity" .}}
+  {{end}}
   {{with .Actions}}
   <h2>Actions</h2>
   {{range .}}

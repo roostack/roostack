@@ -5,9 +5,15 @@
     <h1>Services</h1>
     {{if .CanManage}}<a class="button" href="/catalog">Add a service</a>{{end}}
   </div>
-  <div hx-get="/partials/services" hx-trigger="every 10s" hx-swap="innerHTML">
+  <div hx-get="/partials/services" hx-trigger="every 10s, activity-done from:body" hx-swap="innerHTML">
     {{template "services-live" .}}
   </div>
+  {{with .ApplyActivity}}
+  <section class="card section">
+    <h2>Latest change</h2>
+    {{template "activity" .}}
+  </section>
+  {{end}}
 </section>
 {{end}}
 

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/hosttime"
@@ -75,6 +76,9 @@ func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	if a := s.activityFor(r, activity.Apply); a != nil {
+		data["ApplyActivity"] = map[string]any{"Activity": a}
+	}
 	s.render(w, "services", data)
 }
 
@@ -131,6 +135,10 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			data["Actions"] = actions
 		}
 		data["Setup"] = s.Manager.InstallStatus(r.Context(), name)
+		// The latest setup log, if it's this service's.
+		if a := s.activityFor(r, activity.Setup); a != nil && a.Title == "Setting up "+data["Service"].(ServiceView).Title {
+			data["SetupActivity"] = map[string]any{"Activity": a}
+		}
 		data["DataDirs"] = s.Manager.DataDirs(name)
 		ports, err := s.Manager.Ports(name)
 		if err != nil && !errors.Is(err, manager.ErrNotFound) {
@@ -159,6 +167,9 @@ func (s *Server) backupsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	data["Backup"] = s.backupView(r)
 	data["BackupRepo"] = s.BackupRepo
+	if a := s.activityFor(r, activity.Backup); a != nil {
+		data["BackupActivity"] = map[string]any{"Activity": a}
+	}
 	s.render(w, "backups", data)
 }
 

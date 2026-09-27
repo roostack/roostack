@@ -3,10 +3,13 @@ package manager
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/mylab/mylab/internal/activity"
 )
 
 type memKV struct {
@@ -52,6 +55,7 @@ func newHookManager(t *testing.T) (*Manager, *fakeSecrets, *memKV, *fakeExec) {
 	kv, ex := &memKV{m: map[string]string{}}, &fakeExec{}
 	m.State, m.Secrets, m.Exec = kv, secrets, ex.exec
 	m.HookRetry, m.HookDeadline = time.Millisecond, time.Second
+	m.Activity = activity.New()
 	return m, secrets, kv, ex
 }
 
@@ -85,6 +89,16 @@ func TestInstallHook(t *testing.T) {
 	}
 	if _, kept := secrets.values["mylab-forgejo-admin_password"]; kept {
 		t.Error("the admin password must be deleted once the hook succeeded")
+	}
+	setupLog, _ := m.Activity.Latest(activity.Setup)
+	logText := strings.Join(setupLog.Lines, "\n")
+	if setupLog.Title != "Setting up Forgejo" || !strings.Contains(logText, "database not ready") ||
+		!strings.Contains(logText, "trying again") || strings.Contains(logText, "correct horse") || setupLog.Err != "" {
+		t.Errorf("setup log:\n%s", logText)
+	}
+	applyLog, _ := m.Activity.Latest(activity.Apply)
+	if applyLog.Running() || !slices.Contains(applyLog.Lines, "==> Writing configuration") {
+		t.Errorf("apply log:\n%s", strings.Join(applyLog.Lines, "\n"))
 	}
 
 	// Later applies neither need the deleted secret nor run the hook again.

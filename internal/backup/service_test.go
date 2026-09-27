@@ -6,9 +6,12 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/maintenance"
 	"github.com/mylab/mylab/internal/store"
@@ -51,7 +54,7 @@ func TestServiceRecordsRuns(t *testing.T) {
 		Repo: repo, Preparer: &Preparer{}, Paths: paths, Host: "t",
 		DumpState: st.Backup,
 		Plan:      func() (Plan, error) { return LabPlan(paths, nil), nil },
-	}}
+	}, Activity: activity.New()}
 	if err := svc.Submit(); err != nil {
 		t.Fatal(err)
 	}
@@ -72,6 +75,16 @@ func TestServiceRecordsRuns(t *testing.T) {
 	s := wait()
 	if !s.Last.OK || s.LastOK == nil || s.LastOK.SnapshotID == "" || !s.LocalOnly {
 		t.Fatalf("status after success: %+v %+v", s, s.Last)
+	}
+	act, _ := svc.Activity.Latest(activity.Backup)
+	for _, want := range []string{"==> Saving a copy of MyLab's own database", "==> Opening the backup storage",
+		"==> Uploading changes", "==> Done"} {
+		if !slices.Contains(act.Lines, want) {
+			t.Errorf("activity missing %q:\n%s", want, strings.Join(act.Lines, "\n"))
+		}
+	}
+	if !strings.HasPrefix(act.Status, "Backed up: ") || act.Running() {
+		t.Errorf("activity status %q", act.Status)
 	}
 
 	// A failure is recorded too, and the last success is kept.

@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/generate"
 )
@@ -52,6 +53,8 @@ type Reconciler struct {
 	Paths   config.Paths
 	Systemd Systemd
 	Secrets Secrets
+	// Log shows an apply's steps live in the UI (optional, per apply).
+	Log *activity.Log
 	// UserSecret returns a user-provided secret value (e.g. the DNS token)
 	// for secrets that are not generated. It may be nil.
 	UserSecret func(name string) ([]byte, bool)
@@ -251,12 +254,21 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 // Apply carries out a plan. It stops at the first error; running Plan and
 // Apply again continues from where it left off.
 func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
+	log := r.Log
+	if len(p.Dirs) > 0 {
+		log.Step("Creating folders")
+	}
 	for _, dir := range p.Dirs {
+		log.Printf("%s", dir)
 		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return err
 		}
 	}
+	if len(p.Secrets) > 0 {
+		log.Step("Creating secrets")
+	}
 	for _, s := range p.Secrets {
+		log.Printf("%s", s.Name) // never the value
 		value, err := r.secretValue(s)
 		if err != nil {
 			return err
@@ -265,33 +277,50 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 			return err
 		}
 	}
+	if len(p.StopUnits) > 0 {
+		log.Step("Stopping removed services")
+		log.Printf("%s", strings.Join(p.StopUnits, " "))
+	}
 	if err := r.Systemd.Stop(ctx, p.StopUnits...); err != nil {
 		return err
 	}
+	if len(p.Write)+len(p.Remove) > 0 {
+		log.Step("Writing configuration")
+	}
 	for _, f := range p.Write {
+		log.Printf("write  %s", f.Path)
 		if err := writeAtomic(f.Path, f.Content); err != nil {
 			return err
 		}
 	}
 	for _, f := range p.Remove {
+		log.Printf("remove %s", f.Path)
 		if err := os.Remove(f.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 	}
 	if p.DaemonReload {
+		log.Step("Reloading systemd")
 		if err := r.Systemd.DaemonReload(ctx); err != nil {
 			return err
 		}
 	}
+	if len(p.RestartUnits) > 0 {
+		log.Step("Restarting changed services")
+		log.Printf("%s", strings.Join(p.RestartUnits, " "))
+	}
 	if err := r.Systemd.Restart(ctx, p.RestartUnits...); err != nil {
 		return err
 	}
+	log.Step("Starting services (a new service's download can take a few minutes)")
+	log.Printf("%s", strings.Join(p.StartUnits, " "))
 	if err := r.Systemd.Start(ctx, p.StartUnits...); err != nil {
 		return err
 	}
 	// reload-or-restart also starts Caddy if it isn't running
 	// (docs/ASSUMPTIONS.md L2).
 	if p.ReloadCaddy {
+		log.Step("Reloading Caddy (web addresses and certificates)")
 		return r.Systemd.ReloadOrRestart(ctx, generate.CaddyUnit+".service")
 	}
 	return nil

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"time"
@@ -53,13 +55,44 @@ func (c *Client) SetTimezone(ctx context.Context, name string) error {
 	return c.call(ctx, http.MethodPut, "/v1/timezone", map[string]string{"timezone": name}, nil)
 }
 
-// RunUpdates installs available OS updates and returns the output.
-func (c *Client) RunUpdates(ctx context.Context) (string, error) {
-	var resp struct {
-		Output string `json:"output"`
+// RunUpdates installs available OS updates, writing their output to w as
+// it arrives.
+func (c *Client) RunUpdates(ctx context.Context, w io.Writer) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://mylab-agent/v1/updates/run", nil)
+	if err != nil {
+		return err
 	}
-	err := c.call(ctx, http.MethodPost, "/v1/updates/run", nil, &resp)
-	return resp.Output, err
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("mylab-agent: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		var e struct {
+			Error string `json:"error"`
+		}
+		json.NewDecoder(resp.Body).Decode(&e)
+		return fmt.Errorf("mylab-agent: %s: %s", resp.Status, e.Error)
+	}
+	dec := json.NewDecoder(resp.Body)
+	for {
+		var msg struct {
+			Line  *string `json:"line"`
+			Done  bool    `json:"done"`
+			Error string  `json:"error"`
+		}
+		if err := dec.Decode(&msg); err != nil {
+			return fmt.Errorf("mylab-agent: updates stopped unexpectedly: %w", err)
+		}
+		switch {
+		case msg.Line != nil:
+			fmt.Fprintln(w, *msg.Line)
+		case msg.Done && msg.Error != "":
+			return errors.New(msg.Error)
+		case msg.Done:
+			return nil
+		}
+	}
 }
 
 // Reboot restarts the host a few seconds after answering.

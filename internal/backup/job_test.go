@@ -102,3 +102,11 @@ type nopJournal struct{}
 
 func (nopJournal) Load() ([]string, error) { return nil, nil }
 func (nopJournal) Save([]string) error     { return nil }
+
+func TestBytes(t *testing.T) {
+	for n, want := range map[uint64]string{0: "0 B", 999: "999 B", 1500: "1.5 kB", 2_600_000_000: "2.6 GB"} {
+		if got := Bytes(n); got != want {
+			t.Errorf("Bytes(%d) = %q, want %q", n, got, want)
+		}
+	}
+}

@@ -9,9 +9,11 @@ package osupdate
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"os"
 	"slices"
@@ -20,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/maintenance"
 )
 
@@ -38,7 +41,7 @@ const lastKey = "os.updates.last"
 
 // Agent is what's needed from mylab-agent.
 type Agent interface {
-	RunUpdates(ctx context.Context) (string, error)
+	RunUpdates(ctx context.Context, w io.Writer) error
 	Reboot(ctx context.Context) error
 }
 
@@ -70,9 +73,12 @@ type Service struct {
 	Coord Coordinator
 	Now   func() time.Time
 	Log   *slog.Logger
+	// Activity shows each run live in the UI (optional).
+	Activity *activity.Registry
 
 	mu      sync.Mutex
-	pending bool // queued or running
+	pending bool          // queued or running
+	act     *activity.Log // the queued run's log
 }
 
 // ErrAlreadyQueued means updates are already queued or running.
@@ -86,6 +92,9 @@ func (s *Service) Submit() error {
 		return ErrAlreadyQueued
 	}
 	s.pending = true
+	// Start the log now, so a run queued behind a backup shows as waiting.
+	s.act = s.Activity.Start(activity.OSUpdates, "OS updates")
+	s.act.Step("Waiting for other maintenance to finish")
 	s.Coord.Submit(s.Job())
 	return nil
 }
@@ -109,17 +118,32 @@ func (s *Service) Job() maintenance.Job {
 				s.pending = false
 				s.mu.Unlock()
 			}()
-			out, err := s.Agent.RunUpdates(ctx)
+			s.mu.Lock()
+			act := s.act
+			s.act = nil
+			s.mu.Unlock()
+			if act == nil { // run without Submit
+				act = s.Activity.Start(activity.OSUpdates, "OS updates")
+			}
+			act.Step("Starting")
+			var buf bytes.Buffer
+			err := s.Agent.RunUpdates(ctx, io.MultiWriter(act, &buf))
+			out := headTail(buf.String(), 3<<10, 5<<10)
 			res := Result{At: s.Now(), OK: err == nil, Summary: Summarize(out), Output: out}
 			if err != nil {
 				res.Summary = "Updating didn't finish: " + err.Error()
+			} else {
+				act.Step("%s", res.Summary)
 			}
 			if data, jerr := json.Marshal(res); jerr == nil {
 				if serr := s.Store.SetSetting(context.WithoutCancel(ctx), lastKey, string(data)); serr != nil {
 					s.Log.Error("recording OS update result", "err", serr)
 				}
 			}
-			s.CheckReboot()
+			if s.CheckReboot() {
+				act.Printf("A restart is needed to finish installing updates.")
+			}
+			act.Finish(err)
 			return err
 		},
 	}
@@ -200,6 +224,15 @@ func RebootNeeded() (bool, []string) {
 		}
 	}
 	return true, pkgs
+}
+
+// headTail shortens long output, keeping its start (unattended-upgrade's
+// list of what it will install) and its end (the outcome).
+func headTail(s string, head, tail int) string {
+	if len(s) <= head+tail {
+		return s
+	}
+	return s[:head] + "\n…\n" + s[len(s)-tail:]
 }
 
 // Summarize turns unattended-upgrade's verbose output into a sentence.

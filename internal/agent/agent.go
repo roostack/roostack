@@ -13,12 +13,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -43,8 +46,8 @@ type Host interface {
 	// with ValidTimezone).
 	SetTimezone(name string) error
 	// RunUpdates refreshes the package lists and installs available
-	// updates with unattended-upgrades, returning its output.
-	RunUpdates(ctx context.Context) (string, error)
+	// updates with unattended-upgrades, writing its output to w as it runs.
+	RunUpdates(ctx context.Context, w io.Writer) error
 	// Reboot restarts the host shortly after returning.
 	Reboot() error
 }
@@ -99,16 +102,26 @@ func (s *Server) Handler() http.Handler {
 		}
 		s.do(w, r, "set time zone "+req.Timezone, func() error { return s.Host.SetTimezone(req.Timezone) })
 	})
+	// Streams newline-delimited JSON: {"line": ...} as output arrives,
+	// then {"done": true, "error": ...}.
 	mux.HandleFunc("POST /v1/updates/run", func(w http.ResponseWriter, r *http.Request) {
 		uid, _ := r.Context().Value(ctxKey{}).(uint32)
-		out, err := s.Host.RunUpdates(r.Context())
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.WriteHeader(http.StatusOK)
+		st := &lineStream{enc: json.NewEncoder(w), flush: w.(http.Flusher).Flush}
+		err := s.Host.RunUpdates(r.Context(), st)
+		st.close()
+		end := map[string]any{"done": true}
 		if err != nil {
 			s.Log.Error("OS updates failed", "uid", uid, "err", err)
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error(), "output": out})
-			return
+			end["error"] = err.Error()
+		} else {
+			s.Log.Info("OS updates", "uid", uid)
 		}
-		s.Log.Info("OS updates", "uid", uid)
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "output": out})
+		st.mu.Lock()
+		st.enc.Encode(end)
+		st.flush()
+		st.mu.Unlock()
 	})
 	mux.HandleFunc("POST /v1/reboot", func(w http.ResponseWriter, r *http.Request) {
 		s.do(w, r, "reboot", s.Host.Reboot)
@@ -261,32 +274,60 @@ func (h LinuxHost) SetTimezone(name string) error {
 // updatesTimeout bounds one run of OS updates.
 const updatesTimeout = time.Hour
 
+// updatesScript announces its steps with "==> " lines (see
+// internal/activity).
+const updatesScript = `echo "==> Downloading the list of available updates"
+apt-get update -q || exit
+echo "==> Installing updates"
+unattended-upgrade -v`
+
 // RunUpdates runs apt-get update and unattended-upgrade in a transient
 // systemd unit, outside the agent's own sandbox (dpkg scripts may touch
-// anything), and returns their output.
-func (h LinuxHost) RunUpdates(ctx context.Context) (string, error) {
+// anything), streaming their output to w.
+func (h LinuxHost) RunUpdates(ctx context.Context, w io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, updatesTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "systemd-run", "--unit=mylab-os-updates", "--wait", "--pipe", "--quiet",
-		"--collect", "--setenv=DEBIAN_FRONTEND=noninteractive", "--",
-		"sh", "-c", "apt-get update -q && unattended-upgrade -v")
-	out, err := cmd.CombinedOutput()
-	return headTail(string(out), 3<<10, 5<<10), err
+		"--collect", "--setenv=DEBIAN_FRONTEND=noninteractive", "--", "sh", "-c", updatesScript)
+	cmd.Stdout, cmd.Stderr = w, w
+	return cmd.Run()
+}
+
+// lineStream sends written output as {"line": ...} JSON lines.
+type lineStream struct {
+	mu      sync.Mutex
+	enc     *json.Encoder
+	flush   func()
+	partial string
+}
+
+func (s *lineStream) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	lines := strings.Split(s.partial+string(p), "\n")
+	s.partial = lines[len(lines)-1]
+	for _, line := range lines[:len(lines)-1] {
+		if err := s.enc.Encode(map[string]string{"line": line}); err != nil {
+			return 0, err
+		}
+	}
+	s.flush()
+	return len(p), nil
+}
+
+func (s *lineStream) close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.partial != "" {
+		s.enc.Encode(map[string]string{"line": s.partial})
+		s.partial = ""
+	}
 }
 
 // Reboot asks systemd to reboot after a moment, so the API call returns.
 func (h LinuxHost) Reboot() error {
 	return exec.Command("systemd-run", "--on-active=5", "--unit=mylab-reboot", "--collect",
 		"systemctl", "reboot").Run()
-}
-
-// headTail shortens long output, keeping its start (unattended-upgrade's
-// summary of what it will install) and its end (the outcome).
-func headTail(s string, head, tail int) string {
-	if len(s) <= head+tail {
-		return s
-	}
-	return s[:head] + "\n…\n" + s[len(s)-tail:]
 }
 
 // RestoreFirewall re-applies the saved ruleset at agent start, if any.

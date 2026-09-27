@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/maintenance"
 )
 
@@ -34,8 +35,11 @@ type fakeAgent struct {
 	err error
 }
 
-func (f fakeAgent) RunUpdates(context.Context) (string, error) { return f.out, f.err }
-func (f fakeAgent) Reboot(context.Context) error               { return nil }
+func (f fakeAgent) RunUpdates(_ context.Context, w io.Writer) error {
+	io.WriteString(w, f.out)
+	return f.err
+}
+func (f fakeAgent) Reboot(context.Context) error { return nil }
 
 type memKV struct {
 	mu sync.Mutex
@@ -75,7 +79,8 @@ func newService(t *testing.T, a Agent) (*Service, *fakeCoord) {
 }
 
 func TestJobRequestsReboot(t *testing.T) {
-	s, coord := newService(t, fakeAgent{out: "Packages that will be upgraded: linux-image-amd64\n"})
+	s, coord := newService(t, fakeAgent{out: "==> Installing updates\nPackages that will be upgraded: linux-image-amd64\n"})
+	s.Activity = activity.New()
 	ctx := context.Background()
 	if err := s.Submit(); err != nil {
 		t.Fatal(err)
@@ -95,6 +100,12 @@ func TestJobRequestsReboot(t *testing.T) {
 	last, err := s.Last(ctx)
 	if err != nil || !last.OK || last.Summary != "Installed 1 update: linux-image-amd64." {
 		t.Errorf("last = %+v, %v", last, err)
+	}
+	act, _ := s.Activity.Latest(activity.OSUpdates)
+	if act.Running() || act.Status != "Installed 1 update: linux-image-amd64." ||
+		!slices.Contains(act.Lines, "Packages that will be upgraded: linux-image-amd64") ||
+		!slices.Contains(act.Lines, "A restart is needed to finish installing updates.") {
+		t.Errorf("activity = %+v", act)
 	}
 	if need, pkgs := RebootNeeded(); !need || !slices.Equal(pkgs, []string{"linux-image-6.12.108+deb13-cloud-amd64"}) {
 		t.Errorf("RebootNeeded = %v %v", need, pkgs)

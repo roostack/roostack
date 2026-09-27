@@ -42,6 +42,8 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
 
 ### 3.2 Host OS Management — Locked
 
+- **Feedback on host operations — Locked (2026-09-27):** anything that acts on the host (OS updates, backups, applying service changes, setup hooks, restores) shows a one-line status that updates live ("OS updates: Installing updates…", then "✓ … finished: Installed 3 updates"), with the full step-by-step log and command output under a collapsed **Details** for technical users. Pages refresh their results when the operation finishes. Logs are kept in memory (latest run of each kind); results that matter later are stored separately.
+
 - On fully supported distros, MyLab manages the host OS: security/package updates, reboot handling, and eventually major version upgrades.
 - Users must be told clearly (docs and UI) that major manual changes to the host OS may limit MyLab's ability to manage it.
 - **Rationale:** The primary user (§2) cannot maintain a Linux host. An unpatched host undermines everything else.

@@ -149,3 +149,12 @@ pre.output { background: var(--bg); border: 1px solid var(--border); border-radi
   white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85em; max-height: 16em; overflow: auto; }
 details.action { border-top: 1px solid var(--border); padding: 12px 0; }
 details.action summary { cursor: pointer; font-weight: 600; }
+.activity { margin: 12px 0; }
+.activity-status { margin: 0 0 6px; }
+.activity-status.failed { color: var(--bad); }
+.activity-details summary { cursor: pointer; color: var(--muted); font-size: 0.9em; }
+.activity-log { max-height: 24em; }
+.spinner { display: inline-block; width: 0.8em; height: 0.8em; border: 2px solid var(--border);
+  border-top-color: var(--fg); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -0.1em; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }

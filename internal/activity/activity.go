@@ -1,0 +1,178 @@
+// Package activity keeps a live log of operations that act on the host
+// (OS updates, backups, applying service changes, ...), so the UI can
+// show a one-line status to everyone and the details to those who want
+// them.
+//
+// Logs live in memory: the latest run of each kind is kept. Results that
+// must survive a restart are stored by their owners (e.g. backup runs).
+package activity
+
+import (
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+)
+
+// Kinds of activity, one log each.
+const (
+	OSUpdates = "os-updates"
+	Backup    = "backup"
+	Apply     = "apply" // applying service changes
+	Setup     = "setup" // a new service's install hooks
+	Restore   = "restore"
+)
+
+// maxLines is how many lines a log keeps; older ones are dropped.
+const maxLines = 2000
+
+// Registry holds the latest log of each kind.
+type Registry struct {
+	mu   sync.Mutex
+	logs map[string]*Log
+	now  func() time.Time
+}
+
+// New returns an empty registry.
+func New() *Registry { return &Registry{logs: map[string]*Log{}, now: time.Now} }
+
+// Start begins a new log for kind, replacing the previous one.
+func (r *Registry) Start(kind, title string) *Log {
+	if r == nil {
+		return nil // logging is optional: a nil Log discards
+	}
+	l := &Log{title: title, started: r.now(), now: r.now}
+	r.mu.Lock()
+	r.logs[kind] = l
+	r.mu.Unlock()
+	return l
+}
+
+// Latest returns a snapshot of kind's latest log, or false if none.
+func (r *Registry) Latest(kind string) (Snapshot, bool) {
+	if r == nil {
+		return Snapshot{}, false
+	}
+	r.mu.Lock()
+	l := r.logs[kind]
+	r.mu.Unlock()
+	if l == nil {
+		return Snapshot{}, false
+	}
+	return l.Snapshot(), true
+}
+
+// Log is one operation's log. A nil *Log discards everything, so callers
+// don't need to check.
+type Log struct {
+	mu       sync.Mutex
+	title    string
+	status   string
+	started  time.Time
+	finished time.Time
+	err      string
+	lines    []string
+	dropped  int
+	partial  string // an incomplete line from Write
+	now      func() time.Time
+}
+
+// Snapshot is a copy of a log for display.
+type Snapshot struct {
+	Title    string
+	Status   string // the latest step, for the one-line summary
+	Started  time.Time
+	Finished time.Time // zero while running
+	Err      string
+	Lines    []string
+	Dropped  int // lines no longer kept
+}
+
+// Running reports whether the operation hasn't finished.
+func (s Snapshot) Running() bool { return s.Finished.IsZero() }
+
+// Step records a step people should see in the status line, and logs it.
+func (l *Log) Step(format string, args ...any) {
+	if l == nil {
+		return
+	}
+	msg := fmt.Sprintf(format, args...)
+	l.mu.Lock()
+	l.status = msg
+	l.add("==> " + msg)
+	l.mu.Unlock()
+}
+
+// Printf adds a detail line.
+func (l *Log) Printf(format string, args ...any) {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	l.add(fmt.Sprintf(format, args...))
+	l.mu.Unlock()
+}
+
+// Write adds command output, line by line.
+func (l *Log) Write(p []byte) (int, error) {
+	if l == nil {
+		return len(p), nil
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	text := l.partial + string(p)
+	lines := strings.Split(text, "\n")
+	l.partial = lines[len(lines)-1]
+	for _, line := range lines[:len(lines)-1] {
+		// Progress bars redraw with \r: keep the last state.
+		if i := strings.LastIndexByte(line, '\r'); i >= 0 {
+			line = line[i+1:]
+		}
+		// Commands can announce steps the same way Step logs them.
+		if step, ok := strings.CutPrefix(line, "==> "); ok {
+			l.status = step
+		}
+		l.add(line)
+	}
+	return len(p), nil
+}
+
+// Finish ends the log; err is nil on success.
+func (l *Log) Finish(err error) {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.partial != "" {
+		l.add(l.partial)
+		l.partial = ""
+	}
+	l.finished = l.now()
+	if err != nil {
+		l.err = err.Error()
+		l.add("==> Failed: " + l.err)
+	} else {
+		l.add("==> Done")
+	}
+}
+
+func (l *Log) add(line string) {
+	l.lines = append(l.lines, line)
+	if over := len(l.lines) - maxLines; over > 0 {
+		l.lines = append(l.lines[:0:0], l.lines[over:]...)
+		l.dropped += over
+	}
+}
+
+// Snapshot copies the log.
+func (l *Log) Snapshot() Snapshot {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	lines := append([]string(nil), l.lines...)
+	if l.partial != "" {
+		lines = append(lines, l.partial)
+	}
+	return Snapshot{Title: l.title, Status: l.status, Started: l.started, Finished: l.finished,
+		Err: l.err, Lines: lines, Dropped: l.dropped}
+}
