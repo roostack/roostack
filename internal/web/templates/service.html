@@ -77,7 +77,48 @@
   </details>
   {{end}}
   {{end}}
-  <p class="hint">Changing settings after installing is coming later.</p>
+  <h2 id="settings">Settings</h2>
+  {{with .Links}}
+  <p class="hint">Most of {{$.Service.Title}}'s settings are in {{$.Service.Title}} itself:</p>
+  <ul class="plain">
+    {{range .}}<li><a href="{{.URL}}" target="_blank" rel="noopener">{{.Title}} ↗</a>{{with .Description}}<br><small class="hint">{{.}}</small>{{end}}</li>{{end}}
+  </ul>
+  {{end}}
+  {{range .Secrets}}
+  <div class="secret-row">
+    <span>{{.Title}}{{with .Description}}<br><small class="hint">{{.}}</small>{{end}}</span>
+    {{$shown := ""}}{{if $.Revealed}}{{$shown = index $.Revealed .Key}}{{end}}
+    {{if $shown}}<code class="secret">{{$shown}}</code>
+    {{else}}<form method="post" action="/services/{{$.Service.Name}}/reveal/{{.Key}}"><button type="submit" class="secondary">Show</button></form>{{end}}
+  </div>
+  {{end}}
+  {{if or .HasRoute .SettingFields}}
+  <form method="post" action="/services/{{.Service.Name}}/settings" class="section">
+    {{with .SettingsError}}<p class="error" role="alert">{{.}}</p>{{end}}
+    {{if .HasRoute}}
+    <label>Web address
+      <span class="with-suffix">
+        <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off">
+        <span>.{{.Domain}}</span>
+      </span>
+      <small>Changing it moves {{.Service.Title}} to the new address; old links stop working.</small>
+    </label>
+    {{end}}
+    {{range .SettingFields}}
+      {{if eq .Kind "checkbox"}}
+      <label class="check"><input type="checkbox" name="{{.Key}}" {{if .Checked}}checked{{end}}>
+        <span>{{.Title}}{{with .Description}}<small>{{.}}</small>{{end}}</span></label>
+      {{else}}
+      <label>{{.Title}}
+        <input type="{{.Kind}}" name="{{.Key}}" value="{{.Value}}" {{if .Required}}required{{end}} {{with .MinLength}}minlength="{{.}}"{{end}}>
+        {{with .Description}}<small>{{.}}</small>{{end}}
+      </label>
+      {{end}}
+    {{end}}
+    <button type="submit">Save</button>
+    <p class="hint">Saving restarts {{.Service.Title}}; it's unavailable for a moment.</p>
+  </form>
+  {{end}}
   <p><a class="link-danger" href="/services/{{.Service.Name}}/remove">Remove {{.Service.Title}}…</a></p>
 </section>
 {{end}}

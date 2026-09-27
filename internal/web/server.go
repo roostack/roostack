@@ -6,6 +6,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"errors"
@@ -122,6 +123,9 @@ type ServiceManager interface {
 	InstallStatus(ctx context.Context, name string) manager.HookStatus
 	RetryInstall(ctx context.Context, name string) error
 	RunAction(ctx context.Context, name, action string, inputs map[string]string) (string, error)
+	CurrentSettings(name string) (map[string]any, string, error)
+	UpdateSettings(ctx context.Context, name string, req manager.SettingsRequest) error
+	RevealSecret(ctx context.Context, name, key string) (string, error)
 	Status() manager.ApplyStatus
 }
 
@@ -245,6 +249,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /install/{name}", s.require(auth.ManageServices, s.installPage))
 	mux.Handle("POST /install/{name}", s.require(auth.ManageServices, s.installSubmit))
 	mux.Handle("POST /services/{name}/ports/{port}", s.require(auth.ManageServices, s.portSubmit))
+	mux.Handle("POST /services/{name}/settings", s.require(auth.ManageServices, s.settingsSubmit))
+	mux.Handle("POST /services/{name}/reveal/{key}", s.require(auth.ManageServices, s.revealSubmit))
 	mux.Handle("POST /services/{name}/setup/retry", s.require(auth.ManageServices, s.retrySetupSubmit))
 	mux.Handle("POST /services/{name}/actions/{action}", s.require(auth.ManageServices, s.actionSubmit))
 	mux.Handle("GET /services/{name}/remove", s.require(auth.ManageServices, s.removePage))
@@ -417,10 +423,16 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 			data["Clock"] = clockView{hosttime.Now(), auth.Can(u.Role, auth.ManageHost)}
 		}
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.pages[page].Execute(w, data); err != nil {
+	// Render into a buffer first, so a template error becomes an error
+	// page rather than half a page sent with 200 OK.
+	var buf bytes.Buffer
+	if err := s.pages[page].Execute(&buf, data); err != nil {
 		s.Log.Error("render", "page", page, "err", err)
+		http.Error(w, "Something went wrong showing this page. Details are in the MyLab log.", http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(buf.Bytes())
 }
 
 func (s *Server) serverError(w http.ResponseWriter, err error) {

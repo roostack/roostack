@@ -197,3 +197,5 @@ code.secret { font-size: 1.2em; padding: 4px 8px; user-select: all; }
 button.link-danger { background: none; padding: 0; }
 .qr-box { margin: 10px 0; }
 svg.qr { display: block; width: 200px; height: 200px; border-radius: 6px; }
+.secret-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 12px 0;
+  overflow-wrap: anywhere; }

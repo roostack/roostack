@@ -83,6 +83,12 @@ routes:
     exposure: private
     max_body_size: 1GB           # large pushes and release attachments
 
+links:                           # most settings live in Forgejo itself
+  - title: Site administration
+    description: Users, organisations, email and other Forgejo settings (log in as the administrator)
+    route: web
+    path: /-/admin
+
 hooks:
   # Create the administrator. Values arrive as environment variables, never
   # in the command itself. Safe to re-run: an existing admin is kept (e.g.

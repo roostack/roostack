@@ -62,6 +62,18 @@ func (p *Package) Validate() error {
 		p.validatePort(v, name, p.Ports[name])
 	}
 	p.validateHooks(v)
+	for i, l := range p.Links {
+		at := fmt.Sprintf("links[%d]", i)
+		if l.Title == "" {
+			v.addf("%s.title: required", at)
+		}
+		if p.Routes[l.Route] == nil {
+			v.addf("%s.route: unknown route %q", at, l.Route)
+		}
+		if !strings.HasPrefix(l.Path, "/") || strings.HasPrefix(l.Path, "//") {
+			v.addf("%s.path: must start with a single /", at)
+		}
+	}
 	return v.err()
 }
 
@@ -119,6 +131,9 @@ func (p *Package) validateSettings(v *validator) {
 		}
 		if s.Generate && s.Type != SettingSecret {
 			v.addf("%s.generate: only valid for secret settings", at)
+		}
+		if s.Reveal && (s.Type != SettingSecret || s.InstallOnly) {
+			v.addf("%s.reveal: only for secrets that are kept (not install_only)", at)
 		}
 		if s.Generate && s.InstallOnly {
 			v.addf("%s: a generated secret can't be install_only (nobody would know it)", at)

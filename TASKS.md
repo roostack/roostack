@@ -52,7 +52,9 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] 2FA: QR code (rsc.io/qr, drawn as SVG; checked with zbarimg); recovery codes dropped in favour of the CLI reset
   - [x] UI review pass (2026-09-27): temporary passwords must be changed at first login; phone layout of fact lists; dark-mode form controls; shorter "Needs attention" DNS items; service page layout (technical details collapsed); backups status shows what the last backup did; clearer end states for applies
   - [x] People page for the Owner (add, role, new temporary password, turn off 2FA, remove; last Owner protected); `mylab user reset-2fa`
-  - [ ] Mark untested catalog packages (Immich) or hide them until tested
+  - [x] Service settings: links into the app's admin pages, editable MyLab settings and web address, revealable secrets (Vaultwarden admin token)
+  - [x] Theme toggle (auto/light/dark, saved per user)
+  - [ ] Mark untested catalog packages (Immich) before release (not needed while in development)
   - [x] Split the UI into pages: Home (needs attention + services), Services, Backups, Settings, Account; role-aware navigation; works on phones
   - [x] Change your own password (logs out other devices)
   - [x] Install/remove services from the UI (catalog, settings form, remove keeps data, background apply with status)

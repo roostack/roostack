@@ -3,6 +3,8 @@ package manager
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -168,5 +170,49 @@ func TestRunAction(t *testing.T) {
 	if _, err := m.RunAction(ctx, "forgejo", "reset-password", map[string]string{"username": "x", "password": "a new password"}); !errors.As(err, &ae) ||
 		!strings.Contains(ae.Output, "database not ready") {
 		t.Errorf("failed action: %v", err)
+	}
+}
+
+func TestUpdateSettingsAndReveal(t *testing.T) {
+	m, secrets, _, _ := newHookManager(t)
+	ctx := context.Background()
+	if err := m.Install(ctx, "forgejo", forgejoRequest()); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	m.WaitHooks()
+
+	values, sub, err := m.CurrentSettings("forgejo")
+	if err != nil || sub != "git" || values["signups_allowed"] != false {
+		t.Fatalf("current = %v %q %v", values, sub, err)
+	}
+	var fe *FormError
+	if err := m.UpdateSettings(ctx, "forgejo", SettingsRequest{Subdomain: "vault"}); !errors.As(err, &fe) {
+		t.Errorf("taking vaultwarden's address: %v", err)
+	}
+	if err := m.UpdateSettings(ctx, "forgejo", SettingsRequest{Subdomain: "Code",
+		Settings: map[string]string{"signups_allowed": "on", "admin_username": "hacker"}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	values, sub, _ = m.CurrentSettings("forgejo")
+	if sub != "code" || values["signups_allowed"] != true || values["admin_username"] != "mum" {
+		t.Errorf("after update: %v %q (install-only settings must not change)", values, sub)
+	}
+	unit, _ := os.ReadFile(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-forgejo-app.container"))
+	if !strings.Contains(string(unit), "ROOT_URL=https://code.lab.example.com/") ||
+		!strings.Contains(string(unit), "DISABLE_REGISTRATION=false") {
+		t.Errorf("unit not regenerated:\n%s", unit)
+	}
+
+	if v, err := m.RevealSecret(ctx, "vaultwarden", "admin_token"); err != nil || v == "" ||
+		v != string(secrets.values["mylab-vaultwarden-admin_token"]) {
+		t.Errorf("reveal: %q %v", v, err)
+	}
+	if _, err := m.RevealSecret(ctx, "forgejo", "admin_password"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("revealing a non-revealable secret: %v", err)
 	}
 }
