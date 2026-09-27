@@ -14,333 +14,818 @@
   <link rel="stylesheet" href="../../internal/web/static/css/themes/everforest.css">
   <link rel="stylesheet" href="../../internal/web/static/css/themes/rose-pine.css">
   <link rel="stylesheet" href="../../internal/web/static/css/themes/tokyo-night.css">
-  
   <link rel="stylesheet" href="../../internal/web/static/css/app.css">
   <link rel="stylesheet" href="../../internal/web/static/css/gallery.css">
-  <script src="../../internal/web/static/alpine-3.17.4.min.js" defer></script>
+  <script src="../../internal/web/static/gallery.js" defer></script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"></span>MyLab</a>
     <nav><a class="active" href="#top">Design system</a></nav>
   </header>
-  <main id="top" class="gallery">
-    <h1>Design system</h1>
-    <p>Every colour, size and component MyLab's pages use, in light and dark. Pages should only use what's here;
-      if something new is needed, add it to the design system first (<code>docs/DESIGN.md</code>).</p>
-    <p class="hint">This file is generated from the same templates as the <code>/design</code> page in MyLab
-      (<code>go test ./internal/web -run TestGalleryFile -update-gallery</code>). Don't edit it by hand.</p>
-    <label class="theme-select">Theme
-      <select x-data x-on:change="document.documentElement.dataset.palette = $event.target.value">
-        <option value="teal" selected>Teal and violet</option><option value="ocean">Ocean and magenta</option><option value="catppuccin">Catppuccin</option><option value="gruvbox">Gruvbox</option><option value="nord">Nord</option><option value="solarized">Solarized</option><option value="everforest">Everforest</option><option value="rose-pine">Rosé Pine</option><option value="tokyo-night">Tokyo Night</option>
-      </select>
+  <div class="gallery-layout">
+    <aside class="gallery-aside">
+      <label class="theme-select">Theme
+        <select id="gallery-theme">
+          <option value="teal" selected>Teal and violet</option><option value="ocean">Ocean and magenta</option><option value="catppuccin">Catppuccin</option><option value="gruvbox">Gruvbox</option><option value="nord">Nord</option><option value="solarized">Solarized</option><option value="everforest">Everforest</option><option value="rose-pine">Rosé Pine</option><option value="tokyo-night">Tokyo Night</option>
+        </select>
+      </label>
+      <nav class="gallery-toc" aria-label="Contents">
+        <a href="#tokens">Colours</a>
+        <a href="#scales">Sizes</a>
+        <a href="#buttons">Buttons</a>
+        <a href="#notices">Notices</a>
+        <a href="#status">Status and badges</a>
+        <a href="#cards">Cards and facts</a>
+        <a href="#forms">Forms</a>
+        <a href="#lists">Lists</a>
+        <a href="#settings">Settings navigation</a>
+        <a href="#activity">Activity</a>
+        <a href="#secrets">Secrets and codes</a>
+        
+      </nav>
+    </aside>
+
+    <main id="top" class="gallery">
+      <h1>Design system</h1>
+      <p>Every colour, size and component MyLab's pages use, in light and dark. Pages should only use what's here;
+        if something new is needed, add it to the design system first (<code>docs/DESIGN.md</code>).</p>
+      <p class="hint">Two kinds of component: <strong>template components</strong> have shared markup and are called with
+        <code>{{template "name" …}}</code> (the markup shows the call and the HTML it renders);
+        <strong>HTML and CSS classes</strong> are written as plain HTML using the classes shown.</p>
+      <p class="hint">This file is generated from the same templates as the <code>/design</code> page in MyLab
+        (<code>go test ./internal/web -run TestGalleryFile -update-gallery</code>). Don't edit it by hand.</p>
+
+      <section id="tokens">
+        <h2>Colours</h2>
+        <p class="hint">Pages use these names, never raw colours, so themes can change them. Values are for the theme picked
+          in the sidebar.</p>
+        <div class="panels">
+          
+          <div class="panel" data-mode="light">
+            <p class="panel-label">light</p>
+            <ul class="swatches">
+              <li data-token><span class="swatch swatch-bg" data-sample></span>
+                <span><code>--bg</code> <code class="resolved" data-resolve="background-color"></code><br><small>Page background</small></span></li>
+              <li data-token><span class="swatch swatch-surface" data-sample></span>
+                <span><code>--surface</code> <code class="resolved" data-resolve="background-color"></code><br><small>Cards</small></span></li>
+              <li data-token><span class="swatch swatch-surface-2" data-sample></span>
+                <span><code>--surface-2</code> <code class="resolved" data-resolve="background-color"></code><br><small>Inputs, code, insets</small></span></li>
+              <li data-token><span class="swatch swatch-fg" data-sample></span>
+                <span><code>--fg</code> <code class="resolved" data-resolve="background-color"></code><br><small>Text</small></span></li>
+              <li data-token><span class="swatch swatch-muted" data-sample></span>
+                <span><code>--muted</code> <code class="resolved" data-resolve="background-color"></code><br><small>Secondary text</small></span></li>
+              <li data-token><span class="swatch swatch-border" data-sample></span>
+                <span><code>--border</code> <code class="resolved" data-resolve="background-color"></code><br><small>Borders</small></span></li>
+              <li data-token><span class="swatch swatch-border-strong" data-sample></span>
+                <span><code>--border-strong</code> <code class="resolved" data-resolve="background-color"></code><br><small>Input borders</small></span></li>
+              <li data-token><span class="swatch swatch-accent" data-sample></span>
+                <span><code>--accent</code> <code class="resolved" data-resolve="background-color"></code><br><small>Actions and links</small></span></li>
+              <li data-token><span class="swatch swatch-accent-soft" data-sample></span>
+                <span><code>--accent-soft</code> <code class="resolved" data-resolve="background-color"></code><br><small>Info backgrounds</small></span></li>
+              <li data-token><span class="swatch swatch-highlight" data-sample></span>
+                <span><code>--highlight</code> <code class="resolved" data-resolve="background-color"></code><br><small>Brand mark, where you are, focus</small></span></li>
+              <li data-token><span class="swatch swatch-highlight-soft" data-sample></span>
+                <span><code>--highlight-soft</code> <code class="resolved" data-resolve="background-color"></code><br><small>Highlight backgrounds</small></span></li>
+              <li data-token><span class="swatch swatch-ok" data-sample></span>
+                <span><code>--ok</code> <code class="resolved" data-resolve="background-color"></code><br><small>Healthy</small></span></li>
+              <li data-token><span class="swatch swatch-warn" data-sample></span>
+                <span><code>--warn</code> <code class="resolved" data-resolve="background-color"></code><br><small>Needs attention soon</small></span></li>
+              <li data-token><span class="swatch swatch-bad" data-sample></span>
+                <span><code>--bad</code> <code class="resolved" data-resolve="background-color"></code><br><small>Problem</small></span></li>
+              
+            </ul>
+          </div>
+          
+          <div class="panel" data-mode="dark">
+            <p class="panel-label">dark</p>
+            <ul class="swatches">
+              <li data-token><span class="swatch swatch-bg" data-sample></span>
+                <span><code>--bg</code> <code class="resolved" data-resolve="background-color"></code><br><small>Page background</small></span></li>
+              <li data-token><span class="swatch swatch-surface" data-sample></span>
+                <span><code>--surface</code> <code class="resolved" data-resolve="background-color"></code><br><small>Cards</small></span></li>
+              <li data-token><span class="swatch swatch-surface-2" data-sample></span>
+                <span><code>--surface-2</code> <code class="resolved" data-resolve="background-color"></code><br><small>Inputs, code, insets</small></span></li>
+              <li data-token><span class="swatch swatch-fg" data-sample></span>
+                <span><code>--fg</code> <code class="resolved" data-resolve="background-color"></code><br><small>Text</small></span></li>
+              <li data-token><span class="swatch swatch-muted" data-sample></span>
+                <span><code>--muted</code> <code class="resolved" data-resolve="background-color"></code><br><small>Secondary text</small></span></li>
+              <li data-token><span class="swatch swatch-border" data-sample></span>
+                <span><code>--border</code> <code class="resolved" data-resolve="background-color"></code><br><small>Borders</small></span></li>
+              <li data-token><span class="swatch swatch-border-strong" data-sample></span>
+                <span><code>--border-strong</code> <code class="resolved" data-resolve="background-color"></code><br><small>Input borders</small></span></li>
+              <li data-token><span class="swatch swatch-accent" data-sample></span>
+                <span><code>--accent</code> <code class="resolved" data-resolve="background-color"></code><br><small>Actions and links</small></span></li>
+              <li data-token><span class="swatch swatch-accent-soft" data-sample></span>
+                <span><code>--accent-soft</code> <code class="resolved" data-resolve="background-color"></code><br><small>Info backgrounds</small></span></li>
+              <li data-token><span class="swatch swatch-highlight" data-sample></span>
+                <span><code>--highlight</code> <code class="resolved" data-resolve="background-color"></code><br><small>Brand mark, where you are, focus</small></span></li>
+              <li data-token><span class="swatch swatch-highlight-soft" data-sample></span>
+                <span><code>--highlight-soft</code> <code class="resolved" data-resolve="background-color"></code><br><small>Highlight backgrounds</small></span></li>
+              <li data-token><span class="swatch swatch-ok" data-sample></span>
+                <span><code>--ok</code> <code class="resolved" data-resolve="background-color"></code><br><small>Healthy</small></span></li>
+              <li data-token><span class="swatch swatch-warn" data-sample></span>
+                <span><code>--warn</code> <code class="resolved" data-resolve="background-color"></code><br><small>Needs attention soon</small></span></li>
+              <li data-token><span class="swatch swatch-bad" data-sample></span>
+                <span><code>--bad</code> <code class="resolved" data-resolve="background-color"></code><br><small>Problem</small></span></li>
+              
+            </ul>
+          </div>
+          
+        </div>
+      </section>
+
+      <section id="scales">
+        <h2>Sizes</h2>
+        <h3>Spacing</h3>
+        <ul class="scale"><li data-token><span class="space-bar space-1" data-sample></span><code>--space-1</code>
+          <code class="resolved" data-resolve="width"></code></li><li data-token><span class="space-bar space-2" data-sample></span><code>--space-2</code>
+          <code class="resolved" data-resolve="width"></code></li><li data-token><span class="space-bar space-3" data-sample></span><code>--space-3</code>
+          <code class="resolved" data-resolve="width"></code></li><li data-token><span class="space-bar space-4" data-sample></span><code>--space-4</code>
+          <code class="resolved" data-resolve="width"></code></li><li data-token><span class="space-bar space-5" data-sample></span><code>--space-5</code>
+          <code class="resolved" data-resolve="width"></code></li><li data-token><span class="space-bar space-6" data-sample></span><code>--space-6</code>
+          <code class="resolved" data-resolve="width"></code></li><li data-token><span class="space-bar space-7" data-sample></span><code>--space-7</code>
+          <code class="resolved" data-resolve="width"></code></li></ul>
+        <h3>Text</h3>
+        <ul class="scale"><li data-token><span class="type-sm" data-sample>Hints and small print</span> <code>--text-sm</code>
+          <code class="resolved" data-var="--text-sm" data-resolve="font-size"></code></li><li data-token><span class="type-base" data-sample>Body text</span> <code>--text-base</code>
+          <code class="resolved" data-var="--text-base" data-resolve="font-size"></code></li><li data-token><span class="type-lg" data-sample>Card headings</span> <code>--text-lg</code>
+          <code class="resolved" data-var="--text-lg" data-resolve="font-size"></code></li><li data-token><span class="type-xl" data-sample>Large text</span> <code>--text-xl</code>
+          <code class="resolved" data-var="--text-xl" data-resolve="font-size"></code></li><li data-token><span class="type-2xl" data-sample>Page titles</span> <code>--text-2xl</code>
+          <code class="resolved" data-var="--text-2xl" data-resolve="font-size"></code></li></ul>
+        <h3>Corners</h3>
+        <ul class="scale corners"><li class="radius-sm" data-token data-sample>
+          <code>--radius-sm</code><br><code class="resolved" data-resolve="border-top-left-radius"></code></li><li class="radius" data-token data-sample>
+          <code>--radius</code><br><code class="resolved" data-resolve="border-top-left-radius"></code></li><li class="radius-lg" data-token data-sample>
+          <code>--radius-lg</code><br><code class="resolved" data-resolve="border-top-left-radius"></code></li><li class="radius-pill" data-token data-sample>
+          <code>--radius-pill</code><br><code class="resolved" data-resolve="border-top-left-radius"></code></li></ul>
+      </section>
+
+      
+      <section id="buttons">
+        <h2>Buttons</h2>
+        <p class="hint">One primary button per form or card; others secondary or quiet.</p>
+        
+        <div class="example">
+          <h3>Primary, secondary, danger, quiet <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">Primary does the main thing. Danger removes or deletes. Quiet is for small or optional actions.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="actions-row">
+  <button>Back up now</button>
+  <button class="secondary">Cancel</button>
+  <button class="danger">Remove</button>
+  <button class="quiet">Set this up later</button>
+</div></div>
+            <div class="panel" data-mode="dark"><div class="actions-row">
+  <button>Back up now</button>
+  <button class="secondary">Cancel</button>
+  <button class="danger">Remove</button>
+  <button class="quiet">Set this up later</button>
+</div></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;div class=&#34;actions-row&#34;&gt;
+  &lt;button&gt;Back up now&lt;/button&gt;
+  &lt;button class=&#34;secondary&#34;&gt;Cancel&lt;/button&gt;
+  &lt;button class=&#34;danger&#34;&gt;Remove&lt;/button&gt;
+  &lt;button class=&#34;quiet&#34;&gt;Set this up later&lt;/button&gt;
+&lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Link styled as a button <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">For navigation that looks like an action.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><a class="button" href="#">Add a service</a>
+<a class="button secondary" href="#">Open backups</a></div>
+            <div class="panel" data-mode="dark"><a class="button" href="#">Add a service</a>
+<a class="button secondary" href="#">Open backups</a></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;a class=&#34;button&#34; href=&#34;#&#34;&gt;Add a service&lt;/a&gt;
+&lt;a class=&#34;button secondary&#34; href=&#34;#&#34;&gt;Open backups&lt;/a&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Confirm <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">A button that asks the browser to confirm first. Use it for anything hard to undo. The question can contain any text (it&#39;s passed as a data attribute, never into script).</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form method="post" action="/users/3/remove" data-confirm="Remove dad? They will no longer be able to log in." x-data
+  x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
+  
+  <button type="submit" class="quiet danger">Remove dad</button>
+</form></div>
+            <div class="panel" data-mode="dark"><form method="post" action="/users/3/remove" data-confirm="Remove dad? They will no longer be able to log in." x-data
+  x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
+  
+  <button type="submit" class="quiet danger">Remove dad</button>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;confirm-button&#34; (dict
+  &#34;Action&#34;  &#34;/users/3/remove&#34;
+  &#34;Confirm&#34; &#34;Remove dad? They will no longer be able to log in.&#34;
+  &#34;Text&#34;    &#34;Remove dad&#34;
+  &#34;Kind&#34;    &#34;quiet danger&#34;)}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;form method=&#34;post&#34; action=&#34;/users/3/remove&#34; data-confirm=&#34;Remove dad? They will no longer be able to log in.&#34; x-data
+  x-on:submit=&#34;if (!confirm($el.dataset.confirm)) $event.preventDefault()&#34;&gt;
+  &lt;button type=&#34;submit&#34; class=&#34;quiet danger&#34;&gt;Remove dad&lt;/button&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
+      
+      <section id="notices">
+        <h2>Notices</h2>
+        <p class="hint">Short messages in a page. Info is the default; the colour says how much it matters.</p>
+        
+        <div class="example">
+          <h3>Info <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">Something&#39;s happening, or worth knowing.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><p class="notice" role="status">
+  Updating DNS records and checking them…</p></div>
+            <div class="panel" data-mode="dark"><p class="notice" role="status">
+  Updating DNS records and checking them…</p></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;notice&#34; (dict &#34;Text&#34; &#34;Updating DNS records and checking them…&#34;)}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;p class=&#34;notice&#34; role=&#34;status&#34;&gt;Updating DNS records and checking them…&lt;/p&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Success <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">Something finished as asked.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><p class="notice notice-ok" role="status">
+  Password changed.</p></div>
+            <div class="panel" data-mode="dark"><p class="notice notice-ok" role="status">
+  Password changed.</p></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;notice&#34; (dict &#34;Kind&#34; &#34;ok&#34; &#34;Text&#34; &#34;Password changed.&#34;)}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;p class=&#34;notice notice-ok&#34; role=&#34;status&#34;&gt;Password changed.&lt;/p&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Warning <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">Should be dealt with soon. Link and LinkText are optional.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><p class="notice notice-warn" role="status">
+  Backups are only stored on this machine. <a href="/backups">Improve backups</a></p></div>
+            <div class="panel" data-mode="dark"><p class="notice notice-warn" role="status">
+  Backups are only stored on this machine. <a href="/backups">Improve backups</a></p></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;notice&#34; (dict
+  &#34;Kind&#34;     &#34;warn&#34;
+  &#34;Text&#34;     &#34;Backups are only stored on this machine.&#34;
+  &#34;Link&#34;     &#34;/backups&#34;
+  &#34;LinkText&#34; &#34;Improve backups&#34;)}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;p class=&#34;notice notice-warn&#34; role=&#34;status&#34;&gt;Backups are only stored on this machine.&lt;a href=&#34;/backups&#34;&gt;Improve backups&lt;/a&gt;&lt;/p&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Error <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">Something is broken.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><p class="notice notice-error" role="alert">
+  The last backup didn&#39;t finish: the disk is full.</p></div>
+            <div class="panel" data-mode="dark"><p class="notice notice-error" role="alert">
+  The last backup didn&#39;t finish: the disk is full.</p></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;notice&#34; (dict &#34;Kind&#34; &#34;error&#34; &#34;Text&#34; &#34;The last backup didn&#39;t finish: the disk is full.&#34;)}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;p class=&#34;notice notice-error&#34; role=&#34;alert&#34;&gt;The last backup didn&amp;#39;t finish: the disk is full.&lt;/p&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
+      
+      <section id="status">
+        <h2>Status and badges</h2>
+        <p class="hint">Status says how a service is doing; badges label things. The highlight badge is for the brand&#39;s own voice (&#34;New&#34;), sparingly.</p>
+        
+        <div class="example">
+          <h3>Service status <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">Pass the service&#39;s state.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><span class="status status-running">running</span>
+<span class="status status-starting">starting</span>
+<span class="status status-failed">failed</span>
+<span class="status status-stopped">stopped</span></div>
+            <div class="panel" data-mode="dark"><span class="status status-running">running</span>
+<span class="status status-starting">starting</span>
+<span class="status status-failed">failed</span>
+<span class="status status-stopped">stopped</span></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;status&#34; &#34;running&#34;}}
+{{template &#34;status&#34; &#34;starting&#34;}}
+{{template &#34;status&#34; &#34;failed&#34;}}
+{{template &#34;status&#34; &#34;stopped&#34;}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;span class=&#34;status status-running&#34;&gt;running&lt;/span&gt;&lt;span class=&#34;status status-starting&#34;&gt;starting&lt;/span&gt;&lt;span class=&#34;status status-failed&#34;&gt;failed&lt;/span&gt;&lt;span class=&#34;status status-stopped&#34;&gt;stopped&lt;/span&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Badges <span class="badge badge-highlight">Template component</span></h3>
+          
+          <div class="panels">
+            <div class="panel" data-mode="light"><span class="badge">Preview</span>
+<span class="badge badge-highlight">New</span></div>
+            <div class="panel" data-mode="dark"><span class="badge">Preview</span>
+<span class="badge badge-highlight">New</span></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;badge&#34; (dict &#34;Text&#34; &#34;Preview&#34;)}}
+{{template &#34;badge&#34; (dict &#34;Text&#34; &#34;New&#34; &#34;Highlight&#34; true)}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;span class=&#34;badge&#34;&gt;Preview&lt;/span&gt;&lt;span class=&#34;badge badge-highlight&#34;&gt;New&lt;/span&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
+      
+      <section id="cards">
+        <h2>Cards and facts</h2>
+        <p class="hint">A card holds one topic. A heading row puts its title and main link together; facts list label and value pairs (stacked on phones).</p>
+        
+        <div class="example">
+          <h3>Card with heading and facts <span class="badge">HTML and CSS classes</span></h3>
+          
+          <div class="panels">
+            <div class="panel" data-mode="light"><section class="card">
+  <div class="heading">
+    <h2>Domain and certificates</h2>
+    <a href="#">Change…</a>
+  </div>
+  <dl class="facts">
+    <dt>Domain</dt>       <dd>lab.example.com</dd>
+    <dt>DNS provider</dt> <dd>Cloudflare</dd>
+    <dt>Services</dt>     <dd>Addresses like <code>photos.lab.example.com</code></dd>
+  </dl>
+</section></div>
+            <div class="panel" data-mode="dark"><section class="card">
+  <div class="heading">
+    <h2>Domain and certificates</h2>
+    <a href="#">Change…</a>
+  </div>
+  <dl class="facts">
+    <dt>Domain</dt>       <dd>lab.example.com</dd>
+    <dt>DNS provider</dt> <dd>Cloudflare</dd>
+    <dt>Services</dt>     <dd>Addresses like <code>photos.lab.example.com</code></dd>
+  </dl>
+</section></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;section class=&#34;card&#34;&gt;
+  &lt;div class=&#34;heading&#34;&gt;
+    &lt;h2&gt;Domain and certificates&lt;/h2&gt;
+    &lt;a href=&#34;#&#34;&gt;Change…&lt;/a&gt;
+  &lt;/div&gt;
+  &lt;dl class=&#34;facts&#34;&gt;
+    &lt;dt&gt;Domain&lt;/dt&gt;       &lt;dd&gt;lab.example.com&lt;/dd&gt;
+    &lt;dt&gt;DNS provider&lt;/dt&gt; &lt;dd&gt;Cloudflare&lt;/dd&gt;
+    &lt;dt&gt;Services&lt;/dt&gt;     &lt;dd&gt;Addresses like &lt;code&gt;photos.lab.example.com&lt;/code&gt;&lt;/dd&gt;
+  &lt;/dl&gt;
+&lt;/section&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Back link and technical details <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">Technical details stay collapsed for most people.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><a class="back" href="/services">← Services</a>
+<details class="technical">
+  <summary>Technical details</summary>
+  <dl class="facts">
+    <dt>Version</dt> <dd>15.0.9-mylab.1</dd>
+  </dl>
+</details></div>
+            <div class="panel" data-mode="dark"><a class="back" href="/services">← Services</a>
+<details class="technical">
+  <summary>Technical details</summary>
+  <dl class="facts">
+    <dt>Version</dt> <dd>15.0.9-mylab.1</dd>
+  </dl>
+</details></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;back&#34; (dict &#34;Href&#34; &#34;/services&#34; &#34;Text&#34; &#34;Services&#34;)}}
+&lt;details class=&#34;technical&#34;&gt;
+  &lt;summary&gt;Technical details&lt;/summary&gt;
+  &lt;dl class=&#34;facts&#34;&gt;
+    &lt;dt&gt;Version&lt;/dt&gt; &lt;dd&gt;15.0.9-mylab.1&lt;/dd&gt;
+  &lt;/dl&gt;
+&lt;/details&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;a class=&#34;back&#34; href=&#34;/services&#34;&gt;← Services&lt;/a&gt;
+&lt;details class=&#34;technical&#34;&gt;
+  &lt;summary&gt;Technical details&lt;/summary&gt;
+  &lt;dl class=&#34;facts&#34;&gt;
+    &lt;dt&gt;Version&lt;/dt&gt;
+    &lt;dd&gt;15.0.9-mylab.1&lt;/dd&gt;
+  &lt;/dl&gt;
+&lt;/details&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
+      
+      <section id="forms">
+        <h2>Forms</h2>
+        <p class="hint">Labels wrap their inputs; hints sit underneath in small text. Errors appear above the form.</p>
+        
+        <div class="example">
+          <h3>Text field with hint and error <span class="badge">HTML and CSS classes</span></h3>
+          
+          <div class="panels">
+            <div class="panel" data-mode="light"><form>
+  <p class="error" role="alert">Choose a username of letters and digits.</p>
+  <label>Username
+    <input value="d@d" autocomplete="off">
+    <small>Up to 32 letters, digits, dots or dashes.</small>
+  </label>
+</form></div>
+            <div class="panel" data-mode="dark"><form>
+  <p class="error" role="alert">Choose a username of letters and digits.</p>
+  <label>Username
+    <input value="d@d" autocomplete="off">
+    <small>Up to 32 letters, digits, dots or dashes.</small>
+  </label>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;form&gt;
+  &lt;p class=&#34;error&#34; role=&#34;alert&#34;&gt;Choose a username of letters and digits.&lt;/p&gt;
+  &lt;label&gt;Username
+    &lt;input value=&#34;d@d&#34; autocomplete=&#34;off&#34;&gt;
+    &lt;small&gt;Up to 32 letters, digits, dots or dashes.&lt;/small&gt;
+  &lt;/label&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Choices <span class="badge">HTML and CSS classes</span></h3>
+          
+          <div class="panels">
+            <div class="panel" data-mode="light"><form>
+  <fieldset>
+    <legend>What can they do?</legend>
+    <label class="check">
+      <input type="radio" name="role" checked>
+      <span>Member <small>Sees the services and their links.</small></span>
     </label>
-    <nav class="gallery-toc">
-      <a href="#tokens">Colours</a> <a href="#scales">Sizes</a>
-      <a href="#buttons">Buttons</a> <a href="#notices">Notices</a> <a href="#status">Status and badges</a> <a href="#cards">Cards and facts</a> <a href="#forms">Forms</a> <a href="#lists">Lists</a> <a href="#settings">Settings navigation</a> <a href="#activity">Activity</a> <a href="#secrets">Secrets and codes</a> 
-    </nav>
-
-    <section id="tokens">
-      <h2>Colours</h2>
-      <p class="hint">Pages use these names, never raw colours, so themes can change them. Pick a theme above to compare.</p>
-      <div class="panels">
-        
-        <div class="panel" data-mode="light">
-          <p class="panel-label">light</p>
-          <ul class="swatches">
-            <li><span class="swatch swatch-bg"></span><code>--bg</code><small>Page background</small></li><li><span class="swatch swatch-surface"></span><code>--surface</code><small>Cards</small></li><li><span class="swatch swatch-surface-2"></span><code>--surface-2</code><small>Inputs, code, insets</small></li><li><span class="swatch swatch-fg"></span><code>--fg</code><small>Text</small></li><li><span class="swatch swatch-muted"></span><code>--muted</code><small>Secondary text</small></li><li><span class="swatch swatch-border"></span><code>--border</code><small>Borders</small></li><li><span class="swatch swatch-border-strong"></span><code>--border-strong</code><small>Input borders</small></li><li><span class="swatch swatch-accent"></span><code>--accent</code><small>Actions and links</small></li><li><span class="swatch swatch-accent-soft"></span><code>--accent-soft</code><small>Info backgrounds</small></li><li><span class="swatch swatch-highlight"></span><code>--highlight</code><small>Brand mark, where you are, focus</small></li><li><span class="swatch swatch-highlight-soft"></span><code>--highlight-soft</code><small>Highlight backgrounds</small></li><li><span class="swatch swatch-ok"></span><code>--ok</code><small>Healthy</small></li><li><span class="swatch swatch-warn"></span><code>--warn</code><small>Needs attention soon</small></li><li><span class="swatch swatch-bad"></span><code>--bad</code><small>Problem</small></li>
-          </ul>
-        </div>
-        
-        <div class="panel" data-mode="dark">
-          <p class="panel-label">dark</p>
-          <ul class="swatches">
-            <li><span class="swatch swatch-bg"></span><code>--bg</code><small>Page background</small></li><li><span class="swatch swatch-surface"></span><code>--surface</code><small>Cards</small></li><li><span class="swatch swatch-surface-2"></span><code>--surface-2</code><small>Inputs, code, insets</small></li><li><span class="swatch swatch-fg"></span><code>--fg</code><small>Text</small></li><li><span class="swatch swatch-muted"></span><code>--muted</code><small>Secondary text</small></li><li><span class="swatch swatch-border"></span><code>--border</code><small>Borders</small></li><li><span class="swatch swatch-border-strong"></span><code>--border-strong</code><small>Input borders</small></li><li><span class="swatch swatch-accent"></span><code>--accent</code><small>Actions and links</small></li><li><span class="swatch swatch-accent-soft"></span><code>--accent-soft</code><small>Info backgrounds</small></li><li><span class="swatch swatch-highlight"></span><code>--highlight</code><small>Brand mark, where you are, focus</small></li><li><span class="swatch swatch-highlight-soft"></span><code>--highlight-soft</code><small>Highlight backgrounds</small></li><li><span class="swatch swatch-ok"></span><code>--ok</code><small>Healthy</small></li><li><span class="swatch swatch-warn"></span><code>--warn</code><small>Needs attention soon</small></li><li><span class="swatch swatch-bad"></span><code>--bad</code><small>Problem</small></li>
-          </ul>
-        </div>
-        
-      </div>
-    </section>
-
-    <section id="scales">
-      <h2>Sizes</h2>
-      <h3>Spacing</h3>
-      <ul class="scale"><li><span class="space-bar space-1"></span><code>--space-1</code></li><li><span class="space-bar space-2"></span><code>--space-2</code></li><li><span class="space-bar space-3"></span><code>--space-3</code></li><li><span class="space-bar space-4"></span><code>--space-4</code></li><li><span class="space-bar space-5"></span><code>--space-5</code></li><li><span class="space-bar space-6"></span><code>--space-6</code></li><li><span class="space-bar space-7"></span><code>--space-7</code></li></ul>
-      <h3>Text</h3>
-      <ul class="scale"><li class="type-sm">Hints and small print <code>--text-sm</code></li><li class="type-base">Body text <code>--text-base</code></li><li class="type-lg">Card headings <code>--text-lg</code></li><li class="type-xl">Large text <code>--text-xl</code></li><li class="type-2xl">Page titles <code>--text-2xl</code></li></ul>
-      <h3>Corners</h3>
-      <ul class="scale corners"><li class="radius-sm"><code>--radius-sm</code></li><li class="radius"><code>--radius</code></li>
-        <li class="radius-lg"><code>--radius-lg</code></li><li class="radius-pill"><code>--radius-pill</code></li></ul>
-    </section>
-
-    
-    <section id="buttons">
-      <h2>Buttons</h2>
-      <p class="hint">One primary button per form or card; others secondary or quiet.</p>
-      
-      <div class="example">
-        <h3>Primary, secondary, danger, quiet</h3>
-        <p class="hint">Primary does the main thing. Danger removes or deletes. Quiet is for small or optional actions.</p>
-        <div class="panels">
-          <div class="panel" data-mode="light"><div class="actions-row"><button>Back up now</button><button class="secondary">Cancel</button><button class="danger">Remove</button><button class="quiet">Set this up later</button></div></div>
-          <div class="panel" data-mode="dark"><div class="actions-row"><button>Back up now</button><button class="secondary">Cancel</button><button class="danger">Remove</button><button class="quiet">Set this up later</button></div></div>
-        </div>
-        <details><summary>Markup</summary><pre class="output">&lt;div class=&#34;actions-row&#34;&gt;&lt;button&gt;Back up now&lt;/button&gt;&lt;button class=&#34;secondary&#34;&gt;Cancel&lt;/button&gt;&lt;button class=&#34;danger&#34;&gt;Remove&lt;/button&gt;&lt;button class=&#34;quiet&#34;&gt;Set this up later&lt;/button&gt;&lt;/div&gt;</pre></details>
-      </div>
-      
-      <div class="example">
-        <h3>Link styled as a button</h3>
-        <p class="hint">For navigation that looks like an action.</p>
-        <div class="panels">
-          <div class="panel" data-mode="light"><a class="button" href="#">Add a service</a> <a class="button secondary" href="#">Open backups</a></div>
-          <div class="panel" data-mode="dark"><a class="button" href="#">Add a service</a> <a class="button secondary" href="#">Open backups</a></div>
-        </div>
-        <details><summary>Markup</summary><pre class="output">&lt;a class=&#34;button&#34; href=&#34;#&#34;&gt;Add a service&lt;/a&gt; &lt;a class=&#34;button secondary&#34; href=&#34;#&#34;&gt;Open backups&lt;/a&gt;</pre></details>
-      </div>
-      
-      <div class="example">
-        <h3>Confirm</h3>
-        <p class="hint">Asks the browser to confirm first. Use for anything hard to undo.</p>
-        <div class="panels">
-          <div class="panel" data-mode="light"><form method="post" action="#" data-confirm="Remove dad? They will no longer be able to log in." x-data
-  x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
-  
-  <button type="submit" class="quiet danger">Remove dad</button>
+    <label class="check">
+      <input type="radio" name="role">
+      <span>Admin <small>Also installs and changes services.</small></span>
+    </label>
+  </fieldset>
+  <label class="check">
+    <input type="checkbox" checked>
+    <span>Allow anyone to create an account</span>
+  </label>
 </form></div>
-          <div class="panel" data-mode="dark"><form method="post" action="#" data-confirm="Remove dad? They will no longer be able to log in." x-data
-  x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
-  
-  <button type="submit" class="quiet danger">Remove dad</button>
+            <div class="panel" data-mode="dark"><form>
+  <fieldset>
+    <legend>What can they do?</legend>
+    <label class="check">
+      <input type="radio" name="role" checked>
+      <span>Member <small>Sees the services and their links.</small></span>
+    </label>
+    <label class="check">
+      <input type="radio" name="role">
+      <span>Admin <small>Also installs and changes services.</small></span>
+    </label>
+  </fieldset>
+  <label class="check">
+    <input type="checkbox" checked>
+    <span>Allow anyone to create an account</span>
+  </label>
 </form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;form&gt;
+  &lt;fieldset&gt;
+    &lt;legend&gt;What can they do?&lt;/legend&gt;
+    &lt;label class=&#34;check&#34;&gt;
+      &lt;input type=&#34;radio&#34; name=&#34;role&#34; checked&gt;
+      &lt;span&gt;Member &lt;small&gt;Sees the services and their links.&lt;/small&gt;&lt;/span&gt;
+    &lt;/label&gt;
+    &lt;label class=&#34;check&#34;&gt;
+      &lt;input type=&#34;radio&#34; name=&#34;role&#34;&gt;
+      &lt;span&gt;Admin &lt;small&gt;Also installs and changes services.&lt;/small&gt;&lt;/span&gt;
+    &lt;/label&gt;
+  &lt;/fieldset&gt;
+  &lt;label class=&#34;check&#34;&gt;
+    &lt;input type=&#34;checkbox&#34; checked&gt;
+    &lt;span&gt;Allow anyone to create an account&lt;/span&gt;
+  &lt;/label&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
         </div>
-        <details><summary>Markup</summary><pre class="output">{{template &#34;confirm-button&#34; (dict &#34;Action&#34; &#34;#&#34; &#34;Confirm&#34; &#34;Remove dad? They will no longer be able to log in.&#34; &#34;Text&#34; &#34;Remove dad&#34; &#34;Kind&#34; &#34;quiet danger&#34;)}}</pre></details>
-      </div>
-      
-    </section>
-    
-    <section id="notices">
-      <h2>Notices</h2>
-      <p class="hint">Short messages in a page. Info is the default; the colour says how much it matters.</p>
-      
-      <div class="example">
-        <h3>Info</h3>
-        <p class="hint">Something&#39;s happening, or worth knowing.</p>
-        <div class="panels">
-          <div class="panel" data-mode="light"><p class="notice" role="status">
-  Updating DNS records and checking them…</p></div>
-          <div class="panel" data-mode="dark"><p class="notice" role="status">
-  Updating DNS records and checking them…</p></div>
-        </div>
-        <details><summary>Markup</summary><pre class="output">{{template &#34;notice&#34; (dict &#34;Text&#34; &#34;Updating DNS records and checking them…&#34;)}}</pre></details>
-      </div>
-      
-      <div class="example">
-        <h3>Success</h3>
-        <p class="hint">Something finished as asked.</p>
-        <div class="panels">
-          <div class="panel" data-mode="light"><p class="notice notice-ok" role="status">
-  Password changed.</p></div>
-          <div class="panel" data-mode="dark"><p class="notice notice-ok" role="status">
-  Password changed.</p></div>
-        </div>
-        <details><summary>Markup</summary><pre class="output">{{template &#34;notice&#34; (dict &#34;Kind&#34; &#34;ok&#34; &#34;Text&#34; &#34;Password changed.&#34;)}}</pre></details>
-      </div>
-      
-      <div class="example">
-        <h3>Warning</h3>
-        <p class="hint">Should be dealt with soon.</p>
-        <div class="panels">
-          <div class="panel" data-mode="light"><p class="notice notice-warn" role="status">
-  Backups are only stored on this machine. <a href="#">Improve backups</a></p></div>
-          <div class="panel" data-mode="dark"><p class="notice notice-warn" role="status">
-  Backups are only stored on this machine. <a href="#">Improve backups</a></p></div>
-        </div>
-        <details><summary>Markup</summary><pre class="output">{{template &#34;notice&#34; (dict &#34;Kind&#34; &#34;warn&#34; &#34;Text&#34; &#34;Backups are only stored on this machine.&#34; &#34;Link&#34; &#34;#&#34; &#34;LinkText&#34; &#34;Improve backups&#34;)}}</pre></details>
-      </div>
-      
-      <div class="example">
-        <h3>Error</h3>
-        <p class="hint">Something is broken.</p>
-        <div class="panels">
-          <div class="panel" data-mode="light"><p class="notice notice-error" role="alert">
-  The last backup didn&#39;t finish: the disk is full.</p></div>
-          <div class="panel" data-mode="dark"><p class="notice notice-error" role="alert">
-  The last backup didn&#39;t finish: the disk is full.</p></div>
-        </div>
-        <details><summary>Markup</summary><pre class="output">{{template &#34;notice&#34; (dict &#34;Kind&#34; &#34;error&#34; &#34;Text&#34; &#34;The last backup didn&#39;t finish: the disk is full.&#34;)}}</pre></details>
-      </div>
-      
-    </section>
-    
-    <section id="status">
-      <h2>Status and badges</h2>
-      <p class="hint">Status says how a service is doing; badges label things. The highlight badge is for the brand&#39;s own voice (&#34;New&#34;), sparingly.</p>
-      
-      <div class="example">
-        <h3>Service status</h3>
         
-        <div class="panels">
-          <div class="panel" data-mode="light"><span class="status status-running">running</span> <span class="status status-starting">starting</span> <span class="status status-failed">failed</span> <span class="status status-stopped">stopped</span></div>
-          <div class="panel" data-mode="dark"><span class="status status-running">running</span> <span class="status status-starting">starting</span> <span class="status status-failed">failed</span> <span class="status status-stopped">stopped</span></div>
+        <div class="example">
+          <h3>Address and inline choice <span class="badge">HTML and CSS classes</span></h3>
+          
+          <div class="panels">
+            <div class="panel" data-mode="light"><form>
+  <label>Web address
+    <span class="with-suffix">
+      <input value="git">
+      <span>.lab.example.com</span>
+    </span>
+  </label>
+  <label class="check">
+    <input type="radio" checked>
+    <span>Restart automatically at <select class="inline"><option>04:00</option></select></span>
+  </label>
+</form></div>
+            <div class="panel" data-mode="dark"><form>
+  <label>Web address
+    <span class="with-suffix">
+      <input value="git">
+      <span>.lab.example.com</span>
+    </span>
+  </label>
+  <label class="check">
+    <input type="radio" checked>
+    <span>Restart automatically at <select class="inline"><option>04:00</option></select></span>
+  </label>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;form&gt;
+  &lt;label&gt;Web address
+    &lt;span class=&#34;with-suffix&#34;&gt;
+      &lt;input value=&#34;git&#34;&gt;
+      &lt;span&gt;.lab.example.com&lt;/span&gt;
+    &lt;/span&gt;
+  &lt;/label&gt;
+  &lt;label class=&#34;check&#34;&gt;
+    &lt;input type=&#34;radio&#34; checked&gt;
+    &lt;span&gt;Restart automatically at &lt;select class=&#34;inline&#34;&gt;&lt;option&gt;04:00&lt;/option&gt;&lt;/select&gt;&lt;/span&gt;
+  &lt;/label&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
         </div>
-        <details><summary>Markup</summary><pre class="output">{{template &#34;status&#34; &#34;running&#34;}} {{template &#34;status&#34; &#34;starting&#34;}} {{template &#34;status&#34; &#34;failed&#34;}} {{template &#34;status&#34; &#34;stopped&#34;}}</pre></details>
-      </div>
-      
-      <div class="example">
-        <h3>Badges</h3>
         
-        <div class="panels">
-          <div class="panel" data-mode="light"><span class="badge">Preview</span> <span class="badge badge-highlight">New</span></div>
-          <div class="panel" data-mode="dark"><span class="badge">Preview</span> <span class="badge badge-highlight">New</span></div>
-        </div>
-        <details><summary>Markup</summary><pre class="output">{{template &#34;badge&#34; (dict &#34;Text&#34; &#34;Preview&#34;)}} {{template &#34;badge&#34; (dict &#34;Text&#34; &#34;New&#34; &#34;Highlight&#34; true)}}</pre></details>
-      </div>
+      </section>
       
-    </section>
-    
-    <section id="cards">
-      <h2>Cards and facts</h2>
-      <p class="hint">A card holds one topic. A heading row puts its title and main link together; facts list label and value pairs (stacked on phones).</p>
-      
-      <div class="example">
-        <h3>Card with heading and facts</h3>
+      <section id="lists">
+        <h2>Lists</h2>
+        <p class="hint">Rows with borders for lists of things you can act on.</p>
         
-        <div class="panels">
-          <div class="panel" data-mode="light"><section class="card"><div class="heading"><h2>Domain and certificates</h2><a href="#">Change…</a></div>
-<dl class="facts"><dt>Domain</dt><dd>lab.example.com</dd><dt>DNS provider</dt><dd>Cloudflare</dd><dt>Services</dt><dd>Addresses like <code>photos.lab.example.com</code></dd></dl></section></div>
-          <div class="panel" data-mode="dark"><section class="card"><div class="heading"><h2>Domain and certificates</h2><a href="#">Change…</a></div>
-<dl class="facts"><dt>Domain</dt><dd>lab.example.com</dd><dt>DNS provider</dt><dd>Cloudflare</dd><dt>Services</dt><dd>Addresses like <code>photos.lab.example.com</code></dd></dl></section></div>
+        <div class="example">
+          <h3>Rows <span class="badge">HTML and CSS classes</span></h3>
+          
+          <div class="panels">
+            <div class="panel" data-mode="light"><ul class="rows">
+  <li class="row-split">
+    <span><strong>mum</strong><br><small class="hint">Owner · two-factor on</small></span>
+    <a href="#">Change…</a>
+  </li>
+  <li class="row-split">
+    <span><strong>dad</strong><br><small class="hint">Member · two-factor off</small></span>
+    <a href="#">Change…</a>
+  </li>
+</ul></div>
+            <div class="panel" data-mode="dark"><ul class="rows">
+  <li class="row-split">
+    <span><strong>mum</strong><br><small class="hint">Owner · two-factor on</small></span>
+    <a href="#">Change…</a>
+  </li>
+  <li class="row-split">
+    <span><strong>dad</strong><br><small class="hint">Member · two-factor off</small></span>
+    <a href="#">Change…</a>
+  </li>
+</ul></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;ul class=&#34;rows&#34;&gt;
+  &lt;li class=&#34;row-split&#34;&gt;
+    &lt;span&gt;&lt;strong&gt;mum&lt;/strong&gt;&lt;br&gt;&lt;small class=&#34;hint&#34;&gt;Owner · two-factor on&lt;/small&gt;&lt;/span&gt;
+    &lt;a href=&#34;#&#34;&gt;Change…&lt;/a&gt;
+  &lt;/li&gt;
+  &lt;li class=&#34;row-split&#34;&gt;
+    &lt;span&gt;&lt;strong&gt;dad&lt;/strong&gt;&lt;br&gt;&lt;small class=&#34;hint&#34;&gt;Member · two-factor off&lt;/small&gt;&lt;/span&gt;
+    &lt;a href=&#34;#&#34;&gt;Change…&lt;/a&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;</pre>
+            
+          </details>
         </div>
-        <details><summary>Markup</summary><pre class="output">&lt;section class=&#34;card&#34;&gt;&lt;div class=&#34;heading&#34;&gt;&lt;h2&gt;Domain and certificates&lt;/h2&gt;&lt;a href=&#34;#&#34;&gt;Change…&lt;/a&gt;&lt;/div&gt;
-&lt;dl class=&#34;facts&#34;&gt;&lt;dt&gt;Domain&lt;/dt&gt;&lt;dd&gt;lab.example.com&lt;/dd&gt;&lt;dt&gt;DNS provider&lt;/dt&gt;&lt;dd&gt;Cloudflare&lt;/dd&gt;&lt;dt&gt;Services&lt;/dt&gt;&lt;dd&gt;Addresses like &lt;code&gt;photos.lab.example.com&lt;/code&gt;&lt;/dd&gt;&lt;/dl&gt;&lt;/section&gt;</pre></details>
-      </div>
-      
-      <div class="example">
-        <h3>Back link and technical details</h3>
-        <p class="hint">Technical details stay collapsed for most people.</p>
-        <div class="panels">
-          <div class="panel" data-mode="light"><a class="back" href="#">← Services</a>
-<details class="technical"><summary>Technical details</summary><dl class="facts"><dt>Version</dt><dd>15.0.9-mylab.1</dd></dl></details></div>
-          <div class="panel" data-mode="dark"><a class="back" href="#">← Services</a>
-<details class="technical"><summary>Technical details</summary><dl class="facts"><dt>Version</dt><dd>15.0.9-mylab.1</dd></dl></details></div>
-        </div>
-        <details><summary>Markup</summary><pre class="output">{{template &#34;back&#34; (dict &#34;Href&#34; &#34;#&#34; &#34;Text&#34; &#34;Services&#34;)}}
-&lt;details class=&#34;technical&#34;&gt;&lt;summary&gt;Technical details&lt;/summary&gt;&lt;dl class=&#34;facts&#34;&gt;&lt;dt&gt;Version&lt;/dt&gt;&lt;dd&gt;15.0.9-mylab.1&lt;/dd&gt;&lt;/dl&gt;&lt;/details&gt;</pre></details>
-      </div>
-      
-    </section>
-    
-    <section id="forms">
-      <h2>Forms</h2>
-      <p class="hint">Labels wrap their inputs; hints sit underneath in small text. Errors appear above the form.</p>
-      
-      <div class="example">
-        <h3>Text field with hint and error</h3>
         
-        <div class="panels">
-          <div class="panel" data-mode="light"><form><p class="error" role="alert">Choose a username of letters and digits.</p>
-<label>Username <input value="d@d" autocomplete="off"><small>Up to 32 letters, digits, dots or dashes.</small></label></form></div>
-          <div class="panel" data-mode="dark"><form><p class="error" role="alert">Choose a username of letters and digits.</p>
-<label>Username <input value="d@d" autocomplete="off"><small>Up to 32 letters, digits, dots or dashes.</small></label></form></div>
+        <div class="example">
+          <h3>Needs attention <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">The home page&#39;s list of things to deal with. Items are problems, warnings, or (no class) information.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="attention">
+  <ul>
+    <li class="item item-warning">
+      <span>Backups are only stored on this machine.</span>
+      <a href="#">Improve backups</a>
+    </li>
+    <li class="item item-problem">
+      <span>Forgejo didn't finish setting up.</span>
+      <a href="#">See what went wrong</a>
+    </li>
+    <li class="item">
+      <span>Finishing setting up Immich…</span>
+      <a href="#">View</a>
+    </li>
+  </ul>
+</div></div>
+            <div class="panel" data-mode="dark"><div class="attention">
+  <ul>
+    <li class="item item-warning">
+      <span>Backups are only stored on this machine.</span>
+      <a href="#">Improve backups</a>
+    </li>
+    <li class="item item-problem">
+      <span>Forgejo didn't finish setting up.</span>
+      <a href="#">See what went wrong</a>
+    </li>
+    <li class="item">
+      <span>Finishing setting up Immich…</span>
+      <a href="#">View</a>
+    </li>
+  </ul>
+</div></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;div class=&#34;attention&#34;&gt;
+  &lt;ul&gt;
+    &lt;li class=&#34;item item-warning&#34;&gt;
+      &lt;span&gt;Backups are only stored on this machine.&lt;/span&gt;
+      &lt;a href=&#34;#&#34;&gt;Improve backups&lt;/a&gt;
+    &lt;/li&gt;
+    &lt;li class=&#34;item item-problem&#34;&gt;
+      &lt;span&gt;Forgejo didn&#39;t finish setting up.&lt;/span&gt;
+      &lt;a href=&#34;#&#34;&gt;See what went wrong&lt;/a&gt;
+    &lt;/li&gt;
+    &lt;li class=&#34;item&#34;&gt;
+      &lt;span&gt;Finishing setting up Immich…&lt;/span&gt;
+      &lt;a href=&#34;#&#34;&gt;View&lt;/a&gt;
+    &lt;/li&gt;
+  &lt;/ul&gt;
+&lt;/div&gt;</pre>
+            
+          </details>
         </div>
-        <details><summary>Markup</summary><pre class="output">&lt;form&gt;&lt;p class=&#34;error&#34; role=&#34;alert&#34;&gt;Choose a username of letters and digits.&lt;/p&gt;
-&lt;label&gt;Username &lt;input value=&#34;d@d&#34; autocomplete=&#34;off&#34;&gt;&lt;small&gt;Up to 32 letters, digits, dots or dashes.&lt;/small&gt;&lt;/label&gt;&lt;/form&gt;</pre></details>
-      </div>
-      
-      <div class="example">
-        <h3>Choices</h3>
         
-        <div class="panels">
-          <div class="panel" data-mode="light"><form><fieldset><legend>What can they do?</legend>
-<label class="check"><input type="radio" name="r" checked><span>Member<small>Sees the services and their links.</small></span></label>
-<label class="check"><input type="radio" name="r"><span>Admin<small>Also installs and changes services.</small></span></label></fieldset>
-<label class="check"><input type="checkbox" checked><span>Allow anyone to create an account</span></label></form></div>
-          <div class="panel" data-mode="dark"><form><fieldset><legend>What can they do?</legend>
-<label class="check"><input type="radio" name="r" checked><span>Member<small>Sees the services and their links.</small></span></label>
-<label class="check"><input type="radio" name="r"><span>Admin<small>Also installs and changes services.</small></span></label></fieldset>
-<label class="check"><input type="checkbox" checked><span>Allow anyone to create an account</span></label></form></div>
-        </div>
-        <details><summary>Markup</summary><pre class="output">&lt;form&gt;&lt;fieldset&gt;&lt;legend&gt;What can they do?&lt;/legend&gt;
-&lt;label class=&#34;check&#34;&gt;&lt;input type=&#34;radio&#34; name=&#34;r&#34; checked&gt;&lt;span&gt;Member&lt;small&gt;Sees the services and their links.&lt;/small&gt;&lt;/span&gt;&lt;/label&gt;
-&lt;label class=&#34;check&#34;&gt;&lt;input type=&#34;radio&#34; name=&#34;r&#34;&gt;&lt;span&gt;Admin&lt;small&gt;Also installs and changes services.&lt;/small&gt;&lt;/span&gt;&lt;/label&gt;&lt;/fieldset&gt;
-&lt;label class=&#34;check&#34;&gt;&lt;input type=&#34;checkbox&#34; checked&gt;&lt;span&gt;Allow anyone to create an account&lt;/span&gt;&lt;/label&gt;&lt;/form&gt;</pre></details>
-      </div>
+      </section>
       
-      <div class="example">
-        <h3>Address and inline choice</h3>
+      <section id="settings">
+        <h2>Settings navigation</h2>
+        <p class="hint">Settings is a grid of areas, each showing its state in a line; area pages list every area in a sidebar on desktop.</p>
         
-        <div class="panels">
-          <div class="panel" data-mode="light"><form><label>Web address <span class="with-suffix"><input value="git"><span>.lab.example.com</span></span></label>
-<label class="check"><input type="radio" checked><span>Restart automatically at <select class="inline"><option>04:00</option></select></span></label></form></div>
-          <div class="panel" data-mode="dark"><form><label>Web address <span class="with-suffix"><input value="git"><span>.lab.example.com</span></span></label>
-<label class="check"><input type="radio" checked><span>Restart automatically at <select class="inline"><option>04:00</option></select></span></label></form></div>
+        <div class="example">
+          <h3>Area cards <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">The dot says how things are; the text says what. Areas with nothing to judge have no dot.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><ul class="area-grid">
+  <li>
+    <a class="card area-card" href="#">
+      <span class="area-title">Remote access</span>
+      <span class="area-summary"><span class="dot dot-ok" aria-hidden="true"></span>SSH from your home network only</span>
+    </a>
+  </li>
+  <li>
+    <a class="card area-card" href="#">
+      <span class="area-title">Home network</span>
+      <span class="area-summary"><span class="dot dot-problem" aria-hidden="true"></span>Devices at home are sent somewhere else</span>
+    </a>
+  </li>
+  <li>
+    <a class="card area-card" href="#">
+      <span class="area-title">Time zone</span>
+      <span class="area-summary">Australia/Melbourne · 14:05 now</span>
+    </a>
+  </li>
+</ul></div>
+            <div class="panel" data-mode="dark"><ul class="area-grid">
+  <li>
+    <a class="card area-card" href="#">
+      <span class="area-title">Remote access</span>
+      <span class="area-summary"><span class="dot dot-ok" aria-hidden="true"></span>SSH from your home network only</span>
+    </a>
+  </li>
+  <li>
+    <a class="card area-card" href="#">
+      <span class="area-title">Home network</span>
+      <span class="area-summary"><span class="dot dot-problem" aria-hidden="true"></span>Devices at home are sent somewhere else</span>
+    </a>
+  </li>
+  <li>
+    <a class="card area-card" href="#">
+      <span class="area-title">Time zone</span>
+      <span class="area-summary">Australia/Melbourne · 14:05 now</span>
+    </a>
+  </li>
+</ul></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;ul class=&#34;area-grid&#34;&gt;
+  &lt;li&gt;
+    &lt;a class=&#34;card area-card&#34; href=&#34;#&#34;&gt;
+      &lt;span class=&#34;area-title&#34;&gt;Remote access&lt;/span&gt;
+      &lt;span class=&#34;area-summary&#34;&gt;&lt;span class=&#34;dot dot-ok&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;SSH from your home network only&lt;/span&gt;
+    &lt;/a&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;a class=&#34;card area-card&#34; href=&#34;#&#34;&gt;
+      &lt;span class=&#34;area-title&#34;&gt;Home network&lt;/span&gt;
+      &lt;span class=&#34;area-summary&#34;&gt;&lt;span class=&#34;dot dot-problem&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;Devices at home are sent somewhere else&lt;/span&gt;
+    &lt;/a&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;a class=&#34;card area-card&#34; href=&#34;#&#34;&gt;
+      &lt;span class=&#34;area-title&#34;&gt;Time zone&lt;/span&gt;
+      &lt;span class=&#34;area-summary&#34;&gt;Australia/Melbourne · 14:05 now&lt;/span&gt;
+    &lt;/a&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;</pre>
+            
+          </details>
         </div>
-        <details><summary>Markup</summary><pre class="output">&lt;form&gt;&lt;label&gt;Web address &lt;span class=&#34;with-suffix&#34;&gt;&lt;input value=&#34;git&#34;&gt;&lt;span&gt;.lab.example.com&lt;/span&gt;&lt;/span&gt;&lt;/label&gt;
-&lt;label class=&#34;check&#34;&gt;&lt;input type=&#34;radio&#34; checked&gt;&lt;span&gt;Restart automatically at &lt;select class=&#34;inline&#34;&gt;&lt;option&gt;04:00&lt;/option&gt;&lt;/select&gt;&lt;/span&gt;&lt;/label&gt;&lt;/form&gt;</pre></details>
-      </div>
-      
-    </section>
-    
-    <section id="lists">
-      <h2>Lists</h2>
-      <p class="hint">Rows with borders for lists of things you can act on.</p>
-      
-      <div class="example">
-        <h3>Rows</h3>
         
-        <div class="panels">
-          <div class="panel" data-mode="light"><ul class="rows"><li class="row-split"><span><strong>mum</strong><br><small class="hint">Owner · two-factor on</small></span><a href="#">Change…</a></li>
-<li class="row-split"><span><strong>dad</strong><br><small class="hint">Member · two-factor off</small></span><a href="#">Change…</a></li></ul></div>
-          <div class="panel" data-mode="dark"><ul class="rows"><li class="row-split"><span><strong>mum</strong><br><small class="hint">Owner · two-factor on</small></span><a href="#">Change…</a></li>
-<li class="row-split"><span><strong>dad</strong><br><small class="hint">Member · two-factor off</small></span><a href="#">Change…</a></li></ul></div>
-        </div>
-        <details><summary>Markup</summary><pre class="output">&lt;ul class=&#34;rows&#34;&gt;&lt;li class=&#34;row-split&#34;&gt;&lt;span&gt;&lt;strong&gt;mum&lt;/strong&gt;&lt;br&gt;&lt;small class=&#34;hint&#34;&gt;Owner · two-factor on&lt;/small&gt;&lt;/span&gt;&lt;a href=&#34;#&#34;&gt;Change…&lt;/a&gt;&lt;/li&gt;
-&lt;li class=&#34;row-split&#34;&gt;&lt;span&gt;&lt;strong&gt;dad&lt;/strong&gt;&lt;br&gt;&lt;small class=&#34;hint&#34;&gt;Member · two-factor off&lt;/small&gt;&lt;/span&gt;&lt;a href=&#34;#&#34;&gt;Change…&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;</pre></details>
-      </div>
-      
-      <div class="example">
-        <h3>Needs attention</h3>
-        <p class="hint">The home page&#39;s list of things to deal with.</p>
-        <div class="panels">
-          <div class="panel" data-mode="light"><div class="attention"><ul><li class="item item-warning"><span>Backups are only stored on this machine.</span><a href="#">Improve backups</a></li>
-<li class="item item-problem"><span>Forgejo didn't finish setting up.</span><a href="#">See what went wrong</a></li>
-<li class="item"><span>Finishing setting up Immich…</span><a href="#">View</a></li></ul></div></div>
-          <div class="panel" data-mode="dark"><div class="attention"><ul><li class="item item-warning"><span>Backups are only stored on this machine.</span><a href="#">Improve backups</a></li>
-<li class="item item-problem"><span>Forgejo didn't finish setting up.</span><a href="#">See what went wrong</a></li>
-<li class="item"><span>Finishing setting up Immich…</span><a href="#">View</a></li></ul></div></div>
-        </div>
-        <details><summary>Markup</summary><pre class="output">&lt;div class=&#34;attention&#34;&gt;&lt;ul&gt;&lt;li class=&#34;item item-warning&#34;&gt;&lt;span&gt;Backups are only stored on this machine.&lt;/span&gt;&lt;a href=&#34;#&#34;&gt;Improve backups&lt;/a&gt;&lt;/li&gt;
-&lt;li class=&#34;item item-problem&#34;&gt;&lt;span&gt;Forgejo didn&#39;t finish setting up.&lt;/span&gt;&lt;a href=&#34;#&#34;&gt;See what went wrong&lt;/a&gt;&lt;/li&gt;
-&lt;li class=&#34;item&#34;&gt;&lt;span&gt;Finishing setting up Immich…&lt;/span&gt;&lt;a href=&#34;#&#34;&gt;View&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/div&gt;</pre></details>
-      </div>
-      
-    </section>
-    
-    <section id="settings">
-      <h2>Settings navigation</h2>
-      <p class="hint">Settings is a grid of areas, each showing its state in a line; area pages list every area in a sidebar on desktop.</p>
-      
-      <div class="example">
-        <h3>Area cards</h3>
-        <p class="hint">The dot says how things are; the text says what. Areas with nothing to judge have no dot.</p>
-        <div class="panels">
-          <div class="panel" data-mode="light"><ul class="area-grid"><li><a class="card area-card" href="#"><span class="area-title">Remote access</span><span class="area-summary"><span class="dot dot-ok" aria-hidden="true"></span>SSH from your home network only</span></a></li>
-<li><a class="card area-card" href="#"><span class="area-title">Home network</span><span class="area-summary"><span class="dot dot-problem" aria-hidden="true"></span>Devices at home are sent somewhere else</span></a></li>
-<li><a class="card area-card" href="#"><span class="area-title">Time zone</span><span class="area-summary">Australia/Melbourne · 14:05 now</span></a></li></ul></div>
-          <div class="panel" data-mode="dark"><ul class="area-grid"><li><a class="card area-card" href="#"><span class="area-title">Remote access</span><span class="area-summary"><span class="dot dot-ok" aria-hidden="true"></span>SSH from your home network only</span></a></li>
-<li><a class="card area-card" href="#"><span class="area-title">Home network</span><span class="area-summary"><span class="dot dot-problem" aria-hidden="true"></span>Devices at home are sent somewhere else</span></a></li>
-<li><a class="card area-card" href="#"><span class="area-title">Time zone</span><span class="area-summary">Australia/Melbourne · 14:05 now</span></a></li></ul></div>
-        </div>
-        <details><summary>Markup</summary><pre class="output">&lt;ul class=&#34;area-grid&#34;&gt;&lt;li&gt;&lt;a class=&#34;card area-card&#34; href=&#34;#&#34;&gt;&lt;span class=&#34;area-title&#34;&gt;Remote access&lt;/span&gt;&lt;span class=&#34;area-summary&#34;&gt;&lt;span class=&#34;dot dot-ok&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;SSH from your home network only&lt;/span&gt;&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a class=&#34;card area-card&#34; href=&#34;#&#34;&gt;&lt;span class=&#34;area-title&#34;&gt;Home network&lt;/span&gt;&lt;span class=&#34;area-summary&#34;&gt;&lt;span class=&#34;dot dot-problem&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;Devices at home are sent somewhere else&lt;/span&gt;&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a class=&#34;card area-card&#34; href=&#34;#&#34;&gt;&lt;span class=&#34;area-title&#34;&gt;Time zone&lt;/span&gt;&lt;span class=&#34;area-summary&#34;&gt;Australia/Melbourne · 14:05 now&lt;/span&gt;&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;</pre></details>
-      </div>
-      
-      <div class="example">
-        <h3>Sidebar</h3>
-        <p class="hint">Hidden on phones, where the page&#39;s back link leads to the overview.</p>
-        <div class="panels">
-          <div class="panel" data-mode="light">
+        <div class="example">
+          <h3>Sidebar <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">Hidden on phones, where the page&#39;s back link leads to the overview. Pages get it by naming their area (withArea in Go); the layout adds it.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light">
 <nav class="settings-nav" aria-label="Settings">
   <a href="/settings" class="settings-home">All settings</a>
   
@@ -355,7 +840,7 @@
   
 </nav>
 </div>
-          <div class="panel" data-mode="dark">
+            <div class="panel" data-mode="dark">
 <nav class="settings-nav" aria-label="Settings">
   <a href="/settings" class="settings-home">All settings</a>
   
@@ -370,21 +855,33 @@
   
 </nav>
 </div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;settings-nav&#34; .Settings}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;nav class=&#34;settings-nav&#34; aria-label=&#34;Settings&#34;&gt;&lt;a href=&#34;/settings&#34; class=&#34;settings-home&#34;&gt;All settings&lt;/a&gt;
+  &lt;p class=&#34;settings-group&#34;&gt;People and access&lt;/p&gt;&lt;a href=&#34;/settings/people&#34;&gt;People&lt;/a&gt;&lt;a href=&#34;/settings/remote-access&#34;&gt;Remote access&lt;/a&gt;
+  &lt;p class=&#34;settings-group&#34;&gt;Network&lt;/p&gt;&lt;a href=&#34;/settings/domain&#34;&gt;Domain and certificates&lt;/a&gt;&lt;a href=&#34;/settings/home-network&#34;&gt;Home network&lt;/a&gt;
+  &lt;p class=&#34;settings-group&#34;&gt;This machine&lt;/p&gt;&lt;a href=&#34;/settings/updates&#34; class=&#34;active&#34; aria-current=&#34;page&#34;&gt;Updates and restarts&lt;/a&gt;&lt;a href=&#34;/settings/time-zone&#34;&gt;Time zone&lt;/a&gt;
+&lt;/nav&gt;</pre>
+            
+          </details>
         </div>
-        <details><summary>Markup</summary><pre class="output">{{template &#34;settings-nav&#34; .Settings}}</pre></details>
-      </div>
-      
-    </section>
-    
-    <section id="activity">
-      <h2>Activity</h2>
-      <p class="hint">Operations on the host: a status line everyone can follow, with the full log under Details.</p>
-      
-      <div class="example">
-        <h3>Running</h3>
         
-        <div class="panels">
-          <div class="panel" data-mode="light">
+      </section>
+      
+      <section id="activity">
+        <h2>Activity</h2>
+        <p class="hint">Operations on the host (OS updates, backups, applying changes, restores): a status line everyone can follow, with the full log under Details. While running, the status line and log refresh themselves.</p>
+        
+        <div class="example">
+          <h3>Running <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">The handler looks up the latest run of a kind, e.g. data[&#34;UpdatesActivity&#34;] = map[string]any{&#34;Activity&#34;: s.activityFor(r, activity.OSUpdates)}, and the page passes that on. Steps come from the operation&#39;s own log (activity.Log.Step).</p>
+          <div class="panels">
+            <div class="panel" data-mode="light">
 <div class="activity">
   
 <p  class="activity-status running"
@@ -405,7 +902,7 @@ Unpacking curl (8.14.1-2&#43;deb13u5) ...
   </details>
 </div>
 </div>
-          <div class="panel" data-mode="dark">
+            <div class="panel" data-mode="dark">
 <div class="activity">
   
 <p  class="activity-status running"
@@ -426,15 +923,34 @@ Unpacking curl (8.14.1-2&#43;deb13u5) ...
   </details>
 </div>
 </div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;activity&#34; .UpdatesActivity}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;div class=&#34;activity&#34;&gt;
+  &lt;p  class=&#34;activity-status running&#34;
+  &gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;OS updates: Installing updates…&lt;small&gt;started today 02:00&lt;/small&gt;
+  &lt;/p&gt;
+  &lt;details class=&#34;activity-details&#34;&gt;
+    &lt;summary&gt;Details&lt;/summary&gt;
+    &lt;pre  class=&#34;output activity-log&#34; x-data x-init=&#34;$el.scrollTop = $el.scrollHeight&#34;
+  &gt;==&amp;gt; Installing updates
+Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
+&lt;/pre&gt;
+  &lt;/details&gt;
+&lt;/div&gt;</pre>
+            
+          </details>
         </div>
-        <details><summary>Markup</summary><pre class="output">{{template &#34;activity&#34; (dict &#34;Activity&#34; .Running)}}</pre></details>
-      </div>
-      
-      <div class="example">
-        <h3>Finished</h3>
         
-        <div class="panels">
-          <div class="panel" data-mode="light">
+        <div class="example">
+          <h3>Finished <span class="badge badge-highlight">Template component</span></h3>
+          
+          <div class="panels">
+            <div class="panel" data-mode="light">
 <div class="activity">
   
 <p  class="activity-status ok"
@@ -453,7 +969,7 @@ Unpacking curl (8.14.1-2&#43;deb13u5) ...
   </details>
 </div>
 </div>
-          <div class="panel" data-mode="dark">
+            <div class="panel" data-mode="dark">
 <div class="activity">
   
 <p  class="activity-status ok"
@@ -472,15 +988,34 @@ Unpacking curl (8.14.1-2&#43;deb13u5) ...
   </details>
 </div>
 </div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;activity&#34; .FinishedActivity}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;div class=&#34;activity&#34;&gt;
+  &lt;p  class=&#34;activity-status ok&#34;
+  &gt;✓ OS updates finished today 02:00: Installed 3 updates: curl, libcurl4t64, tzdata.
+  &lt;/p&gt;
+  &lt;details class=&#34;activity-details&#34;&gt;
+    &lt;summary&gt;Details&lt;/summary&gt;
+    &lt;pre  class=&#34;output activity-log&#34; x-data x-init=&#34;$el.scrollTop = $el.scrollHeight&#34;
+  &gt;==&amp;gt; Installing updates
+==&amp;gt; Done
+&lt;/pre&gt;
+  &lt;/details&gt;
+&lt;/div&gt;</pre>
+            
+          </details>
         </div>
-        <details><summary>Markup</summary><pre class="output">{{template &#34;activity&#34; (dict &#34;Activity&#34; .Finished)}}</pre></details>
-      </div>
-      
-      <div class="example">
-        <h3>Failed</h3>
         
-        <div class="panels">
-          <div class="panel" data-mode="light">
+        <div class="example">
+          <h3>Failed <span class="badge badge-highlight">Template component</span></h3>
+          
+          <div class="panels">
+            <div class="panel" data-mode="light">
 <div class="activity">
   
 <p  class="activity-status failed"
@@ -500,7 +1035,7 @@ Unpacking curl (8.14.1-2&#43;deb13u5) ...
   </details>
 </div>
 </div>
-          <div class="panel" data-mode="dark">
+            <div class="panel" data-mode="dark">
 <div class="activity">
   
 <p  class="activity-status failed"
@@ -520,44 +1055,74 @@ Unpacking curl (8.14.1-2&#43;deb13u5) ...
   </details>
 </div>
 </div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;activity&#34; .FailedActivity}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;div class=&#34;activity&#34;&gt;
+  &lt;p  class=&#34;activity-status failed&#34;
+  &gt;✗ OS updates failed today 02:00: exit status 100
+  &lt;/p&gt;
+  &lt;details class=&#34;activity-details&#34;&gt;
+    &lt;summary&gt;Details&lt;/summary&gt;
+    &lt;pre  class=&#34;output activity-log&#34; x-data x-init=&#34;$el.scrollTop = $el.scrollHeight&#34;
+  &gt;E: Could not get lock /var/lib/dpkg/lock-frontend
+==&amp;gt; Failed: exit status 100
+&lt;/pre&gt;
+  &lt;/details&gt;
+&lt;/div&gt;</pre>
+            
+          </details>
         </div>
-        <details><summary>Markup</summary><pre class="output">{{template &#34;activity&#34; (dict &#34;Activity&#34; .Failed)}}</pre></details>
-      </div>
-      
-    </section>
-    
-    <section id="secrets">
-      <h2>Secrets and codes</h2>
-      <p class="hint">Values to copy, such as a temporary password: shown once, easy to select.</p>
-      
-      <div class="example">
-        <h3>Secret</h3>
         
-        <div class="panels">
-          <div class="panel" data-mode="light"><code class="secret">EXAMPLE-ONLY-NOT-REAL</code></div>
-          <div class="panel" data-mode="dark"><code class="secret">EXAMPLE-ONLY-NOT-REAL</code></div>
-        </div>
-        <details><summary>Markup</summary><pre class="output">&lt;code class=&#34;secret&#34;&gt;EXAMPLE-ONLY-NOT-REAL&lt;/code&gt;</pre></details>
-      </div>
+      </section>
       
-      <div class="example">
-        <h3>Output</h3>
-        <p class="hint">Command output in logs and results.</p>
-        <div class="panels">
-          <div class="panel" data-mode="light"><pre class="output">==> Installing updates
-Unpacking curl (8.14.1-2+deb13u5) ...
-Setting up curl (8.14.1-2+deb13u5) ...</pre></div>
-          <div class="panel" data-mode="dark"><pre class="output">==> Installing updates
-Unpacking curl (8.14.1-2+deb13u5) ...
-Setting up curl (8.14.1-2+deb13u5) ...</pre></div>
+      <section id="secrets">
+        <h2>Secrets and codes</h2>
+        <p class="hint">Values to copy, such as a temporary password: shown once, easy to select.</p>
+        
+        <div class="example">
+          <h3>Secret <span class="badge">HTML and CSS classes</span></h3>
+          
+          <div class="panels">
+            <div class="panel" data-mode="light"><code class="secret">EXAMPLE-ONLY-NOT-REAL</code></div>
+            <div class="panel" data-mode="dark"><code class="secret">EXAMPLE-ONLY-NOT-REAL</code></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;code class=&#34;secret&#34;&gt;EXAMPLE-ONLY-NOT-REAL&lt;/code&gt;</pre>
+            
+          </details>
         </div>
-        <details><summary>Markup</summary><pre class="output">&lt;pre class=&#34;output&#34;&gt;==&gt; Installing updates
+        
+        <div class="example">
+          <h3>Output <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">Command output in logs and results.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><pre class="output">==> Installing updates
+Unpacking curl (8.14.1-2+deb13u5) ...
+Setting up curl (8.14.1-2+deb13u5) ...</pre></div>
+            <div class="panel" data-mode="dark"><pre class="output">==> Installing updates
+Unpacking curl (8.14.1-2+deb13u5) ...
+Setting up curl (8.14.1-2+deb13u5) ...</pre></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;pre class=&#34;output&#34;&gt;==&gt; Installing updates
 Unpacking curl (8.14.1-2&#43;deb13u5) ...
-Setting up curl (8.14.1-2&#43;deb13u5) ...&lt;/pre&gt;</pre></details>
-      </div>
+Setting up curl (8.14.1-2&#43;deb13u5) ...&lt;/pre&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
       
-    </section>
-    
-  </main>
+    </main>
+  </div>
 </body>
 </html>
