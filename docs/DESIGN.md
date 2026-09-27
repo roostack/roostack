@@ -64,7 +64,11 @@ Never use raw colours (`#…`) or palette variables (`--pal-…`) in `app.css` o
 
 Theme files use plain hex colours, and `TestThemesAreReadable` checks every theme in both modes against WCAG contrast: text and muted text on every surface and on notice tints (4.5:1), links (4.5:1), text on buttons (4.5:1), status text on its tint and on cards (4.5:1), and the highlight (3:1, it isn't text). Where a project's own colour is too faint for UI text on its own background (common in light variants), it's nudged just far enough to pass, keeping its hue; each file lists what was adjusted.
 
-Catppuccin's flavours only differ in how dark they are, so MyLab offers one Catppuccin theme (Latte and Mocha) rather than several near-identical ones.
+Catppuccin's flavours only differ in how dark they are, so MyLab offers one Catppuccin theme (Latte and Mocha) rather than several near-identical ones. Its identity is its named accent colours instead: users pick one for buttons and links (12 of Catppuccin's 14; red and maroon are left out because red buttons mean "danger" in MyLab), and the highlight pairs with it (pink for cool accents, mauve for warm). Latte's pastels are darkened as needed to be readable as text on Latte's pale backgrounds; Mocha's are used as they are.
+
+### Accents
+
+A theme may offer accent colours for actions: `Accents` in `themes.go`, and one `[data-palette="<name>"][data-accent="<accent>"]` block per accent in its file, overriding `--pal-accent-*` and `--pal-highlight-*`. `data-accent` on `<html>` comes from the user's choice. The contrast test checks every accent in both modes. Only Catppuccin has accents; if accent choice becomes a general wish, other themes can add blocks the same way.
 
 ### Adding a built-in theme
 

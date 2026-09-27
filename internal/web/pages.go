@@ -25,8 +25,9 @@ type nav struct {
 	// Theme is the user's mode (auto, light, dark); NextTheme is what the
 	// toggle switches to.
 	Theme, NextTheme string
-	// Palette is the user's colour theme (themes.go).
-	Palette string
+	// Palette is the user's colour theme and Accent its accent colour, ""
+	// for the theme's default (themes.go).
+	Palette, Accent string
 	// OOB marks a theme toggle sent to replace the page's (htmx).
 	OOB bool
 }
@@ -43,7 +44,7 @@ func navFor(u *store.User, page string) nav {
 	if next == "" {
 		u.Theme, next = "auto", "light"
 	}
-	return nav{Active: active, Username: u.Username, Theme: u.Theme, NextTheme: next, Palette: userPalette(u),
+	return nav{Active: active, Username: u.Username, Theme: u.Theme, NextTheme: next, Palette: userPalette(u), Accent: userAccent(u),
 		Backups: auth.Can(u.Role, auth.ManageServices), Settings: auth.Can(u.Role, auth.ManageHost)}
 }
 
@@ -262,12 +263,22 @@ func (s *Server) appearanceSubmit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unknown theme.", http.StatusBadRequest)
 		return
 	}
+	// Each theme with accents has its own set of radio buttons.
+	accent := r.FormValue("accent-" + palette)
+	if !validAccent(palette, accent) {
+		http.Error(w, "Unknown accent colour.", http.StatusBadRequest)
+		return
+	}
 	u := currentUser(r)
 	if err := s.Store.SetPalette(r.Context(), u.ID, palette); err != nil {
 		s.serverError(w, err)
 		return
 	}
 	if err := s.Store.SetTheme(r.Context(), u.ID, mode); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	if err := s.Store.SetAccent(r.Context(), u.ID, accent); err != nil {
 		s.serverError(w, err)
 		return
 	}
