@@ -1,10 +1,16 @@
 package manager
 
 import (
+	"archive/tar"
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/mylab/mylab/internal/backup"
+	"github.com/mylab/mylab/internal/store"
 	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -13,6 +19,7 @@ import (
 
 	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/instance"
+	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/nodeid"
 	"github.com/mylab/mylab/internal/state"
 )
@@ -34,6 +41,16 @@ type movingMachine struct {
 	failOn  string
 	// beforeStop runs as the service stops: it changed data while it ran.
 	beforeStop func()
+	backups    node.Backups
+	status     node.ApplyStatus
+}
+
+func (m *movingMachine) Backups() node.Backups { return m.backups }
+func (m *movingMachine) Status() node.ApplyStatus {
+	if m.status.Finished {
+		return m.status
+	}
+	return node.ApplyStatus{Finished: true}
 }
 
 func newMoving(id, name string) *movingMachine {
@@ -68,9 +85,27 @@ func (m *movingMachine) ExportData(_ context.Context, _ string, dir int, since t
 	m.mu.Unlock()
 	return json.NewEncoder(w).Encode(out)
 }
-func (m *movingMachine) ImportData(_ context.Context, _ string, dir int, r io.Reader) error {
+func (m *movingMachine) ImportData(_ context.Context, _ string, dir int, r io.Reader, strip int) error {
 	var in map[string]file
-	if err := json.NewDecoder(r).Decode(&in); err != nil {
+	if strip > 0 { // a real tar stream, from a backup
+		in = map[string]file{}
+		tr := tar.NewReader(r)
+		for {
+			h, err := tr.Next()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return err
+			}
+			parts := strings.Split(strings.Trim(h.Name, "/"), "/")
+			if h.Typeflag != tar.TypeReg || len(parts) <= strip {
+				continue
+			}
+			data, _ := io.ReadAll(tr)
+			in[strings.Join(parts[strip:], "/")] = file{string(data), h.ModTime}
+		}
+	} else if err := json.NewDecoder(r).Decode(&in); err != nil {
 		return err
 	}
 	io.Copy(io.Discard, r)
@@ -133,6 +168,7 @@ func (m *movingMachine) ImportSecrets(_ context.Context, s map[string][]byte) er
 	return m.did("import secrets")
 }
 func (m *movingMachine) DataSize(context.Context, string) (int64, error) { return 1234, nil }
+func (m *movingMachine) LoadDumps(context.Context, string) error         { return m.did("load dumps") }
 
 func setUpMove(t *testing.T) (*Manager, *movingMachine, *movingMachine) {
 	t.Helper()
@@ -172,13 +208,13 @@ func TestMoveService(t *testing.T) {
 	a.data[1]["photos/1.jpg"] = file{"jpeg", old}
 	a.secrets["mylab-forgejo-db_password"] = []byte("generated")
 	var fe *FormError
-	if err := m.MoveService(ctx, "forgejo", "n-0000000002"); !errors.As(err, &fe) {
+	if err := m.MoveService(ctx, "forgejo", "n-0000000002", MoveCopy); !errors.As(err, &fe) {
 		t.Errorf("moving to where it runs: %v", err)
 	}
 	if info, err := m.MoveInfo(ctx, "forgejo"); err != nil || info.From.Name != "home" || info.Size != 1234 {
 		t.Errorf("info = %+v, %v", info, err)
 	}
-	if err := m.MoveService(ctx, "forgejo", "n-0000000003"); err != nil {
+	if err := m.MoveService(ctx, "forgejo", "n-0000000003", MoveCopy); err != nil {
 		t.Fatal(err)
 	}
 	l := waitMove(t, m)
@@ -214,7 +250,7 @@ func TestMoveCopiesChangesAndDeletions(t *testing.T) {
 		a.data[0]["keep"] = file{"new", time.Now()}
 		delete(a.data[0], "gone")
 	}
-	if err := m.MoveService(ctx, "forgejo", "n-0000000003"); err != nil {
+	if err := m.MoveService(ctx, "forgejo", "n-0000000003", MoveCopy); err != nil {
 		t.Fatal(err)
 	}
 	if l := waitMove(t, m); l.Err != "" {
@@ -231,7 +267,7 @@ func TestMoveCopiesChangesAndDeletions(t *testing.T) {
 func TestMoveFailureRestartsService(t *testing.T) {
 	m, a, b := setUpMove(t)
 	b.failOn = "commit"
-	if err := m.MoveService(context.Background(), "forgejo", "n-0000000003"); err != nil {
+	if err := m.MoveService(context.Background(), "forgejo", "n-0000000003", MoveCopy); err != nil {
 		t.Fatal(err)
 	}
 	if l := waitMove(t, m); !strings.Contains(l.Err, "commit failed") {
@@ -242,5 +278,87 @@ func TestMoveFailureRestartsService(t *testing.T) {
 	}
 	if in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo")); in.Host != "n-0000000002" {
 		t.Errorf("host changed to %q after a failed move", in.Host)
+	}
+}
+
+// realBackups backs up a folder with real restic when asked.
+type realBackups struct {
+	repo *backup.Repo
+	dir  string
+	mu   sync.Mutex
+	last *store.BackupRun
+}
+
+func (b *realBackups) RunNow() error {
+	started := time.Now()
+	sum, err := b.repo.Backup(context.Background(), backup.BackupOptions{Paths: []string{b.dir}})
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.last = &store.BackupRun{Started: started, Finished: time.Now(), OK: err == nil}
+	if err == nil {
+		b.last.SnapshotID = sum.SnapshotID
+	}
+	return err
+}
+
+func (b *realBackups) Status(context.Context) (backup.Status, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return backup.Status{Configured: true, Last: b.last, Progress: -1}, nil
+}
+
+func TestMoveThroughBackup(t *testing.T) {
+	bin := os.Getenv("MYLAB_RESTIC_BIN")
+	if bin == "" {
+		var err error
+		if bin, err = exec.LookPath("restic"); err != nil {
+			t.Skip("restic not found; set MYLAB_RESTIC_BIN")
+		}
+	}
+	m, a, b := setUpMove(t)
+	ctx := context.Background()
+	applyWait = 5 * time.Second
+	defer func() { applyWait = 20 * time.Minute }()
+	svcDir := filepath.Join(m.Lab.Paths.ServicesDir, "forgejo")
+	os.MkdirAll(filepath.Join(svcDir, "data"), 0o755)
+	os.WriteFile(filepath.Join(svcDir, "data", "app.ini"), []byte("from the backup"), 0o644)
+	os.MkdirAll(filepath.Join(svcDir, "db-dump"), 0o755)
+	os.WriteFile(filepath.Join(svcDir, "db-dump", "main.sql"), []byte("dump"), 0o644)
+
+	dir := t.TempDir()
+	recovery := filepath.Join(dir, "recovery")
+	os.WriteFile(recovery, []byte("the recovery key\n"), 0o600)
+	repo := &backup.Repo{Bin: bin, URL: filepath.Join(dir, "repo"), PasswordFile: recovery, CacheDir: filepath.Join(dir, "cache")}
+	if err := repo.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a.backups = &realBackups{repo: repo, dir: svcDir}
+	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	m.BackupStore = st
+	m.OpenRepo = func(string, []string) *backup.Repo { return repo }
+	st.SetBackupTarget(ctx, store.BackupTarget{MachineID: "n-0000000002", Provider: "local:" + repo.URL,
+		Repository: repo.URL, Created: time.Now()})
+	// The new machine "applies" at once.
+	b.status = node.ApplyStatus{Finished: true, LastRun: time.Now().Add(time.Hour)}
+
+	if info, _ := m.MoveInfo(ctx, "forgejo"); !info.ViaBackup {
+		t.Error("through a backup should be possible")
+	}
+	if err := m.MoveService(ctx, "forgejo", "n-0000000003", MoveBackup); err != nil {
+		t.Fatal(err)
+	}
+	l := waitMove(t, m)
+	if l.Err != "" {
+		t.Fatalf("move: %s\n%s", l.Err, strings.Join(l.Lines, "\n"))
+	}
+	if b.data[0]["data/app.ini"].Data != "from the backup" || b.data[0]["db-dump/main.sql"].Data != "dump" {
+		t.Errorf("vps has %v", b.data[0])
+	}
+	if !slices.Contains(b.log, "load dumps") || !slices.Contains(a.log, "stop") {
+		t.Errorf("home did %v, vps %v", a.log, b.log)
 	}
 }

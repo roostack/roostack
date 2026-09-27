@@ -429,8 +429,8 @@ func (r *Remote) ExportData(ctx context.Context, service string, dir int, since 
 	return err
 }
 
-func (r *Remote) ImportData(ctx context.Context, service string, dir int, body io.Reader) error {
-	u := r.URL + "/v1/services/" + url.PathEscape(service) + "/data?dir=" + strconv.Itoa(dir)
+func (r *Remote) ImportData(ctx context.Context, service string, dir int, body io.Reader, strip int) error {
+	u := r.URL + "/v1/services/" + url.PathEscape(service) + "/data?dir=" + strconv.Itoa(dir) + "&strip=" + strconv.Itoa(strip)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, u, body)
 	if err != nil {
 		return err
@@ -488,4 +488,8 @@ func (r *Remote) ExportSecrets(ctx context.Context, service string) (map[string]
 
 func (r *Remote) ImportSecrets(ctx context.Context, secrets map[string][]byte) error {
 	return r.call(ctx, http.MethodPut, "/v1/secrets", secrets, nil)
+}
+
+func (r *Remote) LoadDumps(ctx context.Context, service string) error {
+	return r.call(ctx, http.MethodPost, "/v1/services/"+url.PathEscape(service)+"/data/load-dumps", struct{}{}, nil)
 }

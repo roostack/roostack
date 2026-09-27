@@ -137,7 +137,7 @@ type ServiceManager interface {
 	SetBackupDestination(ctx context.Context, machineID, ref string) error
 	AddS3Provider(ctx context.Context, name string, p manager.S3Provider) error
 	MoveInfo(ctx context.Context, name string) (manager.MoveInfo, error)
-	MoveService(ctx context.Context, name, to string) error
+	MoveService(ctx context.Context, name, to, way string) error
 	RemoveMachine(ctx context.Context, id string) error
 	RenameMachine(ctx context.Context, id, name string) error
 }

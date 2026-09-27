@@ -16,9 +16,17 @@
       {{range .}}<label class="check"><input type="radio" name="to" value="{{.ID}}" required>
         <span>{{.Name}}{{if .This}} (this machine){{end}}</span></label>{{end}}
     </fieldset>
-    <p class="hint">MyLab copies its data while it keeps running, then stops it for a final copy of what changed,
-      and starts it on the new machine. Its web address stays the same. Downtime is usually a minute or two.
-      The old copy stays on {{$.Info.From.Name}} until you delete it.</p>
+    <fieldset>
+      <legend>How</legend>
+      <label class="check"><input type="radio" name="way" value="copy" {{if eq $.Info.Suggested "copy"}}checked{{end}}>
+        <span>Copy directly{{if eq $.Info.Suggested "copy"}} (suggested){{end}}
+          <small>Copies its data while it keeps running, then stops it for a final copy of what changed. Quickest when both machines are on the same network or the data is small.</small></span></label>
+      <label class="check"><input type="radio" name="way" value="backup" {{if eq $.Info.Suggested "backup"}}checked{{end}} {{if not $.Info.ViaBackup}}disabled{{end}}>
+        <span>Through a backup{{if eq $.Info.Suggested "backup"}} (suggested){{end}}
+          <small>{{if $.Info.ViaBackup}}Backs it up (only what changed since the last backup), stops it, and restores it on the new machine. Better for lots of data or a slow link.
+            {{- else}}Available once {{$.Info.From.Name}}'s backups are set up through MyLab (its Backups page).{{end}}</small></span></label>
+    </fieldset>
+    <p class="hint">Its web address stays the same. The old copy stays on {{$.Info.From.Name}} until you delete it.</p>
     <button type="submit">Move {{$.Package.Title}}</button>
   </form>
   {{else}}
