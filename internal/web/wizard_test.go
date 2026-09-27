@@ -509,3 +509,14 @@ func TestDNSRecordsList(t *testing.T) {
 		t.Error("with management off, say so")
 	}
 }
+
+func TestRestartingWaitsForJob(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	if _, body := h.get("/restarting"); !strings.Contains(body, "in a few seconds") {
+		t.Error("no job: restarts right away")
+	}
+	h.server.RunningJob = func() string { return "OS updates" }
+	if _, body := h.get("/restarting"); !strings.Contains(body, "once the current job (OS updates) has finished") {
+		t.Errorf("should say what it waits for:\n%s", body)
+	}
+}

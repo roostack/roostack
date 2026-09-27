@@ -205,3 +205,25 @@ func TestInterruptResumableJob(t *testing.T) {
 		t.Errorf("journal should be cleared after resuming, got %v", names)
 	}
 }
+
+func TestHold(t *testing.T) {
+	e := newEnv(t, at(2, 4, 0))
+	release := make(chan struct{})
+	e.c.Submit(Job{Name: "backup", Run: func(context.Context, *Handle) error {
+		e.record("backup")
+		<-release
+		return nil
+	}})
+	e.start()
+	defer e.cancel()
+	waitFor(t, "backup to start", func() bool { return len(e.events()) == 1 })
+	e.c.Hold()
+	e.c.Submit(e.job("updates", nil))
+	e.c.RequestReboot()
+	close(release)
+	waitFor(t, "backup to finish", func() bool { return e.c.Status().Running == nil })
+	e.ticks <- time.Time{}
+	if got := e.events(); len(got) != 1 || e.rebootCount() != 0 {
+		t.Errorf("held: ran %v, reboots %d; want the running job to finish and nothing more", got, e.rebootCount())
+	}
+}

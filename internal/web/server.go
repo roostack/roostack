@@ -106,6 +106,9 @@ type Server struct {
 	Version string
 	// Maintenance is the lab's restart policy, shown in Settings.
 	Maintenance config.Maintenance
+	// RunningJob names a maintenance job running on this machine, which a
+	// restart waits for ("" if none; optional).
+	RunningJob func() string
 	// bootID changes each time MyLab starts; the "restarting" page waits
 	// for a new one.
 	bootID string
