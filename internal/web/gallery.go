@@ -172,6 +172,19 @@ var gallerySections = []gallerySection{
   </ul>
 </div>`},
 		}},
+	{ID: "tables", Title: "Tables", Intro: "For short lists of technical facts, such as DNS records. Prefer rows (above) for things people act on.",
+		Examples: []galleryExample{
+			{"Records", "", `
+<table class="records">
+  <thead><tr><th>Name</th><th>Type</th><th>Points to</th><th>Check</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>*.lab.example.com</code></td><td>A</td><td><code>192.168.1.20</code></td>
+      <td><span class="dot dot-ok" aria-hidden="true"></span>Works from home</td>
+    </tr>
+  </tbody>
+</table>`},
+		}},
 	{ID: "settings", Title: "Settings navigation", Intro: "Settings is a grid of areas, each showing its state in a line; area pages list every area in a sidebar on desktop.",
 		Examples: []galleryExample{
 			{"Area cards", "The dot says how things are; the text says what. Areas with nothing to judge have no dot.", `

@@ -274,7 +274,35 @@ func (e *conflictError) Error() string {
 }
 
 // ownerKey is where MyLab remembers a record it created and its value.
-func ownerKey(fqdn, typ string) string { return "dns.owned." + fqdn + "/" + typ }
+const ownerPrefix = "dns.owned."
+
+func ownerKey(fqdn, typ string) string { return ownerPrefix + fqdn + "/" + typ }
+
+// Record is a DNS record MyLab manages at the provider.
+type Record struct {
+	Name  string // e.g. *.lab.example.com
+	Type  string // e.g. A
+	Value string // what MyLab last set it to
+}
+
+// Records lists the records MyLab manages (the ones it created, adopted
+// or took over), by name.
+func (m *Manager) Records(ctx context.Context) ([]Record, error) {
+	owned, err := m.Store.SettingsWithPrefix(ctx, ownerPrefix)
+	if err != nil {
+		return nil, err
+	}
+	var recs []Record
+	for key, value := range owned {
+		name, typ, ok := strings.Cut(strings.TrimPrefix(key, ownerPrefix), "/")
+		if !ok || value == "" {
+			continue // released (value cleared) or not a record
+		}
+		recs = append(recs, Record{Name: name, Type: typ, Value: value})
+	}
+	slices.SortFunc(recs, func(a, b Record) int { return strings.Compare(a.Name+a.Type, b.Name+b.Type) })
+	return recs, nil
+}
 
 // ensure creates or updates the record, but only if MyLab owns it (or it
 // doesn't exist, or already has the right value).

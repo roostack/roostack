@@ -233,11 +233,13 @@ func TestDomainRecordOptions(t *testing.T) {
 
 type fakeDNS struct {
 	st        dnsrecords.Status
+	records   []dnsrecords.Record
 	managing  []bool
 	takenOver bool
 }
 
-func (f *fakeDNS) Status() dnsrecords.Status { return f.st }
+func (f *fakeDNS) Status() dnsrecords.Status                            { return f.st }
+func (f *fakeDNS) Records(context.Context) ([]dnsrecords.Record, error) { return f.records, nil }
 func (f *fakeDNS) SetManaging(on, risk bool) error {
 	if on && f.st.Risky && !risk {
 		return dnsrecords.ErrNeedsRisk
@@ -394,7 +396,8 @@ func TestUpdatesCard(t *testing.T) {
 	h.server.Updates = fu
 
 	_, body := h.get("/settings/updates")
-	for _, want := range []string{`id="updates"`, "Could not get lock", "linux-image-amd64", "Restart now", `<option value="4" selected>04:00</option>`} {
+	for _, want := range []string{`id="updates"`, "Could not get lock", "linux-image-amd64", "Restart now", `<option value="4" selected>04:00</option>`,
+		"Needed", "automatic at 04:00"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("settings missing %q", want)
 		}
@@ -470,5 +473,25 @@ func TestActivity(t *testing.T) {
 	ha.server.Activity = h.server.Activity
 	if code, _ := ha.get("/activity/os-updates/log"); code != http.StatusNotFound {
 		t.Errorf("admin reading OS updates: %d", code)
+	}
+}
+
+func TestDNSRecordsList(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
+	fd := &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateOK, Record: "*.lab.example.com", IP: "192.168.1.20",
+		Provider: "Cloudflare", Managing: true},
+		records: []dnsrecords.Record{{Name: "*.lab.example.com", Type: "A", Value: "192.168.1.20"}}}
+	h.server.DNS = fd
+	_, body := h.get("/settings/home-network")
+	for _, want := range []string{"DNS records MyLab manages", "<code>*.lab.example.com</code>", "<code>192.168.1.20</code>",
+		"Works from home", "_acme-challenge"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("home network page missing %q", want)
+		}
+	}
+	fd.records, fd.st.Managing = nil, false
+	if _, body := h.get("/settings/home-network"); !strings.Contains(body, "Record management is off") {
+		t.Error("with management off, say so")
 	}
 }

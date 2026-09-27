@@ -69,6 +69,12 @@ func TestCreatesWildcardAndChecks(t *testing.T) {
 	if st := m.Sync(context.Background()); st.State != StateOK || g.get("*.lab") != "192.168.1.99" {
 		t.Errorf("after IP change: %+v, record %q", st, g.get("*.lab"))
 	}
+
+	// The records MyLab manages are listed with their current values.
+	recs, err := m.Records(context.Background())
+	if err != nil || len(recs) != 1 || recs[0] != (Record{Name: "*.lab.example.com", Type: "A", Value: "192.168.1.99"}) {
+		t.Errorf("records = %+v, %v", recs, err)
+	}
 }
 
 func TestNeverOverwritesOthersRecords(t *testing.T) {

@@ -71,7 +71,9 @@ func (c *fakeCoord) Status() maintenance.Status      { return maintenance.Status
 func newService(t *testing.T, a Agent) (*Service, *fakeCoord) {
 	dir := t.TempDir()
 	RebootRequiredFile, RebootPkgsFile = filepath.Join(dir, "reboot-required"), filepath.Join(dir, "reboot-required.pkgs")
-	t.Cleanup(func() { RebootRequiredFile, RebootPkgsFile = "/run/reboot-required", "/run/reboot-required.pkgs" })
+	t.Cleanup(func() {
+		RebootRequiredFile, RebootPkgsFile, ProcStat = "/run/reboot-required", "/run/reboot-required.pkgs", "/proc/stat"
+	})
 	coord := &fakeCoord{}
 	return &Service{Agent: a, Store: &memKV{m: map[string]string{}}, Coord: coord,
 		Now: func() time.Time { return time.Date(2026, 9, 27, 2, 30, 0, 0, time.UTC) },
@@ -106,6 +108,14 @@ func TestJobRequestsReboot(t *testing.T) {
 		!slices.Contains(act.Lines, "Packages that will be upgraded: linux-image-amd64") ||
 		!slices.Contains(act.Lines, "A restart is needed to finish installing updates.") {
 		t.Errorf("activity = %+v", act)
+	}
+	ProcStat = filepath.Join(filepath.Dir(RebootRequiredFile), "stat")
+	os.WriteFile(ProcStat, []byte("cpu  1 2 3\nbtime 1790467008\nprocesses 42\n"), 0o644)
+	if got := LastBoot(); !got.Equal(time.Unix(1790467008, 0)) {
+		t.Errorf("LastBoot = %v", got)
+	}
+	if rs := s.RestartStatus(); !rs.Needed || rs.Since.IsZero() || rs.LastBoot.IsZero() {
+		t.Errorf("restart status = %+v", rs)
 	}
 	if need, pkgs := RebootNeeded(); !need || !slices.Equal(pkgs, []string{"linux-image-6.12.108+deb13-cloud-amd64"}) {
 		t.Errorf("RebootNeeded = %v %v", need, pkgs)
