@@ -128,8 +128,16 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] Multi-machine follow-ups
   - [x] Remove a machine (only once it runs no services: it leaves the network and runs on its own); rename a machine
   - [ ] Revoke a removed machine's certificate (today it loses its WireGuard peer, so it can't reach the lab API)
-  - [ ] Move a service between machines (backup → restore → switch route, SPEC.md §10.4)
-  - [ ] Per-machine backups set up from the UI (own repository, recovery key as second key)
+  - [ ] Backups across machines (SPEC.md §10.10)
+    - [ ] Port forwarding explained on the join page (UDP 51820, which machine, how to check)
+    - [ ] Backup providers: set up once, usable by any machine; the current destination becomes the first provider
+    - [ ] rest-server on a machine (pinned container) offering its disk over MyLab's network, a user per machine
+    - [ ] The controller creates each machine's repository (recovery key + the machine's own key) and hands over only the machine's key and credentials
+    - [ ] Each machine's Backups page chooses its provider; status per machine
+    - [ ] Weekly forget/prune by the controller (non-append-only credential)
+    - [ ] B2: an application key per machine limited to its folder
+  - [ ] Storage for other labs: storage invites with quotas, `mylab-guests` WireGuard interface (UDP 51821), usage on both sides, port-forwarding guide and reachability check
+  - [ ] Move a service between machines: copy directly (live copy, then a short stop) or through a backup; the UI suggests one
   - [x] Needs-attention items for other machines' backups, updates and restarts
   - [ ] Certificate renewal; nodes behind a hub that isn't the controller
   - [x] A machine without an SSH choice (firewall off) is flagged in "needs attention"
