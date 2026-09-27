@@ -28,6 +28,9 @@ type Service struct {
 	NextRun func() time.Time
 	// Activity shows runs live in the UI (optional).
 	Activity *activity.Registry
+	// PrunedElsewhere: the controller removes old backups (SPEC.md
+	// §10.10); the weekly job only checks.
+	PrunedElsewhere bool
 
 	mu      sync.Mutex
 	pending bool          // queued or running
@@ -85,9 +88,13 @@ func (s *Service) MaintenanceJob() maintenance.Job {
 		Run: func(ctx context.Context, h *maintenance.Handle) (err error) {
 			act := s.Activity.Start(activity.Backup, "Backup maintenance")
 			defer func() { act.Finish(err) }()
-			act.Step("Removing old backups (keeping 7 daily, 4 weekly and 6 monthly)")
-			if err := s.Deps.Repo.Forget(ctx, DefaultRetention); err != nil {
-				return err
+			if s.PrunedElsewhere {
+				act.Step("Old backups are removed by the controller")
+			} else {
+				act.Step("Removing old backups (keeping 7 daily, 4 weekly and 6 monthly)")
+				if err := s.Deps.Repo.Forget(ctx, DefaultRetention); err != nil {
+					return err
+				}
 			}
 			act.Step("Checking a sample (5%%) of the stored backups can be read")
 			return s.Deps.Repo.Check(ctx, "5%")

@@ -130,6 +130,13 @@ func serve(args []string) error {
 		_, err := os.Stat(backup.KeyFile(lab.Paths))
 		return err == nil
 	}
+	// Weekly, the controller removes old backups from every machine's
+	// repository (machines may only add backups).
+	go maintenance.Every(ctx,
+		func(now time.Time) time.Time {
+			return maintenance.NextWeekly(now, maintenance.DefaultMaintenanceOn, maintenance.DefaultMaintenanceAt)
+		},
+		func() { coord.Submit(mgr.PruneJob()) })
 	mgr.OpenRepo = func(url string, env []string) *backup.Repo {
 		bin, err := exec.LookPath("restic")
 		if err != nil {
@@ -314,8 +321,10 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 		Coord:      coord,
 		Store:      st,
 		Repository: lab.Backup.Repository,
-		NextRun:    func() time.Time { return maintenance.NextDaily(time.Now(), maintenance.DefaultBackupAt) },
-		Activity:   acts,
+		// Set up by the controller: it removes old backups (SPEC.md §10.10).
+		PrunedElsewhere: lab.Backup.PrunedByController,
+		NextRun:         func() time.Time { return maintenance.NextDaily(time.Now(), maintenance.DefaultBackupAt) },
+		Activity:        acts,
 	}
 	if lab.Backup.Repository != "" {
 		if _, err := os.Stat(backup.KeyFile(lab.Paths)); err != nil {

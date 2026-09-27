@@ -92,4 +92,15 @@ func TestBackupDestinationOnAMachinesDisk(t *testing.T) {
 	if m.storageFor(ctx, "n-0000000002") != nil {
 		t.Error("the vps stores nothing")
 	}
+	if !d.PrunedByController {
+		t.Error("the vps only adds backups; the controller prunes")
+	}
+	// The weekly prune opens it through the admin store with the recovery key.
+	urls = nil
+	if err := m.PruneJob().Run(ctx, nil); err != nil {
+		t.Fatalf("prune: %v", err)
+	}
+	if len(urls) != 1 || !strings.Contains(urls[0], ":8001/n-0000000002/") {
+		t.Errorf("prune used %v", urls)
+	}
 }

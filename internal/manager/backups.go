@@ -16,6 +16,7 @@ import (
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/labnet"
+	"github.com/mylab/mylab/internal/maintenance"
 	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/store"
 )
@@ -221,6 +222,7 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, machin
 	}
 	// The controller's own backups use the recovery key itself; any other
 	// machine gets a key of its own.
+	dest.PrunedByController = true
 	if machineID != m.Lab.NodeID {
 		key, _, err := newPassword()
 		if err != nil {
@@ -370,4 +372,62 @@ func (m *Manager) BackupTargetOf(ctx context.Context, machineID string) (t store
 		return x, title, true
 	}
 	return t, "", false
+}
+
+// PruneJob removes old backups from every repository the controller made
+// (SPEC.md §10.10): machines may only add backups, so the controller does
+// this with the recovery key, weekly.
+func (m *Manager) PruneJob() maintenance.Job {
+	return maintenance.Job{
+		Name: "removing old backups of every machine",
+		Run: func(ctx context.Context, h *maintenance.Handle) (err error) {
+			act := m.Activity.Start(activity.Backup, "Removing old backups of every machine")
+			defer func() { act.Finish(err) }()
+			targets, err := m.BackupStore.BackupTargets(ctx)
+			if err != nil {
+				return err
+			}
+			var errs []error
+			for _, t := range targets {
+				repo, err := m.adminRepo(ctx, t)
+				if err != nil {
+					errs = append(errs, err)
+					continue
+				}
+				act.Step("%s: keeping 7 daily, 4 weekly and 6 monthly", m.nameOf(t.MachineID))
+				if err := repo.Forget(ctx, backup.DefaultRetention); err != nil {
+					act.Printf("%v", err)
+					errs = append(errs, fmt.Errorf("%s: %w", m.nameOf(t.MachineID), err))
+				}
+			}
+			return errors.Join(errs...)
+		},
+	}
+}
+
+// adminRepo opens a machine's repository as the controller: through the
+// store's admin access for a machine's disk, or the provider's
+// credentials.
+func (m *Manager) adminRepo(ctx context.Context, t store.BackupTarget) (*backup.Repo, error) {
+	kind, id, _ := strings.Cut(t.Provider, ":")
+	switch kind {
+	case "machine":
+		pw, _, ok, err := m.BackupStore.StoreAdmin(ctx, t.StoreHost)
+		if err != nil || !ok {
+			return nil, fmt.Errorf("no admin access to %s's backup store", m.nameOf(t.StoreHost))
+		}
+		url := strings.Replace(t.Repository, fmt.Sprintf(":%d/", generate.StoragePort), fmt.Sprintf(":%d/", generate.StorageAdminPort), 1)
+		return m.OpenRepo(url, []string{"RESTIC_REST_USERNAME=controller", "RESTIC_REST_PASSWORD=" + pw}), nil
+	case "provider":
+		p, err := m.provider(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		var s3 S3Provider
+		if err := json.Unmarshal([]byte(p.Config), &s3); err != nil {
+			return nil, err
+		}
+		return m.OpenRepo(t.Repository, []string{"AWS_ACCESS_KEY_ID=" + s3.AccessKey, "AWS_SECRET_ACCESS_KEY=" + s3.SecretKey}), nil
+	}
+	return nil, fmt.Errorf("unknown backup destination %q", t.Provider)
 }
