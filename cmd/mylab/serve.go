@@ -69,6 +69,7 @@ func serve(args []string) error {
 		return err
 	}
 	srv.OnSetupComplete = func() { os.Remove(setupTokenPath(lab)) }
+	srv.Version = version
 
 	agentClient := agent.NewClient(agent.DefaultSocket)
 	// Live logs of host operations, shown in the UI.

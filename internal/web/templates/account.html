@@ -34,7 +34,7 @@
             <span class="tp-dots"><span class="tp-accent"></span><span class="tp-highlight"></span></span></span></span>
           {{end}}
         </span>
-        <span>{{.Name}}<small>{{.Description}}</small></span>
+        <span>{{.Name}}<small>{{.Description}}{{with .Source}} · from <a href="{{.URL}}" target="_blank" rel="noopener">{{.Name}} ↗</a>{{end}}</small></span>
       </label>
       {{end}}
     </fieldset>
@@ -47,10 +47,6 @@
     </fieldset>
     <button type="submit">Save</button>
   </form>
-  <p class="hint">Some themes use colours from open-source projects: <a href="https://catppuccin.com" target="_blank" rel="noopener">Catppuccin</a>,
-    <a href="https://github.com/morhetz/gruvbox" target="_blank" rel="noopener">Gruvbox</a>, <a href="https://www.nordtheme.com" target="_blank" rel="noopener">Nord</a>,
-    <a href="https://ethanschoonover.com/solarized" target="_blank" rel="noopener">Solarized</a>, <a href="https://github.com/sainnhe/everforest" target="_blank" rel="noopener">Everforest</a>,
-    <a href="https://rosepinetheme.com" target="_blank" rel="noopener">Rosé Pine</a> and <a href="https://github.com/folke/tokyonight.nvim" target="_blank" rel="noopener">Tokyo Night</a>.
-    MyLab adjusts a few colours so text stays easy to read.</p>
+  <p class="hint">Theme credits and licences are on the <a href="/about">About</a> page.</p>
 </section>
 {{end}}

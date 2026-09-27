@@ -1,0 +1,27 @@
+{{define "title"}}About{{end}}
+{{define "content"}}
+<section class="card medium">
+  <h1>About MyLab</h1>
+  <dl class="facts"><dt>Version</dt><dd>{{or .Version "dev"}}</dd></dl>
+  <p>MyLab is built on open-source software. Thank you to everyone who makes it.</p>
+
+  <h2>Included in MyLab</h2>
+  {{template "credit-list" .Bundled}}
+  <h2>Colour themes</h2>
+  <p class="hint">MyLab adjusts a few colours so text stays easy to read.</p>
+  {{template "credit-list" .Themes}}
+  <h2>Programs MyLab uses</h2>
+  <p class="hint">Installed alongside MyLab and run by it; not part of MyLab.</p>
+  {{template "credit-list" .Programs}}
+</section>
+{{end}}
+
+{{define "credit-list"}}
+<ul class="rows">
+  {{range .}}
+  <li class="row-split"><span><a href="{{.URL}}" target="_blank" rel="noopener">{{.Name}} ↗</a>{{with .By}} <small class="hint">by {{.}}</small>{{end}}
+    {{with .Note}}<br><small class="hint">{{.}}</small>{{end}}</span>
+    <span class="badge">{{.License}}</span></li>
+  {{end}}
+</ul>
+{{end}}

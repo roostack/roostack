@@ -103,6 +103,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Area pages with a sidebar on desktop, back link on phones: People & access (People, Remote access), Network (Domain & certificates, Home network), This machine (Updates & restarts, Time zone)
   - [ ] Wizard forms double as the area "change" pages
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow (`scripts/dev-install.sh` is a stand-in)
+  - [ ] Ship full licence texts for bundled code (Debian `copyright` file), from THIRD_PARTY.md's list
 - [ ] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)
   - [x] Forgejo v15 LTS: rootless image, MyLab Postgres, HTTPS clone; backup/restore tested on the VM
   - [x] Package `ports:` option; Forgejo git over SSH (tested on the VM: clone via LAN IP on 2222)
