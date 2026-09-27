@@ -18,9 +18,9 @@
     {{with .SetupActivity}}{{activity .}}{{end}}
     {{with .Error}}{{if not $.ProviderError}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
     {{with .Choices}}
-    <form method="post" action="/settings/machines/{{$.Machine.ID}}/backup-destination">
+    <form method="post" action="/settings/servers/{{$.Machine.ID}}/backup-destination">
       <fieldset>
-        <legend>{{if or $.TargetTitle $.BackupRepo}}Change where {{if $.Machine.This}}this machine's{{else}}{{$.Machine.Name}}'s{{end}} backups go{{else}}Choose where backups go{{end}}</legend>
+        <legend>{{if or $.TargetTitle $.BackupRepo}}Change where {{if $.Machine.This}}this server's{{else}}{{$.Machine.Name}}'s{{end}} backups go{{else}}Choose where backups go{{end}}</legend>
         {{range .}}<label class="check"><input type="radio" name="destination" value="{{.Ref}}" {{if and $.Target (eq .Ref $.Target.Provider)}}checked{{end}} required>
           <span>{{.Title}}<small>{{.Note}}</small></span></label>{{end}}
       </fieldset>
@@ -31,7 +31,7 @@
     {{if .IsOwner}}
     <details{{if .ProviderError}} open{{end}}>
       <summary>Add a cloud storage provider</summary>
-      <p class="hint">An S3-compatible account (Backblaze B2, Wasabi, AWS, …) any of your machines can back up to, each in its own folder.</p>
+      <p class="hint">An S3-compatible account (Backblaze B2, Wasabi, AWS, …) any of your servers can back up to, each in its own folder.</p>
       {{with .ProviderError}}<p class="error" role="alert">{{.}}</p>{{end}}
       <form method="post" action="/settings/backup-providers">
         <input type="hidden" name="back" value="{{.Machine.Backups}}">
@@ -61,10 +61,10 @@
         {{- else}}<span class="dot dot-warn" aria-hidden="true"></span>can't reach it right now{{end}}</li>{{end}}
     </ul>
     {{end}}
-    {{if .Machine.This}}<p><a href="/setup/backup">Set up this machine's backups with the setup wizard instead…</a></p>{{end}}
+    {{if .Machine.This}}<p><a href="/setup/backup">Set up this server's backups with the setup wizard instead…</a></p>{{end}}
     {{end}}
     <p class="hint">Good practice is "3-2-1": three copies of your data, on two different kinds of storage, with one
-      somewhere else (not at home). Extra copies per machine are coming later.</p>
+      somewhere else (not at home). Extra copies per server are coming later.</p>
   </section>
   <section class="card section">
     <h2>Restoring</h2>

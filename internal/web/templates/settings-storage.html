@@ -3,7 +3,7 @@
 {{back "/settings" "Settings"}}
 <section class="card">
   <h1>Storage for others</h1>
-  <p class="hint">Give family or friends space on this machine for their MyLab's backups, and they can do the same for you:
+  <p class="hint">Give family or friends space on this server for their MyLab's backups, and they can do the same for you:
     each of you then has a copy somewhere else. Their backups are encrypted before they leave their lab, so you can't read
     them, and each lab gets its own space with a size limit.</p>
 </section>
@@ -55,18 +55,18 @@
   <form method="post" action="/settings/storage/invite">
     <label>Whose lab <input name="name" value="{{.Name}}" placeholder="Tyris's lab" required></label>
     <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{or .Quota "50"}}" required></label>
-    <label>Address they reach this machine at <input name="endpoint" value="{{.Endpoint}}" placeholder="203.0.113.7:51821" required></label>
+    <label>Address they reach this server at <input name="endpoint" value="{{.Endpoint}}" placeholder="203.0.113.7:51821" required></label>
     <small class="hint">Your home's public address (or a name from your domain that points home) and port 51821.</small>
     <button type="submit">Make an invite</button>
   </form>
   <details>
     <summary>Letting them in: port forwarding</summary>
-    <p>Other labs connect to this machine through your home router, which only lets them in if you ask it to.
-      MyLab already allows it through this machine's own firewall; the router is the step it can't do for you.</p>
+    <p>Other labs connect to this server through your home router, which only lets them in if you ask it to.
+      MyLab already allows it through this server's own firewall; the router is the step it can't do for you.</p>
     <ol>
       <li>Open your router's settings page (often <code>http://192.168.1.1</code> or <code>http://192.168.0.1</code>; the address and password are usually on a sticker on the router).</li>
       <li>Find <strong>Port forwarding</strong>. Some routers call it <em>Virtual server</em>, <em>NAT</em>, <em>Port mapping</em> or put it under <em>Advanced</em> or <em>Firewall</em>.</li>
-      <li>Add a rule: protocol <strong>UDP</strong> (not TCP), port <strong>51821</strong>, to this machine{{with .LANAddr}} at <strong>{{.}}</strong>{{end}}, port 51821.</li>
+      <li>Add a rule: protocol <strong>UDP</strong> (not TCP), port <strong>51821</strong>, to this server{{with .LANAddr}} at <strong>{{.}}</strong>{{end}}, port 51821.</li>
       <li>Use your home's public address in the invite, e.g. <code>203.0.113.7:51821</code>. Search "what is my IP" from a device at home to find it.</li>
     </ol>
     <p class="hint">How to tell it worked: once they've used the invite, "Connected" above shows when their lab last reached this one.

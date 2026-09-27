@@ -94,7 +94,7 @@ func TestSettingsOverview(t *testing.T) {
 	h.node().updates = &fakeUpdates{restart: osupdate.RestartStatus{Needed: true}}
 
 	_, body := h.get("/settings")
-	for _, want := range []string{"People and access", "This machine", `href="/settings/remote-access"`,
+	for _, want := range []string{"People and access", "This server", `href="/settings/remote-access"`,
 		"SSH from your home network only", `class="dot dot-ok"`, "lab.example.com", "Restarting around 04:00"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("overview missing %q", want)

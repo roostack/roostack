@@ -82,7 +82,7 @@ func (h *Hub) JoinHandler() http.HandlerFunc {
 // switches to that key.
 func JoinLab(ctx context.Context, code JoinCode, self nodeid.Identity, stateDir string, ag WireGuardAgent, log func(string, ...any)) error {
 	if m, ok, _ := LoadMembership(stateDir); ok {
-		return fmt.Errorf("this machine is already a %s in a lab", m.Role)
+		return fmt.Errorf("this server is already a %s in a lab", m.Role)
 	}
 	ownKey, err := agent.NewWireGuardKey()
 	if err != nil {
@@ -123,15 +123,15 @@ func JoinLab(ctx context.Context, code JoinCode, self nodeid.Identity, stateDir 
 		_, port, _ := net.SplitHostPort(code.Endpoint)
 		return fmt.Errorf("couldn't reach the controller at %s over WireGuard (%v).\n"+
 			"Check the address, and if the controller is on another network, that UDP port %s is forwarded to it on "+
-			"that network's router (Settings → Machines explains how)", code.Endpoint, err, port)
+			"that network's router (Settings → Servers explains how)", code.Endpoint, err, port)
 	}
 	if err != nil {
-		return fmt.Errorf("the controller refused to add this machine: %w", err)
+		return fmt.Errorf("the controller refused to add this server: %w", err)
 	}
 	if err := id.Save(resp.Cert, resp.CA); err != nil {
 		return err
 	}
-	log("Joined. Switching to this machine's own WireGuard key")
+	log("Joined. Switching to this server's own WireGuard key")
 	wg.JoinKey = ownKey
 	if _, err := ag.ApplyWireGuard(ctx, wg); err != nil {
 		return err

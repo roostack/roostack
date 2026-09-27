@@ -123,8 +123,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Backups, restores, OS updates and restarts behind the node (`node.Maintenance`); the web reaches them through the node. Their construction still lives in `serve` (`startMaintenance`)
   - [x] Machine settings behind the node (`node.Settings`: time zone, SSH access, restart policy); the wizard only records its progress (`setup.Done`)
   - [x] The web reaches a service's machine by its host
-  - [x] Per-node status and activity in the UI: activity is read from the node; Settings → Machines lists each machine (role, services, apply status); problems name the machine once there are several. Per-machine URLs (`/settings/machines/<id>/…`) come with the second machine
-- [x] Two-VM prototype (SPEC.md §10.9): second dev VM joins over MyLab-managed WireGuard (join code with a one-time key, mTLS lab API), runs a service placed on it; the controller's Caddy forwards its routes; setup, actions, secrets, backups, updates, restarts and settings work remotely (`/settings/machines/<id>/…`); `MYLAB_VM=2 scripts/dev-vm.sh`
+  - [x] Per-node status and activity in the UI: activity is read from the node; Settings → Servers lists each machine (role, services, apply status); problems name the machine once there are several. Per-machine URLs (`/settings/servers/<id>/…`) come with the second machine
+- [x] Two-VM prototype (SPEC.md §10.9): second dev VM joins over MyLab-managed WireGuard (join code with a one-time key, mTLS lab API), runs a service placed on it; the controller's Caddy forwards its routes; setup, actions, secrets, backups, updates, restarts and settings work remotely (`/settings/servers/<id>/…`); `MYLAB_VM=2 scripts/dev-vm.sh`
 - [ ] Multi-machine follow-ups
   - [x] Remove a machine (only once it runs no services: it leaves the network and runs on its own); rename a machine
   - [ ] Revoke a removed machine's certificate (today it loses its WireGuard peer, so it can't reach the lab API)
@@ -144,7 +144,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Move a service between machines (SPEC.md §10.10)
     - [x] Copy directly: copy while running, stop, copy what changed (and deletions), bring its secrets, switch; the old copy is set aside
     - [x] Through a backup (large data, slow links): a fresh backup, the controller streams the service's folders from it (restic dump, recovery key) and the new machine loads its databases from the dumps; the move page suggests a way from the size
-    - [x] Kept copies moves leave (moved-away and before-move folders) listed per machine with sizes on Settings → Machines, deletable (restore's own kept copies stay on the restore page)
+    - [x] Kept copies moves leave (moved-away and before-move folders) listed per machine with sizes on Settings → Servers, deletable (restore's own kept copies stay on the restore page)
   - [x] Needs-attention items for other machines' backups, updates and restarts
   - [ ] Certificate renewal; nodes behind a hub that isn't the controller
   - [x] A machine without an SSH choice (firewall off) is flagged in "needs attention"

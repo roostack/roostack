@@ -35,10 +35,10 @@ var settingsAreas = []settingsArea{
 	{"remote-access", "People and access", "Remote access", "/settings/remote-access"},
 	{"domain", "Network", "Domain and certificates", "/settings/domain"},
 	{"home-network", "Network", "Home network", "/settings/home-network"},
-	{"machines", "Machines", "Machines", "/settings/machines"},
-	{"storage", "Machines", "Storage for others", "/settings/storage"},
-	{"updates", "This machine", "Updates and restarts", "/settings/updates"},
-	{"time-zone", "This machine", "Time zone", "/settings/time-zone"},
+	{"servers", "Servers", "Servers", "/settings/servers"},
+	{"storage", "Servers", "Storage for others", "/settings/storage"},
+	{"updates", "This server", "Updates and restarts", "/settings/updates"},
+	{"time-zone", "This server", "Time zone", "/settings/time-zone"},
 }
 
 // settingsGroup is a heading and its areas, for the sidebar and overview.
@@ -148,16 +148,16 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.Manager != nil {
 		if machines, err := s.Manager.Machines(); err == nil {
-			summary, level := fmt.Sprintf("%d machines", len(machines)), "ok"
+			summary, level := fmt.Sprintf("%d servers", len(machines)), "ok"
 			if len(machines) == 1 {
-				summary = "1 machine: " + machines[0].Name
+				summary = "1 server: " + machines[0].Name
 			}
 			for _, mc := range machines {
 				if mc.Status.LastErr != nil {
 					summary, level = "A change on "+mc.Name+" didn't finish", "problem"
 				}
 			}
-			set("machines", summary, level)
+			set("servers", summary, level)
 		}
 	}
 	clock := hosttime.Now()
@@ -270,7 +270,7 @@ func (s *Server) renderMachines(w http.ResponseWriter, r *http.Request, extra ma
 		status = http.StatusBadRequest
 	}
 	w.WriteHeader(status)
-	s.render(w, "settings-machines", withArea(data, "machines"))
+	s.render(w, "settings-servers", withArea(data, "servers"))
 }
 
 // joinCodeSubmit makes a join code for a new machine.
@@ -282,7 +282,7 @@ func (s *Server) joinCodeSubmit(w http.ResponseWriter, r *http.Request) {
 	endpoint := strings.TrimSpace(r.FormValue("endpoint"))
 	if host, port, err := net.SplitHostPort(endpoint); err != nil || host == "" || port == "" {
 		s.renderMachines(w, r, map[string]any{"Endpoint": endpoint,
-			"Error": "Enter the address and port other machines reach this one at, such as 192.168.1.20:51820."})
+			"Error": "Enter the address and port other servers reach this one at, such as 192.168.1.20:51820."})
 		return
 	}
 	code, err := s.Network.NewJoinCode(r.Context(), endpoint)
@@ -291,7 +291,7 @@ func (s *Server) joinCodeSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.SetSetting(r.Context(), endpointKey, endpoint)
-	s.Store.Audit(r.Context(), currentUser(r), "machines", "join code made for "+code.Addr.String())
+	s.Store.Audit(r.Context(), currentUser(r), "servers", "join code made for "+code.Addr.String())
 	s.renderMachines(w, r, map[string]any{"Endpoint": endpoint, "JoinCode": code.String(),
 		"JoinExpires": time.Now().Add(labnet.JoinCodeLifetime)})
 }
@@ -344,12 +344,12 @@ func (s *Server) renameMachineSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "machines", "renamed "+id+" to "+strings.TrimSpace(name))
+	s.Store.Audit(r.Context(), currentUser(r), "servers", "renamed "+id+" to "+strings.TrimSpace(name))
 	if s.Node != nil && id == s.Node.Identity().ID {
 		redirect(w, r, "/restarting") // this machine reads its name at startup
 		return
 	}
-	redirect(w, r, "/settings/machines")
+	redirect(w, r, "/settings/servers")
 }
 
 func (s *Server) removeMachineSubmit(w http.ResponseWriter, r *http.Request) {
@@ -371,8 +371,8 @@ func (s *Server) removeMachineSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "machines", "removed "+id)
-	redirect(w, r, "/settings/machines")
+	s.Store.Audit(r.Context(), currentUser(r), "servers", "removed "+id)
+	redirect(w, r, "/settings/servers")
 }
 
 func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
@@ -390,6 +390,6 @@ func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "machines", "deleted kept folder "+path+" on "+id)
-	redirect(w, r, "/settings/machines#machine-"+id)
+	s.Store.Audit(r.Context(), currentUser(r), "servers", "deleted kept folder "+path+" on "+id)
+	redirect(w, r, "/settings/servers#machine-"+id)
 }

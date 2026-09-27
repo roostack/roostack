@@ -75,7 +75,7 @@ func (m *Manager) BackupChoices(ctx context.Context) ([]BackupChoice, error) {
 		return nil, err
 	}
 	for _, p := range providers {
-		note := "These credentials can reach the whole bucket; each machine uses its own folder."
+		note := "These credentials can reach the whole bucket; each server uses its own folder."
 		switch p.Kind {
 		case "remote":
 			var r RemoteStorage
@@ -84,7 +84,7 @@ func (m *Manager) BackupChoices(ctx context.Context) ([]BackupChoice, error) {
 		case "s3":
 			var s3 S3Provider
 			if json.Unmarshal([]byte(p.Config), &s3) == nil && b2.IsB2(s3.Endpoint) {
-				note = "Each machine gets its own key, limited to its folder (if this account's key may create keys)."
+				note = "Each server gets its own key, limited to its folder (if this account's key may create keys)."
 			}
 		}
 		out = append(out, BackupChoice{Ref: fmt.Sprintf("provider:%d", p.ID), Title: p.Name, Note: note})
@@ -122,7 +122,7 @@ func (m *Manager) SetBackupDestination(ctx context.Context, machineID, ref strin
 		return formErrorf("MyLab can't reach %s right now.", n.Identity().Name)
 	}
 	if m.HasRecoveryKey != nil && !m.HasRecoveryKey() {
-		return formErrorf("Set up this machine's backups first: that creates the recovery key every backup can be read with.")
+		return formErrorf("Set up this server's backups first: that creates the recovery key every backup can be read with.")
 	}
 	choices, err := m.BackupChoices(ctx)
 	if err != nil {
@@ -164,7 +164,7 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, machin
 		host := id
 		addr := m.addressOf(host)
 		if addr == "" {
-			return fmt.Errorf("no address for machine %s", host)
+			return fmt.Errorf("no address for server %s", host)
 		}
 		password, hash, err := newPassword()
 		if err != nil {
@@ -305,7 +305,7 @@ func (m *Manager) forgetMachineBackups(ctx context.Context, machineID string) {
 			continue
 		}
 		if err := m.b2(s3).DeleteKey(ctx, t.ScopedKey); err != nil {
-			m.Log.Warn("deleting a removed machine's Backblaze key", "machine", machineID, "err", err)
+			m.Log.Warn("deleting a removed server's Backblaze key", "machine", machineID, "err", err)
 		}
 	}
 }
@@ -441,9 +441,9 @@ func (m *Manager) BackupTargetOf(ctx context.Context, machineID string) (t store
 // this with the recovery key, weekly.
 func (m *Manager) PruneJob() maintenance.Job {
 	return maintenance.Job{
-		Name: "removing old backups of every machine",
+		Name: "removing old backups of every server",
 		Run: func(ctx context.Context, h *maintenance.Handle) (err error) {
-			act := m.Activity.Start(activity.Backup, "Removing old backups of every machine")
+			act := m.Activity.Start(activity.Backup, "Removing old backups of every server")
 			defer func() { act.Finish(err) }()
 			targets, err := m.BackupStore.BackupTargets(ctx)
 			if err != nil {

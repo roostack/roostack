@@ -13,7 +13,7 @@ import (
 
 // Components are called from templates as functions (docs/DESIGN.md):
 //
-//	{{notice "warn" "Backups are only stored on this machine." "link=/backups" "linkText=Improve backups"}}
+//	{{notice "warn" "Backups are only stored on this server." "link=/backups" "linkText=Improve backups"}}
 //	{{status .Service.Status}}
 //	{{badge "New" "highlight"}}
 //	{{back "/services" "Services"}}

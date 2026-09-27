@@ -61,7 +61,7 @@ var gallerySections = []gallerySection{
 			{"Success", "Something finished as asked.", `
 {{notice "ok" "Password changed."}}`},
 			{"Warning", "Should be dealt with soon. Options link= and linkText= add a link.", `
-{{notice "warn" "Backups are only stored on this machine." "link=/backups" "linkText=Improve backups"}}`},
+{{notice "warn" "Backups are only stored on this server." "link=/backups" "linkText=Improve backups"}}`},
 			{"Error", "Something is broken.", `
 {{notice "error" "The last backup didn't finish: the disk is full."}}`},
 		}},

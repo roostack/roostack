@@ -56,7 +56,7 @@
       <label class="check"><input type="radio" name="role" value="admin" {{if eq .NewRole "admin"}}checked{{end}}>
         <span>Admin<small>Also installs, changes and removes services, and runs backups.</small></span></label>
       <label class="check"><input type="radio" name="role" value="owner" {{if eq .NewRole "owner"}}checked{{end}}>
-        <span>Owner<small>Everything, including this machine's settings, restores and people. Needs two-factor.</small></span></label>
+        <span>Owner<small>Everything, including this server's settings, restores and people. Needs two-factor.</small></span></label>
     </fieldset>
     <button type="submit">Add</button>
   </form>

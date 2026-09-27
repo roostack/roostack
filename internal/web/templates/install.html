@@ -9,9 +9,9 @@
     {{with .Machines}}
     <label>Run it on
       <select name="host">
-        {{range .}}<option value="{{.ID}}" {{if eq .ID $.Host}}selected{{end}}>{{.Name}}{{if .This}} (this machine){{end}}</option>{{end}}
+        {{range .}}<option value="{{.ID}}" {{if eq .ID $.Host}}selected{{end}}>{{.Name}}{{if .This}} (this server){{end}}</option>{{end}}
       </select>
-      <small>Its data stays on that machine, and it's backed up there.</small>
+      <small>Its data stays on that server, and it's backed up there.</small>
     </label>
     {{end}}
     {{if .HasRoute}}

@@ -2,7 +2,7 @@
 {{define "content"}}
 {{with .Updates}}
 <section class="card" id="updates">
-  {{if $.Machine.This}}{{back "/settings" "Settings"}}{{else}}{{back "/settings/machines" "Machines"}}{{end}}
+  {{if $.Machine.This}}{{back "/settings" "Settings"}}{{else}}{{back "/settings/servers" "Servers"}}{{end}}
   <h1>Updates and restarts{{if not $.Machine.This}} · {{$.Machine.Name}}{{end}}</h1>
   <p class="hint">{{$.Machine.Label}} installs Debian's security and bug-fix updates every night after the backup.</p>
   {{activity .Activity}}
@@ -23,7 +23,7 @@
   <div class="notice notice-warn" role="status">
     <p><strong>A restart is needed to finish installing updates</strong>{{with .Restart.Packages}} ({{range $i, $p := .}}{{if $i}}, {{end}}{{$p}}{{end}}){{end}}.
       {{.Restart.Waiting}}.</p>
-    {{confirm $.Machine.Restart "Restart this machine now? Your services will be unavailable for a minute or two." "Restart now" ""}}
+    {{confirm $.Machine.Restart "Restart this server now? Your services will be unavailable for a minute or two." "Restart now" ""}}
   </div>
   {{end}}
   <form method="post" action="{{$.Machine.UpdatesRun}}">

@@ -354,6 +354,8 @@ One lab can span several machines: extra boxes at home, VPSes in the cloud, and 
 
 ### 10.1 Roles
 
+**Naming (2026-09-28):** the UI calls machines **servers** ("My Servers", Settings → Servers, "Move to another server"); this document and the code keep "machine" and "node".
+
 - **Node:** any machine running MyLab. Every node runs its own services (Quadlets, reconciler), its own Caddy and certificates, its own backups, OS updates, firewall and agent, exactly as a single-machine lab does today.
 - **Controller:** one node also holds the lab's desired state (§1.2: services, placement, settings), users and sessions, and serves the UI. It decides placement; nodes do the work.
 - **The controller can move to any node** (chosen, not automatic), e.g. from a home NUC to a VPS:
@@ -409,7 +411,7 @@ So single-machine code doesn't paint us into a corner:
 
 1. **`host` on every instance**, defaulting to the controller; loading services filters by host.
 2. **Controller/node split in code:** the UI-facing manager (desired state, users, placement) talks to a **`Node` interface** for everything that touches a machine (apply, status, hooks, actions, restores, activity, updates, restarts, firewall). Today: one in-process implementation. Later: a remote implementation speaking the same plain-data requests.
-3. **Status, activity and restart state are per node**, and the UI's "This machine" areas are per node (e.g. `/settings/machines/<id>/updates`) once there's more than one.
+3. **Status, activity and restart state are per node**, and the UI's "This machine" areas are per node (e.g. `/settings/servers/<id>/updates`) once there's more than one.
 4. **Node identity:** every install gets a stable node ID and name at setup.
 
 Then a **two-VM prototype**: a second dev VM joins the first over WireGuard and runs one service placed on it.
@@ -426,10 +428,10 @@ Then a **two-VM prototype**: a second dev VM joins the first over WireGuard and 
 What the two-VM prototype does, where it refines the design above:
 
 - **Hub:** the controller is the WireGuard hub (`100.96.0.1`, UDP 51820; network `100.96.0.0/24`). A reachable hub other than the controller comes later.
-- **Joining:** the Owner makes a code in Settings → Machines and runs `sudo mylab node join <code>` on the new machine. The code carries a **one-time WireGuard key**, so only the hub's UDP port needs to be reachable (no public TLS endpoint). Over WireGuard, the machine checks the controller's CA against the code's fingerprint, sends its own WireGuard key and a CSR, and gets its certificate; the hub then replaces the one-time key with the machine's own. Codes work once and expire after an hour.
+- **Joining:** the Owner makes a code in Settings → Servers and runs `sudo mylab node join <code>` on the new machine. The code carries a **one-time WireGuard key**, so only the hub's UDP port needs to be reachable (no public TLS endpoint). Over WireGuard, the machine checks the controller's CA against the code's fingerprint, sends its own WireGuard key and a CSR, and gets its certificate; the hub then replaces the one-time key with the machine's own. Codes work once and expire after an hour.
 - **Protocol:** every machine serves a lab API on its overlay address (port 8471), mutual TLS with the lab's CA. The controller **sends** assignments and makes requests directly (status, service states, activity, hooks, actions, secrets, backups, restores, updates, restarts, settings); a node also **pulls** its assignment when it starts and every 15 minutes, and keeps its last one (without secrets) to run while the controller is away. Assignments carry a version; older ones are ignored. Typed-in secrets travel once and are never stored on disk.
 - **Web routes of a service on another machine:** the machine publishes them on its overlay address (firewall: WireGuard interface only) and the controller's Caddy forwards to it (TLS ends on the controller for now; passthrough is §10.5's edge).
-- **Nodes** run no UI, Caddy or DNS. Per-machine pages live under `/settings/machines/<id>/…`.
+- **Nodes** run no UI, Caddy or DNS. Per-machine pages live under `/settings/servers/<id>/…`.
 
 ### 10.10 Backups across machines, and moving services — Locked (2026-09-27)
 

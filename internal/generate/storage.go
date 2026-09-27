@@ -46,7 +46,7 @@ func Storage(lab config.Lab, addr string) ([]File, []string, error) {
 		port        int
 		args        string
 	}{
-		{StorageUnit, "backups other machines store here", StoragePort,
+		{StorageUnit, "backups other servers store here", StoragePort,
 			"--append-only --private-repos --htpasswd-file /data/" + StorePasswords},
 		{StorageAdminUnit, "the controller's access to stored backups", StorageAdminPort,
 			"--htpasswd-file /data/" + AdminPasswords},

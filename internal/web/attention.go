@@ -73,7 +73,7 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 					if set := n.Settings(); set != nil {
 						if a, err := set.SSHAccess(); err == nil && a.Choice == "" {
 							add(levelWarning, mc.Name+"'s firewall is off until you choose who can log in to it over SSH.",
-								"/settings/machines/"+mc.ID+"/remote-access", "Choose")
+								"/settings/servers/"+mc.ID+"/remote-access", "Choose")
 						}
 					}
 				}
@@ -201,7 +201,7 @@ func (s *Server) backupAttention(r *http.Request, m machineView, n ServiceNode, 
 		add(levelWarning, "No backup has finished"+m.on()+" in the last two days.", link, "View backups")
 	}
 	if st.Configured && st.LocalOnly {
-		where := "this machine"
+		where := "this server"
 		if !m.This {
 			where = m.Name
 		}
@@ -216,7 +216,7 @@ func (s *Server) updatesAttention(r *http.Request, m machineView, n ServiceNode,
 		return
 	}
 	if last, err := u.Last(r.Context()); err == nil && last != nil && !last.OK {
-		add(levelProblem, "OS updates didn't finish last time"+m.on()+". The machine may be missing security fixes.",
+		add(levelProblem, "OS updates didn't finish last time"+m.on()+". The server may be missing security fixes.",
 			m.Updates(), "See what happened")
 	}
 	rs := u.RestartStatus()

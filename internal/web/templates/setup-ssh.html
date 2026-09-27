@@ -2,11 +2,11 @@
 {{define "content"}}
 <section class="card narrow">
   {{if .Wizard}}<p class="hint">Setup · step 2 of 4</p>
-  <h1>Who can log in to this machine?</h1>
+  <h1>Who can log in to this server?</h1>
   {{else}}{{back .Back .BackText}}
   <h1>Change remote access{{if not .Machine.This}} to {{.Machine.Name}}{{end}}</h1>
   {{end}}
-  <p>SSH lets someone log in to this machine from another computer to fix things MyLab can't. MyLab's firewall
+  <p>SSH lets someone log in to this server from another computer to fix things MyLab can't. MyLab's firewall
     blocks everything else except your services' web addresses.</p>
   {{with .Clients}}
   <div class="notice">
@@ -20,10 +20,10 @@
       <label class="check"><input type="radio" name="ssh" value="lan" x-model="choice">
         <span>Only from my home network (recommended)<small>From computers at home, or over a VPN.</small></span></label>
       <label class="check"><input type="radio" name="ssh" value="any" x-model="choice">
-        <span>From anywhere<small>Only reachable from the internet if your router forwards port 22 to this machine.
+        <span>From anywhere<small>Only reachable from the internet if your router forwards port 22 to this server.
           Anyone can then try to log in, so use SSH keys, not passwords.</small></span></label>
       <label class="check"><input type="radio" name="ssh" value="off" x-model="choice">
-        <span>Nobody<small>If something goes wrong that MyLab can't fix, you'll need a keyboard and screen plugged into this machine.</small></span></label>
+        <span>Nobody<small>If something goes wrong that MyLab can't fix, you'll need a keyboard and screen plugged into this server.</small></span></label>
     </fieldset>
     {{if .Clients}}
     <div x-show="choice === 'off' {{if .CutByLAN}}|| choice === 'lan'{{end}}" x-cloak>
