@@ -143,7 +143,9 @@ func TestBackupStep(t *testing.T) {
 	}
 	s, _, restarts := newSetup(t)
 	ctx := context.Background()
-	s.Store.SetSetting(ctx, keyDomain, "done")
+	for _, k := range []string{keyTimezone, keySSH, keyDomain} {
+		s.Store.SetSetting(ctx, k, "done")
+	}
 	s.NewRepo = func(repo string, env []string) *backup.Repo {
 		return &backup.Repo{Bin: bin, URL: repo, PasswordFile: backup.KeyFile(s.Lab.Paths), Env: env,
 			CacheDir: filepath.Join(s.Lab.Paths.StateDir, "cache")}

@@ -28,7 +28,7 @@ func navFor(u *store.User, page string) nav {
 		"home": "home", "services": "services", "service": "services", "catalog": "services",
 		"install": "services", "remove": "services", "backups": "backups",
 		"settings": "settings", "setup-timezone": "settings", "setup-ssh": "settings", "setup-domain": "settings", "setup-backup": "settings",
-		"recovery-key": "settings", "dns-takeover": "settings", "account": "account", "twofactor": "account",
+		"recovery-key": "settings", "restore": "backups", "dns-takeover": "settings", "account": "account", "twofactor": "account",
 	}[page]
 	return nav{Active: active, Username: u.Username,
 		Backups: auth.Can(u.Role, auth.ManageServices), Settings: auth.Can(u.Role, auth.ManageHost)}
@@ -167,6 +167,7 @@ func (s *Server) backupsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	data["Backup"] = s.backupView(r)
 	data["BackupRepo"] = s.BackupRepo
+	data["CanRestore"] = s.Restores != nil && auth.Can(currentUser(r).Role, auth.ManageHost)
 	if a := s.activityFor(r, activity.Backup); a != nil {
 		data["BackupActivity"] = map[string]any{"Activity": a}
 	}

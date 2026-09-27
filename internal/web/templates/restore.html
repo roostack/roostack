@@ -1,0 +1,47 @@
+{{define "title"}}Restore {{.Service.Title}}{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <p><a href="/backups">← Backups</a></p>
+  <h1>Restore {{.Service.Title}}</h1>
+  {{with .RestoreActivity}}{{template "activity" .}}{{end}}
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .Pending}}
+    <p class="notice">A restore is in progress. This page shows how it's going.</p>
+  {{else if .Snapshots}}
+  <p>Puts {{.Service.Title}}'s data back to how it was in a backup. {{.Service.Title}} stops for a few minutes while this happens.</p>
+  <form method="post" action="/backups/restore/{{.Service.Name}}">
+    <fieldset>
+      <legend>Which backup?</legend>
+      {{range $i, $s := .Snapshots}}
+      <label class="check"><input type="radio" name="snapshot" value="{{$s.ID}}" {{if eq $i 0}}checked{{end}}>
+        <span>{{when $s.Time}}{{if eq $i 0}} (newest){{end}}<small>{{$s.Short}}</small></span></label>
+      {{end}}
+    </fieldset>
+    <p class="notice">Anything changed in {{.Service.Title}} since that backup will be undone. The current data isn't deleted:
+      it's kept aside, listed below, until you delete it.</p>
+    <label class="check"><input type="checkbox" name="confirm" required>
+      <span>I understand, restore {{.Service.Title}}</span></label>
+    <button type="submit">Restore {{.Service.Title}}</button>
+  </form>
+  {{else}}
+    <p class="notice">There's no backup of {{.Service.Title}} yet. Backups made before it was installed don't contain it.</p>
+  {{end}}
+
+  {{with .Kept}}
+  <h2>Kept copies</h2>
+  <p class="hint">Data a restore moved aside. Delete it once you're happy with the restore, to free up space.</p>
+  <ul class="kept">
+    {{range .}}
+    <li>
+      <span>{{if .Failed}}From a restore that didn't finish{{else}}Before the restore{{end}} on {{when .Time}}<br><code>{{.Path}}</code></span>
+      <form method="post" action="/backups/restore/{{$.Service.Name}}/kept/remove" x-data
+        x-on:submit="if (!confirm('Delete this copy permanently?')) $event.preventDefault()">
+        <input type="hidden" name="path" value="{{.Path}}">
+        <button type="submit" class="link-danger">Delete</button>
+      </form>
+    </li>
+    {{end}}
+  </ul>
+  {{end}}
+</section>
+{{end}}

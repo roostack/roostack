@@ -20,8 +20,14 @@
   </section>
   <section class="card section">
     <h2>Restoring</h2>
-    <p>For now, restore a service from the command line: <code>sudo -u mylab mylab backup restore &lt;service&gt;</code>.
-      MyLab moves the current data aside first; nothing is deleted.</p>
+    {{if .CanRestore}}
+      {{with .Services}}
+      <p>Put a service's data back to how it was in a backup. Its current data is kept aside first; nothing is deleted.</p>
+      <ul class="plain">{{range .}}<li><a href="/backups/restore/{{.Name}}">Restore {{.Title}}…</a></li>{{end}}</ul>
+      {{else}}<p class="hint">No services installed.</p>{{end}}
+    {{else}}
+      <p class="hint">Only the Owner can restore services.</p>
+    {{end}}
   </section>
 </section>
 {{end}}

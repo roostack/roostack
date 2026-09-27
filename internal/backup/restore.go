@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/pkgspec"
 )
@@ -30,6 +31,8 @@ type Restorer struct {
 	Launch   func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd
 	MylabBin string
 	Now      func() time.Time
+	// Log shows the restore's steps live in the UI (optional, per run).
+	Log *activity.Log
 }
 
 // RestoreResult says what happened, for the person running the restore.
@@ -55,11 +58,14 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 	if len(dirs) == 0 {
 		return nil, fmt.Errorf("%s has no backed-up data", svc.Service)
 	}
+	r.Log.Printf("Backup taken %s (%s)", snap.Time.Local().Format("2006-01-02 15:04"), snap.Short)
+	r.Log.Step("Stopping %s", svc.Service)
 	if err := r.Units.Stop(ctx, svc.Units...); err != nil {
 		return nil, fmt.Errorf("stopping %s: %w", svc.Service, err)
 	}
 	res := &RestoreResult{Snapshot: *snap, MovedAside: map[string]string{}}
-	suffix := ".before-restore-" + r.Now().Format("20060102-150405")
+	suffix := keptBefore + r.Now().Format(keptTimeLayout)
+	r.Log.Step("Moving the current data aside (nothing is deleted)")
 	for _, dir := range dirs {
 		if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
 			continue
@@ -70,9 +76,12 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 			return nil, fmt.Errorf("moving %s aside: %w", dir, err)
 		}
 		res.MovedAside[dir] = aside
+		r.Log.Printf("%s → %s", dir, aside)
 	}
 
+	r.Log.Step("Restoring files from the backup")
 	for _, dir := range dirs {
+		r.Log.Printf("%s", dir)
 		err := r.Repo.RestoreDir(ctx, snap.ID, dir)
 		if errors.Is(err, ErrNotInSnapshot) {
 			r.rollback(res, suffix)
@@ -84,9 +93,13 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 		}
 	}
 
+	if len(svc.Backup.Prepare) > 0 {
+		r.Log.Step("Putting the database back")
+	}
 	if err := r.restoreDatabases(ctx, svc); err != nil {
 		return res, fmt.Errorf("restoring databases: %w (the previous data is in the .before-restore directories)", err)
 	}
+	r.Log.Step("Starting %s", svc.Service)
 	if err := r.Units.Start(ctx, svc.Units...); err != nil {
 		return res, fmt.Errorf("starting %s: %w", svc.Service, err)
 	}
@@ -124,7 +137,7 @@ func (r *Restorer) pickSnapshot(ctx context.Context, id string) (*Snapshot, erro
 func (r *Restorer) rollback(res *RestoreResult, suffix string) {
 	for dir, aside := range res.MovedAside {
 		if _, err := os.Stat(dir); err == nil {
-			os.Rename(dir, strings.Replace(dir+suffix, ".before-restore-", ".failed-restore-", 1))
+			os.Rename(dir, strings.Replace(dir+suffix, keptBefore, keptFailed, 1))
 		}
 		os.Rename(aside, dir)
 	}
@@ -142,7 +155,6 @@ func (r *Restorer) restoreDatabases(ctx context.Context, svc *generate.Output) e
 				return err
 			}
 		case pkgspec.DBPostgres:
-			// UNTESTED against a real Postgres service (TASKS 1.13).
 			if err := r.Units.Start(ctx, step.Container+".service"); err != nil {
 				return err
 			}
@@ -172,6 +184,73 @@ func (r *Restorer) run(ctx context.Context, stdin *os.File, name string, args ..
 		return fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+// Suffixes of directories a restore keeps: the data it replaced, and a
+// partial restore that was rolled back.
+const (
+	keptBefore     = ".before-restore-"
+	keptFailed     = ".failed-restore-"
+	keptTimeLayout = "20060102-150405"
+)
+
+// SnapshotsFor returns the snapshots that contain all of a service's
+// backed-up directories, newest first.
+func SnapshotsFor(snaps []Snapshot, svc *generate.Output) []Snapshot {
+	var out []Snapshot
+	for _, s := range snaps {
+		if len(svc.Backup.Include) > 0 && !slices.ContainsFunc(svc.Backup.Include, func(dir string) bool {
+			return !slices.Contains(s.Paths, dir)
+		}) {
+			out = append(out, s)
+		}
+	}
+	slices.SortFunc(out, func(a, b Snapshot) int { return b.Time.Compare(a.Time) })
+	return out
+}
+
+// KeptCopy is a directory a restore left behind.
+type KeptCopy struct {
+	Path   string
+	Of     string // the data directory it is a copy of
+	Failed bool   // a rolled-back partial restore, not the previous data
+	Time   time.Time
+}
+
+// KeptCopies lists the directories restores left behind for a service.
+func KeptCopies(svc *generate.Output) ([]KeptCopy, error) {
+	var kept []KeptCopy
+	for _, dir := range svc.Backup.Include {
+		for _, suffix := range []string{keptBefore, keptFailed} {
+			matches, err := filepath.Glob(dir + suffix + "*")
+			if err != nil {
+				return nil, err
+			}
+			for _, m := range matches {
+				t, err := time.ParseInLocation(keptTimeLayout, strings.TrimPrefix(m, dir+suffix), time.Local)
+				if err != nil {
+					continue // not one of ours
+				}
+				kept = append(kept, KeptCopy{Path: m, Of: dir, Failed: suffix == keptFailed, Time: t})
+			}
+		}
+	}
+	slices.SortFunc(kept, func(a, b KeptCopy) int { return b.Time.Compare(a.Time) })
+	return kept, nil
+}
+
+// RemoveKept deletes a kept copy. Only paths KeptCopies returns for the
+// service are accepted. Files may belong to container users, so it runs
+// inside podman unshare.
+func (r *Restorer) RemoveKept(ctx context.Context, svc *generate.Output, path string) error {
+	kept, err := KeptCopies(svc)
+	if err != nil {
+		return err
+	}
+	if !slices.ContainsFunc(kept, func(k KeptCopy) bool { return k.Path == path }) {
+		return fmt.Errorf("%s is not a copy kept by a restore", path)
+	}
+	return r.run(ctx, nil, "podman", "unshare", "rm", "-rf", "--", path)
 }
 
 // SQLiteRestore replaces a live SQLite database with a backed-up copy. The

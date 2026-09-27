@@ -89,11 +89,14 @@ func serve(args []string) error {
 	// Converge on startup, e.g. after MyLab itself was upgraded.
 	mgr.Apply()
 
-	backups, updates, err := startMaintenance(ctx, lab, st, log, agentClient, acts)
+	backups, restores, updates, err := startMaintenance(ctx, lab, st, log, agentClient, acts)
 	if err != nil {
 		return err
 	}
 	srv.Backups, srv.Updates, srv.Maintenance = backups, updates, lab.Maintenance
+	if restores != nil {
+		srv.Restores = restores
+	}
 
 	wizard := &setup.Setup{
 		Lab: lab, LabPath: *labPath, Store: st, Secrets: podman.NewSecrets(),
@@ -246,7 +249,7 @@ func summarize(units []systemd.UnitStatus) string {
 // startMaintenance runs the maintenance coordinator with the nightly backup
 // and weekly repository maintenance (SPEC.md §3.2, §6.9).
 func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger, ag *agent.Client,
-	acts *activity.Registry) (*backup.Service, *osupdate.Service, error) {
+	acts *activity.Registry) (*backup.Service, *backup.Restores, *osupdate.Service, error) {
 	ticker := time.NewTicker(time.Minute)
 	policy := maintenance.DefaultPolicy()
 	policy.WindowStart = time.Duration(lab.Maintenance.Hour()) * time.Hour
@@ -261,6 +264,7 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 		Log:     log,
 		Reboot:  func() error { return ag.Reboot(context.Background()) },
 	}
+	var restores *backup.Restores
 	updates := &osupdate.Service{Agent: ag, Store: st, Coord: coord, Now: time.Now, Log: log, Activity: acts}
 	svc := &backup.Service{
 		Coord:      coord,
@@ -275,10 +279,15 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 		} else {
 			repo, err := newRepo(lab, userLaunch)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			if svc.Deps, err = newBackupDeps(lab, st, repo, userLaunch); err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
+			}
+			restores = &backup.Restores{Coord: coord, Repo: repo, Activity: acts,
+				Restorer: &backup.Restorer{Repo: repo, Units: systemd.New(), Launch: userLaunch,
+					MylabBin: svc.Deps.Preparer.MylabBin, Now: time.Now},
+				Lookup: func(name string) (*generate.Output, string, error) { return lookupService(lab, name) },
 			}
 		}
 	}
@@ -328,5 +337,21 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 			},
 			func() { coord.Submit(svc.MaintenanceJob()) })
 	}
-	return svc, updates, nil
+	return svc, restores, updates, nil
+}
+
+// lookupService generates an installed service's output (e.g. to restore
+// it), with its title.
+func lookupService(lab config.Lab, name string) (*generate.Output, string, error) {
+	services, err := state.LoadServices(lab)
+	if err != nil {
+		return nil, "", err
+	}
+	for _, s := range services {
+		if s.Package.Name == name {
+			out, err := generate.Service(lab, s.Package, s.Instance)
+			return out, s.Package.Title, err
+		}
+	}
+	return nil, "", fmt.Errorf("%s is not installed", name)
 }
