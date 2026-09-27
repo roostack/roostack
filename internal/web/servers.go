@@ -83,7 +83,10 @@ func (m serverRef) path(this, other string) string {
 
 func (m serverRef) Updates() string    { return m.path("/settings/updates", "/updates") }
 func (m serverRef) UpdatesRun() string { return m.path("/settings/updates/run", "/updates/run") }
-func (m serverRef) Restart() string    { return m.path("/settings/restart", "/restart") }
+func (m serverRef) HostChangesKnown() string {
+	return m.path("/settings/host-changes/known", "/host-changes/known")
+}
+func (m serverRef) Restart() string { return m.path("/settings/restart", "/restart") }
 func (m serverRef) RestartPolicy() string {
 	return m.path("/settings/restart-policy", "/restart-policy")
 }
@@ -102,16 +105,17 @@ func (m serverRef) BackupRun() string { return m.path("/backup/run", "/backups/r
 func (s *Server) serverRoutes(mux *http.ServeMux) {
 	const p = "/settings/servers/{server}"
 	for route, h := range map[string]http.HandlerFunc{
-		"GET " + p + "/updates":         s.updatesPage,
-		"POST " + p + "/updates/run":    s.updateNowSubmit,
-		"POST " + p + "/restart":        s.restartNowSubmit,
-		"POST " + p + "/restart-policy": s.restartPolicySubmit,
-		"GET " + p + "/time-zone":       s.timezonePage,
-		"POST " + p + "/time-zone":      s.timezoneSubmit,
-		"GET " + p + "/remote-access":   s.sshPage,
-		"POST " + p + "/remote-access":  s.sshSubmit,
-		"GET " + p + "/backups":         s.backupsPage,
-		"POST " + p + "/backups/run":    s.backupRun,
+		"GET " + p + "/updates":             s.updatesPage,
+		"POST " + p + "/updates/run":        s.updateNowSubmit,
+		"POST " + p + "/host-changes/known": s.hostChangesKnownSubmit,
+		"POST " + p + "/restart":            s.restartNowSubmit,
+		"POST " + p + "/restart-policy":     s.restartPolicySubmit,
+		"GET " + p + "/time-zone":           s.timezonePage,
+		"POST " + p + "/time-zone":          s.timezoneSubmit,
+		"GET " + p + "/remote-access":       s.sshPage,
+		"POST " + p + "/remote-access":      s.sshSubmit,
+		"GET " + p + "/backups":             s.backupsPage,
+		"POST " + p + "/backups/run":        s.backupRun,
 	} {
 		mux.Handle(route, s.requireOwner(func(w http.ResponseWriter, r *http.Request) {
 			if s.serverOf(r) == nil {

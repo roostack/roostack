@@ -167,6 +167,13 @@ func (c *Client) RemoveWireGuard(ctx context.Context, iface string) error {
 	return c.call(ctx, http.MethodDelete, "/v1/wireguard?interface="+url.QueryEscape(iface), nil, nil)
 }
 
+// HostChanges checks the host for changes MyLab didn't make.
+func (c *Client) HostChanges(ctx context.Context) (HostChanges, error) {
+	var hc HostChanges
+	err := c.call(ctx, http.MethodGet, "/v1/host/changes", nil, &hc)
+	return hc, err
+}
+
 // SaveWireGuardKeys copies MyLab's WireGuard keys into KeysFile (readable
 // by MyLab only), for the backup.
 func (c *Client) SaveWireGuardKeys(ctx context.Context) error {

@@ -111,6 +111,7 @@ type Server struct {
 	// hides it.
 	LabRestore LabRestorer
 	restore    *restoreSession
+	hostChecks hostCheckCache
 	// RestorePending reports a restored lab whose services' databases are
 	// still being put back (optional).
 	RestorePending func() bool
@@ -365,6 +366,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /backups/restore/{name}", s.requireOwner(s.restoreSubmit))
 	mux.Handle("POST /backups/restore/{name}/kept/remove", s.requireOwner(s.removeKeptSubmit))
 	mux.Handle("POST /settings/updates/run", s.requireOwner(s.updateNowSubmit))
+	mux.Handle("POST /settings/host-changes/known", s.requireOwner(s.hostChangesKnownSubmit))
 	mux.Handle("POST /settings/restart", s.requireOwner(s.restartNowSubmit))
 	mux.Handle("POST /settings/restart-policy", s.requireWizard(s.restartPolicySubmit))
 	mux.Handle("GET /setup/ssh", s.requireWizard(s.sshPage))

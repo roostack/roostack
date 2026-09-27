@@ -57,6 +57,8 @@ type Host interface {
 	WireGuardStatus(iface string) (WireGuardStatus, error)
 	// WireGuardKeys reads MyLab's interfaces' private keys.
 	WireGuardKeys() (map[string]string, error)
+	// HostChanges checks for changes MyLab didn't make (SPEC.md §3.2).
+	HostChanges() (HostChanges, error)
 	// RemoveWireGuard takes an interface down and deletes its
 	// configuration (e.g. the server left its lab).
 	RemoveWireGuard(iface string) error
@@ -164,6 +166,14 @@ func (s *Server) Handler() http.Handler {
 	})
 	// The keys go into MyLab's backups, like its CA's key, so a restored
 	// lab keeps the keys its peers know.
+	mux.HandleFunc("GET /v1/host/changes", func(w http.ResponseWriter, r *http.Request) {
+		c, err := s.Host.HostChanges()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, c)
+	})
 	mux.HandleFunc("GET /v1/wireguard/keys", func(w http.ResponseWriter, r *http.Request) {
 		keys, err := s.Host.WireGuardKeys()
 		if err != nil {

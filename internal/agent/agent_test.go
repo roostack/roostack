@@ -42,6 +42,9 @@ func (f *fakeHost) ApplyWireGuard(wg WireGuard) (string, error) {
 	return "cHVibGlj", nil
 }
 func (f *fakeHost) WireGuardStatus(string) (WireGuardStatus, error) { return WireGuardStatus{}, nil }
+func (f *fakeHost) HostChanges() (HostChanges, error) {
+	return HostChanges{Held: []string{"linux-image-amd64"}}, nil
+}
 func (f *fakeHost) WireGuardKeys() (map[string]string, error) {
 	return map[string]string{"mylab": "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw="}, nil
 }

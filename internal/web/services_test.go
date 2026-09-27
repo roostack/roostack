@@ -1105,3 +1105,29 @@ func TestRetryInstallWithChangedSettings(t *testing.T) {
 		t.Errorf("retried with %v", fm.retriedWith)
 	}
 }
+
+func TestHostChanges(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}})
+	up := &fakeUpdates{}
+	up.changes.AptSources = []string{"docker.list: https://download.docker.com/linux/debian"}
+	up.changes.Held = []string{"linux-image-amd64"}
+	fm.updates = up
+	if _, body := h.get("/"); !strings.Contains(body, "Changes MyLab didn&#39;t make: software from outside Debian, packages held back from updates") {
+		t.Error("host changes need attention")
+	}
+	_, body := h.get("/settings/updates")
+	if !strings.Contains(body, `id="host-changes"`) || !strings.Contains(body, "download.docker.com") || !strings.Contains(body, "I made these changes") {
+		t.Fatalf("the updates page lists them:\n%s", body)
+	}
+	h.post("/settings/host-changes/known", nil, h.srv.URL)
+	if !up.known {
+		t.Fatal("marking them known")
+	}
+	if _, body := h.get("/"); strings.Contains(body, "Changes MyLab didn") {
+		t.Error("known changes don't need attention")
+	}
+	if _, body := h.get("/settings/updates"); !strings.Contains(body, "You said these were made on purpose") {
+		t.Error("the page says they're known")
+	}
+}

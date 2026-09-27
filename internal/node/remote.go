@@ -328,6 +328,16 @@ func (u remoteUpdates) RestartStatus() osupdate.RestartStatus {
 	return w.Restart
 }
 
+func (u remoteUpdates) HostChanges(ctx context.Context) (osupdate.HostCheck, error) {
+	var c osupdate.HostCheck
+	err := u.r.call(ctx, http.MethodGet, "/v1/host/changes", nil, &c)
+	return c, err
+}
+
+func (u remoteUpdates) AcknowledgeHostChanges(ctx context.Context) error {
+	return u.r.call(ctx, http.MethodPost, "/v1/host/changes/known", struct{}{}, nil)
+}
+
 func (u remoteUpdates) RestartNow(ctx context.Context) error {
 	return u.r.call(ctx, http.MethodPost, "/v1/restart", struct{}{}, nil)
 }

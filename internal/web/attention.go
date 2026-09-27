@@ -251,6 +251,10 @@ func (s *Server) updatesAttention(r *http.Request, m serverRef, n ServiceNode, a
 	if u == nil {
 		return
 	}
+	if c, ok := s.hostChanges(r, m, n); ok && c.Any() && !c.Known {
+		add(levelWarning, "Changes MyLab didn't make"+m.on()+": "+hostChangesText(c)+
+			". They can stop updates or the firewall from working as MyLab expects.", m.Updates()+"#host-changes", "See the changes")
+	}
 	if last, err := u.Last(r.Context()); err == nil && last != nil && !last.OK {
 		add(levelProblem, "OS updates didn't finish last time"+m.on()+". The server may be missing security fixes.",
 			m.Updates(), "See what happened")

@@ -399,6 +399,8 @@ func TestTimezoneBanner(t *testing.T) {
 }
 
 type fakeUpdates struct {
+	changes   osupdate.HostCheck
+	known     bool
 	last      *osupdate.Result
 	restart   osupdate.RestartStatus
 	submitted int
@@ -410,6 +412,12 @@ func (f *fakeUpdates) Last(context.Context) (*osupdate.Result, error) { return f
 func (f *fakeUpdates) Pending() bool                                  { return f.submitted > 0 }
 func (f *fakeUpdates) Submit() error                                  { f.submitted++; return nil }
 func (f *fakeUpdates) RestartStatus() osupdate.RestartStatus          { return f.restart }
+func (f *fakeUpdates) HostChanges(context.Context) (osupdate.HostCheck, error) {
+	c := f.changes
+	c.Known = f.known
+	return c, nil
+}
+func (f *fakeUpdates) AcknowledgeHostChanges(context.Context) error { f.known = true; return nil }
 func (f *fakeUpdates) RestartNow(context.Context) error {
 	if f.busy {
 		return osupdate.ErrBusy{Job: "backup"}
