@@ -1,5 +1,6 @@
 {{define "title"}}Updates and restarts{{end}}
 {{define "content"}}
+{{template "server-switcher" .}}
 {{with .Updates}}
 <section class="card" id="updates">
   {{if $.Machine.This}}{{back "/settings" "Settings"}}{{else}}{{back "/settings/servers" "Servers"}}{{end}}

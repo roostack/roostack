@@ -2,7 +2,11 @@ package web
 
 import (
 	"cmp"
+	"github.com/mylab/mylab/internal/manager"
 	"net/http"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/mylab/mylab/internal/node"
 )
@@ -47,6 +51,16 @@ func (s *Server) machineViewOf(r *http.Request) machineView {
 	n := s.machineOf(r)
 	if n == nil || s.Node == nil {
 		return machineView{This: true}
+	}
+	// A requested server is named as the lab lists it.
+	if id := cmp.Or(r.PathValue("machine"), r.URL.Query().Get("machine")); id != "" && s.Manager != nil {
+		if ms, err := s.Manager.Machines(); err == nil {
+			for _, m := range ms {
+				if m.ID == id {
+					return machineView{ID: m.ID, Name: m.Name, This: m.This}
+				}
+			}
+		}
 	}
 	id := n.Identity()
 	return machineView{ID: id.ID, Name: id.Name, This: id.ID == s.Node.Identity().ID}
@@ -110,3 +124,55 @@ func (s *Server) machineRoutes(mux *http.ServeMux) {
 }
 
 var _ ServiceNode = node.Node(nil)
+
+// serverView is a server's card on the home page.
+type serverView struct {
+	manager.Machine
+	// Reachable: it answered (the controller always does).
+	Reachable  bool
+	LastBackup time.Time
+	// BackupsSetUp: its backups are configured.
+	BackupsSetUp  bool
+	RestartNeeded bool
+	UpdatesFailed bool
+}
+
+// serverViews describes every server for the home page, asking each at
+// once.
+func (s *Server) serverViews(r *http.Request) []serverView {
+	if s.Manager == nil {
+		return nil
+	}
+	machines, err := s.Manager.Machines()
+	if err != nil {
+		return nil
+	}
+	out := make([]serverView, len(machines))
+	var wg sync.WaitGroup
+	for i, mc := range machines {
+		wg.Go(func() {
+			v := serverView{Machine: mc, Reachable: mc.This || mc.Status.LastErr == nil ||
+				!strings.HasPrefix(mc.Status.LastErr.Error(), "MyLab can't reach")}
+			n := s.Manager.NodeByID(mc.ID)
+			if n != nil && v.Reachable {
+				if b := n.Backups(); b != nil {
+					if st, err := b.Status(r.Context()); err == nil {
+						v.BackupsSetUp = st.Configured
+						if st.LastOK != nil {
+							v.LastBackup = st.LastOK.Finished
+						}
+					}
+				}
+				if u := n.Updates(); u != nil {
+					v.RestartNeeded = u.RestartStatus().Needed
+					if last, err := u.Last(r.Context()); err == nil && last != nil {
+						v.UpdatesFailed = !last.OK
+					}
+				}
+			}
+			out[i] = v
+		})
+	}
+	wg.Wait()
+	return out
+}

@@ -5,7 +5,7 @@
   <h1>Servers</h1>
   <p class="hint">The computers that run your lab. Each one runs its own services, backups and updates.</p>
 </section>
-{{range .Machines}}{{$m := .}}
+{{range .Machines}}{{$m := .}}{{if or (not $.Only) (eq $.Only .ID)}}
 <section class="card section" id="machine-{{.ID}}">
   <h2>{{.Name}}{{if .This}} {{badge "This server"}}{{end}}</h2>
   <dl class="facts">
@@ -22,10 +22,19 @@
     <dd><code>{{.ID}}</code></dd>
   </dl>
   {{if .This}}{{activity $.ApplyActivity}}{{end}}
-  <p><a href="/settings/servers/{{.ID}}/updates">Updates and restarts</a> ·
+  {{if $.Only}}
+  <h3>Its settings</h3>
+  <dl class="facts">
+    {{range $.ServerAreas}}<dt><a href="{{.Href}}">{{.Title}}</a></dt>
+    <dd>{{with .Level}}<span class="dot dot-{{.}}" aria-hidden="true"></span>{{end}}{{.Summary}}</dd>{{end}}
+  </dl>
+  {{else}}
+  <p><a href="/settings/servers/{{.ID}}">Its settings</a> ·
+    <a href="/settings/servers/{{.ID}}/updates">Updates and restarts</a> ·
     <a href="/settings/servers/{{.ID}}/time-zone">Time zone</a> ·
     <a href="/settings/servers/{{.ID}}/remote-access">Remote access</a> ·
     <a href="/settings/servers/{{.ID}}/backups">Backups</a></p>
+  {{end}}
   {{with index $.Kept .ID}}
   <h3>Kept copies</h3>
   <p class="hint">Data moves left on {{$m.Name}}, in case you need it. Delete it once you're sure you don't.</p>
@@ -51,8 +60,8 @@
     {{end}}
   </details>
 </section>
-{{end}}
-{{if .CanAdd}}
+{{end}}{{end}}
+{{if and .CanAdd (not .Only)}}
 <section class="card section" id="add-server">
   <h2>Add a server</h2>
   <p class="hint">Another computer at home or in the cloud can run some of your services. Install MyLab on it,

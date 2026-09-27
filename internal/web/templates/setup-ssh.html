@@ -1,5 +1,6 @@
 {{define "title"}}Remote access{{end}}
 {{define "content"}}
+{{template "server-switcher" .}}
 <section class="card narrow">
   {{if .Wizard}}<p class="hint">Setup · step 2 of 4</p>
   <h1>Who can log in to this server?</h1>

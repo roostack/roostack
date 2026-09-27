@@ -135,7 +135,7 @@ func TestFirstRunSetup(t *testing.T) {
 		t.Errorf("reusing the enrollment code: status %d, want 401", code)
 	}
 	next, _ := auth.TOTPCode(secret, enrolledAt.Add(30*time.Second))
-	if _, body := h.post("/login/totp", url.Values{"code": {next}}, h.srv.URL); !strings.Contains(body, "Your services") {
+	if _, body := h.post("/login/totp", url.Values{"code": {next}}, h.srv.URL); !strings.Contains(body, "My Services") {
 		t.Error("a fresh code should complete the login")
 	}
 
@@ -184,7 +184,7 @@ func TestTooManyCodes(t *testing.T) {
 		t.Fatal("expected lockout after too many codes")
 	}
 	good, _ := auth.TOTPCode(secret, time.Now())
-	if _, body := h.post("/login/totp", url.Values{"code": {good}}, h.srv.URL); strings.Contains(body, "Your services") {
+	if _, body := h.post("/login/totp", url.Values{"code": {good}}, h.srv.URL); strings.Contains(body, "My Services") {
 		t.Error("after lockout the password must be entered again")
 	}
 }
@@ -202,7 +202,7 @@ func TestLoginLogout(t *testing.T) {
 		t.Errorf("bad login: %d", code)
 	}
 	code, body = h.post("/login", url.Values{"username": {"mum"}, "password": {"a long password"}}, h.srv.URL)
-	if code != http.StatusOK || !strings.Contains(body, "Your services") {
+	if code != http.StatusOK || !strings.Contains(body, "My Services") {
 		t.Fatalf("login failed: %d", code)
 	}
 	if !strings.Contains(body, "Protect your account with two-factor authentication") {

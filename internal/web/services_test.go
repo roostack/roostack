@@ -7,6 +7,8 @@ import (
 	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/labnet"
+	"github.com/mylab/mylab/internal/osupdate"
+	"github.com/mylab/mylab/internal/setup"
 	"io"
 	"net/http"
 	"net/url"
@@ -548,7 +550,7 @@ func TestTemporaryPasswordMustBeChanged(t *testing.T) {
 	}
 	_, body := h.post("/account/password", url.Values{"current": {"temporary password"},
 		"password": {"my own long password"}, "confirm": {"my own long password"}}, h.srv.URL)
-	if !strings.Contains(body, "Your services") {
+	if !strings.Contains(body, "My Services") {
 		t.Error("after choosing a password, the user should carry on to the dashboard")
 	}
 	if u, _ := h.store.UserByUsername(context.Background(), "dad"); u.MustChangePassword {
@@ -905,4 +907,45 @@ func (f *fakeManager) AllBuiltIns(ctx context.Context) []manager.MachineBuiltIns
 }
 func (f *fakeManager) BuiltIns(context.Context) ([]node.BuiltIn, error) {
 	return []node.BuiltIn{{Name: "Caddy", Kind: "proxy", Status: "active (running)", Detail: "Web addresses"}}, nil
+}
+
+func TestPerServerSettings(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	h.setSetup(&fakeSetup{ssh: "lan", p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}})
+	fm.updates = &fakeUpdates{restart: osupdate.RestartStatus{Needed: true}}
+	// One server: no switcher.
+	if _, body := h.get("/settings/updates"); strings.Contains(body, "server-switcher") {
+		t.Error("a single server needs no switcher")
+	}
+	fm.machines = []manager.Machine{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true, Status: manager.ApplyStatus{Finished: true}},
+		{ID: "n-9876543210", Name: "vps", Status: manager.ApplyStatus{Finished: true}}}
+	_, body := h.get("/settings/updates")
+	for _, want := range []string{"server-switcher", `href="/settings/updates" aria-current="page"`,
+		`href="/settings/servers/n-9876543210/updates"`, "Needs a restart to finish updates"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("updates page missing %q", want)
+		}
+	}
+	// The other server's page marks it current.
+	if _, body := h.get("/settings/servers/n-9876543210/time-zone"); !strings.Contains(body, `href="/settings/servers/n-9876543210/time-zone" aria-current="page"`) {
+		t.Error("the switcher should mark vps")
+	}
+	// The overview summarises every server.
+	if _, body := h.get("/settings"); !strings.Contains(body, "nuc: SSH from your home network only · vps: SSH from your home network only") {
+		t.Errorf("overview should summarise each server")
+	}
+	// A server's own page.
+	_, body = h.get("/settings/servers/n-9876543210")
+	if !strings.Contains(body, "<h2>vps") || strings.Contains(body, "<h2>nuc") || !strings.Contains(body, "Its settings") ||
+		strings.Contains(body, "Add a machine") && strings.Contains(body, "Make a join code") {
+		t.Errorf("server page:\n%s", body)
+	}
+	if code, _ := h.get("/settings/servers/n-1111111111"); code != http.StatusNotFound {
+		t.Errorf("unknown server: %d", code)
+	}
+	// Home: My Servers, with a link to each server's settings.
+	if _, body := h.get("/"); !strings.Contains(body, "My Servers") || !strings.Contains(body, `href="/settings/servers/n-9876543210"`) ||
+		!strings.Contains(body, "Needs a restart to finish updates") {
+		t.Errorf("home should show My Servers")
+	}
 }

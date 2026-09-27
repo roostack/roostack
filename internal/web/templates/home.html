@@ -8,7 +8,35 @@
 {{define "home-live"}}
 {{template "attention" .}}
 <section>
-  <h1>Your services</h1>
+  <h1>My Services</h1>
   {{template "service-tiles" .}}
 </section>
+{{with .Servers}}
+<section>
+  <h1 class="section-title">My Servers</h1>
+  <ul class="tiles">
+    {{range .}}
+    <li class="card tile server-tile">
+      <h2>{{.Name}}{{if .This}} {{badge "This server"}}{{end}}</h2>
+      <p class="hint">{{if .Controller}}Runs the lab{{else}}Runs services{{end}} · {{len .Services}} {{if eq (len .Services) 1}}service{{else}}services{{end}}</p>
+      <ul class="plain server-facts">
+        <li>{{if not .Reachable}}<span class="dot dot-problem" aria-hidden="true"></span>Can't reach it
+          {{- else if .Status.Running}}<span class="dot dot-warn" aria-hidden="true"></span>Applying changes…
+          {{- else if .Status.LastErr}}<span class="dot dot-problem" aria-hidden="true"></span>The last change didn't finish
+          {{- else}}<span class="dot dot-ok" aria-hidden="true"></span>Up to date{{end}}</li>
+        {{if .Reachable}}
+        <li>{{if not .LastBackup.IsZero}}<span class="dot dot-ok" aria-hidden="true"></span>Backed up {{when .LastBackup}}
+          {{- else if .BackupsSetUp}}<span class="dot dot-warn" aria-hidden="true"></span>Not backed up yet
+          {{- else}}<span class="dot dot-problem" aria-hidden="true"></span>Backups not set up{{end}}</li>
+        {{if .UpdatesFailed}}<li><span class="dot dot-problem" aria-hidden="true"></span>The last OS update didn't finish</li>
+        {{else if .RestartNeeded}}<li><span class="dot dot-warn" aria-hidden="true"></span>Needs a restart to finish updates</li>{{end}}
+        {{end}}
+      </ul>
+      {{with .Services}}<p class="hint">{{range $i, $s := .}}{{if $i}}, {{end}}{{$s}}{{end}}</p>{{end}}
+      {{if $.IsOwner}}<a href="/settings/servers/{{.ID}}">Settings for {{.Name}}</a>{{end}}
+    </li>
+    {{end}}
+  </ul>
+</section>
+{{end}}
 {{end}}
