@@ -65,6 +65,17 @@ func (f *fakeManager) ServiceStates(context.Context) (map[string]string, error) 
 	return nil, nil
 }
 func (f *fakeManager) NodeFor(string) node.Node { return f }
+func (f *fakeManager) KeptData(_ context.Context, id string) ([]node.KeptFolder, error) {
+	if id != "n-9876543210" {
+		return nil, nil
+	}
+	return []node.KeptFolder{{Path: "/srv/mylab/services/forgejo.moved-to-nuc-20260928-002806", Service: "forgejo",
+		MovedAway: true, Time: time.Now(), Size: 70 << 20}}, nil
+}
+func (f *fakeManager) RemoveKeptData(_ context.Context, id, path string) error {
+	f.machineOps = append(f.machineOps, "delete "+path+" on "+id)
+	return nil
+}
 func (f *fakeManager) MoveInfo(_ context.Context, name string) (manager.MoveInfo, error) {
 	if name != "vaultwarden" {
 		return manager.MoveInfo{}, manager.ErrNotFound
@@ -676,7 +687,19 @@ func TestMachines(t *testing.T) {
 		t.Error("renaming this machine restarts MyLab")
 	}
 
-	// A machine's own pages; an unknown machine is not found.
+	// Kept copies moves left behind, and deleting one.
+	fm.machineOps = nil
+	_, body = h.get("/settings/machines")
+	if !strings.Contains(body, "forgejo.moved-to-nuc-20260928-002806") || !strings.Contains(body, "70.0 MB") ||
+		!strings.Contains(body, "forgejo before it moved away") {
+		t.Errorf("machines page should list kept copies:\n%s", body)
+	}
+	h.post("/settings/machines/n-9876543210/kept/remove", url.Values{"path": {"/srv/mylab/services/forgejo.moved-to-nuc-20260928-002806"}}, h.srv.URL)
+	if len(fm.machineOps) != 1 || fm.machineOps[0] != "delete /srv/mylab/services/forgejo.moved-to-nuc-20260928-002806 on n-9876543210" {
+		t.Errorf("ops = %v", fm.machineOps)
+	}
+
+		// A machine's own pages; an unknown machine is not found.
 	fm.updates = &fakeUpdates{}
 	if code, body := h.get("/settings/machines/n-0123456789/updates"); code != http.StatusOK || !strings.Contains(body, "Updates and restarts") {
 		t.Errorf("machine updates page: %d", code)

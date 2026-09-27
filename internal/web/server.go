@@ -137,6 +137,8 @@ type ServiceManager interface {
 	SetBackupDestination(ctx context.Context, machineID, ref string) error
 	AddS3Provider(ctx context.Context, name string, p manager.S3Provider) error
 	MoveInfo(ctx context.Context, name string) (manager.MoveInfo, error)
+	KeptData(ctx context.Context, machineID string) ([]node.KeptFolder, error)
+	RemoveKeptData(ctx context.Context, machineID, path string) error
 	MoveService(ctx context.Context, name, to, way string) error
 	RemoveMachine(ctx context.Context, id string) error
 	RenameMachine(ctx context.Context, id, name string) error
@@ -282,6 +284,7 @@ func (s *Server) Handler() http.Handler {
 	s.machineRoutes(mux)
 	mux.Handle("POST /settings/machines/{machine}/rename", s.requireOwner(s.renameMachineSubmit))
 	mux.Handle("POST /settings/machines/{machine}/remove", s.requireOwner(s.removeMachineSubmit))
+	mux.Handle("POST /settings/machines/{machine}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
 	mux.Handle("POST /settings/machines/{machine}/backup-destination", s.requireOwner(s.backupDestinationSubmit))
 	mux.Handle("POST /settings/backup-providers", s.requireOwner(s.addProviderSubmit))
 	mux.Handle("GET /services/{name}/move", s.requireOwner(s.movePage))

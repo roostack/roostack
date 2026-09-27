@@ -493,3 +493,13 @@ func (r *Remote) ImportSecrets(ctx context.Context, secrets map[string][]byte) e
 func (r *Remote) LoadDumps(ctx context.Context, service string) error {
 	return r.call(ctx, http.MethodPost, "/v1/services/"+url.PathEscape(service)+"/data/load-dumps", struct{}{}, nil)
 }
+
+func (r *Remote) KeptData(ctx context.Context) ([]KeptFolder, error) {
+	var out []KeptFolder
+	err := r.call(ctx, http.MethodGet, "/v1/kept", nil, &out)
+	return out, err
+}
+
+func (r *Remote) RemoveKeptData(ctx context.Context, path string) error {
+	return r.call(ctx, http.MethodPost, "/v1/kept/remove", map[string]string{"Path": path}, nil)
+}

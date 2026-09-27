@@ -5,7 +5,7 @@
   <h1>Machines</h1>
   <p class="hint">The computers that run your lab. Each one runs its own services, backups and updates.</p>
 </section>
-{{range .Machines}}
+{{range .Machines}}{{$m := .}}
 <section class="card section" id="machine-{{.ID}}">
   <h2>{{.Name}}{{if .This}} {{badge "This machine"}}{{end}}</h2>
   <dl class="facts">
@@ -26,6 +26,15 @@
     <a href="/settings/machines/{{.ID}}/time-zone">Time zone</a> ·
     <a href="/settings/machines/{{.ID}}/remote-access">Remote access</a> ·
     <a href="/settings/machines/{{.ID}}/backups">Backups</a></p>
+  {{with index $.Kept .ID}}
+  <h3>Kept copies</h3>
+  <p class="hint">Data moves left on {{$m.Name}}, in case you need it. Delete it once you're sure you don't.</p>
+  <ul class="plain">
+    {{range .}}<li><code>{{.Path}}</code> · {{if .MovedAway}}{{.Service}} before it moved away{{else}}what was here before {{.Service}} moved in{{end}},
+      {{when .Time}}{{if ge .Size 0}}, {{size .Size}}{{end}}
+      {{confirm (printf "/settings/machines/%s/kept/remove" $m.ID) (printf "Delete %s for good? This can't be undone." .Path) "Delete" "quiet danger" (printf "path=%s" .Path)}}</li>{{end}}
+  </ul>
+  {{end}}
   {{if and $.ErrorMachine (eq $.ErrorMachine .ID)}}<p class="error" role="alert">{{$.Error}}</p>{{end}}
   <details{{if and $.ErrorMachine (eq $.ErrorMachine .ID)}} open{{end}}>
     <summary>Rename{{if not .This}} or remove{{end}}</summary>

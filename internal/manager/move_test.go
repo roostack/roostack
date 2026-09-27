@@ -169,6 +169,12 @@ func (m *movingMachine) ImportSecrets(_ context.Context, s map[string][]byte) er
 }
 func (m *movingMachine) DataSize(context.Context, string) (int64, error) { return 1234, nil }
 func (m *movingMachine) LoadDumps(context.Context, string) error         { return m.did("load dumps") }
+func (m *movingMachine) KeptData(context.Context) ([]node.KeptFolder, error) {
+	return []node.KeptFolder{{Path: "/srv/mylab/services/forgejo.moved-to-vps-20260928-002806", Service: "forgejo", MovedAway: true}}, nil
+}
+func (m *movingMachine) RemoveKeptData(_ context.Context, path string) error {
+	return m.did("remove " + path)
+}
 
 func setUpMove(t *testing.T) (*Manager, *movingMachine, *movingMachine) {
 	t.Helper()
