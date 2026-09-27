@@ -62,6 +62,17 @@ func NewRemote(self labnet.Identity, id nodeid.Identity, addr netip.Addr, lab co
 
 func (r *Remote) Identity() nodeid.Identity { return r.ID }
 
+// Leave asks the machine to leave the lab: it takes down its WireGuard
+// interface and becomes a lab of its own.
+func (r *Remote) Leave(ctx context.Context) error {
+	return r.call(ctx, http.MethodPost, "/v1/leave", struct{}{}, nil)
+}
+
+// Rename tells the machine its new name.
+func (r *Remote) Rename(ctx context.Context, name string) error {
+	return r.call(ctx, http.MethodPut, "/v1/name", map[string]string{"Name": name}, nil)
+}
+
 // Address is the machine's address on MyLab's network.
 func (r *Remote) Address() string { return r.Addr.String() }
 

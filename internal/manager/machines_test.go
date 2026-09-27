@@ -19,6 +19,8 @@ type fakeRemote struct {
 	mu   sync.Mutex
 	last node.Assignment
 	n    int
+	left bool
+	name string
 }
 
 func (f *fakeRemote) Identity() nodeid.Identity {
@@ -47,6 +49,29 @@ func (f *fakeRemote) Backups() node.Backups   { return nil }
 func (f *fakeRemote) Restores() node.Restores { return nil }
 func (f *fakeRemote) Updates() node.Updates   { return nil }
 func (f *fakeRemote) Settings() node.Settings { return nil }
+func (f *fakeRemote) Leave(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.left = true
+	return nil
+}
+func (f *fakeRemote) Rename(_ context.Context, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.name = name
+	return nil
+}
+
+type fakeRegistry struct{ removed, renamed []string }
+
+func (f *fakeRegistry) Remove(_ context.Context, id string) error {
+	f.removed = append(f.removed, id)
+	return nil
+}
+func (f *fakeRegistry) Rename(_ context.Context, id, name string) error {
+	f.renamed = append(f.renamed, id+"="+name)
+	return nil
+}
 
 func TestAssignmentsPerMachine(t *testing.T) {
 	m, _ := newManager(t)
@@ -109,5 +134,47 @@ func TestAssignmentsPerMachine(t *testing.T) {
 	defer vps.mu.Unlock()
 	if len(vps.last.Services) != 0 {
 		t.Error("removed service still assigned")
+	}
+}
+
+func TestRemoveAndRenameMachine(t *testing.T) {
+	m, _ := newManager(t)
+	addForgejo(t, m)
+	m.Lab.NodeID = "n-0000000001"
+	vps, reg := &fakeRemote{}, &fakeRegistry{}
+	m.Others = func() []RemoteMachine { return []RemoteMachine{vps} }
+	m.Registry = reg
+	ctx := context.Background()
+	req := forgejoRequest()
+	req.Host = "n-0000000002"
+	if err := m.Install(ctx, "forgejo", req); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+
+	var fe *FormError
+	if err := m.RemoveMachine(ctx, "n-0000000002"); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "still runs Forgejo") {
+		t.Errorf("removing a machine with services: %v", err)
+	}
+	if err := m.RemoveMachine(ctx, "n-0000000001"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("this machine can't be removed: %v", err)
+	}
+	if err := m.RenameMachine(ctx, "n-0000000002", "  cloud  "); err != nil || vps.name != "cloud" ||
+		len(reg.renamed) != 1 || reg.renamed[0] != "n-0000000002=cloud" {
+		t.Errorf("rename: %v %q %v", err, vps.name, reg.renamed)
+	}
+	if err := m.RenameMachine(ctx, "n-0000000002", ""); !errors.As(err, &fe) {
+		t.Errorf("empty name: %v", err)
+	}
+	var renamedSelf string
+	m.RenameSelf = func(name string) error { renamedSelf = name; return nil }
+	if err := m.RenameMachine(ctx, "n-0000000001", "nuc"); err != nil || renamedSelf != "nuc" {
+		t.Errorf("rename self: %v %q", err, renamedSelf)
+	}
+
+	m.Remove(ctx, "forgejo")
+	m.Wait()
+	if err := m.RemoveMachine(ctx, "n-0000000002"); err != nil || !vps.left || len(reg.removed) != 1 {
+		t.Errorf("remove: %v left=%v removed=%v", err, vps.left, reg.removed)
 	}
 }

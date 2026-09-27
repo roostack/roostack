@@ -85,7 +85,7 @@ func serve(args []string) error {
 	}
 	if lab.IsNode() {
 		// Run by another machine (the controller): no UI of its own.
-		return serveNode(ctx, lab, local, log)
+		return serveNode(ctx, lab, local, agentClient, restart, log)
 	}
 
 	token, err := setupToken(ctx, lab, st, log)
@@ -121,6 +121,16 @@ func serve(args []string) error {
 		Log: log, Now: time.Now, Started: restart}
 	hub.Start(ctx)
 	srv.Network = hub
+	mgr.Registry = hub
+	mgr.RenameSelf = func(name string) error {
+		self := id
+		self.Name = name
+		if err := self.Save(lab.Paths.StateDir); err != nil {
+			return err
+		}
+		restart()
+		return nil
+	}
 	labAPI := http.NewServeMux()
 	labAPI.Handle("POST /v1/join", hub.JoinHandler())
 	// A machine fetches its assignment when it starts (SPEC.md §10.3).

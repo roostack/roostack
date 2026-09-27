@@ -50,6 +50,10 @@ type Manager struct {
 	Node node.Node
 	// Others lists the lab's other machines (SPEC.md §10); nil if none.
 	Others func() []RemoteMachine
+	// Registry records the other machines (removing, renaming).
+	Registry MachineRegistry
+	// RenameSelf renames this machine (optional).
+	RenameSelf func(name string) error
 	// Activity shows problems building an assignment (optional).
 	Activity *activity.Registry
 

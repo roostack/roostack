@@ -42,6 +42,7 @@ func (f *fakeHost) ApplyWireGuard(wg WireGuard) (string, error) {
 	return "cHVibGlj", nil
 }
 func (f *fakeHost) WireGuardStatus() (WireGuardStatus, error) { return WireGuardStatus{}, nil }
+func (f *fakeHost) RemoveWireGuard() error                    { f.wg = nil; return nil }
 
 // start runs a real server on a Unix socket, so SO_PEERCRED is exercised.
 func start(t *testing.T, allowed []uint32) (*Client, *fakeHost) {

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/labnet"
 	"github.com/mylab/mylab/internal/node"
@@ -24,7 +25,7 @@ const (
 
 // serveNode runs a machine that another machine (the controller) manages
 // (SPEC.md §10.3): it serves the lab API over MyLab's network, and no UI.
-func serveNode(ctx context.Context, lab config.Lab, local *node.Local, log *slog.Logger) error {
+func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent.Client, restart func(), log *slog.Logger) error {
 	m, _, err := labnet.LoadMembership(lab.Paths.StateDir)
 	if err != nil {
 		return err
@@ -37,6 +38,23 @@ func serveNode(ctx context.Context, lab config.Lab, local *node.Local, log *slog
 			os.Rename(saved+".tmp", saved)
 		}
 	}}
+	// Removed from the lab: after replying (the reply needs WireGuard),
+	// drop the network and restart as a lab of its own.
+	api.Leave = func() {
+		go func() {
+			time.Sleep(time.Second)
+			log.Info("leaving the lab", "controller", m.ControllerID)
+			if err := labnet.Leave(context.Background(), lab.Paths.StateDir, ag); err != nil {
+				log.Error("leaving the lab", "err", err)
+			}
+			restart()
+		}()
+	}
+	api.Rename = func(name string) error {
+		id := local.ID
+		id.Name = name
+		return id.Save(lab.Paths.StateDir)
+	}
 	// Keep running the last assignment while the controller is away.
 	if data, err := os.ReadFile(saved); err == nil {
 		var w node.WireAssignment

@@ -19,6 +19,11 @@ type Server struct {
 	// Saved is called with every new assignment (without its secrets),
 	// so the node can keep running it after a restart (optional).
 	Saved func(WireAssignment)
+	// Leave takes the machine out of the lab, after the reply has gone
+	// (optional).
+	Leave func()
+	// Rename saves the machine's new name (optional).
+	Rename func(name string) error
 
 	mu      sync.Mutex
 	version int64
@@ -96,6 +101,23 @@ func (s *Server) Handler() http.Handler {
 		return nil, s.Take(wa)
 	})
 	handle("GET /v1/services", func(r *http.Request) (any, error) { return n.ServiceStates(ctx(r)) })
+	handle("POST /v1/leave", func(r *http.Request) (any, error) {
+		if s.Leave == nil {
+			return nil, ErrNotFound
+		}
+		s.Leave()
+		return nil, nil
+	})
+	handle("PUT /v1/name", func(r *http.Request) (any, error) {
+		if s.Rename == nil {
+			return nil, ErrNotFound
+		}
+		var req struct{ Name string }
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		return nil, s.Rename(req.Name)
+	})
 	handle("GET /v1/activity/{kind}", func(r *http.Request) (any, error) {
 		snap, ok := n.LatestActivity(r.PathValue("kind"))
 		if !ok {

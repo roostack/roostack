@@ -107,4 +107,15 @@ func TestHubJoin(t *testing.T) {
 	if _, err := h.Join(ctx, JoinRequest{Token: code.Token, NodeID: "n-0000000001", PublicKey: ownPub, CSR: csr}); err == nil {
 		t.Error("a machine can't join as the controller")
 	}
+
+	h.Rename(ctx, "n-0000000002", "cloud")
+	if ms, _ := st.Machines(ctx); len(ms) != 1 || ms[0].Name != "cloud" {
+		t.Errorf("rename: %+v", ms)
+	}
+	if err := h.Remove(ctx, "n-0000000002"); err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(ag.peerKeys(), ownPub+" 100.96.0.2/32") {
+		t.Error("a removed machine must lose its WireGuard peer")
+	}
 }

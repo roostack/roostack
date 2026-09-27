@@ -622,3 +622,9 @@ func (s *Store) RemoveMachine(ctx context.Context, id string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM machines WHERE id = ?`, id)
 	return err
 }
+
+// RenameMachine changes a machine's name.
+func (s *Store) RenameMachine(ctx context.Context, id, name string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE machines SET name = ? WHERE id = ?`, name, id)
+	return err
+}

@@ -41,12 +41,13 @@ type fakeManager struct {
 	values  map[string]any
 	updated []manager.SettingsRequest
 
-	acts     *activity.Registry
-	machines []manager.Machine
-	backups  BackupService
-	restores RestoreService
-	updates  HostUpdates
-	settings node.Settings
+	acts       *activity.Registry
+	machines   []manager.Machine
+	machineOps []string
+	backups    BackupService
+	restores   RestoreService
+	updates    HostUpdates
+	settings   node.Settings
 }
 
 func (f *fakeManager) Settings() node.Settings { return f.settings }
@@ -60,6 +61,17 @@ func (f *fakeManager) ServiceStates(context.Context) (map[string]string, error) 
 	return nil, nil
 }
 func (f *fakeManager) NodeFor(string) node.Node { return f }
+func (f *fakeManager) RemoveMachine(_ context.Context, id string) error {
+	if id == "n-9876543210" {
+		return &manager.FormError{Msg: "vps still runs Forgejo. Remove it first, or move it to another machine."}
+	}
+	f.machineOps = append(f.machineOps, "remove "+id)
+	return nil
+}
+func (f *fakeManager) RenameMachine(_ context.Context, id, name string) error {
+	f.machineOps = append(f.machineOps, "rename "+id+" "+name)
+	return nil
+}
 func (f *fakeManager) NodeByID(id string) node.Node {
 	ms, _ := f.Machines()
 	for _, m := range ms {
@@ -599,6 +611,19 @@ func TestMachines(t *testing.T) {
 	ha, _ := loggedIn(t, auth.RoleAdmin)
 	if code, _ := ha.get("/settings/machines"); code == http.StatusOK {
 		t.Error("only Owners see machines")
+	}
+
+	// Renaming and removing.
+	if code, body := h.post("/settings/machines/n-9876543210/remove", nil, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "vps still runs Forgejo") {
+		t.Errorf("removing a machine with services: %d", code)
+	}
+	h.post("/settings/machines/n-9876543210/rename", url.Values{"name": {"cloud"}}, h.srv.URL)
+	if len(fm.machineOps) != 1 || fm.machineOps[0] != "rename n-9876543210 cloud" {
+		t.Errorf("ops = %v", fm.machineOps)
+	}
+	if _, body := h.post("/settings/machines/n-0123456789/rename", url.Values{"name": {"nuc2"}}, h.srv.URL); !strings.Contains(body, "Applying your settings") {
+		t.Error("renaming this machine restarts MyLab")
 	}
 
 	// A machine's own pages; an unknown machine is not found.

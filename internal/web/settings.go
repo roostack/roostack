@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/mylab/mylab/internal/dnsrecords"
 	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/labnet"
+	"github.com/mylab/mylab/internal/manager"
 )
 
 // Settings is an overview grid of areas, each with its own page; on
@@ -303,4 +305,54 @@ func (s *Server) renderUpdates(w http.ResponseWriter, r *http.Request, errMsg st
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	s.render(w, "settings-updates", withArea(data, "updates"))
+}
+
+func (s *Server) renameMachineSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	id, name := r.PathValue("machine"), r.FormValue("name")
+	err := s.Manager.RenameMachine(r.Context(), id, name)
+	if msg, ok := userMessage(err); ok {
+		s.renderMachines(w, r, map[string]any{"Error": msg, "ErrorMachine": id})
+		return
+	}
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "machines", "renamed "+id+" to "+strings.TrimSpace(name))
+	if s.Node != nil && id == s.Node.Identity().ID {
+		redirect(w, r, "/restarting") // this machine reads its name at startup
+		return
+	}
+	redirect(w, r, "/settings/machines")
+}
+
+func (s *Server) removeMachineSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	id := r.PathValue("machine")
+	err := s.Manager.RemoveMachine(r.Context(), id)
+	if msg, ok := userMessage(err); ok {
+		s.renderMachines(w, r, map[string]any{"Error": msg, "ErrorMachine": id})
+		return
+	}
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "machines", "removed "+id)
+	redirect(w, r, "/settings/machines")
 }

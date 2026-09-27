@@ -126,7 +126,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Per-node status and activity in the UI: activity is read from the node; Settings → Machines lists each machine (role, services, apply status); problems name the machine once there are several. Per-machine URLs (`/settings/machines/<id>/…`) come with the second machine
 - [x] Two-VM prototype (SPEC.md §10.9): second dev VM joins over MyLab-managed WireGuard (join code with a one-time key, mTLS lab API), runs a service placed on it; the controller's Caddy forwards its routes; setup, actions, secrets, backups, updates, restarts and settings work remotely (`/settings/machines/<id>/…`); `MYLAB_VM=2 scripts/dev-vm.sh`
 - [ ] Multi-machine follow-ups
-  - [ ] Remove a machine (revoke its certificate, drop its WireGuard peer); rename a machine
+  - [x] Remove a machine (only once it runs no services: it leaves the network and runs on its own); rename a machine
+  - [ ] Revoke a removed machine's certificate (today it loses its WireGuard peer, so it can't reach the lab API)
   - [ ] Move a service between machines (backup → restore → switch route, SPEC.md §10.4)
   - [ ] Per-machine backups set up from the UI (own repository, recovery key as second key)
   - [ ] Needs-attention items for other machines' backups, updates and restarts
