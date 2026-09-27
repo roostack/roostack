@@ -79,7 +79,6 @@ func serve(args []string) error {
 	agentClient := agent.NewClient(agent.DefaultSocket)
 	// Live logs of host operations, shown in the UI.
 	acts := activity.New()
-	srv.Activity = acts
 	// This machine, which runs every service while a lab has one machine.
 	local := &node.Local{
 		ID:         id,

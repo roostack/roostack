@@ -31,7 +31,10 @@ func (s *Server) activityFor(r *http.Request, kind string) *activityView {
 	if !ok || !auth.Can(currentUser(r).Role, perm) {
 		return nil
 	}
-	snap, ok := s.Activity.Latest(kind)
+	if s.Node == nil {
+		return nil
+	}
+	snap, ok := s.Node.LatestActivity(kind)
 	if !ok {
 		return nil
 	}

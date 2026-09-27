@@ -98,8 +98,6 @@ type Server struct {
 	Setup LabSetup
 	// DNS reports whether home devices can reach services (SPEC.md §6.5.1).
 	DNS DNSStatus
-	// Activity holds live logs of host operations (optional).
-	Activity *activity.Registry
 	// Restores restores services from backups (Owner). Nil hides it.
 	Restores RestoreService
 	// Updates runs OS updates and restarts (Owner). Nil hides the card.
@@ -127,6 +125,7 @@ type ServiceManager interface {
 	CurrentSettings(name string) (map[string]any, string, error)
 	UpdateSettings(ctx context.Context, name string, req manager.SettingsRequest) error
 	Status() manager.ApplyStatus
+	Machines() ([]manager.Machine, error)
 }
 
 // ServiceNode is what the UI needs from the machine running a service
@@ -136,6 +135,7 @@ type ServiceNode interface {
 	RetryInstall(ctx context.Context, name string) error
 	RunAction(ctx context.Context, name, action string, inputs map[string]string) (string, error)
 	RevealSecret(ctx context.Context, name, key string) (string, error)
+	LatestActivity(kind string) (activity.Snapshot, bool)
 }
 
 // LabSetup is what the UI needs from internal/setup.
@@ -185,7 +185,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover",
 		"home", "services", "service", "backups", "restore", "settings", "account", "users", "about",
-		"settings-domain", "settings-network", "settings-updates"} {
+		"settings-domain", "settings-network", "settings-updates", "settings-machines"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -224,6 +224,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /settings/remote-access", s.requireWizard(s.sshPage))
 	mux.Handle("GET /settings/domain", s.requireOwner(s.domainAreaPage))
 	mux.Handle("GET /settings/home-network", s.requireOwner(s.homeNetworkPage))
+	mux.Handle("GET /settings/machines", s.requireOwner(s.machinesPage))
 	mux.Handle("GET /settings/updates", s.requireOwner(s.updatesPage))
 	mux.Handle("GET /settings/time-zone", s.requireWizard(s.timezonePage))
 	mux.Handle("GET /account", s.requireLogin(s.accountPage))

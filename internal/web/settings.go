@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/dnsrecords"
@@ -24,6 +25,7 @@ var settingsAreas = []settingsArea{
 	{"remote-access", "People and access", "Remote access", "/settings/remote-access"},
 	{"domain", "Network", "Domain and certificates", "/settings/domain"},
 	{"home-network", "Network", "Home network", "/settings/home-network"},
+	{"machines", "Machines", "Machines", "/settings/machines"},
 	{"updates", "This machine", "Updates and restarts", "/settings/updates"},
 	{"time-zone", "This machine", "Time zone", "/settings/time-zone"},
 }
@@ -133,6 +135,20 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 			set("updates", "Updates install every night after the backup", "")
 		}
 	}
+	if s.Manager != nil {
+		if machines, err := s.Manager.Machines(); err == nil {
+			summary, level := fmt.Sprintf("%d machines", len(machines)), "ok"
+			if len(machines) == 1 {
+				summary = "1 machine: " + machines[0].Name
+			}
+			for _, mc := range machines {
+				if mc.Status.LastErr != nil {
+					summary, level = "A change on "+mc.Name+" didn't finish", "problem"
+				}
+			}
+			set("machines", summary, level)
+		}
+	}
 	clock := hosttime.Now()
 	set("time-zone", clock.Zone+" · "+clock.Time+" now", "")
 
@@ -185,6 +201,26 @@ func (s *Server) homeNetworkPage(w http.ResponseWriter, r *http.Request) {
 		data["Records"] = recs
 	}
 	s.render(w, "settings-network", withArea(data, "home-network"))
+}
+
+func (s *Server) machinesPage(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	data, err := s.pageData(r)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	machines, err := s.Manager.Machines()
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	data["Machines"] = machines
+	data["ApplyActivity"] = s.activityFor(r, activity.Apply)
+	s.render(w, "settings-machines", withArea(data, "machines"))
 }
 
 func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request) {

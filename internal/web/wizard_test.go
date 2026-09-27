@@ -440,8 +440,7 @@ func TestActivity(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
 	h.server.Updates = &fakeUpdates{}
-	h.server.Activity = activity.New()
-	act := h.server.Activity.Start(activity.OSUpdates, "OS updates")
+	act := h.acts().Start(activity.OSUpdates, "OS updates")
 	fmt.Fprint(act, "==> Installing updates\nUnpacking curl (8.14.1-2+deb13u5)\n")
 
 	_, body := h.get("/settings/updates")
@@ -470,7 +469,7 @@ func TestActivity(t *testing.T) {
 
 	// Admins can't see host activity.
 	ha, _ := loggedIn(t, auth.RoleAdmin)
-	ha.server.Activity = h.server.Activity
+	ha.server.Node.(*fakeManager).acts = h.acts()
 	if code, _ := ha.get("/activity/os-updates/log"); code != http.StatusNotFound {
 		t.Errorf("admin reading OS updates: %d", code)
 	}

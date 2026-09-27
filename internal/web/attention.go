@@ -52,12 +52,19 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 	}
 
 	if admin && s.Manager != nil {
-		st := s.Manager.Status()
-		switch {
-		case st.Running:
-			add(levelInfo, "Applying changes… Downloading a new service can take a few minutes.", "", "")
-		case st.LastErr != nil:
-			add(levelProblem, "The last change didn't finish: "+st.LastErr.Error(), "/services", "View services")
+		// Each machine applies its own changes; name it once there are several.
+		machines, _ := s.Manager.Machines()
+		for _, mc := range machines {
+			on := ""
+			if len(machines) > 1 {
+				on = " on " + mc.Name
+			}
+			switch st := mc.Status; {
+			case st.Running:
+				add(levelInfo, "Applying changes"+on+"… Downloading a new service can take a few minutes.", "", "")
+			case st.LastErr != nil:
+				add(levelProblem, "The last change"+on+" didn't finish: "+st.LastErr.Error(), "/services", "View services")
+			}
 		}
 		if services, err := s.Services(r.Context()); err == nil && s.Node != nil {
 			for _, svc := range services {
