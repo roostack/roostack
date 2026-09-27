@@ -32,6 +32,8 @@ type RemoteServer interface {
 type ServerRegistry interface {
 	Remove(ctx context.Context, id string) error
 	Rename(ctx context.Context, id, name string) error
+	// CertExpiries is when each server's lab certificate expires.
+	CertExpiries(ctx context.Context) map[string]time.Time
 }
 
 // Server is one server in the lab, for the UI.
@@ -44,6 +46,9 @@ type Server struct {
 	// Services are the names of the services placed on it.
 	Services []string
 	Status   ApplyStatus
+	// CertExpires is when its certificate on MyLab's network expires
+	// (renewed automatically well before); zero if unknown.
+	CertExpires time.Time
 }
 
 func (m *Manager) others() []RemoteServer {
@@ -232,6 +237,12 @@ func (m *Manager) Servers() ([]Server, error) {
 	for i, r := range others {
 		rid := r.Identity()
 		servers = append(servers, Server{ID: rid.ID, Name: rid.Name, Status: statuses[i], Services: names(rid.ID)})
+	}
+	if m.Registry != nil {
+		certs := m.Registry.CertExpiries(context.Background())
+		for i := range servers {
+			servers[i].CertExpires = certs[servers[i].ID]
+		}
 	}
 	return servers, nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/config"
@@ -59,6 +60,16 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			on := ""
 			if len(servers) > 1 {
 				on = " on " + mc.Name
+			}
+			// Certificates renew 120 days ahead; one this close means renewing
+			// keeps failing (the server logs why).
+			if left := time.Until(mc.CertExpires); owner && !mc.CertExpires.IsZero() && left < certWarning {
+				level, text := levelProblem, mc.Name+"'s certificate on MyLab's network has expired, so the lab can't reach it."
+				if left > 0 {
+					level, text = levelWarning, mc.Name+"'s certificate on MyLab's network expires "+whenText(mc.CertExpires)+
+						" and isn't renewing. Check that it's running and can reach the controller."
+				}
+				add(level, text, "/settings/servers#server-"+mc.ID, "View servers")
 			}
 			switch st := mc.Status; {
 			case st.Running:
@@ -136,6 +147,9 @@ type serverNode struct {
 	view serverRef
 	node ServiceNode
 }
+
+// certWarning is how close to expiry a lab certificate is flagged.
+const certWarning = 30 * 24 * time.Hour
 
 // serverNodes lists this server, then the lab's other reachable ones.
 func (s *Server) serverNodes(r *http.Request) []serverNode {

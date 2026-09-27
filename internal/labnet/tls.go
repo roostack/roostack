@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"sync"
+	"time"
 )
 
 // Port is where every server serves the lab API, on its overlay address
@@ -17,7 +19,7 @@ const Port = 8471
 // certificates from the lab's CA. A client without a certificate gets
 // through the handshake (it may be joining); handlers check PeerNode.
 func (id Identity) ServerTLS() (*tls.Config, error) {
-	cert, pool, err := id.load()
+	src, pool, err := id.load()
 	if err != nil {
 		return nil, err
 	}
@@ -27,27 +29,31 @@ func (id Identity) ServerTLS() (*tls.Config, error) {
 	}
 	// Send the CA too, so a joining server can check it against the
 	// fingerprint in its join code.
-	cert.Certificate = append(cert.Certificate, ca.Raw)
+	src.withCA = ca
+	src.cert = nil
+	if _, err := src.get(); err != nil {
+		return nil, err
+	}
 	return &tls.Config{
-		MinVersion:   tls.VersionTLS13,
-		Certificates: []tls.Certificate{cert},
-		ClientCAs:    pool,
-		ClientAuth:   tls.VerifyClientCertIfGiven,
+		MinVersion:     tls.VersionTLS13,
+		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) { return src.get() },
+		ClientCAs:      pool,
+		ClientAuth:     tls.VerifyClientCertIfGiven,
 	}, nil
 }
 
 // ClientTLS is for calling another server: it must present a certificate
 // from the lab's CA naming peerID.
 func (id Identity) ClientTLS(peerID string) (*tls.Config, error) {
-	cert, pool, err := id.load()
+	src, pool, err := id.load()
 	if err != nil {
 		return nil, err
 	}
 	return &tls.Config{
-		MinVersion:   tls.VersionTLS13,
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      pool,
-		ServerName:   peerID,
+		MinVersion:           tls.VersionTLS13,
+		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) { return src.get() },
+		RootCAs:              pool,
+		ServerName:           peerID,
 	}, nil
 }
 
@@ -85,16 +91,57 @@ func PeerNode(cs *tls.ConnectionState) string {
 // CAPEM returns the CA certificate this server trusts.
 func (id Identity) CAPEM() ([]byte, error) { return os.ReadFile(id.caFile()) }
 
-func (id Identity) load() (tls.Certificate, *x509.CertPool, error) {
-	cert, err := tls.LoadX509KeyPair(id.certFile(), id.keyFile())
-	if err != nil {
-		return cert, nil, fmt.Errorf("this server's lab certificate: %w", err)
+// load reads the certificate and the CA. The certificate is read again
+// whenever its file changes (after a renewal), so TLS configs made from
+// it keep working without a restart.
+func (id Identity) load() (*certSource, *x509.CertPool, error) {
+	src := &certSource{id: id}
+	if _, err := src.get(); err != nil {
+		return nil, nil, err
 	}
 	ca, err := readCert(id.caFile())
 	if err != nil {
-		return cert, nil, err
+		return nil, nil, err
 	}
 	pool := x509.NewCertPool()
 	pool.AddCert(ca)
-	return cert, pool, nil
+	return src, pool, nil
+}
+
+// certSource is a certificate reloaded when its file changes.
+type certSource struct {
+	id Identity
+	// withCA also sends the CA (see ServerTLS).
+	withCA *x509.Certificate
+
+	mu      sync.Mutex
+	modTime time.Time
+	cert    *tls.Certificate
+}
+
+func (c *certSource) get() (*tls.Certificate, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	fi, err := os.Stat(c.id.certFile())
+	if err != nil {
+		if c.cert != nil {
+			return c.cert, nil
+		}
+		return nil, fmt.Errorf("this server's lab certificate: %w", err)
+	}
+	if c.cert != nil && fi.ModTime().Equal(c.modTime) {
+		return c.cert, nil
+	}
+	cert, err := tls.LoadX509KeyPair(c.id.certFile(), c.id.keyFile())
+	if err != nil {
+		if c.cert != nil {
+			return c.cert, nil
+		}
+		return nil, fmt.Errorf("this server's lab certificate: %w", err)
+	}
+	if c.withCA != nil {
+		cert.Certificate = append(cert.Certificate, c.withCA.Raw)
+	}
+	c.cert, c.modTime = &cert, fi.ModTime()
+	return c.cert, nil
 }

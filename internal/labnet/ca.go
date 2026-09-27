@@ -23,10 +23,13 @@ import (
 	"time"
 )
 
-// Validity periods. Renewal comes with the real (non-prototype) protocol.
+// Validity periods. Servers renew their certificates when RenewBefore is
+// left (renew.go); the CA isn't renewed yet.
 const (
 	caValidity   = 20 * 365 * 24 * time.Hour
-	certValidity = 5 * 365 * 24 * time.Hour
+	certValidity = 365 * 24 * time.Hour
+	// RenewBefore is how long before expiry a certificate is renewed.
+	RenewBefore = 120 * 24 * time.Hour
 )
 
 // CA is the controller's certificate authority. Its key never leaves the
@@ -95,13 +98,17 @@ func Fingerprint(c *x509.Certificate) string {
 
 // Issue signs a server's certificate: its node ID as the name and its
 // overlay address, usable as both TLS server and client.
-func (ca *CA) Issue(csrDER []byte, nodeID string, addr netip.Addr) ([]byte, error) {
+func (ca *CA) Issue(csrDER []byte, nodeID string, addr netip.Addr) ([]byte, *x509.Certificate, error) {
+	return ca.issue(csrDER, nodeID, addr, certValidity)
+}
+
+func (ca *CA) issue(csrDER []byte, nodeID string, addr netip.Addr, validity time.Duration) ([]byte, *x509.Certificate, error) {
 	csr, err := x509.ParseCertificateRequest(csrDER)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := csr.CheckSignature(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber: serial(),
@@ -109,16 +116,23 @@ func (ca *CA) Issue(csrDER []byte, nodeID string, addr netip.Addr) ([]byte, erro
 		DNSNames:     []string{nodeID},
 		IPAddresses:  []net.IP{addr.AsSlice()},
 		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().Add(certValidity),
+		NotAfter:     time.Now().Add(validity),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 	}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, ca.Cert, csr.PublicKey, ca.Key)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return certPEM(der), nil
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		return nil, nil, err
+	}
+	return certPEM(der), cert, nil
 }
+
+// Serial is how the controller records a certificate.
+func Serial(c *x509.Certificate) string { return c.SerialNumber.Text(16) }
 
 // Identity is this server's key and certificate on the lab network, with
 // the CA that signed it. Every server, the controller included, has one.
@@ -153,10 +167,33 @@ func (id Identity) CSR(nodeID string) ([]byte, error) {
 
 // Save stores the signed certificate and the CA.
 func (id Identity) Save(certPEMBytes, caPEM []byte) error {
-	if err := os.WriteFile(id.certFile(), certPEMBytes, 0o644); err != nil {
+	if err := writeFile(id.certFile(), certPEMBytes); err != nil {
 		return err
 	}
-	return os.WriteFile(id.caFile(), caPEM, 0o644)
+	return writeFile(id.caFile(), caPEM)
+}
+
+// Cert is this server's current certificate.
+func (id Identity) Cert() (*x509.Certificate, error) { return readCert(id.certFile()) }
+
+// NeedsRenewal reports whether the certificate should be renewed: it
+// expires within RenewBefore, or was issued for longer than certificates
+// are now (before renewal existed).
+func (id Identity) NeedsRenewal(now time.Time) (bool, error) {
+	c, err := id.Cert()
+	if err != nil {
+		return false, err
+	}
+	return c.NotAfter.Sub(now) < RenewBefore || c.NotAfter.Sub(c.NotBefore) > certValidity+24*time.Hour, nil
+}
+
+// writeFile replaces a file in one step, so a reader never sees half of it.
+func writeFile(file string, data []byte) error {
+	tmp := file + ".new"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, file)
 }
 
 // Exists reports whether the server has a signed certificate.

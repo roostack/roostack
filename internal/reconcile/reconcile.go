@@ -80,6 +80,9 @@ type Plan struct {
 	StartUnits   []string
 	DaemonReload bool
 	ReloadCaddy  bool
+	// Waiting are Quadlet files left as they are because a secret they
+	// need hasn't been given yet (generate.Secret.Holds).
+	Waiting []string
 }
 
 // Empty reports whether the plan changes nothing (StartUnits is always
@@ -119,6 +122,7 @@ func (p *Plan) String() string {
 	}
 	list("Restart units", p.RestartUnits)
 	list("Start units", p.StartUnits)
+	list("Waiting for a secret", p.Waiting)
 	if p.ReloadCaddy {
 		b.WriteString("Reload Caddy\n")
 	}
@@ -187,9 +191,14 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 	if err != nil {
 		return nil, err
 	}
+	held := map[string]bool{}
 	for _, s := range secrets {
 		if s.InstallOnly && !r.hasUserSecret(s.Name) {
 			continue // already used and deleted, or never given
+		}
+		if s.Holds != "" && !existing[s.Name] && !s.Generate && !r.hasUserSecret(s.Name) {
+			held[s.Holds] = true
+			continue
 		}
 		if !existing[s.Name] {
 			plan.Secrets = append(plan.Secrets, s)
@@ -197,11 +206,19 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 		}
 	}
 
-	// Quadlet files.
+	// Quadlet files. One waiting for a secret is neither written nor
+	// removed, and its unit isn't started.
 	haveQuadlets, err := readOwned(quadletDir, isOwnedQuadlet)
 	if err != nil {
 		return nil, err
 	}
+	for name := range held {
+		plan.Waiting = append(plan.Waiting, name)
+		delete(wantQuadlets, name)
+		delete(haveQuadlets, name)
+		units = slices.DeleteFunc(units, func(u string) bool { return u == unitFor(name) })
+	}
+	slices.Sort(plan.Waiting)
 	for _, name := range slices.Sorted(maps.Keys(wantQuadlets)) {
 		content := wantQuadlets[name]
 		old, exists := haveQuadlets[name]
@@ -250,6 +267,9 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 		}
 	}
 
+	if held[generate.CaddyUnit+".container"] {
+		plan.ReloadCaddy = false // its files are written for when it starts
+	}
 	plan.StartUnits = units
 	return plan, nil
 }

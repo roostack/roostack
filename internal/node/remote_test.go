@@ -103,7 +103,7 @@ func servers(t *testing.T) (ctrl, node labnet.Identity, lab config.Lab) {
 	issue := func(id string, addr string) labnet.Identity {
 		m := labnet.Identity{Dir: t.TempDir()}
 		csr, _ := m.CSR(id)
-		cert, err := ca.Issue(csr, id, netip.MustParseAddr(addr))
+		cert, _, err := ca.Issue(csr, id, netip.MustParseAddr(addr))
 		if err != nil {
 			t.Fatal(err)
 		}

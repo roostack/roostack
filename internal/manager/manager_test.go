@@ -205,13 +205,30 @@ func TestBadNames(t *testing.T) {
 
 func TestApplyErrorIsReported(t *testing.T) {
 	m, secrets := newManager(t)
-	delete(secrets.values, dns.SecretName("api_token")) // the DNS token was never entered
+	// Without the DNS token (the domain step was skipped), Caddy waits and
+	// the rest applies.
+	delete(secrets.values, dns.SecretName("api_token"))
 	if err := m.Install(context.Background(), "vaultwarden", InstallRequest{}); err != nil {
 		t.Fatal(err)
 	}
 	m.Wait()
-	if st := m.Status(); st.LastErr == nil || !strings.Contains(st.LastErr.Error(), dns.SecretName("api_token")) {
-		t.Errorf("status: %+v, want the missing DNS secret reported", st)
+	if st := m.Status(); st.LastErr != nil {
+		t.Errorf("a lab without its domain set up should still apply: %v", st.LastErr)
+	}
+	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-vaultwarden-app.container")); err != nil {
+		t.Error(err)
+	}
+	// A failing apply is reported.
+	addForgejo(t, m)
+	dir := m.Lab.Paths.QuadletDir()
+	os.Chmod(dir, 0o500)
+	defer os.Chmod(dir, 0o755)
+	if err := m.Install(context.Background(), "forgejo", forgejoRequest()); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if st := m.Status(); st.LastErr == nil || !strings.Contains(st.LastErr.Error(), "permission denied") {
+		t.Errorf("status: %+v, want the failure reported", st)
 	}
 }
 

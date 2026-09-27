@@ -65,6 +65,9 @@ func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent
 		}
 	}
 	go pullAssignments(ctx, lab, m, api, log)
+	// Renew this server's lab certificate before it expires.
+	labID := labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}
+	go labnet.KeepRenewed(ctx, labID, local.ID.ID, labnet.RenewFromController(labnet.ControllerURL(m), m.ControllerID, labID), log)
 
 	mux := http.NewServeMux()
 	mux.Handle("/v1/", api.Handler())

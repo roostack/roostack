@@ -31,6 +31,7 @@ type HubStore interface {
 	Servers(ctx context.Context) ([]store.Server, error)
 	RemoveServer(ctx context.Context, id string) error
 	RenameServer(ctx context.Context, id, name string) error
+	SetServerCert(ctx context.Context, id, serial, prev string, expires time.Time) error
 }
 
 // WireGuardAgent is mylab-agent's WireGuard operation.
@@ -113,7 +114,7 @@ func (h *Hub) init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	cert, err := ca.Issue(csr, h.Self.ID, ControllerAddr)
+	cert, _, err := ca.Issue(csr, h.Self.ID, ControllerAddr)
 	if err != nil {
 		return err
 	}
@@ -250,8 +251,12 @@ func (h *Hub) Join(ctx context.Context, req JoinRequest) (JoinResponse, error) {
 		return JoinResponse{}, err
 	}
 	addr, _ := netip.ParseAddr(m.Addr)
-	cert, err := ca.Issue(req.CSR, m.ID, addr)
+	cert, c, err := ca.Issue(req.CSR, m.ID, addr)
+	if err == nil {
+		err = h.Store.SetServerCert(ctx, m.ID, Serial(c), "", c.NotAfter)
+	}
 	if err != nil {
+		h.Store.RemoveServer(ctx, m.ID)
 		return JoinResponse{}, fmt.Errorf("signing the certificate: %w", err)
 	}
 	// The reply still travels over the one-time key, so switch to the

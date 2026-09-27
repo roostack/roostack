@@ -199,15 +199,39 @@ func TestLeavesUnownedFilesAlone(t *testing.T) {
 	}
 }
 
+// Until the domain step gives Caddy its DNS credentials, Caddy waits and
+// the rest of the lab is applied.
 func TestMissingUserSecret(t *testing.T) {
 	e := newEnv(t)
+	userSecret := e.r.UserSecret
 	e.r.UserSecret = nil
 	ctx := context.Background()
 	plan, err := e.r.Plan(ctx, e.desired(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.r.Apply(ctx, plan); err == nil || !strings.Contains(err.Error(), dns.SecretName("api_token")) {
-		t.Errorf("error = %v, want missing DNS secret", err)
+	if !slices.Equal(plan.Waiting, []string{"mylab-caddy.container"}) || slices.Contains(plan.StartUnits, "mylab-caddy.service") ||
+		plan.ReloadCaddy || !strings.Contains(plan.String(), "Waiting for a secret") {
+		t.Errorf("Caddy should wait: %+v", plan)
+	}
+	for _, s := range plan.Secrets {
+		if s.Name == dns.SecretName("api_token") {
+			t.Error("the DNS secret can't be created without a value")
+		}
+	}
+	if err := e.r.Apply(ctx, plan); err != nil {
+		t.Fatalf("the rest of the lab should apply: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(e.r.Paths.QuadletDir(), "mylab-caddy.container")); err == nil {
+		t.Error("Caddy's unit must not be written yet")
+	}
+	// Once the secret is given, Caddy follows.
+	e.r.UserSecret = userSecret
+	plan, err = e.r.Plan(ctx, e.desired(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Waiting) != 0 || !slices.Contains(plan.StartUnits, "mylab-caddy.service") {
+		t.Errorf("Caddy should start once its secret is given: %+v", plan)
 	}
 }

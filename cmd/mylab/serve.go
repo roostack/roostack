@@ -172,15 +172,19 @@ func serve(args []string) error {
 	labAPI := http.NewServeMux()
 	labAPI.Handle("POST /v1/join", hub.JoinHandler())
 	// A server fetches its assignment when it starts (SPEC.md §10.3).
-	labAPI.HandleFunc("GET /v1/assignment", func(w http.ResponseWriter, r *http.Request) {
+	// Everything else is for servers still in the lab, with the
+	// certificate the controller last gave them (revocation, renewal).
+	labAPI.Handle("GET /v1/assignment", hub.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		a, ok := mgr.PendingFor(labnet.Caller(r))
 		if !ok {
 			labnet.WriteError(w, http.StatusNotFound, errors.New("no assignment for this server"))
 			return
 		}
 		labnet.WriteJSON(w, http.StatusOK, a)
-	})
+	})))
+	labAPI.Handle("POST /v1/renew", hub.Require(hub.RenewHandler()))
 	go labnet.Serve(ctx, lab.Paths.StateDir, labAPI, log)
+	go labnet.KeepRenewed(ctx, labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, id.ID, hub.RenewSelf, log)
 	srv.Maintenance = lab.Maintenance
 	srv.RunningJob = func() string {
 		if st := coord.Status(); st.Running != nil {

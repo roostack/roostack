@@ -66,7 +66,7 @@ func System(lab config.Lab) (*SystemOutput, error) {
 	for _, f := range fields {
 		cs.Add("Secret", fmt.Sprintf("%s,type=env,target=%s", dns.SecretName(f), dns.EnvName(f)))
 		// Entered by the user in the setup wizard.
-		out.Secrets = append(out.Secrets, Secret{Name: dns.SecretName(f)})
+		out.Secrets = append(out.Secrets, Secret{Name: dns.SecretName(f), Holds: CaddyUnit + ".container"})
 	}
 	cs.Add("Label", "io.mylab.service=_system")
 	cs.Add("Label", "io.mylab.component=caddy")

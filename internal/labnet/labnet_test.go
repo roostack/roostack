@@ -20,7 +20,7 @@ func newServer(t *testing.T, ca *CA, id string, addr netip.Addr) Identity {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cert, err := ca.Issue(csr, id, addr)
+	cert, _, err := ca.Issue(csr, id, addr)
 	if err != nil {
 		t.Fatal(err)
 	}
