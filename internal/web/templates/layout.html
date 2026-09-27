@@ -24,11 +24,7 @@
       {{if .Backups}}<a href="/backups" {{if eq .Active "backups"}}class="active"{{end}}>Backups</a>{{end}}
       {{if .Settings}}<a href="/settings" {{if eq .Active "settings"}}class="active"{{end}}>Settings</a>{{end}}
       <span class="spacer"></span>
-      <form method="post" action="/account/theme">
-        <input type="hidden" name="theme" value="{{.NextTheme}}">
-        <button type="submit" class="theme-toggle" title="Switch to {{.NextTheme}} theme"
-          aria-label="Theme: {{.Theme}}. Switch to {{.NextTheme}}.">{{if eq .Theme "light"}}☀ Light{{else if eq .Theme "dark"}}☾ Dark{{else}}◐ Auto{{end}}</button>
-      </form>
+      {{template "theme-toggle" .}}
       <a href="/account" {{if eq .Active "account"}}class="active"{{end}}>{{.Username}}</a>
       <form method="post" action="/logout"><button type="submit" class="quiet">Log out</button></form>
     </nav>

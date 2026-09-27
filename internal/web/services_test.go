@@ -459,6 +459,21 @@ func TestAppearance(t *testing.T) {
 	if !strings.Contains(body, `<html lang="en" data-palette="catppuccin" data-mode="dark">`) {
 		t.Error("pages should use the chosen theme and mode")
 	}
+	// Saved in the background (htmx): no redirect, nothing to swap.
+	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/account/appearance", strings.NewReader("palette=nord&mode=auto"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", h.srv.URL)
+	req.Header.Set("HX-Request", "true")
+	resp, err := h.client.Do(req)
+	oob, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil || resp.StatusCode != http.StatusOK || !strings.Contains(string(oob), `id="theme-toggle" hx-swap-oob="true"`) ||
+		!strings.Contains(string(oob), "◐ Auto") {
+		t.Fatalf("background save: %v %v %s", resp.StatusCode, err, oob)
+	}
+	if _, body := h.get("/services"); !strings.Contains(body, `<html lang="en" data-palette="nord">`) {
+		t.Error("background save not applied")
+	}
 	if code, _ := h.post("/account/appearance", url.Values{"palette": {"../../evil"}, "mode": {"dark"}}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("unknown theme accepted: %d", code)
 	}

@@ -27,6 +27,8 @@ type nav struct {
 	Theme, NextTheme string
 	// Palette is the user's colour theme (themes.go).
 	Palette string
+	// OOB marks a theme toggle sent to replace the page's (htmx).
+	OOB bool
 }
 
 // navFor picks the links a role can use and marks the current section.
@@ -267,6 +269,14 @@ func (s *Server) appearanceSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.Store.SetTheme(r.Context(), u.ID, mode); err != nil {
 		s.serverError(w, err)
+		return
+	}
+	if r.Header.Get("HX-Request") == "true" {
+		// Saved in the background; the page already shows it. Send back the
+		// top bar's toggle so it matches.
+		u.Theme, u.Palette = mode, palette
+		n := navFor(u, "account")
+		s.renderPart(w, "account", "theme-toggle", map[string]any{"OOB": true, "NextTheme": n.NextTheme, "Theme": n.Theme})
 		return
 	}
 	http.Redirect(w, r, "/account#appearance", http.StatusSeeOther)

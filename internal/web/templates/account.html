@@ -22,7 +22,15 @@
   </form>
 
   <h2 id="appearance">Appearance</h2>
-  <form method="post" action="/account/appearance">
+  {{/* Each choice applies to the page at once (a live preview) and is
+       saved in the background; without JavaScript the Save button submits. */}}
+  <form method="post" action="/account/appearance" hx-post="/account/appearance" hx-trigger="change" hx-swap="none"
+    x-data="{ state: '' }"
+    x-on:change="state = 'saving'; const root = document.documentElement;
+      root.dataset.palette = $el.querySelector('[name=palette]:checked').value;
+      const mode = $el.querySelector('[name=mode]:checked').value;
+      if (mode === 'auto') { delete root.dataset.mode } else { root.dataset.mode = mode }"
+    x-on:htmx:after-request="state = $event.detail.successful ? 'saved' : 'failed'">
     <fieldset>
       <legend>Colours</legend>
       {{range $t := themes}}
@@ -45,7 +53,12 @@
         <span>{{if eq $m "auto"}}Follow this device{{else if eq $m "light"}}Always light{{else}}Always dark{{end}}</span></label>
       {{end}}
     </fieldset>
-    <button type="submit">Save</button>
+    <noscript><button type="submit">Save</button></noscript>
+    <p class="hint" role="status" aria-live="polite">
+      <span x-show="state === 'saving'" x-cloak>Saving…</span>
+      <span x-show="state === 'saved'" x-cloak>✓ Saved</span>
+      <span x-show="state === 'failed'" x-cloak class="error">Couldn't save. Try again.</span>
+    </p>
   </form>
   <p class="hint">Theme credits and licences are on the <a href="/about">About</a> page.</p>
 </section>
