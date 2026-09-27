@@ -277,3 +277,10 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
   .settings-nav { display: none; }
   .settings-main .back { display: inline-block; }
 }
+
+/* ---------- Data tables (e.g. DNS records) ---------- */
+table.records { width: 100%; border-collapse: collapse; margin: var(--space-3) 0; font-size: var(--text-sm); }
+table.records th { text-align: left; color: var(--muted); font-weight: var(--weight-medium);
+  border-bottom: 1px solid var(--border-strong); padding: var(--space-2) var(--space-3) var(--space-2) 0; }
+table.records td { border-bottom: 1px solid var(--border); padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  overflow-wrap: anywhere; }

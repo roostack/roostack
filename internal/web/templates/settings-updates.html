@@ -12,6 +12,11 @@
   <dl class="facts">
     <dt>Last update</dt>
     <dd>{{with .Last}}{{when .At}}: {{.Summary}}{{else}}Not run yet; the first runs tonight.{{end}}</dd>
+    <dt>Restart</dt>
+    <dd>{{if .Restart.Needed}}<span class="dot dot-warn" aria-hidden="true"></span>Needed{{if not .Restart.Since.IsZero}} since {{when .Restart.Since}}{{end}}
+      {{- if eq .Mode "notify"}}: waiting for you{{else}}: automatic at {{printf "%02d:00" .Hour}}{{end}}
+      {{- else}}Not needed{{end}}
+      {{- if not .Restart.LastBoot.IsZero}} <span class="hint">· last restarted {{when .Restart.LastBoot}}</span>{{end}}</dd>
   </dl>
   {{with .Last}}{{if not .OK}}<details><summary>What happened</summary><pre class="output">{{.Output}}</pre></details>{{end}}{{end}}
   {{if .Restart.Needed}}

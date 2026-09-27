@@ -35,6 +35,7 @@ const JobName = "OS updates"
 var (
 	RebootRequiredFile = "/run/reboot-required"
 	RebootPkgsFile     = "/run/reboot-required.pkgs"
+	ProcStat           = "/proc/stat"
 )
 
 const lastKey = "os.updates.last"
@@ -174,18 +175,24 @@ func (s *Service) CheckReboot() bool {
 // RestartStatus is what the UI shows about restarting.
 type RestartStatus struct {
 	Needed   bool
-	Packages []string // which updates asked for it
-	Waiting  string   // the coordinator's reason, when needed
-	Running  string   // a job that's running now, if any
+	Since    time.Time // when an update asked for it
+	Packages []string  // which updates asked for it
+	Waiting  string    // the coordinator's reason, when needed
+	Running  string    // a job that's running now, if any
+	// LastBoot is when the machine last started.
+	LastBoot time.Time
 }
 
 // RestartStatus reports whether a restart is needed and why it's waiting.
 func (s *Service) RestartStatus() RestartStatus {
 	need, pkgs := RebootNeeded()
 	st := s.Coord.Status()
-	rs := RestartStatus{Needed: need, Packages: pkgs}
+	rs := RestartStatus{Needed: need, Packages: pkgs, LastBoot: LastBoot()}
 	if need {
 		rs.Waiting = st.Reboot.Reason
+		if fi, err := os.Stat(RebootRequiredFile); err == nil {
+			rs.Since = fi.ModTime()
+		}
 	}
 	if st.Running != nil {
 		rs.Running = st.Running.Name
@@ -205,6 +212,23 @@ func (s *Service) RestartNow(ctx context.Context) error {
 	}
 	s.Log.Info("restart requested from the UI")
 	return s.Agent.Reboot(ctx)
+}
+
+// LastBoot is when the machine last started (btime in /proc/stat), or
+// zero if unknown.
+func LastBoot() time.Time {
+	data, err := os.ReadFile(ProcStat)
+	if err != nil {
+		return time.Time{}
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if v, ok := strings.CutPrefix(line, "btime "); ok {
+			if n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64); err == nil {
+				return time.Unix(n, 0)
+			}
+		}
+	}
+	return time.Time{}
 }
 
 // RebootNeeded reports whether a reboot is needed, and which packages

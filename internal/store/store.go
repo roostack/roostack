@@ -478,6 +478,26 @@ func (s *Store) Setting(ctx context.Context, key string) (string, error) {
 	return v, err
 }
 
+// SettingsWithPrefix returns every runtime setting whose key starts with
+// prefix, e.g. the DNS records MyLab owns ("dns.owned.").
+func (s *Store) SettingsWithPrefix(ctx context.Context, prefix string) (map[string]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT key, value FROM settings WHERE substr(key, 1, ?) = ? ORDER BY key`, len(prefix), prefix)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, err
+		}
+		out[k] = v
+	}
+	return out, rows.Err()
+}
+
 // SetSetting stores a runtime setting.
 func (s *Store) SetSetting(ctx context.Context, key, value string) error {
 	_, err := s.db.ExecContext(ctx,

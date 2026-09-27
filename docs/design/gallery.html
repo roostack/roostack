@@ -39,6 +39,7 @@
         <a href="#cards">Cards and facts</a>
         <a href="#forms">Forms</a>
         <a href="#lists">Lists</a>
+        <a href="#tables">Tables</a>
         <a href="#settings">Settings navigation</a>
         <a href="#activity">Activity</a>
         <a href="#secrets">Secrets and codes</a>
@@ -759,6 +760,51 @@
     &lt;/li&gt;
   &lt;/ul&gt;
 &lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
+      
+      <section id="tables">
+        <h2>Tables</h2>
+        <p class="hint">For short lists of technical facts, such as DNS records. Prefer rows (above) for things people act on.</p>
+        
+        <div class="example">
+          <h3>Records <span class="badge">HTML and CSS classes</span></h3>
+          
+          <div class="panels">
+            <div class="panel" data-mode="light"><table class="records">
+  <thead><tr><th>Name</th><th>Type</th><th>Points to</th><th>Check</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>*.lab.example.com</code></td><td>A</td><td><code>192.168.1.20</code></td>
+      <td><span class="dot dot-ok" aria-hidden="true"></span>Works from home</td>
+    </tr>
+  </tbody>
+</table></div>
+            <div class="panel" data-mode="dark"><table class="records">
+  <thead><tr><th>Name</th><th>Type</th><th>Points to</th><th>Check</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>*.lab.example.com</code></td><td>A</td><td><code>192.168.1.20</code></td>
+      <td><span class="dot dot-ok" aria-hidden="true"></span>Works from home</td>
+    </tr>
+  </tbody>
+</table></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;table class=&#34;records&#34;&gt;
+  &lt;thead&gt;&lt;tr&gt;&lt;th&gt;Name&lt;/th&gt;&lt;th&gt;Type&lt;/th&gt;&lt;th&gt;Points to&lt;/th&gt;&lt;th&gt;Check&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td&gt;&lt;code&gt;*.lab.example.com&lt;/code&gt;&lt;/td&gt;&lt;td&gt;A&lt;/td&gt;&lt;td&gt;&lt;code&gt;192.168.1.20&lt;/code&gt;&lt;/td&gt;
+      &lt;td&gt;&lt;span class=&#34;dot dot-ok&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;Works from home&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;</pre>
             
           </details>
         </div>

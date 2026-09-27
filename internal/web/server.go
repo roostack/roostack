@@ -150,6 +150,7 @@ type LabSetup interface {
 // DNSStatus is what the UI needs from internal/dnsrecords.
 type DNSStatus interface {
 	Status() dnsrecords.Status
+	Records(ctx context.Context) ([]dnsrecords.Record, error)
 	SetManaging(on, acceptRisk bool) error
 	TakeOver(ctx context.Context) error
 }

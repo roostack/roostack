@@ -176,6 +176,14 @@ func (s *Server) homeNetworkPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["DNS"] = s.dnsView(r)
+	if s.DNS != nil {
+		recs, err := s.DNS.Records(r.Context())
+		if err != nil {
+			s.serverError(w, err)
+			return
+		}
+		data["Records"] = recs
+	}
 	s.render(w, "settings-network", withArea(data, "home-network"))
 }
 
