@@ -157,6 +157,7 @@ func TestAssignmentsPerMachine(t *testing.T) {
 	}
 	// Removing forgejo takes it off the vps.
 	m.Remove(ctx, "forgejo")
+	m.Wait() // this machine's apply writes into the test's folders
 	vps.mu.Lock()
 	defer vps.mu.Unlock()
 	if len(vps.last.Services) != 0 {
