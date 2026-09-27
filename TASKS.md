@@ -137,7 +137,10 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [x] Each machine's Backups page chooses its provider; status per machine
     - [x] Weekly forget/prune by the controller (admin store access or provider credentials, recovery key); machines only check
     - [x] B2: an application key per machine limited to its folder, deleted when the machine leaves (UNTESTED against Backblaze: built from the API docs, tested with a fake server)
-  - [ ] Storage for other labs: storage invites with quotas, `mylab-guests` WireGuard interface (UDP 51821), usage on both sides, port-forwarding guide and reachability check
+  - [x] Storage for other labs: storage invites with quotas, `mylab-guests` WireGuard interface (UDP 51821), a store pair per guest lab, usage on both sides, last connected (reachability), port-forwarding guide; a guest lab's controller links (`mylab-st1..9`) and forwards its machines' backups
+  - [ ] A lab whose domain isn't set up yet can't apply anything (Caddy's DNS secret is missing), so it can't offer storage either: apply what doesn't need Caddy
+  - [ ] Removed guests: delete their data automatically after a grace period, with notice to them
+  - [ ] Storage for others offered by a machine other than the controller
   - [ ] Move a service between machines (SPEC.md §10.10)
     - [x] Copy directly: copy while running, stop, copy what changed (and deletions), bring its secrets, switch; the old copy is set aside
     - [x] Through a backup (large data, slow links): a fresh backup, the controller streams the service's folders from it (restic dump, recovery key) and the new machine loads its databases from the dumps; the move page suggests a way from the size

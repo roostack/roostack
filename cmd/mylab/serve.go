@@ -132,12 +132,13 @@ func serve(args []string) error {
 	mgr.GuestHub, mgr.GuestRecords, mgr.GuestUsage, mgr.LinkAgent = guestHub, st, local.GuestUsage, agentClient
 	mgr.GuestDirs, mgr.RemoveGuestDir = local.GuestDirs, local.RemoveGuestDir
 	mgr.RemoteAdded = func(r manager.RemoteStorage) { go forwardToRemote(ctx, lab, r, log) }
-	for _, r := range mgr.RemoteStorages(ctx) {
-		go forwardToRemote(ctx, lab, r, log)
-	}
 	// Backups across machines (SPEC.md §10.10): the controller creates
 	// each machine's repository with the recovery key.
 	mgr.BackupStore = st
+	// This lab's storage at other labs: forward its machines' backups.
+	for _, r := range mgr.RemoteStorages(ctx) {
+		go forwardToRemote(ctx, lab, r, log)
+	}
 	if err := mgr.AdoptBackupDestination(ctx, lab.Backup.Repository); err != nil {
 		log.Error("recording this machine's backup destination", "err", err)
 	}

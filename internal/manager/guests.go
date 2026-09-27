@@ -295,7 +295,8 @@ func (m *Manager) proxyPorts(ctx context.Context) []int {
 // machine reaches it (through the controller's proxy) and as the
 // controller does (directly, with the lab's admin access there).
 func (m *Manager) remoteRepos(r RemoteStorage, labID, machineID string) (machineURL string, machineEnv []string, adminURL string, adminEnv []string) {
-	path := "/" + r.User + "/" + labID + "/" + machineID
+	// rest-server takes at most two levels; the user is this lab's own.
+	path := "/" + r.User + "/" + machineID
 	host := m.addressOf(m.Lab.NodeID)
 	if machineID == m.Lab.NodeID {
 		host = "127.0.0.1"
