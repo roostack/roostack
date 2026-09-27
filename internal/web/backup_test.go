@@ -37,7 +37,7 @@ func TestBackupCard(t *testing.T) {
 	ok := &store.BackupRun{OK: true, Finished: time.Now().Add(-3 * time.Hour)}
 	fb.status = backup.Status{Configured: true, LastOK: ok, Last: ok, LocalOnly: true, Next: time.Now().Add(time.Hour), Progress: -1}
 	body := card()
-	for _, want := range []string{"Last backup:", "Back up now", "only stored on this machine", "Next backup:"} {
+	for _, want := range []string{"Last backup:", "Back up now", "only stored on this server", "Next backup:"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("card missing %q", want)
 		}

@@ -9,7 +9,7 @@ import (
 
 // A lab's machines each have their own maintenance, settings and
 // activity (SPEC.md §10.7). Pages about a machine other than this one
-// live under /settings/machines/<id>/…; this machine keeps its familiar
+// live under /settings/servers/<id>/…; this machine keeps its familiar
 // addresses.
 
 // machineOf is the machine a request is about: named in the path or query
@@ -55,7 +55,7 @@ func (s *Server) machineViewOf(r *http.Request) machineView {
 // Label is how pages refer to the machine.
 func (m machineView) Label() string {
 	if m.This || m.Name == "" {
-		return "This machine"
+		return "This server"
 	}
 	return m.Name
 }
@@ -64,7 +64,7 @@ func (m machineView) path(this, other string) string {
 	if m.This {
 		return this
 	}
-	return "/settings/machines/" + m.ID + other
+	return "/settings/servers/" + m.ID + other
 }
 
 func (m machineView) Updates() string    { return m.path("/settings/updates", "/updates") }
@@ -86,7 +86,7 @@ func (m machineView) BackupRun() string { return m.path("/backup/run", "/backups
 
 // machineRoutes serves this machine's settings pages for other machines.
 func (s *Server) machineRoutes(mux *http.ServeMux) {
-	const p = "/settings/machines/{machine}"
+	const p = "/settings/servers/{machine}"
 	for route, h := range map[string]http.HandlerFunc{
 		"GET " + p + "/updates":         s.updatesPage,
 		"POST " + p + "/updates/run":    s.updateNowSubmit,

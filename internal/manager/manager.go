@@ -167,7 +167,7 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	}
 	host := cmp.Or(req.Host, m.Lab.NodeID)
 	if m.node(host) == nil {
-		return formErrorf("Choose which machine runs %s.", p.Title)
+		return formErrorf("Choose which server runs %s.", p.Title)
 	}
 	in := &instance.Instance{Package: p.Name, Host: host, Version: p.Version, Updates: instance.UpdatesNotify,
 		Settings: map[string]any{}}

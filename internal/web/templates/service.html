@@ -26,7 +26,7 @@
     <dt>Reachable from</dt><dd>Your home network (or VPN)</dd>
     {{with .Service.Machine}}<dt>Runs on</dt><dd>{{.}}</dd>{{end}}
   </dl>
-  {{if and .IsOwner .MultiMachine}}<p><a href="/services/{{.Service.Name}}/move">Move to another machine…</a></p>{{end}}
+  {{if and .IsOwner .MultiMachine}}<p><a href="/services/{{.Service.Name}}/move">Move to another server…</a></p>{{end}}
   <details class="technical">
     <summary>Technical details</summary>
     <dl class="facts">
@@ -36,13 +36,13 @@
   </details>
   {{with .Ports}}
   <h2>Extra connections</h2>
-  <p class="hint">Most things go through the web address above. These connect directly to this machine, from your home network only.</p>
+  <p class="hint">Most things go through the web address above. These connect directly to this server, from your home network only.</p>
   {{range .}}
   <form method="post" action="/services/{{$.Service.Name}}/ports/{{.Name}}" class="port" x-data="{ on: {{.Enabled}} }">
     <label class="check"><input type="checkbox" name="enabled" x-model="on" {{if .Enabled}}checked{{end}}>
       <span>{{.Title}}{{with .Description}}<small>{{.}}</small>{{end}}</span></label>
     <div x-show="on" {{if not .Enabled}}x-cloak{{end}}>
-      <label>Port on this machine
+      <label>Port on this server
         <input name="host_port" type="number" min="1024" max="65535" value="{{.HostPort}}" inputmode="numeric">
         {{if and .Enabled $.Host}}<small>Connect to <code>{{$.Host}}:{{.HostPort}}</code>.</small>{{end}}
       </label>

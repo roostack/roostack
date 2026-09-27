@@ -40,7 +40,7 @@
     {{end}}
     <label class="check"><input type="checkbox" name="manage_records" x-model="manage" {{if .Manage}}checked{{end}}>
       <span>Let MyLab manage DNS records for me
-        <small>One setting for the whole lab. Now: MyLab points *.{{if .Domain}}{{.Domain}}{{else}}your domain{{end}} at this machine,
+        <small>One setting for the whole lab. Now: MyLab points *.{{if .Domain}}{{.Domain}}{{else}}your domain{{end}} at this server,
           so devices at home can reach your services. Later: records for services you make public.
           It never changes records it didn't create unless you choose to take one over.</small></span></label>
     {{range $p := .Providers}}{{if $p.RiskyRecords}}

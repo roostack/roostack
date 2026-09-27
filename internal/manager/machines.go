@@ -307,11 +307,11 @@ func (m *Manager) RemoveMachine(ctx context.Context, id string) error {
 		return err
 	}
 	if on := m.onNode(all, id); len(on) > 0 {
-		return formErrorf("%s still runs %s. Remove it first, or move it to another machine.",
+		return formErrorf("%s still runs %s. Remove it first, or move it to another server.",
 			r.Identity().Name, on[0].Package.Title)
 	}
 	if err := r.Leave(ctx); err != nil {
-		m.Log.Warn("machine didn't answer; removing it anyway", "machine", r.Identity().Name, "err", err)
+		m.Log.Warn("server didn't answer; removing it anyway", "machine", r.Identity().Name, "err", err)
 	}
 	m.forgetMachineBackups(ctx, id)
 	return m.Registry.Remove(ctx, id)
@@ -338,7 +338,7 @@ func (m *Manager) RenameMachine(ctx context.Context, id, name string) error {
 			return err
 		}
 		if err := o.Rename(ctx, name); err != nil {
-			m.Log.Warn("machine didn't take its new name", "machine", name, "err", err)
+			m.Log.Warn("server didn't take its new name", "machine", name, "err", err)
 		}
 		return nil
 	}

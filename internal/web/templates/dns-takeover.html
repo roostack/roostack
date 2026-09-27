@@ -11,7 +11,7 @@
   <div class="notice notice-error">
     <p><strong>Anything that relies on the current value will stop working</strong>, for example services on another
       server that use addresses under {{.DNS.Record}}.</p>
-    <p>From now on, MyLab will keep this record pointing at this machine and change it whenever this machine's
+    <p>From now on, MyLab will keep this record pointing at this server and change it whenever this server's
       address changes.</p>
   </div>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}

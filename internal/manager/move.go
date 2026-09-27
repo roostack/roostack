@@ -102,7 +102,7 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	src, ok1 := m.node(from).(node.Mover)
 	dst, ok2 := m.node(to).(node.Mover)
 	if !ok1 || !ok2 {
-		return formErrorf("Choose a machine in this lab.")
+		return formErrorf("Choose a server in this lab.")
 	}
 	for _, id := range []string{from, to} {
 		if r, ok := m.node(id).(RemoteMachine); ok && r.Settings() == nil {

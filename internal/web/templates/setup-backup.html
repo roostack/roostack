@@ -7,12 +7,12 @@
   <h1>{{if .StepDone}}Change where backups go{{else}}Set up backups{{end}}</h1>
   {{if and .StepDone .Current}}<p>Backups currently go to <code>{{.Current}}</code>. Backups already there stay where they are.</p>{{end}}
   {{end}}
-  <p>MyLab backs everything up every night. Choose somewhere that isn't this machine's main disk if you can.</p>
+  <p>MyLab backs everything up every night. Choose somewhere that isn't this server's main disk if you can.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <form method="post" action="/setup/backup" x-data="{ kind: '{{.Kind}}' }">
     <fieldset>
       <label class="check"><input type="radio" name="kind" value="local" x-model="kind">
-        <span>A disk or folder on this machine<small>For example a second disk or a USB drive.</small></span></label>
+        <span>A disk or folder on this server<small>For example a second disk or a USB drive.</small></span></label>
       <label class="check"><input type="radio" name="kind" value="s3" x-model="kind">
         <span>Online storage (S3-compatible)<small>Backblaze B2, Wasabi, AWS S3 and similar. Keeps a copy away from home.</small></span></label>
     </fieldset>

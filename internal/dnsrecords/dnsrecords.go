@@ -206,7 +206,7 @@ func (m *Manager) Sync(ctx context.Context) Status {
 	if ip == "" {
 		var err error
 		if ip, err = m.lanIP(); err != nil {
-			return m.set(Status{State: StateError, Record: record, Message: "Couldn't find this machine's LAN address: " + err.Error()})
+			return m.set(Status{State: StateError, Record: record, Message: "Couldn't find this server's LAN address: " + err.Error()})
 		}
 	}
 	st := Status{Record: record, IP: ip, Managing: lab.DNS.ManageRecords, AcceptedRisk: lab.DNS.AllowRiskyRecords}
@@ -367,7 +367,7 @@ func (m *Manager) check(ctx context.Context, st Status) Status {
 		// Home DNS has its own answer for the domain: a local DNS server,
 		// a DNS rewrite, or a router setting overrides public DNS.
 		st.State = StateOverridden
-		st.Message = fmt.Sprintf("Your home network's DNS answers %s with %s instead of this machine (%s). "+
+		st.Message = fmt.Sprintf("Your home network's DNS answers %s with %s instead of this server (%s). "+
 			"Something on your network overrides this domain, such as a local DNS server (Pi-hole, AdGuard) "+
 			"or a router setting. Point %s at %s there, or remove the override.",
 			st.Record, strings.Join(local, ", "), st.IP, st.Record, st.IP)

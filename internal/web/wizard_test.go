@@ -125,7 +125,7 @@ func TestWizardFlow(t *testing.T) {
 	}
 	// Keeping the zone goes straight on to the next step.
 	h.post("/setup/timezone", url.Values{"timezone": {"Etc/UTC"}}, h.srv.URL)
-	if _, body := h.get("/"); fs.restarted || !strings.Contains(body, "Who can log in to this machine?") {
+	if _, body := h.get("/"); fs.restarted || !strings.Contains(body, "Who can log in to this server?") {
 		t.Fatal("after the time zone comes the SSH step, without a restart")
 	}
 	fs.clients = []netip.Addr{netip.MustParseAddr("192.168.86.20")}
@@ -376,7 +376,7 @@ func TestTimezoneBanner(t *testing.T) {
 
 	// The browser compares its UTC offset with the host's.
 	_, body := h.get("/")
-	if !strings.Contains(body, "Times in MyLab are this machine's time") || !strings.Contains(body, `href="/setup/timezone"`) {
+	if !strings.Contains(body, "Times in MyLab are this server's time") || !strings.Contains(body, `href="/setup/timezone"`) {
 		t.Error("home page: missing the time zone banner for the Owner")
 	}
 	_, body = h.get("/settings")
@@ -444,7 +444,7 @@ func TestUpdatesCard(t *testing.T) {
 		t.Errorf("restart during a backup: %d", code)
 	}
 	fu.busy = false
-	if _, body := h.post("/settings/restart", nil, h.srv.URL); !fu.restarted || !strings.Contains(body, "Restarting this machine") {
+	if _, body := h.post("/settings/restart", nil, h.srv.URL); !fu.restarted || !strings.Contains(body, "Restarting this server") {
 		t.Error("restart now")
 	}
 	h.post("/settings/restart-policy", url.Values{"restart": {"notify"}, "hour": {"3"}}, h.srv.URL)

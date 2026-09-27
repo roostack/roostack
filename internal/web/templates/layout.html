@@ -35,9 +35,9 @@
     <div class="notice notice-warn tz-banner" role="status" x-cloak
       x-data="{ device: Intl.DateTimeFormat().resolvedOptions().timeZone, offset: -new Date().getTimezoneOffset() }"
       x-show="offset !== {{.Offset}}">
-      <strong>Times in MyLab are this machine's time, not yours.</strong>
-      This machine is set to {{.Zone}}, where it's {{.Time}} now. The device you're using is in <span x-text="device"></span>.
-      {{if .Owner}}<a href="/setup/timezone">Change the machine's time zone</a> if it's wrong.{{else}}If that's wrong, ask the Owner to change it.{{end}}
+      <strong>Times in MyLab are this server's time, not yours.</strong>
+      This server is set to {{.Zone}}, where it's {{.Time}} now. The device you're using is in <span x-text="device"></span>.
+      {{if .Owner}}<a href="/setup/timezone">Change the server's time zone</a> if it's wrong.{{else}}If that's wrong, ask the Owner to change it.{{end}}
     </div>
     {{end}}
     {{if .SettingsArea}}

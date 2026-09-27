@@ -131,7 +131,7 @@ func (f *fakeManager) MoveInfo(_ context.Context, name string) (manager.MoveInfo
 }
 func (f *fakeManager) MoveService(_ context.Context, name, to, way string) error {
 	if to == "" {
-		return &manager.FormError{Msg: "Choose a machine in this lab."}
+		return &manager.FormError{Msg: "Choose a server in this lab."}
 	}
 	f.moves = append(f.moves, name+" → "+to+" ("+way+")")
 	return nil
@@ -161,7 +161,7 @@ func (f *fakeManager) AddS3Provider(_ context.Context, name string, p manager.S3
 }
 func (f *fakeManager) RemoveMachine(_ context.Context, id string) error {
 	if id == "n-9876543210" {
-		return &manager.FormError{Msg: "vps still runs Forgejo. Remove it first, or move it to another machine."}
+		return &manager.FormError{Msg: "vps still runs Forgejo. Remove it first, or move it to another server."}
 	}
 	f.machineOps = append(f.machineOps, "remove "+id)
 	return nil
@@ -678,14 +678,14 @@ func TestAccent(t *testing.T) {
 func TestMachines(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fm.status = manager.ApplyStatus{Finished: true, LastRun: time.Now()}
-	_, body := h.get("/settings/machines")
-	for _, want := range []string{"<h2>nuc", "This machine", "Runs the lab", `href="/services/vaultwarden"`, "Up to date", "n-0123456789"} {
+	_, body := h.get("/settings/servers")
+	for _, want := range []string{"<h2>nuc", "This server", "Runs the lab", `href="/services/vaultwarden"`, "Up to date", "n-0123456789"} {
 		if !strings.Contains(body, want) {
-			t.Errorf("machines page missing %q", want)
+			t.Errorf("servers page missing %q", want)
 		}
 	}
-	if _, body := h.get("/settings"); !strings.Contains(body, "1 machine: nuc") {
-		t.Error("settings overview should summarise the machines")
+	if _, body := h.get("/settings"); !strings.Contains(body, "1 server: nuc") {
+		t.Error("settings overview should summarise the servers")
 	}
 
 	// With several machines, problems say which one.
@@ -694,21 +694,21 @@ func TestMachines(t *testing.T) {
 		{ID: "n-9876543210", Name: "vps", Status: manager.ApplyStatus{Finished: true, LastErr: errors.New("image pull failed")}},
 	}
 	if _, body := h.get("/partials/home"); !strings.Contains(body, "The last change on vps didn&#39;t finish: image pull failed") {
-		t.Errorf("home should name the machine:\n%s", body)
+		t.Errorf("home should name the server:\n%s", body)
 	}
 	if _, body := h.get("/settings"); !strings.Contains(body, "A change on vps didn&#39;t finish") {
-		t.Error("settings overview should flag the machine")
+		t.Error("settings overview should flag the server")
 	}
 	// The vps (the same fake here) has no SSH choice yet: its firewall is off.
 	fm.settings = &fakeSetup{}
 	if _, body := h.get("/partials/home"); !strings.Contains(body, "vps&#39;s firewall is off") ||
-		!strings.Contains(body, `href="/settings/machines/n-9876543210/remote-access"`) {
+		!strings.Contains(body, `href="/settings/servers/n-9876543210/remote-access"`) {
 		t.Errorf("home should ask for vps's SSH choice:\n%s", body)
 	}
 
 	ha, _ := loggedIn(t, auth.RoleAdmin)
-	if code, _ := ha.get("/settings/machines"); code == http.StatusOK {
-		t.Error("only Owners see machines")
+	if code, _ := ha.get("/settings/servers"); code == http.StatusOK {
+		t.Error("only Owners see servers")
 	}
 
 	// Other machines' backups and updates show up too, named.
@@ -716,62 +716,62 @@ func TestMachines(t *testing.T) {
 		Last: &store.BackupRun{OK: false, Error: "repository locked"}}}
 	fm.settings = &fakeSetup{ssh: "lan"}
 	if _, body := h.get("/partials/home"); !strings.Contains(body, "The last backup on vps didn&#39;t finish: repository locked") ||
-		!strings.Contains(body, `href="/settings/machines/n-9876543210/backups"`) {
+		!strings.Contains(body, `href="/settings/servers/n-9876543210/backups"`) {
 		t.Errorf("home should flag vps's backups:\n%s", body)
 	}
 
 	// Renaming and removing.
-	if code, body := h.post("/settings/machines/n-9876543210/remove", nil, h.srv.URL); code != http.StatusBadRequest ||
+	if code, body := h.post("/settings/servers/n-9876543210/remove", nil, h.srv.URL); code != http.StatusBadRequest ||
 		!strings.Contains(body, "vps still runs Forgejo") {
-		t.Errorf("removing a machine with services: %d", code)
+		t.Errorf("removing a server with services: %d", code)
 	}
-	h.post("/settings/machines/n-9876543210/rename", url.Values{"name": {"cloud"}}, h.srv.URL)
+	h.post("/settings/servers/n-9876543210/rename", url.Values{"name": {"cloud"}}, h.srv.URL)
 	if len(fm.machineOps) != 1 || fm.machineOps[0] != "rename n-9876543210 cloud" {
 		t.Errorf("ops = %v", fm.machineOps)
 	}
-	if _, body := h.post("/settings/machines/n-0123456789/rename", url.Values{"name": {"nuc2"}}, h.srv.URL); !strings.Contains(body, "Applying your settings") {
-		t.Error("renaming this machine restarts MyLab")
+	if _, body := h.post("/settings/servers/n-0123456789/rename", url.Values{"name": {"nuc2"}}, h.srv.URL); !strings.Contains(body, "Applying your settings") {
+		t.Error("renaming this server restarts MyLab")
 	}
 
 	// Kept copies moves left behind, and deleting one.
 	fm.machineOps = nil
-	_, body = h.get("/settings/machines")
+	_, body = h.get("/settings/servers")
 	if !strings.Contains(body, "forgejo.moved-to-nuc-20260928-002806") || !strings.Contains(body, "70.0 MB") ||
 		!strings.Contains(body, "forgejo before it moved away") {
-		t.Errorf("machines page should list kept copies:\n%s", body)
+		t.Errorf("servers page should list kept copies:\n%s", body)
 	}
-	h.post("/settings/machines/n-9876543210/kept/remove", url.Values{"path": {"/srv/mylab/services/forgejo.moved-to-nuc-20260928-002806"}}, h.srv.URL)
+	h.post("/settings/servers/n-9876543210/kept/remove", url.Values{"path": {"/srv/mylab/services/forgejo.moved-to-nuc-20260928-002806"}}, h.srv.URL)
 	if len(fm.machineOps) != 1 || fm.machineOps[0] != "delete /srv/mylab/services/forgejo.moved-to-nuc-20260928-002806 on n-9876543210" {
 		t.Errorf("ops = %v", fm.machineOps)
 	}
 
 	// A machine's own pages; an unknown machine is not found.
 	fm.updates = &fakeUpdates{}
-	if code, body := h.get("/settings/machines/n-0123456789/updates"); code != http.StatusOK || !strings.Contains(body, "Updates and restarts") {
-		t.Errorf("machine updates page: %d", code)
+	if code, body := h.get("/settings/servers/n-0123456789/updates"); code != http.StatusOK || !strings.Contains(body, "Updates and restarts") {
+		t.Errorf("server updates page: %d", code)
 	}
-	if code, _ := h.get("/settings/machines/n-9999999999/updates"); code != http.StatusNotFound {
-		t.Errorf("unknown machine: %d", code)
+	if code, _ := h.get("/settings/servers/n-9999999999/updates"); code != http.StatusNotFound {
+		t.Errorf("unknown server: %d", code)
 	}
 }
 
 func TestBackupDestinations(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
-	_, body := h.get("/settings/machines/n-0123456789/backups")
+	_, body := h.get("/settings/servers/n-0123456789/backups")
 	for _, want := range []string{"Choose where backups go", `value="machine:n-0123456789"`, "Backblaze", "Add a cloud storage provider"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("backups page missing %q", want)
 		}
 	}
-	if code, body := h.post("/settings/machines/n-0123456789/backup-destination", url.Values{}, h.srv.URL); code != http.StatusBadRequest ||
+	if code, body := h.post("/settings/servers/n-0123456789/backup-destination", url.Values{}, h.srv.URL); code != http.StatusBadRequest ||
 		!strings.Contains(body, "Choose where backups go.") {
 		t.Errorf("no choice: %d", code)
 	}
-	h.post("/settings/machines/n-0123456789/backup-destination", url.Values{"destination": {"machine:n-0123456789"}}, h.srv.URL)
+	h.post("/settings/servers/n-0123456789/backup-destination", url.Values{"destination": {"machine:n-0123456789"}}, h.srv.URL)
 	if fm.destination != "machine:n-0123456789" {
 		t.Errorf("destination = %q", fm.destination)
 	}
-	if _, body := h.get("/settings/machines/n-0123456789/backups"); !strings.Contains(body, "nuc&#39;s disk") ||
+	if _, body := h.get("/settings/servers/n-0123456789/backups"); !strings.Contains(body, "nuc&#39;s disk") ||
 		!strings.Contains(body, "Change where") {
 		t.Error("page should show the current destination")
 	}
@@ -795,10 +795,10 @@ func TestMovePage(t *testing.T) {
 	fm.machines = []manager.Machine{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true},
 		{ID: "n-9876543210", Name: "vps"}}
 	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, `href="/services/vaultwarden/move"`) {
-		t.Error("service page should offer moving when there are several machines")
+		t.Error("service page should offer moving when there are several servers")
 	}
 	_, body := h.get("/services/vaultwarden/move")
-	for _, want := range []string{"Move Vaultwarden to another machine", "5.0 MB", `value="n-9876543210"`} {
+	for _, want := range []string{"Move Vaultwarden to another server", "5.0 MB", `value="n-9876543210"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("move page missing %q", want)
 		}

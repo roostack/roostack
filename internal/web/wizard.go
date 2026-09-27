@@ -86,7 +86,7 @@ func (s *Server) formMode(r *http.Request, step string, data map[string]any) map
 	data["Machine"], data["BackText"] = m, "Settings"
 	if !m.This {
 		// Another machine's settings are never a wizard step.
-		data["Wizard"], data["Back"], data["BackText"] = false, "/settings/machines", "Machines"
+		data["Wizard"], data["Back"], data["BackText"] = false, "/settings/servers", "Servers"
 	}
 	return data
 }
@@ -344,7 +344,7 @@ func (s *Server) recoveryConfirm(w http.ResponseWriter, r *http.Request) {
 // wizardError re-renders a wizard page for a user-fixable error. It returns
 // true if it handled err.
 // errNoMachine means this MyLab can't change its machine's settings.
-var errNoMachine = errors.New("machine settings aren't available")
+var errNoMachine = errors.New("server settings aren't available")
 
 // userMessage returns an error's message if it is one the user can act on
 // (a problem with what they entered), rather than a server error.
