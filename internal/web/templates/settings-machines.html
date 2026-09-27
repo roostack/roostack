@@ -1,0 +1,28 @@
+{{define "title"}}Machines{{end}}
+{{define "content"}}
+{{back "/settings" "Settings"}}
+<section class="card">
+  <h1>Machines</h1>
+  <p class="hint">The computers that run your lab. Each one runs its own services, backups and updates.</p>
+</section>
+{{range .Machines}}
+<section class="card section" id="machine-{{.ID}}">
+  <h2>{{.Name}}{{if .This}} {{badge "This machine"}}{{end}}</h2>
+  <dl class="facts">
+    <dt>Role</dt>
+    <dd>{{if .Controller}}Runs the lab: keeps its settings and serves this page{{else}}Runs services{{end}}</dd>
+    <dt>Services</dt>
+    <dd>{{range $i, $s := .Services}}{{if $i}}, {{end}}<a href="/services/{{$s}}">{{$s}}</a>{{else}}None{{end}}</dd>
+    <dt>Changes</dt>
+    <dd>{{with .Status}}{{if .Running}}<span class="dot dot-warn" aria-hidden="true"></span>Applying…
+      {{- else if .LastErr}}<span class="dot dot-problem" aria-hidden="true"></span>The last change didn't finish: {{.LastErr}}
+      {{- else if .Finished}}<span class="dot dot-ok" aria-hidden="true"></span>Up to date · {{when .LastRun}}
+      {{- else}}Not applied yet{{end}}{{end}}</dd>
+    <dt>Machine ID</dt>
+    <dd><code>{{.ID}}</code></dd>
+  </dl>
+  {{if .This}}{{activity $.ApplyActivity}}
+  <p><a href="/settings/updates">Updates and restarts</a> · <a href="/settings/time-zone">Time zone</a></p>{{end}}
+</section>
+{{end}}
+{{end}}

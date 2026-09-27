@@ -17,6 +17,7 @@ import (
 	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/instance"
 	"github.com/mylab/mylab/internal/node"
+	"github.com/mylab/mylab/internal/nodeid"
 	"github.com/mylab/mylab/internal/reconcile"
 	"github.com/mylab/mylab/internal/state"
 )
@@ -314,6 +315,7 @@ func TestFirewallFollowsServices(t *testing.T) {
 func TestOnlyThisNodesServices(t *testing.T) {
 	m, _ := newManager(t)
 	m.Lab.NodeID = "n-0000000001"
+	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
 	ctx := context.Background()
 	// Vaultwarden is installed here; Immich is placed on another machine.
 	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {
@@ -340,6 +342,14 @@ func TestOnlyThisNodesServices(t *testing.T) {
 	other, _ := instance.Load(state.InstanceFile(m.Lab, "immich"))
 	if other.Routes["web"].Port != 0 {
 		t.Error("another machine's service shouldn't get ports from this one")
+	}
+	machines, err := m.Machines()
+	if err != nil || len(machines) != 1 {
+		t.Fatal(machines, err)
+	}
+	if mc := machines[0]; mc.Name != "nuc" || !mc.Controller || !mc.This || !slices.Equal(mc.Services, []string{"vaultwarden"}) ||
+		!mc.Status.Finished {
+		t.Errorf("machine = %+v", mc)
 	}
 }
 

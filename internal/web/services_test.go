@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/mylab/mylab/internal/activity"
 	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/generate"
@@ -36,6 +38,29 @@ type fakeManager struct {
 
 	values  map[string]any
 	updated []manager.SettingsRequest
+
+	acts     *activity.Registry
+	machines []manager.Machine
+}
+
+func (f *fakeManager) LatestActivity(kind string) (activity.Snapshot, bool) {
+	return f.acts.Latest(kind)
+}
+func (f *fakeManager) Machines() ([]manager.Machine, error) {
+	if f.machines != nil {
+		return f.machines, nil
+	}
+	return []manager.Machine{{ID: "n-0123456789", Name: "nuc", Controller: true, This: true,
+		Services: []string{"vaultwarden"}, Status: f.status}}, nil
+}
+
+// acts is the fake node's activity registry.
+func (h *harness) acts() *activity.Registry {
+	fm := h.server.Node.(*fakeManager)
+	if fm.acts == nil {
+		fm.acts = activity.New()
+	}
+	return fm.acts
 }
 
 func (f *fakeManager) Catalog() ([]manager.CatalogItem, error) {
@@ -495,5 +520,36 @@ func TestAccent(t *testing.T) {
 	h.post("/account/appearance", url.Values{"palette": {"nord"}, "accent-catppuccin": {"peach"}, "mode": {"auto"}}, h.srv.URL)
 	if _, body := h.get("/services"); !strings.Contains(body, `<html lang="en" data-palette="nord">`) {
 		t.Error("nord has no accents")
+	}
+}
+
+func TestMachines(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.status = manager.ApplyStatus{Finished: true, LastRun: time.Now()}
+	_, body := h.get("/settings/machines")
+	for _, want := range []string{"<h2>nuc", "This machine", "Runs the lab", `href="/services/vaultwarden"`, "Up to date", "n-0123456789"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("machines page missing %q", want)
+		}
+	}
+	if _, body := h.get("/settings"); !strings.Contains(body, "1 machine: nuc") {
+		t.Error("settings overview should summarise the machines")
+	}
+
+	// With several machines, problems say which one.
+	fm.machines = []manager.Machine{
+		{ID: "n-0123456789", Name: "nuc", Controller: true, This: true, Status: manager.ApplyStatus{Finished: true}},
+		{ID: "n-9876543210", Name: "vps", Status: manager.ApplyStatus{Finished: true, LastErr: errors.New("image pull failed")}},
+	}
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "The last change on vps didn&#39;t finish: image pull failed") {
+		t.Errorf("home should name the machine:\n%s", body)
+	}
+	if _, body := h.get("/settings"); !strings.Contains(body, "A change on vps didn&#39;t finish") {
+		t.Error("settings overview should flag the machine")
+	}
+
+	ha, _ := loggedIn(t, auth.RoleAdmin)
+	if code, _ := ha.get("/settings/machines"); code == http.StatusOK {
+		t.Error("only Owners see machines")
 	}
 }

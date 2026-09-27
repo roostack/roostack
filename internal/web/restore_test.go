@@ -49,7 +49,6 @@ func TestRestoreFlow(t *testing.T) {
 			Of: "/srv/mylab/services/vaultwarden/data", Time: time.Now().Add(-2 * time.Hour)}},
 	}
 	h.server.Restores = fr
-	h.server.Activity = activity.New()
 
 	if _, body := h.get("/backups"); !strings.Contains(body, `href="/backups/restore/vaultwarden">Restore Vaultwarden…`) {
 		t.Error("backups page should link to restoring each service")
@@ -75,7 +74,7 @@ func TestRestoreFlow(t *testing.T) {
 	}
 
 	// While it runs, the page shows its progress instead of the form.
-	h.server.Activity.Start(activity.Restore, "Restoring Vaultwarden").Step("Restoring files from the backup")
+	h.acts().Start(activity.Restore, "Restoring Vaultwarden").Step("Restoring files from the backup")
 	_, body = h.get("/backups/restore/vaultwarden")
 	if !strings.Contains(body, "Restoring Vaultwarden: Restoring files from the backup…") || strings.Contains(body, `name="confirm"`) {
 		t.Error("running restore: want progress, no form")

@@ -460,6 +460,34 @@ func (m *Manager) Status() ApplyStatus {
 	return st
 }
 
+// Machine is one node in the lab, for the UI (SPEC.md §10).
+type Machine struct {
+	ID, Name string
+	// Controller holds the lab's desired state and serves the UI.
+	Controller bool
+	// This is the machine serving this request.
+	This bool
+	// Services are the names of the services placed on it.
+	Services []string
+	Status   ApplyStatus
+}
+
+// Machines lists the lab's machines. For now a lab has one: this one,
+// which is also the controller.
+func (m *Manager) Machines() ([]Machine, error) {
+	all, err := state.LoadServices(m.Lab)
+	if err != nil {
+		return nil, err
+	}
+	id := m.Node.Identity()
+	mc := Machine{ID: id.ID, Name: id.Name, Controller: true, This: true, Status: m.Status()}
+	for _, s := range state.OnNode(all, id.ID) {
+		mc.Services = append(mc.Services, s.Package.Name)
+	}
+	slices.Sort(mc.Services)
+	return []Machine{mc}, nil
+}
+
 // startApplyLocked hands the node its latest assignment, which it applies
 // in the background.
 func (m *Manager) startApplyLocked() {

@@ -32,6 +32,8 @@ type Node interface {
 	RetryInstall(ctx context.Context, service string) error
 	RunAction(ctx context.Context, service, action string, inputs map[string]string) (string, error)
 	RevealSecret(ctx context.Context, service, key string) (string, error)
+	// LatestActivity is the node's latest log of a kind (activity.Apply, ...).
+	LatestActivity(kind string) (activity.Snapshot, bool)
 }
 
 // Assignment is what the controller wants a node to run.
@@ -144,6 +146,9 @@ func (n *Local) Apply(a Assignment) {
 	n.done = make(chan struct{})
 	go n.applyLoop(n.done)
 }
+
+// LatestActivity is this machine's latest log of a kind.
+func (n *Local) LatestActivity(kind string) (activity.Snapshot, bool) { return n.Activity.Latest(kind) }
 
 // Status reports the current or last apply.
 func (n *Local) Status() ApplyStatus {

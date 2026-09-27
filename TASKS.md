@@ -122,7 +122,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] `Node` interface between the manager (controller) and machine operations: the manager hands each machine an Assignment (its services, typed-in secrets, services to set up); `node.Local` applies it, runs the firewall, install hooks, actions and secret reveals
   - [ ] Backups, restores, OS updates and restarts behind the node too (still wired directly in `serve`)
   - [ ] The web reaches a service's machine by its host (today `Server.Node` is this machine)
-  - [ ] Per-node status and activity in the UI
+  - [x] Per-node status and activity in the UI: activity is read from the node; Settings → Machines lists each machine (role, services, apply status); problems name the machine once there are several. Per-machine URLs (`/settings/machines/<id>/…`) come with the second machine
 - [ ] Two-VM prototype: second dev VM joins over MyLab-managed WireGuard (join code, mTLS), runs one service placed on it
 - [ ] Controller move (planned hand-over) and promotion from a node's replica
 - [ ] Edge: public service at home routed through a cloud node (TLS passthrough over WireGuard, PROXY protocol)
