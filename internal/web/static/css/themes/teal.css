@@ -1,0 +1,24 @@
+/* Teal and violet: the default MyLab theme (chosen 2026-09-27).
+   Calm teal for actions; a violet highlight for the brand mark, where you
+   are, and focus.
+
+   A theme sets every --pal-* colour for light (-l) and dark (-d); it may
+   also set --pal-ok/warn/bad(-bg) to override the status colours. Copy
+   this file to add a theme, and register it in internal/web/themes.go. */
+[data-palette="teal"] {
+  --pal-bg-l: #f5f7f7;        --pal-bg-d: #111617;
+  --pal-surface-l: #ffffff;   --pal-surface-d: #1a2021;
+  --pal-surface-2-l: #eef3f2; --pal-surface-2-d: #141a1b;
+  --pal-fg-l: #1b2426;        --pal-fg-d: #e5eceb;
+  --pal-muted-l: #56676a;     --pal-muted-d: #98a8a8;
+  --pal-border-l: #dbe3e2;    --pal-border-d: #2a3435;
+  --pal-border-strong-l: #c2cfcd; --pal-border-strong-d: #3a4647;
+
+  --pal-accent-l: #0f766e;      --pal-accent-d: #2dd4bf;
+  --pal-accent-fg-l: #ffffff;   --pal-accent-fg-d: #062a25;
+  --pal-accent-soft-l: #ccfbf1; --pal-accent-soft-d: #0b2f2b;
+
+  --pal-highlight-l: #7c3aed;      --pal-highlight-d: #c4b5fd;
+  --pal-highlight-fg-l: #ffffff;   --pal-highlight-fg-d: #1e1033;
+  --pal-highlight-soft-l: #ede9fe; --pal-highlight-soft-d: #2a1e47;
+}

@@ -66,6 +66,8 @@ var migrations = []string{
 	// their own at the next login.
 	`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;`,
 	`ALTER TABLE users ADD COLUMN theme TEXT NOT NULL DEFAULT 'auto';`,
+	// The colour theme ('' = the default).
+	`ALTER TABLE users ADD COLUMN palette TEXT NOT NULL DEFAULT '';`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -148,8 +150,16 @@ type User struct {
 	// MustChangePassword is set for temporary passwords (CLI add/reset).
 	MustChangePassword bool
 	// Theme is "auto" (follow the device), "light" or "dark".
-	Theme     string
+	Theme string
+	// Palette is the colour theme (internal/web themes), "" for the default.
+	Palette   string
 	CreatedAt time.Time
+}
+
+// SetPalette saves a user's colour theme (the caller checks it exists).
+func (s *Store) SetPalette(ctx context.Context, userID int64, palette string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE users SET palette = ? WHERE id = ?`, palette, userID)
+	return err
 }
 
 // ErrLastOwner means a change would leave the lab without an Owner.
@@ -287,7 +297,7 @@ func (s *Store) SetPassword(ctx context.Context, username, hash string, temporar
 }
 
 const userColumns = `users.id, users.username, users.password_hash, users.role,
-	users.totp_secret, users.totp_last_step, users.must_change_password, users.theme, users.created_at`
+	users.totp_secret, users.totp_last_step, users.must_change_password, users.theme, users.palette, users.created_at`
 
 // UserByID looks up an account.
 func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
@@ -320,7 +330,7 @@ func scanUserRow(row interface{ Scan(...any) error }) (*User, error) {
 	var u User
 	var created int64
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &u.TOTPLastStep,
-		&u.MustChangePassword, &u.Theme, &created)
+		&u.MustChangePassword, &u.Theme, &u.Palette, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

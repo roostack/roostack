@@ -22,16 +22,12 @@ type nav struct {
 	Username string
 	Backups  bool
 	Settings bool
-	// Theme is the user's theme; NextTheme is what the toggle switches to.
+	// Theme is the user's mode (auto, light, dark); NextTheme is what the
+	// toggle switches to.
 	Theme, NextTheme string
+	// Palette is the user's colour theme (themes.go).
+	Palette string
 }
-
-// Built-in themes: each is a palette file in static/css/themes. Only one
-// for now; users will be able to choose later.
-const DefaultPalette = "ocean"
-
-// Palettes lists the built-in themes.
-var Palettes = []string{DefaultPalette}
 
 // navFor picks the links a role can use and marks the current section.
 func navFor(u *store.User, page string) nav {
@@ -45,7 +41,7 @@ func navFor(u *store.User, page string) nav {
 	if next == "" {
 		u.Theme, next = "auto", "light"
 	}
-	return nav{Active: active, Username: u.Username, Theme: u.Theme, NextTheme: next,
+	return nav{Active: active, Username: u.Username, Theme: u.Theme, NextTheme: next, Palette: userPalette(u),
 		Backups: auth.Can(u.Role, auth.ManageServices), Settings: auth.Can(u.Role, auth.ManageHost)}
 }
 
@@ -255,6 +251,25 @@ func (s *Server) dnsView(r *http.Request) any {
 
 func (s *Server) accountPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "account", map[string]any{"User": currentUser(r)})
+}
+
+// appearanceSubmit saves the user's colour theme and light/dark mode.
+func (s *Server) appearanceSubmit(w http.ResponseWriter, r *http.Request) {
+	palette, mode := r.FormValue("palette"), r.FormValue("mode")
+	if !validPalette(palette) || !slices.Contains(store.Themes, mode) {
+		http.Error(w, "Unknown theme.", http.StatusBadRequest)
+		return
+	}
+	u := currentUser(r)
+	if err := s.Store.SetPalette(r.Context(), u.ID, palette); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	if err := s.Store.SetTheme(r.Context(), u.ID, mode); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	http.Redirect(w, r, "/account#appearance", http.StatusSeeOther)
 }
 
 // themeSubmit saves the user's theme and returns to the page they were

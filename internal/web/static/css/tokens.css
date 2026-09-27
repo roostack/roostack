@@ -31,8 +31,9 @@
   --shadow-1: 0 1px 2px rgb(0 0 0 / 6%), 0 1px 3px rgb(0 0 0 / 4%);
   --focus-ring: 0 0 0 3px var(--highlight-soft), 0 0 0 1px var(--highlight);
 
-  /* Status colours are the same for every theme, so "problem" always
-     looks like a problem. */
+  /* Status colours: shared by MyLab's own themes, so "problem" always
+     looks like a problem. A palette may override them (--pal-ok-l, ...),
+     e.g. Catppuccin uses its own green, yellow and red. */
   --status-ok-l: #17603f; --status-ok-bg-l: #e3f5ec;
   --status-warn-l: #8a4b00; --status-warn-bg-l: #fdf1dc;
   --status-bad-l: #b3261e; --status-bad-bg-l: #fce8e6; --status-bad-fg-l: #ffffff;
@@ -49,9 +50,9 @@
   --border: var(--pal-border-l); --border-strong: var(--pal-border-strong-l);
   --accent: var(--pal-accent-l); --accent-fg: var(--pal-accent-fg-l); --accent-soft: var(--pal-accent-soft-l);
   --highlight: var(--pal-highlight-l); --highlight-fg: var(--pal-highlight-fg-l); --highlight-soft: var(--pal-highlight-soft-l);
-  --ok: var(--status-ok-l); --ok-bg: var(--status-ok-bg-l);
-  --warn: var(--status-warn-l); --warn-bg: var(--status-warn-bg-l);
-  --bad: var(--status-bad-l); --bad-bg: var(--status-bad-bg-l); --bad-fg: var(--status-bad-fg-l);
+  --ok: var(--pal-ok-l, var(--status-ok-l)); --ok-bg: var(--pal-ok-bg-l, var(--status-ok-bg-l));
+  --warn: var(--pal-warn-l, var(--status-warn-l)); --warn-bg: var(--pal-warn-bg-l, var(--status-warn-bg-l));
+  --bad: var(--pal-bad-l, var(--status-bad-l)); --bad-bg: var(--pal-bad-bg-l, var(--status-bad-bg-l)); --bad-fg: var(--pal-bad-fg-l, var(--status-bad-fg-l));
 }
 
 /* Dark: when the device prefers it and the user hasn't chosen light, or
@@ -64,9 +65,9 @@
     --border: var(--pal-border-d); --border-strong: var(--pal-border-strong-d);
     --accent: var(--pal-accent-d); --accent-fg: var(--pal-accent-fg-d); --accent-soft: var(--pal-accent-soft-d);
     --highlight: var(--pal-highlight-d); --highlight-fg: var(--pal-highlight-fg-d); --highlight-soft: var(--pal-highlight-soft-d);
-    --ok: var(--status-ok-d); --ok-bg: var(--status-ok-bg-d);
-    --warn: var(--status-warn-d); --warn-bg: var(--status-warn-bg-d);
-    --bad: var(--status-bad-d); --bad-bg: var(--status-bad-bg-d); --bad-fg: var(--status-bad-fg-d);
+    --ok: var(--pal-ok-d, var(--status-ok-d)); --ok-bg: var(--pal-ok-bg-d, var(--status-ok-bg-d));
+    --warn: var(--pal-warn-d, var(--status-warn-d)); --warn-bg: var(--pal-warn-bg-d, var(--status-warn-bg-d));
+    --bad: var(--pal-bad-d, var(--status-bad-d)); --bad-bg: var(--pal-bad-bg-d, var(--status-bad-bg-d)); --bad-fg: var(--pal-bad-fg-d, var(--status-bad-fg-d));
   }
 }
 [data-mode="dark"] {
@@ -76,7 +77,7 @@
   --border: var(--pal-border-d); --border-strong: var(--pal-border-strong-d);
   --accent: var(--pal-accent-d); --accent-fg: var(--pal-accent-fg-d); --accent-soft: var(--pal-accent-soft-d);
   --highlight: var(--pal-highlight-d); --highlight-fg: var(--pal-highlight-fg-d); --highlight-soft: var(--pal-highlight-soft-d);
-  --ok: var(--status-ok-d); --ok-bg: var(--status-ok-bg-d);
-  --warn: var(--status-warn-d); --warn-bg: var(--status-warn-bg-d);
-  --bad: var(--status-bad-d); --bad-bg: var(--status-bad-bg-d); --bad-fg: var(--status-bad-fg-d);
+  --ok: var(--pal-ok-d, var(--status-ok-d)); --ok-bg: var(--pal-ok-bg-d, var(--status-ok-bg-d));
+  --warn: var(--pal-warn-d, var(--status-warn-d)); --warn-bg: var(--pal-warn-bg-d, var(--status-warn-bg-d));
+  --bad: var(--pal-bad-d, var(--status-bad-d)); --bad-bg: var(--pal-bad-bg-d, var(--status-bad-bg-d)); --bad-fg: var(--pal-bad-fg-d, var(--status-bad-fg-d));
 }

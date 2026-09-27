@@ -37,6 +37,7 @@ var templateFuncs = template.FuncMap{
 	"list": func(items ...string) []string { return items },
 	// palette is the built-in theme (internal/web/static/css/themes).
 	"palette": func() string { return DefaultPalette },
+	"themes":  func() []Theme { return Themes },
 	"bytes": backup.Bytes,
 	// roleName shows a role as people say it ("Owner").
 	"roleName": func(role string) string {

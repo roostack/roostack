@@ -42,6 +42,7 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
 
 ### 3.2 Host OS Management — Locked
 
+- **Look — Locked (2026-09-27):** a design system with built-in colour themes (docs/DESIGN.md). The default is Teal and violet; each user can choose another (Ocean and magenta, Catppuccin Frappé, Macchiato or Mocha) and light, dark or follow the device.
 - **Feedback on host operations — Locked (2026-09-27):** anything that acts on the host (OS updates, backups, applying service changes, setup hooks, restores) shows a one-line status that updates live ("OS updates: Installing updates…", then "✓ … finished: Installed 3 updates"), with the full step-by-step log and command output under a collapsed **Details** for technical users. Pages refresh their results when the operation finishes. Logs are kept in memory (latest run of each kind); results that matter later are stored separately.
 
 - On fully supported distros, MyLab manages the host OS: security/package updates, reboot handling, and eventually major version upgrades.

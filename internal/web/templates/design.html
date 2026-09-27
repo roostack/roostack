@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design system · MyLab</title>
   <link rel="stylesheet" href="{{.Static}}css/tokens.css">
-  <link rel="stylesheet" href="{{.Static}}css/themes/{{palette}}.css">
+  {{range themes}}<link rel="stylesheet" href="{{$.Static}}css/themes/{{.ID}}.css">
+  {{end}}
   <link rel="stylesheet" href="{{.Static}}css/app.css">
   <link rel="stylesheet" href="{{.Static}}css/gallery.css">
   <script src="{{.Static}}alpine-3.17.4.min.js" defer></script>
@@ -21,6 +22,11 @@
       if something new is needed, add it to the design system first (<code>docs/DESIGN.md</code>).</p>
     {{if .Standalone}}<p class="hint">This file is generated from the same templates as the <code>/design</code> page in MyLab
       (<code>go test ./internal/web -run TestGalleryFile -update-gallery</code>). Don't edit it by hand.</p>{{end}}
+    <label class="theme-select">Theme
+      <select x-data x-on:change="document.documentElement.dataset.palette = $event.target.value">
+        {{range themes}}<option value="{{.ID}}"{{if eq .ID palette}} selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </label>
     <nav class="gallery-toc">
       <a href="#tokens">Colours</a> <a href="#scales">Sizes</a>
       {{range .Sections}}<a href="#{{.ID}}">{{.Title}}</a> {{end}}
@@ -28,7 +34,7 @@
 
     <section id="tokens">
       <h2>Colours</h2>
-      <p class="hint">Theme: {{palette}}. Pages use these names, never raw colours, so themes can change them.</p>
+      <p class="hint">Pages use these names, never raw colours, so themes can change them. Pick a theme above to compare.</p>
       <div class="panels">
         {{range $mode := list "light" "dark"}}
         <div class="panel" data-mode="{{$mode}}">

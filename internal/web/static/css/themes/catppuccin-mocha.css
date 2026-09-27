@@ -1,0 +1,28 @@
+/* Catppuccin Mocha: Latte in light mode, Mocha in dark mode.
+   Colours from Catppuccin (https://catppuccin.com), MIT licence.
+   Blue for actions, Mauve as the highlight, and Catppuccin's own green,
+   yellow and red for status. */
+[data-palette="catppuccin-mocha"] {
+  --pal-bg-l: #e6e9ef;        --pal-bg-d: #181825;
+  --pal-surface-l: #eff1f5;   --pal-surface-d: #1e1e2e;
+  --pal-surface-2-l: #dce0e8; --pal-surface-2-d: #11111b;
+  --pal-fg-l: #4c4f69;        --pal-fg-d: #cdd6f4;
+  --pal-muted-l: #6c6f85;     --pal-muted-d: #a6adc8;
+  --pal-border-l: #ccd0da;    --pal-border-d: #313244;
+  --pal-border-strong-l: #bcc0cc; --pal-border-strong-d: #45475a;
+
+  --pal-accent-l: #1e66f5;      --pal-accent-d: #89b4fa;
+  --pal-accent-fg-l: #eff1f5;   --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: color-mix(in srgb, #1e66f5 14%, #eff1f5); --pal-accent-soft-d: color-mix(in srgb, #89b4fa 18%, #1e1e2e);
+
+  --pal-highlight-l: #8839ef;      --pal-highlight-d: #cba6f7;
+  --pal-highlight-fg-l: #eff1f5;   --pal-highlight-fg-d: #11111b;
+  --pal-highlight-soft-l: color-mix(in srgb, #8839ef 14%, #eff1f5); --pal-highlight-soft-d: color-mix(in srgb, #cba6f7 18%, #1e1e2e);
+
+  --pal-ok-l: color-mix(in srgb, #40a02b 75%, #4c4f69);   --pal-ok-bg-l: color-mix(in srgb, #40a02b 14%, #eff1f5);
+  --pal-warn-l: color-mix(in srgb, #df8e1d 65%, #4c4f69); --pal-warn-bg-l: color-mix(in srgb, #df8e1d 16%, #eff1f5);
+  --pal-bad-l: #d20f39;    --pal-bad-bg-l: color-mix(in srgb, #d20f39 12%, #eff1f5); --pal-bad-fg-l: #eff1f5;
+  --pal-ok-d: #a6e3a1;   --pal-ok-bg-d: color-mix(in srgb, #a6e3a1 16%, #1e1e2e);
+  --pal-warn-d: #f9e2af; --pal-warn-bg-d: color-mix(in srgb, #f9e2af 16%, #1e1e2e);
+  --pal-bad-d: #f38ba8;    --pal-bad-bg-d: color-mix(in srgb, #f38ba8 16%, #1e1e2e); --pal-bad-fg-d: #11111b;
+}

@@ -20,5 +20,31 @@
     <label>Confirm new password <input name="confirm" type="password" autocomplete="new-password" required></label>
     <button type="submit">Change password</button>
   </form>
+
+  <h2 id="appearance">Appearance</h2>
+  <form method="post" action="/account/appearance">
+    <fieldset>
+      <legend>Colours</legend>
+      {{range themes}}
+      <label class="check theme-choice">
+        <input type="radio" name="palette" value="{{.ID}}" {{if eq .ID $.Nav.Palette}}checked{{end}}>
+        <span class="theme-previews" aria-hidden="true">
+          <span class="theme-preview" data-palette="{{.ID}}" data-mode="light"><span class="tp-accent"></span><span class="tp-highlight"></span></span>
+          <span class="theme-preview" data-palette="{{.ID}}" data-mode="dark"><span class="tp-accent"></span><span class="tp-highlight"></span></span>
+        </span>
+        <span>{{.Name}}<small>{{.Description}}</small></span>
+      </label>
+      {{end}}
+    </fieldset>
+    <fieldset>
+      <legend>Light or dark</legend>
+      {{range $m := list "auto" "light" "dark"}}
+      <label class="check"><input type="radio" name="mode" value="{{$m}}" {{if eq $m $.Nav.Theme}}checked{{end}}>
+        <span>{{if eq $m "auto"}}Follow this device{{else if eq $m "light"}}Always light{{else}}Always dark{{end}}</span></label>
+      {{end}}
+    </fieldset>
+    <button type="submit">Save</button>
+  </form>
+  <p class="hint">Catppuccin themes use colours from <a href="https://catppuccin.com" target="_blank" rel="noopener">Catppuccin</a>.</p>
 </section>
 {{end}}
