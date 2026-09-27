@@ -73,7 +73,10 @@ func (s *Server) formMode(r *http.Request, step string, data map[string]any) map
 	postponed := map[string]bool{"domain": p.DomainLater, "backup": p.BackupLater}[step]
 	data["Wizard"] = !done && !postponed
 	data["StepDone"] = done
-	data["Back"] = map[string]string{"timezone": "/settings", "ssh": "/settings", "domain": "/settings", "backup": "/backups"}[step]
+	if area := map[string]string{"timezone": "time-zone", "ssh": "remote-access", "domain": "domain"}[step]; area != "" && !data["Wizard"].(bool) {
+		withArea(data, area)
+	}
+	data["Back"] = map[string]string{"timezone": "/settings", "ssh": "/settings", "domain": "/settings/domain", "backup": "/backups"}[step]
 	return data
 }
 
@@ -113,7 +116,7 @@ func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if !changed {
 		// On to the next wizard step, or back to Settings.
-		redirect(w, r, map[bool]string{true: "/settings", false: "/"}[p.TimezoneDone])
+		redirect(w, r, map[bool]string{true: "/settings/time-zone", false: "/"}[p.TimezoneDone])
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "time zone set to "+zone)

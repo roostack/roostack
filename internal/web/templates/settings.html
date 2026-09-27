@@ -2,88 +2,17 @@
 {{define "content"}}
 <section>
   <h1>Settings</h1>
-  <section class="card section">
-    <div class="heading"><h2>People</h2><a href="/users">Manage…</a></div>
-    <p class="hint">{{.UserCount}} {{if eq .UserCount 1}}person{{else}}people{{end}} can log in to MyLab. Add family members, choose what they can do, or reset a forgotten password.</p>
-  </section>
-  <section class="card section">
-    <div class="heading">
-      <h2>Domain and certificates</h2>
-      <a href="/setup/domain">Change…</a>
-    </div>
-    {{if .DomainSet}}
-    <dl class="facts">
-      <dt>Domain</dt><dd>{{.LabDomain}}</dd>
-      <dt>DNS provider</dt><dd>{{.ProviderTitle}}</dd>
-      <dt>Services</dt><dd>Addresses like <code>photos.{{.LabDomain}}</code>, with a free certificate from Let's Encrypt</dd>
-    </dl>
-    {{else}}
-    <p class="notice notice-error">Your domain isn't set up yet. <a href="/setup/domain">Set it up</a>.</p>
+  {{range .Groups}}
+  <h2 class="settings-group-title">{{.Title}}</h2>
+  <ul class="area-grid">
+    {{range .Cards}}
+    <li><a class="card area-card" href="{{.Href}}">
+      <span class="area-title">{{.Title}}</span>
+      <span class="area-summary">{{if .Level}}<span class="dot dot-{{.Level}}" aria-hidden="true"></span><span class="sr-only">{{if eq .Level "ok"}}Fine: {{else if eq .Level "warn"}}Needs attention: {{else}}Problem: {{end}}</span>{{end}}{{.Summary}}</span>
+    </a></li>
     {{end}}
-  </section>
-  {{template "dns-card" .}}
-  {{if .SSH}}
-  <section class="card section">
-    <div class="heading"><h2>Firewall</h2><a href="/setup/ssh">Change…</a></div>
-    <dl class="facts">
-      <dt>SSH</dt><dd>{{if eq .SSH "lan"}}Home network only{{else if eq .SSH "any"}}From anywhere{{else}}Nobody{{end}}</dd>
-      <dt>Web</dt><dd>Open (ports 80 and 443); private services only answer your home network</dd>
-    </dl>
-    <p class="hint">Everything else is blocked. Extra connections you turn on for a service are opened for your home network.</p>
-  </section>
+  </ul>
   {{end}}
-  {{with .Updates}}
-  <section class="card section" id="updates">
-    <div class="heading"><h2>Updates and restarts</h2></div>
-    <p class="hint">This machine installs Debian's security and bug-fix updates every night after the backup.</p>
-    {{template "activity" .ActivityData}}
-    {{/* Refreshed when the update run finishes (HX-Trigger from its status). */}}
-    <div id="updates-body" hx-get="/settings" hx-select="#updates-body" hx-trigger="activity-done from:body" hx-swap="outerHTML">
-    {{with .ErrorMsg}}<p class="error" role="alert">{{.}}</p>{{end}}
-    <dl class="facts">
-      <dt>Last update</dt>
-      <dd>{{with .Last}}{{when .At}}: {{.Summary}}{{else}}Not run yet; the first runs tonight.{{end}}</dd>
-    </dl>
-    {{with .Last}}{{if not .OK}}<details><summary>What happened</summary><pre class="output">{{.Output}}</pre></details>{{end}}{{end}}
-    {{if .Restart.Needed}}
-    <div class="notice" role="status">
-      <p><strong>A restart is needed to finish installing updates</strong>{{with .Restart.Packages}} ({{range $i, $p := .}}{{if $i}}, {{end}}{{$p}}{{end}}){{end}}.
-        {{.Restart.Waiting}}.</p>
-      {{template "confirm-button" (dict "Action" "/settings/restart"
-        "Confirm" "Restart this machine now? Your services will be unavailable for a minute or two." "Text" "Restart now")}}
-    </div>
-    {{end}}
-    <form method="post" action="/settings/updates/run">
-      <button type="submit" {{if .Pending}}disabled{{end}}>{{if .Pending}}Updating…{{else}}Check for updates now{{end}}</button>
-    </form>
-    <form method="post" action="/settings/restart-policy" class="section">
-      <fieldset>
-        <legend>When updates need a restart</legend>
-        <label class="check"><input type="radio" name="restart" value="auto" {{if eq .Mode "auto"}}checked{{end}}>
-          <span>Restart automatically at
-            <select name="hour" class="inline" aria-label="Hour">{{range .Hours}}<option value="{{.}}" {{if eq . $.Updates.Hour}}selected{{end}}>{{printf "%02d:00" .}}</option>{{end}}</select>
-            <small>Recommended. Waits for backups to finish. Services are unavailable for a minute or two.</small></span></label>
-        <label class="check"><input type="radio" name="restart" value="notify" {{if eq .Mode "notify"}}checked{{end}}>
-          <span>Only tell me<small>Security fixes for the system's core (the kernel) don't take effect until you restart.</small></span></label>
-      </fieldset>
-      <button type="submit">Save</button>
-    </form>
-    </div>
-  </section>
-  {{end}}
-  {{with .HostClock}}
-  <section class="card section">
-    <div class="heading"><h2>Time zone</h2><a href="/setup/timezone">Change…</a></div>
-    <dl class="facts">
-      <dt>Time zone</dt><dd>{{.Zone}}</dd>
-      <dt>Time now</dt><dd>{{.Time}}</dd>
-    </dl>
-    <p class="hint">Backups and other maintenance are scheduled in this time zone.</p>
-  </section>
-  {{end}}
-  <section class="card section">
-    <div class="heading"><h2>Backups</h2><a href="/backups">Open backups →</a></div>
-    <p class="hint">Backup status, destinations and restoring live on the Backups page.</p>
-  </section>
+  <p class="hint">Backups have their own page: <a href="/backups">Backups</a>.</p>
 </section>
 {{end}}

@@ -1,0 +1,11 @@
+{{define "title"}}Home network{{end}}
+{{define "content"}}
+{{template "back" (dict "Href" "/settings" "Text" "Settings")}}
+{{with .DNS}}{{template "dns-card" $}}{{else}}
+<section class="card">
+  <h1>Home network</h1>
+  <p>Set up your domain first; MyLab then makes sure devices at home can reach your services.</p>
+  <p><a class="button" href="/settings/domain">Domain and certificates</a></p>
+</section>
+{{end}}
+{{end}}

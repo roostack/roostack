@@ -40,7 +40,12 @@
       {{if .Owner}}<a href="/setup/timezone">Change the machine's time zone</a> if it's wrong.{{else}}If that's wrong, ask the Owner to change it.{{end}}
     </div>
     {{end}}
-    {{template "content" .}}
+    {{if .SettingsArea}}
+    <div class="settings-shell">
+      {{template "settings-nav" .}}
+      <div class="settings-main">{{template "content" .}}</div>
+    </div>
+    {{else}}{{template "content" .}}{{end}}
   </main>
   {{if .Nav}}<footer class="site">MyLab · <a href="/about">About</a> · <a href="/design">Design system</a></footer>{{end}}
 </body>

@@ -98,10 +98,10 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Components: buttons, notice, status, badge, back, confirm, card/heading, facts, forms, rows, attention, activity, technical details, secret (docs/DESIGN.md)
   - [x] Component gallery: /design in the UI and docs/design/gallery.html (same templates; a test keeps the file current)
   - [x] Move existing pages onto the components: back links, status pills, notices and confirm dialogs all use the shared templates; headings without ampersands
-- [ ] **1.15 Settings structure** (after 1.14)
-  - [ ] /settings as a grid of overview cards (current state + status per area)
-  - [ ] Area pages with a sidebar on desktop, back link on phones: People & access (People, Remote access), Network (Domain & certificates, Home network), This machine (Updates & restarts, Time zone)
-  - [ ] Wizard forms double as the area "change" pages
+- [x] **1.15 Settings structure**
+  - [x] /settings as a grid of overview cards (current state + status per area)
+  - [x] Area pages with a sidebar on desktop, back link on phones: People and access (People, Remote access), Network (Domain and certificates, Home network), This machine (Updates and restarts, Time zone)
+  - [x] Wizard forms double as the area "change" pages
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow (`scripts/dev-install.sh` is a stand-in)
   - [ ] Ship full licence texts for bundled code (Debian `copyright` file), from THIRD_PARTY.md's list
 - [ ] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)

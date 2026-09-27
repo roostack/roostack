@@ -138,3 +138,15 @@
 {{end}}{{range .Lines}}{{.}}
 {{end}}</pre>
 {{end}}{{end}}
+
+{{/* settings-nav: the sidebar on settings area pages (desktop only; on
+     phones the page's back link leads to the overview). */}}
+{{define "settings-nav"}}
+<nav class="settings-nav" aria-label="Settings">
+  <a href="/settings" class="settings-home">All settings</a>
+  {{range .SettingsGroups}}
+  <p class="settings-group">{{.Title}}</p>
+  {{range .Areas}}<a href="{{.Href}}"{{if eq .ID $.SettingsArea}} class="active" aria-current="page"{{end}}>{{.Title}}</a>{{end}}
+  {{end}}
+</nav>
+{{end}}

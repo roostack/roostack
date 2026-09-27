@@ -107,12 +107,12 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		switch st.State {
 		case dnsrecords.StateBlocked, dnsrecords.StateOverridden, dnsrecords.StateConflict, dnsrecords.StateError:
 			// A headline here; the full explanation is on the Settings card.
-			add(levelProblem, dnsHeadline[st.State], "/settings#dns", "See how to fix it")
+			add(levelProblem, dnsHeadline[st.State], "/settings/home-network", "See how to fix it")
 		case dnsrecords.StatePending:
-			add(levelInfo, st.Message, "/settings#dns", "View")
+			add(levelInfo, st.Message, "/settings/home-network", "View")
 		case dnsrecords.StateManual:
 			if !st.Reachable {
-				add(levelWarning, "Devices at home can't find your services yet. "+st.Message, "/settings#dns", "Home network settings")
+				add(levelWarning, "Devices at home can't find your services yet. "+st.Message, "/settings/home-network", "Home network settings")
 			}
 		}
 	}
@@ -120,14 +120,14 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 	if owner && s.Updates != nil {
 		if last, err := s.Updates.Last(r.Context()); err == nil && last != nil && !last.OK {
 			add(levelProblem, "OS updates didn't finish last time. The machine may be missing security fixes.",
-				"/settings#updates", "See what happened")
+				"/settings/updates", "See what happened")
 		}
 		if rs := s.Updates.RestartStatus(); rs.Needed {
 			if s.Maintenance.Restart == config.RestartNotify {
-				add(levelWarning, "This machine needs a restart to finish installing updates.", "/settings#updates", "Restart")
+				add(levelWarning, "This machine needs a restart to finish installing updates.", "/settings/updates", "Restart")
 			} else {
 				add(levelInfo, fmt.Sprintf("This machine will restart around %02d:00 to finish installing updates.",
-					s.Maintenance.Hour()), "/settings#updates", "Details")
+					s.Maintenance.Hour()), "/settings/updates", "Details")
 			}
 		}
 	}
