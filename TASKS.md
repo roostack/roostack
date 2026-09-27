@@ -127,7 +127,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [x] Two-VM prototype (SPEC.md §10.9): second dev VM joins over MyLab-managed WireGuard (join code with a one-time key, mTLS lab API), runs a service placed on it; the controller's Caddy forwards its routes; setup, actions, secrets, backups, updates, restarts and settings work remotely (`/settings/servers/<id>/…`); `MYLAB_VM=2 scripts/dev-vm.sh`
 - [ ] Multi-machine follow-ups
   - [x] Remove a machine (only once it runs no services: it leaves the network and runs on its own); rename a machine
-  - [ ] Revoke a removed machine's certificate (today it loses its WireGuard peer, so it can't reach the lab API)
+  - [x] Revoke a removed server's certificate: the controller accepts only the certificate it last issued each server
   - [ ] Backups across machines (SPEC.md §10.10)
     - [x] Port forwarding explained on the join page (UDP 51820, which machine, how to check)
     - [x] Backup providers: S3-compatible providers set up once, usable by any machine; any machine's disk
@@ -138,7 +138,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [x] Weekly forget/prune by the controller (admin store access or provider credentials, recovery key); machines only check
     - [x] B2: an application key per machine limited to its folder, deleted when the machine leaves (UNTESTED against Backblaze: built from the API docs, tested with a fake server)
   - [x] Storage for other labs: storage invites with quotas, `mylab-guests` WireGuard interface (UDP 51821), a store pair per guest lab, usage on both sides, last connected (reachability), port-forwarding guide; a guest lab's controller links (`mylab-st1..9`) and forwards its machines' backups
-  - [ ] A lab whose domain isn't set up yet can't apply anything (Caddy's DNS secret is missing), so it can't offer storage either: apply what doesn't need Caddy
+  - [x] A lab whose domain isn't set up yet applies everything but Caddy, which waits for its DNS credentials
   - [ ] Removed guests: delete their data automatically after a grace period, with notice to them
   - [ ] Storage for others offered by a machine other than the controller
   - [ ] Move a service between machines (SPEC.md §10.10)
@@ -146,7 +146,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [x] Through a backup (large data, slow links): a fresh backup, the controller streams the service's folders from it (restic dump, recovery key) and the new machine loads its databases from the dumps; the move page suggests a way from the size
     - [x] Kept copies moves leave (moved-away and before-move folders) listed per machine with sizes on Settings → Servers, deletable (restore's own kept copies stay on the restore page)
   - [x] Needs-attention items for other machines' backups, updates and restarts
-  - [ ] Certificate renewal; nodes behind a hub that isn't the controller
+  - [x] Certificate renewal: a year's validity, renewed 120 days ahead (nodes over the lab API, the controller locally), expiry on Settings → Servers, attention if renewal fails
+  - [ ] Renew the lab CA (20 years); nodes behind a hub that isn't the controller
   - [x] A machine without an SSH choice (firewall off) is flagged in "needs attention"
 - [x] UI for several servers: "server" in the UI (code and SPEC keep "machine"); confirmations are HTML dialogs; service cards show their server and last backup, with details (containers and images, web routes, ports, data folders and size); MyLab's own services (MyLab, Caddy, backup stores, network links) per server behind a toggle; Settings groups what differs per server under "Each server" with a summary per server and a switcher; each server has its own page (`/settings/servers/<id>`); Home shows My Servers beside My Services
 - [x] "Server" in the code and SPEC too (was "machine"); a migration renames the `machines` table, the `machine_id` columns and `machine:` backup references

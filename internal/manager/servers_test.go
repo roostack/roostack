@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/node"
@@ -100,6 +101,9 @@ type fakeRegistry struct{ removed, renamed []string }
 func (f *fakeRegistry) Remove(_ context.Context, id string) error {
 	f.removed = append(f.removed, id)
 	return nil
+}
+func (f *fakeRegistry) CertExpiries(context.Context) map[string]time.Time {
+	return map[string]time.Time{"n-0000000002": time.Date(2027, 9, 28, 0, 0, 0, 0, time.UTC)}
 }
 func (f *fakeRegistry) Rename(_ context.Context, id, name string) error {
 	f.renamed = append(f.renamed, id+"="+name)

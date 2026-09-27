@@ -20,6 +20,8 @@
       {{- else}}Not applied yet{{end}}{{end}}</dd>
     <dt>Server ID</dt>
     <dd><code>{{.ID}}</code></dd>
+    {{if not .CertExpires.IsZero}}<dt>Certificate</dt>
+    <dd>Proves it's this server on MyLab's network · valid until {{date .CertExpires}}, renewed automatically</dd>{{end}}
   </dl>
   {{if .This}}{{activity $.ApplyActivity}}{{end}}
   {{if $.Only}}

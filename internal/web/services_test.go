@@ -970,3 +970,20 @@ func TestBackupsPageRestoresThisServersServices(t *testing.T) {
 		t.Error("this server's services should be restorable")
 	}
 }
+
+func TestCertificateExpiry(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true, CertExpires: time.Now().Add(300 * 24 * time.Hour)},
+		{ID: "n-9876543210", Name: "vps", CertExpires: time.Now().Add(10 * 24 * time.Hour)}}
+	if _, body := h.get("/settings/servers"); !strings.Contains(body, "renewed automatically") {
+		t.Error("Servers should show each certificate")
+	}
+	_, body := h.get("/")
+	if !strings.Contains(body, "vps&#39;s certificate on MyLab&#39;s network expires") || strings.Contains(body, "nuc&#39;s certificate") {
+		t.Errorf("a certificate that isn't renewing should need attention")
+	}
+	fm.servers[1].CertExpires = time.Now().Add(-time.Hour)
+	if _, body := h.get("/"); !strings.Contains(body, "has expired") {
+		t.Error("an expired certificate")
+	}
+}

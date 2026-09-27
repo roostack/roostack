@@ -17,6 +17,8 @@ const backupStale = 48 * time.Hour
 var templateFuncs = template.FuncMap{
 	"when":  whenText,
 	"stale": isStale,
+	// date is a day, e.g. 28 September 2027.
+	"date": func(t time.Time) string { return t.Local().Format("2 January 2006") },
 	// list makes a slice, e.g. {{range list "light" "dark"}}.
 	"list": func(items ...string) []string { return items },
 	// percent shows progress, or nothing if it's unknown (-1).

@@ -40,6 +40,10 @@ type Secret struct {
 	// once those succeed: create them if a value is at hand, but a missing
 	// one is not an error.
 	InstallOnly bool
+	// Holds names a Quadlet file that waits while this user secret hasn't
+	// been given (e.g. Caddy until the domain step): the rest of the lab
+	// is applied without it.
+	Holds string
 }
 
 // Output is everything generated for one service.

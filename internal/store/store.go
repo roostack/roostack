@@ -131,6 +131,11 @@ var migrations = []string{
 	ALTER TABLE backup_targets RENAME COLUMN machine_id TO server_id;
 	ALTER TABLE store_admins RENAME COLUMN machine_id TO server_id;
 	UPDATE backup_targets SET provider = 'server:' || substr(provider, 9) WHERE provider LIKE 'machine:%';`,
+	// The certificate each server may use on the lab API (SPEC.md §10.3):
+	// its current serial, and the one it replaced until the new one is used.
+	`ALTER TABLE servers ADD COLUMN cert_serial TEXT NOT NULL DEFAULT '';
+	ALTER TABLE servers ADD COLUMN prev_serial TEXT NOT NULL DEFAULT '';
+	ALTER TABLE servers ADD COLUMN cert_expires INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -573,6 +578,12 @@ type Server struct {
 	// PublicKey is its WireGuard key.
 	PublicKey string
 	JoinedAt  time.Time
+	// CertSerial is the certificate it may use on the lab API; PrevSerial
+	// the one that certificate replaced, accepted until the new one is
+	// used. An empty CertSerial (joined before serials were kept) accepts
+	// any certificate the lab's CA signed for it.
+	CertSerial, PrevSerial string
+	CertExpires            time.Time
 }
 
 // JoinCode is a join code waiting to be used. Only the token's hash is
@@ -636,9 +647,13 @@ func (s *Store) Join(ctx context.Context, tokenHash string, m Server, now time.T
 	}
 	m.JoinedAt = now
 	// Joining again (e.g. after reinstalling) replaces the old entry.
-	if _, err := tx.ExecContext(ctx, `INSERT INTO servers (id, name, addr, public_key, joined_at) VALUES (?, ?, ?, ?, ?)
+	// Its certificate is recorded once signed (SetServerCert); until then
+	// none is accepted, not even one from an earlier join.
+	if _, err := tx.ExecContext(ctx, `INSERT INTO servers (id, name, addr, public_key, joined_at, cert_serial)
+		VALUES (?, ?, ?, ?, ?, 'pending')
 		ON CONFLICT(id) DO UPDATE SET name = excluded.name, addr = excluded.addr, public_key = excluded.public_key,
-		joined_at = excluded.joined_at`, m.ID, m.Name, m.Addr, m.PublicKey, now.Unix()); err != nil {
+		joined_at = excluded.joined_at, cert_serial = 'pending', prev_serial = '', cert_expires = 0`,
+		m.ID, m.Name, m.Addr, m.PublicKey, now.Unix()); err != nil {
 		return m, err
 	}
 	return m, tx.Commit()
@@ -646,7 +661,8 @@ func (s *Store) Join(ctx context.Context, tokenHash string, m Server, now time.T
 
 // Servers lists the other servers in the lab.
 func (s *Store) Servers(ctx context.Context) ([]Server, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, addr, public_key, joined_at FROM servers ORDER BY name`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, addr, public_key, joined_at, cert_serial, prev_serial, cert_expires
+		FROM servers ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -654,14 +670,31 @@ func (s *Store) Servers(ctx context.Context) ([]Server, error) {
 	var out []Server
 	for rows.Next() {
 		var m Server
-		var joined int64
-		if err := rows.Scan(&m.ID, &m.Name, &m.Addr, &m.PublicKey, &joined); err != nil {
+		var joined, expires int64
+		if err := rows.Scan(&m.ID, &m.Name, &m.Addr, &m.PublicKey, &joined, &m.CertSerial, &m.PrevSerial, &expires); err != nil {
 			return nil, err
 		}
 		m.JoinedAt = time.Unix(joined, 0)
+		if expires > 0 {
+			m.CertExpires = time.Unix(expires, 0)
+		}
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+// SetServerCert records the certificate a server may use, and the one it
+// replaces (or "").
+func (s *Store) SetServerCert(ctx context.Context, id, serial, prev string, expires time.Time) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE servers SET cert_serial = ?, prev_serial = ?, cert_expires = ? WHERE id = ?`,
+		serial, prev, expires.Unix(), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // RemoveServer forgets a server.
