@@ -131,7 +131,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Backups across machines (SPEC.md §10.10)
     - [x] Port forwarding explained on the join page (UDP 51820, which machine, how to check)
     - [x] Backup providers: S3-compatible providers set up once, usable by any machine; any machine's disk
-    - [ ] The controller's existing destination (from the setup wizard) shown as a provider, and moved into the scheme
+    - [x] The setup wizard's destination follows the scheme (own folder; an S3 account becomes a provider; pruned by the controller); an existing one is recorded and shown as it is
     - [x] rest-server on a machine (pinned container) offering its disk over MyLab's network, a user per machine
     - [x] The controller creates each machine's repository (recovery key + the machine's own key) and hands over only the machine's key and credentials
     - [x] Each machine's Backups page chooses its provider; status per machine

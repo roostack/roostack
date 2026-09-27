@@ -4,7 +4,9 @@ package store
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -743,4 +745,19 @@ func (s *Store) SetStoreAdmin(ctx context.Context, machineID, password, hash str
 	_, err := s.db.ExecContext(ctx, `INSERT INTO store_admins (machine_id, password, hash) VALUES (?, ?, ?)
 		ON CONFLICT(machine_id) DO UPDATE SET password = excluded.password, hash = excluded.hash`, machineID, password, hash)
 	return err
+}
+
+// LabID names the lab in backup folders (SPEC.md §10.10): made once, never
+// changed.
+func (s *Store) LabID(ctx context.Context) (string, error) {
+	id, err := s.Setting(ctx, "lab.id")
+	if err != nil || id != "" {
+		return id, err
+	}
+	b := make([]byte, 5)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	id = "lab-" + hex.EncodeToString(b)
+	return id, s.SetSetting(ctx, "lab.id", id)
 }
