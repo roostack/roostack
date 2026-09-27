@@ -456,8 +456,8 @@ Builds on §6.9 (restic, recovery key, 3-2-1) and §10.3 (each machine backs up 
 
 **Open questions**
 1. **Provider credentials on machines:** each machine needs credentials to reach its destination every night. Store the provider's credentials on each machine that uses it, or create a **scoped credential per machine** where the provider allows it (B2 application keys limited to a folder, S3 policies), falling back to the shared one?
-2. **Pruning append-only repositories:** who runs `restic forget/prune`? Proposal: the controller, using the recovery key over a separate non-append-only rest-server credential, weekly. For friends' storage the guest's own controller does this.
-3. **rest-server as a dependency:** restic's own server (BSD-2, Go, same project as restic). Run it as a container (`docker.io/restic/rest-server`, pinned) like Caddy, or install the binary?
+2. ~~Pruning~~ **Decided (2026-09-27):** the controller runs `restic forget/prune` weekly with the recovery key, over a separate non-append-only credential. For friends' storage, the guest lab's controller does it.
+3. ~~rest-server as a dependency~~ **Decided (2026-09-27):** run it as a pinned container (`docker.io/restic/rest-server`), like Caddy: containers where possible make other distributions easier to support later.
 4. **Guest link:** the storage invite gives the guest lab a WireGuard peer on the host restricted by the firewall to the rest-server port. Is a separate WireGuard interface for guests worth it (clearer isolation), or one interface with per-peer rules?
 
 ## Deferred Decisions (post-MVP)
