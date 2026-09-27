@@ -192,6 +192,21 @@ func serve(args []string) error {
 	labAPI.Handle("POST /v1/renew", hub.Require(hub.RenewHandler()))
 	go labnet.Serve(ctx, lab.Paths.StateDir, labAPI, log)
 	go labnet.KeepRenewed(ctx, labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, id.ID, hub.RenewSelf, log)
+	// Hourly: hear from labs storing this one's backups (a removal, a new
+	// name), and delete removed guest labs' backups once their grace ends.
+	go func() {
+		for {
+			mgr.CheckRemotes(ctx)
+			if err := mgr.PurgeRemovedGuests(ctx, time.Now()); err != nil {
+				log.Error("deleting removed guest labs' backups", "err", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Hour):
+			}
+		}
+	}()
 	srv.Maintenance = lab.Maintenance
 	srv.RunningJob = func() string {
 		if st := coord.Status(); st.Running != nil {

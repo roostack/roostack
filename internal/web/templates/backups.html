@@ -61,7 +61,9 @@
     <ul class="plain">
       {{range .}}<li><strong>{{.HostName}}</strong>: {{if .Reachable}}{{if ge .Usage.Used 0}}{{size .Usage.Used}} of {{end}}{{size .Usage.Quota}} used
         {{- else}}<span class="dot dot-warn" aria-hidden="true"></span>can't reach it right now{{end}}
-        <span class="hint">· {{with .UsedBy}}used by {{range $i, $n := .}}{{if $i}}, {{end}}{{$n}}{{end}}{{else}}no server backs up here yet{{end}}</span></li>{{end}}
+        <span class="hint">· {{with .UsedBy}}used by {{range $i, $n := .}}{{if $i}}, {{end}}{{$n}}{{end}}{{else}}no server backs up here yet{{end}}</span>
+        {{if not .Usage.DeleteOn.IsZero}}<br><span class="error">{{.HostName}} has stopped storing your backups; what's there is deleted on {{date .Usage.DeleteOn}}.
+          Choose somewhere else above.</span>{{end}}</li>{{end}}
     </ul>
     {{end}}
     {{if .Server.This}}<p><a href="/setup/backup">Set up this server's backups with the setup wizard instead…</a></p>{{end}}

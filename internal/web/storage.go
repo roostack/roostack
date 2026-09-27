@@ -46,7 +46,15 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 			endpoint = net.JoinHostPort(host, strconv.Itoa(agent.GuestsPort))
 		}
 	}
-	data["Guests"], data["Leftover"], data["Endpoint"] = guests, left, endpoint
+	var active, removed []manager.GuestView
+	for _, g := range guests {
+		if g.Removed.IsZero() {
+			active = append(active, g)
+		} else {
+			removed = append(removed, g)
+		}
+	}
+	data["Guests"], data["Removed"], data["Leftover"], data["Endpoint"] = active, removed, left, endpoint
 	data["Offering"] = s.Manager.OfferStorage(r.Context())
 	if host, _, err := net.SplitHostPort(defaultEndpoint()); err == nil {
 		data["LANAddr"] = host
@@ -106,6 +114,24 @@ func (s *Server) removeGuestSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "storage", "removed guest "+r.PathValue("id"))
+	redirect(w, r, "/settings/storage")
+}
+
+func (s *Server) deleteRemovedGuestSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	err := s.Manager.DeleteRemovedGuest(r.Context(), s.guestID(r))
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "storage", "deleted removed guest "+r.PathValue("id")+"'s backups")
 	redirect(w, r, "/settings/storage")
 }
 

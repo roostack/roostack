@@ -162,6 +162,8 @@ type ServiceManager interface {
 	StorageGuests(ctx context.Context) ([]manager.GuestView, error)
 	InviteGuest(ctx context.Context, name string, quota int64, endpoint string) (labnet.StorageInvite, error)
 	RemoveGuest(ctx context.Context, id int64) error
+	DeleteRemovedGuest(ctx context.Context, id int64) error
+	EndingStorages(ctx context.Context) []manager.EndingStorage
 	SetGuestQuota(ctx context.Context, id, quota int64) error
 	LeftoverGuests(ctx context.Context) ([]manager.LeftoverGuest, error)
 	DeleteLeftoverGuest(ctx context.Context, user string) error
@@ -329,6 +331,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /settings/storage", s.requireOwner(s.storagePage))
 	mux.Handle("POST /settings/storage/invite", s.requireOwner(s.inviteGuestSubmit))
 	mux.Handle("POST /settings/storage/guests/{id}/remove", s.requireOwner(s.removeGuestSubmit))
+	mux.Handle("POST /settings/storage/guests/{id}/delete", s.requireOwner(s.deleteRemovedGuestSubmit))
 	mux.Handle("POST /settings/storage/guests/{id}/quota", s.requireOwner(s.guestQuotaSubmit))
 	mux.Handle("POST /settings/storage/leftover/{user}/delete", s.requireOwner(s.deleteLeftoverSubmit))
 	mux.Handle("POST /settings/remote-storage", s.requireOwner(s.addRemoteStorageSubmit))

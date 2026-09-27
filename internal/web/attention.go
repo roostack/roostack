@@ -50,6 +50,13 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		add(levelInfo, "Finishing the restore: putting the services' databases back from the backup. Some services may not work until it's done.",
 			"", "")
 	}
+	// Another lab that stopped storing this lab's backups (it said so).
+	if owner && s.Manager != nil {
+		for _, e := range s.Manager.EndingStorages(r.Context()) {
+			add(levelWarning, e.HostName+" has stopped storing your backups. What's there is deleted on "+
+				e.DeleteOn.Local().Format("2 January")+": send them somewhere else.", "/backups#destination", "Choose where backups go")
+		}
+	}
 	if owner && s.Setup != nil {
 		if p, err := s.Setup.Progress(r.Context()); err == nil && p.DomainLater && !p.DomainDone {
 			add(levelProblem, "Your domain isn't set up, so services can't get secure (HTTPS) certificates.",

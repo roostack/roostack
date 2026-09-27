@@ -150,6 +150,9 @@ var migrations = []string{
 		PRIMARY KEY (server_id, provider)
 	);
 	ALTER TABLE backup_runs ADD COLUMN destination TEXT NOT NULL DEFAULT '';`,
+	// A removed guest lab is kept for a while (its data, and its link so it
+	// can be told) before it's deleted.
+	`ALTER TABLE storage_guests ADD COLUMN removed_at INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -905,12 +908,15 @@ type Guest struct {
 	Port                 int
 	StoreHash, AdminHash string
 	Created              time.Time
+	// Removed is when the host stopped storing its backups (zero if it
+	// still does); its data is deleted after a grace period.
+	Removed time.Time
 }
 
 // User is the guest's rest-server user name.
 func (g Guest) User() string { return fmt.Sprintf("g%d", g.ID) }
 
-const guestColumns = `id, name, quota, addr, public_key, joined, token_hash, expires_at, port, store_hash, admin_hash, created_at`
+const guestColumns = `id, name, quota, addr, public_key, joined, token_hash, expires_at, port, store_hash, admin_hash, created_at, removed_at`
 
 // AddGuest records an invited guest and returns its ID.
 func (s *Store) AddGuest(ctx context.Context, g Guest) (int64, error) {
@@ -937,12 +943,15 @@ func (s *Store) Guests(ctx context.Context, now time.Time) ([]Guest, error) {
 	for rows.Next() {
 		var g Guest
 		var joined int
-		var exp, created int64
+		var exp, created, removed int64
 		if err := rows.Scan(&g.ID, &g.Name, &g.Quota, &g.Addr, &g.PublicKey, &joined, &g.TokenHash, &exp, &g.Port,
-			&g.StoreHash, &g.AdminHash, &created); err != nil {
+			&g.StoreHash, &g.AdminHash, &created, &removed); err != nil {
 			return nil, err
 		}
 		g.Joined, g.Expires, g.Created = joined == 1, time.Unix(exp, 0), time.Unix(created, 0)
+		if removed > 0 {
+			g.Removed = time.Unix(removed, 0)
+		}
 		out = append(out, g)
 	}
 	return out, rows.Err()
@@ -977,7 +986,20 @@ func (s *Store) SetGuestQuota(ctx context.Context, id, quota int64) error {
 	return err
 }
 
-// RemoveGuest forgets a guest (its data is deleted separately).
+// SetGuestRemoved records when the host stopped storing a guest's
+// backups.
+func (s *Store) SetGuestRemoved(ctx context.Context, id int64, at time.Time) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE storage_guests SET removed_at = ? WHERE id = ? AND removed_at = 0`, at.Unix(), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// RemoveGuest forgets a guest for good (its data is deleted separately).
 func (s *Store) RemoveGuest(ctx context.Context, id int64) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM storage_guests WHERE id = ?`, id)
 	return err

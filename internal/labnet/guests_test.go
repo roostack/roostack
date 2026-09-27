@@ -91,6 +91,20 @@ func TestGuestHub(t *testing.T) {
 	if code, u := usage(inv.User, inv.AdminPassword); code != http.StatusOK || u.Used != 3<<30 || u.Quota != 50<<30 {
 		t.Errorf("usage: %d %+v", code, u)
 	}
+	if _, u := usage(inv.User, inv.AdminPassword); u.Host != "Mum's lab" || !u.DeleteOn.IsZero() {
+		t.Errorf("the host's name, and no removal: %+v", u)
+	}
+	// Removed: the guest still hears, with the date its backups go.
+	guests, _ := st.Guests(ctx, time.Now())
+	removedAt := time.Now().Add(-time.Hour)
+	for _, g := range guests {
+		if g.User() == inv.User {
+			st.SetGuestRemoved(ctx, g.ID, removedAt)
+		}
+	}
+	if code, u := usage(inv.User, inv.AdminPassword); code != http.StatusOK || !u.DeleteOn.Equal(removedAt.Add(GuestGrace).Truncate(time.Second)) {
+		t.Errorf("a removed guest: %d %+v", code, u)
+	}
 	if code, _ := usage(inv.User, inv.StorePassword); code != http.StatusForbidden {
 		t.Error("usage needs the admin password")
 	}
