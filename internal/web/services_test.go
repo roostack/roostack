@@ -51,6 +51,7 @@ type fakeManager struct {
 	serverOps   []string
 	destination string
 	copies      []manager.BackupCopy
+	ending      []manager.EndingStorage
 	providers   []string
 	moves       []string
 	guests      []manager.GuestView
@@ -83,6 +84,11 @@ func (f *fakeManager) InviteGuest(_ context.Context, name string, quota int64, e
 	f.guestOps = append(f.guestOps, fmt.Sprintf("invite %s %d %s", name, quota>>30, endpoint))
 	return labnet.StorageInvite{Token: "t", User: "g1"}, nil
 }
+func (f *fakeManager) DeleteRemovedGuest(_ context.Context, id int64) error {
+	f.guestOps = append(f.guestOps, fmt.Sprintf("delete now %d", id))
+	return nil
+}
+func (f *fakeManager) EndingStorages(context.Context) []manager.EndingStorage { return f.ending }
 func (f *fakeManager) RemoveGuest(_ context.Context, id int64) error {
 	f.guestOps = append(f.guestOps, fmt.Sprintf("remove %d", id))
 	return nil
@@ -1042,5 +1048,27 @@ func TestLabName(t *testing.T) {
 	h.post("/settings/lab", url.Values{"name": {"The Smiths' lab"}}, h.srv.URL)
 	if fs.labName != "The Smiths' lab" || !fs.restarted {
 		t.Errorf("rename: %q %v", fs.labName, fs.restarted)
+	}
+}
+
+func TestRemovedGuestLabs(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.guests = []manager.GuestView{
+		{Guest: store.Guest{ID: 1, Name: "Sam's lab", Joined: true, Quota: 10 << 30}, Used: 1 << 30},
+		{Guest: store.Guest{ID: 2, Name: "Old lab", Joined: true, Quota: 10 << 30, Removed: time.Now().Add(-24 * time.Hour)}, Used: 2 << 30},
+	}
+	_, body := h.get("/settings/storage")
+	i := strings.Index(body, "Labs you removed")
+	if i < 0 || !strings.Contains(body[i:], "Old lab") || strings.Contains(body[:i], "Old lab") || !strings.Contains(body[i:], "deleted on") {
+		t.Fatalf("removed labs are listed apart:\n%s", body)
+	}
+	h.post("/settings/storage/guests/2/delete", nil, h.srv.URL)
+	if !slices.Contains(fm.guestOps, "delete now 2") {
+		t.Errorf("ops = %v", fm.guestOps)
+	}
+	// The guest's side: a host that stopped storing its backups needs attention.
+	fm.ending = []manager.EndingStorage{{HostName: "Mum's lab", DeleteOn: time.Now().Add(29 * 24 * time.Hour)}}
+	if _, body := h.get("/"); !strings.Contains(body, "Mum&#39;s lab has stopped storing your backups") {
+		t.Error("an ending storage needs attention")
 	}
 }

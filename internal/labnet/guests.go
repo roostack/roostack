@@ -286,7 +286,14 @@ type GuestUsage struct {
 	Quota int64 `json:"quota"`
 	// Host is the host lab's name now (it may have been renamed).
 	Host string `json:"host,omitempty"`
+	// DeleteOn is set once the host has stopped storing the guest's
+	// backups: what's there is deleted then.
+	DeleteOn time.Time `json:"delete_on,omitzero"`
 }
+
+// GuestGrace is how long a removed guest lab's backups stay, so it hears
+// about it (its link stays up to say so) and can move them elsewhere.
+const GuestGrace = 30 * 24 * time.Hour
 
 // Handler is the API guests reach over the guests' link.
 func (h *GuestHub) Handler() http.Handler {
@@ -326,6 +333,9 @@ func (h *GuestHub) Handler() http.Handler {
 			return
 		}
 		u := GuestUsage{Used: -1, Quota: g.Quota, Host: h.LabName}
+		if !g.Removed.IsZero() {
+			u.DeleteOn = g.Removed.Add(GuestGrace)
+		}
 		if h.Usage != nil {
 			if used, err := h.Usage(r.Context(), g); err == nil {
 				u.Used = used

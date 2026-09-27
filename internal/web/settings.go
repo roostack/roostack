@@ -173,8 +173,13 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	set("storage", "Give family or friends space for their backups", "")
 	if s.Manager != nil && s.Manager.OfferStorage(r.Context()) {
 		if guests, err := s.Manager.StorageGuests(r.Context()); err == nil {
-			set("storage", fmt.Sprintf("%d %s storing backups here", len(guests),
-				map[bool]string{true: "lab", false: "labs"}[len(guests) == 1]), "ok")
+			n := 0
+			for _, g := range guests {
+				if g.Removed.IsZero() {
+					n++
+				}
+			}
+			set("storage", fmt.Sprintf("%d %s storing backups here", n, map[bool]string{true: "lab", false: "labs"}[n == 1]), "ok")
 		}
 	}
 	// With several servers, per-server areas summarise each.

@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/netip"
 	"os"
@@ -27,7 +28,11 @@ type GuestRecords interface {
 	Guests(ctx context.Context, now time.Time) ([]store.Guest, error)
 	SetGuestQuota(ctx context.Context, id, quota int64) error
 	RemoveGuest(ctx context.Context, id int64) error
+	SetGuestRemoved(ctx context.Context, id int64, at time.Time) error
 }
+
+// GuestGrace is how long a removed guest lab's backups stay.
+const GuestGrace = labnet.GuestGrace
 
 // LinkAgent is mylab-agent's WireGuard operations for links between labs.
 type LinkAgent interface {
@@ -49,6 +54,9 @@ type GuestView struct {
 	Used     int64 // bytes, -1 if unknown
 	LastSeen time.Time
 }
+
+// DeleteOn is when a removed guest's backups are deleted.
+func (g GuestView) DeleteOn() time.Time { return g.Removed.Add(GuestGrace) }
 
 // OfferStorage reports whether this lab offers storage to others.
 func (m *Manager) OfferStorage(ctx context.Context) bool {
@@ -142,14 +150,64 @@ func (m *Manager) RemoveGuest(ctx context.Context, id int64) error {
 	if m.GuestRecords == nil {
 		return ErrNotFound
 	}
-	if err := m.GuestRecords.RemoveGuest(ctx, id); err != nil {
+	// Its store stops now; its link stays so it can be told, and its data
+	// until the grace period ends (PurgeRemovedGuests).
+	if err := m.GuestRecords.SetGuestRemoved(ctx, id, time.Now()); errors.Is(err, store.ErrNotFound) {
+		return ErrNotFound
+	} else if err != nil {
 		return err
 	}
-	if err := m.GuestHub.SyncPeers(ctx); err != nil {
-		return err
-	}
-	m.Apply() // its store stops
+	m.Apply()
 	return nil
+}
+
+// DeleteRemovedGuest deletes a removed guest's data now, and its link.
+func (m *Manager) DeleteRemovedGuest(ctx context.Context, id int64) error {
+	if m.GuestRecords == nil {
+		return ErrNotFound
+	}
+	guests, err := m.GuestRecords.Guests(ctx, time.Now())
+	if err != nil {
+		return err
+	}
+	for _, g := range guests {
+		if g.ID == id && !g.Removed.IsZero() {
+			return m.purgeGuest(ctx, g)
+		}
+	}
+	return ErrNotFound
+}
+
+// PurgeRemovedGuests deletes the data of guests removed longer than
+// GuestGrace ago (daily).
+func (m *Manager) PurgeRemovedGuests(ctx context.Context, now time.Time) error {
+	if m.GuestRecords == nil {
+		return nil
+	}
+	guests, err := m.GuestRecords.Guests(ctx, now)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, g := range guests {
+		if !g.Removed.IsZero() && now.Sub(g.Removed) >= GuestGrace {
+			m.Log.Info("deleting a removed guest lab's backups", "guest", g.Name, "removed", g.Removed)
+			errs = append(errs, m.purgeGuest(ctx, g))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (m *Manager) purgeGuest(ctx context.Context, g store.Guest) error {
+	if m.RemoveGuestDir != nil {
+		if err := m.RemoveGuestDir(ctx, g.User()); err != nil {
+			return fmt.Errorf("deleting %s's backups: %w", g.Name, err)
+		}
+	}
+	if err := m.GuestRecords.RemoveGuest(ctx, g.ID); err != nil {
+		return err
+	}
+	return m.GuestHub.SyncPeers(ctx)
 }
 
 // SetGuestQuota changes how much a guest may store.
@@ -183,6 +241,9 @@ func (m *Manager) guestStores(ctx context.Context) ([]generate.GuestStorage, str
 	}
 	var out []generate.GuestStorage
 	for _, g := range guests {
+		if !g.Removed.IsZero() {
+			continue // no more backups
+		}
 		out = append(out, generate.GuestStorage{User: g.User(), Port: g.Port, Quota: g.Quota,
 			StoreHash: g.StoreHash, AdminHash: g.AdminHash})
 	}
@@ -285,7 +346,43 @@ func (m *Manager) RemoteUsage(ctx context.Context, r RemoteStorage) (labnet.Gues
 	if err == nil && u.Host != "" && u.Host != r.HostName {
 		m.renameRemote(ctx, r, u.Host)
 	}
+	if err == nil {
+		m.remoteMu.Lock()
+		if m.remoteSeen == nil {
+			m.remoteSeen = map[string]labnet.GuestUsage{}
+		}
+		m.remoteSeen[r.Ref] = u
+		m.remoteMu.Unlock()
+	}
 	return u, err
+}
+
+// CheckRemotes asks every lab storing this one's backups how it's going
+// (hourly), so a removal is noticed.
+func (m *Manager) CheckRemotes(ctx context.Context) {
+	for _, r := range m.RemoteStorages(ctx) {
+		m.RemoteUsage(ctx, r)
+	}
+}
+
+// EndingStorage is storage at another lab that has stopped keeping this
+// lab's backups: what's there is deleted on DeleteOn.
+type EndingStorage struct {
+	HostName string
+	DeleteOn time.Time
+}
+
+// EndingStorages lists them, as last heard.
+func (m *Manager) EndingStorages(ctx context.Context) []EndingStorage {
+	m.remoteMu.Lock()
+	defer m.remoteMu.Unlock()
+	var out []EndingStorage
+	for _, r := range m.RemoteStorages(ctx) {
+		if u, ok := m.remoteSeen[r.Ref]; ok && !u.DeleteOn.IsZero() {
+			out = append(out, EndingStorage{HostName: r.HostName, DeleteOn: u.DeleteOn})
+		}
+	}
+	return out
 }
 
 // renameRemote follows a host lab's new name.

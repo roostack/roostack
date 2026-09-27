@@ -147,7 +147,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] A lab whose domain isn't set up yet applies everything but Caddy, which waits for its DNS credentials
   - [x] A server's backup store stops when no server backs up to it (its backups stay on disk)
   - [x] Labs have a name (first run, Settings → Lab name): shown in the header and to labs sharing storage, which follow a rename; the domain until one is chosen
-  - [ ] Removed guests: delete their data automatically after a grace period, with notice to them
+  - [x] Removed guests: their store stops at once; their link stays for 30 days so their lab hears (Backups and "needs attention" there show the deletion date); their data is deleted then (hourly check), or sooner by the host
   - [ ] Storage for others offered by a machine other than the controller
   - [ ] Move a service between machines (SPEC.md §10.10)
     - [x] Copy directly: copy while running, stop, copy what changed (and deletions), bring its secrets, switch; the old copy is set aside

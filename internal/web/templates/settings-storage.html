@@ -25,10 +25,21 @@
         <td>{{if not .Joined}}Waiting for them to use the invite (until {{when .Expires}})
           {{- else if .LastSeen.IsZero}}<span class="dot dot-warn" aria-hidden="true"></span>Not yet: check the port forwarding below
           {{- else}}<span class="dot dot-ok" aria-hidden="true"></span>{{when .LastSeen}}{{end}}</td>
-        <td>{{confirm (printf "/settings/storage/guests/%d/remove" .ID) (printf "Stop storing backups for %s? Their access stops now; their data stays until you delete it." .Name) "Remove" "quiet danger"}}</td>
+        <td>{{confirm (printf "/settings/storage/guests/%d/remove" .ID) (printf "Stop storing backups for %s? They can't add backups from now on. MyLab tells their lab, and deletes what's here in 30 days (or sooner, if you choose)." .Name) "Remove" "quiet danger"}}</td>
       </tr>{{end}}
     </tbody>
   </table>
+</section>
+{{end}}
+
+{{with .Removed}}
+<section class="card section">
+  <h2>Labs you removed</h2>
+  <p class="hint">They can't add backups any more. Their lab has been told, and can still see when their backups here are deleted.</p>
+  <ul class="plain">
+    {{range .}}<li><strong>{{.Name}}</strong> · removed {{when .Removed}} · {{if ge .Used 0}}{{size .Used}}, {{end}}deleted on {{date .DeleteOn}}
+      {{confirm (printf "/settings/storage/guests/%d/delete" .ID) (printf "Delete %s's backups here now? This can't be undone." .Name) "Delete now" "quiet danger"}}</li>{{end}}
+  </ul>
 </section>
 {{end}}
 

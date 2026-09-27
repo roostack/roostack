@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/b2"
+	"github.com/mylab/mylab/internal/labnet"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -303,5 +306,64 @@ func TestRemoteStorageFollowsRename(t *testing.T) {
 	if ps[0].ID != id || ps[0].Name != "Mum's lab's storage" || m.RemoteStorages(ctx)[0].HostName != "Mum's lab" ||
 		m.RemoteStorages(ctx)[0].Quota != 5<<30 {
 		t.Errorf("after the host's rename: %+v", ps[0])
+	}
+}
+
+type fakeWG struct{ peers int }
+
+func (f *fakeWG) ApplyWireGuard(_ context.Context, wg agent.WireGuard) (string, error) {
+	f.peers = len(wg.Peers)
+	return "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", nil
+}
+
+// A removed guest lab stops backing up at once, keeps its link (to hear
+// about it) and its data for the grace period, then both go.
+func TestRemovedGuestGrace(t *testing.T) {
+	m, _ := newManager(t)
+	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	wg := &fakeWG{}
+	m.GuestRecords = st
+	m.GuestHub = &labnet.GuestHub{LabName: "nuc's lab", Store: st, Agent: wg, Log: m.Log, Now: time.Now}
+	var deleted []string
+	m.RemoveGuestDir = func(_ context.Context, user string) error { deleted = append(deleted, user); return nil }
+	ctx := context.Background()
+	inv, err := m.GuestHub.NewInvite(ctx, "Sam's lab", 10<<30, "203.0.113.7:51821")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.JoinGuest(ctx, labnet.HashToken(inv.Token), "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	guests, _ := st.Guests(ctx, time.Now())
+	g := guests[0]
+	if stores, _ := m.guestStores(ctx); len(stores) != 1 {
+		t.Fatal("a guest's store runs")
+	}
+	if err := m.RemoveGuest(ctx, g.ID); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if stores, _ := m.guestStores(ctx); len(stores) != 0 {
+		t.Error("a removed guest's store stops")
+	}
+	m.GuestHub.SyncPeers(ctx)
+	if wg.peers != 1 {
+		t.Error("its link stays, so it can be told")
+	}
+	if err := m.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace-time.Hour)); err != nil || len(deleted) != 0 {
+		t.Fatalf("within the grace period: %v %v", err, deleted)
+	}
+	if err := m.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace+time.Hour)); err != nil || !slices.Equal(deleted, []string{g.User()}) {
+		t.Fatalf("after it: %v %v", err, deleted)
+	}
+	if guests, _ := st.Guests(ctx, time.Now()); len(guests) != 0 || wg.peers != 0 {
+		t.Errorf("gone: %+v peers %d", guests, wg.peers)
+	}
+	if err := m.DeleteRemovedGuest(ctx, g.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("already deleted: %v", err)
 	}
 }

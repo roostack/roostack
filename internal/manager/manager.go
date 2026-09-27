@@ -74,6 +74,10 @@ type Manager struct {
 	// GuestDirs and RemoveGuestDir list and delete guests' data folders.
 	GuestDirs      func() ([]string, error)
 	RemoveGuestDir func(ctx context.Context, user string) error
+
+	// remoteSeen is each storage at another lab's latest answer (by Ref).
+	remoteMu   sync.Mutex
+	remoteSeen map[string]labnet.GuestUsage
 	// NewB2 makes a Backblaze client (tests; nil uses the real service).
 	NewB2 func(keyID, key string) *b2.Client
 	// Activity shows problems building an assignment (optional).
