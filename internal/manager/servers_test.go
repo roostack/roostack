@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"errors"
+	"github.com/mylab/mylab/internal/agent"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,12 +18,14 @@ import (
 
 // fakeRemote is another server that records its assignments.
 type fakeRemote struct {
-	mu       sync.Mutex
-	last     node.Assignment
-	n        int
-	left     bool
-	name     string
-	settings *fakeServerSettings
+	guestLink []agent.WireGuard
+	deleted   []string
+	mu        sync.Mutex
+	last      node.Assignment
+	n         int
+	left      bool
+	name      string
+	settings  *fakeServerSettings
 }
 
 func (f *fakeRemote) Identity() nodeid.Identity {
@@ -89,6 +92,27 @@ func (f *fakeServerSettings) SetBackupDestination(_ context.Context, d node.Back
 	defer f.mu.Unlock()
 	f.dest = &d
 	return nil
+}
+func (f *fakeRemote) ApplyGuestLink(_ context.Context, wg agent.WireGuard) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.guestLink = append(f.guestLink, wg)
+	return "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", nil
+}
+func (f *fakeRemote) GuestLinkStatus(context.Context) (agent.WireGuardStatus, error) {
+	return agent.WireGuardStatus{}, nil
+}
+func (f *fakeRemote) RemoveGuestLink(context.Context) error             { return nil }
+func (f *fakeRemote) GuestUsage(context.Context, string) (int64, error) { return 1 << 30, nil }
+func (f *fakeRemote) GuestDirs(context.Context) ([]string, error)       { return nil, nil }
+func (f *fakeRemote) RemoveGuestDir(_ context.Context, user string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.deleted = append(f.deleted, user)
+	return nil
+}
+func (f *fakeRemote) GuestSpace(context.Context) (int64, int64, error) {
+	return 500 << 30, 1000 << 30, nil
 }
 func (f *fakeRemote) Leave(context.Context) error {
 	f.mu.Lock()

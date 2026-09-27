@@ -165,6 +165,8 @@ type ServiceManager interface {
 	RemoveGuest(ctx context.Context, id int64) error
 	RetryInstallWith(ctx context.Context, name string, settings, secrets map[string]string) error
 	DeleteRemovedGuest(ctx context.Context, id int64) error
+	GuestServer(ctx context.Context) string
+	SetGuestServer(ctx context.Context, id string) error
 	EndingStorages(ctx context.Context) []manager.EndingStorage
 	SetGuestQuota(ctx context.Context, id, quota int64) error
 	LeftoverGuests(ctx context.Context) ([]manager.LeftoverGuest, error)
@@ -334,6 +336,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/storage/invite", s.requireOwner(s.inviteGuestSubmit))
 	mux.Handle("POST /settings/storage/guests/{id}/remove", s.requireOwner(s.removeGuestSubmit))
 	mux.Handle("POST /settings/storage/guests/{id}/delete", s.requireOwner(s.deleteRemovedGuestSubmit))
+	mux.Handle("POST /settings/storage/server", s.requireOwner(s.guestServerSubmit))
 	mux.Handle("POST /settings/storage/guests/{id}/quota", s.requireOwner(s.guestQuotaSubmit))
 	mux.Handle("POST /settings/storage/leftover/{user}/delete", s.requireOwner(s.deleteLeftoverSubmit))
 	mux.Handle("POST /settings/remote-storage", s.requireOwner(s.addRemoteStorageSubmit))

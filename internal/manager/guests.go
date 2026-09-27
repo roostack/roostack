@@ -6,16 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/labnet"
+	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/store"
 )
 
@@ -29,6 +28,8 @@ type GuestRecords interface {
 	SetGuestQuota(ctx context.Context, id, quota int64) error
 	RemoveGuest(ctx context.Context, id int64) error
 	SetGuestRemoved(ctx context.Context, id int64, at time.Time) error
+	Setting(ctx context.Context, key string) (string, error)
+	SetSetting(ctx context.Context, key, value string) error
 }
 
 // GuestGrace is how long a removed guest lab's backups stay.
@@ -73,16 +74,17 @@ func (m *Manager) StorageGuests(ctx context.Context) ([]GuestView, error) {
 		return nil, err
 	}
 	var hs map[string]int64
-	if m.LinkAgent != nil {
-		if st, err := m.LinkAgent.WireGuardStatus(ctx, agent.GuestsInterface); err == nil {
+	host := m.guestHost(ctx)
+	if host != nil {
+		if st, err := host.GuestLinkStatus(ctx); err == nil {
 			hs = st.Handshakes
 		}
 	}
 	var out []GuestView
 	for _, g := range guests {
 		v := GuestView{Guest: g, Used: -1}
-		if m.GuestUsage != nil {
-			if used, err := m.GuestUsage(g.User()); err == nil {
+		if host != nil {
+			if used, err := host.GuestUsage(ctx, g.User()); err == nil {
 				v.Used = used
 			}
 		}
@@ -119,13 +121,15 @@ func (m *Manager) InviteGuest(ctx context.Context, name string, quota int64, end
 	for _, g := range guests {
 		promised += g.Quota
 	}
-	if free, total, err := diskSpace(m.Lab.Paths.BackupStoreDir()); err == nil {
+	host := m.guestHost(ctx)
+	if host == nil {
+		return labnet.StorageInvite{}, formErrorf("MyLab can't reach %s, which offers the storage, right now.", m.nameOf(m.GuestServer(ctx)))
+	}
+	if free, total, err := host.GuestSpace(ctx); err == nil {
 		used := int64(0)
 		for _, g := range guests {
-			if m.GuestUsage != nil {
-				if u, err := m.GuestUsage(g.User()); err == nil {
-					used += u
-				}
+			if u, err := host.GuestUsage(ctx, g.User()); err == nil {
+				used += u
 			}
 		}
 		// Space still to hand out: what's free, plus what guests already
@@ -199,10 +203,12 @@ func (m *Manager) PurgeRemovedGuests(ctx context.Context, now time.Time) error {
 }
 
 func (m *Manager) purgeGuest(ctx context.Context, g store.Guest) error {
-	if m.RemoveGuestDir != nil {
-		if err := m.RemoveGuestDir(ctx, g.User()); err != nil {
-			return fmt.Errorf("deleting %s's backups: %w", g.Name, err)
-		}
+	host := m.guestHost(ctx)
+	if host == nil {
+		return fmt.Errorf("deleting %s's backups: %s can't be reached", g.Name, m.nameOf(m.GuestServer(ctx)))
+	}
+	if err := host.RemoveGuestDir(ctx, g.User()); err != nil && !errors.Is(err, node.ErrNotFound) {
+		return fmt.Errorf("deleting %s's backups: %w", g.Name, err)
 	}
 	if err := m.GuestRecords.RemoveGuest(ctx, g.ID); err != nil {
 		return err
@@ -427,26 +433,6 @@ func (m *Manager) remoteRepos(r RemoteStorage, labID, serverID string) (serverUR
 	return
 }
 
-// diskSpace returns the free and total bytes of the disk holding dir (or
-// its nearest existing parent).
-func diskSpace(dir string) (free, total int64, err error) {
-	for {
-		if _, err := os.Stat(dir); err == nil {
-			break
-		}
-		parent := dir[:max(strings.LastIndex(dir, "/"), 1)]
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	var st syscall.Statfs_t
-	if err := syscall.Statfs(dir, &st); err != nil {
-		return 0, 0, err
-	}
-	return int64(st.Bavail) * st.Bsize, int64(st.Blocks) * st.Bsize, nil
-}
-
 func splitEndpoint(s string) (string, int, error) {
 	host, port, ok := strings.Cut(strings.TrimSpace(s), ":")
 	if !ok {
@@ -471,10 +457,11 @@ type LeftoverGuest struct {
 
 // LeftoverGuests lists data of guests no longer storing here.
 func (m *Manager) LeftoverGuests(ctx context.Context) ([]LeftoverGuest, error) {
-	if m.GuestDirs == nil || m.GuestRecords == nil {
+	host := m.guestHost(ctx)
+	if host == nil || m.GuestRecords == nil {
 		return nil, nil
 	}
-	users, err := m.GuestDirs()
+	users, err := host.GuestDirs(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -488,10 +475,8 @@ func (m *Manager) LeftoverGuests(ctx context.Context) ([]LeftoverGuest, error) {
 			continue
 		}
 		l := LeftoverGuest{User: u, Size: -1}
-		if m.GuestUsage != nil {
-			if size, err := m.GuestUsage(u); err == nil {
-				l.Size = size
-			}
+		if size, err := host.GuestUsage(ctx, u); err == nil {
+			l.Size = size
 		}
 		out = append(out, l)
 	}
@@ -504,8 +489,9 @@ func (m *Manager) DeleteLeftoverGuest(ctx context.Context, user string) error {
 	if err != nil {
 		return err
 	}
-	if !slices.ContainsFunc(left, func(l LeftoverGuest) bool { return l.User == user }) || m.RemoveGuestDir == nil {
+	host := m.guestHost(ctx)
+	if !slices.ContainsFunc(left, func(l LeftoverGuest) bool { return l.User == user }) || host == nil {
 		return ErrNotFound
 	}
-	return m.RemoveGuestDir(ctx, user)
+	return host.RemoveGuestDir(ctx, user)
 }

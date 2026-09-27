@@ -3,7 +3,9 @@ package node
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
+	"github.com/mylab/mylab/internal/generate"
 	"io"
 	"log/slog"
 	"net/http"
@@ -255,4 +257,22 @@ func loadVaultwarden(t *testing.T, lab config.Lab) []state.Service {
 	in := &instance.Instance{Package: "vaultwarden", Version: p.Version, Settings: map[string]any{},
 		Routes: map[string]instance.RouteOverride{"web": {Port: 18000}}}
 	return []state.Service{{Instance: in, Package: p}}
+}
+
+// Everything a server needs crosses the wire, other labs' stores included
+// (a node can offer storage for others).
+func TestWireCarriesGuests(t *testing.T) {
+	a := Assignment{Storage: &Storage{Users: map[string]string{"n-1": "h"}},
+		Guests: []generate.GuestStorage{{User: "g1", Port: 8100, Quota: 1 << 30, StoreHash: "s", AdminHash: "a"}}, GuestAddr: "100.103.66.1"}
+	w, err := Encode(config.Default(), a, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := json.Marshal(w)
+	var back WireAssignment
+	json.Unmarshal(data, &back)
+	got, err := Decode(back)
+	if err != nil || len(got.Guests) != 1 || got.Guests[0] != a.Guests[0] || got.GuestAddr != a.GuestAddr || got.Storage == nil {
+		t.Errorf("decoded %+v, %v", got, err)
+	}
 }

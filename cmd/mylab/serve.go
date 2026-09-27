@@ -132,12 +132,14 @@ func serve(args []string) error {
 	mgr.Registry = hub
 	// Storage for other labs (SPEC.md §10.10): this lab can keep other
 	// labs' backups, and store its own at other labs.
-	guestHub := &labnet.GuestHub{LabName: lab.DisplayName(), Store: st, Agent: agentClient, Log: log, Now: time.Now,
-		Usage: func(ctx context.Context, g store.Guest) (int64, error) { return local.GuestUsage(g.User()) }}
+	// The guests' link and stores are on whichever server offers the
+	// storage; the controller keeps the records and answers guests (on
+	// that server's link, forwarded here when it's another server).
+	guestHub := &labnet.GuestHub{LabName: lab.DisplayName(), Store: st, Agent: mgr.GuestLinkAgent(), Log: log, Now: time.Now,
+		Usage: func(ctx context.Context, g store.Guest) (int64, error) { return mgr.GuestUsage(ctx, g.User()) }}
+	mgr.GuestHub, mgr.GuestRecords, mgr.LinkAgent = guestHub, st, agentClient
 	guestHub.Start(ctx)
 	go guestHub.ServeGuests(ctx)
-	mgr.GuestHub, mgr.GuestRecords, mgr.GuestUsage, mgr.LinkAgent = guestHub, st, local.GuestUsage, agentClient
-	mgr.GuestDirs, mgr.RemoveGuestDir = local.GuestDirs, local.RemoveGuestDir
 	mgr.RemoteAdded = func(r manager.RemoteStorage) { go forwardToRemote(ctx, lab, r, log) }
 	// Backups across servers (SPEC.md §10.10): the controller creates
 	// each server's repository with the recovery key.
@@ -190,6 +192,15 @@ func serve(args []string) error {
 		labnet.WriteJSON(w, http.StatusOK, a)
 	})))
 	labAPI.Handle("POST /v1/renew", hub.Require(hub.RenewHandler()))
+	// Guests' requests, forwarded by the server offering storage for others.
+	guestAPI := http.StripPrefix("/v1/guest-api", guestHub.Handler())
+	labAPI.Handle("/v1/guest-api/", hub.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if labnet.Caller(r) != mgr.GuestServer(r.Context()) {
+			labnet.WriteError(w, http.StatusForbidden, errors.New("this server doesn't offer storage for others"))
+			return
+		}
+		guestAPI.ServeHTTP(w, r)
+	})))
 	go labnet.Serve(ctx, lab.Paths.StateDir, labAPI, log)
 	go labnet.KeepRenewed(ctx, labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, id.ID, hub.RenewSelf, log)
 	// Hourly: hear from labs storing this one's backups (a removal, a new

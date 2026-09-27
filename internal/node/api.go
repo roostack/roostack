@@ -84,6 +84,7 @@ func (s *Server) Handler() http.Handler {
 	}
 	ctx := func(r *http.Request) context.Context { return r.Context() }
 	svc := func(r *http.Request) string { return r.PathValue("service") }
+	s.guestHostRoutes(handle, decode)
 
 	handle("GET /v1/status", func(r *http.Request) (any, error) {
 		st := n.Status()

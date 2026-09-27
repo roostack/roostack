@@ -479,3 +479,5 @@ Builds on §6.9 (restic, recovery key, 3-2-1) and §10.3 (each server backs up i
 - Remote access / remote support for the person who set up the lab
 - MyLab Cloud design (§4)
 - Shared storage between services (§8.1)
+
+- **Storage for others on any server (2026-09-28):** the Owner chooses which server offers it (e.g. one with a big disk; the controller by default), only while no other lab stores anything. That server runs the guests' WireGuard link (`mylab-guests`, UDP 51821), their stores, and holds their data; the controller keeps the records and answers guests' requests (joining, usage), which that server forwards to it over MyLab's network (only from the server offering storage). Usage, free space and deleting a guest's data are asked of that server. A removed guest lab keeps its link for 30 days, hears about the removal (its Backups page and "needs attention" show when its backups there are deleted), and its data is then deleted (hourly check), or sooner if the host chooses.

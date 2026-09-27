@@ -41,7 +41,19 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 	}
 	left, _ := s.Manager.LeftoverGuests(r.Context())
 	endpoint, _ := s.Store.Setting(r.Context(), guestsEndpointKey)
-	if endpoint == "" {
+	hostID := s.Manager.GuestServer(r.Context())
+	hostsHere := s.Node == nil || hostID == s.Node.Identity().ID
+	if servers, err := s.Manager.Servers(); err == nil {
+		for _, sv := range servers {
+			if sv.ID == hostID {
+				data["HostServer"] = sv
+			}
+		}
+		if len(servers) > 1 {
+			data["ServerChoices"] = servers
+		}
+	}
+	if endpoint == "" && hostsHere {
 		if host, _, err := net.SplitHostPort(defaultEndpoint()); err == nil {
 			endpoint = net.JoinHostPort(host, strconv.Itoa(agent.GuestsPort))
 		}
@@ -56,7 +68,7 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 	}
 	data["Guests"], data["Removed"], data["Leftover"], data["Endpoint"] = active, removed, left, endpoint
 	data["Offering"] = s.Manager.OfferStorage(r.Context())
-	if host, _, err := net.SplitHostPort(defaultEndpoint()); err == nil {
+	if host, _, err := net.SplitHostPort(defaultEndpoint()); err == nil && hostsHere {
 		data["LANAddr"] = host
 	}
 	data["Now"] = time.Now()
@@ -102,6 +114,28 @@ func (s *Server) inviteGuestSubmit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) guestID(r *http.Request) int64 {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	return id
+}
+
+func (s *Server) guestServerSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	err := s.Manager.SetGuestServer(r.Context(), r.FormValue("server"))
+	if msg, ok := userMessage(err); ok {
+		s.renderStorage(w, r, map[string]any{"Error": msg})
+		return
+	}
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "storage", "storage for others offered by "+r.FormValue("server"))
+	redirect(w, r, "/settings/storage")
 }
 
 func (s *Server) removeGuestSubmit(w http.ResponseWriter, r *http.Request) {

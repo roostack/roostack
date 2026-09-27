@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/mylab/mylab/internal/agent"
@@ -65,6 +69,8 @@ func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent
 		}
 	}
 	go pullAssignments(ctx, lab, m, api, log)
+	// Offering storage for other labs: their requests go to the controller.
+	go serveGuestAPI(ctx, local, m, labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, log)
 	// Renew this server's lab certificate before it expires.
 	labID := labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}
 	go labnet.KeepRenewed(ctx, labID, local.ID.ID, labnet.RenewFromController(labnet.ControllerURL(m), m.ControllerID, labID), log)
@@ -115,4 +121,66 @@ func pull(ctx context.Context, client *http.Client, m labnet.Membership, api *no
 		return errors.New("empty assignment")
 	}
 	return api.Take(w)
+}
+
+// serveGuestAPI forwards other labs' requests (joining, usage) from the
+// guests' link to the controller, which keeps their records, while this
+// server offers storage for others (it follows the assignment).
+func serveGuestAPI(ctx context.Context, local *node.Local, m labnet.Membership, id labnet.Identity, log *slog.Logger) {
+	tlsConf, err := id.ClientTLS(m.ControllerID)
+	if err != nil {
+		log.Error("forwarding other labs' requests", "err", err)
+		return
+	}
+	target, _ := url.Parse(labnet.ControllerURL(m))
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.SetURL(target)
+			pr.Out.URL.Path = "/v1/guest-api" + pr.In.URL.Path
+			pr.Out.URL.RawPath = ""
+		},
+		Transport: &http.Transport{TLSClientConfig: tlsConf},
+	}
+	mux := http.NewServeMux()
+	mux.Handle("POST /v1/guest/join", proxy)
+	mux.Handle("GET /v1/guest/usage", proxy)
+	for {
+		if addr := local.GuestAddr(); addr != "" {
+			if ln, err := net.Listen("tcp", net.JoinHostPort(addr, strconv.Itoa(labnet.GuestAPIPort))); err == nil {
+				serveWhile(ctx, ln, mux, func() bool { return local.GuestAddr() == addr }, log)
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(10 * time.Second):
+		}
+	}
+}
+
+// serveWhile serves on ln until ctx ends or still reports false.
+func serveWhile(ctx context.Context, ln net.Listener, h http.Handler, still func() bool, log *slog.Logger) {
+	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
+	done := make(chan struct{})
+	go func() {
+		defer srv.Close()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-done:
+				return
+			case <-time.After(10 * time.Second):
+				if !still() {
+					log.Info("no longer offering storage for others")
+					return
+				}
+			}
+		}
+	}()
+	log.Info("forwarding other labs' requests to the controller", "addr", ln.Addr())
+	if err := srv.Serve(ln); !errors.Is(err, http.ErrServerClosed) {
+		log.Error("forwarding other labs' requests", "err", err)
+	}
+	close(done)
 }
