@@ -295,7 +295,8 @@ func (s *Server) Handler() http.Handler {
 		return mv.ExportData(ctx(r), svc(r), dirOf(r), since, w)
 	})
 	stream("PUT /v1/services/{service}/data", func(w http.ResponseWriter, r *http.Request, mv Mover) error {
-		if err := mv.ImportData(ctx(r), svc(r), dirOf(r), r.Body); err != nil {
+		strip, _ := strconv.Atoi(r.URL.Query().Get("strip"))
+		if err := mv.ImportData(ctx(r), svc(r), dirOf(r), r.Body, strip); err != nil {
 			return err
 		}
 		labnet.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -343,6 +344,13 @@ func (s *Server) Handler() http.Handler {
 			return nil, err
 		}
 		return mv.DataSize(ctx(r), svc(r))
+	})
+	handle("POST /v1/services/{service}/data/load-dumps", func(r *http.Request) (any, error) {
+		mv, err := mover()
+		if err != nil {
+			return nil, err
+		}
+		return nil, mv.LoadDumps(ctx(r), svc(r))
 	})
 	handle("POST /v1/services/{service}/stop", func(r *http.Request) (any, error) {
 		mv, err := mover()

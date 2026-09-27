@@ -96,7 +96,7 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 	if len(svc.Backup.Prepare) > 0 {
 		r.Log.Step("Putting the database back")
 	}
-	if err := r.restoreDatabases(ctx, svc); err != nil {
+	if err := r.LoadDumps(ctx, svc); err != nil {
 		return res, fmt.Errorf("restoring databases: %w (the previous data is in the .before-restore directories)", err)
 	}
 	r.Log.Step("Starting %s", svc.Service)
@@ -144,8 +144,10 @@ func (r *Restorer) rollback(res *RestoreResult, suffix string) {
 	res.MovedAside = map[string]string{}
 }
 
-// restoreDatabases puts each database back from its dump.
-func (r *Restorer) restoreDatabases(ctx context.Context, svc *generate.Output) error {
+// LoadDumps puts each database back from its dump in the service's data
+// (after a restore, or a move through a backup). The service's containers
+// must be stopped; the database's own is started for it.
+func (r *Restorer) LoadDumps(ctx context.Context, svc *generate.Output) error {
 	for _, step := range svc.Backup.Prepare {
 		switch step.Type {
 		case pkgspec.DBSQLite:

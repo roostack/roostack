@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/generate"
 )
 
@@ -32,8 +33,9 @@ type Mover interface {
 	ExportData(ctx context.Context, service string, dir int, since time.Time, w io.Writer) error
 	// ListData lists dir's files and folders (relative paths).
 	ListData(ctx context.Context, service string, dir int) ([]string, error)
-	// ImportData unpacks a tar stream into dir's staging folder.
-	ImportData(ctx context.Context, service string, dir int, r io.Reader) error
+	// ImportData unpacks a tar stream into dir's staging folder, dropping
+	// the first strip path components (e.g. a backup's full paths).
+	ImportData(ctx context.Context, service string, dir int, r io.Reader, strip int) error
 	// PruneData removes from the staging folder what isn't in keep (files
 	// deleted on the old machine since the first copy).
 	PruneData(ctx context.Context, service string, dir int, keep []string) error
@@ -50,6 +52,9 @@ type Mover interface {
 	ImportSecrets(ctx context.Context, secrets map[string][]byte) error
 	// DataSize is roughly how much data it has, in bytes.
 	DataSize(ctx context.Context, service string) (int64, error)
+	// LoadDumps stops the service, loads its databases from the dumps in
+	// its data (after a move through a backup), and starts it again.
+	LoadDumps(ctx context.Context, service string) error
 }
 
 // Launcher runs a command as the mylab user outside MyLab's sandbox
@@ -141,7 +146,7 @@ func (n *Local) list(ctx context.Context, d string) ([]string, error) {
 	return paths, nil
 }
 
-func (n *Local) ImportData(ctx context.Context, service string, dir int, r io.Reader) error {
+func (n *Local) ImportData(ctx context.Context, service string, dir int, r io.Reader, strip int) error {
 	d, err := n.dataDir(service, dir)
 	if err != nil {
 		return err
@@ -150,7 +155,11 @@ func (n *Local) ImportData(ctx context.Context, service string, dir int, r io.Re
 	if err := os.MkdirAll(in, 0o750); err != nil {
 		return err
 	}
-	cmd := n.unshare(ctx, "tar", "-C", in, "-xpf", "-", "--numeric-owner")
+	args := []string{"tar", "-C", in, "-xpf", "-", "--numeric-owner"}
+	if strip > 0 {
+		args = append(args, "--strip-components="+strconv.Itoa(strip))
+	}
+	cmd := n.unshare(ctx, args...)
 	cmd.Stdin = r
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -306,4 +315,23 @@ func (n *Local) DataSize(ctx context.Context, service string) (int64, error) {
 		}
 	}
 	return total, nil
+}
+
+func (n *Local) LoadDumps(ctx context.Context, service string) error {
+	out, err := n.output(service)
+	if err != nil {
+		return err
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if err := n.Reconciler.Systemd.Stop(ctx, out.Units...); err != nil {
+		return err
+	}
+	r := &backup.Restorer{Units: n.Reconciler.Systemd, Launch: n.Launch, MylabBin: exe}
+	if err := r.LoadDumps(ctx, out); err != nil {
+		return err
+	}
+	return n.Reconciler.Systemd.Start(ctx, out.Units...)
 }

@@ -140,7 +140,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Storage for other labs: storage invites with quotas, `mylab-guests` WireGuard interface (UDP 51821), usage on both sides, port-forwarding guide and reachability check
   - [ ] Move a service between machines (SPEC.md §10.10)
     - [x] Copy directly: copy while running, stop, copy what changed (and deletions), bring its secrets, switch; the old copy is set aside
-    - [ ] Through a backup (large data, slow links); the move page suggests a way from the size
+    - [x] Through a backup (large data, slow links): a fresh backup, the controller streams the service's folders from it (restic dump, recovery key) and the new machine loads its databases from the dumps; the move page suggests a way from the size
     - [ ] Delete kept copies (moved-away and before-move folders) from the UI
   - [x] Needs-attention items for other machines' backups, updates and restarts
   - [ ] Certificate renewal; nodes behind a hub that isn't the controller

@@ -145,6 +145,21 @@ func (r *Repo) Init(ctx context.Context) error {
 	return err
 }
 
+// Dump writes a folder from a snapshot as a tar stream (paths in it are
+// the full paths, without the leading slash). ErrNotInSnapshot if the
+// snapshot doesn't have it.
+func (r *Repo) Dump(ctx context.Context, snapshotID, dir string, w io.Writer) error {
+	cmd := r.command(ctx, "dump", "--archive", "tar", snapshotID, dir)
+	cmd.Stdout = w
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil && strings.Contains(stderr.String(), "not found") {
+		return ErrNotInSnapshot
+	}
+	return r.wrap("dump", err, stderr.String())
+}
+
 // AddKey adds another key (password) to the repository, e.g. a machine's
 // own key next to the recovery key (SPEC.md §10.10). user names it in
 // `restic key list`.

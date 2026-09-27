@@ -64,7 +64,7 @@ func (s *Server) moveSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name, to := r.PathValue("name"), r.FormValue("to")
-	err := s.Manager.MoveService(r.Context(), name, to)
+	err := s.Manager.MoveService(r.Context(), name, to, r.FormValue("way"))
 	if msg, ok := userMessage(err); ok {
 		s.renderMove(w, r, msg)
 		return

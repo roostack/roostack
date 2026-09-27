@@ -69,13 +69,14 @@ func (f *fakeManager) MoveInfo(_ context.Context, name string) (manager.MoveInfo
 	if name != "vaultwarden" {
 		return manager.MoveInfo{}, manager.ErrNotFound
 	}
-	return manager.MoveInfo{From: manager.Machine{ID: "n-0123456789", Name: "nuc", This: true}, Size: 5 << 20}, nil
+	return manager.MoveInfo{From: manager.Machine{ID: "n-0123456789", Name: "nuc", This: true}, Size: 5 << 20,
+		Suggested: manager.MoveCopy}, nil
 }
-func (f *fakeManager) MoveService(_ context.Context, name, to string) error {
+func (f *fakeManager) MoveService(_ context.Context, name, to, way string) error {
 	if to == "" {
 		return &manager.FormError{Msg: "Choose a machine in this lab."}
 	}
-	f.moves = append(f.moves, name+" → "+to)
+	f.moves = append(f.moves, name+" → "+to+" ("+way+")")
 	return nil
 }
 func (f *fakeManager) BackupChoices(context.Context) ([]manager.BackupChoice, error) {
@@ -739,8 +740,12 @@ func TestMovePage(t *testing.T) {
 	if code, _ := h.post("/services/vaultwarden/move", url.Values{}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("no target: %d", code)
 	}
-	h.post("/services/vaultwarden/move", url.Values{"to": {"n-9876543210"}}, h.srv.URL)
-	if len(fm.moves) != 1 || fm.moves[0] != "vaultwarden → n-9876543210" {
+	if !strings.Contains(body, `value="backup"  disabled`) && !strings.Contains(body, `value="backup" disabled`) &&
+		!strings.Contains(body, "disabled") {
+		t.Error("through a backup needs backups set up through MyLab")
+	}
+	h.post("/services/vaultwarden/move", url.Values{"to": {"n-9876543210"}, "way": {"copy"}}, h.srv.URL)
+	if len(fm.moves) != 1 || fm.moves[0] != "vaultwarden → n-9876543210 (copy)" {
 		t.Errorf("moves = %v", fm.moves)
 	}
 	if code, _ := h.get("/services/nope/move"); code != http.StatusNotFound {
