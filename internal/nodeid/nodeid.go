@@ -1,6 +1,7 @@
-// Package node is one machine in a lab (SPEC.md §10). Every install is a
-// node; one node is also the controller. For now there is only ever one.
-package node
+// Package nodeid is this machine's identity in a lab (SPEC.md §10): a
+// stable node ID and a name. It has no dependencies so any package can
+// check node IDs.
+package nodeid
 
 import (
 	"crypto/rand"

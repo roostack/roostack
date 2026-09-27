@@ -117,9 +117,11 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 - [x] Review the §10 design with the user (locked 2026-09-27)
 - [ ] Seams
-  - [x] Stable node ID and name (`internal/node`, `node.json`; never part of the replica)
+  - [x] Stable node ID and name (`internal/nodeid`, `node.json`; never part of the replica)
   - [x] `host` on every instance, set explicitly (existing ones stamped on first apply); only this node's services are generated, applied, backed up and shown; ports are per node; invalid hosts are rejected
-  - [ ] `Node` interface between the manager (controller) and machine operations (apply, status, hooks, actions, restores, activity, updates, firewall)
+  - [x] `Node` interface between the manager (controller) and machine operations: the manager hands each machine an Assignment (its services, typed-in secrets, services to set up); `node.Local` applies it, runs the firewall, install hooks, actions and secret reveals
+  - [ ] Backups, restores, OS updates and restarts behind the node too (still wired directly in `serve`)
+  - [ ] The web reaches a service's machine by its host (today `Server.Node` is this machine)
   - [ ] Per-node status and activity in the UI
 - [ ] Two-VM prototype: second dev VM joins over MyLab-managed WireGuard (join code, mTLS), runs one service placed on it
 - [ ] Controller move (planned hand-over) and promotion from a node's replica

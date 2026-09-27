@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"slices"
 
-	"github.com/mylab/mylab/internal/node"
+	"github.com/mylab/mylab/internal/nodeid"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"go.yaml.in/yaml/v3"
 )
@@ -105,7 +105,7 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 	if in.Version != p.Version {
 		add("version: instance wants %q but package is %q", in.Version, p.Version)
 	}
-	if in.Host != "" && !node.ValidID(in.Host) {
+	if in.Host != "" && !nodeid.ValidID(in.Host) {
 		add("host: %q is not a node ID", in.Host)
 	}
 	if !slices.Contains([]string{UpdatesNotify, UpdatesPatch, UpdatesMinor, UpdatesAll}, in.Updates) {

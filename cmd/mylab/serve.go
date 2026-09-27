@@ -25,6 +25,7 @@ import (
 	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/maintenance"
 	"github.com/mylab/mylab/internal/manager"
+	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/osupdate"
 	"github.com/mylab/mylab/internal/podman"
 	"github.com/mylab/mylab/internal/reconcile"
@@ -47,7 +48,8 @@ func serve(args []string) error {
 		return err
 	}
 	lab.HasGPU = config.DetectGPU()
-	if err := withNode(&lab); err != nil {
+	id, err := withNode(&lab)
+	if err != nil {
 		return err
 	}
 	lab.Timezone = hosttime.Zone()
@@ -78,7 +80,9 @@ func serve(args []string) error {
 	// Live logs of host operations, shown in the UI.
 	acts := activity.New()
 	srv.Activity = acts
-	mgr := &manager.Manager{
+	// This machine, which runs every service while a lab has one machine.
+	local := &node.Local{
+		ID:         id,
 		Activity:   acts,
 		Firewall:   agentClient,
 		Lab:        lab,
@@ -90,7 +94,8 @@ func serve(args []string) error {
 			return podman.Exec(ctx, podman.Run, container, env, command...)
 		},
 	}
-	srv.Manager, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, lab.Domain, lab.HasGPU, lab.Backup.Repository
+	mgr := &manager.Manager{Lab: lab, Log: log, Node: local, Activity: acts}
+	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
 	// Converge on startup, e.g. after MyLab itself was upgraded.
 	mgr.Apply()
 

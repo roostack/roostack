@@ -55,9 +55,11 @@ func newHookManager(t *testing.T) (*Manager, *fakeSecrets, *memKV, *fakeExec) {
 	m, secrets := newManager(t)
 	addForgejo(t, m)
 	kv, ex := &memKV{m: map[string]string{}}, &fakeExec{}
-	m.State, m.Secrets, m.Exec = kv, secrets, ex.exec
-	m.HookRetry, m.HookDeadline = time.Millisecond, time.Second
+	n := local(m)
+	n.State, n.Secrets, n.Exec = kv, secrets, ex.exec
+	n.HookRetry, n.HookDeadline = time.Millisecond, time.Second
 	m.Activity = activity.New()
+	n.Activity = m.Activity
 	return m, secrets, kv, ex
 }
 
@@ -77,9 +79,9 @@ func TestInstallHook(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Wait()
-	m.WaitHooks()
+	local(m).WaitHooks()
 
-	if st := m.InstallStatus(ctx, "forgejo"); st.Pending || st.Running || st.Failed != "" {
+	if st := local(m).InstallStatus(ctx, "forgejo"); st.Pending || st.Running || st.Failed != "" {
 		t.Errorf("status = %+v, want done", st)
 	}
 	if len(ex.calls) != 2 {
@@ -106,7 +108,7 @@ func TestInstallHook(t *testing.T) {
 	// Later applies neither need the deleted secret nor run the hook again.
 	m.Apply()
 	m.Wait()
-	m.WaitHooks()
+	local(m).WaitHooks()
 	if st := m.Status(); st.LastErr != nil {
 		t.Errorf("apply after the secret was deleted: %v", st.LastErr)
 	}
@@ -123,8 +125,8 @@ func TestInstallHookFailsThenRetry(t *testing.T) {
 
 	m.Install(ctx, "forgejo", forgejoRequest())
 	m.Wait()
-	m.WaitHooks()
-	st := m.InstallStatus(ctx, "forgejo")
+	local(m).WaitHooks()
+	st := local(m).InstallStatus(ctx, "forgejo")
 	if !strings.Contains(st.Failed, "database not ready") {
 		t.Fatalf("status = %+v, want the command's output", st)
 	}
@@ -133,11 +135,11 @@ func TestInstallHookFailsThenRetry(t *testing.T) {
 	}
 
 	failing = false
-	if err := m.RetryInstall(ctx, "forgejo"); err != nil {
+	if err := local(m).RetryInstall(ctx, "forgejo"); err != nil {
 		t.Fatal(err)
 	}
-	m.WaitHooks()
-	if st := m.InstallStatus(ctx, "forgejo"); st.Failed != "" || st.Pending {
+	local(m).WaitHooks()
+	if st := local(m).InstallStatus(ctx, "forgejo"); st.Failed != "" || st.Pending {
 		t.Errorf("after retry: %+v", st)
 	}
 }
@@ -147,16 +149,16 @@ func TestRunAction(t *testing.T) {
 	ctx := context.Background()
 	m.Install(ctx, "forgejo", forgejoRequest())
 	m.Wait()
-	m.WaitHooks()
+	local(m).WaitHooks()
 
 	var fe *FormError
-	if _, err := m.RunAction(ctx, "forgejo", "reset-password", map[string]string{"username": "mum", "password": "short"}); !errors.As(err, &fe) {
+	if _, err := local(m).RunAction(ctx, "forgejo", "reset-password", map[string]string{"username": "mum", "password": "short"}); !errors.As(err, &fe) {
 		t.Errorf("short password: %v", err)
 	}
-	if _, err := m.RunAction(ctx, "forgejo", "nope", nil); !errors.Is(err, ErrNotFound) {
+	if _, err := local(m).RunAction(ctx, "forgejo", "nope", nil); !errors.Is(err, ErrNotFound) {
 		t.Errorf("unknown action: %v", err)
 	}
-	out, err := m.RunAction(ctx, "forgejo", "reset-password", map[string]string{"username": " mum ", "password": "a new password"})
+	out, err := local(m).RunAction(ctx, "forgejo", "reset-password", map[string]string{"username": " mum ", "password": "a new password"})
 	if err != nil || out != "ok" {
 		t.Fatalf("out %q, err %v", out, err)
 	}
@@ -167,7 +169,7 @@ func TestRunAction(t *testing.T) {
 
 	ex.fail = func(int) bool { return true }
 	var ae *ActionError
-	if _, err := m.RunAction(ctx, "forgejo", "reset-password", map[string]string{"username": "x", "password": "a new password"}); !errors.As(err, &ae) ||
+	if _, err := local(m).RunAction(ctx, "forgejo", "reset-password", map[string]string{"username": "x", "password": "a new password"}); !errors.As(err, &ae) ||
 		!strings.Contains(ae.Output, "database not ready") {
 		t.Errorf("failed action: %v", err)
 	}
@@ -183,7 +185,7 @@ func TestUpdateSettingsAndReveal(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Wait()
-	m.WaitHooks()
+	local(m).WaitHooks()
 
 	values, sub, err := m.CurrentSettings("forgejo")
 	if err != nil || sub != "git" || values["signups_allowed"] != false {
@@ -208,11 +210,11 @@ func TestUpdateSettingsAndReveal(t *testing.T) {
 		t.Errorf("unit not regenerated:\n%s", unit)
 	}
 
-	if v, err := m.RevealSecret(ctx, "vaultwarden", "admin_token"); err != nil || v == "" ||
+	if v, err := local(m).RevealSecret(ctx, "vaultwarden", "admin_token"); err != nil || v == "" ||
 		v != string(secrets.values["mylab-vaultwarden-admin_token"]) {
 		t.Errorf("reveal: %q %v", v, err)
 	}
-	if _, err := m.RevealSecret(ctx, "forgejo", "admin_password"); !errors.Is(err, ErrNotFound) {
+	if _, err := local(m).RevealSecret(ctx, "forgejo", "admin_password"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("revealing a non-revealable secret: %v", err)
 	}
 }

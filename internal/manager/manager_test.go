@@ -16,6 +16,7 @@ import (
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/instance"
+	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/reconcile"
 	"github.com/mylab/mylab/internal/state"
 )
@@ -75,6 +76,9 @@ func (f *fakeSecrets) Create(_ context.Context, name string, v []byte) error {
 	return nil
 }
 
+// local is the manager's machine, which does the work.
+func local(m *Manager) *node.Local { return m.Node.(*node.Local) }
+
 func newManager(t *testing.T) (*Manager, *fakeSecrets) {
 	t.Helper()
 	root := t.TempDir()
@@ -96,11 +100,12 @@ func newManager(t *testing.T) (*Manager, *fakeSecrets) {
 	}
 	os.MkdirAll(lab.Paths.InstancesDir(), 0o755)
 	secrets := &fakeSecrets{values: map[string][]byte{dns.SecretName("api_token"): []byte("existing")}}
-	m := &Manager{
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	m := &Manager{Lab: lab, Log: log, Node: &node.Local{
 		Lab:        lab,
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: &fakeSystemd{}, Secrets: secrets},
-		Log:        slog.New(slog.NewTextHandler(io.Discard, nil)),
-	}
+		Log:        log,
+	}}
 	return m, secrets
 }
 
@@ -284,7 +289,7 @@ func TestFirewallFollowsServices(t *testing.T) {
 	m, _ := newManager(t)
 	ctx := context.Background()
 	fw := &fakeFirewall{}
-	m.Firewall = fw
+	local(m).Firewall = fw
 	addForgejo(t, m)
 
 	m.Apply()
@@ -294,6 +299,7 @@ func TestFirewallFollowsServices(t *testing.T) {
 	}
 
 	m.Lab.Firewall.SSH = config.SSHFromLAN
+	local(m).Lab = m.Lab
 	m.Install(ctx, "forgejo", forgejoRequest())
 	m.Wait()
 	m.SetPort(ctx, "forgejo", "ssh", true, 2222)
@@ -334,5 +340,31 @@ func TestOnlyThisNodesServices(t *testing.T) {
 	other, _ := instance.Load(state.InstanceFile(m.Lab, "immich"))
 	if other.Routes["web"].Port != 0 {
 		t.Error("another machine's service shouldn't get ports from this one")
+	}
+}
+
+func TestAssignmentHandsOverSecretsAndSetUp(t *testing.T) {
+	m, secrets, kv, _ := newHookManager(t)
+	ctx := context.Background()
+	if err := m.Install(ctx, "forgejo", forgejoRequest()); err != nil {
+		t.Fatal(err)
+	}
+	m.mu.Lock()
+	kept, setUp := m.secrets, m.setUp
+	m.mu.Unlock()
+	if kept != nil || setUp != nil {
+		t.Errorf("the manager must forget what it handed to the node: %v %v", kept, setUp)
+	}
+	m.Wait()
+	local(m).WaitHooks()
+	if _, ok := secrets.values["mylab-forgejo-admin_password"]; ok {
+		t.Error("the node should have used and deleted the typed password")
+	}
+	if err := m.Remove(ctx, "forgejo"); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if v := kv.m["hooks.forgejo.install"]; v != "" {
+		t.Errorf("setup progress after removing = %q", v)
 	}
 }

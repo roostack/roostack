@@ -59,9 +59,9 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		case st.LastErr != nil:
 			add(levelProblem, "The last change didn't finish: "+st.LastErr.Error(), "/services", "View services")
 		}
-		if services, err := s.Services(r.Context()); err == nil {
+		if services, err := s.Services(r.Context()); err == nil && s.Node != nil {
 			for _, svc := range services {
-				hs := s.Manager.InstallStatus(r.Context(), svc.Name)
+				hs := s.Node.InstallStatus(r.Context(), svc.Name)
 				link := "/services/" + svc.Name
 				switch {
 				case hs.Failed != "":
