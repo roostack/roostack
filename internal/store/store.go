@@ -65,6 +65,7 @@ var migrations = []string{
 	// Set for passwords printed by the command line: the user chooses
 	// their own at the next login.
 	`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;`,
+	`ALTER TABLE users ADD COLUMN theme TEXT NOT NULL DEFAULT 'auto';`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -146,7 +147,18 @@ type User struct {
 	TOTPLastStep int64
 	// MustChangePassword is set for temporary passwords (CLI add/reset).
 	MustChangePassword bool
-	CreatedAt          time.Time
+	// Theme is "auto" (follow the device), "light" or "dark".
+	Theme     string
+	CreatedAt time.Time
+}
+
+// Themes a user can choose.
+var Themes = []string{"auto", "light", "dark"}
+
+// SetTheme saves a user's theme.
+func (s *Store) SetTheme(ctx context.Context, userID int64, theme string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE users SET theme = ? WHERE id = ?`, theme, userID)
+	return err
 }
 
 // CountUsers returns the number of accounts.
@@ -206,7 +218,7 @@ func (s *Store) SetPassword(ctx context.Context, username, hash string, temporar
 }
 
 const userColumns = `users.id, users.username, users.password_hash, users.role,
-	users.totp_secret, users.totp_last_step, users.must_change_password, users.created_at`
+	users.totp_secret, users.totp_last_step, users.must_change_password, users.theme, users.created_at`
 
 // UserByID looks up an account.
 func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
@@ -237,7 +249,7 @@ func (s *Store) scanUser(row *sql.Row) (*User, error) {
 	var u User
 	var created int64
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &u.TOTPLastStep,
-		&u.MustChangePassword, &created)
+		&u.MustChangePassword, &u.Theme, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

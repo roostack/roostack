@@ -8,13 +8,22 @@
   color-scheme: light dark; /* native controls (radios, selects) match the theme */
   accent-color: var(--accent);
 }
+/* Dark: when the device prefers it (theme "auto", the default), or when
+   the user chose it. data-theme is set on <html> from their account. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #14171c; --fg: #e6e9ef; --muted: #9aa3b2; --card: #1d2128;
     --border: #2e3440; --accent: #7aa2ff; --accent-fg: #0b1020;
     --ok: #5fd08f; --warn: #f0b35a; --bad: #ff8a80;
   }
 }
+:root[data-theme="dark"] {
+  --bg: #14171c; --fg: #e6e9ef; --muted: #9aa3b2; --card: #1d2128;
+  --border: #2e3440; --accent: #7aa2ff; --accent-fg: #0b1020;
+  --ok: #5fd08f; --warn: #f0b35a; --bad: #ff8a80;
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); }
 [x-cloak] { display: none !important; }
@@ -176,3 +185,5 @@ ul.plain { list-style: none; padding: 0; } ul.plain li { margin: 6px 0; }
 
 /* A dropdown inside a sentence ("Restart automatically at [04:00]"). */
 select.inline { display: inline-block; width: auto; margin: 0 0 0 6px; padding: 4px 8px; }
+.theme-toggle { background: none; color: var(--muted); padding: 6px 8px; font-size: 0.9rem; }
+.theme-toggle:hover { color: var(--fg); }

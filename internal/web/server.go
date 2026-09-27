@@ -206,6 +206,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /partials/backups", s.require(auth.ManageServices, s.backupsPartial))
 	mux.Handle("GET /settings", s.requireOwner(s.settingsPage))
 	mux.Handle("GET /account", s.requireLogin(s.accountPage))
+	mux.Handle("POST /account/theme", s.requireLogin(s.themeSubmit))
 	mux.Handle("POST /account/password", s.requireLogin(s.passwordSubmit))
 
 	mux.HandleFunc("GET /healthz", s.healthz)
