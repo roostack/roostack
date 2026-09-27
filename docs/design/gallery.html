@@ -219,13 +219,25 @@
           <h3>Confirm <span class="badge badge-highlight">Template component</span></h3>
           <p class="hint">confirm ACTION QUESTION TEXT KIND: a button that asks the browser to confirm first. Use it for anything hard to undo. KIND is the button&#39;s class (danger, secondary, quiet, or &#34;&#34;). The question can contain any text (it&#39;s passed as a data attribute, never into script).</p>
           <div class="panels">
-            <div class="panel" data-mode="light"><form method="post" action="/users/3/remove" data-confirm="Remove dad? They will no longer be able to log in." x-data
-  x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
-  <button type="submit" class="quiet danger">Remove dad</button>
+            <div class="panel" data-mode="light"><form method="post" action="/users/3/remove" class="confirm" x-data>
+  <button type="button" class="quiet danger" x-on:click="$refs.dialog.showModal()">Remove dad</button>
+  <dialog x-ref="dialog" class="dialog" aria-labelledby="confirm-30om3rl373mjy">
+    <p id="confirm-30om3rl373mjy">Remove dad? They will no longer be able to log in.</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dialog.close()" autofocus>Cancel</button>
+      <button type="submit" class="danger">Remove dad</button>
+    </div>
+  </dialog>
 </form></div>
-            <div class="panel" data-mode="dark"><form method="post" action="/users/3/remove" data-confirm="Remove dad? They will no longer be able to log in." x-data
-  x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
-  <button type="submit" class="quiet danger">Remove dad</button>
+            <div class="panel" data-mode="dark"><form method="post" action="/users/3/remove" class="confirm" x-data>
+  <button type="button" class="quiet danger" x-on:click="$refs.dialog.showModal()">Remove dad</button>
+  <dialog x-ref="dialog" class="dialog" aria-labelledby="confirm-30om3rl373mjy">
+    <p id="confirm-30om3rl373mjy">Remove dad? They will no longer be able to log in.</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dialog.close()" autofocus>Cancel</button>
+      <button type="submit" class="danger">Remove dad</button>
+    </div>
+  </dialog>
 </form></div>
           </div>
           <details>
@@ -234,9 +246,13 @@
             <p class="markup-label">In a template</p>
             <pre class="output">{{confirm &#34;/users/3/remove&#34; &#34;Remove dad? They will no longer be able to log in.&#34; &#34;Remove dad&#34; &#34;quiet danger&#34;}}</pre>
             <p class="markup-label">Renders as</p>
-            <pre class="output">&lt;form method=&#34;post&#34; action=&#34;/users/3/remove&#34; data-confirm=&#34;Remove dad? They will no longer be able to log in.&#34; x-data
-  x-on:submit=&#34;if (!confirm($el.dataset.confirm)) $event.preventDefault()&#34;&gt;
-  &lt;button type=&#34;submit&#34; class=&#34;quiet danger&#34;&gt;Remove dad&lt;/button&gt;
+            <pre class="output">&lt;form method=&#34;post&#34; action=&#34;/users/3/remove&#34; class=&#34;confirm&#34; x-data&gt;
+  &lt;button type=&#34;button&#34; class=&#34;quiet danger&#34; x-on:click=&#34;$refs.dialog.showModal()&#34;&gt;Remove dad&lt;/button&gt;&lt;dialog x-ref=&#34;dialog&#34; class=&#34;dialog&#34; aria-labelledby=&#34;confirm-30om3rl373mjy&#34;&gt;
+  &lt;p id=&#34;confirm-30om3rl373mjy&#34;&gt;Remove dad? They will no longer be able to log in.&lt;/p&gt;
+  &lt;div class=&#34;dialog-actions&#34;&gt;
+    &lt;button type=&#34;button&#34; class=&#34;secondary&#34; x-on:click=&#34;$refs.dialog.close()&#34; autofocus&gt;Cancel&lt;/button&gt;
+    &lt;button type=&#34;submit&#34; class=&#34;danger&#34;&gt;Remove dad&lt;/button&gt;
+  &lt;/div&gt;&lt;/dialog&gt;
 &lt;/form&gt;</pre>
             
           </details>
@@ -246,15 +262,27 @@
           <h3>Confirm with a hidden field <span class="badge badge-highlight">Template component</span></h3>
           <p class="hint">Trailing name=value arguments become hidden form fields.</p>
           <div class="panels">
-            <div class="panel" data-mode="light"><form method="post" action="/backups/restore/forgejo/kept/remove" data-confirm="Delete this copy permanently?" x-data
-  x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
+            <div class="panel" data-mode="light"><form method="post" action="/backups/restore/forgejo/kept/remove" class="confirm" x-data>
   <input type="hidden" name="path" value="/srv/mylab/services/forgejo/data.before-restore-20260926-130602">
-  <button type="submit" class="quiet danger">Delete</button>
+  <button type="button" class="quiet danger" x-on:click="$refs.dialog.showModal()">Delete</button>
+  <dialog x-ref="dialog" class="dialog" aria-labelledby="confirm-1jau4b2114pb">
+    <p id="confirm-1jau4b2114pb">Delete this copy permanently?</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dialog.close()" autofocus>Cancel</button>
+      <button type="submit" class="danger">Delete</button>
+    </div>
+  </dialog>
 </form></div>
-            <div class="panel" data-mode="dark"><form method="post" action="/backups/restore/forgejo/kept/remove" data-confirm="Delete this copy permanently?" x-data
-  x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
+            <div class="panel" data-mode="dark"><form method="post" action="/backups/restore/forgejo/kept/remove" class="confirm" x-data>
   <input type="hidden" name="path" value="/srv/mylab/services/forgejo/data.before-restore-20260926-130602">
-  <button type="submit" class="quiet danger">Delete</button>
+  <button type="button" class="quiet danger" x-on:click="$refs.dialog.showModal()">Delete</button>
+  <dialog x-ref="dialog" class="dialog" aria-labelledby="confirm-1jau4b2114pb">
+    <p id="confirm-1jau4b2114pb">Delete this copy permanently?</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dialog.close()" autofocus>Cancel</button>
+      <button type="submit" class="danger">Delete</button>
+    </div>
+  </dialog>
 </form></div>
           </div>
           <details>
@@ -263,10 +291,14 @@
             <p class="markup-label">In a template</p>
             <pre class="output">{{confirm &#34;/backups/restore/forgejo/kept/remove&#34; &#34;Delete this copy permanently?&#34; &#34;Delete&#34; &#34;quiet danger&#34; &#34;path=/srv/mylab/services/forgejo/data.before-restore-20260926-130602&#34;}}</pre>
             <p class="markup-label">Renders as</p>
-            <pre class="output">&lt;form method=&#34;post&#34; action=&#34;/backups/restore/forgejo/kept/remove&#34; data-confirm=&#34;Delete this copy permanently?&#34; x-data
-  x-on:submit=&#34;if (!confirm($el.dataset.confirm)) $event.preventDefault()&#34;&gt;
+            <pre class="output">&lt;form method=&#34;post&#34; action=&#34;/backups/restore/forgejo/kept/remove&#34; class=&#34;confirm&#34; x-data&gt;
   &lt;input type=&#34;hidden&#34; name=&#34;path&#34; value=&#34;/srv/mylab/services/forgejo/data.before-restore-20260926-130602&#34;&gt;
-  &lt;button type=&#34;submit&#34; class=&#34;quiet danger&#34;&gt;Delete&lt;/button&gt;
+  &lt;button type=&#34;button&#34; class=&#34;quiet danger&#34; x-on:click=&#34;$refs.dialog.showModal()&#34;&gt;Delete&lt;/button&gt;&lt;dialog x-ref=&#34;dialog&#34; class=&#34;dialog&#34; aria-labelledby=&#34;confirm-1jau4b2114pb&#34;&gt;
+  &lt;p id=&#34;confirm-1jau4b2114pb&#34;&gt;Delete this copy permanently?&lt;/p&gt;
+  &lt;div class=&#34;dialog-actions&#34;&gt;
+    &lt;button type=&#34;button&#34; class=&#34;secondary&#34; x-on:click=&#34;$refs.dialog.close()&#34; autofocus&gt;Cancel&lt;/button&gt;
+    &lt;button type=&#34;submit&#34; class=&#34;danger&#34;&gt;Delete&lt;/button&gt;
+  &lt;/div&gt;&lt;/dialog&gt;
 &lt;/form&gt;</pre>
             
           </details>

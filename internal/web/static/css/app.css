@@ -284,3 +284,12 @@ table.records th { text-align: left; color: var(--muted); font-weight: var(--wei
   border-bottom: 1px solid var(--border-strong); padding: var(--space-2) var(--space-3) var(--space-2) 0; }
 table.records td { border-bottom: 1px solid var(--border); padding: var(--space-2) var(--space-3) var(--space-2) 0;
   overflow-wrap: anywhere; }
+
+/* ---------- Dialogs (confirmations) ---------- */
+dialog.dialog { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-4);
+  background: var(--surface); color: var(--text); min-width: min(22rem, calc(100vw - 2 * var(--space-4))); max-width: min(32rem, calc(100vw - 2 * var(--space-4)));
+  box-shadow: 0 10px 40px rgb(0 0 0 / 0.25); }
+dialog.dialog::backdrop { background: rgb(0 0 0 / 0.45); }
+dialog.dialog p { margin: 0 0 var(--space-4); overflow-wrap: anywhere; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; }
+form.confirm { display: inline; }

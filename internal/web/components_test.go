@@ -26,7 +26,8 @@ func TestComponents(t *testing.T) {
 		}
 	}
 	html, err = confirmButton("/users/3/remove", `Remove "dad"?`, "Remove", "quiet danger", "path=/srv/a b", "x=1")
-	if err != nil || !strings.Contains(string(html), `data-confirm="Remove &#34;dad&#34;?"`) ||
+	if err != nil || !strings.Contains(string(html), `Remove &#34;dad&#34;?</p>`) || !strings.Contains(string(html), "<dialog") ||
+		!strings.Contains(string(html), `x-on:click="$refs.dialog.showModal()"`) || strings.Contains(string(html), "confirm(") ||
 		!strings.Contains(string(html), `<input type="hidden" name="path" value="/srv/a b">`) ||
 		!strings.Contains(string(html), `<input type="hidden" name="x" value="1">`) || !strings.Contains(string(html), `class="quiet danger"`) {
 		t.Errorf("confirm: %s %v", html, err)
