@@ -202,6 +202,10 @@ func (s *Server) domainSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	opts := setup.DomainOptions{ManageRecords: r.FormValue("manage_records") == "on", AcceptRisk: r.FormValue("accept_risk") == "on"}
 	err := s.Setup.SaveDomain(r.Context(), domain, email, provider, values, opts)
+	// The provider ends up in an Alpine expression: only known IDs go back.
+	if dns.Get(provider) == nil {
+		provider = dns.Providers()[0].ID
+	}
 	if s.wizardError(w, r, err, "setup-domain", s.formMode(r, "domain", map[string]any{"Domain": domain, "Email": email,
 		"Providers": dns.Providers(), "Provider": provider, "Values": kept, "Manage": opts.ManageRecords, "AcceptRisk": opts.AcceptRisk})) {
 		return
@@ -230,7 +234,11 @@ func (s *Server) backupSubmit(w http.ResponseWriter, r *http.Request) {
 		AccessKey: r.FormValue("access_key"), SecretKey: r.FormValue("secret_key"),
 	}
 	err := s.Setup.SaveBackup(r.Context(), c)
-	// Keep what was typed, except the secret key.
+	// Keep what was typed, except the secret key. Kind ends up in an Alpine
+	// expression, so only known values go back.
+	if c.Kind != "local" && c.Kind != "s3" {
+		c.Kind = "local"
+	}
 	if s.wizardError(w, r, err, "setup-backup", s.formMode(r, "backup", map[string]any{"Kind": c.Kind, "Path": c.Path,
 		"Endpoint": c.Endpoint, "Bucket": c.Bucket, "Prefix": c.Prefix, "AccessKey": c.AccessKey, "Current": s.BackupRepo})) {
 		return

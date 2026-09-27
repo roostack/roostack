@@ -2,6 +2,7 @@
 package auth
 
 import (
+	"regexp"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -47,6 +48,22 @@ func Can(role string, p Permission) bool {
 		return p == ViewDashboard
 	}
 	return false
+}
+
+var usernameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$`)
+
+// ValidUsername reports whether a username is acceptable: 1-32 letters,
+// digits, dots, dashes or underscores, starting with a letter or digit.
+func ValidUsername(name string) bool { return usernameRe.MatchString(name) }
+
+// NewTemporaryPassword returns a random password for a new account or a
+// reset (~120 bits), to be changed at the next login.
+func NewTemporaryPassword() (string, error) {
+	t, err := NewToken()
+	if err != nil {
+		return "", err
+	}
+	return t[:20], nil
 }
 
 // ValidRole reports whether role is known.

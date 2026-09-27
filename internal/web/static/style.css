@@ -187,3 +187,11 @@ ul.plain { list-style: none; padding: 0; } ul.plain li { margin: 6px 0; }
 select.inline { display: inline-block; width: auto; margin: 0 0 0 6px; padding: 4px 8px; }
 .theme-toggle { background: none; color: var(--muted); padding: 6px 8px; font-size: 0.9rem; }
 .theme-toggle:hover { color: var(--fg); }
+ul.users { list-style: none; padding: 0; }
+ul.users > li { border-top: 1px solid var(--border); padding: 12px 0; }
+.user-actions summary { cursor: pointer; color: var(--accent); font-size: 0.9em; margin-top: 4px; }
+.user-actions form { margin: 10px 0; }
+.inline-form { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.inline-form label { margin: 0; }
+code.secret { font-size: 1.2em; padding: 4px 8px; user-select: all; }
+button.link-danger { background: none; padding: 0; }

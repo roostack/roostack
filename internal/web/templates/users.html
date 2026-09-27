@@ -1,0 +1,67 @@
+{{define "title"}}People{{end}}
+{{define "content"}}
+<section class="card medium">
+  <p><a href="/settings">← Settings</a></p>
+  <h1>People</h1>
+  <p class="hint">Who can log in to MyLab. Each service (Forgejo, Vaultwarden, …) still has its own accounts.</p>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{with .Done}}<p class="notice" role="status">{{.}}</p>{{end}}
+  {{with .TempPassword}}
+  <div class="notice" role="status">
+    <p><strong>{{if $.TempNew}}{{$.TempFor}} can now log in{{else}}New password for {{$.TempFor}}{{end}}</strong> with this temporary password.
+      Give it to them in person or over a message; it's only shown now. They'll choose their own when they log in.</p>
+    <p><code class="secret">{{.}}</code></p>
+  </div>
+  {{end}}
+
+  <ul class="users">
+    {{range .Users}}
+    <li>
+      <div class="user-line">
+        <span><strong>{{.Username}}</strong>{{if eq .ID $.User.ID}} <span class="hint">(you)</span>{{end}}<br>
+          <small class="hint">{{roleName .Role}} · two-factor {{if .TOTPSecret}}on{{else}}off{{end}}{{if .MustChangePassword}} · hasn't chosen a password yet{{end}}</small></span>
+      </div>
+      {{if ne .ID $.User.ID}}
+      <details class="user-actions">
+        <summary>Change…</summary>
+        <form method="post" action="/users/{{.ID}}/role" class="inline-form">
+          <label>Role
+            <select name="role" class="inline">{{$role := .Role}}{{range $.Roles}}<option value="{{.}}" {{if eq . $role}}selected{{end}}>{{roleName .}}</option>{{end}}</select>
+          </label>
+          <button type="submit" class="secondary">Save role</button>
+        </form>
+        <form method="post" action="/users/{{.ID}}/reset-password">
+          <button type="submit" class="secondary">Give a new temporary password</button>
+        </form>
+        {{if .TOTPSecret}}
+        <form method="post" action="/users/{{.ID}}/reset-2fa">
+          <button type="submit" class="secondary">Turn off two-factor (lost phone)</button>
+        </form>
+        {{end}}
+        {{/* The name goes through a data attribute, never into the expression. */}}
+        <form method="post" action="/users/{{.ID}}/remove" data-name="{{.Username}}" x-data
+          x-on:submit="if (!confirm('Remove ' + $el.dataset.name + '? They will no longer be able to log in.')) $event.preventDefault()">
+          <button type="submit" class="link-danger">Remove {{.Username}}</button>
+        </form>
+      </details>
+      {{end}}
+    </li>
+    {{end}}
+  </ul>
+
+  <h2>Add someone</h2>
+  <form method="post" action="/users">
+    <label>Username <input name="username" value="{{.NewName}}" required autocapitalize="off" autocomplete="off" maxlength="32"></label>
+    <fieldset>
+      <legend>What can they do?</legend>
+      <label class="check"><input type="radio" name="role" value="member" {{if or (not .NewRole) (eq .NewRole "member")}}checked{{end}}>
+        <span>Member<small>Sees the services and their links.</small></span></label>
+      <label class="check"><input type="radio" name="role" value="admin" {{if eq .NewRole "admin"}}checked{{end}}>
+        <span>Admin<small>Also installs, changes and removes services, and runs backups.</small></span></label>
+      <label class="check"><input type="radio" name="role" value="owner" {{if eq .NewRole "owner"}}checked{{end}}>
+        <span>Owner<small>Everything, including this machine's settings, restores and people. Needs two-factor.</small></span></label>
+    </fieldset>
+    <button type="submit">Add</button>
+  </form>
+</section>
+{{end}}

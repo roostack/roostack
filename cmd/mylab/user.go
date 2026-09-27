@@ -14,12 +14,14 @@ import (
 const userUsage = `Usage:
   mylab user add <name> [-role owner|admin|member]
   mylab user reset-password <name>
+  mylab user reset-2fa <name>       turn off two-factor (a lost phone)
 
-Both print a new temporary password. Run as root or the mylab user.
+add and reset-password print a temporary password, to be changed at the
+next login. Run as root or the mylab user.
 `
 
-// user manages accounts from the host command line. Password reset is
-// deliberately CLI-only (SPEC.md §5).
+// user manages accounts from the host command line: the way back in for
+// an Owner who forgot their password or lost their phone (SPEC.md §5).
 func user(args []string) error {
 	if len(args) < 2 {
 		fmt.Print(userUsage)
@@ -42,18 +44,36 @@ func user(args []string) error {
 	defer st.Close()
 	ctx := context.Background()
 
-	password, err := auth.NewToken()
+	password, err := auth.NewTemporaryPassword()
 	if err != nil {
 		return err
 	}
-	password = password[:20] // still ~120 bits of randomness
 	hash, err := auth.HashPassword(password)
 	if err != nil {
 		return err
 	}
 
 	switch sub {
+	case "reset-2fa":
+		u, err := st.UserByUsername(ctx, name)
+		if errors.Is(err, store.ErrNotFound) {
+			return fmt.Errorf("user: no user named %q", name)
+		} else if err != nil {
+			return err
+		}
+		if err := st.ResetTOTP(ctx, u.ID); err != nil {
+			return err
+		}
+		st.Audit(ctx, nil, "2FA reset", name+" via command line")
+		fmt.Printf("Two-factor authentication is off for %s, and they have been logged out everywhere.\n", name)
+		if u.Role == auth.RoleOwner {
+			fmt.Println("As an Owner, they'll set it up again when they next log in.")
+		}
+		return nil
 	case "add":
+		if !auth.ValidUsername(name) {
+			return fmt.Errorf("user: %q isn't a valid username (letters, digits, . _ -; up to 32)", name)
+		}
 		if !auth.ValidRole(*role) {
 			return fmt.Errorf("user: unknown role %q", *role)
 		}

@@ -38,8 +38,8 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(failedLoginDelay)
 		fail("The setup code is wrong. It is shown in the MyLab log and in /var/lib/mylab/setup-token.")
 		return
-	case username == "":
-		fail("Choose a username.")
+	case !auth.ValidUsername(username):
+		fail("Choose a username of letters and digits (dots, dashes and underscores are fine too), up to 32 characters.")
 		return
 	case password != r.FormValue("confirm"):
 		fail("The passwords don't match.")
