@@ -3,6 +3,8 @@ package web
 import (
 	"errors"
 	"net/http"
+	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/mylab/mylab/internal/activity"
@@ -20,6 +22,8 @@ type nav struct {
 	Username string
 	Backups  bool
 	Settings bool
+	// Theme is the user's theme; NextTheme is what the toggle switches to.
+	Theme, NextTheme string
 }
 
 // navFor picks the links a role can use and marks the current section.
@@ -30,7 +34,11 @@ func navFor(u *store.User, page string) nav {
 		"settings": "settings", "setup-timezone": "settings", "setup-ssh": "settings", "setup-domain": "settings", "setup-backup": "settings",
 		"recovery-key": "settings", "restore": "backups", "dns-takeover": "settings", "account": "account", "twofactor": "account",
 	}[page]
-	return nav{Active: active, Username: u.Username,
+	next := map[string]string{"auto": "light", "light": "dark", "dark": "auto"}[u.Theme]
+	if next == "" {
+		u.Theme, next = "auto", "light"
+	}
+	return nav{Active: active, Username: u.Username, Theme: u.Theme, NextTheme: next,
 		Backups: auth.Can(u.Role, auth.ManageServices), Settings: auth.Can(u.Role, auth.ManageHost)}
 }
 
@@ -231,6 +239,25 @@ func (s *Server) dnsView(r *http.Request) any {
 
 func (s *Server) accountPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "account", map[string]any{"User": currentUser(r)})
+}
+
+// themeSubmit saves the user's theme and returns to the page they were
+// on (same origin only: Referrer-Policy is same-origin).
+func (s *Server) themeSubmit(w http.ResponseWriter, r *http.Request) {
+	theme := r.FormValue("theme")
+	if !slices.Contains(store.Themes, theme) {
+		http.Error(w, "Unknown theme.", http.StatusBadRequest)
+		return
+	}
+	if err := s.Store.SetTheme(r.Context(), currentUser(r).ID, theme); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	back := "/"
+	if ref, err := url.Parse(r.Referer()); err == nil && ref.Host == r.Host && strings.HasPrefix(ref.Path, "/") {
+		back = ref.Path
+	}
+	http.Redirect(w, r, back, http.StatusSeeOther)
 }
 
 // passwordSubmit changes the user's own password. All their sessions are

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -353,5 +354,29 @@ func TestTemporaryPasswordMustBeChanged(t *testing.T) {
 	}
 	if u, _ := h.store.UserByUsername(context.Background(), "dad"); u.MustChangePassword {
 		t.Error("flag not cleared")
+	}
+}
+
+func TestThemeToggle(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleAdmin)
+	if _, body := h.get("/services"); !strings.Contains(body, `<html lang="en" data-theme="auto">`) ||
+		!strings.Contains(body, `name="theme" value="light"`) {
+		t.Fatal("new users follow the device; the toggle offers light next")
+	}
+	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/account/theme", strings.NewReader("theme=dark"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", h.srv.URL)
+	req.Header.Set("Referer", h.srv.URL+"/services")
+	resp, err := h.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(body), `data-theme="dark"`) || !strings.Contains(string(body), "<title>Services") {
+		t.Error("choosing dark should return to the same page, in dark")
+	}
+	if code, _ := h.post("/account/theme", url.Values{"theme": {"purple"}}, h.srv.URL); code != http.StatusBadRequest {
+		t.Errorf("unknown theme: %d", code)
 	}
 }
