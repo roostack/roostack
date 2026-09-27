@@ -21,6 +21,7 @@ type fakeHost struct {
 	updated   bool
 	rebooted  bool
 	updateErr error
+	wg        *WireGuard
 }
 
 func (f *fakeHost) SetUnprivilegedPortStart() error { f.portsSet = true; return nil }
@@ -35,6 +36,11 @@ func (f *fakeHost) RunUpdates(_ context.Context, w io.Writer) error {
 	return nil
 }
 func (f *fakeHost) Reboot() error { f.rebooted = true; return nil }
+func (f *fakeHost) ApplyWireGuard(wg WireGuard) (string, error) {
+	f.wg = &wg
+	return "cHVibGlj", nil
+}
+func (f *fakeHost) WireGuardStatus() (WireGuardStatus, error) { return WireGuardStatus{}, nil }
 
 // start runs a real server on a Unix socket, so SO_PEERCRED is exercised.
 func start(t *testing.T, allowed []uint32) (*Client, *fakeHost) {

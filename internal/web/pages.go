@@ -60,6 +60,7 @@ func (s *Server) pageData(r *http.Request) (map[string]any, error) {
 		"CanManage": s.Manager != nil && auth.Can(u.Role, auth.ManageServices),
 		"IsOwner":   auth.Can(u.Role, auth.ManageHost),
 		"Apply":     s.applyStatus(),
+		"Machine":   s.machineViewOf(r),
 	}, nil
 }
 
@@ -148,8 +149,8 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			data["Actions"] = actions
 			s.addSettingsData(data, name, p, nil)
 		}
-		if s.Node != nil {
-			data["Setup"] = s.Node.InstallStatus(r.Context(), name)
+		if n := s.machineOf(r); n != nil {
+			data["Setup"] = n.InstallStatus(r.Context(), name)
 		}
 		// The latest setup log, if it's this service's.
 		if a := s.activityFor(r, activity.Setup); a != nil && a.Title == "Setting up "+data["Service"].(ServiceView).Title {
@@ -188,7 +189,7 @@ func (s *Server) backupsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	data["Backup"] = s.backupView(r)
 	data["BackupRepo"] = s.BackupRepo
-	data["CanRestore"] = s.restores() != nil && auth.Can(currentUser(r).Role, auth.ManageHost)
+	data["CanRestore"] = s.restores(r) != nil && auth.Can(currentUser(r).Role, auth.ManageHost)
 	if a := s.activityFor(r, activity.Backup); a != nil {
 		data["BackupActivity"] = a
 	}

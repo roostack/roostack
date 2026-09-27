@@ -11,23 +11,37 @@
 #   scripts/dev-vm.sh status
 #
 # Ports forwarded to 127.0.0.1 on this machine:
-#   2222 -> 22 (ssh), 18480 -> 8480 (MyLab UI), 18080 -> 80, 18443 -> 443
+#   2222 -> 22 (ssh), 18480 -> 8480 (MyLab UI), 18080 -> 80, 18443 -> 443,
+#   51820/udp -> 51820 (MyLab's WireGuard network)
+#
+# More VMs (e.g. a second machine joining the lab): MYLAB_VM=2 scripts/dev-vm.sh up
+# VM n uses ssh port 2221+n, the other TCP ports plus (n-1)*10000, and UDP
+# 51819+n. Another VM reaches VM 1's WireGuard at 10.0.2.2:51820 (QEMU's
+# address for this machine).
 #
 # Note: QEMU user networking NATs every connection, so inside the VM all
 # clients appear to come from 10.0.2.2. Keep that in mind when testing
 # client-IP behaviour (docs/ASSUMPTIONS.md C4).
 set -euo pipefail
 
-VM_DIR=${MYLAB_VM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mylab-dev-vm}
+N=${MYLAB_VM:-1}
+[[ $N =~ ^[1-9]$ ]] || { echo "MYLAB_VM must be 1-9" >&2; exit 2; }
+SUFFIX=$([[ $N == 1 ]] || echo "-$N")
+NAME=mylab-dev$SUFFIX
+VM_DIR=${MYLAB_VM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mylab-dev-vm$SUFFIX}
+OFF=$(((N - 1) * 10000))
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 IMAGE_URL=https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2
 SUMS_URL=https://cloud.debian.org/images/cloud/trixie/latest/SHA512SUMS
-BASE=$VM_DIR/debian-13-genericcloud-amd64.qcow2
+# Every VM starts from the same downloaded image, kept with VM 1.
+IMAGE_DIR=${XDG_DATA_HOME:-$HOME/.local/share}/mylab-dev-vm
+BASE=$IMAGE_DIR/debian-13-genericcloud-amd64.qcow2
 DISK=$VM_DIR/disk.qcow2
 KEY=$VM_DIR/id_ed25519
 PIDFILE=$VM_DIR/qemu.pid
 QMP=$VM_DIR/qmp.sock
-SSH_PORT=2222
+SSH_PORT=$((2221 + N))
+WG_PORT=$((51819 + N))
 MEMORY=${MYLAB_VM_MEMORY:-4096}
 CPUS=${MYLAB_VM_CPUS:-4}
 DISK_SIZE=${MYLAB_VM_DISK:-40G}
@@ -62,10 +76,11 @@ PY
 
 download() {
     [[ -f $BASE ]] && return
+    mkdir -p "$IMAGE_DIR"
     log "Downloading Debian 13 cloud image"
     curl -fL --progress-bar -o "$BASE.part" "$IMAGE_URL"
-    curl -fsSL -o "$VM_DIR/SHA512SUMS" "$SUMS_URL"
-    want=$(awk '$2 == "debian-13-genericcloud-amd64.qcow2" {print $1}' "$VM_DIR/SHA512SUMS")
+    curl -fsSL -o "$IMAGE_DIR/SHA512SUMS" "$SUMS_URL"
+    want=$(awk '$2 == "debian-13-genericcloud-amd64.qcow2" {print $1}' "$IMAGE_DIR/SHA512SUMS")
     got=$(sha512sum "$BASE.part" | awk '{print $1}')
     [[ -n $want && $want == "$got" ]] || { echo "checksum mismatch" >&2; exit 1; }
     mv "$BASE.part" "$BASE"
@@ -82,8 +97,8 @@ create() {
     # (NoCloud-net), so no ISO tools are needed.
     mkdir -p "$VM_DIR/seed"
     cat >"$VM_DIR/seed/meta-data" <<EOF
-instance-id: mylab-dev-$(date +%s)
-local-hostname: mylab-dev
+instance-id: $NAME-$(date +%s)
+local-hostname: $NAME
 EOF
     cat >"$VM_DIR/seed/user-data" <<EOF
 #cloud-config
@@ -110,16 +125,16 @@ start() {
     fi
     local smbios=()
     if $first_boot; then
-        local port=18999
+        local port=$((18998 + N))
         (cd "$VM_DIR/seed" && exec python3 -m http.server "$port" --bind 127.0.0.1 >"$VM_DIR/seed.log" 2>&1) &
         seed_pid=$!
         smbios=(-smbios "type=1,serial=ds=nocloud;s=http://10.0.2.2:$port/")
     fi
     log "Starting VM ($MEMORY MB, $CPUS CPUs)"
     qemu-system-x86_64 \
-        -name mylab-dev -machine q35,accel=kvm -cpu host -m "$MEMORY" -smp "$CPUS" \
+        -name "$NAME" -machine q35,accel=kvm -cpu host -m "$MEMORY" -smp "$CPUS" \
         -drive file="$DISK",if=virtio,id=disk0,discard=unmap \
-        -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:18480-:8480,hostfwd=tcp:127.0.0.1:18080-:80,hostfwd=tcp:127.0.0.1:18443-:443" \
+        -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$((18480 + OFF))-:8480,hostfwd=tcp:127.0.0.1:$((18080 + OFF))-:80,hostfwd=tcp:127.0.0.1:$((18443 + OFF))-:443,hostfwd=udp:127.0.0.1:$WG_PORT-:51820" \
         -device virtio-net-pci,netdev=net0 \
         -device virtio-rng-pci \
         "${smbios[@]}" \
@@ -175,12 +190,12 @@ up) start ;;
 ssh) shift; vm_ssh -t "$@" ;;
 sync) sync_repo ;;
 install) sync_repo; vm_ssh -t 'cd ~/mylab && sudo scripts/dev-install.sh' ;;
-ui) log "MyLab UI: http://127.0.0.1:18481 (Ctrl-C to stop)"
+ui) log "MyLab UI: http://127.0.0.1:$((18481 + OFF)) (Ctrl-C to stop)"
     # Reconnect when the VM restarts (e.g. after OS updates) or the
     # connection drops; notice a dead connection within ~15s.
     while true; do
         vm_ssh -N -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes \
-            -L 127.0.0.1:18481:127.0.0.1:8480 || true
+            -L 127.0.0.1:$((18481 + OFF)):127.0.0.1:8480 || true
         log "Tunnel closed; reconnecting…"
         sleep 3
     done ;;

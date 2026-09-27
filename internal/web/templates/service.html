@@ -24,6 +24,7 @@
   <dl class="facts">
     {{range .Service.URLs}}<dt>Address</dt><dd><a href="{{.}}" target="_blank" rel="noopener">{{.}}</a></dd>{{end}}
     <dt>Reachable from</dt><dd>Your home network (or VPN)</dd>
+    {{with .Service.Machine}}<dt>Runs on</dt><dd>{{.}}</dd>{{end}}
   </dl>
   <details class="technical">
     <summary>Technical details</summary>

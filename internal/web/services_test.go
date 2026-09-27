@@ -17,6 +17,7 @@ import (
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/node"
+	"github.com/mylab/mylab/internal/nodeid"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/store"
 )
@@ -49,6 +50,22 @@ type fakeManager struct {
 }
 
 func (f *fakeManager) Settings() node.Settings { return f.settings }
+
+// The fake is also the lab's one machine.
+func (f *fakeManager) Identity() nodeid.Identity {
+	return nodeid.Identity{ID: "n-0123456789", Name: "nuc"}
+}
+func (f *fakeManager) Apply(node.Assignment) {}
+func (f *fakeManager) ServiceStates(context.Context) (map[string]string, error) {
+	return nil, nil
+}
+func (f *fakeManager) NodeFor(string) node.Node { return f }
+func (f *fakeManager) NodeByID(id string) node.Node {
+	if id == "n-0123456789" {
+		return f
+	}
+	return nil
+}
 
 // setSetup sets the wizard; a fakeSetup is also the machine's settings.
 func (h *harness) setSetup(ls LabSetup) {
@@ -573,5 +590,14 @@ func TestMachines(t *testing.T) {
 	ha, _ := loggedIn(t, auth.RoleAdmin)
 	if code, _ := ha.get("/settings/machines"); code == http.StatusOK {
 		t.Error("only Owners see machines")
+	}
+
+	// A machine's own pages; an unknown machine is not found.
+	fm.updates = &fakeUpdates{}
+	if code, body := h.get("/settings/machines/n-0123456789/updates"); code != http.StatusOK || !strings.Contains(body, "Updates and restarts") {
+		t.Errorf("machine updates page: %d", code)
+	}
+	if code, _ := h.get("/settings/machines/n-9999999999/updates"); code != http.StatusNotFound {
+		t.Errorf("unknown machine: %d", code)
 	}
 }

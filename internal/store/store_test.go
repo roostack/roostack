@@ -226,3 +226,32 @@ func TestUserManagement(t *testing.T) {
 		t.Errorf("users after delete: %+v", users)
 	}
 }
+
+func TestJoinCodes(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	now := time.Now()
+	s.AddJoinCode(ctx, JoinCode{TokenHash: "h1", Addr: "100.96.0.2", PublicKey: "k1", Expires: now.Add(time.Hour)})
+	s.AddJoinCode(ctx, JoinCode{TokenHash: "old", Addr: "100.96.0.3", PublicKey: "k2", Expires: now.Add(-time.Minute)})
+	if codes, err := s.JoinCodes(ctx, now); err != nil || len(codes) != 1 || codes[0].Addr != "100.96.0.2" {
+		t.Fatalf("codes = %+v, %v (expired ones dropped)", codes, err)
+	}
+	if _, err := s.Join(ctx, "nope", Machine{ID: "n-0000000002"}, now); !errors.Is(err, ErrJoinCode) {
+		t.Errorf("unknown code: %v", err)
+	}
+	m, err := s.Join(ctx, "h1", Machine{ID: "n-0000000002", Name: "vps", PublicKey: "own"}, now)
+	if err != nil || m.Addr != "100.96.0.2" {
+		t.Fatalf("join: %+v %v", m, err)
+	}
+	if _, err := s.Join(ctx, "h1", Machine{ID: "n-0000000009"}, now); !errors.Is(err, ErrJoinCode) {
+		t.Error("a code must work once")
+	}
+	ms, _ := s.Machines(ctx)
+	if len(ms) != 1 || ms[0].Name != "vps" || ms[0].PublicKey != "own" {
+		t.Errorf("machines = %+v", ms)
+	}
+	s.RemoveMachine(ctx, "n-0000000002")
+	if ms, _ := s.Machines(ctx); len(ms) != 0 {
+		t.Error("not removed")
+	}
+}

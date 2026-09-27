@@ -70,6 +70,7 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	req := manager.InstallRequest{
 		Subdomain: r.PostForm.Get("subdomain"),
+		Host:      r.PostForm.Get("host"),
 		Settings:  map[string]string{},
 		Secrets:   map[string]string{},
 	}
@@ -147,6 +148,12 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 	if route := manager.MainRoute(p); submitted == nil && route != "" {
 		sub = p.Routes[route].Subdomain
 	}
+	// Where to run it, once the lab has more than one machine (SPEC.md §10.4).
+	var machines []manager.Machine
+	if ms, err := s.Manager.Machines(); err == nil && len(ms) > 1 {
+		machines = ms
+	}
+	host, _ := get("host")
 	return map[string]any{
 		"User":      currentUser(r),
 		"Package":   p,
@@ -155,6 +162,8 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		"Subdomain": sub,
 		"Domain":    s.Domain,
 		"Error":     errMsg,
+		"Machines":  machines,
+		"Host":      host,
 	}
 }
 
@@ -218,12 +227,12 @@ func (s *Server) portSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) retrySetupSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Node == nil {
+	if s.machineOf(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
 	name := r.PathValue("name")
-	if err := s.Node.RetryInstall(r.Context(), name); err != nil {
+	if err := s.machineOf(r).RetryInstall(r.Context(), name); err != nil {
 		s.serverError(w, err)
 		return
 	}
@@ -232,7 +241,7 @@ func (s *Server) retrySetupSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Node == nil {
+	if s.machineOf(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
@@ -247,7 +256,7 @@ func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
 			inputs[key] = v[0]
 		}
 	}
-	out, err := s.Node.RunAction(r.Context(), name, action, inputs)
+	out, err := s.machineOf(r).RunAction(r.Context(), name, action, inputs)
 	var fe *manager.FormError
 	var ae *manager.ActionError
 	result := map[string]string{"action": action}

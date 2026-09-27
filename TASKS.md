@@ -122,9 +122,17 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] `Node` interface between the manager (controller) and machine operations: the manager hands each machine an Assignment (its services, typed-in secrets, services to set up); `node.Local` applies it, runs the firewall, install hooks, actions and secret reveals
   - [x] Backups, restores, OS updates and restarts behind the node (`node.Maintenance`); the web reaches them through the node. Their construction still lives in `serve` (`startMaintenance`)
   - [x] Machine settings behind the node (`node.Settings`: time zone, SSH access, restart policy); the wizard only records its progress (`setup.Done`)
-  - [ ] The web reaches a service's machine by its host (today `Server.Node` is this machine)
+  - [x] The web reaches a service's machine by its host
   - [x] Per-node status and activity in the UI: activity is read from the node; Settings → Machines lists each machine (role, services, apply status); problems name the machine once there are several. Per-machine URLs (`/settings/machines/<id>/…`) come with the second machine
-- [ ] Two-VM prototype: second dev VM joins over MyLab-managed WireGuard (join code, mTLS), runs one service placed on it
+- [x] Two-VM prototype (SPEC.md §10.9): second dev VM joins over MyLab-managed WireGuard (join code with a one-time key, mTLS lab API), runs a service placed on it; the controller's Caddy forwards its routes; setup, actions, secrets, backups, updates, restarts and settings work remotely (`/settings/machines/<id>/…`); `MYLAB_VM=2 scripts/dev-vm.sh`
+- [ ] Multi-machine follow-ups
+  - [ ] Remove a machine (revoke its certificate, drop its WireGuard peer); rename a machine
+  - [ ] Move a service between machines (backup → restore → switch route, SPEC.md §10.4)
+  - [ ] Per-machine backups set up from the UI (own repository, recovery key as second key)
+  - [ ] Needs-attention items for other machines' backups, updates and restarts
+  - [ ] Certificate renewal; nodes behind a hub that isn't the controller
+  - [ ] Node without a firewall choice: ask for SSH access on join
+- [ ] A settings change that restarts MyLab waits for running maintenance jobs (today it interrupts an OS update run and loses its result)
 - [ ] Controller move (planned hand-over) and promotion from a node's replica
 - [ ] Edge: public service at home routed through a cloud node (TLS passthrough over WireGuard, PROXY protocol)
 - [ ] Failover: cold standby first

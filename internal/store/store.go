@@ -70,6 +70,20 @@ var migrations = []string{
 	`ALTER TABLE users ADD COLUMN palette TEXT NOT NULL DEFAULT '';`,
 	// The theme's accent colour ('' = the theme's default).
 	`ALTER TABLE users ADD COLUMN accent TEXT NOT NULL DEFAULT '';`,
+	// Other machines in the lab (SPEC.md §10), and join codes not yet used.
+	`CREATE TABLE machines (
+		id         TEXT PRIMARY KEY,
+		name       TEXT NOT NULL,
+		addr       TEXT NOT NULL UNIQUE,
+		public_key TEXT NOT NULL,
+		joined_at  INTEGER NOT NULL
+	);
+	CREATE TABLE join_codes (
+		token_hash TEXT PRIMARY KEY,
+		addr       TEXT NOT NULL UNIQUE,
+		public_key TEXT NOT NULL,
+		expires_at INTEGER NOT NULL
+	);`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -502,5 +516,109 @@ func (s *Store) SettingsWithPrefix(ctx context.Context, prefix string) (map[stri
 func (s *Store) SetSetting(ctx context.Context, key, value string) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, key, value)
+	return err
+}
+
+// Machine is another machine in the lab (SPEC.md §10).
+type Machine struct {
+	ID, Name string
+	Addr     string // on MyLab's network
+	// PublicKey is its WireGuard key.
+	PublicKey string
+	JoinedAt  time.Time
+}
+
+// JoinCode is a join code waiting to be used. Only the token's hash is
+// kept; PublicKey is the code's one-time WireGuard key.
+type JoinCode struct {
+	TokenHash, Addr, PublicKey string
+	Expires                    time.Time
+}
+
+// ErrJoinCode means a join code is unknown, used or expired.
+var ErrJoinCode = errors.New("the join code is unknown, already used or expired")
+
+// AddJoinCode records a new join code.
+func (s *Store) AddJoinCode(ctx context.Context, c JoinCode) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO join_codes (token_hash, addr, public_key, expires_at) VALUES (?, ?, ?, ?)`,
+		c.TokenHash, c.Addr, c.PublicKey, c.Expires.Unix())
+	return err
+}
+
+// JoinCodes lists the join codes that haven't expired, dropping the rest.
+func (s *Store) JoinCodes(ctx context.Context, now time.Time) ([]JoinCode, error) {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM join_codes WHERE expires_at <= ?`, now.Unix()); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT token_hash, addr, public_key, expires_at FROM join_codes ORDER BY addr`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []JoinCode
+	for rows.Next() {
+		var c JoinCode
+		var exp int64
+		if err := rows.Scan(&c.TokenHash, &c.Addr, &c.PublicKey, &exp); err != nil {
+			return nil, err
+		}
+		c.Expires = time.Unix(exp, 0)
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// Join uses a join code: it adds the machine at the code's address and
+// deletes the code, in one transaction, so a code works once.
+func (s *Store) Join(ctx context.Context, tokenHash string, m Machine, now time.Time) (Machine, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return m, err
+	}
+	defer tx.Rollback()
+	var exp int64
+	err = tx.QueryRowContext(ctx, `SELECT addr, expires_at FROM join_codes WHERE token_hash = ?`, tokenHash).Scan(&m.Addr, &exp)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && exp <= now.Unix()) {
+		return m, ErrJoinCode
+	}
+	if err != nil {
+		return m, err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM join_codes WHERE token_hash = ?`, tokenHash); err != nil {
+		return m, err
+	}
+	m.JoinedAt = now
+	// Joining again (e.g. after reinstalling) replaces the old entry.
+	if _, err := tx.ExecContext(ctx, `INSERT INTO machines (id, name, addr, public_key, joined_at) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET name = excluded.name, addr = excluded.addr, public_key = excluded.public_key,
+		joined_at = excluded.joined_at`, m.ID, m.Name, m.Addr, m.PublicKey, now.Unix()); err != nil {
+		return m, err
+	}
+	return m, tx.Commit()
+}
+
+// Machines lists the other machines in the lab.
+func (s *Store) Machines(ctx context.Context) ([]Machine, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, addr, public_key, joined_at FROM machines ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Machine
+	for rows.Next() {
+		var m Machine
+		var joined int64
+		if err := rows.Scan(&m.ID, &m.Name, &m.Addr, &m.PublicKey, &joined); err != nil {
+			return nil, err
+		}
+		m.JoinedAt = time.Unix(joined, 0)
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// RemoveMachine forgets a machine.
+func (s *Store) RemoveMachine(ctx context.Context, id string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM machines WHERE id = ?`, id)
 	return err
 }

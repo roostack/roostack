@@ -103,15 +103,46 @@ func Service(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (*Output
 	if err := in.Validate(p); err != nil {
 		return nil, err
 	}
-	g := &gen{
-		lab: lab, pkg: p, ctx: buildContext(lab, p, in),
-		out:      &Output{Service: p.Name},
-		included: map[string]bool{},
-	}
+	g := newGen(lab, p, in, CaddyHostLoopback)
 	if err := g.run(); err != nil {
 		return nil, fmt.Errorf("%s: %w", p.Name, err)
 	}
+	if lab.IsNode() {
+		// The controller's Caddy serves a node's routes (ProxySite).
+		g.out.CaddySite = nil
+	}
 	return g.out, nil
+}
+
+// ProxySite generates only the Caddy site for a service running on
+// another machine (SPEC.md §10.5): the controller's Caddy forwards its
+// routes over MyLab's network to addr, where that machine publishes them.
+func ProxySite(lab config.Lab, p *pkgspec.Package, in *instance.Instance, addr string) (*Output, error) {
+	if err := in.Validate(p); err != nil {
+		return nil, err
+	}
+	g := newGen(lab, p, in, addr)
+	for _, name := range slices.Sorted(maps.Keys(p.Containers)) {
+		ok, err := g.ctx.enabled("containers."+name+".when", p.Containers[name].When)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", p.Name, err)
+		}
+		g.included[name] = ok
+	}
+	if err := g.caddySite(); err != nil {
+		return nil, fmt.Errorf("%s: %w", p.Name, err)
+	}
+	// The ports are the other machine's, not this one's.
+	g.out.Ports = nil
+	return g.out, nil
+}
+
+func newGen(lab config.Lab, p *pkgspec.Package, in *instance.Instance, upstream string) *gen {
+	return &gen{
+		lab: lab, pkg: p, ctx: buildContext(lab, p, in), upstream: upstream,
+		out:      &Output{Service: p.Name},
+		included: map[string]bool{},
+	}
 }
 
 type gen struct {
@@ -119,6 +150,8 @@ type gen struct {
 	pkg *pkgspec.Package
 	ctx *Context
 	out *Output
+	// upstream is the host Caddy reaches the routes' ports on.
+	upstream string
 	// included records which containers passed their `when:` condition.
 	included map[string]bool
 }
@@ -202,7 +235,13 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 	}
 	cs.Add("Network", "mylab-"+svc+".network")
 	// Routed containers are published on the host's loopback only; Caddy
-	// reaches them through pasta's loopback mapping (SPEC.md §6.5).
+	// reaches them through pasta's loopback mapping (SPEC.md §6.5). A node
+	// publishes them on its address on MyLab's network instead, for the
+	// controller's Caddy (the firewall lets only that network in).
+	publish := "127.0.0.1"
+	if g.lab.IsNode() {
+		publish = g.lab.OverlayAddr
+	}
 	for _, rn := range slices.Sorted(maps.Keys(g.pkg.Routes)) {
 		r := g.pkg.Routes[rn]
 		if r.Container != name {
@@ -212,7 +251,7 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 		if port == 0 {
 			return fmt.Errorf("routes.%s: no host port allocated (run mylab apply)", rn)
 		}
-		cs.Add("PublishPort", fmt.Sprintf("127.0.0.1:%d:%d", port, r.Port))
+		cs.Add("PublishPort", fmt.Sprintf("%s:%d:%d", publish, port, r.Port))
 	}
 	for _, pn := range slices.Sorted(maps.Keys(g.pkg.Ports)) {
 		pp, pc := g.pkg.Ports[pn], g.ctx.Ports[pn]
@@ -388,7 +427,7 @@ func (g *gen) caddySite() error {
 		routes = append(routes, caddy.Route{
 			ID:          g.pkg.Name + "-" + name,
 			Host:        rc.Host,
-			Upstream:    fmt.Sprintf("%s:%d", CaddyHostLoopback, rc.Port),
+			Upstream:    fmt.Sprintf("%s:%d", g.upstream, rc.Port),
 			Private:     rc.Exposure != pkgspec.ExposurePublic,
 			MaxBodySize: r.MaxBodySize,
 		})

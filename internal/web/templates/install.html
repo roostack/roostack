@@ -6,6 +6,14 @@
   <p class="hint">{{.Package.Description}}</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <form method="post" action="/install/{{.Package.Name}}">
+    {{with .Machines}}
+    <label>Run it on
+      <select name="host">
+        {{range .}}<option value="{{.ID}}" {{if eq .ID $.Host}}selected{{end}}>{{.Name}}{{if .This}} (this machine){{end}}</option>{{end}}
+      </select>
+      <small>Its data stays on that machine, and it's backed up there.</small>
+    </label>
+    {{end}}
     {{if .HasRoute}}
     <label>Web address
       <span class="with-suffix">

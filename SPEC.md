@@ -421,6 +421,16 @@ Then a **two-VM prototype**: a second dev VM joins the first over WireGuard and 
 - **Keys:** the recovery key protects the state replicas and is added to every node's backup repository, but is stored only on the controller; each node has its own backup key (§10.3).
 - **MyLab Cloud:** nodes run by MyLab Cloud are trusted like any hosting provider (a machine running your services can see them; there's no real alternative). Roles that don't run services stay **zero-knowledge**: a relay or edge uses TLS passthrough, and a backup target only ever receives restic-encrypted data. Billing is out of scope until MyLab Cloud exists.
 
+### 10.9 Prototype as built (2026-09-27)
+
+What the two-VM prototype does, where it refines the design above:
+
+- **Hub:** the controller is the WireGuard hub (`100.96.0.1`, UDP 51820; network `100.96.0.0/24`). A reachable hub other than the controller comes later.
+- **Joining:** the Owner makes a code in Settings → Machines and runs `sudo mylab node join <code>` on the new machine. The code carries a **one-time WireGuard key**, so only the hub's UDP port needs to be reachable (no public TLS endpoint). Over WireGuard, the machine checks the controller's CA against the code's fingerprint, sends its own WireGuard key and a CSR, and gets its certificate; the hub then replaces the one-time key with the machine's own. Codes work once and expire after an hour.
+- **Protocol:** every machine serves a lab API on its overlay address (port 8471), mutual TLS with the lab's CA. The controller **sends** assignments and makes requests directly (status, service states, activity, hooks, actions, secrets, backups, restores, updates, restarts, settings); a node also **pulls** its assignment when it starts and every 15 minutes, and keeps its last one (without secrets) to run while the controller is away. Assignments carry a version; older ones are ignored. Typed-in secrets travel once and are never stored on disk.
+- **Web routes of a service on another machine:** the machine publishes them on its overlay address (firewall: WireGuard interface only) and the controller's Caddy forwards to it (TLS ends on the controller for now; passthrough is §10.5's edge).
+- **Nodes** run no UI, Caddy or DNS. Per-machine pages live under `/settings/machines/<id>/…`.
+
 ## Deferred Decisions (post-MVP)
 
 - SSO platform, and whether it is mandatory (linked to unifying MyLab and service accounts, §5)

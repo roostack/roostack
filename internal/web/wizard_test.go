@@ -63,6 +63,7 @@ func (f *fakeSetup) SetSSH(_ context.Context, choice string, confirmed bool) err
 	f.ssh, f.restarted = choice, true
 	return nil
 }
+func (f *fakeSetup) RestartPolicy() (string, int) { return "auto", config.Maintenance{}.Hour() }
 func (f *fakeSetup) SetRestartPolicy(_ context.Context, mode string, hour int) error {
 	if hour < 0 || hour > 23 {
 		return &node.FormError{Msg: "Choose an hour between 0 and 23."}

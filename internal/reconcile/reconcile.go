@@ -222,29 +222,32 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 		}
 	}
 
-	// Caddy config.
-	haveSites, err := readOwned(sitesDir, func(n string) bool { return strings.HasSuffix(n, ".caddy") })
-	if err != nil {
-		return nil, err
-	}
-	for _, name := range slices.Sorted(maps.Keys(wantSites)) {
-		if haveSites[name] != wantSites[name] {
-			plan.Write = append(plan.Write, FileChange{filepath.Join(sitesDir, name), wantSites[name]})
-			plan.ReloadCaddy = true
-		}
-	}
-	for _, name := range slices.Sorted(maps.Keys(haveSites)) {
-		if _, ok := wantSites[name]; !ok {
-			plan.Remove = append(plan.Remove, FileChange{Path: filepath.Join(sitesDir, name)})
-			plan.ReloadCaddy = true
-		}
-	}
-	if old, err := os.ReadFile(caddyfile); err != nil || string(old) != d.System.Caddyfile.Content {
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
+	// Caddy config. A node has none: the controller's Caddy serves its
+	// routes (SPEC.md §10.5).
+	if d.System.Caddyfile.Name != "" {
+		haveSites, err := readOwned(sitesDir, func(n string) bool { return strings.HasSuffix(n, ".caddy") })
+		if err != nil {
 			return nil, err
 		}
-		plan.Write = append(plan.Write, FileChange{caddyfile, d.System.Caddyfile.Content})
-		plan.ReloadCaddy = true
+		for _, name := range slices.Sorted(maps.Keys(wantSites)) {
+			if haveSites[name] != wantSites[name] {
+				plan.Write = append(plan.Write, FileChange{filepath.Join(sitesDir, name), wantSites[name]})
+				plan.ReloadCaddy = true
+			}
+		}
+		for _, name := range slices.Sorted(maps.Keys(haveSites)) {
+			if _, ok := wantSites[name]; !ok {
+				plan.Remove = append(plan.Remove, FileChange{Path: filepath.Join(sitesDir, name)})
+				plan.ReloadCaddy = true
+			}
+		}
+		if old, err := os.ReadFile(caddyfile); err != nil || string(old) != d.System.Caddyfile.Content {
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				return nil, err
+			}
+			plan.Write = append(plan.Write, FileChange{caddyfile, d.System.Caddyfile.Content})
+			plan.ReloadCaddy = true
+		}
 	}
 
 	plan.StartUnits = units

@@ -172,7 +172,24 @@ type Lab struct {
 	// HasGPU is detected at runtime, not configured. It resolves settings
 	// with `default: auto` (docs/ASSUMPTIONS.md G1).
 	HasGPU bool `yaml:"-"`
+	// Role is this machine's part in the lab (SPEC.md §10.1), set at
+	// runtime from its membership (internal/labnet).
+	Role string `yaml:"-"`
+	// OverlayAddr is this machine's address on MyLab's network, "" until
+	// the lab has a network. A node publishes its web services there, for
+	// the controller's Caddy.
+	OverlayAddr string `yaml:"-"`
 }
+
+// Roles (SPEC.md §10.1). A lab with one machine has a controller only.
+const (
+	RoleController = "controller"
+	RoleNode       = "node"
+)
+
+// IsNode reports whether this machine is a node run by another machine
+// (the controller): it runs services but no UI, Caddy or DNS.
+func (l Lab) IsNode() bool { return l.Role == RoleNode }
 
 // Default returns a Lab with default paths and no domain.
 func Default() Lab {

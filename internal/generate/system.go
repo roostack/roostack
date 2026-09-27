@@ -34,6 +34,10 @@ type SystemOutput struct {
 // System generates the lab-wide units.
 func System(lab config.Lab) (*SystemOutput, error) {
 	out := &SystemOutput{}
+	if lab.IsNode() {
+		// Nodes have no Caddy: the controller's serves their routes.
+		return out, nil
+	}
 
 	var u quadlet.Unit
 	u.Section("Unit").Add("Description", "MyLab: reverse proxy (Caddy)")

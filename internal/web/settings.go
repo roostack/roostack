@@ -2,13 +2,19 @@ package web
 
 import (
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/mylab/mylab/internal/activity"
+	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dns"
 	"github.com/mylab/mylab/internal/dnsrecords"
 	"github.com/mylab/mylab/internal/hosttime"
+	"github.com/mylab/mylab/internal/labnet"
 )
 
 // Settings is an overview grid of areas, each with its own page; on
@@ -77,8 +83,8 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	if users, err := s.Store.ListUsers(r.Context()); err == nil {
 		set("people", fmt.Sprintf("%d %s can log in", len(users), map[bool]string{true: "person", false: "people"}[len(users) == 1]), "")
 	}
-	if s.machine() != nil {
-		if a, err := s.machine().SSHAccess(); err == nil {
+	if s.machine(r) != nil {
+		if a, err := s.machine(r).SSHAccess(); err == nil {
 			switch a.Choice {
 			case config.SSHFromLAN:
 				set("remote-access", "SSH from your home network only", "ok")
@@ -119,9 +125,9 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	} else {
 		set("home-network", "Set up a domain first", "")
 	}
-	if s.updates() != nil {
-		last, _ := s.updates().Last(r.Context())
-		rs := s.updates().RestartStatus()
+	if s.updates(r) != nil {
+		last, _ := s.updates(r).Last(r.Context())
+		rs := s.updates(r).RestartStatus()
 		switch {
 		case last != nil && !last.OK:
 			set("updates", "The last update didn't finish", "problem")
@@ -204,6 +210,15 @@ func (s *Server) homeNetworkPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) machinesPage(w http.ResponseWriter, r *http.Request) {
+	s.renderMachines(w, r, nil)
+}
+
+// endpointKey remembers the address other machines reach this one at.
+const endpointKey = "network.endpoint"
+
+// renderMachines shows the Machines page; extra is added to its data
+// (e.g. a new join code).
+func (s *Server) renderMachines(w http.ResponseWriter, r *http.Request, extra map[string]any) {
 	if s.Manager == nil {
 		http.NotFound(w, r)
 		return
@@ -220,7 +235,56 @@ func (s *Server) machinesPage(w http.ResponseWriter, r *http.Request) {
 	}
 	data["Machines"] = machines
 	data["ApplyActivity"] = s.activityFor(r, activity.Apply)
+	if s.Network != nil {
+		endpoint, _ := s.Store.Setting(r.Context(), endpointKey)
+		if endpoint == "" {
+			endpoint = defaultEndpoint()
+		}
+		data["CanAdd"], data["Endpoint"] = true, endpoint
+	}
+	for k, v := range extra {
+		data[k] = v
+	}
+	status := http.StatusOK
+	if extra["Error"] != nil {
+		status = http.StatusBadRequest
+	}
+	w.WriteHeader(status)
 	s.render(w, "settings-machines", withArea(data, "machines"))
+}
+
+// joinCodeSubmit makes a join code for a new machine.
+func (s *Server) joinCodeSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Network == nil {
+		http.NotFound(w, r)
+		return
+	}
+	endpoint := strings.TrimSpace(r.FormValue("endpoint"))
+	if host, port, err := net.SplitHostPort(endpoint); err != nil || host == "" || port == "" {
+		s.renderMachines(w, r, map[string]any{"Endpoint": endpoint,
+			"Error": "Enter the address and port other machines reach this one at, such as 192.168.1.20:51820."})
+		return
+	}
+	code, err := s.Network.NewJoinCode(r.Context(), endpoint)
+	if err != nil {
+		s.renderMachines(w, r, map[string]any{"Endpoint": endpoint, "Error": "MyLab couldn't make a join code: " + err.Error()})
+		return
+	}
+	s.Store.SetSetting(r.Context(), endpointKey, endpoint)
+	s.Store.Audit(r.Context(), currentUser(r), "machines", "join code made for "+code.Addr.String())
+	s.renderMachines(w, r, map[string]any{"Endpoint": endpoint, "JoinCode": code.String(),
+		"JoinExpires": time.Now().Add(labnet.JoinCodeLifetime)})
+}
+
+// defaultEndpoint guesses this machine's address on the home network.
+func defaultEndpoint() string {
+	addrs, _ := net.InterfaceAddrs()
+	for _, a := range addrs {
+		if ipn, ok := a.(*net.IPNet); ok && ipn.IP.To4() != nil && !ipn.IP.IsLoopback() && ipn.IP.IsPrivate() {
+			return net.JoinHostPort(ipn.IP.String(), strconv.Itoa(agent.WireGuardPort))
+		}
+	}
+	return ""
 }
 
 func (s *Server) updatesPage(w http.ResponseWriter, r *http.Request) {

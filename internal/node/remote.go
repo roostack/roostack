@@ -1,0 +1,382 @@
+package node
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"net/netip"
+	"net/url"
+	"sync"
+	"time"
+
+	"github.com/mylab/mylab/internal/activity"
+	"github.com/mylab/mylab/internal/backup"
+	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/labnet"
+	"github.com/mylab/mylab/internal/nodeid"
+	"github.com/mylab/mylab/internal/osupdate"
+)
+
+// Timeouts for calls to another machine.
+const (
+	statusTimeout = 4 * time.Second
+	statusCache   = 5 * time.Second
+	pushRetry     = 30 * time.Second
+)
+
+// Remote is another machine, as the controller sees it: every operation
+// is a request over MyLab's network (SPEC.md §10.3).
+type Remote struct {
+	ID   nodeid.Identity
+	Addr netip.Addr
+	// Lab is the controller's lab config (to read package files).
+	Lab    config.Lab
+	Client *http.Client
+	Log    *slog.Logger
+	// URL is where the machine's lab API is; set by NewRemote.
+	URL string
+
+	mu sync.Mutex
+	// latest is the newest assignment, kept until the node has it; its
+	// secrets are dropped once delivered.
+	latest    *WireAssignment
+	delivered int64
+	pushing   bool
+	status    WireStatus
+	statusErr error
+	statusAt  time.Time
+}
+
+// NewRemote returns a machine reached with this machine's certificate.
+func NewRemote(self labnet.Identity, id nodeid.Identity, addr netip.Addr, lab config.Lab, log *slog.Logger) (*Remote, error) {
+	tlsConf, err := self.ClientTLS(id.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &Remote{ID: id, Addr: addr, Lab: lab, Log: log, URL: "https://" + netip.AddrPortFrom(addr, labnet.Port).String(),
+		Client: &http.Client{Timeout: 3 * time.Minute, Transport: &http.Transport{TLSClientConfig: tlsConf}}}, nil
+}
+
+func (r *Remote) Identity() nodeid.Identity { return r.ID }
+
+// Address is the machine's address on MyLab's network.
+func (r *Remote) Address() string { return r.Addr.String() }
+
+// Apply sends the machine its assignment in the background, retrying
+// until it has it. A machine also fetches it when it starts (Pending).
+func (r *Remote) Apply(a Assignment) {
+	w, err := Encode(r.Lab, a, time.Now().UnixNano())
+	if err != nil {
+		r.Log.Error("encoding assignment", "machine", r.ID.Name, "err", err)
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	// Typed-in secrets not yet delivered are still needed.
+	if r.latest != nil && len(r.latest.Secrets) > 0 {
+		merged := map[string][]byte{}
+		for k, v := range r.latest.Secrets {
+			merged[k] = v
+		}
+		for k, v := range w.Secrets {
+			merged[k] = v
+		}
+		w.Secrets = merged
+		w.SetUp = append(append([]string(nil), r.latest.SetUp...), w.SetUp...)
+	}
+	r.latest = &w
+	if !r.pushing {
+		r.pushing = true
+		go r.push()
+	}
+}
+
+func (r *Remote) push() {
+	for {
+		r.mu.Lock()
+		w := *r.latest
+		r.mu.Unlock()
+		err := r.call(context.Background(), http.MethodPut, "/v1/assignment", w, nil)
+		r.mu.Lock()
+		if err == nil {
+			r.deliveredLocked(w.Version)
+		}
+		if r.latest.Version == r.delivered {
+			r.pushing = false
+			r.mu.Unlock()
+			return
+		}
+		r.mu.Unlock()
+		if err != nil {
+			r.Log.Warn("machine didn't take its assignment; retrying", "machine", r.ID.Name, "err", err)
+			time.Sleep(pushRetry)
+		}
+	}
+}
+
+// deliveredLocked records that the machine has version v: its secrets
+// and set-ups needn't be sent again.
+func (r *Remote) deliveredLocked(v int64) {
+	r.delivered = max(r.delivered, v)
+	if r.latest != nil && r.latest.Version == v {
+		r.latest.Secrets, r.latest.SetUp = nil, nil
+	}
+	r.statusAt = time.Time{} // refresh
+}
+
+// Pending returns the latest assignment for the machine to fetch, and
+// counts it as delivered.
+func (r *Remote) Pending() (WireAssignment, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.latest == nil {
+		return WireAssignment{}, false
+	}
+	w := *r.latest
+	r.deliveredLocked(w.Version)
+	return w, true
+}
+
+// Status is the machine's apply status; an unreachable machine reports
+// why as its last error.
+func (r *Remote) Status() ApplyStatus {
+	st, err := r.wireStatus()
+	if err != nil {
+		return ApplyStatus{Finished: true, LastErr: fmt.Errorf("MyLab can't reach %s: %v", r.ID.Name, err)}
+	}
+	return st.apply()
+}
+
+// Reachable reports whether the machine answered recently.
+func (r *Remote) Reachable() bool {
+	_, err := r.wireStatus()
+	return err == nil
+}
+
+func (r *Remote) wireStatus() (WireStatus, error) {
+	r.mu.Lock()
+	if time.Since(r.statusAt) < statusCache {
+		st, err := r.status, r.statusErr
+		r.mu.Unlock()
+		return st, err
+	}
+	r.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), statusTimeout)
+	defer cancel()
+	var st WireStatus
+	err := r.call(ctx, http.MethodGet, "/v1/status", nil, &st)
+	r.mu.Lock()
+	r.status, r.statusErr, r.statusAt = st, err, time.Now()
+	r.mu.Unlock()
+	return st, err
+}
+
+func (r *Remote) ServiceStates(ctx context.Context) (map[string]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, statusTimeout)
+	defer cancel()
+	var out map[string]string
+	err := r.call(ctx, http.MethodGet, "/v1/services", nil, &out)
+	return out, err
+}
+
+func (r *Remote) LatestActivity(kind string) (activity.Snapshot, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), statusTimeout)
+	defer cancel()
+	var snap activity.Snapshot
+	err := r.call(ctx, http.MethodGet, "/v1/activity/"+url.PathEscape(kind), nil, &snap)
+	return snap, err == nil
+}
+
+func (r *Remote) InstallStatus(ctx context.Context, service string) HookStatus {
+	ctx, cancel := context.WithTimeout(ctx, statusTimeout)
+	defer cancel()
+	var st HookStatus
+	if err := r.call(ctx, http.MethodGet, "/v1/services/"+url.PathEscape(service)+"/setup", nil, &st); err != nil {
+		return HookStatus{Failed: err.Error()}
+	}
+	return st
+}
+
+func (r *Remote) RetryInstall(ctx context.Context, service string) error {
+	return r.call(ctx, http.MethodPost, "/v1/services/"+url.PathEscape(service)+"/setup/retry", struct{}{}, nil)
+}
+
+func (r *Remote) RunAction(ctx context.Context, service, action string, inputs map[string]string) (string, error) {
+	var out struct{ Output string }
+	err := r.call(ctx, http.MethodPost, "/v1/services/"+url.PathEscape(service)+"/actions/"+url.PathEscape(action), inputs, &out)
+	return out.Output, err
+}
+
+func (r *Remote) RevealSecret(ctx context.Context, service, key string) (string, error) {
+	var out struct{ Value string }
+	err := r.call(ctx, http.MethodPost, "/v1/services/"+url.PathEscape(service)+"/secrets/"+url.PathEscape(key), struct{}{}, &out)
+	return out.Value, err
+}
+
+// Maintenance and settings are offered if the machine has them (as of its
+// last status).
+func (r *Remote) Backups() Backups {
+	if st, err := r.wireStatus(); err != nil || !st.Backups {
+		return nil
+	}
+	return remoteBackups{r}
+}
+
+func (r *Remote) Restores() Restores {
+	if st, err := r.wireStatus(); err != nil || !st.Restores {
+		return nil
+	}
+	return remoteRestores{r}
+}
+
+func (r *Remote) Updates() Updates {
+	if st, err := r.wireStatus(); err != nil || !st.Updates {
+		return nil
+	}
+	return remoteUpdates{r}
+}
+
+func (r *Remote) Settings() Settings {
+	if st, err := r.wireStatus(); err != nil || !st.Settings {
+		return nil
+	}
+	return remoteSettings{r}
+}
+
+type remoteBackups struct{ r *Remote }
+
+func (b remoteBackups) Status(ctx context.Context) (backup.Status, error) {
+	var st backup.Status
+	err := b.r.call(ctx, http.MethodGet, "/v1/backups", nil, &st)
+	return st, err
+}
+
+func (b remoteBackups) RunNow() error {
+	return b.r.call(context.Background(), http.MethodPost, "/v1/backups/run", struct{}{}, nil)
+}
+
+type remoteRestores struct{ r *Remote }
+
+func (x remoteRestores) Snapshots(ctx context.Context, service string) ([]backup.Snapshot, error) {
+	var out []backup.Snapshot
+	err := x.r.call(ctx, http.MethodGet, "/v1/restores/"+url.PathEscape(service)+"/snapshots", nil, &out)
+	return out, err
+}
+
+func (x remoteRestores) Restore(service, snapshotID string) error {
+	return x.r.call(context.Background(), http.MethodPost, "/v1/restores/"+url.PathEscape(service),
+		map[string]string{"Snapshot": snapshotID}, nil)
+}
+
+func (x remoteRestores) Pending() bool {
+	var out bool
+	x.r.call(context.Background(), http.MethodGet, "/v1/restores/pending", nil, &out)
+	return out
+}
+
+func (x remoteRestores) Kept(service string) ([]backup.KeptCopy, error) {
+	var out []backup.KeptCopy
+	err := x.r.call(context.Background(), http.MethodGet, "/v1/restores/"+url.PathEscape(service)+"/kept", nil, &out)
+	return out, err
+}
+
+func (x remoteRestores) RemoveKept(ctx context.Context, service, path string) error {
+	return x.r.call(ctx, http.MethodPost, "/v1/restores/"+url.PathEscape(service)+"/kept/remove",
+		map[string]string{"Path": path}, nil)
+}
+
+type remoteUpdates struct{ r *Remote }
+
+func (u remoteUpdates) get(ctx context.Context) (wireUpdates, error) {
+	var w wireUpdates
+	err := u.r.call(ctx, http.MethodGet, "/v1/updates", nil, &w)
+	return w, err
+}
+
+func (u remoteUpdates) Last(ctx context.Context) (*osupdate.Result, error) {
+	w, err := u.get(ctx)
+	return w.Last, err
+}
+
+func (u remoteUpdates) Pending() bool {
+	w, _ := u.get(context.Background())
+	return w.Pending
+}
+
+func (u remoteUpdates) Submit() error {
+	return u.r.call(context.Background(), http.MethodPost, "/v1/updates/run", struct{}{}, nil)
+}
+
+func (u remoteUpdates) RestartStatus() osupdate.RestartStatus {
+	w, _ := u.get(context.Background())
+	return w.Restart
+}
+
+func (u remoteUpdates) RestartNow(ctx context.Context) error {
+	return u.r.call(ctx, http.MethodPost, "/v1/restart", struct{}{}, nil)
+}
+
+type remoteSettings struct{ r *Remote }
+
+func (x remoteSettings) get() (wireSettings, error) {
+	var w wireSettings
+	err := x.r.call(context.Background(), http.MethodGet, "/v1/settings", nil, &w)
+	return w, err
+}
+
+func (x remoteSettings) Timezones() (string, []string, error) {
+	w, err := x.get()
+	return w.Timezone, w.Zones, err
+}
+
+func (x remoteSettings) SetTimezone(ctx context.Context, name string) (bool, error) {
+	var out struct{ Changed bool }
+	err := x.r.call(ctx, http.MethodPut, "/v1/settings/timezone", map[string]string{"Timezone": name}, &out)
+	return out.Changed, err
+}
+
+func (x remoteSettings) SSHAccess() (SSHAccess, error) {
+	w, err := x.get()
+	return w.SSH, err
+}
+
+func (x remoteSettings) SetSSH(ctx context.Context, choice string, confirmed bool) error {
+	return x.r.call(ctx, http.MethodPut, "/v1/settings/ssh", map[string]any{"Choice": choice, "Confirmed": confirmed}, nil)
+}
+
+func (x remoteSettings) RestartPolicy() (string, int) {
+	w, _ := x.get()
+	return w.RestartMode, w.RestartHour
+}
+
+func (x remoteSettings) SetRestartPolicy(ctx context.Context, mode string, hour int) error {
+	return x.r.call(ctx, http.MethodPut, "/v1/settings/restart-policy", map[string]any{"Mode": mode, "Hour": hour}, nil)
+}
+
+// call makes a lab API request to the machine.
+func (r *Remote) call(ctx context.Context, method, path string, in, out any) error {
+	var body *bytes.Reader
+	if in != nil {
+		data, err := json.Marshal(in)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewReader(data)
+	} else {
+		body = bytes.NewReader(nil)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, r.URL+path, body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := r.Client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return wireError(labnet.DecodeResponse(resp, out))
+}

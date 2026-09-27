@@ -28,7 +28,7 @@ as_mylab() {
 
 step "Installing packages"
 apt-get update -q
-apt-get install -y -q podman passt nftables uidmap crun catatonit restic unattended-upgrades
+apt-get install -y -q podman passt nftables uidmap crun catatonit restic unattended-upgrades wireguard-tools
 
 step "Creating the mylab user"
 if ! id mylab &>/dev/null; then

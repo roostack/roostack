@@ -129,3 +129,20 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any) err
 	}
 	return nil
 }
+
+// ApplyWireGuard configures MyLab's WireGuard interface and returns this
+// machine's public key.
+func (c *Client) ApplyWireGuard(ctx context.Context, wg WireGuard) (string, error) {
+	var resp struct {
+		PublicKey string `json:"public_key"`
+	}
+	err := c.call(ctx, http.MethodPut, "/v1/wireguard", wg, &resp)
+	return resp.PublicKey, err
+}
+
+// WireGuardStatus reads the WireGuard interface's configuration.
+func (c *Client) WireGuardStatus(ctx context.Context) (WireGuardStatus, error) {
+	var st WireGuardStatus
+	err := c.call(ctx, http.MethodGet, "/v1/wireguard", nil, &st)
+	return st, err
+}

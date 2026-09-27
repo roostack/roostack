@@ -1,6 +1,7 @@
 package node
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/netip"
@@ -25,6 +26,8 @@ type Settings interface {
 	// unless confirmed.
 	SetSSH(ctx context.Context, choice string, confirmed bool) error
 	SetRestartPolicy(ctx context.Context, mode string, hour int) error
+	// RestartPolicy is when the machine may restart after updates.
+	RestartPolicy() (mode string, hour int)
 }
 
 // SSHAccess is the current SSH choice and who is connected now.
@@ -101,6 +104,10 @@ func (h *HostSettings) SetSSH(ctx context.Context, choice string, confirmed bool
 	// Restarting applies the firewall.
 	h.Restart()
 	return nil
+}
+
+func (h *HostSettings) RestartPolicy() (string, int) {
+	return cmp.Or(h.Lab.Maintenance.Restart, config.RestartAuto), h.Lab.Maintenance.Hour()
 }
 
 func (h *HostSettings) SetRestartPolicy(ctx context.Context, mode string, hour int) error {

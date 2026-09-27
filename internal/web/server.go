@@ -24,8 +24,10 @@ import (
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dnsrecords"
 	"github.com/mylab/mylab/internal/hosttime"
+	"github.com/mylab/mylab/internal/labnet"
 	"github.com/mylab/mylab/internal/manager"
 	"github.com/mylab/mylab/internal/node"
+	"github.com/mylab/mylab/internal/nodeid"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/setup"
 	"github.com/mylab/mylab/internal/store"
@@ -56,6 +58,8 @@ type ServiceView struct {
 	Title  string
 	Status string // running, starting, stopped, failed, unknown
 	URLs   []string
+	// Machine is the name of the machine it runs on.
+	Machine string
 }
 
 // Server serves the web UI.
@@ -84,6 +88,8 @@ type Server struct {
 	Manager ServiceManager
 	// Node is the machine running the services. Set with Manager.
 	Node ServiceNode
+	// Network adds machines to the lab (SPEC.md §10.2). Nil hides it.
+	Network LabNetwork
 	// Domain is the lab's base domain, shown next to subdomain fields.
 	Domain string
 	// DNSProvider is the lab's current DNS provider ID (wizard default).
@@ -120,11 +126,15 @@ type ServiceManager interface {
 	UpdateSettings(ctx context.Context, name string, req manager.SettingsRequest) error
 	Status() manager.ApplyStatus
 	Machines() ([]manager.Machine, error)
+	// NodeFor is the machine a service runs on; NodeByID a machine by ID.
+	NodeFor(service string) node.Node
+	NodeByID(id string) node.Node
 }
 
 // ServiceNode is what the UI needs from the machine running a service
 // (internal/node): its setup, actions and secrets.
 type ServiceNode interface {
+	Identity() nodeid.Identity
 	InstallStatus(ctx context.Context, name string) manager.HookStatus
 	RetryInstall(ctx context.Context, name string) error
 	RunAction(ctx context.Context, name, action string, inputs map[string]string) (string, error)
@@ -134,6 +144,11 @@ type ServiceNode interface {
 	Restores() node.Restores
 	Updates() node.Updates
 	Settings() node.Settings
+}
+
+// LabNetwork is what the UI needs from labnet.Hub.
+type LabNetwork interface {
+	NewJoinCode(ctx context.Context, endpoint string) (labnet.JoinCode, error)
 }
 
 // LabSetup is what the UI needs from internal/setup.
@@ -165,33 +180,35 @@ type (
 	HostUpdates    = node.Updates
 )
 
-func (s *Server) backups() BackupService {
-	if s.Node == nil {
-		return nil
+// The maintenance jobs and settings of the machine a request is about
+// (machineOf), or nil.
+
+func (s *Server) backups(r *http.Request) BackupService {
+	if n := s.machineOf(r); n != nil {
+		return n.Backups()
 	}
-	return s.Node.Backups()
+	return nil
 }
 
-func (s *Server) restores() RestoreService {
-	if s.Node == nil {
-		return nil
+func (s *Server) restores(r *http.Request) RestoreService {
+	if n := s.machineOf(r); n != nil {
+		return n.Restores()
 	}
-	return s.Node.Restores()
+	return nil
 }
 
-// machine is this machine's own settings, or nil.
-func (s *Server) machine() node.Settings {
-	if s.Node == nil {
-		return nil
+func (s *Server) machine(r *http.Request) node.Settings {
+	if n := s.machineOf(r); n != nil {
+		return n.Settings()
 	}
-	return s.Node.Settings()
+	return nil
 }
 
-func (s *Server) updates() HostUpdates {
-	if s.Node == nil {
-		return nil
+func (s *Server) updates(r *http.Request) HostUpdates {
+	if n := s.machineOf(r); n != nil {
+		return n.Updates()
 	}
-	return s.Node.Updates()
+	return nil
 }
 
 type pendingLogin struct {
@@ -251,6 +268,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /settings/domain", s.requireOwner(s.domainAreaPage))
 	mux.Handle("GET /settings/home-network", s.requireOwner(s.homeNetworkPage))
 	mux.Handle("GET /settings/machines", s.requireOwner(s.machinesPage))
+	s.machineRoutes(mux)
+	mux.Handle("POST /settings/machines/join", s.requireOwner(s.joinCodeSubmit))
 	mux.Handle("GET /settings/updates", s.requireOwner(s.updatesPage))
 	mux.Handle("GET /settings/time-zone", s.requireWizard(s.timezonePage))
 	mux.Handle("GET /account", s.requireLogin(s.accountPage))

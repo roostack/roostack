@@ -338,10 +338,12 @@ func TestOnlyThisNodesServices(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-immich-server.container")); err == nil {
 		t.Error("a service placed on another machine must not be applied here")
 	}
-	// Its instance file is left alone (no ports allocated here).
+	// The controller gives every machine's routes ports, each machine from
+	// its own range: the other machine's first port is the same as ours.
 	other, _ := instance.Load(state.InstanceFile(m.Lab, "immich"))
-	if other.Routes["web"].Port != 0 {
-		t.Error("another machine's service shouldn't get ports from this one")
+	mine, _ := instance.Load(state.InstanceFile(m.Lab, "vaultwarden"))
+	if other.Routes["web"].Port == 0 || other.Routes["web"].Port != mine.Routes["web"].Port {
+		t.Errorf("ports: other machine %d, this one %d", other.Routes["web"].Port, mine.Routes["web"].Port)
 	}
 	machines, err := m.Machines()
 	if err != nil || len(machines) != 1 {

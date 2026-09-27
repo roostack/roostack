@@ -44,6 +44,9 @@ func whenText(t time.Time) string {
 	if t.IsZero() {
 		return "never"
 	}
+	// Times from another machine arrive in its time zone; show them in
+	// this one's, like everything else (SPEC.md §3.2).
+	t = t.Local()
 	now := time.Now()
 	y1, m1, d1 := now.Date()
 	y2, m2, d2 := t.Date()
@@ -63,10 +66,10 @@ func isStale(t time.Time) bool { return time.Since(t) > backupStale }
 
 // backupView is the dashboard's backup card.
 func (s *Server) backupView(r *http.Request) any {
-	if s.backups() == nil {
+	if s.backups(r) == nil {
 		return nil
 	}
-	st, err := s.backups().Status(r.Context())
+	st, err := s.backups(r).Status(r.Context())
 	if err != nil {
 		s.Log.Error("backup status", "err", err)
 		return nil
@@ -75,15 +78,16 @@ func (s *Server) backupView(r *http.Request) any {
 }
 
 func (s *Server) backupRun(w http.ResponseWriter, r *http.Request) {
-	if s.backups() == nil {
+	if s.backups(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
-	err := s.backups().RunNow()
+	err := s.backups(r).RunNow()
 	if err != nil && !errors.Is(err, backup.ErrAlreadyQueued) {
 		s.serverError(w, fmt.Errorf("starting backup: %w", err))
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "backup", "started manually")
-	redirect(w, r, "/backups")
+	m := s.machineViewOf(r)
+	s.Store.Audit(r.Context(), currentUser(r), "backup", "started manually on "+m.Label())
+	redirect(w, r, m.Backups())
 }
