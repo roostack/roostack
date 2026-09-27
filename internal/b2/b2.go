@@ -1,0 +1,177 @@
+// Package b2 creates and deletes Backblaze B2 application keys limited to
+// one folder of a bucket, so each machine's backup credentials reach only
+// its own repository (SPEC.md §10.10). Plain HTTP against B2's native API
+// (v2); restic itself uses B2's S3-compatible API with the key.
+//
+// UNTESTED against the real service: written from Backblaze's API
+// documentation; the tests use a fake server.
+package b2
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+)
+
+// DefaultAPI is where accounts are authorised.
+const DefaultAPI = "https://api.backblazeb2.com"
+
+// ErrCantCreateKeys means the account's key isn't allowed to create keys
+// (it lacks the writeKeys capability), so machines share it instead.
+var ErrCantCreateKeys = errors.New("this key can't create other keys (it needs the writeKeys capability)")
+
+// Capabilities restic needs in its own folder: list, read and write, and
+// delete (its lock files, and pruning).
+var Capabilities = []string{"listBuckets", "listFiles", "readFiles", "writeFiles", "deleteFiles"}
+
+// IsB2 reports whether an S3 endpoint is Backblaze B2's.
+func IsB2(endpoint string) bool {
+	u, err := url.Parse(endpoint)
+	return err == nil && strings.HasSuffix(u.Hostname(), ".backblazeb2.com")
+}
+
+// Client talks to B2 with an account's key.
+type Client struct {
+	KeyID, Key string
+	// API is where accounts are authorised (DefaultAPI if empty).
+	API  string
+	HTTP *http.Client
+}
+
+type session struct {
+	accountID, apiURL, token string
+	capabilities             []string
+}
+
+// Key is a new application key.
+type Key struct {
+	ID, Secret string
+}
+
+// CreateKey makes a key for bucket, limited to names starting with prefix
+// (a folder, ending in "/").
+func (c *Client) CreateKey(ctx context.Context, name, bucket, prefix string) (Key, error) {
+	s, err := c.authorize(ctx)
+	if err != nil {
+		return Key{}, err
+	}
+	if !contains(s.capabilities, "writeKeys") {
+		return Key{}, ErrCantCreateKeys
+	}
+	var buckets struct {
+		Buckets []struct {
+			BucketID string `json:"bucketId"`
+		} `json:"buckets"`
+	}
+	if err := c.call(ctx, s, "b2_list_buckets", map[string]string{"accountId": s.accountID, "bucketName": bucket}, &buckets); err != nil {
+		return Key{}, err
+	}
+	if len(buckets.Buckets) == 0 {
+		return Key{}, fmt.Errorf("no bucket %q in this account", bucket)
+	}
+	var created struct {
+		ApplicationKeyID string `json:"applicationKeyId"`
+		ApplicationKey   string `json:"applicationKey"`
+	}
+	err = c.call(ctx, s, "b2_create_key", map[string]any{
+		"accountId": s.accountID, "keyName": name, "capabilities": Capabilities,
+		"bucketId": buckets.Buckets[0].BucketID, "namePrefix": prefix,
+	}, &created)
+	if err != nil {
+		return Key{}, err
+	}
+	return Key{ID: created.ApplicationKeyID, Secret: created.ApplicationKey}, nil
+}
+
+// DeleteKey removes a key (e.g. of a machine that left the lab).
+func (c *Client) DeleteKey(ctx context.Context, id string) error {
+	s, err := c.authorize(ctx)
+	if err != nil {
+		return err
+	}
+	return c.call(ctx, s, "b2_delete_key", map[string]string{"applicationKeyId": id}, nil)
+}
+
+func (c *Client) authorize(ctx context.Context) (session, error) {
+	api := c.API
+	if api == "" {
+		api = DefaultAPI
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, api+"/b2api/v2/b2_authorize_account", nil)
+	if err != nil {
+		return session{}, err
+	}
+	req.SetBasicAuth(c.KeyID, c.Key)
+	var out struct {
+		AccountID          string `json:"accountId"`
+		APIURL             string `json:"apiUrl"`
+		AuthorizationToken string `json:"authorizationToken"`
+		Allowed            struct {
+			Capabilities []string `json:"capabilities"`
+		} `json:"allowed"`
+	}
+	if err := c.do(req, &out); err != nil {
+		return session{}, fmt.Errorf("signing in to Backblaze: %w", err)
+	}
+	return session{accountID: out.AccountID, apiURL: out.APIURL, token: out.AuthorizationToken,
+		capabilities: out.Allowed.Capabilities}, nil
+}
+
+func (c *Client) call(ctx context.Context, s session, op string, in, out any) error {
+	body, _ := json.Marshal(in)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.apiURL+"/b2api/v2/"+op, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", s.token)
+	if err := c.do(req, out); err != nil {
+		return fmt.Errorf("Backblaze %s: %w", op, err)
+	}
+	return nil
+}
+
+func (c *Client) do(req *http.Request, out any) error {
+	client := c.HTTP
+	if client == nil {
+		client = &http.Client{Timeout: 30 * time.Second}
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		var e struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(data, &e) == nil && e.Message != "" {
+			return fmt.Errorf("%s (%s)", e.Message, e.Code)
+		}
+		return fmt.Errorf("%s", resp.Status)
+	}
+	if out == nil {
+		return nil
+	}
+	return json.Unmarshal(data, out)
+}
+
+func contains(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}

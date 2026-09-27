@@ -107,6 +107,9 @@ var migrations = []string{
 		password   TEXT NOT NULL,
 		hash       TEXT NOT NULL
 	);`,
+	// A provider key made for one machine (e.g. a B2 key limited to its
+	// folder), deleted when the machine leaves.
+	`ALTER TABLE backup_targets ADD COLUMN scoped_key TEXT NOT NULL DEFAULT '';`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -697,21 +700,24 @@ type BackupTarget struct {
 	// StoreHost and StoreHash: for a machine's disk, the storing machine
 	// and the bcrypt hash of this machine's password there.
 	StoreHost, StoreHash string
-	Created              time.Time
+	// ScopedKey is the ID of a provider key made for this machine alone.
+	ScopedKey string
+	Created   time.Time
 }
 
 // SetBackupTarget records where a machine backs up.
 func (s *Store) SetBackupTarget(ctx context.Context, t BackupTarget) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO backup_targets (machine_id, provider, repository, store_host, store_hash, created_at)
-		VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(machine_id) DO UPDATE SET provider = excluded.provider,
+	_, err := s.db.ExecContext(ctx, `INSERT INTO backup_targets (machine_id, provider, repository, store_host, store_hash, scoped_key, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(machine_id) DO UPDATE SET provider = excluded.provider,
 		repository = excluded.repository, store_host = excluded.store_host, store_hash = excluded.store_hash,
-		created_at = excluded.created_at`, t.MachineID, t.Provider, t.Repository, t.StoreHost, t.StoreHash, t.Created.Unix())
+		scoped_key = excluded.scoped_key, created_at = excluded.created_at`,
+		t.MachineID, t.Provider, t.Repository, t.StoreHost, t.StoreHash, t.ScopedKey, t.Created.Unix())
 	return err
 }
 
 // BackupTargets lists where each machine backs up.
 func (s *Store) BackupTargets(ctx context.Context) ([]BackupTarget, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT machine_id, provider, repository, store_host, store_hash, created_at
+	rows, err := s.db.QueryContext(ctx, `SELECT machine_id, provider, repository, store_host, store_hash, scoped_key, created_at
 		FROM backup_targets ORDER BY machine_id`)
 	if err != nil {
 		return nil, err
@@ -721,7 +727,7 @@ func (s *Store) BackupTargets(ctx context.Context) ([]BackupTarget, error) {
 	for rows.Next() {
 		var t BackupTarget
 		var created int64
-		if err := rows.Scan(&t.MachineID, &t.Provider, &t.Repository, &t.StoreHost, &t.StoreHash, &created); err != nil {
+		if err := rows.Scan(&t.MachineID, &t.Provider, &t.Repository, &t.StoreHost, &t.StoreHash, &t.ScopedKey, &created); err != nil {
 			return nil, err
 		}
 		t.Created = time.Unix(created, 0)
