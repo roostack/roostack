@@ -3,7 +3,7 @@
 <section class="card narrow">
   {{if .Wizard}}<p class="hint">Setup · step 4 of 4</p>
   <h1>Where should backups go?</h1>
-  {{else}}<p><a href="{{.Back}}">← Backups</a></p>
+  {{else}}{{template "back" (dict "Href" .Back "Text" "Backups")}}
   <h1>{{if .StepDone}}Change where backups go{{else}}Set up backups{{end}}</h1>
   {{if and .StepDone .Current}}<p>Backups currently go to <code>{{.Current}}</code>. Backups already there stay where they are.</p>{{end}}
   {{end}}

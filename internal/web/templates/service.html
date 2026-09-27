@@ -1,10 +1,10 @@
 {{define "title"}}{{.Service.Title}}{{end}}
 {{define "content"}}
 <section class="card medium">
-  <p><a href="/services">← Services</a></p>
+  {{template "back" (dict "Href" "/services" "Text" "Services")}}
   <div class="heading">
     <h1>{{.Service.Title}}</h1>
-    <span class="status status-{{.Service.Status}}">{{.Service.Status}}</span>
+    {{template "status" .Service.Status}}
   </div>
   {{with .Package}}<p class="hint">{{.Description}}</p>{{end}}
   {{with .Setup}}

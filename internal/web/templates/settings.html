@@ -8,7 +8,7 @@
   </section>
   <section class="card section">
     <div class="heading">
-      <h2>Domain &amp; certificates</h2>
+      <h2>Domain and certificates</h2>
       <a href="/setup/domain">Change…</a>
     </div>
     {{if .DomainSet}}
@@ -34,7 +34,7 @@
   {{end}}
   {{with .Updates}}
   <section class="card section" id="updates">
-    <div class="heading"><h2>Updates &amp; restarts</h2></div>
+    <div class="heading"><h2>Updates and restarts</h2></div>
     <p class="hint">This machine installs Debian's security and bug-fix updates every night after the backup.</p>
     {{template "activity" .ActivityData}}
     {{/* Refreshed when the update run finishes (HX-Trigger from its status). */}}
@@ -49,10 +49,8 @@
     <div class="notice" role="status">
       <p><strong>A restart is needed to finish installing updates</strong>{{with .Restart.Packages}} ({{range $i, $p := .}}{{if $i}}, {{end}}{{$p}}{{end}}){{end}}.
         {{.Restart.Waiting}}.</p>
-      <form method="post" action="/settings/restart" x-data
-        x-on:submit="if (!confirm('Restart this machine now? Your services will be unavailable for a minute or two.')) $event.preventDefault()">
-        <button type="submit">Restart now</button>
-      </form>
+      {{template "confirm-button" (dict "Action" "/settings/restart"
+        "Confirm" "Restart this machine now? Your services will be unavailable for a minute or two." "Text" "Restart now")}}
     </div>
     {{end}}
     <form method="post" action="/settings/updates/run">

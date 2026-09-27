@@ -1,7 +1,7 @@
 {{define "title"}}Remove {{.Package.Title}}{{end}}
 {{define "content"}}
 <section class="card narrow">
-  <p><a href="/">← Back</a></p>
+  {{template "back" (dict "Href" "/" "Text" "Back")}}
   <h1>Remove {{.Package.Title}}?</h1>
   <p>{{.Package.Title}} will be stopped and removed from your lab.</p>
   <p><strong>Your data is kept.</strong> It stays in:</p>

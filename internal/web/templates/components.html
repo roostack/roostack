@@ -19,8 +19,10 @@
 {{/* confirm-button: a form that posts to Action after the browser asks
      Confirm. Name is passed through a data attribute, never into the
      script, so it can be any text. Kind is a button class ("danger",
-     "secondary", "quiet danger", ...). */}}
+     "secondary", "quiet danger", ...). Optional HiddenName and HiddenValue
+     send one extra field. */}}
 {{define "confirm-button"}}<form method="post" action="{{.Action}}" data-confirm="{{.Confirm}}" x-data
   x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
+  {{with .HiddenName}}<input type="hidden" name="{{.}}" value="{{$.HiddenValue}}">{{end}}
   <button type="submit"{{with .Kind}} class="{{.}}"{{end}}>{{.Text}}</button>
 </form>{{end}}
