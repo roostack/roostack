@@ -11,7 +11,7 @@
   {{with .ApplyActivity}}
   <section class="card section">
     <h2>Latest change</h2>
-    {{template "activity" .}}
+    {{activity .}}
   </section>
   {{end}}
 </section>
@@ -19,8 +19,8 @@
 
 {{define "services-live"}}
 {{with .Apply}}
-  {{if .Running}}{{template "notice" (dict "Text" "Applying changes… Downloading a new service can take a few minutes.")}}
-  {{else if .LastErr}}{{template "notice" (dict "Kind" "error" "Text" (printf "The last change didn't finish: %v" .LastErr))}}{{end}}
+  {{if .Running}}{{notice "info" "Applying changes… Downloading a new service can take a few minutes."}}
+  {{else if .LastErr}}{{notice "error" (printf "The last change didn't finish: %v" .LastErr)}}{{end}}
 {{end}}
 {{if .Services}}
 <ul class="services">
@@ -30,7 +30,7 @@
       <h2>{{if $.CanManage}}<a href="/services/{{.Name}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</h2>
       {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}</a>{{end}}
     </div>
-    {{template "status" .Status}}
+    {{status .Status}}
   </li>
   {{end}}
 </ul>

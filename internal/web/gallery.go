@@ -49,38 +49,32 @@ var gallerySections = []gallerySection{
 			{"Link styled as a button", "For navigation that looks like an action.", `
 <a class="button" href="#">Add a service</a>
 <a class="button secondary" href="#">Open backups</a>`},
-			{"Confirm", "A button that asks the browser to confirm first. Use it for anything hard to undo. The question can contain any text (it's passed as a data attribute, never into script).", `
-{{template "confirm-button" (dict
-  "Action"  "/users/3/remove"
-  "Confirm" "Remove dad? They will no longer be able to log in."
-  "Text"    "Remove dad"
-  "Kind"    "quiet danger")}}`},
+			{"Confirm", "confirm ACTION QUESTION TEXT KIND: a button that asks the browser to confirm first. Use it for anything hard to undo. KIND is the button's class (danger, secondary, quiet, or \"\"). The question can contain any text (it's passed as a data attribute, never into script).", `
+{{confirm "/users/3/remove" "Remove dad? They will no longer be able to log in." "Remove dad" "quiet danger"}}`},
+			{"Confirm with a hidden field", "Trailing name=value arguments become hidden form fields.", `
+{{confirm "/backups/restore/forgejo/kept/remove" "Delete this copy permanently?" "Delete" "quiet danger" "path=/srv/mylab/services/forgejo/data.before-restore-20260926-130602"}}`},
 		}},
 	{ID: "notices", Title: "Notices", Intro: "Short messages in a page. Info is the default; the colour says how much it matters.",
 		Examples: []galleryExample{
-			{"Info", "Something's happening, or worth knowing.", `
-{{template "notice" (dict "Text" "Updating DNS records and checking them…")}}`},
+			{"Info", "notice KIND TEXT, where KIND is info, ok, warn or error. Info: something's happening, or worth knowing.", `
+{{notice "info" "Updating DNS records and checking them…"}}`},
 			{"Success", "Something finished as asked.", `
-{{template "notice" (dict "Kind" "ok" "Text" "Password changed.")}}`},
-			{"Warning", "Should be dealt with soon. Link and LinkText are optional.", `
-{{template "notice" (dict
-  "Kind"     "warn"
-  "Text"     "Backups are only stored on this machine."
-  "Link"     "/backups"
-  "LinkText" "Improve backups")}}`},
+{{notice "ok" "Password changed."}}`},
+			{"Warning", "Should be dealt with soon. Options link= and linkText= add a link.", `
+{{notice "warn" "Backups are only stored on this machine." "link=/backups" "linkText=Improve backups"}}`},
 			{"Error", "Something is broken.", `
-{{template "notice" (dict "Kind" "error" "Text" "The last backup didn't finish: the disk is full.")}}`},
+{{notice "error" "The last backup didn't finish: the disk is full."}}`},
 		}},
 	{ID: "status", Title: "Status and badges", Intro: "Status says how a service is doing; badges label things. The highlight badge is for the brand's own voice (\"New\"), sparingly.",
 		Examples: []galleryExample{
 			{"Service status", "Pass the service's state.", `
-{{template "status" "running"}}
-{{template "status" "starting"}}
-{{template "status" "failed"}}
-{{template "status" "stopped"}}`},
+{{status "running"}}
+{{status "starting"}}
+{{status "failed"}}
+{{status "stopped"}}`},
 			{"Badges", "", `
-{{template "badge" (dict "Text" "Preview")}}
-{{template "badge" (dict "Text" "New" "Highlight" true)}}`},
+{{badge "Preview"}}
+{{badge "New" "highlight"}}`},
 		}},
 	{ID: "cards", Title: "Cards and facts", Intro: "A card holds one topic. A heading row puts its title and main link together; facts list label and value pairs (stacked on phones).",
 		Examples: []galleryExample{
@@ -97,7 +91,7 @@ var gallerySections = []gallerySection{
   </dl>
 </section>`},
 			{"Back link and technical details", "Technical details stay collapsed for most people.", `
-{{template "back" (dict "Href" "/services" "Text" "Services")}}
+{{back "/services" "Services"}}
 <details class="technical">
   <summary>Technical details</summary>
   <dl class="facts">
@@ -206,12 +200,12 @@ var gallerySections = []gallerySection{
 		}},
 	{ID: "activity", Title: "Activity", Intro: "Operations on the host (OS updates, backups, applying changes, restores): a status line everyone can follow, with the full log under Details. While running, the status line and log refresh themselves.",
 		Examples: []galleryExample{
-			{"Running", "The handler looks up the latest run of a kind, e.g. data[\"UpdatesActivity\"] = map[string]any{\"Activity\": s.activityFor(r, activity.OSUpdates)}, and the page passes that on. Steps come from the operation's own log (activity.Log.Step).", `
-{{template "activity" .UpdatesActivity}}`},
+			{"Running", "The handler looks up the latest run of a kind, e.g. data[\"UpdatesActivity\"] = s.activityFor(r, activity.OSUpdates), and the page passes it to activity (which shows nothing if there's none). Steps come from the operation's own log (activity.Log.Step).", `
+{{activity .UpdatesActivity}}`},
 			{"Finished", "", `
-{{template "activity" .FinishedActivity}}`},
+{{activity .FinishedActivity}}`},
 			{"Failed", "", `
-{{template "activity" .FailedActivity}}`},
+{{activity .FailedActivity}}`},
 		}},
 	{ID: "secrets", Title: "Secrets and codes", Intro: "Values to copy, such as a temporary password: shown once, easy to select.",
 		Examples: []galleryExample{
@@ -285,9 +279,9 @@ func gallerySamples() map[string]any {
 	}
 	return map[string]any{
 		"Settings":         map[string]any{"SettingsGroups": settingsGroups(), "SettingsArea": "updates"},
-		"UpdatesActivity":  map[string]any{"Activity": view("Installing updates", "", false, "==> Installing updates", "Unpacking curl (8.14.1-2+deb13u5) ...")},
-		"FinishedActivity": map[string]any{"Activity": view("Installed 3 updates: curl, libcurl4t64, tzdata.", "", true, "==> Installing updates", "==> Done")},
-		"FailedActivity":   map[string]any{"Activity": view("Installing updates", "exit status 100", true, "E: Could not get lock /var/lib/dpkg/lock-frontend", "==> Failed: exit status 100")},
+		"UpdatesActivity":  view("Installing updates", "", false, "==> Installing updates", "Unpacking curl (8.14.1-2+deb13u5) ..."),
+		"FinishedActivity": view("Installed 3 updates: curl, libcurl4t64, tzdata.", "", true, "==> Installing updates", "==> Done"),
+		"FailedActivity":   view("Installing updates", "exit status 100", true, "E: Could not get lock /var/lib/dpkg/lock-frontend", "==> Failed: exit status 100"),
 	}
 }
 

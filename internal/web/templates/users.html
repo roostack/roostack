@@ -1,11 +1,11 @@
 {{define "title"}}People{{end}}
 {{define "content"}}
 <section class="card medium">
-  {{template "back" (dict "Href" "/settings" "Text" "Settings")}}
+  {{back "/settings" "Settings"}}
   <h1>People</h1>
   <p class="hint">Who can log in to MyLab. Each service (Forgejo, Vaultwarden, …) still has its own accounts.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  {{with .Done}}{{template "notice" (dict "Kind" "ok" "Text" .)}}{{end}}
+  {{with .Done}}{{notice "ok" .}}{{end}}
   {{with .TempPassword}}
   <div class="notice" role="status">
     <p><strong>{{if $.TempNew}}{{$.TempFor}} can now log in{{else}}New password for {{$.TempFor}}{{end}}</strong> with this temporary password.
@@ -38,9 +38,8 @@
           <button type="submit" class="secondary">Turn off two-factor (lost phone)</button>
         </form>
         {{end}}
-        {{template "confirm-button" (dict "Action" (printf "/users/%d/remove" .ID)
-          "Confirm" (printf "Remove %s? They will no longer be able to log in." .Username)
-          "Text" (printf "Remove %s" .Username) "Kind" "quiet danger")}}
+        {{confirm (printf "/users/%d/remove" .ID) (printf "Remove %s? They will no longer be able to log in." .Username)
+          (printf "Remove %s" .Username) "quiet danger"}}
       </details>
       {{end}}
     </li>

@@ -1,6 +1,6 @@
 {{define "title"}}Home network{{end}}
 {{define "content"}}
-{{template "back" (dict "Href" "/settings" "Text" "Settings")}}
+{{back "/settings" "Settings"}}
 {{with .DNS}}{{template "dns-card" $}}{{else}}
 <section class="card">
   <h1>Home network</h1>

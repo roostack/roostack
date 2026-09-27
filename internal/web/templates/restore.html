@@ -1,12 +1,12 @@
 {{define "title"}}Restore {{.Service.Title}}{{end}}
 {{define "content"}}
 <section class="card narrow">
-  {{template "back" (dict "Href" "/backups" "Text" "Backups")}}
+  {{back "/backups" "Backups"}}
   <h1>Restore {{.Service.Title}}</h1>
-  {{with .RestoreActivity}}{{template "activity" .}}{{end}}
+  {{activity .RestoreActivity}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{if .Pending}}
-    {{template "notice" (dict "Text" "A restore is in progress. This page shows how it's going.")}}
+    {{notice "info" "A restore is in progress. This page shows how it's going."}}
   {{else if .Snapshots}}
   <p>Puts {{.Service.Title}}'s data back to how it was in a backup. {{.Service.Title}} stops for a few minutes while this happens.</p>
   <form method="post" action="/backups/restore/{{.Service.Name}}">
@@ -24,7 +24,7 @@
     <button type="submit">Restore {{.Service.Title}}</button>
   </form>
   {{else}}
-    {{template "notice" (dict "Text" (printf "There's no backup of %s yet. Backups made before it was installed don't contain it." .Service.Title))}}
+    {{notice "info" (printf "There's no backup of %s yet. Backups made before it was installed don't contain it." .Service.Title)}}
   {{end}}
 
   {{with .Kept}}
@@ -34,8 +34,8 @@
     {{range .}}
     <li>
       <span>{{if .Failed}}From a restore that didn't finish{{else}}Before the restore{{end}} on {{when .Time}}<br><code>{{.Path}}</code></span>
-      {{template "confirm-button" (dict "Action" (printf "/backups/restore/%s/kept/remove" $.Service.Name)
-        "Confirm" "Delete this copy permanently?" "Text" "Delete" "Kind" "quiet danger" "HiddenName" "path" "HiddenValue" .Path)}}
+      {{confirm (printf "/backups/restore/%s/kept/remove" $.Service.Name) "Delete this copy permanently?" "Delete" "quiet danger"
+        (printf "path=%s" .Path)}}
     </li>
     {{end}}
   </ul>

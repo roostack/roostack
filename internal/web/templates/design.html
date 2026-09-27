@@ -34,8 +34,8 @@
       <h1>Design system</h1>
       <p>Every colour, size and component MyLab's pages use, in light and dark. Pages should only use what's here;
         if something new is needed, add it to the design system first (<code>docs/DESIGN.md</code>).</p>
-      <p class="hint">Two kinds of component: <strong>template components</strong> have shared markup and are called with
-        <code>{{"{{"}}template "name" …{{"}}"}}</code> (the markup shows the call and the HTML it renders);
+      <p class="hint">Two kinds of component: <strong>template components</strong> have shared markup and are called as
+        functions, e.g. <code>{{"{{"}}notice "warn" "…"{{"}}"}}</code> (the markup shows the call and the HTML it renders);
         <strong>HTML and CSS classes</strong> are written as plain HTML using the classes shown.</p>
       {{if .Standalone}}<p class="hint">This file is generated from the same templates as the <code>/design</code> page in MyLab
         (<code>go test ./internal/web -run TestGalleryFile -update-gallery</code>). Don't edit it by hand.</p>{{end}}

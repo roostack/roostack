@@ -31,8 +31,8 @@ type updatesView struct {
 	Hour     int
 	Hours    []int
 	ErrorMsg string
-	// ActivityData is the live run, for the "activity" template.
-	ActivityData map[string]any
+	// Activity is the live (or last) update run.
+	Activity *activityView
 }
 
 func (s *Server) updatesView(r *http.Request, errMsg string) *updatesView {
@@ -45,8 +45,8 @@ func (s *Server) updatesView(r *http.Request, errMsg string) *updatesView {
 	}
 	v := &updatesView{Last: last, Pending: s.Updates.Pending(), Restart: s.Updates.RestartStatus(),
 		Mode: s.Maintenance.Restart, Hour: s.Maintenance.Hour(), ErrorMsg: errMsg,
-		ActivityData: map[string]any{"Activity": s.activityFor(r, activity.OSUpdates)}}
-	if a := v.ActivityData["Activity"].(*activityView); a != nil && a.Running() {
+		Activity: s.activityFor(r, activity.OSUpdates)}
+	if a := v.Activity; a != nil && a.Running() {
 		v.Pending = true // queued runs show as pending too
 	}
 	if v.Mode == "" {

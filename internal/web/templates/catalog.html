@@ -1,7 +1,7 @@
 {{define "title"}}Add a service{{end}}
 {{define "content"}}
 <section>
-  {{template "back" (dict "Href" "/" "Text" "Your services")}}
+  {{back "/" "Your services"}}
   <h1>Add a service</h1>
   <ul class="services">
     {{range .Items}}
@@ -10,7 +10,7 @@
         <h2>{{.Title}}</h2>
         <p class="hint">{{.Description}}</p>
       </div>
-      {{if .Installed}}{{template "badge" (dict "Text" "Installed")}}
+      {{if .Installed}}{{badge "Installed"}}
       {{else}}<a class="button" href="/install/{{.Name}}">Install</a>{{end}}
     </li>
     {{else}}

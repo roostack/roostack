@@ -52,5 +52,5 @@ func (s *Server) activityPart(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("HX-Trigger", "activity-done")
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	s.renderPart(w, "settings", part, map[string]any{"Activity": v})
+	s.renderPart(w, "settings", part, v)
 }

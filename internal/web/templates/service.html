@@ -1,10 +1,10 @@
 {{define "title"}}{{.Service.Title}}{{end}}
 {{define "content"}}
 <section class="card medium">
-  {{template "back" (dict "Href" "/services" "Text" "Services")}}
+  {{back "/services" "Services"}}
   <div class="heading">
     <h1>{{.Service.Title}}</h1>
-    {{template "status" .Service.Status}}
+    {{status .Service.Status}}
   </div>
   {{with .Package}}<p class="hint">{{.Description}}</p>{{end}}
   {{with .Setup}}
@@ -52,7 +52,7 @@
   {{end}}
   {{with .SetupActivity}}
   <h2>Setup</h2>
-  {{template "activity" .}}
+  {{activity .}}
   {{end}}
   {{with .Actions}}
   <h2>Actions</h2>
