@@ -32,6 +32,9 @@
   <section class="card section" id="updates">
     <div class="heading"><h2>Updates &amp; restarts</h2></div>
     <p class="hint">This machine installs Debian's security and bug-fix updates every night after the backup.</p>
+    {{template "activity" .ActivityData}}
+    {{/* Refreshed when the update run finishes (HX-Trigger from its status). */}}
+    <div id="updates-body" hx-get="/settings" hx-select="#updates-body" hx-trigger="activity-done from:body" hx-swap="outerHTML">
     {{with .ErrorMsg}}<p class="error" role="alert">{{.}}</p>{{end}}
     <dl class="facts">
       <dt>Last update</dt>
@@ -63,6 +66,7 @@
       </fieldset>
       <button type="submit">Save</button>
     </form>
+    </div>
   </section>
   {{end}}
   {{with .HostClock}}

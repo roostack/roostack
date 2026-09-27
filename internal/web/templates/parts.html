@@ -105,3 +105,35 @@
 </section>
 {{end}}
 {{end}}
+
+{{/* An activity: a status line for everyone, and a collapsed log for the
+     curious. While running, the status line and the log poll separately;
+     the <details> element itself is never replaced, so it stays open or
+     closed as the user left it. Expects .Activity (*activityView). */}}
+{{define "activity"}}{{with .Activity}}
+<div class="activity">
+  {{template "activity-status" $}}
+  <details class="activity-details">
+    <summary>Details</summary>
+    {{template "activity-log" $}}
+  </details>
+</div>
+{{end}}{{end}}
+
+{{define "activity-status"}}{{with .Activity}}
+<p id="activity-status-{{.Kind}}" class="activity-status {{if .Running}}running{{else if .Err}}failed{{else}}ok{{end}}"
+  {{if .Running}}hx-get="/activity/{{.Kind}}/status?was=running" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+  {{if .Running}}<span class="spinner" aria-hidden="true"></span> {{.Title}}: {{with .Status}}{{.}}…{{else}}starting…{{end}}
+    <small>started {{when .Started}}</small>
+  {{else if .Err}}✗ {{.Title}} failed {{when .Finished}}: {{.Err}}
+  {{else}}✓ {{.Title}} finished {{when .Finished}}{{with .Status}}: {{.}}{{end}}{{end}}
+</p>
+{{end}}{{end}}
+
+{{define "activity-log"}}{{with .Activity}}
+<pre id="activity-log-{{.Kind}}" class="output activity-log" x-data x-init="$el.scrollTop = $el.scrollHeight"
+  {{if .Running}}hx-get="/activity/{{.Kind}}/log" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+{{- if .Dropped}}… {{.Dropped}} earlier lines not shown
+{{end}}{{range .Lines}}{{.}}
+{{end}}</pre>
+{{end}}{{end}}

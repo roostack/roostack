@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
@@ -94,6 +95,8 @@ type Server struct {
 	Setup LabSetup
 	// DNS reports whether home devices can reach services (SPEC.md §6.5.1).
 	DNS DNSStatus
+	// Activity holds live logs of host operations (optional).
+	Activity *activity.Registry
 	// Updates runs OS updates and restarts (Owner). Nil hides the card.
 	Updates HostUpdates
 	// Maintenance is the lab's restart policy, shown in Settings.
@@ -209,6 +212,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /dns/take-over", s.requireOwner(s.dnsTakeOver))
 	mux.Handle("GET /setup/timezone", s.requireWizard(s.timezonePage))
 	mux.Handle("POST /setup/timezone", s.requireWizard(s.timezoneSubmit))
+	mux.Handle("GET /activity/{kind}/{part}", s.require(auth.ManageServices, s.activityPart))
 	mux.Handle("POST /settings/updates/run", s.requireOwner(s.updateNowSubmit))
 	mux.Handle("POST /settings/restart", s.requireOwner(s.restartNowSubmit))
 	mux.Handle("POST /settings/restart-policy", s.requireWizard(s.restartPolicySubmit))

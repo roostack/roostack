@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/agent"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/firewall"
@@ -55,6 +56,9 @@ type Manager struct {
 	State   KV
 	Secrets SecretStore
 	Exec    ExecFunc
+	// Activity shows applies and install hooks live in the UI (optional).
+	Activity *activity.Registry
+
 	// Firewall applies the host firewall through mylab-agent after each
 	// apply. Nil leaves the firewall alone.
 	Firewall FirewallApplier
@@ -419,7 +423,16 @@ func (m *Manager) applyLoop(done chan struct{}) {
 	}
 }
 
-func (m *Manager) applyOnce(ctx context.Context) error {
+func (m *Manager) applyOnce(ctx context.Context) (err error) {
+	// A log only for applies that change something (or fail): the one at
+	// every startup usually has nothing to do.
+	var act *activity.Log
+	defer func() {
+		if err != nil && act == nil {
+			act = m.Activity.Start(activity.Apply, "Applying changes")
+		}
+		act.Finish(err)
+	}()
 	// Load and allocate under the lock so an install can't interleave.
 	m.mu.Lock()
 	services, err := state.LoadServices(m.Lab)
@@ -445,6 +458,10 @@ func (m *Manager) applyOnce(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if !plan.Empty() {
+		act = m.Activity.Start(activity.Apply, "Applying changes")
+		r.Log = act
+	}
 	if err := r.Apply(ctx, plan); err != nil {
 		return err
 	}
@@ -457,6 +474,7 @@ func (m *Manager) applyOnce(ctx context.Context) error {
 
 	// The firewall follows the services, e.g. a package port just turned on.
 	if fw, ok := firewall.Desired(m.Lab, desired.Services); ok && m.Firewall != nil {
+		act.Step("Updating the firewall")
 		if err := m.Firewall.ApplyFirewall(ctx, fw); err != nil {
 			return fmt.Errorf("applying the firewall: %w", err)
 		}

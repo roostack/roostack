@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/osupdate"
@@ -30,6 +31,8 @@ type updatesView struct {
 	Hour     int
 	Hours    []int
 	ErrorMsg string
+	// ActivityData is the live run, for the "activity" template.
+	ActivityData map[string]any
 }
 
 func (s *Server) updatesView(r *http.Request, errMsg string) *updatesView {
@@ -41,7 +44,11 @@ func (s *Server) updatesView(r *http.Request, errMsg string) *updatesView {
 		s.Log.Error("reading the last OS update", "err", err)
 	}
 	v := &updatesView{Last: last, Pending: s.Updates.Pending(), Restart: s.Updates.RestartStatus(),
-		Mode: s.Maintenance.Restart, Hour: s.Maintenance.Hour(), ErrorMsg: errMsg}
+		Mode: s.Maintenance.Restart, Hour: s.Maintenance.Hour(), ErrorMsg: errMsg,
+		ActivityData: map[string]any{"Activity": s.activityFor(r, activity.OSUpdates)}}
+	if a := v.ActivityData["Activity"].(*activityView); a != nil && a.Running() {
+		v.Pending = true // queued runs show as pending too
+	}
 	if v.Mode == "" {
 		v.Mode = config.RestartAuto
 	}

@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dnsrecords"
@@ -428,5 +430,45 @@ func TestUpdatesCard(t *testing.T) {
 	ha.server.Updates = fu
 	if _, home := ha.get("/"); strings.Contains(home, "OS updates") {
 		t.Error("admins shouldn't see OS update problems")
+	}
+}
+
+func TestActivity(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
+	h.server.Updates = &fakeUpdates{}
+	h.server.Activity = activity.New()
+	act := h.server.Activity.Start(activity.OSUpdates, "OS updates")
+	fmt.Fprint(act, "==> Installing updates\nUnpacking curl (8.14.1-2+deb13u5)\n")
+
+	_, body := h.get("/settings")
+	for _, want := range []string{"OS updates: Installing updates…", `hx-get="/activity/os-updates/status?was=running"`,
+		"<summary>Details</summary>", "Unpacking curl (8.14.1-2&#43;deb13u5)", `hx-trigger="activity-done from:body"`, "Updating…"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("settings while updating: missing %q", want)
+		}
+	}
+
+	act.Step("Installed 1 update: curl.")
+	act.Finish(nil)
+	resp, err := h.client.Get(h.srv.URL + "/activity/os-updates/status?was=running")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.Header.Get("HX-Trigger") != "activity-done" || !strings.Contains(string(b), "✓ OS updates finished") ||
+		strings.Contains(string(b), "hx-get") {
+		t.Errorf("finished status: trigger %q, body %s", resp.Header.Get("HX-Trigger"), b)
+	}
+	if _, log := h.get("/activity/os-updates/log"); !strings.Contains(log, "==&gt; Done") || strings.Contains(log, "hx-get") {
+		t.Errorf("finished log should stop polling:\n%s", log)
+	}
+
+	// Admins can't see host activity.
+	ha, _ := loggedIn(t, auth.RoleAdmin)
+	ha.server.Activity = h.server.Activity
+	if code, _ := ha.get("/activity/os-updates/log"); code != http.StatusNotFound {
+		t.Errorf("admin reading OS updates: %d", code)
 	}
 }

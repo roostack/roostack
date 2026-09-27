@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/state"
@@ -187,7 +188,7 @@ func (m *Manager) setHooksRunning(name string, on bool) {
 // runInstallHooks runs each install hook in order. A service that has just
 // started may not be ready (e.g. still migrating its database), so each
 // hook is retried until it succeeds or the deadline passes.
-func (m *Manager) runInstallHooks(ctx context.Context, s state.Service) error {
+func (m *Manager) runInstallHooks(ctx context.Context, s state.Service) (err error) {
 	retry, deadline := m.HookRetry, m.HookDeadline
 	if retry == 0 {
 		retry = defaultHookRetry
@@ -197,7 +198,11 @@ func (m *Manager) runInstallHooks(ctx context.Context, s state.Service) error {
 	}
 	ctx, cancel := context.WithTimeout(ctx, deadline)
 	defer cancel()
-	for _, h := range s.Package.HooksOn(pkgspec.HookInstall) {
+	act := m.Activity.Start(activity.Setup, "Setting up "+s.Package.Title)
+	defer func() { act.Finish(err) }()
+	hooks := s.Package.HooksOn(pkgspec.HookInstall)
+	for i, h := range hooks {
+		act.Step("Setup step %d of %d (for example, creating the administrator account)", i+1, len(hooks))
 		run, err := generate.Hook(m.Lab, s.Package, s.Instance, h, nil)
 		if err != nil {
 			return err
@@ -205,11 +210,14 @@ func (m *Manager) runInstallHooks(ctx context.Context, s state.Service) error {
 		if err := m.hookSecrets(ctx, run, nil); err != nil {
 			return err
 		}
-		for {
+		for attempt := 1; ; attempt++ {
+			act.Printf("Attempt %d: running in %s", attempt, run.Container) // env holds secrets: never logged
 			out, err := m.Exec(ctx, run.Container, run.Env, run.Command)
+			act.Write(out)
 			if err == nil {
 				break
 			}
+			act.Printf("%v. %s may still be starting; trying again in %s.", err, s.Package.Title, retry)
 			select {
 			case <-ctx.Done():
 				return fmt.Errorf("%s didn't finish setting up: %s", s.Package.Title, lastLines(out, err))

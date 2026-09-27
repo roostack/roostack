@@ -1,13 +1,16 @@
 package backup
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
+	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/maintenance"
@@ -92,6 +95,8 @@ type JobDeps struct {
 	Plan func() (Plan, error)
 	// OnDone is called with the result (e.g. to record it for the UI).
 	OnDone func(*Summary, error)
+	// Log shows the run's steps live in the UI (optional, per run).
+	Log *activity.Log
 }
 
 // Reporter receives progress while a backup runs. *maintenance.Handle
@@ -126,14 +131,19 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 		return nil, err
 	}
 	r.SetInterruptible(false)
+	d.Log.Step("Saving a copy of MyLab's own database")
 	if err := d.DumpState(ctx, StateDumpFile(d.Paths)); err != nil {
 		return nil, fmt.Errorf("copying MyLab database: %w", err)
 	}
 	for _, step := range plan.Prepare {
+		d.Log.Step("Saving a consistent copy of %s's %s database", prepareService(step), step.Type)
+		d.Log.Printf("%s → %s", cmp.Or(step.Container, step.Source), step.Target)
 		if err := d.Preparer.Run(ctx, step); err != nil {
 			return nil, fmt.Errorf("preparing %s: %w", step.Target, err)
 		}
 	}
+	d.Log.Step("Opening the backup storage")
+	d.Log.Printf("Repository: %s", d.Repo.URL)
 	if err := d.Repo.Init(ctx); err != nil {
 		return nil, err
 	}
@@ -146,8 +156,44 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 		}
 	}
 	r.SetInterruptible(true)
-	return d.Repo.Backup(ctx, BackupOptions{
+	d.Log.Step("Uploading changes")
+	for _, p := range paths {
+		d.Log.Printf("Including %s", p)
+	}
+	lastTen := -1
+	sum, err := d.Repo.Backup(ctx, BackupOptions{
 		Paths: paths, Excludes: plan.Excludes, Tags: []string{"mylab"}, Host: d.Host,
-		OnProgress: func(p Progress) { r.SetProgress(int(p.PercentDone)) },
+		OnProgress: func(p Progress) {
+			r.SetProgress(int(p.PercentDone))
+			if ten := int(p.PercentDone) / 10; ten > lastTen {
+				lastTen = ten
+				d.Log.Printf("%3d%%  %s of %s, about %s left", int(p.PercentDone), Bytes(p.BytesDone),
+					Bytes(p.TotalBytes), (time.Duration(p.SecondsRemaining) * time.Second).String())
+			}
+		},
 	})
+	if sum != nil {
+		d.Log.Step("Backed up: %d new files, %s added (snapshot %s)", sum.FilesNew, Bytes(sum.DataAdded), sum.SnapshotID)
+	}
+	return sum, err
+}
+
+// prepareService names the service a prepare step belongs to, from its
+// dump path (<services dir>/<service>/db-dump/<file>).
+func prepareService(step generate.PrepareStep) string {
+	return filepath.Base(filepath.Dir(filepath.Dir(step.Target)))
+}
+
+// Bytes formats a size for people, e.g. "1.2 GB".
+func Bytes(n uint64) string {
+	const unit = 1000
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := uint64(unit), 0
+	for m := n / unit; m >= unit; m /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "kMGTPE"[exp])
 }

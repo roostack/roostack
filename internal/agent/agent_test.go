@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/netip"
@@ -13,19 +15,24 @@ import (
 )
 
 type fakeHost struct {
-	portsSet bool
-	ruleset  string
-	tz       string
-	updated  bool
-	rebooted bool
+	portsSet  bool
+	ruleset   string
+	tz        string
+	updated   bool
+	rebooted  bool
+	updateErr error
 }
 
 func (f *fakeHost) SetUnprivilegedPortStart() error { f.portsSet = true; return nil }
 func (f *fakeHost) ApplyFirewall(r string) error    { f.ruleset = r; return nil }
 func (f *fakeHost) SetTimezone(name string) error   { f.tz = name; return nil }
-func (f *fakeHost) RunUpdates(context.Context) (string, error) {
+func (f *fakeHost) RunUpdates(_ context.Context, w io.Writer) error {
 	f.updated = true
-	return "No packages found that can be upgraded unattended", nil
+	fmt.Fprint(w, "==> Installing updates\nNo packages found that can be upgraded unattended")
+	if f.updateErr != nil {
+		return f.updateErr
+	}
+	return nil
 }
 func (f *fakeHost) Reboot() error { f.rebooted = true; return nil }
 
@@ -80,8 +87,14 @@ func TestAPI(t *testing.T) {
 		}
 	}
 
-	if out, err := c.RunUpdates(ctx); err != nil || !host.updated || !strings.Contains(out, "No packages") {
-		t.Errorf("updates: %q %v", out, err)
+	var out strings.Builder
+	if err := c.RunUpdates(ctx, &out); err != nil || !host.updated ||
+		out.String() != "==> Installing updates\nNo packages found that can be upgraded unattended\n" {
+		t.Errorf("updates: %q %v", out.String(), err)
+	}
+	host.updateErr = errors.New("exit status 100")
+	if err := c.RunUpdates(ctx, io.Discard); err == nil || err.Error() != "exit status 100" {
+		t.Errorf("failed updates: %v", err)
 	}
 	if err := c.Reboot(ctx); err != nil || !host.rebooted {
 		t.Errorf("reboot: %v", err)
