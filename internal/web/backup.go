@@ -63,10 +63,10 @@ func isStale(t time.Time) bool { return time.Since(t) > backupStale }
 
 // backupView is the dashboard's backup card.
 func (s *Server) backupView(r *http.Request) any {
-	if s.Backups == nil {
+	if s.backups() == nil {
 		return nil
 	}
-	st, err := s.Backups.Status(r.Context())
+	st, err := s.backups().Status(r.Context())
 	if err != nil {
 		s.Log.Error("backup status", "err", err)
 		return nil
@@ -75,11 +75,11 @@ func (s *Server) backupView(r *http.Request) any {
 }
 
 func (s *Server) backupRun(w http.ResponseWriter, r *http.Request) {
-	if s.Backups == nil {
+	if s.backups() == nil {
 		http.NotFound(w, r)
 		return
 	}
-	err := s.Backups.RunNow()
+	err := s.backups().RunNow()
 	if err != nil && !errors.Is(err, backup.ErrAlreadyQueued) {
 		s.serverError(w, fmt.Errorf("starting backup: %w", err))
 		return

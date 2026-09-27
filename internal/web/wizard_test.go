@@ -393,7 +393,7 @@ func TestUpdatesCard(t *testing.T) {
 		last:    &osupdate.Result{At: time.Now(), OK: false, Summary: "Updating didn't finish: exit status 100", Output: "E: Could not get lock"},
 		restart: osupdate.RestartStatus{Needed: true, Packages: []string{"linux-image-amd64"}, Waiting: "reboot pending: waiting for the maintenance window"},
 	}
-	h.server.Updates = fu
+	h.node().updates = fu
 
 	_, body := h.get("/settings/updates")
 	for _, want := range []string{`id="updates"`, "Could not get lock", "linux-image-amd64", "Restart now", `<option value="4" selected>04:00</option>`,
@@ -430,7 +430,7 @@ func TestUpdatesCard(t *testing.T) {
 
 	// Admins don't see host updates.
 	ha, _ := loggedIn(t, auth.RoleAdmin)
-	ha.server.Updates = fu
+	ha.node().updates = fu
 	if _, home := ha.get("/"); strings.Contains(home, "OS updates") {
 		t.Error("admins shouldn't see OS update problems")
 	}
@@ -439,7 +439,7 @@ func TestUpdatesCard(t *testing.T) {
 func TestActivity(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
-	h.server.Updates = &fakeUpdates{}
+	h.node().updates = &fakeUpdates{}
 	act := h.acts().Start(activity.OSUpdates, "OS updates")
 	fmt.Fprint(act, "==> Installing updates\nUnpacking curl (8.14.1-2+deb13u5)\n")
 

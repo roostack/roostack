@@ -34,6 +34,10 @@ type Node interface {
 	RevealSecret(ctx context.Context, service, key string) (string, error)
 	// LatestActivity is the node's latest log of a kind (activity.Apply, ...).
 	LatestActivity(kind string) (activity.Snapshot, bool)
+	// Maintenance jobs (maintenance.go); nil when not available.
+	Backups() Backups
+	Restores() Restores
+	Updates() Updates
 }
 
 // Assignment is what the controller wants a node to run.
@@ -92,6 +96,9 @@ type Local struct {
 	Exec    ExecFunc
 	// HookRetry and HookDeadline tune install hook retries (0: defaults).
 	HookRetry, HookDeadline time.Duration
+
+	// Jobs are the machine's backups, restores and OS updates.
+	Jobs Maintenance
 
 	mu         sync.Mutex
 	assignment Assignment

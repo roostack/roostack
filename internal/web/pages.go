@@ -188,7 +188,7 @@ func (s *Server) backupsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	data["Backup"] = s.backupView(r)
 	data["BackupRepo"] = s.BackupRepo
-	data["CanRestore"] = s.Restores != nil && auth.Can(currentUser(r).Role, auth.ManageHost)
+	data["CanRestore"] = s.restores() != nil && auth.Can(currentUser(r).Role, auth.ManageHost)
 	if a := s.activityFor(r, activity.Backup); a != nil {
 		data["BackupActivity"] = a
 	}

@@ -21,11 +21,11 @@ import (
 
 	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/backup"
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/dnsrecords"
 	"github.com/mylab/mylab/internal/hosttime"
 	"github.com/mylab/mylab/internal/manager"
+	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/setup"
 	"github.com/mylab/mylab/internal/store"
@@ -92,16 +92,10 @@ type Server struct {
 	BackupRepo string
 	// HasGPU pre-ticks settings whose default is "auto".
 	HasGPU bool
-	// Backups shows backup status and runs backups. Nil hides the card.
-	Backups BackupService
 	// Setup is the first-run setup wizard. Nil disables it.
 	Setup LabSetup
 	// DNS reports whether home devices can reach services (SPEC.md §6.5.1).
 	DNS DNSStatus
-	// Restores restores services from backups (Owner). Nil hides it.
-	Restores RestoreService
-	// Updates runs OS updates and restarts (Owner). Nil hides the card.
-	Updates HostUpdates
 	// Version is MyLab's version, shown on the About page.
 	Version string
 	// Maintenance is the lab's restart policy, shown in Settings.
@@ -136,6 +130,9 @@ type ServiceNode interface {
 	RunAction(ctx context.Context, name, action string, inputs map[string]string) (string, error)
 	RevealSecret(ctx context.Context, name, key string) (string, error)
 	LatestActivity(kind string) (activity.Snapshot, bool)
+	Backups() node.Backups
+	Restores() node.Restores
+	Updates() node.Updates
 }
 
 // LabSetup is what the UI needs from internal/setup.
@@ -162,10 +159,33 @@ type DNSStatus interface {
 	TakeOver(ctx context.Context) error
 }
 
-// BackupService is what the UI needs from internal/backup.
-type BackupService interface {
-	Status(ctx context.Context) (backup.Status, error)
-	RunNow() error
+// The machine's maintenance jobs (internal/node). Each is nil when not
+// available, which hides its card or page.
+type (
+	BackupService  = node.Backups
+	RestoreService = node.Restores
+	HostUpdates    = node.Updates
+)
+
+func (s *Server) backups() BackupService {
+	if s.Node == nil {
+		return nil
+	}
+	return s.Node.Backups()
+}
+
+func (s *Server) restores() RestoreService {
+	if s.Node == nil {
+		return nil
+	}
+	return s.Node.Restores()
+}
+
+func (s *Server) updates() HostUpdates {
+	if s.Node == nil {
+		return nil
+	}
+	return s.Node.Updates()
 }
 
 type pendingLogin struct {

@@ -48,7 +48,7 @@ func TestRestoreFlow(t *testing.T) {
 		kept: []backup.KeptCopy{{Path: "/srv/mylab/services/vaultwarden/data.before-restore-20260926-130602",
 			Of: "/srv/mylab/services/vaultwarden/data", Time: time.Now().Add(-2 * time.Hour)}},
 	}
-	h.server.Restores = fr
+	h.node().restores = fr
 
 	if _, body := h.get("/backups"); !strings.Contains(body, `href="/backups/restore/vaultwarden">Restore Vaultwarden…`) {
 		t.Error("backups page should link to restoring each service")
@@ -87,7 +87,7 @@ func TestRestoreFlow(t *testing.T) {
 
 	// Admins can't restore.
 	ha, _ := loggedIn(t, auth.RoleAdmin)
-	ha.server.Restores = fr
+	ha.node().restores = fr
 	if code, _ := ha.get("/backups/restore/vaultwarden"); code != http.StatusForbidden {
 		t.Errorf("admin restore page: %d", code)
 	}

@@ -23,7 +23,7 @@ func (f *fakeBackups) RunNow() error                                 { f.runs++;
 func TestBackupCard(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleAdmin)
 	fb := &fakeBackups{}
-	h.server.Backups = fb
+	h.node().backups = fb
 	card := func() string {
 		_, body := h.get("/partials/backups")
 		return body
@@ -67,7 +67,7 @@ func TestBackupCard(t *testing.T) {
 func TestMembersCannotStartBackups(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleMember)
 	fb := &fakeBackups{status: backup.Status{Configured: true, Progress: -1}}
-	h.server.Backups = fb
+	h.node().backups = fb
 	if _, body := h.get("/"); strings.Contains(body, "Back up now") || strings.Contains(body, `href="/backups"`) {
 		t.Error("members must not see backups")
 	}

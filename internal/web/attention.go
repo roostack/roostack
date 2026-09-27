@@ -80,8 +80,8 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		}
 	}
 
-	if admin && s.Backups != nil {
-		if st, err := s.Backups.Status(r.Context()); err == nil {
+	if admin && s.backups() != nil {
+		if st, err := s.backups().Status(r.Context()); err == nil {
 			backupLink := "/backups"
 			switch {
 			case !st.Configured:
@@ -124,12 +124,12 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		}
 	}
 
-	if owner && s.Updates != nil {
-		if last, err := s.Updates.Last(r.Context()); err == nil && last != nil && !last.OK {
+	if owner && s.updates() != nil {
+		if last, err := s.updates().Last(r.Context()); err == nil && last != nil && !last.OK {
 			add(levelProblem, "OS updates didn't finish last time. The machine may be missing security fixes.",
 				"/settings/updates", "See what happened")
 		}
-		if rs := s.Updates.RestartStatus(); rs.Needed {
+		if rs := s.updates().RestartStatus(); rs.Needed {
 			if s.Maintenance.Restart == config.RestartNotify {
 				add(levelWarning, "This machine needs a restart to finish installing updates.", "/settings/updates", "Restart")
 			} else {
