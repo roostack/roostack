@@ -22,6 +22,9 @@ var templateFuncs = template.FuncMap{
 	// percent shows progress, or nothing if it's unknown (-1).
 	"size": sizeText,
 	"gb":   func(b int64) int64 { return b >> 30 },
+	// image is a container image without its digest (shown in full on
+	// hover): docker.io/vaultwarden/server:1.34.3.
+	"image": func(ref string) string { name, _, _ := strings.Cut(ref, "@"); return name },
 	"percent": func(p int) string {
 		if p < 0 {
 			return ""

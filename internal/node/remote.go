@@ -503,3 +503,19 @@ func (r *Remote) KeptData(ctx context.Context) ([]KeptFolder, error) {
 func (r *Remote) RemoveKeptData(ctx context.Context, path string) error {
 	return r.call(ctx, http.MethodPost, "/v1/kept/remove", map[string]string{"Path": path}, nil)
 }
+
+func (r *Remote) ServiceDetails(ctx context.Context) (map[string]ServiceDetail, error) {
+	ctx, cancel := context.WithTimeout(ctx, statusTimeout)
+	defer cancel()
+	var out map[string]ServiceDetail
+	err := r.call(ctx, http.MethodGet, "/v1/services/details", nil, &out)
+	return out, err
+}
+
+func (r *Remote) BuiltIns(ctx context.Context) ([]BuiltIn, error) {
+	ctx, cancel := context.WithTimeout(ctx, statusTimeout)
+	defer cancel()
+	var out []BuiltIn
+	err := r.call(ctx, http.MethodGet, "/v1/builtins", nil, &out)
+	return out, err
+}

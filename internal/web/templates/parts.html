@@ -18,15 +18,33 @@
 {{end}}
 {{end}}
 
+{{/* service-summary: where a service runs and when it was last backed up. */}}
+{{define "service-summary"}}<p class="hint">{{with .Machine}}On {{.}}{{end}}
+  {{- if not .LastBackup.IsZero}} · backed up {{when .LastBackup}}{{else if .Machine}} · not backed up yet{{end}}</p>{{end}}
+
+{{/* service-details: what its server reports, for the curious. */}}
+{{define "service-details"}}
+<details class="technical">
+  <summary>Details</summary>
+  <dl class="facts">
+    {{with .Containers}}<dt>Containers</dt><dd>{{range .}}<code>{{.Name}}</code> · {{or .State "unknown"}}<br><small class="hint" title="{{.Image}}">{{image .Image}}</small><br>{{end}}</dd>{{end}}
+    {{with .Routes}}<dt>Web</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}<small class="hint">Caddy on the controller forwards these addresses here.</small></dd>{{end}}
+    {{with .Ports}}<dt>Ports</dt><dd>{{range .}}{{.Title}}: {{.Port}}/{{.Protocol}} ({{if eq .Exposure "public"}}anywhere{{else}}home network{{end}})<br>{{end}}</dd>{{end}}
+    {{with .DataDirs}}<dt>Data</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}{{if ge $.DataSize 0}}{{size $.DataSize}}{{else}}<small class="hint">size not counted yet</small>{{end}}</dd>{{end}}
+  </dl>
+</details>
+{{end}}
+
 {{define "service-tiles"}}
 {{if .Services}}
 <ul class="tiles">
   {{range .Services}}
   <li class="card tile">
     <h2>{{.Title}}</h2>
-    {{with .Machine}}<p class="hint">on {{.}}</p>{{end}}
+    {{template "service-summary" .}}
     {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">Open ↗</a>{{end}}
     {{status .Status}}
+    {{if $.CanManage}}{{template "service-details" .}}{{end}}
   </li>
   {{end}}
 </ul>

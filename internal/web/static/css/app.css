@@ -293,3 +293,8 @@ dialog.dialog::backdrop { background: rgb(0 0 0 / 0.45); }
 dialog.dialog p { margin: 0 0 var(--space-4); overflow-wrap: anywhere; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; }
 form.confirm { display: inline; }
+
+/* ---------- Service cards ---------- */
+.service-head { display: flex; justify-content: space-between; gap: var(--space-3); align-items: flex-start; }
+li.card.service { display: block; }
+.section-title { margin-top: var(--space-6); }

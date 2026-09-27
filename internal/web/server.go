@@ -58,8 +58,13 @@ type ServiceView struct {
 	Title  string
 	Status string // running, starting, stopped, failed, unknown
 	URLs   []string
-	// Machine is the name of the machine it runs on.
+	// Machine is the name of the server it runs on.
 	Machine string
+	// What its server reports: containers, ports, routes, data folders
+	// and size (nothing about a service should look like magic).
+	node.ServiceDetail
+	// LastBackup is when its server last finished a backup.
+	LastBackup time.Time
 }
 
 // Server serves the web UI.
@@ -151,6 +156,7 @@ type ServiceManager interface {
 	AddRemoteStorage(ctx context.Context, code string) error
 	RemoteStorages(ctx context.Context) []manager.RemoteStorage
 	RemoteUsage(ctx context.Context, r manager.RemoteStorage) (labnet.GuestUsage, error)
+	AllBuiltIns(ctx context.Context) []manager.MachineBuiltIns
 	RemoveMachine(ctx context.Context, id string) error
 	RenameMachine(ctx context.Context, id, name string) error
 }
