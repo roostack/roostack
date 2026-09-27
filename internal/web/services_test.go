@@ -53,6 +53,7 @@ type fakeManager struct {
 	copies      []manager.BackupCopy
 	ending      []manager.EndingStorage
 	retriedWith []string
+	guestServer string
 	providers   []string
 	moves       []string
 	guests      []manager.GuestView
@@ -90,6 +91,19 @@ func (f *fakeManager) RetryInstallWith(_ context.Context, name string, settings,
 		return &manager.FormError{Msg: "Administrator username is required."}
 	}
 	f.retriedWith = append(f.retriedWith, name+" "+settings["admin_username"]+" "+secrets["admin_password"])
+	return nil
+}
+func (f *fakeManager) GuestServer(context.Context) string {
+	if f.guestServer == "" {
+		return "n-0123456789"
+	}
+	return f.guestServer
+}
+func (f *fakeManager) SetGuestServer(_ context.Context, id string) error {
+	if len(f.guests) > 0 {
+		return &manager.FormError{Msg: "Other labs store backups on nuc."}
+	}
+	f.guestServer = id
 	return nil
 }
 func (f *fakeManager) DeleteRemovedGuest(_ context.Context, id int64) error {
@@ -1129,5 +1143,26 @@ func TestHostChanges(t *testing.T) {
 	}
 	if _, body := h.get("/settings/updates"); !strings.Contains(body, "You said these were made on purpose") {
 		t.Error("the page says they're known")
+	}
+}
+
+func TestStorageOfferedByAnotherServer(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true}, {ID: "n-9876543210", Name: "bigdisk"}}
+	_, body := h.get("/settings/storage")
+	if !strings.Contains(body, `name="server"`) || !strings.Contains(body, "Address they reach nuc at") {
+		t.Fatalf("the offering server can be chosen:\n%s", body)
+	}
+	h.post("/settings/storage/server", url.Values{"server": {"n-9876543210"}}, h.srv.URL)
+	if fm.guestServer != "n-9876543210" {
+		t.Fatalf("server = %q", fm.guestServer)
+	}
+	if _, body := h.get("/settings/storage"); !strings.Contains(body, "Address they reach bigdisk at") || !strings.Contains(body, "to bigdisk") {
+		t.Error("the page names the server other labs reach")
+	}
+	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Joined: true}}}
+	if code, body := h.post("/settings/storage/server", url.Values{"server": {"n-0123456789"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "Other labs store backups") {
+		t.Errorf("can't move while a lab stores there: %d", code)
 	}
 }

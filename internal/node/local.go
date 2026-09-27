@@ -138,7 +138,10 @@ type Local struct {
 	// WireGuard reads the WireGuard interfaces, and Version is MyLab's, to
 	// describe this server (details.go; optional).
 	WireGuard WireGuardStatuser
-	Version   string
+	// Links configures WireGuard links (the guests' link when this server
+	// hosts storage for other labs).
+	Links   LinkAgent
+	Version string
 
 	sizes sizes
 
@@ -531,7 +534,10 @@ func writeIfChanged(path, data string) error {
 }
 
 // GuestUsage is how much a guest lab stores on this server, in bytes.
-func (n *Local) GuestUsage(user string) (int64, error) {
+func (n *Local) GuestUsage(_ context.Context, user string) (int64, error) {
+	if !guestUser.MatchString(user) {
+		return 0, ErrNotFound
+	}
 	var total int64
 	err := filepath.WalkDir(generate.GuestStoreDir(n.Lab, user), func(_ string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -548,7 +554,7 @@ func (n *Local) GuestUsage(user string) (int64, error) {
 }
 
 // GuestDirs lists the guest users with data on this server.
-func (n *Local) GuestDirs() ([]string, error) {
+func (n *Local) GuestDirs(context.Context) ([]string, error) {
 	entries, err := os.ReadDir(filepath.Join(n.Lab.Paths.BackupStoreDir(), "guests"))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil

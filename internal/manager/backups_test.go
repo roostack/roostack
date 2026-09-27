@@ -309,13 +309,6 @@ func TestRemoteStorageFollowsRename(t *testing.T) {
 	}
 }
 
-type fakeWG struct{ peers int }
-
-func (f *fakeWG) ApplyWireGuard(_ context.Context, wg agent.WireGuard) (string, error) {
-	f.peers = len(wg.Peers)
-	return "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", nil
-}
-
 // A removed guest lab stops backing up at once, keeps its link (to hear
 // about it) and its data for the grace period, then both go.
 func TestRemovedGuestGrace(t *testing.T) {
@@ -325,12 +318,18 @@ func TestRemovedGuestGrace(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	wg := &fakeWG{}
+	m.Lab.NodeID = "n-0000000001"
+	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
+	local(m).Links = fakeLinks{}
+	vps := &fakeRemote{settings: &fakeServerSettings{}}
+	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	m.GuestRecords = st
-	m.GuestHub = &labnet.GuestHub{LabName: "nuc's lab", Store: st, Agent: wg, Log: m.Log, Now: time.Now}
-	var deleted []string
-	m.RemoveGuestDir = func(_ context.Context, user string) error { deleted = append(deleted, user); return nil }
+	m.GuestHub = &labnet.GuestHub{LabName: "nuc's lab", Store: st, Agent: m.GuestLinkAgent(), Log: m.Log, Now: time.Now}
 	ctx := context.Background()
+	// The vps offers the storage.
+	if err := m.SetGuestServer(ctx, "n-0000000002"); err != nil || m.HostsGuests(ctx) {
+		t.Fatal(err)
+	}
 	inv, err := m.GuestHub.NewInvite(ctx, "Sam's lab", 10<<30, "203.0.113.7:51821")
 	if err != nil {
 		t.Fatal(err)
@@ -343,6 +342,16 @@ func TestRemovedGuestGrace(t *testing.T) {
 	if stores, _ := m.guestStores(ctx); len(stores) != 1 {
 		t.Fatal("a guest's store runs")
 	}
+	m.Apply()
+	m.Wait()
+	vps.mu.Lock()
+	if len(vps.last.Guests) != 1 || vps.last.GuestAddr == "" || len(vps.guestLink) == 0 || vps.guestLink[0].Iface() != agent.GuestsInterface {
+		t.Errorf("the vps runs the guest's store and link: %+v %d", vps.last.Guests, len(vps.guestLink))
+	}
+	vps.mu.Unlock()
+	if err := m.SetGuestServer(ctx, "n-0000000001"); err == nil {
+		t.Error("storage can't move while a lab stores there")
+	}
 	if err := m.RemoveGuest(ctx, g.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -350,20 +359,38 @@ func TestRemovedGuestGrace(t *testing.T) {
 	if stores, _ := m.guestStores(ctx); len(stores) != 0 {
 		t.Error("a removed guest's store stops")
 	}
+	peers := func() int {
+		vps.mu.Lock()
+		defer vps.mu.Unlock()
+		return len(vps.guestLink[len(vps.guestLink)-1].Peers)
+	}
 	m.GuestHub.SyncPeers(ctx)
-	if wg.peers != 1 {
+	if peers() != 1 {
 		t.Error("its link stays, so it can be told")
 	}
-	if err := m.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace-time.Hour)); err != nil || len(deleted) != 0 {
-		t.Fatalf("within the grace period: %v %v", err, deleted)
+	if err := m.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace-time.Hour)); err != nil || len(vps.deleted) != 0 {
+		t.Fatalf("within the grace period: %v %v", err, vps.deleted)
 	}
-	if err := m.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace+time.Hour)); err != nil || !slices.Equal(deleted, []string{g.User()}) {
-		t.Fatalf("after it: %v %v", err, deleted)
+	if err := m.PurgeRemovedGuests(ctx, time.Now().Add(GuestGrace+time.Hour)); err != nil || !slices.Equal(vps.deleted, []string{g.User()}) {
+		t.Fatalf("after it: %v %v", err, vps.deleted)
 	}
-	if guests, _ := st.Guests(ctx, time.Now()); len(guests) != 0 || wg.peers != 0 {
-		t.Errorf("gone: %+v peers %d", guests, wg.peers)
+	if guests, _ := st.Guests(ctx, time.Now()); len(guests) != 0 || peers() != 0 {
+		t.Errorf("gone: %+v peers %d", guests, peers())
+	}
+	if err := m.SetGuestServer(ctx, "n-0000000001"); err != nil || !m.HostsGuests(ctx) {
+		t.Errorf("with nobody storing, storage can move back: %v", err)
 	}
 	if err := m.DeleteRemovedGuest(ctx, g.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("already deleted: %v", err)
 	}
 }
+
+type fakeLinks struct{}
+
+func (fakeLinks) ApplyWireGuard(context.Context, agent.WireGuard) (string, error) {
+	return "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", nil
+}
+func (fakeLinks) WireGuardStatus(context.Context, string) (agent.WireGuardStatus, error) {
+	return agent.WireGuardStatus{}, nil
+}
+func (fakeLinks) RemoveWireGuard(context.Context, string) error { return nil }

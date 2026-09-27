@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/mylab/mylab/internal/config"
+	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/instance"
 	"github.com/mylab/mylab/internal/labnet"
 	"github.com/mylab/mylab/internal/pkgspec"
@@ -27,6 +28,10 @@ type WireAssignment struct {
 	SetUp    []string          `json:"set_up,omitempty"`
 	Proxied  []WireProxied     `json:"proxied,omitempty"`
 	Storage  *Storage          `json:"storage,omitempty"`
+	// Guests are other labs' stores, when this server offers storage for
+	// them, on its address GuestAddr on the guests' link.
+	Guests    []generate.GuestStorage `json:"guests,omitempty"`
+	GuestAddr string                  `json:"guest_addr,omitempty"`
 }
 
 // LabContext is the lab-wide settings a node's services need.
@@ -52,7 +57,7 @@ type WireProxied struct {
 // from the lab's catalog.
 func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error) {
 	w := WireAssignment{Version: version, Lab: LabContext{Domain: a.Lab.Domain, Email: a.Lab.Email},
-		Secrets: a.Secrets, SetUp: a.SetUp, Storage: a.Storage}
+		Secrets: a.Secrets, SetUp: a.SetUp, Storage: a.Storage, Guests: a.Guests, GuestAddr: a.GuestAddr}
 	enc := func(s state.Service) (WireService, error) {
 		in, err := s.Instance.Marshal()
 		if err != nil {
@@ -83,7 +88,7 @@ func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error)
 
 // Decode turns a wire assignment back into one, checking every file.
 func Decode(w WireAssignment) (Assignment, error) {
-	a := Assignment{Lab: w.Lab, Secrets: w.Secrets, SetUp: w.SetUp, Storage: w.Storage}
+	a := Assignment{Lab: w.Lab, Secrets: w.Secrets, SetUp: w.SetUp, Storage: w.Storage, Guests: w.Guests, GuestAddr: w.GuestAddr}
 	dec := func(ws WireService) (state.Service, error) {
 		p, err := pkgspec.Parse(ws.Package)
 		if err != nil {

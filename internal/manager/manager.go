@@ -68,12 +68,9 @@ type Manager struct {
 	// labs, and a hook when this lab starts storing at another.
 	GuestHub     *labnet.GuestHub
 	GuestRecords GuestRecords
-	GuestUsage   func(user string) (int64, error)
-	LinkAgent    LinkAgent
-	RemoteAdded  func(RemoteStorage)
-	// GuestDirs and RemoveGuestDir list and delete guests' data folders.
-	GuestDirs      func() ([]string, error)
-	RemoveGuestDir func(ctx context.Context, user string) error
+
+	LinkAgent   LinkAgent
+	RemoteAdded func(RemoteStorage)
 
 	// remoteSeen is each storage at another lab's latest answer (by Ref).
 	remoteMu   sync.Mutex

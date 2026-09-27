@@ -148,7 +148,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] A server's backup store stops when no server backs up to it (its backups stay on disk)
   - [x] Labs have a name (first run, Settings → Lab name): shown in the header and to labs sharing storage, which follow a rename; the domain until one is chosen
   - [x] Removed guests: their store stops at once; their link stays for 30 days so their lab hears (Backups and "needs attention" there show the deletion date); their data is deleted then (hourly check), or sooner by the host
-  - [ ] Storage for others offered by a machine other than the controller
+  - [x] Storage for others offered by any server (Settings → Storage for others → Offered by; only while no lab stores there): that server runs the guests' link and stores and holds their data; the controller keeps the records and answers guests, forwarded over the lab network. Tested live: VM4's lab stored backups on vps via VM1's controller, heard about its removal, and the data was deleted on vps
+  - [ ] Move other labs' backups when the offering server changes
   - [ ] Move a service between machines (SPEC.md §10.10)
     - [x] Copy directly: copy while running, stop, copy what changed (and deletions), bring its secrets, switch; the old copy is set aside
     - [x] Through a backup (large data, slow links): a fresh backup, the controller streams the service's folders from it (restic dump, recovery key) and the new machine loads its databases from the dumps; the move page suggests a way from the size

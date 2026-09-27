@@ -38,6 +38,7 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		// sandbox like backups.
 		Launch:     userLaunch,
 		WireGuard:  agentClient,
+		Links:      agentClient,
 		Version:    version,
 		Lab:        lab,
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets()},
