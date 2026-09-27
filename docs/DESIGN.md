@@ -50,19 +50,28 @@ Never use raw colours (`#…`) or palette variables (`--pal-…`) in `app.css` o
 
 ### Built-in themes
 
-| Theme | Light | Dark |
-|---|---|---|
-| Teal and violet (default) | Teal actions, violet highlight | Same, brighter |
-| Ocean and magenta | Ocean blue, magenta highlight | Same, brighter |
-| Catppuccin Frappé / Macchiato / Mocha | Latte | Frappé / Macchiato / Mocha; Blue actions, Mauve highlight, Catppuccin's green/yellow/red for status |
+| Theme | Light / dark | Actions / highlight | Source (licence) |
+|---|---|---|---|
+| Teal and violet (default) | MyLab | Teal / violet | MyLab |
+| Ocean and magenta | MyLab | Ocean blue / magenta | MyLab |
+| Catppuccin | Latte / Mocha | Mauve / pink | [Catppuccin](https://catppuccin.com) (MIT) |
+| Gruvbox | Light / dark | Orange / yellow | [Gruvbox](https://github.com/morhetz/gruvbox) (MIT) |
+| Nord | Snow Storm / Polar Night | Frost blue / Aurora purple | [Nord](https://www.nordtheme.com) (MIT) |
+| Solarized | Light / dark | Blue / magenta | [Solarized](https://ethanschoonover.com/solarized) (MIT) |
+| Everforest | Light / dark (medium) | Green / orange | [Everforest](https://github.com/sainnhe/everforest) (MIT) |
+| Rosé Pine | Dawn / Moon | Pine / rose (MyLab status colours) | [Rosé Pine](https://rosepinetheme.com) (MIT) |
+| Tokyo Night | Day / Night | Blue / magenta | [Tokyo Night](https://github.com/folke/tokyonight.nvim) (Apache 2.0) |
 
-Catppuccin colours are from [Catppuccin](https://catppuccin.com) (MIT licence). Latte's green and yellow are darkened slightly towards Latte's text colour so status text stays readable.
+Theme files use plain hex colours, and `TestThemesAreReadable` checks every theme in both modes against WCAG contrast: text and muted text on every surface and on notice tints (4.5:1), links (4.5:1), text on buttons (4.5:1), status text on its tint and on cards (4.5:1), and the highlight (3:1, it isn't text). Where a project's own colour is too faint for UI text on its own background (common in light variants), it's nudged just far enough to pass, keeping its hue; each file lists what was adjusted.
+
+Catppuccin's flavours only differ in how dark they are, so MyLab offers one Catppuccin theme (Latte and Mocha) rather than several near-identical ones.
 
 ### Adding a built-in theme
 
-1. Copy `themes/teal.css` to `themes/<name>.css`, change the selector to `[data-palette="<name>"]`, and change the `--pal-*` values. Keep text readable on every background (4.5:1 contrast).
+1. Copy `themes/teal.css` to `themes/<name>.css`, change the selector to `[data-palette="<name>"]`, and change the `--pal-*` values (hex only). Credit the source and licence at the top.
 2. Add it to `Themes` in `internal/web/themes.go`.
-3. Regenerate the gallery and compare it with the others (the gallery has a theme picker).
+3. Run `go test ./internal/web`: the contrast test tells you which colours to adjust.
+4. Regenerate the gallery and compare it with the others (the gallery has a theme picker).
 
 Nothing else changes: components only see purpose tokens.
 

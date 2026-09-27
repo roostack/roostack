@@ -1,0 +1,24 @@
+/* Catppuccin. Latte when light, Mocha when dark; colours from Catppuccin (https://catppuccin.com), MIT licence. Mauve for actions, Pink as the highlight.
+   Adjusted for readability (WCAG contrast): muted (light) #6c6f85 -> #5f6275; accent (light) #8839ef -> #7e35de; highlight (light) #ea76cb -> #bb5ea2; ok (light) #40a02b -> #2e731f; warn (light) #df8e1d -> #8f5b13; bad (light) #d20f39 -> #bf0e34. */
+[data-palette="catppuccin"] {
+  --pal-bg-l: #e6e9ef; --pal-bg-d: #181825;
+  --pal-surface-l: #eff1f5; --pal-surface-d: #1e1e2e;
+  --pal-surface-2-l: #dce0e8; --pal-surface-2-d: #11111b;
+  --pal-fg-l: #4c4f69; --pal-fg-d: #cdd6f4;
+  --pal-muted-l: #5f6275; --pal-muted-d: #a6adc8;
+  --pal-border-l: #ccd0da; --pal-border-d: #313244;
+  --pal-border-strong-l: #bcc0cc; --pal-border-strong-d: #45475a;
+  --pal-accent-l: #7e35de; --pal-accent-d: #cba6f7;
+  --pal-accent-fg-l: #eff1f5; --pal-accent-fg-d: #11111b;
+  --pal-accent-soft-l: #dfd7f2; --pal-accent-soft-d: #3a344e;
+  --pal-highlight-l: #bb5ea2; --pal-highlight-d: #f5c2e7;
+  --pal-highlight-fg-l: #ffffff; --pal-highlight-fg-d: #181825;
+  --pal-highlight-soft-l: #e8dce9; --pal-highlight-soft-d: #453c4f;
+  --pal-ok-l: #2e731f; --pal-ok-d: #a6e3a1;
+  --pal-ok-bg-l: #d8e6db; --pal-ok-bg-d: #343e40;
+  --pal-warn-l: #8f5b13; --pal-warn-d: #f9e2af;
+  --pal-warn-bg-l: #ede4d9; --pal-warn-bg-d: #413d43;
+  --pal-bad-l: #bf0e34; --pal-bad-d: #f38ba8;
+  --pal-bad-bg-l: #ebd4dd; --pal-bad-bg-d: #402f42;
+  --pal-bad-fg-l: #e6e9ef; --pal-bad-fg-d: #181825;
+}
