@@ -97,6 +97,8 @@ type Server struct {
 	DNS DNSStatus
 	// Activity holds live logs of host operations (optional).
 	Activity *activity.Registry
+	// Restores restores services from backups (Owner). Nil hides it.
+	Restores RestoreService
 	// Updates runs OS updates and restarts (Owner). Nil hides the card.
 	Updates HostUpdates
 	// Maintenance is the lab's restart policy, shown in Settings.
@@ -168,7 +170,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover",
-		"home", "services", "service", "backups", "settings", "account"} {
+		"home", "services", "service", "backups", "restore", "settings", "account"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -213,6 +215,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /setup/timezone", s.requireWizard(s.timezonePage))
 	mux.Handle("POST /setup/timezone", s.requireWizard(s.timezoneSubmit))
 	mux.Handle("GET /activity/{kind}/{part}", s.require(auth.ManageServices, s.activityPart))
+	mux.Handle("GET /backups/restore/{name}", s.requireOwner(s.restorePage))
+	mux.Handle("POST /backups/restore/{name}", s.requireOwner(s.restoreSubmit))
+	mux.Handle("POST /backups/restore/{name}/kept/remove", s.requireOwner(s.removeKeptSubmit))
 	mux.Handle("POST /settings/updates/run", s.requireOwner(s.updateNowSubmit))
 	mux.Handle("POST /settings/restart", s.requireOwner(s.restartNowSubmit))
 	mux.Handle("POST /settings/restart-policy", s.requireWizard(s.restartPolicySubmit))

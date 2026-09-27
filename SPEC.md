@@ -262,6 +262,7 @@ Default paths:
 1. **Prepare:** per-package hooks create a consistent state (e.g. `pg_dump` to `<service>/db-dump/`, SQLite's backup command, or a brief stop if there's no safe live method).
 2. **Snapshot:** `/var/lib/mylab` plus each service's folder.
 3. **Verify:** periodic `restic check` and occasional test restores.
+4. **Restore — Locked (2026-09-27):** per service, by the Owner, from the Backups page: choose one of the backups that contain the service (newest first), confirm, and it runs as an uninterruptible coordinator job with a live log. The service stops, its current data is moved aside (`<dir>.before-restore-<time>`), the backup's files and database dump come back, and it starts again. Kept copies are listed on the restore page and deleted only when the Owner chooses. Restoring a whole lab onto a new machine comes with the installer.
 
 **Restore:** per service, or the full lab onto a new machine (install MyLab → point at the backup → enter the recovery key).
 

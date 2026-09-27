@@ -73,7 +73,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Nightly schedule (02:00) and weekly prune + 5% check (Sun 03:00) through the coordinator, running in `mylab serve`
   - [x] Dashboard backup card: last success, failures, staleness (>2 days), local-only warning, next run, "Back up now"
   - [x] `mylab backup restore <service>`: moves current data aside, restores, puts the database back, restarts. Drill passed on the VM (SQLite)
-  - [ ] Restore from the UI (Owner only), and full-lab restore onto a new machine
+  - [x] Restore from the UI (Owner only): choose a backup that contains the service, confirm, runs through the coordinator with a live log; kept copies listed and deletable
+  - [ ] Full-lab restore onto a new machine (with the installer, 1.12)
   - [ ] 3-2-1 guidance and multiple destinations (SPEC §6.9): suggestions in the UI, primary + `restic copy` to extra destinations, per-destination status
   - [x] Postgres restore (pg_restore): Forgejo repo deleted, restored, back with its git data
   - [ ] Measure restic RAM/time on a realistic photo/video dataset
