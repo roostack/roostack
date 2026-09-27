@@ -431,7 +431,7 @@ What the two-VM prototype does, where it refines the design above:
 - **Web routes of a service on another machine:** the machine publishes them on its overlay address (firewall: WireGuard interface only) and the controller's Caddy forwards to it (TLS ends on the controller for now; passthrough is §10.5's edge).
 - **Nodes** run no UI, Caddy or DNS. Per-machine pages live under `/settings/machines/<id>/…`.
 
-### 10.10 Backups across machines, and moving services — Draft (2026-09-27)
+### 10.10 Backups across machines, and moving services — Locked (2026-09-27)
 
 Builds on §6.9 (restic, recovery key, 3-2-1) and §10.3 (each machine backs up its own services to its own repository with its own key).
 
@@ -454,11 +454,13 @@ Builds on §6.9 (restic, recovery key, 3-2-1) and §10.3 (each machine backs up 
 - **Through a backup** (large data, slow or unreliable links, or machines far apart): back up on the old machine, then restore on the new one from the old machine's repository. The controller adds a temporary key to that repository for the new machine and removes it afterwards. Resumable, and reuses restore (§6.9).
 - The move page shows the data size and an estimate for each way, and suggests one.
 
-**Open questions**
-1. **Provider credentials on machines:** each machine needs credentials to reach its destination every night. Store the provider's credentials on each machine that uses it, or create a **scoped credential per machine** where the provider allows it (B2 application keys limited to a folder, S3 policies), falling back to the shared one?
+**Decisions (2026-09-27)**
+1. ~~Provider credentials~~ **Decided (2026-09-27): scoped where cheap and stable, shared elsewhere.** rest-server gets a user per machine (`--private-repos`); B2 gets an application key per machine limited to its folder (plain HTTP API, deleted when the machine is removed). Other providers use the shared credentials, and the machine's Backups page says so ("these credentials can reach the whole bucket"). More providers get scoped keys one at a time when there's a need.
 2. ~~Pruning~~ **Decided (2026-09-27):** the controller runs `restic forget/prune` weekly with the recovery key, over a separate non-append-only credential. For friends' storage, the guest lab's controller does it.
 3. ~~rest-server as a dependency~~ **Decided (2026-09-27):** run it as a pinned container (`docker.io/restic/rest-server`), like Caddy: containers where possible make other distributions easier to support later.
-4. **Guest link:** the storage invite gives the guest lab a WireGuard peer on the host restricted by the firewall to the rest-server port. Is a separate WireGuard interface for guests worth it (clearer isolation), or one interface with per-peer rules?
+4. ~~Guest link~~ **Decided (2026-09-27): a separate WireGuard interface for guests** (`mylab-guests`, its own address range, e.g. `100.97.0.0/24`, and its own UDP port, default 51821). The firewall drops everything arriving on it except the rest-server port; the lab API and web routes are never reachable from it. Turning "storage for others" off takes the interface down.
+   - **UDP and port forwarding:** a guest must be able to reach the host's port from the internet. MyLab opens the UDP port in its own firewall, then **explains port forwarding** on the storage page: which port (UDP, not TCP), to which machine (its home-network address), a short how-to with common router names, and a **reachability check** (the guest's first connection, or a check from MyLab Cloud later) so the Owner knows it worked. The same applies to the machines port (51820) when a machine outside the home joins; the join page gets the same explanation. A MyLab Cloud relay can later remove the need for port forwarding (§10.5).
+
 
 ## Deferred Decisions (post-MVP)
 
