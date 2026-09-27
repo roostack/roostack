@@ -3,8 +3,10 @@ package web
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
 	"html/template"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -108,7 +110,28 @@ func back(href, text string) (template.HTML, error) {
 	return renderComponent("back", map[string]any{"Href": href, "Text": text})
 }
 
-// confirmButton posts to action after the browser asks question. kind is
+// dialogKind is the dialog's own button: a full button even when the one
+// opening it is quiet (a link-like "Delete" next to a list item).
+func dialogKind(kind string) string {
+	var ks []string
+	for _, k := range strings.Fields(kind) {
+		if k != "quiet" {
+			ks = append(ks, k)
+		}
+	}
+	return strings.Join(ks, " ")
+}
+
+// confirmID names a confirm dialog's question, for its label: the same
+// on every render, so pages (and the design gallery) don't change.
+func confirmID(action, question string, fields []string) string {
+	h := fnv.New64a()
+	h.Write([]byte(action + "\x00" + question + "\x00" + strings.Join(fields, "\x00")))
+	return "confirm-" + strconv.FormatUint(h.Sum64(), 36)
+}
+
+// confirmButton posts to action after a dialog asks question (a <dialog>,
+// styled like the rest of MyLab, rather than the browser's own). kind is
 // the button's class ("danger", "secondary", "quiet danger", or ""); each
 // trailing "name=value" becomes a hidden form field.
 func confirmButton(action, question, text, kind string, fields ...string) (template.HTML, error) {
@@ -127,7 +150,7 @@ func confirmButton(action, question, text, kind string, fields ...string) (templ
 		fs = append(fs, field{name, value})
 	}
 	return renderComponent("confirm", map[string]any{"Action": action, "Question": question, "Text": text,
-		"Kind": kind, "Fields": fs})
+		"Kind": kind, "DialogKind": dialogKind(kind), "Fields": fs, "ID": confirmID(action, question, fields)})
 }
 
 // activityBlock shows a host operation; nothing if there is none.

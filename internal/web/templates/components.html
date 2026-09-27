@@ -20,10 +20,16 @@
      The question goes through a data attribute, never into the script,
      so it can be any text. Kind is a button class ("danger", "secondary",
      "quiet danger", ...); Fields are hidden form fields. */}}
-{{define "confirm"}}<form method="post" action="{{.Action}}" data-confirm="{{.Question}}" x-data
-  x-on:submit="if (!confirm($el.dataset.confirm)) $event.preventDefault()">
+{{define "confirm"}}<form method="post" action="{{.Action}}" class="confirm" x-data>
   {{range .Fields}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">
-  {{end}}<button type="submit"{{with .Kind}} class="{{.}}"{{end}}>{{.Text}}</button>
+  {{end}}<button type="button"{{with .Kind}} class="{{.}}"{{end}} x-on:click="$refs.dialog.showModal()">{{.Text}}</button>
+  <dialog x-ref="dialog" class="dialog" aria-labelledby="{{.ID}}">
+    <p id="{{.ID}}">{{.Question}}</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dialog.close()" autofocus>Cancel</button>
+      <button type="submit"{{with .DialogKind}} class="{{.}}"{{end}}>{{.Text}}</button>
+    </div>
+  </dialog>
 </form>{{end}}
 
 {{/* activity: a host operation (*activityView): a status line for
