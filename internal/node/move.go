@@ -1,0 +1,309 @@
+package node
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/mylab/mylab/internal/generate"
+)
+
+// Moving a service between machines by copying its data directly (SPEC.md
+// §10.10): the old machine sends each data folder as a tar stream, the new
+// one unpacks it next to where it goes, and when the copy is complete it
+// takes its place. Files belong to container users, so both sides work
+// inside `podman unshare`.
+
+// Mover is what moving a service needs from a machine.
+type Mover interface {
+	// DataDirs are where a service keeps data on this machine.
+	DataDirs(service string) []string
+	// ExportData writes dir (an index into DataDirs) as a tar stream: all
+	// of it, or only files changed since a time.
+	ExportData(ctx context.Context, service string, dir int, since time.Time, w io.Writer) error
+	// ListData lists dir's files and folders (relative paths).
+	ListData(ctx context.Context, service string, dir int) ([]string, error)
+	// ImportData unpacks a tar stream into dir's staging folder.
+	ImportData(ctx context.Context, service string, dir int, r io.Reader) error
+	// PruneData removes from the staging folder what isn't in keep (files
+	// deleted on the old machine since the first copy).
+	PruneData(ctx context.Context, service string, dir int, keep []string) error
+	// CommitData moves the staging folders into place; data already there
+	// is kept aside. It returns where.
+	CommitData(ctx context.Context, service string) ([]string, error)
+	// SetAsideData renames the service's folders after it moved away.
+	SetAsideData(ctx context.Context, service, note string) ([]string, error)
+	// StopService and StartService stop and start its containers.
+	StopService(ctx context.Context, service string) error
+	StartService(ctx context.Context, service string) error
+	// ExportSecrets and ImportSecrets copy its Podman secrets.
+	ExportSecrets(ctx context.Context, service string) (map[string][]byte, error)
+	ImportSecrets(ctx context.Context, secrets map[string][]byte) error
+	// DataSize is roughly how much data it has, in bytes.
+	DataSize(ctx context.Context, service string) (int64, error)
+}
+
+// Launcher runs a command as the mylab user outside MyLab's sandbox
+// (systemd-run --user), streaming stdin and stdout.
+type Launcher func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd
+
+const (
+	staging     = ".incoming"
+	keptAside   = ".before-move-"
+	movedAway   = ".moved-"
+	timeLayout  = "20060102-150405"
+	safeService = "abcdefghijklmnopqrstuvwxyz0123456789-"
+)
+
+func (n *Local) DataDirs(service string) []string {
+	return []string{
+		filepath.Join(n.Lab.Paths.ServicesDir, service),
+		filepath.Join(n.Lab.Paths.MediaDir, service),
+	}
+}
+
+func (n *Local) dataDir(service string, dir int) (string, error) {
+	if service == "" || strings.Trim(service, safeService) != "" {
+		return "", ErrNotFound
+	}
+	dirs := n.DataDirs(service)
+	if dir < 0 || dir >= len(dirs) {
+		return "", ErrNotFound
+	}
+	return dirs[dir], nil
+}
+
+// unshare runs a command inside podman unshare.
+func (n *Local) unshare(ctx context.Context, args ...string) *exec.Cmd {
+	return n.Launch(ctx, nil, "podman", append([]string{"unshare"}, args...)...)
+}
+
+func (n *Local) ExportData(ctx context.Context, service string, dir int, since time.Time, w io.Writer) error {
+	d, err := n.dataDir(service, dir)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(d); errors.Is(err, os.ErrNotExist) {
+		return writeEmptyTar(w)
+	}
+	args := []string{"tar", "-C", d, "-cf", "-", "--numeric-owner"}
+	if !since.IsZero() {
+		args = append(args, "--newer-mtime=@"+strconv.FormatInt(since.Unix(), 10))
+	}
+	cmd := n.unshare(ctx, append(args, ".")...)
+	cmd.Stdout = w
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("reading %s: %w: %s", d, err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+// writeEmptyTar writes a tar stream with nothing in it (a service with no
+// media folder).
+func writeEmptyTar(w io.Writer) error {
+	_, err := w.Write(make([]byte, 1024))
+	return err
+}
+
+func (n *Local) ListData(ctx context.Context, service string, dir int) ([]string, error) {
+	d, err := n.dataDir(service, dir)
+	if err != nil {
+		return nil, err
+	}
+	return n.list(ctx, d)
+}
+
+func (n *Local) list(ctx context.Context, d string) ([]string, error) {
+	if _, err := os.Stat(d); errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	out, err := n.unshare(ctx, "find", d, "-mindepth", "1", "-printf", "%P\\0").Output()
+	if err != nil {
+		return nil, fmt.Errorf("listing %s: %w", d, err)
+	}
+	var paths []string
+	for _, p := range strings.Split(string(out), "\x00") {
+		if p != "" {
+			paths = append(paths, p)
+		}
+	}
+	return paths, nil
+}
+
+func (n *Local) ImportData(ctx context.Context, service string, dir int, r io.Reader) error {
+	d, err := n.dataDir(service, dir)
+	if err != nil {
+		return err
+	}
+	in := d + staging
+	if err := os.MkdirAll(in, 0o750); err != nil {
+		return err
+	}
+	cmd := n.unshare(ctx, "tar", "-C", in, "-xpf", "-", "--numeric-owner")
+	cmd.Stdin = r
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("unpacking into %s: %w: %s", in, err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+func (n *Local) PruneData(ctx context.Context, service string, dir int, keep []string) error {
+	d, err := n.dataDir(service, dir)
+	if err != nil {
+		return err
+	}
+	in := d + staging
+	have, err := n.list(ctx, in)
+	if err != nil {
+		return err
+	}
+	var extra []string
+	for _, p := range have {
+		if !slices.Contains(keep, p) && !strings.Contains(p, "..") {
+			extra = append(extra, p)
+		}
+	}
+	if len(extra) == 0 {
+		return nil
+	}
+	cmd := n.unshare(ctx, "sh", "-c", `cd "$1" && xargs -0 rm -rf --`, "sh", in)
+	cmd.Stdin = strings.NewReader(strings.Join(extra, "\x00"))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("removing deleted files: %w: %s", err, out)
+	}
+	return nil
+}
+
+func (n *Local) CommitData(ctx context.Context, service string) ([]string, error) {
+	if _, err := n.dataDir(service, 0); err != nil {
+		return nil, err
+	}
+	var kept []string
+	suffix := keptAside + time.Now().Format(timeLayout)
+	for _, d := range n.DataDirs(service) {
+		in := d + staging
+		if _, err := os.Stat(in); err != nil {
+			continue
+		}
+		if _, err := os.Stat(d); err == nil {
+			if err := os.Rename(d, d+suffix); err != nil {
+				return kept, err
+			}
+			kept = append(kept, d+suffix)
+		}
+		if err := os.Rename(in, d); err != nil {
+			return kept, err
+		}
+	}
+	return kept, nil
+}
+
+func (n *Local) SetAsideData(ctx context.Context, service, note string) ([]string, error) {
+	if _, err := n.dataDir(service, 0); err != nil {
+		return nil, err
+	}
+	note = strings.Map(func(r rune) rune {
+		if strings.ContainsRune(safeService, r) {
+			return r
+		}
+		return '-'
+	}, strings.ToLower(note))
+	var aside []string
+	suffix := movedAway + note + "-" + time.Now().Format(timeLayout)
+	for _, d := range n.DataDirs(service) {
+		if _, err := os.Stat(d); err != nil {
+			continue
+		}
+		if err := os.Rename(d, d+suffix); err != nil {
+			return aside, err
+		}
+		aside = append(aside, d+suffix)
+	}
+	return aside, nil
+}
+
+// output is a service's generated units and secrets on this machine.
+func (n *Local) output(service string) (*generate.Output, error) {
+	s, ok := n.service(service)
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return generate.Service(n.currentLab(), s.Package, s.Instance)
+}
+
+func (n *Local) StopService(ctx context.Context, service string) error {
+	out, err := n.output(service)
+	if err != nil {
+		return err
+	}
+	return n.Reconciler.Systemd.Stop(ctx, out.Units...)
+}
+
+func (n *Local) StartService(ctx context.Context, service string) error {
+	out, err := n.output(service)
+	if err != nil {
+		return err
+	}
+	return n.Reconciler.Systemd.Start(ctx, out.Units...)
+}
+
+func (n *Local) ExportSecrets(ctx context.Context, service string) (map[string][]byte, error) {
+	out, err := n.output(service)
+	if err != nil {
+		return nil, err
+	}
+	secrets := map[string][]byte{}
+	for _, s := range out.Secrets {
+		v, err := n.Secrets.Read(ctx, s.Name)
+		if err != nil {
+			continue // e.g. an install-only secret, used and deleted
+		}
+		secrets[s.Name] = v
+	}
+	return secrets, nil
+}
+
+func (n *Local) ImportSecrets(ctx context.Context, secrets map[string][]byte) error {
+	for name, v := range secrets {
+		if !strings.HasPrefix(name, "mylab-") {
+			return fmt.Errorf("unexpected secret %q", name)
+		}
+		n.Secrets.Remove(ctx, name) // replace any old one
+		if err := n.Reconciler.Secrets.Create(ctx, name, v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (n *Local) DataSize(ctx context.Context, service string) (int64, error) {
+	var total int64
+	for _, d := range n.DataDirs(service) {
+		if _, err := os.Stat(d); err != nil {
+			continue
+		}
+		out, err := n.unshare(ctx, "du", "-sb", d).Output()
+		if err != nil {
+			return 0, err
+		}
+		f := strings.Fields(string(out))
+		if len(f) > 0 {
+			v, _ := strconv.ParseInt(f[0], 10, 64)
+			total += v
+		}
+	}
+	return total, nil
+}

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/mylab/mylab/internal/labnet"
 	"github.com/mylab/mylab/internal/osupdate"
@@ -246,6 +248,133 @@ func (s *Server) Handler() http.Handler {
 			return nil, err
 		}
 		return nil, u.RestartNow(ctx(r))
+	})
+
+	// Moving a service's data (move.go).
+	mover := func() (Mover, error) {
+		if mv, ok := n.(Mover); ok {
+			return mv, nil
+		}
+		return nil, ErrNotFound
+	}
+	dirOf := func(r *http.Request) int {
+		d, err := strconv.Atoi(r.URL.Query().Get("dir"))
+		if err != nil {
+			return -1
+		}
+		return d
+	}
+	// Streams: tar out, tar in.
+	stream := func(pattern string, fn func(w http.ResponseWriter, r *http.Request, mv Mover) error) {
+		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+			if labnet.Caller(r) != s.ControllerID {
+				labnet.WriteError(w, http.StatusForbidden, errors.New("only the lab's controller may call this machine"))
+				return
+			}
+			mv, err := mover()
+			if err == nil {
+				err = fn(w, r, mv)
+			}
+			if err != nil {
+				writeErr(w, err)
+			}
+		})
+	}
+	stream("GET /v1/services/{service}/data", func(w http.ResponseWriter, r *http.Request, mv Mover) error {
+		var since time.Time
+		if v := r.URL.Query().Get("since"); v != "" {
+			sec, err := strconv.ParseInt(v, 10, 64)
+			if err != nil {
+				return err
+			}
+			since = time.Unix(sec, 0)
+		}
+		w.Header().Set("Content-Type", "application/x-tar")
+		// Errors after the stream started can only cut it short; the
+		// receiving tar then fails, which fails the move.
+		return mv.ExportData(ctx(r), svc(r), dirOf(r), since, w)
+	})
+	stream("PUT /v1/services/{service}/data", func(w http.ResponseWriter, r *http.Request, mv Mover) error {
+		if err := mv.ImportData(ctx(r), svc(r), dirOf(r), r.Body); err != nil {
+			return err
+		}
+		labnet.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		return nil
+	})
+	handle("GET /v1/services/{service}/data/list", func(r *http.Request) (any, error) {
+		mv, err := mover()
+		if err != nil {
+			return nil, err
+		}
+		return mv.ListData(ctx(r), svc(r), dirOf(r))
+	})
+	handle("POST /v1/services/{service}/data/prune", func(r *http.Request) (any, error) {
+		mv, err := mover()
+		if err != nil {
+			return nil, err
+		}
+		var keep []string
+		if err := decode(r, &keep); err != nil {
+			return nil, err
+		}
+		return nil, mv.PruneData(ctx(r), svc(r), dirOf(r), keep)
+	})
+	handle("POST /v1/services/{service}/data/commit", func(r *http.Request) (any, error) {
+		mv, err := mover()
+		if err != nil {
+			return nil, err
+		}
+		return mv.CommitData(ctx(r), svc(r))
+	})
+	handle("POST /v1/services/{service}/data/set-aside", func(r *http.Request) (any, error) {
+		mv, err := mover()
+		if err != nil {
+			return nil, err
+		}
+		var req struct{ Note string }
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		return mv.SetAsideData(ctx(r), svc(r), req.Note)
+	})
+	handle("GET /v1/services/{service}/data/size", func(r *http.Request) (any, error) {
+		mv, err := mover()
+		if err != nil {
+			return nil, err
+		}
+		return mv.DataSize(ctx(r), svc(r))
+	})
+	handle("POST /v1/services/{service}/stop", func(r *http.Request) (any, error) {
+		mv, err := mover()
+		if err != nil {
+			return nil, err
+		}
+		return nil, mv.StopService(ctx(r), svc(r))
+	})
+	handle("POST /v1/services/{service}/start", func(r *http.Request) (any, error) {
+		mv, err := mover()
+		if err != nil {
+			return nil, err
+		}
+		return nil, mv.StartService(ctx(r), svc(r))
+	})
+	handle("GET /v1/services/{service}/secrets", func(r *http.Request) (any, error) {
+		mv, err := mover()
+		if err != nil {
+			return nil, err
+		}
+		return mv.ExportSecrets(ctx(r), svc(r))
+	})
+	handle("PUT /v1/secrets", func(r *http.Request) (any, error) {
+		mv, err := mover()
+		if err != nil {
+			return nil, err
+		}
+		var secrets map[string][]byte
+		if err := decode(r, &secrets); err != nil {
+			return nil, err
+		}
+		return nil, mv.ImportSecrets(ctx(r), secrets)
 	})
 
 	// The machine's own settings.

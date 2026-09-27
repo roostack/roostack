@@ -47,6 +47,7 @@ type fakeManager struct {
 	machineOps  []string
 	destination string
 	providers   []string
+	moves       []string
 	backups     BackupService
 	restores    RestoreService
 	updates     HostUpdates
@@ -64,6 +65,19 @@ func (f *fakeManager) ServiceStates(context.Context) (map[string]string, error) 
 	return nil, nil
 }
 func (f *fakeManager) NodeFor(string) node.Node { return f }
+func (f *fakeManager) MoveInfo(_ context.Context, name string) (manager.MoveInfo, error) {
+	if name != "vaultwarden" {
+		return manager.MoveInfo{}, manager.ErrNotFound
+	}
+	return manager.MoveInfo{From: manager.Machine{ID: "n-0123456789", Name: "nuc", This: true}, Size: 5 << 20}, nil
+}
+func (f *fakeManager) MoveService(_ context.Context, name, to string) error {
+	if to == "" {
+		return &manager.FormError{Msg: "Choose a machine in this lab."}
+	}
+	f.moves = append(f.moves, name+" → "+to)
+	return nil
+}
 func (f *fakeManager) BackupChoices(context.Context) ([]manager.BackupChoice, error) {
 	return []manager.BackupChoice{{Ref: "machine:n-0123456789", Title: "nuc's disk"}, {Ref: "provider:1", Title: "Backblaze"}}, nil
 }
@@ -703,5 +717,37 @@ func TestBackupDestinations(t *testing.T) {
 	ha, _ := loggedIn(t, auth.RoleAdmin)
 	if _, body := ha.get("/backups"); strings.Contains(body, "Add a cloud storage provider") {
 		t.Error("only Owners manage destinations")
+	}
+}
+
+func TestMovePage(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.machines = []manager.Machine{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true},
+		{ID: "n-9876543210", Name: "vps"}}
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, `href="/services/vaultwarden/move"`) {
+		t.Error("service page should offer moving when there are several machines")
+	}
+	_, body := h.get("/services/vaultwarden/move")
+	for _, want := range []string{"Move Vaultwarden to another machine", "5.0 MB", `value="n-9876543210"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("move page missing %q", want)
+		}
+	}
+	if strings.Contains(body, `value="n-0123456789"`) {
+		t.Error("it can't move to where it runs")
+	}
+	if code, _ := h.post("/services/vaultwarden/move", url.Values{}, h.srv.URL); code != http.StatusBadRequest {
+		t.Errorf("no target: %d", code)
+	}
+	h.post("/services/vaultwarden/move", url.Values{"to": {"n-9876543210"}}, h.srv.URL)
+	if len(fm.moves) != 1 || fm.moves[0] != "vaultwarden → n-9876543210" {
+		t.Errorf("moves = %v", fm.moves)
+	}
+	if code, _ := h.get("/services/nope/move"); code != http.StatusNotFound {
+		t.Errorf("unknown service: %d", code)
+	}
+	ha, _ := loggedIn(t, auth.RoleAdmin)
+	if code, _ := ha.get("/services/vaultwarden/move"); code == http.StatusOK {
+		t.Error("only Owners move services")
 	}
 }

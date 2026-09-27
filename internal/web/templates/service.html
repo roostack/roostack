@@ -26,6 +26,7 @@
     <dt>Reachable from</dt><dd>Your home network (or VPN)</dd>
     {{with .Service.Machine}}<dt>Runs on</dt><dd>{{.}}</dd>{{end}}
   </dl>
+  {{if and .IsOwner .MultiMachine}}<p><a href="/services/{{.Service.Name}}/move">Move to another machine…</a></p>{{end}}
   <details class="technical">
     <summary>Technical details</summary>
     <dl class="facts">

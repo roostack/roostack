@@ -134,6 +134,11 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	for _, svc := range data["Services"].([]ServiceView) {
 		if svc.Name == name {
 			data["Service"] = svc
+			if s.Manager != nil {
+				if ms, err := s.Manager.Machines(); err == nil && len(ms) > 1 {
+					data["MultiMachine"] = true
+				}
+			}
 		}
 	}
 	if data["Service"] == nil {

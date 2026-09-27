@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -394,4 +396,96 @@ func (r *Remote) call(ctx context.Context, method, path string, in, out any) err
 	}
 	defer resp.Body.Close()
 	return wireError(labnet.DecodeResponse(resp, out))
+}
+
+// Moving a service's data (Mover, over the lab API).
+
+// streamClient is for data streams, which can take hours: no overall
+// timeout (the caller's context stops them).
+func (r *Remote) streamClient() *http.Client {
+	return &http.Client{Transport: r.Client.Transport}
+}
+
+func (r *Remote) DataDirs(string) []string { return nil } // only the machine itself knows
+
+func (r *Remote) ExportData(ctx context.Context, service string, dir int, since time.Time, w io.Writer) error {
+	q := url.Values{"dir": {strconv.Itoa(dir)}}
+	if !since.IsZero() {
+		q.Set("since", strconv.FormatInt(since.Unix(), 10))
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, r.URL+"/v1/services/"+url.PathEscape(service)+"/data?"+q.Encode(), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := r.streamClient().Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return wireError(labnet.DecodeResponse(resp, nil))
+	}
+	_, err = io.Copy(w, resp.Body)
+	return err
+}
+
+func (r *Remote) ImportData(ctx context.Context, service string, dir int, body io.Reader) error {
+	u := r.URL + "/v1/services/" + url.PathEscape(service) + "/data?dir=" + strconv.Itoa(dir)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, u, body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-tar")
+	resp, err := r.streamClient().Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return wireError(labnet.DecodeResponse(resp, nil))
+}
+
+func (r *Remote) ListData(ctx context.Context, service string, dir int) ([]string, error) {
+	var out []string
+	err := r.call(ctx, http.MethodGet, "/v1/services/"+url.PathEscape(service)+"/data/list?dir="+strconv.Itoa(dir), nil, &out)
+	return out, err
+}
+
+func (r *Remote) PruneData(ctx context.Context, service string, dir int, keep []string) error {
+	return r.call(ctx, http.MethodPost, "/v1/services/"+url.PathEscape(service)+"/data/prune?dir="+strconv.Itoa(dir), keep, nil)
+}
+
+func (r *Remote) CommitData(ctx context.Context, service string) ([]string, error) {
+	var out []string
+	err := r.call(ctx, http.MethodPost, "/v1/services/"+url.PathEscape(service)+"/data/commit", struct{}{}, &out)
+	return out, err
+}
+
+func (r *Remote) SetAsideData(ctx context.Context, service, note string) ([]string, error) {
+	var out []string
+	err := r.call(ctx, http.MethodPost, "/v1/services/"+url.PathEscape(service)+"/data/set-aside", map[string]string{"Note": note}, &out)
+	return out, err
+}
+
+func (r *Remote) DataSize(ctx context.Context, service string) (int64, error) {
+	var out int64
+	err := r.call(ctx, http.MethodGet, "/v1/services/"+url.PathEscape(service)+"/data/size", nil, &out)
+	return out, err
+}
+
+func (r *Remote) StopService(ctx context.Context, service string) error {
+	return r.call(ctx, http.MethodPost, "/v1/services/"+url.PathEscape(service)+"/stop", struct{}{}, nil)
+}
+
+func (r *Remote) StartService(ctx context.Context, service string) error {
+	return r.call(ctx, http.MethodPost, "/v1/services/"+url.PathEscape(service)+"/start", struct{}{}, nil)
+}
+
+func (r *Remote) ExportSecrets(ctx context.Context, service string) (map[string][]byte, error) {
+	var out map[string][]byte
+	err := r.call(ctx, http.MethodGet, "/v1/services/"+url.PathEscape(service)+"/secrets", nil, &out)
+	return out, err
+}
+
+func (r *Remote) ImportSecrets(ctx context.Context, secrets map[string][]byte) error {
+	return r.call(ctx, http.MethodPut, "/v1/secrets", secrets, nil)
 }
