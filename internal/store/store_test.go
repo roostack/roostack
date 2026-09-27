@@ -255,3 +255,28 @@ func TestJoinCodes(t *testing.T) {
 		t.Error("not removed")
 	}
 }
+
+func TestBackupTargets(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	id, err := s.AddBackupProvider(ctx, BackupProvider{Kind: "s3", Name: "B2", Config: `{"bucket":"b"}`})
+	if err != nil || id == 0 {
+		t.Fatal(id, err)
+	}
+	if ps, _ := s.BackupProviders(ctx); len(ps) != 1 || ps[0].Name != "B2" {
+		t.Errorf("providers = %+v", ps)
+	}
+	s.SetBackupTarget(ctx, BackupTarget{MachineID: "n-0000000002", Provider: "machine:n-0000000001",
+		Repository: "rest:http://100.96.0.1:8000/n-0000000002/lab", StoreHost: "n-0000000001", StoreHash: "$2a$x", Created: time.Now()})
+	s.SetBackupTarget(ctx, BackupTarget{MachineID: "n-0000000002", Provider: "provider:1", Repository: "s3:x", Created: time.Now()})
+	if ts, _ := s.BackupTargets(ctx); len(ts) != 1 || ts[0].Provider != "provider:1" || ts[0].StoreHost != "" {
+		t.Errorf("targets = %+v", ts)
+	}
+	if _, _, ok, _ := s.StoreAdmin(ctx, "n-0000000001"); ok {
+		t.Error("no admin yet")
+	}
+	s.SetStoreAdmin(ctx, "n-0000000001", "pw", "hash")
+	if pw, hash, ok, err := s.StoreAdmin(ctx, "n-0000000001"); !ok || pw != "pw" || hash != "hash" || err != nil {
+		t.Errorf("admin = %q %q %v %v", pw, hash, ok, err)
+	}
+}

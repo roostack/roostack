@@ -42,13 +42,15 @@ type fakeManager struct {
 	values  map[string]any
 	updated []manager.SettingsRequest
 
-	acts       *activity.Registry
-	machines   []manager.Machine
-	machineOps []string
-	backups    BackupService
-	restores   RestoreService
-	updates    HostUpdates
-	settings   node.Settings
+	acts        *activity.Registry
+	machines    []manager.Machine
+	machineOps  []string
+	destination string
+	providers   []string
+	backups     BackupService
+	restores    RestoreService
+	updates     HostUpdates
+	settings    node.Settings
 }
 
 func (f *fakeManager) Settings() node.Settings { return f.settings }
@@ -62,6 +64,29 @@ func (f *fakeManager) ServiceStates(context.Context) (map[string]string, error) 
 	return nil, nil
 }
 func (f *fakeManager) NodeFor(string) node.Node { return f }
+func (f *fakeManager) BackupChoices(context.Context) ([]manager.BackupChoice, error) {
+	return []manager.BackupChoice{{Ref: "machine:n-0123456789", Title: "nuc's disk"}, {Ref: "provider:1", Title: "Backblaze"}}, nil
+}
+func (f *fakeManager) BackupTargetOf(_ context.Context, id string) (store.BackupTarget, string, bool) {
+	if f.destination == "" {
+		return store.BackupTarget{}, "", false
+	}
+	return store.BackupTarget{MachineID: id, Provider: f.destination, Repository: "rest:http://100.96.0.1:8000/x"}, "nuc's disk", true
+}
+func (f *fakeManager) SetBackupDestination(_ context.Context, id, ref string) error {
+	if ref == "" {
+		return &manager.FormError{Msg: "Choose where backups go."}
+	}
+	f.destination = ref
+	return nil
+}
+func (f *fakeManager) AddS3Provider(_ context.Context, name string, p manager.S3Provider) error {
+	if p.Bucket == "" {
+		return &manager.FormError{Msg: "Enter the storage endpoint (starting with https://) and a bucket name."}
+	}
+	f.providers = append(f.providers, name)
+	return nil
+}
 func (f *fakeManager) RemoveMachine(_ context.Context, id string) error {
 	if id == "n-9876543210" {
 		return &manager.FormError{Msg: "vps still runs Forgejo. Remove it first, or move it to another machine."}
@@ -643,5 +668,40 @@ func TestMachines(t *testing.T) {
 	}
 	if code, _ := h.get("/settings/machines/n-9999999999/updates"); code != http.StatusNotFound {
 		t.Errorf("unknown machine: %d", code)
+	}
+}
+
+func TestBackupDestinations(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	_, body := h.get("/settings/machines/n-0123456789/backups")
+	for _, want := range []string{"Choose where backups go", `value="machine:n-0123456789"`, "Backblaze", "Add a cloud storage provider"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("backups page missing %q", want)
+		}
+	}
+	if code, body := h.post("/settings/machines/n-0123456789/backup-destination", url.Values{}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "Choose where backups go.") {
+		t.Errorf("no choice: %d", code)
+	}
+	h.post("/settings/machines/n-0123456789/backup-destination", url.Values{"destination": {"machine:n-0123456789"}}, h.srv.URL)
+	if fm.destination != "machine:n-0123456789" {
+		t.Errorf("destination = %q", fm.destination)
+	}
+	if _, body := h.get("/settings/machines/n-0123456789/backups"); !strings.Contains(body, "nuc&#39;s disk") ||
+		!strings.Contains(body, "Change where") {
+		t.Error("page should show the current destination")
+	}
+	if code, body := h.post("/settings/backup-providers", url.Values{"name": {"B2"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "bucket name") {
+		t.Errorf("bad provider: %d", code)
+	}
+	h.post("/settings/backup-providers", url.Values{"name": {"B2"}, "bucket": {"b"}, "back": {"//evil.example"}}, h.srv.URL)
+	if len(fm.providers) != 1 {
+		t.Errorf("providers = %v", fm.providers)
+	}
+	// Admins don't choose destinations.
+	ha, _ := loggedIn(t, auth.RoleAdmin)
+	if _, body := ha.get("/backups"); strings.Contains(body, "Add a cloud storage provider") {
+		t.Error("only Owners manage destinations")
 	}
 }

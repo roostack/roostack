@@ -21,6 +21,8 @@ const (
 	Apply     = "apply" // applying service changes
 	Setup     = "setup" // a new service's install hooks
 	Restore   = "restore"
+	// BackupSetup: creating a machine's backup repository (SPEC.md §10.10).
+	BackupSetup = "backup-setup"
 )
 
 // maxLines is how many lines a log keeps; older ones are dropped.

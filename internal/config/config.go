@@ -56,6 +56,10 @@ func (p Paths) PackageFile(name string) string {
 	return filepath.Join(p.CatalogDir, name, "package.yaml")
 }
 
+// BackupStoreDir is where this machine keeps backups it stores for other
+// machines (SPEC.md §10.10), next to the media folder on the big disk.
+func (p Paths) BackupStoreDir() string { return filepath.Join(filepath.Dir(p.MediaDir), "backups") }
+
 // InstancesDir holds one instance YAML file per installed service.
 func (p Paths) InstancesDir() string { return filepath.Join(p.StateDir, "services") }
 

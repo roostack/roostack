@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -122,6 +123,20 @@ func serve(args []string) error {
 	hub.Start(ctx)
 	srv.Network = hub
 	mgr.Registry = hub
+	// Backups across machines (SPEC.md §10.10): the controller creates
+	// each machine's repository with the recovery key.
+	mgr.BackupStore = st
+	mgr.HasRecoveryKey = func() bool {
+		_, err := os.Stat(backup.KeyFile(lab.Paths))
+		return err == nil
+	}
+	mgr.OpenRepo = func(url string, env []string) *backup.Repo {
+		bin, err := exec.LookPath("restic")
+		if err != nil {
+			bin = "restic"
+		}
+		return &backup.Repo{Bin: bin, URL: url, PasswordFile: backup.KeyFile(lab.Paths), Env: env}
+	}
 	mgr.RenameSelf = func(name string) error {
 		self := id
 		self.Name = name
@@ -278,7 +293,7 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 // nightly backup and OS updates and weekly repository maintenance
 // (SPEC.md §3.2, §6.9).
 func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger, ag *agent.Client,
-	acts *activity.Registry) (node.Maintenance, *maintenance.Coordinator, error) {
+	acts *activity.Registry, services machineServices) (node.Maintenance, *maintenance.Coordinator, error) {
 	ticker := time.NewTicker(time.Minute)
 	policy := maintenance.DefaultPolicy()
 	policy.WindowStart = time.Duration(lab.Maintenance.Hour()) * time.Hour
@@ -310,13 +325,13 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 			if err != nil {
 				return jobs, nil, err
 			}
-			if svc.Deps, err = newBackupDeps(lab, st, repo, userLaunch); err != nil {
+			if svc.Deps, err = newBackupDeps(lab, st, repo, userLaunch, services); err != nil {
 				return jobs, nil, err
 			}
 			jobs.Restores = &backup.Restores{Coord: coord, Repo: repo, Activity: acts,
 				Restorer: &backup.Restorer{Repo: repo, Units: systemd.New(), Launch: userLaunch,
 					MylabBin: svc.Deps.Preparer.MylabBin, Now: time.Now},
-				Lookup: func(name string) (*generate.Output, string, error) { return lookupService(lab, name) },
+				Lookup: func(name string) (*generate.Output, string, error) { return lookupService(services, name) },
 			}
 		}
 	}
@@ -372,13 +387,12 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 
 // lookupService generates an installed service's output (e.g. to restore
 // it), with its title.
-func lookupService(lab config.Lab, name string) (*generate.Output, string, error) {
-	all, err := state.LoadServices(lab)
+func lookupService(services machineServices, name string) (*generate.Output, string, error) {
+	lab, list, err := services()
 	if err != nil {
 		return nil, "", err
 	}
-	services := state.OnNode(all, lab.NodeID)
-	for _, s := range services {
+	for _, s := range list {
 		if s.Package.Name == name {
 			out, err := generate.Service(lab, s.Package, s.Instance)
 			return out, s.Package.Title, err

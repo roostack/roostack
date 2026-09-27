@@ -294,6 +294,17 @@ func (s *Server) Handler() http.Handler {
 		}
 		return nil, x.SetSSH(ctx(r), req.Choice, req.Confirmed)
 	})
+	handle("PUT /v1/settings/backup-destination", func(r *http.Request) (any, error) {
+		x, err := settings()
+		if err != nil {
+			return nil, err
+		}
+		var d BackupDestination
+		if err := decode(r, &d); err != nil {
+			return nil, err
+		}
+		return nil, x.SetBackupDestination(ctx(r), d)
+	})
 	handle("PUT /v1/settings/restart-policy", func(r *http.Request) (any, error) {
 		x, err := settings()
 		if err != nil {

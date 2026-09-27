@@ -11,17 +11,48 @@
     {{activity .}}
   </section>
   {{end}}
-  <section class="card section">
+  <section class="card section" id="destination">
     <h2>Where backups go</h2>
-    {{if .BackupRepo}}<p><code>{{.BackupRepo}}</code></p>{{else}}<p>Not set up.</p>{{end}}
+    {{with .TargetTitle}}<p>{{.}}{{with $.Target}} <span class="hint">· <code>{{.Repository}}</code></span>{{end}}</p>
+    {{else}}{{if .BackupRepo}}<p><code>{{.BackupRepo}}</code></p>{{else}}<p>Not set up.</p>{{end}}{{end}}
+    {{with .SetupActivity}}{{activity .}}{{end}}
+    {{with .Error}}{{if not $.ProviderError}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
+    {{with .Choices}}
+    <form method="post" action="/settings/machines/{{$.Machine.ID}}/backup-destination">
+      <fieldset>
+        <legend>{{if or $.TargetTitle $.BackupRepo}}Change where {{if $.Machine.This}}this machine's{{else}}{{$.Machine.Name}}'s{{end}} backups go{{else}}Choose where backups go{{end}}</legend>
+        {{range .}}<label class="check"><input type="radio" name="destination" value="{{.Ref}}" {{if and $.Target (eq .Ref $.Target.Provider)}}checked{{end}} required>
+          <span>{{.Title}}<small>{{.Note}}</small></span></label>{{end}}
+      </fieldset>
+      <p class="hint">MyLab creates a new backup there, readable with your recovery key. Earlier backups stay where they are.</p>
+      <button type="submit">Use this</button>
+    </form>
+    {{end}}
+    {{if .IsOwner}}
+    <details{{if .ProviderError}} open{{end}}>
+      <summary>Add a cloud storage provider</summary>
+      <p class="hint">An S3-compatible account (Backblaze B2, Wasabi, AWS, …) any of your machines can back up to, each in its own folder.</p>
+      {{with .ProviderError}}<p class="error" role="alert">{{.}}</p>{{end}}
+      <form method="post" action="/settings/backup-providers">
+        <input type="hidden" name="back" value="{{.Machine.Backups}}">
+        <label>Name <input name="name" placeholder="Backblaze" required></label>
+        <label>Endpoint <input name="endpoint" placeholder="https://s3.us-west-004.backblazeb2.com" required></label>
+        <label>Bucket <input name="bucket" required></label>
+        <label>Folder in the bucket (optional) <input name="prefix"></label>
+        <label>Access key <input name="access_key" autocomplete="off" required></label>
+        <label>Secret key <input name="secret_key" type="password" autocomplete="off" required></label>
+        <button type="submit" class="secondary">Add provider</button>
+      </form>
+    </details>
+    {{if .Machine.This}}<p><a href="/setup/backup">Set up this machine's backups with the setup wizard instead…</a></p>{{end}}
+    {{end}}
     <p class="hint">Good practice is "3-2-1": three copies of your data, on two different kinds of storage, with one
-      somewhere else (not at home). Adding more destinations is coming later.</p>
-    {{if .IsOwner}}<p><a href="/setup/backup">Change where backups go…</a></p>{{end}}
+      somewhere else (not at home). Extra copies per machine are coming later.</p>
   </section>
   <section class="card section">
     <h2>Restoring</h2>
     {{if .CanRestore}}
-      {{with .Services}}
+      {{with .MachineServices}}
       <p>Put a service's data back to how it was in a backup. Its current data is kept aside first; nothing is deleted.</p>
       <ul class="plain">{{range .}}<li><a href="/backups/restore/{{.Name}}">Restore {{.Title}}…</a></li>{{end}}</ul>
       {{else}}<p class="hint">No services installed.</p>{{end}}

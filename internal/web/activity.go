@@ -9,11 +9,12 @@ import (
 
 // activityPerm is who may see each kind of activity.
 var activityPerm = map[string]auth.Permission{
-	activity.OSUpdates: auth.ManageHost,
-	activity.Restore:   auth.ManageHost,
-	activity.Backup:    auth.ManageServices,
-	activity.Apply:     auth.ManageServices,
-	activity.Setup:     auth.ManageServices,
+	activity.OSUpdates:   auth.ManageHost,
+	activity.Restore:     auth.ManageHost,
+	activity.BackupSetup: auth.ManageHost,
+	activity.Backup:      auth.ManageServices,
+	activity.Apply:       auth.ManageServices,
+	activity.Setup:       auth.ManageServices,
 }
 
 // activityView is one activity's live status and log (parts.html).

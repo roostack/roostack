@@ -145,6 +145,26 @@ func (r *Repo) Init(ctx context.Context) error {
 	return err
 }
 
+// AddKey adds another key (password) to the repository, e.g. a machine's
+// own key next to the recovery key (SPEC.md §10.10). user names it in
+// `restic key list`.
+func (r *Repo) AddKey(ctx context.Context, key, user string) error {
+	f, err := os.CreateTemp("", "mylab-key-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.WriteString(key + "\n"); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	_, err = r.run(ctx, "key", "add", "--new-password-file", f.Name(), "--user", user, "--host", "mylab")
+	return err
+}
+
 // BackupOptions says what to back up.
 type BackupOptions struct {
 	Paths    []string

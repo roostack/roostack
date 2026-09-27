@@ -129,11 +129,12 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Remove a machine (only once it runs no services: it leaves the network and runs on its own); rename a machine
   - [ ] Revoke a removed machine's certificate (today it loses its WireGuard peer, so it can't reach the lab API)
   - [ ] Backups across machines (SPEC.md §10.10)
-    - [ ] Port forwarding explained on the join page (UDP 51820, which machine, how to check)
-    - [ ] Backup providers: set up once, usable by any machine; the current destination becomes the first provider
-    - [ ] rest-server on a machine (pinned container) offering its disk over MyLab's network, a user per machine
-    - [ ] The controller creates each machine's repository (recovery key + the machine's own key) and hands over only the machine's key and credentials
-    - [ ] Each machine's Backups page chooses its provider; status per machine
+    - [x] Port forwarding explained on the join page (UDP 51820, which machine, how to check)
+    - [x] Backup providers: S3-compatible providers set up once, usable by any machine; any machine's disk
+    - [ ] The controller's existing destination (from the setup wizard) shown as a provider, and moved into the scheme
+    - [x] rest-server on a machine (pinned container) offering its disk over MyLab's network, a user per machine
+    - [x] The controller creates each machine's repository (recovery key + the machine's own key) and hands over only the machine's key and credentials
+    - [x] Each machine's Backups page chooses its provider; status per machine
     - [ ] Weekly forget/prune by the controller (non-append-only credential)
     - [ ] B2: an application key per machine limited to its folder
   - [ ] Storage for other labs: storage invites with quotas, `mylab-guests` WireGuard interface (UDP 51821), usage on both sides, port-forwarding guide and reachability check

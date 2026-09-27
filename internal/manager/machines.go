@@ -154,6 +154,7 @@ func (m *Manager) startApplyLocked() {
 		if n == m.Node {
 			a.Proxied = m.proxied(services, id)
 		}
+		a.Storage = m.storageFor(context.Background(), id)
 		n.Apply(a)
 	}
 	m.secrets, m.setUp = nil, nil

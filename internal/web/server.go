@@ -132,6 +132,10 @@ type ServiceManager interface {
 	// NodeFor is the machine a service runs on; NodeByID a machine by ID.
 	NodeFor(service string) node.Node
 	NodeByID(id string) node.Node
+	BackupChoices(ctx context.Context) ([]manager.BackupChoice, error)
+	BackupTargetOf(ctx context.Context, machineID string) (store.BackupTarget, string, bool)
+	SetBackupDestination(ctx context.Context, machineID, ref string) error
+	AddS3Provider(ctx context.Context, name string, p manager.S3Provider) error
 	RemoveMachine(ctx context.Context, id string) error
 	RenameMachine(ctx context.Context, id, name string) error
 }
@@ -276,6 +280,8 @@ func (s *Server) Handler() http.Handler {
 	s.machineRoutes(mux)
 	mux.Handle("POST /settings/machines/{machine}/rename", s.requireOwner(s.renameMachineSubmit))
 	mux.Handle("POST /settings/machines/{machine}/remove", s.requireOwner(s.removeMachineSubmit))
+	mux.Handle("POST /settings/machines/{machine}/backup-destination", s.requireOwner(s.backupDestinationSubmit))
+	mux.Handle("POST /settings/backup-providers", s.requireOwner(s.addProviderSubmit))
 	mux.Handle("POST /settings/machines/join", s.requireOwner(s.joinCodeSubmit))
 	mux.Handle("GET /settings/updates", s.requireOwner(s.updatesPage))
 	mux.Handle("GET /settings/time-zone", s.requireWizard(s.timezonePage))
