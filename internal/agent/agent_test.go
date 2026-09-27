@@ -42,7 +42,10 @@ func (f *fakeHost) ApplyWireGuard(wg WireGuard) (string, error) {
 	return "cHVibGlj", nil
 }
 func (f *fakeHost) WireGuardStatus(string) (WireGuardStatus, error) { return WireGuardStatus{}, nil }
-func (f *fakeHost) RemoveWireGuard(string) error                    { f.wg = nil; return nil }
+func (f *fakeHost) WireGuardKeys() (map[string]string, error) {
+	return map[string]string{"mylab": "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw="}, nil
+}
+func (f *fakeHost) RemoveWireGuard(string) error { f.wg = nil; return nil }
 
 // start runs a real server on a Unix socket, so SO_PEERCRED is exercised.
 func start(t *testing.T, allowed []uint32) (*Client, *fakeHost) {
@@ -191,5 +194,34 @@ func TestLineStreamOutlivesCaller(t *testing.T) {
 		if n, err := st.Write([]byte("Unpacking curl\n")); err != nil || n != 15 {
 			t.Fatalf("write after the caller went away: %d %v", n, err)
 		}
+	}
+}
+
+func TestWireGuardKeysForBackups(t *testing.T) {
+	c, host := start(t, []uint32{uint32(os.Getuid())})
+	c.KeysFile = filepath.Join(t.TempDir(), "wireguard-keys.json")
+	ctx := context.Background()
+	wg := WireGuard{Address: "100.96.0.2/24"}
+	// Nothing saved yet: no key offered.
+	if _, err := c.ApplyWireGuard(ctx, wg); err != nil || host.wg.SavedKey != "" {
+		t.Fatalf("apply: %v %+v", err, host.wg)
+	}
+	if err := c.SaveWireGuardKeys(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Stat(c.KeysFile); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("keys file: %v %v", err, fi)
+	}
+	// A saved key is offered for its interface (used only if it has none).
+	if _, err := c.ApplyWireGuard(ctx, wg); err != nil || host.wg.SavedKey != "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=" {
+		t.Errorf("the saved key should be offered: %v %+v", err, host.wg)
+	}
+	guests := WireGuard{Interface: GuestsInterface, Address: "100.100.0.1/24"}
+	if _, err := c.ApplyWireGuard(ctx, guests); err != nil || host.wg.SavedKey != "" {
+		t.Errorf("only the interface's own key: %v %+v", err, host.wg)
+	}
+	wg.NewKey = true
+	if _, err := c.ApplyWireGuard(ctx, wg); err != nil || host.wg.SavedKey != "" {
+		t.Errorf("a new key replaces it: %v %+v", err, host.wg)
 	}
 }

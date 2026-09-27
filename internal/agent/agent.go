@@ -55,6 +55,8 @@ type Host interface {
 	ApplyWireGuard(wg WireGuard) (publicKey string, err error)
 	// WireGuardStatus reads an interface's configuration.
 	WireGuardStatus(iface string) (WireGuardStatus, error)
+	// WireGuardKeys reads MyLab's interfaces' private keys.
+	WireGuardKeys() (map[string]string, error)
 	// RemoveWireGuard takes an interface down and deletes its
 	// configuration (e.g. the server left its lab).
 	RemoveWireGuard(iface string) error
@@ -159,6 +161,16 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, st)
+	})
+	// The keys go into MyLab's backups, like its CA's key, so a restored
+	// lab keeps the keys its peers know.
+	mux.HandleFunc("GET /v1/wireguard/keys", func(w http.ResponseWriter, r *http.Request) {
+		keys, err := s.Host.WireGuardKeys()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, keys)
 	})
 	mux.HandleFunc("DELETE /v1/wireguard", func(w http.ResponseWriter, r *http.Request) {
 		name, ok := iface(w, r)
@@ -400,6 +412,9 @@ func (h LinuxHost) Reboot() error {
 		"systemctl", "reboot").Run()
 }
 
+// WireGuardKeys reads MyLab's interfaces' private keys.
+func (h LinuxHost) WireGuardKeys() (map[string]string, error) { return WireGuardKeys() }
+
 // ApplyWireGuard writes an interface's wg-quick file and brings it up. A
 // running interface takes new peers without dropping connections (wg
 // syncconf); a new address or key restarts it.
@@ -411,6 +426,8 @@ func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
 	switch {
 	case wg.JoinKey != "":
 		key = wg.JoinKey
+	case key == "" && wg.SavedKey != "" && !wg.NewKey:
+		key = wg.SavedKey
 	case key == "" || wg.NewKey:
 		var err error
 		if key, err = NewWireGuardKey(); err != nil {

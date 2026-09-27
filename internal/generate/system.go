@@ -9,9 +9,15 @@ import (
 	"github.com/mylab/mylab/internal/quadlet"
 )
 
-// DefaultCaddyImage is MyLab's Caddy build with DNS plugins
-// (build/caddy/Containerfile). TODO: publish and pin by digest.
-const DefaultCaddyImage = "localhost/mylab-caddy:latest"
+// CaddyImage is MyLab's Caddy build with DNS plugins, built on each
+// server from CaddyBuildDir by a Quadlet build unit (so a new install, or
+// an upgrade that changes the Containerfile, needs no manual step).
+// TODO: publish and pin by digest.
+const CaddyImage = "localhost/mylab-caddy:latest"
+
+// CaddyBuildDir holds the Containerfile (build/caddy in the source,
+// installed by the package).
+const CaddyBuildDir = "/usr/share/mylab/caddy"
 
 // CaddyUnit is the systemd service running the reverse proxy.
 const CaddyUnit = "mylab-caddy"
@@ -43,7 +49,7 @@ func System(lab config.Lab) (*SystemOutput, error) {
 	u.Section("Unit").Add("Description", "MyLab: reverse proxy (Caddy)")
 	cs := u.Section("Container")
 	cs.Add("ContainerName", CaddyUnit)
-	cs.Add("Image", DefaultCaddyImage)
+	cs.Add("Image", CaddyUnit+".build")
 	addTimezone(cs, lab)
 	// Caddy has its own pasta network namespace, not a bridge network:
 	// pasta's port forwarding keeps each visitor's real IP, which the
@@ -79,6 +85,19 @@ func System(lab config.Lab) (*SystemOutput, error) {
 		return nil, err
 	}
 	out.Quadlets = append(out.Quadlets, File{Name: CaddyUnit + ".container", Content: u.String()})
+
+	var b quadlet.Unit
+	b.Section("Unit").Add("Description", "MyLab: build the reverse proxy image (Caddy with DNS plugins)")
+	bs := b.Section("Build")
+	bs.Add("ImageTag", CaddyImage)
+	bs.Add("File", CaddyBuildDir+"/Containerfile")
+	bs.Add("SetWorkingDirectory", "file")
+	// The first build compiles Caddy: minutes, not seconds.
+	b.Section("Service").Add("TimeoutStartSec", "1800")
+	if err := b.Validate(); err != nil {
+		return nil, err
+	}
+	out.Quadlets = append(out.Quadlets, File{Name: CaddyUnit + ".build", Content: b.String()})
 
 	main, err := caddy.Main(caddy.MainConfig{
 		Domain:        lab.Domain,

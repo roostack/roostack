@@ -51,6 +51,7 @@ The reconciler only touches files it owns (`mylab-*` Quadlets and `*.caddy` snip
 | `internal/quadlet` | Writing Quadlet/systemd unit files, with escaping |
 | `internal/caddy` | Writing the main Caddyfile and per-service snippets |
 | `internal/dns` | Supported DNS providers: credential fields, Caddy directive, and the create-and-delete-a-TXT-record check |
+| `internal/awssig` | AWS Signature Version 4, standard library only (Route 53 checks, listing S3-compatible buckets) |
 | `internal/dnsrecords` | Keeps `*.<domain>` pointing at the LAN IP (only records MyLab created) and checks home devices can resolve it |
 | `internal/setup` | First-run setup wizard logic: time zone, domain and DNS credentials, backup destination, recovery key |
 | `internal/hosttime` | Reads the host's time zone and the valid zone names (tzdata); changing it is the agent's job |
@@ -72,6 +73,7 @@ The reconciler only touches files it owns (`mylab-*` Quadlets and `*.caddy` snip
 | `internal/manager` | The controller: catalog, install, remove, ports and settings (desired state), and each server's Assignment |
 | `internal/maintenance` | Maintenance coordinator: job queue and reboot policy |
 | `internal/backup` | restic wrapper, prepare steps, backup plan and job |
+| `internal/labrestore` | Rebuilding a whole lab on a new server (SPEC.md §6.9): finding its backups (a folder, an S3-compatible bucket or any restic address) with the recovery key, restoring the controller's backup, then its database at the next start and the services' databases once they're set up again |
 
 Rules that keep this maintainable:
 - **Business logic stays out of HTTP handlers**, so the UI can change without touching the core (SPEC.md §6.3).

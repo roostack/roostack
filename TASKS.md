@@ -79,7 +79,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Dashboard backup card: last success, failures, staleness (>2 days), local-only warning, next run, "Back up now"
   - [x] `mylab backup restore <service>`: moves current data aside, restores, puts the database back, restarts. Drill passed on the VM (SQLite)
   - [x] Restore from the UI (Owner only): choose a backup that contains the service, confirm, runs through the coordinator with a live log; kept copies listed and deletable
-  - [ ] Full-lab restore onto a new machine (with the installer, 1.12)
+  - [x] Full-lab restore onto a new server: first-run "Restore a lab" (folder, S3-compatible bucket or restic address + recovery key), restores the controller's backup, database at the next start, services' databases after the first apply; WireGuard keys in backups. Tested end to end on a rebuilt VM (`MYLAB_VM=4`)
+  - [ ] Full-lab restore from storage at a friend's lab; restoring a lone node; a disk whose files belong to another UID (hint to chown)
   - [ ] 3-2-1 guidance and multiple destinations (SPEC §6.9): suggestions in the UI, primary + `restic copy` to extra destinations, per-destination status
   - [x] Postgres restore (pg_restore): Forgejo repo deleted, restored, back with its git data
   - [ ] Measure restic RAM/time on a realistic photo/video dataset
@@ -102,7 +103,10 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] /settings as a grid of overview cards (current state + status per area)
   - [x] Area pages with a sidebar on desktop, back link on phones: People and access (People, Remote access), Network (Domain and certificates, Home network), This machine (Updates and restarts, Time zone)
   - [x] Wizard forms double as the area "change" pages
-- [ ] **1.12 Packaging:** .deb, apt repo, installer flow (`scripts/dev-install.sh` is a stand-in)
+- [ ] **1.12 Packaging:** .deb, apt repo, installer flow
+  - [x] `scripts/build-deb.sh` builds `dist/mylab_<version>_amd64.deb` (dpkg-deb, or ar+tar without it): binaries in /usr/bin, units in /usr/lib/systemd/system with a UID drop-in written by postinst, catalog, Caddy Containerfile, docs; postinst sets up the mylab user, subuids, linger, folders and starts MyLab. `scripts/dev-install.sh` installs it (tested on a fresh Debian 13 VM)
+  - [x] Caddy's image is built on each server by a Quadlet `.build` unit from /usr/share/mylab/caddy (no manual step; rebuilt from cache at boot)
+  - [ ] apt repository and signing; first-run access from another device without an SSH tunnel (see questions)
   - [ ] Ship full licence texts for bundled code (Debian `copyright` file), from THIRD_PARTY.md's list
 - [ ] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)
   - [x] Forgejo v15 LTS: rootless image, MyLab Postgres, HTTPS clone; backup/restore tested on the VM

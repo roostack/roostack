@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -72,6 +74,10 @@ type WireGuard struct {
 	JoinKey string `json:"join_key,omitempty"`
 	// NewKey replaces the server's key with a fresh one (after joining).
 	NewKey bool `json:"new_key,omitempty"`
+	// SavedKey is the interface's key from a backup (WireGuardKeys): used
+	// only if the interface has no key yet, so a lab restored onto a new
+	// server keeps the keys its peers know.
+	SavedKey string `json:"saved_key,omitempty"`
 }
 
 // Peer is another server.
@@ -138,6 +144,11 @@ func (wg WireGuard) Validate() error {
 		}
 		if wg.NewKey {
 			errs = append(errs, errors.New("join_key and new_key can't both be set"))
+		}
+	}
+	if wg.SavedKey != "" {
+		if _, err := parseKey(wg.SavedKey); err != nil {
+			errs = append(errs, fmt.Errorf("saved key: %w", err))
 		}
 	}
 	for i, p := range wg.Peers {
@@ -235,4 +246,29 @@ func confAddress(conf string) string {
 		}
 	}
 	return ""
+}
+
+// WireGuardKeys reads the private keys of MyLab's WireGuard interfaces
+// that have one, by interface, so they can be backed up with the rest of
+// the lab (SPEC.md §10.3).
+func WireGuardKeys() (map[string]string, error) {
+	files, err := filepath.Glob("/etc/wireguard/mylab*.conf")
+	if err != nil {
+		return nil, err
+	}
+	keys := map[string]string{}
+	for _, f := range files {
+		iface := strings.TrimSuffix(filepath.Base(f), ".conf")
+		if !ValidInterface(iface) {
+			continue
+		}
+		data, err := os.ReadFile(f)
+		if err != nil {
+			return nil, err
+		}
+		if k := confKey(string(data)); k != "" {
+			keys[iface] = k
+		}
+	}
+	return keys, nil
 }

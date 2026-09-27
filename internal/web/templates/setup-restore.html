@@ -1,0 +1,97 @@
+{{define "title"}}Restore a lab{{end}}
+{{define "content"}}
+<section class="card medium">
+  {{if .Restoring}}
+  <h1>Restoring your lab</h1>
+  <p class="hint">MyLab puts your services' files, settings and accounts back, then restarts as your lab. Keep this page open;
+    it moves on to the login page when it's done. Large backups can take a while.</p>
+  <div hx-get="/setup/restore/progress" hx-trigger="every 2s" hx-swap="innerHTML">{{template "restore-progress" .}}</div>
+  {{else}}
+  {{back "/setup" "Set up a new lab instead"}}
+  <h1>Restore a lab from its backups</h1>
+  <p>Rebuild a lab on this server: its services and their data, settings and accounts come back from a backup.
+    You need the <strong>recovery key</strong> you saved when you set the lab up, and to know where its backups are.</p>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+
+  {{if .Searched}}
+  {{with .Found}}
+  <h2>Backups the recovery key opens</h2>
+  <ul class="plain found-backups">
+    {{range $i, $f := .}}
+    <li>
+      <strong>{{or $f.Domain "A lab"}}</strong>: {{$f.ServerName}}{{if not $f.Controller}} <span class="hint">(a server the controller manages)</span>{{end}}
+      <br><small class="hint">Last backed up {{date $f.Snapshot.Time}}, {{$f.Snapshot.Time.Local.Format "15:04"}} · {{$f.Snapshots}} {{if eq $f.Snapshots 1}}backup{{else}}backups{{end}} ·
+        <code>{{shownRepo $f.Repository}}</code></small>
+      {{if $f.Controller}}
+      <br>{{confirm "/setup/restore/start" (printf "Restore %s onto this server? Its services, settings and accounts come back from the backup of %s." (or $f.Domain "this lab") (date $f.Snapshot.Time)) "Restore this lab" "" (printf "backup=%d" $i)}}
+      {{end}}
+    </li>
+    {{end}}
+  </ul>
+  <p class="hint">The lab's controller comes back on this server, from its latest backup. Its other servers (if any) reconnect by
+    themselves if they can reach this one the way they reached the old one: the same address, and UDP port 51820
+    forwarded to it if it's behind a router.</p>
+  {{else}}
+  <p class="error" role="alert">The recovery key doesn't open any backup there.</p>
+  {{end}}
+  {{with .Unopened}}
+  <details>
+    <summary>{{len .}} other {{if eq (len .) 1}}backup{{else}}backups{{end}} there</summary>
+    <ul class="plain">{{range .}}<li><code>{{shownRepo .Repository}}</code>: {{.Problem}}</li>{{end}}</ul>
+  </details>
+  {{end}}
+  <p><a href="/setup/restore">Look somewhere else…</a></p>
+
+  {{else}}
+  <form method="post" action="/setup/restore" x-data="{ kind: '{{.Kind}}' }">
+    <label>Setup code
+      <input name="token" autocomplete="off" required autofocus>
+      <small>Shown in the MyLab log, and saved in <code>/var/lib/mylab/setup-token</code>.</small>
+    </label>
+    <fieldset>
+      <legend>Where are the backups?</legend>
+      <label class="check"><input type="radio" name="kind" value="s3" x-model="kind">
+        <span>Cloud storage<small>An S3-compatible account: Backblaze B2, Wasabi, AWS, …</small></span></label>
+      <label class="check"><input type="radio" name="kind" value="folder" x-model="kind">
+        <span>A disk connected to this server<small>A USB disk or a folder, mounted under /mnt or /media.</small></span></label>
+      <label class="check"><input type="radio" name="kind" value="url" x-model="kind">
+        <span>Another address<small>Any restic repository address, e.g. <code>rest:https://…</code>.</small></span></label>
+    </fieldset>
+    <div x-show="kind === 's3'">
+      <label>Endpoint <input name="endpoint" value="{{.S3.Endpoint}}" placeholder="https://s3.us-west-004.backblazeb2.com"></label>
+      <label>Bucket <input name="bucket" value="{{.S3.Bucket}}"></label>
+      <label>Folder in the bucket (if you chose one) <input name="prefix" value="{{.S3.Prefix}}"></label>
+      <label>Access key <input name="access_key" autocomplete="off"></label>
+      <label>Secret key <input name="secret_key" type="password" autocomplete="off"></label>
+      <p class="hint">MyLab looks for every server's backups in the bucket.</p>
+    </div>
+    <div x-show="kind === 'folder'" x-cloak>
+      <label>Folder <input name="folder" value="{{.Folder}}" placeholder="/mnt/backup"></label>
+      <p class="hint">MyLab looks in the folder and a few levels below it.</p>
+    </div>
+    <div x-show="kind === 'url'" x-cloak>
+      <label>Address <input name="url" value="{{.URL}}" placeholder="rest:https://user:password@backup.example.com/lab"></label>
+    </div>
+    <label>Recovery key
+      <input name="recovery_key" type="password" autocomplete="off" required>
+      <small>From the sheet you saved or printed when you set the lab up.</small>
+    </label>
+    <button type="submit">Look for backups</button>
+  </form>
+  {{end}}
+  {{end}}
+</section>
+{{end}}
+
+{{define "restore-progress"}}
+{{with .Progress}}
+<p class="activity-status {{if $.Running}}running{{else if .Err}}failed{{else}}ok{{end}}">
+  {{if $.Running}}<span class="spinner" aria-hidden="true"></span> {{.Title}}: {{with .Status}}{{.}}…{{else}}starting…{{end}}
+  {{else if .Err}}✗ {{.Title}} failed: {{.Err}}
+  {{else}}✓ {{.Title}}: done. MyLab is restarting as your lab…{{end}}
+</p>
+<pre class="output activity-log">{{range .Lines}}{{.}}
+{{end}}</pre>
+{{if and .Err (not $.Running)}}<p><a href="/setup/restore">Try again…</a></p>{{end}}
+{{end}}
+{{end}}

@@ -376,13 +376,16 @@ func (r *Reconciler) secretValue(s generate.Secret) ([]byte, error) {
 // isOwnedQuadlet reports whether MyLab manages a file in the Quadlet dir.
 func isOwnedQuadlet(name string) bool {
 	return strings.HasPrefix(name, "mylab-") &&
-		(strings.HasSuffix(name, ".container") || strings.HasSuffix(name, ".network"))
+		(strings.HasSuffix(name, ".container") || strings.HasSuffix(name, ".network") || strings.HasSuffix(name, ".build"))
 }
 
 // unitFor maps a Quadlet file name to its systemd service (ASSUMPTIONS A4).
 func unitFor(file string) string {
 	if base, ok := strings.CutSuffix(file, ".network"); ok {
 		return base + "-network.service"
+	}
+	if base, ok := strings.CutSuffix(file, ".build"); ok {
+		return base + "-build.service"
 	}
 	return strings.TrimSuffix(file, ".container") + ".service"
 }

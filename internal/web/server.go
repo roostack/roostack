@@ -105,6 +105,13 @@ type Server struct {
 	HasGPU bool
 	// Setup is the first-run setup wizard. Nil disables it.
 	Setup LabSetup
+	// LabRestore rebuilds a lab from its backups on a fresh install. Nil
+	// hides it.
+	LabRestore LabRestorer
+	restore    *restoreSession
+	// RestorePending reports a restored lab whose services' databases are
+	// still being put back (optional).
+	RestorePending func() bool
 	// DNS reports whether home devices can reach services (SPEC.md §6.5.1).
 	DNS DNSStatus
 	// Version is MyLab's version, shown on the About page.
@@ -256,7 +263,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		return nil, err
 	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
-		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover",
+		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore",
 		"home", "services", "service", "backups", "restore", "settings", "account", "users", "about",
 		"settings-domain", "settings-network", "settings-updates", "settings-servers", "move", "settings-storage"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
@@ -277,6 +284,10 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /setup", s.setupPage)
 	mux.HandleFunc("POST /setup", s.setupSubmit)
+	mux.HandleFunc("GET /setup/restore", s.labRestorePage)
+	mux.HandleFunc("POST /setup/restore", s.labRestoreFind)
+	mux.HandleFunc("POST /setup/restore/start", s.labRestoreStart)
+	mux.HandleFunc("GET /setup/restore/progress", s.labRestoreProgress)
 	mux.HandleFunc("GET /login", s.loginPage)
 	mux.HandleFunc("POST /login", s.loginSubmit)
 	mux.HandleFunc("POST /login/totp", s.loginTOTP)

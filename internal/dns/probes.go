@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/mylab/mylab/internal/awssig"
 )
 
 // Each provider's check talks to its public HTTP API directly, using only
@@ -92,7 +94,7 @@ func signedCall(ctx context.Context, hc *http.Client, method, u string, body []b
 	if len(body) > 0 {
 		req.Header.Set("Content-Type", "application/xml")
 	}
-	signV4(req, body, key, secret, "us-east-1", "route53", time.Now())
+	awssig.Sign(req, body, key, secret, "us-east-1", "route53", time.Now())
 	resp, err := hc.Do(req)
 	if err != nil {
 		return reachError(err)

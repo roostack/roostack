@@ -1,0 +1,10 @@
+#!/bin/sh
+# Removing MyLab never deletes the lab: services' data, backups settings and
+# the recovery key stay in /var/lib/mylab and /srv/mylab.
+set -e
+if [ "$1" = purge ]; then
+    rm -rf /etc/systemd/system/mylab.service.d
+    systemctl daemon-reload || true
+    echo "MyLab's data is kept in /var/lib/mylab and /srv/mylab; delete them yourself if you're sure." >&2
+fi
+exit 0

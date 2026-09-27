@@ -15,7 +15,11 @@ func (s *Server) setupPage(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/")
 		return
 	}
-	s.render(w, "setup", map[string]any{})
+	if s.LabRestore != nil && s.LabRestore.Running() {
+		redirect(w, r, "/setup/restore/progress")
+		return
+	}
+	s.render(w, "setup", map[string]any{"CanRestore": s.LabRestore != nil})
 }
 
 func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +31,11 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 	password := r.FormValue("password")
 	fail := func(msg string) {
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "setup", map[string]any{"Error": msg, "Username": username})
+		s.render(w, "setup", map[string]any{"Error": msg, "Username": username, "CanRestore": s.LabRestore != nil})
+	}
+	if s.LabRestore != nil && s.LabRestore.Running() {
+		fail("A lab is being restored onto this server.")
+		return
 	}
 
 	s.mu.Lock()
