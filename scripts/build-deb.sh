@@ -6,7 +6,7 @@ set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 cd "$REPO"
-[[ -x bin/mylab && -x bin/mylab-agent ]] || { echo "build first: make build" >&2; exit 1; }
+[[ -x bin/mylab && -x bin/mylab-agent && -s bin/copyright ]] || { echo "build first: make build" >&2; exit 1; }
 # Debian versions must start with a digit: v0.1.0-3-gabc → 0.1.0-3-gabc,
 # and a bare commit becomes 0~git<commit>.
 VERSION=${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}
@@ -29,6 +29,8 @@ for pkg in docs/examples/*.yaml; do
     [[ $name == lab ]] && continue
     install -D -m 0644 "$pkg" "$ROOT/usr/share/mylab/catalog/$name/package.yaml"
 done
+# Licences of everything compiled into or served by MyLab (scripts/copyright.sh).
+install -D -m 0644 bin/copyright "$ROOT/usr/share/doc/mylab/copyright"
 for doc in README.md ARCHITECTURE.md SPEC.md THIRD_PARTY.md; do
     install -D -m 0644 "$doc" "$ROOT/usr/share/doc/mylab/$doc"
 done

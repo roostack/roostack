@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/mylab/mylab/internal/auth"
 	"github.com/mylab/mylab/internal/backup"
@@ -348,4 +349,20 @@ func firstLine(s string) string {
 func providerName(p backup.S3) string {
 	host := strings.TrimPrefix(p.Endpoint, "https://")
 	return p.Bucket + " at " + host
+}
+
+// SetLabName names the lab. With restart, MyLab restarts so every part
+// (the network, storage shared with other labs) uses the new name.
+func (s *Setup) SetLabName(ctx context.Context, name string, restart bool) error {
+	name = strings.TrimSpace(name)
+	if name == "" || len([]rune(name)) > 60 || strings.ContainsFunc(name, unicode.IsControl) {
+		return &CheckError{Msg: "Give the lab a name of up to 60 characters, such as \"The Smiths' lab\"."}
+	}
+	if err := config.Update(s.LabPath, func(lab *config.Lab) { lab.Name = name }); err != nil {
+		return err
+	}
+	if restart && s.Restart != nil {
+		s.Restart()
+	}
+	return nil
 }

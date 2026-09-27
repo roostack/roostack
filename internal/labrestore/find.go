@@ -65,8 +65,9 @@ type Found struct {
 	Env        []string
 	Snapshot   backup.Snapshot
 	Snapshots  int
-	// From the backup: the lab's domain, the server that made it and its
-	// part in the lab.
+	// From the backup: the lab's name and domain, the server that made it
+	// and its part in the lab.
+	Name       string
 	Domain     string
 	ServerID   string
 	ServerName string
@@ -134,6 +135,9 @@ func describe(err error) string {
 		return "The recovery key doesn't open it (another lab's backups, or a mistyped key)."
 	case errors.Is(err, backup.ErrNoRepository):
 		return "No backup there."
+	case strings.Contains(err.Error(), "permission denied"):
+		return "MyLab isn't allowed to read it: its files belong to another user (e.g. MyLab on the old server). " +
+			"Let it read them with sudo chown -R mylab:mylab on the folder."
 	}
 	return err.Error()
 }
@@ -188,10 +192,11 @@ func (f *Finder) open(ctx context.Context, url string, env []string) (*Found, er
 	}
 	if data, err := repo.DumpFile(ctx, snap.ID, filepath.Join(fd.StateDir, "lab.yaml")); err == nil {
 		var lab struct {
+			Name   string `yaml:"name"`
 			Domain string `yaml:"domain"`
 		}
 		if yaml.Unmarshal(data, &lab) == nil {
-			fd.Domain = lab.Domain
+			fd.Name, fd.Domain = lab.Name, lab.Domain
 		}
 	}
 	return fd, nil
@@ -202,7 +207,11 @@ func (f *Finder) open(ctx context.Context, url string, env []string) (*Found, er
 func (f *Finder) repositories(ctx context.Context, src Source) ([]string, []string, error) {
 	switch src.Kind {
 	case "folder":
-		repos, err := folderRepos(strings.TrimSpace(src.Folder))
+		folder := strings.TrimSpace(src.Folder)
+		repos, denied, err := folderRepos(folder)
+		if err == nil && len(repos) == 0 && len(denied) > 0 {
+			err = unreadable(folder)
+		}
 		return repos, nil, err
 	case "s3":
 		s3 := src.S3.Clean()
@@ -227,12 +236,17 @@ func isRepo(dir string) bool {
 // folderRepos finds repositories in a folder and a few levels below it
 // (e.g. <folder>/mylab/<lab>/<server>, or a backup store's
 // <folder>/<server>/<lab>).
-func folderRepos(root string) ([]string, error) {
+// It also lists the folders it wasn't allowed into.
+func folderRepos(root string) (repos, denied []string, err error) {
 	if _, err := os.Stat(root); err != nil {
-		return nil, fmt.Errorf("can't open %s: %w", root, err)
+		return nil, nil, fmt.Errorf("can't open %s: %w", root, err)
 	}
 	var out []string
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if errors.Is(err, fs.ErrPermission) {
+			denied = append(denied, path)
+			return nil
+		}
 		if err != nil || !d.IsDir() {
 			return nil // unreadable parts are skipped
 		}
@@ -248,7 +262,14 @@ func folderRepos(root string) ([]string, error) {
 		}
 		return nil
 	})
-	return out, err
+	return out, denied, err
+}
+
+// unreadable explains backups MyLab isn't allowed to read: typically a
+// disk from the old server, whose files belong to its mylab user.
+func unreadable(folder string) error {
+	return fmt.Errorf("MyLab isn't allowed to read the files in %s: they belong to another user (e.g. MyLab on the old server). "+
+		"Let it read them (sudo chown -R mylab:mylab %s), then look again", folder, folder)
 }
 
 // region guesses an S3-compatible provider's region from its endpoint

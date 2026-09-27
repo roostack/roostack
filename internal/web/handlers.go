@@ -29,9 +29,10 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	username := strings.TrimSpace(r.FormValue("username"))
 	password := r.FormValue("password")
+	labName := strings.TrimSpace(r.FormValue("lab_name"))
 	fail := func(msg string) {
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "setup", map[string]any{"Error": msg, "Username": username, "CanRestore": s.LabRestore != nil})
+		s.render(w, "setup", map[string]any{"Error": msg, "Username": username, "LabName": labName, "CanRestore": s.LabRestore != nil})
 	}
 	if s.LabRestore != nil && s.LabRestore.Running() {
 		fail("A lab is being restored onto this server.")
@@ -61,6 +62,20 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.serverError(w, err)
 		return
+	}
+	if labName != "" && s.Setup != nil {
+		err := s.Setup.SetLabName(r.Context(), labName, false)
+		if msg, ok := userMessage(err); ok {
+			fail(msg)
+			return
+		}
+		if err != nil {
+			s.serverError(w, err)
+			return
+		}
+		s.mu.Lock()
+		s.LabName = labName
+		s.mu.Unlock()
 	}
 	created, err := s.Store.CreateFirstUser(r.Context(), store.User{Username: username, PasswordHash: hash, Role: auth.RoleOwner})
 	if err != nil {

@@ -284,6 +284,8 @@ func (h *GuestHub) NewInvite(ctx context.Context, name string, quota int64, endp
 type GuestUsage struct {
 	Used  int64 `json:"used"`
 	Quota int64 `json:"quota"`
+	// Host is the host lab's name now (it may have been renamed).
+	Host string `json:"host,omitempty"`
 }
 
 // Handler is the API guests reach over the guests' link.
@@ -323,7 +325,7 @@ func (h *GuestHub) Handler() http.Handler {
 			WriteError(w, http.StatusForbidden, errors.New("not a guest here"))
 			return
 		}
-		u := GuestUsage{Used: -1, Quota: g.Quota}
+		u := GuestUsage{Used: -1, Quota: g.Quota, Host: h.LabName}
 		if h.Usage != nil {
 			if used, err := h.Usage(r.Context(), g); err == nil {
 				u.Used = used

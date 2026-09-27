@@ -19,11 +19,11 @@
   <ul class="plain found-backups">
     {{range $i, $f := .}}
     <li>
-      <strong>{{or $f.Domain "A lab"}}</strong>: {{$f.ServerName}}{{if not $f.Controller}} <span class="hint">(a server the controller manages)</span>{{end}}
+      <strong>{{or $f.Name $f.Domain "A lab"}}</strong>: {{$f.ServerName}}{{if not $f.Controller}} <span class="hint">(a server the controller manages)</span>{{end}}
       <br><small class="hint">Last backed up {{date $f.Snapshot.Time}}, {{$f.Snapshot.Time.Local.Format "15:04"}} · {{$f.Snapshots}} {{if eq $f.Snapshots 1}}backup{{else}}backups{{end}} ·
         <code>{{shownRepo $f.Repository}}</code></small>
       {{if $f.Controller}}
-      <br>{{confirm "/setup/restore/start" (printf "Restore %s onto this server? Its services, settings and accounts come back from the backup of %s." (or $f.Domain "this lab") (date $f.Snapshot.Time)) "Restore this lab" "" (printf "backup=%d" $i)}}
+      <br>{{confirm "/setup/restore/start" (printf "Restore %s onto this server? Its services, settings and accounts come back from the backup of %s." (or $f.Name $f.Domain "this lab") (date $f.Snapshot.Time)) "Restore this lab" "" (printf "backup=%d" $i)}}
       {{end}}
     </li>
     {{end}}

@@ -1026,3 +1026,21 @@ func TestBackupCopies(t *testing.T) {
 		t.Error("remove")
 	}
 }
+
+func TestLabName(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
+	h.setSetup(fs)
+	h.server.LabName = "lab.example.com"
+	if _, body := h.get("/settings"); !strings.Contains(body, `<span class="lab-name">lab.example.com</span>`) ||
+		!strings.Contains(body, "Lab name") {
+		t.Error("the header and Settings should show the lab's name")
+	}
+	if code, _ := h.post("/settings/lab", url.Values{"name": {" "}}, h.srv.URL); code != http.StatusBadRequest {
+		t.Errorf("an empty name: %d", code)
+	}
+	h.post("/settings/lab", url.Values{"name": {"The Smiths' lab"}}, h.srv.URL)
+	if fs.labName != "The Smiths' lab" || !fs.restarted {
+		t.Errorf("rename: %q %v", fs.labName, fs.restarted)
+	}
+}

@@ -95,6 +95,8 @@ type Server struct {
 	Node ServiceNode
 	// Network adds servers to the lab (SPEC.md §10.2). Nil hides it.
 	Network LabNetwork
+	// LabName is what people call the lab (config.Lab.DisplayName).
+	LabName string
 	// Domain is the lab's base domain, shown next to subdomain fields.
 	Domain string
 	// DNSProvider is the lab's current DNS provider ID (wizard default).
@@ -202,6 +204,7 @@ type LabSetup interface {
 	BackupLater(ctx context.Context) error
 	RecoveryKey() (string, error)
 	ConfirmRecoveryKey(ctx context.Context) error
+	SetLabName(ctx context.Context, name string, restart bool) error
 }
 
 // DNSStatus is what the UI needs from internal/dnsrecords.
@@ -268,7 +271,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore",
 		"home", "services", "service", "backups", "restore", "settings", "account", "users", "about",
-		"settings-domain", "settings-network", "settings-updates", "settings-servers", "move", "settings-storage"} {
+		"settings-domain", "settings-network", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -308,6 +311,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /partials/backups", s.require(auth.ManageServices, s.backupsPartial))
 	mux.Handle("GET /settings", s.requireOwner(s.settingsPage))
 	mux.Handle("GET /settings/people", s.requireOwner(s.usersPage))
+	mux.Handle("GET /settings/lab", s.requireOwner(s.labNamePage))
+	mux.Handle("POST /settings/lab", s.requireOwner(s.labNameSubmit))
 	mux.Handle("GET /settings/remote-access", s.requireWizard(s.sshPage))
 	mux.Handle("GET /settings/domain", s.requireOwner(s.domainAreaPage))
 	mux.Handle("GET /settings/home-network", s.requireOwner(s.homeNetworkPage))
@@ -543,6 +548,9 @@ func isHTTPS(r *http.Request) bool {
 func (s *Server) render(w http.ResponseWriter, page string, data map[string]any) {
 	if u, ok := data["User"].(*store.User); ok && u != nil {
 		data["Nav"] = navFor(u, page)
+		if _, set := data["LabName"]; !set {
+			data["LabName"] = s.LabName
+		}
 		// For the banner shown when the browser's clock differs from the
 		// host's (every time MyLab shows is host time).
 		if page != "setup-timezone" {
