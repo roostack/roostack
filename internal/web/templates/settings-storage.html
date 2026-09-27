@@ -1,0 +1,77 @@
+{{define "title"}}Storage for others{{end}}
+{{define "content"}}
+{{back "/settings" "Settings"}}
+<section class="card">
+  <h1>Storage for others</h1>
+  <p class="hint">Give family or friends space on this machine for their MyLab's backups, and they can do the same for you:
+    each of you then has a copy somewhere else. Their backups are encrypted before they leave their lab, so you can't read
+    them, and each lab gets its own space with a size limit.</p>
+</section>
+
+{{with .Guests}}
+<section class="card section">
+  <h2>Labs storing here</h2>
+  <table class="records">
+    <thead><tr><th>Lab</th><th>Space used</th><th>Connected</th><th></th></tr></thead>
+    <tbody>
+      {{range .}}<tr>
+        <td>{{.Name}}</td>
+        <td>{{if ge .Used 0}}{{size .Used}}{{else}}?{{end}} of {{size .Quota}}
+          <form method="post" action="/settings/storage/guests/{{.ID}}/quota" class="inline-form">
+            <label class="sr-only" for="quota-{{.ID}}">Space for {{.Name}} (GB)</label>
+            <input id="quota-{{.ID}}" name="quota" type="number" min="1" class="inline" value="{{gb .Quota}}"> GB
+            <button type="submit" class="secondary">Change</button>
+          </form></td>
+        <td>{{if not .Joined}}Waiting for them to use the invite (until {{when .Expires}})
+          {{- else if .LastSeen.IsZero}}<span class="dot dot-warn" aria-hidden="true"></span>Not yet: check the port forwarding below
+          {{- else}}<span class="dot dot-ok" aria-hidden="true"></span>{{when .LastSeen}}{{end}}</td>
+        <td>{{confirm (printf "/settings/storage/guests/%d/remove" .ID) (printf "Stop storing backups for %s? Their access stops now; their data stays until you delete it." .Name) "Remove" "quiet danger"}}</td>
+      </tr>{{end}}
+    </tbody>
+  </table>
+</section>
+{{end}}
+
+{{with .Leftover}}
+<section class="card section">
+  <h2>Data from labs you removed</h2>
+  <p class="hint">Kept in case you removed them by mistake. Delete it once you're sure.</p>
+  <ul class="plain">
+    {{range .}}<li><code>{{.User}}</code>{{if ge .Size 0}} · {{size .Size}}{{end}}
+      {{confirm (printf "/settings/storage/leftover/%s/delete" .User) "Delete this lab's backups here for good?" "Delete" "quiet danger"}}</li>{{end}}
+  </ul>
+</section>
+{{end}}
+
+<section class="card section" id="invite">
+  <h2>Invite a lab</h2>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{with .Invite}}
+  <p>Send this invite to {{$.InviteName}} privately (it works once, until {{when $.InviteExpires}}). They paste it on their
+    Backups page, under "Add storage from another lab".</p>
+  <pre class="output copyable">{{.}}</pre>
+  <p class="hint">Anyone with it can use the space until it's used, so don't post it anywhere public.</p>
+  {{end}}
+  <form method="post" action="/settings/storage/invite">
+    <label>Whose lab <input name="name" value="{{.Name}}" placeholder="Tyris's lab" required></label>
+    <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{or .Quota "50"}}" required></label>
+    <label>Address they reach this machine at <input name="endpoint" value="{{.Endpoint}}" placeholder="203.0.113.7:51821" required></label>
+    <small class="hint">Your home's public address (or a name from your domain that points home) and port 51821.</small>
+    <button type="submit">Make an invite</button>
+  </form>
+  <details>
+    <summary>Letting them in: port forwarding</summary>
+    <p>Other labs connect to this machine through your home router, which only lets them in if you ask it to.
+      MyLab already allows it through this machine's own firewall; the router is the step it can't do for you.</p>
+    <ol>
+      <li>Open your router's settings page (often <code>http://192.168.1.1</code> or <code>http://192.168.0.1</code>; the address and password are usually on a sticker on the router).</li>
+      <li>Find <strong>Port forwarding</strong>. Some routers call it <em>Virtual server</em>, <em>NAT</em>, <em>Port mapping</em> or put it under <em>Advanced</em> or <em>Firewall</em>.</li>
+      <li>Add a rule: protocol <strong>UDP</strong> (not TCP), port <strong>51821</strong>, to this machine{{with .LANAddr}} at <strong>{{.}}</strong>{{end}}, port 51821.</li>
+      <li>Use your home's public address in the invite, e.g. <code>203.0.113.7:51821</code>. Search "what is my IP" from a device at home to find it.</li>
+    </ol>
+    <p class="hint">How to tell it worked: once they've used the invite, "Connected" above shows when their lab last reached this one.
+      If it stays "Not yet", the port isn't forwarded (or the address is wrong). Some internet connections (called CGNAT) can't forward
+      ports at all; then the other lab can host instead, and you store at theirs.</p>
+  </details>
+</section>
+{{end}}

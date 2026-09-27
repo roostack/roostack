@@ -153,6 +153,10 @@ func (m *Manager) startApplyLocked() {
 		}
 		if n == m.Node {
 			a.Proxied = m.proxied(services, id)
+			// Other labs' stores live on the controller, and it forwards its
+			// machines' backups to other labs (SPEC.md §10.10).
+			a.Guests, a.GuestAddr = m.guestStores(context.Background())
+			a.ProxyPorts = m.proxyPorts(context.Background())
 		}
 		a.Storage = m.storageFor(context.Background(), id)
 		n.Apply(a)

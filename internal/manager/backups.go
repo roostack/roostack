@@ -75,8 +75,19 @@ func (m *Manager) BackupChoices(ctx context.Context) ([]BackupChoice, error) {
 		return nil, err
 	}
 	for _, p := range providers {
-		out = append(out, BackupChoice{Ref: fmt.Sprintf("provider:%d", p.ID), Title: p.Name,
-			Note: "These credentials can reach the whole bucket; each machine uses its own folder."})
+		note := "These credentials can reach the whole bucket; each machine uses its own folder."
+		switch p.Kind {
+		case "remote":
+			var r RemoteStorage
+			json.Unmarshal([]byte(p.Config), &r)
+			note = fmt.Sprintf("Encrypted before it leaves; %s can't read it. Up to %s for this whole lab.", r.HostName, sizeGB(r.Quota))
+		case "s3":
+			var s3 S3Provider
+			if json.Unmarshal([]byte(p.Config), &s3) == nil && b2.IsB2(s3.Endpoint) {
+				note = "Each machine gets its own key, limited to its folder (if this account's key may create keys)."
+			}
+		}
+		out = append(out, BackupChoice{Ref: fmt.Sprintf("provider:%d", p.ID), Title: p.Name, Note: note})
 	}
 	return out, nil
 }
@@ -180,6 +191,17 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, machin
 		p, err := m.provider(ctx, id)
 		if err != nil {
 			return err
+		}
+		if p.Kind == "remote" {
+			var r RemoteStorage
+			if err := json.Unmarshal([]byte(p.Config), &r); err != nil {
+				return err
+			}
+			url, env, adminURL, adminEnv := m.remoteRepos(r, labID, machineID)
+			target.Repository = url
+			dest = node.BackupDestination{Repository: url, Env: env}
+			admin = m.OpenRepo(adminURL, adminEnv)
+			break
 		}
 		var s3 S3Provider
 		if err := json.Unmarshal([]byte(p.Config), &s3); err != nil {
@@ -467,6 +489,18 @@ func (m *Manager) adminRepo(ctx context.Context, t store.BackupTarget) (*backup.
 		p, err := m.provider(ctx, id)
 		if err != nil {
 			return nil, err
+		}
+		if p.Kind == "remote" {
+			var r RemoteStorage
+			if err := json.Unmarshal([]byte(p.Config), &r); err != nil {
+				return nil, err
+			}
+			labID, err := m.labID(ctx)
+			if err != nil {
+				return nil, err
+			}
+			_, _, url, env := m.remoteRepos(r, labID, t.MachineID)
+			return m.OpenRepo(url, env), nil
 		}
 		var s3 S3Provider
 		if err := json.Unmarshal([]byte(p.Config), &s3); err != nil {

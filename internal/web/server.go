@@ -140,6 +140,17 @@ type ServiceManager interface {
 	KeptData(ctx context.Context, machineID string) ([]node.KeptFolder, error)
 	RemoveKeptData(ctx context.Context, machineID, path string) error
 	MoveService(ctx context.Context, name, to, way string) error
+	// Storage for other labs (SPEC.md §10.10).
+	OfferStorage(ctx context.Context) bool
+	StorageGuests(ctx context.Context) ([]manager.GuestView, error)
+	InviteGuest(ctx context.Context, name string, quota int64, endpoint string) (labnet.StorageInvite, error)
+	RemoveGuest(ctx context.Context, id int64) error
+	SetGuestQuota(ctx context.Context, id, quota int64) error
+	LeftoverGuests(ctx context.Context) ([]manager.LeftoverGuest, error)
+	DeleteLeftoverGuest(ctx context.Context, user string) error
+	AddRemoteStorage(ctx context.Context, code string) error
+	RemoteStorages(ctx context.Context) []manager.RemoteStorage
+	RemoteUsage(ctx context.Context, r manager.RemoteStorage) (labnet.GuestUsage, error)
 	RemoveMachine(ctx context.Context, id string) error
 	RenameMachine(ctx context.Context, id, name string) error
 }
@@ -241,7 +252,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover",
 		"home", "services", "service", "backups", "restore", "settings", "account", "users", "about",
-		"settings-domain", "settings-network", "settings-updates", "settings-machines", "move"} {
+		"settings-domain", "settings-network", "settings-updates", "settings-machines", "move", "settings-storage"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -287,6 +298,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/machines/{machine}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
 	mux.Handle("POST /settings/machines/{machine}/backup-destination", s.requireOwner(s.backupDestinationSubmit))
 	mux.Handle("POST /settings/backup-providers", s.requireOwner(s.addProviderSubmit))
+	mux.Handle("GET /settings/storage", s.requireOwner(s.storagePage))
+	mux.Handle("POST /settings/storage/invite", s.requireOwner(s.inviteGuestSubmit))
+	mux.Handle("POST /settings/storage/guests/{id}/remove", s.requireOwner(s.removeGuestSubmit))
+	mux.Handle("POST /settings/storage/guests/{id}/quota", s.requireOwner(s.guestQuotaSubmit))
+	mux.Handle("POST /settings/storage/leftover/{user}/delete", s.requireOwner(s.deleteLeftoverSubmit))
+	mux.Handle("POST /settings/remote-storage", s.requireOwner(s.addRemoteStorageSubmit))
 	mux.Handle("GET /services/{name}/move", s.requireOwner(s.movePage))
 	mux.Handle("POST /services/{name}/move", s.requireOwner(s.moveSubmit))
 	mux.Handle("POST /settings/machines/join", s.requireOwner(s.joinCodeSubmit))

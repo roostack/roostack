@@ -24,6 +24,7 @@ import (
 	"github.com/mylab/mylab/internal/config"
 	"github.com/mylab/mylab/internal/generate"
 	"github.com/mylab/mylab/internal/instance"
+	"github.com/mylab/mylab/internal/labnet"
 	"github.com/mylab/mylab/internal/node"
 	"github.com/mylab/mylab/internal/pkgspec"
 	"github.com/mylab/mylab/internal/state"
@@ -62,6 +63,17 @@ type Manager struct {
 	OpenRepo    func(url string, env []string) *backup.Repo
 	// HasRecoveryKey reports whether the lab has its recovery key yet.
 	HasRecoveryKey func() bool
+	// Storage for other labs (guests.go; optional): the host's hub and
+	// records, how much a guest stores here, the agent for links between
+	// labs, and a hook when this lab starts storing at another.
+	GuestHub     *labnet.GuestHub
+	GuestRecords GuestRecords
+	GuestUsage   func(user string) (int64, error)
+	LinkAgent    LinkAgent
+	RemoteAdded  func(RemoteStorage)
+	// GuestDirs and RemoveGuestDir list and delete guests' data folders.
+	GuestDirs      func() ([]string, error)
+	RemoveGuestDir func(ctx context.Context, user string) error
 	// NewB2 makes a Backblaze client (tests; nil uses the real service).
 	NewB2 func(keyID, key string) *b2.Client
 	// Activity shows problems building an assignment (optional).

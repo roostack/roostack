@@ -123,6 +123,18 @@ func serve(args []string) error {
 	hub.Start(ctx)
 	srv.Network = hub
 	mgr.Registry = hub
+	// Storage for other labs (SPEC.md §10.10): this lab can keep other
+	// labs' backups, and store its own at other labs.
+	guestHub := &labnet.GuestHub{LabName: lab.Domain, Store: st, Agent: agentClient, Log: log, Now: time.Now,
+		Usage: func(ctx context.Context, g store.Guest) (int64, error) { return local.GuestUsage(g.User()) }}
+	guestHub.Start(ctx)
+	go guestHub.ServeGuests(ctx)
+	mgr.GuestHub, mgr.GuestRecords, mgr.GuestUsage, mgr.LinkAgent = guestHub, st, local.GuestUsage, agentClient
+	mgr.GuestDirs, mgr.RemoveGuestDir = local.GuestDirs, local.RemoveGuestDir
+	mgr.RemoteAdded = func(r manager.RemoteStorage) { go forwardToRemote(ctx, lab, r, log) }
+	for _, r := range mgr.RemoteStorages(ctx) {
+		go forwardToRemote(ctx, lab, r, log)
+	}
 	// Backups across machines (SPEC.md §10.10): the controller creates
 	// each machine's repository with the recovery key.
 	mgr.BackupStore = st

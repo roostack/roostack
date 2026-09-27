@@ -21,6 +21,7 @@ var templateFuncs = template.FuncMap{
 	"list": func(items ...string) []string { return items },
 	// percent shows progress, or nothing if it's unknown (-1).
 	"size": sizeText,
+	"gb":   func(b int64) int64 { return b >> 30 },
 	"percent": func(p int) string {
 		if p < 0 {
 			return ""

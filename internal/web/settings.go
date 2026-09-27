@@ -36,6 +36,7 @@ var settingsAreas = []settingsArea{
 	{"domain", "Network", "Domain and certificates", "/settings/domain"},
 	{"home-network", "Network", "Home network", "/settings/home-network"},
 	{"machines", "Machines", "Machines", "/settings/machines"},
+	{"storage", "Machines", "Storage for others", "/settings/storage"},
 	{"updates", "This machine", "Updates and restarts", "/settings/updates"},
 	{"time-zone", "This machine", "Time zone", "/settings/time-zone"},
 }

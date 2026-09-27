@@ -12,12 +12,12 @@
 #
 # Ports forwarded to 127.0.0.1 on this machine:
 #   2222 -> 22 (ssh), 18480 -> 8480 (MyLab UI), 18080 -> 80, 18443 -> 443,
-#   51820/udp -> 51820 (MyLab's WireGuard network)
+#   51820/udp -> 51820 (MyLab's WireGuard network), 52820/udp -> 51821 (storage for other labs)
 #
 # More VMs (e.g. a second machine joining the lab): MYLAB_VM=2 scripts/dev-vm.sh up
 # VM n uses ssh port 2221+n, the other TCP ports plus (n-1)*10000, and UDP
-# 51819+n. Another VM reaches VM 1's WireGuard at 10.0.2.2:51820 (QEMU's
-# address for this machine).
+# 51819+n and 52819+n. Another VM reaches VM n's WireGuard at
+# 10.0.2.2:<that port> (QEMU's address for this machine).
 #
 # Note: QEMU user networking NATs every connection, so inside the VM all
 # clients appear to come from 10.0.2.2. Keep that in mind when testing
@@ -42,6 +42,7 @@ PIDFILE=$VM_DIR/qemu.pid
 QMP=$VM_DIR/qmp.sock
 SSH_PORT=$((2221 + N))
 WG_PORT=$((51819 + N))
+GUESTS_PORT=$((52819 + N))
 MEMORY=${MYLAB_VM_MEMORY:-4096}
 CPUS=${MYLAB_VM_CPUS:-4}
 DISK_SIZE=${MYLAB_VM_DISK:-40G}
@@ -134,7 +135,7 @@ start() {
     qemu-system-x86_64 \
         -name "$NAME" -machine q35,accel=kvm -cpu host -m "$MEMORY" -smp "$CPUS" \
         -drive file="$DISK",if=virtio,id=disk0,discard=unmap \
-        -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$((18480 + OFF))-:8480,hostfwd=tcp:127.0.0.1:$((18080 + OFF))-:80,hostfwd=tcp:127.0.0.1:$((18443 + OFF))-:443,hostfwd=udp:127.0.0.1:$WG_PORT-:51820" \
+        -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$((18480 + OFF))-:8480,hostfwd=tcp:127.0.0.1:$((18080 + OFF))-:80,hostfwd=tcp:127.0.0.1:$((18443 + OFF))-:443,hostfwd=udp:127.0.0.1:$WG_PORT-:51820,hostfwd=udp:127.0.0.1:$GUESTS_PORT-:51821" \
         -device virtio-net-pci,netdev=net0 \
         -device virtio-rng-pci \
         "${smbios[@]}" \

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"github.com/mylab/mylab/internal/activity"
 	"github.com/mylab/mylab/internal/backup"
+	"github.com/mylab/mylab/internal/labnet"
 	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -48,6 +50,8 @@ type fakeManager struct {
 	destination string
 	providers   []string
 	moves       []string
+	guests      []manager.GuestView
+	guestOps    []string
 	backups     BackupService
 	restores    RestoreService
 	updates     HostUpdates
@@ -64,7 +68,49 @@ func (f *fakeManager) Apply(node.Assignment) {}
 func (f *fakeManager) ServiceStates(context.Context) (map[string]string, error) {
 	return nil, nil
 }
-func (f *fakeManager) NodeFor(string) node.Node { return f }
+func (f *fakeManager) NodeFor(string) node.Node          { return f }
+func (f *fakeManager) OfferStorage(context.Context) bool { return len(f.guests) > 0 }
+func (f *fakeManager) StorageGuests(context.Context) ([]manager.GuestView, error) {
+	return f.guests, nil
+}
+func (f *fakeManager) InviteGuest(_ context.Context, name string, quota int64, endpoint string) (labnet.StorageInvite, error) {
+	if quota < 1<<30 {
+		return labnet.StorageInvite{}, &manager.FormError{Msg: "Offer at least 1 GB."}
+	}
+	f.guestOps = append(f.guestOps, fmt.Sprintf("invite %s %d %s", name, quota>>30, endpoint))
+	return labnet.StorageInvite{Token: "t", User: "g1"}, nil
+}
+func (f *fakeManager) RemoveGuest(_ context.Context, id int64) error {
+	f.guestOps = append(f.guestOps, fmt.Sprintf("remove %d", id))
+	return nil
+}
+func (f *fakeManager) SetGuestQuota(_ context.Context, id, quota int64) error {
+	f.guestOps = append(f.guestOps, fmt.Sprintf("quota %d %d", id, quota>>30))
+	return nil
+}
+func (f *fakeManager) LeftoverGuests(context.Context) ([]manager.LeftoverGuest, error) {
+	return []manager.LeftoverGuest{{User: "g9", Size: 2 << 30}}, nil
+}
+func (f *fakeManager) DeleteLeftoverGuest(_ context.Context, user string) error {
+	if user != "g9" {
+		return manager.ErrNotFound
+	}
+	f.guestOps = append(f.guestOps, "delete "+user)
+	return nil
+}
+func (f *fakeManager) AddRemoteStorage(_ context.Context, code string) error {
+	if !strings.HasPrefix(code, "mylab-storage-") {
+		return &manager.FormError{Msg: "that isn't a MyLab storage invite"}
+	}
+	f.guestOps = append(f.guestOps, "add remote")
+	return nil
+}
+func (f *fakeManager) RemoteStorages(context.Context) []manager.RemoteStorage {
+	return []manager.RemoteStorage{{HostName: "Mum's lab", Quota: 50 << 30}}
+}
+func (f *fakeManager) RemoteUsage(context.Context, manager.RemoteStorage) (labnet.GuestUsage, error) {
+	return labnet.GuestUsage{Used: 3 << 30, Quota: 50 << 30}, nil
+}
 func (f *fakeManager) KeptData(_ context.Context, id string) ([]node.KeptFolder, error) {
 	if id != "n-9876543210" {
 		return nil, nil
@@ -777,5 +823,47 @@ func TestMovePage(t *testing.T) {
 	ha, _ := loggedIn(t, auth.RoleAdmin)
 	if code, _ := ha.get("/services/vaultwarden/move"); code == http.StatusOK {
 		t.Error("only Owners move services")
+	}
+}
+
+func TestStorageForOthers(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Tyris's lab", Quota: 50 << 30, Joined: true},
+		Used: 3 << 30, LastSeen: time.Now()}}
+	_, body := h.get("/settings/storage")
+	for _, want := range []string{"Tyris&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("storage page missing %q", want)
+		}
+	}
+	if code, body := h.post("/settings/storage/invite", url.Values{"name": {"Sam"}, "quota": {"0"}, "endpoint": {"1.2.3.4:51821"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "at least 1 GB") {
+		t.Errorf("zero quota: %d", code)
+	}
+	_, body = h.post("/settings/storage/invite", url.Values{"name": {"Sam"}, "quota": {"20"}, "endpoint": {"1.2.3.4:51821"}}, h.srv.URL)
+	if !strings.Contains(body, "Send this invite to Sam") {
+		t.Error("the invite should be shown once")
+	}
+	h.post("/settings/storage/guests/1/quota", url.Values{"quota": {"80"}}, h.srv.URL)
+	h.post("/settings/storage/guests/1/remove", nil, h.srv.URL)
+	h.post("/settings/storage/leftover/g9/delete", nil, h.srv.URL)
+	if code, _ := h.post("/settings/storage/leftover/g1/delete", nil, h.srv.URL); code != http.StatusNotFound {
+		t.Errorf("deleting a current guest's data: %d", code)
+	}
+	want := []string{"invite Sam 20 1.2.3.4:51821", "quota 1 80", "remove 1", "delete g9"}
+	if !slices.Equal(fm.guestOps, want) {
+		t.Errorf("ops = %v", fm.guestOps)
+	}
+	// The guest side: the Backups page shows storage at other labs.
+	_, body = h.get("/backups")
+	if !strings.Contains(body, "Mum&#39;s lab: 3.0 GB of 50.0 GB used") || !strings.Contains(body, "Add storage from another lab") {
+		t.Errorf("backups page should show storage at other labs")
+	}
+	if code, _ := h.post("/settings/remote-storage", url.Values{"invite": {"hello"}}, h.srv.URL); code != http.StatusBadRequest {
+		t.Errorf("bad invite: %d", code)
+	}
+	ha, _ := loggedIn(t, auth.RoleAdmin)
+	if code, _ := ha.get("/settings/storage"); code == http.StatusOK {
+		t.Error("only Owners")
 	}
 }

@@ -44,6 +44,23 @@
         <button type="submit" class="secondary">Add provider</button>
       </form>
     </details>
+    <details{{if .RemoteError}} open{{end}}>
+      <summary>Add storage from another lab</summary>
+      <p class="hint">Someone you trust (family, a friend) can give your lab space for backups on their MyLab: they make
+        an invite on their Settings → Storage for others. Your backups are encrypted before they leave, so they can't read them.</p>
+      {{with .RemoteError}}<p class="error" role="alert">{{.}}</p>{{end}}
+      <form method="post" action="/settings/remote-storage">
+        <label>Their invite <textarea name="invite" rows="3" required placeholder="mylab-storage-…"></textarea></label>
+        <button type="submit" class="secondary">Add their storage</button>
+      </form>
+    </details>
+    {{with .Remotes}}
+    <h3>Storage at other labs</h3>
+    <ul class="plain">
+      {{range .}}<li>{{.HostName}}: {{if .Reachable}}{{if ge .Usage.Used 0}}{{size .Usage.Used}} of {{end}}{{size .Usage.Quota}} used
+        {{- else}}<span class="dot dot-warn" aria-hidden="true"></span>can't reach it right now{{end}}</li>{{end}}
+    </ul>
+    {{end}}
     {{if .Machine.This}}<p><a href="/setup/backup">Set up this machine's backups with the setup wizard instead…</a></p>{{end}}
     {{end}}
     <p class="hint">Good practice is "3-2-1": three copies of your data, on two different kinds of storage, with one
