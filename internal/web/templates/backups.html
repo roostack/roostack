@@ -57,9 +57,11 @@
     </details>
     {{with .Remotes}}
     <h3>Storage at other labs</h3>
+    <p class="hint">Your whole lab's space there, shared by the servers that back up to it.</p>
     <ul class="plain">
-      {{range .}}<li>{{.HostName}}: {{if .Reachable}}{{if ge .Usage.Used 0}}{{size .Usage.Used}} of {{end}}{{size .Usage.Quota}} used
-        {{- else}}<span class="dot dot-warn" aria-hidden="true"></span>can't reach it right now{{end}}</li>{{end}}
+      {{range .}}<li><strong>{{.HostName}}</strong>: {{if .Reachable}}{{if ge .Usage.Used 0}}{{size .Usage.Used}} of {{end}}{{size .Usage.Quota}} used
+        {{- else}}<span class="dot dot-warn" aria-hidden="true"></span>can't reach it right now{{end}}
+        <span class="hint">· {{with .UsedBy}}used by {{range $i, $n := .}}{{if $i}}, {{end}}{{$n}}{{end}}{{else}}no server backs up here yet{{end}}</span></li>{{end}}
     </ul>
     {{end}}
     {{if .Server.This}}<p><a href="/setup/backup">Set up this server's backups with the setup wizard instead…</a></p>{{end}}

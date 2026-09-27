@@ -108,7 +108,7 @@ func (f *fakeManager) AddRemoteStorage(_ context.Context, code string) error {
 	return nil
 }
 func (f *fakeManager) RemoteStorages(context.Context) []manager.RemoteStorage {
-	return []manager.RemoteStorage{{HostName: "Mum's lab", Quota: 50 << 30}}
+	return []manager.RemoteStorage{{HostName: "Mum's lab", Quota: 50 << 30, Ref: "provider:7"}}
 }
 func (f *fakeManager) RemoteUsage(context.Context, manager.RemoteStorage) (labnet.GuestUsage, error) {
 	return labnet.GuestUsage{Used: 3 << 30, Quota: 50 << 30}, nil
@@ -858,8 +858,15 @@ func TestStorageForOthers(t *testing.T) {
 	}
 	// The guest side: the Backups page shows storage at other labs.
 	_, body = h.get("/backups")
-	if !strings.Contains(body, "Mum&#39;s lab: 3.0 GB of 50.0 GB used") || !strings.Contains(body, "Add storage from another lab") {
+	if !strings.Contains(body, "Mum&#39;s lab</strong>: 3.0 GB of 50.0 GB used") || !strings.Contains(body, "no server backs up here yet") ||
+		!strings.Contains(body, "Add storage from another lab") {
 		t.Errorf("backups page should show storage at other labs")
+	}
+	// It's the whole lab's: shown on every server's page, naming who uses it.
+	fm.destination = "provider:7"
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true}, {ID: "n-9876543210", Name: "vps"}}
+	if _, body := h.get("/settings/servers/n-9876543210/backups"); !strings.Contains(body, "used by nuc, vps") {
+		t.Errorf("another server's page should show storage at other labs and who uses it")
 	}
 	if code, _ := h.post("/settings/remote-storage", url.Values{"invite": {"hello"}}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("bad invite: %d", code)
@@ -947,5 +954,19 @@ func TestPerServerSettings(t *testing.T) {
 	if _, body := h.get("/"); !strings.Contains(body, "My Servers") || !strings.Contains(body, `href="/settings/servers/n-9876543210"`) ||
 		!strings.Contains(body, "Needs a restart to finish updates") {
 		t.Errorf("home should show My Servers")
+	}
+}
+
+func TestBackupsPageRestoresThisServersServices(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.node().restores = &fakeRestores{}
+	// Every service names its server, this one's included.
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Server: "nuc"}, {Name: "forgejo", Title: "Forgejo", Server: "vps"}}, nil
+	}
+	_, body := h.get("/backups")
+	if strings.Contains(body, "No services installed") || !strings.Contains(body, `href="/backups/restore/vaultwarden"`) ||
+		strings.Contains(body, `href="/backups/restore/forgejo"`) {
+		t.Error("this server's services should be restorable")
 	}
 }

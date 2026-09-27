@@ -232,7 +232,7 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	var services []ServiceView
 	if all, ok := data["Services"].([]ServiceView); ok {
 		for _, sv := range all {
-			if (m.This && sv.Server == "") || (!m.This && sv.Server == m.Name) {
+			if sv.Server == m.Name || (m.This && sv.Server == "") {
 				services = append(services, sv)
 			}
 		}
@@ -249,9 +249,8 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 		if a := s.activityFor(r, activity.BackupSetup); a != nil {
 			data["SetupActivity"] = a
 		}
-		if m.This {
-			data["Remotes"] = s.remoteViews(r)
-		}
+		// Storage at other labs is the whole lab's, shown on every server's page.
+		data["Remotes"] = s.remoteViews(r)
 	}
 	if data["Error"] != nil {
 		w.WriteHeader(http.StatusBadRequest)
