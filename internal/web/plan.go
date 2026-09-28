@@ -32,6 +32,8 @@ type planEntry struct {
 	AtHome, Away, Main     bool
 	Last, LastOK           *store.BackupRun
 	CanPromote             bool
+	// AskWhere are the servers whose location decides at home or away.
+	AskWhere []locationAsk
 }
 
 // planSlot is an empty place in the plan, with a suggestion for it.
@@ -109,6 +111,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		e.Kind = s.Manager.BackupKind(ctx, m.ID, e.Ref)
 		e.KindTitle = kindTitle(e.Kind)
 		e.AtHome, e.Away = manager.AtHome(e.Kind), manager.Away(e.Kind)
+		if e.Kind == manager.KindServer {
+			e.AtHome, e.Away, e.AskWhere = s.backupPlace(ctx, m, strings.TrimPrefix(e.Ref, "server:"))
+		}
 		p.Entries = append(p.Entries, e)
 		used[e.Ref] = true
 	}
