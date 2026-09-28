@@ -90,10 +90,10 @@ func (f *fakeManager) StorageGuests(context.Context) ([]manager.GuestView, error
 	return f.guests, nil
 }
 func (f *fakeManager) InviteGuest(_ context.Context, name string, quota int64, endpoint string) (labnet.StorageInvite, error) {
-	if quota < 1 * units.GB {
+	if quota < 1*units.GB {
 		return labnet.StorageInvite{}, &manager.FormError{Msg: "Offer at least 1 GB."}
 	}
-	f.guestOps = append(f.guestOps, fmt.Sprintf("invite %s %d %s", name, quota / units.GB, endpoint))
+	f.guestOps = append(f.guestOps, fmt.Sprintf("invite %s %d %s", name, quota/units.GB, endpoint))
 	return labnet.StorageInvite{Token: "t", User: "g1"}, nil
 }
 func (f *fakeManager) RetryInstallWith(_ context.Context, name string, settings, secrets map[string]string) error {
@@ -126,7 +126,7 @@ func (f *fakeManager) RemoveGuest(_ context.Context, id int64) error {
 	return nil
 }
 func (f *fakeManager) SetGuestQuota(_ context.Context, id, quota int64) error {
-	f.guestOps = append(f.guestOps, fmt.Sprintf("quota %d %d", id, quota / units.GB))
+	f.guestOps = append(f.guestOps, fmt.Sprintf("quota %d %d", id, quota/units.GB))
 	return nil
 }
 func (f *fakeManager) LeftoverGuests(context.Context) ([]manager.LeftoverGuest, error) {
