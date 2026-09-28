@@ -586,7 +586,7 @@ func TestBackupDrivePicker(t *testing.T) {
 	}
 	_, body = h.get("/setup/backup?add=2")
 	for _, want := range []string{`value="uuid:64B1" checked`, "USB drive", "Second disk", "Prepare this disk", "Erase it and start afresh",
-		`value="disk:/dev/nvme1n1" disabled`, "Protects against mistakes, not a failed disk", "sets it up so it's there after a restart"} {
+		`value="disk:/dev/nvme1n1" disabled`, "it helps with mistakes, not a failed disk or ransomware", "sets it up so it's there after a restart"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("picker missing %q", want)
 		}
