@@ -121,10 +121,11 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Wizard forms double as the area "change" pages
 - [ ] **1.17 Help site (SPEC §6.3.1)**
   - [x] Zensical set up in `help/` (pinned), Roostack's colours and icon, the whole navigation; written: Home, First-run setup, Your backup plan, Where files live, Command line (checked against the code and on VM1)
-  - [ ] Write the remaining pages
+  - [x] Write the remaining pages (2026-09-29): every page in the navigation, checked against the templates and code; links and anchors checked
   - [ ] Build at `make build` and serve at `/help`, with a CSP for Zensical's inline scripts (by hash); "Tell me more" and help links from the UI
   - [ ] Publish the public site (hosting and address to decide)
-  - [ ] Found while writing: running `roostack backup`/`apply` as the roostack user needs `XDG_RUNTIME_DIR` set by hand (the CLI could set it); `apply -dry-run` prints `8471/tcp from ,` (empty source); README says Go 1.25 and "currently Cloudflare"
+  - [ ] Found while writing: running `roostack backup`/`apply` as the roostack user needs `XDG_RUNTIME_DIR` set by hand (the CLI could set it); `apply -dry-run` prints `8471/tcp from ,` for rules tied to the WireGuard interface (display only: they have no source); README says Go 1.25 and "currently Cloudflare"
+  - [ ] Found while writing: no link to see the recovery key again after setup (only `/setup/recovery-key` by hand); the storage invite tells friends to paste it "under 'Add storage from another lab'", but the Backups page now asks under **A friend's lab → Their invite code**
 - [ ] **1.16 Code review (2026-09-29)**
   - [x] Agent: backup folders made and handed over only inside the allowed places (`os.Root`, `lchown`); a planted symlink could have given roostack a folder anywhere. Tested on VM1
   - [x] A failed restore says truthfully whether the data is back, and starts the service again

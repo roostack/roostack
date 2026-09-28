@@ -1,7 +1,52 @@
 # Storage for other labs
 
-Offering space for a friend's backups, and keeping yours at theirs.
+Family and friends who also run Roostack can keep a copy of each other's
+backups. Each of you then has a backup away from home, without paying for
+online storage.
 
-!!! abstract "Still to be written"
+Their backups are **encrypted before they leave their lab**, so you can't
+read them, and they can't read yours. Each lab gets its own space, with a
+size limit you choose.
 
-    This page is coming. It will cover what's described above.
+## Offering space to someone
+
+On **Settings → Storage for others**, under **Invite a lab**:
+
+1. Enter **whose lab** it is, and **how much space** they get (in GB).
+2. Enter the **address they reach your server at**: your home's public
+   address and port **51821**, such as `203.0.113.7:51821`.
+3. Choose **Make an invite**.
+4. Send them the invite privately. It works once, for 24 hours.
+
+Your router must let them in: add a port forwarding rule for **UDP** port
+**51821** to the server that keeps their backups (see the steps in
+[Add a server](add.md#a-server-outside-your-home-port-forwarding), with
+51821 instead of 51820).
+
+If you have several servers, **Offered by** chooses which one's disk keeps
+their backups.
+
+The page lists each lab storing with you: how much it uses, when it last
+connected, and a way to change its space.
+
+## Storing your backups with someone
+
+Ask them for an invite. Then, on your **Backups** page, add a backup, choose
+**A friend's lab**, and paste the code into **Their invite code**. See
+[Where backups can go](../backups/places.md).
+
+## Stopping
+
+Choose **Remove** next to a lab. They can't add backups from then on.
+Roostack tells their lab, and deletes their backups here after **30 days**,
+in case it was a mistake, or sooner if you choose **Delete now**.
+
+??? note "For technical users"
+
+    Other labs connect over a second WireGuard interface,
+    `roostack-guests` (UDP 51821), separate from your own lab's network.
+    Each guest lab gets its own rest-server store, with its own user and
+    quota, on the offering server, under `/srv/roostack/backups/guests`. On their
+    side, the link to your lab is a WireGuard interface named
+    `roostack-st1` (up to `roostack-st9`), and their servers' backups are
+    forwarded through their controller.
