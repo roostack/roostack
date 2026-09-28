@@ -160,6 +160,7 @@ Roostack runs **directly on the host** (not in a container), as two processes sh
 - **Rationale:** Roostack's UI is mostly forms, lists, status and logs, with state held on the server, which is htmx's strength. Validation lives in one place (Go). A small toolchain suits the simplicity principle and a maintainer learning Go.
 - **Rejected:** React islands. They bring back a Node build toolchain and a second UI paradigm for limited gain.
 - **Known limits:** UIs with a lot of browser-side state (drag-and-drop dashboards, visual editors) would need step 4.
+- **Sizes — Locked (2026-09-28):** shown in decimal units everywhere (1 GB = 1,000,000,000 bytes; kB, MB, GB, TB), as drive makers, macOS and most people count them, so an "8 GB" USB drive reads 8.0 GB. One formatter (`internal/units`) serves the UI, logs and the CLI, and sizes people type (e.g. a storage quota in GB) use the same units. Binary units (GiB) were considered: exact, but unfamiliar to most people, and a drive would read smaller than its label.
 
 ### 6.4 Service Execution: Podman Quadlets — Locked
 

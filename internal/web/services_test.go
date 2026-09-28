@@ -25,6 +25,7 @@ import (
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/units"
 )
 
 type fakeManager struct {
@@ -89,10 +90,10 @@ func (f *fakeManager) StorageGuests(context.Context) ([]manager.GuestView, error
 	return f.guests, nil
 }
 func (f *fakeManager) InviteGuest(_ context.Context, name string, quota int64, endpoint string) (labnet.StorageInvite, error) {
-	if quota < 1<<30 {
+	if quota < 1 * units.GB {
 		return labnet.StorageInvite{}, &manager.FormError{Msg: "Offer at least 1 GB."}
 	}
-	f.guestOps = append(f.guestOps, fmt.Sprintf("invite %s %d %s", name, quota>>30, endpoint))
+	f.guestOps = append(f.guestOps, fmt.Sprintf("invite %s %d %s", name, quota / units.GB, endpoint))
 	return labnet.StorageInvite{Token: "t", User: "g1"}, nil
 }
 func (f *fakeManager) RetryInstallWith(_ context.Context, name string, settings, secrets map[string]string) error {
@@ -125,11 +126,11 @@ func (f *fakeManager) RemoveGuest(_ context.Context, id int64) error {
 	return nil
 }
 func (f *fakeManager) SetGuestQuota(_ context.Context, id, quota int64) error {
-	f.guestOps = append(f.guestOps, fmt.Sprintf("quota %d %d", id, quota>>30))
+	f.guestOps = append(f.guestOps, fmt.Sprintf("quota %d %d", id, quota / units.GB))
 	return nil
 }
 func (f *fakeManager) LeftoverGuests(context.Context) ([]manager.LeftoverGuest, error) {
-	return []manager.LeftoverGuest{{User: "g9", Size: 2 << 30}}, nil
+	return []manager.LeftoverGuest{{User: "g9", Size: 2 * units.GB}}, nil
 }
 func (f *fakeManager) DeleteLeftoverGuest(_ context.Context, user string) error {
 	if user != "g9" {
@@ -146,17 +147,17 @@ func (f *fakeManager) AddRemoteStorage(_ context.Context, code string) error {
 	return nil
 }
 func (f *fakeManager) RemoteStorages(context.Context) []manager.RemoteStorage {
-	return []manager.RemoteStorage{{HostName: "Mum's lab", Quota: 50 << 30, Ref: "provider:7"}}
+	return []manager.RemoteStorage{{HostName: "Mum's lab", Quota: 50 * units.GB, Ref: "provider:7"}}
 }
 func (f *fakeManager) RemoteUsage(context.Context, manager.RemoteStorage) (labnet.GuestUsage, error) {
-	return labnet.GuestUsage{Used: 3 << 30, Quota: 50 << 30}, nil
+	return labnet.GuestUsage{Used: 3 * units.GB, Quota: 50 * units.GB}, nil
 }
 func (f *fakeManager) KeptData(_ context.Context, id string) ([]node.KeptFolder, error) {
 	if id != "n-9876543210" {
 		return nil, nil
 	}
 	return []node.KeptFolder{{Path: "/srv/roostack/services/forgejo.moved-to-nuc-20260928-002806", Service: "forgejo",
-		MovedAway: true, Time: time.Now(), Size: 70 << 20}}, nil
+		MovedAway: true, Time: time.Now(), Size: 70 * units.MB}}, nil
 }
 func (f *fakeManager) RemoveKeptData(_ context.Context, id, path string) error {
 	f.serverOps = append(f.serverOps, "delete "+path+" on "+id)
@@ -166,7 +167,7 @@ func (f *fakeManager) MoveInfo(_ context.Context, name string) (manager.MoveInfo
 	if name != "vaultwarden" {
 		return manager.MoveInfo{}, manager.ErrNotFound
 	}
-	return manager.MoveInfo{From: manager.Server{ID: "n-0123456789", Name: "nuc", This: true}, Size: 5 << 20,
+	return manager.MoveInfo{From: manager.Server{ID: "n-0123456789", Name: "nuc", This: true}, Size: 5 * units.MB,
 		Suggested: manager.MoveCopy}, nil
 }
 func (f *fakeManager) MoveService(_ context.Context, name, to, way string) error {
@@ -943,8 +944,8 @@ func TestMovePage(t *testing.T) {
 
 func TestStorageForOthers(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
-	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Tyris's lab", Quota: 50 << 30, Joined: true},
-		Used: 3 << 30, LastSeen: time.Now()}}
+	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Tyris's lab", Quota: 50 * units.GB, Joined: true},
+		Used: 3 * units.GB, LastSeen: time.Now()}}
 	_, body := h.get("/settings/storage")
 	for _, want := range []string{"Tyris&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821"} {
 		if !strings.Contains(body, want) {
@@ -997,7 +998,7 @@ func TestServiceCardsAndBuiltIns(t *testing.T) {
 			ServiceDetail: node.ServiceDetail{Containers: []node.Container{{Name: "roostack-vaultwarden-app",
 				Image: "docker.io/vaultwarden/server:1.34.1", State: "active (running)"}},
 				Routes: []string{"vault.lab.example.com → 127.0.0.1:18000"}, DataDirs: []string{"/srv/roostack/services/vaultwarden"},
-				DataSize: 12 << 20}}}, nil
+				DataSize: 12 * units.MB}}}, nil
 	}
 	for _, path := range []string{"/", "/services"} {
 		_, body := h.get(path)
@@ -1121,8 +1122,8 @@ func TestLabName(t *testing.T) {
 func TestRemovedGuestLabs(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fm.guests = []manager.GuestView{
-		{Guest: store.Guest{ID: 1, Name: "Sam's lab", Joined: true, Quota: 10 << 30}, Used: 1 << 30},
-		{Guest: store.Guest{ID: 2, Name: "Old lab", Joined: true, Quota: 10 << 30, Removed: time.Now().Add(-24 * time.Hour)}, Used: 2 << 30},
+		{Guest: store.Guest{ID: 1, Name: "Sam's lab", Joined: true, Quota: 10 * units.GB}, Used: 1 * units.GB},
+		{Guest: store.Guest{ID: 2, Name: "Old lab", Joined: true, Quota: 10 * units.GB, Removed: time.Now().Add(-24 * time.Hour)}, Used: 2 * units.GB},
 	}
 	_, body := h.get("/settings/storage")
 	i := strings.Index(body, "Labs you removed")
@@ -1274,7 +1275,7 @@ func TestBackupPlanSpace(t *testing.T) {
 	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}})
 	fm.destination = "drive:system"
 	h.node().backups = &fakeBackups{status: backup.Status{Configured: true, Progress: -1,
-		LastOK: &store.BackupRun{OK: true, Finished: time.Now(), Stored: 1536 << 20}}}
+		LastOK: &store.BackupRun{OK: true, Finished: time.Now(), Stored: uint64(1536 * units.MB)}}}
 	_, body := h.get("/backups")
 	if !strings.Contains(body, "Backups here take <strong>1.5 GB</strong> · <span>30.0 GB free on this server&#39;s disk</span>") {
 		t.Errorf("space on the main backup:\n%s", body[strings.Index(body, `id="plan"`):])
@@ -1286,12 +1287,12 @@ func TestLowSpace(t *testing.T) {
 		free, total int64
 		want        string
 	}{
-		{100 << 30, 200 << 30, ""},
-		{15 << 30, 200 << 30, levelWarning}, // under 10%
-		{4 << 30, 20 << 30, levelWarning},   // under 5 GB
-		{8 << 30, 200 << 30, levelProblem},  // under 5%
-		{1 << 30, 10 << 30, levelProblem},   // under 2 GB
-		{-1, 10 << 30, ""},
+		{100 * units.GB, 200 * units.GB, ""},
+		{15 * units.GB, 200 * units.GB, levelWarning}, // under 10%
+		{4 * units.GB, 20 * units.GB, levelWarning},   // under 5 GB
+		{8 * units.GB, 200 * units.GB, levelProblem},  // under 5%
+		{1 * units.GB, 10 * units.GB, levelProblem},   // under 2 GB
+		{-1, 10 * units.GB, ""},
 	} {
 		if got := lowSpace(c.free, c.total); got != c.want {
 			t.Errorf("lowSpace(%d, %d) = %q, want %q", c.free, c.total, got, c.want)
@@ -1303,7 +1304,7 @@ func TestLowSpace(t *testing.T) {
 // one runs low, or when other labs were promised more than is free.
 func TestServerDiskSpace(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
-	fm.disk = &node.DiskSpace{Total: 100 << 30, Used: 40 << 30, Free: 60 << 30, Services: 12 << 30, Backups: 3 << 30, Guests: 1 << 30}
+	fm.disk = &node.DiskSpace{Total: 100 * units.GB, Used: 40 * units.GB, Free: 60 * units.GB, Services: 12 * units.GB, Backups: 3 * units.GB, Guests: 1 * units.GB}
 	_, body := h.get("/settings/servers")
 	for _, want := range []string{"<strong>60.0 GB free</strong> of 100.0 GB · 40.0 GB used", "Services' data 12.0 GB",
 		"backups kept here for your lab 3.0 GB", "for other labs 1.0 GB", `style="width: 40%"`} {
@@ -1314,12 +1315,12 @@ func TestServerDiskSpace(t *testing.T) {
 	if _, body := h.get("/"); strings.Contains(body, "disk space") {
 		t.Error("plenty of space: nothing to say")
 	}
-	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Tyris's lab", Quota: 80 << 30, Joined: true}, Used: 5 << 30}}
+	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Tyris's lab", Quota: 80 * units.GB, Joined: true}, Used: 5 * units.GB}}
 	if _, body := h.get("/"); !strings.Contains(body, "Other labs could fill This server&#39;s disk: they&#39;ve been promised 75.0 GB more") {
 		t.Error("promised more than is free")
 	}
 	fm.guests = nil
-	fm.disk.Free = 3 << 30
+	fm.disk.Free = 3 * units.GB
 	if _, body := h.get("/"); !strings.Contains(body, "This server is running out of disk space: 3.0 GB free of 100.0 GB") {
 		t.Error("low space should need attention")
 	}

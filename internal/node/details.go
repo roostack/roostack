@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/systemd"
+	"roostack.cloud/roostack/internal/units"
 )
 
 // What a server can tell about its services and itself, so nothing about
@@ -262,4 +263,4 @@ func plural(n int, one, many string) string {
 	return strconv.Itoa(n) + " " + many
 }
 
-func gbText(b int64) string { return strconv.Itoa(int(b>>30)) + " GB" }
+func gbText(b int64) string { return units.Bytes(b) }

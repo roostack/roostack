@@ -2,11 +2,11 @@ package web
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/units"
 )
 
 // Moving a service to another server (SPEC.md §10.10).
@@ -81,15 +81,5 @@ func (s *Server) moveSubmit(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, "/services/"+name+"/move")
 }
 
-// sizeText is a size for people.
-func sizeText(b int64) string {
-	switch {
-	case b < 0:
-		return "unknown"
-	case b < 1<<20:
-		return fmt.Sprintf("%d kB", (b+1023)>>10)
-	case b < 1<<30:
-		return fmt.Sprintf("%.1f MB", float64(b)/(1<<20))
-	}
-	return fmt.Sprintf("%.1f GB", float64(b)/(1<<30))
-}
+// sizeText is a size for people (units.Bytes).
+func sizeText(b int64) string { return units.Bytes(b) }

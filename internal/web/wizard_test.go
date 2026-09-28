@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/units"
 )
 
 type fakeSetup struct {
@@ -78,7 +79,7 @@ func (f *fakeSetup) BackupDrives(context.Context) ([]agent.Drive, error) {
 	if f.drives != nil {
 		return f.drives, nil
 	}
-	return []agent.Drive{{ID: "system", Kind: "system", Name: "This server's own disk", Usable: true, Free: 30 << 30}}, nil
+	return []agent.Drive{{ID: "system", Kind: "system", Name: "This server's own disk", Usable: true, Free: 30 * units.GB}}, nil
 }
 func (f *fakeSetup) EraseDrive(_ context.Context, disk string) error {
 	f.erased = disk
@@ -575,9 +576,9 @@ func TestBackupDrivePicker(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true}}
 	fs.drives = []agent.Drive{
-		{ID: "uuid:64B1", Kind: "usb", Name: "BACKUP", Model: "SanDisk Ultra", Disk: "/dev/sdb", Size: 128 << 30, Free: -1, FSType: "exfat", Usable: true, Erasable: true},
-		{ID: "disk:/dev/nvme1n1", Kind: "disk", Name: "Samsung SSD 980", Disk: "/dev/nvme1n1", Size: 1000 << 30, Free: -1, Erasable: true},
-		{ID: "system", Kind: "system", Name: "This server's own disk", Size: 40 << 30, Free: 30 << 30, Usable: true},
+		{ID: "uuid:64B1", Kind: "usb", Name: "BACKUP", Model: "SanDisk Ultra", Disk: "/dev/sdb", Size: 128 * units.GB, Free: -1, FSType: "exfat", Usable: true, Erasable: true},
+		{ID: "disk:/dev/nvme1n1", Kind: "disk", Name: "Samsung SSD 980", Disk: "/dev/nvme1n1", Size: 1000 * units.GB, Free: -1, Erasable: true},
+		{ID: "system", Kind: "system", Name: "This server's own disk", Size: 40 * units.GB, Free: 30 * units.GB, Usable: true},
 	}
 	h.setSetup(fs)
 	_, body := h.get("/setup/backup")
