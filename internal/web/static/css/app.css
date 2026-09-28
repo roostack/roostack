@@ -255,6 +255,31 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
 .drive-unusable > label { color: var(--muted); }
 .drive-erase { flex: 0 0 auto; }
 
+/* ---------- Backup plan (backup-plan): numbered backups and empty slots ---------- */
+.plan-list { list-style: none; padding: 0; margin: var(--space-3) 0; display: grid; gap: var(--space-3); }
+.plan-card { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.plan-slot { border-style: dashed; border-color: var(--border-strong); background: transparent; align-items: center; }
+.plan-adding { border-color: var(--accent); }
+.plan-num { flex: 0 0 auto; display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%;
+  background: var(--accent-soft); color: var(--fg); font-weight: 600; }
+.plan-slot .plan-num { background: none; border: 1px dashed var(--border-strong); color: var(--muted); }
+.plan-body { flex: 1 1 auto; min-width: 0; }
+.plan-body p { margin: 0 0 var(--space-1); }
+.plan-title { font-weight: 600; }
+.plan-slot .plan-title { color: var(--muted); }
+.plan-manage { margin-top: var(--space-2); }
+.plan-manage code { overflow-wrap: anywhere; }
+.plan-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-2); }
+.plan-more { padding: var(--space-2) var(--space-4); }
+.plan-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: var(--space-2); margin: var(--space-3) 0; }
+.plan-choice { display: flex; gap: var(--space-2); align-items: flex-start; margin: 0; padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+.plan-choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.plan-choice span { display: grid; }
+.plan-checks { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: var(--space-3) 0 var(--space-1); }
+.plan-warn { color: var(--muted); }
+
 /* ---------- Settings: overview grid and area pages ---------- */
 .settings-group-title { font-size: var(--text-base); color: var(--muted); font-weight: var(--weight-medium);
   margin: var(--space-5) 0 var(--space-2); }

@@ -1,7 +1,6 @@
 package web
 
 import (
-	"cmp"
 	"errors"
 	"net/http"
 	"net/url"
@@ -250,31 +249,11 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 		}
 	}
 	data["ServerServices"] = services
-	// Where backups go: any server's disk or a provider (SPEC.md §10.10).
+	// Where backups go: the plan (SPEC.md §6.9).
 	if s.Manager != nil && auth.Can(currentUser(r).Role, auth.ManageHost) {
-		if choices, err := s.Manager.BackupChoices(r.Context()); err == nil && len(choices) > 0 {
-			data["Choices"] = choices
-		}
-		t, title, hasTarget := s.Manager.BackupTargetOf(r.Context(), m.ID)
-		if hasTarget {
-			data["Target"], data["TargetTitle"] = t, title
-		}
-		// Extra copies go anywhere but the main destination.
-		copies := s.Manager.BackupCopiesOf(r.Context(), m.ID)
-		data["Copies"] = copies
-		if choices, ok := data["Choices"].([]manager.BackupChoice); ok && hasTarget {
-			var free []manager.BackupChoice
-			for _, c := range choices {
-				if c.Ref == t.Provider || c.Ref == "server:"+t.StoreHost ||
-					slices.ContainsFunc(copies, func(x manager.BackupCopy) bool { return x.Ref == c.Ref }) {
-					continue
-				}
-				free = append(free, c)
-			}
-			data["CopyChoices"] = free
-		}
-		if a := s.activityFor(r, activity.BackupSetup); a != nil {
-			data["SetupActivity"] = a
+		if p := s.backupPlan(r, m, false); p != nil {
+			p.Error, _ = data["Error"].(string)
+			data["Plan"] = p
 		}
 		// Storage at other labs is the whole lab's, shown on every server's page.
 		data["Remotes"] = s.remoteViews(r)
@@ -283,101 +262,6 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	s.render(w, "backups", data)
-}
-
-func (s *Server) backupDestinationSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil || s.serverOf(r) == nil {
-		http.NotFound(w, r)
-		return
-	}
-	m := s.serverRefOf(r)
-	err := s.Manager.SetBackupDestination(r.Context(), m.ID, r.FormValue("destination"))
-	if msg, ok := userMessage(err); ok {
-		data, derr := s.pageData(r)
-		if derr != nil {
-			s.serverError(w, derr)
-			return
-		}
-		data["Error"] = msg
-		s.renderBackups(w, r, data)
-		return
-	}
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	s.Store.Audit(r.Context(), currentUser(r), "backup", "destination for "+m.Label()+" set to "+r.FormValue("destination"))
-	redirect(w, r, m.Backups())
-}
-
-// backupCopySubmit adds (or with remove, stops) an extra copy of a
-// server's backups somewhere else.
-func (s *Server) backupCopySubmit(remove bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if s.Manager == nil || s.serverOf(r) == nil {
-			http.NotFound(w, r)
-			return
-		}
-		m := s.serverRefOf(r)
-		ref := r.FormValue("destination")
-		var err error
-		verb := "added a backup copy for "
-		if remove {
-			err, verb = s.Manager.RemoveBackupCopy(r.Context(), m.ID, ref), "stopped a backup copy for "
-		} else {
-			err = s.Manager.AddBackupCopy(r.Context(), m.ID, ref)
-		}
-		if msg, ok := userMessage(err); ok {
-			data, derr := s.pageData(r)
-			if derr != nil {
-				s.serverError(w, derr)
-				return
-			}
-			data["Error"] = msg
-			s.renderBackups(w, r, data)
-			return
-		}
-		if errors.Is(err, manager.ErrNotFound) {
-			http.NotFound(w, r)
-			return
-		}
-		if err != nil {
-			s.serverError(w, err)
-			return
-		}
-		s.Store.Audit(r.Context(), currentUser(r), "backup", verb+m.Label()+": "+ref)
-		redirect(w, r, m.Backups()+"#copies")
-	}
-}
-
-func (s *Server) addProviderSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
-	p := manager.S3Provider{Endpoint: r.FormValue("endpoint"), Bucket: r.FormValue("bucket"), Prefix: r.FormValue("prefix"),
-		AccessKey: r.FormValue("access_key"), SecretKey: r.FormValue("secret_key")}
-	back := cmp.Or(r.FormValue("back"), "/backups")
-	if !strings.HasPrefix(back, "/") || strings.HasPrefix(back, "//") {
-		back = "/backups"
-	}
-	err := s.Manager.AddS3Provider(r.Context(), r.FormValue("name"), p)
-	if msg, ok := userMessage(err); ok {
-		data, derr := s.pageData(r)
-		if derr != nil {
-			s.serverError(w, derr)
-			return
-		}
-		data["ProviderError"], data["Error"] = msg, msg
-		s.renderBackups(w, r, data)
-		return
-	}
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	s.Store.Audit(r.Context(), currentUser(r), "backup", "provider added: "+strings.TrimSpace(r.FormValue("name")))
-	redirect(w, r, back)
 }
 
 func (s *Server) backupsPartial(w http.ResponseWriter, r *http.Request) {

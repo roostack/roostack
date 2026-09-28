@@ -35,15 +35,7 @@ func (m *Manager) BackupCopiesOf(ctx context.Context, serverID string) []BackupC
 		if c.ServerID != serverID {
 			continue
 		}
-		v := BackupCopy{Ref: c.Provider, Title: c.Repository, Repository: c.Repository}
-		for _, ch := range choices {
-			if ch.Ref == c.Provider {
-				v.Title = ch.Title
-			}
-		}
-		if t := m.driveTitle(ctx, serverID, c.Provider); t != "" {
-			v.Title = t
-		}
+		v := BackupCopy{Ref: c.Provider, Title: m.destinationTitle(ctx, serverID, c.Provider, c.Repository, choices), Repository: c.Repository}
 		out = append(out, v)
 	}
 	return out

@@ -205,30 +205,6 @@ func (s *Server) deleteLeftoverSubmit(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, "/settings/storage")
 }
 
-func (s *Server) addRemoteStorageSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.Manager == nil {
-		http.NotFound(w, r)
-		return
-	}
-	err := s.Manager.AddRemoteStorage(r.Context(), r.FormValue("invite"))
-	if msg, ok := userMessage(err); ok {
-		data, derr := s.pageData(r)
-		if derr != nil {
-			s.serverError(w, derr)
-			return
-		}
-		data["RemoteError"], data["Error"] = msg, msg
-		s.renderBackups(w, r, data)
-		return
-	}
-	if err != nil {
-		s.serverError(w, err)
-		return
-	}
-	s.Store.Audit(r.Context(), currentUser(r), "storage", "added storage at another lab")
-	redirect(w, r, "/backups#destination")
-}
-
 // remoteView is this lab's storage at another lab, for the Backups page.
 type remoteView struct {
 	manager.RemoteStorage

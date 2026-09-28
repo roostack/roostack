@@ -37,7 +37,6 @@ type fakeSetup struct {
 	clients     []netip.Addr
 	domainErr   error
 	backupErr   error
-	lastBackup  setup.BackupChoice
 
 	lastProvider string
 	lastValues   map[string]string
@@ -127,12 +126,11 @@ func (f *fakeSetup) SaveDomain(_ context.Context, d, e, provider string, values 
 	return nil
 }
 func (f *fakeSetup) DomainLater(context.Context) error { f.p.DomainLater = true; return nil }
-func (f *fakeSetup) SaveBackup(_ context.Context, c setup.BackupChoice) error {
-	f.lastBackup = c
-	if f.backupErr != nil {
-		return f.backupErr
-	}
+func (f *fakeSetup) BackupAdded(_ context.Context, first bool) error {
 	f.p.BackupDone = true
+	if first {
+		f.p.RecoverySaved = false
+	}
 	return nil
 }
 func (f *fakeSetup) BackupLater(context.Context) error        { f.p.BackupLater = true; return nil }
@@ -140,7 +138,7 @@ func (f *fakeSetup) RecoveryKey() (string, error)             { return "the-reco
 func (f *fakeSetup) ConfirmRecoveryKey(context.Context) error { f.p.RecoverySaved = true; return nil }
 
 func TestWizardFlow(t *testing.T) {
-	h, _ := loggedIn(t, auth.RoleOwner)
+	h, fm := loggedIn(t, auth.RoleOwner)
 	fs := &fakeSetup{zone: "Etc/UTC"}
 	h.setSetup(fs)
 
@@ -197,24 +195,28 @@ func TestWizardFlow(t *testing.T) {
 	// During the wizard, no restart after each step: on to the next one
 	// (the restart waits for the wizard's end).
 	if _, body := h.post("/setup/domain", url.Values{"domain": {"home.example.com"}}, h.srv.URL); strings.Contains(body, "restarting") ||
-		!strings.Contains(body, "Where should backups go") {
+		!strings.Contains(body, "Your backup plan") {
 		t.Error("saving the domain should go on to the backup step")
 	}
 
-	if _, body := h.get("/"); !strings.Contains(body, "Where should backups go") {
+	if _, body := h.get("/"); !strings.Contains(body, "Your backup plan") || !strings.Contains(body, "Set up backups later") {
 		t.Fatal("next comes the backup step")
 	}
-	fs.backupErr = &setup.CheckError{Msg: "Couldn't create the backup there"}
-	_, body = h.post("/setup/backup", url.Values{"kind": {"s3"}, "endpoint": {"https://s3.example"}, "bucket": {"b"},
-		"access_key": {"AKID"}, "secret_key": {"SUPERSECRET"}}, h.srv.URL)
-	if !strings.Contains(body, "Couldn&#39;t create") || !strings.Contains(body, `value="AKID"`) || strings.Contains(body, "SUPERSECRET") {
-		t.Error("backup error: keep fields, never echo the secret key")
+	if code, body := h.post("/setup/backup", nil, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "Add backup 1 first") {
+		t.Errorf("continuing with no backup: %d", code)
 	}
-	if fs.lastBackup.SecretKey != "SUPERSECRET" || fs.lastBackup.Kind != "s3" {
-		t.Errorf("choice passed on: %+v", fs.lastBackup)
+	// A failed online account keeps the chooser open, never echoing the
+	// secret key.
+	code, body = h.post("/setup/backup/add", url.Values{"add": {"1"}, "choice": {"online"}, "provider": {"new"},
+		"endpoint": {"https://s3.example"}, "access_key": {"AKID"}, "secret_key": {"SUPERSECRET"}}, h.srv.URL)
+	if code != http.StatusBadRequest || !strings.Contains(body, "Where should backup 1 go?") || strings.Contains(body, "SUPERSECRET") {
+		t.Errorf("online storage error: %d", code)
 	}
-	fs.backupErr = nil
-	h.post("/setup/backup", url.Values{"kind": {"local"}, "path": {"/mnt/backup"}}, h.srv.URL)
+	h.post("/setup/backup/add", url.Values{"add": {"1"}, "choice": {"online"}, "provider": {"provider:1"}}, h.srv.URL)
+	if fm.destination != "provider:1" || !fs.p.BackupDone {
+		t.Fatalf("backup 1: %q, step done %v", fm.destination, fs.p.BackupDone)
+	}
+	h.post("/setup/backup", nil, h.srv.URL)
 
 	resp, err := h.client.Get(h.srv.URL + "/")
 	if err != nil {
@@ -377,27 +379,23 @@ func TestSetupFormsAsSettingsPages(t *testing.T) {
 	h.setSetup(fs)
 	h.server.BackupRepo = "/mnt/backup/roostack"
 
-	_, body := h.get("/setup/backup")
-	if strings.Contains(body, "step 2 of 2") || strings.Contains(body, "Set this up later") {
-		t.Error("changing backups later must not look like the first-run wizard")
+	resp, err := h.client.Get(h.srv.URL + "/setup/backup")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(body, "Change where backups go") || !strings.Contains(body, "/mnt/backup/roostack") || !strings.Contains(body, `href="/backups"`) {
-		t.Error("the settings version should say Change, show the current destination and link back")
+	resp.Body.Close()
+	if resp.Request.URL.Path != "/backups" {
+		t.Errorf("after the wizard, backups are changed on the Backups page, not %s", resp.Request.URL.Path)
 	}
+	var body string
 	_, body = h.get("/setup/domain")
 	if strings.Contains(body, "step 3 of 4") || !strings.Contains(body, "Change your domain") || strings.Contains(body, "/setup/domain/later") {
 		t.Error("changing the domain later must not look like the wizard")
 	}
 
-	// A postponed step is "Set up", still without the wizard's framing.
-	fs.p = setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}
-	if _, body := h.get("/setup/backup"); !strings.Contains(body, "<h1>Set up backups</h1>") || strings.Contains(body, "step 2") {
-		t.Error("a postponed step should read as setting it up now")
-	}
-
 	// During first-run setup the wizard framing stays.
 	fs.p = setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true}
-	if _, body := h.get("/setup/backup"); !strings.Contains(body, "step 4 of 4") || !strings.Contains(body, "Set this up later") {
+	if _, body := h.get("/setup/backup"); !strings.Contains(body, "step 4 of 4") || !strings.Contains(body, "Set up backups later") {
 		t.Error("first-run setup keeps its steps")
 	}
 }
@@ -574,7 +572,7 @@ func TestRestartingWaitsForJob(t *testing.T) {
 // The backup step lists the server's drives, best first and chosen, and
 // can prepare a blank disk.
 func TestBackupDrivePicker(t *testing.T) {
-	h, _ := loggedIn(t, auth.RoleOwner)
+	h, fm := loggedIn(t, auth.RoleOwner)
 	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true}}
 	fs.drives = []agent.Drive{
 		{ID: "uuid:64B1", Kind: "usb", Name: "BACKUP", Model: "SanDisk Ultra", Disk: "/dev/sdb", Size: 128 << 30, Free: -1, FSType: "exfat", Usable: true, Erasable: true},
@@ -583,24 +581,39 @@ func TestBackupDrivePicker(t *testing.T) {
 	}
 	h.setSetup(fs)
 	_, body := h.get("/setup/backup")
+	if strings.Contains(body, `value="uuid:64B1"`) || !strings.Contains(body, "a drive at home") || !strings.Contains(body, `href="/setup/backup?add=1#plan"`) {
+		t.Error("the plan starts empty, suggesting a drive at home")
+	}
+	_, body = h.get("/setup/backup?add=1")
 	for _, want := range []string{`value="uuid:64B1" checked`, "USB drive", "Second disk", "Prepare this disk", "Erase it and start afresh",
 		`value="disk:/dev/nvme1n1" disabled`, "Protects against mistakes, not a failed disk", "sets it up so it's there after a restart"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("picker missing %q", want)
 		}
 	}
+	if strings.Contains(body, "Another server") {
+		t.Error("the wizard doesn't offer other servers")
+	}
 	// Refreshing keeps the choice.
 	if _, part := h.get("/setup/backup/drives?drive=system"); !strings.Contains(part, `value="system" checked`) || strings.Contains(part, `value="uuid:64B1" checked`) {
 		t.Errorf("refresh should keep the chosen drive:\n%s", part)
 	}
 	// Preparing the blank disk chooses it.
-	_, body = h.post("/setup/backup/erase", url.Values{"disk": {"/dev/nvme1n1"}}, h.srv.URL)
-	if fs.erased != "/dev/nvme1n1" || !strings.Contains(body, "The disk is ready") || !strings.Contains(body, `value="uuid:new" checked`) {
+	_, body = h.post("/setup/backup/erase", url.Values{"add": {"1"}, "disk": {"/dev/nvme1n1"}}, h.srv.URL)
+	if fs.erased != "/dev/nvme1n1" || !strings.Contains(body, `value="uuid:new" checked`) {
 		t.Errorf("erase: %q\n%s", fs.erased, body)
 	}
-	h.post("/setup/backup", url.Values{"kind": {"drive"}, "drive": {"uuid:new"}}, h.srv.URL)
-	if fs.lastBackup.Kind != "drive" || fs.lastBackup.Drive != "uuid:new" {
-		t.Errorf("saved %+v", fs.lastBackup)
+	h.post("/setup/backup/add", url.Values{"add": {"1"}, "choice": {"drive"}, "drive": {"uuid:new"}}, h.srv.URL)
+	if fm.destination != "drive:uuid:new" {
+		t.Errorf("backup 1: %q", fm.destination)
+	}
+	// The drive in use isn't offered again; backup 2 suggests going away from home.
+	if _, body := h.get("/setup/backup"); !strings.Contains(body, "Add a backup away from home") || !strings.Contains(body, "Optional: an extra copy") {
+		t.Error("the next slot suggests what's missing; the one after is optional")
+	}
+	_, body = h.get("/setup/backup?add=2")
+	if strings.Contains(body, `value="uuid:new"`) || !strings.Contains(body, "Where should backup 2 go?") {
+		t.Errorf("backup 2:\n%s", body)
 	}
 }
 

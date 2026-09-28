@@ -152,6 +152,8 @@ type ServiceManager interface {
 	BackupTargetOf(ctx context.Context, serverID string) (store.BackupTarget, string, bool)
 	BackupCopiesOf(ctx context.Context, serverID string) []manager.BackupCopy
 	AddBackupCopy(ctx context.Context, serverID, ref string) error
+	PromoteBackupCopy(ctx context.Context, serverID, ref string) error
+	BackupKind(ctx context.Context, serverID, ref string) string
 	RemoveBackupCopy(ctx context.Context, serverID, ref string) error
 	SetBackupDestination(ctx context.Context, serverID, ref string) error
 	AddS3Provider(ctx context.Context, name string, p manager.S3Provider) error
@@ -207,7 +209,9 @@ type LabSetup interface {
 	Done(ctx context.Context, step string) error
 	SaveDomain(ctx context.Context, domain, email, provider string, values map[string]string, opts setup.DomainOptions) error
 	DomainLater(ctx context.Context) error
-	SaveBackup(ctx context.Context, c setup.BackupChoice) error
+	// BackupAdded records the wizard's backup step done (first: its first
+	// backup, so the recovery key must be confirmed).
+	BackupAdded(ctx context.Context, first bool) error
 	// BackupDrives lists the drives backups can go on, best first;
 	// EraseDrive erases a disk and prepares it.
 	BackupDrives(ctx context.Context) ([]agent.Drive, error)
@@ -335,10 +339,6 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/servers/{server}/rename", s.requireOwner(s.renameServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
-	mux.Handle("POST /settings/servers/{server}/backup-destination", s.requireOwner(s.backupDestinationSubmit))
-	mux.Handle("POST /settings/servers/{server}/backup-copies", s.requireOwner(s.backupCopySubmit(false)))
-	mux.Handle("POST /settings/servers/{server}/backup-copies/remove", s.requireOwner(s.backupCopySubmit(true)))
-	mux.Handle("POST /settings/backup-providers", s.requireOwner(s.addProviderSubmit))
 	mux.Handle("GET /settings/storage", s.requireOwner(s.storagePage))
 	mux.Handle("POST /settings/storage/invite", s.requireOwner(s.inviteGuestSubmit))
 	mux.Handle("POST /settings/storage/guests/{id}/remove", s.requireOwner(s.removeGuestSubmit))
@@ -346,7 +346,6 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/storage/server", s.requireOwner(s.guestServerSubmit))
 	mux.Handle("POST /settings/storage/guests/{id}/quota", s.requireOwner(s.guestQuotaSubmit))
 	mux.Handle("POST /settings/storage/leftover/{user}/delete", s.requireOwner(s.deleteLeftoverSubmit))
-	mux.Handle("POST /settings/remote-storage", s.requireOwner(s.addRemoteStorageSubmit))
 	mux.Handle("GET /services/{name}/move", s.requireOwner(s.movePage))
 	mux.Handle("POST /services/{name}/move", s.requireOwner(s.moveSubmit))
 	mux.Handle("POST /settings/servers/join", s.requireOwner(s.joinCodeSubmit))
@@ -388,6 +387,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /setup/backup", s.requireWizard(s.backupSubmit))
 	mux.Handle("POST /setup/backup/later", s.requireWizard(s.backupLater))
 	mux.Handle("GET /setup/backup/drives", s.requireWizard(s.drivesPartial))
+	mux.Handle("POST /setup/backup/add", s.requireWizard(s.planAddSubmit(true)))
+	mux.Handle("POST /backups/plan", s.requireOwner(s.planAddSubmit(false)))
+	mux.Handle("POST /backups/plan/promote", s.requireOwner(s.planPromoteSubmit))
+	mux.Handle("POST /backups/plan/remove", s.requireOwner(s.planRemoveSubmit))
 	mux.Handle("POST /setup/backup/erase", s.requireWizard(s.eraseDriveSubmit))
 	mux.Handle("GET /setup/recovery-key", s.requireWizard(s.recoveryPage))
 	mux.Handle("POST /setup/recovery-key", s.requireWizard(s.recoveryConfirm))

@@ -262,15 +262,7 @@ func serve(args []string) error {
 
 	wizard = &setup.Setup{
 		Lab: lab, LabPath: *labPath, Store: st, Secrets: podman.NewSecrets(),
-		NewRepo: func(repository string, env []string) *backup.Repo {
-			l := lab
-			l.Backup = config.Backup{Repository: repository, Env: env}
-			repo, err := newRepo(l, userLaunch)
-			if err != nil { // restic missing: Init will report it
-				return &backup.Repo{Bin: "restic", URL: repository, PasswordFile: backup.KeyFile(lab.Paths), Env: env}
-			}
-			return repo
-		},
+
 		Restart: restart,
 		Drives:  agentClient,
 		// The wizard's end restarts Roostack if a step asked for it.

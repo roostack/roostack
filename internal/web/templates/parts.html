@@ -90,16 +90,6 @@
       <p class="error">No backup has finished yet.</p>
     {{end}}
     <p class="hint">Next backup: {{when .Next}}</p>
-    {{with .Copies}}
-    <h3>Copies somewhere else</h3>
-    <ul class="plain">
-      {{range .}}<li><strong>{{.Title}}</strong>:
-        {{with .Last}}{{if .OK}}<span class="dot dot-{{if stale .Finished}}warn{{else}}ok{{end}}" aria-hidden="true"></span>copied {{when .Finished}}
-          <span class="hint">· {{.FilesNew}} new or changed files, {{bytes .DataAdded}} added</span>
-        {{- else}}<span class="dot dot-problem" aria-hidden="true"></span>the last copy ({{when .Finished}}) didn't finish: {{.Error}}{{end}}
-        {{- else}}the first copy is made with the next backup{{end}}</li>{{end}}
-    </ul>
-    {{end}}
     {{if .LocalOnly}}
       {{notice "warn" "Backups are only stored on this server. Add an off-site copy to protect against theft, fire or a failed disk."}}
     {{end}}
@@ -161,4 +151,172 @@
   {{range .Areas}}<a href="{{.Href}}"{{if eq .ID $.SettingsArea}} class="active" aria-current="page"{{end}}>{{.Title}}</a>{{end}}
   {{end}}
 </nav>
+{{end}}
+
+{{/* backup-drives: this server's drives, best first (setup.BackupDrives). */}}
+{{define "backup-drives"}}
+{{range $d := .Drives}}
+<div class="drive{{if not .Usable}} drive-unusable{{end}}">
+  <label class="check"><input type="radio" name="drive" value="{{.ID}}"{{if not .Usable}} disabled{{end}}{{if eq .ID $.Selected}} checked{{end}}>
+    <span><strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else if eq .Kind "disk"}}Second disk{{else if eq .Kind "network"}}Network share{{else}}This server{{end}}</span>
+      <small>{{if .Size}}{{size .Size}}{{end}}{{if ge .Free 0}}{{if .Size}} · {{end}}{{size .Free}} free{{end}}{{with .Model}}{{if ne . $d.Name}} · {{.}}{{end}}{{end}}{{with .FSType}} · {{.}}{{end}}
+        {{- if eq .Kind "system"}}<br>Protects against mistakes, not a failed disk: add a copy somewhere else later.
+        {{- else if not .Usable}}<br>Empty, or not something Roostack can use as it is: prepare it to use it.
+        {{- else if not .Mount}}<br>Roostack sets it up so it's there after a restart too.{{end}}</small></span></label>
+  {{if .Erasable}}
+  <div x-data class="drive-erase">
+    <button type="button" class="quiet{{if .Usable}} danger{{end}}" x-on:click="$refs.erase.showModal()">{{if .Usable}}Erase it and start afresh…{{else}}Prepare this disk…{{end}}</button>
+    <dialog x-ref="erase" class="dialog">
+      <p><strong>Erase {{.Name}}?</strong> Everything on {{with .Model}}{{.}}, {{end}}{{size .Size}} (<code>{{.Disk}}</code>) is deleted, for good,
+        and it's prepared for Roostack's backups.</p>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" x-on:click="$refs.erase.close()">Cancel</button>
+        <button type="submit" class="danger" formaction="/setup/backup/erase" formnovalidate name="disk" value="{{.Disk}}">Erase it</button>
+      </div>
+    </dialog>
+  </div>
+  {{end}}
+</div>
+{{else}}<p class="hint">No drives found.</p>
+{{end}}
+{{end}}
+
+{{/* backup-plan: a server's backup plan (plan.go), on the Backups page and
+     in the setup wizard. */}}
+{{define "backup-plan"}}{{with .Plan}}
+{{/* Reloads when a change (e.g. creating a backup's repository) finishes. */}}
+<section class="card section plan" id="plan" hx-get="{{.Back}}" hx-select="#plan" hx-trigger="activity-done from:body" hx-swap="outerHTML">
+  <div class="heading">
+    <h2>Your backup plan</h2>
+    <span class="hint">{{len .Entries}} {{if eq (len .Entries) 1}}backup{{else}}backups{{end}}</span>
+  </div>
+  <p class="hint">Every night, each backup below gets its own copy of {{if .Server.This}}this server's{{else}}{{.Server.Name}}'s{{end}} services and settings, readable with your recovery key.</p>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{with .Hint}}{{notice "info" .}}{{end}}
+  {{with .Busy}}{{activity .}}{{end}}
+  <ol class="plan-list">
+    {{range .Entries}}
+    {{if and $.Plan.Replacing .Main}}{{template "plan-chooser" $.Plan}}{{else}}
+    <li class="plan-card">
+      <span class="plan-num">{{.Number}}</span>
+      <div class="plan-body">
+        <p class="plan-title">{{.Title}}</p>
+        <p class="hint">{{with .KindTitle}}{{.}} · {{end}}{{if .AtHome}}at home{{else if .Away}}away from home{{else}}elsewhere{{end}}{{if .Main}} · restores use this one first{{end}}</p>
+        {{with .Last}}{{if .OK}}<p class="plan-ok"><span class="dot dot-{{if stale .Finished}}warn{{else}}ok{{end}}" aria-hidden="true"></span>Backed up {{when .Finished}}
+          <span class="hint">· {{.FilesNew}} new or changed files, {{bytes .DataAdded}} added</span></p>
+        {{- else}}<p class="error"><span class="dot dot-problem" aria-hidden="true"></span>The last backup here ({{when .Finished}}) didn't finish: {{.Error}}</p>{{end}}
+        {{- else}}<p class="hint">The first backup here is made with the next backup.</p>{{end}}
+        {{if not $.Plan.Wizard}}
+        <details class="plan-manage">
+          <summary>Manage</summary>
+          <p class="hint">Where it is: <code>{{shownRepo .Repository}}</code></p>
+          {{if .Main}}<p><a href="{{$.Plan.Back}}?replace=1#plan">Change where backup 1 goes…</a>
+            <span class="hint">A new backup starts there; the backups here stay.</span></p>
+          {{else}}
+          <div class="plan-actions">
+            {{confirm (printf "%s/promote" $.Plan.Action) (printf "Make %s backup 1? Restores use backup 1 first. Both keep their backups." .Title) "Make this backup 1" "secondary" (printf "destination=%s" .Ref)}}
+            {{confirm (printf "%s/remove" $.Plan.Action) (printf "Stop backing up to %s? The backups made so far stay there." .Title) "Stop this backup" "quiet danger" (printf "destination=%s" .Ref)}}
+          </div>
+          {{end}}
+        </details>
+        {{end}}
+      </div>
+    </li>
+    {{end}}
+    {{end}}
+    {{range .Slots}}
+    {{if eq $.Plan.Adding .Number}}{{template "plan-chooser" $.Plan}}{{else}}
+    <li class="plan-card plan-slot">
+      <span class="plan-num">{{.Number}}</span>
+      <div class="plan-body">
+        <p class="plan-title">{{.Title}}</p>
+        <p class="hint">{{.Suggest}}</p>
+      </div>
+      {{if or (eq .Number 1) (ge (len $.Plan.Entries) 1)}}<a class="button secondary" href="{{$.Plan.Back}}?add={{.Number}}#plan">Add</a>{{end}}
+    </li>
+    {{end}}
+    {{end}}
+    {{if ge (len .Entries) 3}}
+    {{if eq .Adding .More}}{{template "plan-chooser" .}}{{else}}
+    <li class="plan-more"><a href="{{.Back}}?add={{.More}}#plan">Add another backup…</a></li>
+    {{end}}
+    {{end}}
+  </ol>
+  <p class="plan-checks">
+    <span class="{{if .Checks.BackedUp}}plan-ok{{else}}plan-warn{{end}}"><span class="dot dot-{{if .Checks.BackedUp}}ok{{else}}warn{{end}}" aria-hidden="true"></span>Backed up lately</span>
+    <span class="{{if .Checks.TwoKinds}}plan-ok{{else}}plan-warn{{end}}"><span class="dot dot-{{if .Checks.TwoKinds}}ok{{else}}warn{{end}}" aria-hidden="true"></span>Two kinds of storage</span>
+    <span class="{{if .Checks.Away}}plan-ok{{else}}plan-warn{{end}}"><span class="dot dot-{{if .Checks.Away}}ok{{else}}warn{{end}}" aria-hidden="true"></span>One away from home</span>
+  </p>
+  <p class="hint">The "3-2-1" rule: three copies of your data (your services and two backups), on two kinds of storage, one of them away from home.</p>
+</section>
+{{end}}{{end}}
+
+{{/* plan-chooser: where a backup goes (planView: Adding, Options). */}}
+{{define "plan-chooser"}}
+<li class="plan-card plan-adding">
+  <span class="plan-num">{{.Adding}}</span>
+  <div class="plan-body">
+    <p class="plan-title">{{if .Replacing}}Where should backup 1 go instead?{{else}}Where should backup {{.Adding}} go?{{end}}</p>
+    <form method="post" action="{{.Action}}" x-data="{ choice: '{{if .Options.CanDrives}}drive{{else}}online{{end}}' }">
+      {{if .Replacing}}<input type="hidden" name="replace" value="1">{{end}}
+      <input type="hidden" name="add" value="{{.Adding}}">
+      <div class="plan-choices">
+        {{if .Options.CanDrives}}<label class="plan-choice"><input type="radio" name="choice" value="drive" x-model="choice">
+          <span><strong>A drive</strong><small>USB drive, second disk or network share</small></span></label>{{end}}
+        <label class="plan-choice"><input type="radio" name="choice" value="online" x-model="choice">
+          <span><strong>Online storage</strong><small>Backblaze B2, Wasabi, S3</small></span></label>
+        <label class="plan-choice"><input type="radio" name="choice" value="friend" x-model="choice">
+          <span><strong>A friend's lab</strong><small>Space on their Roostack</small></span></label>
+        {{if and .Options.Servers (not .Wizard)}}<label class="plan-choice"><input type="radio" name="choice" value="server" x-model="choice">
+          <span><strong>Another server</strong><small>A disk in this lab</small></span></label>{{end}}
+      </div>
+
+      {{if .Options.CanDrives}}
+      <div x-show="choice === 'drive'">
+        <div id="drives" class="drives" hx-get="/setup/backup/drives" hx-include="#drives [name='drive']" hx-swap="innerHTML"
+          hx-trigger="every 3s [!document.querySelector('#drives dialog[open]')]">{{template "backup-drives" .Options}}</div>
+        <p class="hint">Just plugged a drive in? It appears here within a few seconds.</p>
+        <details>
+          <summary>A folder instead (for technical users)</summary>
+          <label>Folder <input name="folder" placeholder="/mnt/backup" autocapitalize="off">
+            <small>Under /mnt, /media or /srv; Roostack keeps its backups in a roostack folder inside it. Used if no drive is chosen above.</small></label>
+        </details>
+      </div>
+      {{end}}
+
+      <div x-show="choice === 'online'" x-cloak>
+        {{range .Options.Online}}<label class="check"><input type="radio" name="provider" value="{{.Ref}}"><span>{{.Title}}<small>{{.Note}}</small></span></label>{{end}}
+        <div x-data="{ provider: '{{if .Options.Online}}{{else}}new{{end}}' }">
+          {{if .Options.Online}}<label class="check"><input type="radio" name="provider" value="new" x-model="provider"><span>Another account</span></label>{{else}}<input type="hidden" name="provider" value="new">{{end}}
+          <div x-show="provider === 'new'"{{if .Options.Online}} x-cloak{{end}}>
+            <label>Name <input name="name" placeholder="Backblaze"></label>
+            <label>Endpoint <input name="endpoint" placeholder="https://s3.us-west-004.backblazeb2.com" autocapitalize="off"></label>
+            <label>Bucket <input name="bucket" autocapitalize="off"></label>
+            <label>Folder in the bucket (optional) <input name="prefix" placeholder="backups" autocapitalize="off"></label>
+            <label>Access key <input name="access_key" autocomplete="off" autocapitalize="off"></label>
+            <label>Secret key <input name="secret_key" type="password" autocomplete="off"></label>
+            <p class="hint">Any of your servers can back up to this account later, each in its own folder.</p>
+          </div>
+        </div>
+      </div>
+
+      <div x-show="choice === 'friend'" x-cloak>
+        {{range .Options.Friends}}<label class="check"><input type="radio" name="remote" value="{{.Ref}}"><span>{{.Title}}<small>{{.Note}}</small></span></label>{{end}}
+        <label>{{if .Options.Friends}}Or paste a new invite{{else}}Their invite{{end}} <textarea name="invite" rows="3" placeholder="roostack-storage-…"></textarea>
+          <small>They make it on their Roostack: Settings → Storage for others. Your backups are encrypted before they leave; they can't read them.</small></label>
+      </div>
+
+      {{if not .Wizard}}{{with .Options.Servers}}
+      <div x-show="choice === 'server'" x-cloak>
+        {{range .}}<label class="check"><input type="radio" name="server" value="{{.Ref}}"><span>{{.Title}}<small>{{.Note}}</small></span></label>{{end}}
+      </div>
+      {{end}}{{end}}
+
+      <div class="plan-actions">
+        <button type="submit">{{if .Replacing}}Use this for backup 1{{else}}Add backup {{.Adding}}{{end}}</button>
+        <a href="{{.Back}}#plan">Cancel</a>
+      </div>
+    </form>
+  </div>
+</li>
 {{end}}
