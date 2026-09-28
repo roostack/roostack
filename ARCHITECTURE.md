@@ -59,7 +59,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/state` | Load desired state from disk |
 | `internal/systemd` | `systemctl --user` wrapper |
 | `internal/podman` | The few direct `podman` calls (secrets, `exec` for package hooks) |
-| `internal/agent` | Agent server, client, firewall ruleset, time zone, OS updates, reboot |
+| `internal/agent` | Agent server and client: firewall ruleset, time zone, OS updates, reboot, WireGuard interfaces, backup drives and folders, and checks for host changes Roostack didn't make |
 | `internal/web/static/css`, `docs/DESIGN.md` | Design system: tokens, built-in themes, components; gallery at `/design` and `docs/design/gallery.html` |
 | `internal/nodeid` | This server's identity (node ID and name) |
 | `internal/labnet` | The network between a lab's servers (SPEC.md §10.2, §10.9): the controller's CA and each server's certificate, join codes, membership (role and overlay address), the hub (WireGuard peers, joining) and the mutual-TLS lab API server |
@@ -67,12 +67,14 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/activity` | Live logs of host operations (OS updates, backups, applies, setup hooks) for the UI: a status line plus collapsible details |
 | `internal/osupdate` | Nightly OS updates job, restart-needed detection, "restart now" |
 | `internal/firewall` | Builds the firewall from the lab and its services; lists current SSH connections |
-| `internal/store` | SQLite runtime data: users, sessions, audit log |
+| `internal/store` | SQLite runtime data: users, sessions, audit log, settings, backup runs, the lab's servers and join codes, backup providers, targets and copies, and storage for other labs |
 | `internal/auth` | Password hashing (argon2id), session tokens, roles |
 | `internal/web` | Web UI: handlers, templates, vendored htmx/Alpine |
 | `internal/manager` | The controller: catalog, install, remove, ports and settings (desired state), and each server's Assignment |
 | `internal/maintenance` | Maintenance coordinator: job queue and reboot policy |
 | `internal/backup` | restic wrapper, prepare steps, backup plan and job |
+| `internal/b2` | Backblaze B2 application keys limited to one server's folder, made and deleted over B2's native API |
+| `internal/units` | The one size formatter (decimal units: 1 GB = 1000³ bytes) |
 | `internal/labrestore` | Rebuilding a whole lab on a new server (SPEC.md §6.9): finding its backups (a folder, an S3-compatible bucket or any restic address) with the recovery key, restoring the controller's backup, then its database at the next start and the services' databases once they're set up again |
 
 Rules that keep this maintainable:
@@ -140,4 +142,4 @@ Installing or removing a service from the UI only changes desired state (an inst
 
 ## Not built yet
 
-2FA QR codes and recovery codes, managing services and users from the UI, backups, the maintenance coordinator, host OS updates, packaging (.deb). See [TASKS.md](TASKS.md).
+The main pieces still to come: public exposure (with CrowdSec), an SFTP backup destination, the apt repository and signing, moving the controller and failover between servers, and edge servers for public services at home. See [TASKS.md](TASKS.md) for everything, by phase.
