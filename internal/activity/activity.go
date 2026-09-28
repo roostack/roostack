@@ -29,6 +29,10 @@ const (
 	LabRestore = "lab-restore"
 )
 
+// BackupSetupFor is the BackupSetup log of one server: the controller
+// sets up every server's backups, and keeps a log for each.
+func BackupSetupFor(serverID string) string { return BackupSetup + "." + serverID }
+
 // maxLines is how many lines a log keeps; older ones are dropped.
 const maxLines = 2000
 

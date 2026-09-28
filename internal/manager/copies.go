@@ -43,7 +43,7 @@ func (m *Manager) BackupCopiesOf(ctx context.Context, serverID string) []BackupC
 
 // AddBackupCopy adds an extra copy of a server's backups at a choice other
 // than its main destination. The repository is created in the background
-// (activity.BackupSetup); the server then restarts Roostack.
+// (activity.BackupSetupFor); the server then restarts Roostack.
 func (m *Manager) AddBackupCopy(ctx context.Context, serverID, ref string) error {
 	if m.BackupStore == nil || m.OpenRepo == nil {
 		return ErrNotFound
@@ -77,7 +77,7 @@ func (m *Manager) AddBackupCopy(ctx context.Context, serverID, ref string) error
 		}
 	}
 	name := n.Identity().Name
-	act := m.Activity.Start(activity.BackupSetup, "Adding a copy of "+name+"'s backups")
+	act := m.Activity.Start(activity.BackupSetupFor(serverID), "Adding a copy of "+name+"'s backups")
 	go func() {
 		err := m.setUpCopy(context.Background(), act, serverID, n, *choice)
 		if err != nil {
@@ -88,7 +88,17 @@ func (m *Manager) AddBackupCopy(ctx context.Context, serverID, ref string) error
 	return nil
 }
 
-func (m *Manager) setUpCopy(ctx context.Context, act *activity.Log, serverID string, n node.Node, choice BackupChoice) error {
+func (m *Manager) setUpCopy(ctx context.Context, act *activity.Log, serverID string, n node.Node, choice BackupChoice) (err error) {
+	// Recorded early like the main one; forgotten again if setting up fails.
+	defer func() {
+		if err == nil {
+			return
+		}
+		if undo := m.BackupStore.RemoveBackupCopy(ctx, serverID, choice.Ref); undo != nil {
+			m.Log.Error("forgetting a copy that failed", "server", serverID, "err", undo)
+		}
+		m.Apply()
+	}()
 	target, dest, err := m.createRepository(ctx, act, serverID, choice, m.BackupStore.SetBackupCopy)
 	if err != nil {
 		return err

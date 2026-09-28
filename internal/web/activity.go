@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"strings"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
@@ -31,11 +32,16 @@ type activityView struct {
 // activityFor returns kind's latest activity for the page, or nil if
 // there is none or the user may not see it.
 func (s *Server) activityFor(r *http.Request, kind string) *activityView {
-	perm, ok := activityPerm[kind]
-	if !ok || !auth.Can(currentUser(r).Role, perm) {
+	base, forServer, _ := strings.Cut(kind, ".")
+	perm, ok := activityPerm[base]
+	if !ok || !auth.Can(currentUser(r).Role, perm) || (forServer != "" && base != activity.BackupSetup) {
 		return nil
 	}
 	n := s.serverOf(r)
+	if forServer != "" {
+		// Kept by the controller, for the server named in the kind.
+		n = s.Node
+	}
 	if n == nil {
 		return nil
 	}
@@ -45,7 +51,7 @@ func (s *Server) activityFor(r *http.Request, kind string) *activityView {
 	}
 	v := &activityView{Kind: kind, Snapshot: snap}
 	// Polling asks the same server.
-	if m := s.serverRefOf(r); !m.This {
+	if m := s.serverRefOf(r); !m.This && forServer == "" {
 		v.Server = m.ID
 	}
 	return v

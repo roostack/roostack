@@ -39,6 +39,7 @@ type BackupStore interface {
 	BackupCopies(ctx context.Context) ([]store.BackupTarget, error)
 	RemoveBackupCopy(ctx context.Context, serverID, provider string) error
 	SetBackupTarget(ctx context.Context, t store.BackupTarget) error
+	RemoveBackupTarget(ctx context.Context, serverID string) error
 	StoreAdmin(ctx context.Context, serverID string) (password, hash string, ok bool, err error)
 	SetStoreAdmin(ctx context.Context, serverID, password, hash string) error
 	LabID(ctx context.Context) (string, error)
@@ -115,7 +116,7 @@ func (m *Manager) AddS3Provider(ctx context.Context, name string, p S3Provider) 
 }
 
 // SetBackupDestination points a server's backups at a choice. The
-// repository is created in the background (activity.BackupSetup); the
+// repository is created in the background (activity.BackupSetupFor); the
 // server then restarts Roostack to start backing up there.
 func (m *Manager) SetBackupDestination(ctx context.Context, serverID, ref string) error {
 	if m.BackupStore == nil || m.OpenRepo == nil {
@@ -139,7 +140,7 @@ func (m *Manager) SetBackupDestination(ctx context.Context, serverID, ref string
 		return formErrorf("Choose where backups go.")
 	}
 	name := n.Identity().Name
-	act := m.Activity.Start(activity.BackupSetup, "Setting up backups for "+name)
+	act := m.Activity.Start(activity.BackupSetupFor(serverID), "Setting up backups for "+name)
 	go func() {
 		ctx := context.Background()
 		err := m.setUpRepository(ctx, act, serverID, n, *choice)
@@ -151,7 +152,23 @@ func (m *Manager) SetBackupDestination(ctx context.Context, serverID, ref string
 	return nil
 }
 
-func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, serverID string, n node.Node, choice BackupChoice) error {
+func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, serverID string, n node.Node, choice BackupChoice) (err error) {
+	// The target is recorded early (a backup store learns its new user
+	// from it); if setting up fails, the one before is put back.
+	prev, _, hadPrev := m.BackupTargetOf(ctx, serverID)
+	defer func() {
+		if err == nil {
+			return
+		}
+		undo := m.BackupStore.RemoveBackupTarget(ctx, serverID)
+		if hadPrev {
+			undo = m.BackupStore.SetBackupTarget(ctx, prev)
+		}
+		if undo != nil {
+			m.Log.Error("putting back where backups went", "server", serverID, "err", undo)
+		}
+		m.Apply()
+	}()
 	target, dest, err := m.createRepository(ctx, act, serverID, choice, m.BackupStore.SetBackupTarget)
 	if err != nil {
 		return err

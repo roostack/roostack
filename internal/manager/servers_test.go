@@ -72,6 +72,7 @@ type fakeServerSettings struct {
 	dest     *node.BackupDestination
 	copies   []node.BackupCopy
 	promoted string
+	destErr  error // SetBackupDestination fails with it
 }
 
 func (f *fakeServerSettings) Timezones() (string, []string, error)              { return "", nil, nil }
@@ -97,6 +98,9 @@ func (f *fakeServerSettings) SetBackupCopies(_ context.Context, copies []node.Ba
 func (f *fakeServerSettings) SetBackupDestination(_ context.Context, d node.BackupDestination) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.destErr != nil {
+		return f.destErr
+	}
 	f.dest = &d
 	return nil
 }

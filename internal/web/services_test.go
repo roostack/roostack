@@ -831,8 +831,12 @@ func TestBackupPlan(t *testing.T) {
 			t.Errorf("empty plan missing %q", want)
 		}
 	}
+	// Backups are added in order: only the next one.
+	if _, body := h.get("/backups?add=2"); strings.Contains(body, "Where should backup 2 go?") || strings.Contains(body, `href="/backups?add=2#plan"`) {
+		t.Error("backup 2 before backup 1")
+	}
 	_, body = h.get("/backups?add=1")
-	for _, want := range []string{"Where should backup 1 go?", `value="provider:1"`, "Another server", `value="server:n-0123456789"`} {
+	for _, want := range []string{"Where should backup 1 go?", `value="provider:1"`, "Another Roostack instance", `value="server:n-0123456789"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("chooser missing %q", want)
 		}

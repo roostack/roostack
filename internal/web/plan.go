@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
@@ -62,14 +63,18 @@ type planView struct {
 	Options   planOptions
 	Busy      *activityView
 	Error     string
+	// Next is when the next backup runs (zero if unknown).
+	Next time.Time
 	// Action is where the chooser posts; Back where the page is.
 	Action, Back string
 }
 
 // planOptions are the places a backup can be added, by kind.
 type planOptions struct {
-	CanDrives                bool
-	Drives                   []agent.Drive
+	CanDrives bool
+	Drives    []agent.Drive
+	// OwnDisk is another server's own disk: its drives aren't listed here.
+	OwnDisk                  *manager.BackupChoice
 	Selected                 string
 	Online, Friends, Servers []manager.BackupChoice
 }
@@ -77,7 +82,7 @@ type planOptions struct {
 func kindTitle(kind string) string {
 	return map[string]string{manager.KindUSB: "USB drive", manager.KindDisk: "Second disk", manager.KindNetwork: "Network share",
 		manager.KindSystem: "This server's disk", manager.KindFolder: "Folder", manager.KindOnline: "Online storage",
-		manager.KindFriend: "A friend's lab", manager.KindServer: "Another server"}[kind]
+		manager.KindFriend: "A friend's lab", manager.KindServer: "Another Roostack instance"}[kind]
 }
 
 // backupPlan builds a server's plan. adding and replacing open the
@@ -95,6 +100,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	if b := s.backups(r); b != nil {
 		if x, err := b.Status(ctx); err == nil {
 			st = &x
+			p.Next = x.Next
 		}
 	}
 	used := map[string]bool{}
@@ -176,7 +182,10 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	p.More = len(p.Entries) + 1
 
 	// The chooser.
-	p.Adding, _ = strconv.Atoi(r.FormValue("add"))
+	// Backups are added in order: only the next one.
+	if n, _ := strconv.Atoi(r.FormValue("add")); n == len(p.Entries)+1 {
+		p.Adding = n
+	}
 	p.Replacing = r.FormValue("replace") == "1" && hasMain
 	if p.Replacing {
 		p.Adding = 1
@@ -184,7 +193,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	if p.Adding > 0 {
 		p.Options = s.planOptions(r, m, main, hasMain, used, wizard)
 	}
-	if a := s.activityFor(r, activity.BackupSetup); a != nil && a.Running() {
+	// Setting a backup up: while it runs, and if it failed lately (so the
+	// reason stays in view).
+	if a := s.activityFor(r, activity.BackupSetupFor(m.ID)); a != nil && (a.Running() || a.Err != "" && time.Since(a.Finished) < time.Hour) {
 		p.Busy = a
 	}
 	return p
@@ -229,9 +240,9 @@ func (s *Server) planOptions(r *http.Request, m serverRef, main store.BackupTarg
 				o.Servers = append(o.Servers, c)
 			}
 		case manager.KindSystem:
-			// This server's own disk: a drive here, or its store elsewhere.
+			// The server's own disk: a drive here, or its store elsewhere.
 			if !o.CanDrives {
-				o.Servers = append(o.Servers, c)
+				o.OwnDisk = &c
 			}
 		}
 	}
@@ -301,7 +312,9 @@ func (s *Server) resolveChoice(r *http.Request) (string, error) {
 	ctx := r.Context()
 	switch r.FormValue("choice") {
 	case "drive":
-		if d := r.FormValue("drive"); d != "" {
+		if d := r.FormValue("drive"); strings.HasPrefix(d, "server:") {
+			return d, nil // another server's own disk
+		} else if d != "" {
 			return "drive:" + d, nil
 		}
 		if f := strings.TrimSpace(r.FormValue("folder")); f != "" {
