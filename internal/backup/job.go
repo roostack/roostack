@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/maintenance"
+	"roostack.cloud/roostack/internal/units"
 )
 
 // JobName is the coordinator job name for backups (used to resume them
@@ -254,16 +255,5 @@ func prepareService(step generate.PrepareStep) string {
 	return filepath.Base(filepath.Dir(filepath.Dir(step.Target)))
 }
 
-// Bytes formats a size for people, e.g. "1.2 GB".
-func Bytes(n uint64) string {
-	const unit = 1000
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := uint64(unit), 0
-	for m := n / unit; m >= unit; m /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "kMGTPE"[exp])
-}
+// Bytes formats a size for people, e.g. "1.2 GB" (units.Bytes).
+func Bytes(n uint64) string { return units.Bytes(int64(n)) }

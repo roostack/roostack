@@ -10,6 +10,7 @@ import (
 
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labrestore"
+	"roostack.cloud/roostack/internal/units"
 )
 
 // backupStale is when the dashboard warns that backups aren't happening.
@@ -26,7 +27,7 @@ var templateFuncs = template.FuncMap{
 	"list": func(items ...string) []string { return items },
 	// percent shows progress, or nothing if it's unknown (-1).
 	"size": sizeText,
-	"gb":   func(b int64) int64 { return b >> 30 },
+	"gb":   func(b int64) int64 { return b / units.GB },
 	// image is a container image without its digest (shown in full on
 	// hover): docker.io/vaultwarden/server:1.34.3.
 	"image": func(ref string) string { name, _, _ := strings.Cut(ref, "@"); return name },
@@ -39,7 +40,7 @@ var templateFuncs = template.FuncMap{
 	// palette is the built-in theme (internal/web/static/css/themes).
 	"palette": func() string { return DefaultPalette },
 	"themes":  func() []Theme { return Themes },
-	"bytes":   backup.Bytes,
+	"bytes":   func(n uint64) string { return units.Bytes(int64(n)) },
 	// roleName shows a role as people say it ("Owner").
 	"roleName": func(role string) string {
 		if role == "" {

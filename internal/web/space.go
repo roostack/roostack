@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/units"
 )
 
 // Disk space on each server (SPEC.md §6.7): what's used and free on the
@@ -17,8 +18,8 @@ import (
 // Low space: a warning below lowFreeWarn (or 10% of the disk), a problem
 // below lowFreeProblem (or 5%).
 const (
-	lowFreeWarn    = 5 << 30
-	lowFreeProblem = 2 << 30
+	lowFreeWarn    = 5 * units.GB
+	lowFreeProblem = 2 * units.GB
 )
 
 // spaceView is a server's disk space for a page.

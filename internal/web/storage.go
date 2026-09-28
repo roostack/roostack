@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/units"
 )
 
 // Storage for other labs (SPEC.md §10.10): this lab keeps other labs'
@@ -87,7 +88,7 @@ func gigabytes(v string) int64 {
 	if err != nil || n < 0 {
 		return -1
 	}
-	return n << 30
+	return n * units.GB
 }
 
 func (s *Server) inviteGuestSubmit(w http.ResponseWriter, r *http.Request) {

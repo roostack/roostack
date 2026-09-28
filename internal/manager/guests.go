@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/units"
 )
 
 // Storage for other labs (SPEC.md §10.10). As host, this lab keeps other
@@ -106,7 +107,7 @@ func (m *Manager) InviteGuest(ctx context.Context, name string, quota int64, end
 	switch {
 	case name == "" || len([]rune(name)) > 60:
 		return labnet.StorageInvite{}, formErrorf("Give it a name, such as \"Tyris's lab\".")
-	case quota < 1<<30:
+	case quota < units.GB:
 		return labnet.StorageInvite{}, formErrorf("Offer at least 1 GB.")
 	}
 	if host, port, err := splitEndpoint(endpoint); err != nil || host == "" || port == 0 {
@@ -221,7 +222,7 @@ func (m *Manager) SetGuestQuota(ctx context.Context, id, quota int64) error {
 	if m.GuestRecords == nil {
 		return ErrNotFound
 	}
-	if quota < 1<<30 {
+	if quota < units.GB {
 		return formErrorf("Offer at least 1 GB.")
 	}
 	if err := m.GuestRecords.SetGuestQuota(ctx, id, quota); err != nil {
@@ -442,12 +443,7 @@ func splitEndpoint(s string) (string, int, error) {
 	return host, n, err
 }
 
-func sizeGB(b int64) string {
-	if b < 0 {
-		b = 0
-	}
-	return fmt.Sprintf("%.0f GB", float64(b)/(1<<30))
-}
+func sizeGB(b int64) string { return units.Bytes(max(b, 0)) }
 
 // LeftoverGuest is data a removed guest left here.
 type LeftoverGuest struct {

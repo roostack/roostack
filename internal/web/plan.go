@@ -49,7 +49,7 @@ type planEntry struct {
 	// FreeOn names where Free is ("this server's disk", "the drive",
 	// "vps's disk"); LowSpace is lowSpace's level for it.
 	FreeOn, LowSpace string
-	Lab    *labnet.GuestUsage
+	Lab              *labnet.GuestUsage
 }
 
 // planSlot is an empty place in the plan, with a suggestion for it.

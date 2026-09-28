@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/units"
 )
 
 // Moving a service to another server by copying its data directly
@@ -42,7 +43,7 @@ type MoveInfo struct {
 
 // largeData is the size above which moving through a backup is suggested:
 // the backup is resumable and only uploads what changed since the last one.
-const largeData = 10 << 30
+const largeData = 10 * units.GB
 
 // MoveInfo returns where a service runs and how much data it has.
 func (m *Manager) MoveInfo(ctx context.Context, name string) (MoveInfo, error) {
