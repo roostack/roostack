@@ -14,6 +14,9 @@
 {{define "badge"}}<span class="badge{{if .Highlight}} badge-highlight{{end}}">{{.Text}}</span>{{end}}
 
 {{/* back: a link to the parent page. */}}
+{{/* server: a server's name, marked as one of the lab's servers. */}}
+{{define "server"}}<span class="server-chip">{{icon "server"}}{{.}}</span>{{end}}
+
 {{define "back"}}<a class="back" href="{{.Href}}">← {{.Text}}</a>{{end}}
 
 {{/* confirm: a form that posts to Action after the browser asks Question.

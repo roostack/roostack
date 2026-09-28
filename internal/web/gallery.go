@@ -75,6 +75,8 @@ var gallerySections = []gallerySection{
 			{"Badges", "", `
 {{badge "Preview"}}
 {{badge "New" "highlight"}}`},
+			{"Server", "server NAME: one of the lab's servers, named in running text (\"On nuc\"), so it's clear it means a server.", `
+<p class="hint">On {{server "nuc"}} · backed up today 02:14</p>`},
 			{"Icons", "icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text's colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network (icons.go).", `
 <p class="with-icon">{{icon "server"}}Role</p>
 <p class="with-icon">{{icon "disk"}}Disk</p>
