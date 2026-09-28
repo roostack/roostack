@@ -81,6 +81,9 @@ func TestAuditAndBackup(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if fi, err := os.Stat(backup); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Errorf("the copy holds password hashes, so must be private: %v %v", fi.Mode(), err)
+	}
 	copy, err := Open(backup)
 	if err != nil {
 		t.Fatal(err)

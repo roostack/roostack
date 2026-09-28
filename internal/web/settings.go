@@ -152,7 +152,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 			set("updates", "Updates install every night after the backup", "")
 		}
 	}
-	set("lab", s.LabName, "")
+	set("lab", s.labName(), "")
 	if s.Manager != nil {
 		if servers, err := s.Manager.Servers(); err == nil {
 			summary, level := fmt.Sprintf("%d servers", len(servers)), "ok"
