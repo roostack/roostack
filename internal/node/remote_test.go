@@ -31,6 +31,7 @@ type fakeNode struct {
 	applied  chan Assignment
 	settings *fakeSettings
 	healthy  atomic.Bool // its last apply worked (else "image pull failed")
+	builtIns atomic.Int32 // calls
 }
 
 func (f *fakeNode) Identity() nodeid.Identity {
@@ -51,6 +52,7 @@ func (f *fakeNode) ServiceDetails(context.Context) (map[string]ServiceDetail, er
 		Image: "docker.io/vaultwarden/server:1.34", State: "active (running)"}}, DataSize: 1234}}, nil
 }
 func (f *fakeNode) BuiltIns(context.Context) ([]BuiltIn, error) {
+	f.builtIns.Add(1)
 	return []BuiltIn{{Name: "Roostack agent", Kind: "roostack", Status: "active (running)"}}, nil
 }
 func (f *fakeNode) InstallStatus(_ context.Context, s string) HookStatus {
@@ -190,6 +192,17 @@ func TestRemote(t *testing.T) {
 	}
 	if changed, err := r.Settings().SetTimezone(ctx, "Europe/London"); !changed || err != nil || fn.settings.zone != "Europe/London" {
 		t.Errorf("set zone: %v %v", changed, err)
+	}
+	// Reads the pages refresh are shared for a few seconds; a change
+	// forgets them.
+	r.BuiltIns(ctx)
+	calls := fn.builtIns.Load()
+	if b, err := r.BuiltIns(ctx); err != nil || len(b) != 1 || fn.builtIns.Load() != calls {
+		t.Errorf("a second read so soon should be shared: %d calls, %v", fn.builtIns.Load()-calls, err)
+	}
+	r.Settings().SetTimezone(ctx, "Etc/UTC")
+	if r.BuiltIns(ctx); fn.builtIns.Load() != calls+1 {
+		t.Error("a change should forget shared reads")
 	}
 	if mode, hour := r.Settings().RestartPolicy(); mode != "notify" || hour != 3 {
 		t.Errorf("restart policy %q %d", mode, hour)

@@ -1327,3 +1327,31 @@ func TestServerDiskSpace(t *testing.T) {
 		t.Error("low space should need attention")
 	}
 }
+
+// A self-refreshing part answers 204 when the page already shows it.
+func TestLivePartsSkipUnchanged(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	get := func(have string) *http.Response {
+		req, _ := http.NewRequest(http.MethodGet, h.srv.URL+"/partials/services", nil)
+		if have != "" {
+			req.Header.Set(haveHeader, have)
+		}
+		resp, err := h.client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp
+	}
+	first := get("")
+	fp := first.Header.Get(fingerprintHeader)
+	if first.StatusCode != http.StatusOK || fp == "" {
+		t.Fatalf("first: %d, fingerprint %q", first.StatusCode, fp)
+	}
+	if again := get(fp); again.StatusCode != http.StatusNoContent {
+		t.Errorf("unchanged: %d, want 204", again.StatusCode)
+	}
+	if other := get("stale"); other.StatusCode != http.StatusOK {
+		t.Errorf("changed: %d, want 200", other.StatusCode)
+	}
+}

@@ -22,7 +22,7 @@ Every page is built from the tokens and components here. The gallery shows them 
 | `internal/web/static/css/gallery.css` | Styles for the gallery page itself |
 | `internal/web/templates/components.html` | Templates of components with shared markup (notice, status, badge, server, back, confirm, activity) |
 | `internal/web/icons.go` | The icons (`icon NAME`), drawn for Roostack |
-| `internal/web/static/app.js` | Roostack's own small script: keeps open `<details>` (with an `id`) open when htmx refreshes part of a page. Give a `<details>` inside a refreshing area a stable `id` |
+| `internal/web/static/app.js` | Roostack's own small script for self-refreshing parts: sends the fingerprint of what a part shows (the server answers 204 when it's unchanged, `renderLive`), and keeps open `<details>` (with an `id`) open when a part does change. Give a `<details>` inside a refreshing area a stable `id`; poll with `every Ns [document.visibilityState === 'visible'], visibilitychange[document.visibilityState === 'visible'] from:document` and render the part with `renderLive` |
 | `internal/web/components.go` | The functions pages call for those components; they check their arguments |
 | `internal/web/gallery.go` | The gallery's examples |
 

@@ -354,7 +354,7 @@ func (s *Server) drivesPartial(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `<p class="error">%s</p>`, template.HTMLEscapeString("Couldn't list this server's drives: "+err.Error()))
 		return
 	}
-	s.renderPart(w, "backups", "backup-drives", o)
+	s.renderLive(w, r, "backups", "backup-drives", o)
 }
 
 // eraseDriveSubmit erases a disk and prepares it for backups, then goes

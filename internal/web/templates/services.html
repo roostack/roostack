@@ -7,7 +7,7 @@
   </div>
   {{if .CanManage}}<p class="hint">{{if .ShowBuiltIn}}<a href="/services">Hide Roostack's own services</a>
     {{- else}}<a href="/services?builtin=1">Show Roostack's own services</a> (web proxy, backup stores, Roostack itself, network links){{end}}</p>{{end}}
-  <div hx-get="/partials/services{{if .ShowBuiltIn}}?builtin=1{{end}}" hx-trigger="every 10s, activity-done from:body" hx-swap="innerHTML">
+  <div hx-get="/partials/services{{if .ShowBuiltIn}}?builtin=1{{end}}" hx-trigger="every 10s [document.visibilityState === 'visible'], visibilitychange[document.visibilityState === 'visible'] from:document, activity-done from:body" hx-swap="innerHTML">
     {{template "services-live" .}}
   </div>
   {{with .ApplyActivity}}
