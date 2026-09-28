@@ -202,17 +202,17 @@ func TestWizardFlow(t *testing.T) {
 	if _, body := h.get("/"); !strings.Contains(body, "Your backup plan") || !strings.Contains(body, "Set up backups later") {
 		t.Fatal("next comes the backup step")
 	}
-	if code, body := h.post("/setup/backup", nil, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "Add backup 1 first") {
+	if code, body := h.post("/setup/backup", nil, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "Add your main backup first") {
 		t.Errorf("continuing with no backup: %d", code)
 	}
 	// A failed online account keeps the chooser open, never echoing the
 	// secret key.
-	code, body = h.post("/setup/backup/add", url.Values{"add": {"1"}, "choice": {"online"}, "provider": {"new"},
+	code, body = h.post("/setup/backup/add", url.Values{"add": {"2"}, "choice": {"online"}, "provider": {"new"},
 		"endpoint": {"https://s3.example"}, "access_key": {"AKID"}, "secret_key": {"SUPERSECRET"}}, h.srv.URL)
-	if code != http.StatusBadRequest || !strings.Contains(body, "Where should backup 1 go?") || strings.Contains(body, "SUPERSECRET") {
+	if code != http.StatusBadRequest || !strings.Contains(body, "Where should your main backup go?") || strings.Contains(body, "SUPERSECRET") {
 		t.Errorf("online storage error: %d", code)
 	}
-	h.post("/setup/backup/add", url.Values{"add": {"1"}, "choice": {"online"}, "provider": {"provider:1"}}, h.srv.URL)
+	h.post("/setup/backup/add", url.Values{"add": {"2"}, "choice": {"online"}, "provider": {"provider:1"}}, h.srv.URL)
 	if fm.destination != "provider:1" || !fs.p.BackupDone {
 		t.Fatalf("backup 1: %q, step done %v", fm.destination, fs.p.BackupDone)
 	}
@@ -581,10 +581,10 @@ func TestBackupDrivePicker(t *testing.T) {
 	}
 	h.setSetup(fs)
 	_, body := h.get("/setup/backup")
-	if strings.Contains(body, `value="uuid:64B1"`) || !strings.Contains(body, "a drive at home") || !strings.Contains(body, `href="/setup/backup?add=1#plan"`) {
+	if strings.Contains(body, `value="uuid:64B1"`) || !strings.Contains(body, "a drive at home") || !strings.Contains(body, `href="/setup/backup?add=2#plan"`) {
 		t.Error("the plan starts empty, suggesting a drive at home")
 	}
-	_, body = h.get("/setup/backup?add=1")
+	_, body = h.get("/setup/backup?add=2")
 	for _, want := range []string{`value="uuid:64B1" checked`, "USB drive", "Second disk", "Prepare this disk", "Erase it and start afresh",
 		`value="disk:/dev/nvme1n1" disabled`, "Protects against mistakes, not a failed disk", "sets it up so it's there after a restart"} {
 		if !strings.Contains(body, want) {
@@ -599,21 +599,21 @@ func TestBackupDrivePicker(t *testing.T) {
 		t.Errorf("refresh should keep the chosen drive:\n%s", part)
 	}
 	// Preparing the blank disk chooses it.
-	_, body = h.post("/setup/backup/erase", url.Values{"add": {"1"}, "disk": {"/dev/nvme1n1"}}, h.srv.URL)
+	_, body = h.post("/setup/backup/erase", url.Values{"add": {"2"}, "disk": {"/dev/nvme1n1"}}, h.srv.URL)
 	if fs.erased != "/dev/nvme1n1" || !strings.Contains(body, `value="uuid:new" checked`) {
 		t.Errorf("erase: %q\n%s", fs.erased, body)
 	}
-	h.post("/setup/backup/add", url.Values{"add": {"1"}, "choice": {"drive"}, "drive": {"uuid:new"}}, h.srv.URL)
+	h.post("/setup/backup/add", url.Values{"add": {"2"}, "choice": {"drive"}, "drive": {"uuid:new"}}, h.srv.URL)
 	if fm.destination != "drive:uuid:new" {
 		t.Errorf("backup 1: %q", fm.destination)
 	}
-	// The drive in use isn't offered again; backup 2 suggests going away from home.
-	if _, body := h.get("/setup/backup"); !strings.Contains(body, "Add a backup away from home") || !strings.Contains(body, "Optional: an extra copy") {
+	// The drive in use isn't offered again; backup 3 suggests going away from home.
+	if _, body := h.get("/setup/backup"); !strings.Contains(body, "A backup away from home") || !strings.Contains(body, "An extra backup (optional)") {
 		t.Error("the next slot suggests what's missing; the one after is optional")
 	}
-	_, body = h.get("/setup/backup?add=2")
-	if strings.Contains(body, `value="uuid:new"`) || !strings.Contains(body, "Where should backup 2 go?") {
-		t.Errorf("backup 2:\n%s", body)
+	_, body = h.get("/setup/backup?add=3")
+	if strings.Contains(body, `value="uuid:new"`) || !strings.Contains(body, "Where should backup 3 go?") {
+		t.Errorf("backup 3:\n%s", body)
 	}
 }
 

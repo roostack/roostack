@@ -17,16 +17,20 @@ import (
 )
 
 // A server's backup plan (SPEC.md §6.9), on the Backups page and in the
-// setup wizard alike: numbered backups (1 is the main one, which restores
-// read first; the others are copies), an empty slot for each up to three,
-// and one chooser for adding a backup anywhere.
+// setup wizard alike, numbered as the 3-2-1 rule counts copies: 1 is the
+// data on the server itself, 2 the main backup (restores read it first),
+// 3 a second backup; any more are optional extras, not numbered. Empty
+// places show what to add, and one chooser adds a backup anywhere.
 
-// planSlots is how many numbered places the plan shows.
-const planSlots = 3
+// planCopies is how many numbered copies the plan shows (the 3 of 3-2-1).
+const planCopies = 3
 
 // planEntry is one of a server's backups.
 type planEntry struct {
+	// Number is its place in the plan (2 for the main backup); Extra: past
+	// the 3 copies, shown without a number.
 	Number                 int
+	Extra                  bool
 	Ref, Title, Repository string
 	Kind, KindTitle        string // manager.Kind*
 	AtHome, Away, Main     bool
@@ -39,13 +43,14 @@ type planEntry struct {
 // planSlot is an empty place in the plan, with a suggestion for it.
 type planSlot struct {
 	Number  int
+	Extra   bool
 	Title   string
 	Suggest string
 }
 
 // planChecks are the 3-2-1 checks.
 type planChecks struct {
-	BackedUp, TwoKinds, Away bool
+	Copies, TwoKinds, Away, BackedUp bool
 }
 
 // planView is a server's plan for the page.
@@ -54,14 +59,17 @@ type planView struct {
 	Wizard  bool
 	Entries []planEntry
 	Slots   []planSlot
-	More    int // the number an "Add another backup" would get
+	More    int // the number the next backup gets
 	Checks  planChecks
-	// Hint suggests a change to the plan (e.g. an at-home copy as backup 1).
+	// Hint suggests a change to the plan (e.g. an at-home copy as the main
+	// backup).
 	Hint string
 	// Adding is the number whose chooser is open (0 if none); Replacing:
-	// it replaces backup 1.
-	Adding    int
-	Replacing bool
+	// it replaces the main backup. ChooserTitle and ChooserButton say so.
+	Adding                      int
+	Replacing                   bool
+	ChooserTitle, ChooserButton string
+	ChooserNum                  planSlot
 	Options   planOptions
 	Busy      *activityView
 	Error     string
@@ -107,7 +115,8 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	}
 	used := map[string]bool{}
 	add := func(e planEntry) {
-		e.Number = len(p.Entries) + 1
+		e.Number = len(p.Entries) + 2
+		e.Extra = e.Number > planCopies
 		e.Kind = s.Manager.BackupKind(ctx, m.ID, e.Ref)
 		e.KindTitle = kindTitle(e.Kind)
 		e.AtHome, e.Away = manager.AtHome(e.Kind), manager.Away(e.Kind)
@@ -137,22 +146,23 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		add(e)
 	}
 
-	// 3-2-1: backed up, two kinds of storage, one away from home.
-	families := map[string]bool{}
+	// 3-2-1: three copies (the data here and two backups), two kinds of
+	// storage (the data here is on a disk), one away from home; and backed
+	// up lately.
+	p.Checks.Copies = len(p.Entries) >= planCopies-1
 	for _, e := range p.Entries {
-		families[manager.StorageFamily(e.Kind)] = true
+		p.Checks.TwoKinds = p.Checks.TwoKinds || manager.StorageFamily(e.Kind) != manager.StorageFamily(manager.KindSystem)
 		p.Checks.Away = p.Checks.Away || e.Away
 	}
-	p.Checks.TwoKinds = len(families) >= 2
 	if len(p.Entries) > 0 && p.Entries[0].LastOK != nil && !isStale(p.Entries[0].LastOK.Finished) {
 		p.Checks.BackedUp = true
 	}
-	// Backup 1 is best at home: restores from it are quick.
+	// The main backup is best at home: restores from it are quick.
 	if len(p.Entries) > 1 && !p.Entries[0].AtHome {
 		for i := range p.Entries[1:] {
 			if e := &p.Entries[i+1]; e.AtHome {
-				p.Hint = "Backup 1 is the one restores use first, so it's best at home, where restoring is quick: consider making " +
-					e.Title + " backup 1."
+				p.Hint = "Restores use the main backup first, so it's best at home, where restoring is quick: consider making " +
+					e.Title + " the main backup."
 				break
 			}
 		}
@@ -161,40 +171,62 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		p.Entries[i].CanPromote = i > 0
 	}
 
-	// Empty slots, each with a suggestion from what's there.
-	for n := len(p.Entries) + 1; n <= planSlots; n++ {
-		slot := planSlot{Number: n, Title: "Add a backup"}
-		// Only the next empty slot suggests what's missing.
+	// Empty places, each with a suggestion from what's there; only the
+	// next one can be added.
+	p.More = len(p.Entries) + 2
+	need := func() (title, suggest string) {
 		switch {
-		case n > len(p.Entries)+1:
-			slot.Suggest = "Optional: an extra copy, anywhere you like."
-		case len(p.Entries) == 0 && n == 1:
-			slot.Suggest = "Suggested: a drive at home, like a USB drive or a NAS. Restoring from it is quick."
 		case !p.Checks.Away:
-			slot.Title, slot.Suggest = "Add a backup away from home",
-				"Suggested: online storage, or space at a friend's lab. It survives a fire or theft at home."
+			return "A backup away from home", "Suggested: online storage, or space at a friend's lab. It survives a fire or theft at home."
 		case !p.Checks.TwoKinds:
-			slot.Title, slot.Suggest = "Add a different kind of backup",
-				"Suggested: a kind of storage you don't use yet, so one failing doesn't take the others with it."
-		default:
-			slot.Suggest = "An extra copy, anywhere you like."
+			return "A different kind of storage", "Suggested: online storage, or a friend's lab: not a disk like the one your data is on."
 		}
-		if n > 1 && len(p.Entries) == 0 {
-			slot.Suggest = "Add backup 1 first."
+		return "", ""
+	}
+	for n := p.More; n <= planCopies; n++ {
+		slot := planSlot{Number: n}
+		switch {
+		case n == 2:
+			slot.Title, slot.Suggest = "Your main backup", "Suggested: a drive at home, like a USB drive or a NAS. Restoring from it is quick."
+		case n > p.More:
+			slot.Title, slot.Suggest = "A second backup", "Add your main backup first."
+		default:
+			if slot.Title, slot.Suggest = need(); slot.Title == "" {
+				slot.Title, slot.Suggest = "A second backup", "Anywhere you like, so losing one backup still leaves another."
+			}
 		}
 		p.Slots = append(p.Slots, slot)
 	}
-	p.More = len(p.Entries) + 1
+	// Past the three copies: an optional extra backup, always offered.
+	extra := planSlot{Extra: true, Number: p.More, Title: "An extra backup (optional)"}
+	switch {
+	case p.More <= planCopies:
+		extra.Suggest = "More copies, anywhere you like, once the ones above are set up."
+	default:
+		if title, suggest := need(); title != "" {
+			extra.Title, extra.Suggest = title+" (optional)", suggest
+		} else {
+			extra.Suggest = "Another copy, anywhere you like. The 3-2-1 rule is met already."
+		}
+	}
+	p.Slots = append(p.Slots, extra)
 
-	// The chooser.
-	// Backups are added in order: only the next one.
-	if n, _ := strconv.Atoi(r.FormValue("add")); n == len(p.Entries)+1 {
+	// The chooser. Backups are added in order: only the next one.
+	if n, _ := strconv.Atoi(r.FormValue("add")); n == p.More {
 		p.Adding = n
 	}
 	p.Replacing = r.FormValue("replace") == "1" && hasMain
-	if p.Replacing {
-		p.Adding = 1
+	switch {
+	case p.Replacing:
+		p.Adding, p.ChooserTitle, p.ChooserButton = 2, "Where should the main backup go instead?", "Use this for the main backup"
+	case p.Adding == 2:
+		p.ChooserTitle, p.ChooserButton = "Where should your main backup go?", "Add the main backup"
+	case p.Adding > planCopies:
+		p.ChooserTitle, p.ChooserButton = "Where should the extra backup go?", "Add the extra backup"
+	default:
+		p.ChooserTitle, p.ChooserButton = "Where should backup "+strconv.Itoa(p.Adding)+" go?", "Add backup "+strconv.Itoa(p.Adding)
 	}
+	p.ChooserNum = planSlot{Number: p.Adding, Extra: p.Adding > planCopies}
 	if p.Adding > 0 {
 		p.Options = s.planOptions(r, m, main, hasMain, used, wizard)
 	}

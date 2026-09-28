@@ -826,41 +826,43 @@ func TestServers(t *testing.T) {
 func TestBackupPlan(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	_, body := h.get("/backups")
-	for _, want := range []string{"Your backup plan", "a drive at home", `href="/backups?add=1#plan"`, "Two kinds of storage"} {
+	for _, want := range []string{"Your backup plan", "a drive at home", `href="/backups?add=2#plan"`, "2 kinds of storage", "Tell me more",
+		"Your data on this server"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("empty plan missing %q", want)
 		}
 	}
 	// Backups are added in order: only the next one.
-	if _, body := h.get("/backups?add=2"); strings.Contains(body, "Where should backup 2 go?") || strings.Contains(body, `href="/backups?add=2#plan"`) {
-		t.Error("backup 2 before backup 1")
+	if _, body := h.get("/backups?add=3"); strings.Contains(body, "Where should backup 3 go?") || strings.Contains(body, `href="/backups?add=3#plan"`) {
+		t.Error("backup 3 before the main backup")
 	}
-	_, body = h.get("/backups?add=1")
-	for _, want := range []string{"Where should backup 1 go?", `value="provider:1"`, "Another Roostack instance", `value="server:n-0123456789"`} {
+	_, body = h.get("/backups?add=2")
+	for _, want := range []string{"Where should your main backup go?", `value="provider:1"`, "Another Roostack instance", `value="server:n-0123456789"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("chooser missing %q", want)
 		}
 	}
-	if code, body := h.post("/backups/plan", url.Values{"add": {"1"}}, h.srv.URL); code != http.StatusBadRequest ||
-		!strings.Contains(body, "Choose where this backup goes.") || !strings.Contains(body, "Where should backup 1 go?") {
+	if code, body := h.post("/backups/plan", url.Values{"add": {"2"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "Choose where this backup goes.") || !strings.Contains(body, "Where should your main backup go?") {
 		t.Errorf("no choice: %d", code)
 	}
 	// A new online account: an error keeps the chooser, never the secret.
-	code, body := h.post("/backups/plan", url.Values{"add": {"1"}, "choice": {"online"}, "provider": {"new"}, "name": {"B2"},
+	code, body := h.post("/backups/plan", url.Values{"add": {"2"}, "choice": {"online"}, "provider": {"new"}, "name": {"B2"},
 		"secret_key": {"SUPERSECRET"}}, h.srv.URL)
 	if code != http.StatusBadRequest || !strings.Contains(body, "bucket name") || strings.Contains(body, "SUPERSECRET") {
 		t.Errorf("bad provider: %d", code)
 	}
-	h.post("/backups/plan", url.Values{"add": {"1"}, "choice": {"server"}, "server": {"server:n-0123456789"}}, h.srv.URL)
+	h.post("/backups/plan", url.Values{"add": {"2"}, "choice": {"server"}, "server": {"server:n-0123456789"}}, h.srv.URL)
 	if fm.destination != "server:n-0123456789" {
 		t.Fatalf("backup 1 = %q", fm.destination)
 	}
-	h.post("/backups/plan", url.Values{"add": {"2"}, "choice": {"online"}, "provider": {"provider:1"}}, h.srv.URL)
+	h.post("/backups/plan", url.Values{"add": {"3"}, "choice": {"online"}, "provider": {"provider:1"}}, h.srv.URL)
 	if len(fm.copies) != 1 || fm.copies[0].Ref != "provider:1" {
 		t.Fatalf("backup 2 = %+v", fm.copies)
 	}
-	_, body = h.get("/backups?add=3")
-	for _, want := range []string{"nuc&#39;s disk", "Backblaze", "Make this backup 1", "Stop this backup", "Where should backup 3 go?"} {
+	_, body = h.get("/backups?add=4")
+	for _, want := range []string{"nuc&#39;s disk", "Backblaze", "Make this the main backup", "Stop this backup", "Where should the extra backup go?",
+		`<span class="sr-only">Extra</span>`, "Main backup ·", `✓</span>3 copies`, `✓</span>2 kinds of storage`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("plan missing %q", want)
 		}
@@ -872,7 +874,7 @@ func TestBackupPlan(t *testing.T) {
 	if fm.destination != "provider:1" || fm.copies[0].Ref != "server:n-0123456789" {
 		t.Errorf("promote: %q %+v", fm.destination, fm.copies)
 	}
-	// Changing backup 1 keeps the others.
+	// Changing the main backup keeps the others.
 	h.post("/backups/plan", url.Values{"replace": {"1"}, "choice": {"server"}, "server": {"server:n-0123456789"}}, h.srv.URL)
 	if fm.destination != "server:n-0123456789" || len(fm.copies) != 1 {
 		t.Errorf("replace: %q %+v", fm.destination, fm.copies)
@@ -967,7 +969,7 @@ func TestStorageForOthers(t *testing.T) {
 	if _, body := h.get("/settings/servers/n-9876543210/backups"); !strings.Contains(body, "used by nuc, vps") {
 		t.Errorf("another server's page should show storage at other labs and who uses it")
 	}
-	if code, _ := h.post("/backups/plan", url.Values{"add": {"1"}, "choice": {"friend"}, "invite": {"hello"}}, h.srv.URL); code != http.StatusBadRequest {
+	if code, _ := h.post("/backups/plan", url.Values{"add": {"2"}, "choice": {"friend"}, "invite": {"hello"}}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("bad invite: %d", code)
 	}
 	ha, _ := loggedIn(t, auth.RoleAdmin)
@@ -1229,7 +1231,7 @@ func TestBackupOnAnotherServerLocation(t *testing.T) {
 	h.post("/settings/servers/n-9876543210/location", url.Values{"location": {"away"}}, h.srv.URL)
 	_, body = h.get("/backups")
 	if strings.Contains(body, "Where is") || !strings.Contains(body, "away from home") ||
-		!strings.Contains(body, `<li class="plan-ok"><span class="plan-mark" aria-hidden="true">✓</span>One away from home`) {
+		!strings.Contains(body, `<li class="plan-ok"><span class="plan-mark" aria-hidden="true">✓</span>1 away from home`) {
 		t.Error("vps somewhere else: the backup there is away from home")
 	}
 	if _, body := h.get("/settings/servers"); !strings.Contains(body, `name="location" value="away" checked`) {
