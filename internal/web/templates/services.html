@@ -52,7 +52,7 @@
   {{with .Items}}
   <table class="records">
     <thead><tr><th>Part</th><th>State</th><th>What it does</th></tr></thead>
-    <tbody>{{range .}}<tr><td>{{.Name}}</td><td>{{.Status}}</td><td>{{.Detail}}{{if not .LastSeen.IsZero}}; last connected {{when .LastSeen}}{{end}}</td></tr>{{end}}</tbody>
+    <tbody>{{range .}}<tr><td class="with-icon">{{icon (builtinIcon .Kind)}}{{.Name}}</td><td>{{.Status}}</td><td>{{.Detail}}{{if not .LastSeen.IsZero}}; last connected {{when .LastSeen}}{{end}}</td></tr>{{end}}</tbody>
   </table>
   {{end}}
 </section>

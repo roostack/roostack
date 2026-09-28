@@ -238,19 +238,17 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		}
 		p.Slots = append(p.Slots, slot)
 	}
-	// Past the three copies: an optional extra backup, always offered.
-	extra := planSlot{Extra: true, Number: p.More, Title: "An extra backup (optional)"}
-	switch {
-	case p.More <= planCopies:
-		extra.Suggest = "More copies, anywhere you like, once the ones above are set up."
-	default:
+	// Past the three copies, once they're all there: an optional extra
+	// backup.
+	if p.More > planCopies {
+		extra := planSlot{Extra: true, Number: p.More, Title: "An extra backup (optional)"}
 		if title, suggest := need(); title != "" {
 			extra.Title, extra.Suggest = title+" (optional)", suggest
 		} else {
 			extra.Suggest = "Another copy, anywhere you like. The 3-2-1 rule is met already."
 		}
+		p.Slots = append(p.Slots, extra)
 	}
-	p.Slots = append(p.Slots, extra)
 
 	// The chooser. Backups are added in order: only the next one.
 	if n, _ := strconv.Atoi(r.FormValue("add")); n == p.More {

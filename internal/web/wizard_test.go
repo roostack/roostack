@@ -609,11 +609,12 @@ func TestBackupDrivePicker(t *testing.T) {
 		t.Errorf("backup 1: %q", fm.destination)
 	}
 	// The drive in use isn't offered again; backup 3 suggests going away from home.
-	if _, body := h.get("/setup/backup"); !strings.Contains(body, "A backup away from home") || !strings.Contains(body, "An extra backup (optional)") {
-		t.Error("the next slot suggests what's missing; the one after is optional")
+	if _, body := h.get("/setup/backup"); !strings.Contains(body, "A backup away from home") || strings.Contains(body, "(optional)") {
+		t.Error("the next slot suggests what's missing; no extra backup until the three copies are there")
 	}
 	_, body = h.get("/setup/backup?add=3")
-	if strings.Contains(body, `value="uuid:new"`) || !strings.Contains(body, "Where should backup 3 go?") {
+	// One chooser, for backup 3 only.
+	if strings.Contains(body, `value="uuid:new"`) || !strings.Contains(body, "Where should backup 3 go?") || strings.Count(body, "Where should") != 1 {
 		t.Errorf("backup 3:\n%s", body)
 	}
 }

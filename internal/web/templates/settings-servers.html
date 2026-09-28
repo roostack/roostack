@@ -8,33 +8,37 @@
 {{range .Servers}}{{$m := .}}{{if or (not $.Only) (eq $.Only .ID)}}
 <section class="card section" id="server-{{.ID}}">
   <h2>{{.Name}}{{if .This}} {{badge "This server"}}{{end}}</h2>
-  <dl class="facts">
-    <dt>Role</dt>
+  <dl class="facts facts-lined">
+    <dt>{{icon "server"}}Role</dt>
     <dd>{{if .Controller}}Runs the lab: keeps its settings and serves this page{{else}}Runs services{{end}}</dd>
-    <dt>Services</dt>
+    <dt>{{icon "services"}}Services</dt>
     <dd>{{range $i, $s := .Services}}{{if $i}}, {{end}}<a href="/services/{{$s}}">{{$s}}</a>{{else}}None{{end}}</dd>
-    <dt>Changes</dt>
+    <dt>{{icon "changes"}}Changes</dt>
     <dd>{{with .Status}}{{if .Running}}<span class="dot dot-warn" aria-hidden="true"></span>Applying…
       {{- else if .LastErr}}<span class="dot dot-problem" aria-hidden="true"></span>The last change didn't finish: {{.LastErr}}
       {{- else if .Finished}}<span class="dot dot-ok" aria-hidden="true"></span>Up to date · {{when .LastRun}}
       {{- else}}Not applied yet{{end}}{{end}}</dd>
-    <dt>Disk</dt>
+    <dt>{{icon "disk"}}Disk</dt>
     <dd>{{with index $.Spaces .ID}}
+      <p><strong>{{size .Free}} free</strong> of {{size .Total}}</p>
       <div class="space-bar" role="img" aria-label="{{size .Used}} used, {{size .Free}} free of {{size .Total}}">
         <span class="space-used{{with .Level}} space-{{.}}{{end}}" style="width: {{.UsedPercent}}%"></span>
         {{- if .PromisedLeft}}<span class="space-promised" style="width: {{.PromisedPercent}}%"></span>{{end}}
       </div>
-      <p><strong>{{size .Free}} free</strong> of {{size .Total}} · {{size .Used}} used
-        {{- if gt .HeldBack 0}} <small>· {{size .HeldBack}} kept back by the filesystem for the system</small>{{end}}</p>
-      <small>
-        {{- if gt .Services 0}}Services' data {{size .Services}}{{else if eq .Services 0}}No services' data{{else}}Services' data not counted yet{{end}}
-        {{- if gt .Backups 0}} · backups kept here for your lab {{size .Backups}}{{end}}
-        {{- if gt .Guests 0}} · for other labs {{size .Guests}}{{end}}
-        {{- if .Promised}} · promised to other labs {{size .Promised}}, {{size .PromisedLeft}} of it not used yet{{end}}.
-        The rest is the system and other files.{{if not .Counted.IsZero}} Counted {{when .Counted}}.{{end}}</small>
+      <dl class="space-list">
+        <dt>In use</dt><dd>{{size .Used}}</dd>
+        <dt class="sub">Services' data</dt><dd>{{if gt .Services 0}}{{size .Services}}{{else if eq .Services 0}}none{{else}}not counted yet{{end}}</dd>
+        <dt class="sub">Backups of your lab's servers</dt><dd>{{if ge .Backups 0}}{{size .Backups}}{{else}}not counted yet{{end}}</dd>
+        {{if gt .Guests 0}}<dt class="sub">Backups of other labs</dt><dd>{{size .Guests}}</dd>{{end}}
+        {{if ge .Other 0}}<dt class="sub">The system and everything else</dt><dd>{{size .Other}}</dd>{{end}}
+        {{if .Promised}}<dt>Promised to other labs</dt><dd>{{size .Promised}}, of which {{size .PromisedLeft}} isn't used yet</dd>{{end}}
+        {{if gt .HeldBack 0}}<dt>Held back by the filesystem</dt><dd>{{size .HeldBack}}, for the system (so it keeps working if the disk fills up)</dd>{{end}}
+      </dl>
+      <small>The disk holding Roostack's data. Free space is up to date; the parts are counted daily, after the nightly backup
+        {{- if not .Counted.IsZero}} (last counted {{when .Counted}}){{end}}.</small>
       {{if .Warning}}{{notice .NoticeKind .Warning}}{{end}}
     {{else}}<small>Couldn't ask {{.Name}} right now.</small>{{end}}</dd>
-    <dt>Where</dt>
+    <dt>{{icon "location"}}Where</dt>
     <dd>
       <form method="post" action="/settings/servers/{{.ID}}/location" class="inline-form">
         {{$loc := index $.Locations .ID}}
@@ -42,22 +46,22 @@
         <label class="check"><input type="radio" name="location" value="away"{{if eq $loc "away"}} checked{{end}}><span>Somewhere else</span></label>
         <button type="submit" class="secondary">Save</button>
       </form>
-      <small>{{if not $loc}}Not said yet. {{end}}For the backup plan: a backup on a server somewhere else survives a fire or theft at home.</small>
+      <small>Where this server is located{{if not $loc}} (not set yet){{end}}.</small>
     </dd>
-    <dt>Server ID</dt>
+    <dt>{{icon "id"}}Server ID</dt>
     <dd><code>{{.ID}}</code></dd>
-    {{if not .CertExpires.IsZero}}<dt>Certificate</dt>
-    <dd>Proves it's this server on Roostack's network · valid until {{date .CertExpires}}, renewed automatically</dd>{{end}}
+    {{if not .CertExpires.IsZero}}<dt>{{icon "certificate"}}Certificate</dt>
+    <dd>Expires {{date .CertExpires}}</dd>{{end}}
   </dl>
   {{if .This}}{{activity $.ApplyActivity}}{{end}}
   {{if $.Only}}
-  <h3>Its settings</h3>
+  <h3>Settings</h3>
   <dl class="facts">
     {{range $.ServerAreas}}<dt><a href="{{.Href}}">{{.Title}}</a></dt>
     <dd>{{with .Level}}<span class="dot dot-{{.}}" aria-hidden="true"></span>{{end}}{{.Summary}}</dd>{{end}}
   </dl>
   {{else}}
-  <p><a href="/settings/servers/{{.ID}}">Its settings</a> ·
+  <p><a href="/settings/servers/{{.ID}}">Settings</a> ·
     <a href="/settings/servers/{{.ID}}/updates">Updates and restarts</a> ·
     <a href="/settings/servers/{{.ID}}/time-zone">Time zone</a> ·
     <a href="/settings/servers/{{.ID}}/remote-access">Remote access</a> ·

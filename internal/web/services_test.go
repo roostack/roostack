@@ -1056,7 +1056,7 @@ func TestPerServerSettings(t *testing.T) {
 	}
 	// A server's own page.
 	_, body = h.get("/settings/servers/n-9876543210")
-	if !strings.Contains(body, "<h2>vps") || strings.Contains(body, "<h2>nuc") || !strings.Contains(body, "Its settings") ||
+	if !strings.Contains(body, "<h2>vps") || strings.Contains(body, "<h2>nuc") || !strings.Contains(body, "<h3>Settings</h3>") ||
 		strings.Contains(body, "Add a server") && strings.Contains(body, "Make a join code") {
 		t.Errorf("server page:\n%s", body)
 	}
@@ -1088,7 +1088,7 @@ func TestCertificateExpiry(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true, CertExpires: time.Now().Add(300 * 24 * time.Hour)},
 		{ID: "n-9876543210", Name: "vps", CertExpires: time.Now().Add(10 * 24 * time.Hour)}}
-	if _, body := h.get("/settings/servers"); !strings.Contains(body, "renewed automatically") {
+	if _, body := h.get("/settings/servers"); strings.Count(body, "Certificate</dt>") != 2 || !strings.Contains(body, "<dd>Expires ") {
 		t.Error("Servers should show each certificate")
 	}
 	_, body := h.get("/")
@@ -1306,8 +1306,9 @@ func TestServerDiskSpace(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fm.disk = &node.DiskSpace{Total: 100 * units.GB, Used: 40 * units.GB, Free: 60 * units.GB, Services: 12 * units.GB, Backups: 3 * units.GB, Guests: 1 * units.GB}
 	_, body := h.get("/settings/servers")
-	for _, want := range []string{"<strong>60.0 GB free</strong> of 100.0 GB · 40.0 GB used", "Services' data 12.0 GB",
-		"backups kept here for your lab 3.0 GB", "for other labs 1.0 GB", `style="width: 40%"`} {
+	for _, want := range []string{"<strong>60.0 GB free</strong> of 100.0 GB", "<dt>In use</dt><dd>40.0 GB</dd>",
+		"Services' data</dt><dd>12.0 GB", "Backups of your lab's servers</dt><dd>3.0 GB", "Backups of other labs</dt><dd>1.0 GB",
+		"The system and everything else</dt><dd>24.0 GB", `style="width: 40%"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("servers page missing %q", want)
 		}
