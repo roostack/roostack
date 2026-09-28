@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/dnsrecords"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/osupdate"
-	"github.com/mylab/mylab/internal/setup"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/osupdate"
+	"roostack.cloud/roostack/internal/setup"
 )
 
 type fakeSetup struct {
@@ -310,7 +310,7 @@ func TestDNSControls(t *testing.T) {
 	h.server.DNS = fd
 
 	_, body := h.get("/settings/home-network")
-	if !strings.Contains(body, "Let MyLab manage DNS records at Namecheap?") || !strings.Contains(body, "one setting for the whole lab") ||
+	if !strings.Contains(body, "Let Roostack manage DNS records at Namecheap?") || !strings.Contains(body, "one setting for the whole lab") ||
 		!strings.Contains(body, "API is risky") {
 		t.Error("manual mode should offer opting in, with the risk warning for Namecheap")
 	}
@@ -351,13 +351,13 @@ func TestSetupFormsAsSettingsPages(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}}
 	h.setSetup(fs)
-	h.server.BackupRepo = "/mnt/backup/mylab"
+	h.server.BackupRepo = "/mnt/backup/roostack"
 
 	_, body := h.get("/setup/backup")
 	if strings.Contains(body, "step 2 of 2") || strings.Contains(body, "Set this up later") {
 		t.Error("changing backups later must not look like the first-run wizard")
 	}
-	if !strings.Contains(body, "Change where backups go") || !strings.Contains(body, "/mnt/backup/mylab") || !strings.Contains(body, `href="/backups"`) {
+	if !strings.Contains(body, "Change where backups go") || !strings.Contains(body, "/mnt/backup/roostack") || !strings.Contains(body, `href="/backups"`) {
 		t.Error("the settings version should say Change, show the current destination and link back")
 	}
 	_, body = h.get("/setup/domain")
@@ -385,14 +385,14 @@ func TestTimezoneBanner(t *testing.T) {
 
 	// The browser compares its UTC offset with the host's.
 	_, body := h.get("/")
-	if !strings.Contains(body, "Times in MyLab are this server's time") || !strings.Contains(body, `href="/setup/timezone"`) {
+	if !strings.Contains(body, "Times in Roostack are this server's time") || !strings.Contains(body, `href="/setup/timezone"`) {
 		t.Error("home page: missing the time zone banner for the Owner")
 	}
 	_, body = h.get("/settings")
 	if !strings.Contains(body, `href="/settings/time-zone"`) || !strings.Contains(body, "Australia/Melbourne") && !strings.Contains(body, " now</span>") {
 		t.Error("settings overview: missing the time zone area")
 	}
-	// Changing it from Settings restarts MyLab.
+	// Changing it from Settings restarts Roostack.
 	if code, _ := h.post("/setup/timezone", url.Values{"timezone": {"Australia/Melbourne"}}, h.srv.URL); code >= 400 || !fs.restarted {
 		t.Errorf("change zone: %d restarted=%v", code, fs.restarted)
 	}
@@ -524,7 +524,7 @@ func TestDNSRecordsList(t *testing.T) {
 		records: []dnsrecords.Record{{Name: "*.lab.example.com", Type: "A", Value: "192.168.1.20"}}}
 	h.server.DNS = fd
 	_, body := h.get("/settings/home-network")
-	for _, want := range []string{"DNS records MyLab manages", "<code>*.lab.example.com</code>", "<code>192.168.1.20</code>",
+	for _, want := range []string{"DNS records Roostack manages", "<code>*.lab.example.com</code>", "<code>192.168.1.20</code>",
 		"Works from home", "_acme-challenge"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("home network page missing %q", want)

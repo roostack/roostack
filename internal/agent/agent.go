@@ -1,10 +1,10 @@
-// Package agent is mylab-agent: the small root helper that performs a fixed
-// set of privileged operations for the unprivileged mylab service
+// Package agent is roostack-agent: the small root helper that performs a fixed
+// set of privileged operations for the unprivileged roostack service
 // (SPEC.md §6.1).
 //
 // It serves HTTP+JSON on a Unix socket. Callers are identified by the
 // kernel (SO_PEERCRED), not by anything they send, and only root and the
-// mylab user are accepted. Every operation validates its input and takes no
+// roostack user are accepted. Every operation validates its input and takes no
 // free-form commands or paths.
 package agent
 
@@ -28,9 +28,9 @@ import (
 
 // Default locations.
 const (
-	DefaultSocket       = "/run/mylab-agent.sock"
-	DefaultFirewallFile = "/etc/mylab/firewall.nft"
-	sysctlFile          = "/etc/sysctl.d/60-mylab.conf"
+	DefaultSocket       = "/run/roostack-agent.sock"
+	DefaultFirewallFile = "/etc/roostack/firewall.nft"
+	sysctlFile          = "/etc/sysctl.d/60-roostack.conf"
 	unprivPortProc      = "/proc/sys/net/ipv4/ip_unprivileged_port_start"
 )
 
@@ -50,14 +50,14 @@ type Host interface {
 	RunUpdates(ctx context.Context, w io.Writer) error
 	// Reboot restarts the host shortly after returning.
 	Reboot() error
-	// ApplyWireGuard configures one of MyLab's WireGuard interfaces
+	// ApplyWireGuard configures one of Roostack's WireGuard interfaces
 	// (already validated) and brings it up, returning its public key.
 	ApplyWireGuard(wg WireGuard) (publicKey string, err error)
 	// WireGuardStatus reads an interface's configuration.
 	WireGuardStatus(iface string) (WireGuardStatus, error)
-	// WireGuardKeys reads MyLab's interfaces' private keys.
+	// WireGuardKeys reads Roostack's interfaces' private keys.
 	WireGuardKeys() (map[string]string, error)
-	// HostChanges checks for changes MyLab didn't make (SPEC.md §3.2).
+	// HostChanges checks for changes Roostack didn't make (SPEC.md §3.2).
 	HostChanges() (HostChanges, error)
 	// RemoveWireGuard takes an interface down and deletes its
 	// configuration (e.g. the server left its lab).
@@ -67,7 +67,7 @@ type Host interface {
 // Server is the agent's HTTP API.
 type Server struct {
 	Host Host
-	// AllowedUIDs may call the API (root and the mylab user).
+	// AllowedUIDs may call the API (root and the roostack user).
 	AllowedUIDs []uint32
 	Version     string
 	Log         *slog.Logger
@@ -122,7 +122,7 @@ func (s *Server) Handler() http.Handler {
 		w.WriteHeader(http.StatusOK)
 		st := &lineStream{enc: json.NewEncoder(w), flush: w.(http.Flusher).Flush}
 		// Once started, updates run to the end even if the caller goes
-		// away (e.g. MyLab restarts): stopping dpkg halfway leaves packages
+		// away (e.g. Roostack restarts): stopping dpkg halfway leaves packages
 		// half-installed.
 		err := s.Host.RunUpdates(context.WithoutCancel(r.Context()), st)
 		st.close()
@@ -164,7 +164,7 @@ func (s *Server) Handler() http.Handler {
 		}
 		writeJSON(w, http.StatusOK, st)
 	})
-	// The keys go into MyLab's backups, like its CA's key, so a restored
+	// The keys go into Roostack's backups, like its CA's key, so a restored
 	// lab keeps the keys its peers know.
 	mux.HandleFunc("GET /v1/host/changes", func(w http.ResponseWriter, r *http.Request) {
 		c, err := s.Host.HostChanges()
@@ -316,7 +316,7 @@ type LinuxHost struct {
 
 // SetUnprivilegedPortStart writes the sysctl for now and for boot.
 func (h LinuxHost) SetUnprivilegedPortStart() error {
-	const conf = "# Managed by mylab-agent: lets rootless containers bind ports 80 and 443.\n" +
+	const conf = "# Managed by roostack-agent: lets rootless containers bind ports 80 and 443.\n" +
 		"net.ipv4.ip_unprivileged_port_start = 80\n"
 	if err := os.WriteFile(sysctlFile, []byte(conf), 0o644); err != nil {
 		return err
@@ -326,7 +326,7 @@ func (h LinuxHost) SetUnprivilegedPortStart() error {
 
 // ApplyFirewall checks the ruleset with `nft -c`, loads it, then saves it.
 func (h LinuxHost) ApplyFirewall(ruleset string) error {
-	tmp, err := os.CreateTemp("", "mylab-firewall-*.nft")
+	tmp, err := os.CreateTemp("", "roostack-firewall-*.nft")
 	if err != nil {
 		return err
 	}
@@ -372,7 +372,7 @@ unattended-upgrade -v`
 func (h LinuxHost) RunUpdates(ctx context.Context, w io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, updatesTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "systemd-run", "--unit=mylab-os-updates", "--wait", "--pipe", "--quiet",
+	cmd := exec.CommandContext(ctx, "systemd-run", "--unit=roostack-os-updates", "--wait", "--pipe", "--quiet",
 		"--collect", "--setenv=DEBIAN_FRONTEND=noninteractive", "--", "sh", "-c", updatesScript)
 	cmd.Stdout, cmd.Stderr = w, w
 	return cmd.Run()
@@ -418,11 +418,11 @@ func (s *lineStream) close() {
 
 // Reboot asks systemd to reboot after a moment, so the API call returns.
 func (h LinuxHost) Reboot() error {
-	return exec.Command("systemd-run", "--on-active=5", "--unit=mylab-reboot", "--collect",
+	return exec.Command("systemd-run", "--on-active=5", "--unit=roostack-reboot", "--collect",
 		"systemctl", "reboot").Run()
 }
 
-// WireGuardKeys reads MyLab's interfaces' private keys.
+// WireGuardKeys reads Roostack's interfaces' private keys.
 func (h LinuxHost) WireGuardKeys() (map[string]string, error) { return WireGuardKeys() }
 
 // ApplyWireGuard writes an interface's wg-quick file and brings it up. A

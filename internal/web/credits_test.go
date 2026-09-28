@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mylab/mylab/internal/auth"
+	"roostack.cloud/roostack/internal/auth"
 )
 
 var updateCredits = flag.Bool("update-credits", false, "rewrite THIRD_PARTY.md")
@@ -31,7 +31,7 @@ func TestThirdPartyFile(t *testing.T) {
 	}
 }
 
-// Every Go module compiled into MyLab's programs must be credited.
+// Every Go module compiled into Roostack's programs must be credited.
 func TestEveryModuleCredited(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
 		t.Skip("go not found")
@@ -45,8 +45,8 @@ func TestEveryModuleCredited(t *testing.T) {
 		credited = append(credited, strings.Fields(c.Module)...)
 	}
 	for _, m := range strings.Fields(string(out)) {
-		if m != "github.com/mylab/mylab" && !slices.Contains(credited, m) {
-			t.Errorf("module %s is compiled into MyLab but not credited in credits.go", m)
+		if m != "roostack.cloud/roostack" && !slices.Contains(credited, m) {
+			t.Errorf("module %s is compiled into Roostack but not credited in credits.go", m)
 		}
 	}
 }
@@ -55,7 +55,7 @@ func TestAboutPage(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleMember)
 	h.server.Version = "1.2.3"
 	_, body := h.get("/about")
-	for _, want := range []string{"1.2.3", "htmx", "0BSD", "https://catppuccin.com", "Programs MyLab uses", "Apache 2.0"} {
+	for _, want := range []string{"1.2.3", "htmx", "0BSD", "https://catppuccin.com", "Programs Roostack uses", "Apache 2.0"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("about page missing %q", want)
 		}

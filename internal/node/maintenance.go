@@ -3,8 +3,8 @@ package node
 import (
 	"context"
 
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/osupdate"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/osupdate"
 )
 
 // A server's maintenance jobs (SPEC.md §3.2, §6.9): each node backs up
@@ -33,7 +33,7 @@ type Updates interface {
 	Submit() error
 	RestartStatus() osupdate.RestartStatus
 	RestartNow(ctx context.Context) error
-	// HostChanges are changes to the host MyLab didn't make (SPEC.md §3.2).
+	// HostChanges are changes to the host Roostack didn't make (SPEC.md §3.2).
 	HostChanges(ctx context.Context) (osupdate.HostCheck, error)
 	AcknowledgeHostChanges(ctx context.Context) error
 }

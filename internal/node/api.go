@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/osupdate"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/osupdate"
 )
 
-// Server serves a server's operations to its controller over MyLab's
+// Server serves a server's operations to its controller over Roostack's
 // network (SPEC.md §10.3). Only the controller's certificate is accepted.
 type Server struct {
 	Node         Node

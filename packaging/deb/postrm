@@ -1,10 +1,10 @@
 #!/bin/sh
-# Removing MyLab never deletes the lab: services' data, backups settings and
-# the recovery key stay in /var/lib/mylab and /srv/mylab.
+# Removing Roostack never deletes the lab: services' data, backups settings and
+# the recovery key stay in /var/lib/roostack and /srv/roostack.
 set -e
 if [ "$1" = purge ]; then
-    rm -rf /etc/systemd/system/mylab.service.d
+    rm -rf /etc/systemd/system/roostack.service.d
     systemctl daemon-reload || true
-    echo "MyLab's data is kept in /var/lib/mylab and /srv/mylab; delete them yourself if you're sure." >&2
+    echo "Roostack's data is kept in /var/lib/roostack and /srv/roostack; delete them yourself if you're sure." >&2
 fi
 exit 0

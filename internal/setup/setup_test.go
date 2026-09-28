@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/dns"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/store"
 )
 
 type fakeSecrets map[string][]byte
@@ -25,7 +25,7 @@ func (f fakeSecrets) Replace(_ context.Context, name string, v []byte) error {
 func newSetup(t *testing.T) (*Setup, fakeSecrets, *int) {
 	t.Helper()
 	dir := t.TempDir()
-	st, err := store.Open(filepath.Join(dir, "mylab.db"))
+	st, err := store.Open(filepath.Join(dir, "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,11 +119,11 @@ func TestDomainStep(t *testing.T) {
 }
 
 func TestBackupStep(t *testing.T) {
-	bin := os.Getenv("MYLAB_RESTIC_BIN")
+	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
 	if bin == "" {
 		var err error
 		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set MYLAB_RESTIC_BIN")
+			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
 		}
 	}
 	s, _, restarts := newSetup(t)
@@ -150,7 +150,7 @@ func TestBackupStep(t *testing.T) {
 	}
 	// Each server has its own folder in the destination (SPEC.md §10.10).
 	labID, _ := s.Store.LabID(ctx)
-	repo := filepath.Join(dest, "mylab", labID, "n-0000000001")
+	repo := filepath.Join(dest, "roostack", labID, "n-0000000001")
 	if _, err := os.Stat(filepath.Join(repo, "config")); err != nil {
 		t.Error("restic repository not created:", err)
 	}

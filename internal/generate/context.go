@@ -5,9 +5,9 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/pkgspec"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // Context is the data available to package templates, e.g.

@@ -12,7 +12,7 @@ import (
 )
 
 // CheckName is the temporary TXT record the check creates.
-const CheckName = "_mylab-check"
+const CheckName = "_roostack-check"
 
 // Check proves the credentials can do what certificates need: it creates a
 // temporary TXT record for domain and deletes it again (Namecheap: reads
@@ -29,7 +29,7 @@ func check(ctx context.Context, hc *http.Client, pr probe, values map[string]str
 	defer cancel()
 	token := make([]byte, 8)
 	rand.Read(token)
-	value := "mylab-check-" + hex.EncodeToString(token)
+	value := "roostack-check-" + hex.EncodeToString(token)
 
 	labels := strings.Split(strings.Trim(strings.ToLower(domain), "."), ".")
 	var errs []error

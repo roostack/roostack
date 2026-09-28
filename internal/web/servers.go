@@ -2,13 +2,13 @@ package web
 
 import (
 	"cmp"
-	"github.com/mylab/mylab/internal/manager"
 	"net/http"
+	"roostack.cloud/roostack/internal/manager"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/mylab/mylab/internal/node"
+	"roostack.cloud/roostack/internal/node"
 )
 
 // A lab's servers each have their own maintenance, settings and
@@ -156,7 +156,7 @@ func (s *Server) serverViews(r *http.Request) []serverView {
 	for i, mc := range servers {
 		wg.Go(func() {
 			v := serverView{Server: mc, Reachable: mc.This || mc.Status.LastErr == nil ||
-				!strings.HasPrefix(mc.Status.LastErr.Error(), "MyLab can't reach")}
+				!strings.HasPrefix(mc.Status.LastErr.Error(), "Roostack can't reach")}
 			n := s.Manager.NodeByID(mc.ID)
 			if n != nil && v.Reachable {
 				if b := n.Backups(); b != nil {

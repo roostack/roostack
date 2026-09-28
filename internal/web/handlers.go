@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/store"
 )
 
 func (s *Server) setupPage(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +45,7 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case !tokenOK:
 		time.Sleep(failedLoginDelay)
-		fail("The setup code is wrong. It is shown in the MyLab log and in /var/lib/mylab/setup-token.")
+		fail("The setup code is wrong. It is shown in the Roostack log and in /var/lib/roostack/setup-token.")
 		return
 	case !auth.ValidUsername(username):
 		fail("Choose a username of letters and digits (dots, dashes and underscores are fine too), up to 32 characters.")
@@ -275,7 +275,7 @@ func (s *Server) twoFactorData(u *store.User, secret, errMsg string) map[string]
 	for i := 0; i < len(secret); i += 4 {
 		groups = append(groups, secret[i:min(i+4, len(secret))])
 	}
-	url := auth.TOTPURL("MyLab", u.Username, secret)
+	url := auth.TOTPURL("Roostack", u.Username, secret)
 	code, err := qrSVG(url)
 	if err != nil {
 		s.Log.Error("drawing the 2FA QR code", "err", err) // the typed key still works

@@ -27,11 +27,11 @@ func TestMainNeedsDNS(t *testing.T) {
 }
 
 // TestCaddyAdapt checks generated config with a real Caddy binary built with
-// the Cloudflare DNS plugin. It only runs when MYLAB_CADDY_BIN is set.
+// the Cloudflare DNS plugin. It only runs when ROOSTACK_CADDY_BIN is set.
 func TestCaddyAdapt(t *testing.T) {
-	bin := os.Getenv("MYLAB_CADDY_BIN")
+	bin := os.Getenv("ROOSTACK_CADDY_BIN")
 	if bin == "" {
-		t.Skip("set MYLAB_CADDY_BIN to a caddy binary with the cloudflare DNS module")
+		t.Skip("set ROOSTACK_CADDY_BIN to a caddy binary with the cloudflare DNS module")
 	}
 	dir := t.TempDir()
 	main, err := Main(MainConfig{
@@ -42,8 +42,8 @@ func TestCaddyAdapt(t *testing.T) {
 		t.Fatal(err)
 	}
 	site, err := Site("svc", []Route{
-		{ID: "svc-web", Host: "web.lab.example.com", Upstream: "mylab-svc-web:80", Private: true, MaxBodySize: "10GB"},
-		{ID: "svc-api", Host: "api.lab.example.com", Upstream: "mylab-svc-api:8080"},
+		{ID: "svc-web", Host: "web.lab.example.com", Upstream: "roostack-svc-web:80", Private: true, MaxBodySize: "10GB"},
+		{ID: "svc-api", Host: "api.lab.example.com", Upstream: "roostack-svc-api:8080"},
 	})
 	if err != nil {
 		t.Fatal(err)

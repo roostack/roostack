@@ -14,8 +14,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/store"
 )
 
 type fakeSecrets map[string]string
@@ -28,7 +28,7 @@ func (f fakeSecrets) Read(_ context.Context, name string) ([]byte, error) {
 // fake LAN IP and DNS lookups.
 func newManager(t *testing.T, dnsCfg config.DNS, local, public []string) (*Manager, *fakeGandi) {
 	t.Helper()
-	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func newManager(t *testing.T, dnsCfg config.DNS, local, public []string) (*Manag
 	lab.Domain = "lab.example.com"
 	lab.DNS = dnsCfg
 	m := &Manager{
-		Lab: lab, Secrets: fakeSecrets{"mylab-caddy-dns-bearer_token": "pat"}, Store: st, HTTP: g.client,
+		Lab: lab, Secrets: fakeSecrets{"roostack-caddy-dns-bearer_token": "pat"}, Store: st, HTTP: g.client,
 		Log:          slog.New(slog.NewTextHandler(io.Discard, nil)),
 		LANIP:        func() (string, error) { return "192.168.1.20", nil },
 		LocalLookup:  func(context.Context, string) ([]string, error) { return local, nil },
@@ -63,14 +63,14 @@ func TestCreatesWildcardAndChecks(t *testing.T) {
 		t.Errorf("credentials not read from secrets: %q", g.auth)
 	}
 
-	// The LAN IP changes: MyLab updates its own record.
+	// The LAN IP changes: Roostack updates its own record.
 	m.LANIP = func() (string, error) { return "192.168.1.99", nil }
 	m.LocalLookup = func(context.Context, string) ([]string, error) { return []string{"192.168.1.99"}, nil }
 	if st := m.Sync(context.Background()); st.State != StateOK || g.get("*.lab") != "192.168.1.99" {
 		t.Errorf("after IP change: %+v, record %q", st, g.get("*.lab"))
 	}
 
-	// The records MyLab manages are listed with their current values.
+	// The records Roostack manages are listed with their current values.
 	recs, err := m.Records(context.Background())
 	if err != nil || len(recs) != 1 || recs[0] != (Record{Name: "*.lab.example.com", Type: "A", Value: "192.168.1.99"}) {
 		t.Errorf("records = %+v, %v", recs, err)
@@ -85,7 +85,7 @@ func TestNeverOverwritesOthersRecords(t *testing.T) {
 		t.Fatalf("status %+v", st)
 	}
 	if g.get("*.lab") != "203.0.113.5" {
-		t.Error("a record MyLab didn't create must not be changed")
+		t.Error("a record Roostack didn't create must not be changed")
 	}
 
 	// An existing record with the right value is adopted, and then managed.

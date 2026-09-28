@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/labrestore"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/labrestore"
 )
 
 type fakeLabRestore struct {
@@ -27,8 +27,8 @@ func (f *fakeLabRestore) Find(_ context.Context, src labrestore.Source, key stri
 	f.src, f.key = src, key
 	snap := backup.Snapshot{ID: "abc", Time: time.Now().Add(-time.Hour)}
 	return []labrestore.Found{
-			{Repository: "/mnt/backup/mylab/l/n-1", Domain: "lab.example.com", ServerName: "nuc", Controller: true, Snapshot: snap, Snapshots: 12},
-			{Repository: "/mnt/backup/mylab/l/n-2", Domain: "lab.example.com", ServerName: "vps", Snapshot: snap, Snapshots: 9},
+			{Repository: "/mnt/backup/roostack/l/n-1", Domain: "lab.example.com", ServerName: "nuc", Controller: true, Snapshot: snap, Snapshots: 12},
+			{Repository: "/mnt/backup/roostack/l/n-2", Domain: "lab.example.com", ServerName: "vps", Snapshot: snap, Snapshots: 9},
 		},
 		[]labrestore.Unopened{{Repository: "rest:https://u:hunter22@elsewhere/lab", Problem: "The recovery key doesn't open it."}}, nil
 }
@@ -47,7 +47,7 @@ func (f *fakeLabRestore) Running() bool {
 }
 
 func (f *fakeLabRestore) Progress() (activity.Snapshot, bool) {
-	return activity.Snapshot{Title: "Restoring lab.example.com", Status: "Restoring nuc's files", Lines: []string{"/var/lib/mylab"}}, true
+	return activity.Snapshot{Title: "Restoring lab.example.com", Status: "Restoring nuc's files", Lines: []string{"/var/lib/roostack"}}, true
 }
 
 func TestRestoreALabOnFirstRun(t *testing.T) {
@@ -92,7 +92,7 @@ func TestRestoreALabOnFirstRun(t *testing.T) {
 	if code, _ := h.post("/setup", owner, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("creating an Owner during a restore: %d", code)
 	}
-	// MyLab restarts as the restored lab: the page moves on to logging in.
+	// Roostack restarts as the restored lab: the page moves on to logging in.
 	h.server.mu.Lock()
 	h.server.setupToken = ""
 	h.server.mu.Unlock()

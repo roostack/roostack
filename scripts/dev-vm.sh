@@ -3,18 +3,18 @@
 #
 #   scripts/dev-vm.sh up        create (first time) and start the VM
 #   scripts/dev-vm.sh ssh [cmd] open a shell, or run a command, as user "dev"
-#   scripts/dev-vm.sh sync      build and copy the repo to ~/mylab in the VM
+#   scripts/dev-vm.sh sync      build and copy the repo to ~/roostack in the VM
 #   scripts/dev-vm.sh install   sync, then run scripts/dev-install.sh in the VM
-#   scripts/dev-vm.sh ui        tunnel the MyLab UI (loopback-only) to http://127.0.0.1:18481
+#   scripts/dev-vm.sh ui        tunnel the Roostack UI (loopback-only) to http://127.0.0.1:18481
 #   scripts/dev-vm.sh down      shut the VM down
 #   scripts/dev-vm.sh destroy   delete the VM disk (keeps the downloaded image)
 #   scripts/dev-vm.sh status
 #
 # Ports forwarded to 127.0.0.1 on this machine:
-#   2222 -> 22 (ssh), 18480 -> 8480 (MyLab UI), 18080 -> 80, 18443 -> 443,
-#   51820/udp -> 51820 (MyLab's WireGuard network), 52820/udp -> 51821 (storage for other labs)
+#   2222 -> 22 (ssh), 18480 -> 8480 (Roostack UI), 18080 -> 80, 18443 -> 443,
+#   51820/udp -> 51820 (Roostack's WireGuard network), 52820/udp -> 51821 (storage for other labs)
 #
-# More VMs (e.g. a second machine joining the lab): MYLAB_VM=2 scripts/dev-vm.sh up
+# More VMs (e.g. a second machine joining the lab): ROOSTACK_VM=2 scripts/dev-vm.sh up
 # VM n uses ssh port 2221+n, the other TCP ports plus (n-1)*10000, and UDP
 # 51819+n and 52819+n. Another VM reaches VM n's WireGuard at
 # 10.0.2.2:<that port> (QEMU's address for this machine).
@@ -24,17 +24,17 @@
 # client-IP behaviour (docs/ASSUMPTIONS.md C4).
 set -euo pipefail
 
-N=${MYLAB_VM:-1}
-[[ $N =~ ^[1-9]$ ]] || { echo "MYLAB_VM must be 1-9" >&2; exit 2; }
+N=${ROOSTACK_VM:-1}
+[[ $N =~ ^[1-9]$ ]] || { echo "ROOSTACK_VM must be 1-9" >&2; exit 2; }
 SUFFIX=$([[ $N == 1 ]] || echo "-$N")
-NAME=mylab-dev$SUFFIX
-VM_DIR=${MYLAB_VM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mylab-dev-vm$SUFFIX}
+NAME=roostack-dev$SUFFIX
+VM_DIR=${ROOSTACK_VM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/roostack-dev-vm$SUFFIX}
 OFF=$(((N - 1) * 10000))
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 IMAGE_URL=https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2
 SUMS_URL=https://cloud.debian.org/images/cloud/trixie/latest/SHA512SUMS
 # Every VM starts from the same downloaded image, kept with VM 1.
-IMAGE_DIR=${XDG_DATA_HOME:-$HOME/.local/share}/mylab-dev-vm
+IMAGE_DIR=${XDG_DATA_HOME:-$HOME/.local/share}/roostack-dev-vm
 BASE=$IMAGE_DIR/debian-13-genericcloud-amd64.qcow2
 DISK=$VM_DIR/disk.qcow2
 KEY=$VM_DIR/id_ed25519
@@ -43,9 +43,9 @@ QMP=$VM_DIR/qmp.sock
 SSH_PORT=$((2221 + N))
 WG_PORT=$((51819 + N))
 GUESTS_PORT=$((52819 + N))
-MEMORY=${MYLAB_VM_MEMORY:-4096}
-CPUS=${MYLAB_VM_CPUS:-4}
-DISK_SIZE=${MYLAB_VM_DISK:-40G}
+MEMORY=${ROOSTACK_VM_MEMORY:-4096}
+CPUS=${ROOSTACK_VM_CPUS:-4}
+DISK_SIZE=${ROOSTACK_VM_DISK:-40G}
 
 ssh_opts=(-i "$KEY" -p "$SSH_PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
     -o LogLevel=ERROR -o ConnectTimeout=5)
@@ -90,7 +90,7 @@ download() {
 create() {
     mkdir -p "$VM_DIR"
     download
-    [[ -f $KEY ]] || ssh-keygen -q -t ed25519 -N '' -C mylab-dev-vm -f "$KEY"
+    [[ -f $KEY ]] || ssh-keygen -q -t ed25519 -N '' -C roostack-dev-vm -f "$KEY"
     log "Creating disk from the cloud image (resized to $DISK_SIZE on first boot)"
     cp --reflink=auto "$BASE" "$DISK"
 
@@ -173,9 +173,9 @@ sync_repo() {
     running || { echo "VM is not running" >&2; exit 1; }
     log "Building"
     make -C "$REPO" build >/dev/null
-    log "Copying repo to ~/mylab in the VM"
-    vm_ssh 'rm -rf ~/mylab && mkdir -p ~/mylab'
-    tar -C "$REPO" --exclude=.git -cf - . | vm_ssh 'tar -C ~/mylab -xf -'
+    log "Copying repo to ~/roostack in the VM"
+    vm_ssh 'rm -rf ~/roostack && mkdir -p ~/roostack'
+    tar -C "$REPO" --exclude=.git -cf - . | vm_ssh 'tar -C ~/roostack -xf -'
 }
 
 stop() {
@@ -190,8 +190,8 @@ case ${1:-} in
 up) start ;;
 ssh) shift; vm_ssh -t "$@" ;;
 sync) sync_repo ;;
-install) sync_repo; vm_ssh -t 'cd ~/mylab && sudo scripts/dev-install.sh' ;;
-ui) log "MyLab UI: http://127.0.0.1:$((18481 + OFF)) (Ctrl-C to stop)"
+install) sync_repo; vm_ssh -t 'cd ~/roostack && sudo scripts/dev-install.sh' ;;
+ui) log "Roostack UI: http://127.0.0.1:$((18481 + OFF)) (Ctrl-C to stop)"
     # Reconnect when the VM restarts (e.g. after OS updates) or the
     # connection drops; notice a dead connection within ~15s.
     while true; do

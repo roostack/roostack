@@ -16,13 +16,13 @@ import (
 
 // Default paths. See SPEC.md §6.7 and docs/ASSUMPTIONS.md (A2).
 const (
-	DefaultStateDir    = "/var/lib/mylab"
-	DefaultHomeDir     = "/var/lib/mylab/home"
-	DefaultServicesDir = "/srv/mylab/services"
-	DefaultMediaDir    = "/srv/mylab/media"
-	// DefaultCatalogDir holds official packages shipped with MyLab.
-	DefaultCatalogDir = "/usr/share/mylab/catalog"
-	// DefaultUIPort is where the mylab web UI listens on the host.
+	DefaultStateDir    = "/var/lib/roostack"
+	DefaultHomeDir     = "/var/lib/roostack/home"
+	DefaultServicesDir = "/srv/roostack/services"
+	DefaultMediaDir    = "/srv/roostack/media"
+	// DefaultCatalogDir holds official packages shipped with Roostack.
+	DefaultCatalogDir = "/usr/share/roostack/catalog"
+	// DefaultUIPort is where the roostack web UI listens on the host.
 	DefaultUIPort = 8480
 	// DefaultUIBind keeps the UI on the host's loopback; Caddy reaches it
 	// through pasta's loopback mapping (SPEC.md §6.5).
@@ -34,16 +34,16 @@ const (
 	DefaultRoutePortMax = 29999
 )
 
-// Paths are the filesystem locations MyLab reads and writes.
+// Paths are the filesystem locations Roostack reads and writes.
 type Paths struct {
 	StateDir    string `yaml:"state_dir"`    // desired state, SQLite, secrets metadata
-	HomeDir     string `yaml:"home_dir"`     // home of the mylab user
+	HomeDir     string `yaml:"home_dir"`     // home of the roostack user
 	ServicesDir string `yaml:"services_dir"` // per-service data (bind mounts)
 	MediaDir    string `yaml:"media_dir"`    // large data, e.g. a separate disk
 	CatalogDir  string `yaml:"catalog_dir"`  // packages: <name>/package.yaml
 }
 
-// QuadletDir is where rootless Quadlet files for the mylab user live.
+// QuadletDir is where rootless Quadlet files for the roostack user live.
 func (p Paths) QuadletDir() string {
 	return filepath.Join(p.HomeDir, ".config", "containers", "systemd")
 }
@@ -87,7 +87,7 @@ type DNS struct {
 	// Zone is the provider's DNS zone for the domain (e.g. example.com for
 	// lab.example.com), found by the setup wizard's check.
 	Zone string `yaml:"zone,omitempty"`
-	// ManageRecords lets MyLab create the DNS records services need
+	// ManageRecords lets Roostack create the DNS records services need
 	// (SPEC.md §6.5.1).
 	ManageRecords bool `yaml:"manage_records,omitempty"`
 	// AllowRiskyRecords is the Owner's opt-in for providers whose API
@@ -135,10 +135,10 @@ const (
 	SSHOff     = "off" // blocked
 )
 
-// Firewall configures the host firewall that mylab-agent applies.
+// Firewall configures the host firewall that roostack-agent applies.
 type Firewall struct {
 	// SSH is who may reach this server's SSH server. Empty means the
-	// Owner hasn't chosen yet, and MyLab leaves the firewall alone.
+	// Owner hasn't chosen yet, and Roostack leaves the firewall alone.
 	SSH string `yaml:"ssh,omitempty"`
 }
 
@@ -169,7 +169,7 @@ func (m Maintenance) Hour() int {
 // backup and OS updates (SPEC.md §3.2).
 const DefaultRestartHour = 4
 
-// Lab is the lab-wide configuration (/var/lib/mylab/lab.yaml).
+// Lab is the lab-wide configuration (/var/lib/roostack/lab.yaml).
 type Lab struct {
 	// Name is what people call the lab (e.g. "The Smiths' lab"): shown in
 	// the UI, and to other labs it shares storage with.
@@ -180,7 +180,7 @@ type Lab struct {
 	Email string `yaml:"email"`
 	DNS   DNS    `yaml:"dns"`
 	Paths Paths  `yaml:"paths"`
-	// UIPort is the host port of the mylab web UI.
+	// UIPort is the host port of the roostack web UI.
 	UIPort int `yaml:"ui_port"`
 	// UIBind is the address the UI listens on. Only change it for
 	// development (e.g. 0.0.0.0 to reach it directly in a VM).
@@ -202,7 +202,7 @@ type Lab struct {
 	// Role is this server's part in the lab (SPEC.md §10.1), set at
 	// runtime from its membership (internal/labnet).
 	Role string `yaml:"-"`
-	// OverlayAddr is this server's address on MyLab's network, "" until
+	// OverlayAddr is this server's address on Roostack's network, "" until
 	// the lab has a network. A node publishes its web services there, for
 	// the controller's Caddy.
 	OverlayAddr string `yaml:"-"`

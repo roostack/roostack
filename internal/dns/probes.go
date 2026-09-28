@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mylab/mylab/internal/awssig"
+	"roostack.cloud/roostack/internal/awssig"
 )
 
 // Each provider's check talks to its public HTTP API directly, using only
 // the standard library. (Caddy uses its own plugins for certificates; these
-// calls are only MyLab's check before saving credentials.)
+// calls are only Roostack's check before saving credentials.)
 //
 // API endpoints and request shapes follow the providers' documentation and
 // the libdns implementations Caddy's plugins use. Base URLs are variables

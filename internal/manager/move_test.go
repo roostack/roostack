@@ -5,23 +5,23 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/store"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/store"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/state"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/state"
 )
 
 type file struct {
@@ -147,7 +147,7 @@ func (m *movingServer) CommitData(context.Context, string) ([]string, error) {
 	return nil, nil
 }
 func (m *movingServer) SetAsideData(context.Context, string, string) ([]string, error) {
-	return []string{"/srv/mylab/services/forgejo.moved"}, m.did("set aside")
+	return []string{"/srv/roostack/services/forgejo.moved"}, m.did("set aside")
 }
 func (m *movingServer) StopService(context.Context, string) error {
 	if m.beforeStop != nil {
@@ -170,7 +170,7 @@ func (m *movingServer) ImportSecrets(_ context.Context, s map[string][]byte) err
 func (m *movingServer) DataSize(context.Context, string) (int64, error) { return 1234, nil }
 func (m *movingServer) LoadDumps(context.Context, string) error         { return m.did("load dumps") }
 func (m *movingServer) KeptData(context.Context) ([]node.KeptFolder, error) {
-	return []node.KeptFolder{{Path: "/srv/mylab/services/forgejo.moved-to-vps-20260928-002806", Service: "forgejo", MovedAway: true}}, nil
+	return []node.KeptFolder{{Path: "/srv/roostack/services/forgejo.moved-to-vps-20260928-002806", Service: "forgejo", MovedAway: true}}, nil
 }
 func (m *movingServer) RemoveKeptData(_ context.Context, path string) error {
 	return m.did("remove " + path)
@@ -212,7 +212,7 @@ func TestMoveService(t *testing.T) {
 	a.data[0]["data/app.ini"] = file{"config", old}
 	a.data[0]["db/base"] = file{"v1", old}
 	a.data[1]["photos/1.jpg"] = file{"jpeg", old}
-	a.secrets["mylab-forgejo-db_password"] = []byte("generated")
+	a.secrets["roostack-forgejo-db_password"] = []byte("generated")
 	var fe *FormError
 	if err := m.MoveService(ctx, "forgejo", "n-0000000002", MoveCopy); !errors.As(err, &fe) {
 		t.Errorf("moving to where it runs: %v", err)
@@ -228,7 +228,7 @@ func TestMoveService(t *testing.T) {
 		t.Fatalf("move: %s\n%s", l.Err, strings.Join(l.Lines, "\n"))
 	}
 	if b.data[0]["data/app.ini"].Data != "config" || b.data[1]["photos/1.jpg"].Data != "jpeg" ||
-		string(b.secrets["mylab-forgejo-db_password"]) != "generated" {
+		string(b.secrets["roostack-forgejo-db_password"]) != "generated" {
 		t.Errorf("vps has %v, secrets %v", b.data, b.secrets)
 	}
 	if !slices.Equal(a.log, []string{"stop", "export secrets", "set aside"}) || !slices.Contains(b.log, "commit") {
@@ -314,11 +314,11 @@ func (b *realBackups) Status(context.Context) (backup.Status, error) {
 }
 
 func TestMoveThroughBackup(t *testing.T) {
-	bin := os.Getenv("MYLAB_RESTIC_BIN")
+	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
 	if bin == "" {
 		var err error
 		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set MYLAB_RESTIC_BIN")
+			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
 		}
 	}
 	m, a, b := setUpMove(t)
@@ -339,7 +339,7 @@ func TestMoveThroughBackup(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.backups = &realBackups{repo: repo, dir: svcDir}
-	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

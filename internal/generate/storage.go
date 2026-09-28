@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/quadlet"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/quadlet"
 )
 
-// A server can offer its disk for backups over MyLab's network (SPEC.md
+// A server can offer its disk for backups over Roostack's network (SPEC.md
 // §10.10) with restic's rest-server, in two containers sharing one folder:
 //   - the store, append-only: servers back up to it, each only to its own
 //     repositories (--private-repos), so a compromised server can add
@@ -16,7 +16,7 @@ import (
 //   - the admin one, only for the controller, which can also delete (to
 //     prune old backups).
 
-// Storage ports on the server's address on MyLab's network.
+// Storage ports on the server's address on Roostack's network.
 const (
 	StoragePort      = 8000
 	StorageAdminPort = 8001
@@ -27,8 +27,8 @@ const RestServerImage = "docker.io/restic/rest-server:0.14.0"
 
 // Storage unit names.
 const (
-	StorageUnit      = "mylab-backup-store"
-	StorageAdminUnit = "mylab-backup-store-admin"
+	StorageUnit      = "roostack-backup-store"
+	StorageAdminUnit = "roostack-backup-store-admin"
 )
 
 // Password files in the store's folder.
@@ -38,7 +38,7 @@ const (
 )
 
 // Storage generates the rest-server units for a server at addr (its
-// address on MyLab's network).
+// address on Roostack's network).
 func Storage(lab config.Lab, addr string) ([]File, []string, error) {
 	var files []File
 	for _, s := range []struct {
@@ -52,17 +52,17 @@ func Storage(lab config.Lab, addr string) ([]File, []string, error) {
 			"--htpasswd-file /data/" + AdminPasswords},
 	} {
 		var u quadlet.Unit
-		u.Section("Unit").Add("Description", "MyLab: "+s.title+" (rest-server)")
+		u.Section("Unit").Add("Description", "Roostack: "+s.title+" (rest-server)")
 		cs := u.Section("Container")
 		cs.Add("ContainerName", s.unit)
 		cs.Add("Image", RestServerImage)
 		addTimezone(cs, lab)
-		// Only on MyLab's network; the firewall lets in only that interface.
+		// Only on Roostack's network; the firewall lets in only that interface.
 		cs.Add("PublishPort", fmt.Sprintf("%s:%d:8000", addr, s.port))
 		cs.Add("Volume", lab.Paths.BackupStoreDir()+":/data")
 		cs.Add("Exec", "rest-server --path /data --listen :8000 "+s.args)
-		cs.Add("Label", "io.mylab.service=_system")
-		cs.Add("Label", "io.mylab.component=backup-store")
+		cs.Add("Label", "io.roostack.service=_system")
+		cs.Add("Label", "io.roostack.component=backup-store")
 		svc := u.Section("Service")
 		svc.Add("Restart", "always")
 		u.Section("Install").Add("WantedBy", "default.target")
@@ -100,13 +100,13 @@ func GuestStorageUnits(lab config.Lab, addr string, g GuestStorage) ([]File, []s
 		port        int
 		args        string
 	}{
-		{"mylab-guest-" + g.User, "backups another lab stores here", g.Port,
+		{"roostack-guest-" + g.User, "backups another lab stores here", g.Port,
 			"--append-only --private-repos --htpasswd-file /data/" + StorePasswords},
-		{"mylab-guest-" + g.User + "-admin", "another lab's own access to its backups here", g.Port + 1,
+		{"roostack-guest-" + g.User + "-admin", "another lab's own access to its backups here", g.Port + 1,
 			"--htpasswd-file /data/" + AdminPasswords},
 	} {
 		var u quadlet.Unit
-		u.Section("Unit").Add("Description", "MyLab: "+s.title+" (rest-server)")
+		u.Section("Unit").Add("Description", "Roostack: "+s.title+" (rest-server)")
 		cs := u.Section("Container")
 		cs.Add("ContainerName", s.unit)
 		cs.Add("Image", RestServerImage)
@@ -114,8 +114,8 @@ func GuestStorageUnits(lab config.Lab, addr string, g GuestStorage) ([]File, []s
 		cs.Add("PublishPort", fmt.Sprintf("%s:%d:8000", addr, s.port))
 		cs.Add("Volume", GuestStoreDir(lab, g.User)+":/data")
 		cs.Add("Exec", fmt.Sprintf("rest-server --path /data --listen :8000 --max-size %d %s", g.Quota, s.args))
-		cs.Add("Label", "io.mylab.service=_system")
-		cs.Add("Label", "io.mylab.component=guest-store")
+		cs.Add("Label", "io.roostack.service=_system")
+		cs.Add("Label", "io.roostack.component=guest-store")
 		u.Section("Service").Add("Restart", "always")
 		u.Section("Install").Add("WantedBy", "default.target")
 		if err := u.Validate(); err != nil {

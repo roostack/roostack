@@ -3,14 +3,14 @@
 <section class="card narrow">
   {{if .Host}}
   <h1>Restarting this server…</h1>
-  <p>This usually takes a minute or two. This page continues by itself once MyLab is back.</p>
+  <p>This usually takes a minute or two. This page continues by itself once Roostack is back.</p>
   {{else}}
   <h1>Applying your settings…</h1>
   {{with .Waiting}}
-  <p>MyLab restarts to use the new settings once the current job ({{.}}) has finished, so it isn't interrupted. This can take a while;
+  <p>Roostack restarts to use the new settings once the current job ({{.}}) has finished, so it isn't interrupted. This can take a while;
     this page continues by itself.</p>
   {{else}}
-  <p>MyLab is restarting to use the new settings. This page continues by itself in a few seconds.</p>
+  <p>Roostack is restarting to use the new settings. This page continues by itself in a few seconds.</p>
   {{end}}
   {{end}}
   <div hx-get="/healthz?since={{.BootID}}" hx-trigger="every 2s" hx-swap="none"></div>

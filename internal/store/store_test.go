@@ -12,7 +12,7 @@ import (
 
 func open(t *testing.T) *Store {
 	t.Helper()
-	s, err := Open(filepath.Join(t.TempDir(), "mylab.db"))
+	s, err := Open(filepath.Join(t.TempDir(), "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestTOTPSteps(t *testing.T) {
 }
 
 func TestFilePermissions(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mylab.db")
+	path := filepath.Join(t.TempDir(), "roostack.db")
 	s, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +130,7 @@ func TestFilePermissions(t *testing.T) {
 }
 
 func TestReopenKeepsSchema(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mylab.db")
+	path := filepath.Join(t.TempDir(), "roostack.db")
 	s, err := Open(path)
 	if err != nil {
 		t.Fatal(err)

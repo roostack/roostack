@@ -1,6 +1,6 @@
 # Vendored JavaScript
 
-Served from the mylab binary (no CDN at runtime, so the UI works offline).
+Served from the roostack binary (no CDN at runtime, so the UI works offline).
 
 | File | Source | SHA-256 |
 |---|---|---|

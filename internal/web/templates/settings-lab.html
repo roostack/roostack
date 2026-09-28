@@ -8,7 +8,7 @@
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <form method="post" action="/settings/lab">
     <label>Name <input name="name" value="{{.LabName}}" maxlength="60" required></label>
-    <p class="hint">MyLab restarts to use the new name everywhere; that takes a few seconds.</p>
+    <p class="hint">Roostack restarts to use the new name everywhere; that takes a few seconds.</p>
     <button type="submit">Save</button>
   </form>
 </section>

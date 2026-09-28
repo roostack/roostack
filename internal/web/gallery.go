@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
+	"roostack.cloud/roostack/internal/activity"
 )
 
 // The design gallery shows every token and component, in light and dark
@@ -52,7 +52,7 @@ var gallerySections = []gallerySection{
 			{"Confirm", "confirm ACTION QUESTION TEXT KIND: a button that asks the browser to confirm first. Use it for anything hard to undo. KIND is the button's class (danger, secondary, quiet, or \"\"). The question can contain any text (it's passed as a data attribute, never into script).", `
 {{confirm "/users/3/remove" "Remove dad? They will no longer be able to log in." "Remove dad" "quiet danger"}}`},
 			{"Confirm with a hidden field", "Trailing name=value arguments become hidden form fields.", `
-{{confirm "/backups/restore/forgejo/kept/remove" "Delete this copy permanently?" "Delete" "quiet danger" "path=/srv/mylab/services/forgejo/data.before-restore-20260926-130602"}}`},
+{{confirm "/backups/restore/forgejo/kept/remove" "Delete this copy permanently?" "Delete" "quiet danger" "path=/srv/roostack/services/forgejo/data.before-restore-20260926-130602"}}`},
 		}},
 	{ID: "notices", Title: "Notices", Intro: "Short messages in a page. Info is the default; the colour says how much it matters.",
 		Examples: []galleryExample{
@@ -95,7 +95,7 @@ var gallerySections = []gallerySection{
 <details class="technical">
   <summary>Technical details</summary>
   <dl class="facts">
-    <dt>Version</dt> <dd>15.0.9-mylab.1</dd>
+    <dt>Version</dt> <dd>15.0.9-roostack.1</dd>
   </dl>
 </details>`},
 		}},

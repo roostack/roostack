@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // JoinCodeLifetime is how long a join code works.
@@ -34,12 +34,12 @@ type HubStore interface {
 	SetServerCert(ctx context.Context, id, serial, prev string, expires time.Time) error
 }
 
-// WireGuardAgent is mylab-agent's WireGuard operation.
+// WireGuardAgent is roostack-agent's WireGuard operation.
 type WireGuardAgent interface {
 	ApplyWireGuard(ctx context.Context, wg agent.WireGuard) (string, error)
 }
 
-// Hub is the controller's side of MyLab's network: the other servers
+// Hub is the controller's side of Roostack's network: the other servers
 // dial it over WireGuard, and it lets them join.
 type Hub struct {
 	StateDir string
@@ -49,7 +49,7 @@ type Hub struct {
 	Agent    WireGuardAgent
 	Log      *slog.Logger
 	Now      func() time.Time
-	// Started is called once the network is first set up (MyLab restarts
+	// Started is called once the network is first set up (Roostack restarts
 	// to pick up its new role, e.g. for the firewall). Optional.
 	Started func()
 	// SwitchDelay is how long after a join the server's own key replaces
@@ -68,7 +68,7 @@ func (h *Hub) Enabled() bool {
 
 // Start brings up the hub's WireGuard interface if the lab has a network
 // (e.g. after a restart; wg-quick also starts it at boot). It retries in
-// the background while mylab-agent isn't reachable yet, then re-syncs now
+// the background while roostack-agent isn't reachable yet, then re-syncs now
 // and then, so an unused join code's one-time key stops working when the
 // code expires.
 func (h *Hub) Start(ctx context.Context) {
@@ -78,7 +78,7 @@ func (h *Hub) Start(ctx context.Context) {
 			if h.Enabled() {
 				if err := h.SyncPeers(ctx); err != nil {
 					if attempt == 1 || attempt%10 == 0 {
-						h.Log.Error("syncing MyLab's network", "err", err)
+						h.Log.Error("syncing Roostack's network", "err", err)
 					}
 					wait = 3 * time.Second
 				} else {
@@ -156,7 +156,7 @@ func (h *Hub) SyncPeers(ctx context.Context) error {
 	}
 	pub, err := h.Agent.ApplyWireGuard(ctx, wg)
 	if err != nil {
-		return fmt.Errorf("setting up MyLab's network: %w", err)
+		return fmt.Errorf("setting up Roostack's network: %w", err)
 	}
 	h.publicKey = pub
 	return nil
@@ -226,7 +226,7 @@ func (h *Hub) freeAddr(ctx context.Context) (netip.Addr, error) {
 			return a, nil
 		}
 	}
-	return netip.Addr{}, errors.New("MyLab's network is full")
+	return netip.Addr{}, errors.New("Roostack's network is full")
 }
 
 // Join registers a server that presented a join code, and signs its
@@ -265,7 +265,7 @@ func (h *Hub) Join(ctx context.Context, req JoinRequest) (JoinResponse, error) {
 	go func() {
 		time.Sleep(h.switchDelay())
 		if err := h.SyncPeers(context.Background()); err != nil {
-			h.Log.Error("adding a server to MyLab's network", "id", m.ID, "err", err)
+			h.Log.Error("adding a server to Roostack's network", "id", m.ID, "err", err)
 		}
 	}()
 	h.Log.Info("server joined", "id", m.ID, "name", m.Name, "addr", m.Addr)

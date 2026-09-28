@@ -23,7 +23,7 @@ type Identity struct {
 	Name string `json:"name"`
 }
 
-// File is where the identity is kept, in MyLab's state directory.
+// File is where the identity is kept, in Roostack's state directory.
 func File(stateDir string) string { return filepath.Join(stateDir, "node.json") }
 
 var idRe = regexp.MustCompile(`^n-[0-9a-f]{10}$`)

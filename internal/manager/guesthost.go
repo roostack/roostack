@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/node"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/node"
 )
 
 // Storage for other labs is offered by one of the lab's servers (SPEC.md
@@ -72,7 +72,7 @@ func (m *Manager) SetGuestServer(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	if _, ok := n.(node.GuestHost); !ok || (n != m.Node && n.Settings() == nil) {
-		return formErrorf("MyLab can't reach %s right now.", n.Identity().Name)
+		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	old := m.GuestServer(ctx)
 	if old == n.Identity().ID {

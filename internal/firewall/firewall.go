@@ -1,4 +1,4 @@
-// Package firewall builds the host firewall MyLab asks mylab-agent to
+// Package firewall builds the host firewall Roostack asks roostack-agent to
 // apply (SPEC.md §6.10), and reads who is connected over SSH so the Owner
 // isn't cut off by accident.
 package firewall
@@ -13,16 +13,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/pkgspec"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // Desired returns the firewall for the lab: web traffic (Caddy decides
 // what is private), SSH as the Owner chose, and every enabled package port.
-// ok is false until the Owner has chosen SSH access, and MyLab then leaves
+// ok is false until the Owner has chosen SSH access, and Roostack then leaves
 // the firewall alone.
 func Desired(lab config.Lab, services []*generate.Output) (fw agent.Firewall, ok bool) {
 	if lab.Firewall.SSH == "" {
@@ -41,14 +41,14 @@ func Desired(lab config.Lab, services []*generate.Output) (fw agent.Firewall, ok
 				Reason: s.Service + " " + hp.Name})
 		}
 	}
-	// MyLab's network between servers (SPEC.md §10.2).
+	// Roostack's network between servers (SPEC.md §10.2).
 	if lab.OverlayAddr != "" {
 		fw.Allow = append(fw.Allow, agent.Rule{Port: labnet.Port, Proto: "tcp", Iface: agent.WireGuardInterface,
-			Reason: "mylab servers"})
+			Reason: "roostack servers"})
 		if !lab.IsNode() {
 			// The controller is the hub other servers dial.
 			fw.Allow = append(fw.Allow, agent.Rule{Port: agent.WireGuardPort, Proto: "udp", From: agent.FromAny,
-				Reason: "mylab wireguard"})
+				Reason: "roostack wireguard"})
 		}
 	}
 	// A node's web services are reached by the controller's Caddy.

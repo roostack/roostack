@@ -12,14 +12,14 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/b2"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/maintenance"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/b2"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/maintenance"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // Backups across servers (SPEC.md §10.10): each server chooses where it
@@ -58,7 +58,7 @@ type S3Provider = backup.S3
 var storeReady = 5 * time.Minute
 
 // BackupChoices lists where a server can back up: any server's disk
-// (over MyLab's network), and each provider.
+// (over Roostack's network), and each provider.
 func (m *Manager) BackupChoices(ctx context.Context) ([]BackupChoice, error) {
 	var out []BackupChoice
 	if m.Registry != nil { // the lab has a network
@@ -113,7 +113,7 @@ func (m *Manager) AddS3Provider(ctx context.Context, name string, p S3Provider) 
 
 // SetBackupDestination points a server's backups at a choice. The
 // repository is created in the background (activity.BackupSetup); the
-// server then restarts MyLab to start backing up there.
+// server then restarts Roostack to start backing up there.
 func (m *Manager) SetBackupDestination(ctx context.Context, serverID, ref string) error {
 	if m.BackupStore == nil || m.OpenRepo == nil {
 		return ErrNotFound
@@ -123,7 +123,7 @@ func (m *Manager) SetBackupDestination(ctx context.Context, serverID, ref string
 		return ErrNotFound
 	}
 	if n.Settings() == nil {
-		return formErrorf("MyLab can't reach %s right now.", n.Identity().Name)
+		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	if m.HasRecoveryKey != nil && !m.HasRecoveryKey() {
 		return formErrorf("Set up this server's backups first: that creates the recovery key every backup can be read with.")
@@ -162,7 +162,7 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, server
 	if err := m.BackupStore.SetBackupTarget(ctx, target); err != nil {
 		return err
 	}
-	act.Step("Telling %s where to back up (it restarts MyLab)", m.nameOf(serverID))
+	act.Step("Telling %s where to back up (it restarts Roostack)", m.nameOf(serverID))
 	if err := n.Settings().SetBackupDestination(ctx, dest); err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 		if b2.IsB2(s3.Endpoint) {
 			act.Step("Making a Backblaze key for %s, limited to its folder", m.nameOf(serverID))
 			folder := backup.ServerFolder(s3.Prefix, labID, serverID) + "/"
-			key, err := m.b2(s3).CreateKey(ctx, "mylab-"+labID+"-"+serverID, s3.Bucket, folder)
+			key, err := m.b2(s3).CreateKey(ctx, "roostack-"+labID+"-"+serverID, s3.Bucket, folder)
 			if err != nil {
 				act.Printf("%v. %s uses the account's key instead.", err, m.nameOf(serverID))
 			} else {
@@ -401,7 +401,7 @@ func (m *Manager) provider(ctx context.Context, id string) (store.BackupProvider
 	return store.BackupProvider{}, errors.New("no such provider")
 }
 
-// addressOf is a server's address on MyLab's network, or "".
+// addressOf is a server's address on Roostack's network, or "".
 func (m *Manager) addressOf(id string) string {
 	if id == m.Lab.NodeID {
 		if m.Lab.OverlayAddr != "" {

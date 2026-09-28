@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mylab/mylab/internal/auth"
+	"roostack.cloud/roostack/internal/auth"
 )
 
 var updateGallery = flag.Bool("update-gallery", false, "rewrite docs/design/gallery.html")

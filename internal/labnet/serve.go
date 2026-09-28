@@ -14,12 +14,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/nodeid"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/nodeid"
 )
 
-// Serve runs the lab API on this server's address on MyLab's network
+// Serve runs the lab API on this server's address on Roostack's network
 // until ctx ends. The address appears once WireGuard is up (on a new
 // controller, when the first join code is made), so it keeps trying.
 func Serve(ctx context.Context, stateDir string, handler http.Handler, log *slog.Logger) {
@@ -76,7 +76,7 @@ func (h *Hub) JoinHandler() http.HandlerFunc {
 	}
 }
 
-// JoinLab joins this server to a lab with a code (`mylab node join`):
+// JoinLab joins this server to a lab with a code (`roostack node join`):
 // WireGuard comes up with the code's one-time key, the controller signs
 // this server's certificate and learns its own key, then WireGuard
 // switches to that key.

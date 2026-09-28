@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/pkgspec"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // HookRun is a hook ready to run with podman exec.

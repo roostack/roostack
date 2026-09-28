@@ -1,10 +1,10 @@
 // Package osupdate keeps the host's Debian packages up to date (SPEC.md
-// §3.2): unattended-upgrades installs updates through mylab-agent as a
+// §3.2): unattended-upgrades installs updates through roostack-agent as a
 // maintenance job after the nightly backup, and a reboot is requested from
 // the coordinator when an update needs one.
 //
 // Debian's own apt timers stay enabled as a fallback, so security updates
-// still arrive if MyLab isn't running.
+// still arrive if Roostack isn't running.
 package osupdate
 
 import (
@@ -22,9 +22,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/maintenance"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/maintenance"
 )
 
 // JobName is the coordinator job name, shown in the UI ("waiting for OS
@@ -41,14 +41,14 @@ var (
 
 const lastKey = "os.updates.last"
 
-// Agent is what's needed from mylab-agent.
+// Agent is what's needed from roostack-agent.
 type Agent interface {
 	RunUpdates(ctx context.Context, w io.Writer) error
 	Reboot(ctx context.Context) error
 	HostChanges(ctx context.Context) (agent.HostChanges, error)
 }
 
-// HostCheck is what changed on the host without MyLab (SPEC.md §3.2), and
+// HostCheck is what changed on the host without Roostack (SPEC.md §3.2), and
 // whether the Owner said they made those changes on purpose.
 type HostCheck struct {
 	agent.HostChanges
@@ -58,7 +58,7 @@ type HostCheck struct {
 // hostKnownKey stores the fingerprint of changes the Owner knows about.
 const hostKnownKey = "host.changes.known"
 
-// HostChanges checks the host for changes MyLab didn't make.
+// HostChanges checks the host for changes Roostack didn't make.
 func (s *Service) HostChanges(ctx context.Context) (HostCheck, error) {
 	c, err := s.Agent.HostChanges(ctx)
 	if err != nil {

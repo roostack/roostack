@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/dns"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/pkgspec"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
@@ -91,7 +91,7 @@ func TestErrors(t *testing.T) {
 
 func TestTemplateCannotReadSecrets(t *testing.T) {
 	p, err := pkgspec.Parse([]byte(`
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
@@ -151,9 +151,9 @@ func TestSystemRoute53(t *testing.T) {
 	}
 	unit := out.Quadlets[0].Content
 	for _, want := range []string{
-		"Secret=mylab-caddy-dns-access_key_id,type=env,target=DNS_ACCESS_KEY_ID",
-		"Secret=mylab-caddy-dns-secret_access_key,type=env,target=DNS_SECRET_ACCESS_KEY",
-		"Secret=mylab-caddy-dns-region,type=env,target=DNS_REGION",
+		"Secret=roostack-caddy-dns-access_key_id,type=env,target=DNS_ACCESS_KEY_ID",
+		"Secret=roostack-caddy-dns-secret_access_key,type=env,target=DNS_SECRET_ACCESS_KEY",
+		"Secret=roostack-caddy-dns-region,type=env,target=DNS_REGION",
 	} {
 		if !strings.Contains(unit, want) {
 			t.Errorf("caddy unit missing %s", want)
@@ -173,11 +173,11 @@ func TestSystemRoute53(t *testing.T) {
 
 // TestCaddyAdaptAllProviders checks the generated Caddyfile for every DNS
 // provider with a real Caddy built with all plugins (build/caddy). Only runs
-// when MYLAB_CADDY_BIN is set.
+// when ROOSTACK_CADDY_BIN is set.
 func TestCaddyAdaptAllProviders(t *testing.T) {
-	bin := os.Getenv("MYLAB_CADDY_BIN")
+	bin := os.Getenv("ROOSTACK_CADDY_BIN")
 	if bin == "" {
-		t.Skip("set MYLAB_CADDY_BIN to a caddy binary with all DNS plugins")
+		t.Skip("set ROOSTACK_CADDY_BIN to a caddy binary with all DNS plugins")
 	}
 	for _, p := range dns.Providers() {
 		t.Run(p.ID, func(t *testing.T) {
@@ -274,7 +274,7 @@ func TestCheck(t *testing.T) {
 		}
 	}
 	// The Forgejo mistake that only showed at install time.
-	p, err := pkgspec.Parse([]byte(`schema: mylab/v1alpha1
+	p, err := pkgspec.Parse([]byte(`schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"

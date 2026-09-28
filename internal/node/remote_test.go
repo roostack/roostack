@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
-	"github.com/mylab/mylab/internal/generate"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,16 +12,17 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"roostack.cloud/roostack/internal/generate"
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/pkgspec"
-	"github.com/mylab/mylab/internal/state"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/state"
 )
 
 // fakeNode records what the controller asked of it.
@@ -42,11 +42,11 @@ func (f *fakeNode) ServiceStates(context.Context) (map[string]string, error) {
 	return map[string]string{"vaultwarden": "running"}, nil
 }
 func (f *fakeNode) ServiceDetails(context.Context) (map[string]ServiceDetail, error) {
-	return map[string]ServiceDetail{"vaultwarden": {Status: "running", Containers: []Container{{Name: "mylab-vaultwarden-app",
+	return map[string]ServiceDetail{"vaultwarden": {Status: "running", Containers: []Container{{Name: "roostack-vaultwarden-app",
 		Image: "docker.io/vaultwarden/server:1.34", State: "active (running)"}}, DataSize: 1234}}, nil
 }
 func (f *fakeNode) BuiltIns(context.Context) ([]BuiltIn, error) {
-	return []BuiltIn{{Name: "MyLab agent", Kind: "mylab", Status: "active (running)"}}, nil
+	return []BuiltIn{{Name: "Roostack agent", Kind: "roostack", Status: "active (running)"}}, nil
 }
 func (f *fakeNode) InstallStatus(_ context.Context, s string) HookStatus {
 	return HookStatus{Pending: s == "forgejo"}
@@ -150,7 +150,7 @@ func TestRemote(t *testing.T) {
 		d["vaultwarden"].DataSize != 1234 {
 		t.Errorf("details = %+v, %v", d, err)
 	}
-	if b, err := r.BuiltIns(ctx); err != nil || len(b) != 1 || b[0].Name != "MyLab agent" {
+	if b, err := r.BuiltIns(ctx); err != nil || len(b) != 1 || b[0].Name != "Roostack agent" {
 		t.Errorf("built-ins = %+v, %v", b, err)
 	}
 	if snap, ok := r.LatestActivity(activity.Apply); !ok || snap.Status != "All changes applied" {
@@ -194,10 +194,10 @@ func TestRemote(t *testing.T) {
 
 	// Assignments: pushed, with services and secrets; saved without them.
 	svcs := loadVaultwarden(t, lab)
-	r.Apply(Assignment{Services: svcs, Secrets: map[string][]byte{"mylab-vaultwarden-x": []byte("typed")}, Lab: LabContext{Domain: lab.Domain}})
+	r.Apply(Assignment{Services: svcs, Secrets: map[string][]byte{"roostack-vaultwarden-x": []byte("typed")}, Lab: LabContext{Domain: lab.Domain}})
 	select {
 	case a := <-fn.applied:
-		if len(a.Services) != 1 || string(a.Secrets["mylab-vaultwarden-x"]) != "typed" || a.Lab.Domain != "lab.example.com" {
+		if len(a.Services) != 1 || string(a.Secrets["roostack-vaultwarden-x"]) != "typed" || a.Lab.Domain != "lab.example.com" {
 			t.Errorf("assignment = %+v", a)
 		}
 	case <-time.After(5 * time.Second):

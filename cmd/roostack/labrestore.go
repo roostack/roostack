@@ -12,13 +12,13 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/labrestore"
-	"github.com/mylab/mylab/internal/maintenance"
-	"github.com/mylab/mylab/internal/state"
-	"github.com/mylab/mylab/internal/systemd"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/labrestore"
+	"roostack.cloud/roostack/internal/maintenance"
+	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/systemd"
 )
 
 // labRestorer rebuilds a lab from its backups on a fresh install
@@ -68,7 +68,7 @@ func (l *labRestorer) Find(ctx context.Context, src labrestore.Source, key strin
 	return f.Find(ctx, src)
 }
 
-// Start restores a backup in the background, then restarts MyLab as the
+// Start restores a backup in the background, then restarts Roostack as the
 // restored lab. The recovery key is the one given to Find.
 func (l *labRestorer) Start(fd labrestore.Found) error {
 	if err := l.fresh(); err != nil {

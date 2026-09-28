@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mylab/mylab/internal/manager"
-	"github.com/mylab/mylab/internal/pkgspec"
+	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // formField is one input on the install form.
@@ -113,7 +113,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 	var fields []formField
 	for _, st := range p.Settings {
 		if st.Type == pkgspec.SettingSecret && st.Generate {
-			continue // MyLab creates these
+			continue // Roostack creates these
 		}
 		f := formField{Key: "setting." + st.Key, Title: st.Title, Description: st.Description,
 			Required: st.Required || st.Type == pkgspec.SettingSecret, MinLength: st.MinLength}

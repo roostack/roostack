@@ -7,18 +7,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/labrestore"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/labrestore"
 )
 
 // Restoring a whole lab onto a new server (SPEC.md §6.9): on a fresh
-// install, instead of creating the Owner, point MyLab at the lab's backups
+// install, instead of creating the Owner, point Roostack at the lab's backups
 // and enter the recovery key. Like creating the Owner, it needs the setup
 // code, so whoever reaches the page first can't take over the server.
 
-// LabRestorer rebuilds a lab from its backups (cmd/mylab, labrestore).
+// LabRestorer rebuilds a lab from its backups (cmd/roostack, labrestore).
 type LabRestorer interface {
 	Find(ctx context.Context, src labrestore.Source, key string) ([]labrestore.Found, []labrestore.Unopened, error)
 	Start(fd labrestore.Found) error
@@ -28,7 +28,7 @@ type LabRestorer interface {
 
 // restoreCookie ties the browser that entered the setup code to what it
 // found.
-const restoreCookie = "mylab_restore"
+const restoreCookie = "roostack_restore"
 
 // restoreSession is one browser's search (in memory: a restart ends it).
 type restoreSession struct {
@@ -50,7 +50,7 @@ func (s *Server) restoreSessionOf(r *http.Request) *restoreSession {
 func (s *Server) restoreAllowed(w http.ResponseWriter, r *http.Request) bool {
 	switch {
 	case !s.needsSetup():
-		// Done (MyLab restarted as the restored lab), or never needed.
+		// Done (Roostack restarted as the restored lab), or never needed.
 		if r.Header.Get("HX-Request") != "" {
 			w.Header().Set("HX-Redirect", "/login")
 			return false
@@ -95,7 +95,7 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	if !tokenOK {
 		time.Sleep(failedLoginDelay)
-		fail("The setup code is wrong. It is shown in the MyLab log and in /var/lib/mylab/setup-token.")
+		fail("The setup code is wrong. It is shown in the Roostack log and in /var/lib/roostack/setup-token.")
 		return
 	}
 	if msg := src.Problem(); msg != "" {

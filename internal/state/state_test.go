@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
 )
 
 // newLab sets up a catalog with the reference examples and an empty state dir.
@@ -43,8 +43,8 @@ func writeFile(t *testing.T, path, content string) {
 func TestLoadAndGenerate(t *testing.T) {
 	lab := newLab(t)
 	dir := lab.Paths.InstancesDir()
-	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-mylab.1\n")
-	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 2.1.0-mylab.1\n")
+	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-roostack.1\n")
+	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 2.1.0-roostack.1\n")
 
 	services, err := LoadServices(lab)
 	if err != nil {
@@ -69,8 +69,8 @@ func TestAllocatePorts(t *testing.T) {
 	lab := newLab(t)
 	dir := lab.Paths.InstancesDir()
 	// Vaultwarden already has a port; Immich needs one.
-	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-mylab.1\nroutes:\n  web: { port: 20000 }\n")
-	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 2.1.0-mylab.1\n")
+	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-roostack.1\nroutes:\n  web: { port: 20000 }\n")
+	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 2.1.0-roostack.1\n")
 	services, _ := LoadServices(lab)
 
 	changed, err := AllocatePorts(services)
@@ -100,8 +100,8 @@ func TestAllocatePorts(t *testing.T) {
 func TestDuplicatePort(t *testing.T) {
 	lab := newLab(t)
 	dir := lab.Paths.InstancesDir()
-	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-mylab.1\nroutes:\n  web: { port: 20005 }\n")
-	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 2.1.0-mylab.1\nroutes:\n  web: { port: 20005 }\n")
+	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-roostack.1\nroutes:\n  web: { port: 20005 }\n")
+	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 2.1.0-roostack.1\nroutes:\n  web: { port: 20005 }\n")
 	services, _ := LoadServices(lab)
 	if _, err := Desired(lab, services); err == nil || !strings.Contains(err.Error(), "port 20005 is already used") {
 		t.Errorf("err = %v, want duplicate port", err)
@@ -113,7 +113,7 @@ func TestHostPorts(t *testing.T) {
 	file := filepath.Join(lab.Paths.InstancesDir(), "forgejo.yaml")
 	desired := func(ports string) (*generate.Output, error) {
 		t.Helper()
-		writeFile(t, file, "package: forgejo\nversion: 15.0.9-mylab.1\nroutes:\n  web: { port: 20000 }\n"+ports)
+		writeFile(t, file, "package: forgejo\nversion: 15.0.9-roostack.1\nroutes:\n  web: { port: 20000 }\n"+ports)
 		services, err := LoadServices(lab)
 		if err != nil {
 			t.Fatal(err)
@@ -140,7 +140,7 @@ func TestHostPorts(t *testing.T) {
 	}
 	var app string
 	for _, f := range out.Quadlets {
-		if f.Name == "mylab-forgejo-app.container" {
+		if f.Name == "roostack-forgejo-app.container" {
 			app = f.Content
 		}
 	}
@@ -151,8 +151,8 @@ func TestHostPorts(t *testing.T) {
 	}
 
 	for ports, want := range map[string]string{
-		"ports:\n  ssh: { enabled: true, host_port: 8480 }\n":  "already used by the MyLab admin UI",
-		"ports:\n  ssh: { enabled: true, host_port: 20000 }\n": "reserved for MyLab's web services",
+		"ports:\n  ssh: { enabled: true, host_port: 8480 }\n":  "already used by the Roostack admin UI",
+		"ports:\n  ssh: { enabled: true, host_port: 20000 }\n": "reserved for Roostack's web services",
 	} {
 		var pe *PortInUseError
 		if _, err := desired(ports); !errors.As(err, &pe) || !strings.Contains(err.Error(), want) {
@@ -165,8 +165,8 @@ func TestDuplicateHostname(t *testing.T) {
 	lab := newLab(t)
 	dir := lab.Paths.InstancesDir()
 	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"),
-		"package: vaultwarden\nversion: 1.34.3-mylab.1\nroutes:\n  web: { subdomain: photos, port: 20001 }\n")
-	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 2.1.0-mylab.1\nroutes:\n  web: { port: 20002 }\n")
+		"package: vaultwarden\nversion: 1.34.3-roostack.1\nroutes:\n  web: { subdomain: photos, port: 20001 }\n")
+	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 2.1.0-roostack.1\nroutes:\n  web: { port: 20002 }\n")
 
 	services, err := LoadServices(lab)
 	if err != nil {
@@ -180,7 +180,7 @@ func TestDuplicateHostname(t *testing.T) {
 func TestAdminHostnameReserved(t *testing.T) {
 	lab := newLab(t)
 	writeFile(t, filepath.Join(lab.Paths.InstancesDir(), "vaultwarden.yaml"),
-		"package: vaultwarden\nversion: 1.34.3-mylab.1\nroutes:\n  web: { subdomain: mylab, port: 20001 }\n")
+		"package: vaultwarden\nversion: 1.34.3-roostack.1\nroutes:\n  web: { subdomain: roostack, port: 20001 }\n")
 	services, err := LoadServices(lab)
 	if err != nil {
 		t.Fatal(err)
@@ -192,7 +192,7 @@ func TestAdminHostnameReserved(t *testing.T) {
 
 func TestInstanceFileNameMustMatch(t *testing.T) {
 	lab := newLab(t)
-	writeFile(t, filepath.Join(lab.Paths.InstancesDir(), "passwords.yaml"), "package: vaultwarden\nversion: 1.34.3-mylab.1\n")
+	writeFile(t, filepath.Join(lab.Paths.InstancesDir(), "passwords.yaml"), "package: vaultwarden\nversion: 1.34.3-roostack.1\n")
 	if _, err := LoadServices(lab); err == nil {
 		t.Error("expected an error when the file name doesn't match the package")
 	}
@@ -201,8 +201,8 @@ func TestInstanceFileNameMustMatch(t *testing.T) {
 func TestHostsAndNodes(t *testing.T) {
 	lab := newLab(t)
 	dir := lab.Paths.InstancesDir()
-	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-mylab.1\n")
-	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 2.1.0-mylab.1\nhost: n-0000000002\n")
+	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-roostack.1\n")
+	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 2.1.0-roostack.1\nhost: n-0000000002\n")
 	services, err := LoadServices(lab)
 	if err != nil {
 		t.Fatal(err)
@@ -219,7 +219,7 @@ func TestHostsAndNodes(t *testing.T) {
 		t.Errorf("the other node's services: %+v", other)
 	}
 	// A bad host is rejected when the instance is validated.
-	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-mylab.1\nhost: ../x\n")
+	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-roostack.1\nhost: ../x\n")
 	if _, err := LoadServices(lab); err == nil || !strings.Contains(err.Error(), "not a node ID") {
 		t.Errorf("bad host: %v", err)
 	}

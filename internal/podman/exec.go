@@ -32,7 +32,7 @@ func Exec(ctx context.Context, run func(ctx context.Context, stdin []byte, args 
 	return run(ctx, envFile.Bytes(), append(args, command...)...)
 }
 
-// Run runs podman through the mylab user's systemd manager, with stdin.
+// Run runs podman through the roostack user's systemd manager, with stdin.
 // Errors include podman's stderr, never stdin.
 func Run(ctx context.Context, stdin []byte, args ...string) ([]byte, error) {
 	return run(ctx, stdin, args...)

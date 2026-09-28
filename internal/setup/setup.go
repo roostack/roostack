@@ -13,11 +13,11 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/dns"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // Wizard progress, stored as runtime settings.
@@ -50,7 +50,7 @@ type Setup struct {
 	CheckDNS func(ctx context.Context, p *dns.Provider, values map[string]string, domain string) (string, error)
 	// NewRepo returns a restic repository for a destination (to create it).
 	NewRepo func(repository string, env []string) *backup.Repo
-	// Restart restarts MyLab so every part picks up the new settings.
+	// Restart restarts Roostack so every part picks up the new settings.
 	Restart func()
 }
 
@@ -133,7 +133,7 @@ var domainRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]
 
 // DomainOptions are the wizard's DNS record choices (SPEC.md §6.5.1).
 type DomainOptions struct {
-	// ManageRecords lets MyLab create the records services need.
+	// ManageRecords lets Roostack create the records services need.
 	ManageRecords bool
 	// AcceptRisk is the explicit opt-in for providers whose API rewrites
 	// every record to change one (Namecheap).
@@ -141,7 +141,7 @@ type DomainOptions struct {
 }
 
 // SaveDomain checks and saves the lab's domain and DNS provider
-// credentials, then restarts MyLab so Caddy and every service use them.
+// credentials, then restarts Roostack so Caddy and every service use them.
 // values holds the provider's fields (internal/dns).
 func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string, values map[string]string, opts DomainOptions) error {
 	domain = strings.ToLower(strings.TrimSpace(domain))
@@ -171,11 +171,11 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string
 		}
 	}
 	if opts.ManageRecords && p.RiskyRecords() && !opts.AcceptRisk {
-		return &CheckError{"To let MyLab manage " + p.Title + " records, tick the box confirming you understand the risk, or untick \"Create DNS records for me\"."}
+		return &CheckError{"To let Roostack manage " + p.Title + " records, tick the box confirming you understand the risk, or untick \"Create DNS records for me\"."}
 	}
 	zone, err := check(ctx, p, clean, domain)
 	if err != nil {
-		return &CheckError{fmt.Sprintf("MyLab couldn't create a test DNS record for %s with those details. "+
+		return &CheckError{fmt.Sprintf("Roostack couldn't create a test DNS record for %s with those details. "+
 			"Check them and the permissions they have. %s said: %s", domain, p.Title, firstLine(err.Error()))}
 	}
 	for _, k := range set {
@@ -244,7 +244,7 @@ func (c BackupChoice) destination(labID, serverID string) (repo string, env []st
 
 // SaveBackup creates the recovery key (if needed) and the backup
 // repository, and saves the destination. The recovery key is then shown
-// once (RecoveryKey) before MyLab restarts.
+// once (RecoveryKey) before Roostack restarts.
 func (s *Setup) SaveBackup(ctx context.Context, c BackupChoice) error {
 	labID, err := s.Store.LabID(ctx)
 	if err != nil {
@@ -301,7 +301,7 @@ func (s *Setup) SaveBackup(ctx context.Context, c BackupChoice) error {
 }
 
 // AdoptExisting marks the backup step done if backups were already set up
-// outside the wizard (e.g. with `mylab backup init`, which showed the key).
+// outside the wizard (e.g. with `roostack backup init`, which showed the key).
 func (s *Setup) AdoptExisting(ctx context.Context) error {
 	if s.Lab.Backup.Repository == "" {
 		return nil
@@ -330,7 +330,7 @@ func (s *Setup) RecoveryKey() (string, error) {
 }
 
 // ConfirmRecoveryKey records that the Owner saved the key, then restarts
-// MyLab so nightly backups start with the new destination.
+// Roostack so nightly backups start with the new destination.
 func (s *Setup) ConfirmRecoveryKey(ctx context.Context) error {
 	if err := s.Store.SetSetting(ctx, keyRecovery, "confirmed"); err != nil {
 		return err
@@ -351,7 +351,7 @@ func providerName(p backup.S3) string {
 	return p.Bucket + " at " + host
 }
 
-// SetLabName names the lab. With restart, MyLab restarts so every part
+// SetLabName names the lab. With restart, Roostack restarts so every part
 // (the network, storage shared with other labs) uses the new name.
 func (s *Setup) SetLabName(ctx context.Context, name string, restart bool) error {
 	name = strings.TrimSpace(name)

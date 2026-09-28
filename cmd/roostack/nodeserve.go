@@ -14,10 +14,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/node"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/node"
 )
 
 // How often a node fetches its assignment: until it has one, then as a
@@ -28,7 +28,7 @@ const (
 )
 
 // serveNode runs a server that another server (the controller) manages
-// (SPEC.md §10.3): it serves the lab API over MyLab's network, and no UI.
+// (SPEC.md §10.3): it serves the lab API over Roostack's network, and no UI.
 func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent.Client, restart func(), log *slog.Logger) error {
 	m, _, err := labnet.LoadMembership(lab.Paths.StateDir)
 	if err != nil {

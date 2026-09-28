@@ -123,26 +123,26 @@
   {{if and .CanManage (not .Managing)}}
   <form method="post" action="/dns/manage" class="dns-manage">
     <input type="hidden" name="manage" value="on">
-    <p><strong>Let MyLab manage DNS records at {{.Provider}}?</strong> This is one setting for the whole lab:</p>
+    <p><strong>Let Roostack manage DNS records at {{.Provider}}?</strong> This is one setting for the whole lab:</p>
     <ul class="scope">
       <li><strong>Now:</strong> {{.Record}} → this server, so devices at home can reach your services.</li>
       <li><strong>Later:</strong> records for services you make public, kept up to date when your internet address changes.</li>
-      <li><strong>Never:</strong> records MyLab didn't create, unless you choose to take one over.</li>
+      <li><strong>Never:</strong> records Roostack didn't create, unless you choose to take one over.</li>
     </ul>
     {{if .Risky}}
     <p class="notice notice-error"><strong>{{.Provider}}'s API is risky for this:</strong> to change one record it rewrites
       every record on your domain. We strongly recommend moving your DNS to another provider, such as Cloudflare (free).</p>
     <label class="check"><input type="checkbox" name="accept_risk" required>
-      <span>I understand the risk; let MyLab manage {{.Provider}} records anyway</span></label>
+      <span>I understand the risk; let Roostack manage {{.Provider}} records anyway</span></label>
     {{end}}
-    <button type="submit">Let MyLab manage DNS records</button>
+    <button type="submit">Let Roostack manage DNS records</button>
   </form>
   {{else if .Managing}}
-  <p class="hint">MyLab manages DNS records at {{.Provider}}: {{.Record}} → {{.IP}}.</p>
+  <p class="hint">Roostack manages DNS records at {{.Provider}}: {{.Record}} → {{.IP}}.</p>
   <form method="post" action="/dns/manage">
     <input type="hidden" name="manage" value="off">
     <button type="submit" class="secondary">Stop managing DNS records</button>
-    <p class="hint">Records stay in place; MyLab just stops creating and updating them.</p>
+    <p class="hint">Records stay in place; Roostack just stops creating and updating them.</p>
   </form>
   {{end}}
 </section>

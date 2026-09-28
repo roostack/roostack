@@ -62,7 +62,7 @@ func LoadOrCreateCA(dir, labName string) (*CA, error) {
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber:          serial(),
-		Subject:               pkix.Name{CommonName: "MyLab " + labName + " servers"},
+		Subject:               pkix.Name{CommonName: "Roostack " + labName + " servers"},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(caValidity),
 		IsCA:                  true,

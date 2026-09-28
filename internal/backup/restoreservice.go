@@ -5,9 +5,9 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/maintenance"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/maintenance"
 )
 
 // ErrRestoreQueued means a restore is already queued or running.
@@ -34,7 +34,7 @@ func (r *Restores) Snapshots(ctx context.Context, name string) ([]Snapshot, erro
 	if err != nil {
 		return nil, err
 	}
-	snaps, err := r.Repo.Snapshots(ctx, "mylab")
+	snaps, err := r.Repo.Snapshots(ctx, "roostack")
 	if err != nil {
 		return nil, err
 	}

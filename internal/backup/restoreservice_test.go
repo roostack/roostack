@@ -9,17 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/generate"
+	"roostack.cloud/roostack/internal/generate"
 )
 
 func TestSnapshotsFor(t *testing.T) {
 	svc := &generate.Output{Service: "forgejo", Backup: generate.BackupPlan{
-		Include: []string{"/srv/mylab/services/forgejo/data", "/srv/mylab/services/forgejo/db-dump"}}}
+		Include: []string{"/srv/roostack/services/forgejo/data", "/srv/roostack/services/forgejo/db-dump"}}}
 	day := func(d int) time.Time { return time.Date(2026, 9, d, 2, 0, 0, 0, time.UTC) }
 	snaps := []Snapshot{
-		{Short: "a", Time: day(25), Paths: []string{"/var/lib/mylab"}}, // before Forgejo was installed
-		{Short: "b", Time: day(26), Paths: append([]string{"/var/lib/mylab"}, svc.Backup.Include...)},
-		{Short: "c", Time: day(27), Paths: append([]string{"/var/lib/mylab"}, svc.Backup.Include...)},
+		{Short: "a", Time: day(25), Paths: []string{"/var/lib/roostack"}}, // before Forgejo was installed
+		{Short: "b", Time: day(26), Paths: append([]string{"/var/lib/roostack"}, svc.Backup.Include...)},
+		{Short: "c", Time: day(27), Paths: append([]string{"/var/lib/roostack"}, svc.Backup.Include...)},
 	}
 	got := SnapshotsFor(snaps, svc)
 	if len(got) != 2 || got[0].Short != "c" || got[1].Short != "b" {

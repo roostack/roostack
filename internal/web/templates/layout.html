@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
-  <title>{{template "title" .}} · MyLab</title>
+  <title>{{template "title" .}} · Roostack</title>
   <link rel="stylesheet" href="/static/css/tokens.css">
   {{range themes}}<link rel="stylesheet" href="/static/css/themes/{{.ID}}.css">
   {{end}}
@@ -15,7 +15,7 @@
 </head>
 <body>
   <header class="topbar" x-data="{ open: false }">
-    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>MyLab{{with .Nav}}{{with $.LabName}}<span class="lab-name">{{.}}</span>{{end}}{{end}}</a>
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Roostack{{with .Nav}}{{with $.LabName}}<span class="lab-name">{{.}}</span>{{end}}{{end}}</a>
     {{with .Nav}}
     <button type="button" class="menu-toggle" x-on:click="open = !open" aria-label="Menu">☰</button>
     <nav x-bind:class="open && 'open'">
@@ -35,7 +35,7 @@
     <div class="notice notice-warn tz-banner" role="status" x-cloak
       x-data="{ device: Intl.DateTimeFormat().resolvedOptions().timeZone, offset: -new Date().getTimezoneOffset() }"
       x-show="offset !== {{.Offset}}">
-      <strong>Times in MyLab are this server's time, not yours.</strong>
+      <strong>Times in Roostack are this server's time, not yours.</strong>
       This server is set to {{.Zone}}, where it's {{.Time}} now. The device you're using is in <span x-text="device"></span>.
       {{if .Owner}}<a href="/setup/timezone">Change the server's time zone</a> if it's wrong.{{else}}If that's wrong, ask the Owner to change it.{{end}}
     </div>
@@ -47,6 +47,6 @@
     </div>
     {{else}}{{template "content" .}}{{end}}
   </main>
-  {{if .Nav}}<footer class="site">MyLab · <a href="/about">About</a> · <a href="/design">Design system</a></footer>{{end}}
+  {{if .Nav}}<footer class="site">Roostack · <a href="/about">About</a> · <a href="/design">Design system</a></footer>{{end}}
 </body>
 </html>

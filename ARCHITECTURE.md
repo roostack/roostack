@@ -1,4 +1,4 @@
-# MyLab Architecture
+# Roostack Architecture
 
 How the code fits together. For *why* things are the way they are, see [SPEC.md](SPEC.md).
 
@@ -10,18 +10,18 @@ How the code fits together. For *why* things are the way they are, see [SPEC.md]
  browser ─443──┼─▶ Caddy (own pasta netns, sees real client IPs)                           │
                │      │  169.254.1.3 = host loopback (pasta --map-host-loopback)           │
                │      ├──▶ 127.0.0.1:20000 ──▶ service container (own private network)   │
-               │      └──▶ 127.0.0.1:8480  ──▶ mylab (user: mylab)                        │
+               │      └──▶ 127.0.0.1:8480  ──▶ roostack (user: roostack)                        │
                │                                  │                                        │
                │               systemctl --user,  │                                        │
-               │               systemd-run --user ◀┤ (podman runs outside mylab's sandbox) │
+               │               systemd-run --user ◀┤ (podman runs outside roostack's sandbox) │
                │                                  │ Unix socket                            │
                │                                  ▼                                        │
-               │                          mylab-agent (root): sysctl, nftables, apt       │
+               │                          roostack-agent (root): sysctl, nftables, apt       │
                └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **`mylab`** (unprivileged, user `mylab`): web UI, desired state, generating and applying config. It owns every rootless container through the `mylab` user's systemd manager.
-- **`mylab-agent`** (root): a small, fixed set of privileged operations, reached over `/run/mylab-agent.sock`. Callers are identified by the kernel (`SO_PEERCRED`); only root and `mylab` are accepted.
+- **`roostack`** (unprivileged, user `roostack`): web UI, desired state, generating and applying config. It owns every rootless container through the `roostack` user's systemd manager.
+- **`roostack-agent`** (root): a small, fixed set of privileged operations, reached over `/run/roostack-agent.sock`. Callers are identified by the kernel (`SO_PEERCRED`); only root and `roostack` are accepted.
 - **Caddy** (rootless container): the only thing listening on 80/443. It runs in its own pasta network namespace so it sees visitors' real IP addresses. It reaches routed containers, which are published on `127.0.0.1:<port>`, through pasta's loopback mapping (`169.254.1.3`). See SPEC.md §6.5 for why.
 
 ## Data flow: desired state → running services
@@ -33,26 +33,26 @@ catalog/<name>/package.yaml ┘      (pure)      (plan → apply)
 ```
 
 1. **`internal/state`** loads the lab config, every instance file, and each instance's package from the catalog. It also checks lab-wide rules (e.g. unique hostnames).
-2. **`internal/generate`** turns package + instance + lab config into output: Quadlet files, a Caddy snippet, required secrets, directories and a backup plan. It is **pure** (no disk access, no side effects), so it's tested with golden files and can be previewed with `mylab render`.
-3. **`internal/reconcile`** compares that output with what's on disk and builds a **plan** (files to write or remove, units to start, restart or stop, secrets to create). `mylab apply --dry-run` prints the plan; `mylab apply` carries it out.
+2. **`internal/generate`** turns package + instance + lab config into output: Quadlet files, a Caddy snippet, required secrets, directories and a backup plan. It is **pure** (no disk access, no side effects), so it's tested with golden files and can be previewed with `roostack render`.
+3. **`internal/reconcile`** compares that output with what's on disk and builds a **plan** (files to write or remove, units to start, restart or stop, secrets to create). `roostack apply --dry-run` prints the plan; `roostack apply` carries it out.
 
-The reconciler only touches files it owns (`mylab-*` Quadlets and `*.caddy` snippets) and **never deletes service data**.
+The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` snippets) and **never deletes service data**.
 
 ## Packages
 
 | Package | Purpose |
 |---|---|
-| `cmd/mylab` | Web service and CLI: `serve`, `apply`, `user`, `render`, `validate` |
-| `cmd/mylab-agent` | The root helper |
+| `cmd/roostack` | Web service and CLI: `serve`, `apply`, `user`, `render`, `validate` |
+| `cmd/roostack-agent` | The root helper |
 | `internal/config` | Lab settings and **all default paths** in one place |
-| `internal/pkgspec` | The package format (`schema: mylab/v1alpha1`) and its validation |
+| `internal/pkgspec` | The package format (`schema: roostack/v1alpha1`) and its validation |
 | `internal/instance` | A user's installed service, validated against its package |
 | `internal/generate` | Desired state → Quadlets, Caddy config, secrets, dirs, backup plan |
 | `internal/quadlet` | Writing Quadlet/systemd unit files, with escaping |
 | `internal/caddy` | Writing the main Caddyfile and per-service snippets |
 | `internal/dns` | Supported DNS providers: credential fields, Caddy directive, and the create-and-delete-a-TXT-record check |
 | `internal/awssig` | AWS Signature Version 4, standard library only (Route 53 checks, listing S3-compatible buckets) |
-| `internal/dnsrecords` | Keeps `*.<domain>` pointing at the LAN IP (only records MyLab created) and checks home devices can resolve it |
+| `internal/dnsrecords` | Keeps `*.<domain>` pointing at the LAN IP (only records Roostack created) and checks home devices can resolve it |
 | `internal/setup` | First-run setup wizard logic: time zone, domain and DNS credentials, backup destination, recovery key |
 | `internal/hosttime` | Reads the host's time zone and the valid zone names (tzdata); changing it is the agent's job |
 | `internal/reconcile` | Plan and apply changes to the host |
@@ -86,15 +86,15 @@ For a service `<svc>`:
 
 | Thing | Name |
 |---|---|
-| Service network | `mylab-<svc>` (file `mylab-<svc>.network`) |
-| Container | `mylab-<svc>-<container>` (unit `mylab-<svc>-<container>.service`) |
+| Service network | `roostack-<svc>` (file `roostack-<svc>.network`) |
+| Container | `roostack-<svc>-<container>` (unit `roostack-<svc>-<container>.service`) |
 | Route port | `127.0.0.1:<port>`, from 20000–29999, stored as `routes.<name>.port` in the instance file |
-| Database container | `mylab-<svc>-db-<name>` |
-| Secret | `mylab-<svc>-<setting>`, or `mylab-<svc>-db-<name>-password` |
+| Database container | `roostack-<svc>-db-<name>` |
+| Secret | `roostack-<svc>-<setting>`, or `roostack-<svc>-db-<name>-password` |
 | Caddy snippet | `sites/<svc>.caddy` |
-| Data | `/srv/mylab/services/<svc>/<storage>/` or `/srv/mylab/media/<svc>/<storage>/` |
-| Database data | `/srv/mylab/services/<svc>/db/<name>/` |
-| Database dumps (for backup) | `/srv/mylab/services/<svc>/db-dump/` |
+| Data | `/srv/roostack/services/<svc>/<storage>/` or `/srv/roostack/media/<svc>/<storage>/` |
+| Database data | `/srv/roostack/services/<svc>/db/<name>/` |
+| Database dumps (for backup) | `/srv/roostack/services/<svc>/db-dump/` |
 
 ## Package format
 
@@ -106,7 +106,7 @@ Templates use Go `text/template` syntax with these values:
 |---|---|
 | `.Routes.<route>.Host` / `.URL` | `photos.lab.example.com` / `https://photos.lab.example.com` |
 | `.Settings.<key>` | Non-secret settings only, so secrets can never end up in a unit file |
-| `.Databases.<name>.Host` / `.Port` / `.User` / `.Name` | Connection details for MyLab-managed databases |
+| `.Databases.<name>.Host` / `.Port` / `.User` / `.Name` | Connection details for Roostack-managed databases |
 | `(index .Containers "<name>").Host` | Another container in the same service |
 | `.Lab.Domain`, `.Service.Name` | Lab and service names |
 
@@ -124,16 +124,16 @@ Pages (top navigation; links hidden where the role can't use them):
 
 Shared pieces (attention list, backup and DNS cards) live in `templates/parts.html`, which every page can use. Live sections refresh via `/partials/*`.
 
-`mylab serve` serves server-rendered pages (Go `html/template`), using htmx for live updates such as the service list refreshing every 10 seconds. Protections:
+`roostack serve` serves server-rendered pages (Go `html/template`), using htmx for live updates such as the service list refreshing every 10 seconds. Protections:
 
-- **First run:** creating the Owner needs a one-time setup code, printed in the log and saved to `/var/lib/mylab/setup-token`.
+- **First run:** creating the Owner needs a one-time setup code, printed in the log and saved to `/var/lib/roostack/setup-token`.
 - **Sessions:** random tokens in an `HttpOnly`, `SameSite=Lax` cookie. Only a SHA-256 hash is stored.
 - **Two-factor (TOTP):** Owners must enroll before using the UI. A login with 2FA first passes the password, then the code (`/login/totp`). Each code works once.
 - **CSRF:** every non-GET request must carry an `Origin` header matching the host.
 - **Headers:** a strict Content-Security-Policy, `nosniff`, and no framing.
 - **Roles** are checked per route (`auth.Can`).
 
-Installing or removing a service from the UI only changes desired state (an instance file); `internal/manager` then builds this server's Assignment (the services placed on it, plus any values typed into the install form, which the manager forgets once handed over) and gives it to the node, which applies it in the background, one apply at a time; the dashboard shows progress or the last error. Assignments are the seam for more servers: a remote node will receive the same thing over MyLab's network. Removing a service never deletes its data. For now, services installed from the UI are always private.
+Installing or removing a service from the UI only changes desired state (an instance file); `internal/manager` then builds this server's Assignment (the services placed on it, plus any values typed into the install form, which the manager forgets once handed over) and gives it to the node, which applies it in the background, one apply at a time; the dashboard shows progress or the last error. Assignments are the seam for more servers: a remote node will receive the same thing over Roostack's network. Removing a service never deletes its data. For now, services installed from the UI are always private.
 
 **Package hooks** run commands inside a service's containers with `podman exec`. After an apply succeeds, `install` hooks run once, retried every 10 s for up to 10 minutes while the app starts; their progress is kept in the settings table (`hooks.<service>.install`). `action` hooks are buttons on the service page. Values from users (settings, action inputs, secrets) reach the command only as environment variables, passed as an env file on stdin, so they never appear in a command line, a unit file or a process listing. `install_only` secrets (e.g. Forgejo's admin password) are deleted once the install hooks succeed.
 

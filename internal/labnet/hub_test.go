@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/store"
 )
 
 type fakeAgent struct {
@@ -43,7 +43,7 @@ func (f *fakeAgent) peerKeys() []string {
 
 func TestHubJoin(t *testing.T) {
 	dir := t.TempDir()
-	st, err := store.Open(filepath.Join(dir, "mylab.db"))
+	st, err := store.Open(filepath.Join(dir, "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

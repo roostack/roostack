@@ -1,5 +1,5 @@
 // Package labrestore rebuilds a lab on a new server from its backups
-// (SPEC.md §6.9, "Recoverable by default"): install MyLab, point it at the
+// (SPEC.md §6.9, "Recoverable by default"): install Roostack, point it at the
 // backups, enter the recovery key.
 package labrestore
 
@@ -21,12 +21,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mylab/mylab/internal/awssig"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/nodeid"
 	"go.yaml.in/yaml/v3"
+	"roostack.cloud/roostack/internal/awssig"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/nodeid"
 )
 
 // Source is where a lab's backups are.
@@ -72,7 +72,7 @@ type Found struct {
 	ServerID   string
 	ServerName string
 	Controller bool
-	// StateDir is where the server kept MyLab's state.
+	// StateDir is where the server kept Roostack's state.
 	StateDir string
 }
 
@@ -101,7 +101,7 @@ func (f *Finder) Find(ctx context.Context, src Source) ([]Found, []Unopened, err
 		return nil, nil, err
 	}
 	if len(repos) == 0 {
-		return nil, nil, errors.New("no MyLab backups there")
+		return nil, nil, errors.New("no Roostack backups there")
 	}
 	found := make([]*Found, len(repos))
 	problems := make([]string, len(repos))
@@ -136,17 +136,17 @@ func describe(err error) string {
 	case errors.Is(err, backup.ErrNoRepository):
 		return "No backup there."
 	case strings.Contains(err.Error(), "permission denied"):
-		return "MyLab isn't allowed to read it: its files belong to another user (e.g. MyLab on the old server). " +
-			"Let it read them with sudo chown -R mylab:mylab on the folder."
+		return "Roostack isn't allowed to read it: its files belong to another user (e.g. Roostack on the old server). " +
+			"Let it read them with sudo chown -R roostack:roostack on the folder."
 	}
 	return err.Error()
 }
 
-// open reads a repository's latest MyLab backup and what it says about
+// open reads a repository's latest Roostack backup and what it says about
 // the server that made it.
 func (f *Finder) open(ctx context.Context, url string, env []string) (*Found, error) {
 	repo := f.OpenRepo(url, env)
-	snaps, err := repo.Snapshots(ctx, "mylab")
+	snaps, err := repo.Snapshots(ctx, "roostack")
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func (f *Finder) open(ctx context.Context, url string, env []string) (*Found, er
 		break
 	}
 	if fd.StateDir == "" {
-		return nil, errors.New("It isn't a backup of a whole MyLab server.")
+		return nil, errors.New("It isn't a backup of a whole Roostack server.")
 	}
 	// A server that never joined a network is a lab of its own.
 	fd.Controller = true
@@ -234,7 +234,7 @@ func isRepo(dir string) bool {
 }
 
 // folderRepos finds repositories in a folder and a few levels below it
-// (e.g. <folder>/mylab/<lab>/<server>, or a backup store's
+// (e.g. <folder>/roostack/<lab>/<server>, or a backup store's
 // <folder>/<server>/<lab>).
 // It also lists the folders it wasn't allowed into.
 func folderRepos(root string) (repos, denied []string, err error) {
@@ -265,11 +265,11 @@ func folderRepos(root string) (repos, denied []string, err error) {
 	return out, denied, err
 }
 
-// unreadable explains backups MyLab isn't allowed to read: typically a
-// disk from the old server, whose files belong to its mylab user.
+// unreadable explains backups Roostack isn't allowed to read: typically a
+// disk from the old server, whose files belong to its roostack user.
 func unreadable(folder string) error {
-	return fmt.Errorf("MyLab isn't allowed to read the files in %s: they belong to another user (e.g. MyLab on the old server). "+
-		"Let it read them (sudo chown -R mylab:mylab %s), then look again", folder, folder)
+	return fmt.Errorf("Roostack isn't allowed to read the files in %s: they belong to another user (e.g. Roostack on the old server). "+
+		"Let it read them (sudo chown -R roostack:roostack %s), then look again", folder, folder)
 }
 
 // region guesses an S3-compatible provider's region from its endpoint
@@ -291,7 +291,7 @@ func region(endpoint string) string {
 var regionRE = regexp.MustCompile(`^s3[.-]([a-z]{2,}-[a-z]+-\d+)\.`)
 
 // s3Repos finds repositories in a bucket: at the folder itself, and each
-// server's under <folder>/mylab/<lab>/<server> (backup.ServerFolder).
+// server's under <folder>/roostack/<lab>/<server> (backup.ServerFolder).
 func (f *Finder) s3Repos(ctx context.Context, s3 backup.S3) ([]string, error) {
 	base := s3.Prefix
 	if base != "" {
@@ -306,7 +306,7 @@ func (f *Finder) s3Repos(ctx context.Context, s3 backup.S3) ([]string, error) {
 	} else if ok {
 		out = append(out, url(base))
 	}
-	labs, err := f.s3Folders(ctx, s3, base+"mylab/")
+	labs, err := f.s3Folders(ctx, s3, base+"roostack/")
 	if err != nil {
 		return nil, err
 	}

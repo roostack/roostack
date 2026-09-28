@@ -10,15 +10,15 @@ import (
 	"testing"
 )
 
-// These tests run the real restic binary when MYLAB_RESTIC_BIN is set (or
+// These tests run the real restic binary when ROOSTACK_RESTIC_BIN is set (or
 // restic is on PATH), against a repository in a temporary directory.
 func testRepo(t *testing.T) *Repo {
 	t.Helper()
-	bin := os.Getenv("MYLAB_RESTIC_BIN")
+	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
 	if bin == "" {
 		var err error
 		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set MYLAB_RESTIC_BIN")
+			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
 		}
 	}
 	dir := t.TempDir()
@@ -62,8 +62,8 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 	sum, err := r.Backup(ctx, BackupOptions{
 		Paths:      []string{src},
 		Excludes:   []string{filepath.Join(src, "data", "db.sqlite3")},
-		Tags:       []string{"mylab", "service:vaultwarden"},
-		Host:       "mylab-test",
+		Tags:       []string{"roostack", "service:vaultwarden"},
+		Host:       "roostack-test",
 		OnProgress: func(Progress) { progress++ },
 	})
 	if err != nil {

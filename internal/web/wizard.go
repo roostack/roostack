@@ -5,13 +5,13 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/dns"
-	"github.com/mylab/mylab/internal/hosttime"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/setup"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/hosttime"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/setup"
 )
 
 // requireWizard allows the setup wizard to the Owner.
@@ -346,7 +346,7 @@ func (s *Server) recoveryConfirm(w http.ResponseWriter, r *http.Request) {
 
 // wizardError re-renders a wizard page for a user-fixable error. It returns
 // true if it handled err.
-// errNoServer means this MyLab can't change its server's settings.
+// errNoServer means this Roostack can't change its server's settings.
 var errNoServer = errors.New("server settings aren't available")
 
 // userMessage returns an error's message if it is one the user can act on

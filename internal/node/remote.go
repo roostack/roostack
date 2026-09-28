@@ -14,12 +14,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/osupdate"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/osupdate"
 )
 
 // Timeouts for calls to another server.
@@ -30,7 +30,7 @@ const (
 )
 
 // Remote is another server, as the controller sees it: every operation
-// is a request over MyLab's network (SPEC.md §10.3).
+// is a request over Roostack's network (SPEC.md §10.3).
 type Remote struct {
 	ID   nodeid.Identity
 	Addr netip.Addr
@@ -75,7 +75,7 @@ func (r *Remote) Rename(ctx context.Context, name string) error {
 	return r.call(ctx, http.MethodPut, "/v1/name", map[string]string{"Name": name}, nil)
 }
 
-// Address is the server's address on MyLab's network.
+// Address is the server's address on Roostack's network.
 func (r *Remote) Address() string { return r.Addr.String() }
 
 // Apply sends the server its assignment in the background, retrying
@@ -158,7 +158,7 @@ func (r *Remote) Pending() (WireAssignment, bool) {
 func (r *Remote) Status() ApplyStatus {
 	st, err := r.wireStatus()
 	if err != nil {
-		return ApplyStatus{Finished: true, LastErr: fmt.Errorf("MyLab can't reach %s: %v", r.ID.Name, err)}
+		return ApplyStatus{Finished: true, LastErr: fmt.Errorf("Roostack can't reach %s: %v", r.ID.Name, err)}
 	}
 	return st.apply()
 }

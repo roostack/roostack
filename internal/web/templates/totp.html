@@ -2,7 +2,7 @@
 {{define "content"}}
 <section class="card narrow">
   <h1>Enter your code</h1>
-  <p>Open your authenticator app and enter the 6-digit code for MyLab.</p>
+  <p>Open your authenticator app and enter the 6-digit code for Roostack.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <form method="post" action="/login/totp">
     <label>Code

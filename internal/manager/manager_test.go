@@ -12,14 +12,14 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/dns"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/reconcile"
-	"github.com/mylab/mylab/internal/state"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/reconcile"
+	"roostack.cloud/roostack/internal/state"
 )
 
 type fakeSystemd struct {
@@ -145,10 +145,10 @@ func TestInstallAndRemove(t *testing.T) {
 	if in.Settings["signups_allowed"] != false {
 		t.Errorf("unticked checkbox should be false, got %v", in.Settings["signups_allowed"])
 	}
-	if _, ok := secrets.values["mylab-vaultwarden-admin_token"]; !ok {
+	if _, ok := secrets.values["roostack-vaultwarden-admin_token"]; !ok {
 		t.Error("generated secret not created")
 	}
-	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-vaultwarden-app.container")); err != nil {
+	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-vaultwarden-app.container")); err != nil {
 		t.Error("quadlet not written:", err)
 	}
 
@@ -186,7 +186,7 @@ func TestInstallAndRemove(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Wait()
-	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-vaultwarden-app.container")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-vaultwarden-app.container")); !os.IsNotExist(err) {
 		t.Error("quadlet should be removed")
 	}
 	if _, err := os.Stat(filepath.Join(m.Lab.Paths.ServicesDir, "vaultwarden", "data")); err != nil {
@@ -221,7 +221,7 @@ func TestApplyErrorIsReported(t *testing.T) {
 	if st := m.Status(); st.LastErr != nil {
 		t.Errorf("a lab without its domain set up should still apply: %v", st.LastErr)
 	}
-	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-vaultwarden-app.container")); err != nil {
+	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-vaultwarden-app.container")); err != nil {
 		t.Error(err)
 	}
 	// A failing apply is reported.
@@ -267,7 +267,7 @@ func TestPorts(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Wait()
-	unit, _ := os.ReadFile(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-forgejo-app.container"))
+	unit, _ := os.ReadFile(filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-forgejo-app.container"))
 	if !strings.Contains(string(unit), "PublishPort=2200:2222/tcp") {
 		t.Errorf("ssh port not published:\n%s", unit)
 	}
@@ -345,7 +345,7 @@ func TestOnlyThisNodesServices(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Wait()
-	os.WriteFile(state.InstanceFile(m.Lab, "immich"), []byte("package: immich\nversion: 2.1.0-mylab.1\nhost: n-0000000002\n"), 0o640)
+	os.WriteFile(state.InstanceFile(m.Lab, "immich"), []byte("package: immich\nversion: 2.1.0-roostack.1\nhost: n-0000000002\n"), 0o640)
 	m.Apply()
 	m.Wait()
 	if st := m.Status(); st.LastErr != nil {
@@ -355,10 +355,10 @@ func TestOnlyThisNodesServices(t *testing.T) {
 	if in.Host != "n-0000000001" {
 		t.Errorf("installed service's host = %q", in.Host)
 	}
-	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-vaultwarden-app.container")); err != nil {
+	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-vaultwarden-app.container")); err != nil {
 		t.Error("this server's service should be applied:", err)
 	}
-	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-immich-server.container")); err == nil {
+	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-immich-server.container")); err == nil {
 		t.Error("a service placed on another server must not be applied here")
 	}
 	// The controller gives every server's routes ports, each server from
@@ -392,7 +392,7 @@ func TestAssignmentHandsOverSecretsAndSetUp(t *testing.T) {
 	}
 	m.Wait()
 	local(m).WaitHooks()
-	if _, ok := secrets.values["mylab-forgejo-admin_password"]; ok {
+	if _, ok := secrets.values["roostack-forgejo-admin_password"]; ok {
 		t.Error("the node should have used and deleted the typed password")
 	}
 	if err := m.Remove(ctx, "forgejo"); err != nil {

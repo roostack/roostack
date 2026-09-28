@@ -14,10 +14,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/store"
 )
 
-// Certificates on MyLab's network (SPEC.md §10.3): the controller records
+// Certificates on Roostack's network (SPEC.md §10.3): the controller records
 // the one certificate each server may use, so removing a server revokes
 // its certificate, and servers renew theirs before they expire.
 

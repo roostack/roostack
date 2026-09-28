@@ -1,0 +1,34 @@
+[Unit]
+Description=Roostack management service
+Documentation=file:///usr/share/doc/roostack/ARCHITECTURE.md
+After=network-online.target roostack-agent.service
+Wants=network-online.target roostack-agent.service
+# The roostack user's runtime directory (its UID) comes from a drop-in the
+# package writes: roostack.service.d/user.conf.
+
+[Service]
+User=roostack
+Group=roostack
+ExecStart=/usr/bin/roostack serve
+# Always: Roostack restarts itself to apply settings from the setup wizard.
+Restart=always
+RestartSec=1
+
+# Sandboxing (SPEC.md §6.1).
+ProtectSystem=strict
+ReadWritePaths=/var/lib/roostack /srv/roostack
+# ProtectHome=yes would also hide /run/user, where the roostack user's systemd
+# manager listens. Hide /home and /root, and bind back only roostack's own
+# runtime directory (in the drop-in).
+ProtectHome=tmpfs
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+# roostack never runs podman itself; it goes through the user manager with
+# systemd-run --user, so this sandbox doesn't break rootless podman's setuid
+# helpers (SPEC.md §6.1).
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

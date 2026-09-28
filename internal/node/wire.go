@@ -6,15 +6,15 @@ import (
 	"os"
 	"time"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/pkgspec"
-	"github.com/mylab/mylab/internal/state"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/state"
 )
 
-// What crosses MyLab's network between the controller and a node (SPEC.md
+// What crosses Roostack's network between the controller and a node (SPEC.md
 // §10.3): plain data, the same operations the in-process Local offers.
 
 // WireAssignment is an Assignment on the wire. Services travel as their

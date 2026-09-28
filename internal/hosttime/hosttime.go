@@ -1,6 +1,6 @@
 // Package hosttime reads the host's time zone settings. Changing them is
-// the agent's job (mylab-agent runs timedatectl); this package only reads,
-// so it works inside the mylab service's sandbox.
+// the agent's job (roostack-agent runs timedatectl); this package only reads,
+// so it works inside the roostack service's sandbox.
 package hosttime
 
 import (
@@ -69,7 +69,7 @@ type Clock struct {
 }
 
 // Now returns the host's clock. It uses time.Local, which is what every
-// time MyLab shows is in, so it stays right until MyLab restarts after a
+// time Roostack shows is in, so it stays right until Roostack restarts after a
 // time zone change.
 func Now() Clock {
 	now := time.Now()

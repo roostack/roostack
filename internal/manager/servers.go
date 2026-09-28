@@ -8,9 +8,9 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/state"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/state"
 )
 
 // A lab's servers (SPEC.md §10): this one, the controller, which keeps
@@ -46,7 +46,7 @@ type Server struct {
 	// Services are the names of the services placed on it.
 	Services []string
 	Status   ApplyStatus
-	// CertExpires is when its certificate on MyLab's network expires
+	// CertExpires is when its certificate on Roostack's network expires
 	// (renewed automatically well before); zero if unknown.
 	CertExpires time.Time
 }
@@ -333,7 +333,7 @@ func (m *Manager) RemoveServer(ctx context.Context, id string) error {
 }
 
 // RenameServer changes a server's name. Renaming this server restarts
-// MyLab (RenameSelf), which reads its name at startup.
+// Roostack (RenameSelf), which reads its name at startup.
 func (m *Manager) RenameServer(ctx context.Context, id, name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" || len([]rune(name)) > 40 || strings.ContainsFunc(name, unicode.IsControl) {
@@ -405,7 +405,7 @@ func (m *Manager) ServiceInfos(ctx context.Context) map[string]ServiceInfo {
 	return out
 }
 
-// ServerBuiltIns is MyLab's own parts on one server.
+// ServerBuiltIns is Roostack's own parts on one server.
 type ServerBuiltIns struct {
 	Server string
 	Items  []node.BuiltIn
@@ -413,7 +413,7 @@ type ServerBuiltIns struct {
 	Err error
 }
 
-// AllBuiltIns lists MyLab's own parts on every server.
+// AllBuiltIns lists Roostack's own parts on every server.
 func (m *Manager) AllBuiltIns(ctx context.Context) []ServerBuiltIns {
 	nodes := m.allNodes()
 	out := make([]ServerBuiltIns, len(nodes))

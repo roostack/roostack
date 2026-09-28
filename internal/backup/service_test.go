@@ -11,15 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/maintenance"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/maintenance"
+	"roostack.cloud/roostack/internal/store"
 )
 
 func TestIsLocal(t *testing.T) {
 	for repo, want := range map[string]bool{
-		"/mnt/backup/mylab":            true,
+		"/mnt/backup/roostack":         true,
 		"relative/dir":                 true,
 		"s3:https://s3.example.com/b":  false,
 		"sftp:user@host:/srv/restic":   false,
@@ -35,7 +35,7 @@ func TestIsLocal(t *testing.T) {
 func TestServiceRecordsRuns(t *testing.T) {
 	repo := testRepo(t)
 	root := t.TempDir()
-	st, err := store.Open(filepath.Join(root, "mylab.db"))
+	st, err := store.Open(filepath.Join(root, "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestServiceRecordsRuns(t *testing.T) {
 		t.Fatalf("status after success: %+v %+v", s, s.Last)
 	}
 	act, _ := svc.Activity.Latest(activity.Backup)
-	for _, want := range []string{"==> Saving a copy of MyLab's own database", "==> Opening the backup storage",
+	for _, want := range []string{"==> Saving a copy of Roostack's own database", "==> Opening the backup storage",
 		"==> Uploading changes", "==> Done"} {
 		if !slices.Contains(act.Lines, want) {
 			t.Errorf("activity missing %q:\n%s", want, strings.Join(act.Lines, "\n"))

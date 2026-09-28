@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // Extra copies of a server's backups (SPEC.md §6.9, 3-2-1): somewhere
@@ -48,7 +48,7 @@ func (m *Manager) BackupCopiesOf(ctx context.Context, serverID string) []BackupC
 
 // AddBackupCopy adds an extra copy of a server's backups at a choice other
 // than its main destination. The repository is created in the background
-// (activity.BackupSetup); the server then restarts MyLab.
+// (activity.BackupSetup); the server then restarts Roostack.
 func (m *Manager) AddBackupCopy(ctx context.Context, serverID, ref string) error {
 	if m.BackupStore == nil || m.OpenRepo == nil {
 		return ErrNotFound
@@ -58,7 +58,7 @@ func (m *Manager) AddBackupCopy(ctx context.Context, serverID, ref string) error
 		return ErrNotFound
 	}
 	if n.Settings() == nil {
-		return formErrorf("MyLab can't reach %s right now.", n.Identity().Name)
+		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	main, _, ok := m.BackupTargetOf(ctx, serverID)
 	if !ok {
@@ -107,7 +107,7 @@ func (m *Manager) setUpCopy(ctx context.Context, act *activity.Log, serverID str
 	if err := m.BackupStore.SetBackupCopy(ctx, target); err != nil {
 		return err
 	}
-	act.Step("Telling %s about the copy (it restarts MyLab)", m.nameOf(serverID))
+	act.Step("Telling %s about the copy (it restarts Roostack)", m.nameOf(serverID))
 	c := node.BackupCopy{Name: choice.Ref, Title: choice.Title, Repository: dest.Repository, Env: dest.Env, Key: dest.Key}
 	if err := n.Settings().SetBackupCopies(ctx, m.copiesFor(ctx, serverID, &c)); err != nil {
 		return err
@@ -155,7 +155,7 @@ func (m *Manager) RemoveBackupCopy(ctx context.Context, serverID, ref string) er
 		return ErrNotFound
 	}
 	if n.Settings() == nil {
-		return formErrorf("MyLab can't reach %s right now.", n.Identity().Name)
+		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
 	}
 	t, ok := m.copyTarget(ctx, serverID, ref)
 	if !ok {

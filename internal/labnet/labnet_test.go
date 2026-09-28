@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mylab/mylab/internal/agent"
+	"roostack.cloud/roostack/internal/agent"
 )
 
 // newServer creates a server identity signed by ca.
@@ -106,14 +106,14 @@ func TestJoinCode(t *testing.T) {
 		ControllerAddr: netip.MustParseAddr("100.96.0.1"), Addr: netip.MustParseAddr("100.96.0.2"), PrefixBits: 24,
 		JoinKey: key, CA: "fp", Token: token}
 	s := c.String()
-	if !strings.HasPrefix(s, "mylab-join-") || len(s) > 400 {
+	if !strings.HasPrefix(s, "roostack-join-") || len(s) > 400 {
 		t.Errorf("code %q (%d chars)", s, len(s))
 	}
 	got, err := ParseJoinCode("  " + s + "\n")
 	if err != nil || got != c || HashToken(got.Token) != hash {
 		t.Fatalf("round trip: %+v, %v", got, err)
 	}
-	for _, bad := range []string{"hello", s[:len(s)-10], "mylab-join-!!!"} {
+	for _, bad := range []string{"hello", s[:len(s)-10], "roostack-join-!!!"} {
 		if _, err := ParseJoinCode(bad); err == nil {
 			t.Errorf("%q: want an error", bad)
 		}

@@ -1,4 +1,4 @@
-// Package dns knows the DNS providers MyLab supports for the DNS-01
+// Package dns knows the DNS providers Roostack supports for the DNS-01
 // challenge (SPEC.md §6.5): what credentials each needs, how Caddy is
 // configured for it, and how to check the credentials before saving.
 //
@@ -29,7 +29,7 @@ type Provider struct {
 	Title string
 	// Help explains how to create the credentials.
 	Help string
-	// Plugin is the Caddy DNS module built into MyLab's Caddy image.
+	// Plugin is the Caddy DNS module built into Roostack's Caddy image.
 	Plugin string
 	Fields []Field
 	// directive is the Caddyfile "dns" line; set lists the fields given.
@@ -41,7 +41,7 @@ type Provider struct {
 }
 
 // SecretName is the Podman secret holding a field's value.
-func SecretName(field string) string { return "mylab-caddy-dns-" + field }
+func SecretName(field string) string { return "roostack-caddy-dns-" + field }
 
 // EnvName is the environment variable Caddy reads a field from.
 func EnvName(field string) string { return "DNS_" + strings.ToUpper(field) }
@@ -124,7 +124,7 @@ var providers = []*Provider{
 		ID: "namecheap", Title: "Namecheap", Plugin: "github.com/caddy-dns/namecheap",
 		Help: "In Namecheap, go to Profile → Tools → Namecheap API Access, turn it on, and add this " +
 			"lab's public IP address to the whitelist. Namecheap only enables the API for some accounts. " +
-			"(MyLab's check only reads your DNS records: Namecheap's API can't add one record on its own.)",
+			"(Roostack's check only reads your DNS records: Namecheap's API can't add one record on its own.)",
 		Fields: []Field{
 			{Key: "user", Label: "Namecheap username"},
 			{Key: "api_key", Label: "API key", Sensitive: true},

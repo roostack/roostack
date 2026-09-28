@@ -26,15 +26,15 @@ name() {
 
 cat <<HDR
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: MyLab
-Source: https://github.com/mylab/mylab
-Comment: MyLab's own licence hasn't been chosen yet (TASKS.md). The other
- paragraphs cover code compiled into or served by MyLab (THIRD_PARTY.md).
+Upstream-Name: Roostack
+Source: https://roostack.cloud
+Comment: Roostack's own licence hasn't been chosen yet (TASKS.md). The other
+ paragraphs cover code compiled into or served by Roostack (THIRD_PARTY.md).
 
 Files: *
-Copyright: The MyLab authors
+Copyright: The Roostack authors
 License: undecided
- MyLab's own licence hasn't been chosen yet.
+ Roostack's own licence hasn't been chosen yet.
 
 HDR
 
@@ -45,18 +45,18 @@ for f in "$goroot/LICENSE" /usr/share/licenses/go/LICENSE; do
     [[ -f $f ]] && { golicense=$f; break; }
 done
 [[ -n $golicense ]] || { echo "copyright.sh: can't find Go's LICENSE" >&2; exit 1; }
-echo "Files: usr/bin/mylab usr/bin/mylab-agent"
+echo "Files: usr/bin/roostack usr/bin/roostack-agent"
 echo "Copyright: The Go Authors"
 echo "Comment: The Go standard library, compiled in ($(go env GOVERSION))."
 echo "License: BSD-3-Clause"
 indent < "$golicense"
 echo
 
-go version -m bin/mylab bin/mylab-agent | awk '$1 == "dep" { print $2, $3 }' | sort -u | while read -r mod ver; do
+go version -m bin/roostack bin/roostack-agent | awk '$1 == "dep" { print $2, $3 }' | sort -u | while read -r mod ver; do
     dir=$(go mod download -json "$mod@$ver" | sed -n 's/^[[:space:]]*"Dir": "\(.*\)",$/\1/p')
     lic=$(ls "$dir"/LICENSE* "$dir"/LICENCE* "$dir"/COPYING* 2>/dev/null | head -1 || true)
     [[ -n $lic ]] || { echo "copyright.sh: no licence file for $mod@$ver" >&2; exit 1; }
-    echo "Files: usr/bin/mylab usr/bin/mylab-agent"
+    echo "Files: usr/bin/roostack usr/bin/roostack-agent"
     holders=$(grep '^Copyright' "$lic" | sed 's/^Copyright[[:space:]]*//' | paste -sd'\n' - | sed '2,$s/^/ /' || true)
     echo "Copyright: ${holders:-The $mod authors}"
     echo "Comment: Go module $mod $ver, compiled in."
@@ -72,14 +72,14 @@ vendored() { # file-in-package holder licence-file
     indent < "$3"
     echo
 }
-vendored "usr/bin/mylab" "The htmx authors (htmx, served by MyLab)" packaging/licenses/htmx
-vendored "usr/bin/mylab" "$(grep -m1 -i copyright packaging/licenses/alpine | sed 's/^Copyright //') (Alpine.js, served by MyLab)" packaging/licenses/alpine
+vendored "usr/bin/roostack" "The htmx authors (htmx, served by Roostack)" packaging/licenses/htmx
+vendored "usr/bin/roostack" "$(grep -m1 -i copyright packaging/licenses/alpine | sed 's/^Copyright //') (Alpine.js, served by Roostack)" packaging/licenses/alpine
 for theme in catppuccin gruvbox nord solarized everforest rose-pine; do
     holder=$(grep -m1 -i '^copyright' "packaging/licenses/$theme" | sed 's/^[Cc]opyright //')
-    vendored "usr/bin/mylab" "$holder (the $theme colour palette)" "packaging/licenses/$theme"
+    vendored "usr/bin/roostack" "$holder (the $theme colour palette)" "packaging/licenses/$theme"
 done
 cat <<TN
-Files: usr/bin/mylab
+Files: usr/bin/roostack
 Copyright: Folke Lemaitre (the Tokyo Night colour palette)
 License: Apache-2.0
  On Debian systems, the full text of the Apache License 2.0 can be found in

@@ -5,9 +5,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/pkgspec"
-	"github.com/mylab/mylab/internal/state"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/state"
 )
 
 // InstallSettings are a package's settings asked for at install and used

@@ -8,15 +8,15 @@ import (
 	"time"
 )
 
-// UserCommand builds a command that runs as a transient unit of the mylab
+// UserCommand builds a command that runs as a transient unit of the roostack
 // user's systemd manager (systemd-run --user), with stdin/stdout/stderr
 // connected to the returned Cmd.
 //
-// This is how mylab runs podman and anything touching container-owned
-// files: mylab itself is sandboxed with NoNewPrivileges, which breaks
+// This is how roostack runs podman and anything touching container-owned
+// files: roostack itself is sandboxed with NoNewPrivileges, which breaks
 // rootless podman's setuid helpers (SPEC.md §6.1, ASSUMPTIONS A8).
 //
-// unit names the transient service (e.g. "mylab-backup"); env is passed
+// unit names the transient service (e.g. "roostack-backup"); env is passed
 // with --setenv. Cancelling ctx sends SIGINT to the unit, so programs like
 // restic can stop cleanly.
 func UserCommand(ctx context.Context, unit string, env []string, name string, args ...string) *exec.Cmd {

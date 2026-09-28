@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mylab/mylab/internal/manager"
-	"github.com/mylab/mylab/internal/pkgspec"
+	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // serviceLink is a link into the app's own settings pages.
@@ -21,7 +21,7 @@ type revealable struct {
 }
 
 // addSettingsData adds the service page's Settings section: links into the
-// app, secrets that can be shown, and the form for MyLab's own settings.
+// app, secrets that can be shown, and the form for Roostack's own settings.
 // submitted (form values after an error) overrides the current values.
 func (s *Server) addSettingsData(data map[string]any, name string, p *pkgspec.Package, submitted map[string][]string) {
 	values, sub, err := s.Manager.CurrentSettings(name)

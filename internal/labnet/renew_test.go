@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // copyIdentity keeps a server's current certificate, as a removed or
@@ -33,7 +33,7 @@ func copyIdentity(t *testing.T, id Identity) Identity {
 
 func TestCertRevocationAndRenewal(t *testing.T) {
 	dir := t.TempDir()
-	st, err := store.Open(filepath.Join(dir, "mylab.db"))
+	st, err := store.Open(filepath.Join(dir, "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

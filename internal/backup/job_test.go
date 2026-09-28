@@ -10,27 +10,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/maintenance"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/maintenance"
 )
 
 func TestLabPlan(t *testing.T) {
 	paths := config.Default().Paths
 	vw := &generate.Output{Backup: generate.BackupPlan{
-		Include: []string{"/srv/mylab/services/vaultwarden/data", "/srv/mylab/services/vaultwarden/db-dump"},
-		Exclude: []string{"/srv/mylab/services/vaultwarden/data/db.sqlite3"},
+		Include: []string{"/srv/roostack/services/vaultwarden/data", "/srv/roostack/services/vaultwarden/db-dump"},
+		Exclude: []string{"/srv/roostack/services/vaultwarden/data/db.sqlite3"},
 		Prepare: []generate.PrepareStep{{Type: "sqlite"}},
 	}}
 	p := LabPlan(paths, []*generate.Output{vw})
-	for _, want := range []string{"/var/lib/mylab", "/var/lib/mylab/home/.local/share/containers/storage/secrets",
-		"/srv/mylab/services/vaultwarden/data"} {
+	for _, want := range []string{"/var/lib/roostack", "/var/lib/roostack/home/.local/share/containers/storage/secrets",
+		"/srv/roostack/services/vaultwarden/data"} {
 		if !slices.Contains(p.Paths, want) {
 			t.Errorf("paths missing %s: %v", want, p.Paths)
 		}
 	}
-	for _, want := range []string{"/var/lib/mylab/home/*", "!/var/lib/mylab/home/.local", "/var/lib/mylab/mylab.db", "/var/lib/mylab/backup-key",
-		"/srv/mylab/services/vaultwarden/data/db.sqlite3"} {
+	for _, want := range []string{"/var/lib/roostack/home/*", "!/var/lib/roostack/home/.local", "/var/lib/roostack/roostack.db", "/var/lib/roostack/backup-key",
+		"/srv/roostack/services/vaultwarden/data/db.sqlite3"} {
 		if !slices.Contains(p.Excludes, want) {
 			t.Errorf("excludes missing %s: %v", want, p.Excludes)
 		}
@@ -81,7 +81,7 @@ func TestBackupJob(t *testing.T) {
 		t.Fatal("backup job did not finish")
 	}
 
-	snaps, err := repo.Snapshots(context.Background(), "mylab")
+	snaps, err := repo.Snapshots(context.Background(), "roostack")
 	if err != nil || len(snaps) != 1 {
 		t.Fatalf("snapshots: %v %v", snaps, err)
 	}
@@ -142,7 +142,7 @@ func TestBackupCopies(t *testing.T) {
 	if !slices.Equal(copied, []string{"provider:1"}) || copyErr != nil {
 		t.Fatalf("copies: %v %v", copied, copyErr)
 	}
-	if snaps, err := copyRepo.Snapshots(context.Background(), "mylab"); err != nil || len(snaps) != 1 {
+	if snaps, err := copyRepo.Snapshots(context.Background(), "roostack"); err != nil || len(snaps) != 1 {
 		t.Errorf("the copy should have its own backup: %v %v", snaps, err)
 	}
 }

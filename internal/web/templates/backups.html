@@ -25,7 +25,7 @@
         {{range .}}<label class="check"><input type="radio" name="destination" value="{{.Ref}}" {{if and $.Target (eq .Ref $.Target.Provider)}}checked{{end}} required>
           <span>{{.Title}}<small>{{.Note}}</small></span></label>{{end}}
       </fieldset>
-      <p class="hint">MyLab creates a new backup there, readable with your recovery key. Earlier backups stay where they are.</p>
+      <p class="hint">Roostack creates a new backup there, readable with your recovery key. Earlier backups stay where they are.</p>
       <button type="submit">Use this</button>
     </form>
     {{end}}
@@ -47,11 +47,11 @@
     </details>
     <details{{if .RemoteError}} open{{end}}>
       <summary>Add storage from another lab</summary>
-      <p class="hint">Someone you trust (family, a friend) can give your lab space for backups on their MyLab: they make
+      <p class="hint">Someone you trust (family, a friend) can give your lab space for backups on their Roostack: they make
         an invite on their Settings → Storage for others. Your backups are encrypted before they leave, so they can't read them.</p>
       {{with .RemoteError}}<p class="error" role="alert">{{.}}</p>{{end}}
       <form method="post" action="/settings/remote-storage">
-        <label>Their invite <textarea name="invite" rows="3" required placeholder="mylab-storage-…"></textarea></label>
+        <label>Their invite <textarea name="invite" rows="3" required placeholder="roostack-storage-…"></textarea></label>
         <button type="submit" class="secondary">Add their storage</button>
       </form>
     </details>

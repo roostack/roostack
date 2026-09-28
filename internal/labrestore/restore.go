@@ -10,17 +10,17 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/config"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
 )
 
-// A lab restore runs in three steps, across a restart of MyLab:
+// A lab restore runs in three steps, across a restart of Roostack:
 //
 //  1. Restore (before any account exists): the backup's files go back to
-//     where they were (MyLab's state, secrets and every service's data),
+//     where they were (Roostack's state, secrets and every service's data),
 //     the recovery key becomes the backup key, and a marker is left.
-//  2. StartFromBackup (when MyLab starts, before it opens its database):
+//  2. StartFromBackup (when Roostack starts, before it opens its database):
 //     the backed-up copy of the database becomes the live one.
 //  3. Databases (once the services have been set up again): each
 //     service's databases are put back from their dumps.
@@ -58,10 +58,10 @@ func (m marker) save(paths config.Paths) error {
 
 // Restore puts a server's backup back onto this one (step 1). repo is
 // opened with the recovery key, which is in keyFile. It must run on a
-// server with nothing on it yet; the caller then restarts MyLab.
+// server with nothing on it yet; the caller then restarts Roostack.
 func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Found, keyFile string, log *activity.Log) error {
 	if fd.StateDir != paths.StateDir {
-		return fmt.Errorf("that server kept MyLab's state in %s, but this one uses %s; set paths.state_dir in lab.yaml to match first",
+		return fmt.Errorf("that server kept Roostack's state in %s, but this one uses %s; set paths.state_dir in lab.yaml to match first",
 			fd.StateDir, paths.StateDir)
 	}
 	if !fd.Controller {
@@ -72,7 +72,7 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 		log.Printf("%s", p)
 	}
 	// Every path goes back where it was, as it was (owners included:
-	// restic runs in the mylab user's namespace, as for backups). Each on
+	// restic runs in the roostack user's namespace, as for backups). Each on
 	// its own, so folders above them (/var, /srv) are left alone.
 	for _, p := range fd.Snapshot.Paths {
 		if err := os.MkdirAll(p, 0o750); err != nil {
@@ -83,7 +83,7 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 		}
 	}
 	if _, err := os.Stat(backup.StateDumpFile(paths)); err != nil {
-		return fmt.Errorf("the backup has no copy of MyLab's database: %w", err)
+		return fmt.Errorf("the backup has no copy of Roostack's database: %w", err)
 	}
 	log.Step("Keeping the recovery key for the next backups")
 	key, err := os.ReadFile(keyFile)
@@ -93,26 +93,26 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 	if err := writeFile(backup.KeyFile(paths), key); err != nil {
 		return err
 	}
-	log.Step("Restarting MyLab as the restored lab")
+	log.Step("Restarting Roostack as the restored lab")
 	return marker{Repository: fd.Repository, Snapshot: fd.Snapshot.ID, Restored: time.Now(), Step: "database"}.save(paths)
 }
 
 // StartFromBackup finishes step 2 if a restore is in progress: the
-// backed-up copy of MyLab's database replaces the new, empty one. Call it
+// backed-up copy of Roostack's database replaces the new, empty one. Call it
 // before opening the database.
 func StartFromBackup(paths config.Paths) (bool, error) {
 	m, ok := readMarker(paths)
 	if !ok || m.Step != "database" {
 		return false, nil
 	}
-	db := filepath.Join(paths.StateDir, "mylab.db")
+	db := filepath.Join(paths.StateDir, "roostack.db")
 	for _, f := range []string{db + "-wal", db + "-shm"} {
 		if err := os.Remove(f); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return false, err
 		}
 	}
 	if err := copyFile(backup.StateDumpFile(paths), db); err != nil {
-		return false, fmt.Errorf("putting MyLab's database back: %w", err)
+		return false, fmt.Errorf("putting Roostack's database back: %w", err)
 	}
 	m.Step = "services"
 	return true, m.save(paths)

@@ -18,16 +18,16 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/b2"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/pkgspec"
-	"github.com/mylab/mylab/internal/state"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/b2"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/state"
 )
 
 // Types shared with the node that does the work (internal/node), under
@@ -313,7 +313,7 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 		var pe *state.PortInUseError
 		switch {
 		case errors.As(err, &pe) && pe.UsedBy == "":
-			return formErrorf("MyLab keeps ports %d-%d for its web services. Choose another port.",
+			return formErrorf("Roostack keeps ports %d-%d for its web services. Choose another port.",
 				config.DefaultRoutePortMin, config.DefaultRoutePortMax)
 		case errors.As(err, &pe):
 			return formErrorf("Port %d is already used by %s. Choose another port.", pe.Port, pe.UsedBy)
@@ -376,7 +376,7 @@ type SettingsRequest struct {
 }
 
 // Changeable reports whether a setting can be changed after install from
-// MyLab: not secrets, and not install-only settings (e.g. the first
+// Roostack: not secrets, and not install-only settings (e.g. the first
 // admin's details).
 func Changeable(s pkgspec.Setting) bool {
 	return s.Type != pkgspec.SettingSecret && !s.InstallOnly

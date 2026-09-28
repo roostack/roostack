@@ -1,14 +1,14 @@
-# Reference example: medium package (single container, MyLab-managed
+# Reference example: medium package (single container, Roostack-managed
 # Postgres). Image digests looked up 2026-09-26. See SPEC.md §8.1.
 #
 # v15 is Forgejo's LTS release (supported until 2027-07-15); v16 is newer but
 # supported only until the next major release. LTS suits a lab that
 # shouldn't need a major upgrade every few months.
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: forgejo
 title: Forgejo
 description: Git hosting with issues and pull requests, a self-hosted alternative to GitHub
-version: 15.0.9-mylab.1
+version: 15.0.9-roostack.1
 
 settings:
   # The administrator account, created by the install hook below.
@@ -24,7 +24,7 @@ settings:
     install_only: true
   - key: admin_password
     title: Administrator password
-    description: At least 8 characters. MyLab forgets it once the account exists.
+    description: At least 8 characters. Roostack forgets it once the account exists.
     type: secret
     min_length: 8
     install_only: true           # deleted once the install hook succeeds
@@ -73,7 +73,7 @@ storage:
 
 databases:
   main:
-    type: postgres               # MyLab's default Postgres image
+    type: postgres               # Roostack's default Postgres image
 
 routes:
   web:

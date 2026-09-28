@@ -3,7 +3,7 @@
 <section class="card medium">
   {{if .Restoring}}
   <h1>Restoring your lab</h1>
-  <p class="hint">MyLab puts your services' files, settings and accounts back, then restarts as your lab. Keep this page open;
+  <p class="hint">Roostack puts your services' files, settings and accounts back, then restarts as your lab. Keep this page open;
     it moves on to the login page when it's done. Large backups can take a while.</p>
   <div hx-get="/setup/restore/progress" hx-trigger="every 2s" hx-swap="innerHTML">{{template "restore-progress" .}}</div>
   {{else}}
@@ -46,7 +46,7 @@
   <form method="post" action="/setup/restore" x-data="{ kind: '{{.Kind}}' }">
     <label>Setup code
       <input name="token" autocomplete="off" required autofocus>
-      <small>Shown in the MyLab log, and saved in <code>/var/lib/mylab/setup-token</code>.</small>
+      <small>Shown in the Roostack log, and saved in <code>/var/lib/roostack/setup-token</code>.</small>
     </label>
     <fieldset>
       <legend>Where are the backups?</legend>
@@ -63,11 +63,11 @@
       <label>Folder in the bucket (if you chose one) <input name="prefix" value="{{.S3.Prefix}}"></label>
       <label>Access key <input name="access_key" autocomplete="off"></label>
       <label>Secret key <input name="secret_key" type="password" autocomplete="off"></label>
-      <p class="hint">MyLab looks for every server's backups in the bucket.</p>
+      <p class="hint">Roostack looks for every server's backups in the bucket.</p>
     </div>
     <div x-show="kind === 'folder'" x-cloak>
       <label>Folder <input name="folder" value="{{.Folder}}" placeholder="/mnt/backup"></label>
-      <p class="hint">MyLab looks in the folder and a few levels below it.</p>
+      <p class="hint">Roostack looks in the folder and a few levels below it.</p>
     </div>
     <div x-show="kind === 'url'" x-cloak>
       <label>Address <input name="url" value="{{.URL}}" placeholder="rest:https://user:password@backup.example.com/lab"></label>
@@ -88,7 +88,7 @@
 <p class="activity-status {{if $.Running}}running{{else if .Err}}failed{{else}}ok{{end}}">
   {{if $.Running}}<span class="spinner" aria-hidden="true"></span> {{.Title}}: {{with .Status}}{{.}}…{{else}}starting…{{end}}
   {{else if .Err}}✗ {{.Title}} failed: {{.Err}}
-  {{else}}✓ {{.Title}}: done. MyLab is restarting as your lab…{{end}}
+  {{else}}✓ {{.Title}}: done. Roostack is restarting as your lab…{{end}}
 </p>
 <pre class="output activity-log">{{range .Lines}}{{.}}
 {{end}}</pre>

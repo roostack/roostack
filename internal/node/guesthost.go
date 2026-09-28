@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/mylab/mylab/internal/agent"
+	"roostack.cloud/roostack/internal/agent"
 )
 
 // Storage for other labs can be offered by any of a lab's servers (SPEC.md
@@ -54,7 +54,7 @@ func (r *Remote) GuestSpace(ctx context.Context) (int64, int64, error) {
 	return out.Free, out.Total, err
 }
 
-// LinkAgent is mylab-agent's WireGuard operations.
+// LinkAgent is roostack-agent's WireGuard operations.
 type LinkAgent interface {
 	ApplyWireGuard(ctx context.Context, wg agent.WireGuard) (string, error)
 	WireGuardStatus(ctx context.Context, iface string) (agent.WireGuardStatus, error)

@@ -62,7 +62,7 @@ func startFakeAPIs(t *testing.T) *fakeAPIs {
 	})
 	mux.HandleFunc("DELETE /cf/zones/z1/dns_records/rec1", func(w http.ResponseWriter, r *http.Request) {
 		f.log(r, r.Header.Get("Authorization"))
-		f.set("_mylab-check.lab.example.com", false)
+		f.set("_roostack-check.lab.example.com", false)
 		w.Write([]byte(`{"success":true}`))
 	})
 
@@ -78,7 +78,7 @@ func startFakeAPIs(t *testing.T) *fakeAPIs {
 	mux.HandleFunc("POST /r53/2013-04-01/hostedzone/Z9/rrset", func(w http.ResponseWriter, r *http.Request) {
 		f.log(r, strings.SplitN(r.Header.Get("Authorization"), " ", 2)[0])
 		b, _ := io.ReadAll(r.Body)
-		f.set("_mylab-check.lab.example.com", strings.Contains(string(b), "<Action>CREATE</Action>"))
+		f.set("_roostack-check.lab.example.com", strings.Contains(string(b), "<Action>CREATE</Action>"))
 		w.Write([]byte(`<ChangeResourceRecordSetsResponse/>`))
 	})
 
@@ -96,7 +96,7 @@ func startFakeAPIs(t *testing.T) *fakeAPIs {
 	})
 	mux.HandleFunc("POST /pb/dns/delete/example.com/123", func(w http.ResponseWriter, r *http.Request) {
 		f.log(r, body(r)["apikey"].(string))
-		f.set("_mylab-check.lab.example.com", false)
+		f.set("_roostack-check.lab.example.com", false)
 		w.Write([]byte(`{"status":"SUCCESS"}`))
 	})
 
@@ -125,7 +125,7 @@ func startFakeAPIs(t *testing.T) *fakeAPIs {
 			http.Error(w, `{"detail":"not found"}`, http.StatusNotFound)
 			return
 		}
-		f.set("_mylab-check.lab.example.com", r.Method == "PUT")
+		f.set("_roostack-check.lab.example.com", r.Method == "PUT")
 		w.WriteHeader(http.StatusNoContent)
 	})
 

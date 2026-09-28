@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // usersPage lists accounts for the Owner (SPEC.md §5).

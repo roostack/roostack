@@ -1,5 +1,5 @@
 package: vaultwarden
-version: 1.34.3-mylab.1
+version: 1.34.3-roostack.1
 routes:
   web: { subdomain: passwords, port: 20001 }
 settings:

@@ -11,14 +11,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/manager"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/manager"
 )
 
 // forwardToRemote passes this lab's servers' backups to its storage at
 // another lab (SPEC.md §10.10): only the controller has the link there, so
-// it forwards on its own loopback and its address on MyLab's network.
+// it forwards on its own loopback and its address on Roostack's network.
 // Everything is restic-encrypted before it leaves the server.
 func forwardToRemote(ctx context.Context, lab config.Lab, r manager.RemoteStorage, log *slog.Logger) {
 	target := &url.URL{Scheme: "http", Host: net.JoinHostPort(r.HostAddr.String(), strconv.Itoa(r.Port))}

@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mylab/mylab/internal/osupdate"
+	"roostack.cloud/roostack/internal/osupdate"
 )
 
-// Changes to a server that MyLab didn't make (SPEC.md §3.2): shown on its
+// Changes to a server that Roostack didn't make (SPEC.md §3.2): shown on its
 // Updates page and in "needs attention", until the Owner says they made
 // them on purpose.
 
@@ -71,7 +71,7 @@ func hostChangesText(c osupdate.HostCheck) string {
 		parts = append(parts, "another firewall")
 	}
 	if c.FirewallMissing {
-		parts = append(parts, "MyLab's firewall isn't loaded")
+		parts = append(parts, "Roostack's firewall isn't loaded")
 	}
 	return strings.Join(parts, ", ")
 }

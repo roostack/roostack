@@ -11,14 +11,14 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/nodeid"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/nodeid"
 )
 
 const nodeUsage = `Usage:
-  mylab node join <code> [-name <name>]   join a lab (the code comes from its Settings → Servers)
+  roostack node join <code> [-name <name>]   join a lab (the code comes from its Settings → Servers)
 
 Run as root.
 `
@@ -58,23 +58,23 @@ func nodeCmd(args []string) error {
 		return err
 	}
 	if os.Geteuid() == 0 {
-		// Files written as root must belong to the mylab service.
-		if err := chownToMylab(labnet.IdentityDir(lab.Paths.StateDir), nodeid.File(lab.Paths.StateDir)); err != nil {
+		// Files written as root must belong to the roostack service.
+		if err := chownToRoostack(labnet.IdentityDir(lab.Paths.StateDir), nodeid.File(lab.Paths.StateDir)); err != nil {
 			return err
 		}
-		say("Restarting MyLab as part of the lab")
-		if out, err := exec.Command("systemctl", "restart", "mylab").CombinedOutput(); err != nil {
-			return fmt.Errorf("restarting mylab: %w: %s", err, out)
+		say("Restarting Roostack as part of the lab")
+		if out, err := exec.Command("systemctl", "restart", "roostack").CombinedOutput(); err != nil {
+			return fmt.Errorf("restarting roostack: %w: %s", err, out)
 		}
 	} else {
-		say("Restart MyLab to finish: sudo systemctl restart mylab")
+		say("Restart Roostack to finish: sudo systemctl restart roostack")
 	}
 	say("Done: %s is now part of the lab. Manage it from the lab's Settings → Servers.", self.Name)
 	return nil
 }
 
-func chownToMylab(paths ...string) error {
-	u, err := osuser.Lookup("mylab")
+func chownToRoostack(paths ...string) error {
+	u, err := osuser.Lookup("roostack")
 	if err != nil {
 		return err
 	}

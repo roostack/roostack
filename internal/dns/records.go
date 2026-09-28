@@ -10,9 +10,9 @@ import (
 	"strings"
 )
 
-// ManagedComment marks records MyLab created, where the provider supports
-// comments (Cloudflare). Ownership is also tracked in MyLab's own state.
-const ManagedComment = "Managed by MyLab"
+// ManagedComment marks records Roostack created, where the provider supports
+// comments (Cloudflare). Ownership is also tracked in Roostack's own state.
+const ManagedComment = "Managed by Roostack"
 
 // recordsAPI reads and writes single records. name is relative to zone
 // ("*.lab" in zone "example.com"; "*" for the zone itself). Only A records
@@ -21,11 +21,11 @@ type recordsAPI struct {
 	get    func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) ([]string, error)
 	upsert func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ, value string) error
 	// risky marks APIs that rewrite every record in the zone to change
-	// one (Namecheap); MyLab only uses them after an explicit opt-in.
+	// one (Namecheap); Roostack only uses them after an explicit opt-in.
 	risky bool
 }
 
-// ManagesRecords reports whether MyLab can manage DNS records with this
+// ManagesRecords reports whether Roostack can manage DNS records with this
 // provider, and whether doing so is risky (needs an explicit opt-in).
 func (p *Provider) ManagesRecords() (ok, risky bool) {
 	if p.records == nil {
@@ -34,7 +34,7 @@ func (p *Provider) ManagesRecords() (ok, risky bool) {
 	return true, p.records.risky
 }
 
-// CanManageRecords reports whether MyLab can manage records here (for templates).
+// CanManageRecords reports whether Roostack can manage records here (for templates).
 func (p *Provider) CanManageRecords() bool { ok, _ := p.ManagesRecords(); return ok }
 
 // RiskyRecords reports whether managing records needs an opt-in (for templates).

@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/pkgspec"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // Units starts and stops a service's systemd units.
@@ -28,9 +28,9 @@ type Restorer struct {
 	Repo  *Repo
 	Units Units
 	// Launch runs podman commands (via systemd-run --user in production).
-	Launch   func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd
-	MylabBin string
-	Now      func() time.Time
+	Launch      func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd
+	RoostackBin string
+	Now         func() time.Time
 	// Log shows the restore's steps live in the UI (optional, per run).
 	Log *activity.Log
 }
@@ -106,9 +106,9 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 	return res, nil
 }
 
-// pickSnapshot finds the requested MyLab snapshot, or the latest.
+// pickSnapshot finds the requested Roostack snapshot, or the latest.
 func (r *Repo) pickSnapshot(ctx context.Context, id string) (*Snapshot, error) {
-	snaps, err := r.Snapshots(ctx, "mylab")
+	snaps, err := r.Snapshots(ctx, "roostack")
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +153,7 @@ func (r *Restorer) LoadDumps(ctx context.Context, svc *generate.Output) error {
 		case pkgspec.DBSQLite:
 			// The live file was excluded from the backup; the consistent copy
 			// becomes the live database.
-			if err := r.run(ctx, nil, "podman", "unshare", r.MylabBin, "backup-helper", "sqlite-restore", step.Target, step.Source); err != nil {
+			if err := r.run(ctx, nil, "podman", "unshare", r.RoostackBin, "backup-helper", "sqlite-restore", step.Target, step.Source); err != nil {
 				return err
 			}
 		case pkgspec.DBPostgres:
@@ -260,7 +260,7 @@ func (r *Restorer) RemoveKept(ctx context.Context, svc *generate.Output, path st
 // they belong to the old database. The new file gets the owner of its
 // directory (restored with its original owner), so apps running as a
 // non-root container user can still write to it. Runs inside podman
-// unshare via `mylab backup-helper sqlite-restore`.
+// unshare via `roostack backup-helper sqlite-restore`.
 func SQLiteRestore(ctx context.Context, src, dst string) error {
 	for _, f := range []string{dst + "-wal", dst + "-shm"} {
 		if err := os.Remove(f); err != nil && !errors.Is(err, os.ErrNotExist) {

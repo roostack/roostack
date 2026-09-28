@@ -14,20 +14,20 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/state"
-	"github.com/mylab/mylab/internal/store"
-	"github.com/mylab/mylab/internal/systemd"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/systemd"
 )
 
 const backupUsage = `Usage:
-  mylab backup init                          Create the recovery key (first time) and the repository
-  mylab backup run                           Back up now
-  mylab backup snapshots                     List backups
-  mylab backup restore <service> [-snapshot ID]
+  roostack backup init                          Create the recovery key (first time) and the repository
+  roostack backup run                           Back up now
+  roostack backup snapshots                     List backups
+  roostack backup restore <service> [-snapshot ID]
                                              Restore a service (latest backup by default).
                                              Current data is moved aside, never deleted.
 
@@ -42,7 +42,7 @@ func backupCmd(args []string) error {
 	fs := flag.NewFlagSet("backup", flag.ExitOnError)
 	labPath := fs.String("lab", config.Default().Paths.LabFile(), "lab config file")
 	direct := fs.Bool("direct", false, "run restic and podman directly instead of via systemd-run --user (development)")
-	snapshot := fs.String("snapshot", "", "backup to restore (ID from 'mylab backup snapshots'; default latest)")
+	snapshot := fs.String("snapshot", "", "backup to restore (ID from 'roostack backup snapshots'; default latest)")
 	rest := args[1:]
 	var target string
 	if args[0] == "restore" && len(rest) > 0 && !strings.HasPrefix(rest[0], "-") {
@@ -76,7 +76,7 @@ func backupCmd(args []string) error {
 	case "init":
 		return backupInit(ctx, lab, repo)
 	case "snapshots":
-		snaps, err := repo.Snapshots(ctx, "mylab")
+		snaps, err := repo.Snapshots(ctx, "roostack")
 		if err != nil {
 			return err
 		}
@@ -172,7 +172,7 @@ func copyRepos(lab config.Lab, launch backupLaunch) []backup.Copy {
 }
 
 // newBackupDeps wires a backup job to this lab. Used by the CLI and by
-// mylab serve's nightly backups.
+// roostack serve's nightly backups.
 // serverServices returns this server's services and the lab config to
 // generate them with.
 type serverServices func() (config.Lab, []state.Service, error)
@@ -187,14 +187,14 @@ func diskServices(lab config.Lab) serverServices {
 }
 
 func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch backupLaunch, services serverServices) (*backup.JobDeps, error) {
-	mylabBin, err := os.Executable()
+	roostackBin, err := os.Executable()
 	if err != nil {
 		return nil, err
 	}
 	host, _ := os.Hostname()
 	return &backup.JobDeps{
 		Repo:      repo,
-		Preparer:  &backup.Preparer{Launch: launch, MylabBin: mylabBin},
+		Preparer:  &backup.Preparer{Launch: launch, RoostackBin: roostackBin},
 		DumpState: st.Backup,
 		Copies:    copyRepos(lab, launch),
 		Paths:     lab.Paths,
@@ -232,11 +232,11 @@ func backupRestore(ctx context.Context, lab config.Lab, repo *backup.Repo, launc
 	if err != nil {
 		return err
 	}
-	mylabBin, err := os.Executable()
+	roostackBin, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	r := &backup.Restorer{Repo: repo, Units: systemd.New(), Launch: launch, MylabBin: mylabBin, Now: time.Now}
+	r := &backup.Restorer{Repo: repo, Units: systemd.New(), Launch: launch, RoostackBin: roostackBin, Now: time.Now}
 	fmt.Printf("Restoring %s...\n", svc.Package.Title)
 	res, err := r.RestoreService(ctx, out, snapshot)
 	if res != nil {
@@ -256,10 +256,10 @@ type backupLaunch = func(ctx context.Context, env []string, name string, args ..
 
 var unitSeq atomic.Int64
 
-// userLaunch runs a command through the mylab user's systemd manager, so
-// podman never runs inside mylab's sandbox (SPEC.md §6.1).
+// userLaunch runs a command through the roostack user's systemd manager, so
+// podman never runs inside roostack's sandbox (SPEC.md §6.1).
 func userLaunch(ctx context.Context, env []string, name string, args ...string) *exec.Cmd {
-	unit := fmt.Sprintf("mylab-backup-%d-%d", os.Getpid(), unitSeq.Add(1))
+	unit := fmt.Sprintf("roostack-backup-%d-%d", os.Getpid(), unitSeq.Add(1))
 	return systemd.UserCommand(ctx, unit, env, name, args...)
 }
 
@@ -284,7 +284,7 @@ func (p *printReporter) SetProgress(pct int) {
 	}
 }
 
-// backupHelper holds commands run by MyLab itself inside podman unshare.
+// backupHelper holds commands run by Roostack itself inside podman unshare.
 func backupHelper(args []string) error {
 	if len(args) == 3 {
 		switch args[0] {

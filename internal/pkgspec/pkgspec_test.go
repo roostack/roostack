@@ -27,7 +27,7 @@ func TestExamplesParse(t *testing.T) {
 
 func TestDefaults(t *testing.T) {
 	p, err := Parse([]byte(`
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
@@ -57,28 +57,28 @@ func TestValidationErrors(t *testing.T) {
 		name, yaml, want string
 	}{
 		{"unknown field", `
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
 containers:
   web: { image: x, imagee: y }`, "field imagee not found"},
 		{"unknown storage in mount", `
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
 containers:
   web: { image: x, mounts: [{ storage: nope, path: /data }] }`, `unknown storage "nope"`},
 		{"bad secret ref", `
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
 containers:
   web: { image: x, secrets: { TOKEN: missing } }`, `"missing" is not a secret setting`},
 		{"secret with default", `
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
@@ -87,14 +87,14 @@ settings:
 containers:
   web: { image: x }`, "secrets cannot have a default"},
 		{"bad depends_on", `
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
 containers:
   web: { image: x, depends_on: [databases.main] }`, `unknown reference "databases.main"`},
 		{"sqlite path storage", `
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
@@ -103,7 +103,7 @@ containers:
 databases:
   main: { type: sqlite, path: data/db.sqlite }`, `unknown storage "data"`},
 		{"route to unknown container", `
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
@@ -112,7 +112,7 @@ containers:
 routes:
   web: { container: api, port: 80, subdomain: app }`, `unknown container "api"`},
 		{"port below 1024", `
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
@@ -121,7 +121,7 @@ containers:
 ports:
   ssh: { title: SSH, container: web, port: 22, host_port: 22 }`, "host_port: must be 1024-65535"},
 		{"port protocol", `
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
@@ -130,7 +130,7 @@ containers:
 ports:
   ssh: { title: DNS, container: web, port: 53, host_port: 5353, protocol: sctp }`, "protocol: must be tcp or udp"},
 		{"port without title", `
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
@@ -139,14 +139,14 @@ containers:
 ports:
   ssh: { container: web, port: 22, host_port: 2222 }`, "title: required"},
 		{"quadlet section", `
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
 containers:
   web: { image: x, quadlet: { Bogus: { A: b } } }`, `section "Bogus" not allowed`},
 		{"wrong schema", `
-schema: mylab/v2
+schema: roostack/v2
 name: app
 title: App
 version: "1"

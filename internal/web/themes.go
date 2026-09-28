@@ -3,14 +3,14 @@ package web
 import (
 	"slices"
 
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // Theme is a built-in colour theme: a palette file in
 // static/css/themes/<ID>.css (docs/DESIGN.md).
 type Theme struct {
 	ID, Name, Description string
-	// Source credits an open-source palette (empty for MyLab's own).
+	// Source credits an open-source palette (empty for Roostack's own).
 	Source *Credit
 	// Accents are optional colours for actions (buttons, links), each a
 	// [data-palette][data-accent] block in the theme's file. The first is
@@ -34,7 +34,7 @@ const DefaultPalette = "teal"
 
 // Themes are the built-in themes, in the order they're offered.
 var Themes = []Theme{
-	{"teal", "Teal and violet", "MyLab's default", nil, nil},
+	{"teal", "Teal and violet", "Roostack's default", nil, nil},
 	{"ocean", "Ocean and magenta", "Clear blue with a magenta spark", nil, nil},
 	{"catppuccin", "Catppuccin", "Soft pastels: mauve and pink (Latte when light, Mocha when dark)",
 		&Credit{Name: "Catppuccin", URL: "https://catppuccin.com", License: "MIT"}, catppuccinAccents},

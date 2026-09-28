@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/store"
 )
 
 func TestGuestHub(t *testing.T) {
-	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestGuestHub(t *testing.T) {
 	if code, _ := usage(inv2.User, inv2.AdminPassword); code != http.StatusForbidden {
 		t.Error("a guest that hasn't joined gets nothing")
 	}
-	for _, bad := range []string{"hello", inv.String()[:40], strings.Replace(inv.String(), "mylab-storage-", "mylab-join-", 1)} {
+	for _, bad := range []string{"hello", inv.String()[:40], strings.Replace(inv.String(), "roostack-storage-", "roostack-join-", 1)} {
 		if _, err := ParseStorageInvite(bad); err == nil {
 			t.Errorf("%q: want an error", bad)
 		}

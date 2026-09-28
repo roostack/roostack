@@ -35,7 +35,7 @@ func TestUpdateKeepsOtherFields(t *testing.T) {
 	lab.Domain = "lab.example.com"
 	lab.DNS.Provider = "cloudflare"
 	lab.Save(path)
-	// Two settings changed by different parts of MyLab, one after the other.
+	// Two settings changed by different parts of Roostack, one after the other.
 	Update(path, func(l *Lab) { l.Backup.Repository = "/mnt/backup" })
 	Update(path, func(l *Lab) { l.DNS.ManageRecords = true })
 	got, err := Load(path)

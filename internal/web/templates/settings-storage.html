@@ -3,7 +3,7 @@
 {{back "/settings" "Settings"}}
 <section class="card">
   <h1>Storage for others</h1>
-  <p class="hint">Give family or friends space on this server for their MyLab's backups, and they can do the same for you:
+  <p class="hint">Give family or friends space on this server for their Roostack's backups, and they can do the same for you:
     each of you then has a copy somewhere else. Their backups are encrypted before they leave their lab, so you can't read
     them, and each lab gets its own space with a size limit.</p>
 </section>
@@ -25,7 +25,7 @@
         <td>{{if not .Joined}}Waiting for them to use the invite (until {{when .Expires}})
           {{- else if .LastSeen.IsZero}}<span class="dot dot-warn" aria-hidden="true"></span>Not yet: check the port forwarding below
           {{- else}}<span class="dot dot-ok" aria-hidden="true"></span>{{when .LastSeen}}{{end}}</td>
-        <td>{{confirm (printf "/settings/storage/guests/%d/remove" .ID) (printf "Stop storing backups for %s? They can't add backups from now on. MyLab tells their lab, and deletes what's here in 30 days (or sooner, if you choose)." .Name) "Remove" "quiet danger"}}</td>
+        <td>{{confirm (printf "/settings/storage/guests/%d/remove" .ID) (printf "Stop storing backups for %s? They can't add backups from now on. Roostack tells their lab, and deletes what's here in 30 days (or sooner, if you choose)." .Name) "Remove" "quiet danger"}}</td>
       </tr>{{end}}
     </tbody>
   </table>
@@ -80,7 +80,7 @@
   <details>
     <summary>Letting them in: port forwarding</summary>
     <p>Other labs connect to {{.HostServer.Name}} through the router in front of it, which only lets them in if you ask it to.
-      MyLab already allows it through {{.HostServer.Name}}'s own firewall; the router is the step it can't do for you.
+      Roostack already allows it through {{.HostServer.Name}}'s own firewall; the router is the step it can't do for you.
       (A server in the cloud usually has no router to set up: only its provider's firewall, if any.)</p>
     <ol>
       <li>Open your router's settings page (often <code>http://192.168.1.1</code> or <code>http://192.168.0.1</code>; the address and password are usually on a sticker on the router).</li>

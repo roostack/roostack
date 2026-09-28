@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Development install on a Debian 13 VM: builds the MyLab package from this
+# Development install on a Debian 13 VM: builds the Roostack package from this
 # checkout and installs it, as a real install would (TASKS 1.12).
 #
 # Usage (as root, from a checkout with binaries already built into bin/):
@@ -19,7 +19,7 @@ cat <<EOM
 Development notes:
   - From the dev machine, scripts/dev-vm.sh ui tunnels the UI to
     http://127.0.0.1:18481 (VM n: port 18481 + (n-1)*10000).
-  - The setup code: sudo cat /var/lib/mylab/setup-token
-  - To deploy new binaries later: sudo install -m755 ~/mylab/bin/mylab ~/mylab/bin/mylab-agent /usr/bin/
-    and sudo systemctl restart mylab (or run this script again).
+  - The setup code: sudo cat /var/lib/roostack/setup-token
+  - To deploy new binaries later: sudo install -m755 ~/roostack/bin/roostack ~/roostack/bin/roostack-agent /usr/bin/
+    and sudo systemctl restart roostack (or run this script again).
 EOM

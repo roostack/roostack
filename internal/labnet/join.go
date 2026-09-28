@@ -11,12 +11,12 @@ import (
 	"net/netip"
 	"strings"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/nodeid"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/nodeid"
 )
 
 // codePrefix marks a join code, so a pasted code is recognisable.
-const codePrefix = "mylab-join-"
+const codePrefix = "roostack-join-"
 
 // JoinCode is everything a new server needs to join a lab (SPEC.md
 // §10.2). It carries a one-time WireGuard key, so the server can reach
@@ -30,7 +30,7 @@ type JoinCode struct {
 	// ControllerID and ControllerAddr name the controller on the network.
 	ControllerID   string     `json:"c"`
 	ControllerAddr netip.Addr `json:"ca"`
-	// Addr is the address the new server gets on MyLab's network.
+	// Addr is the address the new server gets on Roostack's network.
 	Addr netip.Addr `json:"a"`
 	// PrefixBits is the network's prefix length (e.g. 24).
 	PrefixBits int `json:"b"`
@@ -54,7 +54,7 @@ func ParseJoinCode(s string) (JoinCode, error) {
 	var c JoinCode
 	raw, ok := strings.CutPrefix(strings.TrimSpace(s), codePrefix)
 	if !ok {
-		return c, errors.New("that isn't a MyLab join code (it should start with " + codePrefix + ")")
+		return c, errors.New("that isn't a Roostack join code (it should start with " + codePrefix + ")")
 	}
 	data, err := base64.RawURLEncoding.DecodeString(raw)
 	if err != nil {

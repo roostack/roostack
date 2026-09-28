@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/maintenance"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/maintenance"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // ErrAlreadyQueued means a backup is already running or waiting to run.

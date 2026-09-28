@@ -55,7 +55,7 @@ type Journal interface {
 type Coordinator struct {
 	Policy Policy
 	Now    func() time.Time
-	// Reboot asks the host to reboot (via mylab-agent).
+	// Reboot asks the host to reboot (via roostack-agent).
 	Reboot  func() error
 	Journal Journal
 	// Resume rebuilds a job by name after a reboot.
@@ -74,7 +74,7 @@ type Coordinator struct {
 	held bool
 }
 
-// Hold stops the coordinator starting jobs or rebooting, e.g. while MyLab
+// Hold stops the coordinator starting jobs or rebooting, e.g. while Roostack
 // waits to restart. A running job finishes; queued ones stay queued.
 func (c *Coordinator) Hold() {
 	c.mu.Lock()
