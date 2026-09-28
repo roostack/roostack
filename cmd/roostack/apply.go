@@ -8,14 +8,14 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/firewall"
-	"github.com/mylab/mylab/internal/hosttime"
-	"github.com/mylab/mylab/internal/podman"
-	"github.com/mylab/mylab/internal/reconcile"
-	"github.com/mylab/mylab/internal/state"
-	"github.com/mylab/mylab/internal/systemd"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/firewall"
+	"roostack.cloud/roostack/internal/hosttime"
+	"roostack.cloud/roostack/internal/podman"
+	"roostack.cloud/roostack/internal/reconcile"
+	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/systemd"
 )
 
 func apply(args []string) error {
@@ -97,11 +97,11 @@ func apply(args []string) error {
 }
 
 // envSecret reads user-provided secrets from the environment, e.g.
-// mylab-caddy-dns-token from MYLAB_SECRET_MYLAB_CADDY_DNS_TOKEN.
+// roostack-caddy-dns-token from ROOSTACK_SECRET_ROOSTACK_CADDY_DNS_TOKEN.
 //
 // Temporary: the web UI will collect these during setup (TASKS 1.9).
 func envSecret(name string) ([]byte, bool) {
-	key := "MYLAB_SECRET_" + strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(name))
+	key := "ROOSTACK_SECRET_" + strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(name))
 	v, ok := os.LookupEnv(key)
 	return []byte(v), ok && v != ""
 }

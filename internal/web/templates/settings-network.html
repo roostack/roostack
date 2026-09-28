@@ -3,9 +3,9 @@
 {{back "/settings" "Settings"}}
 {{with .DNS}}{{template "dns-card" $}}
 <section class="card section">
-  <h2>DNS records MyLab manages</h2>
+  <h2>DNS records Roostack manages</h2>
   {{with $.Records}}
-  <p class="hint">MyLab creates and updates these at {{$.DNS.Provider}}. It never changes records it didn't create or adopt.</p>
+  <p class="hint">Roostack creates and updates these at {{$.DNS.Provider}}. It never changes records it didn't create or adopt.</p>
   <table class="records">
     <thead><tr><th>Name</th><th>Type</th><th>Points to</th><th>Check</th></tr></thead>
     <tbody>
@@ -18,7 +18,7 @@
     </tbody>
   </table>
   {{else}}
-  <p class="hint">None. {{if $.DNS.Managing}}MyLab hasn't created any records yet.{{else}}Record management is off: you add records at {{$.DNS.Provider}} yourself.{{end}}</p>
+  <p class="hint">None. {{if $.DNS.Managing}}Roostack hasn't created any records yet.{{else}}Record management is off: you add records at {{$.DNS.Provider}} yourself.{{end}}</p>
   {{end}}
   <p class="hint">While getting or renewing HTTPS certificates, Caddy also adds a temporary <code>_acme-challenge</code> TXT record
     for a minute or two, and removes it afterwards.</p>
@@ -26,7 +26,7 @@
 {{else}}
 <section class="card">
   <h1>Home network</h1>
-  <p>Set up your domain first; MyLab then makes sure devices at home can reach your services.</p>
+  <p>Set up your domain first; Roostack then makes sure devices at home can reach your services.</p>
   <p><a class="button" href="/settings/domain">Domain and certificates</a></p>
 </section>
 {{end}}

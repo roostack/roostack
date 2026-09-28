@@ -3,16 +3,16 @@ package manager
 import (
 	"context"
 	"errors"
-	"github.com/mylab/mylab/internal/pkgspec"
 	"os"
 	"path/filepath"
+	"roostack.cloud/roostack/internal/pkgspec"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
+	"roostack.cloud/roostack/internal/activity"
 )
 
 type memKV struct {
@@ -43,7 +43,7 @@ func (f *fakeExec) exec(_ context.Context, container string, env map[string]stri
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, env)
-	if container != "mylab-forgejo-app" || cmd[0] != "sh" {
+	if container != "roostack-forgejo-app" || cmd[0] != "sh" {
 		return nil, errors.New("unexpected command")
 	}
 	if f.fail != nil && f.fail(len(f.calls)) {
@@ -92,7 +92,7 @@ func TestInstallHook(t *testing.T) {
 	if env["ADMIN_USERNAME"] != "mum" || env["ADMIN_EMAIL"] != "mum@example.com" || env["ADMIN_PASSWORD"] != "correct horse" {
 		t.Errorf("env = %v", env)
 	}
-	if _, kept := secrets.values["mylab-forgejo-admin_password"]; kept {
+	if _, kept := secrets.values["roostack-forgejo-admin_password"]; kept {
 		t.Error("the admin password must be deleted once the hook succeeded")
 	}
 	setupLog, _ := m.Activity.Latest(activity.Setup)
@@ -131,7 +131,7 @@ func TestInstallHookFailsThenRetry(t *testing.T) {
 	if !strings.Contains(st.Failed, "database not ready") {
 		t.Fatalf("status = %+v, want the command's output", st)
 	}
-	if _, kept := secrets.values["mylab-forgejo-admin_password"]; !kept {
+	if _, kept := secrets.values["roostack-forgejo-admin_password"]; !kept {
 		t.Fatal("the password must be kept until the hook succeeds")
 	}
 
@@ -178,7 +178,7 @@ func TestRetryInstallWithNewValues(t *testing.T) {
 	if env["ADMIN_USERNAME"] != "tyris" || env["ADMIN_PASSWORD"] != "a better password" {
 		t.Errorf("env = %v", env)
 	}
-	if _, kept := secrets.values["mylab-forgejo-admin_password"]; kept {
+	if _, kept := secrets.values["roostack-forgejo-admin_password"]; kept {
 		t.Error("the password goes once the hook succeeded")
 	}
 }
@@ -243,14 +243,14 @@ func TestUpdateSettingsAndReveal(t *testing.T) {
 	if sub != "code" || values["signups_allowed"] != true || values["admin_username"] != "mum" {
 		t.Errorf("after update: %v %q (install-only settings must not change)", values, sub)
 	}
-	unit, _ := os.ReadFile(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-forgejo-app.container"))
+	unit, _ := os.ReadFile(filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-forgejo-app.container"))
 	if !strings.Contains(string(unit), "ROOT_URL=https://code.lab.example.com/") ||
 		!strings.Contains(string(unit), "DISABLE_REGISTRATION=false") {
 		t.Errorf("unit not regenerated:\n%s", unit)
 	}
 
 	if v, err := local(m).RevealSecret(ctx, "vaultwarden", "admin_token"); err != nil || v == "" ||
-		v != string(secrets.values["mylab-vaultwarden-admin_token"]) {
+		v != string(secrets.values["roostack-vaultwarden-admin_token"]) {
 		t.Errorf("reveal: %q %v", v, err)
 	}
 	if _, err := local(m).RevealSecret(ctx, "forgejo", "admin_password"); !errors.Is(err, ErrNotFound) {

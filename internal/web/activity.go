@@ -3,8 +3,8 @@ package web
 import (
 	"net/http"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/auth"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/auth"
 )
 
 // activityPerm is who may see each kind of activity.

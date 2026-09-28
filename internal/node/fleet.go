@@ -6,10 +6,10 @@ import (
 	"net/netip"
 	"sync"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // Fleet is the controller's other servers: one Remote each, kept so their

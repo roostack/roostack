@@ -15,7 +15,7 @@ import (
 )
 
 // Sign signs an AWS API request with Signature Version 4, using only the
-// standard library (so MyLab needn't depend on the AWS SDK just to check
+// standard library (so Roostack needn't depend on the AWS SDK just to check
 // credentials). It signs host, content-length (with a body),
 // x-amz-date and any other x-amz-* headers, plus the body hash. Checked
 // against the AWS SDK's signer: identical signatures.

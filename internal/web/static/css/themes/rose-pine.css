@@ -1,4 +1,4 @@
-/* Rosé Pine. Dawn when light, Moon when dark; colours from Rosé Pine (https://rosepinetheme.com), MIT licence. Pine for actions, Rose as the highlight; MyLab status colours (Rosé Pine has no green).
+/* Rosé Pine. Dawn when light, Moon when dark; colours from Rosé Pine (https://rosepinetheme.com), MIT licence. Pine for actions, Rose as the highlight; Roostack status colours (Rosé Pine has no green).
    Adjusted for readability (WCAG contrast): muted (light) #797593 -> #6a6781; highlight (light) #d7827e -> #bd726f; muted (dark) #908caa -> #a3a0b8. */
 [data-palette="rose-pine"] {
   --pal-bg-l: #f2e9e1; --pal-bg-d: #232136;

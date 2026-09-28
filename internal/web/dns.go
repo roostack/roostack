@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/mylab/mylab/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/dnsrecords"
 )
 
 // dnsManage turns DNS record management on or off.
@@ -44,7 +44,7 @@ func (s *Server) dnsTakeOverPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "dns-takeover", map[string]any{"User": currentUser(r), "DNS": st})
 }
 
-// dnsTakeOver lets MyLab manage (and overwrite) a record it didn't create,
+// dnsTakeOver lets Roostack manage (and overwrite) a record it didn't create,
 // after an explicit confirmation.
 func (s *Server) dnsTakeOver(w http.ResponseWriter, r *http.Request) {
 	if s.DNS == nil {

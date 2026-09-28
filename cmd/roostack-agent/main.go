@@ -1,5 +1,5 @@
-// Command mylab-agent is MyLab's small root helper (SPEC.md §6.1). It runs
-// as root under systemd and accepts requests only from root and the mylab
+// Command roostack-agent is Roostack's small root helper (SPEC.md §6.1). It runs
+// as root under systemd and accepts requests only from root and the roostack
 // user, over a local Unix socket.
 package main
 
@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/mylab/mylab/internal/agent"
+	"roostack.cloud/roostack/internal/agent"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".
@@ -22,13 +22,13 @@ var version = "dev"
 
 func main() {
 	socket := flag.String("socket", agent.DefaultSocket, "Unix socket to listen on")
-	userName := flag.String("user", "mylab", "unprivileged user allowed to call the agent")
+	userName := flag.String("user", "roostack", "unprivileged user allowed to call the agent")
 	firewallFile := flag.String("firewall-file", agent.DefaultFirewallFile, "where the applied firewall is saved")
 	flag.Parse()
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	if err := run(log, *socket, *userName, *firewallFile); err != nil {
-		log.Error("mylab-agent stopped", "err", err)
+		log.Error("roostack-agent stopped", "err", err)
 		os.Exit(1)
 	}
 }
@@ -52,13 +52,13 @@ func run(log *slog.Logger, socket, userName, firewallFile string) error {
 
 	host := agent.LinuxHost{FirewallFile: firewallFile}
 	if err := host.RestoreFirewall(); err != nil {
-		// Keep running: the mylab service can re-apply the firewall.
+		// Keep running: the roostack service can re-apply the firewall.
 		log.Error("restoring firewall failed", "err", err)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	s := &agent.Server{Host: host, AllowedUIDs: []uint32{0, uint32(uid)}, Version: version, Log: log}
-	log.Info("mylab-agent listening", "socket", socket, "user", userName, "version", version)
+	log.Info("roostack-agent listening", "socket", socket, "user", userName, "version", version)
 	return s.Serve(ctx, socket, gid)
 }

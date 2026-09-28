@@ -9,9 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/nodeid"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/nodeid"
 )
 
 // Network defaults. The controller is the hub other servers dial (SPEC.md
@@ -25,7 +25,7 @@ var (
 // without one is a lab of its own (the controller, with no network yet).
 type Membership struct {
 	Role string     `json:"role"` // config.RoleController or config.RoleNode
-	Addr netip.Addr `json:"addr"` // this server on MyLab's network
+	Addr netip.Addr `json:"addr"` // this server on Roostack's network
 	// PrefixBits is the network's prefix length.
 	PrefixBits int `json:"prefix_bits"`
 	// ControllerID and ControllerAddr name the controller (for nodes).
@@ -85,7 +85,7 @@ func (m Membership) ControllerURL() string {
 	return fmt.Sprintf("https://%s:%d", m.ControllerAddr, Port)
 }
 
-// Leave takes this server out of its lab: MyLab's WireGuard interface
+// Leave takes this server out of its lab: Roostack's WireGuard interface
 // goes, and so do its certificate, membership and saved assignment. It is
 // then a lab of its own again.
 func Leave(ctx context.Context, stateDir string, ag interface {

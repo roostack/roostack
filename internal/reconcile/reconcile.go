@@ -3,9 +3,9 @@
 // It compares generated output with the files on disk, then plans and
 // applies the changes: directories, secrets, Quadlet files, Caddy config and
 // systemd units. Planning has no side effects, so a plan can be shown before
-// it is applied (`mylab apply --dry-run`).
+// it is applied (`roostack apply --dry-run`).
 //
-// MyLab only touches files it owns: mylab-*.container / mylab-*.network in
+// Roostack only touches files it owns: roostack-*.container / roostack-*.network in
 // the Quadlet directory, and *.caddy in the Caddy sites directory. Service
 // data is never deleted here.
 package reconcile
@@ -22,9 +22,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
 )
 
 // Desired is the complete desired state of the host.
@@ -373,9 +373,9 @@ func (r *Reconciler) secretValue(s generate.Secret) ([]byte, error) {
 	return nil, fmt.Errorf("reconcile: secret %s must be provided by the user", s.Name)
 }
 
-// isOwnedQuadlet reports whether MyLab manages a file in the Quadlet dir.
+// isOwnedQuadlet reports whether Roostack manages a file in the Quadlet dir.
 func isOwnedQuadlet(name string) bool {
-	return strings.HasPrefix(name, "mylab-") &&
+	return strings.HasPrefix(name, "roostack-") &&
 		(strings.HasSuffix(name, ".container") || strings.HasSuffix(name, ".network") || strings.HasSuffix(name, ".build"))
 }
 
@@ -419,7 +419,7 @@ func writeAtomic(path, content string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".mylab-*")
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".roostack-*")
 	if err != nil {
 		return err
 	}

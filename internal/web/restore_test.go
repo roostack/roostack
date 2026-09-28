@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/setup"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/setup"
 )
 
 type fakeRestores struct {
@@ -45,8 +45,8 @@ func TestRestoreFlow(t *testing.T) {
 	fr := &fakeRestores{
 		snaps: []backup.Snapshot{{ID: "9a6817f7aaaa", Short: "9a6817f7", Time: time.Now().Add(-time.Hour)},
 			{ID: "8550fc0abbbb", Short: "8550fc0a", Time: time.Now().Add(-26 * time.Hour)}},
-		kept: []backup.KeptCopy{{Path: "/srv/mylab/services/vaultwarden/data.before-restore-20260926-130602",
-			Of: "/srv/mylab/services/vaultwarden/data", Time: time.Now().Add(-2 * time.Hour)}},
+		kept: []backup.KeptCopy{{Path: "/srv/roostack/services/vaultwarden/data.before-restore-20260926-130602",
+			Of: "/srv/roostack/services/vaultwarden/data", Time: time.Now().Add(-2 * time.Hour)}},
 	}
 	h.node().restores = fr
 

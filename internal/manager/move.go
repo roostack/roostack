@@ -4,17 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/store"
 	"io"
 	"path/filepath"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/store"
 	"strings"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/state"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/state"
 )
 
 // Moving a service to another server by copying its data directly
@@ -34,7 +34,7 @@ type MoveInfo struct {
 	// Size is the service's data in bytes (-1 if unknown).
 	Size int64
 	// ViaBackup: moving through a backup is possible (the old server's
-	// backups are set up through MyLab).
+	// backups are set up through Roostack).
 	ViaBackup bool
 	// Suggested is the way the move page suggests.
 	Suggested string
@@ -106,7 +106,7 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	}
 	for _, id := range []string{from, to} {
 		if r, ok := m.node(id).(RemoteServer); ok && r.Settings() == nil {
-			return formErrorf("MyLab can't reach %s right now.", r.Identity().Name)
+			return formErrorf("Roostack can't reach %s right now.", r.Identity().Name)
 		}
 	}
 	var target store.BackupTarget
@@ -115,7 +115,7 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	case MoveBackup:
 		t, _, ok := m.BackupTargetOf(ctx, from)
 		if !ok || t.Provider == "setup" || m.node(from).Backups() == nil {
-			return formErrorf("%s's backups aren't set up through MyLab yet, so this way isn't available. Copy it directly instead.",
+			return formErrorf("%s's backups aren't set up through Roostack yet, so this way isn't available. Copy it directly instead.",
 				m.nameOf(from))
 		}
 		target = t

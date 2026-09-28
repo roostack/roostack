@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/generate"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/generate"
 )
 
 // Moving a service between servers by copying its data directly (SPEC.md
@@ -61,7 +61,7 @@ type Mover interface {
 	RemoveKeptData(ctx context.Context, path string) error
 }
 
-// Launcher runs a command as the mylab user outside MyLab's sandbox
+// Launcher runs a command as the roostack user outside Roostack's sandbox
 // (systemd-run --user), streaming stdin and stdout.
 type Launcher func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd
 
@@ -291,7 +291,7 @@ func (n *Local) ExportSecrets(ctx context.Context, service string) (map[string][
 
 func (n *Local) ImportSecrets(ctx context.Context, secrets map[string][]byte) error {
 	for name, v := range secrets {
-		if !strings.HasPrefix(name, "mylab-") {
+		if !strings.HasPrefix(name, "roostack-") {
 			return fmt.Errorf("unexpected secret %q", name)
 		}
 		n.Secrets.Remove(ctx, name) // replace any old one
@@ -333,7 +333,7 @@ func (n *Local) LoadDumps(ctx context.Context, service string) error {
 	if err := n.Reconciler.Systemd.Stop(ctx, out.Units...); err != nil {
 		return err
 	}
-	r := &backup.Restorer{Units: n.Reconciler.Systemd, Launch: n.Launch, MylabBin: exe}
+	r := &backup.Restorer{Units: n.Reconciler.Systemd, Launch: n.Launch, RoostackBin: exe}
 	if err := r.LoadDumps(ctx, out); err != nil {
 		return err
 	}

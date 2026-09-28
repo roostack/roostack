@@ -1,6 +1,6 @@
 // Package instance defines a user's installed service: their choices on top
 // of a package (SPEC.md §8.1). Instances are desired state, stored as
-// /var/lib/mylab/services/<name>.yaml.
+// /var/lib/roostack/services/<name>.yaml.
 package instance
 
 import (
@@ -12,9 +12,9 @@ import (
 	"regexp"
 	"slices"
 
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/pkgspec"
 	"go.yaml.in/yaml/v3"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // Update policies (SPEC.md §7).
@@ -47,7 +47,7 @@ type RouteOverride struct {
 	Subdomain string `yaml:"subdomain,omitempty"`
 	Exposure  string `yaml:"exposure,omitempty"`
 	// Port is the host loopback port the route's container is published
-	// on. MyLab allocates it once (state.AllocatePorts); it isn't meant
+	// on. Roostack allocates it once (state.AllocatePorts); it isn't meant
 	// to be edited.
 	Port int `yaml:"port,omitempty"`
 }

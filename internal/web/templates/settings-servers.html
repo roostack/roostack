@@ -21,7 +21,7 @@
     <dt>Server ID</dt>
     <dd><code>{{.ID}}</code></dd>
     {{if not .CertExpires.IsZero}}<dt>Certificate</dt>
-    <dd>Proves it's this server on MyLab's network · valid until {{date .CertExpires}}, renewed automatically</dd>{{end}}
+    <dd>Proves it's this server on Roostack's network · valid until {{date .CertExpires}}, renewed automatically</dd>{{end}}
   </dl>
   {{if .This}}{{activity $.ApplyActivity}}{{end}}
   {{if $.Only}}
@@ -54,9 +54,9 @@
       <input id="name-{{.ID}}" name="name" value="{{.Name}}" maxlength="40" required>
       <button type="submit" class="secondary">Rename</button>
     </form>
-    {{if .This}}<p class="hint">Renaming this server restarts MyLab.</p>
+    {{if .This}}<p class="hint">Renaming this server restarts Roostack.</p>
     {{else}}
-    <p class="hint">Removing {{.Name}} takes it out of the lab: it leaves MyLab's network and runs on its own again.
+    <p class="hint">Removing {{.Name}} takes it out of the lab: it leaves Roostack's network and runs on its own again.
       Remove or move its services first.</p>
     {{confirm (printf "/settings/servers/%s/remove" .ID) (printf "Remove %s from the lab?" .Name) (printf "Remove %s" .Name) "quiet danger"}}
     {{end}}
@@ -66,12 +66,12 @@
 {{if and .CanAdd (not .Only)}}
 <section class="card section" id="add-server">
   <h2>Add a server</h2>
-  <p class="hint">Another computer at home or in the cloud can run some of your services. Install MyLab on it,
+  <p class="hint">Another computer at home or in the cloud can run some of your services. Install Roostack on it,
     then run the command below on it. The servers connect over their own private network (WireGuard).</p>
   {{if not .ErrorServer}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
   {{with .JoinCode}}
   <p>On the new server, run this within an hour (the code works once):</p>
-  <pre class="output copyable">sudo mylab node join {{.}}</pre>
+  <pre class="output copyable">sudo roostack node join {{.}}</pre>
   <p class="hint">Anyone with this code can add a server to your lab until it's used, so don't share it.</p>
   {{end}}
   <form method="post" action="/settings/servers/join">
@@ -84,7 +84,7 @@
   <details>
     <summary>Adding a server outside your home (port forwarding)</summary>
     <p>A server elsewhere connects to this one through your home router, which only lets it in if you ask it to.
-      MyLab already allows it through this server's own firewall; the router is the step it can't do for you.</p>
+      Roostack already allows it through this server's own firewall; the router is the step it can't do for you.</p>
     <ol>
       <li>Open your router's settings page (often <code>http://192.168.1.1</code> or <code>http://192.168.0.1</code>; the address and password are usually on a sticker on the router).</li>
       <li>Find <strong>Port forwarding</strong>. Some routers call it <em>Virtual server</em>, <em>NAT</em>, <em>Port mapping</em> or put it under <em>Advanced</em> or <em>Firewall</em>.</li>

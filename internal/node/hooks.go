@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/pkgspec"
-	"github.com/mylab/mylab/internal/state"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/state"
 )
 
 // Hook progress, stored as runtime settings (hookKey). A service installed
@@ -304,7 +304,7 @@ func (n *Local) RevealSecret(ctx context.Context, name, key string) (string, err
 }
 
 // SecretName is the Podman secret holding a service's secret setting.
-func SecretName(svc, key string) string { return "mylab-" + svc + "-" + key }
+func SecretName(svc, key string) string { return "roostack-" + svc + "-" + key }
 
 // lastLines keeps the end of a command's output (and error) for display.
 func lastLines(out []byte, err error) string {

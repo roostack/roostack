@@ -20,12 +20,12 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // Storage for other labs (SPEC.md §10.10): a lab offers space for another
-// lab's backups over its own WireGuard interface (mylab-guests), which
+// lab's backups over its own WireGuard interface (roostack-guests), which
 // reaches only the guests' backup stores. The guest lab links to it with
 // an invite, much like a server joins with a code.
 
@@ -41,7 +41,7 @@ const (
 // InviteLifetime is how long a storage invite works.
 const InviteLifetime = 24 * time.Hour
 
-const invitePrefix = "mylab-storage-"
+const invitePrefix = "roostack-storage-"
 
 // GuestStore is the host's record of guests.
 type GuestStore interface {
@@ -104,7 +104,7 @@ func ParseStorageInvite(s string) (StorageInvite, error) {
 	var c StorageInvite
 	raw, ok := strings.CutPrefix(strings.TrimSpace(s), invitePrefix)
 	if !ok {
-		return c, errors.New("that isn't a MyLab storage invite (it should start with " + invitePrefix + ")")
+		return c, errors.New("that isn't a Roostack storage invite (it should start with " + invitePrefix + ")")
 	}
 	data, err := base64.RawURLEncoding.DecodeString(raw)
 	if err != nil {
@@ -113,7 +113,7 @@ func ParseStorageInvite(s string) (StorageInvite, error) {
 	if err := json.Unmarshal(data, &c); err != nil {
 		return c, errors.New("the invite is damaged")
 	}
-	if err := c.link("mylab-st1", c.JoinKey).Validate(); err != nil {
+	if err := c.link("roostack-st1", c.JoinKey).Validate(); err != nil {
 		return c, fmt.Errorf("the invite is damaged: %w", err)
 	}
 	if c.Token == "" || c.User == "" || c.StorePassword == "" || c.AdminPassword == "" || c.Port < 1024 || c.Port > 65000 {
@@ -394,7 +394,7 @@ func (h *GuestHub) ServeGuests(ctx context.Context) {
 }
 
 // JoinStorage links this lab to another lab's storage with an invite,
-// over WireGuard interface iface (mylab-st1…9): up with the invite's
+// over WireGuard interface iface (roostack-st1…9): up with the invite's
 // one-time key, register this lab's own key, then switch to it.
 func JoinStorage(ctx context.Context, inv StorageInvite, iface string, ag WireGuardAgent) error {
 	ownKey, err := agent.NewWireGuardKey()
@@ -420,7 +420,7 @@ func JoinStorage(ctx context.Context, inv StorageInvite, iface string, ag WireGu
 	var refused *RemoteError
 	if err != nil && !errors.As(err, &refused) {
 		_, port, _ := net.SplitHostPort(inv.Endpoint)
-		return fmt.Errorf("couldn't reach %s at %s (%v). They need to forward UDP port %s to their MyLab server; "+
+		return fmt.Errorf("couldn't reach %s at %s (%v). They need to forward UDP port %s to their Roostack server; "+
 			"their Storage for others page explains how", inv.HostName, inv.Endpoint, err, port)
 	}
 	if err != nil {

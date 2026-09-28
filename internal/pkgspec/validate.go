@@ -277,7 +277,7 @@ func (p *Package) validateContainer(v *validator, name string, c *Container) {
 		v.addf("%s: invalid name", at)
 	}
 	// Generated unit names would collide with database and network units
-	// (mylab-<svc>-db-<name>, mylab-<svc>-network).
+	// (roostack-<svc>-db-<name>, roostack-<svc>-network).
 	if name == "network" || strings.HasPrefix(name, "db-") {
 		v.addf("%s: name is reserved", at)
 	}

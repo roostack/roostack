@@ -1,4 +1,4 @@
-module github.com/mylab/mylab
+module roostack.cloud/roostack
 
 go 1.26.0
 

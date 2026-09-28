@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/backup"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/backup"
 )
 
 // restoreService finds the installed service named in the URL.

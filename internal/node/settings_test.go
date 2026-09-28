@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/config"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
 )
 
 func newSettings(t *testing.T) (*HostSettings, *string, *int) {
@@ -42,7 +42,7 @@ func TestTimezone(t *testing.T) {
 	}
 	changed, err := h.SetTimezone(ctx, " Australia/Melbourne ")
 	if err != nil || !changed || *zone != "Australia/Melbourne" || *restarts != 1 {
-		t.Errorf("changed=%v err=%v zone=%q restarts=%d: want the zone set and MyLab restarted", changed, err, *zone, *restarts)
+		t.Errorf("changed=%v err=%v zone=%q restarts=%d: want the zone set and Roostack restarted", changed, err, *zone, *restarts)
 	}
 }
 
@@ -116,7 +116,7 @@ func TestBackupCopies(t *testing.T) {
 	h, _, restarts := newSettings(t)
 	h.Lab.Paths.StateDir = t.TempDir()
 	ctx := context.Background()
-	b2 := BackupCopy{Name: "provider:1", Title: "Backblaze", Repository: "s3:https://s3.example.com/b/mylab/l/n-2",
+	b2 := BackupCopy{Name: "provider:1", Title: "Backblaze", Repository: "s3:https://s3.example.com/b/roostack/l/n-2",
 		Env: []string{"AWS_ACCESS_KEY_ID=id", "AWS_SECRET_ACCESS_KEY=secret"}, Key: "copy key"}
 	if err := h.SetBackupCopies(ctx, []BackupCopy{b2}); err != nil {
 		t.Fatal(err)

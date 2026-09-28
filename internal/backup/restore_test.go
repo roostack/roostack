@@ -11,15 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/pkgspec"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
-// TestMain lets the test binary act as `mylab backup-helper ...`, so the
+// TestMain lets the test binary act as `roostack backup-helper ...`, so the
 // SQLite prepare and restore steps run for real without podman.
 func TestMain(m *testing.M) {
-	if os.Getenv("MYLAB_TEST_HELPER") == "1" {
+	if os.Getenv("ROOSTACK_TEST_HELPER") == "1" {
 		args := os.Args[len(os.Args)-3:]
 		var err error
 		switch args[0] {
@@ -42,7 +42,7 @@ func TestMain(m *testing.M) {
 func helperLaunch(ctx context.Context, env []string, name string, args ...string) *exec.Cmd {
 	i := slicesIndex(args, "backup-helper")
 	cmd := exec.CommandContext(ctx, os.Args[0], args[i+1:]...)
-	cmd.Env = append(os.Environ(), "MYLAB_TEST_HELPER=1")
+	cmd.Env = append(os.Environ(), "ROOSTACK_TEST_HELPER=1")
 	return cmd
 }
 
@@ -104,13 +104,13 @@ func TestRestoreService(t *testing.T) {
 	db.Close()
 	writeFile(t, filepath.Join(data, "attachment.txt"), "precious")
 
-	svc := &generate.Output{Service: "app", Units: []string{"mylab-app-app.service"}, Backup: generate.BackupPlan{
+	svc := &generate.Output{Service: "app", Units: []string{"roostack-app-app.service"}, Backup: generate.BackupPlan{
 		Include: []string{data, dump},
 		Exclude: []string{live, live + "-wal", live + "-shm"},
 		Prepare: []generate.PrepareStep{{Type: pkgspec.DBSQLite, Source: live, Target: filepath.Join(dump, "main.sqlite3")}},
 	}}
 	_, err := Run(ctx, JobDeps{
-		Repo: repo, Preparer: &Preparer{Launch: helperLaunch, MylabBin: "mylab"}, Paths: paths, Host: "t",
+		Repo: repo, Preparer: &Preparer{Launch: helperLaunch, RoostackBin: "roostack"}, Paths: paths, Host: "t",
 		DumpState: func(context.Context, string) error { return nil },
 		Plan:      func() (Plan, error) { return LabPlan(paths, []*generate.Output{svc}), nil },
 	}, nopReporter{})
@@ -123,7 +123,7 @@ func TestRestoreService(t *testing.T) {
 	os.Remove(filepath.Join(data, "attachment.txt"))
 
 	units := &fakeUnits{}
-	r := &Restorer{Repo: repo, Units: units, Launch: helperLaunch, MylabBin: "mylab",
+	r := &Restorer{Repo: repo, Units: units, Launch: helperLaunch, RoostackBin: "roostack",
 		Now: func() time.Time { return time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC) }}
 	res, err := r.RestoreService(ctx, svc, "")
 	if err != nil {
@@ -139,7 +139,7 @@ func TestRestoreService(t *testing.T) {
 	if got, _ := os.ReadFile(filepath.Join(aside, "db.sqlite3")); string(got) != "garbage" {
 		t.Error("the broken data should be kept aside, not deleted")
 	}
-	if want := []string{"stop mylab-app-app.service", "start mylab-app-app.service"}; strings.Join(units.calls, ",") != strings.Join(want, ",") {
+	if want := []string{"stop roostack-app-app.service", "start roostack-app-app.service"}; strings.Join(units.calls, ",") != strings.Join(want, ",") {
 		t.Errorf("units = %v, want %v", units.calls, want)
 	}
 

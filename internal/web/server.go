@@ -1,4 +1,4 @@
-// Package web is the MyLab web UI: server-rendered HTML with htmx and
+// Package web is the Roostack web UI: server-rendered HTML with htmx and
 // Alpine.js, no build step (SPEC.md §6.3).
 //
 // Handlers stay thin: they parse the request, call core packages, and
@@ -19,18 +19,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/dnsrecords"
-	"github.com/mylab/mylab/internal/hosttime"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/manager"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/pkgspec"
-	"github.com/mylab/mylab/internal/setup"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/hosttime"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/store"
 )
 
 //go:embed templates/*.html
@@ -40,10 +40,10 @@ var templateFS embed.FS
 var staticFS embed.FS
 
 const (
-	sessionCookie   = "mylab_session"
+	sessionCookie   = "roostack_session"
 	sessionDuration = 7 * 24 * time.Hour
 	// pendingCookie links the password step of a login to the 2FA step.
-	pendingCookie   = "mylab_pending"
+	pendingCookie   = "roostack_pending"
 	pendingDuration = 5 * time.Minute
 	// maxTOTPAttempts before the password must be entered again.
 	maxTOTPAttempts = 5
@@ -117,14 +117,14 @@ type Server struct {
 	RestorePending func() bool
 	// DNS reports whether home devices can reach services (SPEC.md §6.5.1).
 	DNS DNSStatus
-	// Version is MyLab's version, shown on the About page.
+	// Version is Roostack's version, shown on the About page.
 	Version string
 	// Maintenance is the lab's restart policy, shown in Settings.
 	Maintenance config.Maintenance
 	// RunningJob names a maintenance job running on this server, which a
 	// restart waits for ("" if none; optional).
 	RunningJob func() string
-	// bootID changes each time MyLab starts; the "restarting" page waits
+	// bootID changes each time Roostack starts; the "restarting" page waits
 	// for a new one.
 	bootID string
 
@@ -507,7 +507,7 @@ func (s *Server) recoverPanics(next http.Handler) http.Handler {
 					panic(v)
 				}
 				s.Log.Error("request crashed", "method", r.Method, "path", r.URL.Path, "panic", v, "stack", string(debug.Stack()))
-				http.Error(w, "Something went wrong. Details are in the MyLab log.", http.StatusInternalServerError)
+				http.Error(w, "Something went wrong. Details are in the Roostack log.", http.StatusInternalServerError)
 			}
 		}()
 		next.ServeHTTP(w, r)
@@ -562,7 +562,7 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 			data["LabName"] = s.LabName
 		}
 		// For the banner shown when the browser's clock differs from the
-		// host's (every time MyLab shows is host time).
+		// host's (every time Roostack shows is host time).
 		if page != "setup-timezone" {
 			data["Clock"] = clockView{hosttime.Now(), auth.Can(u.Role, auth.ManageHost)}
 		}
@@ -572,7 +572,7 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 	var buf bytes.Buffer
 	if err := s.pages[page].Execute(&buf, data); err != nil {
 		s.Log.Error("render", "page", page, "err", err)
-		http.Error(w, "Something went wrong showing this page. Details are in the MyLab log.", http.StatusInternalServerError)
+		http.Error(w, "Something went wrong showing this page. Details are in the Roostack log.", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -581,5 +581,5 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 
 func (s *Server) serverError(w http.ResponseWriter, err error) {
 	s.Log.Error("request failed", "err", err)
-	http.Error(w, "Something went wrong. Details are in the MyLab log.", http.StatusInternalServerError)
+	http.Error(w, "Something went wrong. Details are in the Roostack log.", http.StatusInternalServerError)
 }

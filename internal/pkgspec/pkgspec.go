@@ -1,5 +1,5 @@
-// Package pkgspec defines the MyLab package format (SPEC.md §8.1): the
-// catalog file that describes how to run an app well inside MyLab.
+// Package pkgspec defines the Roostack package format (SPEC.md §8.1): the
+// catalog file that describes how to run an app well inside Roostack.
 package pkgspec
 
 import (
@@ -12,7 +12,7 @@ import (
 
 // SchemaV1Alpha1 is the only supported schema version. Breaking changes are
 // allowed before 1.0 (SPEC.md §8).
-const SchemaV1Alpha1 = "mylab/v1alpha1"
+const SchemaV1Alpha1 = "roostack/v1alpha1"
 
 // Package is a catalog entry (catalog/<name>/package.yaml).
 type Package struct {
@@ -113,7 +113,7 @@ type Setting struct {
 	Description string `yaml:"description"`
 	Type        string `yaml:"type"`
 	Default     any    `yaml:"default"`
-	// Generate makes MyLab create a random value (secret settings only).
+	// Generate makes Roostack create a random value (secret settings only).
 	Generate bool `yaml:"generate"`
 	// Required means a string can't be left empty.
 	Required bool `yaml:"required"`
@@ -161,7 +161,7 @@ type Mount struct {
 	ReadOnly bool   `yaml:"readonly"`
 }
 
-// Device is an abstract hardware request mapped to host devices by MyLab.
+// Device is an abstract hardware request mapped to host devices by Roostack.
 type Device struct {
 	GPU  string `yaml:"gpu"`
 	When string `yaml:"when"`
@@ -205,7 +205,7 @@ const (
 	DBRedis    = "redis"
 )
 
-// Database is a MyLab-managed database following the standard pattern.
+// Database is a Roostack-managed database following the standard pattern.
 type Database struct {
 	Type string `yaml:"type"`
 	// Path is "<storage>/<relative path>" for sqlite.

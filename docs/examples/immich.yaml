@@ -1,11 +1,11 @@
 # Reference example: complex package (multiple containers, custom Postgres,
 # Redis, optional ML, GPU, large media). Image digests looked up 2026-09-26.
 # See SPEC.md §8.1.
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: immich
 title: Immich
 description: Photo and video backup, a self-hosted alternative to Google Photos
-version: 2.1.0-mylab.1
+version: 2.1.0-roostack.1
 
 settings:
   - key: machine_learning
@@ -16,7 +16,7 @@ settings:
   - key: hardware_acceleration
     title: Use GPU for video transcoding
     type: bool
-    default: auto                # enabled if MyLab detects a supported GPU
+    default: auto                # enabled if Roostack detects a supported GPU
 
 containers:
   server:
@@ -29,13 +29,13 @@ containers:
       IMMICH_MACHINE_LEARNING_ENABLED: "{{ .Settings.machine_learning }}"
       IMMICH_MACHINE_LEARNING_URL: 'http://{{ (index .Containers "machine-learning").Host }}:3003'
     secrets:
-      DB_PASSWORD: databases.main.password   # created by MyLab
+      DB_PASSWORD: databases.main.password   # created by Roostack
     mounts:
       - { storage: library, path: /data }
       - { storage: thumbs,  path: /data/thumbs }
       - { storage: encoded, path: /data/encoded-video }
     devices:
-      - gpu: intel               # abstract; MyLab maps /dev/dri and groups
+      - gpu: intel               # abstract; Roostack maps /dev/dri and groups
         when: "{{ .Settings.hardware_acceleration }}"
     health:
       http: { port: 2283, path: /api/server/ping }

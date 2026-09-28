@@ -1,4 +1,4 @@
-// Package podman wraps the few podman commands MyLab needs directly.
+// Package podman wraps the few podman commands Roostack needs directly.
 // Everything else goes through Quadlet and systemd.
 package podman
 
@@ -10,27 +10,27 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/mylab/mylab/internal/systemd"
+	"roostack.cloud/roostack/internal/systemd"
 )
 
-// Secrets manages Podman secrets for the mylab user.
+// Secrets manages Podman secrets for the roostack user.
 //
 // Note: Podman's default "file" driver stores values unencrypted, readable
-// only by the mylab user (docs/ASSUMPTIONS.md E2).
+// only by the roostack user (docs/ASSUMPTIONS.md E2).
 type Secrets struct {
 	// Run runs podman with the given stdin; tests replace it.
 	Run func(ctx context.Context, stdin []byte, args ...string) ([]byte, error)
 }
 
-// NewSecrets returns a Secrets that runs podman through the mylab user's
-// systemd manager (systemd-run --user), so it works from mylab's sandbox
+// NewSecrets returns a Secrets that runs podman through the roostack user's
+// systemd manager (systemd-run --user), so it works from roostack's sandbox
 // (SPEC.md §6.1).
 func NewSecrets() *Secrets { return &Secrets{Run: run} }
 
 var seq atomic.Int64
 
 func run(ctx context.Context, stdin []byte, args ...string) ([]byte, error) {
-	unit := fmt.Sprintf("mylab-podman-%d-%d", os.Getpid(), seq.Add(1))
+	unit := fmt.Sprintf("roostack-podman-%d-%d", os.Getpid(), seq.Add(1))
 	cmd := systemd.UserCommand(ctx, unit, nil, "podman", args...)
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
@@ -73,7 +73,7 @@ func (s *Secrets) Replace(ctx context.Context, name string, value []byte) error 
 	return err
 }
 
-// Read returns a secret's value (e.g. DNS credentials MyLab needs to
+// Read returns a secret's value (e.g. DNS credentials Roostack needs to
 // manage records). Requires Podman 4.5+ (--showsecret).
 func (s *Secrets) Read(ctx context.Context, name string) ([]byte, error) {
 	out, err := s.Run(ctx, nil, "secret", "inspect", "--showsecret", "--format", "{{.SecretData}}", name)

@@ -46,5 +46,5 @@ func (s S3) Env() []string {
 // ServerFolder is where a server's repository goes under a provider's
 // folder: every server has its own, always (SPEC.md §10.10).
 func ServerFolder(base, labID, serverID string) string {
-	return strings.Trim(strings.Join([]string{strings.Trim(base, "/"), "mylab", labID, serverID}, "/"), "/")
+	return strings.Trim(strings.Join([]string{strings.Trim(base, "/"), "roostack", labID, serverID}, "/"), "/")
 }

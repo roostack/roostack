@@ -3,19 +3,19 @@ package osupdate
 import (
 	"context"
 	"errors"
-	"github.com/mylab/mylab/internal/agent"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"roostack.cloud/roostack/internal/agent"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/maintenance"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/maintenance"
 )
 
 func TestSummarize(t *testing.T) {

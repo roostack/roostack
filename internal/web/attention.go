@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dnsrecords"
 )
 
 // Attention item levels.
@@ -22,8 +22,8 @@ const (
 var dnsHeadline = map[string]string{
 	dnsrecords.StateBlocked:    "Devices at home can't reach your services: your router blocks their addresses.",
 	dnsrecords.StateOverridden: "Devices at home are sent somewhere else when they open your services.",
-	dnsrecords.StateConflict:   "A DNS record for your services points somewhere else, so MyLab can't update it.",
-	dnsrecords.StateError:      "MyLab couldn't check or update your DNS records.",
+	dnsrecords.StateConflict:   "A DNS record for your services points somewhere else, so Roostack can't update it.",
+	dnsrecords.StateError:      "Roostack couldn't check or update your DNS records.",
 }
 
 // attentionItem is one entry in the home page's "Needs attention" list.
@@ -75,9 +75,9 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			// Certificates renew 120 days ahead; one this close means renewing
 			// keeps failing (the server logs why).
 			if left := time.Until(mc.CertExpires); owner && !mc.CertExpires.IsZero() && left < certWarning {
-				level, text := levelProblem, mc.Name+"'s certificate on MyLab's network has expired, so the lab can't reach it."
+				level, text := levelProblem, mc.Name+"'s certificate on Roostack's network has expired, so the lab can't reach it."
 				if left > 0 {
-					level, text = levelWarning, mc.Name+"'s certificate on MyLab's network expires "+whenText(mc.CertExpires)+
+					level, text = levelWarning, mc.Name+"'s certificate on Roostack's network expires "+whenText(mc.CertExpires)+
 						" and isn't renewing. Check that it's running and can reach the controller."
 				}
 				add(level, text, "/settings/servers#server-"+mc.ID, "View servers")
@@ -177,7 +177,7 @@ func (s *Server) serverNodes(r *http.Request) []serverNode {
 			continue
 		}
 		n := s.Manager.NodeByID(mc.ID)
-		if n == nil || mc.Status.LastErr != nil && strings.HasPrefix(mc.Status.LastErr.Error(), "MyLab can't reach") {
+		if n == nil || mc.Status.LastErr != nil && strings.HasPrefix(mc.Status.LastErr.Error(), "Roostack can't reach") {
 			continue // already flagged as unreachable
 		}
 		out = append(out, serverNode{serverRef{ID: mc.ID, Name: mc.Name}, n})
@@ -252,8 +252,8 @@ func (s *Server) updatesAttention(r *http.Request, m serverRef, n ServiceNode, a
 		return
 	}
 	if c, ok := s.hostChanges(r, m, n); ok && c.Any() && !c.Known {
-		add(levelWarning, "Changes MyLab didn't make"+m.on()+": "+hostChangesText(c)+
-			". They can stop updates or the firewall from working as MyLab expects.", m.Updates()+"#host-changes", "See the changes")
+		add(levelWarning, "Changes Roostack didn't make"+m.on()+": "+hostChangesText(c)+
+			". They can stop updates or the firewall from working as Roostack expects.", m.Updates()+"#host-changes", "See the changes")
 	}
 	if last, err := u.Last(r.Context()); err == nil && last != nil && !last.OK {
 		add(levelProblem, "OS updates didn't finish last time"+m.on()+". The server may be missing security fixes.",

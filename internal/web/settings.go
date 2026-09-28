@@ -3,22 +3,22 @@ package web
 import (
 	"errors"
 	"fmt"
-	"github.com/mylab/mylab/internal/node"
 	"net"
 	"net/http"
+	"roostack.cloud/roostack/internal/node"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/dns"
-	"github.com/mylab/mylab/internal/dnsrecords"
-	"github.com/mylab/mylab/internal/hosttime"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/manager"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/hosttime"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/manager"
 )
 
 // Settings is an overview grid of areas, each with its own page; on
@@ -313,7 +313,7 @@ func (s *Server) joinCodeSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	code, err := s.Network.NewJoinCode(r.Context(), endpoint)
 	if err != nil {
-		s.renderServers(w, r, map[string]any{"Endpoint": endpoint, "Error": "MyLab couldn't make a join code: " + err.Error()})
+		s.renderServers(w, r, map[string]any{"Endpoint": endpoint, "Error": "Roostack couldn't make a join code: " + err.Error()})
 		return
 	}
 	s.Store.SetSetting(r.Context(), endpointKey, endpoint)

@@ -15,26 +15,26 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/dnsrecords"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/hosttime"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/labrestore"
-	"github.com/mylab/mylab/internal/maintenance"
-	"github.com/mylab/mylab/internal/manager"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/osupdate"
-	"github.com/mylab/mylab/internal/podman"
-	"github.com/mylab/mylab/internal/setup"
-	"github.com/mylab/mylab/internal/state"
-	"github.com/mylab/mylab/internal/store"
-	"github.com/mylab/mylab/internal/systemd"
-	"github.com/mylab/mylab/internal/web"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/hosttime"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/labrestore"
+	"roostack.cloud/roostack/internal/maintenance"
+	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/osupdate"
+	"roostack.cloud/roostack/internal/podman"
+	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/systemd"
+	"roostack.cloud/roostack/internal/web"
 )
 
 func serve(args []string) error {
@@ -68,7 +68,7 @@ func serve(args []string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	// New settings reach every part of MyLab by restarting it; systemd
+	// New settings reach every part of Roostack by restarting it; systemd
 	// starts it again (Restart=always).
 	// A running job (e.g. OS updates) finishes first, and no new one
 	// starts; the restart then happens by itself.
@@ -123,7 +123,7 @@ func serve(args []string) error {
 		}}
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
-	// MyLab's network between servers (SPEC.md §10.2): this server is
+	// Roostack's network between servers (SPEC.md §10.2): this server is
 	// the hub others join.
 	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: lab.DisplayName(), Self: id, Store: st, Agent: agentClient,
 		Log: log, Now: time.Now, Started: restart}
@@ -225,7 +225,7 @@ func serve(args []string) error {
 		}
 		return ""
 	}
-	// Converge on startup, e.g. after MyLab itself was upgraded.
+	// Converge on startup, e.g. after Roostack itself was upgraded.
 	mgr.Apply()
 	// After a lab restore, the services' databases go back once they're set
 	// up again.
@@ -293,19 +293,19 @@ func serve(args []string) error {
 		defer cancel()
 		httpSrv.Shutdown(shutdown)
 	}()
-	log.Info("mylab listening", "addr", addr)
+	log.Info("roostack listening", "addr", addr)
 	if err := httpSrv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
 }
 
-func dbPath(lab config.Lab) string { return filepath.Join(lab.Paths.StateDir, "mylab.db") }
+func dbPath(lab config.Lab) string { return filepath.Join(lab.Paths.StateDir, "roostack.db") }
 
 func setupTokenPath(lab config.Lab) string { return filepath.Join(lab.Paths.StateDir, "setup-token") }
 
 // setupToken returns the first-run setup code, or "" if an account exists.
-// The code is kept in a file readable only by mylab (and root), so it
+// The code is kept in a file readable only by roostack (and root), so it
 // survives restarts until setup is done.
 func setupToken(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger) (string, error) {
 	path := setupTokenPath(lab)
@@ -394,7 +394,7 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 	}
 	if lab.Backup.Repository != "" {
 		if _, err := os.Stat(backup.KeyFile(lab.Paths)); err != nil {
-			log.Warn("backups are configured but not initialised; run: mylab backup init")
+			log.Warn("backups are configured but not initialised; run: roostack backup init")
 		} else {
 			repo, err := newRepo(lab, userLaunch)
 			if err != nil {
@@ -416,7 +416,7 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 			}
 			jobs.Restores = &backup.Restores{Coord: coord, Repo: repo, Activity: acts,
 				Restorer: &backup.Restorer{Repo: repo, Units: systemd.New(), Launch: userLaunch,
-					MylabBin: svc.Deps.Preparer.MylabBin, Now: time.Now},
+					RoostackBin: svc.Deps.Preparer.RoostackBin, Now: time.Now},
 				Lookup: func(name string) (*generate.Output, string, error) { return lookupService(services, name) },
 			}
 		}

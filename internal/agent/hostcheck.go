@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-// HostChanges are changes to the host that MyLab didn't make and that can
+// HostChanges are changes to the host that Roostack didn't make and that can
 // get in the way of managing it (SPEC.md §3.2): software from outside
 // Debian, packages held back from updates, and another firewall.
 type HostChanges struct {
@@ -22,10 +22,10 @@ type HostChanges struct {
 	AptSources []string `json:"apt_sources,omitempty"`
 	// Held are packages held back from updates (apt-mark hold).
 	Held []string `json:"held,omitempty"`
-	// Firewalls are firewall rules MyLab didn't make: other nftables tables
+	// Firewalls are firewall rules Roostack didn't make: other nftables tables
 	// ("nftables: ip filter"), or ufw or firewalld running.
 	Firewalls []string `json:"firewalls,omitempty"`
-	// FirewallMissing: MyLab's own firewall isn't loaded, though it set
+	// FirewallMissing: Roostack's own firewall isn't loaded, though it set
 	// one up.
 	FirewallMissing bool `json:"firewall_missing,omitempty"`
 }
@@ -119,7 +119,7 @@ func aptSources(files map[string]string) []string {
 	return out
 }
 
-// foreignTables lists nftables tables other than MyLab's, from
+// foreignTables lists nftables tables other than Roostack's, from
 // `nft list tables`.
 func foreignTables(list string) []string {
 	var out []string
@@ -128,7 +128,7 @@ func foreignTables(list string) []string {
 		if len(f) != 3 || f[0] != "table" {
 			continue
 		}
-		if f[1] == "inet" && f[2] == "mylab" {
+		if f[1] == "inet" && f[2] == "roostack" {
 			continue
 		}
 		out = append(out, "nftables: "+f[1]+" "+f[2])
@@ -136,7 +136,7 @@ func foreignTables(list string) []string {
 	return out
 }
 
-// HostChanges checks the host for changes MyLab didn't make.
+// HostChanges checks the host for changes Roostack didn't make.
 func (h LinuxHost) HostChanges() (HostChanges, error) {
 	var c HostChanges
 	files := map[string]string{}
@@ -163,7 +163,7 @@ func (h LinuxHost) HostChanges() (HostChanges, error) {
 			c.Firewalls = append(c.Firewalls, unit+" is running")
 		}
 	}
-	if _, err := os.Stat(h.FirewallFile); err == nil && !strings.Contains(string(out), "table inet mylab") {
+	if _, err := os.Stat(h.FirewallFile); err == nil && !strings.Contains(string(out), "table inet roostack") {
 		c.FirewallMissing = true
 	}
 	return c, nil

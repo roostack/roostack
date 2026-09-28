@@ -3,9 +3,9 @@ package generate
 import (
 	"fmt"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/pkgspec"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // Check generates a package against a sample lab, so template mistakes

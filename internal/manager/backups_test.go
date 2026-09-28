@@ -4,31 +4,31 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/b2"
-	"github.com/mylab/mylab/internal/labnet"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/b2"
+	"roostack.cloud/roostack/internal/labnet"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/store"
 )
 
 func TestBackupDestinationOnAServersDisk(t *testing.T) {
-	bin := os.Getenv("MYLAB_RESTIC_BIN")
+	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
 	if bin == "" {
 		var err error
 		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set MYLAB_RESTIC_BIN")
+			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
 		}
 	}
 	m, _ := newManager(t)
@@ -39,7 +39,7 @@ func TestBackupDestinationOnAServersDisk(t *testing.T) {
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
 	local(m).Activity = m.Activity
-	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,11 +114,11 @@ func TestBackupDestinationOnAServersDisk(t *testing.T) {
 }
 
 func TestBackupDestinationB2ScopedKey(t *testing.T) {
-	bin := os.Getenv("MYLAB_RESTIC_BIN")
+	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
 	if bin == "" {
 		var err error
 		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set MYLAB_RESTIC_BIN")
+			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
 		}
 	}
 	// A fake Backblaze: authorises the account key, makes and deletes keys.
@@ -152,7 +152,7 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
-	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,10 +187,10 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 		t.Fatalf("the vps must get only its scoped key: %+v", d)
 	}
 	labID, _ := st.LabID(ctx)
-	if created["namePrefix"] != "mylab/"+labID+"/n-0000000002/" || created["bucketId"] != "bkt1" {
+	if created["namePrefix"] != "roostack/"+labID+"/n-0000000002/" || created["bucketId"] != "bkt1" {
 		t.Errorf("key made with %v", created)
 	}
-	if !strings.HasSuffix(d.Repository, "backblazeb2.com/backups/mylab/"+labID+"/n-0000000002") {
+	if !strings.HasSuffix(d.Repository, "backblazeb2.com/backups/roostack/"+labID+"/n-0000000002") {
 		t.Errorf("repository = %q", d.Repository)
 	}
 	// Removing the server deletes its key.
@@ -205,11 +205,11 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 // An extra copy of the vps's backups on nuc's disk: its own repository,
 // key and store user, never at the main destination.
 func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
-	bin := os.Getenv("MYLAB_RESTIC_BIN")
+	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
 	if bin == "" {
 		var err error
 		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set MYLAB_RESTIC_BIN")
+			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
 		}
 	}
 	m, _ := newManager(t)
@@ -220,7 +220,7 @@ func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
 	m.Registry = &fakeRegistry{}
 	m.Activity = activity.New()
 	local(m).Activity = m.Activity
-	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +291,7 @@ func TestBackupCopyOnAnotherServersDisk(t *testing.T) {
 
 func TestRemoteStorageFollowsRename(t *testing.T) {
 	m, _ := newManager(t)
-	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,7 +313,7 @@ func TestRemoteStorageFollowsRename(t *testing.T) {
 // about it) and its data for the grace period, then both go.
 func TestRemovedGuestGrace(t *testing.T) {
 	m, _ := newManager(t)
-	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/labrestore"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/labrestore"
 )
 
 // backupStale is when the dashboard warns that backups aren't happening.

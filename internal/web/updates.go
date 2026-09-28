@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/osupdate"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/osupdate"
 )
 
 // updatesView is the Settings page's "Updates and restarts" card.
@@ -73,7 +73,7 @@ func (s *Server) restartNowSubmit(w http.ResponseWriter, r *http.Request) {
 	err := s.updates(r).RestartNow(r.Context())
 	var busy osupdate.ErrBusy
 	if errors.As(err, &busy) {
-		s.renderUpdates(w, r, "MyLab can't restart right now: "+busy.Error()+".")
+		s.renderUpdates(w, r, "Roostack can't restart right now: "+busy.Error()+".")
 		return
 	}
 	if err != nil {

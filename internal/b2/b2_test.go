@@ -50,12 +50,12 @@ func TestCreateKey(t *testing.T) {
 	srv, created := fakeB2(t, []string{"listBuckets", "writeKeys", "deleteKeys"})
 	c := &Client{KeyID: "master-id", Key: "master-key", API: srv.URL}
 	ctx := context.Background()
-	k, err := c.CreateKey(ctx, "mylab-lab1-n-0000000002", "backups", "mylab/lab1/n-0000000002/")
+	k, err := c.CreateKey(ctx, "roostack-lab1-n-0000000002", "backups", "roostack/lab1/n-0000000002/")
 	if err != nil || k.ID != "k1" || k.Secret != "secret1" {
 		t.Fatalf("key = %+v, %v", k, err)
 	}
 	got := *created
-	if got["bucketId"] != "bkt1" || got["namePrefix"] != "mylab/lab1/n-0000000002/" || got["keyName"] != "mylab-lab1-n-0000000002" {
+	if got["bucketId"] != "bkt1" || got["namePrefix"] != "roostack/lab1/n-0000000002/" || got["keyName"] != "roostack-lab1-n-0000000002" {
 		t.Errorf("created with %v", got)
 	}
 	if _, err := c.CreateKey(ctx, "x", "other", "p/"); err == nil {

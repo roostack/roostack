@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/store"
 )
 
 type harness struct {
@@ -30,7 +30,7 @@ var nowFunc = time.Now
 
 func newHarness(t *testing.T, setupToken string) *harness {
 	t.Helper()
-	st, err := store.Open(filepath.Join(t.TempDir(), "mylab.db"))
+	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestFirstRunSetup(t *testing.T) {
 	h := newHarness(t, "the-setup-code")
 
 	// Everything redirects to setup until an Owner exists.
-	if _, body := h.get("/"); !strings.Contains(body, "Welcome to MyLab") {
+	if _, body := h.get("/"); !strings.Contains(body, "Welcome to Roostack") {
 		t.Fatal("expected the setup page")
 	}
 
@@ -152,7 +152,7 @@ func TestFirstRunSetup(t *testing.T) {
 	}
 
 	// Setup can't be repeated.
-	if _, body := h.get("/setup"); strings.Contains(body, "Welcome to MyLab") {
+	if _, body := h.get("/setup"); strings.Contains(body, "Welcome to Roostack") {
 		t.Error("setup page must not be available after setup")
 	}
 }

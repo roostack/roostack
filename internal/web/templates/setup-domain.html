@@ -5,7 +5,7 @@
   <h1>Your domain</h1>
   {{else}}{{back .Back "Settings"}}
   <h1>{{if .StepDone}}Change your domain{{else}}Set up your domain{{end}}</h1>
-  {{if .StepDone}}<p class="hint">Saving checks the new details, then restarts MyLab to use them. Your services keep their data.</p>{{end}}
+  {{if .StepDone}}<p class="hint">Saving checks the new details, then restarts Roostack to use them. Your services keep their data.</p>{{end}}
   {{end}}
   <p>Your services will live at addresses like <strong>photos.{{if .Domain}}{{.Domain}}{{else}}lab.example.com{{end}}</strong>, with a secure (HTTPS) certificate for each.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -22,7 +22,7 @@
       <select name="provider" x-model="provider">
         {{range .Providers}}<option value="{{.ID}}" {{if eq .ID $.Provider}}selected{{end}}>{{.Title}}</option>{{end}}
       </select>
-      <small>Usually where you bought the domain. MyLab uses it to prove you own the domain.</small>
+      <small>Usually where you bought the domain. Roostack uses it to prove you own the domain.</small>
     </label>
     {{range $p := .Providers}}
     <div class="provider" x-show="provider === '{{$p.ID}}'" {{if ne $p.ID $.Provider}}x-cloak{{end}}>
@@ -39,20 +39,20 @@
     </div>
     {{end}}
     <label class="check"><input type="checkbox" name="manage_records" x-model="manage" {{if .Manage}}checked{{end}}>
-      <span>Let MyLab manage DNS records for me
-        <small>One setting for the whole lab. Now: MyLab points *.{{if .Domain}}{{.Domain}}{{else}}your domain{{end}} at this server,
+      <span>Let Roostack manage DNS records for me
+        <small>One setting for the whole lab. Now: Roostack points *.{{if .Domain}}{{.Domain}}{{else}}your domain{{end}} at this server,
           so devices at home can reach your services. Later: records for services you make public.
           It never changes records it didn't create unless you choose to take one over.</small></span></label>
     {{range $p := .Providers}}{{if $p.RiskyRecords}}
     <div class="notice notice-error" x-show="manage && provider === '{{$p.ID}}'" x-cloak>
       <p><strong>{{$p.Title}}'s API is risky for this.</strong> To change one record, it has to rewrite every record
-        on your domain. MyLab keeps them as they were, but a mistake or an API problem could affect email or other services.
+        on your domain. Roostack keeps them as they were, but a mistake or an API problem could affect email or other services.
         We strongly recommend moving the domain's DNS to another provider, such as Cloudflare (free).</p>
       <label class="check"><input type="checkbox" name="accept_risk" {{if $.AcceptRisk}}checked{{end}}>
-        <span>I understand the risk; let MyLab manage {{$p.Title}} records anyway</span></label>
+        <span>I understand the risk; let Roostack manage {{$p.Title}} records anyway</span></label>
     </div>
     {{end}}{{end}}
-    <p class="hint">MyLab checks these details by creating and removing a temporary DNS record before saving them.</p>
+    <p class="hint">Roostack checks these details by creating and removing a temporary DNS record before saving them.</p>
     <button type="submit">Check and save</button>
   </form>
   {{if .Wizard}}

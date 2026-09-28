@@ -7,9 +7,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
 )
 
 func TestDesired(t *testing.T) {

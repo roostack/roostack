@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/pkgspec"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // A copy taken while another connection keeps writing must be a valid
@@ -86,12 +86,12 @@ func TestPostgresDump(t *testing.T) {
 	p := &Preparer{Launch: fakeLaunch(&calls, "printf 'PGDMP fake dump'")}
 	target := filepath.Join(t.TempDir(), "db-dump", "main.sql")
 	err := p.Run(context.Background(), generate.PrepareStep{
-		Type: pkgspec.DBPostgres, Container: "mylab-immich-db-main", User: "immich", Database: "immich", Target: target,
+		Type: pkgspec.DBPostgres, Container: "roostack-immich-db-main", User: "immich", Database: "immich", Target: target,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "podman exec mylab-immich-db-main pg_dump --username=immich --dbname=immich --format=custom"
+	want := "podman exec roostack-immich-db-main pg_dump --username=immich --dbname=immich --format=custom"
 	if len(calls) != 1 || calls[0] != want {
 		t.Errorf("calls = %q, want %q", calls, want)
 	}
@@ -116,7 +116,7 @@ func TestFailedDumpKeepsPrevious(t *testing.T) {
 
 func TestSQLiteStepUsesUnshare(t *testing.T) {
 	var calls []string
-	p := &Preparer{Launch: fakeLaunch(&calls, "true"), MylabBin: "/usr/local/bin/mylab"}
+	p := &Preparer{Launch: fakeLaunch(&calls, "true"), RoostackBin: "/usr/local/bin/roostack"}
 	dir := t.TempDir()
 	err := p.Run(context.Background(), generate.PrepareStep{
 		Type: pkgspec.DBSQLite, Source: "/srv/x/data/db.sqlite3", Target: filepath.Join(dir, "main.sqlite3"),
@@ -124,7 +124,7 @@ func TestSQLiteStepUsesUnshare(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := fmt.Sprintf("podman unshare /usr/local/bin/mylab backup-helper sqlite-copy /srv/x/data/db.sqlite3 %s/main.sqlite3", dir)
+	want := fmt.Sprintf("podman unshare /usr/local/bin/roostack backup-helper sqlite-copy /srv/x/data/db.sqlite3 %s/main.sqlite3", dir)
 	if calls[0] != want {
 		t.Errorf("got %q, want %q", calls[0], want)
 	}

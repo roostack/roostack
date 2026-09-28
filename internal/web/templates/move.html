@@ -24,7 +24,7 @@
       <label class="check"><input type="radio" name="way" value="backup" {{if eq $.Info.Suggested "backup"}}checked{{end}} {{if not $.Info.ViaBackup}}disabled{{end}}>
         <span>Through a backup{{if eq $.Info.Suggested "backup"}} (suggested){{end}}
           <small>{{if $.Info.ViaBackup}}Backs it up (only what changed since the last backup), stops it, and restores it on the new server. Better for lots of data or a slow link.
-            {{- else}}Available once {{$.Info.From.Name}}'s backups are set up through MyLab (its Backups page).{{end}}</small></span></label>
+            {{- else}}Available once {{$.Info.From.Name}}'s backups are set up through Roostack (its Backups page).{{end}}</small></span></label>
     </fieldset>
     <p class="hint">Its web address stays the same. The old copy stays on {{$.Info.From.Name}} until you delete it.</p>
     <button type="submit">Move {{$.Package.Title}}</button>

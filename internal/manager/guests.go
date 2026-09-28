@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // Storage for other labs (SPEC.md §10.10). As host, this lab keeps other
@@ -35,7 +35,7 @@ type GuestRecords interface {
 // GuestGrace is how long a removed guest lab's backups stay.
 const GuestGrace = labnet.GuestGrace
 
-// LinkAgent is mylab-agent's WireGuard operations for links between labs.
+// LinkAgent is roostack-agent's WireGuard operations for links between labs.
 type LinkAgent interface {
 	ApplyWireGuard(ctx context.Context, wg agent.WireGuard) (string, error)
 	WireGuardStatus(ctx context.Context, iface string) (agent.WireGuardStatus, error)
@@ -123,7 +123,7 @@ func (m *Manager) InviteGuest(ctx context.Context, name string, quota int64, end
 	}
 	host := m.guestHost(ctx)
 	if host == nil {
-		return labnet.StorageInvite{}, formErrorf("MyLab can't reach %s, which offers the storage, right now.", m.nameOf(m.GuestServer(ctx)))
+		return labnet.StorageInvite{}, formErrorf("Roostack can't reach %s, which offers the storage, right now.", m.nameOf(m.GuestServer(ctx)))
 	}
 	if free, total, err := host.GuestSpace(ctx); err == nil {
 		used := int64(0)
@@ -291,12 +291,12 @@ func (m *Manager) AddRemoteStorage(ctx context.Context, code string) error {
 		used[r.Iface] = true
 	}
 	n := 1
-	for ; n <= 9 && used["mylab-st"+strconv.Itoa(n)]; n++ {
+	for ; n <= 9 && used["roostack-st"+strconv.Itoa(n)]; n++ {
 	}
 	if n > 9 {
 		return formErrorf("This lab already stores at 9 other labs.")
 	}
-	iface := "mylab-st" + strconv.Itoa(n)
+	iface := "roostack-st" + strconv.Itoa(n)
 	if err := labnet.JoinStorage(ctx, inv, iface, m.LinkAgent); err != nil {
 		m.LinkAgent.RemoveWireGuard(ctx, iface)
 		return formErrorf("%s", err)

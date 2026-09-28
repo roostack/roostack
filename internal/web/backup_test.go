@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/store"
 )
 
 type fakeBackups struct {

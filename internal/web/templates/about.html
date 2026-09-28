@@ -1,17 +1,17 @@
 {{define "title"}}About{{end}}
 {{define "content"}}
 <section class="card medium">
-  <h1>About MyLab</h1>
+  <h1>About Roostack</h1>
   <dl class="facts"><dt>Version</dt><dd>{{or .Version "dev"}}</dd></dl>
-  <p>MyLab is built on open-source software. Thank you to everyone who makes it.</p>
+  <p>Roostack is built on open-source software. Thank you to everyone who makes it.</p>
 
-  <h2>Included in MyLab</h2>
+  <h2>Included in Roostack</h2>
   {{template "credit-list" .Bundled}}
   <h2>Colour themes</h2>
-  <p class="hint">MyLab adjusts a few colours so text stays easy to read.</p>
+  <p class="hint">Roostack adjusts a few colours so text stays easy to read.</p>
   {{template "credit-list" .Themes}}
-  <h2>Programs MyLab uses</h2>
-  <p class="hint">Installed alongside MyLab and run by it; not part of MyLab.</p>
+  <h2>Programs Roostack uses</h2>
+  <p class="hint">Installed alongside Roostack and run by it; not part of Roostack.</p>
   {{template "credit-list" .Programs}}
 </section>
 {{end}}

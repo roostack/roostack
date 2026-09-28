@@ -61,8 +61,8 @@ func TestVerifyTOTP(t *testing.T) {
 }
 
 func TestTOTPURL(t *testing.T) {
-	u := TOTPURL("MyLab", "tyris", "ABC")
-	if !strings.HasPrefix(u, "otpauth://totp/MyLab:tyris?") || !strings.Contains(u, "secret=ABC") {
+	u := TOTPURL("Roostack", "tyris", "ABC")
+	if !strings.HasPrefix(u, "otpauth://totp/Roostack:tyris?") || !strings.Contains(u, "secret=ABC") {
 		t.Errorf("unexpected URL %s", u)
 	}
 }

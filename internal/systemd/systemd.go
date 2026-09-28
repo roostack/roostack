@@ -1,4 +1,4 @@
-// Package systemd drives the mylab user's systemd manager via systemctl.
+// Package systemd drives the roostack user's systemd manager via systemctl.
 //
 // It shells out to `systemctl --user` rather than using D-Bus directly: no
 // dependency, and every action matches a command a person could run
@@ -137,7 +137,7 @@ func parseShow(out []byte) []UnitStatus {
 	return res
 }
 
-// SystemStatus returns the state of system units (e.g. mylab-agent), which
+// SystemStatus returns the state of system units (e.g. roostack-agent), which
 // any user may read.
 func (m *Manager) SystemStatus(ctx context.Context, units ...string) ([]UnitStatus, error) {
 	if len(units) == 0 {

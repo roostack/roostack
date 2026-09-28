@@ -5,8 +5,8 @@
     <h1>Services</h1>
     {{if .CanManage}}<a class="button" href="/catalog">Add a service</a>{{end}}
   </div>
-  {{if .CanManage}}<p class="hint">{{if .ShowBuiltIn}}<a href="/services">Hide MyLab's own services</a>
-    {{- else}}<a href="/services?builtin=1">Show MyLab's own services</a> (web proxy, backup stores, MyLab itself, network links){{end}}</p>{{end}}
+  {{if .CanManage}}<p class="hint">{{if .ShowBuiltIn}}<a href="/services">Hide Roostack's own services</a>
+    {{- else}}<a href="/services?builtin=1">Show Roostack's own services</a> (web proxy, backup stores, Roostack itself, network links){{end}}</p>{{end}}
   <div hx-get="/partials/services{{if .ShowBuiltIn}}?builtin=1{{end}}" hx-trigger="every 10s, activity-done from:body" hx-swap="innerHTML">
     {{template "services-live" .}}
   </div>
@@ -44,11 +44,11 @@
 <p class="card">No services are installed yet.{{if .CanManage}} <a href="/catalog">Add one</a>.{{end}}</p>
 {{end}}
 {{with .BuiltIns}}
-<h2 class="section-title">MyLab's own services</h2>
+<h2 class="section-title">Roostack's own services</h2>
 {{range .}}
 <section class="card section">
   <h3>On {{.Server}}</h3>
-  {{with .Err}}<p class="error">MyLab can't ask this server right now: {{.}}</p>{{end}}
+  {{with .Err}}<p class="error">Roostack can't ask this server right now: {{.}}</p>{{end}}
   {{with .Items}}
   <table class="records">
     <thead><tr><th>Part</th><th>State</th><th>What it does</th></tr></thead>

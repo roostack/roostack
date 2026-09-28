@@ -1,4 +1,4 @@
-// Package store holds MyLab's runtime data in SQLite (SPEC.md §5.1): users,
+// Package store holds Roostack's runtime data in SQLite (SPEC.md §5.1): users,
 // sessions and the audit log. Desired state lives in YAML files instead.
 package store
 
@@ -87,7 +87,7 @@ var migrations = []string{
 		expires_at INTEGER NOT NULL
 	);`,
 	// Where each machine backs up (SPEC.md §10.10). A provider's config is
-	// JSON and may hold credentials; the database is readable by MyLab only.
+	// JSON and may hold credentials; the database is readable by Roostack only.
 	`CREATE TABLE backup_providers (
 		id     INTEGER PRIMARY KEY,
 		kind   TEXT NOT NULL,
@@ -170,7 +170,7 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	// SQLite allows one writer; a single connection avoids "database is
-	// locked" errors and is plenty for MyLab.
+	// locked" errors and is plenty for Roostack.
 	db.SetMaxOpenConns(1)
 	s := &Store{db: db}
 	if err := s.migrate(); err != nil {
@@ -224,7 +224,7 @@ func (s *Store) Backup(ctx context.Context, path string) error {
 	return os.Rename(tmp, path)
 }
 
-// User is a MyLab account.
+// User is a Roostack account.
 type User struct {
 	ID           int64
 	Username     string
@@ -570,7 +570,7 @@ func (s *Store) Setting(ctx context.Context, key string) (string, error) {
 }
 
 // SettingsWithPrefix returns every runtime setting whose key starts with
-// prefix, e.g. the DNS records MyLab owns ("dns.owned.").
+// prefix, e.g. the DNS records Roostack owns ("dns.owned.").
 func (s *Store) SettingsWithPrefix(ctx context.Context, prefix string) (map[string]string, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT key, value FROM settings WHERE substr(key, 1, ?) = ? ORDER BY key`, len(prefix), prefix)
@@ -599,7 +599,7 @@ func (s *Store) SetSetting(ctx context.Context, key, value string) error {
 // Server is another server in the lab (SPEC.md §10).
 type Server struct {
 	ID, Name string
-	Addr     string // on MyLab's network
+	Addr     string // on Roostack's network
 	// PublicKey is its WireGuard key.
 	PublicKey string
 	JoinedAt  time.Time

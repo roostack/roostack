@@ -1,11 +1,11 @@
 [Unit]
-Description=MyLab agent (privileged helper)
-Documentation=file:///usr/share/doc/mylab/ARCHITECTURE.md
+Description=Roostack agent (privileged helper)
+Documentation=file:///usr/share/doc/roostack/ARCHITECTURE.md
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/bin/mylab-agent
+ExecStart=/usr/bin/roostack-agent
 Restart=on-failure
 # The agent needs root for sysctl and nftables, but nothing in /home.
 ProtectHome=yes

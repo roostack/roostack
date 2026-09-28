@@ -1,4 +1,4 @@
-// Command mylab is the MyLab management service and CLI.
+// Command roostack is the Roostack management service and CLI.
 package main
 
 import (
@@ -8,15 +8,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/pkgspec"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
-const usage = `Usage: mylab <command> [flags]
+const usage = `Usage: roostack <command> [flags]
 
 Commands:
   serve    Run the web UI
@@ -27,7 +27,7 @@ Commands:
   validate Check a package file
   node     Join this server to a lab
 
-Run 'mylab <command> -h' for command flags.
+Run 'roostack <command> -h' for command flags.
 `
 
 // version is set at build time (-ldflags "-X main.version=..."; see the
@@ -60,11 +60,11 @@ func main() {
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:
-		fmt.Fprintf(os.Stderr, "mylab: unknown command %q\n\n%s", cmd, usage)
+		fmt.Fprintf(os.Stderr, "roostack: unknown command %q\n\n%s", cmd, usage)
 		os.Exit(2)
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "mylab:", err)
+		fmt.Fprintln(os.Stderr, "roostack:", err)
 		os.Exit(1)
 	}
 }

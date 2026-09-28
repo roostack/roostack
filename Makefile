@@ -22,5 +22,5 @@ vet:
 
 # Check generated Caddy config against a real Caddy build (see internal/caddy).
 caddy-check:
-	test -n "$(MYLAB_CADDY_BIN)" || (echo "set MYLAB_CADDY_BIN" && exit 1)
-	MYLAB_CADDY_BIN=$(MYLAB_CADDY_BIN) go test -run TestCaddyAdapt -v ./internal/caddy/
+	test -n "$(ROOSTACK_CADDY_BIN)" || (echo "set ROOSTACK_CADDY_BIN" && exit 1)
+	ROOSTACK_CADDY_BIN=$(ROOSTACK_CADDY_BIN) go test -run TestCaddyAdapt -v ./internal/caddy/

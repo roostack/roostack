@@ -24,7 +24,7 @@ func TestCheckFindsParentZone(t *testing.T) {
 	if err != nil || zone != "example.com" {
 		t.Fatalf("zone %q err %v", zone, err)
 	}
-	if strings.Join(tried, ",") != "lab.example.com _mylab-check,example.com _mylab-check.lab" {
+	if strings.Join(tried, ",") != "lab.example.com _roostack-check,example.com _roostack-check.lab" {
 		t.Errorf("tried %v: most specific zone first, name relative to the zone", tried)
 	}
 	if !deleted {
@@ -44,7 +44,7 @@ func TestCheckErrors(t *testing.T) {
 		return func(context.Context) error { return errors.New("permission denied") }, nil
 	}
 	if _, err := check(context.Background(), http.DefaultClient, undoFails, nil, "example.com"); err == nil ||
-		!strings.Contains(err.Error(), "remove _mylab-check.example.com by hand") {
+		!strings.Contains(err.Error(), "remove _roostack-check.example.com by hand") {
 		t.Errorf("delete failure: %v", err)
 	}
 }

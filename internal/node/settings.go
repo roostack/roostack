@@ -7,22 +7,22 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"github.com/mylab/mylab/internal/backup"
 	"net/netip"
+	"roostack.cloud/roostack/internal/backup"
 	"slices"
 	"strings"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/firewall"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/firewall"
 )
 
 // Settings are a server's own settings: its clock, who may reach it over
-// SSH, and when it may restart after updates. Changing one restarts MyLab
+// SSH, and when it may restart after updates. Changing one restarts Roostack
 // on that server so every part picks it up.
 type Settings interface {
 	// Timezones returns the server's time zone and those it can use.
 	Timezones() (current string, zones []string, err error)
-	// SetTimezone returns true if the zone changed (MyLab then restarts:
+	// SetTimezone returns true if the zone changed (Roostack then restarts:
 	// Go reads the local zone once, and schedules depend on it).
 	SetTimezone(ctx context.Context, name string) (changed bool, err error)
 	SSHAccess() (SSHAccess, error)
@@ -36,7 +36,7 @@ type Settings interface {
 	// the controller created for it (SPEC.md §10.10).
 	SetBackupDestination(ctx context.Context, d BackupDestination) error
 	// SetBackupCopies sets the extra copies of its backups (SPEC.md §6.9);
-	// the server restarts MyLab to use them. A copy it already has keeps
+	// the server restarts Roostack to use them. A copy it already has keeps
 	// its key and credentials when none come with it.
 	SetBackupCopies(ctx context.Context, copies []BackupCopy) error
 }
@@ -68,18 +68,18 @@ type SSHAccess struct {
 }
 
 // HostSettings changes this server's settings: the time zone through
-// mylab-agent, the rest in lab.yaml.
+// roostack-agent, the rest in lab.yaml.
 type HostSettings struct {
 	Lab     config.Lab
 	LabPath string
-	// SetZone sets the host's time zone (mylab-agent).
+	// SetZone sets the host's time zone (roostack-agent).
 	SetZone func(ctx context.Context, name string) error
 	// Zone and Zones read the host's time zone (internal/hosttime).
 	Zone  func() string
 	Zones func() ([]string, error)
 	// SSHClients lists who is connected over SSH now (internal/firewall).
 	SSHClients func() ([]netip.Addr, error)
-	// Restart restarts MyLab so every part picks up the new settings.
+	// Restart restarts Roostack so every part picks up the new settings.
 	Restart func()
 }
 
@@ -104,7 +104,7 @@ func (h *HostSettings) SetTimezone(ctx context.Context, name string) (bool, erro
 		return false, nil
 	}
 	if err := h.SetZone(ctx, name); err != nil {
-		return false, formErrorf("MyLab couldn't change the time zone: %v", err)
+		return false, formErrorf("Roostack couldn't change the time zone: %v", err)
 	}
 	h.Restart()
 	return true, nil
@@ -175,7 +175,7 @@ func (h *HostSettings) SetBackupDestination(ctx context.Context, d BackupDestina
 	}); err != nil {
 		return fmt.Errorf("saving the backup destination: %w", err)
 	}
-	// Backups are set up when MyLab starts.
+	// Backups are set up when Roostack starts.
 	h.Restart()
 	return nil
 }

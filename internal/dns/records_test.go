@@ -243,7 +243,7 @@ func TestRecordsCreateAndUpdate(t *testing.T) {
 			switch p.ID {
 			case "cloudflare":
 				if st.cfComment != ManagedComment {
-					t.Error("Cloudflare records should carry the MyLab comment")
+					t.Error("Cloudflare records should carry the Roostack comment")
 				}
 			case "namecheap":
 				if st.ncEmail != "FWD" || len(st.ncHosts) != 3 {

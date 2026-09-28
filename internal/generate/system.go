@@ -3,28 +3,28 @@ package generate
 import (
 	"fmt"
 
-	"github.com/mylab/mylab/internal/caddy"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/dns"
-	"github.com/mylab/mylab/internal/quadlet"
+	"roostack.cloud/roostack/internal/caddy"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/quadlet"
 )
 
-// CaddyImage is MyLab's Caddy build with DNS plugins, built on each
+// CaddyImage is Roostack's Caddy build with DNS plugins, built on each
 // server from CaddyBuildDir by a Quadlet build unit (so a new install, or
 // an upgrade that changes the Containerfile, needs no manual step).
 // TODO: publish and pin by digest.
-const CaddyImage = "localhost/mylab-caddy:latest"
+const CaddyImage = "localhost/roostack-caddy:latest"
 
 // CaddyBuildDir holds the Containerfile (build/caddy in the source,
 // installed by the package).
-const CaddyBuildDir = "/usr/share/mylab/caddy"
+const CaddyBuildDir = "/usr/share/roostack/caddy"
 
 // CaddyUnit is the systemd service running the reverse proxy.
-const CaddyUnit = "mylab-caddy"
+const CaddyUnit = "roostack-caddy"
 
 // CaddyHostLoopback is the address inside Caddy's network namespace that
 // pasta maps to the host's loopback (--map-host-loopback). Caddy reaches
-// services (published on 127.0.0.1:<port>) and the MyLab UI through it.
+// services (published on 127.0.0.1:<port>) and the Roostack UI through it.
 const CaddyHostLoopback = "169.254.1.3"
 
 // SystemOutput is the lab-wide output: shared network, proxy and main
@@ -46,7 +46,7 @@ func System(lab config.Lab) (*SystemOutput, error) {
 	}
 
 	var u quadlet.Unit
-	u.Section("Unit").Add("Description", "MyLab: reverse proxy (Caddy)")
+	u.Section("Unit").Add("Description", "Roostack: reverse proxy (Caddy)")
 	cs := u.Section("Container")
 	cs.Add("ContainerName", CaddyUnit)
 	cs.Add("Image", CaddyUnit+".build")
@@ -57,7 +57,7 @@ func System(lab config.Lab) (*SystemOutput, error) {
 	// (docs/ASSUMPTIONS.md C4). --map-host-loopback lets Caddy reach
 	// services published on the host's 127.0.0.1.
 	cs.Add("Network", "pasta:--map-host-loopback,"+CaddyHostLoopback)
-	// Needs net.ipv4.ip_unprivileged_port_start=80, set by mylab-agent
+	// Needs net.ipv4.ip_unprivileged_port_start=80, set by roostack-agent
 	// (docs/ASSUMPTIONS.md C3).
 	cs.Add("PublishPort", "80:80")
 	cs.Add("PublishPort", "443:443")
@@ -74,8 +74,8 @@ func System(lab config.Lab) (*SystemOutput, error) {
 		// Entered by the user in the setup wizard.
 		out.Secrets = append(out.Secrets, Secret{Name: dns.SecretName(f), Holds: CaddyUnit + ".container"})
 	}
-	cs.Add("Label", "io.mylab.service=_system")
-	cs.Add("Label", "io.mylab.component=caddy")
+	cs.Add("Label", "io.roostack.service=_system")
+	cs.Add("Label", "io.roostack.component=caddy")
 	svc := u.Section("Service")
 	svc.Add("ExecReload", "/usr/bin/podman exec "+CaddyUnit+" caddy reload --config /etc/caddy/Caddyfile")
 	svc.Add("Restart", "always")
@@ -87,7 +87,7 @@ func System(lab config.Lab) (*SystemOutput, error) {
 	out.Quadlets = append(out.Quadlets, File{Name: CaddyUnit + ".container", Content: u.String()})
 
 	var b quadlet.Unit
-	b.Section("Unit").Add("Description", "MyLab: build the reverse proxy image (Caddy with DNS plugins)")
+	b.Section("Unit").Add("Description", "Roostack: build the reverse proxy image (Caddy with DNS plugins)")
 	bs := b.Section("Build")
 	bs.Add("ImageTag", CaddyImage)
 	bs.Add("File", CaddyBuildDir+"/Containerfile")

@@ -1,4 +1,4 @@
-// Package backup runs MyLab's backups with restic (SPEC.md §6.9).
+// Package backup runs Roostack's backups with restic (SPEC.md §6.9).
 //
 // restic is called as a CLI with --json output, behind the small Repo
 // type, so the tool could be swapped later. Users can always recover with
@@ -33,8 +33,8 @@ var ErrWrongKey = errors.New("the key doesn't open this backup")
 type Repo struct {
 	// Bin is the restic binary.
 	Bin string
-	// URL is the repository location, e.g. /mnt/backup/mylab or
-	// s3:https://s3.example.com/bucket/mylab.
+	// URL is the repository location, e.g. /mnt/backup/roostack or
+	// s3:https://s3.example.com/bucket/roostack.
 	URL string
 	// PasswordFile holds the recovery key (the repository password).
 	PasswordFile string
@@ -184,7 +184,7 @@ func (r *Repo) DumpFile(ctx context.Context, snapshotID, file string) ([]byte, e
 // own key next to the recovery key (SPEC.md §10.10). user names it in
 // `restic key list`.
 func (r *Repo) AddKey(ctx context.Context, key, user string) error {
-	f, err := os.CreateTemp("", "mylab-key-*")
+	f, err := os.CreateTemp("", "roostack-key-*")
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func (r *Repo) AddKey(ctx context.Context, key, user string) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	_, err = r.run(ctx, "key", "add", "--new-password-file", f.Name(), "--user", user, "--host", "mylab")
+	_, err = r.run(ctx, "key", "add", "--new-password-file", f.Name(), "--user", user, "--host", "roostack")
 	return err
 }
 
@@ -349,7 +349,7 @@ func (r *Repo) RestoreDir(ctx context.Context, snapshotID, dir string) error {
 var ErrNotInSnapshot = errors.New("not in this backup")
 
 // Restore extracts a snapshot into target. Paths are kept as they were at
-// backup time under target (e.g. target/srv/mylab/services/...). Include
+// backup time under target (e.g. target/srv/roostack/services/...). Include
 // limits the restore to some paths.
 func (r *Repo) Restore(ctx context.Context, snapshotID, target string, include ...string) error {
 	args := []string{"restore", snapshotID, "--target", target}

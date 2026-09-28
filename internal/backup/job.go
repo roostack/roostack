@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/maintenance"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/maintenance"
 )
 
 // JobName is the coordinator job name for backups (used to resume them
@@ -29,9 +29,9 @@ type Plan struct {
 
 // LabPlan combines the lab's own state with each service's backup plan.
 //
-// Included: /var/lib/mylab (desired state, Caddy config and certificates)
+// Included: /var/lib/roostack (desired state, Caddy config and certificates)
 // and the Podman secrets store, since generated passwords are needed to use
-// restored data. Excluded: the rest of the mylab home directory (container
+// restored data. Excluded: the rest of the roostack home directory (container
 // images, which can be downloaded again), the live SQLite database (a
 // consistent copy is taken first), and the backup key itself.
 func LabPlan(paths config.Paths, services []*generate.Output) Plan {
@@ -39,9 +39,9 @@ func LabPlan(paths config.Paths, services []*generate.Output) Plan {
 	p := Plan{
 		Paths: []string{paths.StateDir, secrets},
 		Excludes: append(excludeAllBut(paths.HomeDir, secrets),
-			filepath.Join(paths.StateDir, "mylab.db"),
-			filepath.Join(paths.StateDir, "mylab.db-wal"),
-			filepath.Join(paths.StateDir, "mylab.db-shm"),
+			filepath.Join(paths.StateDir, "roostack.db"),
+			filepath.Join(paths.StateDir, "roostack.db-wal"),
+			filepath.Join(paths.StateDir, "roostack.db-shm"),
 			KeyFile(paths),
 		),
 	}
@@ -78,22 +78,22 @@ func excludeAllBut(root, keep string) []string {
 // KeyFile holds the repository password: the recovery key.
 func KeyFile(paths config.Paths) string { return filepath.Join(paths.StateDir, "backup-key") }
 
-// WireGuardKeysFile is where MyLab keeps a copy of its WireGuard keys for
-// backups (readable by MyLab only, like the lab CA's key).
+// WireGuardKeysFile is where Roostack keeps a copy of its WireGuard keys for
+// backups (readable by Roostack only, like the lab CA's key).
 func WireGuardKeysFile(paths config.Paths) string {
 	return filepath.Join(paths.StateDir, "wireguard-keys.json")
 }
 
-// StateDumpFile is where the consistent copy of MyLab's own database goes.
+// StateDumpFile is where the consistent copy of Roostack's own database goes.
 func StateDumpFile(paths config.Paths) string {
-	return filepath.Join(paths.StateDir, "db-dump", "mylab.db")
+	return filepath.Join(paths.StateDir, "db-dump", "roostack.db")
 }
 
 // JobDeps are what a backup job needs.
 type JobDeps struct {
 	Repo     *Repo
 	Preparer *Preparer
-	// DumpState writes a consistent copy of MyLab's SQLite database.
+	// DumpState writes a consistent copy of Roostack's SQLite database.
 	DumpState func(ctx context.Context, path string) error
 	Paths     config.Paths
 	Host      string
@@ -150,9 +150,9 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 		return nil, err
 	}
 	r.SetInterruptible(false)
-	d.Log.Step("Saving a copy of MyLab's own database")
+	d.Log.Step("Saving a copy of Roostack's own database")
 	if err := d.DumpState(ctx, StateDumpFile(d.Paths)); err != nil {
-		return nil, fmt.Errorf("copying MyLab database: %w", err)
+		return nil, fmt.Errorf("copying Roostack database: %w", err)
 	}
 	for _, step := range plan.Prepare {
 		d.Log.Step("Saving a consistent copy of %s's %s database", prepareService(step), step.Type)
@@ -208,7 +208,7 @@ func upload(ctx context.Context, d JobDeps, repo *Repo, to string, paths, exclud
 	}
 	lastTen := -1
 	sum, err := repo.Backup(ctx, BackupOptions{
-		Paths: paths, Excludes: excludes, Tags: []string{"mylab"}, Host: d.Host,
+		Paths: paths, Excludes: excludes, Tags: []string{"roostack"}, Host: d.Host,
 		OnProgress: func(p Progress) {
 			r.SetProgress(int(p.PercentDone))
 			if ten := int(p.PercentDone) / 10; ten > lastTen {

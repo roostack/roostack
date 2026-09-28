@@ -1,10 +1,10 @@
 # Reference example: simple package (single container, SQLite).
 # Image digests looked up 2026-09-26. See SPEC.md §8.1.
-schema: mylab/v1alpha1
+schema: roostack/v1alpha1
 name: vaultwarden
 title: Vaultwarden
 description: Password manager compatible with the Bitwarden apps
-version: 1.34.3-mylab.1          # upstream version + package revision
+version: 1.34.3-roostack.1          # upstream version + package revision
 
 settings:                        # shown in the UI at install and in settings
   - key: signups_allowed
@@ -15,7 +15,7 @@ settings:                        # shown in the UI at install and in settings
     title: Admin token
     description: Needed to open Vaultwarden's admin panel
     type: secret
-    generate: true               # MyLab creates it; stored as a Podman secret
+    generate: true               # Roostack creates it; stored as a Podman secret
     reveal: true                 # shown to Admins on request, for the admin panel
 
 containers:
@@ -37,7 +37,7 @@ storage:
 
 databases:
   main:
-    type: sqlite                 # MyLab handles consistent backups itself
+    type: sqlite                 # Roostack handles consistent backups itself
     path: data/db.sqlite3
 
 links:                           # most settings live in the app itself
@@ -54,10 +54,10 @@ routes:
     exposure: private            # default; user can make it public
 
 # --- Matching instance (desired state) ---
-# /var/lib/mylab/services/vaultwarden.yaml
+# /var/lib/roostack/services/vaultwarden.yaml
 #
 # package: vaultwarden
-# version: 1.34.3-mylab.1
+# version: 1.34.3-roostack.1
 # routes:
 #   web: { subdomain: passwords, exposure: private }
 # settings:
@@ -65,7 +65,7 @@ routes:
 # updates: minor                 # notify | patch | minor | all
 #
 # --- Generated output ---
-# ~/.config/containers/systemd/mylab-vaultwarden-app.container
-# ~/.config/containers/systemd/mylab-vaultwarden.network
-# /var/lib/mylab/caddy/sites/vaultwarden.caddy
-# /srv/mylab/services/vaultwarden/data/
+# ~/.config/containers/systemd/roostack-vaultwarden-app.container
+# ~/.config/containers/systemd/roostack-vaultwarden.network
+# /var/lib/roostack/caddy/sites/vaultwarden.caddy
+# /srv/roostack/services/vaultwarden/data/

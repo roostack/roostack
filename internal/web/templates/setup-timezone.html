@@ -7,7 +7,7 @@
   {{else}}{{back .Back .BackText}}
   <h1>Change the time zone{{if not .Server.This}} of {{.Server.Name}}{{end}}</h1>
   {{end}}
-  <p>MyLab uses {{if .Server.This}}this server's{{else}}each server's own{{end}} time zone for everything it shows and schedules{{if .Server.This}}, such as the nightly backup at 2 am{{end}}.
+  <p>Roostack uses {{if .Server.This}}this server's{{else}}each server's own{{end}} time zone for everything it shows and schedules{{if .Server.This}}, such as the nightly backup at 2 am{{end}}.
     It's set to <strong>{{.Current}}</strong>{{with .HostClock.Time}}, where it's {{.}} now{{end}}.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <form method="post" action="{{.Server.TimeZonePost}}" data-zone="{{.Zone}}"

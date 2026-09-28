@@ -1,4 +1,4 @@
-/* MyLab design tokens (docs/DESIGN.md).
+/* Roostack design tokens (docs/DESIGN.md).
 
    Three layers:
    1. Palette   themes/<name>.css: a theme's raw colours for light (-l)
@@ -31,7 +31,7 @@
   --shadow-1: 0 1px 2px rgb(0 0 0 / 6%), 0 1px 3px rgb(0 0 0 / 4%);
   --focus-ring: 0 0 0 3px var(--highlight-soft), 0 0 0 1px var(--highlight);
 
-  /* Status colours: shared by MyLab's own themes, so "problem" always
+  /* Status colours: shared by Roostack's own themes, so "problem" always
      looks like a problem. A palette may override them (--pal-ok-l, ...),
      e.g. Catppuccin uses its own green, yellow and red. */
   --status-ok-l: #17603f; --status-ok-bg-l: #e3f5ec;

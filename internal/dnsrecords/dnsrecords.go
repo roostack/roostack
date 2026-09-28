@@ -19,9 +19,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/dns"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // States shown on the dashboard.
@@ -30,9 +30,9 @@ const (
 	StatePending     = "pending"     // not visible yet (DNS propagation)
 	StateBlocked     = "blocked"     // the router drops the answer
 	StateOverridden  = "overridden"  // home DNS answers with a different address
-	StateConflict    = "conflict"    // a record MyLab didn't create is in the way
+	StateConflict    = "conflict"    // a record Roostack didn't create is in the way
 	StateError       = "error"       // the provider API failed
-	StateManual      = "manual"      // MyLab doesn't manage records; add it by hand
+	StateManual      = "manual"      // Roostack doesn't manage records; add it by hand
 	StateUnsupported = "unsupported" // provider can't manage records
 )
 
@@ -120,7 +120,7 @@ func (m *Manager) SetManaging(on, acceptRisk bool) error {
 	return nil
 }
 
-// TakeOver lets MyLab manage a record it didn't create (the conflict shown
+// TakeOver lets Roostack manage a record it didn't create (the conflict shown
 // on the dashboard), overwriting its current value on the next sync.
 func (m *Manager) TakeOver(ctx context.Context) error {
 	st := m.Status()
@@ -222,7 +222,7 @@ func (m *Manager) Sync(ctx context.Context) Status {
 	ok, risky := p.ManagesRecords()
 	switch {
 	case !ok:
-		st.State, st.Message = StateUnsupported, p.Title+" records can't be managed by MyLab yet."
+		st.State, st.Message = StateUnsupported, p.Title+" records can't be managed by Roostack yet."
 		return m.set(st)
 	case !lab.DNS.ManageRecords, risky && !lab.DNS.AllowRiskyRecords:
 		st.State = StateManual
@@ -269,23 +269,23 @@ func (m *Manager) Sync(ctx context.Context) Status {
 type conflictError struct{ record, current, want string }
 
 func (e *conflictError) Error() string {
-	return fmt.Sprintf("%s already points at %s, and MyLab didn't create that record, so it won't change it. "+
+	return fmt.Sprintf("%s already points at %s, and Roostack didn't create that record, so it won't change it. "+
 		"Delete it at your DNS provider, or point it at %s.", e.record, e.current, e.want)
 }
 
-// ownerKey is where MyLab remembers a record it created and its value.
+// ownerKey is where Roostack remembers a record it created and its value.
 const ownerPrefix = "dns.owned."
 
 func ownerKey(fqdn, typ string) string { return ownerPrefix + fqdn + "/" + typ }
 
-// Record is a DNS record MyLab manages at the provider.
+// Record is a DNS record Roostack manages at the provider.
 type Record struct {
 	Name  string // e.g. *.lab.example.com
 	Type  string // e.g. A
-	Value string // what MyLab last set it to
+	Value string // what Roostack last set it to
 }
 
-// Records lists the records MyLab manages (the ones it created, adopted
+// Records lists the records Roostack manages (the ones it created, adopted
 // or took over), by name.
 func (m *Manager) Records(ctx context.Context) ([]Record, error) {
 	owned, err := m.Store.SettingsWithPrefix(ctx, ownerPrefix)
@@ -304,7 +304,7 @@ func (m *Manager) Records(ctx context.Context) ([]Record, error) {
 	return recs, nil
 }
 
-// ensure creates or updates the record, but only if MyLab owns it (or it
+// ensure creates or updates the record, but only if Roostack owns it (or it
 // doesn't exist, or already has the right value).
 func (m *Manager) ensure(ctx context.Context, p *dns.Provider, values map[string]string, zone, name, ip string) error {
 	fqdn := name + "." + zone
@@ -319,7 +319,7 @@ func (m *Manager) ensure(ctx context.Context, p *dns.Provider, values map[string
 	}
 	switch {
 	case len(current) == 1 && current[0] == ip:
-		// Already right; adopt it if MyLab didn't create it.
+		// Already right; adopt it if Roostack didn't create it.
 	case len(current) == 0 || owned != "":
 		if err := p.SetRecord(ctx, m.HTTP, values, zone, name, "A", ip); err != nil {
 			return fmt.Errorf("updating %s at %s: %w", fqdn, p.Title, err)
@@ -336,7 +336,7 @@ func (m *Manager) ensure(ctx context.Context, p *dns.Provider, values map[string
 func (m *Manager) check(ctx context.Context, st Status) Status {
 	token := make([]byte, 4)
 	rand.Read(token)
-	host := "mylab-check-" + hex.EncodeToString(token) + "." + m.Lab.Domain
+	host := "roostack-check-" + hex.EncodeToString(token) + "." + m.Lab.Domain
 
 	deadline := time.Now().Add(m.Wait)
 	public := false
@@ -379,7 +379,7 @@ func (m *Manager) check(ctx context.Context, st Status) Status {
 			"private domain exceptions), or use a local DNS server."
 	default:
 		st.State = StatePending
-		st.Message = "The record isn't visible yet. DNS changes can take a few minutes; MyLab checks again automatically."
+		st.Message = "The record isn't visible yet. DNS changes can take a few minutes; Roostack checks again automatically."
 	}
 	return st
 }

@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/systemd"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/systemd"
 )
 
 // What a server can tell about its services and itself, so nothing about
@@ -38,18 +38,18 @@ type Container struct {
 	State string `json:"state"` // e.g. "active (running)"
 }
 
-// BuiltIn is part of MyLab itself on a server: its proxy, backup stores,
-// the mylab service and agent, and network links.
+// BuiltIn is part of Roostack itself on a server: its proxy, backup stores,
+// the roostack service and agent, and network links.
 type BuiltIn struct {
 	Name   string `json:"name"`
-	Kind   string `json:"kind"` // proxy, store, mylab, network
+	Kind   string `json:"kind"` // proxy, store, roostack, network
 	Status string `json:"status"`
 	Detail string `json:"detail"`
 	// LastSeen is a network link's latest handshake (zero: none or n/a).
 	LastSeen time.Time `json:"last_seen,omitzero"`
 }
 
-// WireGuardStatuser reads WireGuard interfaces (mylab-agent).
+// WireGuardStatuser reads WireGuard interfaces (roostack-agent).
 type WireGuardStatuser interface {
 	WireGuardStatus(ctx context.Context, iface string) (agent.WireGuardStatus, error)
 }
@@ -146,7 +146,7 @@ func (n *Local) ServiceDetails(ctx context.Context) (map[string]ServiceDetail, e
 	return out, nil
 }
 
-// BuiltIns describes MyLab's own parts on this server.
+// BuiltIns describes Roostack's own parts on this server.
 func (n *Local) BuiltIns(ctx context.Context) ([]BuiltIn, error) {
 	n.mu.Lock()
 	a := n.assignment
@@ -163,14 +163,14 @@ func (n *Local) BuiltIns(ctx context.Context) ([]BuiltIn, error) {
 	}
 	sd := systemd.New()
 	sysUnit := func(name, unit, detail string) {
-		b := BuiltIn{Name: name, Kind: "mylab", Status: "unknown", Detail: detail}
+		b := BuiltIn{Name: name, Kind: "roostack", Status: "unknown", Detail: detail}
 		if st, err := sd.SystemStatus(ctx, unit); err == nil && len(st) == 1 {
 			b.Status = unitState(st[0])
 		}
 		out = append(out, b)
 	}
-	sysUnit("MyLab", "mylab.service", "Runs this server's services, backups and updates"+n.versionText())
-	sysUnit("MyLab agent", "mylab-agent.service", "Does the few things that need root: firewall, WireGuard, OS updates, restarts")
+	sysUnit("Roostack", "roostack.service", "Runs this server's services, backups and updates"+n.versionText())
+	sysUnit("Roostack agent", "roostack-agent.service", "Does the few things that need root: firewall, WireGuard, OS updates, restarts")
 	if !n.Lab.IsNode() {
 		userUnit("Caddy", "proxy", generate.CaddyUnit+".service", "Web addresses and HTTPS certificates for the lab's services")
 	}
@@ -181,7 +181,7 @@ func (n *Local) BuiltIns(ctx context.Context) ([]BuiltIn, error) {
 			"The controller's access, to remove old backups")
 	}
 	for _, g := range a.Guests {
-		userUnit("Store for another lab ("+g.User+")", "store", "mylab-guest-"+g.User+".service",
+		userUnit("Store for another lab ("+g.User+")", "store", "roostack-guest-"+g.User+".service",
 			"Up to "+gbText(g.Quota)+" of encrypted backups")
 	}
 	for _, l := range n.links(ctx) {
@@ -205,7 +205,7 @@ func (n *Local) links(ctx context.Context) []BuiltIn {
 		b := BuiltIn{Name: iface, Kind: "network", Status: "up"}
 		switch {
 		case iface == agent.WireGuardInterface:
-			b.Detail = "MyLab's network between this lab's servers"
+			b.Detail = "Roostack's network between this lab's servers"
 		case iface == agent.GuestsInterface:
 			b.Detail = "Other labs storing backups here (UDP " + itoa(agent.GuestsPort) + ")"
 		default:

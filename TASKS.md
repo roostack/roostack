@@ -1,17 +1,17 @@
-# MyLab Tasks
+# Roostack Tasks
 
 ## Phase 0: Requirements & Decisions ✅
 
 - [x] Agree guiding principles and high-level requirements
 - [x] Technical decisions (recorded in SPEC.md)
   - [x] Base distro(s) → Debian 13 (Ubuntu 26.04 planned)
-  - [x] MyLab process architecture → host .deb: `mylab` (unprivileged) + `mylab-agent` (root)
+  - [x] Roostack process architecture → host .deb: `roostack` (unprivileged) + `roostack-agent` (root)
   - [x] Host OS update & reboot policy → automatic updates, reboot window, maintenance coordinator
   - [x] Language → Go
   - [x] Web UI → Go templates + htmx + Alpine.js
   - [x] How services are run under podman → Quadlets
   - [x] Reverse proxy and TLS → Caddy, DNS-01, wildcard cert, domain required
-  - [x] Data volume layout → bind mounts under /srv/mylab, configurable, central defaults
+  - [x] Data volume layout → bind mounts under /srv/roostack, configurable, central defaults
   - [x] Databases → one instance per service, standardised pattern
   - [x] Backup mechanism → restic behind an interface
   - [x] Host security → nftables, private admin UI, SSH hardening, CrowdSec when public
@@ -35,24 +35,24 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] A1: everything comes back after a reboot with nobody logged in
   - [x] C3/C6: ports 80/443 rootless; Caddy → `host.containers.internal:8480`
   - [x] D1: real wildcard certificate via Cloudflare DNS-01, set up through the wizard; services served over verified HTTPS
-  - [x] Install Vaultwarden end-to-end with `mylab apply` (running; Caddy up)
+  - [x] Install Vaultwarden end-to-end with `roostack apply` (running; Caddy up)
 - [x] **1.3 Project skeleton:** git repo, Go module, central defaults (`internal/config`), README.md, ARCHITECTURE.md, Makefile
 - [x] **1.4 Package schema:** types, parsing, validation; both examples parse (`internal/pkgspec`, `internal/instance`)
 - [x] **1.5 Generator:** package + instance → Quadlets, Caddy snippet, secrets, dirs, backup plan; golden-file tests (`internal/generate`)
-- [ ] 🟡 **1.6 Reconciler:** plan/apply, `mylab apply [--dry-run]` (`internal/reconcile`, `internal/state`)
+- [ ] 🟡 **1.6 Reconciler:** plan/apply, `roostack apply [--dry-run]` (`internal/reconcile`, `internal/state`)
 - [ ] 🟡 **1.7 Proxy:** Caddyfile generation ✅ (checked with real Caddy); Caddy image Containerfile written, not built
-- [ ] 🟡 **1.8 mylab-agent:** socket API with peer-credential checks; port sysctl; nftables firewall (ruleset checked with `nft -c`)
+- [ ] 🟡 **1.8 roostack-agent:** socket API with peer-credential checks; port sysctl; nftables firewall (ruleset checked with `nft -c`)
   - [x] Firewall applied: SSH choice in the wizard (step 2) and Settings, package ports opened after each apply (tested on the VM: SSH off blocks new connections, HTTPS and outbound traffic keep working)
-  - [x] `mylab apply` (CLI) applies the firewall too
+  - [x] `roostack apply` (CLI) applies the firewall too
 - [ ] 🟡 **1.9 Web UI skeleton**
   - [x] First-run Owner setup (setup code), login/logout, sessions, roles, CSRF, security headers
   - [x] Read-only dashboard with live status (htmx polling)
-  - [x] `mylab user add` / `reset-password`
+  - [x] `roostack user add` / `reset-password`
   - [x] TOTP 2FA: Owners must enroll; replay protection; attempt limit
   - [x] 2FA: QR code (rsc.io/qr, drawn as SVG; checked with zbarimg); recovery codes dropped in favour of the CLI reset
   - [x] UI review pass (2026-09-27): temporary passwords must be changed at first login; phone layout of fact lists; dark-mode form controls; shorter "Needs attention" DNS items; service page layout (technical details collapsed); backups status shows what the last backup did; clearer end states for applies
-  - [x] People page for the Owner (add, role, new temporary password, turn off 2FA, remove; last Owner protected); `mylab user reset-2fa`
-  - [x] Service settings: links into the app's admin pages, editable MyLab settings and web address, revealable secrets (Vaultwarden admin token)
+  - [x] People page for the Owner (add, role, new temporary password, turn off 2FA, remove; last Owner protected); `roostack user reset-2fa`
+  - [x] Service settings: links into the app's admin pages, editable Roostack settings and web address, revealable secrets (Vaultwarden admin token)
   - [x] Theme toggle (auto/light/dark, saved per user)
   - [ ] Mark untested catalog packages (Immich) before release (not needed while in development)
   - [x] Split the UI into pages: Home (needs attention + services), Services, Backups, Settings, Account; role-aware navigation; works on phones
@@ -69,17 +69,17 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [x] Stage 1 real test with Cloudflare: record created and visible in public DNS; home DNS override detected
     - [ ] Stage 2: public records → public IP; dynamic DNS via qdm12/ddns-updater; NAT loopback check (with public exposure)
     - [ ] Stage 3: Cloudflare proxy option (CF-Connecting-IP from Cloudflare ranges only; package proxy warnings)
-    - [ ] Later: CGNAT detection → Cloudflare Tunnel / MyLab Cloud relay; optional local DNS (Pi-hole)
+    - [ ] Later: CGNAT detection → Cloudflare Tunnel / Roostack Cloud relay; optional local DNS (Pi-hole)
   - [ ] Maybe later: deSEC, DigitalOcean, Hetzner, OVH, DuckDNS
 - [ ] 🟡 **1.10 Backups**
-  - [x] restic wrapper (tested against real restic), recovery key, `mylab backup init|run|snapshots`
+  - [x] restic wrapper (tested against real restic), recovery key, `roostack backup init|run|snapshots`
   - [x] Prepare steps: SQLite copy (concurrent-write tested), Postgres dump (tested with Forgejo)
   - [x] Lab plan: state + Podman secrets included; images, live DBs, key excluded (verified on the VM)
-  - [x] Nightly schedule (02:00) and weekly prune + 5% check (Sun 03:00) through the coordinator, running in `mylab serve`
+  - [x] Nightly schedule (02:00) and weekly prune + 5% check (Sun 03:00) through the coordinator, running in `roostack serve`
   - [x] Dashboard backup card: last success, failures, staleness (>2 days), local-only warning, next run, "Back up now"
-  - [x] `mylab backup restore <service>`: moves current data aside, restores, puts the database back, restarts. Drill passed on the VM (SQLite)
+  - [x] `roostack backup restore <service>`: moves current data aside, restores, puts the database back, restarts. Drill passed on the VM (SQLite)
   - [x] Restore from the UI (Owner only): choose a backup that contains the service, confirm, runs through the coordinator with a live log; kept copies listed and deletable
-  - [x] Full-lab restore onto a new server: first-run "Restore a lab" (folder, S3-compatible bucket or restic address + recovery key), restores the controller's backup, database at the next start, services' databases after the first apply; WireGuard keys in backups. Tested end to end on a rebuilt VM (`MYLAB_VM=4`)
+  - [x] Full-lab restore onto a new server: first-run "Restore a lab" (folder, S3-compatible bucket or restic address + recovery key), restores the controller's backup, database at the next start, services' databases after the first apply; WireGuard keys in backups. Tested end to end on a rebuilt VM (`ROOSTACK_VM=4`)
   - [x] A backup disk whose files belong to another user: the restore page says so, with the chown command
   - [ ] Full-lab restore from storage at a friend's lab; restoring a lone node
   - [x] 3-2-1: extra copies per server (SPEC §6.9): each its own backup after the main one (not `restic copy`, see SPEC), status and attention per copy, pruned and checked with the main one. Tested live on VM1 (main on vps's disk, copy on its own)
@@ -87,10 +87,10 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Measure restic RAM/time on a realistic photo/video dataset
 - [ ] 🟡 **1.11 Maintenance coordinator + host OS updates**
   - [x] Coordinator: reboot policy, job chains, interrupt/resume (unit-tested)
-  - [x] Running in `mylab serve` with a file journal (interrupted backups resume after reboot)
+  - [x] Running in `roostack serve` with a file journal (interrupted backups resume after reboot)
   - [x] OS updates: apt config, agent runs unattended-upgrade after the nightly backup, results in Settings, restart-needed detection, automatic restart in the window or notify-only, "Check for updates now" / "Restart now". Tested on the VM: downgraded curl/libcurl/tzdata from snapshot.debian.org were upgraded by the agent; a flagged reboot happened in the window through the coordinator and every service came back
   - [x] Live activity logs (status line + collapsed details) for OS updates (streamed from the agent), backups (steps and upload progress), applying service changes, and setup hooks
-  - [x] Unknown host changes (SPEC §3.2): mylab-agent reports non-Debian apt sources (following Debian's mirror lists), held packages, other nftables tables or ufw/firewalld, and a missing MyLab firewall; "needs attention" and the Updates page show them per server until the Owner marks them known (a fingerprint: new changes warn again). Tested on the VMs
+  - [x] Unknown host changes (SPEC §3.2): roostack-agent reports non-Debian apt sources (following Debian's mirror lists), held packages, other nftables tables or ufw/firewalld, and a missing Roostack firewall; "needs attention" and the Updates page show them per server until the Owner marks them known (a fingerprint: new changes warn again). Tested on the VMs
   - [x] Host time zone: wizard step 1, Settings card, agent `timedatectl`, banner when the browser's clock differs
   - [x] Containers use the host's time zone (`Timezone=<zone>` in every unit; a change restarts them)
 - [ ] **1.14 Design system** (agreed 2026-09-27)
@@ -105,19 +105,19 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Area pages with a sidebar on desktop, back link on phones: People and access (People, Remote access), Network (Domain and certificates, Home network), This machine (Updates and restarts, Time zone)
   - [x] Wizard forms double as the area "change" pages
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow
-  - [x] `scripts/build-deb.sh` builds `dist/mylab_<version>_amd64.deb` (dpkg-deb, or ar+tar without it): binaries in /usr/bin, units in /usr/lib/systemd/system with a UID drop-in written by postinst, catalog, Caddy Containerfile, docs; postinst sets up the mylab user, subuids, linger, folders and starts MyLab. `scripts/dev-install.sh` installs it (tested on a fresh Debian 13 VM)
-  - [x] Caddy's image is built on each server by a Quadlet `.build` unit from /usr/share/mylab/caddy (no manual step; rebuilt from cache at boot)
+  - [x] `scripts/build-deb.sh` builds `dist/roostack_<version>_amd64.deb` (dpkg-deb, or ar+tar without it): binaries in /usr/bin, units in /usr/lib/systemd/system with a UID drop-in written by postinst, catalog, Caddy Containerfile, docs; postinst sets up the roostack user, subuids, linger, folders and starts Roostack. `scripts/dev-install.sh` installs it (tested on a fresh Debian 13 VM)
+  - [x] Caddy's image is built on each server by a Quadlet `.build` unit from /usr/share/roostack/caddy (no manual step; rebuilt from cache at boot)
   - [ ] apt repository and signing; first-run access from another device without an SSH tunnel (see questions)
   - [x] Debian `copyright` file with full licence texts: generated by `scripts/copyright.sh` at `make build` from the binaries' modules, Go's licence and the vendored web libraries and palettes (`packaging/licenses`)
-  - [ ] MyLab's own licence (not chosen yet; the copyright file says so)
+  - [ ] Roostack's own licence (not chosen yet; the copyright file says so)
 - [ ] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)
-  - [x] Forgejo v15 LTS: rootless image, MyLab Postgres, HTTPS clone; backup/restore tested on the VM
+  - [x] Forgejo v15 LTS: rootless image, Roostack Postgres, HTTPS clone; backup/restore tested on the VM
   - [x] Package `ports:` option; Forgejo git over SSH (tested on the VM: clone via LAN IP on 2222)
   - [x] Package hooks (`install`, `action`); Forgejo creates its admin at install and has "Reset a password" (hook scripts tested on the VM)
   - [ ] Forgejo: fresh install through the UI (user to test: remove Forgejo, install again)
   - [x] If an install hook fails because of what was typed (e.g. an invalid username), the service page offers the install settings to fix (passwords kept unless retyped) and runs the hooks again with them
   - [ ] Immich on the VM
-  - [x] `mylab validate` renders every template (default and flipped settings, with and without GPU, hooks too)
+  - [x] `roostack validate` renders every template (default and flipped settings, with and without GPU, hooks too)
 
 ## Phase 2: Multiple machines (SPEC §10, draft)
 
@@ -130,7 +130,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Machine settings behind the node (`node.Settings`: time zone, SSH access, restart policy); the wizard only records its progress (`setup.Done`)
   - [x] The web reaches a service's machine by its host
   - [x] Per-node status and activity in the UI: activity is read from the node; Settings → Servers lists each machine (role, services, apply status); problems name the machine once there are several. Per-machine URLs (`/settings/servers/<id>/…`) come with the second machine
-- [x] Two-VM prototype (SPEC.md §10.9): second dev VM joins over MyLab-managed WireGuard (join code with a one-time key, mTLS lab API), runs a service placed on it; the controller's Caddy forwards its routes; setup, actions, secrets, backups, updates, restarts and settings work remotely (`/settings/servers/<id>/…`); `MYLAB_VM=2 scripts/dev-vm.sh`
+- [x] Two-VM prototype (SPEC.md §10.9): second dev VM joins over Roostack-managed WireGuard (join code with a one-time key, mTLS lab API), runs a service placed on it; the controller's Caddy forwards its routes; setup, actions, secrets, backups, updates, restarts and settings work remotely (`/settings/servers/<id>/…`); `ROOSTACK_VM=2 scripts/dev-vm.sh`
 - [ ] Multi-machine follow-ups
   - [x] Remove a machine (only once it runs no services: it leaves the network and runs on its own); rename a machine
   - [x] Revoke a removed server's certificate: the controller accepts only the certificate it last issued each server
@@ -138,12 +138,12 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [x] Port forwarding explained on the join page (UDP 51820, which machine, how to check)
     - [x] Backup providers: S3-compatible providers set up once, usable by any machine; any machine's disk
     - [x] The setup wizard's destination follows the scheme (own folder; an S3 account becomes a provider; pruned by the controller); an existing one is recorded and shown as it is
-    - [x] rest-server on a machine (pinned container) offering its disk over MyLab's network, a user per machine
+    - [x] rest-server on a machine (pinned container) offering its disk over Roostack's network, a user per machine
     - [x] The controller creates each machine's repository (recovery key + the machine's own key) and hands over only the machine's key and credentials
     - [x] Each machine's Backups page chooses its provider; status per machine
     - [x] Weekly forget/prune by the controller (admin store access or provider credentials, recovery key); machines only check
     - [x] B2: an application key per machine limited to its folder, deleted when the machine leaves (UNTESTED against Backblaze: built from the API docs, tested with a fake server)
-  - [x] Storage for other labs: storage invites with quotas, `mylab-guests` WireGuard interface (UDP 51821), a store pair per guest lab, usage on both sides, last connected (reachability), port-forwarding guide; a guest lab's controller links (`mylab-st1..9`) and forwards its machines' backups
+  - [x] Storage for other labs: storage invites with quotas, `roostack-guests` WireGuard interface (UDP 51821), a store pair per guest lab, usage on both sides, last connected (reachability), port-forwarding guide; a guest lab's controller links (`roostack-st1..9`) and forwards its machines' backups
   - [x] A lab whose domain isn't set up yet applies everything but Caddy, which waits for its DNS credentials
   - [x] A server's backup store stops when no server backs up to it (its backups stay on disk)
   - [x] Labs have a name (first run, Settings → Lab name): shown in the header and to labs sharing storage, which follow a rename; the domain until one is chosen
@@ -158,9 +158,9 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Certificate renewal: a year's validity, renewed 120 days ahead (nodes over the lab API, the controller locally), expiry on Settings → Servers, attention if renewal fails
   - [ ] Renew the lab CA (20 years); nodes behind a hub that isn't the controller
   - [x] A machine without an SSH choice (firewall off) is flagged in "needs attention"
-- [x] UI for several servers: "server" in the UI (code and SPEC keep "machine"); confirmations are HTML dialogs; service cards show their server and last backup, with details (containers and images, web routes, ports, data folders and size); MyLab's own services (MyLab, Caddy, backup stores, network links) per server behind a toggle; Settings groups what differs per server under "Each server" with a summary per server and a switcher; each server has its own page (`/settings/servers/<id>`); Home shows My Servers beside My Services
+- [x] UI for several servers: "server" in the UI (code and SPEC keep "machine"); confirmations are HTML dialogs; service cards show their server and last backup, with details (containers and images, web routes, ports, data folders and size); Roostack's own services (Roostack, Caddy, backup stores, network links) per server behind a toggle; Settings groups what differs per server under "Each server" with a summary per server and a switcher; each server has its own page (`/settings/servers/<id>`); Home shows My Servers beside My Services
 - [x] "Server" in the code and SPEC too (was "machine"); a migration renames the `machines` table, the `machine_id` columns and `machine:` backup references
-- [x] A settings change that restarts MyLab waits for the running maintenance job and starts no new ones (`Coordinator.Hold`); the agent also lets an update finish if MyLab goes away
+- [x] A settings change that restarts Roostack waits for the running maintenance job and starts no new ones (`Coordinator.Hold`); the agent also lets an update finish if Roostack goes away
 - [ ] Controller move (planned hand-over) and promotion from a node's replica
 - [ ] Edge: public service at home routed through a cloud node (TLS passthrough over WireGuard, PROXY protocol)
 - [ ] Failover: cold standby first
@@ -169,4 +169,5 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 
 - K5: setup-code approach for first-run setup (add to SPEC?)
-- Go module path is a placeholder (`github.com/mylab/mylab`); repo location not decided yet
+- Repo location not decided yet (the module path is `roostack.cloud/roostack`: it needs a go-import page on roostack.cloud once the code is public)
+- Roostack's own licence

@@ -4,27 +4,27 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/osupdate"
-	"github.com/mylab/mylab/internal/setup"
 	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/osupdate"
+	"roostack.cloud/roostack/internal/setup"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/manager"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/pkgspec"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/store"
 )
 
 type fakeManager struct {
@@ -130,8 +130,8 @@ func (f *fakeManager) DeleteLeftoverGuest(_ context.Context, user string) error 
 	return nil
 }
 func (f *fakeManager) AddRemoteStorage(_ context.Context, code string) error {
-	if !strings.HasPrefix(code, "mylab-storage-") {
-		return &manager.FormError{Msg: "that isn't a MyLab storage invite"}
+	if !strings.HasPrefix(code, "roostack-storage-") {
+		return &manager.FormError{Msg: "that isn't a Roostack storage invite"}
 	}
 	f.guestOps = append(f.guestOps, "add remote")
 	return nil
@@ -146,7 +146,7 @@ func (f *fakeManager) KeptData(_ context.Context, id string) ([]node.KeptFolder,
 	if id != "n-9876543210" {
 		return nil, nil
 	}
-	return []node.KeptFolder{{Path: "/srv/mylab/services/forgejo.moved-to-nuc-20260928-002806", Service: "forgejo",
+	return []node.KeptFolder{{Path: "/srv/roostack/services/forgejo.moved-to-nuc-20260928-002806", Service: "forgejo",
 		MovedAway: true, Time: time.Now(), Size: 70 << 20}}, nil
 }
 func (f *fakeManager) RemoveKeptData(_ context.Context, id, path string) error {
@@ -175,7 +175,7 @@ func (f *fakeManager) AddBackupCopy(_ context.Context, id, ref string) error {
 	if ref == f.destination {
 		return &manager.FormError{Msg: "That's where its backups already go."}
 	}
-	f.copies = append(f.copies, manager.BackupCopy{Ref: ref, Title: "Backblaze", Repository: "s3:https://s3.example.com/b/mylab/l/" + id})
+	f.copies = append(f.copies, manager.BackupCopy{Ref: ref, Title: "Backblaze", Repository: "s3:https://s3.example.com/b/roostack/l/" + id})
 	return nil
 }
 func (f *fakeManager) RemoveBackupCopy(_ context.Context, _, ref string) error {
@@ -285,7 +285,9 @@ func (f *fakeManager) Remove(_ context.Context, name string) error {
 	return nil
 }
 
-func (f *fakeManager) DataDirs(name string) []string              { return []string{"/srv/mylab/services/" + name} }
+func (f *fakeManager) DataDirs(name string) []string {
+	return []string{"/srv/roostack/services/" + name}
+}
 func (f *fakeManager) Ports(string) ([]manager.PortStatus, error) { return f.ports, nil }
 func (f *fakeManager) InstallStatus(_ context.Context, name string) manager.HookStatus {
 	return f.setup[name]
@@ -408,7 +410,7 @@ func TestInstallFlow(t *testing.T) {
 	}
 
 	_, body = h.get("/services/vaultwarden/remove")
-	if !strings.Contains(body, "Your data is kept") || !strings.Contains(body, "/srv/mylab/services/vaultwarden") {
+	if !strings.Contains(body, "Your data is kept") || !strings.Contains(body, "/srv/roostack/services/vaultwarden") {
 		t.Error("remove page should explain that data is kept, and where")
 	}
 	h.post("/services/vaultwarden/remove", nil, h.srv.URL)
@@ -508,9 +510,9 @@ func TestServicePorts(t *testing.T) {
 		!strings.Contains(body, "Enter a port number") {
 		t.Errorf("bad number: %d", code)
 	}
-	fm.portErr = &manager.FormError{Msg: "Port 8480 is already used by the MyLab admin UI."}
+	fm.portErr = &manager.FormError{Msg: "Port 8480 is already used by the Roostack admin UI."}
 	if code, body := h.post("/services/vaultwarden/ports/ssh", url.Values{"enabled": {"on"}, "host_port": {"8480"}}, h.srv.URL); code != http.StatusBadRequest ||
-		!strings.Contains(body, "already used by the MyLab admin UI") {
+		!strings.Contains(body, "already used by the Roostack admin UI") {
 		t.Errorf("clash: %d", code)
 	}
 	fm.portErr = nil
@@ -773,7 +775,7 @@ func TestServers(t *testing.T) {
 		t.Errorf("ops = %v", fm.serverOps)
 	}
 	if _, body := h.post("/settings/servers/n-0123456789/rename", url.Values{"name": {"nuc2"}}, h.srv.URL); !strings.Contains(body, "Applying your settings") {
-		t.Error("renaming this server restarts MyLab")
+		t.Error("renaming this server restarts Roostack")
 	}
 
 	// Kept copies moves left behind, and deleting one.
@@ -783,8 +785,8 @@ func TestServers(t *testing.T) {
 		!strings.Contains(body, "forgejo before it moved away") {
 		t.Errorf("servers page should list kept copies:\n%s", body)
 	}
-	h.post("/settings/servers/n-9876543210/kept/remove", url.Values{"path": {"/srv/mylab/services/forgejo.moved-to-nuc-20260928-002806"}}, h.srv.URL)
-	if len(fm.serverOps) != 1 || fm.serverOps[0] != "delete /srv/mylab/services/forgejo.moved-to-nuc-20260928-002806 on n-9876543210" {
+	h.post("/settings/servers/n-9876543210/kept/remove", url.Values{"path": {"/srv/roostack/services/forgejo.moved-to-nuc-20260928-002806"}}, h.srv.URL)
+	if len(fm.serverOps) != 1 || fm.serverOps[0] != "delete /srv/roostack/services/forgejo.moved-to-nuc-20260928-002806 on n-9876543210" {
 		t.Errorf("ops = %v", fm.serverOps)
 	}
 
@@ -854,7 +856,7 @@ func TestMovePage(t *testing.T) {
 	}
 	if !strings.Contains(body, `value="backup"  disabled`) && !strings.Contains(body, `value="backup" disabled`) &&
 		!strings.Contains(body, "disabled") {
-		t.Error("through a backup needs backups set up through MyLab")
+		t.Error("through a backup needs backups set up through Roostack")
 	}
 	h.post("/services/vaultwarden/move", url.Values{"to": {"n-9876543210"}, "way": {"copy"}}, h.srv.URL)
 	if len(fm.moves) != 1 || fm.moves[0] != "vaultwarden → n-9876543210 (copy)" {
@@ -923,21 +925,21 @@ func TestServiceCardsAndBuiltIns(t *testing.T) {
 	h.server.Services = func(context.Context) ([]ServiceView, error) {
 		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", Server: "nuc",
 			URLs: []string{"https://vault.lab.example.com"}, LastBackup: time.Now(),
-			ServiceDetail: node.ServiceDetail{Containers: []node.Container{{Name: "mylab-vaultwarden-app",
+			ServiceDetail: node.ServiceDetail{Containers: []node.Container{{Name: "roostack-vaultwarden-app",
 				Image: "docker.io/vaultwarden/server:1.34.1", State: "active (running)"}},
-				Routes: []string{"vault.lab.example.com → 127.0.0.1:18000"}, DataDirs: []string{"/srv/mylab/services/vaultwarden"},
+				Routes: []string{"vault.lab.example.com → 127.0.0.1:18000"}, DataDirs: []string{"/srv/roostack/services/vaultwarden"},
 				DataSize: 12 << 20}}}, nil
 	}
 	for _, path := range []string{"/", "/services"} {
 		_, body := h.get(path)
-		for _, want := range []string{"On nuc", "backed up today", "mylab-vaultwarden-app", "docker.io/vaultwarden/server:1.34.1",
-			"vault.lab.example.com → 127.0.0.1:18000", "/srv/mylab/services/vaultwarden", "12.0 MB"} {
+		for _, want := range []string{"On nuc", "backed up today", "roostack-vaultwarden-app", "docker.io/vaultwarden/server:1.34.1",
+			"vault.lab.example.com → 127.0.0.1:18000", "/srv/roostack/services/vaultwarden", "12.0 MB"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("%s missing %q", path, want)
 			}
 		}
 	}
-	if _, body := h.get("/services"); strings.Contains(body, "MyLab&#39;s own services</h2>") {
+	if _, body := h.get("/services"); strings.Contains(body, "Roostack&#39;s own services</h2>") {
 		t.Error("built-ins are hidden by default")
 	}
 	_, body := h.get("/services?builtin=1")
@@ -1020,7 +1022,7 @@ func TestCertificateExpiry(t *testing.T) {
 		t.Error("Servers should show each certificate")
 	}
 	_, body := h.get("/")
-	if !strings.Contains(body, "vps&#39;s certificate on MyLab&#39;s network expires") || strings.Contains(body, "nuc&#39;s certificate") {
+	if !strings.Contains(body, "vps&#39;s certificate on Roostack&#39;s network expires") || strings.Contains(body, "nuc&#39;s certificate") {
 		t.Errorf("a certificate that isn't renewing should need attention")
 	}
 	fm.servers[1].CertExpires = time.Now().Add(-time.Hour)
@@ -1127,7 +1129,7 @@ func TestHostChanges(t *testing.T) {
 	up.changes.AptSources = []string{"docker.list: https://download.docker.com/linux/debian"}
 	up.changes.Held = []string{"linux-image-amd64"}
 	fm.updates = up
-	if _, body := h.get("/"); !strings.Contains(body, "Changes MyLab didn&#39;t make: software from outside Debian, packages held back from updates") {
+	if _, body := h.get("/"); !strings.Contains(body, "Changes Roostack didn&#39;t make: software from outside Debian, packages held back from updates") {
 		t.Error("host changes need attention")
 	}
 	_, body := h.get("/settings/updates")
@@ -1138,7 +1140,7 @@ func TestHostChanges(t *testing.T) {
 	if !up.known {
 		t.Fatal("marking them known")
 	}
-	if _, body := h.get("/"); strings.Contains(body, "Changes MyLab didn") {
+	if _, body := h.get("/"); strings.Contains(body, "Changes Roostack didn") {
 		t.Error("known changes don't need attention")
 	}
 	if _, body := h.get("/settings/updates"); !strings.Contains(body, "You said these were made on purpose") {

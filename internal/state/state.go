@@ -1,4 +1,4 @@
-// Package state loads MyLab's desired state from disk (SPEC.md §5.1): the
+// Package state loads Roostack's desired state from disk (SPEC.md §5.1): the
 // lab config plus one instance file per installed service, combined with
 // their catalog packages.
 package state
@@ -12,13 +12,13 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/mylab/mylab/internal/caddy"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/pkgspec"
-	"github.com/mylab/mylab/internal/reconcile"
+	"roostack.cloud/roostack/internal/caddy"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/reconcile"
 )
 
 // Service is one installed service with its package.
@@ -85,8 +85,8 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	}
 	d := reconcile.Desired{System: sys}
 	// Every hostname must be unique across the lab, including the admin UI.
-	hosts := map[string]string{caddy.AdminSubdomain + "." + lab.Domain: "the MyLab admin UI"}
-	ports := map[int]string{lab.UIPort: "the MyLab admin UI"}
+	hosts := map[string]string{caddy.AdminSubdomain + "." + lab.Domain: "the Roostack admin UI"}
+	ports := map[int]string{lab.UIPort: "the Roostack admin UI"}
 	hostPorts := map[string]string{} // "2222/tcp" -> service
 	var errs []error
 	for _, s := range services {
@@ -132,19 +132,19 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	return d, errors.Join(errs...)
 }
 
-// PortInUseError is a package port that clashes with another port MyLab
+// PortInUseError is a package port that clashes with another port Roostack
 // uses.
 type PortInUseError struct {
 	Service string
 	Port    int
 	// UsedBy is what already has the port, or "" if the port is in the
-	// range MyLab keeps for its web services.
+	// range Roostack keeps for its web services.
 	UsedBy string
 }
 
 func (e *PortInUseError) Error() string {
 	if e.UsedBy == "" {
-		return fmt.Sprintf("%s: port %d is reserved for MyLab's web services (%d-%d)",
+		return fmt.Sprintf("%s: port %d is reserved for Roostack's web services (%d-%d)",
 			e.Service, e.Port, config.DefaultRoutePortMin, config.DefaultRoutePortMax)
 	}
 	return fmt.Sprintf("%s: port %d is already used by %s", e.Service, e.Port, e.UsedBy)

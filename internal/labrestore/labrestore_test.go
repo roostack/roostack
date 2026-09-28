@@ -9,20 +9,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/backup"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/nodeid"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/nodeid"
 )
 
 func resticBin(t *testing.T) string {
 	t.Helper()
-	bin := os.Getenv("MYLAB_RESTIC_BIN")
+	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
 	if bin == "" {
 		var err error
 		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set MYLAB_RESTIC_BIN")
+			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
 		}
 	}
 	return bin
@@ -78,13 +78,13 @@ func TestFindAndRestoreALab(t *testing.T) {
 	repoAt := func(keyFile, dir string) *backup.Repo {
 		return &backup.Repo{Bin: bin, URL: dir, PasswordFile: keyFile, CacheDir: filepath.Join(keys, "cache")}
 	}
-	old := repoAt(key, filepath.Join(disk, "mylab", "lab-1", id.ID))
-	other := repoAt(wrong, filepath.Join(disk, "mylab", "lab-2", "n-9999999999"))
+	old := repoAt(key, filepath.Join(disk, "roostack", "lab-1", id.ID))
+	other := repoAt(wrong, filepath.Join(disk, "roostack", "lab-2", "n-9999999999"))
 	for _, r := range []*backup.Repo{old, other} {
 		if err := r.Init(ctx); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := r.Backup(ctx, backup.BackupOptions{Paths: []string{paths.StateDir, service}, Tags: []string{"mylab"}}); err != nil {
+		if _, err := r.Backup(ctx, backup.BackupOptions{Paths: []string{paths.StateDir, service}, Tags: []string{"roostack"}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -96,8 +96,8 @@ func TestFindAndRestoreALab(t *testing.T) {
 	if err := fresh.Save(paths.StateDir); err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(paths.StateDir, "mylab.db"), "empty database")
-	write(t, filepath.Join(paths.StateDir, "mylab.db-wal"), "wal")
+	write(t, filepath.Join(paths.StateDir, "roostack.db"), "empty database")
+	write(t, filepath.Join(paths.StateDir, "roostack.db-wal"), "wal")
 
 	f := &Finder{OpenRepo: func(url string, env []string) *backup.Repo { return repoAt(key, url) }}
 	if _, _, err := f.Find(ctx, Source{Kind: "folder", Folder: filepath.Join(root, "nowhere")}); err == nil {
@@ -132,14 +132,14 @@ func TestFindAndRestoreALab(t *testing.T) {
 		t.Error("the database comes first")
 	}
 
-	// MyLab restarts: the backed-up database replaces the empty one.
+	// Roostack restarts: the backed-up database replaces the empty one.
 	if ok, err := StartFromBackup(paths); !ok || err != nil {
 		t.Fatalf("start: %v %v", ok, err)
 	}
-	if got := read(t, filepath.Join(paths.StateDir, "mylab.db")); got != "the lab's database" {
+	if got := read(t, filepath.Join(paths.StateDir, "roostack.db")); got != "the lab's database" {
 		t.Errorf("database = %q", got)
 	}
-	if _, err := os.Stat(filepath.Join(paths.StateDir, "mylab.db-wal")); err == nil {
+	if _, err := os.Stat(filepath.Join(paths.StateDir, "roostack.db-wal")); err == nil {
 		t.Error("the new database's journal must go")
 	}
 	if ok, _ := StartFromBackup(paths); ok {
@@ -170,9 +170,9 @@ func TestRegion(t *testing.T) {
 
 func TestShownHidesPasswords(t *testing.T) {
 	for in, want := range map[string]string{
-		"rest:https://mylab:s3cret@backup.example.com/lab": "rest:https://mylab@backup.example.com/lab",
-		"s3:https://s3.example.com/bucket/mylab/l/n":       "s3:https://s3.example.com/bucket/mylab/l/n",
-		"/mnt/backup/mylab/l/n":                            "/mnt/backup/mylab/l/n",
+		"rest:https://roostack:s3cret@backup.example.com/lab": "rest:https://roostack@backup.example.com/lab",
+		"s3:https://s3.example.com/bucket/roostack/l/n":       "s3:https://s3.example.com/bucket/roostack/l/n",
+		"/mnt/backup/roostack/l/n":                            "/mnt/backup/roostack/l/n",
 	} {
 		if got := Shown(in); got != want {
 			t.Errorf("Shown(%q) = %q", in, got)
@@ -185,13 +185,13 @@ func TestUnreadableFolder(t *testing.T) {
 		t.Skip("root reads everything")
 	}
 	disk := t.TempDir()
-	locked := filepath.Join(disk, "mylab")
+	locked := filepath.Join(disk, "roostack")
 	os.MkdirAll(filepath.Join(locked, "lab-1", "n-1"), 0o755)
 	os.Chmod(locked, 0)
 	defer os.Chmod(locked, 0o755)
 	f := &Finder{OpenRepo: func(string, []string) *backup.Repo { return nil }}
 	_, _, err := f.Find(context.Background(), Source{Kind: "folder", Folder: disk})
-	if err == nil || !strings.Contains(err.Error(), "sudo chown -R mylab:mylab "+disk) {
+	if err == nil || !strings.Contains(err.Error(), "sudo chown -R roostack:roostack "+disk) {
 		t.Errorf("err = %v", err)
 	}
 }

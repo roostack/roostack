@@ -46,7 +46,7 @@ func (f *fakeHost) HostChanges() (HostChanges, error) {
 	return HostChanges{Held: []string{"linux-image-amd64"}}, nil
 }
 func (f *fakeHost) WireGuardKeys() (map[string]string, error) {
-	return map[string]string{"mylab": "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw="}, nil
+	return map[string]string{"roostack": "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw="}, nil
 }
 func (f *fakeHost) RemoveWireGuard(string) error { f.wg = nil; return nil }
 
@@ -141,7 +141,7 @@ func TestRuleset(t *testing.T) {
 		"ip6 saddr @lan6 udp dport 53 accept",
 		"tcp dport 80 accept",
 		"udp dport 443 accept",
-		"delete table inet mylab",
+		"delete table inet roostack",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("ruleset missing %q:\n%s", want, got)

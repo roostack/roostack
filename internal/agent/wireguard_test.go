@@ -70,26 +70,26 @@ func TestWireGuardAPI(t *testing.T) {
 
 func TestInterfaceRule(t *testing.T) {
 	fw := DefaultFirewall()
-	fw.Allow = append(fw.Allow, Rule{Port: 8471, Proto: "tcp", Iface: WireGuardInterface, Reason: "mylab servers"})
+	fw.Allow = append(fw.Allow, Rule{Port: 8471, Proto: "tcp", Iface: WireGuardInterface, Reason: "roostack servers"})
 	if err := fw.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(fw.Ruleset(), `iifname "mylab" tcp dport 8471 accept`) {
+	if !strings.Contains(fw.Ruleset(), `iifname "roostack" tcp dport 8471 accept`) {
 		t.Errorf("ruleset:\n%s", fw.Ruleset())
 	}
 	fw.Allow[len(fw.Allow)-1].Iface = "eth0"
 	if fw.Validate() == nil {
-		t.Error("only MyLab's interface is allowed")
+		t.Error("only Roostack's interface is allowed")
 	}
 }
 
 func TestInterfaces(t *testing.T) {
-	for _, name := range []string{"mylab", "mylab-guests", "mylab-st1", "mylab-st9"} {
+	for _, name := range []string{"roostack", "roostack-guests", "roostack-st1", "roostack-st9"} {
 		if !ValidInterface(name) {
 			t.Errorf("%s should be valid", name)
 		}
 	}
-	for _, name := range []string{"", "eth0", "mylab-st0", "mylab-st10", "mylab-guests2", "../x"} {
+	for _, name := range []string{"", "eth0", "roostack-st0", "roostack-st10", "roostack-guests2", "../x"} {
 		if ValidInterface(name) {
 			t.Errorf("%q should be invalid", name)
 		}

@@ -4,31 +4,31 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/mylab/mylab/internal/labnet"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
+	"roostack.cloud/roostack/internal/labnet"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/firewall"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/nodeid"
-	"github.com/mylab/mylab/internal/reconcile"
-	"github.com/mylab/mylab/internal/state"
-	"github.com/mylab/mylab/internal/systemd"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/firewall"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/reconcile"
+	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/systemd"
 )
 
 // Node is a server in the lab, as the controller sees it (SPEC.md §10.3).
 // Local runs on this server; a remote implementation will speak the same
-// operations to other servers over MyLab's network.
+// operations to other servers over Roostack's network.
 type Node interface {
 	Identity() nodeid.Identity
 	// Apply hands the node its latest assignment; the node works towards
@@ -39,7 +39,7 @@ type Node interface {
 	// ServiceStates reports each of its services as running, starting,
 	// stopped, failed or unknown.
 	ServiceStates(ctx context.Context) (map[string]string, error)
-	// ServiceDetails and BuiltIns describe its services and MyLab's own
+	// ServiceDetails and BuiltIns describe its services and Roostack's own
 	// parts on it (details.go).
 	ServiceDetails(ctx context.Context) (map[string]ServiceDetail, error)
 	BuiltIns(ctx context.Context) ([]BuiltIn, error)
@@ -54,7 +54,7 @@ type Node interface {
 	Restores() Restores
 	Updates() Updates
 	// Settings are the server's own settings (settings.go); nil when
-	// they can't be changed from MyLab.
+	// they can't be changed from Roostack.
 	Settings() Settings
 }
 
@@ -82,7 +82,7 @@ type Assignment struct {
 	Guests    []generate.GuestStorage
 	GuestAddr string
 	// ProxyPorts are where the controller forwards its servers' backups
-	// to other labs' storage (on MyLab's network).
+	// to other labs' storage (on Roostack's network).
 	ProxyPorts []int
 }
 
@@ -112,7 +112,7 @@ type ApplyStatus struct {
 	Finished bool // at least one apply has finished
 }
 
-// FirewallApplier is mylab-agent's firewall operation.
+// FirewallApplier is roostack-agent's firewall operation.
 type FirewallApplier interface {
 	ApplyFirewall(ctx context.Context, fw agent.Firewall) error
 }
@@ -127,15 +127,15 @@ type Local struct {
 	Log        *slog.Logger
 	// Activity shows applies and install hooks live in the UI (optional).
 	Activity *activity.Registry
-	// Firewall applies the host firewall through mylab-agent after each
+	// Firewall applies the host firewall through roostack-agent after each
 	// apply. Nil leaves the firewall alone.
 	Firewall FirewallApplier
 	// Units reads systemd unit states, for ServiceStates (optional).
 	Units UnitStatuser
-	// Launch runs commands as the mylab user outside MyLab's sandbox, for
+	// Launch runs commands as the roostack user outside Roostack's sandbox, for
 	// moving service data (move.go; optional).
 	Launch Launcher
-	// WireGuard reads the WireGuard interfaces, and Version is MyLab's, to
+	// WireGuard reads the WireGuard interfaces, and Version is Roostack's, to
 	// describe this server (details.go; optional).
 	WireGuard WireGuardStatuser
 	// Links configures WireGuard links (the guests' link when this server
@@ -462,7 +462,7 @@ func (n *Local) addStorage(d *reconcile.Desired, st *Storage) error {
 	}
 	lab := n.Lab
 	if lab.OverlayAddr == "" {
-		return fmt.Errorf("offering this server's disk for backups needs MyLab's network")
+		return fmt.Errorf("offering this server's disk for backups needs Roostack's network")
 	}
 	files, units, err := generate.Storage(lab, lab.OverlayAddr)
 	if err != nil {

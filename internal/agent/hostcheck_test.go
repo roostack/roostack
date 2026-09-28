@@ -43,12 +43,12 @@ Suites: trixie-security
 }
 
 func TestForeignTables(t *testing.T) {
-	got := foreignTables("table inet mylab\ntable ip filter\ntable ip6 nat\n")
+	got := foreignTables("table inet roostack\ntable ip filter\ntable ip6 nat\n")
 	if !slices.Equal(got, []string{"nftables: ip filter", "nftables: ip6 nat"}) {
 		t.Errorf("tables = %q", got)
 	}
-	if foreignTables("table inet mylab\n") != nil {
-		t.Error("MyLab's own table isn't a change")
+	if foreignTables("table inet roostack\n") != nil {
+		t.Error("Roostack's own table isn't a change")
 	}
 }
 

@@ -6,18 +6,18 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/store"
 )
 
 const userUsage = `Usage:
-  mylab user add <name> [-role owner|admin|member]
-  mylab user reset-password <name>
-  mylab user reset-2fa <name>       turn off two-factor (a lost phone)
+  roostack user add <name> [-role owner|admin|member]
+  roostack user reset-password <name>
+  roostack user reset-2fa <name>       turn off two-factor (a lost phone)
 
 add and reset-password print a temporary password, to be changed at the
-next login. Run as root or the mylab user.
+next login. Run as root or the roostack user.
 `
 
 // user manages accounts from the host command line: the way back in for

@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/dns"
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/pkgspec"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 type fakeSystemd struct{ calls []string }
@@ -125,10 +125,10 @@ func TestInstallUpdateRemove(t *testing.T) {
 	if got := string(e.secrets.values[dns.SecretName("api_token")]); got != "dns-token" {
 		t.Errorf("DNS secret = %q, want the user-provided value", got)
 	}
-	if v := e.secrets.values["mylab-vaultwarden-admin_token"]; len(v) < 32 {
+	if v := e.secrets.values["roostack-vaultwarden-admin_token"]; len(v) < 32 {
 		t.Errorf("generated secret too short: %q", v)
 	}
-	if _, err := os.Stat(filepath.Join(e.lab.Paths.QuadletDir(), "mylab-vaultwarden-app.container")); err != nil {
+	if _, err := os.Stat(filepath.Join(e.lab.Paths.QuadletDir(), "roostack-vaultwarden-app.container")); err != nil {
 		t.Error(err)
 	}
 	if _, err := os.Stat(filepath.Join(e.lab.Paths.ServicesDir, "vaultwarden", "data")); err != nil {
@@ -158,21 +158,21 @@ func TestInstallUpdateRemove(t *testing.T) {
 	}
 	d.Services = []*generate.Output{out}
 	plan = e.apply(t, d)
-	if want := []string{"mylab-vaultwarden-app.service"}; !reflect.DeepEqual(plan.RestartUnits, want) {
+	if want := []string{"roostack-vaultwarden-app.service"}; !reflect.DeepEqual(plan.RestartUnits, want) {
 		t.Errorf("restart = %v, want %v", plan.RestartUnits, want)
 	}
 
 	// Removing the service stops its units and removes its files, but keeps data.
 	e.systemd.calls = nil
 	plan = e.apply(t, e.desired(t))
-	wantStop := []string{"mylab-vaultwarden-app.service", "mylab-vaultwarden-network.service"}
+	wantStop := []string{"roostack-vaultwarden-app.service", "roostack-vaultwarden-network.service"}
 	if !reflect.DeepEqual(plan.StopUnits, wantStop) {
 		t.Errorf("stop = %v, want %v", plan.StopUnits, wantStop)
 	}
 	if e.systemd.calls[0] != "stop "+strings.Join(wantStop, " ") {
 		t.Errorf("units must be stopped before files are removed; calls: %v", e.systemd.calls)
 	}
-	if _, err := os.Stat(filepath.Join(e.lab.Paths.QuadletDir(), "mylab-vaultwarden-app.container")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(e.lab.Paths.QuadletDir(), "roostack-vaultwarden-app.container")); !os.IsNotExist(err) {
 		t.Error("quadlet file should be removed")
 	}
 	if _, err := os.Stat(filepath.Join(e.lab.Paths.CaddySitesDir(), "vaultwarden.caddy")); !os.IsNotExist(err) {
@@ -195,7 +195,7 @@ func TestLeavesUnownedFilesAlone(t *testing.T) {
 	}
 	e.apply(t, e.desired(t))
 	if _, err := os.Stat(mine); err != nil {
-		t.Error("files not named mylab-* must not be touched")
+		t.Error("files not named roostack-* must not be touched")
 	}
 }
 
@@ -210,7 +210,7 @@ func TestMissingUserSecret(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(plan.Waiting, []string{"mylab-caddy.container"}) || slices.Contains(plan.StartUnits, "mylab-caddy.service") ||
+	if !slices.Equal(plan.Waiting, []string{"roostack-caddy.container"}) || slices.Contains(plan.StartUnits, "roostack-caddy.service") ||
 		plan.ReloadCaddy || !strings.Contains(plan.String(), "Waiting for a secret") {
 		t.Errorf("Caddy should wait: %+v", plan)
 	}
@@ -222,7 +222,7 @@ func TestMissingUserSecret(t *testing.T) {
 	if err := e.r.Apply(ctx, plan); err != nil {
 		t.Fatalf("the rest of the lab should apply: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(e.r.Paths.QuadletDir(), "mylab-caddy.container")); err == nil {
+	if _, err := os.Stat(filepath.Join(e.r.Paths.QuadletDir(), "roostack-caddy.container")); err == nil {
 		t.Error("Caddy's unit must not be written yet")
 	}
 	// Once the secret is given, Caddy follows.
@@ -231,7 +231,7 @@ func TestMissingUserSecret(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Waiting) != 0 || !slices.Contains(plan.StartUnits, "mylab-caddy.service") {
+	if len(plan.Waiting) != 0 || !slices.Contains(plan.StartUnits, "roostack-caddy.service") {
 		t.Errorf("Caddy should start once its secret is given: %+v", plan)
 	}
 }

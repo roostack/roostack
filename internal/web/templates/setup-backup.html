@@ -7,7 +7,7 @@
   <h1>{{if .StepDone}}Change where backups go{{else}}Set up backups{{end}}</h1>
   {{if and .StepDone .Current}}<p>Backups currently go to <code>{{.Current}}</code>. Backups already there stay where they are.</p>{{end}}
   {{end}}
-  <p>MyLab backs everything up every night. Choose somewhere that isn't this server's main disk if you can.</p>
+  <p>Roostack backs everything up every night. Choose somewhere that isn't this server's main disk if you can.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <form method="post" action="/setup/backup" x-data="{ kind: '{{.Kind}}' }">
     <fieldset>
@@ -19,8 +19,8 @@
 
     <div x-show="kind === 'local'">
       <label>Folder
-        <input name="path" value="{{.Path}}" placeholder="/mnt/backup/mylab" autocapitalize="off">
-        <small>MyLab creates it if it doesn't exist.</small>
+        <input name="path" value="{{.Path}}" placeholder="/mnt/backup/roostack" autocapitalize="off">
+        <small>Roostack creates it if it doesn't exist.</small>
       </label>
     </div>
 
@@ -29,7 +29,7 @@
         <input name="endpoint" value="{{.Endpoint}}" placeholder="https://s3.us-west-004.backblazeb2.com" autocapitalize="off">
       </label>
       <label>Bucket <input name="bucket" value="{{.Bucket}}" autocapitalize="off"></label>
-      <label>Folder in the bucket (optional) <input name="prefix" value="{{.Prefix}}" placeholder="mylab" autocapitalize="off"></label>
+      <label>Folder in the bucket (optional) <input name="prefix" value="{{.Prefix}}" placeholder="roostack" autocapitalize="off"></label>
       <label>Access key ID <input name="access_key" value="{{.AccessKey}}" autocomplete="off" autocapitalize="off"></label>
       <label>Secret access key <input name="secret_key" type="password" autocomplete="off"></label>
     </div>

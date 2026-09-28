@@ -1,10 +1,10 @@
 // Package generate turns desired state (package + instance + lab config)
-// into the files MyLab writes: Quadlet units, a Caddy site snippet, plus the
+// into the files Roostack writes: Quadlet units, a Caddy site snippet, plus the
 // secrets, directories and backup plan the service needs.
 //
 // Generation is pure: it reads nothing from disk and has no side effects, so
 // its output can be tested with golden files and inspected with
-// `mylab render`.
+// `roostack render`.
 package generate
 
 import (
@@ -15,11 +15,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/mylab/mylab/internal/caddy"
-	"github.com/mylab/mylab/internal/config"
-	"github.com/mylab/mylab/internal/instance"
-	"github.com/mylab/mylab/internal/pkgspec"
-	"github.com/mylab/mylab/internal/quadlet"
+	"roostack.cloud/roostack/internal/caddy"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/quadlet"
 )
 
 // File is a generated file, named relative to its target directory.
@@ -30,8 +30,8 @@ type File struct {
 
 // Secret is a Podman secret the service needs.
 type Secret struct {
-	Name string // Podman secret name, e.g. mylab-vaultwarden-admin_token
-	// Generate means MyLab creates a random value. Otherwise the value
+	Name string // Podman secret name, e.g. roostack-vaultwarden-admin_token
+	// Generate means Roostack creates a random value. Otherwise the value
 	// comes from the user (a secret setting without generate).
 	Generate bool
 	// Setting is the secret setting key, if any.
@@ -120,7 +120,7 @@ func Service(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (*Output
 
 // ProxySite generates only the Caddy site for a service running on
 // another server (SPEC.md §10.5): the controller's Caddy forwards its
-// routes over MyLab's network to addr, where that server publishes them.
+// routes over Roostack's network to addr, where that server publishes them.
 func ProxySite(lab config.Lab, p *pkgspec.Package, in *instance.Instance, addr string) (*Output, error) {
 	if err := in.Validate(p); err != nil {
 		return nil, err
@@ -196,9 +196,9 @@ func (g *gen) run() error {
 
 func (g *gen) network() error {
 	var u quadlet.Unit
-	u.Section("Unit").Add("Description", "MyLab "+g.pkg.Name+": network")
-	u.Section("Network").Add("NetworkName", "mylab-"+g.pkg.Name)
-	return g.addQuadlet("mylab-"+g.pkg.Name+".network", &u)
+	u.Section("Unit").Add("Description", "Roostack "+g.pkg.Name+": network")
+	u.Section("Network").Add("NetworkName", "roostack-"+g.pkg.Name)
+	return g.addQuadlet("roostack-"+g.pkg.Name+".network", &u)
 }
 
 func (g *gen) container(name string, c *pkgspec.Container) error {
@@ -208,7 +208,7 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 	var u quadlet.Unit
 
 	us := u.Section("Unit")
-	us.Add("Description", fmt.Sprintf("MyLab %s: %s", svc, name))
+	us.Add("Description", fmt.Sprintf("Roostack %s: %s", svc, name))
 	for _, dep := range c.DependsOn {
 		kind, target, _ := strings.Cut(dep, ".")
 		depUnit := dbUnitName(svc, target)
@@ -237,10 +237,10 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 		}
 		cs.Exec(args)
 	}
-	cs.Add("Network", "mylab-"+svc+".network")
+	cs.Add("Network", "roostack-"+svc+".network")
 	// Routed containers are published on the host's loopback only; Caddy
 	// reaches them through pasta's loopback mapping (SPEC.md §6.5). A node
-	// publishes them on its address on MyLab's network instead, for the
+	// publishes them on its address on Roostack's network instead, for the
 	// controller's Caddy (the firewall lets only that network in).
 	publish := "127.0.0.1"
 	if g.lab.IsNode() {
@@ -253,7 +253,7 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 		}
 		port := g.ctx.Routes[rn].Port
 		if port == 0 {
-			return fmt.Errorf("routes.%s: no host port allocated (run mylab apply)", rn)
+			return fmt.Errorf("routes.%s: no host port allocated (run roostack apply)", rn)
 		}
 		cs.Add("PublishPort", fmt.Sprintf("%s:%d:%d", publish, port, r.Port))
 	}
@@ -304,11 +304,11 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 	}
 
 	if c.Health != nil && c.Health.Cmd != "" {
-		// HTTP checks are done by MyLab itself (ASSUMPTIONS F1).
+		// HTTP checks are done by Roostack itself (ASSUMPTIONS F1).
 		cs.Add("HealthCmd", c.Health.Cmd)
 	}
-	cs.Add("Label", "io.mylab.service="+svc)
-	cs.Add("Label", "io.mylab.component="+name)
+	cs.Add("Label", "io.roostack.service="+svc)
+	cs.Add("Label", "io.roostack.component="+name)
 	addPassthrough(&u, c.Quadlet)
 	addServiceSections(&u)
 
@@ -348,12 +348,12 @@ func (g *gen) postgres(name string, d *pkgspec.Database) error {
 	dataDir := filepath.Join(g.serviceDir(), "db", name)
 
 	var u quadlet.Unit
-	u.Section("Unit").Add("Description", fmt.Sprintf("MyLab %s: database %s (postgres)", svc, name))
+	u.Section("Unit").Add("Description", fmt.Sprintf("Roostack %s: database %s (postgres)", svc, name))
 	cs := u.Section("Container")
 	cs.Add("ContainerName", unit)
 	cs.Add("Image", cmp.Or(d.Image, DefaultPostgresImage))
 	addTimezone(cs, g.lab)
-	cs.Add("Network", "mylab-"+svc+".network")
+	cs.Add("Network", "roostack-"+svc+".network")
 	cs.Env("POSTGRES_USER", db.User)
 	cs.Env("POSTGRES_DB", db.Name)
 	cs.Env("POSTGRES_PASSWORD_FILE", "/run/secrets/db-password")
@@ -362,8 +362,8 @@ func (g *gen) postgres(name string, d *pkgspec.Database) error {
 	cs.Add("Volume", dataDir+":/var/lib/postgresql/data")
 	cs.Add("HealthCmd", fmt.Sprintf("pg_isready -U %s -d %s", db.User, db.Name))
 	addDBHealthTiming(cs)
-	cs.Add("Label", "io.mylab.service="+svc)
-	cs.Add("Label", "io.mylab.component=db-"+name)
+	cs.Add("Label", "io.roostack.service="+svc)
+	cs.Add("Label", "io.roostack.component=db-"+name)
 	addPassthrough(&u, d.Quadlet)
 	addServiceSections(&u)
 
@@ -387,12 +387,12 @@ func (g *gen) redis(name string, d *pkgspec.Database) error {
 	unit := dbUnitName(svc, name)
 
 	var u quadlet.Unit
-	u.Section("Unit").Add("Description", fmt.Sprintf("MyLab %s: database %s (redis)", svc, name))
+	u.Section("Unit").Add("Description", fmt.Sprintf("Roostack %s: database %s (redis)", svc, name))
 	cs := u.Section("Container")
 	cs.Add("ContainerName", unit)
 	cs.Add("Image", cmp.Or(d.Image, DefaultRedisImage))
 	addTimezone(cs, g.lab)
-	cs.Add("Network", "mylab-"+svc+".network")
+	cs.Add("Network", "roostack-"+svc+".network")
 	if d.BackedUp() {
 		// Persisted snapshots are consistent on disk, so the data directory is
 		// backed up directly.
@@ -403,8 +403,8 @@ func (g *gen) redis(name string, d *pkgspec.Database) error {
 	}
 	cs.Add("HealthCmd", "valkey-cli ping || redis-cli ping")
 	addDBHealthTiming(cs)
-	cs.Add("Label", "io.mylab.service="+svc)
-	cs.Add("Label", "io.mylab.component=db-"+name)
+	cs.Add("Label", "io.roostack.service="+svc)
+	cs.Add("Label", "io.roostack.component=db-"+name)
 	addPassthrough(&u, d.Quadlet)
 	addServiceSections(&u)
 
@@ -424,7 +424,7 @@ func (g *gen) caddySite() error {
 		}
 		rc := g.ctx.Routes[name]
 		if rc.Port == 0 {
-			return fmt.Errorf("routes.%s: no host port allocated (run mylab apply)", name)
+			return fmt.Errorf("routes.%s: no host port allocated (run roostack apply)", name)
 		}
 		g.out.Hosts = append(g.out.Hosts, rc.Host)
 		g.out.Ports = append(g.out.Ports, rc.Port)
@@ -505,17 +505,17 @@ func addTimezone(cs *quadlet.Section, lab config.Lab) {
 	}
 }
 
-func containerUnitName(svc, container string) string { return "mylab-" + svc + "-" + container }
+func containerUnitName(svc, container string) string { return "roostack-" + svc + "-" + container }
 
-func dbUnitName(svc, db string) string { return "mylab-" + svc + "-db-" + db }
+func dbUnitName(svc, db string) string { return "roostack-" + svc + "-db-" + db }
 
 // secretName maps a package secret reference to a Podman secret name.
 func secretName(svc, ref string) string {
 	if db, ok := strings.CutPrefix(ref, "databases."); ok {
 		name, _, _ := strings.Cut(db, ".")
-		return "mylab-" + svc + "-db-" + name + "-password"
+		return "roostack-" + svc + "-db-" + name + "-password"
 	}
-	return "mylab-" + svc + "-" + ref
+	return "roostack-" + svc + "-" + ref
 }
 
 // addServiceSections adds the [Service] and [Install] sections every

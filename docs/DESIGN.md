@@ -1,8 +1,8 @@
-# MyLab design system
+# Roostack design system
 
 Every page is built from the tokens and components here. The gallery shows them all, in light and dark side by side:
 
-- In MyLab: **/design** (linked in the footer of every page).
+- In Roostack: **/design** (linked in the footer of every page).
 - In the repo: [docs/design/gallery.html](design/gallery.html). Open it straight in a browser; it links the real CSS files. It's generated from the same templates as `/design`, and a test fails if it's out of date. Regenerate it with:
 
   ```sh
@@ -41,7 +41,7 @@ Purpose colours:
 | `--border`, `--border-strong` | Borders, input borders |
 | `--accent`, `--accent-fg`, `--accent-soft` | Actions and links; text on accent; info backgrounds |
 | `--highlight`, `--highlight-fg`, `--highlight-soft` | The brand's spark: the logo mark, where you are (current page), focus rings, "New" badges. Use sparingly |
-| `--ok`, `--warn`, `--bad` (+ `-bg`, and `--bad-fg`) | Status. MyLab's own themes share them, so a problem always looks like a problem; a palette may override them (`--pal-ok-l`…), as Catppuccin does |
+| `--ok`, `--warn`, `--bad` (+ `-bg`, and `--bad-fg`) | Status. Roostack's own themes share them, so a problem always looks like a problem; a palette may override them (`--pal-ok-l`…), as Catppuccin does |
 
 Never use raw colours (`#…`) or palette variables (`--pal-…`) in `app.css` or templates.
 
@@ -53,19 +53,19 @@ Never use raw colours (`#…`) or palette variables (`--pal-…`) in `app.css` o
 
 | Theme | Light / dark | Actions / highlight | Source (licence) |
 |---|---|---|---|
-| Teal and violet (default) | MyLab | Teal / violet | MyLab |
-| Ocean and magenta | MyLab | Ocean blue / magenta | MyLab |
+| Teal and violet (default) | Roostack | Teal / violet | Roostack |
+| Ocean and magenta | Roostack | Ocean blue / magenta | Roostack |
 | Catppuccin | Latte / Mocha | Mauve / pink | [Catppuccin](https://catppuccin.com) (MIT) |
 | Gruvbox | Light / dark | Orange / yellow | [Gruvbox](https://github.com/morhetz/gruvbox) (MIT) |
 | Nord | Snow Storm / Polar Night | Frost blue / Aurora purple | [Nord](https://www.nordtheme.com) (MIT) |
 | Solarized | Light / dark | Blue / magenta | [Solarized](https://ethanschoonover.com/solarized) (MIT) |
 | Everforest | Light / dark (medium) | Green / orange | [Everforest](https://github.com/sainnhe/everforest) (MIT) |
-| Rosé Pine | Dawn / Moon | Pine / rose (MyLab status colours) | [Rosé Pine](https://rosepinetheme.com) (MIT) |
+| Rosé Pine | Dawn / Moon | Pine / rose (Roostack status colours) | [Rosé Pine](https://rosepinetheme.com) (MIT) |
 | Tokyo Night | Day / Night | Blue / magenta | [Tokyo Night](https://github.com/folke/tokyonight.nvim) (Apache 2.0) |
 
 Theme files use plain hex colours, and `TestThemesAreReadable` checks every theme in both modes against WCAG contrast: text and muted text on every surface and on notice tints (4.5:1), links (4.5:1), text on buttons (4.5:1), status text on its tint and on cards (4.5:1), and the highlight (3:1, it isn't text). Where a project's own colour is too faint for UI text on its own background (common in light variants), it's nudged just far enough to pass, keeping its hue; each file lists what was adjusted.
 
-Catppuccin's flavours only differ in how dark they are, so MyLab offers one Catppuccin theme (Latte and Mocha) rather than several near-identical ones. Its identity is its named accent colours instead: users pick one for buttons and links (12 of Catppuccin's 14; red and maroon are left out because red buttons mean "danger" in MyLab), and the highlight pairs with it (pink for cool accents, mauve for warm). Latte's pastels are darkened as needed to be readable as text on Latte's pale backgrounds; Mocha's are used as they are.
+Catppuccin's flavours only differ in how dark they are, so Roostack offers one Catppuccin theme (Latte and Mocha) rather than several near-identical ones. Its identity is its named accent colours instead: users pick one for buttons and links (12 of Catppuccin's 14; red and maroon are left out because red buttons mean "danger" in Roostack), and the highlight pairs with it (pink for cool accents, mauve for warm). Latte's pastels are darkened as needed to be readable as text on Latte's pale backgrounds; Mocha's are used as they are.
 
 ### Accents
 

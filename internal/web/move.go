@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/manager"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/manager"
 )
 
 // Moving a service to another server (SPEC.md §10.10).

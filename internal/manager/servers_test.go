@@ -3,17 +3,17 @@ package manager
 import (
 	"context"
 	"errors"
-	"github.com/mylab/mylab/internal/agent"
 	"os"
 	"path/filepath"
+	"roostack.cloud/roostack/internal/agent"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/node"
-	"github.com/mylab/mylab/internal/nodeid"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/nodeid"
 )
 
 // fakeRemote is another server that records its assignments.
@@ -45,7 +45,7 @@ func (f *fakeRemote) ServiceDetails(context.Context) (map[string]node.ServiceDet
 	return map[string]node.ServiceDetail{"forgejo": {Status: "running", DataSize: -1}}, nil
 }
 func (f *fakeRemote) BuiltIns(context.Context) ([]node.BuiltIn, error) {
-	return []node.BuiltIn{{Name: "mylab", Kind: "network", Status: "up"}}, nil
+	return []node.BuiltIn{{Name: "roostack", Kind: "network", Status: "up"}}, nil
 }
 func (f *fakeRemote) InstallStatus(context.Context, string) node.HookStatus { return node.HookStatus{} }
 func (f *fakeRemote) RetryInstall(context.Context, string) error            { return nil }
@@ -170,7 +170,7 @@ func TestAssignmentsPerServer(t *testing.T) {
 	if len(a.Services) != 1 || a.Services[0].Package.Name != "forgejo" || a.Lab.Domain != "lab.example.com" {
 		t.Fatalf("the vps runs forgejo only: %+v", a)
 	}
-	if string(a.Secrets["mylab-forgejo-admin_password"]) != "correct horse" || len(a.SetUp) != 1 {
+	if string(a.Secrets["roostack-forgejo-admin_password"]) != "correct horse" || len(a.SetUp) != 1 {
 		t.Errorf("forgejo's typed secret and set-up go to its server: %v %v", a.Secrets, a.SetUp)
 	}
 	if len(a.Proxied) != 0 {
@@ -193,7 +193,7 @@ func TestAssignmentsPerServer(t *testing.T) {
 	if !strings.Contains(string(site), "reverse_proxy 100.96.0.2:") {
 		t.Errorf("the controller's Caddy should forward forgejo to the vps:\n%s", site)
 	}
-	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "mylab-forgejo-app.container")); err == nil {
+	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-forgejo-app.container")); err == nil {
 		t.Error("forgejo's containers must not run on the controller")
 	}
 	// Removing forgejo takes it off the vps.

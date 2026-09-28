@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mylab/mylab/internal/agent"
-	"github.com/mylab/mylab/internal/labnet"
-	"github.com/mylab/mylab/internal/manager"
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/manager"
 )
 
 // Storage for other labs (SPEC.md §10.10): this lab keeps other labs'

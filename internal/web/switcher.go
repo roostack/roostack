@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/mylab/mylab/internal/config"
+	"roostack.cloud/roostack/internal/config"
 )
 
 // Settings that differ per server (updates and restarts, time zone,

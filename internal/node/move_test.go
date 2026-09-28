@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mylab/mylab/internal/config"
+	"roostack.cloud/roostack/internal/config"
 )
 
 // direct runs "podman unshare <cmd>" as plain <cmd> (tests have no podman).

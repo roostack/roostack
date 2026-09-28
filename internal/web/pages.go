@@ -8,11 +8,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/mylab/mylab/internal/activity"
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/manager"
-	"github.com/mylab/mylab/internal/pkgspec"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // nav is the top navigation, shown to logged-in users.
@@ -114,8 +114,8 @@ func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
 	s.renderPart(w, "services", "services-live", data)
 }
 
-// addBuiltIns adds MyLab's own parts on every server (?builtin=1): its
-// proxy, backup stores, the mylab service and agent, network links.
+// addBuiltIns adds Roostack's own parts on every server (?builtin=1): its
+// proxy, backup stores, the roostack service and agent, network links.
 func (s *Server) addBuiltIns(r *http.Request, data map[string]any) {
 	show := r.URL.Query().Get("builtin") == "1"
 	data["ShowBuiltIn"] = show

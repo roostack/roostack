@@ -131,7 +131,7 @@ func confirmID(action, question string, fields []string) string {
 }
 
 // confirmButton posts to action after a dialog asks question (a <dialog>,
-// styled like the rest of MyLab, rather than the browser's own). kind is
+// styled like the rest of Roostack, rather than the browser's own). kind is
 // the button's class ("danger", "secondary", "quiet danger", or ""); each
 // trailing "name=value" becomes a hidden form field.
 func confirmButton(action, question, text, kind string, fields ...string) (template.HTML, error) {

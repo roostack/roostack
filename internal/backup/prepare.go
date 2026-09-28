@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mylab/mylab/internal/generate"
-	"github.com/mylab/mylab/internal/pkgspec"
 	_ "modernc.org/sqlite"
+	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // Preparer makes service data consistent before a snapshot (SPEC.md §6.9):
@@ -22,10 +22,10 @@ type Preparer struct {
 	// Launch runs podman commands (via systemd-run --user in production,
 	// SPEC.md §6.1).
 	Launch func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd
-	// MylabBin is the mylab binary, used for `backup-helper sqlite-copy`
+	// RoostackBin is the roostack binary, used for `backup-helper sqlite-copy`
 	// inside podman unshare (so files owned by any container user can be
 	// read).
-	MylabBin string
+	RoostackBin string
 }
 
 // Run carries out one prepare step.
@@ -35,7 +35,7 @@ func (p *Preparer) Run(ctx context.Context, step generate.PrepareStep) error {
 	}
 	switch step.Type {
 	case pkgspec.DBSQLite:
-		return p.run(ctx, nil, "podman", "unshare", p.MylabBin, "backup-helper", "sqlite-copy", step.Source, step.Target)
+		return p.run(ctx, nil, "podman", "unshare", p.RoostackBin, "backup-helper", "sqlite-copy", step.Source, step.Target)
 	case pkgspec.DBPostgres:
 		// Custom format: compressed, and restorable table by table.
 		return p.run(ctx, &step.Target, "podman", "exec", step.Container,
@@ -77,7 +77,7 @@ func (p *Preparer) run(ctx context.Context, stdoutTo *string, name string, args 
 // SQLiteCopy writes a consistent copy of a live SQLite database, using
 // VACUUM INTO. It is safe while the app is writing: SQLite's locking
 // gives the copy a single point-in-time view. It runs inside podman
-// unshare via `mylab backup-helper sqlite-copy`.
+// unshare via `roostack backup-helper sqlite-copy`.
 func SQLiteCopy(ctx context.Context, src, dst string) error {
 	if _, err := os.Stat(src); err != nil {
 		return err

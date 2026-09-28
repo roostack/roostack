@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mylab/mylab/internal/auth"
-	"github.com/mylab/mylab/internal/osupdate"
-	"github.com/mylab/mylab/internal/setup"
-	"github.com/mylab/mylab/internal/store"
+	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/osupdate"
+	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/store"
 )
 
 func TestUsersPage(t *testing.T) {
@@ -81,7 +81,7 @@ func TestUsersPage(t *testing.T) {
 }
 
 func TestQRSVG(t *testing.T) {
-	svg, err := qrSVG("otpauth://totp/MyLab:mum?secret=ABC&issuer=MyLab")
+	svg, err := qrSVG("otpauth://totp/Roostack:mum?secret=ABC&issuer=Roostack")
 	if err != nil || !strings.HasPrefix(string(svg), `<svg class="qr"`) || !strings.Contains(string(svg), `fill="#fff"`) {
 		t.Errorf("svg = %.80s, %v", svg, err)
 	}
