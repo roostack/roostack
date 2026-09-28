@@ -271,7 +271,7 @@ func (h LinuxHost) UseDrive(id string) (UsedDrive, error) {
 		}
 		// The folder is Roostack's own backup store too (other servers'
 		// backups, its password file), so it's the roostack user's.
-		if err := os.Chown(SystemBackupDir, h.UID, h.GID); err != nil {
+		if err := chownIn("/srv", SystemBackupDir, h.UID, h.GID); err != nil {
 			return UsedDrive{}, err
 		}
 		return UsedDrive{Dir: SystemBackupDir}, nil

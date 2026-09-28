@@ -101,12 +101,43 @@ func TestPrepareFolder(t *testing.T) {
 	if _, err := prepareFolder(filepath.Join(root, "link"), []string{root}, uid, gid); err == nil {
 		t.Error("a symlink out of the allowed places")
 	}
+	// Nor a folder beneath one: nothing may be made out there before the
+	// request is refused (the roostack user can plant symlinks in
+	// /srv/roostack, and a folder it owns in /etc would give it root).
+	if _, err := prepareFolder(filepath.Join(root, "link", "made"), []string{root}, uid, gid); err == nil {
+		t.Error("a folder beneath a symlink out of the allowed places")
+	}
+	if _, err := os.Lstat(filepath.Join(outside, "made")); err == nil {
+		t.Error("a folder was made outside the allowed places")
+	}
+	// A symlink that stays inside is fine.
+	os.Mkdir(filepath.Join(root, "real"), 0o755)
+	os.Symlink(filepath.Join(root, "real"), filepath.Join(root, "inside"))
+	if got, err := prepareFolder(filepath.Join(root, "inside"), []string{root}, uid, gid); err != nil ||
+		got != filepath.Join(root, "real", "roostack") {
+		t.Errorf("a symlink inside: %q %v", got, err)
+	}
 	// Someone else's folder with things in it isn't taken over.
 	other := filepath.Join(root, "other", "roostack")
 	os.MkdirAll(other, 0o755)
 	os.WriteFile(filepath.Join(other, "theirs"), nil, 0o644)
 	if _, err := prepareFolder(filepath.Join(root, "other"), []string{root}, uid+1, gid); err == nil {
 		t.Error("someone else's folder")
+	}
+}
+
+// chownIn never follows a symlink, even one the roostack user swapped in
+// for its own folder.
+func TestChownInKeepsToItsRoot(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(root, "backups")); err != nil {
+		t.Fatal(err)
+	}
+	if err := chownIn(root, filepath.Join(root, "backups"), os.Getuid(), os.Getgid()); err != nil {
+		t.Fatalf("chown the link itself: %v", err)
+	}
+	if err := chownIn(root, filepath.Join(root, "backups", "x"), os.Getuid(), os.Getgid()); err == nil {
+		t.Error("a path through a symlink out of the root")
 	}
 }
 
