@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/labrestore"
@@ -25,6 +26,7 @@ import (
 // (internal/labrestore), for the first-run pages.
 type labRestorer struct {
 	lab     config.Lab
+	drives  *agent.Client
 	acts    *activity.Registry
 	restart func()
 	log     *slog.Logger
@@ -96,6 +98,15 @@ func (l *labRestorer) Start(fd labrestore.Found) error {
 		l.restart()
 	}()
 	return nil
+}
+
+// Drives lists this server's drives (to look for backups on).
+func (l *labRestorer) Drives(ctx context.Context) ([]agent.Drive, error) { return l.drives.Drives(ctx) }
+
+// UseDrive mounts a drive (for good, if it isn't) and says where.
+func (l *labRestorer) UseDrive(ctx context.Context, id string) (string, error) {
+	u, err := l.drives.UseDrive(ctx, id)
+	return u.Dir, err
 }
 
 // Running reports whether a restore is running.

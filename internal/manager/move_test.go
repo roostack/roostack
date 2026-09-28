@@ -9,8 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"roostack.cloud/roostack/internal/backup"
-	"roostack.cloud/roostack/internal/store"
 	"slices"
 	"strings"
 	"sync"
@@ -18,10 +16,12 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/store"
 )
 
 type file struct {

@@ -249,6 +249,7 @@ func serve(args []string) error {
 			return repo
 		},
 		Restart: restart,
+		Drives:  agentClient,
 	}
 	if err := wizard.AdoptExisting(ctx); err != nil {
 		return err
@@ -257,7 +258,7 @@ func serve(args []string) error {
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
 	// A new install can instead become a lab restored from its backups.
 	if token != "" {
-		srv.LabRestore = &labRestorer{lab: lab, acts: local.Activity, restart: restart, log: log}
+		srv.LabRestore = &labRestorer{lab: lab, drives: agentClient, acts: local.Activity, restart: restart, log: log}
 	}
 
 	// Keep *.<domain> pointing at this server for devices at home, and

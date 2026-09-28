@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -144,5 +145,21 @@ func TestBackupCopies(t *testing.T) {
 	}
 	if snaps, err := copyRepo.Snapshots(context.Background(), "roostack"); err != nil || len(snaps) != 1 {
 		t.Errorf("the copy should have its own backup: %v %v", snaps, err)
+	}
+}
+
+func TestBackupWaitsForItsDrive(t *testing.T) {
+	d := JobDeps{Precheck: func() error { return CheckDrive(t.TempDir(), "no-such-uuid", "BACKUP") },
+		Plan: func() (Plan, error) { t.Fatal("nothing runs without the drive"); return Plan{}, nil }}
+	if _, err := Run(context.Background(), d, nopReporter{}); err == nil || !strings.Contains(err.Error(), "BACKUP isn't connected") {
+		t.Errorf("err = %v", err)
+	}
+	// Connected but not mounted there: the folder is on another filesystem.
+	dir := t.TempDir()
+	DiskByUUID = dir
+	defer func() { DiskByUUID = "/dev/disk/by-uuid" }()
+	os.Symlink("/dev/null", filepath.Join(dir, "u1"))
+	if err := CheckDrive(t.TempDir(), "u1", ""); err == nil || !strings.Contains(err.Error(), "not mounted") {
+		t.Errorf("not mounted: %v", err)
 	}
 }

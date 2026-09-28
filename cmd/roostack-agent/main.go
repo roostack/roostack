@@ -50,7 +50,7 @@ func run(log *slog.Logger, socket, userName, firewallFile string) error {
 		return err
 	}
 
-	host := agent.LinuxHost{FirewallFile: firewallFile}
+	host := agent.LinuxHost{FirewallFile: firewallFile, UID: int(uid), GID: gid}
 	if err := host.RestoreFirewall(); err != nil {
 		// Keep running: the roostack service can re-apply the firewall.
 		log.Error("restoring firewall failed", "err", err)

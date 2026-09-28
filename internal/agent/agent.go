@@ -59,6 +59,13 @@ type Host interface {
 	WireGuardKeys() (map[string]string, error)
 	// HostChanges checks for changes Roostack didn't make (SPEC.md §3.2).
 	HostChanges() (HostChanges, error)
+	// PrepareBackupFolder readies a backup folder (folder.go).
+	PrepareBackupFolder(dir string) (string, error)
+	// Drives lists the places backups can go; UseDrive readies one;
+	// EraseDrive erases a disk and prepares it (drives.go).
+	Drives() ([]Drive, error)
+	UseDrive(id string) (UsedDrive, error)
+	EraseDrive(disk, label string) error
 	// RemoveWireGuard takes an interface down and deletes its
 	// configuration (e.g. the server left its lab).
 	RemoveWireGuard(iface string) error
@@ -166,6 +173,63 @@ func (s *Server) Handler() http.Handler {
 	})
 	// The keys go into Roostack's backups, like its CA's key, so a restored
 	// lab keeps the keys its peers know.
+	mux.HandleFunc("GET /v1/drives", func(w http.ResponseWriter, r *http.Request) {
+		drives, err := s.Host.Drives()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, drives)
+	})
+	mux.HandleFunc("POST /v1/drives/use", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ID string `json:"id"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		used, err := s.Host.UseDrive(req.ID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		s.Log.Info("backup drive ready", "id", req.ID, "dir", used.Dir)
+		writeJSON(w, http.StatusOK, used)
+	})
+	mux.HandleFunc("POST /v1/drives/erase", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Disk  string `json:"disk"`
+			Label string `json:"label"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		uid, _ := r.Context().Value(ctxKey{}).(uint32)
+		s.Log.Warn("erasing a disk for backups", "disk", req.Disk, "uid", uid)
+		if err := s.Host.EraseDrive(req.Disk, req.Label); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("POST /v1/backup-folder", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Dir string `json:"dir"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		dir, err := s.Host.PrepareBackupFolder(req.Dir)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		s.Log.Info("prepared backup folder", "dir", dir)
+		writeJSON(w, http.StatusOK, map[string]string{"dir": dir})
+	})
 	mux.HandleFunc("GET /v1/host/changes", func(w http.ResponseWriter, r *http.Request) {
 		c, err := s.Host.HostChanges()
 		if err != nil {
@@ -312,6 +376,8 @@ func writeError(w http.ResponseWriter, status int, err error) {
 // LinuxHost performs actions on the real host.
 type LinuxHost struct {
 	FirewallFile string
+	// UID and GID are the roostack user's (backup folders it may use).
+	UID, GID int
 }
 
 // SetUnprivilegedPortStart writes the sysctl for now and for boot.

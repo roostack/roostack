@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	_ "modernc.org/sqlite"
+
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
