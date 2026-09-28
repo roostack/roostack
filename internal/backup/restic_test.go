@@ -72,6 +72,9 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 	if sum.SnapshotID == "" || sum.FilesNew != 2 {
 		t.Errorf("summary = %+v, want 2 new files", sum)
 	}
+	if stored, err := r.Stored(ctx); err != nil || stored == 0 || stored > 1<<20 {
+		t.Errorf("stored = %d, %v", stored, err)
+	}
 
 	snaps, err := r.Snapshots(ctx, "service:vaultwarden")
 	if err != nil || len(snaps) != 1 {

@@ -251,12 +251,14 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	data["ServerServices"] = services
 	// Where backups go: the plan (SPEC.md §6.9).
 	if s.Manager != nil && auth.Can(currentUser(r).Role, auth.ManageHost) {
+		// Storage at other labs is the whole lab's, shown on every server's page.
+		remotes := s.remoteViews(r)
+		data["Remotes"] = remotes
 		if p := s.backupPlan(r, m, false); p != nil {
 			p.Error, _ = data["Error"].(string)
+			p.addLabUsage(remotes)
 			data["Plan"] = p
 		}
-		// Storage at other labs is the whole lab's, shown on every server's page.
-		data["Remotes"] = s.remoteViews(r)
 	}
 	if data["Error"] != nil {
 		w.WriteHeader(http.StatusBadRequest)

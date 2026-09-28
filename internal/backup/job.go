@@ -237,6 +237,13 @@ func upload(ctx context.Context, d JobDeps, repo *Repo, to string, paths, exclud
 	})
 	if sum != nil {
 		d.Log.Step("Backed up: %d new files, %s added (snapshot %s)", sum.FilesNew, Bytes(sum.DataAdded), sum.SnapshotID)
+		// The space it all takes there, for the plan (SPEC.md §6.9).
+		if stored, serr := repo.Stored(ctx); serr == nil {
+			sum.Stored = stored
+			d.Log.Printf("The backups there take %s", Bytes(stored))
+		} else {
+			d.Log.Printf("Couldn't tell how much space the backups there take: %v", serr)
+		}
 	}
 	return sum, err
 }

@@ -61,7 +61,7 @@ func (s *Service) Job() maintenance.Job {
 			deps.OnCopy = func(c Copy, started time.Time, sum *Summary, err error) {
 				run := store.BackupRun{Started: started, Finished: time.Now(), OK: err == nil, Destination: c.Name}
 				if sum != nil {
-					run.SnapshotID, run.FilesNew, run.DataAdded = sum.SnapshotID, sum.FilesNew, sum.DataAdded
+					run.SnapshotID, run.FilesNew, run.DataAdded, run.Stored = sum.SnapshotID, sum.FilesNew, sum.DataAdded, sum.Stored
 				}
 				if err != nil {
 					run.Error = err.Error()
@@ -75,7 +75,7 @@ func (s *Service) Job() maintenance.Job {
 			act.Finish(err)
 			run := store.BackupRun{Started: start, Finished: time.Now(), OK: err == nil}
 			if sum != nil {
-				run.SnapshotID, run.FilesNew, run.DataAdded = sum.SnapshotID, sum.FilesNew, sum.DataAdded
+				run.SnapshotID, run.FilesNew, run.DataAdded, run.Stored = sum.SnapshotID, sum.FilesNew, sum.DataAdded, sum.Stored
 			}
 			if err != nil {
 				run.Error = err.Error()

@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -38,6 +39,12 @@ type planEntry struct {
 	CanPromote             bool
 	// AskWhere are the servers whose location decides at home or away.
 	AskWhere []locationAsk
+	// Space, where known: Stored is what the backups there take (from
+	// the last backup); Free the free space on its drive (-1 unknown);
+	// Lab the whole lab's use of a friend's lab's space (nil unknown).
+	Stored int64
+	Free   int64
+	Lab    *labnet.GuestUsage
 }
 
 // planSlot is an empty place in the plan, with a suggestion for it.
@@ -113,12 +120,28 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 			p.Next = x.Next
 		}
 	}
+	// This server's drives, for the free space on them.
+	drives := map[string]agent.Drive{}
+	if m.This && s.Setup != nil {
+		if ds, err := s.Setup.BackupDrives(ctx); err == nil {
+			for _, d := range ds {
+				drives[d.ID] = d
+			}
+		}
+	}
 	used := map[string]bool{}
 	add := func(e planEntry) {
 		e.Number = len(p.Entries) + 2
 		e.Extra = e.Number > planCopies
 		e.Kind = s.Manager.BackupKind(ctx, m.ID, e.Ref)
 		e.KindTitle = kindTitle(e.Kind)
+		e.Free = -1
+		if e.LastOK != nil {
+			e.Stored = int64(e.LastOK.Stored)
+		}
+		if d, ok := drives[driveOf(e.Ref, e.Kind)]; ok && m.This {
+			e.Free = d.Free
+		}
 		e.AtHome, e.Away = manager.AtHome(e.Kind), manager.Away(e.Kind)
 		if e.Kind == manager.KindServer {
 			e.AtHome, e.Away, e.AskWhere = s.backupPlace(ctx, m, strings.TrimPrefix(e.Ref, "server:"))
@@ -236,6 +259,31 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		p.Busy = a
 	}
 	return p
+}
+
+// driveOf is the drive (agent.Drive.ID) a backup is on, if on one of the
+// server's drives.
+func driveOf(ref, kind string) string {
+	if id, ok := strings.CutPrefix(ref, "drive:"); ok {
+		return id
+	}
+	if kind == manager.KindSystem {
+		return "system"
+	}
+	return ""
+}
+
+// addLabUsage shows, on a backup at a friend's lab, the whole lab's use
+// of the space there (remotes is what the page asked of those labs).
+func (p *planView) addLabUsage(remotes []remoteView) {
+	for i := range p.Entries {
+		for _, rv := range remotes {
+			if rv.Ref == p.Entries[i].Ref && rv.Reachable {
+				u := rv.Usage
+				p.Entries[i].Lab = &u
+			}
+		}
+	}
 }
 
 // planRefs are where a server's backups go now.
