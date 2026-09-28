@@ -337,6 +337,13 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
 .area-title { font-weight: var(--weight-bold); }
 .area-title::after { content: " →"; color: var(--muted); font-weight: var(--weight-normal); }
 .area-summary { color: var(--muted); font-size: var(--text-sm); }
+/* A per-server area with several servers: a line each, divided. */
+.area-servers { display: grid; margin-top: var(--space-1); }
+.area-server { display: flex; align-items: baseline; gap: 0; padding: var(--space-2) 0; border-top: 1px solid var(--border);
+  font-size: var(--text-sm); }
+.area-server:first-child { border-top: 0; padding-top: 0; }
+.area-server .area-summary { display: inline; }
+.dot-none { background: var(--border-strong); }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: var(--space-2);
   vertical-align: 1px; background: var(--muted); }
 .dot-ok { background: var(--ok); } .dot-warn { background: var(--warn); } .dot-problem { background: var(--bad); }

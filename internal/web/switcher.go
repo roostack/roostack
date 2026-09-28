@@ -1,7 +1,6 @@
 package web
 
 import (
-	"fmt"
 	"net/http"
 	"sync"
 
@@ -135,25 +134,29 @@ func (s *Server) serverTabs(r *http.Request, area string) []serverTab {
 	return tabs
 }
 
-// serverSummaries is an area's state on every server, for the Settings
-// overview: one line per server, and the worst level.
-func (s *Server) serverSummaries(r *http.Request, area string) (string, string) {
+// serverLine is one server's state of a per-server area, for the
+// Settings overview.
+type serverLine struct {
+	Name, Summary, Level string
+}
+
+// serverSummaries is a per-server area's state on each server, one line
+// each, and the worst level among them (nil with a single server).
+func (s *Server) serverSummaries(r *http.Request, area string) ([]serverLine, string) {
 	tabs := s.serverTabs(r, area)
 	if tabs == nil {
-		return "", ""
+		return nil, ""
 	}
 	rank := map[string]int{"": 0, "ok": 1, "warn": 2, "problem": 3}
-	summary, level := "", ""
-	for i, t := range tabs {
-		if i > 0 {
-			summary += " · "
-		}
-		summary += fmt.Sprintf("%s: %s", t.Name, t.Summary)
+	var lines []serverLine
+	level := ""
+	for _, t := range tabs {
+		lines = append(lines, serverLine{t.Name, t.Summary, t.Level})
 		if rank[t.Level] > rank[level] {
 			level = t.Level
 		}
 	}
-	return summary, level
+	return lines, level
 }
 
 // serverArea is one of a server's own settings, for its page.

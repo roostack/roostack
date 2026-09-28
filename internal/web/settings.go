@@ -69,6 +69,9 @@ type areaCard struct {
 	Summary string
 	// Level is "ok", "warn", "problem" or "" (nothing to judge).
 	Level string
+	// Servers, with several servers, is a per-server area's state on
+	// each, one line each (instead of Summary).
+	Servers []serverLine
 }
 
 // settingsPage is the overview grid.
@@ -184,8 +187,10 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	// With several servers, per-server areas summarise each.
 	for _, area := range []string{"updates", "time-zone", "remote-access", "backups"} {
-		if sum, level := s.serverSummaries(r, area); sum != "" {
-			set(area, sum, level)
+		if lines, level := s.serverSummaries(r, area); lines != nil {
+			c := cards[area]
+			c.Servers, c.Level = lines, level
+			cards[area] = c
 		}
 	}
 

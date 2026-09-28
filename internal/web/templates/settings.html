@@ -8,7 +8,13 @@
     {{range .Cards}}
     <li><a class="card area-card" href="{{.Href}}">
       <span class="area-title">{{.Title}}</span>
-      <span class="area-summary">{{if .Level}}<span class="dot dot-{{.Level}}" aria-hidden="true"></span><span class="sr-only">{{if eq .Level "ok"}}Fine: {{else if eq .Level "warn"}}Needs attention: {{else}}Problem: {{end}}</span>{{end}}{{.Summary}}</span>
+      {{with .Servers}}
+      <span class="area-servers">
+        {{range .}}<span class="area-server">{{template "level-dot" .Level}}<span><strong>{{.Name}}</strong><br><span class="area-summary">{{.Summary}}</span></span></span>{{end}}
+      </span>
+      {{else}}
+      <span class="area-summary">{{if .Level}}{{template "level-dot" .Level}}{{end}}{{.Summary}}</span>
+      {{end}}
     </a></li>
     {{end}}
   </ul>
@@ -16,3 +22,8 @@
   <p class="hint">Backups have their own page: <a href="/backups">Backups</a>.</p>
 </section>
 {{end}}
+
+{{/* level-dot: a coloured dot for a level ("ok", "warn", "problem"; a
+     plain one for ""), with its meaning for screen readers. */}}
+{{define "level-dot"}}<span class="dot{{with .}} dot-{{.}}{{else}} dot-none{{end}}" aria-hidden="true"></span>
+{{- with .}}<span class="sr-only">{{if eq . "ok"}}Fine: {{else if eq . "warn"}}Needs attention: {{else}}Problem: {{end}}</span>{{end}}{{end}}
