@@ -3,3 +3,7 @@
 *.test
 *.out
 dist/
+
+# Help site (Zensical): its virtualenv and build output
+/help/.venv/
+/help/site/
