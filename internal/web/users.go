@@ -107,7 +107,7 @@ func (s *Server) userRoleSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "user role", fmt.Sprintf("%s: %s → %s", u.Username, u.Role, role))
-	redirect(w, r, "/users")
+	redirect(w, r, "/settings/people")
 }
 
 func (s *Server) userResetPasswordSubmit(w http.ResponseWriter, r *http.Request) {

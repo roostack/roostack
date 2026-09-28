@@ -85,11 +85,11 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := s.Manager.Install(r.Context(), p.Name, req)
-	var fe *manager.FormError
+	msg, isForm := userMessage(err)
 	switch {
-	case errors.As(err, &fe):
+	case isForm:
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "install", s.installData(r, p, r.PostForm, fe.Msg))
+		s.render(w, "install", s.installData(r, p, r.PostForm, msg))
 		return
 	case err != nil:
 		s.serverError(w, err)
@@ -206,13 +206,13 @@ func (s *Server) portSubmit(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err = s.Manager.SetPort(r.Context(), name, port, enabled, hostPort)
 	}
-	var fe *manager.FormError
+	msg, isForm := userMessage(err)
 	switch {
 	case errors.Is(err, manager.ErrNotFound):
 		http.NotFound(w, r)
 		return
-	case errors.As(err, &fe):
-		s.renderService(w, r, map[string]string{"port": port, "msg": fe.Msg})
+	case isForm:
+		s.renderService(w, r, map[string]string{"port": port, "msg": msg})
 		return
 	case err != nil:
 		s.serverError(w, err)
@@ -227,12 +227,13 @@ func (s *Server) portSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) retrySetupSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.serverOf(r) == nil {
+	n := s.serverOf(r)
+	if n == nil {
 		http.NotFound(w, r)
 		return
 	}
 	name := r.PathValue("name")
-	if err := s.serverOf(r).RetryInstall(r.Context(), name); err != nil {
+	if err := n.RetryInstall(r.Context(), name); err != nil {
 		s.serverError(w, err)
 		return
 	}
@@ -313,7 +314,8 @@ func (s *Server) retryWithSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.serverOf(r) == nil {
+	n := s.serverOf(r)
+	if n == nil {
 		http.NotFound(w, r)
 		return
 	}
@@ -328,16 +330,16 @@ func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
 			inputs[key] = v[0]
 		}
 	}
-	out, err := s.serverOf(r).RunAction(r.Context(), name, action, inputs)
-	var fe *manager.FormError
+	out, err := n.RunAction(r.Context(), name, action, inputs)
+	msg, isForm := userMessage(err)
 	var ae *manager.ActionError
 	result := map[string]string{"action": action}
 	switch {
 	case errors.Is(err, manager.ErrNotFound):
 		http.NotFound(w, r)
 		return
-	case errors.As(err, &fe):
-		result["error"] = fe.Msg
+	case isForm:
+		result["error"] = msg
 	case errors.As(err, &ae):
 		result["error"] = ae.Title + " didn't work."
 		result["output"] = ae.Output

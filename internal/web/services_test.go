@@ -694,6 +694,10 @@ func TestServiceSettings(t *testing.T) {
 	if !strings.Contains(body, "s3cret-token") {
 		t.Error("token not shown")
 	}
+	// The service's own server answers; a query can't send it elsewhere.
+	if _, body := h.post("/services/vaultwarden/reveal/admin_token?server=no-such-server", nil, h.srv.URL); !strings.Contains(body, "s3cret-token") {
+		t.Error("?server= overrode the service's server")
+	}
 	if code, _ := h.post("/services/vaultwarden/reveal/signups_allowed", nil, h.srv.URL); code != http.StatusNotFound {
 		t.Errorf("revealing a non-revealable setting: %d", code)
 	}
