@@ -563,7 +563,9 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 		}
 		// For the banner shown when the browser's clock differs from the
 		// host's (every time Roostack shows is host time).
-		if page != "setup-timezone" {
+		// Not while changing it, nor while restarting to use a new one (the
+		// old zone is still in effect).
+		if page != "setup-timezone" && page != "restarting" {
 			data["Clock"] = clockView{hosttime.Now(), auth.Can(u.Role, auth.ManageHost)}
 		}
 	}

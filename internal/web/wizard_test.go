@@ -538,7 +538,7 @@ func TestDNSRecordsList(t *testing.T) {
 
 func TestRestartingWaitsForJob(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
-	if _, body := h.get("/restarting"); !strings.Contains(body, "in a few seconds") {
+	if _, body := h.get("/restarting"); !strings.Contains(body, "in a few seconds") || strings.Contains(body, "Times in Roostack are this server") {
 		t.Error("no job: restarts right away")
 	}
 	h.server.RunningJob = func() string { return "OS updates" }
