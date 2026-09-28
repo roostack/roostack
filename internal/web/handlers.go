@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"html/template"
 	"net/http"
 	"strings"
@@ -118,11 +119,17 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	username := strings.TrimSpace(r.FormValue("username"))
 	u, err := s.Store.UserByUsername(r.Context(), username)
 	ok := false
-	if err == nil {
+	switch {
+	case err == nil:
 		ok, err = auth.VerifyPassword(u.PasswordHash, r.FormValue("password"))
 		if err != nil {
 			s.Log.Error("verify password", "user", username, "err", err)
 		}
+	case errors.Is(err, store.ErrNotFound):
+		auth.VerifyNoAccount(r.FormValue("password"))
+	default:
+		s.serverError(w, err)
+		return
 	}
 	if !ok {
 		s.Log.Warn("failed login", "user", username, "remote", r.RemoteAddr)

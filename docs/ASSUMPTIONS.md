@@ -112,7 +112,7 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | K1 | Alpine.js's standard build needs `'unsafe-eval'` in the Content-Security-Policy. Its CSP build avoids that but supports fewer expressions. Revisit once the UI uses Alpine more. |
 | K2 ✅ | The UI listens on `127.0.0.1:8480` only; Caddy reaches it through pasta's loopback mapping. `ui_bind` in lab.yaml can override this for development. |
 | K3 | TOTP 2FA is implemented (RFC 6238, standard library only; replay-protected; 5 wrong codes means entering the password again). Owners are forced to enroll; others get a reminder. **No QR code yet**: enrollment shows the key and an `otpauth://` link, since a QR library would be another dependency. Pending 2FA logins live in memory, so a restart means logging in again. There are no recovery codes yet: a lost phone means `roostack user reset-password` plus an Owner-side 2FA reset, which doesn't exist yet. |
-| K4 | Failed logins only get a 500 ms delay; real rate limiting is expected from Caddy (SPEC §6.10) and isn't configured yet. |
+| K4 | Failed logins only get a 500 ms delay; real rate limiting is expected from Caddy (SPEC §6.10) and isn't configured yet. The 2FA step allows 5 wrong codes per password login, but a new password login starts again at 5, so it limits nothing on its own until rate limiting is there. |
 | K5 | First-run setup requires a one-time setup code (logged, and saved to `/var/lib/roostack/setup-token` with mode 0600), so whoever reaches the UI first on the network can't claim the Owner account. Not in SPEC yet. |
 | K6 | `roostack user add/reset-password` print a random temporary password instead of prompting, to avoid a terminal dependency. Users can't change their password in the UI yet. |
 

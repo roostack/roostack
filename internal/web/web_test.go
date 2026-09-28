@@ -229,6 +229,20 @@ func TestLoginLogout(t *testing.T) {
 	}
 }
 
+// An unknown username gets the same answer as a wrong password; a broken
+// database is a server error, not a wrong password.
+func TestLoginUnknownUserAndBrokenStore(t *testing.T) {
+	h := newHarness(t, "")
+	code, body := h.post("/login", url.Values{"username": {"nobody"}, "password": {"a long password"}}, h.srv.URL)
+	if code != http.StatusUnauthorized || !strings.Contains(body, "Wrong username or password") {
+		t.Errorf("unknown user: %d", code)
+	}
+	h.store.Close()
+	if code, _ := h.post("/login", url.Values{"username": {"nobody"}, "password": {"x"}}, h.srv.URL); code != http.StatusInternalServerError {
+		t.Errorf("broken store: status %d, want 500", code)
+	}
+}
+
 func TestCrossSitePostRejected(t *testing.T) {
 	h := newHarness(t, "")
 	for _, origin := range []string{"", "https://evil.example.com"} {
