@@ -83,6 +83,26 @@ type Plan struct {
 	// Waiting are Quadlet files left as they are because a secret they
 	// need hasn't been given yet (generate.Secret.Holds).
 	Waiting []string
+	// StartNotes say what a new container's first start involves (a
+	// download, or building an image), for the log: starting them can take
+	// minutes, and people should know why.
+	StartNotes map[string]string
+}
+
+// startNote is what starting a new container's unit involves.
+func startNote(quadlet string) string {
+	for _, line := range strings.Split(quadlet, "\n") {
+		image, ok := strings.CutPrefix(line, "Image=")
+		if !ok {
+			continue
+		}
+		if strings.HasSuffix(image, ".build") {
+			return "builds its image the first time (compiling: several minutes)"
+		}
+		name, _, _ := strings.Cut(image, "@") // without the digest
+		return "downloads " + name + " if it isn't here yet"
+	}
+	return ""
 }
 
 // Empty reports whether the plan changes nothing (StartUnits is always
@@ -229,6 +249,11 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 		plan.DaemonReload = true
 		if exists {
 			plan.RestartUnits = append(plan.RestartUnits, unitFor(name))
+		} else if note := startNote(content); note != "" {
+			if plan.StartNotes == nil {
+				plan.StartNotes = map[string]string{}
+			}
+			plan.StartNotes[unitFor(name)] = note
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(haveQuadlets)) {
@@ -335,10 +360,26 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 	if err := r.Systemd.Restart(ctx, p.RestartUnits...); err != nil {
 		return err
 	}
-	log.Step("Starting services (a new service's download can take a few minutes)")
-	log.Printf("%s", strings.Join(p.StartUnits, " "))
-	if err := r.Systemd.Start(ctx, p.StartUnits...); err != nil {
+	// Running services (a no-op for those already running) first, then new
+	// ones one at a time, saying what each involves.
+	var running, fresh []string
+	for _, u := range p.StartUnits {
+		if _, ok := p.StartNotes[u]; ok {
+			fresh = append(fresh, u)
+		} else {
+			running = append(running, u)
+		}
+	}
+	log.Step("Starting services")
+	log.Printf("%s", strings.Join(running, " "))
+	if err := r.Systemd.Start(ctx, running...); err != nil {
 		return err
+	}
+	for _, u := range fresh {
+		log.Step("Starting %s: %s", strings.TrimSuffix(u, ".service"), p.StartNotes[u])
+		if err := r.Systemd.Start(ctx, u); err != nil {
+			return err
+		}
 	}
 	// reload-or-restart also starts Caddy if it isn't running
 	// (docs/ASSUMPTIONS.md L2).

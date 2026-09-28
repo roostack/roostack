@@ -122,6 +122,18 @@ func TestInstallUpdateRemove(t *testing.T) {
 	if !plan.DaemonReload || !plan.ReloadCaddy || len(plan.RestartUnits) != 0 {
 		t.Errorf("first apply plan unexpected:\n%s", plan)
 	}
+	// New containers say what their first start involves, and start one by
+	// one after the rest.
+	if n := plan.StartNotes["roostack-vaultwarden-app.service"]; !strings.HasPrefix(n, "downloads docker.io/vaultwarden/server:") ||
+		strings.Contains(n, "sha256") {
+		t.Errorf("vaultwarden's note = %q", n)
+	}
+	if n := plan.StartNotes["roostack-caddy.service"]; !strings.Contains(n, "builds its image") {
+		t.Errorf("caddy's note = %q", n)
+	}
+	if !slices.Contains(e.systemd.calls, "start roostack-caddy.service") || !slices.Contains(e.systemd.calls, "start roostack-vaultwarden-app.service") {
+		t.Errorf("new services start one at a time: %v", e.systemd.calls)
+	}
 	if got := string(e.secrets.values[dns.SecretName("api_token")]); got != "dns-token" {
 		t.Errorf("DNS secret = %q, want the user-provided value", got)
 	}

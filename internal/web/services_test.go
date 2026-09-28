@@ -1168,3 +1168,16 @@ func TestStorageOfferedByAnotherServer(t *testing.T) {
 		t.Errorf("can't move while a lab stores there: %d", code)
 	}
 }
+
+func TestHomeShowsWhatAnApplyDoes(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	log := h.acts().Start(activity.Apply, "Applying changes")
+	log.Step("Starting roostack-caddy: builds its image the first time (compiling: several minutes)")
+	if _, body := h.get("/"); !strings.Contains(body, "builds its image the first time") {
+		t.Error("the home page shows what the apply is doing")
+	}
+	log.Finish(nil)
+	if _, body := h.get("/"); strings.Contains(body, "builds its image the first time") {
+		t.Error("a finished apply isn't shown")
+	}
+}

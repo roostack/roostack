@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
@@ -74,6 +75,11 @@ func (s *Server) homePage(w http.ResponseWriter, r *http.Request) {
 	data["Attention"] = s.attention(r)
 	if data["CanManage"] == true {
 		data["Servers"] = s.serverViews(r)
+	}
+	// What an apply is doing (downloading, building), or why it failed
+	// lately: nothing should look like magic.
+	if a := s.activityFor(r, activity.Apply); a != nil && (a.Running() || a.Err != "" && time.Since(a.Finished) < 24*time.Hour) {
+		data["ApplyActivity"] = a
 	}
 	s.render(w, "home", data)
 }
