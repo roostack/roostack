@@ -1,5 +1,7 @@
 # Roostack
 
+*Pronounced "Roost Stack".*
+
 Roostack lets you self-host useful services (photos, passwords, git, media, and more) on your own hardware, with one-click installs, automatic HTTPS, backups and updates, managed from a simple web interface.
 
 > **Status: early development.** Nothing here is ready for real use yet. See [TASKS.md](TASKS.md) for progress and [SPEC.md](SPEC.md) for the design decisions and why they were made.
