@@ -225,16 +225,22 @@ func TestRemote(t *testing.T) {
 	if w := <-saved; w.Secrets != nil || len(w.Services) != 1 {
 		t.Error("saved assignments keep services, never secrets")
 	}
-	// Once the send has finished, the secrets aren't kept.
-	for deadline := time.Now().Add(5 * time.Second); ; {
-		r.mu.Lock()
-		pushing := r.pushing
-		r.mu.Unlock()
-		if !pushing || time.Now().After(deadline) {
-			break
+	// pushed waits for a send to finish: the node applies an assignment
+	// before its reply reaches the controller, which only then counts it
+	// as delivered.
+	pushed := func() {
+		for deadline := time.Now().Add(5 * time.Second); ; {
+			r.mu.Lock()
+			pushing := r.pushing
+			r.mu.Unlock()
+			if !pushing || time.Now().After(deadline) {
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
 		}
-		time.Sleep(5 * time.Millisecond)
 	}
+	// Once the send has finished, the secrets aren't kept.
+	pushed()
 	if w, ok := r.Pending(); !ok || w.Secrets != nil {
 		t.Error("delivered secrets must not be sent again")
 	}
@@ -248,6 +254,7 @@ func TestRemote(t *testing.T) {
 		select {
 		case <-fn.applied:
 			<-saved
+			pushed()
 			return true
 		case <-time.After(300 * time.Millisecond):
 			return false
