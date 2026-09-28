@@ -241,6 +241,10 @@
           <span class="hint">· {{.FilesNew}} new or changed files, {{bytes .DataAdded}} added</span></p>
         {{- else}}<p class="error"><span class="dot dot-problem" aria-hidden="true"></span>The last backup here ({{when .Finished}}) didn't finish: {{.Error}}</p>{{end}}
         {{- else}}<p class="hint">Not backed up here yet: the first backup runs {{if $.Plan.Next.IsZero}}tonight{{else}}{{when $.Plan.Next}}{{end}}.</p>{{end}}
+        {{if or .Stored (ge .Free 0) .Lab}}<p class="hint plan-space">
+          {{- if .Stored}}Backups here take <strong>{{size .Stored}}</strong>{{end}}
+          {{- if ge .Free 0}}{{if .Stored}} · {{end}}{{size .Free}} free on {{if eq .Kind "system"}}this server's disk{{else}}the drive{{end}}{{end}}
+          {{- if .Lab}}{{if or .Stored (ge .Free 0)}} · {{end}}your lab uses {{if ge .Lab.Used 0}}{{size .Lab.Used}} of {{end}}its {{size .Lab.Quota}} there{{end}}</p>{{end}}
         {{if not $.Plan.Wizard}}
         <details class="plan-manage">
           <summary>Manage</summary>

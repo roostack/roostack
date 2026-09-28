@@ -153,6 +153,8 @@ var migrations = []string{
 	// A removed guest lab is kept for a while (its data, and its link so it
 	// can be told) before it's deleted.
 	`ALTER TABLE storage_guests ADD COLUMN removed_at INTEGER NOT NULL DEFAULT 0;`,
+	// The space a backup's repository took after each run (0 if unknown).
+	`ALTER TABLE backup_runs ADD COLUMN stored INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -515,14 +517,16 @@ type BackupRun struct {
 	Error             string
 	// Destination is the extra copy it went to, or "" for the main one.
 	Destination string
+	// Stored is the space the repository took after it (0 if unknown).
+	Stored uint64
 }
 
 // RecordBackup stores the result of a backup.
 func (s *Store) RecordBackup(ctx context.Context, r BackupRun) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO backup_runs (started_at, finished_at, ok, snapshot_id, files_new, data_added, error, destination)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		r.Started.Unix(), r.Finished.Unix(), r.OK, r.SnapshotID, r.FilesNew, r.DataAdded, r.Error, r.Destination)
+		`INSERT INTO backup_runs (started_at, finished_at, ok, snapshot_id, files_new, data_added, error, destination, stored)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.Started.Unix(), r.Finished.Unix(), r.OK, r.SnapshotID, r.FilesNew, r.DataAdded, r.Error, r.Destination, r.Stored)
 	return err
 }
 
@@ -543,12 +547,12 @@ func (s *Store) LastBackupTo(ctx context.Context, destination string) (last, las
 	return last, lastOK, err
 }
 
-const backupQuery = `SELECT started_at, finished_at, ok, snapshot_id, files_new, data_added, error, destination FROM backup_runs`
+const backupQuery = `SELECT started_at, finished_at, ok, snapshot_id, files_new, data_added, error, destination, stored FROM backup_runs`
 
 func (s *Store) scanBackup(row *sql.Row) (*BackupRun, error) {
 	var r BackupRun
 	var started, finished int64
-	err := row.Scan(&started, &finished, &r.OK, &r.SnapshotID, &r.FilesNew, &r.DataAdded, &r.Error, &r.Destination)
+	err := row.Scan(&started, &finished, &r.OK, &r.SnapshotID, &r.FilesNew, &r.DataAdded, &r.Error, &r.Destination, &r.Stored)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

@@ -74,6 +74,9 @@ type Summary struct {
 	FilesNew   int
 	DataAdded  uint64
 	Duration   time.Duration
+	// Stored is the space the whole repository takes, after the backup
+	// (0 if unknown).
+	Stored uint64
 }
 
 // Snapshot is one backup in the repository.
@@ -294,6 +297,23 @@ func parseBackupOutput(rd io.Reader, onProgress func(Progress)) (*Summary, error
 		}
 	}
 	return summary, sc.Err()
+}
+
+// Stored returns the space the repository's data takes (restic stats
+// --mode raw-data: deduplicated and compressed, as stored). It reads only
+// the index, so it's quick.
+func (r *Repo) Stored(ctx context.Context) (uint64, error) {
+	out, err := r.run(ctx, "stats", "--mode", "raw-data", "--json")
+	if err != nil {
+		return 0, err
+	}
+	var st struct {
+		TotalSize uint64 `json:"total_size"`
+	}
+	if err := json.Unmarshal(out, &st); err != nil {
+		return 0, fmt.Errorf("restic stats: %w", err)
+	}
+	return st.TotalSize, nil
 }
 
 // Snapshots lists snapshots, optionally only those with all the given tags.

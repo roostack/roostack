@@ -221,7 +221,14 @@ func (s *Server) remoteViews(r *http.Request) []remoteView {
 	for _, rs := range s.Manager.RemoteStorages(r.Context()) {
 		v := remoteView{RemoteStorage: rs}
 		for _, sv := range servers {
+			uses := false
 			if t, _, ok := s.Manager.BackupTargetOf(r.Context(), sv.ID); ok && t.Provider == rs.Ref {
+				uses = true
+			}
+			for _, c := range s.Manager.BackupCopiesOf(r.Context(), sv.ID) {
+				uses = uses || c.Ref == rs.Ref
+			}
+			if uses {
 				v.UsedBy = append(v.UsedBy, sv.Name)
 			}
 		}

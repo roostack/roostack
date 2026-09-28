@@ -1258,3 +1258,16 @@ func TestBackupOnTheSameDiskWarns(t *testing.T) {
 		t.Error("a backup on this server's disk should warn")
 	}
 }
+
+// Each backup shows the space it takes, and what's free where that's known.
+func TestBackupPlanSpace(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}})
+	fm.destination = "drive:system"
+	h.node().backups = &fakeBackups{status: backup.Status{Configured: true, Progress: -1,
+		LastOK: &store.BackupRun{OK: true, Finished: time.Now(), Stored: 1536 << 20}}}
+	_, body := h.get("/backups")
+	if !strings.Contains(body, "Backups here take <strong>1.5 GB</strong> · 30.0 GB free on this server's disk") {
+		t.Errorf("space on the main backup:\n%s", body[strings.Index(body, `id="plan"`):])
+	}
+}
