@@ -473,24 +473,30 @@ func (m *Manager) BackupTargetOf(ctx context.Context, serverID string) (t store.
 		if x.ServerID != serverID {
 			continue
 		}
-		title = x.Repository
-		switch {
-		case strings.HasPrefix(x.Provider, "local:"), x.Provider == "setup" && strings.HasPrefix(x.Repository, "/"):
-			title = "A folder on " + m.nameOf(x.ServerID)
-		case x.Provider == "setup":
-			title = "Chosen during setup"
-		}
-		for _, c := range choices {
-			if c.Ref == x.Provider {
-				title = c.Title
-			}
-		}
-		if t := m.driveTitle(ctx, serverID, x.Provider); t != "" {
-			title = t
-		}
+		title = m.destinationTitle(ctx, serverID, x.Provider, x.Repository, choices)
 		return x, title, true
 	}
 	return t, "", false
+}
+
+// destinationTitle names where a server's backups go, for people.
+func (m *Manager) destinationTitle(ctx context.Context, serverID, provider, repository string, choices []BackupChoice) string {
+	title := repository
+	switch {
+	case strings.HasPrefix(provider, "local:"), provider == "setup" && strings.HasPrefix(repository, "/"):
+		title = "A folder on " + m.nameOf(serverID)
+	case provider == "setup":
+		title = "Chosen during setup"
+	}
+	for _, c := range choices {
+		if c.Ref == provider {
+			title = c.Title
+		}
+	}
+	if t := m.driveTitle(ctx, serverID, provider); t != "" {
+		title = t
+	}
+	return title
 }
 
 // PruneJob removes old backups from every repository the controller made

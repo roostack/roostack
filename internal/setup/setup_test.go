@@ -3,14 +3,11 @@ package setup
 import (
 	"context"
 	"errors"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"roostack.cloud/roostack/internal/agent"
-	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/store"
@@ -119,85 +116,40 @@ func TestDomainStep(t *testing.T) {
 	}
 }
 
-func TestBackupStep(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+// Backup 1 finishes the backup step; the recovery key is shown before
+// the wizard's one restart.
+func TestBackupAdded(t *testing.T) {
 	s, _, restarts := newSetup(t)
 	ctx := context.Background()
 	for _, k := range []string{keyTimezone, keySSH, keyDomain} {
 		s.Store.SetSetting(ctx, k, "done")
 	}
-	s.NewRepo = func(repo string, env []string) *backup.Repo {
-		return &backup.Repo{Bin: bin, URL: repo, PasswordFile: backup.KeyFile(s.Lab.Paths), Env: env,
-			CacheDir: filepath.Join(s.Lab.Paths.StateDir, "cache")}
-	}
-
-	var ce *CheckError
-	if err := s.SaveBackup(ctx, BackupChoice{Kind: "local", Path: "relative/path"}); !errors.As(err, &ce) {
-		t.Errorf("relative path: %v", err)
-	}
-	if err := s.SaveBackup(ctx, BackupChoice{Kind: "s3", Endpoint: "http://insecure", Bucket: "b"}); !errors.As(err, &ce) {
-		t.Errorf("non-https S3: %v", err)
-	}
-
-	// A folder Roostack may not write to says what to do.
-	if os.Getuid() != 0 {
-		locked := filepath.Join(t.TempDir(), "locked")
-		os.Mkdir(locked, 0o500)
-		defer os.Chmod(locked, 0o700)
-		mnt := filepath.Join(locked, "backup")
-		if err := s.SaveBackup(ctx, BackupChoice{Kind: "local", Path: mnt}); !errors.As(err, &ce) ||
-			!strings.Contains(ce.Msg, "sudo chown roostack:roostack "+mnt) {
-			t.Errorf("unwritable folder: %v", err)
-		}
-	}
-
-	dest := filepath.Join(t.TempDir(), "backups")
-	if err := s.SaveBackup(ctx, BackupChoice{Kind: "local", Path: dest}); err != nil {
+	if err := EnsureRecoveryKey(s.Lab.Paths); err != nil {
 		t.Fatal(err)
-	}
-	// Each server has its own folder in the destination (SPEC.md §10.10).
-	labID, _ := s.Store.LabID(ctx)
-	repo := filepath.Join(dest, "roostack", labID, "n-0000000001")
-	if _, err := os.Stat(filepath.Join(repo, "config")); err != nil {
-		t.Error("restic repository not created:", err)
-	}
-	if ts, _ := s.Store.BackupTargets(ctx); len(ts) != 1 || ts[0].Repository != repo || ts[0].Provider != "local:"+repo {
-		t.Errorf("targets = %+v", ts)
 	}
 	key, err := s.RecoveryKey()
 	if err != nil || len(key) < 40 {
 		t.Errorf("recovery key %q: %v", key, err)
 	}
-	lab, _ := config.Load(s.LabPath)
-	if lab.Backup.Repository != repo || !lab.Backup.PrunedByController {
-		t.Errorf("saved repository %q", lab.Backup.Repository)
+	if err := s.BackupAdded(ctx, true); err != nil {
+		t.Fatal(err)
 	}
 	if p, _ := s.Progress(ctx); p.Next() != "/setup/recovery-key" || *restarts != 0 {
 		t.Errorf("next %q restarts %d: the key must be shown before restarting", p.Next(), *restarts)
 	}
+	// Backups 2 and 3 don't ask for the key again.
 	if err := s.ConfirmRecoveryKey(ctx); err != nil {
 		t.Fatal(err)
 	}
+	s.BackupAdded(ctx, false)
 	if p, _ := s.Progress(ctx); p.Next() != "" || *restarts != 1 {
 		t.Errorf("after confirming: next %q restarts %d", p.Next(), *restarts)
 	}
-
-	// Choosing a destination again keeps the same key (existing backups
-	// stay readable) but asks to confirm it again.
-	if err := s.SaveBackup(ctx, BackupChoice{Kind: "local", Path: filepath.Join(t.TempDir(), "b2")}); err != nil {
+	if err := EnsureRecoveryKey(s.Lab.Paths); err != nil {
 		t.Fatal(err)
 	}
 	if again, _ := s.RecoveryKey(); again != key {
 		t.Error("the recovery key must not change")
-	}
-	if p, _ := s.Progress(ctx); p.Next() != "/setup/recovery-key" {
-		t.Errorf("next = %q", p.Next())
 	}
 }
 
@@ -246,33 +198,12 @@ func (f fakeDrives) PrepareBackupFolder(_ context.Context, dir string) (string, 
 
 // Choosing a drive readies it (roostack-agent), puts the repository in its
 // roostack folder and records the drive, so backups check it's there.
-func TestBackupOnADrive(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
+func TestBackupDrivesRanked(t *testing.T) {
 	s, _, _ := newSetup(t)
-	ctx := context.Background()
-	mount := t.TempDir()
-	s.Drives = fakeDrives{dir: mount}
-	s.NewRepo = func(repo string, env []string) *backup.Repo {
-		return &backup.Repo{Bin: bin, URL: repo, PasswordFile: backup.KeyFile(s.Lab.Paths), Env: env,
-			CacheDir: filepath.Join(s.Lab.Paths.StateDir, "cache")}
-	}
-	drives, _ := s.BackupDrives(ctx)
+	s.Drives = fakeDrives{dir: t.TempDir()}
+	drives, _ := s.BackupDrives(context.Background())
 	if drives[0].ID != "uuid:64B1" || drives[1].ID != "system" {
 		t.Errorf("a USB drive comes before this server's own disk: %+v", drives)
-	}
-	if err := s.SaveBackup(ctx, BackupChoice{Kind: "drive", Drive: "uuid:64B1"}); err != nil {
-		t.Fatal(err)
-	}
-	lab, _ := config.Load(s.LabPath)
-	if !strings.HasPrefix(lab.Backup.Repository, filepath.Join(mount, "roostack")+"/") ||
-		lab.Backup.Drive != (config.BackupDrive{Mount: mount, UUID: "64B1", Name: "BACKUP"}) {
-		t.Errorf("backup = %+v", lab.Backup)
 	}
 }
 

@@ -3,7 +3,10 @@ package web
 import (
 	"cmp"
 	"errors"
+	"fmt"
+	"html/template"
 	"net/http"
+	"net/url"
 	"slices"
 
 	"roostack.cloud/roostack/internal/agent"
@@ -11,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/hosttime"
+	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/setup"
 )
@@ -283,93 +287,116 @@ func (s *Server) domainLater(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) backupPage(w http.ResponseWriter, r *http.Request) {
-	s.renderBackupStep(w, r, map[string]any{"Kind": "drive"})
+	s.renderBackupStep(w, r, map[string]any{})
 }
 
-// renderBackupStep shows the backup step with this server's drives: the
-// best one (a USB drive or second disk, if any) chosen unless another is.
+// renderBackupStep shows the wizard's backup step: the backup plan
+// (plan.go), as on the Backups page. Once the step is over, the plan lives
+// there.
 func (s *Server) renderBackupStep(w http.ResponseWriter, r *http.Request, data map[string]any) {
-	data["User"], data["Current"] = currentUser(r), s.BackupRepo
-	s.addDrives(r, data, r.FormValue("drive"))
+	// Backup 1 finishes the step, but the plan stays here, for backups 2
+	// and 3, until the wizard moves on.
+	if data = s.formMode(r, "backup", data); !s.inWizard(r) {
+		redirect(w, r, "/backups#plan")
+		return
+	}
+	data["User"], data["Wizard"] = currentUser(r), true
+	if p := s.backupPlan(r, s.serverRefOf(r), true); p != nil {
+		p.Error, _ = data["Error"].(string)
+		data["Plan"] = p
+	}
 	if data["Error"] != nil {
 		w.WriteHeader(http.StatusBadRequest)
 	}
-	s.render(w, "setup-backup", s.formMode(r, "backup", data))
+	s.render(w, "setup-backup", data)
 }
 
-// addDrives lists the drives, marking the chosen one (or the best).
-func (s *Server) addDrives(r *http.Request, data map[string]any, chosen string) {
+// backupDrives lists this server's drives for adding a backup, leaving
+// out those it already backs up to, with the chosen one (or the best)
+// marked.
+func (s *Server) backupDrives(r *http.Request, chosen string) (planOptions, error) {
 	drives, err := s.Setup.BackupDrives(r.Context())
 	if err != nil {
-		data["DrivesError"] = "Couldn't list this server's drives: " + err.Error()
-		return
+		return planOptions{}, err
 	}
-	if !slices.ContainsFunc(drives, func(d agent.Drive) bool { return d.ID == chosen && d.Usable }) {
+	m := s.serverRefOf(r)
+	used := s.planRefs(r, m)
+	// This server's own disk counts once, however its backup got there.
+	for ref := range used {
+		if s.Manager.BackupKind(r.Context(), m.ID, ref) == manager.KindSystem {
+			used["drive:system"] = true
+		}
+	}
+	o := planOptions{CanDrives: true}
+	for _, d := range drives {
+		if !used["drive:"+d.ID] {
+			o.Drives = append(o.Drives, d)
+		}
+	}
+	if !slices.ContainsFunc(o.Drives, func(d agent.Drive) bool { return d.ID == chosen && d.Usable }) {
 		chosen = ""
-		for _, d := range drives {
+		for _, d := range o.Drives {
 			if d.Usable {
 				chosen = d.ID
 				break
 			}
 		}
 	}
-	data["Drives"], data["Selected"] = drives, chosen
+	o.Selected = chosen
+	return o, nil
 }
 
 // drivesPartial refreshes the drive list (a drive plugged in or out).
 func (s *Server) drivesPartial(w http.ResponseWriter, r *http.Request) {
-	data := map[string]any{}
-	s.addDrives(r, data, r.FormValue("drive"))
-	s.renderPart(w, "setup-backup", "backup-drives", data)
+	o, err := s.backupDrives(r, r.FormValue("drive"))
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, `<p class="error">%s</p>`, template.HTMLEscapeString("Couldn't list this server's drives: "+err.Error()))
+		return
+	}
+	s.renderPart(w, "backups", "backup-drives", o)
 }
 
-// eraseDriveSubmit erases a disk and prepares it for backups.
+// eraseDriveSubmit erases a disk and prepares it for backups, then goes
+// back to the plan's chooser with it chosen.
 func (s *Server) eraseDriveSubmit(w http.ResponseWriter, r *http.Request) {
 	disk := r.FormValue("disk")
+	wizard := s.inWizard(r)
 	err := s.Setup.EraseDrive(r.Context(), disk)
-	data := map[string]any{"Kind": "drive"}
 	if msg, ok := userMessage(err); ok {
-		data["Error"] = msg
-	} else if err != nil {
-		s.serverError(w, err)
-		return
-	} else {
-		s.Store.Audit(r.Context(), currentUser(r), "setup", "erased "+disk+" for backups")
-		data["Notice"] = "The disk is ready. It's chosen below: carry on when you're ready."
-		// The prepared disk's filesystem is the one chosen now.
-		if drives, err := s.Setup.BackupDrives(r.Context()); err == nil {
-			for _, d := range drives {
-				if d.Disk == disk && d.Usable {
-					r.Form.Set("drive", d.ID)
-				}
-			}
-		}
-	}
-	s.renderBackupStep(w, r, data)
-}
-
-func (s *Server) backupSubmit(w http.ResponseWriter, r *http.Request) {
-	c := setup.BackupChoice{
-		Kind: r.FormValue("kind"), Drive: r.FormValue("drive"), Path: r.FormValue("path"),
-		Endpoint: r.FormValue("endpoint"), Bucket: r.FormValue("bucket"), Prefix: r.FormValue("prefix"),
-		AccessKey: r.FormValue("access_key"), SecretKey: r.FormValue("secret_key"),
-	}
-	err := s.Setup.SaveBackup(r.Context(), c)
-	// Keep what was typed, except the secret key. Kind ends up in an Alpine
-	// expression, so only known values go back.
-	if c.Kind != "drive" && c.Kind != "local" && c.Kind != "s3" {
-		c.Kind = "drive"
-	}
-	if msg, ok := userMessage(err); ok {
-		s.renderBackupStep(w, r, map[string]any{"Kind": c.Kind, "Path": c.Path, "Error": msg,
-			"Endpoint": c.Endpoint, "Bucket": c.Bucket, "Prefix": c.Prefix, "AccessKey": c.AccessKey})
+		s.renderPlanPage(w, r, wizard, msg)
 		return
 	}
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "setup", "backup destination set")
+	s.Store.Audit(r.Context(), currentUser(r), "setup", "erased "+disk+" for backups")
+	q := url.Values{"add": {r.FormValue("add")}}
+	if r.FormValue("replace") == "1" {
+		q.Set("replace", "1")
+	}
+	// The prepared disk's filesystem is the one chosen now.
+	if drives, err := s.Setup.BackupDrives(r.Context()); err == nil {
+		for _, d := range drives {
+			if d.Disk == disk && d.Usable {
+				q.Set("drive", d.ID)
+			}
+		}
+	}
+	back := "/backups"
+	if wizard {
+		back = "/setup/backup"
+	}
+	redirect(w, r, back+"?"+q.Encode()+"#plan")
+}
+
+// backupSubmit leaves the wizard's backup step, once there's a backup 1.
+func (s *Server) backupSubmit(w http.ResponseWriter, r *http.Request) {
+	if _, _, ok := s.Manager.BackupTargetOf(r.Context(), s.serverRefOf(r).ID); !ok {
+		s.renderBackupStep(w, r, map[string]any{"Error": "Add backup 1 first, or set up backups later."})
+		return
+	}
 	redirect(w, r, "/setup/recovery-key")
 }
 

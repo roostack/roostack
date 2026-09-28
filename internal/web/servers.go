@@ -105,17 +105,20 @@ func (m serverRef) BackupRun() string { return m.path("/backup/run", "/backups/r
 func (s *Server) serverRoutes(mux *http.ServeMux) {
 	const p = "/settings/servers/{server}"
 	for route, h := range map[string]http.HandlerFunc{
-		"GET " + p + "/updates":             s.updatesPage,
-		"POST " + p + "/updates/run":        s.updateNowSubmit,
-		"POST " + p + "/host-changes/known": s.hostChangesKnownSubmit,
-		"POST " + p + "/restart":            s.restartNowSubmit,
-		"POST " + p + "/restart-policy":     s.restartPolicySubmit,
-		"GET " + p + "/time-zone":           s.timezonePage,
-		"POST " + p + "/time-zone":          s.timezoneSubmit,
-		"GET " + p + "/remote-access":       s.sshPage,
-		"POST " + p + "/remote-access":      s.sshSubmit,
-		"GET " + p + "/backups":             s.backupsPage,
-		"POST " + p + "/backups/run":        s.backupRun,
+		"GET " + p + "/updates":               s.updatesPage,
+		"POST " + p + "/updates/run":          s.updateNowSubmit,
+		"POST " + p + "/host-changes/known":   s.hostChangesKnownSubmit,
+		"POST " + p + "/restart":              s.restartNowSubmit,
+		"POST " + p + "/restart-policy":       s.restartPolicySubmit,
+		"GET " + p + "/time-zone":             s.timezonePage,
+		"POST " + p + "/time-zone":            s.timezoneSubmit,
+		"GET " + p + "/remote-access":         s.sshPage,
+		"POST " + p + "/remote-access":        s.sshSubmit,
+		"GET " + p + "/backups":               s.backupsPage,
+		"POST " + p + "/backups/run":          s.backupRun,
+		"POST " + p + "/backups/plan":         s.planAddSubmit(false),
+		"POST " + p + "/backups/plan/promote": s.planPromoteSubmit,
+		"POST " + p + "/backups/plan/remove":  s.planRemoveSubmit,
 	} {
 		mux.Handle(route, s.requireOwner(func(w http.ResponseWriter, r *http.Request) {
 			if s.serverOf(r) == nil {

@@ -83,9 +83,10 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] A backup disk whose files belong to another user: the restore page says so, with the chown command
   - [ ] Full-lab restore from storage at a friend's lab; restoring a lone node
   - [x] Backup drive picker (SPEC §6.9 "Backup drives"): roostack-agent lists USB drives, second disks, network shares and the server's own disk; the wizard offers them best first, refreshing as drives come and go; a chosen drive is mounted for good by UUID (nofail, automount); a blank disk can be erased and prepared; backups check their drive is connected. Restore page lists drives. Tested on VM1 with virtual USB drives (`dev-vm.sh usb add|remove`; dev VMs now run Debian's standard kernel, the cloud kernel has no USB)
+  - [ ] Backup runs are recorded as "main" or by copy, not by repository: right after "Make this backup 1", backup 1 shows the old main's last result until the next backup. Record each run by its destination
   - [ ] **Phase 2 (agreed, don't lose): add NAS shares (SMB/NFS) from the UI**: server, share and credentials in a root-only file, mounted by the agent like a drive (nofail, automount), write check. Already-mounted shares are offered today
   - [ ] **Later (agreed): rotating backup drives**: two or more drives swapped in turn, each its own destination by UUID, with the absent one's last backup shown
-  - [ ] The same drive picker on the Backups page (extra copies on a drive; today a drive is chosen through the wizard, which the Backups page links to)
+  - [x] "Your backup plan" (SPEC §6.9): numbered backups with empty slots and adaptive suggestions, the same on the Backups page and the wizard (1 to 3 backups there, or none with "later"); one chooser for drives (the drive picker), online storage, a friend's lab or another server; "Make this backup 1"; 3-2-1 checks. The old "Where backups go"/"Extra copies" forms and `setup.SaveBackup` are gone
   - [x] 3-2-1: extra copies per server (SPEC §6.9): each its own backup after the main one (not `restic copy`, see SPEC), status and attention per copy, pruned and checked with the main one. Tested live on VM1 (main on vps's disk, copy on its own)
   - [x] Postgres restore (pg_restore): Forgejo repo deleted, restored, back with its git data
   - [ ] Measure restic RAM/time on a realistic photo/video dataset

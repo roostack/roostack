@@ -170,6 +170,27 @@ func (f *fakeManager) MoveService(_ context.Context, name, to, way string) error
 func (f *fakeManager) BackupChoices(context.Context) ([]manager.BackupChoice, error) {
 	return []manager.BackupChoice{{Ref: "server:n-0123456789", Title: "nuc's disk"}, {Ref: "provider:1", Title: "Backblaze"}}, nil
 }
+func (f *fakeManager) BackupKind(_ context.Context, _, ref string) string {
+	switch {
+	case strings.HasPrefix(ref, "drive:"):
+		return manager.KindUSB
+	case strings.HasPrefix(ref, "provider:"):
+		return manager.KindOnline
+	case strings.HasPrefix(ref, "remote:"):
+		return manager.KindFriend
+	}
+	return manager.KindServer
+}
+func (f *fakeManager) PromoteBackupCopy(_ context.Context, _, ref string) error {
+	for i, c := range f.copies {
+		if c.Ref == ref {
+			f.copies[i] = manager.BackupCopy{Ref: f.destination, Title: "nuc's disk"}
+			f.destination = ref
+			return nil
+		}
+	}
+	return &manager.FormError{Msg: "That isn't one of its backups."}
+}
 func (f *fakeManager) BackupCopiesOf(context.Context, string) []manager.BackupCopy { return f.copies }
 func (f *fakeManager) AddBackupCopy(_ context.Context, id, ref string) error {
 	if ref == f.destination {
@@ -800,38 +821,70 @@ func TestServers(t *testing.T) {
 	}
 }
 
-func TestBackupDestinations(t *testing.T) {
+// The Backups page's plan: numbered backups, empty slots with
+// suggestions, and one chooser for adding anywhere (SPEC.md §6.9).
+func TestBackupPlan(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
-	_, body := h.get("/settings/servers/n-0123456789/backups")
-	for _, want := range []string{"Choose where backups go", `value="server:n-0123456789"`, "Backblaze", "Add a cloud storage provider"} {
+	_, body := h.get("/backups")
+	for _, want := range []string{"Your backup plan", "a drive at home", `href="/backups?add=1#plan"`, "Two kinds of storage"} {
 		if !strings.Contains(body, want) {
-			t.Errorf("backups page missing %q", want)
+			t.Errorf("empty plan missing %q", want)
 		}
 	}
-	if code, body := h.post("/settings/servers/n-0123456789/backup-destination", url.Values{}, h.srv.URL); code != http.StatusBadRequest ||
-		!strings.Contains(body, "Choose where backups go.") {
+	_, body = h.get("/backups?add=1")
+	for _, want := range []string{"Where should backup 1 go?", `value="provider:1"`, "Another server", `value="server:n-0123456789"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("chooser missing %q", want)
+		}
+	}
+	if code, body := h.post("/backups/plan", url.Values{"add": {"1"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "Choose where this backup goes.") || !strings.Contains(body, "Where should backup 1 go?") {
 		t.Errorf("no choice: %d", code)
 	}
-	h.post("/settings/servers/n-0123456789/backup-destination", url.Values{"destination": {"server:n-0123456789"}}, h.srv.URL)
-	if fm.destination != "server:n-0123456789" {
-		t.Errorf("destination = %q", fm.destination)
-	}
-	if _, body := h.get("/settings/servers/n-0123456789/backups"); !strings.Contains(body, "nuc&#39;s disk") ||
-		!strings.Contains(body, "Change where") {
-		t.Error("page should show the current destination")
-	}
-	if code, body := h.post("/settings/backup-providers", url.Values{"name": {"B2"}}, h.srv.URL); code != http.StatusBadRequest ||
-		!strings.Contains(body, "bucket name") {
+	// A new online account: an error keeps the chooser, never the secret.
+	code, body := h.post("/backups/plan", url.Values{"add": {"1"}, "choice": {"online"}, "provider": {"new"}, "name": {"B2"},
+		"secret_key": {"SUPERSECRET"}}, h.srv.URL)
+	if code != http.StatusBadRequest || !strings.Contains(body, "bucket name") || strings.Contains(body, "SUPERSECRET") {
 		t.Errorf("bad provider: %d", code)
 	}
-	h.post("/settings/backup-providers", url.Values{"name": {"B2"}, "bucket": {"b"}, "back": {"//evil.example"}}, h.srv.URL)
-	if len(fm.providers) != 1 {
-		t.Errorf("providers = %v", fm.providers)
+	h.post("/backups/plan", url.Values{"add": {"1"}, "choice": {"server"}, "server": {"server:n-0123456789"}}, h.srv.URL)
+	if fm.destination != "server:n-0123456789" {
+		t.Fatalf("backup 1 = %q", fm.destination)
+	}
+	h.post("/backups/plan", url.Values{"add": {"2"}, "choice": {"online"}, "provider": {"provider:1"}}, h.srv.URL)
+	if len(fm.copies) != 1 || fm.copies[0].Ref != "provider:1" {
+		t.Fatalf("backup 2 = %+v", fm.copies)
+	}
+	_, body = h.get("/backups?add=3")
+	for _, want := range []string{"nuc&#39;s disk", "Backblaze", "Make this backup 1", "Stop this backup", "Where should backup 3 go?"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("plan missing %q", want)
+		}
+	}
+	if strings.Contains(body, `name="provider" value="provider:1"`) {
+		t.Error("where backups already go isn't offered again")
+	}
+	h.post("/backups/plan/promote", url.Values{"destination": {"provider:1"}}, h.srv.URL)
+	if fm.destination != "provider:1" || fm.copies[0].Ref != "server:n-0123456789" {
+		t.Errorf("promote: %q %+v", fm.destination, fm.copies)
+	}
+	// Changing backup 1 keeps the others.
+	h.post("/backups/plan", url.Values{"replace": {"1"}, "choice": {"server"}, "server": {"server:n-0123456789"}}, h.srv.URL)
+	if fm.destination != "server:n-0123456789" || len(fm.copies) != 1 {
+		t.Errorf("replace: %q %+v", fm.destination, fm.copies)
+	}
+	h.post("/backups/plan/remove", url.Values{"destination": {"server:n-0123456789"}}, h.srv.URL)
+	if len(fm.copies) != 0 {
+		t.Error("remove")
+	}
+	// Another server's plan lives under its settings.
+	if _, body := h.get("/settings/servers/n-0123456789/backups"); !strings.Contains(body, "Your backup plan") {
+		t.Error("server backups page")
 	}
 	// Admins don't choose destinations.
 	ha, _ := loggedIn(t, auth.RoleAdmin)
-	if _, body := ha.get("/backups"); strings.Contains(body, "Add a cloud storage provider") {
-		t.Error("only Owners manage destinations")
+	if _, body := ha.get("/backups"); strings.Contains(body, "Your backup plan") {
+		t.Error("only Owners manage the plan")
 	}
 }
 
@@ -901,8 +954,7 @@ func TestStorageForOthers(t *testing.T) {
 	}
 	// The guest side: the Backups page shows storage at other labs.
 	_, body = h.get("/backups")
-	if !strings.Contains(body, "Mum&#39;s lab</strong>: 3.0 GB of 50.0 GB used") || !strings.Contains(body, "no server backs up here yet") ||
-		!strings.Contains(body, "Add storage from another lab") {
+	if !strings.Contains(body, "Mum&#39;s lab</strong>: 3.0 GB of 50.0 GB used") || !strings.Contains(body, "no server backs up here yet") {
 		t.Errorf("backups page should show storage at other labs")
 	}
 	// It's the whole lab's: shown on every server's page, naming who uses it.
@@ -911,7 +963,7 @@ func TestStorageForOthers(t *testing.T) {
 	if _, body := h.get("/settings/servers/n-9876543210/backups"); !strings.Contains(body, "used by nuc, vps") {
 		t.Errorf("another server's page should show storage at other labs and who uses it")
 	}
-	if code, _ := h.post("/settings/remote-storage", url.Values{"invite": {"hello"}}, h.srv.URL); code != http.StatusBadRequest {
+	if code, _ := h.post("/backups/plan", url.Values{"add": {"1"}, "choice": {"friend"}, "invite": {"hello"}}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("bad invite: %d", code)
 	}
 	ha, _ := loggedIn(t, auth.RoleAdmin)
@@ -1028,32 +1080,6 @@ func TestCertificateExpiry(t *testing.T) {
 	fm.servers[1].CertExpires = time.Now().Add(-time.Hour)
 	if _, body := h.get("/"); !strings.Contains(body, "has expired") {
 		t.Error("an expired certificate")
-	}
-}
-
-func TestBackupCopies(t *testing.T) {
-	h, fm := loggedIn(t, auth.RoleOwner)
-	fm.destination = "server:n-0123456789"
-	_, body := h.get("/backups")
-	i := strings.Index(body, `id="copies"`)
-	if i < 0 || !strings.Contains(body[i:], `value="provider:1"`) || strings.Contains(body[i:], `value="server:n-0123456789"`) {
-		t.Fatalf("the copies section should offer Backblaze, not the main destination:\n%s", body)
-	}
-	if code, _ := h.post("/settings/servers/n-0123456789/backup-copies", url.Values{"destination": {"provider:1"}}, h.srv.URL); code != http.StatusOK ||
-		len(fm.copies) != 1 {
-		t.Fatalf("add: %d %+v", code, fm.copies)
-	}
-	_, body = h.get("/backups")
-	if !strings.Contains(body, "Stop copying") || strings.Contains(body, `name="destination" value="provider:1" required`) {
-		t.Errorf("an added copy is listed, and not offered again")
-	}
-	if code, body := h.post("/settings/servers/n-0123456789/backup-copies", url.Values{"destination": {"server:n-0123456789"}}, h.srv.URL); code != http.StatusBadRequest ||
-		!strings.Contains(body, "already go") {
-		t.Errorf("a copy at the main destination: %d", code)
-	}
-	h.post("/settings/servers/n-0123456789/backup-copies/remove", url.Values{"destination": {"provider:1"}}, h.srv.URL)
-	if len(fm.copies) != 0 {
-		t.Error("remove")
 	}
 }
 

@@ -3,16 +3,13 @@ package setup
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/mail"
 	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 	"unicode"
 
 	"roostack.cloud/roostack/internal/agent"
@@ -51,8 +48,6 @@ type Setup struct {
 	// CheckDNS tests DNS credentials before they are saved. Nil uses the
 	// provider's real check (create and delete a TXT record).
 	CheckDNS func(ctx context.Context, p *dns.Provider, values map[string]string, domain string) (string, error)
-	// NewRepo returns a restic repository for a destination (to create it).
-	NewRepo func(repository string, env []string) *backup.Repo
 	// Restart restarts Roostack so every part picks up the new settings.
 	Restart func()
 	// Drives lists and readies the drives backups can go on (roostack-agent).
@@ -233,113 +228,6 @@ func (s *Setup) DomainLater(ctx context.Context) error {
 	return s.Store.SetSetting(ctx, keyDomain, "later")
 }
 
-// BackupChoice is a backup destination from the wizard.
-type BackupChoice struct {
-	Kind string // "drive", "local" (a folder) or "s3"
-	// Drive: one of Drives (agent.Drive.ID).
-	Drive string
-	// Local: a folder, e.g. where a second disk is mounted.
-	Path string
-	// S3-compatible storage (Backblaze B2, Wasabi, AWS, ...).
-	Endpoint, Bucket, Prefix, AccessKey, SecretKey string
-}
-
-// destination checks the choice and returns the server's repository in
-// it (its own folder, SPEC.md §10.10), the credentials, and for S3 the
-// provider to record so other servers can use it too.
-func (c BackupChoice) destination(labID, serverID string) (repo string, env []string, provider *backup.S3, err error) {
-	switch c.Kind {
-	case "local":
-		p := filepath.Clean(strings.TrimSpace(c.Path))
-		if !filepath.IsAbs(p) {
-			return "", nil, nil, &CheckError{"Enter a full folder path, starting with /."}
-		}
-		return filepath.Join(p, backup.ServerFolder("", labID, serverID)), nil, nil, nil
-	case "s3":
-		s3 := backup.S3{Endpoint: c.Endpoint, Bucket: c.Bucket, Prefix: c.Prefix, AccessKey: c.AccessKey, SecretKey: c.SecretKey}.Clean()
-		if msg := s3.Problem(); msg != "" {
-			return "", nil, nil, &CheckError{msg}
-		}
-		return s3.Repository(labID, serverID), s3.Env(), &s3, nil
-	}
-	return "", nil, nil, &CheckError{"Choose where to keep backups."}
-}
-
-// SaveBackup creates the recovery key (if needed) and the backup
-// repository, and saves the destination. The recovery key is then shown
-// once (RecoveryKey) before Roostack restarts.
-func (s *Setup) SaveBackup(ctx context.Context, c BackupChoice) error {
-	labID, err := s.Store.LabID(ctx)
-	if err != nil {
-		return err
-	}
-	// A drive (or a typed folder) is readied by roostack-agent first: mounted
-	// for good if need be, with a folder Roostack may write to.
-	var drive config.BackupDrive
-	switch c.Kind {
-	case "drive":
-		if s.Drives == nil {
-			return &CheckError{"Roostack can't see this server's drives."}
-		}
-		used, err := s.Drives.UseDrive(ctx, c.Drive)
-		if err != nil {
-			return &CheckError{fmt.Sprintf("Couldn't use that drive: %s", firstLine(err.Error()))}
-		}
-		drive = config.BackupDrive{Mount: used.Dir, UUID: used.UUID, Name: s.driveName(ctx, c.Drive)}
-		c.Kind, c.Path = "local", used.Dir
-	case "local":
-		if s.Drives != nil && filepath.IsAbs(strings.TrimSpace(c.Path)) {
-			if _, err := s.Drives.PrepareBackupFolder(ctx, filepath.Clean(strings.TrimSpace(c.Path))); err != nil {
-				return &CheckError{fmt.Sprintf("Couldn't use that folder: %s", firstLine(err.Error()))}
-			}
-		}
-	}
-	repoURL, env, provider, err := c.destination(labID, s.Lab.NodeID)
-	if err != nil {
-		return err
-	}
-	if err := EnsureRecoveryKey(s.Lab.Paths); err != nil {
-		return err
-	}
-
-	ictx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-	if err := s.NewRepo(repoURL, env).Init(ictx); err != nil {
-		if c.Kind == "local" && strings.Contains(err.Error(), "permission denied") {
-			dir := filepath.Clean(strings.TrimSpace(c.Path))
-			return &CheckError{fmt.Sprintf("Roostack isn't allowed to create or write to %s. If it's a second disk, mount it there first. "+
-				"Then let Roostack use the folder (sudo mkdir -p %s && sudo chown roostack:roostack %s) and try again.", dir, dir, dir)}
-		}
-		return &CheckError{fmt.Sprintf("Couldn't create the backup there: %s", firstLine(err.Error()))}
-	}
-
-	// Recorded like any server's destination; an S3 account becomes a
-	// provider the lab's other servers can use too.
-	target := store.BackupTarget{ServerID: s.Lab.NodeID, Provider: "local:" + repoURL, Repository: repoURL, Created: time.Now()}
-	if provider != nil {
-		cfg, _ := json.Marshal(provider)
-		id, err := s.Store.AddBackupProvider(ctx, store.BackupProvider{Kind: "s3", Name: providerName(*provider), Config: string(cfg)})
-		if err != nil {
-			return err
-		}
-		target.Provider = fmt.Sprintf("provider:%d", id)
-	}
-	if err := s.Store.SetBackupTarget(ctx, target); err != nil {
-		return err
-	}
-	if err := config.Update(s.LabPath, func(lab *config.Lab) {
-		// The controller's weekly job removes old backups (SPEC.md §10.10).
-		lab.Backup = config.Backup{Repository: repoURL, Env: env, PrunedByController: true, Drive: drive}
-	}); err != nil {
-		return err
-	}
-	if err := s.Store.SetSetting(ctx, keyBackup, "done"); err != nil {
-		return err
-	}
-	// A new destination means the key must be confirmed again.
-	return s.Store.SetSetting(ctx, keyRecovery, "")
-}
-
 // AdoptExisting marks the backup step done if backups were already set up
 // outside the wizard (e.g. with `roostack backup init`, which showed the key).
 func (s *Setup) AdoptExisting(ctx context.Context) error {
@@ -391,13 +279,6 @@ func firstLine(s string) string {
 	return s
 }
 
-// providerName names an S3 account from setup, e.g. "backups at
-// s3.us-west-004.backblazeb2.com".
-func providerName(p backup.S3) string {
-	host := strings.TrimPrefix(p.Endpoint, "https://")
-	return p.Bucket + " at " + host
-}
-
 // SetLabName names the lab. With restart, Roostack restarts so every part
 // (the network, storage shared with other labs) uses the new name.
 func (s *Setup) SetLabName(ctx context.Context, name string, restart bool) error {
@@ -412,18 +293,6 @@ func (s *Setup) SetLabName(ctx context.Context, name string, restart bool) error
 		s.Restart()
 	}
 	return nil
-}
-
-// driveName is how a drive is named in messages ("the backup drive BACKUP
-// isn't connected").
-func (s *Setup) driveName(ctx context.Context, id string) string {
-	drives, _ := s.Drives.Drives(ctx)
-	for _, d := range drives {
-		if d.ID == id {
-			return d.Name
-		}
-	}
-	return ""
 }
 
 // BackupDrives lists the drives backups can go on, best first: a USB drive
@@ -479,4 +348,16 @@ func EnsureRecoveryKey(paths config.Paths) error {
 		return err
 	}
 	return os.WriteFile(keyFile, []byte(key+"\n"), 0o600)
+}
+
+// BackupAdded records the wizard's backup step done once a backup is set
+// up; for the first one, the recovery key must then be confirmed.
+func (s *Setup) BackupAdded(ctx context.Context, first bool) error {
+	if err := s.Store.SetSetting(ctx, keyBackup, "done"); err != nil {
+		return err
+	}
+	if !first {
+		return nil
+	}
+	return s.Store.SetSetting(ctx, keyRecovery, "")
 }
