@@ -41,6 +41,9 @@ func (m *Manager) BackupCopiesOf(ctx context.Context, serverID string) []BackupC
 				v.Title = ch.Title
 			}
 		}
+		if t := m.driveTitle(ctx, serverID, c.Provider); t != "" {
+			v.Title = t
+		}
 		out = append(out, v)
 	}
 	return out
@@ -64,15 +67,9 @@ func (m *Manager) AddBackupCopy(ctx context.Context, serverID, ref string) error
 	if !ok {
 		return formErrorf("Choose where %s's backups go first; a copy goes somewhere else.", n.Identity().Name)
 	}
-	choices, err := m.BackupChoices(ctx)
+	choice, err := m.choiceFor(ctx, serverID, ref)
 	if err != nil {
 		return err
-	}
-	var choice *BackupChoice
-	for i := range choices {
-		if choices[i].Ref == ref {
-			choice = &choices[i]
-		}
 	}
 	switch {
 	case choice == nil:
@@ -108,7 +105,7 @@ func (m *Manager) setUpCopy(ctx context.Context, act *activity.Log, serverID str
 		return err
 	}
 	act.Step("Telling %s about the copy (it restarts Roostack)", m.nameOf(serverID))
-	c := node.BackupCopy{Name: choice.Ref, Title: choice.Title, Repository: dest.Repository, Env: dest.Env, Key: dest.Key}
+	c := node.BackupCopy{Name: choice.Ref, Title: choice.Title, Repository: dest.Repository, Env: dest.Env, Key: dest.Key, Drive: dest.Drive}
 	if err := n.Settings().SetBackupCopies(ctx, m.copiesFor(ctx, serverID, &c)); err != nil {
 		return err
 	}
@@ -142,6 +139,41 @@ func (m *Manager) copyTarget(ctx context.Context, serverID, ref string) (store.B
 		}
 	}
 	return store.BackupTarget{}, false
+}
+
+// PromoteBackupCopy makes a copy a server's backup 1 (its main backup,
+// which restores read first), and backup 1 a copy. Both repositories stay.
+func (m *Manager) PromoteBackupCopy(ctx context.Context, serverID, ref string) error {
+	if m.BackupStore == nil {
+		return ErrNotFound
+	}
+	n := m.node(serverID)
+	if n == nil {
+		return ErrNotFound
+	}
+	if n.Settings() == nil {
+		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
+	}
+	c, ok := m.copyTarget(ctx, serverID, ref)
+	if !ok {
+		return ErrNotFound
+	}
+	main, mainTitle, ok := m.BackupTargetOf(ctx, serverID)
+	if !ok {
+		return ErrNotFound
+	}
+	if err := n.Settings().PromoteBackupCopy(ctx, ref, node.BackupCopy{Name: main.Provider, Title: mainTitle}); err != nil {
+		return err
+	}
+	promoted, demoted := c, main
+	promoted.ServerID, demoted.ServerID = serverID, serverID
+	if err := m.BackupStore.RemoveBackupCopy(ctx, serverID, ref); err != nil {
+		return err
+	}
+	if err := m.BackupStore.SetBackupTarget(ctx, promoted); err != nil {
+		return err
+	}
+	return m.BackupStore.SetBackupCopy(ctx, demoted)
 }
 
 // RemoveBackupCopy stops copying a server's backups somewhere. The copies

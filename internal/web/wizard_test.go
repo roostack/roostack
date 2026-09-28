@@ -97,7 +97,8 @@ func (f *fakeSetup) SetLabName(_ context.Context, name string, restart bool) err
 	f.labName, f.restarted = name, restart
 	return nil
 }
-func (f *fakeSetup) SetBackupCopies(context.Context, []node.BackupCopy) error { return nil }
+func (f *fakeSetup) PromoteBackupCopy(context.Context, string, node.BackupCopy) error { return nil }
+func (f *fakeSetup) SetBackupCopies(context.Context, []node.BackupCopy) error         { return nil }
 func (f *fakeSetup) SetBackupDestination(_ context.Context, d node.BackupDestination) error {
 	f.destination = d.Repository
 	return nil

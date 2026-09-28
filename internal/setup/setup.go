@@ -298,16 +298,7 @@ func (s *Setup) SaveBackup(ctx context.Context, c BackupChoice) error {
 	if err != nil {
 		return err
 	}
-	keyFile := backup.KeyFile(s.Lab.Paths)
-	if _, err := os.Stat(keyFile); errors.Is(err, os.ErrNotExist) {
-		key, err := auth.NewToken()
-		if err != nil {
-			return err
-		}
-		if err := os.WriteFile(keyFile, []byte(key+"\n"), 0o600); err != nil {
-			return err
-		}
-	} else if err != nil {
+	if err := EnsureRecoveryKey(s.Lab.Paths); err != nil {
 		return err
 	}
 
@@ -474,4 +465,18 @@ func (s *Setup) EraseDrive(ctx context.Context, disk string) error {
 		return &CheckError{fmt.Sprintf("Couldn't prepare the disk: %s", firstLine(err.Error()))}
 	}
 	return nil
+}
+
+// EnsureRecoveryKey creates the lab's recovery key (the key every backup
+// can be read with) if it doesn't exist yet.
+func EnsureRecoveryKey(paths config.Paths) error {
+	keyFile := backup.KeyFile(paths)
+	if _, err := os.Stat(keyFile); !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	key, err := auth.NewToken()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(keyFile, []byte(key+"\n"), 0o600)
 }

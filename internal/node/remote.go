@@ -370,6 +370,11 @@ func (x remoteSettings) SetSSH(ctx context.Context, choice string, confirmed boo
 	return x.r.call(ctx, http.MethodPut, "/v1/settings/ssh", map[string]any{"Choice": choice, "Confirmed": confirmed}, nil)
 }
 
+func (x remoteSettings) PromoteBackupCopy(ctx context.Context, name string, old BackupCopy) error {
+	return x.r.call(ctx, http.MethodPost, "/v1/settings/backup-copies/promote",
+		map[string]any{"name": name, "old": old}, nil)
+}
+
 func (x remoteSettings) SetBackupCopies(ctx context.Context, copies []BackupCopy) error {
 	return x.r.call(ctx, http.MethodPut, "/v1/settings/backup-copies", copies, nil)
 }

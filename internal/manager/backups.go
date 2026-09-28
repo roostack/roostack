@@ -7,14 +7,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/b2"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/maintenance"
@@ -125,18 +128,12 @@ func (m *Manager) SetBackupDestination(ctx context.Context, serverID, ref string
 	if n.Settings() == nil {
 		return formErrorf("Roostack can't reach %s right now.", n.Identity().Name)
 	}
-	if m.HasRecoveryKey != nil && !m.HasRecoveryKey() {
-		return formErrorf("Set up this server's backups first: that creates the recovery key every backup can be read with.")
-	}
-	choices, err := m.BackupChoices(ctx)
-	if err != nil {
+	if err := m.recoveryKey(); err != nil {
 		return err
 	}
-	var choice *BackupChoice
-	for i := range choices {
-		if choices[i].Ref == ref {
-			choice = &choices[i]
-		}
+	choice, err := m.choiceFor(ctx, serverID, ref)
+	if err != nil {
+		return err
 	}
 	if choice == nil {
 		return formErrorf("Choose where backups go.")
@@ -216,6 +213,27 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 			return fail(err)
 		}
 		m.Apply()
+	case "drive", "folder":
+		// A drive (or folder) on this server, readied by roostack-agent; the
+		// repository is a local folder on it.
+		if serverID != m.Lab.NodeID || m.Drives == nil {
+			return fail(fmt.Errorf("a drive can only be chosen for the server it's in"))
+		}
+		dir := id
+		var drive config.BackupDrive
+		if kind == "drive" {
+			act.Step("Getting the drive ready (mounting it for good if need be)")
+			used, err := m.Drives.UseDrive(ctx, id)
+			if err != nil {
+				return fail(err)
+			}
+			dir, drive = used.Dir, config.BackupDrive{Mount: used.Dir, UUID: used.UUID, Name: choice.Title}
+		} else if _, err := m.Drives.PrepareBackupFolder(ctx, id); err != nil {
+			return fail(err)
+		}
+		target.Repository = filepath.Join(dir, backup.ServerFolder("", labID, serverID))
+		dest = node.BackupDestination{Repository: target.Repository, Drive: drive}
+		admin = m.OpenRepo(target.Repository, nil)
 	case "provider":
 		p, err := m.provider(ctx, id)
 		if err != nil {
@@ -467,6 +485,9 @@ func (m *Manager) BackupTargetOf(ctx context.Context, serverID string) (t store.
 				title = c.Title
 			}
 		}
+		if t := m.driveTitle(ctx, serverID, x.Provider); t != "" {
+			title = t
+		}
 		return x, title, true
 	}
 	return t, "", false
@@ -516,7 +537,7 @@ func (m *Manager) PruneJob() maintenance.Job {
 func (m *Manager) adminRepo(ctx context.Context, t store.BackupTarget) (*backup.Repo, error) {
 	kind, id, _ := strings.Cut(t.Provider, ":")
 	switch kind {
-	case "local": // a folder on the controller, from the setup wizard
+	case "local", "drive", "folder": // a drive or folder on the controller
 		return m.OpenRepo(t.Repository, nil), nil
 	case "server":
 		pw, _, ok, err := m.BackupStore.StoreAdmin(ctx, t.StoreHost)
@@ -563,4 +584,88 @@ func (m *Manager) AdoptBackupDestination(ctx context.Context, repository string)
 	}
 	return m.BackupStore.SetBackupTarget(ctx, store.BackupTarget{ServerID: m.Lab.NodeID, Provider: "setup",
 		Repository: repository, Created: time.Now()})
+}
+
+// DriveAgent is roostack-agent's backup drive operations.
+type DriveAgent interface {
+	Drives(ctx context.Context) ([]agent.Drive, error)
+	UseDrive(ctx context.Context, id string) (agent.UsedDrive, error)
+	PrepareBackupFolder(ctx context.Context, dir string) (string, error)
+}
+
+// recoveryKey makes sure the lab has its recovery key: the first backup set
+// up creates it.
+func (m *Manager) recoveryKey() error {
+	if m.HasRecoveryKey == nil || m.HasRecoveryKey() {
+		return nil
+	}
+	if m.EnsureRecoveryKey != nil {
+		return m.EnsureRecoveryKey()
+	}
+	return formErrorf("Set up this server's backups first: that creates the recovery key every backup can be read with.")
+}
+
+// choiceFor finds a place a server can back up: one of BackupChoices, or a
+// drive ("drive:<id>") or folder ("folder:<path>") on this server.
+func (m *Manager) choiceFor(ctx context.Context, serverID, ref string) (*BackupChoice, error) {
+	kind, id, _ := strings.Cut(ref, ":")
+	switch kind {
+	case "drive":
+		if serverID != m.Lab.NodeID || m.Drives == nil {
+			return nil, formErrorf("A drive can only hold backups of the server it's in.")
+		}
+		drives, err := m.Drives.Drives(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, d := range drives {
+			if d.ID == id && d.Usable {
+				return &BackupChoice{Ref: ref, Title: DriveTitle(d)}, nil
+			}
+		}
+		return nil, formErrorf("That drive isn't connected any more.")
+	case "folder":
+		if serverID != m.Lab.NodeID || m.Drives == nil || !filepath.IsAbs(id) {
+			return nil, formErrorf("Enter a full folder path, starting with /.")
+		}
+		return &BackupChoice{Ref: "folder:" + filepath.Clean(id), Title: "The folder " + filepath.Clean(id)}, nil
+	}
+	choices, err := m.BackupChoices(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range choices {
+		if choices[i].Ref == ref {
+			return &choices[i], nil
+		}
+	}
+	return nil, nil
+}
+
+// driveTitle names a drive or folder destination ("" for other kinds).
+func (m *Manager) driveTitle(ctx context.Context, serverID, ref string) string {
+	kind, id, _ := strings.Cut(ref, ":")
+	switch kind {
+	case "drive":
+		if c, err := m.choiceFor(ctx, serverID, ref); err == nil && c != nil {
+			return c.Title
+		}
+		return "A drive that isn't connected now"
+	case "folder":
+		return "The folder " + id
+	}
+	return ""
+}
+
+// DriveTitle names a drive for people ("USB drive BACKUP").
+func DriveTitle(d agent.Drive) string {
+	switch d.Kind {
+	case "system":
+		return "This server's own disk"
+	case "usb":
+		return "USB drive " + d.Name
+	case "network":
+		return "Network share " + d.Name
+	}
+	return "Disk " + d.Name
 }

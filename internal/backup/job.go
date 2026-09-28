@@ -119,6 +119,8 @@ type Copy struct {
 	// Name identifies it (the destination's reference); Title is for people.
 	Name, Title string
 	Repo        *Repo
+	// Precheck runs first, e.g. that its drive is connected (optional).
+	Precheck func() error
 }
 
 // Reporter receives progress while a backup runs. *maintenance.Handle
@@ -183,7 +185,14 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 	// what they're for.
 	for _, c := range d.Copies {
 		started := time.Now()
-		csum, cerr := upload(ctx, d, c.Repo, c.Title, paths, plan.Excludes, r)
+		var csum *Summary
+		cerr := error(nil)
+		if c.Precheck != nil {
+			cerr = c.Precheck()
+		}
+		if cerr == nil {
+			csum, cerr = upload(ctx, d, c.Repo, c.Title, paths, plan.Excludes, r)
+		}
 		if cerr != nil {
 			d.Log.Printf("The copy at %s didn't finish: %v", c.Title, cerr)
 		}

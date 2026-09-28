@@ -61,8 +61,12 @@ type Manager struct {
 	// a repository with the recovery key (backups.go; optional).
 	BackupStore BackupStore
 	OpenRepo    func(url string, env []string) *backup.Repo
-	// HasRecoveryKey reports whether the lab has its recovery key yet.
-	HasRecoveryKey func() bool
+	// HasRecoveryKey reports whether the lab has its recovery key yet;
+	// EnsureRecoveryKey makes it when the first backup is set up (optional).
+	HasRecoveryKey    func() bool
+	EnsureRecoveryKey func() error
+	// Drives are this server's drives, for backups on them (roostack-agent).
+	Drives DriveAgent
 	// Storage for other labs (guests.go; optional): the host's hub and
 	// records, how much a guest stores here, the agent for links between
 	// labs, and a hook when this lab starts storing at another.

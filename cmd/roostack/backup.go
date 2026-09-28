@@ -173,7 +173,7 @@ func copyRepos(lab config.Lab, launch backupLaunch) []backup.Copy {
 	var out []backup.Copy
 	for _, c := range lab.Backup.Copies {
 		keyFile := cmp.Or(c.KeyFile, backup.KeyFile(lab.Paths))
-		out = append(out, backup.Copy{Name: c.Name, Title: c.Title, Repo: &backup.Repo{
+		out = append(out, backup.Copy{Name: c.Name, Title: c.Title, Precheck: drivePrecheck(c.Drive), Repo: &backup.Repo{
 			Bin: restic, URL: c.Repository, PasswordFile: keyFile, Env: c.Env,
 			LimitUploadKiB: lab.Backup.LimitUploadKiB, Launch: unshared(launch)}})
 	}

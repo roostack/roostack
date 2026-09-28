@@ -68,9 +68,10 @@ func (f *fakeRemote) Settings() node.Settings {
 
 // fakeServerSettings records a backup destination.
 type fakeServerSettings struct {
-	mu     sync.Mutex
-	dest   *node.BackupDestination
-	copies []node.BackupCopy
+	mu       sync.Mutex
+	dest     *node.BackupDestination
+	copies   []node.BackupCopy
+	promoted string
 }
 
 func (f *fakeServerSettings) Timezones() (string, []string, error)              { return "", nil, nil }
@@ -81,6 +82,12 @@ func (f *fakeServerSettings) SetRestartPolicy(context.Context, string, int) erro
 	return nil
 }
 func (f *fakeServerSettings) RestartPolicy() (string, int) { return "auto", 4 }
+func (f *fakeServerSettings) PromoteBackupCopy(_ context.Context, name string, old node.BackupCopy) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.promoted = name + " <-> " + old.Name
+	return nil
+}
 func (f *fakeServerSettings) SetBackupCopies(_ context.Context, copies []node.BackupCopy) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

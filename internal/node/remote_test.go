@@ -87,11 +87,12 @@ func (f *fakeSettings) SetTimezone(_ context.Context, name string) (bool, error)
 	f.zone = name
 	return true, nil
 }
-func (f *fakeSettings) SSHAccess() (SSHAccess, error)                       { return SSHAccess{Choice: "lan"}, nil }
-func (f *fakeSettings) SetSSH(context.Context, string, bool) error          { return nil }
-func (f *fakeSettings) SetRestartPolicy(context.Context, string, int) error { return nil }
-func (f *fakeSettings) RestartPolicy() (string, int)                        { return "notify", 3 }
-func (f *fakeSettings) SetBackupCopies(context.Context, []BackupCopy) error { return nil }
+func (f *fakeSettings) SSHAccess() (SSHAccess, error)                               { return SSHAccess{Choice: "lan"}, nil }
+func (f *fakeSettings) SetSSH(context.Context, string, bool) error                  { return nil }
+func (f *fakeSettings) SetRestartPolicy(context.Context, string, int) error         { return nil }
+func (f *fakeSettings) RestartPolicy() (string, int)                                { return "notify", 3 }
+func (f *fakeSettings) PromoteBackupCopy(context.Context, string, BackupCopy) error { return nil }
+func (f *fakeSettings) SetBackupCopies(context.Context, []BackupCopy) error         { return nil }
 func (f *fakeSettings) SetBackupDestination(context.Context, BackupDestination) error {
 	return nil
 }
