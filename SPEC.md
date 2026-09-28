@@ -4,7 +4,7 @@ This document records decisions (locked and pending) and the reasoning behind th
 
 Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = not yet discussed.
 
-**Name (2026-09-28):** the project is **Roostack** (`roostack` in code, packages, paths and the Linux user). Its domain is **roostack.cloud** (the Go module path is `roostack.cloud/roostack`); **roost.ac** is for subdomains Roostack hosts for people's labs (§6.5). Earlier drafts called it MyLab; there was no release, so nothing migrates from that name.
+**Name (2026-09-28):** the project is **Roostack**, pronounced "Roost Stack" (`roostack` in code, packages, paths and the Linux user). Its domain is **roostack.cloud** (the Go module path is `roostack.cloud/roostack`); **roost.ac** is for subdomains Roostack hosts for people's labs (§6.5). Earlier drafts called it MyLab; there was no release, so nothing migrates from that name.
 
 ---
 
