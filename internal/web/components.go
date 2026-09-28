@@ -33,6 +33,7 @@ var componentFuncs = template.FuncMap{
 	"confirm":     confirmButton,
 	"activity":    activityBlock,
 	"icon":        icon,
+	"server":      serverChip,
 	"builtinIcon": builtinIcon,
 }
 
@@ -161,4 +162,10 @@ func activityBlock(v *activityView) (template.HTML, error) {
 		return "", nil
 	}
 	return renderComponent("activity", v)
+}
+
+// serverChip shows a server's name as one of the lab's servers: a chip
+// with the server icon ("On [nuc]").
+func serverChip(name string) (template.HTML, error) {
+	return renderComponent("server", name)
 }

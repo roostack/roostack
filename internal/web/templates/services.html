@@ -47,7 +47,7 @@
 <h2 class="section-title">Roostack's own services</h2>
 {{range .}}
 <section class="card section">
-  <h3>On {{.Server}}</h3>
+  <h3>On {{server .Server}}</h3>
   {{with .Err}}<p class="error">Roostack can't ask this server right now: {{.}}</p>{{end}}
   {{with .Items}}
   <table class="records">

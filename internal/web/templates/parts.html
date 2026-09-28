@@ -32,12 +32,13 @@
 {{end}}{{end}}
 
 {{/* service-summary: where a service runs and when it was last backed up. */}}
-{{define "service-summary"}}<p class="hint">{{with .Server}}On {{.}}{{end}}
+{{define "service-summary"}}<p class="hint">{{with .Server}}On {{server .}}{{end}}
   {{- if not .LastBackup.IsZero}} · backed up {{when .LastBackup}}{{else if .Server}} · not backed up yet{{end}}</p>{{end}}
 
-{{/* service-details: what its server reports, for the curious. */}}
+{{/* service-details: what its server reports, for the curious. The id
+     keeps it open when the tiles refresh (static/app.js). */}}
 {{define "service-details"}}
-<details class="technical">
+<details class="technical" id="details-{{.Name}}">
   <summary>Details</summary>
   <dl class="facts">
     {{with .Containers}}<dt>Containers</dt><dd>{{range .}}<code>{{.Name}}</code> · {{or .State "unknown"}}<br><small class="hint" title="{{.Image}}">{{image .Image}}</small><br>{{end}}</dd>{{end}}
@@ -193,7 +194,7 @@
   </div>
   <p>Keep <strong>3 copies</strong> of your data, on <strong>2 kinds</strong> of storage, with <strong>1 away from home</strong>.
     Then a failed disk, a mistake, ransomware, or a fire or theft at home can't take everything.</p>
-  <details class="plan-more-info">
+  <details class="plan-more-info" id="plan-more-info">
     <summary>Tell me more</summary>
     <p>This is the "3-2-1" rule, the usual advice for keeping data safe:</p>
     <ul>
@@ -247,7 +248,7 @@
           {{- if ge .Free 0}}{{if .Stored}} · {{end}}<span{{with .LowSpace}} class="space-low"{{end}}>{{size .Free}} free on {{.FreeOn}}</span>{{end}}
           {{- if .Lab}}{{if or .Stored (ge .Free 0)}} · {{end}}your lab uses {{if ge .Lab.Used 0}}{{size .Lab.Used}} of {{end}}its {{size .Lab.Quota}} there{{end}}</p>{{end}}
         {{if not $.Plan.Wizard}}
-        <details class="plan-manage">
+        <details class="plan-manage" id="plan-manage-{{.Number}}">
           <summary>Manage</summary>
           <p class="hint">Where it is: <code>{{shownRepo .Repository}}</code></p>
           {{if .Main}}<p><a href="{{$.Plan.Back}}?replace=1#plan">Change where the main backup goes…</a>

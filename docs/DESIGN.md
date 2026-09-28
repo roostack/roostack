@@ -20,7 +20,9 @@ Every page is built from the tokens and components here. The gallery shows them 
 | `internal/web/themes.go` | The list of built-in themes (names shown to users) |
 | `internal/web/static/css/app.css` | Base styles, components and page layouts. Uses purpose tokens and scales only |
 | `internal/web/static/css/gallery.css` | Styles for the gallery page itself |
-| `internal/web/templates/components.html` | Templates of components with shared markup (notice, status, badge, back, confirm, activity) |
+| `internal/web/templates/components.html` | Templates of components with shared markup (notice, status, badge, server, back, confirm, activity) |
+| `internal/web/icons.go` | The icons (`icon NAME`), drawn for Roostack |
+| `internal/web/static/app.js` | Roostack's own small script: keeps open `<details>` (with an `id`) open when htmx refreshes part of a page. Give a `<details>` inside a refreshing area a stable `id` |
 | `internal/web/components.go` | The functions pages call for those components; they check their arguments |
 | `internal/web/gallery.go` | The gallery's examples |
 

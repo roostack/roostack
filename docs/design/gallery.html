@@ -445,6 +445,25 @@
         </div>
         
         <div class="example">
+          <h3>Server <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">server NAME: one of the lab&#39;s servers, named in running text (&#34;On nuc&#34;), so it&#39;s clear it means a server.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><p class="hint">On <span class="server-chip"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>nuc</span> · backed up today 02:14</p></div>
+            <div class="panel" data-mode="dark"><p class="hint">On <span class="server-chip"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>nuc</span> · backed up today 02:14</p></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;p class=&#34;hint&#34;&gt;On {{server &#34;nuc&#34;}} · backed up today 02:14&lt;/p&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;p class=&#34;hint&#34;&gt;On&lt;span class=&#34;server-chip&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;3&#34; y=&#34;4&#34; width=&#34;18&#34; height=&#34;7&#34; rx=&#34;2&#34;/&gt;&lt;rect x=&#34;3&#34; y=&#34;13&#34; width=&#34;18&#34; height=&#34;7&#34; rx=&#34;2&#34;/&gt;&lt;path d=&#34;M7 7.5h.01M7 16.5h.01&#34;/&gt;&lt;/svg&gt;nuc&lt;/span&gt;· backed up today 02:14
+&lt;/p&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
           <h3>Icons <span class="badge badge-highlight">Template component</span></h3>
           <p class="hint">icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text&#39;s colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network (icons.go).</p>
           <div class="panels">

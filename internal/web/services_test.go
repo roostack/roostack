@@ -1002,7 +1002,7 @@ func TestServiceCardsAndBuiltIns(t *testing.T) {
 	}
 	for _, path := range []string{"/", "/services"} {
 		_, body := h.get(path)
-		for _, want := range []string{"On nuc", "backed up today", "roostack-vaultwarden-app", "docker.io/vaultwarden/server:1.34.1",
+		for _, want := range []string{`On <span class="server-chip">`, `</svg>nuc</span>`, `id="details-vaultwarden"`, "backed up today", "roostack-vaultwarden-app", "docker.io/vaultwarden/server:1.34.1",
 			"vault.lab.example.com → 127.0.0.1:18000", "/srv/roostack/services/vaultwarden", "12.0 MB"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("%s missing %q", path, want)
@@ -1013,7 +1013,7 @@ func TestServiceCardsAndBuiltIns(t *testing.T) {
 		t.Error("built-ins are hidden by default")
 	}
 	_, body := h.get("/services?builtin=1")
-	if !strings.Contains(body, "On nuc</h3>") || !strings.Contains(body, "Caddy") || !strings.Contains(body, `hx-get="/partials/services?builtin=1"`) {
+	if !strings.Contains(body, "</svg>nuc</span></h3>") || !strings.Contains(body, "Caddy") || !strings.Contains(body, `hx-get="/partials/services?builtin=1"`) {
 		t.Errorf("built-ins should show and stay shown:\n%s", body)
 	}
 }
