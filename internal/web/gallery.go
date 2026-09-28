@@ -75,6 +75,11 @@ var gallerySections = []gallerySection{
 			{"Badges", "", `
 {{badge "Preview"}}
 {{badge "New" "highlight"}}`},
+			{"Icons", "icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text's colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network (icons.go).", `
+<p class="with-icon">{{icon "server"}}Role</p>
+<p class="with-icon">{{icon "disk"}}Disk</p>
+<p class="with-icon">{{icon "store"}}Backup store</p>
+<p class="with-icon">{{icon "network"}}Network link</p>`},
 		}},
 	{ID: "cards", Title: "Cards and facts", Intro: "A card holds one topic. A heading row puts its title and main link together; facts list label and value pairs (stacked on phones).",
 		Examples: []galleryExample{
@@ -88,6 +93,15 @@ var gallerySections = []gallerySection{
     <dt>Domain</dt>       <dd>lab.example.com</dd>
     <dt>DNS provider</dt> <dd>Cloudflare</dd>
     <dt>Services</dt>     <dd>Addresses like <code>photos.lab.example.com</code></dd>
+  </dl>
+</section>`},
+			{"Lined facts with icons", "facts-lined separates the rows with lines, for cards with many facts, several to a page (Settings → Servers).", `
+<section class="card">
+  <h2>nuc</h2>
+  <dl class="facts facts-lined">
+    <dt>{{icon "server"}}Role</dt>            <dd>Runs the lab</dd>
+    <dt>{{icon "location"}}Where</dt>          <dd>At home</dd>
+    <dt>{{icon "certificate"}}Certificate</dt> <dd>Expires 28 Sep 2027</dd>
   </dl>
 </section>`},
 			{"Back link and technical details", "Technical details stay collapsed for most people.", `

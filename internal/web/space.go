@@ -36,6 +36,15 @@ type spaceView struct {
 func (v spaceView) UsedPercent() int     { return percentOf(v.Used, v.Total) }
 func (v spaceView) PromisedPercent() int { return percentOf(min(v.PromisedLeft, v.Free), v.Total) }
 
+// Other is what the system and everything else takes: in use, less
+// Roostack's counted parts (-1 until they're counted).
+func (v spaceView) Other() int64 {
+	if v.Services < 0 || v.Backups < 0 || v.Guests < 0 {
+		return -1
+	}
+	return max(0, v.Used-v.Services-v.Backups-v.Guests)
+}
+
 // HeldBack is the space the filesystem keeps for the system (ext4 keeps
 // 5% by default): neither used nor free to Roostack.
 func (v spaceView) HeldBack() int64 { return max(0, v.Total-v.Used-v.Free) }

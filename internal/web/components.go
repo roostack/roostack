@@ -26,12 +26,14 @@ import (
 // becomes an error page and fails tests rather than rendering quietly.
 
 var componentFuncs = template.FuncMap{
-	"notice":   notice,
-	"status":   status,
-	"badge":    badge,
-	"back":     back,
-	"confirm":  confirmButton,
-	"activity": activityBlock,
+	"notice":      notice,
+	"status":      status,
+	"badge":       badge,
+	"back":        back,
+	"confirm":     confirmButton,
+	"activity":    activityBlock,
+	"icon":        icon,
+	"builtinIcon": builtinIcon,
 }
 
 func init() {
