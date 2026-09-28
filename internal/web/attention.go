@@ -125,6 +125,9 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			s.backupAttention(r, mn.view, mn.node, owner, add)
 		}
 	}
+	if owner {
+		s.spaceAttention(r, add)
+	}
 
 	if owner && s.DNS != nil {
 		st := s.DNS.Status()

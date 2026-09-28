@@ -18,6 +18,22 @@
       {{- else if .LastErr}}<span class="dot dot-problem" aria-hidden="true"></span>The last change didn't finish: {{.LastErr}}
       {{- else if .Finished}}<span class="dot dot-ok" aria-hidden="true"></span>Up to date · {{when .LastRun}}
       {{- else}}Not applied yet{{end}}{{end}}</dd>
+    <dt>Disk</dt>
+    <dd>{{with index $.Spaces .ID}}
+      <div class="space-bar" role="img" aria-label="{{size .Used}} used, {{size .Free}} free of {{size .Total}}">
+        <span class="space-used{{with .Level}} space-{{.}}{{end}}" style="width: {{.UsedPercent}}%"></span>
+        {{- if .PromisedLeft}}<span class="space-promised" style="width: {{.PromisedPercent}}%"></span>{{end}}
+      </div>
+      <p><strong>{{size .Free}} free</strong> of {{size .Total}} · {{size .Used}} used
+        {{- if gt .HeldBack 0}} <small>· {{size .HeldBack}} kept back by the filesystem for the system</small>{{end}}</p>
+      <small>
+        {{- if gt .Services 0}}Services' data {{size .Services}}{{else if eq .Services 0}}No services' data{{else}}Services' data not counted yet{{end}}
+        {{- if gt .Backups 0}} · backups kept here for your lab {{size .Backups}}{{end}}
+        {{- if gt .Guests 0}} · for other labs {{size .Guests}}{{end}}
+        {{- if .Promised}} · promised to other labs {{size .Promised}}, {{size .PromisedLeft}} of it not used yet{{end}}.
+        The rest is the system and other files.</small>
+      {{if .Warning}}{{notice .NoticeKind .Warning}}{{end}}
+    {{else}}<small>Couldn't ask {{.Name}} right now.</small>{{end}}</dd>
     <dt>Where</dt>
     <dd>
       <form method="post" action="/settings/servers/{{.ID}}/location" class="inline-form">

@@ -62,6 +62,15 @@ type fakeManager struct {
 	restores    RestoreService
 	updates     HostUpdates
 	settings    node.Settings
+	disk        *node.DiskSpace
+}
+
+// DiskSpace: the fake's disk, if it has one.
+func (f *fakeManager) DiskSpace(context.Context) (node.DiskSpace, error) {
+	if f.disk == nil {
+		return node.DiskSpace{}, errors.New("no disk")
+	}
+	return *f.disk, nil
 }
 
 func (f *fakeManager) Settings() node.Settings { return f.settings }
@@ -1267,7 +1276,51 @@ func TestBackupPlanSpace(t *testing.T) {
 	h.node().backups = &fakeBackups{status: backup.Status{Configured: true, Progress: -1,
 		LastOK: &store.BackupRun{OK: true, Finished: time.Now(), Stored: 1536 << 20}}}
 	_, body := h.get("/backups")
-	if !strings.Contains(body, "Backups here take <strong>1.5 GB</strong> · 30.0 GB free on this server's disk") {
+	if !strings.Contains(body, "Backups here take <strong>1.5 GB</strong> · <span>30.0 GB free on this server&#39;s disk</span>") {
 		t.Errorf("space on the main backup:\n%s", body[strings.Index(body, `id="plan"`):])
+	}
+}
+
+func TestLowSpace(t *testing.T) {
+	for _, c := range []struct {
+		free, total int64
+		want        string
+	}{
+		{100 << 30, 200 << 30, ""},
+		{15 << 30, 200 << 30, levelWarning}, // under 10%
+		{4 << 30, 20 << 30, levelWarning},   // under 5 GB
+		{8 << 30, 200 << 30, levelProblem},  // under 5%
+		{1 << 30, 10 << 30, levelProblem},   // under 2 GB
+		{-1, 10 << 30, ""},
+	} {
+		if got := lowSpace(c.free, c.total); got != c.want {
+			t.Errorf("lowSpace(%d, %d) = %q, want %q", c.free, c.total, got, c.want)
+		}
+	}
+}
+
+// Settings → Servers shows each server's disk; the home page warns when
+// one runs low, or when other labs were promised more than is free.
+func TestServerDiskSpace(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.disk = &node.DiskSpace{Total: 100 << 30, Used: 40 << 30, Free: 60 << 30, Services: 12 << 30, Backups: 3 << 30, Guests: 1 << 30}
+	_, body := h.get("/settings/servers")
+	for _, want := range []string{"<strong>60.0 GB free</strong> of 100.0 GB · 40.0 GB used", "Services' data 12.0 GB",
+		"backups kept here for your lab 3.0 GB", "for other labs 1.0 GB", `style="width: 40%"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("servers page missing %q", want)
+		}
+	}
+	if _, body := h.get("/"); strings.Contains(body, "disk space") {
+		t.Error("plenty of space: nothing to say")
+	}
+	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Tyris's lab", Quota: 80 << 30, Joined: true}, Used: 5 << 30}}
+	if _, body := h.get("/"); !strings.Contains(body, "Other labs could fill This server&#39;s disk: they&#39;ve been promised 75.0 GB more") {
+		t.Error("promised more than is free")
+	}
+	fm.guests = nil
+	fm.disk.Free = 3 << 30
+	if _, body := h.get("/"); !strings.Contains(body, "This server is running out of disk space: 3.0 GB free of 100.0 GB") {
+		t.Error("low space should need attention")
 	}
 }

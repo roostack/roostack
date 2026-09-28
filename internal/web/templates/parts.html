@@ -226,6 +226,7 @@
       <div class="plan-body">
         <p class="plan-title">{{.Title}}</p>
         <p class="hint">{{if .Main}}Main backup · {{end}}{{with .KindTitle}}{{.}} · {{end}}{{if .AtHome}}at home{{else if .Away}}away from home{{else if .AskWhere}}at home or away?{{else}}location not known{{end}}{{if .Main}} · restores use it first{{end}}</p>
+        {{if .LowSpace}}{{notice "warn" (printf "%s is nearly full: %s free. When it's full, backups here fail." .FreeOn (size .Free))}}{{end}}
         {{if eq .Kind "system"}}{{notice "warn" "This backup is on the same disk as your data. It helps if something is deleted or changed by mistake, but if the disk fails, or ransomware gets onto the server, your data and this backup are lost together. Keep your other backups on a separate drive, or away from home."}}{{end}}
         {{range .AskWhere}}
         <div class="plan-where">
@@ -243,7 +244,7 @@
         {{- else}}<p class="hint">Not backed up here yet: the first backup runs {{if $.Plan.Next.IsZero}}tonight{{else}}{{when $.Plan.Next}}{{end}}.</p>{{end}}
         {{if or .Stored (ge .Free 0) .Lab}}<p class="hint plan-space">
           {{- if .Stored}}Backups here take <strong>{{size .Stored}}</strong>{{end}}
-          {{- if ge .Free 0}}{{if .Stored}} · {{end}}{{size .Free}} free on {{if eq .Kind "system"}}this server's disk{{else}}the drive{{end}}{{end}}
+          {{- if ge .Free 0}}{{if .Stored}} · {{end}}<span{{with .LowSpace}} class="space-low"{{end}}>{{size .Free}} free on {{.FreeOn}}</span>{{end}}
           {{- if .Lab}}{{if or .Stored (ge .Free 0)}} · {{end}}your lab uses {{if ge .Lab.Used 0}}{{size .Lab.Used}} of {{end}}its {{size .Lab.Quota}} there{{end}}</p>{{end}}
         {{if not $.Plan.Wizard}}
         <details class="plan-manage">
