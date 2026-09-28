@@ -93,10 +93,7 @@ func (s *Server) Handler() http.Handler {
 	})
 	mux.HandleFunc("PUT /v1/firewall", func(w http.ResponseWriter, r *http.Request) {
 		var fw Firewall
-		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&fw); err != nil {
-			writeError(w, http.StatusBadRequest, err)
+		if !decode(w, r, 64<<10, &fw) {
 			return
 		}
 		if err := fw.Validate(); err != nil {
@@ -109,10 +106,7 @@ func (s *Server) Handler() http.Handler {
 		var req struct {
 			Timezone string `json:"timezone"`
 		}
-		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10))
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, err)
+		if !decode(w, r, 4<<10, &req) {
 			return
 		}
 		if !ValidTimezone(req.Timezone) {
@@ -171,8 +165,6 @@ func (s *Server) Handler() http.Handler {
 		}
 		writeJSON(w, http.StatusOK, st)
 	})
-	// The keys go into Roostack's backups, like its CA's key, so a restored
-	// lab keeps the keys its peers know.
 	mux.HandleFunc("GET /v1/drives", func(w http.ResponseWriter, r *http.Request) {
 		drives, err := s.Host.Drives()
 		if err != nil {
@@ -185,8 +177,7 @@ func (s *Server) Handler() http.Handler {
 		var req struct {
 			ID string `json:"id"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, err)
+		if !decode(w, r, 4<<10, &req) {
 			return
 		}
 		used, err := s.Host.UseDrive(req.ID)
@@ -202,8 +193,7 @@ func (s *Server) Handler() http.Handler {
 			Disk  string `json:"disk"`
 			Label string `json:"label"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, err)
+		if !decode(w, r, 4<<10, &req) {
 			return
 		}
 		uid, _ := r.Context().Value(ctxKey{}).(uint32)
@@ -218,8 +208,7 @@ func (s *Server) Handler() http.Handler {
 		var req struct {
 			Dir string `json:"dir"`
 		}
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, err)
+		if !decode(w, r, 4<<10, &req) {
 			return
 		}
 		dir, err := s.Host.PrepareBackupFolder(req.Dir)
@@ -238,6 +227,8 @@ func (s *Server) Handler() http.Handler {
 		}
 		writeJSON(w, http.StatusOK, c)
 	})
+	// The keys go into Roostack's backups, like its CA's key, so a restored
+	// lab keeps the keys its peers know.
 	mux.HandleFunc("GET /v1/wireguard/keys", func(w http.ResponseWriter, r *http.Request) {
 		keys, err := s.Host.WireGuardKeys()
 		if err != nil {
@@ -255,10 +246,7 @@ func (s *Server) Handler() http.Handler {
 	})
 	mux.HandleFunc("PUT /v1/wireguard", func(w http.ResponseWriter, r *http.Request) {
 		var wg WireGuard
-		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10))
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&wg); err != nil {
-			writeError(w, http.StatusBadRequest, err)
+		if !decode(w, r, 256<<10, &wg) {
 			return
 		}
 		if err := wg.Validate(); err != nil {
@@ -276,6 +264,19 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "public_key": pub})
 	})
 	return s.checkCaller(mux)
+}
+
+// decode reads a request body of at most limit bytes into v, refusing
+// unknown fields (the agent never guesses at its input). It writes the 400
+// itself and reports whether to go on.
+func decode(w http.ResponseWriter, r *http.Request, limit int64, v any) bool {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return false
+	}
+	return true
 }
 
 func (s *Server) do(w http.ResponseWriter, r *http.Request, what string, fn func() error) {

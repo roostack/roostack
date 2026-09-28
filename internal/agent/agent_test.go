@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -127,6 +128,17 @@ func TestAPI(t *testing.T) {
 	bad.Allow = append(bad.Allow, Rule{Port: 0, Proto: "tcp", From: FromAny})
 	if err := c.ApplyFirewall(ctx, bad); err == nil || !strings.Contains(err.Error(), "invalid port") {
 		t.Errorf("want invalid port error, got %v", err)
+	}
+}
+
+// Every endpoint refuses fields it doesn't know, rather than ignoring them.
+func TestUnknownFieldsRefused(t *testing.T) {
+	c, _ := start(t, []uint32{uint32(os.Getuid())})
+	for _, path := range []string{"/v1/backup-folder", "/v1/drives/use", "/v1/drives/erase"} {
+		err := c.call(context.Background(), http.MethodPost, path, map[string]string{"surprise": "x"}, nil)
+		if err == nil || !strings.Contains(err.Error(), "unknown field") {
+			t.Errorf("%s: %v", path, err)
+		}
 	}
 }
 
