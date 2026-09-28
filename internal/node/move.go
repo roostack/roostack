@@ -303,18 +303,50 @@ func (n *Local) ImportSecrets(ctx context.Context, secrets map[string][]byte) er
 }
 
 func (n *Local) DataSize(ctx context.Context, service string) (int64, error) {
-	var total int64
+	var dirs []string
 	for _, d := range n.DataDirs(service) {
-		if _, err := os.Stat(d); err != nil {
-			continue
+		if _, err := os.Stat(d); err == nil {
+			dirs = append(dirs, d)
 		}
-		out, err := n.unshare(ctx, "du", "-sb", d).Output()
-		if err != nil {
-			return 0, err
+	}
+	return n.du(ctx, true, dirs...)
+}
+
+// du adds up the space the folders take on the disk (allocated blocks,
+// as df counts them; 0 for none, or a folder that doesn't exist), at the
+// lowest CPU and disk priority. unshared: in Podman's user namespace, for
+// files owned by containers' users.
+func (n *Local) du(ctx context.Context, unshared bool, dirs ...string) (int64, error) {
+	var existing []string
+	for _, d := range dirs {
+		if _, err := os.Stat(d); err == nil {
+			existing = append(existing, d)
 		}
-		f := strings.Fields(string(out))
-		if len(f) > 0 {
-			v, _ := strconv.ParseInt(f[0], 10, 64)
+	}
+	if len(existing) == 0 {
+		return 0, nil
+	}
+	args := append([]string{"nice", "-n", "19", "ionice", "-c3", "du", "-s", "-B1", "--"}, existing...)
+	var cmd *exec.Cmd
+	switch {
+	case unshared:
+		cmd = n.unshare(ctx, args...)
+	case n.Launch != nil:
+		cmd = n.Launch(ctx, nil, args[0], args[1:]...)
+	default:
+		cmd = exec.CommandContext(ctx, args[0], args[1:]...)
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return 0, fmt.Errorf("du: %w", err)
+	}
+	var total int64
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if f := strings.Fields(line); len(f) > 0 {
+			v, err := strconv.ParseInt(f[0], 10, 64)
+			if err != nil {
+				return 0, fmt.Errorf("du: %q", line)
+			}
 			total += v
 		}
 	}

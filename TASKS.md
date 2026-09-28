@@ -90,6 +90,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Disk space per server on Settings → Servers (used, free, services' data, backups kept, promised to other labs), low-space and over-promised warnings on the home page
   - [ ] Disk space for a separate media disk (only the disk holding /srv/roostack is reported)
   - [x] One size convention: decimal units everywhere (`internal/units`, SPEC §6.3)
+  - [x] Disk use counted once a day after the nightly backup (restic's metadata reads still cached), at idle CPU/disk priority, as allocated space (`du -s -B1`); free/used from statfs only (SPEC §6.7)
   - [ ] Backup runs are recorded as "main" or by copy, not by repository: right after "Make this backup 1", backup 1 shows the old main's last result until the next backup. Record each run by its destination
   - [ ] **Phase 2 (agreed, don't lose): add NAS shares (SMB/NFS) from the UI**: server, share and credentials in a root-only file, mounted by the agent like a drive (nofail, automount), write check. Already-mounted shares are offered today
   - [ ] **Later (agreed): rotating backup drives**: two or more drives swapped in turn, each its own destination by UUID, with the absent one's last backup shown

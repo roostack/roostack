@@ -144,8 +144,6 @@ type Local struct {
 	Version string
 
 	sizes sizes
-	// store caches the backup store's sizes (disk.go).
-	store storeSizes
 
 	// Hooks (hooks.go). State records install hook progress; without
 	// State and Exec, hooks don't run.
