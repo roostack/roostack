@@ -144,6 +144,18 @@ func TestBackupStep(t *testing.T) {
 		t.Errorf("non-https S3: %v", err)
 	}
 
+	// A folder Roostack may not write to says what to do.
+	if os.Getuid() != 0 {
+		locked := filepath.Join(t.TempDir(), "locked")
+		os.Mkdir(locked, 0o500)
+		defer os.Chmod(locked, 0o700)
+		mnt := filepath.Join(locked, "backup")
+		if err := s.SaveBackup(ctx, BackupChoice{Kind: "local", Path: mnt}); !errors.As(err, &ce) ||
+			!strings.Contains(ce.Msg, "sudo chown roostack:roostack "+mnt) {
+			t.Errorf("unwritable folder: %v", err)
+		}
+	}
+
 	dest := filepath.Join(t.TempDir(), "backups")
 	if err := s.SaveBackup(ctx, BackupChoice{Kind: "local", Path: dest}); err != nil {
 		t.Fatal(err)
