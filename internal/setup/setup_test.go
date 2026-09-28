@@ -275,3 +275,12 @@ func TestBackupOnADrive(t *testing.T) {
 		t.Errorf("backup = %+v", lab.Backup)
 	}
 }
+
+func TestBackupLaterFinishesTheWizard(t *testing.T) {
+	s, _, _ := newSetup(t)
+	finished := 0
+	s.Finished = func() { finished++ }
+	if err := s.BackupLater(context.Background()); err != nil || finished != 1 {
+		t.Errorf("finished = %d, %v", finished, err)
+	}
+}

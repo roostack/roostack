@@ -215,6 +215,8 @@ type LabSetup interface {
 	BackupLater(ctx context.Context) error
 	RecoveryKey() (string, error)
 	ConfirmRecoveryKey(ctx context.Context) error
+	// PendingRestart: wizard steps' settings wait for the restart at its end.
+	PendingRestart() bool
 	SetLabName(ctx context.Context, name string, restart bool) error
 }
 

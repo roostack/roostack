@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -73,7 +74,7 @@ func serve(args []string) error {
 	// A running job (e.g. OS updates) finishes first, and no new one
 	// starts; the restart then happens by itself.
 	var coord *maintenance.Coordinator
-	restart := func() {
+	restartNow := func() {
 		go func() {
 			time.Sleep(time.Second) // let the response reach the browser
 			if coord != nil {
@@ -86,6 +87,21 @@ func serve(args []string) error {
 			log.Info("restarting to apply new settings")
 			stop()
 		}()
+	}
+	// During the setup wizard, settings wait for one restart at its end
+	// (the Owner shouldn't watch Roostack restart after every step).
+	var wizard *setup.Setup
+	var restartPending atomic.Bool
+	restart := func() {
+		if wizard != nil {
+			if p, err := wizard.Progress(context.Background()); err == nil && p.Next() != "" {
+				if !restartPending.Swap(true) {
+					log.Info("restart postponed until setup is finished")
+				}
+				return
+			}
+		}
+		restartNow()
 	}
 	local, agentClient, coord, err := newLocal(ctx, lab, *labPath, id, st, log, restart)
 	if err != nil {
@@ -237,7 +253,7 @@ func serve(args []string) error {
 		go finishLabRestore(lab, coord, r.Restorer, assigned, mgr.Wait, local.Activity, log)
 	}
 
-	wizard := &setup.Setup{
+	wizard = &setup.Setup{
 		Lab: lab, LabPath: *labPath, Store: st, Secrets: podman.NewSecrets(),
 		NewRepo: func(repository string, env []string) *backup.Repo {
 			l := lab
@@ -250,6 +266,13 @@ func serve(args []string) error {
 		},
 		Restart: restart,
 		Drives:  agentClient,
+		// The wizard's end restarts Roostack if a step asked for it.
+		RestartPending: restartPending.Load,
+		Finished: func() {
+			if restartPending.Load() {
+				restartNow()
+			}
+		},
 	}
 	if err := wizard.AdoptExisting(ctx); err != nil {
 		return err
@@ -258,7 +281,7 @@ func serve(args []string) error {
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
 	// A new install can instead become a lab restored from its backups.
 	if token != "" {
-		srv.LabRestore = &labRestorer{lab: lab, drives: agentClient, acts: local.Activity, restart: restart, log: log}
+		srv.LabRestore = &labRestorer{lab: lab, drives: agentClient, acts: local.Activity, restart: restartNow, log: log}
 	}
 
 	// Keep *.<domain> pointing at this server for devices at home, and

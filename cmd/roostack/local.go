@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
@@ -53,7 +54,12 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 			SetZone: agentClient.SetTimezone,
 			Zone:    hosttime.Zone, Zones: hosttime.Zones,
 			SSHClients: firewall.SSHClients,
-			Restart:    restart,
+			UseZone: func(name string) {
+				if loc, err := time.LoadLocation(name); err == nil {
+					time.Local = loc
+				}
+			},
+			Restart: restart,
 		},
 	}
 	// Backups and restores cover the services this server runs, as its

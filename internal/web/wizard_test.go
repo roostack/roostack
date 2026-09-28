@@ -23,6 +23,7 @@ import (
 )
 
 type fakeSetup struct {
+	pending     bool
 	drives      []agent.Drive
 	erased      string
 	labName     string
@@ -73,6 +74,7 @@ func (f *fakeSetup) SetSSH(_ context.Context, choice string, confirmed bool) err
 func (f *fakeSetup) RestartPolicy() (string, int) {
 	return cmp.Or(f.restartMode, config.RestartAuto), config.Maintenance{}.Hour()
 }
+func (f *fakeSetup) PendingRestart() bool { return f.pending }
 func (f *fakeSetup) BackupDrives(context.Context) ([]agent.Drive, error) {
 	if f.drives != nil {
 		return f.drives, nil
@@ -191,8 +193,11 @@ func TestWizardFlow(t *testing.T) {
 		t.Error("keep non-sensitive fields; never echo sensitive ones")
 	}
 	fs.domainErr = nil
-	if _, body := h.post("/setup/domain", url.Values{"domain": {"home.example.com"}}, h.srv.URL); !strings.Contains(body, "restarting") {
-		t.Error("saving the domain should go to the restarting page")
+	// During the wizard, no restart after each step: on to the next one
+	// (the restart waits for the wizard's end).
+	if _, body := h.post("/setup/domain", url.Values{"domain": {"home.example.com"}}, h.srv.URL); strings.Contains(body, "restarting") ||
+		!strings.Contains(body, "Where should backups go") {
+		t.Error("saving the domain should go on to the backup step")
 	}
 
 	if _, body := h.get("/"); !strings.Contains(body, "Where should backups go") {
@@ -595,5 +600,19 @@ func TestBackupDrivePicker(t *testing.T) {
 	h.post("/setup/backup", url.Values{"kind": {"drive"}, "drive": {"uuid:new"}}, h.srv.URL)
 	if fs.lastBackup.Kind != "drive" || fs.lastBackup.Drive != "uuid:new" {
 		t.Errorf("saved %+v", fs.lastBackup)
+	}
+}
+
+// Backups later ends the wizard: settings its steps saved take effect then.
+func TestWizardEndsWithOneRestart(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true}, pending: true}
+	h.setSetup(fs)
+	if _, body := h.post("/setup/backup/later", nil, h.srv.URL); !strings.Contains(body, "Applying your settings") {
+		t.Errorf("after the last step, the restarting page:\n%s", body)
+	}
+	fs.pending = false
+	if _, body := h.post("/setup/backup/later", nil, h.srv.URL); strings.Contains(body, "Applying your settings") {
+		t.Error("no restart when nothing waits for one")
 	}
 }

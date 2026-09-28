@@ -157,8 +157,9 @@ func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case !m.This:
 		redirect(w, r, m.TimeZone())
-	case !changed:
-		// On to the next wizard step, or back to Settings.
+	case !changed || s.inWizard(r):
+		// On to the next wizard step (its restart waits for the wizard's
+		// end), or back to Settings.
 		redirect(w, r, map[bool]string{true: "/settings/time-zone", false: "/"}[p.TimezoneDone])
 	default:
 		redirect(w, r, "/restarting")
@@ -233,7 +234,7 @@ func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, m.RemoteAccess())
 		return
 	}
-	redirect(w, r, "/restarting")
+	s.restartingOrNext(w, r)
 }
 
 func (s *Server) domainPage(w http.ResponseWriter, r *http.Request) {
@@ -270,7 +271,7 @@ func (s *Server) domainSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "domain set to "+domain)
-	redirect(w, r, "/restarting")
+	s.restartingOrNext(w, r)
 }
 
 func (s *Server) domainLater(w http.ResponseWriter, r *http.Request) {
@@ -373,11 +374,34 @@ func (s *Server) backupSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) backupLater(w http.ResponseWriter, r *http.Request) {
+	pending := s.Setup.PendingRestart()
 	if err := s.Setup.BackupLater(r.Context()); err != nil {
 		s.serverError(w, err)
 		return
 	}
+	// The wizard's end applies what its steps saved.
+	if pending {
+		redirect(w, r, "/restarting")
+		return
+	}
 	redirect(w, r, "/")
+}
+
+// inWizard reports whether the setup wizard is still going: settings
+// saved in it wait for one restart at its end.
+func (s *Server) inWizard(r *http.Request) bool {
+	p, err := s.Setup.Progress(r.Context())
+	return err == nil && p.Next() != ""
+}
+
+// restartingOrNext follows a setting that restarts Roostack: during the
+// wizard, on to the next step; otherwise the "restarting" page.
+func (s *Server) restartingOrNext(w http.ResponseWriter, r *http.Request) {
+	if s.inWizard(r) {
+		redirect(w, r, "/")
+		return
+	}
+	redirect(w, r, "/restarting")
 }
 
 func (s *Server) recoveryPage(w http.ResponseWriter, r *http.Request) {
