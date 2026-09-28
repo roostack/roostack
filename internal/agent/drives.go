@@ -303,19 +303,31 @@ func (h LinuxHost) mountForGood(d Drive) (string, error) {
 	if name == "" || len(name) > 32 {
 		name = d.UUID[:8]
 	}
-	mp := "/mnt/roostack-" + name
-	if _, err := os.Stat(mp); err == nil {
-		mp += "-" + strings.ReplaceAll(d.UUID, "-", "")[:6]
+	data, err := os.ReadFile(fstab)
+	if err != nil {
+		return "", err
+	}
+	// Known already (e.g. chosen before, then unplugged): the same place.
+	mp := fstabMount(string(data), d.UUID)
+	known := mp != ""
+	if !known {
+		mp = "/mnt/roostack-" + name
+		if entries, err := os.ReadDir(mp); err == nil && len(entries) > 0 {
+			mp += "-" + strings.ReplaceAll(d.UUID, "-", "")[:6]
+		}
 	}
 	if err := os.MkdirAll(mp, 0o755); err != nil {
 		return "", err
 	}
 	line := fstabLine(d, mp, h.UID, h.GID)
-	data, err := os.ReadFile(fstab)
-	if err != nil {
-		return "", err
-	}
-	if !strings.Contains(string(data), "UUID="+d.UUID+" ") {
+	if known {
+		// A line Roostack wrote before is brought up to date.
+		if updated := updateFstab(string(data), d.UUID, line); updated != string(data) {
+			if err := os.WriteFile(fstab, []byte(updated), 0o644); err != nil {
+				return "", err
+			}
+		}
+	} else {
 		f, err := os.OpenFile(fstab, os.O_APPEND|os.O_WRONLY, 0)
 		if err != nil {
 			return "", err
@@ -330,16 +342,48 @@ func (h LinuxHost) mountForGood(d Drive) (string, error) {
 			return "", err
 		}
 	}
+	// systemd mounts it (from fstab): a plain mount would stay inside this
+	// agent's own mount namespace (PrivateTmp).
 	exec.Command("systemctl", "daemon-reload").Run()
-	if out, err := exec.Command("mount", mp).CombinedOutput(); err != nil {
+	unit, err := exec.Command("systemd-escape", "--path", mp).Output()
+	if err != nil {
+		return "", err
+	}
+	name = strings.TrimSpace(string(unit))
+	if out, err := exec.Command("systemctl", "start", name+".automount", name+".mount").CombinedOutput(); err != nil {
 		return "", fmt.Errorf("mounting it: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	return mp, nil
 }
 
+// updateFstab replaces the line for uuid with line, if Roostack added it.
+func updateFstab(fstab, uuid, line string) string {
+	lines := strings.Split(fstab, "\n")
+	for i, l := range lines {
+		if f := strings.Fields(l); len(f) >= 2 && f[0] == "UUID="+uuid && i > 0 &&
+			strings.HasPrefix(lines[i-1], "# Added by Roostack") {
+			lines[i] = line
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// fstabMount is where fstab mounts the filesystem with this UUID, or "".
+func fstabMount(fstab, uuid string) string {
+	for _, line := range strings.Split(fstab, "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 2 && f[0] == "UUID="+uuid {
+			return f[1]
+		}
+	}
+	return ""
+}
+
 // fstabLine records a backup drive's mount.
 func fstabLine(d Drive, mp string, uid, gid int) string {
-	fs, opts := d.FSType, "defaults,nofail,x-systemd.device-timeout=10s"
+	// Mounted when first used (e.g. by the nightly backup), so a drive
+	// unplugged and plugged back in is there again.
+	fs, opts := d.FSType, "defaults,nofail,x-systemd.automount,x-systemd.device-timeout=10s"
 	if fs == "ntfs" {
 		fs = "ntfs3" // the kernel's driver
 	}
@@ -402,25 +446,32 @@ func (h LinuxHost) EraseDrive(disk, label string) error {
 // kind of disk: sdb1, nvme0n1p1, …).
 func firstPartition(disk string) (string, error) {
 	for range 20 {
-		out, err := exec.Command("lsblk", "--json", "-o", "PATH,TYPE", disk).Output()
+		out, err := exec.Command("lsblk", "--json", "--list", "-o", "PATH,TYPE", disk).Output()
 		if err == nil {
-			var l struct {
-				Blockdevices []struct {
-					Children []struct {
-						Path string `json:"path"`
-						Type string `json:"type"`
-					} `json:"children"`
-				} `json:"blockdevices"`
-			}
-			if json.Unmarshal(out, &l) == nil && len(l.Blockdevices) == 1 {
-				for _, c := range l.Blockdevices[0].Children {
-					if c.Type == "part" {
-						return c.Path, nil
-					}
-				}
+			if part := partitionIn(out); part != "" {
+				return part, nil
 			}
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
 	return "", fmt.Errorf("the new partition on %s didn't appear", filepath.Base(disk))
+}
+
+// partitionIn picks the first partition from `lsblk --json --list` output.
+func partitionIn(data []byte) string {
+	var l struct {
+		Blockdevices []struct {
+			Path string `json:"path"`
+			Type string `json:"type"`
+		} `json:"blockdevices"`
+	}
+	if json.Unmarshal(data, &l) != nil {
+		return ""
+	}
+	for _, d := range l.Blockdevices {
+		if d.Type == "part" {
+			return d.Path
+		}
+	}
+	return ""
 }

@@ -17,6 +17,8 @@ func CheckDrive(mount, uuid, name string) error {
 	if err != nil {
 		return fmt.Errorf("%s isn't connected: plug it in (backups carry on as soon as it's back)", name)
 	}
+	// Looking inside mounts it if it's mounted on use (x-systemd.automount).
+	os.ReadDir(mount)
 	var st syscall.Stat_t
 	if err := syscall.Stat(mount, &st); err != nil {
 		return fmt.Errorf("%s isn't mounted at %s: %w", name, mount, err)

@@ -65,7 +65,7 @@ func TestNetworkDrives(t *testing.T) {
 func TestFstabLine(t *testing.T) {
 	usb := Drive{UUID: "64B1-2F3C", FSType: "exfat"}
 	if got := fstabLine(usb, "/mnt/roostack-backup", 999, 989); got !=
-		"UUID=64B1-2F3C /mnt/roostack-backup exfat defaults,nofail,x-systemd.device-timeout=10s,uid=999,gid=989,umask=077 0 2" {
+		"UUID=64B1-2F3C /mnt/roostack-backup exfat defaults,nofail,x-systemd.automount,x-systemd.device-timeout=10s,uid=999,gid=989,umask=077 0 2" {
 		t.Errorf("exfat: %s", got)
 	}
 	if got := fstabLine(Drive{UUID: "aa", FSType: "ext4"}, "/mnt/x", 1, 1); strings.Contains(got, "uid=") || !strings.Contains(got, "nofail") {
@@ -103,5 +103,34 @@ func TestPrepareFolder(t *testing.T) {
 	os.WriteFile(filepath.Join(other, "theirs"), nil, 0o644)
 	if _, err := prepareFolder(filepath.Join(root, "other"), []string{root}, uid+1, gid); err == nil {
 		t.Error("someone else's folder")
+	}
+}
+
+func TestPartitionIn(t *testing.T) {
+	// As lsblk prints one disk (flat, even without --list).
+	out := `{"blockdevices": [{"path": "/dev/sdb", "type": "disk"},{"path": "/dev/sdb1", "type": "part"}]}`
+	if got := partitionIn([]byte(out)); got != "/dev/sdb1" {
+		t.Errorf("partition = %q", got)
+	}
+	if got := partitionIn([]byte(`{"blockdevices": [{"path": "/dev/sdb", "type": "disk"}]}`)); got != "" {
+		t.Errorf("no partition yet: %q", got)
+	}
+}
+
+func TestFstabMount(t *testing.T) {
+	fstab := "PARTUUID=1efb / ext4 rw 0 1\n# Added by Roostack: a backup drive (TEST)\nUUID=1725 /mnt/roostack-test ext4 defaults,nofail 0 2\n"
+	if got := fstabMount(fstab, "1725"); got != "/mnt/roostack-test" {
+		t.Errorf("known: %q", got)
+	}
+	if got := fstabMount(fstab, "17"); got != "" {
+		t.Errorf("unknown: %q", got)
+	}
+}
+
+func TestUpdateFstab(t *testing.T) {
+	fstab := "UUID=1725 /data ext4 defaults 0 2\n# Added by Roostack: a backup drive (TEST)\nUUID=1725 /mnt/roostack-test ext4 old 0 2\n"
+	got := updateFstab(fstab, "1725", "UUID=1725 /mnt/roostack-test ext4 new 0 2")
+	if !strings.Contains(got, "ext4 new") || !strings.Contains(got, "/data ext4 defaults") {
+		t.Errorf("only Roostack's own line changes:\n%s", got)
 	}
 }

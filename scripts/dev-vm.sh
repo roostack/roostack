@@ -113,7 +113,11 @@ users:
       - $(cat "$KEY.pub")
 ssh_pwauth: false
 package_update: true
-packages: [curl, ca-certificates]
+# Debian's standard kernel, as on real hardware: the cloud image's kernel
+# has no USB drivers (so no USB drives for the backup drive picker).
+packages: [curl, ca-certificates, linux-image-amd64]
+runcmd:
+  - [sh, -c, "apt-get purge -y 'linux-image-*cloud*' && update-grub"]
 EOF
     : >"$VM_DIR/seed/vendor-data"
 }
@@ -160,6 +164,11 @@ start() {
                 log "Waiting for cloud-init to finish"
                 vm_ssh cloud-init status --wait >/dev/null || true
                 [[ -n $seed_pid ]] && kill "$seed_pid" 2>/dev/null || true
+                # Boot the standard kernel cloud-init installed.
+                log "Restarting into Debian's standard kernel"
+                vm_ssh sudo systemctl reboot 2>/dev/null || true
+                sleep 10
+                until vm_ssh true 2>/dev/null; do sleep 3; done
             fi
             log "VM ready: scripts/dev-vm.sh ssh"
             return
