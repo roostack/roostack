@@ -1211,3 +1211,33 @@ func TestHomeShowsWhatAnApplyDoes(t *testing.T) {
 		t.Error("a finished apply isn't shown")
 	}
 }
+
+// Another server's disk is at home or away as the Owner says (SPEC.md
+// §6.9): asked on the plan, and on the Servers page.
+func TestBackupOnAnotherServerLocation(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true}, {ID: "n-9876543210", Name: "vps"}}
+	fm.destination = "server:n-9876543210"
+	_, body := h.get("/backups")
+	if !strings.Contains(body, "Where is nuc?") || !strings.Contains(body, "Where is vps?") || !strings.Contains(body, "at home or away?") {
+		t.Fatal("the plan should ask where both servers are")
+	}
+	h.post("/settings/servers/n-0123456789/location", url.Values{"location": {"home"}, "back": {"/backups#plan"}}, h.srv.URL)
+	if code, _ := h.post("/settings/servers/n-9876543210/location", url.Values{"location": {"moon"}}, h.srv.URL); code != http.StatusBadRequest {
+		t.Errorf("unknown location: %d", code)
+	}
+	h.post("/settings/servers/n-9876543210/location", url.Values{"location": {"away"}}, h.srv.URL)
+	_, body = h.get("/backups")
+	if strings.Contains(body, "Where is") || !strings.Contains(body, "away from home") ||
+		!strings.Contains(body, `<li class="plan-ok"><span class="plan-mark" aria-hidden="true">✓</span>One away from home`) {
+		t.Error("vps somewhere else: the backup there is away from home")
+	}
+	if _, body := h.get("/settings/servers"); !strings.Contains(body, `name="location" value="away" checked`) {
+		t.Error("the Servers page shows where each server is")
+	}
+	// Both at home: at home.
+	h.post("/settings/servers/n-9876543210/location", url.Values{"location": {"home"}}, h.srv.URL)
+	if _, body := h.get("/backups"); !strings.Contains(body, "Another Roostack instance · at home") {
+		t.Error("both at home")
+	}
+}

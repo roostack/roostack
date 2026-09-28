@@ -390,6 +390,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /setup/backup/add", s.requireWizard(s.planAddSubmit(true)))
 	mux.Handle("POST /backups/plan", s.requireOwner(s.planAddSubmit(false)))
 	mux.Handle("POST /backups/plan/promote", s.requireOwner(s.planPromoteSubmit))
+	mux.Handle("POST /settings/servers/{server}/location", s.requireOwner(s.locationSubmit))
 	mux.Handle("POST /backups/plan/remove", s.requireOwner(s.planRemoveSubmit))
 	mux.Handle("POST /setup/backup/erase", s.requireWizard(s.eraseDriveSubmit))
 	mux.Handle("GET /setup/recovery-key", s.requireWizard(s.recoveryPage))

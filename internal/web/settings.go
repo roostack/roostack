@@ -265,6 +265,11 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		return
 	}
 	data["Servers"] = servers
+	locations := map[string]string{}
+	for _, mc := range servers {
+		locations[mc.ID] = s.serverLocation(r.Context(), mc.ID)
+	}
+	data["Locations"] = locations
 	data["ApplyActivity"] = s.activityFor(r, activity.Apply)
 	// Folders moves left behind, per server (asked of each at once).
 	kept := make([][]node.KeptFolder, len(servers))

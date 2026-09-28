@@ -202,7 +202,17 @@
       <span class="plan-num">{{.Number}}</span>
       <div class="plan-body">
         <p class="plan-title">{{.Title}}</p>
-        <p class="hint">{{with .KindTitle}}{{.}} · {{end}}{{if .AtHome}}at home{{else if .Away}}away from home{{else}}location not known{{end}}{{if .Main}} · restores use this one first{{end}}</p>
+        <p class="hint">{{with .KindTitle}}{{.}} · {{end}}{{if .AtHome}}at home{{else if .Away}}away from home{{else if .AskWhere}}at home or away?{{else}}location not known{{end}}{{if .Main}} · restores use this one first{{end}}</p>
+        {{range .AskWhere}}
+        <div class="plan-where">
+          <span>Where is {{or .Name "this server"}}?</span>
+          <form method="post" action="/settings/servers/{{.ID}}/location">
+            <input type="hidden" name="back" value="{{$.Plan.Back}}#plan">
+            <button type="submit" class="secondary" name="location" value="home">At home</button>
+            <button type="submit" class="secondary" name="location" value="away">Somewhere else</button>
+          </form>
+        </div>
+        {{end}}
         {{with .Last}}{{if .OK}}<p class="plan-ok"><span class="dot dot-{{if stale .Finished}}warn{{else}}ok{{end}}" aria-hidden="true"></span>Backed up {{when .Finished}}
           <span class="hint">· {{.FilesNew}} new or changed files, {{bytes .DataAdded}} added</span></p>
         {{- else}}<p class="error"><span class="dot dot-problem" aria-hidden="true"></span>The last backup here ({{when .Finished}}) didn't finish: {{.Error}}</p>{{end}}

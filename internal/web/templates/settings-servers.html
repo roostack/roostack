@@ -18,6 +18,16 @@
       {{- else if .LastErr}}<span class="dot dot-problem" aria-hidden="true"></span>The last change didn't finish: {{.LastErr}}
       {{- else if .Finished}}<span class="dot dot-ok" aria-hidden="true"></span>Up to date · {{when .LastRun}}
       {{- else}}Not applied yet{{end}}{{end}}</dd>
+    <dt>Where</dt>
+    <dd>
+      <form method="post" action="/settings/servers/{{.ID}}/location" class="inline-form">
+        {{$loc := index $.Locations .ID}}
+        <label class="check"><input type="radio" name="location" value="home"{{if eq $loc "home"}} checked{{end}} required><span>At home</span></label>
+        <label class="check"><input type="radio" name="location" value="away"{{if eq $loc "away"}} checked{{end}}><span>Somewhere else</span></label>
+        <button type="submit" class="secondary">Save</button>
+      </form>
+      <small>{{if not $loc}}Not said yet. {{end}}For the backup plan: a backup on a server somewhere else survives a fire or theft at home.</small>
+    </dd>
     <dt>Server ID</dt>
     <dd><code>{{.ID}}</code></dd>
     {{if not .CertExpires.IsZero}}<dt>Certificate</dt>
