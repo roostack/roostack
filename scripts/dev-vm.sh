@@ -117,7 +117,7 @@ package_update: true
 # has no USB drivers (so no USB drives for the backup drive picker).
 packages: [curl, ca-certificates, linux-image-amd64]
 runcmd:
-  - [sh, -c, "apt-get purge -y 'linux-image-*cloud*' && update-grub"]
+  - [sh, -c, "DEBIAN_FRONTEND=noninteractive apt-get purge -y 'linux-image-*cloud*' && update-grub"]
 EOF
     : >"$VM_DIR/seed/vendor-data"
 }
