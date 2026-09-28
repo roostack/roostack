@@ -1,0 +1,36 @@
+/* Roostack's "Teal and violet" colours (internal/web/static/css/themes/
+   teal.css), so the help looks like part of Roostack. Teal for links and
+   actions; violet for where you are. Keep in step with that file. */
+
+:root,
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #0f766e;
+  --md-primary-fg-color--light: #14b8a6;
+  --md-primary-fg-color--dark: #115e59;
+  --md-primary-bg-color: #ffffff;
+  --md-accent-fg-color: #7c3aed;
+  --md-accent-fg-color--transparent: #ede9fe;
+  --md-typeset-a-color: #0f766e;
+  --md-default-fg-color: #1b2426;
+  --md-default-bg-color: #f5f7f7;
+  --md-code-bg-color: #eef3f2;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #2dd4bf;
+  --md-primary-fg-color--light: #5eead4;
+  --md-primary-fg-color--dark: #14b8a6;
+  --md-primary-bg-color: #062a25;
+  --md-accent-fg-color: #c4b5fd;
+  --md-accent-fg-color--transparent: #2a1e47;
+  --md-typeset-a-color: #2dd4bf;
+  --md-default-fg-color: #e5eceb;
+  --md-default-bg-color: #111617;
+  --md-code-bg-color: #1a2021;
+}
+
+/* The same fonts as Roostack's UI: the device's own. */
+:root {
+  --md-text-font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --md-code-font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}

@@ -1,0 +1,117 @@
+# Roostack's help site (Zensical). Built into Roostack at /help and, later,
+# published as a public site: see help/README.md.
+
+[project]
+site_name = "Roostack Help"
+site_description = "How to run your own services at home with Roostack"
+# The public address, once there is one. Pages link to each other with
+# relative links, so the same build also works under /help in Roostack.
+site_url = "https://help.roostack.cloud/"
+docs_dir = "docs"
+site_dir = "site"
+
+nav = [
+  { "Home" = "index.md" },
+  { "Getting started" = [
+    "start/index.md",
+    "start/install.md",
+    "start/first-run.md",
+    "start/recovery-key.md",
+  ] },
+  { "Services" = [
+    "services/index.md",
+    "services/add.md",
+    "services/settings.md",
+    "services/remove.md",
+  ] },
+  { "Backups" = [
+    "backups/index.md",
+    "backups/places.md",
+    "backups/restore.md",
+  ] },
+  { "Servers" = [
+    "servers/index.md",
+    "servers/add.md",
+    "servers/move.md",
+    "servers/storage-for-others.md",
+  ] },
+  { "Settings" = [
+    "settings/index.md",
+    "settings/people.md",
+    "settings/domain.md",
+    "settings/updates.md",
+  ] },
+  { "When things go wrong" = [
+    "trouble/index.md",
+    "trouble/locked-out.md",
+    "trouble/restore-lab.md",
+  ] },
+  { "Technical reference" = [
+    "reference/index.md",
+    "reference/files.md",
+    "reference/cli.md",
+    "reference/ports.md",
+    "reference/packages.md",
+  ] },
+]
+
+extra_css = ["stylesheets/roostack.css"]
+
+[project.theme]
+language = "en"
+logo = "assets/logo.svg"
+favicon = "assets/logo.svg"
+# No web fonts: the help works offline inside Roostack and asks nothing of
+# other sites. The system's own fonts, as in Roostack's UI.
+font = false
+features = [
+  "content.code.copy",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+]
+
+# Light, dark, or follow the device, like Roostack's own theme setting.
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/moon"
+toggle.name = "Follow the device"
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+md_in_html = {}
+toc.permalink = true
+pymdownx.details = {}
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.inlinehilite = {}
+pymdownx.keys = {}
+pymdownx.smartsymbols = {}
+pymdownx.superfences = {}
+pymdownx.tabbed.alternate_style = true

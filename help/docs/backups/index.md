@@ -1,0 +1,100 @@
+# Your backup plan
+
+A backup is a copy of your data somewhere else, so that when something goes
+wrong (a disk fails, a file is deleted by mistake, the house floods) you
+can get it back. Roostack backs up every service, and its own settings,
+every night at 2 am.
+
+The **Backups** page shows your plan, and tells you whether it's enough.
+
+## Three copies: the 3-2-1 rule
+
+Keep **3** copies of your data, on **2** kinds of storage, with **1** away
+from home. Roostack numbers your plan the same way:
+
+1. **Your data itself**, on the server. It's not a backup, but it's the
+   first of the three copies.
+2. **The main backup.** Restores read it first, so it's best at home, where
+   getting things back is quick: a USB drive or a second disk.
+3. **A second backup**, somewhere else: online storage, or space at a
+   friend's Roostack.
+
+You can add **extra backups** after these. They're optional, and not
+numbered.
+
+!!! tip "Start with one, then add the second"
+
+    One backup is far better than none. Set up the main backup first; the
+    plan suggests what to add next.
+
+## The checks
+
+Under the plan, Roostack checks four things:
+
+3 copies
+:   Your data and at least two backups.
+
+2 kinds of storage
+:   Your data is on a disk, so at least one backup mustn't be a disk. A USB
+    drive, a second disk, a folder and another server's disk all count as
+    the same kind. Online storage and a friend's lab count as another.
+
+1 away from home
+:   Online storage, a friend's lab, or another of your servers that's
+    somewhere else. Roostack asks you once where each server is, because it
+    can't tell for itself.
+
+Backed up lately
+:   The last backup worked, and wasn't more than two days ago.
+
+## Changing the plan
+
+Under **Manage**, on each backup, you can:
+
+- see where it is;
+- change where the main backup goes (new backups start there, and the old
+  ones stay where they are);
+- make another backup the main one (the two swap, and both keep their
+  backups);
+- stop a backup.
+
+A backup on the server's own disk comes with a warning: it helps if you
+delete something by mistake, but if the disk fails, you lose the data and
+that backup together.
+
+## Every night, and every week
+
+- **Every night at 2 am**, each backup in the plan gets a new copy of what
+  changed since the last one. OS updates run after it.
+- **Every Sunday at 3 am**, old backups are tidied away and a sample of the
+  backup is checked, to make sure it can still be read. Roostack keeps a
+  backup from each of the last 7 days, the last 4 weeks and the last 6
+  months.
+
+If a backup fails or is more than two days old, it shows in **Needs
+attention** on the home page, with what to do.
+
+??? note "For technical users"
+
+    Backups use [restic](https://restic.net). Each backup in the plan is
+    its own restic repository, and each is a full backup of the same files
+    (not a `restic copy` of another), so each one can be restored on its
+    own.
+
+    - **What's in it:** `/var/lib/roostack` (desired state, Caddy's
+      certificates, a consistent copy of Roostack's database) and the
+      Podman secrets store, plus every service's data folders. Databases
+      are dumped first (a SQLite copy, or `pg_dump` for Postgres), so
+      their backups are consistent. Container images aren't included:
+      they're downloaded again.
+    - **Encryption:** every repository is encrypted with your
+      [recovery key](../start/recovery-key.md), kept in
+      `/var/lib/roostack/backup-key`. Other servers' repositories also get
+      their own key, and never see the recovery key.
+    - **Keeping:** old backups are removed on Sunday by the lab's
+      controller (`restic forget --prune --keep-daily 7 --keep-weekly 4
+      --keep-monthly 6`), then 5% of the data is read back
+      (`restic check --read-data-subset=5%`).
+
+    List the backups from the command line with
+    [`roostack backup snapshots`](../reference/cli.md#backups).
