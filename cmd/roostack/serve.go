@@ -171,6 +171,7 @@ func serve(args []string) error {
 		_, err := os.Stat(backup.KeyFile(lab.Paths))
 		return err == nil
 	}
+	mgr.EnsureRecoveryKey = func() error { return setup.EnsureRecoveryKey(lab.Paths) }
 	// Weekly, the controller removes old backups from every server's
 	// repository (servers may only add backups).
 	go maintenance.Every(ctx,
@@ -183,8 +184,14 @@ func serve(args []string) error {
 		if err != nil {
 			bin = "restic"
 		}
-		return &backup.Repo{Bin: bin, URL: url, PasswordFile: backup.KeyFile(lab.Paths), Env: env}
+		repo := &backup.Repo{Bin: bin, URL: url, PasswordFile: backup.KeyFile(lab.Paths), Env: env}
+		// A folder (a drive) is written outside Roostack's sandbox, as backups are.
+		if strings.HasPrefix(url, "/") {
+			repo.Launch = unshared(userLaunch)
+		}
+		return repo
 	}
+	mgr.Drives = agentClient
 	mgr.RenameSelf = func(name string) error {
 		self := id
 		self.Name = name

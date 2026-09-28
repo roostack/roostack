@@ -466,6 +466,20 @@ func (s *Server) Handler() http.Handler {
 		}
 		return nil, x.SetSSH(ctx(r), req.Choice, req.Confirmed)
 	})
+	handle("POST /v1/settings/backup-copies/promote", func(r *http.Request) (any, error) {
+		x, err := settings()
+		if err != nil {
+			return nil, err
+		}
+		var req struct {
+			Name string     `json:"name"`
+			Old  BackupCopy `json:"old"`
+		}
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		return nil, x.PromoteBackupCopy(ctx(r), req.Name, req.Old)
+	})
 	handle("PUT /v1/settings/backup-copies", func(r *http.Request) (any, error) {
 		x, err := settings()
 		if err != nil {

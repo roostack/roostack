@@ -394,3 +394,102 @@ func (fakeLinks) WireGuardStatus(context.Context, string) (agent.WireGuardStatus
 	return agent.WireGuardStatus{}, nil
 }
 func (fakeLinks) RemoveWireGuard(context.Context, string) error { return nil }
+
+type fakeDriveAgent struct{ dir string }
+
+func (f fakeDriveAgent) Drives(context.Context) ([]agent.Drive, error) {
+	return []agent.Drive{{ID: "system", Kind: "system", Usable: true}, {ID: "uuid:64B1", Kind: "usb", Name: "BACKUP", Usable: true}}, nil
+}
+func (f fakeDriveAgent) UseDrive(_ context.Context, id string) (agent.UsedDrive, error) {
+	return agent.UsedDrive{Dir: f.dir, UUID: "64B1"}, nil
+}
+func (f fakeDriveAgent) PrepareBackupFolder(_ context.Context, dir string) (string, error) {
+	return dir + "/roostack", nil
+}
+
+// This server backs up to its USB drive (backup 1), then a copy on vps's
+// disk is made backup 1 instead: both repositories stay, swapped.
+func TestBackupOnADriveAndPromote(t *testing.T) {
+	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
+	if bin == "" {
+		var err error
+		if bin, err = exec.LookPath("restic"); err != nil {
+			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
+		}
+	}
+	m, _ := newManager(t)
+	m.Lab.NodeID, m.Lab.OverlayAddr = "n-0000000001", "100.96.0.1"
+	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "nuc"}
+	here := &fakeServerSettings{}
+	local(m).Host = here
+	vps := &fakeRemote{settings: &fakeServerSettings{}}
+	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
+	m.Registry = &fakeRegistry{}
+	m.Activity = activity.New()
+	local(m).Activity = m.Activity
+	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	m.BackupStore = st
+	mount := t.TempDir()
+	m.Drives = fakeDriveAgent{dir: mount}
+	keys := t.TempDir()
+	recovery := filepath.Join(keys, "recovery")
+	created := false
+	m.HasRecoveryKey = func() bool { _, err := os.Stat(recovery); return err == nil }
+	m.EnsureRecoveryKey = func() error { created = true; return os.WriteFile(recovery, []byte("key\n"), 0o600) }
+	m.OpenRepo = func(url string, env []string) *backup.Repo {
+		if !strings.HasPrefix(url, "/") {
+			url = filepath.Join(keys, "other-repo") // vps's store, as a folder
+		}
+		return &backup.Repo{Bin: bin, URL: url, PasswordFile: recovery, CacheDir: filepath.Join(keys, "cache")}
+	}
+	ctx := context.Background()
+	wait := func() {
+		t.Helper()
+		var log activity.Snapshot
+		for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+			if log, _ = m.Activity.Latest(activity.BackupSetup); !log.Running() {
+				break
+			}
+		}
+		if log.Err != "" {
+			t.Fatalf("setup: %s\n%s", log.Err, strings.Join(log.Lines, "\n"))
+		}
+	}
+	var fe *FormError
+	if err := m.SetBackupDestination(ctx, "n-0000000002", "drive:uuid:64B1"); !errors.As(err, &fe) {
+		t.Errorf("another server can't use this server's drive: %v", err)
+	}
+	if err := m.SetBackupDestination(ctx, "n-0000000001", "drive:uuid:64B1"); err != nil {
+		t.Fatal(err)
+	}
+	wait()
+	here.mu.Lock()
+	d := here.dest
+	here.mu.Unlock()
+	if !created || d == nil || !strings.HasPrefix(d.Repository, filepath.Join(mount, "roostack")+"/") || d.Drive.UUID != "64B1" ||
+		d.Drive.Name != "USB drive BACKUP" || d.Key != "" {
+		t.Fatalf("the first backup creates the recovery key and goes on the drive: %v %+v", created, d)
+	}
+	if _, title, _ := m.BackupTargetOf(ctx, "n-0000000001"); title != "USB drive BACKUP" {
+		t.Errorf("title = %q", title)
+	}
+
+	// A copy on vps's disk, then made backup 1.
+	if err := m.AddBackupCopy(ctx, "n-0000000001", "server:n-0000000002"); err != nil {
+		t.Fatal(err)
+	}
+	wait()
+	if err := m.PromoteBackupCopy(ctx, "n-0000000001", "server:n-0000000002"); err != nil {
+		t.Fatal(err)
+	}
+	main, _, _ := m.BackupTargetOf(ctx, "n-0000000001")
+	copies := m.BackupCopiesOf(ctx, "n-0000000001")
+	if main.Provider != "server:n-0000000002" || len(copies) != 1 || copies[0].Ref != "drive:uuid:64B1" ||
+		here.promoted != "server:n-0000000002 <-> drive:uuid:64B1" {
+		t.Errorf("after promoting: main %+v, copies %+v, server told %q", main, copies, here.promoted)
+	}
+}

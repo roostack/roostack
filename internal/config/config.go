@@ -138,6 +138,8 @@ type BackupCopy struct {
 	// KeyFile holds this server's key to it; empty uses the main key file
 	// (the controller's recovery key).
 	KeyFile string `yaml:"key_file,omitempty"`
+	// Drive is the drive it's on, if it's one (backups check it's there).
+	Drive BackupDrive `yaml:"drive,omitempty"`
 }
 
 // SSH access choices (Firewall.SSH).

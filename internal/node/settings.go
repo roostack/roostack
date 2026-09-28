@@ -38,6 +38,9 @@ type Settings interface {
 	// the server restarts Roostack to use them. A copy it already has keeps
 	// its key and credentials when none come with it.
 	SetBackupCopies(ctx context.Context, copies []BackupCopy) error
+	// PromoteBackupCopy makes a copy the main backup, and the main backup a
+	// copy (old names it), keeping both repositories and their keys.
+	PromoteBackupCopy(ctx context.Context, name string, old BackupCopy) error
 }
 
 // BackupCopy is an extra copy of a server's backups, somewhere else.
@@ -47,6 +50,8 @@ type BackupCopy struct {
 	Repository string   `json:"repository"`
 	Env        []string `json:"env,omitempty"`
 	Key        string   `json:"key,omitempty"`
+	// Drive is the drive it's on, if it's one.
+	Drive config.BackupDrive `json:"drive,omitzero"`
 }
 
 // BackupDestination is a server's backup repository: where it is, the
@@ -58,6 +63,8 @@ type BackupDestination struct {
 	Key        string   `json:"key,omitempty"`
 	// PrunedByController: this server only adds backups.
 	PrunedByController bool `json:"pruned_by_controller,omitempty"`
+	// Drive is the drive it's on, if it's one (backups check it's there).
+	Drive config.BackupDrive `json:"drive,omitzero"`
 }
 
 // SSHAccess is the current SSH choice and who is connected now.
@@ -179,6 +186,7 @@ func (h *HostSettings) SetBackupDestination(ctx context.Context, d BackupDestina
 	}
 	if err := config.Update(h.LabPath, func(l *config.Lab) {
 		l.Backup.Repository, l.Backup.Env, l.Backup.PrunedByController = d.Repository, d.Env, d.PrunedByController
+		l.Backup.Drive = d.Drive
 	}); err != nil {
 		return fmt.Errorf("saving the backup destination: %w", err)
 	}
@@ -219,7 +227,10 @@ func (h *HostSettings) SetBackupCopies(ctx context.Context, copies []BackupCopy)
 				return err
 			}
 		}
-		out = append(out, config.BackupCopy{Name: c.Name, Title: c.Title, Repository: c.Repository, Env: c.Env, KeyFile: keyFile})
+		if c.Drive == (config.BackupDrive{}) && known {
+			c.Drive = old.Drive
+		}
+		out = append(out, config.BackupCopy{Name: c.Name, Title: c.Title, Repository: c.Repository, Env: c.Env, KeyFile: keyFile, Drive: c.Drive})
 	}
 	if err := config.Update(h.LabPath, func(l *config.Lab) { l.Backup.Copies = out }); err != nil {
 		return fmt.Errorf("saving the backup copies: %w", err)
@@ -236,4 +247,61 @@ func fileName(name string) string {
 		}
 		return '_'
 	}, name)
+}
+
+func (h *HostSettings) PromoteBackupCopy(ctx context.Context, name string, old BackupCopy) error {
+	lab, err := config.Load(h.LabPath)
+	if err != nil {
+		return err
+	}
+	i := slices.IndexFunc(lab.Backup.Copies, func(c config.BackupCopy) bool { return c.Name == name })
+	if i < 0 || old.Name == "" {
+		return formErrorf("That backup isn't one of this server's copies.")
+	}
+	c := lab.Backup.Copies[i]
+	mainKey := backup.KeyFile(h.Lab.Paths)
+	demoted := config.BackupCopy{Name: old.Name, Title: old.Title, Repository: lab.Backup.Repository, Env: lab.Backup.Env,
+		Drive: lab.Backup.Drive}
+	// A copy with a key of its own (not the main key file) swaps keys with
+	// the main backup.
+	if c.KeyFile != "" {
+		copyKey, err := os.ReadFile(c.KeyFile)
+		if err != nil {
+			return err
+		}
+		mainData, err := os.ReadFile(mainKey)
+		if err != nil {
+			return err
+		}
+		dir := filepath.Join(h.Lab.Paths.StateDir, "backup-copies")
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return err
+		}
+		demoted.KeyFile = filepath.Join(dir, fileName(old.Name)+".key")
+		if err := writePrivate(demoted.KeyFile, mainData); err != nil {
+			return err
+		}
+		if err := writePrivate(mainKey, copyKey); err != nil {
+			return err
+		}
+	}
+	if err := config.Update(h.LabPath, func(l *config.Lab) {
+		l.Backup.Repository, l.Backup.Env, l.Backup.Drive = c.Repository, c.Env, c.Drive
+		copies := slices.Clone(l.Backup.Copies)
+		if j := slices.IndexFunc(copies, func(x config.BackupCopy) bool { return x.Name == name }); j >= 0 {
+			copies[j] = demoted
+		}
+		l.Backup.Copies = copies
+	}); err != nil {
+		return err
+	}
+	h.Restart()
+	return nil
+}
+
+func writePrivate(file string, data []byte) error {
+	if err := os.WriteFile(file+".tmp", data, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(file+".tmp", file)
 }
