@@ -283,6 +283,19 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		keptBy[mc.ID] = kept[i]
 	}
 	data["Kept"] = keptBy
+	// Each server's disk space, asked of each at once.
+	spaces := make([]*spaceView, len(servers))
+	for i, mc := range servers {
+		if n := s.Manager.NodeByID(mc.ID); n != nil {
+			wg.Go(func() { spaces[i] = s.serverSpace(r.Context(), serverRef{ID: mc.ID, Name: mc.Name, This: mc.This}, n) })
+		}
+	}
+	wg.Wait()
+	spaceBy := map[string]*spaceView{}
+	for i, mc := range servers {
+		spaceBy[mc.ID] = spaces[i]
+	}
+	data["Spaces"] = spaceBy
 	if s.Network != nil {
 		endpoint, _ := s.Store.Setting(r.Context(), endpointKey)
 		if endpoint == "" {

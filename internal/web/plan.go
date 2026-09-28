@@ -2,6 +2,7 @@ package web
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"net/http"
 	"slices"
@@ -14,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -44,6 +46,9 @@ type planEntry struct {
 	// Lab the whole lab's use of a friend's lab's space (nil unknown).
 	Stored int64
 	Free   int64
+	// FreeOn names where Free is ("this server's disk", "the drive",
+	// "vps's disk"); LowSpace is lowSpace's level for it.
+	FreeOn, LowSpace string
 	Lab    *labnet.GuestUsage
 }
 
@@ -77,9 +82,9 @@ type planView struct {
 	Replacing                   bool
 	ChooserTitle, ChooserButton string
 	ChooserNum                  planSlot
-	Options   planOptions
-	Busy      *activityView
-	Error     string
+	Options                     planOptions
+	Busy                        *activityView
+	Error                       string
 	// Next is when the next backup runs (zero if unknown).
 	Next time.Time
 	// Action is where the chooser posts; Back where the page is.
@@ -140,7 +145,20 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 			e.Stored = int64(e.LastOK.Stored)
 		}
 		if d, ok := drives[driveOf(e.Ref, e.Kind)]; ok && m.This {
-			e.Free = d.Free
+			e.Free, e.FreeOn, e.LowSpace = d.Free, "the drive", lowSpace(d.Free, d.Size)
+			if e.Kind == manager.KindSystem {
+				e.FreeOn = "this server's disk"
+			}
+		}
+		if host, ok := strings.CutPrefix(e.Ref, "server:"); ok {
+			// Another server's backup store: its disk, as it says.
+			if d, ok := s.Manager.NodeByID(host).(node.Disks); ok {
+				dctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+				if ds, err := d.DiskSpace(dctx); err == nil {
+					e.Free, e.FreeOn, e.LowSpace = ds.Free, "that disk", lowSpace(ds.Free, ds.Total)
+				}
+				cancel()
+			}
 		}
 		e.AtHome, e.Away = manager.AtHome(e.Kind), manager.Away(e.Kind)
 		if e.Kind == manager.KindServer {
