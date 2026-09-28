@@ -57,7 +57,15 @@ type Setup struct {
 	Restart func()
 	// Drives lists and readies the drives backups can go on (roostack-agent).
 	Drives DriveAgent
+	// RestartPending reports a restart a wizard step postponed; Finished is
+	// called when the wizard ends without one of its own (optional).
+	RestartPending func() bool
+	Finished       func()
 }
+
+// PendingRestart reports whether settings from the wizard still wait for
+// Roostack to restart (it does when the wizard finishes).
+func (s *Setup) PendingRestart() bool { return s.RestartPending != nil && s.RestartPending() }
 
 // DriveAgent is roostack-agent's backup drive operations.
 type DriveAgent interface {
@@ -361,7 +369,14 @@ func (s *Setup) AdoptExisting(ctx context.Context) error {
 
 // BackupLater skips backups for now (the dashboard warns until set up).
 func (s *Setup) BackupLater(ctx context.Context) error {
-	return s.Store.SetSetting(ctx, keyBackup, "later")
+	if err := s.Store.SetSetting(ctx, keyBackup, "later"); err != nil {
+		return err
+	}
+	// The wizard's last step: its settings take effect now.
+	if s.Finished != nil {
+		s.Finished()
+	}
+	return nil
 }
 
 // RecoveryKey returns the backup recovery key to show the Owner.

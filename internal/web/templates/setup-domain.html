@@ -53,6 +53,7 @@
     </div>
     {{end}}{{end}}
     <p class="hint">Roostack checks these details by creating and removing a temporary DNS record before saving them.</p>
+    {{if .Wizard}}<p class="hint">Roostack checks the details now; your web addresses start working when setup finishes (it restarts once, then).</p>{{end}}
     <button type="submit">Check and save</button>
   </form>
   {{if .Wizard}}

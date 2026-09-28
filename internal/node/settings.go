@@ -80,6 +80,9 @@ type HostSettings struct {
 	SSHClients func() ([]netip.Addr, error)
 	// Restart restarts Roostack so every part picks up the new settings.
 	Restart func()
+	// UseZone switches Roostack itself to a new time zone without a restart
+	// (optional).
+	UseZone func(name string)
 }
 
 // Settings is this server's settings, or nil.
@@ -104,6 +107,11 @@ func (h *HostSettings) SetTimezone(ctx context.Context, name string) (bool, erro
 	}
 	if err := h.SetZone(ctx, name); err != nil {
 		return false, formErrorf("Roostack couldn't change the time zone: %v", err)
+	}
+	// Pages show the new zone at once; schedules and containers follow at
+	// the restart (postponed to the end of the setup wizard).
+	if h.UseZone != nil {
+		h.UseZone(name)
 	}
 	h.Restart()
 	return true, nil

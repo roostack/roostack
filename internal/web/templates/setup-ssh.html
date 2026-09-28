@@ -32,6 +32,7 @@
       <label class="check"><input type="checkbox" name="confirm"><span>I understand</span></label>
     </div>
     {{end}}
+    {{if .Wizard}}<p class="hint">The firewall takes effect when setup finishes (Roostack restarts once, then).</p>{{end}}
     <button type="submit">{{if .Wizard}}Continue{{else}}Save{{end}}</button>
   </form>
 </section>
