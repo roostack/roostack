@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -55,6 +56,8 @@ func TestServiceRecordsRuns(t *testing.T) {
 		DumpState: st.Backup,
 		Plan:      func() (Plan, error) { return LabPlan(paths, nil), nil },
 	}, Activity: activity.New()}
+	var after atomic.Int32
+	svc.AfterBackup = func() { after.Add(1) }
 	if err := svc.Submit(); err != nil {
 		t.Fatal(err)
 	}
@@ -76,6 +79,9 @@ func TestServiceRecordsRuns(t *testing.T) {
 	if !s.Last.OK || s.LastOK == nil || s.LastOK.SnapshotID == "" || !s.LocalOnly {
 		t.Fatalf("status after success: %+v %+v", s, s.Last)
 	}
+	if after.Load() != 1 {
+		t.Errorf("AfterBackup ran %d times after a backup that worked", after.Load())
+	}
 	act, _ := svc.Activity.Latest(activity.Backup)
 	for _, want := range []string{"==> Saving a copy of Roostack's own database", "==> Opening the backup storage",
 		"==> Uploading changes", "==> Done"} {
@@ -96,5 +102,8 @@ func TestServiceRecordsRuns(t *testing.T) {
 	s = wait()
 	if s.Last.OK || s.Last.Error != "plan broke" || s.LastOK == nil {
 		t.Errorf("status after failure: last=%+v lastOK=%+v", s.Last, s.LastOK)
+	}
+	if after.Load() != 1 {
+		t.Error("AfterBackup runs only after a backup that worked")
 	}
 }

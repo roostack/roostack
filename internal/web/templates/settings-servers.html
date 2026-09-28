@@ -31,7 +31,7 @@
         {{- if gt .Backups 0}} · backups kept here for your lab {{size .Backups}}{{end}}
         {{- if gt .Guests 0}} · for other labs {{size .Guests}}{{end}}
         {{- if .Promised}} · promised to other labs {{size .Promised}}, {{size .PromisedLeft}} of it not used yet{{end}}.
-        The rest is the system and other files.</small>
+        The rest is the system and other files.{{if not .Counted.IsZero}} Counted {{when .Counted}}.{{end}}</small>
       {{if .Warning}}{{notice .NoticeKind .Warning}}{{end}}
     {{else}}<small>Couldn't ask {{.Name}} right now.</small>{{end}}</dd>
     <dt>Where</dt>

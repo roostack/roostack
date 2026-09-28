@@ -32,6 +32,9 @@ type Service struct {
 	// PrunedElsewhere: the controller removes old backups (SPEC.md
 	// §10.10); the weekly job only checks.
 	PrunedElsewhere bool
+	// AfterBackup runs after a nightly backup that worked (e.g. counting
+	// disk use while restic's reads are still cached); optional.
+	AfterBackup func()
 
 	mu      sync.Mutex
 	pending bool          // queued or running
@@ -85,6 +88,9 @@ func (s *Service) Job() maintenance.Job {
 			}
 			if rerr := s.Store.RecordBackup(context.WithoutCancel(ctx), run); rerr != nil && err == nil {
 				err = rerr
+			}
+			if err == nil && s.AfterBackup != nil {
+				s.AfterBackup()
 			}
 			return err
 		},

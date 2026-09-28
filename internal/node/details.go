@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -55,48 +56,90 @@ type WireGuardStatuser interface {
 	WireGuardStatus(ctx context.Context, iface string) (agent.WireGuardStatus, error)
 }
 
-const sizeTTL = 10 * time.Minute
+// Sizes (SPEC.md §6.7) are counted with du, which reads every file's
+// metadata: quick on an SSD, but on a spinning disk a large photo library
+// can take a minute or more, and it fills the kernel's metadata cache. So
+// they're counted once a day, right after the nightly backup (restic has
+// just read that metadata, so it's cached and the count is quick), at the
+// lowest CPU and disk priority; or when asked for a size that's missing
+// or older than sizeTTL (no backups set up, a new service).
+const sizeTTL = 24 * time.Hour
 
-type sizeEntry struct {
-	size     int64
-	at       time.Time
-	counting bool
-}
-
-// sizes caches data sizes per service.
+// sizes caches what Roostack's data takes on the disk.
 type sizes struct {
-	mu sync.Mutex
-	m  map[string]*sizeEntry
+	mu       sync.Mutex
+	services map[string]int64 // each service's data
+	// backups and guests are the backup store's parts: the lab's own
+	// backups, and other labs'.
+	backups, guests int64
+	at              time.Time // when last counted (zero: never)
+	counting        bool
 }
 
-// dataSize returns a service's cached data size (-1 if not counted yet)
-// and counts it again in the background when it's old.
+// dataSize returns a service's counted data size (-1 if not counted yet).
 func (n *Local) dataSize(service string) int64 {
 	n.sizes.mu.Lock()
 	defer n.sizes.mu.Unlock()
-	if n.sizes.m == nil {
-		n.sizes.m = map[string]*sizeEntry{}
+	size, ok := n.sizes.services[service]
+	if !ok || time.Since(n.sizes.at) > sizeTTL {
+		n.countSizesLocked()
 	}
-	e := n.sizes.m[service]
-	if e == nil {
-		e = &sizeEntry{size: -1}
-		n.sizes.m[service] = e
+	if !ok {
+		return -1
 	}
-	if !e.counting && time.Since(e.at) > sizeTTL && n.Launch != nil {
-		e.counting = true
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-			defer cancel()
-			size, err := n.DataSize(ctx, service)
-			n.sizes.mu.Lock()
-			defer n.sizes.mu.Unlock()
-			e.counting, e.at = false, time.Now()
-			if err == nil {
-				e.size = size
+	return size
+}
+
+// storeSize returns the backup store's counted sizes (-1 if not yet).
+func (n *Local) storeSize() (backups, guests int64, at time.Time) {
+	n.sizes.mu.Lock()
+	defer n.sizes.mu.Unlock()
+	if n.sizes.at.IsZero() || time.Since(n.sizes.at) > sizeTTL {
+		n.countSizesLocked()
+	}
+	if n.sizes.at.IsZero() {
+		return -1, -1, time.Time{}
+	}
+	return n.sizes.backups, n.sizes.guests, n.sizes.at
+}
+
+// CountSizes counts every size again, in the background (after the
+// nightly backup).
+func (n *Local) CountSizes() {
+	n.sizes.mu.Lock()
+	defer n.sizes.mu.Unlock()
+	n.countSizesLocked()
+}
+
+// countSizesLocked starts a count unless one is running.
+func (n *Local) countSizesLocked() {
+	if n.sizes.counting {
+		return
+	}
+	n.sizes.counting = true
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+		defer cancel()
+		_, services := n.Assigned()
+		counted := map[string]int64{}
+		for _, s := range services {
+			if size, err := n.DataSize(ctx, s.Package.Name); err == nil {
+				counted[s.Package.Name] = size
+			} else if n.Log != nil {
+				n.Log.Warn("counting a service's data", "service", s.Package.Name, "err", err)
 			}
-		}()
-	}
-	return e.size
+		}
+		dir := n.Lab.Paths.BackupStoreDir()
+		guests, gerr := n.du(ctx, false, filepath.Join(dir, "guests"))
+		all, err := n.du(ctx, false, dir)
+		n.sizes.mu.Lock()
+		defer n.sizes.mu.Unlock()
+		n.sizes.counting, n.sizes.at, n.sizes.services = false, time.Now(), counted
+		n.sizes.backups, n.sizes.guests = -1, -1
+		if err == nil && gerr == nil {
+			n.sizes.backups, n.sizes.guests = all-guests, guests
+		}
+	}()
 }
 
 // ServiceDetails describes each assigned service.
