@@ -53,8 +53,6 @@ type RouteOverride struct {
 	Port int `yaml:"port,omitempty"`
 }
 
-// Save writes an instance file atomically. Comments in a hand-edited file
-// are not preserved.
 // PortOverride changes a package port (pkgspec.Port). Unset fields keep
 // the package's defaults.
 type PortOverride struct {
@@ -63,6 +61,8 @@ type PortOverride struct {
 	Exposure string `yaml:"exposure,omitempty"`
 }
 
+// Save writes an instance file atomically. Comments in a hand-edited file
+// are not preserved.
 func (in *Instance) Save(path string) error {
 	data, err := in.Marshal()
 	if err != nil {
