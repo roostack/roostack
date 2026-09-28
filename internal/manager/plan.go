@@ -91,9 +91,10 @@ func AtHome(kind string) bool {
 func Away(kind string) bool { return kind == KindOnline || kind == KindFriend }
 
 // StorageFamily groups kinds into "different kinds of storage" for 3-2-1:
-// drives and folders at home count as one.
+// disks count as one, whether in this server, plugged into it, or in
+// another server of the lab.
 func StorageFamily(kind string) string {
-	if kind == KindUSB || kind == KindDisk || kind == KindFolder || kind == KindSystem {
+	if kind == KindUSB || kind == KindDisk || kind == KindFolder || kind == KindSystem || kind == KindServer {
 		return "drive"
 	}
 	return kind

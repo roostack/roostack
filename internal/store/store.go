@@ -800,6 +800,12 @@ func (s *Store) SetBackupTarget(ctx context.Context, t BackupTarget) error {
 	return err
 }
 
+// RemoveBackupTarget forgets where a server backs up (its backups stay).
+func (s *Store) RemoveBackupTarget(ctx context.Context, serverID string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM backup_targets WHERE server_id = ?`, serverID)
+	return err
+}
+
 // BackupTargets lists where each server backs up.
 func (s *Store) BackupTargets(ctx context.Context) ([]BackupTarget, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT server_id, provider, repository, store_host, store_hash, scoped_key, created_at

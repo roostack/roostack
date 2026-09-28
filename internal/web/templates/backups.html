@@ -33,6 +33,8 @@
       <p>Put a service's data back to how it was in a backup. Its current data is kept aside first; nothing is deleted.</p>
       <ul class="plain">{{range .}}<li><a href="/backups/restore/{{.Name}}">Restore {{.Title}}…</a></li>{{end}}</ul>
       {{else}}<p class="hint">No services installed.</p>{{end}}
+    {{else if .IsOwner}}
+      <p class="hint">Restoring needs backups: once backup 1 is set up, services can be restored from here.</p>
     {{else}}
       <p class="hint">Only the Owner can restore services.</p>
     {{end}}

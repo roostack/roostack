@@ -255,6 +255,8 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
 .drive-unusable > label { color: var(--muted); }
 .drive-erase { flex: 0 0 auto; }
 
+.activity-status { overflow-wrap: anywhere; }
+
 /* ---------- Backup plan (backup-plan): numbered backups and empty slots ---------- */
 .plan-list { list-style: none; padding: 0; margin: var(--space-3) 0; display: grid; gap: var(--space-3); }
 .plan-card { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3) var(--space-4);
@@ -277,8 +279,15 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
   border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
 .plan-choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .plan-choice span { display: grid; }
-.plan-checks { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: var(--space-3) 0 var(--space-1); }
-.plan-warn { color: var(--muted); }
+.plan-invite { margin-top: var(--space-3); }
+.plan-invite label { margin-bottom: var(--space-1); font-weight: 600; }
+.code-input { width: 100%; min-height: 8rem; font-family: var(--font-mono); font-size: var(--text-sm);
+  word-break: break-all; resize: vertical; }
+.plan-checks { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: var(--space-3) 0 var(--space-1); }
+.plan-checks li { display: inline-flex; align-items: center; gap: var(--space-2); }
+.plan-mark { font-weight: 700; }
+.plan-checks .plan-ok .plan-mark { color: var(--ok); }
+.plan-checks .plan-warn .plan-mark { color: var(--bad); }
 
 /* ---------- Settings: overview grid and area pages ---------- */
 .settings-group-title { font-size: var(--text-base); color: var(--muted); font-weight: var(--weight-medium);

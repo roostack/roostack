@@ -41,8 +41,21 @@ func prepareFolder(dir string, roots []string, uid, gid int) (string, error) {
 	if !under(dir) {
 		return "", fmt.Errorf("choose a folder under %s", strings.Join(roots, ", "))
 	}
+	// Folders made here are Roostack's, like the one inside them.
+	var made []string
+	for p := dir; under(p); p = filepath.Dir(p) {
+		if _, err := os.Lstat(p); err == nil {
+			break
+		}
+		made = append(made, p)
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
+	}
+	for _, p := range made {
+		if err := os.Chown(p, uid, gid); err != nil {
+			return "", err
+		}
 	}
 	// No symlink may lead outside the allowed places.
 	real, err := filepath.EvalSymlinks(dir)

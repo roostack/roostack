@@ -185,7 +185,8 @@
      in the setup wizard. */}}
 {{define "backup-plan"}}{{with .Plan}}
 {{/* Reloads when a change (e.g. creating a backup's repository) finishes. */}}
-<section class="card section plan" id="plan" hx-get="{{.Back}}" hx-select="#plan" hx-trigger="activity-done from:body" hx-swap="outerHTML">
+<section class="card section plan" id="plan" hx-get="{{.Back}}" hx-select="#plan" hx-trigger="activity-done from:body" hx-swap="outerHTML"
+  hx-disinherit="*">
   <div class="heading">
     <h2>Your backup plan</h2>
     <span class="hint">{{len .Entries}} {{if eq (len .Entries) 1}}backup{{else}}backups{{end}}</span>
@@ -201,11 +202,11 @@
       <span class="plan-num">{{.Number}}</span>
       <div class="plan-body">
         <p class="plan-title">{{.Title}}</p>
-        <p class="hint">{{with .KindTitle}}{{.}} · {{end}}{{if .AtHome}}at home{{else if .Away}}away from home{{else}}elsewhere{{end}}{{if .Main}} · restores use this one first{{end}}</p>
+        <p class="hint">{{with .KindTitle}}{{.}} · {{end}}{{if .AtHome}}at home{{else if .Away}}away from home{{else}}location not known{{end}}{{if .Main}} · restores use this one first{{end}}</p>
         {{with .Last}}{{if .OK}}<p class="plan-ok"><span class="dot dot-{{if stale .Finished}}warn{{else}}ok{{end}}" aria-hidden="true"></span>Backed up {{when .Finished}}
           <span class="hint">· {{.FilesNew}} new or changed files, {{bytes .DataAdded}} added</span></p>
         {{- else}}<p class="error"><span class="dot dot-problem" aria-hidden="true"></span>The last backup here ({{when .Finished}}) didn't finish: {{.Error}}</p>{{end}}
-        {{- else}}<p class="hint">The first backup here is made with the next backup.</p>{{end}}
+        {{- else}}<p class="hint">Not backed up here yet: the first backup runs {{if $.Plan.Next.IsZero}}tonight{{else}}{{when $.Plan.Next}}{{end}}.</p>{{end}}
         {{if not $.Plan.Wizard}}
         <details class="plan-manage">
           <summary>Manage</summary>
@@ -232,7 +233,7 @@
         <p class="plan-title">{{.Title}}</p>
         <p class="hint">{{.Suggest}}</p>
       </div>
-      {{if or (eq .Number 1) (ge (len $.Plan.Entries) 1)}}<a class="button secondary" href="{{$.Plan.Back}}?add={{.Number}}#plan">Add</a>{{end}}
+      {{if eq .Number $.Plan.More}}<a class="button secondary" href="{{$.Plan.Back}}?add={{.Number}}#plan">Add</a>{{end}}
     </li>
     {{end}}
     {{end}}
@@ -242,14 +243,17 @@
     {{end}}
     {{end}}
   </ol>
-  <p class="plan-checks">
-    <span class="{{if .Checks.BackedUp}}plan-ok{{else}}plan-warn{{end}}"><span class="dot dot-{{if .Checks.BackedUp}}ok{{else}}warn{{end}}" aria-hidden="true"></span>Backed up lately</span>
-    <span class="{{if .Checks.TwoKinds}}plan-ok{{else}}plan-warn{{end}}"><span class="dot dot-{{if .Checks.TwoKinds}}ok{{else}}warn{{end}}" aria-hidden="true"></span>Two kinds of storage</span>
-    <span class="{{if .Checks.Away}}plan-ok{{else}}plan-warn{{end}}"><span class="dot dot-{{if .Checks.Away}}ok{{else}}warn{{end}}" aria-hidden="true"></span>One away from home</span>
-  </p>
+  <ul class="plan-checks" aria-label="3-2-1 checks">
+    {{template "plan-check" (list (printf "%t" .Checks.BackedUp) "Backed up lately")}}
+    {{template "plan-check" (list (printf "%t" .Checks.TwoKinds) "Two kinds of storage")}}
+    {{template "plan-check" (list (printf "%t" .Checks.Away) "One away from home")}}
+  </ul>
   <p class="hint">The "3-2-1" rule: three copies of your data (your services and two backups), on two kinds of storage, one of them away from home.</p>
 </section>
 {{end}}{{end}}
+
+{{/* plan-check: one 3-2-1 check, (list "true"|"false" text). */}}
+{{define "plan-check"}}{{$ok := eq (index . 0) "true"}}<li class="{{if $ok}}plan-ok{{else}}plan-warn{{end}}"><span class="plan-mark" aria-hidden="true">{{if $ok}}✓{{else}}✗{{end}}</span>{{index . 1}}<span class="sr-only">: {{if $ok}}yes{{else}}not yet{{end}}</span></li>{{end}}
 
 {{/* plan-chooser: where a backup goes (planView: Adding, Options). */}}
 {{define "plan-chooser"}}
@@ -257,20 +261,28 @@
   <span class="plan-num">{{.Adding}}</span>
   <div class="plan-body">
     <p class="plan-title">{{if .Replacing}}Where should backup 1 go instead?{{else}}Where should backup {{.Adding}} go?{{end}}</p>
-    <form method="post" action="{{.Action}}" x-data="{ choice: '{{if .Options.CanDrives}}drive{{else}}online{{end}}' }">
+    <form method="post" action="{{.Action}}" x-data="{ choice: '{{if or .Options.CanDrives .Options.OwnDisk}}drive{{else}}online{{end}}' }">
       {{if .Replacing}}<input type="hidden" name="replace" value="1">{{end}}
       <input type="hidden" name="add" value="{{.Adding}}">
       <div class="plan-choices">
         {{if .Options.CanDrives}}<label class="plan-choice"><input type="radio" name="choice" value="drive" x-model="choice">
-          <span><strong>A drive</strong><small>USB drive, second disk or network share</small></span></label>{{end}}
+          <span><strong>A drive</strong><small>USB drive, second disk or network share</small></span></label>
+        {{- else if .Options.OwnDisk}}<label class="plan-choice"><input type="radio" name="choice" value="drive" x-model="choice">
+          <span><strong>Its own disk</strong><small>{{.Server.Name}}'s disk</small></span></label>{{end}}
         <label class="plan-choice"><input type="radio" name="choice" value="online" x-model="choice">
           <span><strong>Online storage</strong><small>Backblaze B2, Wasabi, S3</small></span></label>
         <label class="plan-choice"><input type="radio" name="choice" value="friend" x-model="choice">
           <span><strong>A friend's lab</strong><small>Space on their Roostack</small></span></label>
         {{if and .Options.Servers (not .Wizard)}}<label class="plan-choice"><input type="radio" name="choice" value="server" x-model="choice">
-          <span><strong>Another server</strong><small>A disk in this lab</small></span></label>{{end}}
+          <span><strong>Another Roostack instance</strong><small>A disk on a remote Roostack server</small></span></label>{{end}}
       </div>
 
+      {{if and (not .Options.CanDrives) .Options.OwnDisk}}{{with .Options.OwnDisk}}
+      <div x-show="choice === 'drive'">
+        <label class="check"><input type="radio" name="drive" value="{{.Ref}}" checked><span>{{.Title}}<small>{{.Note}}</small></span></label>
+        <p class="hint">Drives plugged into {{$.Server.Name}} are listed on its own Roostack page for now.</p>
+      </div>
+      {{end}}{{end}}
       {{if .Options.CanDrives}}
       <div x-show="choice === 'drive'">
         <div id="drives" class="drives" hx-get="/setup/backup/drives" hx-include="#drives [name='drive']" hx-swap="innerHTML"
@@ -302,8 +314,13 @@
 
       <div x-show="choice === 'friend'" x-cloak>
         {{range .Options.Friends}}<label class="check"><input type="radio" name="remote" value="{{.Ref}}"><span>{{.Title}}<small>{{.Note}}</small></span></label>{{end}}
-        <label>{{if .Options.Friends}}Or paste a new invite{{else}}Their invite{{end}} <textarea name="invite" rows="3" placeholder="roostack-storage-…"></textarea>
-          <small>They make it on their Roostack: Settings → Storage for others. Your backups are encrypted before they leave; they can't read them.</small></label>
+        <div class="plan-invite">
+          <label for="invite-{{.Adding}}">{{if .Options.Friends}}Or add another friend's lab{{else}}Their invite code{{end}}</label>
+          <p class="hint">Your friend makes it on their Roostack, under Settings → Storage for others, and sends it to you. Your backups are
+            encrypted before they leave, so they can't read them.</p>
+          <textarea id="invite-{{.Adding}}" name="invite" class="code-input" rows="6" spellcheck="false" autocapitalize="off" autocomplete="off"
+            placeholder="roostack-storage-…"></textarea>
+        </div>
       </div>
 
       {{if not .Wizard}}{{with .Options.Servers}}

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -82,6 +83,9 @@ func TestPrepareFolder(t *testing.T) {
 	got, err := prepareFolder(filepath.Join(root, "backup"), []string{root}, uid, gid)
 	if err != nil || got != filepath.Join(root, "backup", "roostack") {
 		t.Fatalf("prepare: %q %v", got, err)
+	}
+	if fi, err := os.Stat(filepath.Join(root, "backup")); err != nil || fi.Sys().(*syscall.Stat_t).Uid != uint32(uid) {
+		t.Error("a folder made on the way is Roostack's")
 	}
 	if again, err := prepareFolder(filepath.Join(root, "backup"), []string{root}, uid, gid); err != nil || again != got {
 		t.Errorf("again: %q %v", again, err)
