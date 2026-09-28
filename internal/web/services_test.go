@@ -1050,8 +1050,9 @@ func TestPerServerSettings(t *testing.T) {
 	if _, body := h.get("/settings/servers/n-9876543210/time-zone"); !strings.Contains(body, `href="/settings/servers/n-9876543210/time-zone" aria-current="page"`) {
 		t.Error("the switcher should mark vps")
 	}
-	// The overview summarises every server.
-	if _, body := h.get("/settings"); !strings.Contains(body, "nuc: SSH from your home network only · vps: SSH from your home network only") {
+	// The overview summarises every server, a line each.
+	if _, body := h.get("/settings"); strings.Count(body, `<strong>nuc</strong><br><span class="area-summary">SSH from your home network only`) != 1 ||
+		strings.Count(body, `<strong>vps</strong><br><span class="area-summary">SSH from your home network only`) != 1 {
 		t.Errorf("overview should summarise each server")
 	}
 	// A server's own page.
