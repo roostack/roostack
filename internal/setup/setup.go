@@ -270,6 +270,11 @@ func (s *Setup) SaveBackup(ctx context.Context, c BackupChoice) error {
 	ictx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	if err := s.NewRepo(repoURL, env).Init(ictx); err != nil {
+		if c.Kind == "local" && strings.Contains(err.Error(), "permission denied") {
+			dir := filepath.Clean(strings.TrimSpace(c.Path))
+			return &CheckError{fmt.Sprintf("Roostack isn't allowed to create or write to %s. If it's a second disk, mount it there first. "+
+				"Then let Roostack use the folder (sudo mkdir -p %s && sudo chown roostack:roostack %s) and try again.", dir, dir, dir)}
+		}
 		return &CheckError{fmt.Sprintf("Couldn't create the backup there: %s", firstLine(err.Error()))}
 	}
 

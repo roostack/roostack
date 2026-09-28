@@ -19,8 +19,9 @@
 
     <div x-show="kind === 'local'">
       <label>Folder
-        <input name="path" value="{{.Path}}" placeholder="/mnt/backup/roostack" autocapitalize="off">
-        <small>Roostack creates it if it doesn't exist.</small>
+        <input name="path" value="{{.Path}}" placeholder="/mnt/backup" autocapitalize="off">
+        <small>For example where a second disk is mounted. Roostack keeps its backups in a <code>roostack</code> folder inside it.
+          The folder must be one Roostack may write to (<code>sudo chown roostack:roostack</code> it).</small>
       </label>
     </div>
 
