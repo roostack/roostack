@@ -132,8 +132,17 @@ type Server struct {
 	pages map[string]*template.Template
 }
 
-// ServiceManager is what the UI needs from internal/manager.
+// ServiceManager is what the UI needs from internal/manager, by area.
 type ServiceManager interface {
+	ServiceCatalog
+	LabServers
+	BackupPlan
+	StorageSharing
+}
+
+// ServiceCatalog is the catalog and the installed services: installing,
+// settings, ports and moving between servers.
+type ServiceCatalog interface {
 	Catalog() ([]manager.CatalogItem, error)
 	Package(name string) (*pkgspec.Package, error)
 	Install(ctx context.Context, name string, req manager.InstallRequest) error
@@ -143,11 +152,30 @@ type ServiceManager interface {
 	SetPort(ctx context.Context, name, port string, enabled bool, hostPort int) error
 	CurrentSettings(name string) (map[string]any, string, error)
 	UpdateSettings(ctx context.Context, name string, req manager.SettingsRequest) error
+	RetryInstallWith(ctx context.Context, name string, settings, secrets map[string]string) error
 	Status() manager.ApplyStatus
-	Servers() ([]manager.Server, error)
-	// NodeFor is the server a service runs on; NodeByID a server by ID.
+	// NodeFor is the server a service runs on (nil if none).
 	NodeFor(service string) node.Node
+	MoveInfo(ctx context.Context, name string) (manager.MoveInfo, error)
+	MoveService(ctx context.Context, name, to, way string) error
+}
+
+// LabServers are the lab's servers (SPEC.md §10): listing, renaming and
+// removing them, their built-in services and the data moves leave behind.
+type LabServers interface {
+	Servers() ([]manager.Server, error)
+	// NodeByID is a server by ID (nil if none).
 	NodeByID(id string) node.Node
+	AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns
+	RemoveServer(ctx context.Context, id string) error
+	RenameServer(ctx context.Context, id, name string) error
+	KeptData(ctx context.Context, serverID string) ([]node.KeptFolder, error)
+	RemoveKeptData(ctx context.Context, serverID, path string) error
+}
+
+// BackupPlan is each server's backups (SPEC.md §6.9): the main one, its
+// copies and the places they can go.
+type BackupPlan interface {
 	BackupChoices(ctx context.Context) ([]manager.BackupChoice, error)
 	BackupTargetOf(ctx context.Context, serverID string) (store.BackupTarget, string, bool)
 	BackupCopiesOf(ctx context.Context, serverID string) []manager.BackupCopy
@@ -157,16 +185,15 @@ type ServiceManager interface {
 	RemoveBackupCopy(ctx context.Context, serverID, ref string) error
 	SetBackupDestination(ctx context.Context, serverID, ref string) error
 	AddS3Provider(ctx context.Context, name string, p manager.S3Provider) error
-	MoveInfo(ctx context.Context, name string) (manager.MoveInfo, error)
-	KeptData(ctx context.Context, serverID string) ([]node.KeptFolder, error)
-	RemoveKeptData(ctx context.Context, serverID, path string) error
-	MoveService(ctx context.Context, name, to, way string) error
-	// Storage for other labs (SPEC.md §10.10).
+}
+
+// StorageSharing is storage for other labs, and this lab's storage at
+// other labs (SPEC.md §10.10).
+type StorageSharing interface {
 	OfferStorage(ctx context.Context) bool
 	StorageGuests(ctx context.Context) ([]manager.GuestView, error)
 	InviteGuest(ctx context.Context, name string, quota int64, endpoint string) (labnet.StorageInvite, error)
 	RemoveGuest(ctx context.Context, id int64) error
-	RetryInstallWith(ctx context.Context, name string, settings, secrets map[string]string) error
 	DeleteRemovedGuest(ctx context.Context, id int64) error
 	GuestServer(ctx context.Context) string
 	SetGuestServer(ctx context.Context, id string) error
@@ -177,9 +204,6 @@ type ServiceManager interface {
 	AddRemoteStorage(ctx context.Context, code string) error
 	RemoteStorages(ctx context.Context) []manager.RemoteStorage
 	RemoteUsage(ctx context.Context, r manager.RemoteStorage) (labnet.GuestUsage, error)
-	AllBuiltIns(ctx context.Context) []manager.ServerBuiltIns
-	RemoveServer(ctx context.Context, id string) error
-	RenameServer(ctx context.Context, id, name string) error
 }
 
 // ServiceNode is what the UI needs from the server running a service

@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -174,25 +173,7 @@ func serve(args []string) error {
 		return err == nil
 	}
 	mgr.EnsureRecoveryKey = func() error { return setup.EnsureRecoveryKey(lab.Paths) }
-	// Weekly, the controller removes old backups from every server's
-	// repository (servers may only add backups).
-	go maintenance.Every(ctx,
-		func(now time.Time) time.Time {
-			return maintenance.NextWeekly(now, maintenance.DefaultMaintenanceOn, maintenance.DefaultMaintenanceAt)
-		},
-		func() { coord.Submit(mgr.PruneJob()) })
-	mgr.OpenRepo = func(url string, env []string) *backup.Repo {
-		bin, err := exec.LookPath("restic")
-		if err != nil {
-			bin = "restic"
-		}
-		repo := &backup.Repo{Bin: bin, URL: url, PasswordFile: backup.KeyFile(lab.Paths), Env: env}
-		// A folder (a drive) is written outside Roostack's sandbox, as backups are.
-		if strings.HasPrefix(url, "/") {
-			repo.Launch = unshared(userLaunch)
-		}
-		return repo
-	}
+	mgr.OpenRepo = repoOpener(lab)
 	mgr.Drives = agentClient
 	mgr.RenameSelf = func(name string) error {
 		self := id
@@ -203,46 +184,9 @@ func serve(args []string) error {
 		restart()
 		return nil
 	}
-	labAPI := http.NewServeMux()
-	labAPI.Handle("POST /v1/join", hub.JoinHandler())
-	// A server fetches its assignment when it starts (SPEC.md §10.3).
-	// Everything else is for servers still in the lab, with the
-	// certificate the controller last gave them (revocation, renewal).
-	labAPI.Handle("GET /v1/assignment", hub.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		a, ok := mgr.PendingFor(labnet.Caller(r))
-		if !ok {
-			labnet.WriteError(w, http.StatusNotFound, errors.New("no assignment for this server"))
-			return
-		}
-		labnet.WriteJSON(w, http.StatusOK, a)
-	})))
-	labAPI.Handle("POST /v1/renew", hub.Require(hub.RenewHandler()))
-	// Guests' requests, forwarded by the server offering storage for others.
-	guestAPI := http.StripPrefix("/v1/guest-api", guestHub.Handler())
-	labAPI.Handle("/v1/guest-api/", hub.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if labnet.Caller(r) != mgr.GuestServer(r.Context()) {
-			labnet.WriteError(w, http.StatusForbidden, errors.New("this server doesn't offer storage for others"))
-			return
-		}
-		guestAPI.ServeHTTP(w, r)
-	})))
-	go labnet.Serve(ctx, lab.Paths.StateDir, labAPI, log)
+	go labnet.Serve(ctx, lab.Paths.StateDir, controllerAPI(hub, guestHub, mgr), log)
 	go labnet.KeepRenewed(ctx, labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, id.ID, hub.RenewSelf, log)
-	// Hourly: hear from labs storing this one's backups (a removal, a new
-	// name), and delete removed guest labs' backups once their grace ends.
-	go func() {
-		for {
-			mgr.CheckRemotes(ctx)
-			if err := mgr.PurgeRemovedGuests(ctx, time.Now()); err != nil {
-				log.Error("deleting removed guest labs' backups", "err", err)
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Hour):
-			}
-		}
-	}()
+	startControllerJobs(ctx, mgr, coord, st, log)
 	srv.Maintenance = lab.Maintenance
 	srv.RunningJob = func() string {
 		if st := coord.Status(); st.Running != nil {
@@ -299,12 +243,6 @@ func serve(args []string) error {
 		go records.Run(ctx, 30*time.Minute)
 		srv.DNS = records
 	}
-
-	go maintenance.Every(ctx, func(now time.Time) time.Time { return now.Add(time.Hour) }, func() {
-		if err := st.DeleteExpiredSessions(ctx); err != nil {
-			log.Error("cleaning sessions", "err", err)
-		}
-	})
 
 	addr := *listen
 	if addr == "" {
