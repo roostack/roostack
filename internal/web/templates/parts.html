@@ -327,7 +327,7 @@
       {{if .Options.CanDrives}}
       <div x-show="choice === 'drive'">
         <div id="drives" class="drives" hx-get="/setup/backup/drives" hx-include="#drives [name='drive']" hx-swap="innerHTML"
-          hx-trigger="every 3s [!document.querySelector('#drives dialog[open]')]">{{template "backup-drives" .Options}}</div>
+          hx-trigger="every 3s [document.visibilityState === 'visible' && !document.querySelector('#drives dialog[open]')], visibilitychange[document.visibilityState === 'visible'] from:document">{{template "backup-drives" .Options}}</div>
         <p class="hint">Just plugged a drive in? It appears here within a few seconds.</p>
         <details>
           <summary>A folder instead (for technical users)</summary>

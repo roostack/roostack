@@ -50,6 +50,26 @@ type Remote struct {
 	status    WireStatus
 	statusErr error
 	statusAt  time.Time
+	// reads caches answers to cachedReads (readCache).
+	reads map[string]cachedRead
+}
+
+// Reads the pages refresh every few seconds (home, Services, Settings)
+// are shared for readCache: ten open tabs cost one call, not ten. Any
+// change (a call that isn't a GET) forgets them, so a page shows what it
+// just did. Live logs, install progress, restores and data aren't cached.
+const readCache = 10 * time.Second
+
+var cachedReads = map[string]bool{
+	"/v1/services": true, "/v1/services/details": true, "/v1/builtins": true, "/v1/backups": true,
+	"/v1/disk": true, "/v1/settings": true, "/v1/updates": true, "/v1/host/changes": true, "/v1/kept": true,
+}
+
+type cachedRead struct {
+	at     time.Time
+	status int
+	header http.Header
+	body   []byte
 }
 
 // NewRemote returns a server reached with this server's certificate.
@@ -419,6 +439,19 @@ func (x remoteSettings) SetRestartPolicy(ctx context.Context, mode string, hour 
 
 // call makes a lab API request to the server.
 func (r *Remote) call(ctx context.Context, method, path string, in, out any) error {
+	cacheable := method == http.MethodGet && cachedReads[path]
+	if cacheable {
+		r.mu.Lock()
+		c, ok := r.reads[path]
+		r.mu.Unlock()
+		if ok && time.Since(c.at) < readCache {
+			return wireError(labnet.DecodeResponse(c.response(), out))
+		}
+	} else if method != http.MethodGet {
+		r.mu.Lock()
+		r.reads = nil
+		r.mu.Unlock()
+	}
 	var body *bytes.Reader
 	if in != nil {
 		data, err := json.Marshal(in)
@@ -439,7 +472,28 @@ func (r *Remote) call(ctx context.Context, method, path string, in, out any) err
 		return err
 	}
 	defer resp.Body.Close()
+	if cacheable {
+		data, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+		if err != nil {
+			return err
+		}
+		c := cachedRead{at: time.Now(), status: resp.StatusCode, header: resp.Header, body: data}
+		if resp.StatusCode < 500 {
+			r.mu.Lock()
+			if r.reads == nil {
+				r.reads = map[string]cachedRead{}
+			}
+			r.reads[path] = c
+			r.mu.Unlock()
+		}
+		return wireError(labnet.DecodeResponse(c.response(), out))
+	}
 	return wireError(labnet.DecodeResponse(resp, out))
+}
+
+// response replays a cached answer.
+func (c cachedRead) response() *http.Response {
+	return &http.Response{StatusCode: c.status, Header: c.header, Body: io.NopCloser(bytes.NewReader(c.body))}
 }
 
 // Moving a service's data (Mover, over the lab API).

@@ -298,7 +298,10 @@ func renderGallery(w io.Writer, static string, standalone bool) error {
 
 // gallerySamples is example data for the activity examples.
 func gallerySamples() map[string]any {
-	at := time.Date(2026, 9, 27, 2, 0, 0, 0, time.Local)
+	// Today at 02:00: shown as "today 02:00" whatever the date, so the
+	// generated gallery file doesn't change from day to day.
+	now := time.Now()
+	at := time.Date(now.Year(), now.Month(), now.Day(), 2, 0, 0, 0, time.Local)
 	view := func(status, err string, done bool, lines ...string) *activityView {
 		s := activity.Snapshot{Title: "OS updates", Status: status, Started: at, Err: err, Lines: lines}
 		if done {

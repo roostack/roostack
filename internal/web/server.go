@@ -410,7 +410,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /services/{name}/remove", s.require(auth.ManageServices, s.removePage))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))
 
-	return s.recoverPanics(securityHeaders(sameOrigin(s.loadSession(mux))))
+	return s.recoverPanics(compress(securityHeaders(sameOrigin(s.loadSession(mux)))))
 }
 
 type userKey struct{}

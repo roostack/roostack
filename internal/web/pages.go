@@ -1,10 +1,13 @@
 package web
 
 import (
+	"bytes"
 	"errors"
+	"hash/fnv"
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -93,7 +96,7 @@ func (s *Server) homePartial(w http.ResponseWriter, r *http.Request) {
 	if data["CanManage"] == true {
 		data["Servers"] = s.serverViews(r)
 	}
-	s.renderPart(w, "home", "home-live", data)
+	s.renderLive(w, r, "home", "home-live", data)
 }
 
 func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +119,7 @@ func (s *Server) servicesPartial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.addBuiltIns(r, data)
-	s.renderPart(w, "services", "services-live", data)
+	s.renderLive(w, r, "services", "services-live", data)
 }
 
 // addBuiltIns adds Roostack's own parts on every server (?builtin=1): its
@@ -273,7 +276,7 @@ func (s *Server) backupsPartial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["Backup"] = s.backupView(r)
-	s.renderPart(w, "backups", "backup-card", data)
+	s.renderLive(w, r, "backups", "backup-card", data)
 }
 
 func (s *Server) domainDone(r *http.Request) bool {
@@ -400,6 +403,36 @@ func (s *Server) renderPart(w http.ResponseWriter, page, name string, data any) 
 	if err := s.pages[page].ExecuteTemplate(w, name, data); err != nil {
 		s.Log.Error("render partial", "page", page, "part", name, "err", strings.TrimSpace(err.Error()))
 	}
+}
+
+// Parts of pages that refresh themselves send a fingerprint of what they
+// show (static/app.js); when it's still the same, the answer is 204 No
+// Content and htmx leaves the page alone: nothing to download or redraw,
+// and open panels, selections and scroll positions are untouched.
+const (
+	haveHeader        = "X-Roostack-Have"
+	fingerprintHeader = "X-Roostack-Fingerprint"
+)
+
+// renderLive renders a self-refreshing part, or 204 if the page already
+// shows exactly this.
+func (s *Server) renderLive(w http.ResponseWriter, r *http.Request, page, name string, data any) {
+	var buf bytes.Buffer
+	if err := s.pages[page].ExecuteTemplate(&buf, name, data); err != nil {
+		s.Log.Error("render partial", "page", page, "part", name, "err", strings.TrimSpace(err.Error()))
+		return
+	}
+	h := fnv.New64a()
+	h.Write(buf.Bytes())
+	fp := strconv.FormatUint(h.Sum64(), 36)
+	w.Header().Set(fingerprintHeader, fp)
+	w.Header().Set("Cache-Control", "no-store")
+	if r.Header.Get(haveHeader) == fp {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(buf.Bytes())
 }
 
 func (s *Server) applyStatus() *manager.ApplyStatus {
