@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
@@ -101,6 +102,20 @@ func HashPassword(pw string) (string, error) {
 	b64 := base64.RawStdEncoding
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version, argonMemory, argonTime, argonThreads, b64.EncodeToString(salt), b64.EncodeToString(key)), nil
+}
+
+// noAccountHash is checked when a login names no account, so the answer
+// takes as long as a wrong password would and doesn't reveal which
+// usernames exist.
+var noAccountHash = sync.OnceValue(func() string {
+	h, _ := HashPassword("no such account")
+	return h
+})
+
+// VerifyNoAccount does the work of a password check for a login that names
+// no account, and always fails.
+func VerifyNoAccount(pw string) {
+	VerifyPassword(noAccountHash(), pw)
 }
 
 // VerifyPassword checks a password against a hash in constant time.

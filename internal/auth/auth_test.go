@@ -3,6 +3,7 @@ package auth
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPasswordRoundTrip(t *testing.T) {
@@ -67,5 +68,21 @@ func TestTokens(t *testing.T) {
 	}
 	if HashToken(a) == a || HashToken(a) != HashToken(a) {
 		t.Error("HashToken must be a deterministic transform")
+	}
+}
+
+// A login naming no account costs as much as a wrong password, so timing
+// doesn't reveal which usernames exist. (Loose bound: it only has to show
+// the argon2 work is done.)
+func TestVerifyNoAccountTakesAsLong(t *testing.T) {
+	hash, _ := HashPassword("correct horse battery")
+	VerifyNoAccount("warm up") // makes its hash once
+	start := time.Now()
+	VerifyPassword(hash, "wrong")
+	real := time.Since(start)
+	start = time.Now()
+	VerifyNoAccount("wrong")
+	if none := time.Since(start); none < real/2 {
+		t.Errorf("no account took %v, a wrong password %v", none, real)
 	}
 }
