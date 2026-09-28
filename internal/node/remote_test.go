@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 type fakeNode struct {
 	applied  chan Assignment
 	settings *fakeSettings
+	healthy  atomic.Bool // its last apply worked (else "image pull failed")
 }
 
 func (f *fakeNode) Identity() nodeid.Identity {
@@ -36,6 +38,9 @@ func (f *fakeNode) Identity() nodeid.Identity {
 }
 func (f *fakeNode) Apply(a Assignment) { f.applied <- a }
 func (f *fakeNode) Status() ApplyStatus {
+	if f.healthy.Load() {
+		return ApplyStatus{Finished: true}
+	}
 	return ApplyStatus{Finished: true, LastErr: errors.New("image pull failed")}
 }
 func (f *fakeNode) ServiceStates(context.Context) (map[string]string, error) {
@@ -220,6 +225,37 @@ func TestRemote(t *testing.T) {
 	if w, ok := r.Pending(); !ok || w.Secrets != nil {
 		t.Error("delivered secrets must not be sent again")
 	}
+	// The same assignment again: a server whose last apply failed gets it
+	// (its retry); a healthy one isn't bothered; a change always goes.
+	again := func(a Assignment) bool {
+		r.mu.Lock()
+		r.statusAt = time.Time{}
+		r.mu.Unlock()
+		r.Apply(a)
+		select {
+		case <-fn.applied:
+			<-saved
+			return true
+		case <-time.After(300 * time.Millisecond):
+			return false
+		}
+	}
+	same := Assignment{Services: svcs, Lab: LabContext{Domain: lab.Domain}}
+	if !again(same) {
+		t.Error("a server whose last apply failed should get it again")
+	}
+	fn.healthy.Store(true)
+	if again(same) {
+		t.Error("a healthy server that has the assignment was sent it again")
+	}
+	if !again(Assignment{Services: svcs, Lab: LabContext{Domain: "new.example.com"}}) {
+		t.Error("a changed assignment must be sent")
+	}
+	if !again(Assignment{Services: svcs, Lab: LabContext{Domain: "new.example.com"}, SetUp: []string{"vaultwarden"}}) {
+		t.Error("set-ups to hand over must be sent")
+	}
+	fn.healthy.Store(false)
+
 	// An older assignment is ignored.
 	if err := api.Take(WireAssignment{Version: 1}); err != nil {
 		t.Fatal(err)

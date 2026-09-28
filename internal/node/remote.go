@@ -86,6 +86,15 @@ func (r *Remote) Apply(a Assignment) {
 		r.Log.Error("encoding assignment", "server", r.ID.Name, "err", err)
 		return
 	}
+	// The controller hands every server its assignment on every change;
+	// one that already has this one, and applied it fine, has nothing to
+	// do (it would only look busy). One whose last apply failed gets it
+	// again: that's its retry.
+	if r.unchanged(w) {
+		if st, err := r.wireStatus(); err == nil && st.apply().LastErr == nil {
+			return
+		}
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	// Typed-in secrets not yet delivered are still needed.
@@ -105,6 +114,22 @@ func (r *Remote) Apply(a Assignment) {
 		r.pushing = true
 		go r.push()
 	}
+}
+
+// unchanged reports whether w is what the server already has: the
+// latest assignment, delivered, with nothing new to hand over (secrets,
+// set-ups).
+func (r *Remote) unchanged(w WireAssignment) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.latest == nil || r.latest.Version != r.delivered || len(w.Secrets) > 0 || len(w.SetUp) > 0 {
+		return false
+	}
+	old, next := *r.latest, w
+	old.Version, next.Version = 0, 0
+	a, err1 := json.Marshal(old)
+	b, err2 := json.Marshal(next)
+	return err1 == nil && err2 == nil && bytes.Equal(a, b)
 }
 
 func (r *Remote) push() {
