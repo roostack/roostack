@@ -119,6 +119,15 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] /settings as a grid of overview cards (current state + status per area)
   - [x] Area pages with a sidebar on desktop, back link on phones: People and access (People, Remote access), Network (Domain and certificates, Home network), This machine (Updates and restarts, Time zone)
   - [x] Wizard forms double as the area "change" pages
+- [ ] **1.16 Code review (2026-09-29)**
+  - [x] Agent: backup folders made and handed over only inside the allowed places (`os.Root`, `lchown`); a planted symlink could have given roostack a folder anywhere. Tested on VM1
+  - [x] A failed restore says truthfully whether the data is back, and starts the service again
+  - [x] Login: unknown usernames take as long as wrong passwords
+  - [x] Cleanups: `userMessage` everywhere, `?server=` can't override a service's server, strict agent decoding, two startup data races, private database copy, `web.ServiceManager` grouped by area, controller parts out of `serve`
+  - [x] Tests for `awssig` (AWS's SigV4 test suite), `instance` and `podman`
+  - [ ] Pin the rest-server and Caddy images by digest (SPEC §8.1 says tag + digest; both TODOs in `internal/generate`)
+  - [ ] Limit wrong 2FA codes per account, not per password login (ASSUMPTIONS K4), with the rate limiting
+  - [ ] Maybe: separate `web.Server` fields per manager area, so each test fake implements only what its pages use
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow
   - [x] `scripts/build-deb.sh` builds `dist/roostack_<version>_amd64.deb` (dpkg-deb, or ar+tar without it): binaries in /usr/bin, units in /usr/lib/systemd/system with a UID drop-in written by postinst, catalog, Caddy Containerfile, docs; postinst sets up the roostack user, subuids, linger, folders and starts Roostack. `scripts/dev-install.sh` installs it (tested on a fresh Debian 13 VM)
   - [x] Caddy's image is built on each server by a Quadlet `.build` unit from /usr/share/roostack/caddy (no manual step; rebuilt from cache at boot)

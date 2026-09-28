@@ -1,5 +1,7 @@
 // Package store holds Roostack's runtime data in SQLite (SPEC.md §5.1): users,
-// sessions and the audit log. Desired state lives in YAML files instead.
+// sessions, the audit log, settings, backup runs, the lab's servers, backup
+// destinations and storage for other labs. Desired state lives in YAML files
+// instead.
 package store
 
 import (
