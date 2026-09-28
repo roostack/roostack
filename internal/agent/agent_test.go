@@ -23,6 +23,7 @@ type fakeHost struct {
 	rebooted  bool
 	updateErr error
 	wg        *WireGuard
+	erased    string
 }
 
 func (f *fakeHost) SetUnprivilegedPortStart() error { f.portsSet = true; return nil }
@@ -42,6 +43,14 @@ func (f *fakeHost) ApplyWireGuard(wg WireGuard) (string, error) {
 	return "cHVibGlj", nil
 }
 func (f *fakeHost) WireGuardStatus(string) (WireGuardStatus, error) { return WireGuardStatus{}, nil }
+func (f *fakeHost) PrepareBackupFolder(dir string) (string, error)  { return dir + "/roostack", nil }
+func (f *fakeHost) Drives() ([]Drive, error) {
+	return []Drive{{ID: "system", Kind: "system", Usable: true}, {ID: "disk:/dev/sdb", Kind: "usb", Disk: "/dev/sdb", Erasable: true}}, nil
+}
+func (f *fakeHost) UseDrive(id string) (UsedDrive, error) {
+	return UsedDrive{Dir: "/mnt/roostack-x", UUID: "u"}, nil
+}
+func (f *fakeHost) EraseDrive(disk, label string) error { f.erased = disk; return nil }
 func (f *fakeHost) HostChanges() (HostChanges, error) {
 	return HostChanges{Held: []string{"linux-image-amd64"}}, nil
 }

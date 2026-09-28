@@ -101,6 +101,9 @@ type JobDeps struct {
 	Plan func() (Plan, error)
 	// OnDone is called with the result (e.g. to record it for the UI).
 	OnDone func(*Summary, error)
+	// Precheck runs first, e.g. that the backup drive is connected
+	// (CheckDrive). Optional.
+	Precheck func() error
 	// Copies are extra copies of the backup, somewhere else (SPEC.md §6.9,
 	// 3-2-1): each gets its own backup of the same files after the main
 	// one, so each can be read on its own.
@@ -145,6 +148,11 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 			d.OnDone(summary, err)
 		}
 	}()
+	if d.Precheck != nil {
+		if err := d.Precheck(); err != nil {
+			return nil, err
+		}
+	}
 	plan, err := d.Plan()
 	if err != nil {
 		return nil, err

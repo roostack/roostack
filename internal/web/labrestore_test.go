@@ -10,15 +10,17 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labrestore"
 )
 
 type fakeLabRestore struct {
-	mu      sync.Mutex
-	src     labrestore.Source
-	key     string
-	started *labrestore.Found
+	mu        sync.Mutex
+	src       labrestore.Source
+	key       string
+	started   *labrestore.Found
+	usedDrive string
 }
 
 func (f *fakeLabRestore) Find(_ context.Context, src labrestore.Source, key string) ([]labrestore.Found, []labrestore.Unopened, error) {
@@ -40,6 +42,15 @@ func (f *fakeLabRestore) Start(fd labrestore.Found) error {
 	return nil
 }
 
+func (f *fakeLabRestore) Drives(context.Context) ([]agent.Drive, error) {
+	return []agent.Drive{{ID: "system", Kind: "system", Usable: true},
+		{ID: "uuid:64B1", Kind: "usb", Name: "OLD BACKUPS", Usable: true}}, nil
+}
+func (f *fakeLabRestore) UseDrive(_ context.Context, id string) (string, error) {
+	f.usedDrive = id
+	return "/mnt/roostack-old-backups", nil
+}
+
 func (f *fakeLabRestore) Running() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -57,7 +68,10 @@ func TestRestoreALabOnFirstRun(t *testing.T) {
 	if _, body := h.get("/setup"); !strings.Contains(body, `href="/setup/restore"`) {
 		t.Error("the first-run page should offer restoring a lab")
 	}
-	form := url.Values{"token": {"wrong"}, "kind": {"folder"}, "folder": {"/mnt/backup"}, "recovery_key": {"the key"}}
+	if _, body := h.get("/setup/restore"); !strings.Contains(body, "OLD BACKUPS") || strings.Contains(body, `value="system"`) {
+		t.Error("the restore page lists connected drives (not this server's own disk)")
+	}
+	form := url.Values{"token": {"wrong"}, "kind": {"folder"}, "folder": {"/mnt/backup"}, "drive": {"other"}, "recovery_key": {"the key"}}
 	if code, body := h.post("/setup/restore", form, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "setup code is wrong") {
 		t.Fatalf("wrong setup code: %d", code)
 	}
@@ -106,5 +120,14 @@ func TestRestoreALabOnFirstRun(t *testing.T) {
 	resp.Body.Close()
 	if resp.Header.Get("HX-Redirect") != "/login" {
 		t.Errorf("after the restart: %d %q", resp.StatusCode, resp.Header.Get("HX-Redirect"))
+	}
+
+	// A connected drive is mounted and searched.
+	h2 := newHarness(t, "the-setup-code")
+	fr2 := &fakeLabRestore{}
+	h2.server.LabRestore = fr2
+	h2.post("/setup/restore", url.Values{"token": {"the-setup-code"}, "kind": {"folder"}, "drive": {"uuid:64B1"}, "recovery_key": {"k"}}, h2.srv.URL)
+	if fr2.usedDrive != "uuid:64B1" || fr2.src.Folder != "/mnt/roostack-old-backups" {
+		t.Errorf("drive search: %q %+v", fr2.usedDrive, fr2.src)
 	}
 }

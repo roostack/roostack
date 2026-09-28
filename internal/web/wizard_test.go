@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
@@ -22,6 +23,8 @@ import (
 )
 
 type fakeSetup struct {
+	drives      []agent.Drive
+	erased      string
 	labName     string
 	restartMode string
 	destination string
@@ -69,6 +72,21 @@ func (f *fakeSetup) SetSSH(_ context.Context, choice string, confirmed bool) err
 }
 func (f *fakeSetup) RestartPolicy() (string, int) {
 	return cmp.Or(f.restartMode, config.RestartAuto), config.Maintenance{}.Hour()
+}
+func (f *fakeSetup) BackupDrives(context.Context) ([]agent.Drive, error) {
+	if f.drives != nil {
+		return f.drives, nil
+	}
+	return []agent.Drive{{ID: "system", Kind: "system", Name: "This server's own disk", Usable: true, Free: 30 << 30}}, nil
+}
+func (f *fakeSetup) EraseDrive(_ context.Context, disk string) error {
+	f.erased = disk
+	for i, d := range f.drives {
+		if d.Disk == disk {
+			f.drives[i] = agent.Drive{ID: "uuid:new", Kind: d.Kind, Name: "ROOSTACK", Disk: disk, Usable: true, Erasable: true}
+		}
+	}
+	return nil
 }
 func (f *fakeSetup) SetLabName(_ context.Context, name string, restart bool) error {
 	if strings.TrimSpace(name) == "" {
@@ -544,5 +562,38 @@ func TestRestartingWaitsForJob(t *testing.T) {
 	h.server.RunningJob = func() string { return "OS updates" }
 	if _, body := h.get("/restarting"); !strings.Contains(body, "once the current job (OS updates) has finished") {
 		t.Errorf("should say what it waits for:\n%s", body)
+	}
+}
+
+// The backup step lists the server's drives, best first and chosen, and
+// can prepare a blank disk.
+func TestBackupDrivePicker(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true}}
+	fs.drives = []agent.Drive{
+		{ID: "uuid:64B1", Kind: "usb", Name: "BACKUP", Model: "SanDisk Ultra", Disk: "/dev/sdb", Size: 128 << 30, Free: -1, FSType: "exfat", Usable: true, Erasable: true},
+		{ID: "disk:/dev/nvme1n1", Kind: "disk", Name: "Samsung SSD 980", Disk: "/dev/nvme1n1", Size: 1000 << 30, Free: -1, Erasable: true},
+		{ID: "system", Kind: "system", Name: "This server's own disk", Size: 40 << 30, Free: 30 << 30, Usable: true},
+	}
+	h.setSetup(fs)
+	_, body := h.get("/setup/backup")
+	for _, want := range []string{`value="uuid:64B1" checked`, "USB drive", "Second disk", "Prepare this disk", "Erase it and start afresh",
+		`value="disk:/dev/nvme1n1" disabled`, "Protects against mistakes, not a failed disk", "sets it up so it's there after a restart"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("picker missing %q", want)
+		}
+	}
+	// Refreshing keeps the choice.
+	if _, part := h.get("/setup/backup/drives?drive=system"); !strings.Contains(part, `value="system" checked`) || strings.Contains(part, `value="uuid:64B1" checked`) {
+		t.Errorf("refresh should keep the chosen drive:\n%s", part)
+	}
+	// Preparing the blank disk chooses it.
+	_, body = h.post("/setup/backup/erase", url.Values{"disk": {"/dev/nvme1n1"}}, h.srv.URL)
+	if fs.erased != "/dev/nvme1n1" || !strings.Contains(body, "The disk is ready") || !strings.Contains(body, `value="uuid:new" checked`) {
+		t.Errorf("erase: %q\n%s", fs.erased, body)
+	}
+	h.post("/setup/backup", url.Values{"kind": {"drive"}, "drive": {"uuid:new"}}, h.srv.URL)
+	if fs.lastBackup.Kind != "drive" || fs.lastBackup.Drive != "uuid:new" {
+		t.Errorf("saved %+v", fs.lastBackup)
 	}
 }

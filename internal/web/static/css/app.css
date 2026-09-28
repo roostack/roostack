@@ -247,6 +247,14 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
 .lab-name { color: var(--muted); font-weight: var(--weight-normal); margin-left: var(--space-2); font-size: var(--text-sm); }
 .lab-name::before { content: "· "; }
 
+/* ---------- Backup drive picker (setup-backup) ---------- */
+.drives { display: grid; gap: var(--space-2); margin: var(--space-3) 0; }
+.drive { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.drive > label { margin: 0; flex: 1 1 16rem; }
+.drive-unusable > label { color: var(--muted); }
+.drive-erase { flex: 0 0 auto; }
+
 /* ---------- Settings: overview grid and area pages ---------- */
 .settings-group-title { font-size: var(--text-base); color: var(--muted); font-weight: var(--weight-medium);
   margin: var(--space-5) 0 var(--space-2); }

@@ -1,17 +1,16 @@
 package node
 
 import (
-	"os"
-	"path/filepath"
-
 	"cmp"
 	"context"
 	"fmt"
 	"net/netip"
-	"roostack.cloud/roostack/internal/backup"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
+	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/firewall"
 )

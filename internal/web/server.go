@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
@@ -207,6 +208,10 @@ type LabSetup interface {
 	SaveDomain(ctx context.Context, domain, email, provider string, values map[string]string, opts setup.DomainOptions) error
 	DomainLater(ctx context.Context) error
 	SaveBackup(ctx context.Context, c setup.BackupChoice) error
+	// BackupDrives lists the drives backups can go on, best first;
+	// EraseDrive erases a disk and prepares it.
+	BackupDrives(ctx context.Context) ([]agent.Drive, error)
+	EraseDrive(ctx context.Context, disk string) error
 	BackupLater(ctx context.Context) error
 	RecoveryKey() (string, error)
 	ConfirmRecoveryKey(ctx context.Context) error
@@ -380,6 +385,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /setup/backup", s.requireWizard(s.backupPage))
 	mux.Handle("POST /setup/backup", s.requireWizard(s.backupSubmit))
 	mux.Handle("POST /setup/backup/later", s.requireWizard(s.backupLater))
+	mux.Handle("GET /setup/backup/drives", s.requireWizard(s.drivesPartial))
+	mux.Handle("POST /setup/backup/erase", s.requireWizard(s.eraseDriveSubmit))
 	mux.Handle("GET /setup/recovery-key", s.requireWizard(s.recoveryPage))
 	mux.Handle("POST /setup/recovery-key", s.requireWizard(s.recoveryConfirm))
 	mux.Handle("GET /restarting", s.requireLogin(s.restartingPage))

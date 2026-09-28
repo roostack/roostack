@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labrestore"
@@ -24,6 +25,34 @@ type LabRestorer interface {
 	Start(fd labrestore.Found) error
 	Running() bool
 	Progress() (activity.Snapshot, bool)
+	// Drives lists this server's drives; UseDrive mounts one, returning
+	// where (to look for backups on it).
+	Drives(ctx context.Context) ([]agent.Drive, error)
+	UseDrive(ctx context.Context, id string) (string, error)
+}
+
+// restoreDrives are the drives that might hold backups (not this server's
+// own disk: it's new).
+func (s *Server) restoreDrives(r *http.Request, data map[string]any) {
+	out := s.connectedDrives(r)
+	data["Drives"] = out
+	if d, _ := data["Drive"].(string); d == "" {
+		data["Drive"] = "other"
+		if len(out) > 0 {
+			data["Drive"] = out[0].ID
+		}
+	}
+}
+
+func (s *Server) connectedDrives(r *http.Request) []agent.Drive {
+	drives, _ := s.LabRestore.Drives(r.Context())
+	var out []agent.Drive
+	for _, d := range drives {
+		if d.Usable && d.Kind != "system" {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 // restoreCookie ties the browser that entered the setup code to what it
@@ -72,7 +101,12 @@ func (s *Server) labRestorePage(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/setup/restore/progress")
 		return
 	}
-	s.render(w, "setup-restore", map[string]any{"Kind": "s3"})
+	data := map[string]any{"Kind": "s3"}
+	s.restoreDrives(r, data)
+	if len(data["Drives"].([]agent.Drive)) > 0 {
+		data["Kind"] = "folder"
+	}
+	s.render(w, "setup-restore", data)
 }
 
 func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +118,8 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 			AccessKey: r.FormValue("access_key"), SecretKey: r.FormValue("secret_key")}}
 	key := strings.TrimSpace(r.FormValue("recovery_key"))
 	// Everything typed comes back, except the secrets.
-	data := map[string]any{"Kind": src.Kind, "Folder": src.Folder, "URL": src.URL, "S3": src.S3}
+	data := map[string]any{"Kind": src.Kind, "Folder": src.Folder, "URL": src.URL, "S3": src.S3, "Drive": r.FormValue("drive")}
+	s.restoreDrives(r, data)
 	fail := func(msg string) {
 		data["Error"] = msg
 		w.WriteHeader(http.StatusBadRequest)
@@ -97,6 +132,15 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(failedLoginDelay)
 		fail("The setup code is wrong. It is shown in the Roostack log and in /var/lib/roostack/setup-token.")
 		return
+	}
+	// A drive is mounted (if it isn't) and searched.
+	if id := r.FormValue("drive"); src.Kind == "folder" && id != "" && id != "other" {
+		dir, err := s.LabRestore.UseDrive(r.Context(), id)
+		if err != nil {
+			fail(capitalize(err.Error()) + ".")
+			return
+		}
+		src.Folder = dir
 	}
 	if msg := src.Problem(); msg != "" {
 		fail(msg)

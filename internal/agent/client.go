@@ -167,6 +167,35 @@ func (c *Client) RemoveWireGuard(ctx context.Context, iface string) error {
 	return c.call(ctx, http.MethodDelete, "/v1/wireguard?interface="+url.QueryEscape(iface), nil, nil)
 }
 
+// Drives lists the places backups can go.
+func (c *Client) Drives(ctx context.Context) ([]Drive, error) {
+	var d []Drive
+	err := c.call(ctx, http.MethodGet, "/v1/drives", nil, &d)
+	return d, err
+}
+
+// UseDrive readies a drive for backups (mounting it for good if needed).
+func (c *Client) UseDrive(ctx context.Context, id string) (UsedDrive, error) {
+	var u UsedDrive
+	err := c.call(ctx, http.MethodPost, "/v1/drives/use", map[string]string{"id": id}, &u)
+	return u, err
+}
+
+// EraseDrive erases a disk and prepares it for backups.
+func (c *Client) EraseDrive(ctx context.Context, disk, label string) error {
+	return c.call(ctx, http.MethodPost, "/v1/drives/erase", map[string]string{"disk": disk, "label": label}, nil)
+}
+
+// PrepareBackupFolder creates a backup folder (if needed) and a roostack
+// folder in it that Roostack may write to, and returns the latter.
+func (c *Client) PrepareBackupFolder(ctx context.Context, dir string) (string, error) {
+	var out struct {
+		Dir string `json:"dir"`
+	}
+	err := c.call(ctx, http.MethodPost, "/v1/backup-folder", map[string]string{"dir": dir}, &out)
+	return out.Dir, err
+}
+
 // HostChanges checks the host for changes Roostack didn't make.
 func (c *Client) HostChanges(ctx context.Context) (HostChanges, error) {
 	var hc HostChanges

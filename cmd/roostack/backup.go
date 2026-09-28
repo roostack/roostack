@@ -155,6 +155,15 @@ func newRepo(lab config.Lab, launch backupLaunch) (*backup.Repo, error) {
 	}, nil
 }
 
+// drivePrecheck checks the backup drive is connected, when backups go on
+// one (a USB drive or second disk).
+func drivePrecheck(d config.BackupDrive) func() error {
+	if d.UUID == "" {
+		return nil
+	}
+	return func() error { return backup.CheckDrive(d.Mount, d.UUID, d.Name) }
+}
+
 // copyRepos opens this server's extra backup copies (SPEC.md §6.9).
 func copyRepos(lab config.Lab, launch backupLaunch) []backup.Copy {
 	restic, err := exec.LookPath("restic")
@@ -197,6 +206,7 @@ func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch ba
 		Preparer:  &backup.Preparer{Launch: launch, RoostackBin: roostackBin},
 		DumpState: st.Backup,
 		Copies:    copyRepos(lab, launch),
+		Precheck:  drivePrecheck(lab.Backup.Drive),
 		Paths:     lab.Paths,
 		Host:      host,
 		Plan: func() (backup.Plan, error) {

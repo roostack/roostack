@@ -9,19 +9,31 @@
   {{end}}
   <p>Roostack backs everything up every night. Choose somewhere that isn't this server's main disk if you can.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{with .Notice}}<p class="notice" role="status">{{.}}</p>{{end}}
   <form method="post" action="/setup/backup" x-data="{ kind: '{{.Kind}}' }">
     <fieldset>
-      <label class="check"><input type="radio" name="kind" value="local" x-model="kind">
-        <span>A disk or folder on this server<small>For example a second disk or a USB drive.</small></span></label>
+      <label class="check"><input type="radio" name="kind" value="drive" x-model="kind">
+        <span>A drive<small>A USB drive, a second disk or a network share connected to this server.</small></span></label>
       <label class="check"><input type="radio" name="kind" value="s3" x-model="kind">
         <span>Online storage (S3-compatible)<small>Backblaze B2, Wasabi, AWS S3 and similar. Keeps a copy away from home.</small></span></label>
+      <label class="check"><input type="radio" name="kind" value="local" x-model="kind">
+        <span>A folder<small>For technical users: type a folder under /mnt, /media or /srv.</small></span></label>
     </fieldset>
 
-    <div x-show="kind === 'local'">
+    <div x-show="kind === 'drive'">
+      {{with .DrivesError}}<p class="error">{{.}}</p>{{end}}
+      {{/* Refreshes by itself, so a drive plugged in shows up; not while a
+           dialog is open. */}}
+      <div id="drives" class="drives" hx-get="/setup/backup/drives" hx-include="#drives [name='drive']" hx-swap="innerHTML"
+        hx-trigger="every 3s [!document.querySelector('#drives dialog[open]')]">{{template "backup-drives" .}}</div>
+      <p class="hint">Just plugged a drive in? It appears here within a few seconds.
+        <button type="button" class="quiet" hx-get="/setup/backup/drives" hx-target="#drives" hx-include="#drives [name='drive']">Look again</button></p>
+    </div>
+
+    <div x-show="kind === 'local'" x-cloak>
       <label>Folder
         <input name="path" value="{{.Path}}" placeholder="/mnt/backup" autocapitalize="off">
-        <small>For example where a second disk is mounted. Roostack keeps its backups in a <code>roostack</code> folder inside it.
-          The folder must be one Roostack may write to (<code>sudo chown roostack:roostack</code> it).</small>
+        <small>Under /mnt, /media or /srv. Roostack creates it if need be, and keeps its backups in a <code>roostack</code> folder inside it.</small>
       </label>
     </div>
 
@@ -30,7 +42,7 @@
         <input name="endpoint" value="{{.Endpoint}}" placeholder="https://s3.us-west-004.backblazeb2.com" autocapitalize="off">
       </label>
       <label>Bucket <input name="bucket" value="{{.Bucket}}" autocapitalize="off"></label>
-      <label>Folder in the bucket (optional) <input name="prefix" value="{{.Prefix}}" placeholder="roostack" autocapitalize="off"></label>
+      <label>Folder in the bucket (optional) <input name="prefix" value="{{.Prefix}}" placeholder="backups" autocapitalize="off"></label>
       <label>Access key ID <input name="access_key" value="{{.AccessKey}}" autocomplete="off" autocapitalize="off"></label>
       <label>Secret access key <input name="secret_key" type="password" autocomplete="off"></label>
     </div>
@@ -45,4 +57,32 @@
   </form>
   {{end}}
 </section>
+{{end}}
+
+{{/* backup-drives: this server's drives, best first (setup.BackupDrives). */}}
+{{define "backup-drives"}}
+{{range .Drives}}
+<div class="drive{{if not .Usable}} drive-unusable{{end}}">
+  <label class="check"><input type="radio" name="drive" value="{{.ID}}"{{if not .Usable}} disabled{{end}}{{if eq .ID $.Selected}} checked{{end}}>
+    <span><strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else if eq .Kind "disk"}}Second disk{{else if eq .Kind "network"}}Network share{{else}}This server{{end}}</span>
+      <small>{{if .Size}}{{size .Size}}{{end}}{{if ge .Free 0}}{{if .Size}} · {{end}}{{size .Free}} free{{end}}{{with .Model}}{{if ne . $.Name}} · {{.}}{{end}}{{end}}{{with .FSType}} · {{.}}{{end}}
+        {{- if eq .Kind "system"}}<br>Protects against mistakes, not a failed disk: add a copy somewhere else later.
+        {{- else if not .Usable}}<br>Empty, or not something Roostack can use as it is: prepare it to use it.
+        {{- else if not .Mount}}<br>Roostack sets it up so it's there after a restart too.{{end}}</small></span></label>
+  {{if .Erasable}}
+  <div x-data class="drive-erase">
+    <button type="button" class="quiet{{if .Usable}} danger{{end}}" x-on:click="$refs.erase.showModal()">{{if .Usable}}Erase it and start afresh…{{else}}Prepare this disk…{{end}}</button>
+    <dialog x-ref="erase" class="dialog">
+      <p><strong>Erase {{.Name}}?</strong> Everything on {{with .Model}}{{.}}, {{end}}{{size .Size}} (<code>{{.Disk}}</code>) is deleted, for good,
+        and it's prepared for Roostack's backups.</p>
+      <div class="dialog-actions">
+        <button type="button" class="secondary" x-on:click="$refs.erase.close()">Cancel</button>
+        <button type="submit" class="danger" formaction="/setup/backup/erase" formnovalidate name="disk" value="{{.Disk}}">Erase it</button>
+      </div>
+    </dialog>
+  </div>
+  {{end}}
+</div>
+{{else}}<p class="hint">No drives found.</p>
+{{end}}
 {{end}}

@@ -65,9 +65,15 @@
       <label>Secret key <input name="secret_key" type="password" autocomplete="off"></label>
       <p class="hint">Roostack looks for every server's backups in the bucket.</p>
     </div>
-    <div x-show="kind === 'folder'" x-cloak>
-      <label>Folder <input name="folder" value="{{.Folder}}" placeholder="/mnt/backup"></label>
-      <p class="hint">Roostack looks in the folder and a few levels below it.</p>
+    <div x-show="kind === 'folder'" x-cloak x-data="{ drive: '{{.Drive}}' }">
+      {{range .Drives}}<label class="check"><input type="radio" name="drive" value="{{.ID}}" x-model="drive">
+        <span><strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else if eq .Kind "network"}}Network share{{else}}Disk{{end}}</span>
+          <small>{{if .Size}}{{size .Size}}{{end}}{{with .Model}}{{if ne . $.Name}} · {{.}}{{end}}{{end}}{{with .FSType}} · {{.}}{{end}}</small></span></label>{{end}}
+      <label class="check"><input type="radio" name="drive" value="other" x-model="drive"><span>Another folder</span></label>
+      <div x-show="drive === 'other'">
+        <label>Folder <input name="folder" value="{{.Folder}}" placeholder="/mnt/backup"></label>
+      </div>
+      <p class="hint">Roostack looks on it (or in the folder) and a few levels below. Just plugged the drive in? <a href="/setup/restore">Look again</a>.</p>
     </div>
     <div x-show="kind === 'url'" x-cloak>
       <label>Address <input name="url" value="{{.URL}}" placeholder="rest:https://user:password@backup.example.com/lab"></label>

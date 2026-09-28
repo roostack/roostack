@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"net/http"
+	"slices"
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
@@ -281,24 +282,90 @@ func (s *Server) domainLater(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) backupPage(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "setup-backup", s.formMode(r, "backup", map[string]any{"User": currentUser(r), "Kind": "local",
-		"Current": s.BackupRepo}))
+	s.renderBackupStep(w, r, map[string]any{"Kind": "drive"})
+}
+
+// renderBackupStep shows the backup step with this server's drives: the
+// best one (a USB drive or second disk, if any) chosen unless another is.
+func (s *Server) renderBackupStep(w http.ResponseWriter, r *http.Request, data map[string]any) {
+	data["User"], data["Current"] = currentUser(r), s.BackupRepo
+	s.addDrives(r, data, r.FormValue("drive"))
+	if data["Error"] != nil {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	s.render(w, "setup-backup", s.formMode(r, "backup", data))
+}
+
+// addDrives lists the drives, marking the chosen one (or the best).
+func (s *Server) addDrives(r *http.Request, data map[string]any, chosen string) {
+	drives, err := s.Setup.BackupDrives(r.Context())
+	if err != nil {
+		data["DrivesError"] = "Couldn't list this server's drives: " + err.Error()
+		return
+	}
+	if !slices.ContainsFunc(drives, func(d agent.Drive) bool { return d.ID == chosen && d.Usable }) {
+		chosen = ""
+		for _, d := range drives {
+			if d.Usable {
+				chosen = d.ID
+				break
+			}
+		}
+	}
+	data["Drives"], data["Selected"] = drives, chosen
+}
+
+// drivesPartial refreshes the drive list (a drive plugged in or out).
+func (s *Server) drivesPartial(w http.ResponseWriter, r *http.Request) {
+	data := map[string]any{}
+	s.addDrives(r, data, r.FormValue("drive"))
+	s.renderPart(w, "setup-backup", "backup-drives", data)
+}
+
+// eraseDriveSubmit erases a disk and prepares it for backups.
+func (s *Server) eraseDriveSubmit(w http.ResponseWriter, r *http.Request) {
+	disk := r.FormValue("disk")
+	err := s.Setup.EraseDrive(r.Context(), disk)
+	data := map[string]any{"Kind": "drive"}
+	if msg, ok := userMessage(err); ok {
+		data["Error"] = msg
+	} else if err != nil {
+		s.serverError(w, err)
+		return
+	} else {
+		s.Store.Audit(r.Context(), currentUser(r), "setup", "erased "+disk+" for backups")
+		data["Notice"] = "The disk is ready. It's chosen below: carry on when you're ready."
+		// The prepared disk's filesystem is the one chosen now.
+		if drives, err := s.Setup.BackupDrives(r.Context()); err == nil {
+			for _, d := range drives {
+				if d.Disk == disk && d.Usable {
+					r.Form.Set("drive", d.ID)
+				}
+			}
+		}
+	}
+	s.renderBackupStep(w, r, data)
 }
 
 func (s *Server) backupSubmit(w http.ResponseWriter, r *http.Request) {
 	c := setup.BackupChoice{
-		Kind: r.FormValue("kind"), Path: r.FormValue("path"),
+		Kind: r.FormValue("kind"), Drive: r.FormValue("drive"), Path: r.FormValue("path"),
 		Endpoint: r.FormValue("endpoint"), Bucket: r.FormValue("bucket"), Prefix: r.FormValue("prefix"),
 		AccessKey: r.FormValue("access_key"), SecretKey: r.FormValue("secret_key"),
 	}
 	err := s.Setup.SaveBackup(r.Context(), c)
 	// Keep what was typed, except the secret key. Kind ends up in an Alpine
 	// expression, so only known values go back.
-	if c.Kind != "local" && c.Kind != "s3" {
-		c.Kind = "local"
+	if c.Kind != "drive" && c.Kind != "local" && c.Kind != "s3" {
+		c.Kind = "drive"
 	}
-	if s.wizardError(w, r, err, "setup-backup", s.formMode(r, "backup", map[string]any{"Kind": c.Kind, "Path": c.Path,
-		"Endpoint": c.Endpoint, "Bucket": c.Bucket, "Prefix": c.Prefix, "AccessKey": c.AccessKey, "Current": s.BackupRepo})) {
+	if msg, ok := userMessage(err); ok {
+		s.renderBackupStep(w, r, map[string]any{"Kind": c.Kind, "Path": c.Path, "Error": msg,
+			"Endpoint": c.Endpoint, "Bucket": c.Bucket, "Prefix": c.Prefix, "AccessKey": c.AccessKey})
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "backup destination set")

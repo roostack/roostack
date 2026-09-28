@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,10 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
 
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
@@ -52,6 +55,16 @@ type Setup struct {
 	NewRepo func(repository string, env []string) *backup.Repo
 	// Restart restarts Roostack so every part picks up the new settings.
 	Restart func()
+	// Drives lists and readies the drives backups can go on (roostack-agent).
+	Drives DriveAgent
+}
+
+// DriveAgent is roostack-agent's backup drive operations.
+type DriveAgent interface {
+	Drives(ctx context.Context) ([]agent.Drive, error)
+	UseDrive(ctx context.Context, id string) (agent.UsedDrive, error)
+	EraseDrive(ctx context.Context, disk, label string) error
+	PrepareBackupFolder(ctx context.Context, dir string) (string, error)
 }
 
 // Progress is how far the wizard got.
@@ -214,8 +227,10 @@ func (s *Setup) DomainLater(ctx context.Context) error {
 
 // BackupChoice is a backup destination from the wizard.
 type BackupChoice struct {
-	Kind string // "local" or "s3"
-	// Local: a folder, e.g. on a second disk.
+	Kind string // "drive", "local" (a folder) or "s3"
+	// Drive: one of Drives (agent.Drive.ID).
+	Drive string
+	// Local: a folder, e.g. where a second disk is mounted.
 	Path string
 	// S3-compatible storage (Backblaze B2, Wasabi, AWS, ...).
 	Endpoint, Bucket, Prefix, AccessKey, SecretKey string
@@ -249,6 +264,27 @@ func (s *Setup) SaveBackup(ctx context.Context, c BackupChoice) error {
 	labID, err := s.Store.LabID(ctx)
 	if err != nil {
 		return err
+	}
+	// A drive (or a typed folder) is readied by roostack-agent first: mounted
+	// for good if need be, with a folder Roostack may write to.
+	var drive config.BackupDrive
+	switch c.Kind {
+	case "drive":
+		if s.Drives == nil {
+			return &CheckError{"Roostack can't see this server's drives."}
+		}
+		used, err := s.Drives.UseDrive(ctx, c.Drive)
+		if err != nil {
+			return &CheckError{fmt.Sprintf("Couldn't use that drive: %s", firstLine(err.Error()))}
+		}
+		drive = config.BackupDrive{Mount: used.Dir, UUID: used.UUID, Name: s.driveName(ctx, c.Drive)}
+		c.Kind, c.Path = "local", used.Dir
+	case "local":
+		if s.Drives != nil && filepath.IsAbs(strings.TrimSpace(c.Path)) {
+			if _, err := s.Drives.PrepareBackupFolder(ctx, filepath.Clean(strings.TrimSpace(c.Path))); err != nil {
+				return &CheckError{fmt.Sprintf("Couldn't use that folder: %s", firstLine(err.Error()))}
+			}
+		}
 	}
 	repoURL, env, provider, err := c.destination(labID, s.Lab.NodeID)
 	if err != nil {
@@ -294,7 +330,7 @@ func (s *Setup) SaveBackup(ctx context.Context, c BackupChoice) error {
 	}
 	if err := config.Update(s.LabPath, func(lab *config.Lab) {
 		// The controller's weekly job removes old backups (SPEC.md §10.10).
-		lab.Backup = config.Backup{Repository: repoURL, Env: env, PrunedByController: true}
+		lab.Backup = config.Backup{Repository: repoURL, Env: env, PrunedByController: true, Drive: drive}
 	}); err != nil {
 		return err
 	}
@@ -368,6 +404,59 @@ func (s *Setup) SetLabName(ctx context.Context, name string, restart bool) error
 	}
 	if restart && s.Restart != nil {
 		s.Restart()
+	}
+	return nil
+}
+
+// driveName is how a drive is named in messages ("the backup drive BACKUP
+// isn't connected").
+func (s *Setup) driveName(ctx context.Context, id string) string {
+	drives, _ := s.Drives.Drives(ctx)
+	for _, d := range drives {
+		if d.ID == id {
+			return d.Name
+		}
+	}
+	return ""
+}
+
+// BackupDrives lists the drives backups can go on, best first: a USB drive
+// or second disk, then a network share, then this server's own disk.
+func (s *Setup) BackupDrives(ctx context.Context) ([]agent.Drive, error) {
+	if s.Drives == nil {
+		return nil, nil
+	}
+	drives, err := s.Drives.Drives(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rank := func(d agent.Drive) int {
+		switch {
+		case d.Kind == "system":
+			return 4
+		case !d.Usable:
+			return 3
+		case d.Kind == "network":
+			return 2
+		}
+		return 1
+	}
+	slices.SortStableFunc(drives, func(a, b agent.Drive) int {
+		if r := rank(a) - rank(b); r != 0 {
+			return r
+		}
+		return cmp.Compare(b.Free, a.Free)
+	})
+	return drives, nil
+}
+
+// EraseDrive erases a disk and prepares it for backups.
+func (s *Setup) EraseDrive(ctx context.Context, disk string) error {
+	if s.Drives == nil {
+		return &CheckError{"Roostack can't see this server's drives."}
+	}
+	if err := s.Drives.EraseDrive(ctx, disk, "ROOSTACK"); err != nil {
+		return &CheckError{fmt.Sprintf("Couldn't prepare the disk: %s", firstLine(err.Error()))}
 	}
 	return nil
 }

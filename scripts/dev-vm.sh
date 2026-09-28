@@ -9,6 +9,7 @@
 #   scripts/dev-vm.sh down      shut the VM down
 #   scripts/dev-vm.sh destroy   delete the VM disk (keeps the downloaded image)
 #   scripts/dev-vm.sh status
+#   scripts/dev-vm.sh usb add|remove NAME [SIZE]   plug a virtual USB drive in or out
 #
 # Ports forwarded to 127.0.0.1 on this machine:
 #   2222 -> 22 (ssh), 18480 -> 8480 (Roostack UI), 18080 -> 80, 18443 -> 443,
@@ -138,6 +139,7 @@ start() {
         -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$((18480 + OFF))-:8480,hostfwd=tcp:127.0.0.1:$((18080 + OFF))-:80,hostfwd=tcp:127.0.0.1:$((18443 + OFF))-:443,hostfwd=udp:127.0.0.1:$WG_PORT-:51820,hostfwd=udp:127.0.0.1:$GUESTS_PORT-:51821" \
         -device virtio-net-pci,netdev=net0 \
         -device virtio-rng-pci \
+        -device qemu-xhci,id=xhci \
         "${smbios[@]}" \
         -display none -serial file:"$VM_DIR/console.log" \
         -qmp unix:"$QMP",server=on,wait=off \
@@ -186,6 +188,30 @@ stop() {
     kill "$(cat "$PIDFILE")" && rm -f "$PIDFILE"
 }
 
+# usb_drive plugs a virtual USB drive into the running VM, or unplugs it,
+# to test Roostack's backup drive picker: usb add NAME [SIZE], usb remove
+# NAME. The drive's disk image stays in the VM's folder, so plugging it in
+# again brings back what was written to it.
+usb_drive() {
+    local action=$1 name=$2 size=$3
+    running || { echo "VM is not running" >&2; exit 1; }
+    [[ $name =~ ^[a-z0-9]+$ ]] || { echo "usage: usb add|remove NAME [SIZE]" >&2; exit 2; }
+    local img="$VM_DIR/usb-$name.img"
+    case $action in
+    add)
+        [[ -f $img ]] || truncate -s "$size" "$img"
+        qmp "{\"execute\": \"blockdev-add\", \"arguments\": {\"driver\": \"raw\", \"node-name\": \"usb-$name\", \"file\": {\"driver\": \"file\", \"filename\": \"$img\"}}}" \
+            "{\"execute\": \"device_add\", \"arguments\": {\"driver\": \"usb-storage\", \"bus\": \"xhci.0\", \"drive\": \"usb-$name\", \"id\": \"usbdev-$name\", \"removable\": true}}"
+        log "USB drive $name plugged in ($(du -h --apparent-size "$img" | cut -f1))" ;;
+    remove)
+        qmp "{\"execute\": \"device_del\", \"arguments\": {\"id\": \"usbdev-$name\"}}"
+        sleep 1
+        qmp "{\"execute\": \"blockdev-del\", \"arguments\": {\"node-name\": \"usb-$name\"}}"
+        log "USB drive $name unplugged" ;;
+    *) echo "usage: usb add|remove NAME [SIZE]" >&2; exit 2 ;;
+    esac
+}
+
 case ${1:-} in
 up) start ;;
 ssh) shift; vm_ssh -t "$@" ;;
@@ -203,5 +229,6 @@ ui) log "Roostack UI: http://127.0.0.1:$((18481 + OFF)) (Ctrl-C to stop)"
 down) stop ;;
 destroy) stop; rm -rf "$DISK" "$VM_DIR/seed" "$VM_DIR/console.log"; log "Disk deleted" ;;
 status) if running; then echo "running (pid $(cat "$PIDFILE"))"; else echo "stopped"; fi ;;
+usb) usb_drive "${2:-}" "${3:-}" "${4:-8G}" ;;
 *) sed -n '2,18p' "$0"; exit 2 ;;
 esac

@@ -12,12 +12,12 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
-	"roostack.cloud/roostack/internal/generate"
 	"testing"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/nodeid"

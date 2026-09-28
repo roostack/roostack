@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
@@ -226,5 +227,51 @@ func TestDone(t *testing.T) {
 	s.Done(ctx, StepSSH)
 	if p, _ := s.Progress(ctx); !p.SSHDone || p.Next() != "/setup/domain" {
 		t.Errorf("after SSH: %+v", p)
+	}
+}
+
+type fakeDrives struct{ dir string }
+
+func (f fakeDrives) Drives(context.Context) ([]agent.Drive, error) {
+	return []agent.Drive{{ID: "system", Kind: "system", Usable: true},
+		{ID: "uuid:64B1", Kind: "usb", Name: "BACKUP", Usable: true, Free: -1}}, nil
+}
+func (f fakeDrives) UseDrive(_ context.Context, id string) (agent.UsedDrive, error) {
+	return agent.UsedDrive{Dir: f.dir, UUID: "64B1"}, nil
+}
+func (f fakeDrives) EraseDrive(context.Context, string, string) error { return nil }
+func (f fakeDrives) PrepareBackupFolder(_ context.Context, dir string) (string, error) {
+	return dir + "/roostack", nil
+}
+
+// Choosing a drive readies it (roostack-agent), puts the repository in its
+// roostack folder and records the drive, so backups check it's there.
+func TestBackupOnADrive(t *testing.T) {
+	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
+	if bin == "" {
+		var err error
+		if bin, err = exec.LookPath("restic"); err != nil {
+			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
+		}
+	}
+	s, _, _ := newSetup(t)
+	ctx := context.Background()
+	mount := t.TempDir()
+	s.Drives = fakeDrives{dir: mount}
+	s.NewRepo = func(repo string, env []string) *backup.Repo {
+		return &backup.Repo{Bin: bin, URL: repo, PasswordFile: backup.KeyFile(s.Lab.Paths), Env: env,
+			CacheDir: filepath.Join(s.Lab.Paths.StateDir, "cache")}
+	}
+	drives, _ := s.BackupDrives(ctx)
+	if drives[0].ID != "uuid:64B1" || drives[1].ID != "system" {
+		t.Errorf("a USB drive comes before this server's own disk: %+v", drives)
+	}
+	if err := s.SaveBackup(ctx, BackupChoice{Kind: "drive", Drive: "uuid:64B1"}); err != nil {
+		t.Fatal(err)
+	}
+	lab, _ := config.Load(s.LabPath)
+	if !strings.HasPrefix(lab.Backup.Repository, filepath.Join(mount, "roostack")+"/") ||
+		lab.Backup.Drive != (config.BackupDrive{Mount: mount, UUID: "64B1", Name: "BACKUP"}) {
+		t.Errorf("backup = %+v", lab.Backup)
 	}
 }

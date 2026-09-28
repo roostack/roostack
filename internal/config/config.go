@@ -111,6 +111,18 @@ type Backup struct {
 	PrunedByController bool `yaml:"pruned_by_controller,omitempty"`
 	// Copies are extra copies somewhere else (SPEC.md §6.9, 3-2-1).
 	Copies []BackupCopy `yaml:"copies,omitempty"`
+	// Drive is the drive the repository is on, when it's one (a USB drive
+	// or second disk): backups check it's connected before writing.
+	Drive BackupDrive `yaml:"drive,omitempty"`
+}
+
+// BackupDrive is a drive backups go on.
+type BackupDrive struct {
+	// Mount is where it's mounted; UUID its filesystem's (empty for this
+	// server's own disk or a network share); Name how people know it.
+	Mount string `yaml:"mount,omitempty"`
+	UUID  string `yaml:"uuid,omitempty"`
+	Name  string `yaml:"name,omitempty"`
 }
 
 // BackupCopy is an extra copy of this server's backups: each nightly
