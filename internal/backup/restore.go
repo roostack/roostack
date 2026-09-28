@@ -72,8 +72,7 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 		}
 		aside := dir + suffix
 		if err := os.Rename(dir, aside); err != nil {
-			r.rollback(res, suffix)
-			return nil, fmt.Errorf("moving %s aside: %w", dir, err)
+			return nil, r.undo(ctx, svc, res, suffix, fmt.Errorf("moving %s aside: %w", dir, err))
 		}
 		res.MovedAside[dir] = aside
 		r.Log.Printf("%s → %s", dir, aside)
@@ -84,12 +83,10 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 		r.Log.Printf("%s", dir)
 		err := r.Repo.RestoreDir(ctx, snap.ID, dir)
 		if errors.Is(err, ErrNotInSnapshot) {
-			r.rollback(res, suffix)
-			return nil, fmt.Errorf("snapshot %s doesn't contain %s; your data was put back unchanged", snap.Short, dir)
+			return nil, r.undo(ctx, svc, res, suffix, fmt.Errorf("snapshot %s doesn't contain %s", snap.Short, dir))
 		}
 		if err != nil {
-			r.rollback(res, suffix)
-			return nil, fmt.Errorf("%w; your data was put back unchanged", err)
+			return nil, r.undo(ctx, svc, res, suffix, err)
 		}
 	}
 
@@ -131,17 +128,43 @@ func (r *Restorer) pickSnapshot(ctx context.Context, id string) (*Snapshot, erro
 	return r.Repo.pickSnapshot(ctx, id)
 }
 
+// undo puts the original data back after a failed restore and starts the
+// service again, as it was before. The error adds to cause whether that
+// worked, so nobody is told their data is back when it isn't.
+func (r *Restorer) undo(ctx context.Context, svc *generate.Output, res *RestoreResult, suffix string, cause error) error {
+	r.Log.Step("Putting the current data back")
+	if err := r.rollback(res, suffix); err != nil {
+		r.Log.Printf("%v", err)
+		return fmt.Errorf("%w; putting your data back failed too, so %s stays stopped: %w", cause, svc.Service, err)
+	}
+	r.Log.Step("Starting %s again", svc.Service)
+	// Started even if the restore was cancelled: its data is back.
+	if err := r.Units.Start(context.WithoutCancel(ctx), svc.Units...); err != nil {
+		return fmt.Errorf("%w; your data was put back unchanged, but starting %s again failed: %w", cause, svc.Service, err)
+	}
+	return fmt.Errorf("%w; your data was put back unchanged", cause)
+}
+
 // rollback moves the original directories back after a failed restore.
 // A partial restore is moved out of the way rather than deleted: its files
-// may belong to container users that can't be removed from here.
-func (r *Restorer) rollback(res *RestoreResult, suffix string) {
+// may belong to container users that can't be removed from here. What
+// couldn't be put back stays in res.MovedAside, and the error says where.
+func (r *Restorer) rollback(res *RestoreResult, suffix string) error {
+	var errs []error
 	for dir, aside := range res.MovedAside {
 		if _, err := os.Stat(dir); err == nil {
-			os.Rename(dir, strings.Replace(dir+suffix, keptBefore, keptFailed, 1))
+			if err := os.Rename(dir, strings.Replace(dir+suffix, keptBefore, keptFailed, 1)); err != nil {
+				errs = append(errs, fmt.Errorf("the previous data is still at %s (moving the partial restore out of the way: %w)", aside, err))
+				continue
+			}
 		}
-		os.Rename(aside, dir)
+		if err := os.Rename(aside, dir); err != nil {
+			errs = append(errs, fmt.Errorf("the previous data is still at %s (%w)", aside, err))
+			continue
+		}
+		delete(res.MovedAside, dir)
 	}
-	res.MovedAside = map[string]string{}
+	return errors.Join(errs...)
 }
 
 // LoadDumps puts each database back from its dump in the service's data

@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -147,12 +148,64 @@ func TestRestoreService(t *testing.T) {
 	// data back instead of starting it empty.
 	other := filepath.Join(root, "srv", "other", "data")
 	writeFile(t, filepath.Join(other, "keep.txt"), "current")
-	_, err = r.RestoreService(ctx, &generate.Output{Service: "other", Backup: generate.BackupPlan{Include: []string{other}}}, "")
+	units.calls = nil
+	_, err = r.RestoreService(ctx, &generate.Output{Service: "other", Units: []string{"roostack-other-app.service"},
+		Backup: generate.BackupPlan{Include: []string{other}}}, "")
 	if err == nil || !strings.Contains(err.Error(), "put back unchanged") {
 		t.Fatalf("err = %v", err)
 	}
 	if got, _ := os.ReadFile(filepath.Join(other, "keep.txt")); string(got) != "current" {
 		t.Error("current data must be put back when the backup doesn't contain it")
+	}
+	if want := "stop roostack-other-app.service,start roostack-other-app.service"; strings.Join(units.calls, ",") != want {
+		t.Errorf("units = %v, want the service started again with its data back", units.calls)
+	}
+}
+
+// A failed restore says whether the data is back, and only then starts
+// the service again.
+func TestUndoFailedRestore(t *testing.T) {
+	root := t.TempDir()
+	svc := &generate.Output{Service: "app", Units: []string{"roostack-app-app.service"}}
+	const suffix = keptBefore + "20260926-120000"
+	cause := errors.New("restic failed")
+
+	// Put back: the partial restore is kept aside, the data is back and
+	// the service starts.
+	dir := filepath.Join(root, "data")
+	writeFile(t, filepath.Join(dir+suffix, "keep.txt"), "current")
+	writeFile(t, filepath.Join(dir, "partial.txt"), "half")
+	units := &fakeUnits{}
+	r := &Restorer{Units: units}
+	res := &RestoreResult{MovedAside: map[string]string{dir: dir + suffix}}
+	err := r.undo(context.Background(), svc, res, suffix, cause)
+	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "put back unchanged") {
+		t.Errorf("err = %v", err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, "keep.txt")); string(got) != "current" {
+		t.Error("the data isn't back")
+	}
+	if _, err := os.Stat(filepath.Join(root, "data.failed-restore-20260926-120000", "partial.txt")); err != nil {
+		t.Errorf("the partial restore isn't kept: %v", err)
+	}
+	if strings.Join(units.calls, ",") != "start roostack-app-app.service" {
+		t.Errorf("units = %v", units.calls)
+	}
+
+	// Not put back (its copy is gone): the error says so and where, and
+	// the service isn't started on the wrong data.
+	lost := filepath.Join(root, "lost")
+	units.calls = nil
+	res = &RestoreResult{MovedAside: map[string]string{lost: lost + suffix}}
+	err = r.undo(context.Background(), svc, res, suffix, cause)
+	if err == nil || strings.Contains(err.Error(), "put back unchanged") || !strings.Contains(err.Error(), lost+suffix) {
+		t.Errorf("err = %v", err)
+	}
+	if len(units.calls) != 0 {
+		t.Errorf("started without its data: %v", units.calls)
+	}
+	if res.MovedAside[lost] != lost+suffix {
+		t.Error("what wasn't put back is still listed")
 	}
 }
 
