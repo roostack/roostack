@@ -160,7 +160,7 @@
   <label class="check"><input type="radio" name="drive" value="{{.ID}}"{{if not .Usable}} disabled{{end}}{{if eq .ID $.Selected}} checked{{end}}>
     <span><strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else if eq .Kind "disk"}}Second disk{{else if eq .Kind "network"}}Network share{{else}}This server{{end}}</span>
       <small>{{if .Size}}{{size .Size}}{{end}}{{if ge .Free 0}}{{if .Size}} · {{end}}{{size .Free}} free{{end}}{{with .Model}}{{if ne . $d.Name}} · {{.}}{{end}}{{end}}{{with .FSType}} · {{.}}{{end}}
-        {{- if eq .Kind "system"}}<br>Protects against mistakes, not a failed disk: add a copy somewhere else later.
+        {{- if eq .Kind "system"}}<br>The same disk as your data: it helps with mistakes, not a failed disk or ransomware.
         {{- else if not .Usable}}<br>Empty, or not something Roostack can use as it is: prepare it to use it.
         {{- else if not .Mount}}<br>Roostack sets it up so it's there after a restart too.{{end}}</small></span></label>
   {{if .Erasable}}
@@ -226,6 +226,7 @@
       <div class="plan-body">
         <p class="plan-title">{{.Title}}</p>
         <p class="hint">{{if .Main}}Main backup · {{end}}{{with .KindTitle}}{{.}} · {{end}}{{if .AtHome}}at home{{else if .Away}}away from home{{else if .AskWhere}}at home or away?{{else}}location not known{{end}}{{if .Main}} · restores use it first{{end}}</p>
+        {{if eq .Kind "system"}}{{notice "warn" "This backup is on the same disk as your data. It helps if something is deleted or changed by mistake, but if the disk fails, or ransomware gets onto the server, your data and this backup are lost together. Keep your other backups on a separate drive, or away from home."}}{{end}}
         {{range .AskWhere}}
         <div class="plan-where">
           <span>Where is {{or .Name "this server"}}?</span>

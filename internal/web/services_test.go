@@ -172,6 +172,8 @@ func (f *fakeManager) BackupChoices(context.Context) ([]manager.BackupChoice, er
 }
 func (f *fakeManager) BackupKind(_ context.Context, _, ref string) string {
 	switch {
+	case ref == "drive:system":
+		return manager.KindSystem
 	case strings.HasPrefix(ref, "drive:"):
 		return manager.KindUSB
 	case strings.HasPrefix(ref, "provider:"):
@@ -1241,5 +1243,18 @@ func TestBackupOnAnotherServerLocation(t *testing.T) {
 	h.post("/settings/servers/n-9876543210/location", url.Values{"location": {"home"}}, h.srv.URL)
 	if _, body := h.get("/backups"); !strings.Contains(body, "Another Roostack instance · at home") {
 		t.Error("both at home")
+	}
+}
+
+// A backup on the server's own disk says what it doesn't protect against.
+func TestBackupOnTheSameDiskWarns(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.destination = "provider:1"
+	if _, body := h.get("/backups"); strings.Contains(body, "same disk as your data") {
+		t.Error("online storage isn't on the same disk")
+	}
+	fm.destination = "drive:system"
+	if _, body := h.get("/backups"); !strings.Contains(body, "if the disk fails, or ransomware gets onto the server") {
+		t.Error("a backup on this server's disk should warn")
 	}
 }
