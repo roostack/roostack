@@ -63,6 +63,7 @@ To try it on a Debian 13 VM, see [scripts/dev-install.sh](scripts/dev-install.sh
 ## Project documents
 
 - [PLAN.md](PLAN.md): the project brief
+- [CLAUDE.md](CLAUDE.md): how to work on the project (for agents, and a quick start for people)
 - [SPEC.md](SPEC.md): decisions, with rationale
 - [TASKS.md](TASKS.md): what's done and what's next
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the code fits together
