@@ -1,5 +1,6 @@
 {{define "title"}}Home{{end}}
 {{define "content"}}
+{{with .ApplyActivity}}<section class="card section apply-activity">{{activity .}}</section>{{end}}
 <div hx-get="/partials/home" hx-trigger="every 10s" hx-swap="innerHTML">
   {{template "home-live" .}}
 </div>

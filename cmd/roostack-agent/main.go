@@ -51,6 +51,11 @@ func run(log *slog.Logger, socket, userName, firewallFile string) error {
 	}
 
 	host := agent.LinuxHost{FirewallFile: firewallFile, UID: int(uid), GID: gid}
+	// Rootless containers (Caddy) bind ports 80 and 443 (docs/ASSUMPTIONS.md
+	// C3); set at every start, so a fresh install has it too.
+	if err := host.SetUnprivilegedPortStart(); err != nil {
+		log.Error("letting containers use ports 80 and 443", "err", err)
+	}
 	if err := host.RestoreFirewall(); err != nil {
 		// Keep running: the roostack service can re-apply the firewall.
 		log.Error("restoring firewall failed", "err", err)
