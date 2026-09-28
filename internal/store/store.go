@@ -212,7 +212,9 @@ func (s *Store) migrate() error {
 
 // Backup writes a consistent copy of the database to path, for the backup
 // prepare step (SPEC.md §5.1). VACUUM INTO refuses to overwrite, so the copy
-// goes to a temporary file that replaces path atomically.
+// goes to a temporary file that replaces path atomically. It holds password
+// hashes, so it's private like the database (SQLite creates it with the
+// process's umask).
 func (s *Store) Backup(ctx context.Context, path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
@@ -220,6 +222,10 @@ func (s *Store) Backup(ctx context.Context, path string) error {
 	tmp := path + ".tmp"
 	os.Remove(tmp)
 	if _, err := s.db.ExecContext(ctx, `VACUUM INTO ?`, tmp); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if err := os.Chmod(tmp, 0o600); err != nil {
 		os.Remove(tmp)
 		return err
 	}

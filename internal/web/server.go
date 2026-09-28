@@ -541,6 +541,14 @@ func redirect(w http.ResponseWriter, r *http.Request, url string) {
 	http.Redirect(w, r, url, http.StatusSeeOther)
 }
 
+// labName is LabName, which first-run setup may change while pages are
+// being served.
+func (s *Server) labName() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.LabName
+}
+
 func (s *Server) needsSetup() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -573,7 +581,7 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 	if u, ok := data["User"].(*store.User); ok && u != nil {
 		data["Nav"] = navFor(u, page)
 		if _, set := data["LabName"]; !set {
-			data["LabName"] = s.LabName
+			data["LabName"] = s.labName()
 		}
 		// For the banner shown when the browser's clock differs from the
 		// host's (every time Roostack shows is host time).

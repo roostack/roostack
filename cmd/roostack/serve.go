@@ -90,11 +90,13 @@ func serve(args []string) error {
 	}
 	// During the setup wizard, settings wait for one restart at its end
 	// (the Owner shouldn't watch Roostack restart after every step).
-	var wizard *setup.Setup
+	// It's set further down, but restart is handed to goroutines (the
+	// hub, the node) before that, hence the atomic.
+	var wizard atomic.Pointer[setup.Setup]
 	var restartPending atomic.Bool
 	restart := func() {
-		if wizard != nil {
-			if p, err := wizard.Progress(context.Background()); err == nil && p.Next() != "" {
+		if w := wizard.Load(); w != nil {
+			if p, err := w.Progress(context.Background()); err == nil && p.Next() != "" {
 				if !restartPending.Swap(true) {
 					log.Info("restart postponed until setup is finished")
 				}
@@ -260,7 +262,7 @@ func serve(args []string) error {
 		go finishLabRestore(lab, coord, r.Restorer, assigned, mgr.Wait, local.Activity, log)
 	}
 
-	wizard = &setup.Setup{
+	wiz := &setup.Setup{
 		Lab: lab, LabPath: *labPath, Store: st, Secrets: podman.NewSecrets(),
 
 		Restart: restart,
@@ -273,10 +275,11 @@ func serve(args []string) error {
 			}
 		},
 	}
-	if err := wizard.AdoptExisting(ctx); err != nil {
+	wizard.Store(wiz)
+	if err := wiz.AdoptExisting(ctx); err != nil {
 		return err
 	}
-	srv.Setup, srv.DNSProvider, srv.LabName = wizard, lab.DNS.Provider, lab.DisplayName()
+	srv.Setup, srv.DNSProvider, srv.LabName = wiz, lab.DNS.Provider, lab.DisplayName()
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
 	// A new install can instead become a lab restored from its backups.
 	if token != "" {
@@ -297,13 +300,11 @@ func serve(args []string) error {
 		srv.DNS = records
 	}
 
-	go func() {
-		for range time.Tick(time.Hour) {
-			if err := st.DeleteExpiredSessions(ctx); err != nil {
-				log.Error("cleaning sessions", "err", err)
-			}
+	go maintenance.Every(ctx, func(now time.Time) time.Time { return now.Add(time.Hour) }, func() {
+		if err := st.DeleteExpiredSessions(ctx); err != nil {
+			log.Error("cleaning sessions", "err", err)
 		}
-	}()
+	})
 
 	addr := *listen
 	if addr == "" {
