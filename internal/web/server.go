@@ -365,7 +365,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /setup/timezone", s.requireWizard(s.timezonePage))
 	mux.Handle("POST /setup/timezone", s.requireWizard(s.timezoneSubmit))
 	mux.Handle("GET /activity/{kind}/{part}", s.require(auth.ManageServices, s.activityPart))
-	mux.Handle("GET /users", s.requireOwner(s.usersPage))
+	// The People page moved to Settings; its forms still post to /users.
+	mux.Handle("GET /users", http.RedirectHandler("/settings/people", http.StatusMovedPermanently))
 	mux.Handle("POST /users", s.requireOwner(s.userAddSubmit))
 	mux.Handle("POST /users/{id}/role", s.requireOwner(s.userRoleSubmit))
 	mux.Handle("POST /users/{id}/reset-password", s.requireOwner(s.userResetPasswordSubmit))

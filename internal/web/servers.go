@@ -16,28 +16,39 @@ import (
 // live under /settings/servers/<id>/…; this server keeps its familiar
 // addresses.
 
-// serverOf is the server a request is about: named in the path or query
-// ("server"), the one running the service in the path ("name"), or this
-// server. Nil if there is none (or no such server).
+// serverOf is the server a request is about: named in the path
+// ("server"), the one running the service in the path ("name"), named in
+// the query ("server", for live parts of a server's pages), or this server.
+// A service's server always comes from the service, never the query. Nil
+// if there is none (or no such server).
 func (s *Server) serverOf(r *http.Request) ServiceNode {
-	if id := cmp.Or(r.PathValue("server"), r.URL.Query().Get("server")); id != "" {
-		if s.Manager == nil {
-			return nil
-		}
-		if n := s.Manager.NodeByID(id); n != nil {
-			return n
-		}
-		return nil
+	if id := r.PathValue("server"); id != "" {
+		return s.serverByID(id)
 	}
-	if name := r.PathValue("name"); name != "" && s.Manager != nil {
-		if n := s.Manager.NodeFor(name); n != nil {
-			return n
+	if name := r.PathValue("name"); name != "" {
+		if s.Manager != nil {
+			if n := s.Manager.NodeFor(name); n != nil {
+				return n
+			}
 		}
+	} else if id := r.URL.Query().Get("server"); id != "" {
+		return s.serverByID(id)
 	}
 	if s.Node == nil {
 		return nil
 	}
 	return s.Node
+}
+
+// serverByID is one of the lab's servers, or nil.
+func (s *Server) serverByID(id string) ServiceNode {
+	if s.Manager == nil {
+		return nil
+	}
+	if n := s.Manager.NodeByID(id); n != nil {
+		return n
+	}
+	return nil
 }
 
 // serverRef names a server and where its pages and forms are.

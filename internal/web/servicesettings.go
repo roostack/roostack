@@ -106,13 +106,13 @@ func (s *Server) settingsSubmit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	err := s.Manager.UpdateSettings(r.Context(), name, req)
-	var fe *manager.FormError
+	msg, isForm := userMessage(err)
 	switch {
 	case errors.Is(err, manager.ErrNotFound):
 		http.NotFound(w, r)
 		return
-	case errors.As(err, &fe):
-		s.renderServiceWith(w, r, map[string]any{"SettingsError": fe.Msg, "Submitted": r.PostForm}, true)
+	case isForm:
+		s.renderServiceWith(w, r, map[string]any{"SettingsError": msg, "Submitted": r.PostForm}, true)
 		return
 	case err != nil:
 		s.serverError(w, err)
@@ -123,12 +123,13 @@ func (s *Server) settingsSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) revealSubmit(w http.ResponseWriter, r *http.Request) {
-	if s.serverOf(r) == nil {
+	n := s.serverOf(r)
+	if n == nil {
 		http.NotFound(w, r)
 		return
 	}
 	name, key := r.PathValue("name"), r.PathValue("key")
-	v, err := s.serverOf(r).RevealSecret(r.Context(), name, key)
+	v, err := n.RevealSecret(r.Context(), name, key)
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
 		return
