@@ -30,7 +30,7 @@ import (
 type fakeNode struct {
 	applied  chan Assignment
 	settings *fakeSettings
-	healthy  atomic.Bool // its last apply worked (else "image pull failed")
+	healthy  atomic.Bool  // its last apply worked (else "image pull failed")
 	builtIns atomic.Int32 // calls
 }
 
