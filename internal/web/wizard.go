@@ -394,7 +394,7 @@ func (s *Server) eraseDriveSubmit(w http.ResponseWriter, r *http.Request) {
 // backupSubmit leaves the wizard's backup step, once there's a backup 1.
 func (s *Server) backupSubmit(w http.ResponseWriter, r *http.Request) {
 	if _, _, ok := s.Manager.BackupTargetOf(r.Context(), s.serverRefOf(r).ID); !ok {
-		s.renderBackupStep(w, r, map[string]any{"Error": "Add backup 1 first, or set up backups later."})
+		s.renderBackupStep(w, r, map[string]any{"Error": "Add your main backup first, or set up backups later."})
 		return
 	}
 	redirect(w, r, "/setup/recovery-key")
