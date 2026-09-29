@@ -1,7 +1,7 @@
 {{define "title"}}Restore {{.Service.Title}}{{end}}
 {{define "content"}}
 <section class="card narrow">
-  {{back "/backups" "Backups"}}
+  <div class="page-top">{{back "/backups" "Backups"}}{{help "backups/restore" "Get something back"}}</div>
   <h1>Restore {{.Service.Title}}</h1>
   {{activity .RestoreActivity}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}

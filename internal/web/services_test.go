@@ -900,12 +900,12 @@ func TestBackupPlan(t *testing.T) {
 		t.Error("remove")
 	}
 	// Another server's plan lives under its settings.
-	if _, body := h.get("/settings/servers/n-0123456789/backups"); !strings.Contains(body, "Your backup plan") {
+	if _, body := h.get("/settings/servers/n-0123456789/backups"); !strings.Contains(body, "<h2>Your backup plan</h2>") {
 		t.Error("server backups page")
 	}
 	// Admins don't choose destinations.
 	ha, _ := loggedIn(t, auth.RoleAdmin)
-	if _, body := ha.get("/backups"); strings.Contains(body, "Your backup plan") {
+	if _, body := ha.get("/backups"); strings.Contains(body, "<h2>Your backup plan</h2>") {
 		t.Error("only Owners manage the plan")
 	}
 }

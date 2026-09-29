@@ -1,7 +1,7 @@
 {{define "title"}}{{.Service.Title}}{{end}}
 {{define "content"}}
 <section class="card medium">
-  {{back "/services" "Services"}}
+  <div class="page-top">{{back "/services" "Services"}}{{help "services/settings" "Change a service"}}</div>
   <div class="heading">
     <h1>{{.Service.Title}}</h1>
     {{status .Service.Status}}

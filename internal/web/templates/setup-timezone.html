@@ -2,9 +2,9 @@
 {{define "content"}}
 {{template "server-switcher" .}}
 <section class="card narrow">
-  {{if .Wizard}}<p class="hint">Setup · step 1 of 4</p>
-  <h1>Where is this server?</h1>
-  {{else}}{{back .Back .BackText}}
+  <div class="page-top">{{if .Wizard}}<p class="hint">Setup · step 1 of 4</p>{{else}}{{back .Back .BackText}}{{end}}{{help "start/first-run#3-where-is-this-server" "Where is this server?"}}</div>
+  {{if .Wizard}}<h1>Where is this server?</h1>
+  {{else}}
   <h1>Change the time zone{{if not .Server.This}} of {{.Server.Name}}{{end}}</h1>
   {{end}}
   <p>Roostack uses {{if .Server.This}}this server's{{else}}each server's own{{end}} time zone for everything it shows and schedules{{if .Server.This}}, such as the nightly backup at 2 am{{end}}.

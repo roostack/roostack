@@ -1,9 +1,9 @@
 {{define "title"}}Your domain{{end}}
 {{define "content"}}
 <section class="card narrow">
-  {{if .Wizard}}<p class="hint">Setup · step 3 of 4</p>
-  <h1>Your domain</h1>
-  {{else}}{{back .Back "Settings"}}
+  <div class="page-top">{{if .Wizard}}<p class="hint">Setup · step 3 of 4</p>{{else}}{{back .Back "Settings"}}{{end}}{{help "settings/domain" "Your domain"}}</div>
+  {{if .Wizard}}<h1>Your domain</h1>
+  {{else}}
   <h1>{{if .StepDone}}Change your domain{{else}}Set up your domain{{end}}</h1>
   {{if .StepDone}}<p class="hint">Saving checks the new details, then restarts Roostack to use them. Your services keep their data.</p>{{end}}
   {{end}}

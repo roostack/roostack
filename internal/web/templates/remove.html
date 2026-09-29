@@ -1,7 +1,7 @@
 {{define "title"}}Remove {{.Package.Title}}{{end}}
 {{define "content"}}
 <section class="card narrow">
-  {{back "/" "Back"}}
+  <div class="page-top">{{back "/" "Back"}}{{help "services/remove" "Remove a service"}}</div>
   <h1>Remove {{.Package.Title}}?</h1>
   <p>{{.Package.Title}} will be stopped and removed from your lab.</p>
   <p><strong>Your data is kept.</strong> It stays in:</p>

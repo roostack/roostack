@@ -1,7 +1,7 @@
 {{define "title"}}Your recovery key{{end}}
 {{define "content"}}
 <section class="card narrow">
-  {{back "/backups" "Backups"}}
+  <div class="page-top">{{back "/backups" "Backups"}}{{help "start/recovery-key" "Your recovery key"}}</div>
   <h1>Your recovery key</h1>
   {{with .Key}}
   <p>Your backups are encrypted with this key. <strong>If this server is lost or breaks, you need it to get your data back.</strong></p>

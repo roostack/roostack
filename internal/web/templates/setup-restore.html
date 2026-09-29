@@ -7,7 +7,7 @@
     it moves on to the login page when it's done. Large backups can take a while.</p>
   <div hx-get="/setup/restore/progress" hx-trigger="every 2s" hx-swap="innerHTML">{{template "restore-progress" .}}</div>
   {{else}}
-  {{back "/setup" "Set up a new lab instead"}}
+  <div class="page-top">{{back "/setup" "Set up a new lab instead"}}{{help "trouble/restore-lab" "Restore a whole lab"}}</div>
   <h1>Restore a lab from its backups</h1>
   <p>Rebuild a lab on this server: its services and their data, settings and accounts come back from a backup.
     You need the <strong>recovery key</strong> you saved when you set the lab up, and to know where its backups are.</p>
