@@ -16,7 +16,9 @@
 </head>
 <body>
   <header class="topbar" x-data="{ open: false }">
-    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Roostack{{with .Nav}}{{with $.LabName}}<span class="lab-name">{{.}}</span>{{end}}{{end}}</a>
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>
+      {{- with .Nav}}{{with $.LabName}}<span class="brand-stack"><span class="brand-eyebrow">Roostack</span><span class="brand-lab" title="{{.}}">{{.}}</span></span>
+      {{- else}}Roostack{{end}}{{else}}Roostack{{end}}</a>
     {{with .Nav}}
     <button type="button" class="menu-toggle" x-on:click="open = !open" aria-label="Menu">☰</button>
     <nav x-bind:class="open && 'open'">

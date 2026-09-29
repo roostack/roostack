@@ -1115,7 +1115,7 @@ func TestLabName(t *testing.T) {
 	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
 	h.setSetup(fs)
 	h.server.LabName = "lab.example.com"
-	if _, body := h.get("/settings"); !strings.Contains(body, `<span class="lab-name">lab.example.com</span>`) ||
+	if _, body := h.get("/settings"); !strings.Contains(body, `<span class="brand-lab" title="lab.example.com">lab.example.com</span>`) ||
 		!strings.Contains(body, "Lab name") {
 		t.Error("the header and Settings should show the lab's name")
 	}
