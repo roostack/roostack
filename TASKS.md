@@ -128,7 +128,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] `apply -dry-run` printed `8471/tcp from ,` for rules tied to the WireGuard interface: now `8471/tcp on roostack`; README brought up to date (Go 1.26, DNS providers, the help, running commands as the roostack user)
   - [ ] Maybe: the CLI sets `XDG_RUNTIME_DIR` itself when run as the roostack user (README and help explain it for now)
   - [x] The storage invite now tells friends where it goes on the Backups page as it is (**A friend's lab → Their invite code**)
-  - [ ] No link to see the recovery key again after setup (only `/setup/recovery-key` by hand, with no re-authentication or audit entry): to decide with the Owner
+  - [x] Recovery key (SPEC §6.9): shown whenever the lab's first backup makes it (it wasn't after "Set up backups later"); the setup page closes once it's confirmed; "Show recovery key…" on the Backups page after the password and a two-factor code, audited, five wrong tries end the session
+  - [ ] Changing the recovery key if it may have leaked
 - [ ] **1.16 Code review (2026-09-29)**
   - [x] Agent: backup folders made and handed over only inside the allowed places (`os.Root`, `lchown`); a planted symlink could have given roostack a folder anywhere. Tested on VM1
   - [x] A failed restore says truthfully whether the data is back, and starts the service again

@@ -39,5 +39,13 @@
       <p class="hint">Only the Owner can restore services.</p>
     {{end}}
   </section>
+  {{if .RecoveryKey}}
+  <section class="card section" id="recovery-key">
+    <h2>Recovery key</h2>
+    <p>Your backups are encrypted with your recovery key. If this server is lost, you need it to get your data back.
+      Lost your copy? Roostack can show it again, after checking it's you.</p>
+    <p><a href="/backups/recovery-key">Show recovery key…</a></p>
+  </section>
+  {{end}}
 </section>
 {{end}}

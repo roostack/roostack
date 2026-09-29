@@ -11,9 +11,9 @@ them. The **recovery key** is what unscrambles them.
 
 ## When you get it
 
-Roostack makes your recovery key when you set up your first backup, and
-shows it straight away. It asks you to confirm you've saved it before
-carrying on. Adding more backups, or changing where they go, doesn't change
+Roostack makes your recovery key when you set up your first backup (in the
+setup wizard, or later on the **Backups** page), and shows it straight
+away. It asks you to confirm you've saved it before carrying on. Adding more backups, or changing where they go, doesn't change
 the key: it opens all of them.
 
 ## Keeping it safe
@@ -34,9 +34,13 @@ the key: it opens all of them.
 
 ## Seeing it again
 
-There isn't a button for it yet. The Owner can see the key again by going
-to `/setup/recovery-key` in Roostack (for example,
-`https://roostack.smith.family/setup/recovery-key`).
+Lost your copy? On the **Backups** page, under **Recovery key**, the Owner
+can choose **Show recovery key…**. Roostack asks for your password and a
+code from your authenticator app first, even though you're logged in, so
+that someone who finds your computer logged in can't read it. Each time
+it's shown is recorded in the audit log.
+
+After five wrong passwords or codes, Roostack logs you out.
 
 ??? note "For technical users"
 
@@ -46,6 +50,13 @@ to `/setup/recovery-key` in Roostack (for example,
     in the lab never see it: each server's repository also gets that
     server's own key, and the controller uses the recovery key to create
     and prune them.
+
+    Showing it again (`/backups/recovery-key`) needs the Owner's password
+    and an unused two-factor code, is never cached by the browser
+    (`Cache-Control: no-store`), and is recorded in the audit log (the
+    `audit_log` table: "recovery key", "shown" or "wrong password or
+    code"). The setup page that first shows it (`/setup/recovery-key`)
+    works only until the key's been confirmed.
 
     The key file is left out of Roostack's own backups (a backup can't
     contain the key needed to open it), so the copy you keep is the only

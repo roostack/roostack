@@ -117,9 +117,12 @@ func TestDomainStep(t *testing.T) {
 }
 
 // Backup 1 finishes the backup step; the recovery key is shown before
-// the wizard's one restart.
+// the wizard's one restart, which confirming it brings (Finished restarts
+// only if a step's settings are waiting for it).
 func TestBackupAdded(t *testing.T) {
 	s, _, restarts := newSetup(t)
+	finished := 0
+	s.Finished = func() { finished++ }
 	ctx := context.Background()
 	for _, k := range []string{keyTimezone, keySSH, keyDomain} {
 		s.Store.SetSetting(ctx, k, "done")
@@ -142,8 +145,8 @@ func TestBackupAdded(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.BackupAdded(ctx, false)
-	if p, _ := s.Progress(ctx); p.Next() != "" || *restarts != 1 {
-		t.Errorf("after confirming: next %q restarts %d", p.Next(), *restarts)
+	if p, _ := s.Progress(ctx); p.Next() != "" || finished != 1 || *restarts != 0 {
+		t.Errorf("after confirming: next %q, finished %d, restarts %d", p.Next(), finished, *restarts)
 	}
 	if err := EnsureRecoveryKey(s.Lab.Paths); err != nil {
 		t.Fatal(err)

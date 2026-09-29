@@ -1,0 +1,27 @@
+{{define "title"}}Your recovery key{{end}}
+{{define "content"}}
+<section class="card narrow">
+  {{back "/backups" "Backups"}}
+  <h1>Your recovery key</h1>
+  {{with .Key}}
+  <p>Your backups are encrypted with this key. <strong>If this server is lost or breaks, you need it to get your data back.</strong></p>
+  <code class="secret recovery">{{.}}</code>
+  <p>Print it, or write it down, and keep it somewhere safe away from this server. A password manager works too.</p>
+  <p x-data><button type="button" class="secondary" x-on:click="window.print()">Print</button></p>
+  <p class="hint">Showing the key is recorded in the audit log.</p>
+  {{else}}
+  <p>Your backups are encrypted with your recovery key. Anyone who has it, and can get at your backups, can read them, so
+    Roostack checks it's you first.</p>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  <form method="post" action="/backups/recovery-key">
+    <label>Your password
+      <input name="password" type="password" autocomplete="current-password" required autofocus>
+    </label>
+    <label>Code from your authenticator app
+      <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required>
+    </label>
+    <button type="submit">Show recovery key</button>
+  </form>
+  {{end}}
+</section>
+{{end}}

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +25,9 @@ import (
 )
 
 type fakeSetup struct {
-	pending     bool
+	pending bool
+	// noKey: the lab has no recovery key yet (the first backup makes it).
+	noKey       bool
 	drives      []agent.Drive
 	erased      string
 	labName     string
@@ -128,14 +131,20 @@ func (f *fakeSetup) SaveDomain(_ context.Context, d, e, provider string, values 
 }
 func (f *fakeSetup) DomainLater(context.Context) error { f.p.DomainLater = true; return nil }
 func (f *fakeSetup) BackupAdded(_ context.Context, first bool) error {
+	f.noKey = false
 	f.p.BackupDone = true
 	if first {
 		f.p.RecoverySaved = false
 	}
 	return nil
 }
-func (f *fakeSetup) BackupLater(context.Context) error        { f.p.BackupLater = true; return nil }
-func (f *fakeSetup) RecoveryKey() (string, error)             { return "the-recovery-key", nil }
+func (f *fakeSetup) BackupLater(context.Context) error { f.p.BackupLater = true; return nil }
+func (f *fakeSetup) RecoveryKey() (string, error) {
+	if f.noKey {
+		return "", os.ErrNotExist
+	}
+	return "the-recovery-key", nil
+}
 func (f *fakeSetup) ConfirmRecoveryKey(context.Context) error { f.p.RecoverySaved = true; return nil }
 
 func TestWizardFlow(t *testing.T) {

@@ -299,11 +299,16 @@ func (s *Server) twoFactorData(u *store.User, secret, errMsg string) map[string]
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
+	s.endSession(w, r)
+	redirect(w, r, "/login")
+}
+
+// endSession logs this browser out.
+func (s *Server) endSession(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookie); err == nil {
 		s.Store.DeleteSession(r.Context(), auth.HashToken(c.Value))
 	}
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true})
-	redirect(w, r, "/login")
 }
 
 func capitalize(s string) string {
