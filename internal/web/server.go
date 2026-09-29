@@ -46,8 +46,6 @@ const (
 	// pendingCookie links the password step of a login to the 2FA step.
 	pendingCookie   = "roostack_pending"
 	pendingDuration = 5 * time.Minute
-	// maxTOTPAttempts before the password must be entered again.
-	maxTOTPAttempts = 5
 	// failedLoginDelay slows down password guessing. Caddy rate limiting is
 	// the main defence (SPEC.md §6.10).
 	failedLoginDelay = 500 * time.Millisecond
@@ -92,6 +90,8 @@ type Server struct {
 	// stepUpFailures counts wrong passwords or codes per user when showing
 	// the recovery key (recoverykey.go).
 	stepUpFailures map[int64]int
+	// codeMu makes two-factor checks run one at a time (checkCode).
+	codeMu sync.Mutex
 
 	// Manager installs and removes services. Nil disables those pages.
 	Manager ServiceManager
@@ -301,9 +301,8 @@ func (s *Server) updates(r *http.Request) HostUpdates {
 }
 
 type pendingLogin struct {
-	userID   int64
-	expires  time.Time
-	attempts int
+	userID  int64
+	expires time.Time
 }
 
 // NewServer prepares templates. setupToken is empty if users already exist.

@@ -95,15 +95,22 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-// The Caddy image must include every provider's plugin.
+// The Caddy image must include every provider's plugin, and pin
+// everything it builds from (SPEC.md §8.1): each plugin by version, each
+// base image by digest.
 func TestContainerfileHasPlugins(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "build", "caddy", "Containerfile"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, p := range Providers() {
-		if !strings.Contains(string(data), "--with "+p.Plugin) {
-			t.Errorf("build/caddy/Containerfile is missing %s", p.Plugin)
+		if !strings.Contains(string(data), "--with "+p.Plugin+"@v") {
+			t.Errorf("build/caddy/Containerfile is missing %s, or doesn't pin its version", p.Plugin)
+		}
+	}
+	for line := range strings.Lines(string(data)) {
+		if strings.HasPrefix(line, "FROM ") && !strings.Contains(line, "@sha256:") {
+			t.Errorf("base image not pinned by digest: %s", strings.TrimSpace(line))
 		}
 	}
 }

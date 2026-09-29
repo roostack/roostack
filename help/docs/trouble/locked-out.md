@@ -29,10 +29,30 @@ sudo roostack user reset-2fa <your username>
 
 Log in with your password, and set two-factor up again with your new phone.
 
-## "Too many wrong codes"
+## "Too many wrong two-factor codes"
 
-After five wrong two-factor codes, Roostack asks for your password again.
+After five wrong two-factor codes in a row, Roostack accepts no code for
+your account for 15 minutes, even the right one. The message says when
+codes work again. If it happens again, the wait doubles each time, up to a
+day. The right code starts the count again.
+
 Check your phone's clock is right: authenticator codes depend on it.
+
+If you didn't enter those codes, someone else knows your password. Change
+it once you're back in (**Account → Change password**).
+
+To get in sooner, `sudo roostack user reset-2fa <your username>` turns
+two-factor off for your account (and ends the wait). Set it up again
+straight after logging in.
+
+??? note "For technical users"
+
+    The count is per account, not per login, so logging in again doesn't
+    give more tries. It's kept in the database (`totp_failures` and
+    `totp_failed_at` in `users`), so a restart doesn't clear it. Codes
+    entered on the **Show recovery key** page count too. Each lock is in
+    the audit log ("2fa locked"). With five tries per lock and the longest
+    lock a day, guessing a six-digit code isn't practical.
 
 ## You can't log in to the server either
 

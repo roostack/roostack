@@ -1,18 +1,23 @@
 # Roostack's Caddy image: upstream Caddy plus DNS provider plugins for the
 # DNS-01 challenge (SPEC.md §6.5). Keep in sync with internal/dns (a test
-# checks every provider's plugin is listed here).
+# checks every provider's plugin is listed here, at a fixed version).
+#
+# Everything is pinned (SPEC.md §8.1): the base images by tag and digest
+# (the multi-arch index, so it works on ARM too), and each plugin by
+# version; Go's checksum database then fixes the rest of the build. To
+# update, change the versions here, build, and check a certificate is
+# issued on a VM.
 #
 # Build: podman build -t roostack-caddy build/caddy
-# TODO: pin base images by digest and publish to a registry.
-FROM docker.io/library/caddy:2-builder AS builder
+FROM docker.io/library/caddy:2.11.4-builder@sha256:369218c81ca6d6af249981221b3a5c764d886dd5b058f51d144066de13f2418d AS builder
 RUN xcaddy build \
-    --with github.com/caddy-dns/cloudflare \
-    --with github.com/caddy-dns/route53 \
-    --with github.com/caddy-dns/porkbun \
-    --with github.com/caddy-dns/gandi \
-    --with github.com/caddy-dns/godaddy \
-    --with github.com/caddy-dns/namecheap \
-    --with github.com/caddy-dns/spaceship
+    --with github.com/caddy-dns/cloudflare@v0.2.4 \
+    --with github.com/caddy-dns/route53@v1.6.2 \
+    --with github.com/caddy-dns/porkbun@v0.3.1 \
+    --with github.com/caddy-dns/gandi@v1.1.0 \
+    --with github.com/caddy-dns/godaddy@v1.2.0 \
+    --with github.com/caddy-dns/namecheap@v1.0.0 \
+    --with github.com/caddy-dns/spaceship@v1.0.0
 
-FROM docker.io/library/caddy:2
+FROM docker.io/library/caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy

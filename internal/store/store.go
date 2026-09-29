@@ -157,6 +157,10 @@ var migrations = []string{
 	`ALTER TABLE storage_guests ADD COLUMN removed_at INTEGER NOT NULL DEFAULT 0;`,
 	// The space a backup's repository took after each run (0 if unknown).
 	`ALTER TABLE backup_runs ADD COLUMN stored INTEGER NOT NULL DEFAULT 0;`,
+	// Wrong two-factor codes in a row, and when the last was entered, to
+	// limit guesses per account (auth.TOTPLockedUntil).
+	`ALTER TABLE users ADD COLUMN totp_failures INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE users ADD COLUMN totp_failed_at INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -242,6 +246,10 @@ type User struct {
 	Role         string
 	TOTPSecret   string
 	TOTPLastStep int64
+	// TOTPFailures counts wrong two-factor codes since the last right one,
+	// the last entered at TOTPFailedAt (auth.TOTPLockedUntil).
+	TOTPFailures int
+	TOTPFailedAt time.Time
 	// MustChangePassword is set for temporary passwords (CLI add/reset).
 	MustChangePassword bool
 	// Theme is "auto" (follow the device), "light" or "dark".
@@ -323,7 +331,7 @@ func (s *Store) lastOwnerCheck(ctx context.Context, res sql.Result, userID int64
 // ResetTOTP turns off a user's two-factor authentication (a lost phone)
 // and logs them out everywhere. Owners must set it up again at next login.
 func (s *Store) ResetTOTP(ctx context.Context, userID int64) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE users SET totp_secret = '', totp_last_step = 0 WHERE id = ?`, userID)
+	res, err := s.db.ExecContext(ctx, `UPDATE users SET totp_secret = '', totp_last_step = 0, totp_failures = 0, totp_failed_at = 0 WHERE id = ?`, userID)
 	if err != nil {
 		return err
 	}
@@ -400,7 +408,7 @@ func (s *Store) SetPassword(ctx context.Context, username, hash string, temporar
 }
 
 const userColumns = `users.id, users.username, users.password_hash, users.role,
-	users.totp_secret, users.totp_last_step, users.must_change_password, users.theme, users.palette, users.accent, users.created_at`
+	users.totp_secret, users.totp_last_step, users.totp_failures, users.totp_failed_at, users.must_change_password, users.theme, users.palette, users.accent, users.created_at`
 
 // UserByID looks up an account.
 func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
@@ -410,16 +418,17 @@ func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
 // SetTOTP enables two-factor authentication for a user.
 func (s *Store) SetTOTP(ctx context.Context, userID int64, secret string, step int64) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE users SET totp_secret = ?, totp_last_step = ? WHERE id = ?`, secret, step, userID)
+		`UPDATE users SET totp_secret = ?, totp_last_step = ?, totp_failures = 0, totp_failed_at = 0 WHERE id = ?`, secret, step, userID)
 	return err
 }
 
-// UseTOTPStep records an accepted code's time step. It fails if the step
-// isn't newer than the last one, so two concurrent logins can't both use
-// the same code.
+// UseTOTPStep records an accepted code's time step, and clears the count
+// of wrong codes. It fails if the step isn't newer than the last one, so
+// two concurrent logins can't both use the same code.
 func (s *Store) UseTOTPStep(ctx context.Context, userID, step int64) (bool, error) {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE users SET totp_last_step = ? WHERE id = ? AND totp_last_step < ?`, step, userID, step)
+		`UPDATE users SET totp_last_step = ?, totp_failures = 0, totp_failed_at = 0
+		WHERE id = ? AND totp_last_step < ?`, step, userID, step)
 	if err != nil {
 		return false, err
 	}
@@ -427,13 +436,26 @@ func (s *Store) UseTOTPStep(ctx context.Context, userID, step int64) (bool, erro
 	return n == 1, err
 }
 
+// AddTOTPFailure counts a wrong two-factor code entered at now, and
+// returns how many there have been in a row.
+func (s *Store) AddTOTPFailure(ctx context.Context, userID int64, now time.Time) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx,
+		`UPDATE users SET totp_failures = totp_failures + 1, totp_failed_at = ? WHERE id = ?
+		RETURNING totp_failures`, now.Unix(), userID).Scan(&n)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	return n, err
+}
+
 func (s *Store) scanUser(row *sql.Row) (*User, error) { return scanUserRow(row) }
 
 func scanUserRow(row interface{ Scan(...any) error }) (*User, error) {
 	var u User
-	var created int64
+	var created, failedAt int64
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &u.TOTPLastStep,
-		&u.MustChangePassword, &u.Theme, &u.Palette, &u.Accent, &created)
+		&u.TOTPFailures, &failedAt, &u.MustChangePassword, &u.Theme, &u.Palette, &u.Accent, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -441,6 +463,9 @@ func scanUserRow(row interface{ Scan(...any) error }) (*User, error) {
 		return nil, err
 	}
 	u.CreatedAt = time.Unix(created, 0)
+	if failedAt != 0 {
+		u.TOTPFailedAt = time.Unix(failedAt, 0)
+	}
 	return &u, nil
 }
 

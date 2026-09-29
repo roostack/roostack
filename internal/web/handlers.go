@@ -139,6 +139,12 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if u.TOTPSecret != "" {
+		// Say so now rather than after a code that can't work.
+		if until := auth.TOTPLockedUntil(u.TOTPFailures, u.TOTPFailedAt); time.Now().Before(until) {
+			w.WriteHeader(http.StatusTooManyRequests)
+			s.render(w, "login", map[string]any{"Error": lockedMessage(until), "Username": username})
+			return
+		}
 		s.startPending(w, r, u)
 		return
 	}
@@ -198,30 +204,23 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	step, ok := auth.VerifyTOTP(u.TOTPSecret, r.FormValue("code"), time.Now(), u.TOTPLastStep)
-	if ok {
-		// Atomic check, so the same code can't complete two logins.
-		ok, err = s.Store.UseTOTPStep(r.Context(), u.ID, step)
-		if err != nil {
-			s.serverError(w, err)
-			return
-		}
+	res, until, err := s.checkCode(r.Context(), u.ID, r.FormValue("code"))
+	if err != nil {
+		s.serverError(w, err)
+		return
 	}
-	if !ok {
+	if res != codeOK {
 		s.Log.Warn("failed 2FA code", "user", u.Username, "remote", r.RemoteAddr)
 		time.Sleep(failedLoginDelay)
-		s.mu.Lock()
-		p.attempts++
-		tooMany := p.attempts >= maxTOTPAttempts
-		if tooMany {
+		if res == codeLocked {
+			s.mu.Lock()
 			delete(s.pending, key)
-		}
-		s.mu.Unlock()
-		w.WriteHeader(http.StatusUnauthorized)
-		if tooMany {
-			s.render(w, "login", map[string]any{"Error": "Too many wrong codes. Please log in again."})
+			s.mu.Unlock()
+			w.WriteHeader(http.StatusTooManyRequests)
+			s.render(w, "login", map[string]any{"Error": lockedMessage(until)})
 			return
 		}
+		w.WriteHeader(http.StatusUnauthorized)
 		s.render(w, "totp", map[string]any{"Error": "That code didn't work. Check your authenticator app and try again."})
 		return
 	}

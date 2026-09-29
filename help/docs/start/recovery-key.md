@@ -40,7 +40,9 @@ code from your authenticator app first, even though you're logged in, so
 that someone who finds your computer logged in can't read it. Each time
 it's shown is recorded in the audit log.
 
-After five wrong passwords or codes, Roostack logs you out.
+After five wrong passwords or codes, Roostack logs you out. Wrong codes
+here also count towards the limit on your account (see
+[Locked out](../trouble/locked-out.md#too-many-wrong-two-factor-codes)).
 
 ??? note "For technical users"
 

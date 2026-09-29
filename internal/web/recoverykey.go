@@ -39,14 +39,19 @@ func (s *Server) recoveryKeyShowSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ok {
-		step, codeOK := auth.VerifyTOTP(u.TOTPSecret, r.FormValue("code"), time.Now(), u.TOTPLastStep)
-		// Each code works once, here as at login.
-		if ok = codeOK; ok {
-			if ok, err = s.Store.UseTOTPStep(r.Context(), u.ID, step); err != nil {
-				s.serverError(w, err)
-				return
-			}
+		// Wrong codes count against the account here as at login.
+		res, until, err := s.checkCode(r.Context(), u.ID, r.FormValue("code"))
+		if err != nil {
+			s.serverError(w, err)
+			return
 		}
+		if res == codeLocked {
+			s.Store.Audit(r.Context(), u, "recovery key", "two-factor codes locked")
+			w.WriteHeader(http.StatusTooManyRequests)
+			s.render(w, "backups-recovery-key", map[string]any{"User": u, "Error": lockedMessage(until)})
+			return
+		}
+		ok = res == codeOK
 	}
 	if !ok {
 		s.Log.Warn("wrong password or code for the recovery key", "user", u.Username, "remote", r.RemoteAddr)
