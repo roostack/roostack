@@ -42,7 +42,7 @@ main { max-width: 960px; margin: 0 auto; padding: var(--space-5) var(--space-4);
 .brand-lab { max-width: 18em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar nav { display: flex; align-items: center; gap: var(--space-1); flex: 1; }
 .topbar nav a { color: var(--muted); text-decoration: none; padding: var(--space-2) var(--space-3);
-  border-bottom: 2px solid transparent; }
+  border-bottom: 2px solid transparent; white-space: nowrap; }
 .topbar nav a:hover { color: var(--fg); }
 .topbar nav a.active { color: var(--fg); font-weight: var(--weight-medium); border-bottom-color: var(--highlight); }
 .topbar nav .spacer { flex: 1; }
