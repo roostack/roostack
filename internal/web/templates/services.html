@@ -31,7 +31,7 @@
     <div class="service-head">
       <div>
         <h2>{{if $.CanManage}}<a href="/services/{{.Name}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</h2>
-        {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}</a>{{end}}
+        {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a>{{end}}
         {{template "service-summary" .}}
       </div>
       {{status .Status}}

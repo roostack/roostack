@@ -39,7 +39,7 @@
   {{end}}
   {{end}}
   <dl class="facts">
-    {{range .Service.URLs}}<dt>Address</dt><dd><a href="{{.}}" target="_blank" rel="noopener">{{.}}</a></dd>{{end}}
+    {{range .Service.URLs}}<dt>Address</dt><dd><a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a></dd>{{end}}
     <dt>Reachable from</dt><dd>Your home network (or VPN)</dd>
     {{with .Service.Server}}<dt>Runs on</dt><dd>{{.}}</dd>{{end}}
   </dl>
@@ -100,7 +100,7 @@
   {{with .Links}}
   <p class="hint">Most of {{$.Service.Title}}'s settings are in {{$.Service.Title}} itself:</p>
   <ul class="plain">
-    {{range .}}<li><a href="{{.URL}}" target="_blank" rel="noopener">{{.Title}} ↗</a>{{with .Description}}<br><small class="hint">{{.}}</small>{{end}}</li>{{end}}
+    {{range .}}<li><a href="{{.URL}}" target="_blank" rel="noopener">{{.Title}}{{template "new-window"}}</a>{{with .Description}}<br><small class="hint">{{.}}</small>{{end}}</li>{{end}}
   </ul>
   {{end}}
   {{range .Secrets}}

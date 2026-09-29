@@ -94,6 +94,7 @@ Template components are called as functions; everything else is plain HTML with 
 | Status | `{{status .Status}}` | Service state |
 | Badge | `{{badge "New" ["highlight"]}}` | Highlight badges are rare |
 | Back link | `{{back "/settings" "Settings"}}` | |
+| New window | `<a href="…" target="_blank" rel="noopener">Text{{template "new-window"}}</a>` | Every link that opens a new window (the help, the design system, services, other sites): an icon after the text, and "(opens in a new window)" for screen readers. `TestNewWindowLinks` checks every such link has it |
 | Card | `.card`, with a `.heading` row for title plus link | One topic per card |
 | Facts | `<dl class="facts">` | Label/value pairs; stack on phones |
 | Forms | `<label>Text <input><small>hint</small></label>`, `label.check` for checkboxes and radios, `.with-suffix`, `select.inline` | Errors: `<p class="error" role="alert">` above the form |

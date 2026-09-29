@@ -666,7 +666,7 @@ func TestServiceSettings(t *testing.T) {
 	}
 
 	_, body := h.get("/services/forgejo")
-	for _, want := range []string{`href="https://git.lab.example.com/-/admin"`, "Site administration ↗",
+	for _, want := range []string{`href="https://git.lab.example.com/-/admin"`, "Site administration<span class=\"new-window\">",
 		`name="subdomain" value="git"`, `name="setting.signups_allowed"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("forgejo settings missing %q", want)

@@ -56,7 +56,7 @@
   <li class="card tile">
     <h2>{{.Title}}</h2>
     {{template "service-summary" .}}
-    {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">Open ↗</a>{{end}}
+    {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">Open{{template "new-window"}}</a>{{end}}
     {{status .Status}}
     {{if $.CanManage}}{{template "service-details" .}}{{end}}
   </li>
