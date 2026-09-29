@@ -447,6 +447,8 @@ func (g *gen) caddySite() error {
 				}
 			}
 			cr.LoginPaths = r.Public.LoginPaths
+			// The check link reaches the UI on the Caddy server (internal/public).
+			cr.CheckUpstream = fmt.Sprintf("%s:%d", CaddyHostLoopback, g.lab.UIPort)
 			g.out.Public = true
 		}
 		routes = append(routes, cr)

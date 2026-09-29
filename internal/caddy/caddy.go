@@ -32,7 +32,14 @@ type Route struct {
 	// under them) stay home-only, and LoginPaths get a strict rate limit.
 	PrivatePaths []string
 	LoginPaths   []string
+	// CheckUpstream is the Roostack UI, which answers the outside check
+	// link on a public route (internal/public). Empty leaves it out.
+	CheckUpstream string
 }
+
+// CheckPattern is the only path on a public address that reaches
+// Roostack: a check link with its token, nothing else (internal/public).
+const CheckPattern = `^/\.well-known/roostack-check/[0-9a-f]{32}$`
 
 // Rate limits per visitor address on public routes (SPEC.md §6.11): a
 // generous one on everything, which only a flood reaches (a photo grid
@@ -97,6 +104,10 @@ func publicRoute(b *strings.Builder, r Route) {
 	}
 	fmt.Fprintf(b, "\t\t\tzone %s {\n\t\t\t\tkey {remote_host}\n\t\t\t\tevents %d\n\t\t\t\twindow %s\n\t\t\t}\n", r.ID, RateLimitEvents, RateLimitWindow)
 	b.WriteString("\t\t}\n")
+	if r.CheckUpstream != "" {
+		fmt.Fprintf(b, "\t\t@%s-check path_regexp %s\n", r.ID, CheckPattern)
+		fmt.Fprintf(b, "\t\treverse_proxy @%s-check %s\n", r.ID, r.CheckUpstream)
+	}
 	if r.MaxBodySize != "" {
 		fmt.Fprintf(b, "\t\trequest_body {\n\t\t\tmax_size %s\n\t\t}\n", r.MaxBodySize)
 	}
@@ -116,6 +127,7 @@ func pathPatterns(paths []string) string {
 func (r Route) validate() error {
 	for _, f := range []struct{ name, val string }{
 		{"id", r.ID}, {"host", r.Host}, {"upstream", r.Upstream}, {"max body size", r.MaxBodySize},
+		{"check upstream", r.CheckUpstream},
 	} {
 		// Guard against anything that could break out of the Caddyfile syntax.
 		if strings.ContainsAny(f.val, " \t\n{}\"#") {

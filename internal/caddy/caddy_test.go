@@ -97,7 +97,8 @@ func TestCaddyAdapt(t *testing.T) {
 	site, err := Site("svc", []Route{
 		{ID: "svc-web", Host: "web.lab.example.com", Upstream: "roostack-svc-web:80", Private: true, MaxBodySize: "10GB"},
 		{ID: "svc-api", Host: "api.lab.example.com", Upstream: "roostack-svc-api:8080",
-			PrivatePaths: []string{"/admin", "/-/admin"}, LoginPaths: []string{"/login"}, MaxBodySize: "1GB"},
+			PrivatePaths: []string{"/admin", "/-/admin"}, LoginPaths: []string{"/login"}, MaxBodySize: "1GB",
+			CheckUpstream: "169.254.1.3:8480"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -114,7 +115,7 @@ func TestCaddyAdapt(t *testing.T) {
 		t.Fatalf("caddy adapt failed: %v\n%s", err, out)
 	}
 	for _, want := range []string{`"web.lab.example.com"`, `"api.lab.example.com"`, `"*.lab.example.com"`, `"cloudflare"`,
-		`"handler":"crowdsec"`, `"handler":"rate_limit"`, `"/-/admin/*"`, `"crowdsec":{`, `"filename":"/var/log/caddy/access.log"`} {
+		`"handler":"crowdsec"`, `"handler":"rate_limit"`, `"/-/admin/*"`, `"crowdsec":{`, `"filename":"/var/log/caddy/access.log"`, `"path_regexp"`} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("adapted config missing %s", want)
 		}

@@ -1,0 +1,73 @@
+package dnsrecords
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+)
+
+type fakeEntry struct {
+	ip  string
+	err error
+}
+
+func (fakeEntry) Kind() string                              { return "port forwarding" }
+func (e fakeEntry) Address(context.Context) (string, error) { return e.ip, e.err }
+
+// A public address gets its own record at the entry's address, only once
+// CrowdSec is up; made private again, it points home like the wildcard
+// (SPEC.md §6.11).
+func TestPublicRecords(t *testing.T) {
+	m, g := newManager(t, managed, []string{"192.168.1.20"}, []string{"192.168.1.20", "81.2.69.160"})
+	hosts := []string{"photos.lab.example.com"}
+	protected := false
+	m.PublicHosts = func() []string { return hosts }
+	m.Entry = fakeEntry{ip: "81.2.69.160"}
+	m.Protected = func(context.Context) bool { return protected }
+
+	st := m.Sync(context.Background())
+	if len(st.Public) != 1 || st.Public[0].State != PublicWaiting || g.get("photos.lab") != "" {
+		t.Fatalf("before CrowdSec is up: %+v, record %q", st.Public, g.get("photos.lab"))
+	}
+	protected = true
+	st = m.Sync(context.Background())
+	if st.Public[0].State != PublicOK || g.get("photos.lab") != "81.2.69.160" || st.PublicIP != "81.2.69.160" {
+		t.Fatalf("protected: %+v, record %q", st, g.get("photos.lab"))
+	}
+	if g.get("*.lab") != "192.168.1.20" {
+		t.Error("the wildcard should still point home")
+	}
+
+	// Private again: back home, and no longer listed.
+	hosts = nil
+	st = m.Sync(context.Background())
+	if len(st.Public) != 0 || g.get("photos.lab") != "192.168.1.20" {
+		t.Errorf("private again: %+v, record %q", st.Public, g.get("photos.lab"))
+	}
+}
+
+// Someone else's record for a public address is never overwritten; no
+// address to point at is an error; unmanaged records are listed to add
+// by hand.
+func TestPublicRecordProblems(t *testing.T) {
+	m, g := newManager(t, managed, []string{"192.168.1.20"}, []string{"192.168.1.20"})
+	g.put("vault.lab", "1.2.3.4")
+	m.PublicHosts = func() []string { return []string{"vault.lab.example.com"} }
+	m.Entry = fakeEntry{ip: "81.2.69.160"}
+	if st := m.Sync(context.Background()); st.Public[0].State != PublicConflict || g.get("vault.lab") != "1.2.3.4" {
+		t.Errorf("conflict: %+v", st.Public)
+	}
+
+	m.Entry = fakeEntry{err: errors.New("no answer")}
+	if st := m.Sync(context.Background()); st.Public[0].State != PublicError {
+		t.Errorf("no address: %+v", st.Public)
+	}
+
+	m.Lab.DNS.ManageRecords = false
+	m.Entry = fakeEntry{ip: "81.2.69.160"}
+	st := m.Sync(context.Background())
+	if st.Public[0].State != PublicManual || !strings.Contains(st.Public[0].Message, "vault.lab.example.com  A  81.2.69.160") {
+		t.Errorf("manual: %+v", st.Public)
+	}
+}
