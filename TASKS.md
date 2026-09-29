@@ -130,7 +130,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] The storage invite now tells friends where it goes on the Backups page as it is (**A friend's lab → Their invite code**)
   - [x] Recovery key (SPEC §6.9): shown whenever the lab's first backup makes it (it wasn't after "Set up backups later"); the setup page closes once it's confirmed; "Show recovery key…" on the Backups page after the password and a two-factor code, audited, five wrong tries end the session
   - [x] Changing the recovery key, replacing it everywhere (SPEC §6.9 as built): after the password and code check; waits for "I've saved it"; added to every repository, then made the lab's key, then the old one removed; unreachable backups retried hourly; progress on the Backups page. Tested with real restic (an unplugged drive, then back)
-  - [ ] Changing the recovery key, starting afresh (option C's second half): how to start the new repositories is a question for the Owner (TASKS "To discuss")
+  - [ ] Maybe later (agreed 2026-09-30, only if needed): "Start my backups afresh", separate from changing the key: new repositories for new backups (a new master key), the new key also added to the old ones so one key opens everything, old ones deleted as they age out. Costs a full upload and double the space meanwhile
   - [ ] Try the key change on a VM with the Owner (it changes the lab's real recovery key: they must save the new one)
 - [ ] **1.16 Code review (2026-09-29)**
   - [x] Agent: backup folders made and handed over only inside the allowed places (`os.Root`, `lchown`); a planted symlink could have given roostack a folder anywhere. Tested on VM1
@@ -222,7 +222,6 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 ## To discuss with the user
 
-- Recovery key "start afresh" (proposed 2026-09-30): new empty repositories, the old ones kept readable with the old key (retired, 0600) until they age past the retention (6 months) or the Owner deletes them; not `restic copy`, which re-uploads everything without protecting the history an attacker already has. Awaiting the user's answer.
 
 
 - K5: setup-code approach for first-run setup (add to SPEC?)
