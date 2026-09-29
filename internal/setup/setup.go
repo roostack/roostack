@@ -264,13 +264,18 @@ func (s *Setup) RecoveryKey() (string, error) {
 	return strings.TrimSpace(string(data)), err
 }
 
-// ConfirmRecoveryKey records that the Owner saved the key, then restarts
-// Roostack so nightly backups start with the new destination.
+// ConfirmRecoveryKey records that the Owner saved the key. It's the
+// wizard's last step, so settings that waited for the end of the wizard
+// take effect now (Finished restarts Roostack if one did, e.g. the backup
+// destination). After the wizard, the first backup brings the key here
+// too, with nothing else waiting.
 func (s *Setup) ConfirmRecoveryKey(ctx context.Context) error {
 	if err := s.Store.SetSetting(ctx, keyRecovery, "confirmed"); err != nil {
 		return err
 	}
-	s.Restart()
+	if s.Finished != nil {
+		s.Finished()
+	}
 	return nil
 }
 

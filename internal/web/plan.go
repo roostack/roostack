@@ -382,6 +382,9 @@ func (s *Server) planAddSubmit(wizard bool) http.HandlerFunc {
 			return
 		}
 		_, _, hasMain := s.Manager.BackupTargetOf(ctx, m.ID)
+		// The lab's first backup makes the recovery key (manager), which the
+		// Owner must then see and save, wherever the backup was added.
+		keyIsNew := s.Setup != nil && !s.hasRecoveryKey()
 		if !hasMain || r.FormValue("replace") == "1" {
 			err = s.Manager.SetBackupDestination(ctx, m.ID, ref)
 		} else {
@@ -395,8 +398,10 @@ func (s *Server) planAddSubmit(wizard bool) http.HandlerFunc {
 			s.serverError(w, err)
 			return
 		}
-		if wizard && s.Setup != nil {
-			if err := s.Setup.BackupAdded(ctx, !hasMain); err != nil {
+		// In the wizard, backup 1 shows the key (the same one, if backups
+		// were set up before); anywhere, a key made just now is shown.
+		if s.Setup != nil && (wizard || keyIsNew) {
+			if err := s.Setup.BackupAdded(ctx, (wizard && !hasMain) || keyIsNew); err != nil {
 				s.serverError(w, err)
 				return
 			}

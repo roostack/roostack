@@ -40,7 +40,7 @@ func navFor(u *store.User, page string) nav {
 		"home": "home", "services": "services", "service": "services", "catalog": "services",
 		"install": "services", "remove": "services", "backups": "backups",
 		"settings": "settings", "setup-timezone": "settings", "setup-ssh": "settings", "setup-domain": "settings", "setup-backup": "settings",
-		"recovery-key": "settings", "restore": "backups", "users": "settings",
+		"recovery-key": "settings", "restore": "backups", "backups-recovery-key": "backups", "users": "settings",
 		"settings-domain": "settings", "settings-network": "settings", "settings-updates": "settings", "dns-takeover": "settings", "account": "account", "twofactor": "account",
 	}[page]
 	next := map[string]string{"auto": "light", "light": "dark", "dark": "auto"}[u.Theme]
@@ -239,6 +239,8 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 		data["BackupRepo"] = s.BackupRepo
 	}
 	data["CanRestore"] = s.restores(r) != nil && auth.Can(currentUser(r).Role, auth.ManageHost)
+	// The recovery key is the lab's, kept on the server that runs it.
+	data["RecoveryKey"] = m.This && s.Setup != nil && auth.Can(currentUser(r).Role, auth.ManageHost) && s.hasRecoveryKey()
 	if a := s.activityFor(r, activity.Backup); a != nil {
 		data["BackupActivity"] = a
 	}

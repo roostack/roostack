@@ -431,7 +431,29 @@ func (s *Server) restartingOrNext(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, "/restarting")
 }
 
+// The setup page shows the recovery key only while it's waiting to be
+// saved: right after the lab's first backup. After that, the Owner sees it
+// on the Backups page, after proving it's them (recoverykey.go).
+
+// recoveryKeyDue reports whether the Owner has yet to confirm saving the
+// key. Otherwise the setup page sends them to the Backups page.
+func (s *Server) recoveryKeyDue(w http.ResponseWriter, r *http.Request) bool {
+	p, err := s.Setup.Progress(r.Context())
+	if err != nil {
+		s.serverError(w, err)
+		return false
+	}
+	if !p.BackupDone || p.RecoverySaved {
+		redirect(w, r, "/backups#recovery-key")
+		return false
+	}
+	return true
+}
+
 func (s *Server) recoveryPage(w http.ResponseWriter, r *http.Request) {
+	if !s.recoveryKeyDue(w, r) {
+		return
+	}
 	key, err := s.Setup.RecoveryKey()
 	if err != nil {
 		s.serverError(w, err)
@@ -442,6 +464,9 @@ func (s *Server) recoveryPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) recoveryConfirm(w http.ResponseWriter, r *http.Request) {
+	if !s.recoveryKeyDue(w, r) {
+		return
+	}
 	if r.FormValue("saved") != "on" {
 		key, err := s.Setup.RecoveryKey()
 		if err != nil {
@@ -454,12 +479,25 @@ func (s *Server) recoveryConfirm(w http.ResponseWriter, r *http.Request) {
 			"Error": "Tick the box once you've saved the key."})
 		return
 	}
+	// Confirming ends the wizard: Roostack restarts if a step's settings
+	// were waiting for it, and the page waits for that.
+	restarting := s.Setup.PendingRestart()
 	if err := s.Setup.ConfirmRecoveryKey(r.Context()); err != nil {
 		s.serverError(w, err)
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "recovery key confirmed")
-	redirect(w, r, "/restarting")
+	if restarting {
+		redirect(w, r, "/restarting")
+		return
+	}
+	redirect(w, r, "/backups")
+}
+
+// hasRecoveryKey reports whether the lab has its recovery key yet.
+func (s *Server) hasRecoveryKey() bool {
+	_, err := s.Setup.RecoveryKey()
+	return err == nil
 }
 
 // wizardError re-renders a wizard page for a user-fixable error. It returns
