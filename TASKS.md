@@ -143,7 +143,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Decisions (2026-09-30): three entries (port forwarding first, a lab's cloud server, Roostack Cloud later); packages mark unsafe addresses, the Owner can override with a warning; CrowdSec and rate limiting before anything is public; checking from a phone for now
   - [ ] Proposals to agree: keeping the public address current with Roostack's own DNS record code instead of ddns-updater; asking about CrowdSec signal sharing when something first goes public (it only runs then); SSH logs for CrowdSec later (the rootless container can't read the host's journal, and SSH is home-only by default); rate limits
   - [ ] Mock-up: the service's "Public access" section, port forwarding steps, the phone check
-  - [ ] Caddy image: `caddy-crowdsec-bouncer` and `caddy-ratelimit` (pinned), built on a VM
+  - [x] Caddy image: `caddy-crowdsec-bouncer/http` v0.14.1 and `caddy-ratelimit` v0.1.0 (its only tag), pinned; built on VM2, Caddy stays 2.11.4
   - [ ] Package format: mark unsafe addresses, with a reason
   - [ ] CrowdSec: container, Caddy access logs, bouncer; verified on a VM with real visitor addresses
   - [ ] Rate limiting on public addresses
