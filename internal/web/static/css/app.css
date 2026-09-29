@@ -78,6 +78,8 @@ dl.facts dt { color: var(--muted); }
    shrinks the column, breaking domains mid-word). */
 dl.facts dd { margin: 0; min-width: 0; overflow-wrap: break-word; }
 dl.facts dt .icon, .with-icon .icon { margin-right: var(--space-2); }
+/* After a link's text, in the link's colour: it opens in a new window. */
+.new-window .icon { width: 0.85em; height: 0.85em; margin-left: 0.2em; vertical-align: -0.05em; color: currentColor; }
 /* Rows separated by lines, for cards with many facts (Settings → Servers). */
 dl.facts-lined { gap: 0 var(--space-4); }
 dl.facts-lined > dt, dl.facts-lined > dd { padding: var(--space-3) 0; border-top: 1px solid var(--border); }

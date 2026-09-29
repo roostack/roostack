@@ -17,6 +17,11 @@
 {{/* server: a server's name, marked as one of the lab's servers. */}}
 {{define "server"}}<span class="server-chip">{{icon "server"}}{{.}}</span>{{end}}
 
+{{/* new-window: goes at the end of a link that opens in a new window
+     (target="_blank" rel="noopener"): an icon after the text, and words
+     for screen readers. */}}
+{{define "new-window"}}<span class="new-window">{{icon "new-window"}}<span class="sr-only"> (opens in a new window)</span></span>{{end}}
+
 {{define "back"}}<a class="back" href="{{.Href}}">← {{.Text}}</a>{{end}}
 
 {{/* confirm: a form that posts to Action after the browser asks Question.

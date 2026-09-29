@@ -77,11 +77,14 @@ var gallerySections = []gallerySection{
 {{badge "New" "highlight"}}`},
 			{"Server", "server NAME: one of the lab's servers, named in running text (\"On nuc\"), so it's clear it means a server.", `
 <p class="hint">On {{server "nuc"}} · backed up today 02:14</p>`},
-			{"Icons", "icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text's colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network (icons.go).", `
+			{"Icons", "icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text's colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, new-window (icons.go).", `
 <p class="with-icon">{{icon "server"}}Role</p>
 <p class="with-icon">{{icon "disk"}}Disk</p>
 <p class="with-icon">{{icon "store"}}Backup store</p>
 <p class="with-icon">{{icon "network"}}Network link</p>`},
+			{"Opens in a new window", "new-window: ends every link with target=\"_blank\" rel=\"noopener\" (the help, the design system, services' addresses, other sites), so people know Roostack stays open behind it. An icon after the text, and \"(opens in a new window)\" for screen readers. A test checks every such link has it.", `
+<p><a href="#" target="_blank" rel="noopener">Help{{template "new-window"}}</a> ·
+<a href="#" target="_blank" rel="noopener">https://passwords.smith.family{{template "new-window"}}</a></p>`},
 		}},
 	{ID: "cards", Title: "Cards and facts", Intro: "A card holds one topic. A heading row puts its title and main link together; facts list label and value pairs (stacked on phones).",
 		Examples: []galleryExample{

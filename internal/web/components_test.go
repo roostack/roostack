@@ -1,6 +1,8 @@
 package web
 
 import (
+	"io/fs"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -38,3 +40,26 @@ func TestComponents(t *testing.T) {
 }
 
 func second[T any](_ T, err error) error { return err }
+
+// Every link that opens a new window says so (the new-window component)
+// and doesn't hand the new page a way back into Roostack (rel="noopener").
+func TestNewWindowLinks(t *testing.T) {
+	link := regexp.MustCompile(`(?s)<a\s[^>]*target="_blank"[^>]*>.*?</a>`)
+	files, err := fs.Glob(templateFS, "templates/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, f := range files {
+		page, _ := fs.ReadFile(templateFS, f)
+		for _, a := range link.FindAllString(string(page), -1) {
+			n++
+			if !strings.Contains(a, `{{template "new-window"}}`) || !strings.Contains(a, `rel="noopener"`) {
+				t.Errorf("%s: a new-window link without the new-window component or rel=\"noopener\": %.120s", f, a)
+			}
+		}
+	}
+	if n < 8 {
+		t.Errorf("found only %d new-window links; is the pattern still right?", n)
+	}
+}

@@ -45,7 +45,7 @@
             <span class="tp-dots"><span class="tp-accent"></span><span class="tp-highlight"></span></span></span></span>
           {{end}}
         </span>
-        <span>{{.Name}}<small>{{.Description}}{{with .Source}} · from <a href="{{.URL}}" target="_blank" rel="noopener">{{.Name}} ↗</a>{{end}}</small></span>
+        <span>{{.Name}}<small>{{.Description}}{{with .Source}} · from <a href="{{.URL}}" target="_blank" rel="noopener">{{.Name}}{{template "new-window"}}</a>{{end}}</small></span>
       </label>
       {{end}}
     </fieldset>
