@@ -139,6 +139,18 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] rest-server and Caddy's base images pinned by tag and digest (the multi-arch index), Caddy and its DNS plugins by version (SPEC §8.1); a test keeps the Containerfile pinned. Rebuilt on VM1: the identical image
   - [x] Wrong 2FA codes limited per account, not per login (SPEC §6.10 item 6): every fifth wrong code locks codes for 15 minutes, doubling up to a day; login and the recovery key page
   - [ ] Maybe: separate `web.Server` fields per manager area, so each test fake implements only what its pages use
+- [ ] **1.18 Public access (SPEC §6.11)**
+  - [x] Decisions (2026-09-30): three entries (port forwarding first, a lab's cloud server, Roostack Cloud later); packages mark unsafe addresses, the Owner can override with a warning; CrowdSec and rate limiting before anything is public; checking from a phone for now
+  - [ ] Proposals to agree: keeping the public address current with Roostack's own DNS record code instead of ddns-updater; asking about CrowdSec signal sharing when something first goes public (it only runs then); SSH logs for CrowdSec later (the rootless container can't read the host's journal, and SSH is home-only by default); rate limits
+  - [ ] Mock-up: the service's "Public access" section, port forwarding steps, the phone check
+  - [ ] Caddy image: `caddy-crowdsec-bouncer` and `caddy-ratelimit` (pinned), built on a VM
+  - [ ] Package format: mark unsafe addresses, with a reason
+  - [ ] CrowdSec: container, Caddy access logs, bouncer; verified on a VM with real visitor addresses
+  - [ ] Rate limiting on public addresses
+  - [ ] Entry seam; port forwarding entry: public address, records, router steps, phone check
+  - [ ] Public switch on the service page (Owner), with the unsafe-address override
+  - [ ] Help pages
+  - [ ] Edge through a cloud server (SPEC §10.5), then Roostack Cloud
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow
   - [x] `scripts/build-deb.sh` builds `dist/roostack_<version>_amd64.deb` (dpkg-deb, or ar+tar without it): binaries in /usr/bin, units in /usr/lib/systemd/system with a UID drop-in written by postinst, catalog, Caddy Containerfile, docs; postinst sets up the roostack user, subuids, linger, folders and starts Roostack. `scripts/dev-install.sh` installs it (tested on a fresh Debian 13 VM)
   - [x] Caddy's image is built on each server by a Quadlet `.build` unit from /usr/share/roostack/caddy (no manual step; rebuilt from cache at boot)

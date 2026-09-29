@@ -320,6 +320,22 @@ Layered defaults:
 5. **Baseline:** automatic security updates (§3.2), Caddy rate limiting on login pages, secrets in files readable only by Roostack (0600), and container images only from trusted registries, pinned to specific versions.
 6. **Wrong two-factor codes — as built (2026-09-29):** limited per account, not per login, since someone with the password could otherwise log in again for more tries. Every fifth wrong code in a row locks the account's codes (even the right one) for 15 minutes, doubling each time up to a day; the right code resets the count. That leaves a guesser about five tries a day, while someone mistyping waits 15 minutes. The count is in the database (a restart doesn't clear it), covers the login and the recovery key page (§6.9), and each lock is audited; the password step says so when locked, telling people that wrong codes they didn't enter mean their password is known. Checks run one at a time, so parallel guesses can't slip past. `roostack user reset-2fa` ends a lock. Considered: a limit per login (what we had; it limited nothing), locking the whole account (the lock is only on codes, so it can't be used against an account whose password the attacker doesn't have), and relying on Caddy's rate limiting alone (per address, so it doesn't stop guesses from many addresses).
 
+### 6.11 Public access — Locked (2026-09-30), details Open
+
+Nothing is public unless the Owner makes it so (§1 principle 6). The Owner makes one of a service's addresses public from the service's page; the Roostack UI itself stays private (§6.10 item 2).
+
+- **Ways in ("entries"), all to be supported:**
+  1. **Port forwarding at home:** the router forwards TCP 80 and 443 (and UDP 443) to the server; public records point at the home's public address. Built first: it needs nothing beyond the home router.
+  2. **Through a cloud server in the lab** (an "edge", §10.5): no router change, and the home's address stays hidden.
+  3. **Through Roostack Cloud** (later, §4): the same edge mechanism, run by Roostack Cloud, for people without a cloud server of their own or behind CGNAT.
+
+  A service that runs on a cloud server is reached at that server directly. The entry is a seam in the code from the start (where public records point, and how traffic reaches the service's server), so 2 and 3 slot in without reworking 1.
+- **What can be public:** packages mark addresses that aren't safe to make public (admin pages, APIs meant for home), with the reason. The Owner can still make one public, after a warning that gives the package's reason and a tick to confirm; the override is audited. Considered: never allowing it (too rigid for technical Owners who know what they're doing); allowing anything with no mark (non-technical Owners can't judge an admin page's risk).
+- **Protection first:** CrowdSec and Caddy's rate limiting (§6.10) run before anything goes public, and the switch waits for them. Dependencies agreed (2026-09-30): the CrowdSec container, and two Caddy plugins, `caddy-crowdsec-bouncer` and `caddy-ratelimit`.
+- **Checking it works from outside:** for now, the Owner checks from a phone on mobile data. Roostack Cloud will check automatically later. Considered: port-checking websites (they learn the home's address and domain); checks from the lab's own cloud servers (maybe later).
+- **DNS:** each public address gets its own record pointing at the entry's public address, overriding the private wildcard (§6.5.1 stage 2).
+- **Open (proposals, 2026-09-30):** how the public address is kept current; when to ask about CrowdSec's signal sharing; CrowdSec and SSH logs; the rate limits. See TASKS.md 1.18.
+
 ## 7. Updates — Locked
 
 - **Default:** notify when updates are available; user applies them manually.
