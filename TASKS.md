@@ -154,7 +154,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Entry seam (`internal/public`); port forwarding entry: the home's public address over DNS (OpenDNS, then Google); a record per public address once CrowdSec is up, synced every 5 minutes while anything is public; the router step; the check link from a phone (only a 32-digit token path on a public address reaches Roostack)
   - [x] Public switch (Owner): "Reachable from" on the service page, a page per address with the warning, the package's reasons, private paths to open, the sharing question the first time, then the checklist; Settings → Public access (what's public, CrowdSec, sharing); audited. Checked with fakes in the browser
   - [x] Help: "Make a service public", the package format, files and ports
-  - [ ] **End to end on a VM through Roostack itself**: needs a public record under the lab's real domain (see questions); until then, checked piece by piece (prototype on VM2, `caddy adapt`, fakes)
+  - [x] End to end on VM1 through Roostack (ASSUMPTIONS P8): public and back to private, with the real certificate and a simulated outside visitor. Left behind on purpose: the record `vault.labtest.example.com` (pointing home), CrowdSec's folder and image
   - [ ] Delete public records when a service goes private (today they point home again): a delete call for each provider's record API
   - [ ] IPv6 (AAAA) public records, for homes with IPv6
   - [ ] A manager test failed once under load on 2026-09-30 (not reproduced in 19 more runs); watch for it
@@ -222,8 +222,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 ## To discuss with the user
 
-- Public access end to end on VM1 (2026-09-30): making a service public creates a real record under labtest.example.com pointing at the home's public address, where port 443 goes to other services. OK to try it (then make it private again), or test on another domain?
-- Recovery key "start afresh": new empty repositories (history kept in the old ones for a while, then deleted), or `restic copy` of every snapshot into new repositories (history kept, but everything downloaded and uploaded again, which costs egress on cloud storage)?
+- Recovery key "start afresh" (proposed 2026-09-30): new empty repositories, the old ones kept readable with the old key (retired, 0600) until they age past the retention (6 months) or the Owner deletes them; not `restic copy`, which re-uploads everything without protecting the history an attacker already has. Awaiting the user's answer.
 
 
 - K5: setup-code approach for first-run setup (add to SPEC?)
