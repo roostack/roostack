@@ -58,6 +58,12 @@ routes:
     port: 80
     subdomain: vault                # the default; people can change it
     exposure: private
+    public:                         # when the Owner makes it public
+      private_paths:
+        - path: /admin
+          reason: Vaultwarden's admin panel, which changes every account.
+      login_paths:
+        - /identity/connect/token
 ```
 
 ## The parts
@@ -88,7 +94,14 @@ routes:
 
 `routes`
 :   Web addresses: which container and port, the default `subdomain`,
-    `exposure` (`private` or `public`) and `max_body_size`.
+    `exposure` (`private` or `public`) and `max_body_size`. `public` says
+    what's safe once the Owner makes the address public: `unsafe` (why the
+    whole address shouldn't be), `private_paths` (paths, and everything
+    under them, that stay home-only, each with its reason) and
+    `login_paths` (where people sign in, which get a strict rate limit for
+    outside visitors). The Owner can still open an unsafe address or path,
+    after a warning that gives the package's reason. Paths are plain: they
+    start with `/`, with no `*` or trailing `/`.
 
 `ports`
 :   [Extra connections](../services/settings.md#extra-connections) that

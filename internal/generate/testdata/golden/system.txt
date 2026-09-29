@@ -63,3 +63,11 @@ TimeoutStartSec=1800
 		abort
 	}
 }
+
+==> secrets
+roostack-caddy-dns-api_token generate=false
+==> dirs
+/var/lib/roostack/caddy-data
+/var/lib/roostack/caddy/sites
+==> units
+roostack-caddy.service

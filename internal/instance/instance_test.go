@@ -66,6 +66,12 @@ func TestValidate(t *testing.T) {
 	if err := good().Validate(p); err != nil {
 		t.Fatalf("a valid instance: %v", err)
 	}
+	// The Owner opened the package's private path (SPEC.md §6.11).
+	opened := good()
+	opened.Routes["web"] = RouteOverride{Exposure: pkgspec.ExposurePublic, PublicPaths: []string{"/admin"}}
+	if err := opened.Validate(p); err != nil {
+		t.Errorf("an opened private path: %v", err)
+	}
 	for _, tc := range []struct {
 		change func(*Instance)
 		want   string
@@ -79,6 +85,7 @@ func TestValidate(t *testing.T) {
 		{func(in *Instance) { in.Routes["web"] = RouteOverride{Subdomain: "a.b"} }, "routes.web.subdomain"},
 		{func(in *Instance) { in.Routes["web"] = RouteOverride{Exposure: "everyone"} }, "routes.web.exposure"},
 		{func(in *Instance) { in.Routes["web"] = RouteOverride{Port: 80} }, "routes.web.port"},
+		{func(in *Instance) { in.Routes["web"] = RouteOverride{PublicPaths: []string{"/nope"}} }, "routes.web.public_paths"},
 		{func(in *Instance) { in.Ports["nope"] = PortOverride{} }, "ports.nope: package has no such port"},
 		{func(in *Instance) { in.Ports["ssh"] = PortOverride{HostPort: 22} }, "ports.ssh.host_port"},
 		{func(in *Instance) { in.Ports["ssh"] = PortOverride{Exposure: "everyone"} }, "ports.ssh.exposure"},

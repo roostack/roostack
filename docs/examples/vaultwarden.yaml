@@ -52,6 +52,13 @@ routes:
     port: 80
     subdomain: vault             # default; user can change it
     exposure: private            # default; user can make it public
+    public:                      # when it is public (SPEC §6.11)
+      private_paths:
+        - path: /admin
+          reason: Vaultwarden's admin panel, which changes the server's settings and every account. Anyone who guesses or steals the admin token could use it.
+      login_paths:               # strict rate limit for outside visitors
+        - /identity/connect/token
+        - /api/accounts/prelogin
 
 # --- Matching instance (desired state) ---
 # /var/lib/roostack/services/vaultwarden.yaml

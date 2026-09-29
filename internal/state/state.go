@@ -79,11 +79,7 @@ type Proxied struct {
 // Desired generates the full desired state for the reconciler: this
 // server's services, and Caddy sites for services it proxies.
 func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.Desired, error) {
-	sys, err := generate.System(lab)
-	if err != nil {
-		return reconcile.Desired{}, err
-	}
-	d := reconcile.Desired{System: sys}
+	var d reconcile.Desired
 	// Every hostname must be unique across the lab, including the admin UI.
 	hosts := map[string]string{caddy.AdminSubdomain + "." + lab.Domain: "the Roostack admin UI"}
 	ports := map[int]string{lab.UIPort: "the Roostack admin UI"}
@@ -129,6 +125,13 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		d.Services = append(d.Services, out)
 	}
 	slices.SortFunc(d.Services, func(a, b *generate.Output) int { return strings.Compare(a.Service, b.Service) })
+	// Generated after the services: CrowdSec runs while any is public.
+	public := slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.Public })
+	sys, err := generate.System(lab, public)
+	if err != nil {
+		return reconcile.Desired{}, errors.Join(append(errs, err)...)
+	}
+	d.System = sys
 	return d, errors.Join(errs...)
 }
 

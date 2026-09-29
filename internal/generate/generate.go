@@ -66,7 +66,10 @@ type Output struct {
 	// HostPorts are the package ports published on every host address,
 	// which the firewall must let in.
 	HostPorts []HostPort
-	Backup    BackupPlan
+	// Public: one of its addresses is public (SPEC.md §6.11), so the lab
+	// needs CrowdSec running.
+	Public bool
+	Backup BackupPlan
 }
 
 // HostPort is an enabled package port (pkgspec.Port).
@@ -428,13 +431,25 @@ func (g *gen) caddySite() error {
 		}
 		g.out.Hosts = append(g.out.Hosts, rc.Host)
 		g.out.Ports = append(g.out.Ports, rc.Port)
-		routes = append(routes, caddy.Route{
+		cr := caddy.Route{
 			ID:          g.pkg.Name + "-" + name,
 			Host:        rc.Host,
 			Upstream:    fmt.Sprintf("%s:%d", g.upstream, rc.Port),
 			Private:     rc.Exposure != pkgspec.ExposurePublic,
 			MaxBodySize: r.MaxBodySize,
-		})
+		}
+		if !cr.Private {
+			// The package's private paths stay home-only unless the Owner
+			// opened them (SPEC.md §6.11).
+			for _, pp := range r.Public.PrivatePaths {
+				if !slices.Contains(rc.PublicPaths, pp.Path) {
+					cr.PrivatePaths = append(cr.PrivatePaths, pp.Path)
+				}
+			}
+			cr.LoginPaths = r.Public.LoginPaths
+			g.out.Public = true
+		}
+		routes = append(routes, cr)
 	}
 	if len(routes) == 0 {
 		return nil

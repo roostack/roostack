@@ -53,6 +53,8 @@ type RouteContext struct {
 	// Port is the host loopback port the route's container is published
 	// on (0 until allocated).
 	Port int
+	// PublicPaths are private paths the Owner made public anyway.
+	PublicPaths []string
 }
 
 // PortContext is a resolved package port, e.g. for an app to show
@@ -99,7 +101,9 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 
 	for name, r := range p.Routes {
 		sub, exp, port := r.Subdomain, r.Exposure, 0
+		var open []string
 		if o, ok := in.Routes[name]; ok {
+			open = o.PublicPaths
 			if o.Subdomain != "" {
 				sub = o.Subdomain
 			}
@@ -109,7 +113,8 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 			port = o.Port
 		}
 		host := sub + "." + lab.Domain
-		ctx.Routes[name] = RouteContext{Subdomain: sub, Host: host, URL: "https://" + host, Exposure: exp, Port: port}
+		ctx.Routes[name] = RouteContext{Subdomain: sub, Host: host, URL: "https://" + host, Exposure: exp, Port: port,
+			PublicPaths: open}
 	}
 
 	ctx.Ports = ResolvePorts(p, in)

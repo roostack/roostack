@@ -51,6 +51,9 @@ type RouteOverride struct {
 	// on. Roostack allocates it once (state.AllocatePorts); it isn't meant
 	// to be edited.
 	Port int `yaml:"port,omitempty"`
+	// PublicPaths are the package's private paths (pkgspec.PublicRules)
+	// the Owner made public anyway, after the warning (SPEC.md §6.11).
+	PublicPaths []string `yaml:"public_paths,omitempty"`
 }
 
 // PortOverride changes a package port (pkgspec.Port). Unset fields keep
@@ -143,6 +146,12 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 		}
 		if r.Port != 0 && (r.Port < 1024 || r.Port > 65535) {
 			add("routes.%s.port: %d is outside 1024-65535", name, r.Port)
+		}
+		for _, pp := range r.PublicPaths {
+			if pr := p.Routes[name]; pr != nil && !slices.ContainsFunc(pr.Public.PrivatePaths,
+				func(x pkgspec.PrivatePath) bool { return x.Path == pp }) {
+				add("routes.%s.public_paths: %q isn't one of the package's private paths", name, pp)
+			}
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(in.Ports)) {

@@ -80,3 +80,6 @@ routes:
     subdomain: photos
     exposure: private
     max_body_size: 50GB          # large video uploads
+    public:
+      login_paths:
+        - /api/auth/login

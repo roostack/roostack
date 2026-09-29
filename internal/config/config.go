@@ -32,6 +32,10 @@ const (
 	// instance file so it never changes (SPEC.md §6.5).
 	DefaultRoutePortMin = 20000
 	DefaultRoutePortMax = 29999
+	// CrowdSecPort is where CrowdSec's local API listens on the host's
+	// loopback while anything is public, for Caddy's bouncer (SPEC.md
+	// §6.11).
+	CrowdSecPort = 8473
 )
 
 // Paths are the filesystem locations Roostack reads and writes.
@@ -73,6 +77,13 @@ func (p Paths) CaddySitesDir() string { return filepath.Join(p.CaddyDir(), "site
 // CaddyDataDir holds certificates and the ACME account.
 func (p Paths) CaddyDataDir() string { return filepath.Join(p.StateDir, "caddy-data") }
 
+// CaddyLogDir holds Caddy's access log while anything is public, which
+// CrowdSec reads (SPEC.md §6.11).
+func (p Paths) CaddyLogDir() string { return filepath.Join(p.StateDir, "caddy-logs") }
+
+// CrowdSecDir holds CrowdSec's configuration and database.
+func (p Paths) CrowdSecDir() string { return filepath.Join(p.StateDir, "crowdsec") }
+
 // DNS configures the DNS-01 challenge used for the wildcard certificate.
 type DNS struct {
 	// Provider is a provider ID from internal/dns (e.g. "cloudflare").
@@ -95,6 +106,16 @@ type DNS struct {
 	AllowRiskyRecords bool `yaml:"allow_risky_records,omitempty"`
 	// LANIP overrides the detected LAN address used for private services.
 	LANIP string `yaml:"lan_ip,omitempty"`
+}
+
+// Public configures public access (SPEC.md §6.11).
+type Public struct {
+	// SharingAsked: the Owner has answered whether CrowdSec shares attack
+	// reports with its community (asked when something first goes public).
+	SharingAsked bool `yaml:"sharing_asked,omitempty"`
+	// NoSharing: the Owner chose not to share them (SPEC.md §6.10). Local
+	// detection and blocking still work; the community blocklist doesn't.
+	NoSharing bool `yaml:"no_sharing,omitempty"`
 }
 
 // Backup configures the backup destination (SPEC.md §6.9).
@@ -204,6 +225,8 @@ type Lab struct {
 	Firewall Firewall `yaml:"firewall,omitempty"`
 	// Maintenance is when the host may restart (SPEC.md §3.2).
 	Maintenance Maintenance `yaml:"maintenance,omitempty"`
+	// Public is how services are made public (SPEC.md §6.11).
+	Public Public `yaml:"public,omitempty"`
 	// NodeID is this server's node ID (internal/node), set at runtime.
 	// Services are placed on nodes (SPEC.md §10.4).
 	NodeID string `yaml:"-"`
