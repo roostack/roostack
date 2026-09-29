@@ -129,7 +129,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Maybe: the CLI sets `XDG_RUNTIME_DIR` itself when run as the roostack user (README and help explain it for now)
   - [x] The storage invite now tells friends where it goes on the Backups page as it is (**A friend's lab → Their invite code**)
   - [x] Recovery key (SPEC §6.9): shown whenever the lab's first backup makes it (it wasn't after "Set up backups later"); the setup page closes once it's confirmed; "Show recovery key…" on the Backups page after the password and a two-factor code, audited, five wrong tries end the session
-  - [ ] Changing the recovery key if it may have leaked
+  - [ ] Changing the recovery key (SPEC §6.9, option C agreed 2026-09-30): replace the key everywhere; or also start afresh with new repositories
 - [ ] **1.16 Code review (2026-09-29)**
   - [x] Agent: backup folders made and handed over only inside the allowed places (`os.Root`, `lchown`); a planted symlink could have given roostack a folder anywhere. Tested on VM1
   - [x] A failed restore says truthfully whether the data is back, and starts the service again
@@ -141,7 +141,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Maybe: separate `web.Server` fields per manager area, so each test fake implements only what its pages use
 - [ ] **1.18 Public access (SPEC §6.11)**
   - [x] Decisions (2026-09-30): three entries (port forwarding first, a lab's cloud server, Roostack Cloud later); packages mark unsafe addresses, the Owner can override with a warning; CrowdSec and rate limiting before anything is public; checking from a phone for now
-  - [ ] Proposals to agree: keeping the public address current with Roostack's own DNS record code instead of ddns-updater; asking about CrowdSec signal sharing when something first goes public (it only runs then); SSH logs for CrowdSec later (the rootless container can't read the host's journal, and SSH is home-only by default); rate limits
+  - [x] Agreed (2026-09-30): Roostack's own record code keeps the public address current (no ddns-updater); signal sharing asked when something first goes public, changeable in Settings; a generous rate limit on public addresses, a strict one on the login pages packages name
+  - [ ] **Come back to (agreed 2026-09-30): CrowdSec and SSH logs** (the rootless container can't read the host's journal; the agent could pass lines on, or bans could go into nftables)
   - [ ] Mock-up: the service's "Public access" section, port forwarding steps, the phone check
   - [x] Caddy image: `caddy-crowdsec-bouncer/http` v0.14.1 and `caddy-ratelimit` v0.1.0 (its only tag), pinned; built on VM2, Caddy stays 2.11.4
   - [ ] Package format: mark unsafe addresses, with a reason
