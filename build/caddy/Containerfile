@@ -1,5 +1,6 @@
 # Roostack's Caddy image: upstream Caddy plus DNS provider plugins for the
-# DNS-01 challenge (SPEC.md §6.5). Keep in sync with internal/dns (a test
+# DNS-01 challenge (SPEC.md §6.5), CrowdSec's bouncer and rate limiting for
+# public addresses (SPEC.md §6.10, §6.11). Keep in sync with internal/dns (a test
 # checks every provider's plugin is listed here, at a fixed version).
 #
 # Everything is pinned (SPEC.md §8.1): the base images by tag and digest
@@ -17,7 +18,9 @@ RUN xcaddy build \
     --with github.com/caddy-dns/gandi@v1.1.0 \
     --with github.com/caddy-dns/godaddy@v1.2.0 \
     --with github.com/caddy-dns/namecheap@v1.0.0 \
-    --with github.com/caddy-dns/spaceship@v1.0.0
+    --with github.com/caddy-dns/spaceship@v1.0.0 \
+    --with github.com/hslatman/caddy-crowdsec-bouncer/http@v0.14.1 \
+    --with github.com/mholt/caddy-ratelimit@v0.1.0
 
 FROM docker.io/library/caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
