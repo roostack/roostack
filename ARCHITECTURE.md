@@ -69,7 +69,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/firewall` | Builds the firewall from the lab and its services; lists current SSH connections |
 | `internal/store` | SQLite runtime data: users, sessions, audit log, settings, backup runs, the lab's servers and join codes, backup providers, targets and copies, and storage for other labs |
 | `internal/auth` | Password hashing (argon2id), session tokens, roles |
-| `internal/web` | Web UI: handlers, templates, vendored htmx/Alpine |
+| `internal/web` | Web UI: handlers, templates, vendored htmx/Alpine, and the embedded help site at `/help/` (`help.go`, built from `help/` into `helpsite/site` by `make build`) |
 | `internal/manager` | The controller: catalog, install, remove, ports and settings (desired state), and each server's Assignment |
 | `internal/maintenance` | Maintenance coordinator: job queue and reboot policy |
 | `internal/backup` | restic wrapper, prepare steps, backup plan and job |

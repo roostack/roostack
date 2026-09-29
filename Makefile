@@ -3,11 +3,22 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X main.version=$(VERSION)
 
-.PHONY: build test golden vet caddy-check
+.PHONY: build help test golden vet caddy-check
 
-build:
+build: help
 	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o bin/ ./cmd/...
 	scripts/copyright.sh > bin/copyright
+
+# The help site (SPEC.md §6.3.1), built with Zensical and embedded in the
+# binary from internal/web/helpsite/site. Strict: a broken link fails the
+# build. Without uv, Roostack is built without it (and says so at /help/).
+help:
+	@if command -v uv >/dev/null; then \
+		cd help && uv run zensical build --strict && cd .. && \
+		rm -rf internal/web/helpsite/site && cp -r help/site internal/web/helpsite/site; \
+	else \
+		echo "warning: uv isn't installed, so the help site isn't built into Roostack" >&2; \
+	fi
 
 test:
 	go test ./...

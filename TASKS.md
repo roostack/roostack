@@ -122,10 +122,13 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] **1.17 Help site (SPEC §6.3.1)**
   - [x] Zensical set up in `help/` (pinned), Roostack's colours and icon, the whole navigation; written: Home, First-run setup, Your backup plan, Where files live, Command line (checked against the code and on VM1)
   - [x] Write the remaining pages (2026-09-29): every page in the navigation, checked against the templates and code; links and anchors checked
-  - [ ] Build at `make build` and serve at `/help`, with a CSP for Zensical's inline scripts (by hash); "Tell me more" and help links from the UI
+  - [x] Built at `make build` (strict), embedded and served at `/help/` to anyone, with its own CSP (scripts by hash, worked out at start; inline styles allowed, see SPEC §6.3.1); **Help** in the top bar, "Getting back in" on the login page. Checked on VM1: no CSP violations, search and page links work
+  - [ ] "Tell me more" links from UI pages into the matching help page
   - [ ] Publish the public site (hosting and address to decide)
-  - [ ] Found while writing: running `roostack backup`/`apply` as the roostack user needs `XDG_RUNTIME_DIR` set by hand (the CLI could set it); `apply -dry-run` prints `8471/tcp from ,` for rules tied to the WireGuard interface (display only: they have no source); README says Go 1.25 and "currently Cloudflare"
-  - [ ] Found while writing: no link to see the recovery key again after setup (only `/setup/recovery-key` by hand); the storage invite tells friends to paste it "under 'Add storage from another lab'", but the Backups page now asks under **A friend's lab → Their invite code**
+  - [x] `apply -dry-run` printed `8471/tcp from ,` for rules tied to the WireGuard interface: now `8471/tcp on roostack`; README brought up to date (Go 1.26, DNS providers, the help, running commands as the roostack user)
+  - [ ] Maybe: the CLI sets `XDG_RUNTIME_DIR` itself when run as the roostack user (README and help explain it for now)
+  - [x] The storage invite now tells friends where it goes on the Backups page as it is (**A friend's lab → Their invite code**)
+  - [ ] No link to see the recovery key again after setup (only `/setup/recovery-key` by hand, with no re-authentication or audit entry): to decide with the Owner
 - [ ] **1.16 Code review (2026-09-29)**
   - [x] Agent: backup folders made and handed over only inside the allowed places (`os.Root`, `lchown`); a planted symlink could have given roostack a folder anywhere. Tested on VM1
   - [x] A failed restore says truthfully whether the data is back, and starts the service again
