@@ -83,3 +83,17 @@ func (c *Checks) Visit(token, host, remote string) (int, error) {
 	}
 	return VisitOutside, nil
 }
+
+// Current returns host's check link token that still works, or "".
+func (c *Checks) Current(host string) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var best string
+	var latest time.Time
+	for t, p := range c.tokens {
+		if p.host == host && time.Now().Before(p.expires) && p.expires.After(latest) {
+			best, latest = t, p.expires
+		}
+	}
+	return best
+}

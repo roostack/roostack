@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/netip"
 	"time"
 )
@@ -118,4 +119,21 @@ func resolverAt(server string) *net.Resolver {
 		d := net.Dialer{Timeout: 5 * time.Second}
 		return d.DialContext(ctx, "udp", server)
 	}}
+}
+
+// CrowdSecUp says whether CrowdSec's local API answers its health check
+// (no key needed) at addr, e.g. 127.0.0.1:8473.
+func CrowdSecUp(ctx context.Context, addr string) bool {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+"/health", nil)
+	if err != nil {
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }

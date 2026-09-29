@@ -184,23 +184,34 @@ func (m *Manager) set(st Status) Status {
 	return st
 }
 
-// Run syncs now, then every interval (catching a changed LAN IP), or
-// sooner when Refresh is called.
+// Run syncs now, then every interval (catching a changed LAN IP), more
+// often while anything is public, or sooner when Refresh is called.
 func (m *Manager) Run(ctx context.Context, interval time.Duration) {
 	m.Refresh() // make sure wake exists
 	m.mu.Lock()
 	wake := m.wake
 	m.mu.Unlock()
 	for {
-		m.Sync(ctx)
+		st := m.Sync(ctx)
+		next := interval
+		if len(st.Public) > 0 {
+			// A home's public address can change (SPEC.md §6.11).
+			next = min(interval, PublicInterval)
+		}
+		if slices.ContainsFunc(st.Public, func(r PublicRecord) bool { return r.State == PublicWaiting }) {
+			next = 30 * time.Second // CrowdSec is starting
+		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(interval):
+		case <-time.After(next):
 		case <-wake:
 		}
 	}
 }
+
+// PublicInterval is how often records are synced while anything is public.
+const PublicInterval = 5 * time.Minute
 
 // Sync makes sure the wildcard record points at the LAN IP, then checks
 // what the home network sees.

@@ -38,6 +38,9 @@ type WireAssignment struct {
 type LabContext struct {
 	Domain string `json:"domain"`
 	Email  string `json:"email,omitempty"`
+	// NoSharing is the Owner's CrowdSec opt-out (config.Public), for the
+	// server running Caddy.
+	NoSharing bool `json:"no_sharing,omitempty"`
 }
 
 // WireService is a service's instance and package files.
@@ -56,7 +59,7 @@ type WireProxied struct {
 // Encode turns an assignment into wire form, reading each package file
 // from the lab's catalog.
 func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error) {
-	w := WireAssignment{Version: version, Lab: LabContext{Domain: a.Lab.Domain, Email: a.Lab.Email},
+	w := WireAssignment{Version: version, Lab: a.Lab,
 		Secrets: a.Secrets, SetUp: a.SetUp, Storage: a.Storage, Guests: a.Guests, GuestAddr: a.GuestAddr}
 	enc := func(s state.Service) (WireService, error) {
 		in, err := s.Instance.Marshal()

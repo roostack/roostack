@@ -143,15 +143,19 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Decisions (2026-09-30): three entries (port forwarding first, a lab's cloud server, Roostack Cloud later); packages mark unsafe addresses, the Owner can override with a warning; CrowdSec and rate limiting before anything is public; checking from a phone for now
   - [x] Agreed (2026-09-30): Roostack's own record code keeps the public address current (no ddns-updater); signal sharing asked when something first goes public, changeable in Settings; a generous rate limit on public addresses, a strict one on the login pages packages name
   - [ ] **Come back to (agreed 2026-09-30): CrowdSec and SSH logs** (the rootless container can't read the host's journal; the agent could pass lines on, or bans could go into nftables)
-  - [ ] Mock-up: the service's "Public access" section, port forwarding steps, the phone check
+  - [x] Mock-up: the service's "Public access" section, port forwarding steps, the phone check (agreed 2026-09-30)
   - [x] Caddy image: `caddy-crowdsec-bouncer/http` v0.14.1 and `caddy-ratelimit` v0.1.0 (its only tag), pinned; built on VM2, Caddy stays 2.11.4
   - [x] Package format: `public:` with `unsafe`, `private_paths` (with reasons) and `login_paths`; the Owner's opened paths in the instance (`public_paths`); Vaultwarden, Forgejo and Immich marked
   - [x] CrowdSec: generated while anything is public (container, acquisition file, bouncer key, Caddy's access log), prototype verified on VM2 (ASSUMPTIONS P1-P7); `caddy adapt` accepts the config with the real plugin build
   - [ ] CrowdSec end to end on a VM through Roostack itself (needs the public switch)
   - [x] Rate limiting on public addresses: 1000 requests per 10 s per visitor, 10 a minute on login paths
-  - [ ] Entry seam; port forwarding entry: public address, records, router steps, phone check
-  - [ ] Public switch on the service page (Owner), with the unsafe-address override
-  - [ ] Help pages
+  - [x] Entry seam (`internal/public`); port forwarding entry: the home's public address over DNS (OpenDNS, then Google); a record per public address once CrowdSec is up, synced every 5 minutes while anything is public; the router step; the check link from a phone (only a 32-digit token path on a public address reaches Roostack)
+  - [x] Public switch (Owner): "Reachable from" on the service page, a page per address with the warning, the package's reasons, private paths to open, the sharing question the first time, then the checklist; Settings → Public access (what's public, CrowdSec, sharing); audited. Checked with fakes in the browser
+  - [x] Help: "Make a service public", the package format, files and ports
+  - [ ] **End to end on a VM through Roostack itself**: needs a public record under the lab's real domain (see questions); until then, checked piece by piece (prototype on VM2, `caddy adapt`, fakes)
+  - [ ] Delete public records when a service goes private (today they point home again): a delete call for each provider's record API
+  - [ ] IPv6 (AAAA) public records, for homes with IPv6
+  - [ ] A manager test failed once under load on 2026-09-30 (not reproduced in 19 more runs); watch for it
   - [ ] Edge through a cloud server (SPEC §10.5), then Roostack Cloud
 - [ ] **1.12 Packaging:** .deb, apt repo, installer flow
   - [x] `scripts/build-deb.sh` builds `dist/roostack_<version>_amd64.deb` (dpkg-deb, or ar+tar without it): binaries in /usr/bin, units in /usr/lib/systemd/system with a UID drop-in written by postinst, catalog, Caddy Containerfile, docs; postinst sets up the roostack user, subuids, linger, folders and starts Roostack. `scripts/dev-install.sh` installs it (tested on a fresh Debian 13 VM)

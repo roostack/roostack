@@ -222,6 +222,10 @@ code.secret { display: inline-block; font-size: 1.1em; padding: var(--space-1) v
 svg.qr { display: block; width: 200px; height: 200px; border-radius: var(--radius-sm); }
 .recovery { font-size: var(--text-lg); text-align: center; }
 .steps li { margin-bottom: var(--space-3); }
+/* A checklist whose steps are marked by their state's dot, not numbers. */
+.public-steps { list-style: none; padding-left: 0; }
+.public-steps .qr-box { margin: var(--space-2) 0; }
+.public-steps small { display: block; }
 
 /* ---------- Home ---------- */
 .attention { margin-bottom: var(--space-5); }

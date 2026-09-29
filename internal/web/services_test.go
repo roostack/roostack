@@ -64,6 +64,12 @@ type fakeManager struct {
 	updates     HostUpdates
 	settings    node.Settings
 	disk        *node.DiskSpace
+
+	// Public access (public_test.go).
+	access       []manager.RouteAccess
+	publicReqs   []manager.PublicRequest
+	sharingAsked bool
+	share        bool
 }
 
 // DiskSpace: the fake's disk, if it has one.

@@ -134,7 +134,7 @@ func (m *Manager) startApplyLocked() {
 		m.Activity.Start(activity.Apply, "Applying changes").Finish(err)
 		return
 	}
-	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email}
+	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: m.publicLocked().NoSharing}
 	nodes := []node.Node{m.Node}
 	for _, r := range m.others() {
 		nodes = append(nodes, r)

@@ -317,6 +317,7 @@ func (f *fakeDNS) SetManaging(on, risk bool) error {
 	return nil
 }
 func (f *fakeDNS) TakeOver(context.Context) error { f.takenOver = true; return nil }
+func (f *fakeDNS) Refresh()                       {}
 
 func TestDNSCard(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)

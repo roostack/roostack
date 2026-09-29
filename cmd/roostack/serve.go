@@ -30,6 +30,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/podman"
+	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
@@ -137,9 +138,20 @@ func serve(args []string) error {
 				out = append(out, r)
 			}
 			return out
-		}}
+		},
+		UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) }}
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
+	// Public access (SPEC.md §6.11): check links from a phone, and whether
+	// CrowdSec is up (the records wait for it).
+	crowdSecUp := func(ctx context.Context) bool {
+		return public.CrowdSecUp(ctx, fmt.Sprintf("127.0.0.1:%d", config.CrowdSecPort))
+	}
+	srv.Checks = &public.Checks{Record: func(host string, at time.Time, from string) error {
+		log.Info("public address checked from outside", "host", host, "from", from)
+		return web.RecordPublicCheck(context.Background(), st, host, at, from)
+	}}
+	srv.Protected = crowdSecUp
 	// Roostack's network between servers (SPEC.md §10.2): this server is
 	// the hub others join.
 	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: lab.DisplayName(), Self: id, Store: st, Agent: agentClient,
@@ -239,6 +251,9 @@ func serve(args []string) error {
 			LocalLookup: dnsrecords.SystemLookup, PublicLookup: dnsrecords.PublicLookup,
 			Wait:      90 * time.Second,
 			UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) },
+			// Public addresses point at the home's public address (port
+			// forwarding, the only entry so far), once CrowdSec is up.
+			PublicHosts: mgr.PublicHosts, Entry: public.PortForwarding{}, Protected: crowdSecUp,
 		}
 		go records.Run(ctx, 30*time.Minute)
 		srv.DNS = records
