@@ -31,6 +31,15 @@ main { max-width: 960px; margin: 0 auto; padding: var(--space-5) var(--space-4);
 .brand { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: var(--weight-bold);
   font-size: var(--text-lg); text-decoration: none; color: var(--fg); }
 .brand-mark { width: 12px; height: 12px; border-radius: 3px; background: var(--highlight); }
+/* Once the lab has a name, it's the title: a small "Roostack" above it,
+   and a taller mark beside both. The bar keeps about its usual height. */
+.topbar:has(.brand-stack) { padding-top: var(--space-2); padding-bottom: var(--space-2); }
+.brand:has(.brand-stack) { gap: var(--space-3); }
+.brand:has(.brand-stack) .brand-mark { height: 24px; }
+.brand-stack { display: flex; flex-direction: column; line-height: 1.05; min-width: 0; }
+.brand-eyebrow { font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  font-weight: var(--weight-medium); }
+.brand-lab { max-width: 18em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar nav { display: flex; align-items: center; gap: var(--space-1); flex: 1; }
 .topbar nav a { color: var(--muted); text-decoration: none; padding: var(--space-2) var(--space-3);
   border-bottom: 2px solid transparent; }
@@ -41,6 +50,9 @@ main { max-width: 960px; margin: 0 auto; padding: var(--space-5) var(--space-4);
 .menu-toggle { display: none; background: none; color: var(--fg); font-size: 1.3rem; padding: var(--space-1) var(--space-2); }
 @media (max-width: 640px) {
   .menu-toggle { display: block; margin-left: auto; }
+  /* The brand shrinks (a long lab name ends in "…") so the menu button
+     stays beside it, rather than wrapping and widening the page. */
+  .brand { flex: 1 1 0; min-width: 0; }
   .topbar nav { display: none; flex-basis: 100%; flex-direction: column; align-items: stretch; }
   .topbar nav.open { display: flex; }
   .topbar nav .spacer { display: none; }
@@ -274,8 +286,6 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
-.lab-name { color: var(--muted); font-weight: var(--weight-normal); margin-left: var(--space-2); font-size: var(--text-sm); }
-.lab-name::before { content: "· "; }
 
 /* ---------- Backup drive picker (setup-backup) ---------- */
 .drives { display: grid; gap: var(--space-2); margin: var(--space-3) 0; }
