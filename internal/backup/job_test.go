@@ -30,7 +30,7 @@ func TestLabPlan(t *testing.T) {
 			t.Errorf("paths missing %s: %v", want, p.Paths)
 		}
 	}
-	for _, want := range []string{"/var/lib/roostack/home/*", "!/var/lib/roostack/home/.local", "/var/lib/roostack/roostack.db", "/var/lib/roostack/backup-key",
+	for _, want := range []string{"/var/lib/roostack/home/*", "!/var/lib/roostack/home/.local", "/var/lib/roostack/roostack.db", "/var/lib/roostack/backup-key", "/var/lib/roostack/backup-key.*",
 		"/srv/roostack/services/vaultwarden/data/db.sqlite3"} {
 		if !slices.Contains(p.Excludes, want) {
 			t.Errorf("excludes missing %s: %v", want, p.Excludes)

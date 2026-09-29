@@ -34,7 +34,8 @@ type Plan struct {
 // and the Podman secrets store, since generated passwords are needed to use
 // restored data. Excluded: the rest of the roostack home directory (container
 // images, which can be downloaded again), the live SQLite database (a
-// consistent copy is taken first), and the backup key itself.
+// consistent copy is taken first), and the backup key itself (with the
+// new and old keys of a change).
 func LabPlan(paths config.Paths, services []*generate.Output) Plan {
 	secrets := filepath.Join(paths.HomeDir, ".local", "share", "containers", "storage", "secrets")
 	p := Plan{
@@ -44,6 +45,10 @@ func LabPlan(paths config.Paths, services []*generate.Output) Plan {
 			filepath.Join(paths.StateDir, "roostack.db-wal"),
 			filepath.Join(paths.StateDir, "roostack.db-shm"),
 			KeyFile(paths),
+			// A change's new and old keys and its progress (internal/manager),
+			// and a half-written key: no backup holds a key that opens it,
+			// and a restored lab isn't left half-way through a change.
+			KeyFile(paths)+".*",
 		),
 	}
 	for _, s := range services {

@@ -1,0 +1,55 @@
+{{define "title"}}Change recovery key{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <div class="page-top">{{back "/backups" "Backups"}}{{help "start/recovery-key#changing-it" "Changing your recovery key"}}</div>
+  <h1>Change recovery key</h1>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+
+  {{if .NewKey}}
+  <p>This is your <strong>new</strong> recovery key. Save it now: once you confirm, Roostack changes every backup to use it,
+    and the old key stops working.</p>
+  <code class="secret recovery">{{.NewKey}}</code>
+  <p>Print it, or write it down, and keep it somewhere safe away from this server. Then destroy the old one.</p>
+  <p x-data><button type="button" class="secondary" x-on:click="window.print()">Print</button></p>
+  <form method="post" action="/backups/recovery-key/change/confirm">
+    <label class="check"><input type="checkbox" name="saved" required>
+      <span>I've saved the new recovery key</span></label>
+    <button type="submit">Change every backup to the new key</button>
+  </form>
+  <form method="post" action="/backups/recovery-key/change/cancel" class="section">
+    <button type="submit" class="secondary">Cancel, and keep the old key</button>
+  </form>
+
+  {{else if and .Change (ne .Change.Phase "confirm")}}
+  {{with .Change}}
+  <p>{{if eq .Phase "adding"}}Adding the new key to your backups: {{.Done}} of {{len .Repos}} done. The old key keeps working until
+    every backup has the new one.{{else}}The new key is your lab's key. Removing the old key from your backups: {{.Done}} of {{len .Repos}} done.{{end}}</p>
+  <ul class="plain">
+    {{range .Repos}}<li><code>{{shownRepo .Repository}}</code>:
+      {{if .Removed}}done{{else if and .Added (eq $.Change.Phase "adding")}}has the new key{{else if .Error}}waiting ({{.Error}}){{else}}to do{{end}}</li>{{end}}
+  </ul>
+  <p class="hint">Backups that can't be reached now (a drive that's unplugged, a friend's lab that's offline) are tried again every hour.</p>
+  {{end}}
+
+  {{else}}
+  <p>Change your recovery key if someone else may have seen it. Roostack makes a new key and shows it; once you've saved it,
+    every backup is changed to open with the new key, and the old one stops working.</p>
+  {{notice "warn" "This protects you if only the key leaked. If someone may also have copied your backups themselves, they could still read those copies with the old key, and a new key alone doesn't stop that."}}
+  {{if .Change}}<p><strong>A new key was made, but you haven't confirmed saving it.</strong> Enter your password and a code to see it again.</p>{{end}}
+  <form method="post" action="/backups/recovery-key/change">
+    <label>Your password
+      <input name="password" type="password" autocomplete="current-password" required autofocus>
+    </label>
+    <label>Code from your authenticator app
+      <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required>
+    </label>
+    <button type="submit">{{if .Change}}Show the new key{{else}}Make a new key{{end}}</button>
+  </form>
+  {{if .Change}}
+  <form method="post" action="/backups/recovery-key/change/cancel" class="section">
+    <button type="submit" class="secondary">Cancel, and keep the old key</button>
+  </form>
+  {{end}}
+  {{end}}
+</section>
+{{end}}

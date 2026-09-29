@@ -129,7 +129,9 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Maybe: the CLI sets `XDG_RUNTIME_DIR` itself when run as the roostack user (README and help explain it for now)
   - [x] The storage invite now tells friends where it goes on the Backups page as it is (**A friend's lab → Their invite code**)
   - [x] Recovery key (SPEC §6.9): shown whenever the lab's first backup makes it (it wasn't after "Set up backups later"); the setup page closes once it's confirmed; "Show recovery key…" on the Backups page after the password and a two-factor code, audited, five wrong tries end the session
-  - [ ] Changing the recovery key (SPEC §6.9, option C agreed 2026-09-30): replace the key everywhere; or also start afresh with new repositories
+  - [x] Changing the recovery key, replacing it everywhere (SPEC §6.9 as built): after the password and code check; waits for "I've saved it"; added to every repository, then made the lab's key, then the old one removed; unreachable backups retried hourly; progress on the Backups page. Tested with real restic (an unplugged drive, then back)
+  - [ ] Changing the recovery key, starting afresh (option C's second half): how to start the new repositories is a question for the Owner (TASKS "To discuss")
+  - [ ] Try the key change on a VM with the Owner (it changes the lab's real recovery key: they must save the new one)
 - [ ] **1.16 Code review (2026-09-29)**
   - [x] Agent: backup folders made and handed over only inside the allowed places (`os.Root`, `lchown`); a planted symlink could have given roostack a folder anywhere. Tested on VM1
   - [x] A failed restore says truthfully whether the data is back, and starts the service again
@@ -219,6 +221,9 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] Failover: cold standby first
 
 ## To discuss with the user
+
+- Public access end to end on VM1 (2026-09-30): making a service public creates a real record under labtest.example.com pointing at the home's public address, where port 443 goes to other services. OK to try it (then make it private again), or test on another domain?
+- Recovery key "start afresh": new empty repositories (history kept in the old ones for a while, then deleted), or `restic copy` of every snapshot into new repositories (history kept, but everything downloaded and uploaded again, which costs egress on cloud storage)?
 
 
 - K5: setup-code approach for first-run setup (add to SPEC?)

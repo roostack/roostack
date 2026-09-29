@@ -151,3 +151,36 @@ func TestAddKey(t *testing.T) {
 		t.Errorf("server key: %v", err)
 	}
 }
+
+// Replacing a key (a recovery key change, SPEC.md §6.9): add the new one,
+// remove the old one with it; the old one no longer opens the repository.
+func TestReplaceKey(t *testing.T) {
+	r := testRepo(t)
+	ctx := context.Background()
+	if err := r.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	old, err := r.CurrentKey(ctx)
+	if err != nil || old == "" {
+		t.Fatalf("current key: %q %v", old, err)
+	}
+	if err := r.AddKey(ctx, "new recovery key", "recovery"); err != nil {
+		t.Fatal(err)
+	}
+	next := *r
+	next.PasswordFile = filepath.Join(t.TempDir(), "new")
+	os.WriteFile(next.PasswordFile, []byte("new recovery key\n"), 0o600)
+	if err := r.RemoveKey(ctx, old); err == nil {
+		t.Error("restic should refuse to remove the key in use")
+	}
+	if err := next.RemoveKey(ctx, old); err != nil {
+		t.Fatal(err)
+	}
+	keys, err := next.Keys(ctx)
+	if err != nil || len(keys) != 1 || !keys[0].Current || keys[0].UserName != "recovery" {
+		t.Errorf("keys: %+v %v", keys, err)
+	}
+	if _, err := r.Snapshots(ctx); err == nil {
+		t.Error("the old key still opens the repository")
+	}
+}

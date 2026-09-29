@@ -203,6 +203,47 @@ func (r *Repo) AddKey(ctx context.Context, key, user string) error {
 	return err
 }
 
+// Key is one of a repository's keys (`restic key list`).
+type Key struct {
+	ID       string `json:"id"`
+	Current  bool   `json:"current"` // the key this Repo opened it with
+	UserName string `json:"userName"`
+}
+
+// Keys lists the repository's keys.
+func (r *Repo) Keys(ctx context.Context) ([]Key, error) {
+	out, err := r.run(ctx, "key", "list", "--json")
+	if err != nil {
+		return nil, err
+	}
+	var keys []Key
+	if err := json.Unmarshal(out, &keys); err != nil {
+		return nil, fmt.Errorf("restic key list: %w", err)
+	}
+	return keys, nil
+}
+
+// CurrentKey is the ID of the key this Repo opens the repository with.
+func (r *Repo) CurrentKey(ctx context.Context) (string, error) {
+	keys, err := r.Keys(ctx)
+	if err != nil {
+		return "", err
+	}
+	for _, k := range keys {
+		if k.Current {
+			return k.ID, nil
+		}
+	}
+	return "", errors.New("restic key list: no current key")
+}
+
+// RemoveKey removes another key from the repository (restic refuses to
+// remove the one in use).
+func (r *Repo) RemoveKey(ctx context.Context, id string) error {
+	_, err := r.run(ctx, "key", "remove", id)
+	return err
+}
+
 // BackupOptions says what to back up.
 type BackupOptions struct {
 	Paths    []string

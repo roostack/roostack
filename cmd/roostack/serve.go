@@ -139,7 +139,8 @@ func serve(args []string) error {
 			}
 			return out
 		},
-		UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) }}
+		UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) },
+		Submit:    func(j maintenance.Job) { coord.Submit(j) }}
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
 	// Public access (SPEC.md §6.11): check links from a phone, and whether
