@@ -1,6 +1,6 @@
 {{define "title"}}Home network{{end}}
 {{define "content"}}
-{{back "/settings" "Settings"}}
+<div class="page-top">{{back "/settings" "Settings"}}{{help "settings/domain#reaching-your-services-from-home" "Reaching your services from home"}}</div>
 {{with .DNS}}
 {{/* While records are being updated and checked, this part refreshes itself
      until the sync ends (not while a confirm dialog is open, or the tab is

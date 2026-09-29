@@ -2,6 +2,8 @@ package web
 
 import (
 	"io/fs"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -62,4 +64,79 @@ func TestNewWindowLinks(t *testing.T) {
 	if n < 8 {
 		t.Errorf("found only %d new-window links; is the pattern still right?", n)
 	}
+}
+
+func TestHelpLinkHref(t *testing.T) {
+	for page, want := range map[string]string{
+		"":                        `href="/help/"`,
+		"backups":                 `href="/help/backups/"`,
+		"settings/people#roles":   `href="/help/settings/people/#roles"`,
+		"start/first-run/#1-step": `href="/help/start/first-run/#1-step"`,
+	} {
+		if html, err := helpLink(page, "Title"); err != nil || !strings.Contains(string(html), want) {
+			t.Errorf("help %q: %s %v", page, html, err)
+		}
+	}
+	for _, page := range []string{"/help/backups", "../etc"} {
+		if _, err := helpLink(page, "Title"); err == nil {
+			t.Errorf("help %q: want an error", page)
+		}
+	}
+	if _, err := helpLink("backups", ""); err == nil {
+		t.Error("help without a title: want an error")
+	}
+}
+
+// Every help link, the component's and the few written out, names a page
+// and section that the help has (the source in help/docs, so this works
+// without building the site).
+func TestPageHelpTargets(t *testing.T) {
+	links := []*regexp.Regexp{
+		regexp.MustCompile(`\{\{help "([^"]*)" "[^"]+"\}\}`),
+		regexp.MustCompile(`href="/help/([^"]*)"`),
+	}
+	heading := regexp.MustCompile(`(?m)^#{1,6} +(.+?) *$`)
+	docs := filepath.Join("..", "..", "help", "docs")
+	files, err := fs.Glob(templateFS, "templates/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, f := range files {
+		page, _ := fs.ReadFile(templateFS, f)
+		for _, link := range links {
+			for _, m := range link.FindAllStringSubmatch(string(page), -1) {
+				n++
+				path, section, _ := strings.Cut(m[1], "#")
+				path = strings.Trim(path, "/")
+				src, err := os.ReadFile(filepath.Join(docs, path+".md"))
+				if err != nil {
+					src, err = os.ReadFile(filepath.Join(docs, path, "index.md"))
+				}
+				if err != nil {
+					t.Errorf("%s: no help page %q", f, path)
+					continue
+				}
+				found := section == ""
+				for _, h := range heading.FindAllStringSubmatch(string(src), -1) {
+					found = found || helpSlug(h[1]) == section
+				}
+				if !found {
+					t.Errorf("%s: help page %q has no section #%s", f, path, section)
+				}
+			}
+		}
+	}
+	if n < 20 {
+		t.Errorf("found only %d help links; is the pattern still right?", n)
+	}
+}
+
+// helpSlug is the id the help gives a heading: Python-Markdown's toc
+// slugify, which Zensical uses (punctuation dropped, lower case, runs of
+// spaces and hyphens to one hyphen).
+func helpSlug(s string) string {
+	s = regexp.MustCompile("[`*]").ReplaceAllString(s, "")
+	s = strings.ToLower(strings.TrimSpace(regexp.MustCompile(`[^\w\s-]`).ReplaceAllString(s, "")))
+	return regexp.MustCompile(`[-\s]+`).ReplaceAllString(s, "-")
 }

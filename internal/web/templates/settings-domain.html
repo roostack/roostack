@@ -1,7 +1,7 @@
 {{define "title"}}Domain and certificates{{end}}
 {{define "content"}}
 <section class="card">
-  {{back "/settings" "Settings"}}
+  <div class="page-top">{{back "/settings" "Settings"}}{{help "settings/domain" "Your domain"}}</div>
   <div class="heading"><h1>Domain and certificates</h1></div>
   {{if .DomainSet}}
   <dl class="facts">

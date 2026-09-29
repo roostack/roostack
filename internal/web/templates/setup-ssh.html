@@ -2,9 +2,9 @@
 {{define "content"}}
 {{template "server-switcher" .}}
 <section class="card narrow">
-  {{if .Wizard}}<p class="hint">Setup · step 2 of 4</p>
-  <h1>Who can log in to this server?</h1>
-  {{else}}{{back .Back .BackText}}
+  <div class="page-top">{{if .Wizard}}<p class="hint">Setup · step 2 of 4</p>{{else}}{{back .Back .BackText}}{{end}}{{help "start/first-run#4-who-can-log-in-to-this-server" "Who can log in to this server?"}}</div>
+  {{if .Wizard}}<h1>Who can log in to this server?</h1>
+  {{else}}
   <h1>Change remote access{{if not .Server.This}} to {{.Server.Name}}{{end}}</h1>
   {{end}}
   <p>SSH lets someone log in to this server from another computer to fix things Roostack can't. Roostack's firewall

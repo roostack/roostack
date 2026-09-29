@@ -465,7 +465,7 @@
         
         <div class="example">
           <h3>Icons <span class="badge badge-highlight">Template component</span></h3>
-          <p class="hint">icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text&#39;s colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, new-window (icons.go).</p>
+          <p class="hint">icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text&#39;s colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, new-window, help (icons.go).</p>
           <div class="panels">
             <div class="panel" data-mode="light"><p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Role</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Disk</p>
@@ -515,6 +515,28 @@
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;p&gt;&lt;a href=&#34;#&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Help&lt;span class=&#34;new-window&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M14 4h6v6&#34;/&gt;&lt;path d=&#34;M20 4l-9 9&#34;/&gt;&lt;path d=&#34;M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;sr-only&#34;&gt;(opens in a new window)&lt;/span&gt;&lt;/span&gt;&lt;/a&gt;·&lt;a href=&#34;#&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;https://passwords.smith.family&lt;span class=&#34;new-window&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M14 4h6v6&#34;/&gt;&lt;path d=&#34;M20 4l-9 9&#34;/&gt;&lt;path d=&#34;M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;sr-only&#34;&gt;(opens in a new window)&lt;/span&gt;&lt;/span&gt;&lt;/a&gt;
 &lt;/p&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Page help <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">help PAGE TITLE: the help page about this one, in a new window, top right of a page-top row above the title (with the back link or setup step on the left). PAGE is its path in the help, optionally with a #section; a test checks each exists.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="page-top"><a class="back" href="#">← Settings</a><a class="page-help" href="/help/settings/people/" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg><span class="sr-only">Help: </span>People and access<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a></div>
+<h1>People</h1></div>
+            <div class="panel" data-mode="dark"><div class="page-top"><a class="back" href="#">← Settings</a><a class="page-help" href="/help/settings/people/" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg><span class="sr-only">Help: </span>People and access<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a></div>
+<h1>People</h1></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;div class=&#34;page-top&#34;&gt;{{back &#34;#&#34; &#34;Settings&#34;}}{{help &#34;settings/people&#34; &#34;People and access&#34;}}&lt;/div&gt;
+&lt;h1&gt;People&lt;/h1&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;div class=&#34;page-top&#34;&gt;&lt;a class=&#34;back&#34; href=&#34;#&#34;&gt;← Settings&lt;/a&gt;&lt;a class=&#34;page-help&#34; href=&#34;/help/settings/people/&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;circle cx=&#34;12&#34; cy=&#34;12&#34; r=&#34;9&#34;/&gt;&lt;path d=&#34;M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3&#34;/&gt;&lt;path d=&#34;M12 16.8h.01&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;sr-only&#34;&gt;Help:&lt;/span&gt;People and access&lt;span class=&#34;new-window&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M14 4h6v6&#34;/&gt;&lt;path d=&#34;M20 4l-9 9&#34;/&gt;&lt;path d=&#34;M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;sr-only&#34;&gt;(opens in a new window)&lt;/span&gt;&lt;/span&gt;&lt;/a&gt;&lt;/div&gt;
+&lt;h1&gt;People&lt;/h1&gt;</pre>
             
           </details>
         </div>

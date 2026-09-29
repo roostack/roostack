@@ -1,7 +1,7 @@
 {{define "title"}}Add a service{{end}}
 {{define "content"}}
 <section>
-  {{back "/" "Your services"}}
+  <div class="page-top">{{back "/" "Your services"}}{{help "services/add" "Add a service"}}</div>
   <h1>Add a service</h1>
   <ul class="services">
     {{range .Items}}

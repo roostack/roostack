@@ -1,7 +1,7 @@
 {{define "title"}}Install {{.Package.Title}}{{end}}
 {{define "content"}}
 <section class="card narrow">
-  {{back "/catalog" "Back"}}
+  <div class="page-top">{{back "/catalog" "Back"}}{{help "services/add" "Add a service"}}</div>
   <h1>Install {{.Package.Title}}</h1>
   <p class="hint">{{.Package.Description}}</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}

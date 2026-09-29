@@ -22,6 +22,10 @@
      for screen readers. */}}
 {{define "new-window"}}<span class="new-window">{{icon "new-window"}}<span class="sr-only"> (opens in a new window)</span></span>{{end}}
 
+{{/* help: the page's own help, top right of the .page-top row, whose
+     left is the back link or the setup step. */}}
+{{define "help"}}<a class="page-help" href="{{.Href}}" target="_blank" rel="noopener">{{icon "help"}}<span class="sr-only">Help: </span>{{.Title}}{{template "new-window"}}</a>{{end}}
+
 {{define "back"}}<a class="back" href="{{.Href}}">← {{.Text}}</a>{{end}}
 
 {{/* confirm: a form that posts to Action after the browser asks Question.

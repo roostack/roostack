@@ -74,6 +74,13 @@ footer.site a { color: var(--muted); }
   margin-bottom: var(--space-3); }
 .heading h1, .heading h2 { margin: 0; }
 .back { display: inline-block; margin-bottom: var(--space-3); font-size: var(--text-sm); }
+/* The row above a page's title: back link (or setup step) left, the page's
+   help right, even when there's nothing on the left. */
+.page-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-3); }
+.page-top > * { margin-bottom: 0; }
+.page-help { margin-left: auto; font-size: var(--text-sm); white-space: nowrap; }
+.page-help > .icon { width: 1.05em; height: 1.05em; margin-right: 0.3em; vertical-align: -0.15em; color: currentColor; }
 
 /* ---------- Facts (label / value list) ---------- */
 /* ---------- Icons (icons.go) ---------- */
@@ -380,6 +387,7 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
 .settings-main { display: flex; flex-direction: column; gap: var(--space-4); }
 .settings-main > .card, .settings-main > section { margin: 0; max-width: none; }
 .settings-main > .back { align-self: flex-start; }
+.settings-main > .page-top { margin-bottom: 0; }
 .settings-main .back { display: none; }
 @media (max-width: 760px) {
   .settings-shell { grid-template-columns: 1fr; }

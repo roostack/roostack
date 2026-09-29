@@ -1,6 +1,7 @@
 {{define "title"}}Two-factor code{{end}}
 {{define "content"}}
 <section class="card narrow">
+  <div class="page-top">{{help "trouble/locked-out#you-lost-your-phone-two-factor" "Lost your phone?"}}</div>
   <h1>Enter your code</h1>
   <p>Open your authenticator app and enter the 6-digit code for Roostack.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}

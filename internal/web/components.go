@@ -30,6 +30,7 @@ var componentFuncs = template.FuncMap{
 	"status":      status,
 	"badge":       badge,
 	"back":        back,
+	"help":        helpLink,
 	"confirm":     confirmButton,
 	"activity":    activityBlock,
 	"icon":        icon,
@@ -111,6 +112,26 @@ func badge(text string, variant ...string) (template.HTML, error) {
 // back links to the parent page.
 func back(href, text string) (template.HTML, error) {
 	return renderComponent("back", map[string]any{"Href": href, "Text": text})
+}
+
+// helpLink links to the help page about this one (SPEC.md §6.3.1), in a
+// new window. page is its path in the help without slashes at the ends,
+// optionally with a #section ("settings/people#roles"; "" is the help's
+// home), and title is that page's or section's title. A test checks every
+// page and section named in the templates exists in help/docs.
+func helpLink(page, title string) (template.HTML, error) {
+	if strings.HasPrefix(page, "/") || strings.Contains(page, "..") || title == "" {
+		return "", fmt.Errorf("help: %q must be a help path like \"backups/places\", with a title", page)
+	}
+	path, section, _ := strings.Cut(page, "#")
+	href := "/help/"
+	if path != "" {
+		href += strings.TrimSuffix(path, "/") + "/"
+	}
+	if section != "" {
+		href += "#" + section
+	}
+	return renderComponent("help", map[string]any{"Href": href, "Title": title})
 }
 
 // dialogKind is the dialog's own button: a full button even when the one
