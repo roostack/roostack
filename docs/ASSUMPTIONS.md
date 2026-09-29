@@ -91,6 +91,20 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | L17 ✅ | **OS updates via the agent:** `systemd-run --wait --pipe` from the sandboxed agent runs `apt-get update && unattended-upgrade` outside the sandbox; it upgraded packages from both the main (point release) and stable-updates origins. The coordinator's reboot through the agent (`systemd-run --on-active=5 systemctl reboot`) worked, and all rootless services came back with nobody logged in. |
 | L6 | Bridge-network ports go through Podman's `rootlessport` userspace proxy, which is why client IPs are lost (C4). |
 
+## P. Public access (SPEC §6.11)
+
+Prototyped on VM2 (2026-09-30) with the Caddy image's new plugins and CrowdSec 1.8.1 as throwaway containers, network options as Roostack's Caddy unit (pasta, `--map-host-loopback`). An "outside" visitor was a network namespace with `203.0.113.10` (a documentation address, not private), and a "home" device one with `192.168.77.10`.
+
+| # | Assumption |
+|---|---|
+| P1 ✅ | The outside visitor reaches Caddy with its own address (`203.0.113.10`), so private checks, rate limits and CrowdSec see real visitors. |
+| P2 ✅ | A private path on a public address (`not remote_ip private_ranges …` + `abort`) blocks outside visitors and lets home devices in. **It must be the first thing inside a `route` block:** Caddy runs `route` before `abort`, so an `abort` next to a `route` is skipped (seen in the first try: `/admin` answered from outside). |
+| P3 ✅ | `caddy-ratelimit` v0.1.0 works with Caddy 2.11.4: a zone per login path (5 a minute answered 5, then 429) and a general zone per visitor address. |
+| P4 ✅ | CrowdSec reads Caddy's JSON access log from a shared folder (`labels: type: caddy`, collection `crowdsecurity/caddy`): 53 lines read, all parsed. 40 requests for missing `.php` pages got the visitor banned for 4 hours (`http-crawl-non_statics`); the bouncer then answered 403. A home device kept working (CrowdSec whitelists private addresses). |
+| P5 ✅ | The bouncer registers with `BOUNCER_KEY_<name>` on the CrowdSec container and an API key from the environment in Caddy. Caddy starts, and keeps serving, while CrowdSec isn't up yet (it retries every 10 s), so a slow CrowdSec start doesn't take services down. With `DISABLE_ONLINE_API=true` nothing is sent to CrowdSec's central API (the opt-out). |
+| P6 | Rootless containers started from an SSH session stop when it ends (no linger for the login user): tests run within one session. Roostack's own units are fine (the `roostack` user lingers). |
+| P7 | Requests from the host itself to its LAN address reached the test Caddy from `169.254.1.2` (pasta's address for the host), which Caddy's `private_ranges` doesn't include, so the server itself can't reach a private path through Caddy. Nothing in Roostack does. |
+
 ## I. Databases
 
 | # | Assumption / concern |
