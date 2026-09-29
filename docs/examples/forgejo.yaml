@@ -82,6 +82,13 @@ routes:
     subdomain: git
     exposure: private
     max_body_size: 1GB           # large pushes and release attachments
+    public:
+      private_paths:
+        - path: /-/admin
+          reason: Forgejo's site administration (users, settings, and running tasks on the server). Administrators can still use it at home.
+      login_paths:
+        - /user/login
+        - /user/sign_up
 
 links:                           # most settings live in Forgejo itself
   - title: Site administration

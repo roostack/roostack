@@ -11,6 +11,7 @@ package caddy
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -27,7 +28,25 @@ type Route struct {
 	Upstream    string // container:port on the roostack-proxy network
 	Private     bool
 	MaxBodySize string // optional, e.g. "50GB"
+	// On a public route (SPEC.md §6.11): PrivatePaths (and everything
+	// under them) stay home-only, and LoginPaths get a strict rate limit.
+	PrivatePaths []string
+	LoginPaths   []string
 }
+
+// Rate limits per visitor address on public routes (SPEC.md §6.11): a
+// generous one on everything, which only a flood reaches (a photo grid
+// loads hundreds of thumbnails at once), and a strict one on login pages.
+const (
+	RateLimitEvents      = 1000
+	RateLimitWindow      = "10s"
+	LoginRateLimitEvents = 10
+	LoginRateLimitWindow = "1m"
+)
+
+// CrowdSecAPIKeyEnv is the environment variable holding the bouncer's
+// key to CrowdSec's local API, in the Caddy container.
+const CrowdSecAPIKeyEnv = "CROWDSEC_API_KEY"
 
 // Site renders the snippet for one service's routes. It is imported inside
 // the wildcard site block, so it only contains handle blocks.
@@ -43,14 +62,55 @@ func Site(service string, routes []Route) (string, error) {
 		if r.Private {
 			fmt.Fprintf(&b, "\t@%s-external not remote_ip %s\n", r.ID, PrivateRanges)
 			fmt.Fprintf(&b, "\tabort @%s-external\n", r.ID)
+			if r.MaxBodySize != "" {
+				fmt.Fprintf(&b, "\trequest_body {\n\t\tmax_size %s\n\t}\n", r.MaxBodySize)
+			}
+			fmt.Fprintf(&b, "\treverse_proxy %s\n", r.Upstream)
+		} else {
+			publicRoute(&b, r)
 		}
-		if r.MaxBodySize != "" {
-			fmt.Fprintf(&b, "\trequest_body {\n\t\tmax_size %s\n\t}\n", r.MaxBodySize)
-		}
-		fmt.Fprintf(&b, "\treverse_proxy %s\n", r.Upstream)
 		b.WriteString("}\n")
 	}
 	return b.String(), nil
+}
+
+// publicRoute writes a public route's handler (SPEC.md §6.11). Everything
+// is inside one route block, which runs in the order written: Caddy would
+// otherwise run a route block before an abort next to it, letting outside
+// visitors into private paths (docs/ASSUMPTIONS.md P2). Then CrowdSec's
+// bouncer turns away banned addresses, and rate limits apply before the
+// service sees the request.
+func publicRoute(b *strings.Builder, r Route) {
+	if len(r.PrivatePaths) > 0 {
+		fmt.Fprintf(b, "\t@%s-private-paths {\n\t\tnot remote_ip %s\n\t\tpath %s\n\t}\n",
+			r.ID, PrivateRanges, pathPatterns(r.PrivatePaths))
+	}
+	b.WriteString("\troute {\n")
+	if len(r.PrivatePaths) > 0 {
+		fmt.Fprintf(b, "\t\tabort @%s-private-paths\n", r.ID)
+	}
+	b.WriteString("\t\tcrowdsec\n")
+	b.WriteString("\t\trate_limit {\n")
+	if len(r.LoginPaths) > 0 {
+		fmt.Fprintf(b, "\t\t\tzone %s-login {\n\t\t\t\tmatch {\n\t\t\t\t\tpath %s\n\t\t\t\t}\n", r.ID, pathPatterns(r.LoginPaths))
+		fmt.Fprintf(b, "\t\t\t\tkey {remote_host}\n\t\t\t\tevents %d\n\t\t\t\twindow %s\n\t\t\t}\n", LoginRateLimitEvents, LoginRateLimitWindow)
+	}
+	fmt.Fprintf(b, "\t\t\tzone %s {\n\t\t\t\tkey {remote_host}\n\t\t\t\tevents %d\n\t\t\t\twindow %s\n\t\t\t}\n", r.ID, RateLimitEvents, RateLimitWindow)
+	b.WriteString("\t\t}\n")
+	if r.MaxBodySize != "" {
+		fmt.Fprintf(b, "\t\trequest_body {\n\t\t\tmax_size %s\n\t\t}\n", r.MaxBodySize)
+	}
+	fmt.Fprintf(b, "\t\treverse_proxy %s\n", r.Upstream)
+	b.WriteString("\t}\n")
+}
+
+// pathPatterns matches each path and everything under it.
+func pathPatterns(paths []string) string {
+	var ps []string
+	for _, p := range paths {
+		ps = append(ps, p, p+"/*")
+	}
+	return strings.Join(ps, " ")
 }
 
 func (r Route) validate() error {
@@ -60,6 +120,11 @@ func (r Route) validate() error {
 		// Guard against anything that could break out of the Caddyfile syntax.
 		if strings.ContainsAny(f.val, " \t\n{}\"#") {
 			return fmt.Errorf("caddy route %s: invalid characters in %q", f.name, f.val)
+		}
+	}
+	for _, p := range append(slices.Clone(r.PrivatePaths), r.LoginPaths...) {
+		if !strings.HasPrefix(p, "/") || strings.ContainsAny(p, " \t\n{}\"#*") {
+			return fmt.Errorf("caddy route %s: invalid path %q", r.ID, p)
 		}
 	}
 	if r.ID == "" || r.Host == "" || r.Upstream == "" {
@@ -78,6 +143,13 @@ type MainConfig struct {
 	// AdminUpstream is where the Roostack web UI listens, as seen from the
 	// Caddy container. Always private. Empty disables the admin route.
 	AdminUpstream string
+	// CrowdSecAPI is the address of CrowdSec's local API, as seen from the
+	// Caddy container, set while anything is public (SPEC.md §6.11). The
+	// bouncer's key is in the CrowdSecAPIKeyEnv environment variable.
+	CrowdSecAPI string
+	// AccessLog is the file Caddy logs requests to, for CrowdSec. Empty
+	// logs none.
+	AccessLog string
 }
 
 // AdminSubdomain is where the Roostack UI is served.
@@ -88,8 +160,8 @@ func Main(c MainConfig) (string, error) {
 	if strings.TrimSpace(c.DNSDirective) == "" {
 		return "", errors.New("caddy: no DNS provider configured")
 	}
-	if c.Domain == "" || strings.ContainsAny(c.Domain+c.Email, " \t\n{}\"#") {
-		return "", fmt.Errorf("caddy: invalid domain or email")
+	if c.Domain == "" || strings.ContainsAny(c.Domain+c.Email+c.CrowdSecAPI+c.AccessLog, " \t\n{}\"#") {
+		return "", fmt.Errorf("caddy: invalid domain, email, CrowdSec address or log file")
 	}
 
 	var b strings.Builder
@@ -98,6 +170,12 @@ func Main(c MainConfig) (string, error) {
 	if c.Email != "" {
 		fmt.Fprintf(&b, "\temail %s\n", c.Email)
 	}
+	if c.CrowdSecAPI != "" {
+		// Caddy keeps serving while CrowdSec's API is unreachable, and
+		// retries (docs/ASSUMPTIONS.md P5).
+		fmt.Fprintf(&b, "\tcrowdsec {\n\t\tapi_url %s\n\t\tapi_key {env.%s}\n\t\tticker_interval 15s\n\t}\n",
+			c.CrowdSecAPI, CrowdSecAPIKeyEnv)
+	}
 	b.WriteString("}\n\n")
 	fmt.Fprintf(&b, "*.%s {\n", c.Domain)
 	b.WriteString("\ttls {\n")
@@ -105,6 +183,9 @@ func Main(c MainConfig) (string, error) {
 		fmt.Fprintf(&b, "\t\t%s\n", line)
 	}
 	b.WriteString("\t}\n")
+	if c.AccessLog != "" {
+		fmt.Fprintf(&b, "\tlog {\n\t\toutput file %s {\n\t\t\troll_size 20MiB\n\t\t\troll_keep 5\n\t\t}\n\t\tformat json\n\t}\n", c.AccessLog)
+	}
 	if c.AdminUpstream != "" {
 		admin, err := Site("roostack", []Route{{
 			ID: "roostack-admin", Host: AdminSubdomain + "." + c.Domain,

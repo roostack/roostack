@@ -101,10 +101,28 @@ WantedBy=default.target
 
 @immich-web host photos.lab.example.com
 handle @immich-web {
-	request_body {
-		max_size 50GB
+	route {
+		crowdsec
+		rate_limit {
+			zone immich-web-login {
+				match {
+					path /api/auth/login /api/auth/login/*
+				}
+				key {remote_host}
+				events 10
+				window 1m
+			}
+			zone immich-web {
+				key {remote_host}
+				events 1000
+				window 10s
+			}
+		}
+		request_body {
+			max_size 50GB
+		}
+		reverse_proxy 169.254.1.3:20002
 	}
-	reverse_proxy 169.254.1.3:20002
 }
 
 ==> units

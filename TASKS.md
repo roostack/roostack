@@ -145,9 +145,10 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] **Come back to (agreed 2026-09-30): CrowdSec and SSH logs** (the rootless container can't read the host's journal; the agent could pass lines on, or bans could go into nftables)
   - [ ] Mock-up: the service's "Public access" section, port forwarding steps, the phone check
   - [x] Caddy image: `caddy-crowdsec-bouncer/http` v0.14.1 and `caddy-ratelimit` v0.1.0 (its only tag), pinned; built on VM2, Caddy stays 2.11.4
-  - [ ] Package format: mark unsafe addresses, with a reason
-  - [ ] CrowdSec: container, Caddy access logs, bouncer; verified on a VM with real visitor addresses
-  - [ ] Rate limiting on public addresses
+  - [x] Package format: `public:` with `unsafe`, `private_paths` (with reasons) and `login_paths`; the Owner's opened paths in the instance (`public_paths`); Vaultwarden, Forgejo and Immich marked
+  - [x] CrowdSec: generated while anything is public (container, acquisition file, bouncer key, Caddy's access log), prototype verified on VM2 (ASSUMPTIONS P1-P7); `caddy adapt` accepts the config with the real plugin build
+  - [ ] CrowdSec end to end on a VM through Roostack itself (needs the public switch)
+  - [x] Rate limiting on public addresses: 1000 requests per 10 s per visitor, 10 a minute on login paths
   - [ ] Entry seam; port forwarding entry: public address, records, router steps, phone check
   - [ ] Public switch on the service page (Owner), with the unsafe-address override
   - [ ] Help pages

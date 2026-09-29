@@ -88,7 +88,7 @@ func render(args []string) error {
 	lab.HasGPU = *gpu
 
 	if *pkgPath == "" {
-		out, err := generate.System(lab)
+		out, err := generate.System(lab, false)
 		if err != nil {
 			return err
 		}

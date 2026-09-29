@@ -233,6 +233,30 @@ type Route struct {
 	Subdomain   string `yaml:"subdomain"`
 	Exposure    string `yaml:"exposure"`
 	MaxBodySize string `yaml:"max_body_size"`
+	// Public says what's safe when the Owner makes the address public
+	// (SPEC.md §6.11).
+	Public PublicRules `yaml:"public"`
+}
+
+// PublicRules mark what isn't safe to make public, and the login pages
+// that get a strict rate limit (SPEC.md §6.11). The Owner can still make
+// an unsafe address or path public, after a warning giving the reason.
+type PublicRules struct {
+	// Unsafe, if set, is why the whole address shouldn't be public.
+	Unsafe string `yaml:"unsafe"`
+	// PrivatePaths stay home-only when the address is public, e.g. an
+	// admin page.
+	PrivatePaths []PrivatePath `yaml:"private_paths"`
+	// LoginPaths are where people sign in: public visitors get a strict
+	// rate limit there.
+	LoginPaths []string `yaml:"login_paths"`
+}
+
+// PrivatePath is a path, and everything under it, kept home-only on a
+// public address.
+type PrivatePath struct {
+	Path   string `yaml:"path"`   // e.g. /admin
+	Reason string `yaml:"reason"` // shown when the Owner makes it public anyway
 }
 
 // Port publishes a container port directly on the host, for protocols

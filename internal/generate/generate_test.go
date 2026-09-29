@@ -2,6 +2,7 @@ package generate
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -111,11 +112,25 @@ containers:
 	}
 }
 
+// The lab-wide units, private and with something public (then CrowdSec
+// runs, Caddy logs requests for it and gets the bouncer's key: SPEC.md
+// §6.11).
 func TestSystemGolden(t *testing.T) {
+	for _, public := range []bool{false, true} {
+		name := "system.txt"
+		if public {
+			name = "system-public.txt"
+		}
+		t.Run(name, func(t *testing.T) { systemGolden(t, public, name) })
+	}
+}
+
+func systemGolden(t *testing.T, public bool, name string) {
 	lab := testLab()
 	lab.Email = "admin@example.com"
 	lab.DNS.Provider = "cloudflare"
-	out, err := System(lab)
+	lab.Public.NoSharing = public // the opt-out shows in the public output
+	out, err := System(lab, public)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,9 +139,17 @@ func TestSystemGolden(t *testing.T) {
 		b.WriteString("==> quadlet/" + f.Name + "\n" + f.Content + "\n")
 	}
 	b.WriteString("==> caddy/" + out.Caddyfile.Name + "\n" + out.Caddyfile.Content)
+	for _, f := range out.Files {
+		b.WriteString("\n==> file " + f.Name + "\n" + f.Content)
+	}
+	b.WriteString("\n==> secrets\n")
+	for _, s := range out.Secrets {
+		fmt.Fprintf(&b, "%s generate=%v\n", s.Name, s.Generate)
+	}
+	b.WriteString("==> dirs\n" + strings.Join(out.Dirs, "\n") + "\n==> units\n" + strings.Join(out.Units, "\n") + "\n")
 	got := b.String()
 
-	golden := filepath.Join("testdata", "golden", "system.txt")
+	golden := filepath.Join("testdata", "golden", name)
 	if *update {
 		if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
 			t.Fatal(err)
@@ -145,7 +168,7 @@ func TestSystemRoute53(t *testing.T) {
 	lab := testLab()
 	lab.DNS.Provider = "route53"
 	lab.DNS.Fields = []string{"access_key_id", "secret_access_key", "region"}
-	out, err := System(lab)
+	out, err := System(lab, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +189,7 @@ func TestSystemRoute53(t *testing.T) {
 		t.Errorf("secrets = %v", out.Secrets)
 	}
 	lab.DNS.Provider = "nope"
-	if _, err := System(lab); err == nil {
+	if _, err := System(lab, false); err == nil {
 		t.Error("unknown provider must be an error")
 	}
 }
@@ -198,7 +221,7 @@ func TestCaddyAdaptAllProviders(t *testing.T) {
 				}
 				env = append(env, dns.EnvName(f.Key)+"="+v)
 			}
-			out, err := System(lab)
+			out, err := System(lab, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -254,7 +277,7 @@ func TestTimezone(t *testing.T) {
 			t.Errorf("%s has no Timezone", f.Name)
 		}
 	}
-	sys, err := System(lab)
+	sys, err := System(lab, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +343,7 @@ func TestNodeAndProxy(t *testing.T) {
 	if !strings.Contains(unit, "PublishPort=100.96.0.2:") || strings.Contains(unit, "127.0.0.1:") {
 		t.Errorf("a node publishes routes on its network address:\n%s", unit)
 	}
-	if sys, err := System(lab); err != nil || len(sys.Quadlets) != 0 || sys.Caddyfile.Name != "" {
+	if sys, err := System(lab, false); err != nil || len(sys.Quadlets) != 0 || sys.Caddyfile.Name != "" {
 		t.Errorf("a node runs no Caddy: %+v %v", sys, err)
 	}
 

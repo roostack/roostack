@@ -81,7 +81,7 @@ func newEnv(t *testing.T) *env {
 
 func (e *env) desired(t *testing.T, services ...string) Desired {
 	t.Helper()
-	sys, err := generate.System(e.lab)
+	sys, err := generate.System(e.lab, false)
 	if err != nil {
 		t.Fatal(err)
 	}
