@@ -350,6 +350,13 @@ func TestDNSControls(t *testing.T) {
 		!strings.Contains(body, "API is risky") {
 		t.Error("manual mode should offer opting in, with the risk warning for Namecheap")
 	}
+	// Turning it on asks first, in a dialog saying what will change; for a
+	// risky provider, confirming it is accepting the risk.
+	if !strings.Contains(body, "<dialog") || !strings.Contains(body, "Let Roostack manage DNS records at Namecheap anyway?") ||
+		!strings.Contains(body, "will point *.lab.example.com at this server (192.168.1.20) now") ||
+		!strings.Contains(body, `name="accept_risk" value="on"`) {
+		t.Error("turning management on should ask first, saying what will change and the risk")
+	}
 	if code, _ := h.post("/dns/manage", url.Values{"manage": {"on"}}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("opting in without accepting the risk: %d", code)
 	}
@@ -361,9 +368,24 @@ func TestDNSControls(t *testing.T) {
 	// A conflict offers taking over, which needs confirmation.
 	fd.st = dnsrecords.Status{State: dnsrecords.StateConflict, Record: "*.lab.example.com", IP: "192.168.1.20",
 		Current: "203.0.113.5", Managing: true, CanManage: true, Provider: "Cloudflare", Checked: time.Now()}
-	if _, body := h.get("/settings/home-network"); !strings.Contains(body, "/dns/take-over") || !strings.Contains(body, "Stop managing") {
+	_, body = h.get("/settings/home-network")
+	if !strings.Contains(body, "/dns/take-over") || !strings.Contains(body, "Stop managing") {
 		t.Error("conflict should offer taking over; managed mode should offer stopping")
 	}
+	if !strings.Contains(body, "Stop managing DNS records at Cloudflare? The records stay as they are") ||
+		!strings.Contains(body, `name="manage" value="off"`) {
+		t.Error("stopping should ask first, saying what changes")
+	}
+	// The page refreshes itself only while a sync runs.
+	if strings.Contains(body, `hx-get="/settings/home-network"`) {
+		t.Error("no sync running: nothing to refresh")
+	}
+	fd.st.Syncing = true
+	if _, body := h.get("/settings/home-network"); !strings.Contains(body, `hx-get="/settings/home-network"`) ||
+		!strings.Contains(body, "this page updates by itself") {
+		t.Error("while syncing, the page should refresh itself")
+	}
+	fd.st.Syncing = false
 	_, body = h.get("/dns/take-over")
 	if !strings.Contains(body, "203.0.113.5") || !strings.Contains(body, "192.168.1.20") || !strings.Contains(body, "stop working") {
 		t.Error("the take-over page must show old and new values and the warning")
