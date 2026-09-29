@@ -25,6 +25,7 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
@@ -86,6 +87,8 @@ type Manager struct {
 	// UpdateLab saves a change to lab.yaml (config.Update), for settings
 	// changed without a restart (optional).
 	UpdateLab func(change func(*config.Lab)) error
+	// Submit queues a job with the maintenance coordinator (optional).
+	Submit func(maintenance.Job)
 
 	// mu guards state changes (install/remove) and what is still to hand
 	// over to the node.
@@ -99,6 +102,8 @@ type Manager struct {
 	setUp []string
 	// assignErr is why the last assignment couldn't be built, if it failed.
 	assignErr error
+	// keyMu makes recovery key changes one at a time (keychange.go).
+	keyMu sync.Mutex
 	// public is the lab's public access settings as changed at runtime
 	// (public.go); nil until first used, then read from Lab. Kept apart
 	// from Lab, which is read without the lock.

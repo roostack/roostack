@@ -44,6 +44,29 @@ After five wrong passwords or codes, Roostack logs you out. Wrong codes
 here also count towards the limit on your account (see
 [Locked out](../trouble/locked-out.md#too-many-wrong-two-factor-codes)).
 
+## Changing it
+
+If someone else may have seen your recovery key, change it: on the
+**Backups** page, choose **Change recovery key…**. After your password and a
+code, Roostack makes a new key and shows it. Save it, and tick the box to
+confirm. Roostack then:
+
+1. adds the new key to every backup your lab has;
+2. once every backup has it, makes it your lab's key;
+3. removes the old key from every backup, so it no longer opens anything.
+
+The Backups page shows how far it's got. A backup that can't be reached
+right now (a drive that's unplugged, a friend's lab that's offline) is tried
+again every hour, and the old key keeps working there until it's done. Until
+you confirm, you can cancel and keep the old key.
+
+!!! warning "If your backups may have been copied too"
+
+    A new key stops the old one opening your backups from now on. If
+    someone had your old key *and* a copy of your backups, they can still
+    read that copy, and a new key doesn't change that. Starting your
+    backups afresh, with new encryption, isn't built yet.
+
 ??? note "For technical users"
 
     The key is kept in `/var/lib/roostack/backup-key` (mode 0600, owned by
@@ -59,6 +82,13 @@ here also count towards the limit on your account (see
     `audit_log` table: "recovery key", "shown" or "wrong password or
     code"). The setup page that first shows it (`/setup/recovery-key`)
     works only until the key's been confirmed.
+
+    Changing it adds the new key to each repository (`restic key add`),
+    makes it the lab's key once all have it (the old one is kept as
+    `backup-key.old` meanwhile), then removes the old key from each
+    (`restic key remove`). Progress is in `backup-key.change.json`, next to
+    the key. The repositories' master key stays the same: that's why a copy
+    someone already has stays readable with the old key.
 
     The key file is left out of Roostack's own backups (a backup can't
     contain the key needed to open it), so the copy you keep is the only

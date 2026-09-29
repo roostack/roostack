@@ -45,7 +45,12 @@
     <h2>Recovery key</h2>
     <p>Your backups are encrypted with your recovery key. If this server is lost, you need it to get your data back.
       Lost your copy? Roostack can show it again, after checking it's you.</p>
-    <p><a href="/backups/recovery-key">Show recovery key…</a></p>
+    <p><a href="/backups/recovery-key">Show recovery key…</a> · <a href="/backups/recovery-key/change">Change recovery key…</a></p>
+    {{with .KeyChange}}
+    {{if eq .Phase "confirm"}}{{notice "warn" "A new recovery key is waiting for you to confirm you've saved it." "link=/backups/recovery-key/change" "linkText=Confirm or cancel"}}
+    {{else if eq .Phase "adding"}}{{notice "info" (printf "Changing the recovery key: %d of %d backups have the new key. The old key works until they all do." .Done (len .Repos)) "link=/backups/recovery-key/change" "linkText=Details"}}
+    {{else}}{{notice "info" (printf "The new recovery key is in use. Removing the old key: %d of %d backups done." .Done (len .Repos)) "link=/backups/recovery-key/change" "linkText=Details"}}{{end}}
+    {{end}}
   </section>
   {{end}}
 </section>

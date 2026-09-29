@@ -81,6 +81,9 @@ func startControllerJobs(ctx context.Context, mgr *manager.Manager, coord *maint
 	// their grace ends.
 	go func() {
 		for {
+			// A recovery key change waiting for a backup that couldn't be
+			// reached (SPEC.md §6.9) tries again.
+			mgr.ResumeKeyChange()
 			mgr.CheckRemotes(ctx)
 			if err := mgr.PurgeRemovedGuests(ctx, time.Now()); err != nil {
 				log.Error("deleting removed guest labs' backups", "err", err)

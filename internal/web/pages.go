@@ -244,6 +244,11 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	data["CanRestore"] = s.restores(r) != nil && auth.Can(currentUser(r).Role, auth.ManageHost)
 	// The recovery key is the lab's, kept on the server that runs it.
 	data["RecoveryKey"] = m.This && s.Setup != nil && auth.Can(currentUser(r).Role, auth.ManageHost) && s.hasRecoveryKey()
+	if data["RecoveryKey"] == true && s.Manager != nil {
+		if k, err := s.Manager.KeyChangeStatus(); err == nil {
+			data["KeyChange"] = k
+		}
+	}
 	if a := s.activityFor(r, activity.Backup); a != nil {
 		data["BackupActivity"] = a
 	}

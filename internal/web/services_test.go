@@ -70,6 +70,10 @@ type fakeManager struct {
 	publicReqs   []manager.PublicRequest
 	sharingAsked bool
 	share        bool
+
+	// Recovery key change (keychange_test.go).
+	keyChange *manager.KeyChange
+	keyOps    []string
 }
 
 // DiskSpace: the fake's disk, if it has one.
