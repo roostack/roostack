@@ -22,8 +22,9 @@ const (
 	StorageAdminPort = 8001
 )
 
-// RestServerImage is restic's rest-server. TODO: pin by digest.
-const RestServerImage = "docker.io/restic/rest-server:0.14.0"
+// RestServerImage is restic's rest-server, pinned by tag and digest (the
+// multi-arch index) like every image (SPEC.md §8.1).
+const RestServerImage = "docker.io/restic/rest-server:0.14.0@sha256:d2aff06f47eb38637dff580c3e6bce4af98f386c396a25d32eb6727ec96214a5"
 
 // Storage unit names.
 const (

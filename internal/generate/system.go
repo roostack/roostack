@@ -11,8 +11,8 @@ import (
 
 // CaddyImage is Roostack's Caddy build with DNS plugins, built on each
 // server from CaddyBuildDir by a Quadlet build unit (so a new install, or
-// an upgrade that changes the Containerfile, needs no manual step).
-// TODO: publish and pin by digest.
+// an upgrade that changes the Containerfile, needs no manual step). The
+// Containerfile pins what it's built from; the local tag is the result.
 const CaddyImage = "localhost/roostack-caddy:latest"
 
 // CaddyBuildDir holds the Containerfile (build/caddy in the source,

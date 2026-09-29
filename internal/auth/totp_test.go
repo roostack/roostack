@@ -66,3 +66,21 @@ func TestTOTPURL(t *testing.T) {
 		t.Errorf("unexpected URL %s", u)
 	}
 }
+
+// Codes lock after every fifth wrong one in a row, for 15 minutes, then
+// doubling up to a day.
+func TestTOTPLockedUntil(t *testing.T) {
+	last := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	for _, c := range []struct {
+		failures int
+		want     time.Duration // 0: not locked
+	}{
+		{0, 0}, {4, 0}, {5, 15 * time.Minute}, {6, 0}, {9, 0}, {10, 30 * time.Minute},
+		{15, time.Hour}, {35, 16 * time.Hour}, {40, 24 * time.Hour}, {500, 24 * time.Hour},
+	} {
+		got := TOTPLockedUntil(c.failures, last)
+		if c.want == 0 && !got.IsZero() || c.want != 0 && got.Sub(last) != c.want {
+			t.Errorf("%d wrong codes: locked until %v, want %v after the last", c.failures, got, c.want)
+		}
+	}
+}

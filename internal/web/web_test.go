@@ -180,24 +180,53 @@ func (h *harness) enrollTOTP(page string) (string, time.Time) {
 	return secret, now
 }
 
+// Wrong two-factor codes count against the account, however many logins
+// they're spread over (SPEC.md §6.10): the fifth locks codes, even the
+// right one, and the password step says so; after the lock, the right code
+// works and starts the count again.
 func TestTooManyCodes(t *testing.T) {
 	h := newHarness(t, "")
+	ctx := context.Background()
 	hash, _ := auth.HashPassword("a long password")
-	id, _ := h.store.CreateUser(context.Background(), store.User{Username: "tyris", PasswordHash: hash, Role: auth.RoleOwner})
+	id, _ := h.store.CreateUser(ctx, store.User{Username: "tyris", PasswordHash: hash, Role: auth.RoleOwner})
 	secret, _ := auth.NewTOTPSecret()
-	h.store.SetTOTP(context.Background(), id, secret, 0)
+	h.store.SetTOTP(ctx, id, secret, 0)
+	login := func() (int, string) {
+		return h.post("/login", url.Values{"username": {"tyris"}, "password": {"a long password"}}, h.srv.URL)
+	}
 
-	h.post("/login", url.Values{"username": {"tyris"}, "password": {"a long password"}}, h.srv.URL)
+	var status int
 	var body string
-	for i := 0; i < maxTOTPAttempts; i++ {
-		_, body = h.post("/login/totp", url.Values{"code": {"000000"}}, h.srv.URL)
+	for _, tries := range []int{3, 2} { // a new login doesn't start again
+		login()
+		for range tries {
+			status, body = h.post("/login/totp", url.Values{"code": {"000000"}}, h.srv.URL)
+		}
 	}
-	if !strings.Contains(body, "Too many wrong codes") {
-		t.Fatal("expected lockout after too many codes")
+	if status != http.StatusTooManyRequests || !strings.Contains(body, "no code will work until") {
+		t.Fatalf("fifth wrong code: %d, want the lock", status)
 	}
+	if status, body := login(); status != http.StatusTooManyRequests || strings.Contains(body, "Enter your code") {
+		t.Errorf("logging in while locked: %d, want the lock message instead of the code step", status)
+	}
+	logs, _ := h.store.RecentAudit(ctx, 10)
+	if len(logs) == 0 || logs[0].Action != "2fa locked" {
+		t.Errorf("the lock isn't in the audit log: %+v", logs)
+	}
+
+	// The lock is over: five wrong codes, the last 15 minutes ago.
+	h.store.ResetTOTP(ctx, id)
+	h.store.SetTOTP(ctx, id, secret, 0)
+	for range auth.TOTPFailuresPerLock {
+		h.store.AddTOTPFailure(ctx, id, time.Now().Add(-15*time.Minute))
+	}
+	login()
 	good, _ := auth.TOTPCode(secret, time.Now())
-	if _, body := h.post("/login/totp", url.Values{"code": {good}}, h.srv.URL); strings.Contains(body, "My Services") {
-		t.Error("after lockout the password must be entered again")
+	if _, body := h.post("/login/totp", url.Values{"code": {good}}, h.srv.URL); !strings.Contains(body, "My Services") {
+		t.Fatal("the right code should work once the lock is over")
+	}
+	if u, _ := h.store.UserByID(ctx, id); u.TOTPFailures != 0 {
+		t.Errorf("a right code should start the count again: %d", u.TOTPFailures)
 	}
 }
 

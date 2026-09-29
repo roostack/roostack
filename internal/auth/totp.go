@@ -85,3 +85,32 @@ func VerifyTOTP(secret, code string, now time.Time, lastStep int64) (step int64,
 	}
 	return 0, false
 }
+
+// Wrong two-factor codes are limited per account, not per login (SPEC.md
+// §6.10): someone who knows the password could otherwise log in again and
+// again for more guesses. After every TOTPFailuresPerLock wrong codes in a
+// row, codes aren't accepted for a while: 15 minutes at first, doubling
+// each time up to a day. That leaves a guesser about five tries a day,
+// while the account's owner, who mistypes a few times, waits at most 15
+// minutes. A right code starts the count again.
+const (
+	TOTPFailuresPerLock = 5
+	totpFirstLock       = 15 * time.Minute
+	totpLongestLock     = 24 * time.Hour
+)
+
+// TOTPLockedUntil says until when codes are refused after failures wrong
+// codes in a row, the last at last. It is the zero time if they aren't.
+func TOTPLockedUntil(failures int, last time.Time) time.Time {
+	locks := failures / TOTPFailuresPerLock
+	if locks == 0 || failures%TOTPFailuresPerLock != 0 {
+		// Locks start at a multiple; the tries after one ends aren't locked
+		// until the next multiple.
+		return time.Time{}
+	}
+	d := totpFirstLock
+	for i := 1; i < locks && d < totpLongestLock; i++ {
+		d *= 2
+	}
+	return last.Add(min(d, totpLongestLock))
+}

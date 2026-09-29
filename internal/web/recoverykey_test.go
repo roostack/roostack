@@ -148,3 +148,20 @@ func TestShowRecoveryKeyOwnerOnly(t *testing.T) {
 		}
 	}
 }
+
+// While the account's codes are locked (wrong codes at login, say), even
+// the right code doesn't show the key.
+func TestShowRecoveryKeyLocked(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}})
+	ctx := context.Background()
+	u, _ := h.store.UserByUsername(ctx, "u")
+	for range auth.TOTPFailuresPerLock {
+		h.store.AddTOTPFailure(ctx, u.ID, time.Now())
+	}
+	code, _ := auth.TOTPCode(u.TOTPSecret, nowFunc().Add(30*time.Second))
+	status, body := h.post("/backups/recovery-key", url.Values{"password": {"a long password"}, "code": {code}}, h.srv.URL)
+	if status != http.StatusTooManyRequests || strings.Contains(body, "the-recovery-key") || !strings.Contains(body, "no code will work") {
+		t.Errorf("locked: %d, key shown %v", status, strings.Contains(body, "the-recovery-key"))
+	}
+}

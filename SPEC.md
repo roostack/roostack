@@ -317,6 +317,7 @@ Layered defaults:
    - **Signal sharing: on by default, opt-out.** Opting out is a **prominent choice during install** (and can be changed later in the UI). Only attack data is shared (attacker IPs, attack types, timestamps), nothing about the user's own users or data.
    - **If the user opts out:** local detection and banning keep working fully, like fail2ban but with better parsers and blocking at the proxy. They lose the community blocklist, i.e. pre-emptive blocking of IPs already seen attacking others. Rule and parser updates from the CrowdSec Hub are separate and still work.
 5. **Baseline:** automatic security updates (§3.2), Caddy rate limiting on login pages, secrets in files readable only by Roostack (0600), and container images only from trusted registries, pinned to specific versions.
+6. **Wrong two-factor codes — as built (2026-09-29):** limited per account, not per login, since someone with the password could otherwise log in again for more tries. Every fifth wrong code in a row locks the account's codes (even the right one) for 15 minutes, doubling each time up to a day; the right code resets the count. That leaves a guesser about five tries a day, while someone mistyping waits 15 minutes. The count is in the database (a restart doesn't clear it), covers the login and the recovery key page (§6.9), and each lock is audited; the password step says so when locked, telling people that wrong codes they didn't enter mean their password is known. Checks run one at a time, so parallel guesses can't slip past. `roostack user reset-2fa` ends a lock. Considered: a limit per login (what we had; it limited nothing), locking the whole account (the lock is only on codes, so it can't be used against an account whose password the attacker doesn't have), and relying on Caddy's rate limiting alone (per address, so it doesn't stop guesses from many addresses).
 
 ## 7. Updates — Locked
 
@@ -345,7 +346,7 @@ Layered defaults:
   - Rejected: packages shipping Quadlet templates plus a manifest. Every package would do things differently, and Roostack couldn't reason about them as well.
 - **Backups are declared, not scripted:** `databases` entries (`sqlite`, `postgres`, …) and `storage` classes (`critical` / `replaceable`) drive Roostack's standard backup methods.
 - **Secrets** are declared (optionally `generate: true`) and delivered as Podman secrets, so they never appear in generated unit files.
-- **Images are pinned** by tag + digest.
+- **Images are pinned** by tag + digest. Roostack's own images too (2026-09-29): rest-server by digest, and the Caddy image, built on each server, from base images pinned by digest and DNS plugins pinned by version (`build/caddy/Containerfile`). Digests are the multi-arch index, so the same pin works on ARM.
 - **Templating:** Go templates (e.g. `{{ .Routes.web.Host }}`, `{{ .Settings.x }}`).
 - **Versioning:** `<upstream version>-roostack.<package revision>`.
 - **Additional schema features** (from the Immich stress test):
