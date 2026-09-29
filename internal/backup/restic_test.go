@@ -184,3 +184,32 @@ func TestReplaceKey(t *testing.T) {
 		t.Error("the old key still opens the repository")
 	}
 }
+
+// The new key's file is next to the key file, not in /tmp: restic for a
+// drive runs outside Roostack's sandbox, which has a private /tmp (found
+// on VM1: "…/tmp/roostack-key-… does not exist").
+func TestAddKeyFileVisibleOutsideSandbox(t *testing.T) {
+	r := testRepo(t)
+	ctx := context.Background()
+	if err := r.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var keyArg string
+	r.Launch = func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd {
+		for i, a := range args {
+			if a == "--new-password-file" && i+1 < len(args) {
+				keyArg = args[i+1]
+			}
+		}
+		return DirectLaunch(ctx, env, name, args...)
+	}
+	if err := r.AddKey(ctx, "another key", "recovery"); err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Dir(keyArg) != filepath.Dir(r.PasswordFile) {
+		t.Errorf("new key file %s, want it next to %s", keyArg, r.PasswordFile)
+	}
+	if _, err := os.Stat(keyArg); !os.IsNotExist(err) {
+		t.Error("the new key's file should be removed afterwards")
+	}
+}

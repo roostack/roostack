@@ -72,8 +72,11 @@ func TestKeyChange(t *testing.T) {
 	if err != nil || len(newKey) < 32 || newKey == "the old recovery key" {
 		t.Fatalf("new key %q %v", newKey, err)
 	}
-	if err := m.ConfirmKeyChange(); err != nil {
+	if err := m.ConfirmKeyChange(ctx); err != nil {
 		t.Fatal(err)
+	}
+	if k, _ := m.KeyChangeStatus(); len(k.Repos) != 2 || k.Done() != 0 {
+		t.Errorf("the backups to change are listed when confirmed: %+v", k)
 	}
 	if _, err := m.NewRecoveryKey(); err == nil {
 		t.Error("once confirmed, the new key isn't shown here again (Show recovery key shows the lab's key)")

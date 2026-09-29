@@ -143,15 +143,23 @@ func (m *Manager) CancelKeyChange() error {
 
 // ConfirmKeyChange starts changing the key, once the Owner saved the new
 // one: the job runs through the maintenance coordinator, one job at a
-// time with backups.
-func (m *Manager) ConfirmKeyChange() error {
+// time with backups. The backups to change are listed now, so progress
+// shows straight away.
+func (m *Manager) ConfirmKeyChange(ctx context.Context) error {
 	m.keyMu.Lock()
 	k, err := m.KeyChangeStatus()
 	if err == nil && (k == nil || k.Phase != KeyConfirm) {
 		err = formErrorf("There's no new recovery key waiting to be confirmed.")
 	}
+	var repos []keyRepo
+	if err == nil {
+		repos, err = m.keyRepos(ctx)
+	}
 	if err == nil {
 		k.Phase = KeyAdding
+		for _, r := range repos {
+			k.Repos = append(k.Repos, KeyRepo{Ref: r.Ref, ServerID: r.ServerID, Repository: r.Repository})
+		}
 		err = m.saveKeyChange(k)
 	}
 	m.keyMu.Unlock()

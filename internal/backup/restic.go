@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -186,8 +187,13 @@ func (r *Repo) DumpFile(ctx context.Context, snapshotID, file string) ([]byte, e
 // AddKey adds another key (password) to the repository, e.g. a server's
 // own key next to the recovery key (SPEC.md §10.10). user names it in
 // `restic key list`.
+//
+// The new key goes in a file next to the repository's key file, not in
+// /tmp: restic may run outside Roostack's sandbox (Launch, for a drive),
+// where Roostack's private /tmp doesn't exist, but the key file's folder
+// is visible to both. CreateTemp makes it 0600.
 func (r *Repo) AddKey(ctx context.Context, key, user string) error {
-	f, err := os.CreateTemp("", "roostack-key-*")
+	f, err := os.CreateTemp(filepath.Dir(r.PasswordFile), ".new-key-*")
 	if err != nil {
 		return err
 	}
