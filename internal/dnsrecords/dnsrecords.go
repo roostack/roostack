@@ -3,6 +3,9 @@
 // devices at home reach private services without any local DNS. It also
 // checks that the home network's resolver actually returns that record
 // (some routers block private IPs in DNS answers).
+//
+// Each public address gets its own record, pointing at the public entry's
+// address (SPEC.md §6.11, stage 2; public.go).
 package dnsrecords
 
 import (
@@ -21,6 +24,7 @@ import (
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -55,6 +59,10 @@ type Status struct {
 	Risky        bool   // it needs the Namecheap-style opt-in
 	Managing     bool   // record management is switched on
 	AcceptedRisk bool
+	// Public is each public address's record (public.go); PublicIP the
+	// address they point at.
+	Public   []PublicRecord
+	PublicIP string
 }
 
 // Secrets reads Podman secret values (the DNS credentials).
@@ -78,6 +86,13 @@ type Manager struct {
 	Wait time.Duration
 	// UpdateLab saves a change to lab.yaml (config.Update).
 	UpdateLab func(change func(*config.Lab)) error
+	// PublicHosts lists the public addresses (full host names); nil means
+	// none. Entry is how visitors get in, which gives the address their
+	// records point at. Protected says whether CrowdSec is up: records only
+	// go public once it is (SPEC.md §6.11).
+	PublicHosts func() []string
+	Entry       public.Entry
+	Protected   func(ctx context.Context) bool
 
 	mu     sync.Mutex
 	status Status
@@ -226,7 +241,9 @@ func (m *Manager) Sync(ctx context.Context) Status {
 		return m.set(st)
 	case !lab.DNS.ManageRecords, risky && !lab.DNS.AllowRiskyRecords:
 		st.State = StateManual
-		return m.set(m.check(ctx, st))
+		st = m.check(ctx, st)
+		st.Public, st.PublicIP = m.publicManual(ctx)
+		return m.set(st)
 	}
 
 	values := map[string]string{}
@@ -261,9 +278,12 @@ func (m *Manager) Sync(ctx context.Context) Status {
 		} else {
 			st.State, st.Message = StateError, err.Error()
 		}
+		st.Public, st.PublicIP = m.syncPublic(ctx, p, values, zone, ip)
 		return m.set(st)
 	}
-	return m.set(m.check(ctx, st))
+	st = m.check(ctx, st)
+	st.Public, st.PublicIP = m.syncPublic(ctx, p, values, zone, ip)
+	return m.set(st)
 }
 
 type conflictError struct{ record, current, want string }
