@@ -58,8 +58,8 @@
   <h2>Invite a lab</h2>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{with .Invite}}
-  <p>Send this invite to {{$.InviteName}} privately (it works once, until {{when $.InviteExpires}}). They paste it on their
-    Backups page, under "Add storage from another lab".</p>
+  <p>Send this invite to {{$.InviteName}} privately (it works once, until {{when $.InviteExpires}}). On their Backups page,
+    they add a backup, choose <strong>A friend's lab</strong> and paste it under <strong>Their invite code</strong>.</p>
   <pre class="output copyable">{{.}}</pre>
   <p class="hint">Anyone with it can use the space until it's used, so don't post it anywhere public.</p>
   {{end}}

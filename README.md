@@ -29,20 +29,34 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the details.
 
 All of these can be changed in `lab.yaml`. The defaults are in [internal/config/config.go](internal/config/config.go).
 
+## Running `roostack` commands on a server
+
+Most commands (`backup`, `apply`) work on the `roostack` user's files and containers, so run them as that user, with its systemd session:
+
+```bash
+sudo -u roostack XDG_RUNTIME_DIR=/run/user/$(id -u roostack) roostack backup snapshots
+```
+
+Why `XDG_RUNTIME_DIR`: Roostack runs containers through the `roostack` user's own systemd manager (rootless Podman), and `systemctl --user` finds that manager through `$XDG_RUNTIME_DIR` (`/run/user/<uid>`, where its D-Bus socket is). `sudo -u` doesn't set it, so without it you get *"Failed to connect to user scope bus … $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined"*. The `roostack` service gets it from its systemd unit.
+
+The exceptions: `roostack user …` runs as root or `roostack`, and `roostack node join` as root. See the help's [command line page](help/docs/reference/cli.md).
+
 ## Requirements
 
 - A dedicated machine running **Debian 13** (x86_64). Ubuntu 26.04 support is planned.
-- A domain you own, with a DNS provider Roostack supports (currently Cloudflare), for HTTPS certificates.
+- A domain you own, with a DNS provider Roostack supports, for HTTPS certificates: Cloudflare, Amazon Route 53, Porkbun, Gandi, GoDaddy, Namecheap or Spaceship.
 
 ## Development
 
-You need Go 1.25 or newer.
+You need Go 1.26 or newer, and [uv](https://docs.astral.sh/uv/) to build the help site (without it, Roostack builds without its help pages).
 
 ```bash
-make build   # builds bin/roostack and bin/roostack-agent
+make build   # builds the help site, then bin/roostack and bin/roostack-agent
 make test    # runs the tests
 make golden  # rewrites generator golden files after an intended change
 ```
+
+The help site is in [help/](help/): Markdown pages built with [Zensical](https://zensical.org), embedded in Roostack at `/help/`. Preview it while writing with `cd help && uv run zensical serve`.
 
 Useful commands that work without a Roostack host:
 
@@ -67,5 +81,6 @@ To try it on a Debian 13 VM, see [scripts/dev-install.sh](scripts/dev-install.sh
 - [SPEC.md](SPEC.md): decisions, with rationale
 - [TASKS.md](TASKS.md): what's done and what's next
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the code fits together
+- [help/](help/): the help site, for people running Roostack
 - [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md): things the code assumes that haven't been verified on a real host yet
 - [docs/examples/](docs/examples/): reference package definitions
