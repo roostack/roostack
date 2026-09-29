@@ -180,6 +180,9 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			}
 			data["Actions"] = actions
 			s.addSettingsData(data, name, p, nil)
+			if access, err := s.Manager.Access(name); err == nil {
+				data["Access"] = access
+			}
 		}
 		if n := s.serverOf(r); n != nil {
 			st := n.InstallStatus(r.Context(), name)

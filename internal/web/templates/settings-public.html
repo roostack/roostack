@@ -1,0 +1,38 @@
+{{define "title"}}Public access{{end}}
+{{define "content"}}
+<div class="page-top">{{back "/settings" "Settings"}}{{help "services/public" "Making a service public"}}</div>
+<section class="card">
+  <h1>Public access</h1>
+  <p class="hint">Services are for your home network, unless you make one public from its page.</p>
+  {{if .Hosts}}
+  <p><span class="dot dot-{{if .Protected}}ok{{else}}problem{{end}}" aria-hidden="true"></span>{{if .Protected}}CrowdSec is running: it blocks addresses that attack, and password tries are limited.{{else}}CrowdSec isn't running. Public services are still reachable, but attackers aren't blocked.{{end}}</p>
+  {{with .Records}}
+  <table class="records">
+    <thead><tr><th>Public address</th><th>DNS record</th></tr></thead>
+    <tbody>
+      {{range .}}<tr><td><code>{{.Host}}</code></td><td>{{publicState .State}}{{with .IP}} <span class="hint">({{.}})</span>{{end}}</td></tr>{{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <ul class="plain">{{range .Hosts}}<li><code>{{.}}</code></li>{{end}}</ul>
+  {{end}}
+  {{else}}
+  <p>Nothing is public.</p>
+  {{end}}
+</section>
+<section class="card section">
+  <h2>Sharing attack reports</h2>
+  <p>While anything is public, CrowdSec can share the attacks it sees with its community: only attackers' addresses and what they
+    tried, never anything about you or your people. In return, addresses others have seen attacking are blocked before they try.</p>
+  <form method="post" action="/settings/public/sharing">
+    <fieldset>
+      <label class="check"><input type="radio" name="share" value="yes" {{if or .Share (not .SharingAsked)}}checked{{end}}>
+        <span>Share them (recommended)</span></label>
+      <label class="check"><input type="radio" name="share" value="no" {{if and .SharingAsked (not .Share)}}checked{{end}}>
+        <span>Don't share<small>Blocking attacks still works; you don't get the community's list of attackers.</small></span></label>
+    </fieldset>
+    {{if not .SharingAsked}}<p class="hint">Not chosen yet: you'll be asked when something first goes public.</p>{{end}}
+    <button type="submit">Save</button>
+  </form>
+</section>
+{{end}}

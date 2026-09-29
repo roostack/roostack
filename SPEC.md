@@ -342,6 +342,12 @@ Nothing is public unless the Owner makes it so (§1 principle 6). The Owner make
 - **CrowdSec signal sharing — Locked (2026-09-30):** asked in the "Protection" step the first time something goes public (CrowdSec only runs from then on), not during install (§6.10 item 4 updated), and changeable later in Settings.
 - **CrowdSec and SSH — Deferred (2026-09-30):** CrowdSec reads Caddy's logs only for now. The rootless container can't read the host's journal, and SSH is home-network-only by default. To revisit: the agent passing SSH log lines on, or blocking with nftables (TASKS.md 1.18).
 - **Rate limits — Locked (2026-09-30):** every public address gets a generous limit per visitor address, and the login pages a package names get a strict one.
+- **As built (2026-09-30):**
+  - Packages: `routes.<r>.public` with `unsafe` (a reason), `private_paths` (each with a reason) and `login_paths`; the Owner's opened paths are the instance's `public_paths`.
+  - Caddy, for a public address, in one `route` block: private paths refused to outside visitors, CrowdSec's bouncer, 1000 requests per 10 s per visitor and 10 a minute on login paths, then the service. The only path that reaches Roostack is the check link (a 32-digit token).
+  - While anything is public, the lab runs CrowdSec (pinned image) reading Caddy's JSON access log; the bouncer's key is a generated Podman secret. The sharing opt-out travels in the assignment.
+  - The entry is `internal/public.Entry`; port forwarding finds the home's address over DNS. `dnsrecords` sets each public address's record once CrowdSec's health check answers, re-syncing every 5 minutes (30 s while waiting), and points it home again when the address goes private: the providers' record APIs can't delete yet.
+  - UI: "Reachable from" on the service page; a page per address (warning, reasons, private paths, the sharing question, then the checklist: protection, DNS record, the router, the phone check); Settings → Public access. Owner only, audited.
 
 ## 7. Updates — Locked
 

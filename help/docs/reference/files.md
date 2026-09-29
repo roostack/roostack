@@ -25,6 +25,8 @@ Owned by the `roostack` user, and readable only by it (and root).
 | `setup-token` | The first-run setup code; deleted once the Owner exists |
 | `caddy/` | The generated web server config: `Caddyfile`, and `sites/<name>.caddy` for each service |
 | `caddy-data/` | HTTPS certificates and the certificate account |
+| `caddy-logs/` | The web server's access log, while anything is [public](../services/public.md), for CrowdSec |
+| `crowdsec/` | CrowdSec's configuration and database, while anything is public |
 | `labca/` | The lab's own certificate authority, on the controller: it vouches for each server on the lab's network |
 | `labnet/` | This server's certificate for the lab's network, and `membership.json` (its role and address) |
 | `wireguard-keys.json` | A copy of the lab network's WireGuard keys, for backups |

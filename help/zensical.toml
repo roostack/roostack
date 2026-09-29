@@ -22,6 +22,7 @@ nav = [
     "services/index.md",
     "services/add.md",
     "services/settings.md",
+    "services/public.md",
     "services/remove.md",
   ] },
   { "Backups" = [

@@ -30,6 +30,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -121,6 +122,10 @@ type Server struct {
 	RestorePending func() bool
 	// DNS reports whether home devices can reach services (SPEC.md §6.5.1).
 	DNS DNSStatus
+	// Checks are the outside check links for public addresses, and
+	// Protected says whether CrowdSec is running (SPEC.md §6.11; public.go).
+	Checks    *public.Checks
+	Protected func(ctx context.Context) bool
 	// Version is Roostack's version, shown on the About page.
 	Version string
 	// Maintenance is the lab's restart policy, shown in Settings.
@@ -143,6 +148,7 @@ type ServiceManager interface {
 	LabServers
 	BackupPlan
 	StorageSharing
+	PublicAccess
 }
 
 // ServiceCatalog is the catalog and the installed services: installing,
@@ -259,6 +265,8 @@ type DNSStatus interface {
 	Records(ctx context.Context) ([]dnsrecords.Record, error)
 	SetManaging(on, acceptRisk bool) error
 	TakeOver(ctx context.Context) error
+	// Refresh syncs the records soon (after a change).
+	Refresh()
 }
 
 // The server's maintenance jobs (internal/node). Each is nil when not
@@ -320,7 +328,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore",
 		"home", "services", "service", "backups", "restore", "settings", "account", "users", "about",
 		"settings-domain", "settings-network", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
-		"backups-recovery-key"} {
+		"backups-recovery-key", "service-public", "settings-public"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -345,6 +353,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /setup/restore", s.labRestoreFind)
 	mux.HandleFunc("POST /setup/restore/start", s.labRestoreStart)
 	mux.HandleFunc("GET /setup/restore/progress", s.labRestoreProgress)
+	// The outside check link, reached only through Caddy on a public
+	// address (public.go): no login.
+	mux.HandleFunc("GET /.well-known/roostack-check/{token}", s.publicCheckVisit)
 	mux.HandleFunc("GET /login", s.loginPage)
 	mux.HandleFunc("POST /login", s.loginSubmit)
 	mux.HandleFunc("POST /login/totp", s.loginTOTP)
@@ -381,6 +392,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/storage/guests/{id}/quota", s.requireOwner(s.guestQuotaSubmit))
 	mux.Handle("POST /settings/storage/leftover/{user}/delete", s.requireOwner(s.deleteLeftoverSubmit))
 	mux.Handle("GET /services/{name}/move", s.requireOwner(s.movePage))
+	mux.Handle("GET /services/{name}/public/{route}", s.requireOwner(s.publicPage))
+	mux.Handle("POST /services/{name}/public/{route}", s.requireOwner(s.publicSubmit))
+	mux.Handle("POST /services/{name}/public/{route}/check", s.requireOwner(s.publicCheckNew))
+	mux.Handle("GET /settings/public", s.requireOwner(s.publicSettingsPage))
+	mux.Handle("POST /settings/public/sharing", s.requireOwner(s.publicSharingSubmit))
 	mux.Handle("POST /services/{name}/move", s.requireOwner(s.moveSubmit))
 	mux.Handle("POST /settings/servers/join", s.requireOwner(s.joinCodeSubmit))
 	mux.Handle("GET /settings/updates", s.requireOwner(s.updatesPage))

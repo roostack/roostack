@@ -1,0 +1,87 @@
+{{define "title"}}Public access · {{.Package.Title}}{{end}}
+{{define "content"}}
+<section class="card medium">
+  <div class="page-top">{{back (printf "/services/%s" .Package.Name) .Package.Title}}{{help "services/public" "Making a service public"}}</div>
+  {{with .Route}}
+  <div class="heading">
+    <h1>Who can reach {{.Host}}</h1>
+    {{if .Public}}{{badge "Public" "highlight"}}{{else}}{{badge "Home only"}}{{end}}
+  </div>
+  {{end}}
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+
+  {{if .Route.Public}}
+  <p><strong>Anyone on the internet</strong> can reach <code>{{.Route.Host}}</code>{{if .Route.PrivatePaths}}, except what stays home-only below{{end}}.
+    Roostack's own pages stay private.</p>
+  {{with .Route.PrivatePaths}}
+  <ul class="plain">
+    {{range .}}<li><code>{{.Path}}</code>: {{if .Open}}made public anyway{{else}}home only{{end}}</li>{{end}}
+  </ul>
+  {{end}}
+
+  <h2>Checklist</h2>
+  <ol class="steps public-steps">
+    <li><span class="dot dot-{{if .Protected}}ok{{else}}warn{{end}}" aria-hidden="true"></span><strong>Protection.</strong>
+      {{if .Protected}}CrowdSec is running: it blocks addresses that attack your services, and password tries are limited.
+      {{else}}CrowdSec is starting (its first start downloads it, which takes a few minutes). The address's DNS record waits for it.{{end}}</li>
+    <li>{{with .Record}}<span class="dot dot-{{if eq .State "ok"}}ok{{else if or (eq .State "pending") (eq .State "waiting") (eq .State "manual")}}warn{{else}}problem{{end}}" aria-hidden="true"></span>{{end}}<strong>DNS record.</strong>
+      {{with .Record}}{{.Message}}{{else}}Roostack is checking it.{{end}}</li>
+    <li><span class="dot dot-none" aria-hidden="true"></span><strong>Your router.</strong>
+      Forward TCP ports 80 and 443, and UDP port 443, to <code>{{or .LANIP "this server"}}</code>{{with .LANIP}} (this server){{end}}.
+      Look for "port forwarding", "virtual server" or "NAT" in your router's settings.
+      <small>Port 443 already goes to another device at home? It has to come here instead, or wait for public access through a cloud server.
+        If this server is a cloud server, not at home, there's nothing to do here.</small></li>
+    <li id="check"{{if .CheckLink}} hx-get="/services/{{.Package.Name}}/public/{{.Route.Route}}" hx-select="#check" hx-trigger="every 5s [document.visibilityState === 'visible']" hx-swap="outerHTML"{{end}}>
+      <span class="dot dot-{{if .Check}}ok{{else}}none{{end}}" aria-hidden="true"></span><strong>Check from your phone.</strong>
+      {{with .Check}}It worked from outside on {{date .At}} at {{.At.Local.Format "15:04"}} (from {{.From}}).{{end}}
+      {{if .CheckLink}}
+      <p>Turn Wi-Fi off, so your phone uses mobile data, then scan this code or open the link. This step ticks itself when it works.</p>
+      {{with .CheckQR}}<div class="qr-box">{{.}}</div>{{end}}
+      <p><code class="secret">{{.CheckLink}}</code></p>
+      {{else}}
+      <form method="post" action="/services/{{.Package.Name}}/public/{{.Route.Route}}/check">
+        <button type="submit" class="secondary">{{if .Check}}Check again{{else}}Make a check link{{end}}</button>
+      </form>
+      {{end}}
+    </li>
+  </ol>
+  {{confirm (printf "/services/%s/public/%s" .Package.Name .Route.Route) (printf "Make %s private? Only your home network (or VPN) will reach it, and its DNS record points back home." .Route.Host) "Make private" "secondary" "public=off"}}
+
+  {{else}}
+  <p>Right now only devices on your home network (or VPN) can open it.</p>
+  <p>Making it public lets <strong>anyone on the internet</strong> reach it: its login page, and anything it shares without a login.
+    Roostack's own pages stay private. Use strong passwords (and two-factor authentication, if {{.Package.Title}} has it).</p>
+  <form method="post" action="/services/{{.Package.Name}}/public/{{.Route.Route}}">
+    <input type="hidden" name="public" value="on">
+    {{with .Route.Unsafe}}
+    {{notice "error" (printf "%s's package says this address isn't safe to make public: %s" $.Package.Title .)}}
+    <label class="check"><input type="checkbox" name="accept_unsafe" required>
+      <span>I understand, and want to make it public anyway</span></label>
+    {{end}}
+    {{with .Route.PrivatePaths}}
+    <h2>Parts that stay home-only</h2>
+    <p class="hint">These stay reachable from your home network only, unless you tick them.</p>
+    {{range .}}
+    <label class="check"><input type="checkbox" name="open" value="{{.Path}}">
+      <span>Make <code>{{.Path}}</code> public too<small>{{.Reason}}</small></span></label>
+    {{end}}
+    {{end}}
+    {{if not .SharingAsked}}
+    <h2>Protection</h2>
+    <p>Roostack starts <strong>CrowdSec</strong>, which spots attacks in the web log and blocks the addresses they come from,
+      and limits how fast anyone can try passwords.</p>
+    <fieldset>
+      <legend>Share attack reports with CrowdSec's community?</legend>
+      <label class="check"><input type="radio" name="share" value="yes" checked>
+        <span>Share them (recommended)<small>Only attackers' addresses and what they tried, never anything about you or your people.
+          In return, addresses others have seen attacking are blocked before they try.</small></span></label>
+      <label class="check"><input type="radio" name="share" value="no">
+        <span>Don't share<small>Blocking attacks still works; you don't get the community's list of attackers.</small></span></label>
+    </fieldset>
+    <p class="hint">You can change this later in Settings → Public access.</p>
+    {{end}}
+    <button type="submit">Make public</button>
+  </form>
+  {{end}}
+</section>
+{{end}}

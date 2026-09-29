@@ -366,6 +366,7 @@ func (n *Local) lab(a Assignment) config.Lab {
 	lab := n.Lab
 	if a.Lab.Domain != "" {
 		lab.Domain, lab.Email = a.Lab.Domain, a.Lab.Email
+		lab.Public.NoSharing = a.Lab.NoSharing
 	}
 	return lab
 }

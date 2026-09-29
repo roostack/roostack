@@ -83,6 +83,9 @@ type Manager struct {
 	NewB2 func(keyID, key string) *b2.Client
 	// Activity shows problems building an assignment (optional).
 	Activity *activity.Registry
+	// UpdateLab saves a change to lab.yaml (config.Update), for settings
+	// changed without a restart (optional).
+	UpdateLab func(change func(*config.Lab)) error
 
 	// mu guards state changes (install/remove) and what is still to hand
 	// over to the node.
@@ -96,6 +99,10 @@ type Manager struct {
 	setUp []string
 	// assignErr is why the last assignment couldn't be built, if it failed.
 	assignErr error
+	// public is the lab's public access settings as changed at runtime
+	// (public.go); nil until first used, then read from Lab. Kept apart
+	// from Lab, which is read without the lock.
+	public *config.Public
 }
 
 // CatalogItem is one package in the catalog.

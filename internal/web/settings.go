@@ -35,6 +35,7 @@ var settingsAreas = []settingsArea{
 	{"people", "People and access", "People", "/settings/people"},
 	{"domain", "Network", "Domain and certificates", "/settings/domain"},
 	{"home-network", "Network", "Home network", "/settings/home-network"},
+	{"public", "Network", "Public access", "/settings/public"},
 	{"servers", "Servers", "Servers", "/settings/servers"},
 	{"storage", "Servers", "Storage for others", "/settings/storage"},
 	// Settings that differ per server (switcher.go).
@@ -135,6 +136,15 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		set("home-network", "Set up a domain first", "")
+	}
+	if s.Manager != nil {
+		if hosts := s.Manager.PublicHosts(); len(hosts) == 0 {
+			set("public", "Nothing is public: services are for your home network", "")
+		} else if s.Protected != nil && !s.Protected(r.Context()) {
+			set("public", fmt.Sprintf("%d public; CrowdSec isn't running", len(hosts)), "problem")
+		} else {
+			set("public", fmt.Sprintf("%d public, protected by CrowdSec", len(hosts)), "ok")
+		}
 	}
 	if s.updates(r) != nil {
 		last, _ := s.updates(r).Last(r.Context())
