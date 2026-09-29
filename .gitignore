@@ -7,3 +7,5 @@ dist/
 # Help site (Zensical): its virtualenv and build output
 /help/.venv/
 /help/site/
+/internal/web/helpsite/*
+!/internal/web/helpsite/README.md

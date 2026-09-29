@@ -128,6 +128,8 @@ type Server struct {
 	// bootID changes each time Roostack starts; the "restarting" page waits
 	// for a new one.
 	bootID string
+	// help is the embedded help site (help.go).
+	help *helpSite
 
 	pages map[string]*template.Template
 }
@@ -309,6 +311,9 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	if s.bootID, err = auth.NewToken(); err != nil {
 		return nil, err
 	}
+	if s.help, err = newHelpSite(helpFS); err != nil {
+		return nil, err
+	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore",
 		"home", "services", "service", "backups", "restore", "settings", "account", "users", "about",
@@ -328,6 +333,8 @@ func (s *Server) Handler() http.Handler {
 	static, _ := fs.Sub(staticFS, "static")
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
+	mux.Handle("GET /help/", s.help.Handler())
+	mux.Handle("GET /help", http.RedirectHandler("/help/", http.StatusMovedPermanently))
 
 	mux.HandleFunc("GET /setup", s.setupPage)
 	mux.HandleFunc("POST /setup", s.setupSubmit)

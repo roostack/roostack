@@ -7,6 +7,8 @@ set -euo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 cd "$REPO"
 [[ -x bin/roostack && -x bin/roostack-agent && -s bin/copyright ]] || { echo "build first: make build" >&2; exit 1; }
+# A released package always has its help (make build skips it without uv).
+[[ -s internal/web/helpsite/site/index.html ]] || { echo "the help site isn't built: install uv, then make build" >&2; exit 1; }
 # Debian versions must start with a digit: v0.1.0-3-gabc → 0.1.0-3-gabc,
 # and a bare commit becomes 0~git<commit>.
 VERSION=${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}
