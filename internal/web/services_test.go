@@ -964,6 +964,10 @@ func TestStorageForOthers(t *testing.T) {
 	if !strings.Contains(body, "Send this invite to Sam") {
 		t.Error("the invite should be shown once")
 	}
+	// Where it goes, in the Backups page's own words (the plan chooser).
+	if !strings.Contains(body, "<strong>A friend's lab</strong>") || !strings.Contains(body, "<strong>Their invite code</strong>") {
+		t.Error("the invite should say where it's pasted, as the Backups page names it")
+	}
 	h.post("/settings/storage/guests/1/quota", url.Values{"quota": {"80"}}, h.srv.URL)
 	h.post("/settings/storage/guests/1/remove", nil, h.srv.URL)
 	h.post("/settings/storage/leftover/g9/delete", nil, h.srv.URL)

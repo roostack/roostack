@@ -15,7 +15,10 @@ run as that user, with its systemd session:
 sudo -u roostack XDG_RUNTIME_DIR=/run/user/$(id -u roostack) roostack <command>
 ```
 
-The examples below write this as `roostack` for short. The exceptions are
+`systemctl --user` finds the user's systemd through `XDG_RUNTIME_DIR`,
+which `sudo -u` doesn't set; without it, commands fail with *"Failed to
+connect to user scope bus"*. The examples below write this as `roostack`
+for short. The exceptions are
 `roostack user`, which can run as root or the roostack user, and `roostack
 node join`, which runs as root.
 

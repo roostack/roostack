@@ -80,7 +80,13 @@ func apply(args []string) error {
 	if fwOK {
 		fmt.Printf("Firewall: SSH from %s", fw.SSHFrom)
 		for _, rule := range fw.Allow {
-			fmt.Printf(", %d/%s from %s", rule.Port, rule.Proto, rule.From)
+			// A rule for one interface (Roostack's WireGuard network) has
+			// no source: anything arriving on that interface may use it.
+			if rule.Iface != "" {
+				fmt.Printf(", %d/%s on %s", rule.Port, rule.Proto, rule.Iface)
+			} else {
+				fmt.Printf(", %d/%s from %s", rule.Port, rule.Proto, rule.From)
+			}
 		}
 		fmt.Println()
 	}
