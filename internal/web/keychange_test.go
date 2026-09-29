@@ -25,7 +25,7 @@ func (f *fakeManager) NewRecoveryKey() (string, error) {
 	}
 	return "the-new-recovery-key", nil
 }
-func (f *fakeManager) ConfirmKeyChange() error {
+func (f *fakeManager) ConfirmKeyChange(context.Context) error {
 	f.keyOps = append(f.keyOps, "confirm")
 	f.keyChange.Phase = manager.KeyAdding
 	f.keyChange.Repos = []manager.KeyRepo{{Repository: "/mnt/usb/roostack", Added: true}, {Repository: "s3:s3.example.com/b", Error: "unreachable"}}

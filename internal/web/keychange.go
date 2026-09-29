@@ -18,7 +18,7 @@ type RecoveryKeys interface {
 	KeyChangeStatus() (*manager.KeyChange, error)
 	StartKeyChange(ctx context.Context) error
 	NewRecoveryKey() (string, error)
-	ConfirmKeyChange() error
+	ConfirmKeyChange(ctx context.Context) error
 	CancelKeyChange() error
 }
 
@@ -88,7 +88,7 @@ func (s *Server) keyChangeConfirm(w http.ResponseWriter, r *http.Request) {
 			"Tick the box once you've saved the new key. To see it again, enter your password and a code.")
 		return
 	}
-	if err := s.Manager.ConfirmKeyChange(); err != nil {
+	if err := s.Manager.ConfirmKeyChange(r.Context()); err != nil {
 		if msg, ok := userMessage(err); ok {
 			s.renderKeyChange(w, r, http.StatusBadRequest, msg)
 			return
