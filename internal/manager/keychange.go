@@ -27,7 +27,7 @@ import (
 //
 // This replaces the key; it doesn't change the repositories' master key,
 // so it protects against a leaked key, not against someone who also
-// copied the backups (starting afresh, TASKS.md).
+// copied the backups (SPEC.md §6.9 says why that's left, for now).
 
 // Key change phases.
 const (

@@ -64,8 +64,8 @@ you confirm, you can cancel and keep the old key.
 
     A new key stops the old one opening your backups from now on. If
     someone had your old key *and* a copy of your backups, they can still
-    read that copy, and a new key doesn't change that. Starting your
-    backups afresh, with new encryption, isn't built yet.
+    read that copy, and a new key doesn't change that: the encryption
+    inside each backup stays the same.
 
 ??? note "For technical users"
 
