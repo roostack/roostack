@@ -102,7 +102,7 @@ ROOSTACK_VM=1 scripts/dev-vm.sh ssh 'sudo install -m755 ~/roostack/bin/roostack 
   - htmx attributes are inherited: a container with `hx-select`/`hx-swap` needs `hx-disinherit="*"`, or children's requests break.
   - Sizes go through `size`/`bytes` in templates and `units.Bytes` in Go; never format bytes by hand.
 - **Writing (UI, docs, comments):** British English (colour, licence), short plain sentences, no jargon for end users but exact detail one click away ("Details", "Manage", "Tell me more"). Say what happened and what to do next. Name things consistently (the backup plan: "main backup", "backup 3", "extra backup").
-- **Security:** never print or log secrets (setup codes, join codes, recovery keys, passwords, TOTP secrets, API tokens); point to where they are instead. Secrets on disk are written 0600 (`writePrivate`). The agent validates every path and argument it's given.
+- **Security:** never print or log secrets (setup codes, join codes, recovery keys, passwords, TOTP secrets, API tokens); point to where they are instead. The one exception is the first-run setup code, which the installer and log show on purpose (docs/ASSUMPTIONS.md K5). Secrets on disk are written 0600 (`writePrivate`). The agent validates every path and argument it's given.
 
 ## Testing
 

@@ -1,0 +1,2 @@
+# Shows the "Roostack is installed" message last (postinst).
+interest-noawait roostack-installed
