@@ -39,7 +39,8 @@
     <div class="service-head">
       <div>
         <h2>{{if $.CanManage}}<a href="/services/{{.Name}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</h2>
-        {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a>{{end}}
+        {{if .Install}}{{range .URLs}}<span class="address-pending">{{.}}</span>{{end}}{{template "install-line" .}}
+        {{- else}}{{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a>{{end}}{{end}}
         {{template "service-summary" .}}
       </div>
       {{status .Status}}

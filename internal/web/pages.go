@@ -176,6 +176,15 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		http.NotFound(w, r)
 		return
 	}
+	// Installing: its log, for the step list's Details. Once it's done, the
+	// step list's polling reloads the page (status, Open link).
+	if install := data["Service"].(ServiceView).Install; install != nil {
+		if a := s.activityFor(r, install.Log); a != nil {
+			data["InstallActivity"] = a
+		}
+	} else if r.URL.Query().Get("installing") == "1" && r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Refresh", "true")
+	}
 	if s.Manager != nil {
 		if p, err := s.Manager.Package(name); err == nil {
 			data["Package"] = p

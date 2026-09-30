@@ -2,6 +2,8 @@ package reconcile
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -58,6 +60,8 @@ type env struct {
 	r       *Reconciler
 	systemd *fakeSystemd
 	secrets *fakeSecrets
+	pulled  []string // images downloaded
+	events  []string // progress, as "<stage> <unit>[ done]"
 }
 
 func newEnv(t *testing.T) *env {
@@ -77,6 +81,18 @@ func newEnv(t *testing.T) *env {
 		Paths: lab.Paths, Systemd: e.systemd, Secrets: e.secrets,
 		UserSecret: func(name string) ([]byte, bool) {
 			return []byte("dns-token"), name == dns.SecretName("api_token")
+		},
+		Pull: func(_ context.Context, image string, w io.Writer) error {
+			e.pulled = append(e.pulled, image)
+			fmt.Fprintln(w, "Copying blob sha256:0123")
+			return nil
+		},
+		Progress: func(ev Event) {
+			s := strings.TrimSpace(ev.Stage + " " + ev.Unit)
+			if ev.Done {
+				s += " done"
+			}
+			e.events = append(e.events, s)
 		},
 	}
 	return e
@@ -134,14 +150,19 @@ func TestInstallUpdateRemove(t *testing.T) {
 	if n := plan.StartNotes["roostack-caddy.service"]; !strings.Contains(n, "builds its image") {
 		t.Errorf("caddy's note = %q", n)
 	}
-	if !slices.Contains(e.systemd.calls, "start roostack-caddy.service") || !slices.Contains(e.systemd.calls, "start roostack-vaultwarden-app.service") {
-		t.Errorf("new services start one at a time: %v", e.systemd.calls)
-	}
 	// Caddy's image build starts in the background as soon as its file is
-	// written, before anything waits for it.
-	if i := slices.Index(e.systemd.calls, "start --no-block roostack-caddy-build.service"); i < 0 ||
-		i > slices.Index(e.systemd.calls, "start roostack-caddy.service") {
-		t.Errorf("the build should start in the background first: %v", e.systemd.calls)
+	// written; new services download and start one at a time; a new Caddy
+	// starts last, since its first start waits for that build.
+	if want := []string{"daemon-reload", "start --no-block roostack-caddy-build.service",
+		"start roostack-vaultwarden-app.service", "reload-or-restart roostack-caddy.service"}; !slices.Equal(e.systemd.calls, want) {
+		t.Errorf("calls %v, want %v", e.systemd.calls, want)
+	}
+	if want := []string{"docker.io/vaultwarden/server"}; len(e.pulled) != 1 || !strings.HasPrefix(e.pulled[0], want[0]) {
+		t.Errorf("pulled %v", e.pulled)
+	}
+	if want := []string{"download roostack-vaultwarden-app.service", "download roostack-vaultwarden-app.service done",
+		"start roostack-vaultwarden-app.service", "start roostack-vaultwarden-app.service done", "proxy", "proxy done"}; !slices.Equal(e.events, want) {
+		t.Errorf("events %v", e.events)
 	}
 	if got := string(e.secrets.values[dns.SecretName("api_token")]); got != "dns-token" {
 		t.Errorf("DNS secret = %q, want the user-provided value", got)

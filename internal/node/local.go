@@ -179,6 +179,8 @@ type Local struct {
 
 	// followingBuild: a Caddy image build is being shown (build.go).
 	followingBuild bool
+	// installs are new services being installed, step by step (install.go).
+	installs map[string]*InstallProgress
 }
 
 // Identity is this server's identity.
@@ -307,20 +309,20 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 		act = n.Activity.Start(activity.Apply, "Applying changes")
 		r.Log = act
 	}
+	// Caddy's image builds in the background (for minutes the first time):
+	// show it, whether this apply starts it or it was already running when
+	// Roostack restarted (e.g. at the end of the setup wizard).
+	building := !n.lab(a).IsNode() && (slices.Contains(plan.BuildUnits, CaddyBuildUnit) || n.caddyBuilding(ctx))
+	// New services are shown step by step while they install.
+	n.planInstalls(a.Services, desired, plan, building)
+	r.Progress = n.installEvent
 	if err := r.Apply(ctx, plan); err != nil {
+		n.failInstalls(err)
 		return err
 	}
-	// Caddy's image builds in the background (for minutes the first time):
-	// show it, whether this apply started it or it was already running
-	// when Roostack restarted (e.g. at the end of the setup wizard).
-	if !n.lab(a).IsNode() && n.Units != nil {
-		building := slices.Contains(plan.BuildUnits, CaddyBuildUnit)
-		if st, err := n.Units.Status(ctx, CaddyBuildUnit); err == nil && len(st) == 1 && st[0].ActiveState == "activating" {
-			building = true
-		}
-		if building {
-			n.followCaddyBuild(n.lab(a).Paths.CaddyBuildLog())
-		}
+	n.installsApplied()
+	if building {
+		n.followCaddyBuild(n.lab(a).Paths.CaddyBuildLog())
 	}
 	// Created secrets live in Podman now; forget the typed-in values.
 	n.mu.Lock()

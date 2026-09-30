@@ -23,8 +23,15 @@
 4. Choose **Install**.
 
 Roostack downloads the service, starts it and gives it its web address.
-Downloading can take a few minutes the first time. You can watch it on the
-home page; the service shows **starting**, then **running**.
+This usually takes a few minutes. While it does, the service shows
+**installing**, and its page lists each step: done, in progress (with how
+long so far) or still to come, with the full log under **Details**. The
+home page and **Services** show which step it's on. Its address becomes a
+link once it's running.
+
+On a brand-new server, the first install may also wait for Roostack's web
+proxy to finish building (once only, a few minutes). If a step takes much
+longer than usual, the page says so, and whether it's still moving.
 
 ## Finishing setup
 
@@ -56,8 +63,12 @@ is ready.
     Roostack then applies the change on the service's server: it generates
     the Quadlet files in `~roostack/.config/containers/systemd/`
     and a Caddy snippet in `/var/lib/roostack/caddy/sites/<name>.caddy`,
-    reloads systemd and starts the units. The apply's log shows on the home
-    page while it runs.
+    reloads systemd and starts the units. Each new container's image is
+    downloaded first (`podman pull`, run as the `roostack` user), then its
+    unit started, one at a time; a new Caddy starts last. The apply's log
+    shows on the home page and under the service's **Details** while it
+    runs. The step list is kept in memory: if Roostack restarts during an
+    install, the service shows its containers' state instead.
 
     Setup steps ("install hooks") run with `podman exec` inside the
     service's containers, retried every 10 seconds for up to 10 minutes

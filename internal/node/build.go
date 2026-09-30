@@ -18,6 +18,15 @@ const CaddyBuildUnit = generate.CaddyUnit + "-build.service"
 // How often the build log and its unit's state are read (tests shorten it).
 var buildPoll = 2 * time.Second
 
+// caddyBuilding reports whether Caddy's image is being built.
+func (n *Local) caddyBuilding(ctx context.Context) bool {
+	if n.Units == nil {
+		return false
+	}
+	st, err := n.Units.Status(ctx, CaddyBuildUnit)
+	return err == nil && len(st) == 1 && st[0].ActiveState == "activating"
+}
+
 // followCaddyBuild shows the Caddy image build, started in the background
 // by an apply (reconcile.Plan.BuildUnits), as an activity.Build log: its
 // output, copied from the log file the build unit writes

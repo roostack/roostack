@@ -155,13 +155,17 @@ func (n *Local) runPendingHooks(ctx context.Context) {
 			continue
 		}
 		n.setHooksRunning(name, true)
+		n.installStep(name, stageSetup, false)
 		err := n.runInstallHooks(ctx, s)
 		n.setHooksRunning(name, false)
 		if err != nil {
 			n.Log.Error("install hooks failed", "service", name, "err", err)
 			n.State.SetSetting(ctx, hookKey(name), hookFailed+err.Error())
+			// The service page's "Setup didn't finish" takes over.
+			n.dropInstall(name)
 			continue
 		}
+		n.installStep(name, stageSetup, true)
 		n.Log.Info("install hooks done", "service", name)
 		n.State.SetSetting(ctx, hookKey(name), hookDone)
 		// Forget values only the install needed (e.g. the admin password).
@@ -201,7 +205,11 @@ func (n *Local) runInstallHooks(ctx context.Context, s state.Service) (err error
 	defer func() { act.Finish(err) }()
 	hooks := s.Package.HooksOn(pkgspec.HookInstall)
 	for i, h := range hooks {
-		act.Step("Setup step %d of %d (for example, creating the administrator account)", i+1, len(hooks))
+		if h.Title != "" {
+			act.Step("Setup step %d of %d: %s", i+1, len(hooks), lowerFirst(h.Title))
+		} else {
+			act.Step("Setup step %d of %d", i+1, len(hooks))
+		}
 		run, err := generate.Hook(n.currentLab(), s.Package, s.Instance, h, nil)
 		if err != nil {
 			return err

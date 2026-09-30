@@ -37,6 +37,12 @@
 
 {{/* service-details: what its server reports, for the curious. The id
      keeps it open when the tiles refresh (static/app.js). */}}
+{{/* install-line: how far a service's install has got, in one line (the
+     Services list and Home; its page shows every step). */}}
+{{define "install-line"}}{{with .Install}}<p class="install-line">
+  {{- if .Failed}}Installing didn't finish: {{.Failed}}
+  {{- else}}<span class="spinner" aria-hidden="true"></span> Step {{add1 .Current}} of {{len .Steps}}: {{lowerFirst .Step.Title}}…{{end}}</p>{{end}}{{end}}
+
 {{define "service-details"}}
 <details class="technical" id="details-{{.Name}}">
   <summary>Details</summary>
@@ -56,7 +62,7 @@
   <li class="card tile">
     <h2>{{.Title}}</h2>
     {{template "service-summary" .}}
-    {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">Open{{template "new-window"}}</a>{{end}}
+    {{if .Install}}{{template "install-line" .}}{{else}}{{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">Open{{template "new-window"}}</a>{{end}}{{end}}
     {{status .Status}}
     {{if $.CanManage}}{{template "service-details" .}}{{end}}
   </li>

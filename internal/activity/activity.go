@@ -8,6 +8,7 @@
 package activity
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 	"sync"
@@ -86,6 +87,7 @@ type Log struct {
 	lines    []string
 	dropped  int
 	partial  string // an incomplete line from Write
+	updated  time.Time
 	now      func() time.Time
 }
 
@@ -98,6 +100,9 @@ type Snapshot struct {
 	Err      string
 	Lines    []string
 	Dropped  int // lines no longer kept
+	// Updated is when it last had output: a long step whose log still
+	// moves hasn't hung.
+	Updated time.Time
 }
 
 // Running reports whether the operation hasn't finished.
@@ -132,6 +137,9 @@ func (l *Log) Write(p []byte) (int, error) {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if len(p) > 0 && l.now != nil {
+		l.updated = l.now()
+	}
 	text := l.partial + string(p)
 	lines := strings.Split(text, "\n")
 	l.partial = lines[len(lines)-1]
@@ -170,6 +178,9 @@ func (l *Log) Finish(err error) {
 }
 
 func (l *Log) add(line string) {
+	if l.now != nil {
+		l.updated = l.now()
+	}
 	l.lines = append(l.lines, line)
 	if over := len(l.lines) - maxLines; over > 0 {
 		l.lines = append(l.lines[:0:0], l.lines[over:]...)
@@ -186,5 +197,5 @@ func (l *Log) Snapshot() Snapshot {
 		lines = append(lines, l.partial)
 	}
 	return Snapshot{Title: l.title, Status: l.status, Started: l.started, Finished: l.finished,
-		Err: l.err, Lines: lines, Dropped: l.dropped}
+		Err: l.err, Lines: lines, Dropped: l.dropped, Updated: cmp.Or(l.updated, l.started)}
 }
