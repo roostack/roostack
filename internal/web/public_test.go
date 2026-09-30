@@ -177,6 +177,8 @@ func TestPublicSettings(t *testing.T) {
 	}
 	if _, body := h.get("/settings/public"); !strings.Contains(body, "Nothing is public") || !strings.Contains(body, "Not chosen yet") {
 		t.Error("public settings page")
+	} else if strings.Contains(body, `name="share" value="yes" required checked`) || strings.Contains(body, `value="no" checked`) {
+		t.Error("nothing is ticked until the Owner chooses")
 	}
 	h.post("/settings/public/sharing", url.Values{"share": {"no"}}, h.srv.URL)
 	if !fm.sharingAsked || fm.share {
