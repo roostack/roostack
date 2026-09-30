@@ -289,7 +289,7 @@ func TestGuests(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()
 	now := time.Now()
-	id, err := s.AddGuest(ctx, Guest{Name: "Tyris's lab", Quota: 50 << 30, Addr: "100.101.23.2", PublicKey: "onetime",
+	id, err := s.AddGuest(ctx, Guest{Name: "Sam's lab", Quota: 50 << 30, Addr: "100.101.23.2", PublicKey: "onetime",
 		TokenHash: "h", Expires: now.Add(time.Hour), Port: 8100, StoreHash: "sh", AdminHash: "ah"})
 	if err != nil {
 		t.Fatal(err)

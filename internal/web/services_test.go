@@ -958,10 +958,10 @@ func TestMovePage(t *testing.T) {
 
 func TestStorageForOthers(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
-	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Tyris's lab", Quota: 50 * units.GB, Joined: true},
+	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Quota: 50 * units.GB, Joined: true},
 		Used: 3 * units.GB, LastSeen: time.Now()}}
 	_, body := h.get("/settings/storage")
-	for _, want := range []string{"Tyris&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821"} {
+	for _, want := range []string{"Sam&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("storage page missing %q", want)
 		}
@@ -1335,7 +1335,7 @@ func TestServerDiskSpace(t *testing.T) {
 	if _, body := h.get("/"); strings.Contains(body, "disk space") {
 		t.Error("plenty of space: nothing to say")
 	}
-	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Tyris's lab", Quota: 80 * units.GB, Joined: true}, Used: 5 * units.GB}}
+	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Quota: 80 * units.GB, Joined: true}, Used: 5 * units.GB}}
 	if _, body := h.get("/"); !strings.Contains(body, "Other labs could fill This server&#39;s disk: they&#39;ve been promised 75.0 GB more") {
 		t.Error("promised more than is free")
 	}

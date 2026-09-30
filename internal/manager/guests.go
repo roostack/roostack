@@ -106,7 +106,7 @@ func (m *Manager) InviteGuest(ctx context.Context, name string, quota int64, end
 	name = strings.TrimSpace(name)
 	switch {
 	case name == "" || len([]rune(name)) > 60:
-		return labnet.StorageInvite{}, formErrorf("Give it a name, such as \"Tyris's lab\".")
+		return labnet.StorageInvite{}, formErrorf("Give it a name, such as \"Sam's lab\".")
 	case quota < units.GB:
 		return labnet.StorageInvite{}, formErrorf("Offer at least 1 GB.")
 	}

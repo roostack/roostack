@@ -71,7 +71,7 @@
   </form>
   {{end}}
   <form method="post" action="/settings/storage/invite">
-    <label>Whose lab <input name="name" value="{{.Name}}" placeholder="Tyris's lab" required></label>
+    <label>Whose lab <input name="name" value="{{.Name}}" placeholder="Sam's lab" required></label>
     <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{or .Quota "50"}}" required></label>
     <label>Address they reach {{.HostServer.Name}} at <input name="endpoint" value="{{.Endpoint}}" placeholder="203.0.113.7:51821" required></label>
     <small class="hint">Your home's public address (or a name from your domain that points home) and port 51821.</small>
