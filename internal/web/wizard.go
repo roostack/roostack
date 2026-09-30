@@ -246,7 +246,13 @@ func (s *Server) domainPage(w http.ResponseWriter, r *http.Request) {
 	if dns.Get(provider) == nil {
 		provider = dns.Providers()[0].ID
 	}
-	s.render(w, "setup-domain", s.formMode(r, "domain", map[string]any{"User": currentUser(r), "Domain": s.Domain,
+	// Until a domain is saved, the lab has the example one from the lab.yaml
+	// the package installs: show it only as the field's placeholder.
+	domain := ""
+	if s.domainDone(r) {
+		domain = s.Domain
+	}
+	s.render(w, "setup-domain", s.formMode(r, "domain", map[string]any{"User": currentUser(r), "Domain": domain,
 		"Providers": dns.Providers(), "Provider": provider, "Values": map[string]string{}, "Manage": true}))
 }
 

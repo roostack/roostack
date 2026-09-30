@@ -180,7 +180,13 @@ func TestWizardFlow(t *testing.T) {
 		t.Fatal("after the SSH step comes the domain step")
 	}
 
+	// A fresh lab has the installed lab.yaml's example domain: it's only a
+	// placeholder, never the field's value.
+	h.server.Domain = "lab.example.com"
 	_, body = h.get("/setup/domain")
+	if !strings.Contains(body, `<input name="domain" value="" placeholder="lab.example.com"`) {
+		t.Error("the domain field should be empty, with the example only as its placeholder")
+	}
 	for _, want := range []string{"Amazon Route 53", "Porkbun", "Gandi", "GoDaddy", "Namecheap", "Spaceship",
 		`name="dns.route53.secret_access_key"`} {
 		if !strings.Contains(body, want) {

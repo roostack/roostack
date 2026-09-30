@@ -26,7 +26,7 @@
     tried, never anything about you or your people. In return, addresses others have seen attacking are blocked before they try.</p>
   <form method="post" action="/settings/public/sharing">
     <fieldset>
-      <label class="check"><input type="radio" name="share" value="yes" {{if or .Share (not .SharingAsked)}}checked{{end}}>
+      <label class="check"><input type="radio" name="share" value="yes" required {{if .Share}}checked{{end}}>
         <span>Share them (recommended)</span></label>
       <label class="check"><input type="radio" name="share" value="no" {{if and .SharingAsked (not .Share)}}checked{{end}}>
         <span>Don't share<small>Blocking attacks still works; you don't get the community's list of attackers.</small></span></label>
