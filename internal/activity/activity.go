@@ -144,7 +144,10 @@ func (l *Log) Write(p []byte) (int, error) {
 	lines := strings.Split(text, "\n")
 	l.partial = lines[len(lines)-1]
 	for _, line := range lines[:len(lines)-1] {
-		// Progress bars redraw with \r: keep the last state.
+		// Lines may end in \r\n (dpkg's do): the \r isn't a redraw.
+		// Otherwise, progress bars redraw with \r: keep the last state.
+		// Cutting at a trailing \r left every dpkg line empty.
+		line = strings.TrimRight(line, "\r")
 		if i := strings.LastIndexByte(line, '\r'); i >= 0 {
 			line = line[i+1:]
 		}
