@@ -25,6 +25,7 @@ install -D -m 0644 packaging/systemd/roostack.service "$ROOT/usr/lib/systemd/sys
 install -D -m 0644 packaging/systemd/roostack-agent.service "$ROOT/usr/lib/systemd/system/roostack-agent.service"
 install -D -m 0644 packaging/apt/52roostack-unattended-upgrades "$ROOT/etc/apt/apt.conf.d/52roostack-unattended-upgrades"
 install -D -m 0644 build/caddy/Containerfile "$ROOT/usr/share/roostack/caddy/Containerfile"
+install -D -m 0755 packaging/deb/installed-message "$ROOT/usr/share/roostack/installed-message"
 install -D -m 0644 docs/examples/lab.yaml "$ROOT/usr/share/roostack/lab.yaml"
 for pkg in docs/examples/*.yaml; do
     name=$(basename "$pkg" .yaml)
@@ -41,7 +42,7 @@ CONTROL=$STAGE/control
 install -d "$CONTROL"
 sed "s/@VERSION@/$VERSION/" packaging/deb/control > "$CONTROL/control"
 echo "Installed-Size: $(du -sk "$ROOT" | cut -f1)" >> "$CONTROL/control"
-install -m 0644 packaging/deb/conffiles "$CONTROL/conffiles"
+install -m 0644 packaging/deb/conffiles packaging/deb/triggers "$CONTROL/"
 install -m 0755 packaging/deb/postinst packaging/deb/prerm packaging/deb/postrm "$CONTROL/"
 (cd "$ROOT" && find . -type f ! -path ./etc/\* -printf '%P\0' | xargs -0 md5sum) > "$CONTROL/md5sums"
 

@@ -3,6 +3,16 @@
 # again: dpkg-reconfigure roostack repeats it.
 set -e
 
+# The "Roostack is installed" message comes from a trigger on this package,
+# which dpkg runs after the other packages' own post-install work (man-db,
+# systemd, ...) so the setup code isn't lost in the scroll.
+if [ "$1" = triggered ]; then
+    if [ -e /run/roostack-installed ]; then
+        rm -f /run/roostack-installed
+        /usr/share/roostack/installed-message
+    fi
+    exit 0
+fi
 [ "$1" = configure ] || exit 0
 
 if ! id roostack >/dev/null 2>&1; then
@@ -47,17 +57,9 @@ systemctl enable roostack-agent.service roostack.service >/dev/null
 systemctl restart roostack-agent.service
 systemctl restart roostack.service
 
+# A fresh install: show how to open the setup page once dpkg is done.
 if [ -z "$2" ]; then
-    cat <<MSG
-
-Roostack is installed. Open its setup page to create your lab (or restore
-one from its backups). The setup code is in /var/lib/roostack/setup-token:
-    sudo cat /var/lib/roostack/setup-token
-The setup page listens on this server only (127.0.0.1:8480); from another
-computer, forward it over SSH:
-    ssh -L 8480:127.0.0.1:8480 <this server>
-and open http://127.0.0.1:8480.
-
-MSG
+    touch /run/roostack-installed
+    dpkg-trigger --no-await roostack-installed || /usr/share/roostack/installed-message
 fi
 exit 0

@@ -8,9 +8,10 @@ backups for later, but Roostack will remind you until they're done.
 
 You'll need:
 
-- The **setup code**. Roostack writes it in its log when it starts for the
-  first time (*For technical users* below says where). It stops anyone else
-  on your network from setting up Roostack before you do.
+- The **setup code**. The installer shows it when it finishes, and
+  Roostack writes it in its log (*For technical users* below says where).
+  It stops anyone else on your network from setting up Roostack before you
+  do.
 - An **authenticator app** on your phone, such as Google Authenticator,
   Microsoft Authenticator, or the one in your password manager.
 - If you want a web address for your services: your **domain** and a login
@@ -115,7 +116,9 @@ and the page carries on by itself. Then you'll see the home page, ready for
     ssh -L 8480:127.0.0.1:8480 you@your-server
     ```
 
-    **The setup code** is printed in the log (`journalctl -u roostack`) and
+    **The setup code** is shown when the package finishes installing (run
+    `sudo /usr/share/roostack/installed-message` to see it again), printed in
+    the log (`journalctl -u roostack`) and
     saved in `/var/lib/roostack/setup-token` (readable by root and the
     `roostack` user only). It's deleted once the Owner exists.
 
