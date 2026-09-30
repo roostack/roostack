@@ -54,18 +54,26 @@ Choose the server's time zone. Roostack uses it for everything it shows and
 schedules, such as the nightly backup at 2 am. If your device is in a
 different time zone, Roostack points it out.
 
+Then say whether the server is **at home**, behind a router, or **on the
+internet**, like a cloud server (a VPS). Roostack suggests an answer: a
+server with a public address of its own looks like a cloud server. On the
+internet, services start public and Roostack's own pages are at
+`roostack.<your domain>`; [Where your lab is](../settings/domain.md#where-your-lab-is)
+explains the difference.
+
 ## 4. Who can log in to this server?
 
 This is about **SSH**, a way for someone to log in to the server from
 another computer to fix things Roostack can't. Roostack's firewall blocks
 everything else apart from your services' web addresses.
 
-Only from my home network *(recommended)*
+Only from my home network *(recommended at home)*
 :   From computers at home, or over a VPN.
 
-From anywhere
-:   Only reachable from the internet if your router sends port 22 to this
-    server. Anyone can then try to log in, so use SSH keys, not passwords.
+From anywhere *(recommended on a cloud server)*
+:   At home, only reachable from the internet if your router sends port 22
+    to this server. Anyone can then try to log in, so use SSH keys, not
+    passwords. On a cloud server, this is how you log in.
 
 Nobody
 :   If something goes wrong that Roostack can't fix, you'll need a keyboard

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"roostack.cloud/roostack/internal/config"
 )
 
 func lookup(ip string, err error) func(context.Context) (string, error) {
@@ -73,5 +75,31 @@ func TestChecks(t *testing.T) {
 	}
 	if len(got) != 1 || got[0] != "photos.example.com 81.2.69.160" {
 		t.Errorf("recorded %v", got)
+	}
+}
+
+// A public IPv4 address of its own means a cloud server; home servers have
+// private ones (and maybe public IPv6).
+func TestNetworkOf(t *testing.T) {
+	addrs := func(ss ...string) []netip.Addr {
+		var out []netip.Addr
+		for _, s := range ss {
+			out = append(out, netip.MustParseAddr(s))
+		}
+		return out
+	}
+	for _, c := range []struct {
+		addrs []netip.Addr
+		want  string
+	}{
+		{addrs("127.0.0.1", "192.168.1.50", "::1", "fe80::1"), config.NetworkHome},
+		{addrs("10.0.2.15", "2001:db8::5"), config.NetworkHome},
+		{addrs("100.64.1.2"), config.NetworkHome},
+		{addrs("127.0.0.1", "172.105.165.39", "2600:3c01::1"), config.NetworkInternet},
+		{addrs("172.105.165.39", "192.168.140.2"), config.NetworkInternet},
+	} {
+		if got := networkOf(c.addrs); got != c.want {
+			t.Errorf("%v: %s, want %s", c.addrs, got, c.want)
+		}
 	}
 }

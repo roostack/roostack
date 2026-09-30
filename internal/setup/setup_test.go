@@ -218,3 +218,22 @@ func TestBackupLaterFinishesTheWizard(t *testing.T) {
 		t.Errorf("finished = %d, %v", finished, err)
 	}
 }
+
+// Where the lab is (SPEC.md §6.12): a guess until the Owner answers, then
+// saved in lab.yaml (read back before the restart that applies it).
+func TestNetworkChoice(t *testing.T) {
+	s, _, restarts := newSetup(t)
+	internet := func() string { return config.NetworkInternet }
+	if c := s.Network(internet); c.Saved != "" || !c.Internet() {
+		t.Fatalf("not asked yet: %+v", c)
+	}
+	if err := s.SetNetwork("moon", false); err == nil {
+		t.Error("only home or internet")
+	}
+	if err := s.SetNetwork(config.NetworkHome, true); err != nil {
+		t.Fatal(err)
+	}
+	if c := s.Network(internet); c.Saved != config.NetworkHome || c.Internet() || !c.UITunnelOnly || *restarts != 1 {
+		t.Errorf("saved: %+v, restarts %d", c, *restarts)
+	}
+}

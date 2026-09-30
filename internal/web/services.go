@@ -73,6 +73,24 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 		Host:      r.PostForm.Get("host"),
 		Settings:  map[string]string{},
 		Secrets:   map[string]string{},
+		// On a lab on the internet, services start public (SPEC.md §6.12).
+		Public: s.onInternet() && r.PostForm.Get("public") == "on",
+	}
+	if req.Public {
+		// Asked the first time anything goes public (SPEC.md §6.11).
+		if asked, _ := s.Manager.SignalSharing(); !asked {
+			share := r.PostForm.Get("share")
+			if share != "yes" && share != "no" {
+				w.WriteHeader(http.StatusBadRequest)
+				s.render(w, "install", s.installData(r, p, r.PostForm, "Choose whether CrowdSec shares attack reports."))
+				return
+			}
+			if err := s.Manager.SetSignalSharing(share == "yes"); err != nil {
+				s.serverError(w, err)
+				return
+			}
+			s.Store.Audit(r.Context(), currentUser(r), "public access", "CrowdSec sharing: "+share)
+		}
 	}
 	for _, st := range p.Settings {
 		if v, ok := r.PostForm["setting."+st.Key]; ok {
@@ -154,16 +172,28 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		servers = ms
 	}
 	host, _ := get("host")
+	// On a lab on the internet: public from the start, unless the package
+	// says its address isn't safe to be (SPEC.md §6.12).
+	unsafe := ""
+	if route := manager.MainRoute(p); route != "" {
+		unsafe = p.Routes[route].Public.Unsafe
+	}
+	_, public := get("public")
+	asked, _ := s.Manager.SignalSharing()
 	return map[string]any{
-		"User":      currentUser(r),
-		"Package":   p,
-		"Fields":    fields,
-		"HasRoute":  len(p.Routes) > 0,
-		"Subdomain": sub,
-		"Domain":    s.Domain,
-		"Error":     errMsg,
-		"Servers":   servers,
-		"Host":      host,
+		"Internet":     s.onInternet(),
+		"Public":       submitted == nil || public,
+		"Unsafe":       unsafe,
+		"SharingAsked": asked,
+		"User":         currentUser(r),
+		"Package":      p,
+		"Fields":       fields,
+		"HasRoute":     len(p.Routes) > 0,
+		"Subdomain":    sub,
+		"Domain":       s.Domain,
+		"Error":        errMsg,
+		"Servers":      servers,
+		"Host":         host,
 	}
 }
 

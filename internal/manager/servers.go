@@ -134,7 +134,11 @@ func (m *Manager) startApplyLocked() {
 		m.Activity.Start(activity.Apply, "Applying changes").Finish(err)
 		return
 	}
-	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: m.publicLocked().NoSharing}
+	// CrowdSec shares nothing until the Owner has answered (SPEC.md §6.11):
+	// on a lab on the internet it can start with the public UI, before
+	// anything asks.
+	pub := m.publicLocked()
+	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: pub.NoSharing || !pub.SharingAsked}
 	nodes := []node.Node{m.Node}
 	for _, r := range m.others() {
 		nodes = append(nodes, r)

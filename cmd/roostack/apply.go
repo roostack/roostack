@@ -10,6 +10,7 @@ import (
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/firewall"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/podman"
@@ -29,6 +30,10 @@ func apply(args []string) error {
 		return err
 	}
 	lab.HasGPU = config.DetectGPU()
+	// As serve does: private addresses on a lab on the internet use it.
+	if ip, err := dnsrecords.DetectLANIP(); err == nil {
+		lab.HostIP = ip
+	}
 	lab.Timezone = hosttime.Zone()
 	if _, err := withNode(&lab); err != nil {
 		return err

@@ -13,7 +13,7 @@
 {{/* install-steps: a service's install, step by step (node.InstallProgress):
      done, in progress (with how long so far) and still to do. */}}
 {{define "install-steps"}}
-<ol class="steps">
+<ol class="install-steps">
   {{- $p := .}}{{range $i, $s := .Steps}}{{$st := $p.State $i}}
   <li class="step-{{$st}}"><span class="mark" aria-hidden="true">{{if eq $st "done"}}✓{{else if eq $st "now"}}<span class="spinner"></span>{{else}}○{{end}}</span>
     <span>{{$s.Title}}{{if eq $st "now"}}…{{end}}<span class="sr-only">{{if eq $st "done"}} (done){{else if eq $st "now"}} (in progress){{else}} (to do){{end}}</span></span>

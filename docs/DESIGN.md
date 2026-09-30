@@ -92,7 +92,7 @@ Template components are called as functions; everything else is plain HTML with 
 | Confirm | `{{confirm ACTION QUESTION TEXT KIND ["name=value"…]}}` | For anything hard to undo. KIND is the button class (`danger`, `secondary`, `quiet`, `""`); trailing `name=value` are hidden fields. The question goes through a data attribute, never into script |
 | Notice | `{{notice KIND TEXT ["link=…" "linkText=…"]}}` | KIND: `info`, `ok`, `warn`, `error` |
 | Status | `{{status .Status}}` | Service state; `installing` gets a spinner |
-| Install steps | `{{template "install-steps" .Service.Install}}` in a notice; `{{template "install-line" .}}` (a ServiceView) in lists | A new service's install (`node.InstallProgress`): `ol.steps` with `li.step-done` / `step-now` / `step-todo`, time taken or "for …" so far. `.address-pending` shows an address that isn't a link yet |
+| Install steps | `{{template "install-steps" .Service.Install}}` in a notice; `{{template "install-line" .}}` (a ServiceView) in lists | A new service's install (`node.InstallProgress`): `ol.install-steps` with `li.step-done` / `step-now` / `step-todo`, time taken or "for …" so far. `.address-pending` shows an address that isn't a link yet |
 | Badge | `{{badge "New" ["highlight"]}}` | Highlight badges are rare |
 | Back link | `{{back "/settings" "Settings"}}` | |
 | Top bar | `layout.html`: `.brand` with `.brand-mark`; once the lab has a name, `.brand-stack` (a small uppercase `.brand-eyebrow` "Roostack" over `.brand-lab`) | The lab's name is the title, so people know whose lab it is; long names end in "…" (full name on hover) |

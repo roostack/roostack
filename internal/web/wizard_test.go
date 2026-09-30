@@ -41,6 +41,9 @@ type fakeSetup struct {
 	clients     []netip.Addr
 	domainErr   error
 	backupErr   error
+	// network is where the lab is (as saved), uiTunnelOnly its UI choice.
+	network      string
+	uiTunnelOnly bool
 
 	lastProvider string
 	lastValues   map[string]string
@@ -98,6 +101,20 @@ func (f *fakeSetup) SetLabName(_ context.Context, name string, restart bool) err
 		return &setup.CheckError{Msg: "Give the lab a name."}
 	}
 	f.labName, f.restarted = name, restart
+	return nil
+}
+func (f *fakeSetup) Network(detect func() string) setup.NetworkChoice {
+	c := setup.NetworkChoice{Saved: f.network, UITunnelOnly: f.uiTunnelOnly}
+	if detect != nil {
+		c.Detected = detect()
+	}
+	return c
+}
+func (f *fakeSetup) SetNetwork(network string, uiTunnelOnly bool) error {
+	if network != config.NetworkHome && network != config.NetworkInternet {
+		return &setup.CheckError{Msg: "Choose where this lab is."}
+	}
+	f.network, f.uiTunnelOnly, f.restarted = network, uiTunnelOnly, true
 	return nil
 }
 func (f *fakeSetup) PromoteBackupCopy(context.Context, string, node.BackupCopy) error { return nil }

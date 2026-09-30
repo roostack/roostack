@@ -124,8 +124,18 @@ func (s *Server) timezonePage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.render(w, "setup-timezone", s.formMode(r, "timezone", map[string]any{"User": currentUser(r),
-		"Current": current, "Zone": current, "Zones": zones, "HostClock": s.clockOf(r)}))
+	data := s.formMode(r, "timezone", map[string]any{"User": currentUser(r),
+		"Current": current, "Zone": current, "Zones": zones, "HostClock": s.clockOf(r)})
+	s.addNetworkForm(r, data)
+	s.render(w, "setup-timezone", data)
+}
+
+// addNetworkForm asks where the lab is on the wizard's first step, which is
+// about where this server is (SPEC.md §6.12).
+func (s *Server) addNetworkForm(r *http.Request, data map[string]any) {
+	if data["Wizard"] == true && s.serverRefOf(r).This {
+		data["NetworkForm"] = s.networkForm(r)
+	}
 }
 
 func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
@@ -141,6 +151,16 @@ func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	m := s.serverRefOf(r)
 	changed, err := s.server(r).SetTimezone(r.Context(), zone)
+	if err == nil && m.This && s.inWizard(r) && r.FormValue("network") != "" {
+		// Where the lab is, asked with it (its restart waits for the
+		// wizard's end).
+		network := r.FormValue("network")
+		err = s.Setup.SetNetwork(network, network == config.NetworkInternet && r.FormValue("ui") == "tunnel")
+		if err == nil {
+			s.Store.Audit(r.Context(), currentUser(r), "setup", "lab is "+map[string]string{
+				config.NetworkHome: "at home", config.NetworkInternet: "on the internet"}[network])
+		}
+	}
 	if err == nil && m.This {
 		// The setup wizard is about this server.
 		err = s.Setup.Done(r.Context(), setup.StepTimezone)
@@ -151,8 +171,10 @@ func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, zerr)
 			return
 		}
-		s.wizardError(w, r, err, "setup-timezone", s.formMode(r, "timezone", map[string]any{
-			"Current": current, "Zone": zone, "Zones": zones, "HostClock": s.clockOf(r)}))
+		data := s.formMode(r, "timezone", map[string]any{
+			"Current": current, "Zone": zone, "Zones": zones, "HostClock": s.clockOf(r)})
+		s.addNetworkForm(r, data)
+		s.wizardError(w, r, err, "setup-timezone", data)
 		return
 	}
 	if changed {
@@ -192,11 +214,14 @@ func (s *Server) sshData(r *http.Request, choice, errMsg string) (map[string]any
 		clients = append(clients, sshClient{Addr: c.String(), LAN: lan, CutByLAN: !lan})
 		cutByLAN = cutByLAN || !lan
 	}
+	// A lab on the internet is reached from anywhere (SPEC.md §6.12); the
+	// choice is this server's (the lab's controller).
+	internet := s.serverRefOf(r).This && s.network().Internet()
 	if choice == "" {
-		choice = cmp.Or(a.Choice, config.SSHFromLAN)
+		choice = cmp.Or(a.Choice, map[bool]string{true: config.SSHFromAny, false: config.SSHFromLAN}[internet])
 	}
 	return s.formMode(r, "ssh", map[string]any{"User": currentUser(r), "Choice": choice, "Clients": clients,
-		"CutByLAN": cutByLAN, "Error": errMsg}), nil
+		"CutByLAN": cutByLAN, "Error": errMsg, "Internet": internet}), nil
 }
 
 func (s *Server) sshPage(w http.ResponseWriter, r *http.Request) {

@@ -63,6 +63,7 @@ func (s *Server) pageData(r *http.Request) (map[string]any, error) {
 		"Services":  services,
 		"CanManage": s.Manager != nil && auth.Can(u.Role, auth.ManageServices),
 		"IsOwner":   auth.Can(u.Role, auth.ManageHost),
+		"Internet":  s.onInternet(),
 		"Apply":     s.applyStatus(),
 		"Server":    s.serverRefOf(r),
 	}, nil

@@ -172,13 +172,13 @@ p.error[role="alert"] { background: var(--bad-bg); color: var(--bad); padding: v
 .status .spinner { width: 0.7em; height: 0.7em; vertical-align: -0.05em; }
 
 /* ---------- Install steps (install-steps, install-line) ---------- */
-ol.steps { list-style: none; padding: 0; margin: var(--space-3) 0; display: grid; gap: var(--space-2); }
-ol.steps li { display: grid; grid-template-columns: 1.4em 1fr auto; gap: var(--space-2); align-items: baseline; color: var(--muted); }
-ol.steps li.step-done { color: var(--fg); }
-ol.steps li.step-done .mark { color: var(--ok); }
-ol.steps li.step-now { color: var(--fg); font-weight: var(--weight-medium); }
-ol.steps .mark { text-align: center; }
-ol.steps small { color: var(--muted); font-weight: var(--weight-normal); white-space: nowrap; }
+ol.install-steps { list-style: none; padding: 0; margin: var(--space-3) 0; display: grid; gap: var(--space-2); }
+ol.install-steps li { display: grid; grid-template-columns: 1.4em 1fr auto; gap: var(--space-2); align-items: baseline; color: var(--muted); }
+ol.install-steps li.step-done { color: var(--fg); }
+ol.install-steps li.step-done .mark { color: var(--ok); }
+ol.install-steps li.step-now { color: var(--fg); font-weight: var(--weight-medium); }
+ol.install-steps .mark { text-align: center; }
+ol.install-steps small { color: var(--muted); font-weight: var(--weight-normal); white-space: nowrap; }
 .address-pending { color: var(--muted); overflow-wrap: anywhere; }
 .install-line { font-size: var(--text-sm); color: var(--muted); margin: var(--space-1) 0; }
 .badge { background: var(--accent-soft); color: var(--accent); }

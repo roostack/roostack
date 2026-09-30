@@ -129,6 +129,8 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 		Email:         lab.Email,
 		DNSDirective:  directive,
 		AdminUpstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, lab.UIPort),
+		AdminPublic:   lab.PublicUI(),
+		PrivateFrom:   PrivateFrom(lab),
 	}
 	out.Dirs = []string{lab.Paths.CaddyDataDir(), lab.Paths.CaddySitesDir()}
 	out.Units = []string{CaddyUnit + ".service"}
@@ -145,6 +147,16 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 	}
 	out.Caddyfile = File{Name: "Caddyfile", Content: main}
 	return out, nil
+}
+
+// PrivateFrom is who reaches the lab's private addresses (SPEC.md §6.12):
+// the home network, or on a lab on the internet only this server itself
+// (an SSH tunnel).
+func PrivateFrom(lab config.Lab) string {
+	if lab.OnInternet() {
+		return caddy.ThisServerOnly(lab.HostIP, CaddyHostLoopback)
+	}
+	return caddy.PrivateRanges
 }
 
 // crowdSecAcquis tells CrowdSec to read Caddy's access log.

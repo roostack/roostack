@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"roostack.cloud/roostack/internal/config"
 )
 
 type fakeEntry struct {
@@ -68,6 +70,35 @@ func TestPublicRecordProblems(t *testing.T) {
 	m.Entry = fakeEntry{ip: "81.2.69.160"}
 	st := m.Sync(context.Background())
 	if st.Public[0].State != PublicManual || !strings.Contains(st.Public[0].Message, "vault.lab.example.com  A  81.2.69.160") {
+		t.Errorf("manual: %+v", st.Public)
+	}
+}
+
+// On a lab on the internet (SPEC.md §6.12) the wildcard points at the
+// lab's public address and covers public addresses: no records of their
+// own, and no waiting for CrowdSec (the wildcard already reaches them).
+func TestInternetLab(t *testing.T) {
+	m, g := newManager(t, managed, []string{"172.105.165.39"}, []string{"172.105.165.39"})
+	m.Lab.Network = config.NetworkInternet
+	m.LANIP = func() (string, error) { return "10.0.0.5", nil } // behind the provider's NAT
+	m.Entry = fakeEntry{ip: "172.105.165.39"}
+	m.PublicHosts = func() []string { return []string{"git.lab.example.com"} }
+	m.Protected = func(context.Context) bool { return false }
+
+	st := m.Sync(context.Background())
+	if st.State != StateOK || st.IP != "172.105.165.39" || g.get("*.lab") != "172.105.165.39" || !st.Internet ||
+		!strings.Contains(st.Message, "point at this server") {
+		t.Fatalf("wildcard: %+v, record %q", st, g.get("*.lab"))
+	}
+	if len(st.Public) != 1 || st.Public[0].State != PublicOK || g.get("git.lab") != "" {
+		t.Errorf("public address: %+v, own record %q", st.Public, g.get("git.lab"))
+	}
+
+	// Unmanaged: the one record to add is the wildcard.
+	m.Lab.DNS.ManageRecords = false
+	m.PublicLookup = func(context.Context, string) ([]string, error) { return nil, nil }
+	st = m.Sync(context.Background())
+	if st.Public[0].State != PublicManual || !strings.Contains(st.Public[0].Message, "*.lab.example.com  A  172.105.165.39") {
 		t.Errorf("manual: %+v", st.Public)
 	}
 }

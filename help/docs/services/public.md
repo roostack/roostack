@@ -5,8 +5,12 @@ Making one **public** lets anyone on the internet reach it: handy for
 sharing photos with family, or using your password manager away from home
 without a VPN.
 
-Only the Owner can make a service public. Roostack's own pages always stay
-private.
+Only the Owner can make a service public. At home, Roostack's own pages
+always stay private.
+
+On a **cloud server** it's the other way round: there's no home network,
+so services start public, and so do Roostack's own pages, behind your
+password and two-factor code. See [On a cloud server](#on-a-cloud-server).
 
 ## Before you do
 
@@ -39,6 +43,26 @@ public…**. Roostack explains what changes, then:
    so your phone uses mobile data, and scan the code. The step ticks itself
    when your phone gets through.
 
+## If it doesn't work
+
+If the check link doesn't open, look at these in order. The page ticks the
+ones Roostack can check itself.
+
+1. **Roostack's own firewall** lets web traffic in (TCP 80 and 443, UDP
+   443). It always does.
+2. **Your router** forwards those ports to this server (or, on a cloud
+   server, your provider's firewall allows them). Roostack can't see this
+   from inside.
+3. **Public DNS** points the address at your lab. Roostack checks this
+   through a public DNS server.
+4. **Your internet connection** accepts incoming connections at all. Some
+   don't: they share one public address between many customers (called
+   *CGNAT*, common on mobile broadband and some fibre plans). Your router's
+   status page shows its internet (WAN) address: if it starts with `100.`,
+   or differs from what a "what is my IP" search says, you're behind CGNAT.
+   Ask your provider for a public address, or wait for public access
+   through a cloud server.
+
 !!! warning "Port 443 already used at home?"
 
     A router can forward port 443 to only one device. If another device at
@@ -55,11 +79,59 @@ when making the service public, after reading why it's marked.
 A few services are marked as not safe to make public at all. Roostack says
 why, and you have to confirm before it goes ahead.
 
+## On a cloud server
+
+If your lab is on a cloud server (a VPS), tell Roostack in **Settings →
+Where it is and DNS**; the setup wizard asks too. Then:
+
+- **Services start public.** Installing one ticks **Anyone on the internet
+  can reach it**; untick it to keep it private. Services whose package
+  says they aren't safe to make public still start private.
+- **Roostack's own pages** are at `roostack.<your domain>`, for anyone to
+  reach, protected by your password, a code from your authenticator app,
+  CrowdSec, and a strict limit on login attempts. You can keep them to an
+  SSH tunnel instead.
+- **The checklist** asks about your provider's firewall instead of a
+  router: many providers (Linode, Hetzner, AWS, DigitalOcean, Oracle Cloud)
+  put one in front of your server. Allow TCP ports 80 and 443, and UDP
+  port 443, from anywhere. Check from any browser that isn't the server
+  itself.
+- **DNS:** one record, `*.<your domain>`, points at the server, and covers
+  every service.
+
+### Private on a cloud server
+
+There's no home network on a cloud server, so a private service is only
+reachable **through an SSH tunnel**: a connection from your computer that
+ends on the server itself. It's for technical users, and for things you
+rarely need, such as an admin page.
+
+1. Tunnel your computer's port 443 to the server's, and leave it open
+   (it needs administrator rights on your computer, since 443 is a
+   privileged port: `sudo` on macOS and Linux, an administrator PowerShell
+   on Windows):
+
+    ```bash
+    sudo ssh -L 443:127.0.0.1:443 you@your-server
+    ```
+
+2. Make the service's address point at your own computer, in your hosts
+   file (`/etc/hosts` on macOS and Linux,
+   `C:\Windows\System32\drivers\etc\hosts` on Windows):
+
+    ```text
+    127.0.0.1  git.example.com
+    ```
+
+3. Open `https://git.example.com` in your browser. Remove the hosts line
+   when you're done, or the address won't work without the tunnel.
+
 ## Making it private again
 
 On the same page, choose **Make private**. The service is reachable from
-home only again, and its DNS record points back home. Once nothing is
-public, CrowdSec stops.
+home only again (on a cloud server, through an SSH tunnel only), and at
+home its DNS record points back home. Once nothing is public, and
+Roostack's own pages aren't either, CrowdSec stops.
 
 ??? note "For technical users"
 
@@ -77,6 +149,15 @@ public, CrowdSec stops.
       the container, shows who is blocked.
     - Your home's public address comes from DNS: OpenDNS's
       `myip.opendns.com`, or Google's `o-o.myaddr.l.google.com`.
+    - On a cloud server (`network: internet` in `lab.yaml`), private
+      addresses accept only connections made on the server itself: Caddy
+      sees a tunnel's requests (to the host's `127.0.0.1`) as coming from the
+      server's own address, and its own requests to its address as coming
+      from `169.254.1.3`. The provider's private network, which other
+      customers share, isn't allowed. Roostack's own pages are a public
+      route with a limit of 10 a minute on `/login` and
+      `/backups/recovery-key`; `ui_tunnel_only: true` under `public` keeps
+      them private.
     - The check link is `https://<address>/.well-known/roostack-check/<token>`.
       It's the only path on a public address that reaches Roostack, and it
       works for an hour.

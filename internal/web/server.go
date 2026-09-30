@@ -104,6 +104,9 @@ type Server struct {
 	LabName string
 	// Domain is the lab's base domain, shown next to subdomain fields.
 	Domain string
+	// DetectNetwork guesses where the lab is from this server's addresses
+	// (public.DetectNetwork; SPEC.md §6.12). Nil guesses nothing.
+	DetectNetwork func() string
 	// DNSProvider is the lab's current DNS provider ID (wizard default).
 	DNSProvider string
 	// BackupRepo is the backup destination, shown on the Backups page.
@@ -258,6 +261,10 @@ type LabSetup interface {
 	// PendingRestart: wizard steps' settings wait for the restart at its end.
 	PendingRestart() bool
 	SetLabName(ctx context.Context, name string, restart bool) error
+	// Network is where the lab is, saved and guessed (detect guesses);
+	// SetNetwork saves it and restarts Roostack (SPEC.md §6.12).
+	Network(detect func() string) setup.NetworkChoice
+	SetNetwork(network string, uiTunnelOnly bool) error
 }
 
 // DNSStatus is what the UI needs from internal/dnsrecords.
@@ -379,6 +386,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /settings/remote-access", s.requireWizard(s.sshPage))
 	mux.Handle("GET /settings/domain", s.requireOwner(s.domainAreaPage))
 	mux.Handle("GET /settings/home-network", s.requireOwner(s.homeNetworkPage))
+	mux.Handle("POST /settings/network", s.requireOwner(s.networkSubmit))
 	mux.Handle("GET /settings/servers", s.requireOwner(s.serversPage))
 	mux.Handle("GET /settings/servers/{server}", s.requireOwner(s.serverPage))
 	s.serverRoutes(mux)

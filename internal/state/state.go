@@ -125,8 +125,9 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		d.Services = append(d.Services, out)
 	}
 	slices.SortFunc(d.Services, func(a, b *generate.Output) int { return strings.Compare(a.Service, b.Service) })
-	// Generated after the services: CrowdSec runs while any is public.
-	public := slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.Public })
+	// Generated after the services: CrowdSec runs while any is public, or
+	// Roostack's own pages are (a lab on the internet, SPEC.md §6.3.2).
+	public := lab.PublicUI() || slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.Public })
 	sys, err := generate.System(lab, public)
 	if err != nil {
 		return reconcile.Desired{}, errors.Join(append(errs, err)...)

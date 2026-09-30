@@ -16,6 +16,8 @@ import (
 	"net/http"
 	"net/netip"
 	"time"
+
+	"roostack.cloud/roostack/internal/config"
 )
 
 // Entry is how public visitors reach the lab.
@@ -57,7 +59,7 @@ func (pf PortForwarding) Address(ctx context.Context) (string, error) {
 		}
 		errs = append(errs, err)
 	}
-	return "", fmt.Errorf("couldn't find your home's public address: %w", errors.Join(errs...))
+	return "", fmt.Errorf("couldn't find the lab's public address: %w", errors.Join(errs...))
 }
 
 // checkPublic makes sure an answer is a public IPv4 address.
@@ -82,6 +84,36 @@ var cgnat = netip.MustParsePrefix("100.64.0.0/10")
 func IsPublic(a netip.Addr) bool {
 	a = a.Unmap()
 	return a.IsGlobalUnicast() && !a.IsPrivate() && !cgnat.Contains(a)
+}
+
+// DetectNetwork guesses where this server is (config.NetworkHome or
+// NetworkInternet, SPEC.md §6.12) from its own addresses: a public IPv4
+// address on one of its interfaces means it's on the internet (a cloud
+// server). IPv6 isn't counted, since servers at home often have public
+// IPv6 addresses behind the router. The Owner confirms or changes it: a
+// cloud server behind its provider's NAT (some AWS or Oracle setups) looks
+// like home.
+func DetectNetwork() string {
+	ifaddrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return config.NetworkHome
+	}
+	var addrs []netip.Addr
+	for _, ia := range ifaddrs {
+		if p, err := netip.ParsePrefix(ia.String()); err == nil {
+			addrs = append(addrs, p.Addr())
+		}
+	}
+	return networkOf(addrs)
+}
+
+func networkOf(addrs []netip.Addr) string {
+	for _, a := range addrs {
+		if a = a.Unmap(); a.Is4() && IsPublic(a) {
+			return config.NetworkInternet
+		}
+	}
+	return config.NetworkHome
 }
 
 // OpenDNS asks OpenDNS's resolver for myip.opendns.com, which it answers

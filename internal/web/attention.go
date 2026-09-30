@@ -129,17 +129,32 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		s.spaceAttention(r, add)
 	}
 
+	// A server with a public address of its own, in a lab Roostack treats
+	// as at home: probably a cloud server nobody has told it about.
+	if owner && s.Setup != nil {
+		if c := s.network(); c.Saved == "" && c.Detected == config.NetworkInternet {
+			add(levelWarning, "This server looks like a cloud server: it has a public address of its own. Tell Roostack, "+
+				"so private services and the public access checklist fit.", "/settings/home-network", "Where it is")
+		}
+	}
+
 	if owner && s.DNS != nil {
 		st := s.DNS.Status()
 		switch st.State {
 		case dnsrecords.StateBlocked, dnsrecords.StateOverridden, dnsrecords.StateConflict, dnsrecords.StateError:
 			// A headline here; the full explanation is on the Settings card.
-			add(levelProblem, dnsHeadline[st.State], "/settings/home-network", "See how to fix it")
+			headline := dnsHeadline[st.State]
+			if st.Internet && st.State == dnsrecords.StateOverridden {
+				headline = "This server's DNS sends your services' addresses somewhere else."
+			}
+			add(levelProblem, headline, "/settings/home-network", "See how to fix it")
 		case dnsrecords.StatePending:
 			add(levelInfo, st.Message, "/settings/home-network", "View")
 		case dnsrecords.StateManual:
 			if !st.Reachable {
-				add(levelWarning, "Devices at home can't find your services yet. "+st.Message, "/settings/home-network", "Home network settings")
+				first := map[bool]string{true: "Your services' addresses don't lead here yet. ",
+					false: "Devices at home can't find your services yet. "}[st.Internet]
+				add(levelWarning, first+st.Message, "/settings/home-network", "DNS settings")
 			}
 		}
 	}
