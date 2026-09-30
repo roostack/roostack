@@ -175,6 +175,13 @@ Roostack runs **directly on the host** (not in a container), as two processes sh
 - **Open:** where the public site is hosted.
 - **Considered:** plain MkDocs with Material (Zensical is its successor, by the same team, and reads the same Markdown); writing help pages as Go templates inside the UI (no search, and no public site without Roostack running).
 
+### 6.3.2 Reaching the UI — Locked (2026-09-30)
+
+- **The UI listens on `127.0.0.1:8480` only.** With a domain, it is served at `https://roostack.<domain>` through Caddy, to the home network only (private). Without one, it's reached over an SSH tunnel (`ssh -L 8480:127.0.0.1:8480 …`), which works the same on Windows 10/11 (PowerShell), macOS and Linux, but is a hard first step for people who don't use a terminal. The installer shows the command with the server's address filled in; on a server joining an existing lab, it points to `sudo roostack node join <code>` first, which needs no setup page.
+- **Considered (2026-09-30), not built:** serving the setup page to the home network until setup is finished (plain HTTP, only on a server with no public address). A server with a public address would keep the tunnel either way: plain HTTP there crosses the internet. Rejected for now: an option to listen publicly.
+- **Open, for later: HTTPS by IP address.** Let's Encrypt issues certificates for bare IP addresses (short-lived ones), which could give a cloud server's setup page `https://<its address>` with a real certificate and no domain. Check whether Caddy can get one and how it renews, once public access has settled.
+- **Open: serving the UI through the domain as an explicit choice.** Today a domain automatically serves the UI at `roostack.<domain>` (home network only). Proposed by the project's Owner (2026-09-30): make that something the Owner turns on once a domain is set. Questions: what is the UI reached by if it's off (the tunnel only?); does the wizard offer it at the domain step; should the choice sit with public access (§6.11), which could later make the UI public with 2FA required.
+
 ### 6.4 Service Execution: Podman Quadlets — Locked
 
 - Roostack generates **Quadlet** files (`.container`, `.volume`, `.network`, etc.) and systemd runs them. Rootless units go in `~/.config/containers/systemd/`.
