@@ -43,9 +43,10 @@ Checked on 2026-09-30:
   detection knows `/boot/efi` but not `/boot/firmware`
   ([drives.go:65](internal/agent/drives.go), `systemMounts`).
 
-## Decisions to confirm with Tyris before starting
+## Decisions
 
-Each has a recommendation; the rest of the plan assumes it.
+Confirmed by Tyris (2026-09-30). Record them in SPEC.md with that date when
+the work lands.
 
 1. **Operating system: Raspberry Pi OS Lite (64-bit), the Debian 13
    "trixie" release.** It's what Pi owners have, it supports the Pi 5, and
@@ -53,17 +54,19 @@ Each has a recommendation; the rest of the plan assumes it.
    Rejected: Debian's own Raspberry Pi images (raspi.debian.net), which
    support the Pi 5 poorly and need more steps. Raspberry Pi OS becomes a
    second "Fully supported" row in SPEC §3.1, with its differences behind
-   the distro-specific seam that section already asks for.
+   the distro-specific seam that section already asks for. **Confirmed.**
 2. **Supported Pis: Pi 4 and Pi 5, 4 GB or more, running from an SSD** (USB,
    or NVMe on the Pi 5). An SD card works but gets a warning. 8 GB
    recommended for Immich. Pi 3 and Zero 2 W: unsupported (1 GB or less).
-3. **The Pi 5's 16 KB memory pages** (see Phase 2.4): recommend Roostack
-   *offers* the fix with a button (the agent edits `config.txt`, then the
+   **Confirmed.**
+3. **The Pi 5's 16 KB memory pages** (see Phase 2.4): Roostack *offers*
+   the fix with a button (the agent edits `config.txt`, then the
    Pi restarts at a time the Owner picks), rather than only explaining it.
    Same for turning on memory accounting (Phase 2.3) if it's needed.
+   **Confirmed.**
 4. **32-bit Raspberry Pi OS: not supported.** Setup refuses with a clear
    message. Several images have no 32-bit ARM build (Immich), and Podman on
-   32-bit is little tested.
+   32-bit is little tested. **Confirmed.**
 
 ## How to test
 
@@ -308,6 +311,18 @@ node reports its architecture (Phase 3.1). Where the architectures come
 from: either the catalog records them per image (written by the Phase 1.3
 check), or Roostack reads the index at install time. Recommend the
 catalog: it works offline.
+
+**We may add a package field saying a service can't run on ARM** (Tyris,
+2026-09-30), e.g. `architectures: [amd64]` in `pkgspec`, defaulting to
+both when absent. It covers what the image check can't see: an image that
+has an arm64 build but doesn't work on it (the 16 KB page problem, a
+feature needing x86 such as hardware video transcoding, or simply too
+slow). If added: validate it in `pkgspec`, document it in
+`help/docs/reference/packages.md`, have the Phase 1.3 check fail when it
+claims an architecture an image lacks, use it for placement here, and
+show it in the catalog ("Not available on this server's kind of
+processor") rather than hiding the package. Decide with Tyris whether to
+add it once Phase 2.4 shows whether any catalog package needs it.
 
 4.2 **Moving services and restoring across architectures.** Services move
 as raw files (SPEC §10.10), including the Postgres data folder. Postgres
