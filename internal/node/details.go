@@ -216,7 +216,13 @@ func (n *Local) BuiltIns(ctx context.Context) ([]BuiltIn, error) {
 	sysUnit("Roostack", "roostack.service", "Runs this server's services, backups and updates"+n.versionText())
 	sysUnit("Roostack agent", "roostack-agent.service", "Does the few things that need root: firewall, WireGuard, OS updates, restarts")
 	if !n.Lab.IsNode() {
-		userUnit("Caddy", "proxy", generate.CaddyUnit+".service", "Web addresses and HTTPS certificates for the lab's services")
+		b := BuiltIn{Name: "Caddy", Kind: "proxy", Status: "unknown", Detail: "Web addresses and HTTPS certificates for the lab's services"}
+		if n.Units != nil {
+			if st, err := n.Units.Status(ctx, generate.CaddyUnit+".service", CaddyBuildUnit); err == nil && len(st) == 2 {
+				b.Status = caddyState(st[0], st[1])
+			}
+		}
+		out = append(out, b)
 	}
 	if a.Storage != nil {
 		userUnit("Backup store", "store", generate.StorageUnit+".service",
@@ -278,6 +284,21 @@ func (n *Local) versionText() string {
 		return ""
 	}
 	return " (version " + n.Version + ")"
+}
+
+// caddyState says what Caddy is doing, from its unit and its image's build
+// unit: building its image (minutes the first time), or waiting for the
+// domain step, whose DNS login its container needs, rather than "inactive".
+func caddyState(caddy, build systemd.UnitStatus) string {
+	switch {
+	case build.ActiveState == "activating":
+		return "building its image (the first time takes several minutes)"
+	case build.ActiveState == "failed":
+		return "its image didn't build"
+	case caddy.LoadState == "not-found":
+		return "waiting for your domain"
+	}
+	return unitState(caddy)
 }
 
 func unitState(u systemd.UnitStatus) string {

@@ -81,6 +81,12 @@ func (p Paths) CaddyDataDir() string { return filepath.Join(p.StateDir, "caddy-d
 // CrowdSec reads (SPEC.md §6.11).
 func (p Paths) CaddyLogDir() string { return filepath.Join(p.StateDir, "caddy-logs") }
 
+// CaddyBuildLog is the output of the latest build of Roostack's Caddy
+// image. The roostack user's units log to the system journal (it's a
+// system user), which Roostack can't read, so the build writes here and
+// the UI shows it while it runs.
+func (p Paths) CaddyBuildLog() string { return filepath.Join(p.StateDir, "caddy-build.log") }
+
 // CrowdSecDir holds CrowdSec's configuration and database.
 func (p Paths) CrowdSecDir() string { return filepath.Join(p.StateDir, "crowdsec") }
 

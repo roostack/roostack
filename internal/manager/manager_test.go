@@ -33,8 +33,11 @@ func (f *fakeSystemd) rec(verb string, u []string) error {
 	f.calls = append(f.calls, verb+" "+strings.Join(u, " "))
 	return nil
 }
-func (f *fakeSystemd) DaemonReload(context.Context) error           { return f.rec("daemon-reload", nil) }
-func (f *fakeSystemd) Start(_ context.Context, u ...string) error   { return f.rec("start", u) }
+func (f *fakeSystemd) DaemonReload(context.Context) error         { return f.rec("daemon-reload", nil) }
+func (f *fakeSystemd) Start(_ context.Context, u ...string) error { return f.rec("start", u) }
+func (f *fakeSystemd) StartNoBlock(_ context.Context, u ...string) error {
+	return f.rec("start --no-block", u)
+}
 func (f *fakeSystemd) Restart(_ context.Context, u ...string) error { return f.rec("restart", u) }
 func (f *fakeSystemd) Stop(_ context.Context, u ...string) error    { return f.rec("stop", u) }
 func (f *fakeSystemd) ReloadOrRestart(_ context.Context, u ...string) error {
