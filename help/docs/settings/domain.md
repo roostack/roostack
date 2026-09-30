@@ -3,7 +3,7 @@
 A **domain** is a name you own on the internet, such as `smith.family`.
 Roostack gives each service its own address under it, such as
 `passwords.smith.family` and `photos.smith.family`, and Roostack itself is
-at `roostack.smith.family`.
+at `roost.smith.family`.
 
 You buy a domain from a company such as Cloudflare or Porkbun, for a few
 pounds a year. The company that runs its **DNS** (the internet's address
@@ -54,7 +54,7 @@ On the internet
 :   There's no home network, so services start public, protected by
     CrowdSec, and private ones are only reachable through an SSH tunnel
     ([how](../services/public.md#private-on-a-cloud-server)). Roostack's own
-    pages are at `roostack.<your domain>`, behind your password and a code,
+    pages are at `roost.<your domain>`, behind your password and a code,
     unless you keep them to an SSH tunnel. One DNS record, `*.<your
     domain>`, points at the server's public address.
 

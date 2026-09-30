@@ -122,7 +122,7 @@ type Public struct {
 	// NoSharing: the Owner chose not to share them (SPEC.md §6.10). Local
 	// detection and blocking still work; the community blocklist doesn't.
 	NoSharing bool `yaml:"no_sharing,omitempty"`
-	// UITunnelOnly keeps Roostack's own pages off roostack.<domain> on a
+	// UITunnelOnly keeps Roostack's own pages off roost.<domain> on a
 	// lab on the internet, where they're public by default (SPEC.md
 	// §6.3.2): they're then only reachable through an SSH tunnel.
 	UITunnelOnly bool `yaml:"ui_tunnel_only,omitempty"`
@@ -284,7 +284,7 @@ const (
 func (l Lab) OnInternet() bool { return l.Network == NetworkInternet }
 
 // PublicUI reports whether Roostack's own pages are public at
-// roostack.<domain>: on a lab on the internet, unless the Owner keeps them
+// roost.<domain>: on a lab on the internet, unless the Owner keeps them
 // to SSH tunnels (SPEC.md §6.3.2).
 func (l Lab) PublicUI() bool { return l.OnInternet() && !l.Public.UITunnelOnly }
 

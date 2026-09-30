@@ -194,7 +194,7 @@
   <fieldset x-show="network === 'internet'"{{if not .Internet}} x-cloak{{end}}>
     <legend>Roostack's own pages</legend>
     <label class="check"><input type="radio" name="ui" value="public" {{if not .UITunnelOnly}}checked{{end}}>
-      <span>At {{with .Domain}}<code>roostack.{{.}}</code>{{else}}roostack.<em>your domain</em>{{end}} (recommended)
+      <span>At {{with .Domain}}<code>roost.{{.}}</code>{{else}}<code>roost.&lt;your domain&gt;</code>{{end}} (recommended)
         <small>Anyone can reach the login page. Your password and a code from your authenticator app protect it,
           CrowdSec blocks attackers, and password tries are limited.</small></span></label>
     <label class="check"><input type="radio" name="ui" value="tunnel" {{if .UITunnelOnly}}checked{{end}}>
