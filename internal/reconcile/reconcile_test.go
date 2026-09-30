@@ -2,6 +2,7 @@ package reconcile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,12 +11,14 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/systemd"
 )
 
 type fakeSystemd struct{ calls []string }
@@ -275,5 +278,40 @@ func TestMissingUserSecret(t *testing.T) {
 	}
 	if len(plan.Waiting) != 0 || !slices.Contains(plan.StartUnits, "roostack-caddy.service") {
 		t.Errorf("Caddy should start once its secret is given: %+v", plan)
+	}
+}
+
+// flakySystemd fails to start units, as at boot before the network is up,
+// then reports them as it's told (systemd restarting them).
+type flakySystemd struct {
+	fakeSystemd
+	state string
+}
+
+func (f *flakySystemd) Start(_ context.Context, u ...string) error {
+	f.record("start", u)
+	return errors.New("Job for roostack-crowdsec.service failed")
+}
+func (f *flakySystemd) Status(_ context.Context, units ...string) ([]systemd.UnitStatus, error) {
+	var out []systemd.UnitStatus
+	for _, u := range units {
+		out = append(out, systemd.UnitStatus{Unit: u, ActiveState: f.state})
+	}
+	return out, nil
+}
+
+// A failed start that systemd's restart recovers from isn't a failure; one
+// that stays down is (docs/ASSUMPTIONS.md C11).
+func TestStartSettles(t *testing.T) {
+	for _, c := range []struct {
+		state   string
+		wantErr bool
+	}{{"active", false}, {"failed", true}} {
+		f := &flakySystemd{state: c.state}
+		r := &Reconciler{Systemd: f, Settle: 3 * time.Second}
+		err := r.start(context.Background(), nil, "roostack-crowdsec.service")
+		if (err != nil) != c.wantErr {
+			t.Errorf("%s: err %v", c.state, err)
+		}
 	}
 }

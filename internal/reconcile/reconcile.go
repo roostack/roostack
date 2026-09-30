@@ -11,6 +11,7 @@
 package reconcile
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -22,10 +23,12 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/systemd"
 )
 
 // Desired is the complete desired state of the host.
@@ -67,6 +70,45 @@ type Reconciler struct {
 	// Progress hears each step of starting new containers, for showing a
 	// service's install step by step (optional).
 	Progress func(Event)
+	// Settle is how long a unit that failed to start gets to come up after
+	// all, through systemd restarting it (0 means 30 s).
+	Settle time.Duration
+}
+
+// UnitStatuser reads units' states; a Systemd that implements it lets a
+// failed start be retried by systemd (Reconciler.start).
+type UnitStatuser interface {
+	Status(ctx context.Context, units ...string) ([]systemd.UnitStatus, error)
+}
+
+// start starts units. If that fails, systemd restarts failed units
+// (Restart=always), and one that failed only because it started too early,
+// such as pasta binding a port at boot before the network was fully up,
+// is running a few seconds later (docs/ASSUMPTIONS.md C11). So a failure
+// counts only if the units aren't all active within Settle.
+func (r *Reconciler) start(ctx context.Context, log *activity.Log, units ...string) error {
+	err := r.Systemd.Start(ctx, units...)
+	st, ok := r.Systemd.(UnitStatuser)
+	if err == nil || len(units) == 0 || !ok {
+		return err
+	}
+	log.Printf("Starting failed; waiting for systemd to try again: %v", err)
+	deadline := time.Now().Add(cmp.Or(r.Settle, 30*time.Second))
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(2 * time.Second):
+		}
+		states, serr := st.Status(ctx, units...)
+		if serr == nil && len(states) == len(units) && !slices.ContainsFunc(states, func(s systemd.UnitStatus) bool {
+			return s.ActiveState != "active"
+		}) {
+			log.Printf("They're running now.")
+			return nil
+		}
+	}
+	return err
 }
 
 // Event is a step of an apply that people wait for: downloading or starting
@@ -458,7 +500,7 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 	}
 	log.Step("Starting services")
 	log.Printf("%s", strings.Join(running, " "))
-	if err := r.Systemd.Start(ctx, running...); err != nil {
+	if err := r.start(ctx, log, running...); err != nil {
 		return err
 	}
 	for _, u := range fresh {
@@ -477,7 +519,7 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 			log.Step("Starting %s: %s", name, p.StartNotes[u])
 		}
 		r.progress(StageStart, u, false, nil)
-		err := r.Systemd.Start(ctx, u)
+		err := r.start(ctx, log, u)
 		r.progress(StageStart, u, true, err)
 		if err != nil {
 			return err

@@ -43,8 +43,49 @@ func (c HostChanges) Fingerprint() string {
 	return hex.EncodeToString(sum[:8])
 }
 
-// readFile reads a mirror list (tests replace it).
-var readFile = os.ReadFile
+// readFile reads a mirror list (tests replace it); aptLists is where apt
+// keeps the release files it downloaded.
+var (
+	readFile = os.ReadFile
+	aptLists = "/var/lib/apt/lists"
+)
+
+// debianSource reports whether a package source is Debian's: on a Debian
+// host name, or a mirror of Debian (a cloud provider's, such as
+// mirrors.linode.com) whose release files, which apt checked against
+// Debian's signing keys, say "Origin: Debian".
+func debianSource(uri string) bool {
+	return debianHost(uri) || debianMirror(uri)
+}
+
+// debianMirror looks at the release files apt downloaded from uri. apt
+// names them after the address: mirrors.linode.com/debian's are
+// mirrors.linode.com_debian_dists_<suite>_InRelease.
+func debianMirror(uri string) bool {
+	rest, ok := strings.CutPrefix(uri, "https://")
+	if !ok {
+		if rest, ok = strings.CutPrefix(uri, "http://"); !ok {
+			return false
+		}
+	}
+	prefix := strings.ReplaceAll(strings.TrimSuffix(rest, "/"), "/", "_") + "_dists_"
+	if strings.ContainsAny(prefix, "*?[") {
+		return false
+	}
+	files, _ := filepath.Glob(filepath.Join(aptLists, prefix+"*Release"))
+	for _, f := range files {
+		data, err := readFile(f)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			if strings.TrimSpace(line) == "Origin: Debian" {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // debianHost reports whether a package source is Debian's own. A mirror
 // list (mirror+file://, as Debian's cloud images use) is if every mirror
@@ -82,7 +123,7 @@ func aptSources(files map[string]string) []string {
 		enabled := true
 		flush := func() {
 			for _, u := range stanza {
-				if enabled && !debianHost(u) {
+				if enabled && !debianSource(u) {
 					out = append(out, filepath.Base(name)+": "+u)
 				}
 			}
@@ -98,7 +139,7 @@ func aptSources(files map[string]string) []string {
 			case strings.HasPrefix(line, "deb ") || strings.HasPrefix(line, "deb-src "):
 				for _, w := range strings.Fields(line)[1:] { // one-line format
 					if strings.Contains(w, "://") {
-						if !debianHost(w) {
+						if !debianSource(w) {
 							out = append(out, filepath.Base(name)+": "+w)
 						}
 						break

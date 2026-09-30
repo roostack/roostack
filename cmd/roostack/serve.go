@@ -52,9 +52,7 @@ func serve(args []string) error {
 	lab.HasGPU = config.DetectGPU()
 	// On a lab on the internet, an SSH tunnel's requests reach Caddy from
 	// this address, which private addresses allow (SPEC.md §6.12).
-	if ip, err := dnsrecords.DetectLANIP(); err == nil {
-		lab.HostIP = ip
-	}
+	lab.HostIP = waitForNetwork(log)
 	id, err := withNode(&lab)
 	if err != nil {
 		return err
@@ -469,4 +467,31 @@ func lookupService(services serverServices, name string) (*generate.Output, stri
 		}
 	}
 	return nil, "", fmt.Errorf("%s is not installed", name)
+}
+
+// waitForNetwork waits, up to a minute, until this server has a route to
+// the internet, and returns the address it uses (lab.HostIP). At boot,
+// network-online.target can come before the network is usable: on
+// Linode's Debian image, before DHCP has given the server its address.
+// Starting then made the first apply and the DNS check fail ("network is
+// unreachable"), and Caddy's private addresses miss this server's own
+// (docs/ASSUMPTIONS.md C11).
+func waitForNetwork(log *slog.Logger) string {
+	for i := 0; ; i++ {
+		ip, err := dnsrecords.DetectLANIP()
+		if err == nil {
+			if i > 0 {
+				log.Info("the network is up", "waited", fmt.Sprintf("%ds", i))
+			}
+			return ip
+		}
+		if i == 60 {
+			log.Warn("no network after a minute; carrying on", "err", err)
+			return ""
+		}
+		if i == 0 {
+			log.Info("waiting for the network", "err", err)
+		}
+		time.Sleep(time.Second)
+	}
 }
