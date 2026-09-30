@@ -1391,3 +1391,62 @@ func TestCaddyBuildShown(t *testing.T) {
 		t.Error("a finished build isn't shown")
 	}
 }
+
+// While a service installs, its page lists the steps (with the log), its
+// address isn't a link yet, and the Services list and Home say how far
+// it's got instead of offering Open; once it's done, the page reloads.
+func TestInstallingShown(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	started := time.Now().Add(-14 * time.Second)
+	install := &node.InstallProgress{Log: activity.Apply, Steps: []node.InstallStep{
+		{Key: "download a", Title: "Downloading the database (Postgres)", Started: started.Add(-time.Minute), Finished: started},
+		{Key: "download b", Title: "Downloading Vaultwarden", Started: started},
+		{Key: "start b", Title: "Starting Vaultwarden"},
+	}}
+	installing := true
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		v := ServiceView{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", URLs: []string{"https://passwords.lab.example.com"}}
+		if installing {
+			v.Status, v.Install = "installing", install
+		}
+		return []ServiceView{v}, nil
+	}
+	h.acts().Start(activity.Apply, "Applying changes").Printf("Copying blob sha256:0123")
+
+	_, body := h.get("/services/vaultwarden")
+	for _, want := range []string{`class="step-done"`, "Downloading the database (Postgres)", "1 min",
+		`class="step-now"`, "Downloading Vaultwarden…", "for 14 s", `class="step-todo"`, "Copying blob sha256:0123",
+		`<span class="address-pending">https://passwords.lab.example.com</span>`, "ready once installed"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("service page missing %q", want)
+		}
+	}
+	if strings.Contains(body, `href="https://passwords.lab.example.com"`) {
+		t.Error("no link to the address while installing")
+	}
+	for _, path := range []string{"/services", "/"} {
+		_, body := h.get(path)
+		if !strings.Contains(body, "Step 2 of 3: downloading Vaultwarden…") || strings.Contains(body, `href="https://passwords.lab.example.com"`) {
+			t.Errorf("%s: should show the step, not Open", path)
+		}
+	}
+
+	// A step running for longer than usual says so, and that it's moving.
+	install.Steps[1].Started = time.Now().Add(-6 * time.Minute)
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "Still downloading Vaultwarden, for 6 min.") {
+		t.Error("a slow step should say it's still going")
+	}
+
+	// Done: the step list's next poll reloads the page.
+	installing = false
+	req, _ := http.NewRequest("GET", h.srv.URL+"/services/vaultwarden?installing=1", nil)
+	req.Header.Set("HX-Request", "true")
+	resp, err := h.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.Header.Get("HX-Refresh") != "true" {
+		t.Error("a finished install should reload the page")
+	}
+}

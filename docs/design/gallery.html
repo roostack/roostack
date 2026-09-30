@@ -401,10 +401,12 @@
           <p class="hint">Pass the service&#39;s state.</p>
           <div class="panels">
             <div class="panel" data-mode="light"><span class="status status-running">running</span>
+<span class="status status-installing"><span class="spinner" aria-hidden="true"></span> installing</span>
 <span class="status status-starting">starting</span>
 <span class="status status-failed">failed</span>
 <span class="status status-stopped">stopped</span></div>
             <div class="panel" data-mode="dark"><span class="status status-running">running</span>
+<span class="status status-installing"><span class="spinner" aria-hidden="true"></span> installing</span>
 <span class="status status-starting">starting</span>
 <span class="status status-failed">failed</span>
 <span class="status status-stopped">stopped</span></div>
@@ -414,11 +416,12 @@
             
             <p class="markup-label">In a template</p>
             <pre class="output">{{status &#34;running&#34;}}
+{{status &#34;installing&#34;}}
 {{status &#34;starting&#34;}}
 {{status &#34;failed&#34;}}
 {{status &#34;stopped&#34;}}</pre>
             <p class="markup-label">Renders as</p>
-            <pre class="output">&lt;span class=&#34;status status-running&#34;&gt;running&lt;/span&gt;&lt;span class=&#34;status status-starting&#34;&gt;starting&lt;/span&gt;&lt;span class=&#34;status status-failed&#34;&gt;failed&lt;/span&gt;&lt;span class=&#34;status status-stopped&#34;&gt;stopped&lt;/span&gt;</pre>
+            <pre class="output">&lt;span class=&#34;status status-running&#34;&gt;running&lt;/span&gt;&lt;span class=&#34;status status-installing&#34;&gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;installing&lt;/span&gt;&lt;span class=&#34;status status-starting&#34;&gt;starting&lt;/span&gt;&lt;span class=&#34;status status-failed&#34;&gt;failed&lt;/span&gt;&lt;span class=&#34;status status-stopped&#34;&gt;stopped&lt;/span&gt;</pre>
             
           </details>
         </div>
@@ -1332,6 +1335,82 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
 &lt;/pre&gt;
   &lt;/details&gt;
 &lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Install steps <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">A new service&#39;s install (node.InstallProgress, in ServiceView.Install): each step done, in progress (with how long so far) or to do. The service page shows every step in a notice; the Services list and Home show one line (install-line).</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="notice" role="status">
+  <p><strong>Installing Forgejo.</strong> This usually takes a few minutes.</p>
+  
+<ol class="steps">
+  <li class="step-done"><span class="mark" aria-hidden="true">✓</span>
+    <span>Downloading the database (Postgres)<span class="sr-only"> (done)</span></span>
+    <small>10 s</small></li>
+  <li class="step-done"><span class="mark" aria-hidden="true">✓</span>
+    <span>Starting the database (Postgres)<span class="sr-only"> (done)</span></span>
+    <small>12 s</small></li>
+  <li class="step-now"><span class="mark" aria-hidden="true"><span class="spinner"></span></span>
+    <span>Downloading Forgejo…<span class="sr-only"> (in progress)</span></span>
+    <small></small></li>
+  <li class="step-todo"><span class="mark" aria-hidden="true">○</span>
+    <span>Starting Forgejo<span class="sr-only"> (to do)</span></span>
+    <small></small></li>
+  <li class="step-todo"><span class="mark" aria-hidden="true">○</span>
+    <span>Finishing setup (create the administrator account)<span class="sr-only"> (to do)</span></span>
+    <small></small></li>
+</ol>
+
+</div>
+<p class="install-line"><span class="spinner" aria-hidden="true"></span> Step 3 of 5: downloading Forgejo…</p></div>
+            <div class="panel" data-mode="dark"><div class="notice" role="status">
+  <p><strong>Installing Forgejo.</strong> This usually takes a few minutes.</p>
+  
+<ol class="steps">
+  <li class="step-done"><span class="mark" aria-hidden="true">✓</span>
+    <span>Downloading the database (Postgres)<span class="sr-only"> (done)</span></span>
+    <small>10 s</small></li>
+  <li class="step-done"><span class="mark" aria-hidden="true">✓</span>
+    <span>Starting the database (Postgres)<span class="sr-only"> (done)</span></span>
+    <small>12 s</small></li>
+  <li class="step-now"><span class="mark" aria-hidden="true"><span class="spinner"></span></span>
+    <span>Downloading Forgejo…<span class="sr-only"> (in progress)</span></span>
+    <small></small></li>
+  <li class="step-todo"><span class="mark" aria-hidden="true">○</span>
+    <span>Starting Forgejo<span class="sr-only"> (to do)</span></span>
+    <small></small></li>
+  <li class="step-todo"><span class="mark" aria-hidden="true">○</span>
+    <span>Finishing setup (create the administrator account)<span class="sr-only"> (to do)</span></span>
+    <small></small></li>
+</ol>
+
+</div>
+<p class="install-line"><span class="spinner" aria-hidden="true"></span> Step 3 of 5: downloading Forgejo…</p></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;div class=&#34;notice&#34; role=&#34;status&#34;&gt;
+  &lt;p&gt;&lt;strong&gt;Installing Forgejo.&lt;/strong&gt; This usually takes a few minutes.&lt;/p&gt;
+  {{template &#34;install-steps&#34; .Install}}
+&lt;/div&gt;
+{{template &#34;install-line&#34; .InstallService}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;div class=&#34;notice&#34; role=&#34;status&#34;&gt;
+  &lt;p&gt;&lt;strong&gt;Installing Forgejo.&lt;/strong&gt;This usually takes a few minutes.&lt;/p&gt;
+  &lt;ol class=&#34;steps&#34;&gt;
+    &lt;li class=&#34;step-done&#34;&gt;&lt;span class=&#34;mark&#34; aria-hidden=&#34;true&#34;&gt;✓&lt;/span&gt;&lt;span&gt;Downloading the database (Postgres)&lt;span class=&#34;sr-only&#34;&gt;(done)&lt;/span&gt;&lt;/span&gt;&lt;small&gt;10 s&lt;/small&gt;&lt;/li&gt;
+    &lt;li class=&#34;step-done&#34;&gt;&lt;span class=&#34;mark&#34; aria-hidden=&#34;true&#34;&gt;✓&lt;/span&gt;&lt;span&gt;Starting the database (Postgres)&lt;span class=&#34;sr-only&#34;&gt;(done)&lt;/span&gt;&lt;/span&gt;&lt;small&gt;12 s&lt;/small&gt;&lt;/li&gt;
+    &lt;li class=&#34;step-now&#34;&gt;&lt;span class=&#34;mark&#34; aria-hidden=&#34;true&#34;&gt;&lt;span class=&#34;spinner&#34;&gt;&lt;/span&gt;&lt;/span&gt;&lt;span&gt;Downloading Forgejo…&lt;span class=&#34;sr-only&#34;&gt;(in progress)&lt;/span&gt;&lt;/span&gt;&lt;small&gt;&lt;/small&gt;&lt;/li&gt;
+    &lt;li class=&#34;step-todo&#34;&gt;&lt;span class=&#34;mark&#34; aria-hidden=&#34;true&#34;&gt;○&lt;/span&gt;&lt;span&gt;Starting Forgejo&lt;span class=&#34;sr-only&#34;&gt;(to do)&lt;/span&gt;&lt;/span&gt;&lt;small&gt;&lt;/small&gt;&lt;/li&gt;
+    &lt;li class=&#34;step-todo&#34;&gt;&lt;span class=&#34;mark&#34; aria-hidden=&#34;true&#34;&gt;○&lt;/span&gt;&lt;span&gt;Finishing setup (create the administrator account)&lt;span class=&#34;sr-only&#34;&gt;(to do)&lt;/span&gt;&lt;/span&gt;&lt;small&gt;&lt;/small&gt;&lt;/li&gt;
+  &lt;/ol&gt;
+&lt;/div&gt;
+&lt;p class=&#34;install-line&#34;&gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;Step 3 of 5: downloading Forgejo…&lt;/p&gt;</pre>
             
           </details>
         </div>

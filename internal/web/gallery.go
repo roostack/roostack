@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/node"
 )
 
 // The design gallery shows every token and component, in light and dark
@@ -69,6 +70,7 @@ var gallerySections = []gallerySection{
 		Examples: []galleryExample{
 			{"Service status", "Pass the service's state.", `
 {{status "running"}}
+{{status "installing"}}
 {{status "starting"}}
 {{status "failed"}}
 {{status "stopped"}}`},
@@ -241,6 +243,12 @@ var gallerySections = []gallerySection{
 {{activity .FinishedActivity}}`},
 			{"Failed", "", `
 {{activity .FailedActivity}}`},
+			{"Install steps", "A new service's install (node.InstallProgress, in ServiceView.Install): each step done, in progress (with how long so far) or to do. The service page shows every step in a notice; the Services list and Home show one line (install-line).", `
+<div class="notice" role="status">
+  <p><strong>Installing Forgejo.</strong> This usually takes a few minutes.</p>
+  {{template "install-steps" .Install}}
+</div>
+{{template "install-line" .InstallService}}`},
 		}},
 	{ID: "secrets", Title: "Secrets and codes", Intro: "Values to copy, such as a temporary password: shown once, easy to select.",
 		Examples: []galleryExample{
@@ -315,7 +323,16 @@ func gallerySamples() map[string]any {
 		}
 		return &activityView{Kind: "gallery", Snapshot: s, Example: true}
 	}
+	install := &node.InstallProgress{Steps: []node.InstallStep{
+		{Title: "Downloading the database (Postgres)", Started: at, Finished: at.Add(10 * time.Second)},
+		{Title: "Starting the database (Postgres)", Started: at.Add(10 * time.Second), Finished: at.Add(22 * time.Second)},
+		{Title: "Downloading Forgejo"},
+		{Title: "Starting Forgejo"},
+		{Title: "Finishing setup (create the administrator account)"},
+	}}
 	return map[string]any{
+		"Install":          install,
+		"InstallService":   ServiceView{ServiceDetail: node.ServiceDetail{Install: install}},
 		"Settings":         map[string]any{"SettingsGroups": settingsGroups(), "SettingsArea": "updates"},
 		"UpdatesActivity":  view("Installing updates", "", false, "==> Installing updates", "Unpacking curl (8.14.1-2+deb13u5) ..."),
 		"FinishedActivity": view("Installed 3 updates: curl, libcurl4t64, tzdata.", "", true, "==> Installing updates", "==> Done"),

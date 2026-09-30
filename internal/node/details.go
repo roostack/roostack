@@ -31,6 +31,8 @@ type ServiceDetail struct {
 	// DataSize is bytes in its data folders (-1 until counted; counted in
 	// the background, at most every 10 minutes).
 	DataSize int64 `json:"data_size"`
+	// Install is its install step by step, while it's being installed.
+	Install *InstallProgress `json:"install,omitempty"`
 }
 
 // Container is one of a service's containers.
@@ -160,12 +162,30 @@ func (n *Local) ServiceDetails(ctx context.Context) (map[string]ServiceDetail, e
 		}
 		d.Ports = gen.HostPorts
 		states := map[string]string{}
+		notWritten := true
 		if n.Units != nil {
 			if units, err := n.Units.Status(ctx, gen.Units...); err == nil {
 				d.Status = Summarize(units)
 				for _, u := range units {
 					states[u.Unit] = unitState(u)
+					if u.LoadState != "not-found" {
+						notWritten = false
+					}
 				}
+			} else {
+				notWritten = false
+			}
+		}
+		// Installing: step by step, or waiting for its apply to begin (no
+		// units yet).
+		d.Install = n.installProgress(name)
+		if d.Install == nil && notWritten && n.Units != nil && len(gen.Units) > 0 {
+			d.Install = queuedInstall(!lab.IsNode() && n.caddyBuilding(ctx))
+		}
+		if d.Install != nil {
+			d.Status = "installing"
+			if d.Install.Failed != "" {
+				d.Status = "failed"
 			}
 		}
 		for _, q := range gen.Quadlets {
