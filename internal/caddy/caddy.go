@@ -200,8 +200,9 @@ type MainConfig struct {
 	AccessLog string
 }
 
-// AdminSubdomain is where the Roostack UI is served.
-const AdminSubdomain = "roostack"
+// AdminSubdomain is where the Roostack UI is served: roost.<domain>
+// (renamed from roostack. on 2026-10-01: shorter to type and say).
+const AdminSubdomain = "roost"
 
 // AdminLoginPaths get the strict rate limit when the UI is public: logging
 // in (password, then code) and the recovery key's password-and-code check.

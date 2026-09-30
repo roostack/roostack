@@ -58,7 +58,7 @@ Then say whether the server is **at home**, behind a router, or **on the
 internet**, like a cloud server (a VPS). Roostack suggests an answer: a
 server with a public address of its own looks like a cloud server. On the
 internet, services start public and Roostack's own pages are at
-`roostack.<your domain>`; [Where your lab is](../settings/domain.md#where-your-lab-is)
+`roost.<your domain>`; [Where your lab is](../settings/domain.md#where-your-lab-is)
 explains the difference.
 
 ## 4. Who can log in to this server?

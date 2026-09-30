@@ -90,7 +90,7 @@ Where it is and DNS**; the setup wizard asks too. Then:
 - **Services start public.** Installing one ticks **Anyone on the internet
   can reach it**; untick it to keep it private. Services whose package
   says they aren't safe to make public still start private.
-- **Roostack's own pages** are at `roostack.<your domain>`, for anyone to
+- **Roostack's own pages** are at `roost.<your domain>`, for anyone to
   reach, protected by your password, a code from your authenticator app,
   CrowdSec, and a strict limit on login attempts. You can keep them to an
   SSH tunnel instead.

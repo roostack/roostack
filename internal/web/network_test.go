@@ -81,7 +81,7 @@ func TestInternetLabPages(t *testing.T) {
 		t.Error("a private service on the internet is reachable through a tunnel only")
 	}
 	_, body := h.get("/services/vaultwarden/public/web")
-	for _, want := range []string{"Private", "only reachable through an SSH tunnel", "Roostack's own pages are public too, at <code>roostack.lab.example.com</code>"} {
+	for _, want := range []string{"Private", "only reachable through an SSH tunnel", "Roostack's own pages are public too, at <code>roost.lab.example.com</code>"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("public page (private) missing %q", want)
 		}

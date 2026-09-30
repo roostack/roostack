@@ -92,7 +92,7 @@ WantedBy=default.target
 		}
 		format json
 	}
-	@roostack-admin host roostack.lab.example.com
+	@roostack-admin host roost.lab.example.com
 	handle @roostack-admin {
 		@roostack-admin-external not remote_ip private_ranges 100.64.0.0/10
 		abort @roostack-admin-external

@@ -91,7 +91,7 @@ WantedBy=default.target
 		}
 		format json
 	}
-	@roostack-admin host roostack.lab.example.com
+	@roostack-admin host roost.lab.example.com
 	handle @roostack-admin {
 		route {
 			crowdsec
