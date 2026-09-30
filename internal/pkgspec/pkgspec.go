@@ -134,7 +134,7 @@ type Link struct {
 	Title       string `yaml:"title"`
 	Description string `yaml:"description"`
 	Route       string `yaml:"route"` // which route's address
-	Path        string `yaml:"path"`  // e.g. /-/admin
+	Path        string `yaml:"path"`  // e.g. /admin
 }
 
 // Container is one container in the service.

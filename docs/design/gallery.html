@@ -352,6 +352,61 @@
           </details>
         </div>
         
+        <div class="example">
+          <h3>Confirm a form <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">confirmSubmit QUESTION TEXT KIND: the submit button of a form that has fields of its own (checkboxes, choices), which confirm can&#39;t carry. The form&#39;s own checks (required fields) run first; the dialog&#39;s button submits the form. KIND is the dialog button&#39;s class (danger or &#34;&#34;).</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form method="post" action="#">
+  <label class="check"><input type="checkbox" name="open" value="/admin"><span>Make <code>/admin</code> public too</span></label>
+  <span class="confirm" x-data>
+  <button type="button" x-on:click="$el.closest('form').reportValidity() && $refs.dialog.showModal()">Make public</button>
+  <dialog x-ref="dialog" class="dialog" aria-labelledby="confirm-1kygi7rc11iou">
+    <p id="confirm-1kygi7rc11iou">Make passwords.lab.example.com public? Anyone on the internet will be able to reach it.</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dialog.close()" autofocus>Cancel</button>
+      <button type="submit">Make public</button>
+    </div>
+  </dialog>
+</span>
+</form></div>
+            <div class="panel" data-mode="dark"><form method="post" action="#">
+  <label class="check"><input type="checkbox" name="open" value="/admin"><span>Make <code>/admin</code> public too</span></label>
+  <span class="confirm" x-data>
+  <button type="button" x-on:click="$el.closest('form').reportValidity() && $refs.dialog.showModal()">Make public</button>
+  <dialog x-ref="dialog" class="dialog" aria-labelledby="confirm-1kygi7rc11iou">
+    <p id="confirm-1kygi7rc11iou">Make passwords.lab.example.com public? Anyone on the internet will be able to reach it.</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dialog.close()" autofocus>Cancel</button>
+      <button type="submit">Make public</button>
+    </div>
+  </dialog>
+</span>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;form method=&#34;post&#34; action=&#34;#&#34;&gt;
+  &lt;label class=&#34;check&#34;&gt;&lt;input type=&#34;checkbox&#34; name=&#34;open&#34; value=&#34;/admin&#34;&gt;&lt;span&gt;Make &lt;code&gt;/admin&lt;/code&gt; public too&lt;/span&gt;&lt;/label&gt;
+  {{confirmSubmit &#34;Make passwords.lab.example.com public? Anyone on the internet will be able to reach it.&#34; &#34;Make public&#34; &#34;&#34;}}
+&lt;/form&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;form method=&#34;post&#34; action=&#34;#&#34;&gt;
+  &lt;label class=&#34;check&#34;&gt;
+    &lt;input type=&#34;checkbox&#34; name=&#34;open&#34; value=&#34;/admin&#34;&gt;&lt;span&gt;Make&lt;code&gt;/admin&lt;/code&gt;public too&lt;/span&gt;
+  &lt;/label&gt;&lt;span class=&#34;confirm&#34; x-data&gt;
+  &lt;button type=&#34;button&#34; x-on:click=&#34;$el.closest(&#39;form&#39;).reportValidity() &amp;&amp; $refs.dialog.showModal()&#34;&gt;Make public&lt;/button&gt;&lt;dialog x-ref=&#34;dialog&#34; class=&#34;dialog&#34; aria-labelledby=&#34;confirm-1kygi7rc11iou&#34;&gt;
+  &lt;p id=&#34;confirm-1kygi7rc11iou&#34;&gt;Make passwords.lab.example.com public? Anyone on the internet will be able to reach it.&lt;/p&gt;
+  &lt;div class=&#34;dialog-actions&#34;&gt;
+    &lt;button type=&#34;button&#34; class=&#34;secondary&#34; x-on:click=&#34;$refs.dialog.close()&#34; autofocus&gt;Cancel&lt;/button&gt;
+    &lt;button type=&#34;submit&#34;&gt;Make public&lt;/button&gt;
+  &lt;/div&gt;&lt;/dialog&gt;&lt;/span&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
       </section>
       
       <section id="notices">
@@ -516,13 +571,15 @@
         
         <div class="example">
           <h3>Icons <span class="badge badge-highlight">Template component</span></h3>
-          <p class="hint">icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text&#39;s colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, new-window, help (icons.go).</p>
+          <p class="hint">icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text&#39;s colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, manage, new-window, help (icons.go).</p>
           <div class="panels">
             <div class="panel" data-mode="light"><p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Role</p>
+<p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Manage</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Disk</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/></svg>Backup store</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg>Network link</p></div>
             <div class="panel" data-mode="dark"><p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Role</p>
+<p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Manage</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Disk</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/></svg>Backup store</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg>Network link</p></div>
@@ -532,11 +589,14 @@
             
             <p class="markup-label">In a template</p>
             <pre class="output">&lt;p class=&#34;with-icon&#34;&gt;{{icon &#34;server&#34;}}Role&lt;/p&gt;
+&lt;p class=&#34;with-icon&#34;&gt;{{icon &#34;manage&#34;}}Manage&lt;/p&gt;
 &lt;p class=&#34;with-icon&#34;&gt;{{icon &#34;disk&#34;}}Disk&lt;/p&gt;
 &lt;p class=&#34;with-icon&#34;&gt;{{icon &#34;store&#34;}}Backup store&lt;/p&gt;
 &lt;p class=&#34;with-icon&#34;&gt;{{icon &#34;network&#34;}}Network link&lt;/p&gt;</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;p class=&#34;with-icon&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;3&#34; y=&#34;4&#34; width=&#34;18&#34; height=&#34;7&#34; rx=&#34;2&#34;/&gt;&lt;rect x=&#34;3&#34; y=&#34;13&#34; width=&#34;18&#34; height=&#34;7&#34; rx=&#34;2&#34;/&gt;&lt;path d=&#34;M7 7.5h.01M7 16.5h.01&#34;/&gt;&lt;/svg&gt;Role
+&lt;/p&gt;
+&lt;p class=&#34;with-icon&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1&#34;/&gt;&lt;circle cx=&#34;15&#34; cy=&#34;6&#34; r=&#34;2&#34;/&gt;&lt;circle cx=&#34;9&#34; cy=&#34;12&#34; r=&#34;2&#34;/&gt;&lt;circle cx=&#34;17&#34; cy=&#34;18&#34; r=&#34;2&#34;/&gt;&lt;/svg&gt;Manage
 &lt;/p&gt;
 &lt;p class=&#34;with-icon&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;ellipse cx=&#34;12&#34; cy=&#34;6&#34; rx=&#34;8&#34; ry=&#34;3&#34;/&gt;&lt;path d=&#34;M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6&#34;/&gt;&lt;path d=&#34;M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3&#34;/&gt;&lt;/svg&gt;Disk
 &lt;/p&gt;

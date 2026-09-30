@@ -84,8 +84,8 @@ routes:
     max_body_size: 1GB           # large pushes and release attachments
     public:
       private_paths:
-        - path: /-/admin
-          reason: Forgejo's site administration (users, settings, and running tasks on the server). Administrators can still use it at home.
+        - path: /admin
+          reason: Forgejo's site administration (users, settings, and running tasks on the server). Anyone who gets an administrator's password could use it.
       login_paths:
         - /user/login
         - /user/sign_up
@@ -94,7 +94,7 @@ links:                           # most settings live in Forgejo itself
   - title: Site administration
     description: Users, organisations, email and other Forgejo settings (log in as the administrator)
     route: web
-    path: /-/admin
+    path: /admin
 
 hooks:
   # Create the administrator. Values arrive as environment variables, never

@@ -56,6 +56,19 @@
   </dialog>
 </form>{{end}}
 
+{{/* confirm-submit: a submit button, inside a form, that asks Question
+     first (confirmSubmit). The dialog's button submits the form. */}}
+{{define "confirm-submit"}}<span class="confirm" x-data>
+  <button type="button" x-on:click="$el.closest('form').reportValidity() && $refs.dialog.showModal()">{{.Text}}</button>
+  <dialog x-ref="dialog" class="dialog" aria-labelledby="{{.ID}}">
+    <p id="{{.ID}}">{{.Question}}</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dialog.close()" autofocus>Cancel</button>
+      <button type="submit"{{with .Kind}} class="{{.}}"{{end}}>{{.Text}}</button>
+    </div>
+  </dialog>
+</span>{{end}}
+
 {{/* activity: a host operation (*activityView): a status line for
      everyone, and a collapsed log for the curious. While running, the
      status line and the log poll separately; the <details> element itself

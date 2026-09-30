@@ -62,6 +62,11 @@ var gallerySections = []gallerySection{
 {{confirm "/users/3/remove" "Remove dad? They will no longer be able to log in." "Remove dad" "quiet danger"}}`},
 			{"Confirm with a hidden field", "Trailing name=value arguments become hidden form fields.", `
 {{confirm "/backups/restore/forgejo/kept/remove" "Delete this copy permanently?" "Delete" "quiet danger" "path=/srv/roostack/services/forgejo/data.before-restore-20260926-130602"}}`},
+			{"Confirm a form", "confirmSubmit QUESTION TEXT KIND: the submit button of a form that has fields of its own (checkboxes, choices), which confirm can't carry. The form's own checks (required fields) run first; the dialog's button submits the form. KIND is the dialog button's class (danger or \"\").", `
+<form method="post" action="#">
+  <label class="check"><input type="checkbox" name="open" value="/admin"><span>Make <code>/admin</code> public too</span></label>
+  {{confirmSubmit "Make passwords.lab.example.com public? Anyone on the internet will be able to reach it." "Make public" ""}}
+</form>`},
 		}},
 	{ID: "notices", Title: "Notices", Intro: "Short messages in a page. Info is the default; the colour says how much it matters.",
 		Examples: []galleryExample{
@@ -87,8 +92,9 @@ var gallerySections = []gallerySection{
 {{badge "New" "highlight"}}`},
 			{"Server", "server NAME: one of the lab's servers, named in running text (\"On nuc\"), so it's clear it means a server.", `
 <p class="hint">On {{server "nuc"}} · backed up today 02:14</p>`},
-			{"Icons", "icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text's colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, new-window, help (icons.go).", `
+			{"Icons", "icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text's colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, manage, new-window, help (icons.go).", `
 <p class="with-icon">{{icon "server"}}Role</p>
+<p class="with-icon">{{icon "manage"}}Manage</p>
 <p class="with-icon">{{icon "disk"}}Disk</p>
 <p class="with-icon">{{icon "store"}}Backup store</p>
 <p class="with-icon">{{icon "network"}}Network link</p>`},
