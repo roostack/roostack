@@ -30,7 +30,7 @@ func TestGuestHub(t *testing.T) {
 	if h.Enabled(ctx) {
 		t.Fatal("not offered yet")
 	}
-	inv, err := h.NewInvite(ctx, "Tyris's lab", 50<<30, "203.0.113.7:51821")
+	inv, err := h.NewInvite(ctx, "Sam's lab", 50<<30, "203.0.113.7:51821")
 	if err != nil {
 		t.Fatal(err)
 	}
