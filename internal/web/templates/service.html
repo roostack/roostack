@@ -124,7 +124,8 @@
   {{with .Links}}
   <p class="hint">Most of {{$.Service.Title}}'s settings are in {{$.Service.Title}} itself:</p>
   <ul class="plain">
-    {{range .}}<li><a href="{{.URL}}" target="_blank" rel="noopener">{{.Title}}{{template "new-window"}}</a>{{with .Description}}<br><small class="hint">{{.}}</small>{{end}}</li>{{end}}
+    {{range .}}{{$link := .}}<li><a href="{{.URL}}" target="_blank" rel="noopener">{{.Title}}{{template "new-window"}}</a>{{with .Description}}<br><small class="hint">{{.}}</small>{{end}}
+      {{- with .Private}}<br><small class="hint">{{.}}{{if $.IsOwner}} · <a href="/services/{{$.Service.Name}}/public/{{$link.Route}}">Change who can reach it…</a>{{end}}</small>{{end}}</li>{{end}}
   </ul>
   {{end}}
   {{range .Secrets}}

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -36,6 +37,9 @@ func (f *fakeManager) SetPublic(_ context.Context, name string, req manager.Publ
 	}
 	f.publicReqs = append(f.publicReqs, req)
 	f.access[0].Public = req.Public
+	for i, pp := range f.access[0].PrivatePaths {
+		f.access[0].PrivatePaths[i].Open = req.Public && slices.Contains(req.OpenPaths, pp.Path)
+	}
 	return nil
 }
 
@@ -72,7 +76,8 @@ func TestMakePublic(t *testing.T) {
 		t.Fatal("the service page should say who can reach it, with a way to make it public")
 	}
 	_, body := h.get("/services/vaultwarden/public/web")
-	for _, want := range []string{"anyone on the internet", "Share attack reports", `name="open" value="/admin"`, "Vaultwarden&#39;s admin panel."} {
+	for _, want := range []string{"anyone on the internet", "Share attack reports", `name="open" value="/admin"`, "Vaultwarden&#39;s admin panel.",
+		"Make passwords.lab.example.com public? Anyone on the internet will be able to reach it."} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the page should show %q", want)
 		}
@@ -91,10 +96,21 @@ func TestMakePublic(t *testing.T) {
 	}
 
 	_, body = h.get("/services/vaultwarden/public/web")
-	for _, want := range []string{"CrowdSec is running", "points at 81.2.69.160", "192.168.1.20", "Make a check link", "Make private"} {
+	for _, want := range []string{"CrowdSec is running", "points at 81.2.69.160", "192.168.1.20", "Make a check link",
+		`<button type="button" class="quiet danger"`, `<button type="submit" class="danger">Make private</button>`,
+		"Parts kept private", `name="open" value="/admin" >`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the checklist should show %q", want)
 		}
+	}
+	// While it's public, the private parts can be opened (and closed).
+	h.post("/services/vaultwarden/public/web", url.Values{"public": {"on"}, "open": {"/admin"}}, h.srv.URL)
+	if req := fm.publicReqs[len(fm.publicReqs)-1]; !req.Public || !slices.Equal(req.OpenPaths, []string{"/admin"}) {
+		t.Errorf("opening /admin: %+v", req)
+	}
+	if _, body := h.get("/services/vaultwarden/public/web"); !strings.Contains(body, `value="/admin" checked`) ||
+		!strings.Contains(body, "(public now)") {
+		t.Error("an opened part shows as public")
 	}
 	h.post("/services/vaultwarden/public/web/check", nil, h.srv.URL)
 	_, body = h.get("/services/vaultwarden/public/web")

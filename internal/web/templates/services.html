@@ -43,7 +43,10 @@
         {{- else}}{{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a>{{end}}{{end}}
         {{template "service-summary" .}}
       </div>
-      {{status .Status}}
+      <div class="service-actions">
+        {{status .Status}}
+        {{if $.CanManage}}<a class="button secondary with-icon" href="/services/{{.Name}}">{{icon "manage"}}Manage</a>{{end}}
+      </div>
     </div>
     {{if $.CanManage}}{{template "service-details" .}}{{end}}
   </li>

@@ -81,7 +81,7 @@ func TestInternetLabPages(t *testing.T) {
 		t.Error("a private service on the internet is reachable through a tunnel only")
 	}
 	_, body := h.get("/services/vaultwarden/public/web")
-	for _, want := range []string{"Tunnel only", "only reachable through an SSH tunnel", "Roostack's own pages are public too, at <code>roostack.lab.example.com</code>"} {
+	for _, want := range []string{"Private", "only reachable through an SSH tunnel", "Roostack's own pages are public too, at <code>roostack.lab.example.com</code>"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("public page (private) missing %q", want)
 		}
@@ -128,5 +128,60 @@ func TestHomeLabPages(t *testing.T) {
 	h.post("/install/immich", url.Values{"subdomain": {"photos"}, "public": {"on"}}, h.srv.URL)
 	if len(fm.installs) != 1 || fm.installs[0].Public {
 		t.Errorf("at home, installs start private: %+v", fm.installs)
+	}
+}
+
+// A link into the app that isn't open to everyone says who can open it:
+// at home, when the rest of the address is public, the home network; on
+// a lab on the internet, an SSH tunnel.
+func TestAppLinkPrivate(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{p: allDone, network: config.NetworkHome}
+	h.setSetup(fs)
+	if _, body := h.get("/services/vaultwarden"); strings.Contains(body, "From your home network only") {
+		t.Error("a private service at home needs no note on its links")
+	}
+	fm.Access("vaultwarden")
+	fm.access[0].Public = true
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "From your home network only · <a href=\"/services/vaultwarden/public/web\">") {
+		t.Error("a public service's private admin page is for home only")
+	}
+	fs.network = config.NetworkInternet
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "Only through an SSH tunnel · <a") {
+		t.Error("on the internet, it's through a tunnel")
+	}
+	fm.access[0].PrivatePaths[0].Open = true
+	if _, body := h.get("/services/vaultwarden"); strings.Contains(body, "Change who can reach it") {
+		t.Error("an opened page needs no note")
+	}
+}
+
+// Services and Home have a Manage link to each service's page.
+func TestManageLinks(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleAdmin)
+	for _, path := range []string{"/services", "/"} {
+		if _, body := h.get(path); !strings.Contains(body, `href="/services/vaultwarden"><svg`) || !strings.Contains(body, "Manage</a>") {
+			t.Errorf("%s: no Manage link", path)
+		}
+	}
+}
+
+// A cloud server's backup plan suggests places away from it, not a drive
+// at home.
+func TestBackupPlanOnInternet(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.setSetup(&fakeSetup{p: allDone, network: config.NetworkInternet})
+	_, body := h.get("/backups")
+	for _, want := range []string{"Suggested: online storage (such as Backblaze B2)", "1 away from this server"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("plan missing %q", want)
+		}
+	}
+	if strings.Contains(body, "a drive at home") || strings.Contains(body, "1 away from home") {
+		for _, w := range []string{"a drive at home", "1 away from home"} {
+			if i := strings.Index(body, w); i >= 0 {
+				t.Errorf("no home suggestions on a cloud server: %q", body[max(0, i-300):i+100])
+			}
+		}
 	}
 }

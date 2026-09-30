@@ -62,7 +62,8 @@
   <li class="card tile">
     <h2>{{.Title}}</h2>
     {{template "service-summary" .}}
-    {{if .Install}}{{template "install-line" .}}{{else}}{{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">Open{{template "new-window"}}</a>{{end}}{{end}}
+    <div class="tile-links">{{if .Install}}{{template "install-line" .}}{{else}}{{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">Open{{template "new-window"}}</a>{{end}}{{end}}
+      {{- if $.CanManage}}<a class="with-icon" href="/services/{{.Name}}">{{icon "manage"}}Manage</a>{{end}}</div>
     {{status .Status}}
     {{if $.CanManage}}{{template "service-details" .}}{{end}}
   </li>
@@ -252,8 +253,10 @@
     <h2>Your backup plan</h2>
     <span class="hint">{{len .Entries}} {{if eq (len .Entries) 1}}backup{{else}}backups{{end}}</span>
   </div>
-  <p>Keep <strong>3 copies</strong> of your data, on <strong>2 kinds</strong> of storage, with <strong>1 away from home</strong>.
-    Then a failed disk, a mistake, ransomware, or a fire or theft at home can't take everything.</p>
+  {{if .Internet}}<p>Keep <strong>3 copies</strong> of your data, on <strong>2 kinds</strong> of storage, with <strong>1 away from this server</strong>.
+    Then a failed disk, a mistake, ransomware, or losing the server or your account with its provider can't take everything.</p>
+  {{- else}}<p>Keep <strong>3 copies</strong> of your data, on <strong>2 kinds</strong> of storage, with <strong>1 away from home</strong>.
+    Then a failed disk, a mistake, ransomware, or a fire or theft at home can't take everything.</p>{{end}}
   <details class="plan-more-info" id="plan-more-info">
     <summary>Tell me more</summary>
     <p>This is the "3-2-1" rule, the usual advice for keeping data safe:</p>
@@ -262,11 +265,13 @@
         If one copy is lost, you still have two, so there's time to replace it.</li>
       <li><strong>2 kinds of storage.</strong> Copies on the same kind of storage can fail the same way. Disks count as one kind, whether
         in the server, plugged into it or in another server; online storage or a friend's lab is another kind.</li>
-      <li><strong>1 away from home.</strong> A fire, flood or burglary takes everything in the house, backups included. Online
-        storage, a friend's lab, or a server somewhere else survives it.</li>
+      {{if .Internet}}<li><strong>1 away from this server.</strong> A cloud server can be lost with everything on it: a mistake at the
+        provider, or a problem with your account. Online storage with another company, or your own or a friend's lab, survives it.</li>
+      {{- else}}<li><strong>1 away from home.</strong> A fire, flood or burglary takes everything in the house, backups included. Online
+        storage, a friend's lab, or a server somewhere else survives it.</li>{{end}}
     </ul>
     <p>Roostack backs up every night, to each backup below. Backups are encrypted, and readable with your recovery key.
-      Restores use the <strong>main backup</strong> first: it's best at home, where restoring is quickest. Extra backups past
+      Restores use the <strong>main backup</strong> first{{if not .Internet}}: it's best at home, where restoring is quickest{{end}}. Extra backups past
       the three are optional.</p>
   </details>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -341,7 +346,7 @@
   <ul class="plan-checks" aria-label="3-2-1 checks">
     {{template "plan-check" (list (printf "%t" .Checks.Copies) "3 copies")}}
     {{template "plan-check" (list (printf "%t" .Checks.TwoKinds) "2 kinds of storage")}}
-    {{template "plan-check" (list (printf "%t" .Checks.Away) "1 away from home")}}
+    {{template "plan-check" (list (printf "%t" .Checks.Away) (or (and .Internet "1 away from this server") "1 away from home"))}}
     {{template "plan-check" (list (printf "%t" .Checks.BackedUp) "Backed up lately")}}
   </ul>
 </section>

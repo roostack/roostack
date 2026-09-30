@@ -13,11 +13,40 @@ import (
 // serviceLink is a link into the app's own settings pages.
 type serviceLink struct {
 	Title, Description, URL string
+	// Private says who can open it when not everyone can: a page the
+	// package keeps private, or the whole address (SPEC.md §6.11, §6.12).
+	// Route is its address's route, for the link to change that.
+	Private, Route string
 }
 
 // revealable is a secret the page can show on request.
 type revealable struct {
 	Key, Title, Description string
+}
+
+// linkPrivate says who can open a link into the app, if not everyone
+// could: on a lab on the internet only through an SSH tunnel, at home
+// only from the home network (said only when the rest of the address is
+// public, since otherwise the whole service is home-only).
+func linkPrivate(access []manager.RouteAccess, l pkgspec.Link, internet bool) string {
+	for _, ra := range access {
+		if ra.Route != l.Route {
+			continue
+		}
+		closed := !ra.Public
+		for _, pp := range ra.PrivatePaths {
+			if !pp.Open && (l.Path == pp.Path || strings.HasPrefix(l.Path, pp.Path+"/")) {
+				closed = true
+			}
+		}
+		switch {
+		case closed && internet:
+			return "Only through an SSH tunnel"
+		case closed && ra.Public:
+			return "From your home network only"
+		}
+	}
+	return ""
 }
 
 // addSettingsData adds the service page's Settings section: links into the
@@ -31,9 +60,12 @@ func (s *Server) addSettingsData(data map[string]any, name string, p *pkgspec.Pa
 	}
 	var links []serviceLink
 	if svc, ok := data["Service"].(ServiceView); ok {
+		access, _ := s.Manager.Access(name)
+		internet := s.onInternet()
 		for _, l := range p.Links {
 			if base := routeURL(svc, l.Route, p); base != "" {
-				links = append(links, serviceLink{Title: l.Title, Description: l.Description, URL: base + l.Path})
+				links = append(links, serviceLink{Title: l.Title, Description: l.Description, URL: base + l.Path,
+					Private: linkPrivate(access, l, internet), Route: l.Route})
 			}
 		}
 	}

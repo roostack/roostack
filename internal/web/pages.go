@@ -36,19 +36,35 @@ type nav struct {
 
 // navFor picks the links a role can use and marks the current section.
 func navFor(u *store.User, page string) nav {
-	active := map[string]string{
-		"home": "home", "services": "services", "service": "services", "catalog": "services",
-		"install": "services", "remove": "services", "backups": "backups",
-		"settings": "settings", "setup-timezone": "settings", "setup-ssh": "settings", "setup-domain": "settings", "setup-backup": "settings",
-		"recovery-key": "settings", "restore": "backups", "backups-recovery-key": "backups", "users": "settings",
-		"settings-domain": "settings", "settings-network": "settings", "settings-updates": "settings", "dns-takeover": "settings", "account": "account", "twofactor": "account",
-	}[page]
+	active := navTab(page)
 	next := map[string]string{"auto": "light", "light": "dark", "dark": "auto"}[u.Theme]
 	if next == "" {
 		u.Theme, next = "auto", "light"
 	}
 	return nav{Active: active, Username: u.Username, Theme: u.Theme, NextTheme: next, Palette: userPalette(u), Accent: userAccent(u),
 		Backups: auth.Can(u.Role, auth.ManageServices), Settings: auth.Can(u.Role, auth.ManageHost)}
+}
+
+// navTab is the top bar's tab a page belongs to: by name for the few that
+// don't follow a pattern, then by prefix, so new pages get it right
+// (TestNavTabs checks every template).
+func navTab(page string) string {
+	if tab, ok := map[string]string{
+		"home": "home", "catalog": "services", "install": "services", "remove": "services", "move": "services",
+		"restore": "backups", "recovery-key": "settings", "users": "settings", "dns-takeover": "settings",
+		"account": "account", "twofactor": "account",
+		"setup-restore": "", // first run, before anyone is logged in
+	}[page]; ok {
+		return tab
+	}
+	for _, p := range []struct{ prefix, tab string }{
+		{"settings", "settings"}, {"setup-", "settings"}, {"service", "services"}, {"backups", "backups"},
+	} {
+		if strings.HasPrefix(page, p.prefix) {
+			return p.tab
+		}
+	}
+	return ""
 }
 
 // pageData collects what most pages show, for the current user.

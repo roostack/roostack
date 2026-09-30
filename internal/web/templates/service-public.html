@@ -2,24 +2,32 @@
 {{define "content"}}
 {{/* Private means the home network, or on a lab on the internet only
      through an SSH tunnel (SPEC.md §6.12). */}}
-{{$private := "home only"}}{{if .Internet}}{{$private = "tunnel only"}}{{end}}
+{{$privateMeans := "reachable from your home network (or VPN) only"}}{{if .Internet}}{{$privateMeans = "reachable only through an SSH tunnel"}}{{end}}
 <section class="card medium">
   <div class="page-top">{{back (printf "/services/%s" .Package.Name) .Package.Title}}{{help "services/public" "Making a service public"}}</div>
   {{with .Route}}
   <div class="heading">
     <h1>Who can reach {{.Host}}</h1>
-    {{if .Public}}{{badge "Public" "highlight"}}{{else if $.Internet}}{{badge "Tunnel only"}}{{else}}{{badge "Home only"}}{{end}}
+    {{if .Public}}{{badge "Public" "highlight"}}{{else}}{{badge "Private"}}{{end}}
   </div>
   {{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
 
   {{if .Route.Public}}
-  <p><strong>Anyone on the internet</strong> can reach <code>{{.Route.Host}}</code>{{if .Route.PrivatePaths}}, except what stays {{$private}} below{{end}}.
+  <p><strong>Anyone on the internet</strong> can reach <code>{{.Route.Host}}</code>{{if .Route.PrivatePaths}}, except the parts below that stay private{{end}}.
     {{template "public-ui" .}}</p>
   {{with .Route.PrivatePaths}}
-  <ul class="plain">
-    {{range .}}<li><code>{{.Path}}</code>: {{if .Open}}made public anyway{{else}}{{$private}}{{end}}</li>{{end}}
-  </ul>
+  <h2>Parts kept private</h2>
+  <p class="hint">{{$.Package.Title}}'s package keeps these private: {{$privateMeans}}. Tick one to make it public too.</p>
+  <form method="post" action="/services/{{$.Package.Name}}/public/{{$.Route.Route}}">
+    <input type="hidden" name="public" value="on">
+    {{if $.Route.Unsafe}}<input type="hidden" name="accept_unsafe" value="on">{{end}}
+    {{range .}}
+    <label class="check"><input type="checkbox" name="open" value="{{.Path}}" {{if .Open}}checked{{end}}>
+      <span>Make <code>{{.Path}}</code> public{{if .Open}} <small>(public now)</small>{{end}}<small>{{.Reason}}</small></span></label>
+    {{end}}
+    {{confirmSubmit (printf "Change which parts of %s are public? Anything ticked can be reached by anyone on the internet." $.Route.Host) "Save" ""}}
+  </form>
   {{end}}
 
   <h2>Checklist</h2>
@@ -70,7 +78,7 @@
         some (called CGNAT, common on mobile and some fibre plans) can't. <a href="/help/services/public/#if-it-doesnt-work" target="_blank" rel="noopener">Tell me more{{template "new-window"}}</a></li>{{end}}
     </ol>
   </details>
-  {{confirm (printf "/services/%s/public/%s" .Package.Name .Route.Route) (printf "Make %s private? %s" .Route.Host (or (and .Internet "Only an SSH tunnel will reach it.") "Only your home network (or VPN) will reach it, and its DNS record points back home.")) "Make private" "secondary" "public=off"}}
+  {{confirm (printf "/services/%s/public/%s" .Package.Name .Route.Route) (printf "Make %s private? %s" .Route.Host (or (and .Internet "Only an SSH tunnel will reach it.") "Only your home network (or VPN) will reach it, and its DNS record points back home.")) "Make private" "quiet danger" "public=off"}}
 
   {{else}}
   <p>{{if .Internet}}Right now it's only reachable through an SSH tunnel, which is for technical users
@@ -86,15 +94,15 @@
       <span>I understand, and want to make it public anyway</span></label>
     {{end}}
     {{with .Route.PrivatePaths}}
-    <h2>Parts that stay private</h2>
-    <p class="hint">These stay {{if $.Internet}}reachable only through an SSH tunnel{{else}}reachable from your home network only{{end}}, unless you tick them.</p>
+    <h2>Parts kept private</h2>
+    <p class="hint">These stay {{$privateMeans}}, unless you tick them. You can change this later.</p>
     {{range .}}
     <label class="check"><input type="checkbox" name="open" value="{{.Path}}">
       <span>Make <code>{{.Path}}</code> public too<small>{{.Reason}}</small></span></label>
     {{end}}
     {{end}}
     {{if not .SharingAsked}}{{template "sharing-question" .}}{{end}}
-    <button type="submit">Make public</button>
+    {{confirmSubmit (printf "Make %s public? Anyone on the internet will be able to reach it." .Route.Host) "Make public" ""}}
   </form>
   {{end}}
 </section>

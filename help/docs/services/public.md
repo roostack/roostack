@@ -23,7 +23,7 @@ password and two-factor code. See [On a cloud server](#on-a-cloud-server).
 ## Making it public
 
 On the service's page, next to **Reachable from**, choose **Make
-public…**. Roostack explains what changes, then:
+public…**. Roostack explains what changes and asks you to confirm, then:
 
 1. **Protection.** Roostack starts **CrowdSec**, which spots attacks in
    the web log and blocks the addresses they come from, and it limits how
@@ -72,9 +72,12 @@ ones Roostack can check itself.
 ## Parts that stay private
 
 Some services have pages that shouldn't be public, such as an admin panel.
-Their package marks them, and they stay reachable from home only, even when
-the rest of the service is public. You can still make one public: tick it
-when making the service public, after reading why it's marked.
+Their package marks them, and they stay private (reachable from home, or on
+a cloud server only through an SSH tunnel) even when the rest of the
+service is public. You can still make one public: tick it when making the
+service public, after reading why it's marked, or later under **Parts kept
+private** on the same page. The service's page says when one of its links
+leads to a private part.
 
 A few services are marked as not safe to make public at all. Roostack says
 why, and you have to confirm before it goes ahead.

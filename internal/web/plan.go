@@ -87,6 +87,10 @@ type planView struct {
 	Error                       string
 	// Next is when the next backup runs (zero if unknown).
 	Next time.Time
+	// Internet: this server is the lab on the internet (a cloud server,
+	// SPEC.md §6.12): "away" means away from it and its provider, and a
+	// drive at home isn't there to suggest.
+	Internet bool
 	// Action is where the chooser posts; Back where the page is.
 	Action, Back string
 }
@@ -114,7 +118,8 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		return nil
 	}
 	ctx := r.Context()
-	p := &planView{Server: m, Wizard: wizard, Back: m.Backups(), Action: m.path("/backups/plan", "/backups/plan")}
+	p := &planView{Server: m, Wizard: wizard, Back: m.Backups(), Action: m.path("/backups/plan", "/backups/plan"),
+		Internet: m.This && s.onInternet()}
 	if wizard {
 		p.Back, p.Action = "/setup/backup", "/setup/backup/add"
 	}
@@ -198,8 +203,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	if len(p.Entries) > 0 && p.Entries[0].LastOK != nil && !isStale(p.Entries[0].LastOK.Finished) {
 		p.Checks.BackedUp = true
 	}
-	// The main backup is best at home: restores from it are quick.
-	if len(p.Entries) > 1 && !p.Entries[0].AtHome {
+	// The main backup is best at home: restores from it are quick. (A cloud
+	// server has no home to suggest.)
+	if len(p.Entries) > 1 && !p.Entries[0].AtHome && !p.Internet {
 		for i := range p.Entries[1:] {
 			if e := &p.Entries[i+1]; e.AtHome {
 				p.Hint = "Restores use the main backup first, so it's best at home, where restoring is quick: consider making " +
@@ -217,6 +223,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	p.More = len(p.Entries) + 2
 	need := func() (title, suggest string) {
 		switch {
+		case !p.Checks.Away && p.Internet:
+			return "A backup away from this server", "Suggested: online storage with another company, or space at your own or a friend's lab. " +
+				"It survives losing this server, or your account with its provider."
 		case !p.Checks.Away:
 			return "A backup away from home", "Suggested: online storage, or space at a friend's lab. It survives a fire or theft at home."
 		case !p.Checks.TwoKinds:
@@ -227,6 +236,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	for n := p.More; n <= planCopies; n++ {
 		slot := planSlot{Number: n}
 		switch {
+		case n == 2 && p.Internet:
+			slot.Title, slot.Suggest = "Your main backup", "Suggested: online storage (such as Backblaze B2), or space at your own or a friend's lab. "+
+				"A disk on this server restores quickest, but goes if the server does."
 		case n == 2:
 			slot.Title, slot.Suggest = "Your main backup", "Suggested: a drive at home, like a USB drive or a NAS. Restoring from it is quick."
 		case n > p.More:
