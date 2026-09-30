@@ -27,6 +27,8 @@ const (
 	BackupSetup = "backup-setup"
 	// LabRestore is rebuilding a lab from its backups on a new server.
 	LabRestore = "lab-restore"
+	// Build is building Roostack's Caddy image in the background.
+	Build = "build"
 )
 
 // BackupSetupFor is the BackupSetup log of one server: the controller

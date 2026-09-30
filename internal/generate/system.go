@@ -114,7 +114,11 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 	bs.Add("File", CaddyBuildDir+"/Containerfile")
 	bs.Add("SetWorkingDirectory", "file")
 	// The first build compiles Caddy: minutes, not seconds.
-	b.Section("Service").Add("TimeoutStartSec", "1800")
+	bsvc := b.Section("Service")
+	bsvc.Add("TimeoutStartSec", "1800")
+	// Its output goes to a file the UI can show (config.Paths.CaddyBuildLog).
+	bsvc.Add("StandardOutput", "truncate:"+lab.Paths.CaddyBuildLog())
+	bsvc.Add("StandardError", "inherit")
 	if err := b.Validate(); err != nil {
 		return nil, err
 	}

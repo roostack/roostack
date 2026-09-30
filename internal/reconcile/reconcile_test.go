@@ -28,6 +28,9 @@ func (f *fakeSystemd) DaemonReload(context.Context) error { return f.record("dae
 func (f *fakeSystemd) Start(_ context.Context, u ...string) error {
 	return f.record("start", u)
 }
+func (f *fakeSystemd) StartNoBlock(_ context.Context, u ...string) error {
+	return f.record("start --no-block", u)
+}
 func (f *fakeSystemd) Restart(_ context.Context, u ...string) error {
 	return f.record("restart", u)
 }
@@ -134,6 +137,12 @@ func TestInstallUpdateRemove(t *testing.T) {
 	if !slices.Contains(e.systemd.calls, "start roostack-caddy.service") || !slices.Contains(e.systemd.calls, "start roostack-vaultwarden-app.service") {
 		t.Errorf("new services start one at a time: %v", e.systemd.calls)
 	}
+	// Caddy's image build starts in the background as soon as its file is
+	// written, before anything waits for it.
+	if i := slices.Index(e.systemd.calls, "start --no-block roostack-caddy-build.service"); i < 0 ||
+		i > slices.Index(e.systemd.calls, "start roostack-caddy.service") {
+		t.Errorf("the build should start in the background first: %v", e.systemd.calls)
+	}
 	if got := string(e.secrets.values[dns.SecretName("api_token")]); got != "dns-token" {
 		t.Errorf("DNS secret = %q, want the user-provided value", got)
 	}
@@ -153,8 +162,8 @@ func TestInstallUpdateRemove(t *testing.T) {
 	if !plan.Empty() {
 		t.Errorf("second apply should be empty, got:\n%s", plan)
 	}
-	if slices.Contains(e.systemd.calls, "daemon-reload") {
-		t.Errorf("unexpected daemon-reload on a no-op apply: %v", e.systemd.calls)
+	if slices.Contains(e.systemd.calls, "daemon-reload") || slices.Contains(e.systemd.calls, "start --no-block roostack-caddy-build.service") {
+		t.Errorf("unexpected daemon-reload or build on a no-op apply: %v", e.systemd.calls)
 	}
 
 	// Changing a setting restarts only the affected unit.

@@ -176,6 +176,9 @@ type Local struct {
 	hooksBusy, hooksAgain bool
 	hooksRunning          map[string]bool
 	hooksDone             chan struct{}
+
+	// followingBuild: a Caddy image build is being shown (build.go).
+	followingBuild bool
 }
 
 // Identity is this server's identity.
@@ -306,6 +309,18 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	}
 	if err := r.Apply(ctx, plan); err != nil {
 		return err
+	}
+	// Caddy's image builds in the background (for minutes the first time):
+	// show it, whether this apply started it or it was already running
+	// when Roostack restarted (e.g. at the end of the setup wizard).
+	if !n.lab(a).IsNode() && n.Units != nil {
+		building := slices.Contains(plan.BuildUnits, CaddyBuildUnit)
+		if st, err := n.Units.Status(ctx, CaddyBuildUnit); err == nil && len(st) == 1 && st[0].ActiveState == "activating" {
+			building = true
+		}
+		if building {
+			n.followCaddyBuild(n.lab(a).Paths.CaddyBuildLog())
+		}
 	}
 	// Created secrets live in Podman now; forget the typed-in values.
 	n.mu.Lock()

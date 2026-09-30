@@ -108,6 +108,11 @@ func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
 	if a := s.activityFor(r, activity.Apply); a != nil {
 		data["ApplyActivity"] = a
 	}
+	// Caddy's image build, while it runs or if it failed: new services
+	// wait for it, and it takes minutes the first time.
+	if a := s.activityFor(r, activity.Build); a != nil && (a.Running() || a.Err != "") {
+		data["BuildActivity"] = a
+	}
 	s.addBuiltIns(r, data)
 	s.render(w, "services", data)
 }

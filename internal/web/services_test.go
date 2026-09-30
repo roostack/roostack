@@ -1373,3 +1373,21 @@ func TestLivePartsSkipUnchanged(t *testing.T) {
 		t.Errorf("changed: %d, want 200", other.StatusCode)
 	}
 }
+
+// While Caddy's image builds (minutes the first time), the Services page
+// says so, with its log; once it's built, nothing is shown.
+func TestCaddyBuildShown(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	if _, body := h.get("/services"); strings.Contains(body, "<h2>Roostack's web proxy</h2>") {
+		t.Error("no build, no notice")
+	}
+	log := h.acts().Start(activity.Build, "Building Roostack's web proxy")
+	log.Printf("STEP 1/2: FROM caddy-builder")
+	if _, body := h.get("/services"); !strings.Contains(body, "<h2>Roostack's web proxy</h2>") || !strings.Contains(body, "STEP 1/2") {
+		t.Error("a running build should be shown with its log")
+	}
+	log.Finish(nil)
+	if _, body := h.get("/services"); strings.Contains(body, "<h2>Roostack's web proxy</h2>") {
+		t.Error("a finished build isn't shown")
+	}
+}

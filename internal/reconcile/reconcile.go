@@ -37,6 +37,7 @@ type Desired struct {
 type Systemd interface {
 	DaemonReload(ctx context.Context) error
 	Start(ctx context.Context, units ...string) error
+	StartNoBlock(ctx context.Context, units ...string) error
 	Restart(ctx context.Context, units ...string) error
 	Stop(ctx context.Context, units ...string) error
 	ReloadOrRestart(ctx context.Context, units ...string) error
@@ -83,6 +84,12 @@ type Plan struct {
 	// Waiting are Quadlet files left as they are because a secret they
 	// need hasn't been given yet (generate.Secret.Holds).
 	Waiting []string
+	// BuildUnits build images (Quadlet .build files) whose file is new or
+	// changed. They start in the background as soon as they're written, so
+	// a slow first build (Caddy's compiles it: minutes) runs while nothing
+	// needs it yet, e.g. during the setup wizard, whose domain step the
+	// Caddy container waits for.
+	BuildUnits []string
 	// StartNotes say what a new container's first start involves (a
 	// download, or building an image), for the log: starting them can take
 	// minutes, and people should know why.
@@ -247,6 +254,9 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 		}
 		plan.Write = append(plan.Write, FileChange{filepath.Join(quadletDir, name), content})
 		plan.DaemonReload = true
+		if strings.HasSuffix(name, ".build") {
+			plan.BuildUnits = append(plan.BuildUnits, unitFor(name))
+		}
 		if exists {
 			plan.RestartUnits = append(plan.RestartUnits, unitFor(name))
 		} else if note := startNote(content); note != "" {
@@ -370,6 +380,13 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 	}
 	if err := r.Systemd.Restart(ctx, p.RestartUnits...); err != nil {
 		return err
+	}
+	if len(p.BuildUnits) > 0 {
+		log.Step("Building images in the background")
+		log.Printf("%s", strings.Join(p.BuildUnits, " "))
+		if err := r.Systemd.StartNoBlock(ctx, p.BuildUnits...); err != nil {
+			return err
+		}
 	}
 	// Running services (a no-op for those already running) first, then new
 	// ones one at a time, saying what each involves.

@@ -17,6 +17,7 @@ var activityPerm = map[string]auth.Permission{
 	activity.Backup:      auth.ManageServices,
 	activity.Apply:       auth.ManageServices,
 	activity.Setup:       auth.ManageServices,
+	activity.Build:       auth.ManageServices,
 }
 
 // activityView is one activity's live status and log (parts.html).
