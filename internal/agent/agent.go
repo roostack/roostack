@@ -441,8 +441,53 @@ func (h LinuxHost) RunUpdates(ctx context.Context, w io.Writer) error {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "systemd-run", "--unit=roostack-os-updates", "--wait", "--pipe", "--quiet",
 		"--collect", "--setenv=DEBIAN_FRONTEND=noninteractive", "--", "sh", "-c", updatesScript)
-	cmd.Stdout, cmd.Stderr = w, w
-	return cmd.Run()
+	out := &lineFilter{w: w, drop: dpkgLogMarker}
+	cmd.Stdout, cmd.Stderr = out, out
+	err := cmd.Run()
+	out.flush()
+	return err
+}
+
+// dpkgLogMarker: unattended-upgrade -v prints "Log started: <time>" and
+// "Log ended: <time>" around every dpkg run (dozens in one update), which
+// tell nobody anything.
+func dpkgLogMarker(line string) bool {
+	return strings.HasPrefix(line, "Log started: ") || strings.HasPrefix(line, "Log ended: ")
+}
+
+// lineFilter passes output on a line at a time, leaving out the lines drop
+// says to.
+type lineFilter struct {
+	mu      sync.Mutex
+	w       io.Writer
+	drop    func(line string) bool
+	partial string
+}
+
+func (f *lineFilter) Write(p []byte) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	lines := strings.Split(f.partial+string(p), "\n")
+	f.partial = lines[len(lines)-1]
+	for _, line := range lines[:len(lines)-1] {
+		if f.drop(strings.TrimRight(line, "\r")) {
+			continue
+		}
+		if _, err := io.WriteString(f.w, line+"\n"); err != nil {
+			return len(p), err
+		}
+	}
+	return len(p), nil
+}
+
+// flush passes on an unfinished last line.
+func (f *lineFilter) flush() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.partial != "" && !f.drop(f.partial) {
+		io.WriteString(f.w, f.partial)
+	}
+	f.partial = ""
 }
 
 // lineStream sends written output as {"line": ...} JSON lines. If the

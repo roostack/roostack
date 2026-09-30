@@ -43,6 +43,7 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | C7 (superseded) | Caddy no longer resolves containers by name; it uses loopback ports. Containers in the same service still resolve each other by name (C1). |
 | C9 | Removing `roostack-proxy.network` stopped its unit, but Podman doesn't delete the network itself (harmless leftover on existing installs). |
 | C10 | Traffic from the host itself reaches Caddy with the host's own LAN address, so it counts as private. That's intended. |
+| C11 ✅ | **The network at boot isn't always ready at network-online.target (2026-10-01).** On Linode's Debian 13 image (ifupdown with dhcpcd), `network-online.target` was reached at 7.8 s but the DHCP lease (the server's IPv4 address and route) only at 9.5 s, when Roostack and the containers start. CrowdSec's pasta then failed to bind `127.0.0.1:8473` twice, and systemd's restart brought it up 5 s later; Roostack's first apply saw the first failure ("the last change didn't finish"), and the DNS check failed with "network is unreachable". Now Roostack waits (up to a minute) for a route before anything else, and a failed start that becomes active within 30 s (systemd restarting it) counts as started. |
 | C8 | Changing a `.network` file and restarting its unit doesn't recreate an existing network. Rare, but the reconciler may need to remove the network first. |
 
 ## D. TLS / Caddy
