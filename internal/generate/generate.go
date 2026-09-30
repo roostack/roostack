@@ -436,6 +436,7 @@ func (g *gen) caddySite() error {
 			Host:        rc.Host,
 			Upstream:    fmt.Sprintf("%s:%d", g.upstream, rc.Port),
 			Private:     rc.Exposure != pkgspec.ExposurePublic,
+			PrivateFrom: PrivateFrom(g.lab),
 			MaxBodySize: r.MaxBodySize,
 		}
 		if !cr.Private {

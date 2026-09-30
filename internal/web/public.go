@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/internal/caddy"
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/public"
@@ -19,8 +21,9 @@ import (
 // Public access (SPEC.md §6.11): the Owner makes a service's address
 // public from its page, after a warning (and the package's reasons for
 // anything it marks unsafe). The page then shows a short checklist:
-// protection (CrowdSec), the router's port forwarding, and a check from a
-// phone on mobile data.
+// protection (CrowdSec), the DNS record, the router's port forwarding (or
+// on a lab on the internet the provider's firewall, SPEC.md §6.12), and a
+// check from outside, with what to look at if it fails.
 
 // PublicAccess is making services public, in internal/manager.
 type PublicAccess interface {
@@ -96,6 +99,7 @@ func (s *Server) renderPublic(w http.ResponseWriter, r *http.Request, formErr st
 	asked, share := s.Manager.SignalSharing()
 	data := map[string]any{"User": currentUser(r), "Package": p, "Route": ra,
 		"SharingAsked": asked, "Share": share, "Error": formErr}
+	s.addPublicUI(data)
 	if ra.Public {
 		data["Protected"] = s.Protected != nil && s.Protected(r.Context())
 		data["Check"] = s.lastCheck(r.Context(), ra.Host)
@@ -218,6 +222,16 @@ func (s *Server) publicCheckVisit(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Fprintf(w, "<!doctype html><meta name=viewport content=\"width=device-width\"><title>Roostack check</title><p>%s</p>\n",
 		html.EscapeString(msg))
+}
+
+// addPublicUI says where the lab is, and whether Roostack's own pages are
+// public (on a lab on the internet, SPEC.md §6.3.2) and at which address.
+func (s *Server) addPublicUI(data map[string]any) {
+	c := s.network()
+	internet := c.Saved == config.NetworkInternet
+	data["Internet"] = internet
+	data["PublicUI"] = internet && !c.UITunnelOnly && s.Domain != ""
+	data["UIHost"] = caddy.AdminSubdomain + "." + s.Domain
 }
 
 // fromLoopback says whether a request came from this server itself (its

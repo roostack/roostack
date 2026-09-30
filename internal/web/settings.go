@@ -34,7 +34,7 @@ var settingsAreas = []settingsArea{
 	{"lab", "Lab", "Lab name", "/settings/lab"},
 	{"people", "People and access", "People", "/settings/people"},
 	{"domain", "Network", "Domain and certificates", "/settings/domain"},
-	{"home-network", "Network", "Home network", "/settings/home-network"},
+	{"home-network", "Network", "Where it is and DNS", "/settings/home-network"},
 	{"public", "Network", "Public access", "/settings/public"},
 	{"servers", "Servers", "Servers", "/settings/servers"},
 	{"storage", "Servers", "Storage for others", "/settings/storage"},
@@ -114,32 +114,37 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	} else {
 		set("domain", "Not set up: services can't get HTTPS certificates", "problem")
 	}
-	if s.DNS != nil {
+	// Where it is, then how DNS is doing (SPEC.md §6.12).
+	internet := s.onInternet()
+	where := map[bool]string{true: "On the internet", false: "At home"}[internet]
+	works := map[bool]string{true: "addresses lead here", false: "devices at home can reach your services"}[internet]
+	if c := s.network(); c.Saved == "" && c.Detected == config.NetworkInternet {
+		set("home-network", "Looks like a cloud server: say where it is", "warn")
+	} else if s.DNS != nil {
 		st := s.DNS.Status()
 		switch st.State {
 		case dnsrecords.StateOK:
-			set("home-network", "Devices at home can reach your services", "ok")
-		case dnsrecords.StatePending:
-			set("home-network", "Checking…", "")
+			set("home-network", where+" · "+works, "ok")
+		case dnsrecords.StatePending, "":
+			set("home-network", where+" · checking DNS…", "")
 		case dnsrecords.StateManual:
 			if st.Reachable {
-				set("home-network", "Devices at home can reach your services", "ok")
+				set("home-network", where+" · "+works, "ok")
 			} else {
-				set("home-network", "A DNS record needs adding", "warn")
+				set("home-network", where+" · a DNS record needs adding", "warn")
 			}
-		case "":
-			set("home-network", "Checking…", "")
 		case dnsrecords.StateUnsupported:
-			set("home-network", "Add a DNS record by hand", "warn")
+			set("home-network", where+" · add a DNS record by hand", "warn")
 		default:
 			set("home-network", dnsHeadline[st.State], "problem")
 		}
 	} else {
-		set("home-network", "Set up a domain first", "")
+		set("home-network", where+" · set up a domain first", "")
 	}
 	if s.Manager != nil {
 		if hosts := s.Manager.PublicHosts(); len(hosts) == 0 {
-			set("public", "Nothing is public: services are for your home network", "")
+			set("public", map[bool]string{true: "Nothing is public: services are only reachable through an SSH tunnel",
+				false: "Nothing is public: services are for your home network"}[internet], "")
 		} else if s.Protected != nil && !s.Protected(r.Context()) {
 			set("public", fmt.Sprintf("%d public; CrowdSec isn't running", len(hosts)), "problem")
 		} else {
@@ -244,6 +249,7 @@ func (s *Server) homeNetworkPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["DNS"] = s.dnsView(r)
+	data["NetworkForm"] = s.networkForm(r)
 	if s.DNS != nil {
 		recs, err := s.DNS.Records(r.Context())
 		if err != nil {

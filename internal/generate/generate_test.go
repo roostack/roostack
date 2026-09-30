@@ -62,6 +62,30 @@ func TestGolden(t *testing.T) {
 	}
 }
 
+// On a lab on the internet, a private address is for this server only (an
+// SSH tunnel ends there), not the cloud provider's shared network
+// (SPEC.md §6.12).
+func TestPrivateOnInternet(t *testing.T) {
+	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "vaultwarden.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lab := testLab()
+	lab.Network, lab.HostIP = config.NetworkInternet, "203.0.113.5"
+	out, err := Service(lab, p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	site := out.CaddySite.Content
+	if !strings.Contains(site, "not remote_ip 127.0.0.1/8 ::1 203.0.113.5 169.254.1.3\n") || strings.Contains(site, "private_ranges") {
+		t.Errorf("private route on the internet:\n%s", site)
+	}
+}
+
 func TestErrors(t *testing.T) {
 	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "immich.yaml"))
 	if err != nil {
@@ -115,21 +139,26 @@ containers:
 // The lab-wide units, private and with something public (then CrowdSec
 // runs, Caddy logs requests for it and gets the bouncer's key: SPEC.md
 // §6.11).
+//
+// On the internet (SPEC.md §6.12), Roostack's own pages are public too, and
+// private routes are for this server only (an SSH tunnel).
 func TestSystemGolden(t *testing.T) {
-	for _, public := range []bool{false, true} {
-		name := "system.txt"
-		if public {
-			name = "system-public.txt"
-		}
-		t.Run(name, func(t *testing.T) { systemGolden(t, public, name) })
+	for _, c := range []struct {
+		name             string
+		public, internet bool
+	}{{"system.txt", false, false}, {"system-public.txt", true, false}, {"system-internet.txt", true, true}} {
+		t.Run(c.name, func(t *testing.T) { systemGolden(t, c.public, c.internet, c.name) })
 	}
 }
 
-func systemGolden(t *testing.T, public bool, name string) {
+func systemGolden(t *testing.T, public, internet bool, name string) {
 	lab := testLab()
 	lab.Email = "admin@example.com"
 	lab.DNS.Provider = "cloudflare"
-	lab.Public.NoSharing = public // the opt-out shows in the public output
+	lab.Public.NoSharing = public && !internet // the opt-out shows in the public output
+	if internet {
+		lab.Network, lab.HostIP = config.NetworkInternet, "203.0.113.5"
+	}
 	out, err := System(lab, public)
 	if err != nil {
 		t.Fatal(err)

@@ -169,14 +169,19 @@ type InstallRequest struct {
 	Secrets map[string]string
 	// Host is the server to run it on (a node ID); empty is this one.
 	Host string
+	// Public makes its addresses public from the start, except any its
+	// package says aren't safe to: the default on a lab on the internet,
+	// where private means only through an SSH tunnel (SPEC.md §6.12).
+	Public bool
 }
 
 func formErrorf(format string, args ...any) error {
 	return &FormError{Msg: fmt.Sprintf(format, args...)}
 }
 
-// Install adds a service to desired state and starts applying it. The
-// service is private (LAN/VPN only); public access is not offered yet.
+// Install adds a service to desired state and starts applying it. It's
+// private (the home network, or on a lab on the internet only through an
+// SSH tunnel) unless req.Public makes it public from the start.
 func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) error {
 	p, err := m.Package(name)
 	if err != nil {
@@ -222,6 +227,19 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 			return formErrorf("%s has no web address to choose.", p.Title)
 		}
 		in.Routes = map[string]instance.RouteOverride{route: {Subdomain: sub}}
+	}
+	if req.Public {
+		for name, r := range p.Routes {
+			if r.Public.Unsafe != "" {
+				continue // stays private: making it public needs its warning
+			}
+			if in.Routes == nil {
+				in.Routes = map[string]instance.RouteOverride{}
+			}
+			o := in.Routes[name]
+			o.Exposure = pkgspec.ExposurePublic
+			in.Routes[name] = o
+		}
 	}
 	if err := in.Validate(p); err != nil {
 		return formErrorf("%s", err)

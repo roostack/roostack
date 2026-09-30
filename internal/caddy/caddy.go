@@ -15,18 +15,38 @@ import (
 	"strings"
 )
 
-// PrivateRanges are the client networks allowed to reach private routes:
-// Caddy's private_ranges (RFC1918, loopback, ULA, link-local) plus the
-// CGNAT range used by Tailscale. See docs/ASSUMPTIONS.md C4/C5.
+// PrivateRanges are the client networks allowed to reach private routes
+// in a lab at home: Caddy's private_ranges (RFC1918, loopback, ULA,
+// link-local) plus the CGNAT range used by Tailscale. See
+// docs/ASSUMPTIONS.md C4/C5.
 const PrivateRanges = "private_ranges 100.64.0.0/10"
+
+// ThisServerOnly is who reaches private routes in a lab on the internet
+// (SPEC.md §6.12): only connections made on the server itself, which is
+// where an SSH tunnel ends. Caddy's pasta network shows a connection to
+// the host's 127.0.0.1 as coming from hostIP, and one to the host's own
+// address as coming from hostLoopback (docs/ASSUMPTIONS.md P9). A cloud
+// provider's private network (shared with other customers) stays out.
+func ThisServerOnly(hostIP, hostLoopback string) string {
+	from := []string{"127.0.0.1/8", "::1"}
+	for _, a := range []string{hostIP, hostLoopback} {
+		if a != "" {
+			from = append(from, a)
+		}
+	}
+	return strings.Join(from, " ")
+}
 
 // Route is one subdomain handled by Caddy.
 type Route struct {
 	// ID must be unique across the lab; used to name Caddy matchers.
-	ID          string
-	Host        string // full hostname, e.g. photos.lab.example.com
-	Upstream    string // container:port on the roostack-proxy network
-	Private     bool
+	ID       string
+	Host     string // full hostname, e.g. photos.lab.example.com
+	Upstream string // container:port on the roostack-proxy network
+	Private  bool
+	// PrivateFrom is who reaches it when private, and its private paths
+	// when public: remote_ip ranges. Empty means PrivateRanges.
+	PrivateFrom string
 	MaxBodySize string // optional, e.g. "50GB"
 	// On a public route (SPEC.md §6.11): PrivatePaths (and everything
 	// under them) stay home-only, and LoginPaths get a strict rate limit.
@@ -67,7 +87,7 @@ func Site(service string, routes []Route) (string, error) {
 		fmt.Fprintf(&b, "\n@%s host %s\n", r.ID, r.Host)
 		fmt.Fprintf(&b, "handle @%s {\n", r.ID)
 		if r.Private {
-			fmt.Fprintf(&b, "\t@%s-external not remote_ip %s\n", r.ID, PrivateRanges)
+			fmt.Fprintf(&b, "\t@%s-external not remote_ip %s\n", r.ID, r.privateFrom())
 			fmt.Fprintf(&b, "\tabort @%s-external\n", r.ID)
 			if r.MaxBodySize != "" {
 				fmt.Fprintf(&b, "\trequest_body {\n\t\tmax_size %s\n\t}\n", r.MaxBodySize)
@@ -90,7 +110,7 @@ func Site(service string, routes []Route) (string, error) {
 func publicRoute(b *strings.Builder, r Route) {
 	if len(r.PrivatePaths) > 0 {
 		fmt.Fprintf(b, "\t@%s-private-paths {\n\t\tnot remote_ip %s\n\t\tpath %s\n\t}\n",
-			r.ID, PrivateRanges, pathPatterns(r.PrivatePaths))
+			r.ID, r.privateFrom(), pathPatterns(r.PrivatePaths))
 	}
 	b.WriteString("\troute {\n")
 	if len(r.PrivatePaths) > 0 {
@@ -115,6 +135,13 @@ func publicRoute(b *strings.Builder, r Route) {
 	b.WriteString("\t}\n")
 }
 
+func (r Route) privateFrom() string {
+	if r.PrivateFrom == "" {
+		return PrivateRanges
+	}
+	return r.PrivateFrom
+}
+
 // pathPatterns matches each path and everything under it.
 func pathPatterns(paths []string) string {
 	var ps []string
@@ -125,6 +152,9 @@ func pathPatterns(paths []string) string {
 }
 
 func (r Route) validate() error {
+	if strings.ContainsAny(r.PrivateFrom, "\t\n{}\"#") {
+		return fmt.Errorf("caddy route %s: invalid private addresses %q", r.ID, r.PrivateFrom)
+	}
 	for _, f := range []struct{ name, val string }{
 		{"id", r.ID}, {"host", r.Host}, {"upstream", r.Upstream}, {"max body size", r.MaxBodySize},
 		{"check upstream", r.CheckUpstream},
@@ -153,8 +183,14 @@ type MainConfig struct {
 	// (from internal/dns); it may span several lines.
 	DNSDirective string
 	// AdminUpstream is where the Roostack web UI listens, as seen from the
-	// Caddy container. Always private. Empty disables the admin route.
+	// Caddy container. Empty disables the admin route.
 	AdminUpstream string
+	// AdminPublic serves the UI to anyone, like a public service (CrowdSec,
+	// rate limits, a strict one on logging in): on a lab on the internet
+	// (SPEC.md §6.3.2). Otherwise it's private.
+	AdminPublic bool
+	// PrivateFrom is who reaches private routes (Route.PrivateFrom).
+	PrivateFrom string
 	// CrowdSecAPI is the address of CrowdSec's local API, as seen from the
 	// Caddy container, set while anything is public (SPEC.md §6.11). The
 	// bouncer's key is in the CrowdSecAPIKeyEnv environment variable.
@@ -166,6 +202,12 @@ type MainConfig struct {
 
 // AdminSubdomain is where the Roostack UI is served.
 const AdminSubdomain = "roostack"
+
+// AdminLoginPaths get the strict rate limit when the UI is public: logging
+// in (password, then code) and the recovery key's password-and-code check.
+// Not /setup: the setup code is too long to guess, and the wizard's pages
+// are under it.
+var AdminLoginPaths = []string{"/login", "/backups/recovery-key"}
 
 // Main renders the main Caddyfile.
 func Main(c MainConfig) (string, error) {
@@ -199,10 +241,12 @@ func Main(c MainConfig) (string, error) {
 		fmt.Fprintf(&b, "\tlog {\n\t\toutput file %s {\n\t\t\troll_size 20MiB\n\t\t\troll_keep 5\n\t\t}\n\t\tformat json\n\t}\n", c.AccessLog)
 	}
 	if c.AdminUpstream != "" {
-		admin, err := Site("roostack", []Route{{
-			ID: "roostack-admin", Host: AdminSubdomain + "." + c.Domain,
-			Upstream: c.AdminUpstream, Private: true,
-		}})
+		route := Route{ID: "roostack-admin", Host: AdminSubdomain + "." + c.Domain,
+			Upstream: c.AdminUpstream, Private: !c.AdminPublic, PrivateFrom: c.PrivateFrom}
+		if c.AdminPublic {
+			route.LoginPaths = AdminLoginPaths
+		}
+		admin, err := Site("roostack", []Route{route})
 		if err != nil {
 			return "", err
 		}

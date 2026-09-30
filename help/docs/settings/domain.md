@@ -38,6 +38,28 @@ The domain page shows what each one needs, and where to get it.
     Roostack can use it, but asks you to accept the risk first. Moving your
     DNS to Cloudflare (free) avoids it.
 
+## Where your lab is
+
+**Settings → Where it is and DNS** says whether your lab is **at home**,
+behind a router, or **on the internet**: a cloud server (a VPS) with a
+public address of its own. The setup wizard asks the same question, and
+suggests an answer from the server's addresses.
+
+At home
+:   Services are for your home network (or a VPN into it). Making one
+    public means forwarding ports on your router. Roostack's own pages stay
+    private.
+
+On the internet
+:   There's no home network, so services start public, protected by
+    CrowdSec, and private ones are only reachable through an SSH tunnel
+    ([how](../services/public.md#private-on-a-cloud-server)). Roostack's own
+    pages are at `roostack.<your domain>`, behind your password and a code,
+    unless you keep them to an SSH tunnel. One DNS record, `*.<your
+    domain>`, points at the server's public address.
+
+Changing it restarts Roostack.
+
 ## Reaching your services from home
 
 Your services are private: only for devices on your home network. So that
@@ -45,8 +67,8 @@ those devices find them, Roostack can keep a record at your DNS provider
 pointing `*.smith.family` at your server's address at home. It only ever
 changes records it created itself.
 
-**Settings → Home network** shows whether devices at home can reach your
-services, and fixes are suggested when they can't:
+**Settings → Where it is and DNS** shows whether devices at home can reach
+your services, and fixes are suggested when they can't:
 
 The record exists, but your home network's DNS won't return it
 :   Usually your router's **DNS rebinding protection**, which blocks

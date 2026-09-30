@@ -108,22 +108,24 @@
 {{define "dns-card"}}
 {{with .DNS}}
 <section class="card section" id="dns">
-  <h2>Home network access</h2>
+  <h2>{{if .Internet}}DNS records{{else}}Home network access{{end}}</h2>
   {{if eq .State "ok"}}<p>✓ {{.Message}} <span class="hint">({{.Record}} → {{.IP}})</span></p>
   {{else if eq .State "manual"}}{{notice "warn" .Message}}
   {{else if eq .State "pending"}}{{notice "info" .Message}}
   {{else if .State}}{{notice "error" .Message}}
   {{else}}<p class="hint">Checking…</p>{{end}}
   {{if .Syncing}}{{notice "info" "Updating DNS records and checking them… This can take a minute or two; this page updates by itself."}}{{end}}
-  {{if not .Checked.IsZero}}<p class="hint">Last checked {{when .Checked}}. This server's home network address: {{.IP}}. Give it a fixed address in your router (a "DHCP reservation") so it doesn't change.</p>{{end}}
+  {{if not .Checked.IsZero}}<p class="hint">Last checked {{when .Checked}}.
+    {{- if .Internet}} This lab's public address: {{.IP}}.{{else}} This server's home network address: {{.IP}}. Give it a fixed address in your router (a "DHCP reservation") so it doesn't change.{{end}}</p>{{end}}
   {{if eq .State "conflict"}}<p><a class="button" href="/dns/take-over">Take over this record…</a></p>{{end}}
   {{$server := "this server"}}{{with .IP}}{{$server = printf "this server (%s)" .}}{{end}}
   {{if and .CanManage (not .Managing)}}
   <div class="dns-manage">
     <p><strong>Let Roostack manage DNS records at {{.Provider}}?</strong> This is one setting for the whole lab:</p>
     <ul class="scope">
-      <li><strong>Now:</strong> {{.Record}} → this server, so devices at home can reach your services.</li>
-      <li><strong>Later:</strong> records for services you make public, kept up to date when your internet address changes.</li>
+      {{if .Internet}}<li><strong>Now:</strong> {{.Record}} → this server, so your services' addresses lead here.</li>
+      {{else}}<li><strong>Now:</strong> {{.Record}} → this server, so devices at home can reach your services.</li>
+      <li><strong>Later:</strong> records for services you make public, kept up to date when your internet address changes.</li>{{end}}
       <li><strong>Never:</strong> records Roostack didn't create, unless you choose to take one over.</li>
     </ul>
     {{if .Risky}}
@@ -132,12 +134,12 @@
     {{/* Confirming the dialog is accepting the risk (the handler still requires accept_risk). */}}
     {{confirm "/dns/manage" (printf "Let Roostack manage DNS records at %s anyway? To change one record, %s rewrites every record on your domain, so a mistake there could affect your email or other sites on it. Roostack will point %s at %s now, and keep it up to date." .Provider .Provider .Record $server) "Let Roostack manage DNS records" "danger" "manage=on" "accept_risk=on"}}
     {{else}}
-    {{confirm "/dns/manage" (printf "Let Roostack manage DNS records at %s? It will point %s at %s now, so devices at home can reach your services, and keep it up to date if that address changes. It never changes records it didn't create." .Provider .Record $server) "Let Roostack manage DNS records" "" "manage=on"}}
+    {{confirm "/dns/manage" (printf "Let Roostack manage DNS records at %s? It will point %s at %s now, so %s, and keep it up to date if that address changes. It never changes records it didn't create." .Provider .Record $server (or (and .Internet "your services' addresses lead here") "devices at home can reach your services")) "Let Roostack manage DNS records" "" "manage=on"}}
     {{end}}
   </div>
   {{else if .Managing}}
   <p class="hint">Roostack manages DNS records at {{.Provider}}: {{.Record}} → {{.IP}}.</p>
-  {{confirm "/dns/manage" (printf "Stop managing DNS records at %s? The records stay as they are, but Roostack stops updating them: if this server's home address changes, devices at home won't find your services until you change %s at %s yourself." .Provider .Record .Provider) "Stop managing DNS records" "secondary" "manage=off"}}
+  {{confirm "/dns/manage" (printf "Stop managing DNS records at %s? The records stay as they are, but Roostack stops updating them: if this server's address changes, %s won't find your services until you change %s at %s yourself." .Provider (or (and .Internet "visitors") "devices at home") .Record .Provider) "Stop managing DNS records" "secondary" "manage=off"}}
   <p class="hint">Records stay in place; Roostack just stops creating and updating them.</p>
   {{end}}
 </section>
@@ -145,6 +147,60 @@
 {{end}}
 
 
+
+{{/* public-ui: where Roostack's own pages are, next to a public service. */}}
+{{define "public-ui"}}{{if .PublicUI}}Roostack's own pages are public too, at <code>{{.UIHost}}</code>, behind your password and a code from your authenticator app.
+{{- else}}Roostack's own pages stay private.{{end}}{{end}}
+
+{{/* sharing-question: asked the first time anything goes public (SPEC.md
+     §6.11): here, or when installing on a lab on the internet. */}}
+{{define "sharing-question"}}
+<h2>Protection</h2>
+<p>Roostack starts <strong>CrowdSec</strong>, which spots attacks in the web log and blocks the addresses they come from,
+  and limits how fast anyone can try passwords.</p>
+<fieldset>
+  <legend>Share attack reports with CrowdSec's community?</legend>
+  <label class="check"><input type="radio" name="share" value="yes" checked>
+    <span>Share them (recommended)<small>Only attackers' addresses and what they tried, never anything about you or your people.
+      In return, addresses others have seen attacking are blocked before they try.</small></span></label>
+  <label class="check"><input type="radio" name="share" value="no">
+    <span>Don't share<small>Blocking attacks still works; you don't get the community's list of attackers.</small></span></label>
+</fieldset>
+<p class="hint">You can change this later in Settings → Public access.</p>
+{{end}}
+
+{{/* private-where: who reaches a private address, given whether the lab
+     is on the internet (SPEC.md §6.12). */}}
+{{define "private-where"}}{{if .}}Only through an SSH tunnel <small>(<a href="/help/services/public/#private-on-a-cloud-server" target="_blank" rel="noopener">for technical users{{template "new-window"}}</a>)</small>{{else}}Your home network (or VPN){{end}}{{end}}
+
+{{/* network-choice: where the lab is, at home or on the internet (SPEC.md
+     §6.12), and on the internet whether Roostack's own pages are public.
+     Fields "network" and "ui", inside a form; a networkForm. */}}
+{{define "network-choice"}}
+<div class="network-choice" data-network="{{.Current}}" x-data="{ network: $el.dataset.network }">
+  <fieldset>
+    <legend>Is this server at home, or on the internet?</legend>
+    <label class="check"><input type="radio" name="network" value="home" x-model="network" required>
+      <span>At home, behind a router<small>Services are for your home network (or a VPN into it). Making one public means
+        forwarding ports on your router.</small></span></label>
+    <label class="check"><input type="radio" name="network" value="internet" x-model="network">
+      <span>On the internet (a cloud server)<small>It has a public address of its own, like a VPS. Services start public, protected
+        by CrowdSec; private ones are only reachable through an SSH tunnel.</small></span></label>
+  </fieldset>
+  <p class="hint">{{if eq .Detected "internet"}}This server has a public address of its own, so it looks like a cloud server.
+    {{- else}}This server's addresses are private ones, like a server at home. A cloud server behind its provider's
+    network address translation looks like this too.{{end}}</p>
+  <fieldset x-show="network === 'internet'"{{if not .Internet}} x-cloak{{end}}>
+    <legend>Roostack's own pages</legend>
+    <label class="check"><input type="radio" name="ui" value="public" {{if not .UITunnelOnly}}checked{{end}}>
+      <span>At {{with .Domain}}<code>roostack.{{.}}</code>{{else}}roostack.<em>your domain</em>{{end}} (recommended)
+        <small>Anyone can reach the login page. Your password and a code from your authenticator app protect it,
+          CrowdSec blocks attackers, and password tries are limited.</small></span></label>
+    <label class="check"><input type="radio" name="ui" value="tunnel" {{if .UITunnelOnly}}checked{{end}}>
+      <span>Only through an SSH tunnel<small>For technical users: nobody else can even see the login page.</small></span></label>
+  </fieldset>
+</div>
+{{end}}
 
 {{/* settings-nav: the sidebar on settings area pages (desktop only; on
      phones the page's back link leads to the overview). */}}

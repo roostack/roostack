@@ -122,7 +122,21 @@ type Public struct {
 	// NoSharing: the Owner chose not to share them (SPEC.md §6.10). Local
 	// detection and blocking still work; the community blocklist doesn't.
 	NoSharing bool `yaml:"no_sharing,omitempty"`
+	// UITunnelOnly keeps Roostack's own pages off roostack.<domain> on a
+	// lab on the internet, where they're public by default (SPEC.md
+	// §6.3.2): they're then only reachable through an SSH tunnel.
+	UITunnelOnly bool `yaml:"ui_tunnel_only,omitempty"`
 }
+
+// Where a lab is (Lab.Network, SPEC.md §6.12).
+const (
+	// NetworkHome: behind a home router. "Private" means the home network;
+	// public services need port forwarding.
+	NetworkHome = "home"
+	// NetworkInternet: the server has a public address of its own (a
+	// cloud server). "Private" means only through an SSH tunnel.
+	NetworkInternet = "internet"
+)
 
 // Backup configures the backup destination (SPEC.md §6.9).
 type Backup struct {
@@ -233,6 +247,14 @@ type Lab struct {
 	Maintenance Maintenance `yaml:"maintenance,omitempty"`
 	// Public is how services are made public (SPEC.md §6.11).
 	Public Public `yaml:"public,omitempty"`
+	// Network is where the lab is: NetworkHome (the default when empty)
+	// or NetworkInternet (SPEC.md §6.12). It's about the controller, whose
+	// Caddy serves the lab's addresses.
+	Network string `yaml:"network,omitempty"`
+	// HostIP is the address this server reaches the internet from (its
+	// LAN address at home, its own public address on a cloud server),
+	// detected at runtime.
+	HostIP string `yaml:"-"`
 	// NodeID is this server's node ID (internal/node), set at runtime.
 	// Services are placed on nodes (SPEC.md §10.4).
 	NodeID string `yaml:"-"`
@@ -256,6 +278,15 @@ const (
 	RoleController = "controller"
 	RoleNode       = "node"
 )
+
+// OnInternet reports whether the lab is on the internet (a cloud server)
+// rather than behind a home router (SPEC.md §6.12).
+func (l Lab) OnInternet() bool { return l.Network == NetworkInternet }
+
+// PublicUI reports whether Roostack's own pages are public at
+// roostack.<domain>: on a lab on the internet, unless the Owner keeps them
+// to SSH tunnels (SPEC.md §6.3.2).
+func (l Lab) PublicUI() bool { return l.OnInternet() && !l.Public.UITunnelOnly }
 
 // IsNode reports whether this server is a node run by another server
 // (the controller): it runs services but no UI, Caddy or DNS.
@@ -339,6 +370,11 @@ func (l Lab) Validate() error {
 	}
 	if h := l.Maintenance.Hour(); h < 0 || h > 23 {
 		errs = append(errs, errors.New("maintenance.restart_hour must be 0-23"))
+	}
+	switch l.Network {
+	case "", NetworkHome, NetworkInternet:
+	default:
+		errs = append(errs, fmt.Errorf("network must be %q or %q", NetworkHome, NetworkInternet))
 	}
 	switch l.Firewall.SSH {
 	case "", SSHFromLAN, SSHFromAny, SSHOff:

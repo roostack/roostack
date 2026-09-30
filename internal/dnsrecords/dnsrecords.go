@@ -6,6 +6,10 @@
 //
 // Each public address gets its own record, pointing at the public entry's
 // address (SPEC.md §6.11, stage 2; public.go).
+//
+// On a lab on the internet (SPEC.md §6.12) the wildcard points at the
+// lab's public address instead, and covers public addresses too: there's
+// no home network, and nothing else to point them at.
 package dnsrecords
 
 import (
@@ -63,6 +67,9 @@ type Status struct {
 	// address they point at.
 	Public   []PublicRecord
 	PublicIP string
+	// Internet: the lab is on the internet, and the wildcard points at its
+	// public address (SPEC.md §6.12).
+	Internet bool
 }
 
 // Secrets reads Podman secret values (the DNS credentials).
@@ -229,13 +236,19 @@ func (m *Manager) Sync(ctx context.Context) Status {
 	}()
 	record := "*." + lab.Domain
 	ip := lab.DNS.LANIP
+	if ip == "" && lab.OnInternet() {
+		// The public address visitors reach (which, behind a provider's
+		// NAT, isn't the one on the server's interface).
+		ip, _ = m.entryAddress(ctx)
+	}
 	if ip == "" {
 		var err error
 		if ip, err = m.lanIP(); err != nil {
 			return m.set(Status{State: StateError, Record: record, Message: "Couldn't find this server's LAN address: " + err.Error()})
 		}
 	}
-	st := Status{Record: record, IP: ip, Managing: lab.DNS.ManageRecords, AcceptedRisk: lab.DNS.AllowRiskyRecords}
+	st := Status{Record: record, IP: ip, Managing: lab.DNS.ManageRecords, AcceptedRisk: lab.DNS.AllowRiskyRecords,
+		Internet: lab.OnInternet()}
 
 	p := dns.Get(lab.DNS.Provider)
 	if p != nil {
@@ -253,7 +266,11 @@ func (m *Manager) Sync(ctx context.Context) Status {
 	case !lab.DNS.ManageRecords, risky && !lab.DNS.AllowRiskyRecords:
 		st.State = StateManual
 		st = m.check(ctx, st)
-		st.Public, st.PublicIP = m.publicManual(ctx)
+		if lab.OnInternet() {
+			st.Public, st.PublicIP = m.coveredByWildcard(ctx, st)
+		} else {
+			st.Public, st.PublicIP = m.publicManual(ctx)
+		}
 		return m.set(st)
 	}
 
@@ -289,11 +306,17 @@ func (m *Manager) Sync(ctx context.Context) Status {
 		} else {
 			st.State, st.Message = StateError, err.Error()
 		}
-		st.Public, st.PublicIP = m.syncPublic(ctx, p, values, zone, ip)
+		if !lab.OnInternet() {
+			st.Public, st.PublicIP = m.syncPublic(ctx, p, values, zone, ip)
+		}
 		return m.set(st)
 	}
 	st = m.check(ctx, st)
-	st.Public, st.PublicIP = m.syncPublic(ctx, p, values, zone, ip)
+	if lab.OnInternet() {
+		st.Public, st.PublicIP = m.coveredByWildcard(ctx, st)
+	} else {
+		st.Public, st.PublicIP = m.syncPublic(ctx, p, values, zone, ip)
+	}
 	return m.set(st)
 }
 
@@ -387,6 +410,11 @@ func (m *Manager) check(ctx context.Context, st Status) Status {
 	st.Reachable = homeOK
 
 	switch {
+	case homeOK && st.Internet:
+		if st.State == "" {
+			st.State = StateOK
+		}
+		st.Message = "Your services' addresses point at this server."
 	case homeOK:
 		if st.State == "" {
 			st.State = StateOK
@@ -402,6 +430,10 @@ func (m *Manager) check(ctx context.Context, st Status) Status {
 			"Something on your network overrides this domain, such as a local DNS server (Pi-hole, AdGuard) "+
 			"or a router setting. Point %s at %s there, or remove the override.",
 			st.Record, strings.Join(local, ", "), st.IP, st.Record, st.IP)
+	case public && st.Internet:
+		// Public DNS has it; this server's resolver doesn't yet (a cache).
+		st.State = StatePending
+		st.Message = "The record is in place; this server's DNS will see it shortly."
 	case public:
 		st.State = StateBlocked
 		st.Message = "The record exists, but your home network's DNS won't return it. This is usually " +

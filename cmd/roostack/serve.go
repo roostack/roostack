@@ -50,6 +50,11 @@ func serve(args []string) error {
 		return err
 	}
 	lab.HasGPU = config.DetectGPU()
+	// On a lab on the internet, an SSH tunnel's requests reach Caddy from
+	// this address, which private addresses allow (SPEC.md §6.12).
+	if ip, err := dnsrecords.DetectLANIP(); err == nil {
+		lab.HostIP = ip
+	}
 	id, err := withNode(&lab)
 	if err != nil {
 		return err
@@ -237,6 +242,7 @@ func serve(args []string) error {
 		return err
 	}
 	srv.Setup, srv.DNSProvider, srv.LabName = wiz, lab.DNS.Provider, lab.DisplayName()
+	srv.DetectNetwork = public.DetectNetwork
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
 	// A new install can instead become a lab restored from its backups.
 	if token != "" {

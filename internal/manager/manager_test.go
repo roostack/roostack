@@ -406,3 +406,53 @@ func TestAssignmentHandsOverSecretsAndSetUp(t *testing.T) {
 		t.Errorf("setup progress after removing = %q", v)
 	}
 }
+
+// On a lab on the internet a service starts public (SPEC.md §6.12), and
+// its package's private paths stay closed until the Owner opens them.
+func TestInstallPublic(t *testing.T) {
+	m, _ := newManager(t)
+	if err := m.Install(context.Background(), "vaultwarden", InstallRequest{Settings: map[string]string{}, Public: true}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	routes, err := m.Access("vaultwarden")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range routes {
+		if !r.Public {
+			t.Errorf("%s should be public", r.Route)
+		}
+		for _, pp := range r.PrivatePaths {
+			if pp.Open {
+				t.Errorf("%s: %s opened without asking", r.Route, pp.Path)
+			}
+		}
+	}
+	if hosts := m.PublicHosts(); len(hosts) == 0 {
+		t.Error("its address should be listed as public")
+	}
+}
+
+// On a lab on the internet, CrowdSec starts with the public UI before
+// anything has asked about sharing: it shares nothing until the Owner
+// answers (SPEC.md §6.11, §6.12).
+func TestNoSharingUntilAsked(t *testing.T) {
+	m, _ := newManager(t)
+	m.Lab.Network = config.NetworkInternet
+	m.Node.(*node.Local).Lab.Network = config.NetworkInternet
+	m.UpdateLab = func(change func(*config.Lab)) error { change(&m.Lab); return nil }
+	quadlet := filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-crowdsec.container")
+	m.Apply()
+	m.Wait()
+	if data, err := os.ReadFile(quadlet); err != nil || !strings.Contains(string(data), "DISABLE_ONLINE_API=true") {
+		t.Fatalf("before the Owner answers, CrowdSec shares nothing: %v\n%s", err, data)
+	}
+	if err := m.SetSignalSharing(true); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if data, _ := os.ReadFile(quadlet); strings.Contains(string(data), "DISABLE_ONLINE_API") {
+		t.Error("once the Owner chooses to share, it does")
+	}
+}
