@@ -42,8 +42,9 @@ Purpose colours:
 | `--fg`, `--muted` | Text, secondary text |
 | `--border`, `--border-strong` | Borders, input borders |
 | `--accent`, `--accent-fg`, `--accent-soft` | Actions and links; text on accent; info backgrounds |
-| `--highlight`, `--highlight-fg`, `--highlight-soft` | The brand's spark: the logo mark, where you are (current page), focus rings, "New" badges. Use sparingly |
+| `--highlight`, `--highlight-fg`, `--highlight-soft` | The brand's spark: the brand mark (its comb on a soft-highlight tile), where you are (current page), focus rings, "New" badges. Use sparingly |
 | `--ok`, `--warn`, `--bad` (+ `-bg`, and `--bad-fg`) | Status. Roostack's own themes share them, so a problem always looks like a problem; a palette may override them (`--pal-ok-l`…), as Catppuccin does |
+| `--ok-on-fg` | The status green that shows on a text-coloured shape: the brand mark's online light on its server. It's the other mode's green; a palette may set its own (`--pal-ok-on-fg-l`/`-d`), as Everforest does. Not for text |
 
 Never use raw colours (`#…`) or palette variables (`--pal-…`) in `app.css` or templates.
 
@@ -65,7 +66,7 @@ Never use raw colours (`#…`) or palette variables (`--pal-…`) in `app.css` o
 | Rosé Pine | Dawn / Moon | Pine / rose (Roostack status colours) | [Rosé Pine](https://rosepinetheme.com) (MIT) |
 | Tokyo Night | Day / Night | Blue / magenta | [Tokyo Night](https://github.com/folke/tokyonight.nvim) (Apache 2.0) |
 
-Theme files use plain hex colours, and `TestThemesAreReadable` checks every theme in both modes against WCAG contrast: text and muted text on every surface and on notice tints (4.5:1), links (4.5:1), text on buttons (4.5:1), status text on its tint and on cards (4.5:1), and the highlight (3:1, it isn't text). Where a project's own colour is too faint for UI text on its own background (common in light variants), it's nudged just far enough to pass, keeping its hue; each file lists what was adjusted.
+Theme files use plain hex colours, and `TestThemesAreReadable` checks every theme in both modes against WCAG contrast: text and muted text on every surface and on notice tints (4.5:1), links (4.5:1), text on buttons (4.5:1), status text on its tint and on cards (4.5:1), the highlight (3:1, it isn't text), and the brand mark's online light on the text colour (3:1). Where a project's own colour is too faint for UI text on its own background (common in light variants), it's nudged just far enough to pass, keeping its hue; each file lists what was adjusted.
 
 Catppuccin's flavours only differ in how dark they are, so Roostack offers one Catppuccin theme (Latte and Mocha) rather than several near-identical ones. Its identity is its named accent colours instead: users pick one for buttons and links (12 of Catppuccin's 14; red and maroon are left out because red buttons mean "danger" in Roostack), and the highlight pairs with it (pink for cool accents, mauve for warm). Latte's pastels are darkened as needed to be readable as text on Latte's pale backgrounds; Mocha's are used as they are.
 
@@ -95,7 +96,8 @@ Template components are called as functions; everything else is plain HTML with 
 | Install steps | `{{template "install-steps" .Service.Install}}` in a notice; `{{template "install-line" .}}` (a ServiceView) in lists | A new service's install (`node.InstallProgress`): `ol.install-steps` with `li.step-done` / `step-now` / `step-todo`, time taken or "for …" so far. `.address-pending` shows an address that isn't a link yet |
 | Badge | `{{badge "New" ["highlight"]}}` | Highlight badges are rare |
 | Back link | `{{back "/settings" "Settings"}}` | |
-| Top bar | `layout.html`: `.brand` with `.brand-mark`; once the lab has a name, `.brand-stack` (a small uppercase `.brand-eyebrow` "Roostack" over `.brand-lab`) | The lab's name is the title, so people know whose lab it is; long names end in "…" (full name on hover) |
+| Brand mark | `{{brandMark}}` | Roostack's small mark (the hen on a server), in the theme's colours through the `bm-*` classes in `app.css`. Generated into `brandmark.go` by `assets/brand/generate.py`: change it there, not by hand. Decorative; the name beside it says what it is |
+| Top bar | `layout.html`: `.brand` with `{{brandMark}}`; once the lab has a name, `.brand-stack` (a small uppercase `.brand-eyebrow` "Roostack" over `.brand-lab`) | The lab's name is the title, so people know whose lab it is; long names end in "…" (full name on hover) |
 | Page help | `<div class="page-top">{{back …}}{{help "settings/people" "People and access"}}</div>` above the page title | Every page with a help page: a question-mark icon and the help page's title, top right, opening in a new window; the back link or setup step sits on its left. `TestHelpLinks` checks each page and #section exists in `help/docs` |
 | New window | `<a href="…" target="_blank" rel="noopener">Text{{template "new-window"}}</a>` | Every link that opens a new window (the help, the design system, services, other sites): an icon after the text, and "(opens in a new window)" for screen readers. `TestNewWindowLinks` checks every such link has it |
 | Card | `.card`, with a `.heading` row for title plus link | One topic per card |

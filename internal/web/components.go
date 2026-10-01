@@ -36,6 +36,7 @@ var componentFuncs = template.FuncMap{
 	"icon":        icon,
 	"server":      serverChip,
 	"builtinIcon": builtinIcon,
+	"brandMark":   func() template.HTML { return brandMark },
 }
 
 func init() {

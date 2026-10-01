@@ -134,6 +134,20 @@ func TestThemesAreReadable(t *testing.T) {
 					check(s, s+"-bg", 4.5)   // status pills
 					check(s, "surface", 4.5) // status text on cards
 				}
+				// The brand mark's online light: the other mode's green on a
+				// text-coloured server (--ok-on-fg in tokens.css). Not text.
+				other := map[string]string{"l": "d", "d": "l"}[mode]
+				okOnFg, ok := pal["pal-ok-on-fg-"+mode]
+				if !ok {
+					okOnFg, ok = pal["pal-ok-"+other]
+				}
+				if !ok {
+					okOnFg = shared["status-ok-"+other]
+				}
+				if c := contrast(okOnFg, get("fg")); c < 3 {
+					t.Errorf("%s (%s): ok-on-fg %s on fg %s is %.2f:1, need 3.0", name, map[string]string{"l": "light", "d": "dark"}[mode],
+						okOnFg, get("fg"), c)
+				}
 			}
 		}
 	}
