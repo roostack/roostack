@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
   <title>{{template "title" .}} · Roostack</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
   <link rel="stylesheet" href="/static/css/tokens.css">
   {{range themes}}<link rel="stylesheet" href="/static/css/themes/{{.ID}}.css">
   {{end}}
@@ -16,7 +19,7 @@
 </head>
 <body>
   <header class="topbar" x-data="{ open: false }">
-    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>
+    <a class="brand" href="/">{{brandMark}}
       {{- with .Nav}}{{with $.LabName}}<span class="brand-stack"><span class="brand-eyebrow">Roostack</span><span class="brand-lab" title="{{.}}">{{.}}</span></span>
       {{- else}}Roostack{{end}}{{else}}Roostack{{end}}</a>
     {{with .Nav}}

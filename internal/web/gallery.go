@@ -35,9 +35,17 @@ var galleryTokens = []struct{ Name, Use string }{
 	{"accent", "Actions and links"}, {"accent-soft", "Info backgrounds"},
 	{"highlight", "Brand mark, where you are, focus"}, {"highlight-soft", "Highlight backgrounds"},
 	{"ok", "Healthy"}, {"warn", "Needs attention soon"}, {"bad", "Problem"},
+	{"ok-on-fg", "Online lights in the brand mark (on text-coloured shapes)"},
 }
 
 var gallerySections = []gallerySection{
+	{ID: "brand", Title: "Brand mark", Intro: "Roostack's mark, a hen on a server, drawn in the theme's colours: text colour on a soft-highlight tile, with a highlight comb. It's generated from assets/brand/generate.py; don't edit it by hand.",
+		Examples: []galleryExample{
+			{"Top bar", "brandMark inside .brand, before the name. Decorative (hidden from screen readers): the name says what it is.", `
+<a class="brand" href="#">{{brandMark}}Roostack</a>`},
+			{"Top bar with the lab's name", "Once the lab has a name, the mark grows to sit beside both lines.", `
+<a class="brand" href="#">{{brandMark}}<span class="brand-stack"><span class="brand-eyebrow">Roostack</span><span class="brand-lab">The Smiths' lab</span></span></a>`},
+		}},
 	{ID: "buttons", Title: "Buttons", Intro: "One primary button per form or card; others secondary or quiet.",
 		Examples: []galleryExample{
 			{"Primary, secondary, danger, quiet", "Primary does the main thing. Danger removes or deletes. Quiet is for small or optional actions.", `

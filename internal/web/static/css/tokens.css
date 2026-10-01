@@ -53,6 +53,10 @@
   --ok: var(--pal-ok-l, var(--status-ok-l)); --ok-bg: var(--pal-ok-bg-l, var(--status-ok-bg-l));
   --warn: var(--pal-warn-l, var(--status-warn-l)); --warn-bg: var(--pal-warn-bg-l, var(--status-warn-bg-l));
   --bad: var(--pal-bad-l, var(--status-bad-l)); --bad-bg: var(--pal-bad-bg-l, var(--status-bad-bg-l)); --bad-fg: var(--pal-bad-fg-l, var(--status-bad-fg-l));
+  /* The status green that shows on a text-coloured shape (the brand mark's
+     online light on its server): the other mode's green, unless the
+     palette sets its own (--pal-ok-on-fg-l/-d). */
+  --ok-on-fg: var(--pal-ok-on-fg-l, var(--pal-ok-d, var(--status-ok-d)));
 }
 
 /* Dark: when the device prefers it and the user hasn't chosen light, or
@@ -68,6 +72,7 @@
     --ok: var(--pal-ok-d, var(--status-ok-d)); --ok-bg: var(--pal-ok-bg-d, var(--status-ok-bg-d));
     --warn: var(--pal-warn-d, var(--status-warn-d)); --warn-bg: var(--pal-warn-bg-d, var(--status-warn-bg-d));
     --bad: var(--pal-bad-d, var(--status-bad-d)); --bad-bg: var(--pal-bad-bg-d, var(--status-bad-bg-d)); --bad-fg: var(--pal-bad-fg-d, var(--status-bad-fg-d));
+    --ok-on-fg: var(--pal-ok-on-fg-d, var(--pal-ok-l, var(--status-ok-l)));
   }
 }
 [data-mode="dark"] {
@@ -80,4 +85,5 @@
   --ok: var(--pal-ok-d, var(--status-ok-d)); --ok-bg: var(--pal-ok-bg-d, var(--status-ok-bg-d));
   --warn: var(--pal-warn-d, var(--status-warn-d)); --warn-bg: var(--pal-warn-bg-d, var(--status-warn-bg-d));
   --bad: var(--pal-bad-d, var(--status-bad-d)); --bad-bg: var(--pal-bad-bg-d, var(--status-bad-bg-d)); --bad-fg: var(--pal-bad-fg-d, var(--status-bad-fg-d));
+  --ok-on-fg: var(--pal-ok-on-fg-d, var(--pal-ok-l, var(--status-ok-l)));
 }
