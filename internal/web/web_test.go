@@ -380,3 +380,28 @@ func TestCrashBecomesErrorPage(t *testing.T) {
 		t.Errorf("a crash should give an error page, got %d %q", code, body)
 	}
 }
+
+// Roostack's own files are revalidated, so an update's app.js is used at
+// once: an ETag, "no-cache", and 304 while unchanged.
+func TestStaticRevalidated(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	resp, err := http.Get(h.srv.URL + "/static/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	tag := resp.Header.Get("ETag")
+	if tag == "" || resp.Header.Get("Cache-Control") != "no-cache" {
+		t.Fatalf("headers: %v", resp.Header)
+	}
+	req, _ := http.NewRequest("GET", h.srv.URL+"/static/app.js", nil)
+	req.Header.Set("If-None-Match", tag)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotModified {
+		t.Errorf("unchanged: %d", resp.StatusCode)
+	}
+}

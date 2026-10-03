@@ -14,8 +14,10 @@
   {{end}}
   <link rel="stylesheet" href="/static/css/app.css">
   <script src="/static/htmx-2.0.11.min.js" defer></script>
-  <script src="/static/alpine-3.17.4.min.js" defer></script>
+  {{/* app.js before Alpine: Alpine starts as soon as it runs, and
+       expressions use app.js's functions (roostackSize). */}}
   <script src="/static/app.js" defer></script>
+  <script src="/static/alpine-3.17.4.min.js" defer></script>
 </head>
 <body>
   <header class="topbar" x-data="{ open: false }">

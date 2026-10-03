@@ -174,6 +174,29 @@
      is on the internet (SPEC.md §6.12). */}}
 {{define "private-where"}}{{if .}}Only through an SSH tunnel <small>(<a href="/help/services/public/#private-on-a-cloud-server" target="_blank" rel="noopener">for technical users{{template "new-window"}}</a>)</small>{{else}}Your home network (or VPN){{end}}{{end}}
 
+{{/* disk-space: a server's disk (a spaceView): free and total, a bar
+     with the space promised to other labs, what uses it, and any
+     warning. Settings → Servers and Storage for others. */}}
+{{define "disk-space"}}
+<p><strong>{{size .Free}} free</strong> of {{size .Total}}</p>
+<div class="space-bar" role="img" aria-label="{{size .Used}} used, {{size .Free}} free of {{size .Total}}">
+  <span class="space-used{{with .Level}} space-{{.}}{{end}}" style="width: {{.UsedPercent}}%"></span>
+  {{- if .PromisedLeft}}<span class="space-promised" style="width: {{.PromisedPercent}}%"></span>{{end}}
+</div>
+<dl class="space-list">
+  <dt>In use</dt><dd>{{size .Used}}</dd>
+  <dt class="sub">Services' data</dt><dd>{{if gt .Services 0}}{{size .Services}}{{else if eq .Services 0}}none{{else}}not counted yet{{end}}</dd>
+  <dt class="sub">Backups of your lab's servers</dt><dd>{{if ge .Backups 0}}{{size .Backups}}{{else}}not counted yet{{end}}</dd>
+  {{if gt .Guests 0}}<dt class="sub">Backups of other labs</dt><dd>{{size .Guests}}</dd>{{end}}
+  {{if ge .Other 0}}<dt class="sub">The system and everything else</dt><dd>{{size .Other}}</dd>{{end}}
+  {{if .Promised}}<dt>Promised to other labs</dt><dd>{{size .Promised}}, of which {{size .PromisedLeft}} isn't used yet</dd>{{end}}
+  {{if gt .HeldBack 0}}<dt>Held back by the filesystem</dt><dd>{{size .HeldBack}}, for the system (so it keeps working if the disk fills up)</dd>{{end}}
+</dl>
+<small>The disk holding Roostack's data. Free space is up to date; the parts are counted daily, after the nightly backup
+  {{- if not .Counted.IsZero}} (last counted {{when .Counted}}){{end}}.</small>
+{{if .Warning}}{{notice .NoticeKind .Warning}}{{end}}
+{{end}}
+
 {{/* network-choice: where the lab is, at home or on the internet (SPEC.md
      §6.12), and on the internet whether Roostack's own pages are public.
      Fields "network" and "ui", inside a form; a networkForm. */}}

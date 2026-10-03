@@ -6,6 +6,12 @@
   <p class="hint">Give family or friends space on this server for their Roostack's backups, and they can do the same for you:
     each of you then has a copy somewhere else. Their backups are encrypted before they leave their lab, so you can't read
     them, and each lab gets its own space with a size limit.</p>
+  {{with .HostSpace}}
+  <h2>Space on {{$.HostServer.Name}}</h2>
+  {{template "disk-space" .}}
+  {{with $.Space}}<p>Other labs can be given up to <strong>{{size .Left}}</strong> more, keeping 10% of the disk free for your own
+    services and backups.</p>{{end}}
+  {{end}}
 </section>
 
 {{with .Guests}}
@@ -81,11 +87,10 @@
       x-data="{ gb: Number($el.dataset.gb), free: Number($el.dataset.free), promised: Number($el.dataset.promised), left: Number($el.dataset.left) }">
       {{if lt .Left 1000000000}}{{notice "warn" (printf "%s has no space to offer other labs right now: it keeps 10%% of its disk free, and the rest is in use or already given to other labs." $.HostServer.Name)}}{{end}}
       <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{$.Quota}}" x-model.number="gb" required>
-        <small>{{$.HostServer.Name}} has {{size .Free}} free of {{size .Total}}{{if .Promised}}, and other labs may still fill
-          {{size .Promised}} of the space they've been given{{end}}. It can offer up to {{size .Left}}, keeping 10% of its disk free.
-          <span x-show="gb * 1e9 <= left">Giving them <span x-text="gb">{{$.Quota}}</span> GB leaves about
-            <strong x-text="roostackSize(free - promised - gb * 1e9)">{{size $.SpaceAfter}}</strong> free for your own services and backups.</span>
-          <strong class="error" x-show="gb * 1e9 > left" x-cloak>That's more than it can offer.</strong></small></label>
+        <small x-show="gb * 1e9 <= left">Giving them <span x-text="gb">{{$.Quota}}</span> GB leaves about
+          <strong x-text="roostackSize(free - promised - gb * 1e9)">{{size $.SpaceAfter}}</strong> free on {{$.HostServer.Name}}
+          for your own services and backups.</small>
+        <small class="error" x-show="gb * 1e9 > left" x-cloak>That's more than {{$.HostServer.Name}} can offer: up to {{size .Left}}.</small></label>
     </div>
     {{else}}
     <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{.Quota}}" required></label>

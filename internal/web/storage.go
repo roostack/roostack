@@ -67,6 +67,11 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 	}
 	data["Guests"], data["Removed"], data["Leftover"], data["Endpoint"] = active, removed, left, endpoint
 	data["Offering"] = s.Manager.OfferStorage(r.Context())
+	for _, mn := range s.serverNodes(r) {
+		if mn.view.ID == hostID {
+			data["HostSpace"] = s.serverSpace(r.Context(), mn.view, mn.node)
+		}
+	}
 	data["Internet"] = hostsHere && s.onInternet()
 	data["Quota"] = "50"
 	if sp, ok := s.Manager.GuestSpaceLeft(r.Context()); ok {
