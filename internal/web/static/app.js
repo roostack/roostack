@@ -9,9 +9,14 @@
     const fp = e.detail.elt.dataset.fingerprint;
     if (fp) e.detail.headers["X-Roostack-Have"] = fp;
   });
+  // A part that replaces itself (hx-swap="outerHTML") is a new element by
+  // now: the fingerprint goes on the one with its id.
   document.addEventListener("htmx:afterRequest", (e) => {
     const fp = e.detail.xhr && e.detail.xhr.getResponseHeader("X-Roostack-Fingerprint");
-    if (fp && e.detail.successful) e.detail.elt.dataset.fingerprint = fp;
+    if (!fp || !e.detail.successful) return;
+    e.detail.elt.dataset.fingerprint = fp;
+    const now = e.detail.elt.id && document.getElementById(e.detail.elt.id);
+    if (now) now.dataset.fingerprint = fp;
   });
 
   // When a part does change, replacing its HTML would close any <details>
