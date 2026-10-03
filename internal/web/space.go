@@ -26,6 +26,8 @@ const (
 // spaceView is a server's disk space for a page.
 type spaceView struct {
 	node.DiskSpace
+	// ServerID is whose disk it is (for the part that refreshes itself).
+	ServerID string
 	// Promised is the space promised to other labs storing backups here
 	// (their quotas); PromisedLeft the part of it they don't use yet.
 	Promised, PromisedLeft int64
@@ -113,7 +115,7 @@ func (s *Server) serverSpace(ctx context.Context, m serverRef, n any) *spaceView
 	if err != nil {
 		return nil
 	}
-	v := &spaceView{DiskSpace: ds}
+	v := &spaceView{DiskSpace: ds, ServerID: m.ID}
 	// Other labs' quotas count on the server that stores their backups.
 	if s.Manager != nil && s.Manager.GuestServer(ctx) == m.ID {
 		if guests, err := s.Manager.StorageGuests(ctx); err == nil {
@@ -146,6 +148,20 @@ func (s *Server) serverSpace(ctx context.Context, m serverRef, n any) *spaceView
 			m.Label(), sizeText(v.PromisedLeft), sizeText(ds.Free))
 	}
 	return v
+}
+
+// diskPart serves a server's disk block while its parts are being counted
+// (disk-space-live): 204 while unchanged, and without polling once done.
+func (s *Server) diskPart(w http.ResponseWriter, r *http.Request) {
+	for _, mn := range s.serverNodes(r) {
+		if mn.view.ID == r.PathValue("server") {
+			if v := s.serverSpace(r.Context(), mn.view, mn.node); v != nil {
+				s.renderLive(w, r, "settings-servers", "disk-space-live", v)
+				return
+			}
+		}
+	}
+	http.NotFound(w, r)
 }
 
 // spaceAttention flags servers running out of space (home page).
