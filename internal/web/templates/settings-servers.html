@@ -101,7 +101,7 @@
   {{if not .ErrorServer}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
   {{with .JoinCode}}
   <p>On the new server, run this within an hour (the code works once):</p>
-  <pre class="output copyable">sudo roostack node join {{.}}</pre>
+  {{copyBox (printf "sudo roostack node join %s" .)}}
   <p class="hint">Anyone with this code can add a server to your lab until it's used, so don't share it.</p>
   {{end}}
   <form method="post" action="/settings/servers/join">

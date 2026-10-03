@@ -55,9 +55,7 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 		}
 	}
 	if endpoint == "" && hostsHere {
-		if host, _, err := net.SplitHostPort(defaultEndpoint()); err == nil {
-			endpoint = net.JoinHostPort(host, strconv.Itoa(agent.GuestsPort))
-		}
+		endpoint = s.publicEndpoint()
 	}
 	var active, removed []manager.GuestView
 	for _, g := range guests {
@@ -69,6 +67,10 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 	}
 	data["Guests"], data["Removed"], data["Leftover"], data["Endpoint"] = active, removed, left, endpoint
 	data["Offering"] = s.Manager.OfferStorage(r.Context())
+	data["Internet"] = hostsHere && s.onInternet()
+	if left, ok := s.Manager.GuestSpaceLeft(r.Context()); ok {
+		data["SpaceLeft"], data["SpaceKnown"] = left, true
+	}
 	if host, _, err := net.SplitHostPort(defaultEndpoint()); err == nil && hostsHere {
 		data["LANAddr"] = host
 	}
@@ -80,6 +82,25 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	s.render(w, "settings-storage", withArea(data, "storage"))
+}
+
+// publicEndpoint is the address other labs reach this server's guests
+// link at, if Roostack knows it: on a lab on the internet its public
+// address, at home the home's public address, when DNS records know it
+// (SPEC.md §10.10). Otherwise "" and the Owner types it.
+func (s *Server) publicEndpoint() string {
+	if s.DNS == nil {
+		return ""
+	}
+	st := s.DNS.Status()
+	ip := st.PublicIP
+	if st.Internet {
+		ip = st.IP
+	}
+	if addr := net.ParseIP(ip); addr == nil || addr.IsPrivate() || addr.IsLoopback() {
+		return ""
+	}
+	return net.JoinHostPort(ip, strconv.Itoa(agent.GuestsPort))
 }
 
 // gigabytes reads a whole number of GB from a form.

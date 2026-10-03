@@ -23,7 +23,7 @@
             <button type="submit" class="secondary">Change</button>
           </form></td>
         <td>{{if not .Joined}}Waiting for them to use the invite (until {{when .Expires}})
-          {{- else if .LastSeen.IsZero}}<span class="dot dot-warn" aria-hidden="true"></span>Not yet: check the port forwarding below
+          {{- else if .LastSeen.IsZero}}<span class="dot dot-warn" aria-hidden="true"></span>Not yet: check {{if $.Internet}}your provider's firewall{{else}}the port forwarding{{end}} below
           {{- else}}<span class="dot dot-ok" aria-hidden="true"></span>{{when .LastSeen}}{{end}}</td>
         <td>{{confirm (printf "/settings/storage/guests/%d/remove" .ID) (printf "Stop storing backups for %s? They can't add backups from now on. Roostack tells their lab, and deletes what's here in 30 days (or sooner, if you choose)." .Name) "Remove" "quiet danger"}}</td>
       </tr>{{end}}
@@ -55,14 +55,17 @@
 {{end}}
 
 <section class="card section" id="invite">
+  {{if .Invite}}
+  <h2>Invite for {{.InviteName}}</h2>
+  <p>Send this to {{.InviteName}} privately. It works once, until {{when .InviteExpires}}. On their Backups page,
+    they add a backup, choose <strong>A friend's lab</strong> and paste it under <strong>Their invite code</strong>.</p>
+  {{copyBox .Invite}}
+  <p class="hint">Anyone with it can use the space until it's used, so don't post it anywhere public. It isn't shown again:
+    if it's lost, remove {{.InviteName}} above and make a new one.</p>
+  <p><a class="button secondary" href="/settings/storage#invite">Make another invite</a></p>
+  {{else}}
   <h2>Invite a lab</h2>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  {{with .Invite}}
-  <p>Send this invite to {{$.InviteName}} privately (it works once, until {{when $.InviteExpires}}). On their Backups page,
-    they add a backup, choose <strong>A friend's lab</strong> and paste it under <strong>Their invite code</strong>.</p>
-  <pre class="output copyable">{{.}}</pre>
-  <p class="hint">Anyone with it can use the space until it's used, so don't post it anywhere public.</p>
-  {{end}}
   {{with .ServerChoices}}
   <form method="post" action="/settings/storage/server" class="inline-form">
     <label>Offered by <select name="server">{{range .}}<option value="{{.ID}}" {{if eq .ID $.HostServer.ID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
@@ -72,11 +75,31 @@
   {{end}}
   <form method="post" action="/settings/storage/invite">
     <label>Whose lab <input name="name" value="{{.Name}}" placeholder="Sam's lab" required></label>
-    <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{or .Quota "50"}}" required></label>
-    <label>Address they reach {{.HostServer.Name}} at <input name="endpoint" value="{{.Endpoint}}" placeholder="203.0.113.7:51821" required></label>
-    <small class="hint">Your home's public address (or a name from your domain that points home) and port 51821.</small>
+    <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{or .Quota "50"}}" required>
+      {{if .SpaceKnown}}<small>{{.HostServer.Name}} can offer about {{size .SpaceLeft}} more (after the space other labs have, keeping 10% of its disk free).</small>{{end}}</label>
+    {{if .Endpoint}}
+    <p>They connect to {{.HostServer.Name}} at <code>{{.Endpoint}}</code>.</p>
+    <details>
+      <summary>Use a different address</summary>
+      <label>Address they reach {{.HostServer.Name}} at <input name="endpoint" value="{{.Endpoint}}" required>
+        <small>{{if .Internet}}This server's public address{{else}}Your home's public address (or a name from your domain that points home){{end}} and port 51821.</small></label>
+    </details>
+    {{else}}
+    <label>Address they reach {{.HostServer.Name}} at <input name="endpoint" placeholder="203.0.113.7:51821" required>
+      <small>{{if .Internet}}This server's public address{{else}}Your home's public address (or a name from your domain that points home){{end}} and port 51821.</small></label>
+    {{end}}
     <button type="submit">Make an invite</button>
   </form>
+  {{end}}
+  {{if .Internet}}
+  <details>
+    <summary>Letting them in: your provider's firewall</summary>
+    <p>Roostack already allows other labs through {{.HostServer.Name}}'s own firewall. If your cloud provider puts a firewall in
+      front of it (such as Linode's Cloud Firewall or AWS security groups), allow <strong>UDP</strong> port <strong>51821</strong>
+      from anywhere in its control panel. No provider firewall? There's nothing to do.</p>
+    <p class="hint">How to tell it worked: once they've used the invite, "Connected" above shows when their lab last reached this one.</p>
+  </details>
+  {{else}}
   <details>
     <summary>Letting them in: port forwarding</summary>
     <p>Other labs connect to {{.HostServer.Name}} through the router in front of it, which only lets them in if you ask it to.
@@ -92,5 +115,6 @@
       If it stays "Not yet", the port isn't forwarded (or the address is wrong). Some internet connections (called CGNAT) can't forward
       ports at all; then the other lab can host instead, and you store at theirs.</p>
   </details>
+  {{end}}
 </section>
 {{end}}

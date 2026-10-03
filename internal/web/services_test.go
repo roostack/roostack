@@ -16,6 +16,8 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
@@ -139,6 +141,7 @@ func (f *fakeManager) SetGuestQuota(_ context.Context, id, quota int64) error {
 	f.guestOps = append(f.guestOps, fmt.Sprintf("quota %d %d", id, quota/units.GB))
 	return nil
 }
+func (f *fakeManager) GuestSpaceLeft(context.Context) (int64, bool) { return 120 * units.GB, true }
 func (f *fakeManager) LeftoverGuests(context.Context) ([]manager.LeftoverGuest, error) {
 	return []manager.LeftoverGuest{{User: "g9", Size: 2 * units.GB}}, nil
 }
@@ -961,18 +964,27 @@ func TestStorageForOthers(t *testing.T) {
 	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Quota: 50 * units.GB, Joined: true},
 		Used: 3 * units.GB, LastSeen: time.Now()}}
 	_, body := h.get("/settings/storage")
-	for _, want := range []string{"Sam&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821"} {
+	for _, want := range []string{"Sam&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821",
+		"can offer about 120.0 GB more", `<input name="endpoint" placeholder=`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("storage page missing %q", want)
 		}
+	}
+	// On a lab on the internet, Roostack knows the address to give them.
+	h.setSetup(&fakeSetup{p: allDone, network: config.NetworkInternet})
+	h.server.DNS = &fakeDNS{st: dnsrecords.Status{Internet: true, IP: "203.0.113.7"}}
+	_, body = h.get("/settings/storage")
+	if !strings.Contains(body, "at <code>203.0.113.7:51821</code>") || !strings.Contains(body, "Letting them in: your provider's firewall") {
+		t.Errorf("the address should be filled in:\n%s", body[strings.Index(body, `id="invite"`):])
 	}
 	if code, body := h.post("/settings/storage/invite", url.Values{"name": {"Sam"}, "quota": {"0"}, "endpoint": {"1.2.3.4:51821"}}, h.srv.URL); code != http.StatusBadRequest ||
 		!strings.Contains(body, "at least 1 GB") {
 		t.Errorf("zero quota: %d", code)
 	}
 	_, body = h.post("/settings/storage/invite", url.Values{"name": {"Sam"}, "quota": {"20"}, "endpoint": {"1.2.3.4:51821"}}, h.srv.URL)
-	if !strings.Contains(body, "Send this invite to Sam") {
-		t.Error("the invite should be shown once")
+	if !strings.Contains(body, "Invite for Sam") || !strings.Contains(body, `class="copy-box"`) ||
+		strings.Contains(body, `action="/settings/storage/invite"`) {
+		t.Error("the invite should be shown once, with a Copy button, in place of the form")
 	}
 	// Where it goes, in the Backups page's own words (the plan chooser).
 	if !strings.Contains(body, "<strong>A friend's lab</strong>") || !strings.Contains(body, "<strong>Their invite code</strong>") {

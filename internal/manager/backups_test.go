@@ -357,6 +357,18 @@ func TestRemovedGuestGrace(t *testing.T) {
 	}
 	guests, _ := st.Guests(ctx, time.Now())
 	g := guests[0]
+	// The vps's disk: 500 of 1000 GB free, 1 GB used by Sam, 10 GB
+	// promised, 100 GB kept free: 391 GB more to offer. A quota change
+	// doesn't count the guest's own quota.
+	if left, ok := m.GuestSpaceLeft(ctx); !ok || left != 391<<30 {
+		t.Errorf("space left %d GB, %v", left>>30, ok)
+	}
+	if err := m.SetGuestQuota(ctx, g.ID, 402<<30); err == nil || !strings.Contains(err.Error(), "doesn't fit") {
+		t.Errorf("a quota that doesn't fit: %v", err)
+	}
+	if err := m.SetGuestQuota(ctx, g.ID, 401<<30); err != nil {
+		t.Errorf("one that does: %v", err)
+	}
 	if stores, _ := m.guestStores(ctx); len(stores) != 1 {
 		t.Fatal("a guest's store runs")
 	}

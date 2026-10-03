@@ -28,4 +28,18 @@
     }
     open = [];
   });
+
+  // roostackCopy copies an element's text (the copy-box component). The
+  // browser's clipboard API needs HTTPS (or localhost); elsewhere the text
+  // is selected and copied the older way.
+  window.roostackCopy = (el) => {
+    const text = el.textContent.trim();
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return document.execCommand("copy") ? Promise.resolve() : Promise.reject(new Error("copy failed"));
+  };
 })();

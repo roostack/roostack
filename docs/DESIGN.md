@@ -109,6 +109,7 @@ Template components are called as functions; everything else is plain HTML with 
 | Activity | `{{activity .SomeActivity}}` | Host operations: status line plus collapsed log; nothing if there's none |
 | Technical details | `<details class="technical">` | Collapsed by default |
 | Secret | `<code class="secret">` | Values to copy, shown once |
+| Copy box | `{{copyBox TEXT}}` | Text people copy and send or paste elsewhere (an invite, a command), with a Copy button |
 
 ### Adding a component
 

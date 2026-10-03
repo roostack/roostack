@@ -210,7 +210,7 @@ details:not(.activity-details, .action, .user-actions, .tile > details)[open] > 
   border-left: 3px solid var(--accent-soft); }
 details:not(.activity-details, .action, .user-actions, .tile > details)[open] > summary + * { margin-top: var(--space-2); padding-top: var(--space-2); }
 details:not(.activity-details, .action, .user-actions, .tile > details)[open] > :last-child { margin-bottom: var(--space-2); padding-bottom: var(--space-2); }
-details:not(.activity-details, .action, .user-actions, .tile > details)[open] > ul { padding-left: calc(var(--space-3) + 1.25em); }
+details:not(.activity-details, .action, .user-actions, .tile > details)[open] > :is(ul, ol) { padding-left: calc(var(--space-3) + 1.25em); }
 details.action { border-top: 1px solid var(--border); padding: var(--space-3) 0; }
 details.action > summary { color: var(--fg); font-size: var(--text-base); font-weight: var(--weight-medium); }
 .user-actions > summary { color: var(--accent); margin-top: var(--space-1); }
@@ -237,6 +237,8 @@ pre.output { background: var(--surface-2); border: 1px solid var(--border); bord
 code.secret { display: inline-block; font-size: 1.1em; padding: var(--space-1) var(--space-2); }
 .secret-row { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
   margin: var(--space-3) 0; overflow-wrap: anywhere; }
+.copy-box { display: flex; gap: var(--space-2); align-items: flex-start; margin: var(--space-2) 0; }
+.copy-box pre.output { flex: 1; min-width: 0; margin: 0; }
 .qr-box { margin: var(--space-3) 0; }
 svg.qr { display: block; width: 200px; height: 200px; border-radius: var(--radius-sm); }
 .recovery { font-size: var(--text-lg); text-align: center; }

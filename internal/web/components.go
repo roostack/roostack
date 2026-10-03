@@ -33,6 +33,7 @@ var componentFuncs = template.FuncMap{
 	"help":          helpLink,
 	"confirm":       confirmButton,
 	"confirmSubmit": confirmSubmit,
+	"copyBox":       copyBox,
 	"activity":      activityBlock,
 	"icon":          icon,
 	"server":        serverChip,
@@ -189,6 +190,11 @@ func confirmSubmit(question, text, kind string) (template.HTML, error) {
 	}
 	return renderComponent("confirm-submit", map[string]any{"Question": question, "Text": text, "Kind": kind,
 		"ID": confirmID("", question, nil)})
+}
+
+// copyBox shows text to copy (an invite, a command) with a Copy button.
+func copyBox(text string) (template.HTML, error) {
+	return renderComponent("copy-box", text)
 }
 
 // activityBlock shows a host operation; nothing if there is none.
