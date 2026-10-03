@@ -52,8 +52,11 @@ func TestNetworkSetting(t *testing.T) {
 	if _, body := h.get("/settings"); !strings.Contains(body, "Looks like a cloud server") {
 		t.Error("the Settings overview should too")
 	}
+	// The choice starts at what's in effect (at home), not at the guess,
+	// which would look like a saved setting.
 	_, body := h.get("/settings/home-network")
-	if !strings.Contains(body, `action="/settings/network"`) || !strings.Contains(body, "Roostack treats this lab as <strong>at home</strong>") {
+	if !strings.Contains(body, `action="/settings/network"`) || !strings.Contains(body, "Roostack treats this lab as <strong>at home</strong>") ||
+		!strings.Contains(body, `data-network="home"`) {
 		t.Errorf("network settings:\n%.2000s", body)
 	}
 	if code, _ := h.post("/settings/network", url.Values{"network": {"moon"}}, h.srv.URL); code != http.StatusBadRequest {

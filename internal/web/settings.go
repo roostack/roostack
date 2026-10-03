@@ -249,7 +249,7 @@ func (s *Server) homeNetworkPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["DNS"] = s.dnsView(r)
-	data["NetworkForm"] = s.networkForm(r)
+	data["NetworkForm"] = s.networkForm(r, false)
 	if s.DNS != nil {
 		recs, err := s.DNS.Records(r.Context())
 		if err != nil {

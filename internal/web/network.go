@@ -58,10 +58,21 @@ type networkForm struct {
 	setup.NetworkChoice
 	// Domain names Roostack's own address, if the lab has one yet.
 	Domain string
+	// Selected is the choice the form starts with.
+	Selected string
 }
 
-func (s *Server) networkForm(r *http.Request) networkForm {
+// networkForm starts the choice at the guess in the wizard (suggest), but
+// in Settings at what's in effect: with nothing saved yet that's at home,
+// so a guess doesn't look like a saved setting.
+func (s *Server) networkForm(r *http.Request, suggest bool) networkForm {
 	f := networkForm{NetworkChoice: s.network()}
+	f.Selected = f.Saved
+	if suggest {
+		f.Selected = f.Current()
+	} else if f.Selected == "" {
+		f.Selected = config.NetworkHome
+	}
 	if s.Domain != "" && s.Setup != nil && s.domainDone(r) {
 		f.Domain = s.Domain
 	}

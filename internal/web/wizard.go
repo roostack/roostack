@@ -134,7 +134,7 @@ func (s *Server) timezonePage(w http.ResponseWriter, r *http.Request) {
 // about where this server is (SPEC.md §6.12).
 func (s *Server) addNetworkForm(r *http.Request, data map[string]any) {
 	if data["Wizard"] == true && s.serverRefOf(r).This {
-		data["NetworkForm"] = s.networkForm(r)
+		data["NetworkForm"] = s.networkForm(r, true)
 	}
 }
 
