@@ -204,6 +204,12 @@ type MainConfig struct {
 // (renamed from roostack. on 2026-10-01: shorter to type and say).
 const AdminSubdomain = "roost"
 
+// LinkSubdomain names this lab for other servers and labs connecting to it
+// over WireGuard (joining, storage for others): link.<domain>, pointing at
+// the home's public address once someone chooses it (SPEC.md §10.2). Not
+// a web address: no service may use it.
+const LinkSubdomain = "link"
+
 // AdminLoginPaths get the strict rate limit when the UI is public: logging
 // in (password, then code) and the recovery key's password-and-code check.
 // Not /setup: the setup code is too long to guess, and the wizard's pages

@@ -319,10 +319,11 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 	data["Spaces"] = spaceBy
 	if s.Network != nil {
 		endpoint, _ := s.Store.Setting(r.Context(), endpointKey)
-		if endpoint == "" {
-			endpoint = defaultEndpoint()
+		if v, ok := extra["Endpoint"].(string); ok {
+			endpoint = v // as it was submitted
 		}
-		data["CanAdd"], data["Endpoint"] = true, endpoint
+		data["CanAdd"] = true
+		data["AddressChoice"] = s.addressChoices(r, "Address the new server reaches this one at", agent.WireGuardPort, true, true, endpoint)
 		if host, _, err := net.SplitHostPort(defaultEndpoint()); err == nil {
 			data["LANAddr"] = host
 		}
@@ -344,10 +345,10 @@ func (s *Server) joinCodeSubmit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	endpoint := strings.TrimSpace(r.FormValue("endpoint"))
+	endpoint := addressFromForm(r)
 	if host, port, err := net.SplitHostPort(endpoint); err != nil || host == "" || port == "" {
 		s.renderServers(w, r, map[string]any{"Endpoint": endpoint,
-			"Error": "Enter the address and port other servers reach this one at, such as 192.168.1.20:51820."})
+			"Error": "Choose the address other servers reach this one at, or enter one with its port, such as 192.168.1.20:51820."})
 		return
 	}
 	code, err := s.Network.NewJoinCode(r.Context(), endpoint)
@@ -356,6 +357,7 @@ func (s *Server) joinCodeSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.SetSetting(r.Context(), endpointKey, endpoint)
+	s.useAddress(r.Context(), endpoint)
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "join code made for "+code.Addr.String())
 	s.renderServers(w, r, map[string]any{"Endpoint": endpoint, "JoinCode": code.String(),
 		"JoinExpires": time.Now().Add(labnet.JoinCodeLifetime)})

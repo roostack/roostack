@@ -13,11 +13,18 @@ the first. Don't go through its setup page: joining the lab sets it up.
 On your lab's Roostack, go to **Settings → Servers**, and under **Add a
 server**:
 
-1. Enter the **address the new server reaches this one at**:
-    - for a server **at home**: this server's address on your home network,
-      and port 51820, such as `192.168.1.20:51820`;
-    - for a server **elsewhere**: your home's public address and port 51820,
-      such as `203.0.113.7:51820`, once you've set up port forwarding (below).
+1. Choose the **address the new server reaches this one at**. Roostack
+   lists the ones it knows, and suggests the one you used last time:
+    - for a server **at home**: **this server's home-network address**, such
+      as `192.168.1.20:51820`;
+    - for a server **elsewhere**: **a name from your domain**,
+      `link.<your domain>:51820`, once you've set up port forwarding (below).
+      Roostack keeps that name pointing at your home's public address, which
+      can change. (It only creates the name the first time you choose it.)
+      **The public address** works too, until it changes;
+    - **another address**, for anything else: a VPN address, a router that
+      forwards a different outside port, or a name from another dynamic DNS
+      service.
 2. Choose **Make a join code**.
 
 Roostack shows a command with the code in it. The code works once, for an
@@ -48,9 +55,7 @@ firewall; the router is the step it can't do for you.
    or *Port mapping*, or put it under *Advanced* or *Firewall*.
 3. Add a rule: protocol **UDP** (not TCP), port **51820**, to the server
    that runs your lab, port 51820.
-4. Use your home's public address in the join code. Search "what is my IP"
-   from a device at home to find it. If it changes now and then, a name
-   from your domain that points home works better.
+4. Choose **a name from your domain** for the join code.
 
 If joining says it **can't reach the controller**, the port isn't forwarded
 yet, or the address is wrong.
