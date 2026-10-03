@@ -80,7 +80,7 @@ func TestShowRecoveryKey(t *testing.T) {
 	// Right code, wrong password; right password, wrong code.
 	for _, form := range []url.Values{
 		{"password": {"not my password"}, "code": {code(1)}},
-		{"password": {"a long password"}, "code": {"000000"}},
+		{"password": {"a long password"}, "code": {wrongCode(u.TOTPSecret)}},
 	} {
 		if status, body := h.post("/backups/recovery-key", form, h.srv.URL); status != http.StatusBadRequest ||
 			strings.Contains(body, "the-recovery-key") {
@@ -121,7 +121,7 @@ func TestShowRecoveryKey(t *testing.T) {
 	// Showing it reset the count: the used code was 1 wrong try, and four
 	// more make five, which ends the session.
 	for range 4 {
-		h.post("/backups/recovery-key", url.Values{"password": {"guess"}, "code": {"000000"}}, h.srv.URL)
+		h.post("/backups/recovery-key", url.Values{"password": {"guess"}, "code": {wrongCode(u.TOTPSecret)}}, h.srv.URL)
 	}
 	if _, body := h.get("/backups"); !strings.Contains(body, "Log in") {
 		t.Error("five wrong tries should end the session")

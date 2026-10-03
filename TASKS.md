@@ -139,7 +139,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Maybe: let a long upload (a first backup of a big library to online storage can take days) give way to other maintenance (OS updates, restarts) and carry on afterwards; the upload is already interruptible and resumes
   - [x] Email (SPEC §6.13): Settings → Email (SMTP server, STARTTLS/TLS, password in a 0600 file, test email), each person's address on their account page. Sent through Fastmail from VM1
   - [ ] Notifications by email: decide the proposal in SPEC §6.13 (events, defaults per role, groups on the account page), then build: a notifier on the controller that follows "needs attention" items and security events, with delays, reminders and "it's fixed"
-  - [ ] Flaky: `TestShowRecoveryKey` failed once in a full run (a wrong-code check got 200), then passed 8 times; probably at a two-factor code's 30-second boundary
+  - [x] Flaky `TestShowRecoveryKey`: its "wrong" code 000000 was the next window's real code (about once in a million runs). Tests now use a code that's valid in no nearby window. Roostack already accepts the codes either side of the current one (clock drift, a code changing while it's typed)
   - [x] WireGuard ports: new handshakes limited to 5 a second per source address (nftables), checked on VM1 with a flood
   - [x] Join code and storage invite: the address is chosen from what Roostack knows (home-network addresses, link.<domain>, the public address) or typed; link.<domain> kept pointing home once chosen (SPEC §10 as built)
   - [x] The disk block says "counting…" while a server counts its disk, and refreshes itself until it's done (servers report Counting)

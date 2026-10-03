@@ -30,6 +30,29 @@ type harness struct {
 
 var nowFunc = time.Now
 
+// wrongCode is a two-factor code that isn't valid for secret now, nor in
+// the windows either side ("000000" is a real code about once in a
+// million runs, which made tests flaky).
+func wrongCode(secret string) string {
+	valid := map[string]bool{}
+	for step := -3; step <= 3; step++ {
+		c, _ := auth.TOTPCode(secret, nowFunc().Add(time.Duration(step)*30*time.Second))
+		valid[c] = true
+	}
+	for _, c := range []string{"000000", "111111", "222222", "333333", "444444", "555555", "666666", "777777"} {
+		if !valid[c] {
+			return c
+		}
+	}
+	panic("no wrong code")
+}
+
+// userSecret is a test user's two-factor secret.
+func userSecret(h *harness, username string) string {
+	u, _ := h.store.UserByUsername(context.Background(), username)
+	return u.TOTPSecret
+}
+
 func newHarness(t *testing.T, setupToken string) *harness {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
@@ -173,7 +196,7 @@ func (h *harness) enrollTOTP(page string) (string, time.Time) {
 	if err != nil {
 		h.t.Fatal(err)
 	}
-	if status, _ := h.post("/account/2fa", url.Values{"secret": {secret}, "code": {"000000"}}, h.srv.URL); status != http.StatusBadRequest {
+	if status, _ := h.post("/account/2fa", url.Values{"secret": {secret}, "code": {wrongCode(secret)}}, h.srv.URL); status != http.StatusBadRequest {
 		h.t.Errorf("a wrong enrollment code: status %d, want 400", status)
 	}
 	if status, _ := h.post("/account/2fa", url.Values{"secret": {secret}, "code": {code}}, h.srv.URL); status != http.StatusOK {
@@ -202,7 +225,7 @@ func TestTooManyCodes(t *testing.T) {
 	for _, tries := range []int{3, 2} { // a new login doesn't start again
 		login()
 		for range tries {
-			status, body = h.post("/login/totp", url.Values{"code": {"000000"}}, h.srv.URL)
+			status, body = h.post("/login/totp", url.Values{"code": {wrongCode(secret)}}, h.srv.URL)
 		}
 	}
 	if status != http.StatusTooManyRequests || !strings.Contains(body, "no code will work until") {
