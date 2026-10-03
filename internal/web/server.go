@@ -172,7 +172,7 @@ type ServiceManager interface {
 // LabRestores restores a service from any of the lab's backups, onto any
 // server (SPEC.md §10.10, "Restoring across the lab").
 type LabRestores interface {
-	ServiceBackups(ctx context.Context, name string) ([]manager.ServiceBackup, []string, error)
+	ServiceBackups(ctx context.Context, name string) ([]manager.BackupMoment, []string, error)
 	RestoreService(ctx context.Context, name, id, to string) error
 	Restoring(name string) bool
 }

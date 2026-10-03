@@ -45,15 +45,28 @@ func (b ServiceBackup) ID() string { return b.Ref + "@" + b.Snapshot.ID }
 // can't be reached (a server that's off) mustn't hold the page up.
 var listTimeout = 30 * time.Second
 
-// suggestWithin is how much older a main backup may be than the newest
-// backup and still be the one suggested: a copy is made just after the
-// main backup, and restoring from the main one is usually quicker.
-const suggestWithin = 6 * time.Hour
+// BackupMoment is one backup run of a service: the same moment, in each
+// place that holds it (the server's main backup and its copies).
+type BackupMoment struct {
+	ServerID, ServerName string
+	// Time is when the run started (its earliest snapshot).
+	Time time.Time
+	// Places hold it, the one to read first first: the main backup
+	// (usually at home, so quickest), then copies.
+	Places []ServiceBackup
+}
 
-// ServiceBackups lists a service's backups in every repository the
-// controller can open, the suggested one first, then newest first. It
-// also says which repositories couldn't be read, for people.
-func (m *Manager) ServiceBackups(ctx context.Context, name string) ([]ServiceBackup, []string, error) {
+// ID identifies the moment in a form: its first place's backup.
+func (b BackupMoment) ID() string { return b.Places[0].ID() }
+
+// sameRunWithin groups snapshots made before runs were tagged: a copy is
+// made minutes after the main backup.
+const sameRunWithin = time.Hour
+
+// ServiceBackups lists a service's backup moments in every repository the
+// controller can open, newest first (the newest is suggested). It also
+// says which repositories couldn't be read, for people.
+func (m *Manager) ServiceBackups(ctx context.Context, name string) ([]BackupMoment, []string, error) {
 	if _, _, err := m.installedService(name); err != nil {
 		return nil, nil, err
 	}
@@ -95,20 +108,51 @@ func (m *Manager) ServiceBackups(ctx context.Context, name string) ([]ServiceBac
 			notes = append(notes, p)
 		}
 	}
-	return suggestFirst(out), notes, nil
+	return moments(out), notes, nil
 }
 
-// suggestFirst sorts backups newest first, then puts the suggested one
-// first: the newest, or a main backup from about then.
-func suggestFirst(out []ServiceBackup) []ServiceBackup {
-	slices.SortFunc(out, func(a, b ServiceBackup) int { return b.Snapshot.Time.Compare(a.Snapshot.Time) })
-	i := slices.IndexFunc(out, func(b ServiceBackup) bool { return b.Main })
-	if i <= 0 || out[0].Snapshot.Time.Sub(out[i].Snapshot.Time) >= suggestWithin {
-		return out
+// moments groups backups into runs (by their run tag, or for untagged
+// ones, by server and time), newest first, each with its main backup
+// first.
+func moments(backups []ServiceBackup) []BackupMoment {
+	// Oldest first, so each run starts at its earliest snapshot.
+	slices.SortFunc(backups, func(a, b ServiceBackup) int { return a.Snapshot.Time.Compare(b.Snapshot.Time) })
+	var out []BackupMoment
+	byRun := map[string]int{}
+	for _, b := range backups {
+		run := b.Snapshot.Run()
+		i, ok := byRun[b.ServerID+" "+run]
+		if run == "" {
+			ok = false
+			for j := range out {
+				if out[j].ServerID == b.ServerID && out[j].Places[0].Snapshot.Run() == "" &&
+					b.Snapshot.Time.Sub(out[j].Time) < sameRunWithin && !slices.ContainsFunc(out[j].Places,
+					func(p ServiceBackup) bool { return p.Ref == b.Ref }) {
+					i, ok = j, true
+				}
+			}
+		}
+		if !ok {
+			out = append(out, BackupMoment{ServerID: b.ServerID, ServerName: b.ServerName, Time: b.Snapshot.Time})
+			i = len(out) - 1
+			if run != "" {
+				byRun[b.ServerID+" "+run] = i
+			}
+		}
+		out[i].Places = append(out[i].Places, b)
 	}
-	main := out[i]
-	copy(out[1:i+1], out[:i])
-	out[0] = main
+	for _, mo := range out {
+		slices.SortStableFunc(mo.Places, func(a, b ServiceBackup) int {
+			switch {
+			case a.Main == b.Main:
+				return 0
+			case a.Main:
+				return -1
+			}
+			return 1
+		})
+	}
+	slices.SortFunc(out, func(a, b BackupMoment) int { return b.Time.Compare(a.Time) })
 	return out
 }
 

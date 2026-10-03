@@ -4,9 +4,14 @@ If a service's data is broken or something was deleted, you can put the
 whole service back to how it was in a backup. Only the Owner can do this.
 
 1. On **Backups**, choose **Restore *service*…**.
-2. The newest backup is chosen for you, and the page says which ("Last
-   night's backup, 02:00, from nas"). If the newest already has the problem
-   you're fixing, open **Choose a different backup** and pick an older one.
+2. The newest backup is chosen for you, and the page says which and where
+   it's read from ("Last night's backup, 02:00 (read from USB drive
+   BACKUP)"). If the newest already has the problem you're fixing, open
+   **Choose a different backup**: backups are listed once each, by when
+   they were made (this week, this month, older), even when your backup
+   plan keeps them in several places. If a backup is in more than one
+   place, **Read it from** lets you choose a copy, for when the main backup
+   can't be read.
 3. With more than one server, you can also choose which server it goes
    onto: where it runs now, or another (it then moves there).
 4. Read the warning: anything changed in the service since that backup
@@ -49,10 +54,11 @@ take a single file out of a backup by hand (see below).
 ??? note "For technical users"
 
     Each backup has one snapshot per service, tagged `service=<name>`,
-    holding its data folders and its Podman secrets. The page lists them
-    from every repository the controller opens with the recovery key (as
-    for pruning), and suggests the newest, or the main backup from about
-    then (restoring from it is usually quicker than from a copy).
+    holding its data folders and its Podman secrets, and every snapshot of
+    one backup run, main and copies alike, is tagged `run=<time>`. The page
+    lists them from every repository the controller opens with the recovery
+    key (as for pruning), grouped by run, and reads the main backup first
+    (restoring from it is usually quicker than from a copy).
 
     Back onto the server it runs on, from that server's main backup, the
     restore is a maintenance job there: it waits for any backup or update

@@ -68,7 +68,7 @@ type fakeManager struct {
 	backups     BackupService
 	restores    RestoreService
 	// Backups elsewhere in the lab, and restores from them (restore_test.go).
-	otherBackups []manager.ServiceBackup
+	otherBackups []manager.BackupMoment
 	backupNotes  []string
 	labRestores  []string
 	updates      HostUpdates
@@ -227,15 +227,16 @@ func (f *fakeManager) MoveInfo(_ context.Context, name string) (manager.MoveInfo
 		Suggested: manager.MoveCopy}, nil
 }
 
-// ServiceBackups lists the node's own backups (restores), plus any
-// others the test adds.
-func (f *fakeManager) ServiceBackups(ctx context.Context, name string) ([]manager.ServiceBackup, []string, error) {
-	var out []manager.ServiceBackup
+// ServiceBackups lists the node's own backups (restores), each a moment
+// of its own, plus any others the test adds.
+func (f *fakeManager) ServiceBackups(ctx context.Context, name string) ([]manager.BackupMoment, []string, error) {
+	var out []manager.BackupMoment
 	if f.restores != nil {
 		snaps, _ := f.restores.Snapshots(ctx, name)
 		for _, s := range snaps {
-			out = append(out, manager.ServiceBackup{Ref: "backup:n-0123456789", ServerID: "n-0123456789", ServerName: "nuc",
-				Where: "USB drive BACKUP", Main: true, Snapshot: s})
+			out = append(out, manager.BackupMoment{ServerID: "n-0123456789", ServerName: "nuc", Time: s.Time,
+				Places: []manager.ServiceBackup{{Ref: "backup:n-0123456789", ServerID: "n-0123456789", ServerName: "nuc",
+					Where: "USB drive BACKUP", Main: true, Snapshot: s}}})
 		}
 	}
 	return append(out, f.otherBackups...), f.backupNotes, nil

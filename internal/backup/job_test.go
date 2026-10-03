@@ -140,6 +140,9 @@ func TestServiceSnapshots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if snap.Run() == "" || snap.Run() != server[0].Run() {
+		t.Errorf("one run's snapshots share its tag: %q, %q", snap.Run(), server[0].Run())
+	}
 	if snap.Service() != "photos" || slices.Contains(snap.Paths, paths.StateDir) || !slices.Contains(snap.Paths, photos) {
 		t.Errorf("photos' snapshot: %+v", snap)
 	}

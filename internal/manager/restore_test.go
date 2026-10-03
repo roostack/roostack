@@ -20,27 +20,37 @@ import (
 	"roostack.cloud/roostack/internal/store"
 )
 
-func TestSuggestFirst(t *testing.T) {
-	at := func(h int) backup.Snapshot {
-		return backup.Snapshot{ID: fmt.Sprint(h), Time: time.Date(2026, 10, 4, h, 0, 0, 0, time.UTC)}
+func TestMoments(t *testing.T) {
+	at := func(h, min int, run string) backup.Snapshot {
+		s := backup.Snapshot{ID: fmt.Sprintf("%d:%02d", h, min), Time: time.Date(2026, 10, 4, h, min, 0, 0, time.UTC)}
+		if run != "" {
+			s.Tags = []string{backup.RunTag(time.Date(2026, 10, 4, h, 0, 0, 0, time.UTC))}
+		}
+		return s
 	}
-	ids := func(bs []ServiceBackup) string {
+	show := func(ms []BackupMoment) string {
 		var out []string
-		for _, b := range bs {
-			out = append(out, b.Snapshot.ID)
+		for _, m := range ms {
+			var ids []string
+			for _, p := range m.Places {
+				ids = append(ids, p.Ref+"="+p.Snapshot.ID)
+			}
+			out = append(out, m.ServerID+"["+strings.Join(ids, " ")+"]")
 		}
 		return strings.Join(out, " ")
 	}
-	// A copy at 3:00 just after the main backup at 2:00: the main one is
-	// suggested; the rest stay newest first.
-	got := suggestFirst([]ServiceBackup{{Snapshot: at(1)}, {Main: true, Snapshot: at(2)}, {Snapshot: at(3)}, {Main: true, Snapshot: at(0)}})
-	if ids(got) != "2 3 1 0" {
-		t.Errorf("got %s", ids(got))
-	}
-	// The main backup is much older (failing for days): the newest wins.
-	got = suggestFirst([]ServiceBackup{{Main: true, Snapshot: at(1)}, {Snapshot: at(20)}})
-	if ids(got) != "20 1" {
-		t.Errorf("got %s", ids(got))
+	got := moments([]ServiceBackup{
+		// Tagged: last night's run on nuc, main and a copy made later.
+		{Ref: "copy", ServerID: "nuc", Snapshot: at(2, 40, "run")},
+		{Ref: "main", ServerID: "nuc", Main: true, Snapshot: at(2, 0, "run")},
+		// Untagged (older): grouped by server and time.
+		{Ref: "main", ServerID: "nuc", Main: true, Snapshot: at(0, 0, "")},
+		{Ref: "copy", ServerID: "nuc", Snapshot: at(0, 20, "")},
+		// The same hour on another server is another moment.
+		{Ref: "main", ServerID: "nas", Main: true, Snapshot: at(0, 5, "")},
+	})
+	if want := "nuc[main=2:00 copy=2:40] nas[main=0:05] nuc[main=0:00 copy=0:20]"; show(got) != want {
+		t.Errorf("got  %s\nwant %s", show(got), want)
 	}
 }
 
@@ -111,7 +121,8 @@ func TestRestoreAcrossTheLab(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(backups) != 1 || !backups[0].Main || backups[0].ServerName != "home" || backups[0].Ref != "backup:n-0000000002" {
+	if len(backups) != 1 || len(backups[0].Places) != 1 || !backups[0].Places[0].Main || backups[0].ServerName != "home" ||
+		backups[0].Places[0].Ref != "backup:n-0000000002" {
 		t.Fatalf("backups = %+v", backups)
 	}
 	if len(notes) != 1 || !strings.Contains(notes[0], "Couldn't read home's backups") {

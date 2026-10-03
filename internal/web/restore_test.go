@@ -51,16 +51,28 @@ func TestRestoreFlow(t *testing.T) {
 	}
 	h.node().restores = fr
 	fm := h.node()
-	fm.otherBackups = []manager.ServiceBackup{{Ref: "copy:n-0123456789:provider:1", ServerID: "n-0123456789", ServerName: "nuc",
-		Where: "Backblaze", Snapshot: backup.Snapshot{ID: "77aa00bbcccc", Short: "77aa00bb", Time: time.Now().Add(-50 * time.Minute)}}}
+	// The newest moment is also in a copy; an old one is in a copy only.
+	copyOf := func(id string, at time.Time) manager.ServiceBackup {
+		return manager.ServiceBackup{Ref: "copy:n-0123456789:provider:1", ServerID: "n-0123456789", ServerName: "nuc",
+			Where: "Backblaze", Snapshot: backup.Snapshot{ID: id, Short: id[:8], Time: at}}
+	}
+	fr.snaps = fr.snaps[1:]
+	newest := time.Now().Add(-time.Hour)
+	fm.otherBackups = []manager.BackupMoment{{ServerID: "n-0123456789", ServerName: "nuc", Time: newest,
+		Places: []manager.ServiceBackup{{Ref: "backup:n-0123456789", ServerID: "n-0123456789", ServerName: "nuc", Where: "USB drive BACKUP",
+			Main: true, Snapshot: backup.Snapshot{ID: "9a6817f7aaaa", Short: "9a6817f7", Time: newest}}, copyOf("77aa00bbcccc", newest)}},
+		{ServerID: "n-0123456789", ServerName: "nuc", Time: time.Now().Add(-40 * 24 * time.Hour),
+			Places: []manager.ServiceBackup{copyOf("66bb11cccccc", time.Now().Add(-40*24*time.Hour))}}}
 	fm.backupNotes = []string{"Couldn't read vps's backups at Backblaze: timeout"}
 
 	if _, body := h.get("/backups"); !strings.Contains(body, `href="/backups/restore/vaultwarden">Restore Vaultwarden…`) {
 		t.Error("backups page should link to restoring each service")
 	}
 	_, body := h.get("/backups/restore/vaultwarden")
-	for _, want := range []string{`value="backup:n-0123456789@9a6817f7aaaa"`, "(suggested)", "8550fc0a", "Kept copies",
-		"data.before-restore-20260926-130602", "from nuc&#39;s copy at Backblaze", "Couldn&#39;t read vps&#39;s backups"} {
+	for _, want := range []string{`<option value="backup:n-0123456789@9a6817f7aaaa">USB drive BACKUP (main backup)</option>`,
+		`<option value="copy:n-0123456789:provider:1@77aa00bbcccc">Backblaze (copy)</option>`, "(newest)", "This week", "Older",
+		`name="backup" value="copy:n-0123456789:provider:1@66bb11cccccc"`, "Kept copies",
+		"data.before-restore-20260926-130602", "Couldn&#39;t read vps&#39;s backups"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("restore page missing %q", want)
 		}
@@ -69,10 +81,13 @@ func TestRestoreFlow(t *testing.T) {
 		t.Errorf("unknown service: %d", code)
 	}
 
-	// The suggested backup is chosen; the rest are a click away.
-	if i, j := strings.Index(body, "9a6817f7aaaa"), strings.Index(body, "Choose a different backup"); i < 0 || j < 0 ||
-		!strings.Contains(body[i:], " checked") || strings.Index(body[i:], " checked") > strings.Index(body[i:], "</label>") {
-		t.Error("the newest main backup should be chosen")
+	// The newest moment is chosen, read from its main backup.
+	if !strings.Contains(body, `value="backup:n-0123456789@9a6817f7aaaa" data-label="Today&#39;s backup`) &&
+		!strings.Contains(body, `value="backup:n-0123456789@9a6817f7aaaa" data-label="Last night&#39;s backup`) {
+		t.Error("the newest moment should be listed by its main backup")
+	}
+	if !strings.Contains(body, `(read from <span x-text="place">USB drive BACKUP (main backup)</span>)`) {
+		t.Error("the page should say where it's read from")
 	}
 
 	if code, body := h.post("/backups/restore/vaultwarden", url.Values{"backup": {"backup:n-0123456789@8550fc0abbbb"}}, h.srv.URL); code != http.StatusBadRequest ||
