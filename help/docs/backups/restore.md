@@ -4,10 +4,14 @@ If a service's data is broken or something was deleted, you can put the
 whole service back to how it was in a backup. Only the Owner can do this.
 
 1. On **Backups**, choose **Restore *service*…**.
-2. Choose which backup: the newest is selected, with older ones below.
-3. Read the warning: anything changed in the service since that backup
+2. The newest backup is chosen for you, and the page says which ("Last
+   night's backup, 02:00, from nas"). If the newest already has the problem
+   you're fixing, open **Choose a different backup** and pick an older one.
+3. With more than one server, you can also choose which server it goes
+   onto: where it runs now, or another (it then moves there).
+4. Read the warning: anything changed in the service since that backup
    will be undone.
-4. Tick **I understand**, and choose **Restore**.
+5. Tick **I understand**, and choose **Restore**.
 
 The service stops for a few minutes while its data is put back, then starts
 again. The page shows each step as it happens.
@@ -23,6 +27,14 @@ your current data back and starts the service again, and says so. If it
 can't even do that, it says where your data is, and leaves the service
 stopped rather than start it on half a restore.
 
+## Backups from anywhere in your lab
+
+The list has every backup of the service your lab can read: those of the
+server it runs on, its extra copies, and those of any server it ran on
+before. So a service can come back on any server, even if the server that
+backed it up has stopped working. If some backups couldn't be read (a
+server that's switched off, say), the page says so under the list.
+
 ## When there's nothing to restore
 
 A service only appears in backups made after it was installed. If it's new,
@@ -36,13 +48,31 @@ take a single file out of a backup by hand (see below).
 
 ??? note "For technical users"
 
-    A restore is a maintenance job: it waits for any backup or update
+    Each backup has one snapshot per service, tagged `service=<name>`,
+    holding its data folders and its Podman secrets. The page lists them
+    from every repository the controller opens with the recovery key (as
+    for pruning), and suggests the newest, or the main backup from about
+    then (restoring from it is usually quicker than from a copy).
+
+    Back onto the server it runs on, from that server's main backup, the
+    restore is a maintenance job there: it waits for any backup or update
     running, and nothing interrupts it. It stops the service's units, moves
     each data folder to `<folder>.before-restore-<time>`, restores each
     folder from the snapshot with restic, loads database dumps back (the
     SQLite copy, or `pg_restore` for Postgres), and starts the units again.
     A partial restore that was rolled back is kept as
     `<folder>.failed-restore-<time>`.
+
+    From anywhere else (a copy, another server's backup, or onto another
+    server), the controller does it, like
+    [moving a service through a backup](../servers/move.md): the service
+    stops where it runs (if that server can be reached), the controller
+    streams its folders from the snapshot (`restic dump`) to the server it
+    goes onto, with the secrets saved in the backup, and that server
+    starts it and loads its databases. Data already there is kept as
+    `<folder>.before-move-<time>`, and the old server's copy as
+    `<folder>.moved-to-<server>-<time>`; both are listed under **Kept
+    copies**.
 
     From the command line:
 

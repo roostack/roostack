@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -66,9 +67,13 @@ type fakeManager struct {
 	guestOps    []string
 	backups     BackupService
 	restores    RestoreService
-	updates     HostUpdates
-	settings    node.Settings
-	disk        *node.DiskSpace
+	// Backups elsewhere in the lab, and restores from them (restore_test.go).
+	otherBackups []manager.ServiceBackup
+	backupNotes  []string
+	labRestores  []string
+	updates      HostUpdates
+	settings     node.Settings
+	disk         *node.DiskSpace
 
 	// Public access (public_test.go).
 	access       []manager.RouteAccess
@@ -221,6 +226,29 @@ func (f *fakeManager) MoveInfo(_ context.Context, name string) (manager.MoveInfo
 	return manager.MoveInfo{From: manager.Server{ID: "n-0123456789", Name: "nuc", This: true}, Size: 5 * units.MB,
 		Suggested: manager.MoveCopy}, nil
 }
+
+// ServiceBackups lists the node's own backups (restores), plus any
+// others the test adds.
+func (f *fakeManager) ServiceBackups(ctx context.Context, name string) ([]manager.ServiceBackup, []string, error) {
+	var out []manager.ServiceBackup
+	if f.restores != nil {
+		snaps, _ := f.restores.Snapshots(ctx, name)
+		for _, s := range snaps {
+			out = append(out, manager.ServiceBackup{Ref: "backup:n-0123456789", ServerID: "n-0123456789", ServerName: "nuc",
+				Where: "USB drive BACKUP", Main: true, Snapshot: s})
+		}
+	}
+	return append(out, f.otherBackups...), f.backupNotes, nil
+}
+func (f *fakeManager) RestoreService(_ context.Context, name, id, to string) error {
+	ref, snap, _ := strings.Cut(id, "@")
+	if ref == "backup:n-0123456789" && cmp.Or(to, "n-0123456789") == "n-0123456789" {
+		return f.restores.Restore(name, snap)
+	}
+	f.labRestores = append(f.labRestores, name+" "+id+" → "+to)
+	return nil
+}
+func (f *fakeManager) Restoring(string) bool { return false }
 func (f *fakeManager) MoveService(_ context.Context, name, to, way string) error {
 	if to == "" {
 		return &manager.FormError{Msg: "Choose a server in this lab."}

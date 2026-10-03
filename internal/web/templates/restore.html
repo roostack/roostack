@@ -7,35 +7,50 @@
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{if .Pending}}
     {{notice "info" "A restore is in progress. This page shows how it's going."}}
-  {{else if .Snapshots}}
+  {{else if .Choices}}
+  {{$first := index .Choices 0}}
   <p>Puts {{.Service.Title}}'s data back to how it was in a backup. {{.Service.Title}} stops for a few minutes while this happens.</p>
-  <form method="post" action="/backups/restore/{{.Service.Name}}">
-    <fieldset>
-      <legend>Which backup?</legend>
-      {{range $i, $s := .Snapshots}}
-      <label class="check"><input type="radio" name="snapshot" value="{{$s.ID}}" {{if eq $i 0}}checked{{end}}>
-        <span>{{when $s.Time}}{{if eq $i 0}} (newest){{end}}<small>{{$s.Short}}</small></span></label>
-      {{end}}
-    </fieldset>
+  <form method="post" action="/backups/restore/{{.Service.Name}}" data-label="{{$first.Label}}" x-data="{ label: $el.dataset.label }">
+    <p>Restoring from <strong x-text="label">{{$first.Label}}</strong>.</p>
+    <details>
+      <summary>Choose a different backup</summary>
+      <fieldset>
+        <legend class="sr-only">Which backup?</legend>
+        {{range $i, $c := .Choices}}
+        <label class="check"><input type="radio" name="backup" value="{{$c.ID}}" data-label="{{$c.Label}}"
+            x-on:change="label = $el.dataset.label"{{if eq $i 0}} checked{{end}}>
+          <span>{{$c.Label}}{{if eq $i 0}} (suggested){{end}}<small>{{$c.Short}}</small></span></label>
+        {{end}}
+      </fieldset>
+      <p class="hint">The suggested one is the newest. Choose an older one if the newest already has the problem you're fixing.</p>
+    </details>
+    {{if gt (len .Servers) 1}}
+    <label>Restore onto
+      <select name="to">{{range .Servers}}<option value="{{.ID}}"{{if eq .ID $.Host}} selected{{end}}>{{.Name}}{{if eq .ID $.Host}} (where it runs now){{end}}</option>{{end}}</select>
+      <small>On another server, {{.Service.Title}} moves there; its data where it ran now is kept aside.</small>
+    </label>
+    {{end}}
     <p class="notice notice-warn">Anything changed in {{.Service.Title}} since that backup will be undone. The current data isn't deleted:
       it's kept aside, listed below, until you delete it.</p>
     <label class="check"><input type="checkbox" name="confirm" required>
       <span>I understand, restore {{.Service.Title}}</span></label>
     <button type="submit">Restore {{.Service.Title}}</button>
   </form>
+  {{range .Notes}}<p class="hint">{{.}}</p>{{end}}
   {{else}}
     {{notice "info" (printf "There's no backup of %s yet. Backups made before it was installed don't contain it." .Service.Title)}}
+    {{range .Notes}}<p class="hint">{{.}}</p>{{end}}
   {{end}}
 
   {{with .Kept}}
   <h2>Kept copies</h2>
-  <p class="hint">Data a restore moved aside. Delete it once you're happy with the restore, to free up space.</p>
+  <p class="hint">Data a restore or a move set aside. Delete it once you're happy with the restore, to free up space.</p>
   <ul class="kept">
     {{range .}}
     <li>
-      <span>{{if .Failed}}From a restore that didn't finish{{else}}Before the restore{{end}} on {{when .Time}}<br><code>{{.Path}}</code></span>
+      <span>{{if .Failed}}From a restore that didn't finish{{else}}Kept aside{{end}} {{when .Time}}{{with .ServerName}} on {{.}}{{end}}<br><code>{{.Path}}</code></span>
       {{confirm (printf "/backups/restore/%s/kept/remove" $.Service.Name) "Delete this copy permanently?" "Delete" "quiet danger"
-        (printf "path=%s" .Path)}}
+        (printf "path=%s" .Path) (printf "server=%s" .Server)}}
     </li>
     {{end}}
   </ul>

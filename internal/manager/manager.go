@@ -105,6 +105,8 @@ type Manager struct {
 	// applyReason says why the next apply starts, for the servers' logs
 	// (ApplyBecause); callers hold mu.
 	applyReason string
+	// restoring are the services the controller is restoring (restore.go).
+	restoring map[string]bool
 	// keyMu makes recovery key changes one at a time (keychange.go).
 	keyMu sync.Mutex
 	// public is the lab's public access settings as changed at runtime
