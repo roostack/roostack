@@ -36,6 +36,7 @@ type spaceView struct {
 // UsedPercent and PromisedPercent size the bar on Settings → Servers.
 func (v spaceView) UsedPercent() int     { return percentOf(v.Used, v.Total) }
 func (v spaceView) PromisedPercent() int { return percentOf(min(v.PromisedLeft, v.Free), v.Total) }
+func (v spaceView) HeldBackPercent() int { return percentOf(v.HeldBack(), v.Total) }
 
 // Parts is what uses the disk, for the bar's coloured segments and their
 // key (SPEC.md §6.7); nil until the parts are counted (the bar then shows
