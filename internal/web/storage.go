@@ -69,7 +69,9 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 	data["Offering"] = s.Manager.OfferStorage(r.Context())
 	for _, mn := range s.serverNodes(r) {
 		if mn.view.ID == hostID {
-			data["HostSpace"] = s.serverSpace(r.Context(), mn.view, mn.node)
+			if d := s.serverSpaces(r.Context(), mn.view, mn.node); d != nil {
+				data["HostSpace"] = d.store()
+			}
 		}
 	}
 	data["Internet"] = hostsHere && s.onInternet()

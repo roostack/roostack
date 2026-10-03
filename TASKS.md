@@ -88,7 +88,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Space on the plan: each backup's repository size (recorded after each run), free space on this server's drives, a friend's lab's quota use
   - [x] Free space on another server's disk (its node reports it over the lab API)
   - [x] Disk space per server on Settings → Servers (used, free, services' data, backups kept, promised to other labs), low-space and over-promised warnings on the home page
-  - [ ] Disk space for a separate media disk (only the disk holding /srv/roostack is reported)
+  - [x] Disk space for every disk Roostack uses (system, data, media, backup drives), each with its parts, warnings per disk (SPEC §6.7 as built 2026-10-03). Checked on VM1 with a hot-plugged USB drive
   - [x] One size convention: decimal units everywhere (`internal/units`, SPEC §6.3)
   - [x] Cheaper live updates (SPEC §6.3): poll only while the tab is visible, 204 when unchanged (fingerprint), shared 10 s cache of reads from other servers, gzip
   - [ ] **Later (agreed): push instead of poll.** Move to htmx 4 (if not already) and use its WebSocket support (`hx-ws`): the server sends a part when it changes. Needs change notifications from every source (systemd unit states, other servers' apply and backup status, updates, disk space)

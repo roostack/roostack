@@ -18,9 +18,9 @@
       {{- else if .LastErr}}<span class="dot dot-problem" aria-hidden="true"></span>The last change didn't finish: {{.LastErr}}
       {{- else if .Finished}}<span class="dot dot-ok" aria-hidden="true"></span>Up to date · {{when .LastRun}}
       {{- else}}Not applied yet{{end}}{{end}}</dd>
-    <dt>{{icon "disk"}}Disk</dt>
+    <dt>{{icon "disk"}}Disk{{with index $.Spaces .ID}}{{if gt (len .Disks) 1}}s{{end}}{{end}}</dt>
     <dd>{{with index $.Spaces .ID}}
-      {{template "disk-space-live" .}}
+      {{template "disks-live" .}}
     {{else}}<small>Couldn't ask {{.Name}} right now.</small>{{end}}</dd>
     <dt>{{icon "location"}}Where</dt>
     <dd>
