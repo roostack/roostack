@@ -385,6 +385,29 @@ Nothing is public unless the Owner makes it so (§1 principle 6). The Owner make
 - **Both kinds of lab:** when the check link doesn't open, the page lists what to look at, in order: Roostack's firewall (always open for web traffic), the router or provider firewall (Roostack can't see it), public DNS (checked), and at home whether the connection takes incoming connections at all (CGNAT).
 - **Later:** Roostack Cloud checking reachability from outside (TCP 80/443, HTTPS with the right certificate, the check link, and WireGuard's UDP port), periodically, replacing the manual check (§4, §6.11). A warning when home DNS answers a public address with something else (the "overridden" check applied to public names). Package ports ("extra connections") on a lab on the internet: "home network" there means the provider's network.
 
+### 6.13 Email and notifications — sending Locked (2026-10-03), notifications Open
+
+**Sending — as built (2026-10-03):** Settings → Email (Owners) sets the SMTP server: host, port, STARTTLS (587, the default) or TLS (465), username, password, and the sender address. The settings are in `lab.yaml` (`mail:`); the password is in its own file (`mail-password`, 0600), never shown again ("leave empty to keep it", or "forget the saved password"). The password is only sent over an encrypted connection: a server that doesn't offer STARTTLS is refused with a sentence suggesting TLS. Messages are plain text (UTF-8, quoted-printable) and marked `Auto-Submitted: auto-generated`. "Send a test email" sends one, to your own address by default, and says which step failed if it didn't (reaching the server, the login, the sender, a recipient). Each person sets their own address on their account page; empty means no email. Only the controller sends (it knows the whole lab). The standard library's SMTP client is used (no new dependency); it's frozen but complete for this. Checked against Fastmail from VM1. Considered: a relay service's API (another account and dependency), and sendmail on the host (needs a local MTA, more to secure).
+
+**Notifications — Open (proposal, 2026-10-03).** Baseline: **email when something needs a person, or when something important happened while they weren't looking; never for routine success.** Most of it already exists as "needs attention" on the Home page, so the proposal is to email those items, once, with a few security events added.
+
+*What, and to whom by default:*
+
+| Group | Events | Owner | Admin | Member |
+|---|---|---|---|---|
+| **Problems** | A backup failed after its retries ran out, or none finished for two days; an extra backup failing; a disk running low or other labs' promised space reaching into what's kept free; a server unreachable for 15 minutes; a service down or restarting in a loop for 15 minutes; OS updates failing; a certificate that can't be renewed; DNS records in conflict; storage at a friend's lab removed, or its backups there deleted | on | on (services, backups, disks) | off |
+| **Waiting for you** | A restart waiting (notify-only mode), for more than a day; service updates that need approval; a recovery key change waiting on a backup that can't be reached | on | on (service updates) | off |
+| **Security** | Your account: a password or two-factor change, a reset from the command line, a login from a new device, two-factor locked after wrong codes. The lab: a new Owner or Admin, a server joining, another lab starting to store here | on | on (own account) | on (own account) |
+| **Weekly summary** | Backups made, space used and trend, updates installed, attacks blocked on public services, anything still needing attention | off | off | off |
+
+*How:*
+- **One email per problem**, when it has lasted a few minutes (so a blip that fixes itself sends nothing; retried backups only once the retries are over), then **a daily reminder** while it lasts, and **"It's fixed"** when it clears. Several problems at once go in one email.
+- Each email says what happened, what Roostack already tried, and what to do, with a link to the page (the "needs attention" sentence, plus detail). Plain text; no tracking.
+- Security emails go straight away, without waiting or grouping.
+- Members never get lab problems: they can't act on them.
+
+*Configurability (proposed):* each person chooses, on their account page, which **groups** they get (Problems, Waiting for you, Security, Weekly summary), with the defaults above; Security about their own account can't be turned off. Per-event switches considered and not proposed: too many choices for the people Roostack is for; groups cover "too much email". Owners can see who gets what on Settings → Email. Later: other channels (ntfy or similar push) as another way to receive the same notifications.
+
 ## 7. Updates — Locked
 
 - **Default:** notify when updates are available; user applies them manually.

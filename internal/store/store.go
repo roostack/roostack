@@ -161,6 +161,8 @@ var migrations = []string{
 	// limit guesses per account (auth.TOTPLockedUntil).
 	`ALTER TABLE users ADD COLUMN totp_failures INTEGER NOT NULL DEFAULT 0;
 	ALTER TABLE users ADD COLUMN totp_failed_at INTEGER NOT NULL DEFAULT 0;`,
+	// Where Roostack emails someone (SPEC.md §6.13); empty: no email.
+	`ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT '';`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -252,6 +254,8 @@ type User struct {
 	TOTPFailedAt time.Time
 	// MustChangePassword is set for temporary passwords (CLI add/reset).
 	MustChangePassword bool
+	// Email is where Roostack emails them (SPEC.md §6.13); empty: no email.
+	Email string
 	// Theme is "auto" (follow the device), "light" or "dark".
 	Theme string
 	// Palette is the colour theme (internal/web themes), "" for the default.
@@ -351,6 +355,12 @@ func (s *Store) SetTheme(ctx context.Context, userID int64, theme string) error 
 	return err
 }
 
+// SetEmail sets where Roostack emails someone ("" for nowhere).
+func (s *Store) SetEmail(ctx context.Context, userID int64, email string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE users SET email = ? WHERE id = ?`, email, userID)
+	return err
+}
+
 // CountUsers returns the number of accounts.
 func (s *Store) CountUsers(ctx context.Context) (int, error) {
 	var n int
@@ -408,7 +418,7 @@ func (s *Store) SetPassword(ctx context.Context, username, hash string, temporar
 }
 
 const userColumns = `users.id, users.username, users.password_hash, users.role,
-	users.totp_secret, users.totp_last_step, users.totp_failures, users.totp_failed_at, users.must_change_password, users.theme, users.palette, users.accent, users.created_at`
+	users.totp_secret, users.totp_last_step, users.totp_failures, users.totp_failed_at, users.must_change_password, users.theme, users.palette, users.accent, users.email, users.created_at`
 
 // UserByID looks up an account.
 func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
@@ -455,7 +465,7 @@ func scanUserRow(row interface{ Scan(...any) error }) (*User, error) {
 	var u User
 	var created, failedAt int64
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &u.TOTPLastStep,
-		&u.TOTPFailures, &failedAt, &u.MustChangePassword, &u.Theme, &u.Palette, &u.Accent, &created)
+		&u.TOTPFailures, &failedAt, &u.MustChangePassword, &u.Theme, &u.Palette, &u.Accent, &u.Email, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

@@ -335,7 +335,7 @@ func (s *Server) dnsView(r *http.Request) any {
 }
 
 func (s *Server) accountPage(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "account", map[string]any{"User": currentUser(r)})
+	s.render(w, "account", map[string]any{"User": currentUser(r), "EmailSaved": r.URL.Query().Get("email") == "saved"})
 }
 
 // appearanceSubmit saves the user's colour theme and light/dark mode.

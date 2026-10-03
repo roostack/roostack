@@ -64,6 +64,9 @@ func (p Paths) PackageFile(name string) string {
 // servers (SPEC.md §10.10), next to the media folder on the big disk.
 func (p Paths) BackupStoreDir() string { return filepath.Join(filepath.Dir(p.MediaDir), "backups") }
 
+// MailPasswordFile holds the SMTP server's password (0600).
+func (p Paths) MailPasswordFile() string { return filepath.Join(p.StateDir, "mail-password") }
+
 // InstancesDir holds one instance YAML file per installed service.
 func (p Paths) InstancesDir() string { return filepath.Join(p.StateDir, "services") }
 
@@ -247,6 +250,8 @@ type Lab struct {
 	Maintenance Maintenance `yaml:"maintenance,omitempty"`
 	// Public is how services are made public (SPEC.md §6.11).
 	Public Public `yaml:"public,omitempty"`
+	// Mail is the SMTP server Roostack sends email through (SPEC.md §6.13).
+	Mail Mail `yaml:"mail,omitempty"`
 	// Network is where the lab is: NetworkHome (the default when empty)
 	// or NetworkInternet (SPEC.md §6.12). It's about the controller, whose
 	// Caddy serves the lab's addresses.
@@ -362,6 +367,26 @@ func Update(path string, change func(*Lab)) error {
 	return lab.Save(path)
 }
 
+// Mail security: how the connection to the SMTP server is encrypted.
+const (
+	MailSTARTTLS = "starttls" // port 587: plain, then upgraded (the default)
+	MailTLS      = "tls"      // port 465: encrypted from the start
+)
+
+// Mail is the SMTP server Roostack sends email through (SPEC.md §6.13).
+// Its password is kept apart, in Paths.MailPasswordFile (0600).
+type Mail struct {
+	Host     string `yaml:"host,omitempty"`
+	Port     int    `yaml:"port,omitempty"`
+	Security string `yaml:"security,omitempty"` // MailSTARTTLS or MailTLS
+	Username string `yaml:"username,omitempty"`
+	// From is the sender address, e.g. roostack@example.com.
+	From string `yaml:"from,omitempty"`
+}
+
+// Configured reports whether email can be sent.
+func (m Mail) Configured() bool { return m.Host != "" && m.From != "" }
+
 // Validate checks the config is usable.
 func (l Lab) Validate() error {
 	var errs []error
@@ -375,6 +400,11 @@ func (l Lab) Validate() error {
 	case "", NetworkHome, NetworkInternet:
 	default:
 		errs = append(errs, fmt.Errorf("network must be %q or %q", NetworkHome, NetworkInternet))
+	}
+	switch l.Mail.Security {
+	case "", MailSTARTTLS, MailTLS:
+	default:
+		errs = append(errs, fmt.Errorf("mail.security must be %q or %q", MailSTARTTLS, MailTLS))
 	}
 	switch l.Firewall.SSH {
 	case "", SSHFromLAN, SSHFromAny, SSHOff:
