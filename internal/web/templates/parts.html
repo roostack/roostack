@@ -390,7 +390,8 @@
   {{template "plan-num" .ChooserNum}}
   <div class="plan-body">
     <p class="plan-title">{{.ChooserTitle}}</p>
-    <form method="post" action="{{.Action}}" x-data="{ choice: '{{if or .Options.CanDrives .Options.OwnDisk}}drive{{else}}online{{end}}' }">
+    <form method="post" action="{{.Action}}" x-data="{ choice: '{{if or .Options.CanDrives .Options.OwnDisk}}drive{{else}}online{{end}}', busy: false }"
+      x-on:submit="busy = true">
       {{if .Replacing}}<input type="hidden" name="replace" value="1">{{end}}
       <input type="hidden" name="add" value="{{.Adding}}">
       <div class="plan-choices">
@@ -459,7 +460,9 @@
       {{end}}{{end}}
 
       <div class="plan-actions">
-        <button type="submit">{{.ChooserButton}}</button>
+        <button type="submit" x-bind:disabled="busy">{{.ChooserButton}}</button>
+        <span class="hint" x-show="busy" x-cloak><span class="spinner" aria-hidden="true"></span>
+          <span x-text="choice === 'friend' ? 'Connecting to their lab (up to 30 seconds)…' : 'Setting it up…'"></span></span>
         <a href="{{.Back}}#plan">Cancel</a>
       </div>
     </form>
