@@ -1,6 +1,7 @@
 package node
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -84,6 +85,8 @@ type Assignment struct {
 	// ProxyPorts are where the controller forwards its servers' backups
 	// to other labs' storage (on Roostack's network).
 	ProxyPorts []int
+	// Reason says why it was sent, for the apply's log.
+	Reason string
 }
 
 // Storage is who may use a server's backup store: bcrypt password hashes
@@ -147,7 +150,9 @@ type Local struct {
 
 	// Hooks (hooks.go). State records install hook progress; without
 	// State and Exec, hooks don't run.
-	State   KV
+	State KV
+	// Events keeps finished logs as history (history.go; optional).
+	Events  HistoryStore
 	Secrets SecretStore
 	Exec    ExecFunc
 	// HookRetry and HookDeadline tune install hook retries (0: defaults).
@@ -272,18 +277,15 @@ func (n *Local) applyLoop(done chan struct{}) {
 }
 
 func (n *Local) applyOnce(ctx context.Context) (err error) {
-	// A log only for applies that change something (or fail): the one at
-	// every startup usually has nothing to do.
-	var act *activity.Log
-	defer func() {
-		if err != nil && act == nil {
-			act = n.Activity.Start(activity.Apply, "Applying changes")
-		}
-		act.Finish(err)
-	}()
+	// Every apply has a log saying why it ran and what it did; one that
+	// changed nothing (as at most startups) is routine: shown as the
+	// latest, not kept as history (SPEC.md §6.14).
 	n.mu.Lock()
 	a := n.assignment
 	n.mu.Unlock()
+	act := n.Activity.Start(activity.Apply, "Applying changes")
+	defer func() { act.Finish(err) }()
+	act.Printf("Why: %s.", cmp.Or(a.Reason, "Roostack started, or its settings changed"))
 	desired, err := state.Desired(n.lab(a), a.Services, a.Proxied...)
 	if err != nil {
 		return err
@@ -305,8 +307,10 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	if !plan.Empty() {
-		act = n.Activity.Start(activity.Apply, "Applying changes")
+	if plan.Empty() {
+		act.Step("Nothing to change")
+		act.Routine()
+	} else {
 		r.Log = act
 	}
 	// Caddy's image builds in the background (for minutes the first time):

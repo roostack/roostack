@@ -32,6 +32,7 @@ type settingsArea struct {
 
 var settingsAreas = []settingsArea{
 	{"lab", "Lab", "Lab name", "/settings/lab"},
+	{"history", "Lab", "History", "/settings/history"},
 	{"people", "People and access", "People", "/settings/people"},
 	{"email", "People and access", "Email", "/settings/email"},
 	{"domain", "Network", "Domain and certificates", "/settings/domain"},
@@ -96,6 +97,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	if users, err := s.Store.ListUsers(r.Context()); err == nil {
 		set("people", fmt.Sprintf("%d %s can log in", len(users), map[bool]string{true: "person", false: "people"}[len(users) == 1]), "")
 	}
+	set("history", fmt.Sprintf("Kept for %d days", s.historyKeepDays(r.Context())), "")
 	if s.Mail != nil {
 		if m, _ := s.Mail.Settings(); m.Configured() {
 			set("email", "Sends from "+m.From, "ok")
@@ -309,7 +311,18 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		locations[mc.ID] = s.serverLocation(r.Context(), mc.ID)
 	}
 	data["Locations"] = locations
-	data["ApplyActivity"] = s.activityFor(r, activity.Apply)
+	// Each server's latest apply: why it ran and what it did (SPEC.md §6.14).
+	applies := map[string]*activityView{}
+	for _, mn := range s.serverNodes(r) {
+		if snap, ok := mn.node.LatestActivity(activity.Apply); ok {
+			v := &activityView{Kind: activity.Apply, Snapshot: snap}
+			if !mn.view.This {
+				v.Server = mn.view.ID
+			}
+			applies[mn.view.ID] = v
+		}
+	}
+	data["ApplyActivities"] = applies
 	// Folders moves left behind, per server (asked of each at once).
 	kept := make([][]node.KeptFolder, len(servers))
 	var wg sync.WaitGroup

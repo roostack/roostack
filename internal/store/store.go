@@ -182,6 +182,19 @@ var migrations = []string{
 		created_at INTEGER NOT NULL,
 		PRIMARY KEY (user_id, token_hash)
 	);`,
+	// History (SPEC.md §6.14): each finished log of work Roostack did on
+	// this server (applies, backups, updates, ...), with its output.
+	`CREATE TABLE events (
+		id       INTEGER PRIMARY KEY,
+		started  INTEGER NOT NULL,
+		finished INTEGER NOT NULL,
+		kind     TEXT NOT NULL,
+		title    TEXT NOT NULL,
+		status   TEXT NOT NULL DEFAULT '',
+		error    TEXT NOT NULL DEFAULT '',
+		output   TEXT NOT NULL DEFAULT ''
+	);
+	CREATE INDEX events_finished ON events (finished);`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -478,6 +491,112 @@ func (s *Store) LastAuditID(ctx context.Context) (int64, error) {
 	var id sql.NullInt64
 	err := s.db.QueryRowContext(ctx, `SELECT max(id) FROM audit_log`).Scan(&id)
 	return id.Int64, err
+}
+
+// Event is one finished piece of work Roostack did on a server: its log,
+// kept as history (SPEC.md §6.14).
+type Event struct {
+	ID                int64
+	Started, Finished time.Time
+	Kind, Title       string
+	Status, Error     string
+	Output            string `json:",omitempty"` // the log's lines
+}
+
+// MaxEvents is how many events a server keeps, whatever their age.
+const MaxEvents = 5000
+
+// AddEvent keeps a finished log, and drops the oldest beyond MaxEvents.
+func (s *Store) AddEvent(ctx context.Context, e Event) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO events (started, finished, kind, title, status, error, output) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		e.Started.Unix(), e.Finished.Unix(), e.Kind, e.Title, e.Status, e.Error, e.Output)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `DELETE FROM events WHERE id <= (SELECT max(id) FROM events) - ?`, MaxEvents)
+	return err
+}
+
+// Events lists events finished before before (zero: now), newest first,
+// without their output; kind filters when not "".
+func (s *Store) Events(ctx context.Context, before time.Time, kind string, limit int) ([]Event, error) {
+	if before.IsZero() {
+		before = time.Now().Add(time.Minute)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id, started, finished, kind, title, status, error FROM events
+		WHERE finished < ? AND (? = '' OR kind = ?) ORDER BY finished DESC, id DESC LIMIT ?`, before.Unix(), kind, kind, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Event
+	for rows.Next() {
+		var e Event
+		var started, finished int64
+		if err := rows.Scan(&e.ID, &started, &finished, &e.Kind, &e.Title, &e.Status, &e.Error); err != nil {
+			return nil, err
+		}
+		e.Started, e.Finished = time.Unix(started, 0), time.Unix(finished, 0)
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// EventByID is one event, with its output.
+func (s *Store) EventByID(ctx context.Context, id int64) (Event, error) {
+	var e Event
+	var started, finished int64
+	err := s.db.QueryRowContext(ctx, `SELECT id, started, finished, kind, title, status, error, output FROM events WHERE id = ?`, id).
+		Scan(&e.ID, &started, &finished, &e.Kind, &e.Title, &e.Status, &e.Error, &e.Output)
+	if errors.Is(err, sql.ErrNoRows) {
+		return e, ErrNotFound
+	}
+	e.Started, e.Finished = time.Unix(started, 0), time.Unix(finished, 0)
+	return e, err
+}
+
+// AuditBefore lists audit rows before before (zero: now), newest first.
+func (s *Store) AuditBefore(ctx context.Context, before time.Time, limit int) ([]AuditEntry, error) {
+	if before.IsZero() {
+		before = time.Now().Add(time.Minute)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id, at, username, action, detail FROM audit_log WHERE at < ? ORDER BY at DESC, id DESC LIMIT ?`,
+		before.Unix(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AuditEntry
+	for rows.Next() {
+		var e AuditEntry
+		var at int64
+		if err := rows.Scan(&e.ID, &at, &e.Username, &e.Action, &e.Detail); err != nil {
+			return nil, err
+		}
+		e.At = time.Unix(at, 0)
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// CullHistory deletes events finished before before; it returns how
+// many went.
+func (s *Store) CullHistory(ctx context.Context, before time.Time) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM events WHERE finished < ?`, before.Unix())
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// CullAudit deletes audit rows older than before; it returns how many
+// went.
+func (s *Store) CullAudit(ctx context.Context, before time.Time) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM audit_log WHERE at < ?`, before.Unix())
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 // CountUsers returns the number of accounts.

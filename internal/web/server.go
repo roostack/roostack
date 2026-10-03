@@ -341,7 +341,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore",
 		"home", "services", "service", "backups", "restore", "settings", "account", "account-appearance", "account-notifications", "users", "about",
-		"settings-domain", "settings-network", "settings-email", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
+		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "settings-public", "backups-key-change"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
@@ -400,6 +400,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/servers/{server}/rename", s.requireOwner(s.renameServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
+	mux.Handle("GET /settings/history", s.requireOwner(s.historyPage))
+	mux.Handle("GET /settings/history/{server}/{id}", s.requireOwner(s.historyEventPage))
+	mux.Handle("POST /settings/history/keep", s.requireOwner(s.historyKeepSubmit))
+	mux.Handle("POST /settings/history/delete", s.requireOwner(s.historyDeleteSubmit))
 	mux.Handle("GET /settings/email", s.requireOwner(s.emailPage))
 	mux.Handle("POST /settings/email", s.requireOwner(s.emailSubmit))
 	mux.Handle("POST /settings/email/test", s.requireOwner(s.emailTestSubmit))

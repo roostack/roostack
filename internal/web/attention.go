@@ -85,7 +85,8 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			}
 			switch st := mc.Status; {
 			case st.Running:
-				add(levelInfo, "Applying changes"+on+"… Downloading a new service can take a few minutes.", "", "")
+				add(levelInfo, "Applying changes"+on+"… Downloading a new service can take a few minutes.",
+					"/settings/servers#changes-"+mc.ID, "See what it's doing")
 			case st.LastErr != nil:
 				add(levelProblem, "The last change"+on+" didn't finish: "+st.LastErr.Error(), "/services", "View services")
 			}

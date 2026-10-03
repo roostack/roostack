@@ -63,6 +63,7 @@ func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent
 	if data, err := os.ReadFile(saved); err == nil {
 		var w node.WireAssignment
 		if err := json.Unmarshal(data, &w); err == nil {
+			w.Reason = "Roostack started (after a restart or an update)"
 			if err := api.Take(w); err != nil {
 				log.Error("applying the saved assignment", "err", err)
 			}
