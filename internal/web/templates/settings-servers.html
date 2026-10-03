@@ -79,11 +79,10 @@
 {{end}}{{end}}
 {{if and .CanAdd (not .Only)}}
 <section class="card section" id="add-server">
-  <h2>Add a server</h2>
-  <p class="hint">Another computer at home or in the cloud can run some of your services. Install Roostack on it,
-    then run the command below on it. The servers connect over their own private network (WireGuard).</p>
-  {{if not .ErrorServer}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
   {{with .JoinCode}}
+  {{/* A new code is shown in place of the form (like a storage invite), and
+       the page opens here (#add-server in the form's action). */}}
+  <h2>Join code for a new server</h2>
   <p>Open the new server's setup page (the address its installer showed), enter its setup code, choose
     <strong>Add it to a lab you already have</strong> and paste this join code. It works once, within an hour.</p>
   {{copyBox .}}
@@ -91,12 +90,19 @@
     <summary>Or on the new server's command line</summary>
     {{copyBox (printf "sudo roostack node join %s" .)}}
   </details>
-  <p class="hint">Anyone with this code can add a server to your lab until it's used, so don't share it.</p>
-  {{end}}
-  <form method="post" action="/settings/servers/join">
+  <p class="hint">Anyone with this code can add a server to your lab until it's used, so don't share it. It isn't shown again:
+    if it's lost, make another.</p>
+  <p><a class="button secondary" href="/settings/servers#add-server">Make another code</a></p>
+  {{else}}
+  <h2>Add a server</h2>
+  <p class="hint">Another computer at home or in the cloud can run some of your services. Install Roostack on it, then make a
+    join code here for its setup page. The servers connect over their own private network (WireGuard).</p>
+  {{if not .ErrorServer}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
+  <form method="post" action="/settings/servers/join#add-server">
     {{template "address-choice" .AddressChoice}}
-    <button type="submit">{{if .JoinCode}}Make another code{{else}}Make a join code{{end}}</button>
+    <button type="submit">Make a join code</button>
   </form>
+  {{end}}
   <details>
     <summary>Adding a server outside your home (port forwarding)</summary>
     <p>A server elsewhere connects to this one through your home router, which only lets it in if you ask it to.
