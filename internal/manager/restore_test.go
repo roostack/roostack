@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +19,30 @@ import (
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 )
+
+func TestSuggestFirst(t *testing.T) {
+	at := func(h int) backup.Snapshot {
+		return backup.Snapshot{ID: fmt.Sprint(h), Time: time.Date(2026, 10, 4, h, 0, 0, 0, time.UTC)}
+	}
+	ids := func(bs []ServiceBackup) string {
+		var out []string
+		for _, b := range bs {
+			out = append(out, b.Snapshot.ID)
+		}
+		return strings.Join(out, " ")
+	}
+	// A copy at 3:00 just after the main backup at 2:00: the main one is
+	// suggested; the rest stay newest first.
+	got := suggestFirst([]ServiceBackup{{Snapshot: at(1)}, {Main: true, Snapshot: at(2)}, {Snapshot: at(3)}, {Main: true, Snapshot: at(0)}})
+	if ids(got) != "2 3 1 0" {
+		t.Errorf("got %s", ids(got))
+	}
+	// The main backup is much older (failing for days): the newest wins.
+	got = suggestFirst([]ServiceBackup{{Main: true, Snapshot: at(1)}, {Snapshot: at(20)}})
+	if ids(got) != "20 1" {
+		t.Errorf("got %s", ids(got))
+	}
+}
 
 func waitRestore(t *testing.T, m *Manager) activity.Snapshot {
 	t.Helper()
