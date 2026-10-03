@@ -34,6 +34,15 @@
     open = [];
   });
 
+  // Bars (the space-bar) give their widths as data-width (percent): the
+  // Content-Security-Policy blocks style attributes, but not styles set
+  // from this script. Applied at load and to every part htmx swaps in.
+  const widths = (root) => {
+    for (const el of root.querySelectorAll("[data-width]")) el.style.width = `${Number(el.dataset.width) || 0}%`;
+  };
+  document.addEventListener("DOMContentLoaded", () => widths(document));
+  document.addEventListener("htmx:load", (e) => widths(e.detail.elt));
+
   // roostackSize formats bytes as units.Bytes does (decimal: 1 GB = 1000³
   // bytes), for figures that change as someone types.
   window.roostackSize = (n) => {

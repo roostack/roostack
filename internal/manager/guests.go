@@ -58,6 +58,15 @@ type GuestView struct {
 	LastSeen time.Time
 }
 
+// UsedPercent is how much of its space a guest uses, for a bar (0 if
+// unknown).
+func (g GuestView) UsedPercent() int {
+	if g.Used <= 0 || g.Quota <= 0 {
+		return 0
+	}
+	return int(min(g.Used*100/g.Quota, 100))
+}
+
 // DeleteOn is when a removed guest's backups are deleted.
 func (g GuestView) DeleteOn() time.Time { return g.Removed.Add(GuestGrace) }
 

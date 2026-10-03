@@ -1,8 +1,10 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
@@ -403,5 +405,20 @@ func TestStaticRevalidated(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNotModified {
 		t.Errorf("unchanged: %d", resp.StatusCode)
+	}
+}
+
+// The Content-Security-Policy (style-src 'self') blocks style attributes,
+// so templates mustn't use them: a bar's width is data-width (app.js).
+func TestNoStyleAttributes(t *testing.T) {
+	entries, err := fs.ReadDir(templateFS, "templates")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		b, _ := fs.ReadFile(templateFS, "templates/"+e.Name())
+		if i := bytes.Index(b, []byte(` style="`)); i >= 0 {
+			t.Errorf("%s uses a style attribute, which the browser blocks: %.60s", e.Name(), b[i:])
+		}
 	}
 }
