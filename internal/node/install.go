@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"time"
@@ -86,6 +87,17 @@ func (n *Local) planInstalls(services []state.Service, desired reconcile.Desired
 	for _, s := range services {
 		byName[s.Package.Name] = s
 	}
+	// Setup steps run only for a new install, not for a service that
+	// arrives already set up (moved or restored from another server):
+	// otherwise "finishing setup" would never finish.
+	setUp := map[string]bool{}
+	if n.State != nil {
+		for _, s := range services {
+			if v, err := n.State.Setting(context.Background(), hookKey(s.Package.Name)); err == nil && v == hookPending {
+				setUp[s.Package.Name] = true
+			}
+		}
+	}
 	now := time.Now()
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -139,7 +151,7 @@ func (n *Local) planInstalls(services []state.Service, desired reconcile.Desired
 			}
 			p.Steps = append(p.Steps, InstallStep{Key: reconcile.StageProxy, Title: title})
 		}
-		if hooks := s.Package.HooksOn(pkgspec.HookInstall); len(hooks) > 0 {
+		if hooks := s.Package.HooksOn(pkgspec.HookInstall); len(hooks) > 0 && setUp[o.Service] {
 			title := "Finishing setup"
 			if t := hooks[0].Title; t != "" {
 				title += " (" + lowerFirst(t) + ")"
