@@ -1,0 +1,9 @@
+{{define "title"}}{{.Name}}{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <h1>{{.Name}}</h1>
+  <p>This server is part of <strong>{{or .Lab "a Roostack lab"}}</strong>. Everything about it, its services, backups and
+    settings, is managed from the lab{{with .UI}}: <a href="{{.}}">{{.}}</a> → <strong>Settings → Servers</strong>{{end}}.</p>
+  {{with .UI}}<p><a class="button" href="{{.}}/settings/servers">Open your lab</a></p>{{end}}
+</section>
+{{end}}

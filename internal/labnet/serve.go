@@ -151,7 +151,7 @@ func JoinLab(ctx context.Context, code JoinCode, self nodeid.Identity, stateDir 
 		return err
 	}
 	return Membership{Role: config.RoleNode, Addr: code.Addr, PrefixBits: code.PrefixBits,
-		ControllerID: code.ControllerID, ControllerAddr: code.ControllerAddr}.Save(stateDir)
+		ControllerID: code.ControllerID, ControllerAddr: code.ControllerAddr, LabName: code.LabName, UI: code.UI}.Save(stateDir)
 }
 
 // RemoteError is an error reported by the other server.

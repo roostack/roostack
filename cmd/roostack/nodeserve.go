@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/web"
 )
 
 // How often a node fetches its assignment: until it has one, then as a
@@ -75,6 +77,23 @@ func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent
 	// Renew this server's lab certificate before it expires.
 	labID := labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}
 	go labnet.KeepRenewed(ctx, labID, local.ID.ID, labnet.RenewFromController(labnet.ControllerURL(m), m.ControllerID, labID), log)
+
+	// Its own web address says which lab it's part of, and where to manage
+	// it (SPEC.md §10.2).
+	if page, err := web.NodePage(local.ID.Name, m.LabName, m.UI); err == nil {
+		ui := &http.Server{Addr: fmt.Sprintf("%s:%d", lab.UIBind, lab.UIPort), Handler: page, ReadHeaderTimeout: 10 * time.Second}
+		go func() {
+			<-ctx.Done()
+			ui.Close()
+		}()
+		go func() {
+			if err := ui.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Warn("this server's page", "err", err)
+			}
+		}()
+	} else {
+		log.Error("this server's page", "err", err)
+	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/v1/", api.Handler())
