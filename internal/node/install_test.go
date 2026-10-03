@@ -12,11 +12,19 @@ import (
 	"roostack.cloud/roostack/internal/state"
 )
 
+// memKV is settings in memory.
+type memKV map[string]string
+
+func (m memKV) Setting(_ context.Context, k string) (string, error) { return m[k], nil }
+func (m memKV) SetSetting(_ context.Context, k, v string) error     { m[k] = v; return nil }
+
 // A new service's install is shown step by step: each container's
 // download and start, its web address, its setup; it's forgotten once done.
 func TestInstallProgress(t *testing.T) {
 	pull := func(context.Context, string, io.Writer) error { return nil }
-	n := &Local{Reconciler: &reconcile.Reconciler{Pull: pull}}
+	// Its setup is due: it's a new install.
+	kv := memKV{hookKey("forgejo"): hookPending}
+	n := &Local{Reconciler: &reconcile.Reconciler{Pull: pull}, State: kv}
 	db, app := "roostack-forgejo-db-main.service", "roostack-forgejo-app.service"
 	svc := state.Service{Package: &pkgspec.Package{Name: "forgejo", Title: "Forgejo",
 		Hooks: []*pkgspec.Hook{{On: pkgspec.HookInstall, Title: "Create the administrator account"}}}}
@@ -101,6 +109,15 @@ func TestInstallProgress(t *testing.T) {
 	n.installsApplied()
 	if p := n.installProgress("forgejo"); p == nil || p.Step().Key != stageSetup {
 		t.Fatalf("after the apply, only setup is left: %+v", p)
+	}
+
+	// Arriving already set up (moved or restored from another server): no
+	// setup step, so it doesn't wait for one forever.
+	n.installs, kv[hookKey("forgejo")] = nil, ""
+	n.planInstalls([]state.Service{svc}, desired, plan, false)
+	n.installsApplied()
+	if p := n.installProgress("forgejo"); p != nil {
+		t.Errorf("a moved service is done once applied: %+v", p)
 	}
 }
 
