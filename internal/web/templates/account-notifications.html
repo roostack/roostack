@@ -1,0 +1,26 @@
+{{define "title"}}Email and notifications{{end}}
+{{define "content"}}
+<div class="page-top">{{help "settings/email#who-gets-email" "Email and notifications"}}</div>
+<section class="card">
+  <h1>Email and notifications</h1>
+  {{if .Saved}}{{notice "ok" "Saved."}}{{end}}
+  {{with .EmailError}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if not .MailReady}}{{notice "info" (printf "Roostack can't send email yet: %s" (or (and .Owner "set up the mail server in Settings → Email.") "ask your lab's Owner to set it up."))}}{{end}}
+  <form method="post" action="/account/notifications">
+    <label>Your email address <input name="email" type="email" value="{{or .EmailValue .User.Email}}" placeholder="you@example.com" autocomplete="email">
+      <small>Where Roostack emails you. Leave it empty for no email.</small></label>
+    {{with .Groups}}
+    <fieldset>
+      <legend>Email me about</legend>
+      {{range .}}
+      <label class="check"><input type="checkbox" name="notify" value="{{.ID}}"{{if index $.Chosen .ID}} checked{{end}}>
+        <span>{{.Title}}<small>{{.Hint}}</small></span></label>
+      {{end}}
+    </fieldset>
+    {{end}}
+    <p class="hint">Security emails about your own account always come: a password or two-factor change, a reset, a login from a
+      new browser, or codes locked after wrong tries.</p>
+    <button type="submit">Save</button>
+  </form>
+</section>
+{{end}}

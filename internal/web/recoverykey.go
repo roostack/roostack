@@ -69,7 +69,7 @@ func (s *Server) stepUp(w http.ResponseWriter, r *http.Request, action string, a
 			return false
 		}
 		if res == codeLocked {
-			s.Store.Audit(r.Context(), u, action, "two-factor codes locked")
+			s.Store.Audit(r.Context(), u, auditLocked, "checking it's you for "+action)
 			again(http.StatusTooManyRequests, lockedMessage(until))
 			return false
 		}

@@ -69,7 +69,7 @@ func TestEmailSettings(t *testing.T) {
 		t.Errorf("a bad setting: %d", code)
 	}
 
-	h.post("/account/email", url.Values{"email": {"sam@example.com"}}, h.srv.URL)
+	h.post("/account/notifications", url.Values{"email": {"sam@example.com"}, "notify": {"problems", "security"}}, h.srv.URL)
 	if _, body = h.get("/settings/email"); !strings.Contains(body, `name="to" type="email" value="sam@example.com"`) {
 		t.Error("the test goes to your own address by default")
 	}
@@ -86,7 +86,7 @@ func TestEmailSettings(t *testing.T) {
 		t.Error("the overview says where email comes from")
 	}
 
-	if code, _ := h.post("/account/email", url.Values{"email": {"not an address"}}, h.srv.URL); code != http.StatusBadRequest {
+	if code, _ := h.post("/account/notifications", url.Values{"email": {"not an address"}}, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("a bad address: %d", code)
 	}
 	ha, _ := loggedIn(t, auth.RoleAdmin)

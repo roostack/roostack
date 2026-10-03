@@ -153,6 +153,7 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), u, "login", "")
+	s.noteDevice(w, r, u)
 	redirect(w, r, "/")
 }
 
@@ -213,6 +214,7 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 		s.Log.Warn("failed 2FA code", "user", u.Username, "remote", r.RemoteAddr)
 		time.Sleep(failedLoginDelay)
 		if res == codeLocked {
+			s.Store.Audit(r.Context(), u, auditLocked, "at login")
 			s.mu.Lock()
 			delete(s.pending, key)
 			s.mu.Unlock()
@@ -234,13 +236,14 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), u, "login", "with two-factor code")
+	s.noteDevice(w, r, u)
 	redirect(w, r, "/")
 }
 
 func (s *Server) twoFactorPage(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	if u.TOTPSecret != "" {
-		s.render(w, "twofactor", map[string]any{"User": u, "Enabled": true})
+		s.renderAccount(w, "twofactor", "2fa", map[string]any{"User": u, "Enabled": true})
 		return
 	}
 	secret, err := auth.NewTOTPSecret()
@@ -248,7 +251,7 @@ func (s *Server) twoFactorPage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.render(w, "twofactor", s.twoFactorData(u, secret, ""))
+	s.renderAccount(w, "twofactor", "2fa", s.twoFactorData(u, secret, ""))
 }
 
 func (s *Server) twoFactorSubmit(w http.ResponseWriter, r *http.Request) {
@@ -263,7 +266,7 @@ func (s *Server) twoFactorSubmit(w http.ResponseWriter, r *http.Request) {
 	step, ok := auth.VerifyTOTP(secret, r.FormValue("code"), time.Now(), 0)
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "twofactor", s.twoFactorData(u, secret,
+		s.renderAccount(w, "twofactor", "2fa", s.twoFactorData(u, secret,
 			"That code didn't work. Make sure you added the key above, then enter the current code."))
 		return
 	}

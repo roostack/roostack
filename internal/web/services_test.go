@@ -730,7 +730,7 @@ func TestServiceSettings(t *testing.T) {
 
 func TestAppearance(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleMember)
-	_, body := h.get("/account")
+	_, body := h.get("/account/appearance")
 	if !strings.Contains(body, `name="palette" value="teal" checked`) || !strings.Contains(body, `data-palette="catppuccin" data-mode="dark"`) {
 		t.Fatal("account page should offer every theme, with the default chosen")
 	}
@@ -762,7 +762,7 @@ func TestAppearance(t *testing.T) {
 func TestAccent(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleMember)
 	h.post("/account/appearance", url.Values{"palette": {"catppuccin"}, "accent-catppuccin": {"peach"}, "mode": {"auto"}}, h.srv.URL)
-	_, body := h.get("/account")
+	_, body := h.get("/account/appearance")
 	if !strings.Contains(body, `<html lang="en" data-palette="catppuccin" data-accent="peach">`) ||
 		!strings.Contains(body, `name="accent-catppuccin" value="peach"
           checked`) {

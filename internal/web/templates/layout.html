@@ -49,10 +49,10 @@
       {{if .Owner}}<a href="/setup/timezone">Change the server's time zone</a> if it's wrong.{{else}}If that's wrong, ask the Owner to change it.{{end}}
     </div>
     {{end}}
-    {{if .SettingsArea}}
+    {{with .AreaNav}}
     <div class="settings-shell">
-      {{template "settings-nav" .}}
-      <div class="settings-main">{{template "content" .}}</div>
+      {{template "area-nav" .}}
+      <div class="settings-main">{{template "content" $}}</div>
     </div>
     {{else}}{{template "content" .}}{{end}}
   </main>

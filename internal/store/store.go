@@ -163,6 +163,25 @@ var migrations = []string{
 	ALTER TABLE users ADD COLUMN totp_failed_at INTEGER NOT NULL DEFAULT 0;`,
 	// Where Roostack emails someone (SPEC.md §6.13); empty: no email.
 	`ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT '';`,
+	// Notifications (SPEC.md §6.13): the groups someone chose ("" for
+	// their role's defaults); what's been emailed about, per person; and
+	// the browsers each person has logged in from (a new one is a
+	// security email).
+	`ALTER TABLE users ADD COLUMN notify TEXT NOT NULL DEFAULT '';
+	CREATE TABLE notices (
+		user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		key        TEXT NOT NULL,
+		text       TEXT NOT NULL,
+		first_seen INTEGER NOT NULL,
+		sent_at    INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (user_id, key)
+	);
+	CREATE TABLE devices (
+		user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		token_hash TEXT NOT NULL,
+		created_at INTEGER NOT NULL,
+		PRIMARY KEY (user_id, token_hash)
+	);`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -256,6 +275,9 @@ type User struct {
 	MustChangePassword bool
 	// Email is where Roostack emails them (SPEC.md §6.13); empty: no email.
 	Email string
+	// Notify is the notification groups they chose, comma-separated ("" for
+	// their role's defaults, "none" for none).
+	Notify string
 	// Theme is "auto" (follow the device), "light" or "dark".
 	Theme string
 	// Palette is the colour theme (internal/web themes), "" for the default.
@@ -361,6 +383,103 @@ func (s *Store) SetEmail(ctx context.Context, userID int64, email string) error 
 	return err
 }
 
+// SetNotify sets someone's notification groups (see User.Notify).
+func (s *Store) SetNotify(ctx context.Context, userID int64, groups string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE users SET notify = ? WHERE id = ?`, groups, userID)
+	return err
+}
+
+// Notice is something someone was (or will be) emailed about.
+type Notice struct {
+	Key, Text string
+	FirstSeen time.Time
+	SentAt    time.Time // zero: not emailed yet
+}
+
+// Notices lists what's being followed for a person.
+func (s *Store) Notices(ctx context.Context, userID int64) (map[string]Notice, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT key, text, first_seen, sent_at FROM notices WHERE user_id = ?`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]Notice{}
+	for rows.Next() {
+		var n Notice
+		var first, sent int64
+		if err := rows.Scan(&n.Key, &n.Text, &first, &sent); err != nil {
+			return nil, err
+		}
+		n.FirstSeen = time.Unix(first, 0)
+		if sent != 0 {
+			n.SentAt = time.Unix(sent, 0)
+		}
+		out[n.Key] = n
+	}
+	return out, rows.Err()
+}
+
+// SaveNotice records a notice (insert or update).
+func (s *Store) SaveNotice(ctx context.Context, userID int64, n Notice) error {
+	var sent int64
+	if !n.SentAt.IsZero() {
+		sent = n.SentAt.Unix()
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO notices (user_id, key, text, first_seen, sent_at) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT (user_id, key) DO UPDATE SET text = excluded.text, sent_at = excluded.sent_at`,
+		userID, n.Key, n.Text, n.FirstSeen.Unix(), sent)
+	return err
+}
+
+// DeleteNotice forgets a notice (it was dealt with).
+func (s *Store) DeleteNotice(ctx context.Context, userID int64, key string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM notices WHERE user_id = ? AND key = ?`, userID, key)
+	return err
+}
+
+// KnownDevice records a browser someone logged in from; it reports
+// whether it was new, and whether they had any before.
+func (s *Store) KnownDevice(ctx context.Context, userID int64, tokenHash string, now time.Time) (isNew, hadOthers bool, err error) {
+	var n int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM devices WHERE user_id = ?`, userID).Scan(&n); err != nil {
+		return false, false, err
+	}
+	res, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO devices (user_id, token_hash, created_at) VALUES (?, ?, ?)`,
+		userID, tokenHash, now.Unix())
+	if err != nil {
+		return false, false, err
+	}
+	added, _ := res.RowsAffected()
+	return added == 1, n > 0, nil
+}
+
+// AuditSince lists audit rows after id, oldest first (at most 200).
+func (s *Store) AuditSince(ctx context.Context, id int64) ([]AuditEntry, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, at, username, action, detail FROM audit_log WHERE id > ? ORDER BY id LIMIT 200`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AuditEntry
+	for rows.Next() {
+		var e AuditEntry
+		var at int64
+		if err := rows.Scan(&e.ID, &at, &e.Username, &e.Action, &e.Detail); err != nil {
+			return nil, err
+		}
+		e.At = time.Unix(at, 0)
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// LastAuditID is the newest audit row's id (0 if none).
+func (s *Store) LastAuditID(ctx context.Context) (int64, error) {
+	var id sql.NullInt64
+	err := s.db.QueryRowContext(ctx, `SELECT max(id) FROM audit_log`).Scan(&id)
+	return id.Int64, err
+}
+
 // CountUsers returns the number of accounts.
 func (s *Store) CountUsers(ctx context.Context) (int, error) {
 	var n int
@@ -418,7 +537,7 @@ func (s *Store) SetPassword(ctx context.Context, username, hash string, temporar
 }
 
 const userColumns = `users.id, users.username, users.password_hash, users.role,
-	users.totp_secret, users.totp_last_step, users.totp_failures, users.totp_failed_at, users.must_change_password, users.theme, users.palette, users.accent, users.email, users.created_at`
+	users.totp_secret, users.totp_last_step, users.totp_failures, users.totp_failed_at, users.must_change_password, users.theme, users.palette, users.accent, users.email, users.notify, users.created_at`
 
 // UserByID looks up an account.
 func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
@@ -465,7 +584,7 @@ func scanUserRow(row interface{ Scan(...any) error }) (*User, error) {
 	var u User
 	var created, failedAt int64
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &u.TOTPLastStep,
-		&u.TOTPFailures, &failedAt, &u.MustChangePassword, &u.Theme, &u.Palette, &u.Accent, &u.Email, &created)
+		&u.TOTPFailures, &failedAt, &u.MustChangePassword, &u.Theme, &u.Palette, &u.Accent, &u.Email, &u.Notify, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -509,6 +628,7 @@ func (s *Store) DeleteExpiredSessions(ctx context.Context) error {
 
 // AuditEntry is one audit log row.
 type AuditEntry struct {
+	ID       int64
 	At       time.Time
 	Username string
 	Action   string

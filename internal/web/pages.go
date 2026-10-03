@@ -52,7 +52,7 @@ func navTab(page string) string {
 	if tab, ok := map[string]string{
 		"home": "home", "catalog": "services", "install": "services", "remove": "services", "move": "services",
 		"restore": "backups", "recovery-key": "settings", "users": "settings", "dns-takeover": "settings",
-		"account": "account", "twofactor": "account",
+		"account": "account", "twofactor": "account", "account-appearance": "account", "account-notifications": "account",
 		"setup-restore": "", // first run, before anyone is logged in
 	}[page]; ok {
 		return tab
@@ -335,7 +335,7 @@ func (s *Server) dnsView(r *http.Request) any {
 }
 
 func (s *Server) accountPage(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "account", map[string]any{"User": currentUser(r), "EmailSaved": r.URL.Query().Get("email") == "saved"})
+	s.renderAccount(w, "account", "account", map[string]any{"User": currentUser(r)})
 }
 
 // appearanceSubmit saves the user's colour theme and light/dark mode.
@@ -372,7 +372,7 @@ func (s *Server) appearanceSubmit(w http.ResponseWriter, r *http.Request) {
 		s.renderPart(w, "account", "theme-toggle", map[string]any{"OOB": true, "NextTheme": n.NextTheme, "Theme": n.Theme})
 		return
 	}
-	http.Redirect(w, r, "/account#appearance", http.StatusSeeOther)
+	http.Redirect(w, r, "/account/appearance", http.StatusSeeOther)
 }
 
 // themeSubmit saves the user's theme and returns to the page they were
@@ -400,7 +400,7 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	fail := func(msg string) {
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "account", map[string]any{"User": u, "Error": msg})
+		s.renderAccount(w, "account", "account", map[string]any{"User": u, "Error": msg})
 	}
 	ok, err := auth.VerifyPassword(u.PasswordHash, r.FormValue("current"))
 	if err != nil || !ok {
@@ -434,7 +434,7 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/")
 		return
 	}
-	s.render(w, "account", map[string]any{"User": u,
+	s.renderAccount(w, "account", "account", map[string]any{"User": u,
 		"Done": "Password changed. Other devices you were logged in on need to log in again."})
 }
 

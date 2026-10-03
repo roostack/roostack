@@ -65,6 +65,9 @@ type GuestHub struct {
 	// Changed is called when guests change, so the host's stores follow
 	// (optional).
 	Changed func()
+	// Joined is called when a guest lab first connects with its invite (to
+	// audit it: a security email, SPEC.md §6.13). Optional.
+	Joined func(ctx context.Context, name string)
 
 	mu        sync.Mutex
 	publicKey string
@@ -324,6 +327,9 @@ func (h *GuestHub) Handler() http.Handler {
 			}
 		}()
 		h.Log.Info("guest joined", "guest", g.Name)
+		if h.Joined != nil {
+			h.Joined(r.Context(), g.Name)
+		}
 		WriteJSON(w, http.StatusOK, map[string]string{"host": h.LabName})
 	})
 	mux.HandleFunc("GET /v1/guest/usage", func(w http.ResponseWriter, r *http.Request) {

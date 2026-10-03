@@ -33,5 +33,35 @@ address).
 
 ## Who gets email
 
-Each person adds their own address under **Your email address** on their
-account page (click your name at the top). Leave it empty to get no email.
+Each person adds their own address on their account's **Email and
+notifications** page (click your name at the top). Leave it empty to get
+no email.
+
+## Notifications
+
+On your account's **Email and notifications** page, choose what Roostack
+emails you about:
+
+Problems
+:   Backups failing, a disk running low, a service or server that stopped
+    working, updates that failed. Sent once a problem has lasted ten
+    minutes (a blip that fixes itself sends nothing), then once a day while
+    it lasts, and once more when it's fixed.
+
+Waiting for you
+:   Something Roostack can't finish without you, such as a restart to
+    finish installing updates, once it has waited a day.
+
+Security for the lab (Owners)
+:   A new Owner or Admin, someone's password or two-factor reset, a server
+    joining the lab, another lab starting to store backups here.
+
+Weekly summary
+:   On Monday mornings: each server's backups and disk space, and anything
+    still needing attention.
+
+Owners and Admins get the first three unless they change it; Members can't
+act on the lab's problems, so they get none of them. Everyone always gets
+security emails about their own account: a password or two-factor change,
+a reset, a login from a new browser, or codes locked after wrong tries. If
+one of those wasn't you, change your password and tell your lab's Owner.

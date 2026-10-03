@@ -231,9 +231,19 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 
 // withArea marks a page as a settings area, so it gets the sidebar.
 func withArea(data map[string]any, id string) map[string]any {
-	data["SettingsArea"] = id
-	data["SettingsGroups"] = settingsGroups()
+	data["AreaNav"] = areaNav{Label: "Settings", Home: "/settings", HomeTitle: "All settings", Groups: settingsGroups(), Active: id}
 	return data
+}
+
+// areaNav is the sidebar of a set of area pages (Settings, your account):
+// a link home, then the areas in groups, the current one marked. Tabs:
+// on phones it's a row of tabs at the top (there's no overview page to
+// go back to).
+type areaNav struct {
+	Label, Home, HomeTitle string
+	Groups                 []settingsGroup
+	Active                 string
+	Tabs                   bool
 }
 
 func (s *Server) domainAreaPage(w http.ResponseWriter, r *http.Request) {

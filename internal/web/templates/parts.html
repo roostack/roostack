@@ -267,14 +267,15 @@
 </div>
 {{end}}
 
-{{/* settings-nav: the sidebar on settings area pages (desktop only; on
-     phones the page's back link leads to the overview). */}}
-{{define "settings-nav"}}
-<nav class="settings-nav" aria-label="Settings">
-  <a href="/settings" class="settings-home">All settings</a>
-  {{range .SettingsGroups}}
-  <p class="settings-group">{{.Title}}</p>
-  {{range .Areas}}<a href="{{.Href}}"{{if eq .ID $.SettingsArea}} class="active" aria-current="page"{{end}}>{{.Title}}</a>{{end}}
+{{/* area-nav: the sidebar of area pages (an areaNav: Settings, your
+     account). On phones, Settings' is hidden (the page's back link leads
+     to the overview); the account's becomes a row of tabs. */}}
+{{define "area-nav"}}
+<nav class="settings-nav{{if .Tabs}} area-tabs{{end}}" aria-label="{{.Label}}">
+  {{with .Home}}<a href="{{.}}" class="settings-home">{{$.HomeTitle}}</a>{{end}}
+  {{range .Groups}}
+  {{with .Title}}<p class="settings-group">{{.}}</p>{{end}}
+  {{range .Areas}}<a href="{{.Href}}"{{if eq .ID $.Active}} class="active" aria-current="page"{{end}}>{{.Title}}</a>{{end}}
   {{end}}
 </nav>
 {{end}}
