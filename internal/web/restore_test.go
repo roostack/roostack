@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/setup"
 )
 
@@ -49,13 +50,17 @@ func TestRestoreFlow(t *testing.T) {
 			Of: "/srv/roostack/services/vaultwarden/data", Time: time.Now().Add(-2 * time.Hour)}},
 	}
 	h.node().restores = fr
+	fm := h.node()
+	fm.otherBackups = []manager.ServiceBackup{{Ref: "copy:n-0123456789:provider:1", ServerID: "n-0123456789", ServerName: "nuc",
+		Where: "Backblaze", Snapshot: backup.Snapshot{ID: "77aa00bbcccc", Short: "77aa00bb", Time: time.Now().Add(-50 * time.Minute)}}}
+	fm.backupNotes = []string{"Couldn't read vps's backups at Backblaze: timeout"}
 
 	if _, body := h.get("/backups"); !strings.Contains(body, `href="/backups/restore/vaultwarden">Restore Vaultwarden…`) {
 		t.Error("backups page should link to restoring each service")
 	}
 	_, body := h.get("/backups/restore/vaultwarden")
-	for _, want := range []string{`value="9a6817f7aaaa" checked`, "(newest)", "8550fc0a", "Kept copies",
-		"data.before-restore-20260926-130602"} {
+	for _, want := range []string{`value="backup:n-0123456789@9a6817f7aaaa"`, "(suggested)", "8550fc0a", "Kept copies",
+		"data.before-restore-20260926-130602", "from nuc&#39;s copy at Backblaze", "Couldn&#39;t read vps&#39;s backups"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("restore page missing %q", want)
 		}
@@ -64,13 +69,24 @@ func TestRestoreFlow(t *testing.T) {
 		t.Errorf("unknown service: %d", code)
 	}
 
-	if code, body := h.post("/backups/restore/vaultwarden", url.Values{"snapshot": {"8550fc0abbbb"}}, h.srv.URL); code != http.StatusBadRequest ||
+	// The suggested backup is chosen; the rest are a click away.
+	if i, j := strings.Index(body, "9a6817f7aaaa"), strings.Index(body, "Choose a different backup"); i < 0 || j < 0 ||
+		!strings.Contains(body[i:], " checked") || strings.Index(body[i:], " checked") > strings.Index(body[i:], "</label>") {
+		t.Error("the newest main backup should be chosen")
+	}
+
+	if code, body := h.post("/backups/restore/vaultwarden", url.Values{"backup": {"backup:n-0123456789@8550fc0abbbb"}}, h.srv.URL); code != http.StatusBadRequest ||
 		!strings.Contains(body, "Tick the box") || len(fr.restored) != 0 {
 		t.Errorf("unconfirmed restore: %d", code)
 	}
-	h.post("/backups/restore/vaultwarden", url.Values{"snapshot": {"8550fc0abbbb"}, "confirm": {"on"}}, h.srv.URL)
+	h.post("/backups/restore/vaultwarden", url.Values{"backup": {"backup:n-0123456789@8550fc0abbbb"}, "confirm": {"on"}}, h.srv.URL)
 	if len(fr.restored) != 1 || fr.restored[0] != "vaultwarden 8550fc0abbbb" {
 		t.Errorf("restored %v", fr.restored)
+	}
+	// From a copy: the controller does it.
+	h.post("/backups/restore/vaultwarden", url.Values{"backup": {"copy:n-0123456789:provider:1@77aa00bbcccc"}, "confirm": {"on"}}, h.srv.URL)
+	if len(fm.labRestores) != 1 || fm.labRestores[0] != "vaultwarden copy:n-0123456789:provider:1@77aa00bbcccc → " {
+		t.Errorf("lab restores %v", fm.labRestores)
 	}
 
 	// While it runs, the page shows its progress instead of the form.

@@ -84,7 +84,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Full-lab restore from storage at a friend's lab
   - [ ] Restoring across the lab (SPEC §10.10, 2026-10-04):
     - [x] One snapshot per service (tagged, with its secrets) plus the server's own; retention per service; full-lab restore and moves read them. Tried on VM1
-    - [ ] One restore page per service for the whole lab: every server's backups and copies, the newest suggested, onto any server
+    - [x] One restore page per service for the whole lab: every server's backups and copies (unreadable ones noted), the newest suggested (or the main backup from about then), onto any server; in place from the main backup the server restores itself, otherwise the controller streams it (secrets from the backup; the old server's copy kept aside). Tested with real restic, including a lost server
     - [ ] Whole lab onto fewer servers: plan of the missing servers' services, tick which come here; the rest wait to be restored
     - [ ] Services waiting to be restored: listed, in needs attention, "Remove and delete its backups…"; a lost server leaves once none wait
   - [x] Backup drive picker (SPEC §6.9 "Backup drives"): roostack-agent lists USB drives, second disks, network shares and the server's own disk; the wizard offers them best first, refreshing as drives come and go; a chosen drive is mounted for good by UUID (nofail, automount); a blank disk can be erased and prepared; backups check their drive is connected. Restore page lists drives. Tested on VM1 with virtual USB drives (`dev-vm.sh usb add|remove`; dev VMs now run Debian's standard kernel, the cloud kernel has no USB)
