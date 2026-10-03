@@ -297,7 +297,8 @@ type realBackups struct {
 
 func (b *realBackups) RunNow() error {
 	started := time.Now()
-	sum, err := b.repo.Backup(context.Background(), backup.BackupOptions{Paths: []string{b.dir}})
+	sum, err := b.repo.Backup(context.Background(), backup.BackupOptions{Paths: []string{b.dir},
+		Tags: []string{backup.TagRoostack, backup.ServiceTag(filepath.Base(b.dir))}})
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.last = &store.BackupRun{Started: started, Finished: time.Now(), OK: err == nil}

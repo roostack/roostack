@@ -144,21 +144,17 @@ func TestRestoreService(t *testing.T) {
 		t.Errorf("units = %v, want %v", units.calls, want)
 	}
 
-	// Restoring a service whose data isn't in the backup puts the current
-	// data back instead of starting it empty.
+	// A service with no backup of its own: nothing is touched.
 	other := filepath.Join(root, "srv", "other", "data")
 	writeFile(t, filepath.Join(other, "keep.txt"), "current")
 	units.calls = nil
 	_, err = r.RestoreService(ctx, &generate.Output{Service: "other", Units: []string{"roostack-other-app.service"},
 		Backup: generate.BackupPlan{Include: []string{other}}}, "")
-	if err == nil || !strings.Contains(err.Error(), "put back unchanged") {
+	if err == nil || !strings.Contains(err.Error(), "no backup of other") {
 		t.Fatalf("err = %v", err)
 	}
-	if got, _ := os.ReadFile(filepath.Join(other, "keep.txt")); string(got) != "current" {
-		t.Error("current data must be put back when the backup doesn't contain it")
-	}
-	if want := "stop roostack-other-app.service,start roostack-other-app.service"; strings.Join(units.calls, ",") != want {
-		t.Errorf("units = %v, want the service started again with its data back", units.calls)
+	if got, _ := os.ReadFile(filepath.Join(other, "keep.txt")); string(got) != "current" || len(units.calls) != 0 {
+		t.Errorf("touched a service without a backup: %v", units.calls)
 	}
 }
 

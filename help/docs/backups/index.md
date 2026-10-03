@@ -92,8 +92,9 @@ attention** on the home page, with what to do.
       `/var/lib/roostack/backup-key`. Other servers' repositories also get
       their own key, and never see the recovery key.
     - **Keeping:** old backups are removed on Sunday by the lab's
-      controller (`restic forget --prune --keep-daily 7 --keep-weekly 4
-      --keep-monthly 6`), then 5% of the data is read back
+      controller (`restic forget --prune --group-by host,tags --keep-daily 7
+      --keep-weekly 4 --keep-monthly 6`: each service is kept on its own, as
+      each has its own snapshot, tagged `service=<name>`), then 5% of the data is read back
       (`restic check --read-data-subset=5%`).
 
     List the backups from the command line with
