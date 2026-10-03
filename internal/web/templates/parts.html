@@ -178,7 +178,7 @@
      §6.12), and on the internet whether Roostack's own pages are public.
      Fields "network" and "ui", inside a form; a networkForm. */}}
 {{define "network-choice"}}
-<div class="network-choice" data-network="{{.Current}}" x-data="{ network: $el.dataset.network }">
+<div class="network-choice" data-network="{{.Selected}}" x-data="{ network: $el.dataset.network }">
   <fieldset>
     <legend>Is this server at home, or on the internet?</legend>
     <label class="check"><input type="radio" name="network" value="home" x-model="network" required>
@@ -191,7 +191,7 @@
   <p class="hint">{{if eq .Detected "internet"}}This server has a public address of its own, so it looks like a cloud server.
     {{- else}}This server's addresses are private ones, like a server at home. A cloud server behind its provider's
     network address translation looks like this too.{{end}}</p>
-  <fieldset x-show="network === 'internet'"{{if not .Internet}} x-cloak{{end}}>
+  <fieldset x-show="network === 'internet'"{{if ne .Selected "internet"}} x-cloak{{end}}>
     <legend>Roostack's own pages</legend>
     <label class="check"><input type="radio" name="ui" value="public" {{if not .UITunnelOnly}}checked{{end}}>
       <span>At {{with .Domain}}<code>roost.{{.}}</code>{{else}}<code>roost.&lt;your domain&gt;</code>{{end}} (recommended)
