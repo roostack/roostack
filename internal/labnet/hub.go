@@ -52,6 +52,9 @@ type Hub struct {
 	// Started is called once the network is first set up (Roostack restarts
 	// to pick up its new role, e.g. for the firewall). Optional.
 	Started func()
+	// UI is where the lab's pages are (https://roost.<domain>), put in
+	// join codes. Optional.
+	UI string
 	// Joined is called when a server joins (to audit it: a security email,
 	// SPEC.md §6.13). Optional.
 	Joined func(ctx context.Context, name string)
@@ -197,7 +200,8 @@ func (h *Hub) NewJoinCode(ctx context.Context, endpoint string) (JoinCode, error
 	ctrlKey := h.publicKey
 	h.mu.Unlock()
 	c := JoinCode{Endpoint: endpoint, ControllerKey: ctrlKey, ControllerID: h.Self.ID, ControllerAddr: ControllerAddr,
-		Addr: addr, PrefixBits: DefaultPrefix.Bits(), JoinKey: key, CA: ca.Fingerprint(), Token: token}
+		Addr: addr, PrefixBits: DefaultPrefix.Bits(), JoinKey: key, CA: ca.Fingerprint(), Token: token,
+		LabName: h.LabName, UI: h.UI}
 	// Check it the way the new server will (e.g. the endpoint's format).
 	if _, err := ParseJoinCode(c.String()); err != nil {
 		return JoinCode{}, err

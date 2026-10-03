@@ -101,7 +101,7 @@ func (s *Server) labRestorePage(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/setup/restore/progress")
 		return
 	}
-	data := map[string]any{"Kind": "s3"}
+	data := map[string]any{"Kind": "s3", "Passed": s.setupPassed(r)}
 	s.restoreDrives(r, data)
 	if len(data["Drives"].([]agent.Drive)) > 0 {
 		data["Kind"] = "folder"
@@ -118,17 +118,15 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 			AccessKey: r.FormValue("access_key"), SecretKey: r.FormValue("secret_key")}}
 	key := strings.TrimSpace(r.FormValue("recovery_key"))
 	// Everything typed comes back, except the secrets.
-	data := map[string]any{"Kind": src.Kind, "Folder": src.Folder, "URL": src.URL, "S3": src.S3, "Drive": r.FormValue("drive")}
+	data := map[string]any{"Kind": src.Kind, "Folder": src.Folder, "URL": src.URL, "S3": src.S3, "Drive": r.FormValue("drive"),
+		"Passed": s.setupPassed(r)}
 	s.restoreDrives(r, data)
 	fail := func(msg string) {
 		data["Error"] = msg
 		w.WriteHeader(http.StatusBadRequest)
 		s.render(w, "setup-restore", data)
 	}
-	s.mu.Lock()
-	tokenOK := auth.TokensEqual(strings.TrimSpace(r.FormValue("token")), s.setupToken)
-	s.mu.Unlock()
-	if !tokenOK {
+	if !s.setupPassed(r) {
 		time.Sleep(failedLoginDelay)
 		fail("The setup code is wrong. It is shown in the Roostack log and in /var/lib/roostack/setup-token.")
 		return

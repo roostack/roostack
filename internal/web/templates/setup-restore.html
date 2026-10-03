@@ -44,10 +44,10 @@
 
   {{else}}
   <form method="post" action="/setup/restore" x-data="{ kind: '{{.Kind}}' }">
-    <label>Setup code
+    {{if not .Passed}}<label>Setup code
       <input name="token" autocomplete="off" required autofocus>
       <small>Shown in the Roostack log, and saved in <code>/var/lib/roostack/setup-token</code>.</small>
-    </label>
+    </label>{{end}}
     <fieldset>
       <legend>Where are the backups?</legend>
       <label class="check"><input type="radio" name="kind" value="s3" x-model="kind">

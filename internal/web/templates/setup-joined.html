@@ -1,0 +1,16 @@
+{{define "title"}}Joined {{or .Lab "your lab"}}{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <h1>Joined {{or .Lab "your lab"}}</h1>
+  <ol class="steps public-steps">
+    <li><span class="dot dot-ok" aria-hidden="true"></span><strong>Join code checked.</strong> It's for {{or .Lab "your lab"}},
+      reached at <code>{{.Endpoint}}</code>.</li>
+    <li><span class="dot dot-ok" aria-hidden="true"></span><strong>Connected to the lab</strong> over its encrypted network.
+      This server is <code>{{.Addr}}</code> on it.</li>
+    <li><span class="dot dot-warn" aria-hidden="true"></span><strong>Restarting as part of the lab.</strong> This takes a few seconds.</li>
+  </ol>
+  <p><strong>{{.Name}}</strong> is now part of {{or .Lab "your lab"}}. Everything about it is managed from the lab{{with .UI}}:
+    <a href="{{.}}">{{.}}</a>{{end}} → <strong>Settings → Servers</strong>.</p>
+  {{with .UI}}<p><a class="button" href="{{.}}/settings/servers">Open your lab</a></p>{{end}}
+</section>
+{{end}}

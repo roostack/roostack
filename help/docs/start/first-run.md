@@ -28,13 +28,24 @@ You'll need:
 
 ## 1. Create your account
 
-Enter the setup code, then choose a username and a password of at least 12
-characters. You can also give your lab a name, like "The Smiths' lab". This
-account is the **Owner**: the one person who can change everything.
+Enter the setup code and choose **Continue**. Roostack then asks
+**What's this server for?**:
 
-Under the form there's **Restore a lab from its backups…**. Choose that
-instead if you're rebuilding a lab you had before (see
-[Restore a whole lab](../trouble/restore-lab.md)).
+A new lab
+:   Choose a username and a password of at least 12 characters. You can
+    also give your lab a name, like "The Smiths' lab". This account is the
+    **Owner**: the one person who can change everything. Carry on below.
+
+Add it to a lab you already have
+:   For a second server: paste a join code from your lab, and this server
+    joins it. See [Add a server](../servers/add.md). The rest of this page
+    doesn't apply: you manage it from your lab.
+
+Restore a lab from its backups
+:   If you're rebuilding a lab you had before (see
+    [Restore a whole lab](../trouble/restore-lab.md)).
+
+Nothing is chosen for you, since each is hard to undo.
 
 ## 2. Turn on two-factor authentication
 

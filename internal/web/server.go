@@ -119,7 +119,10 @@ type Server struct {
 	// hides it.
 	LabRestore LabRestorer
 	restore    *restoreSession
-	hostChecks hostCheckCache
+	// setupPasses are browsers that entered the setup code (setup.go):
+	// token hash → until when.
+	setupPasses map[string]time.Time
+	hostChecks  hostCheckCache
 	// RestorePending reports a restored lab whose services' databases are
 	// still being put back (optional).
 	RestorePending func() bool
@@ -129,6 +132,11 @@ type Server struct {
 	// Protected says whether CrowdSec is running (SPEC.md §6.11; public.go).
 	Checks    *public.Checks
 	Protected func(ctx context.Context) bool
+	// JoinLab adds this fresh server to an existing lab, named name, and
+	// restarts Roostack as part of it once the page has been sent; it
+	// returns this server's address on the lab's network. Undone if it
+	// fails. Nil hides the choice (SPEC.md §10.2).
+	JoinLab func(ctx context.Context, code labnet.JoinCode, name string) (string, error)
 	// Mail sends email (SPEC.md §6.13). Nil hides Settings → Email.
 	Mail MailSender
 	// Attacks says what CrowdSec saw on the public addresses over a while,
@@ -331,7 +339,8 @@ type pendingLogin struct {
 // NewServer prepares templates. setupToken is empty if users already exist.
 func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, error), setupToken string, log *slog.Logger) (*Server, error) {
 	s := &Server{Store: st, Services: services, Log: log, setupToken: setupToken,
-		pending: map[string]*pendingLogin{}, stepUpFailures: map[int64]int{}, pages: map[string]*template.Template{}}
+		pending: map[string]*pendingLogin{}, stepUpFailures: map[int64]int{}, pages: map[string]*template.Template{},
+		setupPasses: map[string]time.Time{}}
 	var err error
 	if s.bootID, err = auth.NewToken(); err != nil {
 		return nil, err
@@ -340,7 +349,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		return nil, err
 	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
-		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore",
+		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
 		"home", "services", "service", "backups", "restore", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "settings-public", "backups-key-change"} {
@@ -364,6 +373,8 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /setup", s.setupPage)
 	mux.HandleFunc("POST /setup", s.setupSubmit)
+	mux.HandleFunc("POST /setup/code", s.setupCodeSubmit)
+	mux.HandleFunc("POST /setup/join", s.setupJoinSubmit)
 	mux.HandleFunc("GET /setup/restore", s.labRestorePage)
 	mux.HandleFunc("POST /setup/restore", s.labRestoreFind)
 	mux.HandleFunc("POST /setup/restore/start", s.labRestoreStart)

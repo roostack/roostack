@@ -20,7 +20,11 @@ func (s *Server) setupPage(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/setup/restore/progress")
 		return
 	}
-	s.render(w, "setup", map[string]any{"CanRestore": s.LabRestore != nil})
+	if !s.setupPassed(r) {
+		s.render(w, "setup", map[string]any{}) // first, the setup code
+		return
+	}
+	s.render(w, "setup", s.setupData(nil))
 }
 
 func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
@@ -33,20 +37,16 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 	labName := strings.TrimSpace(r.FormValue("lab_name"))
 	fail := func(msg string) {
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "setup", map[string]any{"Error": msg, "Username": username, "LabName": labName, "CanRestore": s.LabRestore != nil})
+		s.render(w, "setup", s.setupData(map[string]any{"Choice": "new", "Error": msg, "Username": username, "LabName": labName}))
 	}
 	if s.LabRestore != nil && s.LabRestore.Running() {
 		fail("A lab is being restored onto this server.")
 		return
 	}
 
-	s.mu.Lock()
-	tokenOK := auth.TokensEqual(strings.TrimSpace(r.FormValue("token")), s.setupToken)
-	s.mu.Unlock()
 	switch {
-	case !tokenOK:
-		time.Sleep(failedLoginDelay)
-		fail("The setup code is wrong. It is shown in the Roostack log and in /var/lib/roostack/setup-token.")
+	case !s.setupPassed(r):
+		redirect(w, r, "/setup") // the setup code first (again, if it's been a while)
 		return
 	case !auth.ValidUsername(username):
 		fail("Choose a username of letters and digits (dots, dashes and underscores are fine too), up to 32 characters.")

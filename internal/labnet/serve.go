@@ -2,6 +2,7 @@ package labnet
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -108,22 +109,35 @@ func JoinLab(ctx context.Context, code JoinCode, self nodeid.Identity, stateDir 
 		Transport: &http.Transport{TLSClientConfig: JoinTLS(code.CA, code.ControllerID)}}
 	url := fmt.Sprintf("https://%s/v1/join", net.JoinHostPort(code.ControllerAddr.String(), strconv.Itoa(Port)))
 	var resp JoinResponse
-	// The first WireGuard handshake can take a few seconds.
-	deadline := time.Now().Add(45 * time.Second)
+	// The first WireGuard handshake can take a few seconds; none at all
+	// after a while means the port can't be reached (as for storage at
+	// another lab, guests.go).
+	start := time.Now()
+	handshake := false
 	for {
 		err = post(ctx, client, url, body, &resp)
 		var refused *RemoteError
-		if err == nil || errors.As(err, &refused) || time.Now().After(deadline) {
+		if err == nil || errors.As(err, &refused) || time.Since(start) > joinTimeout {
 			break
+		}
+		if !handshake {
+			if handshake = linkUp(ctx, ag, agent.WireGuardInterface, code.ControllerKey); !handshake && time.Since(start) > handshakeTimeout {
+				break
+			}
 		}
 		time.Sleep(2 * time.Second)
 	}
 	var refused *RemoteError
 	if err != nil && !errors.As(err, &refused) {
 		_, port, _ := net.SplitHostPort(code.Endpoint)
-		return fmt.Errorf("couldn't reach the controller at %s over WireGuard (%v).\n"+
-			"Check the address, and if the controller is on another network, that UDP port %s is forwarded to it on "+
-			"that network's router (Settings → Servers explains how)", code.Endpoint, err, port)
+		lab := cmp.Or(code.LabName, "your lab")
+		if !handshake && !linkUp(ctx, ag, agent.WireGuardInterface, code.ControllerKey) {
+			return fmt.Errorf("couldn't reach %s at %s. Its UDP port %s has to let this server in: at home, this server on the same "+
+				"network as the lab's, or the port forwarded on the router; on a cloud server, the provider's firewall. "+
+				"(Details: no WireGuard handshake in %d seconds.)", lab, code.Endpoint, port, int(time.Since(start).Seconds()))
+		}
+		return fmt.Errorf("the link to %s at %s works, but Roostack there didn't answer: it may be restarting, so try again "+
+			"in a minute. (Details: %v)", lab, code.Endpoint, err)
 	}
 	if err != nil {
 		return fmt.Errorf("the controller refused to add this server: %w", err)

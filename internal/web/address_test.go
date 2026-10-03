@@ -2,11 +2,14 @@ package web
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"net/netip"
 	"net/url"
 	"strings"
 	"testing"
 
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/labnet"
@@ -59,5 +62,53 @@ func TestJoinAddressChoice(t *testing.T) {
 	}
 	if code, _ := h.post("/settings/servers/join", url.Values{"address": {"other"}, "address_other": {"nonsense"}}, h.srv.URL); code != 400 {
 		t.Errorf("no port: %d", code)
+	}
+}
+
+// A fresh server joins an existing lab from its first-run page, after the
+// setup code: a bad code or a failure says so and changes nothing; on
+// success the page says where to manage it.
+func TestSetupJoin(t *testing.T) {
+	h := newHarness(t, "the-setup-code")
+	var joined []string
+	fail := error(nil)
+	h.server.JoinLab = func(_ context.Context, c labnet.JoinCode, name string) (string, error) {
+		if fail != nil {
+			return "", fail
+		}
+		joined = append(joined, c.LabName+" as "+name)
+		return c.Addr.String(), nil
+	}
+	key, _ := agent.NewWireGuardKey()
+	pub, _ := agent.WireGuardPublicKey(key)
+	code := labnet.JoinCode{Endpoint: "192.168.1.20:51820", ControllerKey: pub, ControllerID: "n-0000000001",
+		ControllerAddr: netip.MustParseAddr("100.96.0.1"), Addr: netip.MustParseAddr("100.96.0.4"), PrefixBits: 24,
+		JoinKey: key, CA: "f", Token: "t", LabName: "The Smiths' lab", UI: "https://roost.lab.example.com"}.String()
+
+	if h.post("/setup/join", url.Values{"code": {code}, "name": {"nas"}}, h.srv.URL); len(joined) != 0 {
+		t.Fatal("not without the setup code")
+	}
+	h.post("/setup/code", url.Values{"token": {"the-setup-code"}}, h.srv.URL)
+	if _, body := h.get("/setup"); !strings.Contains(body, `action="/setup/join"`) || !strings.Contains(body, "Add it to a lab you already have") {
+		t.Fatal("the choice is offered")
+	}
+	if code, body := h.post("/setup/join", url.Values{"code": {"nonsense"}, "name": {"nas"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "isn&#39;t a Roostack join code") || !strings.Contains(body, `value="join" x-model="choice" checked`) {
+		t.Errorf("bad code: %d", code)
+	}
+	fail = errors.New("couldn't reach The Smiths' lab at 192.168.1.20:51820")
+	if code, body := h.post("/setup/join", url.Values{"code": {code}, "name": {"nas"}}, h.srv.URL); code != http.StatusBadGateway ||
+		!strings.Contains(body, "Nothing was changed here") {
+		t.Errorf("failure: %d", code)
+	}
+	fail = nil
+	_, body := h.post("/setup/join", url.Values{"code": {code}, "name": {"nas"}}, h.srv.URL)
+	for _, want := range []string{"Joined The Smiths&#39; lab", "<code>100.96.0.4</code>", `href="https://roost.lab.example.com/settings/servers"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("joined page missing %q", want)
+		}
+	}
+	if len(joined) != 1 || joined[0] != "The Smiths' lab as nas" {
+		t.Errorf("joined %v", joined)
 	}
 }

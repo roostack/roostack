@@ -41,6 +41,10 @@ type JoinCode struct {
 	CA string `json:"f"`
 	// Token proves the code to the controller.
 	Token string `json:"t"`
+	// LabName and UI name the lab and where its pages are, for the new
+	// server's setup page ("Open your lab"). Optional.
+	LabName string `json:"n,omitempty"`
+	UI      string `json:"u,omitempty"`
 }
 
 // String encodes the code for pasting into a terminal.

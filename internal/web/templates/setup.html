@@ -3,31 +3,76 @@
 <section class="card narrow">
   <div class="page-top">{{help "start/first-run" "First-run setup"}}</div>
   <h1>Welcome to Roostack</h1>
-  <p>Create the <strong>Owner</strong> account. The Owner can change every setting, including host updates, backups and other accounts.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  <form method="post" action="/setup" x-data="{ pw: '', confirm: '' }">
+  {{if not .Passed}}
+  {{/* Step 1: the setup code proves it's whoever installed this server. */}}
+  <form method="post" action="/setup/code">
     <label>Setup code
       <input name="token" autocomplete="off" required autofocus>
-      <small>Shown in the Roostack log, and saved in <code>/var/lib/roostack/setup-token</code>.</small>
+      <small>Shown when Roostack was installed, and saved in <code>/var/lib/roostack/setup-token</code> on the server.</small>
     </label>
-    <label>Name your lab <small>(optional)</small>
-      <input name="lab_name" value="{{.LabName}}" maxlength="60" placeholder="The Smiths' lab">
-      <small>Shown at the top of every page, and to other labs you share backup storage with. You can change it later.</small>
-    </label>
-    <label>Username
-      <input name="username" value="{{.Username}}" autocomplete="username" required>
-    </label>
-    <label>Password
-      <input name="password" type="password" x-model="pw" autocomplete="new-password" required minlength="12">
-      <small>At least 12 characters. A few random words works well.</small>
-    </label>
-    <label>Confirm password
-      <input name="confirm" type="password" x-model="confirm" autocomplete="new-password" required>
-      <small class="error" x-show="confirm && pw !== confirm" x-cloak>The passwords don't match.</small>
-    </label>
-    <button type="submit">Create account</button>
+    <button type="submit">Continue</button>
   </form>
-  {{if .CanRestore}}<p class="hint">Moving your lab to a new server, or rebuilding it after a failure?
-    <a href="/setup/restore">Restore a lab from its backups…</a></p>{{end}}
+  {{else}}
+  {{/* Step 2: what this server is for. Nothing is chosen for them: each is
+       hard to undo. */}}
+  <div data-choice="{{.Choice}}" x-data="{ choice: $el.dataset.choice }">
+    <fieldset>
+      <legend>What's this server for?</legend>
+      <label class="check"><input type="radio" name="choice" value="new" x-model="choice"{{if eq .Choice "new"}} checked{{end}}>
+        <span>A new lab<small>Start your lab here. You create the Owner account, who can change every setting.</small></span></label>
+      {{if .CanJoin}}<label class="check"><input type="radio" name="choice" value="join" x-model="choice"{{if eq .Choice "join"}} checked{{end}}>
+        <span>Add it to a lab you already have<small>Another server runs your lab already. This one joins it, to run services or keep
+          backups, and you manage it from there.</small></span></label>{{end}}
+      {{if .CanRestore}}<label class="check"><input type="radio" name="choice" value="restore" x-model="choice">
+        <span>Restore a lab from its backups<small>Moving your lab to a new server, or rebuilding it after a failure.</small></span></label>{{end}}
+    </fieldset>
+
+    <form method="post" action="/setup" x-data="{ pw: '', confirm: '' }" x-show="choice === 'new'"{{if ne .Choice "new"}} x-cloak{{end}}>
+      <label>Name your lab <small>(optional)</small>
+        <input name="lab_name" value="{{.LabName}}" maxlength="60" placeholder="The Smiths' lab">
+        <small>Shown at the top of every page, and to other labs you share backup storage with. You can change it later.</small>
+      </label>
+      <label>Username
+        <input name="username" value="{{.Username}}" autocomplete="username" required>
+      </label>
+      <label>Password
+        <input name="password" type="password" x-model="pw" autocomplete="new-password" required minlength="12">
+        <small>At least 12 characters. A few random words works well.</small>
+      </label>
+      <label>Confirm password
+        <input name="confirm" type="password" x-model="confirm" autocomplete="new-password" required>
+        <small class="error" x-show="confirm && pw !== confirm" x-cloak>The passwords don't match.</small>
+      </label>
+      <button type="submit">Create account</button>
+    </form>
+
+    {{if .CanJoin}}
+    <form method="post" action="/setup/join" x-show="choice === 'join'"{{if ne .Choice "join"}} x-cloak{{end}}
+      x-data="{ busy: false }" x-on:submit="busy = true">
+      <label>Join code
+        <textarea name="code" class="code-input" rows="4" spellcheck="false" autocapitalize="off" autocomplete="off" required
+          placeholder="roostack-join-…">{{.Code}}</textarea>
+        <small>On your lab, go to <strong>Settings → Servers → Add a server</strong>, choose the address this server reaches it at,
+          and make a join code. It works once, for an hour.</small>
+      </label>
+      <label>Name for this server
+        <input name="name" value="{{.ServerName}}" maxlength="40" required>
+        <small>How the lab shows it, such as "nas" or "vps". You can change it later.</small>
+      </label>
+      <button type="submit" x-bind:disabled="busy">Join the lab</button>
+      <span class="hint" x-show="busy" x-cloak><span class="spinner" aria-hidden="true"></span> Connecting to your lab (up to a minute)…</span>
+      <p class="hint">This server connects to your lab over its own encrypted network (UDP port 51820) and restarts as part of it.</p>
+    </form>
+    {{end}}
+
+    {{if .CanRestore}}
+    <div x-show="choice === 'restore'" x-cloak>
+      <p>You need where your backups are (a drive, online storage, or another Roostack) and your <strong>recovery key</strong>.</p>
+      <p><a class="button" href="/setup/restore">Continue</a></p>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
 </section>
 {{end}}
