@@ -70,6 +70,8 @@ type Status struct {
 	// Internet: the lab is on the internet, and the wildcard points at its
 	// public address (SPEC.md §6.12).
 	Internet bool
+	// Link is link.<domain>'s record, once it's wanted (link.go).
+	Link *PublicRecord
 }
 
 // Secrets reads Podman secret values (the DNS credentials).
@@ -100,6 +102,10 @@ type Manager struct {
 	PublicHosts func() []string
 	Entry       public.Entry
 	Protected   func(ctx context.Context) bool
+	// LinkWanted says someone chose link.<domain> as the address other
+	// servers and labs reach this one at: its record is kept pointing at
+	// the entry's address (link.go).
+	LinkWanted func() bool
 
 	mu     sync.Mutex
 	status Status
@@ -271,6 +277,7 @@ func (m *Manager) Sync(ctx context.Context) Status {
 		} else {
 			st.Public, st.PublicIP = m.publicManual(ctx)
 		}
+		st = m.linkManual(ctx, st)
 		return m.set(st)
 	}
 
@@ -317,6 +324,7 @@ func (m *Manager) Sync(ctx context.Context) Status {
 	} else {
 		st.Public, st.PublicIP = m.syncPublic(ctx, p, values, zone, ip)
 	}
+	st = m.linkManaged(ctx, st, p, values, zone)
 	return m.set(st)
 }
 

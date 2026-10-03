@@ -76,7 +76,7 @@ func (m *Manager) syncPublic(ctx context.Context, p *dns.Provider, values map[st
 		m.Log.Error("reading managed DNS records", "err", err)
 	}
 	for _, r := range owned {
-		if r.Name == wildcard || r.Type != "A" || slices.Contains(hosts, r.Name) || r.Value == lanIP {
+		if r.Name == wildcard || r.Type != "A" || slices.Contains(hosts, r.Name) || r.Value == lanIP || r.Name == m.linkHost() && m.linkWanted() {
 			continue
 		}
 		if name, ok := relName(r.Name, zone); ok {
@@ -132,25 +132,30 @@ func (m *Manager) setPublic(ctx context.Context, p *dns.Provider, values map[str
 func (m *Manager) coveredByWildcard(ctx context.Context, st Status) ([]PublicRecord, string) {
 	var recs []PublicRecord
 	for _, h := range m.publicHosts() {
-		r := PublicRecord{Host: h, IP: st.IP}
-		got, _ := m.PublicLookup(ctx, h)
-		switch {
-		case slices.Contains(got, st.IP):
-			r.State, r.Message = PublicOK, fmt.Sprintf("%s points at this server (%s), through %s.", h, st.IP, st.Record)
-		case st.State == StateManual:
-			r.State, r.Message = PublicManual, fmt.Sprintf("Add this record at your DNS provider: %s  A  %s", st.Record, st.IP)
-		case len(got) > 0:
-			r.State, r.Message = PublicConflict, fmt.Sprintf("Public DNS answers %s with %s, not this server (%s). "+
-				"A record for it at your DNS provider is in the way: delete it, so %s covers it.", h, strings.Join(got, ", "), st.IP, st.Record)
-		default:
-			r.State, r.Message = PublicPending, fmt.Sprintf("Waiting for %s to be visible in public DNS.", st.Record)
-		}
-		recs = append(recs, r)
+		recs = append(recs, m.covered(ctx, st, h))
 	}
 	if len(recs) == 0 {
 		return nil, ""
 	}
 	return recs, st.IP
+}
+
+// covered is one host's state when the wildcard covers it.
+func (m *Manager) covered(ctx context.Context, st Status, h string) PublicRecord {
+	r := PublicRecord{Host: h, IP: st.IP}
+	got, _ := m.PublicLookup(ctx, h)
+	switch {
+	case slices.Contains(got, st.IP):
+		r.State, r.Message = PublicOK, fmt.Sprintf("%s points at this server (%s), through %s.", h, st.IP, st.Record)
+	case st.State == StateManual:
+		r.State, r.Message = PublicManual, fmt.Sprintf("Add this record at your DNS provider: %s  A  %s", st.Record, st.IP)
+	case len(got) > 0:
+		r.State, r.Message = PublicConflict, fmt.Sprintf("Public DNS answers %s with %s, not this server (%s). "+
+			"A record for it at your DNS provider is in the way: delete it, so %s covers it.", h, strings.Join(got, ", "), st.IP, st.Record)
+	default:
+		r.State, r.Message = PublicPending, fmt.Sprintf("Waiting for %s to be visible in public DNS.", st.Record)
+	}
+	return r
 }
 
 // relName is host relative to zone ("photos.lab" for photos.lab.example.com

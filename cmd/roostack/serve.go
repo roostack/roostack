@@ -259,6 +259,8 @@ func serve(args []string) error {
 			// Public addresses point at the home's public address (port
 			// forwarding, the only entry so far), once CrowdSec is up.
 			PublicHosts: mgr.PublicHosts, Entry: public.PortForwarding{}, Protected: crowdSecUp,
+			// link.<domain>, once chosen for joining or storage for others.
+			LinkWanted: func() bool { v, _ := st.Setting(context.Background(), web.LinkWantedKey); return v == "on" },
 		}
 		go records.Run(ctx, 30*time.Minute)
 		srv.DNS = records

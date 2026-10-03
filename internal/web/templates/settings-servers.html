@@ -89,10 +89,7 @@
   <p class="hint">Anyone with this code can add a server to your lab until it's used, so don't share it.</p>
   {{end}}
   <form method="post" action="/settings/servers/join">
-    <label for="endpoint">Address the new server reaches this one at</label>
-    <input id="endpoint" name="endpoint" value="{{.Endpoint}}" placeholder="192.168.1.20:51820" required>
-    <small class="hint">For a server at home: this server's home-network address and port 51820.
-      For one elsewhere (e.g. in the cloud): your home's public address, after forwarding the port (below).</small>
+    {{template "address-choice" .AddressChoice}}
     <button type="submit">{{if .JoinCode}}Make another code{{else}}Make a join code{{end}}</button>
   </form>
   <details>
@@ -103,7 +100,7 @@
       <li>Open your router's settings page (often <code>http://192.168.1.1</code> or <code>http://192.168.0.1</code>; the address and password are usually on a sticker on the router).</li>
       <li>Find <strong>Port forwarding</strong>. Some routers call it <em>Virtual server</em>, <em>NAT</em>, <em>Port mapping</em> or put it under <em>Advanced</em> or <em>Firewall</em>.</li>
       <li>Add a rule: protocol <strong>UDP</strong> (not TCP), port <strong>51820</strong>, to this server{{with .LANAddr}} at <strong>{{.}}</strong>{{end}}, port 51820.</li>
-      <li>Use your home's public address above, e.g. <code>203.0.113.7:51820</code>. Search "what is my IP" from a device at home to find it. If it changes now and then, a name from your domain that points home works better.</li>
+      <li>Choose <strong>A name from your domain</strong> above: Roostack keeps it pointing at your home's public address, which can change.</li>
     </ol>
     <p class="hint">How to tell it worked: once the new server has joined, it shows up above as up to date.
       If joining says it can't reach the controller, the port isn't forwarded yet (or the address is wrong).

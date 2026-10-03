@@ -13,8 +13,10 @@ size limit you choose.
 On **Settings → Storage for others**, under **Invite a lab**:
 
 1. Enter **whose lab** it is, and **how much space** they get (in GB).
-2. Enter the **address they reach your server at**: your home's public
-   address and port **51821**, such as `203.0.113.7:51821`.
+2. Choose the **address their lab reaches your server at**: best, **a name
+   from your domain** (`link.<your domain>:51821`), which Roostack keeps
+   pointing at your home's public address; or **the public address**, or
+   **another address**.
 3. Choose **Make an invite**.
 4. Send them the invite privately. It works once, for 24 hours.
 

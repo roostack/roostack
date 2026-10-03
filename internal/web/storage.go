@@ -54,8 +54,8 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 			data["ServerChoices"] = servers
 		}
 	}
-	if endpoint == "" && hostsHere {
-		endpoint = s.publicEndpoint()
+	if v, ok := extra["Endpoint"].(string); ok {
+		endpoint = v // as it was submitted
 	}
 	var active, removed []manager.GuestView
 	for _, g := range guests {
@@ -65,7 +65,12 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 			removed = append(removed, g)
 		}
 	}
-	data["Guests"], data["Removed"], data["Leftover"], data["Endpoint"] = active, removed, left, endpoint
+	data["Guests"], data["Removed"], data["Leftover"] = active, removed, left
+	hostName := "this server"
+	if hs, ok := data["HostServer"].(manager.Server); ok {
+		hostName = hs.Name
+	}
+	data["AddressChoice"] = s.addressChoices(r, "Address their lab reaches "+hostName+" at", agent.GuestsPort, false, hostsHere, endpoint)
 	data["Offering"] = s.Manager.OfferStorage(r.Context())
 	for _, mn := range s.serverNodes(r) {
 		if mn.view.ID == hostID {
@@ -98,25 +103,6 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 	s.render(w, "settings-storage", withArea(data, "storage"))
 }
 
-// publicEndpoint is the address other labs reach this server's guests
-// link at, if Roostack knows it: on a lab on the internet its public
-// address, at home the home's public address, when DNS records know it
-// (SPEC.md §10.10). Otherwise "" and the Owner types it.
-func (s *Server) publicEndpoint() string {
-	if s.DNS == nil {
-		return ""
-	}
-	st := s.DNS.Status()
-	ip := st.PublicIP
-	if st.Internet {
-		ip = st.IP
-	}
-	if addr := net.ParseIP(ip); addr == nil || addr.IsPrivate() || addr.IsLoopback() {
-		return ""
-	}
-	return net.JoinHostPort(ip, strconv.Itoa(agent.GuestsPort))
-}
-
 // gigabytes reads a whole number of GB from a form.
 func gigabytes(v string) int64 {
 	n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
@@ -131,7 +117,7 @@ func (s *Server) inviteGuestSubmit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	name, endpoint := r.FormValue("name"), strings.TrimSpace(r.FormValue("endpoint"))
+	name, endpoint := r.FormValue("name"), addressFromForm(r)
 	inv, err := s.Manager.InviteGuest(r.Context(), name, gigabytes(r.FormValue("quota")), endpoint)
 	if msg, ok := userMessage(err); ok {
 		s.renderStorage(w, r, map[string]any{"Error": msg, "Endpoint": endpoint, "Name": name, "Quota": r.FormValue("quota")})
@@ -142,6 +128,7 @@ func (s *Server) inviteGuestSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.SetSetting(r.Context(), guestsEndpointKey, endpoint)
+	s.useAddress(r.Context(), endpoint)
 	s.Store.Audit(r.Context(), currentUser(r), "storage", "invited "+strings.TrimSpace(name))
 	s.renderStorage(w, r, map[string]any{"Invite": inv.String(), "InviteName": strings.TrimSpace(name),
 		"InviteExpires": time.Now().Add(labnet.InviteLifetime), "Endpoint": endpoint})

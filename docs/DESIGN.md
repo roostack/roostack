@@ -110,6 +110,7 @@ Template components are called as functions; everything else is plain HTML with 
 | Activity | `{{activity .SomeActivity}}` | Host operations: status line plus collapsed log; nothing if there's none |
 | Technical details | `<details class="technical">` | Collapsed by default |
 | Secret | `<code class="secret">` | Values to copy, shown once |
+| Address choice | `{{template "address-choice" .AddressChoice}}` inside a form | The address another server or lab connects to (join code, storage invite): radio choices Roostack knows, each with the address in `code`, then "Another address" revealing a field (`address`, `address_other`) |
 | Disk space | `.space-bar` with `.space-<part>` segments (`data-width`), `dl.space-list` with `.swatch` | A disk's use in coloured parts, each named with its size in the key |
 | Copy box | `{{copyBox TEXT}}` | Text people copy and send or paste elsewhere (an invite, a command), with a Copy button |
 

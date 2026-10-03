@@ -979,7 +979,8 @@ func TestStorageForOthers(t *testing.T) {
 		"Space on nuc", "<strong>180.0 GB free</strong> of 250.0 GB", "Backups of other labs",
 		"can be given up to <strong>16.3 GB</strong> more", `value="16"`,
 		"leaves about\n          <strong x-text=\"roostackSize(free - promised - gb * 1e9)\">124.0 GB</strong> free on",
-		`<input name="endpoint" placeholder=`} {
+		// Nothing known yet: they type it.
+		`value="other" x-model="choice" checked`, `name="address_other"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("storage page missing %q", want)
 		}
@@ -988,14 +989,16 @@ func TestStorageForOthers(t *testing.T) {
 	h.setSetup(&fakeSetup{p: allDone, network: config.NetworkInternet})
 	h.server.DNS = &fakeDNS{st: dnsrecords.Status{Internet: true, IP: "203.0.113.7"}}
 	_, body = h.get("/settings/storage")
-	if !strings.Contains(body, "at <code>203.0.113.7:51821</code>") || !strings.Contains(body, "Letting them in: your provider's firewall") {
+	if !strings.Contains(body, "The public address: <code>203.0.113.7:51821</code>") ||
+		!strings.Contains(body, `value="link.lab.example.com:51821" x-model="choice" required checked`) ||
+		!strings.Contains(body, "Letting them in: your provider's firewall") {
 		t.Errorf("the address should be filled in:\n%s", body[strings.Index(body, `id="invite"`):])
 	}
-	if code, body := h.post("/settings/storage/invite", url.Values{"name": {"Sam"}, "quota": {"0"}, "endpoint": {"1.2.3.4:51821"}}, h.srv.URL); code != http.StatusBadRequest ||
+	if code, body := h.post("/settings/storage/invite", url.Values{"name": {"Sam"}, "quota": {"0"}, "address": {"other"}, "address_other": {"1.2.3.4:51821"}}, h.srv.URL); code != http.StatusBadRequest ||
 		!strings.Contains(body, "at least 1 GB") {
 		t.Errorf("zero quota: %d", code)
 	}
-	_, body = h.post("/settings/storage/invite", url.Values{"name": {"Sam"}, "quota": {"20"}, "endpoint": {"1.2.3.4:51821"}}, h.srv.URL)
+	_, body = h.post("/settings/storage/invite", url.Values{"name": {"Sam"}, "quota": {"20"}, "address": {"other"}, "address_other": {"1.2.3.4:51821"}}, h.srv.URL)
 	if !strings.Contains(body, "Invite for Sam") || !strings.Contains(body, `class="copy-box"`) ||
 		strings.Contains(body, `action="/settings/storage/invite"`) {
 		t.Error("the invite should be shown once, with a Copy button, in place of the form")
@@ -1241,14 +1244,14 @@ func TestStorageOfferedByAnotherServer(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true}, {ID: "n-9876543210", Name: "bigdisk"}}
 	_, body := h.get("/settings/storage")
-	if !strings.Contains(body, `name="server"`) || !strings.Contains(body, "Address they reach nuc at") {
+	if !strings.Contains(body, `name="server"`) || !strings.Contains(body, "Address their lab reaches nuc at") {
 		t.Fatalf("the offering server can be chosen:\n%s", body)
 	}
 	h.post("/settings/storage/server", url.Values{"server": {"n-9876543210"}}, h.srv.URL)
 	if fm.guestServer != "n-9876543210" {
 		t.Fatalf("server = %q", fm.guestServer)
 	}
-	if _, body := h.get("/settings/storage"); !strings.Contains(body, "Address they reach bigdisk at") || !strings.Contains(body, "to bigdisk") {
+	if _, body := h.get("/settings/storage"); !strings.Contains(body, "Address their lab reaches bigdisk at") || !strings.Contains(body, "to bigdisk") {
 		t.Error("the page names the server other labs reach")
 	}
 	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Joined: true}}}

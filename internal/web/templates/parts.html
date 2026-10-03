@@ -179,6 +179,25 @@
      warning. Settings → Servers and Storage for others. */}}
 {{define "not-counted"}}{{if .Counting}}<span class="spinner" aria-hidden="true"></span> counting…{{else}}not counted yet{{end}}{{end}}
 
+{{/* address-choice: the address another server or lab reaches this one
+     at (an addressChoice; address.go), inside a form: fields "address"
+     (an option's value, or "other") and "address_other". */}}
+{{define "address-choice"}}
+<fieldset class="address-choice" data-selected="{{.Selected}}" x-data="{ choice: $el.dataset.selected }">
+  <legend>{{.Legend}}</legend>
+  {{range .Options}}
+  <label class="check"><input type="radio" name="address" value="{{.Value}}" x-model="choice" required{{if eq .Value $.Selected}} checked{{end}}>
+    <span>{{.Title}}: <code>{{.Value}}</code><small>{{.Hint}}</small>
+      {{- if .Link}}{{with $.Link}}<small><span class="dot dot-{{if eq .State "ok"}}ok{{else if eq .State "pending" "manual"}}warn{{else}}problem{{end}}" aria-hidden="true"></span>{{.Message}}</small>{{end}}{{end}}</span></label>
+  {{end}}
+  <label class="check"><input type="radio" name="address" value="other" x-model="choice"{{if eq .Selected "other"}} checked{{end}}>
+    <span>Another address<small>A VPN address, a router forwarding a different outside port, or a name from another dynamic DNS service.</small></span></label>
+  <div x-show="choice === 'other'"{{if ne .Selected "other"}} x-cloak{{end}}>
+    <label>Address and port <input name="address_other" value="{{.Other}}" placeholder="203.0.113.7:{{.Port}}" x-bind:required="choice === 'other'"></label>
+  </div>
+</fieldset>
+{{end}}
+
 {{/* disks-live: a server's disks (a serverDisks), each named when it has
      more than one, refreshing itself while the server counts what uses
      them (they say "counting…" meanwhile). */}}

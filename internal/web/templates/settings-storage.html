@@ -110,17 +110,7 @@
     {{else}}
     <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{.Quota}}" required></label>
     {{end}}
-    {{if .Endpoint}}
-    <p>They connect to {{.HostServer.Name}} at <code>{{.Endpoint}}</code>.</p>
-    <details>
-      <summary>Use a different address</summary>
-      <label>Address they reach {{.HostServer.Name}} at <input name="endpoint" value="{{.Endpoint}}" required>
-        <small>{{if .Internet}}This server's public address{{else}}Your home's public address (or a name from your domain that points home){{end}} and port 51821.</small></label>
-    </details>
-    {{else}}
-    <label>Address they reach {{.HostServer.Name}} at <input name="endpoint" placeholder="203.0.113.7:51821" required>
-      <small>{{if .Internet}}This server's public address{{else}}Your home's public address (or a name from your domain that points home){{end}} and port 51821.</small></label>
-    {{end}}
+    {{template "address-choice" .AddressChoice}}
     <button type="submit">Make an invite</button>
   </form>
   {{end}}
