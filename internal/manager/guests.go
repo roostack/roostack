@@ -127,50 +127,62 @@ func (m *Manager) InviteGuest(ctx context.Context, name string, quota int64, end
 	return inv, nil
 }
 
-// GuestSpaceLeft is about how much more space the server offering storage
-// can promise other labs: what's free on its disk, plus what guests use
-// already, less every quota and the headroom. ok is false when it can't
-// be asked.
-func (m *Manager) GuestSpaceLeft(ctx context.Context) (left int64, ok bool) {
+// GuestSpace is the disk of the server offering storage, as the invite
+// form explains it (SPEC.md §10.10).
+type GuestSpace struct {
+	Free, Total int64 // the disk's free and total space
+	// Promised is what other labs have been given but not used yet: free
+	// space now that they may fill later.
+	Promised int64
+	// Left is about how much more can be promised: Free less Promised and
+	// the headroom (10% of the disk).
+	Left int64
+}
+
+// GuestSpaceLeft describes the space on the server offering storage. ok
+// is false when it can't be asked.
+func (m *Manager) GuestSpaceLeft(ctx context.Context) (GuestSpace, bool) {
 	return m.spaceLeft(ctx, 0)
 }
 
 // spaceLeft is GuestSpaceLeft, not counting guest except's quota (one
 // whose quota is changing).
-func (m *Manager) spaceLeft(ctx context.Context, except int64) (int64, bool) {
+func (m *Manager) spaceLeft(ctx context.Context, except int64) (GuestSpace, bool) {
+	var sp GuestSpace
 	if m.GuestRecords == nil {
-		return 0, false
+		return sp, false
 	}
 	host := m.guestHost(ctx)
 	if host == nil {
-		return 0, false
+		return sp, false
 	}
-	free, total, err := host.GuestSpace(ctx)
-	if err != nil {
-		return 0, false
+	var err error
+	if sp.Free, sp.Total, err = host.GuestSpace(ctx); err != nil {
+		return sp, false
 	}
 	guests, err := m.GuestRecords.Guests(ctx, time.Now())
 	if err != nil {
-		return 0, false
+		return sp, false
 	}
-	left := free - total*headroom/100
+	var own int64 // what the guest whose quota is changing already uses
 	for _, g := range guests {
-		if u, err := host.GuestUsage(ctx, g.User()); err == nil {
-			left += u
+		used, _ := host.GuestUsage(ctx, g.User())
+		if g.ID == except {
+			own = used
+			continue
 		}
-		if g.ID != except {
-			left -= g.Quota
-		}
+		sp.Promised += max(g.Quota-used, 0)
 	}
-	return max(left, 0), true
+	sp.Left = max(sp.Free-sp.Promised-sp.Total*headroom/100+own, 0)
+	return sp, true
 }
 
 // quotaFits checks a quota fits on the disk with room to spare, beside
 // every other guest's (SPEC.md §10.10). If the disk can't be asked, it
 // isn't refused.
 func (m *Manager) quotaFits(ctx context.Context, quota, except int64) error {
-	if left, ok := m.spaceLeft(ctx, except); ok && quota > left {
-		return formErrorf("That doesn't fit: this disk can offer about %s more (after what's promised already and some room to spare).", sizeGB(left))
+	if sp, ok := m.spaceLeft(ctx, except); ok && quota > sp.Left {
+		return formErrorf("That doesn't fit: this disk can offer about %s more (after what's promised already and some room to spare).", sizeGB(sp.Left))
 	}
 	return nil
 }

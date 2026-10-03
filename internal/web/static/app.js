@@ -29,6 +29,16 @@
     open = [];
   });
 
+  // roostackSize formats bytes as units.Bytes does (decimal: 1 GB = 1000³
+  // bytes), for figures that change as someone types.
+  window.roostackSize = (n) => {
+    if (!(n >= 0)) return "unknown";
+    if (n < 1000) return `${Math.floor(n)} B`;
+    let div = 1000, exp = 0;
+    for (let m = Math.floor(n / 1000); m >= 1000 && exp < 4; m = Math.floor(m / 1000)) { div *= 1000; exp++; }
+    return `${(n / div).toFixed(1)} ${"kMGTP"[exp]}B`;
+  };
+
   // roostackCopy copies an element's text (the copy-box component). The
   // browser's clipboard API needs HTTPS (or localhost); elsewhere the text
   // is selected and copied the older way.

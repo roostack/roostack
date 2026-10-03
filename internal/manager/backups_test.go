@@ -360,8 +360,8 @@ func TestRemovedGuestGrace(t *testing.T) {
 	// The vps's disk: 500 of 1000 GB free, 1 GB used by Sam, 10 GB
 	// promised, 100 GB kept free: 391 GB more to offer. A quota change
 	// doesn't count the guest's own quota.
-	if left, ok := m.GuestSpaceLeft(ctx); !ok || left != 391<<30 {
-		t.Errorf("space left %d GB, %v", left>>30, ok)
+	if sp, ok := m.GuestSpaceLeft(ctx); !ok || sp.Left != 391<<30 || sp.Promised != 9<<30 || sp.Free != 500<<30 {
+		t.Errorf("space %+v, %v", sp, ok)
 	}
 	if err := m.SetGuestQuota(ctx, g.ID, 402<<30); err == nil || !strings.Contains(err.Error(), "doesn't fit") {
 		t.Errorf("a quota that doesn't fit: %v", err)

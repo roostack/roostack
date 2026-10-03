@@ -214,7 +214,7 @@ type StorageSharing interface {
 	SetGuestServer(ctx context.Context, id string) error
 	EndingStorages(ctx context.Context) []manager.EndingStorage
 	SetGuestQuota(ctx context.Context, id, quota int64) error
-	GuestSpaceLeft(ctx context.Context) (int64, bool)
+	GuestSpaceLeft(ctx context.Context) (manager.GuestSpace, bool)
 	LeftoverGuests(ctx context.Context) ([]manager.LeftoverGuest, error)
 	DeleteLeftoverGuest(ctx context.Context, user string) error
 	AddRemoteStorage(ctx context.Context, code string) error
