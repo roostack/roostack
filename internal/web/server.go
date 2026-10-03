@@ -323,8 +323,9 @@ func (s *Server) updates(r *http.Request) HostUpdates {
 }
 
 type pendingLogin struct {
-	userID  int64
-	expires time.Time
+	userID   int64
+	expires  time.Time
+	remember bool // "keep me signed in" was ticked
 }
 
 // NewServer prepares templates. setupToken is empty if users already exist.
@@ -400,6 +401,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/servers/{server}/rename", s.requireOwner(s.renameServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
+	mux.Handle("POST /settings/signing-in", s.requireOwner(s.sessionSettingsSubmit))
 	mux.Handle("GET /settings/history", s.requireOwner(s.historyPage))
 	mux.Handle("GET /settings/history/{server}/{id}", s.requireOwner(s.historyEventPage))
 	mux.Handle("POST /settings/history/keep", s.requireOwner(s.historyKeepSubmit))
@@ -507,10 +509,11 @@ func currentUser(r *http.Request) *store.User {
 func (s *Server) loadSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
-			u, err := s.Store.SessionUser(r.Context(), auth.HashToken(c.Value))
+			hash := auth.HashToken(c.Value)
+			u, lastSeen, remember, err := s.Store.SessionInfo(r.Context(), hash)
 			switch {
 			case err == nil:
-				r = r.WithContext(context.WithValue(r.Context(), userKey{}, u))
+				r = s.checkSession(r, hash, u, lastSeen, remember)
 			case !errors.Is(err, store.ErrNotFound):
 				s.serverError(w, err)
 				return
@@ -528,7 +531,11 @@ func (s *Server) requireLogin(h http.HandlerFunc) http.Handler {
 			return
 		}
 		if currentUser(r) == nil {
-			redirect(w, r, "/login")
+			if sessionOf(r).Expired {
+				redirect(w, r, "/login?expired=1")
+			} else {
+				redirect(w, r, "/login")
+			}
 			return
 		}
 		h(w, r)
@@ -637,19 +644,27 @@ func (s *Server) needsSetup() bool {
 	return s.setupToken != ""
 }
 
-func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.User) error {
+// startSession signs u in. remember ("keep me signed in", if offered)
+// makes it last rememberDuration on this browser without the idle limit;
+// otherwise the cookie ends with the browser (session.go).
+func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.User, remember bool) error {
 	token, err := auth.NewToken()
 	if err != nil {
 		return err
 	}
+	remember = remember && s.offerRemember(r.Context())
 	expires := time.Now().Add(sessionDuration)
-	if err := s.Store.CreateSession(r.Context(), auth.HashToken(token), u.ID, expires); err != nil {
+	if remember {
+		expires = time.Now().Add(rememberDuration)
+	}
+	if err := s.Store.CreateSessionRemember(r.Context(), auth.HashToken(token), u.ID, expires, remember); err != nil {
 		return err
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name: sessionCookie, Value: token, Path: "/", Expires: expires,
-		HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
-	})
+	c := &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r)}
+	if remember {
+		c.Expires = expires
+	}
+	http.SetCookie(w, c)
 	return nil
 }
 

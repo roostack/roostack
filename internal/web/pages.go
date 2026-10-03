@@ -425,7 +425,7 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	if err := s.startSession(w, r, u); err != nil {
+	if err := s.startSession(w, r, u, sessionOf(r).Remember); err != nil {
 		s.serverError(w, err)
 		return
 	}

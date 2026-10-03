@@ -67,3 +67,15 @@ If you're locked out, see [Locked out](../trouble/locked-out.md).
 
     People can also be managed from the server's command line: see
     [`roostack user`](../reference/cli.md#people).
+
+## Signing in
+
+People are signed out after a while without activity: 30 minutes, unless
+an Owner chooses otherwise under **Signing in** at the bottom of
+**Settings → People** (15 minutes to 4 hours, or never). Opening a page or
+sending a form counts as activity; pages refreshing themselves don't, so
+a screen left open goes back to the login page when the time's up.
+
+On the login page, **Keep me signed in** keeps that browser signed in for
+30 days, without the time limit. Use it only on a device that's yours
+alone. An Owner can stop offering it, under **Signing in**.

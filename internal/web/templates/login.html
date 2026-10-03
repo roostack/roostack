@@ -2,6 +2,7 @@
 {{define "content"}}
 <section class="card narrow">
   <h1>Log in</h1>
+  {{with .Expired}}{{notice "info" (printf "You were signed out after %d minutes without activity. Log in again to carry on." .)}}{{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <form method="post" action="/login">
     <label>Username
@@ -10,6 +11,8 @@
     <label>Password
       <input name="password" type="password" autocomplete="current-password" required>
     </label>
+    {{if .OfferRemember}}<label class="check"><input type="checkbox" name="remember">
+      <span>Keep me signed in<small>On this browser, for 30 days, even when you're away. Only on a device that's yours alone.</small></span></label>{{end}}
     <button type="submit">Log in</button>
   </form>
   <p class="hint">Forgotten your password, or lost your phone? <a href="/help/trouble/locked-out/" target="_blank" rel="noopener">Getting back in{{template "new-window"}}</a>.</p>
