@@ -44,6 +44,7 @@ Purpose colours:
 | `--accent`, `--accent-fg`, `--accent-soft` | Actions and links; text on accent; info backgrounds |
 | `--highlight`, `--highlight-fg`, `--highlight-soft` | The brand's spark: the brand mark (its comb on a soft-highlight tile), where you are (current page), focus rings, "New" badges. Use sparingly |
 | `--ok`, `--warn`, `--bad` (+ `-bg`, and `--bad-fg`) | Status. Roostack's own themes share them, so a problem always looks like a problem; a palette may override them (`--pal-ok-l`…), as Catppuccin does |
+| `--chart-1`, `--chart-2`, `--chart-3` | Chart colours for parts of a whole (the disk bar): blue, magenta, violet, in that order. The same in every theme (themes' accent and highlight are often close hues), with light and dark steps, checked with the dataviz validator against every theme's surface. Never orange, yellow, red or green (status), and always with a label beside the colour |
 | `--ok-on-fg` | The status green that shows on a text-coloured shape: the brand mark's online light on its server. It's the other mode's green; a palette may set its own (`--pal-ok-on-fg-l`/`-d`), as Everforest does. Not for text |
 
 Never use raw colours (`#…`) or palette variables (`--pal-…`) in `app.css` or templates.
@@ -109,6 +110,7 @@ Template components are called as functions; everything else is plain HTML with 
 | Activity | `{{activity .SomeActivity}}` | Host operations: status line plus collapsed log; nothing if there's none |
 | Technical details | `<details class="technical">` | Collapsed by default |
 | Secret | `<code class="secret">` | Values to copy, shown once |
+| Disk space | `.space-bar` with `.space-<part>` segments (`data-width`), `dl.space-list` with `.swatch` | A disk's use in coloured parts, each named with its size in the key |
 | Copy box | `{{copyBox TEXT}}` | Text people copy and send or paste elsewhere (an invite, a command), with a Copy button |
 
 ### Adding a component
