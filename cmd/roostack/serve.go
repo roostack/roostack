@@ -194,8 +194,10 @@ func serve(args []string) error {
 		}
 		st.Audit(ctx, nil, "joined a lab", cmp.Or(code.LabName, code.Endpoint)+" as "+name)
 		go func() {
-			time.Sleep(2 * time.Second) // the page goes out first
-			restart()
+			// The page goes out first. Not restart(): that waits for the setup
+			// wizard, which a server joining a lab never finishes.
+			time.Sleep(2 * time.Second)
+			restartNow()
 		}()
 		return code.Addr.String(), nil
 	}

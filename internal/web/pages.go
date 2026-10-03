@@ -53,7 +53,7 @@ func navTab(page string) string {
 		"home": "home", "catalog": "services", "install": "services", "remove": "services", "move": "services",
 		"restore": "backups", "recovery-key": "settings", "users": "settings", "dns-takeover": "settings",
 		"account": "account", "twofactor": "account", "account-appearance": "account", "account-notifications": "account",
-		"setup-restore": "", // first run, before anyone is logged in
+		"setup-restore": "", "setup-joined": "", // first run, before anyone is logged in
 	}[page]; ok {
 		return tab
 	}

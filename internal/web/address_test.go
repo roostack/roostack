@@ -3,7 +3,9 @@ package web
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"net/url"
 	"strings"
@@ -110,5 +112,30 @@ func TestSetupJoin(t *testing.T) {
 	}
 	if len(joined) != 1 || joined[0] != "The Smiths' lab as nas" {
 		t.Errorf("joined %v", joined)
+	}
+}
+
+// A server that's part of a lab has one page: which lab, and where to
+// manage it.
+func TestNodePage(t *testing.T) {
+	h, err := NodePage("nas", "The Smiths' lab", "https://roost.lab.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+	resp, err := http.Get(srv.URL + "/anything")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	for _, want := range []string{"<h1>nas</h1>", "part of <strong>The Smiths&#39; lab</strong>", `href="https://roost.lab.example.com/settings/servers"`} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("node page missing %q:\n%s", want, body)
+		}
+	}
+	if resp, err := http.Get(srv.URL + "/static/css/app.css"); err != nil || resp.StatusCode != http.StatusOK {
+		t.Errorf("styles: %v %v", resp, err)
 	}
 }
