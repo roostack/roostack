@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -145,6 +146,55 @@ func TestBackupCopies(t *testing.T) {
 	}
 	if snaps, err := copyRepo.Snapshots(context.Background(), "roostack"); err != nil || len(snaps) != 1 {
 		t.Errorf("the copy should have its own backup: %v %v", snaps, err)
+	}
+}
+
+// A copy whose storage never answers (a server that's off) gives up after
+// reachTimeout instead of holding the backup up while restic retries.
+func TestBackupCopyUnreachable(t *testing.T) {
+	main := testRepo(t)
+	if err := main.Init(context.Background()); err != nil { // slow the first time (key derivation)
+		t.Fatal(err)
+	}
+	reachTimeout = 5 * time.Second
+	defer func() { reachTimeout = 2 * time.Minute }()
+	// Accepts connections and never answers.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			defer c.Close()
+		}
+	}()
+	silent := testRepo(t)
+	silent.URL = "rest:http://" + ln.Addr().String() + "/"
+	root := t.TempDir()
+	paths := config.Paths{StateDir: filepath.Join(root, "state"), HomeDir: filepath.Join(root, "state", "home")}
+	writeFile(t, filepath.Join(paths.StateDir, "lab.yaml"), "domain: x")
+	var copyErr error
+	d := JobDeps{
+		Repo: main, Preparer: &Preparer{}, Paths: paths, Host: "test",
+		DumpState: func(_ context.Context, path string) error { writeFile(t, path, "db copy"); return nil },
+		Plan:      func() (Plan, error) { return LabPlan(paths, nil), nil },
+		Copies:    []Copy{{Name: "server:dev2", Title: "dev2's disk", Repo: silent}},
+		OnCopy:    func(_ Copy, _ time.Time, _ *Summary, err error) { copyErr = err },
+	}
+	start := time.Now()
+	if _, err := Run(context.Background(), d, nopReporter{}); err != nil {
+		t.Fatalf("the main backup: %v", err)
+	}
+	if copyErr == nil || !strings.Contains(copyErr.Error(), "couldn't reach dev2's disk in 5s") {
+		t.Errorf("copy: %v", copyErr)
+	}
+	if time.Since(start) > 30*time.Second {
+		t.Errorf("took %v", time.Since(start))
 	}
 }
 

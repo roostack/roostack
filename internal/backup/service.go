@@ -169,9 +169,11 @@ type Status struct {
 	Running   bool
 	Queued    bool
 	Progress  int // -1 if unknown
-	Last      *store.BackupRun
-	LastOK    *store.BackupRun
-	Next      time.Time
+	// Step is what a running backup is doing ("Copying to vps's disk").
+	Step   string
+	Last   *store.BackupRun
+	LastOK *store.BackupRun
+	Next   time.Time
 	// Copies are the extra copies somewhere else, with their own results.
 	Copies []CopyStatus
 }
@@ -208,6 +210,9 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	}
 	if r := s.Coord.Status().Running; r != nil && r.Name == JobName {
 		st.Running, st.Progress = true, r.Progress
+		if snap, ok := s.Activity.Latest(activity.Backup); ok && snap.Running() {
+			st.Step = snap.Status
+		}
 	}
 	s.mu.Lock()
 	st.Queued = s.pending && !st.Running

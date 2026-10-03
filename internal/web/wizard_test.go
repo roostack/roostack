@@ -570,6 +570,25 @@ func TestActivity(t *testing.T) {
 		}
 	}
 
+	// While it shows the same, polling answers 204: redrawing would reset
+	// the spinner and lose a selection.
+	get := func(have string) *http.Response {
+		req, _ := http.NewRequest("GET", h.srv.URL+"/activity/os-updates/status?was=running", nil)
+		if have != "" {
+			req.Header.Set("X-Roostack-Have", have)
+		}
+		resp, err := h.client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp
+	}
+	fp := get("").Header.Get("X-Roostack-Fingerprint")
+	if resp := get(fp); fp == "" || resp.StatusCode != http.StatusNoContent {
+		t.Errorf("unchanged status: %d (fingerprint %q)", resp.StatusCode, fp)
+	}
+
 	act.Step("Installed 1 update: curl.")
 	act.Finish(nil)
 	resp, err := h.client.Get(h.srv.URL + "/activity/os-updates/status?was=running")

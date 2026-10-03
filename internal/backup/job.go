@@ -212,15 +212,27 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 	return summary, err
 }
 
+// reachTimeout limits opening a repository: restic keeps retrying one it
+// can't reach (a server that's off), which would hold up every backup
+// after it.
+var reachTimeout = 2 * time.Minute
+
 // upload backs the paths up to one repository (to is "" for the main one).
 func upload(ctx context.Context, d JobDeps, repo *Repo, to string, paths, excludes []string, r Reporter) (*Summary, error) {
+	r.SetProgress(-1) // until this upload reports its own
 	if to == "" {
 		d.Log.Step("Opening the backup storage")
 	} else {
 		d.Log.Step("Copying to %s", to)
 	}
 	d.Log.Printf("Repository: %s", repo.URL)
-	if err := repo.Init(ctx); err != nil {
+	ictx, cancel := context.WithTimeout(ctx, reachTimeout)
+	err := repo.Init(ictx)
+	cancel()
+	if ictx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
+		return nil, fmt.Errorf("couldn't reach %s in %s: is it switched on and connected?", cmp.Or(to, "the backup storage"), reachTimeout)
+	}
+	if err != nil {
 		return nil, err
 	}
 	if to == "" {

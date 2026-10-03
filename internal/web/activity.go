@@ -71,6 +71,7 @@ func (s *Server) activityPart(w http.ResponseWriter, r *http.Request) {
 	if part == "activity-status" && !v.Running() && r.URL.Query().Get("was") == "running" {
 		w.Header().Set("HX-Trigger", "activity-done")
 	}
-	w.Header().Set("Cache-Control", "no-store")
-	s.renderPart(w, "settings", part, v)
+	// 204 while it shows the same: redrawing would reset the spinner
+	// and lose a selection every 2 seconds.
+	s.renderLive(w, r, "settings", part, v)
 }

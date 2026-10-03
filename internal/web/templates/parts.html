@@ -86,7 +86,7 @@
   {{if not .Configured}}
     {{notice "error" "Backups are not set up yet. Until they are, a failed disk means losing everything."}}
   {{else}}
-    {{if .Running}}{{notice "info" (printf "Backing up… %s" (percent .Progress))}}
+    {{if .Running}}{{notice "info" (printf "%s… %s" (or .Step "Backing up") (percent .Progress))}}
     {{else if .Queued}}{{notice "info" "A backup is waiting to start."}}{{end}}
     {{with .Last}}{{if not .OK}}
       {{notice "error" (printf "The last backup (%s) didn't finish: %s" (when .Finished) .Error)}}
