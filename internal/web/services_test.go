@@ -965,13 +965,15 @@ func TestMovePage(t *testing.T) {
 func TestStorageForOthers(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	// The space the manager reports (its sums are tested in the manager).
+	fm.disk = &node.DiskSpace{Total: 250 * units.GB, Used: 70 * units.GB, Free: 180 * units.GB, Services: 12 * units.GB, Backups: 3 * units.GB, Guests: 10 * units.GB}
 	fm.guestSpace = manager.GuestSpace{Free: 180 * units.GB, Total: 250 * units.GB, Promised: 40 * units.GB, Left: 16_300 * units.MB}
 	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Quota: 50 * units.GB, Joined: true},
 		Used: 3 * units.GB, LastSeen: time.Now()}}
 	_, body := h.get("/settings/storage")
 	for _, want := range []string{"Sam&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821",
-		"has 180.0 GB free of 250.0 GB, and other labs may still fill\n          40.0 GB", "can offer up to 16.3 GB",
-		`value="16"`, "leaves about\n            <strong x-text=\"roostackSize(free - promised - gb * 1e9)\">124.0 GB</strong>",
+		"Space on nuc", "<strong>180.0 GB free</strong> of 250.0 GB", "Backups of other labs",
+		"can be given up to <strong>16.3 GB</strong> more", `value="16"`,
+		"leaves about\n          <strong x-text=\"roostackSize(free - promised - gb * 1e9)\">124.0 GB</strong> free on",
 		`<input name="endpoint" placeholder=`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("storage page missing %q", want)

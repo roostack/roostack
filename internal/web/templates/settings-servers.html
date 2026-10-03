@@ -20,23 +20,7 @@
       {{- else}}Not applied yet{{end}}{{end}}</dd>
     <dt>{{icon "disk"}}Disk</dt>
     <dd>{{with index $.Spaces .ID}}
-      <p><strong>{{size .Free}} free</strong> of {{size .Total}}</p>
-      <div class="space-bar" role="img" aria-label="{{size .Used}} used, {{size .Free}} free of {{size .Total}}">
-        <span class="space-used{{with .Level}} space-{{.}}{{end}}" style="width: {{.UsedPercent}}%"></span>
-        {{- if .PromisedLeft}}<span class="space-promised" style="width: {{.PromisedPercent}}%"></span>{{end}}
-      </div>
-      <dl class="space-list">
-        <dt>In use</dt><dd>{{size .Used}}</dd>
-        <dt class="sub">Services' data</dt><dd>{{if gt .Services 0}}{{size .Services}}{{else if eq .Services 0}}none{{else}}not counted yet{{end}}</dd>
-        <dt class="sub">Backups of your lab's servers</dt><dd>{{if ge .Backups 0}}{{size .Backups}}{{else}}not counted yet{{end}}</dd>
-        {{if gt .Guests 0}}<dt class="sub">Backups of other labs</dt><dd>{{size .Guests}}</dd>{{end}}
-        {{if ge .Other 0}}<dt class="sub">The system and everything else</dt><dd>{{size .Other}}</dd>{{end}}
-        {{if .Promised}}<dt>Promised to other labs</dt><dd>{{size .Promised}}, of which {{size .PromisedLeft}} isn't used yet</dd>{{end}}
-        {{if gt .HeldBack 0}}<dt>Held back by the filesystem</dt><dd>{{size .HeldBack}}, for the system (so it keeps working if the disk fills up)</dd>{{end}}
-      </dl>
-      <small>The disk holding Roostack's data. Free space is up to date; the parts are counted daily, after the nightly backup
-        {{- if not .Counted.IsZero}} (last counted {{when .Counted}}){{end}}.</small>
-      {{if .Warning}}{{notice .NoticeKind .Warning}}{{end}}
+      {{template "disk-space" .}}
     {{else}}<small>Couldn't ask {{.Name}} right now.</small>{{end}}</dd>
     <dt>{{icon "location"}}Where</dt>
     <dd>

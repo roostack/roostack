@@ -352,7 +352,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 func (s *Server) Handler() http.Handler {
 	static, _ := fs.Sub(staticFS, "static")
 	mux := http.NewServeMux()
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
+	mux.Handle("GET /static/", http.StripPrefix("/static/", staticHandler(static)))
 	mux.Handle("GET /help/", s.help.Handler())
 	mux.Handle("GET /help", http.RedirectHandler("/help/", http.StatusMovedPermanently))
 

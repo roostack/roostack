@@ -132,7 +132,7 @@ func (m *Manager) InviteGuest(ctx context.Context, name string, quota int64, end
 type GuestSpace struct {
 	Free, Total int64 // the disk's free and total space
 	// Promised is what other labs have been given but not used yet: free
-	// space now that they may fill later.
+	// space now that they may fill later (not counting removed labs).
 	Promised int64
 	// Left is about how much more can be promised: Free less Promised and
 	// the headroom (10% of the disk).
@@ -171,7 +171,9 @@ func (m *Manager) spaceLeft(ctx context.Context, except int64) (GuestSpace, bool
 			own = used
 			continue
 		}
-		sp.Promised += max(g.Quota-used, 0)
+		if g.Removed.IsZero() { // a removed lab can't add more
+			sp.Promised += max(g.Quota-used, 0)
+		}
 	}
 	sp.Left = max(sp.Free-sp.Promised-sp.Total*headroom/100+own, 0)
 	return sp, true
