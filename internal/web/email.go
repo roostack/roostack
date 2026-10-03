@@ -48,6 +48,26 @@ func (s *Server) renderEmail(w http.ResponseWriter, r *http.Request, extra map[s
 	}
 	data["Mail"], data["HasPassword"] = m, hasPassword
 	data["TestTo"], data["Saved"] = currentUser(r).Email, r.URL.Query().Get("saved") == "1"
+	// Who gets what: each person's address and groups.
+	if users, err := s.Store.ListUsers(r.Context()); err == nil {
+		type recipient struct {
+			Name, Role, Email string
+			Groups            []string
+		}
+		var list []recipient
+		for i := range users {
+			u := &users[i]
+			chosen := userGroups(u)
+			var groups []string
+			for _, g := range groupsFor(u.Role) {
+				if chosen[g.ID] {
+					groups = append(groups, g.Title)
+				}
+			}
+			list = append(list, recipient{u.Username, u.Role, u.Email, groups})
+		}
+		data["Recipients"] = list
+	}
 	for k, v := range extra {
 		data[k] = v
 	}

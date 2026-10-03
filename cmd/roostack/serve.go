@@ -157,6 +157,9 @@ func serve(args []string) error {
 		return web.RecordPublicCheck(context.Background(), st, host, at, from)
 	}}
 	srv.Protected = crowdSecUp
+	srv.Attacks = func(ctx context.Context, since time.Duration) (public.Attacks, error) {
+		return public.CrowdSecAttacks(ctx, userLaunch, generate.CrowdSecUnit, since)
+	}
 	// Roostack's network between servers (SPEC.md §10.2): this server is
 	// the hub others join.
 	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: lab.DisplayName(), Self: id, Store: st, Agent: agentClient,
