@@ -2,6 +2,7 @@ package backup
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -195,6 +196,34 @@ func TestBackupCopyUnreachable(t *testing.T) {
 	}
 	if time.Since(start) > 30*time.Second {
 		t.Errorf("took %v", time.Since(start))
+	}
+}
+
+// The main backup's drive isn't plugged in: the copies still run. A
+// retry backs up only to the destinations asked for.
+func TestBackupMainDriveMissing(t *testing.T) {
+	copyRepo := testRepo(t)
+	root := t.TempDir()
+	paths := config.Paths{StateDir: filepath.Join(root, "state"), HomeDir: filepath.Join(root, "state", "home")}
+	writeFile(t, filepath.Join(paths.StateDir, "lab.yaml"), "domain: x")
+	var copied []string
+	d := JobDeps{
+		Repo: testRepo(t), Preparer: &Preparer{}, Paths: paths, Host: "test",
+		Precheck:  func() error { return errors.New("BACKUP isn't connected") },
+		DumpState: func(_ context.Context, path string) error { writeFile(t, path, "db copy"); return nil },
+		Plan:      func() (Plan, error) { return LabPlan(paths, nil), nil },
+		Copies:    []Copy{{Name: "provider:1", Title: "Backblaze", Repo: copyRepo}, {Name: "provider:2", Title: "Other", Repo: copyRepo}},
+		OnCopy:    func(c Copy, _ time.Time, _ *Summary, err error) { copied = append(copied, c.Name) },
+	}
+	_, err := Run(context.Background(), d, nopReporter{})
+	var drive *DriveError
+	if !errors.As(err, &drive) || !slices.Equal(copied, []string{"provider:1", "provider:2"}) {
+		t.Fatalf("err %v, copies %v", err, copied)
+	}
+	copied = nil
+	d.Only = []string{"provider:2"}
+	if _, err := Run(context.Background(), d, nopReporter{}); err != nil || !slices.Equal(copied, []string{"provider:2"}) {
+		t.Errorf("a retry of one copy: %v %v", err, copied)
 	}
 }
 
