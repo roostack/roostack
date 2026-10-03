@@ -263,7 +263,7 @@ var gallerySections = []gallerySection{
   </li>
 </ul>`},
 			{"Sidebar", "Hidden on phones, where the page's back link leads to the overview. Pages get it by naming their area (withArea in Go); the layout adds it.", `
-{{template "settings-nav" .Settings}}`},
+{{template "area-nav" .Settings}}`},
 		}},
 	{ID: "activity", Title: "Activity", Intro: "Operations on the host (OS updates, backups, applying changes, restores): a status line everyone can follow, with the full log under Details. While running, the status line and log refresh themselves.",
 		Examples: []galleryExample{
@@ -365,7 +365,7 @@ func gallerySamples() map[string]any {
 	return map[string]any{
 		"Install":          install,
 		"InstallService":   ServiceView{ServiceDetail: node.ServiceDetail{Install: install}},
-		"Settings":         map[string]any{"SettingsGroups": settingsGroups(), "SettingsArea": "updates"},
+		"Settings":         areaNav{Label: "Settings", Home: "/settings", HomeTitle: "All settings", Groups: settingsGroups(), Active: "updates"},
 		"UpdatesActivity":  view("Installing updates", "", false, "==> Installing updates", "Unpacking curl (8.14.1-2+deb13u5) ..."),
 		"FinishedActivity": view("Installed 3 updates: curl, libcurl4t64, tzdata.", "", true, "==> Installing updates", "==> Done"),
 		"FailedActivity":   view("Installing updates", "exit status 100", true, "E: Could not get lock /var/lib/dpkg/lock-frontend", "==> Failed: exit status 100"),

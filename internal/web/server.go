@@ -337,7 +337,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore",
-		"home", "services", "service", "backups", "restore", "settings", "account", "users", "about",
+		"home", "services", "service", "backups", "restore", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "settings-public", "backups-key-change"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
@@ -400,7 +400,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /settings/email", s.requireOwner(s.emailPage))
 	mux.Handle("POST /settings/email", s.requireOwner(s.emailSubmit))
 	mux.Handle("POST /settings/email/test", s.requireOwner(s.emailTestSubmit))
-	mux.Handle("POST /account/email", s.requireLogin(s.accountEmailSubmit))
+	mux.Handle("GET /account/notifications", s.requireLogin(s.notificationsPage))
+	mux.Handle("POST /account/notifications", s.requireLogin(s.notificationsSubmit))
+	mux.Handle("GET /account/appearance", s.requireLogin(s.appearancePage))
 	mux.Handle("GET /settings/storage", s.requireOwner(s.storagePage))
 	mux.Handle("POST /settings/storage/invite", s.requireOwner(s.inviteGuestSubmit))
 	mux.Handle("POST /settings/storage/guests/{id}/remove", s.requireOwner(s.removeGuestSubmit))

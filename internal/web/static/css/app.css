@@ -439,6 +439,11 @@ ul.guests .space-used { background: var(--chart-3); }
   .settings-shell { grid-template-columns: 1fr; }
   .settings-nav { display: none; }
   .settings-main .back { display: inline-block; }
+  /* The account's areas: a row of tabs at the top. */
+  .settings-nav.area-tabs { display: flex; flex-direction: row; flex-wrap: wrap; position: static; gap: var(--space-1); }
+  .settings-nav.area-tabs a { border-left: 0; border-bottom: 3px solid transparent; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    padding: var(--space-1) var(--space-2); }
+  .settings-nav.area-tabs a.active { border-bottom-color: var(--highlight); }
 }
 
 /* ---------- Data tables (e.g. DNS records) ---------- */

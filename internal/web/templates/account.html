@@ -1,6 +1,6 @@
 {{define "title"}}Your account{{end}}
 {{define "content"}}
-<section class="card narrow">
+<section class="card">
   <div class="page-top">{{help "settings/people#your-own-account" "Your own account"}}</div>
   <h1>Your account</h1>
   {{if .User.MustChangePassword}}
@@ -11,14 +11,6 @@
     <dt>Role</dt><dd>{{roleName .User.Role}}</dd>
     <dt>Two-factor</dt><dd>{{if .User.TOTPSecret}}On{{else}}Off · <a href="/account/2fa">Turn it on</a>{{end}}</dd>
   </dl>
-  <h2 id="email">Email</h2>
-  {{if .EmailSaved}}{{notice "ok" "Saved."}}{{end}}
-  {{with .EmailError}}<p class="error" role="alert">{{.}}</p>{{end}}
-  <form method="post" action="/account/email">
-    <label>Your email address <input name="email" type="email" value="{{or .EmailValue .User.Email}}" placeholder="you@example.com" autocomplete="email">
-      <small>Where Roostack emails you. Leave it empty for no email.</small></label>
-    <button type="submit" class="secondary">Save</button>
-  </form>
   <h2>Change password</h2>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{with .Done}}{{notice "ok" .}}{{end}}
@@ -30,62 +22,5 @@
     <button type="submit">Change password</button>
   </form>
 
-  <h2 id="appearance">Appearance</h2>
-  {{/* Each choice applies to the page at once (a live preview) and is
-       saved in the background; without JavaScript the Save button submits. */}}
-  <form method="post" action="/account/appearance" hx-post="/account/appearance" hx-trigger="change" hx-swap="none"
-    data-palette="{{.Nav.Palette}}" x-data="{ state: '', palette: $el.dataset.palette }"
-    x-on:change="state = 'saving'; const root = document.documentElement;
-      palette = $el.querySelector('[name=palette]:checked').value;
-      root.dataset.palette = palette;
-      const accent = $el.querySelector('[name=accent-' + palette + ']:checked');
-      if (accent) { root.dataset.accent = accent.value } else { delete root.dataset.accent }
-      const mode = $el.querySelector('[name=mode]:checked').value;
-      if (mode === 'auto') { delete root.dataset.mode } else { root.dataset.mode = mode }"
-    x-on:htmx:after-request="state = $event.detail.successful ? 'saved' : 'failed'">
-    <fieldset>
-      <legend>Colours</legend>
-      {{range $t := themes}}
-      <label class="check theme-choice">
-        <input type="radio" name="palette" value="{{.ID}}" {{if eq .ID $.Nav.Palette}}checked{{end}}>
-        <span class="theme-previews" aria-hidden="true">
-          {{range $m := list "light" "dark"}}
-          <span class="theme-preview" data-palette="{{$t.ID}}" data-mode="{{$m}}"><span class="tp-card"><span class="tp-text"></span>
-            <span class="tp-dots"><span class="tp-accent"></span><span class="tp-highlight"></span></span></span></span>
-          {{end}}
-        </span>
-        <span>{{.Name}}<small>{{.Description}}{{with .Source}} · from <a href="{{.URL}}" target="_blank" rel="noopener">{{.Name}}{{template "new-window"}}</a>{{end}}</small></span>
-      </label>
-      {{end}}
-    </fieldset>
-    {{range $t := themes}}{{with $t.Accents}}
-    {{/* Shown while this theme is chosen. */}}
-    <fieldset class="accents" data-for="{{$t.ID}}" x-show="palette === $el.dataset.for" {{if ne $.Nav.Palette $t.ID}}x-cloak{{end}}>
-      <legend>{{$t.Name}} colour for buttons and links</legend>
-      {{range $i, $a := .}}
-      <label class="check accent-choice">
-        <input type="radio" name="accent-{{$t.ID}}" value="{{$a.ID}}"
-          {{if or (eq $a.ID $.Nav.Accent) (and (eq $i 0) (or (ne $.Nav.Palette $t.ID) (not $.Nav.Accent)))}}checked{{end}}>
-        <span class="accent-dots" aria-hidden="true">{{range $m := list "light" "dark"}}<span class="accent-dot" data-palette="{{$t.ID}}" data-accent="{{$a.ID}}" data-mode="{{$m}}"></span>{{end}}</span>
-        <span>{{$a.Name}}</span>
-      </label>
-      {{end}}
-    </fieldset>
-    {{end}}{{end}}
-    <fieldset>
-      <legend>Light or dark</legend>
-      {{range $m := list "auto" "light" "dark"}}
-      <label class="check"><input type="radio" name="mode" value="{{$m}}" {{if eq $m $.Nav.Theme}}checked{{end}}>
-        <span>{{if eq $m "auto"}}Follow this device{{else if eq $m "light"}}Always light{{else}}Always dark{{end}}</span></label>
-      {{end}}
-    </fieldset>
-    <noscript><button type="submit">Save</button></noscript>
-    <p class="hint" role="status" aria-live="polite">
-      <span x-show="state === 'saving'" x-cloak>Saving…</span>
-      <span x-show="state === 'saved'" x-cloak>✓ Saved</span>
-      <span x-show="state === 'failed'" x-cloak class="error">Couldn't save. Try again.</span>
-    </p>
-  </form>
-  <p class="hint">Theme credits and licences are on the <a href="/about">About</a> page.</p>
 </section>
 {{end}}

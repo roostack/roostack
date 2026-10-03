@@ -160,7 +160,8 @@ func serve(args []string) error {
 	// Roostack's network between servers (SPEC.md §10.2): this server is
 	// the hub others join.
 	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: lab.DisplayName(), Self: id, Store: st, Agent: agentClient,
-		Log: log, Now: time.Now, Started: restart}
+		Log: log, Now: time.Now, Started: restart,
+		Joined: func(ctx context.Context, name string) { st.Audit(ctx, nil, web.AuditServerJoined, name) }}
 	hub.Start(ctx)
 	srv.Network = hub
 	mgr.Registry = hub
@@ -170,7 +171,8 @@ func serve(args []string) error {
 	// storage; the controller keeps the records and answers guests (on
 	// that server's link, forwarded here when it's another server).
 	guestHub := &labnet.GuestHub{LabName: lab.DisplayName(), Store: st, Agent: mgr.GuestLinkAgent(), Log: log, Now: time.Now,
-		Usage: func(ctx context.Context, g store.Guest) (int64, error) { return mgr.GuestUsage(ctx, g.User()) }}
+		Usage:  func(ctx context.Context, g store.Guest) (int64, error) { return mgr.GuestUsage(ctx, g.User()) },
+		Joined: func(ctx context.Context, name string) { st.Audit(ctx, nil, web.AuditGuestJoined, name) }}
 	mgr.GuestHub, mgr.GuestRecords, mgr.LinkAgent = guestHub, st, agentClient
 	guestHub.Start(ctx)
 	go guestHub.ServeGuests(ctx)
@@ -243,6 +245,7 @@ func serve(args []string) error {
 	srv.Setup, srv.DNSProvider, srv.LabName = wiz, lab.DNS.Provider, lab.DisplayName()
 	// Email, through the lab's SMTP server (SPEC.md §6.13).
 	srv.Mail = &mail.Service{LabPath: *labPath, PasswordFile: lab.Paths.MailPasswordFile()}
+	go srv.RunNotifier(ctx)
 	srv.DetectNetwork = public.DetectNetwork
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
 	// A new install can instead become a lab restored from its backups.

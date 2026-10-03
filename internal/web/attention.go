@@ -116,6 +116,10 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 					add(levelProblem, svc.Title+" didn't finish setting up.", link, "See what went wrong")
 				case hs.Running || hs.Pending:
 					add(levelInfo, "Finishing setting up "+svc.Title+"…", link, "View")
+				case svc.Status == "failed":
+					// systemd gave up restarting it (SPEC.md §6.13: emailed
+					// once it has lasted a few minutes).
+					add(levelProblem, svc.Title+" has stopped working.", link, "See what's wrong")
 				}
 			}
 		}
