@@ -6,6 +6,14 @@ can get it back. Roostack backs up every service, and its own settings,
 every night at 2 am.
 
 The **Backups** page shows your plan, and tells you whether it's enough.
+With more than one server, it's in two parts:
+
+- **Each server's backups:** every server backs up its own services, so
+  each has its own status and plan. The list at the top shows how each
+  server's backups are doing; choose one to see its plan.
+- **Your whole lab:** restoring any service (from any of the lab's
+  backups), storage other labs give yours, and the recovery key, which
+  opens every backup in the lab.
 
 ## Three copies: the 3-2-1 rule
 

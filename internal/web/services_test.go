@@ -1178,17 +1178,25 @@ func TestPerServerSettings(t *testing.T) {
 	}
 }
 
-func TestBackupsPageRestoresThisServersServices(t *testing.T) {
-	h, _ := loggedIn(t, auth.RoleOwner)
+// Restoring is the whole lab's: every service, by the server it runs on,
+// whichever server's backups the page shows.
+func TestBackupsPageRestoresEveryService(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
 	h.node().restores = &fakeRestores{}
-	// Every service names its server, this one's included.
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true}, {ID: "n-9876543210", Name: "vps"}}
 	h.server.Services = func(context.Context) ([]ServiceView, error) {
-		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Server: "nuc"}, {Name: "forgejo", Title: "Forgejo", Server: "vps"}}, nil
+		return []ServiceView{{Name: "forgejo", Title: "Forgejo", Server: "vps"}, {Name: "vaultwarden", Title: "Vaultwarden", Server: "nuc"}}, nil
 	}
-	_, body := h.get("/backups")
-	if strings.Contains(body, "No services installed") || !strings.Contains(body, `href="/backups/restore/vaultwarden"`) ||
-		strings.Contains(body, `href="/backups/restore/forgejo"`) {
-		t.Error("this server's services should be restorable")
+	for _, page := range []string{"/backups", "/backups?server=n-9876543210"} {
+		_, body := h.get(page)
+		nuc, vps := strings.Index(body, "<h3>On nuc</h3>"), strings.Index(body, "<h3>On vps</h3>")
+		if nuc < 0 || vps < nuc || !strings.Contains(body[nuc:vps], `href="/backups/restore/vaultwarden"`) ||
+			!strings.Contains(body[vps:], `href="/backups/restore/forgejo"`) {
+			t.Errorf("%s: every service should be restorable, by server", page)
+		}
+		if !strings.Contains(body, "Each server's backups") || !strings.Contains(body, "Your whole lab") {
+			t.Errorf("%s: the per-server and whole-lab parts should be named", page)
+		}
 	}
 }
 
