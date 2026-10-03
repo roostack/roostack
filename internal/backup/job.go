@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,6 +53,20 @@ const (
 
 // ServiceTag tags a service's snapshots.
 func ServiceTag(name string) string { return "service=" + name }
+
+// RunTag tags every snapshot of one backup run, main and copies alike, so
+// a restore can tell which copies hold the same moment.
+func RunTag(started time.Time) string { return "run=" + strconv.FormatInt(started.Unix(), 10) }
+
+// Run identifies the backup run a snapshot is from ("" if untagged).
+func (s Snapshot) Run() string {
+	for _, t := range s.Tags {
+		if run, ok := strings.CutPrefix(t, "run="); ok {
+			return run
+		}
+	}
+	return ""
+}
 
 // Service names the service a snapshot is of ("" for the server's own).
 func (s Snapshot) Service() string {
@@ -267,7 +282,7 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 			return nil, fmt.Errorf("preparing %s: %w", step.Target, err)
 		}
 	}
-	snaps, err := d.snapshots(ctx, plan)
+	snaps, err := d.snapshots(ctx, plan, RunTag(time.Now()))
 	if err != nil {
 		return nil, err
 	}
@@ -322,7 +337,7 @@ type snapshot struct {
 // service's (with its secrets saved next to it). Paths that don't exist yet
 // are skipped (e.g. no Podman secrets on a fresh install, or a service
 // without media); restic treats a missing source as an error.
-func (d JobDeps) snapshots(ctx context.Context, plan Plan) ([]snapshot, error) {
+func (d JobDeps) snapshots(ctx context.Context, plan Plan, run string) ([]snapshot, error) {
 	existing := func(paths []string) []string {
 		var out []string
 		for _, p := range paths {
@@ -334,7 +349,7 @@ func (d JobDeps) snapshots(ctx context.Context, plan Plan) ([]snapshot, error) {
 	}
 	var out []snapshot
 	if paths := existing(plan.Paths); len(paths) > 0 {
-		out = append(out, snapshot{paths: paths, excludes: plan.Excludes, tags: []string{TagRoostack, TagServer}})
+		out = append(out, snapshot{paths: paths, excludes: plan.Excludes, tags: []string{TagRoostack, TagServer, run}})
 	}
 	if err := os.RemoveAll(SecretsDir(d.Paths)); err != nil {
 		return nil, err
@@ -357,7 +372,7 @@ func (d JobDeps) snapshots(ctx context.Context, plan Plan) ([]snapshot, error) {
 			}
 			paths = append(paths, file)
 		}
-		out = append(out, snapshot{title: sp.Name, paths: paths, excludes: sp.Excludes, tags: []string{TagRoostack, ServiceTag(sp.Name)}})
+		out = append(out, snapshot{title: sp.Name, paths: paths, excludes: sp.Excludes, tags: []string{TagRoostack, ServiceTag(sp.Name), run}})
 	}
 	return out, nil
 }

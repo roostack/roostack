@@ -2,7 +2,6 @@ package web
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -44,9 +43,58 @@ func (s *Server) restorePage(w http.ResponseWriter, r *http.Request) {
 	s.renderRestore(w, r, svc, "", http.StatusOK)
 }
 
-// restoreChoice is one backup on the restore page.
-type restoreChoice struct {
-	ID, Label, Short string
+// restoreGroup is a period on the restore page ("This week"), with its
+// backup moments.
+type restoreGroup struct {
+	Title   string
+	Moments []restoreMoment
+}
+
+// restoreMoment is one backup moment: its label, and the places to read
+// it from (the first is read unless another is chosen).
+type restoreMoment struct {
+	ID, Label string
+	Places    []restorePlace
+}
+
+type restorePlace struct{ ID, Title, Short string }
+
+// restoreGroups sorts moments (newest first) into periods, as the
+// clean-up thins them out: daily for a week, then weekly, then monthly.
+// Each label names the server only if the backups come from more than one.
+func restoreGroups(moments []manager.BackupMoment, now time.Time) []restoreGroup {
+	servers := map[string]bool{}
+	for _, mo := range moments {
+		servers[mo.ServerID] = true
+	}
+	var groups []restoreGroup
+	for _, mo := range moments {
+		title := "Older"
+		switch age := now.Sub(mo.Time); {
+		case age < 7*24*time.Hour:
+			title = "This week"
+		case age < 31*24*time.Hour:
+			title = "This month"
+		}
+		if len(groups) == 0 || groups[len(groups)-1].Title != title {
+			groups = append(groups, restoreGroup{Title: title})
+		}
+		label := momentLabel(mo.Time, now)
+		if len(servers) > 1 {
+			label += ", from " + mo.ServerName
+		}
+		v := restoreMoment{ID: mo.ID(), Label: label}
+		for _, p := range mo.Places {
+			title := p.Where + " (copy)"
+			if p.Main {
+				title = p.Where + " (main backup)"
+			}
+			v.Places = append(v.Places, restorePlace{ID: p.ID(), Title: title, Short: p.Snapshot.Short})
+		}
+		g := &groups[len(groups)-1]
+		g.Moments = append(g.Moments, v)
+	}
+	return groups
 }
 
 // keptView is data a restore (or a move) kept aside, on the restore page.
@@ -65,10 +113,7 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 		s.serverError(w, err)
 		return
 	}
-	var choices []restoreChoice
-	for _, b := range backups {
-		choices = append(choices, restoreChoice{ID: b.ID(), Label: backupLabel(b, time.Now()), Short: b.Snapshot.Short})
-	}
+	groups := restoreGroups(backups, time.Now())
 	host := ""
 	if n := s.Manager.NodeFor(svc.Name); n != nil {
 		host = n.Identity().ID
@@ -103,7 +148,7 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 			}
 		}
 	}
-	data := map[string]any{"User": currentUser(r), "Service": svc, "Choices": choices, "Notes": notes,
+	data := map[string]any{"User": currentUser(r), "Service": svc, "Groups": groups, "Notes": notes,
 		"Servers": servers, "Host": host, "Kept": kept, "Pending": pending, "Error": errMsg}
 	if a := s.restoreActivity(r, svc); a != nil {
 		data["RestoreActivity"] = a
@@ -137,27 +182,20 @@ func (s *Server) restoreActivity(r *http.Request, svc ServiceView) *activityView
 	return best
 }
 
-// backupLabel describes a backup in one line, e.g. "Last night's backup,
-// 02:00, from nas".
-func backupLabel(b manager.ServiceBackup, now time.Time) string {
-	t := b.Snapshot.Time.Local()
-	now = now.Local()
+// momentLabel names when a backup was made, e.g. "Last night's backup,
+// 02:00".
+func momentLabel(t, now time.Time) string {
+	t, now = t.Local(), now.Local()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
-	var when string
 	switch {
 	case !t.Before(today.Add(-6*time.Hour)) && t.Before(today.Add(6*time.Hour)):
-		when = "Last night's backup, " + t.Format("15:04")
+		return "Last night's backup, " + t.Format("15:04")
 	case !t.Before(today):
-		when = "Today's backup, " + t.Format("15:04")
+		return "Today's backup, " + t.Format("15:04")
 	case !t.Before(today.AddDate(0, 0, -1)):
-		when = "Yesterday's backup, " + t.Format("15:04")
-	default:
-		when = "The backup of " + t.Format("Mon 2 Jan, 15:04")
+		return "Yesterday's backup, " + t.Format("15:04")
 	}
-	if b.Main {
-		return fmt.Sprintf("%s, from %s", when, b.ServerName)
-	}
-	return fmt.Sprintf("%s, from %s's copy at %s", when, b.ServerName, b.Where)
+	return "The backup of " + t.Format("Mon 2 Jan, 15:04")
 }
 
 func (s *Server) restoreSubmit(w http.ResponseWriter, r *http.Request) {

@@ -7,23 +7,39 @@
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{if .Pending}}
     {{notice "info" "A restore is in progress. This page shows how it's going."}}
-  {{else if .Choices}}
-  {{$first := index .Choices 0}}
+  {{else if .Groups}}
+  {{$m := index (index .Groups 0).Moments 0}}{{$p := index $m.Places 0}}
   <p>Puts {{.Service.Title}}'s data back to how it was in a backup. {{.Service.Title}} stops for a few minutes while this happens.</p>
-  <form method="post" action="/backups/restore/{{.Service.Name}}" data-label="{{$first.Label}}" x-data="{ label: $el.dataset.label }">
-    <p>Restoring from <strong x-text="label">{{$first.Label}}</strong>.</p>
-    <details>
+  <form method="post" action="/backups/restore/{{.Service.Name}}" data-moment="{{$m.ID}}" data-label="{{$m.Label}}" data-place="{{$p.Title}}"
+    x-data="{ moment: $el.dataset.moment, label: $el.dataset.label, place: $el.dataset.place }">
+    <p>Restoring from <strong x-text="label">{{$m.Label}}</strong>
+      <span class="hint">(read from <span x-text="place">{{$p.Title}}</span>)</span></p>
+    <details class="restore-choices">
       <summary>Choose a different backup</summary>
+      {{range .Groups}}
       <fieldset>
-        <legend class="sr-only">Which backup?</legend>
-        {{range $i, $c := .Choices}}
-        <label class="check"><input type="radio" name="backup" value="{{$c.ID}}" data-label="{{$c.Label}}"
-            x-on:change="label = $el.dataset.label"{{if eq $i 0}} checked{{end}}>
-          <span>{{$c.Label}}{{if eq $i 0}} (suggested){{end}}<small>{{$c.Short}}</small></span></label>
+        <legend>{{.Title}}</legend>
+        {{range .Moments}}
+        <label class="check"><input type="radio" name="moment" value="{{.ID}}" data-label="{{.Label}}" data-place="{{(index .Places 0).Title}}"
+            x-model="moment" x-on:change="label = $el.dataset.label; place = $el.dataset.place"{{if eq .ID $m.ID}} checked{{end}}>
+          <span>{{.Label}}{{if eq .ID $m.ID}} (newest){{end}}</span></label>
         {{end}}
       </fieldset>
-      <p class="hint">The suggested one is the newest. Choose an older one if the newest already has the problem you're fixing.</p>
+      {{end}}
+      <p class="hint">Choose an older one if the newest already has the problem you're fixing.</p>
     </details>
+    {{range .Groups}}{{range .Moments}}
+    {{if gt (len .Places) 1}}
+    <label data-moment="{{.ID}}" x-show="moment === $el.dataset.moment"{{if ne .ID $m.ID}} x-cloak{{end}}>Read it from
+      <select name="backup" x-bind:disabled="moment !== $el.parentElement.dataset.moment" x-on:change="place = $el.selectedOptions[0].text">
+        {{range .Places}}<option value="{{.ID}}">{{.Title}}</option>{{end}}
+      </select>
+      <small>The main backup is usually the quickest. Choose a copy if it can't be read.</small>
+    </label>
+    {{else}}
+    <input type="hidden" name="backup" value="{{(index .Places 0).ID}}" data-moment="{{.ID}}" x-bind:disabled="moment !== $el.dataset.moment">
+    {{end}}
+    {{end}}{{end}}
     {{if gt (len .Servers) 1}}
     <label>Restore onto
       <select name="to">{{range .Servers}}<option value="{{.ID}}"{{if eq .ID $.Host}} selected{{end}}>{{.Name}}{{if eq .ID $.Host}} (where it runs now){{end}}</option>{{end}}</select>
