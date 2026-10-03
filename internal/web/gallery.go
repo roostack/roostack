@@ -213,8 +213,8 @@ var gallerySections = []gallerySection{
 	{ID: "space", Title: "Disk space", Intro: "A disk's use as one bar of coloured parts, with a key that names each part and its size (Settings → Servers, Storage for others). The chart colours (--chart-1 to 3) are the same in every theme, so the parts stay apart for colour-blind readers; status colours only outline the bar when space runs low.",
 		Examples: []galleryExample{
 			{"Space bar and key", "Widths are data-width (percent), set by app.js: the Content-Security-Policy blocks style attributes.", `
-<p><strong>60.0 GB free</strong> of 100.0 GB</p>
-<div class="space-bar" role="img" aria-label="40.0 GB used, 60.0 GB free of 100.0 GB"><span class="space-services" data-width="12" title="Services' data: 12.0 GB"></span><span class="space-backups" data-width="3" title="Backups of your lab's servers: 3.0 GB"></span><span class="space-guests" data-width="1" title="Backups of other labs: 1.0 GB"></span><span class="space-other" data-width="24" title="The system and everything else: 24.0 GB"></span><span class="space-promised" data-width="9" title="Promised to other labs, not used yet: 9.0 GB"></span></div>
+<p><strong>55.0 GB free</strong> of 100.0 GB</p>
+<div class="space-bar" role="img" aria-label="40.0 GB used, 60.0 GB free of 100.0 GB"><span class="space-services" data-width="12" title="Services' data: 12.0 GB"></span><span class="space-backups" data-width="3" title="Backups of your lab's servers: 3.0 GB"></span><span class="space-guests" data-width="1" title="Backups of other labs: 1.0 GB"></span><span class="space-other" data-width="24" title="The system and everything else: 24.0 GB"></span><span class="space-promised" data-width="9" title="Promised to other labs, not used yet: 9.0 GB"></span><span class="space-reserved" data-width="5" title="Reserved by the system: 5.0 GB"></span></div>
 <dl class="space-list">
   <dt>In use</dt><dd>40.0 GB</dd>
   <dt class="sub"><span class="swatch space-services" aria-hidden="true"></span>Services' data</dt><dd>12.0 GB</dd>
@@ -222,7 +222,8 @@ var gallerySections = []gallerySection{
   <dt class="sub"><span class="swatch space-guests" aria-hidden="true"></span>Backups of other labs</dt><dd>1.0 GB</dd>
   <dt class="sub"><span class="swatch space-other" aria-hidden="true"></span>The system and everything else</dt><dd>24.0 GB</dd>
   <dt><span class="swatch space-promised" aria-hidden="true"></span>Promised to other labs</dt><dd>10.0 GB, of which 9.0 GB isn't used yet</dd>
-  <dt><span class="swatch space-free" aria-hidden="true"></span>Free</dt><dd>60.0 GB</dd>
+  <dt><span class="swatch space-free" aria-hidden="true"></span>Free</dt><dd>55.0 GB</dd>
+  <dt><span class="swatch space-reserved" aria-hidden="true"></span>Reserved by the system</dt><dd>5.0 GB, kept back by the filesystem so the system keeps working if the disk fills up</dd>
 </dl>`},
 		}},
 	{ID: "tables", Title: "Tables", Intro: "For short lists of technical facts, such as DNS records. Prefer rows (above) for things people act on.",

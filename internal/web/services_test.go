@@ -1344,11 +1344,12 @@ func TestLowSpace(t *testing.T) {
 // one runs low, or when other labs were promised more than is free.
 func TestServerDiskSpace(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
-	fm.disk = &node.DiskSpace{Total: 100 * units.GB, Used: 40 * units.GB, Free: 60 * units.GB, Services: 12 * units.GB, Backups: 3 * units.GB, Guests: 1 * units.GB}
+	fm.disk = &node.DiskSpace{Total: 100 * units.GB, Used: 40 * units.GB, Free: 55 * units.GB, Services: 12 * units.GB, Backups: 3 * units.GB, Guests: 1 * units.GB}
 	_, body := h.get("/settings/servers")
-	for _, want := range []string{"<strong>60.0 GB free</strong> of 100.0 GB", "<dt>In use</dt><dd>40.0 GB</dd>",
+	for _, want := range []string{"<strong>55.0 GB free</strong> of 100.0 GB", "<dt>In use</dt><dd>40.0 GB</dd>",
+		`class="space-reserved" data-width="5"`, "Reserved by the system</dt><dd>5.0 GB",
 		"Services&#39; data</dt><dd>12.0 GB", "Backups of your lab&#39;s servers</dt><dd>3.0 GB", "Backups of other labs</dt><dd>1.0 GB",
-		"The system and everything else</dt><dd>24.0 GB", "Free</dt><dd>60.0 GB",
+		"The system and everything else</dt><dd>24.0 GB", "Free</dt><dd>55.0 GB",
 		// Each part a coloured segment, with its swatch in the key.
 		`class="space-services" data-width="12"`, `class="space-backups" data-width="3"`, `class="space-guests" data-width="1"`,
 		`class="space-other" data-width="24"`, `<span class="swatch space-guests" aria-hidden="true"></span>Backups of other labs`} {
