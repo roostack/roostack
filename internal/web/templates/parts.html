@@ -180,8 +180,8 @@
 {{define "disk-space"}}
 <p><strong>{{size .Free}} free</strong> of {{size .Total}}</p>
 <div class="space-bar" role="img" aria-label="{{size .Used}} used, {{size .Free}} free of {{size .Total}}">
-  <span class="space-used{{with .Level}} space-{{.}}{{end}}" style="width: {{.UsedPercent}}%"></span>
-  {{- if .PromisedLeft}}<span class="space-promised" style="width: {{.PromisedPercent}}%"></span>{{end}}
+  <span class="space-used{{with .Level}} space-{{.}}{{end}}" data-width="{{.UsedPercent}}"></span>
+  {{- if .PromisedLeft}}<span class="space-promised" data-width="{{.PromisedPercent}}"></span>{{end}}
 </div>
 <dl class="space-list">
   <dt>In use</dt><dd>{{size .Used}}</dd>

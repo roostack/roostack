@@ -15,6 +15,8 @@ if [[ -z ${VERSION:-} ]]; then
     VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
     VERSION=${VERSION#v}
     [[ $VERSION =~ ^[0-9]+\.[0-9] ]] || VERSION="0~git$(git rev-list --count HEAD 2>/dev/null || echo 0).${VERSION}"
+    # Uncommitted changes: a time, so each build is newer than the last.
+    [[ $VERSION == *-dirty ]] && VERSION="${VERSION}.$(date +%Y%m%d%H%M%S)"
 fi
 [[ ${1:-} == --version ]] && { echo "$VERSION"; exit 0; }
 [[ -x bin/roostack && -x bin/roostack-agent && -s bin/copyright ]] || { echo "build first: make build" >&2; exit 1; }

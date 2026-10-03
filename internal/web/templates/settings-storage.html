@@ -17,24 +17,39 @@
 {{with .Guests}}
 <section class="card section">
   <h2>Labs storing here</h2>
-  <table class="records">
-    <thead><tr><th>Lab</th><th>Space used</th><th>Connected</th><th></th></tr></thead>
-    <tbody>
-      {{range .}}<tr>
-        <td>{{.Name}}</td>
-        <td>{{if ge .Used 0}}{{size .Used}}{{else}}?{{end}} of {{size .Quota}}
-          <form method="post" action="/settings/storage/guests/{{.ID}}/quota" class="inline-form">
-            <label class="sr-only" for="quota-{{.ID}}">Space for {{.Name}} (GB)</label>
-            <input id="quota-{{.ID}}" name="quota" type="number" min="1" class="inline" value="{{gb .Quota}}"> GB
-            <button type="submit" class="secondary">Change</button>
-          </form></td>
-        <td>{{if not .Joined}}Waiting for them to use the invite (until {{when .Expires}})
-          {{- else if .LastSeen.IsZero}}<span class="dot dot-warn" aria-hidden="true"></span>Not yet: check {{if $.Internet}}your provider's firewall{{else}}the port forwarding{{end}} below
-          {{- else}}<span class="dot dot-ok" aria-hidden="true"></span>{{when .LastSeen}}{{end}}</td>
-        <td>{{confirm (printf "/settings/storage/guests/%d/remove" .ID) (printf "Stop storing backups for %s? They can't add backups from now on. Roostack tells their lab, and deletes what's here in 30 days (or sooner, if you choose)." .Name) "Remove" "quiet danger"}}</td>
-      </tr>{{end}}
-    </tbody>
-  </table>
+  <ul class="rows guests">
+    {{range .}}
+    <li>
+      <div class="row-split">
+        <strong>{{.Name}}</strong>
+        <span class="row-actions" x-data>
+          <button type="button" class="secondary" x-on:click="$refs.quota.showModal()">Change space…</button>
+          <dialog x-ref="quota" class="dialog" aria-labelledby="quota-title-{{.ID}}">
+            <form method="post" action="/settings/storage/guests/{{.ID}}/quota">
+              <p id="quota-title-{{.ID}}"><strong>Space for {{.Name}}</strong></p>
+              <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{gb .Quota}}" required>
+                <small>{{if ge .Used 0}}Their backups take {{size .Used}} now. {{end}}{{with $.Space}}{{$.HostServer.Name}} can give
+                  other labs up to {{size .Left}} more.{{end}}</small></label>
+              <div class="dialog-actions">
+                <button type="button" class="secondary" x-on:click="$refs.quota.close()">Cancel</button>
+                <button type="submit">Save</button>
+              </div>
+            </form>
+          </dialog>
+          {{confirm (printf "/settings/storage/guests/%d/remove" .ID) (printf "Stop storing backups for %s? They can't add backups from now on. Roostack tells their lab, and deletes what's here in 30 days (or sooner, if you choose)." .Name) "Remove" "quiet danger"}}
+        </span>
+      </div>
+      <div class="space-bar guest-space" role="img" aria-label="{{if ge .Used 0}}{{size .Used}}{{else}}Unknown{{end}} used of {{size .Quota}}">
+        <span class="space-used" data-width="{{.UsedPercent}}"></span>
+      </div>
+      <small class="hint">{{if ge .Used 0}}{{size .Used}} of {{size .Quota}} used{{else}}{{size .Quota}} given{{end}} ·
+        {{if not .Joined}}hasn't used the invite yet (it works until {{when .Expires}})
+        {{- else if .LastSeen.IsZero}}<span class="dot dot-warn" aria-hidden="true"></span>hasn't connected yet: check
+          {{if $.Internet}}your provider's firewall{{else}}the port forwarding{{end}} below
+        {{- else}}<span class="dot dot-ok" aria-hidden="true"></span>last connected {{when .LastSeen}}{{end}}</small>
+    </li>
+    {{end}}
+  </ul>
 </section>
 {{end}}
 

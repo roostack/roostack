@@ -1348,7 +1348,7 @@ func TestServerDiskSpace(t *testing.T) {
 	_, body := h.get("/settings/servers")
 	for _, want := range []string{"<strong>60.0 GB free</strong> of 100.0 GB", "<dt>In use</dt><dd>40.0 GB</dd>",
 		"Services' data</dt><dd>12.0 GB", "Backups of your lab's servers</dt><dd>3.0 GB", "Backups of other labs</dt><dd>1.0 GB",
-		"The system and everything else</dt><dd>24.0 GB", `style="width: 40%"`} {
+		"The system and everything else</dt><dd>24.0 GB", `data-width="40"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("servers page missing %q", want)
 		}
