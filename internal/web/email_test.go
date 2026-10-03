@@ -48,11 +48,13 @@ func TestEmailSettings(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	fm := &fakeMail{}
 	h.server.Mail = fm
+	h.setSetup(&fakeSetup{p: allDone})
 	if _, body := h.get("/settings"); !strings.Contains(body, "Not set up: Roostack can&#39;t send email") {
 		t.Error("the overview says email isn't set up")
 	}
 	_, body := h.get("/settings/email")
-	if !strings.Contains(body, `value="587"`) || !strings.Contains(body, `value="starttls" checked`) {
+	if !strings.Contains(body, `value="587"`) || !strings.Contains(body, `value="starttls" checked`) ||
+		!strings.Contains(body, `name="from" value="no_reply@lab.example.com"`) {
 		t.Errorf("defaults: %s", body)
 	}
 	form := url.Values{"host": {"smtp.example.com"}, "port": {"587"}, "security": {"starttls"}, "username": {"sam@example.com"},
