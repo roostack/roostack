@@ -390,6 +390,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/network", s.requireOwner(s.networkSubmit))
 	mux.Handle("GET /settings/servers", s.requireOwner(s.serversPage))
 	mux.Handle("GET /settings/servers/{server}", s.requireOwner(s.serverPage))
+	mux.Handle("GET /settings/servers/{server}/disk", s.requireOwner(s.diskPart))
 	s.serverRoutes(mux)
 	mux.Handle("POST /settings/servers/{server}/rename", s.requireOwner(s.renameServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))

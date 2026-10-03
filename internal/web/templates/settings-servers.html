@@ -20,7 +20,7 @@
       {{- else}}Not applied yet{{end}}{{end}}</dd>
     <dt>{{icon "disk"}}Disk</dt>
     <dd>{{with index $.Spaces .ID}}
-      {{template "disk-space" .}}
+      {{template "disk-space-live" .}}
     {{else}}<small>Couldn't ask {{.Name}} right now.</small>{{end}}</dd>
     <dt>{{icon "location"}}Where</dt>
     <dd>

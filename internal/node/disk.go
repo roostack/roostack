@@ -18,8 +18,10 @@ type DiskSpace struct {
 	// the lab's servers (its backup store); Guests those it keeps for
 	// other labs.
 	Services, Backups, Guests int64
-	// Counted is when the sizes were counted (zero: not yet).
-	Counted time.Time `json:",omitzero"`
+	// Counted is when the sizes were counted (zero: not yet); Counting:
+	// a count is running now (pages showing it refresh until it ends).
+	Counted  time.Time `json:",omitzero"`
+	Counting bool      `json:",omitempty"`
 }
 
 // Disks is a server that can report its disk space (Local and Remote).
@@ -49,6 +51,9 @@ func (n *Local) DiskSpace(context.Context) (DiskSpace, error) {
 		d.Services += size
 	}
 	d.Backups, d.Guests, d.Counted = n.storeSize()
+	n.sizes.mu.Lock()
+	d.Counting = n.sizes.counting
+	n.sizes.mu.Unlock()
 	return d, nil
 }
 

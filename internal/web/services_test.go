@@ -1484,3 +1484,22 @@ func TestInstallingShown(t *testing.T) {
 		t.Error("a finished install should reload the page")
 	}
 }
+
+// While a server counts what uses its disk, the disk block says so and
+// refreshes itself; once counted, it shows the sizes and stops.
+func TestDiskSpaceWhileCounting(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.disk = &node.DiskSpace{Total: 100 * units.GB, Used: 40 * units.GB, Free: 55 * units.GB, Services: -1, Backups: -1, Guests: -1, Counting: true}
+	_, body := h.get("/settings/servers")
+	if !strings.Contains(body, `hx-get="/settings/servers/n-0123456789/disk"`) || !strings.Contains(body, "counting…") {
+		t.Errorf("counting: %s", body[strings.Index(body, "Disk"):][:1500])
+	}
+	fm.disk.Services, fm.disk.Backups, fm.disk.Guests, fm.disk.Counting = 12*units.GB, 3*units.GB, 0, false
+	code, part := h.get("/settings/servers/n-0123456789/disk")
+	if code != http.StatusOK || !strings.Contains(part, "12.0 GB") || strings.Contains(part, "hx-get") {
+		t.Errorf("counted: %d %s", code, part)
+	}
+	if code, _ := h.get("/settings/servers/n-nope/disk"); code != http.StatusNotFound {
+		t.Errorf("unknown server: %d", code)
+	}
+}

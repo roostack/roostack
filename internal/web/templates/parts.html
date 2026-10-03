@@ -177,6 +177,15 @@
 {{/* disk-space: a server's disk (a spaceView): free and total, a bar
      with the space promised to other labs, what uses it, and any
      warning. Settings → Servers and Storage for others. */}}
+{{define "not-counted"}}{{if .Counting}}<span class="spinner" aria-hidden="true"></span> counting…{{else}}not counted yet{{end}}{{end}}
+
+{{/* disk-space-live: disk-space, refreshing itself while the server
+     counts what uses its disk (it says "counting…" meanwhile). */}}
+{{define "disk-space-live"}}<div id="disk-{{.ServerID}}"{{if .Counting}} hx-get="/settings/servers/{{.ServerID}}/disk"
+  hx-trigger="every 3s [document.visibilityState === 'visible']" hx-swap="outerHTML"{{end}}>
+{{template "disk-space" .}}
+</div>{{end}}
+
 {{define "disk-space"}}
 <p><strong>{{size .Free}} free</strong> of {{size .Total}}</p>
 {{/* Each part of the disk's use has its colour (--chart-*), the same in
@@ -193,8 +202,8 @@
   {{- with .Parts}}{{range .}}{{if or .Bytes (ne .Kind "guests")}}
   <dt class="sub"><span class="swatch space-{{.Kind}}" aria-hidden="true"></span>{{.Label}}</dt><dd>{{if .Bytes}}{{size .Bytes}}{{else}}none{{end}}</dd>{{end}}{{end}}
   {{- else}}
-  <dt class="sub">Services' data</dt><dd>{{if gt .Services 0}}{{size .Services}}{{else if eq .Services 0}}none{{else}}not counted yet{{end}}</dd>
-  <dt class="sub">Backups of your lab's servers</dt><dd>{{if ge .Backups 0}}{{size .Backups}}{{else}}not counted yet{{end}}</dd>
+  <dt class="sub">Services' data</dt><dd>{{if gt .Services 0}}{{size .Services}}{{else if eq .Services 0}}none{{else}}{{template "not-counted" $}}{{end}}</dd>
+  <dt class="sub">Backups of your lab's servers</dt><dd>{{if ge .Backups 0}}{{size .Backups}}{{else}}{{template "not-counted" $}}{{end}}</dd>
   {{end}}
   {{if .Promised}}<dt><span class="swatch space-promised" aria-hidden="true"></span>Promised to other labs</dt><dd>{{size .Promised}}, of which {{size .PromisedLeft}} isn't used yet</dd>{{end}}
   <dt><span class="swatch space-free" aria-hidden="true"></span>Free</dt><dd>{{size .Free}}</dd>
