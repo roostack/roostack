@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/units"
 )
@@ -113,6 +114,12 @@ func (s *Server) serverSpace(ctx context.Context, m serverRef, n any) *spaceView
 	case v.PromisedLeft > ds.Free:
 		v.Level = levelWarning
 		v.Warning = fmt.Sprintf("Other labs could fill %s's disk: they've been promised %s more space for their backups, but only %s is free.",
+			m.Label(), sizeText(v.PromisedLeft), sizeText(ds.Free))
+	case v.PromisedLeft > 0 && v.PromisedLeft > ds.Free-ds.Total*manager.GuestHeadroom/100:
+		// Promised space now reaches into what's kept free for the lab's
+		// own use: warn before other labs could fill the disk.
+		v.Level = levelWarning
+		v.Warning = fmt.Sprintf("Space promised to other labs now takes some of what %s keeps free for your own services and backups: they can still add %s, and %s is free. Free up space, or give them less.",
 			m.Label(), sizeText(v.PromisedLeft), sizeText(ds.Free))
 	}
 	return v

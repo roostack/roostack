@@ -1360,6 +1360,15 @@ func TestServerDiskSpace(t *testing.T) {
 	if _, body := h.get("/"); !strings.Contains(body, "Other labs could fill This server&#39;s disk: they&#39;ve been promised 75.0 GB more") {
 		t.Error("promised more than is free")
 	}
+	// 55 GB still to come of 60 GB free reaches into the 10 GB kept free.
+	fm.guests[0].Quota = 60 * units.GB
+	if _, body := h.get("/"); !strings.Contains(body, "Space promised to other labs now takes some of what This server keeps free") {
+		t.Error("promised space reaching into the headroom")
+	}
+	fm.guests[0].Quota = 50 * units.GB
+	if _, body := h.get("/"); strings.Contains(body, "Space promised") {
+		t.Error("45 GB to come leaves the 10 GB kept free")
+	}
 	fm.guests = nil
 	fm.disk.Free = 3 * units.GB
 	if _, body := h.get("/"); !strings.Contains(body, "This server is running out of disk space: 3.0 GB free of 100.0 GB") {

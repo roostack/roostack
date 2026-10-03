@@ -47,8 +47,9 @@ type LinkAgent interface {
 // to the first other lab it stores at (the next one +1, …).
 const FirstProxyPort = 8200
 
-// headroom is free space kept beyond every guest's quota (10%).
-const headroom = 10
+// GuestHeadroom is the share of the disk (percent) kept free beyond every
+// guest's quota, for the lab's own services and backups.
+const GuestHeadroom = 10
 
 // GuestView is a guest lab, for the host's page.
 type GuestView struct {
@@ -175,7 +176,7 @@ func (m *Manager) spaceLeft(ctx context.Context, except int64) (GuestSpace, bool
 			sp.Promised += max(g.Quota-used, 0)
 		}
 	}
-	sp.Left = max(sp.Free-sp.Promised-sp.Total*headroom/100+own, 0)
+	sp.Left = max(sp.Free-sp.Promised-sp.Total*GuestHeadroom/100+own, 0)
 	return sp, true
 }
 
