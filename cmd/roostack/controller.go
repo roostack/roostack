@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/web"
 )
 
 // The controller's parts that serve doesn't need to spell out: its lab
@@ -96,7 +97,8 @@ func startControllerJobs(ctx context.Context, mgr *manager.Manager, coord *maint
 		}
 	}()
 	go maintenance.Every(ctx, func(now time.Time) time.Time { return now.Add(time.Hour) }, func() {
-		if err := st.DeleteExpiredSessions(ctx); err != nil {
+		// Sessions past their expiry or the idle limit (SPEC.md §5).
+		if err := st.DeleteExpiredSessions(ctx, web.IdleLimit(ctx, st)); err != nil {
 			log.Error("cleaning sessions", "err", err)
 		}
 	})
