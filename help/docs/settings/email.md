@@ -57,8 +57,11 @@ Security for the lab (Owners)
     joining the lab, another lab starting to store backups here.
 
 Weekly summary
-:   On Monday mornings: each server's backups and disk space, and anything
-    still needing attention.
+:   On Monday mornings: each server's backups and disk space, the attacks
+    CrowdSec saw and blocked on your public addresses, and anything still
+    needing attention.
+
+Owners see who gets what at the bottom of **Settings → Email**.
 
 Owners and Admins get the first three unless they change it; Members can't
 act on the lab's problems, so they get none of them. Everyone always gets

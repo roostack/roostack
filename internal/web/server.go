@@ -131,6 +131,9 @@ type Server struct {
 	Protected func(ctx context.Context) bool
 	// Mail sends email (SPEC.md §6.13). Nil hides Settings → Email.
 	Mail MailSender
+	// Attacks says what CrowdSec saw on the public addresses over a while,
+	// for the weekly summary (optional).
+	Attacks func(ctx context.Context, since time.Duration) (public.Attacks, error)
 	// Version is Roostack's version, shown on the About page.
 	Version string
 	// Maintenance is the lab's restart policy, shown in Settings.

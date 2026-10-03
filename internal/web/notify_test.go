@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -143,5 +144,48 @@ func TestNewDeviceLogin(t *testing.T) {
 	login(&http.Client{Jar: jar2})
 	if n := newDevices(); n != 1 {
 		t.Errorf("a second browser: %d", n)
+	}
+}
+
+// The Monday summary has each server's backups and disks, what CrowdSec
+// saw on the public addresses, and what still needs attention; it comes
+// once a week.
+func TestWeeklySummary(t *testing.T) {
+	h, fm, fb := notifyHarness(t, auth.RoleOwner)
+	ctx := context.Background()
+	u, _ := h.store.UserByUsername(ctx, "u")
+	h.store.SetNotify(ctx, u.ID, "weekly")
+	fb.status.LastOK = &store.BackupRun{OK: true, Finished: time.Now()}
+	fb.status.Last = fb.status.LastOK
+	h.server.Protected = func(context.Context) bool { return true }
+	h.server.Attacks = func(context.Context, time.Duration) (public.Attacks, error) {
+		return public.Attacks{Alerts: 3, Addresses: 2, Blocked: 2, Kinds: []string{"http-probing"}}, nil
+	}
+	monday := time.Date(2026, 10, 5, 9, 0, 0, 0, time.Local)
+	h.server.notify(ctx, monday.Add(-48*time.Hour)) // Saturday: not due
+	if len(fm.sent) != 0 {
+		t.Fatalf("not Monday: %+v", fm.sent)
+	}
+	h.server.notify(ctx, monday)
+	if len(fm.sent) != 1 || !strings.Contains(fm.sent[0].Subject, "This week") {
+		t.Fatalf("Monday: %+v", fm.sent)
+	}
+	for _, want := range []string{"Last backup:", "CrowdSec saw 3 attacks from 2 addresses, and blocked 2. Most were: http-probing.",
+		"Nothing needs attention."} {
+		if !strings.Contains(fm.sent[0].Body, want) {
+			t.Errorf("summary missing %q:\n%s", want, fm.sent[0].Body)
+		}
+	}
+	if h.server.notify(ctx, monday.Add(time.Hour)); len(fm.sent) != 1 {
+		t.Error("once a week")
+	}
+}
+
+// Settings → Email lists who gets what.
+func TestWhoGetsWhat(t *testing.T) {
+	h, _, _ := notifyHarness(t, auth.RoleOwner)
+	_, body := h.get("/settings/email")
+	if !strings.Contains(body, "Who gets what") || !strings.Contains(body, "sam@example.com · Problems, Waiting for you, Security for the lab") {
+		t.Errorf("who gets what:\n%s", body[strings.Index(body, "<main"):])
 	}
 }

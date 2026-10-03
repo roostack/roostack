@@ -49,7 +49,7 @@ var notifyGroups = []notifyGroup{
 	{notifyProblems, "Problems", "Backups failing, a disk running low, a service or server that stopped working, updates that failed. Sent once a problem has lasted a few minutes, then once a day while it lasts, and when it's fixed.", auth.ManageServices},
 	{notifyWaiting, "Waiting for you", "Something Roostack can't finish without you, such as a restart to finish installing updates, once it has waited a day.", auth.ManageServices},
 	{notifySecurity, "Security for the lab", "A new Owner or Admin, someone's password or two-factor reset, a server joining the lab, another lab starting to store backups here.", auth.ManageHost},
-	{notifyWeekly, "Weekly summary", "On Monday mornings: backups, disk space, and anything still needing attention.", auth.ManageServices},
+	{notifyWeekly, "Weekly summary", "On Monday mornings: backups, disk space, attacks blocked on your public addresses, and anything still needing attention.", auth.ManageServices},
 }
 
 // groupsFor are the groups a role can choose.
@@ -352,6 +352,13 @@ func (s *Server) markSent(ctx context.Context, u *store.User, now time.Time, m *
 	}
 }
 
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
+}
+
 func firstLine(s string) string {
 	line, _, _ := strings.Cut(s, "\n")
 	return line
@@ -403,6 +410,24 @@ func (s *Server) weeklySummary(ctx context.Context, u *store.User, now time.Time
 		if d := s.serverSpaces(ctx, mn.view, mn.node); d != nil {
 			for _, v := range d.Disks {
 				fmt.Fprintf(&b, "- %s: %s free of %s\n", v.Title, sizeText(v.Free), sizeText(v.Total))
+			}
+		}
+	}
+	// What CrowdSec saw on the public addresses (only once a service is
+	// public: before that, it doesn't run).
+	if s.Attacks != nil && s.Protected != nil && s.Protected(ctx) {
+		if a, err := s.Attacks(ctx, 7*24*time.Hour); err == nil {
+			b.WriteString("\nPublic addresses: ")
+			switch {
+			case a.Alerts == 0:
+				b.WriteString("no attacks seen.\n")
+			default:
+				fmt.Fprintf(&b, "CrowdSec saw %d %s from %d %s, and blocked %d.",
+					a.Alerts, plural(a.Alerts, "attack", "attacks"), a.Addresses, plural(a.Addresses, "address", "addresses"), a.Blocked)
+				if len(a.Kinds) > 0 {
+					b.WriteString(" Most were: " + strings.Join(a.Kinds, ", ") + ".")
+				}
+				b.WriteString("\n")
 			}
 		}
 	}

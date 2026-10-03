@@ -39,6 +39,17 @@
     <label>Send to <input name="to" type="email" value="{{.TestTo}}" placeholder="you@example.com" required></label>
     <button type="submit" class="secondary">Send a test email</button>
   </form>
-  <p class="hint">Who gets which emails: each person adds their address on their <a href="/account/notifications">account page</a>.</p>
 </section>
+{{with .Recipients}}
+<section class="card section" id="who">
+  <h2>Who gets what</h2>
+  <p class="hint">Each person chooses on their account's <a href="/account/notifications">Email and notifications</a> page.
+    Everyone with an address also gets security emails about their own account.</p>
+  <ul class="rows">
+    {{range .}}<li class="row-split"><span><strong>{{.Name}}</strong> <small class="hint">{{roleName .Role}}</small><br>
+      <small class="hint">{{if .Email}}{{.Email}} · {{if .Groups}}{{range $i, $g := .Groups}}{{if $i}}, {{end}}{{$g}}{{end}}{{else}}their own account's security only{{end}}
+        {{- else}}No address: no email{{end}}</small></span></li>{{end}}
+  </ul>
+</section>
+{{end}}
 {{end}}
