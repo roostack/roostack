@@ -102,6 +102,9 @@ type Manager struct {
 	setUp []string
 	// assignErr is why the last assignment couldn't be built, if it failed.
 	assignErr error
+	// applyReason says why the next apply starts, for the servers' logs
+	// (ApplyBecause); callers hold mu.
+	applyReason string
 	// keyMu makes recovery key changes one at a time (keychange.go).
 	keyMu sync.Mutex
 	// public is the lab's public access settings as changed at runtime
@@ -284,6 +287,7 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		m.secrets = map[string]map[string][]byte{}
 	}
 	m.secrets[p.Name] = secrets
+	m.applyReason = "Installing " + name
 	m.startApplyLocked()
 	return nil
 }
@@ -357,6 +361,7 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
 	}
+	m.applyReason = "Changing " + name + "'s connections"
 	m.startApplyLocked()
 	return nil
 }
@@ -477,6 +482,7 @@ func (m *Manager) UpdateSettings(ctx context.Context, name string, req SettingsR
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
 	}
+	m.applyReason = "Changing " + name + "'s settings"
 	m.startApplyLocked()
 	return nil
 }
@@ -496,6 +502,7 @@ func (m *Manager) Remove(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
+	m.applyReason = "Removing " + name
 	m.startApplyLocked()
 	return nil
 }

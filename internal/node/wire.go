@@ -32,6 +32,8 @@ type WireAssignment struct {
 	// them, on its address GuestAddr on the guests' link.
 	Guests    []generate.GuestStorage `json:"guests,omitempty"`
 	GuestAddr string                  `json:"guest_addr,omitempty"`
+	// Reason says why it was sent, for the apply's log.
+	Reason string `json:"reason,omitempty"`
 }
 
 // LabContext is the lab-wide settings a node's services need.
@@ -60,7 +62,7 @@ type WireProxied struct {
 // from the lab's catalog.
 func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error) {
 	w := WireAssignment{Version: version, Lab: a.Lab,
-		Secrets: a.Secrets, SetUp: a.SetUp, Storage: a.Storage, Guests: a.Guests, GuestAddr: a.GuestAddr}
+		Secrets: a.Secrets, SetUp: a.SetUp, Storage: a.Storage, Guests: a.Guests, GuestAddr: a.GuestAddr, Reason: a.Reason}
 	enc := func(s state.Service) (WireService, error) {
 		in, err := s.Instance.Marshal()
 		if err != nil {
@@ -91,7 +93,7 @@ func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error)
 
 // Decode turns a wire assignment back into one, checking every file.
 func Decode(w WireAssignment) (Assignment, error) {
-	a := Assignment{Lab: w.Lab, Secrets: w.Secrets, SetUp: w.SetUp, Storage: w.Storage, Guests: w.Guests, GuestAddr: w.GuestAddr}
+	a := Assignment{Lab: w.Lab, Secrets: w.Secrets, SetUp: w.SetUp, Storage: w.Storage, Guests: w.Guests, GuestAddr: w.GuestAddr, Reason: w.Reason}
 	dec := func(ws WireService) (state.Service, error) {
 		p, err := pkgspec.Parse(ws.Package)
 		if err != nil {

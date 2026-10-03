@@ -76,6 +76,7 @@ func (m *Manager) RetryInstallWith(ctx context.Context, name string, settings, s
 		m.secrets = map[string]map[string][]byte{}
 	}
 	m.secrets[p.Name] = typed
+	m.applyReason = "Trying " + name + "'s setup again"
 	m.startApplyLocked()
 	return nil
 }

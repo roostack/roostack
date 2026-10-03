@@ -33,6 +33,7 @@ import (
 type fakeManager struct {
 	guestSpace manager.GuestSpace
 	disks      []node.DiskSpace
+	events     []store.Event
 	installs   []manager.InstallRequest
 	removed    []string
 	failWith   error
@@ -81,6 +82,35 @@ type fakeManager struct {
 }
 
 // DiskSpace: the fake's disk, if it has one.
+func (f *fakeManager) History(_ context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
+	var out []store.Event
+	for _, e := range f.events {
+		if (kind == "" || e.Kind == kind) && (before.IsZero() || e.Finished.Before(before)) {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+func (f *fakeManager) HistoryEvent(_ context.Context, id int64) (store.Event, error) {
+	for _, e := range f.events {
+		if e.ID == id {
+			return e, nil
+		}
+	}
+	return store.Event{}, node.ErrNotFound
+}
+func (f *fakeManager) CullHistory(_ context.Context, before time.Time) (int64, error) {
+	var keep []store.Event
+	for _, e := range f.events {
+		if !e.Finished.Before(before) {
+			keep = append(keep, e)
+		}
+	}
+	n := int64(len(f.events) - len(keep))
+	f.events = keep
+	return n, nil
+}
+
 // DiskSpaces is f.disk (the system disk, with the backup store) and any
 // more disks in f.disks.
 func (f *fakeManager) DiskSpaces(context.Context) ([]node.DiskSpace, error) {

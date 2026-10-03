@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"cmp"
 	"context"
 	"slices"
 	"strings"
@@ -114,15 +115,22 @@ func (m *Manager) proxied(services []state.Service, id string) []state.Proxied {
 }
 
 // Apply hands every server its latest assignment (e.g. at startup).
-func (m *Manager) Apply() {
+func (m *Manager) Apply() { m.ApplyBecause("") }
+
+// ApplyBecause starts an apply, saying why in the servers' logs ("" for
+// a change to backups, storage or the lab network).
+func (m *Manager) ApplyBecause(reason string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.applyReason = reason
 	m.startApplyLocked()
 }
 
 // startApplyLocked builds each server's assignment and hands it over;
 // servers apply in the background.
 func (m *Manager) startApplyLocked() {
+	reason := cmp.Or(m.applyReason, "A change to backups, storage or the lab's servers")
+	m.applyReason = ""
 	services, err := state.LoadServices(m.Lab)
 	if err == nil {
 		err = m.allocateAndSave(services)
@@ -148,7 +156,7 @@ func (m *Manager) startApplyLocked() {
 		if n == m.Node {
 			id = m.Lab.NodeID
 		}
-		a := node.Assignment{Services: m.onNode(services, id), Lab: lab}
+		a := node.Assignment{Services: m.onNode(services, id), Lab: lab, Reason: reason}
 		for _, s := range a.Services {
 			name := s.Package.Name
 			for k, v := range m.secrets[name] {

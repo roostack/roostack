@@ -3,8 +3,9 @@
 // show a one-line status to everyone and the details to those who want
 // them.
 //
-// Logs live in memory: the latest run of each kind is kept. Results that
-// must survive a restart are stored by their owners (e.g. backup runs).
+// Logs live in memory: the latest run of each kind is kept. When one
+// finishes, Finished (if set) is called with it, so it can be kept as
+// history (SPEC.md §6.14); a routine run (nothing changed) isn't.
 package activity
 
 import (
@@ -44,6 +45,9 @@ type Registry struct {
 	mu   sync.Mutex
 	logs map[string]*Log
 	now  func() time.Time
+	// Finished is called with each log as it finishes, unless it was
+	// routine (Log.Routine); optional. Set it before logs start.
+	Finished func(kind string, s Snapshot)
 }
 
 // New returns an empty registry.
@@ -54,7 +58,7 @@ func (r *Registry) Start(kind, title string) *Log {
 	if r == nil {
 		return nil // logging is optional: a nil Log discards
 	}
-	l := &Log{title: title, started: r.now(), now: r.now}
+	l := &Log{title: title, started: r.now(), now: r.now, kind: kind, registry: r}
 	r.mu.Lock()
 	r.logs[kind] = l
 	r.mu.Unlock()
@@ -89,6 +93,20 @@ type Log struct {
 	partial  string // an incomplete line from Write
 	updated  time.Time
 	now      func() time.Time
+	kind     string
+	registry *Registry
+	routine  bool
+}
+
+// Routine marks a run that changed nothing (e.g. an apply with nothing to
+// do): it's shown as the latest, but not kept as history.
+func (l *Log) Routine() {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	l.routine = true
+	l.mu.Unlock()
 }
 
 // Snapshot is a copy of a log for display.
@@ -178,6 +196,10 @@ func (l *Log) Finish(err error) {
 	} else {
 		l.add("==> Done")
 	}
+	if l.registry != nil && l.registry.Finished != nil && (!l.routine || err != nil) {
+		snap := l.snapshotLocked()
+		go l.registry.Finished(l.kind, snap)
+	}
 }
 
 func (l *Log) add(line string) {
@@ -195,6 +217,10 @@ func (l *Log) add(line string) {
 func (l *Log) Snapshot() Snapshot {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	return l.snapshotLocked()
+}
+
+func (l *Log) snapshotLocked() Snapshot {
 	lines := append([]string(nil), l.lines...)
 	if l.partial != "" {
 		lines = append(lines, l.partial)

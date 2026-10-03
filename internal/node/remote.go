@@ -147,6 +147,7 @@ func (r *Remote) unchanged(w WireAssignment) bool {
 	}
 	old, next := *r.latest, w
 	old.Version, next.Version = 0, 0
+	old.Reason, next.Reason = "", "" // why doesn't change what
 	a, err1 := json.Marshal(old)
 	b, err2 := json.Marshal(next)
 	return err1 == nil && err2 == nil && bytes.Equal(a, b)

@@ -111,6 +111,7 @@ func (m *Manager) SetPublic(ctx context.Context, name string, req PublicRequest)
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
 	}
+	m.applyReason = "Changing who can reach " + name
 	m.startApplyLocked()
 	return nil
 }
@@ -166,6 +167,7 @@ func (m *Manager) SetSignalSharing(share bool) error {
 	}
 	p := m.publicLocked()
 	p.SharingAsked, p.NoSharing = true, !share
+	m.applyReason = "Changing whether CrowdSec shares attack reports"
 	m.startApplyLocked()
 	return nil
 }

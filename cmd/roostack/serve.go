@@ -217,7 +217,7 @@ func serve(args []string) error {
 		return ""
 	}
 	// Converge on startup, e.g. after Roostack itself was upgraded.
-	mgr.Apply()
+	mgr.ApplyBecause("Roostack started (after a restart or an update)")
 	// After a lab restore, the services' databases go back once they're set
 	// up again.
 	if r, ok := local.Jobs.Restores.(*backup.Restores); ok {
@@ -249,6 +249,8 @@ func serve(args []string) error {
 	// Email, through the lab's SMTP server (SPEC.md §6.13).
 	srv.Mail = &mail.Service{LabPath: *labPath, PasswordFile: lab.Paths.MailPasswordFile()}
 	go srv.RunNotifier(ctx)
+	// History older than the Owner's choice goes, on every server (SPEC.md §6.14).
+	go srv.RunHistoryCull(ctx)
 	srv.DetectNetwork = public.DetectNetwork
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
 	// A new install can instead become a lab restored from its backups.
