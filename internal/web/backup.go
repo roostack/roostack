@@ -45,6 +45,7 @@ var templateFuncs = template.FuncMap{
 	"themes":  func() []Theme { return Themes },
 	"bytes":   func(n uint64) string { return units.Bytes(int64(n)) },
 	// roleName shows a role as people say it ("Owner").
+	"idleText": idleText,
 	"roleName": func(role string) string {
 		if role == "" {
 			return ""

@@ -100,7 +100,7 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), u, "setup", "created the first Owner account")
-	if err := s.startSession(w, r, u); err != nil {
+	if err := s.startSession(w, r, u, false); err != nil {
 		s.serverError(w, err)
 		return
 	}
@@ -112,7 +112,7 @@ func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/setup")
 		return
 	}
-	s.render(w, "login", map[string]any{})
+	s.renderLogin(w, r, map[string]any{})
 }
 
 func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
@@ -135,20 +135,20 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 		s.Log.Warn("failed login", "user", username, "remote", r.RemoteAddr)
 		time.Sleep(failedLoginDelay)
 		w.WriteHeader(http.StatusUnauthorized)
-		s.render(w, "login", map[string]any{"Error": "Wrong username or password.", "Username": username})
+		s.renderLogin(w, r, map[string]any{"Error": "Wrong username or password.", "Username": username})
 		return
 	}
 	if u.TOTPSecret != "" {
 		// Say so now rather than after a code that can't work.
 		if until := auth.TOTPLockedUntil(u.TOTPFailures, u.TOTPFailedAt); time.Now().Before(until) {
 			w.WriteHeader(http.StatusTooManyRequests)
-			s.render(w, "login", map[string]any{"Error": lockedMessage(until), "Username": username})
+			s.renderLogin(w, r, map[string]any{"Error": lockedMessage(until), "Username": username})
 			return
 		}
 		s.startPending(w, r, u)
 		return
 	}
-	if err := s.startSession(w, r, u); err != nil {
+	if err := s.startSession(w, r, u, r.FormValue("remember") == "on"); err != nil {
 		s.serverError(w, err)
 		return
 	}
@@ -172,7 +172,7 @@ func (s *Server) startPending(w http.ResponseWriter, r *http.Request, u *store.U
 			delete(s.pending, k)
 		}
 	}
-	s.pending[auth.HashToken(token)] = &pendingLogin{userID: u.ID, expires: now.Add(pendingDuration)}
+	s.pending[auth.HashToken(token)] = &pendingLogin{userID: u.ID, expires: now.Add(pendingDuration), remember: r.FormValue("remember") == "on"}
 	s.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{
 		Name: pendingCookie, Value: token, Path: "/login", MaxAge: int(pendingDuration.Seconds()),
@@ -196,7 +196,7 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Unlock()
 	if p == nil {
-		s.render(w, "login", map[string]any{"Error": "That took too long. Please log in again."})
+		s.renderLogin(w, r, map[string]any{"Error": "That took too long. Please log in again."})
 		return
 	}
 
@@ -219,7 +219,7 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 			delete(s.pending, key)
 			s.mu.Unlock()
 			w.WriteHeader(http.StatusTooManyRequests)
-			s.render(w, "login", map[string]any{"Error": lockedMessage(until)})
+			s.renderLogin(w, r, map[string]any{"Error": lockedMessage(until)})
 			return
 		}
 		w.WriteHeader(http.StatusUnauthorized)
@@ -231,7 +231,7 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 	delete(s.pending, key)
 	s.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: pendingCookie, Value: "", Path: "/login", MaxAge: -1, HttpOnly: true})
-	if err := s.startSession(w, r, u); err != nil {
+	if err := s.startSession(w, r, u, p.remember); err != nil {
 		s.serverError(w, err)
 		return
 	}

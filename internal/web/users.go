@@ -25,7 +25,10 @@ func (s *Server) renderUsers(w http.ResponseWriter, r *http.Request, status int,
 		return
 	}
 	data := map[string]any{"User": currentUser(r), "Users": users,
-		"Roles": []string{auth.RoleOwner, auth.RoleAdmin, auth.RoleMember}}
+		"Roles": []string{auth.RoleOwner, auth.RoleAdmin, auth.RoleMember},
+		// Signing out after inactivity (session.go).
+		"IdleMinutes": int(s.idleLimit(r.Context()).Minutes()), "IdleChoices": idleChoices,
+		"OfferRemember": s.offerRemember(r.Context()), "SignInSaved": r.URL.Query().Get("signin") == "saved"}
 	for k, v := range extra {
 		data[k] = v
 	}

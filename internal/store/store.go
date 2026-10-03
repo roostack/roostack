@@ -195,6 +195,13 @@ var migrations = []string{
 		output   TEXT NOT NULL DEFAULT ''
 	);
 	CREATE INDEX events_finished ON events (finished);`,
+	// Signing out after a while without activity (SPEC.md §5): when each
+	// session was last used, and whether it was "keep me signed in".
+	`ALTER TABLE sessions ADD COLUMN last_seen INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE sessions ADD COLUMN remember INTEGER NOT NULL DEFAULT 0;`,
+	// Sessions from before count as used now, so the update doesn't sign
+	// everyone out.
+	`UPDATE sessions SET last_seen = CAST(strftime('%s', 'now') AS INTEGER) WHERE last_seen = 0;`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -719,9 +726,40 @@ func scanUserRow(row interface{ Scan(...any) error }) (*User, error) {
 
 // CreateSession stores a session. Only a hash of the token is stored.
 func (s *Store) CreateSession(ctx context.Context, tokenHash string, userID int64, expires time.Time) error {
+	return s.CreateSessionRemember(ctx, tokenHash, userID, expires, false)
+}
+
+// CreateSessionRemember stores a session; remember: "keep me signed in"
+// (no sign-out for inactivity).
+func (s *Store) CreateSessionRemember(ctx context.Context, tokenHash string, userID int64, expires time.Time, remember bool) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)`,
-		tokenHash, userID, expires.Unix())
+		`INSERT INTO sessions (token_hash, user_id, expires_at, last_seen, remember) VALUES (?, ?, ?, ?, ?)`,
+		tokenHash, userID, expires.Unix(), time.Now().Unix(), remember)
+	return err
+}
+
+// SessionInfo is a session's user, when it was last used, and whether it's
+// "keep me signed in".
+func (s *Store) SessionInfo(ctx context.Context, tokenHash string) (u *User, lastSeen time.Time, remember bool, err error) {
+	var seen int64
+	row := s.db.QueryRowContext(ctx, `SELECT `+userColumns+`, s.last_seen, s.remember
+		 FROM sessions s JOIN users ON users.id = s.user_id
+		 WHERE s.token_hash = ? AND s.expires_at > ?`, tokenHash, time.Now().Unix())
+	u, err = scanUserRow(scanTail{row, []any{&seen, &remember}})
+	return u, time.Unix(seen, 0), remember, err
+}
+
+// scanTail scans a user row with extra columns after the user's.
+type scanTail struct {
+	row   *sql.Row
+	extra []any
+}
+
+func (t scanTail) Scan(dest ...any) error { return t.row.Scan(append(dest, t.extra...)...) }
+
+// TouchSession records that a session was used at now.
+func (s *Store) TouchSession(ctx context.Context, tokenHash string, now time.Time) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE sessions SET last_seen = ? WHERE token_hash = ?`, now.Unix(), tokenHash)
 	return err
 }
 
