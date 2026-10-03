@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"hash/fnv"
 	"net/http"
@@ -262,7 +263,10 @@ func (s *Server) backupsPage(w http.ResponseWriter, r *http.Request) {
 	s.renderBackups(w, r, data)
 }
 
-// renderBackups shows a server's Backups page; data may carry an error.
+// renderBackups shows the Backups page; data may carry an error. The
+// status, latest run and plan are the chosen server's (the switcher);
+// restoring, storage at other labs and the recovery key are the whole
+// lab's, the same whichever server is chosen.
 func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[string]any) {
 	m := s.serverRefOf(r)
 	data["Backup"] = s.backupView(r)
@@ -272,9 +276,11 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	if m.This {
 		data["BackupRepo"] = s.BackupRepo
 	}
-	data["CanRestore"] = s.restores(r) != nil && auth.Can(currentUser(r).Role, auth.ManageHost)
-	// The recovery key is the lab's, kept on the server that runs it.
-	data["RecoveryKey"] = m.This && s.Setup != nil && auth.Can(currentUser(r).Role, auth.ManageHost) && s.hasRecoveryKey()
+	owner := auth.Can(currentUser(r).Role, auth.ManageHost)
+	data["CanRestore"] = owner && s.labHasBackups(r)
+	// The recovery key is the lab's, kept by the controller (which serves
+	// this page).
+	data["RecoveryKey"] = s.Setup != nil && owner && s.hasRecoveryKey()
 	if data["RecoveryKey"] == true && s.Manager != nil {
 		if k, err := s.Manager.KeyChangeStatus(); err == nil {
 			data["KeyChange"] = k
@@ -283,16 +289,10 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	if a := s.activityFor(r, activity.Backup); a != nil {
 		data["BackupActivity"] = a
 	}
-	// Only this server's services can be restored here.
-	var services []ServiceView
-	if all, ok := data["Services"].([]ServiceView); ok {
-		for _, sv := range all {
-			if sv.Server == m.Name || (m.This && sv.Server == "") {
-				services = append(services, sv)
-			}
-		}
-	}
-	data["ServerServices"] = services
+	// Every service in the lab can be restored, from any backup of it
+	// (SPEC.md §10.10), listed by the server it runs on.
+	all, _ := data["Services"].([]ServiceView)
+	data["RestoreGroups"] = s.servicesByServer(all)
 	// Where backups go: the plan (SPEC.md §6.9).
 	if s.Manager != nil && auth.Can(currentUser(r).Role, auth.ManageHost) {
 		// Storage at other labs is the whole lab's, shown on every server's page.
@@ -308,6 +308,71 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	s.render(w, "backups", data)
+}
+
+// serviceGroup is the services on one server.
+type serviceGroup struct {
+	Server   string
+	Services []ServiceView
+}
+
+// servicesByServer groups services by the server they run on, in the
+// lab's order of servers (one unnamed group with a single server).
+func (s *Server) servicesByServer(services []ServiceView) []serviceGroup {
+	var order []string
+	if s.Manager != nil {
+		if ms, err := s.Manager.Servers(); err == nil && len(ms) > 1 {
+			for _, m := range ms {
+				order = append(order, m.Name)
+			}
+		}
+	}
+	this := ""
+	if s.Node != nil && len(order) > 0 {
+		this = s.Node.Identity().Name
+	}
+	var groups []serviceGroup
+	add := func(name string, sv ServiceView) {
+		for i := range groups {
+			if groups[i].Server == name {
+				groups[i].Services = append(groups[i].Services, sv)
+				return
+			}
+		}
+		groups = append(groups, serviceGroup{Server: name, Services: []ServiceView{sv}})
+	}
+	for _, sv := range services {
+		name := ""
+		if len(order) > 0 {
+			name = cmp.Or(sv.Server, this)
+		}
+		add(name, sv)
+	}
+	slices.SortStableFunc(groups, func(a, b serviceGroup) int {
+		return cmp.Compare(slices.Index(order, a.Server), slices.Index(order, b.Server))
+	})
+	return groups
+}
+
+// labHasBackups reports whether any server in the lab has backups set
+// up, so there's something to restore from.
+func (s *Server) labHasBackups(r *http.Request) bool {
+	if s.restores(r) != nil || (s.Node != nil && s.Node.Restores() != nil) {
+		return true
+	}
+	if s.Manager == nil {
+		return false
+	}
+	servers, err := s.Manager.Servers()
+	if err != nil {
+		return false
+	}
+	for _, m := range servers {
+		if _, _, ok := s.Manager.BackupTargetOf(r.Context(), m.ID); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) backupsPartial(w http.ResponseWriter, r *http.Request) {

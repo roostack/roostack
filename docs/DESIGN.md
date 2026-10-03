@@ -103,6 +103,7 @@ Template components are called as functions; everything else is plain HTML with 
 | Page help | `<div class="page-top">{{back …}}{{help "settings/people" "People and access"}}</div>` above the page title | Every page with a help page: a question-mark icon and the help page's title, top right, opening in a new window; the back link or setup step sits on its left. `TestHelpLinks` checks each page and #section exists in `help/docs` |
 | New window | `<a href="…" target="_blank" rel="noopener">Text{{template "new-window"}}</a>` | Every link that opens a new window (the help, the design system, services, other sites): an icon after the text, and "(opens in a new window)" for screen readers. `TestNewWindowLinks` checks every such link has it |
 | Card | `.card`, with a `.heading` row for title plus link | One topic per card |
+| Area heading | `<h2 class="area-heading">` between cards | A page with groups of cards: Backups has "Each server's backups" (the server switcher, then that server's cards) and "Your whole lab" (the same whichever server is chosen). Only when there's more than one group |
 | Facts | `<dl class="facts">` | Label/value pairs; stack on phones |
 | Forms | `<label>Text <input><small>hint</small></label>`, `label.check` for checkboxes and radios, `.with-suffix`, `select.inline` | Errors: `<p class="error" role="alert">` above the form |
 | Rows | `ul.rows` with `li.row-split` | Lists you act on (people, kept copies) |

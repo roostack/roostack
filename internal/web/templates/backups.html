@@ -2,8 +2,12 @@
 {{define "content"}}
 <section>
   <div class="page-top">{{help "backups" "Your backup plan"}}</div>
-  <h1>Backups{{if not .Server.This}} · {{.Server.Name}}{{end}}</h1>
+  <h1>Backups</h1>
+  {{if .Switcher}}
+  <h2 class="area-heading">Each server's backups</h2>
+  <p class="hint">Each server backs up its own services. Choose one to see its status and backup plan.</p>
   {{template "server-switcher" .}}
+  {{end}}
   <div hx-get="/partials/backups{{if not .Server.This}}?server={{.Server.ID}}{{end}}" hx-trigger="every 10s [document.visibilityState === 'visible'], visibilitychange[document.visibilityState === 'visible'] from:document, activity-done from:body" hx-swap="innerHTML">
     {{template "backup-card" .}}
   </div>
@@ -14,6 +18,24 @@
   </section>
   {{end}}
   {{template "backup-plan" .}}
+  {{if .Switcher}}<h2 class="area-heading">Your whole lab</h2>{{end}}
+  <section class="card section">
+    <h2>Restoring</h2>
+    {{if .CanRestore}}
+      {{with .RestoreGroups}}
+      <p>Put a service's data back to how it was in a backup, from any of your lab's backups, onto any server.
+        Its current data is kept aside first; nothing is deleted.</p>
+      {{range .}}
+      {{with .Server}}<h3>On {{.}}</h3>{{end}}
+      <ul class="plain">{{range .Services}}<li><a href="/backups/restore/{{.Name}}">Restore {{.Title}}…</a></li>{{end}}</ul>
+      {{end}}
+      {{else}}<p class="hint">No services installed.</p>{{end}}
+    {{else if .IsOwner}}
+      <p class="hint">Restoring needs backups: once a server's backup 1 is set up, its services can be restored from here.</p>
+    {{else}}
+      <p class="hint">Only the Owner can restore services.</p>
+    {{end}}
+  </section>
   {{with .Remotes}}
   <section class="card section">
     <h2>Storage at other labs</h2>
@@ -27,23 +49,10 @@
     </ul>
   </section>
   {{end}}
-  <section class="card section">
-    <h2>Restoring</h2>
-    {{if .CanRestore}}
-      {{with .ServerServices}}
-      <p>Put a service's data back to how it was in a backup. Its current data is kept aside first; nothing is deleted.</p>
-      <ul class="plain">{{range .}}<li><a href="/backups/restore/{{.Name}}">Restore {{.Title}}…</a></li>{{end}}</ul>
-      {{else}}<p class="hint">No services installed.</p>{{end}}
-    {{else if .IsOwner}}
-      <p class="hint">Restoring needs backups: once backup 1 is set up, services can be restored from here.</p>
-    {{else}}
-      <p class="hint">Only the Owner can restore services.</p>
-    {{end}}
-  </section>
   {{if .RecoveryKey}}
   <section class="card section" id="recovery-key">
     <h2>Recovery key</h2>
-    <p>Your backups are encrypted with your recovery key. If this server is lost, you need it to get your data back.
+    <p>Your backups are encrypted with your recovery key. One key opens every backup in your lab. If your servers are lost, you need it to get your data back.
       Lost your copy? Roostack can show it again, after checking it's you.</p>
     <p><a href="/backups/recovery-key">Show recovery key…</a> · <a href="/backups/recovery-key/change">Change recovery key…</a></p>
     {{with .KeyChange}}
