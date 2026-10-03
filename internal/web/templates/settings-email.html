@@ -25,7 +25,8 @@
       <small>Kept on this server, readable only by Roostack, and never shown again.</small></label>
     {{if $.HasPassword}}<label class="check"><input type="checkbox" name="clear_password"><span>Forget the saved password</span></label>{{end}}
     <label>Send from <input name="from" value="{{.From}}" placeholder="roostack@example.com" required autocapitalize="off" spellcheck="false">
-      <small>The address emails come from. Your provider may only allow addresses you own, such as one on your domain.</small></label>
+      <small>The address emails come from. Your provider may only allow addresses you own: Roostack suggests one on your
+        lab's domain, which your provider may need you to add first.</small></label>
     <button type="submit">Save</button>
   </form>
   {{end}}
