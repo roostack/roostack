@@ -62,7 +62,7 @@ const readCache = 10 * time.Second
 
 var cachedReads = map[string]bool{
 	"/v1/services": true, "/v1/services/details": true, "/v1/builtins": true, "/v1/backups": true,
-	"/v1/disk": true, "/v1/settings": true, "/v1/updates": true, "/v1/host/changes": true, "/v1/kept": true,
+	"/v1/disks": true, "/v1/settings": true, "/v1/updates": true, "/v1/host/changes": true, "/v1/kept": true,
 }
 
 type cachedRead struct {

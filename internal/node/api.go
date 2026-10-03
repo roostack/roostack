@@ -369,12 +369,12 @@ func (s *Server) Handler() http.Handler {
 		}
 		return nil, mv.LoadDumps(ctx(r), svc(r))
 	})
-	handle("GET /v1/disk", func(r *http.Request) (any, error) {
+	handle("GET /v1/disks", func(r *http.Request) (any, error) {
 		d, ok := n.(Disks)
 		if !ok {
 			return nil, ErrNotFound
 		}
-		return d.DiskSpace(ctx(r))
+		return d.DiskSpaces(ctx(r))
 	})
 	handle("GET /v1/kept", func(r *http.Request) (any, error) {
 		mv, err := mover()

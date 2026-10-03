@@ -305,14 +305,14 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 	}
 	data["Kept"] = keptBy
 	// Each server's disk space, asked of each at once.
-	spaces := make([]*spaceView, len(servers))
+	spaces := make([]*serverDisks, len(servers))
 	for i, mc := range servers {
 		if n := s.Manager.NodeByID(mc.ID); n != nil {
-			wg.Go(func() { spaces[i] = s.serverSpace(r.Context(), serverRef{ID: mc.ID, Name: mc.Name, This: mc.This}, n) })
+			wg.Go(func() { spaces[i] = s.serverSpaces(r.Context(), serverRef{ID: mc.ID, Name: mc.Name, This: mc.This}, n) })
 		}
 	}
 	wg.Wait()
-	spaceBy := map[string]*spaceView{}
+	spaceBy := map[string]*serverDisks{}
 	for i, mc := range servers {
 		spaceBy[mc.ID] = spaces[i]
 	}

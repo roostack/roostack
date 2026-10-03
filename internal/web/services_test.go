@@ -32,6 +32,7 @@ import (
 
 type fakeManager struct {
 	guestSpace manager.GuestSpace
+	disks      []node.DiskSpace
 	installs   []manager.InstallRequest
 	removed    []string
 	failWith   error
@@ -80,11 +81,15 @@ type fakeManager struct {
 }
 
 // DiskSpace: the fake's disk, if it has one.
-func (f *fakeManager) DiskSpace(context.Context) (node.DiskSpace, error) {
+// DiskSpaces is f.disk (the system disk, with the backup store) and any
+// more disks in f.disks.
+func (f *fakeManager) DiskSpaces(context.Context) ([]node.DiskSpace, error) {
 	if f.disk == nil {
-		return node.DiskSpace{}, errors.New("no disk")
+		return nil, errors.New("no disk")
 	}
-	return *f.disk, nil
+	d := *f.disk
+	d.Kind, d.Mount, d.Store = node.DiskSystem, "/", true
+	return append([]node.DiskSpace{d}, f.disks...), nil
 }
 
 func (f *fakeManager) Settings() node.Settings { return f.settings }
@@ -1364,14 +1369,14 @@ func TestServerDiskSpace(t *testing.T) {
 	if _, body := h.get("/"); !strings.Contains(body, "Other labs could fill This server&#39;s disk: they&#39;ve been promised 75.0 GB more") {
 		t.Error("promised more than is free")
 	}
-	// 55 GB still to come of 60 GB free reaches into the 10 GB kept free.
+	// 55 GB still to come of 55 GB free reaches into the 10 GB kept free.
 	fm.guests[0].Quota = 60 * units.GB
-	if _, body := h.get("/"); !strings.Contains(body, "Space promised to other labs now takes some of what This server keeps free") {
+	if _, body := h.get("/"); !strings.Contains(body, "Space promised to other labs now takes some of what&#39;s kept free on This server&#39;s disk") {
 		t.Error("promised space reaching into the headroom")
 	}
-	fm.guests[0].Quota = 50 * units.GB
+	fm.guests[0].Quota = 45 * units.GB
 	if _, body := h.get("/"); strings.Contains(body, "Space promised") {
-		t.Error("45 GB to come leaves the 10 GB kept free")
+		t.Error("40 GB to come leaves the 10 GB kept free")
 	}
 	fm.guests = nil
 	fm.disk.Free = 3 * units.GB
@@ -1501,5 +1506,27 @@ func TestDiskSpaceWhileCounting(t *testing.T) {
 	}
 	if code, _ := h.get("/settings/servers/n-nope/disk"); code != http.StatusNotFound {
 		t.Errorf("unknown server: %d", code)
+	}
+}
+
+// A server with more than one disk shows each, named, with the parts on
+// it; a nearly full one is named in its warning.
+func TestServerDisks(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.disk = &node.DiskSpace{Total: 100 * units.GB, Used: 40 * units.GB, Free: 55 * units.GB, Services: 12 * units.GB, Backups: 3 * units.GB}
+	fm.disks = []node.DiskSpace{
+		{Kind: node.DiskMedia, Mount: "/srv/roostack/media", Total: 2000 * units.GB, Used: 800 * units.GB, Free: 1200 * units.GB, Services: 790 * units.GB},
+		{Kind: node.DiskBackup, Name: "BACKUP", Mount: "/media/backup", Total: 500 * units.GB, Used: 490 * units.GB, Free: 10 * units.GB, Backups: 480 * units.GB},
+	}
+	_, body := h.get("/settings/servers")
+	for _, want := range []string{"Disks</dt>", "<strong>System disk</strong>", "<strong>Media disk</strong>", "mounted at <code>/srv/roostack/media</code>",
+		"<strong>Backup drive BACKUP</strong>", "Services&#39; data</dt><dd>790.0 GB", "Everything else</dt><dd>10.0 GB",
+		"This server&#39;s backup drive BACKUP is running out of disk space: 10.0 GB free of 500.0 GB"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("servers page missing %q", want)
+		}
+	}
+	if _, body := h.get("/"); !strings.Contains(body, "This server&#39;s backup drive BACKUP is running out") {
+		t.Error("the full drive needs attention")
 	}
 }

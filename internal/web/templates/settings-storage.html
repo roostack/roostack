@@ -8,7 +8,7 @@
     them, and each lab gets its own space with a size limit.</p>
   {{with .HostSpace}}
   <h2>Space on {{$.HostServer.Name}}</h2>
-  {{template "disk-space-live" .}}
+  {{template "disks-live" .}}
   {{with $.Space}}<p>Other labs can be given up to <strong>{{size .Left}}</strong> more, keeping 10% of the disk free for your own
     services and backups.</p>{{end}}
   {{end}}

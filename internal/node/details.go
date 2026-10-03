@@ -71,6 +71,9 @@ const sizeTTL = 24 * time.Hour
 type sizes struct {
 	mu       sync.Mutex
 	services map[string]int64 // each service's data
+	// dirs is each folder counted (a service's data folder, a backup
+	// drive's repository), by path: what's on which disk (disk.go).
+	dirs map[string]int64
 	// backups and guests are the backup store's parts: the lab's own
 	// backups, and other labs'.
 	backups, guests int64
@@ -92,19 +95,6 @@ func (n *Local) dataSize(service string) int64 {
 	return size
 }
 
-// storeSize returns the backup store's counted sizes (-1 if not yet).
-func (n *Local) storeSize() (backups, guests int64, at time.Time) {
-	n.sizes.mu.Lock()
-	defer n.sizes.mu.Unlock()
-	if n.sizes.at.IsZero() || time.Since(n.sizes.at) > sizeTTL {
-		n.countSizesLocked()
-	}
-	if n.sizes.at.IsZero() {
-		return -1, -1, time.Time{}
-	}
-	return n.sizes.backups, n.sizes.guests, n.sizes.at
-}
-
 // CountSizes counts every size again, in the background (after the
 // nightly backup).
 func (n *Local) CountSizes() {
@@ -123,12 +113,29 @@ func (n *Local) countSizesLocked() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
 		_, services := n.Assigned()
-		counted := map[string]int64{}
+		counted, dirs := map[string]int64{}, map[string]int64{}
 		for _, s := range services {
-			if size, err := n.DataSize(ctx, s.Package.Name); err == nil {
-				counted[s.Package.Name] = size
+			// Each folder on its own: they may be on different disks.
+			var total int64
+			var err error
+			for _, d := range n.DataDirs(s.Package.Name) {
+				var size int64
+				if size, err = n.du(ctx, true, d); err != nil {
+					break
+				}
+				dirs[d], total = size, total+size
+			}
+			if err == nil {
+				counted[s.Package.Name] = total
 			} else if n.Log != nil {
 				n.Log.Warn("counting a service's data", "service", s.Package.Name, "err", err)
+			}
+		}
+		for _, f := range n.folders() {
+			if f.role == "drive" {
+				if size, err := n.du(ctx, false, f.path); err == nil {
+					dirs[f.path] = size
+				}
 			}
 		}
 		dir := n.Lab.Paths.BackupStoreDir()
@@ -136,7 +143,7 @@ func (n *Local) countSizesLocked() {
 		all, err := n.du(ctx, false, dir)
 		n.sizes.mu.Lock()
 		defer n.sizes.mu.Unlock()
-		n.sizes.counting, n.sizes.at, n.sizes.services = false, time.Now(), counted
+		n.sizes.counting, n.sizes.at, n.sizes.services, n.sizes.dirs = false, time.Now(), counted, dirs
 		n.sizes.backups, n.sizes.guests = -1, -1
 		if err == nil && gerr == nil {
 			n.sizes.backups, n.sizes.guests = all-guests, guests

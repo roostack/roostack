@@ -179,11 +179,18 @@
      warning. Settings → Servers and Storage for others. */}}
 {{define "not-counted"}}{{if .Counting}}<span class="spinner" aria-hidden="true"></span> counting…{{else}}not counted yet{{end}}{{end}}
 
-{{/* disk-space-live: disk-space, refreshing itself while the server
-     counts what uses its disk (it says "counting…" meanwhile). */}}
-{{define "disk-space-live"}}<div id="disk-{{.ServerID}}"{{if .Counting}} hx-get="/settings/servers/{{.ServerID}}/disk"
+{{/* disks-live: a server's disks (a serverDisks), each named when it has
+     more than one, refreshing itself while the server counts what uses
+     them (they say "counting…" meanwhile). */}}
+{{define "disks-live"}}<div id="disks-{{.ServerID}}{{if .StoreOnly}}-store{{end}}"{{if .Counting}} hx-get="/settings/servers/{{.ServerID}}/disk{{if .StoreOnly}}?store=1{{end}}"
   hx-trigger="every 3s [document.visibilityState === 'visible']" hx-swap="outerHTML"{{end}}>
-{{template "disk-space" .}}
+{{- $multi := gt (len .Disks) 1}}
+{{range .Disks}}<div class="disk">
+  {{if $multi}}<p class="disk-title"><strong>{{.Title}}</strong> <small class="hint">mounted at <code>{{.Mount}}</code></small></p>{{end}}
+  {{template "disk-space" .}}
+</div>{{end}}
+{{with index .Disks 0}}<small>Free space is up to date; the parts are counted daily, after the nightly backup
+  {{- if not .Counted.IsZero}} (last counted {{when .Counted}}){{end}}.</small>{{end}}
 </div>{{end}}
 
 {{define "disk-space"}}
@@ -199,7 +206,7 @@
 </div>
 <dl class="space-list">
   <dt>{{if not .Parts}}<span class="swatch space-used" aria-hidden="true"></span>{{end}}In use</dt><dd>{{size .Used}}</dd>
-  {{- with .Parts}}{{range .}}{{if or .Bytes (ne .Kind "guests")}}
+  {{- with .Parts}}{{range .}}{{if or .Bytes (eq .Kind "other")}}
   <dt class="sub"><span class="swatch space-{{.Kind}}" aria-hidden="true"></span>{{.Label}}</dt><dd>{{if .Bytes}}{{size .Bytes}}{{else}}none{{end}}</dd>{{end}}{{end}}
   {{- else}}
   <dt class="sub">Services' data</dt><dd>{{if gt .Services 0}}{{size .Services}}{{else if eq .Services 0}}none{{else}}{{template "not-counted" $}}{{end}}</dd>
@@ -209,8 +216,6 @@
   <dt><span class="swatch space-free" aria-hidden="true"></span>Free</dt><dd>{{size .Free}}</dd>
   {{if gt .HeldBack 0}}<dt><span class="swatch space-reserved" aria-hidden="true"></span>Reserved by the system</dt><dd>{{size .HeldBack}}, kept back by the filesystem so the system keeps working if the disk fills up</dd>{{end}}
 </dl>
-<small>The disk holding Roostack's data. Free space is up to date; the parts are counted daily, after the nightly backup
-  {{- if not .Counted.IsZero}} (last counted {{when .Counted}}){{end}}.</small>
 {{if .Warning}}{{notice .NoticeKind .Warning}}{{end}}
 {{end}}
 
