@@ -173,6 +173,22 @@ func TestRuleset(t *testing.T) {
 	}
 }
 
+// New WireGuard handshakes are limited per source address, before the
+// port's accept; other ports aren't.
+func TestRulesetWireGuardLimit(t *testing.T) {
+	fw := DefaultFirewall()
+	fw.Allow = append(fw.Allow, Rule{Port: WireGuardPort, Proto: "udp", From: FromAny, Reason: "lab network"})
+	got := fw.Ruleset()
+	limit := "udp dport 51820 @th,64,8 1 add @wg_handshakes4 { ip saddr limit rate over 5/second burst 20 packets } drop"
+	if !strings.Contains(got, limit) || !strings.Contains(got, "@wg_handshakes6 { ip6 saddr") ||
+		strings.Index(got, limit) > strings.Index(got, "udp dport 51820 accept") {
+		t.Errorf("handshake limit missing or after the accept:\n%s", got)
+	}
+	if strings.Contains(got, "udp dport 443 @th") {
+		t.Error("only WireGuard's ports are limited")
+	}
+}
+
 func TestRulesetSSHOff(t *testing.T) {
 	fw := DefaultFirewall()
 	fw.SSHFrom = FromOff

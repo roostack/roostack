@@ -101,6 +101,18 @@ func (f Firewall) Validate() error {
 	return errors.Join(errs...)
 }
 
+// wireguardLimit drops a source's new WireGuard handshakes beyond a few a
+// second. WireGuard answers nobody without a key, but checking each
+// handshake costs the server some work, so a flood of fake ones is capped
+// per address. A handshake initiation is a packet whose first payload byte
+// is 1 (@th,64,8: the byte after the 8-byte UDP header); a real peer sends
+// one every two minutes, or every 5 seconds while retrying, and once its
+// handshake is answered conntrack lets its packets through before this.
+func wireguardLimit(b *strings.Builder, port int) {
+	fmt.Fprintf(b, "\t\tudp dport %d @th,64,8 1 add @wg_handshakes4 { ip saddr limit rate over 5/second burst 20 packets } drop\n", port)
+	fmt.Fprintf(b, "\t\tudp dport %d @th,64,8 1 add @wg_handshakes6 { ip6 saddr limit rate over 5/second burst 20 packets } drop\n", port)
+}
+
 // Ruleset renders the nftables ruleset. Roostack owns only the "inet roostack"
 // table; it is replaced atomically on each apply. A drop in this table is
 // final even if other tables accept the packet.
@@ -112,6 +124,9 @@ func (f Firewall) Ruleset() string {
 	b.WriteString("table inet roostack {\n")
 	b.WriteString("\tset lan4 {\n\t\ttype ipv4_addr\n\t\tflags interval\n\t\telements = { " + lanElements(false) + " }\n\t}\n\n")
 	b.WriteString("\tset lan6 {\n\t\ttype ipv6_addr\n\t\tflags interval\n\t\telements = { " + lanElements(true) + " }\n\t}\n\n")
+	// Each source's rate of new WireGuard handshakes (wireguardLimit).
+	b.WriteString("\tset wg_handshakes4 {\n\t\ttype ipv4_addr\n\t\tflags dynamic, timeout\n\t\ttimeout 1m\n\t\tsize 65536\n\t}\n\n")
+	b.WriteString("\tset wg_handshakes6 {\n\t\ttype ipv6_addr\n\t\tflags dynamic, timeout\n\t\ttimeout 1m\n\t\tsize 65536\n\t}\n\n")
 	b.WriteString("\tchain input {\n")
 	b.WriteString("\t\ttype filter hook input priority filter; policy drop;\n\n")
 	b.WriteString("\t\tct state established,related accept\n")
@@ -134,6 +149,9 @@ func (f Firewall) Ruleset() string {
 	})
 	for _, r := range rules {
 		fmt.Fprintf(&b, "\t\t# %s\n", r.Reason)
+		if r.Proto == "udp" && r.Iface == "" && (r.Port == WireGuardPort || r.Port == GuestsPort) {
+			wireguardLimit(&b, r.Port)
+		}
 		switch {
 		case r.Iface != "":
 			fmt.Fprintf(&b, "\t\tiifname %q %s dport %d accept\n", r.Iface, r.Proto, r.Port)
