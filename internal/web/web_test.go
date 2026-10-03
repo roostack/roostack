@@ -124,13 +124,22 @@ func TestFirstRunSetup(t *testing.T) {
 		t.Fatal("expected the setup page")
 	}
 
+	// The setup code comes first; the choices only after it.
+	if _, body := h.get("/setup"); !strings.Contains(body, `action="/setup/code"`) || strings.Contains(body, "this server for?") {
+		t.Fatal("the setup code first")
+	}
+	if code, body := h.post("/setup/code", url.Values{"token": {"wrong"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "setup code isn&#39;t right") {
+		t.Fatalf("wrong code: %d", code)
+	}
 	form := url.Values{"token": {"wrong"}, "username": {"tyris"},
 		"password": {"a long password"}, "confirm": {"a long password"}}
-	if code, body := h.post("/setup", form, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "setup code is wrong") {
-		t.Fatalf("wrong token: %d", code)
-	}
-	if n, _ := h.store.CountUsers(context.Background()); n != 0 {
+	if h.post("/setup", form, h.srv.URL); func() bool { n, _ := h.store.CountUsers(context.Background()); return n != 0 }() {
 		t.Fatal("no user may be created with a wrong token")
+	}
+	h.post("/setup/code", url.Values{"token": {"the-setup-code"}}, h.srv.URL)
+	if _, body := h.get("/setup"); !strings.Contains(body, "this server for?") || strings.Contains(body, `value="new" x-model="choice" checked`) {
+		t.Fatal("then the choices, nothing chosen")
 	}
 
 	form.Set("token", "the-setup-code")

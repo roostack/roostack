@@ -65,17 +65,22 @@ func TestRestoreALabOnFirstRun(t *testing.T) {
 	h := newHarness(t, "the-setup-code")
 	fr := &fakeLabRestore{}
 	h.server.LabRestore = fr
+	// Without the setup code entered first, a wrong one is refused.
+	wrong := url.Values{"token": {"wrong"}, "kind": {"folder"}, "folder": {"/mnt/backup"}, "drive": {"other"}, "recovery_key": {"the key"}}
+	if code, body := h.post("/setup/restore", wrong, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "setup code is wrong") {
+		t.Fatalf("wrong setup code: %d", code)
+	}
+	h.post("/setup/code", url.Values{"token": {"the-setup-code"}}, h.srv.URL)
 	if _, body := h.get("/setup"); !strings.Contains(body, `href="/setup/restore"`) {
 		t.Error("the first-run page should offer restoring a lab")
+	}
+	if _, body := h.get("/setup/restore"); strings.Contains(body, `name="token"`) {
+		t.Error("once entered, the setup code isn't asked again")
 	}
 	if _, body := h.get("/setup/restore"); !strings.Contains(body, "OLD BACKUPS") || strings.Contains(body, `value="system"`) {
 		t.Error("the restore page lists connected drives (not this server's own disk)")
 	}
-	form := url.Values{"token": {"wrong"}, "kind": {"folder"}, "folder": {"/mnt/backup"}, "drive": {"other"}, "recovery_key": {"the key"}}
-	if code, body := h.post("/setup/restore", form, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "setup code is wrong") {
-		t.Fatalf("wrong setup code: %d", code)
-	}
-	form.Set("token", "the-setup-code")
+	form := url.Values{"token": {"the-setup-code"}, "kind": {"folder"}, "folder": {"/mnt/backup"}, "drive": {"other"}, "recovery_key": {"the key"}}
 	form.Set("folder", "backup")
 	if code, body := h.post("/setup/restore", form, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "full path") {
 		t.Errorf("a relative folder: %d", code)

@@ -6,7 +6,7 @@ some of your services or keep backups.
 ## 1. Install Roostack on it
 
 [Install Roostack](../start/install.md) on the new computer, as you did on
-the first. Don't go through its setup page: joining the lab sets it up.
+the first. Keep its setup code: you need it to join.
 
 ## 2. Make a join code
 
@@ -27,19 +27,25 @@ server**:
       service.
 2. Choose **Make a join code**.
 
-Roostack shows a command with the code in it. The code works once, for an
-hour. Anyone with it can add a server to your lab, so don't share it.
+Roostack shows the join code. It works once, for an hour. Anyone with it
+can add a server to your lab, so don't share it.
 
 ## 3. Join
 
-On the new server, run the command Roostack showed you:
+Open the new server's setup page (the address its installer showed), enter
+its setup code, choose **Add it to a lab you already have**, paste the join
+code, and give the server a name. Choose **Join the lab**: it connects,
+restarts as part of your lab, and the page says where to manage it. If it
+can't connect, it says why, and nothing is changed: fix it and try again.
+
+On the command line instead, under the code there's **Or on the new
+server's command line**:
 
 ```bash
 sudo roostack node join <code>
 ```
 
-It connects to your lab, and shows up in **Settings → Servers** as up to
-date. It's ready to run services: choose it under **Run it on** when you
+Either way, it shows up in **Settings → Servers** as up to date. It's ready to run services: choose it under **Run it on** when you
 [add a service](../services/add.md), or [move one](move.md) there.
 
 ## A server outside your home: port forwarding

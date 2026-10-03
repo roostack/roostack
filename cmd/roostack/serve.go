@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"flag"
@@ -19,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/generate"
@@ -29,6 +31,7 @@ import (
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/podman"
 	"roostack.cloud/roostack/internal/public"
@@ -165,7 +168,37 @@ func serve(args []string) error {
 	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: lab.DisplayName(), Self: id, Store: st, Agent: agentClient,
 		Log: log, Now: time.Now, Started: restart,
 		Joined: func(ctx context.Context, name string) { st.Audit(ctx, nil, web.AuditServerJoined, name) }}
+	if lab.Domain != "" {
+		hub.UI = "https://" + caddy.AdminSubdomain + "." + lab.Domain
+	}
 	hub.Start(ctx)
+	// A fresh server can join an existing lab from its first-run page
+	// (SPEC.md §10.2), as `roostack node join` does: undone if it fails,
+	// then Roostack restarts as part of the lab.
+	srv.JoinLab = func(ctx context.Context, code labnet.JoinCode, name string) (string, error) {
+		self, err := nodeid.LoadOrCreate(lab.Paths.StateDir)
+		if err != nil {
+			return "", err
+		}
+		self.Name = name
+		if err := self.Save(lab.Paths.StateDir); err != nil {
+			return "", err
+		}
+		say := func(format string, args ...any) { log.Info("joining a lab: " + fmt.Sprintf(format, args...)) }
+		if err := labnet.JoinLab(ctx, code, self, lab.Paths.StateDir, agentClient, say); err != nil {
+			// Undo it: the link, and anything saved for the lab.
+			if lerr := labnet.Leave(context.Background(), lab.Paths.StateDir, agentClient); lerr != nil {
+				log.Warn("undoing a failed join", "err", lerr)
+			}
+			return "", err
+		}
+		st.Audit(ctx, nil, "joined a lab", cmp.Or(code.LabName, code.Endpoint)+" as "+name)
+		go func() {
+			time.Sleep(2 * time.Second) // the page goes out first
+			restart()
+		}()
+		return code.Addr.String(), nil
+	}
 	srv.Network = hub
 	mgr.Registry = hub
 	// Storage for other labs (SPEC.md §10.10): this lab can keep other

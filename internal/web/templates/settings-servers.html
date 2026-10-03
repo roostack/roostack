@@ -84,8 +84,13 @@
     then run the command below on it. The servers connect over their own private network (WireGuard).</p>
   {{if not .ErrorServer}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
   {{with .JoinCode}}
-  <p>On the new server, run this within an hour (the code works once):</p>
-  {{copyBox (printf "sudo roostack node join %s" .)}}
+  <p>Open the new server's setup page (the address its installer showed), enter its setup code, choose
+    <strong>Add it to a lab you already have</strong> and paste this join code. It works once, within an hour.</p>
+  {{copyBox .}}
+  <details>
+    <summary>Or on the new server's command line</summary>
+    {{copyBox (printf "sudo roostack node join %s" .)}}
+  </details>
   <p class="hint">Anyone with this code can add a server to your lab until it's used, so don't share it.</p>
   {{end}}
   <form method="post" action="/settings/servers/join">
