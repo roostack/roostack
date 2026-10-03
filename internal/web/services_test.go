@@ -1030,6 +1030,7 @@ func TestStorageForOthers(t *testing.T) {
 	}
 	_, body = h.post("/settings/storage/invite", url.Values{"name": {"Sam"}, "quota": {"20"}, "address": {"other"}, "address_other": {"1.2.3.4:51821"}}, h.srv.URL)
 	if !strings.Contains(body, "Invite for Sam") || !strings.Contains(body, `class="copy-box"`) ||
+		strings.Contains(body, `action="/settings/storage/invite#invite"`) ||
 		strings.Contains(body, `action="/settings/storage/invite"`) {
 		t.Error("the invite should be shown once, with a Copy button, in place of the form")
 	}

@@ -43,7 +43,14 @@ func TestJoinAddressChoice(t *testing.T) {
 			t.Errorf("join form missing %q", want)
 		}
 	}
-	h.post("/settings/servers/join", url.Values{"address": {"link.lab.example.com:51820"}}, h.srv.URL)
+	if !strings.Contains(body, `action="/settings/servers/join#add-server"`) {
+		t.Error("after making a code, the page opens at it")
+	}
+	_, made := h.post("/settings/servers/join", url.Values{"address": {"link.lab.example.com:51820"}}, h.srv.URL)
+	if !strings.Contains(made, "Join code for a new server") || !strings.Contains(made, `class="copy-box"`) ||
+		strings.Contains(made, `action="/settings/servers/join`) || !strings.Contains(made, `href="/settings/servers#add-server">Make another code`) {
+		t.Error("a new code is shown in place of the form, with Make another code")
+	}
 	if len(fn.endpoints) != 1 || fn.endpoints[0] != "link.lab.example.com:51820" {
 		t.Fatalf("join code for %v", fn.endpoints)
 	}

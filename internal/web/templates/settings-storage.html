@@ -94,7 +94,7 @@
     <small class="hint">The server whose disk keeps their backups (e.g. one with a big disk). It can change only while no other lab stores anything.</small>
   </form>
   {{end}}
-  <form method="post" action="/settings/storage/invite">
+  <form method="post" action="/settings/storage/invite#invite">
     <label>Whose lab <input name="name" value="{{.Name}}" placeholder="Sam's lab" required></label>
     {{with .Space}}
     {{/* The space left for this lab updates as the number changes. */}}
