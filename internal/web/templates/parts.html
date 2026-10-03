@@ -179,17 +179,24 @@
      warning. Settings → Servers and Storage for others. */}}
 {{define "disk-space"}}
 <p><strong>{{size .Free}} free</strong> of {{size .Total}}</p>
-<div class="space-bar" role="img" aria-label="{{size .Used}} used, {{size .Free}} free of {{size .Total}}">
-  <span class="space-used{{with .Level}} space-{{.}}{{end}}" data-width="{{.UsedPercent}}"></span>
-  {{- if .PromisedLeft}}<span class="space-promised" data-width="{{.PromisedPercent}}"></span>{{end}}
+{{/* Each part of the disk's use has its colour (--chart-*), the same in
+     the bar and as a swatch in the key below; the list names each with
+     its size, so colour never carries it alone. */}}
+<div class="space-bar{{with .Level}} space-{{.}}{{end}}" role="img" aria-label="{{size .Used}} used, {{size .Free}} free of {{size .Total}}">
+  {{- with .Parts}}{{range .}}{{if .Percent}}<span class="space-{{.Kind}}" data-width="{{.Percent}}" title="{{.Label}}: {{size .Bytes}}"></span>{{end}}{{end}}
+  {{- else}}<span class="space-used" data-width="{{.UsedPercent}}" title="In use: {{size .Used}}"></span>{{end}}
+  {{- if .PromisedLeft}}<span class="space-promised" data-width="{{.PromisedPercent}}" title="Promised to other labs, not used yet: {{size .PromisedLeft}}"></span>{{end}}
 </div>
 <dl class="space-list">
-  <dt>In use</dt><dd>{{size .Used}}</dd>
+  <dt>{{if not .Parts}}<span class="swatch space-used" aria-hidden="true"></span>{{end}}In use</dt><dd>{{size .Used}}</dd>
+  {{- with .Parts}}{{range .}}{{if or .Bytes (ne .Kind "guests")}}
+  <dt class="sub"><span class="swatch space-{{.Kind}}" aria-hidden="true"></span>{{.Label}}</dt><dd>{{if .Bytes}}{{size .Bytes}}{{else}}none{{end}}</dd>{{end}}{{end}}
+  {{- else}}
   <dt class="sub">Services' data</dt><dd>{{if gt .Services 0}}{{size .Services}}{{else if eq .Services 0}}none{{else}}not counted yet{{end}}</dd>
   <dt class="sub">Backups of your lab's servers</dt><dd>{{if ge .Backups 0}}{{size .Backups}}{{else}}not counted yet{{end}}</dd>
-  {{if gt .Guests 0}}<dt class="sub">Backups of other labs</dt><dd>{{size .Guests}}</dd>{{end}}
-  {{if ge .Other 0}}<dt class="sub">The system and everything else</dt><dd>{{size .Other}}</dd>{{end}}
-  {{if .Promised}}<dt>Promised to other labs</dt><dd>{{size .Promised}}, of which {{size .PromisedLeft}} isn't used yet</dd>{{end}}
+  {{end}}
+  {{if .Promised}}<dt><span class="swatch space-promised" aria-hidden="true"></span>Promised to other labs</dt><dd>{{size .Promised}}, of which {{size .PromisedLeft}} isn't used yet</dd>{{end}}
+  <dt><span class="swatch space-free" aria-hidden="true"></span>Free</dt><dd>{{size .Free}}</dd>
   {{if gt .HeldBack 0}}<dt>Held back by the filesystem</dt><dd>{{size .HeldBack}}, for the system (so it keeps working if the disk fills up)</dd>{{end}}
 </dl>
 <small>The disk holding Roostack's data. Free space is up to date; the parts are counted daily, after the nightly backup

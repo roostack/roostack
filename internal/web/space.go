@@ -37,6 +37,28 @@ type spaceView struct {
 func (v spaceView) UsedPercent() int     { return percentOf(v.Used, v.Total) }
 func (v spaceView) PromisedPercent() int { return percentOf(min(v.PromisedLeft, v.Free), v.Total) }
 
+// Parts is what uses the disk, for the bar's coloured segments and their
+// key (SPEC.md §6.7); nil until the parts are counted (the bar then shows
+// one "in use" segment).
+func (v spaceView) Parts() []spacePart {
+	if v.Other() < 0 {
+		return nil
+	}
+	part := func(kind, label string, n int64) spacePart {
+		return spacePart{Kind: kind, Label: label, Bytes: n, Percent: percentOf(n, v.Total)}
+	}
+	return []spacePart{part("services", "Services' data", v.Services), part("backups", "Backups of your lab's servers", v.Backups),
+		part("guests", "Backups of other labs", v.Guests), part("other", "The system and everything else", v.Other())}
+}
+
+// spacePart is one part of a disk's use: Kind names its colour
+// (space-<kind>).
+type spacePart struct {
+	Kind, Label string
+	Bytes       int64
+	Percent     int
+}
+
 // Other is what the system and everything else takes: in use, less
 // Roostack's counted parts (-1 until they're counted).
 func (v spaceView) Other() int64 {
