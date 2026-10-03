@@ -777,9 +777,12 @@ func (s *Store) DeleteSession(ctx context.Context, tokenHash string) error {
 	return err
 }
 
-// DeleteExpiredSessions removes old sessions.
-func (s *Store) DeleteExpiredSessions(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at <= ?`, time.Now().Unix())
+// DeleteExpiredSessions removes old sessions: past their expiry, or (when
+// idle isn't 0) unused for longer than idle, unless kept signed in.
+func (s *Store) DeleteExpiredSessions(ctx context.Context, idle time.Duration) error {
+	now := time.Now()
+	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at <= ? OR (? > 0 AND remember = 0 AND last_seen < ?)`,
+		now.Unix(), int64(idle.Seconds()), now.Add(-idle).Unix())
 	return err
 }
 

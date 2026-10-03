@@ -45,8 +45,12 @@ func sessionOf(r *http.Request) sessionState {
 }
 
 // idleLimit is how long a session may go unused (0: no limit).
-func (s *Server) idleLimit(ctx context.Context) time.Duration {
-	v, _ := s.Store.Setting(ctx, idleKey)
+func (s *Server) idleLimit(ctx context.Context) time.Duration { return IdleLimit(ctx, s.Store) }
+
+// IdleLimit is the Owner's choice of how long a session may go unused (0:
+// no limit), for the hourly clean-up of sessions too.
+func IdleLimit(ctx context.Context, st *store.Store) time.Duration {
+	v, _ := st.Setting(ctx, idleKey)
 	if n, err := strconv.Atoi(v); err == nil && slices.Contains(idleChoices, n) {
 		return time.Duration(n) * time.Minute
 	}
