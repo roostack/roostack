@@ -4,6 +4,9 @@
   <div class="page-top">{{back "/backups" "Backups"}}{{help "backups/restore" "Get something back"}}</div>
   <h1>Restore {{.Service.Title}}</h1>
   {{activity .RestoreActivity}}
+  {{/* Drawn again when the restore finishes, so the form comes back. */}}
+  <div id="restore-body" hx-get="/backups/restore/{{.Service.Name}}" hx-select="#restore-body" hx-trigger="activity-done from:body"
+    hx-swap="outerHTML" hx-disinherit="*">
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{if .Pending}}
     {{notice "info" "A restore is in progress. This page shows how it's going."}}
@@ -71,5 +74,6 @@
     {{end}}
   </ul>
   {{end}}
+  </div>
 </section>
 {{end}}
