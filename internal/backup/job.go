@@ -118,6 +118,30 @@ type JobDeps struct {
 	OnCopy func(c Copy, started time.Time, sum *Summary, err error)
 	// Log shows the run's steps live in the UI (optional, per run).
 	Log *activity.Log
+	// Only limits a run to some destinations, by name ("" the main one,
+	// else a copy's Name): a retry of those that failed. Nil runs all.
+	Only []string
+}
+
+// wants reports whether a run backs up to destination name.
+func (d JobDeps) wants(name string) bool { return d.Only == nil || slices.Contains(d.Only, name) }
+
+// DriveError is a destination's drive not being ready (its Precheck):
+// the backup there runs as soon as it's plugged in.
+type DriveError struct{ Err error }
+
+func (e *DriveError) Error() string { return e.Err.Error() }
+func (e *DriveError) Unwrap() error { return e.Err }
+
+// precheck runs a destination's check, as a DriveError.
+func precheck(check func() error) error {
+	if check == nil {
+		return nil
+	}
+	if err := check(); err != nil {
+		return &DriveError{err}
+	}
+	return nil
 }
 
 // Copy is an extra copy of a server's backups.
@@ -150,16 +174,27 @@ func NewJob(d JobDeps) maintenance.Job {
 
 // Run performs a full backup. The prepare steps are not interruptible; the
 // upload is, and resumes after a reboot.
+//
+// Each destination is checked first (its drive); one that isn't ready is
+// skipped, and the others go ahead.
 func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err error) {
 	defer func() {
 		if d.OnDone != nil {
 			d.OnDone(summary, err)
 		}
 	}()
-	if d.Precheck != nil {
-		if err := d.Precheck(); err != nil {
-			return nil, err
+	mainErr := error(nil)
+	if d.wants("") {
+		mainErr = precheck(d.Precheck)
+	}
+	copies := 0
+	for _, c := range d.Copies {
+		if d.wants(c.Name) {
+			copies++
 		}
+	}
+	if mainErr != nil && copies == 0 {
+		return nil, mainErr
 	}
 	plan, err := d.Plan()
 	if err != nil {
@@ -186,16 +221,22 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 		}
 	}
 	r.SetInterruptible(true)
-	summary, err = upload(ctx, d, d.Repo, "", paths, plan.Excludes, r)
+	switch {
+	case mainErr != nil:
+		err = mainErr
+		d.Log.Printf("Not backing up to the main destination: %v", err)
+	case d.wants(""):
+		summary, err = upload(ctx, d, d.Repo, "", paths, plan.Excludes, r)
+	}
 	// The copies go ahead even if the main destination failed: that's
 	// what they're for.
 	for _, c := range d.Copies {
+		if !d.wants(c.Name) {
+			continue
+		}
 		started := time.Now()
 		var csum *Summary
-		cerr := error(nil)
-		if c.Precheck != nil {
-			cerr = c.Precheck()
-		}
+		cerr := precheck(c.Precheck)
 		if cerr == nil {
 			csum, cerr = upload(ctx, d, c.Repo, c.Title, paths, plan.Excludes, r)
 		}

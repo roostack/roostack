@@ -89,7 +89,7 @@
     {{if .Running}}{{notice "info" (printf "%s… %s" (or .Step "Backing up") (percent .Progress))}}
     {{else if .Queued}}{{notice "info" "A backup is waiting to start."}}{{end}}
     {{with .Last}}{{if not .OK}}
-      {{notice "error" (printf "The last backup (%s) didn't finish: %s" (when .Finished) .Error)}}
+      {{notice "error" (printf "The last backup (%s) didn't finish: %s%s" (when .Finished) .Error (retryText $.Backup.Retry))}}
     {{end}}{{end}}
     {{with .LastOK}}
       <p>Last backup: <strong>{{when .Finished}}</strong>{{if stale .Finished}} <span class="error">(over 2 days ago)</span>{{end}}
@@ -308,7 +308,7 @@
         <p class="hint">This server's disk · at home · the copy you use every day, and what the backups copy</p>
       </div>
     </li>
-    {{range .Entries}}
+    {{range $e := .Entries}}
     {{if and $.Plan.Replacing .Main}}{{template "plan-chooser" $.Plan}}{{else}}
     <li class="plan-card">
       {{template "plan-num" .}}
@@ -329,7 +329,7 @@
         {{end}}
         {{with .Last}}{{if .OK}}<p class="plan-ok"><span class="dot dot-{{if stale .Finished}}warn{{else}}ok{{end}}" aria-hidden="true"></span>Backed up {{when .Finished}}
           <span class="hint">· {{.FilesNew}} new or changed files, {{bytes .DataAdded}} added</span></p>
-        {{- else}}<p class="error"><span class="dot dot-problem" aria-hidden="true"></span>The last backup here ({{when .Finished}}) didn't finish: {{.Error}}</p>{{end}}
+        {{- else}}<p class="error"><span class="dot dot-problem" aria-hidden="true"></span>The last backup here ({{when .Finished}}) didn't finish: {{.Error}}{{retryText $e.Retry}}</p>{{end}}
         {{- else}}<p class="hint">Not backed up here yet: the first backup runs {{if $.Plan.Next.IsZero}}tonight{{else}}{{when $.Plan.Next}}{{end}}.</p>{{end}}
         {{if or .Stored (ge .Free 0) .Lab}}<p class="hint plan-space">
           {{- if .Stored}}Backups here take <strong>{{size .Stored}}</strong>{{end}}

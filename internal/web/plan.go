@@ -38,6 +38,7 @@ type planEntry struct {
 	Kind, KindTitle        string // manager.Kind*
 	AtHome, Away, Main     bool
 	Last, LastOK           *store.BackupRun
+	Retry                  *backup.Retry // the next try after a failure
 	CanPromote             bool
 	// AskWhere are the servers whose location decides at home or away.
 	AskWhere []locationAsk
@@ -176,7 +177,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	if hasMain {
 		e := planEntry{Ref: main.Provider, Title: mainTitle, Repository: main.Repository, Main: true}
 		if st != nil {
-			e.Last, e.LastOK = st.Last, st.LastOK
+			e.Last, e.LastOK, e.Retry = st.Last, st.LastOK, st.Retry
 		}
 		add(e)
 	}
@@ -185,7 +186,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		if st != nil {
 			for _, cs := range st.Copies {
 				if cs.Name == c.Ref {
-					e.Last, e.LastOK = cs.Last, cs.LastOK
+					e.Last, e.LastOK, e.Retry = cs.Last, cs.LastOK, cs.Retry
 				}
 			}
 		}

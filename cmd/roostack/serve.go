@@ -442,6 +442,8 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 			}
 		}
 	}()
+	// Failed backups are tried again (backup/retry.go).
+	go svc.WatchRetries(ctx)
 	if svc.Configured() {
 		go maintenance.Every(ctx,
 			func(now time.Time) time.Time {

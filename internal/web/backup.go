@@ -17,8 +17,11 @@ import (
 const backupStale = 48 * time.Hour
 
 var templateFuncs = template.FuncMap{
-	"when":  whenText,
-	"stale": isStale,
+	"when": whenText,
+	// retryText says when a failed backup is tried again (" Roostack tries
+	// again today 14:00."), or nothing.
+	"retryText": retryText,
+	"stale":     isStale,
 	// shownRepo is a backup's address without its password.
 	"shownRepo": labrestore.Shown,
 	// date is a day, e.g. 28 September 2027.
@@ -70,6 +73,16 @@ func whenText(t time.Time) string {
 		return "tomorrow " + t.Format("15:04")
 	}
 	return t.Format("Mon 2 Jan 15:04")
+}
+
+func retryText(r *backup.Retry) string {
+	switch {
+	case r == nil:
+		return ""
+	case r.Drive:
+		return " It backs up there as soon as the drive is plugged in."
+	}
+	return " Roostack tries again " + whenText(r.At) + "."
 }
 
 // isStale reports whether the last backup is too old.

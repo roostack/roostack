@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 )
@@ -180,6 +181,10 @@ type serverNode struct {
 // certWarning is how close to expiry a lab certificate is flagged.
 const certWarning = 30 * 24 * time.Hour
 
+// retrySoon reports a failed backup Roostack tries again by itself
+// within hours (not one waiting for someone to plug its drive in).
+func retrySoon(r *backup.Retry) bool { return r != nil && !r.Drive }
+
 // serverNodes lists this server, then the lab's other reachable ones.
 func (s *Server) serverNodes(r *http.Request) []serverNode {
 	var out []serverNode
@@ -233,15 +238,18 @@ func (s *Server) backupAttention(r *http.Request, m serverRef, n ServiceNode, ow
 			link, "View")
 	case st.Running:
 		add(levelInfo, "Backing up"+m.on()+"…", link, "View")
+	case st.Last != nil && !st.Last.OK && retrySoon(st.Retry):
+		// Roostack tries again within hours: only once that fails too.
 	case st.Last != nil && !st.Last.OK:
-		add(levelProblem, "The last backup"+m.on()+" didn't finish: "+st.Last.Error, link, "View backups")
+		add(levelProblem, "The last backup"+m.on()+" didn't finish: "+st.Last.Error+retryText(st.Retry), link, "View backups")
 	}
 	// Extra copies (a first one is made with the next backup).
 	for _, c := range st.Copies {
 		switch {
 		case st.Running:
+		case c.Last != nil && !c.Last.OK && retrySoon(c.Retry):
 		case c.Last != nil && !c.Last.OK:
-			add(levelWarning, "The last copy of backups"+m.on()+" to "+c.Title+" didn't finish: "+c.Last.Error, link, "View backups")
+			add(levelWarning, "The last copy of backups"+m.on()+" to "+c.Title+" didn't finish: "+c.Last.Error+retryText(c.Retry), link, "View backups")
 		case c.LastOK != nil && isStale(c.LastOK.Finished):
 			add(levelWarning, "Backups"+m.on()+" haven't been copied to "+c.Title+" since "+whenText(c.LastOK.Finished)+".",
 				link, "View backups")
