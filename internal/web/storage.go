@@ -68,8 +68,15 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 	data["Guests"], data["Removed"], data["Leftover"], data["Endpoint"] = active, removed, left, endpoint
 	data["Offering"] = s.Manager.OfferStorage(r.Context())
 	data["Internet"] = hostsHere && s.onInternet()
-	if left, ok := s.Manager.GuestSpaceLeft(r.Context()); ok {
-		data["SpaceLeft"], data["SpaceKnown"] = left, true
+	data["Quota"] = "50"
+	if sp, ok := s.Manager.GuestSpaceLeft(r.Context()); ok {
+		data["Space"] = sp
+		// Never offer more than there is by default.
+		quota := max(min(50, sp.Left/units.GB), 1)
+		data["Quota"] = strconv.FormatInt(quota, 10)
+		// Free space left for the lab's own use after offering it (shown
+		// before the form's script updates it as the number changes).
+		data["SpaceAfter"] = max(sp.Free-sp.Promised-quota*units.GB, 0)
 	}
 	if host, _, err := net.SplitHostPort(defaultEndpoint()); err == nil && hostsHere {
 		data["LANAddr"] = host

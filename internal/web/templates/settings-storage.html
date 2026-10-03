@@ -75,8 +75,21 @@
   {{end}}
   <form method="post" action="/settings/storage/invite">
     <label>Whose lab <input name="name" value="{{.Name}}" placeholder="Sam's lab" required></label>
-    <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{or .Quota "50"}}" required>
-      {{if .SpaceKnown}}<small>{{.HostServer.Name}} can offer about {{size .SpaceLeft}} more (after the space other labs have, keeping 10% of its disk free).</small>{{end}}</label>
+    {{with .Space}}
+    {{/* The space left for this lab updates as the number changes. */}}
+    <div class="quota-field" data-gb="{{$.Quota}}" data-free="{{.Free}}" data-promised="{{.Promised}}" data-left="{{.Left}}"
+      x-data="{ gb: Number($el.dataset.gb), free: Number($el.dataset.free), promised: Number($el.dataset.promised), left: Number($el.dataset.left) }">
+      {{if lt .Left 1000000000}}{{notice "warn" (printf "%s has no space to offer other labs right now: it keeps 10%% of its disk free, and the rest is in use or already given to other labs." $.HostServer.Name)}}{{end}}
+      <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{$.Quota}}" x-model.number="gb" required>
+        <small>{{$.HostServer.Name}} has {{size .Free}} free of {{size .Total}}{{if .Promised}}, and other labs may still fill
+          {{size .Promised}} of the space they've been given{{end}}. It can offer up to {{size .Left}}, keeping 10% of its disk free.
+          <span x-show="gb * 1e9 <= left">Giving them <span x-text="gb">{{$.Quota}}</span> GB leaves about
+            <strong x-text="roostackSize(free - promised - gb * 1e9)">{{size $.SpaceAfter}}</strong> free for your own services and backups.</span>
+          <strong class="error" x-show="gb * 1e9 > left" x-cloak>That's more than it can offer.</strong></small></label>
+    </div>
+    {{else}}
+    <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{.Quota}}" required></label>
+    {{end}}
     {{if .Endpoint}}
     <p>They connect to {{.HostServer.Name}} at <code>{{.Endpoint}}</code>.</p>
     <details>

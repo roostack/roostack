@@ -31,10 +31,11 @@ import (
 )
 
 type fakeManager struct {
-	installs []manager.InstallRequest
-	removed  []string
-	failWith error
-	status   manager.ApplyStatus
+	guestSpace manager.GuestSpace
+	installs   []manager.InstallRequest
+	removed    []string
+	failWith   error
+	status     manager.ApplyStatus
 
 	ports   []manager.PortStatus
 	portErr error
@@ -141,7 +142,9 @@ func (f *fakeManager) SetGuestQuota(_ context.Context, id, quota int64) error {
 	f.guestOps = append(f.guestOps, fmt.Sprintf("quota %d %d", id, quota/units.GB))
 	return nil
 }
-func (f *fakeManager) GuestSpaceLeft(context.Context) (int64, bool) { return 120 * units.GB, true }
+func (f *fakeManager) GuestSpaceLeft(context.Context) (manager.GuestSpace, bool) {
+	return f.guestSpace, true
+}
 func (f *fakeManager) LeftoverGuests(context.Context) ([]manager.LeftoverGuest, error) {
 	return []manager.LeftoverGuest{{User: "g9", Size: 2 * units.GB}}, nil
 }
@@ -961,11 +964,15 @@ func TestMovePage(t *testing.T) {
 
 func TestStorageForOthers(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
+	// The space the manager reports (its sums are tested in the manager).
+	fm.guestSpace = manager.GuestSpace{Free: 180 * units.GB, Total: 250 * units.GB, Promised: 40 * units.GB, Left: 16_300 * units.MB}
 	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Quota: 50 * units.GB, Joined: true},
 		Used: 3 * units.GB, LastSeen: time.Now()}}
 	_, body := h.get("/settings/storage")
 	for _, want := range []string{"Sam&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821",
-		"can offer about 120.0 GB more", `<input name="endpoint" placeholder=`} {
+		"has 180.0 GB free of 250.0 GB, and other labs may still fill\n          40.0 GB", "can offer up to 16.3 GB",
+		`value="16"`, "leaves about\n            <strong x-text=\"roostackSize(free - promised - gb * 1e9)\">124.0 GB</strong>",
+		`<input name="endpoint" placeholder=`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("storage page missing %q", want)
 		}

@@ -6,16 +6,20 @@ set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 cd "$REPO"
-[[ -x bin/roostack && -x bin/roostack-agent && -s bin/copyright ]] || { echo "build first: make build" >&2; exit 1; }
-# A released package always has its help (make build skips it without uv).
-[[ -s internal/web/helpsite/site/index.html ]] || { echo "the help site isn't built: install uv, then make build" >&2; exit 1; }
 # Debian versions must start with a digit: v0.1.0-3-gabc → 0.1.0-3-gabc,
 # and a bare commit becomes 0~git<commits>.<commit>: the number of commits
 # keeps later builds sorting after earlier ones (commit hashes don't).
-VERSION=${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}
-VERSION=${VERSION#v}
-[[ $VERSION =~ ^[0-9]+\.[0-9] ]] || VERSION="0~git$(git rev-list --count HEAD 2>/dev/null || echo 0).${VERSION}"
-
+# VERSION, if set, is used as it is (dev-vm.sh passes the dev machine's,
+# since the VM's copy has no git history). --version prints it and stops.
+if [[ -z ${VERSION:-} ]]; then
+    VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
+    VERSION=${VERSION#v}
+    [[ $VERSION =~ ^[0-9]+\.[0-9] ]] || VERSION="0~git$(git rev-list --count HEAD 2>/dev/null || echo 0).${VERSION}"
+fi
+[[ ${1:-} == --version ]] && { echo "$VERSION"; exit 0; }
+[[ -x bin/roostack && -x bin/roostack-agent && -s bin/copyright ]] || { echo "build first: make build" >&2; exit 1; }
+# A released package always has its help (make build skips it without uv).
+[[ -s internal/web/helpsite/site/index.html ]] || { echo "the help site isn't built: install uv, then make build" >&2; exit 1; }
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 ROOT=$STAGE/root

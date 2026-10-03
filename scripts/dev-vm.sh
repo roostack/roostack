@@ -225,7 +225,7 @@ case ${1:-} in
 up) start ;;
 ssh) shift; vm_ssh -t "$@" ;;
 sync) sync_repo ;;
-install) sync_repo; vm_ssh -t 'cd ~/roostack && sudo scripts/dev-install.sh' ;;
+install) sync_repo; vm_ssh -t "cd ~/roostack && sudo VERSION=$("$REPO/scripts/build-deb.sh" --version) scripts/dev-install.sh" ;;
 ui) log "Roostack UI: http://127.0.0.1:$((18481 + OFF)) (Ctrl-C to stop)"
     # Reconnect when the VM restarts (e.g. after OS updates) or the
     # connection drops; notice a dead connection within ~15s.
