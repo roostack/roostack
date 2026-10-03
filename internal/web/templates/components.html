@@ -69,6 +69,15 @@
   </dialog>
 </span>{{end}}
 
+{{/* copy-box: text to copy, with a Copy button (roostackCopy in app.js,
+     which falls back to selecting and copying where the browser's
+     clipboard needs HTTPS). */}}
+{{define "copy-box"}}<div class="copy-box" x-data="{ copied: false }">
+  <pre class="output" x-ref="text">{{.}}</pre>
+  <button type="button" class="secondary" x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+    ><span x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+</div>{{end}}
+
 {{/* activity: a host operation (*activityView): a status line for
      everyone, and a collapsed log for the curious. While running, the
      status line and the log poll separately; the <details> element itself

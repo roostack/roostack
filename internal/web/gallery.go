@@ -268,6 +268,8 @@ var gallerySections = []gallerySection{
 		Examples: []galleryExample{
 			{"Secret", "", `
 <code class="secret">EXAMPLE-ONLY-NOT-REAL</code>`},
+			{"Copy box", "copyBox TEXT: something people copy and send or paste elsewhere (an invite, a command), with a Copy button.", `
+{{copyBox "sudo roostack node join EXAMPLE-ONLY-NOT-REAL"}}`},
 			{"Output", "Command output in logs and results.", `
 <pre class="output">==> Installing updates
 Unpacking curl (8.14.1-2+deb13u5) ...

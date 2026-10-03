@@ -1545,6 +1545,35 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
         </div>
         
         <div class="example">
+          <h3>Copy box <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">copyBox TEXT: something people copy and send or paste elsewhere (an invite, a command), with a Copy button.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="copy-box" x-data="{ copied: false }">
+  <pre class="output" x-ref="text">sudo roostack node join EXAMPLE-ONLY-NOT-REAL</pre>
+  <button type="button" class="secondary" x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+    ><span x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+</div></div>
+            <div class="panel" data-mode="dark"><div class="copy-box" x-data="{ copied: false }">
+  <pre class="output" x-ref="text">sudo roostack node join EXAMPLE-ONLY-NOT-REAL</pre>
+  <button type="button" class="secondary" x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+    ><span x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+</div></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{copyBox &#34;sudo roostack node join EXAMPLE-ONLY-NOT-REAL&#34;}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;div class=&#34;copy-box&#34; x-data=&#34;{ copied: false }&#34;&gt;
+  &lt;pre class=&#34;output&#34; x-ref=&#34;text&#34;&gt;sudo roostack node join EXAMPLE-ONLY-NOT-REAL&lt;/pre&gt;
+  &lt;button type=&#34;button&#34; class=&#34;secondary&#34; x-on:click=&#34;roostackCopy($refs.text).then(() =&gt;{ copied = true; setTimeout(() =&gt; copied = false, 2000) })&#34; &gt;&lt;span x-text=&#34;copied ? &#39;Copied&#39; : &#39;Copy&#39;&#34;&gt;Copy&lt;/span&gt;&lt;/button&gt;
+&lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
           <h3>Output <span class="badge">HTML and CSS classes</span></h3>
           <p class="hint">Command output in logs and results.</p>
           <div class="panels">
