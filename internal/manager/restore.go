@@ -89,19 +89,27 @@ func (m *Manager) ServiceBackups(ctx context.Context, name string) ([]ServiceBac
 	for _, f := range found {
 		out = append(out, f...)
 	}
-	slices.SortFunc(out, func(a, b ServiceBackup) int { return b.Snapshot.Time.Compare(a.Snapshot.Time) })
-	// The suggestion: the newest, or a main backup from about then.
-	if i := slices.IndexFunc(out, func(b ServiceBackup) bool { return b.Main }); i > 0 &&
-		out[0].Snapshot.Time.Sub(out[i].Snapshot.Time) < suggestWithin {
-		out = slices.Insert(slices.Delete(out, i, i+1), 0, out[i])
-	}
 	var notes []string
 	for _, p := range problems {
 		if p != "" {
 			notes = append(notes, p)
 		}
 	}
-	return out, notes, nil
+	return suggestFirst(out), notes, nil
+}
+
+// suggestFirst sorts backups newest first, then puts the suggested one
+// first: the newest, or a main backup from about then.
+func suggestFirst(out []ServiceBackup) []ServiceBackup {
+	slices.SortFunc(out, func(a, b ServiceBackup) int { return b.Snapshot.Time.Compare(a.Snapshot.Time) })
+	i := slices.IndexFunc(out, func(b ServiceBackup) bool { return b.Main })
+	if i <= 0 || out[0].Snapshot.Time.Sub(out[i].Snapshot.Time) >= suggestWithin {
+		return out
+	}
+	main := out[i]
+	copy(out[1:i+1], out[:i])
+	out[0] = main
+	return out
 }
 
 // repoTitle names a repository for people, and says whether it's a
