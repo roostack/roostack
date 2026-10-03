@@ -25,6 +25,7 @@ import (
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/labrestore"
+	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
@@ -240,6 +241,8 @@ func serve(args []string) error {
 		return err
 	}
 	srv.Setup, srv.DNSProvider, srv.LabName = wiz, lab.DNS.Provider, lab.DisplayName()
+	// Email, through the lab's SMTP server (SPEC.md §6.13).
+	srv.Mail = &mail.Service{LabPath: *labPath, PasswordFile: lab.Paths.MailPasswordFile()}
 	srv.DetectNetwork = public.DetectNetwork
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
 	// A new install can instead become a lab restored from its backups.

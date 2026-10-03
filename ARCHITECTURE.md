@@ -75,6 +75,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/maintenance` | Maintenance coordinator: job queue and reboot policy |
 | `internal/backup` | restic wrapper, prepare steps, backup plan and job |
 | `internal/b2` | Backblaze B2 application keys limited to one server's folder, made and deleted over B2's native API |
+| `internal/mail` | Sending email through the lab's SMTP server (SPEC.md §6.13): settings in lab.yaml, the password in its own 0600 file, STARTTLS or TLS with the standard library's client |
 | `internal/units` | The one size formatter (decimal units: 1 GB = 1000³ bytes) |
 | `internal/labrestore` | Rebuilding a whole lab on a new server (SPEC.md §6.9): finding its backups (a folder, an S3-compatible bucket or any restic address) with the recovery key, restoring the controller's backup, then its database at the next start and the services' databases once they're set up again |
 

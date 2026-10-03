@@ -33,6 +33,7 @@ type settingsArea struct {
 var settingsAreas = []settingsArea{
 	{"lab", "Lab", "Lab name", "/settings/lab"},
 	{"people", "People and access", "People", "/settings/people"},
+	{"email", "People and access", "Email", "/settings/email"},
 	{"domain", "Network", "Domain and certificates", "/settings/domain"},
 	{"home-network", "Network", "Where it is and DNS", "/settings/home-network"},
 	{"public", "Network", "Public access", "/settings/public"},
@@ -94,6 +95,13 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 
 	if users, err := s.Store.ListUsers(r.Context()); err == nil {
 		set("people", fmt.Sprintf("%d %s can log in", len(users), map[bool]string{true: "person", false: "people"}[len(users) == 1]), "")
+	}
+	if s.Mail != nil {
+		if m, _ := s.Mail.Settings(); m.Configured() {
+			set("email", "Sends from "+m.From, "ok")
+		} else {
+			set("email", "Not set up: Roostack can't send email", "")
+		}
 	}
 	if s.server(r) != nil {
 		if a, err := s.server(r).SSHAccess(); err == nil {
