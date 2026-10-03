@@ -81,7 +81,12 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Restore from the UI (Owner only): choose a backup that contains the service, confirm, runs through the coordinator with a live log; kept copies listed and deletable
   - [x] Full-lab restore onto a new server: first-run "Restore a lab" (folder, S3-compatible bucket or restic address + recovery key), restores the controller's backup, database at the next start, services' databases after the first apply; WireGuard keys in backups. Tested end to end on a rebuilt VM (`ROOSTACK_VM=4`)
   - [x] A backup disk whose files belong to another user: the restore page says so, with the chown command
-  - [ ] Full-lab restore from storage at a friend's lab; restoring a lone node
+  - [ ] Full-lab restore from storage at a friend's lab
+  - [ ] Restoring across the lab (SPEC §10.10, 2026-10-04):
+    - [x] One snapshot per service (tagged, with its secrets) plus the server's own; retention per service; full-lab restore and moves read them. Tried on VM1
+    - [ ] One restore page per service for the whole lab: every server's backups and copies, the newest suggested, onto any server
+    - [ ] Whole lab onto fewer servers: plan of the missing servers' services, tick which come here; the rest wait to be restored
+    - [ ] Services waiting to be restored: listed, in needs attention, "Remove and delete its backups…"; a lost server leaves once none wait
   - [x] Backup drive picker (SPEC §6.9 "Backup drives"): roostack-agent lists USB drives, second disks, network shares and the server's own disk; the wizard offers them best first, refreshing as drives come and go; a chosen drive is mounted for good by UUID (nofail, automount); a blank disk can be erased and prepared; backups check their drive is connected. Restore page lists drives. Tested on VM1 with virtual USB drives (`dev-vm.sh usb add|remove`; dev VMs now run Debian's standard kernel, the cloud kernel has no USB)
   - [x] Where each server is (at home / somewhere else), asked once by the Owner on the plan or Settings → Servers; decides whether a backup on another server is away from home
   - [ ] The drive picker for another server's drives (today only its own disk is offered from the controller; its USB drives only on its own page)

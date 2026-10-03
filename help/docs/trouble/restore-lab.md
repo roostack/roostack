@@ -58,11 +58,12 @@ behind a router.
 ??? note "For technical users"
 
     The restore finds repositories the key opens, restores the controller's
-    latest snapshot (`/var/lib/roostack`, including the database dump and
-    the WireGuard keys, and the Podman secrets), puts the database in place
-    at the next start, then applies the lab. Each service's data comes back
-    with it, and its database is loaded from its dump once its containers
-    are set up again.
+    latest snapshot of itself (tagged `server`: `/var/lib/roostack`,
+    including the database dump and the WireGuard keys, and the Podman
+    secrets), then the latest snapshot of each service on it (tagged
+    `service=<name>`). It puts the database in place at the next start, then
+    applies the lab, and each service's database is loaded from its dump
+    once its containers are set up again.
 
     A restored lab keeps its WireGuard keys and certificate authority, so
     its other servers and the labs it shares storage with still recognise

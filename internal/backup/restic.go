@@ -380,9 +380,13 @@ func (r *Repo) Snapshots(ctx context.Context, tags ...string) ([]Snapshot, error
 	return snaps, nil
 }
 
-// Forget applies the retention policy and removes unreferenced data.
+// Forget applies the retention policy and removes unreferenced data. Each
+// service's snapshots and the server's own are kept by the policy on their
+// own (grouped by tags), so a service that's no longer backed up (its
+// server lost, waiting to be restored) keeps its last backups rather than
+// losing them to other services' newer ones (SPEC.md §10.10).
 func (r *Repo) Forget(ctx context.Context, keep Retention) error {
-	_, err := r.run(ctx, "forget", "--prune",
+	_, err := r.run(ctx, "forget", "--prune", "--group-by", "host,tags",
 		"--keep-daily", strconv.Itoa(keep.Daily),
 		"--keep-weekly", strconv.Itoa(keep.Weekly),
 		"--keep-monthly", strconv.Itoa(keep.Monthly))

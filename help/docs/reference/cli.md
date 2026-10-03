@@ -42,12 +42,13 @@ roostack user reset-2fa <name>                        # lost their phone
 ```bash
 roostack backup init                          # create the recovery key (first time) and the repository
 roostack backup run                           # back up now
-roostack backup snapshots                     # list backups
+roostack backup snapshots                     # list backups: the server's own, then one per service
 roostack backup restore <service> [-snapshot ID]
 ```
 
-`restore` puts one service back from a backup (the latest, unless you give
-an ID from `snapshots`). The service's current data is moved aside into a
+Each backup is a snapshot of the server's own settings and one snapshot per
+service, tagged with its name. `restore` puts one service back from one of
+its snapshots (the latest, unless you give an ID from `snapshots`). The service's current data is moved aside into a
 `.before-restore-<time>` folder, never deleted. The **Backups** page does
 the same, with a live log.
 

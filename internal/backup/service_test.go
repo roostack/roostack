@@ -84,7 +84,7 @@ func TestServiceRecordsRuns(t *testing.T) {
 	}
 	act, _ := svc.Activity.Latest(activity.Backup)
 	for _, want := range []string{"==> Saving a copy of Roostack's own database", "==> Opening the backup storage",
-		"==> Uploading changes", "==> Done"} {
+		"==> Backing up Roostack's own settings", "==> Done"} {
 		if !slices.Contains(act.Lines, want) {
 			t.Errorf("activity missing %q:\n%s", want, strings.Join(act.Lines, "\n"))
 		}

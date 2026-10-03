@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/podman"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/systemd"
@@ -76,12 +77,13 @@ func backupCmd(args []string) error {
 	case "init":
 		return backupInit(ctx, lab, repo)
 	case "snapshots":
-		snaps, err := repo.Snapshots(ctx, "roostack")
+		snaps, err := repo.Snapshots(ctx, backup.TagRoostack)
 		if err != nil {
 			return err
 		}
 		for _, s := range snaps {
-			fmt.Printf("%s  %s  %s\n", s.Short, s.Time.Local().Format("2006-01-02 15:04"), strings.Join(s.Paths, " "))
+			fmt.Printf("%s  %s  %-12s  %s\n", s.Short, s.Time.Local().Format("2006-01-02 15:04"),
+				cmp.Or(s.Service(), "(server)"), strings.Join(s.Paths, " "))
 		}
 		return nil
 	case "run":
@@ -202,13 +204,14 @@ func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch ba
 	}
 	host, _ := os.Hostname()
 	return &backup.JobDeps{
-		Repo:      repo,
-		Preparer:  &backup.Preparer{Launch: launch, RoostackBin: roostackBin},
-		DumpState: st.Backup,
-		Copies:    copyRepos(lab, launch),
-		Precheck:  drivePrecheck(lab.Backup.Drive),
-		Paths:     lab.Paths,
-		Host:      host,
+		Repo:       repo,
+		Preparer:   &backup.Preparer{Launch: launch, RoostackBin: roostackBin},
+		DumpState:  st.Backup,
+		Copies:     copyRepos(lab, launch),
+		Precheck:   drivePrecheck(lab.Backup.Drive),
+		Paths:      lab.Paths,
+		Host:       host,
+		ReadSecret: podman.NewSecrets().Read,
 		Plan: func() (backup.Plan, error) {
 			lab, services, err := services()
 			if err != nil {
