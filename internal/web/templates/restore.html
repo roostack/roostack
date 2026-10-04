@@ -12,6 +12,9 @@
     {{notice "info" "A restore is in progress. This page shows how it's going."}}
   {{else if .Groups}}
   {{$m := index (index .Groups 0).Moments 0}}{{$p := index $m.Places 0}}
+  {{if .JustDone}}{{notice "ok" (printf "%s is restored. Check it works; its previous data is kept below until you delete it." .Service.Title)}}
+  <details class="restore-again">
+    <summary>Restore it again…</summary>{{end}}
   <p>Puts {{.Service.Title}}'s data back to how it was in a backup. {{.Service.Title}} stops for a few minutes while this happens.</p>
   <form method="post" action="/backups/restore/{{.Service.Name}}" data-moment="{{$m.ID}}" data-label="{{$m.Label}}" data-place="{{$p.Title}}"
     x-data="{ moment: $el.dataset.moment, label: $el.dataset.label, place: $el.dataset.place }">
@@ -55,6 +58,7 @@
       <span>I understand, restore {{.Service.Title}}</span></label>
     <button type="submit">Restore {{.Service.Title}}</button>
   </form>
+  {{if .JustDone}}</details>{{end}}
   {{range .Notes}}<p class="hint">{{.}}</p>{{end}}
   {{else}}
     {{notice "info" (printf "There's no backup of %s yet. Backups made before it was installed don't contain it." .Service.Title)}}
