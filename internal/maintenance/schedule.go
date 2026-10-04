@@ -34,16 +34,29 @@ func NextWeekly(now time.Time, weekday time.Weekday, at time.Duration) time.Time
 }
 
 // Every calls fire at each time returned by next, until ctx ends.
+//
+// It looks at the clock at least every checkEvery rather than waiting once
+// for the whole time: Go's timers count time the machine is running, so
+// after a sleep or suspend (or a paused VM) one long wait would fire hours
+// late. The time to fire at is the wall clock's (next's), so a sleep
+// through it fires as soon as the machine wakes.
 func Every(ctx context.Context, next func(now time.Time) time.Time, fire func()) {
+	at := next(time.Now())
 	for {
-		wait := time.Until(next(time.Now()))
-		t := time.NewTimer(wait)
+		if !time.Now().Before(at) {
+			fire()
+			at = next(time.Now())
+			continue
+		}
+		t := time.NewTimer(min(time.Until(at), checkEvery))
 		select {
 		case <-ctx.Done():
 			t.Stop()
 			return
 		case <-t.C:
-			fire()
 		}
 	}
 }
+
+// checkEvery is how often Every looks at the clock.
+var checkEvery = time.Minute
