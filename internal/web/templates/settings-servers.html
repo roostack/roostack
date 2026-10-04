@@ -11,8 +11,15 @@
   <dl class="facts facts-lined">
     <dt>{{icon "server"}}Role</dt>
     <dd>{{if .Controller}}Runs the lab: keeps its settings and serves this page{{else}}Runs services{{end}}</dd>
+    {{if not .Reachable}}
+    <dt>{{icon "server"}}Connection</dt>
+    <dd><span class="dot dot-problem" aria-hidden="true"></span>Not connected. If {{.Name}} is still running, it reconnects by itself,
+      with its services.
+      {{if or .Services .Waiting}}<br><a href="/settings/servers/{{.ID}}/gone">{{.Name}} is gone: restore its services…</a>{{end}}</dd>
+    {{end}}
     <dt>{{icon "services"}}Services</dt>
-    <dd>{{range $i, $s := .Services}}{{if $i}}, {{end}}<a href="/services/{{$s}}">{{$s}}</a>{{else}}None{{end}}</dd>
+    <dd>{{range $i, $s := .Services}}{{if $i}}, {{end}}<a href="/services/{{$s}}">{{$s}}</a>{{else}}None{{end}}
+      {{with .Waiting}}<br>Waiting to be restored: {{range $i, $s := .}}{{if $i}}, {{end}}<a href="/services/{{$s}}">{{$s}}</a>{{end}}{{end}}</dd>
     <dt>{{icon "changes"}}Changes</dt>
     <dd>{{with .Status}}{{if .Running}}<span class="dot dot-warn" aria-hidden="true"></span>Applying…
       {{- else if .LastErr}}<span class="dot dot-problem" aria-hidden="true"></span>The last change didn't finish: {{.LastErr}}

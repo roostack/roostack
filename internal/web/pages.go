@@ -310,9 +310,11 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	s.render(w, "backups", data)
 }
 
-// serviceGroup is the services on one server.
+// serviceGroup is the services on one server, or those waiting to be
+// restored (their server is gone).
 type serviceGroup struct {
 	Server   string
+	Waiting  bool
 	Services []ServiceView
 }
 
@@ -341,7 +343,12 @@ func (s *Server) servicesByServer(services []ServiceView) []serviceGroup {
 		}
 		groups = append(groups, serviceGroup{Server: name, Services: []ServiceView{sv}})
 	}
+	var waiting []ServiceView
 	for _, sv := range services {
+		if sv.Status == StatusWaiting {
+			waiting = append(waiting, sv)
+			continue
+		}
 		name := ""
 		if len(order) > 0 {
 			name = cmp.Or(sv.Server, this)
@@ -351,6 +358,10 @@ func (s *Server) servicesByServer(services []ServiceView) []serviceGroup {
 	slices.SortStableFunc(groups, func(a, b serviceGroup) int {
 		return cmp.Compare(slices.Index(order, a.Server), slices.Index(order, b.Server))
 	})
+	if len(waiting) > 0 {
+		// First: they're what needs doing.
+		groups = slices.Insert(groups, 0, serviceGroup{Waiting: true, Services: waiting})
+	}
 	return groups
 }
 

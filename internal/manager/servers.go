@@ -44,9 +44,12 @@ type Server struct {
 	Controller bool
 	// This is the server serving this request.
 	This bool
-	// Services are the names of the services placed on it.
-	Services []string
-	Status   ApplyStatus
+	// Reachable: it answers (this one always does).
+	Reachable bool
+	// Services are the names of the services placed on it; Waiting
+	// those that were, and wait to be restored (it's gone).
+	Services, Waiting []string
+	Status            ApplyStatus
 	// CertExpires is when its certificate on Roostack's network expires
 	// (renewed automatically well before); zero if unknown.
 	CertExpires time.Time
@@ -85,14 +88,28 @@ func (m *Manager) NodeFor(service string) node.Node {
 	return m.node(in.Host)
 }
 
-// onNode returns the services placed on a server.
+// onNode returns the services placed on a server (not those waiting to
+// be restored: they run nowhere).
 func (m *Manager) onNode(services []state.Service, id string) []state.Service {
-	if id == m.Lab.NodeID {
-		return state.OnNode(services, id) // including any with no host yet
-	}
 	var out []state.Service
 	for _, s := range services {
-		if s.Instance.Host == id {
+		if s.Instance.Waiting {
+			continue
+		}
+		// The controller also runs any with no host yet.
+		if s.Instance.Host == id || (id == m.Lab.NodeID && s.Instance.Host == "") {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// waitingOn returns the services waiting to be restored that were on a
+// server.
+func waitingOn(services []state.Service, id string) []state.Service {
+	var out []state.Service
+	for _, s := range services {
+		if s.Instance.Waiting && s.Instance.Host == id {
 			out = append(out, s)
 		}
 	}
@@ -239,19 +256,25 @@ func (m *Manager) Servers() ([]Server, error) {
 		return out
 	}
 	id := m.Node.Identity()
-	servers := []Server{{ID: id.ID, Name: id.Name, Controller: true, This: true, Status: m.Status(),
+	servers := []Server{{ID: id.ID, Name: id.Name, Controller: true, This: true, Reachable: true, Status: m.Status(),
 		Services: names(m.Lab.NodeID)}}
 	others := m.others()
 	statuses := make([]ApplyStatus, len(others))
+	reachable := make([]bool, len(others))
 	// Ask every server at once: an unreachable one takes a few seconds.
 	var wg sync.WaitGroup
 	for i, r := range others {
-		wg.Go(func() { statuses[i] = r.Status() })
+		wg.Go(func() { statuses[i], reachable[i] = r.Status(), r.Settings() != nil })
 	}
 	wg.Wait()
 	for i, r := range others {
 		rid := r.Identity()
-		servers = append(servers, Server{ID: rid.ID, Name: rid.Name, Status: statuses[i], Services: names(rid.ID)})
+		var waiting []string
+		for _, w := range waitingOn(all, rid.ID) {
+			waiting = append(waiting, w.Package.Name)
+		}
+		servers = append(servers, Server{ID: rid.ID, Name: rid.Name, Status: statuses[i], Reachable: reachable[i],
+			Services: names(rid.ID), Waiting: waiting})
 	}
 	if m.Registry != nil {
 		certs := m.Registry.CertExpiries(context.Background())
@@ -336,6 +359,11 @@ func (m *Manager) RemoveServer(ctx context.Context, id string) error {
 	if on := m.onNode(all, id); len(on) > 0 {
 		return formErrorf("%s still runs %s. Remove it first, or move it to another server.",
 			r.Identity().Name, on[0].Package.Title)
+	}
+	if w := waitingOn(all, id); len(w) > 0 {
+		// Its backups are how they come back: keep it until they have.
+		return formErrorf("%s waits to be restored from %s's backups. Restore it or remove it first.",
+			w[0].Package.Title, r.Identity().Name)
 	}
 	if err := r.Leave(ctx); err != nil {
 		m.Log.Warn("server didn't answer; removing it anyway", "server", r.Identity().Name, "err", err)

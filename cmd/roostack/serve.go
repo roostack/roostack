@@ -377,6 +377,13 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 		if info, ok := infos[s.Package.Name]; ok {
 			v.ServiceDetail, v.Status, v.Server, v.LastBackup = info.ServiceDetail, info.Status, info.Server, info.LastBackup
 		}
+		if s.Instance.Waiting {
+			// Its server is gone: it runs nowhere until restored (SPEC.md §10.10).
+			v.Status, v.Server = web.StatusWaiting, ""
+			if n := mgr.NodeByID(s.Instance.Host); n != nil {
+				v.WasOn = n.Identity().Name
+			}
+		}
 		out, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
 			log.Error("generating service for status", "service", s.Package.Name, "err", err)

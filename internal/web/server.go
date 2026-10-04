@@ -52,6 +52,10 @@ const (
 	failedLoginDelay = 500 * time.Millisecond
 )
 
+// StatusWaiting is a service waiting to be restored: its server is gone
+// (SPEC.md §10.10).
+const StatusWaiting = "waiting"
+
 // ServiceView is one row on the dashboard.
 type ServiceView struct {
 	Name   string
@@ -60,6 +64,9 @@ type ServiceView struct {
 	URLs   []string
 	// Server is the name of the server it runs on.
 	Server string
+	// WasOn names the server a service waiting to be restored ran on
+	// (Status is StatusWaiting).
+	WasOn string
 	// What its server reports: containers, ports, routes, data folders
 	// and size (nothing about a service should look like magic).
 	node.ServiceDetail
@@ -175,6 +182,11 @@ type LabRestores interface {
 	ServiceBackups(ctx context.Context, name string) ([]manager.BackupMoment, []string, error)
 	RestoreService(ctx context.Context, name, id, to string) error
 	Restoring(name string) bool
+	// A server that's gone: its services' plan, restoring them, and
+	// removing one that waits (with its backups).
+	LostServerPlan(ctx context.Context, id string) (manager.LostPlan, error)
+	RestoreLostServer(ctx context.Context, id string, names []string, to string) error
+	RemoveWaiting(ctx context.Context, name string) error
 }
 
 // ServiceCatalog is the catalog and the installed services: installing,
@@ -359,7 +371,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
-		"home", "services", "service", "backups", "restore", "settings", "account", "account-appearance", "account-notifications", "users", "about",
+		"home", "services", "service", "backups", "restore", "settings-server-gone", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "settings-public", "backups-key-change"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
@@ -421,6 +433,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/servers/{server}/rename", s.requireOwner(s.renameServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
+	mux.Handle("GET /settings/servers/{server}/gone", s.requireOwner(s.serverGonePage))
+	mux.Handle("POST /settings/servers/{server}/gone", s.requireOwner(s.serverGoneSubmit))
+	mux.Handle("POST /services/{name}/remove-waiting", s.requireOwner(s.removeWaitingSubmit))
 	mux.Handle("POST /settings/signing-in", s.requireOwner(s.sessionSettingsSubmit))
 	mux.Handle("GET /settings/history", s.requireOwner(s.historyPage))
 	mux.Handle("GET /settings/history/{server}/{id}", s.requireOwner(s.historyEventPage))

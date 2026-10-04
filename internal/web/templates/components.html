@@ -8,7 +8,7 @@
   {{.Text}}{{with .Link}} <a href="{{.}}">{{$.LinkText}}</a>{{end}}</p>{{end}}
 
 {{/* status: a service state (running, starting, stopped, failed, unknown). */}}
-{{define "status"}}<span class="status status-{{.}}">{{if eq . "installing"}}<span class="spinner" aria-hidden="true"></span> {{end}}{{.}}</span>{{end}}
+{{define "status"}}<span class="status status-{{.}}">{{if eq . "installing"}}<span class="spinner" aria-hidden="true"></span> {{end}}{{if eq . "waiting"}}waiting to be restored{{else}}{{.}}{{end}}</span>{{end}}
 
 {{/* install-steps: a service's install, step by step (node.InstallProgress):
      done, in progress (with how long so far) and still to do. */}}
