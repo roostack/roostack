@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
@@ -176,7 +177,7 @@ func (s *Server) restoreActivity(r *http.Request, svc ServiceView) *activityView
 		}
 		best = v
 	}
-	if best == nil || s.activityFor(r, activity.Restore) == nil { // may the user see it?
+	if best == nil || !auth.Can(currentUser(r).Role, activityPerm[activity.Restore]) {
 		return nil
 	}
 	return best
