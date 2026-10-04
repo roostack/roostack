@@ -235,6 +235,11 @@ func (m *Manager) LinkPath(ctx context.Context, from, to string) string {
 	return PathHub
 }
 
+// LinkFailed reports whether a direct link between two servers was tried
+// lately and didn't connect (it's tried again after linkRetry, or when an
+// address changes).
+func (m *Manager) LinkFailed(ctx context.Context, a, b string) bool { return m.linkFailed(ctx, a, b) }
+
 // CheckLinks drops direct links that haven't connected within linkGrace
 // (their backups go through the controller), for linkRetry. Run every
 // minute or so.
