@@ -105,5 +105,10 @@ attention** on the home page, with what to do.
       each has its own snapshot, tagged `service=<name>`), then 5% of the data is read back
       (`restic check --read-data-subset=5%`).
 
+    "Every night" is 2 am on each server's clock. On the nights the clocks
+    change it still runs once (at 3 am when they go forward). A night the
+    server was off (or asleep) is caught up: once it's been on for 10
+    minutes, it backs up if it hasn't for over a day.
+
     List the backups from the command line with
     [`roostack backup snapshots`](../reference/cli.md#backups).

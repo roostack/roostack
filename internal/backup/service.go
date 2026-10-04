@@ -155,6 +155,33 @@ func (s *Service) MaintenanceJob() maintenance.Job {
 	}
 }
 
+// MissedAfter is how long after the last backup attempt one counts as
+// missed: a nightly backup plus a couple of hours' slack.
+const MissedAfter = 26 * time.Hour
+
+// CatchUp queues a backup if none was attempted for MissedAfter (or ever):
+// the server was off, or asleep, at the nightly time, which would
+// otherwise only come round again the next night (SPEC.md §6.9). It
+// reports whether it queued one. Failed backups have their own retries
+// (retry.go), so an attempt counts, not a success.
+func (s *Service) CatchUp(ctx context.Context) (bool, error) {
+	if !s.Configured() {
+		return false, nil
+	}
+	last, _, err := s.Store.LastBackup(ctx)
+	if err != nil {
+		return false, err
+	}
+	if last != nil && time.Since(last.Started) < MissedAfter {
+		return false, nil
+	}
+	err = s.Submit()
+	if errors.Is(err, ErrAlreadyQueued) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // RunNow queues a backup ("Back up now").
 func (s *Service) RunNow() error { return s.Submit() }
 

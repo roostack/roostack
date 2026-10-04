@@ -107,3 +107,39 @@ func TestServiceRecordsRuns(t *testing.T) {
 		t.Error("AfterBackup runs only after a backup that worked")
 	}
 }
+
+// A night the server was off is caught up: a backup is queued when none
+// was tried for over a day (or ever), and not otherwise.
+func TestCatchUp(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	// A coordinator that never runs anything: queued is all we look at.
+	coord := &maintenance.Coordinator{Policy: maintenance.DefaultPolicy(), Now: time.Now, Journal: nopJournal{},
+		Ticks: make(chan time.Time), Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	svc := &Service{Coord: coord, Store: st}
+	if queued, err := svc.CatchUp(ctx); queued || err != nil {
+		t.Errorf("not set up: %v %v", queued, err)
+	}
+	svc.Deps = &JobDeps{}
+	if queued, err := svc.CatchUp(ctx); !queued || err != nil {
+		t.Errorf("never backed up: %v %v", queued, err)
+	}
+	if queued, _ := svc.CatchUp(ctx); queued {
+		t.Error("one is queued already")
+	}
+	svc.setPending(false)
+	st.RecordBackup(ctx, store.BackupRun{Started: time.Now().Add(-40 * time.Hour), Finished: time.Now().Add(-40 * time.Hour), OK: true})
+	st.RecordBackup(ctx, store.BackupRun{Started: time.Now().Add(-3 * time.Hour), Finished: time.Now().Add(-3 * time.Hour), OK: false})
+	if queued, _ := svc.CatchUp(ctx); queued {
+		t.Error("tried 3 hours ago (failed attempts have their own retries)")
+	}
+	// A day and a half ago: the server was off last night.
+	st.RecordBackup(ctx, store.BackupRun{Started: time.Now().Add(-36 * time.Hour), Finished: time.Now().Add(-36 * time.Hour), OK: true})
+	if queued, _ := svc.CatchUp(ctx); !queued {
+		t.Error("over a day since the last attempt")
+	}
+}

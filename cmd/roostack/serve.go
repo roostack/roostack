@@ -516,6 +516,26 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 	}()
 	// Failed backups are tried again (backup/retry.go).
 	go svc.WatchRetries(ctx)
+	// A night the server was off is caught up: a while after starting
+	// (once the services have), then hourly (SPEC.md §6.9).
+	go func() {
+		wait := catchUpDelay
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(wait):
+			}
+			wait = time.Hour
+			queued, err := svc.CatchUp(ctx)
+			switch {
+			case err != nil:
+				log.Warn("catching up a missed backup", "err", err)
+			case queued:
+				log.Info("catching up a missed backup: none for over a day")
+			}
+		}
+	}()
 	if svc.Configured() {
 		go maintenance.Every(ctx,
 			func(now time.Time) time.Time {
@@ -526,6 +546,10 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 	jobs.Backups, jobs.Updates = svc, updates
 	return jobs, coord, nil
 }
+
+// catchUpDelay is how long after starting Roostack checks for a missed
+// nightly backup.
+const catchUpDelay = 10 * time.Minute
 
 // lookupService generates an installed service's output (e.g. to restore
 // it), with its title.
