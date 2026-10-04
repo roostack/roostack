@@ -136,7 +136,9 @@ func (s *Service) RetryDue(now time.Time) {
 		return
 	}
 	if due := s.dueRetries(now); len(due) > 0 {
-		s.submit(due)
+		if s.loadFence(context.Background()) == nil { // stood down: nothing to retry
+			s.submit(due)
+		}
 	}
 }
 

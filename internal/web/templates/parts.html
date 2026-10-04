@@ -83,7 +83,22 @@
     <form method="post" action="{{$.Server.BackupRun}}"><button type="submit">Back up now</button></form>
     {{end}}
   </div>
-  {{if .Unreachable}}
+  {{if .Fenced}}{{with .Fenced}}
+    {{if eq .Reason "removed"}}
+    {{notice "error" "This server was removed from its lab (it couldn't be reached at the time). It no longer backs up into the lab's storage. Switch it off, or wipe it and add it to the lab again."}}
+    {{else}}
+    {{notice "error" (printf "%s. Both copies would otherwise back up into the same storage and update the same web addresses, so this one has stopped doing both. Switch this copy off, or wipe it." .Message)}}
+    {{if and $.IsOwner $.Server.This}}
+    <details>
+      <summary>This is the right copy</summary>
+      <p class="hint">If the other copy was only a test (a restore you tried out), keep this one: it backs up again, and the other
+        stops at its next backup. Switch the other one off first.</p>
+      {{confirm "/backups/keep-this-copy" "Keep this copy? The other copy stops backing up at its next backup." "Keep this copy" "danger"}}
+    </details>
+    {{end}}
+    {{end}}
+  {{end}}
+  {{else if .Unreachable}}
     <p class="hint"><span class="spinner" aria-hidden="true"></span> Can't reach {{.Unreachable}} right now (it may be restarting):
       its backup status shows when it's back.</p>
   {{else if and .SettingUp (not .Configured)}}

@@ -77,6 +77,13 @@ func (s *Service) Job() maintenance.Job {
 				s.Store.RecordBackup(context.WithoutCancel(ctx), run)
 			}
 			sum, err := Run(ctx, deps, h)
+			// Out of date: stand down until the Owner says otherwise.
+			var fenced *FenceError
+			if errors.As(err, &fenced) {
+				s.setFence(context.WithoutCancel(ctx), &fenced.Fence)
+				act.Finish(err)
+				return nil // not a failure to retry: there's nothing to do
+			}
 			if ctx.Err() != nil && err != nil {
 				act.Printf("Paused for a restart; the backup continues afterwards.")
 			}
@@ -176,7 +183,7 @@ func (s *Service) CatchUp(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 	err = s.Submit()
-	if errors.Is(err, ErrAlreadyQueued) {
+	if errors.Is(err, ErrAlreadyQueued) || errors.Is(err, ErrFenced) {
 		return false, nil
 	}
 	return err == nil, err
@@ -190,6 +197,9 @@ func (s *Service) RunNow() error { return s.Submit() }
 func (s *Service) Submit(chain ...maintenance.Job) error {
 	if !s.Configured() {
 		return errors.New("backups are not set up")
+	}
+	if s.loadFence(context.Background()) != nil {
+		return ErrFenced
 	}
 	if !s.submit(nil, chain...) {
 		return ErrAlreadyQueued
@@ -259,6 +269,9 @@ type Status struct {
 	Next   time.Time
 	// Copies are the extra copies somewhere else, with their own results.
 	Copies []CopyStatus
+	// Fenced says why backups stood down: this copy of the lab is out of
+	// date (fence.go). Nil normally.
+	Fenced *Fence
 }
 
 // CopyStatus is an extra copy's latest results.
@@ -290,6 +303,7 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		}
 	}
 	st.Retry = s.retryFor("")
+	st.Fenced = s.loadFence(ctx)
 	if s.NextRun != nil {
 		st.Next = s.NextRun()
 	}

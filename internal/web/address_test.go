@@ -13,6 +13,7 @@ import (
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/labnet"
 )
@@ -125,7 +126,8 @@ func TestSetupJoin(t *testing.T) {
 // A server that's part of a lab has one page: which lab, and where to
 // manage it.
 func TestNodePage(t *testing.T) {
-	h, err := NodePage("nas", "The Smiths' lab", "https://roost.lab.example.com")
+	var fence *backup.Fence
+	h, err := NodePage("nas", "The Smiths' lab", "https://roost.lab.example.com", func() *backup.Fence { return fence })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,5 +146,13 @@ func TestNodePage(t *testing.T) {
 	}
 	if resp, err := http.Get(srv.URL + "/static/css/app.css"); err != nil || resp.StatusCode != http.StatusOK {
 		t.Errorf("styles: %v %v", resp, err)
+	}
+	// Removed from the lab while it was off: it says so.
+	fence = &backup.Fence{Reason: backup.FenceRemoved}
+	resp, _ = http.Get(srv.URL + "/")
+	body, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if !strings.Contains(string(body), "This server was removed from its lab") {
+		t.Error("a removed server's page should say so")
 	}
 }

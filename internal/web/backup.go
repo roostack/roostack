@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html/template"
@@ -152,4 +153,23 @@ func (s *Server) backupRun(w http.ResponseWriter, r *http.Request) {
 	m := s.serverRefOf(r)
 	s.Store.Audit(r.Context(), currentUser(r), "backup", "started manually on "+m.Label())
 	redirect(w, r, m.Backups())
+}
+
+// keepThisCopySubmit is the Owner saying this copy of the lab is the right
+// one after a restore elsewhere (e.g. a test restore): it backs up again,
+// and the other stands down at its next backup (backup/fence.go).
+func (s *Server) keepThisCopySubmit(w http.ResponseWriter, r *http.Request) {
+	k, ok := s.backups(r).(interface {
+		KeepThisCopy(ctx context.Context) error
+	})
+	if !ok || !s.serverRefOf(r).This {
+		http.NotFound(w, r)
+		return
+	}
+	if err := k.KeepThisCopy(r.Context()); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "backup", "kept this copy of the lab after it was restored elsewhere")
+	redirect(w, r, "/backups")
 }

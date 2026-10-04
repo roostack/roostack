@@ -505,6 +505,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /backups/recovery-key/change", s.requireOwner(s.keyChangeSubmit))
 	mux.Handle("POST /backups/recovery-key/change/confirm", s.requireOwner(s.keyChangeConfirm))
 	mux.Handle("POST /backups/recovery-key/change/cancel", s.requireOwner(s.keyChangeCancel))
+	mux.Handle("POST /backups/keep-this-copy", s.requireOwner(s.keepThisCopySubmit))
 	mux.Handle("GET /backups/restore/{name}", s.requireOwner(s.restorePage))
 	mux.Handle("POST /backups/restore/{name}", s.requireOwner(s.restoreSubmit))
 	mux.Handle("POST /backups/restore/{name}/kept/remove", s.requireOwner(s.removeKeptSubmit))
