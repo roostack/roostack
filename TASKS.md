@@ -82,7 +82,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Full-lab restore onto a new server: first-run "Restore a lab" (folder, S3-compatible bucket or restic address + recovery key), restores the controller's backup, database at the next start, services' databases after the first apply; WireGuard keys in backups. Tested end to end on a rebuilt VM (`ROOSTACK_VM=4`)
   - [x] A backup disk whose files belong to another user: the restore page says so, with the chown command
   - [ ] Full-lab restore from storage at a friend's lab
-  - [ ] Restoring across the lab (SPEC §10.10, 2026-10-04):
+  - [x] Restoring across the lab (SPEC §10.10, 2026-10-04):
     - [x] One snapshot per service (tagged, with its secrets) plus the server's own; retention per service; full-lab restore and moves read them. Tried on VM1
     - [x] One restore page per service for the whole lab: every server's backups and copies (unreadable ones noted), the newest suggested (or the main backup from about then), onto any server; in place from the main backup the server restores itself, otherwise the controller streams it (secrets from the backup; the old server's copy kept aside). Tested with real restic, including a lost server
     - [x] Whole lab onto fewer servers (and any server that's gone): "*server* is gone" on Settings → Servers, plan of its services with their newest readable backup and size, tick which come back onto one server; the rest wait to be restored. Tested with real restic (manager) and the pages (web)
