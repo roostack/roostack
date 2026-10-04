@@ -231,6 +231,7 @@ pre.output { background: var(--surface-2); border: 1px solid var(--border); bord
 .activity-log { max-height: 24em; }
 .spinner { display: inline-block; width: 0.8em; height: 0.8em; border: 2px solid var(--border);
   border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -0.1em; }
+/* 0.8s: static/app.js keeps spinners in step by this. */
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 
