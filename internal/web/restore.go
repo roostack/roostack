@@ -169,22 +169,29 @@ const justRestored = 15 * time.Minute
 // restoreActivity is the latest restore of the service: the server it runs
 // on restores from its own backup, the controller from anywhere else.
 func (s *Server) restoreActivity(r *http.Request, svc ServiceView) *activityView {
+	return s.serviceActivity(r, activity.Restore, func(title string) bool { return title == "Restoring "+svc.Title })
+}
+
+// serviceActivity is a service's latest activity of a kind whose title
+// matches, from the server it runs on or the controller (which runs
+// moves, and restores from elsewhere), whichever is newer.
+func (s *Server) serviceActivity(r *http.Request, kind string, match func(title string) bool) *activityView {
 	var best *activityView
 	for _, n := range []ServiceNode{s.serverOf(r), s.Node} {
 		if n == nil {
 			continue
 		}
-		snap, ok := n.LatestActivity(activity.Restore)
-		if !ok || snap.Title != "Restoring "+svc.Title || (best != nil && !snap.Started.After(best.Started)) {
+		snap, ok := n.LatestActivity(kind)
+		if !ok || !match(snap.Title) || (best != nil && !snap.Started.After(best.Started)) {
 			continue
 		}
-		v := &activityView{Kind: activity.Restore, Snapshot: snap}
+		v := &activityView{Kind: kind, Snapshot: snap}
 		if s.Node != nil && n.Identity().ID != s.Node.Identity().ID {
 			v.Server = n.Identity().ID // polling asks that server
 		}
 		best = v
 	}
-	if best == nil || !auth.Can(currentUser(r).Role, activityPerm[activity.Restore]) {
+	if best == nil || !auth.Can(currentUser(r).Role, activityPerm[kind]) {
 		return nil
 	}
 	return best

@@ -1080,6 +1080,24 @@ func TestMovePage(t *testing.T) {
 	if code, _ := h.get("/services/nope/move"); code != http.StatusNotFound {
 		t.Errorf("unknown service: %d", code)
 	}
+
+	// The controller moves it, even when it ran on another server: the
+	// page shows how it's going there, then that it's done.
+	fm.serviceNode = otherServer{fm}
+	move := h.acts().Start(activity.Move, "Moving Vaultwarden to vps")
+	move.Step("Copying Vaultwarden's data to vps while it keeps running")
+	_, body = h.get("/services/vaultwarden/move")
+	if !strings.Contains(body, "Copying Vaultwarden&#39;s data to vps") || !strings.Contains(body, "Vaultwarden is moving.") ||
+		strings.Contains(body, `name="to"`) {
+		t.Error("while it moves: its progress, no form")
+	}
+	move.Finish(nil)
+	_, body = h.get("/services/vaultwarden/move")
+	if !strings.Contains(body, "Vaultwarden now runs on") || !strings.Contains(body, "<summary>Move it again…</summary>") {
+		t.Error("once it's moved: say so, the form a click away")
+	}
+	fm.serviceNode = nil
+
 	ha, _ := loggedIn(t, auth.RoleAdmin)
 	if code, _ := ha.get("/services/vaultwarden/move"); code == http.StatusOK {
 		t.Error("only Owners move services")

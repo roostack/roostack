@@ -3,12 +3,21 @@
 <section class="card medium">
   <div class="page-top">{{back (printf "/services/%s" $.Name) .Package.Title}}{{help "servers/move" "Move a service"}}</div>
   <h1>Move {{.Package.Title}} to another server</h1>
+  {{with .MoveActivity}}{{activity .}}{{end}}
+  {{/* Drawn again when the move finishes: where it runs now. */}}
+  <div id="move-body" hx-get="/services/{{$.Name}}/move" hx-select="#move-body" hx-trigger="activity-done from:body" hx-swap="outerHTML"
+    hx-disinherit="*">
+  {{if .Moving}}
+    {{notice "info" (printf "%s is moving. This page shows how it's going." .Package.Title)}}
+  {{else}}
+  {{if .JustMoved}}{{notice "ok" (printf "%s now runs on %s. Check it works; its old copy stays on the other server until you delete it (Settings → Servers)." .Package.Title .Info.From.Name) (printf "link=/services/%s" $.Name) (printf "linkText=Open %s's page" .Package.Title)}}{{end}}
   <dl class="facts">
     <dt>Runs on</dt><dd>{{.Info.From.Name}}</dd>
     <dt>Data</dt><dd>{{.Size}}</dd>
   </dl>
-  {{with .MoveActivity}}{{activity .}}{{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .JustMoved}}<details>
+    <summary>Move it again…</summary>{{end}}
   {{with .Targets}}
   <form method="post">
     <fieldset>
@@ -32,5 +41,8 @@
   {{else}}
   <p>Add another server first (Settings → Servers).</p>
   {{end}}
+  {{if .JustMoved}}</details>{{end}}
+  {{end}}
+  </div>
 </section>
 {{end}}
