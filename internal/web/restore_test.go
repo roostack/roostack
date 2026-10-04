@@ -121,6 +121,13 @@ func TestRestoreFlow(t *testing.T) {
 	}
 	fm.serviceNode = nil
 
+	// Once it's done, the page says so; restoring again is a click away.
+	h.acts().Start(activity.Restore, "Restoring Vaultwarden").Finish(nil)
+	_, body = h.get("/backups/restore/vaultwarden")
+	if !strings.Contains(body, "Vaultwarden is restored.") || !strings.Contains(body, "<summary>Restore it again…</summary>") {
+		t.Error("a finished restore should lead with its result")
+	}
+
 	h.post("/backups/restore/vaultwarden/kept/remove", url.Values{"path": {fr.kept[0].Path}}, h.srv.URL)
 	if len(fr.removed) != 1 {
 		t.Error("kept copy not removed")

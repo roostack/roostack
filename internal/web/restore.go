@@ -154,10 +154,17 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 	if a := s.restoreActivity(r, svc); a != nil {
 		data["RestoreActivity"] = a
 		data["Pending"] = pending || a.Running()
+		// Just restored: the page shows that it's done, with restoring
+		// again a click away rather than the form (not after a failure:
+		// then trying again is the next step).
+		data["JustDone"] = !a.Running() && a.Err == "" && time.Since(a.Finished) < justRestored
 	}
 	w.WriteHeader(status)
 	s.render(w, "restore", data)
 }
+
+// justRestored is how long after a restore its page leads with the result.
+const justRestored = 15 * time.Minute
 
 // restoreActivity is the latest restore of the service: the server it runs
 // on restores from its own backup, the controller from anywhere else.
