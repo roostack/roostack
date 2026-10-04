@@ -79,7 +79,7 @@ func (m *Manager) SetPublic(ctx context.Context, name string, req PublicRequest)
 	if err != nil {
 		return err
 	}
-	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Package.Name == name })
+	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Name() == name })
 	if i < 0 {
 		return ErrNotFound
 	}

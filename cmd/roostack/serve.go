@@ -386,8 +386,8 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 	infos := mgr.ServiceInfos(ctx)
 	var views []web.ServiceView
 	for _, s := range all {
-		v := web.ServiceView{Name: s.Package.Name, Title: s.Package.Title, Status: "unknown"}
-		if info, ok := infos[s.Package.Name]; ok {
+		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Status: "unknown"}
+		if info, ok := infos[s.Name()]; ok {
 			v.ServiceDetail, v.Status, v.Server, v.LastBackup = info.ServiceDetail, info.Status, info.Server, info.LastBackup
 		}
 		if s.Instance.Waiting {
@@ -399,7 +399,7 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 		}
 		out, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
-			log.Error("generating service for status", "service", s.Package.Name, "err", err)
+			log.Error("generating service for status", "service", s.Name(), "err", err)
 			v.Status = "failed"
 			views = append(views, v)
 			continue
@@ -531,9 +531,9 @@ func lookupService(services serverServices, name string) (*generate.Output, stri
 		return nil, "", err
 	}
 	for _, s := range list {
-		if s.Package.Name == name {
+		if s.Name() == name {
 			out, err := generate.Service(lab, s.Package, s.Instance)
-			return out, s.Package.Title, err
+			return out, s.Title(), err
 		}
 	}
 	return nil, "", fmt.Errorf("%s is not installed", name)

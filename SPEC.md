@@ -470,6 +470,16 @@ Nothing Roostack does should look like magic, afterwards too. **Settings → His
 - **Future:** storage shared between services (e.g. Jellyfin reading Immich's library, read-only); package upgrade notes and migration steps for upstream breaking changes.
 - **Reference examples:** `docs/examples/vaultwarden.yaml` (simple), `docs/examples/forgejo.yaml` (Postgres, an optional SSH port), `docs/examples/immich.yaml` (complex).
 
+### 8.2 Several copies of a package — Locked, as built (2026-10-04)
+
+Any package can be installed more than once (two Forgejos at different addresses, say), each copy treated as a separate service in everything.
+
+- **Every installed service has an ID that never changes**, separate from the package it's an instance of: the instance file's `name` (the file is `<name>.yaml`); empty means the package's name, so the first copy is called after its package (`forgejo`) and nothing changes for it. Units, the Podman network, secrets, database names, data and media folders, Caddy's site file, backup tags (`service=<name>`), setup progress and the UI's URLs (`/services/<name>`) all use it. The package (`package:`) is what it runs.
+- **People see a title**: the instance's `title`, or the package's. The ID is shown only where it matters (Details, folders).
+- **Adding another copy:** the catalog's "Add another…" on an installed package asks for a title ("Forgejo (2)" suggested), a name (`forgejo-2` suggested: lowercase letters, digits and dashes, up to 30, never changing) and a web address of its own (`git-2`), then installs as usual. A name or address already used is a form error.
+- **Considered:** renaming a service's ID later (it would mean renaming units, folders, secrets, databases and backup tags: rejected; the title changes instead, once that's built); one set of data shared by copies (not what copies are for).
+- Not yet: changing a service's title after installing (filed in TASKS).
+
 ## 9. MVP Scope — Locked
 
 Single node: web UI, reverse proxy with automatic TLS, three catalog services (e.g. Vaultwarden, Forgejo, Immich — increasing complexity), backup and restore. Multiple servers (§10), SSO, DNS, and monitoring follow after the core is solid, but the design should anticipate multiple servers.

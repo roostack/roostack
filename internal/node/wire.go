@@ -71,7 +71,7 @@ func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error)
 		if err != nil {
 			return WireService{}, err
 		}
-		pkg, err := os.ReadFile(lab.Paths.PackageFile(s.Package.Name))
+		pkg, err := os.ReadFile(lab.Paths.PackageFile(s.Instance.Package))
 		if err != nil {
 			return WireService{}, err
 		}

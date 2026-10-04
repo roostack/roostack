@@ -4,7 +4,7 @@
      through an SSH tunnel (SPEC.md §6.12). */}}
 {{$privateMeans := "reachable from your home network (or VPN) only"}}{{if .Internet}}{{$privateMeans = "reachable only through an SSH tunnel"}}{{end}}
 <section class="card medium">
-  <div class="page-top">{{back (printf "/services/%s" .Package.Name) .Package.Title}}{{help "services/public" "Making a service public"}}</div>
+  <div class="page-top">{{back (printf "/services/%s" $.Name) .Package.Title}}{{help "services/public" "Making a service public"}}</div>
   {{with .Route}}
   <div class="heading">
     <h1>Who can reach {{.Host}}</h1>
@@ -19,7 +19,7 @@
   {{with .Route.PrivatePaths}}
   <h2>Parts kept private</h2>
   <p class="hint">{{$.Package.Title}}'s package keeps these private: {{$privateMeans}}. Tick one to make it public too.</p>
-  <form method="post" action="/services/{{$.Package.Name}}/public/{{$.Route.Route}}">
+  <form method="post" action="/services/{{$.Name}}/public/{{$.Route.Route}}">
     <input type="hidden" name="public" value="on">
     {{if $.Route.Unsafe}}<input type="hidden" name="accept_unsafe" value="on">{{end}}
     {{range .}}
@@ -49,7 +49,7 @@
       <small>Port 443 already goes to another device at home? It has to come here instead, or wait for public access through a cloud server.
         If this server is a cloud server, say so in <a href="/settings/home-network">Settings → Where it is and DNS</a>.</small></li>
     {{end}}
-    <li id="check"{{if .CheckLink}} hx-get="/services/{{.Package.Name}}/public/{{.Route.Route}}" hx-select="#check" hx-trigger="every 5s [document.visibilityState === 'visible']" hx-swap="outerHTML"{{end}}>
+    <li id="check"{{if .CheckLink}} hx-get="/services/{{$.Name}}/public/{{.Route.Route}}" hx-select="#check" hx-trigger="every 5s [document.visibilityState === 'visible']" hx-swap="outerHTML"{{end}}>
       <span class="dot dot-{{if .Check}}ok{{else}}none{{end}}" aria-hidden="true"></span><strong>{{if .Internet}}Check from a browser.{{else}}Check from your phone.{{end}}</strong>
       {{with .Check}}It worked from outside on {{date .At}} at {{.At.Local.Format "15:04"}} (from {{.From}}).{{end}}
       {{if .CheckLink}}
@@ -58,7 +58,7 @@
       {{with .CheckQR}}<div class="qr-box">{{.}}</div>{{end}}
       <p><code class="secret">{{.CheckLink}}</code></p>
       {{else}}
-      <form method="post" action="/services/{{.Package.Name}}/public/{{.Route.Route}}/check">
+      <form method="post" action="/services/{{$.Name}}/public/{{.Route.Route}}/check">
         <button type="submit" class="secondary">{{if .Check}}Check again{{else}}Make a check link{{end}}</button>
       </form>
       {{end}}
@@ -78,7 +78,7 @@
         some (called CGNAT, common on mobile and some fibre plans) can't. <a href="/help/services/public/#if-it-doesnt-work" target="_blank" rel="noopener">Tell me more{{template "new-window"}}</a></li>{{end}}
     </ol>
   </details>
-  {{confirm (printf "/services/%s/public/%s" .Package.Name .Route.Route) (printf "Make %s private? %s" .Route.Host (or (and .Internet "Only an SSH tunnel will reach it.") "Only your home network (or VPN) will reach it, and its DNS record points back home.")) "Make private" "quiet danger" "public=off"}}
+  {{confirm (printf "/services/%s/public/%s" $.Name .Route.Route) (printf "Make %s private? %s" .Route.Host (or (and .Internet "Only an SSH tunnel will reach it.") "Only your home network (or VPN) will reach it, and its DNS record points back home.")) "Make private" "quiet danger" "public=off"}}
 
   {{else}}
   <p>{{if .Internet}}Right now it's only reachable through an SSH tunnel, which is for technical users
@@ -86,7 +86,7 @@
     {{- else}}Right now only devices on your home network (or VPN) can open it.{{end}}</p>
   <p>Making it public lets <strong>anyone on the internet</strong> reach it: its login page, and anything it shares without a login.
     {{template "public-ui" .}} Use strong passwords (and two-factor authentication, if {{.Package.Title}} has it).</p>
-  <form method="post" action="/services/{{.Package.Name}}/public/{{.Route.Route}}">
+  <form method="post" action="/services/{{$.Name}}/public/{{.Route.Route}}">
     <input type="hidden" name="public" value="on">
     {{with .Route.Unsafe}}
     {{notice "error" (printf "%s's package says this address isn't safe to make public: %s" $.Package.Title .)}}

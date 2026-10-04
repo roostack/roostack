@@ -143,7 +143,7 @@ func (n *Local) DiskSpaces(context.Context) ([]DiskSpace, error) {
 		switch f.role {
 		case "services", "media":
 			for _, s := range services {
-				add(&d.Services, size(filepath.Join(f.path, s.Package.Name)))
+				add(&d.Services, size(filepath.Join(f.path, s.Name())))
 			}
 		case "store":
 			d.Store = true

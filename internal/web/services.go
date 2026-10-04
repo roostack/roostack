@@ -69,6 +69,8 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := manager.InstallRequest{
+		Name:      r.PostForm.Get("name"),
+		Title:     r.PostForm.Get("title"),
 		Subdomain: r.PostForm.Get("subdomain"),
 		Host:      r.PostForm.Get("host"),
 		Settings:  map[string]string{},
@@ -162,9 +164,25 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		fields = append(fields, f)
 	}
 
+	// Another copy of something installed: it needs a name, title and
+	// address of its own (SPEC.md §8.2).
+	another := false
+	if items, err := s.Manager.Catalog(); err == nil {
+		for _, it := range items {
+			another = another || (it.Name == p.Name && it.Installed)
+		}
+	}
+	name, _ := get("name")
+	title, _ := get("title")
 	sub, _ := get("subdomain")
 	if route := manager.MainRoute(p); submitted == nil && route != "" {
 		sub = p.Routes[route].Subdomain
+		if another {
+			sub += "-2"
+		}
+	}
+	if submitted == nil && another {
+		name, title = p.Name+"-2", p.Title+" (2)"
 	}
 	// Where to run it, once the lab has more than one server (SPEC.md §10.4).
 	var servers []manager.Server
@@ -194,23 +212,27 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		"Error":        errMsg,
 		"Servers":      servers,
 		"Host":         host,
+		"Another":      another,
+		"Name":         name,
+		"Title":        title,
 	}
 }
 
 func (s *Server) removePage(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.pkg(w, r)
+	p, ok := s.servicePkg(w, r)
 	if !ok {
 		return
 	}
-	s.render(w, "remove", map[string]any{"User": currentUser(r), "Package": p, "DataDirs": s.Manager.DataDirs(p.Name)})
+	name := r.PathValue("name")
+	s.render(w, "remove", map[string]any{"User": currentUser(r), "Package": p, "Name": name, "DataDirs": s.Manager.DataDirs(name)})
 }
 
 func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {
-	p, ok := s.pkg(w, r)
-	if !ok {
+	if _, ok := s.servicePkg(w, r); !ok {
 		return
 	}
-	err := s.Manager.Remove(r.Context(), p.Name)
+	name := r.PathValue("name")
+	err := s.Manager.Remove(r.Context(), name)
 	if errors.Is(err, manager.ErrNotFound) {
 		redirect(w, r, "/")
 		return
@@ -219,7 +241,7 @@ func (s *Server) removeSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "remove", p.Name)
+	s.Store.Audit(r.Context(), currentUser(r), "remove", name)
 	redirect(w, r, "/")
 }
 
@@ -313,7 +335,7 @@ func (s *Server) retryWithSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	settings, secrets := map[string]string{}, map[string]string{}
-	if p, err := s.Manager.Package(name); err == nil {
+	if p, err := s.Manager.ServicePackage(name); err == nil {
 		for _, st := range manager.InstallSettings(p) {
 			v, given := r.PostForm["setting."+st.Key]
 			if !given || len(v) == 0 {
@@ -386,6 +408,25 @@ func (s *Server) actionSubmit(w http.ResponseWriter, r *http.Request) {
 	// Only the action's name: inputs may be sensitive.
 	s.Store.Audit(r.Context(), currentUser(r), "action", fmt.Sprintf("%s %s: %s", name, action, status))
 	s.renderServiceWith(w, r, map[string]any{"ActionResult": result}, result["error"] != "")
+}
+
+// servicePkg loads the package of the installed service named in the URL
+// (titled as the service), writing a 404 if there is none.
+func (s *Server) servicePkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Package, bool) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return nil, false
+	}
+	p, err := s.Manager.ServicePackage(r.PathValue("name"))
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return nil, false
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return nil, false
+	}
+	return p, true
 }
 
 // pkg loads the package named in the URL, writing a 404 if there is none.

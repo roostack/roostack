@@ -91,13 +91,13 @@ func (s *Server) renderPublic(w http.ResponseWriter, r *http.Request, formErr st
 		s.serverError(w, err)
 		return
 	}
-	p, err := s.Manager.Package(r.PathValue("name"))
+	p, err := s.Manager.ServicePackage(r.PathValue("name"))
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
 	asked, share := s.Manager.SignalSharing()
-	data := map[string]any{"User": currentUser(r), "Package": p, "Route": ra,
+	data := map[string]any{"User": currentUser(r), "Package": p, "Name": r.PathValue("name"), "Route": ra,
 		"SharingAsked": asked, "Share": share, "Error": formErr}
 	s.addPublicUI(data)
 	if ra.Public {

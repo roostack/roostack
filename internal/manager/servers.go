@@ -176,7 +176,7 @@ func (m *Manager) startApplyLocked() {
 		}
 		a := node.Assignment{Services: m.onNode(services, id), Lab: lab, Reason: reason}
 		for _, s := range a.Services {
-			name := s.Package.Name
+			name := s.Name()
 			for k, v := range m.secrets[name] {
 				if a.Secrets == nil {
 					a.Secrets = map[string][]byte{}
@@ -219,13 +219,13 @@ func (m *Manager) allocateAndSave(services []state.Service) error {
 			return err
 		}
 		for _, s := range ported {
-			if !slices.ContainsFunc(changed, func(c state.Service) bool { return c.Package.Name == s.Package.Name }) {
+			if !slices.ContainsFunc(changed, func(c state.Service) bool { return c.Name() == s.Name() }) {
 				changed = append(changed, s)
 			}
 		}
 	}
 	for _, s := range changed {
-		if err := s.Instance.Save(state.InstanceFile(m.Lab, s.Package.Name)); err != nil {
+		if err := s.Instance.Save(state.InstanceFile(m.Lab, s.Name())); err != nil {
 			return err
 		}
 	}
@@ -252,7 +252,7 @@ func (m *Manager) Servers() ([]Server, error) {
 	names := func(id string) []string {
 		var out []string
 		for _, s := range m.onNode(all, id) {
-			out = append(out, s.Package.Name)
+			out = append(out, s.Name())
 		}
 		slices.Sort(out)
 		return out
@@ -273,7 +273,7 @@ func (m *Manager) Servers() ([]Server, error) {
 		rid := r.Identity()
 		var waiting []string
 		for _, w := range waitingOn(all, rid.ID) {
-			waiting = append(waiting, w.Package.Name)
+			waiting = append(waiting, w.Name())
 		}
 		servers = append(servers, Server{ID: rid.ID, Name: rid.Name, Status: statuses[i], Reachable: reachable[i],
 			Services: names(rid.ID), Waiting: waiting})
@@ -360,12 +360,12 @@ func (m *Manager) RemoveServer(ctx context.Context, id string) error {
 	}
 	if on := m.onNode(all, id); len(on) > 0 {
 		return formErrorf("%s still runs %s. Remove it first, or move it to another server.",
-			r.Identity().Name, on[0].Package.Title)
+			r.Identity().Name, on[0].Title())
 	}
 	if w := waitingOn(all, id); len(w) > 0 {
 		// Its backups are how they come back: keep it until they have.
 		return formErrorf("%s waits to be restored from %s's backups. Restore it or remove it first.",
-			w[0].Package.Title, r.Identity().Name)
+			w[0].Title(), r.Identity().Name)
 	}
 	if err := r.Leave(ctx); err != nil {
 		m.Log.Warn("server didn't answer; removing it anyway", "server", r.Identity().Name, "err", err)

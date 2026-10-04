@@ -234,7 +234,7 @@ func backupRestore(ctx context.Context, lab config.Lab, repo *backup.Repo, launc
 	services := state.OnNode(all, lab.NodeID)
 	var svc *state.Service
 	for i := range services {
-		if services[i].Package.Name == name {
+		if services[i].Name() == name {
 			svc = &services[i]
 		}
 	}
@@ -250,7 +250,7 @@ func backupRestore(ctx context.Context, lab config.Lab, repo *backup.Repo, launc
 		return err
 	}
 	r := &backup.Restorer{Repo: repo, Units: systemd.New(), Launch: launch, RoostackBin: roostackBin, Now: time.Now}
-	fmt.Printf("Restoring %s...\n", svc.Package.Title)
+	fmt.Printf("Restoring %s...\n", svc.Title())
 	res, err := r.RestoreService(ctx, out, snapshot)
 	if res != nil {
 		fmt.Printf("Restored from the backup taken %s (%s).\n", res.Snapshot.Time.Local().Format("2006-01-02 15:04"), res.Snapshot.Short)

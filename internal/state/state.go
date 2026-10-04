@@ -27,6 +27,23 @@ type Service struct {
 	Package  *pkgspec.Package
 }
 
+// Name is the service's ID (instance.Instance.ID): a second copy of a
+// package has its own (SPEC.md §8.2).
+func (s Service) Name() string {
+	if s.Instance == nil {
+		return s.Package.Name
+	}
+	return s.Instance.ID()
+}
+
+// Title is what people call it: its own title, or its package's.
+func (s Service) Title() string {
+	if s.Instance != nil && s.Instance.Title != "" {
+		return s.Instance.Title
+	}
+	return s.Package.Title
+}
+
 // LoadServices reads every instance file and its package from the catalog.
 func LoadServices(lab config.Lab) ([]Service, error) {
 	dir := lab.Paths.InstancesDir()
@@ -49,8 +66,8 @@ func LoadServices(lab config.Lab) ([]Service, error) {
 			errs = append(errs, err)
 			continue
 		}
-		if in.Package != name {
-			errs = append(errs, fmt.Errorf("%s: file name must match package %q", e.Name(), in.Package))
+		if in.ID() != name {
+			errs = append(errs, fmt.Errorf("%s: file name must match its name %q", e.Name(), in.ID()))
 			continue
 		}
 		// Checked here, not only when generating: a service with a bad host
@@ -94,18 +111,18 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		}
 		for _, h := range out.Hosts {
 			if other, dup := hosts[h]; dup {
-				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Package.Name, h, other))
+				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Name(), h, other))
 			}
-			hosts[h] = s.Package.Name
+			hosts[h] = s.Name()
 		}
 		for _, p := range out.Ports {
 			if other, dup := ports[p]; dup {
-				errs = append(errs, fmt.Errorf("%s: port %d is already used by %s", s.Package.Name, p, other))
+				errs = append(errs, fmt.Errorf("%s: port %d is already used by %s", s.Name(), p, other))
 			}
-			ports[p] = s.Package.Name
+			ports[p] = s.Name()
 		}
 		for _, hp := range out.HostPorts {
-			if err := checkHostPort(hp, s.Package.Name, ports, hostPorts); err != nil {
+			if err := checkHostPort(hp, s.Name(), ports, hostPorts); err != nil {
 				errs = append(errs, err)
 			}
 		}
@@ -119,9 +136,9 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		}
 		for _, h := range out.Hosts {
 			if other, dup := hosts[h]; dup {
-				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Package.Name, h, other))
+				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Name(), h, other))
 			}
-			hosts[h] = s.Package.Name
+			hosts[h] = s.Name()
 		}
 		d.Services = append(d.Services, out)
 	}
@@ -215,7 +232,7 @@ func AllocatePorts(services []Service) ([]Service, error) {
 	next := config.DefaultRoutePortMin
 	var changed []Service
 	sorted := slices.Clone(services)
-	slices.SortFunc(sorted, func(a, b Service) int { return strings.Compare(a.Package.Name, b.Package.Name) })
+	slices.SortFunc(sorted, func(a, b Service) int { return strings.Compare(a.Name(), b.Name()) })
 	for _, s := range sorted {
 		dirty := false
 		for _, name := range slices.Sorted(maps.Keys(s.Package.Routes)) {

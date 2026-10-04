@@ -1,7 +1,7 @@
 {{define "title"}}Move {{.Package.Title}}{{end}}
 {{define "content"}}
 <section class="card medium">
-  <div class="page-top">{{back (printf "/services/%s" .Package.Name) .Package.Title}}{{help "servers/move" "Move a service"}}</div>
+  <div class="page-top">{{back (printf "/services/%s" $.Name) .Package.Title}}{{help "servers/move" "Move a service"}}</div>
   <h1>Move {{.Package.Title}} to another server</h1>
   <dl class="facts">
     <dt>Runs on</dt><dd>{{.Info.From.Name}}</dd>

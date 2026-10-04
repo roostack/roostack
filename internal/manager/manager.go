@@ -183,6 +183,10 @@ type InstallRequest struct {
 	// package says aren't safe to: the default on a lab on the internet,
 	// where private means only through an SSH tunnel (SPEC.md §6.12).
 	Public bool
+	// Name and Title are a second copy's own (SPEC.md §8.2): its ID,
+	// which never changes, and what people call it. Empty for the first
+	// copy, which is named after its package.
+	Name, Title string
 }
 
 func formErrorf(format string, args ...any) error {
@@ -202,7 +206,17 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		return formErrorf("Choose which server runs %s.", p.Title)
 	}
 	in := &instance.Instance{Package: p.Name, Host: host, Version: p.Version, Updates: instance.UpdatesNotify,
-		Settings: map[string]any{}}
+		Settings: map[string]any{}, Title: strings.TrimSpace(req.Title)}
+	id := p.Name
+	if n := strings.ToLower(strings.TrimSpace(req.Name)); n != "" && n != p.Name {
+		if !instance.ValidName(n) {
+			return formErrorf("Choose a name of lowercase letters, digits and dashes, starting with a letter (up to 30), e.g. %s-work.", p.Name)
+		}
+		id, in.Name = n, n
+	}
+	if len([]rune(in.Title)) > 60 || strings.ContainsAny(in.Title, "\n\r\x00") {
+		return formErrorf("Choose a shorter title, on one line.")
+	}
 
 	secrets := map[string][]byte{}
 	for _, s := range p.Settings {
@@ -228,7 +242,7 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 			if strings.ContainsAny(v, "\n\r\x00") {
 				return formErrorf("%s can't contain line breaks.", s.Title)
 			}
-			secrets[node.SecretName(p.Name, s.Key)] = []byte(v)
+			secrets[node.SecretName(id, s.Key)] = []byte(v)
 		}
 	}
 	if sub := strings.ToLower(strings.TrimSpace(req.Subdomain)); sub != "" {
@@ -262,8 +276,11 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		return err
 	}
 	for _, s := range services {
-		if s.Package.Name == p.Name {
-			return formErrorf("%s is already installed.", p.Title)
+		switch {
+		case s.Name() == id && id == p.Name:
+			return formErrorf("%s is already installed. To add another copy, give it a name of its own.", p.Title)
+		case s.Name() == id:
+			return formErrorf("A service called %s is already installed. Choose another name.", id)
 		}
 	}
 	services = append(services, state.Service{Instance: in, Package: p})
@@ -282,19 +299,19 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		}
 		return err
 	}
-	if err := in.Save(state.InstanceFile(m.Lab, p.Name)); err != nil {
+	if err := in.Save(state.InstanceFile(m.Lab, id)); err != nil {
 		return err
 	}
 	// Install hooks (e.g. creating the admin account) run once the
 	// service has started.
 	if len(p.HooksOn(pkgspec.HookInstall)) > 0 {
-		m.setUp = append(m.setUp, p.Name)
+		m.setUp = append(m.setUp, id)
 	}
 	if m.secrets == nil {
 		m.secrets = map[string]map[string][]byte{}
 	}
-	m.secrets[p.Name] = secrets
-	m.applyReason = "Installing " + name
+	m.secrets[id] = secrets
+	m.applyReason = "Installing " + id
 	m.startApplyLocked()
 	return nil
 }
@@ -333,7 +350,7 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 	if err != nil {
 		return err
 	}
-	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Package.Name == name })
+	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Name() == name })
 	if i < 0 {
 		return ErrNotFound
 	}
@@ -373,20 +390,37 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 	return nil
 }
 
-// installedService loads an installed service's package and instance.
+// ServicePackage is an installed service's package, with the service's
+// own title if it has one (a second copy, SPEC.md §8.2).
+func (m *Manager) ServicePackage(name string) (*pkgspec.Package, error) {
+	p, _, err := m.installedService(name)
+	return p, err
+}
+
+// installedService loads an installed service (by its name, which is its
+// package's for a first copy) and its package. The package's Title is
+// the service's own, if it has one, for the messages that use it.
 func (m *Manager) installedService(name string) (*pkgspec.Package, *instance.Instance, error) {
 	if !validName(name) {
 		return nil, nil, ErrNotFound
-	}
-	p, err := m.Package(name)
-	if err != nil {
-		return nil, nil, err
 	}
 	in, err := instance.Load(state.InstanceFile(m.Lab, name))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil, ErrNotFound
 	}
-	return p, in, err
+	if err != nil {
+		return nil, nil, err
+	}
+	p, err := m.Package(in.Package)
+	if err != nil {
+		return nil, nil, err
+	}
+	if in.Title != "" {
+		named := *p
+		named.Title = in.Title
+		p = &named
+	}
+	return p, in, nil
 }
 
 // parseSetting converts a form value for a bool, string or int setting.
@@ -448,7 +482,7 @@ func (m *Manager) UpdateSettings(ctx context.Context, name string, req SettingsR
 	if err != nil {
 		return err
 	}
-	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Package.Name == name })
+	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Name() == name })
 	if i < 0 {
 		return ErrNotFound
 	}
@@ -535,6 +569,7 @@ func (m *Manager) installed() (map[string]bool, error) {
 	if err != nil {
 		return nil, err
 	}
+	// By package: the catalog marks a package installed once any copy is.
 	out := map[string]bool{}
 	for _, s := range services {
 		out[s.Package.Name] = true

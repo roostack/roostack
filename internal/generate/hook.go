@@ -35,7 +35,7 @@ func Hook(lab config.Lab, p *pkgspec.Package, in *instance.Instance, h *pkgspec.
 			ctx.Inputs[i.Key] = inputs[i.Key]
 		}
 	}
-	run := &HookRun{Container: containerUnitName(p.Name, h.Container), Command: h.Command,
+	run := &HookRun{Container: containerUnitName(in.ID(), h.Container), Command: h.Command,
 		Env: map[string]string{}, Secrets: map[string]string{}, Inputs: map[string]string{}}
 	for _, k := range slices.Sorted(maps.Keys(h.Env)) {
 		v, err := ctx.render(fmt.Sprintf("hooks.%s.env.%s", h.On, k), h.Env[k])
@@ -48,7 +48,7 @@ func Hook(lab config.Lab, p *pkgspec.Package, in *instance.Instance, h *pkgspec.
 		if key, ok := strings.CutPrefix(ref, "inputs."); ok {
 			run.Inputs[k] = key
 		} else {
-			run.Secrets[k] = secretName(p.Name, ref)
+			run.Secrets[k] = secretName(in.ID(), ref)
 		}
 	}
 	return run, nil

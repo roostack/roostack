@@ -59,7 +59,7 @@ func (m *Manager) LostServerPlan(ctx context.Context, id string) (LostPlan, erro
 		if s.Instance.Host != id {
 			continue
 		}
-		ls := LostService{Name: s.Package.Name, Title: s.Package.Title, Size: -1, Waiting: s.Instance.Waiting}
+		ls := LostService{Name: s.Name(), Title: s.Title(), Size: -1, Waiting: s.Instance.Waiting}
 		if moments, _, err := m.ServiceBackups(ctx, ls.Name); err == nil && len(moments) > 0 {
 			ls.Backup = &moments[0]
 			ls.Size = moments[0].Places[0].Snapshot.Size()
@@ -159,17 +159,17 @@ func (m *Manager) RestoreLostServer(ctx context.Context, id string, names []stri
 	}
 	var titles []string
 	for _, name := range names {
-		i := slices.IndexFunc(all, func(s state.Service) bool { return s.Package.Name == name && s.Instance.Host == id })
+		i := slices.IndexFunc(all, func(s state.Service) bool { return s.Name() == name && s.Instance.Host == id })
 		if i < 0 {
 			return formErrorf("%s didn't run on %s.", name, srv.Name)
 		}
-		titles = append(titles, all[i].Package.Title)
+		titles = append(titles, all[i].Title())
 	}
 	// Every one of its services waits, until restored: none runs there
 	// any more, even if it comes back.
 	for _, s := range all {
 		if s.Instance.Host == id && !s.Instance.Waiting {
-			if err := m.setWaiting(s.Package.Name, true); err != nil {
+			if err := m.setWaiting(s.Name(), true); err != nil {
 				return err
 			}
 		}

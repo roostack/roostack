@@ -200,6 +200,61 @@ func TestInstallAndRemove(t *testing.T) {
 	}
 }
 
+// A second copy of a package is a service of its own: its own name,
+// title, address, units, secrets and data, and removed on its own
+// (SPEC.md §8.2).
+func TestSecondCopy(t *testing.T) {
+	m, secrets := newManager(t)
+	ctx := context.Background()
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	var fe *FormError
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Name: "Work Vault"}); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "lowercase") {
+		t.Errorf("a bad name: %v", err)
+	}
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Name: "vaultwarden-work", Settings: map[string]string{}}); !errors.As(err, &fe) ||
+		!strings.Contains(fe.Msg, "already used") {
+		t.Errorf("the same address as the first: %v", err)
+	}
+	err := m.Install(ctx, "vaultwarden", InstallRequest{Name: "vaultwarden-work", Title: "Vaultwarden (work)", Subdomain: "vault-work",
+		Settings: map[string]string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if st := m.Status(); st.LastErr != nil {
+		t.Fatalf("apply: %v", st.LastErr)
+	}
+	in, err := instance.Load(state.InstanceFile(m.Lab, "vaultwarden-work"))
+	if err != nil || in.Name != "vaultwarden-work" || in.Package != "vaultwarden" || in.Title != "Vaultwarden (work)" {
+		t.Fatalf("instance: %+v %v", in, err)
+	}
+	for _, f := range []string{"roostack-vaultwarden-app.container", "roostack-vaultwarden-work-app.container"} {
+		if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), f)); err != nil {
+			t.Errorf("%s: %v", f, err)
+		}
+	}
+	if _, ok := secrets.values["roostack-vaultwarden-work-admin_token"]; !ok {
+		t.Error("its own generated secret")
+	}
+	if p, err := m.ServicePackage("vaultwarden-work"); err != nil || p.Title != "Vaultwarden (work)" || p.Name != "vaultwarden" {
+		t.Errorf("its package, titled as itself: %+v %v", p, err)
+	}
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Name: "vaultwarden-work", Subdomain: "vault-3"}); !errors.As(err, &fe) ||
+		!strings.Contains(fe.Msg, "already installed") {
+		t.Errorf("the same name twice: %v", err)
+	}
+	if err := m.Remove(ctx, "vaultwarden-work"); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-vaultwarden-app.container")); err != nil {
+		t.Error("removing the copy leaves the first alone")
+	}
+}
+
 func TestBadNames(t *testing.T) {
 	m, _ := newManager(t)
 	for _, name := range []string{"../etc", "", "Vault", "a/b"} {

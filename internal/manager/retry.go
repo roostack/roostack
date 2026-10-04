@@ -33,7 +33,7 @@ func (m *Manager) RetryInstallWith(ctx context.Context, name string, settings, s
 	if err != nil {
 		return err
 	}
-	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Package.Name == name })
+	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Name() == name })
 	if i < 0 {
 		return ErrNotFound
 	}
@@ -61,7 +61,7 @@ func (m *Manager) RetryInstallWith(ctx context.Context, name string, settings, s
 		case strings.ContainsAny(v, "\n\r\x00"):
 			return formErrorf("%s can't contain line breaks.", s.Title)
 		}
-		typed[node.SecretName(p.Name, s.Key)] = []byte(v)
+		typed[node.SecretName(name, s.Key)] = []byte(v)
 	}
 	if err := in.Validate(p); err != nil {
 		return formErrorf("%s", err)
@@ -71,11 +71,11 @@ func (m *Manager) RetryInstallWith(ctx context.Context, name string, settings, s
 	}
 	// The next assignment runs its install hooks again, with the new
 	// values (typed secrets replace the ones it has).
-	m.setUp = append(m.setUp, p.Name)
+	m.setUp = append(m.setUp, name)
 	if m.secrets == nil {
 		m.secrets = map[string]map[string][]byte{}
 	}
-	m.secrets[p.Name] = typed
+	m.secrets[name] = typed
 	m.applyReason = "Trying " + name + "'s setup again"
 	m.startApplyLocked()
 	return nil
