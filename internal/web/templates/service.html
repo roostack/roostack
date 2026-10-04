@@ -167,6 +167,19 @@
     <p class="hint">Saving restarts {{.Service.Title}}; it's unavailable for a moment.</p>
   </form>
   {{end}}
+  {{if .CanManage}}
+  <details class="service-name"{{if .TitleError}} open{{end}}>
+    <summary>Rename</summary>
+    {{with .TitleError}}<p class="error" role="alert">{{.}}</p>{{end}}
+    <form method="post" action="/services/{{.Service.Name}}/title" class="inline-form">
+      <label for="service-title" class="sr-only">Title</label>
+      <input id="service-title" name="title" value="{{.Service.Title}}" maxlength="60" required>
+      <button type="submit" class="secondary">Save</button>
+    </form>
+    <p class="hint">This changes what it's called on your pages. Its name, <code>{{.Service.Name}}</code>, is used for its folders,
+      containers and backups, so it stays.</p>
+  </details>
+  {{end}}
   {{if eq .Service.Status "waiting"}}
   {{if .IsOwner}}<p>{{confirm (printf "/services/%s/remove-waiting" .Service.Name)
     (printf "Remove %s and delete all its backups? It can't be restored after this." .Service.Title)

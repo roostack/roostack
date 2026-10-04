@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -70,5 +71,29 @@ func TestPlanThroughTheController(t *testing.T) {
 	fm.linkPath, fm.linkFailed = manager.PathDirect, false
 	if _, body := h.get("/backups?server=n-9876543210"); strings.Contains(body, "using its connection twice") || !strings.Contains(body, "linked directly") {
 		t.Error("linked directly: no warning")
+	}
+}
+
+// The install form's name is the package's, or that and a dash and the
+// part typed; the title changes later on the service's page.
+func TestServiceNames(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	h.post("/install/immich", url.Values{"title": {"Immich"}, "name_suffix": {""}, "subdomain": {"photos"}}, h.srv.URL)
+	h.post("/install/immich", url.Values{"title": {"Family photos"}, "name_suffix": {"Family"}, "subdomain": {"family"}}, h.srv.URL)
+	if len(fm.installs) != 2 || fm.installs[0].Name != "immich" || fm.installs[1].Name != "immich-family" ||
+		fm.installs[1].Title != "Family photos" {
+		t.Errorf("installs %+v", fm.installs)
+	}
+	_, body := h.get("/services/vaultwarden")
+	if !strings.Contains(body, `action="/services/vaultwarden/title"`) || !strings.Contains(body, "<code>vaultwarden</code>") {
+		t.Error("the service page offers renaming, and says the name stays")
+	}
+	if code, body := h.post("/services/vaultwarden/title", url.Values{"title": {" "}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "Enter a title.") {
+		t.Errorf("empty title: %d", code)
+	}
+	h.post("/services/vaultwarden/title", url.Values{"title": {"Passwords"}}, h.srv.URL)
+	if !slices.Contains(fm.serverOps, "title vaultwarden=Passwords") {
+		t.Errorf("ops %v", fm.serverOps)
 	}
 }

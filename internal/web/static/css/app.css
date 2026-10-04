@@ -160,6 +160,9 @@ label.check small { display: block; font-weight: var(--weight-normal); }
 .with-suffix { display: flex; align-items: center; gap: var(--space-2); }
 .with-suffix input { flex: 1; }
 .with-suffix span { color: var(--muted); font-weight: var(--weight-normal); margin-top: var(--space-2); }
+.with-prefix { display: flex; align-items: center; gap: var(--space-1); }
+.with-prefix input { flex: 1; }
+.with-prefix > span { color: var(--muted); font-weight: var(--weight-normal); margin-top: var(--space-2); font-family: var(--font-mono); }
 /* A dropdown inside a sentence ("Restart automatically at [04:00]"). */
 select.inline { display: inline-block; width: auto; margin: 0 0 0 var(--space-2); padding: var(--space-1) var(--space-2); }
 .inline-form { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }

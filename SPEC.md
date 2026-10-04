@@ -476,9 +476,10 @@ Any package can be installed more than once (two Forgejos at different addresses
 
 - **Every installed service has an ID that never changes**, separate from the package it's an instance of: the instance file's `name` (the file is `<name>.yaml`); empty means the package's name, so the first copy is called after its package (`forgejo`) and nothing changes for it. Units, the Podman network, secrets, database names, data and media folders, Caddy's site file, backup tags (`service=<name>`), setup progress and the UI's URLs (`/services/<name>`) all use it. The package (`package:`) is what it runs.
 - **People see a title**: the instance's `title`, or the package's. The ID is shown only where it matters (Details, folders).
-- **Adding another copy:** the catalog's "Add another…" on an installed package asks for a title ("Forgejo (2)" suggested), a name (`forgejo-2` suggested: lowercase letters, digits and dashes, up to 30, never changing) and a web address of its own (`git-2`), then installs as usual. A name or address already used is a form error.
-- **Considered:** renaming a service's ID later (it would mean renaming units, folders, secrets, databases and backup tags: rejected; the title changes instead, once that's built); one set of data shared by copies (not what copies are for).
-- Not yet: changing a service's title after installing (filed in TASKS).
+- **Its name starts with its package's (decided 2026-10-04):** an ID is the package's name, or that, a dash and more (`forgejo`, `forgejo-work`; lowercase letters, digits and single dashes, up to 40 in all). So names say what they are in folders, containers and backups, and a package's own name is always free for its first copy. Considered: any name (a Vaultwarden called `immich` would take Immich's name).
+- **Installing:** every install asks for a title (the package's by default) and the name's own part after `forgejo-` (empty for just `forgejo`), which follows the title as it's typed ("Forgejo (work)" gives `work`, the package's title taken out) until it's edited, and the web address follows the name (`git-work`) until that's edited. The catalog's "Add another…" on an installed package starts at "Forgejo (2)", `forgejo-2` and `git-2`. A name or address already used is a form error.
+- **Renaming:** the service's page changes its title ("Rename"); its name is shown there and stays.
+- **Considered:** renaming a service's ID later (it would mean renaming units, folders, secrets, databases and backup tags: rejected; the title changes instead); one set of data shared by copies (not what copies are for).
 
 ## 9. MVP Scope — Locked
 

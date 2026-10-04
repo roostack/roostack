@@ -101,3 +101,16 @@ func TestValidate(t *testing.T) {
 		}
 	}
 }
+
+// A service's ID is its package's name, or that, a dash and more.
+func TestNames(t *testing.T) {
+	p := &pkgspec.Package{Name: "forgejo", Version: "1"}
+	for name, ok := range map[string]bool{"": true, "forgejo": true, "forgejo-work": true, "forgejo-2": true,
+		"gitea": false, "forgejowork": false, "forgejo-": false, "forgejo--work": false, "Forgejo-work": false,
+		"forgejo-" + strings.Repeat("x", MaxName): false} {
+		in := &Instance{Name: name, Package: "forgejo", Version: "1", Updates: UpdatesNotify}
+		if err := in.Validate(p); (err == nil) != ok {
+			t.Errorf("%q: %v", name, err)
+		}
+	}
+}

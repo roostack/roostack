@@ -46,11 +46,17 @@ Title
 :   What it's called on your pages, such as "Forgejo (work)".
 
 Name
-:   Its short name, used for its folders, containers and backups: lowercase
-    letters, digits and dashes, such as `forgejo-work`. It can't change
-    later.
+:   Its short name, used for its folders, containers and backups. It always
+    starts with the service's own (`forgejo-`), and you choose the rest:
+    lowercase letters, digits and dashes, such as `work`. It's filled in
+    from the title as you type. It can't change later.
 
-It also needs a web address of its own: the form suggests one.
+It also needs a web address of its own, which follows the name (such as
+`git-work`) unless you change it.
+
+Every install asks for a title and name, not only another copy: leave
+them as they are for the usual name (`forgejo`). To change a service's
+title later, open its page and choose **Rename**; its name stays.
 
 ??? note "For technical users"
 

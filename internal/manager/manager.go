@@ -206,16 +206,19 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		return formErrorf("Choose which server runs %s.", p.Title)
 	}
 	in := &instance.Instance{Package: p.Name, Host: host, Version: p.Version, Updates: instance.UpdatesNotify,
-		Settings: map[string]any{}, Title: strings.TrimSpace(req.Title)}
+		Settings: map[string]any{}}
+	title, err := checkTitle(req.Title, p)
+	if err != nil {
+		return err
+	}
+	in.Title = title
 	id := p.Name
 	if n := strings.ToLower(strings.TrimSpace(req.Name)); n != "" && n != p.Name {
-		if !instance.ValidName(n) {
-			return formErrorf("Choose a name of lowercase letters, digits and dashes, starting with a letter (up to 30), e.g. %s-work.", p.Name)
+		if !strings.HasPrefix(n, p.Name+"-") || !instance.ValidName(n) {
+			return formErrorf("Its name is %s, or %s- and then lowercase letters, digits and dashes (up to %d in all), e.g. %s-work.",
+				p.Name, p.Name, instance.MaxName, p.Name)
 		}
 		id, in.Name = n, n
-	}
-	if len([]rune(in.Title)) > 60 || strings.ContainsAny(in.Title, "\n\r\x00") {
-		return formErrorf("Choose a shorter title, on one line.")
 	}
 
 	secrets := map[string][]byte{}
@@ -388,6 +391,45 @@ func (m *Manager) SetPort(ctx context.Context, name, port string, enabled bool, 
 	m.applyReason = "Changing " + name + "'s connections"
 	m.startApplyLocked()
 	return nil
+}
+
+// checkTitle tidies a title for a service: empty when it's the package's
+// own (so it follows the package's), and short and on one line.
+func checkTitle(title string, p *pkgspec.Package) (string, error) {
+	title = strings.TrimSpace(title)
+	if len([]rune(title)) > 60 || strings.ContainsAny(title, "\n\r\x00") {
+		return "", formErrorf("Choose a shorter title, on one line.")
+	}
+	if title == p.Title {
+		return "", nil
+	}
+	return title, nil
+}
+
+// SetTitle changes what people call a service (its ID never changes:
+// SPEC.md §8.2). Empty goes back to its package's title. Only the pages
+// change: nothing is applied.
+func (m *Manager) SetTitle(ctx context.Context, name, title string) error {
+	if !validName(name) {
+		return ErrNotFound
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	in, err := instance.Load(state.InstanceFile(m.Lab, name))
+	if errors.Is(err, os.ErrNotExist) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	p, err := m.Package(in.Package)
+	if err != nil {
+		return err
+	}
+	if in.Title, err = checkTitle(title, p); err != nil {
+		return err
+	}
+	return in.Save(state.InstanceFile(m.Lab, name))
 }
 
 // ServicePackage is an installed service's package, with the service's
@@ -596,7 +638,7 @@ func MainRoute(p *pkgspec.Package) string {
 
 // validName guards against path tricks in names taken from URLs.
 func validName(name string) bool {
-	if name == "" || len(name) > 31 {
+	if name == "" || len(name) > instance.MaxName {
 		return false
 	}
 	for _, c := range name {
