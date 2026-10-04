@@ -176,7 +176,10 @@ type Local struct {
 	// (a failed install retried with new values): they replace the Podman
 	// secrets it already has, before its install hooks run.
 	replaceSecrets map[string][]byte
-	status         ApplyStatus
+	// sshChoice is a new SSH choice made while running (UseSSH); "" uses
+	// Lab's.
+	sshChoice string
+	status    ApplyStatus
 	// again is set when an assignment arrives during an apply, so another
 	// apply runs afterwards.
 	again bool
@@ -404,9 +407,26 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	return nil
 }
 
+// UseSSH applies a new SSH choice (HostSettings.SetSSH, already saved in
+// lab.yaml) without a restart: the next apply's firewall uses it, and one
+// starts now.
+func (n *Local) UseSSH(choice string) {
+	n.mu.Lock()
+	n.sshChoice = choice
+	a := n.assignment
+	n.mu.Unlock()
+	a.Secrets, a.SetUp, a.Reason = nil, nil, "Who can log in over SSH changed"
+	n.Apply(a)
+}
+
 // lab is the node's lab config with the assignment's lab-wide settings.
 func (n *Local) lab(a Assignment) config.Lab {
 	lab := n.Lab
+	n.mu.Lock()
+	if n.sshChoice != "" {
+		lab.Firewall.SSH = n.sshChoice
+	}
+	n.mu.Unlock()
 	if a.Lab.Domain != "" {
 		lab.Domain, lab.Email = a.Lab.Domain, a.Lab.Email
 		lab.Public.NoSharing = a.Lab.NoSharing
