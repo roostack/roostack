@@ -10,6 +10,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/setup"
 )
 
 // The Owner can say where another server is reached directly; a mistake
@@ -95,5 +96,32 @@ func TestServiceNames(t *testing.T) {
 	h.post("/services/vaultwarden/title", url.Values{"title": {"Passwords"}}, h.srv.URL)
 	if !slices.Contains(fm.serverOps, "title vaultwarden=Passwords") {
 		t.Errorf("ops %v", fm.serverOps)
+	}
+}
+
+// A server that doesn't answer (restarting to apply a setting) gets a page
+// saying so, which reloads once it's back, not an error.
+func TestUnreachableServerSettings(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true, Reachable: true},
+		{ID: "n-9876543210", Name: "vps"}}
+	for _, page := range []string{"remote-access", "time-zone", "updates"} {
+		code, body := h.get("/settings/servers/n-9876543210/" + page)
+		if code != http.StatusServiceUnavailable || !strings.Contains(body, "Can't reach vps right now.") ||
+			!strings.Contains(body, `hx-get="/settings/servers/n-9876543210/reachable"`) {
+			t.Errorf("%s: %d", page, code)
+		}
+	}
+	if code, _ := h.get("/settings/servers/n-9876543210/reachable"); code != http.StatusNoContent {
+		t.Errorf("still down: %d", code)
+	}
+	fm.settings = &fakeSetup{ssh: "lan"}
+	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}})
+	resp, err := h.client.Get(h.srv.URL + "/settings/servers/n-9876543210/reachable")
+	if err != nil || resp.StatusCode != http.StatusOK || resp.Header.Get("HX-Refresh") != "true" {
+		t.Errorf("back: %v %v", resp, err)
+	}
+	if code, body := h.get("/settings/servers/n-9876543210/remote-access"); code != http.StatusOK || strings.Contains(body, "Can't reach") {
+		t.Errorf("its page once it's back: %d", code)
 	}
 }

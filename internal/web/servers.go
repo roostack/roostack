@@ -132,13 +132,46 @@ func (s *Server) serverRoutes(mux *http.ServeMux) {
 		"POST " + p + "/backups/plan/remove":  s.planRemoveSubmit,
 	} {
 		mux.Handle(route, s.requireOwner(func(w http.ResponseWriter, r *http.Request) {
-			if s.serverOf(r) == nil {
+			n := s.serverOf(r)
+			if n == nil {
 				http.NotFound(w, r)
+				return
+			}
+			// Another server that doesn't answer (often: restarting to apply
+			// a setting just changed): say so, and come back by itself. Its
+			// Backups page has its own way of saying it.
+			if m := s.serverRefOf(r); !m.This && n.Settings() == nil && !strings.HasSuffix(route, p+"/backups") {
+				s.renderUnreachable(w, r, m)
 				return
 			}
 			h(w, r)
 		}))
 	}
+	// Polled by that page: answers once the server does.
+	mux.Handle("GET "+p+"/reachable", s.requireOwner(func(w http.ResponseWriter, r *http.Request) {
+		n := s.serverOf(r)
+		if n == nil {
+			http.NotFound(w, r)
+			return
+		}
+		if n.Settings() == nil {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.Header().Set("HX-Refresh", "true")
+	}))
+}
+
+// renderUnreachable is a server's settings page while it doesn't answer.
+func (s *Server) renderUnreachable(w http.ResponseWriter, r *http.Request, m serverRef) {
+	data, err := s.pageData(r)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	data["Server"] = m
+	w.WriteHeader(http.StatusServiceUnavailable)
+	s.render(w, "settings-server-unreachable", data)
 }
 
 var _ ServiceNode = node.Node(nil)

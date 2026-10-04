@@ -384,7 +384,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
-		"home", "services", "service", "backups", "restore", "settings-server-gone", "settings", "account", "account-appearance", "account-notifications", "users", "about",
+		"home", "services", "service", "backups", "restore", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "settings-public", "backups-key-change"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
