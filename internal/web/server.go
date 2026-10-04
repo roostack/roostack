@@ -197,6 +197,8 @@ type ServiceCatalog interface {
 	// ServicePackage is an installed service's package (its name can be
 	// a second copy's own), titled as the service.
 	ServicePackage(name string) (*pkgspec.Package, error)
+	// SetTitle changes what people call a service (never its name).
+	SetTitle(ctx context.Context, name, title string) error
 	Install(ctx context.Context, name string, req manager.InstallRequest) error
 	Remove(ctx context.Context, name string) error
 	DataDirs(name string) []string
@@ -540,6 +542,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /services/{name}/setup/retry-with", s.require(auth.ManageServices, s.retryWithSubmit))
 	mux.Handle("POST /services/{name}/actions/{action}", s.require(auth.ManageServices, s.actionSubmit))
 	mux.Handle("GET /services/{name}/remove", s.require(auth.ManageServices, s.removePage))
+	mux.Handle("POST /services/{name}/title", s.require(auth.ManageServices, s.titleSubmit))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))
 
 	return s.recoverPanics(compress(securityHeaders(sameOrigin(s.loadSession(mux)))))

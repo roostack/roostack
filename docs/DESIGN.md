@@ -105,7 +105,7 @@ Template components are called as functions; everything else is plain HTML with 
 | Card | `.card`, with a `.heading` row for title plus link | One topic per card |
 | Area heading | `<h2 class="area-heading">` between cards | A page with groups of cards: Backups has "Each server's backups" (the server switcher, then that server's cards) and "Your whole lab" (the same whichever server is chosen). Only when there's more than one group |
 | Facts | `<dl class="facts">` | Label/value pairs; stack on phones |
-| Forms | `<label>Text <input><small>hint</small></label>`, `label.check` for checkboxes and radios, `.with-suffix`, `select.inline` | Errors: `<p class="error" role="alert">` above the form |
+| Forms | `<label>Text <input><small>hint</small></label>`, `label.check` for checkboxes and radios, `.with-suffix` (a fixed end, e.g. the domain), `.with-prefix` (a fixed start, e.g. a service's package name), `select.inline` | Errors: `<p class="error" role="alert">` above the form |
 | Rows | `ul.rows` with `li.row-split` | Lists you act on (people, kept copies) |
 | Needs attention | `.attention .item` with `.item-problem` / `.item-warning` | Home page |
 | Activity | `{{activity .SomeActivity}}` | Host operations: status line plus collapsed log; nothing if there's none |

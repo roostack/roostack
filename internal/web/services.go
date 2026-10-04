@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
@@ -68,8 +69,12 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad form.", http.StatusBadRequest)
 		return
 	}
+	name := p.Name
+	if sfx := strings.ToLower(strings.TrimSpace(r.PostForm.Get("name_suffix"))); sfx != "" {
+		name += "-" + sfx
+	}
 	req := manager.InstallRequest{
-		Name:      r.PostForm.Get("name"),
+		Name:      name,
 		Title:     r.PostForm.Get("title"),
 		Subdomain: r.PostForm.Get("subdomain"),
 		Host:      r.PostForm.Get("host"),
@@ -172,17 +177,18 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 			another = another || (it.Name == p.Name && it.Installed)
 		}
 	}
-	name, _ := get("name")
+	suffix, _ := get("name_suffix")
 	title, _ := get("title")
 	sub, _ := get("subdomain")
-	if route := manager.MainRoute(p); submitted == nil && route != "" {
-		sub = p.Routes[route].Subdomain
-		if another {
-			sub += "-2"
-		}
+	base := ""
+	if route := manager.MainRoute(p); route != "" {
+		base = p.Routes[route].Subdomain
 	}
-	if submitted == nil && another {
-		name, title = p.Name+"-2", p.Title+" (2)"
+	if submitted == nil {
+		sub, title = base, p.Title
+		if another {
+			sub, title, suffix = base+"-2", p.Title+" (2)", "2"
+		}
 	}
 	// Where to run it, once the lab has more than one server (SPEC.md §10.4).
 	var servers []manager.Server
@@ -199,22 +205,24 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 	_, public := get("public")
 	asked, _ := s.Manager.SignalSharing()
 	return map[string]any{
-		"Internet":     s.onInternet(),
-		"Public":       submitted == nil || public,
-		"Unsafe":       unsafe,
-		"SharingAsked": asked,
-		"User":         currentUser(r),
-		"Package":      p,
-		"Fields":       fields,
-		"HasRoute":     len(p.Routes) > 0,
-		"Subdomain":    sub,
-		"Domain":       s.Domain,
-		"Error":        errMsg,
-		"Servers":      servers,
-		"Host":         host,
-		"Another":      another,
-		"Name":         name,
-		"Title":        title,
+		"Internet":      s.onInternet(),
+		"Public":        submitted == nil || public,
+		"Unsafe":        unsafe,
+		"SharingAsked":  asked,
+		"User":          currentUser(r),
+		"Package":       p,
+		"Fields":        fields,
+		"HasRoute":      len(p.Routes) > 0,
+		"Subdomain":     sub,
+		"Domain":        s.Domain,
+		"Error":         errMsg,
+		"Servers":       servers,
+		"Host":          host,
+		"Another":       another,
+		"Suffix":        suffix,
+		"Title":         title,
+		"BaseSubdomain": base,
+		"MaxSuffix":     max(1, instance.MaxName-len(p.Name)-1),
 	}
 }
 
@@ -445,4 +453,29 @@ func (s *Server) pkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Package, 
 		return nil, false
 	}
 	return p, true
+}
+
+// titleSubmit changes what people call a service; its name stays
+// (SPEC.md §8.2).
+func (s *Server) titleSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	name, title := r.PathValue("name"), r.FormValue("title")
+	err := s.Manager.SetTitle(r.Context(), name, title)
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if msg, ok := userMessage(err); ok {
+		s.renderServiceWith(w, r, map[string]any{"TitleError": msg}, true)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "services", name+" is now called "+strings.TrimSpace(title))
+	redirect(w, r, "/services/"+name)
 }

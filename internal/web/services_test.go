@@ -429,6 +429,13 @@ func (f *fakeManager) Package(name string) (*pkgspec.Package, error) {
 }
 
 func (f *fakeManager) ServicePackage(name string) (*pkgspec.Package, error) { return f.Package(name) }
+func (f *fakeManager) SetTitle(_ context.Context, name, title string) error {
+	if strings.TrimSpace(title) == "" {
+		return &manager.FormError{Msg: "Enter a title."}
+	}
+	f.serverOps = append(f.serverOps, "title "+name+"="+title)
+	return nil
+}
 func (f *fakeManager) Install(_ context.Context, _ string, req manager.InstallRequest) error {
 	if f.failWith != nil {
 		return f.failWith
@@ -527,15 +534,15 @@ func TestInstallFlow(t *testing.T) {
 	}
 	// Another copy needs a name and title of its own, and its own address.
 	_, body = h.get("/install/vaultwarden")
-	for _, want := range []string{"Add another Vaultwarden", `name="name" value="vaultwarden-2"`, `name="title" value="Vaultwarden (2)"`,
-		`value="vault-2"`} {
+	for _, want := range []string{"Add another Vaultwarden", `name="name_suffix" value="2"`, `name="title" value="Vaultwarden (2)"`,
+		`value="vault-2"`, `<span>vaultwarden-</span>`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("another copy's form is missing %q", want)
 		}
 	}
 
 	_, body = h.get("/install/immich")
-	for _, want := range []string{`value="photos"`, `.lab.example.com`, `name="setting.machine_learning" checked`,
+	for _, want := range []string{`value="photos"`, `name="title" value="Immich"`, `name="name_suffix" value=""`, `.lab.example.com`, `name="setting.machine_learning" checked`,
 		`name="setting.hardware_acceleration" checked`} { // auto + GPU
 		if !strings.Contains(body, want) {
 			t.Errorf("install form missing %s", want)

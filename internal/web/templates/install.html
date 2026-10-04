@@ -5,21 +5,33 @@
   <h1>{{if .Another}}Add another {{.Package.Title}}{{else}}Install {{.Package.Title}}{{end}}</h1>
   <p class="hint">{{.Package.Description}}</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  <form method="post" action="/install/{{.Package.Name}}">
+  {{/* The name follows the title, and the web address the name, until
+       they're edited (SPEC.md §8.2). */}}
+  <form method="post" action="/install/{{.Package.Name}}" data-title="{{.Title}}" data-suffix="{{.Suffix}}" data-sub="{{.Subdomain}}"
+    data-pkgtitle="{{.Package.Title}}" data-base="{{.BaseSubdomain}}" data-max="{{.MaxSuffix}}"
+    x-data="{ title: $el.dataset.title, suffix: $el.dataset.suffix, sub: $el.dataset.sub, ownSuffix: false, ownSub: false,
+      slug(t) { return t.toLowerCase().replace($el.dataset.pkgtitle.toLowerCase(), '').replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '').slice(0, Number($el.dataset.max)).replace(/-+$/, '') },
+      titleChanged() { if (!this.ownSuffix) { this.suffix = this.slug(this.title); this.suffixChanged(false) } },
+      suffixChanged(own) { this.ownSuffix = this.ownSuffix || own;
+        if (!this.ownSub && $el.dataset.base) { this.sub = this.suffix ? $el.dataset.base + '-' + this.suffix : $el.dataset.base } } }">
     {{if .Another}}
     {{/* A second copy, kept apart from the first in everything: its own
-         data, database, backups, settings and address (SPEC.md §8.2). */}}
+         data, database, backups, settings and address. */}}
     <p>{{.Package.Title}} is installed already. This adds another, completely separate copy: its own data, settings, backups
       and web address.</p>
+    {{end}}
     <label>Title
-      <input name="title" value="{{.Title}}" maxlength="60" required>
-      <small>What it's called on your pages, e.g. "{{.Package.Title}} (work)".</small>
+      <input name="title" value="{{.Title}}" maxlength="60" required x-model="title" x-on:input="titleChanged()">
+      <small>What it's called on your pages{{if .Another}}, e.g. "{{.Package.Title}} (work)"{{end}}. You can change it later.</small>
     </label>
     <label>Name
-      <input name="name" value="{{.Name}}" required maxlength="30" pattern="[a-z][a-z0-9-]*[a-z0-9]" autocapitalize="off" spellcheck="false">
-      <small>Its short name, for its folders, containers and backups: lowercase letters, digits and dashes. It can't change later.</small>
+      <span class="with-prefix"><span>{{.Package.Name}}-</span>
+        <input name="name_suffix" value="{{.Suffix}}" maxlength="{{.MaxSuffix}}" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocapitalize="off"
+          spellcheck="false" x-model="suffix" x-on:input="suffixChanged(true)"{{if .Another}} required{{end}}></span>
+      <small>Used for its folders, containers and backups, so it can't change later{{if not .Another}}. Leave it empty for just
+        <code>{{.Package.Name}}</code>{{end}}.</small>
     </label>
-    {{end}}
     {{with .Servers}}
     <label>Run it on
       <select name="host">
@@ -31,7 +43,8 @@
     {{if .HasRoute}}
     <label>Web address
       <span class="with-suffix">
-        <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off">
+        <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off"
+          x-model="sub" x-on:input="ownSub = true">
         <span>.{{.Domain}}</span>
       </span>
       {{if not .Internet}}<small>Only reachable from your home network (or VPN).</small>{{end}}

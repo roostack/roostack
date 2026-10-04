@@ -211,8 +211,10 @@ func TestSecondCopy(t *testing.T) {
 	}
 	m.Wait()
 	var fe *FormError
-	if err := m.Install(ctx, "vaultwarden", InstallRequest{Name: "Work Vault"}); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "lowercase") {
-		t.Errorf("a bad name: %v", err)
+	for _, bad := range []string{"Work Vault", "work", "passwords-work"} {
+		if err := m.Install(ctx, "vaultwarden", InstallRequest{Name: bad}); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "vaultwarden-") {
+			t.Errorf("name %q: %v", bad, err)
+		}
 	}
 	if err := m.Install(ctx, "vaultwarden", InstallRequest{Name: "vaultwarden-work", Settings: map[string]string{}}); !errors.As(err, &fe) ||
 		!strings.Contains(fe.Msg, "already used") {
@@ -245,6 +247,22 @@ func TestSecondCopy(t *testing.T) {
 	if err := m.Install(ctx, "vaultwarden", InstallRequest{Name: "vaultwarden-work", Subdomain: "vault-3"}); !errors.As(err, &fe) ||
 		!strings.Contains(fe.Msg, "already installed") {
 		t.Errorf("the same name twice: %v", err)
+	}
+	// The title changes later; back to the package's when cleared.
+	if err := m.SetTitle(ctx, "vaultwarden-work", "Work passwords"); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := m.ServicePackage("vaultwarden-work"); p.Title != "Work passwords" {
+		t.Errorf("title = %q", p.Title)
+	}
+	if err := m.SetTitle(ctx, "vaultwarden-work", "Vaultwarden"); err != nil {
+		t.Fatal(err)
+	}
+	if in, _ := instance.Load(state.InstanceFile(m.Lab, "vaultwarden-work")); in.Title != "" {
+		t.Errorf("the package's own title isn't stored: %q", in.Title)
+	}
+	if err := m.SetTitle(ctx, "../etc", "x"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a bad name: %v", err)
 	}
 	if err := m.Remove(ctx, "vaultwarden-work"); err != nil {
 		t.Fatal(err)

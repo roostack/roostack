@@ -85,11 +85,18 @@ func (in *Instance) ID() string {
 	return in.Package
 }
 
-var nameRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,29}$`)
+// MaxName is the longest a service's ID can be.
+const MaxName = 40
+
+var nameRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
 // ValidName reports whether name can be a service's ID: it ends up in
-// unit, secret and folder names, and URLs.
-func ValidName(name string) bool { return nameRe.MatchString(name) && !strings.HasSuffix(name, "-") }
+// unit, secret and folder names, and URLs. An ID is also its package's
+// name, or that and a dash and more (Validate), so names say what they
+// are and a package's own name is always free for its first copy.
+func ValidName(name string) bool {
+	return len(name) <= MaxName && nameRe.MatchString(name) && !strings.HasSuffix(name, "-") && !strings.Contains(name, "--")
+}
 
 // Save writes an instance file atomically. Comments in a hand-edited file
 // are not preserved.
@@ -151,8 +158,9 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 	if in.Package != p.Name {
 		add("package: instance is for %q but package is %q", in.Package, p.Name)
 	}
-	if in.Name != "" && !ValidName(in.Name) {
-		add("name: %q must be lowercase letters, digits and dashes, starting with a letter (up to 30)", in.Name)
+	if in.Name != "" && (!ValidName(in.Name) || (in.Name != p.Name && !strings.HasPrefix(in.Name, p.Name+"-"))) {
+		add("name: %q must be %q, or start with %q and go on with lowercase letters, digits and dashes (up to %d in all)",
+			in.Name, p.Name, p.Name+"-", MaxName)
 	}
 	if in.Version != p.Version {
 		add("version: instance wants %q but package is %q", in.Version, p.Version)
