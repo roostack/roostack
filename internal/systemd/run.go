@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -16,20 +17,25 @@ import (
 // files: roostack itself is sandboxed with NoNewPrivileges, which breaks
 // rootless podman's setuid helpers (SPEC.md §6.1, ASSUMPTIONS A8).
 //
-// unit names the transient service (e.g. "roostack-backup"); env is passed
-// with --setenv. Cancelling ctx sends SIGINT to the unit, so programs like
+// unit names the transient service (e.g. "roostack-backup"). env
+// ("NAME=value") reaches the unit by name only (--setenv=NAME takes the
+// value from systemd-run's own environment), so values such as backup
+// store passwords never appear in a command line anyone on the server can
+// see with ps. Cancelling ctx sends SIGINT to the unit, so programs like
 // restic can stop cleanly.
 func UserCommand(ctx context.Context, unit string, env []string, name string, args ...string) *exec.Cmd {
 	full := []string{"--user", "--wait", "--pipe", "--quiet", "--collect", "--unit=" + unit}
 	sorted := append([]string(nil), env...)
 	sort.Strings(sorted) // stable command lines for tests and logs
 	for _, e := range sorted {
-		full = append(full, "--setenv="+e)
+		name, _, _ := strings.Cut(e, "=")
+		full = append(full, "--setenv="+name)
 	}
 	full = append(full, "--", name)
 	full = append(full, args...)
 
 	cmd := exec.CommandContext(ctx, "systemd-run", full...)
+	cmd.Env = append(os.Environ(), env...)
 	cmd.Cancel = func() error {
 		// Stop the unit's process, not just systemd-run.
 		stop := exec.Command("systemctl", "--user", "kill", "--signal=SIGINT", unit+".service")
