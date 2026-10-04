@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -26,7 +27,11 @@ import (
 const (
 	statusTimeout = 4 * time.Second
 	statusCache   = 5 * time.Second
-	pushRetry     = 30 * time.Second
+	// downFor: once a server stops answering, calls to it fail at once for
+	// this long, while a background check sees if it's back. Otherwise every
+	// page would wait seconds for each call to a server that's off.
+	downFor   = 30 * time.Second
+	pushRetry = 30 * time.Second
 )
 
 // Remote is another server, as the controller sees it: every operation
@@ -50,6 +55,10 @@ type Remote struct {
 	status    WireStatus
 	statusErr error
 	statusAt  time.Time
+	// downAt is when a call last failed to get through (zero while it
+	// answers); probing: a background check is asking it.
+	downAt  time.Time
+	probing bool
 	// reads caches answers to cachedReads (readCache).
 	reads map[string]cachedRead
 }
@@ -222,7 +231,27 @@ func (r *Remote) wireStatus() (WireStatus, error) {
 		r.mu.Unlock()
 		return st, err
 	}
+	if r.down() {
+		// Don't wait for it: check in the background, answer at once.
+		if !r.probing {
+			r.probing = true
+			go func() {
+				r.fetchStatus()
+				r.mu.Lock()
+				r.probing = false
+				r.mu.Unlock()
+			}()
+		}
+		err := r.unreachable()
+		r.mu.Unlock()
+		return WireStatus{}, err
+	}
 	r.mu.Unlock()
+	return r.fetchStatus()
+}
+
+// fetchStatus asks the server for its status, and caches the answer.
+func (r *Remote) fetchStatus() (WireStatus, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), statusTimeout)
 	defer cancel()
 	var st WireStatus
@@ -231,6 +260,18 @@ func (r *Remote) wireStatus() (WireStatus, error) {
 	r.status, r.statusErr, r.statusAt = st, err, time.Now()
 	r.mu.Unlock()
 	return st, err
+}
+
+// ErrUnreachable means another server doesn't answer.
+var ErrUnreachable = errors.New("Roostack can't reach it")
+
+// down reports whether calls to the server stopped getting through lately
+// (r.mu held).
+func (r *Remote) down() bool { return !r.downAt.IsZero() && time.Since(r.downAt) < downFor }
+
+// unreachable is the error for a call while the server is down.
+func (r *Remote) unreachable() error {
+	return fmt.Errorf("Roostack can't reach %s right now: %w", r.ID.Name, ErrUnreachable)
 }
 
 func (r *Remote) ServiceStates(ctx context.Context) (map[string]string, error) {
@@ -440,6 +481,12 @@ func (x remoteSettings) SetRestartPolicy(ctx context.Context, mode string, hour 
 
 // call makes a lab API request to the server.
 func (r *Remote) call(ctx context.Context, method, path string, in, out any) error {
+	r.mu.Lock()
+	down := r.down() && path != "/v1/status"
+	r.mu.Unlock()
+	if down {
+		return r.unreachable()
+	}
 	cacheable := method == http.MethodGet && cachedReads[path]
 	if cacheable {
 		r.mu.Lock()
@@ -469,6 +516,15 @@ func (r *Remote) call(ctx context.Context, method, path string, in, out any) err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := r.Client.Do(req)
+	r.mu.Lock()
+	switch {
+	case err == nil:
+		r.downAt = time.Time{}
+	case ctx.Err() != context.Canceled:
+		// It didn't answer (not the caller giving up).
+		r.downAt = time.Now()
+	}
+	r.mu.Unlock()
 	if err != nil {
 		return err
 	}

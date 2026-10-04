@@ -7,11 +7,13 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -331,5 +333,68 @@ func TestWireCarriesGuests(t *testing.T) {
 	got, err := Decode(back)
 	if err != nil || len(got.Guests) != 1 || got.Guests[0] != a.Guests[0] || got.GuestAddr != a.GuestAddr || got.Storage == nil {
 		t.Errorf("decoded %+v, %v", got, err)
+	}
+}
+
+// A server that stops answering costs one wait, not one per call: calls
+// fail at once while a background check sees whether it's back.
+func TestRemoteDown(t *testing.T) {
+	ctrl, nodeID, lab := servers(t)
+	fn := &fakeNode{applied: make(chan Assignment, 1), settings: &fakeSettings{zone: "Etc/UTC"}}
+	api := &Server{Node: fn, ControllerID: "n-0000000001"}
+	srv := httptest.NewUnstartedServer(api.Handler())
+	srv.TLS, _ = nodeID.ServerTLS()
+	srv.StartTLS()
+	defer srv.Close()
+	r, err := NewRemote(ctrl, nodeid.Identity{ID: "n-0000000002", Name: "vps"}, netip.MustParseAddr("100.96.0.2"), lab,
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Accepts connections and never answers, like a server that's off.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			defer c.Close()
+		}
+	}()
+	r.URL = "https://" + ln.Addr().String()
+	ctx := context.Background()
+
+	if r.Settings() != nil {
+		t.Fatal("it doesn't answer")
+	}
+	start := time.Now()
+	for range 5 {
+		if _, err := r.ServiceStates(ctx); !errors.Is(err, ErrUnreachable) || !strings.Contains(err.Error(), "can't reach vps") {
+			t.Fatalf("err = %v", err)
+		}
+		if r.Settings() != nil {
+			t.Error("still down")
+		}
+	}
+	if time.Since(start) > time.Second {
+		t.Errorf("calls to a server that's down took %v", time.Since(start))
+	}
+
+	// It's back: the next check (a background one) finds it.
+	r.URL = srv.URL
+	r.mu.Lock()
+	r.downAt = time.Now().Add(-downFor) // the 30 seconds are up
+	r.statusAt = time.Time{}
+	r.mu.Unlock()
+	if r.Settings() == nil {
+		t.Error("back once it answers")
+	}
+	if _, err := r.ServiceStates(ctx); err != nil {
+		t.Errorf("calls go through again: %v", err)
 	}
 }
