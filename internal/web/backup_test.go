@@ -98,3 +98,38 @@ func TestMembersCannotStartBackups(t *testing.T) {
 		t.Errorf("member backup: %d", code)
 	}
 }
+
+// keepingBackups are this server's backups, which can be kept as the
+// right copy of the lab.
+type keepingBackups struct {
+	fakeBackups
+	kept bool
+}
+
+func (k *keepingBackups) KeepThisCopy(context.Context) error {
+	k.kept, k.status.Fenced = true, nil
+	return nil
+}
+
+// An out-of-date copy of the lab says so on Backups and Home, and the
+// Owner can keep it as the right one.
+func TestFencedCopy(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	kb := &keepingBackups{fakeBackups: fakeBackups{status: backup.Status{Configured: true, Progress: -1,
+		Fenced: &backup.Fence{Reason: backup.FenceRestored, Host: "vps", Gen: 1, Since: time.Now()}}}}
+	h.node().backups = kb
+	_, body := h.get("/backups")
+	if !strings.Contains(body, "This lab was restored on another machine (vps)") || !strings.Contains(body, "/backups/keep-this-copy") {
+		t.Error("the card explains, and offers keeping this copy")
+	}
+	if _, body := h.get("/"); !strings.Contains(body, "This lab was restored on another machine (vps)") {
+		t.Error("home says so")
+	}
+	h.post("/backups/keep-this-copy", nil, h.srv.URL)
+	if !kb.kept {
+		t.Error("kept")
+	}
+	if _, body := h.get("/backups"); strings.Contains(body, "restored on another machine") {
+		t.Error("not fenced any more")
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -191,6 +192,9 @@ type JobDeps struct {
 	// ReadSecret reads a Podman secret, to save with its service's data.
 	// Optional: without it, services' snapshots have no secrets.
 	ReadSecret func(ctx context.Context, name string) ([]byte, error)
+	// Generation is the lab's (fence.go): every snapshot is tagged with
+	// it, and a newer one in a repository means this copy is out of date.
+	Generation int
 }
 
 // wants reports whether a run backs up to destination name.
@@ -282,7 +286,7 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 			return nil, fmt.Errorf("preparing %s: %w", step.Target, err)
 		}
 	}
-	snaps, err := d.snapshots(ctx, plan, RunTag(time.Now()))
+	snaps, err := d.snapshots(ctx, plan, RunTag(time.Now()), GenTag(d.Generation))
 	if err != nil {
 		return nil, err
 	}
@@ -295,6 +299,11 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 	case d.wants(""):
 		summary, err = upload(ctx, d, d.Repo, "", snaps, r)
 	}
+	var fenced *FenceError
+	if errors.As(err, &fenced) {
+		d.Log.Printf("%v", err)
+		return nil, err // nowhere else either
+	}
 	// The copies go ahead even if the main destination failed: that's
 	// what they're for.
 	for _, c := range d.Copies {
@@ -306,6 +315,10 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 		cerr := precheck(c.Precheck)
 		if cerr == nil {
 			csum, cerr = upload(ctx, d, c.Repo, c.Title, snaps, r)
+		}
+		if errors.As(cerr, &fenced) {
+			d.Log.Printf("%v", cerr)
+			return summary, cerr
 		}
 		if cerr != nil {
 			d.Log.Printf("The copy at %s didn't finish: %v", c.Title, cerr)
@@ -337,7 +350,7 @@ type snapshot struct {
 // service's (with its secrets saved next to it). Paths that don't exist yet
 // are skipped (e.g. no Podman secrets on a fresh install, or a service
 // without media); restic treats a missing source as an error.
-func (d JobDeps) snapshots(ctx context.Context, plan Plan, run string) ([]snapshot, error) {
+func (d JobDeps) snapshots(ctx context.Context, plan Plan, run, gen string) ([]snapshot, error) {
 	existing := func(paths []string) []string {
 		var out []string
 		for _, p := range paths {
@@ -349,7 +362,7 @@ func (d JobDeps) snapshots(ctx context.Context, plan Plan, run string) ([]snapsh
 	}
 	var out []snapshot
 	if paths := existing(plan.Paths); len(paths) > 0 {
-		out = append(out, snapshot{paths: paths, excludes: plan.Excludes, tags: []string{TagRoostack, TagServer, run}})
+		out = append(out, snapshot{paths: paths, excludes: plan.Excludes, tags: []string{TagRoostack, TagServer, run, gen}})
 	}
 	if err := os.RemoveAll(SecretsDir(d.Paths)); err != nil {
 		return nil, err
@@ -372,7 +385,7 @@ func (d JobDeps) snapshots(ctx context.Context, plan Plan, run string) ([]snapsh
 			}
 			paths = append(paths, file)
 		}
-		out = append(out, snapshot{title: sp.Name, paths: paths, excludes: sp.Excludes, tags: []string{TagRoostack, ServiceTag(sp.Name), run}})
+		out = append(out, snapshot{title: sp.Name, paths: paths, excludes: sp.Excludes, tags: []string{TagRoostack, ServiceTag(sp.Name), run, gen}})
 	}
 	return out, nil
 }
@@ -406,6 +419,11 @@ func upload(ctx context.Context, d JobDeps, repo *Repo, to string, snaps []snaps
 		return nil, fmt.Errorf("couldn't reach %s in %s: is it switched on and connected?", cmp.Or(to, "the backup storage"), reachTimeout)
 	}
 	if err != nil {
+		return nil, err
+	}
+	// Out of date (another copy of this lab is newer, or the lab removed
+	// this server): nothing is uploaded, here or anywhere.
+	if err := checkFence(ctx, repo, d.Generation); err != nil {
 		return nil, err
 	}
 	total := &Summary{}

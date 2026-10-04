@@ -367,8 +367,14 @@ func (m *Manager) RemoveServer(ctx context.Context, id string) error {
 		return formErrorf("%s waits to be restored from %s's backups. Restore it or remove it first.",
 			w[0].Title(), r.Identity().Name)
 	}
-	if err := r.Leave(ctx); err != nil {
-		m.Log.Warn("server didn't answer; removing it anyway", "server", r.Identity().Name, "err", err)
+	reachable := r.Settings() != nil
+	if err := r.Leave(ctx); err != nil || !reachable {
+		if err != nil {
+			m.Log.Warn("server didn't answer; removing it anyway", "server", r.Identity().Name, "err", err)
+		}
+		// If it comes back, it finds this in its backups and stands down
+		// rather than backing up stale copies (backup/fence.go).
+		m.markRemoved(ctx, id)
 	}
 	m.forgetServerBackups(ctx, id)
 	if err := m.Registry.Remove(ctx, id); err != nil {
@@ -522,4 +528,26 @@ func (m *Manager) MatchTimezone(ctx context.Context, id string) {
 		}
 	}
 	m.Log.Warn("a new server didn't answer, so it keeps its own time zone", "server", m.nameOf(id))
+}
+
+// markRemoved leaves the removed mark in each of a removed server's
+// repositories the controller can write to.
+func (m *Manager) markRemoved(ctx context.Context, id string) {
+	if m.BackupStore == nil {
+		return
+	}
+	targets, _ := m.BackupStore.BackupTargets(ctx)
+	copies, _ := m.BackupStore.BackupCopies(ctx)
+	for _, t := range append(targets, copies...) {
+		if t.ServerID != id || strings.HasPrefix(t.Provider, "setup") {
+			continue
+		}
+		repo, err := m.adminRepo(ctx, t)
+		if err == nil {
+			err = repo.MarkRemoved(ctx, m.nameOf(id))
+		}
+		if err != nil {
+			m.Log.Warn("marking a removed server's backups", "server", m.nameOf(id), "err", err)
+		}
+	}
 }

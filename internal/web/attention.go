@@ -260,6 +260,10 @@ func (s *Server) backupAttention(r *http.Request, m serverRef, n ServiceNode, ow
 		return
 	}
 	link := m.Backups()
+	if f := st.Fenced; f != nil {
+		add(levelProblem, f.Message()+m.on()+".", link, "What to do")
+		return
+	}
 	switch {
 	case !st.Configured && m.This:
 		setup := link

@@ -94,6 +94,11 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 	if _, err := os.Stat(backup.StateDumpFile(paths)); err != nil {
 		return fmt.Errorf("the backup has no copy of Roostack's database: %w", err)
 	}
+	// This machine is the lab now: a newer generation, so the old one
+	// stands down if it comes back (backup/fence.go).
+	if err := backup.WriteGeneration(paths, backup.ReadGeneration(paths)+1); err != nil {
+		return err
+	}
 	log.Step("Keeping the recovery key for the next backups")
 	key, err := os.ReadFile(keyFile)
 	if err != nil {

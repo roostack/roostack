@@ -212,6 +212,7 @@ func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch ba
 		Paths:      lab.Paths,
 		Host:       host,
 		ReadSecret: podman.NewSecrets().Read,
+		Generation: backup.ReadGeneration(lab.Paths),
 		Plan: func() (backup.Plan, error) {
 			lab, services, err := services()
 			if err != nil {

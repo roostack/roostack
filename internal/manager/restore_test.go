@@ -119,6 +119,8 @@ func TestGoneServer(t *testing.T) {
 	st := backedUpForgejo(t, m, bin)
 	defer st.Close()
 	reg := m.Registry.(*fakeRegistry)
+	targets, _ := st.BackupTargets(ctx)
+	homeRepo := targets[0].Repository
 
 	if _, err := m.LostServerPlan(ctx, "n-0000000002"); err == nil {
 		t.Error("home is connected: it isn't gone")
@@ -164,6 +166,10 @@ func TestGoneServer(t *testing.T) {
 	}
 	if !slices.Equal(reg.removed, []string{"n-0000000002"}) {
 		t.Errorf("home should leave once nothing waits: %v", reg.removed)
+	}
+	// If home comes back, its backups tell it it was removed.
+	if snaps, err := m.OpenRepo(homeRepo, nil).Snapshots(ctx, backup.TagRoostack, backup.TagRemoved); err != nil || len(snaps) != 1 {
+		t.Errorf("the removed mark in home's backups: %d %v", len(snaps), err)
 	}
 }
 

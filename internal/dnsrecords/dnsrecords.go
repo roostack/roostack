@@ -106,6 +106,9 @@ type Manager struct {
 	// servers and labs reach this one at: its record is kept pointing at
 	// the entry's address (link.go).
 	LinkWanted func() bool
+	// Paused stops updating records (optional): this copy of the lab is
+	// out of date, another one runs it (backup.Fence).
+	Paused func() bool
 
 	mu     sync.Mutex
 	status Status
@@ -205,6 +208,16 @@ func (m *Manager) Run(ctx context.Context, interval time.Duration) {
 	wake := m.wake
 	m.mu.Unlock()
 	for {
+		if m.Paused != nil && m.Paused() {
+			m.Log.Warn("not updating DNS records: this copy of the lab is out of date (see its Backups page)")
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(interval):
+			case <-wake:
+			}
+			continue
+		}
 		st := m.Sync(ctx)
 		next := interval
 		if len(st.Public) > 0 {

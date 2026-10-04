@@ -140,6 +140,9 @@ func TestFindAndRestoreALab(t *testing.T) {
 	if got, _ := nodeid.LoadOrCreate(paths.StateDir); got.ID != id.ID {
 		t.Errorf("the restored server is %s, want the old server's identity", got.ID)
 	}
+	if got := backup.ReadGeneration(paths); got != 1 {
+		t.Errorf("a restored lab is a newer generation: %d", got)
+	}
 	if got := read(t, backup.KeyFile(paths)); got != "the lab's recovery key\n" {
 		t.Errorf("the recovery key should become the backup key: %q", got)
 	}

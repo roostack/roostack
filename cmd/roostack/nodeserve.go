@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
@@ -80,7 +81,11 @@ func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent
 
 	// Its own web address says which lab it's part of, and where to manage
 	// it (SPEC.md §10.2).
-	if page, err := web.NodePage(local.ID.Name, m.LabName, m.UI); err == nil {
+	fenced := func() *backup.Fence {
+		v, _ := local.State.Setting(context.Background(), backup.FenceKey)
+		return backup.ParseFence(v)
+	}
+	if page, err := web.NodePage(local.ID.Name, m.LabName, m.UI, fenced); err == nil {
 		ui := &http.Server{Addr: fmt.Sprintf("%s:%d", lab.UIBind, lab.UIPort), Handler: page, ReadHeaderTimeout: 10 * time.Second}
 		go func() {
 			<-ctx.Done()

@@ -324,6 +324,8 @@ func serve(args []string) error {
 			PublicHosts: mgr.PublicHosts, Entry: public.PortForwarding{}, Protected: crowdSecUp,
 			// link.<domain>, once chosen for joining or storage for others.
 			LinkWanted: func() bool { v, _ := st.Setting(context.Background(), web.LinkWantedKey); return v == "on" },
+			// Another copy of this lab runs it now: leave its records alone.
+			Paused: func() bool { v, _ := st.Setting(context.Background(), backup.FenceKey); return v != "" },
 		}
 		go records.Run(ctx, 30*time.Minute)
 		srv.DNS = records
