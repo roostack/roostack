@@ -398,3 +398,21 @@ func TestRemoteDown(t *testing.T) {
 		t.Errorf("calls go through again: %v", err)
 	}
 }
+
+// A server that left the lab gets nothing more, and a retry stops.
+func TestRemoteClosed(t *testing.T) {
+	ctrl, _, lab := servers(t)
+	r, err := NewRemote(ctrl, nodeid.Identity{ID: "n-0000000002", Name: "vps"}, netip.MustParseAddr("100.96.0.2"), lab,
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.URL = "https://127.0.0.1:1" // nothing there
+	r.Close()
+	r.Apply(Assignment{})
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.pushing || r.latest != nil {
+		t.Error("a closed server is sent nothing")
+	}
+}

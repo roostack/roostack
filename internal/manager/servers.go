@@ -369,7 +369,14 @@ func (m *Manager) RemoveServer(ctx context.Context, id string) error {
 		m.Log.Warn("server didn't answer; removing it anyway", "server", r.Identity().Name, "err", err)
 	}
 	m.forgetServerBackups(ctx, id)
-	return m.Registry.Remove(ctx, id)
+	if err := m.Registry.Remove(ctx, id); err != nil {
+		return err
+	}
+	// It's out of the lab: stop retrying anything to it.
+	if c, ok := r.(interface{ Close() }); ok {
+		c.Close()
+	}
+	return nil
 }
 
 // RenameServer changes a server's name. Renaming this server restarts

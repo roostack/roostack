@@ -59,6 +59,8 @@ type Remote struct {
 	// answers); probing: a background check is asking it.
 	downAt  time.Time
 	probing bool
+	// closed: it left the lab; nothing more is sent to it.
+	closed bool
 	// reads caches answers to cachedReads (readCache).
 	reads map[string]cachedRead
 }
@@ -126,6 +128,9 @@ func (r *Remote) Apply(a Assignment) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.closed {
+		return
+	}
 	// Typed-in secrets not yet delivered are still needed.
 	if r.latest != nil && len(r.latest.Secrets) > 0 {
 		merged := map[string][]byte{}
@@ -143,6 +148,14 @@ func (r *Remote) Apply(a Assignment) {
 		r.pushing = true
 		go r.push()
 	}
+}
+
+// Close stops sending it assignments: it left the lab (a retry still
+// waiting gives up).
+func (r *Remote) Close() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.closed = true
 }
 
 // unchanged reports whether w is what the server already has: the
@@ -172,7 +185,7 @@ func (r *Remote) push() {
 		if err == nil {
 			r.deliveredLocked(w.Version)
 		}
-		if r.latest.Version == r.delivered {
+		if r.latest.Version == r.delivered || r.closed {
 			r.pushing = false
 			r.mu.Unlock()
 			return

@@ -26,7 +26,10 @@ type fakeRemote struct {
 	left      bool
 	name      string
 	settings  *fakeServerSettings
+	closed    bool
 }
+
+func (f *fakeRemote) Close() { f.closed = true }
 
 func (f *fakeRemote) Identity() nodeid.Identity {
 	return nodeid.Identity{ID: "n-0000000002", Name: "vps"}
@@ -254,7 +257,7 @@ func TestRemoveAndRenameServer(t *testing.T) {
 
 	m.Remove(ctx, "forgejo")
 	m.Wait()
-	if err := m.RemoveServer(ctx, "n-0000000002"); err != nil || !vps.left || len(reg.removed) != 1 {
+	if err := m.RemoveServer(ctx, "n-0000000002"); err != nil || !vps.left || len(reg.removed) != 1 || !vps.closed {
 		t.Errorf("remove: %v left=%v removed=%v", err, vps.left, reg.removed)
 	}
 }
