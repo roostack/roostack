@@ -118,7 +118,7 @@ func (n *Local) countSizesLocked() {
 			// Each folder on its own: they may be on different disks.
 			var total int64
 			var err error
-			for _, d := range n.DataDirs(s.Package.Name) {
+			for _, d := range n.DataDirs(s.Name()) {
 				var size int64
 				if size, err = n.du(ctx, true, d); err != nil {
 					break
@@ -126,9 +126,9 @@ func (n *Local) countSizesLocked() {
 				dirs[d], total = size, total+size
 			}
 			if err == nil {
-				counted[s.Package.Name] = total
+				counted[s.Name()] = total
 			} else if n.Log != nil {
-				n.Log.Warn("counting a service's data", "service", s.Package.Name, "err", err)
+				n.Log.Warn("counting a service's data", "service", s.Name(), "err", err)
 			}
 		}
 		for _, f := range n.folders() {
@@ -159,7 +159,7 @@ func (n *Local) ServiceDetails(ctx context.Context) (map[string]ServiceDetail, e
 	lab := n.lab(a)
 	out := map[string]ServiceDetail{}
 	for _, s := range a.Services {
-		name := s.Package.Name
+		name := s.Name()
 		d := ServiceDetail{Status: "unknown", DataDirs: n.DataDirs(name), DataSize: n.dataSize(name)}
 		gen, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {

@@ -33,6 +33,34 @@ On a brand-new server, the first install may also wait for Roostack's web
 proxy to finish building (once only, a few minutes). If a step takes much
 longer than usual, the page says so, and whether it's still moving.
 
+## Another copy of a service
+
+You can install a service more than once: two Forgejos, say, one for
+work and one for home. Each copy is completely separate: its own data,
+settings, backups and web address.
+
+On **Add a service**, choose **Add another…** next to one you already
+have. As well as the usual form, it asks for:
+
+Title
+:   What it's called on your pages, such as "Forgejo (work)".
+
+Name
+:   Its short name, used for its folders, containers and backups: lowercase
+    letters, digits and dashes, such as `forgejo-work`. It can't change
+    later.
+
+It also needs a web address of its own: the form suggests one.
+
+??? note "For technical users"
+
+    The name is the service's ID: its instance file is
+    `/var/lib/roostack/services/<name>.yaml` (with `name:` and `package:`),
+    its containers `roostack-<name>-…`, its data
+    `/srv/roostack/services/<name>`, its secrets `roostack-<name>-…` and
+    its backups tagged `service=<name>`. The first copy of a package is
+    named after it.
+
 ## Finishing setup
 
 Some services need a step after they start, such as creating their first

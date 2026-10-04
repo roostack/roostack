@@ -428,6 +428,7 @@ func (f *fakeManager) Package(name string) (*pkgspec.Package, error) {
 	return pkgspec.Load(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
 }
 
+func (f *fakeManager) ServicePackage(name string) (*pkgspec.Package, error) { return f.Package(name) }
 func (f *fakeManager) Install(_ context.Context, _ string, req manager.InstallRequest) error {
 	if f.failWith != nil {
 		return f.failWith
@@ -520,8 +521,17 @@ func TestInstallFlow(t *testing.T) {
 	if code, _ := h.get("/services/nope"); code != http.StatusNotFound {
 		t.Errorf("unknown service page: %d", code)
 	}
-	if _, body := h.get("/catalog"); !strings.Contains(body, `href="/install/immich"`) || strings.Contains(body, `/install/vaultwarden"`) {
-		t.Error("catalog should offer Immich and mark Vaultwarden installed")
+	if _, body := h.get("/catalog"); !strings.Contains(body, `href="/install/immich">Install`) ||
+		!strings.Contains(body, `href="/install/vaultwarden">Add another…`) {
+		t.Error("catalog should offer Immich, and another Vaultwarden")
+	}
+	// Another copy needs a name and title of its own, and its own address.
+	_, body = h.get("/install/vaultwarden")
+	for _, want := range []string{"Add another Vaultwarden", `name="name" value="vaultwarden-2"`, `name="title" value="Vaultwarden (2)"`,
+		`value="vault-2"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("another copy's form is missing %q", want)
+		}
 	}
 
 	_, body = h.get("/install/immich")

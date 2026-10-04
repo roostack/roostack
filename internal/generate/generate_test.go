@@ -29,6 +29,8 @@ func TestGolden(t *testing.T) {
 		{"vaultwarden", "vaultwarden", "vaultwarden.instance.yaml"},
 		{"immich", "immich", "immich.instance.yaml"},
 		{"immich-no-ml", "immich", "immich-no-ml.instance.yaml"},
+		// A second copy: everything named after it, not the package.
+		{"immich-second", "immich", "immich-second.instance.yaml"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

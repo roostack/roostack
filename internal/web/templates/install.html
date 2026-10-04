@@ -2,10 +2,24 @@
 {{define "content"}}
 <section class="card narrow">
   <div class="page-top">{{back "/catalog" "Back"}}{{help "services/add" "Add a service"}}</div>
-  <h1>Install {{.Package.Title}}</h1>
+  <h1>{{if .Another}}Add another {{.Package.Title}}{{else}}Install {{.Package.Title}}{{end}}</h1>
   <p class="hint">{{.Package.Description}}</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <form method="post" action="/install/{{.Package.Name}}">
+    {{if .Another}}
+    {{/* A second copy, kept apart from the first in everything: its own
+         data, database, backups, settings and address (SPEC.md §8.2). */}}
+    <p>{{.Package.Title}} is installed already. This adds another, completely separate copy: its own data, settings, backups
+      and web address.</p>
+    <label>Title
+      <input name="title" value="{{.Title}}" maxlength="60" required>
+      <small>What it's called on your pages, e.g. "{{.Package.Title}} (work)".</small>
+    </label>
+    <label>Name
+      <input name="name" value="{{.Name}}" required maxlength="30" pattern="[a-z][a-z0-9-]*[a-z0-9]" autocapitalize="off" spellcheck="false">
+      <small>Its short name, for its folders, containers and backups: lowercase letters, digits and dashes. It can't change later.</small>
+    </label>
+    {{end}}
     {{with .Servers}}
     <label>Run it on
       <select name="host">

@@ -204,7 +204,7 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		w.Header().Set("HX-Refresh", "true")
 	}
 	if s.Manager != nil {
-		if p, err := s.Manager.Package(name); err == nil {
+		if p, err := s.Manager.ServicePackage(name); err == nil {
 			data["Package"] = p
 			var actions []serviceAction
 			for _, h := range p.HooksOn(pkgspec.HookAction) {

@@ -212,8 +212,8 @@ func (n *Local) Apply(a Assignment) {
 	if n.State != nil {
 		// A service taken off this server forgets its setup progress.
 		for _, s := range old {
-			if _, still := n.serviceLocked(s.Package.Name); !still {
-				n.State.SetSetting(context.Background(), hookKey(s.Package.Name), "")
+			if _, still := n.serviceLocked(s.Name()); !still {
+				n.State.SetSetting(context.Background(), hookKey(s.Name()), "")
 			}
 		}
 		for _, name := range a.SetUp {
@@ -439,7 +439,7 @@ func (n *Local) service(name string) (state.Service, bool) {
 }
 
 func (n *Local) serviceLocked(name string) (state.Service, bool) {
-	i := slices.IndexFunc(n.assignment.Services, func(s state.Service) bool { return s.Package.Name == name })
+	i := slices.IndexFunc(n.assignment.Services, func(s state.Service) bool { return s.Name() == name })
 	if i < 0 {
 		return state.Service{}, false
 	}
@@ -459,7 +459,7 @@ func (n *Local) ServiceStates(ctx context.Context) (map[string]string, error) {
 	lab := n.lab(a)
 	out := map[string]string{}
 	for _, s := range a.Services {
-		name := s.Package.Name
+		name := s.Name()
 		out[name] = "unknown"
 		gen, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {

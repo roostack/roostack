@@ -76,7 +76,7 @@ type DatabaseContext struct {
 
 func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Context {
 	ctx := &Context{
-		Service:    ServiceContext{Name: p.Name},
+		Service:    ServiceContext{Name: in.ID()},
 		Lab:        LabContext{Domain: lab.Domain},
 		Settings:   map[string]any{},
 		Routes:     map[string]RouteContext{},
@@ -85,7 +85,7 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 		Containers: map[string]ContainerContext{},
 	}
 	for name := range p.Containers {
-		ctx.Containers[name] = ContainerContext{Host: containerUnitName(p.Name, name)}
+		ctx.Containers[name] = ContainerContext{Host: containerUnitName(in.ID(), name)}
 	}
 
 	for _, s := range p.Settings {
@@ -123,11 +123,11 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 		switch d.Type {
 		case pkgspec.DBPostgres:
 			ctx.Databases[name] = DatabaseContext{
-				Host: dbUnitName(p.Name, name), Port: 5432,
-				User: pgIdent(p.Name, name), Name: pgIdent(p.Name, name),
+				Host: dbUnitName(in.ID(), name), Port: 5432,
+				User: pgIdent(in.ID(), name), Name: pgIdent(in.ID(), name),
 			}
 		case pkgspec.DBRedis:
-			ctx.Databases[name] = DatabaseContext{Host: dbUnitName(p.Name, name), Port: 6379}
+			ctx.Databases[name] = DatabaseContext{Host: dbUnitName(in.ID(), name), Port: 6379}
 		}
 	}
 	return ctx

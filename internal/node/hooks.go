@@ -150,7 +150,7 @@ func (n *Local) runPendingHooks(ctx context.Context) {
 	services := n.assignment.Services
 	n.mu.Unlock()
 	for _, s := range services {
-		name := s.Package.Name
+		name := s.Name()
 		if v, err := n.State.Setting(ctx, hookKey(name)); err != nil || v != hookPending {
 			continue
 		}
@@ -201,7 +201,7 @@ func (n *Local) runInstallHooks(ctx context.Context, s state.Service) (err error
 	}
 	ctx, cancel := context.WithTimeout(ctx, deadline)
 	defer cancel()
-	act := n.Activity.Start(activity.Setup, "Setting up "+s.Package.Title)
+	act := n.Activity.Start(activity.Setup, "Setting up "+s.Title())
 	defer func() { act.Finish(err) }()
 	hooks := s.Package.HooksOn(pkgspec.HookInstall)
 	for i, h := range hooks {
@@ -224,10 +224,10 @@ func (n *Local) runInstallHooks(ctx context.Context, s state.Service) (err error
 			if err == nil {
 				break
 			}
-			act.Printf("%v. %s may still be starting; trying again in %s.", err, s.Package.Title, retry)
+			act.Printf("%v. %s may still be starting; trying again in %s.", err, s.Title(), retry)
 			select {
 			case <-ctx.Done():
-				return fmt.Errorf("%s didn't finish setting up: %s", s.Package.Title, lastLines(out, err))
+				return fmt.Errorf("%s didn't finish setting up: %s", s.Title(), lastLines(out, err))
 			case <-time.After(retry):
 			}
 		}

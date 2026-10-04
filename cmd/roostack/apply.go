@@ -51,16 +51,16 @@ func apply(args []string) error {
 		return err
 	}
 	for _, s := range ported {
-		if !slices.ContainsFunc(changed, func(c state.Service) bool { return c.Package.Name == s.Package.Name }) {
+		if !slices.ContainsFunc(changed, func(c state.Service) bool { return c.Name() == s.Name() }) {
 			changed = append(changed, s)
 		}
 	}
 	for _, s := range changed {
 		if *dryRun {
-			fmt.Printf("Would save %s: host %s, ports %v\n", s.Package.Name, s.Instance.Host, s.Instance.Routes)
+			fmt.Printf("Would save %s: host %s, ports %v\n", s.Name(), s.Instance.Host, s.Instance.Routes)
 			continue
 		}
-		if err := s.Instance.Save(state.InstanceFile(lab, s.Package.Name)); err != nil {
+		if err := s.Instance.Save(state.InstanceFile(lab, s.Name())); err != nil {
 			return err
 		}
 	}

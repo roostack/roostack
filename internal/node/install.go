@@ -85,7 +85,7 @@ const stageQueued = "queued"
 func (n *Local) planInstalls(services []state.Service, desired reconcile.Desired, plan *reconcile.Plan, buildRunning bool) {
 	byName := map[string]state.Service{}
 	for _, s := range services {
-		byName[s.Package.Name] = s
+		byName[s.Name()] = s
 	}
 	// Setup steps run only for a new install, not for a service that
 	// arrives already set up (moved or restored from another server):
@@ -93,8 +93,8 @@ func (n *Local) planInstalls(services []state.Service, desired reconcile.Desired
 	setUp := map[string]bool{}
 	if n.State != nil {
 		for _, s := range services {
-			if v, err := n.State.Setting(context.Background(), hookKey(s.Package.Name)); err == nil && v == hookPending {
-				setUp[s.Package.Name] = true
+			if v, err := n.State.Setting(context.Background(), hookKey(s.Name())); err == nil && v == hookPending {
+				setUp[s.Name()] = true
 			}
 		}
 	}
@@ -136,7 +136,7 @@ func (n *Local) planInstalls(services []state.Service, desired reconcile.Desired
 			if !slices.Contains(o.Units, u) {
 				continue
 			}
-			label := containerLabel(s.Package.Title, o.Service, u, images[u], own == 1)
+			label := containerLabel(s.Title(), o.Service, u, images[u], own == 1)
 			if plan.Pulls[u] != "" && n.Reconciler != nil && n.Reconciler.Pull != nil {
 				p.Steps = append(p.Steps, InstallStep{Key: installKey(reconcile.StageDownload, u), Title: "Downloading " + label})
 			}

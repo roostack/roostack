@@ -194,6 +194,9 @@ type LabRestores interface {
 type ServiceCatalog interface {
 	Catalog() ([]manager.CatalogItem, error)
 	Package(name string) (*pkgspec.Package, error)
+	// ServicePackage is an installed service's package (its name can be
+	// a second copy's own), titled as the service.
+	ServicePackage(name string) (*pkgspec.Package, error)
 	Install(ctx context.Context, name string, req manager.InstallRequest) error
 	Remove(ctx context.Context, name string) error
 	DataDirs(name string) []string
