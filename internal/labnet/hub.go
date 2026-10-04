@@ -153,7 +153,10 @@ func (h *Hub) SyncPeers(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	wg := agent.WireGuard{Address: fmt.Sprintf("%s/%d", ControllerAddr, DefaultPrefix.Bits()), ListenPort: agent.WireGuardPort}
+	// The hub forwards one server's backups to another's store (SPEC.md
+	// §10.10); its firewall lets nothing else through.
+	wg := agent.WireGuard{Address: fmt.Sprintf("%s/%d", ControllerAddr, DefaultPrefix.Bits()), ListenPort: agent.WireGuardPort,
+		Forward: true}
 	for _, m := range servers {
 		wg.Peers = append(wg.Peers, agent.Peer{PublicKey: m.PublicKey, AllowedIPs: []string{m.Addr + "/32"}})
 	}

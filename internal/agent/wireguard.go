@@ -78,6 +78,10 @@ type WireGuard struct {
 	// only if the interface has no key yet, so a lab restored onto a new
 	// server keeps the keys its peers know.
 	SavedKey string `json:"saved_key,omitempty"`
+	// Forward turns on forwarding for packets arriving on this interface
+	// (the hub's, between servers; only on Roostack's network). The
+	// firewall's forward chain decides what may pass.
+	Forward bool `json:"forward,omitempty"`
 }
 
 // Peer is another server.
@@ -135,6 +139,9 @@ func (wg WireGuard) Validate() error {
 	if p, err := netip.ParsePrefix(wg.Address); err != nil || !allowed.Contains(p.Addr()) || p.Bits() < allowed.Bits() {
 		errs = append(errs, fmt.Errorf("address %q must be inside %s", wg.Address, allowed))
 	}
+	if wg.Forward && wg.Iface() != WireGuardInterface {
+		errs = append(errs, errors.New("only Roostack's network forwards"))
+	}
 	if wg.ListenPort < 0 || wg.ListenPort > 65535 {
 		errs = append(errs, fmt.Errorf("invalid listen port %d", wg.ListenPort))
 	}
@@ -185,6 +192,10 @@ func (wg WireGuard) Config(privateKey string) string {
 	fmt.Fprintf(&b, "PrivateKey = %s\nAddress = %s\n", privateKey, wg.Address)
 	if wg.ListenPort != 0 {
 		fmt.Fprintf(&b, "ListenPort = %d\n", wg.ListenPort)
+	}
+	if wg.Forward {
+		// This interface only, not the whole machine (and again at boot).
+		b.WriteString("PostUp = echo 1 > /proc/sys/net/ipv4/conf/%i/forwarding\n")
 	}
 	for _, p := range wg.Peers {
 		fmt.Fprintf(&b, "\n[Peer]\nPublicKey = %s\nAllowedIPs = %s\n", p.PublicKey, strings.Join(p.AllowedIPs, ", "))

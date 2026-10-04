@@ -14,6 +14,10 @@ type Firewall struct {
 	// SSHFrom is "lan" (private ranges only), "any" or "off" (no SSH).
 	SSHFrom string `json:"ssh_from"`
 	Allow   []Rule `json:"allow"`
+	// Forward are the ports one Roostack server may reach on another
+	// through this one (the hub), over Roostack's network (TCP only).
+	// Nothing else is forwarded to, from or within that network.
+	Forward []Rule `json:"forward,omitempty"`
 }
 
 // Rule allows one inbound port.
@@ -98,6 +102,14 @@ func (f Firewall) Validate() error {
 			errs = append(errs, fmt.Errorf("allow[%d]: invalid characters in reason", i))
 		}
 	}
+	for i, r := range f.Forward {
+		if r.Port < 1 || r.Port > 65535 || r.Proto != "tcp" || r.Iface != WireGuardInterface || r.From != "" {
+			errs = append(errs, fmt.Errorf("forward[%d]: only a TCP port between Roostack's servers (iface %q)", i, WireGuardInterface))
+		}
+		if strings.ContainsFunc(r.Reason, func(c rune) bool { return c < ' ' || c == '"' || c == '\\' }) {
+			errs = append(errs, fmt.Errorf("forward[%d]: invalid characters in reason", i))
+		}
+	}
 	return errors.Join(errs...)
 }
 
@@ -162,6 +174,20 @@ func (f Firewall) Ruleset() string {
 			fmt.Fprintf(&b, "\t\t%s dport %d accept\n", r.Proto, r.Port)
 		}
 	}
+	b.WriteString("\t}\n\n")
+	// Roostack's network is never a way through this server, except for
+	// the ports listed: the hub forwards one server's backups to another's
+	// store (SPEC.md §10.10). Other forwarding (e.g. other software's
+	// bridges) is left alone.
+	b.WriteString("\tchain forward {\n")
+	b.WriteString("\t\ttype filter hook forward priority filter; policy accept;\n\n")
+	fmt.Fprintf(&b, "\t\tiifname %q oifname %q ct state established,related accept\n", WireGuardInterface, WireGuardInterface)
+	for _, r := range f.Forward {
+		fmt.Fprintf(&b, "\t\t# %s\n", r.Reason)
+		fmt.Fprintf(&b, "\t\tiifname %q oifname %q tcp dport %d accept\n", WireGuardInterface, WireGuardInterface, r.Port)
+	}
+	fmt.Fprintf(&b, "\t\tiifname %q drop\n", WireGuardInterface)
+	fmt.Fprintf(&b, "\t\toifname %q drop\n", WireGuardInterface)
 	b.WriteString("\t}\n}\n")
 	return b.String()
 }
