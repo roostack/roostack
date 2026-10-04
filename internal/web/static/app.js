@@ -43,6 +43,18 @@
   document.addEventListener("DOMContentLoaded", () => widths(document));
   document.addEventListener("htmx:load", (e) => widths(e.detail.elt));
 
+  // A refreshed status line is a new element, whose spinner would start
+  // its turn again (a visible hitch). Every spinner turns in step with the
+  // page's clock instead, so a new one carries on where the old one was.
+  const spinTurn = 800; // ms, as .spinner's animation in app.css
+  const spinners = (root) => {
+    const delay = `-${Math.round(performance.now() % spinTurn)}ms`;
+    for (const el of root.querySelectorAll(".spinner")) el.style.animationDelay = delay;
+    if (root.matches && root.matches(".spinner")) root.style.animationDelay = delay;
+  };
+  document.addEventListener("DOMContentLoaded", () => spinners(document));
+  document.addEventListener("htmx:load", (e) => spinners(e.detail.elt));
+
   // roostackSize formats bytes as units.Bytes does (decimal: 1 GB = 1000³
   // bytes), for figures that change as someone types.
   window.roostackSize = (n) => {
