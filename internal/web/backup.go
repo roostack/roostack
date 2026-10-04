@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labrestore"
 	"roostack.cloud/roostack/internal/units"
@@ -91,15 +92,51 @@ func isStale(t time.Time) bool { return time.Since(t) > backupStale }
 
 // backupView is the dashboard's backup card.
 func (s *Server) backupView(r *http.Request) any {
-	if s.backups(r) == nil {
+	v := &backupCard{}
+	m := s.serverRefOf(r)
+	// Being set up by the controller: say so, not "not set up", until the
+	// server restarts with its backups.
+	if a := s.Node; a != nil {
+		if snap, ok := a.LatestActivity(activity.BackupSetupFor(m.ID)); ok && snap.Running() {
+			v.SettingUp = snap.Status
+		}
+	}
+	b := s.backups(r)
+	if b == nil {
+		// Another server that doesn't answer (e.g. restarting after its
+		// backups were set up): its status shows once it's back.
+		if !m.This {
+			if n := s.serverOf(r); n != nil && n.Settings() == nil {
+				v.Unreachable = m.Label()
+				return v
+			}
+		}
+		if v.SettingUp != "" {
+			return v
+		}
 		return nil
 	}
-	st, err := s.backups(r).Status(r.Context())
+	st, err := b.Status(r.Context())
 	if err != nil {
+		if !m.This {
+			v.Unreachable = m.Label()
+			return v
+		}
 		s.Log.Error("backup status", "err", err)
 		return nil
 	}
-	return st
+	v.Status = st
+	return v
+}
+
+// backupCard is a server's backup status card: its status, or why it
+// can't be shown yet.
+type backupCard struct {
+	backup.Status
+	// SettingUp is the step of setting its backups up, while that runs.
+	SettingUp string
+	// Unreachable names a server that doesn't answer right now.
+	Unreachable string
 }
 
 func (s *Server) backupRun(w http.ResponseWriter, r *http.Request) {
