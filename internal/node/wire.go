@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
@@ -32,6 +33,8 @@ type WireAssignment struct {
 	// them, on its address GuestAddr on the guests' link.
 	Guests    []generate.GuestStorage `json:"guests,omitempty"`
 	GuestAddr string                  `json:"guest_addr,omitempty"`
+	// Links are its direct links to other servers (nil: unchanged).
+	Links *agent.Links `json:"links,omitempty"`
 	// Reason says why it was sent, for the apply's log.
 	Reason string `json:"reason,omitempty"`
 }
@@ -62,7 +65,7 @@ type WireProxied struct {
 // from the lab's catalog.
 func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error) {
 	w := WireAssignment{Version: version, Lab: a.Lab,
-		Secrets: a.Secrets, SetUp: a.SetUp, Storage: a.Storage, Guests: a.Guests, GuestAddr: a.GuestAddr, Reason: a.Reason}
+		Secrets: a.Secrets, SetUp: a.SetUp, Storage: a.Storage, Guests: a.Guests, GuestAddr: a.GuestAddr, Links: a.Links, Reason: a.Reason}
 	enc := func(s state.Service) (WireService, error) {
 		in, err := s.Instance.Marshal()
 		if err != nil {
@@ -93,7 +96,8 @@ func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error)
 
 // Decode turns a wire assignment back into one, checking every file.
 func Decode(w WireAssignment) (Assignment, error) {
-	a := Assignment{Lab: w.Lab, Secrets: w.Secrets, SetUp: w.SetUp, Storage: w.Storage, Guests: w.Guests, GuestAddr: w.GuestAddr, Reason: w.Reason}
+	a := Assignment{Lab: w.Lab, Secrets: w.Secrets, SetUp: w.SetUp, Storage: w.Storage, Guests: w.Guests, GuestAddr: w.GuestAddr,
+		Links: w.Links, Reason: w.Reason}
 	dec := func(ws WireService) (state.Service, error) {
 		p, err := pkgspec.Parse(ws.Package)
 		if err != nil {
@@ -144,6 +148,11 @@ type WireStatus struct {
 	Restores bool `json:"restores"`
 	Updates  bool `json:"updates"`
 	Settings bool `json:"settings"`
+	// Addrs are its home-network addresses, and Links when each of its
+	// direct links last connected (Unix time, 0 never), by the other
+	// server's public key (SPEC.md §10.10).
+	Addrs []string         `json:"addrs,omitempty"`
+	Links map[string]int64 `json:"links,omitempty"`
 }
 
 func (w WireStatus) apply() ApplyStatus {

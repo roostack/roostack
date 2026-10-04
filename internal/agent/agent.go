@@ -53,6 +53,9 @@ type Host interface {
 	// ApplyWireGuard configures one of Roostack's WireGuard interfaces
 	// (already validated) and brings it up, returning its public key.
 	ApplyWireGuard(wg WireGuard) (publicKey string, err error)
+	// ApplyLinks sets the direct links to other servers on Roostack's
+	// network, keeping the link to the controller.
+	ApplyLinks(l Links) error
 	// WireGuardStatus reads an interface's configuration.
 	WireGuardStatus(iface string) (WireGuardStatus, error)
 	// WireGuardKeys reads Roostack's interfaces' private keys.
@@ -243,6 +246,17 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		s.do(w, r, "remove wireguard "+name, func() error { return s.Host.RemoveWireGuard(name) })
+	})
+	mux.HandleFunc("PUT /v1/wireguard/links", func(w http.ResponseWriter, r *http.Request) {
+		var l Links
+		if !decode(w, r, 64<<10, &l) {
+			return
+		}
+		if err := l.Validate(); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		s.do(w, r, "apply direct links", func() error { return s.Host.ApplyLinks(l) })
 	})
 	mux.HandleFunc("PUT /v1/wireguard", func(w http.ResponseWriter, r *http.Request) {
 		var wg WireGuard
@@ -577,15 +591,8 @@ func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
 	_, statErr := os.Stat("/sys/class/net/" + iface)
 	sameIface := statErr == nil && confKey(string(old)) == key && confAddress(string(old)) == wg.Address
 	if sameIface {
-		// wg syncconf takes the file without wg-quick's extra keys.
-		strip, err := exec.Command("wg-quick", "strip", iface).Output()
-		if err != nil {
-			return "", fmt.Errorf("wg-quick strip: %w", err)
-		}
-		cmd := exec.Command("wg", "syncconf", iface, "/dev/stdin")
-		cmd.Stdin = strings.NewReader(string(strip))
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("wg syncconf: %w: %s", err, out)
+		if err := syncConf(iface); err != nil {
+			return "", err
 		}
 		return pub, setForwarding(iface, wg.Forward)
 	}
@@ -593,6 +600,52 @@ func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
 		return "", fmt.Errorf("starting %s: %w: %s", unit, err, out)
 	}
 	return pub, setForwarding(iface, wg.Forward)
+}
+
+// syncConf applies an interface's file to the running interface, without
+// taking it down.
+func syncConf(iface string) error {
+	// wg syncconf takes the file without wg-quick's extra keys.
+	strip, err := exec.Command("wg-quick", "strip", iface).Output()
+	if err != nil {
+		return fmt.Errorf("wg-quick strip: %w", err)
+	}
+	cmd := exec.Command("wg", "syncconf", iface, "/dev/stdin")
+	cmd.Stdin = strings.NewReader(string(strip))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("wg syncconf: %w: %s", err, out)
+	}
+	return nil
+}
+
+// ApplyLinks sets this server's direct links to other servers (Links),
+// keeping its link to the controller.
+func (h LinuxHost) ApplyLinks(l Links) error {
+	file := wireGuardConf(WireGuardInterface)
+	old, err := os.ReadFile(file)
+	if errors.Is(err, os.ErrNotExist) {
+		return errors.New("this server isn't in a lab")
+	}
+	if err != nil {
+		return err
+	}
+	conf, err := l.apply(string(old))
+	if err != nil {
+		return err
+	}
+	if conf == string(old) {
+		return nil
+	}
+	if err := os.WriteFile(file+".tmp", []byte(conf), 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(file+".tmp", file); err != nil {
+		return err
+	}
+	if _, err := os.Stat("/sys/class/net/" + WireGuardInterface); err != nil {
+		return nil // it comes up with them
+	}
+	return syncConf(WireGuardInterface)
 }
 
 // setForwarding turns forwarding of packets arriving on an interface on
@@ -635,6 +688,9 @@ func (h LinuxHost) WireGuardStatus(iface string) (WireGuardStatus, error) {
 	st := WireGuardStatus{Configured: true, PublicKey: pub, Address: confAddress(string(conf)), Handshakes: map[string]int64{}}
 	if out, err := exec.Command("wg", "show", iface, "latest-handshakes").Output(); err == nil {
 		st.Handshakes = parseHandshakes(string(out))
+	}
+	if out, err := exec.Command("wg", "show", iface, "endpoints").Output(); err == nil {
+		st.Endpoints = parseEndpoints(string(out))
 	}
 	return st, nil
 }

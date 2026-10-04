@@ -9,6 +9,7 @@ import (
 
 	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/labnet"
 )
 
 // The address another server (joining the lab) or another lab (storage
@@ -50,12 +51,12 @@ func (s *Server) addressChoices(r *http.Request, legend string, port int, lan, h
 	p := strconv.Itoa(port)
 	internet := s.onInternet()
 	if lan && here {
-		for _, a := range lanAddresses() {
-			title, hint := "This server's home-network address", "For a server at home, on the same network ("+a.iface+")."
+		for _, a := range labnet.HomeAddresses() {
+			title, hint := "This server's home-network address", "For a server at home, on the same network ("+a.Iface+")."
 			if internet {
-				title, hint = "This server's private network address", "For a server on the same private network at your provider ("+a.iface+")."
+				title, hint = "This server's private network address", "For a server on the same private network at your provider ("+a.Iface+")."
 			}
-			c.Options = append(c.Options, addressOption{Value: net.JoinHostPort(a.ip, p), Title: title, Hint: hint})
+			c.Options = append(c.Options, addressOption{Value: net.JoinHostPort(a.IP, p), Title: title, Hint: hint})
 		}
 	}
 	var st dnsrecords.Status
@@ -135,37 +136,4 @@ func (s *Server) useAddress(ctx context.Context, endpoint string) {
 	if s.DNS != nil {
 		s.DNS.Refresh()
 	}
-}
-
-// lanAddress is one of this server's private IPv4 addresses.
-type lanAddress struct{ iface, ip string }
-
-// lanAddresses are this server's private IPv4 addresses, on its real
-// network interfaces (not WireGuard, Podman's or other virtual ones).
-func lanAddresses() []lanAddress {
-	ifaces, _ := net.Interfaces()
-	var out []lanAddress
-	for _, ifc := range ifaces {
-		if ifc.Flags&net.FlagUp == 0 || ifc.Flags&net.FlagLoopback != 0 || virtualIface(ifc.Name) {
-			continue
-		}
-		addrs, _ := ifc.Addrs()
-		for _, a := range addrs {
-			if ipn, ok := a.(*net.IPNet); ok && ipn.IP.To4() != nil && ipn.IP.IsPrivate() {
-				out = append(out, lanAddress{iface: ifc.Name, ip: ipn.IP.String()})
-			}
-		}
-	}
-	return out
-}
-
-// virtualIface reports interfaces that aren't a way onto the network:
-// Roostack's WireGuard links, and container and VM bridges.
-func virtualIface(name string) bool {
-	for _, p := range []string{"roostack", "wg", "podman", "veth", "docker", "br-", "cni", "virbr", "tun", "tap"} {
-		if strings.HasPrefix(name, p) {
-			return true
-		}
-	}
-	return false
 }

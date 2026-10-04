@@ -51,6 +51,9 @@ type planEntry struct {
 	// "vps's disk"); LowSpace is lowSpace's level for it.
 	FreeOn, LowSpace string
 	Lab              *labnet.GuestUsage
+	// Path says how backups reach another server's disk: manager.PathDirect
+	// or PathHub (through the controller, named by Via); "" otherwise.
+	Path, Via string
 }
 
 // planSlot is an empty place in the plan, with a suggestion for it.
@@ -157,6 +160,10 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 			}
 		}
 		if host, ok := strings.CutPrefix(e.Ref, "server:"); ok {
+			e.Path = s.Manager.LinkPath(ctx, m.ID, host)
+			if s.Node != nil {
+				e.Via = s.Node.Identity().Name
+			}
 			// Another server's backup store: its disk, as it says.
 			if d, ok := s.Manager.NodeByID(host).(node.Disks); ok {
 				dctx, cancel := context.WithTimeout(ctx, 3*time.Second)

@@ -147,7 +147,8 @@ func serve(args []string) error {
 			return out
 		},
 		UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) },
-		Submit:    func(j maintenance.Job) { coord.Submit(j) }}
+		Submit:    func(j maintenance.Job) { coord.Submit(j) },
+		Settings:  st}
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
 	// Public access (SPEC.md §6.11): check links from a phone, and whether
@@ -286,6 +287,18 @@ func serve(args []string) error {
 	go srv.RunNotifier(ctx)
 	// History older than the Owner's choice goes, on every server (SPEC.md §6.14).
 	go srv.RunHistoryCull(ctx)
+	// Direct links between servers that don't connect fall back to the
+	// controller (SPEC.md §10.10).
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Minute):
+				mgr.CheckLinks(ctx)
+			}
+		}
+	}()
 	srv.DetectNetwork = public.DetectNetwork
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
 	// A new install can instead become a lab restored from its backups.

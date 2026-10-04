@@ -142,3 +142,62 @@ func TestForwardRules(t *testing.T) {
 		t.Error("only Roostack's network forwards")
 	}
 }
+
+// Direct links replace only the marked peers: the link to the controller
+// stays, and ListenPort follows Listen.
+func TestLinks(t *testing.T) {
+	ctrl := "Y29udHJvbGxlcmNvbnRyb2xsZXJjb250cm9sbGVyMTI="
+	b, c := "YmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI=", "Y2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2M="
+	node := WireGuard{Address: "100.96.0.3/24", Peers: []Peer{{PublicKey: ctrl, AllowedIPs: []string{"100.96.0.0/24"},
+		Endpoint: "lab.example.com:51820", Keepalive: 25}}}.Config("cHJpdmF0ZQ==")
+
+	l := Links{Listen: true, Peers: []Peer{{PublicKey: b, AllowedIPs: []string{"100.96.0.2/32"}, Endpoint: "10.0.0.2:51820", Keepalive: 25}}}
+	if err := l.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	conf, err := l.apply(node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"ListenPort = 51820", "PublicKey = " + ctrl, "Endpoint = lab.example.com:51820",
+		LinkMarker + "\n[Peer]\nPublicKey = " + b, "Endpoint = 10.0.0.2:51820"} {
+		if !strings.Contains(conf, want) {
+			t.Errorf("missing %q:\n%s", want, conf)
+		}
+	}
+	// Changed: b goes, c comes, no longer listening; the controller stays.
+	conf, err = Links{Peers: []Peer{{PublicKey: c, AllowedIPs: []string{"100.96.0.4/32"}}}}.apply(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(conf, b) || strings.Contains(conf, "ListenPort") || !strings.Contains(conf, "PublicKey = "+c) ||
+		!strings.Contains(conf, "PublicKey = "+ctrl) || strings.Count(conf, "[Peer]") != 2 || strings.Count(conf, LinkMarker) != 1 {
+		t.Errorf("after the change:\n%s", conf)
+	}
+	// None: back to just the controller.
+	if conf, _ = (Links{}).apply(conf); strings.Count(conf, "[Peer]") != 1 || strings.Contains(conf, c) || !strings.Contains(conf, "PrivateKey") {
+		t.Errorf("without links:\n%s", conf)
+	}
+
+	if _, err := (Links{Peers: []Peer{{PublicKey: ctrl, AllowedIPs: []string{"100.96.0.9/32"}}}}).apply(node); err == nil {
+		t.Error("a link can't take over the controller's peer")
+	}
+	for _, bad := range []Peer{{PublicKey: b, AllowedIPs: []string{"100.96.0.0/24"}}, {PublicKey: b, AllowedIPs: []string{"8.8.8.8/32"}},
+		{PublicKey: b, AllowedIPs: []string{"100.96.0.2/32", "100.96.0.3/32"}}, {PublicKey: b, AllowedIPs: []string{"100.96.0.2/32"}, Endpoint: "x y:1"}} {
+		if (Links{Peers: []Peer{bad}}).Validate() == nil {
+			t.Errorf("%+v should be refused", bad)
+		}
+	}
+}
+
+func TestLinksRequest(t *testing.T) {
+	c, host := start(t, []uint32{uint32(os.Getuid())})
+	ctx := context.Background()
+	if err := c.ApplyLinks(ctx, Links{Peers: []Peer{{PublicKey: "eA==", AllowedIPs: []string{"100.96.0.2/32"}}}}); err == nil || host.links != nil {
+		t.Error("an invalid request must not reach the host")
+	}
+	l := Links{Listen: true, Peers: []Peer{{PublicKey: "YmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI=", AllowedIPs: []string{"100.96.0.2/32"}}}}
+	if err := c.ApplyLinks(ctx, l); err != nil || host.links == nil || !host.links.Listen {
+		t.Errorf("err %v, links %+v", err, host.links)
+	}
+}

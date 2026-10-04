@@ -39,6 +39,19 @@
       </form>
       <small>Where this server is located{{if not $loc}} (not set yet){{end}}.</small>
     </dd>
+    {{if not .Controller}}
+    <dt>{{icon "server"}}Direct links</dt>
+    <dd>
+      <form method="post" action="/settings/servers/{{.ID}}/link-address" class="inline-form">
+        <label for="link-{{.ID}}" class="sr-only">Address other servers reach {{.Name}} at</label>
+        <input id="link-{{.ID}}" name="address" value="{{index $.LinkAddrs .ID}}" placeholder="Worked out by Roostack" maxlength="260">
+        <button type="submit" class="secondary">Save</button>
+      </form>
+      {{if and $.LinkErrorServer (eq $.LinkErrorServer .ID)}}<p class="error" role="alert">{{$.LinkError}}</p>{{end}}
+      <small>Where other servers reach {{.Name}} directly, for backups to its disk (host:port). Leave it empty and Roostack
+        works it out: its home-network address when both are at home, or its own address on the internet.</small>
+    </dd>
+    {{end}}
     <dt>{{icon "id"}}Server ID</dt>
     <dd><code>{{.ID}}</code></dd>
     {{if not .CertExpires.IsZero}}<dt>{{icon "certificate"}}Certificate</dt>

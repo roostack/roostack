@@ -161,6 +161,11 @@ func (c *Client) WireGuardStatus(ctx context.Context, iface string) (WireGuardSt
 	return st, err
 }
 
+// ApplyLinks sets this server's direct links to other servers.
+func (c *Client) ApplyLinks(ctx context.Context, l Links) error {
+	return c.call(ctx, http.MethodPut, "/v1/wireguard/links", l, nil)
+}
+
 // RemoveWireGuard takes one of Roostack's WireGuard interfaces down and
 // deletes it.
 func (c *Client) RemoveWireGuard(ctx context.Context, iface string) error {

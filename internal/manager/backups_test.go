@@ -417,6 +417,8 @@ func TestRemovedGuestGrace(t *testing.T) {
 
 type fakeLinks struct{}
 
+func (fakeLinks) ApplyLinks(context.Context, agent.Links) error { return nil }
+
 func (fakeLinks) ApplyWireGuard(context.Context, agent.WireGuard) (string, error) {
 	return "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", nil
 }

@@ -311,6 +311,11 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		locations[mc.ID] = s.serverLocation(r.Context(), mc.ID)
 	}
 	data["Locations"] = locations
+	links := map[string]string{}
+	for _, mc := range servers {
+		links[mc.ID] = s.Manager.LinkAddress(r.Context(), mc.ID)
+	}
+	data["LinkAddrs"] = links
 	// Each server's latest apply: why it ran and what it did (SPEC.md §6.14).
 	applies := map[string]*activityView{}
 	for _, mn := range s.serverNodes(r) {
@@ -497,5 +502,35 @@ func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "deleted kept folder "+path+" on "+id)
+	redirect(w, r, "/settings/servers#server-"+id)
+}
+
+// linkAddressSubmit sets where other servers reach a server directly
+// (SPEC.md §10.10).
+func (s *Server) linkAddressSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	id, addr := r.PathValue("server"), strings.TrimSpace(r.FormValue("address"))
+	err := s.Manager.SetLinkAddress(r.Context(), id, addr)
+	if msg, ok := userMessage(err); ok {
+		w.WriteHeader(http.StatusBadRequest)
+		s.renderServers(w, r, map[string]any{"LinkError": msg, "LinkErrorServer": id})
+		return
+	}
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	what := "cleared " + id + "'s address for direct links"
+	if addr != "" {
+		what = id + " is reached directly at " + addr
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "servers", what)
 	redirect(w, r, "/settings/servers#server-"+id)
 }

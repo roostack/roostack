@@ -89,6 +89,9 @@ type Manager struct {
 	UpdateLab func(change func(*config.Lab)) error
 	// Submit queues a job with the maintenance coordinator (optional).
 	Submit func(maintenance.Job)
+	// Settings are the controller's settings (store.Store): servers'
+	// locations and direct links (links.go; optional).
+	Settings KV
 
 	// mu guards state changes (install/remove) and what is still to hand
 	// over to the node.
@@ -107,6 +110,8 @@ type Manager struct {
 	applyReason string
 	// restoring are the services the controller is restoring (restore.go).
 	restoring map[string]bool
+	// links are direct links between servers (links.go).
+	links linkState
 	// keyMu makes recovery key changes one at a time (keychange.go).
 	keyMu sync.Mutex
 	// public is the lab's public access settings as changed at runtime

@@ -24,8 +24,11 @@ type fakeHost struct {
 	rebooted  bool
 	updateErr error
 	wg        *WireGuard
+	links     *Links
 	erased    string
 }
+
+func (f *fakeHost) ApplyLinks(l Links) error { f.links = &l; return nil }
 
 func (f *fakeHost) SetUnprivilegedPortStart() error { f.portsSet = true; return nil }
 func (f *fakeHost) ApplyFirewall(r string) error    { f.ruleset = r; return nil }

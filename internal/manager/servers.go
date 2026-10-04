@@ -168,6 +168,7 @@ func (m *Manager) startApplyLocked() {
 	for _, r := range m.others() {
 		nodes = append(nodes, r)
 	}
+	infos := m.linkInfos(context.Background())
 	for _, n := range nodes {
 		id := n.Identity().ID
 		if n == m.Node {
@@ -197,6 +198,7 @@ func (m *Manager) startApplyLocked() {
 			a.Guests, a.GuestAddr = m.guestStores(context.Background())
 		}
 		a.Storage = m.storageFor(context.Background(), id)
+		a.Links = m.linksFor(context.Background(), infos, id)
 		n.Apply(a)
 	}
 	m.secrets, m.setUp = nil, nil

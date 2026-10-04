@@ -95,6 +95,9 @@ func (s *Server) Handler() http.Handler {
 		if st.LastErr != nil {
 			w.LastErr = st.LastErr.Error()
 		}
+		if l, ok := n.(Linked); ok {
+			w.Addrs, w.Links = l.LinkStatus(r.Context())
+		}
 		return w, nil
 	})
 	handle("PUT /v1/assignment", func(r *http.Request) (any, error) {

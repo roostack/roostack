@@ -220,6 +220,13 @@ type LabServers interface {
 	RenameServer(ctx context.Context, id, name string) error
 	KeptData(ctx context.Context, serverID string) ([]node.KeptFolder, error)
 	RemoveKeptData(ctx context.Context, serverID, path string) error
+	// Direct links between servers for backups (SPEC.md §10.10): where a
+	// server is reached directly (typed by the Owner), and how one server
+	// reaches another's backup store.
+	LinkAddress(ctx context.Context, id string) string
+	SetLinkAddress(ctx context.Context, id, addr string) error
+	LinkPath(ctx context.Context, from, to string) string
+	ApplyBecause(reason string)
 }
 
 // BackupPlan is each server's backups (SPEC.md §6.9): the main one, its
@@ -431,6 +438,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /settings/servers/{server}/disk", s.requireOwner(s.diskPart))
 	s.serverRoutes(mux)
 	mux.Handle("POST /settings/servers/{server}/rename", s.requireOwner(s.renameServerSubmit))
+	mux.Handle("POST /settings/servers/{server}/link-address", s.requireOwner(s.linkAddressSubmit))
 	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
 	mux.Handle("GET /settings/servers/{server}/gone", s.requireOwner(s.serverGonePage))
