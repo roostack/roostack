@@ -409,6 +409,17 @@ func TestFirewallFollowsServices(t *testing.T) {
 	if last.SSHFrom != agent.FromLAN || !slices.Contains(last.Allow, want) {
 		t.Errorf("firewall = %+v, want SSH from the LAN and forgejo's port", last)
 	}
+
+	// A new SSH choice while running: the firewall is rebuilt at once,
+	// with the service's port still there.
+	local(m).UseSSH(config.SSHOff)
+	m.Wait()
+	fw.mu.Lock()
+	last = fw.applied[len(fw.applied)-1]
+	fw.mu.Unlock()
+	if last.SSHFrom != agent.FromOff || !slices.Contains(last.Allow, want) {
+		t.Errorf("after UseSSH: %+v", last)
+	}
 }
 
 func TestOnlyThisNodesServices(t *testing.T) {

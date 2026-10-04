@@ -67,6 +67,10 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 			Restart: restart,
 		},
 	}
+	// A new SSH choice rebuilds the firewall at once, without a restart.
+	if h, ok := local.Host.(*node.HostSettings); ok {
+		h.UseSSH = local.UseSSH
+	}
 	// Finished logs are kept as history (SPEC.md §6.14).
 	local.KeepHistory()
 	// Backups and restores cover the services this server runs, as its
