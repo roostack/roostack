@@ -168,7 +168,11 @@ func serve(args []string) error {
 	// the hub others join.
 	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: lab.DisplayName(), Self: id, Store: st, Agent: agentClient,
 		Log: log, Now: time.Now, Started: restart,
-		Joined: func(ctx context.Context, name string) { st.Audit(ctx, nil, web.AuditServerJoined, name) }}
+		Joined: func(ctx context.Context, id, name string) {
+			st.Audit(ctx, nil, web.AuditServerJoined, name)
+			// A new server keeps the lab's time zone (it can change it).
+			go mgr.MatchTimezone(context.WithoutCancel(ctx), id)
+		}}
 	if lab.Domain != "" {
 		hub.UI = "https://" + caddy.AdminSubdomain + "." + lab.Domain
 	}

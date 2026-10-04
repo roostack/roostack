@@ -48,6 +48,10 @@ sudo roostack node join <code>
 Either way, it shows up in **Settings → Servers** as up to date. It's ready to run services: choose it under **Run it on** when you
 [add a service](../services/add.md), or [move one](move.md) there.
 
+It takes the lab's time zone (the one of the server that runs the lab),
+so backups, updates and logs line up across your servers. To give it a
+different one, change it on its **Time zone** page.
+
 ## A server outside your home: port forwarding
 
 A server elsewhere connects to your lab through your home router, which

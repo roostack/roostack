@@ -57,7 +57,7 @@ type Hub struct {
 	UI string
 	// Joined is called when a server joins (to audit it: a security email,
 	// SPEC.md §6.13). Optional.
-	Joined func(ctx context.Context, name string)
+	Joined func(ctx context.Context, id, name string)
 	// SwitchDelay is how long after a join the server's own key replaces
 	// the one-time key (0: 2s).
 	SwitchDelay time.Duration
@@ -280,7 +280,7 @@ func (h *Hub) Join(ctx context.Context, req JoinRequest) (JoinResponse, error) {
 	}()
 	h.Log.Info("server joined", "id", m.ID, "name", m.Name, "addr", m.Addr)
 	if h.Joined != nil {
-		h.Joined(ctx, m.Name)
+		h.Joined(ctx, m.ID, m.Name)
 	}
 	return JoinResponse{Cert: cert, CA: CertPEM(ca.Cert)}, nil
 }
