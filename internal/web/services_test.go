@@ -72,8 +72,9 @@ type fakeManager struct {
 	backupNotes  []string
 	labRestores  []string
 	// Direct links (links_test.go).
-	linkAddrs map[string]string
-	linkPath  string
+	linkAddrs  map[string]string
+	linkPath   string
+	linkFailed bool
 	// lostPlan is a gone server's plan (gone_test.go).
 	lostPlan *manager.LostPlan
 	// serviceNode, if set, is the server services run on (else this one).
@@ -274,6 +275,7 @@ func (f *fakeManager) SetLinkAddress(_ context.Context, id, addr string) error {
 	return nil
 }
 func (f *fakeManager) LinkPath(_ context.Context, from, to string) string { return f.linkPath }
+func (f *fakeManager) LinkFailed(context.Context, string, string) bool    { return f.linkFailed }
 func (f *fakeManager) ApplyBecause(reason string) {
 	f.serverOps = append(f.serverOps, "apply: "+reason)
 }

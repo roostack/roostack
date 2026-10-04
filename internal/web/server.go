@@ -226,6 +226,7 @@ type LabServers interface {
 	LinkAddress(ctx context.Context, id string) string
 	SetLinkAddress(ctx context.Context, id, addr string) error
 	LinkPath(ctx context.Context, from, to string) string
+	LinkFailed(ctx context.Context, a, b string) bool
 	ApplyBecause(reason string)
 }
 

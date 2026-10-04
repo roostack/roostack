@@ -49,3 +49,26 @@ func TestBackupCardStates(t *testing.T) {
 		t.Error("while it's set up")
 	}
 }
+
+// A backup to another server's disk that goes through the controller says
+// so on the plan, and how to link them directly.
+func TestPlanThroughTheController(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true, Reachable: true},
+		{ID: "n-9876543210", Name: "vps", Reachable: true}, {ID: "n-5555555555", Name: "nas", Reachable: true}}
+	fm.settings, fm.destination = &fakeSetup{}, "server:n-5555555555"
+	fm.linkPath = manager.PathHub
+	_, body := h.get("/backups?server=n-9876543210")
+	if !strings.Contains(body, "These backups go through nuc, using its connection twice") ||
+		!strings.Contains(body, `href="/settings/servers#server-n-5555555555"`) {
+		t.Error("through the controller: say how to link directly")
+	}
+	fm.linkFailed = true
+	if _, body := h.get("/backups?server=n-9876543210"); !strings.Contains(body, "A direct link to") {
+		t.Error("a link that didn't connect")
+	}
+	fm.linkPath, fm.linkFailed = manager.PathDirect, false
+	if _, body := h.get("/backups?server=n-9876543210"); strings.Contains(body, "using its connection twice") || !strings.Contains(body, "linked directly") {
+		t.Error("linked directly: no warning")
+	}
+}

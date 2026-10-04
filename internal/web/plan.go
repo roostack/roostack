@@ -53,7 +53,11 @@ type planEntry struct {
 	Lab              *labnet.GuestUsage
 	// Path says how backups reach another server's disk: manager.PathDirect
 	// or PathHub (through the controller, named by Via); "" otherwise.
-	Path, Via string
+	// For PathHub, Host and HostName are that server, and LinkFailed says
+	// a direct link was tried and didn't connect.
+	Path, Via      string
+	Host, HostName string
+	LinkFailed     bool
 }
 
 // planSlot is an empty place in the plan, with a suggestion for it.
@@ -163,6 +167,12 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 			e.Path = s.Manager.LinkPath(ctx, m.ID, host)
 			if s.Node != nil {
 				e.Via = s.Node.Identity().Name
+			}
+			if e.Path == manager.PathHub {
+				e.Host, e.LinkFailed = host, s.Manager.LinkFailed(ctx, m.ID, host)
+				if n := s.Manager.NodeByID(host); n != nil {
+					e.HostName = n.Identity().Name
+				}
 			}
 			// Another server's backup store: its disk, as it says.
 			if d, ok := s.Manager.NodeByID(host).(node.Disks); ok {

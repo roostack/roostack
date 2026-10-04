@@ -27,6 +27,34 @@ Roostack asks where each server is (**At home** or **Somewhere else**),
 because it can't tell for itself. It uses this for your backup plan: a
 backup on a server somewhere else counts as away from home.
 
+## Backups between servers: direct links
+
+When a server backs up to another server's disk, Roostack links the two
+directly, so the backups don't go through the server that runs the lab
+(using its connection twice). It needs to know where one can reach the
+other:
+
+- **Both at home** (on the same network): their home-network addresses.
+  Set both to **At home**.
+- **One on the internet** (a cloud server): its own address.
+- **Anything else** (a router forwarding a port, another network): enter
+  the address under **Direct links** on the server's card, as host:port
+  (WireGuard's UDP port, 51820 unless your router forwards another).
+
+The backup plan says "linked directly", or warns that backups go through
+the server that runs the lab, and what to set. A link that doesn't
+connect within a few minutes is tried again the next day, or as soon as
+you change the address; meanwhile the backups still work.
+
+??? note "For technical users"
+
+    A direct link is a WireGuard peer of its own on each of the two
+    servers (marked `# roostack link` in `/etc/wireguard/roostack.conf`;
+    the server that's dialled listens on UDP 51820, opened in its
+    firewall). Without one, the controller forwards traffic between
+    servers to the backup store port (TCP 8000) only, on Roostack's network
+    only; its firewall drops everything else.
+
 ## Renaming or removing a server
 
 Under **Rename or remove** on a server's card:
