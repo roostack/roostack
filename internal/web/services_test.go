@@ -71,6 +71,9 @@ type fakeManager struct {
 	otherBackups []manager.BackupMoment
 	backupNotes  []string
 	labRestores  []string
+	// Direct links (links_test.go).
+	linkAddrs map[string]string
+	linkPath  string
 	// lostPlan is a gone server's plan (gone_test.go).
 	lostPlan *manager.LostPlan
 	// serviceNode, if set, is the server services run on (else this one).
@@ -258,7 +261,22 @@ func (f *fakeManager) RestoreService(_ context.Context, name, id, to string) err
 	f.labRestores = append(f.labRestores, name+" "+id+" → "+to)
 	return nil
 }
-func (f *fakeManager) Restoring(string) bool { return false }
+func (f *fakeManager) Restoring(string) bool                           { return false }
+func (f *fakeManager) LinkAddress(_ context.Context, id string) string { return f.linkAddrs[id] }
+func (f *fakeManager) SetLinkAddress(_ context.Context, id, addr string) error {
+	if addr != "" && !strings.Contains(addr, ":") {
+		return &manager.FormError{Msg: "Enter the address as host:port."}
+	}
+	if f.linkAddrs == nil {
+		f.linkAddrs = map[string]string{}
+	}
+	f.linkAddrs[id] = addr
+	return nil
+}
+func (f *fakeManager) LinkPath(_ context.Context, from, to string) string { return f.linkPath }
+func (f *fakeManager) ApplyBecause(reason string) {
+	f.serverOps = append(f.serverOps, "apply: "+reason)
+}
 func (f *fakeManager) LostServerPlan(_ context.Context, id string) (manager.LostPlan, error) {
 	if f.lostPlan == nil || f.lostPlan.Server.ID != id {
 		return manager.LostPlan{}, manager.ErrNotFound

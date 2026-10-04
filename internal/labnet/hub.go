@@ -306,3 +306,35 @@ func (h *Hub) Remove(ctx context.Context, id string) error {
 func (h *Hub) Rename(ctx context.Context, id, name string) error {
 	return h.Store.RenameServer(ctx, id, name)
 }
+
+// Peer is another server on Roostack's network, as the hub knows it.
+type Peer struct {
+	PublicKey string
+	// Addr is its address on Roostack's network.
+	Addr string
+	// Seen is where it last connected to the hub from (host:port), "" if
+	// unknown: a server on the internet's own address.
+	Seen string
+}
+
+// Peers are the lab's other servers, by ID, for direct links between
+// them (SPEC.md §10.10).
+func (h *Hub) Peers(ctx context.Context) (map[string]Peer, error) {
+	servers, err := h.Store.Servers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var seen map[string]string
+	if a, ok := h.Agent.(interface {
+		WireGuardStatus(ctx context.Context, iface string) (agent.WireGuardStatus, error)
+	}); ok {
+		if st, err := a.WireGuardStatus(ctx, agent.WireGuardInterface); err == nil {
+			seen = st.Endpoints
+		}
+	}
+	out := map[string]Peer{}
+	for _, s := range servers {
+		out[s.ID] = Peer{PublicKey: s.PublicKey, Addr: s.Addr, Seen: seen[s.PublicKey]}
+	}
+	return out, nil
+}

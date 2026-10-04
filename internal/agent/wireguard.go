@@ -102,6 +102,8 @@ type WireGuardStatus struct {
 	// Handshakes is when each peer (by public key) last connected, as a
 	// Unix time (0: never).
 	Handshakes map[string]int64 `json:"handshakes,omitempty"`
+	// Endpoints is where each peer last connected from (host:port).
+	Endpoints map[string]string `json:"endpoints,omitempty"`
 }
 
 // Iface is the interface's name.
@@ -282,4 +284,123 @@ func WireGuardKeys() (map[string]string, error) {
 		}
 	}
 	return keys, nil
+}
+
+// Links are a server's direct links to other servers on Roostack's
+// network, for backups to their disks (SPEC.md §10.10). They're set apart
+// from its link to the controller: in the interface's file each is marked
+// with LinkMarker, and only marked peers change.
+type Links struct {
+	// Listen: other servers dial this one directly, on WireGuardPort.
+	Listen bool   `json:"listen"`
+	Peers  []Peer `json:"peers"`
+}
+
+// LinkMarker comes before each direct link's [Peer] section.
+const LinkMarker = "# roostack link"
+
+// Validate checks the request: each link is one other server (a single
+// address on Roostack's network).
+func (l Links) Validate() error {
+	var errs []error
+	lab := rangeFor(WireGuardInterface)
+	seen := map[string]bool{}
+	for i, p := range l.Peers {
+		if _, err := parseKey(p.PublicKey); err != nil {
+			errs = append(errs, fmt.Errorf("peers[%d]: public key: %w", i, err))
+		}
+		if seen[p.PublicKey] {
+			errs = append(errs, fmt.Errorf("peers[%d]: listed twice", i))
+		}
+		seen[p.PublicKey] = true
+		if len(p.AllowedIPs) != 1 {
+			errs = append(errs, fmt.Errorf("peers[%d]: a link is one server's address", i))
+		}
+		for _, a := range p.AllowedIPs {
+			if pr, err := netip.ParsePrefix(a); err != nil || !lab.Contains(pr.Addr()) || pr.Bits() != 32 {
+				errs = append(errs, fmt.Errorf("peers[%d]: allowed IP %q must be one address inside %s", i, a, lab))
+			}
+		}
+		if p.Endpoint != "" {
+			host, port, ok := strings.Cut(p.Endpoint, ":")
+			n, err := strconv.Atoi(port)
+			if !ok || err != nil || n < 1 || n > 65535 || !endpointHost.MatchString(host) {
+				errs = append(errs, fmt.Errorf("peers[%d]: endpoint %q must be host:port", i, p.Endpoint))
+			}
+		}
+		if p.Keepalive < 0 || p.Keepalive > 3600 {
+			errs = append(errs, fmt.Errorf("peers[%d]: invalid keepalive", i))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// withLinks rewrites a wg-quick file with these links: the marked peers
+// are replaced, everything else stays as it was, and ListenPort is set (or
+// removed) as asked. A link may not reuse the key of a peer that isn't
+// one (the link to the controller).
+func (l Links) apply(conf string) (string, error) {
+	var keep []string // sections, as text
+	var section []string
+	marked := false
+	flush := func() {
+		if len(section) > 0 && !marked {
+			keep = append(keep, strings.Join(section, "\n"))
+		}
+		section, marked = nil, false
+	}
+	pending := false // the marker line was just seen
+	for _, line := range strings.Split(conf, "\n") {
+		t := strings.TrimSpace(line)
+		switch {
+		case t == LinkMarker:
+			flush()
+			pending = true
+			continue
+		case strings.HasPrefix(t, "["):
+			if !pending {
+				flush()
+			}
+			marked, pending = pending, false
+		}
+		if strings.HasPrefix(t, "ListenPort") && strings.Contains(t, "=") {
+			continue
+		}
+		section = append(section, line)
+	}
+	flush()
+	out := strings.TrimRight(strings.Join(keep, "\n"), "\n")
+	for _, p := range l.Peers {
+		if strings.Contains(out, "PublicKey = "+p.PublicKey) {
+			return "", errors.New("a link can't take over another peer's key")
+		}
+	}
+	if l.Listen {
+		out = strings.Replace(out, "[Interface]\n", fmt.Sprintf("[Interface]\nListenPort = %d\n", WireGuardPort), 1)
+	}
+	var b strings.Builder
+	b.WriteString(out + "\n")
+	for _, p := range l.Peers {
+		fmt.Fprintf(&b, "\n%s\n[Peer]\nPublicKey = %s\nAllowedIPs = %s\n", LinkMarker, p.PublicKey, strings.Join(p.AllowedIPs, ", "))
+		if p.Endpoint != "" {
+			fmt.Fprintf(&b, "Endpoint = %s\n", p.Endpoint)
+		}
+		if p.Keepalive != 0 {
+			fmt.Fprintf(&b, "PersistentKeepalive = %d\n", p.Keepalive)
+		}
+	}
+	return b.String(), nil
+}
+
+// parseEndpoints reads `wg show <iface> endpoints`: where each peer last
+// connected from (host:port), by public key.
+func parseEndpoints(out string) map[string]string {
+	eps := map[string]string{}
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) == 2 && f[1] != "(none)" {
+			eps[f[0]] = f[1]
+		}
+	}
+	return eps
 }

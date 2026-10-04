@@ -85,6 +85,10 @@ type Assignment struct {
 	// ProxyPorts are where the controller forwards its servers' backups
 	// to other labs' storage (on Roostack's network).
 	ProxyPorts []int
+	// Links are this server's direct links to other servers, for backups
+	// to their disks (SPEC.md §10.10); nil leaves them as they are (the
+	// controller, which every server dials anyway).
+	Links *agent.Links
 	// Reason says why it was sent, for the apply's log.
 	Reason string
 }
@@ -203,7 +207,7 @@ func (n *Local) Apply(a Assignment) {
 		n.userSecrets[k] = v
 	}
 	old := n.assignment.Services
-	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage,
+	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage, Links: a.Links,
 		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts}
 	if n.State != nil {
 		// A service taken off this server forgets its setup progress.
@@ -373,9 +377,27 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 				}
 			}
 		}
+		// Other servers dial this one directly for backups to its disk.
+		if a.Links != nil && a.Links.Listen {
+			fw.Allow = append(fw.Allow, agent.Rule{Port: agent.WireGuardPort, Proto: "udp", From: agent.FromAny,
+				Reason: "roostack direct links between servers"})
+		}
 		act.Step("Updating the firewall")
 		if err := n.Firewall.ApplyFirewall(ctx, fw); err != nil {
 			return fmt.Errorf("applying the firewall: %w", err)
+		}
+	}
+	if a.Links != nil && n.Links != nil {
+		act.Step("Updating direct links to other servers")
+		for _, p := range a.Links.Peers {
+			to := "waits for it to connect"
+			if p.Endpoint != "" {
+				to = "at " + p.Endpoint
+			}
+			act.Printf("%s %s", strings.Join(p.AllowedIPs, ", "), to)
+		}
+		if err := n.Links.ApplyLinks(ctx, *a.Links); err != nil {
+			return fmt.Errorf("setting up direct links: %w", err)
 		}
 	}
 	act.Step("All changes applied")

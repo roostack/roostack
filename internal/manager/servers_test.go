@@ -12,6 +12,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 )
@@ -27,9 +28,18 @@ type fakeRemote struct {
 	name      string
 	settings  *fakeServerSettings
 	closed    bool
+	// home are its home-network addresses; handshakes when its direct
+	// links last connected (links_test.go).
+	home       []string
+	handshakes map[string]int64
 }
 
 func (f *fakeRemote) Close() { f.closed = true }
+func (f *fakeRemote) LinkStatus(context.Context) ([]string, map[string]int64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.home, f.handshakes
+}
 
 func (f *fakeRemote) Identity() nodeid.Identity {
 	return nodeid.Identity{ID: "n-0000000002", Name: "vps"}
@@ -141,7 +151,12 @@ func (f *fakeRemote) Rename(_ context.Context, name string) error {
 	return nil
 }
 
-type fakeRegistry struct{ removed, renamed []string }
+type fakeRegistry struct {
+	removed, renamed []string
+	peers            map[string]labnet.Peer
+}
+
+func (f *fakeRegistry) Peers(context.Context) (map[string]labnet.Peer, error) { return f.peers, nil }
 
 func (f *fakeRegistry) Remove(_ context.Context, id string) error {
 	f.removed = append(f.removed, id)
