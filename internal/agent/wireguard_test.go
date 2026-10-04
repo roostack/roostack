@@ -112,3 +112,33 @@ func TestInterfaces(t *testing.T) {
 		t.Errorf("handshakes = %v", hs)
 	}
 }
+
+// The hub forwards only the listed ports between servers; nothing else
+// passes through Roostack's network.
+func TestForwardRules(t *testing.T) {
+	fw := DefaultFirewall()
+	fw.Forward = []Rule{{Port: 8000, Proto: "tcp", Iface: WireGuardInterface, Reason: "backup stores"}}
+	if err := fw.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	rs := fw.Ruleset()
+	for _, want := range []string{"chain forward {", "policy accept;",
+		`iifname "roostack" oifname "roostack" ct state established,related accept`,
+		`iifname "roostack" oifname "roostack" tcp dport 8000 accept`, `iifname "roostack" drop`, `oifname "roostack" drop`} {
+		if !strings.Contains(rs, want) {
+			t.Errorf("missing %q:\n%s", want, rs)
+		}
+	}
+	for _, bad := range []Rule{{Port: 8000, Proto: "udp", Iface: WireGuardInterface}, {Port: 8000, Proto: "tcp", Iface: "eth0"},
+		{Port: 8000, Proto: "tcp"}, {Port: 8000, Proto: "tcp", Iface: WireGuardInterface, From: FromAny}} {
+		if (Firewall{SSHFrom: FromLAN, Forward: []Rule{bad}}).Validate() == nil {
+			t.Errorf("%+v should be refused", bad)
+		}
+	}
+	if !strings.Contains((WireGuard{Address: "100.96.0.1/24", Forward: true}).Config("k"), "PostUp = echo 1 > /proc/sys/net/ipv4/conf/%i/forwarding") {
+		t.Error("forwarding should come back at boot")
+	}
+	if (WireGuard{Interface: GuestsInterface, Address: "100.97.0.1/24", Forward: true}).Validate() == nil {
+		t.Error("only Roostack's network forwards")
+	}
+}

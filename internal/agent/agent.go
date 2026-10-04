@@ -587,12 +587,22 @@ func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return "", fmt.Errorf("wg syncconf: %w: %s", err, out)
 		}
-		return pub, nil
+		return pub, setForwarding(iface, wg.Forward)
 	}
 	if out, err := exec.Command("systemctl", "restart", unit).CombinedOutput(); err != nil {
 		return "", fmt.Errorf("starting %s: %w: %s", unit, err, out)
 	}
-	return pub, nil
+	return pub, setForwarding(iface, wg.Forward)
+}
+
+// setForwarding turns forwarding of packets arriving on an interface on
+// or off now (wg-quick's PostUp does it at boot).
+func setForwarding(iface string, on bool) error {
+	v := "0\n"
+	if on {
+		v = "1\n"
+	}
+	return os.WriteFile("/proc/sys/net/ipv4/conf/"+iface+"/forwarding", []byte(v), 0o644)
 }
 
 // RemoveWireGuard stops and disables an interface and deletes its file.

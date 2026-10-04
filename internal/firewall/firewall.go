@@ -49,6 +49,10 @@ func Desired(lab config.Lab, services []*generate.Output) (fw agent.Firewall, ok
 			// The controller is the hub other servers dial.
 			fw.Allow = append(fw.Allow, agent.Rule{Port: agent.WireGuardPort, Proto: "udp", From: agent.FromAny,
 				Reason: "roostack wireguard"})
+			// Servers back up to each other's disks through the hub when
+			// they can't link directly (SPEC.md §10.10): only the store.
+			fw.Forward = append(fw.Forward, agent.Rule{Port: generate.StoragePort, Proto: "tcp", Iface: agent.WireGuardInterface,
+				Reason: "backups from one server to another's disk"})
 		}
 	}
 	// A node's web services are reached by the controller's Caddy.
