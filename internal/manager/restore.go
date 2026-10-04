@@ -187,6 +187,9 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	}
 	host := cmp.Or(in.Host, m.Lab.NodeID)
 	to = cmp.Or(to, host)
+	if in.Waiting && to == host {
+		to = m.Lab.NodeID // its server is gone: here, unless chosen
+	}
 	ref, snapID, ok := strings.Cut(id, "@")
 	if !ok || snapID == "" {
 		return formErrorf("Choose a backup to restore.")
@@ -198,7 +201,7 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	if r, ok := m.node(to).(RemoteServer); ok && r.Settings() == nil {
 		return formErrorf("Roostack can't reach %s right now.", r.Identity().Name)
 	}
-	if ref == "backup:"+to && to == host {
+	if ref == "backup:"+to && to == host && !in.Waiting {
 		if x := m.node(to).Restores(); x != nil {
 			return x.Restore(name, snapID)
 		}
@@ -241,6 +244,9 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 		m.mu.Lock()
 		delete(m.restoring, name)
 		m.mu.Unlock()
+		if err == nil && in.Waiting {
+			m.leaveIfDone(ctx, host) // its last waiting service?
+		}
 		act.Finish(err)
 	}()
 	return nil

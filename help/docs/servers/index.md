@@ -17,6 +17,7 @@ one's role, services, disk space, and whether it's up to date.
 
 - [Add a server](add.md)
 - [Move a service](move.md) to another server
+- [When a server is gone](gone.md): bring its services back elsewhere
 - [Storage for other labs](storage-for-others.md): space for a friend's
   backups, and yours at theirs
 

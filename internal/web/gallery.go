@@ -86,7 +86,8 @@ var gallerySections = []gallerySection{
 {{status "installing"}}
 {{status "starting"}}
 {{status "failed"}}
-{{status "stopped"}}`},
+{{status "stopped"}}
+{{status "waiting"}}`},
 			{"Badges", "", `
 {{badge "Preview"}}
 {{badge "New" "highlight"}}`},

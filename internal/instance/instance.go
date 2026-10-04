@@ -40,6 +40,10 @@ type Instance struct {
 	Ports    map[string]PortOverride  `yaml:"ports,omitempty"`
 	Settings map[string]any           `yaml:"settings,omitempty"`
 	Updates  string                   `yaml:"updates"`
+	// Waiting: its server (Host) is gone and it waits to be restored from
+	// its backups, onto any server. It runs nowhere until then (SPEC.md
+	// §10.10, "Restoring across the lab").
+	Waiting bool `yaml:"waiting,omitempty"`
 }
 
 // RouteOverride holds user changes to a package route. Empty fields keep the

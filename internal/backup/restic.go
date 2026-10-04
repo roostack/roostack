@@ -89,6 +89,18 @@ type Snapshot struct {
 	Tags  []string  `json:"tags"`
 	// Hostname is the computer that made it.
 	Hostname string `json:"hostname"`
+	// Summary is what the backup covered (restic 0.17 and later).
+	Summary *struct {
+		TotalBytes int64 `json:"total_bytes_processed"`
+	} `json:"summary,omitempty"`
+}
+
+// Size is how much data the snapshot holds, in bytes (-1 if unknown).
+func (s Snapshot) Size() int64 {
+	if s.Summary == nil {
+		return -1
+	}
+	return s.Summary.TotalBytes
 }
 
 func (r *Repo) command(ctx context.Context, args ...string) *exec.Cmd {
@@ -390,6 +402,15 @@ func (r *Repo) Forget(ctx context.Context, keep Retention) error {
 		"--keep-daily", strconv.Itoa(keep.Daily),
 		"--keep-weekly", strconv.Itoa(keep.Weekly),
 		"--keep-monthly", strconv.Itoa(keep.Monthly))
+	return err
+}
+
+// ForgetSnapshots removes snapshots by ID, and the data only they used.
+func (r *Repo) ForgetSnapshots(ctx context.Context, ids ...string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := r.run(ctx, append([]string{"forget", "--prune", "--"}, ids...)...)
 	return err
 }
 

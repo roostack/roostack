@@ -192,7 +192,8 @@ func AssignHosts(services []Service, nodeID string) []Service {
 func OnNode(services []Service, nodeID string) []Service {
 	var out []Service
 	for _, s := range services {
-		if s.Instance.Host == nodeID || s.Instance.Host == "" {
+		// One waiting to be restored runs nowhere (SPEC.md §10.10).
+		if !s.Instance.Waiting && (s.Instance.Host == nodeID || s.Instance.Host == "") {
 			out = append(out, s)
 		}
 	}

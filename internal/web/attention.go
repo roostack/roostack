@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -104,7 +105,35 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			}
 		}
 		if services, err := s.Services(r.Context()); err == nil {
+			// Services whose server is gone: information, not a problem (SPEC.md
+			// §10.10): they wait until the Owner restores or removes them.
+			var waiting []string
+			var from []string
 			for _, svc := range services {
+				if svc.Status == StatusWaiting {
+					waiting = append(waiting, svc.Title)
+					if svc.WasOn != "" && !slices.Contains(from, svc.WasOn) {
+						from = append(from, svc.WasOn)
+					}
+				}
+			}
+			if owner && len(waiting) > 0 {
+				text := fmt.Sprintf("%d services are waiting to be restored", len(waiting))
+				if len(waiting) == 1 {
+					text = waiting[0] + " is waiting to be restored"
+				}
+				if len(from) > 0 {
+					text += " (they were on " + strings.Join(from, ", ") + ")"
+					if len(waiting) == 1 {
+						text = strings.Replace(text, "(they were", "(it was", 1)
+					}
+				}
+				add(levelInfo, text+".", "/backups#restoring", "Restore")
+			}
+			for _, svc := range services {
+				if svc.Status == StatusWaiting {
+					continue
+				}
 				// Asked of the server each service runs on.
 				n := s.Manager.NodeFor(svc.Name)
 				if n == nil {

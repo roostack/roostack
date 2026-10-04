@@ -71,6 +71,8 @@ type fakeManager struct {
 	otherBackups []manager.BackupMoment
 	backupNotes  []string
 	labRestores  []string
+	// lostPlan is a gone server's plan (gone_test.go).
+	lostPlan *manager.LostPlan
 	// serviceNode, if set, is the server services run on (else this one).
 	serviceNode node.Node
 	updates     HostUpdates
@@ -257,6 +259,20 @@ func (f *fakeManager) RestoreService(_ context.Context, name, id, to string) err
 	return nil
 }
 func (f *fakeManager) Restoring(string) bool { return false }
+func (f *fakeManager) LostServerPlan(_ context.Context, id string) (manager.LostPlan, error) {
+	if f.lostPlan == nil || f.lostPlan.Server.ID != id {
+		return manager.LostPlan{}, manager.ErrNotFound
+	}
+	return *f.lostPlan, nil
+}
+func (f *fakeManager) RestoreLostServer(_ context.Context, id string, names []string, to string) error {
+	f.labRestores = append(f.labRestores, "gone "+id+": "+strings.Join(names, ",")+" → "+to)
+	return nil
+}
+func (f *fakeManager) RemoveWaiting(_ context.Context, name string) error {
+	f.labRestores = append(f.labRestores, "remove waiting "+name)
+	return nil
+}
 func (f *fakeManager) MoveService(_ context.Context, name, to, way string) error {
 	if to == "" {
 		return &manager.FormError{Msg: "Choose a server in this lab."}

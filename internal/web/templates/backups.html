@@ -19,15 +19,18 @@
   {{end}}
   {{template "backup-plan" .}}
   {{if .Switcher}}<h2 class="area-heading">Your whole lab</h2>{{end}}
-  <section class="card section">
+  <section class="card section" id="restoring">
     <h2>Restoring</h2>
     {{if .CanRestore}}
       {{with .RestoreGroups}}
       <p>Put a service's data back to how it was in a backup, from any of your lab's backups, onto any server.
         Its current data is kept aside first; nothing is deleted.</p>
       {{range .}}
-      {{with .Server}}<h3>On {{.}}</h3>{{end}}
-      <ul class="plain">{{range .Services}}<li><a href="/backups/restore/{{.Name}}">Restore {{.Title}}…</a></li>{{end}}</ul>
+      {{if .Waiting}}<h3>Waiting to be restored</h3>
+      <p class="hint">Their server is gone. They run nowhere until you restore them, onto any server.</p>
+      {{else}}{{with .Server}}<h3>On {{.}}</h3>{{end}}{{end}}
+      <ul class="plain">{{range .Services}}<li><a href="/backups/restore/{{.Name}}">Restore {{.Title}}…</a>
+        {{- if .WasOn}} <span class="hint">· was on {{.WasOn}}</span>{{end}}</li>{{end}}</ul>
       {{end}}
       {{else}}<p class="hint">No services installed.</p>{{end}}
     {{else if .IsOwner}}

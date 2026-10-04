@@ -54,34 +54,12 @@ func TestMoments(t *testing.T) {
 	}
 }
 
-func waitRestore(t *testing.T, m *Manager) activity.Snapshot {
+// backedUpForgejo makes home's backup of Forgejo (its data and its
+// secrets) with real restic, and records it as home's main backup, next
+// to a copy that can't be read.
+func backedUpForgejo(t *testing.T, m *Manager, bin string) *store.Store {
 	t.Helper()
-	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		if l, ok := m.Activity.Latest(activity.Restore); ok && !l.Running() && !m.Restoring("forgejo") {
-			return l
-		}
-	}
-	t.Fatal("the restore didn't finish")
-	return activity.Snapshot{}
-}
-
-// A service's backup, made by one server, is found by the controller and
-// restored onto another server, with its secrets; then again while the
-// server it runs on can't be reached (lost).
-func TestRestoreAcrossTheLab(t *testing.T) {
-	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
-	if bin == "" {
-		var err error
-		if bin, err = exec.LookPath("restic"); err != nil {
-			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
-		}
-	}
-	m, home, vps := setUpMove(t)
 	ctx := context.Background()
-	applyWait = 5 * time.Second
-	defer func() { applyWait = 20 * time.Minute }()
-
-	// home's backup of Forgejo: its data and its secrets.
 	paths := m.Lab.Paths
 	svcDir := filepath.Join(paths.ServicesDir, "forgejo")
 	os.MkdirAll(filepath.Join(svcDir, "data"), 0o755)
@@ -109,13 +87,164 @@ func TestRestoreAcrossTheLab(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer st.Close()
 	m.BackupStore, m.OpenRepo = st, open
 	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: "local:" + repo.URL,
 		Repository: repo.URL, Created: time.Now()})
 	// A copy that can't be read is reported, not fatal.
 	st.SetBackupCopy(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: "local:" + filepath.Join(dir, "nothing"),
 		Repository: filepath.Join(dir, "nothing"), Created: time.Now()})
+	return st
+}
+
+func resticBin(t *testing.T) string {
+	t.Helper()
+	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
+	if bin == "" {
+		var err error
+		if bin, err = exec.LookPath("restic"); err != nil {
+			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
+		}
+	}
+	return bin
+}
+
+// home is gone: Forgejo waits to be restored (home stays in the lab, for
+// its backups), then is restored onto vps, and home leaves the lab.
+func TestGoneServer(t *testing.T) {
+	bin := resticBin(t)
+	m, home, vps := setUpMove(t)
+	ctx := context.Background()
+	applyWait = 5 * time.Second
+	defer func() { applyWait = 20 * time.Minute }()
+	st := backedUpForgejo(t, m, bin)
+	defer st.Close()
+	reg := m.Registry.(*fakeRegistry)
+
+	if _, err := m.LostServerPlan(ctx, "n-0000000002"); err == nil {
+		t.Error("home is connected: it isn't gone")
+	}
+	home.settings = nil // can't be reached
+	plan, err := m.LostServerPlan(ctx, "n-0000000002")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Services) != 1 || plan.Services[0].Backup == nil || plan.Services[0].Size <= 0 ||
+		len(plan.Targets) != 2 || plan.Targets[1].ID != "n-0000000003" {
+		t.Fatalf("plan = %+v", plan)
+	}
+
+	// None restored now: it waits, runs nowhere, and home can't be removed.
+	if err := m.RestoreLostServer(ctx, "n-0000000002", nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	if in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo")); !in.Waiting || in.Host != "n-0000000002" {
+		t.Errorf("forgejo: %+v", in)
+	}
+	servers, _ := m.Servers()
+	if !slices.Equal(servers[1].Waiting, []string{"forgejo"}) || len(servers[1].Services) != 0 || servers[1].Reachable {
+		t.Errorf("home: %+v", servers[1])
+	}
+	if err := m.RemoveServer(ctx, "n-0000000002"); err == nil || len(reg.removed) != 0 {
+		t.Error("home holds the backups forgejo waits on: it stays")
+	}
+
+	// Restored onto vps (from the gone server's page, as the batch does).
+	vps.status = node.ApplyStatus{Finished: true, LastRun: time.Now().Add(time.Hour)}
+	if err := m.RestoreLostServer(ctx, "n-0000000002", []string{"forgejo"}, "n-0000000003"); err != nil {
+		t.Fatal(err)
+	}
+	if l := waitRestore(t, m); l.Err != "" {
+		t.Fatalf("restore: %s\n%s", l.Err, strings.Join(l.Lines, "\n"))
+	}
+	if in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo")); in.Waiting || in.Host != "n-0000000003" {
+		t.Errorf("forgejo: %+v", in)
+	}
+	if vps.data[0]["data/app.ini"].Data != "from the backup" || string(vps.secrets["roostack-forgejo-db"]) != "the db password" {
+		t.Errorf("vps has %v", vps.data[0])
+	}
+	if !slices.Equal(reg.removed, []string{"n-0000000002"}) {
+		t.Errorf("home should leave once nothing waits: %v", reg.removed)
+	}
+}
+
+// Removing a service that waits deletes its backups everywhere.
+func TestRemoveWaiting(t *testing.T) {
+	bin := resticBin(t)
+	m, home, _ := setUpMove(t)
+	ctx := context.Background()
+	st := backedUpForgejo(t, m, bin)
+	defer st.Close()
+	home.settings = nil
+	if err := m.RemoveWaiting(ctx, "forgejo"); err == nil {
+		t.Error("only a service that waits")
+	}
+	if err := m.RestoreLostServer(ctx, "n-0000000002", nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.RemoveWaiting(ctx, "forgejo"); err != nil {
+		t.Fatal(err)
+	}
+	var l activity.Snapshot
+	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if l, _ = m.Activity.Latest(activity.Restore); !l.Running() {
+			break
+		}
+	}
+	// The copy can't be read: its backups can't be checked, so it's kept.
+	if !strings.Contains(l.Err, "some backups couldn't be read, so nothing was deleted") {
+		t.Fatalf("with a copy that can't be read: %q", l.Err)
+	}
+	if targets, _ := st.BackupTargets(ctx); len(targets) == 1 {
+		snaps, _ := m.OpenRepo(targets[0].Repository, nil).Snapshots(ctx, backup.TagRoostack, backup.ServiceTag("forgejo"))
+		if len(snaps) != 1 {
+			t.Errorf("nothing should be deleted yet: %d backups", len(snaps))
+		}
+	}
+	copies, _ := st.BackupCopies(ctx)
+	st.RemoveBackupCopy(ctx, copies[0].ServerID, copies[0].Provider)
+	if err := m.RemoveWaiting(ctx, "forgejo"); err != nil {
+		t.Fatal(err)
+	}
+	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if l, _ = m.Activity.Latest(activity.Restore); !l.Running() {
+			break
+		}
+	}
+	if l.Err != "" {
+		t.Fatalf("remove: %s\n%s", l.Err, strings.Join(l.Lines, "\n"))
+	}
+	targets, _ := st.BackupTargets(ctx)
+	if snaps, err := m.OpenRepo(targets[0].Repository, nil).Snapshots(ctx, backup.TagRoostack, backup.ServiceTag("forgejo")); err != nil || len(snaps) != 0 {
+		t.Errorf("its backups are still there: %d %v", len(snaps), err)
+	}
+	if _, err := os.Stat(state.InstanceFile(m.Lab, "forgejo")); !os.IsNotExist(err) {
+		t.Error("it should be removed")
+	}
+}
+
+func waitRestore(t *testing.T, m *Manager) activity.Snapshot {
+	t.Helper()
+	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if l, ok := m.Activity.Latest(activity.Restore); ok && !l.Running() && !m.Restoring("forgejo") {
+			return l
+		}
+	}
+	t.Fatal("the restore didn't finish")
+	return activity.Snapshot{}
+}
+
+// A service's backup, made by one server, is found by the controller and
+// restored onto another server, with its secrets; then again while the
+// server it runs on can't be reached (lost).
+func TestRestoreAcrossTheLab(t *testing.T) {
+	bin := resticBin(t)
+	m, home, vps := setUpMove(t)
+	ctx := context.Background()
+	applyWait = 5 * time.Second
+	defer func() { applyWait = 20 * time.Minute }()
+
+	st := backedUpForgejo(t, m, bin)
+	defer st.Close()
 
 	backups, notes, err := m.ServiceBackups(ctx, "forgejo")
 	if err != nil {

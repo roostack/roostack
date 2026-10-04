@@ -367,6 +367,7 @@ func (m *Manager) switchHost(name, to string) error {
 		return err
 	}
 	in.Host = to
+	in.Waiting = false // restored, it runs there
 	// Ports are per server; the new one gives them again.
 	for route, r := range in.Routes {
 		r.Port = 0
