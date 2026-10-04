@@ -73,9 +73,9 @@ type fakeManager struct {
 	labRestores  []string
 	// serviceNode, if set, is the server services run on (else this one).
 	serviceNode node.Node
-	updates      HostUpdates
-	settings     node.Settings
-	disk         *node.DiskSpace
+	updates     HostUpdates
+	settings    node.Settings
+	disk        *node.DiskSpace
 
 	// Public access (public_test.go).
 	access       []manager.RouteAccess

@@ -140,7 +140,9 @@ func TestRestoreFlow(t *testing.T) {
 // otherServer is another server in the lab, with no activities.
 type otherServer struct{ *fakeManager }
 
-func (otherServer) Identity() nodeid.Identity { return nodeid.Identity{ID: "n-9876543210", Name: "vps"} }
+func (otherServer) Identity() nodeid.Identity {
+	return nodeid.Identity{ID: "n-9876543210", Name: "vps"}
+}
 func (otherServer) LatestActivity(string) (activity.Snapshot, bool) {
 	return activity.Snapshot{}, false
 }
