@@ -485,3 +485,41 @@ func (m *Manager) allNodes() []node.Node {
 	}
 	return nodes
 }
+
+// joinedWait is how long the controller waits for a server that just
+// joined to answer (it restarts as part of the lab first).
+var joinedWait = 10 * time.Minute
+
+// MatchTimezone gives a server that just joined the controller's time
+// zone, so the lab's schedules (backups, updates) and logs line up. It
+// waits for the server to answer; the Owner can change it afterwards.
+func (m *Manager) MatchTimezone(ctx context.Context, id string) {
+	if m.Node == nil || m.Node.Settings() == nil {
+		return
+	}
+	zone, _, err := m.Node.Settings().Timezones()
+	if err != nil || zone == "" {
+		return
+	}
+	deadline := time.Now().Add(joinedWait)
+	for time.Now().Before(deadline) {
+		if n := m.node(id); n != nil {
+			if set := n.Settings(); set != nil {
+				changed, err := set.SetTimezone(ctx, zone)
+				switch {
+				case err != nil:
+					m.Log.Warn("giving a new server the lab's time zone", "server", m.nameOf(id), "err", err)
+				case changed:
+					m.Log.Info("gave a new server the lab's time zone", "server", m.nameOf(id), "zone", zone)
+				}
+				return
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(5 * time.Second):
+		}
+	}
+	m.Log.Warn("a new server didn't answer, so it keeps its own time zone", "server", m.nameOf(id))
+}
