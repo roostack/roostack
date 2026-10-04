@@ -71,6 +71,8 @@ type fakeManager struct {
 	otherBackups []manager.BackupMoment
 	backupNotes  []string
 	labRestores  []string
+	// serviceNode, if set, is the server services run on (else this one).
+	serviceNode node.Node
 	updates      HostUpdates
 	settings     node.Settings
 	disk         *node.DiskSpace
@@ -137,7 +139,12 @@ func (f *fakeManager) Apply(node.Assignment) {}
 func (f *fakeManager) ServiceStates(context.Context) (map[string]string, error) {
 	return nil, nil
 }
-func (f *fakeManager) NodeFor(string) node.Node          { return f }
+func (f *fakeManager) NodeFor(string) node.Node {
+	if f.serviceNode != nil {
+		return f.serviceNode
+	}
+	return f
+}
 func (f *fakeManager) OfferStorage(context.Context) bool { return len(f.guests) > 0 }
 func (f *fakeManager) StorageGuests(context.Context) ([]manager.GuestView, error) {
 	return f.guests, nil

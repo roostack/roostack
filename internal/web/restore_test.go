@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/setup"
 )
 
@@ -111,6 +112,15 @@ func TestRestoreFlow(t *testing.T) {
 		t.Error("running restore: want progress, no form")
 	}
 
+	// The service runs on another server, which has no restore of its own:
+	// the controller's restore still shows.
+	fm.serviceNode = otherServer{fm}
+	_, body = h.get("/backups/restore/vaultwarden")
+	if !strings.Contains(body, "Restoring Vaultwarden: Restoring files from the backup…") {
+		t.Error("a restore the controller runs should show for a service on another server")
+	}
+	fm.serviceNode = nil
+
 	h.post("/backups/restore/vaultwarden/kept/remove", url.Values{"path": {fr.kept[0].Path}}, h.srv.URL)
 	if len(fr.removed) != 1 {
 		t.Error("kept copy not removed")
@@ -125,4 +135,12 @@ func TestRestoreFlow(t *testing.T) {
 	if _, body := ha.get("/backups"); !strings.Contains(body, "Only the Owner can restore") {
 		t.Error("admins should be told who can restore")
 	}
+}
+
+// otherServer is another server in the lab, with no activities.
+type otherServer struct{ *fakeManager }
+
+func (otherServer) Identity() nodeid.Identity { return nodeid.Identity{ID: "n-9876543210", Name: "vps"} }
+func (otherServer) LatestActivity(string) (activity.Snapshot, bool) {
+	return activity.Snapshot{}, false
 }
