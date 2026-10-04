@@ -83,7 +83,13 @@
     <form method="post" action="{{$.Server.BackupRun}}"><button type="submit">Back up now</button></form>
     {{end}}
   </div>
-  {{if not .Configured}}
+  {{if .Unreachable}}
+    <p class="hint"><span class="spinner" aria-hidden="true"></span> Can't reach {{.Unreachable}} right now (it may be restarting):
+      its backup status shows when it's back.</p>
+  {{else if and .SettingUp (not .Configured)}}
+    <p><span class="spinner" aria-hidden="true"></span> Setting up backups: {{lowerFirst .SettingUp}}…
+      <span class="hint">The server restarts once they're ready.</span></p>
+  {{else if not .Configured}}
     {{notice "error" "Backups are not set up yet. Until they are, a failed disk means losing everything."}}
   {{else}}
     {{if .Running}}{{notice "info" (printf "%s… %s" (or .Step "Backing up") (percent .Progress))}}

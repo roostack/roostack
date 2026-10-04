@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
 )
@@ -30,5 +31,21 @@ func TestLinkAddress(t *testing.T) {
 	}
 	if _, body := h.get("/settings/servers"); !strings.Contains(body, `value="192.168.1.20:51820"`) {
 		t.Error("the address should show")
+	}
+}
+
+// Another server's backup status says why it can't be shown: it's being
+// set up, or the server doesn't answer (restarting with its backups).
+func TestBackupCardStates(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true, Reachable: true},
+		{ID: "n-9876543210", Name: "vps", Reachable: true}}
+	if _, body := h.get("/backups?server=n-9876543210"); !strings.Contains(body, "Can't reach vps right now") {
+		t.Error("a server that doesn't answer")
+	}
+	fm.settings = &fakeSetup{}
+	h.acts().Start(activity.BackupSetupFor("n-9876543210"), "Setting up backups for vps").Step("Creating the repository")
+	if _, body := h.get("/backups?server=n-9876543210"); !strings.Contains(body, "Setting up backups: creating the repository…") {
+		t.Error("while it's set up")
 	}
 }
