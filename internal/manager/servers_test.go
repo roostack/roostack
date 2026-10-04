@@ -87,11 +87,11 @@ type fakeServerSettings struct {
 	dest     *node.BackupDestination
 	copies   []node.BackupCopy
 	promoted string
-	destErr  error // SetBackupDestination fails with it
+	destErr  error  // SetBackupDestination fails with it
 	zone     string // SetTimezone records it
 }
 
-func (f *fakeServerSettings) Timezones() (string, []string, error)              { return "", nil, nil }
+func (f *fakeServerSettings) Timezones() (string, []string, error) { return "", nil, nil }
 func (f *fakeServerSettings) SetTimezone(_ context.Context, z string) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -99,8 +99,8 @@ func (f *fakeServerSettings) SetTimezone(_ context.Context, z string) (bool, err
 	f.zone = z
 	return changed, nil
 }
-func (f *fakeServerSettings) SSHAccess() (node.SSHAccess, error)                { return node.SSHAccess{}, nil }
-func (f *fakeServerSettings) SetSSH(context.Context, string, bool) error        { return nil }
+func (f *fakeServerSettings) SSHAccess() (node.SSHAccess, error)         { return node.SSHAccess{}, nil }
+func (f *fakeServerSettings) SetSSH(context.Context, string, bool) error { return nil }
 func (f *fakeServerSettings) SetRestartPolicy(context.Context, string, int) error {
 	return nil
 }
