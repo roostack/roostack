@@ -20,6 +20,8 @@ Stack: Go (module `roostack.cloud/roostack`, Go 1.26), Debian 13, rootless Podma
 | [docs/DESIGN.md](docs/DESIGN.md) | The design system: tokens, components, rules | The UI gains a component or token |
 | `NOTES.local.md` | The user's own notes | Never: don't edit or commit it |
 
+**Roostack Cloud** (the hosted service on roost.ac) lives in its own repository. Here, design only what works standalone, without Cloud (e.g. remote access, a lab's own edge), like any feature; mention Cloud's capabilities at a high level at most. Cloud's implementation detail (plans, pricing, edges, accounts, anything sensitive) stays in the Cloud repository.
+
 Docs are part of the change, in the same commit. Write them for a reader new to the project: plain sentences, dates on decisions (`Locked (2026-09-28)`), the reason, and what was considered instead.
 
 ## Working with the user
