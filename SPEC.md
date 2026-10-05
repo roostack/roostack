@@ -251,10 +251,11 @@ Roostack manages the DNS records its services need, through the same DNS provide
 - **No usable public IP (CGNAT):** public exposure needs a relay. Future options: Cloudflare Tunnel, or a Roostack Cloud relay (§4).
 - **Stages:** 1) wildcard to LAN IP + rebinding check; 2) public records + dynamic DNS (with public exposure, firewall, CrowdSec); 3) Cloudflare proxy.
 
-### 6.6 Domains — Locked
+### 6.6 Domains — Locked, changed 2026-10-06
 
-- **v1 requires a user-owned domain** with a supported DNS provider (API token for DNS-01). This is set up once, at install time.
-- **Future:** free Roostack-provided subdomains (e.g. `name.roost.ac`) with DNS managed for the user, which also links to Roostack Cloud (§4).
+- **Changed (2026-10-06): an own domain is optional.** A lab gets its addresses from either **its own domain** (with a supported DNS provider, API token for DNS-01, as today) or **a free `roost.ac` name** from Roostack Cloud (e.g. `smiths.roost.ac`, with services at `photos.smiths.roost.ac`), whose DNS and certificate challenges Cloud handles for the lab. A lab can switch between them later. Getting a name means linking the lab to Cloud (a free account); nothing else about Cloud is needed.
+- **Before (2026-09-26 to 2026-10-06):** v1 required a user-owned domain, set up once at install, with `roost.ac` names planned for later. Built that way: the package installs a placeholder domain, and until a domain is set up nothing gets an HTTPS certificate. Untangling this is a task (TASKS 1.19 area, "Domain optional").
+- **Open:** a lab with neither (no domain, not linked to Cloud). Options: stay as today (services wait for a domain), or HTTPS by IP address (§6.3, later).
 - **Rejected for v1:** a local CA (a root certificate on every device is bad UX); plain HTTP (browser warnings, and some clients such as Bitwarden require HTTPS).
 
 ### 6.7 Storage Layout — Locked (defaults may change before launch)
