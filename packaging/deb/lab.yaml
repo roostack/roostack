@@ -1,0 +1,6 @@
+# Roostack's lab-wide settings. The setup wizard fills these in; you can
+# also edit them here (Roostack restarts to use changes).
+#
+# No address yet: give the lab one in the setup wizard (a free roost.ac
+# address, or your own domain). See /usr/share/doc/roostack and the help
+# pages for every setting.

@@ -45,9 +45,10 @@
       <span class="with-suffix">
         <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off"
           x-model="sub" x-on:input="ownSub = true">
-        <span>.{{.Domain}}</span>
+        <span>.{{or .Domain "your lab's address"}}</span>
       </span>
-      {{if not .Internet}}<small>Only reachable from your home network (or VPN).</small>{{end}}
+      {{if not .Domain}}<small>Your lab has no address yet: the service runs, and gets this address once your lab has one.</small>
+      {{- else if not .Internet}}<small>Only reachable from your home network (or VPN).</small>{{end}}
     </label>
     {{if .Internet}}
     {{/* On a lab on the internet, private means only through an SSH

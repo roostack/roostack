@@ -13,8 +13,9 @@ REPO=$(cd "$(dirname "$0")/.." && pwd)
 deb=$("$REPO/scripts/build-deb.sh")
 apt-get update -q
 # --allow-downgrades: a dev VM installs whatever is checked out, which
-# may be an older commit than the last install.
-apt-get install -y -q --allow-downgrades "$REPO/$deb"
+# may be an older commit than the last install. --reinstall: uncommitted
+# changes keep the last commit's version, which apt would skip.
+apt-get install -y -q --allow-downgrades --reinstall "$REPO/$deb"
 
 cat <<EOM
 

@@ -49,3 +49,24 @@ func TestUpdateKeepsOtherFields(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+// A new install's lab.yaml has only comments: no address yet (SPEC.md §6.6).
+func TestLoadNewInstall(t *testing.T) {
+	data, err := os.ReadFile("../../packaging/deb/lab.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "lab.yaml")
+	os.WriteFile(path, data, 0o640)
+	lab, err := Load(path)
+	if err != nil || lab.HasAddress() || lab.Domain != "" || lab.UIPort != DefaultUIPort || lab.Cloud.Disabled {
+		t.Fatalf("lab = %+v, %v", lab, err)
+	}
+	if lab.DisplayName() != "My lab" {
+		t.Errorf("name = %q", lab.DisplayName())
+	}
+	os.WriteFile(path, []byte("cloud:\n  disabled: true\n"), 0o640)
+	if lab, err := Load(path); err != nil || !lab.Cloud.Disabled {
+		t.Errorf("cloud off: %+v, %v", lab.Cloud, err)
+	}
+}

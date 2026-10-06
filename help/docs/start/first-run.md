@@ -1,7 +1,7 @@
 # First-run setup
 
 The first time you open Roostack, it asks a few questions to get your
-server ready. It takes about ten minutes. You can leave the domain and the
+server ready. It takes about ten minutes. You can leave your lab's address and the
 backups for later, but Roostack will remind you until they're done.
 
 ## Before you start
@@ -14,9 +14,9 @@ You'll need:
   do.
 - An **authenticator app** on your phone, such as Google Authenticator,
   Microsoft Authenticator, or the one in your password manager.
-- If you want a web address for your services: your **domain** and a login
-  for the company that runs its DNS. [Your domain](../settings/domain.md)
-  explains what that means.
+- Nothing, for a free roost.ac address. To use **your own domain**
+  instead: the domain and a login for the company that runs its DNS.
+  [Your lab's address](../settings/domain.md) explains both.
 - If you want to set up backups now: a **USB drive**, a second disk, or an
   online storage account.
 
@@ -93,16 +93,22 @@ Nobody
 If you're connected over SSH right now, Roostack shows it, and warns you if
 your choice would cut that connection.
 
-## 5. Your domain
+## 5. Your lab's address
 
-Your services each get their own web address under your domain, such as
-`photos.smith.family`, with a secure (HTTPS) certificate. Roostack needs to
-prove to the certificate company that the domain is yours, so it asks for a
-login to your DNS provider and checks it works before saving it.
+Your services each get their own web address, with a secure (HTTPS)
+certificate. Choose one of:
+
+- **A free roost.ac address**: type a name, such as `smiths`, and choose
+  **Get this address**. Roostack Cloud opens in a new window to sign up or
+  log in, then your lab finishes by itself. Services are at
+  `photos.smiths.roost.ac`.
+- **Your own domain**, such as `smith.family`: Roostack needs to prove to
+  the certificate company that the domain is yours, so it asks for a login
+  to your DNS provider and checks it works before saving it.
 
 Choose **Set this up later** to skip this for now. Your services will still
-run, but you can't open them by name until a domain is set up. See
-[Your domain](../settings/domain.md).
+run, but they can't be reached on the web until your lab has an address.
+See [Your lab's address](../settings/domain.md).
 
 ## 6. Your backup plan
 

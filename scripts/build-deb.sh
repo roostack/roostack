@@ -33,7 +33,8 @@ install -D -m 0644 packaging/systemd/roostack-agent.service "$ROOT/usr/lib/syste
 install -D -m 0644 packaging/apt/52roostack-unattended-upgrades "$ROOT/etc/apt/apt.conf.d/52roostack-unattended-upgrades"
 install -D -m 0644 build/caddy/Containerfile "$ROOT/usr/share/roostack/caddy/Containerfile"
 install -D -m 0755 packaging/deb/installed-message "$ROOT/usr/share/roostack/installed-message"
-install -D -m 0644 docs/examples/lab.yaml "$ROOT/usr/share/roostack/lab.yaml"
+# The starting lab.yaml: no address yet (SPEC.md §6.6).
+install -D -m 0644 packaging/deb/lab.yaml "$ROOT/usr/share/roostack/lab.yaml"
 for pkg in docs/examples/*.yaml; do
     name=$(basename "$pkg" .yaml)
     [[ $name == lab ]] && continue

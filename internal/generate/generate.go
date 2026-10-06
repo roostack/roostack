@@ -431,8 +431,13 @@ func (g *gen) caddySite() error {
 		if rc.Port == 0 {
 			return fmt.Errorf("routes.%s: no host port allocated (run roostack apply)", name)
 		}
-		g.out.Hosts = append(g.out.Hosts, rc.Host)
 		g.out.Ports = append(g.out.Ports, rc.Port)
+		if !g.lab.HasAddress() {
+			// No web address yet (SPEC.md §6.6): the service runs on its
+			// local port, and gets its site once the lab has an address.
+			continue
+		}
+		g.out.Hosts = append(g.out.Hosts, rc.Host)
 		cr := caddy.Route{
 			ID:          g.name + "-" + name,
 			Host:        rc.Host,

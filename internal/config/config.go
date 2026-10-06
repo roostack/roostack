@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -232,8 +233,10 @@ type Lab struct {
 	// Name is what people call the lab (e.g. "The Smiths' lab"): shown in
 	// the UI, and to other labs it shares storage with.
 	Name string `yaml:"name,omitempty"`
-	// Domain is the base domain; services live on subdomains of it.
-	Domain string `yaml:"domain"`
+	// Domain is the lab's address: services live on subdomains of it. Empty
+	// until the lab has one: a roost.ac name or its own domain (SPEC.md
+	// §6.6).
+	Domain string `yaml:"domain,omitempty"`
 	// Email is used for the ACME (Let's Encrypt) account.
 	Email string `yaml:"email"`
 	DNS   DNS    `yaml:"dns"`
@@ -252,6 +255,8 @@ type Lab struct {
 	Public Public `yaml:"public,omitempty"`
 	// Mail is the SMTP server Roostack sends email through (SPEC.md §6.13).
 	Mail Mail `yaml:"mail,omitempty"`
+	// Cloud is Roostack Cloud (SPEC.md §6.6).
+	Cloud Cloud `yaml:"cloud,omitempty"`
 	// Network is where the lab is: NetworkHome (the default when empty)
 	// or NetworkInternet (SPEC.md §6.12). It's about the controller, whose
 	// Caddy serves the lab's addresses.
@@ -278,6 +283,19 @@ type Lab struct {
 	OverlayAddr string `yaml:"-"`
 }
 
+// Cloud is the lab's use of Roostack Cloud.
+type Cloud struct {
+	// Disabled turns off every Roostack Cloud feature: nothing is offered
+	// and Roostack never contacts Cloud. Only in lab.yaml, not in Settings,
+	// for people who want Roostack fully self-contained (SPEC.md §6.6).
+	Disabled bool `yaml:"disabled,omitempty"`
+}
+
+// HasAddress reports whether the lab has an address (a roost.ac name or
+// its own domain): until then its services have no web addresses and
+// Caddy doesn't run (SPEC.md §6.6).
+func (l Lab) HasAddress() bool { return l.Domain != "" }
+
 // Roles (SPEC.md §10.1). A lab with one server has a controller only.
 const (
 	RoleController = "controller"
@@ -303,7 +321,7 @@ func (l Lab) DisplayName() string {
 	if l.Name != "" {
 		return l.Name
 	}
-	if l.Domain != "" && l.Domain != "lab.example.com" {
+	if l.Domain != "" {
 		return l.Domain
 	}
 	return "My lab"
@@ -329,7 +347,9 @@ func Load(path string) (Lab, error) {
 	}
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
-	if err := dec.Decode(&lab); err != nil {
+	// A file of only comments (a new install's, SPEC.md §6.6) is all
+	// defaults.
+	if err := dec.Decode(&lab); err != nil && !errors.Is(err, io.EOF) {
 		return lab, fmt.Errorf("%s: %w", path, err)
 	}
 	return lab, lab.Validate()
@@ -410,9 +430,6 @@ func (l Lab) Validate() error {
 	case "", SSHFromLAN, SSHFromAny, SSHOff:
 	default:
 		errs = append(errs, fmt.Errorf("firewall.ssh must be %q, %q or %q", SSHFromLAN, SSHFromAny, SSHOff))
-	}
-	if l.Domain == "" {
-		errs = append(errs, errors.New("domain is required"))
 	}
 	for _, p := range []struct{ name, path string }{
 		{"state_dir", l.Paths.StateDir}, {"home_dir", l.Paths.HomeDir},

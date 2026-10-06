@@ -193,17 +193,37 @@ func TestWizardFlow(t *testing.T) {
 		t.Errorf("cutting off a connection must be confirmed: %d", code)
 	}
 	h.post("/setup/ssh", url.Values{"ssh": {"lan"}}, h.srv.URL)
-	if _, body := h.get("/"); fs.ssh != "lan" || !strings.Contains(body, "Your domain") {
-		t.Fatal("after the SSH step comes the domain step")
+	if _, body := h.get("/"); fs.ssh != "lan" || !strings.Contains(body, "<h1>Your lab's address</h1>") {
+		t.Fatal("after the SSH step comes the address step")
 	}
 
-	// A fresh lab has the installed lab.yaml's example domain: it's only a
-	// placeholder, never the field's value.
-	h.server.Domain = "lab.example.com"
+	// A new lab has no address: both choices are offered, the own domain's
+	// form closed until chosen (SPEC.md §6.6).
 	_, body = h.get("/setup/domain")
-	if !strings.Contains(body, `<input name="domain" value="" placeholder="lab.example.com"`) {
-		t.Error("the domain field should be empty, with the example only as its placeholder")
+	for _, want := range []string{"A free roost.ac address", `action="/setup/address/roost-ac"`, "Your own domain",
+		`x-data="{ choice: '' }"`, `<input name="domain" value="" placeholder="smith.family"`, "/help/settings/domain/#your-own-domain"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("address step missing %q", want)
+		}
 	}
+	// roost.ac names: checked here; Roostack Cloud isn't reachable yet.
+	if code, body := h.post("/setup/address/roost-ac", url.Values{"name": {"-bad"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "3 to 40 lowercase letters") {
+		t.Errorf("bad name: %d", code)
+	}
+	if code, body := h.post("/setup/address/roost-ac", url.Values{"name": {"smiths"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "Roostack Cloud can&#39;t be reached right now") || !strings.Contains(body, `value="smiths"`) {
+		t.Errorf("roost.ac before Cloud: %d", code)
+	}
+	// With Roostack Cloud turned off, it isn't offered.
+	h.server.CloudDisabled = true
+	if _, body := h.get("/setup/domain"); strings.Contains(body, "roost.ac") {
+		t.Error("Cloud off: no roost.ac choice")
+	}
+	if code, _ := h.post("/setup/address/roost-ac", url.Values{"name": {"smiths"}}, h.srv.URL); code != http.StatusNotFound {
+		t.Errorf("Cloud off: %d", code)
+	}
+	h.server.CloudDisabled = false
 	for _, want := range []string{"Amazon Route 53", "Porkbun", "Gandi", "GoDaddy", "Namecheap", "Spaceship",
 		`name="dns.route53.secret_access_key"`} {
 		if !strings.Contains(body, want) {
@@ -274,7 +294,7 @@ func TestDomainLaterReminder(t *testing.T) {
 	h.setSetup(fs)
 	h.post("/setup/domain/later", nil, h.srv.URL)
 	h.post("/setup/backup/later", nil, h.srv.URL)
-	if _, body := h.get("/"); !strings.Contains(body, `href="/setup/domain">Set up your domain`) {
+	if _, body := h.get("/"); !strings.Contains(body, `href="/setup/domain">Give it an address`) {
 		t.Error("postponed steps must stay visible on the dashboard")
 	}
 }
@@ -445,7 +465,7 @@ func TestSetupFormsAsSettingsPages(t *testing.T) {
 	}
 	var body string
 	_, body = h.get("/setup/domain")
-	if strings.Contains(body, "step 3 of 4") || !strings.Contains(body, "Change your domain") || strings.Contains(body, "/setup/domain/later") {
+	if strings.Contains(body, "step 3 of 4") || !strings.Contains(body, "Change your lab's address") || strings.Contains(body, "/setup/domain/later") {
 		t.Error("changing the domain later must not look like the wizard")
 	}
 

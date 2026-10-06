@@ -7,6 +7,7 @@ import (
 	"html"
 	"net"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -77,7 +78,20 @@ func (s *Server) routeAccess(r *http.Request) (*manager.RouteAccess, error) {
 }
 
 func (s *Server) publicPage(w http.ResponseWriter, r *http.Request) {
+	if s.noAddress(w, r) {
+		return
+	}
 	s.renderPublic(w, r, "")
+}
+
+// noAddress sends a request about public access back to the service while
+// the lab has no address: there's nothing to make public (SPEC.md §6.6).
+func (s *Server) noAddress(w http.ResponseWriter, r *http.Request) bool {
+	if s.Domain != "" {
+		return false
+	}
+	redirect(w, r, "/services/"+url.PathEscape(r.PathValue("name")))
+	return true
 }
 
 // renderPublic shows an address's public access page, with a form error.
@@ -129,6 +143,9 @@ func (s *Server) renderPublic(w http.ResponseWriter, r *http.Request, formErr st
 }
 
 func (s *Server) publicSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.noAddress(w, r) {
+		return
+	}
 	ra, err := s.routeAccess(r)
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)

@@ -35,7 +35,7 @@ var settingsAreas = []settingsArea{
 	{"history", "Lab", "History", "/settings/history"},
 	{"people", "People and access", "People", "/settings/people"},
 	{"email", "People and access", "Email", "/settings/email"},
-	{"domain", "Network", "Domain and certificates", "/settings/domain"},
+	{"domain", "Network", "Your lab's address", "/settings/domain"},
 	{"home-network", "Network", "Where it is and DNS", "/settings/home-network"},
 	{"public", "Network", "Public access", "/settings/public"},
 	{"servers", "Servers", "Servers", "/settings/servers"},
@@ -122,7 +122,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	if s.Domain != "" && s.Setup != nil && s.domainDone(r) {
 		set("domain", s.Domain, "ok")
 	} else {
-		set("domain", "Not set up: services can't get HTTPS certificates", "problem")
+		set("domain", "No address yet: services can't be reached", "problem")
 	}
 	// Where it is, then how DNS is doing (SPEC.md §6.12).
 	internet := s.onInternet()

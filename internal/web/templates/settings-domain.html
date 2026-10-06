@@ -1,18 +1,19 @@
-{{define "title"}}Domain and certificates{{end}}
+{{define "title"}}Your lab's address{{end}}
 {{define "content"}}
 <section class="card">
-  <div class="page-top">{{back "/settings" "Settings"}}{{help "settings/domain" "Your domain"}}</div>
-  <div class="heading"><h1>Domain and certificates</h1></div>
+  <div class="page-top">{{back "/settings" "Settings"}}{{help "settings/domain" "Your lab's address"}}</div>
+  <div class="heading"><h1>Your lab's address</h1></div>
   {{if .DomainSet}}
   <dl class="facts">
-    <dt>Domain</dt><dd>{{.LabDomain}}</dd>
+    <dt>Address</dt><dd>{{.LabDomain}} <small class="hint">· your own domain</small></dd>
     <dt>DNS provider</dt><dd>{{.ProviderTitle}}</dd>
     <dt>Services</dt><dd>Addresses like <code>photos.{{.LabDomain}}</code>, with a free certificate from Let's Encrypt</dd>
+    <dt>Roostack</dt><dd><code>roost.{{.LabDomain}}</code></dd>
   </dl>
-  <p><a class="button secondary" href="/setup/domain">Change domain or DNS provider</a></p>
+  <p><a class="button secondary" href="/setup/domain">Change the address…</a></p>
   {{else}}
-  {{notice "error" "Your domain isn't set up yet, so services can't get HTTPS certificates."}}
-  <p><a class="button" href="/setup/domain">Set up your domain</a></p>
+  {{notice "error" "Your lab has no address yet, so its services can't be reached on the web."}}
+  <p><a class="button" href="/setup/domain">Give your lab an address</a></p>
   {{end}}
 </section>
 {{end}}

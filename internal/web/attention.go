@@ -61,8 +61,8 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 	}
 	if owner && s.Setup != nil {
 		if p, err := s.Setup.Progress(r.Context()); err == nil && p.DomainLater && !p.DomainDone {
-			add(levelProblem, "Your domain isn't set up, so services can't get secure (HTTPS) certificates.",
-				"/setup/domain", "Set up your domain")
+			add(levelProblem, "Your lab has no address yet, so its services can't be reached on the web.",
+				"/setup/domain", "Give it an address")
 		}
 	}
 
