@@ -215,7 +215,11 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Install follow-ups: a **Try again** for a failed download; keep the step list across a Roostack restart mid-install; download progress in MB if podman can report it without a terminal
   - [ ] **Domain optional (agreed 2026-10-06, SPEC §6.6):** a lab uses its own domain *or* a free `roost.ac` name from Roostack Cloud. Untangle the requirement:
     - "No domain yet" as a real state: today the package installs the example lab.yaml (domain lab.example.com, email admin@example.com, Cloudflare) because a domain is required; touches Caddy, DNS records, the config check, the attention items and README's requirements
-    - The wizard's domain step offers "Get a free roost.ac address" (links the lab to Cloud) or "Use my own domain"; Settings → Domain can switch between them later
+    - The wizard's step 3 becomes "Your lab's address": "A free roost.ac address" (links the lab to Cloud) or "Your own domain", or later; Settings → Your lab's address can switch between them, old addresses kept for 30 days (SPEC §6.6, mock-up agreed 2026-10-06)
+    - Services waiting for an address: "Waiting for an address" on each, a link to set one, the local port and an SSH tunnel under Details; one attention item
+    - Addresses as a primary plus (later) extra ones, in the records from the start
+    - `cloud: { disabled: true }` in lab.yaml turns off every Roostack Cloud feature
+    - Help page: buying and managing your own domain (registrars whose DNS Roostack supports, and how)
     - Certificates and records for a `roost.ac` name through Cloud (the lab's challenge records only), instead of the lab's own DNS provider
     - Linking a lab to Roostack Cloud, the lab's side: "Connect to Roostack Cloud" (gets a link code, opens Cloud's page in a new window, finishes by itself), keeping the lab's client certificate, unlinking from the lab (to design in SPEC first)
     - Own domain, unsupported DNS provider (SPEC §6.6): DNS-01 through Cloud when linked (one `_acme-challenge` CNAME added by hand, still a wildcard); otherwise, if reachable on 443, TLS-ALPN-01 with a certificate per name. Roostack picks automatically
