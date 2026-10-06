@@ -1,13 +1,44 @@
-# Your domain
+# Your lab's address
+
+Your services each get a web address, such as `photos.smiths.roost.ac` or
+`photos.smith.family`, with a secure (HTTPS) certificate. Until your lab
+has an address, its services run but can't be reached on the web: each
+says **Waiting for an address**.
+
+There are two ways to give your lab an address, in the setup wizard or in
+**Settings → Your lab's address**:
+
+A free roost.ac address
+:   Nothing to buy or set up. You pick a name, such as `smiths`; your
+    services are at `photos.smiths.roost.ac`, and Roostack itself at
+    `smiths.roost.ac`. It uses Roostack Cloud, with a free account.
+
+Your own domain
+:   A domain you own, such as `smith.family`: services at
+    `photos.smith.family`, and Roostack at `roost.smith.family`.
+
+You can switch later. When you do, every service's address changes, so the
+old addresses keep working for 30 days while you update bookmarks and apps.
+
+## Your own domain
 
 A **domain** is a name you own on the internet, such as `smith.family`.
-Roostack gives each service its own address under it, such as
-`passwords.smith.family` and `photos.smith.family`, and Roostack itself is
-at `roost.smith.family`.
+You rent it from a company (a *registrar*) by the year, usually for a few
+dollars or pounds. The company that runs its **DNS** (the internet's
+address book) is your **DNS provider**; it's usually the same company.
 
-You buy a domain from a company such as Cloudflare or Porkbun, for a few
-pounds a year. The company that runs its **DNS** (the internet's address
-book) is your **DNS provider**; it's usually the same company.
+**Buying one:** choose a registrar whose DNS Roostack supports (the list
+below), so Roostack can manage everything for you. Cloudflare and Porkbun
+are good, inexpensive choices. Search for a name, buy it, and keep the
+account safe: the domain is how everyone reaches your services.
+
+**Already have one elsewhere?** You can keep it where it is and move only
+its DNS to a supported provider (Cloudflare's is free): the registrar's
+own help explains how to change a domain's *nameservers*.
+
+**Then, in Roostack:** choose **Your own domain**, enter the domain, your
+email address, and a login (an API token or key) for its DNS provider. The
+page shows what each provider needs and where to get it.
 
 ## Secure addresses (HTTPS)
 

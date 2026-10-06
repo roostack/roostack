@@ -214,15 +214,17 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Installing feedback: "installing" instead of "stopped" until a new service's install is done, its address greyed (no **Open**) until then, and each step (download, start, web address, setup) with time taken and the live log on its page; "Step n of m" on the Services list and Home (SPEC §6.3.3; verified on a VM with Forgejo and Vaultwarden)
   - [ ] Install follow-ups: a **Try again** for a failed download; keep the step list across a Roostack restart mid-install; download progress in MB if podman can report it without a terminal
   - [ ] **Domain optional (agreed 2026-10-06, SPEC §6.6):** a lab uses its own domain *or* a free `roost.ac` name from Roostack Cloud. Untangle the requirement:
-    - "No domain yet" as a real state: today the package installs the example lab.yaml (domain lab.example.com, email admin@example.com, Cloudflare) because a domain is required; touches Caddy, DNS records, the config check, the attention items and README's requirements
-    - The wizard's step 3 becomes "Your lab's address": "A free roost.ac address" (links the lab to Cloud) or "Your own domain", or later; Settings → Your lab's address can switch between them, old addresses kept for 30 days (SPEC §6.6, mock-up agreed 2026-10-06)
-    - Services waiting for an address: "Waiting for an address" on each, a link to set one, the local port and an SSH tunnel under Details; one attention item
-    - Addresses as a primary plus (later) extra ones, in the records from the start
-    - `cloud: { disabled: true }` in lab.yaml turns off every Roostack Cloud feature
-    - Help page: buying and managing your own domain (registrars whose DNS Roostack supports, and how)
-    - Certificates and records for a `roost.ac` name through Cloud (the lab's challenge records only), instead of the lab's own DNS provider
-    - Linking a lab to Roostack Cloud, the lab's side: "Connect to Roostack Cloud" (gets a link code, opens Cloud's page in a new window, finishes by itself), keeping the lab's client certificate, unlinking from the lab (to design in SPEC first)
-    - Own domain, unsupported DNS provider (SPEC §6.6): DNS-01 through Cloud when linked (one `_acme-challenge` CNAME added by hand, still a wildcard); otherwise, if reachable on 443, TLS-ALPN-01 with a certificate per name. Roostack picks automatically
+    - [x] "No domain yet" as a real state (2026-10-06): a new install's lab.yaml has only comments; no Caddy until there's an address; a service's address is its local `http://localhost:<port>` meanwhile (Vaultwarden refused to start without one, on a fresh install on VM3); packages use the route's `.URL`. Was:: today the package installs the example lab.yaml (domain lab.example.com, email admin@example.com, Cloudflare) because a domain is required; touches Caddy, DNS records, the config check, the attention items and README's requirements
+    - [x] The wizard's step 3 becomes "Your lab's address": "A free roost.ac address" (says plainly that Roostack Cloud can't be reached yet, until linking exists) or "Your own domain", or later; Settings → Your lab's address (SPEC §6.6, mock-up agreed 2026-10-06)
+    - [ ] Switching address keeps the old addresses working for 30 days (Caddy serves both, with a notice of what to update)
+    - [ ] The own-domain path on a fresh install with a real DNS provider (unchanged code, tested only in unit tests since the change)
+    - [x] Services waiting for an address: "Waiting for an address" on each, a link to set one, the local port and an SSH tunnel under Details; one attention item
+    - [ ] Addresses as a primary plus (later) extra ones, in the records from the start
+    - [x] `cloud: { disabled: true }` in lab.yaml turns off every Roostack Cloud feature
+    - [x] Help page: buying and managing your own domain (registrars whose DNS Roostack supports, and how)
+    - [ ] Certificates and records for a `roost.ac` name through Cloud (the lab's challenge records only), instead of the lab's own DNS provider
+    - [ ] Linking a lab to Roostack Cloud, the lab's side: "Connect to Roostack Cloud" (gets a link code, opens Cloud's page in a new window, finishes by itself), keeping the lab's client certificate, unlinking from the lab (to design in SPEC first)
+    - [ ] Own domain, unsupported DNS provider (SPEC §6.6): DNS-01 through Cloud when linked (one `_acme-challenge` CNAME added by hand, still a wildcard); otherwise, if reachable on 443, TLS-ALPN-01 with a certificate per name. Roostack picks automatically
   - [ ] Header: between phone width (menu) and about 690px, the nav neither collapses nor fits, so the page scrolls sideways ("Log out" is cut off)
   - [ ] The build follower treats a leftover log from an earlier build as the new one if it reads it before the new build truncates it (only when a build is restarted; harmless but can end the follower early)
   - [x] The install message comes last (a dpkg trigger on the package, after other packages' triggers), in colour with a small banner, and shows the setup code itself; `/usr/share/roostack/installed-message` shows it again (ASSUMPTIONS K5, K7)

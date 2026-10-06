@@ -1679,3 +1679,30 @@ func TestServerDisks(t *testing.T) {
 		t.Error("the full drive needs attention")
 	}
 }
+
+// Before the lab has an address, services say so and can't go public
+// (SPEC.md §6.6).
+func TestServicesWithoutAddress(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.server.Domain = ""
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", NoAddress: true}}, nil
+	}
+	for _, path := range []string{"/", "/services", "/services/vaultwarden"} {
+		_, body := h.get(path)
+		if !strings.Contains(body, "Waiting for an address") || !strings.Contains(body, `href="/setup/domain">Give your lab an address`) {
+			t.Errorf("%s should say the service waits for an address", path)
+		}
+	}
+	if _, body := h.get("/services/vaultwarden"); strings.Contains(body, "Make public") || strings.Contains(body, "Reachable from") {
+		t.Error("nothing to make public without an address")
+	}
+	resp, err := h.client.Get(h.srv.URL + "/services/vaultwarden/public/web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.Request.URL.Path != "/services/vaultwarden" {
+		t.Errorf("public access without an address: %s", resp.Request.URL.Path)
+	}
+}

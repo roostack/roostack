@@ -62,6 +62,9 @@ type ServiceView struct {
 	Title  string
 	Status string // running, starting, stopped, failed, unknown
 	URLs   []string
+	// NoAddress: it has web routes, but the lab has no address yet, so it
+	// can't be reached on the web (SPEC.md §6.6).
+	NoAddress bool
 	// Server is the name of the server it runs on.
 	Server string
 	// WasOn names the server a service waiting to be restored ran on
@@ -116,6 +119,9 @@ type Server struct {
 	DetectNetwork func() string
 	// DNSProvider is the lab's current DNS provider ID (wizard default).
 	DNSProvider string
+	// CloudDisabled turns off every Roostack Cloud feature (config.Cloud;
+	// SPEC.md §6.6): nothing about it is offered.
+	CloudDisabled bool
 	// BackupRepo is the backup destination, shown on the Backups page.
 	BackupRepo string
 	// HasGPU pre-ticks settings whose default is "auto".
@@ -518,6 +524,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /setup/domain", s.requireWizard(s.domainPage))
 	mux.Handle("POST /setup/domain", s.requireWizard(s.domainSubmit))
 	mux.Handle("POST /setup/domain/later", s.requireWizard(s.domainLater))
+	mux.Handle("POST /setup/address/roost-ac", s.requireWizard(s.roostAcSubmit))
 	mux.Handle("GET /setup/backup", s.requireWizard(s.backupPage))
 	mux.Handle("POST /setup/backup", s.requireWizard(s.backupSubmit))
 	mux.Handle("POST /setup/backup/later", s.requireWizard(s.backupLater))

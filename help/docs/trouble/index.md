@@ -34,9 +34,9 @@ The last change didn't finish
 Devices at home can't find your services yet
 :   See [Reaching your services from home](../settings/domain.md#reaching-your-services-from-home).
 
-Your domain isn't set up
-:   Services can't get secure addresses until it is: see
-    [Your domain](../settings/domain.md).
+Your lab has no address yet
+:   Its services run, but can't be reached on the web until it has one: see
+    [Your lab's address](../settings/domain.md).
 
 *Server*'s firewall is off until you choose who can log in to it over SSH
 :   Choose, and the firewall comes on: see

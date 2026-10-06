@@ -112,8 +112,15 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 			}
 			port = o.Port
 		}
-		host := sub + "." + lab.Domain
-		ctx.Routes[name] = RouteContext{Subdomain: sub, Host: host, URL: "https://" + host, Exposure: exp, Port: port,
+		// Without an address yet, a route's address is its local one, where
+		// an SSH tunnel reaches it: apps that must know their own address
+		// (e.g. Vaultwarden's DOMAIN) still start (SPEC.md §6.6).
+		host, url := "localhost", fmt.Sprintf("http://localhost:%d", port)
+		if lab.HasAddress() {
+			host = sub + "." + lab.Domain
+			url = "https://" + host
+		}
+		ctx.Routes[name] = RouteContext{Subdomain: sub, Host: host, URL: url, Exposure: exp, Port: port,
 			PublicPaths: open}
 	}
 

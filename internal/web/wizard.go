@@ -7,7 +7,9 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
+	"strings"
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
@@ -277,8 +279,48 @@ func (s *Server) domainPage(w http.ResponseWriter, r *http.Request) {
 	if s.domainDone(r) {
 		domain = s.Domain
 	}
-	s.render(w, "setup-domain", s.formMode(r, "domain", map[string]any{"User": currentUser(r), "Domain": domain,
-		"Providers": dns.Providers(), "Provider": provider, "Values": map[string]string{}, "Manage": true}))
+	choice := ""
+	if domain != "" {
+		choice = "own" // changing an own domain: its form open
+	}
+	s.render(w, "setup-domain", s.formMode(r, "domain", s.addressData(map[string]any{"User": currentUser(r), "Domain": domain,
+		"Providers": dns.Providers(), "Provider": provider, "Values": map[string]string{}, "Manage": true, "Choice": choice})))
+}
+
+// addressData adds what the address step's two choices need (SPEC.md
+// §6.6).
+func (s *Server) addressData(data map[string]any) map[string]any {
+	data["CloudDisabled"] = s.CloudDisabled
+	if _, ok := data["Choice"]; !ok {
+		data["Choice"] = ""
+	}
+	return data
+}
+
+// roostAcName is a roost.ac name: a DNS label, 3 to 40 characters.
+var roostAcName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$`)
+
+// roostAcSubmit asks Roostack Cloud for a roost.ac address (SPEC.md §6.6).
+// Linking a lab to Cloud isn't built yet (Roostack Cloud's plan, step 1),
+// so for now it says so plainly.
+func (s *Server) roostAcSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.CloudDisabled {
+		http.NotFound(w, r)
+		return
+	}
+	name := strings.ToLower(strings.TrimSpace(r.FormValue("name")))
+	msg := "Roostack Cloud can't be reached right now, so a roost.ac address can't be set up yet. Use your own domain, or set this up later."
+	if !roostAcName.MatchString(name) || strings.Contains(name, "--") {
+		msg = "A name is 3 to 40 lowercase letters, numbers or single hyphens, starting and ending with a letter or number."
+	}
+	provider := s.DNSProvider
+	if dns.Get(provider) == nil {
+		provider = dns.Providers()[0].ID
+	}
+	w.WriteHeader(http.StatusBadRequest)
+	s.render(w, "setup-domain", s.formMode(r, "domain", s.addressData(map[string]any{"User": currentUser(r),
+		"Providers": dns.Providers(), "Provider": provider, "Values": map[string]string{}, "Manage": true,
+		"CloudName": name, "CloudError": msg})))
 }
 
 func (s *Server) domainSubmit(w http.ResponseWriter, r *http.Request) {
@@ -301,8 +343,9 @@ func (s *Server) domainSubmit(w http.ResponseWriter, r *http.Request) {
 	if dns.Get(provider) == nil {
 		provider = dns.Providers()[0].ID
 	}
-	if s.wizardError(w, r, err, "setup-domain", s.formMode(r, "domain", map[string]any{"Domain": domain, "Email": email,
-		"Providers": dns.Providers(), "Provider": provider, "Values": kept, "Manage": opts.ManageRecords, "AcceptRisk": opts.AcceptRisk})) {
+	if s.wizardError(w, r, err, "setup-domain", s.formMode(r, "domain", s.addressData(map[string]any{"Domain": domain, "Email": email,
+		"Providers": dns.Providers(), "Provider": provider, "Values": kept, "Manage": opts.ManageRecords, "AcceptRisk": opts.AcceptRisk,
+		"Choice": "own"}))) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "domain set to "+domain)

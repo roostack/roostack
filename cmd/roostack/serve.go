@@ -151,6 +151,7 @@ func serve(args []string) error {
 		Settings:  st}
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
+	srv.CloudDisabled = lab.Cloud.Disabled
 	// Public access (SPEC.md §6.11): check links from a phone, and whether
 	// CrowdSec is up (the records wait for it).
 	crowdSecUp := func(ctx context.Context) bool {
@@ -413,6 +414,7 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 		for _, h := range out.Hosts {
 			v.URLs = append(v.URLs, "https://"+h)
 		}
+		v.NoAddress = !lab.HasAddress() && len(s.Package.Routes) > 0
 		views = append(views, v)
 	}
 	return views, nil

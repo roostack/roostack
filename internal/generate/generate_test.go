@@ -387,3 +387,40 @@ func TestNodeAndProxy(t *testing.T) {
 		t.Errorf("proxy site: %+v", proxy)
 	}
 }
+
+// Before the lab has an address, a service runs on its local port with no
+// web address, and Caddy doesn't run (SPEC.md §6.6).
+func TestNoAddressYet(t *testing.T) {
+	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "vaultwarden.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lab := testLab()
+	lab.Domain = ""
+	out, err := Service(lab, p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.CaddySite != nil || len(out.Hosts) != 0 || len(out.Ports) == 0 || len(out.Quadlets) == 0 {
+		t.Errorf("site %v, hosts %v, ports %v, %d quadlets", out.CaddySite, out.Hosts, out.Ports, len(out.Quadlets))
+	}
+	_, routes := Values(lab, p, in)
+	// Its address is the local one an SSH tunnel reaches, so apps that need
+	// to know it (Vaultwarden's DOMAIN) still start.
+	for name, r := range routes {
+		if r.Host != "localhost" || r.URL != fmt.Sprintf("http://localhost:%d", r.Port) || r.Port == 0 {
+			t.Errorf("route %s = %+v", name, r)
+		}
+	}
+	if q := out.Quadlets[len(out.Quadlets)-1].Content; !strings.Contains(Dump(out), "DOMAIN=http://localhost:") {
+		t.Errorf("Vaultwarden's DOMAIN:\n%s", q)
+	}
+	sys, err := System(lab, false)
+	if err != nil || len(sys.Quadlets) != 0 || len(sys.Units) != 0 || sys.Caddyfile.Content != "" {
+		t.Errorf("system without an address: %+v, %v", sys, err)
+	}
+}

@@ -48,12 +48,17 @@
   <summary>Details</summary>
   <dl class="facts">
     {{with .Containers}}<dt>Containers</dt><dd>{{range .}}<code>{{.Name}}</code> · {{or .State "unknown"}}<br><small class="hint" title="{{.Image}}">{{image .Image}}</small><br>{{end}}</dd>{{end}}
-    {{with .Routes}}<dt>Web</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}<small class="hint">Caddy on the controller forwards these addresses here.</small></dd>{{end}}
+    {{with .Routes}}<dt>Web</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}<small class="hint">{{if $.NoAddress}}Until the lab has an address, reach the port above from your computer with an SSH tunnel to this server.{{else}}Caddy on the controller forwards these addresses here.{{end}}</small></dd>{{end}}
     {{with .Ports}}<dt>Ports</dt><dd>{{range .}}{{.Title}}: {{.Port}}/{{.Protocol}} ({{if eq .Exposure "public"}}anywhere{{else}}home network{{end}})<br>{{end}}</dd>{{end}}
     {{with .DataDirs}}<dt>Data</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}{{if ge $.DataSize 0}}{{size $.DataSize}}{{else}}<small class="hint">size not counted yet</small>{{end}}</dd>{{end}}
   </dl>
 </details>
 {{end}}
+
+{{/* address-waiting: a service that can't be reached yet, because the lab
+     has no address (SPEC.md §6.6); takes the page's data, for IsOwner. */}}
+{{define "address-waiting"}}<span class="with-icon address-waiting-text">{{icon "clock"}}Waiting for an address</span>
+  {{- if .IsOwner}} · <a href="/setup/domain">Give your lab an address</a>{{end}}{{end}}
 
 {{define "service-tiles"}}
 {{if .Services}}
@@ -62,6 +67,7 @@
   <li class="card tile">
     <h2>{{.Title}}</h2>
     {{template "service-summary" .}}
+    {{if and .NoAddress (not .Install)}}<p class="address-waiting">{{template "address-waiting" $}}</p>{{end}}
     <div class="tile-links">{{if .Install}}{{template "install-line" .}}{{else}}{{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">Open{{template "new-window"}}</a>{{end}}{{end}}
       {{- if $.CanManage}}<a class="with-icon" href="/services/{{.Name}}">{{icon "manage"}}Manage</a>{{end}}</div>
     {{status .Status}}

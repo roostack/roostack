@@ -61,6 +61,11 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 		// Nodes have no Caddy: the controller's serves their routes.
 		return out, nil
 	}
+	if !lab.HasAddress() {
+		// No address yet: Caddy has nothing to serve, so it doesn't run
+		// (SPEC.md §6.6). The UI is reached over an SSH tunnel meanwhile.
+		return out, nil
+	}
 
 	var u quadlet.Unit
 	u.Section("Unit").Add("Description", "Roostack: reverse proxy (Caddy)")

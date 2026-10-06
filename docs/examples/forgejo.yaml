@@ -42,7 +42,7 @@ containers:
     image: codeberg.org/forgejo/forgejo:15.0.9-rootless@sha256:caf1bca332f95cdcf124227a4bfa3b49bbbfbbc8a5e4a97406921cb581165413
     env:
       GITEA_APP_INI: /var/lib/gitea/custom/conf/app.ini
-      FORGEJO__server__ROOT_URL: "https://{{ .Routes.web.Host }}/"
+      FORGEJO__server__ROOT_URL: "{{ .Routes.web.URL }}/"
       # Git over SSH uses Forgejo's built-in SSH server on 2222, published
       # on the host when the Admin turns the ssh port on.
       FORGEJO__server__DISABLE_SSH: "{{ not .Ports.ssh.Enabled }}"

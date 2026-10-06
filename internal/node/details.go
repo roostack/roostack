@@ -203,13 +203,20 @@ func (n *Local) ServiceDetails(ctx context.Context) (map[string]ServiceDetail, e
 			d.Containers = append(d.Containers, Container{Name: unit, Image: quadletValue(q.Content, "Image"),
 				State: states[unit+".service"]})
 		}
+		addr := "127.0.0.1"
+		if lab.IsNode() {
+			addr = lab.OverlayAddr
+		}
 		for i, host := range gen.Hosts {
 			if i < len(gen.Ports) {
-				addr := "127.0.0.1"
-				if lab.IsNode() {
-					addr = lab.OverlayAddr
-				}
 				d.Routes = append(d.Routes, host+" → "+addr+":"+itoa(gen.Ports[i]))
+			}
+		}
+		if !lab.HasAddress() {
+			// No address yet (SPEC.md §6.6): the routes' local ports, for
+			// an SSH tunnel meanwhile.
+			for _, port := range gen.Ports {
+				d.Routes = append(d.Routes, "no web address yet → "+addr+":"+itoa(port))
 			}
 		}
 		out[name] = d
