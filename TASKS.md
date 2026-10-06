@@ -217,6 +217,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - "No domain yet" as a real state: today the package installs the example lab.yaml (domain lab.example.com, email admin@example.com, Cloudflare) because a domain is required; touches Caddy, DNS records, the config check, the attention items and README's requirements
     - The wizard's domain step offers "Get a free roost.ac address" (links the lab to Cloud) or "Use my own domain"; Settings → Domain can switch between them later
     - Certificates and records for a `roost.ac` name through Cloud (the lab's challenge records only), instead of the lab's own DNS provider
+    - Linking a lab to Roostack Cloud, the lab's side: "Connect to Roostack Cloud" (gets a link code, opens Cloud's page in a new window, finishes by itself), keeping the lab's client certificate, unlinking from the lab (to design in SPEC first)
     - Own domain, unsupported DNS provider (SPEC §6.6): DNS-01 through Cloud when linked (one `_acme-challenge` CNAME added by hand, still a wildcard); otherwise, if reachable on 443, TLS-ALPN-01 with a certificate per name. Roostack picks automatically
   - [ ] Header: between phone width (menu) and about 690px, the nav neither collapses nor fits, so the page scrolls sideways ("Log out" is cut off)
   - [ ] The build follower treats a leftover log from an earlier build as the new one if it reads it before the new build truncates it (only when a build is restarted; harmless but can end the follower early)
