@@ -25,6 +25,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the details.
 | `/srv/roostack/media/<name>/` | Large data (photos, videos); can be a separate disk |
 | `/var/lib/roostack/home/.config/containers/systemd/` | Generated Quadlet files (`roostack-*`) |
 | `/var/lib/roostack/caddy/` | Generated Caddy config |
+| `/var/lib/roostack/cloud/` | The lab's link to Roostack Cloud, if it has one (the controller only): its key and certificate, and a log of its requests |
 | `/usr/share/roostack/catalog/` | Package definitions shipped with Roostack |
 
 All of these can be changed in `lab.yaml`. The defaults are in [internal/config/config.go](internal/config/config.go).

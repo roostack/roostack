@@ -289,6 +289,23 @@ type Cloud struct {
 	// and Roostack never contacts Cloud. Only in lab.yaml, not in Settings,
 	// for people who want Roostack fully self-contained (SPEC.md §6.6).
 	Disabled bool `yaml:"disabled,omitempty"`
+	// URL is Cloud's address for labs (DefaultCloudURL when empty); a
+	// test Cloud's otherwise.
+	URL string `yaml:"url,omitempty"`
+	// CAFile, for a test Cloud, is the certificate authority its HTTPS
+	// certificate comes from (a real Cloud's is publicly trusted).
+	CAFile string `yaml:"ca_file,omitempty"`
+}
+
+// DefaultCloudURL is Roostack Cloud's address for labs.
+const DefaultCloudURL = "https://roostack.cloud"
+
+// Address is Cloud's address for labs.
+func (c Cloud) Address() string {
+	if c.URL != "" {
+		return c.URL
+	}
+	return DefaultCloudURL
 }
 
 // HasAddress reports whether the lab has an address (a roost.ac name or

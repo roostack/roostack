@@ -6,3 +6,7 @@ dns:
 # paths:            # all optional; defaults in internal/config
 #   services_dir: /srv/roostack/services
 #   media_dir: /mnt/bigdisk/roostack
+# cloud:            # Roostack Cloud (SPEC.md §6.6); all optional
+#   disabled: true  # never contact it, and offer nothing about it
+#   url: https://10.0.2.2:8443                # a test Cloud (cmd/roostack-fakecloud)
+#   ca_file: /var/lib/roostack/fakecloud-ca.pem

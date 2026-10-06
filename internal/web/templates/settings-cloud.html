@@ -1,0 +1,18 @@
+{{define "title"}}Roostack Cloud{{end}}
+{{define "content"}}
+<section class="card">
+  <div class="page-top">{{back "/settings" "Settings"}}{{help "settings/cloud" "Roostack Cloud"}}</div>
+  <div class="heading"><h1>Roostack Cloud</h1></div>
+  {{if eq .Unlinked "told"}}{{notice "ok" "Unlinked from Roostack Cloud."}}
+  {{else if eq .Unlinked "here"}}{{notice "warn" "Unlinked here, but Roostack Cloud couldn't be told. Remove the lab on your account's page there too."}}{{end}}
+  {{with .Cloud}}{{if not .Forgotten.IsZero}}
+  <div class="notice notice-warn" role="status">
+    <p>This lab is no longer linked to Roostack Cloud{{with .ForgottenAccount}} (it was linked to {{.}}){{end}}: Cloud stopped accepting
+      its certificate {{when .Forgotten}}. That happens when the lab is removed from the account, or when it's restored from a backup made
+      before it was unlinked. Link it again below if you still want it.</p>
+    <form method="post" action="/settings/cloud/dismiss"><button type="submit" class="quiet">Dismiss</button></form>
+  </div>
+  {{end}}{{end}}
+  {{template "cloud-live" .Cloud}}
+</section>
+{{end}}

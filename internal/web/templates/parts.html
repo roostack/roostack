@@ -544,3 +544,88 @@
   </div>
 </li>
 {{end}}
+
+{{/* cloud-live: the lab's link to Roostack Cloud (a cloudView; SPEC.md
+     §6.6), refreshing itself while it waits to be confirmed. A form that
+     starts linking (in a new window) triggers "refresh" so this notices.
+     In the wizard (.Setup) it only shows waiting and what happened. */}}
+{{define "cloud-live"}}<div id="cloud-live" hx-get="/settings/cloud/live{{if .Setup}}?in=setup{{end}}" hx-swap="outerHTML" hx-disinherit="*"
+  hx-trigger="refresh{{if .Waiting}}, every 2s [document.visibilityState === 'visible']{{end}}">
+{{- if .Waiting}}{{with .Waiting}}
+<div class="cloud-waiting">
+  <p class="cloud-waiting-title with-icon">{{icon "clock"}}Waiting for you in Roostack Cloud</p>
+  <p>A Roostack Cloud window has opened. Log in or sign up there, check it shows this code, then confirm. This page carries on by itself.</p>
+  <p class="cloud-code"><span class="link-code">{{.Code}}</span>
+    <small class="hint">{{with .Name}}For <strong>{{.}}.roost.ac</strong> · {{end}}the code expires {{when .Expires}}</small></p>
+  {{with .Error}}<p class="hint">Roostack couldn't ask Roostack Cloud just now ({{.}}); it keeps trying.</p>{{end}}
+  <div class="actions-row">
+    <a class="button secondary" href="{{.OpenURL}}" target="_blank" rel="noopener">Open Roostack Cloud again{{template "new-window"}}</a>
+    <form method="post" action="/settings/cloud/cancel">{{if $.Setup}}<input type="hidden" name="in" value="setup">{{end}}<button type="submit" class="quiet">Cancel</button></form>
+  </div>
+  <details class="technical" id="cloud-sent"><summary>What Roostack sends</summary>
+    <p>The lab's name, {{with .Name}}the name it asks for, {{end}}Roostack's version, and a public key, for the lab's certificate.
+      The private key stays on this server. Nothing else: no email address, no list of services.</p>
+  </details>
+</div>{{end}}
+{{- else if .Linked}}
+{{- if .Setup}}
+{{notice "ok" (printf "Linked to Roostack Cloud (%s)." .Account)}}
+<p class="hint">Getting {{with .Name}}{{.}}.roost.ac{{else}}a roost.ac address{{end}} through Roostack Cloud comes in a later version of Roostack.
+  For now, use your own domain or set this up later.</p>
+{{- else}}
+<dl class="facts">
+  <dt>Status</dt><dd><span class="cloud-linked">✓ Linked</span> since {{date .Since}}</dd>
+  <dt>Account</dt><dd>{{.Account}}</dd>
+  <dt>Used for</dt><dd>{{if .Address}}Your lab's address, {{.Address}}{{else}}Nothing yet{{with .Name}}: getting {{.}}.roost.ac through it comes in a later version of Roostack{{end}}{{end}}</dd>
+  <dt>Last contact</dt><dd>{{when .LastContact}}
+    {{- with .LastError}}<br><small class="hint">Couldn't reach Roostack Cloud {{when $.LastTry}} ({{.}}); Roostack tries again every hour.</small>{{end}}</dd>
+</dl>
+<details class="technical" id="cloud-details">
+  <summary>Details</summary>
+  <dl class="facts">
+    <dt>Certificate</dt><dd>Fingerprint <code>{{.CertFingerprint}}</code><br>Valid from {{date .CertIssued}} to {{date .CertEnds}};
+      renewed by itself, with a new key, once two thirds of that has passed</dd>
+    <dt>Kept in</dt><dd><code>{{.Dir}}</code>: the key (<code>lab.key</code>, readable only by Roostack), the certificate (<code>lab.crt</code>),
+      the link (<code>link.json</code>) and the requests below (<code>requests.log</code>). Backed up with Roostack's state.</dd>
+    <dt>Lab ID</dt><dd><code>{{.LabID}}</code></dd>
+    <dt>Roostack Cloud</dt><dd><code>{{.URL}}</code></dd>
+  </dl>
+  {{template "cloud-requests" .}}
+</details>
+  <h2 class="section-title">Unlinking</h2>
+  <p>{{if .Address}}Your lab's address, {{.Address}}, stops working, so
+    {{with .Services}}these services can't be reached until you give the lab another address: {{range $i, $s := .}}{{if $i}}, {{end}}{{$s}}{{end}}.{{else}}services can't be reached until you give the lab another address.{{end}}
+    The name is kept for your account for a year.{{else}}Nothing on this lab uses Roostack Cloud yet.{{end}}
+    Everything else on this server carries on as it is.</p>
+  {{confirm "/settings/cloud/unlink" "Unlink this lab from Roostack Cloud?" "Unlink from Roostack Cloud" "quiet danger"}}
+{{- end}}
+{{- else if not .Setup}}
+<p>Roostack Cloud is an optional online service for Roostack labs. Your lab works without it. Linking the lab to a free
+  Roostack Cloud account gives it a <strong>free roost.ac address</strong>, so you don't need a domain of your own.</p>
+<p class="hint">Later, it will also offer backups away from home and checks of your lab from the internet: each one your choice.</p>
+{{with .StartError}}<p class="error" role="alert">{{.}}</p>{{end}}
+<form method="post" action="/settings/cloud/link" target="_blank" x-data
+  x-on:submit="[800, 2500, 6000].forEach(t => setTimeout(() => htmx.trigger('#cloud-live', 'refresh'), t))">
+  <button type="submit">Link to Roostack Cloud{{template "new-window"}}</button>
+  <small>Opens Roostack Cloud to sign up or log in. No password is typed here, and nothing secret is copied by hand.</small>
+</form>
+{{template "cloud-requests" .}}
+{{- else}}
+{{with .StartError}}<p class="error" role="alert">{{.}}</p>{{end}}
+{{- end}}
+</div>{{end}}
+
+{{/* cloud-requests: the lab's recent requests to Roostack Cloud. */}}
+{{define "cloud-requests"}}{{with .Requests}}
+<details class="technical" id="cloud-requests"><summary>Recent requests to Roostack Cloud</summary>
+  <table class="records">
+    <tr><th>When</th><th>Request</th><th>Answer</th></tr>
+    {{range .}}<tr><td>{{when .At}}</td><td><code>{{.Method}} {{.Path}}</code>{{if gt .Count 1}} <small class="hint">× {{.Count}}</small>{{end}}</td><td>{{if .Status}}{{.Status}}{{else}}<small class="hint">{{.Error}}</small>{{end}}</td></tr>{{end}}
+  </table>
+</details>{{end}}{{end}}
+
+{{/* cloud-name-check: whether a roost.ac name is free, as it's typed. */}}
+{{define "cloud-name-check"}}<small id="name-check" class="name-check" role="status">
+  {{- if .Free}}<span class="cloud-linked">✓ {{.Name}}.roost.ac is free</span>
+  {{- else if .Problem}}<span class="name-taken">{{.Problem}}</span>
+  {{- else}}Services at <code>photos.<em>name</em>.roost.ac</code>, Roostack itself at <code><em>name</em>.roost.ac</code>.{{end}}</small>{{end}}

@@ -198,32 +198,25 @@ func TestWizardFlow(t *testing.T) {
 	}
 
 	// A new lab has no address: both choices are offered, the own domain's
-	// form closed until chosen (SPEC.md §6.6).
+	// form closed until chosen (SPEC.md §6.6). roost.ac links the lab to
+	// Roostack Cloud (cloud_test.go).
+	h.server.Cloud = newCloud(t)
 	_, body = h.get("/setup/domain")
-	for _, want := range []string{"A free roost.ac address", `action="/setup/address/roost-ac"`, "Your own domain",
-		`x-data="{ choice: '' }"`, `<input name="domain" value="" placeholder="smith.family"`, "/help/settings/domain/#your-own-domain"} {
+	for _, want := range []string{"A free roost.ac address", `action="/settings/cloud/link" target="_blank"`, "Your own domain",
+		`x-data="{ choice: '' }"`, `<input name="domain" value="" placeholder="smith.family"`, "/help/settings/domain/#your-own-domain",
+		`id="cloud-live"`, `hx-get="/settings/cloud/name"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("address step missing %q", want)
 		}
 	}
-	// roost.ac names: checked here; Roostack Cloud isn't reachable yet.
-	if code, body := h.post("/setup/address/roost-ac", url.Values{"name": {"-bad"}}, h.srv.URL); code != http.StatusBadRequest ||
-		!strings.Contains(body, "3 to 40 lowercase letters") {
-		t.Errorf("bad name: %d", code)
-	}
-	if code, body := h.post("/setup/address/roost-ac", url.Values{"name": {"smiths"}}, h.srv.URL); code != http.StatusBadRequest ||
-		!strings.Contains(body, "Roostack Cloud can&#39;t be reached right now") || !strings.Contains(body, `value="smiths"`) {
-		t.Errorf("roost.ac before Cloud: %d", code)
-	}
 	// With Roostack Cloud turned off, it isn't offered.
-	h.server.CloudDisabled = true
+	h.server.Cloud = nil
 	if _, body := h.get("/setup/domain"); strings.Contains(body, "roost.ac") {
 		t.Error("Cloud off: no roost.ac choice")
 	}
-	if code, _ := h.post("/setup/address/roost-ac", url.Values{"name": {"smiths"}}, h.srv.URL); code != http.StatusNotFound {
+	if code, _ := h.post("/settings/cloud/link", url.Values{"name": {"smiths"}}, h.srv.URL); code != http.StatusNotFound {
 		t.Errorf("Cloud off: %d", code)
 	}
-	h.server.CloudDisabled = false
 	for _, want := range []string{"Amazon Route 53", "Porkbun", "Gandi", "GoDaddy", "Namecheap", "Spaceship",
 		`name="dns.route53.secret_access_key"`} {
 		if !strings.Contains(body, want) {

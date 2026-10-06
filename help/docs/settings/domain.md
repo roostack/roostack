@@ -11,7 +11,8 @@ There are two ways to give your lab an address, in the setup wizard or in
 A free roost.ac address
 :   Nothing to buy or set up. You pick a name, such as `smiths`; your
     services are at `photos.smiths.roost.ac`, and Roostack itself at
-    `smiths.roost.ac`. It uses Roostack Cloud, with a free account.
+    `smiths.roost.ac`. It uses Roostack Cloud, with a free account: see
+    [Roostack Cloud](cloud.md) for how the lab is linked to it.
 
 Your own domain
 :   A domain you own, such as `smith.family`: services at

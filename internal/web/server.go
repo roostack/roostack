@@ -119,9 +119,9 @@ type Server struct {
 	DetectNetwork func() string
 	// DNSProvider is the lab's current DNS provider ID (wizard default).
 	DNSProvider string
-	// CloudDisabled turns off every Roostack Cloud feature (config.Cloud;
-	// SPEC.md §6.6): nothing about it is offered.
-	CloudDisabled bool
+	// Cloud is the controller's link to Roostack Cloud (SPEC.md §6.6). Nil
+	// when Cloud is turned off (config.Cloud): nothing about it is offered.
+	Cloud CloudLink
 	// BackupRepo is the backup destination, shown on the Backups page.
 	BackupRepo string
 	// HasGPU pre-ticks settings whose default is "auto".
@@ -392,7 +392,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
 		"home", "services", "service", "backups", "restore", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
-		"backups-recovery-key", "service-public", "settings-public", "backups-key-change"} {
+		"backups-recovery-key", "service-public", "settings-public", "backups-key-change", "settings-cloud", "cloud-open"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -524,7 +524,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /setup/domain", s.requireWizard(s.domainPage))
 	mux.Handle("POST /setup/domain", s.requireWizard(s.domainSubmit))
 	mux.Handle("POST /setup/domain/later", s.requireWizard(s.domainLater))
-	mux.Handle("POST /setup/address/roost-ac", s.requireWizard(s.roostAcSubmit))
+	mux.Handle("GET /settings/cloud", s.requireCloud(s.cloudPage))
+	mux.Handle("GET /settings/cloud/live", s.requireCloud(s.cloudLive))
+	mux.Handle("GET /settings/cloud/name", s.requireCloud(s.cloudNameCheck))
+	mux.Handle("POST /settings/cloud/link", s.requireCloud(s.cloudLinkSubmit))
+	mux.Handle("POST /settings/cloud/cancel", s.requireCloud(s.cloudCancelSubmit))
+	mux.Handle("POST /settings/cloud/unlink", s.requireCloud(s.cloudUnlinkSubmit))
+	mux.Handle("POST /settings/cloud/dismiss", s.requireCloud(s.cloudDismissSubmit))
 	mux.Handle("GET /setup/backup", s.requireWizard(s.backupPage))
 	mux.Handle("POST /setup/backup", s.requireWizard(s.backupSubmit))
 	mux.Handle("POST /setup/backup/later", s.requireWizard(s.backupLater))
@@ -745,6 +751,11 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 		if page != "setup-timezone" && page != "restarting" {
 			data["Clock"] = clockView{hosttime.Now(), auth.Can(u.Role, auth.ManageHost)}
 		}
+	}
+	// Settings' sidebar leaves out Roostack Cloud while it isn't in use.
+	if nav, ok := data["AreaNav"].(areaNav); ok && nav.Label == "Settings" {
+		nav.Groups = s.settingsGroups()
+		data["AreaNav"] = nav
 	}
 	// Render into a buffer first, so a template error becomes an error
 	// page rather than half a page sent with 200 OK.

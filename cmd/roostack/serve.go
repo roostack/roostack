@@ -21,6 +21,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/caddy"
+	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/generate"
@@ -151,7 +152,16 @@ func serve(args []string) error {
 		Settings:  st}
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
-	srv.CloudDisabled = lab.Cloud.Disabled
+	// Roostack Cloud, unless it's turned off (SPEC.md §6.6): only the
+	// controller talks to it.
+	if !lab.Cloud.Disabled {
+		link, err := cloud.New(lab.Paths.StateDir, lab.Cloud, version, lab.DisplayName, log)
+		if err != nil {
+			return err
+		}
+		srv.Cloud = link
+		go link.Run(ctx)
+	}
 	// Public access (SPEC.md §6.11): check links from a phone, and whether
 	// CrowdSec is up (the records wait for it).
 	crowdSecUp := func(ctx context.Context) bool {

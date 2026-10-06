@@ -223,7 +223,9 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [x] `cloud: { disabled: true }` in lab.yaml turns off every Roostack Cloud feature
     - [x] Help page: buying and managing your own domain (registrars whose DNS Roostack supports, and how)
     - [ ] Certificates and records for a `roost.ac` name through Cloud (the lab's challenge records only), instead of the lab's own DNS provider
-    - [ ] Linking a lab to Roostack Cloud, the lab's side: "Connect to Roostack Cloud" (gets a link code, opens Cloud's page in a new window, finishes by itself), keeping the lab's client certificate, unlinking from the lab (to design in SPEC first)
+    - [x] Linking a lab to Roostack Cloud, the lab's side (SPEC §6.6): Settings → Roostack Cloud and the address step's roost.ac card; a link code, Cloud's page in a new window, finishes by itself; the lab's client certificate (renewed with a new key), a daily check-in, the request log; unlinking from the lab; "no longer linked" when Cloud refuses the certificate (unlinked there, or restored from before). Tried end to end on VM3 against the fake (2026-10-07)
+    - [ ] Replace the fake (`cmd/roostack-fakecloud`) with Cloud's real endpoints, soon (Cloud repo); the API is in `internal/cloud/api.go`
+    - [ ] Choosing a roost.ac name: once linked, actually set it as the lab's address (needs Cloud's DNS records, above)
     - [ ] Own domain, unsupported DNS provider (SPEC §6.6): DNS-01 through Cloud when linked (one `_acme-challenge` CNAME added by hand, still a wildcard); otherwise, if reachable on 443, TLS-ALPN-01 with a certificate per name. Roostack picks automatically
   - [ ] Header: between phone width (menu) and about 690px, the nav neither collapses nor fits, so the page scrolls sideways ("Log out" is cut off)
   - [ ] The build follower treats a leftover log from an earlier build as the new one if it reads it before the new build truncates it (only when a build is restarted; harmless but can end the follower early)

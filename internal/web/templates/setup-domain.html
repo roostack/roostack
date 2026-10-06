@@ -10,18 +10,22 @@
   <p>Your services get web addresses, each with a secure (HTTPS) certificate. Choose where they live.</p>
   <div class="address-choices">
     {{if not .CloudDisabled}}
-    <form method="post" action="/setup/address/roost-ac" class="address-choice{{if ne .Choice "own"}} recommended{{end}}" x-bind:class="choice !== 'own' && 'recommended'">
+    <div class="address-choice{{if ne .Choice "own"}} recommended{{end}}" x-bind:class="choice !== 'own' && 'recommended'">
+      <form method="post" action="/settings/cloud/link" target="_blank"
+        x-on:submit="[800, 2500, 6000].forEach(t => setTimeout(() => htmx.trigger('#cloud-live', 'refresh'), t))">
       <p class="address-choice-title">{{icon "proxy"}}A free roost.ac address {{badge "Recommended" "highlight"}}</p>
       <p class="hint">Nothing to buy or set up. Uses Roostack Cloud (a free account).</p>
       <label class="address-name"><span class="sr-only">Name</span>
-        <input name="name" value="{{.CloudName}}" placeholder="smiths" autocapitalize="off" autocomplete="off" required
-          pattern="[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])?" title="3 to 40 lowercase letters, numbers or hyphens">
+        <input name="name" placeholder="smiths" autocapitalize="off" autocomplete="off" required
+          pattern="[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])?" title="3 to 40 lowercase letters, numbers or hyphens"
+          hx-get="/settings/cloud/name" hx-trigger="input changed delay:400ms" hx-target="#name-check" hx-swap="outerHTML">
         <span>.roost.ac</span></label>
-      <small>Services at <code>photos.<em>name</em>.roost.ac</code>, Roostack itself at <code><em>name</em>.roost.ac</code>.</small>
-      {{with .CloudError}}<p class="error" role="alert">{{.}}</p>{{end}}
-      <button type="submit">Get this address</button>
+      {{template "cloud-name-check" .}}
+      <button type="submit">Get this address{{template "new-window"}}</button>
       <small>Opens Roostack Cloud to sign up or log in, then comes back here.</small>
-    </form>
+      </form>
+      {{template "cloud-live" .CloudView}}
+    </div>
     {{end}}
     <div class="address-choice" x-bind:class="choice === 'own' && 'chosen'">
       <p class="address-choice-title">{{icon "at"}}Your own domain</p>
