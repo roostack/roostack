@@ -65,6 +65,18 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 				"/setup/domain", "Give it an address")
 		}
 	}
+	// The link to Roostack Cloud: gone (unlinked there, or restored from
+	// before it was unlinked), or Cloud out of reach for days (SPEC.md §6.6).
+	if owner && s.Cloud != nil {
+		switch st := s.Cloud.Status(); {
+		case !st.Forgotten.IsZero():
+			add(levelWarning, "This lab is no longer linked to Roostack Cloud: Cloud stopped accepting its certificate.",
+				"/settings/cloud", "See why")
+		case st.Linked && st.LastError != "" && time.Since(st.LastContact) > cloudUnreachableFor:
+			add(levelWarning, "Roostack Cloud hasn't been reachable since "+whenText(st.LastContact)+".",
+				"/settings/cloud", "Roostack Cloud")
+		}
+	}
 
 	if admin && s.Manager != nil {
 		// Each server applies its own changes; name it once there are several.

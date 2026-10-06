@@ -107,6 +107,16 @@ footer.site a { color: var(--muted); }
 .address-waiting { margin: var(--space-1) 0; font-size: var(--text-sm); }
 .address-waiting-text { color: var(--warn); }
 .address-waiting-text .icon { color: var(--warn); margin-right: var(--space-1); }
+/* Linking to Roostack Cloud (SPEC.md §6.6): the code to compare, while it waits. */
+.cloud-waiting { margin-top: var(--space-3); }
+.cloud-waiting-title { font-weight: var(--weight-medium); margin-bottom: var(--space-1); }
+.cloud-waiting-title .icon { color: var(--warn); margin-right: var(--space-1); }
+.cloud-code { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.link-code { font-family: var(--font-mono); font-size: 1.4em; letter-spacing: 0.1em; padding: var(--space-1) var(--space-3);
+  background: var(--surface-2); border-radius: var(--radius); }
+.cloud-linked { color: var(--ok); }
+.name-check { display: block; }
+.name-taken { color: var(--bad); }
 .server-chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-2);
   border-radius: var(--radius-pill); background: var(--surface-2); border: 1px solid var(--border); color: var(--fg);
   font-weight: var(--weight-medium); white-space: nowrap; }

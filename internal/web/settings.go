@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,6 +39,7 @@ var settingsAreas = []settingsArea{
 	{"domain", "Network", "Your lab's address", "/settings/domain"},
 	{"home-network", "Network", "Where it is and DNS", "/settings/home-network"},
 	{"public", "Network", "Public access", "/settings/public"},
+	{"cloud", "Network", "Roostack Cloud", "/settings/cloud"},
 	{"servers", "Servers", "Servers", "/settings/servers"},
 	{"storage", "Servers", "Storage for others", "/settings/storage"},
 	// Settings that differ per server (switcher.go).
@@ -53,9 +55,13 @@ type settingsGroup struct {
 	Areas []settingsArea
 }
 
-func settingsGroups() []settingsGroup {
+// settingsGroups are the areas in groups, leaving out those in hide.
+func settingsGroups(hide ...string) []settingsGroup {
 	var groups []settingsGroup
 	for _, a := range settingsAreas {
+		if slices.Contains(hide, a.ID) {
+			continue
+		}
 		if len(groups) == 0 || groups[len(groups)-1].Title != a.Group {
 			groups = append(groups, settingsGroup{Title: a.Group})
 		}
@@ -123,6 +129,10 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		set("domain", s.Domain, "ok")
 	} else {
 		set("domain", "No address yet: services can't be reached", "problem")
+	}
+	if s.Cloud != nil {
+		summary, level := cloudSummary(s.Cloud.Status())
+		set("cloud", summary, level)
 	}
 	// Where it is, then how DNS is doing (SPEC.md §6.12).
 	internet := s.onInternet()
@@ -220,7 +230,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var groups []map[string]any
-	for _, g := range settingsGroups() {
+	for _, g := range s.settingsGroups() {
 		var cs []areaCard
 		for _, a := range g.Areas {
 			cs = append(cs, cards[a.ID])
@@ -229,6 +239,15 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	data["Groups"] = groups
 	s.render(w, "settings", data)
+}
+
+// settingsGroups are this lab's settings areas: Roostack Cloud only
+// while it's in use.
+func (s *Server) settingsGroups() []settingsGroup {
+	if s.Cloud == nil {
+		return settingsGroups("cloud")
+	}
+	return settingsGroups()
 }
 
 // withArea marks a page as a settings area, so it gets the sidebar.

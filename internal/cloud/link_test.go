@@ -1,0 +1,204 @@
+package cloud
+
+import (
+	"context"
+	"errors"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"roostack.cloud/roostack/internal/cloud/cloudtest"
+	"roostack.cloud/roostack/internal/config"
+)
+
+// fakeCloud starts a fake Cloud over HTTPS and a lab's link to it.
+func fakeCloud(t *testing.T) (*cloudtest.Fake, *Service, string) {
+	t.Helper()
+	PollEvery = 10 * time.Millisecond
+	f, cfg := cloudtest.Start(t)
+	state := t.TempDir()
+	s, err := New(state, cfg, "test", func() string { return "Smith family" }, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f, s, state
+}
+
+// link links s, confirming in f.
+func link(t *testing.T, f *cloudtest.Fake, s *Service, name string) {
+	t.Helper()
+	open, err := s.Start(context.Background(), name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := s.Status().Waiting
+	if w == nil || w.Code == "" || open == "" {
+		t.Fatalf("waiting = %+v, open %q", w, open)
+	}
+	if lab, asked := f.Asked(w.Code); lab != "Smith family" || asked != name {
+		t.Fatalf("Cloud was sent %q, %q", lab, asked)
+	}
+	if err := f.Confirm(w.Code); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return s.Status().Linked })
+}
+
+func waitFor(t *testing.T, ok func() bool) {
+	t.Helper()
+	for i := 0; i < 300 && !ok(); i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !ok() {
+		t.Fatal("timed out")
+	}
+}
+
+func TestLinkCheckUnlink(t *testing.T) {
+	f, s, state := fakeCloud(t)
+	link(t, f, s, "smiths")
+	st := s.Status()
+	if st.Account == "" || st.LabID == "" || st.Name != "smiths" || st.CertFingerprint == "" || st.Waiting != nil {
+		t.Fatalf("status = %+v", st)
+	}
+	fi, err := os.Stat(filepath.Join(Dir(state), "lab.key"))
+	if err != nil || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("key file: %v %v", fi, err)
+	}
+	// The link survives a restart, and checking in uses the certificate.
+	s2, err := New(state, s.cfg, "test", s.labName, s.log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s2.Check(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !s2.Status().Linked || f.Requests["GET /v1/lab"] != 1 {
+		t.Fatalf("after check: %+v, requests %v", s2.Status(), f.Requests)
+	}
+	reached, err := s2.Unlink(context.Background())
+	if err != nil || !reached {
+		t.Fatalf("unlink: %v %v", reached, err)
+	}
+	if s2.Status().Linked || len(f.Labs()) != 0 {
+		t.Fatalf("still linked: %+v %v", s2.Status(), f.Labs())
+	}
+	if _, err := os.Stat(filepath.Join(Dir(state), "lab.key")); !os.IsNotExist(err) {
+		t.Fatalf("key kept: %v", err)
+	}
+	reqs := s2.Requests()
+	if len(reqs) == 0 || reqs[0].Method != "DELETE" {
+		t.Fatalf("requests = %+v", reqs)
+	}
+	// Asking about the link again and again is one line.
+	polls := 0
+	for _, r := range reqs {
+		if r.Path == pathLinkStatus {
+			polls++
+		}
+	}
+	if polls > 2 {
+		t.Errorf("%d lines of polls: %+v", polls, reqs)
+	}
+}
+
+// A lab unlinked in Cloud (or restored from a backup made before it was
+// unlinked) forgets the link at its next check, and says so.
+func TestUnlinkedFromCloud(t *testing.T) {
+	f, s, state := fakeCloud(t)
+	link(t, f, s, "")
+	// A backup of the state, while linked.
+	backup := t.TempDir()
+	copyDir(t, Dir(state), backup)
+	f.Unlink(s.Status().LabID)
+	if err := s.Check(context.Background()); !errors.Is(err, ErrUnlinked) {
+		t.Fatalf("check = %v", err)
+	}
+	st := s.Status()
+	if st.Linked || st.Forgotten.IsZero() || st.ForgottenAccount == "" {
+		t.Fatalf("status = %+v", st)
+	}
+	if err := s.DismissForgotten(); err != nil || !s.Status().Forgotten.IsZero() {
+		t.Fatalf("dismiss: %v", err)
+	}
+
+	// Restored: linked again on paper, until it checks in.
+	os.RemoveAll(Dir(state))
+	copyDir(t, backup, Dir(state))
+	r, err := New(state, s.cfg, "test", s.labName, s.log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Status().Linked {
+		t.Fatal("restored link not loaded")
+	}
+	r.Check(context.Background())
+	if r.Status().Linked || r.Status().Forgotten.IsZero() {
+		t.Fatalf("restored: %+v", r.Status())
+	}
+}
+
+func TestRenew(t *testing.T) {
+	f, s, _ := fakeCloud(t)
+	f.CertLife = time.Hour
+	link(t, f, s, "")
+	before := s.Status().CertFingerprint
+	s.now = func() time.Time { return time.Now().Add(50 * time.Minute) }
+	if err := s.Check(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if after := s.Status().CertFingerprint; after == before || f.Requests["POST /v1/lab/renew"] != 1 {
+		t.Fatalf("not renewed: %s %s %v", before, after, f.Requests)
+	}
+	// The renewed certificate works.
+	s.now = time.Now
+	if err := s.Check(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCancelAndUnreachable(t *testing.T) {
+	f, s, _ := fakeCloud(t)
+	if _, err := s.Start(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	s.Cancel(context.Background())
+	if s.Status().Waiting != nil || len(f.Codes()) != 0 {
+		t.Fatalf("still waiting: %+v %v", s.Status(), f.Codes())
+	}
+	a, err := s.NameAvailable(context.Background(), "taken")
+	if err != nil || a.Available || a.Reason == "" {
+		t.Fatalf("taken: %+v %v", a, err)
+	}
+	if _, err := s.Start(context.Background(), "taken"); err == nil || s.Status().StartError == "" {
+		t.Fatalf("taken name started: %v", err)
+	}
+
+	gone, err := New(t.TempDir(), config.Cloud{URL: "https://127.0.0.1:1"}, "test", s.labName, s.log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var u *Unreachable
+	if _, err := gone.Start(context.Background(), ""); !errors.As(err, &u) {
+		t.Fatalf("start = %v", err)
+	}
+}
+
+func copyDir(t *testing.T, from, to string) {
+	t.Helper()
+	os.MkdirAll(to, 0o700)
+	entries, err := os.ReadDir(from)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		data, err := os.ReadFile(filepath.Join(from, e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.WriteFile(filepath.Join(to, e.Name()), data, 0o600)
+	}
+}
