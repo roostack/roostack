@@ -229,7 +229,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [ ] The old domain's DNS records: keep them updated during the 30 days (the home's address can change), and remove them afterwards where a provider's API can delete records
     - [x] A roost.ac name as the lab's address (SPEC §6.6): claimed after linking (or at once when linked), Cloud as a hidden DNS provider with an acme-dns account, `caddy-dns/acmedns` in the Caddy build, records through Cloud, Roostack at the name itself; taken away with the link. Tried on VM3 against the fake (`roost.test`), 2026-10-07
     - [ ] A real certificate for a roost.ac name: only with Cloud's real acme-dns and DNS
-    - [ ] The address step once linked: the roost.ac card's states (linked, setting up, failed) reviewed in a browser
+    - [ ] Rethink getting a roost.ac address in the wizard (user, 2026-10-07): linking inside the address step, then "Continue setup", is confusing. Revisit once the real Cloud works end to end
     - [ ] Own domain, unsupported DNS provider (SPEC §6.6): DNS-01 through Cloud when linked (one `_acme-challenge` CNAME added by hand, still a wildcard); otherwise, if reachable on 443, TLS-ALPN-01 with a certificate per name. Roostack picks automatically
   - [ ] Header: between phone width (menu) and about 690px, the nav neither collapses nor fits, so the page scrolls sideways ("Log out" is cut off)
   - [ ] The build follower treats a leftover log from an earlier build as the new one if it reads it before the new build truncates it (only when a build is restarted; harmless but can end the follower early)
