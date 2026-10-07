@@ -119,6 +119,9 @@ type Server struct {
 	DetectNetwork func() string
 	// DNSProvider is the lab's current DNS provider ID (wizard default).
 	DNSProvider string
+	// OldAddress is the lab's previous address, still served for a while
+	// after switching (config.Lab.OldAddress; SPEC.md §6.6).
+	OldAddress *config.OldAddress
 	// Cloud is the controller's link to Roostack Cloud (SPEC.md §6.6). Nil
 	// when Cloud is turned off (config.Cloud): nothing about it is offered.
 	Cloud CloudLink
@@ -302,6 +305,8 @@ type LabSetup interface {
 	Done(ctx context.Context, step string) error
 	SaveDomain(ctx context.Context, domain, email, provider string, values map[string]string, opts setup.DomainOptions) error
 	DomainLater(ctx context.Context) error
+	// EndOldAddress stops the previous address working now, and restarts.
+	EndOldAddress(ctx context.Context) error
 	// BackupAdded records the wizard's backup step done (first: its first
 	// backup, so the recovery key must be confirmed).
 	BackupAdded(ctx context.Context, first bool) error
@@ -524,6 +529,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /setup/domain", s.requireWizard(s.domainPage))
 	mux.Handle("POST /setup/domain", s.requireWizard(s.domainSubmit))
 	mux.Handle("POST /setup/domain/later", s.requireWizard(s.domainLater))
+	mux.Handle("POST /settings/domain/old/end", s.requireWizard(s.oldAddressEnd))
 	mux.Handle("GET /settings/cloud", s.requireCloud(s.cloudPage))
 	mux.Handle("GET /settings/cloud/live", s.requireCloud(s.cloudLive))
 	mux.Handle("GET /settings/cloud/name", s.requireCloud(s.cloudNameCheck))

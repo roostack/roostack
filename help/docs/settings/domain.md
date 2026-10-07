@@ -19,7 +19,8 @@ Your own domain
     `photos.smith.family`, and Roostack at `roost.smith.family`.
 
 You can switch later. When you do, every service's address changes, so the
-old addresses keep working for 30 days while you update bookmarks and apps.
+old addresses keep working for 30 days while you update bookmarks and apps:
+see [Changing the address](#changing-the-address).
 
 ## Your own domain
 
@@ -136,3 +137,34 @@ leaves it alone, and offers **Take over this record…**.
     created (it adopts an identical one). It checks the name through the
     home network's resolver and through `1.1.1.1`, to tell a missing record
     from a router blocking it. Checks run every 30 minutes.
+
+## Changing the address
+
+Choose **Change the address…** on **Settings → Your lab's address**. When
+the address changes, every service's address changes with it, so for **30
+days** the old addresses keep working too, exactly as before. Meanwhile:
+
+- the home page says the address changed and until when the old one works;
+- **Settings → Your lab's address** lists every old and new address, so you
+  can update bookmarks, and the server address in apps on phones and
+  computers (such as Bitwarden's or Immich's);
+- each service's page shows its old address.
+
+Passkeys and security keys made for the old address don't work at the new
+one: add new ones in each app. Settings inside apps that include the
+address (such as Vaultwarden's) change by themselves.
+
+When you've updated everything, **Stop the old addresses now** ends it
+early. Otherwise it ends by itself after 30 days, and Roostack deletes the
+old DNS provider's login it kept for the old address's certificate.
+
+!!! note "The old domain's DNS records"
+    Roostack stops updating the old domain's DNS records when you switch,
+    and can't delete them afterwards. Once the old address stops, you can
+    delete them at your DNS provider. If your home's internet address
+    changes during the 30 days, old addresses that pointed to it stop
+    working sooner.
+
+Only one old address is kept: if you change the address again within the
+30 days, the address before stops at once.
+

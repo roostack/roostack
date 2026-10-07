@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -257,6 +258,9 @@ type Lab struct {
 	Mail Mail `yaml:"mail,omitempty"`
 	// Cloud is Roostack Cloud (SPEC.md §6.6).
 	Cloud Cloud `yaml:"cloud,omitempty"`
+	// OldAddress is the lab's previous address, still served for a while
+	// after switching so bookmarks and apps can be updated (SPEC.md §6.6).
+	OldAddress *OldAddress `yaml:"old_address,omitempty"`
 	// Network is where the lab is: NetworkHome (the default when empty)
 	// or NetworkInternet (SPEC.md §6.12). It's about the controller, whose
 	// Caddy serves the lab's addresses.
@@ -295,6 +299,28 @@ type Cloud struct {
 	// CAFile, for a test Cloud, is the certificate authority its HTTPS
 	// certificate comes from (a real Cloud's is publicly trusted).
 	CAFile string `yaml:"ca_file,omitempty"`
+}
+
+// OldAddressDays is how long a lab's previous address keeps working after
+// it switches to another (SPEC.md §6.6).
+const OldAddressDays = 30
+
+// OldAddress is a lab's previous address.
+type OldAddress struct {
+	Domain string `yaml:"domain"`
+	// Until is when it stops working.
+	Until time.Time `yaml:"until"`
+	// DNS is its DNS provider, whose credentials are kept (as the Podman
+	// secrets dns.OldSecretName) so its certificate can still renew.
+	DNS DNS `yaml:"dns"`
+}
+
+// Old is the previous address while it still works, or nil.
+func (l Lab) Old(now time.Time) *OldAddress {
+	if l.OldAddress == nil || l.OldAddress.Domain == "" || l.OldAddress.Domain == l.Domain || !now.Before(l.OldAddress.Until) {
+		return nil
+	}
+	return l.OldAddress
 }
 
 // DefaultCloudURL is Roostack Cloud's address for labs.

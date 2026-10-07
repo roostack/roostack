@@ -278,6 +278,12 @@ func (s *Server) domainAreaPage(w http.ResponseWriter, r *http.Request) {
 	if p := dns.Get(s.DNSProvider); p != nil {
 		data["ProviderTitle"] = p.Title
 	}
+	if o := s.oldAddress(); o != nil {
+		data["Old"], data["OldRows"] = o, s.oldAddressRows(r, o)
+		if p := dns.Get(o.DNS.Provider); p != nil {
+			data["OldProvider"] = p.Title
+		}
+	}
 	s.render(w, "settings-domain", withArea(data, "domain"))
 }
 

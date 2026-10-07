@@ -297,6 +297,9 @@ func serve(args []string) error {
 		return err
 	}
 	srv.Setup, srv.DNSProvider, srv.LabName = wiz, lab.DNS.Provider, lab.DisplayName()
+	// The previous address stops when its time is up (SPEC.md §6.6).
+	srv.OldAddress = lab.OldAddress
+	go wiz.RunOldAddress(ctx, log)
 	// Email, through the lab's SMTP server (SPEC.md §6.13).
 	srv.Mail = &mail.Service{LabPath: *labPath, PasswordFile: lab.Paths.MailPasswordFile()}
 	go srv.RunNotifier(ctx)

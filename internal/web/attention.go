@@ -65,6 +65,19 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 				"/setup/domain", "Give it an address")
 		}
 	}
+	// The lab's previous address, while it still works (SPEC.md §6.6):
+	// everyone has bookmarks and apps to update.
+	if o := s.oldAddress(); o != nil {
+		level, link, text := levelInfo, "", "Your lab's address changed to "+o.Now+". The old addresses ("+o.Domain+
+			") keep working until "+o.Until.Local().Format("2 January")+": update bookmarks, and the server address in apps."
+		if o.Soon() {
+			level = levelWarning
+		}
+		if owner {
+			link = "/settings/domain#old-address"
+		}
+		add(level, text, link, map[bool]string{true: "What to update", false: ""}[owner])
+	}
 	// The link to Roostack Cloud: gone (unlinked there, or restored from
 	// before it was unlinked), or Cloud out of reach for days (SPEC.md §6.6).
 	if owner && s.Cloud != nil {

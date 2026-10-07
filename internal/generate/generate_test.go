@@ -6,8 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
@@ -422,5 +424,56 @@ func TestNoAddressYet(t *testing.T) {
 	sys, err := System(lab, false)
 	if err != nil || len(sys.Quadlets) != 0 || len(sys.Units) != 0 || sys.Caddyfile.Content != "" {
 		t.Errorf("system without an address: %+v, %v", sys, err)
+	}
+}
+
+// After switching address, the old one keeps working for a while: a
+// second site with its own certificate, and every route answering to both
+// names; once it's over, nothing of it is left (SPEC.md §6.6).
+func TestOldAddress(t *testing.T) {
+	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "vaultwarden.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lab := testLab()
+	lab.Domain = "smith.family"
+	lab.DNS.Provider = "cloudflare"
+	lab.OldAddress = &config.OldAddress{Domain: "lab.example.com", Until: time.Now().Add(time.Hour),
+		DNS: config.DNS{Provider: "porkbun", Fields: []string{"api_key", "api_secret_key"}}}
+	out, err := Service(lab, p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.CaddySite.Content, "host passwords.smith.family passwords.lab.example.com\n") ||
+		slices.Contains(out.Hosts, "passwords.lab.example.com") {
+		t.Errorf("site:\n%s\nhosts %v", out.CaddySite.Content, out.Hosts)
+	}
+	if d := Dump(out); !strings.Contains(d, "DOMAIN=https://passwords.smith.family") {
+		t.Errorf("the app uses the new address:\n%s", d)
+	}
+	sys, err := System(lab, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf := sys.Caddyfile.Content
+	for _, want := range []string{"*.smith.family {", "*.lab.example.com {", "{env.DNS_OLD_API_KEY}",
+		"host roost.lab.example.com", "host roost.smith.family"} {
+		if !strings.Contains(cf, want) {
+			t.Errorf("Caddyfile missing %q:\n%s", want, cf)
+		}
+	}
+	if q := Dump(&Output{Quadlets: sys.Quadlets}); !strings.Contains(q, "Secret=roostack-caddy-dns-old-api_key,type=env,target=DNS_OLD_API_KEY") {
+		t.Errorf("old provider's secrets:\n%s", q)
+	}
+
+	lab.OldAddress.Until = time.Now().Add(-time.Minute)
+	out, _ = Service(lab, p, in)
+	sys, _ = System(lab, false)
+	if strings.Contains(out.CaddySite.Content+sys.Caddyfile.Content, "lab.example.com") {
+		t.Errorf("after it ends:\n%s\n%s", out.CaddySite.Content, sys.Caddyfile.Content)
 	}
 }

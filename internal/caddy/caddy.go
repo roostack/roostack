@@ -40,8 +40,11 @@ func ThisServerOnly(hostIP, hostLoopback string) string {
 // Route is one subdomain handled by Caddy.
 type Route struct {
 	// ID must be unique across the lab; used to name Caddy matchers.
-	ID       string
-	Host     string // full hostname, e.g. photos.lab.example.com
+	ID   string
+	Host string // full hostname, e.g. photos.lab.example.com
+	// OldHost is its name at the lab's previous address, served too for a
+	// while after switching (SPEC.md §6.6); "" when there's none.
+	OldHost  string
 	Upstream string // container:port on the roostack-proxy network
 	Private  bool
 	// PrivateFrom is who reaches it when private, and its private paths
@@ -84,7 +87,11 @@ func Site(service string, routes []Route) (string, error) {
 		if err := r.validate(); err != nil {
 			return "", err
 		}
-		fmt.Fprintf(&b, "\n@%s host %s\n", r.ID, r.Host)
+		hosts := r.Host
+		if r.OldHost != "" {
+			hosts += " " + r.OldHost
+		}
+		fmt.Fprintf(&b, "\n@%s host %s\n", r.ID, hosts)
 		fmt.Fprintf(&b, "handle @%s {\n", r.ID)
 		if r.Private {
 			fmt.Fprintf(&b, "\t@%s-external not remote_ip %s\n", r.ID, r.privateFrom())
@@ -156,7 +163,7 @@ func (r Route) validate() error {
 		return fmt.Errorf("caddy route %s: invalid private addresses %q", r.ID, r.PrivateFrom)
 	}
 	for _, f := range []struct{ name, val string }{
-		{"id", r.ID}, {"host", r.Host}, {"upstream", r.Upstream}, {"max body size", r.MaxBodySize},
+		{"id", r.ID}, {"host", r.Host}, {"old host", r.OldHost}, {"upstream", r.Upstream}, {"max body size", r.MaxBodySize},
 		{"check upstream", r.CheckUpstream},
 	} {
 		// Guard against anything that could break out of the Caddyfile syntax.
@@ -198,6 +205,11 @@ type MainConfig struct {
 	// AccessLog is the file Caddy logs requests to, for CrowdSec. Empty
 	// logs none.
 	AccessLog string
+	// OldDomain is the lab's previous address, served as well while it
+	// still works (SPEC.md §6.6), with its own certificate through
+	// OldDNSDirective.
+	OldDomain       string
+	OldDNSDirective string
 }
 
 // AdminSubdomain is where the Roostack UI is served: roost.<domain>
@@ -237,35 +249,58 @@ func Main(c MainConfig) (string, error) {
 		fmt.Fprintf(&b, "\tcrowdsec {\n\t\tapi_url %s\n\t\tapi_key {env.%s}\n\t\tticker_interval 15s\n\t}\n",
 			c.CrowdSecAPI, CrowdSecAPIKeyEnv)
 	}
-	b.WriteString("}\n\n")
-	fmt.Fprintf(&b, "*.%s {\n", c.Domain)
+	b.WriteString("}\n")
+	if err := site(&b, c, c.Domain, c.DNSDirective, ""); err != nil {
+		return "", err
+	}
+	if c.OldDomain != "" {
+		if strings.ContainsAny(c.OldDomain, " \t\n{}\"#") || strings.TrimSpace(c.OldDNSDirective) == "" {
+			return "", fmt.Errorf("caddy: invalid old address %q", c.OldDomain)
+		}
+		// The previous address (SPEC.md §6.6): the same services, through
+		// the same snippets (their matchers name both hosts).
+		if err := site(&b, c, c.OldDomain, c.OldDNSDirective, c.Domain); err != nil {
+			return "", err
+		}
+	}
+	return b.String(), nil
+}
+
+// site writes one wildcard site block for domain. now is the lab's
+// current address when domain is its previous one.
+func site(b *strings.Builder, c MainConfig, domain, directive, now string) error {
+	b.WriteString("\n")
+	if now != "" {
+		fmt.Fprintf(b, "# The lab's previous address, until it stops working; it's now %s.\n", now)
+	}
+	fmt.Fprintf(b, "*.%s {\n", domain)
 	b.WriteString("\ttls {\n")
-	for _, line := range strings.Split(strings.TrimSpace(c.DNSDirective), "\n") {
-		fmt.Fprintf(&b, "\t\t%s\n", line)
+	for _, line := range strings.Split(strings.TrimSpace(directive), "\n") {
+		fmt.Fprintf(b, "\t\t%s\n", line)
 	}
 	b.WriteString("\t}\n")
 	if c.AccessLog != "" {
-		fmt.Fprintf(&b, "\tlog {\n\t\toutput file %s {\n\t\t\troll_size 20MiB\n\t\t\troll_keep 5\n\t\t}\n\t\tformat json\n\t}\n", c.AccessLog)
+		fmt.Fprintf(b, "\tlog {\n\t\toutput file %s {\n\t\t\troll_size 20MiB\n\t\t\troll_keep 5\n\t\t}\n\t\tformat json\n\t}\n", c.AccessLog)
 	}
 	if c.AdminUpstream != "" {
-		route := Route{ID: "roostack-admin", Host: AdminSubdomain + "." + c.Domain,
+		route := Route{ID: "roostack-admin", Host: AdminSubdomain + "." + domain,
 			Upstream: c.AdminUpstream, Private: !c.AdminPublic, PrivateFrom: c.PrivateFrom}
 		if c.AdminPublic {
 			route.LoginPaths = AdminLoginPaths
 		}
 		admin, err := Site("roostack", []Route{route})
 		if err != nil {
-			return "", err
+			return err
 		}
 		// Indent the admin handler into the site block, skipping its header.
 		_, body, _ := strings.Cut(admin, "\n")
 		for _, line := range strings.Split(strings.TrimSpace(body), "\n") {
-			fmt.Fprintf(&b, "\t%s\n", line)
+			fmt.Fprintf(b, "\t%s\n", line)
 		}
 	}
 	b.WriteString("\n\timport sites/*.caddy\n\n")
 	b.WriteString("\t# Unknown subdomains get no response.\n")
 	b.WriteString("\thandle {\n\t\tabort\n\t}\n")
 	b.WriteString("}\n")
-	return b.String(), nil
+	return nil
 }
