@@ -174,6 +174,19 @@ def small(c):
     )
 
 
+def small_cloud(c):
+    """Roostack Cloud's small mark: the small mark's hen on a plain cloud (the highlight colour,
+    as the Cloud marks), with one light: clear at 16px, and told apart from Roostack's at a glance."""
+    cl = c["cloud"]
+    return (
+        f'<g transform="translate(-3.6 .6) scale(1.2)">{bird(c, wing=False)}</g>'
+        f'<rect x="5" y="47.5" width="54" height="11.5" rx="5.75" fill="{cl}"/>'
+        f'<circle cx="17" cy="48.6" r="6.2" fill="{cl}"/>'
+        f'<circle cx="46" cy="47.6" r="7.6" fill="{cl}"/>'
+        f'<circle cx="13.5" cy="53.25" r="2.8" fill="{c["cloud_led"]}"/>'
+    )
+
+
 MARKS = {"perch": perch, "nest": nest, "perch-cloud": perch_cloud, "nest-cloud": nest_cloud}
 TITLES = {"perch": "Roostack", "nest": "Roostack", "perch-cloud": "Roostack Cloud", "nest-cloud": "Roostack Cloud"}
 
@@ -392,6 +405,16 @@ def main():
           f"const brandMark template.HTML = `{app_svg}`\n")
     written.append(write(ROOT / "internal" / "web" / "brandmark.go", go))
 
+    # Roostack Cloud's small mark and favicons (copied into Cloud's website by its
+    # tools/sync-design.sh): the same files, named -cloud.
+    cloud_tile = classify(tile(small_cloud, inset=False), "")
+    written.append(write(BRAND / "favicon-cloud.svg", svg("Roostack Cloud", style + cloud_tile)))
+    for m in MODES:
+        written.append(write(BRAND / f"small-cloud-{m}.svg", svg("Roostack Cloud", paint(tile(small_cloud, inset=False), MODES[m]))))
+    written.append(write(BRAND / "brandmark-cloud.svg",
+                         '<svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">'
+                         + classify(tile(small_cloud, inset=False), "bm-") + "</svg>\n"))
+
     if shutil.which("rsvg-convert"):
         light_small = svg("Roostack", paint(tile(small, inset=False), MODES["light"]))
         # iOS rounds the corners itself and shows transparency as black: a square tile.
@@ -400,6 +423,12 @@ def main():
             ico(light_small, BRAND / "favicon.ico"),
             png(square, 180, BRAND / "apple-touch-icon.png"),
             png(light_small, 512, BRAND / "icon-512.png"),
+        ]
+        light_cloud = svg("Roostack Cloud", paint(tile(small_cloud, inset=False), MODES["light"]))
+        written += [
+            ico(light_cloud, BRAND / "favicon-cloud.ico"),
+            png(svg("Roostack Cloud", paint(tile(small_cloud, radius=0, inset=False), MODES["light"])), 180,
+                BRAND / "apple-touch-icon-cloud.png"),
         ]
         shutil.copy(BRAND / "favicon.ico", STATIC / "favicon.ico")
         shutil.copy(BRAND / "apple-touch-icon.png", STATIC / "apple-touch-icon.png")

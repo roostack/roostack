@@ -9,6 +9,7 @@ Roostack's marks, wordmarks and icons. Decided 2026-10-01 (SPEC.md §3.2, "Brand
 | `perch-*.svg` | **Perch**: a hen on two rack servers with "online" lights | Primary mark |
 | `nest-*.svg` | **Nest and egg**: a cracked egg on three woven layers | Alternate mark |
 | `perch-cloud-*.svg`, `nest-cloud-*.svg` | The same on a cloud | Roostack Cloud |
+| `small-cloud-*.svg`, `favicon-cloud.*`, `apple-touch-icon-cloud.png`, `brandmark-cloud.svg` | **Roostack Cloud's small mark**: the same hen on a plain cloud in the highlight colour, with one light | Roostack Cloud's website (its tabs, top bar and home-screen icon), copied there by its `tools/sync-design.sh`, so it's told apart from Roostack at a glance |
 | `small-*.svg`, `favicon.svg` | **Small mark**: the hen (no wing line) on one plain server | Anywhere under about 32px: browser tabs, the app's top bar, the help site's logo. `favicon.svg` switches light/dark with the device setting |
 | `wordmark-*.svg` | "roostack" (or "roostack cloud") alone | Where the mark is already nearby, or there's no room for it |
 | `lockup-*.svg` | Mark and wordmark side by side | Headers, the website, slides |
