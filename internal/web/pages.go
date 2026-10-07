@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
@@ -482,7 +483,7 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		s.renderAccount(w, "account", "account", map[string]any{"User": u, "Error": msg})
 	}
-	ok, err := auth.VerifyPassword(u.PasswordHash, r.FormValue("current"))
+	ok, err := authkit.VerifyPassword(u.PasswordHash, r.FormValue("current"))
 	if err != nil || !ok {
 		fail("Your current password is wrong.")
 		return
@@ -492,11 +493,11 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		fail("The new passwords don't match.")
 		return
 	}
-	if err := auth.CheckPasswordPolicy(pw); err != nil {
+	if err := authkit.CheckPasswordPolicy(pw); err != nil {
 		fail(capitalize(err.Error()) + ".")
 		return
 	}
-	hash, err := auth.HashPassword(pw)
+	hash, err := authkit.HashPassword(pw)
 	if err != nil {
 		s.serverError(w, err)
 		return

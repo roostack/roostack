@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
-	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labrestore"
 )
@@ -69,7 +69,7 @@ func (s *Server) restoreSessionOf(r *http.Request) *restoreSession {
 	c, err := r.Cookie(restoreCookie)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err != nil || s.restore == nil || !auth.TokensEqual(c.Value, s.restore.id) {
+	if err != nil || s.restore == nil || !authkit.TokensEqual(c.Value, s.restore.id) {
 		return nil
 	}
 	return s.restore
@@ -155,7 +155,7 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 		fail(capitalize(err.Error()) + ".")
 		return
 	}
-	id, err := auth.NewToken()
+	id, err := authkit.NewToken()
 	if err != nil {
 		s.serverError(w, err)
 		return

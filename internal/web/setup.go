@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode"
 
-	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/labnet"
 )
 
@@ -40,14 +40,14 @@ func (s *Server) setupPassed(r *http.Request) bool {
 	if s.setupToken == "" {
 		return false
 	}
-	if auth.TokensEqual(strings.TrimSpace(r.FormValue("token")), s.setupToken) {
+	if authkit.TokensEqual(strings.TrimSpace(r.FormValue("token")), s.setupToken) {
 		return true
 	}
 	c, err := r.Cookie(setupCodeCookie)
 	if err != nil {
 		return false
 	}
-	until, ok := s.setupPasses[auth.HashToken(c.Value)]
+	until, ok := s.setupPasses[authkit.HashToken(c.Value)]
 	return ok && time.Now().Before(until)
 }
 
@@ -58,7 +58,7 @@ func (s *Server) setupCodeSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Lock()
-	ok := s.setupToken != "" && auth.TokensEqual(strings.TrimSpace(r.FormValue("token")), s.setupToken)
+	ok := s.setupToken != "" && authkit.TokensEqual(strings.TrimSpace(r.FormValue("token")), s.setupToken)
 	s.mu.Unlock()
 	if !ok {
 		time.Sleep(failedLoginDelay)
@@ -66,7 +66,7 @@ func (s *Server) setupCodeSubmit(w http.ResponseWriter, r *http.Request) {
 		s.render(w, "setup", map[string]any{"Error": "That setup code isn't right. Copy it again from what the installer showed, or from /var/lib/roostack/setup-token on the server."})
 		return
 	}
-	token, err := auth.NewToken()
+	token, err := authkit.NewToken()
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -78,7 +78,7 @@ func (s *Server) setupCodeSubmit(w http.ResponseWriter, r *http.Request) {
 			delete(s.setupPasses, k)
 		}
 	}
-	s.setupPasses[auth.HashToken(token)] = now.Add(setupPassFor)
+	s.setupPasses[authkit.HashToken(token)] = now.Add(setupPassFor)
 	s.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: setupCodeCookie, Value: token, Path: "/setup", MaxAge: int(setupPassFor.Seconds()),
 		HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r)})

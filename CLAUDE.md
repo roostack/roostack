@@ -53,6 +53,7 @@ Key packages:
 | `web` | Handlers (thin) and templates; business logic stays in the packages above |
 | `backup`, `maintenance`, `osupdate` | restic jobs, the maintenance coordinator (one job at a time, reboot window), OS updates |
 | `labnet`, `labrestore`, `setup`, `store`, `agent` | Lab network and joins, full-lab restore, the first-run wizard, SQLite runtime data, the agent client/server |
+| `authkit` (top level, public) | Passwords (argon2id), tokens, two-factor codes; shared with Cloud, which adds a pepper and sealed secrets |
 | `cloudapi` (top level, public) | The lab ↔ Cloud API contract, imported by Cloud's repository too |
 | `cloud` | The controller's link to Roostack Cloud (linking, its certificate, unlinking); `cloudtest` fakes Cloud's side for tests |
 | `units` | The one size formatter (decimal: 1 GB = 1000³ bytes) |

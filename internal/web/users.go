@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -174,6 +175,6 @@ func newTemporaryPassword() (password, hash string, err error) {
 	if password, err = auth.NewTemporaryPassword(); err != nil {
 		return "", "", err
 	}
-	hash, err = auth.HashPassword(password)
+	hash, err = authkit.HashPassword(password)
 	return password, hash, err
 }

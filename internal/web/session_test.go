@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -18,7 +19,7 @@ func sessionHash(t *testing.T, h *harness) string {
 	u, _ := url.Parse(h.srv.URL)
 	for _, c := range h.client.Jar.Cookies(u) {
 		if c.Name == sessionCookie {
-			return auth.HashToken(c.Value)
+			return authkit.HashToken(c.Value)
 		}
 	}
 	t.Fatal("no session cookie")
@@ -73,7 +74,7 @@ func TestIdleSignOut(t *testing.T) {
 func TestKeepMeSignedIn(t *testing.T) {
 	h := newHarness(t, "")
 	ctx := context.Background()
-	hash, _ := auth.HashPassword("a long password")
+	hash, _ := authkit.HashPassword("a long password")
 	h.store.CreateUser(ctx, storeUser("sam", hash, auth.RoleAdmin))
 	if _, body := h.get("/login"); !strings.Contains(body, `name="remember"`) {
 		t.Fatal("offered by default")

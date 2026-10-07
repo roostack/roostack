@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/setup"
 )
@@ -68,7 +69,7 @@ func TestShowRecoveryKey(t *testing.T) {
 	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}})
 	u, _ := h.store.UserByUsername(context.Background(), "u")
 	code := func(step int) string {
-		c, _ := auth.TOTPCode(u.TOTPSecret, nowFunc().Add(time.Duration(step)*30*time.Second))
+		c, _ := authkit.TOTPCode(u.TOTPSecret, nowFunc().Add(time.Duration(step)*30*time.Second))
 		return c
 	}
 	if _, body := h.get("/backups"); !strings.Contains(body, `href="/backups/recovery-key"`) {
@@ -156,10 +157,10 @@ func TestShowRecoveryKeyLocked(t *testing.T) {
 	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}})
 	ctx := context.Background()
 	u, _ := h.store.UserByUsername(ctx, "u")
-	for range auth.TOTPFailuresPerLock {
+	for range authkit.TOTPFailuresPerLock {
 		h.store.AddTOTPFailure(ctx, u.ID, time.Now())
 	}
-	code, _ := auth.TOTPCode(u.TOTPSecret, nowFunc().Add(30*time.Second))
+	code, _ := authkit.TOTPCode(u.TOTPSecret, nowFunc().Add(30*time.Second))
 	status, body := h.post("/backups/recovery-key", url.Values{"password": {"a long password"}, "code": {code}}, h.srv.URL)
 	if status != http.StatusTooManyRequests || strings.Contains(body, "the-recovery-key") || !strings.Contains(body, "no code will work") {
 		t.Errorf("locked: %d, key shown %v", status, strings.Contains(body, "the-recovery-key"))

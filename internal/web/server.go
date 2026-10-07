@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
@@ -390,7 +391,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		pending: map[string]*pendingLogin{}, stepUpFailures: map[int64]int{}, pages: map[string]*template.Template{},
 		setupPasses: map[string]time.Time{}}
 	var err error
-	if s.bootID, err = auth.NewToken(); err != nil {
+	if s.bootID, err = authkit.NewToken(); err != nil {
 		return nil, err
 	}
 	if s.help, err = newHelpSite(helpFS); err != nil {
@@ -583,7 +584,7 @@ func currentUser(r *http.Request) *store.User {
 func (s *Server) loadSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
-			hash := auth.HashToken(c.Value)
+			hash := authkit.HashToken(c.Value)
 			u, lastSeen, remember, err := s.Store.SessionInfo(r.Context(), hash)
 			switch {
 			case err == nil:
@@ -722,7 +723,7 @@ func (s *Server) needsSetup() bool {
 // makes it last rememberDuration on this browser without the idle limit;
 // otherwise the cookie ends with the browser (session.go).
 func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.User, remember bool) error {
-	token, err := auth.NewToken()
+	token, err := authkit.NewToken()
 	if err != nil {
 		return err
 	}
@@ -731,7 +732,7 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.U
 	if remember {
 		expires = time.Now().Add(rememberDuration)
 	}
-	if err := s.Store.CreateSessionRemember(r.Context(), auth.HashToken(token), u.ID, expires, remember); err != nil {
+	if err := s.Store.CreateSessionRemember(r.Context(), authkit.HashToken(token), u.ID, expires, remember); err != nil {
 		return err
 	}
 	c := &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r)}

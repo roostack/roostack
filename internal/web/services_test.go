@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
@@ -500,13 +501,13 @@ func loggedIn(t *testing.T, role string) (*harness, *fakeManager) {
 	h.server.Manager, h.server.Node = fm, fm
 	h.server.Domain = "lab.example.com"
 	h.server.HasGPU = true
-	hash, _ := auth.HashPassword("a long password")
+	hash, _ := authkit.HashPassword("a long password")
 	id, _ := h.store.CreateUser(context.Background(), store.User{Username: "u", PasswordHash: hash, Role: role})
 	if role == auth.RoleOwner {
-		secret, _ := auth.NewTOTPSecret()
+		secret, _ := authkit.NewTOTPSecret()
 		h.store.SetTOTP(context.Background(), id, secret, 0)
 		h.post("/login", url.Values{"username": {"u"}, "password": {"a long password"}}, h.srv.URL)
-		code, _ := auth.TOTPCode(secret, nowFunc())
+		code, _ := authkit.TOTPCode(secret, nowFunc())
 		h.post("/login/totp", url.Values{"code": {code}}, h.srv.URL)
 	} else {
 		h.post("/login", url.Values{"username": {"u"}, "password": {"a long password"}}, h.srv.URL)
@@ -756,7 +757,7 @@ func TestServiceSetupAndActions(t *testing.T) {
 
 func TestTemporaryPasswordMustBeChanged(t *testing.T) {
 	h := newHarness(t, "")
-	hash, _ := auth.HashPassword("temporary password")
+	hash, _ := authkit.HashPassword("temporary password")
 	h.store.CreateUser(context.Background(), store.User{Username: "dad", PasswordHash: hash, Role: auth.RoleMember,
 		MustChangePassword: true})
 	h.post("/login", url.Values{"username": {"dad"}, "password": {"temporary password"}}, h.srv.URL)

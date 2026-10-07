@@ -158,7 +158,7 @@ var migrations = []string{
 	// The space a backup's repository took after each run (0 if unknown).
 	`ALTER TABLE backup_runs ADD COLUMN stored INTEGER NOT NULL DEFAULT 0;`,
 	// Wrong two-factor codes in a row, and when the last was entered, to
-	// limit guesses per account (auth.TOTPLockedUntil).
+	// limit guesses per account (authkit.TOTPLockedUntil).
 	`ALTER TABLE users ADD COLUMN totp_failures INTEGER NOT NULL DEFAULT 0;
 	ALTER TABLE users ADD COLUMN totp_failed_at INTEGER NOT NULL DEFAULT 0;`,
 	// Where Roostack emails someone (SPEC.md §6.13); empty: no email.
@@ -288,7 +288,7 @@ type User struct {
 	TOTPSecret   string
 	TOTPLastStep int64
 	// TOTPFailures counts wrong two-factor codes since the last right one,
-	// the last entered at TOTPFailedAt (auth.TOTPLockedUntil).
+	// the last entered at TOTPFailedAt (authkit.TOTPLockedUntil).
 	TOTPFailures int
 	TOTPFailedAt time.Time
 	// MustChangePassword is set for temporary passwords (CLI add/reset).

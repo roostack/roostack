@@ -63,6 +63,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/agent` | Agent server and client: firewall ruleset, time zone, OS updates, reboot, WireGuard interfaces, backup drives and folders, and checks for host changes Roostack didn't make |
 | `internal/web/static/css`, `docs/DESIGN.md` | Design system: tokens, built-in themes, components; gallery at `/design` and `docs/design/gallery.html` |
 | `internal/nodeid` | This server's identity (node ID and name) |
+| `authkit` | Passwords (argon2id), tokens and two-factor codes (TOTP), public so Roostack Cloud's repository uses the same code; Cloud also turns on a pepper and sealed two-factor secrets. Fuzz-tested (the inputs fuzzing found are kept in `testdata/fuzz`) |
 | `cloudapi` | The API between a lab and Roostack Cloud (paths, bodies, the records and acme-dns conventions): public, not under `internal`, so Cloud's own repository imports the same contract |
 | `internal/cloud` | The controller's link to Roostack Cloud (SPEC.md §6.6): linking (a link code, Cloud's page, polling), the lab's client certificate for mutual TLS (renewed with a new key), the daily check-in, unlinking, claiming a roost.ac name (then the lab's DNS provider is Roostack Cloud, `internal/dns/cloud.go`), and the request log, kept in `<state>/cloud/`. `cloudtest` is a fake of Cloud's lab API for Roostack's tests (dev VMs link to a development Cloud from its own repository) |
 | `internal/labnet` | The network between a lab's servers (SPEC.md §10.2, §10.9): the controller's CA and each server's certificate, join codes, membership (role and overlay address), the hub (WireGuard peers, joining) and the mutual-TLS lab API server |
@@ -71,7 +72,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/osupdate` | Nightly OS updates job, restart-needed detection, "restart now" |
 | `internal/firewall` | Builds the firewall from the lab and its services; lists current SSH connections |
 | `internal/store` | SQLite runtime data: users, sessions, audit log, settings, backup runs, the lab's servers and join codes, backup providers, targets and copies, and storage for other labs |
-| `internal/auth` | Password hashing (argon2id), session tokens, roles |
+| `internal/auth` | Roles and usernames (passwords, tokens and two-factor codes are `authkit`) |
 | `internal/web` | Web UI: handlers, templates, vendored htmx/Alpine, and the embedded help site at `/help/` (`help.go`, built from `help/` into `helpsite/site` by `make build`) |
 | `internal/manager` | The controller: catalog, install, remove, ports and settings (desired state), public addresses, recovery key changes, moving and restoring services across servers (SPEC §10.10), and each server's Assignment |
 | `internal/maintenance` | Maintenance coordinator: job queue and reboot policy |

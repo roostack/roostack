@@ -16,10 +16,10 @@ import (
 	"syscall"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
-	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
@@ -397,7 +397,7 @@ func setupToken(ctx context.Context, lab config.Lab, st *store.Store, log *slog.
 		log.Info("waiting for first-run setup", "setup_code", token, "file", path)
 		return token, nil
 	}
-	token, err := auth.NewToken()
+	token, err := authkit.NewToken()
 	if err != nil {
 		return "", err
 	}
