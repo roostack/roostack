@@ -454,3 +454,14 @@ func TestNoStyleAttributes(t *testing.T) {
 		}
 	}
 }
+
+// Every page's footer says which Roostack this is.
+func TestFooterVersion(t *testing.T) {
+	h, _ := loggedIn(t, "owner")
+	h.server.Version = "1.2.3"
+	for _, page := range []string{"/", "/settings", "/about"} {
+		if _, body := h.get(page); !strings.Contains(body, `<footer class="site">Roostack <span class="version" title="Roostack's version">1.2.3</span>`) {
+			t.Errorf("%s: no version in the footer", page)
+		}
+	}
+}
