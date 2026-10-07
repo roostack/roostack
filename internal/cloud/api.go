@@ -20,6 +20,7 @@ const (
 	pathNames      = "/v1/names/"       // GET <name> → NameAvailability
 	pathLab        = "/v1/lab"          // GET → LabInfo; DELETE unlinks (mutual TLS)
 	pathLabRenew   = "/v1/lab/renew"    // POST RenewRequest → RenewResponse (mutual TLS)
+	pathLabName    = "/v1/lab/name"     // POST NameRequest → NameClaim (mutual TLS)
 )
 
 // LinkRequest starts linking: what the lab tells Cloud about itself.
@@ -90,4 +91,20 @@ type RenewResponse struct {
 // apiError is an error body.
 type apiError struct {
 	Error string `json:"error"`
+}
+
+// NameRequest claims a roost.ac name for the lab.
+type NameRequest struct {
+	Name string `json:"name"`
+}
+
+// NameClaim is the lab's name and the credentials that write its records
+// (SPEC.md §6.6): Name is the full name (e.g. smiths.roost.ac);
+// Credentials are the fields of the roostack-cloud DNS provider
+// (internal/dns): an acme-dns account for its challenge record
+// (server_url, username, password, subdomain) and records_url, Cloud's
+// records API, which takes the same account.
+type NameClaim struct {
+	Name        string            `json:"name"`
+	Credentials map[string]string `json:"credentials"`
 }

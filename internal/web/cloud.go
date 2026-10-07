@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/cloud"
+	"roostack.cloud/roostack/internal/dns"
 )
 
 // CloudLink is the controller's link to Roostack Cloud (cloud.Service;
@@ -19,6 +20,8 @@ type CloudLink interface {
 	Unlink(ctx context.Context) (bool, error)
 	DismissForgotten() error
 	NameAvailable(ctx context.Context, name string) (cloud.NameAvailability, error)
+	// ClaimName makes a roost.ac name the linked lab's address.
+	ClaimName(ctx context.Context, name string) error
 	Requests() []cloud.Request
 }
 
@@ -31,17 +34,20 @@ type cloudView struct {
 	cloud.Status
 	// Setup: shown in the wizard's address step (shorter).
 	Setup bool
-	// Address is the lab's roost.ac address while it's the lab's address
-	// (unlinking takes it away), with the services that use it.
-	Address  string
+	// Services use the lab's roost.ac address (unlinking takes it away).
 	Services []string
 	Requests []cloud.Request
 }
 
+// Busy: something is under way that the page waits for (a link to be
+// confirmed, or a name claimed after linking).
+func (v cloudView) Busy() bool {
+	return v.Waiting != nil || v.Linked && v.Name != "" && v.Address == "" && v.AddressError == ""
+}
+
 func (s *Server) cloudView(r *http.Request, setup bool) cloudView {
 	v := cloudView{Status: s.Cloud.Status(), Setup: setup}
-	if v.Linked && v.Name != "" && s.Domain == v.Name+".roost.ac" {
-		v.Address = s.Domain
+	if v.Address != "" {
 		if svcs, err := s.Services(r.Context()); err == nil {
 			for _, sv := range svcs {
 				if len(sv.URLs) > 0 {
@@ -121,6 +127,42 @@ func (s *Server) cloudLinkSubmit(w http.ResponseWriter, r *http.Request) {
 	s.Store.Audit(r.Context(), currentUser(r), "cloud", "Started linking the lab to Roostack Cloud")
 	data["OpenURL"] = open
 	s.render(w, "cloud-open", data)
+}
+
+// roostAcSubmit makes a roost.ac name the address of a lab that's already
+// linked to Roostack Cloud (SPEC.md §6.6); a lab that isn't links first
+// (cloudLinkSubmit, which then does the same).
+func (s *Server) roostAcSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Cloud == nil {
+		http.NotFound(w, r)
+		return
+	}
+	name := strings.ToLower(strings.TrimSpace(r.FormValue("name")))
+	msg := roostAcNameProblem(name)
+	if msg == "" && !s.Cloud.Status().Linked {
+		msg = "Link the lab to Roostack Cloud first."
+	}
+	if msg == "" {
+		if a, err := s.Cloud.NameAvailable(r.Context(), name); err != nil {
+			msg = cloudMessage(err)
+		} else if !a.Available {
+			msg = a.Reason
+		}
+	}
+	if msg == "" {
+		if err := s.Cloud.ClaimName(r.Context(), name); err != nil {
+			msg = cloudMessage(err)
+		}
+	}
+	if msg != "" {
+		w.WriteHeader(http.StatusBadRequest)
+		s.render(w, "setup-domain", s.formMode(r, "domain", s.addressData(map[string]any{"User": currentUser(r),
+			"Providers": dns.Providers(), "Provider": dns.Providers()[0].ID, "Values": map[string]string{}, "Manage": true,
+			"CloudName": name, "CloudError": msg})))
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "setup", "address set to "+s.Cloud.Status().Address)
+	s.restartingOrNext(w, r)
 }
 
 // cloudMessage says what went wrong talking to Cloud, for people.

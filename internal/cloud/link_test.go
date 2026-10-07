@@ -202,3 +202,37 @@ func copyDir(t *testing.T, from, to string) {
 		os.WriteFile(filepath.Join(to, e.Name()), data, 0o600)
 	}
 }
+
+// Linking again after unlinking uses the new certificate: TLS sends one
+// only when a connection opens, so connections made with the old one
+// mustn't be reused.
+func TestLinkAgain(t *testing.T) {
+	f, s, _ := fakeCloud(t)
+	link(t, f, s, "")
+	if err := s.Check(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Unlink(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	link(t, f, s, "")
+	if err := s.Check(context.Background()); err != nil {
+		t.Fatalf("check after linking again: %v", err)
+	}
+}
+
+// A certificate from another Cloud (its authority unknown here) is refused
+// in the TLS handshake itself: the lab is no longer linked, not "can't
+// reach Cloud".
+func TestRefusedInHandshake(t *testing.T) {
+	f, s, state := fakeCloud(t)
+	link(t, f, s, "")
+	_, other := cloudtest.Start(t)
+	s2, err := New(state, other, "test", s.labName, s.log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s2.Check(context.Background()); !errors.Is(err, ErrUnlinked) || s2.Status().Forgotten.IsZero() {
+		t.Fatalf("check = %v, %+v", err, s2.Status())
+	}
+}

@@ -274,6 +274,7 @@ func (s *Server) domainAreaPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["LabDomain"] = s.Domain
+	data["UIHost"] = s.uiHost()
 	data["DomainSet"] = s.Domain != "" && s.Setup != nil && s.domainDone(r)
 	if p := dns.Get(s.DNSProvider); p != nil {
 		data["ProviderTitle"] = p.Title

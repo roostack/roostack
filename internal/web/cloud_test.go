@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/cloud/cloudtest"
+	"roostack.cloud/roostack/internal/setup"
 )
 
 // newCloudWith is a real link to a fake Roostack Cloud.
@@ -36,6 +37,13 @@ func TestCloudLinking(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	link, f := newCloudWith(t)
 	h.server.Cloud = link
+	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}}
+	// The name becomes the lab's address (setup.UseRoostAc, faked), and
+	// goes with the link.
+	var used []cloud.NameClaim
+	dropped := 0
+	link.UseName = func(_ context.Context, c cloud.NameClaim) error { used = append(used, c); return nil }
+	link.Dropped = func(context.Context) { dropped++ }
 
 	if _, body := h.get("/settings"); !strings.Contains(body, "Roostack Cloud") || !strings.Contains(body, "Not linked") {
 		t.Error("the overview shows Roostack Cloud, not linked")
@@ -72,12 +80,18 @@ func TestCloudLinking(t *testing.T) {
 	for i := 0; i < 300 && !link.Status().Linked; i++ {
 		time.Sleep(10 * time.Millisecond)
 	}
-	if _, live := h.get("/settings/cloud/live?in=setup"); !strings.Contains(live, "Linked to Roostack Cloud (o••••@example.com)") ||
+	for i := 0; i < 300 && link.Status().Address == ""; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(used) != 1 || used[0].Name != "smiths.roost.test" || used[0].Credentials["password"] == "" {
+		t.Fatalf("name used: %+v", used)
+	}
+	if _, live := h.get("/settings/cloud/live?in=setup"); !strings.Contains(live, "Your lab&#39;s address is smiths.roost.test.") ||
 		strings.Contains(live, "every 2s") {
 		t.Errorf("linked, in the wizard: %s", live)
 	}
 	_, body = h.get("/settings/cloud")
-	for _, want := range []string{"Linked</span> since", "o••••@example.com", "getting smiths.roost.ac through it comes in a later version",
+	for _, want := range []string{"Linked</span> since", "o••••@example.com", "Your lab's address, smiths.roost.test",
 		"Fingerprint <code>", "lab.key", "Recent requests to Roostack Cloud", "POST /v1/links", "Unlink this lab from Roostack Cloud?"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("linked page missing %q", want)
@@ -86,8 +100,8 @@ func TestCloudLinking(t *testing.T) {
 	if code, _ := h.post("/settings/cloud/unlink", nil, h.srv.URL); code != http.StatusOK || link.Status().Linked || len(f.Labs()) != 0 {
 		t.Errorf("unlink: %d %+v", code, link.Status())
 	}
-	if _, body := h.get("/settings/cloud?unlinked=told"); !strings.Contains(body, "Unlinked from Roostack Cloud.") {
-		t.Error("unlinked notice")
+	if _, body := h.get("/settings/cloud?unlinked=told"); !strings.Contains(body, "Unlinked from Roostack Cloud.") || dropped != 1 {
+		t.Errorf("unlinked notice; address dropped %d times", dropped)
 	}
 
 	// Unlinked from Cloud's side: the next check forgets it, and Home says so.
@@ -95,6 +109,19 @@ func TestCloudLinking(t *testing.T) {
 	f.Confirm(f.Codes()[0])
 	for i := 0; i < 300 && !link.Status().Linked; i++ {
 		time.Sleep(10 * time.Millisecond)
+	}
+	// Linked without a name: the address step then claims one directly.
+	if _, body := h.get("/setup/domain"); !strings.Contains(body, `action="/setup/address/roost-ac"`) || !strings.Contains(body, "Use this address") {
+		t.Error("linked: the address step uses a name directly")
+	}
+	if code, body := h.post("/setup/address/roost-ac", url.Values{"name": {"taken"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "taken.roost.ac is taken") {
+		t.Errorf("taken: %d", code)
+	}
+	used = nil
+	if code, _ := h.post("/setup/address/roost-ac", url.Values{"name": {"jones"}}, h.srv.URL); code != http.StatusOK ||
+		len(used) != 1 || used[0].Name != "jones.roost.test" {
+		t.Errorf("claim: %d %+v", code, used)
 	}
 	f.Unlink(link.Status().LabID)
 	link.Check(context.Background())

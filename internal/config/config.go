@@ -334,6 +334,23 @@ func (c Cloud) Address() string {
 	return DefaultCloudURL
 }
 
+// ProviderCloud is the DNS provider of a lab whose address is a roost.ac
+// name: Roostack Cloud (SPEC.md §6.6).
+const ProviderCloud = "roostack-cloud"
+
+// RoostAc reports whether the lab's address is a roost.ac name from
+// Roostack Cloud.
+func (l Lab) RoostAc() bool { return l.DNS.Provider == ProviderCloud }
+
+// UIHost is where Roostack's own pages are: the roost.ac name itself, or
+// roost.<domain> on an own domain (SPEC.md §6.6).
+func (l Lab) UIHost() string {
+	if l.RoostAc() {
+		return l.Domain
+	}
+	return "roost." + l.Domain
+}
+
 // HasAddress reports whether the lab has an address (a roost.ac name or
 // its own domain): until then its services have no web addresses and
 // Caddy doesn't run (SPEC.md §6.6).

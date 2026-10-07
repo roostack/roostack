@@ -59,16 +59,27 @@ type Service struct {
 	st      linkState
 	cert    *tls.Certificate
 	pending *pending
-	// startErr is why the last attempt to start linking failed.
-	startErr string
+	// startErr is why the last attempt to start linking failed;
+	// addrErr why the roost.ac name asked for couldn't be set up.
+	startErr, addrErr string
+
+	// UseName makes a claimed roost.ac name the lab's address (it saves
+	// it and restarts Roostack); called when a link asked for a name.
+	UseName func(ctx context.Context, claim NameClaim) error
+	// Dropped is called when the lab loses its roost.ac address with the
+	// link (unlinked, here or in Cloud): the lab goes back to having no
+	// address.
+	Dropped func(ctx context.Context)
 }
 
 // linkState is what's kept in link.json.
 type linkState struct {
 	Linked bool `json:"linked"`
 	LabInfo
-	// Name is the roost.ac name asked for when linking.
+	// Name is the roost.ac name asked for when linking; Address the full
+	// name once claimed, while it's the lab's address.
 	Name        string    `json:"name,omitempty"`
+	Address     string    `json:"address,omitempty"`
 	Since       time.Time `json:"since,omitzero"`
 	LastContact time.Time `json:"last_contact,omitzero"`
 	// LastTry and LastError: the last check, when it didn't reach Cloud.
@@ -136,7 +147,8 @@ func (s *Service) currentCert() *tls.Certificate {
 type Status struct {
 	Linked bool
 	LabInfo
-	Name                 string
+	Name, Address        string
+	AddressError         string
 	Since, LastContact   time.Time
 	LastTry              time.Time
 	LastError            string
@@ -164,7 +176,8 @@ type Waiting struct {
 func (s *Service) Status() Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	st := Status{Linked: s.st.Linked, LabInfo: s.st.LabInfo, Name: s.st.Name, Since: s.st.Since,
+	st := Status{Linked: s.st.Linked, LabInfo: s.st.LabInfo, Name: s.st.Name, Address: s.st.Address,
+		AddressError: s.addrErr, Since: s.st.Since,
 		LastContact: s.st.LastContact, LastTry: s.st.LastTry, LastError: s.st.LastError,
 		Forgotten: s.st.Forgotten, ForgottenAccount: s.st.ForgottenAccount,
 		StartError: s.startErr, Dir: s.dir, URL: s.cfg.Address()}
@@ -312,9 +325,58 @@ func (s *Service) linked(p *pending, ls LinkStatus) error {
 	}
 	now := s.now()
 	s.cert, s.pending = cert, nil
+	s.client.renewed()
 	s.st = linkState{Linked: true, LabInfo: ls.LabInfo, Name: p.name, Since: now, LastContact: now}
 	s.log.Info("Roostack Cloud: lab linked", "account", ls.Account, "lab", ls.LabID)
-	return s.save()
+	if err := s.save(); err != nil {
+		return err
+	}
+	if p.name != "" {
+		go func() {
+			if err := s.ClaimName(context.Background(), p.name); err != nil {
+				s.log.Error("Roostack Cloud: setting up the lab's roost.ac address", "name", p.name, "err", err)
+			}
+		}()
+	}
+	return nil
+}
+
+// ClaimName claims a roost.ac name for the linked lab and makes it the
+// lab's address (UseName), which restarts Roostack. Why it failed is
+// also in Status.AddressError.
+func (s *Service) ClaimName(ctx context.Context, name string) error {
+	var claim NameClaim
+	err := s.client.do(ctx, true, http.MethodPost, pathLabName, NameRequest{Name: name}, &claim)
+	if err == nil && (claim.Name == "" || len(claim.Credentials) == 0) {
+		err = errors.New("Roostack Cloud's answer had no name or credentials")
+	}
+	if err == nil && s.UseName == nil {
+		err = errors.New("nothing here can use a roost.ac name")
+	}
+	if err == nil {
+		s.mu.Lock()
+		s.st.Name, s.st.Address = name, claim.Name
+		err = s.save()
+		s.mu.Unlock()
+	}
+	if err == nil {
+		err = s.UseName(ctx, claim)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.addrErr = ""
+	if err != nil {
+		s.addrErr = err.Error()
+		var e *Error
+		if errors.As(err, &e) {
+			s.addrErr = e.Message
+		}
+		if s.st.Address == claim.Name {
+			s.st.Address = ""
+			s.save()
+		}
+	}
+	return err
 }
 
 // certFor checks a certificate (PEM) Cloud issued is for key and current.
@@ -379,11 +441,16 @@ func (s *Service) Unlink(ctx context.Context) (reached bool, err error) {
 		s.log.Warn("Roostack Cloud: telling Cloud the lab is unlinked", "err", err)
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	address := s.st.Address
 	s.forget()
 	s.st = linkState{}
 	s.log.Info("Roostack Cloud: lab unlinked", "cloud_told", reached)
-	return reached, s.save()
+	err = s.save()
+	s.mu.Unlock()
+	if address != "" && s.Dropped != nil {
+		s.Dropped(ctx)
+	}
+	return reached, err
 }
 
 // DismissForgotten hides the note that Cloud stopped knowing the lab.
@@ -403,6 +470,7 @@ func (s *Service) forget() {
 	}
 	s.cert = nil
 	s.st.Linked = false
+	s.client.renewed()
 }
 
 // Check checks in with Cloud: it refreshes what Cloud says about the
@@ -421,12 +489,13 @@ func (s *Service) Check(ctx context.Context) error {
 		err = s.renewIfDue(ctx)
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	now := s.now()
+	dropped := false
 	switch {
 	case errors.Is(err, ErrUnlinked):
 		s.log.Warn("Roostack Cloud no longer accepts this lab's certificate; forgetting the link")
 		account := s.st.Account
+		dropped = s.st.Address != ""
 		s.forget()
 		s.st = linkState{Forgotten: now, ForgottenAccount: account}
 	case err != nil:
@@ -435,7 +504,12 @@ func (s *Service) Check(ctx context.Context) error {
 		s.st.LabInfo = info
 		s.st.LastContact, s.st.LastTry, s.st.LastError = now, time.Time{}, ""
 	}
-	if serr := s.save(); serr != nil {
+	serr := s.save()
+	s.mu.Unlock()
+	if dropped && s.Dropped != nil {
+		s.Dropped(ctx)
+	}
+	if serr != nil {
 		return serr
 	}
 	return err

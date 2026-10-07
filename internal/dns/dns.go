@@ -31,6 +31,9 @@ type Provider struct {
 	Help string
 	// Plugin is the Caddy DNS module built into Roostack's Caddy image.
 	Plugin string
+	// Hidden providers aren't offered to choose from (Roostack Cloud's,
+	// which comes with a roost.ac name).
+	Hidden bool
 	Fields []Field
 	// directive is the Caddyfile "dns" line; set lists the fields given.
 	directive func(set []string) string
@@ -160,8 +163,19 @@ var providers = []*Provider{
 	},
 }
 
-// Providers lists every supported provider, in display order.
-func Providers() []*Provider { return providers }
+// Providers lists the providers people choose from, in display order.
+func Providers() []*Provider {
+	var out []*Provider
+	for _, p := range providers {
+		if !p.Hidden {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// All is every provider, hidden ones too (for the Caddy image's plugins).
+func All() []*Provider { return providers }
 
 // Get returns a provider by ID, or nil.
 func Get(id string) *Provider {

@@ -353,6 +353,75 @@ func (s *Setup) RunOldAddress(ctx context.Context, log *slog.Logger) {
 	}
 }
 
+// UseRoostAc makes a roost.ac name from Roostack Cloud the lab's address
+// (SPEC.md §6.6): its credentials (the roostack-cloud DNS provider's
+// fields: its challenge record and its A records) become the DNS
+// provider's, Roostack manages its records, and Roostack restarts. A
+// previous address keeps working for a while, as when switching domains.
+func (s *Setup) UseRoostAc(ctx context.Context, name string, creds map[string]string) error {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if !domainRe.MatchString(name) {
+		return fmt.Errorf("Roostack Cloud gave an invalid name %q", name)
+	}
+	p := dns.Get(config.ProviderCloud)
+	set, err := p.Validate(creds)
+	if err != nil {
+		return fmt.Errorf("Roostack Cloud's credentials for %s: %w", name, err)
+	}
+	old, err := s.keepOldAddress(ctx, name)
+	if err != nil {
+		return err
+	}
+	for _, k := range set {
+		if err := s.Secrets.Replace(ctx, dns.SecretName(k), []byte(strings.TrimSpace(creds[k]))); err != nil {
+			return err
+		}
+	}
+	err = config.Update(s.LabPath, func(lab *config.Lab) {
+		if old != nil {
+			lab.OldAddress = old
+		}
+		lab.Domain = name
+		lab.DNS = config.DNS{Provider: p.ID, Fields: set, Zone: name, ManageRecords: true, LANIP: lab.DNS.LANIP}
+	})
+	if err != nil {
+		return err
+	}
+	if err := s.Store.SetSetting(ctx, keyDomain, "done"); err != nil {
+		return err
+	}
+	s.Restart()
+	return nil
+}
+
+// DropRoostAc takes away the lab's roost.ac address when its link to
+// Roostack Cloud ends (it can't work without it): the lab goes back to
+// having no address, and Roostack restarts. An own domain is left alone.
+func (s *Setup) DropRoostAc(ctx context.Context) error {
+	cur, err := s.current()
+	if err != nil || !cur.RoostAc() {
+		return err
+	}
+	err = config.Update(s.LabPath, func(lab *config.Lab) {
+		lab.Domain = ""
+		lab.DNS = config.DNS{LANIP: lab.DNS.LANIP}
+	})
+	if err != nil {
+		return err
+	}
+	// Caddy stops at the restart (no address), so its credentials can go.
+	for _, f := range dnsFields(cur.DNS) {
+		if err := s.Secrets.Remove(ctx, dns.SecretName(f)); err != nil {
+			return err
+		}
+	}
+	if err := s.Store.SetSetting(ctx, keyDomain, "later"); err != nil {
+		return err
+	}
+	s.Restart()
+	return nil
+}
+
 func capitalize(s string) string {
 	if s == "" {
 		return s

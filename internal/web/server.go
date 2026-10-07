@@ -114,6 +114,8 @@ type Server struct {
 	LabName string
 	// Domain is the lab's base domain, shown next to subdomain fields.
 	Domain string
+	// UIHost is where Roostack's own pages are (config.Lab.UIHost).
+	UIHost string
 	// DetectNetwork guesses where the lab is from this server's addresses
 	// (public.DetectNetwork; SPEC.md §6.12). Nil guesses nothing.
 	DetectNetwork func() string
@@ -531,6 +533,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /setup/domain", s.requireWizard(s.domainSubmit))
 	mux.Handle("POST /setup/domain/later", s.requireWizard(s.domainLater))
 	mux.Handle("POST /settings/domain/old/end", s.requireWizard(s.oldAddressEnd))
+	mux.Handle("POST /setup/address/roost-ac", s.requireWizard(s.roostAcSubmit))
 	mux.Handle("GET /settings/cloud", s.requireCloud(s.cloudPage))
 	mux.Handle("GET /settings/cloud/live", s.requireCloud(s.cloudLive))
 	mux.Handle("GET /settings/cloud/name", s.requireCloud(s.cloudNameCheck))

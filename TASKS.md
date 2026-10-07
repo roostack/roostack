@@ -221,14 +221,15 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [ ] Addresses as a primary plus (later) extra ones, in the records from the start
     - [x] `cloud: { disabled: true }` in lab.yaml turns off every Roostack Cloud feature
     - [x] Help page: buying and managing your own domain (registrars whose DNS Roostack supports, and how)
-    - [ ] Certificates and records for a `roost.ac` name through Cloud (the lab's challenge records only), instead of the lab's own DNS provider
     - [x] Linking a lab to Roostack Cloud, the lab's side (SPEC §6.6): Settings → Roostack Cloud and the address step's roost.ac card; a link code, Cloud's page in a new window, finishes by itself; the lab's client certificate (renewed with a new key), a daily check-in, the request log; unlinking from the lab; "no longer linked" when Cloud refuses the certificate (unlinked there, or restored from before). Tried end to end on VM3 against the fake (2026-10-07)
     - [ ] Replace the fake (`cmd/roostack-fakecloud`) with Cloud's real endpoints, soon (Cloud repo); the API is in `internal/cloud/api.go`
     - [x] Switching address: the old one keeps working for 30 days (a second Caddy site, routes answering to both names, the old provider's credentials kept), notices on Home, Settings and each service page, "Stop the old addresses now", ended hourly (SPEC §6.6, 2026-10-07)
     - [ ] Switching to or from a roost.ac name keeps the old one too (once roost.ac addresses work); Roostack's own address there is the name itself, not `roost.`
     - [ ] To discuss: changing one service's web address (its subdomain) could keep the old name for 30 days too; today "old links stop working" at once
     - [ ] The old domain's DNS records: keep them updated during the 30 days (the home's address can change), and remove them afterwards where a provider's API can delete records
-    - [ ] Choosing a roost.ac name: once linked, actually set it as the lab's address (needs Cloud's DNS records, above)
+    - [x] A roost.ac name as the lab's address (SPEC §6.6): claimed after linking (or at once when linked), Cloud as a hidden DNS provider with an acme-dns account, `caddy-dns/acmedns` in the Caddy build, records through Cloud, Roostack at the name itself; taken away with the link. Tried on VM3 against the fake (`roost.test`), 2026-10-07
+    - [ ] A real certificate for a roost.ac name: only with Cloud's real acme-dns and DNS
+    - [ ] The address step once linked: the roost.ac card's states (linked, setting up, failed) reviewed in a browser
     - [ ] Own domain, unsupported DNS provider (SPEC §6.6): DNS-01 through Cloud when linked (one `_acme-challenge` CNAME added by hand, still a wildcard); otherwise, if reachable on 443, TLS-ALPN-01 with a certificate per name. Roostack picks automatically
   - [ ] Header: between phone width (menu) and about 690px, the nav neither collapses nor fits, so the page scrolls sideways ("Log out" is cut off)
   - [ ] The build follower treats a leftover log from an earlier build as the new one if it reads it before the new build truncates it (only when a build is restarted; harmless but can end the follower early)

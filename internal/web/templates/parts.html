@@ -285,7 +285,7 @@
   <fieldset x-show="network === 'internet'"{{if ne .Selected "internet"}} x-cloak{{end}}>
     <legend>Roostack's own pages</legend>
     <label class="check"><input type="radio" name="ui" value="public" {{if not .UITunnelOnly}}checked{{end}}>
-      <span>At {{with .Domain}}<code>roost.{{.}}</code>{{else}}<code>roost.&lt;your domain&gt;</code>{{end}} (recommended)
+      <span>At {{with .UIHost}}<code>{{.}}</code>{{else}}<code>roost.&lt;your domain&gt;</code>{{end}} (recommended)
         <small>Anyone can reach the login page. Your password and a code from your authenticator app protect it,
           CrowdSec blocks attackers, and password tries are limited.</small></span></label>
     <label class="check"><input type="radio" name="ui" value="tunnel" {{if .UITunnelOnly}}checked{{end}}>
@@ -550,7 +550,7 @@
      starts linking (in a new window) triggers "refresh" so this notices.
      In the wizard (.Setup) it only shows waiting and what happened. */}}
 {{define "cloud-live"}}<div id="cloud-live" hx-get="/settings/cloud/live{{if .Setup}}?in=setup{{end}}" hx-swap="outerHTML" hx-disinherit="*"
-  hx-trigger="refresh{{if .Waiting}}, every 2s [document.visibilityState === 'visible']{{end}}">
+  hx-trigger="refresh{{if .Busy}}, every 2s [document.visibilityState === 'visible']{{end}}">
 {{- if .Waiting}}{{with .Waiting}}
 <div class="cloud-waiting">
   <p class="cloud-waiting-title with-icon">{{icon "clock"}}Waiting for you in Roostack Cloud</p>
@@ -569,14 +569,17 @@
 </div>{{end}}
 {{- else if .Linked}}
 {{- if .Setup}}
-{{notice "ok" (printf "Linked to Roostack Cloud (%s)." .Account)}}
-<p class="hint">Getting {{with .Name}}{{.}}.roost.ac{{else}}a roost.ac address{{end}} through Roostack Cloud comes in a later version of Roostack.
-  For now, use your own domain or set this up later.</p>
+{{if .Address}}{{notice "ok" (printf "Your lab's address is %s." .Address)}}
+<p><a class="button" href="/">Continue setup</a></p>
+{{else if .AddressError}}<p class="error" role="alert">Linked to Roostack Cloud, but {{with .Name}}{{.}}.roost.ac{{else}}the name{{end}} couldn't be set up: {{.AddressError}}</p>
+{{else if .Name}}<p class="with-icon"><span class="spinner" aria-hidden="true"></span> Linked. Setting up {{.Name}}.roost.ac…</p>
+{{end}}
 {{- else}}
 <dl class="facts">
   <dt>Status</dt><dd><span class="cloud-linked">✓ Linked</span> since {{date .Since}}</dd>
   <dt>Account</dt><dd>{{.Account}}</dd>
-  <dt>Used for</dt><dd>{{if .Address}}Your lab's address, {{.Address}}{{else}}Nothing yet{{with .Name}}: getting {{.}}.roost.ac through it comes in a later version of Roostack{{end}}{{end}}</dd>
+  <dt>Used for</dt><dd>{{if .Address}}Your lab's address, {{.Address}}{{else}}Nothing yet: <a href="/setup/domain">get a roost.ac address</a>{{end}}
+    {{- with .AddressError}}<br><small class="error">{{.}}</small>{{end}}</dd>
   <dt>Last contact</dt><dd>{{when .LastContact}}
     {{- with .LastError}}<br><small class="hint">Couldn't reach Roostack Cloud {{when $.LastTry}} ({{.}}); Roostack tries again every hour.</small>{{end}}</dd>
 </dl>

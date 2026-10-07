@@ -192,6 +192,10 @@ type MainConfig struct {
 	// AdminUpstream is where the Roostack web UI listens, as seen from the
 	// Caddy container. Empty disables the admin route.
 	AdminUpstream string
+	// AdminHost is where it's served: roost.<domain> when empty, or the
+	// domain itself (a roost.ac name, SPEC.md §6.6). OldAdminHost is the
+	// same at the old address.
+	AdminHost, OldAdminHost string
 	// AdminPublic serves the UI to anyone, like a public service (CrowdSec,
 	// rate limits, a strict one on logging in): on a lab on the internet
 	// (SPEC.md §6.3.2). Otherwise it's private.
@@ -250,7 +254,7 @@ func Main(c MainConfig) (string, error) {
 			c.CrowdSecAPI, CrowdSecAPIKeyEnv)
 	}
 	b.WriteString("}\n")
-	if err := site(&b, c, c.Domain, c.DNSDirective, ""); err != nil {
+	if err := site(&b, c, c.Domain, c.AdminHost, c.DNSDirective, ""); err != nil {
 		return "", err
 	}
 	if c.OldDomain != "" {
@@ -259,21 +263,33 @@ func Main(c MainConfig) (string, error) {
 		}
 		// The previous address (SPEC.md §6.6): the same services, through
 		// the same snippets (their matchers name both hosts).
-		if err := site(&b, c, c.OldDomain, c.OldDNSDirective, c.Domain); err != nil {
+		if err := site(&b, c, c.OldDomain, c.OldAdminHost, c.OldDNSDirective, c.Domain); err != nil {
 			return "", err
 		}
 	}
 	return b.String(), nil
 }
 
-// site writes one wildcard site block for domain. now is the lab's
-// current address when domain is its previous one.
-func site(b *strings.Builder, c MainConfig, domain, directive, now string) error {
+// site writes one wildcard site block for domain, with Roostack's pages
+// at adminHost (roost.<domain> if empty; the domain itself is added to the
+// block, since the wildcard doesn't cover it). now is the lab's current
+// address when domain is its previous one.
+func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now string) error {
+	if adminHost == "" {
+		adminHost = AdminSubdomain + "." + domain
+	}
+	if strings.ContainsAny(adminHost, " \t\n{}\"#,") {
+		return fmt.Errorf("caddy: invalid admin host %q", adminHost)
+	}
 	b.WriteString("\n")
 	if now != "" {
 		fmt.Fprintf(b, "# The lab's previous address, until it stops working; it's now %s.\n", now)
 	}
-	fmt.Fprintf(b, "*.%s {\n", domain)
+	if adminHost == domain {
+		fmt.Fprintf(b, "*.%s, %s {\n", domain, domain)
+	} else {
+		fmt.Fprintf(b, "*.%s {\n", domain)
+	}
 	b.WriteString("\ttls {\n")
 	for _, line := range strings.Split(strings.TrimSpace(directive), "\n") {
 		fmt.Fprintf(b, "\t\t%s\n", line)
@@ -283,7 +299,7 @@ func site(b *strings.Builder, c MainConfig, domain, directive, now string) error
 		fmt.Fprintf(b, "\tlog {\n\t\toutput file %s {\n\t\t\troll_size 20MiB\n\t\t\troll_keep 5\n\t\t}\n\t\tformat json\n\t}\n", c.AccessLog)
 	}
 	if c.AdminUpstream != "" {
-		route := Route{ID: "roostack-admin", Host: AdminSubdomain + "." + domain,
+		route := Route{ID: "roostack-admin", Host: adminHost,
 			Upstream: c.AdminUpstream, Private: !c.AdminPublic, PrivateFrom: c.PrivateFrom}
 		if c.AdminPublic {
 			route.LoginPaths = AdminLoginPaths
