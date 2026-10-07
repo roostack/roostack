@@ -1,5 +1,6 @@
-// Package cloudtest is a fake of Roostack Cloud's API for labs, for tests
-// and for trying linking on a dev VM (cmd/roostack-fakecloud). It has
+// Package cloudtest is a fake of Roostack Cloud's API for labs, for
+// Roostack's own tests (a dev VM links to a development Cloud, from
+// Cloud's repository, instead). It has
 // none of Cloud's logic: one pretend account, names taken from a list,
 // and a page with a Confirm button (SPEC.md §6.6). It's replaced by the
 // real endpoints as soon as they exist.

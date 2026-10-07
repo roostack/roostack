@@ -323,8 +323,9 @@ func (l Lab) Old(now time.Time) *OldAddress {
 	return l.OldAddress
 }
 
-// DefaultCloudURL is Roostack Cloud's address for labs.
-const DefaultCloudURL = "https://roostack.cloud"
+// DefaultCloudURL is Roostack Cloud's API, which labs talk to (its
+// website, where people confirm links, is roost.ac).
+const DefaultCloudURL = "https://api.roost.ac"
 
 // Address is Cloud's address for labs.
 func (c Cloud) Address() string {
