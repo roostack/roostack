@@ -8,5 +8,5 @@ dns:
 #   media_dir: /mnt/bigdisk/roostack
 # cloud:            # Roostack Cloud (SPEC.md §6.6); all optional
 #   disabled: true  # never contact it, and offer nothing about it
-#   url: https://10.0.2.2:8443                # a test Cloud (cmd/roostack-fakecloud)
-#   ca_file: /var/lib/roostack/fakecloud-ca.pem
+#   url: https://10.0.2.2:8443                # a development Cloud (its repository's README)
+#   ca_file: /var/lib/roostack/cloud-ca.pem
