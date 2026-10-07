@@ -252,6 +252,9 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	if failed {
 		w.WriteHeader(http.StatusBadRequest)
 	}
+	if o := s.oldAddress(); o != nil {
+		data["Old"] = o
+	}
 	s.render(w, "service", data)
 }
 

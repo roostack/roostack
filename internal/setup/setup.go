@@ -5,11 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/mail"
 	"os"
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 
 	"roostack.cloud/roostack/internal/agent"
@@ -34,9 +36,12 @@ type CheckError struct{ Msg string }
 
 func (e *CheckError) Error() string { return e.Msg }
 
-// Secrets replaces a Podman secret's value.
+// Secrets handles Podman secrets: the DNS provider's credentials.
 type Secrets interface {
 	Replace(ctx context.Context, name string, value []byte) error
+	Read(ctx context.Context, name string) ([]byte, error)
+	Remove(ctx context.Context, name string) error
+	List(ctx context.Context) (map[string]bool, error)
 }
 
 // Setup saves what the wizard collects.
@@ -194,12 +199,19 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string
 		return &CheckError{fmt.Sprintf("Roostack couldn't create a test DNS record for %s with those details. "+
 			"Check them and the permissions they have. %s said: %s", domain, p.Title, firstLine(err.Error()))}
 	}
+	old, err := s.keepOldAddress(ctx, domain)
+	if err != nil {
+		return err
+	}
 	for _, k := range set {
 		if err := s.Secrets.Replace(ctx, dns.SecretName(k), []byte(clean[k])); err != nil {
 			return err
 		}
 	}
 	err = config.Update(s.LabPath, func(lab *config.Lab) {
+		if old != nil {
+			lab.OldAddress = old
+		}
 		lab.Domain, lab.Email = domain, email
 		lab.DNS = config.DNS{Provider: p.ID, Fields: set, Zone: zone,
 			ManageRecords: opts.ManageRecords && p.CanManageRecords(), AllowRiskyRecords: opts.AcceptRisk && p.RiskyRecords(),
@@ -213,6 +225,132 @@ func (s *Setup) SaveDomain(ctx context.Context, domain, email, providerID string
 	}
 	s.Restart()
 	return nil
+}
+
+// current is the lab's settings as saved now (s.Lab is as Roostack
+// started).
+func (s *Setup) current() (config.Lab, error) {
+	lab, err := config.Load(s.LabPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return s.Lab, nil
+	}
+	return lab, err
+}
+
+// keepOldAddress, when the lab is switching from one address to another,
+// keeps the one it's leaving working for config.OldAddressDays (SPEC.md
+// §6.6): its DNS provider's credentials are copied to the old address's
+// secrets, before the new ones replace them. It returns the old address
+// to save, or nil to leave lab.yaml's as it is (no switch). Only one old
+// address is kept: an earlier one stops now.
+func (s *Setup) keepOldAddress(ctx context.Context, domain string) (*config.OldAddress, error) {
+	cur, err := s.current()
+	if err != nil {
+		return nil, err
+	}
+	if step, err := s.Store.Setting(ctx, keyDomain); err != nil || step != "done" || cur.Domain == "" || cur.Domain == domain {
+		return nil, err
+	}
+	// An earlier old address's secrets are overwritten (or, for fields the
+	// new one doesn't use, removed by cleanOldSecrets after the restart).
+	for _, f := range dnsFields(cur.DNS) {
+		v, err := s.Secrets.Read(ctx, dns.SecretName(f))
+		if err != nil {
+			return nil, fmt.Errorf("keeping %s's DNS credentials for its old addresses: %w", cur.Domain, err)
+		}
+		if err := s.Secrets.Replace(ctx, dns.OldSecretName(f), v); err != nil {
+			return nil, err
+		}
+	}
+	return &config.OldAddress{Domain: cur.Domain, DNS: cur.DNS,
+		Until: time.Now().Add(config.OldAddressDays * 24 * time.Hour).Truncate(time.Minute)}, nil
+}
+
+// dnsFields are the credential fields a provider setting uses.
+func dnsFields(d config.DNS) []string {
+	if len(d.Fields) > 0 {
+		return d.Fields
+	}
+	var fields []string
+	if p := dns.Get(d.Provider); p != nil {
+		for _, f := range p.Fields {
+			if !f.Optional {
+				fields = append(fields, f.Key)
+			}
+		}
+	}
+	return fields
+}
+
+// cleanOldSecrets removes the old address's secrets that lab.yaml no
+// longer uses. Podman removes a secret even while a container uses it,
+// but that container then can't restart (docs/ASSUMPTIONS.md C12), so
+// they go only once Caddy's unit no longer names them: after the restart
+// that follows a change.
+func (s *Setup) cleanOldSecrets(ctx context.Context) error {
+	cur, err := s.current()
+	if err != nil {
+		return err
+	}
+	keep := map[string]bool{}
+	if cur.OldAddress != nil {
+		for _, f := range dnsFields(cur.OldAddress.DNS) {
+			keep[dns.OldSecretName(f)] = true
+		}
+	}
+	names, err := s.Secrets.List(ctx)
+	if err != nil {
+		return err
+	}
+	for name := range names {
+		if strings.HasPrefix(name, dns.OldSecretName("")) && !keep[name] {
+			if err := s.Secrets.Remove(ctx, name); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// EndOldAddress stops the lab's previous address working now (or when its
+// time is up), and Roostack restarts so Caddy stops serving it; its DNS
+// credentials are deleted after the restart (SPEC.md §6.6).
+func (s *Setup) EndOldAddress(ctx context.Context) error {
+	cur, err := s.current()
+	if err != nil || cur.OldAddress == nil {
+		return err
+	}
+	if err := config.Update(s.LabPath, func(lab *config.Lab) { lab.OldAddress = nil }); err != nil {
+		return err
+	}
+	if s.Restart != nil {
+		s.Restart()
+	}
+	return nil
+}
+
+// RunOldAddress ends the previous address when its time is up, and
+// removes credentials no longer needed, checking every hour until ctx
+// ends.
+func (s *Setup) RunOldAddress(ctx context.Context, log *slog.Logger) {
+	t := time.NewTicker(time.Hour)
+	defer t.Stop()
+	for {
+		if err := s.cleanOldSecrets(ctx); err != nil {
+			log.Warn("removing the old address's DNS credentials", "err", err)
+		}
+		if cur, err := s.current(); err == nil && cur.OldAddress != nil && !time.Now().Before(cur.OldAddress.Until) {
+			log.Info("the lab's old address stops working now", "address", cur.OldAddress.Domain)
+			if err := s.EndOldAddress(ctx); err != nil {
+				log.Error("ending the lab's old address", "err", err)
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
 }
 
 func capitalize(s string) string {

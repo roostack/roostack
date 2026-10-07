@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
@@ -18,6 +19,27 @@ type fakeSecrets map[string][]byte
 func (f fakeSecrets) Replace(_ context.Context, name string, v []byte) error {
 	f[name] = v
 	return nil
+}
+
+func (f fakeSecrets) Read(_ context.Context, name string) ([]byte, error) {
+	v, ok := f[name]
+	if !ok {
+		return nil, errors.New("no such secret")
+	}
+	return v, nil
+}
+
+func (f fakeSecrets) Remove(_ context.Context, name string) error {
+	delete(f, name)
+	return nil
+}
+
+func (f fakeSecrets) List(context.Context) (map[string]bool, error) {
+	names := map[string]bool{}
+	for n := range f {
+		names[n] = true
+	}
+	return names, nil
 }
 
 func newSetup(t *testing.T) (*Setup, fakeSecrets, *int) {
@@ -235,5 +257,59 @@ func TestNetworkChoice(t *testing.T) {
 	}
 	if c := s.Network(internet); c.Saved != config.NetworkHome || c.Internet() || !c.UITunnelOnly || *restarts != 1 {
 		t.Errorf("saved: %+v, restarts %d", c, *restarts)
+	}
+}
+
+// Switching address keeps the old one working for 30 days, with its
+// provider's credentials (SPEC.md §6.6).
+func TestSwitchKeepsOldAddress(t *testing.T) {
+	s, secrets, restarts := newSetup(t)
+	ctx := context.Background()
+	save := func(domain, provider string, v map[string]string) {
+		t.Helper()
+		if err := s.SaveDomain(ctx, domain, "me@example.com", provider, v, DomainOptions{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	load := func() config.Lab {
+		t.Helper()
+		lab, err := config.Load(s.LabPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return lab
+	}
+	// The first address: nothing old (the placeholder isn't an address).
+	save("home.example.com", "cloudflare", map[string]string{"api_token": "good"})
+	if load().OldAddress != nil {
+		t.Fatal("first address: no old one")
+	}
+	secrets[dns.SecretName("api_token")] = []byte("token-1")
+	// Saving it again (e.g. a new token) isn't a switch.
+	save("home.example.com", "cloudflare", map[string]string{"api_token": "good"})
+	if load().OldAddress != nil {
+		t.Fatal("same address: no old one")
+	}
+	secrets[dns.SecretName("api_token")] = []byte("token-1")
+	save("smith.family", "porkbun", map[string]string{"api_key": "good", "api_secret_key": "good"})
+	old := load().OldAddress
+	if old == nil || old.Domain != "home.example.com" || old.DNS.Provider != "cloudflare" ||
+		time.Until(old.Until) < 29*24*time.Hour || time.Until(old.Until) > 31*24*time.Hour {
+		t.Fatalf("old = %+v", old)
+	}
+	if string(secrets[dns.OldSecretName("api_token")]) != "token-1" {
+		t.Error("the old provider's token is kept")
+	}
+
+	// Ending it: lab.yaml first and a restart; the credentials go after.
+	before := *restarts
+	if err := s.EndOldAddress(ctx); err != nil || load().OldAddress != nil || *restarts != before+1 {
+		t.Fatalf("end: %v %+v", err, load().OldAddress)
+	}
+	if err := s.cleanOldSecrets(ctx); err != nil || secrets[dns.OldSecretName("api_token")] != nil {
+		t.Errorf("old secrets left: %v", err)
+	}
+	if secrets[dns.SecretName("api_key")] == nil {
+		t.Error("the current provider's secrets stay")
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
@@ -441,6 +442,7 @@ func (g *gen) caddySite() error {
 		cr := caddy.Route{
 			ID:          g.name + "-" + name,
 			Host:        rc.Host,
+			OldHost:     oldHost(g.lab, rc.Host),
 			Upstream:    fmt.Sprintf("%s:%d", g.upstream, rc.Port),
 			Private:     rc.Exposure != pkgspec.ExposurePublic,
 			PrivateFrom: PrivateFrom(g.lab),
@@ -576,4 +578,15 @@ func addPassthrough(u *quadlet.Unit, q pkgspec.Quadlet) {
 			}
 		}
 	}
+}
+
+// oldHost is host's name at the lab's previous address while that still
+// works, or "" (SPEC.md §6.6): the same subdomain there.
+func oldHost(lab config.Lab, host string) string {
+	old := lab.Old(time.Now())
+	sub, ok := strings.CutSuffix(host, "."+lab.Domain)
+	if old == nil || !ok {
+		return ""
+	}
+	return sub + "." + old.Domain
 }

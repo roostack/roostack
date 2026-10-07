@@ -48,6 +48,17 @@ func EnvName(field string) string { return "DNS_" + strings.ToUpper(field) }
 
 func env(field string) string { return "{env." + EnvName(field) + "}" }
 
+// OldSecretName and OldEnvName hold a field of the lab's previous
+// address's provider while that still works (SPEC.md §6.6).
+func OldSecretName(field string) string { return "roostack-caddy-dns-old-" + field }
+func OldEnvName(field string) string    { return "DNS_OLD_" + strings.ToUpper(field) }
+
+// OldDirective turns a directive into the previous address's: the same
+// fields, read from OldEnvName.
+func OldDirective(directive string) string {
+	return strings.ReplaceAll(directive, "{env.DNS_", "{env.DNS_OLD_")
+}
+
 // block renders a Caddyfile dns block with one line per field given.
 func block(name string, set []string, keys ...string) string {
 	var b strings.Builder

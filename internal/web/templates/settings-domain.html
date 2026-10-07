@@ -11,6 +11,25 @@
     <dt>Roostack</dt><dd><code>roost.{{.LabDomain}}</code></dd>
   </dl>
   <p><a class="button secondary" href="/setup/domain">Change the address…</a></p>
+  {{with .Old}}
+  <h2 class="section-title" id="old-address">The old address, {{.Domain}}</h2>
+  <p>Your lab's address changed. Until <strong>{{date .Until}}</strong>, the old addresses keep working too, so you have time to
+    update bookmarks, and the server address in apps on phones and computers (such as Bitwarden's or Immich's). Then they stop.</p>
+  <table class="records">
+    <tr><th>For</th><th>Old address</th><th>New address</th></tr>
+    {{range $.OldRows}}<tr><td>{{.Title}}</td><td><code>{{.Old}}</code></td><td><a href="{{.New}}" target="_blank" rel="noopener"><code>{{.New}}</code>{{template "new-window"}}</a></td></tr>{{end}}
+  </table>
+  <p class="hint">Passkeys and security keys made for an old address don't work at the new one: add new ones in each app.
+    Apps' own settings that include the address (such as Vaultwarden's) already use the new one.</p>
+  <details class="technical" id="old-address-details"><summary>Details</summary>
+    <p>Caddy serves both addresses, each with its own certificate: the old one's still renews through
+      {{with $.OldProvider}}{{.}}{{else}}its DNS provider{{end}}, whose login Roostack keeps until then (Podman secrets
+      <code>roostack-caddy-dns-old-…</code>), and deletes afterwards. DNS records for the old address stay as they were:
+      Roostack no longer updates them, so if your home's address changes meanwhile, old addresses that pointed to it stop working
+      sooner. Once the old address stops, you can delete its records at your DNS provider.</p>
+  </details>
+  {{confirm "/settings/domain/old/end" (printf "Stop the old addresses (%s) now? Bookmarks and apps still using them stop working." .Domain) "Stop the old addresses now" "secondary"}}
+  {{end}}
   {{else}}
   {{notice "error" "Your lab has no address yet, so its services can't be reached on the web."}}
   <p><a class="button" href="/setup/domain">Give your lab an address</a></p>

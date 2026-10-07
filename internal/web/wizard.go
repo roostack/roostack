@@ -290,6 +290,10 @@ func (s *Server) domainPage(w http.ResponseWriter, r *http.Request) {
 // §6.6).
 func (s *Server) addressData(data map[string]any) map[string]any {
 	data["CloudDisabled"] = s.Cloud == nil
+	data["OldDays"] = config.OldAddressDays
+	if o := s.oldAddress(); o != nil {
+		data["Old"] = o
+	}
 	if s.Cloud != nil {
 		data["CloudView"] = cloudView{Status: s.Cloud.Status(), Setup: true}
 	}

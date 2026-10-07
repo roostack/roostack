@@ -2,6 +2,7 @@ package generate
 
 import (
 	"fmt"
+	"time"
 
 	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
@@ -96,6 +97,21 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 		// Entered by the user in the setup wizard.
 		out.Secrets = append(out.Secrets, Secret{Name: dns.SecretName(f), Holds: CaddyUnit + ".container"})
 	}
+	// The previous address's provider, while it still works (SPEC.md
+	// §6.6): its certificate may need renewing meanwhile.
+	old := lab.Old(time.Now())
+	var oldDirective string
+	if old != nil {
+		var oldFields []string
+		if oldDirective, oldFields, err = dnsConfig(config.Lab{DNS: old.DNS}); err != nil {
+			return nil, fmt.Errorf("the lab's old address: %w", err)
+		}
+		oldDirective = dns.OldDirective(oldDirective)
+		for _, f := range oldFields {
+			cs.Add("Secret", fmt.Sprintf("%s,type=env,target=%s", dns.OldSecretName(f), dns.OldEnvName(f)))
+			out.Secrets = append(out.Secrets, Secret{Name: dns.OldSecretName(f), Holds: CaddyUnit + ".container"})
+		}
+	}
 	if public {
 		cs.Add("Volume", lab.Paths.CaddyLogDir()+":"+caddyLogDir)
 		cs.Add("Secret", fmt.Sprintf("%s,type=env,target=%s", CrowdSecBouncerKey, caddy.CrowdSecAPIKeyEnv))
@@ -136,6 +152,9 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 		AdminUpstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, lab.UIPort),
 		AdminPublic:   lab.PublicUI(),
 		PrivateFrom:   PrivateFrom(lab),
+	}
+	if old != nil {
+		mc.OldDomain, mc.OldDNSDirective = old.Domain, oldDirective
 	}
 	out.Dirs = []string{lab.Paths.CaddyDataDir(), lab.Paths.CaddySitesDir()}
 	out.Units = []string{CaddyUnit + ".service"}

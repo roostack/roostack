@@ -216,7 +216,6 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] **Domain optional (agreed 2026-10-06, SPEC §6.6):** a lab uses its own domain *or* a free `roost.ac` name from Roostack Cloud. Untangle the requirement:
     - [x] "No domain yet" as a real state (2026-10-06): a new install's lab.yaml has only comments; no Caddy until there's an address; a service's address is its local `http://localhost:<port>` meanwhile (Vaultwarden refused to start without one, on a fresh install on VM3); packages use the route's `.URL`. Was:: today the package installs the example lab.yaml (domain lab.example.com, email admin@example.com, Cloudflare) because a domain is required; touches Caddy, DNS records, the config check, the attention items and README's requirements
     - [x] The wizard's step 3 becomes "Your lab's address": "A free roost.ac address" (says plainly that Roostack Cloud can't be reached yet, until linking exists) or "Your own domain", or later; Settings → Your lab's address (SPEC §6.6, mock-up agreed 2026-10-06)
-    - [ ] Switching address keeps the old addresses working for 30 days (Caddy serves both, with a notice of what to update)
     - [ ] The own-domain path on a fresh install with a real DNS provider (unchanged code, tested only in unit tests since the change)
     - [x] Services waiting for an address: "Waiting for an address" on each, a link to set one, the local port and an SSH tunnel under Details; one attention item
     - [ ] Addresses as a primary plus (later) extra ones, in the records from the start
@@ -225,6 +224,10 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [ ] Certificates and records for a `roost.ac` name through Cloud (the lab's challenge records only), instead of the lab's own DNS provider
     - [x] Linking a lab to Roostack Cloud, the lab's side (SPEC §6.6): Settings → Roostack Cloud and the address step's roost.ac card; a link code, Cloud's page in a new window, finishes by itself; the lab's client certificate (renewed with a new key), a daily check-in, the request log; unlinking from the lab; "no longer linked" when Cloud refuses the certificate (unlinked there, or restored from before). Tried end to end on VM3 against the fake (2026-10-07)
     - [ ] Replace the fake (`cmd/roostack-fakecloud`) with Cloud's real endpoints, soon (Cloud repo); the API is in `internal/cloud/api.go`
+    - [x] Switching address: the old one keeps working for 30 days (a second Caddy site, routes answering to both names, the old provider's credentials kept), notices on Home, Settings and each service page, "Stop the old addresses now", ended hourly (SPEC §6.6, 2026-10-07)
+    - [ ] Switching to or from a roost.ac name keeps the old one too (once roost.ac addresses work); Roostack's own address there is the name itself, not `roost.`
+    - [ ] To discuss: changing one service's web address (its subdomain) could keep the old name for 30 days too; today "old links stop working" at once
+    - [ ] The old domain's DNS records: keep them updated during the 30 days (the home's address can change), and remove them afterwards where a provider's API can delete records
     - [ ] Choosing a roost.ac name: once linked, actually set it as the lab's address (needs Cloud's DNS records, above)
     - [ ] Own domain, unsupported DNS provider (SPEC §6.6): DNS-01 through Cloud when linked (one `_acme-challenge` CNAME added by hand, still a wildcard); otherwise, if reachable on 443, TLS-ALPN-01 with a certificate per name. Roostack picks automatically
   - [ ] Header: between phone width (menu) and about 690px, the nav neither collapses nor fits, so the page scrolls sideways ("Log out" is cut off)

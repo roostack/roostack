@@ -48,6 +48,7 @@ type fakeSetup struct {
 	lastProvider string
 	lastValues   map[string]string
 	lastOpts     setup.DomainOptions
+	oldEnded     bool
 }
 
 func (f *fakeSetup) Progress(context.Context) (setup.Progress, error) { return f.p, nil }
@@ -146,7 +147,8 @@ func (f *fakeSetup) SaveDomain(_ context.Context, d, e, provider string, values 
 	f.p.DomainDone = true
 	return nil
 }
-func (f *fakeSetup) DomainLater(context.Context) error { f.p.DomainLater = true; return nil }
+func (f *fakeSetup) DomainLater(context.Context) error   { f.p.DomainLater = true; return nil }
+func (f *fakeSetup) EndOldAddress(context.Context) error { f.oldEnded = true; return nil }
 func (f *fakeSetup) BackupAdded(_ context.Context, first bool) error {
 	f.noKey = false
 	f.p.BackupDone = true
