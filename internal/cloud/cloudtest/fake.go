@@ -37,8 +37,9 @@ import (
 type Fake struct {
 	// Account is how the one account is shown to labs.
 	Account string
-	// Taken are roost.ac names that aren't available.
-	Taken map[string]bool
+	// Taken are roost.ac names that aren't available; Held, ones kept
+	// for an account (any lab may claim them in the fake).
+	Taken, Held map[string]bool
 	// CertLife is how long lab certificates last.
 	CertLife time.Duration
 	// PageURL, if set, is the address people open the confirm page at
@@ -101,7 +102,7 @@ func New() *Fake {
 		panic(err)
 	}
 	ca, _ := x509.ParseCertificate(der)
-	return &Fake{Account: "o••••@example.com", Taken: map[string]bool{"taken": true}, CertLife: 90 * 24 * time.Hour,
+	return &Fake{Account: "o••••@example.com", Taken: map[string]bool{"taken": true}, Held: map[string]bool{"held": true}, CertLife: 90 * 24 * time.Hour,
 		caCert: ca, caKey: key, links: map[string]*link{}, labs: map[string]*lab{}, Requests: map[string]int{},
 		NameSuffix: "roost.test", names: map[string]*claimed{}, Records: map[string]string{}, TXT: map[string][]string{}}
 }
@@ -235,7 +236,9 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.cancelLink(w, r)
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, cloudapi.PathNames):
 		name := strings.TrimPrefix(r.URL.Path, cloudapi.PathNames)
-		if f.Taken[name] {
+		if f.Held[name] {
+			reply(w, cloudapi.NameAvailability{Held: true, Reason: name + ".roost.ac is kept for the account that had it."})
+		} else if f.Taken[name] {
 			reply(w, cloudapi.NameAvailability{Available: false, Reason: name + ".roost.ac is taken."})
 		} else {
 			reply(w, cloudapi.NameAvailability{Available: true})

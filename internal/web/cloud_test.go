@@ -53,7 +53,8 @@ func TestCloudLinking(t *testing.T) {
 		t.Error("not linked: a button to link")
 	}
 	// Names are checked as they're typed.
-	for name, want := range map[string]string{"taken": "taken.roost.ac is taken", "smiths": "smiths.roost.ac is free", "-x": "3 to 40"} {
+	for name, want := range map[string]string{"taken": "taken.roost.ac is taken", "smiths": "smiths.roost.ac is free", "-x": "3 to 40",
+		"held": "If that's yours, you'll get it back"} {
 		if _, body := h.get("/settings/cloud/name?name=" + name); !strings.Contains(body, want) {
 			t.Errorf("name %s: %q", name, body)
 		}
@@ -62,6 +63,14 @@ func TestCloudLinking(t *testing.T) {
 		!strings.Contains(body, "taken.roost.ac is taken") {
 		t.Errorf("taken name: %d", code)
 	}
+
+	// A held name may be the Owner's own: linking goes ahead (the claim
+	// decides, once Cloud knows the account).
+	if code, body := h.post("/settings/cloud/link", url.Values{"name": {"held"}}, h.srv.URL); code != http.StatusOK ||
+		!strings.Contains(body, `http-equiv="refresh"`) {
+		t.Errorf("a held name: %d", code)
+	}
+	link.Cancel(context.Background())
 
 	// Linking: the new window goes on to Cloud's page; this one waits.
 	code, body := h.post("/settings/cloud/link", url.Values{"name": {"smiths"}}, h.srv.URL)

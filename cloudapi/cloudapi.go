@@ -114,6 +114,10 @@ type LabInfo struct {
 // NameAvailability says whether a roost.ac name can be had.
 type NameAvailability struct {
 	Available bool `json:"available"`
+	// Held: not available, but held for the account that had it (after
+	// its lab was unlinked): that account can have it again, so a lab may
+	// link and then claim it (only Cloud, once linked, knows whose).
+	Held bool `json:"held,omitempty"`
 	// Reason, when it isn't, is a sentence for people.
 	Reason string `json:"reason,omitempty"`
 }
