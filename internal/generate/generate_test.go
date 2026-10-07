@@ -484,20 +484,32 @@ func TestOldAddress(t *testing.T) {
 func TestRoostAcAddress(t *testing.T) {
 	lab := testLab()
 	lab.Domain = "smiths.roost.ac"
-	lab.DNS = config.DNS{Provider: config.ProviderCloud, Fields: []string{"server_url", "username", "password", "subdomain", "records_url"},
-		Zone: "smiths.roost.ac", ManageRecords: true}
+	lab.DNS = config.DNS{Provider: config.ProviderCloud, Fields: []string{"password"},
+		Values: map[string]string{"server_url": "https://acme.roost.ac", "username": "acme_x", "subdomain": "abc", "records_url": "https://acme.roost.ac/v1/records"},
+		Zone:   "smiths.roost.ac", ManageRecords: true}
 	sys, err := System(lab, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	cf := sys.Caddyfile.Content
-	for _, want := range []string{"*.smiths.roost.ac, smiths.roost.ac {", "dns acmedns {", "username {env.DNS_USERNAME}",
-		"server_url {env.DNS_SERVER_URL}", "@roostack-admin host smiths.roost.ac\n"} {
+	// Only the password is a placeholder: acmedns reads placeholders in
+	// nothing else.
+	for _, want := range []string{"*.smiths.roost.ac, smiths.roost.ac {", "dns acmedns {", `username "acme_x"`,
+		"password {env.DNS_PASSWORD}", `subdomain "abc"`, `server_url "https://acme.roost.ac"`, "@roostack-admin host smiths.roost.ac\n"} {
 		if !strings.Contains(cf, want) {
 			t.Errorf("Caddyfile missing %q:\n%s", want, cf)
 		}
 	}
 	if strings.Contains(cf, "records_url") || strings.Contains(cf, "roost.smiths") {
 		t.Errorf("Caddyfile:\n%s", cf)
+	}
+	if q := Dump(&Output{Quadlets: sys.Quadlets}); !strings.Contains(q, "Secret=roostack-caddy-dns-password,type=env,target=DNS_PASSWORD") ||
+		strings.Contains(q, "dns-username") {
+		t.Errorf("only the password is a secret:\n%s", q)
+	}
+	// A value that could break out of Caddy's config is refused.
+	lab.DNS.Values["username"] = `x" }`
+	if _, err := System(lab, false); err == nil {
+		t.Error("an unsafe value was written")
 	}
 }

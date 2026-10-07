@@ -20,14 +20,21 @@ var cloudProvider = &Provider{
 	ID: config.ProviderCloud, Title: "Roostack Cloud", Plugin: "github.com/caddy-dns/acmedns",
 	Hidden: true,
 	Fields: []Field{
-		{Key: cloudapi.CredServerURL, Label: "Challenge server"},
-		{Key: cloudapi.CredUsername, Label: "Username"},
+		{Key: cloudapi.CredServerURL, Label: "Challenge server", InConfig: true},
+		{Key: cloudapi.CredUsername, Label: "Username", InConfig: true},
 		{Key: cloudapi.CredPassword, Label: "Password", Sensitive: true},
-		{Key: cloudapi.CredSubdomain, Label: "Challenge subdomain"},
-		{Key: cloudapi.CredRecordsURL, Label: "Records API"},
+		{Key: cloudapi.CredSubdomain, Label: "Challenge subdomain", InConfig: true},
+		{Key: cloudapi.CredRecordsURL, Label: "Records API", InConfig: true},
 	},
-	directive: func(set []string) string {
-		return block("acmedns", set, cloudapi.CredUsername, cloudapi.CredPassword, cloudapi.CredSubdomain, cloudapi.CredServerURL)
+	// Caddy's acmedns module replaces placeholders only in the password
+	// (found on a dev VM, 2026-10-07: it posted to "{env.DNS_SERVER_URL}"),
+	// so the other fields, none secret, are written as they are.
+	configDirective: func(_ []string, v map[string]string) string {
+		return "dns acmedns {\n" +
+			"\tusername \"" + v[cloudapi.CredUsername] + "\"\n" +
+			"\tpassword " + env(cloudapi.CredPassword) + "\n" +
+			"\tsubdomain \"" + v[cloudapi.CredSubdomain] + "\"\n" +
+			"\tserver_url \"" + v[cloudapi.CredServerURL] + "\"\n}"
 	},
 	records: &recordsAPI{
 		get: func(ctx context.Context, hc *http.Client, v map[string]string, _, name, typ string) ([]string, error) {

@@ -254,7 +254,10 @@ func dnsConfig(lab config.Lab) (string, []string, error) {
 	}
 	directive := lab.DNS.Directive
 	if directive == "" {
-		directive = p.Directive(fields)
+		var err error
+		if directive, err = p.Directive(fields, lab.DNS.Values); err != nil {
+			return "", nil, err
+		}
 	}
 	return directive, fields, nil
 }
