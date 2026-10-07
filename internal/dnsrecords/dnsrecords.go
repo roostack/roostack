@@ -295,6 +295,9 @@ func (m *Manager) Sync(ctx context.Context) Status {
 	}
 
 	values := map[string]string{}
+	for k, v := range lab.DNS.Values {
+		values[k] = v
+	}
 	for _, f := range lab.DNS.Fields {
 		v, err := m.Secrets.Read(ctx, dns.SecretName(f))
 		if err != nil {

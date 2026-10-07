@@ -21,6 +21,10 @@ type Field struct {
 	Optional bool
 	// Sensitive fields are password inputs and never shown back.
 	Sensitive bool
+	// InConfig fields aren't secret: kept in lab.yaml (config.DNS.Values)
+	// and written into Caddy's config as they are, for a module that reads
+	// placeholders only in its secret field (Roostack Cloud's acmedns).
+	InConfig bool
 }
 
 // Provider is a supported DNS provider.
@@ -37,6 +41,8 @@ type Provider struct {
 	Fields []Field
 	// directive is the Caddyfile "dns" line; set lists the fields given.
 	directive func(set []string) string
+	// configDirective, instead, also has the InConfig fields' values.
+	configDirective func(set []string, values map[string]string) string
 	// probe checks credentials against the provider's API (probes.go).
 	probe probe
 	// records manages DNS records (records.go); nil if unsupported.
@@ -187,8 +193,26 @@ func Get(id string) *Provider {
 	return nil
 }
 
-// Directive returns the Caddyfile tls "dns" directive for the given fields.
-func (p *Provider) Directive(set []string) string { return p.directive(set) }
+// Directive returns the Caddyfile tls "dns" directive for the given fields
+// (secrets, read from the environment) and values (InConfig fields).
+func (p *Provider) Directive(set []string, values map[string]string) (string, error) {
+	if p.configDirective == nil {
+		return p.directive(set), nil
+	}
+	for k, v := range values {
+		if !SafeValue(v) {
+			return "", fmt.Errorf("dns: %s's %s has characters that can't go in Caddy's config", p.Title, k)
+		}
+	}
+	return p.configDirective(set, values), nil
+}
+
+// SafeValue reports whether an InConfig value can be written into Caddy's
+// config, quoted: nothing that could end the quotes, start a placeholder
+// or a new line.
+func SafeValue(v string) bool {
+	return v != "" && !strings.ContainsAny(v, "\"\\{}\r\n\t ")
+}
 
 // Validate checks every required field has a value and returns the keys
 // that are set, in field order.

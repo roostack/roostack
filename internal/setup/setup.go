@@ -364,15 +364,30 @@ func (s *Setup) UseRoostAc(ctx context.Context, name string, creds map[string]st
 		return fmt.Errorf("Roostack Cloud gave an invalid name %q", name)
 	}
 	p := dns.Get(config.ProviderCloud)
-	set, err := p.Validate(creds)
-	if err != nil {
+	if _, err := p.Validate(creds); err != nil {
 		return fmt.Errorf("Roostack Cloud's credentials for %s: %w", name, err)
+	}
+	// The secret (the password) becomes a Podman secret; the rest goes in
+	// lab.yaml, written into Caddy's config as it is (dns.Field.InConfig).
+	var secrets []string
+	values := map[string]string{}
+	for _, f := range p.Fields {
+		v := strings.TrimSpace(creds[f.Key])
+		switch {
+		case v == "":
+		case f.InConfig && !dns.SafeValue(v):
+			return fmt.Errorf("Roostack Cloud's %s for %s has characters Roostack can't use", f.Label, name)
+		case f.InConfig:
+			values[f.Key] = v
+		default:
+			secrets = append(secrets, f.Key)
+		}
 	}
 	old, err := s.keepOldAddress(ctx, name)
 	if err != nil {
 		return err
 	}
-	for _, k := range set {
+	for _, k := range secrets {
 		if err := s.Secrets.Replace(ctx, dns.SecretName(k), []byte(strings.TrimSpace(creds[k]))); err != nil {
 			return err
 		}
@@ -382,7 +397,7 @@ func (s *Setup) UseRoostAc(ctx context.Context, name string, creds map[string]st
 			lab.OldAddress = old
 		}
 		lab.Domain = name
-		lab.DNS = config.DNS{Provider: p.ID, Fields: set, Zone: name, ManageRecords: true, LANIP: lab.DNS.LANIP}
+		lab.DNS = config.DNS{Provider: p.ID, Fields: secrets, Values: values, Zone: name, ManageRecords: true, LANIP: lab.DNS.LANIP}
 	})
 	if err != nil {
 		return err

@@ -103,6 +103,9 @@ type DNS struct {
 	// values are Podman secrets, never stored here. Empty means the
 	// provider's required fields.
 	Fields []string `yaml:"fields,omitempty"`
+	// Values are the provider's fields that aren't secret (dns.Field's
+	// InConfig: Roostack Cloud's challenge server, username, subdomain).
+	Values map[string]string `yaml:"values,omitempty"`
 	// Directive, if set, is used verbatim inside Caddy's tls block instead of
 	// the provider's generated one (advanced use).
 	Directive string `yaml:"directive,omitempty"`
