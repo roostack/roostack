@@ -14,8 +14,8 @@ import (
 	"time"
 	"unicode"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/agent"
-	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
@@ -555,7 +555,7 @@ func EnsureRecoveryKey(paths config.Paths) error {
 	if _, err := os.Stat(keyFile); !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	key, err := auth.NewToken()
+	key, err := authkit.NewToken()
 	if err != nil {
 		return err
 	}

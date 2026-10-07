@@ -1,0 +1,2 @@
+go test fuzz v1
+string("sealed1:GpaP1xocQnSAM53c0DD09mqb2VTyRqjubL/rU7xwiCyoZDwTZfCymqiAULS")

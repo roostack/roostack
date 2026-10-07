@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -36,7 +37,7 @@ var nowFunc = time.Now
 func wrongCode(secret string) string {
 	valid := map[string]bool{}
 	for step := -3; step <= 3; step++ {
-		c, _ := auth.TOTPCode(secret, nowFunc().Add(time.Duration(step)*30*time.Second))
+		c, _ := authkit.TOTPCode(secret, nowFunc().Add(time.Duration(step)*30*time.Second))
 		valid[c] = true
 	}
 	for _, c := range []string{"000000", "111111", "222222", "333333", "444444", "555555", "666666", "777777"} {
@@ -176,11 +177,11 @@ func TestFirstRunSetup(t *testing.T) {
 	if !strings.Contains(body, "Enter your code") {
 		t.Fatal("expected the 2FA step")
 	}
-	used, _ := auth.TOTPCode(secret, enrolledAt)
+	used, _ := authkit.TOTPCode(secret, enrolledAt)
 	if code, _ := h.post("/login/totp", url.Values{"code": {used}}, h.srv.URL); code != http.StatusUnauthorized {
 		t.Errorf("reusing the enrollment code: status %d, want 401", code)
 	}
-	next, _ := auth.TOTPCode(secret, enrolledAt.Add(30*time.Second))
+	next, _ := authkit.TOTPCode(secret, enrolledAt.Add(30*time.Second))
 	if _, body := h.post("/login/totp", url.Values{"code": {next}}, h.srv.URL); !strings.Contains(body, "My Services") {
 		t.Error("a fresh code should complete the login")
 	}
@@ -201,7 +202,7 @@ func (h *harness) enrollTOTP(page string) (string, time.Time) {
 	}
 	secret, _, _ := strings.Cut(rest, `"`)
 	now := time.Now()
-	code, err := auth.TOTPCode(secret, now)
+	code, err := authkit.TOTPCode(secret, now)
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -221,9 +222,9 @@ func (h *harness) enrollTOTP(page string) (string, time.Time) {
 func TestTooManyCodes(t *testing.T) {
 	h := newHarness(t, "")
 	ctx := context.Background()
-	hash, _ := auth.HashPassword("a long password")
+	hash, _ := authkit.HashPassword("a long password")
 	id, _ := h.store.CreateUser(ctx, store.User{Username: "tyris", PasswordHash: hash, Role: auth.RoleOwner})
-	secret, _ := auth.NewTOTPSecret()
+	secret, _ := authkit.NewTOTPSecret()
 	h.store.SetTOTP(ctx, id, secret, 0)
 	login := func() (int, string) {
 		return h.post("/login", url.Values{"username": {"tyris"}, "password": {"a long password"}}, h.srv.URL)
@@ -251,11 +252,11 @@ func TestTooManyCodes(t *testing.T) {
 	// The lock is over: five wrong codes, the last 15 minutes ago.
 	h.store.ResetTOTP(ctx, id)
 	h.store.SetTOTP(ctx, id, secret, 0)
-	for range auth.TOTPFailuresPerLock {
+	for range authkit.TOTPFailuresPerLock {
 		h.store.AddTOTPFailure(ctx, id, time.Now().Add(-15*time.Minute))
 	}
 	login()
-	good, _ := auth.TOTPCode(secret, time.Now())
+	good, _ := authkit.TOTPCode(secret, time.Now())
 	if _, body := h.post("/login/totp", url.Values{"code": {good}}, h.srv.URL); !strings.Contains(body, "My Services") {
 		t.Fatal("the right code should work once the lock is over")
 	}
@@ -266,7 +267,7 @@ func TestTooManyCodes(t *testing.T) {
 
 func TestLoginLogout(t *testing.T) {
 	h := newHarness(t, "")
-	hash, _ := auth.HashPassword("a long password")
+	hash, _ := authkit.HashPassword("a long password")
 	h.store.CreateUser(context.Background(), store.User{Username: "mum", PasswordHash: hash, Role: auth.RoleAdmin})
 
 	if _, body := h.get("/"); !strings.Contains(body, "Log in") {
@@ -366,7 +367,7 @@ func TestHtmxRequestsGetFullPageRedirects(t *testing.T) {
 
 func TestChangePassword(t *testing.T) {
 	h := newHarness(t, "")
-	hash, _ := auth.HashPassword("old password here")
+	hash, _ := authkit.HashPassword("old password here")
 	h.store.CreateUser(context.Background(), store.User{Username: "mum", PasswordHash: hash, Role: auth.RoleMember})
 	h.post("/login", url.Values{"username": {"mum"}, "password": {"old password here"}}, h.srv.URL)
 
@@ -406,7 +407,7 @@ func newClientFor(h *harness) *harness {
 func TestCrashBecomesErrorPage(t *testing.T) {
 	h := newHarness(t, "")
 	h.server.Services = func(context.Context) ([]ServiceView, error) { panic("boom") }
-	hash, _ := auth.HashPassword("a long password")
+	hash, _ := authkit.HashPassword("a long password")
 	h.store.CreateUser(context.Background(), store.User{Username: "mum", PasswordHash: hash, Role: auth.RoleMember})
 	h.post("/login", url.Values{"username": {"mum"}, "password": {"a long password"}}, h.srv.URL)
 	code, body := h.get("/")

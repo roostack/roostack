@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -55,11 +56,11 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		fail("The passwords don't match.")
 		return
 	}
-	if err := auth.CheckPasswordPolicy(password); err != nil {
+	if err := authkit.CheckPasswordPolicy(password); err != nil {
 		fail(capitalize(err.Error()) + ".")
 		return
 	}
-	hash, err := auth.HashPassword(password)
+	hash, err := authkit.HashPassword(password)
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -121,12 +122,12 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	ok := false
 	switch {
 	case err == nil:
-		ok, err = auth.VerifyPassword(u.PasswordHash, r.FormValue("password"))
+		ok, err = authkit.VerifyPassword(u.PasswordHash, r.FormValue("password"))
 		if err != nil {
 			s.Log.Error("verify password", "user", username, "err", err)
 		}
 	case errors.Is(err, store.ErrNotFound):
-		auth.VerifyNoAccount(r.FormValue("password"))
+		authkit.VerifyNoAccount(r.FormValue("password"))
 	default:
 		s.serverError(w, err)
 		return
@@ -140,7 +141,7 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if u.TOTPSecret != "" {
 		// Say so now rather than after a code that can't work.
-		if until := auth.TOTPLockedUntil(u.TOTPFailures, u.TOTPFailedAt); time.Now().Before(until) {
+		if until := authkit.TOTPLockedUntil(u.TOTPFailures, u.TOTPFailedAt); time.Now().Before(until) {
 			w.WriteHeader(http.StatusTooManyRequests)
 			s.renderLogin(w, r, map[string]any{"Error": lockedMessage(until), "Username": username})
 			return
@@ -160,7 +161,7 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 // startPending records a login that passed the password step and asks for
 // the 2FA code.
 func (s *Server) startPending(w http.ResponseWriter, r *http.Request, u *store.User) {
-	token, err := auth.NewToken()
+	token, err := authkit.NewToken()
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -172,7 +173,7 @@ func (s *Server) startPending(w http.ResponseWriter, r *http.Request, u *store.U
 			delete(s.pending, k)
 		}
 	}
-	s.pending[auth.HashToken(token)] = &pendingLogin{userID: u.ID, expires: now.Add(pendingDuration), remember: r.FormValue("remember") == "on"}
+	s.pending[authkit.HashToken(token)] = &pendingLogin{userID: u.ID, expires: now.Add(pendingDuration), remember: r.FormValue("remember") == "on"}
 	s.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{
 		Name: pendingCookie, Value: token, Path: "/login", MaxAge: int(pendingDuration.Seconds()),
@@ -187,7 +188,7 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/login")
 		return
 	}
-	key := auth.HashToken(c.Value)
+	key := authkit.HashToken(c.Value)
 	s.mu.Lock()
 	p := s.pending[key]
 	if p != nil && time.Now().After(p.expires) {
@@ -246,7 +247,7 @@ func (s *Server) twoFactorPage(w http.ResponseWriter, r *http.Request) {
 		s.renderAccount(w, "twofactor", "2fa", map[string]any{"User": u, "Enabled": true})
 		return
 	}
-	secret, err := auth.NewTOTPSecret()
+	secret, err := authkit.NewTOTPSecret()
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -263,7 +264,7 @@ func (s *Server) twoFactorSubmit(w http.ResponseWriter, r *http.Request) {
 	// The new secret round-trips through the form. Tampering with it only
 	// affects the user's own account, and the code must match it.
 	secret := strings.TrimSpace(r.FormValue("secret"))
-	step, ok := auth.VerifyTOTP(secret, r.FormValue("code"), time.Now(), 0)
+	step, ok := authkit.VerifyTOTP(secret, r.FormValue("code"), time.Now(), 0)
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
 		s.renderAccount(w, "twofactor", "2fa", s.twoFactorData(u, secret,
@@ -284,7 +285,7 @@ func (s *Server) twoFactorData(u *store.User, secret, errMsg string) map[string]
 	for i := 0; i < len(secret); i += 4 {
 		groups = append(groups, secret[i:min(i+4, len(secret))])
 	}
-	url := auth.TOTPURL("Roostack", u.Username, secret)
+	url := authkit.TOTPURL("Roostack", u.Username, secret)
 	code, err := qrSVG(url)
 	if err != nil {
 		s.Log.Error("drawing the 2FA QR code", "err", err) // the typed key still works
@@ -308,7 +309,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 // endSession logs this browser out.
 func (s *Server) endSession(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(sessionCookie); err == nil {
-		s.Store.DeleteSession(r.Context(), auth.HashToken(c.Value))
+		s.Store.DeleteSession(r.Context(), authkit.HashToken(c.Value))
 	}
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true})
 }

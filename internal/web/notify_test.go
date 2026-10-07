@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
@@ -107,7 +108,7 @@ func TestNotifySecurity(t *testing.T) {
 func TestNewDeviceLogin(t *testing.T) {
 	h := newHarness(t, "")
 	ctx := context.Background()
-	hash, _ := auth.HashPassword("a long password")
+	hash, _ := authkit.HashPassword("a long password")
 	h.store.CreateUser(ctx, store.User{Username: "sam", PasswordHash: hash, Role: auth.RoleAdmin})
 	login := func(c *http.Client) {
 		req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/login", strings.NewReader(url.Values{"username": {"sam"}, "password": {"a long password"}}.Encode()))

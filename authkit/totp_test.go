@@ -1,4 +1,4 @@
-package auth
+package authkit
 
 import (
 	"encoding/base32"

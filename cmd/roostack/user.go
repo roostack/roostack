@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/store"
@@ -48,7 +49,7 @@ func user(args []string) error {
 	if err != nil {
 		return err
 	}
-	hash, err := auth.HashPassword(password)
+	hash, err := authkit.HashPassword(password)
 	if err != nil {
 		return err
 	}
