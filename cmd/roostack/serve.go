@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
@@ -302,7 +303,7 @@ func serve(args []string) error {
 	// A roost.ac name from Roostack Cloud becomes the lab's address, and
 	// goes with the link (SPEC.md §6.6).
 	if link != nil {
-		link.UseName = func(ctx context.Context, c cloud.NameClaim) error {
+		link.UseName = func(ctx context.Context, c cloudapi.NameClaim) error {
 			return wiz.UseRoostAc(ctx, c.Name, c.Credentials)
 		}
 		link.Dropped = func(ctx context.Context) {

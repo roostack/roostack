@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/cloud/cloudtest"
@@ -40,9 +41,9 @@ func TestCloudLinking(t *testing.T) {
 	h.server.Setup = &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}}
 	// The name becomes the lab's address (setup.UseRoostAc, faked), and
 	// goes with the link.
-	var used []cloud.NameClaim
+	var used []cloudapi.NameClaim
 	dropped := 0
-	link.UseName = func(_ context.Context, c cloud.NameClaim) error { used = append(used, c); return nil }
+	link.UseName = func(_ context.Context, c cloudapi.NameClaim) error { used = append(used, c); return nil }
 	link.Dropped = func(context.Context) { dropped++ }
 
 	if _, body := h.get("/settings"); !strings.Contains(body, "Roostack Cloud") || !strings.Contains(body, "Not linked") {

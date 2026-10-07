@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/dns"
 )
@@ -19,7 +20,7 @@ type CloudLink interface {
 	Cancel(ctx context.Context)
 	Unlink(ctx context.Context) (bool, error)
 	DismissForgotten() error
-	NameAvailable(ctx context.Context, name string) (cloud.NameAvailability, error)
+	NameAvailable(ctx context.Context, name string) (cloudapi.NameAvailability, error)
 	// ClaimName makes a roost.ac name the linked lab's address.
 	ClaimName(ctx context.Context, name string) error
 	Requests() []cloud.Request

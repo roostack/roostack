@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/config"
 )
 
@@ -65,7 +66,7 @@ type Service struct {
 
 	// UseName makes a claimed roost.ac name the lab's address (it saves
 	// it and restarts Roostack); called when a link asked for a name.
-	UseName func(ctx context.Context, claim NameClaim) error
+	UseName func(ctx context.Context, claim cloudapi.NameClaim) error
 	// Dropped is called when the lab loses its roost.ac address with the
 	// link (unlinked, here or in Cloud): the lab goes back to having no
 	// address.
@@ -75,7 +76,7 @@ type Service struct {
 // linkState is what's kept in link.json.
 type linkState struct {
 	Linked bool `json:"linked"`
-	LabInfo
+	cloudapi.LabInfo
 	// Name is the roost.ac name asked for when linking; Address the full
 	// name once claimed, while it's the lab's address.
 	Name        string    `json:"name,omitempty"`
@@ -98,7 +99,7 @@ type linkState struct {
 type pending struct {
 	key     *ecdsa.PrivateKey
 	name    string
-	started LinkStarted
+	started cloudapi.LinkStarted
 	cancel  context.CancelFunc
 	err     string
 }
@@ -146,7 +147,7 @@ func (s *Service) currentCert() *tls.Certificate {
 // Status is the link as the UI shows it.
 type Status struct {
 	Linked bool
-	LabInfo
+	cloudapi.LabInfo
 	Name, Address        string
 	AddressError         string
 	Since, LastContact   time.Time
@@ -194,9 +195,9 @@ func (s *Service) Status() Status {
 }
 
 // NameAvailable asks Cloud whether a roost.ac name can be had.
-func (s *Service) NameAvailable(ctx context.Context, name string) (NameAvailability, error) {
-	var a NameAvailability
-	err := s.client.do(ctx, false, http.MethodGet, pathNames+url.PathEscape(name), nil, &a)
+func (s *Service) NameAvailable(ctx context.Context, name string) (cloudapi.NameAvailability, error) {
+	var a cloudapi.NameAvailability
+	err := s.client.do(ctx, false, http.MethodGet, cloudapi.PathNames+url.PathEscape(name), nil, &a)
 	return a, err
 }
 
@@ -218,9 +219,9 @@ func (s *Service) Start(ctx context.Context, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var started LinkStarted
-	err = s.client.do(ctx, false, http.MethodPost, pathLinks,
-		LinkRequest{LabName: s.labName(), Name: name, Version: s.version, CSR: csr}, &started)
+	var started cloudapi.LinkStarted
+	err = s.client.do(ctx, false, http.MethodPost, cloudapi.PathLinks,
+		cloudapi.LinkRequest{LabName: s.labName(), Name: name, Version: s.version, CSR: csr}, &started)
 	if err == nil {
 		err = checkOpenURL(started.OpenURL)
 	}
@@ -270,8 +271,8 @@ func (s *Service) poll(ctx context.Context, p *pending) {
 			return
 		case <-t.C:
 		}
-		var ls LinkStatus
-		err := s.client.do(ctx, false, http.MethodPost, pathLinkStatus, LinkSecret{Secret: p.started.Secret}, &ls)
+		var ls cloudapi.LinkStatus
+		err := s.client.do(ctx, false, http.MethodPost, cloudapi.PathLinkStatus, cloudapi.LinkSecret{Secret: p.started.Secret}, &ls)
 		s.mu.Lock()
 		if s.pending != p {
 			s.mu.Unlock()
@@ -286,7 +287,7 @@ func (s *Service) poll(ctx context.Context, p *pending) {
 			continue
 		}
 		switch ls.State {
-		case StateLinked:
+		case cloudapi.StateLinked:
 			if err := s.linked(p, ls); err != nil {
 				s.log.Error("Roostack Cloud: linking", "err", err)
 				s.mu.Lock()
@@ -294,7 +295,7 @@ func (s *Service) poll(ctx context.Context, p *pending) {
 				s.mu.Unlock()
 			}
 			return
-		case StateExpired:
+		case cloudapi.StateExpired:
 			s.mu.Lock()
 			if s.pending == p {
 				s.pending, s.startErr = nil, "Linking was cancelled, or the code expired, in Roostack Cloud. Try again."
@@ -306,7 +307,7 @@ func (s *Service) poll(ctx context.Context, p *pending) {
 }
 
 // linked keeps the certificate Cloud issued for p's key.
-func (s *Service) linked(p *pending, ls LinkStatus) error {
+func (s *Service) linked(p *pending, ls cloudapi.LinkStatus) error {
 	cert, err := certFor(p.key, ls.Certificate)
 	if err != nil {
 		return err
@@ -345,8 +346,8 @@ func (s *Service) linked(p *pending, ls LinkStatus) error {
 // lab's address (UseName), which restarts Roostack. Why it failed is
 // also in Status.AddressError.
 func (s *Service) ClaimName(ctx context.Context, name string) error {
-	var claim NameClaim
-	err := s.client.do(ctx, true, http.MethodPost, pathLabName, NameRequest{Name: name}, &claim)
+	var claim cloudapi.NameClaim
+	err := s.client.do(ctx, true, http.MethodPost, cloudapi.PathLabName, cloudapi.NameRequest{Name: name}, &claim)
 	if err == nil && (claim.Name == "" || len(claim.Credentials) == 0) {
 		err = errors.New("Roostack Cloud's answer had no name or credentials")
 	}
@@ -418,7 +419,7 @@ func (s *Service) Cancel(ctx context.Context) {
 	}
 	p.cancel()
 	// Tell Cloud, so the code stops working there too; it expires anyway.
-	if err := s.client.do(ctx, false, http.MethodPost, pathLinkCancel, LinkSecret{Secret: p.started.Secret}, nil); err != nil {
+	if err := s.client.do(ctx, false, http.MethodPost, cloudapi.PathLinkCancel, cloudapi.LinkSecret{Secret: p.started.Secret}, nil); err != nil {
 		s.log.Warn("Roostack Cloud: cancelling a link", "err", err)
 	}
 }
@@ -435,7 +436,7 @@ func (s *Service) Unlink(ctx context.Context) (reached bool, err error) {
 	}
 	// Whatever Cloud answers, the link goes here: the account's page can
 	// remove the lab there too.
-	err = s.client.do(ctx, true, http.MethodDelete, pathLab, nil, nil)
+	err = s.client.do(ctx, true, http.MethodDelete, cloudapi.PathLab, nil, nil)
 	reached = err == nil || errors.Is(err, ErrUnlinked)
 	if !reached {
 		s.log.Warn("Roostack Cloud: telling Cloud the lab is unlinked", "err", err)
@@ -483,8 +484,8 @@ func (s *Service) Check(ctx context.Context) error {
 	if !linked {
 		return nil
 	}
-	var info LabInfo
-	err := s.client.do(ctx, true, http.MethodGet, pathLab, nil, &info)
+	var info cloudapi.LabInfo
+	err := s.client.do(ctx, true, http.MethodGet, cloudapi.PathLab, nil, &info)
 	if err == nil {
 		err = s.renewIfDue(ctx)
 	}
@@ -536,8 +537,8 @@ func (s *Service) renewIfDue(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	var rr RenewResponse
-	if err := s.client.do(ctx, true, http.MethodPost, pathLabRenew, RenewRequest{CSR: csr}, &rr); err != nil {
+	var rr cloudapi.RenewResponse
+	if err := s.client.do(ctx, true, http.MethodPost, cloudapi.PathLabRenew, cloudapi.RenewRequest{CSR: csr}, &rr); err != nil {
 		return err
 	}
 	next, err := certFor(key, rr.Certificate)

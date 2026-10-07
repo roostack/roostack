@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/config"
 )
 
@@ -129,7 +130,7 @@ func (c *client) do(ctx context.Context, authed bool, method, path string, in, o
 		return ErrUnlinked
 	}
 	if resp.StatusCode >= 300 {
-		var e apiError
+		var e cloudapi.ErrorBody
 		if json.Unmarshal(data, &e) != nil || e.Error == "" {
 			e.Error = fmt.Sprintf("Roostack Cloud answered %s", resp.Status)
 		}

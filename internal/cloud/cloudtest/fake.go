@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/config"
 )
 
@@ -142,7 +143,7 @@ func (f *Fake) Confirm(code string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for _, l := range f.links {
-		if l.code == code && l.state == "waiting" && time.Now().Before(l.expires) {
+		if l.code == code && l.state == cloudapi.StateWaiting && time.Now().Before(l.expires) {
 			return f.confirm(l)
 		}
 	}
@@ -156,7 +157,7 @@ func (f *Fake) confirm(l *link) error {
 	if err != nil {
 		return err
 	}
-	l.state, l.cert = "linked", cert
+	l.state, l.cert = cloudapi.StateLinked, cert
 	return nil
 }
 
@@ -179,7 +180,7 @@ func (f *Fake) Codes() []string {
 	defer f.mu.Unlock()
 	var out []string
 	for _, l := range f.links {
-		if l.state == "waiting" {
+		if l.state == cloudapi.StateWaiting {
 			out = append(out, l.code)
 		}
 	}
@@ -225,20 +226,20 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.Requests[r.Method+" "+r.URL.Path]++
 	f.mu.Unlock()
 	switch {
-	case r.Method == http.MethodPost && r.URL.Path == "/v1/links":
+	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLinks:
 		f.startLink(w, r)
-	case r.Method == http.MethodPost && r.URL.Path == "/v1/links/status":
+	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLinkStatus:
 		f.linkStatus(w, r)
-	case r.Method == http.MethodPost && r.URL.Path == "/v1/links/cancel":
+	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLinkCancel:
 		f.cancelLink(w, r)
-	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/names/"):
-		name := strings.TrimPrefix(r.URL.Path, "/v1/names/")
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, cloudapi.PathNames):
+		name := strings.TrimPrefix(r.URL.Path, cloudapi.PathNames)
 		if f.Taken[name] {
-			reply(w, map[string]any{"available": false, "reason": name + ".roost.ac is taken."})
+			reply(w, cloudapi.NameAvailability{Available: false, Reason: name + ".roost.ac is taken."})
 		} else {
-			reply(w, map[string]any{"available": true})
+			reply(w, cloudapi.NameAvailability{Available: true})
 		}
-	case r.URL.Path == "/v1/lab" || r.URL.Path == "/v1/lab/renew" || r.URL.Path == "/v1/lab/name":
+	case r.URL.Path == cloudapi.PathLab || r.URL.Path == cloudapi.PathLabRenew || r.URL.Path == cloudapi.PathLabName:
 		f.labAPI(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/update":
 		f.acmeUpdate(w, r)
@@ -252,12 +253,7 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *Fake) startLink(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		LabName string `json:"lab_name"`
-		Name    string `json:"name"`
-		Version string `json:"version"`
-		CSR     []byte `json:"csr"`
-	}
+	var req cloudapi.LinkRequest
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		fail(w, http.StatusBadRequest, "bad request")
 		return
@@ -274,7 +270,7 @@ func (f *Fake) startLink(w http.ResponseWriter, r *http.Request) {
 	code := strings.ToUpper(hex.EncodeToString(serial().Bytes()[:3]))
 	code = code[:3] + "-" + code[3:]
 	secret := hex.EncodeToString(serial().Bytes())
-	l := &link{code: code, name: req.Name, labName: req.LabName, csr: csr, expires: time.Now().Add(10 * time.Minute), state: "waiting"}
+	l := &link{code: code, name: req.Name, labName: req.LabName, csr: csr, expires: time.Now().Add(10 * time.Minute), state: cloudapi.StateWaiting}
 	f.mu.Lock()
 	f.links[secret] = l
 	f.mu.Unlock()
@@ -282,13 +278,11 @@ func (f *Fake) startLink(w http.ResponseWriter, r *http.Request) {
 	if page == "" {
 		page = "https://" + r.Host
 	}
-	reply(w, map[string]any{"code": code, "open_url": page + "/link/" + code, "secret": secret, "expires": l.expires})
+	reply(w, cloudapi.LinkStarted{Code: code, OpenURL: page + "/link/" + code, Secret: secret, Expires: l.expires})
 }
 
 func (f *Fake) secretLink(r *http.Request) *link {
-	var req struct {
-		Secret string `json:"secret"`
-	}
+	var req cloudapi.LinkSecret
 	json.NewDecoder(r.Body).Decode(&req)
 	return f.links[req.Secret]
 }
@@ -300,20 +294,21 @@ func (f *Fake) linkStatus(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case l == nil:
 		fail(w, http.StatusNotFound, "no such link")
-	case l.state == "waiting" && time.Now().After(l.expires):
-		reply(w, map[string]any{"state": "expired"})
-	case l.state == "linked":
-		reply(w, map[string]any{"state": "linked", "certificate": l.cert, "lab_id": l.labID, "account": f.Account})
+	case l.state == cloudapi.StateWaiting && time.Now().After(l.expires):
+		reply(w, cloudapi.LinkStatus{State: cloudapi.StateExpired})
+	case l.state == cloudapi.StateLinked:
+		reply(w, cloudapi.LinkStatus{State: cloudapi.StateLinked, Certificate: l.cert,
+			LabInfo: cloudapi.LabInfo{LabID: l.labID, Account: f.Account}})
 	default:
-		reply(w, map[string]any{"state": l.state})
+		reply(w, cloudapi.LinkStatus{State: l.state})
 	}
 }
 
 func (f *Fake) cancelLink(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if l := f.secretLink(r); l != nil && l.state == "waiting" {
-		l.state = "expired"
+	if l := f.secretLink(r); l != nil && l.state == cloudapi.StateWaiting {
+		l.state = cloudapi.StateExpired
 	}
 	reply(w, map[string]any{})
 }
@@ -335,16 +330,14 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
-	case r.Method == http.MethodGet && r.URL.Path == "/v1/lab":
-		reply(w, map[string]any{"lab_id": id, "account": f.Account})
-	case r.Method == http.MethodDelete && r.URL.Path == "/v1/lab":
+	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLab:
+		reply(w, cloudapi.LabInfo{LabID: id, Account: f.Account})
+	case r.Method == http.MethodDelete && r.URL.Path == cloudapi.PathLab:
 		delete(f.labs, id)
 		delete(f.names, id)
 		reply(w, map[string]any{})
-	case r.Method == http.MethodPost && r.URL.Path == "/v1/lab/name":
-		var req struct {
-			Name string `json:"name"`
-		}
+	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLabName:
+		var req cloudapi.NameRequest
 		json.NewDecoder(r.Body).Decode(&req)
 		if f.Taken[req.Name] {
 			fail(w, http.StatusConflict, req.Name+".roost.ac is taken.")
@@ -357,12 +350,11 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 		if base == "" {
 			base = "https://" + r.Host
 		}
-		reply(w, map[string]any{"name": c.fqdn, "credentials": map[string]string{"server_url": base, "username": c.user,
-			"password": c.pass, "subdomain": c.sub, "records_url": base + "/v1/records"}})
-	case r.Method == http.MethodPost && r.URL.Path == "/v1/lab/renew":
-		var req struct {
-			CSR []byte `json:"csr"`
-		}
+		reply(w, cloudapi.NameClaim{Name: c.fqdn, Credentials: map[string]string{cloudapi.CredServerURL: base,
+			cloudapi.CredUsername: c.user, cloudapi.CredPassword: c.pass, cloudapi.CredSubdomain: c.sub,
+			cloudapi.CredRecordsURL: base + "/v1/records"}})
+	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLabRenew:
+		var req cloudapi.RenewRequest
 		json.NewDecoder(r.Body).Decode(&req)
 		csr, err := x509.ParseCertificateRequest(req.CSR)
 		if err != nil || csr.CheckSignature() != nil {
@@ -374,7 +366,7 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 			fail(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		reply(w, map[string]any{"certificate": cert})
+		reply(w, cloudapi.RenewResponse{Certificate: cert})
 	default:
 		fail(w, http.StatusNotFound, "not found")
 	}
@@ -384,7 +376,7 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 // held).
 func (f *Fake) account(r *http.Request) *claimed {
 	for _, c := range f.names {
-		if c.user == r.Header.Get("X-Api-User") && c.pass == r.Header.Get("X-Api-Key") {
+		if c.user == r.Header.Get(cloudapi.HeaderUser) && c.pass == r.Header.Get(cloudapi.HeaderKey) {
 			return c
 		}
 	}
@@ -397,10 +389,7 @@ func (f *Fake) acmeUpdate(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	c := f.account(r)
-	var req struct {
-		Subdomain string `json:"subdomain"`
-		TXT       string `json:"txt"`
-	}
+	var req cloudapi.ACMEUpdate
 	json.NewDecoder(r.Body).Decode(&req)
 	if c == nil || req.Subdomain != c.sub {
 		fail(w, http.StatusUnauthorized, "forbidden")
@@ -437,14 +426,12 @@ func (f *Fake) records(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		if v, ok := f.Records[key]; ok {
-			reply(w, map[string]any{"values": []string{v}})
+			reply(w, cloudapi.RecordValues{Values: []string{v}})
 		} else {
-			reply(w, map[string]any{"values": []string{}})
+			reply(w, cloudapi.RecordValues{Values: []string{}})
 		}
 	case http.MethodPut:
-		var req struct {
-			Value string `json:"value"`
-		}
+		var req cloudapi.RecordValue
 		json.NewDecoder(r.Body).Decode(&req)
 		if net.ParseIP(req.Value) == nil {
 			fail(w, http.StatusBadRequest, "not an address")
@@ -488,16 +475,16 @@ func (f *Fake) page(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	data := map[string]any{"Code": code, "Account": f.Account}
-	if l != nil && (l.state == "waiting" && time.Now().Before(l.expires) || l.state == "linked") {
+	if l != nil && (l.state == cloudapi.StateWaiting && time.Now().Before(l.expires) || l.state == cloudapi.StateLinked) {
 		data["Lab"], data["Name"] = l.labName, l.name
-		if r.Method == http.MethodPost && l.state == "waiting" {
+		if r.Method == http.MethodPost && l.state == cloudapi.StateWaiting {
 			if err := f.confirm(l); err != nil {
 				f.mu.Unlock()
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}
-		data["Done"] = l.state == "linked"
+		data["Done"] = l.state == cloudapi.StateLinked
 	}
 	f.mu.Unlock()
 	pageTmpl.Execute(w, data)
@@ -511,7 +498,7 @@ func reply(w http.ResponseWriter, v any) {
 func fail(w http.ResponseWriter, status int, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+	json.NewEncoder(w).Encode(cloudapi.ErrorBody{Error: msg})
 }
 
 func serial() *big.Int {
