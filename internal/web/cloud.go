@@ -115,7 +115,9 @@ func (s *Server) cloudLinkSubmit(w http.ResponseWriter, r *http.Request) {
 			fail(cloudMessage(err))
 			return
 		}
-		if !a.Available {
+		// A held name may be the Owner's own (its lab unlinked): only Cloud,
+		// once linked, knows, so linking goes ahead and the claim decides.
+		if !a.Available && !a.Held {
 			fail(a.Reason)
 			return
 		}
@@ -146,7 +148,7 @@ func (s *Server) roostAcSubmit(w http.ResponseWriter, r *http.Request) {
 	if msg == "" {
 		if a, err := s.Cloud.NameAvailable(r.Context(), name); err != nil {
 			msg = cloudMessage(err)
-		} else if !a.Available {
+		} else if !a.Available && !a.Held {
 			msg = a.Reason
 		}
 	}
@@ -198,6 +200,8 @@ func (s *Server) cloudNameCheck(w http.ResponseWriter, r *http.Request) {
 		v["Problem"] = msg
 	} else if a, err := s.Cloud.NameAvailable(r.Context(), name); err != nil {
 		v["Problem"] = cloudMessage(err)
+	} else if a.Held {
+		v["Held"] = true
 	} else if !a.Available {
 		v["Problem"] = a.Reason
 	} else {
