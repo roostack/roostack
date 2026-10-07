@@ -158,7 +158,8 @@ type Server struct {
 	// Attacks says what CrowdSec saw on the public addresses over a while,
 	// for the weekly summary (optional).
 	Attacks func(ctx context.Context, since time.Duration) (public.Attacks, error)
-	// Version is Roostack's version, shown on the About page.
+	// Version is Roostack's version, shown in every page's footer and on
+	// the About page.
 	Version string
 	// Maintenance is the lab's restart policy, shown in Settings.
 	Maintenance config.Maintenance
@@ -747,6 +748,10 @@ func isHTTPS(r *http.Request) bool {
 func (s *Server) render(w http.ResponseWriter, page string, data map[string]any) {
 	if u, ok := data["User"].(*store.User); ok && u != nil {
 		data["Nav"] = navFor(u, page)
+		// Every page's footer shows Roostack's version.
+		if _, set := data["Version"]; !set {
+			data["Version"] = s.Version
+		}
 		if _, set := data["LabName"]; !set {
 			data["LabName"] = s.labName()
 		}

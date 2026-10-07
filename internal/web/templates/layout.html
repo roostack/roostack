@@ -57,6 +57,6 @@
     </div>
     {{else}}{{template "content" .}}{{end}}
   </main>
-  {{if .Nav}}<footer class="site">Roostack · <a href="/about">About</a> · <a href="/design" target="_blank" rel="noopener">Design system{{template "new-window"}}</a></footer>{{end}}
+  {{if .Nav}}<footer class="site">Roostack{{with .Version}} <span class="version" title="Roostack's version">{{.}}</span>{{end}} · <a href="/about">About</a> · <a href="/design" target="_blank" rel="noopener">Design system{{template "new-window"}}</a></footer>{{end}}
 </body>
 </html>

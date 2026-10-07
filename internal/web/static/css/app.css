@@ -70,6 +70,7 @@ main { max-width: 960px; margin: 0 auto; padding: var(--space-5) var(--space-4);
 footer.site { max-width: 960px; margin: 0 auto; padding: 0 var(--space-4) var(--space-6);
   font-size: var(--text-sm); color: var(--muted); }
 footer.site a { color: var(--muted); }
+footer.site .version { font-family: var(--font-mono); font-size: 0.95em; }
 
 /* ---------- Card ---------- */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
