@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/cloud/cloudtest"
 	"roostack.cloud/roostack/internal/config"
 )
@@ -96,7 +97,7 @@ func TestLinkCheckUnlink(t *testing.T) {
 	// Asking about the link again and again is one line.
 	polls := 0
 	for _, r := range reqs {
-		if r.Path == pathLinkStatus {
+		if r.Path == cloudapi.PathLinkStatus {
 			polls++
 		}
 	}

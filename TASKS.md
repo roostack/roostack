@@ -222,7 +222,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [x] `cloud: { disabled: true }` in lab.yaml turns off every Roostack Cloud feature
     - [x] Help page: buying and managing your own domain (registrars whose DNS Roostack supports, and how)
     - [x] Linking a lab to Roostack Cloud, the lab's side (SPEC §6.6): Settings → Roostack Cloud and the address step's roost.ac card; a link code, Cloud's page in a new window, finishes by itself; the lab's client certificate (renewed with a new key), a daily check-in, the request log; unlinking from the lab; "no longer linked" when Cloud refuses the certificate (unlinked there, or restored from before). Tried end to end on VM3 against the fake (2026-10-07)
-    - [ ] Replace the fake (`cmd/roostack-fakecloud`) with Cloud's real endpoints, soon (Cloud repo); the API is in `internal/cloud/api.go`
+    - [ ] Replace the fake (`cmd/roostack-fakecloud`) with Cloud's real endpoints, soon (Cloud repo); the API is the public package `cloudapi`, which Cloud imports
     - [x] Switching address: the old one keeps working for 30 days (a second Caddy site, routes answering to both names, the old provider's credentials kept), notices on Home, Settings and each service page, "Stop the old addresses now", ended hourly (SPEC §6.6, 2026-10-07)
     - [ ] Switching to or from a roost.ac name keeps the old one too (once roost.ac addresses work); Roostack's own address there is the name itself, not `roost.`
     - [ ] To discuss: changing one service's web address (its subdomain) could keep the old name for 30 days too; today "old links stop working" at once
