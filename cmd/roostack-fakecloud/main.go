@@ -13,7 +13,8 @@
 //	  ca_file: /var/lib/roostack/fakecloud-ca.pem
 //
 // The confirm page is served over plain HTTP on -page, for a browser on
-// the host.
+// the host, and so are the acme-dns and records APIs of claimed names
+// (roost.test), for the lab and its Caddy.
 package main
 
 import (
@@ -31,14 +32,16 @@ func main() {
 	hosts := flag.String("hosts", "127.0.0.1,10.0.2.2,localhost", "names and addresses in its HTTPS certificate")
 	page := flag.String("page", "127.0.0.1:8480", "where the confirm page is served (plain HTTP)")
 	caOut := flag.String("ca-out", "fakecloud-ca.pem", "where to write its certificate authority")
+	challenge := flag.String("challenge", "http://10.0.2.2:8480", "where labs and their Caddy reach the acme-dns and records APIs (plain HTTP: they don't trust the fake's certificate)")
 	flag.Parse()
 
 	f := cloudtest.New()
 	f.PageURL = "http://" + strings.Replace(*page, "127.0.0.1", "localhost", 1)
+	f.ChallengeURL = *challenge
 	if err := os.WriteFile(*caOut, f.CAPEM(), 0o644); err != nil {
 		log.Fatal(err)
 	}
-	go func() { log.Fatal(http.ListenAndServe(*page, f)) }()
+	go func() { log.Fatal(http.ListenAndServe(*page, logged(f))) }()
 	srv := &http.Server{Addr: *listen, Handler: logged(f), TLSConfig: f.TLSConfig(strings.Split(*hosts, ",")...)}
 	log.Printf("fake Roostack Cloud: API https://%s, confirm page %s, CA in %s", *listen, f.PageURL, *caOut)
 	log.Fatal(srv.ListenAndServeTLS("", ""))

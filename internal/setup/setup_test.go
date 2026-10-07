@@ -313,3 +313,36 @@ func TestSwitchKeepsOldAddress(t *testing.T) {
 		t.Error("the current provider's secrets stay")
 	}
 }
+
+// A roost.ac name becomes the lab's address with Cloud's credentials,
+// and goes when the link does (SPEC.md §6.6).
+func TestRoostAc(t *testing.T) {
+	s, secrets, restarts := newSetup(t)
+	ctx := context.Background()
+	creds := map[string]string{"server_url": "https://acme.example", "username": "u", "password": "p", "subdomain": "s",
+		"records_url": "https://cloud.example/v1/records"}
+	if err := s.UseRoostAc(ctx, "smiths.roost.ac", creds); err != nil {
+		t.Fatal(err)
+	}
+	lab, err := config.Load(s.LabPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lab.Domain != "smiths.roost.ac" || !lab.RoostAc() || lab.UIHost() != "smiths.roost.ac" || !lab.DNS.ManageRecords ||
+		lab.DNS.Zone != "smiths.roost.ac" || string(secrets[dns.SecretName("password")]) != "p" || *restarts != 1 {
+		t.Fatalf("lab = %+v, restarts %d", lab.DNS, *restarts)
+	}
+	if p, _ := s.Progress(ctx); !p.DomainDone {
+		t.Error("the address step is done")
+	}
+	if err := s.DropRoostAc(ctx); err != nil {
+		t.Fatal(err)
+	}
+	lab, _ = config.Load(s.LabPath)
+	if lab.HasAddress() || lab.DNS.Provider != "" || secrets[dns.SecretName("password")] != nil || *restarts != 2 {
+		t.Fatalf("after dropping: %+v", lab)
+	}
+	if p, _ := s.Progress(ctx); p.DomainDone || !p.DomainLater {
+		t.Error("back to no address yet")
+	}
+}

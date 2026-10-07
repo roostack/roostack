@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
 )
 
@@ -55,8 +54,9 @@ type oldAddressRow struct {
 
 // oldAddressRows lists every address that changed, Roostack's first.
 func (s *Server) oldAddressRows(r *http.Request, o *oldAddress) []oldAddressRow {
-	ui := "https://" + caddy.AdminSubdomain + "." + o.Now
-	rows := []oldAddressRow{{Title: "Roostack", Old: o.URL(ui), New: ui}}
+	ui := "https://" + s.uiHost()
+	oldUI := "https://" + config.Lab{Domain: o.Domain, DNS: o.DNS}.UIHost()
+	rows := []oldAddressRow{{Title: "Roostack", Old: oldUI, New: ui}}
 	if svcs, err := s.Services(r.Context()); err == nil {
 		for _, sv := range svcs {
 			for _, u := range sv.URLs {
@@ -82,4 +82,13 @@ func (s *Server) oldAddressEnd(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "the old address "+o.Domain+" stopped early")
 	redirect(w, r, "/restarting")
+}
+
+// uiHost is where Roostack's own pages are: UIHost, or roost.<domain>
+// when it isn't set.
+func (s *Server) uiHost() string {
+	if s.UIHost == "" && s.Domain != "" {
+		return "roost." + s.Domain
+	}
+	return s.UIHost
 }

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/auth"
-	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -369,7 +368,7 @@ func (s *Server) uiURL(path string) string {
 	if s.Domain == "" {
 		return ""
 	}
-	return "https://" + caddy.AdminSubdomain + "." + s.Domain + path
+	return "https://" + s.uiHost() + path
 }
 
 func (s *Server) linkLine(path string) string {

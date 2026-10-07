@@ -9,10 +9,6 @@ checks of your lab from the internet, each one your choice.
 You'll find it under **Settings → Roostack Cloud**, or in the setup
 wizard's address step.
 
-!!! note "Not finished yet"
-    Linking works. Getting a roost.ac address through it comes in a later
-    version of Roostack: until then, use your own domain.
-
 ## Linking your lab
 
 1. Choose **Link to Roostack Cloud** (or **Get this address**, with the
@@ -23,6 +19,23 @@ wizard's address step.
    expires after 10 minutes; if it does, start again.
 
 No password is typed into your lab, and nothing secret is copied by hand.
+
+If you chose a name, your lab then sets it up as its address by itself
+and restarts. A lab that's already linked gets a name straight away:
+choose **Use this address** in **Settings → Your lab's address**.
+
+## Your roost.ac address
+
+Your lab's services are at `photos.smiths.roost.ac`, and Roostack itself
+at `smiths.roost.ac`. Roostack Cloud runs the name's DNS; your lab tells
+it where the name points (your server's home-network address, and your
+home's internet address for services you make public), and gets its
+certificates from Let's Encrypt through it.
+
+For that, your lab gets a login from Roostack Cloud that can only change
+your name's records. It's kept as Podman secrets
+(`roostack-caddy-dns-*`), like the login for an own domain's DNS
+provider. Roostack Cloud never has your certificates or their keys.
 
 !!! warning "Only confirm a link you started"
     If someone sends you a Roostack Cloud link to confirm, don't: it would
@@ -58,8 +71,9 @@ restore is still linked.
 ## Unlinking
 
 **Unlink from Roostack Cloud** tells Roostack Cloud and deletes the lab's
-key. If your lab's address is a roost.ac name, it stops working, and your
-services can't be reached until you give the lab another address. The name
+key. If your lab's address is a roost.ac name, it stops working at once
+and your lab goes back to having no address, so your services can't be
+reached until you give it another. The name
 is kept for your account for a year. If Roostack Cloud can't be reached at
 the time, the lab is unlinked anyway: remove it on your account's page too.
 

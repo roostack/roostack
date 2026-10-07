@@ -235,7 +235,7 @@ func TestCaddyAdaptAllProviders(t *testing.T) {
 	if bin == "" {
 		t.Skip("set ROOSTACK_CADDY_BIN to a caddy binary with all DNS plugins")
 	}
-	for _, p := range dns.Providers() {
+	for _, p := range dns.All() {
 		t.Run(p.ID, func(t *testing.T) {
 			lab := testLab()
 			lab.DNS.Provider = p.ID
@@ -475,5 +475,29 @@ func TestOldAddress(t *testing.T) {
 	sys, _ = System(lab, false)
 	if strings.Contains(out.CaddySite.Content+sys.Caddyfile.Content, "lab.example.com") {
 		t.Errorf("after it ends:\n%s\n%s", out.CaddySite.Content, sys.Caddyfile.Content)
+	}
+}
+
+// A roost.ac name (SPEC.md §6.6): Roostack at the name itself, in the
+// same site as the wildcard, and certificates through Roostack Cloud's
+// acme-dns.
+func TestRoostAcAddress(t *testing.T) {
+	lab := testLab()
+	lab.Domain = "smiths.roost.ac"
+	lab.DNS = config.DNS{Provider: config.ProviderCloud, Fields: []string{"server_url", "username", "password", "subdomain", "records_url"},
+		Zone: "smiths.roost.ac", ManageRecords: true}
+	sys, err := System(lab, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf := sys.Caddyfile.Content
+	for _, want := range []string{"*.smiths.roost.ac, smiths.roost.ac {", "dns acmedns {", "username {env.DNS_USERNAME}",
+		"server_url {env.DNS_SERVER_URL}", "@roostack-admin host smiths.roost.ac\n"} {
+		if !strings.Contains(cf, want) {
+			t.Errorf("Caddyfile missing %q:\n%s", want, cf)
+		}
+	}
+	if strings.Contains(cf, "records_url") || strings.Contains(cf, "roost.smiths") {
+		t.Errorf("Caddyfile:\n%s", cf)
 	}
 }

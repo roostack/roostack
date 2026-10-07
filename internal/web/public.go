@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
@@ -248,7 +247,7 @@ func (s *Server) addPublicUI(data map[string]any) {
 	internet := c.Saved == config.NetworkInternet
 	data["Internet"] = internet
 	data["PublicUI"] = internet && !c.UITunnelOnly && s.Domain != ""
-	data["UIHost"] = caddy.AdminSubdomain + "." + s.Domain
+	data["UIHost"] = s.uiHost()
 }
 
 // fromLoopback says whether a request came from this server itself (its

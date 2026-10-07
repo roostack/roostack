@@ -153,8 +153,10 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 		AdminPublic:   lab.PublicUI(),
 		PrivateFrom:   PrivateFrom(lab),
 	}
+	mc.AdminHost = lab.UIHost()
 	if old != nil {
 		mc.OldDomain, mc.OldDNSDirective = old.Domain, oldDirective
+		mc.OldAdminHost = config.Lab{Domain: old.Domain, DNS: old.DNS}.UIHost()
 	}
 	out.Dirs = []string{lab.Paths.CaddyDataDir(), lab.Paths.CaddySitesDir()}
 	out.Units = []string{CaddyUnit + ".service"}

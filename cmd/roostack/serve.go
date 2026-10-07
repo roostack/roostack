@@ -20,7 +20,6 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
-	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
@@ -152,15 +151,15 @@ func serve(args []string) error {
 		Settings:  st}
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
+	srv.UIHost = lab.UIHost()
 	// Roostack Cloud, unless it's turned off (SPEC.md §6.6): only the
 	// controller talks to it.
+	var link *cloud.Service
 	if !lab.Cloud.Disabled {
-		link, err := cloud.New(lab.Paths.StateDir, lab.Cloud, version, lab.DisplayName, log)
-		if err != nil {
+		if link, err = cloud.New(lab.Paths.StateDir, lab.Cloud, version, lab.DisplayName, log); err != nil {
 			return err
 		}
 		srv.Cloud = link
-		go link.Run(ctx)
 	}
 	// Public access (SPEC.md §6.11): check links from a phone, and whether
 	// CrowdSec is up (the records wait for it).
@@ -185,7 +184,7 @@ func serve(args []string) error {
 			go mgr.MatchTimezone(context.WithoutCancel(ctx), id)
 		}}
 	if lab.Domain != "" {
-		hub.UI = "https://" + caddy.AdminSubdomain + "." + lab.Domain
+		hub.UI = "https://" + lab.UIHost()
 	}
 	hub.Start(ctx)
 	// A fresh server can join an existing lab from its first-run page
@@ -300,6 +299,19 @@ func serve(args []string) error {
 	// The previous address stops when its time is up (SPEC.md §6.6).
 	srv.OldAddress = lab.OldAddress
 	go wiz.RunOldAddress(ctx, log)
+	// A roost.ac name from Roostack Cloud becomes the lab's address, and
+	// goes with the link (SPEC.md §6.6).
+	if link != nil {
+		link.UseName = func(ctx context.Context, c cloud.NameClaim) error {
+			return wiz.UseRoostAc(ctx, c.Name, c.Credentials)
+		}
+		link.Dropped = func(ctx context.Context) {
+			if err := wiz.DropRoostAc(context.WithoutCancel(ctx)); err != nil {
+				log.Error("taking away the lab's roost.ac address", "err", err)
+			}
+		}
+		go link.Run(ctx)
+	}
 	// Email, through the lab's SMTP server (SPEC.md §6.13).
 	srv.Mail = &mail.Service{LabPath: *labPath, PasswordFile: lab.Paths.MailPasswordFile()}
 	go srv.RunNotifier(ctx)

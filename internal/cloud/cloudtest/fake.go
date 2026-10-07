@@ -42,6 +42,13 @@ type Fake struct {
 	// PageURL, if set, is the address people open the confirm page at
 	// (otherwise the address the lab reached).
 	PageURL string
+	// NameSuffix follows claimed names: roost.test, so nothing asks for
+	// real roost.ac certificates or records.
+	NameSuffix string
+	// ChallengeURL, if set, is where the acme-dns and records APIs are
+	// reached (Caddy and Roostack don't trust the fake's HTTPS
+	// certificate), otherwise the address the lab reached.
+	ChallengeURL string
 
 	caCert *x509.Certificate
 	caKey  *ecdsa.PrivateKey
@@ -49,6 +56,12 @@ type Fake struct {
 	mu    sync.Mutex
 	links map[string]*link // by secret
 	labs  map[string]*lab  // by lab ID
+	// names are claimed names, by lab ID.
+	names map[string]*claimed
+	// Records are the claimed names' records ("fqdn TYPE" → value), and
+	// TXT the challenge records written through acme-dns (by subdomain).
+	Records map[string]string
+	TXT     map[string][]string
 	// Requests counts requests by "METHOD path".
 	Requests map[string]int
 }
@@ -60,6 +73,11 @@ type link struct {
 	state               string
 	labID               string
 	cert                string
+}
+
+// claimed is a lab's roost.ac name and its acme-dns account.
+type claimed struct {
+	fqdn, user, pass, sub string
 }
 
 type lab struct {
@@ -82,7 +100,8 @@ func New() *Fake {
 	}
 	ca, _ := x509.ParseCertificate(der)
 	return &Fake{Account: "o••••@example.com", Taken: map[string]bool{"taken": true}, CertLife: 90 * 24 * time.Hour,
-		caCert: ca, caKey: key, links: map[string]*link{}, labs: map[string]*lab{}, Requests: map[string]int{}}
+		caCert: ca, caKey: key, links: map[string]*link{}, labs: map[string]*lab{}, Requests: map[string]int{},
+		NameSuffix: "roost.test", names: map[string]*claimed{}, Records: map[string]string{}, TXT: map[string][]string{}}
 }
 
 // CAPEM is the fake's certificate authority, which signs its HTTPS
@@ -219,8 +238,12 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			reply(w, map[string]any{"available": true})
 		}
-	case r.URL.Path == "/v1/lab" || r.URL.Path == "/v1/lab/renew":
+	case r.URL.Path == "/v1/lab" || r.URL.Path == "/v1/lab/renew" || r.URL.Path == "/v1/lab/name":
 		f.labAPI(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == "/update":
+		f.acmeUpdate(w, r)
+	case strings.HasPrefix(r.URL.Path, "/v1/records/"):
+		f.records(w, r)
 	case strings.HasPrefix(r.URL.Path, "/link/"):
 		f.page(w, r)
 	default:
@@ -316,7 +339,26 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 		reply(w, map[string]any{"lab_id": id, "account": f.Account})
 	case r.Method == http.MethodDelete && r.URL.Path == "/v1/lab":
 		delete(f.labs, id)
+		delete(f.names, id)
 		reply(w, map[string]any{})
+	case r.Method == http.MethodPost && r.URL.Path == "/v1/lab/name":
+		var req struct {
+			Name string `json:"name"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		if f.Taken[req.Name] {
+			fail(w, http.StatusConflict, req.Name+".roost.ac is taken.")
+			return
+		}
+		c := &claimed{fqdn: req.Name + "." + f.NameSuffix, user: hex.EncodeToString(serial().Bytes()[:8]),
+			pass: hex.EncodeToString(serial().Bytes()), sub: hex.EncodeToString(serial().Bytes()[:8])}
+		f.names[id] = c
+		base := f.ChallengeURL
+		if base == "" {
+			base = "https://" + r.Host
+		}
+		reply(w, map[string]any{"name": c.fqdn, "credentials": map[string]string{"server_url": base, "username": c.user,
+			"password": c.pass, "subdomain": c.sub, "records_url": base + "/v1/records"}})
 	case r.Method == http.MethodPost && r.URL.Path == "/v1/lab/renew":
 		var req struct {
 			CSR []byte `json:"csr"`
@@ -336,6 +378,93 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 	default:
 		fail(w, http.StatusNotFound, "not found")
 	}
+}
+
+// account finds the claimed name an acme-dns account belongs to (f.mu
+// held).
+func (f *Fake) account(r *http.Request) *claimed {
+	for _, c := range f.names {
+		if c.user == r.Header.Get("X-Api-User") && c.pass == r.Header.Get("X-Api-Key") {
+			return c
+		}
+	}
+	return nil
+}
+
+// acmeUpdate is acme-dns's /update: it sets the account's challenge TXT
+// record (acme-dns keeps the latest two).
+func (f *Fake) acmeUpdate(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c := f.account(r)
+	var req struct {
+		Subdomain string `json:"subdomain"`
+		TXT       string `json:"txt"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	if c == nil || req.Subdomain != c.sub {
+		fail(w, http.StatusUnauthorized, "forbidden")
+		return
+	}
+	t := append(f.TXT[c.sub], req.TXT)
+	if len(t) > 2 {
+		t = t[len(t)-2:]
+	}
+	f.TXT[c.sub] = t
+	reply(w, map[string]string{"txt": req.TXT})
+}
+
+// records is Cloud's records API for a claimed name: /v1/records/<name
+// relative to it, "@" for itself>/<type>. Only A records inside the name.
+func (f *Fake) records(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c := f.account(r)
+	name, typ, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/v1/records/"), "/")
+	if c == nil || !ok {
+		fail(w, http.StatusUnauthorized, "forbidden")
+		return
+	}
+	if typ != "A" {
+		fail(w, http.StatusBadRequest, "only A records")
+		return
+	}
+	fqdn := c.fqdn
+	if name != "@" {
+		fqdn = name + "." + c.fqdn
+	}
+	key := fqdn + " " + typ
+	switch r.Method {
+	case http.MethodGet:
+		if v, ok := f.Records[key]; ok {
+			reply(w, map[string]any{"values": []string{v}})
+		} else {
+			reply(w, map[string]any{"values": []string{}})
+		}
+	case http.MethodPut:
+		var req struct {
+			Value string `json:"value"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		if net.ParseIP(req.Value) == nil {
+			fail(w, http.StatusBadRequest, "not an address")
+			return
+		}
+		f.Records[key] = req.Value
+		reply(w, map[string]any{})
+	default:
+		fail(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+// Name is the name lab claimed, or "".
+func (f *Fake) Name(labID string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if c := f.names[labID]; c != nil {
+		return c.fqdn
+	}
+	return ""
 }
 
 var pageTmpl = template.Must(template.New("page").Parse(`<!doctype html><meta charset="utf-8">

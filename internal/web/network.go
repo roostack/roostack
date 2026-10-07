@@ -56,8 +56,8 @@ func (s *Server) networkSubmit(w http.ResponseWriter, r *http.Request) {
 // template), in the wizard's first step and Settings → Network.
 type networkForm struct {
 	setup.NetworkChoice
-	// Domain names Roostack's own address, if the lab has one yet.
-	Domain string
+	// Domain names Roostack's own address (UIHost), if the lab has one yet.
+	Domain, UIHost string
 	// Selected is the choice the form starts with.
 	Selected string
 }
@@ -74,7 +74,7 @@ func (s *Server) networkForm(r *http.Request, suggest bool) networkForm {
 		f.Selected = config.NetworkHome
 	}
 	if s.Domain != "" && s.Setup != nil && s.domainDone(r) {
-		f.Domain = s.Domain
+		f.Domain, f.UIHost = s.Domain, s.uiHost()
 	}
 	return f
 }

@@ -112,8 +112,7 @@ func (c *client) do(ctx context.Context, authed bool, method, path string, in, o
 			return ctx.Err()
 		}
 		// A certificate Cloud refuses can end the TLS handshake itself.
-		var alert tls.AlertError
-		if authed && errors.As(err, &alert) && (alert == 42 || alert == 45 || alert == 48) { // bad, expired, unknown CA
+		if authed && refusedCert(err) {
 			c.record(method, path, 0, ErrUnlinked)
 			return ErrUnlinked
 		}
@@ -144,11 +143,29 @@ func (c *client) do(ctx context.Context, authed bool, method, path string, in, o
 	return nil
 }
 
+// refusedCert reports whether the server ended the TLS handshake because
+// of the lab's certificate. Over TCP, Go reports the server's alert only as
+// text ("remote error: tls: unknown certificate authority"; its type
+// isn't exported, and tls.AlertError is for QUIC), seen on a dev VM
+// (2026-10-07) when the lab's certificate came from an earlier Cloud.
+func refusedCert(err error) bool {
+	msg := err.Error()
+	for _, alert := range []string{"bad certificate", "certificate expired", "certificate revoked",
+		"unknown certificate authority", "certificate required"} {
+		if strings.Contains(msg, "remote error: tls: "+alert) {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *client) record(method, path string, status int, err error) {
 	if c.log != nil {
 		c.log(method, path, status, err)
 	}
 }
 
-// renewed makes new requests use the renewed certificate.
+// renewed makes new requests use the lab's current certificate (renewed,
+// new after linking again, or none): connections opened with another are
+// closed, since TLS sends the certificate only when a connection opens.
 func (c *client) renewed() { c.authT.CloseIdleConnections() }

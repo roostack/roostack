@@ -319,7 +319,13 @@ func (m *Manager) Sync(ctx context.Context) Status {
 		return m.set(st)
 	}
 
-	if err := m.ensure(ctx, p, values, zone, name, ip); err != nil {
+	err := m.ensure(ctx, p, values, zone, name, ip)
+	if err == nil && lab.UIHost() == lab.Domain {
+		// Roostack's pages are at the name itself (a roost.ac name), which
+		// the wildcard doesn't cover (SPEC.md §6.6).
+		err = m.ensure(ctx, p, values, zone, strings.TrimPrefix(strings.TrimPrefix(name, "*"), "."), ip)
+	}
+	if err != nil {
 		var conflict *conflictError
 		if errors.As(err, &conflict) {
 			st.State, st.Message, st.Current = StateConflict, conflict.Error(), conflict.current
@@ -383,6 +389,9 @@ func (m *Manager) Records(ctx context.Context) ([]Record, error) {
 // doesn't exist, or already has the right value).
 func (m *Manager) ensure(ctx context.Context, p *dns.Provider, values map[string]string, zone, name, ip string) error {
 	fqdn := name + "." + zone
+	if name == "" {
+		fqdn = zone // the zone's own name
+	}
 	key := ownerKey(fqdn, "A")
 	owned, err := m.Store.Setting(ctx, key)
 	if err != nil {
