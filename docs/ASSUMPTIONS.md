@@ -113,6 +113,20 @@ Prototyped on VM2 (2026-09-30) with the Caddy image's new plugins and CrowdSec 1
 | P9 ✅ | **What Caddy's pasta network sees for connections made on the host (2026-09-30):** a throwaway container with Roostack's network options (`pasta:--map-host-loopback,<addr>`, port published) answered with the client address it saw. A connection to the host's `127.0.0.1` (where an SSH tunnel ends) arrives from **the host's own address** (10.0.2.15 on the VM); one to the host's own address arrives from **the map-host-loopback address**. So on a lab on the internet, "private" (this server only) is loopback, the host's address and `169.254.1.3` (SPEC §6.12). At home both are private addresses anyway, which is why VM1's private UI route answered through the host's 127.0.0.1. |
 | P7 | Requests from the host itself to its LAN address reached the test Caddy from `169.254.1.2` (pasta's address for the host), which Caddy's `private_ranges` doesn't include, so the server itself can't reach a private path through Caddy. Nothing in Roostack does. |
 
+## Q. The edge (SPEC §10.5)
+
+Prototyped on VM2 (2026-10-10) with throwaway containers: Roostack's Caddy image plus `github.com/mholt/caddy-l4@v0.1.2`, both on pasta as Roostack's Caddy. An "edge" Caddy on 9443 with the `layer4` listener wrapper (`tls sni` → `proxy { proxy_protocol v2; upstream … }`, then `tls` for its own sites), and a "home" Caddy on 8443 with the `proxy_protocol` wrapper (`allow` the overlay, `fallback_policy reject`). The overlay was a dummy interface with `10.88.0.1` (the WireGuard hop itself not yet: Q6); the outside visitor a network namespace with `203.0.113.10` (VM2's firewall opened for it, then closed).
+
+| # | Result |
+|---|---|
+| Q1 ✅ | **A visitor through the edge reaches home with their real address:** home's `{remote_host}` was `203.0.113.10`, and a private path answered "refused: 203.0.113.10 is not private". TLS passed through: the certificate was home's. |
+| Q2 ✅ | **The edge's own sites still work** behind the layer-4 wrapper (names it doesn't route fall through to its `tls` and HTTP server), and **a name it neither routes nor serves fails the TLS handshake**. |
+| Q3 ✅ | **A faked PROXY header is refused:** a visitor sending one straight to home's port, claiming `10.0.0.5`, had the connection closed (`fallback_policy reject`: an untrusted source may not send one). |
+| Q4 ⚠️ | **`fallback_policy reject` doesn't require a header**, it only refuses one from an untrusted source: a visitor connecting straight to home's 8443 without a header was served (with their real, public address, so nothing private opened). So the edge port must be reachable only over WireGuard (the firewall), and `allow` lists only the edges' overlay addresses, never the whole overlay. A trusted source that sends no header counts as its own overlay address (private): the edge always sends one, and an edge that didn't could claim any address anyway. |
+| Q5 ✅ | **Inside pasta, the host's own address is the container's:** the edge dialling `10.0.2.15` (VM2's address) reached itself ("connection refused"). The edge dials home's overlay address, which leaves through the host (`10.88.0.1` worked), as WireGuard addresses will. |
+| Q6 | **To check over real WireGuard** with the implementation: VM3 at home, `roostack-test` (a Linode) as the edge, a real visitor from the internet. |
+| Q7 | **No HTTP/3 through the edge:** Caddy's listener wrappers (`proxy_protocol` among them) wrap a TCP listener, and HTTP/3 uses a UDP packet connection, so home couldn't learn a visitor's address over it (Caddy's docs say nothing either way; this follows from the interfaces). The edge forwards TCP only, and home doesn't advertise HTTP/3 for names routed through an edge. |
+
 ## I. Databases
 
 | # | Assumption / concern |
