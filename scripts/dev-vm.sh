@@ -137,10 +137,16 @@ start() {
         smbios=(-smbios "type=1,serial=ds=nocloud;s=http://10.0.2.2:$port/")
     fi
     log "Starting VM ($MEMORY MB, $CPUS CPUs)"
+    # WireGuard's UDP ports are forwarded on all the host's addresses, not
+    # just 127.0.0.1: QEMU sends the VM's own packets from a forwarded port
+    # through the forward's socket, and one bound to 127.0.0.1 can't reach
+    # the internet (a VM controller dialling a cloud server, 2026-10-11).
+    # WireGuard answers nobody without a key, so the home network seeing
+    # the ports is harmless.
     qemu-system-x86_64 \
         -name "$NAME" -machine q35,accel=kvm -cpu host -m "$MEMORY" -smp "$CPUS" \
         -drive file="$DISK",if=virtio,id=disk0,discard=unmap \
-        -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$((18480 + OFF))-:8480,hostfwd=tcp:127.0.0.1:$((18080 + OFF))-:80,hostfwd=tcp:127.0.0.1:$((18443 + OFF))-:443,hostfwd=udp:127.0.0.1:$WG_PORT-:51820,hostfwd=udp:127.0.0.1:$GUESTS_PORT-:51821" \
+        -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$((18480 + OFF))-:8480,hostfwd=tcp:127.0.0.1:$((18080 + OFF))-:80,hostfwd=tcp:127.0.0.1:$((18443 + OFF))-:443,hostfwd=udp::$WG_PORT-:51820,hostfwd=udp::$GUESTS_PORT-:51821" \
         -device virtio-net-pci,netdev=net0 \
         -device virtio-rng-pci \
         -device qemu-xhci,id=xhci \

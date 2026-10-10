@@ -99,6 +99,8 @@ footer.site .version { font-family: var(--font-mono); font-size: 0.95em; }
   border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); margin: 0; }
 .address-choice.recommended, .address-choice.chosen { border: 2px solid var(--accent); }
 .address-choice p { margin: 0; }
+/* Addresses (link.<a long domain>:51820) wrap rather than widen the page on a phone. */
+.address-choice code { overflow-wrap: anywhere; }
 .address-choice-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-weight: var(--weight-medium); }
 .address-choice-title .icon { color: var(--accent); }
 .address-choice > button, .address-choice > .button { justify-self: start; }

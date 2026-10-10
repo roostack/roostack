@@ -106,6 +106,8 @@
   <p>Open the new server's setup page (the address its installer showed), enter its setup code, choose
     <strong>Add it to a lab you already have</strong> and paste this join code. It works once, within an hour.</p>
   {{copyBox .}}
+  {{with $.JoinDials}}<p class="notice">This server connects to the new one at <code>{{.}}</code>: its UDP port has to be open
+    at its provider (a cloud firewall, if it has one). Roostack opens it in the new server's own firewall while it joins.</p>{{end}}
   <details>
     <summary>Or on the new server's command line</summary>
     {{copyBox (printf "sudo roostack node join %s" .)}}
@@ -135,7 +137,8 @@
     </ol>
     <p class="hint">How to tell it worked: once the new server has joined, it shows up above as up to date.
       If joining says it can't reach the controller, the port isn't forwarded yet (or the address is wrong).
-      Some internet connections (called CGNAT) can't forward ports at all; then put the controller on the server that's reachable instead.</p>
+      Some internet connections (called CGNAT) can't forward ports at all. For a cloud server, there's no need: choose
+      <strong>None: this server connects to the new one instead</strong> above.</p>
   </details>
 </section>
 {{end}}

@@ -80,7 +80,9 @@ func (h *Hub) JoinHandler() http.HandlerFunc {
 // JoinLab joins this server to a lab with a code (`roostack node join`):
 // WireGuard comes up with the code's one-time key, the controller signs
 // this server's certificate and learns its own key, then WireGuard
-// switches to that key.
+// switches to that key. With a Listen code (the controller can't be
+// reached, SPEC.md §10.2), this server listens on WireGuard's port, open
+// in its firewall for the join, and waits for the controller to dial it.
 func JoinLab(ctx context.Context, code JoinCode, self nodeid.Identity, stateDir string, ag WireGuardAgent, log func(string, ...any)) error {
 	if m, ok, _ := LoadMembership(stateDir); ok {
 		return fmt.Errorf("this server is already a %s in a lab", m.Role)
@@ -93,8 +95,18 @@ func JoinLab(ctx context.Context, code JoinCode, self nodeid.Identity, stateDir 
 	wg := agent.WireGuard{Address: fmt.Sprintf("%s/%d", code.Addr, code.PrefixBits),
 		Peers: []agent.Peer{{PublicKey: code.ControllerKey, Endpoint: code.Endpoint, Keepalive: Keepalive,
 			AllowedIPs: []string{netip.PrefixFrom(code.Addr, code.PrefixBits).Masked().String()}}}}
-
-	log("Connecting to the controller at %s over WireGuard", code.Endpoint)
+	if code.Listen {
+		// The controller dials, and keeps the link open.
+		wg.ListenPort, wg.Peers[0].Keepalive = agent.WireGuardPort, 0
+		log("Waiting for the controller to connect to this server (UDP port %d)", agent.WireGuardPort)
+		if o, ok := ag.(interface{ AllowWireGuardJoin(context.Context) error }); ok {
+			if err := o.AllowWireGuardJoin(ctx); err != nil {
+				return fmt.Errorf("opening WireGuard's port in this server's firewall: %w", err)
+			}
+		}
+	} else {
+		log("Connecting to the controller at %s over WireGuard", code.Endpoint)
+	}
 	wg.JoinKey = code.JoinKey
 	if _, err := ag.ApplyWireGuard(ctx, wg); err != nil {
 		return err
@@ -114,14 +126,20 @@ func JoinLab(ctx context.Context, code JoinCode, self nodeid.Identity, stateDir 
 	// another lab, guests.go).
 	start := time.Now()
 	handshake := false
+	waitLink, waitAll := handshakeTimeout, joinTimeout
+	if code.Listen {
+		// The controller retries a failed handshake in bursts, then waits
+		// for its next keepalive (Keepalive seconds).
+		waitLink, waitAll = 60*time.Second, 90*time.Second
+	}
 	for {
 		err = post(ctx, client, url, body, &resp)
 		var refused *RemoteError
-		if err == nil || errors.As(err, &refused) || time.Since(start) > joinTimeout {
+		if err == nil || errors.As(err, &refused) || time.Since(start) > waitAll {
 			break
 		}
 		if !handshake {
-			if handshake = linkUp(ctx, ag, agent.WireGuardInterface, code.ControllerKey); !handshake && time.Since(start) > handshakeTimeout {
+			if handshake = linkUp(ctx, ag, agent.WireGuardInterface, code.ControllerKey); !handshake && time.Since(start) > waitLink {
 				break
 			}
 		}
@@ -131,13 +149,18 @@ func JoinLab(ctx context.Context, code JoinCode, self nodeid.Identity, stateDir 
 	if err != nil && !errors.As(err, &refused) {
 		_, port, _ := net.SplitHostPort(code.Endpoint)
 		lab := cmp.Or(code.LabName, "your lab")
+		if code.Listen && !handshake && !linkUp(ctx, ag, agent.WireGuardInterface, code.ControllerKey) {
+			return fmt.Errorf("%s didn't connect to this server. Its UDP port %d has to let it in: open it in the provider's "+
+				"firewall, if it has one, and check the address the join code was made for is this server's public address. "+
+				"(Details: no WireGuard handshake in %d seconds.)", lab, agent.WireGuardPort, int(time.Since(start).Seconds()))
+		}
 		if !handshake && !linkUp(ctx, ag, agent.WireGuardInterface, code.ControllerKey) {
 			return fmt.Errorf("couldn't reach %s at %s. Its UDP port %s has to let this server in: at home, this server on the same "+
 				"network as the lab's, or the port forwarded on the router; on a cloud server, the provider's firewall. "+
 				"(Details: no WireGuard handshake in %d seconds.)", lab, code.Endpoint, port, int(time.Since(start).Seconds()))
 		}
-		return fmt.Errorf("the link to %s at %s works, but Roostack there didn't answer: it may be restarting, so try again "+
-			"in a minute. (Details: %v)", lab, code.Endpoint, err)
+		return fmt.Errorf("the link to %s works, but Roostack there didn't answer: it may be restarting, so try again "+
+			"in a minute. (Details: %v)", lab, err)
 	}
 	if err != nil {
 		return fmt.Errorf("the controller refused to add this server: %w", err)

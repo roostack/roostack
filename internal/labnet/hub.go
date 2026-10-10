@@ -157,11 +157,20 @@ func (h *Hub) SyncPeers(ctx context.Context) error {
 	// §10.10); its firewall lets nothing else through.
 	wg := agent.WireGuard{Address: fmt.Sprintf("%s/%d", ControllerAddr, DefaultPrefix.Bits()), ListenPort: agent.WireGuardPort,
 		Forward: true}
+	// Servers dial the hub, except those it dials (a cloud server in a
+	// lab whose controller is at home), kept open with a keepalive.
+	peer := func(key, addr, dial string) agent.Peer {
+		p := agent.Peer{PublicKey: key, AllowedIPs: []string{addr + "/32"}}
+		if dial != "" {
+			p.Endpoint, p.Keepalive = dial, Keepalive
+		}
+		return p
+	}
 	for _, m := range servers {
-		wg.Peers = append(wg.Peers, agent.Peer{PublicKey: m.PublicKey, AllowedIPs: []string{m.Addr + "/32"}})
+		wg.Peers = append(wg.Peers, peer(m.PublicKey, m.Addr, m.Dial))
 	}
 	for _, c := range codes {
-		wg.Peers = append(wg.Peers, agent.Peer{PublicKey: c.PublicKey, AllowedIPs: []string{c.Addr + "/32"}})
+		wg.Peers = append(wg.Peers, peer(c.PublicKey, c.Addr, c.Dial))
 	}
 	pub, err := h.Agent.ApplyWireGuard(ctx, wg)
 	if err != nil {
@@ -173,8 +182,14 @@ func (h *Hub) SyncPeers(ctx context.Context) error {
 
 // NewJoinCode makes a code for a new server, which dials the controller
 // at endpoint (host:port of this server's WireGuard, as the new server
-// sees it). It sets up the network first if needed.
-func (h *Hub) NewJoinCode(ctx context.Context, endpoint string) (JoinCode, error) {
+// sees it). Or, when the controller can't be reached (at home, behind its
+// router) and the new server can, endpoint is "" and the controller dials
+// the new server at dial instead (SPEC.md §10.2). It sets up the network
+// first if needed.
+func (h *Hub) NewJoinCode(ctx context.Context, endpoint, dial string) (JoinCode, error) {
+	if (endpoint == "") == (dial == "") {
+		return JoinCode{}, errors.New("a join code needs either the controller's address or the new server's")
+	}
 	if err := h.init(ctx); err != nil {
 		return JoinCode{}, err
 	}
@@ -189,7 +204,7 @@ func (h *Hub) NewJoinCode(ctx context.Context, endpoint string) (JoinCode, error
 	pub, _ := agent.WireGuardPublicKey(key)
 	token, hash := NewToken()
 	if err := h.Store.AddJoinCode(ctx, store.JoinCode{TokenHash: hash, Addr: addr.String(), PublicKey: pub,
-		Expires: h.Now().Add(JoinCodeLifetime)}); err != nil {
+		Expires: h.Now().Add(JoinCodeLifetime), Dial: dial}); err != nil {
 		return JoinCode{}, err
 	}
 	if err := h.SyncPeers(ctx); err != nil {
@@ -202,7 +217,7 @@ func (h *Hub) NewJoinCode(ctx context.Context, endpoint string) (JoinCode, error
 	h.mu.Lock()
 	ctrlKey := h.publicKey
 	h.mu.Unlock()
-	c := JoinCode{Endpoint: endpoint, ControllerKey: ctrlKey, ControllerID: h.Self.ID, ControllerAddr: ControllerAddr,
+	c := JoinCode{Endpoint: endpoint, Listen: dial != "", ControllerKey: ctrlKey, ControllerID: h.Self.ID, ControllerAddr: ControllerAddr,
 		Addr: addr, PrefixBits: DefaultPrefix.Bits(), JoinKey: key, CA: ca.Fingerprint(), Token: token,
 		LabName: h.LabName, UI: h.UI}
 	// Check it the way the new server will (e.g. the endpoint's format).
@@ -315,6 +330,8 @@ type Peer struct {
 	// Seen is where it last connected to the hub from (host:port), "" if
 	// unknown: a server on the internet's own address.
 	Seen string
+	// Dial is where the hub dials it ("" when it dials the hub).
+	Dial string
 }
 
 // Peers are the lab's other servers, by ID, for direct links between
@@ -334,7 +351,7 @@ func (h *Hub) Peers(ctx context.Context) (map[string]Peer, error) {
 	}
 	out := map[string]Peer{}
 	for _, s := range servers {
-		out[s.ID] = Peer{PublicKey: s.PublicKey, Addr: s.Addr, Seen: seen[s.PublicKey]}
+		out[s.ID] = Peer{PublicKey: s.PublicKey, Addr: s.Addr, Seen: seen[s.PublicKey], Dial: s.Dial}
 	}
 	return out, nil
 }

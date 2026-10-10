@@ -184,7 +184,9 @@ func (m *Manager) linksFor(ctx context.Context, infos map[string]linkInfo, id st
 	if id == m.Lab.NodeID || infos == nil {
 		return nil
 	}
-	l := &agent.Links{}
+	// The controller dials it (it can be reached and the controller
+	// can't, SPEC.md §10.2), so it keeps listening.
+	l := &agent.Links{Listen: infos[id].Dial != ""}
 	for _, p := range m.linkPairs(ctx) {
 		other := p[1]
 		if p[1] == id {

@@ -299,7 +299,7 @@ type ServiceNode interface {
 
 // LabNetwork is what the UI needs from labnet.Hub.
 type LabNetwork interface {
-	NewJoinCode(ctx context.Context, endpoint string) (labnet.JoinCode, error)
+	NewJoinCode(ctx context.Context, endpoint, dial string) (labnet.JoinCode, error)
 }
 
 // LabSetup is what the UI needs from internal/setup.

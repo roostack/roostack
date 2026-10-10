@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"slices"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/public"
 )
 
 // Settings is an overview grid of areas, each with its own page; on
@@ -385,7 +387,15 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 			endpoint = v // as it was submitted
 		}
 		data["CanAdd"] = true
-		data["AddressChoice"] = s.addressChoices(r, "Address the new server reaches this one at", agent.WireGuardPort, true, true, endpoint)
+		choice := s.addressChoices(r, "Address the new server reaches this one at", agent.WireGuardPort, true, true, endpoint)
+		// At home, the controller can dial a cloud server instead.
+		if !s.onInternet() {
+			choice.Dial = true
+			if d, ok := extra["Dial"].(string); ok {
+				choice.Selected, choice.DialAddr = "dial", d
+			}
+		}
+		data["AddressChoice"] = choice
 		if host, _, err := net.SplitHostPort(defaultEndpoint()); err == nil {
 			data["LANAddr"] = host
 		}
@@ -407,13 +417,17 @@ func (s *Server) joinCodeSubmit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if r.FormValue("address") == "dial" {
+		s.joinCodeDial(w, r)
+		return
+	}
 	endpoint := addressFromForm(r)
 	if host, port, err := net.SplitHostPort(endpoint); err != nil || host == "" || port == "" {
 		s.renderServers(w, r, map[string]any{"Endpoint": endpoint,
 			"Error": "Choose the address other servers reach this one at, or enter one with its port, such as 192.168.1.20:51820."})
 		return
 	}
-	code, err := s.Network.NewJoinCode(r.Context(), endpoint)
+	code, err := s.Network.NewJoinCode(r.Context(), endpoint, "")
 	if err != nil {
 		s.renderServers(w, r, map[string]any{"Endpoint": endpoint, "Error": "Roostack couldn't make a join code: " + err.Error()})
 		return
@@ -423,6 +437,46 @@ func (s *Server) joinCodeSubmit(w http.ResponseWriter, r *http.Request) {
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "join code made for "+code.Addr.String())
 	s.renderServers(w, r, map[string]any{"Endpoint": endpoint, "JoinCode": code.String(),
 		"JoinExpires": time.Now().Add(labnet.JoinCodeLifetime)})
+}
+
+// joinCodeDial makes a join code for a server this one dials, because it
+// can be reached and this one can't (SPEC.md §10.2).
+func (s *Server) joinCodeDial(w http.ResponseWriter, r *http.Request) {
+	typed := strings.TrimSpace(r.FormValue("address_dial"))
+	dial, err := dialAddress(typed)
+	if err != nil {
+		s.renderServers(w, r, map[string]any{"Dial": typed, "Error": err.Error()})
+		return
+	}
+	code, err := s.Network.NewJoinCode(r.Context(), "", dial)
+	if err != nil {
+		s.renderServers(w, r, map[string]any{"Dial": typed, "Error": "Roostack couldn't make a join code: " + err.Error()})
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "servers", "join code made for "+code.Addr.String()+", connecting to "+dial)
+	s.renderServers(w, r, map[string]any{"JoinCode": code.String(), "JoinDials": dial,
+		"JoinExpires": time.Now().Add(labnet.JoinCodeLifetime)})
+}
+
+// dialAddress is a typed public address or name, with WireGuard's port
+// unless one is given. A home-network address isn't one: a server there
+// can be reached the usual way.
+func dialAddress(typed string) (string, error) {
+	host, port := typed, strconv.Itoa(agent.WireGuardPort)
+	if h, p, err := net.SplitHostPort(typed); err == nil {
+		host, port = h, p
+	}
+	if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+		return "", errors.New("That port isn't a number from 1 to 65535.")
+	}
+	if ip, err := netip.ParseAddr(host); err == nil {
+		if !public.IsPublic(ip) {
+			return "", errors.New(host + " isn't a public address. A server at home can join the usual way: choose this server's home-network address.")
+		}
+	} else if host == "" || strings.ContainsAny(host, " /:") || !strings.Contains(host, ".") {
+		return "", errors.New("Enter the new server's public address, such as 203.0.113.7, or a name for it.")
+	}
+	return net.JoinHostPort(host, port), nil
 }
 
 // defaultEndpoint guesses this server's address on the home network.

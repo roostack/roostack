@@ -56,6 +56,12 @@ func (c *Client) ApplyFirewall(ctx context.Context, fw Firewall) error {
 	return c.call(ctx, http.MethodPut, "/v1/firewall", fw, nil)
 }
 
+// AllowWireGuardJoin opens WireGuard's port until the firewall is next
+// applied, for a join where the controller dials this server.
+func (c *Client) AllowWireGuardJoin(ctx context.Context) error {
+	return c.call(ctx, http.MethodPost, "/v1/firewall/wireguard-join", nil, nil)
+}
+
 // SetTimezone sets the host's time zone (an IANA name like Europe/Berlin).
 func (c *Client) SetTimezone(ctx context.Context, name string) error {
 	return c.call(ctx, http.MethodPut, "/v1/timezone", map[string]string{"timezone": name}, nil)
