@@ -169,6 +169,10 @@ func (m *Manager) startApplyLocked() {
 		nodes = append(nodes, r)
 	}
 	infos := m.linkInfos(context.Background())
+	// The edge passes public visitors on to the controller's Caddy, which
+	// believes it alone about who they are (SPEC.md §10.5).
+	edge, edgeAddrs := m.edgeFor(infos)
+	lab.EdgeAddrs = edgeAddrs
 	for _, n := range nodes {
 		id := n.Identity().ID
 		if n == m.Node {
@@ -199,6 +203,9 @@ func (m *Manager) startApplyLocked() {
 		}
 		a.Storage = m.storageFor(context.Background(), id)
 		a.Links = m.linksFor(context.Background(), infos, id)
+		if id == edge {
+			a.Edge = edgeConfig(m.Lab, services)
+		}
 		n.Apply(a)
 	}
 	m.secrets, m.setUp = nil, nil

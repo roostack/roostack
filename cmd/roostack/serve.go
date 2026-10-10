@@ -346,9 +346,14 @@ func serve(args []string) error {
 			LocalLookup: dnsrecords.SystemLookup, PublicLookup: dnsrecords.PublicLookup,
 			Wait:      90 * time.Second,
 			UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) },
-			// Public addresses point at the home's public address (port
-			// forwarding, the only entry so far), once CrowdSec is up.
-			PublicHosts: mgr.PublicHosts, Entry: public.PortForwarding{}, Protected: crowdSecUp,
+			// Public addresses point at the lab's edge, if it has one
+			// (SPEC.md §10.5), else the home's public address (port
+			// forwarding), once CrowdSec is up.
+			PublicHosts: mgr.PublicHosts, Protected: crowdSecUp,
+			Entry: public.Chosen{Home: public.PortForwarding{}, Edge: func(ctx context.Context) (public.Edge, bool) {
+				e, ok := mgr.Edge(ctx)
+				return public.Edge{Name: cmp.Or(e.Name, e.ID), Addr: e.Address}, ok
+			}},
 			// link.<domain>, once chosen for joining or storage for others.
 			LinkWanted: func() bool { v, _ := st.Setting(context.Background(), web.LinkWantedKey); return v == "on" },
 			// Another copy of this lab runs it now: leave its records alone.

@@ -38,10 +38,40 @@ public…**. Roostack explains what changes and asks you to confirm, then:
 3. **Your router.** Forward TCP ports 80 and 443, and UDP port 443, to this
    server's home address (the page shows it). Look for "port forwarding",
    "virtual server" or "NAT" in your router's settings. If the server is a
-   cloud server rather than at home, skip this.
+   cloud server rather than at home, skip this. So can a lab whose visitors
+   come in through a cloud server (below).
 4. **Check from your phone.** Choose **Make a check link**, turn Wi-Fi off
    so your phone uses mobile data, and scan the code. The step ticks itself
    when your phone gets through.
+
+## Through a cloud server, without touching your router
+
+If your lab has a cloud server (see [Add a server](../servers/add.md)),
+public visitors can come in through it instead of your router. Choose it
+in **Settings → Public access**, under **How people reach your public
+services**. Then:
+
+- public addresses point at the cloud server, so your home's address stays
+  hidden;
+- the cloud server passes each visitor's connection on to your lab over
+  the servers' own private network, **still encrypted**: it can't read
+  what's sent, and the certificate stays at home;
+- your lab still sees who each visitor is, so CrowdSec, password limits
+  and the private parts of each service work as before;
+- if its provider has a firewall, it has to allow TCP ports 80 and 443.
+
+??? note "For technical users"
+
+    The cloud server runs Roostack's Caddy with the layer-4 plugin: it
+    reads the name in each TLS handshake, passes connections for public
+    names to the controller's port 443 over WireGuard with a PROXY protocol
+    (v2) header, and drops any other name. Plain HTTP for those names is
+    redirected. The controller's Caddy accepts the PROXY header only from
+    the cloud server's WireGuard address, and treats that address as
+    outside, so a connection without a header can't reach anything
+    private. HTTP/3 (UDP) doesn't pass through the cloud server: browsers
+    use HTTP/2. For now one cloud server is the way in for every public
+    address.
 
 ## If it doesn't work
 

@@ -128,22 +128,11 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 	}
 	out.Quadlets = append(out.Quadlets, File{Name: CaddyUnit + ".container", Content: u.String()})
 
-	var b quadlet.Unit
-	b.Section("Unit").Add("Description", "Roostack: build the reverse proxy image (Caddy with DNS plugins)")
-	bs := b.Section("Build")
-	bs.Add("ImageTag", CaddyImage)
-	bs.Add("File", CaddyBuildDir+"/Containerfile")
-	bs.Add("SetWorkingDirectory", "file")
-	// The first build compiles Caddy: minutes, not seconds.
-	bsvc := b.Section("Service")
-	bsvc.Add("TimeoutStartSec", "1800")
-	// Its output goes to a file the UI can show (config.Paths.CaddyBuildLog).
-	bsvc.Add("StandardOutput", "truncate:"+lab.Paths.CaddyBuildLog())
-	bsvc.Add("StandardError", "inherit")
-	if err := b.Validate(); err != nil {
+	build, err := caddyBuild(lab)
+	if err != nil {
 		return nil, err
 	}
-	out.Quadlets = append(out.Quadlets, File{Name: CaddyUnit + ".build", Content: b.String()})
+	out.Quadlets = append(out.Quadlets, build)
 
 	mc := caddy.MainConfig{
 		Domain:        lab.Domain,
@@ -152,6 +141,7 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 		AdminUpstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, lab.UIPort),
 		AdminPublic:   lab.PublicUI(),
 		PrivateFrom:   PrivateFrom(lab),
+		EdgeFrom:      lab.EdgeAddrs,
 	}
 	mc.AdminHost = lab.UIHost()
 	if old != nil {
@@ -173,6 +163,72 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 	}
 	out.Caddyfile = File{Name: "Caddyfile", Content: main}
 	return out, nil
+}
+
+// caddyBuild is the Quadlet that builds Roostack's Caddy image (with its
+// plugins) on the server.
+func caddyBuild(lab config.Lab) (File, error) {
+	var b quadlet.Unit
+	b.Section("Unit").Add("Description", "Roostack: build the reverse proxy image (Caddy with DNS plugins)")
+	bs := b.Section("Build")
+	bs.Add("ImageTag", CaddyImage)
+	bs.Add("File", CaddyBuildDir+"/Containerfile")
+	bs.Add("SetWorkingDirectory", "file")
+	// The first build compiles Caddy: minutes, not seconds.
+	bsvc := b.Section("Service")
+	bsvc.Add("TimeoutStartSec", "1800")
+	// Its output goes to a file the UI can show (config.Paths.CaddyBuildLog).
+	bsvc.Add("StandardOutput", "truncate:"+lab.Paths.CaddyBuildLog())
+	bsvc.Add("StandardError", "inherit")
+	if err := b.Validate(); err != nil {
+		return File{}, err
+	}
+	return File{Name: CaddyUnit + ".build", Content: b.String()}, nil
+}
+
+// Edge generates an edge's Caddy (SPEC.md §10.5), on a server that isn't
+// the controller (nodes have no Caddy otherwise): the same unit and image
+// as the controller's, publishing TCP 80 and 443 only (no HTTP/3: a PROXY
+// header can't come with it, docs/ASSUMPTIONS.md Q7), with no
+// certificates, DNS logins or sites of its own: just c, passed on to the
+// controller over Roostack's network. Like the controller's, it's on pasta,
+// which keeps visitors' addresses for the PROXY header.
+func Edge(lab config.Lab, c caddy.EdgeConfig) (*SystemOutput, error) {
+	conf, err := caddy.Edge(c)
+	if err != nil {
+		return nil, err
+	}
+	var u quadlet.Unit
+	u.Section("Unit").Add("Description", "Roostack: the lab's edge (Caddy, passing public visitors on)")
+	cs := u.Section("Container")
+	cs.Add("ContainerName", CaddyUnit)
+	cs.Add("Image", CaddyUnit+".build")
+	addTimezone(cs, lab)
+	cs.Add("Network", "pasta")
+	cs.Add("PublishPort", "80:80")
+	cs.Add("PublishPort", "443:443")
+	cs.Add("Volume", lab.Paths.CaddyDir()+":/etc/caddy:ro")
+	cs.Add("Volume", lab.Paths.CaddyDataDir()+":/data")
+	cs.Add("Label", "io.roostack.service=_system")
+	cs.Add("Label", "io.roostack.component=edge")
+	svc := u.Section("Service")
+	svc.Add("ExecReload", "/usr/bin/podman exec "+CaddyUnit+" caddy reload --config /etc/caddy/Caddyfile")
+	svc.Add("Restart", "always")
+	svc.Add("TimeoutStartSec", "900")
+	u.Section("Install").Add("WantedBy", "default.target")
+	if err := u.Validate(); err != nil {
+		return nil, err
+	}
+	build, err := caddyBuild(lab)
+	if err != nil {
+		return nil, err
+	}
+	return &SystemOutput{
+		Quadlets:  []File{{Name: CaddyUnit + ".container", Content: u.String()}, build},
+		Caddyfile: File{Name: "Caddyfile", Content: conf},
+		Dirs:      []string{lab.Paths.CaddyDataDir()},
+		Units:     []string{CaddyUnit + ".service"},
+	}, nil
 }
 
 // PrivateFrom is who reaches the lab's private addresses (SPEC.md §6.12):

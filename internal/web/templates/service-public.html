@@ -42,11 +42,17 @@
       Many cloud providers put a firewall in front of your server, such as Linode's Cloud Firewall, Hetzner's Firewall,
       AWS security groups, DigitalOcean's Cloud Firewalls or Oracle Cloud's security lists. In your provider's control panel,
       allow TCP ports 80 and 443, and UDP port 443, from anywhere. No provider firewall? There's nothing to do here.</li>
+    {{else if .Edge}}
+    <li><span class="dot dot-none" aria-hidden="true"></span><strong>Through {{or .Edge.Name .Edge.ID}}.</strong>
+      Nothing to change on your router: visitors come in through {{or .Edge.Name .Edge.ID}}{{with .Edge.Address}} (<code>{{.}}</code>){{end}},
+      a cloud server in this lab, which passes their connections on to this server still encrypted. If its provider has a firewall,
+      it has to allow TCP ports 80 and 443. <a href="/settings/public#way-in">Change how visitors come in</a></li>
     {{else}}
     <li><span class="dot dot-none" aria-hidden="true"></span><strong>Your router.</strong>
       Forward TCP ports 80 and 443, and UDP port 443, to <code>{{or .LANIP "this server"}}</code>{{with .LANIP}} (this server){{end}}.
       Look for "port forwarding", "virtual server" or "NAT" in your router's settings.
-      <small>Port 443 already goes to another device at home? It has to come here instead, or wait for public access through a cloud server.
+      <small>Port 443 already goes to another device at home, or no ports can be forwarded? A cloud server in the lab can be the way in instead
+        (<a href="/settings/public#way-in">Settings → Public access</a>).
         If this server is a cloud server, say so in <a href="/settings/home-network">Settings → Where it is and DNS</a>.</small></li>
     {{end}}
     <li id="check"{{if .CheckLink}} hx-get="/services/{{$.Name}}/public/{{.Route.Route}}" hx-select="#check" hx-trigger="every 5s [document.visibilityState === 'visible']" hx-swap="outerHTML"{{end}}>
@@ -70,6 +76,7 @@
     <ol class="steps public-steps">
       <li><span class="dot dot-ok" aria-hidden="true"></span>Roostack's own firewall lets web traffic in (TCP 80 and 443, UDP 443). It always does.</li>
       <li><span class="dot dot-none" aria-hidden="true"></span>{{if .Internet}}Your provider's firewall allows those ports (above). Roostack can't see it from here.
+        {{else if .Edge}}{{or .Edge.Name .Edge.ID}} is connected to the lab, and its provider's firewall allows TCP 80 and 443 (above).
         {{else}}Your router forwards those ports to this server (above). Roostack can't see it from here.{{end}}</li>
       <li><span class="dot dot-{{if and .Record (eq .Record.State "ok")}}ok{{else}}warn{{end}}" aria-hidden="true"></span>Public DNS
         points <code>{{.Route.Host}}</code> at {{with .Record}}<code>{{.IP}}</code>{{else}}this lab{{end}}:

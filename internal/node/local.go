@@ -17,6 +17,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/firewall"
 	"roostack.cloud/roostack/internal/generate"
@@ -89,6 +90,9 @@ type Assignment struct {
 	// to their disks (SPEC.md §10.10); nil leaves them as they are (the
 	// controller, which every server dials anyway).
 	Links *agent.Links
+	// Edge, if set, makes this server the lab's edge (SPEC.md §10.5): its
+	// Caddy passes visitors for the public names on to the controller.
+	Edge *caddy.EdgeConfig
 	// Reason says why it was sent, for the apply's log.
 	Reason string
 }
@@ -211,7 +215,7 @@ func (n *Local) Apply(a Assignment) {
 	}
 	old := n.assignment.Services
 	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage, Links: a.Links,
-		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts}
+		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts, Edge: a.Edge}
 	if n.State != nil {
 		// A service taken off this server forgets its setup progress.
 		for _, s := range old {
@@ -303,6 +307,17 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	if err := n.addGuestStorage(&desired, a); err != nil {
 		return err
 	}
+	if a.Edge != nil && n.lab(a).IsNode() {
+		// Nodes have no Caddy of their own: the edge's is the system's.
+		edge, err := generate.Edge(n.lab(a), *a.Edge)
+		if err != nil {
+			return err
+		}
+		desired.System.Quadlets = append(desired.System.Quadlets, edge.Quadlets...)
+		desired.System.Caddyfile = edge.Caddyfile
+		desired.System.Dirs = append(desired.System.Dirs, edge.Dirs...)
+		desired.System.Units = append(desired.System.Units, edge.Units...)
+	}
 	r := *n.Reconciler
 	r.UserSecret = func(name string) ([]byte, bool) {
 		n.mu.Lock()
@@ -323,7 +338,7 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	// Caddy's image builds in the background (for minutes the first time):
 	// show it, whether this apply starts it or it was already running when
 	// Roostack restarted (e.g. at the end of the setup wizard).
-	building := !n.lab(a).IsNode() && (slices.Contains(plan.BuildUnits, CaddyBuildUnit) || n.caddyBuilding(ctx))
+	building := (!n.lab(a).IsNode() || a.Edge != nil) && (slices.Contains(plan.BuildUnits, CaddyBuildUnit) || n.caddyBuilding(ctx))
 	// New services are shown step by step while they install.
 	n.planInstalls(a.Services, desired, plan, building)
 	r.Progress = n.installEvent
@@ -431,6 +446,7 @@ func (n *Local) lab(a Assignment) config.Lab {
 		lab.Domain, lab.Email = a.Lab.Domain, a.Lab.Email
 		lab.Public.NoSharing = a.Lab.NoSharing
 	}
+	lab.EdgeAddrs = a.Lab.EdgeAddrs
 	return lab
 }
 

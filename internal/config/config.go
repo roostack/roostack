@@ -134,6 +134,12 @@ type Public struct {
 	// lab on the internet, where they're public by default (SPEC.md
 	// §6.3.2): they're then only reachable through an SSH tunnel.
 	UITunnelOnly bool `yaml:"ui_tunnel_only,omitempty"`
+	// Edge is the server (its ID) that public visitors come in through
+	// (SPEC.md §10.5): a cloud server in the lab, passing their connections
+	// on still encrypted. Empty is port forwarding at home (§6.11). One for
+	// the whole lab for now; each public address will be able to choose
+	// its own later (Route's entry, SPEC.md §10.5).
+	Edge string `yaml:"edge,omitempty"`
 }
 
 // Where a lab is (Lab.Network, SPEC.md §6.12).
@@ -288,6 +294,11 @@ type Lab struct {
 	// the lab has a network. A node publishes its web services there, for
 	// the controller's Caddy.
 	OverlayAddr string `yaml:"-"`
+	// EdgeAddrs are the WireGuard addresses (as /32 ranges) of the lab's
+	// edges, for the Caddy that serves the public names: they alone may
+	// say who a visitor is (a PROXY header), and they count as outside.
+	// Set at run time from the lab's servers.
+	EdgeAddrs []string `yaml:"-"`
 }
 
 // Cloud is the lab's use of Roostack Cloud.

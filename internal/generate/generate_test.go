@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/instance"
@@ -511,5 +512,33 @@ func TestRoostAcAddress(t *testing.T) {
 	lab.DNS.Values["username"] = `x" }`
 	if _, err := System(lab, false); err == nil {
 		t.Error("an unsafe value was written")
+	}
+}
+
+// TestEdge: an edge server gets Roostack's Caddy (built the same way) with
+// only TCP 80 and 443, no certificates or DNS logins, and the edge config.
+func TestEdge(t *testing.T) {
+	lab := testLab()
+	lab.Role = config.RoleNode
+	out, err := Edge(lab, caddy.EdgeConfig{Hosts: []string{"photos.lab.example.com"}, Upstream: "100.96.0.1:443"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Quadlets) != 2 || out.Quadlets[0].Name != CaddyUnit+".container" || out.Quadlets[1].Name != CaddyUnit+".build" {
+		t.Fatalf("quadlets: %+v", out.Quadlets)
+	}
+	c := out.Quadlets[0].Content
+	for _, want := range []string{"PublishPort=80:80\n", "PublishPort=443:443\n", "Network=pasta\n", "Image=" + CaddyUnit + ".build\n"} {
+		if !strings.Contains(c, want) {
+			t.Errorf("missing %q in\n%s", want, c)
+		}
+	}
+	for _, not := range []string{"/udp", "Secret=", "map-host-loopback"} {
+		if strings.Contains(c, not) {
+			t.Errorf("has %q:\n%s", not, c)
+		}
+	}
+	if !strings.Contains(out.Caddyfile.Content, "tls sni photos.lab.example.com") || len(out.Secrets) != 0 {
+		t.Errorf("caddyfile:\n%s", out.Caddyfile.Content)
 	}
 }

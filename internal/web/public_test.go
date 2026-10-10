@@ -57,6 +57,59 @@ func (f *fakeManager) SetSignalSharing(share bool) error {
 	return nil
 }
 
+func (f *fakeManager) EdgeServers(context.Context) []manager.EdgeServer { return f.edges }
+
+func (f *fakeManager) Edge(context.Context) (manager.EdgeServer, bool) {
+	for _, e := range f.edges {
+		if e.ID == f.edge {
+			return e, true
+		}
+	}
+	return manager.EdgeServer{ID: f.edge}, f.edge != ""
+}
+
+func (f *fakeManager) SetEdge(_ context.Context, id string) error {
+	if id != "" && !slices.ContainsFunc(f.edges, func(e manager.EdgeServer) bool { return e.ID == id }) {
+		return &manager.FormError{Msg: "That server can't be the way in."}
+	}
+	f.edge = id
+	return nil
+}
+
+// TestPublicEdge: at home, the Owner chooses how visitors come in: port
+// forwarding, or through a cloud server in the lab; records then say they
+// point at it, and a missing edge is called out.
+func TestPublicEdge(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	if _, body := h.get("/settings/public"); strings.Contains(body, "How people reach your public services") {
+		t.Error("offered a way in without a cloud server")
+	}
+	fm.edges = []manager.EdgeServer{{ID: "n-0000000002", Name: "vps-sydney", Address: "172.105.165.39"}}
+	_, body := h.get("/settings/public")
+	for _, want := range []string{"How people reach your public services", `value="" required checked`, "Through vps-sydney, a cloud server in this lab",
+		"<code>172.105.165.39</code>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+	if code, _ := h.post("/settings/public/edge", url.Values{"edge": {"n-0000000099"}}, h.srv.URL); code != http.StatusBadRequest {
+		t.Errorf("a server that can't be the edge: %d", code)
+	}
+	_, body = h.post("/settings/public/edge", url.Values{"edge": {"n-0000000002"}}, h.srv.URL)
+	if fm.edge != "n-0000000002" || !strings.Contains(body, `value="n-0000000002" checked`) || !strings.Contains(body, "Saved. Public addresses follow") {
+		t.Errorf("choosing the edge: edge %q", fm.edge)
+	}
+	// The edge gone from the lab's network: said so.
+	fm.edges = nil
+	if _, body := h.get("/settings/public"); !strings.Contains(body, "n-0000000002 isn't connected to the lab now") {
+		t.Error("a missing edge isn't called out")
+	}
+	h.post("/settings/public/edge", url.Values{"edge": {""}}, h.srv.URL)
+	if fm.edge != "" {
+		t.Error("back to port forwarding")
+	}
+}
+
 // The Owner makes an address public (SPEC.md §6.11): a warning, the
 // sharing question the first time, private paths left home-only unless
 // ticked; then a checklist, and a check link that ticks itself when it's

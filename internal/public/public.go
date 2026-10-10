@@ -29,6 +29,50 @@ type Entry interface {
 	Address(ctx context.Context) (string, error)
 }
 
+// Edge is a cloud server in the lab that visitors come in through
+// (SPEC.md §10.5): public records point at its address, and it passes
+// their connections on to the lab, still encrypted.
+type Edge struct {
+	Name string
+	// Addr is its public IPv4 address; "" if it has none now.
+	Addr string
+}
+
+// Kind names the entry.
+func (e Edge) Kind() string { return "through " + e.Name }
+
+// Address is the edge's public address.
+func (e Edge) Address(context.Context) (string, error) {
+	if e.Addr == "" {
+		return "", fmt.Errorf("%s has no public address Roostack knows: it isn't connected to the lab now", e.Name)
+	}
+	return e.Addr, nil
+}
+
+// Chosen is the way in the lab is set to at the moment: its edge if it
+// has one, else Home (port forwarding). The Owner can change it at any
+// time, so it's asked each time.
+type Chosen struct {
+	Home Entry
+	// Edge says the lab's edge, if it has one.
+	Edge func(ctx context.Context) (Edge, bool)
+}
+
+func (c Chosen) now(ctx context.Context) Entry {
+	if c.Edge != nil {
+		if e, ok := c.Edge(ctx); ok {
+			return e
+		}
+	}
+	return c.Home
+}
+
+// Kind names the entry in use.
+func (c Chosen) Kind() string { return c.now(context.Background()).Kind() }
+
+// Address is the entry in use's address.
+func (c Chosen) Address(ctx context.Context) (string, error) { return c.now(ctx).Address(ctx) }
+
 // PortForwarding is the home router forwarding ports 80 and 443 to this
 // server: visitors connect to the home's public address.
 type PortForwarding struct {

@@ -79,7 +79,8 @@ footer.site .version { font-family: var(--font-mono); font-size: 0.95em; }
 /* A heading row: title on the left, a link or action on the right. */
 .heading { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
   margin-bottom: var(--space-3); }
-.heading h1, .heading h2 { margin: 0; }
+/* A long name in a heading (a service's full address) wraps instead of widening the page. */
+.heading h1, .heading h2 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .back { display: inline-block; margin-bottom: var(--space-3); font-size: var(--text-sm); }
 /* The row above a page's title: back link (or setup step) left, the page's
    help right, even when there's nothing on the left. */
