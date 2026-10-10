@@ -35,7 +35,7 @@
       <span class="spacer"></span>
       <a href="/help/" target="_blank" rel="noopener">Help{{template "new-window"}}</a>
       {{template "theme-toggle" .}}
-      <a href="/account" {{if eq .Active "account"}}class="active"{{end}}>{{.Username}}</a>
+      <a href="/account" class="who{{if eq .Active "account"}} active{{end}}" title="{{.Username}}">{{.Username}}</a>
       <form method="post" action="/logout"><button type="submit" class="quiet">Log out</button></form>
     </nav>
     {{end}}
