@@ -2,10 +2,13 @@ package manager
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -121,5 +124,60 @@ func TestDirectLinks(t *testing.T) {
 	m.SetLinkAddress(ctx, "n-0000000003", "10.0.2.2:61821")
 	if m.LinkPath(ctx, "n-0000000002", "n-0000000003") != PathDirect {
 		t.Error("a new address is tried again")
+	}
+}
+
+// TestEdge: a server with a public address can be the lab's edge; its
+// assignment then says so, and every server's names the edge's address
+// for the controller's Caddy (SPEC.md §10.5).
+func TestEdge(t *testing.T) {
+	m, home, vps, _ := setUpLinks(t)
+	ctx := context.Background()
+	m.UpdateLab = func(change func(*config.Lab)) error { change(&m.Lab); return nil }
+	if es := m.EdgeServers(ctx); len(es) != 1 || es[0].ID != "n-0000000003" || es[0].Address != "203.0.113.7" {
+		t.Fatalf("edge servers: %+v", es)
+	}
+	if _, ok := m.Edge(ctx); ok {
+		t.Error("an edge before choosing one")
+	}
+	var fe *FormError
+	if err := m.SetEdge(ctx, "n-0000000002"); !errors.As(err, &fe) {
+		t.Errorf("a server without a public address: %v", err)
+	}
+	if err := m.SetEdge(ctx, "n-0000000003"); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if e, ok := m.Edge(ctx); !ok || e.Address != "203.0.113.7" || m.Lab.Public.Edge != "n-0000000003" {
+		t.Errorf("the edge: %+v, saved %q", e, m.Lab.Public.Edge)
+	}
+	vps.mu.Lock()
+	edge, vpsLab := vps.last.Edge, vps.last.Lab
+	vps.mu.Unlock()
+	home.mu.Lock()
+	homeEdge, homeLab := home.last.Edge, home.last.Lab
+	home.mu.Unlock()
+	if edge == nil || edge.Upstream != "100.96.0.1:443" || homeEdge != nil {
+		t.Errorf("edge config: vps %+v, home %+v", edge, homeEdge)
+	}
+	for _, l := range []node.LabContext{vpsLab, homeLab} {
+		if len(l.EdgeAddrs) != 1 || l.EdgeAddrs[0] != "100.96.0.3/32" {
+			t.Errorf("edge addresses: %+v", l.EdgeAddrs)
+		}
+	}
+	// Where the controller dials it counts too.
+	m.Registry = &fakeRegistry{peers: map[string]labnet.Peer{"n-0000000003": {PublicKey: vpsKey, Addr: "100.96.0.3", Dial: "198.51.100.5:51820"}}}
+	if es := m.EdgeServers(ctx); len(es) != 1 || es[0].Address != "198.51.100.5" {
+		t.Errorf("dialled: %+v", es)
+	}
+	// Back to port forwarding: nothing about edges is sent.
+	if err := m.SetEdge(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	vps.mu.Lock()
+	defer vps.mu.Unlock()
+	if vps.last.Edge != nil || len(vps.last.Lab.EdgeAddrs) != 0 {
+		t.Errorf("after: %+v %+v", vps.last.Edge, vps.last.Lab.EdgeAddrs)
 	}
 }

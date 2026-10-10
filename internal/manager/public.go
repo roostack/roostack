@@ -123,17 +123,7 @@ func (m *Manager) PublicHosts() []string {
 		m.Log.Error("listing public addresses", "err", err)
 		return nil
 	}
-	var hosts []string
-	for _, s := range services {
-		_, routes := generate.Values(m.Lab, s.Package, s.Instance)
-		for _, rc := range routes {
-			if rc.Exposure == pkgspec.ExposurePublic {
-				hosts = append(hosts, rc.Host)
-			}
-		}
-	}
-	slices.Sort(hosts)
-	return hosts
+	return publicHostsOf(m.Lab, services, false)
 }
 
 // SignalSharing says whether the Owner has been asked about CrowdSec

@@ -440,13 +440,14 @@ func (g *gen) caddySite() error {
 		}
 		g.out.Hosts = append(g.out.Hosts, rc.Host)
 		cr := caddy.Route{
-			ID:          g.name + "-" + name,
-			Host:        rc.Host,
-			OldHost:     oldHost(g.lab, rc.Host),
-			Upstream:    fmt.Sprintf("%s:%d", g.upstream, rc.Port),
-			Private:     rc.Exposure != pkgspec.ExposurePublic,
-			PrivateFrom: PrivateFrom(g.lab),
-			MaxBodySize: r.MaxBodySize,
+			ID:            g.name + "-" + name,
+			Host:          rc.Host,
+			OldHost:       OldHost(g.lab, rc.Host),
+			Upstream:      fmt.Sprintf("%s:%d", g.upstream, rc.Port),
+			Private:       rc.Exposure != pkgspec.ExposurePublic,
+			PrivateFrom:   PrivateFrom(g.lab),
+			PrivateExcept: g.lab.EdgeAddrs,
+			MaxBodySize:   r.MaxBodySize,
 		}
 		if !cr.Private {
 			// The package's private paths stay home-only unless the Owner
@@ -580,9 +581,9 @@ func addPassthrough(u *quadlet.Unit, q pkgspec.Quadlet) {
 	}
 }
 
-// oldHost is host's name at the lab's previous address while that still
+// OldHost is host's name at the lab's previous address while that still
 // works, or "" (SPEC.md §6.6): the same subdomain there.
-func oldHost(lab config.Lab, host string) string {
+func OldHost(lab config.Lab, host string) string {
 	old := lab.Old(time.Now())
 	sub, ok := strings.CutSuffix(host, "."+lab.Domain)
 	if old == nil || !ok {

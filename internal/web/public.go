@@ -32,6 +32,12 @@ type PublicAccess interface {
 	PublicHosts() []string
 	SignalSharing() (asked, share bool)
 	SetSignalSharing(share bool) error
+	// The lab's way in for visitors (SPEC.md §10.5): servers that can be
+	// its edge, the one it has ("", false for port forwarding at home),
+	// and changing it.
+	EdgeServers(ctx context.Context) []manager.EdgeServer
+	Edge(ctx context.Context) (manager.EdgeServer, bool)
+	SetEdge(ctx context.Context, id string) error
 }
 
 // publicCheckKey is where a successful outside check is recorded.
@@ -113,6 +119,11 @@ func (s *Server) renderPublic(w http.ResponseWriter, r *http.Request, formErr st
 	data := map[string]any{"User": currentUser(r), "Package": p, "Name": r.PathValue("name"), "Route": ra,
 		"SharingAsked": asked, "Share": share, "Error": formErr}
 	s.addPublicUI(data)
+	if !s.onInternet() {
+		if e, ok := s.Manager.Edge(r.Context()); ok {
+			data["Edge"] = e
+		}
+	}
 	if ra.Public {
 		data["Protected"] = s.Protected != nil && s.Protected(r.Context())
 		data["Check"] = s.lastCheck(r.Context(), ra.Host)
@@ -273,6 +284,15 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 	data["SharingAsked"], data["Share"] = asked, share
 	hosts := s.Manager.PublicHosts()
 	data["Hosts"] = hosts
+	// How visitors come in: port forwarding at home, or through a cloud
+	// server in the lab (SPEC.md §10.5). A lab on the internet is reached
+	// directly.
+	if !s.onInternet() {
+		data["EdgeServers"] = s.Manager.EdgeServers(r.Context())
+		if e, ok := s.Manager.Edge(r.Context()); ok {
+			data["Edge"] = e
+		}
+	}
 	if len(hosts) > 0 {
 		data["Protected"] = s.Protected != nil && s.Protected(r.Context())
 		if s.DNS != nil {
@@ -280,7 +300,27 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 			data["Records"], data["PublicIP"] = st.Public, st.PublicIP
 		}
 	}
+	data["Saved"] = r.FormValue("saved")
 	s.render(w, "settings-public", withArea(data, "public"))
+}
+
+// publicEdgeSubmit sets how visitors reach the lab's public services.
+func (s *Server) publicEdgeSubmit(w http.ResponseWriter, r *http.Request) {
+	id := r.FormValue("edge")
+	if err := s.Manager.SetEdge(r.Context(), id); err != nil {
+		if msg, ok := userMessage(err); ok {
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
+		s.serverError(w, err)
+		return
+	}
+	what := "port forwarding at home"
+	if id != "" {
+		what = "through server " + id
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "public access", "visitors come in "+what)
+	redirect(w, r, "/settings/public?saved=edge#way-in")
 }
 
 func (s *Server) publicSharingSubmit(w http.ResponseWriter, r *http.Request) {

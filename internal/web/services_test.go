@@ -33,6 +33,9 @@ import (
 )
 
 type fakeManager struct {
+	// edges can be the lab's edge; edge is the chosen one.
+	edges      []manager.EdgeServer
+	edge       string
 	guestSpace manager.GuestSpace
 	disks      []node.DiskSpace
 	events     []store.Event
