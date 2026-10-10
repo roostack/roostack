@@ -13,8 +13,9 @@
     <dd>{{if .Controller}}Runs the lab: keeps its settings and serves this page{{else}}Runs services{{end}}</dd>
     {{if not .Reachable}}
     <dt>{{icon "server"}}Connection</dt>
-    <dd><span class="dot dot-problem" aria-hidden="true"></span>Not connected. If {{.Name}} is still running, it reconnects by itself,
-      with its services.
+    <dd><span class="dot dot-problem" aria-hidden="true"></span>Not connected{{with .UnreachableSince}} since {{when .}}{{end}}.
+      If {{.Name}} is still running, it reconnects by itself, with its services.
+      {{if not (or .Services .Waiting)}}Gone for good? <a href="/settings/servers?remove={{.ID}}#server-{{.ID}}">Remove it from the lab</a>.{{end}}
       {{if or .Services .Waiting}}<br><a href="/settings/servers/{{.ID}}/gone">{{.Name}} is gone: restore its services…</a>{{end}}</dd>
     {{end}}
     <dt>{{icon "services"}}Services</dt>
@@ -81,7 +82,7 @@
   </ul>
   {{end}}
   {{if and $.ErrorServer (eq $.ErrorServer .ID)}}<p class="error" role="alert">{{$.Error}}</p>{{end}}
-  <details{{if and $.ErrorServer (eq $.ErrorServer .ID)}} open{{end}}>
+  <details{{if or (and $.ErrorServer (eq $.ErrorServer .ID)) (eq $.Remove .ID)}} open{{end}}>
     <summary>Rename{{if not .This}} or remove{{end}}</summary>
     <form method="post" action="/settings/servers/{{.ID}}/rename" class="inline-form">
       <label for="name-{{.ID}}" class="sr-only">Name</label>

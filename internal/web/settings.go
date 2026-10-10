@@ -328,6 +328,8 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		s.serverError(w, err)
 		return
 	}
+	// ?remove=<id> opens that server's remove section (from "Remove it").
+	data["Remove"] = r.FormValue("remove")
 	servers, err := s.Manager.Servers()
 	if err != nil {
 		s.serverError(w, err)

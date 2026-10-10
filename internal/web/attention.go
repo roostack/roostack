@@ -44,6 +44,11 @@ type attentionItem struct {
 
 // attention gathers what the current user should know about, filtered by
 // role: Members see nothing they can't act on.
+
+// goneAfter is how long a server can go unreached before Roostack asks
+// whether it's gone for good.
+const goneAfter = 3 * 24 * time.Hour
+
 func (s *Server) attention(r *http.Request) []attentionItem {
 	u := currentUser(r)
 	owner := auth.Can(u.Role, auth.ManageHost)
@@ -121,9 +126,23 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			case errors.Is(st.LastErr, node.ErrUnreachable):
 				// Its own item, in words that don't change with each attempt's
 				// error (they made emails flap, 2026-10-08).
-				items = append(items, attentionItem{Level: levelProblem, Key: "unreachable:" + mc.ID,
+				item := attentionItem{Level: levelProblem, Key: "unreachable:" + mc.ID,
 					Text: "Roostack can't reach " + mc.Name + ". It may be switched off, or its network down.",
-					Link: "/settings/servers#server-" + mc.ID, LinkText: "View servers"})
+					Link: "/settings/servers#server-" + mc.ID, LinkText: "View servers"}
+				// Days later it may be gone for good (a reinstalled test VM
+				// was): say so plainly, and offer what to do about it.
+				if since := mc.UnreachableSince; owner && !since.IsZero() && time.Since(since) > goneAfter {
+					item.Text = "Roostack hasn't reached " + mc.Name + " since " + whenText(since) + ". If it's gone for good " +
+						"(reinstalled, or switched off for good), "
+					if len(mc.Services) > 0 || len(mc.Waiting) > 0 {
+						item.Text += "its services can come back from their backups on another server."
+						item.Link, item.LinkText = "/settings/servers/"+mc.ID+"/gone", "Restore its services"
+					} else {
+						item.Text += "remove it from the lab."
+						item.Link, item.LinkText = "/settings/servers?remove="+mc.ID+"#server-"+mc.ID, "Remove it"
+					}
+				}
+				items = append(items, item)
 			case st.LastErr != nil:
 				items = append(items, attentionItem{Level: levelProblem, Key: "apply:" + mc.ID,
 					Text: "The last change" + on + " didn't finish: " + st.LastErr.Error(), Link: "/services", LinkText: "View services"})

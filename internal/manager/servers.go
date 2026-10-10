@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -53,6 +54,34 @@ type Server struct {
 	// CertExpires is when its certificate on Roostack's network expires
 	// (renewed automatically well before); zero if unknown.
 	CertExpires time.Time
+	// UnreachableSince is when it was first seen not answering, kept
+	// across restarts; zero while it answers.
+	UnreachableSince time.Time
+}
+
+// unreachableKey + server ID is when it was first seen not answering.
+const unreachableKey = "server-unreachable-since."
+
+// unreachableSince records when a server stopped answering the first
+// time it's seen so, forgets it once it answers again, and says since
+// when.
+func (m *Manager) unreachableSince(ctx context.Context, id string, reachable bool) time.Time {
+	if m.Settings == nil {
+		return time.Time{}
+	}
+	v := m.setting(ctx, unreachableKey+id)
+	if reachable {
+		if v != "" {
+			m.Settings.SetSetting(ctx, unreachableKey+id, "")
+		}
+		return time.Time{}
+	}
+	if t, err := strconv.ParseInt(v, 10, 64); err == nil {
+		return time.Unix(t, 0)
+	}
+	now := time.Now()
+	m.Settings.SetSetting(ctx, unreachableKey+id, strconv.FormatInt(now.Unix(), 10))
+	return now
 }
 
 func (m *Manager) others() []RemoteServer {
@@ -283,7 +312,8 @@ func (m *Manager) Servers() ([]Server, error) {
 			waiting = append(waiting, w.Name())
 		}
 		servers = append(servers, Server{ID: rid.ID, Name: rid.Name, Status: statuses[i], Reachable: reachable[i],
-			Services: names(rid.ID), Waiting: waiting})
+			Services: names(rid.ID), Waiting: waiting,
+			UnreachableSince: m.unreachableSince(context.Background(), rid.ID, reachable[i])})
 	}
 	if m.Registry != nil {
 		certs := m.Registry.CertExpiries(context.Background())
@@ -386,6 +416,9 @@ func (m *Manager) RemoveServer(ctx context.Context, id string) error {
 	m.forgetServerBackups(ctx, id)
 	if err := m.Registry.Remove(ctx, id); err != nil {
 		return err
+	}
+	if m.Settings != nil {
+		m.Settings.SetSetting(ctx, unreachableKey+id, "")
 	}
 	// It's out of the lab: stop retrying anything to it.
 	if c, ok := r.(interface{ Close() }); ok {
