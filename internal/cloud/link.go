@@ -202,9 +202,11 @@ func (s *Service) NameAvailable(ctx context.Context, name string) (cloudapi.Name
 }
 
 // Start begins linking the lab, asking for name ("" for none): it
-// returns the page to open in Cloud. The lab then asks Cloud until the
-// Owner confirms there, the code expires, or Cancel.
-func (s *Service) Start(ctx context.Context, name string) (string, error) {
+// returns the page to open in Cloud, which sends the browser back to
+// returnURL ("" for none) when it's done. The lab then asks Cloud until
+// the Owner confirms there, the code expires, or Cancel, whether or not
+// the browser comes back.
+func (s *Service) Start(ctx context.Context, name, returnURL string) (string, error) {
 	s.mu.Lock()
 	if s.st.Linked {
 		s.mu.Unlock()
@@ -221,7 +223,7 @@ func (s *Service) Start(ctx context.Context, name string) (string, error) {
 	}
 	var started cloudapi.LinkStarted
 	err = s.client.do(ctx, false, http.MethodPost, cloudapi.PathLinks,
-		cloudapi.LinkRequest{LabName: s.labName(), Name: name, Version: s.version, CSR: csr}, &started)
+		cloudapi.LinkRequest{LabName: s.labName(), Name: name, Version: s.version, CSR: csr, ReturnURL: returnURL}, &started)
 	if err == nil {
 		err = checkOpenURL(started.OpenURL)
 	}

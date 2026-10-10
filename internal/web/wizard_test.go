@@ -204,7 +204,7 @@ func TestWizardFlow(t *testing.T) {
 	// Roostack Cloud (cloud_test.go).
 	h.server.Cloud = newCloud(t)
 	_, body = h.get("/setup/domain")
-	for _, want := range []string{"A free roost.ac address", `action="/settings/cloud/link" target="_blank"`, "Your own domain",
+	for _, want := range []string{"A free roost.ac address", `<form method="post" action="/settings/cloud/link"><input type="hidden" name="in" value="setup">`, "Continue to Roostack Cloud", "Your own domain",
 		`x-data="{ choice: '' }"`, `<input name="domain" value="" placeholder="smith.family"`, "/help/settings/domain/#your-own-domain",
 		`id="cloud-live"`, `hx-get="/settings/cloud/name"`} {
 		if !strings.Contains(body, want) {

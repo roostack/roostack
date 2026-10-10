@@ -1,0 +1,25 @@
+{{define "title"}}Roostack Cloud{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <h1>{{with .Stage.Asked}}Setting up {{.}}.roost.ac{{else}}Linking to Roostack Cloud{{end}}</h1>
+  {{template "cloud-progress" .}}
+</section>
+{{end}}
+
+{{/* cloud-progress: how far a link and its name have got, refreshing
+     itself; cloudProgress moves the page on once it's done. */}}
+{{define "cloud-progress"}}<div id="cloud-progress" hx-get="/settings/cloud/progress{{if .Setup}}?in=setup{{end}}"
+  hx-trigger="every 2s [document.visibilityState === 'visible']" hx-swap="outerHTML">
+{{- with .Stage}}
+<ol class="install-steps">
+  {{if .Linked}}<li class="step-done"><span class="mark" aria-hidden="true">✓</span><span>Linked to Roostack Cloud{{with .Account}} ({{.}}){{end}}</span></li>
+  {{else}}<li class="step-now"><span class="mark" aria-hidden="true"><span class="spinner"></span></span><span>Waiting for you to confirm in Roostack Cloud…
+    {{with .Waiting}}<small>The code is <strong>{{.Code}}</strong>. Not done it yet? <a href="{{.OpenURL}}">Go to Roostack Cloud</a></small>{{end}}</span></li>{{end}}
+  {{with .Asked}}
+  {{if $.Stage.Address}}<li class="step-done"><span class="mark" aria-hidden="true">✓</span><span>{{$.Stage.Address}} is yours</span></li>
+  {{else}}<li class="{{if $.Stage.Linked}}step-now{{else}}step-todo{{end}}"><span class="mark" aria-hidden="true">{{if $.Stage.Linked}}<span class="spinner"></span>{{else}}○{{end}}</span><span>Getting {{.}}.roost.ac</span></li>{{end}}
+  {{if $.Setup}}<li class="step-todo"><span class="mark" aria-hidden="true">○</span><span>Its web addresses start working when setup finishes</span></li>{{end}}
+  {{end}}
+</ol>
+{{- end}}
+</div>{{end}}

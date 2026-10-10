@@ -71,6 +71,7 @@ type Fake struct {
 
 type link struct {
 	code, name, labName string
+	returnURL           string
 	csr                 *x509.CertificateRequest
 	expires             time.Time
 	state               string
@@ -176,6 +177,18 @@ func (f *Fake) Asked(code string) (labName, name string) {
 	return "", ""
 }
 
+// Return is where the link with code sends the browser back to.
+func (f *Fake) Return(code string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, l := range f.links {
+		if l.code == code {
+			return l.returnURL
+		}
+	}
+	return ""
+}
+
 // Codes are the codes of links waiting to be confirmed.
 func (f *Fake) Codes() []string {
 	f.mu.Lock()
@@ -274,7 +287,7 @@ func (f *Fake) startLink(w http.ResponseWriter, r *http.Request) {
 	code := strings.ToUpper(hex.EncodeToString(serial().Bytes()[:3]))
 	code = code[:3] + "-" + code[3:]
 	secret := hex.EncodeToString(serial().Bytes())
-	l := &link{code: code, name: req.Name, labName: req.LabName, csr: csr, expires: time.Now().Add(10 * time.Minute), state: cloudapi.StateWaiting}
+	l := &link{code: code, name: req.Name, labName: req.LabName, returnURL: req.ReturnURL, csr: csr, expires: time.Now().Add(10 * time.Minute), state: cloudapi.StateWaiting}
 	f.mu.Lock()
 	f.links[secret] = l
 	f.mu.Unlock()

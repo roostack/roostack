@@ -99,8 +99,8 @@ Your services each get their own web address, with a secure (HTTPS)
 certificate. Choose one of:
 
 - **A free roost.ac address**: type a name, such as `smiths`, and choose
-  **Get this address**. Roostack Cloud opens in a new window to sign up or
-  log in, then your lab finishes by itself. Services are at
+  **Continue to Roostack Cloud**. Sign up or log in there and confirm; it
+  brings you back, and setup carries on by itself. Services are at
   `photos.smiths.roost.ac`.
 - **Your own domain**, such as `smith.family`: Roostack needs to prove to
   the certificate company that the domain is yours, so it asks for a login

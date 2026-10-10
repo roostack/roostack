@@ -31,7 +31,7 @@ func fakeCloud(t *testing.T) (*cloudtest.Fake, *Service, string) {
 // link links s, confirming in f.
 func link(t *testing.T, f *cloudtest.Fake, s *Service, name string) {
 	t.Helper()
-	open, err := s.Start(context.Background(), name)
+	open, err := s.Start(context.Background(), name, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestRenew(t *testing.T) {
 
 func TestCancelAndUnreachable(t *testing.T) {
 	f, s, _ := fakeCloud(t)
-	if _, err := s.Start(context.Background(), ""); err != nil {
+	if _, err := s.Start(context.Background(), "", ""); err != nil {
 		t.Fatal(err)
 	}
 	s.Cancel(context.Background())
@@ -174,7 +174,7 @@ func TestCancelAndUnreachable(t *testing.T) {
 	if err != nil || a.Available || a.Reason == "" {
 		t.Fatalf("taken: %+v %v", a, err)
 	}
-	if _, err := s.Start(context.Background(), "taken"); err == nil || s.Status().StartError == "" {
+	if _, err := s.Start(context.Background(), "taken", ""); err == nil || s.Status().StartError == "" {
 		t.Fatalf("taken name started: %v", err)
 	}
 
@@ -183,7 +183,7 @@ func TestCancelAndUnreachable(t *testing.T) {
 		t.Fatal(err)
 	}
 	var u *Unreachable
-	if _, err := gone.Start(context.Background(), ""); !errors.As(err, &u) {
+	if _, err := gone.Start(context.Background(), "", ""); !errors.As(err, &u) {
 		t.Fatalf("start = %v", err)
 	}
 }
