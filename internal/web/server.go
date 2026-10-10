@@ -401,7 +401,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
 		"home", "services", "service", "backups", "restore", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
-		"backups-recovery-key", "service-public", "settings-public", "backups-key-change", "settings-cloud", "cloud-open"} {
+		"backups-recovery-key", "service-public", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -537,6 +537,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /setup/address/roost-ac", s.requireWizard(s.roostAcSubmit))
 	mux.Handle("GET /settings/cloud", s.requireCloud(s.cloudPage))
 	mux.Handle("GET /settings/cloud/live", s.requireCloud(s.cloudLive))
+	mux.Handle("GET /settings/cloud/linked", s.requireCloud(s.cloudLinkedPage))
+	mux.Handle("GET /setup/address/linked", s.requireCloud(s.cloudLinkedPage))
+	mux.Handle("GET /settings/cloud/progress", s.requireCloud(s.cloudProgress))
 	mux.Handle("GET /settings/cloud/name", s.requireCloud(s.cloudNameCheck))
 	mux.Handle("POST /settings/cloud/link", s.requireCloud(s.cloudLinkSubmit))
 	mux.Handle("POST /settings/cloud/cancel", s.requireCloud(s.cloudCancelSubmit))

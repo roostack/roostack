@@ -71,6 +71,10 @@ type LinkRequest struct {
 	Version string `json:"version"`
 	// CSR is a certificate request (DER) for the key the lab will use.
 	CSR []byte `json:"csr"`
+	// ReturnURL is the lab's page to send the browser back to, once the
+	// link is confirmed or cancelled (the address the browser uses for the
+	// lab); "" for none. Cloud shows it before going there.
+	ReturnURL string `json:"return_url,omitempty"`
 }
 
 // LinkStarted is Cloud's answer: the code people compare, the page to

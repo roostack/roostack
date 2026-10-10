@@ -49,7 +49,7 @@ func TestCloudLinking(t *testing.T) {
 	if _, body := h.get("/settings"); !strings.Contains(body, "Roostack Cloud") || !strings.Contains(body, "Not linked") {
 		t.Error("the overview shows Roostack Cloud, not linked")
 	}
-	if _, body := h.get("/settings/cloud"); !strings.Contains(body, `action="/settings/cloud/link" target="_blank"`) {
+	if _, body := h.get("/settings/cloud"); !strings.Contains(body, `<form method="post" action="/settings/cloud/link">`) {
 		t.Error("not linked: a button to link")
 	}
 	// Names are checked as they're typed.
@@ -72,8 +72,10 @@ func TestCloudLinking(t *testing.T) {
 	}
 	link.Cancel(context.Background())
 
-	// Linking: the new window goes on to Cloud's page; this one waits.
-	code, body := h.post("/settings/cloud/link", url.Values{"name": {"smiths"}}, h.srv.URL)
+	// Linking, in the same tab: this page goes on to Cloud's, which sends
+	// the browser back to the lab's page for the link, at the address the
+	// browser uses (the form's Origin).
+	code, body := h.post("/settings/cloud/link", url.Values{"name": {"smiths"}, "in": {"setup"}}, h.srv.URL)
 	if code != http.StatusOK || !strings.Contains(body, `<meta http-equiv="refresh" content="0;url=https://127.0.0.1:`) ||
 		!strings.Contains(body, "/link/") {
 		t.Fatalf("open Cloud: %d %s", code, body)
@@ -83,6 +85,14 @@ func TestCloudLinking(t *testing.T) {
 	if m == nil || !strings.Contains(live, "Waiting for you in Roostack Cloud") || !strings.Contains(live, "every 2s") ||
 		!strings.Contains(live, "smiths.roost.ac") {
 		t.Fatalf("waiting: %s", live)
+	}
+	if back := f.Return(m[1]); back != h.srv.URL+"/setup/address/linked" {
+		t.Errorf("Cloud sends the browser back to %q", back)
+	}
+	// Back from Cloud before confirming (say, the back button): it waits.
+	if _, body := h.get("/setup/address/linked"); !strings.Contains(body, "Setting up smiths.roost.ac") ||
+		!strings.Contains(body, "Waiting for you to confirm") || !strings.Contains(body, m[1]) {
+		t.Errorf("the linked page while waiting: %s", body)
 	}
 	if err := f.Confirm(m[1]); err != nil {
 		t.Fatal(err)
@@ -95,6 +105,17 @@ func TestCloudLinking(t *testing.T) {
 	}
 	if len(used) != 1 || used[0].Name != "smiths.roost.test" || used[0].Credentials["password"] == "" {
 		t.Fatalf("name used: %+v", used)
+	}
+	// Done: the page moves on by itself, to the wizard's next step (all
+	// done in this fake, so Home) saying the address.
+	req, _ := http.NewRequest("GET", h.srv.URL+"/settings/cloud/progress?in=setup", nil)
+	resp, err := h.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if next := resp.Header.Get("HX-Redirect"); next != "/?address=1" {
+		t.Errorf("moves on to %q", next)
 	}
 	if _, live := h.get("/settings/cloud/live?in=setup"); !strings.Contains(live, "Your lab&#39;s address is smiths.roost.test.") ||
 		strings.Contains(live, "every 2s") {

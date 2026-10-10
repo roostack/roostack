@@ -554,12 +554,12 @@
 {{- if .Waiting}}{{with .Waiting}}
 <div class="cloud-waiting">
   <p class="cloud-waiting-title with-icon">{{icon "clock"}}Waiting for you in Roostack Cloud</p>
-  <p>A Roostack Cloud window has opened. Log in or sign up there, check it shows this code, then confirm. This page carries on by itself.</p>
+  <p>Roostack Cloud is waiting for you to log in or sign up there, check it shows this code, and confirm. This page carries on by itself.</p>
   <p class="cloud-code"><span class="link-code">{{.Code}}</span>
     <small class="hint">{{with .Name}}For <strong>{{.}}.roost.ac</strong> · {{end}}the code expires {{when .Expires}}</small></p>
   {{with .Error}}<p class="hint">Roostack couldn't ask Roostack Cloud just now ({{.}}); it keeps trying.</p>{{end}}
   <div class="actions-row">
-    <a class="button secondary" href="{{.OpenURL}}" target="_blank" rel="noopener">Open Roostack Cloud again{{template "new-window"}}</a>
+    <a class="button secondary" href="{{.OpenURL}}">Go to Roostack Cloud</a>
     <form method="post" action="/settings/cloud/cancel">{{if $.Setup}}<input type="hidden" name="in" value="setup">{{end}}<button type="submit" class="quiet">Cancel</button></form>
   </div>
   <details class="technical" id="cloud-sent"><summary>What Roostack sends</summary>
@@ -607,10 +607,9 @@
   Roostack Cloud account gives it a <strong>free roost.ac address</strong>, so you don't need a domain of your own.</p>
 <p class="hint">Later, it will also offer backups away from home and checks of your lab from the internet: each one your choice.</p>
 {{with .StartError}}<p class="error" role="alert">{{.}}</p>{{end}}
-<form method="post" action="/settings/cloud/link" target="_blank" x-data
-  x-on:submit="[800, 2500, 6000].forEach(t => setTimeout(() => htmx.trigger('#cloud-live', 'refresh'), t))">
-  <button type="submit">Link to Roostack Cloud{{template "new-window"}}</button>
-  <small>Opens Roostack Cloud to sign up or log in. No password is typed here, and nothing secret is copied by hand.</small>
+<form method="post" action="/settings/cloud/link">
+  <button type="submit">Link to Roostack Cloud</button>
+  <small>You'll sign up or log in there (a free account), confirm this lab, and come straight back here. No password is typed here, and nothing secret is copied by hand.</small>
 </form>
 {{template "cloud-requests" .}}
 {{- else}}

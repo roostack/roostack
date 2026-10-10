@@ -344,7 +344,14 @@ func (s *Server) domainLater(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) backupPage(w http.ResponseWriter, r *http.Request) {
-	s.renderBackupStep(w, r, map[string]any{})
+	data := map[string]any{}
+	// Just back from Roostack Cloud with a roost.ac address (cloudNext).
+	if r.FormValue("address") != "" && s.Cloud != nil {
+		if a := s.Cloud.Status().Address; a != "" {
+			data["AddressSet"] = a
+		}
+	}
+	s.renderBackupStep(w, r, data)
 }
 
 // renderBackupStep shows the wizard's backup step: the backup plan

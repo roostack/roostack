@@ -16,7 +16,7 @@ import (
 // SPEC.md §6.6, "Linking a lab to Roostack Cloud").
 type CloudLink interface {
 	Status() cloud.Status
-	Start(ctx context.Context, name string) (string, error)
+	Start(ctx context.Context, name, returnURL string) (string, error)
 	Cancel(ctx context.Context)
 	Unlink(ctx context.Context) (bool, error)
 	DismissForgotten() error
@@ -94,12 +94,13 @@ func (s *Server) cloudLive(w http.ResponseWriter, r *http.Request) {
 	s.renderLive(w, r, "settings-cloud", "cloud-live", s.cloudView(r, setup))
 }
 
-// cloudLinkSubmit starts linking. The form opens in a new window, which
-// this page sends on to Cloud's page; the page it came from waits
-// (cloudLive).
+// cloudLinkSubmit starts linking, in the same tab (SPEC.md §6.6): this
+// page goes on to Cloud's, which sends the browser back to the lab's page
+// for the link (cloudLinkedPage) when it's confirmed or cancelled.
 func (s *Server) cloudLinkSubmit(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(strings.TrimSpace(r.FormValue("name")))
-	data := map[string]any{"User": currentUser(r)}
+	setup := r.FormValue("in") == "setup"
+	data := map[string]any{"User": currentUser(r), "Setup": setup, "CloudName": name}
 	fail := func(msg string) {
 		data["Error"] = msg
 		w.WriteHeader(http.StatusBadRequest)
@@ -122,7 +123,13 @@ func (s *Server) cloudLinkSubmit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	open, err := s.Cloud.Start(r.Context(), name)
+	// Back to the address the browser uses for the lab (an SSH tunnel's, or
+	// roost.<domain>): the form's Origin, which sameOrigin has checked.
+	back := r.Header.Get("Origin") + "/settings/cloud/linked"
+	if setup {
+		back = r.Header.Get("Origin") + "/setup/address/linked"
+	}
+	open, err := s.Cloud.Start(r.Context(), name, back)
 	if err != nil {
 		fail(cloudMessage(err))
 		return
@@ -255,4 +262,84 @@ func cloudSummary(st cloud.Status) (string, string) {
 		return "Waiting for you to confirm in Roostack Cloud", ""
 	}
 	return "Not linked: Roostack works without it", ""
+}
+
+// cloudStage is how far a link (and its name) has got, for the page the
+// browser comes back to from Cloud.
+type cloudStage struct {
+	cloudView
+	// Done: linked, and the name asked for (if any) is the lab's address;
+	// Failed: it didn't happen (StartError or AddressError say why).
+	Done, Failed bool
+	// Asked is the roost.ac name asked for ("" for none), while waiting or
+	// once linked.
+	Asked string
+}
+
+func (s *Server) cloudStage(r *http.Request, setup bool) cloudStage {
+	st := cloudStage{cloudView: s.cloudView(r, setup), Asked: s.Cloud.Status().Name}
+	if st.Waiting != nil {
+		st.Asked = st.Waiting.Name
+	}
+	switch {
+	case st.Linked && st.AddressError != "":
+		st.Failed = true
+	case st.Linked && (st.Name == "" || st.Address != ""):
+		st.Done = true
+	case !st.Linked && st.Waiting == nil:
+		st.Failed = true
+	}
+	return st
+}
+
+// cloudNext is where the browser goes once the link is done (or isn't):
+// in the wizard, its next step (with the address said at the top) or
+// back to the address step to say what went wrong; otherwise Settings.
+func (s *Server) cloudNext(r *http.Request, setup bool, st cloudStage) string {
+	if !setup {
+		return "/settings/cloud"
+	}
+	if st.Failed {
+		return "/setup/domain"
+	}
+	next := "/"
+	if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
+		next = p.Next()
+	}
+	if st.Address != "" {
+		next += "?address=1"
+	}
+	return next
+}
+
+// cloudLinkedPage is where Cloud sends the browser back to: each stage as
+// it happens, and on by itself once it's done (SPEC.md §6.6). The lab
+// asks Cloud in the background, so it finishes whether or not the
+// browser comes back here.
+func (s *Server) cloudLinkedPage(w http.ResponseWriter, r *http.Request) {
+	setup := strings.HasPrefix(r.URL.Path, "/setup/")
+	st := s.cloudStage(r, setup)
+	if st.Done || st.Failed {
+		redirect(w, r, s.cloudNext(r, setup, st))
+		return
+	}
+	data, err := s.pageData(r)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	data["Stage"], data["Setup"] = st, setup
+	s.render(w, "cloud-linked", data)
+}
+
+// cloudProgress refreshes the stages, and moves the page on when done.
+func (s *Server) cloudProgress(w http.ResponseWriter, r *http.Request) {
+	setup := r.FormValue("in") == "setup"
+	st := s.cloudStage(r, setup)
+	if st.Done || st.Failed {
+		w.Header().Set("HX-Redirect", s.cloudNext(r, setup, st))
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	s.renderLive(w, r, "cloud-linked", "cloud-progress", map[string]any{"Stage": st, "Setup": setup})
 }

@@ -11,12 +11,12 @@ wizard's address step.
 
 ## Linking your lab
 
-1. Choose **Link to Roostack Cloud** (or **Get this address**, with the
-   name you'd like). A Roostack Cloud window opens.
-2. Sign up or log in there. Check the code it shows matches the one on your
-   lab's page, then confirm.
-3. Your lab's page notices by itself and shows it's linked. The code
-   expires after 10 minutes; if it does, start again.
+1. Choose **Link to Roostack Cloud** (or **Continue to Roostack Cloud**,
+   with the name you'd like). Roostack Cloud opens in the same tab.
+2. Sign up or log in there, check it names your lab, then confirm. Roostack
+   Cloud brings you back to your lab.
+3. Your lab's page shows the steps as they finish, then moves on by itself.
+   The link expires after 10 minutes; if it does, start again.
 
 No password is typed into your lab, and nothing secret is copied by hand.
 
