@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/node"
 )
 
 // Attention item levels.
@@ -35,6 +37,9 @@ type attentionItem struct {
 	Text     string
 	Link     string
 	LinkText string
+	// Key, when set, identifies the problem for email whatever its words
+	// (noticeKey): an error's text can change between attempts.
+	Key string
 }
 
 // attention gathers what the current user should know about, filtered by
@@ -45,7 +50,7 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 	admin := auth.Can(u.Role, auth.ManageServices)
 	var items []attentionItem
 	add := func(level, text, link, linkText string) {
-		items = append(items, attentionItem{level, text, link, linkText})
+		items = append(items, attentionItem{Level: level, Text: text, Link: link, LinkText: linkText})
 	}
 
 	if s.RestorePending != nil && s.RestorePending() {
@@ -113,8 +118,15 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			case st.Running:
 				add(levelInfo, "Applying changes"+on+"… Downloading a new service can take a few minutes.",
 					"/settings/servers#changes-"+mc.ID, "See what it's doing")
+			case errors.Is(st.LastErr, node.ErrUnreachable):
+				// Its own item, in words that don't change with each attempt's
+				// error (they made emails flap, 2026-10-08).
+				items = append(items, attentionItem{Level: levelProblem, Key: "unreachable:" + mc.ID,
+					Text: "Roostack can't reach " + mc.Name + ". It may be switched off, or its network down.",
+					Link: "/settings/servers#server-" + mc.ID, LinkText: "View servers"})
 			case st.LastErr != nil:
-				add(levelProblem, "The last change"+on+" didn't finish: "+st.LastErr.Error(), "/services", "View services")
+				items = append(items, attentionItem{Level: levelProblem, Key: "apply:" + mc.ID,
+					Text: "The last change" + on + " didn't finish: " + st.LastErr.Error(), Link: "/services", LinkText: "View services"})
 			}
 			// A server that joined has no firewall until the Owner chooses
 			// who can log in over SSH (this server's is a setup step).

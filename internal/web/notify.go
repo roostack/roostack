@@ -267,7 +267,13 @@ func securityEvent(e store.AuditEntry) (own, labWide, subject string) {
 // left out of its key so "3.0 GB free" and "2.9 GB free" are one problem.
 var noticeVariable = regexp.MustCompile(`\d+|\b(today|yesterday|tomorrow|mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b`)
 
+// noticeKey is what makes two needs-attention items the same problem: the
+// item's own key when it has one (its words can change, e.g. an error's),
+// otherwise its link and words, numbers and times aside.
 func noticeKey(it attentionItem) string {
+	if it.Key != "" {
+		return it.Key
+	}
 	return it.Link + "|" + noticeVariable.ReplaceAllString(strings.ToLower(it.Text), "")
 }
 
@@ -302,6 +308,7 @@ func (s *Server) followProblems(ctx context.Context, u *store.User, groups map[s
 		if !ok {
 			n = store.Notice{Key: key, FirstSeen: now}
 		}
+		n.GoneSince = time.Time{} // back (or never gone): not fixed
 		n.Text = it.Text + s.linkLine(it.Link)
 		delay := notifyDelay
 		if waiting {
@@ -318,11 +325,24 @@ func (s *Server) followProblems(ctx context.Context, u *store.User, groups map[s
 			return err
 		}
 	}
+	// Gone: "Fixed" once it has stayed gone as long as a problem must last
+	// to be emailed, so a moment's gap (a server between retries) isn't
+	// news. Never emailed: forgotten at once.
 	for key, n := range known {
 		if seen[key] {
 			continue
 		}
 		if !n.SentAt.IsZero() {
+			if n.GoneSince.IsZero() {
+				n.GoneSince = now
+				if err := s.Store.SaveNotice(ctx, u.ID, n); err != nil {
+					return err
+				}
+				continue
+			}
+			if now.Sub(n.GoneSince) < notifyDelay {
+				continue
+			}
 			m.fixed = append(m.fixed, firstLine(n.Text))
 		}
 		if err := s.Store.DeleteNotice(ctx, u.ID, key); err != nil {

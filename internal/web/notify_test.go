@@ -2,6 +2,8 @@ package web
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -13,6 +15,8 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -57,7 +61,11 @@ func TestNotifyProblems(t *testing.T) {
 	}
 	fb.status.Last = &store.BackupRun{OK: true, Finished: t0.Add(37 * time.Hour)}
 	fb.status.LastOK = fb.status.Last
-	if h.server.notify(ctx, t0.Add(37*time.Hour)); len(fm.sent) != 3 || !strings.Contains(fm.sent[2].Subject, "Fixed: The last backup") {
+	// Fixed once it has stayed fixed as long as a problem must last.
+	if h.server.notify(ctx, t0.Add(37*time.Hour)); len(fm.sent) != 2 {
+		t.Fatalf("fixed too soon: %+v", fm.sent[len(fm.sent)-1])
+	}
+	if h.server.notify(ctx, t0.Add(37*time.Hour+11*time.Minute)); len(fm.sent) != 3 || !strings.Contains(fm.sent[2].Subject, "Fixed: The last backup") {
 		t.Fatalf("fixed: %+v", fm.sent[len(fm.sent)-1])
 	}
 	if h.server.notify(ctx, t0.Add(38*time.Hour)); len(fm.sent) != 3 {
@@ -71,6 +79,51 @@ func TestNotifyProblems(t *testing.T) {
 	h.server.notify(ctx, t0.Add(40*time.Hour))
 	if h.server.notify(ctx, t0.Add(41*time.Hour)); len(fm.sent) != 3 {
 		t.Errorf("chose no problems: %+v", fm.sent[len(fm.sent)-1])
+	}
+}
+
+// A server that can't be reached is one problem, whatever each attempt's
+// error says, and a moment's gap between retries (the server shown as
+// applying) isn't "fixed": they made emails alternate all day (2026-10-08).
+func TestNotifyNoFlapping(t *testing.T) {
+	h, fm, _ := notifyHarness(t, auth.RoleOwner)
+	ctx := context.Background()
+	t0 := time.Now()
+	this := manager.Server{ID: "n-0123456789", Name: "nuc", Controller: true, This: true, Reachable: true}
+	pi := func(st manager.ApplyStatus) {
+		h.node().servers = []manager.Server{this, {ID: "n-pi00000001", Name: "pi", Status: st}}
+	}
+	refused := fmt.Errorf("Roostack can't reach pi: %w", node.ErrUnreachable)
+	pi(manager.ApplyStatus{Finished: true, LastErr: refused})
+	h.server.notify(ctx, t0)
+	h.server.notify(ctx, t0.Add(11*time.Minute))
+	if len(fm.sent) != 1 || !strings.Contains(fm.sent[0].Subject, "Needs attention: Roostack can't reach pi") {
+		t.Fatalf("first email: %+v", fm.sent)
+	}
+	// Between retries: applying for a moment, then failing again with
+	// other words for the same thing.
+	pi(manager.ApplyStatus{Running: true})
+	h.server.notify(ctx, t0.Add(12*time.Minute))
+	pi(manager.ApplyStatus{Finished: true, LastErr: fmt.Errorf("Roostack can't reach pi right now: %w", node.ErrUnreachable)})
+	h.server.notify(ctx, t0.Add(14*time.Minute))
+	h.server.notify(ctx, t0.Add(30*time.Minute))
+	if len(fm.sent) != 1 {
+		t.Errorf("flapped: %d emails, the last %q", len(fm.sent), fm.sent[len(fm.sent)-1].Subject)
+	}
+	// A failed change's error can change too: still one problem.
+	pi(manager.ApplyStatus{Finished: true, LastErr: errors.New("restarting vaultwarden: exit status 1")})
+	h.server.notify(ctx, t0.Add(41*time.Minute))
+	pi(manager.ApplyStatus{Finished: true, LastErr: errors.New("restarting vaultwarden: timed out")})
+	h.server.notify(ctx, t0.Add(52*time.Minute))
+	h.server.notify(ctx, t0.Add(53*time.Minute))
+	var apply int
+	for _, m := range fm.sent {
+		if strings.Contains(m.Subject, "didn't finish") {
+			apply++
+		}
+	}
+	if apply != 1 {
+		t.Errorf("a changing error emailed %d times", apply)
 	}
 }
 

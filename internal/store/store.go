@@ -202,6 +202,9 @@ var migrations = []string{
 	// Sessions from before count as used now, so the update doesn't sign
 	// everyone out.
 	`UPDATE sessions SET last_seen = CAST(strftime('%s', 'now') AS INTEGER) WHERE last_seen = 0;`,
+	// When an emailed notice stopped being seen: "Fixed" waits until it
+	// has been gone a while, so a moment's gap isn't news (SPEC.md §6.13).
+	`ALTER TABLE notices ADD COLUMN gone_since INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -414,11 +417,13 @@ type Notice struct {
 	Key, Text string
 	FirstSeen time.Time
 	SentAt    time.Time // zero: not emailed yet
+	// GoneSince is when it stopped being seen (zero while it's there).
+	GoneSince time.Time
 }
 
 // Notices lists what's being followed for a person.
 func (s *Store) Notices(ctx context.Context, userID int64) (map[string]Notice, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT key, text, first_seen, sent_at FROM notices WHERE user_id = ?`, userID)
+	rows, err := s.db.QueryContext(ctx, `SELECT key, text, first_seen, sent_at, gone_since FROM notices WHERE user_id = ?`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -426,13 +431,16 @@ func (s *Store) Notices(ctx context.Context, userID int64) (map[string]Notice, e
 	out := map[string]Notice{}
 	for rows.Next() {
 		var n Notice
-		var first, sent int64
-		if err := rows.Scan(&n.Key, &n.Text, &first, &sent); err != nil {
+		var first, sent, gone int64
+		if err := rows.Scan(&n.Key, &n.Text, &first, &sent, &gone); err != nil {
 			return nil, err
 		}
 		n.FirstSeen = time.Unix(first, 0)
 		if sent != 0 {
 			n.SentAt = time.Unix(sent, 0)
+		}
+		if gone != 0 {
+			n.GoneSince = time.Unix(gone, 0)
 		}
 		out[n.Key] = n
 	}
@@ -441,13 +449,16 @@ func (s *Store) Notices(ctx context.Context, userID int64) (map[string]Notice, e
 
 // SaveNotice records a notice (insert or update).
 func (s *Store) SaveNotice(ctx context.Context, userID int64, n Notice) error {
-	var sent int64
+	var sent, gone int64
 	if !n.SentAt.IsZero() {
 		sent = n.SentAt.Unix()
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO notices (user_id, key, text, first_seen, sent_at) VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT (user_id, key) DO UPDATE SET text = excluded.text, sent_at = excluded.sent_at`,
-		userID, n.Key, n.Text, n.FirstSeen.Unix(), sent)
+	if !n.GoneSince.IsZero() {
+		gone = n.GoneSince.Unix()
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO notices (user_id, key, text, first_seen, sent_at, gone_since) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT (user_id, key) DO UPDATE SET text = excluded.text, sent_at = excluded.sent_at, gone_since = excluded.gone_since`,
+		userID, n.Key, n.Text, n.FirstSeen.Unix(), sent, gone)
 	return err
 }
 

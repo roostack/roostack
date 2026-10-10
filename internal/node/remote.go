@@ -226,7 +226,9 @@ func (r *Remote) Pending() (WireAssignment, bool) {
 func (r *Remote) Status() ApplyStatus {
 	st, err := r.wireStatus()
 	if err != nil {
-		return ApplyStatus{Finished: true, LastErr: fmt.Errorf("Roostack can't reach %s: %v", r.ID.Name, err)}
+		// ErrUnreachable whatever the cause, so it's told apart from a change
+		// that failed (the cause is in the log).
+		return ApplyStatus{Finished: true, LastErr: fmt.Errorf("Roostack can't reach %s: %w", r.ID.Name, ErrUnreachable)}
 	}
 	return st.apply()
 }
