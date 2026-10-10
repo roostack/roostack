@@ -54,7 +54,13 @@ main { max-width: 960px; margin: 0 auto; padding: var(--space-5) var(--space-4);
 .topbar nav .spacer { flex: 1; }
 .topbar nav form { margin: 0; }
 .menu-toggle { display: none; background: none; color: var(--fg); font-size: 1.3rem; padding: var(--space-1) var(--space-2); }
-@media (max-width: 640px) {
+/* A long name for the person logged in ends in "…" rather than widening the bar. */
+.topbar nav .who { max-width: 10em; overflow: hidden; text-overflow: ellipsis; }
+/* The menu button takes over while the full row of links doesn't fit: it
+   needs about 690px (with a name up to 10em), so the breakpoint has some
+   margin. At 640px it was too low: between it and ~690px "Log out" was
+   cut off and the page scrolled sideways. */
+@media (max-width: 760px) {
   .menu-toggle { display: block; margin-left: auto; }
   /* The brand shrinks (a long lab name ends in "…") so the menu button
      stays beside it, rather than wrapping and widening the page. */
