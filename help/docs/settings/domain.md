@@ -71,6 +71,13 @@ The domain page shows what each one needs, and where to get it.
     Roostack can use it, but asks you to accept the risk first. Moving your
     DNS to Cloudflare (free) avoids it.
 
+**If your provider isn't listed,** move your domain's DNS to one that is:
+Cloudflare's is free. The domain stays where you bought it; only the
+records move. Cloudflare copies your existing records when you add the
+domain, then shows two name servers to set at the company you bought it
+from. Check your email and any other records came across before you
+switch.
+
 ## Where your lab is
 
 **Settings → Where it is and DNS** says whether your lab is **at home**,
