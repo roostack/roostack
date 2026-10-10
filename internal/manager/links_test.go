@@ -181,3 +181,24 @@ func TestEdge(t *testing.T) {
 		t.Errorf("after: %+v %+v", vps.last.Edge, vps.last.Lab.EdgeAddrs)
 	}
 }
+
+// TestUnreachableSince: the first time a server is seen not answering is
+// kept until it answers again.
+func TestUnreachableSince(t *testing.T) {
+	m := &Manager{Settings: linkKV{}}
+	ctx := context.Background()
+	first := m.unreachableSince(ctx, "n-0000000002", false)
+	if first.IsZero() {
+		t.Fatal("not recorded")
+	}
+	m.Settings.SetSetting(ctx, unreachableKey+"n-0000000002", "1000")
+	if again := m.unreachableSince(ctx, "n-0000000002", false); again.Unix() != 1000 {
+		t.Errorf("kept: %v", again)
+	}
+	if !m.unreachableSince(ctx, "n-0000000002", true).IsZero() {
+		t.Error("answering: zero")
+	}
+	if v, _ := m.Settings.Setting(ctx, unreachableKey+"n-0000000002"); v != "" {
+		t.Error("answering forgets it")
+	}
+}

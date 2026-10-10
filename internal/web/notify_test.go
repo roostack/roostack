@@ -243,3 +243,38 @@ func TestWhoGetsWhat(t *testing.T) {
 		t.Errorf("who gets what:\n%s", body[strings.Index(body, "<main"):])
 	}
 }
+
+// TestServerGoneForGood: a server unreached for days is said plainly,
+// with what to do: remove it, or restore its services elsewhere if it
+// had any. The Servers page says since when, and opens its remove part.
+func TestServerGoneForGood(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	this := manager.Server{ID: "n-0123456789", Name: "nuc", Controller: true, This: true, Reachable: true}
+	refused := manager.ApplyStatus{Finished: true, LastErr: fmt.Errorf("Roostack can't reach pi: %w", node.ErrUnreachable)}
+	pi := manager.Server{ID: "n-pi00000001", Name: "pi", Status: refused, UnreachableSince: time.Now().Add(-time.Hour)}
+	fm.servers = []manager.Server{this, pi}
+	if _, body := h.get("/"); !strings.Contains(body, "Roostack can&#39;t reach pi.") || strings.Contains(body, "hasn&#39;t reached pi") {
+		t.Error("an hour: the usual words")
+	}
+	pi.UnreachableSince = time.Now().Add(-4 * 24 * time.Hour)
+	fm.servers = []manager.Server{this, pi}
+	_, body := h.get("/")
+	if !strings.Contains(body, "Roostack hasn&#39;t reached pi since") || !strings.Contains(body, "remove it from the lab") ||
+		!strings.Contains(body, `href="/settings/servers?remove=n-pi00000001#server-n-pi00000001"`) {
+		t.Errorf("four days, no services: %s", body[strings.Index(body, "Needs attention"):][:600])
+	}
+	pi.Services = []string{"immich"}
+	fm.servers = []manager.Server{this, pi}
+	if _, body := h.get("/"); !strings.Contains(body, "its services can come back from their backups") || !strings.Contains(body, `href="/settings/servers/n-pi00000001/gone"`) {
+		t.Error("four days, with services: restore them")
+	}
+	pi.Services = nil
+	fm.servers = []manager.Server{this, pi}
+	_, body = h.get("/settings/servers?remove=n-pi00000001")
+	if !strings.Contains(body, "Not connected since") || !strings.Contains(body, "Remove it from the lab") {
+		t.Error("the Servers page doesn't say since when")
+	}
+	if i := strings.Index(body, `id="server-n-pi00000001"`); i < 0 || !strings.Contains(body[i:], "<details open>") {
+		t.Error("the remove part isn't open")
+	}
+}
