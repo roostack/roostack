@@ -222,6 +222,15 @@
   <div x-show="choice === 'other'"{{if ne .Selected "other"}} x-cloak{{end}}>
     <label>Address and port <input name="address_other" value="{{.Other}}" placeholder="203.0.113.7:{{.Port}}" x-bind:required="choice === 'other'"></label>
   </div>
+  {{if .Dial}}
+  <label class="check"><input type="radio" name="address" value="dial" x-model="choice"{{if eq .Selected "dial"}} checked{{end}}>
+    <span>None: this server connects to the new one instead<small>For a cloud server joining a lab at home, without forwarding a port on your router.
+      The new server needs a public address, with UDP port {{.Port}} open at its provider.</small></span></label>
+  <div x-show="choice === 'dial'"{{if ne .Selected "dial"}} x-cloak{{end}}>
+    <label>The new server's public address <input name="address_dial" value="{{.DialAddr}}" placeholder="203.0.113.7" x-bind:required="choice === 'dial'"
+      autocapitalize="off" autocomplete="off"><small>Its address or name; port {{.Port}} unless you add another, such as <code>203.0.113.7:51820</code>.</small></label>
+  </div>
+  {{end}}
 </fieldset>
 {{end}}
 

@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -42,6 +43,10 @@ type Host interface {
 	// ApplyFirewall checks and loads an nftables ruleset, and saves it so it
 	// is re-applied when the agent starts.
 	ApplyFirewall(ruleset string) error
+	// AllowWireGuardJoin lets WireGuard's port in until the firewall is
+	// next applied: a server joining a lab whose controller dials it
+	// (SPEC.md §10.2), before its own firewall says so.
+	AllowWireGuardJoin() error
 	// SetTimezone sets the host's time zone (an IANA name, already checked
 	// with ValidTimezone).
 	SetTimezone(name string) error
@@ -104,6 +109,10 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		s.do(w, r, "apply firewall", func() error { return s.Host.ApplyFirewall(fw.Ruleset()) })
+	})
+	// No arguments: it only ever opens WireGuard's own port.
+	mux.HandleFunc("POST /v1/firewall/wireguard-join", func(w http.ResponseWriter, r *http.Request) {
+		s.do(w, r, "open wireguard for joining", s.Host.AllowWireGuardJoin)
 	})
 	mux.HandleFunc("PUT /v1/timezone", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -403,6 +412,22 @@ func (h LinuxHost) SetUnprivilegedPortStart() error {
 		return err
 	}
 	return os.WriteFile(unprivPortProc, []byte("80\n"), 0o644)
+}
+
+// AllowWireGuardJoin adds one rule at the top of Roostack's input chain:
+// UDP to WireGuardPort. The next ApplyFirewall replaces the whole table,
+// so it lasts until then. Without Roostack's table (the Owner hasn't
+// chosen its firewall yet) nothing blocks the port anyway.
+func (h LinuxHost) AllowWireGuardJoin() error {
+	if exec.Command("nft", "list", "table", "inet", "roostack").Run() != nil {
+		return nil
+	}
+	out, err := exec.Command("nft", "insert", "rule", "inet", "roostack", "input", "udp", "dport", strconv.Itoa(WireGuardPort),
+		"accept", "comment", `"roostack: joining a lab"`).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("nft: %w: %s", err, out)
+	}
+	return nil
 }
 
 // ApplyFirewall checks the ruleset with `nft -c`, loads it, then saves it.

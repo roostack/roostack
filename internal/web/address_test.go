@@ -19,11 +19,12 @@ import (
 )
 
 // fakeNetwork makes join codes and remembers their addresses.
-type fakeNetwork struct{ endpoints []string }
+type fakeNetwork struct{ endpoints, dials []string }
 
-func (f *fakeNetwork) NewJoinCode(_ context.Context, endpoint string) (labnet.JoinCode, error) {
+func (f *fakeNetwork) NewJoinCode(_ context.Context, endpoint, dial string) (labnet.JoinCode, error) {
 	f.endpoints = append(f.endpoints, endpoint)
-	return labnet.JoinCode{Endpoint: endpoint, Addr: netip.MustParseAddr("100.96.0.5")}, nil
+	f.dials = append(f.dials, dial)
+	return labnet.JoinCode{Endpoint: endpoint, Listen: dial != "", Addr: netip.MustParseAddr("100.96.0.5")}, nil
 }
 
 // Adding a server offers the addresses Roostack knows (a name from the
@@ -72,6 +73,40 @@ func TestJoinAddressChoice(t *testing.T) {
 	}
 	if code, _ := h.post("/settings/servers/join", url.Values{"address": {"other"}, "address_other": {"nonsense"}}, h.srv.URL); code != 400 {
 		t.Errorf("no port: %d", code)
+	}
+}
+
+// TestJoinDial: at home, a join code can have this server dial the new
+// one (a cloud server, without a port forward); its address is checked,
+// and the code says the port must be open there.
+func TestJoinDial(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.setSetup(&fakeSetup{p: allDone})
+	fn := &fakeNetwork{}
+	h.server.Network = fn
+	h.server.DNS = &fakeDNS{st: dnsrecords.Status{IP: "192.168.1.20", PublicIP: "81.2.69.160"}}
+
+	if _, body := h.get("/settings/servers"); !strings.Contains(body, "None: this server connects to the new one instead") ||
+		!strings.Contains(body, `name="address_dial"`) {
+		t.Fatal("no dial choice at home")
+	}
+	for typed, why := range map[string]string{"192.168.1.30": "isn&#39;t a public address", "nonsense": "public address, such as",
+		"203.0.113.7:99999": "isn&#39;t a number"} {
+		code, body := h.post("/settings/servers/join", url.Values{"address": {"dial"}, "address_dial": {typed}}, h.srv.URL)
+		if code != 400 || !strings.Contains(body, why) || !strings.Contains(body, `value="`+typed+`"`) {
+			t.Errorf("%s: %d, want %q and the address kept", typed, code, why)
+		}
+	}
+	_, made := h.post("/settings/servers/join", url.Values{"address": {"dial"}, "address_dial": {"203.0.113.7"}}, h.srv.URL)
+	if len(fn.dials) != 1 || fn.dials[0] != "203.0.113.7:51820" || fn.endpoints[0] != "" {
+		t.Fatalf("dial %v, endpoints %v", fn.dials, fn.endpoints)
+	}
+	if !strings.Contains(made, "Join code for a new server") || !strings.Contains(made, "connects to the new one at <code>203.0.113.7:51820</code>") {
+		t.Error("the code doesn't say this server will connect")
+	}
+	h.post("/settings/servers/join", url.Values{"address": {"dial"}, "address_dial": {"vps.example.com:61820"}}, h.srv.URL)
+	if fn.dials[1] != "vps.example.com:61820" {
+		t.Errorf("a name with its port: %v", fn.dials)
 	}
 }
 

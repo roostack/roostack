@@ -17,6 +17,7 @@ import (
 )
 
 type fakeHost struct {
+	joinOpen  bool
 	portsSet  bool
 	ruleset   string
 	tz        string
@@ -32,6 +33,7 @@ func (f *fakeHost) ApplyLinks(l Links) error { f.links = &l; return nil }
 
 func (f *fakeHost) SetUnprivilegedPortStart() error { f.portsSet = true; return nil }
 func (f *fakeHost) ApplyFirewall(r string) error    { f.ruleset = r; return nil }
+func (f *fakeHost) AllowWireGuardJoin() error       { f.joinOpen = true; return nil }
 func (f *fakeHost) SetTimezone(name string) error   { f.tz = name; return nil }
 func (f *fakeHost) RunUpdates(_ context.Context, w io.Writer) error {
 	f.updated = true

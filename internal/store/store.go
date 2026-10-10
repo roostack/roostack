@@ -205,6 +205,11 @@ var migrations = []string{
 	// When an emailed notice stopped being seen: "Fixed" waits until it
 	// has been gone a while, so a moment's gap isn't news (SPEC.md §6.13).
 	`ALTER TABLE notices ADD COLUMN gone_since INTEGER NOT NULL DEFAULT 0;`,
+	// Where the controller dials a server that can be reached and it
+	// can't (a cloud server joining a lab at home, SPEC.md §10.2): typed
+	// with its join code, kept once it has joined.
+	`ALTER TABLE join_codes ADD COLUMN dial TEXT NOT NULL DEFAULT '';
+	ALTER TABLE servers ADD COLUMN dial TEXT NOT NULL DEFAULT '';`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -947,6 +952,9 @@ type Server struct {
 	// any certificate the lab's CA signed for it.
 	CertSerial, PrevSerial string
 	CertExpires            time.Time
+	// Dial is where the controller dials it (host:port), when it can be
+	// reached and the controller can't; "" when it dials the controller.
+	Dial string
 }
 
 // JoinCode is a join code waiting to be used. Only the token's hash is
@@ -954,6 +962,9 @@ type Server struct {
 type JoinCode struct {
 	TokenHash, Addr, PublicKey string
 	Expires                    time.Time
+	// Dial is where the controller dials the new server ("" when the new
+	// server dials the controller); the server keeps it once joined.
+	Dial string
 }
 
 // ErrJoinCode means a join code is unknown, used or expired.
@@ -961,8 +972,8 @@ var ErrJoinCode = errors.New("the join code is unknown, already used or expired"
 
 // AddJoinCode records a new join code.
 func (s *Store) AddJoinCode(ctx context.Context, c JoinCode) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO join_codes (token_hash, addr, public_key, expires_at) VALUES (?, ?, ?, ?)`,
-		c.TokenHash, c.Addr, c.PublicKey, c.Expires.Unix())
+	_, err := s.db.ExecContext(ctx, `INSERT INTO join_codes (token_hash, addr, public_key, expires_at, dial) VALUES (?, ?, ?, ?, ?)`,
+		c.TokenHash, c.Addr, c.PublicKey, c.Expires.Unix(), c.Dial)
 	return err
 }
 
@@ -971,7 +982,7 @@ func (s *Store) JoinCodes(ctx context.Context, now time.Time) ([]JoinCode, error
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM join_codes WHERE expires_at <= ?`, now.Unix()); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT token_hash, addr, public_key, expires_at FROM join_codes ORDER BY addr`)
+	rows, err := s.db.QueryContext(ctx, `SELECT token_hash, addr, public_key, expires_at, dial FROM join_codes ORDER BY addr`)
 	if err != nil {
 		return nil, err
 	}
@@ -980,7 +991,7 @@ func (s *Store) JoinCodes(ctx context.Context, now time.Time) ([]JoinCode, error
 	for rows.Next() {
 		var c JoinCode
 		var exp int64
-		if err := rows.Scan(&c.TokenHash, &c.Addr, &c.PublicKey, &exp); err != nil {
+		if err := rows.Scan(&c.TokenHash, &c.Addr, &c.PublicKey, &exp, &c.Dial); err != nil {
 			return nil, err
 		}
 		c.Expires = time.Unix(exp, 0)
@@ -998,7 +1009,7 @@ func (s *Store) Join(ctx context.Context, tokenHash string, m Server, now time.T
 	}
 	defer tx.Rollback()
 	var exp int64
-	err = tx.QueryRowContext(ctx, `SELECT addr, expires_at FROM join_codes WHERE token_hash = ?`, tokenHash).Scan(&m.Addr, &exp)
+	err = tx.QueryRowContext(ctx, `SELECT addr, expires_at, dial FROM join_codes WHERE token_hash = ?`, tokenHash).Scan(&m.Addr, &exp, &m.Dial)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && exp <= now.Unix()) {
 		return m, ErrJoinCode
 	}
@@ -1012,11 +1023,11 @@ func (s *Store) Join(ctx context.Context, tokenHash string, m Server, now time.T
 	// Joining again (e.g. after reinstalling) replaces the old entry.
 	// Its certificate is recorded once signed (SetServerCert); until then
 	// none is accepted, not even one from an earlier join.
-	if _, err := tx.ExecContext(ctx, `INSERT INTO servers (id, name, addr, public_key, joined_at, cert_serial)
-		VALUES (?, ?, ?, ?, ?, 'pending')
+	if _, err := tx.ExecContext(ctx, `INSERT INTO servers (id, name, addr, public_key, joined_at, cert_serial, dial)
+		VALUES (?, ?, ?, ?, ?, 'pending', ?)
 		ON CONFLICT(id) DO UPDATE SET name = excluded.name, addr = excluded.addr, public_key = excluded.public_key,
-		joined_at = excluded.joined_at, cert_serial = 'pending', prev_serial = '', cert_expires = 0`,
-		m.ID, m.Name, m.Addr, m.PublicKey, now.Unix()); err != nil {
+		joined_at = excluded.joined_at, cert_serial = 'pending', prev_serial = '', cert_expires = 0, dial = excluded.dial`,
+		m.ID, m.Name, m.Addr, m.PublicKey, now.Unix(), m.Dial); err != nil {
 		return m, err
 	}
 	return m, tx.Commit()
@@ -1024,7 +1035,7 @@ func (s *Store) Join(ctx context.Context, tokenHash string, m Server, now time.T
 
 // Servers lists the other servers in the lab.
 func (s *Store) Servers(ctx context.Context) ([]Server, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, addr, public_key, joined_at, cert_serial, prev_serial, cert_expires
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, addr, public_key, joined_at, cert_serial, prev_serial, cert_expires, dial
 		FROM servers ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -1034,7 +1045,7 @@ func (s *Store) Servers(ctx context.Context) ([]Server, error) {
 	for rows.Next() {
 		var m Server
 		var joined, expires int64
-		if err := rows.Scan(&m.ID, &m.Name, &m.Addr, &m.PublicKey, &joined, &m.CertSerial, &m.PrevSerial, &expires); err != nil {
+		if err := rows.Scan(&m.ID, &m.Name, &m.Addr, &m.PublicKey, &joined, &m.CertSerial, &m.PrevSerial, &expires, &m.Dial); err != nil {
 			return nil, err
 		}
 		m.JoinedAt = time.Unix(joined, 0)

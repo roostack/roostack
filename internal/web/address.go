@@ -40,6 +40,11 @@ type addressChoice struct {
 	Other    string // the typed address, when Selected is "other"
 	Port     int
 	Link     *dnsrecords.PublicRecord
+	// Dial offers the opposite way round, for a join code: this server
+	// can't be reached, so it dials the new server at DialAddr (SPEC.md
+	// §10.2). Selected is then "dial".
+	Dial     bool
+	DialAddr string
 }
 
 // addressChoices lists the addresses to offer on port, suggesting saved
