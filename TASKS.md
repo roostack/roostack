@@ -231,6 +231,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [x] A real certificate for a roost.ac name (2026-10-07): VM3, against a development Cloud on roost.ac's real DNS (test.roost.ac), got its name's and wildcard's certificates from Let's Encrypt
     - [ ] Rethink getting a roost.ac address in the wizard (user, 2026-10-07): linking inside the address step, then "Continue setup", is confusing. Revisit once the real Cloud works end to end
     - [ ] Own domain, unsupported DNS provider (SPEC §6.6): DNS-01 through Cloud when linked (one `_acme-challenge` CNAME added by hand, still a wildcard); otherwise, if reachable on 443, TLS-ALPN-01 with a certificate per name. Roostack picks automatically
+  - [x] Emails no longer alternate "Needs attention" and "Fixed" for a server that can't be reached: "Fixed" waits 10 minutes, items keyed by server, and an unreachable server is its own item (2026-10-08)
+  - [ ] A server unreachable for days: say so plainly, and offer to remove it (it may be gone for good, as a reinstalled test VM was)
   - [ ] Header: between phone width (menu) and about 690px, the nav neither collapses nor fits, so the page scrolls sideways ("Log out" is cut off)
   - [ ] The build follower treats a leftover log from an earlier build as the new one if it reads it before the new build truncates it (only when a build is restarted; harmless but can end the follower early)
   - [x] The install message comes last (a dpkg trigger on the package, after other packages' triggers), in colour with a small banner, and shows the setup code itself; `/usr/share/roostack/installed-message` shows it again (ASSUMPTIONS K5, K7)
