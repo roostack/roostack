@@ -491,6 +491,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/public/sharing", s.requireOwner(s.publicSharingSubmit))
 	mux.Handle("POST /settings/public/edge", s.requireOwner(s.publicEdgeSubmit))
 	mux.Handle("POST /settings/public/countries", s.requireOwner(s.publicCountriesSubmit))
+	mux.Handle("POST /settings/public/relay-check", s.requireOwner(s.publicRelayCheck))
 	// Visitors through the relay: Owners on Public access, Admins on their own page.
 	mux.Handle("GET /partials/relay-stats", s.require(auth.ManageServices, s.relayStatsPart))
 	mux.Handle("GET /visitors", s.require(auth.ManageServices, s.visitorsPage))

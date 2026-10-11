@@ -76,6 +76,8 @@ func (f *fakeManager) RelayOn() bool { return f.relay }
 
 func (f *fakeManager) Countries() config.Countries { return f.countries }
 
+func (f *fakeManager) CheckRelay(context.Context) error { f.relayChecks++; return f.relayErr }
+
 func (f *fakeManager) SetCountries(_ context.Context, c config.Countries) error {
 	if f.relayErr != nil {
 		return f.relayErr

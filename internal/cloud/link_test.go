@@ -340,17 +340,17 @@ func TestRelay(t *testing.T) {
 	wg := &fakeWG{}
 	s.WireGuard = wg
 	ctx := context.Background()
-	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}, config.Countries{}, ""); err == nil {
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}, config.Countries{}, "", ""); err == nil {
 		t.Error("relayed before linking")
 	}
 	link(t, f, s, "")
 	f.NoRelay = true
-	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}, config.Countries{}, ""); err == nil || !strings.Contains(err.Error(), "isn't open") {
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}, config.Countries{}, "", ""); err == nil || !strings.Contains(err.Error(), "isn't open") {
 		t.Errorf("refused by Cloud: %v", err)
 	}
 	f.NoRelay = false
 	wg.applied = nil
-	if err := s.Relay(ctx, []string{"photos.smiths.roost.test", "smiths.roost.test"}, config.Countries{}, ""); err != nil {
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test", "smiths.roost.test"}, config.Countries{}, "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(wg.applied) != 2 || len(wg.applied[0].Peers) != 0 || wg.applied[0].Interface != agent.RelayInterface {
@@ -370,12 +370,12 @@ func TestRelay(t *testing.T) {
 		t.Errorf("edges: %+v", es)
 	}
 	n := len(wg.applied)
-	if err := s.Relay(ctx, []string{"smiths.roost.test", "photos.smiths.roost.test"}, config.Countries{}, ""); err != nil || len(wg.applied) != n {
+	if err := s.Relay(ctx, []string{"smiths.roost.test", "photos.smiths.roost.test"}, config.Countries{}, "", ""); err != nil || len(wg.applied) != n {
 		t.Errorf("the same names again: %v, %d applies", err, len(wg.applied)-n)
 	}
 	// Countries: Cloud is told, once.
 	nz := config.Countries{Allow: []string{"NZ"}}
-	if err := s.Relay(ctx, []string{"smiths.roost.test", "photos.smiths.roost.test"}, nz, "Australia/Sydney"); err != nil {
+	if err := s.Relay(ctx, []string{"smiths.roost.test", "photos.smiths.roost.test"}, nz, "Australia/Sydney", ""); err != nil {
 		t.Fatal(err)
 	}
 	for _, rel := range f.Relayed {
@@ -384,7 +384,7 @@ func TestRelay(t *testing.T) {
 		}
 	}
 	n = len(wg.applied)
-	if s.Relay(ctx, []string{"smiths.roost.test", "photos.smiths.roost.test"}, nz, "Australia/Sydney"); len(wg.applied) != n {
+	if s.Relay(ctx, []string{"smiths.roost.test", "photos.smiths.roost.test"}, nz, "Australia/Sydney", ""); len(wg.applied) != n {
 		t.Error("the same countries again: Cloud asked again")
 	}
 	// Bans go to Cloud while relayed, at most MaxRelayBans of them.
@@ -402,6 +402,42 @@ func TestRelay(t *testing.T) {
 	}
 	if len(f.Bans) != 1 {
 		t.Errorf("bans sent for %d labs", len(f.Bans))
+	}
+	// The lab's own domain: its relay name and proof; asked again while
+	// it isn't proven (Cloud looks again), not once it is.
+	own := []string{"vault.lab.example.com"}
+	if err := s.Relay(ctx, own, nz, "Australia/Sydney", "lab.example.com"); err != nil {
+		t.Fatal(err)
+	}
+	name, d := s.RelayName()
+	if name != "r-test.relay.roost.test" || d == nil || d.Verified || d.ProofName != "_roostack.lab.example.com" || d.ProofValue == "" {
+		t.Errorf("own domain: %q %+v", name, d)
+	}
+	f.DomainVerified = true
+	if err := s.Relay(ctx, own, nz, "Australia/Sydney", "lab.example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if _, d := s.RelayName(); d == nil || !d.Verified {
+		t.Errorf("not asked again while unproven: %+v", d)
+	}
+	n = len(wg.applied)
+	s.Relay(ctx, own, nz, "Australia/Sydney", "lab.example.com")
+	if len(wg.applied) != n {
+		t.Error("asked again once proven")
+	}
+	// Refreshed from Cloud: the proof gone missing.
+	f.DomainVerified = false
+	rctx, stop := context.WithCancel(ctx)
+	go s.RefreshRelay(rctx, 10*time.Millisecond)
+	for i := 0; i < 200; i++ {
+		if _, d := s.RelayName(); d != nil && !d.Verified {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	stop()
+	if _, d := s.RelayName(); d == nil || d.Verified {
+		t.Errorf("after refreshing: %+v", d)
 	}
 	// Statistics, asked for by the day.
 	f.RelayStats = cloudapi.RelayStats{Periods: []cloudapi.RelayPeriod{{Day: "2026-10-12", Visitors: 5}}}

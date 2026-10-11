@@ -9,6 +9,7 @@ import (
 
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
 )
@@ -91,5 +92,67 @@ func TestRelayStats(t *testing.T) {
 	hm.server.Cloud = c
 	if code, _ := hm.get("/partials/relay-stats"); code == 200 {
 		t.Error("a Member sees the visitors")
+	}
+}
+
+// domainCloud is a linked Cloud relaying the lab's own domain, its proof
+// as given.
+type domainCloud struct {
+	CloudLink
+	d *cloudapi.RelayDomain
+}
+
+func (c domainCloud) Status() cloud.Status {
+	st := c.CloudLink.Status()
+	st.Linked = true
+	return st
+}
+
+func (c domainCloud) RelayName() (string, *cloudapi.RelayDomain) {
+	return "r-abc.relay.roost.test", c.d
+}
+
+// TestRelayOwnDomain: a lab with its own domain is offered the relay;
+// while relayed, Public access says where its proof stands ("Check now"
+// asks Cloud again), Needs attention warns until it's found and says when
+// it's gone, and the records table shows the CNAMEs and the proof.
+func TestRelayOwnDomain(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	h.server.Domain = "lab.example.com"
+	d := &cloudapi.RelayDomain{Domain: "lab.example.com", ProofName: "_roostack.lab.example.com", ProofValue: "roostack-proof=t0k",
+		Problem: "There's no TXT record at _roostack.lab.example.com yet."}
+	h.server.Cloud = domainCloud{CloudLink: newCloud(t), d: d}
+	if _, body := h.get("/settings/public"); !strings.Contains(body, `value="cloud"`) {
+		t.Fatal("the relay isn't offered to a lab with its own domain")
+	}
+	fm.relay = true
+	fm.access = []manager.RouteAccess{{Host: "vault.lab.example.com", Public: true}}
+	h.server.DNS = &fakeDNS{st: dnsrecords.Status{Managing: true, CanManage: true,
+		Public: []dnsrecords.PublicRecord{{Host: "vault.lab.example.com", Type: "CNAME", IP: "r-abc.relay.roost.test", State: dnsrecords.PublicOK}},
+		Proof:  &dnsrecords.PublicRecord{Host: "_roostack.lab.example.com", Type: "TXT", IP: "roostack-proof=t0k", State: dnsrecords.PublicOK}}}
+	_, body := h.get("/settings/public")
+	for _, want := range []string{"Waiting for the record proving lab.example.com", "roostack-proof=t0k", "Roostack adds it at your DNS provider by itself",
+		"There&#39;s no TXT record", "Check now", "(CNAME r-abc.relay.roost.test)", "Proves the domain is this lab's"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+	if _, body := h.get("/"); !strings.Contains(body, "waiting for the record proving lab.example.com") {
+		t.Error("no warning on Home while unproven")
+	}
+	h.post("/settings/public/relay-check", nil, h.srv.URL)
+	if fm.relayChecks != 1 {
+		t.Errorf("Check now: %d", fm.relayChecks)
+	}
+	d.Verified = true
+	if _, body := h.get("/settings/public"); !strings.Contains(body, "has checked that lab.example.com is this lab's") {
+		t.Error("not said once proven")
+	}
+	if _, body := h.get("/"); strings.Contains(body, "proving lab.example.com") {
+		t.Error("still on Home once proven")
+	}
+	d.Missing = true
+	if _, body := h.get("/"); !strings.Contains(body, "can&#39;t find the record proving lab.example.com") {
+		t.Error("no problem on Home when the proof's gone")
 	}
 }

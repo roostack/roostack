@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
@@ -42,6 +43,8 @@ type PublicAccess interface {
 	// Roostack Cloud's relay as the way in instead.
 	RelayOn() bool
 	SetRelay(ctx context.Context, on bool) error
+	// CheckRelay asks Roostack Cloud to look for the own domain's proof now.
+	CheckRelay(ctx context.Context) error
 	// Who the relay lets in by country.
 	Countries() config.Countries
 	SetCountries(ctx context.Context, c config.Countries) error
@@ -301,6 +304,11 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 		}
 		data["CanRelay"], data["Relay"] = s.canRelay(), s.Manager.RelayOn()
 		data["RelayError"] = r.FormValue("relay_error")
+		data["RelayDomain"] = s.relayDomain()
+		if s.DNS != nil {
+			st := s.DNS.Status()
+			data["DNSManaged"] = st.Managing && st.CanManage
+		}
 		if s.Manager.RelayOn() {
 			data["VisitorsPeriod"] = r.FormValue("period")
 			c := s.Manager.Countries()
@@ -314,21 +322,31 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 		data["Protected"] = s.Protected != nil && s.Protected(r.Context())
 		if s.DNS != nil {
 			st := s.DNS.Status()
-			data["Records"], data["PublicIP"] = st.Public, st.PublicIP
+			data["Records"], data["PublicIP"], data["Proof"] = st.Public, st.PublicIP, st.Proof
 		}
 	}
 	data["Saved"] = r.FormValue("saved")
 	s.render(w, "settings-public", withArea(data, "public"))
 }
 
-// canRelay: Roostack Cloud's relay can be the way in: the lab is linked,
-// and its address is its roost.ac name (custom domains come later).
+// canRelay: Roostack Cloud's relay can be the way in: the lab is linked
+// and has an address, its roost.ac name or its own domain (relayed once a
+// TXT record proves it's the lab's: Cloud's DESIGN §5).
 func (s *Server) canRelay() bool {
 	if s.Cloud == nil {
 		return false
 	}
-	st := s.Cloud.Status()
-	return st.Linked && st.Address != "" && st.Address == s.Domain
+	return s.Cloud.Status().Linked && s.Domain != ""
+}
+
+// relayDomain is the lab's own domain's proof, while relayed ("" when
+// its address is a roost.ac name).
+func (s *Server) relayDomain() *cloudapi.RelayDomain {
+	if s.Cloud == nil || !s.Manager.RelayOn() || s.Cloud.Status().Address == s.Domain {
+		return nil
+	}
+	_, d := s.Cloud.RelayName()
+	return d
 }
 
 // publicEdgeSubmit sets how visitors reach the lab's public services:
@@ -342,6 +360,7 @@ func (s *Server) publicEdgeSubmit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.Store.Audit(r.Context(), currentUser(r), "public access", "visitors come in through Roostack Cloud's relay")
+		s.refreshDNS()
 		redirect(w, r, "/settings/public?saved=edge#way-in")
 		return
 	}
@@ -364,7 +383,28 @@ func (s *Server) publicEdgeSubmit(w http.ResponseWriter, r *http.Request) {
 		what = "through server " + id
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "public access", "visitors come in "+what)
+	s.refreshDNS()
 	redirect(w, r, "/settings/public?saved=edge#way-in")
+}
+
+// refreshDNS has the records follow a change of the way in now.
+func (s *Server) refreshDNS() {
+	if s.DNS != nil {
+		s.DNS.Refresh()
+	}
+}
+
+// publicRelayCheck is "Check now": the proof's TXT record is written (or
+// looked at) again, then Cloud looks for it.
+func (s *Server) publicRelayCheck(w http.ResponseWriter, r *http.Request) {
+	if s.DNS != nil {
+		s.DNS.Refresh()
+	}
+	if err := s.Manager.CheckRelay(r.Context()); err != nil {
+		redirect(w, r, "/settings/public?relay_error="+url.QueryEscape(cloudMessage(err))+"#way-in")
+		return
+	}
+	redirect(w, r, "/settings/public#way-in")
 }
 
 // publicCountriesSubmit sets who the relay lets in by country: anyone,

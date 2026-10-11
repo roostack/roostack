@@ -37,16 +37,18 @@ type fakeManager struct {
 	edges []manager.EdgeServer
 	edge  string
 	// relay: through Roostack Cloud's relay; relayErr, Cloud's refusal.
-	relay      bool
-	relayErr   error
-	countries  config.Countries
-	guestSpace manager.GuestSpace
-	disks      []node.DiskSpace
-	events     []store.Event
-	installs   []manager.InstallRequest
-	removed    []string
-	failWith   error
-	status     manager.ApplyStatus
+	relay     bool
+	relayErr  error
+	countries config.Countries
+	// relayChecks counts "Check now".
+	relayChecks int
+	guestSpace  manager.GuestSpace
+	disks       []node.DiskSpace
+	events      []store.Event
+	installs    []manager.InstallRequest
+	removed     []string
+	failWith    error
+	status      manager.ApplyStatus
 
 	ports   []manager.PortStatus
 	portErr error
