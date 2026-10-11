@@ -21,6 +21,7 @@ const (
 	PathLab        = "/v1/lab"          // GET → LabInfo; DELETE unlinks (mutual TLS)
 	PathLabRenew   = "/v1/lab/renew"    // POST RenewRequest → RenewResponse (mutual TLS)
 	PathLabName    = "/v1/lab/name"     // POST NameRequest → NameClaim (mutual TLS)
+	PathLabRelay   = "/v1/lab/relay"    // PUT RelayRequest → Relay; DELETE stops relaying (mutual TLS)
 )
 
 // A claimed name's records, at the addresses in its NameClaim's
@@ -117,6 +118,38 @@ type LabInfo struct {
 }
 
 // NameAvailability says whether a roost.ac name can be had.
+// RelayRequest asks Cloud to bring public visitors for the lab's names
+// to it through the relay: its WireGuard key on the relay network, and
+// its public names (in full, each the lab's roost.ac name or one under
+// it). Asking again replaces both.
+type RelayRequest struct {
+	PublicKey string   `json:"public_key"`
+	Hosts     []string `json:"hosts"`
+}
+
+// Relay is how the lab joins the relay: its address on the relay network
+// (connections from the edges come to it there), and the edges to dial.
+type Relay struct {
+	Addr string `json:"addr"`
+	// Prefix is the relay network's prefix length (the lab's interface).
+	Prefix int         `json:"prefix"`
+	Edges  []RelayEdge `json:"edges"`
+}
+
+// RelayEdge is one of Cloud's edges, as a lab dials it.
+type RelayEdge struct {
+	Name string `json:"name"`
+	// Endpoint is its WireGuard (host:port), and PublicKey its key.
+	Endpoint  string `json:"endpoint"`
+	PublicKey string `json:"public_key"`
+	// Addr is its address on the relay network, where its connections to
+	// the lab come from: the only source whose PROXY header the lab
+	// believes.
+	Addr string `json:"addr"`
+	// PublicIPv4 is where visitors reach it (public names point there).
+	PublicIPv4 string `json:"public_ipv4"`
+}
+
 // Info is about Cloud itself, for a lab's pages before it asks anything
 // else: the suffix its names have (roost.ac, or a test Cloud's own).
 type Info struct {
