@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -48,13 +49,16 @@ func Dir(stateDir string) string { return filepath.Join(stateDir, "cloud") }
 
 // Service is the controller's link to Roostack Cloud.
 type Service struct {
-	dir     string
-	cfg     config.Cloud
-	version string
-	labName func() string
-	log     *slog.Logger
-	client  *client
-	now     func() time.Time
+	// suffix is Cloud's name suffix as it last said, and when (NameSuffix).
+	suffix   string
+	suffixAt time.Time
+	dir      string
+	cfg      config.Cloud
+	version  string
+	labName  func() string
+	log      *slog.Logger
+	client   *client
+	now      func() time.Time
 
 	mu      sync.Mutex
 	st      linkState
@@ -192,6 +196,28 @@ func (s *Service) Status() Status {
 			Expires: p.started.Expires, Error: p.err}
 	}
 	return st
+}
+
+// NameSuffix is the suffix Cloud's names have (roost.ac, or a test
+// Cloud's own), asked once a day and kept; roost.ac until Cloud has said.
+// It never waits more than a few seconds, for the pages that show it.
+func (s *Service) NameSuffix(ctx context.Context) string {
+	s.mu.Lock()
+	suffix, at := s.suffix, s.suffixAt
+	s.mu.Unlock()
+	if suffix != "" && time.Since(at) < 24*time.Hour {
+		return suffix
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	var info cloudapi.Info
+	if err := s.client.do(ctx, false, http.MethodGet, cloudapi.PathInfo, nil, &info); err != nil || info.NameSuffix == "" {
+		return cmp.Or(suffix, cloudapi.DefaultNameSuffix)
+	}
+	s.mu.Lock()
+	s.suffix, s.suffixAt = info.NameSuffix, time.Now()
+	s.mu.Unlock()
+	return info.NameSuffix
 }
 
 // NameAvailable asks Cloud whether a roost.ac name can be had.

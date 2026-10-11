@@ -2,6 +2,7 @@ package web
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"html/template"
@@ -294,8 +295,9 @@ func (s *Server) addressData(data map[string]any) map[string]any {
 	if o := s.oldAddress(); o != nil {
 		data["Old"] = o
 	}
+	data["Suffix"] = s.cloudSuffix(context.Background())
 	if s.Cloud != nil {
-		data["CloudView"] = cloudView{Status: s.Cloud.Status(), Setup: true}
+		data["CloudView"] = cloudView{Status: s.Cloud.Status(), Setup: true, Suffix: data["Suffix"].(string)}
 	}
 	if _, ok := data["Choice"]; !ok {
 		data["Choice"] = ""

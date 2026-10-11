@@ -1,7 +1,7 @@
 {{define "title"}}Roostack Cloud{{end}}
 {{define "content"}}
 <section class="card narrow">
-  <h1>{{with .Stage.Asked}}Setting up {{.}}.roost.ac{{else}}Linking to Roostack Cloud{{end}}</h1>
+  <h1>{{with .Stage.Asked}}Setting up {{.}}.{{$.Suffix}}{{else}}Linking to Roostack Cloud{{end}}</h1>
   {{template "cloud-progress" .}}
 </section>
 {{end}}
@@ -17,7 +17,7 @@
     {{with .Waiting}}<small>The code is <strong>{{.Code}}</strong>. Not done it yet? <a href="{{.OpenURL}}">Go to Roostack Cloud</a></small>{{end}}</span></li>{{end}}
   {{with .Asked}}
   {{if $.Stage.Address}}<li class="step-done"><span class="mark" aria-hidden="true">✓</span><span>{{$.Stage.Address}} is yours</span></li>
-  {{else}}<li class="{{if $.Stage.Linked}}step-now{{else}}step-todo{{end}}"><span class="mark" aria-hidden="true">{{if $.Stage.Linked}}<span class="spinner"></span>{{else}}○{{end}}</span><span>Getting {{.}}.roost.ac</span></li>{{end}}
+  {{else}}<li class="{{if $.Stage.Linked}}step-now{{else}}step-todo{{end}}"><span class="mark" aria-hidden="true">{{if $.Stage.Linked}}<span class="spinner"></span>{{else}}○{{end}}</span><span>Getting {{.}}.{{$.Suffix}}</span></li>{{end}}
   {{if $.Setup}}<li class="step-todo"><span class="mark" aria-hidden="true">○</span><span>Its web addresses start working when setup finishes</span></li>{{end}}
   {{end}}
 </ol>

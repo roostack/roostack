@@ -16,13 +16,13 @@
       {{$linked := and .CloudView .CloudView.Linked}}
       {{if $linked}}<form method="post" action="/setup/address/roost-ac">
       {{else}}<form method="post" action="/settings/cloud/link">{{if .Wizard}}<input type="hidden" name="in" value="setup">{{end}}{{end}}
-      <p class="address-choice-title">{{icon "proxy"}}A free roost.ac address {{badge "Recommended" "highlight"}}</p>
+      <p class="address-choice-title">{{icon "proxy"}}A free {{.Suffix}} address {{badge "Recommended" "highlight"}}</p>
       <p class="hint">Nothing to buy or set up. Uses Roostack Cloud (a free account).</p>
       <label class="address-name"><span class="sr-only">Name</span>
         <input name="name" value="{{.CloudName}}" placeholder="smiths" autocapitalize="off" autocomplete="off" required
           pattern="[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])?" title="3 to 40 lowercase letters, numbers or hyphens"
           hx-get="/settings/cloud/name" hx-trigger="input changed delay:400ms" hx-target="#name-check" hx-swap="outerHTML">
-        <span>.roost.ac</span></label>
+        <span>.{{.Suffix}}</span></label>
       {{template "cloud-name-check" .}}
       {{with .CloudError}}<p class="error" role="alert">{{.}}</p>{{end}}
       {{if $linked}}<button type="submit">Use this address</button>

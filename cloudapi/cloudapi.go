@@ -17,6 +17,7 @@ const (
 	PathLinkStatus = "/v1/links/status" // POST LinkSecret → LinkStatus
 	PathLinkCancel = "/v1/links/cancel" // POST LinkSecret
 	PathNames      = "/v1/names/"       // GET <name> → NameAvailability
+	PathInfo       = "/v1/info"         // GET → Info
 	PathLab        = "/v1/lab"          // GET → LabInfo; DELETE unlinks (mutual TLS)
 	PathLabRenew   = "/v1/lab/renew"    // POST RenewRequest → RenewResponse (mutual TLS)
 	PathLabName    = "/v1/lab/name"     // POST NameRequest → NameClaim (mutual TLS)
@@ -116,6 +117,15 @@ type LabInfo struct {
 }
 
 // NameAvailability says whether a roost.ac name can be had.
+// Info is about Cloud itself, for a lab's pages before it asks anything
+// else: the suffix its names have (roost.ac, or a test Cloud's own).
+type Info struct {
+	NameSuffix string `json:"name_suffix"`
+}
+
+// DefaultNameSuffix is Roostack Cloud's, until a Cloud says otherwise.
+const DefaultNameSuffix = "roost.ac"
+
 type NameAvailability struct {
 	Available bool `json:"available"`
 	// Held: not available, but held for the account that had it (after
