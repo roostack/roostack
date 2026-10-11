@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -13,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/public"
 )
 
@@ -255,5 +257,28 @@ func TestPublicSettings(t *testing.T) {
 	}
 	if status, _ := h.post("/settings/public/sharing", url.Values{"share": {"maybe"}}, h.srv.URL); status != http.StatusBadRequest {
 		t.Errorf("a bad answer: %d", status)
+	}
+}
+
+// TestEdgeDown: with visitors coming in through a cloud server that isn't
+// connected, public services are down from outside, and that's a problem
+// to fix; connected, nothing to say.
+func TestEdgeDown(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.access = []manager.RouteAccess{{Host: "photos.smith.family", Public: true}}
+	fm.edges = []manager.EdgeServer{{ID: "n-0000000002", Name: "vps-sydney", Address: "172.105.165.39"}}
+	fm.edge = "n-0000000002"
+	this := manager.Server{ID: "n-0123456789", Name: "nuc", Controller: true, This: true, Reachable: true}
+	vps := manager.Server{ID: "n-0000000002", Name: "vps-sydney", Reachable: true}
+	fm.servers = []manager.Server{this, vps}
+	if _, body := h.get("/"); strings.Contains(body, "Public services can&#39;t be reached") {
+		t.Error("a connected edge called out")
+	}
+	vps.Reachable = false
+	vps.Status = manager.ApplyStatus{Finished: true, LastErr: fmt.Errorf("Roostack can't reach vps-sydney: %w", node.ErrUnreachable)}
+	fm.servers = []manager.Server{this, vps}
+	if _, body := h.get("/"); !strings.Contains(body, "Public services can&#39;t be reached from the internet: visitors come in through vps-sydney") ||
+		!strings.Contains(body, `href="/settings/public#way-in"`) {
+		t.Error("an edge that isn't connected isn't called out")
 	}
 }

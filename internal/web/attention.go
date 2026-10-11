@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/http"
@@ -157,6 +158,25 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 								"/settings/servers/"+mc.ID+"/remote-access", "Choose")
 						}
 					}
+				}
+			}
+		}
+		// Visitors come in through a cloud server that isn't connected:
+		// public services are down from outside (SPEC.md §10.5).
+		if owner && !s.onInternet() && len(s.Manager.PublicHosts()) > 0 {
+			if e, ok := s.Manager.Edge(r.Context()); ok {
+				up := false
+				for _, mc := range servers {
+					if mc.ID == e.ID {
+						up = !errors.Is(mc.Status.LastErr, node.ErrUnreachable)
+					}
+				}
+				if !up || e.Address == "" {
+					name := cmp.Or(e.Name, e.ID)
+					items = append(items, attentionItem{Level: levelProblem, Key: "edge:" + e.ID,
+						Text: "Public services can't be reached from the internet: visitors come in through " + name +
+							", which isn't connected to the lab. Check it's running, or choose port forwarding meanwhile.",
+						Link: "/settings/public#way-in", LinkText: "Public access"})
 				}
 			}
 		}
