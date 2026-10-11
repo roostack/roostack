@@ -2,6 +2,7 @@ package dns
 
 import (
 	"context"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,12 +15,16 @@ import (
 // comments (Cloudflare). Ownership is also tracked in Roostack's own state.
 const ManagedComment = "Managed by Roostack"
 
-// recordsAPI reads and writes single records. name is relative to zone
-// ("*.lab" in zone "example.com"; "*" for the zone itself). Only A records
-// are needed so far.
+// recordsAPI reads, writes and deletes single records. name is relative
+// to zone ("*.lab" in zone "example.com"; "@" for the zone itself). Types:
+// A, CNAME (to Roostack Cloud's relay) and TXT (proving a domain is the
+// lab's). Values are plain here (a CNAME's target without its final dot,
+// a TXT's text without quotes); each API encodes them as it wants.
 type recordsAPI struct {
 	get    func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) ([]string, error)
 	upsert func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ, value string) error
+	// remove deletes every record of a name and type (none: no error).
+	remove func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) error
 	// risky marks APIs that rewrite every record in the zone to change
 	// one (Namecheap); Roostack only uses them after an explicit opt-in.
 	risky bool
@@ -45,7 +50,46 @@ func (p *Provider) GetRecord(ctx context.Context, hc *http.Client, v map[string]
 	if p.records == nil {
 		return nil, errors.New(p.Title + " record management isn't supported")
 	}
-	return p.records.get(ctx, hc, v, zone, name, typ)
+	vals, err := p.records.get(ctx, hc, v, zone, name, typ)
+	for i := range vals {
+		vals[i] = plain(typ, vals[i])
+	}
+	return vals, err
+}
+
+// DeleteRecord removes every record of a name and type (a public address's
+// A record before it becomes a CNAME: a name with a CNAME can have no
+// other record). None there is no error.
+func (p *Provider) DeleteRecord(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) error {
+	if p.records == nil {
+		return errors.New(p.Title + " record management isn't supported")
+	}
+	return p.records.remove(ctx, hc, v, zone, name, typ)
+}
+
+// plain is a value as Roostack compares it: a CNAME's target without its
+// final dot, a TXT record's text without its quotes.
+func plain(typ, v string) string {
+	switch typ {
+	case "CNAME":
+		return strings.TrimSuffix(v, ".")
+	case "TXT":
+		if len(v) >= 2 && v[0] == '"' && v[len(v)-1] == '"' {
+			return strings.ReplaceAll(v[1:len(v)-1], `\"`, `"`)
+		}
+	}
+	return v
+}
+
+// quoted is TXT text in DNS's quotes (for APIs that want zone-file form).
+func quoted(v string) string { return `"` + strings.ReplaceAll(v, `"`, `\"`) + `"` }
+
+// dotted is a CNAME target with its final dot (for APIs that want it).
+func dotted(typ, v string) string {
+	if typ == "CNAME" && !strings.HasSuffix(v, ".") {
+		return v + "."
+	}
+	return v
 }
 
 // SetRecord creates or replaces a record with a single value.
@@ -117,12 +161,25 @@ var cloudflareRecords = &recordsAPI{
 		if err != nil {
 			return err
 		}
+		if typ == "TXT" {
+			value = quoted(value) // as Cloudflare recommends
+		}
 		rec := map[string]any{"type": typ, "name": fqdn(zone, name), "content": value, "ttl": 300,
 			"proxied": false, "comment": ManagedComment}
 		if len(recs) > 0 {
 			return call(ctx, hc, "PUT", cloudflareAPI+"/zones/"+zoneID+"/dns_records/"+recs[0].ID, auth, rec, nil)
 		}
 		return call(ctx, hc, "POST", cloudflareAPI+"/zones/"+zoneID+"/dns_records", auth, rec, nil)
+	},
+	remove: func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) error {
+		auth := map[string]string{"Authorization": "Bearer " + v["api_token"]}
+		zoneID, recs, err := cloudflareFind(ctx, hc, auth, zone, name, typ)
+		for _, r := range recs {
+			if err == nil {
+				err = call(ctx, hc, "DELETE", cloudflareAPI+"/zones/"+zoneID+"/dns_records/"+r.ID, auth, nil, nil)
+			}
+		}
+		return err
 	},
 }
 
@@ -145,44 +202,78 @@ func route53ZoneID(ctx context.Context, hc *http.Client, v map[string]string, zo
 	return list.Zones[0].ID, nil
 }
 
+// route53Get is a record set's values and TTL (deleting needs both).
+func route53Get(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) (string, []string, string, error) {
+	id, err := route53ZoneID(ctx, hc, v, zone)
+	if err != nil {
+		return "", nil, "", err
+	}
+	var res struct {
+		Sets []struct {
+			Name   string   `xml:"Name"`
+			Type   string   `xml:"Type"`
+			TTL    string   `xml:"TTL"`
+			Values []string `xml:"ResourceRecords>ResourceRecord>Value"`
+		} `xml:"ResourceRecordSets>ResourceRecordSet"`
+	}
+	want := fqdn(zone, name) + "."
+	u := route53API + "/2013-04-01" + id + "/rrset?name=" + url.QueryEscape(want) + "&type=" + typ + "&maxitems=1"
+	if err := signedCall(ctx, hc, "GET", u, nil, v["access_key_id"], v["secret_access_key"], &res); err != nil {
+		return id, nil, "", err
+	}
+	for _, s := range res.Sets {
+		// Route 53 returns "*" as the octal escape \052.
+		if strings.ReplaceAll(s.Name, `\052`, "*") == want && s.Type == typ {
+			return id, s.Values, s.TTL, nil
+		}
+	}
+	return id, nil, "", nil
+}
+
+// route53Change sends one change to a record set.
+func route53Change(ctx context.Context, hc *http.Client, v map[string]string, id, action, name, typ, ttl string, values []string) error {
+	var recs strings.Builder
+	for _, val := range values {
+		recs.WriteString(`<ResourceRecord><Value>` + xmlText(val) + `</Value></ResourceRecord>`)
+	}
+	body := []byte(`<?xml version="1.0" encoding="UTF-8"?>` +
+		`<ChangeResourceRecordSetsRequest xmlns="https://route53.amazonaws.com/doc/2013-04-01/">` +
+		`<ChangeBatch><Comment>` + ManagedComment + `</Comment><Changes><Change><Action>` + action + `</Action><ResourceRecordSet>` +
+		`<Name>` + name + `.</Name><Type>` + typ + `</Type><TTL>` + ttl + `</TTL>` +
+		`<ResourceRecords>` + recs.String() + `</ResourceRecords>` +
+		`</ResourceRecordSet></Change></Changes></ChangeBatch></ChangeResourceRecordSetsRequest>`)
+	return signedCall(ctx, hc, "POST", route53API+"/2013-04-01"+id+"/rrset", body, v["access_key_id"], v["secret_access_key"], nil)
+}
+
+// xmlText escapes text for an XML element.
+func xmlText(s string) string {
+	var b strings.Builder
+	xml.EscapeText(&b, []byte(s))
+	return b.String()
+}
+
 var route53Records = &recordsAPI{
 	get: func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) ([]string, error) {
-		id, err := route53ZoneID(ctx, hc, v, zone)
-		if err != nil {
-			return nil, err
+		_, vals, _, err := route53Get(ctx, hc, v, zone, name, typ)
+		return vals, err
+	},
+	remove: func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) error {
+		id, vals, ttl, err := route53Get(ctx, hc, v, zone, name, typ)
+		if err != nil || len(vals) == 0 {
+			return err
 		}
-		var res struct {
-			Sets []struct {
-				Name   string   `xml:"Name"`
-				Type   string   `xml:"Type"`
-				Values []string `xml:"ResourceRecords>ResourceRecord>Value"`
-			} `xml:"ResourceRecordSets>ResourceRecordSet"`
-		}
-		want := fqdn(zone, name) + "."
-		u := route53API + "/2013-04-01" + id + "/rrset?name=" + url.QueryEscape(want) + "&type=" + typ + "&maxitems=1"
-		if err := signedCall(ctx, hc, "GET", u, nil, v["access_key_id"], v["secret_access_key"], &res); err != nil {
-			return nil, err
-		}
-		for _, s := range res.Sets {
-			// Route 53 returns "*" as the octal escape \052.
-			if strings.ReplaceAll(s.Name, `\052`, "*") == want && s.Type == typ {
-				return s.Values, nil
-			}
-		}
-		return nil, nil
+		// Route 53 deletes a record set only given exactly as it is.
+		return route53Change(ctx, hc, v, id, "DELETE", fqdn(zone, name), typ, ttl, vals)
 	},
 	upsert: func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ, value string) error {
 		id, err := route53ZoneID(ctx, hc, v, zone)
 		if err != nil {
 			return err
 		}
-		body := []byte(`<?xml version="1.0" encoding="UTF-8"?>` +
-			`<ChangeResourceRecordSetsRequest xmlns="https://route53.amazonaws.com/doc/2013-04-01/">` +
-			`<ChangeBatch><Comment>` + ManagedComment + `</Comment><Changes><Change><Action>UPSERT</Action><ResourceRecordSet>` +
-			`<Name>` + fqdn(zone, name) + `.</Name><Type>` + typ + `</Type><TTL>300</TTL>` +
-			`<ResourceRecords><ResourceRecord><Value>` + value + `</Value></ResourceRecord></ResourceRecords>` +
-			`</ResourceRecordSet></Change></Changes></ChangeBatch></ChangeResourceRecordSetsRequest>`)
-		return signedCall(ctx, hc, "POST", route53API+"/2013-04-01"+id+"/rrset", body, v["access_key_id"], v["secret_access_key"], nil)
+		if typ == "TXT" {
+			value = quoted(value) // Route 53 wants TXT in zone-file form
+		}
+		return route53Change(ctx, hc, v, id, "UPSERT", fqdn(zone, name), typ, "300", []string{dotted(typ, value)})
 	},
 }
 
@@ -231,6 +322,21 @@ var porkbunRecords = &recordsAPI{
 		}
 		return nil
 	},
+	remove: func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) error {
+		existing, err := porkbunGet(ctx, hc, v, zone, name, typ)
+		if err != nil || len(existing) == 0 {
+			return err
+		}
+		var res porkbunResult
+		body := map[string]any{"apikey": v["api_key"], "secretapikey": v["api_secret_key"]}
+		if err := call(ctx, hc, "POST", porkbunAPI+"/dns/deleteByNameType/"+zone+"/"+typ+"/"+name, nil, body, &res); err != nil {
+			return err
+		}
+		if res.Status != "SUCCESS" {
+			return errors.New(res.Message)
+		}
+		return nil
+	},
 }
 
 // --- Gandi (PUT replaces the record set) ---
@@ -248,9 +354,21 @@ var gandiRecords = &recordsAPI{
 		return res.Values, err
 	},
 	upsert: func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ, value string) error {
+		// Gandi wants zone-file form: a CNAME's final dot, a TXT's quotes.
+		if typ == "TXT" {
+			value = quoted(value)
+		}
 		return call(ctx, hc, "PUT", gandiAPI+"/domains/"+zone+"/records/"+name+"/"+typ,
 			map[string]string{"Authorization": "Bearer " + v["bearer_token"]},
-			map[string]any{"rrset_values": []string{value}, "rrset_ttl": 300}, nil)
+			map[string]any{"rrset_values": []string{dotted(typ, value)}, "rrset_ttl": 300}, nil)
+	},
+	remove: func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) error {
+		err := call(ctx, hc, "DELETE", gandiAPI+"/domains/"+zone+"/records/"+name+"/"+typ,
+			map[string]string{"Authorization": "Bearer " + v["bearer_token"]}, nil, nil)
+		if isNotFound(err) {
+			return nil
+		}
+		return err
 	},
 }
 
@@ -274,44 +392,76 @@ var godaddyRecords = &recordsAPI{
 			map[string]string{"Authorization": "sso-key " + v["api_key"] + ":" + v["api_secret"]},
 			[]map[string]any{{"data": value, "ttl": 600}}, nil)
 	},
+	remove: func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) error {
+		err := call(ctx, hc, "DELETE", godaddyAPI+"/v1/domains/"+zone+"/records/"+typ+"/"+name,
+			map[string]string{"Authorization": "sso-key " + v["api_key"] + ":" + v["api_secret"]}, nil, nil)
+		if isNotFound(err) {
+			return nil
+		}
+		return err
+	},
 }
 
 // --- Spaceship (force:true replaces records with the same name and type) ---
 
-var spaceshipRecords = &recordsAPI{
-	get: func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) ([]string, error) {
-		auth := map[string]string{"X-API-Key": v["api_key"], "X-API-Secret": v["api_secret"]}
-		var out []string
-		for skip := 0; ; skip += 500 {
-			var res struct {
-				Items []struct {
-					Type    string `json:"type"`
-					Name    string `json:"name"`
-					Address string `json:"address"`
-					Value   string `json:"value"`
-				} `json:"items"`
-				Total int `json:"total"`
-			}
-			u := spaceshipAPI + "/v1/dns/records/" + zone + "?take=500&skip=" + strconv.Itoa(skip)
-			if err := call(ctx, hc, "GET", u, auth, nil, &res); err != nil {
-				return nil, err
-			}
-			for _, it := range res.Items {
-				if strings.EqualFold(it.Type, typ) && strings.EqualFold(it.Name, name) {
-					out = append(out, it.Address+it.Value)
-				}
-			}
-			if len(res.Items) < 500 {
-				return out, nil
+func spaceshipGet(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) ([]string, error) {
+	auth := map[string]string{"X-API-Key": v["api_key"], "X-API-Secret": v["api_secret"]}
+	var out []string
+	for skip := 0; ; skip += 500 {
+		var res struct {
+			Items []struct {
+				Type    string `json:"type"`
+				Name    string `json:"name"`
+				Address string `json:"address"`
+				Value   string `json:"value"`
+				Cname   string `json:"cname"`
+			} `json:"items"`
+			Total int `json:"total"`
+		}
+		u := spaceshipAPI + "/v1/dns/records/" + zone + "?take=500&skip=" + strconv.Itoa(skip)
+		if err := call(ctx, hc, "GET", u, auth, nil, &res); err != nil {
+			return nil, err
+		}
+		for _, it := range res.Items {
+			if strings.EqualFold(it.Type, typ) && strings.EqualFold(it.Name, name) {
+				out = append(out, it.Address+it.Value+it.Cname)
 			}
 		}
-	},
+		if len(res.Items) < 500 {
+			return out, nil
+		}
+	}
+}
+
+var spaceshipRecords = &recordsAPI{
+	get: spaceshipGet,
 	upsert: func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ, value string) error {
 		auth := map[string]string{"X-API-Key": v["api_key"], "X-API-Secret": v["api_secret"]}
-		item := map[string]any{"type": typ, "name": name, "address": value, "ttl": 300}
 		return call(ctx, hc, "PUT", spaceshipAPI+"/v1/dns/records/"+zone, auth,
-			map[string]any{"force": true, "items": []any{item}}, nil)
+			map[string]any{"force": true, "items": []any{spaceshipItem(name, typ, value)}}, nil)
 	},
+	remove: func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) error {
+		existing, err := spaceshipGet(ctx, hc, v, zone, name, typ)
+		if err != nil || len(existing) == 0 {
+			return err
+		}
+		auth := map[string]string{"X-API-Key": v["api_key"], "X-API-Secret": v["api_secret"]}
+		var items []any
+		for _, val := range existing {
+			items = append(items, spaceshipItem(name, typ, val))
+		}
+		return call(ctx, hc, "DELETE", spaceshipAPI+"/v1/dns/records/"+zone, auth, items, nil)
+	},
+}
+
+// spaceshipItem is a record as Spaceship writes it: the value's field
+// depends on the type.
+func spaceshipItem(name, typ, value string) map[string]any {
+	field := map[string]string{"A": "address", "CNAME": "cname", "TXT": "value"}[typ]
+	if field == "" {
+		field = "address"
+	}
+	return map[string]any{"type": typ, "name": name, field: value, "ttl": 300}
 }
 
 // --- Namecheap (risky: setHosts replaces every record in the zone) ---
@@ -417,7 +567,38 @@ var namecheapRecords = &recordsAPI{
 			}
 			add(h)
 		}
-		add(ncHost{Name: name, Type: typ, Address: value, TTL: "300"})
+		add(ncHost{Name: name, Type: typ, Address: dotted(typ, value), TTL: "300"})
+		_, err = namecheapRequest(ctx, hc, v, zone, "namecheap.domains.dns.setHosts", q)
+		return err
+	},
+	remove: func(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) error {
+		res, err := namecheapRequest(ctx, hc, v, zone, "namecheap.domains.dns.getHosts", nil)
+		if err != nil {
+			return err
+		}
+		q := url.Values{}
+		if res.Result.EmailType != "" {
+			q.Set("EmailType", res.Result.EmailType)
+		}
+		n, found := 0, false
+		for _, h := range res.Result.Hosts {
+			if strings.EqualFold(h.Name, name) && strings.EqualFold(h.Type, typ) {
+				found = true
+				continue
+			}
+			n++
+			i := strconv.Itoa(n)
+			q.Set("HostName"+i, h.Name)
+			q.Set("RecordType"+i, h.Type)
+			q.Set("Address"+i, h.Address)
+			q.Set("TTL"+i, h.TTL)
+			if h.MXPref != "" {
+				q.Set("MXPref"+i, h.MXPref)
+			}
+		}
+		if !found {
+			return nil
+		}
 		_, err = namecheapRequest(ctx, hc, v, zone, "namecheap.domains.dns.setHosts", q)
 		return err
 	},
