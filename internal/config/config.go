@@ -140,6 +140,10 @@ type Public struct {
 	// the whole lab for now; each public address will be able to choose
 	// its own later (Route's entry, SPEC.md §10.5).
 	Edge string `yaml:"edge,omitempty"`
+	// Relay brings public visitors through Roostack Cloud's relay instead
+	// (its DESIGN §5): for a lab whose address is a roost.ac name. Never
+	// with Edge.
+	Relay bool `yaml:"relay,omitempty"`
 }
 
 // Where a lab is (Lab.Network, SPEC.md §6.12).

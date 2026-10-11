@@ -38,6 +38,9 @@ type PublicAccess interface {
 	EdgeServers(ctx context.Context) []manager.EdgeServer
 	Edge(ctx context.Context) (manager.EdgeServer, bool)
 	SetEdge(ctx context.Context, id string) error
+	// Roostack Cloud's relay as the way in instead.
+	RelayOn() bool
+	SetRelay(ctx context.Context, on bool) error
 }
 
 // publicCheckKey is where a successful outside check is recorded.
@@ -292,6 +295,8 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 		if e, ok := s.Manager.Edge(r.Context()); ok {
 			data["Edge"] = e
 		}
+		data["CanRelay"], data["Relay"] = s.canRelay(), s.Manager.RelayOn()
+		data["RelayError"] = r.FormValue("relay_error")
 	}
 	if len(hosts) > 0 {
 		data["Protected"] = s.Protected != nil && s.Protected(r.Context())
@@ -304,9 +309,36 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "settings-public", withArea(data, "public"))
 }
 
-// publicEdgeSubmit sets how visitors reach the lab's public services.
+// canRelay: Roostack Cloud's relay can be the way in: the lab is linked,
+// and its address is its roost.ac name (custom domains come later).
+func (s *Server) canRelay() bool {
+	if s.Cloud == nil {
+		return false
+	}
+	st := s.Cloud.Status()
+	return st.Linked && st.Address != "" && st.Address == s.Domain
+}
+
+// publicEdgeSubmit sets how visitors reach the lab's public services:
+// port forwarding (""), a cloud server in the lab (its ID), or Roostack
+// Cloud's relay ("cloud").
 func (s *Server) publicEdgeSubmit(w http.ResponseWriter, r *http.Request) {
 	id := r.FormValue("edge")
+	if id == "cloud" {
+		if err := s.Manager.SetRelay(r.Context(), true); err != nil {
+			redirect(w, r, "/settings/public?relay_error="+url.QueryEscape(cloudMessage(err))+"#way-in")
+			return
+		}
+		s.Store.Audit(r.Context(), currentUser(r), "public access", "visitors come in through Roostack Cloud's relay")
+		redirect(w, r, "/settings/public?saved=edge#way-in")
+		return
+	}
+	if s.Manager.RelayOn() {
+		if err := s.Manager.SetRelay(r.Context(), false); err != nil {
+			s.serverError(w, err)
+			return
+		}
+	}
 	if err := s.Manager.SetEdge(r.Context(), id); err != nil {
 		if msg, ok := userMessage(err); ok {
 			http.Error(w, msg, http.StatusBadRequest)

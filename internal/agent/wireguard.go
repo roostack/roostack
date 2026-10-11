@@ -18,10 +18,12 @@ import (
 // easy to inspect:
 //   - roostack: the network between a lab's servers (SPEC.md §10.2);
 //   - roostack-guests: other labs that store backups here (§10.10);
-//   - roostack-st1…9: this lab's links to other labs' storage.
+//   - roostack-st1…9: this lab's links to other labs' storage;
+//   - roostack-relay: Roostack Cloud's relay, dialled by the lab (§10.5).
 const (
 	WireGuardInterface = "roostack"
 	GuestsInterface    = "roostack-guests"
+	RelayInterface     = "roostack-relay"
 	WireGuardPort      = 51820
 	GuestsPort         = 51821
 )
@@ -35,17 +37,25 @@ var OverlayRange = netip.MustParsePrefix("100.96.0.0/16")
 // with links to several can tell them apart.
 var GuestRange = netip.MustParsePrefix("100.100.0.0/14")
 
+// RelayRange is Roostack Cloud's relay network (its edges and the labs it
+// relays), given by Cloud. Inside 100.64.0.0/10 like the others, so the
+// firewall lets only TCP 443 in from its interface (Firewall.Ruleset).
+var RelayRange = netip.MustParsePrefix("100.81.0.0/16")
+
 var storeLink = regexp.MustCompile(`^roostack-st[1-9]$`)
 
 // ValidInterface reports whether name is one of Roostack's interfaces.
 func ValidInterface(name string) bool {
-	return name == WireGuardInterface || name == GuestsInterface || storeLink.MatchString(name)
+	return name == WireGuardInterface || name == GuestsInterface || name == RelayInterface || storeLink.MatchString(name)
 }
 
 // rangeFor is the address range an interface's addresses must be in.
 func rangeFor(iface string) netip.Prefix {
-	if iface == WireGuardInterface {
+	switch iface {
+	case WireGuardInterface:
 		return OverlayRange
+	case RelayInterface:
+		return RelayRange
 	}
 	return GuestRange
 }
