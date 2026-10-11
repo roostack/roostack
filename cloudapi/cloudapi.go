@@ -21,7 +21,7 @@ const (
 	PathLab        = "/v1/lab"          // GET → LabInfo; DELETE unlinks (mutual TLS)
 	PathLabRenew   = "/v1/lab/renew"    // POST RenewRequest → RenewResponse (mutual TLS)
 	PathLabName    = "/v1/lab/name"     // POST NameRequest → NameClaim (mutual TLS)
-	PathLabRelay   = "/v1/lab/relay"    // PUT RelayRequest → Relay; DELETE stops relaying (mutual TLS)
+	PathLabRelay   = "/v1/lab/relay"    // PUT RelayRequest → Relay; GET → Relay; DELETE stops relaying (mutual TLS)
 	// PUT RelayBans (mutual TLS); 404 while the lab isn't relayed.
 	PathLabRelayBans = "/v1/lab/relay/bans"
 	// GET ?days=N[&by=day] → RelayStats (mutual TLS).
@@ -125,7 +125,7 @@ type LabInfo struct {
 // RelayRequest asks Cloud to bring public visitors for the lab's names
 // to it through the relay: its WireGuard key on the relay network, and
 // its public names (in full, each the lab's roost.ac name or one under
-// it). Asking again replaces all of it.
+// it, or a name under Domain). Asking again replaces all of it.
 type RelayRequest struct {
 	PublicKey string   `json:"public_key"`
 	Hosts     []string `json:"hosts"`
@@ -134,6 +134,25 @@ type RelayRequest struct {
 	// TimeZone is the lab's (IANA, e.g. Australia/Sydney): its statistics'
 	// days run midnight to midnight there. Empty is UTC.
 	TimeZone string `json:"time_zone,omitempty"`
+	// Domain is the lab's own domain (e.g. lab.example.com), whose names
+	// in Hosts are relayed once it's proven the lab's (Relay.Domain): they
+	// point at Relay.Name with a CNAME.
+	Domain string `json:"domain,omitempty"`
+}
+
+// RelayDomain is how the lab's own domain stands: the TXT record that
+// proves it's the lab's (ProofName, e.g. _roostack.lab.example.com, with
+// ProofValue), whether Cloud has found it (Verified: its names are
+// relayed), and whether it's gone missing since (relaying stops a day
+// later). Problem says what Cloud saw, when it isn't there.
+type RelayDomain struct {
+	Domain     string    `json:"domain"`
+	ProofName  string    `json:"proof_name"`
+	ProofValue string    `json:"proof_value"`
+	Verified   bool      `json:"verified"`
+	Missing    bool      `json:"missing,omitempty"`
+	CheckedAt  time.Time `json:"checked_at,omitzero"`
+	Problem    string    `json:"problem,omitempty"`
 }
 
 // RelayCountries limits the lab's visitors at the edges by country, with
@@ -193,6 +212,11 @@ type Relay struct {
 	// Prefix is the relay network's prefix length (the lab's interface).
 	Prefix int         `json:"prefix"`
 	Edges  []RelayEdge `json:"edges"`
+	// Name is the lab's relay name (r-….relay.roost.ac): its own domain's
+	// names point at it with a CNAME, and Cloud keeps it pointing at the
+	// edges. Domain is how that domain stands, if there is one.
+	Name   string       `json:"name,omitempty"`
+	Domain *RelayDomain `json:"domain,omitempty"`
 }
 
 // RelayEdge is one of Cloud's edges, as a lab dials it.
