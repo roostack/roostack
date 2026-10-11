@@ -40,7 +40,8 @@ func TestRelayStats(t *testing.T) {
 	fm.relay = true
 	today := time.Now().Format(time.DateOnly)
 	yesterday := time.Now().AddDate(0, 0, -1).Format(time.DateOnly)
-	c := &statsCloud{CloudLink: newCloud(t), days: cloudapi.RelayStats{Periods: []cloudapi.RelayPeriod{
+	asOf := time.Now().Add(-10 * time.Minute)
+	c := &statsCloud{CloudLink: newCloud(t), days: cloudapi.RelayStats{AsOf: asOf, Periods: []cloudapi.RelayPeriod{
 		{Day: yesterday, Visitors: 40, Connections: 300, Countries: map[string]int64{"AU": 35, "NZ": 3}, BytesOut: 2_000_000_000, BytesIn: 100_000_000},
 		{Day: today, Visitors: 12, Connections: 90, Countries: map[string]int64{"AU": 10, "GB": 1}, Refused: map[string]int64{"banned": 2, "country": 5}},
 	}}}
@@ -54,7 +55,7 @@ func TestRelayStats(t *testing.T) {
 	_, body := h.get("/partials/relay-stats?period=week")
 	for _, want := range []string{"<dd>52</dd>", "<dd>390</dd>", "2.1 GB", "2.0 GB to visitors", "<dd>7</dd>", "Visitors each day",
 		`<span class="rank-name">Australia</span>`, `<span class="rank-count">45</span>`, `<span class="rank-name">Elsewhere</span>`,
-		`title="` + time.Now().Format("Mon 2 Jan") + `: 12 visitors"`, `aria-current="true">7 days</a>`} {
+		`title="` + time.Now().Format("Mon 2 Jan") + `: 12 visitors"`, `aria-current="true">7 days</a>`, "As of " + whenText(asOf)} {
 		if !strings.Contains(body, want) {
 			t.Errorf("missing %q in\n%s", want, body)
 		}

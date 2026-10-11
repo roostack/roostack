@@ -670,7 +670,8 @@
       </dl>
     </div>
   </div>
-  <p class="hint">Counts only: Roostack Cloud keeps no record of who visited. A visitor is one address; someone who visits on several days counts once each day.</p>
+  <p class="hint">{{if .AsOf.IsZero}}No counts have come in yet.{{else}}As of {{when .AsOf}}: the counts come in every quarter of an hour.{{end}}
+    Counts only: Roostack Cloud keeps no record of who visited. A visitor is one address; someone who visits on several days counts once each day.</p>
   <details class="technical">
     <summary>Details</summary>
     <p>Roostack Cloud's edges count connections to this lab as they pass them on, and how many different addresses (an IPv4 address, or an IPv6 /64) they came from, in memory: an hour's or a day's addresses are kept only as scrambled numbers until the period ends, then only how many there were. Countries come from DB-IP's free country database (IP geolocation by DB-IP), and an address it can't place isn't counted under any country. Days are this lab's (midnight to midnight here). Turned away counts connections refused before reaching this server; the edges' own blocklists and limits, which protect every lab, aren't counted here. Kept 13 months.</p>

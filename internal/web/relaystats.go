@@ -28,6 +28,8 @@ type relayStatsView struct {
 	Periods []relayPeriodChoice
 	// Error says why there's nothing to show (Cloud out of reach).
 	Error string
+	// AsOf is when the edges last sent their counts (zero: not yet).
+	AsOf time.Time
 	// The period's totals: different visitors (each day's, added up),
 	// connections, data each way, connections turned away and why.
 	Visitors, Connections int64
@@ -118,6 +120,7 @@ func (s *Server) relayStats(ctx context.Context, period string, now time.Time) r
 		v.Error = cloudMessage(err)
 		return v
 	}
+	v.AsOf = days.AsOf
 	countries := map[string]int64{}
 	for _, p := range days.Periods {
 		v.Visitors += p.Visitors

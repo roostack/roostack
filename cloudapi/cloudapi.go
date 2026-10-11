@@ -161,6 +161,9 @@ type RelayBans struct {
 // /64) in the period: someone who visits all day counts once that day.
 type RelayStats struct {
 	Periods []RelayPeriod `json:"periods"`
+	// AsOf is when the edges last sent their counts (the oldest of them):
+	// what's happened since isn't in yet. Zero before any has.
+	AsOf time.Time `json:"as_of,omitzero"`
 }
 
 // RelayPeriod is an hour's or a day's statistics. A day has Day
