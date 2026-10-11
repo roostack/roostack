@@ -237,3 +237,24 @@ func TestRefusedInHandshake(t *testing.T) {
 		t.Fatalf("check = %v, %+v", err, s2.Status())
 	}
 }
+
+// TestNameSuffix: the suffix is the one Cloud says, kept once said;
+// roost.ac before any Cloud has answered.
+func TestNameSuffix(t *testing.T) {
+	f, s, _ := fakeCloud(t)
+	ctx := context.Background()
+	if got := s.NameSuffix(ctx); got != "roost.test" {
+		t.Errorf("from the fake: %q", got)
+	}
+	f.NameSuffix = "roostack.dev"
+	if got := s.NameSuffix(ctx); got != "roost.test" {
+		t.Errorf("kept for a day: %q", got)
+	}
+	gone, err := New(t.TempDir(), config.Cloud{URL: "https://127.0.0.1:1"}, "test", s.labName, s.log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := gone.NameSuffix(ctx); got != cloudapi.DefaultNameSuffix {
+		t.Errorf("Cloud never reached: %q", got)
+	}
+}

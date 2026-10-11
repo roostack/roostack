@@ -53,7 +53,7 @@ func TestCloudLinking(t *testing.T) {
 		t.Error("not linked: a button to link")
 	}
 	// Names are checked as they're typed.
-	for name, want := range map[string]string{"taken": "taken.roost.ac is taken", "smiths": "smiths.roost.ac is free", "-x": "3 to 40",
+	for name, want := range map[string]string{"taken": "taken.roost.ac is taken", "smiths": "smiths.roost.test is free", "-x": "3 to 40",
 		"held": "If that's yours, you'll get it back"} {
 		if _, body := h.get("/settings/cloud/name?name=" + name); !strings.Contains(body, want) {
 			t.Errorf("name %s: %q", name, body)
@@ -83,14 +83,14 @@ func TestCloudLinking(t *testing.T) {
 	_, live := h.get("/settings/cloud/live?in=setup")
 	m := codeRE.FindStringSubmatch(live)
 	if m == nil || !strings.Contains(live, "Waiting for you in Roostack Cloud") || !strings.Contains(live, "every 2s") ||
-		!strings.Contains(live, "smiths.roost.ac") {
+		!strings.Contains(live, "smiths.roost.test") {
 		t.Fatalf("waiting: %s", live)
 	}
 	if back := f.Return(m[1]); back != h.srv.URL+"/setup/address/linked" {
 		t.Errorf("Cloud sends the browser back to %q", back)
 	}
 	// Back from Cloud before confirming (say, the back button): it waits.
-	if _, body := h.get("/setup/address/linked"); !strings.Contains(body, "Setting up smiths.roost.ac") ||
+	if _, body := h.get("/setup/address/linked"); !strings.Contains(body, "Setting up smiths.roost.test") ||
 		!strings.Contains(body, "Waiting for you to confirm") || !strings.Contains(body, m[1]) {
 		t.Errorf("the linked page while waiting: %s", body)
 	}

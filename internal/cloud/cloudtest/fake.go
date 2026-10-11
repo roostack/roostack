@@ -247,6 +247,8 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.linkStatus(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLinkCancel:
 		f.cancelLink(w, r)
+	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathInfo:
+		reply(w, cloudapi.Info{NameSuffix: f.NameSuffix})
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, cloudapi.PathNames):
 		name := strings.TrimPrefix(r.URL.Path, cloudapi.PathNames)
 		if f.Held[name] {

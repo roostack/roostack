@@ -24,6 +24,17 @@ type CloudLink interface {
 	// ClaimName makes a roost.ac name the linked lab's address.
 	ClaimName(ctx context.Context, name string) error
 	Requests() []cloud.Request
+	// NameSuffix is the suffix Cloud's names have: roost.ac, or a test
+	// Cloud's own.
+	NameSuffix(ctx context.Context) string
+}
+
+// cloudSuffix is the suffix the lab's Cloud gives names, for the pages.
+func (s *Server) cloudSuffix(ctx context.Context) string {
+	if s.Cloud == nil {
+		return cloudapi.DefaultNameSuffix
+	}
+	return s.Cloud.NameSuffix(ctx)
 }
 
 // cloudUnreachableFor is how long Cloud can't be reached before the home
@@ -38,6 +49,8 @@ type cloudView struct {
 	// Services use the lab's roost.ac address (unlinking takes it away).
 	Services []string
 	Requests []cloud.Request
+	// Suffix is the one Cloud's names have (cloudSuffix).
+	Suffix string
 }
 
 // Busy: something is under way that the page waits for (a link to be
@@ -47,7 +60,7 @@ func (v cloudView) Busy() bool {
 }
 
 func (s *Server) cloudView(r *http.Request, setup bool) cloudView {
-	v := cloudView{Status: s.Cloud.Status(), Setup: setup}
+	v := cloudView{Status: s.Cloud.Status(), Setup: setup, Suffix: s.cloudSuffix(r.Context())}
 	if v.Address != "" {
 		if svcs, err := s.Services(r.Context()); err == nil {
 			for _, sv := range svcs {
@@ -200,7 +213,7 @@ func roostAcNameProblem(name string) string {
 // cloudNameCheck says whether a roost.ac name is free, as it's typed.
 func (s *Server) cloudNameCheck(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(strings.TrimSpace(r.FormValue("name")))
-	v := map[string]any{"Name": name}
+	v := map[string]any{"Name": name, "Suffix": s.cloudSuffix(r.Context())}
 	if name == "" {
 		v["Empty"] = true
 	} else if msg := roostAcNameProblem(name); msg != "" {
@@ -328,7 +341,7 @@ func (s *Server) cloudLinkedPage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	data["Stage"], data["Setup"] = st, setup
+	data["Stage"], data["Setup"], data["Suffix"] = st, setup, s.cloudSuffix(r.Context())
 	s.render(w, "cloud-linked", data)
 }
 
@@ -341,5 +354,5 @@ func (s *Server) cloudProgress(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	s.renderLive(w, r, "cloud-linked", "cloud-progress", map[string]any{"Stage": st, "Setup": setup})
+	s.renderLive(w, r, "cloud-linked", "cloud-progress", map[string]any{"Stage": st, "Setup": setup, "Suffix": s.cloudSuffix(r.Context())})
 }
