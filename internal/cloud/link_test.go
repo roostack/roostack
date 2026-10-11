@@ -5,8 +5,10 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -256,5 +258,54 @@ func TestNameSuffix(t *testing.T) {
 	}
 	if got := gone.NameSuffix(ctx); got != cloudapi.DefaultNameSuffix {
 		t.Errorf("Cloud never reached: %q", got)
+	}
+}
+
+// TestCheckClaim: a claimed name's login must write a challenge value,
+// and for a public name the value must show in its zone's DNS, before
+// the lab uses the name.
+func TestCheckClaim(t *testing.T) {
+	f, s, _ := fakeCloud(t)
+	var claim cloudapi.NameClaim
+	s.UseName = func(_ context.Context, c cloudapi.NameClaim) error { claim = c; return nil }
+	link(t, f, s, "")
+	ctx := context.Background()
+	if err := s.ClaimName(ctx, "smiths"); err != nil || claim.Name != "smiths.roost.test" {
+		t.Fatalf("claim: %v %+v", err, claim)
+	}
+	sub := claim.Credentials[cloudapi.CredSubdomain]
+	if len(f.TXT[sub]) != 1 || len(f.TXT[sub][0]) != 43 {
+		t.Errorf("the test value: %v", f.TXT[sub])
+	}
+	// A login the challenge server refuses.
+	bad := claim
+	bad.Credentials = maps.Clone(claim.Credentials)
+	bad.Credentials[cloudapi.CredPassword] = "wrong"
+	if err := s.checkClaim(ctx, bad); err == nil || !strings.Contains(err.Error(), "refused the name's login") {
+		t.Errorf("a refused login: %v", err)
+	}
+	// A public name: its value has to show in DNS.
+	public := claim
+	public.Name = "smiths.roostack.dev"
+	s.LookupTXT = func(_ context.Context, name string) ([]string, error) {
+		if name != "_acme-challenge.smiths.roostack.dev" {
+			t.Errorf("looked up %s", name)
+		}
+		return f.TXT[sub], nil
+	}
+	if err := s.checkClaim(ctx, public); err != nil {
+		t.Errorf("seen in DNS: %v", err)
+	}
+	CheckWithin, CheckEvery = time.Millisecond, time.Millisecond
+	defer func() { CheckWithin, CheckEvery = 45*time.Second, 3*time.Second }()
+	s.LookupTXT = func(context.Context, string) ([]string, error) { return []string{"something else"}, nil }
+	if err := s.checkClaim(ctx, public); err == nil || !strings.Contains(err.Error(), "didn't show in public DNS") {
+		t.Errorf("not in DNS: %v", err)
+	}
+	// A claim whose check fails doesn't become the lab's address.
+	claim = cloudapi.NameClaim{}
+	f.NameSuffix = "roostack.dev"
+	if err := s.ClaimName(ctx, "jones"); err == nil || claim.Name != "" || !strings.Contains(s.Status().AddressError, "didn't show in public DNS") {
+		t.Errorf("used despite the check: %v %+v %q", err, claim, s.Status().AddressError)
 	}
 }

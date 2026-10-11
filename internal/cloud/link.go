@@ -49,6 +49,9 @@ func Dir(stateDir string) string { return filepath.Join(stateDir, "cloud") }
 
 // Service is the controller's link to Roostack Cloud.
 type Service struct {
+	// LookupTXT reads a name's TXT records for checking a claimed name
+	// (tests replace it; nil asks the zone's own name servers).
+	LookupTXT func(ctx context.Context, name string) ([]string, error)
 	// suffix is Cloud's name suffix as it last said, and when (NameSuffix).
 	suffix   string
 	suffixAt time.Time
@@ -381,6 +384,11 @@ func (s *Service) ClaimName(ctx context.Context, name string) error {
 	}
 	if err == nil && s.UseName == nil {
 		err = errors.New("nothing here can use a roost.ac name")
+	}
+	if err == nil {
+		// Before anything uses it: its credentials do what certificates
+		// need (check.go).
+		err = s.checkClaim(ctx, claim)
 	}
 	if err == nil {
 		s.mu.Lock()
