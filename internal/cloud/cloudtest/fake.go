@@ -56,6 +56,8 @@ type Fake struct {
 	// pilot grant. Relayed is each relayed lab's request, by lab ID.
 	NoRelay bool
 	Relayed map[string]cloudapi.RelayRequest
+	// Bans are each relayed lab's CrowdSec bans as last sent.
+	Bans map[string][]string
 
 	caCert *x509.Certificate
 	caKey  *ecdsa.PrivateKey
@@ -263,7 +265,7 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			reply(w, cloudapi.NameAvailability{Available: true})
 		}
 	case r.URL.Path == cloudapi.PathLab || r.URL.Path == cloudapi.PathLabRenew || r.URL.Path == cloudapi.PathLabName ||
-		r.URL.Path == cloudapi.PathLabRelay:
+		r.URL.Path == cloudapi.PathLabRelay || r.URL.Path == cloudapi.PathLabRelayBans:
 		f.labAPI(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/update":
 		f.acmeUpdate(w, r)
@@ -372,6 +374,19 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 			PublicIPv4: "198.51.100.10"}}})
 	case r.Method == http.MethodDelete && r.URL.Path == cloudapi.PathLabRelay:
 		delete(f.Relayed, id)
+		delete(f.Bans, id)
+		reply(w, map[string]any{})
+	case r.Method == http.MethodPut && r.URL.Path == cloudapi.PathLabRelayBans:
+		if _, ok := f.Relayed[id]; !ok {
+			fail(w, http.StatusNotFound, "This lab isn't relayed.")
+			return
+		}
+		var req cloudapi.RelayBans
+		json.NewDecoder(r.Body).Decode(&req)
+		if f.Bans == nil {
+			f.Bans = map[string][]string{}
+		}
+		f.Bans[id] = req.Bans
 		reply(w, map[string]any{})
 	case r.Method == http.MethodDelete && r.URL.Path == cloudapi.PathLab:
 		delete(f.labs, id)

@@ -490,6 +490,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /settings/public", s.requireOwner(s.publicSettingsPage))
 	mux.Handle("POST /settings/public/sharing", s.requireOwner(s.publicSharingSubmit))
 	mux.Handle("POST /settings/public/edge", s.requireOwner(s.publicEdgeSubmit))
+	mux.Handle("POST /settings/public/countries", s.requireOwner(s.publicCountriesSubmit))
+	mux.Handle("POST /settings/public/countries/open", s.requireOwner(s.publicCountriesOpen))
 	mux.Handle("POST /services/{name}/move", s.requireOwner(s.moveSubmit))
 	mux.Handle("POST /settings/servers/join", s.requireOwner(s.joinCodeSubmit))
 	mux.Handle("GET /settings/updates", s.requireOwner(s.updatesPage))

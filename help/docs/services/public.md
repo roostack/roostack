@@ -73,6 +73,45 @@ services**. Then:
     use HTTP/2. For now one cloud server is the way in for every public
     address.
 
+## Through Roostack Cloud's relay
+
+A lab linked to Roostack Cloud, whose address is its roost.ac name, can
+have visitors come in through Roostack Cloud instead: no router changes
+and no server of your own. Choose it in **Settings → Public access**. Like
+a cloud server of your own, the relay passes connections on **still
+encrypted**: Roostack Cloud can't read them, and the certificate stays in
+your lab. It's part of a paid plan (by invitation while it's tried out).
+
+### Visitors by country
+
+While the relay is on, **Settings → Public access → Visitors by country**
+can turn visitors away by the country their address is in, before they
+reach your lab:
+
+- **Anyone, from any country**: the default.
+- **Only visitors from some countries**: for a family lab, often just your
+  own. The strongest choice, but your own phone abroad is turned away too.
+- **Everyone except visitors from some countries.**
+
+It's a rough filter: an address's country isn't always known or right, and
+someone turned away gets no message; the site just won't load. Before you
+travel, use **Let everyone in** for a day, a week, two weeks or a month: the
+limit comes back by itself afterwards.
+
+Addresses your lab's CrowdSec bans are turned away by the relay too, for
+your lab only, so an attacker it caught doesn't keep using your bandwidth.
+
+??? note "For technical users"
+
+    The relay's edges look up each visitor's address in DB-IP's free
+    country database (IP geolocation by DB-IP), updated monthly, and close
+    the connection before passing anything on; an address it can't place
+    counts as from no country, so a list of countries let in turns it
+    away. The controller sends CrowdSec's own bans (its decisions and
+    those added with `cscli`, not the community's lists) to Roostack Cloud
+    every 5 minutes, at most 1,000; the edges drop them an hour after the
+    last time, if the lab goes quiet.
+
 ## If it doesn't work
 
 If the check link doesn't open, look at these in order. The page ticks the

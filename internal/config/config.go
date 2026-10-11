@@ -144,7 +144,26 @@ type Public struct {
 	// (its DESIGN §5): for a lab whose address is a roost.ac name. Never
 	// with Edge.
 	Relay bool `yaml:"relay,omitempty"`
+	// Countries limits public visitors by the country their address is in
+	// (SPEC.md §10.5). Only Roostack Cloud's relay enforces it, at its
+	// edges, before visitors reach the lab.
+	Countries Countries `yaml:"countries,omitempty"`
 }
+
+// Countries lets in only visitors from Allow, or everyone but those from
+// Block (ISO 3166 codes, such as AU; never both; neither is anyone).
+// OpenUntil lets everyone in until then, for travel.
+type Countries struct {
+	Allow     []string  `yaml:"allow,omitempty"`
+	Block     []string  `yaml:"block,omitempty"`
+	OpenUntil time.Time `yaml:"open_until,omitempty"`
+}
+
+// Limited says whether any countries are kept out.
+func (c Countries) Limited() bool { return len(c.Allow) > 0 || len(c.Block) > 0 }
+
+// Open says whether everyone is let in for now, for travel.
+func (c Countries) Open(now time.Time) bool { return c.Limited() && c.OpenUntil.After(now) }
 
 // Where a lab is (Lab.Network, SPEC.md §6.12).
 const (
