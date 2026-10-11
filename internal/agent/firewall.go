@@ -143,6 +143,12 @@ func (f Firewall) Ruleset() string {
 	b.WriteString("\t\ttype filter hook input priority filter; policy drop;\n\n")
 	b.WriteString("\t\tct state established,related accept\n")
 	b.WriteString("\t\tct state invalid drop\n")
+	// Roostack Cloud's relay brings visitors to Caddy, and nothing else:
+	// its addresses are inside 100.64.0.0/10 (the home-network set below),
+	// so it's settled first (Roostack Cloud's DESIGN §5: the lab accepts
+	// only its forwarded ports from the tunnel).
+	fmt.Fprintf(&b, "\t\tiifname %q tcp dport 443 accept\n", RelayInterface)
+	fmt.Fprintf(&b, "\t\tiifname %q drop\n", RelayInterface)
 	b.WriteString("\t\tiif \"lo\" accept\n")
 	b.WriteString("\t\tmeta l4proto { icmp, ipv6-icmp } accept\n")
 	// DHCPv6 replies come from the router's link-local address to a port

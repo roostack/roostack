@@ -8,11 +8,13 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"roostack.cloud/roostack/cloudapi"
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/cloud/cloudtest"
 	"roostack.cloud/roostack/internal/config"
 )
@@ -307,5 +309,70 @@ func TestCheckClaim(t *testing.T) {
 	f.NameSuffix = "roostack.dev"
 	if err := s.ClaimName(ctx, "jones"); err == nil || claim.Name != "" || !strings.Contains(s.Status().AddressError, "didn't show in public DNS") {
 		t.Errorf("used despite the check: %v %+v %q", err, claim, s.Status().AddressError)
+	}
+}
+
+// fakeWG is the agent's WireGuard for the relay.
+type fakeWG struct {
+	applied []agent.WireGuard
+	removed []string
+}
+
+func (f *fakeWG) ApplyWireGuard(_ context.Context, wg agent.WireGuard) (string, error) {
+	if err := wg.Validate(); err != nil {
+		return "", err
+	}
+	f.applied = append(f.applied, wg)
+	return "bGFibGFibGFibGFibGFibGFibGFibGFibGFibGFibGE=", nil
+}
+
+func (f *fakeWG) RemoveWireGuard(_ context.Context, iface string) error {
+	f.removed = append(f.removed, iface)
+	return nil
+}
+
+// TestRelay: the relay's interface is made (its key) before Cloud is
+// asked, then dials every edge at the address Cloud gave; the same names
+// again change nothing; stopping tells Cloud and removes the interface.
+func TestRelay(t *testing.T) {
+	f, s, _ := fakeCloud(t)
+	wg := &fakeWG{}
+	s.WireGuard = wg
+	ctx := context.Background()
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}); err == nil {
+		t.Error("relayed before linking")
+	}
+	link(t, f, s, "")
+	f.NoRelay = true
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}); err == nil || !strings.Contains(err.Error(), "isn't open") {
+		t.Errorf("refused by Cloud: %v", err)
+	}
+	f.NoRelay = false
+	wg.applied = nil
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test", "smiths.roost.test"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(wg.applied) != 2 || len(wg.applied[0].Peers) != 0 || wg.applied[0].Interface != agent.RelayInterface {
+		t.Fatalf("first the key: %+v", wg.applied)
+	}
+	final := wg.applied[1]
+	if final.Address != "100.81.1.1/16" || len(final.Peers) != 1 || final.Peers[0].Endpoint != "198.51.100.10:51830" ||
+		final.Peers[0].AllowedIPs[0] != "100.81.0.1/32" || final.Peers[0].Keepalive != 25 {
+		t.Errorf("then the edges: %+v", final)
+	}
+	for _, rel := range f.Relayed {
+		if rel.PublicKey != "bGFibGFibGFibGFibGFibGFibGFibGFibGFibGFibGE=" || len(rel.Hosts) != 2 {
+			t.Errorf("Cloud was asked %+v", rel)
+		}
+	}
+	if es := s.RelayEdges(); len(es) != 1 || es[0].Addr != "100.81.0.1" {
+		t.Errorf("edges: %+v", es)
+	}
+	n := len(wg.applied)
+	if err := s.Relay(ctx, []string{"smiths.roost.test", "photos.smiths.roost.test"}); err != nil || len(wg.applied) != n {
+		t.Errorf("the same names again: %v, %d applies", err, len(wg.applied)-n)
+	}
+	if err := s.StopRelay(ctx); err != nil || len(f.Relayed) != 0 || !slices.Contains(wg.removed, agent.RelayInterface) || s.RelayEdges() != nil {
+		t.Errorf("stop: %v %v %v", err, f.Relayed, wg.removed)
 	}
 }

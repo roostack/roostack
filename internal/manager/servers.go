@@ -201,7 +201,7 @@ func (m *Manager) startApplyLocked() {
 	// The edge passes public visitors on to the controller's Caddy, which
 	// believes it alone about who they are (SPEC.md §10.5).
 	edge, edgeAddrs := m.edgeFor(infos)
-	lab.EdgeAddrs = edgeAddrs
+	lab.EdgeAddrs = append(edgeAddrs, m.relayFor(services)...)
 	for _, n := range nodes {
 		id := n.Identity().ID
 		if n == m.Node {

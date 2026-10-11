@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
@@ -68,6 +69,19 @@ func (f *fakeManager) Edge(context.Context) (manager.EdgeServer, bool) {
 		}
 	}
 	return manager.EdgeServer{ID: f.edge}, f.edge != ""
+}
+
+func (f *fakeManager) RelayOn() bool { return f.relay }
+
+func (f *fakeManager) SetRelay(_ context.Context, on bool) error {
+	if on && f.relayErr != nil {
+		return f.relayErr
+	}
+	f.relay = on
+	if on {
+		f.edge = ""
+	}
+	return nil
 }
 
 func (f *fakeManager) SetEdge(_ context.Context, id string) error {
@@ -280,5 +294,45 @@ func TestEdgeDown(t *testing.T) {
 	if _, body := h.get("/"); !strings.Contains(body, "Public services can&#39;t be reached from the internet: visitors come in through vps-sydney") ||
 		!strings.Contains(body, `href="/settings/public#way-in"`) {
 		t.Error("an edge that isn't connected isn't called out")
+	}
+}
+
+// TestPublicRelay: a lab linked to Roostack Cloud, with its roost.ac name
+// as its address, can have visitors come in through the relay; Cloud's
+// refusal is shown, and choosing port forwarding again turns it off.
+func TestPublicRelay(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	if _, body := h.get("/settings/public"); strings.Contains(body, "Roostack Cloud&#39;s relay") || strings.Contains(body, "Roostack Cloud's relay") {
+		t.Error("the relay offered without Cloud")
+	}
+	link, f := newCloudWith(t)
+	h.server.Cloud = link
+	link.UseName = func(context.Context, cloudapi.NameClaim) error { return nil }
+	if _, err := link.Start(context.Background(), "", ""); err != nil {
+		t.Fatal(err)
+	}
+	f.Confirm(link.Status().Waiting.Code)
+	for i := 0; i < 200 && !link.Status().Linked; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := link.ClaimName(context.Background(), "smiths"); err != nil {
+		t.Fatal(err)
+	}
+	h.server.Domain = "smiths.roost.test"
+	_, body := h.get("/settings/public")
+	if !strings.Contains(body, "Through Roostack Cloud's relay") || !strings.Contains(body, `value="cloud"`) {
+		t.Fatal("the relay isn't offered to a linked lab with its roost.ac name")
+	}
+	fm.relayErr = &manager.FormError{Msg: "Roostack Cloud's relay isn't open for this account yet."}
+	if _, body := h.post("/settings/public/edge", url.Values{"edge": {"cloud"}}, h.srv.URL); !strings.Contains(body, "isn&#39;t open for this account") || fm.relay {
+		t.Error("Cloud's refusal isn't shown")
+	}
+	fm.relayErr = nil
+	if _, body := h.post("/settings/public/edge", url.Values{"edge": {"cloud"}}, h.srv.URL); !fm.relay || !strings.Contains(body, `value="cloud" checked`) {
+		t.Error("choosing the relay")
+	}
+	h.post("/settings/public/edge", url.Values{"edge": {""}}, h.srv.URL)
+	if fm.relay {
+		t.Error("port forwarding didn't turn the relay off")
 	}
 }

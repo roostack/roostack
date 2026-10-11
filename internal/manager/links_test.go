@@ -202,3 +202,44 @@ func TestUnreachableSince(t *testing.T) {
 		t.Error("answering forgets it")
 	}
 }
+
+// TestRelayWayIn: Roostack Cloud's relay as the way in: Cloud is asked
+// first (a refusal changes nothing), then the relay's edges are the
+// addresses every assignment names for Caddy; it and an edge server
+// exclude each other.
+func TestRelayWayIn(t *testing.T) {
+	m, home, _, _ := setUpLinks(t)
+	ctx := context.Background()
+	m.UpdateLab = func(change func(*config.Lab)) error { change(&m.Lab); return nil }
+	refuse := errors.New("Roostack Cloud's relay isn't open for this account yet.")
+	var asked [][]string
+	m.Relay = Relay{
+		Set:   func(_ context.Context, hosts []string) error { asked = append(asked, hosts); return refuse },
+		Stop:  func(context.Context) error { return nil },
+		Edges: func() ([]string, []string) { return []string{"100.81.0.1"}, []string{"198.51.100.10"} },
+	}
+	if err := m.SetRelay(ctx, true); !errors.Is(err, refuse) || m.RelayOn() || m.Lab.Public.Relay {
+		t.Errorf("refused: %v, on %v", err, m.RelayOn())
+	}
+	refuse = nil
+	m.Relay.Set = func(_ context.Context, hosts []string) error { asked = append(asked, hosts); return nil }
+	if err := m.SetEdge(ctx, "n-0000000003"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SetRelay(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if !m.RelayOn() || m.Lab.Public.Edge != "" {
+		t.Errorf("on %v, edge %q", m.RelayOn(), m.Lab.Public.Edge)
+	}
+	home.mu.Lock()
+	addrs := home.last.Lab.EdgeAddrs
+	home.mu.Unlock()
+	if len(addrs) != 1 || addrs[0] != "100.81.0.1/32" {
+		t.Errorf("edge addresses: %v", addrs)
+	}
+	if err := m.SetRelay(ctx, false); err != nil || m.RelayOn() {
+		t.Errorf("off: %v", err)
+	}
+}

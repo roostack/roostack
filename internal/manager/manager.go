@@ -50,6 +50,8 @@ var ErrNotFound = node.ErrNotFound
 type Manager struct {
 	Lab config.Lab
 	Log *slog.Logger
+	// Relay is Roostack Cloud's relay, a way in for public visitors.
+	Relay Relay
 	// Node is this server (the controller).
 	Node node.Node
 	// Others lists the lab's other servers (SPEC.md §10); nil if none.

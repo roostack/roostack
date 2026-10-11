@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/cloudapi"
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
 )
 
@@ -49,6 +50,8 @@ func Dir(stateDir string) string { return filepath.Join(stateDir, "cloud") }
 
 // Service is the controller's link to Roostack Cloud.
 type Service struct {
+	// WireGuard makes the relay's interface (nil: no relay).
+	WireGuard WireGuardAgent
 	// LookupTXT reads a name's TXT records for checking a claimed name
 	// (tests replace it; nil asks the zone's own name servers).
 	LookupTXT func(ctx context.Context, name string) ([]string, error)
@@ -93,6 +96,8 @@ type linkState struct {
 	// LastTry and LastError: the last check, when it didn't reach Cloud.
 	LastTry   time.Time `json:"last_try,omitzero"`
 	LastError string    `json:"last_error,omitempty"`
+	// Relay is Roostack Cloud's relay for the lab, when it's on.
+	Relay *relayState `json:"relay,omitempty"`
 	// Forgotten is when Cloud stopped accepting the lab's certificate,
 	// and the lab forgot the link (shown until it's linked again or the
 	// Owner dismisses it).
@@ -507,6 +512,15 @@ func (s *Service) forget() {
 	}
 	s.cert = nil
 	s.st.Linked = false
+	// Not linked, not relayed: the relay's interface goes too.
+	if s.st.Relay != nil && s.WireGuard != nil {
+		go func() {
+			if err := s.WireGuard.RemoveWireGuard(context.Background(), agent.RelayInterface); err != nil {
+				s.log.Error("Roostack Cloud: removing the relay's network", "err", err)
+			}
+		}()
+	}
+	s.st.Relay = nil
 	s.client.renewed()
 }
 

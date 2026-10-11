@@ -155,3 +155,87 @@ func publicHostsOf(lab config.Lab, services []state.Service, old bool) []string 
 	slices.Sort(hosts)
 	return slices.Compact(hosts)
 }
+
+// Relay is Roostack Cloud's relay, as the lab sees it: set by the
+// controller from the cloud package (nil: no Cloud).
+type Relay struct {
+	// Set relays hosts (again: no change if they're the same), Stop stops.
+	Set  func(ctx context.Context, hosts []string) error
+	Stop func(ctx context.Context) error
+	// Edges are its edges' relay addresses (for Caddy) and public IPv4
+	// addresses (for DNS), when it's on.
+	Edges func() (relayAddrs, public []string)
+}
+
+// RelayOn says whether public visitors come in through Roostack Cloud's
+// relay.
+func (m *Manager) RelayOn() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.publicLocked().Relay
+}
+
+// SetRelay turns Roostack Cloud's relay on or off as the lab's way in.
+// Cloud is asked first, so a refusal (an account without the relay)
+// changes nothing; then it's saved, and the lab applies it (the
+// controller's Caddy believes the relay's edges about visitors).
+func (m *Manager) SetRelay(ctx context.Context, on bool) error {
+	if m.UpdateLab == nil {
+		return errors.New("manager: UpdateLab is not set")
+	}
+	if m.Relay.Set == nil {
+		return formErrorf("Roostack Cloud isn't set up on this lab.")
+	}
+	if on {
+		services, err := state.LoadServices(m.Lab)
+		if err != nil {
+			return err
+		}
+		if err := m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false)); err != nil {
+			return err
+		}
+	} else if err := m.Relay.Stop(ctx); err != nil {
+		m.Log.Warn("stopping Roostack Cloud's relay", "err", err)
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.UpdateLab(func(l *config.Lab) {
+		l.Public.Relay = on
+		if on {
+			l.Public.Edge = ""
+		}
+	}); err != nil {
+		return err
+	}
+	p := m.publicLocked()
+	p.Relay = on
+	if on {
+		p.Edge = ""
+	}
+	m.applyReason = "Changing how public visitors reach the lab"
+	m.startApplyLocked()
+	return nil
+}
+
+// relayFor is the relay's edges' addresses for the controller's Caddy,
+// when the relay is on; it also brings the relayed names in line with
+// the public ones (in the background: Cloud may be slow).
+func (m *Manager) relayFor(services []state.Service) []string {
+	if !m.publicLocked().Relay || m.Relay.Edges == nil {
+		return nil
+	}
+	if m.Relay.Set != nil {
+		hosts := publicHostsOf(m.Lab, services, false)
+		go func() {
+			if err := m.Relay.Set(context.Background(), hosts); err != nil {
+				m.Log.Error("updating Roostack Cloud's relay", "err", err)
+			}
+		}()
+	}
+	addrs, _ := m.Relay.Edges()
+	var out []string
+	for _, a := range addrs {
+		out = append(out, a+"/32")
+	}
+	return out
+}

@@ -52,6 +52,10 @@ type Fake struct {
 	// reached (Caddy and Roostack don't trust the fake's HTTPS
 	// certificate), otherwise the address the lab reached.
 	ChallengeURL string
+	// NoRelay refuses the relay, as Cloud does for an account without the
+	// pilot grant. Relayed is each relayed lab's request, by lab ID.
+	NoRelay bool
+	Relayed map[string]cloudapi.RelayRequest
 
 	caCert *x509.Certificate
 	caKey  *ecdsa.PrivateKey
@@ -258,7 +262,8 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			reply(w, cloudapi.NameAvailability{Available: true})
 		}
-	case r.URL.Path == cloudapi.PathLab || r.URL.Path == cloudapi.PathLabRenew || r.URL.Path == cloudapi.PathLabName:
+	case r.URL.Path == cloudapi.PathLab || r.URL.Path == cloudapi.PathLabRenew || r.URL.Path == cloudapi.PathLabName ||
+		r.URL.Path == cloudapi.PathLabRelay:
 		f.labAPI(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/update":
 		f.acmeUpdate(w, r)
@@ -351,6 +356,23 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLab:
 		reply(w, cloudapi.LabInfo{LabID: id, Account: f.Account})
+	case r.Method == http.MethodPut && r.URL.Path == cloudapi.PathLabRelay:
+		var req cloudapi.RelayRequest
+		json.NewDecoder(r.Body).Decode(&req)
+		if f.NoRelay {
+			fail(w, http.StatusBadRequest, "Roostack Cloud's relay isn't open for this account yet.")
+			return
+		}
+		if f.Relayed == nil {
+			f.Relayed = map[string]cloudapi.RelayRequest{}
+		}
+		f.Relayed[id] = req
+		reply(w, cloudapi.Relay{Addr: "100.81.1.1", Prefix: 16, Edges: []cloudapi.RelayEdge{{Name: "syd-1",
+			Endpoint: "198.51.100.10:51830", PublicKey: "ZWRnZWVkZ2VlZGdlZWRnZWVkZ2VlZGdlZWRnZWVkZ2U=", Addr: "100.81.0.1",
+			PublicIPv4: "198.51.100.10"}}})
+	case r.Method == http.MethodDelete && r.URL.Path == cloudapi.PathLabRelay:
+		delete(f.Relayed, id)
+		reply(w, map[string]any{})
 	case r.Method == http.MethodDelete && r.URL.Path == cloudapi.PathLab:
 		delete(f.labs, id)
 		delete(f.names, id)

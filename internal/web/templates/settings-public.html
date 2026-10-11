@@ -20,20 +20,27 @@
   <p>Nothing is public.</p>
   {{end}}
 </section>
-{{if or .EdgeServers .Edge}}
+{{if or .EdgeServers .Edge .CanRelay .Relay}}
 <section class="card section" id="way-in">
   <h2>How people reach your public services</h2>
   {{if eq .Saved "edge"}}<p class="notice notice-ok" role="status">Saved. Public addresses follow within a few minutes, as DNS updates.</p>{{end}}
+  {{with .RelayError}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{with .Edge}}{{if not .Address}}<p class="notice notice-warn" role="alert"><strong>{{or .Name .ID}} isn't connected to the lab now</strong>,
     so public services can't be reached through it. Check it's running, or choose port forwarding meanwhile.</p>{{end}}{{end}}
   <form method="post" action="/settings/public/edge#way-in">
     <fieldset>
-      <label class="check"><input type="radio" name="edge" value="" required {{if not .Edge}}checked{{end}}>
+      <label class="check"><input type="radio" name="edge" value="" required {{if not (or .Edge .Relay)}}checked{{end}}>
         <span>Port forwarding at home<small>Your router forwards ports 80 and 443 to this server, and public addresses point at your home's public address.</small></span></label>
       {{range .EdgeServers}}
       <label class="check"><input type="radio" name="edge" value="{{.ID}}" {{if and $.Edge (eq .ID $.Edge.ID)}}checked{{end}}>
         <span>Through {{.Name}}, a cloud server in this lab<small>No router changes, and your home's address stays hidden: public addresses point at
           {{.Name}} (<code>{{.Address}}</code>), which passes visitors' connections on to this server still encrypted. It can't read them.</small></span></label>
+      {{end}}
+      {{if or .CanRelay .Relay}}
+      <label class="check"><input type="radio" name="edge" value="cloud" {{if .Relay}}checked{{end}}>
+        <span>Through Roostack Cloud's relay<small>No router changes and no server of your own: public addresses point at Roostack Cloud,
+          which passes visitors' connections on to this server still encrypted. It can't read them. Part of a paid plan
+          (by invitation while it's being tried out).</small></span></label>
       {{end}}
     </fieldset>
     <button type="submit">Save</button>

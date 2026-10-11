@@ -161,6 +161,15 @@ func serve(args []string) error {
 			return err
 		}
 		srv.Cloud = link
+		// Roostack Cloud's relay as a way in (SPEC.md §10.5): its
+		// interface through the agent, its edges for Caddy and DNS.
+		link.WireGuard = agentClient
+		mgr.Relay = manager.Relay{Set: link.Relay, Stop: link.StopRelay, Edges: func() (relay, pub []string) {
+			for _, e := range link.RelayEdges() {
+				relay, pub = append(relay, e.Addr), append(pub, e.PublicIPv4)
+			}
+			return relay, pub
+		}}
 	}
 	// Public access (SPEC.md §6.11): check links from a phone, and whether
 	// CrowdSec is up (the records wait for it).
@@ -351,6 +360,11 @@ func serve(args []string) error {
 			// forwarding), once CrowdSec is up.
 			PublicHosts: mgr.PublicHosts, Protected: crowdSecUp,
 			Entry: public.Chosen{Home: public.PortForwarding{}, Edge: func(ctx context.Context) (public.Edge, bool) {
+				if mgr.RelayOn() && mgr.Relay.Edges != nil {
+					// Cloud points relayed names at its edges itself.
+					_, pub := mgr.Relay.Edges()
+					return public.Edge{Name: "Roostack Cloud", Addr: cmp.Or(append(pub, "")...)}, true
+				}
 				e, ok := mgr.Edge(ctx)
 				return public.Edge{Name: cmp.Or(e.Name, e.ID), Addr: e.Address}, ok
 			}},
