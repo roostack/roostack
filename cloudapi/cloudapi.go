@@ -22,6 +22,8 @@ const (
 	PathLabRenew   = "/v1/lab/renew"    // POST RenewRequest → RenewResponse (mutual TLS)
 	PathLabName    = "/v1/lab/name"     // POST NameRequest → NameClaim (mutual TLS)
 	PathLabRelay   = "/v1/lab/relay"    // PUT RelayRequest → Relay; DELETE stops relaying (mutual TLS)
+	// PUT RelayBans (mutual TLS); 404 while the lab isn't relayed.
+	PathLabRelayBans = "/v1/lab/relay/bans"
 )
 
 // A claimed name's records, at the addresses in its NameClaim's
@@ -121,11 +123,34 @@ type LabInfo struct {
 // RelayRequest asks Cloud to bring public visitors for the lab's names
 // to it through the relay: its WireGuard key on the relay network, and
 // its public names (in full, each the lab's roost.ac name or one under
-// it). Asking again replaces both.
+// it). Asking again replaces all of it.
 type RelayRequest struct {
 	PublicKey string   `json:"public_key"`
 	Hosts     []string `json:"hosts"`
+	// Countries is who the edges let in by country (none set: anyone).
+	Countries RelayCountries `json:"countries"`
 }
+
+// RelayCountries limits the lab's visitors at the edges by country, with
+// ISO 3166 codes (AU): only those in Allow, or everyone but those in
+// Block, never both. OpenUntil lets everyone in until then (travel);
+// after it, the limit is back by itself.
+type RelayCountries struct {
+	Allow     []string  `json:"allow,omitempty"`
+	Block     []string  `json:"block,omitempty"`
+	OpenUntil time.Time `json:"open_until,omitzero"`
+}
+
+// RelayBans are the addresses and ranges the lab's CrowdSec has banned
+// (at most MaxRelayBans), refused at the edges for this lab only. Each
+// replaces those sent before; the edges drop them an hour after the
+// last, so a lab gone quiet doesn't keep stale bans.
+type RelayBans struct {
+	Bans []string `json:"bans"`
+}
+
+// MaxRelayBans is the most bans a lab sends (its newest, if it has more).
+const MaxRelayBans = 1000
 
 // Relay is how the lab joins the relay: its address on the relay network
 // (connections from the edges come to it there), and the edges to dial.
