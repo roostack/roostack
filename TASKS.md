@@ -200,7 +200,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Each public address choosing its own way in (SPEC §10.5: a route's `entry`), after the whole-lab version
   - [x] Say when the edge isn't connected: a problem in "Needs attention" while anything is public ("Public services can't be reached from the internet…", to Settings → Public access), and that page's own warning (2026-10-11; tried by stopping the Linode's Roostack)
   - [ ] HTTP/3 through an edge, if Caddy gains a way to learn a QUIC visitor's address (ASSUMPTIONS Q7)
-  - [ ] Then Roostack Cloud's relay, on the same mechanism
+  - [x] Then Roostack Cloud's relay, on the same mechanism: its first slice (SPEC §10.5, 2026-10-11), tried over the internet with VM3 through the test edge
   - [ ] **WAF, step 1 (agreed 2026-10-06, SPEC §6.10):** CrowdSec AppSec virtual patching, on by default for public services. Check the pinned `caddy-crowdsec-bouncer` passes requests to AppSec; add the AppSec component and its virtual-patching collection to the CrowdSec container; show what it blocked (service page, weekly summary); a test that a known exploit request is refused
   - [ ] **Encryption anyone can check (agreed 2026-10-06):** backups are encrypted on the lab with keys that never leave it; make that verifiable rather than a promise: signed, reproducible releases (anyone can rebuild the published code and get the same binary), and a help page showing where the keys live, what Roostack sends off the server (e.g. to Roostack Cloud), and how to watch it
   - [ ] **WAF, step 2 (later):** the OWASP Core Rule Set per service, "detect only" first; package format for WAF exclusions (e.g. upload paths); choose the engine (CrowdSec AppSec loading the rules, or Coraza)
