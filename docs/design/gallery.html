@@ -45,6 +45,7 @@
         <a href="#tables">Tables</a>
         <a href="#settings">Settings navigation</a>
         <a href="#activity">Activity</a>
+        <a href="#statistics">Statistics</a>
         <a href="#secrets">Secrets and codes</a>
         
       </nav>
@@ -1577,6 +1578,106 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
   &lt;/ol&gt;
 &lt;/div&gt;
 &lt;p class=&#34;install-line&#34;&gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;Step 3 of 5: downloading Forgejo…&lt;/p&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
+      
+      <section id="statistics">
+        <h2>Statistics</h2>
+        <p class="hint">Counts over time, such as visitors through Roostack Cloud&#39;s relay. Heights and widths go through data-height and data-width (app.js), as style attributes are blocked.</p>
+        
+        <div class="example">
+          <h3>Figures <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">dl.stat-tiles: a few totals, each a dt and dd, with an optional dd.hint.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><dl class="stat-tiles">
+  <div><dt>Visitors</dt><dd>1,284</dd></div>
+  <div><dt>Data</dt><dd>3.2 GB</dd><dd class="hint">2.9 GB to visitors</dd></div>
+</dl></div>
+            <div class="panel" data-mode="dark"><dl class="stat-tiles">
+  <div><dt>Visitors</dt><dd>1,284</dd></div>
+  <div><dt>Data</dt><dd>3.2 GB</dd><dd class="hint">2.9 GB to visitors</dd></div>
+</dl></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;dl class=&#34;stat-tiles&#34;&gt;
+  &lt;div&gt;&lt;dt&gt;Visitors&lt;/dt&gt;&lt;dd&gt;1,284&lt;/dd&gt;&lt;/div&gt;
+  &lt;div&gt;&lt;dt&gt;Data&lt;/dt&gt;&lt;dd&gt;3.2 GB&lt;/dd&gt;&lt;dd class=&#34;hint&#34;&gt;2.9 GB to visitors&lt;/dd&gt;&lt;/div&gt;
+&lt;/dl&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Bar chart <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">template &#34;bar-chart&#34; with a barChart: a caption and a column a period, its label under it (may be empty) and the exact figure on hover and for screen readers.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><figure class="bar-chart">
+  <figcaption>Visitors each day</figcaption>
+  <div class="bar-cols"><div class="bar-col" title="40 visitors"><span class="bar" data-height="42"></span><span class="bar-label" aria-hidden="true">Tue</span><span class="sr-only">40 visitors</span></div><div class="bar-col" title="55 visitors"><span class="bar" data-height="57"></span><span class="bar-label" aria-hidden="true">Wed</span><span class="sr-only">55 visitors</span></div><div class="bar-col" title="48 visitors"><span class="bar" data-height="50"></span><span class="bar-label" aria-hidden="true">Thu</span><span class="sr-only">48 visitors</span></div><div class="bar-col" title="70 visitors"><span class="bar" data-height="73"></span><span class="bar-label" aria-hidden="true">Fri</span><span class="sr-only">70 visitors</span></div><div class="bar-col" title="95 visitors"><span class="bar" data-height="100"></span><span class="bar-label" aria-hidden="true">Sat</span><span class="sr-only">95 visitors</span></div><div class="bar-col" title="62 visitors"><span class="bar" data-height="65"></span><span class="bar-label" aria-hidden="true">Sun</span><span class="sr-only">62 visitors</span></div><div class="bar-col" title="35 visitors"><span class="bar" data-height="36"></span><span class="bar-label" aria-hidden="true">Today</span><span class="sr-only">35 visitors</span></div></div>
+</figure></div>
+            <div class="panel" data-mode="dark"><figure class="bar-chart">
+  <figcaption>Visitors each day</figcaption>
+  <div class="bar-cols"><div class="bar-col" title="40 visitors"><span class="bar" data-height="42"></span><span class="bar-label" aria-hidden="true">Tue</span><span class="sr-only">40 visitors</span></div><div class="bar-col" title="55 visitors"><span class="bar" data-height="57"></span><span class="bar-label" aria-hidden="true">Wed</span><span class="sr-only">55 visitors</span></div><div class="bar-col" title="48 visitors"><span class="bar" data-height="50"></span><span class="bar-label" aria-hidden="true">Thu</span><span class="sr-only">48 visitors</span></div><div class="bar-col" title="70 visitors"><span class="bar" data-height="73"></span><span class="bar-label" aria-hidden="true">Fri</span><span class="sr-only">70 visitors</span></div><div class="bar-col" title="95 visitors"><span class="bar" data-height="100"></span><span class="bar-label" aria-hidden="true">Sat</span><span class="sr-only">95 visitors</span></div><div class="bar-col" title="62 visitors"><span class="bar" data-height="65"></span><span class="bar-label" aria-hidden="true">Sun</span><span class="sr-only">62 visitors</span></div><div class="bar-col" title="35 visitors"><span class="bar" data-height="36"></span><span class="bar-label" aria-hidden="true">Today</span><span class="sr-only">35 visitors</span></div></div>
+</figure></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;bar-chart&#34; .Chart}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;figure class=&#34;bar-chart&#34;&gt;&lt;figcaption&gt;Visitors each day&lt;/figcaption&gt;
+&lt;div class=&#34;bar-cols&#34;&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;40 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;42&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Tue&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;40 visitors&lt;/span&gt;&lt;/div&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;55 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;57&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Wed&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;55 visitors&lt;/span&gt;&lt;/div&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;48 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;50&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Thu&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;48 visitors&lt;/span&gt;&lt;/div&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;70 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;73&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Fri&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;70 visitors&lt;/span&gt;&lt;/div&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;95 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;100&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Sat&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;95 visitors&lt;/span&gt;&lt;/div&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;62 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;65&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Sun&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;62 visitors&lt;/span&gt;&lt;/div&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;35 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;36&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Today&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;35 visitors&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;/figure&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Ranked list <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">template &#34;rank-list&#34; with []rankView: names, a bar for each one&#39;s share of the largest, the count; the rest (Other) muted.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><ul class="rank-list"><li><span class="rank-name">Australia</span><span class="rank-bar" aria-hidden="true"><span data-width="100"></span></span><span class="rank-count">1,130</span></li><li><span class="rank-name">New Zealand</span><span class="rank-bar" aria-hidden="true"><span data-width="8"></span></span><span class="rank-count">96</span></li><li><span class="rank-name">United Kingdom</span><span class="rank-bar" aria-hidden="true"><span data-width="3"></span></span><span class="rank-count">41</span></li><li class="rank-other"><span class="rank-name">Elsewhere</span><span class="rank-bar" aria-hidden="true"><span data-width="1"></span></span><span class="rank-count">17</span></li></ul></div>
+            <div class="panel" data-mode="dark"><ul class="rank-list"><li><span class="rank-name">Australia</span><span class="rank-bar" aria-hidden="true"><span data-width="100"></span></span><span class="rank-count">1,130</span></li><li><span class="rank-name">New Zealand</span><span class="rank-bar" aria-hidden="true"><span data-width="8"></span></span><span class="rank-count">96</span></li><li><span class="rank-name">United Kingdom</span><span class="rank-bar" aria-hidden="true"><span data-width="3"></span></span><span class="rank-count">41</span></li><li class="rank-other"><span class="rank-name">Elsewhere</span><span class="rank-bar" aria-hidden="true"><span data-width="1"></span></span><span class="rank-count">17</span></li></ul></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;rank-list&#34; .Ranks}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;ul class=&#34;rank-list&#34;&gt;
+  &lt;li&gt;&lt;span class=&#34;rank-name&#34;&gt;Australia&lt;/span&gt;&lt;span class=&#34;rank-bar&#34; aria-hidden=&#34;true&#34;&gt;&lt;span data-width=&#34;100&#34;&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;rank-count&#34;&gt;1,130&lt;/span&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;span class=&#34;rank-name&#34;&gt;New Zealand&lt;/span&gt;&lt;span class=&#34;rank-bar&#34; aria-hidden=&#34;true&#34;&gt;&lt;span data-width=&#34;8&#34;&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;rank-count&#34;&gt;96&lt;/span&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;span class=&#34;rank-name&#34;&gt;United Kingdom&lt;/span&gt;&lt;span class=&#34;rank-bar&#34; aria-hidden=&#34;true&#34;&gt;&lt;span data-width=&#34;3&#34;&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;rank-count&#34;&gt;41&lt;/span&gt;&lt;/li&gt;
+  &lt;li class=&#34;rank-other&#34;&gt;&lt;span class=&#34;rank-name&#34;&gt;Elsewhere&lt;/span&gt;&lt;span class=&#34;rank-bar&#34; aria-hidden=&#34;true&#34;&gt;&lt;span data-width=&#34;1&#34;&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;rank-count&#34;&gt;17&lt;/span&gt;&lt;/li&gt;
+&lt;/ul&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Choice of period <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">nav.period-choice: links, the current one with aria-current.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><nav class="period-choice" aria-label="How far back"><a href="#">Today</a><a href="#" aria-current="true">7 days</a><a href="#">30 days</a></nav></div>
+            <div class="panel" data-mode="dark"><nav class="period-choice" aria-label="How far back"><a href="#">Today</a><a href="#" aria-current="true">7 days</a><a href="#">30 days</a></nav></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;nav class=&#34;period-choice&#34; aria-label=&#34;How far back&#34;&gt;&lt;a href=&#34;#&#34;&gt;Today&lt;/a&gt;&lt;a href=&#34;#&#34; aria-current=&#34;true&#34;&gt;7 days&lt;/a&gt;&lt;a href=&#34;#&#34;&gt;30 days&lt;/a&gt;&lt;/nav&gt;</pre>
             
           </details>
         </div>

@@ -27,6 +27,8 @@ type CloudLink interface {
 	// NameSuffix is the suffix Cloud's names have: roost.ac, or a test
 	// Cloud's own.
 	NameSuffix(ctx context.Context) string
+	// RelayStats are the lab's statistics through the relay (cloudapi).
+	RelayStats(ctx context.Context, days int, byDay bool) (cloudapi.RelayStats, error)
 }
 
 // cloudSuffix is the suffix the lab's Cloud gives names, for the pages.

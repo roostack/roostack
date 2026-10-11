@@ -215,7 +215,7 @@ func TestRelayWayIn(t *testing.T) {
 	refuse := errors.New("Roostack Cloud's relay isn't open for this account yet.")
 	var asked [][]string
 	m.Relay = Relay{
-		Set: func(_ context.Context, hosts []string, _ config.Countries) error {
+		Set: func(_ context.Context, hosts []string, _ config.Countries, _ string) error {
 			asked = append(asked, hosts)
 			return refuse
 		},
@@ -227,7 +227,7 @@ func TestRelayWayIn(t *testing.T) {
 	}
 	refuse = nil
 	var countries config.Countries
-	m.Relay.Set = func(_ context.Context, hosts []string, c config.Countries) error {
+	m.Relay.Set = func(_ context.Context, hosts []string, c config.Countries, _ string) error {
 		asked, countries = append(asked, hosts), c
 		return nil
 	}
@@ -255,7 +255,7 @@ func TestRelayWayIn(t *testing.T) {
 	if err := m.SetCountries(ctx, config.Countries{Allow: []string{"NZ"}, Block: []string{"RU"}}); err == nil {
 		t.Error("both: no error")
 	}
-	m.Relay.Set = func(context.Context, []string, config.Countries) error { return refuse }
+	m.Relay.Set = func(context.Context, []string, config.Countries, string) error { return refuse }
 	refuse = errors.New("no")
 	if err := m.SetCountries(ctx, config.Countries{Block: []string{"RU"}}); err == nil || len(m.Countries().Block) != 0 {
 		t.Errorf("refused by Cloud, yet saved: %v %+v", err, m.Countries())

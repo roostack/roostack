@@ -117,3 +117,15 @@
   <button type="submit" class="theme-toggle" title="Switch to {{.NextTheme}} theme"
     aria-label="Theme: {{.Theme}}. Switch to {{.NextTheme}}.">{{if eq .Theme "light"}}☀ Light{{else if eq .Theme "dark"}}☾ Dark{{else}}◐ Auto{{end}}</button>
 </form>{{end}}
+
+{{/* A bar chart (barChart): one column a period, its height a share of the
+     tallest, the label under it (may be empty), the exact figure on hover
+     and for screen readers. Heights go through data-height (app.js). */}}
+{{define "bar-chart"}}<figure class="bar-chart">
+  <figcaption>{{.Title}}</figcaption>
+  <div class="bar-cols">{{range .Bars}}<div class="bar-col" title="{{.Title}}"><span class="bar" data-height="{{.Percent}}"></span><span class="bar-label" aria-hidden="true">{{.Label}}</span><span class="sr-only">{{.Title}}</span></div>{{end}}</div>
+</figure>{{end}}
+
+{{/* A ranked list ([]rankView): names with a bar for their share of the
+     largest and the count; Other rows (the rest) in muted colour. */}}
+{{define "rank-list"}}<ul class="rank-list">{{range .}}<li{{if .Other}} class="rank-other"{{end}}><span class="rank-name">{{.Name}}</span><span class="rank-bar" aria-hidden="true"><span data-width="{{.Percent}}"></span></span><span class="rank-count">{{count .Count}}</span></li>{{end}}</ul>{{end}}

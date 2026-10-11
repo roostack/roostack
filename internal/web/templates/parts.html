@@ -641,3 +641,39 @@
   {{- else if .Held}}{{.Name}}.{{$.Suffix}} is kept for the account that had it. If that's yours, you'll get it back once the lab is linked to it.
   {{- else if .Problem}}<span class="name-taken">{{.Problem}}</span>
   {{- else}}Services at <code>photos.<em>name</em>.{{$.Suffix}}</code>, Roostack itself at <code><em>name</em>.{{$.Suffix}}</code>.{{end}}</small>{{end}}
+
+{{/* Visitors through Roostack Cloud's relay (relayStatsView), loaded on its
+     own: Public access (Owners) and /visitors (Admins). */}}
+{{define "relay-stats"}}<section class="card section relay-stats" id="visitors" hx-disinherit="*">
+  <div class="heading">
+    <h2>Visitors through the relay</h2>
+    <nav class="period-choice" aria-label="How far back">{{range .Periods}}<a href="?period={{.Value}}#visitors" hx-get="/partials/relay-stats?period={{.Value}}" hx-target="#visitors" hx-swap="outerHTML"{{if .Current}} aria-current="true"{{end}}>{{.Label}}</a>{{end}}</nav>
+  </div>
+  {{if .Error}}{{notice "warn" .Error}}{{else}}
+  <dl class="stat-tiles">
+    <div><dt>Visitors</dt><dd>{{count .Visitors}}</dd></div>
+    <div><dt>Connections</dt><dd>{{count .Connections}}</dd></div>
+    <div><dt>Data</dt><dd>{{size .Bytes}}</dd><dd class="hint">{{size .BytesOut}} to visitors</dd></div>
+    <div><dt>Turned away</dt><dd>{{count .Refused}}</dd><dd class="hint">for this lab</dd></div>
+  </dl>
+  {{template "bar-chart" .Chart}}
+  <div class="stat-lists">
+    <div>
+      <h3>Where visitors are</h3>
+      {{with .Countries}}{{template "rank-list" .}}{{else}}<p class="hint">No visitors yet.</p>{{end}}
+    </div>
+    <div>
+      <h3>Why connections were turned away</h3>
+      <dl class="facts">
+        <dt>Banned by your CrowdSec</dt><dd>{{count .Banned}}</dd>
+        <dt>From countries you keep out</dt><dd>{{count .Country}}</dd>
+      </dl>
+    </div>
+  </div>
+  <p class="hint">Counts only: Roostack Cloud keeps no record of who visited. A visitor is one address; someone who visits on several days counts once each day.</p>
+  <details class="technical">
+    <summary>Details</summary>
+    <p>Roostack Cloud's edges count connections to this lab as they pass them on, and how many different addresses (an IPv4 address, or an IPv6 /64) they came from, in memory: an hour's or a day's addresses are kept only as scrambled numbers until the period ends, then only how many there were. Countries come from DB-IP's free country database (IP geolocation by DB-IP), and an address it can't place isn't counted under any country. Days are this lab's (midnight to midnight here). Turned away counts connections refused before reaching this server; the edges' own blocklists and limits, which protect every lab, aren't counted here. Kept 13 months.</p>
+  </details>
+  {{end}}
+</section>{{end}}

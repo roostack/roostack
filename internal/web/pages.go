@@ -52,7 +52,7 @@ func navFor(u *store.User, page string) nav {
 // (TestNavTabs checks every template).
 func navTab(page string) string {
 	if tab, ok := map[string]string{
-		"home": "home", "catalog": "services", "install": "services", "remove": "services", "move": "services",
+		"home": "home", "catalog": "services", "install": "services", "remove": "services", "move": "services", "visitors": "services",
 		"restore": "backups", "recovery-key": "settings", "users": "settings", "dns-takeover": "settings",
 		"account": "account", "twofactor": "account", "account-appearance": "account", "account-notifications": "account",
 		"cloud-open": "settings", "cloud-linked": "settings",
@@ -134,6 +134,8 @@ func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
 		data["BuildActivity"] = a
 	}
 	s.addBuiltIns(r, data)
+	// Visitors through the relay, for those who manage services.
+	data["Relayed"] = s.Manager.RelayOn() && auth.Can(currentUser(r).Role, auth.ManageServices)
 	s.render(w, "services", data)
 }
 

@@ -7,7 +7,8 @@
     {{if .CanManage}}<a class="button" href="/catalog">Add a service</a>{{end}}
   </div>
   {{if .CanManage}}<p class="hint">{{if .ShowBuiltIn}}<a href="/services">Hide Roostack's own services</a>
-    {{- else}}<a href="/services?builtin=1">Show Roostack's own services</a> (web proxy, backup stores, Roostack itself, network links){{end}}</p>{{end}}
+    {{- else}}<a href="/services?builtin=1">Show Roostack's own services</a> (web proxy, backup stores, Roostack itself, network links){{end}}
+    {{- if .Relayed}} · <a href="/visitors">Visitors through the relay</a>{{end}}</p>{{end}}
   {{with .BuildActivity}}
   <section class="card section">
     <h2>Roostack's web proxy</h2>

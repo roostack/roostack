@@ -39,6 +39,8 @@
   // from this script. Applied at load and to every part htmx swaps in.
   const widths = (root) => {
     for (const el of root.querySelectorAll("[data-width]")) el.style.width = `${Number(el.dataset.width) || 0}%`;
+    // Columns (the bar-chart) give their heights the same way.
+    for (const el of root.querySelectorAll("[data-height]")) el.style.height = `${Number(el.dataset.height) || 0}%`;
   };
   document.addEventListener("DOMContentLoaded", () => widths(document));
   document.addEventListener("htmx:load", (e) => widths(e.detail.elt));

@@ -49,6 +49,8 @@ var templateFuncs = template.FuncMap{
 	"palette": func() string { return DefaultPalette },
 	"themes":  func() []Theme { return Themes },
 	"bytes":   func(n uint64) string { return units.Bytes(int64(n)) },
+	// count is a count with thousands separators ("1,284").
+	"count": units.Count,
 	// roleName shows a role as people say it ("Owner").
 	"idleText": idleText,
 	"roleName": func(role string) string {

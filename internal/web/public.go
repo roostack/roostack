@@ -302,6 +302,7 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 		data["CanRelay"], data["Relay"] = s.canRelay(), s.Manager.RelayOn()
 		data["RelayError"] = r.FormValue("relay_error")
 		if s.Manager.RelayOn() {
+			data["VisitorsPeriod"] = r.FormValue("period")
 			c := s.Manager.Countries()
 			data["Countries"], data["CountryList"] = c, countryList()
 			data["CountriesOpen"] = c.Open(time.Now())

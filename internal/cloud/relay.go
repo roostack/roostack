@@ -27,13 +27,14 @@ type relayState struct {
 	// in, and Relay Cloud's answer.
 	Hosts     []string                `json:"hosts"`
 	Countries cloudapi.RelayCountries `json:"countries,omitzero"`
+	TimeZone  string                  `json:"time_zone,omitempty"`
 	Relay     cloudapi.Relay          `json:"relay"`
 }
 
 // same says whether a relay asked for is the one there is.
-func (st *relayState) same(hosts []string, c cloudapi.RelayCountries) bool {
+func (st *relayState) same(hosts []string, c cloudapi.RelayCountries, tz string) bool {
 	return st != nil && slices.Equal(st.Hosts, hosts) && slices.Equal(st.Countries.Allow, c.Allow) &&
-		slices.Equal(st.Countries.Block, c.Block) && st.Countries.OpenUntil.Equal(c.OpenUntil)
+		slices.Equal(st.Countries.Block, c.Block) && st.Countries.OpenUntil.Equal(c.OpenUntil) && st.TimeZone == tz
 }
 
 // placeholderAddr is the relay interface's address before Cloud has given
@@ -45,8 +46,9 @@ const placeholderAddr = "100.81.255.254/32"
 // WireGuard interface (and its key), Cloud is told the key and the names
 // and answers with the edges, then the interface dials every edge. Asking
 // again with the same names and countries changes nothing; with others,
-// Cloud is told. Countries are who the edges let in (Cloud checks them).
-func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Countries) error {
+// Cloud is told. Countries are who the edges let in (Cloud checks them),
+// and tz the lab's time zone (its statistics' days).
+func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Countries, tz string) error {
 	if s.WireGuard == nil {
 		return errors.New("nothing here can set up the relay's network")
 	}
@@ -58,7 +60,7 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 	if !linked {
 		return errors.New("the lab isn't linked to Roostack Cloud")
 	}
-	if cur.same(hosts, c) {
+	if cur.same(hosts, c, tz) {
 		return nil
 	}
 	addr := placeholderAddr
@@ -70,14 +72,14 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 		return fmt.Errorf("setting up the relay's network: %w", err)
 	}
 	var relay cloudapi.Relay
-	if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRelay, cloudapi.RelayRequest{PublicKey: pub, Hosts: hosts, Countries: c}, &relay); err != nil {
+	if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRelay, cloudapi.RelayRequest{PublicKey: pub, Hosts: hosts, Countries: c, TimeZone: tz}, &relay); err != nil {
 		return err
 	}
 	a, err := netip.ParseAddr(relay.Addr)
 	if err != nil || !agent.RelayRange.Contains(a) || len(relay.Edges) == 0 {
 		return errors.New("Roostack Cloud's answer had no relay address or edges")
 	}
-	st := &relayState{Hosts: hosts, Countries: c, Relay: relay}
+	st := &relayState{Hosts: hosts, Countries: c, TimeZone: tz, Relay: relay}
 	if _, err := s.WireGuard.ApplyWireGuard(ctx, s.relayInterface(fmt.Sprintf("%s/%d", relay.Addr, relay.Prefix), st)); err != nil {
 		return fmt.Errorf("connecting to Roostack Cloud's edges: %w", err)
 	}
@@ -155,6 +157,24 @@ func (s *Service) sendBans(ctx context.Context, bans func(context.Context) ([]st
 		list = list[:cloudapi.MaxRelayBans]
 	}
 	return s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRelayBans, cloudapi.RelayBans{Bans: list}, nil)
+}
+
+// RelayStats are the lab's statistics through the relay for the last days
+// (by the hour, or by the day in its time zone). Not relayed: none.
+func (s *Service) RelayStats(ctx context.Context, days int, byDay bool) (cloudapi.RelayStats, error) {
+	var st cloudapi.RelayStats
+	s.mu.Lock()
+	relayed := s.st.Linked && s.st.Relay != nil
+	s.mu.Unlock()
+	if !relayed {
+		return st, nil
+	}
+	path := fmt.Sprintf("%s?days=%d", cloudapi.PathLabRelayStats, days)
+	if byDay {
+		path += "&by=day"
+	}
+	err := s.client.do(ctx, true, http.MethodGet, path, nil, &st)
+	return st, err
 }
 
 // RelayEdges are the relay's edges as Cloud last said (nil when not

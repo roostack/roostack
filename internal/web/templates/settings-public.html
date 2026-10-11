@@ -10,7 +10,7 @@
   <table class="records">
     <thead><tr><th>Public address</th><th>DNS record</th></tr></thead>
     <tbody>
-      {{range .}}<tr><td><code>{{.Host}}</code></td><td>{{if and (eq .State "ok") $.Edge}}Points at {{$.Edge.Name}}{{else}}{{publicState .State}}{{end}}{{with .IP}} <span class="hint">({{.}})</span>{{end}}</td></tr>{{end}}
+      {{range .}}<tr><td><code>{{.Host}}</code></td><td>{{if and (eq .State "ok") $.Relay}}Points at Roostack Cloud's relay{{else if and (eq .State "ok") $.Edge}}Points at {{$.Edge.Name}}{{else}}{{publicState .State}}{{end}}{{with .IP}} <span class="hint">({{.}})</span>{{end}}</td></tr>{{end}}
     </tbody>
   </table>
   {{else}}
@@ -55,6 +55,10 @@
 </section>
 {{end}}
 {{if .Relay}}
+<section class="card section" id="visitors" hx-get="/partials/relay-stats?period={{.VisitorsPeriod}}" hx-trigger="load" hx-swap="outerHTML" hx-disinherit="*">
+  <h2>Visitors through the relay</h2>
+  <p class="hint"><span class="spinner" aria-hidden="true"></span> Asking Roostack Cloud…</p>
+</section>
 <section class="card section" id="countries">
   <h2>Visitors by country</h2>
   {{if eq .Saved "countries"}}<p class="notice notice-ok" role="status">Saved. Roostack Cloud's relay applies it within a minute.</p>{{end}}

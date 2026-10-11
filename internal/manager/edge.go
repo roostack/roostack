@@ -160,9 +160,10 @@ func publicHostsOf(lab config.Lab, services []state.Service, old bool) []string 
 // Relay is Roostack Cloud's relay, as the lab sees it: set by the
 // controller from the cloud package (nil: no Cloud).
 type Relay struct {
-	// Set relays hosts, letting in visitors by countries (again: no change
-	// if they're the same), Stop stops.
-	Set  func(ctx context.Context, hosts []string, countries config.Countries) error
+	// Set relays hosts, letting in visitors by countries, with the lab's
+	// time zone for its statistics (again: no change if they're the same),
+	// Stop stops.
+	Set  func(ctx context.Context, hosts []string, countries config.Countries, tz string) error
 	Stop func(ctx context.Context) error
 	// Edges are its edges' relay addresses (for Caddy) and public IPv4
 	// addresses (for DNS), when it's on.
@@ -196,7 +197,7 @@ func (m *Manager) SetRelay(ctx context.Context, on bool) error {
 		m.mu.Lock()
 		countries := m.publicLocked().Countries
 		m.mu.Unlock()
-		if err := m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), countries); err != nil {
+		if err := m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), countries, m.Lab.Timezone); err != nil {
 			return err
 		}
 	} else if err := m.Relay.Stop(ctx); err != nil {
@@ -248,7 +249,7 @@ func (m *Manager) SetCountries(ctx context.Context, c config.Countries) error {
 		if err != nil {
 			return err
 		}
-		if err := m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), c); err != nil {
+		if err := m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), c, m.Lab.Timezone); err != nil {
 			return err
 		}
 	}
@@ -269,9 +270,9 @@ func (m *Manager) relayFor(services []state.Service) []string {
 		return nil
 	}
 	if m.Relay.Set != nil {
-		hosts, countries := publicHostsOf(m.Lab, services, false), m.publicLocked().Countries
+		hosts, countries, tz := publicHostsOf(m.Lab, services, false), m.publicLocked().Countries, m.Lab.Timezone
 		go func() {
-			if err := m.Relay.Set(context.Background(), hosts, countries); err != nil {
+			if err := m.Relay.Set(context.Background(), hosts, countries, tz); err != nil {
 				m.Log.Error("updating Roostack Cloud's relay", "err", err)
 			}
 		}()

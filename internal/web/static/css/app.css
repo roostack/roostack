@@ -531,3 +531,34 @@ h1 + .area-heading { margin-top: 0; }
   padding: var(--space-2) var(--space-3); border-radius: var(--radius); border: 1px solid transparent; }
 .server-switcher li.current { border-color: var(--accent); background: var(--surface-2); }
 .server-switcher a { text-decoration: none; }
+
+/* ---------- Statistics (Visitors through the relay) ---------- */
+/* A row of choices for how far back (links; the current one marked). */
+.period-choice { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.period-choice a { padding: var(--space-1) var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: var(--text-sm); text-decoration: none; color: var(--fg); }
+.period-choice a[aria-current] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+/* Figures in tiles. */
+.stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: var(--space-2); margin: var(--space-3) 0; }
+.stat-tiles > div { background: var(--surface-2); border-radius: var(--radius); padding: var(--space-2) var(--space-3); }
+.stat-tiles dt { font-size: var(--text-sm); color: var(--muted); }
+.stat-tiles dd { margin: 0; font-size: var(--text-xl); }
+.stat-tiles dd.hint { font-size: var(--text-sm); }
+/* The bar chart: columns, their heights from data-height (app.js). */
+.bar-chart { margin: var(--space-3) 0; }
+.bar-chart figcaption { font-size: var(--text-sm); color: var(--muted); margin-bottom: var(--space-1); }
+.bar-cols { display: flex; align-items: stretch; gap: 3px; height: 7rem; }
+.bar-col { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; }
+.bar { display: block; background: var(--chart-1); border-radius: 3px 3px 0 0; min-height: 1px; }
+.bar-label { height: 1.5em; font-size: var(--text-sm); color: var(--muted); text-align: center; white-space: nowrap;
+  border-top: 1px solid var(--border); padding-top: 2px; overflow: visible; }
+/* A ranked list: name, a bar for its share (data-width), the count. */
+.rank-list { list-style: none; margin: 0; padding: 0; }
+.rank-list li { display: grid; grid-template-columns: minmax(6rem, 9rem) 1fr auto; gap: var(--space-2); align-items: center;
+  padding: 2px 0; }
+.rank-bar { height: 8px; border-radius: var(--radius-pill); background: var(--surface-2); overflow: hidden; }
+.rank-bar > span { display: block; height: 100%; background: var(--chart-1); }
+.rank-other .rank-bar > span { background: var(--muted); }
+.rank-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+.stat-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-4); }
+.stat-lists h3 { font-size: var(--text-sm); color: var(--muted); font-weight: normal; margin: 0 0 var(--space-1); }

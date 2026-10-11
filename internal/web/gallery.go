@@ -281,6 +281,20 @@ var gallerySections = []gallerySection{
 </div>
 {{template "install-line" .InstallService}}`},
 		}},
+	{ID: "statistics", Title: "Statistics", Intro: "Counts over time, such as visitors through Roostack Cloud's relay. Heights and widths go through data-height and data-width (app.js), as style attributes are blocked.",
+		Examples: []galleryExample{
+			{"Figures", "dl.stat-tiles: a few totals, each a dt and dd, with an optional dd.hint.", `
+<dl class="stat-tiles">
+  <div><dt>Visitors</dt><dd>1,284</dd></div>
+  <div><dt>Data</dt><dd>3.2 GB</dd><dd class="hint">2.9 GB to visitors</dd></div>
+</dl>`},
+			{"Bar chart", "template \"bar-chart\" with a barChart: a caption and a column a period, its label under it (may be empty) and the exact figure on hover and for screen readers.", `
+{{template "bar-chart" .Chart}}`},
+			{"Ranked list", "template \"rank-list\" with []rankView: names, a bar for each one's share of the largest, the count; the rest (Other) muted.", `
+{{template "rank-list" .Ranks}}`},
+			{"Choice of period", "nav.period-choice: links, the current one with aria-current.", `
+<nav class="period-choice" aria-label="How far back"><a href="#">Today</a><a href="#" aria-current="true">7 days</a><a href="#">30 days</a></nav>`},
+		}},
 	{ID: "secrets", Title: "Secrets and codes", Intro: "Values to copy, such as a temporary password: shown once, easy to select.",
 		Examples: []galleryExample{
 			{"Secret", "", `
@@ -365,7 +379,10 @@ func gallerySamples() map[string]any {
 		{Title: "Finishing setup (create the administrator account)"},
 	}}
 	return map[string]any{
-		"Install":          install,
+		"Install": install,
+		"Chart": barChart{Title: "Visitors each day", Bars: bars([]int64{40, 55, 48, 70, 95, 62, 35},
+			[]string{"Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Today"}, []string{"40 visitors", "55 visitors", "48 visitors", "70 visitors", "95 visitors", "62 visitors", "35 visitors"})},
+		"Ranks":            topCountries(map[string]int64{"AU": 1130, "NZ": 96, "GB": 41}, 1284, 4),
 		"InstallService":   ServiceView{ServiceDetail: node.ServiceDetail{Install: install}},
 		"Settings":         areaNav{Label: "Settings", Home: "/settings", HomeTitle: "All settings", Groups: settingsGroups(), Active: "updates"},
 		"UpdatesActivity":  view("Installing updates", "", false, "==> Installing updates", "Unpacking curl (8.14.1-2+deb13u5) ..."),
