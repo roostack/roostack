@@ -58,6 +58,10 @@ type Fake struct {
 	Relayed map[string]cloudapi.RelayRequest
 	// Bans are each relayed lab's CrowdSec bans as last sent.
 	Bans map[string][]string
+	// RelayStats is what the relay's statistics answer, and StatsQuery
+	// the query it was last asked with.
+	RelayStats cloudapi.RelayStats
+	StatsQuery string
 
 	caCert *x509.Certificate
 	caKey  *ecdsa.PrivateKey
@@ -265,7 +269,7 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			reply(w, cloudapi.NameAvailability{Available: true})
 		}
 	case r.URL.Path == cloudapi.PathLab || r.URL.Path == cloudapi.PathLabRenew || r.URL.Path == cloudapi.PathLabName ||
-		r.URL.Path == cloudapi.PathLabRelay || r.URL.Path == cloudapi.PathLabRelayBans:
+		r.URL.Path == cloudapi.PathLabRelay || r.URL.Path == cloudapi.PathLabRelayBans || r.URL.Path == cloudapi.PathLabRelayStats:
 		f.labAPI(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/update":
 		f.acmeUpdate(w, r)
@@ -376,6 +380,9 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 		delete(f.Relayed, id)
 		delete(f.Bans, id)
 		reply(w, map[string]any{})
+	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLabRelayStats:
+		f.StatsQuery = r.URL.RawQuery
+		reply(w, f.RelayStats)
 	case r.Method == http.MethodPut && r.URL.Path == cloudapi.PathLabRelayBans:
 		if _, ok := f.Relayed[id]; !ok {
 			fail(w, http.StatusNotFound, "This lab isn't relayed.")

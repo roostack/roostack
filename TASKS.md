@@ -202,6 +202,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] HTTP/3 through an edge, if Caddy gains a way to learn a QUIC visitor's address (ASSUMPTIONS Q7)
   - [x] Then Roostack Cloud's relay, on the same mechanism: its first slice (SPEC §10.5, 2026-10-11), tried over the internet with VM3 through the test edge
   - [x] The relay's second slice, Roostack's side (SPEC §10.5, 2026-10-11): "Visitors by country" (anyone, only some, all but some; "Let everyone in" for travel), CrowdSec's own bans sent to Cloud every 5 minutes; tried over the internet with VM3
+  - [x] Visitors through the relay (SPEC §10.5, 2026-10-12): Cloud's counts for the lab on Public access (Owners) and `/visitors` (Admins)
   - [ ] Countries per service (Cloud's DESIGN §5 says the Owner's settings are per service), once the lab-wide setting has been used
   - [ ] Countries for the other ways in (port forwarding, the lab's own edge), in the lab's own Caddy, which could show a page saying why
   - [ ] **WAF, step 1 (agreed 2026-10-06, SPEC §6.10):** CrowdSec AppSec virtual patching, on by default for public services. Check the pinned `caddy-crowdsec-bouncer` passes requests to AppSec; add the AppSec component and its virtual-patching collection to the CrowdSec container; show what it blocked (service page, weekly summary); a test that a known exploit request is refused

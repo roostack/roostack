@@ -28,3 +28,16 @@ func Bytes(n int64) string {
 	}
 	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "kMGTP"[exp])
 }
+
+// Count formats a count with thousands separators, e.g. "1,284".
+func Count(n int64) string {
+	s := fmt.Sprint(n)
+	neg := ""
+	if n < 0 {
+		neg, s = "-", s[1:]
+	}
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return neg + s
+}

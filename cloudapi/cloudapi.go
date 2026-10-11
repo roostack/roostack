@@ -131,6 +131,9 @@ type RelayRequest struct {
 	Hosts     []string `json:"hosts"`
 	// Countries is who the edges let in by country (none set: anyone).
 	Countries RelayCountries `json:"countries"`
+	// TimeZone is the lab's (IANA, e.g. Australia/Sydney): its statistics'
+	// days run midnight to midnight there. Empty is UTC.
+	TimeZone string `json:"time_zone,omitempty"`
 }
 
 // RelayCountries limits the lab's visitors at the edges by country, with
@@ -152,21 +155,23 @@ type RelayBans struct {
 }
 
 // RelayStats are the lab's statistics through the relay, oldest first:
-// by the hour (the last 31 days at most), or by the day (by=day, up to
-// 400). Counts only: nothing about any visitor is kept. Visitors are
-// different addresses (an IPv4 address, or an IPv6 /64) in an hour; a
-// day's is the sum of its hours', so someone visiting all day counts in
-// each hour.
+// by the hour (the last 31 days at most), or by the day in the lab's time
+// zone (by=day, up to 400). Counts only: nothing about any visitor is
+// kept. Visitors are different addresses (an IPv4 address, or an IPv6
+// /64) in the period: someone who visits all day counts once that day.
 type RelayStats struct {
 	Periods []RelayPeriod `json:"periods"`
 }
 
-// RelayPeriod is an hour's or a day's (UTC) statistics. Bytes are only
-// counted by the day (BytesIn from visitors, BytesOut to them). Refused
-// counts connections turned away for the lab, by why ("banned" by its
-// CrowdSec, "country").
+// RelayPeriod is an hour's or a day's statistics. A day has Day
+// (YYYY-MM-DD in the lab's time zone) and Start at its midnight there.
+// Bytes are only counted by the day (BytesIn from visitors, BytesOut to
+// them), attributed to the hour they were sent in. Refused counts
+// connections turned away for the lab, by why ("banned" by its CrowdSec,
+// "country").
 type RelayPeriod struct {
 	Start       time.Time        `json:"start"`
+	Day         string           `json:"day,omitempty"`
 	Connections int64            `json:"connections"`
 	Visitors    int64            `json:"visitors"`
 	Countries   map[string]int64 `json:"countries,omitempty"`

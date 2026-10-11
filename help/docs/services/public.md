@@ -101,6 +101,16 @@ limit comes back by itself afterwards.
 Addresses your lab's CrowdSec bans are turned away by the relay too, for
 your lab only, so an attacker it caught doesn't keep using your bandwidth.
 
+### Visitors through the relay
+
+While the relay is on, **Settings → Public access** (or, for Admins,
+**Services → Visitors through the relay**) shows how many people visited
+today, in the last 7 or 30 days, or the last year: visitors, connections,
+data, where visitors are, and connections turned away and why. They're
+counts only: Roostack Cloud keeps no record of who visited. A visitor is
+one address, so a family behind one home connection counts once, and
+someone who visits on several days counts once each day.
+
 ??? note "For technical users"
 
     The relay's edges look up each visitor's address in DB-IP's free
