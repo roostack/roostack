@@ -170,6 +170,8 @@ func serve(args []string) error {
 			}
 			return relay, pub
 		}}
+		// How the relay stands (the own domain's proof), every 5 minutes.
+		go link.RefreshRelay(ctx, 5*time.Minute)
 		// The lab's own CrowdSec bans, refused at the relay's edges too.
 		go link.SendBans(ctx, 5*time.Minute, func(ctx context.Context) ([]string, error) {
 			return public.CrowdSecBans(ctx, userLaunch, generate.CrowdSecUnit)
@@ -376,6 +378,33 @@ func serve(args []string) error {
 			LinkWanted: func() bool { v, _ := st.Setting(context.Background(), web.LinkWantedKey); return v == "on" },
 			// Another copy of this lab runs it now: leave its records alone.
 			Paused: func() bool { v, _ := st.Setting(context.Background(), backup.FenceKey); return v != "" },
+			// The lab's own domain relayed through Roostack Cloud: public
+			// addresses are CNAMEs to its relay name, with the proof's TXT.
+			Relay: func() (dnsrecords.Relayed, bool) {
+				if link == nil || !mgr.RelayOn() || lab.RoostAc() {
+					return dnsrecords.Relayed{}, false
+				}
+				name, d := link.RelayName()
+				r := dnsrecords.Relayed{Name: name}
+				if d != nil {
+					r.ProofName, r.ProofValue = d.ProofName, d.ProofValue
+				}
+				return r, name != ""
+			},
+			// The proof is in place: have Cloud look for it now, while
+			// it hasn't found it (it asks no more often than every 5 s).
+			ProofSet: func() {
+				if link == nil {
+					return
+				}
+				if _, d := link.RelayName(); d != nil && (!d.Verified || d.Missing) {
+					go func() {
+						if err := mgr.CheckRelay(context.Background()); err != nil {
+							log.Warn("asking Roostack Cloud to look for the domain's proof", "err", err)
+						}
+					}()
+				}
+			},
 		}
 		go records.Run(ctx, 30*time.Minute)
 		srv.DNS = records

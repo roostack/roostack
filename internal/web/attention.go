@@ -180,6 +180,24 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 				}
 			}
 		}
+		// The lab's own domain through the relay, not proven (yet, or any
+		// more): its public addresses aren't (or soon won't be) relayed.
+		if owner && len(s.Manager.PublicHosts()) > 0 {
+			if d := s.relayDomain(); d != nil {
+				switch {
+				case d.Verified && d.Missing:
+					items = append(items, attentionItem{Level: levelProblem, Key: "relay-proof-missing:" + d.Domain,
+						Text: "Roostack Cloud can't find the record proving " + d.Domain + " is this lab's any more. " +
+							"Public services stop coming through the relay a day after it went: put it back.",
+						Link: "/settings/public#way-in", LinkText: "Public access"})
+				case !d.Verified:
+					items = append(items, attentionItem{Level: levelWarning, Key: "relay-proof:" + d.Domain,
+						Text: "Public services aren't coming through Roostack Cloud's relay yet: it's waiting for the record " +
+							"proving " + d.Domain + " is this lab's.",
+						Link: "/settings/public#way-in", LinkText: "Public access"})
+				}
+			}
+		}
 		if services, err := s.Services(r.Context()); err == nil {
 			// Services whose server is gone: information, not a problem (SPEC.md
 			// §10.10): they wait until the Owner restores or removes them.

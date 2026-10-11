@@ -82,6 +82,20 @@ a cloud server of your own, the relay passes connections on **still
 encrypted**: Roostack Cloud can't read them, and the certificate stays in
 your lab. It's part of a paid plan (by invitation while it's tried out).
 
+### With your own domain
+
+If your lab's address is your own domain (such as `lab.example.com`) rather
+than a roost.ac name, Roostack Cloud first needs to know the domain is yours,
+so nobody else can send your names through the relay. Roostack adds a record
+for that at your DNS provider, `_roostack.lab.example.com` (TXT), and points
+each public address at Roostack Cloud with a CNAME record. If Roostack doesn't
+manage your DNS records, **Settings → Public access** shows the records to
+add yourself, with a **Check now** button.
+
+Until Roostack Cloud finds the record, public addresses don't come through
+the relay; Home says so. If the record is ever deleted, they stop a day later,
+and Home shows it as a problem, so you have time to put it back.
+
 ### Visitors by country
 
 While the relay is on, **Settings → Public access → Visitors by country**

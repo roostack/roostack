@@ -62,6 +62,9 @@ type Fake struct {
 	// the query it was last asked with.
 	RelayStats cloudapi.RelayStats
 	StatsQuery string
+	// DomainVerified says a relayed lab's own domain is proven (its TXT
+	// record found).
+	DomainVerified bool
 
 	caCert *x509.Certificate
 	caKey  *ecdsa.PrivateKey
@@ -373,9 +376,14 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 			f.Relayed = map[string]cloudapi.RelayRequest{}
 		}
 		f.Relayed[id] = req
-		reply(w, cloudapi.Relay{Addr: "100.81.1.1", Prefix: 16, Edges: []cloudapi.RelayEdge{{Name: "syd-1",
-			Endpoint: "198.51.100.10:51830", PublicKey: "ZWRnZWVkZ2VlZGdlZWRnZWVkZ2VlZGdlZWRnZWVkZ2U=", Addr: "100.81.0.1",
-			PublicIPv4: "198.51.100.10"}}})
+		reply(w, f.relay(req))
+	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLabRelay:
+		req, ok := f.Relayed[id]
+		if !ok {
+			fail(w, http.StatusNotFound, "This lab isn't relayed.")
+			return
+		}
+		reply(w, f.relay(req))
 	case r.Method == http.MethodDelete && r.URL.Path == cloudapi.PathLabRelay:
 		delete(f.Relayed, id)
 		delete(f.Bans, id)
@@ -586,4 +594,20 @@ func Start(t testing.TB) (*Fake, config.Cloud) {
 		t.Fatal(err)
 	}
 	return f, config.Cloud{URL: srv.URL, CAFile: ca}
+}
+
+// relay is the fake's answer to a relay request: one edge, a relay name,
+// and the own domain's proof (verified as DomainVerified says).
+func (f *Fake) relay(req cloudapi.RelayRequest) cloudapi.Relay {
+	r := cloudapi.Relay{Addr: "100.81.1.1", Prefix: 16, Name: "r-test.relay.roost.test", Edges: []cloudapi.RelayEdge{{Name: "syd-1",
+		Endpoint: "198.51.100.10:51830", PublicKey: "ZWRnZWVkZ2VlZGdlZWRnZWVkZ2VlZGdlZWRnZWVkZ2U=", Addr: "100.81.0.1",
+		PublicIPv4: "198.51.100.10"}}}
+	if req.Domain != "" {
+		r.Domain = &cloudapi.RelayDomain{Domain: req.Domain, ProofName: "_roostack." + req.Domain, ProofValue: "roostack-proof=test",
+			Verified: f.DomainVerified}
+		if !f.DomainVerified {
+			r.Domain.Problem = "There's no TXT record at _roostack." + req.Domain + " yet."
+		}
+	}
+	return r
 }

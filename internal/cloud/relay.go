@@ -28,13 +28,18 @@ type relayState struct {
 	Hosts     []string                `json:"hosts"`
 	Countries cloudapi.RelayCountries `json:"countries,omitzero"`
 	TimeZone  string                  `json:"time_zone,omitempty"`
-	Relay     cloudapi.Relay          `json:"relay"`
+	// Domain is the lab's own domain whose names are relayed ("": none).
+	Domain string         `json:"domain,omitempty"`
+	Relay  cloudapi.Relay `json:"relay"`
 }
 
 // same says whether a relay asked for is the one there is.
-func (st *relayState) same(hosts []string, c cloudapi.RelayCountries, tz string) bool {
+// A domain not proven yet is never the same: asking again looks for its
+// proof.
+func (st *relayState) same(hosts []string, c cloudapi.RelayCountries, tz, domain string) bool {
 	return st != nil && slices.Equal(st.Hosts, hosts) && slices.Equal(st.Countries.Allow, c.Allow) &&
-		slices.Equal(st.Countries.Block, c.Block) && st.Countries.OpenUntil.Equal(c.OpenUntil) && st.TimeZone == tz
+		slices.Equal(st.Countries.Block, c.Block) && st.Countries.OpenUntil.Equal(c.OpenUntil) && st.TimeZone == tz &&
+		st.Domain == domain && (domain == "" || st.Relay.Domain != nil && st.Relay.Domain.Verified && !st.Relay.Domain.Missing)
 }
 
 // placeholderAddr is the relay interface's address before Cloud has given
@@ -47,8 +52,10 @@ const placeholderAddr = "100.81.255.254/32"
 // and answers with the edges, then the interface dials every edge. Asking
 // again with the same names and countries changes nothing; with others,
 // Cloud is told. Countries are who the edges let in (Cloud checks them),
-// and tz the lab's time zone (its statistics' days).
-func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Countries, tz string) error {
+// tz the lab's time zone (its statistics' days), and domain the lab's own
+// domain whose names in hosts are relayed once proven ("": none; Cloud's
+// DESIGN §5, "Custom domains through the relay").
+func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Countries, tz, domain string) error {
 	if s.WireGuard == nil {
 		return errors.New("nothing here can set up the relay's network")
 	}
@@ -60,7 +67,7 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 	if !linked {
 		return errors.New("the lab isn't linked to Roostack Cloud")
 	}
-	if cur.same(hosts, c, tz) {
+	if cur.same(hosts, c, tz, domain) {
 		return nil
 	}
 	addr := placeholderAddr
@@ -72,14 +79,14 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 		return fmt.Errorf("setting up the relay's network: %w", err)
 	}
 	var relay cloudapi.Relay
-	if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRelay, cloudapi.RelayRequest{PublicKey: pub, Hosts: hosts, Countries: c, TimeZone: tz}, &relay); err != nil {
+	if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRelay, cloudapi.RelayRequest{PublicKey: pub, Hosts: hosts, Countries: c, TimeZone: tz, Domain: domain}, &relay); err != nil {
 		return err
 	}
 	a, err := netip.ParseAddr(relay.Addr)
 	if err != nil || !agent.RelayRange.Contains(a) || len(relay.Edges) == 0 {
 		return errors.New("Roostack Cloud's answer had no relay address or edges")
 	}
-	st := &relayState{Hosts: hosts, Countries: c, TimeZone: tz, Relay: relay}
+	st := &relayState{Hosts: hosts, Countries: c, TimeZone: tz, Domain: domain, Relay: relay}
 	if _, err := s.WireGuard.ApplyWireGuard(ctx, s.relayInterface(fmt.Sprintf("%s/%d", relay.Addr, relay.Prefix), st)); err != nil {
 		return fmt.Errorf("connecting to Roostack Cloud's edges: %w", err)
 	}
@@ -175,6 +182,54 @@ func (s *Service) RelayStats(ctx context.Context, days int, byDay bool) (cloudap
 	}
 	err := s.client.do(ctx, true, http.MethodGet, path, nil, &st)
 	return st, err
+}
+
+// RelayName is the lab's relay name (its own domain's names point at it
+// with a CNAME), and RelayDomain how that domain's proof stands (nil:
+// none), as Cloud last said.
+func (s *Service) RelayName() (string, *cloudapi.RelayDomain) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.st.Relay == nil {
+		return "", nil
+	}
+	d := s.st.Relay.Relay.Domain
+	if d != nil {
+		c := *d
+		d = &c
+	}
+	return s.st.Relay.Relay.Name, d
+}
+
+// RefreshRelay asks Cloud how the relay stands (its own domain's proof,
+// the edges), keeping its answer, every so often until ctx ends.
+func (s *Service) RefreshRelay(ctx context.Context, every time.Duration) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(every):
+		}
+		s.mu.Lock()
+		relayed := s.st.Linked && s.st.Relay != nil
+		s.mu.Unlock()
+		if !relayed {
+			continue
+		}
+		var relay cloudapi.Relay
+		if err := s.client.do(ctx, true, http.MethodGet, cloudapi.PathLabRelay, nil, &relay); err != nil {
+			s.log.Warn("Roostack Cloud: asking how the relay stands", "err", err)
+			continue
+		}
+		s.mu.Lock()
+		if s.st.Relay != nil && relay.Addr == s.st.Relay.Relay.Addr {
+			s.st.Relay.Relay.Domain, s.st.Relay.Relay.Name = relay.Domain, relay.Name
+			if err := s.save(); err != nil {
+				s.log.Warn("Roostack Cloud: saving how the relay stands", "err", err)
+			}
+		}
+		s.mu.Unlock()
+	}
 }
 
 // RelayEdges are the relay's edges as Cloud last said (nil when not

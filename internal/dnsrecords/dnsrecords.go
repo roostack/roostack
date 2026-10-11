@@ -72,6 +72,9 @@ type Status struct {
 	Internet bool
 	// Link is link.<domain>'s record, once it's wanted (link.go).
 	Link *PublicRecord
+	// Proof is the TXT record proving the domain is the lab's, while it's
+	// relayed through Roostack Cloud (relay.go).
+	Proof *PublicRecord
 }
 
 // Secrets reads Podman secret values (the DNS credentials).
@@ -109,6 +112,13 @@ type Manager struct {
 	// Paused stops updating records (optional): this copy of the lab is
 	// out of date, another one runs it (backup.Fence).
 	Paused func() bool
+	// Relay says the lab's own domain is relayed through Roostack Cloud
+	// (optional): public addresses are then CNAMEs to its relay name, and
+	// a TXT record proves the domain (relay.go).
+	Relay func() (Relayed, bool)
+	// ProofSet is told the proof's TXT record is in place (optional), so
+	// Roostack Cloud can be asked to look for it at once.
+	ProofSet func()
 
 	mu     sync.Mutex
 	status Status
@@ -290,6 +300,9 @@ func (m *Manager) Sync(ctx context.Context) Status {
 		} else {
 			st.Public, st.PublicIP = m.publicManual(ctx)
 		}
+		if relay, ok := m.relayed(); ok {
+			_, st.Proof = m.relayedManual(ctx, relay)
+		}
 		st = m.linkManual(ctx, st)
 		return m.set(st)
 	}
@@ -346,6 +359,7 @@ func (m *Manager) Sync(ctx context.Context) Status {
 	} else {
 		st.Public, st.PublicIP = m.syncPublic(ctx, p, values, zone, ip)
 	}
+	st.Proof = m.syncProof(ctx, p, values, zone)
 	st = m.linkManaged(ctx, st, p, values, zone)
 	return m.set(st)
 }
@@ -388,34 +402,59 @@ func (m *Manager) Records(ctx context.Context) ([]Record, error) {
 	return recs, nil
 }
 
-// ensure creates or updates the record, but only if Roostack owns it (or it
-// doesn't exist, or already has the right value).
+// ensure creates or updates the A record, but only if Roostack owns it (or
+// it doesn't exist, or already has the right value).
 func (m *Manager) ensure(ctx context.Context, p *dns.Provider, values map[string]string, zone, name, ip string) error {
-	fqdn := name + "." + zone
-	if name == "" {
-		fqdn = zone // the zone's own name
-	}
-	key := ownerKey(fqdn, "A")
+	return m.ensureRecord(ctx, p, values, zone, name, "A", ip)
+}
+
+// ensureRecord is ensure for a record of any type.
+func (m *Manager) ensureRecord(ctx context.Context, p *dns.Provider, values map[string]string, zone, name, typ, value string) error {
+	fqdn := fqdnOf(zone, name)
+	key := ownerKey(fqdn, typ)
 	owned, err := m.Store.Setting(ctx, key)
 	if err != nil {
 		return err
 	}
-	current, err := p.GetRecord(ctx, m.HTTP, values, zone, name, "A")
+	current, err := p.GetRecord(ctx, m.HTTP, values, zone, name, typ)
 	if err != nil {
 		return fmt.Errorf("reading %s from %s: %w", fqdn, p.Title, err)
 	}
 	switch {
-	case len(current) == 1 && current[0] == ip:
+	case len(current) == 1 && current[0] == value:
 		// Already right; adopt it if Roostack didn't create it.
 	case len(current) == 0 || owned != "":
-		if err := p.SetRecord(ctx, m.HTTP, values, zone, name, "A", ip); err != nil {
+		if err := p.SetRecord(ctx, m.HTTP, values, zone, name, typ, value); err != nil {
 			return fmt.Errorf("updating %s at %s: %w", fqdn, p.Title, err)
 		}
-		m.Log.Info("DNS record set", "record", fqdn, "ip", ip)
+		m.Log.Info("DNS record set", "record", fqdn, "type", typ, "value", value)
 	default:
-		return &conflictError{record: fqdn, current: strings.Join(current, ", "), want: ip}
+		return &conflictError{record: fqdn, current: strings.Join(current, ", "), want: value}
 	}
-	return m.Store.SetSetting(ctx, key, ip)
+	return m.Store.SetSetting(ctx, key, value)
+}
+
+// removeOwned deletes a record Roostack set (none, or one it didn't set:
+// left alone).
+func (m *Manager) removeOwned(ctx context.Context, p *dns.Provider, values map[string]string, zone, name, typ string) error {
+	fqdn := fqdnOf(zone, name)
+	key := ownerKey(fqdn, typ)
+	if owned, err := m.Store.Setting(ctx, key); err != nil || owned == "" {
+		return err
+	}
+	if err := p.DeleteRecord(ctx, m.HTTP, values, zone, name, typ); err != nil {
+		return fmt.Errorf("deleting %s from %s: %w", fqdn, p.Title, err)
+	}
+	m.Log.Info("DNS record deleted", "record", fqdn, "type", typ)
+	return m.Store.SetSetting(ctx, key, "")
+}
+
+// fqdnOf joins a zone-relative name and the zone ("" is the zone itself).
+func fqdnOf(zone, name string) string {
+	if name == "" {
+		return zone
+	}
+	return name + "." + zone
 }
 
 // check looks up a random name under the wildcard through a public

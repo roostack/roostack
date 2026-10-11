@@ -161,9 +161,10 @@ func publicHostsOf(lab config.Lab, services []state.Service, old bool) []string 
 // controller from the cloud package (nil: no Cloud).
 type Relay struct {
 	// Set relays hosts, letting in visitors by countries, with the lab's
-	// time zone for its statistics (again: no change if they're the same),
-	// Stop stops.
-	Set  func(ctx context.Context, hosts []string, countries config.Countries, tz string) error
+	// time zone for its statistics and its own domain (whose names are
+	// relayed once proven; "" for a roost.ac name) (again: no change if
+	// they're the same), Stop stops.
+	Set  func(ctx context.Context, hosts []string, countries config.Countries, tz, domain string) error
 	Stop func(ctx context.Context) error
 	// Edges are its edges' relay addresses (for Caddy) and public IPv4
 	// addresses (for DNS), when it's on.
@@ -197,7 +198,7 @@ func (m *Manager) SetRelay(ctx context.Context, on bool) error {
 		m.mu.Lock()
 		countries := m.publicLocked().Countries
 		m.mu.Unlock()
-		if err := m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), countries, m.Lab.Timezone); err != nil {
+		if err := m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), countries, m.Lab.Timezone, ownDomain(m.Lab)); err != nil {
 			return err
 		}
 	} else if err := m.Relay.Stop(ctx); err != nil {
@@ -221,6 +222,31 @@ func (m *Manager) SetRelay(ctx context.Context, on bool) error {
 	m.applyReason = "Changing how public visitors reach the lab"
 	m.startApplyLocked()
 	return nil
+}
+
+// ownDomain is the lab's own domain, for the relay ("" when its address
+// is a roost.ac name, whose names Cloud runs).
+func ownDomain(lab config.Lab) string {
+	if lab.RoostAc() {
+		return ""
+	}
+	return lab.Domain
+}
+
+// CheckRelay asks Roostack Cloud again, now: it looks for the lab's own
+// domain's proof (a "Check now").
+func (m *Manager) CheckRelay(ctx context.Context) error {
+	if !m.RelayOn() || m.Relay.Set == nil {
+		return formErrorf("Public visitors don't come in through Roostack Cloud's relay.")
+	}
+	services, err := state.LoadServices(m.Lab)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	countries := m.publicLocked().Countries
+	m.mu.Unlock()
+	return m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), countries, m.Lab.Timezone, ownDomain(m.Lab))
 }
 
 // Countries is who the relay lets in by the country their address is in.
@@ -249,7 +275,7 @@ func (m *Manager) SetCountries(ctx context.Context, c config.Countries) error {
 		if err != nil {
 			return err
 		}
-		if err := m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), c, m.Lab.Timezone); err != nil {
+		if err := m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), c, m.Lab.Timezone, ownDomain(m.Lab)); err != nil {
 			return err
 		}
 	}
@@ -270,9 +296,9 @@ func (m *Manager) relayFor(services []state.Service) []string {
 		return nil
 	}
 	if m.Relay.Set != nil {
-		hosts, countries, tz := publicHostsOf(m.Lab, services, false), m.publicLocked().Countries, m.Lab.Timezone
+		hosts, countries, tz, domain := publicHostsOf(m.Lab, services, false), m.publicLocked().Countries, m.Lab.Timezone, ownDomain(m.Lab)
 		go func() {
-			if err := m.Relay.Set(context.Background(), hosts, countries, tz); err != nil {
+			if err := m.Relay.Set(context.Background(), hosts, countries, tz, domain); err != nil {
 				m.Log.Error("updating Roostack Cloud's relay", "err", err)
 			}
 		}()
