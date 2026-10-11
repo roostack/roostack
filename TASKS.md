@@ -198,7 +198,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] When a server the hub dials gets a new address, follow it (today: re-join it)
   - [x] Edge through a cloud server (SPEC §10.5, 2026-10-11): Settings → Public access's way in, the edge's Caddy with `caddy-l4` from its assignment, the controller believing PROXY headers from the edge alone (and treating it as outside), public records at the edge. Tried over the internet: VM3 at home through a Linode
   - [ ] Each public address choosing its own way in (SPEC §10.5: a route's `entry`), after the whole-lab version
-  - [ ] Say when the edge can't reach home, on Settings → Public access and as needing attention (today: the Servers page and the "unreachable server" notice)
+  - [x] Say when the edge isn't connected: a problem in "Needs attention" while anything is public ("Public services can't be reached from the internet…", to Settings → Public access), and that page's own warning (2026-10-11; tried by stopping the Linode's Roostack)
   - [ ] HTTP/3 through an edge, if Caddy gains a way to learn a QUIC visitor's address (ASSUMPTIONS Q7)
   - [ ] Then Roostack Cloud's relay, on the same mechanism
   - [ ] **WAF, step 1 (agreed 2026-10-06, SPEC §6.10):** CrowdSec AppSec virtual patching, on by default for public services. Check the pinned `caddy-crowdsec-bouncer` passes requests to AppSec; add the AppSec component and its virtual-patching collection to the CrowdSec container; show what it blocked (service page, weekly summary); a test that a known exploit request is refused
