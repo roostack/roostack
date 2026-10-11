@@ -3,6 +3,7 @@ package cloud
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"maps"
@@ -339,17 +340,17 @@ func TestRelay(t *testing.T) {
 	wg := &fakeWG{}
 	s.WireGuard = wg
 	ctx := context.Background()
-	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}); err == nil {
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}, config.Countries{}); err == nil {
 		t.Error("relayed before linking")
 	}
 	link(t, f, s, "")
 	f.NoRelay = true
-	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}); err == nil || !strings.Contains(err.Error(), "isn't open") {
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}, config.Countries{}); err == nil || !strings.Contains(err.Error(), "isn't open") {
 		t.Errorf("refused by Cloud: %v", err)
 	}
 	f.NoRelay = false
 	wg.applied = nil
-	if err := s.Relay(ctx, []string{"photos.smiths.roost.test", "smiths.roost.test"}); err != nil {
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test", "smiths.roost.test"}, config.Countries{}); err != nil {
 		t.Fatal(err)
 	}
 	if len(wg.applied) != 2 || len(wg.applied[0].Peers) != 0 || wg.applied[0].Interface != agent.RelayInterface {
@@ -369,8 +370,38 @@ func TestRelay(t *testing.T) {
 		t.Errorf("edges: %+v", es)
 	}
 	n := len(wg.applied)
-	if err := s.Relay(ctx, []string{"smiths.roost.test", "photos.smiths.roost.test"}); err != nil || len(wg.applied) != n {
+	if err := s.Relay(ctx, []string{"smiths.roost.test", "photos.smiths.roost.test"}, config.Countries{}); err != nil || len(wg.applied) != n {
 		t.Errorf("the same names again: %v, %d applies", err, len(wg.applied)-n)
+	}
+	// Countries: Cloud is told, once.
+	nz := config.Countries{Allow: []string{"NZ"}}
+	if err := s.Relay(ctx, []string{"smiths.roost.test", "photos.smiths.roost.test"}, nz); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range f.Relayed {
+		if !slices.Equal(rel.Countries.Allow, []string{"NZ"}) {
+			t.Errorf("countries: %+v", rel.Countries)
+		}
+	}
+	n = len(wg.applied)
+	if s.Relay(ctx, []string{"smiths.roost.test", "photos.smiths.roost.test"}, nz); len(wg.applied) != n {
+		t.Error("the same countries again: Cloud asked again")
+	}
+	// Bans go to Cloud while relayed, at most MaxRelayBans of them.
+	many := make([]string, cloudapi.MaxRelayBans+5)
+	for i := range many {
+		many[i] = fmt.Sprintf("203.0.%d.%d", i/250, i%250)
+	}
+	if err := s.sendBans(ctx, func(context.Context) ([]string, error) { return many, nil }); err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range f.Bans {
+		if len(b) != cloudapi.MaxRelayBans || b[0] != "203.0.0.0" {
+			t.Errorf("bans: %d, %v", len(b), b[:1])
+		}
+	}
+	if len(f.Bans) != 1 {
+		t.Errorf("bans sent for %d labs", len(f.Bans))
 	}
 	if err := s.StopRelay(ctx); err != nil || len(f.Relayed) != 0 || !slices.Contains(wg.removed, agent.RelayInterface) || s.RelayEdges() != nil {
 		t.Errorf("stop: %v %v %v", err, f.Relayed, wg.removed)

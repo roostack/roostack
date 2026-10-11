@@ -39,6 +39,7 @@ type fakeManager struct {
 	// relay: through Roostack Cloud's relay; relayErr, Cloud's refusal.
 	relay      bool
 	relayErr   error
+	countries  config.Countries
 	guestSpace manager.GuestSpace
 	disks      []node.DiskSpace
 	events     []store.Event

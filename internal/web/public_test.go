@@ -13,6 +13,7 @@ import (
 
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
@@ -72,6 +73,16 @@ func (f *fakeManager) Edge(context.Context) (manager.EdgeServer, bool) {
 }
 
 func (f *fakeManager) RelayOn() bool { return f.relay }
+
+func (f *fakeManager) Countries() config.Countries { return f.countries }
+
+func (f *fakeManager) SetCountries(_ context.Context, c config.Countries) error {
+	if f.relayErr != nil {
+		return f.relayErr
+	}
+	f.countries = c
+	return nil
+}
 
 func (f *fakeManager) SetRelay(_ context.Context, on bool) error {
 	if on && f.relayErr != nil {
@@ -334,5 +345,48 @@ func TestPublicRelay(t *testing.T) {
 	h.post("/settings/public/edge", url.Values{"edge": {""}}, h.srv.URL)
 	if fm.relay {
 		t.Error("port forwarding didn't turn the relay off")
+	}
+}
+
+// TestPublicCountries: while relayed, the Owner chooses who can visit by
+// country, and can let everyone in for a while (travel) and end it.
+func TestPublicCountries(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	if _, body := h.get("/settings/public"); strings.Contains(body, "Visitors by country") {
+		t.Error("countries offered without the relay")
+	}
+	fm.relay = true
+	_, body := h.get("/settings/public")
+	if !strings.Contains(body, "Visitors by country") || !strings.Contains(body, `<option value="NZ" >New Zealand</option>`) {
+		t.Fatalf("no countries card:\n%s", body)
+	}
+	if _, body := h.post("/settings/public/countries", url.Values{"mode": {"allow"}}, h.srv.URL); !strings.Contains(body, "Choose at least one country") {
+		t.Error("allowing no countries")
+	}
+	_, body = h.post("/settings/public/countries", url.Values{"mode": {"allow"}, "countries": {"NZ", "AU", "XX"}}, h.srv.URL)
+	if !slices.Equal(fm.countries.Allow, []string{"AU", "NZ"}) || !strings.Contains(body, `<option value="AU" selected>Australia</option>`) ||
+		!strings.Contains(body, "Let everyone in") {
+		t.Errorf("allowing: %+v", fm.countries)
+	}
+	_, body = h.post("/settings/public/countries/open", url.Values{"action": {"open"}, "days": {"14"}}, h.srv.URL)
+	if until := time.Until(fm.countries.OpenUntil); until < 13*24*time.Hour || !strings.Contains(body, "Everyone can visit until") ||
+		!strings.Contains(body, "only visitors from\n      Australia and New Zealand again") {
+		t.Errorf("opening: %v\n%s", fm.countries.OpenUntil, body)
+	}
+	if code, _ := h.post("/settings/public/countries/open", url.Values{"action": {"open"}, "days": {"400"}}, h.srv.URL); code != 400 {
+		t.Errorf("a year and more: %d", code)
+	}
+	h.post("/settings/public/countries/open", url.Values{"action": {"close"}}, h.srv.URL)
+	if !fm.countries.OpenUntil.IsZero() || len(fm.countries.Allow) != 2 {
+		t.Errorf("closing: %+v", fm.countries)
+	}
+	h.post("/settings/public/countries", url.Values{"mode": {"anyone"}, "countries": {"NZ"}}, h.srv.URL)
+	if fm.countries.Limited() {
+		t.Errorf("anyone: %+v", fm.countries)
+	}
+	fm.countries = config.Countries{}
+	if _, body := h.post("/settings/public/countries", url.Values{"mode": {"block"}, "countries": {"RU"}}, h.srv.URL); !slices.Equal(fm.countries.Block, []string{"RU"}) ||
+		strings.Contains(body, "Everyone can visit until") {
+		t.Errorf("blocking: %+v", fm.countries)
 	}
 }

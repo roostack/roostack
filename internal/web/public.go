@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,6 +42,9 @@ type PublicAccess interface {
 	// Roostack Cloud's relay as the way in instead.
 	RelayOn() bool
 	SetRelay(ctx context.Context, on bool) error
+	// Who the relay lets in by country.
+	Countries() config.Countries
+	SetCountries(ctx context.Context, c config.Countries) error
 }
 
 // publicCheckKey is where a successful outside check is recorded.
@@ -297,6 +301,13 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 		}
 		data["CanRelay"], data["Relay"] = s.canRelay(), s.Manager.RelayOn()
 		data["RelayError"] = r.FormValue("relay_error")
+		if s.Manager.RelayOn() {
+			c := s.Manager.Countries()
+			data["Countries"], data["CountryList"] = c, countryList()
+			data["CountriesOpen"] = c.Open(time.Now())
+			data["CountriesChosen"] = countryNamesOf(append(slices.Clone(c.Allow), c.Block...))
+			data["CountriesError"] = r.FormValue("countries_error")
+		}
 	}
 	if len(hosts) > 0 {
 		data["Protected"] = s.Protected != nil && s.Protected(r.Context())
@@ -353,6 +364,81 @@ func (s *Server) publicEdgeSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "public access", "visitors come in "+what)
 	redirect(w, r, "/settings/public?saved=edge#way-in")
+}
+
+// publicCountriesSubmit sets who the relay lets in by country: anyone,
+// only visitors from some countries, or everyone but those from some. A
+// time everyone is let in until (travel) is kept while there's a limit.
+func (s *Server) publicCountriesSubmit(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	var codes []string
+	for _, c := range r.Form["countries"] {
+		if _, ok := countryNames[c]; ok && !slices.Contains(codes, c) {
+			codes = append(codes, c)
+		}
+	}
+	slices.Sort(codes)
+	c := config.Countries{OpenUntil: s.Manager.Countries().OpenUntil}
+	switch mode := r.FormValue("mode"); {
+	case mode == "anyone":
+	case (mode == "allow" || mode == "block") && len(codes) == 0:
+		s.countriesFailed(w, r, "Choose at least one country, or let in anyone.")
+		return
+	case mode == "allow":
+		c.Allow = codes
+	case mode == "block":
+		c.Block = codes
+	default:
+		http.Error(w, "Choose who can visit.", http.StatusBadRequest)
+		return
+	}
+	if err := s.Manager.SetCountries(r.Context(), c); err != nil {
+		s.countriesFailed(w, r, cloudMessage(err))
+		return
+	}
+	what := "anyone, from any country"
+	if len(c.Allow) > 0 {
+		what = "only visitors from " + strings.Join(c.Allow, ", ")
+	} else if len(c.Block) > 0 {
+		what = "everyone except visitors from " + strings.Join(c.Block, ", ")
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "public access", "Roostack Cloud's relay lets in "+what)
+	redirect(w, r, "/settings/public?saved=countries#countries")
+}
+
+// openDays are how long everyone can be let in for, while travelling.
+var openDays = []int{1, 7, 14, 30}
+
+// publicCountriesOpen lets everyone in for a while ("open", with days),
+// for travel, or ends that now ("close").
+func (s *Server) publicCountriesOpen(w http.ResponseWriter, r *http.Request) {
+	c := s.Manager.Countries()
+	if !c.Limited() {
+		redirect(w, r, "/settings/public#countries")
+		return
+	}
+	what := "limits visitors by country again"
+	if r.FormValue("action") == "open" {
+		days, _ := strconv.Atoi(r.FormValue("days"))
+		if !slices.Contains(openDays, days) {
+			http.Error(w, "Choose how long for.", http.StatusBadRequest)
+			return
+		}
+		c.OpenUntil = time.Now().AddDate(0, 0, days)
+		what = "lets everyone in until " + c.OpenUntil.Format("2 January 2006 15:04")
+	} else {
+		c.OpenUntil = time.Time{}
+	}
+	if err := s.Manager.SetCountries(r.Context(), c); err != nil {
+		s.countriesFailed(w, r, cloudMessage(err))
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "public access", "Roostack Cloud's relay "+what)
+	redirect(w, r, "/settings/public?saved=countries#countries")
+}
+
+func (s *Server) countriesFailed(w http.ResponseWriter, r *http.Request, msg string) {
+	redirect(w, r, "/settings/public?countries_error="+url.QueryEscape(msg)+"#countries")
 }
 
 func (s *Server) publicSharingSubmit(w http.ResponseWriter, r *http.Request) {

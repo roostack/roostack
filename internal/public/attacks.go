@@ -86,3 +86,53 @@ func cmpOr(a, b string) string {
 	}
 	return b
 }
+
+// CrowdSecBans are the addresses and ranges CrowdSec bans now, newest
+// first: its own decisions and those made by hand (`cscli`), not the
+// community's lists (Roostack Cloud's relay refuses them at its edges for
+// this lab only: its DESIGN §5, "Collective defence").
+func CrowdSecBans(ctx context.Context, launch Launch, container string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	out, err := launch(ctx, nil, "podman", "exec", container, "cscli", "decisions", "list", "--limit", "0", "-o", "json").Output()
+	if err != nil {
+		return nil, fmt.Errorf("asking CrowdSec: %w", err)
+	}
+	return parseBans(out)
+}
+
+// decisionAlert is one of cscli's alerts, with its decisions.
+type decisionAlert struct {
+	CreatedAt time.Time `json:"created_at"`
+	Decisions []struct {
+		Origin    string `json:"origin"`
+		Scope     string `json:"scope"`
+		Type      string `json:"type"`
+		Value     string `json:"value"`
+		Simulated bool   `json:"simulated"`
+	} `json:"decisions"`
+}
+
+// parseBans reads cscli's decisions (JSON: alerts, each with its
+// decisions; null when there are none).
+func parseBans(out []byte) ([]string, error) {
+	var alerts []decisionAlert
+	if err := json.Unmarshal(out, &alerts); err != nil {
+		return nil, fmt.Errorf("reading CrowdSec's decisions: %w", err)
+	}
+	slices.SortStableFunc(alerts, func(a, b decisionAlert) int { return b.CreatedAt.Compare(a.CreatedAt) })
+	var bans []string
+	seen := map[string]bool{}
+	for _, al := range alerts {
+		for _, d := range al.Decisions {
+			own := d.Origin == "crowdsec" || d.Origin == "cscli"
+			scope := strings.ToLower(d.Scope)
+			if !own || d.Simulated || d.Type != "ban" || (scope != "ip" && scope != "range") || seen[d.Value] {
+				continue
+			}
+			seen[d.Value] = true
+			bans = append(bans, d.Value)
+		}
+	}
+	return bans, nil
+}

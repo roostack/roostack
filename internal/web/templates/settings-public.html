@@ -54,6 +54,65 @@
   </details>
 </section>
 {{end}}
+{{if .Relay}}
+<section class="card section" id="countries">
+  <h2>Visitors by country</h2>
+  {{if eq .Saved "countries"}}<p class="notice notice-ok" role="status">Saved. Roostack Cloud's relay applies it within a minute.</p>{{end}}
+  {{with .CountriesError}}<p class="error" role="alert">{{.}}</p>{{end}}
+  <p>Roostack Cloud's relay can turn visitors away by the country their address is in, before they reach this server. It's a rough
+    filter: looking up an address's country isn't always right, and someone turned away gets no message, the site just won't load.</p>
+  {{if .CountriesOpen}}
+  <div class="notice notice-warn" role="status">
+    <p><strong>Everyone can visit until {{when .Countries.OpenUntil}}.</strong> Then {{if .Countries.Allow}}only visitors from
+      {{.CountriesChosen}}{{else}}everyone except visitors from {{.CountriesChosen}}{{end}} again.</p>
+    <form method="post" action="/settings/public/countries/open#countries">
+      <input type="hidden" name="action" value="close"><button type="submit" class="secondary">Limit by country again now</button>
+    </form>
+  </div>
+  {{end}}
+  <form method="post" action="/settings/public/countries#countries" x-data="{ mode: '{{if .Countries.Allow}}allow{{else if .Countries.Block}}block{{else}}anyone{{end}}' }">
+    <fieldset>
+      <legend>Who can visit</legend>
+      <label class="check"><input type="radio" name="mode" value="anyone" x-model="mode" required>
+        <span>Anyone, from any country<small>Recommended unless you know where your visitors are.</small></span></label>
+      <label class="check"><input type="radio" name="mode" value="allow" x-model="mode">
+        <span>Only visitors from the countries below<small>The strongest choice for a family: often just your own country.
+          Your own phone abroad is turned away too, so let everyone in while you travel.</small></span></label>
+      <label class="check"><input type="radio" name="mode" value="block" x-model="mode">
+        <span>Everyone except visitors from the countries below</span></label>
+    </fieldset>
+    <div x-show="mode !== 'anyone'">
+      <label for="countries">Countries</label>
+      {{with .CountriesChosen}}<p class="hint">Chosen now: {{.}}.</p>{{end}}
+      <select id="countries" name="countries" multiple size="8"
+        x-init="const o = $el.querySelector('option:checked'); if (o) $el.scrollTop = o.offsetTop - $el.offsetTop - 8">
+        {{range .CountryList}}<option value="{{.Code}}" {{if or (has $.Countries.Allow .Code) (has $.Countries.Block .Code)}}selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+      <p class="hint">To choose more than one, hold Ctrl (⌘ on a Mac) while clicking.</p>
+    </div>
+    <button type="submit">Save</button>
+  </form>
+  {{if and (or .Countries.Allow .Countries.Block) (not .CountriesOpen)}}
+  <form method="post" action="/settings/public/countries/open#countries" class="section">
+    <input type="hidden" name="action" value="open">
+    <label for="open-days">Travelling? Let everyone in for</label>
+    <select id="open-days" name="days">
+      <option value="1">a day</option><option value="7">a week</option><option value="14" selected>two weeks</option><option value="30">a month</option>
+    </select>
+    <button type="submit" class="secondary">Let everyone in</button>
+    <p class="hint">The limit comes back by itself afterwards, so it isn't left open by mistake.</p>
+  </form>
+  {{end}}
+  <details>
+    <summary>For technical users</summary>
+    <p>The relay's edges look up each visitor's address in DB-IP's free country database (IP geolocation by DB-IP, updated monthly) and
+      close connections from countries this lab doesn't let in, before passing anything on. An address the database can't place counts
+      as from no country, so a list of countries let in turns it away. Addresses this lab's CrowdSec bans are sent to Roostack Cloud
+      every 5 minutes and turned away at the edges too, for this lab only.</p>
+  </details>
+</section>
+{{end}}
 <section class="card section">
   <h2>Sharing attack reports</h2>
   <p>While anything is public, CrowdSec can share the attacks it sees with its community: only attackers' addresses and what they

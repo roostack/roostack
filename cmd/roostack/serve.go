@@ -170,6 +170,10 @@ func serve(args []string) error {
 			}
 			return relay, pub
 		}}
+		// The lab's own CrowdSec bans, refused at the relay's edges too.
+		go link.SendBans(ctx, 5*time.Minute, func(ctx context.Context) ([]string, error) {
+			return public.CrowdSecBans(ctx, userLaunch, generate.CrowdSecUnit)
+		})
 	}
 	// Public access (SPEC.md §6.11): check links from a phone, and whether
 	// CrowdSec is up (the records wait for it).

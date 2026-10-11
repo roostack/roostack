@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -214,7 +215,10 @@ func TestRelayWayIn(t *testing.T) {
 	refuse := errors.New("Roostack Cloud's relay isn't open for this account yet.")
 	var asked [][]string
 	m.Relay = Relay{
-		Set:   func(_ context.Context, hosts []string) error { asked = append(asked, hosts); return refuse },
+		Set: func(_ context.Context, hosts []string, _ config.Countries) error {
+			asked = append(asked, hosts)
+			return refuse
+		},
 		Stop:  func(context.Context) error { return nil },
 		Edges: func() ([]string, []string) { return []string{"100.81.0.1"}, []string{"198.51.100.10"} },
 	}
@@ -222,7 +226,11 @@ func TestRelayWayIn(t *testing.T) {
 		t.Errorf("refused: %v, on %v", err, m.RelayOn())
 	}
 	refuse = nil
-	m.Relay.Set = func(_ context.Context, hosts []string) error { asked = append(asked, hosts); return nil }
+	var countries config.Countries
+	m.Relay.Set = func(_ context.Context, hosts []string, c config.Countries) error {
+		asked, countries = append(asked, hosts), c
+		return nil
+	}
 	if err := m.SetEdge(ctx, "n-0000000003"); err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +247,24 @@ func TestRelayWayIn(t *testing.T) {
 	if len(addrs) != 1 || addrs[0] != "100.81.0.1/32" {
 		t.Errorf("edge addresses: %v", addrs)
 	}
+	// Countries: Cloud is told, then they're saved; both at once is refused.
+	nz := config.Countries{Allow: []string{"NZ"}}
+	if err := m.SetCountries(ctx, nz); err != nil || !slices.Equal(countries.Allow, nz.Allow) || !slices.Equal(m.Lab.Public.Countries.Allow, nz.Allow) {
+		t.Errorf("countries: %v, Cloud told %+v, saved %+v", err, countries, m.Lab.Public.Countries)
+	}
+	if err := m.SetCountries(ctx, config.Countries{Allow: []string{"NZ"}, Block: []string{"RU"}}); err == nil {
+		t.Error("both: no error")
+	}
+	m.Relay.Set = func(context.Context, []string, config.Countries) error { return refuse }
+	refuse = errors.New("no")
+	if err := m.SetCountries(ctx, config.Countries{Block: []string{"RU"}}); err == nil || len(m.Countries().Block) != 0 {
+		t.Errorf("refused by Cloud, yet saved: %v %+v", err, m.Countries())
+	}
 	if err := m.SetRelay(ctx, false); err != nil || m.RelayOn() {
 		t.Errorf("off: %v", err)
+	}
+	// Off: kept for when it's on again, Cloud not asked.
+	if err := m.SetCountries(ctx, config.Countries{Block: []string{"RU"}}); err != nil || len(m.Countries().Block) != 1 {
+		t.Errorf("while off: %v %+v", err, m.Countries())
 	}
 }

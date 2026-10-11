@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,6 +29,8 @@ var templateFuncs = template.FuncMap{
 	"shownRepo": labrestore.Shown,
 	// date is a day, e.g. 28 September 2027.
 	"date": func(t time.Time) string { return t.Local().Format("2 January 2006") },
+	// has says whether a list has an item.
+	"has": func(list []string, item string) bool { return slices.Contains(list, item) },
 	// list makes a slice, e.g. {{range list "light" "dark"}}.
 	"list": func(items ...string) []string { return items },
 	// percent shows progress, or nothing if it's unknown (-1).
