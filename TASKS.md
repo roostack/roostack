@@ -140,7 +140,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Write the remaining pages (2026-09-29): every page in the navigation, checked against the templates and code; links and anchors checked
   - [x] Built at `make build` (strict), embedded and served at `/help/` to anyone, with its own CSP (scripts by hash, worked out at start; inline styles allowed, see SPEC §6.3.1); **Help** in the top bar, "Getting back in" on the login page. Checked on VM1: no CSP violations, search and page links work
   - [x] Each page links to its help page, top right (the `help` component, SPEC §6.3.1); a test checks every target and section exists
-  - [ ] Publish the public site (hosting and address to decide)
+  - [ ] Publish the public site at help.roostack.cloud, on Cloudflare (decided 2026-10-12, SPEC §6.3.1): a deploy command once roostack.cloud's DNS is on Cloudflare
   - [x] `apply -dry-run` printed `8471/tcp from ,` for rules tied to the WireGuard interface: now `8471/tcp on roostack`; README brought up to date (Go 1.26, DNS providers, the help, running commands as the roostack user)
   - [ ] Maybe: the CLI sets `XDG_RUNTIME_DIR` itself when run as the roostack user (README and help explain it for now)
   - [x] The storage invite now tells friends where it goes on the Backups page as it is (**A friend's lab → Their invite code**)
