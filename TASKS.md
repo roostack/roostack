@@ -204,6 +204,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] The relay's second slice, Roostack's side (SPEC §10.5, 2026-10-11): "Visitors by country" (anyone, only some, all but some; "Let everyone in" for travel), CrowdSec's own bans sent to Cloud every 5 minutes; tried over the internet with VM3
   - [x] Visitors through the relay (SPEC §10.5, 2026-10-12): Cloud's counts for the lab on Public access (Owners) and `/visitors` (Admins)
   - [x] The lab's own domain through the relay (SPEC §10.5, 2026-10-12): the proof's TXT record, public addresses as CNAMEs to the relay name, records to add by hand, "Check now", Needs attention
+  - [ ] **Roostack Cloud as a backup destination:** the lab must not prune it (Cloud prunes with its own key; the lab's key can't delete snapshots), and nothing may rely on `restic forget`'s exit code to know a snapshot went: restic exits 0 when a snapshot delete is refused (tested on Wasabi, 2026-10-12; Cloud's BACKUP-STORAGE.md)
   - [ ] Try a custom domain through the relay over the internet (a test domain at Cloudflare, from the user), and each provider's CNAME, TXT and delete against a real account (ASSUMPTIONS M7)
   - [ ] Countries per service (Cloud's DESIGN §5 says the Owner's settings are per service), once the lab-wide setting has been used
   - [ ] Countries for the other ways in (port forwarding, the lab's own edge), in the lab's own Caddy, which could show a page saying why
