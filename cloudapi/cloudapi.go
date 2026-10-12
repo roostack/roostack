@@ -26,6 +26,10 @@ const (
 	PathLabRelayBans = "/v1/lab/relay/bans"
 	// GET ?days=N[&by=day] → RelayStats (mutual TLS).
 	PathLabRelayStats = "/v1/lab/relay/stats"
+	// POST StorageRequest → StorageKeys (mutual TLS): Roostack Cloud
+	// backup's short-lived keys. GET PathLabStorage → StorageUsage.
+	PathLabStorageKeys = "/v1/lab/storage/keys"
+	PathLabStorage     = "/v1/lab/storage"
 )
 
 // A claimed name's records, at the addresses in its NameClaim's
@@ -200,6 +204,58 @@ type RelayPeriod struct {
 	Refused     map[string]int64 `json:"refused,omitempty"`
 	BytesIn     int64            `json:"bytes_in,omitempty"`
 	BytesOut    int64            `json:"bytes_out,omitempty"`
+}
+
+// Roostack Cloud backup (Cloud's DESIGN §6(b)): each server's restic
+// repository in Cloud's bucket, reached with short-lived keys the lab asks
+// for. Cloud never holds a restic key: backups stay encrypted with the
+// lab's own, and the lab prunes them.
+
+// What a lab asks keys for.
+const (
+	// StorageBackup is a server's backups: its own folder, read and write,
+	// deleting only restic's locks.
+	StorageBackup = "backup"
+	// StoragePrune is the controller's weekly prune: the lab's folders,
+	// deleting allowed (deleted data is kept 90 days as old versions).
+	StoragePrune = "prune"
+)
+
+// StorageRequest asks for keys: for a server's backups (Server, its name
+// in the lab), or the lab's prune.
+type StorageRequest struct {
+	Purpose string `json:"purpose"`
+	Server  string `json:"server,omitempty"`
+}
+
+// StorageKeys are S3 keys that expire (Expires): restic's repository is
+// Repository (s3:<endpoint>/<bucket>/<prefix>), with AccessKeyID,
+// SecretAccessKey and SessionToken (AWS_SESSION_TOKEN) as its credentials.
+type StorageKeys struct {
+	Repository      string    `json:"repository"`
+	Endpoint        string    `json:"endpoint"`
+	Region          string    `json:"region"`
+	Bucket          string    `json:"bucket"`
+	Prefix          string    `json:"prefix"`
+	AccessKeyID     string    `json:"access_key_id"`
+	SecretAccessKey string    `json:"secret_access_key"`
+	SessionToken    string    `json:"session_token"`
+	Expires         time.Time `json:"expires"`
+}
+
+// StorageUsage is what the lab stores in Roostack Cloud, as last measured
+// (daily), and its quota (zero: none). Bytes are decimal.
+type StorageUsage struct {
+	QuotaBytes int64           `json:"quota_bytes"`
+	UsedBytes  int64           `json:"used_bytes"`
+	MeasuredAt time.Time       `json:"measured_at,omitzero"`
+	Servers    []ServerStorage `json:"servers"`
+}
+
+// ServerStorage is one server's share of StorageUsage.
+type ServerStorage struct {
+	Server string `json:"server"`
+	Bytes  int64  `json:"bytes"`
 }
 
 // MaxRelayBans is the most bans a lab sends (its newest, if it has more).
