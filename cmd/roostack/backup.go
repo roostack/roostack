@@ -10,12 +10,15 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/cloudkeys"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/podman"
@@ -145,16 +148,49 @@ func backupRun(ctx context.Context, lab config.Lab, repo *backup.Repo, launch ba
 }
 
 // newRepo returns the configured restic repository, run inside podman
-// unshare so it can read and restore files of container users.
+// unshare so it can read and restore files of container users. In
+// Roostack Cloud backup, its keys are fetched before each command.
 func newRepo(lab config.Lab, launch backupLaunch) (*backup.Repo, error) {
 	restic, err := exec.LookPath("restic")
 	if err != nil {
 		return nil, errors.New("backup: restic is not installed")
 	}
-	return &backup.Repo{
+	r := &backup.Repo{
 		Bin: restic, URL: lab.Backup.Repository, PasswordFile: backup.KeyFile(lab.Paths),
 		Env: lab.Backup.Env, LimitUploadKiB: lab.Backup.LimitUploadKiB, Launch: unshared(launch),
-	}, nil
+	}
+	if lab.Backup.Cloud {
+		r.Credentials = cloudBackupCache(lab).Env
+	}
+	return r, nil
+}
+
+// cloudBackupSource asks for this server's Roostack Cloud backup keys:
+// set when Roostack runs (the controller asks Cloud; another server asks
+// the controller). Unset (the command line), only keys already kept work.
+var (
+	cloudBackupMu     sync.Mutex
+	cloudBackupSource func(ctx context.Context) (cloudapi.StorageKeys, error)
+)
+
+func setCloudBackupKeys(f func(ctx context.Context) (cloudapi.StorageKeys, error)) {
+	cloudBackupMu.Lock()
+	defer cloudBackupMu.Unlock()
+	cloudBackupSource = f
+}
+
+// cloudBackupCache keeps this server's keys (state/cloud-backup-keys.json).
+func cloudBackupCache(lab config.Lab) *cloudkeys.Cache {
+	return &cloudkeys.Cache{Path: cloudkeys.File(lab.Paths.StateDir, "backup"),
+		Source: func(ctx context.Context) (cloudapi.StorageKeys, error) {
+			cloudBackupMu.Lock()
+			f := cloudBackupSource
+			cloudBackupMu.Unlock()
+			if f == nil {
+				return cloudapi.StorageKeys{}, errors.New("Roostack Cloud backup's keys come through Roostack while it runs")
+			}
+			return f(ctx)
+		}}
 }
 
 // drivePrecheck checks the backup drive is connected, when backups go on
@@ -175,9 +211,12 @@ func copyRepos(lab config.Lab, launch backupLaunch) []backup.Copy {
 	var out []backup.Copy
 	for _, c := range lab.Backup.Copies {
 		keyFile := cmp.Or(c.KeyFile, backup.KeyFile(lab.Paths))
-		out = append(out, backup.Copy{Name: c.Name, Title: c.Title, Precheck: drivePrecheck(c.Drive), Repo: &backup.Repo{
-			Bin: restic, URL: c.Repository, PasswordFile: keyFile, Env: c.Env,
-			LimitUploadKiB: lab.Backup.LimitUploadKiB, Launch: unshared(launch)}})
+		r := &backup.Repo{Bin: restic, URL: c.Repository, PasswordFile: keyFile, Env: c.Env,
+			LimitUploadKiB: lab.Backup.LimitUploadKiB, Launch: unshared(launch)}
+		if c.Cloud {
+			r.Credentials = cloudBackupCache(lab).Env
+		}
+		out = append(out, backup.Copy{Name: c.Name, Title: c.Title, Precheck: drivePrecheck(c.Drive), Repo: r})
 	}
 	return out
 }

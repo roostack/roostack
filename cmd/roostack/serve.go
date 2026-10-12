@@ -172,6 +172,8 @@ func serve(args []string) error {
 		}}
 		// How the relay stands (the own domain's proof), every 5 minutes.
 		go link.RefreshRelay(ctx, 5*time.Minute)
+		// Roostack Cloud backup as a destination (SPEC.md §6.9).
+		mgr.CloudBackup = link
 		// The lab's own CrowdSec bans, refused at the relay's edges too.
 		go link.SendBans(ctx, 5*time.Minute, func(ctx context.Context) ([]string, error) {
 			return public.CrowdSecBans(ctx, userLaunch, generate.CrowdSecUnit)
@@ -272,7 +274,18 @@ func serve(args []string) error {
 		restart()
 		return nil
 	}
-	go labnet.Serve(ctx, lab.Paths.StateDir, controllerAPI(hub, guestHub, mgr), log)
+	// Roostack Cloud backup's keys: other servers ask the controller for
+	// theirs (each its own folder's), and the controller's own backups ask
+	// Cloud directly (SPEC.md §6.9).
+	var storageKeys func(ctx context.Context, server string) (cloudapi.StorageKeys, error)
+	if link != nil {
+		storageKeys = func(ctx context.Context, server string) (cloudapi.StorageKeys, error) {
+			return link.StorageKeys(ctx, cloudapi.StorageRequest{Purpose: cloudapi.StorageBackup, Server: server})
+		}
+		self := lab.NodeID
+		setCloudBackupKeys(func(ctx context.Context) (cloudapi.StorageKeys, error) { return storageKeys(ctx, self) })
+	}
+	go labnet.Serve(ctx, lab.Paths.StateDir, controllerAPI(hub, guestHub, mgr, storageKeys), log)
 	go labnet.KeepRenewed(ctx, labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, id.ID, hub.RenewSelf, log)
 	startControllerJobs(ctx, mgr, coord, st, log)
 	srv.Maintenance = lab.Maintenance

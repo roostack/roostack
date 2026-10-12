@@ -439,6 +439,17 @@ func TestRelay(t *testing.T) {
 	if _, d := s.RelayName(); d == nil || d.Verified {
 		t.Errorf("after refreshing: %+v", d)
 	}
+	// Cloud backup: refused without a quota; keys for a server's folder.
+	if _, err := s.StorageKeys(ctx, cloudapi.StorageRequest{Purpose: cloudapi.StorageBackup, Server: "n-1"}); err == nil {
+		t.Error("storage keys without a quota")
+	}
+	f.StorageQuota = 1_000_000_000
+	if k, err := s.StorageKeys(ctx, cloudapi.StorageRequest{Purpose: cloudapi.StorageBackup, Server: "n-1"}); err != nil || !strings.HasSuffix(k.Prefix, "/n-1/") {
+		t.Errorf("storage keys: %+v %v", k, err)
+	}
+	if u, err := s.StorageUsage(ctx); err != nil || u.QuotaBytes != 1_000_000_000 {
+		t.Errorf("usage: %+v %v", u, err)
+	}
 	// Statistics, asked for by the day.
 	f.RelayStats = cloudapi.RelayStats{Periods: []cloudapi.RelayPeriod{{Day: "2026-10-12", Visitors: 5}}}
 	if st, err := s.RelayStats(ctx, 30, true); err != nil || len(st.Periods) != 1 || f.StatsQuery != "days=30&by=day" {

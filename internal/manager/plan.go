@@ -22,6 +22,7 @@ const (
 	KindOnline  = "online"  // S3-compatible online storage
 	KindFriend  = "friend"  // storage at another lab
 	KindServer  = "server"  // another server's disk, in this lab
+	KindCloud   = "cloud"   // Roostack Cloud backup
 	KindOther   = "other"
 )
 
@@ -60,6 +61,8 @@ func (m *Manager) BackupKind(ctx context.Context, serverID, ref string) string {
 			return KindSystem
 		}
 		return KindServer
+	case CloudChoice:
+		return KindCloud
 	case "provider":
 		p, err := m.provider(ctx, id)
 		if err != nil {
@@ -88,7 +91,7 @@ func AtHome(kind string) bool {
 }
 
 // Away reports whether a kind of storage is away from the server.
-func Away(kind string) bool { return kind == KindOnline || kind == KindFriend }
+func Away(kind string) bool { return kind == KindOnline || kind == KindFriend || kind == KindCloud }
 
 // StorageFamily groups kinds into "different kinds of storage" for 3-2-1:
 // disks count as one, whether in this server, plugged into it, or in

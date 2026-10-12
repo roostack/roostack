@@ -182,6 +182,10 @@ type Backup struct {
 	Repository string `yaml:"repository"`
 	// Env holds backend credentials as KEY=value (e.g. for S3).
 	Env []string `yaml:"env,omitempty"`
+	// Cloud: the repository is in Roostack Cloud backup, reached with
+	// short-lived keys fetched before each backup (internal/cloudkeys),
+	// not Env.
+	Cloud bool `yaml:"cloud,omitempty"`
 	// LimitUploadKiB caps upload speed; 0 is unlimited.
 	LimitUploadKiB int `yaml:"limit_upload_kib,omitempty"`
 	// PrunedByController: the controller removes old backups (SPEC.md
@@ -210,9 +214,10 @@ type BackupCopy struct {
 	// Title is for people.
 	Name  string `yaml:"name"`
 	Title string `yaml:"title"`
-	// Repository and Env reach it, like Backup's.
+	// Repository and Env (or Cloud) reach it, like Backup's.
 	Repository string   `yaml:"repository"`
 	Env        []string `yaml:"env,omitempty"`
+	Cloud      bool     `yaml:"cloud,omitempty"`
 	// KeyFile holds this server's key to it; empty uses the main key file
 	// (the controller's recovery key).
 	KeyFile string `yaml:"key_file,omitempty"`

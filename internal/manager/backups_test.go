@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/b2"
@@ -586,5 +587,104 @@ func TestPruneRetriesLocked(t *testing.T) {
 	case <-submitted:
 		t.Error("no more tries after the last")
 	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// fakeCloudBackup is Roostack Cloud backup: a quota, usage, and keys
+// (recording what each was asked for).
+type fakeCloudBackup struct {
+	quota int64
+	asked []cloudapi.StorageRequest
+}
+
+func (f *fakeCloudBackup) StorageKeys(_ context.Context, req cloudapi.StorageRequest) (cloudapi.StorageKeys, error) {
+	f.asked = append(f.asked, req)
+	repo := "s3:https://s3.example/backups/labs/lab_x"
+	if req.Server != "" {
+		repo += "/" + req.Server
+	}
+	return cloudapi.StorageKeys{Repository: repo, AccessKeyID: "TEMP", SecretAccessKey: "s", SessionToken: "tok",
+		Region: "r", Expires: time.Now().Add(12 * time.Hour)}, nil
+}
+
+func (f *fakeCloudBackup) StorageUsage(context.Context) (cloudapi.StorageUsage, error) {
+	return cloudapi.StorageUsage{QuotaBytes: f.quota, UsedBytes: 120_000_000_000}, nil
+}
+
+// Roostack Cloud backup as a destination (SPEC.md §6.9): offered only with
+// a quota, with the lab's usage; the vps's repository is its folder in
+// Cloud, reached with keys that expire (no credentials of its own kept);
+// the controller creates and prunes it with the lab's prune keys.
+func TestCloudBackupDestination(t *testing.T) {
+	bin := os.Getenv("ROOSTACK_RESTIC_BIN")
+	if bin == "" {
+		var err error
+		if bin, err = exec.LookPath("restic"); err != nil {
+			t.Skip("restic not found; set ROOSTACK_RESTIC_BIN")
+		}
+	}
+	m, _ := newManager(t)
+	m.Lab.NodeID = "n-0000000001"
+	m.Lab.Paths.StateDir = t.TempDir()
+	vps := &fakeRemote{settings: &fakeServerSettings{}}
+	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
+	m.Registry = &fakeRegistry{}
+	m.Activity = activity.New()
+	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	m.BackupStore = st
+	dir := t.TempDir()
+	recovery := filepath.Join(dir, "recovery")
+	os.WriteFile(recovery, []byte("the recovery key\n"), 0o600)
+	var opened []string
+	m.OpenRepo = func(url string, env []string) *backup.Repo {
+		opened = append(opened, url)
+		return &backup.Repo{Bin: bin, URL: filepath.Join(dir, "repo"), PasswordFile: recovery, CacheDir: filepath.Join(dir, "cache")}
+	}
+	ctx := context.Background()
+	cloud := &fakeCloudBackup{}
+	m.CloudBackup = cloud
+	choices, _ := m.BackupChoices(ctx)
+	if slices.ContainsFunc(choices, func(c BackupChoice) bool { return c.Ref == CloudChoice }) {
+		t.Error("offered without a quota")
+	}
+	cloud.quota = 500_000_000_000
+	choices, _ = m.BackupChoices(ctx)
+	i := slices.IndexFunc(choices, func(c BackupChoice) bool { return c.Ref == CloudChoice })
+	if i < 0 || !strings.Contains(choices[i].Note, "120.0 GB of 500.0 GB") || !strings.Contains(choices[i].Note, "can't read it") {
+		t.Fatalf("choices: %+v", choices)
+	}
+	if err := m.SetBackupDestination(ctx, "n-0000000002", CloudChoice); err != nil {
+		t.Fatal(err)
+	}
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if l, _ := m.Activity.Latest(activity.BackupSetupFor("n-0000000002")); !l.Running() {
+			if l.Err != "" {
+				t.Fatalf("setup: %s", l.Err)
+			}
+			break
+		}
+	}
+	d := vps.settings.dest
+	if d == nil || !d.Cloud || len(d.Env) != 0 || d.Repository != "s3:https://s3.example/backups/labs/lab_x/n-0000000002" || d.Key == "" || !d.PrunedByController {
+		t.Fatalf("the vps's destination: %+v", d)
+	}
+	if len(cloud.asked) < 2 || cloud.asked[0].Server != "n-0000000002" || cloud.asked[0].Purpose != cloudapi.StorageBackup ||
+		cloud.asked[1].Purpose != cloudapi.StoragePrune {
+		t.Errorf("asked Cloud for: %+v", cloud.asked)
+	}
+	// The weekly prune: the lab's prune keys (kept, so not asked again).
+	n := len(cloud.asked)
+	if err := m.PruneJob().Run(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(cloud.asked) != n {
+		t.Errorf("prune keys asked again while fresh: %+v", cloud.asked[n:])
+	}
+	if t2, _, ok := m.BackupTargetOf(ctx, "n-0000000002"); !ok || t2.Provider != CloudChoice {
+		t.Errorf("target: %+v", t2)
 	}
 }

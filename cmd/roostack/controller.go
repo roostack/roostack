@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/labnet"
@@ -22,9 +23,12 @@ import (
 // API, how it opens backup repositories, and its recurring jobs.
 
 // controllerAPI is the lab API the controller serves to its servers
-// (SPEC.md §10.3): joining, assignments, certificate renewal, and guests'
-// requests forwarded by the server offering storage for others.
-func controllerAPI(hub *labnet.Hub, guestHub *labnet.GuestHub, mgr *manager.Manager) http.Handler {
+// (SPEC.md §10.3): joining, assignments, certificate renewal, guests'
+// requests forwarded by the server offering storage for others, and
+// Roostack Cloud backup's short-lived keys (storageKeys: nil without
+// Cloud), each server getting only its own folder's.
+func controllerAPI(hub *labnet.Hub, guestHub *labnet.GuestHub, mgr *manager.Manager,
+	storageKeys func(ctx context.Context, server string) (cloudapi.StorageKeys, error)) http.Handler {
 	api := http.NewServeMux()
 	api.Handle("POST /v1/join", hub.JoinHandler())
 	// A server fetches its assignment when it starts (SPEC.md §10.3).
@@ -39,6 +43,18 @@ func controllerAPI(hub *labnet.Hub, guestHub *labnet.GuestHub, mgr *manager.Mana
 		labnet.WriteJSON(w, http.StatusOK, a)
 	})))
 	api.Handle("POST /v1/renew", hub.Require(hub.RenewHandler()))
+	api.Handle("POST "+labnet.PathStorageKeys, hub.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if storageKeys == nil {
+			labnet.WriteError(w, http.StatusNotFound, errors.New("this lab isn't linked to Roostack Cloud"))
+			return
+		}
+		k, err := storageKeys(r.Context(), labnet.Caller(r))
+		if err != nil {
+			labnet.WriteError(w, http.StatusBadGateway, err)
+			return
+		}
+		labnet.WriteJSON(w, http.StatusOK, k)
+	})))
 	// Guests' requests, forwarded by the server offering storage for others.
 	guestAPI := http.StripPrefix("/v1/guest-api", guestHub.Handler())
 	api.Handle("/v1/guest-api/", hub.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

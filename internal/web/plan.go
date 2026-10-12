@@ -111,12 +111,14 @@ type planOptions struct {
 	OwnDisk                  *manager.BackupChoice
 	Selected                 string
 	Online, Friends, Servers []manager.BackupChoice
+	// Cloud is Roostack Cloud backup, when this lab's account may use it.
+	Cloud *manager.BackupChoice
 }
 
 func kindTitle(kind string) string {
 	return map[string]string{manager.KindUSB: "USB drive", manager.KindDisk: "Second disk", manager.KindNetwork: "Network share",
 		manager.KindSystem: "This server's disk", manager.KindFolder: "Folder", manager.KindOnline: "Online storage",
-		manager.KindFriend: "A friend's lab", manager.KindServer: "Another Roostack instance"}[kind]
+		manager.KindFriend: "A friend's lab", manager.KindServer: "Another Roostack instance", manager.KindCloud: "Roostack Cloud"}[kind]
 }
 
 // backupPlan builds a server's plan. adding and replacing open the
@@ -363,6 +365,9 @@ func (s *Server) planOptions(r *http.Request, m serverRef, main store.BackupTarg
 			continue
 		}
 		switch s.Manager.BackupKind(ctx, m.ID, c.Ref) {
+		case manager.KindCloud:
+			c := c
+			o.Cloud = &c
 		case manager.KindOnline:
 			o.Online = append(o.Online, c)
 		case manager.KindFriend:
@@ -481,6 +486,8 @@ func (s *Server) resolveChoice(r *http.Request) (string, error) {
 		return newChoice(before, s.choicesNow(r)), nil
 	case "server":
 		return r.FormValue("server"), nil
+	case "cloud":
+		return manager.CloudChoice, nil
 	}
 	return "", nil
 }

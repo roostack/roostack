@@ -483,6 +483,8 @@
           <span><strong>A drive</strong><small>USB drive, second disk or network share</small></span></label>
         {{- else if .Options.OwnDisk}}<label class="plan-choice"><input type="radio" name="choice" value="drive" x-model="choice">
           <span><strong>Its own disk</strong><small>{{.Server.Name}}'s disk</small></span></label>{{end}}
+        {{if .Options.Cloud}}<label class="plan-choice"><input type="radio" name="choice" value="cloud" x-model="choice">
+          <span><strong>Roostack Cloud</strong><small>Off-site, set up for you</small></span></label>{{end}}
         <label class="plan-choice"><input type="radio" name="choice" value="online" x-model="choice">
           <span><strong>Online storage</strong><small>Backblaze B2, Wasabi, S3</small></span></label>
         <label class="plan-choice"><input type="radio" name="choice" value="friend" x-model="choice">
@@ -510,6 +512,11 @@
       </div>
       {{end}}
 
+      {{with .Options.Cloud}}
+      <div x-show="choice === 'cloud'" x-cloak>
+        <p>Backups go to Roostack Cloud's storage in Australia. {{.Note}}</p>
+      </div>
+      {{end}}
       <div x-show="choice === 'online'" x-cloak>
         {{range .Options.Online}}<label class="check"><input type="radio" name="provider" value="{{.Ref}}"><span>{{.Title}}<small>{{.Note}}</small></span></label>{{end}}
         <div x-data="{ provider: '{{if .Options.Online}}{{else}}new{{end}}' }">

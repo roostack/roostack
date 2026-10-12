@@ -1,7 +1,7 @@
 # Where backups can go
 
 When you add a backup to [your plan](index.md), Roostack asks where it
-should go. There are four kinds of place.
+should go. There are five kinds of place.
 
 ## A drive
 
@@ -46,6 +46,18 @@ Roostack remembers the account, so any of your servers can back up to it
 later, each into its own folder. It's a good **second backup**: it's away
 from home, and it's a different kind of storage from a disk.
 
+## Roostack Cloud
+
+If your lab is [linked to Roostack Cloud](../settings/cloud.md), you can
+back up to Roostack Cloud's own storage, in Australia. There's nothing to
+set up: no account, keys or address. The chooser shows how much of your
+lab's space is used.
+
+Your backups are encrypted with your recovery key before they leave, so
+Roostack Cloud stores them but can't read them. It's away from home, and
+a different kind of storage from a disk, so it makes a good **second
+backup**.
+
 ## A friend's lab
 
 Space on a friend's (or a relative's) Roostack. They make an **invite
@@ -77,6 +89,16 @@ where each server is.
     repository is `s3:<endpoint>/<bucket>/<folder>/roostack/<lab ID>/<server ID>`. For Backblaze B2, Roostack
     makes an application key for each server that can reach only that
     server's folder, and deletes it when the server leaves the lab.
+
+    **Roostack Cloud** gives each server a folder of its own in an
+    S3-compatible bucket. No server keeps a storage password: before each
+    backup it gets keys that last 12 hours, open only its own folder and
+    can only add backups (the controller asks Roostack Cloud; other
+    servers ask the controller). They're kept in
+    `/var/lib/roostack/cloud-backup-keys.json`. The controller removes old
+    backups weekly with the recovery key, using keys that can delete within
+    your lab's folders only, and Roostack Cloud keeps deleted files for 90
+    days in case of a mistake or an attack.
 
     **A friend's lab** and **another server** run restic's rest-server:
     backups travel over Roostack's WireGuard network, to a store only your

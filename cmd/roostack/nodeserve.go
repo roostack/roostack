@@ -78,6 +78,9 @@ func serveNode(ctx context.Context, lab config.Lab, local *node.Local, ag *agent
 	// Renew this server's lab certificate before it expires.
 	labID := labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}
 	go labnet.KeepRenewed(ctx, labID, local.ID.ID, labnet.RenewFromController(labnet.ControllerURL(m), m.ControllerID, labID), log)
+	// Roostack Cloud backup's keys, for this server's folder only, through
+	// the controller (which asks Cloud).
+	setCloudBackupKeys(labnet.StorageKeysFromController(labnet.ControllerURL(m), m.ControllerID, labID))
 
 	// Its own web address says which lab it's part of, and where to manage
 	// it (SPEC.md §10.2).

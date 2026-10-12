@@ -42,6 +42,8 @@ type fakeManager struct {
 	countries config.Countries
 	// relayChecks counts "Check now".
 	relayChecks int
+	// cloudBackup offers Roostack Cloud as a backup destination.
+	cloudBackup bool
 	guestSpace  manager.GuestSpace
 	disks       []node.DiskSpace
 	events      []store.Event
@@ -311,7 +313,11 @@ func (f *fakeManager) MoveService(_ context.Context, name, to, way string) error
 	return nil
 }
 func (f *fakeManager) BackupChoices(context.Context) ([]manager.BackupChoice, error) {
-	return []manager.BackupChoice{{Ref: "server:n-0123456789", Title: "nuc's disk"}, {Ref: "provider:1", Title: "Backblaze"}}, nil
+	out := []manager.BackupChoice{{Ref: "server:n-0123456789", Title: "nuc's disk"}, {Ref: "provider:1", Title: "Backblaze"}}
+	if f.cloudBackup {
+		out = append(out, manager.BackupChoice{Ref: manager.CloudChoice, Title: "Roostack Cloud", Note: "This lab uses 120.0 GB of 500.0 GB."})
+	}
+	return out, nil
 }
 func (f *fakeManager) BackupKind(_ context.Context, _, ref string) string {
 	switch {
@@ -323,6 +329,8 @@ func (f *fakeManager) BackupKind(_ context.Context, _, ref string) string {
 		return manager.KindOnline
 	case strings.HasPrefix(ref, "remote:"):
 		return manager.KindFriend
+	case ref == manager.CloudChoice:
+		return manager.KindCloud
 	}
 	return manager.KindServer
 }
@@ -1018,6 +1026,19 @@ func TestBackupPlan(t *testing.T) {
 	if code != http.StatusBadRequest || !strings.Contains(body, "bucket name") || strings.Contains(body, "SUPERSECRET") {
 		t.Errorf("bad provider: %d", code)
 	}
+	// Roostack Cloud, when the lab's account may use it.
+	if _, body := h.get("/backups?add=2"); strings.Contains(body, `value="cloud"`) {
+		t.Error("Roostack Cloud offered without it")
+	}
+	fm.cloudBackup = true
+	if _, body := h.get("/backups?add=2"); !strings.Contains(body, `value="cloud"`) || !strings.Contains(body, "120.0 GB of 500.0 GB") {
+		t.Error("Roostack Cloud not offered")
+	}
+	h.post("/backups/plan", url.Values{"add": {"2"}, "choice": {"cloud"}}, h.srv.URL)
+	if fm.destination != manager.CloudChoice {
+		t.Fatalf("backup 1 to Roostack Cloud = %q", fm.destination)
+	}
+	fm.cloudBackup, fm.destination = false, ""
 	h.post("/backups/plan", url.Values{"add": {"2"}, "choice": {"server"}, "server": {"server:n-0123456789"}}, h.srv.URL)
 	if fm.destination != "server:n-0123456789" {
 		t.Fatalf("backup 1 = %q", fm.destination)
