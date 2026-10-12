@@ -314,6 +314,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 ## To discuss with the user
 
+- [ ] Licence: Apache-2.0 assumed (SPEC §2.1, 2026-10-13); confirm, then add `LICENSE` (and `NOTICE`) before the repository goes public
 
 
 - K5: setup-code approach for first-run setup (add to SPEC?)
