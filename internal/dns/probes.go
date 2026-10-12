@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"roostack.cloud/roostack/internal/awssig"
+	"roostack.cloud/roostack/awssig"
 )
 
 // Each provider's check talks to its public HTTP API directly, using only

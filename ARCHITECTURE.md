@@ -51,7 +51,6 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/quadlet` | Writing Quadlet/systemd unit files, with escaping |
 | `internal/caddy` | Writing the main Caddyfile and per-service snippets |
 | `internal/dns` | Supported DNS providers: credential fields, Caddy directive, and the create-and-delete-a-TXT-record check |
-| `internal/awssig` | AWS Signature Version 4, standard library only (Route 53 checks, listing S3-compatible buckets) |
 | `internal/dnsrecords` | Keeps `*.<domain>` pointing at the LAN IP (only records Roostack created) and checks home devices can resolve it; points each public address at the public entry's address once CrowdSec is up |
 | `internal/public` | Public access (SPEC.md §6.11): the entry visitors come in through (port forwarding: the lab's public address, found over DNS), CrowdSec's health, check links opened from outside, and guessing whether the server is on the internet (§6.12) |
 | `internal/setup` | First-run setup wizard logic: time zone, domain and DNS credentials, backup destination, recovery key |
@@ -64,6 +63,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/web/static/css`, `docs/DESIGN.md` | Design system: tokens, built-in themes, components; gallery at `/design` and `docs/design/gallery.html` |
 | `internal/nodeid` | This server's identity (node ID and name) |
 | `authkit` | Passwords (argon2id), tokens and two-factor codes (TOTP), public so Roostack Cloud's repository uses the same code; Cloud also turns on a pepper and sealed two-factor secrets. Fuzz-tested (the inputs fuzzing found are kept in `testdata/fuzz`) |
+| `awssig` | AWS Signature Version 4 with the standard library only (Route 53, S3-compatible storage; checked against the AWS SDK's signer): public, so Roostack Cloud signs Wasabi's STS and S3 requests with the same code |
 | `cloudapi` | The API between a lab and Roostack Cloud (paths, bodies, the records and acme-dns conventions): public, not under `internal`, so Cloud's own repository imports the same contract |
 | `internal/cloud` | The controller's link to Roostack Cloud (SPEC.md §6.6): linking (a link code, Cloud's page, polling), the lab's client certificate for mutual TLS (renewed with a new key), the daily check-in, unlinking, claiming a roost.ac name (then the lab's DNS provider is Roostack Cloud, `internal/dns/cloud.go`), and the request log, kept in `<state>/cloud/`. `cloudtest` is a fake of Cloud's lab API for Roostack's tests (dev VMs link to a development Cloud from its own repository) |
 | `internal/labnet` | The network between a lab's servers (SPEC.md §10.2, §10.9): the controller's CA and each server's certificate, join codes, membership (role and overlay address), the hub (WireGuard peers, joining) and the mutual-TLS lab API server |
