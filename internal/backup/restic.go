@@ -41,6 +41,10 @@ type Repo struct {
 	PasswordFile string
 	// Env adds backend credentials, e.g. AWS_ACCESS_KEY_ID=...
 	Env []string
+	// Credentials adds credentials that expire, fetched before each
+	// command (Roostack Cloud backup's short-lived keys:
+	// internal/cloudkeys). A failure stops the command before it starts.
+	Credentials func(ctx context.Context) ([]string, error)
 	// LimitUploadKiB caps upload speed (0 = unlimited), so a first
 	// off-site backup doesn't swamp a home connection.
 	LimitUploadKiB int
@@ -114,10 +118,22 @@ func (r *Repo) command(ctx context.Context, args ...string) *exec.Cmd {
 		env = append(env, "RESTIC_CACHE_DIR="+r.CacheDir)
 	}
 	env = append(env, r.Env...)
-	if r.Launch != nil {
-		return r.Launch(ctx, env, r.Bin, args...)
+	var keysErr error
+	if r.Credentials != nil {
+		creds, err := r.Credentials(ctx)
+		env, keysErr = append(env, creds...), err
 	}
-	return DirectLaunch(ctx, env, r.Bin, args...)
+	var cmd *exec.Cmd
+	if r.Launch != nil {
+		cmd = r.Launch(ctx, env, r.Bin, args...)
+	} else {
+		cmd = DirectLaunch(ctx, env, r.Bin, args...)
+	}
+	if keysErr != nil {
+		// exec.Cmd's Start returns Err: the command never runs.
+		cmd.Err = fmt.Errorf("getting this backup's keys: %w", keysErr)
+	}
+	return cmd
 }
 
 // DirectLaunch runs a command as the current user. On cancel it sends

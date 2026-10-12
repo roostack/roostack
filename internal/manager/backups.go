@@ -13,16 +13,19 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/b2"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/cloudkeys"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/units"
 )
 
 // Backups across servers (SPEC.md §10.10): each server chooses where it
@@ -56,6 +59,47 @@ type BackupChoice struct {
 
 // S3Provider is an S3-compatible provider.
 type S3Provider = backup.S3
+
+// CloudBackup is Roostack Cloud backup (Cloud's DESIGN §6(b)): keys that
+// expire, for a server's folder or the lab's prune, and what the lab
+// stores against its quota.
+type CloudBackup interface {
+	StorageKeys(ctx context.Context, req cloudapi.StorageRequest) (cloudapi.StorageKeys, error)
+	StorageUsage(ctx context.Context) (cloudapi.StorageUsage, error)
+}
+
+// CloudChoice is Roostack Cloud backup's choice reference.
+const CloudChoice = "cloud"
+
+// cloudChoice is Roostack Cloud backup as a choice, if this lab's account
+// may use it (a storage grant, in the pilot).
+func (m *Manager) cloudChoice(ctx context.Context) (BackupChoice, bool) {
+	if m.CloudBackup == nil {
+		return BackupChoice{}, false
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	u, err := m.CloudBackup.StorageUsage(ctx)
+	if err != nil || u.QuotaBytes <= 0 {
+		return BackupChoice{}, false
+	}
+	return BackupChoice{Ref: CloudChoice, Title: "Roostack Cloud",
+		Note: fmt.Sprintf("Encrypted with your recovery key before it leaves; Roostack Cloud can't read it. "+
+			"This lab uses %s of %s.", units.Bytes(u.UsedBytes), units.Bytes(u.QuotaBytes))}, true
+}
+
+// cloudPruneKeys are the controller's keys to the lab's folders in
+// Roostack Cloud backup (for creating repositories, checks and pruning),
+// kept while fresh (state/cloud-prune-keys.json).
+func (m *Manager) cloudPruneKeys() *cloudkeys.Cache {
+	return &cloudkeys.Cache{Path: cloudkeys.File(m.Lab.Paths.StateDir, "prune"),
+		Source: func(ctx context.Context) (cloudapi.StorageKeys, error) {
+			if m.CloudBackup == nil {
+				return cloudapi.StorageKeys{}, errors.New("the lab isn't linked to Roostack Cloud")
+			}
+			return m.CloudBackup.StorageKeys(ctx, cloudapi.StorageRequest{Purpose: cloudapi.StoragePrune})
+		}}
+}
 
 // storeReady is how long the controller waits for a server's backup
 // store to start (its first start downloads rest-server).
@@ -96,6 +140,9 @@ func (m *Manager) BackupChoices(ctx context.Context) ([]BackupChoice, error) {
 			}
 		}
 		out = append(out, BackupChoice{Ref: fmt.Sprintf("provider:%d", p.ID), Title: p.Name, Note: note})
+	}
+	if c, ok := m.cloudChoice(ctx); ok {
+		out = append(out, c)
 	}
 	return out, nil
 }
@@ -203,6 +250,22 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 	var dest node.BackupDestination
 	kind, id, _ := strings.Cut(choice.Ref, ":")
 	switch kind {
+	case CloudChoice:
+		// Roostack Cloud backup: the server's folder in Cloud's bucket,
+		// reached with keys that expire (fetched before each backup); the
+		// controller creates and prunes it with the lab's prune keys.
+		if m.CloudBackup == nil {
+			return fail(errors.New("the lab isn't linked to Roostack Cloud"))
+		}
+		act.Step("Asking Roostack Cloud for %s's folder", m.nameOf(serverID))
+		keys, err := m.CloudBackup.StorageKeys(ctx, cloudapi.StorageRequest{Purpose: cloudapi.StorageBackup, Server: serverID})
+		if err != nil {
+			return fail(err)
+		}
+		target.Repository = keys.Repository
+		dest = node.BackupDestination{Repository: keys.Repository, Cloud: true}
+		admin = m.OpenRepo(keys.Repository, nil)
+		admin.Credentials = m.cloudPruneKeys().Env
 	case "server":
 		host := id
 		addr := m.addressOf(host)
@@ -590,6 +653,10 @@ func (m *Manager) adminRepo(ctx context.Context, t store.BackupTarget) (*backup.
 	switch kind {
 	case "local", "drive", "folder": // a drive or folder on the controller
 		return m.OpenRepo(t.Repository, nil), nil
+	case CloudChoice:
+		r := m.OpenRepo(t.Repository, nil)
+		r.Credentials = m.cloudPruneKeys().Env
+		return r, nil
 	case "server":
 		pw, _, ok, err := m.BackupStore.StoreAdmin(ctx, t.StoreHost)
 		if err != nil || !ok {

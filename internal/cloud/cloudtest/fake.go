@@ -65,6 +65,10 @@ type Fake struct {
 	// DomainVerified says a relayed lab's own domain is proven (its TXT
 	// record found).
 	DomainVerified bool
+	// StorageQuota is Cloud backup's quota (0: not open), StorageUsed
+	// what's stored, and StorageAsked the key requests.
+	StorageQuota, StorageUsed int64
+	StorageAsked              []cloudapi.StorageRequest
 
 	caCert *x509.Certificate
 	caKey  *ecdsa.PrivateKey
@@ -272,7 +276,8 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			reply(w, cloudapi.NameAvailability{Available: true})
 		}
 	case r.URL.Path == cloudapi.PathLab || r.URL.Path == cloudapi.PathLabRenew || r.URL.Path == cloudapi.PathLabName ||
-		r.URL.Path == cloudapi.PathLabRelay || r.URL.Path == cloudapi.PathLabRelayBans || r.URL.Path == cloudapi.PathLabRelayStats:
+		r.URL.Path == cloudapi.PathLabRelay || r.URL.Path == cloudapi.PathLabRelayBans || r.URL.Path == cloudapi.PathLabRelayStats ||
+		r.URL.Path == cloudapi.PathLabStorageKeys || r.URL.Path == cloudapi.PathLabStorage:
 		f.labAPI(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/update":
 		f.acmeUpdate(w, r)
@@ -388,6 +393,22 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 		delete(f.Relayed, id)
 		delete(f.Bans, id)
 		reply(w, map[string]any{})
+	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLabStorageKeys:
+		var req cloudapi.StorageRequest
+		json.NewDecoder(r.Body).Decode(&req)
+		if f.StorageQuota <= 0 {
+			fail(w, http.StatusBadRequest, "Roostack Cloud backup isn't open for this account yet.")
+			return
+		}
+		f.StorageAsked = append(f.StorageAsked, req)
+		prefix := "labs/" + id + "/"
+		if req.Server != "" {
+			prefix += req.Server + "/"
+		}
+		reply(w, cloudapi.StorageKeys{Repository: "s3:https://s3.test/backups/" + strings.TrimSuffix(prefix, "/"), Prefix: prefix,
+			AccessKeyID: "TEMP", SecretAccessKey: "s", SessionToken: "tok", Region: "test", Expires: time.Now().Add(12 * time.Hour)})
+	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLabStorage:
+		reply(w, cloudapi.StorageUsage{QuotaBytes: f.StorageQuota, UsedBytes: f.StorageUsed, Servers: []cloudapi.ServerStorage{}})
 	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLabRelayStats:
 		f.StatsQuery = r.URL.RawQuery
 		reply(w, f.RelayStats)

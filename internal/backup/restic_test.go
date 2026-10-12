@@ -213,3 +213,20 @@ func TestAddKeyFileVisibleOutsideSandbox(t *testing.T) {
 		t.Error("the new key's file should be removed afterwards")
 	}
 }
+
+// TestCredentials: credentials that can't be had stop the command before
+// it runs (restic never starts without its keys); those that can are in
+// its environment.
+func TestCredentials(t *testing.T) {
+	r := &Repo{Bin: "/bin/sh", URL: "/nowhere", Credentials: func(context.Context) ([]string, error) {
+		return nil, errors.New("Cloud is out of reach")
+	}}
+	if _, err := r.run(context.Background(), "-c", "echo ran"); err == nil || !strings.Contains(err.Error(), "getting this backup's keys") {
+		t.Errorf("without keys: %v", err)
+	}
+	r.Credentials = func(context.Context) ([]string, error) { return []string{"AWS_SESSION_TOKEN=tok"}, nil }
+	out, err := r.run(context.Background(), "-c", "echo $AWS_SESSION_TOKEN")
+	if err != nil || strings.TrimSpace(string(out)) != "tok" {
+		t.Errorf("with keys: %q %v", out, err)
+	}
+}

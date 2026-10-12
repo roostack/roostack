@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/cloudkeys"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/maintenance"
@@ -94,8 +95,8 @@ func SecretsFile(paths config.Paths, service string) string {
 // and the Podman secrets store, since generated passwords are needed to use
 // restored data. Excluded: the rest of the roostack home directory (container
 // images, which can be downloaded again), the live SQLite database (a
-// consistent copy is taken first), and the backup key itself (with the
-// new and old keys of a change).
+// consistent copy is taken first), the backup key itself (with the
+// new and old keys of a change), and Roostack Cloud backup's keys.
 func LabPlan(paths config.Paths, services []*generate.Output) Plan {
 	secrets := filepath.Join(paths.HomeDir, ".local", "share", "containers", "storage", "secrets")
 	p := Plan{
@@ -111,6 +112,8 @@ func LabPlan(paths config.Paths, services []*generate.Output) Plan {
 			KeyFile(paths)+".*",
 			// Each service's secrets go in its own snapshot.
 			SecretsDir(paths),
+			// Roostack Cloud backup's short-lived keys.
+			cloudkeys.File(paths.StateDir, "*"),
 		),
 	}
 	for _, s := range services {

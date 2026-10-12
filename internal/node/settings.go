@@ -50,6 +50,7 @@ type BackupCopy struct {
 	Title      string   `json:"title"`
 	Repository string   `json:"repository"`
 	Env        []string `json:"env,omitempty"`
+	Cloud      bool     `json:"cloud,omitempty"`
 	Key        string   `json:"key,omitempty"`
 	// Drive is the drive it's on, if it's one.
 	Drive config.BackupDrive `json:"drive,omitzero"`
@@ -61,7 +62,9 @@ type BackupCopy struct {
 type BackupDestination struct {
 	Repository string   `json:"repository"`
 	Env        []string `json:"env,omitempty"`
-	Key        string   `json:"key,omitempty"`
+	// Cloud: in Roostack Cloud backup, with short-lived keys (no Env).
+	Cloud bool   `json:"cloud,omitempty"`
+	Key   string `json:"key,omitempty"`
 	// PrunedByController: this server only adds backups.
 	PrunedByController bool `json:"pruned_by_controller,omitempty"`
 	// Drive is the drive it's on, if it's one (backups check it's there).
@@ -203,7 +206,7 @@ func (h *HostSettings) SetBackupDestination(ctx context.Context, d BackupDestina
 		}
 	}
 	if err := config.Update(h.LabPath, func(l *config.Lab) {
-		l.Backup.Repository, l.Backup.Env, l.Backup.PrunedByController = d.Repository, d.Env, d.PrunedByController
+		l.Backup.Repository, l.Backup.Env, l.Backup.PrunedByController, l.Backup.Cloud = d.Repository, d.Env, d.PrunedByController, d.Cloud
 		l.Backup.Drive = d.Drive
 	}); err != nil {
 		return fmt.Errorf("saving the backup destination: %w", err)
@@ -248,7 +251,7 @@ func (h *HostSettings) SetBackupCopies(ctx context.Context, copies []BackupCopy)
 		if c.Drive == (config.BackupDrive{}) && known {
 			c.Drive = old.Drive
 		}
-		out = append(out, config.BackupCopy{Name: c.Name, Title: c.Title, Repository: c.Repository, Env: c.Env, KeyFile: keyFile, Drive: c.Drive})
+		out = append(out, config.BackupCopy{Name: c.Name, Title: c.Title, Repository: c.Repository, Env: c.Env, Cloud: c.Cloud, KeyFile: keyFile, Drive: c.Drive})
 	}
 	if err := config.Update(h.LabPath, func(l *config.Lab) { l.Backup.Copies = out }); err != nil {
 		return fmt.Errorf("saving the backup copies: %w", err)
@@ -279,7 +282,7 @@ func (h *HostSettings) PromoteBackupCopy(ctx context.Context, name string, old B
 	c := lab.Backup.Copies[i]
 	mainKey := backup.KeyFile(h.Lab.Paths)
 	demoted := config.BackupCopy{Name: old.Name, Title: old.Title, Repository: lab.Backup.Repository, Env: lab.Backup.Env,
-		Drive: lab.Backup.Drive}
+		Cloud: lab.Backup.Cloud, Drive: lab.Backup.Drive}
 	// A copy with a key of its own (not the main key file) swaps keys with
 	// the main backup.
 	if c.KeyFile != "" {
@@ -304,7 +307,7 @@ func (h *HostSettings) PromoteBackupCopy(ctx context.Context, name string, old B
 		}
 	}
 	if err := config.Update(h.LabPath, func(l *config.Lab) {
-		l.Backup.Repository, l.Backup.Env, l.Backup.Drive = c.Repository, c.Env, c.Drive
+		l.Backup.Repository, l.Backup.Env, l.Backup.Drive, l.Backup.Cloud = c.Repository, c.Env, c.Drive, c.Cloud
 		copies := slices.Clone(l.Backup.Copies)
 		if j := slices.IndexFunc(copies, func(x config.BackupCopy) bool { return x.Name == name }); j >= 0 {
 			copies[j] = demoted

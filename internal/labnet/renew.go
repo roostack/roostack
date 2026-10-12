@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -241,4 +242,23 @@ func (h *Hub) CertExpiries(ctx context.Context) map[string]time.Time {
 		}
 	}
 	return out
+}
+
+// PathStorageKeys is where a server asks the controller for its Roostack
+// Cloud backup keys (its own folder's only; the controller asks Cloud).
+const PathStorageKeys = "/v1/storage-keys"
+
+// StorageKeysFromController asks the controller for this server's
+// Roostack Cloud backup keys, over the lab API.
+func StorageKeysFromController(url, controllerID string, id Identity) func(context.Context) (cloudapi.StorageKeys, error) {
+	return func(ctx context.Context) (cloudapi.StorageKeys, error) {
+		var k cloudapi.StorageKeys
+		tlsConf, err := id.ClientTLS(controllerID)
+		if err != nil {
+			return k, err
+		}
+		client := &http.Client{Timeout: 60 * time.Second, Transport: &http.Transport{TLSClientConfig: tlsConf}}
+		err = post(ctx, client, url+PathStorageKeys, []byte("{}"), &k)
+		return k, err
+	}
 }

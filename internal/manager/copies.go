@@ -107,7 +107,7 @@ func (m *Manager) setUpCopy(ctx context.Context, act *activity.Log, serverID str
 		return err
 	}
 	act.Step("Telling %s about the copy (it restarts Roostack)", m.nameOf(serverID))
-	c := node.BackupCopy{Name: choice.Ref, Title: choice.Title, Repository: dest.Repository, Env: dest.Env, Key: dest.Key, Drive: dest.Drive}
+	c := node.BackupCopy{Name: choice.Ref, Title: choice.Title, Repository: dest.Repository, Env: dest.Env, Cloud: dest.Cloud, Key: dest.Key, Drive: dest.Drive}
 	if err := n.Settings().SetBackupCopies(ctx, m.copiesFor(ctx, serverID, &c)); err != nil {
 		return err
 	}
