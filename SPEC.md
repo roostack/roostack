@@ -30,6 +30,13 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
 - **Later:** ARM64 (Raspberry Pi, ARM VPS).
 - **Rationale:** A dedicated host avoids conflicts with existing software (ports, podman config, firewall) and greatly reduces the support burden.
 
+### 2.1 Licence — Leaning (2026-10-13)
+
+- **Apache-2.0, assumed for now; may change before launch** (the project's Owner). Roostack is open source.
+- **Why:** permissive like MIT, plus an explicit patent grant and a statement that contributions come under the same licence, which suits infrastructure others build on. Roostack Cloud imports Roostack's public packages (`cloudapi`, `authkit`), so a permissive licence lets it use contributors' code without a contributor agreement.
+- **Considered:** MIT (the simplest, but no patent clause; the Owner's first thought); AGPL-3.0 (would stop a closed hosted fork, but Cloud's use of contributed code would then need contributors to sign over rights, and it puts some contributors off).
+- Packaged services keep their own licences; the website shows each one.
+
 ### 3.1 Supported Distros — Locked
 
 | Tier | Distros | Meaning |
