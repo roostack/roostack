@@ -27,7 +27,8 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
 
 - **v1:** a dedicated, freshly installed server. Roostack assumes it owns the host.
 - **Reference hardware:** x86_64 Intel NUC-style device.
-- **Later:** ARM64 (Raspberry Pi, ARM VPS).
+- **ARM64 — as built (2026-10-13):** the same package for arm64 (`roostack_<version>_arm64.deb`), for ARM mini PCs and ARM cloud servers running Debian's own Debian 13 (§3.1). Every pinned image must have amd64 and arm64 builds (`make check-images`); a service whose image has none for a server's processor fails with a sentence saying so. Plan and progress: ARM64-PLAN.md.
+- **Next:** Raspberry Pi 4 and 5 on Raspberry Pi OS (ARM64-PLAN.md, Phases 2–4). Older Pis (3, Zero 2 W) unsupported for now; reconsidered once Roostack's own memory use is measured (2026-10-13).
 - **Rationale:** A dedicated host avoids conflicts with existing software (ports, podman config, firewall) and greatly reduces the support burden.
 
 ### 2.1 Licence — Leaning (2026-10-13)
@@ -41,13 +42,14 @@ Status legend: **Locked** = agreed, **Pending** = under discussion, **Open** = n
 
 | Tier | Distros | Meaning |
 |---|---|---|
-| **Fully supported** | Debian 13 | Tested; installer supported; full host OS management (§3.2) |
+| **Fully supported** | Debian 13 on x86_64; Debian 13 on arm64, from Debian's own installer or cloud image, on a machine that boots it with UEFI | Tested; installer supported; full host OS management (§3.2) |
 | **Planned** | Ubuntu 26.04 LTS | Add when practical; avoid Debian-only assumptions that would make it hard |
-| **Unsupported** | Anything else with Podman 5+ | May work; no host OS management, no support |
+| **Unsupported** | Anything else with Podman 5+, including ARM boards that need a vendor's image or kernel (e.g. Armbian) | May work; no host OS management, no support |
 
 - **Rationale:** Debian 13 ships Podman 5.4, has a ~5-year support cycle, rarely changes, and has built-in unattended security updates, which makes it well suited to servers nobody logs into. Supporting a single distro keeps the installer, testing and docs simple.
 - **Rejected:** Fedora Server (a major upgrade every ~13 months doesn't suit unattended servers); Ubuntu 24.04 (Podman 4.9 has no `.pod` Quadlets); Fedora CoreOS (unfamiliar and harder to troubleshoot).
 - Distro-specific logic (package management, update tooling) should sit behind a small internal interface so Ubuntu can be added cleanly.
+- **ARM64 (2026-10-13):** a UEFI arm64 machine on Debian 13 runs Debian's own kernel and updates, so to Roostack it's no different from the NUC. Boards that need a vendor's kernel get their kernel and updates from elsewhere, so §3.2 can't promise anything for them. Raspberry Pi OS will be the one vendor OS supported (ARM64-PLAN.md). Considered: Armbian (many boards, each with its own kernel and quirks; later, if people ask).
 
 ### 3.2 Host OS Management — Locked
 

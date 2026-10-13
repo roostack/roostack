@@ -64,8 +64,9 @@ Checked on 2026-09-30:
 
 ## Decisions
 
-Decisions 1 to 4 confirmed by Tyris (2026-09-30); 5 and 6 are open.
-Record them in SPEC.md with their dates when the work lands.
+Decisions 1 to 4 confirmed by Tyris (2026-09-30), 5 and 6 on 2026-10-13.
+Decision 5 is in SPEC.md §3.1; record the others there with their dates
+when their work lands.
 
 1. **Operating system: Raspberry Pi OS Lite (64-bit), the Debian 13
    "trixie" release.** It's what Pi owners have, it supports the Pi 5, and
@@ -86,7 +87,7 @@ Record them in SPEC.md with their dates when the work lands.
 4. **32-bit Raspberry Pi OS: not supported.** Setup refuses with a clear
    message. Several images have no 32-bit ARM build (Immich), and Podman on
    32-bit is little tested. **Confirmed.**
-5. **What "general ARM64" covers.** *Open.* Recommend: **Debian 13 arm64,
+5. **What "general ARM64" covers.** **Confirmed** (2026-10-13): **Debian 13 arm64,
    installed with Debian's own installer or cloud image, on a machine that
    boots it with UEFI** (Arm "SystemReady" machines, ARM cloud servers, VMs)
    joins Debian 13 on x86 as "Fully supported". Such a machine runs Debian's
@@ -98,7 +99,7 @@ Record them in SPEC.md with their dates when the work lands.
    vendor OS supported, by Phases 2 and 3. Considered: supporting Armbian
    too (many boards, but each with its own kernel and quirks; later, if
    people ask).
-6. **Older Raspberry Pis.** *Open.* Decision 2 rules out the Pi 3 and Zero
+6. **Older Raspberry Pis.** **Confirmed** (2026-10-13), as recommended below. Decision 2 rules out the Pi 3 and Zero
    2 W. They are 64-bit and run the same Raspberry Pi OS, so nothing in the
    code stops them; the limits are 1 GB of memory (512 MB on the Zero 2
    W), storage on USB 2 and a slow processor. Recommend: keep them
@@ -149,14 +150,18 @@ Goal: `apt install ./roostack_<version>_arm64.deb` on an ARM64 Debian 13
 server (an ARM mini PC, cloud server or VM, Decision 5) gives a working
 lab, the same as on x86.
 
-1.1 **Build for either architecture.** *Partly done (2026-10-13):*
-`GOARCH=arm64 make build` writes Linux arm64 binaries to `bin/`. Left:
-decide whether `bin/linux_arm64/` (both side by side) is worth it once the
-package script needs both.
+1.1 **Build for either architecture.** *Done (2026-10-13):*
+`GOARCH=arm64 make build` writes Linux arm64 binaries to `bin/` (one
+architecture at a time; side-by-side folders can wait for a release build
+that makes both).
 - `make build` also builds the help site, which is architecture-independent:
   no change.
 
-1.2 **Package for either architecture.**
+1.2 **Package for either architecture.** *Done (2026-10-13):*
+`build-deb.sh` reads the architecture from the binaries' ELF header (so it
+runs in a VM without Go), `control` has `@ARCH@`, and `dev-install.sh`
+refuses a package for the wrong architecture. Every dependency installed
+on arm64 (ASSUMPTIONS R1). Was:
 - `scripts/build-deb.sh`: take the architecture (from `GOARCH`, default
   `amd64`), check the binaries match it (`file bin/roostack` or read the ELF
   header with `go version -m`), and name the output
@@ -168,7 +173,15 @@ package script needs both.
   podman, passt, nftables, uidmap, crun, catatonit, dbus-user-session,
   restic, unattended-upgrades, wireguard-tools).
 
-1.3 **Guard the images.**
+1.3 **Guard the images.** *Done (2026-10-13):* `make check-images`
+(`internal/generate/images_test.go`, run only with
+`ROOSTACK_IMAGE_CHECK=1`); all 11 pins have both builds. A pull with no
+build for the server's processor fails with "This service has no version
+for this server's kind of processor (arm64), so it can't run here."
+(`reconcile.NoImageForArch`). Not covered: an image pinned to a
+single-architecture manifest pulls anyway and fails at start with "exec
+format error"; the check refuses such pins, so only a package from
+elsewhere could have one. Was:
 - Add a test (e.g. `internal/generate/images_test.go`, skipped without
   network like the restic tests, or a script `scripts/check-images.sh` run
   before release) that reads every pinned image (the Go constants, the
@@ -183,7 +196,8 @@ package script needs both.
   manifest list". Find where image pulls report errors (reconcile and the
   node's apply log) and translate that one error.
 
-1.4 **The Caddy image builds on ARM.** It's built on each server from the
+1.4 **The Caddy image builds on ARM.** *Checked on the VM (2026-10-13):*
+278 s, 51 s of it compiling (ASSUMPTIONS R4). Still to time on a Pi. It's built on each server from the
 Containerfile, so this just needs checking: time the build on the ARM VM
 (and later on each Pi), and note it in ASSUMPTIONS. If it takes more than a
 few minutes or runs out of memory on a 4 GB Pi, raise it with Tyris: the
@@ -198,6 +212,15 @@ Not yet checked: the x86 path of the changed script on the Linux machine
 (domain, backups to a drive and to B2, recovery key), install Vaultwarden,
 Forgejo and Immich, make one public (SPEC §6.11) and check CrowdSec, run
 OS updates, back up and restore a service. Record the results.
+- *Done on the arm64 VM (2026-10-13):* the .deb, the wizard (Owner with
+  two-factor, time zone, SSH, a USB drive prepared as the main backup,
+  recovery key), Vaultwarden, Forgejo and Immich (with machine learning)
+  installed and answering, a backup, a restore of Forgejo, OS updates
+  (ASSUMPTIONS R1–R6), and the whole test suite (`dev-vm.sh test`).
+- *Left:* a domain (Caddy running, certificates), making a service public
+  with CrowdSec, and backups to B2. They need a real domain and a B2
+  bucket; none of them depends on the processor beyond the images already
+  checked.
 
 1.7 **Docs:** SPEC §3 and §3.1 (ARM64 moves from "Later" to supported, with
 Decision 5's tiers, dated), the

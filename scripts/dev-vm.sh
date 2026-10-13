@@ -6,6 +6,9 @@
 #   scripts/dev-vm.sh ssh [cmd] open a shell, or run a command, as user "dev"
 #   scripts/dev-vm.sh sync      build and copy the repo to ~/roostack in the VM
 #   scripts/dev-vm.sh install   sync, then run scripts/dev-install.sh in the VM
+#   scripts/dev-vm.sh test [flags]  sync, then run the Go tests in the VM (built
+#                               here, so the VM needs no Go); flags go to each
+#                               test binary, e.g. -test.run TestApply
 #   scripts/dev-vm.sh ui        tunnel the Roostack UI (loopback-only) to http://127.0.0.1:18481
 #   scripts/dev-vm.sh down      shut the VM down
 #   scripts/dev-vm.sh destroy   delete the VM disk (keeps the downloaded image)
@@ -239,9 +242,41 @@ sync_repo() {
     log "Building for linux/$ARCH"
     GOARCH=$ARCH make -C "$REPO" build >/dev/null
     log "Copying repo to ~/roostack in the VM"
-    vm_ssh 'rm -rf ~/roostack && mkdir -p ~/roostack'
+    # sudo: install leaves a package that root built in dist/.
+    vm_ssh 'sudo rm -rf ~/roostack && mkdir -p ~/roostack'
     # No extended attributes or ._ files (macOS adds them; Linux's tar warns).
     COPYFILE_DISABLE=1 tar -C "$REPO" --exclude=.git --exclude=.DS_Store --no-xattrs -cf - . | vm_ssh 'tar -C ~/roostack -xf -'
+}
+
+# test_repo runs the test suite in the VM, for the VM's architecture and on
+# Linux, which is how to run it from a Mac (parts of Roostack only build
+# for Linux). Each package's test binary runs in its own folder, as
+# `go test` does, with the VM's restic if it has one (CLAUDE.md "Commands").
+test_repo() {
+    sync_repo
+    local out=$VM_DIR/tests
+    rm -rf "$out" && mkdir -p "$out"
+    log "Building the tests for linux/$ARCH"
+    (cd "$REPO" && GOOS=linux GOARCH=$ARCH CGO_ENABLED=0 go test -c -o "$out/" ./... >/dev/null)
+    (cd "$REPO" && go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.Name}} {{.Dir}}{{end}}' ./...) |
+        sed "s| $REPO/| |" | grep . >"$out/packages"
+    COPYFILE_DISABLE=1 tar -C "$out" --no-xattrs -cf - . | vm_ssh 'rm -rf ~/tests && mkdir ~/tests && tar -C ~/tests -xf -'
+    log "Running the tests in the VM"
+    vm_ssh bash -s -- "$@" <<'SH'
+[ -x /usr/bin/restic ] && export ROOSTACK_RESTIC_BIN=/usr/bin/restic ||
+    echo "warning: restic isn't installed in the VM, so its tests skip (scripts/dev-vm.sh install)"
+failed=()
+while read -r name dir; do
+    start=$(date +%s%N)
+    if out=$(cd ~/roostack/"$dir" && ~/tests/"$name".test -test.count=1 "$@" 2>&1); then
+        printf 'ok   %-40s %ss\n' "$dir" "$((($(date +%s%N) - start) / 1000000000))"
+    else
+        printf '%s\nFAIL %s\n' "$out" "$dir"
+        failed+=("$dir")
+    fi
+done <~/tests/packages
+[ ${#failed[@]} -eq 0 ] || { echo "FAILED: ${failed[*]}"; exit 1; }
+SH
 }
 
 stop() {
@@ -280,6 +315,7 @@ case ${1:-} in
 up) start ;;
 ssh) shift; vm_ssh -t "$@" ;;
 sync) sync_repo ;;
+test) shift; test_repo "$@" ;;
 install) sync_repo; vm_ssh -t "cd ~/roostack && sudo VERSION=$("$REPO/scripts/build-deb.sh" --version) scripts/dev-install.sh" ;;
 ui) log "Roostack UI: http://127.0.0.1:$((18481 + OFF)) (Ctrl-C to stop)"
     # Reconnect when the VM restarts (e.g. after OS updates) or the
@@ -294,5 +330,5 @@ down) stop ;;
 destroy) stop; rm -rf "$DISK" "$VM_DIR/arch" "$VM_DIR/seed" "$VM_DIR/console.log"; log "Disk deleted" ;;
 status) if running; then echo "running ($ARCH, pid $(cat "$PIDFILE"))"; else echo "stopped"; fi ;;
 usb) usb_drive "${2:-}" "${3:-}" "${4:-8G}" ;;
-*) sed -n '2,27p' "$0"; exit 2 ;;
+*) sed -n '2,30p' "$0"; exit 2 ;;
 esac

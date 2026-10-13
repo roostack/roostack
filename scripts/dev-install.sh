@@ -11,6 +11,8 @@ set -euo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 
 deb=$("$REPO/scripts/build-deb.sh")
+arch=$(dpkg --print-architecture)
+[[ $deb == *_"$arch".deb ]] || { echo "$deb isn't for this server ($arch): build with GOARCH=$arch make build" >&2; exit 1; }
 apt-get update -q
 # --allow-downgrades: a dev VM installs whatever is checked out, which
 # may be an older commit than the last install. --reinstall: uncommitted
