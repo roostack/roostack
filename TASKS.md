@@ -316,6 +316,21 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] Edge: public service at home routed through a cloud node (TLS passthrough over WireGuard, PROXY protocol)
 - [ ] Failover: cold standby first
 
+## Service registry (SPEC §8.3, planned 2026-10-13, not decided)
+
+- [ ] Owner decides SPEC §8.3's open questions (where packages live, fetching and signing, community tier, package policy, withdrawals, package licence, public pages, reviewers)
+- [ ] Prerequisite, whatever is decided: the lab keeps the package file of each installed version in its desired state (`packages/<name>/<version>.yaml`), generation reads it, it's backed up and replicated; restoring onto a newer Roostack then works (SPEC §8.3.1)
+- [ ] Move packages from `docs/examples` to `catalog/<name>/package.yaml` (build-deb, help, golden tests, references in docs)
+- [ ] Package policy in `pkgspec` (SPEC §8.3.4): allow-listed Quadlet keys only, digest pinning an error; local packages may break it with confirmation
+- [ ] Package format additions: `about:` (maker, website, source, licence, support, icon, category, keywords), `requires.roostack`, expected memory, upgrade notes
+- [ ] Install summary from the definition (what it stores and backs up, addresses, ports, devices, memory) and the definition in Details
+- [ ] "Add your own" (local packages) on the catalog page, with the warning
+- [ ] Service updates (SPEC §7) against several package versions: upstream part for the policy, revision-only changes as patch
+- [ ] Signed index (Ed25519), its CI, static hosting, the controller's daily fetch, withdrawals shown under "Needs attention"
+- [ ] Registry repository with CI (validate, policy, golden render, digest and architecture check, `about:` check), checklist and pull-request template
+- [ ] Help: "Write a package" guide, with the dev-VM test steps and the evidence to submit
+- [ ] Website (roostack-cloud repository): registry pages built from the index; `services.ts` facts move into packages' `about:`
+
 ## To discuss with the user
 
 - [ ] Licence: Apache-2.0 assumed (SPEC §2.1, 2026-10-13); confirm, then add `LICENSE` (and `NOTICE`) before the repository goes public
