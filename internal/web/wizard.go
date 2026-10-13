@@ -269,8 +269,11 @@ func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) domainPage(w http.ResponseWriter, r *http.Request) {
+	// A provider that isn't offered for an own domain (Roostack Cloud's,
+	// for a roost.ac name) would leave no provider's fields shown, while
+	// the list shows its first: start from that one.
 	provider := s.DNSProvider
-	if dns.Get(provider) == nil {
+	if p := dns.Get(provider); p == nil || p.Hidden {
 		provider = dns.Providers()[0].ID
 	}
 	// Until a domain is saved, the lab has the example one from the lab.yaml
