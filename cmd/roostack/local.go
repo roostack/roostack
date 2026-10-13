@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"log/slog"
+	"runtime"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
@@ -100,6 +102,13 @@ func pullImage(ctx context.Context, image string, w io.Writer) error {
 		return nil
 	}
 	cmd := userLaunch(ctx, nil, "podman", "pull", image)
-	cmd.Stdout, cmd.Stderr = w, w
-	return cmd.Run()
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = io.MultiWriter(w, &out), io.MultiWriter(w, &out)
+	err := cmd.Run()
+	// Podman 5.4: "no image found in image index for architecture …";
+	// older versions said "manifest list".
+	if err != nil && bytes.Contains(out.Bytes(), []byte("no image found in")) {
+		return &reconcile.NoImageForArch{Image: image, Arch: runtime.GOARCH}
+	}
+	return err
 }

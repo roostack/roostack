@@ -313,6 +313,19 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] Edge: public service at home routed through a cloud node (TLS passthrough over WireGuard, PROXY protocol)
 - [ ] Failover: cold standby first
 
+## ARM64, then Raspberry Pi (ARM64-PLAN.md)
+
+- [ ] **Phase 1: general ARM64** (Debian 13 arm64 on UEFI machines, SPEC §3.1; decided 2026-10-13)
+  - [x] arm64 dev VMs (`scripts/dev-vm.sh`, native on Apple Silicon) and `dev-vm.sh test` (the suite in the VM: all pass on arm64 with restic)
+  - [x] Build and package for either architecture (`GOARCH=arm64 make build`, `build-deb.sh` reads the binaries' architecture)
+  - [x] Every pinned image has amd64 and arm64 builds (`make check-images`); a pull with no build for the server's processor says so
+  - [x] Every pinned service image runs under a 16 KB-page kernel (the Pi 5's), checked in the VM
+  - [ ] End to end on the arm64 VM: see ARM64-PLAN.md 1.6 for what's done and left
+- [ ] Phase 2: Raspberry Pi OS (needs a Pi 4 and a Pi 5)
+- [ ] Phase 3: hardware checks (SD card, memory, heat, power, clock)
+- [ ] Phase 4: labs mixing PCs and Pis
+- [ ] Older Pis (3, Zero 2 W): measure Roostack's own memory use in a 1 GB arm64 VM, then decide (ARM64-PLAN.md Decision 6)
+
 ## To discuss with the user
 
 - [ ] Licence: Apache-2.0 assumed (SPEC §2.1, 2026-10-13); confirm, then add `LICENSE` (and `NOTICE`) before the repository goes public

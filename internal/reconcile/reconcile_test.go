@@ -136,6 +136,34 @@ func (e *env) apply(t *testing.T, d Desired) *Plan {
 	return plan
 }
 
+// An image with no build for this server's processor fails the apply with
+// the Owner's sentence, not "downloading …" around Podman's (ARM64-PLAN.md 1.3).
+func TestPullNoImageForArch(t *testing.T) {
+	e := newEnv(t)
+	e.apply(t, e.desired(t))
+	e.r.Pull = func(_ context.Context, image string, _ io.Writer) error {
+		return &NoImageForArch{Image: image, Arch: "arm64"}
+	}
+	var failed error
+	e.r.Progress = func(ev Event) {
+		if ev.Err != nil {
+			failed = ev.Err
+		}
+	}
+	ctx := context.Background()
+	plan, err := e.r.Plan(ctx, e.desired(t, "vaultwarden"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = e.r.Apply(ctx, plan)
+	if err == nil || !strings.HasPrefix(err.Error(), "This service has no version for this server's kind of processor (arm64)") {
+		t.Errorf("apply: %v", err)
+	}
+	if failed != err {
+		t.Errorf("install step's error %v, want the apply's", failed)
+	}
+}
+
 func TestInstallUpdateRemove(t *testing.T) {
 	e := newEnv(t)
 
