@@ -238,6 +238,11 @@ func (m *Manager) startApplyLocked() {
 		n.Apply(a)
 	}
 	m.secrets, m.setUp = nil, nil
+	// Every server has its packages now (Remote.Apply encodes them before
+	// returning), so copies no service uses can go (SPEC.md §8.3.1).
+	if err := state.PrunePackages(m.Lab.Paths, services); err != nil {
+		m.Log.Error("deleting unused package copies", "err", err)
+	}
 }
 
 // allocateAndSave places services that have no host yet on this server

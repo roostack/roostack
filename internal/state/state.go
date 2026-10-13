@@ -1,6 +1,6 @@
 // Package state loads Roostack's desired state from disk (SPEC.md §5.1): the
 // lab config plus one instance file per installed service, combined with
-// their catalog packages.
+// the lab's copy of their packages (SPEC.md §8.3.1).
 package state
 
 import (
@@ -44,7 +44,8 @@ func (s Service) Title() string {
 	return s.Package.Title
 }
 
-// LoadServices reads every instance file and its package from the catalog.
+// LoadServices reads every instance file and the lab's copy of its package
+// version (LoadPackage).
 func LoadServices(lab config.Lab) ([]Service, error) {
 	dir := lab.Paths.InstancesDir()
 	entries, err := os.ReadDir(dir)
@@ -76,9 +77,9 @@ func LoadServices(lab config.Lab) ([]Service, error) {
 			errs = append(errs, fmt.Errorf("%s: host %q is not a node ID", e.Name(), in.Host))
 			continue
 		}
-		p, err := pkgspec.Load(lab.Paths.PackageFile(in.Package))
+		p, err := LoadPackage(lab.Paths, in.Package, in.Version)
 		if err != nil {
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("%s: %w", e.Name(), err))
 			continue
 		}
 		services = append(services, Service{Instance: in, Package: p})

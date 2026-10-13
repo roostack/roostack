@@ -57,9 +57,21 @@ func (p Paths) QuadletDir() string {
 // LabFile is the lab-wide config file.
 func (p Paths) LabFile() string { return filepath.Join(p.StateDir, "lab.yaml") }
 
-// PackageFile is where a catalog package is defined.
+// PackageFile is where a catalog package is defined. The catalog is only
+// what can be installed; installed services use the lab's own copy
+// (LabPackageFile).
 func (p Paths) PackageFile(name string) string {
 	return filepath.Join(p.CatalogDir, name, "package.yaml")
+}
+
+// PackagesDir holds the lab's copy of the package file of every version
+// its services use, so a restore needs nothing but the backup and a newer
+// catalog never changes a running service (SPEC.md §8.3.1).
+func (p Paths) PackagesDir() string { return filepath.Join(p.StateDir, "packages") }
+
+// LabPackageFile is the lab's copy of one version of a package.
+func (p Paths) LabPackageFile(name, version string) string {
+	return filepath.Join(p.PackagesDir(), name, version+".yaml")
 }
 
 // BackupStoreDir is where this server keeps backups it stores for other

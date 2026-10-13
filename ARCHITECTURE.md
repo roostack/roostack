@@ -27,12 +27,14 @@ How the code fits together. For *why* things are the way they are, see [SPEC.md]
 ## Data flow: desired state → running services
 
 ```
-lab.yaml ─────────────┐
-services/<name>.yaml ─┼─▶ state ─▶ generate ─▶ reconcile ─▶ files + systemd
-catalog/<name>/package.yaml ┘      (pure)      (plan → apply)
+lab.yaml ──────────────────────┐
+services/<name>.yaml ──────────┼─▶ state ─▶ generate ─▶ reconcile ─▶ files + systemd
+packages/<name>/<version>.yaml ┘             (pure)      (plan → apply)
+      ▲
+      └── copied at install from catalog/<name>/package.yaml
 ```
 
-1. **`internal/state`** loads the lab config, every instance file, and each instance's package from the catalog. It also checks lab-wide rules (e.g. unique hostnames).
+1. **`internal/state`** loads the lab config, every instance file, and the lab's own copy of each instance's package version (`packages/<name>/<version>.yaml` in the state folder, SPEC.md §8.3.1). The copy is taken from the catalog when a service is installed, so a newer catalog never changes a running service and a restore needs only the backup; the catalog is only what *can* be installed. Copies no service uses are deleted after each apply. It also checks lab-wide rules (e.g. unique hostnames).
 2. **`internal/generate`** turns package + instance + lab config into output: Quadlet files, a Caddy snippet, required secrets, directories and a backup plan. It is **pure** (no disk access, no side effects), so it's tested with golden files and can be previewed with `roostack render`.
 3. **`internal/reconcile`** compares that output with what's on disk and builds a **plan** (files to write or remove, units to start, restart or stop, secrets to create, images to build or download). `roostack apply --dry-run` prints the plan; `roostack apply` carries it out. Image builds start in the background; new containers' images are pulled one at a time before their units start, with progress events the node turns into a service's install steps (SPEC.md §6.3.3).
 
@@ -56,7 +58,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/setup` | First-run setup wizard logic: time zone, domain and DNS credentials, backup destination, recovery key |
 | `internal/hosttime` | Reads the host's time zone and the valid zone names (tzdata); changing it is the agent's job |
 | `internal/reconcile` | Plan and apply changes to the host |
-| `internal/state` | Load desired state from disk |
+| `internal/state` | Load desired state from disk; keep and prune the lab's copies of its packages (SPEC §8.3.1) |
 | `internal/systemd` | `systemctl --user` wrapper |
 | `internal/podman` | The few direct `podman` calls (secrets, `exec` for package hooks) |
 | `internal/agent` | Agent server and client: firewall ruleset, time zone, OS updates, reboot, WireGuard interfaces, backup drives and folders, and checks for host changes Roostack didn't make |

@@ -68,7 +68,7 @@ type WireProxied struct {
 }
 
 // Encode turns an assignment into wire form, reading each package file
-// from the lab's catalog.
+// from the lab's own copy (SPEC.md §8.3.1).
 func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error) {
 	w := WireAssignment{Version: version, Lab: a.Lab,
 		Secrets: a.Secrets, SetUp: a.SetUp, Storage: a.Storage, Guests: a.Guests, GuestAddr: a.GuestAddr, Links: a.Links, Edge: a.Edge,
@@ -78,7 +78,7 @@ func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error)
 		if err != nil {
 			return WireService{}, err
 		}
-		pkg, err := os.ReadFile(lab.Paths.PackageFile(s.Instance.Package))
+		pkg, err := os.ReadFile(lab.Paths.LabPackageFile(s.Instance.Package, s.Instance.Version))
 		if err != nil {
 			return WireService{}, err
 		}
