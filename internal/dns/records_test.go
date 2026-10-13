@@ -3,6 +3,7 @@ package dns
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
@@ -51,11 +52,12 @@ func startRecordAPIs(t *testing.T) *recordStore {
 	mux.HandleFunc("GET /cf/zones", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, `{"result":[{"id":"z1"}]}`)
 	})
+	// Record IDs are the name and type, so a DELETE says which.
 	mux.HandleFunc("GET /cf/zones/z1/dns_records", func(w http.ResponseWriter, r *http.Request) {
-		vals := st.get("example.com", rel(r.URL.Query().Get("name")), r.URL.Query().Get("type"))
+		name, typ := rel(r.URL.Query().Get("name")), r.URL.Query().Get("type")
 		var res []map[string]string
-		for _, v := range vals {
-			res = append(res, map[string]string{"id": "r1", "content": v})
+		for _, v := range st.get("example.com", name, typ) {
+			res = append(res, map[string]string{"id": name + "~" + typ, "content": v})
 		}
 		json.NewEncoder(w).Encode(map[string]any{"result": res})
 	})
@@ -67,7 +69,12 @@ func startRecordAPIs(t *testing.T) *recordStore {
 		fmt.Fprint(w, `{"result":{"id":"r1"}}`)
 	}
 	mux.HandleFunc("POST /cf/zones/z1/dns_records", cfWrite)
-	mux.HandleFunc("PUT /cf/zones/z1/dns_records/r1", cfWrite)
+	mux.HandleFunc("PUT /cf/zones/z1/dns_records/{id}", cfWrite)
+	mux.HandleFunc("DELETE /cf/zones/z1/dns_records/{id}", func(w http.ResponseWriter, r *http.Request) {
+		name, typ, _ := strings.Cut(r.PathValue("id"), "~")
+		st.set("example.com", name, typ, nil)
+		fmt.Fprint(w, `{"result":{}}`)
+	})
 
 	// Route 53
 	mux.HandleFunc("GET /r53/2013-04-01/hostedzonesbyname", func(w http.ResponseWriter, r *http.Request) {
@@ -78,19 +85,35 @@ func startRecordAPIs(t *testing.T) *recordStore {
 		vals := st.get("example.com", rel(name), r.URL.Query().Get("type"))
 		fmt.Fprint(w, `<R><ResourceRecordSets>`)
 		if len(vals) > 0 {
-			fmt.Fprintf(w, `<ResourceRecordSet><Name>%s</Name><Type>A</Type><ResourceRecords><ResourceRecord><Value>%s</Value></ResourceRecord></ResourceRecords></ResourceRecordSet>`,
-				strings.Replace(name, "*", `\052`, 1), vals[0])
+			var esc strings.Builder
+			xml.EscapeText(&esc, []byte(vals[0]))
+			fmt.Fprintf(w, `<ResourceRecordSet><Name>%s</Name><Type>%s</Type><TTL>300</TTL><ResourceRecords><ResourceRecord><Value>%s</Value></ResourceRecord></ResourceRecords></ResourceRecordSet>`,
+				strings.Replace(name, "*", `\052`, 1), r.URL.Query().Get("type"), esc.String())
 		}
 		fmt.Fprint(w, `</ResourceRecordSets></R>`)
 	})
 	mux.HandleFunc("POST /r53/2013-04-01/hostedzone/Z9/rrset", func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
-		m := regexp.MustCompile(`<Action>UPSERT</Action>.*<Name>(.*?)</Name><Type>(.*?)</Type>.*<Value>(.*?)</Value>`).FindStringSubmatch(string(b))
+		m := regexp.MustCompile(`<Action>(UPSERT|DELETE)</Action>.*<Name>(.*?)</Name><Type>(.*?)</Type><TTL>(.*?)</TTL>.*<Value>(.*?)</Value>`).FindStringSubmatch(string(b))
 		if m == nil {
 			http.Error(w, "bad request", 400)
 			return
 		}
-		st.set("example.com", rel(m[1]), m[2], []string{m[3]})
+		var val struct {
+			V string `xml:",chardata"`
+		}
+		xml.Unmarshal([]byte("<v>"+m[5]+"</v>"), &val)
+		name, typ := rel(m[2]), m[3]
+		if m[1] == "DELETE" {
+			// Route 53 refuses a delete that doesn't match the set exactly.
+			if cur := st.get("example.com", name, typ); len(cur) != 1 || cur[0] != val.V || m[4] != "300" {
+				http.Error(w, "InvalidChangeBatch", 400)
+				return
+			}
+			st.set("example.com", name, typ, nil)
+		} else {
+			st.set("example.com", name, typ, []string{val.V})
+		}
 		fmt.Fprint(w, `<ok/>`)
 	})
 
@@ -112,6 +135,10 @@ func startRecordAPIs(t *testing.T) *recordStore {
 		st.set(r.PathValue("zone"), b["name"].(string), b["type"].(string), []string{b["content"].(string)})
 		fmt.Fprint(w, `{"status":"SUCCESS","id":1}`)
 	})
+	mux.HandleFunc("POST /pb/dns/deleteByNameType/{zone}/{typ}/{name}", func(w http.ResponseWriter, r *http.Request) {
+		st.set(r.PathValue("zone"), r.PathValue("name"), r.PathValue("typ"), nil)
+		fmt.Fprint(w, `{"status":"SUCCESS"}`)
+	})
 	mux.HandleFunc("POST /pb/dns/editByNameType/{zone}/{typ}/{name}", func(w http.ResponseWriter, r *http.Request) {
 		var b map[string]any
 		readJSON(r, &b)
@@ -130,6 +157,15 @@ func startRecordAPIs(t *testing.T) *recordStore {
 			w.WriteHeader(201)
 			return
 		}
+		if r.Method == "DELETE" {
+			if len(st.get(r.PathValue("zone"), r.PathValue("name"), r.PathValue("typ"))) == 0 {
+				http.Error(w, `{"message":"not found"}`, 404)
+				return
+			}
+			st.set(r.PathValue("zone"), r.PathValue("name"), r.PathValue("typ"), nil)
+			w.WriteHeader(204)
+			return
+		}
 		vals := st.get(r.PathValue("zone"), r.PathValue("name"), r.PathValue("typ"))
 		if len(vals) == 0 {
 			http.Error(w, `{"message":"not found"}`, 404)
@@ -144,6 +180,15 @@ func startRecordAPIs(t *testing.T) *recordStore {
 			st.set(r.PathValue("zone"), r.PathValue("name"), r.PathValue("typ"), []string{b[0].Data})
 			return
 		}
+		if r.Method == "DELETE" {
+			if len(st.get(r.PathValue("zone"), r.PathValue("name"), r.PathValue("typ"))) == 0 {
+				http.Error(w, `{"code":"NOT_FOUND"}`, 404)
+				return
+			}
+			st.set(r.PathValue("zone"), r.PathValue("name"), r.PathValue("typ"), nil)
+			w.WriteHeader(204)
+			return
+		}
 		var res []map[string]string
 		for _, v := range st.get(r.PathValue("zone"), r.PathValue("name"), r.PathValue("typ")) {
 			res = append(res, map[string]string{"data": v})
@@ -156,10 +201,12 @@ func startRecordAPIs(t *testing.T) *recordStore {
 
 	// Spaceship
 	mux.HandleFunc("/ss/v1/dns/records/{zone}", func(w http.ResponseWriter, r *http.Request) {
+		type item struct{ Type, Name, Address, Cname, Value string }
+		field := map[string]string{"A": "address", "CNAME": "cname", "TXT": "value"}
 		if r.Method == "PUT" {
 			var b struct {
 				Force bool
-				Items []struct{ Type, Name, Address string }
+				Items []item
 			}
 			readJSON(r, &b)
 			it := b.Items[0]
@@ -167,14 +214,29 @@ func startRecordAPIs(t *testing.T) *recordStore {
 				http.Error(w, "conflict", 409)
 				return
 			}
-			st.set(r.PathValue("zone"), it.Name, it.Type, []string{it.Address})
+			st.set(r.PathValue("zone"), it.Name, it.Type, []string{field[it.Type] + "=" + it.Address + it.Cname + it.Value})
+			w.WriteHeader(204)
+			return
+		}
+		if r.Method == "DELETE" {
+			var items []item
+			readJSON(r, &items)
+			for _, it := range items {
+				st.set(r.PathValue("zone"), it.Name, it.Type, nil)
+			}
 			w.WriteHeader(204)
 			return
 		}
 		var items []map[string]string
-		for _, v := range st.get(r.PathValue("zone"), "*.lab", "A") {
-			items = append(items, map[string]string{"type": "A", "name": "*.lab", "address": v})
+		st.mu.Lock()
+		for k, vals := range st.recs {
+			parts := strings.Split(k, "|")
+			for _, v := range vals {
+				f, val, _ := strings.Cut(v, "=")
+				items = append(items, map[string]string{"type": parts[2], "name": parts[1], f: val})
+			}
 		}
+		st.mu.Unlock()
 		json.NewEncoder(w).Encode(map[string]any{"items": items})
 	})
 
@@ -255,6 +317,85 @@ func TestRecordsCreateAndUpdate(t *testing.T) {
 			}
 			if ok, risky := p.ManagesRecords(); !ok || risky != (p.ID == "namecheap") {
 				t.Errorf("ManagesRecords = %v, %v", ok, risky)
+			}
+		})
+	}
+}
+
+// TestRecordTypes: CNAME and TXT records are written in each API's own
+// form (its quotes and final dots, Spaceship's field per type), read back
+// plain, and deleted; deleting what isn't there is no error.
+func TestRecordTypes(t *testing.T) {
+	values := map[string]map[string]string{
+		"cloudflare": {"api_token": "t"}, "route53": {"access_key_id": "a", "secret_access_key": "s"},
+		"porkbun": {"api_key": "k", "api_secret_key": "s"}, "gandi": {"bearer_token": "t"},
+		"godaddy": {"api_key": "k", "api_secret": "s"}, "spaceship": {"api_key": "k", "api_secret": "s"},
+		"namecheap": {"user": "u", "api_key": "k"},
+	}
+	// How each API holds them: the CNAME, then the TXT.
+	wire := map[string][2]string{
+		"cloudflare": {"r-abc.relay.roost.ac", `"roostack-proof=t0k"`},
+		"route53":    {"r-abc.relay.roost.ac.", `"roostack-proof=t0k"`},
+		"porkbun":    {"r-abc.relay.roost.ac", "roostack-proof=t0k"},
+		"gandi":      {"r-abc.relay.roost.ac.", `"roostack-proof=t0k"`},
+		"godaddy":    {"r-abc.relay.roost.ac", "roostack-proof=t0k"},
+		"spaceship":  {"cname=r-abc.relay.roost.ac", "value=roostack-proof=t0k"},
+		"namecheap":  {"r-abc.relay.roost.ac.", "roostack-proof=t0k"},
+	}
+	ctx := context.Background()
+	for _, p := range Providers() {
+		t.Run(p.ID, func(t *testing.T) {
+			st := startRecordAPIs(t)
+			v, hc := values[p.ID], http.DefaultClient
+			stored := func(name, typ string) string {
+				if p.ID == "namecheap" {
+					for _, h := range st.ncHosts {
+						if h.Name == name && h.Type == typ {
+							return h.Address
+						}
+					}
+					return ""
+				}
+				if got := st.get("example.com", name, typ); len(got) == 1 {
+					return got[0]
+				}
+				return ""
+			}
+			if err := p.SetRecord(ctx, hc, v, "example.com", "vault.lab", "A", "203.0.113.7"); err != nil {
+				t.Fatal(err)
+			}
+			if err := p.DeleteRecord(ctx, hc, v, "example.com", "vault.lab", "A"); err != nil {
+				t.Fatalf("delete: %v", err)
+			}
+			if got, _ := p.GetRecord(ctx, hc, v, "example.com", "vault.lab", "A"); len(got) != 0 {
+				t.Errorf("still there: %v", got)
+			}
+			if err := p.DeleteRecord(ctx, hc, v, "example.com", "vault.lab", "A"); err != nil {
+				t.Errorf("deleting what isn't there: %v", err)
+			}
+			if err := p.SetRecord(ctx, hc, v, "example.com", "vault.lab", "CNAME", "r-abc.relay.roost.ac"); err != nil {
+				t.Fatal(err)
+			}
+			if err := p.SetRecord(ctx, hc, v, "example.com", "_roostack.lab", "TXT", "roostack-proof=t0k"); err != nil {
+				t.Fatal(err)
+			}
+			if got := stored("vault.lab", "CNAME"); got != wire[p.ID][0] {
+				t.Errorf("the CNAME as sent: %q, want %q", got, wire[p.ID][0])
+			}
+			if got := stored("_roostack.lab", "TXT"); got != wire[p.ID][1] {
+				t.Errorf("the TXT as sent: %q, want %q", got, wire[p.ID][1])
+			}
+			if got, err := p.GetRecord(ctx, hc, v, "example.com", "vault.lab", "CNAME"); err != nil || len(got) != 1 || got[0] != "r-abc.relay.roost.ac" {
+				t.Errorf("the CNAME read back: %v %v", got, err)
+			}
+			if got, err := p.GetRecord(ctx, hc, v, "example.com", "_roostack.lab", "TXT"); err != nil || len(got) != 1 || got[0] != "roostack-proof=t0k" {
+				t.Errorf("the TXT read back: %v %v", got, err)
+			}
+			if err := p.DeleteRecord(ctx, hc, v, "example.com", "_roostack.lab", "TXT"); err != nil {
+				t.Errorf("deleting the TXT: %v", err)
+			}
+			if p.ID == "namecheap" && (st.ncEmail != "FWD" || len(st.ncHosts) != 3) {
+				t.Errorf("Namecheap's rewrites lost data: %+v", st.ncHosts)
 			}
 		})
 	}

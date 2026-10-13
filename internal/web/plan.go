@@ -38,6 +38,7 @@ type planEntry struct {
 	Kind, KindTitle        string // manager.Kind*
 	AtHome, Away, Main     bool
 	Last, LastOK           *store.BackupRun
+	Retry                  *backup.Retry // the next try after a failure
 	CanPromote             bool
 	// AskWhere are the servers whose location decides at home or away.
 	AskWhere []locationAsk
@@ -50,6 +51,13 @@ type planEntry struct {
 	// "vps's disk"); LowSpace is lowSpace's level for it.
 	FreeOn, LowSpace string
 	Lab              *labnet.GuestUsage
+	// Path says how backups reach another server's disk: manager.PathDirect
+	// or PathHub (through the controller, named by Via); "" otherwise.
+	// For PathHub, Host and HostName are that server, and LinkFailed says
+	// a direct link was tried and didn't connect.
+	Path, Via      string
+	Host, HostName string
+	LinkFailed     bool
 }
 
 // planSlot is an empty place in the plan, with a suggestion for it.
@@ -87,6 +95,10 @@ type planView struct {
 	Error                       string
 	// Next is when the next backup runs (zero if unknown).
 	Next time.Time
+	// Internet: this server is the lab on the internet (a cloud server,
+	// SPEC.md §6.12): "away" means away from it and its provider, and a
+	// drive at home isn't there to suggest.
+	Internet bool
 	// Action is where the chooser posts; Back where the page is.
 	Action, Back string
 }
@@ -114,7 +126,8 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		return nil
 	}
 	ctx := r.Context()
-	p := &planView{Server: m, Wizard: wizard, Back: m.Backups(), Action: m.path("/backups/plan", "/backups/plan")}
+	p := &planView{Server: m, Wizard: wizard, Back: m.Backups(), Action: m.path("/backups/plan", "/backups/plan"),
+		Internet: m.This && s.onInternet()}
 	if wizard {
 		p.Back, p.Action = "/setup/backup", "/setup/backup/add"
 	}
@@ -151,11 +164,23 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 			}
 		}
 		if host, ok := strings.CutPrefix(e.Ref, "server:"); ok {
+			e.Path = s.Manager.LinkPath(ctx, m.ID, host)
+			if s.Node != nil {
+				e.Via = s.Node.Identity().Name
+			}
+			if e.Path == manager.PathHub {
+				e.Host, e.LinkFailed = host, s.Manager.LinkFailed(ctx, m.ID, host)
+				if n := s.Manager.NodeByID(host); n != nil {
+					e.HostName = n.Identity().Name
+				}
+			}
 			// Another server's backup store: its disk, as it says.
 			if d, ok := s.Manager.NodeByID(host).(node.Disks); ok {
 				dctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-				if ds, err := d.DiskSpace(dctx); err == nil {
-					e.Free, e.FreeOn, e.LowSpace = ds.Free, "that disk", lowSpace(ds.Free, ds.Total)
+				if disks, err := d.DiskSpaces(dctx); err == nil {
+					if ds, ok := node.StoreDisk(disks); ok {
+						e.Free, e.FreeOn, e.LowSpace = ds.Free, "that disk", lowSpace(ds.Free, ds.Total)
+					}
 				}
 				cancel()
 			}
@@ -171,7 +196,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	if hasMain {
 		e := planEntry{Ref: main.Provider, Title: mainTitle, Repository: main.Repository, Main: true}
 		if st != nil {
-			e.Last, e.LastOK = st.Last, st.LastOK
+			e.Last, e.LastOK, e.Retry = st.Last, st.LastOK, st.Retry
 		}
 		add(e)
 	}
@@ -180,7 +205,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		if st != nil {
 			for _, cs := range st.Copies {
 				if cs.Name == c.Ref {
-					e.Last, e.LastOK = cs.Last, cs.LastOK
+					e.Last, e.LastOK, e.Retry = cs.Last, cs.LastOK, cs.Retry
 				}
 			}
 		}
@@ -198,8 +223,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	if len(p.Entries) > 0 && p.Entries[0].LastOK != nil && !isStale(p.Entries[0].LastOK.Finished) {
 		p.Checks.BackedUp = true
 	}
-	// The main backup is best at home: restores from it are quick.
-	if len(p.Entries) > 1 && !p.Entries[0].AtHome {
+	// The main backup is best at home: restores from it are quick. (A cloud
+	// server has no home to suggest.)
+	if len(p.Entries) > 1 && !p.Entries[0].AtHome && !p.Internet {
 		for i := range p.Entries[1:] {
 			if e := &p.Entries[i+1]; e.AtHome {
 				p.Hint = "Restores use the main backup first, so it's best at home, where restoring is quick: consider making " +
@@ -217,6 +243,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	p.More = len(p.Entries) + 2
 	need := func() (title, suggest string) {
 		switch {
+		case !p.Checks.Away && p.Internet:
+			return "A backup away from this server", "Suggested: online storage with another company, or space at your own or a friend's lab. " +
+				"It survives losing this server, or your account with its provider."
 		case !p.Checks.Away:
 			return "A backup away from home", "Suggested: online storage, or space at a friend's lab. It survives a fire or theft at home."
 		case !p.Checks.TwoKinds:
@@ -227,6 +256,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	for n := p.More; n <= planCopies; n++ {
 		slot := planSlot{Number: n}
 		switch {
+		case n == 2 && p.Internet:
+			slot.Title, slot.Suggest = "Your main backup", "Suggested: online storage (such as Backblaze B2), or space at your own or a friend's lab. "+
+				"A disk on this server restores quickest, but goes if the server does."
 		case n == 2:
 			slot.Title, slot.Suggest = "Your main backup", "Suggested: a drive at home, like a USB drive or a NAS. Restoring from it is quick."
 		case n > p.More:

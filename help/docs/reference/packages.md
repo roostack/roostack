@@ -34,7 +34,7 @@ containers:
   app:
     image: docker.io/vaultwarden/server:1.34.3@sha256:84fd8a47…
     env:
-      DOMAIN: "https://{{ .Routes.web.Host }}"
+      DOMAIN: "{{ .Routes.web.URL }}"
       SIGNUPS_ALLOWED: "{{ .Settings.signups_allowed }}"
     secrets:
       ADMIN_TOKEN: admin_token
@@ -123,7 +123,7 @@ Values in `env`, `when` and hooks are Go templates:
 
 | Value | Example |
 |---|---|
-| `.Routes.<route>.Host` / `.URL` | `photos.smith.family` / `https://photos.smith.family` |
+| `.Routes.<route>.Host` / `.URL` | `photos.smith.family` / `https://photos.smith.family`. Use `.URL` for an app's own address: until the lab has one, it's the local `http://localhost:<port>` (and `.Host` is `localhost`), so the app still starts |
 | `.Settings.<key>` | Settings that aren't secrets |
 | `.Databases.<name>.Host` / `.Port` / `.User` / `.Name` | Connection details for a database |
 | `(index .Containers "<name>").Host` | Another container of the service |

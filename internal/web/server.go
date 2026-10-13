@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
@@ -52,14 +53,24 @@ const (
 	failedLoginDelay = 500 * time.Millisecond
 )
 
+// StatusWaiting is a service waiting to be restored: its server is gone
+// (SPEC.md §10.10).
+const StatusWaiting = "waiting"
+
 // ServiceView is one row on the dashboard.
 type ServiceView struct {
 	Name   string
 	Title  string
 	Status string // running, starting, stopped, failed, unknown
 	URLs   []string
+	// NoAddress: it has web routes, but the lab has no address yet, so it
+	// can't be reached on the web (SPEC.md §6.6).
+	NoAddress bool
 	// Server is the name of the server it runs on.
 	Server string
+	// WasOn names the server a service waiting to be restored ran on
+	// (Status is StatusWaiting).
+	WasOn string
 	// What its server reports: containers, ports, routes, data folders
 	// and size (nothing about a service should look like magic).
 	node.ServiceDetail
@@ -104,8 +115,19 @@ type Server struct {
 	LabName string
 	// Domain is the lab's base domain, shown next to subdomain fields.
 	Domain string
+	// UIHost is where Roostack's own pages are (config.Lab.UIHost).
+	UIHost string
+	// DetectNetwork guesses where the lab is from this server's addresses
+	// (public.DetectNetwork; SPEC.md §6.12). Nil guesses nothing.
+	DetectNetwork func() string
 	// DNSProvider is the lab's current DNS provider ID (wizard default).
 	DNSProvider string
+	// OldAddress is the lab's previous address, still served for a while
+	// after switching (config.Lab.OldAddress; SPEC.md §6.6).
+	OldAddress *config.OldAddress
+	// Cloud is the controller's link to Roostack Cloud (SPEC.md §6.6). Nil
+	// when Cloud is turned off (config.Cloud): nothing about it is offered.
+	Cloud CloudLink
 	// BackupRepo is the backup destination, shown on the Backups page.
 	BackupRepo string
 	// HasGPU pre-ticks settings whose default is "auto".
@@ -116,7 +138,10 @@ type Server struct {
 	// hides it.
 	LabRestore LabRestorer
 	restore    *restoreSession
-	hostChecks hostCheckCache
+	// setupPasses are browsers that entered the setup code (setup.go):
+	// token hash → until when.
+	setupPasses map[string]time.Time
+	hostChecks  hostCheckCache
 	// RestorePending reports a restored lab whose services' databases are
 	// still being put back (optional).
 	RestorePending func() bool
@@ -126,7 +151,18 @@ type Server struct {
 	// Protected says whether CrowdSec is running (SPEC.md §6.11; public.go).
 	Checks    *public.Checks
 	Protected func(ctx context.Context) bool
-	// Version is Roostack's version, shown on the About page.
+	// JoinLab adds this fresh server to an existing lab, named name, and
+	// restarts Roostack as part of it once the page has been sent; it
+	// returns this server's address on the lab's network. Undone if it
+	// fails. Nil hides the choice (SPEC.md §10.2).
+	JoinLab func(ctx context.Context, code labnet.JoinCode, name string) (string, error)
+	// Mail sends email (SPEC.md §6.13). Nil hides Settings → Email.
+	Mail MailSender
+	// Attacks says what CrowdSec saw on the public addresses over a while,
+	// for the weekly summary (optional).
+	Attacks func(ctx context.Context, since time.Duration) (public.Attacks, error)
+	// Version is Roostack's version, shown in every page's footer and on
+	// the About page.
 	Version string
 	// Maintenance is the lab's restart policy, shown in Settings.
 	Maintenance config.Maintenance
@@ -150,6 +186,20 @@ type ServiceManager interface {
 	StorageSharing
 	PublicAccess
 	RecoveryKeys
+	LabRestores
+}
+
+// LabRestores restores a service from any of the lab's backups, onto any
+// server (SPEC.md §10.10, "Restoring across the lab").
+type LabRestores interface {
+	ServiceBackups(ctx context.Context, name string) ([]manager.BackupMoment, []string, error)
+	RestoreService(ctx context.Context, name, id, to string) error
+	Restoring(name string) bool
+	// A server that's gone: its services' plan, restoring them, and
+	// removing one that waits (with its backups).
+	LostServerPlan(ctx context.Context, id string) (manager.LostPlan, error)
+	RestoreLostServer(ctx context.Context, id string, names []string, to string) error
+	RemoveWaiting(ctx context.Context, name string) error
 }
 
 // ServiceCatalog is the catalog and the installed services: installing,
@@ -157,6 +207,11 @@ type ServiceManager interface {
 type ServiceCatalog interface {
 	Catalog() ([]manager.CatalogItem, error)
 	Package(name string) (*pkgspec.Package, error)
+	// ServicePackage is an installed service's package (its name can be
+	// a second copy's own), titled as the service.
+	ServicePackage(name string) (*pkgspec.Package, error)
+	// SetTitle changes what people call a service (never its name).
+	SetTitle(ctx context.Context, name, title string) error
 	Install(ctx context.Context, name string, req manager.InstallRequest) error
 	Remove(ctx context.Context, name string) error
 	DataDirs(name string) []string
@@ -183,6 +238,14 @@ type LabServers interface {
 	RenameServer(ctx context.Context, id, name string) error
 	KeptData(ctx context.Context, serverID string) ([]node.KeptFolder, error)
 	RemoveKeptData(ctx context.Context, serverID, path string) error
+	// Direct links between servers for backups (SPEC.md §10.10): where a
+	// server is reached directly (typed by the Owner), and how one server
+	// reaches another's backup store.
+	LinkAddress(ctx context.Context, id string) string
+	SetLinkAddress(ctx context.Context, id, addr string) error
+	LinkPath(ctx context.Context, from, to string) string
+	LinkFailed(ctx context.Context, a, b string) bool
+	ApplyBecause(reason string)
 }
 
 // BackupPlan is each server's backups (SPEC.md §6.9): the main one, its
@@ -211,6 +274,7 @@ type StorageSharing interface {
 	SetGuestServer(ctx context.Context, id string) error
 	EndingStorages(ctx context.Context) []manager.EndingStorage
 	SetGuestQuota(ctx context.Context, id, quota int64) error
+	GuestSpaceLeft(ctx context.Context) (manager.GuestSpace, bool)
 	LeftoverGuests(ctx context.Context) ([]manager.LeftoverGuest, error)
 	DeleteLeftoverGuest(ctx context.Context, user string) error
 	AddRemoteStorage(ctx context.Context, code string) error
@@ -235,7 +299,7 @@ type ServiceNode interface {
 
 // LabNetwork is what the UI needs from labnet.Hub.
 type LabNetwork interface {
-	NewJoinCode(ctx context.Context, endpoint string) (labnet.JoinCode, error)
+	NewJoinCode(ctx context.Context, endpoint, dial string) (labnet.JoinCode, error)
 }
 
 // LabSetup is what the UI needs from internal/setup.
@@ -245,6 +309,8 @@ type LabSetup interface {
 	Done(ctx context.Context, step string) error
 	SaveDomain(ctx context.Context, domain, email, provider string, values map[string]string, opts setup.DomainOptions) error
 	DomainLater(ctx context.Context) error
+	// EndOldAddress stops the previous address working now, and restarts.
+	EndOldAddress(ctx context.Context) error
 	// BackupAdded records the wizard's backup step done (first: its first
 	// backup, so the recovery key must be confirmed).
 	BackupAdded(ctx context.Context, first bool) error
@@ -258,6 +324,10 @@ type LabSetup interface {
 	// PendingRestart: wizard steps' settings wait for the restart at its end.
 	PendingRestart() bool
 	SetLabName(ctx context.Context, name string, restart bool) error
+	// Network is where the lab is, saved and guessed (detect guesses);
+	// SetNetwork saves it and restarts Roostack (SPEC.md §6.12).
+	Network(detect func() string) setup.NetworkChoice
+	SetNetwork(network string, uiTunnelOnly bool) error
 }
 
 // DNSStatus is what the UI needs from internal/dnsrecords.
@@ -310,26 +380,28 @@ func (s *Server) updates(r *http.Request) HostUpdates {
 }
 
 type pendingLogin struct {
-	userID  int64
-	expires time.Time
+	userID   int64
+	expires  time.Time
+	remember bool // "keep me signed in" was ticked
 }
 
 // NewServer prepares templates. setupToken is empty if users already exist.
 func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, error), setupToken string, log *slog.Logger) (*Server, error) {
 	s := &Server{Store: st, Services: services, Log: log, setupToken: setupToken,
-		pending: map[string]*pendingLogin{}, stepUpFailures: map[int64]int{}, pages: map[string]*template.Template{}}
+		pending: map[string]*pendingLogin{}, stepUpFailures: map[int64]int{}, pages: map[string]*template.Template{},
+		setupPasses: map[string]time.Time{}}
 	var err error
-	if s.bootID, err = auth.NewToken(); err != nil {
+	if s.bootID, err = authkit.NewToken(); err != nil {
 		return nil, err
 	}
 	if s.help, err = newHelpSite(helpFS); err != nil {
 		return nil, err
 	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
-		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore",
-		"home", "services", "service", "backups", "restore", "settings", "account", "users", "about",
-		"settings-domain", "settings-network", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
-		"backups-recovery-key", "service-public", "settings-public", "backups-key-change"} {
+		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
+		"home", "services", "service", "backups", "restore", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
+		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
+		"backups-recovery-key", "service-public", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -344,12 +416,14 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 func (s *Server) Handler() http.Handler {
 	static, _ := fs.Sub(staticFS, "static")
 	mux := http.NewServeMux()
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
+	mux.Handle("GET /static/", http.StripPrefix("/static/", staticHandler(static)))
 	mux.Handle("GET /help/", s.help.Handler())
 	mux.Handle("GET /help", http.RedirectHandler("/help/", http.StatusMovedPermanently))
 
 	mux.HandleFunc("GET /setup", s.setupPage)
 	mux.HandleFunc("POST /setup", s.setupSubmit)
+	mux.HandleFunc("POST /setup/code", s.setupCodeSubmit)
+	mux.HandleFunc("POST /setup/join", s.setupJoinSubmit)
 	mux.HandleFunc("GET /setup/restore", s.labRestorePage)
 	mux.HandleFunc("POST /setup/restore", s.labRestoreFind)
 	mux.HandleFunc("POST /setup/restore/start", s.labRestoreStart)
@@ -379,12 +453,29 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /settings/remote-access", s.requireWizard(s.sshPage))
 	mux.Handle("GET /settings/domain", s.requireOwner(s.domainAreaPage))
 	mux.Handle("GET /settings/home-network", s.requireOwner(s.homeNetworkPage))
+	mux.Handle("POST /settings/network", s.requireOwner(s.networkSubmit))
 	mux.Handle("GET /settings/servers", s.requireOwner(s.serversPage))
 	mux.Handle("GET /settings/servers/{server}", s.requireOwner(s.serverPage))
+	mux.Handle("GET /settings/servers/{server}/disk", s.requireOwner(s.diskPart))
 	s.serverRoutes(mux)
 	mux.Handle("POST /settings/servers/{server}/rename", s.requireOwner(s.renameServerSubmit))
+	mux.Handle("POST /settings/servers/{server}/link-address", s.requireOwner(s.linkAddressSubmit))
 	mux.Handle("POST /settings/servers/{server}/remove", s.requireOwner(s.removeServerSubmit))
 	mux.Handle("POST /settings/servers/{server}/kept/remove", s.requireOwner(s.removeKeptDataSubmit))
+	mux.Handle("GET /settings/servers/{server}/gone", s.requireOwner(s.serverGonePage))
+	mux.Handle("POST /settings/servers/{server}/gone", s.requireOwner(s.serverGoneSubmit))
+	mux.Handle("POST /services/{name}/remove-waiting", s.requireOwner(s.removeWaitingSubmit))
+	mux.Handle("POST /settings/signing-in", s.requireOwner(s.sessionSettingsSubmit))
+	mux.Handle("GET /settings/history", s.requireOwner(s.historyPage))
+	mux.Handle("GET /settings/history/{server}/{id}", s.requireOwner(s.historyEventPage))
+	mux.Handle("POST /settings/history/keep", s.requireOwner(s.historyKeepSubmit))
+	mux.Handle("POST /settings/history/delete", s.requireOwner(s.historyDeleteSubmit))
+	mux.Handle("GET /settings/email", s.requireOwner(s.emailPage))
+	mux.Handle("POST /settings/email", s.requireOwner(s.emailSubmit))
+	mux.Handle("POST /settings/email/test", s.requireOwner(s.emailTestSubmit))
+	mux.Handle("GET /account/notifications", s.requireLogin(s.notificationsPage))
+	mux.Handle("POST /account/notifications", s.requireLogin(s.notificationsSubmit))
+	mux.Handle("GET /account/appearance", s.requireLogin(s.appearancePage))
 	mux.Handle("GET /settings/storage", s.requireOwner(s.storagePage))
 	mux.Handle("POST /settings/storage/invite", s.requireOwner(s.inviteGuestSubmit))
 	mux.Handle("POST /settings/storage/guests/{id}/remove", s.requireOwner(s.removeGuestSubmit))
@@ -398,6 +489,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /services/{name}/public/{route}/check", s.requireOwner(s.publicCheckNew))
 	mux.Handle("GET /settings/public", s.requireOwner(s.publicSettingsPage))
 	mux.Handle("POST /settings/public/sharing", s.requireOwner(s.publicSharingSubmit))
+	mux.Handle("POST /settings/public/edge", s.requireOwner(s.publicEdgeSubmit))
+	mux.Handle("POST /settings/public/countries", s.requireOwner(s.publicCountriesSubmit))
+	mux.Handle("POST /settings/public/relay-check", s.requireOwner(s.publicRelayCheck))
+	// Visitors through the relay: Owners on Public access, Admins on their own page.
+	mux.Handle("GET /partials/relay-stats", s.require(auth.ManageServices, s.relayStatsPart))
+	mux.Handle("GET /visitors", s.require(auth.ManageServices, s.visitorsPage))
+	mux.Handle("POST /settings/public/countries/open", s.requireOwner(s.publicCountriesOpen))
 	mux.Handle("POST /services/{name}/move", s.requireOwner(s.moveSubmit))
 	mux.Handle("POST /settings/servers/join", s.requireOwner(s.joinCodeSubmit))
 	mux.Handle("GET /settings/updates", s.requireOwner(s.updatesPage))
@@ -429,6 +527,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /backups/recovery-key/change", s.requireOwner(s.keyChangeSubmit))
 	mux.Handle("POST /backups/recovery-key/change/confirm", s.requireOwner(s.keyChangeConfirm))
 	mux.Handle("POST /backups/recovery-key/change/cancel", s.requireOwner(s.keyChangeCancel))
+	mux.Handle("POST /backups/keep-this-copy", s.requireOwner(s.keepThisCopySubmit))
 	mux.Handle("GET /backups/restore/{name}", s.requireOwner(s.restorePage))
 	mux.Handle("POST /backups/restore/{name}", s.requireOwner(s.restoreSubmit))
 	mux.Handle("POST /backups/restore/{name}/kept/remove", s.requireOwner(s.removeKeptSubmit))
@@ -441,6 +540,18 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /setup/domain", s.requireWizard(s.domainPage))
 	mux.Handle("POST /setup/domain", s.requireWizard(s.domainSubmit))
 	mux.Handle("POST /setup/domain/later", s.requireWizard(s.domainLater))
+	mux.Handle("POST /settings/domain/old/end", s.requireWizard(s.oldAddressEnd))
+	mux.Handle("POST /setup/address/roost-ac", s.requireWizard(s.roostAcSubmit))
+	mux.Handle("GET /settings/cloud", s.requireCloud(s.cloudPage))
+	mux.Handle("GET /settings/cloud/live", s.requireCloud(s.cloudLive))
+	mux.Handle("GET /settings/cloud/linked", s.requireCloud(s.cloudLinkedPage))
+	mux.Handle("GET /setup/address/linked", s.requireCloud(s.cloudLinkedPage))
+	mux.Handle("GET /settings/cloud/progress", s.requireCloud(s.cloudProgress))
+	mux.Handle("GET /settings/cloud/name", s.requireCloud(s.cloudNameCheck))
+	mux.Handle("POST /settings/cloud/link", s.requireCloud(s.cloudLinkSubmit))
+	mux.Handle("POST /settings/cloud/cancel", s.requireCloud(s.cloudCancelSubmit))
+	mux.Handle("POST /settings/cloud/unlink", s.requireCloud(s.cloudUnlinkSubmit))
+	mux.Handle("POST /settings/cloud/dismiss", s.requireCloud(s.cloudDismissSubmit))
 	mux.Handle("GET /setup/backup", s.requireWizard(s.backupPage))
 	mux.Handle("POST /setup/backup", s.requireWizard(s.backupSubmit))
 	mux.Handle("POST /setup/backup/later", s.requireWizard(s.backupLater))
@@ -466,6 +577,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /services/{name}/setup/retry-with", s.require(auth.ManageServices, s.retryWithSubmit))
 	mux.Handle("POST /services/{name}/actions/{action}", s.require(auth.ManageServices, s.actionSubmit))
 	mux.Handle("GET /services/{name}/remove", s.require(auth.ManageServices, s.removePage))
+	mux.Handle("POST /services/{name}/title", s.require(auth.ManageServices, s.titleSubmit))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))
 
 	return s.recoverPanics(compress(securityHeaders(sameOrigin(s.loadSession(mux)))))
@@ -482,10 +594,11 @@ func currentUser(r *http.Request) *store.User {
 func (s *Server) loadSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
-			u, err := s.Store.SessionUser(r.Context(), auth.HashToken(c.Value))
+			hash := authkit.HashToken(c.Value)
+			u, lastSeen, remember, err := s.Store.SessionInfo(r.Context(), hash)
 			switch {
 			case err == nil:
-				r = r.WithContext(context.WithValue(r.Context(), userKey{}, u))
+				r = s.checkSession(r, hash, u, lastSeen, remember)
 			case !errors.Is(err, store.ErrNotFound):
 				s.serverError(w, err)
 				return
@@ -503,7 +616,11 @@ func (s *Server) requireLogin(h http.HandlerFunc) http.Handler {
 			return
 		}
 		if currentUser(r) == nil {
-			redirect(w, r, "/login")
+			if sessionOf(r).Expired {
+				redirect(w, r, "/login?expired=1")
+			} else {
+				redirect(w, r, "/login")
+			}
 			return
 		}
 		h(w, r)
@@ -612,19 +729,27 @@ func (s *Server) needsSetup() bool {
 	return s.setupToken != ""
 }
 
-func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.User) error {
-	token, err := auth.NewToken()
+// startSession signs u in. remember ("keep me signed in", if offered)
+// makes it last rememberDuration on this browser without the idle limit;
+// otherwise the cookie ends with the browser (session.go).
+func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.User, remember bool) error {
+	token, err := authkit.NewToken()
 	if err != nil {
 		return err
 	}
+	remember = remember && s.offerRemember(r.Context())
 	expires := time.Now().Add(sessionDuration)
-	if err := s.Store.CreateSession(r.Context(), auth.HashToken(token), u.ID, expires); err != nil {
+	if remember {
+		expires = time.Now().Add(rememberDuration)
+	}
+	if err := s.Store.CreateSessionRemember(r.Context(), authkit.HashToken(token), u.ID, expires, remember); err != nil {
 		return err
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name: sessionCookie, Value: token, Path: "/", Expires: expires,
-		HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r),
-	})
+	c := &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r)}
+	if remember {
+		c.Expires = expires
+	}
+	http.SetCookie(w, c)
 	return nil
 }
 
@@ -637,6 +762,10 @@ func isHTTPS(r *http.Request) bool {
 func (s *Server) render(w http.ResponseWriter, page string, data map[string]any) {
 	if u, ok := data["User"].(*store.User); ok && u != nil {
 		data["Nav"] = navFor(u, page)
+		// Every page's footer shows Roostack's version.
+		if _, set := data["Version"]; !set {
+			data["Version"] = s.Version
+		}
 		if _, set := data["LabName"]; !set {
 			data["LabName"] = s.labName()
 		}
@@ -647,6 +776,11 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 		if page != "setup-timezone" && page != "restarting" {
 			data["Clock"] = clockView{hosttime.Now(), auth.Can(u.Role, auth.ManageHost)}
 		}
+	}
+	// Settings' sidebar leaves out Roostack Cloud while it isn't in use.
+	if nav, ok := data["AreaNav"].(areaNav); ok && nav.Label == "Settings" {
+		nav.Groups = s.settingsGroups()
+		data["AreaNav"] = nav
 	}
 	// Render into a buffer first, so a template error becomes an error
 	// page rather than half a page sent with 200 OK.

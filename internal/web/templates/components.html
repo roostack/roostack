@@ -8,7 +8,19 @@
   {{.Text}}{{with .Link}} <a href="{{.}}">{{$.LinkText}}</a>{{end}}</p>{{end}}
 
 {{/* status: a service state (running, starting, stopped, failed, unknown). */}}
-{{define "status"}}<span class="status status-{{.}}">{{.}}</span>{{end}}
+{{define "status"}}<span class="status status-{{.}}">{{if eq . "installing"}}<span class="spinner" aria-hidden="true"></span> {{end}}{{if eq . "waiting"}}waiting to be restored{{else}}{{.}}{{end}}</span>{{end}}
+
+{{/* install-steps: a service's install, step by step (node.InstallProgress):
+     done, in progress (with how long so far) and still to do. */}}
+{{define "install-steps"}}
+<ol class="install-steps">
+  {{- $p := .}}{{range $i, $s := .Steps}}{{$st := $p.State $i}}
+  <li class="step-{{$st}}"><span class="mark" aria-hidden="true">{{if eq $st "done"}}✓{{else if eq $st "now"}}<span class="spinner"></span>{{else}}○{{end}}</span>
+    <span>{{$s.Title}}{{if eq $st "now"}}…{{end}}<span class="sr-only">{{if eq $st "done"}} (done){{else if eq $st "now"}} (in progress){{else}} (to do){{end}}</span></span>
+    <small>{{if eq $st "done"}}{{took $s.Started $s.Finished}}{{else if eq $st "now"}}{{with took $s.Started $s.Finished}}for {{.}}{{end}}{{end}}</small></li>
+  {{- end}}
+</ol>
+{{end}}
 
 {{/* badge: Text, and Highlight for the brand highlight colour ("New"). */}}
 {{define "badge"}}<span class="badge{{if .Highlight}} badge-highlight{{end}}">{{.Text}}</span>{{end}}
@@ -43,6 +55,28 @@
     </div>
   </dialog>
 </form>{{end}}
+
+{{/* confirm-submit: a submit button, inside a form, that asks Question
+     first (confirmSubmit). The dialog's button submits the form. */}}
+{{define "confirm-submit"}}<span class="confirm" x-data>
+  <button type="button" x-on:click="$el.closest('form').reportValidity() && $refs.dialog.showModal()">{{.Text}}</button>
+  <dialog x-ref="dialog" class="dialog" aria-labelledby="{{.ID}}">
+    <p id="{{.ID}}">{{.Question}}</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dialog.close()" autofocus>Cancel</button>
+      <button type="submit"{{with .Kind}} class="{{.}}"{{end}}>{{.Text}}</button>
+    </div>
+  </dialog>
+</span>{{end}}
+
+{{/* copy-box: text to copy, with a Copy button (roostackCopy in app.js,
+     which falls back to selecting and copying where the browser's
+     clipboard needs HTTPS). */}}
+{{define "copy-box"}}<div class="copy-box" x-data="{ copied: false }">
+  <pre class="output" x-ref="text">{{.}}</pre>
+  <button type="button" class="secondary" x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+    ><span x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+</div>{{end}}
 
 {{/* activity: a host operation (*activityView): a status line for
      everyone, and a collapsed log for the curious. While running, the
@@ -83,3 +117,15 @@
   <button type="submit" class="theme-toggle" title="Switch to {{.NextTheme}} theme"
     aria-label="Theme: {{.Theme}}. Switch to {{.NextTheme}}.">{{if eq .Theme "light"}}☀ Light{{else if eq .Theme "dark"}}☾ Dark{{else}}◐ Auto{{end}}</button>
 </form>{{end}}
+
+{{/* A bar chart (barChart): one column a period, its height a share of the
+     tallest, the label under it (may be empty), the exact figure on hover
+     and for screen readers. Heights go through data-height (app.js). */}}
+{{define "bar-chart"}}<figure class="bar-chart">
+  <figcaption>{{.Title}}</figcaption>
+  <div class="bar-cols">{{range .Bars}}<div class="bar-col" title="{{.Title}}"><span class="bar" data-height="{{.Percent}}"></span><span class="bar-label" aria-hidden="true">{{.Label}}</span><span class="sr-only">{{.Title}}</span></div>{{end}}</div>
+</figure>{{end}}
+
+{{/* A ranked list ([]rankView): names with a bar for their share of the
+     largest and the count; Other rows (the rest) in muted colour. */}}
+{{define "rank-list"}}<ul class="rank-list">{{range .}}<li{{if .Other}} class="rank-other"{{end}}><span class="rank-name">{{.Name}}</span><span class="rank-bar" aria-hidden="true"><span data-width="{{.Percent}}"></span></span><span class="rank-count">{{count .Count}}</span></li>{{end}}</ul>{{end}}

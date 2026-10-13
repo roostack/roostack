@@ -40,6 +40,16 @@
   --status-ok-d: #7ee2ae; --status-ok-bg-d: #133426;
   --status-warn-d: #f5c16c; --status-warn-bg-d: #3a2a0e;
   --status-bad-d: #ff8a80; --status-bad-bg-d: #3d1714; --status-bad-fg-d: #2a0806;
+
+  /* Chart colours (2026-10-03), for parts of a whole such as the disk bar:
+     the same in every theme, since themes' accent and highlight are often
+     close hues. Blue, magenta, violet, in that order (checked with the
+     dataviz validator against every theme's surface, light and dark: the
+     adjacent pairs stay apart for colour-blind readers). Not orange,
+     yellow, red or green, which mean warning, problem and OK. Each part
+     also has a label, so colour never carries it alone. */
+  --chart-1-l: #2a78d6; --chart-2-l: #e87ba4; --chart-3-l: #4a3aa7;
+  --chart-1-d: #3987e5; --chart-2-d: #d55181; --chart-3-d: #9085e9;
 }
 
 /* Light (the default, and data-mode="light" anywhere). */
@@ -53,6 +63,11 @@
   --ok: var(--pal-ok-l, var(--status-ok-l)); --ok-bg: var(--pal-ok-bg-l, var(--status-ok-bg-l));
   --warn: var(--pal-warn-l, var(--status-warn-l)); --warn-bg: var(--pal-warn-bg-l, var(--status-warn-bg-l));
   --bad: var(--pal-bad-l, var(--status-bad-l)); --bad-bg: var(--pal-bad-bg-l, var(--status-bad-bg-l)); --bad-fg: var(--pal-bad-fg-l, var(--status-bad-fg-l));
+  /* The status green that shows on a text-coloured shape (the brand mark's
+     online light on its server): the other mode's green, unless the
+     palette sets its own (--pal-ok-on-fg-l/-d). */
+  --ok-on-fg: var(--pal-ok-on-fg-l, var(--pal-ok-d, var(--status-ok-d)));
+  --chart-1: var(--chart-1-l); --chart-2: var(--chart-2-l); --chart-3: var(--chart-3-l);
 }
 
 /* Dark: when the device prefers it and the user hasn't chosen light, or
@@ -68,6 +83,8 @@
     --ok: var(--pal-ok-d, var(--status-ok-d)); --ok-bg: var(--pal-ok-bg-d, var(--status-ok-bg-d));
     --warn: var(--pal-warn-d, var(--status-warn-d)); --warn-bg: var(--pal-warn-bg-d, var(--status-warn-bg-d));
     --bad: var(--pal-bad-d, var(--status-bad-d)); --bad-bg: var(--pal-bad-bg-d, var(--status-bad-bg-d)); --bad-fg: var(--pal-bad-fg-d, var(--status-bad-fg-d));
+    --ok-on-fg: var(--pal-ok-on-fg-d, var(--pal-ok-l, var(--status-ok-l)));
+    --chart-1: var(--chart-1-d); --chart-2: var(--chart-2-d); --chart-3: var(--chart-3-d);
   }
 }
 [data-mode="dark"] {
@@ -80,4 +97,6 @@
   --ok: var(--pal-ok-d, var(--status-ok-d)); --ok-bg: var(--pal-ok-bg-d, var(--status-ok-bg-d));
   --warn: var(--pal-warn-d, var(--status-warn-d)); --warn-bg: var(--pal-warn-bg-d, var(--status-warn-bg-d));
   --bad: var(--pal-bad-d, var(--status-bad-d)); --bad-bg: var(--pal-bad-bg-d, var(--status-bad-bg-d)); --bad-fg: var(--pal-bad-fg-d, var(--status-bad-fg-d));
+  --ok-on-fg: var(--pal-ok-on-fg-d, var(--pal-ok-l, var(--status-ok-l)));
+  --chart-1: var(--chart-1-d); --chart-2: var(--chart-2-d); --chart-3: var(--chart-3-d);
 }

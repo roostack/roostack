@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
@@ -18,6 +19,27 @@ type fakeSecrets map[string][]byte
 func (f fakeSecrets) Replace(_ context.Context, name string, v []byte) error {
 	f[name] = v
 	return nil
+}
+
+func (f fakeSecrets) Read(_ context.Context, name string) ([]byte, error) {
+	v, ok := f[name]
+	if !ok {
+		return nil, errors.New("no such secret")
+	}
+	return v, nil
+}
+
+func (f fakeSecrets) Remove(_ context.Context, name string) error {
+	delete(f, name)
+	return nil
+}
+
+func (f fakeSecrets) List(context.Context) (map[string]bool, error) {
+	names := map[string]bool{}
+	for n := range f {
+		names[n] = true
+	}
+	return names, nil
 }
 
 func newSetup(t *testing.T) (*Setup, fakeSecrets, *int) {
@@ -216,5 +238,112 @@ func TestBackupLaterFinishesTheWizard(t *testing.T) {
 	s.Finished = func() { finished++ }
 	if err := s.BackupLater(context.Background()); err != nil || finished != 1 {
 		t.Errorf("finished = %d, %v", finished, err)
+	}
+}
+
+// Where the lab is (SPEC.md §6.12): a guess until the Owner answers, then
+// saved in lab.yaml (read back before the restart that applies it).
+func TestNetworkChoice(t *testing.T) {
+	s, _, restarts := newSetup(t)
+	internet := func() string { return config.NetworkInternet }
+	if c := s.Network(internet); c.Saved != "" || !c.Internet() {
+		t.Fatalf("not asked yet: %+v", c)
+	}
+	if err := s.SetNetwork("moon", false); err == nil {
+		t.Error("only home or internet")
+	}
+	if err := s.SetNetwork(config.NetworkHome, true); err != nil {
+		t.Fatal(err)
+	}
+	if c := s.Network(internet); c.Saved != config.NetworkHome || c.Internet() || !c.UITunnelOnly || *restarts != 1 {
+		t.Errorf("saved: %+v, restarts %d", c, *restarts)
+	}
+}
+
+// Switching address keeps the old one working for 30 days, with its
+// provider's credentials (SPEC.md §6.6).
+func TestSwitchKeepsOldAddress(t *testing.T) {
+	s, secrets, restarts := newSetup(t)
+	ctx := context.Background()
+	save := func(domain, provider string, v map[string]string) {
+		t.Helper()
+		if err := s.SaveDomain(ctx, domain, "me@example.com", provider, v, DomainOptions{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	load := func() config.Lab {
+		t.Helper()
+		lab, err := config.Load(s.LabPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return lab
+	}
+	// The first address: nothing old (the placeholder isn't an address).
+	save("home.example.com", "cloudflare", map[string]string{"api_token": "good"})
+	if load().OldAddress != nil {
+		t.Fatal("first address: no old one")
+	}
+	secrets[dns.SecretName("api_token")] = []byte("token-1")
+	// Saving it again (e.g. a new token) isn't a switch.
+	save("home.example.com", "cloudflare", map[string]string{"api_token": "good"})
+	if load().OldAddress != nil {
+		t.Fatal("same address: no old one")
+	}
+	secrets[dns.SecretName("api_token")] = []byte("token-1")
+	save("smith.family", "porkbun", map[string]string{"api_key": "good", "api_secret_key": "good"})
+	old := load().OldAddress
+	if old == nil || old.Domain != "home.example.com" || old.DNS.Provider != "cloudflare" ||
+		time.Until(old.Until) < 29*24*time.Hour || time.Until(old.Until) > 31*24*time.Hour {
+		t.Fatalf("old = %+v", old)
+	}
+	if string(secrets[dns.OldSecretName("api_token")]) != "token-1" {
+		t.Error("the old provider's token is kept")
+	}
+
+	// Ending it: lab.yaml first and a restart; the credentials go after.
+	before := *restarts
+	if err := s.EndOldAddress(ctx); err != nil || load().OldAddress != nil || *restarts != before+1 {
+		t.Fatalf("end: %v %+v", err, load().OldAddress)
+	}
+	if err := s.cleanOldSecrets(ctx); err != nil || secrets[dns.OldSecretName("api_token")] != nil {
+		t.Errorf("old secrets left: %v", err)
+	}
+	if secrets[dns.SecretName("api_key")] == nil {
+		t.Error("the current provider's secrets stay")
+	}
+}
+
+// A roost.ac name becomes the lab's address with Cloud's credentials,
+// and goes when the link does (SPEC.md §6.6).
+func TestRoostAc(t *testing.T) {
+	s, secrets, restarts := newSetup(t)
+	ctx := context.Background()
+	creds := map[string]string{"server_url": "https://acme.example", "username": "u", "password": "p", "subdomain": "s",
+		"records_url": "https://cloud.example/v1/records"}
+	if err := s.UseRoostAc(ctx, "smiths.roost.ac", creds); err != nil {
+		t.Fatal(err)
+	}
+	lab, err := config.Load(s.LabPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lab.Domain != "smiths.roost.ac" || !lab.RoostAc() || lab.UIHost() != "smiths.roost.ac" || !lab.DNS.ManageRecords ||
+		lab.DNS.Zone != "smiths.roost.ac" || string(secrets[dns.SecretName("password")]) != "p" || *restarts != 1 ||
+		lab.DNS.Values["server_url"] != "https://acme.example" || secrets[dns.SecretName("username")] != nil {
+		t.Fatalf("lab = %+v, restarts %d", lab.DNS, *restarts)
+	}
+	if p, _ := s.Progress(ctx); !p.DomainDone {
+		t.Error("the address step is done")
+	}
+	if err := s.DropRoostAc(ctx); err != nil {
+		t.Fatal(err)
+	}
+	lab, _ = config.Load(s.LabPath)
+	if lab.HasAddress() || lab.DNS.Provider != "" || secrets[dns.SecretName("password")] != nil || *restarts != 2 {
+		t.Fatalf("after dropping: %+v", lab)
+	}
+	if p, _ := s.Progress(ctx); p.DomainDone || !p.DomainLater {
+		t.Error("back to no address yet")
 	}
 }

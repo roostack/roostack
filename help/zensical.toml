@@ -34,12 +34,16 @@ nav = [
     "servers/index.md",
     "servers/add.md",
     "servers/move.md",
+    "servers/gone.md",
     "servers/storage-for-others.md",
   ] },
   { "Settings" = [
     "settings/index.md",
     "settings/people.md",
     "settings/domain.md",
+    "settings/cloud.md",
+    "settings/email.md",
+    "settings/history.md",
     "settings/updates.md",
   ] },
   { "When things go wrong" = [

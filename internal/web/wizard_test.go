@@ -41,10 +41,14 @@ type fakeSetup struct {
 	clients     []netip.Addr
 	domainErr   error
 	backupErr   error
+	// network is where the lab is (as saved), uiTunnelOnly its UI choice.
+	network      string
+	uiTunnelOnly bool
 
 	lastProvider string
 	lastValues   map[string]string
 	lastOpts     setup.DomainOptions
+	oldEnded     bool
 }
 
 func (f *fakeSetup) Progress(context.Context) (setup.Progress, error) { return f.p, nil }
@@ -100,6 +104,20 @@ func (f *fakeSetup) SetLabName(_ context.Context, name string, restart bool) err
 	f.labName, f.restarted = name, restart
 	return nil
 }
+func (f *fakeSetup) Network(detect func() string) setup.NetworkChoice {
+	c := setup.NetworkChoice{Saved: f.network, UITunnelOnly: f.uiTunnelOnly}
+	if detect != nil {
+		c.Detected = detect()
+	}
+	return c
+}
+func (f *fakeSetup) SetNetwork(network string, uiTunnelOnly bool) error {
+	if network != config.NetworkHome && network != config.NetworkInternet {
+		return &setup.CheckError{Msg: "Choose where this lab is."}
+	}
+	f.network, f.uiTunnelOnly, f.restarted = network, uiTunnelOnly, true
+	return nil
+}
 func (f *fakeSetup) PromoteBackupCopy(context.Context, string, node.BackupCopy) error { return nil }
 func (f *fakeSetup) SetBackupCopies(context.Context, []node.BackupCopy) error         { return nil }
 func (f *fakeSetup) SetBackupDestination(_ context.Context, d node.BackupDestination) error {
@@ -129,7 +147,8 @@ func (f *fakeSetup) SaveDomain(_ context.Context, d, e, provider string, values 
 	f.p.DomainDone = true
 	return nil
 }
-func (f *fakeSetup) DomainLater(context.Context) error { f.p.DomainLater = true; return nil }
+func (f *fakeSetup) DomainLater(context.Context) error   { f.p.DomainLater = true; return nil }
+func (f *fakeSetup) EndOldAddress(context.Context) error { f.oldEnded = true; return nil }
 func (f *fakeSetup) BackupAdded(_ context.Context, first bool) error {
 	f.noKey = false
 	f.p.BackupDone = true
@@ -176,11 +195,30 @@ func TestWizardFlow(t *testing.T) {
 		t.Errorf("cutting off a connection must be confirmed: %d", code)
 	}
 	h.post("/setup/ssh", url.Values{"ssh": {"lan"}}, h.srv.URL)
-	if _, body := h.get("/"); fs.ssh != "lan" || !strings.Contains(body, "Your domain") {
-		t.Fatal("after the SSH step comes the domain step")
+	if _, body := h.get("/"); fs.ssh != "lan" || !strings.Contains(body, "<h1>Your lab's address</h1>") {
+		t.Fatal("after the SSH step comes the address step")
 	}
 
+	// A new lab has no address: both choices are offered, the own domain's
+	// form closed until chosen (SPEC.md §6.6). roost.ac links the lab to
+	// Roostack Cloud (cloud_test.go).
+	h.server.Cloud = newCloud(t)
 	_, body = h.get("/setup/domain")
+	for _, want := range []string{"A free roost.test address", `<form method="post" action="/settings/cloud/link"><input type="hidden" name="in" value="setup">`, "Continue to Roostack Cloud", "Your own domain",
+		`x-data="{ choice: '' }"`, `<input name="domain" value="" placeholder="smith.family"`, "/help/settings/domain/#your-own-domain",
+		`id="cloud-live"`, `hx-get="/settings/cloud/name"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("address step missing %q", want)
+		}
+	}
+	// With Roostack Cloud turned off, it isn't offered.
+	h.server.Cloud = nil
+	if _, body := h.get("/setup/domain"); strings.Contains(body, "roost.ac") {
+		t.Error("Cloud off: no roost.ac choice")
+	}
+	if code, _ := h.post("/settings/cloud/link", url.Values{"name": {"smiths"}}, h.srv.URL); code != http.StatusNotFound {
+		t.Errorf("Cloud off: %d", code)
+	}
 	for _, want := range []string{"Amazon Route 53", "Porkbun", "Gandi", "GoDaddy", "Namecheap", "Spaceship",
 		`name="dns.route53.secret_access_key"`} {
 		if !strings.Contains(body, want) {
@@ -251,7 +289,7 @@ func TestDomainLaterReminder(t *testing.T) {
 	h.setSetup(fs)
 	h.post("/setup/domain/later", nil, h.srv.URL)
 	h.post("/setup/backup/later", nil, h.srv.URL)
-	if _, body := h.get("/"); !strings.Contains(body, `href="/setup/domain">Set up your domain`) {
+	if _, body := h.get("/"); !strings.Contains(body, `href="/setup/domain">Give it an address`) {
 		t.Error("postponed steps must stay visible on the dashboard")
 	}
 }
@@ -422,7 +460,7 @@ func TestSetupFormsAsSettingsPages(t *testing.T) {
 	}
 	var body string
 	_, body = h.get("/setup/domain")
-	if strings.Contains(body, "step 3 of 4") || !strings.Contains(body, "Change your domain") || strings.Contains(body, "/setup/domain/later") {
+	if strings.Contains(body, "step 3 of 4") || !strings.Contains(body, "Change your lab's address") || strings.Contains(body, "/setup/domain/later") {
 		t.Error("changing the domain later must not look like the wizard")
 	}
 
@@ -545,6 +583,25 @@ func TestActivity(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("settings while updating: missing %q", want)
 		}
+	}
+
+	// While it shows the same, polling answers 204: redrawing would reset
+	// the spinner and lose a selection.
+	get := func(have string) *http.Response {
+		req, _ := http.NewRequest("GET", h.srv.URL+"/activity/os-updates/status?was=running", nil)
+		if have != "" {
+			req.Header.Set("X-Roostack-Have", have)
+		}
+		resp, err := h.client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp
+	}
+	fp := get("").Header.Get("X-Roostack-Fingerprint")
+	if resp := get(fp); fp == "" || resp.StatusCode != http.StatusNoContent {
+		t.Errorf("unchanged status: %d (fingerprint %q)", resp.StatusCode, fp)
 	}
 
 	act.Step("Installed 1 update: curl.")

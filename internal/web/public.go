@@ -7,10 +7,14 @@ import (
 	"html"
 	"net"
 	"net/http"
+	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/public"
@@ -19,8 +23,9 @@ import (
 // Public access (SPEC.md §6.11): the Owner makes a service's address
 // public from its page, after a warning (and the package's reasons for
 // anything it marks unsafe). The page then shows a short checklist:
-// protection (CrowdSec), the router's port forwarding, and a check from a
-// phone on mobile data.
+// protection (CrowdSec), the DNS record, the router's port forwarding (or
+// on a lab on the internet the provider's firewall, SPEC.md §6.12), and a
+// check from outside, with what to look at if it fails.
 
 // PublicAccess is making services public, in internal/manager.
 type PublicAccess interface {
@@ -29,6 +34,20 @@ type PublicAccess interface {
 	PublicHosts() []string
 	SignalSharing() (asked, share bool)
 	SetSignalSharing(share bool) error
+	// The lab's way in for visitors (SPEC.md §10.5): servers that can be
+	// its edge, the one it has ("", false for port forwarding at home),
+	// and changing it.
+	EdgeServers(ctx context.Context) []manager.EdgeServer
+	Edge(ctx context.Context) (manager.EdgeServer, bool)
+	SetEdge(ctx context.Context, id string) error
+	// Roostack Cloud's relay as the way in instead.
+	RelayOn() bool
+	SetRelay(ctx context.Context, on bool) error
+	// CheckRelay asks Roostack Cloud to look for the own domain's proof now.
+	CheckRelay(ctx context.Context) error
+	// Who the relay lets in by country.
+	Countries() config.Countries
+	SetCountries(ctx context.Context, c config.Countries) error
 }
 
 // publicCheckKey is where a successful outside check is recorded.
@@ -74,7 +93,20 @@ func (s *Server) routeAccess(r *http.Request) (*manager.RouteAccess, error) {
 }
 
 func (s *Server) publicPage(w http.ResponseWriter, r *http.Request) {
+	if s.noAddress(w, r) {
+		return
+	}
 	s.renderPublic(w, r, "")
+}
+
+// noAddress sends a request about public access back to the service while
+// the lab has no address: there's nothing to make public (SPEC.md §6.6).
+func (s *Server) noAddress(w http.ResponseWriter, r *http.Request) bool {
+	if s.Domain != "" {
+		return false
+	}
+	redirect(w, r, "/services/"+url.PathEscape(r.PathValue("name")))
+	return true
 }
 
 // renderPublic shows an address's public access page, with a form error.
@@ -88,14 +120,20 @@ func (s *Server) renderPublic(w http.ResponseWriter, r *http.Request, formErr st
 		s.serverError(w, err)
 		return
 	}
-	p, err := s.Manager.Package(r.PathValue("name"))
+	p, err := s.Manager.ServicePackage(r.PathValue("name"))
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
 	asked, share := s.Manager.SignalSharing()
-	data := map[string]any{"User": currentUser(r), "Package": p, "Route": ra,
+	data := map[string]any{"User": currentUser(r), "Package": p, "Name": r.PathValue("name"), "Route": ra,
 		"SharingAsked": asked, "Share": share, "Error": formErr}
+	s.addPublicUI(data)
+	if !s.onInternet() {
+		if e, ok := s.Manager.Edge(r.Context()); ok {
+			data["Edge"] = e
+		}
+	}
 	if ra.Public {
 		data["Protected"] = s.Protected != nil && s.Protected(r.Context())
 		data["Check"] = s.lastCheck(r.Context(), ra.Host)
@@ -125,6 +163,9 @@ func (s *Server) renderPublic(w http.ResponseWriter, r *http.Request, formErr st
 }
 
 func (s *Server) publicSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.noAddress(w, r) {
+		return
+	}
 	ra, err := s.routeAccess(r)
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
@@ -220,6 +261,16 @@ func (s *Server) publicCheckVisit(w http.ResponseWriter, r *http.Request) {
 		html.EscapeString(msg))
 }
 
+// addPublicUI says where the lab is, and whether Roostack's own pages are
+// public (on a lab on the internet, SPEC.md §6.3.2) and at which address.
+func (s *Server) addPublicUI(data map[string]any) {
+	c := s.network()
+	internet := c.Saved == config.NetworkInternet
+	data["Internet"] = internet
+	data["PublicUI"] = internet && !c.UITunnelOnly && s.Domain != ""
+	data["UIHost"] = s.uiHost()
+}
+
 // fromLoopback says whether a request came from this server itself (its
 // Caddy), which is the only way a check visit reaches the UI.
 func fromLoopback(r *http.Request) bool {
@@ -243,14 +294,192 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 	data["SharingAsked"], data["Share"] = asked, share
 	hosts := s.Manager.PublicHosts()
 	data["Hosts"] = hosts
+	// How visitors come in: port forwarding at home, or through a cloud
+	// server in the lab (SPEC.md §10.5). A lab on the internet is reached
+	// directly.
+	if !s.onInternet() {
+		data["EdgeServers"] = s.Manager.EdgeServers(r.Context())
+		if e, ok := s.Manager.Edge(r.Context()); ok {
+			data["Edge"] = e
+		}
+		data["CanRelay"], data["Relay"] = s.canRelay(), s.Manager.RelayOn()
+		data["RelayError"] = r.FormValue("relay_error")
+		data["RelayDomain"] = s.relayDomain()
+		if s.DNS != nil {
+			st := s.DNS.Status()
+			data["DNSManaged"] = st.Managing && st.CanManage
+		}
+		if s.Manager.RelayOn() {
+			data["VisitorsPeriod"] = r.FormValue("period")
+			c := s.Manager.Countries()
+			data["Countries"], data["CountryList"] = c, countryList()
+			data["CountriesOpen"] = c.Open(time.Now())
+			data["CountriesChosen"] = countryNamesOf(append(slices.Clone(c.Allow), c.Block...))
+			data["CountriesError"] = r.FormValue("countries_error")
+		}
+	}
 	if len(hosts) > 0 {
 		data["Protected"] = s.Protected != nil && s.Protected(r.Context())
 		if s.DNS != nil {
 			st := s.DNS.Status()
-			data["Records"], data["PublicIP"] = st.Public, st.PublicIP
+			data["Records"], data["PublicIP"], data["Proof"] = st.Public, st.PublicIP, st.Proof
 		}
 	}
+	data["Saved"] = r.FormValue("saved")
 	s.render(w, "settings-public", withArea(data, "public"))
+}
+
+// canRelay: Roostack Cloud's relay can be the way in: the lab is linked
+// and has an address, its roost.ac name or its own domain (relayed once a
+// TXT record proves it's the lab's: Cloud's DESIGN §5).
+func (s *Server) canRelay() bool {
+	if s.Cloud == nil {
+		return false
+	}
+	return s.Cloud.Status().Linked && s.Domain != ""
+}
+
+// relayDomain is the lab's own domain's proof, while relayed ("" when
+// its address is a roost.ac name).
+func (s *Server) relayDomain() *cloudapi.RelayDomain {
+	if s.Cloud == nil || !s.Manager.RelayOn() || s.Cloud.Status().Address == s.Domain {
+		return nil
+	}
+	_, d := s.Cloud.RelayName()
+	return d
+}
+
+// publicEdgeSubmit sets how visitors reach the lab's public services:
+// port forwarding (""), a cloud server in the lab (its ID), or Roostack
+// Cloud's relay ("cloud").
+func (s *Server) publicEdgeSubmit(w http.ResponseWriter, r *http.Request) {
+	id := r.FormValue("edge")
+	if id == "cloud" {
+		if err := s.Manager.SetRelay(r.Context(), true); err != nil {
+			redirect(w, r, "/settings/public?relay_error="+url.QueryEscape(cloudMessage(err))+"#way-in")
+			return
+		}
+		s.Store.Audit(r.Context(), currentUser(r), "public access", "visitors come in through Roostack Cloud's relay")
+		s.refreshDNS()
+		redirect(w, r, "/settings/public?saved=edge#way-in")
+		return
+	}
+	if s.Manager.RelayOn() {
+		if err := s.Manager.SetRelay(r.Context(), false); err != nil {
+			s.serverError(w, err)
+			return
+		}
+	}
+	if err := s.Manager.SetEdge(r.Context(), id); err != nil {
+		if msg, ok := userMessage(err); ok {
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
+		s.serverError(w, err)
+		return
+	}
+	what := "port forwarding at home"
+	if id != "" {
+		what = "through server " + id
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "public access", "visitors come in "+what)
+	s.refreshDNS()
+	redirect(w, r, "/settings/public?saved=edge#way-in")
+}
+
+// refreshDNS has the records follow a change of the way in now.
+func (s *Server) refreshDNS() {
+	if s.DNS != nil {
+		s.DNS.Refresh()
+	}
+}
+
+// publicRelayCheck is "Check now": the proof's TXT record is written (or
+// looked at) again, then Cloud looks for it.
+func (s *Server) publicRelayCheck(w http.ResponseWriter, r *http.Request) {
+	if s.DNS != nil {
+		s.DNS.Refresh()
+	}
+	if err := s.Manager.CheckRelay(r.Context()); err != nil {
+		redirect(w, r, "/settings/public?relay_error="+url.QueryEscape(cloudMessage(err))+"#way-in")
+		return
+	}
+	redirect(w, r, "/settings/public#way-in")
+}
+
+// publicCountriesSubmit sets who the relay lets in by country: anyone,
+// only visitors from some countries, or everyone but those from some. A
+// time everyone is let in until (travel) is kept while there's a limit.
+func (s *Server) publicCountriesSubmit(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	var codes []string
+	for _, c := range r.Form["countries"] {
+		if _, ok := countryNames[c]; ok && !slices.Contains(codes, c) {
+			codes = append(codes, c)
+		}
+	}
+	slices.Sort(codes)
+	c := config.Countries{OpenUntil: s.Manager.Countries().OpenUntil}
+	switch mode := r.FormValue("mode"); {
+	case mode == "anyone":
+	case (mode == "allow" || mode == "block") && len(codes) == 0:
+		s.countriesFailed(w, r, "Choose at least one country, or let in anyone.")
+		return
+	case mode == "allow":
+		c.Allow = codes
+	case mode == "block":
+		c.Block = codes
+	default:
+		http.Error(w, "Choose who can visit.", http.StatusBadRequest)
+		return
+	}
+	if err := s.Manager.SetCountries(r.Context(), c); err != nil {
+		s.countriesFailed(w, r, cloudMessage(err))
+		return
+	}
+	what := "anyone, from any country"
+	if len(c.Allow) > 0 {
+		what = "only visitors from " + strings.Join(c.Allow, ", ")
+	} else if len(c.Block) > 0 {
+		what = "everyone except visitors from " + strings.Join(c.Block, ", ")
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "public access", "Roostack Cloud's relay lets in "+what)
+	redirect(w, r, "/settings/public?saved=countries#countries")
+}
+
+// openDays are how long everyone can be let in for, while travelling.
+var openDays = []int{1, 7, 14, 30}
+
+// publicCountriesOpen lets everyone in for a while ("open", with days),
+// for travel, or ends that now ("close").
+func (s *Server) publicCountriesOpen(w http.ResponseWriter, r *http.Request) {
+	c := s.Manager.Countries()
+	if !c.Limited() {
+		redirect(w, r, "/settings/public#countries")
+		return
+	}
+	what := "limits visitors by country again"
+	if r.FormValue("action") == "open" {
+		days, _ := strconv.Atoi(r.FormValue("days"))
+		if !slices.Contains(openDays, days) {
+			http.Error(w, "Choose how long for.", http.StatusBadRequest)
+			return
+		}
+		c.OpenUntil = time.Now().AddDate(0, 0, days)
+		what = "lets everyone in until " + c.OpenUntil.Format("2 January 2006 15:04")
+	} else {
+		c.OpenUntil = time.Time{}
+	}
+	if err := s.Manager.SetCountries(r.Context(), c); err != nil {
+		s.countriesFailed(w, r, cloudMessage(err))
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "public access", "Roostack Cloud's relay "+what)
+	redirect(w, r, "/settings/public?saved=countries#countries")
+}
+
+func (s *Server) countriesFailed(w http.ResponseWriter, r *http.Request, msg string) {
+	redirect(w, r, "/settings/public?countries_error="+url.QueryEscape(msg)+"#countries")
 }
 
 func (s *Server) publicSharingSubmit(w http.ResponseWriter, r *http.Request) {

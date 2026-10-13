@@ -37,17 +37,28 @@
 
 {{/* service-details: what its server reports, for the curious. The id
      keeps it open when the tiles refresh (static/app.js). */}}
+{{/* install-line: how far a service's install has got, in one line (the
+     Services list and Home; its page shows every step). */}}
+{{define "install-line"}}{{with .Install}}<p class="install-line">
+  {{- if .Failed}}Installing didn't finish: {{.Failed}}
+  {{- else}}<span class="spinner" aria-hidden="true"></span> Step {{add1 .Current}} of {{len .Steps}}: {{lowerFirst .Step.Title}}…{{end}}</p>{{end}}{{end}}
+
 {{define "service-details"}}
 <details class="technical" id="details-{{.Name}}">
   <summary>Details</summary>
   <dl class="facts">
     {{with .Containers}}<dt>Containers</dt><dd>{{range .}}<code>{{.Name}}</code> · {{or .State "unknown"}}<br><small class="hint" title="{{.Image}}">{{image .Image}}</small><br>{{end}}</dd>{{end}}
-    {{with .Routes}}<dt>Web</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}<small class="hint">Caddy on the controller forwards these addresses here.</small></dd>{{end}}
+    {{with .Routes}}<dt>Web</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}<small class="hint">{{if $.NoAddress}}Until the lab has an address, reach the port above from your computer with an SSH tunnel to this server.{{else}}Caddy on the controller forwards these addresses here.{{end}}</small></dd>{{end}}
     {{with .Ports}}<dt>Ports</dt><dd>{{range .}}{{.Title}}: {{.Port}}/{{.Protocol}} ({{if eq .Exposure "public"}}anywhere{{else}}home network{{end}})<br>{{end}}</dd>{{end}}
     {{with .DataDirs}}<dt>Data</dt><dd>{{range .}}<code>{{.}}</code><br>{{end}}{{if ge $.DataSize 0}}{{size $.DataSize}}{{else}}<small class="hint">size not counted yet</small>{{end}}</dd>{{end}}
   </dl>
 </details>
 {{end}}
+
+{{/* address-waiting: a service that can't be reached yet, because the lab
+     has no address (SPEC.md §6.6); takes the page's data, for IsOwner. */}}
+{{define "address-waiting"}}<span class="with-icon address-waiting-text">{{icon "clock"}}Waiting for an address</span>
+  {{- if .IsOwner}} · <a href="/setup/domain">Give your lab an address</a>{{end}}{{end}}
 
 {{define "service-tiles"}}
 {{if .Services}}
@@ -56,7 +67,9 @@
   <li class="card tile">
     <h2>{{.Title}}</h2>
     {{template "service-summary" .}}
-    {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">Open{{template "new-window"}}</a>{{end}}
+    {{if and .NoAddress (not .Install)}}<p class="address-waiting">{{template "address-waiting" $}}</p>{{end}}
+    <div class="tile-links">{{if .Install}}{{template "install-line" .}}{{else}}{{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">Open{{template "new-window"}}</a>{{end}}{{end}}
+      {{- if $.CanManage}}<a class="with-icon" href="/services/{{.Name}}">{{icon "manage"}}Manage</a>{{end}}</div>
     {{status .Status}}
     {{if $.CanManage}}{{template "service-details" .}}{{end}}
   </li>
@@ -76,13 +89,34 @@
     <form method="post" action="{{$.Server.BackupRun}}"><button type="submit">Back up now</button></form>
     {{end}}
   </div>
-  {{if not .Configured}}
+  {{if .Fenced}}{{with .Fenced}}
+    {{if eq .Reason "removed"}}
+    {{notice "error" "This server was removed from its lab (it couldn't be reached at the time). It no longer backs up into the lab's storage. Switch it off, or wipe it and add it to the lab again."}}
+    {{else}}
+    {{notice "error" (printf "%s. Both copies would otherwise back up into the same storage and update the same web addresses, so this one has stopped doing both. Switch this copy off, or wipe it." .Message)}}
+    {{if and $.IsOwner $.Server.This}}
+    <details>
+      <summary>This is the right copy</summary>
+      <p class="hint">If the other copy was only a test (a restore you tried out), keep this one: it backs up again, and the other
+        stops at its next backup. Switch the other one off first.</p>
+      {{confirm "/backups/keep-this-copy" "Keep this copy? The other copy stops backing up at its next backup." "Keep this copy" "danger"}}
+    </details>
+    {{end}}
+    {{end}}
+  {{end}}
+  {{else if .Unreachable}}
+    <p class="hint"><span class="spinner" aria-hidden="true"></span> Can't reach {{.Unreachable}} right now (it may be restarting):
+      its backup status shows when it's back.</p>
+  {{else if and .SettingUp (not .Configured)}}
+    <p><span class="spinner" aria-hidden="true"></span> Setting up backups: {{lowerFirst .SettingUp}}…
+      <span class="hint">The server restarts once they're ready.</span></p>
+  {{else if not .Configured}}
     {{notice "error" "Backups are not set up yet. Until they are, a failed disk means losing everything."}}
   {{else}}
-    {{if .Running}}{{notice "info" (printf "Backing up… %s" (percent .Progress))}}
+    {{if .Running}}{{notice "info" (printf "%s… %s" (or .Step "Backing up") (percent .Progress))}}
     {{else if .Queued}}{{notice "info" "A backup is waiting to start."}}{{end}}
     {{with .Last}}{{if not .OK}}
-      {{notice "error" (printf "The last backup (%s) didn't finish: %s" (when .Finished) .Error)}}
+      {{notice "error" (printf "The last backup (%s) didn't finish: %s%s" (when .Finished) .Error (retryText $.Backup.Retry))}}
     {{end}}{{end}}
     {{with .LastOK}}
       <p>Last backup: <strong>{{when .Finished}}</strong>{{if stale .Finished}} <span class="error">(over 2 days ago)</span>{{end}}
@@ -102,22 +136,24 @@
 {{define "dns-card"}}
 {{with .DNS}}
 <section class="card section" id="dns">
-  <h2>Home network access</h2>
+  <h2>{{if .Internet}}DNS records{{else}}Home network access{{end}}</h2>
   {{if eq .State "ok"}}<p>✓ {{.Message}} <span class="hint">({{.Record}} → {{.IP}})</span></p>
   {{else if eq .State "manual"}}{{notice "warn" .Message}}
   {{else if eq .State "pending"}}{{notice "info" .Message}}
   {{else if .State}}{{notice "error" .Message}}
   {{else}}<p class="hint">Checking…</p>{{end}}
   {{if .Syncing}}{{notice "info" "Updating DNS records and checking them… This can take a minute or two; this page updates by itself."}}{{end}}
-  {{if not .Checked.IsZero}}<p class="hint">Last checked {{when .Checked}}. This server's home network address: {{.IP}}. Give it a fixed address in your router (a "DHCP reservation") so it doesn't change.</p>{{end}}
+  {{if not .Checked.IsZero}}<p class="hint">Last checked {{when .Checked}}.
+    {{- if .Internet}} This lab's public address: {{.IP}}.{{else}} This server's home network address: {{.IP}}. Give it a fixed address in your router (a "DHCP reservation") so it doesn't change.{{end}}</p>{{end}}
   {{if eq .State "conflict"}}<p><a class="button" href="/dns/take-over">Take over this record…</a></p>{{end}}
   {{$server := "this server"}}{{with .IP}}{{$server = printf "this server (%s)" .}}{{end}}
   {{if and .CanManage (not .Managing)}}
   <div class="dns-manage">
     <p><strong>Let Roostack manage DNS records at {{.Provider}}?</strong> This is one setting for the whole lab:</p>
     <ul class="scope">
-      <li><strong>Now:</strong> {{.Record}} → this server, so devices at home can reach your services.</li>
-      <li><strong>Later:</strong> records for services you make public, kept up to date when your internet address changes.</li>
+      {{if .Internet}}<li><strong>Now:</strong> {{.Record}} → this server, so your services' addresses lead here.</li>
+      {{else}}<li><strong>Now:</strong> {{.Record}} → this server, so devices at home can reach your services.</li>
+      <li><strong>Later:</strong> records for services you make public, kept up to date when your internet address changes.</li>{{end}}
       <li><strong>Never:</strong> records Roostack didn't create, unless you choose to take one over.</li>
     </ul>
     {{if .Risky}}
@@ -126,12 +162,12 @@
     {{/* Confirming the dialog is accepting the risk (the handler still requires accept_risk). */}}
     {{confirm "/dns/manage" (printf "Let Roostack manage DNS records at %s anyway? To change one record, %s rewrites every record on your domain, so a mistake there could affect your email or other sites on it. Roostack will point %s at %s now, and keep it up to date." .Provider .Provider .Record $server) "Let Roostack manage DNS records" "danger" "manage=on" "accept_risk=on"}}
     {{else}}
-    {{confirm "/dns/manage" (printf "Let Roostack manage DNS records at %s? It will point %s at %s now, so devices at home can reach your services, and keep it up to date if that address changes. It never changes records it didn't create." .Provider .Record $server) "Let Roostack manage DNS records" "" "manage=on"}}
+    {{confirm "/dns/manage" (printf "Let Roostack manage DNS records at %s? It will point %s at %s now, so %s, and keep it up to date if that address changes. It never changes records it didn't create." .Provider .Record $server (or (and .Internet "your services' addresses lead here") "devices at home can reach your services")) "Let Roostack manage DNS records" "" "manage=on"}}
     {{end}}
   </div>
   {{else if .Managing}}
   <p class="hint">Roostack manages DNS records at {{.Provider}}: {{.Record}} → {{.IP}}.</p>
-  {{confirm "/dns/manage" (printf "Stop managing DNS records at %s? The records stay as they are, but Roostack stops updating them: if this server's home address changes, devices at home won't find your services until you change %s at %s yourself." .Provider .Record .Provider) "Stop managing DNS records" "secondary" "manage=off"}}
+  {{confirm "/dns/manage" (printf "Stop managing DNS records at %s? The records stay as they are, but Roostack stops updating them: if this server's address changes, %s won't find your services until you change %s at %s yourself." .Provider (or (and .Internet "visitors") "devices at home") .Record .Provider) "Stop managing DNS records" "secondary" "manage=off"}}
   <p class="hint">Records stay in place; Roostack just stops creating and updating them.</p>
   {{end}}
 </section>
@@ -140,14 +176,142 @@
 
 
 
-{{/* settings-nav: the sidebar on settings area pages (desktop only; on
-     phones the page's back link leads to the overview). */}}
-{{define "settings-nav"}}
-<nav class="settings-nav" aria-label="Settings">
-  <a href="/settings" class="settings-home">All settings</a>
-  {{range .SettingsGroups}}
-  <p class="settings-group">{{.Title}}</p>
-  {{range .Areas}}<a href="{{.Href}}"{{if eq .ID $.SettingsArea}} class="active" aria-current="page"{{end}}>{{.Title}}</a>{{end}}
+{{/* public-ui: where Roostack's own pages are, next to a public service. */}}
+{{define "public-ui"}}{{if .PublicUI}}Roostack's own pages are public too, at <code>{{.UIHost}}</code>, behind your password and a code from your authenticator app.
+{{- else}}Roostack's own pages stay private.{{end}}{{end}}
+
+{{/* sharing-question: asked the first time anything goes public (SPEC.md
+     §6.11): here, or when installing on a lab on the internet. */}}
+{{define "sharing-question"}}
+<h2>Protection</h2>
+<p>Roostack starts <strong>CrowdSec</strong>, which spots attacks in the web log and blocks the addresses they come from,
+  and limits how fast anyone can try passwords.</p>
+<fieldset>
+  <legend>Share attack reports with CrowdSec's community?</legend>
+  <label class="check"><input type="radio" name="share" value="yes" checked>
+    <span>Share them (recommended)<small>Only attackers' addresses and what they tried, never anything about you or your people.
+      In return, addresses others have seen attacking are blocked before they try.</small></span></label>
+  <label class="check"><input type="radio" name="share" value="no">
+    <span>Don't share<small>Blocking attacks still works; you don't get the community's list of attackers.</small></span></label>
+</fieldset>
+<p class="hint">You can change this later in Settings → Public access.</p>
+{{end}}
+
+{{/* private-where: who reaches a private address, given whether the lab
+     is on the internet (SPEC.md §6.12). */}}
+{{define "private-where"}}{{if .}}Only through an SSH tunnel <small>(<a href="/help/services/public/#private-on-a-cloud-server" target="_blank" rel="noopener">for technical users{{template "new-window"}}</a>)</small>{{else}}Your home network (or VPN){{end}}{{end}}
+
+{{/* disk-space: a server's disk (a spaceView): free and total, a bar
+     with the space promised to other labs, what uses it, and any
+     warning. Settings → Servers and Storage for others. */}}
+{{define "not-counted"}}{{if .Counting}}<span class="spinner" aria-hidden="true"></span> counting…{{else}}not counted yet{{end}}{{end}}
+
+{{/* address-choice: the address another server or lab reaches this one
+     at (an addressChoice; address.go), inside a form: fields "address"
+     (an option's value, or "other") and "address_other". */}}
+{{define "address-choice"}}
+<fieldset class="address-choice" data-selected="{{.Selected}}" x-data="{ choice: $el.dataset.selected }">
+  <legend>{{.Legend}}</legend>
+  {{range .Options}}
+  <label class="check"><input type="radio" name="address" value="{{.Value}}" x-model="choice" required{{if eq .Value $.Selected}} checked{{end}}>
+    <span>{{.Title}}: <code>{{.Value}}</code><small>{{.Hint}}</small>
+      {{- if .Link}}{{with $.Link}}<small><span class="dot dot-{{if eq .State "ok"}}ok{{else if eq .State "pending" "manual"}}warn{{else}}problem{{end}}" aria-hidden="true"></span>{{.Message}}</small>{{end}}{{end}}</span></label>
+  {{end}}
+  <label class="check"><input type="radio" name="address" value="other" x-model="choice"{{if eq .Selected "other"}} checked{{end}}>
+    <span>Another address<small>A VPN address, a router forwarding a different outside port, or a name from another dynamic DNS service.</small></span></label>
+  <div x-show="choice === 'other'"{{if ne .Selected "other"}} x-cloak{{end}}>
+    <label>Address and port <input name="address_other" value="{{.Other}}" placeholder="203.0.113.7:{{.Port}}" x-bind:required="choice === 'other'"></label>
+  </div>
+  {{if .Dial}}
+  <label class="check"><input type="radio" name="address" value="dial" x-model="choice"{{if eq .Selected "dial"}} checked{{end}}>
+    <span>None: this server connects to the new one instead<small>For a cloud server joining a lab at home, without forwarding a port on your router.
+      The new server needs a public address, with UDP port {{.Port}} open at its provider.</small></span></label>
+  <div x-show="choice === 'dial'"{{if ne .Selected "dial"}} x-cloak{{end}}>
+    <label>The new server's public address <input name="address_dial" value="{{.DialAddr}}" placeholder="203.0.113.7" x-bind:required="choice === 'dial'"
+      autocapitalize="off" autocomplete="off"><small>Its address or name; port {{.Port}} unless you add another, such as <code>203.0.113.7:51820</code>.</small></label>
+  </div>
+  {{end}}
+</fieldset>
+{{end}}
+
+{{/* disks-live: a server's disks (a serverDisks), each named when it has
+     more than one, refreshing itself while the server counts what uses
+     them (they say "counting…" meanwhile). */}}
+{{define "disks-live"}}<div id="disks-{{.ServerID}}{{if .StoreOnly}}-store{{end}}"{{if .Counting}} hx-get="/settings/servers/{{.ServerID}}/disk{{if .StoreOnly}}?store=1{{end}}"
+  hx-trigger="every 3s [document.visibilityState === 'visible']" hx-swap="outerHTML"{{end}}>
+{{- $multi := gt (len .Disks) 1}}
+{{range .Disks}}<div class="disk">
+  {{if $multi}}<p class="disk-title"><strong>{{.Title}}</strong> <small class="hint">mounted at <code>{{.Mount}}</code></small></p>{{end}}
+  {{template "disk-space" .}}
+</div>{{end}}
+{{with index .Disks 0}}<small>Free space is up to date; the parts are counted daily, after the nightly backup
+  {{- if not .Counted.IsZero}} (last counted {{when .Counted}}){{end}}.</small>{{end}}
+</div>{{end}}
+
+{{define "disk-space"}}
+<p><strong>{{size .Free}} free</strong> of {{size .Total}}</p>
+{{/* Each part of the disk's use has its colour (--chart-*), the same in
+     the bar and as a swatch in the key below; the list names each with
+     its size, so colour never carries it alone. */}}
+<div class="space-bar{{with .Level}} space-{{.}}{{end}}" role="img" aria-label="{{size .Used}} used, {{size .Free}} free of {{size .Total}}">
+  {{- with .Parts}}{{range .}}{{if .Percent}}<span class="space-{{.Kind}}" data-width="{{.Percent}}" title="{{.Label}}: {{size .Bytes}}"></span>{{end}}{{end}}
+  {{- else}}<span class="space-used" data-width="{{.UsedPercent}}" title="In use: {{size .Used}}"></span>{{end}}
+  {{- if .PromisedLeft}}<span class="space-promised" data-width="{{.PromisedPercent}}" title="Promised to other labs, not used yet: {{size .PromisedLeft}}"></span>{{end}}
+  {{- if .HeldBackPercent}}<span class="space-reserved" data-width="{{.HeldBackPercent}}" title="Reserved by the system: {{size .HeldBack}}"></span>{{end}}
+</div>
+<dl class="space-list">
+  <dt>{{if not .Parts}}<span class="swatch space-used" aria-hidden="true"></span>{{end}}In use</dt><dd>{{size .Used}}</dd>
+  {{- with .Parts}}{{range .}}{{if or .Bytes (eq .Kind "other")}}
+  <dt class="sub"><span class="swatch space-{{.Kind}}" aria-hidden="true"></span>{{.Label}}</dt><dd>{{if .Bytes}}{{size .Bytes}}{{else}}none{{end}}</dd>{{end}}{{end}}
+  {{- else}}
+  <dt class="sub">Services' data</dt><dd>{{if gt .Services 0}}{{size .Services}}{{else if eq .Services 0}}none{{else}}{{template "not-counted" $}}{{end}}</dd>
+  <dt class="sub">Backups of your lab's servers</dt><dd>{{if ge .Backups 0}}{{size .Backups}}{{else}}{{template "not-counted" $}}{{end}}</dd>
+  {{end}}
+  {{if .Promised}}<dt><span class="swatch space-promised" aria-hidden="true"></span>Promised to other labs</dt><dd>{{size .Promised}}, of which {{size .PromisedLeft}} isn't used yet</dd>{{end}}
+  <dt><span class="swatch space-free" aria-hidden="true"></span>Free</dt><dd>{{size .Free}}</dd>
+  {{if gt .HeldBack 0}}<dt><span class="swatch space-reserved" aria-hidden="true"></span>Reserved by the system</dt><dd>{{size .HeldBack}}, kept back by the filesystem so the system keeps working if the disk fills up</dd>{{end}}
+</dl>
+{{if .Warning}}{{notice .NoticeKind .Warning}}{{end}}
+{{end}}
+
+{{/* network-choice: where the lab is, at home or on the internet (SPEC.md
+     §6.12), and on the internet whether Roostack's own pages are public.
+     Fields "network" and "ui", inside a form; a networkForm. */}}
+{{define "network-choice"}}
+<div class="network-choice" data-network="{{.Selected}}" x-data="{ network: $el.dataset.network }">
+  <fieldset>
+    <legend>Is this server at home, or on the internet?</legend>
+    <label class="check"><input type="radio" name="network" value="home" x-model="network" required>
+      <span>At home, behind a router<small>Services are for your home network (or a VPN into it). Making one public means
+        forwarding ports on your router.</small></span></label>
+    <label class="check"><input type="radio" name="network" value="internet" x-model="network">
+      <span>On the internet (a cloud server)<small>It has a public address of its own, like a VPS. Services start public, protected
+        by CrowdSec; private ones are only reachable through an SSH tunnel.</small></span></label>
+  </fieldset>
+  <p class="hint">{{if eq .Detected "internet"}}This server has a public address of its own, so it looks like a cloud server.
+    {{- else}}This server's addresses are private ones, like a server at home. A cloud server behind its provider's
+    network address translation looks like this too.{{end}}</p>
+  <fieldset x-show="network === 'internet'"{{if ne .Selected "internet"}} x-cloak{{end}}>
+    <legend>Roostack's own pages</legend>
+    <label class="check"><input type="radio" name="ui" value="public" {{if not .UITunnelOnly}}checked{{end}}>
+      <span>At {{with .UIHost}}<code>{{.}}</code>{{else}}<code>roost.&lt;your domain&gt;</code>{{end}} (recommended)
+        <small>Anyone can reach the login page. Your password and a code from your authenticator app protect it,
+          CrowdSec blocks attackers, and password tries are limited.</small></span></label>
+    <label class="check"><input type="radio" name="ui" value="tunnel" {{if .UITunnelOnly}}checked{{end}}>
+      <span>Only through an SSH tunnel<small>For technical users: nobody else can even see the login page.</small></span></label>
+  </fieldset>
+</div>
+{{end}}
+
+{{/* area-nav: the sidebar of area pages (an areaNav: Settings, your
+     account). On phones, Settings' is hidden (the page's back link leads
+     to the overview); the account's becomes a row of tabs. */}}
+{{define "area-nav"}}
+<nav class="settings-nav{{if .Tabs}} area-tabs{{end}}" aria-label="{{.Label}}">
+  {{with .Home}}<a href="{{.}}" class="settings-home">{{$.HomeTitle}}</a>{{end}}
+  {{range .Groups}}
+  {{with .Title}}<p class="settings-group">{{.}}</p>{{end}}
+  {{range .Areas}}<a href="{{.Href}}"{{if eq .ID $.Active}} class="active" aria-current="page"{{end}}>{{.Title}}</a>{{end}}
   {{end}}
 </nav>
 {{end}}
@@ -190,8 +354,10 @@
     <h2>Your backup plan</h2>
     <span class="hint">{{len .Entries}} {{if eq (len .Entries) 1}}backup{{else}}backups{{end}}</span>
   </div>
-  <p>Keep <strong>3 copies</strong> of your data, on <strong>2 kinds</strong> of storage, with <strong>1 away from home</strong>.
-    Then a failed disk, a mistake, ransomware, or a fire or theft at home can't take everything.</p>
+  {{if .Internet}}<p>Keep <strong>3 copies</strong> of your data, on <strong>2 kinds</strong> of storage, with <strong>1 away from this server</strong>.
+    Then a failed disk, a mistake, ransomware, or losing the server or your account with its provider can't take everything.</p>
+  {{- else}}<p>Keep <strong>3 copies</strong> of your data, on <strong>2 kinds</strong> of storage, with <strong>1 away from home</strong>.
+    Then a failed disk, a mistake, ransomware, or a fire or theft at home can't take everything.</p>{{end}}
   <details class="plan-more-info" id="plan-more-info">
     <summary>Tell me more</summary>
     <p>This is the "3-2-1" rule, the usual advice for keeping data safe:</p>
@@ -200,11 +366,13 @@
         If one copy is lost, you still have two, so there's time to replace it.</li>
       <li><strong>2 kinds of storage.</strong> Copies on the same kind of storage can fail the same way. Disks count as one kind, whether
         in the server, plugged into it or in another server; online storage or a friend's lab is another kind.</li>
-      <li><strong>1 away from home.</strong> A fire, flood or burglary takes everything in the house, backups included. Online
-        storage, a friend's lab, or a server somewhere else survives it.</li>
+      {{if .Internet}}<li><strong>1 away from this server.</strong> A cloud server can be lost with everything on it: a mistake at the
+        provider, or a problem with your account. Online storage with another company, or your own or a friend's lab, survives it.</li>
+      {{- else}}<li><strong>1 away from home.</strong> A fire, flood or burglary takes everything in the house, backups included. Online
+        storage, a friend's lab, or a server somewhere else survives it.</li>{{end}}
     </ul>
     <p>Roostack backs up every night, to each backup below. Backups are encrypted, and readable with your recovery key.
-      Restores use the <strong>main backup</strong> first: it's best at home, where restoring is quickest. Extra backups past
+      Restores use the <strong>main backup</strong> first{{if not .Internet}}: it's best at home, where restoring is quickest{{end}}. Extra backups past
       the three are optional.</p>
   </details>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -218,14 +386,20 @@
         <p class="hint">This server's disk · at home · the copy you use every day, and what the backups copy</p>
       </div>
     </li>
-    {{range .Entries}}
+    {{range $e := .Entries}}
     {{if and $.Plan.Replacing .Main}}{{template "plan-chooser" $.Plan}}{{else}}
     <li class="plan-card">
       {{template "plan-num" .}}
       <div class="plan-body">
         <p class="plan-title">{{.Title}}</p>
-        <p class="hint">{{if .Main}}Main backup · {{end}}{{with .KindTitle}}{{.}} · {{end}}{{if .AtHome}}at home{{else if .Away}}away from home{{else if .AskWhere}}at home or away?{{else}}location not known{{end}}{{if .Main}} · restores use it first{{end}}</p>
+        <p class="hint">{{if .Main}}Main backup · {{end}}{{with .KindTitle}}{{.}} · {{end}}{{if .AtHome}}at home{{else if .Away}}away from home{{else if .AskWhere}}at home or away?{{else}}location not known{{end}}{{if .Main}} · restores use it first{{end}}
+          {{- if eq .Path "direct"}} · linked directly{{else if eq .Path "hub"}} · through {{.Via}}, as they can't link directly{{end}}</p>
         {{if .LowSpace}}{{notice "warn" (printf "%s is nearly full: %s free. When it's full, backups here fail." .FreeOn (size .Free))}}{{end}}
+        {{if eq .Path "hub"}}{{if .LinkFailed}}
+        {{notice "warn" (printf "A direct link to %s didn't connect, so these backups go through %s, using its connection twice. Check %s can be reached at its address for direct links (UDP port 51820, or the port you entered). Roostack tries again tomorrow, or as soon as you change the address." .HostName .Via .HostName) (printf "link=/settings/servers#server-%s" .Host) "linkText=Check the address"}}
+        {{else}}
+        {{notice "warn" (printf "These backups go through %s, using its connection twice: Roostack doesn't know where this server can reach %s directly. If both are on the same home network, set them both to At home; otherwise enter %s's address for direct links (host:port)." .Via .HostName .HostName) (printf "link=/settings/servers#server-%s" .Host) "linkText=Set it on Servers"}}
+        {{end}}{{end}}
         {{if eq .Kind "system"}}{{notice "warn" "This backup is on the same disk as your data. It helps if something is deleted or changed by mistake, but if the disk fails, or ransomware gets onto the server, your data and this backup are lost together. Keep your other backups on a separate drive, or away from home."}}{{end}}
         {{range .AskWhere}}
         <div class="plan-where">
@@ -239,7 +413,7 @@
         {{end}}
         {{with .Last}}{{if .OK}}<p class="plan-ok"><span class="dot dot-{{if stale .Finished}}warn{{else}}ok{{end}}" aria-hidden="true"></span>Backed up {{when .Finished}}
           <span class="hint">· {{.FilesNew}} new or changed files, {{bytes .DataAdded}} added</span></p>
-        {{- else}}<p class="error"><span class="dot dot-problem" aria-hidden="true"></span>The last backup here ({{when .Finished}}) didn't finish: {{.Error}}</p>{{end}}
+        {{- else}}<p class="error"><span class="dot dot-problem" aria-hidden="true"></span>The last backup here ({{when .Finished}}) didn't finish: {{.Error}}{{retryText $e.Retry}}</p>{{end}}
         {{- else}}<p class="hint">Not backed up here yet: the first backup runs {{if $.Plan.Next.IsZero}}tonight{{else}}{{when $.Plan.Next}}{{end}}.</p>{{end}}
         {{if or .Stored (ge .Free 0) .Lab}}<p class="hint plan-space">
           {{- if .Stored}}Backups here take <strong>{{size .Stored}}</strong>{{end}}
@@ -279,7 +453,7 @@
   <ul class="plan-checks" aria-label="3-2-1 checks">
     {{template "plan-check" (list (printf "%t" .Checks.Copies) "3 copies")}}
     {{template "plan-check" (list (printf "%t" .Checks.TwoKinds) "2 kinds of storage")}}
-    {{template "plan-check" (list (printf "%t" .Checks.Away) "1 away from home")}}
+    {{template "plan-check" (list (printf "%t" .Checks.Away) (or (and .Internet "1 away from this server") "1 away from home"))}}
     {{template "plan-check" (list (printf "%t" .Checks.BackedUp) "Backed up lately")}}
   </ul>
 </section>
@@ -300,7 +474,8 @@
   {{template "plan-num" .ChooserNum}}
   <div class="plan-body">
     <p class="plan-title">{{.ChooserTitle}}</p>
-    <form method="post" action="{{.Action}}" x-data="{ choice: '{{if or .Options.CanDrives .Options.OwnDisk}}drive{{else}}online{{end}}' }">
+    <form method="post" action="{{.Action}}" x-data="{ choice: '{{if or .Options.CanDrives .Options.OwnDisk}}drive{{else}}online{{end}}', busy: false }"
+      x-on:submit="busy = true">
       {{if .Replacing}}<input type="hidden" name="replace" value="1">{{end}}
       <input type="hidden" name="add" value="{{.Adding}}">
       <div class="plan-choices">
@@ -369,10 +544,137 @@
       {{end}}{{end}}
 
       <div class="plan-actions">
-        <button type="submit">{{.ChooserButton}}</button>
+        <button type="submit" x-bind:disabled="busy">{{.ChooserButton}}</button>
+        <span class="hint" x-show="busy" x-cloak><span class="spinner" aria-hidden="true"></span>
+          <span x-text="choice === 'friend' ? 'Connecting to their lab (up to 30 seconds)…' : 'Setting it up…'"></span></span>
         <a href="{{.Back}}#plan">Cancel</a>
       </div>
     </form>
   </div>
 </li>
 {{end}}
+
+{{/* cloud-live: the lab's link to Roostack Cloud (a cloudView; SPEC.md
+     §6.6), refreshing itself while it waits to be confirmed. A form that
+     starts linking (in a new window) triggers "refresh" so this notices.
+     In the wizard (.Setup) it only shows waiting and what happened. */}}
+{{define "cloud-live"}}<div id="cloud-live" hx-get="/settings/cloud/live{{if .Setup}}?in=setup{{end}}" hx-swap="outerHTML" hx-disinherit="*"
+  hx-trigger="refresh{{if .Busy}}, every 2s [document.visibilityState === 'visible']{{end}}">
+{{- if .Waiting}}{{with .Waiting}}
+<div class="cloud-waiting">
+  <p class="cloud-waiting-title with-icon">{{icon "clock"}}Waiting for you in Roostack Cloud</p>
+  <p>Roostack Cloud is waiting for you to log in or sign up there, check it shows this code, and confirm. This page carries on by itself.</p>
+  <p class="cloud-code"><span class="link-code">{{.Code}}</span>
+    <small class="hint">{{with .Name}}For <strong>{{.}}.{{$.Suffix}}</strong> · {{end}}the code expires {{when .Expires}}</small></p>
+  {{with .Error}}<p class="hint">Roostack couldn't ask Roostack Cloud just now ({{.}}); it keeps trying.</p>{{end}}
+  <div class="actions-row">
+    <a class="button secondary" href="{{.OpenURL}}">Go to Roostack Cloud</a>
+    <form method="post" action="/settings/cloud/cancel">{{if $.Setup}}<input type="hidden" name="in" value="setup">{{end}}<button type="submit" class="quiet">Cancel</button></form>
+  </div>
+  <details class="technical" id="cloud-sent"><summary>What Roostack sends</summary>
+    <p>The lab's name, {{with .Name}}the name it asks for, {{end}}Roostack's version, and a public key, for the lab's certificate.
+      The private key stays on this server. Nothing else: no email address, no list of services.</p>
+  </details>
+</div>{{end}}
+{{- else if .Linked}}
+{{- if .Setup}}
+{{if .Address}}{{notice "ok" (printf "Your lab's address is %s." .Address)}}
+<p><a class="button" href="/">Continue setup</a></p>
+{{else if .AddressError}}<p class="error" role="alert">Linked to Roostack Cloud, but {{with .Name}}{{.}}.{{$.Suffix}}{{else}}the name{{end}} couldn't be set up: {{.AddressError}}</p>
+{{else if .Name}}<p class="with-icon"><span class="spinner" aria-hidden="true"></span> Linked. Setting up {{.Name}}.{{$.Suffix}}…</p>
+{{end}}
+{{- else}}
+<dl class="facts">
+  <dt>Status</dt><dd><span class="cloud-linked">✓ Linked</span> since {{date .Since}}</dd>
+  <dt>Account</dt><dd>{{.Account}}</dd>
+  <dt>Used for</dt><dd>{{if .Address}}Your lab's address, {{.Address}}{{else}}Nothing yet: <a href="/setup/domain">get a {{$.Suffix}} address</a>{{end}}
+    {{- with .AddressError}}<br><small class="error">{{.}}</small>{{end}}</dd>
+  <dt>Last contact</dt><dd>{{when .LastContact}}
+    {{- with .LastError}}<br><small class="hint">Couldn't reach Roostack Cloud {{when $.LastTry}} ({{.}}); Roostack tries again every hour.</small>{{end}}</dd>
+</dl>
+<details class="technical" id="cloud-details">
+  <summary>Details</summary>
+  <dl class="facts">
+    <dt>Certificate</dt><dd>Fingerprint <code>{{.CertFingerprint}}</code><br>Valid from {{date .CertIssued}} to {{date .CertEnds}};
+      renewed by itself, with a new key, once two thirds of that has passed</dd>
+    <dt>Kept in</dt><dd><code>{{.Dir}}</code>: the key (<code>lab.key</code>, readable only by Roostack), the certificate (<code>lab.crt</code>),
+      the link (<code>link.json</code>) and the requests below (<code>requests.log</code>). Backed up with Roostack's state.</dd>
+    <dt>Lab ID</dt><dd><code>{{.LabID}}</code></dd>
+    <dt>Roostack Cloud</dt><dd><code>{{.URL}}</code></dd>
+  </dl>
+  {{template "cloud-requests" .}}
+</details>
+  <h2 class="section-title">Unlinking</h2>
+  <p>{{if .Address}}Your lab's address, {{.Address}}, stops working, so
+    {{with .Services}}these services can't be reached until you give the lab another address: {{range $i, $s := .}}{{if $i}}, {{end}}{{$s}}{{end}}.{{else}}services can't be reached until you give the lab another address.{{end}}
+    The name is kept for your account for a year.{{else}}Nothing on this lab uses Roostack Cloud yet.{{end}}
+    Everything else on this server carries on as it is.</p>
+  {{confirm "/settings/cloud/unlink" "Unlink this lab from Roostack Cloud?" "Unlink from Roostack Cloud" "quiet danger"}}
+{{- end}}
+{{- else if not .Setup}}
+<p>Roostack Cloud is an optional online service for Roostack labs. Your lab works without it. Linking the lab to a free
+  Roostack Cloud account gives it a <strong>free {{$.Suffix}} address</strong>, so you don't need a domain of your own.</p>
+<p class="hint">Later, it will also offer backups away from home and checks of your lab from the internet: each one your choice.</p>
+{{with .StartError}}<p class="error" role="alert">{{.}}</p>{{end}}
+<form method="post" action="/settings/cloud/link">
+  <button type="submit">Link to Roostack Cloud</button>
+  <small>You'll sign up or log in there (a free account), confirm this lab, and come straight back here. No password is typed here, and nothing secret is copied by hand.</small>
+</form>
+{{template "cloud-requests" .}}
+{{- else}}
+{{with .StartError}}<p class="error" role="alert">{{.}}</p>{{end}}
+{{- end}}
+</div>{{end}}
+
+{{/* cloud-requests: the lab's recent requests to Roostack Cloud. */}}
+{{define "cloud-requests"}}{{with .Requests}}
+<details class="technical" id="cloud-requests"><summary>Recent requests to Roostack Cloud</summary>
+  <table class="records">
+    <tr><th>When</th><th>Request</th><th>Answer</th></tr>
+    {{range .}}<tr><td>{{when .At}}</td><td><code>{{.Method}} {{.Path}}</code>{{if gt .Count 1}} <small class="hint">× {{.Count}}</small>{{end}}</td><td>{{if .Status}}{{.Status}}{{else}}<small class="hint">{{.Error}}</small>{{end}}</td></tr>{{end}}
+  </table>
+</details>{{end}}{{end}}
+
+{{/* cloud-name-check: whether a roost.ac name is free, as it's typed. */}}
+{{define "cloud-name-check"}}<small id="name-check" class="name-check" role="status">
+  {{- if .Free}}<span class="cloud-linked">✓ {{.Name}}.{{$.Suffix}} is free</span>
+  {{- else if .Held}}{{.Name}}.{{$.Suffix}} is kept for the account that had it. If that's yours, you'll get it back once the lab is linked to it.
+  {{- else if .Problem}}<span class="name-taken">{{.Problem}}</span>
+  {{- else}}Services at <code>photos.<em>name</em>.{{$.Suffix}}</code>, Roostack itself at <code><em>name</em>.{{$.Suffix}}</code>.{{end}}</small>{{end}}
+
+{{/* Visitors through Roostack Cloud's relay (relayStatsView), loaded on its
+     own: Public access (Owners) and /visitors (Admins). */}}
+{{define "relay-stats"}}<section class="card section relay-stats" id="visitors" hx-disinherit="*">
+  <div class="heading">
+    <h2>Visitors through the relay</h2>
+    <nav class="period-choice" aria-label="How far back">{{range .Periods}}<a href="?period={{.Value}}#visitors" hx-get="/partials/relay-stats?period={{.Value}}" hx-target="#visitors" hx-swap="outerHTML"{{if .Current}} aria-current="true"{{end}}>{{.Label}}</a>{{end}}</nav>
+  </div>
+  {{if .Error}}{{notice "warn" .Error}}{{else}}
+  <dl class="stat-tiles">
+    <div><dt>Visitors</dt><dd>{{count .Visitors}}</dd></div>
+    <div><dt>Connections</dt><dd>{{count .Connections}}</dd></div>
+    <div><dt>Data</dt><dd>{{size .Bytes}}</dd><dd class="hint">{{size .BytesOut}} to visitors</dd></div>
+    <div><dt>Turned away</dt><dd>{{count .Refused}}</dd><dd class="hint">for this lab</dd></div>
+  </dl>
+  {{template "bar-chart" .Chart}}
+  <div class="stat-lists">
+    <div>
+      <h3>Where visitors are</h3>
+      {{with .Countries}}{{template "rank-list" .}}{{else}}<p class="hint">No visitors yet.</p>{{end}}
+    </div>
+    <div>
+      <h3>Why connections were turned away</h3>
+      <dl class="facts">
+        <dt>Banned by your CrowdSec</dt><dd>{{count .Banned}}</dd>
+        <dt>From countries you keep out</dt><dd>{{count .Country}}</dd>
+      </dl>
+    </div>
+  </div>
+  <p class="hint">{{if .AsOf.IsZero}}No counts have come in yet.{{else}}As of {{when .AsOf}}: the counts come in every quarter of an hour.{{end}}
+    Counts only: Roostack Cloud keeps no record of who visited. A visitor is one address; someone who visits on several days counts once each day.</p>
+  <details class="technical">
+    <summary>Details</summary>
+    <p>Roostack Cloud's edges count connections to this lab as they pass them on, and how many different addresses (an IPv4 address, or an IPv6 /64) they came from, in memory: an hour's or a day's addresses are kept only as scrambled numbers until the period ends, then only how many there were. Countries come from DB-IP's free country database (IP geolocation by DB-IP), and an address it can't place isn't counted under any country. Days are this lab's (midnight to midnight here). Turned away counts connections refused before reaching this server; the edges' own blocklists and limits, which protect every lab, aren't counted here. Kept 13 months.</p>
+  </details>
+  {{end}}
+</section>{{end}}

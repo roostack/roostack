@@ -1,5 +1,5 @@
 /* Everforest. Colours from Everforest by sainnhe (https://github.com/sainnhe/everforest), MIT licence. Green for actions, orange as the highlight.
-   Adjusted for readability (WCAG contrast): muted (light) #829181 -> #626d61; accent (light) #8da101 -> #616f01; highlight (light) #f57d26 -> #d06a20; ok (light) #8da101 -> #616f01; warn (light) #dfa000 -> #8a6300; bad (light) #f85552 -> #b53e3c; fg (light) #5c6a72 -> #58666d; muted (dark) #9da9a0 -> #9faba2; bad (dark) #e67e80 -> #ec9a9c. */
+   Adjusted for readability (WCAG contrast): muted (light) #829181 -> #626d61; accent (light) #8da101 -> #616f01; highlight (light) #f57d26 -> #d06a20; ok (light) #8da101 -> #616f01; warn (light) #dfa000 -> #8a6300; bad (light) #f85552 -> #b53e3c; fg (light) #5c6a72 -> #58666d; muted (dark) #9da9a0 -> #9faba2; bad (dark) #e67e80 -> #ec9a9c; ok on fg (light, the brand mark's online light) #a7c080 -> #abc385. */
 [data-palette="everforest"] {
   --pal-bg-l: #f4f0d9; --pal-bg-d: #232a2e;
   --pal-surface-l: #fdf6e3; --pal-surface-d: #2d353b;
@@ -16,6 +16,7 @@
   --pal-highlight-soft-l: #f7e2c8; --pal-highlight-soft-d: #4e4745;
   --pal-ok-l: #616f01; --pal-ok-d: #a7c080;
   --pal-ok-bg-l: #eeebc6; --pal-ok-bg-d: #414b46;
+  --pal-ok-on-fg-l: #abc385;
   --pal-warn-l: #8a6300; --pal-warn-d: #dbbc7f;
   --pal-warn-bg-l: #f9ebc5; --pal-warn-bg-d: #494b46;
   --pal-bad-l: #b53e3c; --pal-bad-d: #ec9a9c;

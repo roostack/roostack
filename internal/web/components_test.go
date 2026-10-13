@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -139,4 +140,27 @@ func helpSlug(s string) string {
 	s = regexp.MustCompile("[`*]").ReplaceAllString(s, "")
 	s = strings.ToLower(strings.TrimSpace(regexp.MustCompile(`[^\w\s-]`).ReplaceAllString(s, "")))
 	return regexp.MustCompile(`[-\s]+`).ReplaceAllString(s, "-")
+}
+
+// Every page under a tab lights it up in the top bar; the rest (login,
+// first run, help pages) deliberately don't.
+func TestNavTabs(t *testing.T) {
+	none := []string{"about", "components", "design", "layout", "login", "node-home", "parts", "restarting", "setup", "setup-joined",
+		"setup-restore", "totp"}
+	entries, err := os.ReadDir("templates")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		page := strings.TrimSuffix(e.Name(), ".html")
+		if got := navTab(page); (got == "") != slices.Contains(none, page) {
+			t.Errorf("%s: tab %q", page, got)
+		}
+	}
+	for page, want := range map[string]string{"settings-public": "settings", "settings-servers": "settings", "service-public": "services",
+		"backups-key-change": "backups", "move": "services"} {
+		if got := navTab(page); got != want {
+			t.Errorf("%s: %q, want %q", page, got, want)
+		}
+	}
 }

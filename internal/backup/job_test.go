@@ -2,8 +2,10 @@ package backup
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -23,18 +25,22 @@ func TestLabPlan(t *testing.T) {
 		Exclude: []string{"/srv/roostack/services/vaultwarden/data/db.sqlite3"},
 		Prepare: []generate.PrepareStep{{Type: "sqlite"}},
 	}}
-	p := LabPlan(paths, []*generate.Output{vw})
-	for _, want := range []string{"/var/lib/roostack", "/var/lib/roostack/home/.local/share/containers/storage/secrets",
-		"/srv/roostack/services/vaultwarden/data"} {
-		if !slices.Contains(p.Paths, want) {
-			t.Errorf("paths missing %s: %v", want, p.Paths)
-		}
+	vw.Service = "vaultwarden"
+	vw.Secrets = []generate.Secret{{Name: "roostack-vaultwarden-admin"}}
+	cache := &generate.Output{Service: "cache"} // nothing to back up
+	p := LabPlan(paths, []*generate.Output{vw, cache})
+	if want := []string{"/var/lib/roostack", "/var/lib/roostack/home/.local/share/containers/storage/secrets"}; !slices.Equal(p.Paths, want) {
+		t.Errorf("the server's own paths = %v", p.Paths)
 	}
-	for _, want := range []string{"/var/lib/roostack/home/*", "!/var/lib/roostack/home/.local", "/var/lib/roostack/roostack.db", "/var/lib/roostack/backup-key", "/var/lib/roostack/backup-key.*",
-		"/srv/roostack/services/vaultwarden/data/db.sqlite3"} {
+	for _, want := range []string{"/var/lib/roostack/home/*", "!/var/lib/roostack/home/.local", "/var/lib/roostack/roostack.db",
+		"/var/lib/roostack/backup-key", "/var/lib/roostack/backup-key.*", "/var/lib/roostack/backup-secrets"} {
 		if !slices.Contains(p.Excludes, want) {
 			t.Errorf("excludes missing %s: %v", want, p.Excludes)
 		}
+	}
+	if len(p.Services) != 1 || p.Services[0].Name != "vaultwarden" || len(p.Services[0].Paths) != 2 ||
+		!slices.Equal(p.Services[0].Excludes, vw.Backup.Exclude) || !slices.Equal(p.Services[0].Secrets, []string{"roostack-vaultwarden-admin"}) {
+		t.Errorf("services = %+v", p.Services)
 	}
 	if len(p.Prepare) != 1 {
 		t.Errorf("prepare steps = %d", len(p.Prepare))
@@ -99,6 +105,56 @@ func TestBackupJob(t *testing.T) {
 	}
 }
 
+// Each service gets its own snapshot, tagged with its name, holding its
+// data and its secrets; the secrets file doesn't stay on the disk.
+func TestServiceSnapshots(t *testing.T) {
+	repo := testRepo(t)
+	ctx := context.Background()
+	root := t.TempDir()
+	paths := config.Paths{StateDir: filepath.Join(root, "state"), HomeDir: filepath.Join(root, "state", "home")}
+	writeFile(t, filepath.Join(paths.StateDir, "lab.yaml"), "domain: x")
+	photos := filepath.Join(root, "srv", "photos")
+	writeFile(t, filepath.Join(photos, "cat.jpg"), "meow")
+	svc := &generate.Output{Service: "photos", Secrets: []generate.Secret{{Name: "roostack-photos-db"}, {Name: "roostack-photos-gone"}},
+		Backup: generate.BackupPlan{Include: []string{photos, filepath.Join(root, "srv", "photos-media")}}}
+	d := JobDeps{
+		Repo: repo, Preparer: &Preparer{}, Paths: paths, Host: "test",
+		DumpState: func(_ context.Context, path string) error { writeFile(t, path, "db copy"); return nil },
+		Plan:      func() (Plan, error) { return LabPlan(paths, []*generate.Output{svc}), nil },
+		ReadSecret: func(_ context.Context, name string) ([]byte, error) {
+			if name == "roostack-photos-gone" {
+				return nil, errors.New("no such secret")
+			}
+			return []byte("s3cret"), nil
+		},
+	}
+	sum, err := Run(ctx, d, nopReporter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := repo.Snapshots(ctx, TagRoostack, TagServer)
+	if err != nil || len(server) != 1 || server[0].ID != sum.SnapshotID {
+		t.Fatalf("the server's snapshot: %v %v", server, err)
+	}
+	snap, err := repo.ServiceSnapshot(ctx, "photos", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Run() == "" || snap.Run() != server[0].Run() {
+		t.Errorf("one run's snapshots share its tag: %q, %q", snap.Run(), server[0].Run())
+	}
+	if snap.Service() != "photos" || slices.Contains(snap.Paths, paths.StateDir) || !slices.Contains(snap.Paths, photos) {
+		t.Errorf("photos' snapshot: %+v", snap)
+	}
+	data, err := repo.DumpFile(ctx, snap.ID, SecretsFile(paths, "photos"))
+	if err != nil || string(data) != `{"roostack-photos-db":"czNjcmV0"}` {
+		t.Errorf("its secrets: %s %v", data, err)
+	}
+	if _, err := os.Stat(SecretsDir(paths)); !os.IsNotExist(err) {
+		t.Errorf("the secrets stayed on the disk: %v", err)
+	}
+}
+
 type nopJournal struct{}
 
 func (nopJournal) Load() ([]string, error) { return nil, nil }
@@ -145,6 +201,83 @@ func TestBackupCopies(t *testing.T) {
 	}
 	if snaps, err := copyRepo.Snapshots(context.Background(), "roostack"); err != nil || len(snaps) != 1 {
 		t.Errorf("the copy should have its own backup: %v %v", snaps, err)
+	}
+}
+
+// A copy whose storage never answers (a server that's off) gives up after
+// reachTimeout instead of holding the backup up while restic retries.
+func TestBackupCopyUnreachable(t *testing.T) {
+	main := testRepo(t)
+	if err := main.Init(context.Background()); err != nil { // slow the first time (key derivation)
+		t.Fatal(err)
+	}
+	reachTimeout = 5 * time.Second
+	defer func() { reachTimeout = 2 * time.Minute }()
+	// Accepts connections and never answers.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			defer c.Close()
+		}
+	}()
+	silent := testRepo(t)
+	silent.URL = "rest:http://" + ln.Addr().String() + "/"
+	root := t.TempDir()
+	paths := config.Paths{StateDir: filepath.Join(root, "state"), HomeDir: filepath.Join(root, "state", "home")}
+	writeFile(t, filepath.Join(paths.StateDir, "lab.yaml"), "domain: x")
+	var copyErr error
+	d := JobDeps{
+		Repo: main, Preparer: &Preparer{}, Paths: paths, Host: "test",
+		DumpState: func(_ context.Context, path string) error { writeFile(t, path, "db copy"); return nil },
+		Plan:      func() (Plan, error) { return LabPlan(paths, nil), nil },
+		Copies:    []Copy{{Name: "server:dev2", Title: "dev2's disk", Repo: silent}},
+		OnCopy:    func(_ Copy, _ time.Time, _ *Summary, err error) { copyErr = err },
+	}
+	start := time.Now()
+	if _, err := Run(context.Background(), d, nopReporter{}); err != nil {
+		t.Fatalf("the main backup: %v", err)
+	}
+	if copyErr == nil || !strings.Contains(copyErr.Error(), "couldn't reach dev2's disk in 5s") {
+		t.Errorf("copy: %v", copyErr)
+	}
+	if time.Since(start) > 30*time.Second {
+		t.Errorf("took %v", time.Since(start))
+	}
+}
+
+// The main backup's drive isn't plugged in: the copies still run. A
+// retry backs up only to the destinations asked for.
+func TestBackupMainDriveMissing(t *testing.T) {
+	copyRepo := testRepo(t)
+	root := t.TempDir()
+	paths := config.Paths{StateDir: filepath.Join(root, "state"), HomeDir: filepath.Join(root, "state", "home")}
+	writeFile(t, filepath.Join(paths.StateDir, "lab.yaml"), "domain: x")
+	var copied []string
+	d := JobDeps{
+		Repo: testRepo(t), Preparer: &Preparer{}, Paths: paths, Host: "test",
+		Precheck:  func() error { return errors.New("BACKUP isn't connected") },
+		DumpState: func(_ context.Context, path string) error { writeFile(t, path, "db copy"); return nil },
+		Plan:      func() (Plan, error) { return LabPlan(paths, nil), nil },
+		Copies:    []Copy{{Name: "provider:1", Title: "Backblaze", Repo: copyRepo}, {Name: "provider:2", Title: "Other", Repo: copyRepo}},
+		OnCopy:    func(c Copy, _ time.Time, _ *Summary, err error) { copied = append(copied, c.Name) },
+	}
+	_, err := Run(context.Background(), d, nopReporter{})
+	var drive *DriveError
+	if !errors.As(err, &drive) || !slices.Equal(copied, []string{"provider:1", "provider:2"}) {
+		t.Fatalf("err %v, copies %v", err, copied)
+	}
+	copied = nil
+	d.Only = []string{"provider:2"}
+	if _, err := Run(context.Background(), d, nopReporter{}); err != nil || !slices.Equal(copied, []string{"provider:2"}) {
+		t.Errorf("a retry of one copy: %v %v", err, copied)
 	}
 }
 

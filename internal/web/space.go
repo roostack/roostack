@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/units"
 )
@@ -25,6 +27,8 @@ const (
 // spaceView is a server's disk space for a page.
 type spaceView struct {
 	node.DiskSpace
+	// ServerID is whose disk it is; Title names it ("Media disk").
+	ServerID, Title string
 	// Promised is the space promised to other labs storing backups here
 	// (their quotas); PromisedLeft the part of it they don't use yet.
 	Promised, PromisedLeft int64
@@ -35,6 +39,33 @@ type spaceView struct {
 // UsedPercent and PromisedPercent size the bar on Settings → Servers.
 func (v spaceView) UsedPercent() int     { return percentOf(v.Used, v.Total) }
 func (v spaceView) PromisedPercent() int { return percentOf(min(v.PromisedLeft, v.Free), v.Total) }
+func (v spaceView) HeldBackPercent() int { return percentOf(v.HeldBack(), v.Total) }
+
+// Parts is what uses the disk, for the bar's coloured segments and their
+// key (SPEC.md §6.7); nil until the parts are counted (the bar then shows
+// one "in use" segment).
+func (v spaceView) Parts() []spacePart {
+	if v.Other() < 0 {
+		return nil
+	}
+	part := func(kind, label string, n int64) spacePart {
+		return spacePart{Kind: kind, Label: label, Bytes: n, Percent: percentOf(n, v.Total)}
+	}
+	other := "Everything else"
+	if v.Kind == node.DiskSystem {
+		other = "The system and everything else"
+	}
+	return []spacePart{part("services", "Services' data", v.Services), part("backups", "Backups of your lab's servers", v.Backups),
+		part("guests", "Backups of other labs", v.Guests), part("other", other, v.Other())}
+}
+
+// spacePart is one part of a disk's use: Kind names its colour
+// (space-<kind>).
+type spacePart struct {
+	Kind, Label string
+	Bytes       int64
+	Percent     int
+}
 
 // Other is what the system and everything else takes: in use, less
 // Roostack's counted parts (-1 until they're counted).
@@ -77,28 +108,58 @@ func lowSpace(free, total int64) string {
 	return ""
 }
 
-// serverSpace asks a server for its disk space (nil if it can't say).
-func (s *Server) serverSpace(ctx context.Context, m serverRef, n any) *spaceView {
+// serverDisks is a server's disks, for its part of a page.
+type serverDisks struct {
+	ServerID string
+	Disks    []*spaceView
+	// Counting: the server is counting what uses its disks (the part
+	// refreshes itself until it's done).
+	Counting bool
+	// StoreOnly: only the disk holding the backup store (Storage for
+	// others).
+	StoreOnly bool
+}
+
+// diskTitle names a disk on the page.
+func diskTitle(d node.DiskSpace) string {
+	switch d.Kind {
+	case node.DiskSystem:
+		return "System disk"
+	case node.DiskData:
+		return "Data disk"
+	case node.DiskMedia:
+		return "Media disk"
+	}
+	if d.Name != "" {
+		return "Backup drive " + d.Name
+	}
+	return "Backup drive"
+}
+
+// serverSpaces asks a server for its disks (nil if it can't say), with
+// the space promised to other labs on the disk holding the backup store,
+// and a warning for each disk running low.
+func (s *Server) serverSpaces(ctx context.Context, m serverRef, n any) *serverDisks {
 	d, ok := n.(node.Disks)
 	if !ok {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	ds, err := d.DiskSpace(ctx)
-	if err != nil {
+	disks, err := d.DiskSpaces(ctx)
+	if err != nil || len(disks) == 0 {
 		return nil
 	}
-	v := &spaceView{DiskSpace: ds}
+	out := &serverDisks{ServerID: m.ID}
+	var promised, promisedLeft int64
 	// Other labs' quotas count on the server that stores their backups.
 	if s.Manager != nil && s.Manager.GuestServer(ctx) == m.ID {
 		if guests, err := s.Manager.StorageGuests(ctx); err == nil {
 			for _, g := range guests {
-				if !g.Removed.IsZero() {
-					continue
+				if g.Removed.IsZero() {
+					promised += g.Quota
+					promisedLeft += max(0, g.Quota-max(g.Used, 0))
 				}
-				v.Promised += g.Quota
-				v.PromisedLeft += max(0, g.Quota-max(g.Used, 0))
 			}
 		}
 	}
@@ -106,23 +167,77 @@ func (s *Server) serverSpace(ctx context.Context, m serverRef, n any) *spaceView
 	if m.This {
 		name = "This server"
 	}
-	switch v.Level = lowSpace(ds.Free, ds.Total); {
-	case v.Level != "":
-		v.Warning = fmt.Sprintf("%s is running out of disk space: %s free of %s. Services can stop working, and backups kept there fail, when it's full.",
-			name, sizeText(ds.Free), sizeText(ds.Total))
-	case v.PromisedLeft > ds.Free:
-		v.Level = levelWarning
-		v.Warning = fmt.Sprintf("Other labs could fill %s's disk: they've been promised %s more space for their backups, but only %s is free.",
-			m.Label(), sizeText(v.PromisedLeft), sizeText(ds.Free))
+	for _, ds := range disks {
+		v := &spaceView{DiskSpace: ds, ServerID: m.ID, Title: diskTitle(ds)}
+		out.Counting = out.Counting || ds.Counting
+		// "This server" with one disk, "This server's media disk" with more.
+		subject, disk := name, m.Label()+"'s disk"
+		if len(disks) > 1 {
+			disk = m.Label() + "'s " + strings.ToLower(v.Title[:1]) + v.Title[1:]
+			subject = disk
+		}
+		if ds.Store {
+			v.Promised, v.PromisedLeft = promised, promisedLeft
+		}
+		switch v.Level = lowSpace(ds.Free, ds.Total); {
+		case v.Level != "":
+			v.Warning = fmt.Sprintf("%s is running out of disk space: %s free of %s. Services can stop working, and backups kept there fail, when it's full.",
+				subject, sizeText(ds.Free), sizeText(ds.Total))
+		case v.PromisedLeft > ds.Free:
+			v.Level = levelWarning
+			v.Warning = fmt.Sprintf("Other labs could fill %s: they've been promised %s more space for their backups, but only %s is free.",
+				disk, sizeText(v.PromisedLeft), sizeText(ds.Free))
+		case v.PromisedLeft > 0 && v.PromisedLeft > ds.Free-ds.Total*manager.GuestHeadroom/100:
+			// Promised space now reaches into what's kept free for the lab's
+			// own use: warn before other labs could fill the disk.
+			v.Level = levelWarning
+			v.Warning = fmt.Sprintf("Space promised to other labs now takes some of what's kept free on %s for your own services and backups: they can still add %s, and %s is free. Free up space, or give them less.",
+				disk, sizeText(v.PromisedLeft), sizeText(ds.Free))
+		}
+		out.Disks = append(out.Disks, v)
 	}
-	return v
+	return out
+}
+
+// store keeps only the disk holding the backup store.
+func (d *serverDisks) store() *serverDisks {
+	for _, v := range d.Disks {
+		if v.Store {
+			return &serverDisks{ServerID: d.ServerID, Disks: []*spaceView{v}, Counting: d.Counting, StoreOnly: true}
+		}
+	}
+	return nil
+}
+
+// diskPart serves a server's disks while their parts are being counted
+// (disks-live): 204 while unchanged, and without polling once done.
+// ?store=1: only the disk holding the backup store.
+func (s *Server) diskPart(w http.ResponseWriter, r *http.Request) {
+	for _, mn := range s.serverNodes(r) {
+		if mn.view.ID != r.PathValue("server") {
+			continue
+		}
+		v := s.serverSpaces(r.Context(), mn.view, mn.node)
+		if v != nil && r.URL.Query().Get("store") != "" {
+			v = v.store()
+		}
+		if v != nil {
+			s.renderLive(w, r, "settings-servers", "disks-live", v)
+			return
+		}
+	}
+	http.NotFound(w, r)
 }
 
 // spaceAttention flags servers running out of space (home page).
 func (s *Server) spaceAttention(r *http.Request, add func(level, text, link, linkText string)) {
 	for _, mn := range s.serverNodes(r) {
-		if v := s.serverSpace(r.Context(), mn.view, mn.node); v != nil && v.Level != "" {
-			add(v.Level, v.Warning, "/settings/servers#server-"+mn.view.ID, "See its disk")
+		if d := s.serverSpaces(r.Context(), mn.view, mn.node); d != nil {
+			for _, v := range d.Disks {
+				if v.Level != "" {
+					add(v.Level, v.Warning, "/settings/servers#server-"+mn.view.ID, "See its disks")
+				}
+			}
 		}
 	}
 }

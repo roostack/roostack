@@ -6,9 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/instance"
@@ -29,6 +32,8 @@ func TestGolden(t *testing.T) {
 		{"vaultwarden", "vaultwarden", "vaultwarden.instance.yaml"},
 		{"immich", "immich", "immich.instance.yaml"},
 		{"immich-no-ml", "immich", "immich-no-ml.instance.yaml"},
+		// A second copy: everything named after it, not the package.
+		{"immich-second", "immich", "immich-second.instance.yaml"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -59,6 +64,30 @@ func TestGolden(t *testing.T) {
 				t.Errorf("output differs from %s (run with -update and review the diff):\n%s", golden, got)
 			}
 		})
+	}
+}
+
+// On a lab on the internet, a private address is for this server only (an
+// SSH tunnel ends there), not the cloud provider's shared network
+// (SPEC.md §6.12).
+func TestPrivateOnInternet(t *testing.T) {
+	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "vaultwarden.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lab := testLab()
+	lab.Network, lab.HostIP = config.NetworkInternet, "203.0.113.5"
+	out, err := Service(lab, p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	site := out.CaddySite.Content
+	if !strings.Contains(site, "not remote_ip 127.0.0.1/8 ::1 203.0.113.5 169.254.1.3\n") || strings.Contains(site, "private_ranges") {
+		t.Errorf("private route on the internet:\n%s", site)
 	}
 }
 
@@ -115,21 +144,26 @@ containers:
 // The lab-wide units, private and with something public (then CrowdSec
 // runs, Caddy logs requests for it and gets the bouncer's key: SPEC.md
 // §6.11).
+//
+// On the internet (SPEC.md §6.12), Roostack's own pages are public too, and
+// private routes are for this server only (an SSH tunnel).
 func TestSystemGolden(t *testing.T) {
-	for _, public := range []bool{false, true} {
-		name := "system.txt"
-		if public {
-			name = "system-public.txt"
-		}
-		t.Run(name, func(t *testing.T) { systemGolden(t, public, name) })
+	for _, c := range []struct {
+		name             string
+		public, internet bool
+	}{{"system.txt", false, false}, {"system-public.txt", true, false}, {"system-internet.txt", true, true}} {
+		t.Run(c.name, func(t *testing.T) { systemGolden(t, c.public, c.internet, c.name) })
 	}
 }
 
-func systemGolden(t *testing.T, public bool, name string) {
+func systemGolden(t *testing.T, public, internet bool, name string) {
 	lab := testLab()
 	lab.Email = "admin@example.com"
 	lab.DNS.Provider = "cloudflare"
-	lab.Public.NoSharing = public // the opt-out shows in the public output
+	lab.Public.NoSharing = public && !internet // the opt-out shows in the public output
+	if internet {
+		lab.Network, lab.HostIP = config.NetworkInternet, "203.0.113.5"
+	}
 	out, err := System(lab, public)
 	if err != nil {
 		t.Fatal(err)
@@ -202,7 +236,7 @@ func TestCaddyAdaptAllProviders(t *testing.T) {
 	if bin == "" {
 		t.Skip("set ROOSTACK_CADDY_BIN to a caddy binary with all DNS plugins")
 	}
-	for _, p := range dns.Providers() {
+	for _, p := range dns.All() {
 		t.Run(p.ID, func(t *testing.T) {
 			lab := testLab()
 			lab.DNS.Provider = p.ID
@@ -354,5 +388,157 @@ func TestNodeAndProxy(t *testing.T) {
 	if proxy.CaddySite == nil || !strings.Contains(proxy.CaddySite.Content, "reverse_proxy 100.96.0.2:") ||
 		len(proxy.Quadlets) != 0 || len(proxy.Ports) != 0 || len(proxy.Hosts) == 0 {
 		t.Errorf("proxy site: %+v", proxy)
+	}
+}
+
+// Before the lab has an address, a service runs on its local port with no
+// web address, and Caddy doesn't run (SPEC.md §6.6).
+func TestNoAddressYet(t *testing.T) {
+	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "vaultwarden.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lab := testLab()
+	lab.Domain = ""
+	out, err := Service(lab, p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.CaddySite != nil || len(out.Hosts) != 0 || len(out.Ports) == 0 || len(out.Quadlets) == 0 {
+		t.Errorf("site %v, hosts %v, ports %v, %d quadlets", out.CaddySite, out.Hosts, out.Ports, len(out.Quadlets))
+	}
+	_, routes := Values(lab, p, in)
+	// Its address is the local one an SSH tunnel reaches, so apps that need
+	// to know it (Vaultwarden's DOMAIN) still start.
+	for name, r := range routes {
+		if r.Host != "localhost" || r.URL != fmt.Sprintf("http://localhost:%d", r.Port) || r.Port == 0 {
+			t.Errorf("route %s = %+v", name, r)
+		}
+	}
+	if q := out.Quadlets[len(out.Quadlets)-1].Content; !strings.Contains(Dump(out), "DOMAIN=http://localhost:") {
+		t.Errorf("Vaultwarden's DOMAIN:\n%s", q)
+	}
+	sys, err := System(lab, false)
+	if err != nil || len(sys.Quadlets) != 0 || len(sys.Units) != 0 || sys.Caddyfile.Content != "" {
+		t.Errorf("system without an address: %+v, %v", sys, err)
+	}
+}
+
+// After switching address, the old one keeps working for a while: a
+// second site with its own certificate, and every route answering to both
+// names; once it's over, nothing of it is left (SPEC.md §6.6).
+func TestOldAddress(t *testing.T) {
+	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "vaultwarden.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lab := testLab()
+	lab.Domain = "smith.family"
+	lab.DNS.Provider = "cloudflare"
+	lab.OldAddress = &config.OldAddress{Domain: "lab.example.com", Until: time.Now().Add(time.Hour),
+		DNS: config.DNS{Provider: "porkbun", Fields: []string{"api_key", "api_secret_key"}}}
+	out, err := Service(lab, p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.CaddySite.Content, "host passwords.smith.family passwords.lab.example.com\n") ||
+		slices.Contains(out.Hosts, "passwords.lab.example.com") {
+		t.Errorf("site:\n%s\nhosts %v", out.CaddySite.Content, out.Hosts)
+	}
+	if d := Dump(out); !strings.Contains(d, "DOMAIN=https://passwords.smith.family") {
+		t.Errorf("the app uses the new address:\n%s", d)
+	}
+	sys, err := System(lab, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf := sys.Caddyfile.Content
+	for _, want := range []string{"*.smith.family {", "*.lab.example.com {", "{env.DNS_OLD_API_KEY}",
+		"host roost.lab.example.com", "host roost.smith.family"} {
+		if !strings.Contains(cf, want) {
+			t.Errorf("Caddyfile missing %q:\n%s", want, cf)
+		}
+	}
+	if q := Dump(&Output{Quadlets: sys.Quadlets}); !strings.Contains(q, "Secret=roostack-caddy-dns-old-api_key,type=env,target=DNS_OLD_API_KEY") {
+		t.Errorf("old provider's secrets:\n%s", q)
+	}
+
+	lab.OldAddress.Until = time.Now().Add(-time.Minute)
+	out, _ = Service(lab, p, in)
+	sys, _ = System(lab, false)
+	if strings.Contains(out.CaddySite.Content+sys.Caddyfile.Content, "lab.example.com") {
+		t.Errorf("after it ends:\n%s\n%s", out.CaddySite.Content, sys.Caddyfile.Content)
+	}
+}
+
+// A roost.ac name (SPEC.md §6.6): Roostack at the name itself, in the
+// same site as the wildcard, and certificates through Roostack Cloud's
+// acme-dns.
+func TestRoostAcAddress(t *testing.T) {
+	lab := testLab()
+	lab.Domain = "smiths.roost.ac"
+	lab.DNS = config.DNS{Provider: config.ProviderCloud, Fields: []string{"password"},
+		Values: map[string]string{"server_url": "https://acme.roost.ac", "username": "acme_x", "subdomain": "abc", "records_url": "https://acme.roost.ac/v1/records"},
+		Zone:   "smiths.roost.ac", ManageRecords: true}
+	sys, err := System(lab, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cf := sys.Caddyfile.Content
+	// Only the password is a placeholder: acmedns reads placeholders in
+	// nothing else.
+	for _, want := range []string{"*.smiths.roost.ac, smiths.roost.ac {", "dns acmedns {", `username "acme_x"`,
+		"password {env.DNS_PASSWORD}", `subdomain "abc"`, `server_url "https://acme.roost.ac"`, "@roostack-admin host smiths.roost.ac\n"} {
+		if !strings.Contains(cf, want) {
+			t.Errorf("Caddyfile missing %q:\n%s", want, cf)
+		}
+	}
+	if strings.Contains(cf, "records_url") || strings.Contains(cf, "roost.smiths") {
+		t.Errorf("Caddyfile:\n%s", cf)
+	}
+	if q := Dump(&Output{Quadlets: sys.Quadlets}); !strings.Contains(q, "Secret=roostack-caddy-dns-password,type=env,target=DNS_PASSWORD") ||
+		strings.Contains(q, "dns-username") {
+		t.Errorf("only the password is a secret:\n%s", q)
+	}
+	// A value that could break out of Caddy's config is refused.
+	lab.DNS.Values["username"] = `x" }`
+	if _, err := System(lab, false); err == nil {
+		t.Error("an unsafe value was written")
+	}
+}
+
+// TestEdge: an edge server gets Roostack's Caddy (built the same way) with
+// only TCP 80 and 443, no certificates or DNS logins, and the edge config.
+func TestEdge(t *testing.T) {
+	lab := testLab()
+	lab.Role = config.RoleNode
+	out, err := Edge(lab, caddy.EdgeConfig{Hosts: []string{"photos.lab.example.com"}, Upstream: "100.96.0.1:443"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Quadlets) != 2 || out.Quadlets[0].Name != CaddyUnit+".container" || out.Quadlets[1].Name != CaddyUnit+".build" {
+		t.Fatalf("quadlets: %+v", out.Quadlets)
+	}
+	c := out.Quadlets[0].Content
+	for _, want := range []string{"PublishPort=80:80\n", "PublishPort=443:443\n", "Network=pasta\n", "Image=" + CaddyUnit + ".build\n"} {
+		if !strings.Contains(c, want) {
+			t.Errorf("missing %q in\n%s", want, c)
+		}
+	}
+	for _, not := range []string{"/udp", "Secret=", "map-host-loopback"} {
+		if strings.Contains(c, not) {
+			t.Errorf("has %q:\n%s", not, c)
+		}
+	}
+	if !strings.Contains(out.Caddyfile.Content, "tls sni photos.lab.example.com") || len(out.Secrets) != 0 {
+		t.Errorf("caddyfile:\n%s", out.Caddyfile.Content)
 	}
 }

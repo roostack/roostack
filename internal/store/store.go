@@ -158,9 +158,58 @@ var migrations = []string{
 	// The space a backup's repository took after each run (0 if unknown).
 	`ALTER TABLE backup_runs ADD COLUMN stored INTEGER NOT NULL DEFAULT 0;`,
 	// Wrong two-factor codes in a row, and when the last was entered, to
-	// limit guesses per account (auth.TOTPLockedUntil).
+	// limit guesses per account (authkit.TOTPLockedUntil).
 	`ALTER TABLE users ADD COLUMN totp_failures INTEGER NOT NULL DEFAULT 0;
 	ALTER TABLE users ADD COLUMN totp_failed_at INTEGER NOT NULL DEFAULT 0;`,
+	// Where Roostack emails someone (SPEC.md §6.13); empty: no email.
+	`ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT '';`,
+	// Notifications (SPEC.md §6.13): the groups someone chose ("" for
+	// their role's defaults); what's been emailed about, per person; and
+	// the browsers each person has logged in from (a new one is a
+	// security email).
+	`ALTER TABLE users ADD COLUMN notify TEXT NOT NULL DEFAULT '';
+	CREATE TABLE notices (
+		user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		key        TEXT NOT NULL,
+		text       TEXT NOT NULL,
+		first_seen INTEGER NOT NULL,
+		sent_at    INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (user_id, key)
+	);
+	CREATE TABLE devices (
+		user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		token_hash TEXT NOT NULL,
+		created_at INTEGER NOT NULL,
+		PRIMARY KEY (user_id, token_hash)
+	);`,
+	// History (SPEC.md §6.14): each finished log of work Roostack did on
+	// this server (applies, backups, updates, ...), with its output.
+	`CREATE TABLE events (
+		id       INTEGER PRIMARY KEY,
+		started  INTEGER NOT NULL,
+		finished INTEGER NOT NULL,
+		kind     TEXT NOT NULL,
+		title    TEXT NOT NULL,
+		status   TEXT NOT NULL DEFAULT '',
+		error    TEXT NOT NULL DEFAULT '',
+		output   TEXT NOT NULL DEFAULT ''
+	);
+	CREATE INDEX events_finished ON events (finished);`,
+	// Signing out after a while without activity (SPEC.md §5): when each
+	// session was last used, and whether it was "keep me signed in".
+	`ALTER TABLE sessions ADD COLUMN last_seen INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE sessions ADD COLUMN remember INTEGER NOT NULL DEFAULT 0;`,
+	// Sessions from before count as used now, so the update doesn't sign
+	// everyone out.
+	`UPDATE sessions SET last_seen = CAST(strftime('%s', 'now') AS INTEGER) WHERE last_seen = 0;`,
+	// When an emailed notice stopped being seen: "Fixed" waits until it
+	// has been gone a while, so a moment's gap isn't news (SPEC.md §6.13).
+	`ALTER TABLE notices ADD COLUMN gone_since INTEGER NOT NULL DEFAULT 0;`,
+	// Where the controller dials a server that can be reached and it
+	// can't (a cloud server joining a lab at home, SPEC.md §10.2): typed
+	// with its join code, kept once it has joined.
+	`ALTER TABLE join_codes ADD COLUMN dial TEXT NOT NULL DEFAULT '';
+	ALTER TABLE servers ADD COLUMN dial TEXT NOT NULL DEFAULT '';`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -247,11 +296,16 @@ type User struct {
 	TOTPSecret   string
 	TOTPLastStep int64
 	// TOTPFailures counts wrong two-factor codes since the last right one,
-	// the last entered at TOTPFailedAt (auth.TOTPLockedUntil).
+	// the last entered at TOTPFailedAt (authkit.TOTPLockedUntil).
 	TOTPFailures int
 	TOTPFailedAt time.Time
 	// MustChangePassword is set for temporary passwords (CLI add/reset).
 	MustChangePassword bool
+	// Email is where Roostack emails them (SPEC.md §6.13); empty: no email.
+	Email string
+	// Notify is the notification groups they chose, comma-separated ("" for
+	// their role's defaults, "none" for none).
+	Notify string
 	// Theme is "auto" (follow the device), "light" or "dark".
 	Theme string
 	// Palette is the colour theme (internal/web themes), "" for the default.
@@ -351,6 +405,223 @@ func (s *Store) SetTheme(ctx context.Context, userID int64, theme string) error 
 	return err
 }
 
+// SetEmail sets where Roostack emails someone ("" for nowhere).
+func (s *Store) SetEmail(ctx context.Context, userID int64, email string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE users SET email = ? WHERE id = ?`, email, userID)
+	return err
+}
+
+// SetNotify sets someone's notification groups (see User.Notify).
+func (s *Store) SetNotify(ctx context.Context, userID int64, groups string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE users SET notify = ? WHERE id = ?`, groups, userID)
+	return err
+}
+
+// Notice is something someone was (or will be) emailed about.
+type Notice struct {
+	Key, Text string
+	FirstSeen time.Time
+	SentAt    time.Time // zero: not emailed yet
+	// GoneSince is when it stopped being seen (zero while it's there).
+	GoneSince time.Time
+}
+
+// Notices lists what's being followed for a person.
+func (s *Store) Notices(ctx context.Context, userID int64) (map[string]Notice, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT key, text, first_seen, sent_at, gone_since FROM notices WHERE user_id = ?`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]Notice{}
+	for rows.Next() {
+		var n Notice
+		var first, sent, gone int64
+		if err := rows.Scan(&n.Key, &n.Text, &first, &sent, &gone); err != nil {
+			return nil, err
+		}
+		n.FirstSeen = time.Unix(first, 0)
+		if sent != 0 {
+			n.SentAt = time.Unix(sent, 0)
+		}
+		if gone != 0 {
+			n.GoneSince = time.Unix(gone, 0)
+		}
+		out[n.Key] = n
+	}
+	return out, rows.Err()
+}
+
+// SaveNotice records a notice (insert or update).
+func (s *Store) SaveNotice(ctx context.Context, userID int64, n Notice) error {
+	var sent, gone int64
+	if !n.SentAt.IsZero() {
+		sent = n.SentAt.Unix()
+	}
+	if !n.GoneSince.IsZero() {
+		gone = n.GoneSince.Unix()
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO notices (user_id, key, text, first_seen, sent_at, gone_since) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT (user_id, key) DO UPDATE SET text = excluded.text, sent_at = excluded.sent_at, gone_since = excluded.gone_since`,
+		userID, n.Key, n.Text, n.FirstSeen.Unix(), sent, gone)
+	return err
+}
+
+// DeleteNotice forgets a notice (it was dealt with).
+func (s *Store) DeleteNotice(ctx context.Context, userID int64, key string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM notices WHERE user_id = ? AND key = ?`, userID, key)
+	return err
+}
+
+// KnownDevice records a browser someone logged in from; it reports
+// whether it was new, and whether they had any before.
+func (s *Store) KnownDevice(ctx context.Context, userID int64, tokenHash string, now time.Time) (isNew, hadOthers bool, err error) {
+	var n int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM devices WHERE user_id = ?`, userID).Scan(&n); err != nil {
+		return false, false, err
+	}
+	res, err := s.db.ExecContext(ctx, `INSERT OR IGNORE INTO devices (user_id, token_hash, created_at) VALUES (?, ?, ?)`,
+		userID, tokenHash, now.Unix())
+	if err != nil {
+		return false, false, err
+	}
+	added, _ := res.RowsAffected()
+	return added == 1, n > 0, nil
+}
+
+// AuditSince lists audit rows after id, oldest first (at most 200).
+func (s *Store) AuditSince(ctx context.Context, id int64) ([]AuditEntry, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, at, username, action, detail FROM audit_log WHERE id > ? ORDER BY id LIMIT 200`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AuditEntry
+	for rows.Next() {
+		var e AuditEntry
+		var at int64
+		if err := rows.Scan(&e.ID, &at, &e.Username, &e.Action, &e.Detail); err != nil {
+			return nil, err
+		}
+		e.At = time.Unix(at, 0)
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// LastAuditID is the newest audit row's id (0 if none).
+func (s *Store) LastAuditID(ctx context.Context) (int64, error) {
+	var id sql.NullInt64
+	err := s.db.QueryRowContext(ctx, `SELECT max(id) FROM audit_log`).Scan(&id)
+	return id.Int64, err
+}
+
+// Event is one finished piece of work Roostack did on a server: its log,
+// kept as history (SPEC.md §6.14).
+type Event struct {
+	ID                int64
+	Started, Finished time.Time
+	Kind, Title       string
+	Status, Error     string
+	Output            string `json:",omitempty"` // the log's lines
+}
+
+// MaxEvents is how many events a server keeps, whatever their age.
+const MaxEvents = 5000
+
+// AddEvent keeps a finished log, and drops the oldest beyond MaxEvents.
+func (s *Store) AddEvent(ctx context.Context, e Event) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO events (started, finished, kind, title, status, error, output) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		e.Started.Unix(), e.Finished.Unix(), e.Kind, e.Title, e.Status, e.Error, e.Output)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `DELETE FROM events WHERE id <= (SELECT max(id) FROM events) - ?`, MaxEvents)
+	return err
+}
+
+// Events lists events finished before before (zero: now), newest first,
+// without their output; kind filters when not "".
+func (s *Store) Events(ctx context.Context, before time.Time, kind string, limit int) ([]Event, error) {
+	if before.IsZero() {
+		before = time.Now().Add(time.Minute)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id, started, finished, kind, title, status, error FROM events
+		WHERE finished < ? AND (? = '' OR kind = ?) ORDER BY finished DESC, id DESC LIMIT ?`, before.Unix(), kind, kind, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Event
+	for rows.Next() {
+		var e Event
+		var started, finished int64
+		if err := rows.Scan(&e.ID, &started, &finished, &e.Kind, &e.Title, &e.Status, &e.Error); err != nil {
+			return nil, err
+		}
+		e.Started, e.Finished = time.Unix(started, 0), time.Unix(finished, 0)
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// EventByID is one event, with its output.
+func (s *Store) EventByID(ctx context.Context, id int64) (Event, error) {
+	var e Event
+	var started, finished int64
+	err := s.db.QueryRowContext(ctx, `SELECT id, started, finished, kind, title, status, error, output FROM events WHERE id = ?`, id).
+		Scan(&e.ID, &started, &finished, &e.Kind, &e.Title, &e.Status, &e.Error, &e.Output)
+	if errors.Is(err, sql.ErrNoRows) {
+		return e, ErrNotFound
+	}
+	e.Started, e.Finished = time.Unix(started, 0), time.Unix(finished, 0)
+	return e, err
+}
+
+// AuditBefore lists audit rows before before (zero: now), newest first.
+func (s *Store) AuditBefore(ctx context.Context, before time.Time, limit int) ([]AuditEntry, error) {
+	if before.IsZero() {
+		before = time.Now().Add(time.Minute)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT id, at, username, action, detail FROM audit_log WHERE at < ? ORDER BY at DESC, id DESC LIMIT ?`,
+		before.Unix(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AuditEntry
+	for rows.Next() {
+		var e AuditEntry
+		var at int64
+		if err := rows.Scan(&e.ID, &at, &e.Username, &e.Action, &e.Detail); err != nil {
+			return nil, err
+		}
+		e.At = time.Unix(at, 0)
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// CullHistory deletes events finished before before; it returns how
+// many went.
+func (s *Store) CullHistory(ctx context.Context, before time.Time) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM events WHERE finished < ?`, before.Unix())
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// CullAudit deletes audit rows older than before; it returns how many
+// went.
+func (s *Store) CullAudit(ctx context.Context, before time.Time) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM audit_log WHERE at < ?`, before.Unix())
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 // CountUsers returns the number of accounts.
 func (s *Store) CountUsers(ctx context.Context) (int, error) {
 	var n int
@@ -408,7 +679,7 @@ func (s *Store) SetPassword(ctx context.Context, username, hash string, temporar
 }
 
 const userColumns = `users.id, users.username, users.password_hash, users.role,
-	users.totp_secret, users.totp_last_step, users.totp_failures, users.totp_failed_at, users.must_change_password, users.theme, users.palette, users.accent, users.created_at`
+	users.totp_secret, users.totp_last_step, users.totp_failures, users.totp_failed_at, users.must_change_password, users.theme, users.palette, users.accent, users.email, users.notify, users.created_at`
 
 // UserByID looks up an account.
 func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
@@ -455,7 +726,7 @@ func scanUserRow(row interface{ Scan(...any) error }) (*User, error) {
 	var u User
 	var created, failedAt int64
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &u.TOTPLastStep,
-		&u.TOTPFailures, &failedAt, &u.MustChangePassword, &u.Theme, &u.Palette, &u.Accent, &created)
+		&u.TOTPFailures, &failedAt, &u.MustChangePassword, &u.Theme, &u.Palette, &u.Accent, &u.Email, &u.Notify, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -471,9 +742,40 @@ func scanUserRow(row interface{ Scan(...any) error }) (*User, error) {
 
 // CreateSession stores a session. Only a hash of the token is stored.
 func (s *Store) CreateSession(ctx context.Context, tokenHash string, userID int64, expires time.Time) error {
+	return s.CreateSessionRemember(ctx, tokenHash, userID, expires, false)
+}
+
+// CreateSessionRemember stores a session; remember: "keep me signed in"
+// (no sign-out for inactivity).
+func (s *Store) CreateSessionRemember(ctx context.Context, tokenHash string, userID int64, expires time.Time, remember bool) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)`,
-		tokenHash, userID, expires.Unix())
+		`INSERT INTO sessions (token_hash, user_id, expires_at, last_seen, remember) VALUES (?, ?, ?, ?, ?)`,
+		tokenHash, userID, expires.Unix(), time.Now().Unix(), remember)
+	return err
+}
+
+// SessionInfo is a session's user, when it was last used, and whether it's
+// "keep me signed in".
+func (s *Store) SessionInfo(ctx context.Context, tokenHash string) (u *User, lastSeen time.Time, remember bool, err error) {
+	var seen int64
+	row := s.db.QueryRowContext(ctx, `SELECT `+userColumns+`, s.last_seen, s.remember
+		 FROM sessions s JOIN users ON users.id = s.user_id
+		 WHERE s.token_hash = ? AND s.expires_at > ?`, tokenHash, time.Now().Unix())
+	u, err = scanUserRow(scanTail{row, []any{&seen, &remember}})
+	return u, time.Unix(seen, 0), remember, err
+}
+
+// scanTail scans a user row with extra columns after the user's.
+type scanTail struct {
+	row   *sql.Row
+	extra []any
+}
+
+func (t scanTail) Scan(dest ...any) error { return t.row.Scan(append(dest, t.extra...)...) }
+
+// TouchSession records that a session was used at now.
+func (s *Store) TouchSession(ctx context.Context, tokenHash string, now time.Time) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE sessions SET last_seen = ? WHERE token_hash = ?`, now.Unix(), tokenHash)
 	return err
 }
 
@@ -491,14 +793,18 @@ func (s *Store) DeleteSession(ctx context.Context, tokenHash string) error {
 	return err
 }
 
-// DeleteExpiredSessions removes old sessions.
-func (s *Store) DeleteExpiredSessions(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at <= ?`, time.Now().Unix())
+// DeleteExpiredSessions removes old sessions: past their expiry, or (when
+// idle isn't 0) unused for longer than idle, unless kept signed in.
+func (s *Store) DeleteExpiredSessions(ctx context.Context, idle time.Duration) error {
+	now := time.Now()
+	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at <= ? OR (? > 0 AND remember = 0 AND last_seen < ?)`,
+		now.Unix(), int64(idle.Seconds()), now.Add(-idle).Unix())
 	return err
 }
 
 // AuditEntry is one audit log row.
 type AuditEntry struct {
+	ID       int64
 	At       time.Time
 	Username string
 	Action   string
@@ -646,6 +952,9 @@ type Server struct {
 	// any certificate the lab's CA signed for it.
 	CertSerial, PrevSerial string
 	CertExpires            time.Time
+	// Dial is where the controller dials it (host:port), when it can be
+	// reached and the controller can't; "" when it dials the controller.
+	Dial string
 }
 
 // JoinCode is a join code waiting to be used. Only the token's hash is
@@ -653,6 +962,9 @@ type Server struct {
 type JoinCode struct {
 	TokenHash, Addr, PublicKey string
 	Expires                    time.Time
+	// Dial is where the controller dials the new server ("" when the new
+	// server dials the controller); the server keeps it once joined.
+	Dial string
 }
 
 // ErrJoinCode means a join code is unknown, used or expired.
@@ -660,8 +972,8 @@ var ErrJoinCode = errors.New("the join code is unknown, already used or expired"
 
 // AddJoinCode records a new join code.
 func (s *Store) AddJoinCode(ctx context.Context, c JoinCode) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO join_codes (token_hash, addr, public_key, expires_at) VALUES (?, ?, ?, ?)`,
-		c.TokenHash, c.Addr, c.PublicKey, c.Expires.Unix())
+	_, err := s.db.ExecContext(ctx, `INSERT INTO join_codes (token_hash, addr, public_key, expires_at, dial) VALUES (?, ?, ?, ?, ?)`,
+		c.TokenHash, c.Addr, c.PublicKey, c.Expires.Unix(), c.Dial)
 	return err
 }
 
@@ -670,7 +982,7 @@ func (s *Store) JoinCodes(ctx context.Context, now time.Time) ([]JoinCode, error
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM join_codes WHERE expires_at <= ?`, now.Unix()); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT token_hash, addr, public_key, expires_at FROM join_codes ORDER BY addr`)
+	rows, err := s.db.QueryContext(ctx, `SELECT token_hash, addr, public_key, expires_at, dial FROM join_codes ORDER BY addr`)
 	if err != nil {
 		return nil, err
 	}
@@ -679,7 +991,7 @@ func (s *Store) JoinCodes(ctx context.Context, now time.Time) ([]JoinCode, error
 	for rows.Next() {
 		var c JoinCode
 		var exp int64
-		if err := rows.Scan(&c.TokenHash, &c.Addr, &c.PublicKey, &exp); err != nil {
+		if err := rows.Scan(&c.TokenHash, &c.Addr, &c.PublicKey, &exp, &c.Dial); err != nil {
 			return nil, err
 		}
 		c.Expires = time.Unix(exp, 0)
@@ -697,7 +1009,7 @@ func (s *Store) Join(ctx context.Context, tokenHash string, m Server, now time.T
 	}
 	defer tx.Rollback()
 	var exp int64
-	err = tx.QueryRowContext(ctx, `SELECT addr, expires_at FROM join_codes WHERE token_hash = ?`, tokenHash).Scan(&m.Addr, &exp)
+	err = tx.QueryRowContext(ctx, `SELECT addr, expires_at, dial FROM join_codes WHERE token_hash = ?`, tokenHash).Scan(&m.Addr, &exp, &m.Dial)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && exp <= now.Unix()) {
 		return m, ErrJoinCode
 	}
@@ -711,11 +1023,11 @@ func (s *Store) Join(ctx context.Context, tokenHash string, m Server, now time.T
 	// Joining again (e.g. after reinstalling) replaces the old entry.
 	// Its certificate is recorded once signed (SetServerCert); until then
 	// none is accepted, not even one from an earlier join.
-	if _, err := tx.ExecContext(ctx, `INSERT INTO servers (id, name, addr, public_key, joined_at, cert_serial)
-		VALUES (?, ?, ?, ?, ?, 'pending')
+	if _, err := tx.ExecContext(ctx, `INSERT INTO servers (id, name, addr, public_key, joined_at, cert_serial, dial)
+		VALUES (?, ?, ?, ?, ?, 'pending', ?)
 		ON CONFLICT(id) DO UPDATE SET name = excluded.name, addr = excluded.addr, public_key = excluded.public_key,
-		joined_at = excluded.joined_at, cert_serial = 'pending', prev_serial = '', cert_expires = 0`,
-		m.ID, m.Name, m.Addr, m.PublicKey, now.Unix()); err != nil {
+		joined_at = excluded.joined_at, cert_serial = 'pending', prev_serial = '', cert_expires = 0, dial = excluded.dial`,
+		m.ID, m.Name, m.Addr, m.PublicKey, now.Unix(), m.Dial); err != nil {
 		return m, err
 	}
 	return m, tx.Commit()
@@ -723,7 +1035,7 @@ func (s *Store) Join(ctx context.Context, tokenHash string, m Server, now time.T
 
 // Servers lists the other servers in the lab.
 func (s *Store) Servers(ctx context.Context) ([]Server, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, addr, public_key, joined_at, cert_serial, prev_serial, cert_expires
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, addr, public_key, joined_at, cert_serial, prev_serial, cert_expires, dial
 		FROM servers ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -733,7 +1045,7 @@ func (s *Store) Servers(ctx context.Context) ([]Server, error) {
 	for rows.Next() {
 		var m Server
 		var joined, expires int64
-		if err := rows.Scan(&m.ID, &m.Name, &m.Addr, &m.PublicKey, &joined, &m.CertSerial, &m.PrevSerial, &expires); err != nil {
+		if err := rows.Scan(&m.ID, &m.Name, &m.Addr, &m.PublicKey, &joined, &m.CertSerial, &m.PrevSerial, &expires, &m.Dial); err != nil {
 			return nil, err
 		}
 		m.JoinedAt = time.Unix(joined, 0)

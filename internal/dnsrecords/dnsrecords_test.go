@@ -146,36 +146,59 @@ type fakeGandi struct {
 	client *http.Client
 }
 
-func (g *fakeGandi) get(name string) string {
+// get is a name's A record ("" if none); getType any type's, as Gandi
+// holds it.
+func (g *fakeGandi) get(name string) string { return g.getType(name, "A") }
+
+func (g *fakeGandi) getType(name, typ string) string {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return g.recs[name]
+	return g.recs[name+"/"+typ]
 }
 
-func (g *fakeGandi) put(name, ip string) {
+func (g *fakeGandi) put(name, ip string) { g.putType(name, "A", ip) }
+
+func (g *fakeGandi) putType(name, typ, v string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.recs[name] = ip
+	if v == "" {
+		delete(g.recs, name+"/"+typ)
+		return
+	}
+	g.recs[name+"/"+typ] = v
 }
 
 func startFakeGandi(t *testing.T) *fakeGandi {
 	g := &fakeGandi{recs: map[string]string{}}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v5/livedns/domains/example.com/records/{name}/A", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v5/livedns/domains/example.com/records/{name}/{typ}", func(w http.ResponseWriter, r *http.Request) {
 		g.mu.Lock()
 		g.auth = r.Header.Get("Authorization")
 		g.mu.Unlock()
-		name := r.PathValue("name")
+		name, typ := r.PathValue("name"), r.PathValue("typ")
 		if r.Method == "PUT" {
 			var b struct {
 				Values []string `json:"rrset_values"`
 			}
 			json.NewDecoder(r.Body).Decode(&b)
-			g.put(name, b.Values[0])
+			if typ == "CNAME" && g.getType(name, "A") != "" || typ != "CNAME" && g.getType(name, "CNAME") != "" {
+				http.Error(w, `{"message":"a CNAME can't be with other records"}`, 409)
+				return
+			}
+			g.putType(name, typ, b.Values[0])
 			w.WriteHeader(201)
 			return
 		}
-		if v := g.get(name); v != "" {
+		if r.Method == "DELETE" {
+			if g.getType(name, typ) == "" {
+				http.Error(w, `{"message":"not found"}`, 404)
+				return
+			}
+			g.putType(name, typ, "")
+			w.WriteHeader(204)
+			return
+		}
+		if v := g.getType(name, typ); v != "" {
 			json.NewEncoder(w).Encode(map[string]any{"rrset_values": []string{v}})
 			return
 		}

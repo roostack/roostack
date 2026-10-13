@@ -8,8 +8,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -64,6 +66,9 @@ func (p Paths) PackageFile(name string) string {
 // servers (SPEC.md §10.10), next to the media folder on the big disk.
 func (p Paths) BackupStoreDir() string { return filepath.Join(filepath.Dir(p.MediaDir), "backups") }
 
+// MailPasswordFile holds the SMTP server's password (0600).
+func (p Paths) MailPasswordFile() string { return filepath.Join(p.StateDir, "mail-password") }
+
 // InstancesDir holds one instance YAML file per installed service.
 func (p Paths) InstancesDir() string { return filepath.Join(p.StateDir, "services") }
 
@@ -81,6 +86,12 @@ func (p Paths) CaddyDataDir() string { return filepath.Join(p.StateDir, "caddy-d
 // CrowdSec reads (SPEC.md §6.11).
 func (p Paths) CaddyLogDir() string { return filepath.Join(p.StateDir, "caddy-logs") }
 
+// CaddyBuildLog is the output of the latest build of Roostack's Caddy
+// image. The roostack user's units log to the system journal (it's a
+// system user), which Roostack can't read, so the build writes here and
+// the UI shows it while it runs.
+func (p Paths) CaddyBuildLog() string { return filepath.Join(p.StateDir, "caddy-build.log") }
+
 // CrowdSecDir holds CrowdSec's configuration and database.
 func (p Paths) CrowdSecDir() string { return filepath.Join(p.StateDir, "crowdsec") }
 
@@ -92,6 +103,9 @@ type DNS struct {
 	// values are Podman secrets, never stored here. Empty means the
 	// provider's required fields.
 	Fields []string `yaml:"fields,omitempty"`
+	// Values are the provider's fields that aren't secret (dns.Field's
+	// InConfig: Roostack Cloud's challenge server, username, subdomain).
+	Values map[string]string `yaml:"values,omitempty"`
 	// Directive, if set, is used verbatim inside Caddy's tls block instead of
 	// the provider's generated one (advanced use).
 	Directive string `yaml:"directive,omitempty"`
@@ -116,7 +130,50 @@ type Public struct {
 	// NoSharing: the Owner chose not to share them (SPEC.md §6.10). Local
 	// detection and blocking still work; the community blocklist doesn't.
 	NoSharing bool `yaml:"no_sharing,omitempty"`
+	// UITunnelOnly keeps Roostack's own pages off roost.<domain> on a
+	// lab on the internet, where they're public by default (SPEC.md
+	// §6.3.2): they're then only reachable through an SSH tunnel.
+	UITunnelOnly bool `yaml:"ui_tunnel_only,omitempty"`
+	// Edge is the server (its ID) that public visitors come in through
+	// (SPEC.md §10.5): a cloud server in the lab, passing their connections
+	// on still encrypted. Empty is port forwarding at home (§6.11). One for
+	// the whole lab for now; each public address will be able to choose
+	// its own later (Route's entry, SPEC.md §10.5).
+	Edge string `yaml:"edge,omitempty"`
+	// Relay brings public visitors through Roostack Cloud's relay instead
+	// (its DESIGN §5): for a lab whose address is a roost.ac name. Never
+	// with Edge.
+	Relay bool `yaml:"relay,omitempty"`
+	// Countries limits public visitors by the country their address is in
+	// (SPEC.md §10.5). Only Roostack Cloud's relay enforces it, at its
+	// edges, before visitors reach the lab.
+	Countries Countries `yaml:"countries,omitempty"`
 }
+
+// Countries lets in only visitors from Allow, or everyone but those from
+// Block (ISO 3166 codes, such as AU; never both; neither is anyone).
+// OpenUntil lets everyone in until then, for travel.
+type Countries struct {
+	Allow     []string  `yaml:"allow,omitempty"`
+	Block     []string  `yaml:"block,omitempty"`
+	OpenUntil time.Time `yaml:"open_until,omitempty"`
+}
+
+// Limited says whether any countries are kept out.
+func (c Countries) Limited() bool { return len(c.Allow) > 0 || len(c.Block) > 0 }
+
+// Open says whether everyone is let in for now, for travel.
+func (c Countries) Open(now time.Time) bool { return c.Limited() && c.OpenUntil.After(now) }
+
+// Where a lab is (Lab.Network, SPEC.md §6.12).
+const (
+	// NetworkHome: behind a home router. "Private" means the home network;
+	// public services need port forwarding.
+	NetworkHome = "home"
+	// NetworkInternet: the server has a public address of its own (a
+	// cloud server). "Private" means only through an SSH tunnel.
+	NetworkInternet = "internet"
+)
 
 // Backup configures the backup destination (SPEC.md §6.9).
 type Backup struct {
@@ -209,8 +266,10 @@ type Lab struct {
 	// Name is what people call the lab (e.g. "The Smiths' lab"): shown in
 	// the UI, and to other labs it shares storage with.
 	Name string `yaml:"name,omitempty"`
-	// Domain is the base domain; services live on subdomains of it.
-	Domain string `yaml:"domain"`
+	// Domain is the lab's address: services live on subdomains of it. Empty
+	// until the lab has one: a roost.ac name or its own domain (SPEC.md
+	// §6.6).
+	Domain string `yaml:"domain,omitempty"`
 	// Email is used for the ACME (Let's Encrypt) account.
 	Email string `yaml:"email"`
 	DNS   DNS    `yaml:"dns"`
@@ -227,6 +286,21 @@ type Lab struct {
 	Maintenance Maintenance `yaml:"maintenance,omitempty"`
 	// Public is how services are made public (SPEC.md §6.11).
 	Public Public `yaml:"public,omitempty"`
+	// Mail is the SMTP server Roostack sends email through (SPEC.md §6.13).
+	Mail Mail `yaml:"mail,omitempty"`
+	// Cloud is Roostack Cloud (SPEC.md §6.6).
+	Cloud Cloud `yaml:"cloud,omitempty"`
+	// OldAddress is the lab's previous address, still served for a while
+	// after switching so bookmarks and apps can be updated (SPEC.md §6.6).
+	OldAddress *OldAddress `yaml:"old_address,omitempty"`
+	// Network is where the lab is: NetworkHome (the default when empty)
+	// or NetworkInternet (SPEC.md §6.12). It's about the controller, whose
+	// Caddy serves the lab's addresses.
+	Network string `yaml:"network,omitempty"`
+	// HostIP is the address this server reaches the internet from (its
+	// LAN address at home, its own public address on a cloud server),
+	// detected at runtime.
+	HostIP string `yaml:"-"`
 	// NodeID is this server's node ID (internal/node), set at runtime.
 	// Services are placed on nodes (SPEC.md §10.4).
 	NodeID string `yaml:"-"`
@@ -243,13 +317,97 @@ type Lab struct {
 	// the lab has a network. A node publishes its web services there, for
 	// the controller's Caddy.
 	OverlayAddr string `yaml:"-"`
+	// EdgeAddrs are the WireGuard addresses (as /32 ranges) of the lab's
+	// edges, for the Caddy that serves the public names: they alone may
+	// say who a visitor is (a PROXY header), and they count as outside.
+	// Set at run time from the lab's servers.
+	EdgeAddrs []string `yaml:"-"`
 }
+
+// Cloud is the lab's use of Roostack Cloud.
+type Cloud struct {
+	// Disabled turns off every Roostack Cloud feature: nothing is offered
+	// and Roostack never contacts Cloud. Only in lab.yaml, not in Settings,
+	// for people who want Roostack fully self-contained (SPEC.md §6.6).
+	Disabled bool `yaml:"disabled,omitempty"`
+	// URL is Cloud's address for labs (DefaultCloudURL when empty); a
+	// test Cloud's otherwise.
+	URL string `yaml:"url,omitempty"`
+	// CAFile, for a test Cloud, is the certificate authority its HTTPS
+	// certificate comes from (a real Cloud's is publicly trusted).
+	CAFile string `yaml:"ca_file,omitempty"`
+}
+
+// OldAddressDays is how long a lab's previous address keeps working after
+// it switches to another (SPEC.md §6.6).
+const OldAddressDays = 30
+
+// OldAddress is a lab's previous address.
+type OldAddress struct {
+	Domain string `yaml:"domain"`
+	// Until is when it stops working.
+	Until time.Time `yaml:"until"`
+	// DNS is its DNS provider, whose credentials are kept (as the Podman
+	// secrets dns.OldSecretName) so its certificate can still renew.
+	DNS DNS `yaml:"dns"`
+}
+
+// Old is the previous address while it still works, or nil.
+func (l Lab) Old(now time.Time) *OldAddress {
+	if l.OldAddress == nil || l.OldAddress.Domain == "" || l.OldAddress.Domain == l.Domain || !now.Before(l.OldAddress.Until) {
+		return nil
+	}
+	return l.OldAddress
+}
+
+// DefaultCloudURL is Roostack Cloud's API, which labs talk to (its
+// website, where people confirm links, is roost.ac).
+const DefaultCloudURL = "https://api.roost.ac"
+
+// Address is Cloud's address for labs.
+func (c Cloud) Address() string {
+	if c.URL != "" {
+		return c.URL
+	}
+	return DefaultCloudURL
+}
+
+// ProviderCloud is the DNS provider of a lab whose address is a roost.ac
+// name: Roostack Cloud (SPEC.md §6.6).
+const ProviderCloud = "roostack-cloud"
+
+// RoostAc reports whether the lab's address is a roost.ac name from
+// Roostack Cloud.
+func (l Lab) RoostAc() bool { return l.DNS.Provider == ProviderCloud }
+
+// UIHost is where Roostack's own pages are: the roost.ac name itself, or
+// roost.<domain> on an own domain (SPEC.md §6.6).
+func (l Lab) UIHost() string {
+	if l.RoostAc() {
+		return l.Domain
+	}
+	return "roost." + l.Domain
+}
+
+// HasAddress reports whether the lab has an address (a roost.ac name or
+// its own domain): until then its services have no web addresses and
+// Caddy doesn't run (SPEC.md §6.6).
+func (l Lab) HasAddress() bool { return l.Domain != "" }
 
 // Roles (SPEC.md §10.1). A lab with one server has a controller only.
 const (
 	RoleController = "controller"
 	RoleNode       = "node"
 )
+
+// OnInternet reports whether the lab is on the internet (a cloud server)
+// rather than behind a home router (SPEC.md §6.12).
+func (l Lab) OnInternet() bool { return l.Network == NetworkInternet }
+
+// PublicUI reports whether Roostack's own pages are public at
+// roost.<domain>: on a lab on the internet, unless the Owner keeps them
+// to SSH tunnels (SPEC.md §6.3.2).
+func (l Lab) PublicUI() bool { return l.OnInternet() && !l.Public.UITunnelOnly }
 
 // IsNode reports whether this server is a node run by another server
 // (the controller): it runs services but no UI, Caddy or DNS.
@@ -261,7 +419,7 @@ func (l Lab) DisplayName() string {
 	if l.Name != "" {
 		return l.Name
 	}
-	if l.Domain != "" && l.Domain != "lab.example.com" {
+	if l.Domain != "" {
 		return l.Domain
 	}
 	return "My lab"
@@ -287,7 +445,9 @@ func Load(path string) (Lab, error) {
 	}
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
-	if err := dec.Decode(&lab); err != nil {
+	// A file of only comments (a new install's, SPEC.md §6.6) is all
+	// defaults.
+	if err := dec.Decode(&lab); err != nil && !errors.Is(err, io.EOF) {
 		return lab, fmt.Errorf("%s: %w", path, err)
 	}
 	return lab, lab.Validate()
@@ -325,6 +485,26 @@ func Update(path string, change func(*Lab)) error {
 	return lab.Save(path)
 }
 
+// Mail security: how the connection to the SMTP server is encrypted.
+const (
+	MailSTARTTLS = "starttls" // port 587: plain, then upgraded (the default)
+	MailTLS      = "tls"      // port 465: encrypted from the start
+)
+
+// Mail is the SMTP server Roostack sends email through (SPEC.md §6.13).
+// Its password is kept apart, in Paths.MailPasswordFile (0600).
+type Mail struct {
+	Host     string `yaml:"host,omitempty"`
+	Port     int    `yaml:"port,omitempty"`
+	Security string `yaml:"security,omitempty"` // MailSTARTTLS or MailTLS
+	Username string `yaml:"username,omitempty"`
+	// From is the sender address, e.g. roostack@example.com.
+	From string `yaml:"from,omitempty"`
+}
+
+// Configured reports whether email can be sent.
+func (m Mail) Configured() bool { return m.Host != "" && m.From != "" }
+
 // Validate checks the config is usable.
 func (l Lab) Validate() error {
 	var errs []error
@@ -334,13 +514,20 @@ func (l Lab) Validate() error {
 	if h := l.Maintenance.Hour(); h < 0 || h > 23 {
 		errs = append(errs, errors.New("maintenance.restart_hour must be 0-23"))
 	}
+	switch l.Network {
+	case "", NetworkHome, NetworkInternet:
+	default:
+		errs = append(errs, fmt.Errorf("network must be %q or %q", NetworkHome, NetworkInternet))
+	}
+	switch l.Mail.Security {
+	case "", MailSTARTTLS, MailTLS:
+	default:
+		errs = append(errs, fmt.Errorf("mail.security must be %q or %q", MailSTARTTLS, MailTLS))
+	}
 	switch l.Firewall.SSH {
 	case "", SSHFromLAN, SSHFromAny, SSHOff:
 	default:
 		errs = append(errs, fmt.Errorf("firewall.ssh must be %q, %q or %q", SSHFromLAN, SSHFromAny, SSHOff))
-	}
-	if l.Domain == "" {
-		errs = append(errs, errors.New("domain is required"))
 	}
 	for _, p := range []struct{ name, path string }{
 		{"state_dir", l.Paths.StateDir}, {"home_dir", l.Paths.HomeDir},

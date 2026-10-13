@@ -34,7 +34,7 @@ catalog/<name>/package.yaml ┘      (pure)      (plan → apply)
 
 1. **`internal/state`** loads the lab config, every instance file, and each instance's package from the catalog. It also checks lab-wide rules (e.g. unique hostnames).
 2. **`internal/generate`** turns package + instance + lab config into output: Quadlet files, a Caddy snippet, required secrets, directories and a backup plan. It is **pure** (no disk access, no side effects), so it's tested with golden files and can be previewed with `roostack render`.
-3. **`internal/reconcile`** compares that output with what's on disk and builds a **plan** (files to write or remove, units to start, restart or stop, secrets to create). `roostack apply --dry-run` prints the plan; `roostack apply` carries it out.
+3. **`internal/reconcile`** compares that output with what's on disk and builds a **plan** (files to write or remove, units to start, restart or stop, secrets to create, images to build or download). `roostack apply --dry-run` prints the plan; `roostack apply` carries it out. Image builds start in the background; new containers' images are pulled one at a time before their units start, with progress events the node turns into a service's install steps (SPEC.md §6.3.3).
 
 The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` snippets) and **never deletes service data**.
 
@@ -44,7 +44,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 |---|---|
 | `cmd/roostack` | Web service and CLI: `serve`, `apply`, `user`, `render`, `validate` |
 | `cmd/roostack-agent` | The root helper |
-| `internal/config` | Lab settings and **all default paths** in one place |
+| `internal/config` | Lab settings and **all default paths** in one place, including where the lab is (`network: home|internet`, SPEC.md §6.12) |
 | `internal/pkgspec` | The package format (`schema: roostack/v1alpha1`) and its validation |
 | `internal/instance` | A user's installed service, validated against its package |
 | `internal/generate` | Desired state → Quadlets, Caddy config, secrets, dirs, backup plan |
@@ -53,7 +53,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/dns` | Supported DNS providers: credential fields, Caddy directive, and the create-and-delete-a-TXT-record check |
 | `internal/awssig` | AWS Signature Version 4, standard library only (Route 53 checks, listing S3-compatible buckets) |
 | `internal/dnsrecords` | Keeps `*.<domain>` pointing at the LAN IP (only records Roostack created) and checks home devices can resolve it; points each public address at the public entry's address once CrowdSec is up |
-| `internal/public` | Public access (SPEC.md §6.11): the entry visitors come in through (port forwarding: the home's public address, found over DNS), CrowdSec's health, and check links opened from a phone on mobile data |
+| `internal/public` | Public access (SPEC.md §6.11): the entry visitors come in through (port forwarding: the lab's public address, found over DNS), CrowdSec's health, check links opened from outside, and guessing whether the server is on the internet (§6.12) |
 | `internal/setup` | First-run setup wizard logic: time zone, domain and DNS credentials, backup destination, recovery key |
 | `internal/hosttime` | Reads the host's time zone and the valid zone names (tzdata); changing it is the agent's job |
 | `internal/reconcile` | Plan and apply changes to the host |
@@ -63,18 +63,22 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/agent` | Agent server and client: firewall ruleset, time zone, OS updates, reboot, WireGuard interfaces, backup drives and folders, and checks for host changes Roostack didn't make |
 | `internal/web/static/css`, `docs/DESIGN.md` | Design system: tokens, built-in themes, components; gallery at `/design` and `docs/design/gallery.html` |
 | `internal/nodeid` | This server's identity (node ID and name) |
+| `authkit` | Passwords (argon2id), tokens and two-factor codes (TOTP), public so Roostack Cloud's repository uses the same code; Cloud also turns on a pepper and sealed two-factor secrets. Fuzz-tested (the inputs fuzzing found are kept in `testdata/fuzz`) |
+| `cloudapi` | The API between a lab and Roostack Cloud (paths, bodies, the records and acme-dns conventions): public, not under `internal`, so Cloud's own repository imports the same contract |
+| `internal/cloud` | The controller's link to Roostack Cloud (SPEC.md §6.6): linking (a link code, Cloud's page, polling), the lab's client certificate for mutual TLS (renewed with a new key), the daily check-in, unlinking, claiming a roost.ac name (then the lab's DNS provider is Roostack Cloud, `internal/dns/cloud.go`), and the request log, kept in `<state>/cloud/`. `cloudtest` is a fake of Cloud's lab API for Roostack's tests (dev VMs link to a development Cloud from its own repository) |
 | `internal/labnet` | The network between a lab's servers (SPEC.md §10.2, §10.9): the controller's CA and each server's certificate, join codes, membership (role and overlay address), the hub (WireGuard peers, joining) and the mutual-TLS lab API server |
-| `internal/node` | A server in the lab (SPEC.md §10): the `Node` interface and `Local`, which applies its Assignment (reconcile, firewall), runs package hooks, actions and secret reveals, and holds the server's maintenance jobs (backups, restores, OS updates and restarts), its own settings (time zone, SSH access, restart policy) and activity. `Remote` is another server over the lab API (`Server` serves it on each node); `Fleet` keeps one per joined server |
+| `internal/node` | A server in the lab (SPEC.md §10): the `Node` interface and `Local`, which applies its Assignment (reconcile, firewall), runs package hooks, actions and secret reveals, and holds the server's maintenance jobs (backups, restores, OS updates and restarts), its own settings (time zone, SSH access, restart policy) and activity, and keeps its finished logs as history (`events`, SPEC.md §6.14). `Remote` is another server over the lab API (`Server` serves it on each node); `Fleet` keeps one per joined server |
 | `internal/activity` | Live logs of host operations (OS updates, backups, applies, setup hooks) for the UI: a status line plus collapsible details |
 | `internal/osupdate` | Nightly OS updates job, restart-needed detection, "restart now" |
 | `internal/firewall` | Builds the firewall from the lab and its services; lists current SSH connections |
 | `internal/store` | SQLite runtime data: users, sessions, audit log, settings, backup runs, the lab's servers and join codes, backup providers, targets and copies, and storage for other labs |
-| `internal/auth` | Password hashing (argon2id), session tokens, roles |
+| `internal/auth` | Roles and usernames (passwords, tokens and two-factor codes are `authkit`) |
 | `internal/web` | Web UI: handlers, templates, vendored htmx/Alpine, and the embedded help site at `/help/` (`help.go`, built from `help/` into `helpsite/site` by `make build`) |
-| `internal/manager` | The controller: catalog, install, remove, ports and settings (desired state), public addresses, recovery key changes, and each server's Assignment |
+| `internal/manager` | The controller: catalog, install, remove, ports and settings (desired state), public addresses, recovery key changes, moving and restoring services across servers (SPEC §10.10), and each server's Assignment |
 | `internal/maintenance` | Maintenance coordinator: job queue and reboot policy |
 | `internal/backup` | restic wrapper, prepare steps, backup plan and job |
 | `internal/b2` | Backblaze B2 application keys limited to one server's folder, made and deleted over B2's native API |
+| `internal/mail` | Sending email through the lab's SMTP server (SPEC.md §6.13): settings in lab.yaml, the password in its own 0600 file, STARTTLS or TLS with the standard library's client |
 | `internal/units` | The one size formatter (decimal units: 1 GB = 1000³ bytes) |
 | `internal/labrestore` | Rebuilding a whole lab on a new server (SPEC.md §6.9): finding its backups (a folder, an S3-compatible bucket or any restic address) with the recovery key, restoring the controller's backup, then its database at the next start and the services' databases once they're set up again |
 

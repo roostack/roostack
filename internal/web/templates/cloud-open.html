@@ -1,0 +1,14 @@
+{{define "title"}}Roostack Cloud{{end}}
+{{define "head"}}{{with .OpenURL}}<meta http-equiv="refresh" content="0;url={{.}}">{{end}}{{end}}
+{{define "content"}}
+<section class="card narrow">
+  {{if .OpenURL}}
+  <h1>Going to Roostack Cloud…</h1>
+  <p>If nothing happens, <a href="{{.OpenURL}}">go to Roostack Cloud</a>. It brings you back here when you're done.</p>
+  {{else}}
+  <h1>Roostack Cloud didn't open</h1>
+  <p class="error" role="alert">{{.Error}}</p>
+  <p><a href="{{if .Setup}}/setup/domain{{else}}/settings/cloud{{end}}">Go back</a> and try again.</p>
+  {{end}}
+</section>
+{{end}}

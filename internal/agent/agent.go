@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -42,6 +43,10 @@ type Host interface {
 	// ApplyFirewall checks and loads an nftables ruleset, and saves it so it
 	// is re-applied when the agent starts.
 	ApplyFirewall(ruleset string) error
+	// AllowWireGuardJoin lets WireGuard's port in until the firewall is
+	// next applied: a server joining a lab whose controller dials it
+	// (SPEC.md §10.2), before its own firewall says so.
+	AllowWireGuardJoin() error
 	// SetTimezone sets the host's time zone (an IANA name, already checked
 	// with ValidTimezone).
 	SetTimezone(name string) error
@@ -53,6 +58,9 @@ type Host interface {
 	// ApplyWireGuard configures one of Roostack's WireGuard interfaces
 	// (already validated) and brings it up, returning its public key.
 	ApplyWireGuard(wg WireGuard) (publicKey string, err error)
+	// ApplyLinks sets the direct links to other servers on Roostack's
+	// network, keeping the link to the controller.
+	ApplyLinks(l Links) error
 	// WireGuardStatus reads an interface's configuration.
 	WireGuardStatus(iface string) (WireGuardStatus, error)
 	// WireGuardKeys reads Roostack's interfaces' private keys.
@@ -101,6 +109,10 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		s.do(w, r, "apply firewall", func() error { return s.Host.ApplyFirewall(fw.Ruleset()) })
+	})
+	// No arguments: it only ever opens WireGuard's own port.
+	mux.HandleFunc("POST /v1/firewall/wireguard-join", func(w http.ResponseWriter, r *http.Request) {
+		s.do(w, r, "open wireguard for joining", s.Host.AllowWireGuardJoin)
 	})
 	mux.HandleFunc("PUT /v1/timezone", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -243,6 +255,17 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		s.do(w, r, "remove wireguard "+name, func() error { return s.Host.RemoveWireGuard(name) })
+	})
+	mux.HandleFunc("PUT /v1/wireguard/links", func(w http.ResponseWriter, r *http.Request) {
+		var l Links
+		if !decode(w, r, 64<<10, &l) {
+			return
+		}
+		if err := l.Validate(); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		s.do(w, r, "apply direct links", func() error { return s.Host.ApplyLinks(l) })
 	})
 	mux.HandleFunc("PUT /v1/wireguard", func(w http.ResponseWriter, r *http.Request) {
 		var wg WireGuard
@@ -391,6 +414,22 @@ func (h LinuxHost) SetUnprivilegedPortStart() error {
 	return os.WriteFile(unprivPortProc, []byte("80\n"), 0o644)
 }
 
+// AllowWireGuardJoin adds one rule at the top of Roostack's input chain:
+// UDP to WireGuardPort. The next ApplyFirewall replaces the whole table,
+// so it lasts until then. Without Roostack's table (the Owner hasn't
+// chosen its firewall yet) nothing blocks the port anyway.
+func (h LinuxHost) AllowWireGuardJoin() error {
+	if exec.Command("nft", "list", "table", "inet", "roostack").Run() != nil {
+		return nil
+	}
+	out, err := exec.Command("nft", "insert", "rule", "inet", "roostack", "input", "udp", "dport", strconv.Itoa(WireGuardPort),
+		"accept", "comment", `"roostack: joining a lab"`).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("nft: %w: %s", err, out)
+	}
+	return nil
+}
+
 // ApplyFirewall checks the ruleset with `nft -c`, loads it, then saves it.
 func (h LinuxHost) ApplyFirewall(ruleset string) error {
 	tmp, err := os.CreateTemp("", "roostack-firewall-*.nft")
@@ -441,8 +480,53 @@ func (h LinuxHost) RunUpdates(ctx context.Context, w io.Writer) error {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "systemd-run", "--unit=roostack-os-updates", "--wait", "--pipe", "--quiet",
 		"--collect", "--setenv=DEBIAN_FRONTEND=noninteractive", "--", "sh", "-c", updatesScript)
-	cmd.Stdout, cmd.Stderr = w, w
-	return cmd.Run()
+	out := &lineFilter{w: w, drop: dpkgLogMarker}
+	cmd.Stdout, cmd.Stderr = out, out
+	err := cmd.Run()
+	out.flush()
+	return err
+}
+
+// dpkgLogMarker: unattended-upgrade -v prints "Log started: <time>" and
+// "Log ended: <time>" around every dpkg run (dozens in one update), which
+// tell nobody anything.
+func dpkgLogMarker(line string) bool {
+	return strings.HasPrefix(line, "Log started: ") || strings.HasPrefix(line, "Log ended: ")
+}
+
+// lineFilter passes output on a line at a time, leaving out the lines drop
+// says to.
+type lineFilter struct {
+	mu      sync.Mutex
+	w       io.Writer
+	drop    func(line string) bool
+	partial string
+}
+
+func (f *lineFilter) Write(p []byte) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	lines := strings.Split(f.partial+string(p), "\n")
+	f.partial = lines[len(lines)-1]
+	for _, line := range lines[:len(lines)-1] {
+		if f.drop(strings.TrimRight(line, "\r")) {
+			continue
+		}
+		if _, err := io.WriteString(f.w, line+"\n"); err != nil {
+			return len(p), err
+		}
+	}
+	return len(p), nil
+}
+
+// flush passes on an unfinished last line.
+func (f *lineFilter) flush() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.partial != "" && !f.drop(f.partial) {
+		io.WriteString(f.w, f.partial)
+	}
+	f.partial = ""
 }
 
 // lineStream sends written output as {"line": ...} JSON lines. If the
@@ -532,22 +616,71 @@ func (h LinuxHost) ApplyWireGuard(wg WireGuard) (string, error) {
 	_, statErr := os.Stat("/sys/class/net/" + iface)
 	sameIface := statErr == nil && confKey(string(old)) == key && confAddress(string(old)) == wg.Address
 	if sameIface {
-		// wg syncconf takes the file without wg-quick's extra keys.
-		strip, err := exec.Command("wg-quick", "strip", iface).Output()
-		if err != nil {
-			return "", fmt.Errorf("wg-quick strip: %w", err)
+		if err := syncConf(iface); err != nil {
+			return "", err
 		}
-		cmd := exec.Command("wg", "syncconf", iface, "/dev/stdin")
-		cmd.Stdin = strings.NewReader(string(strip))
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("wg syncconf: %w: %s", err, out)
-		}
-		return pub, nil
+		return pub, setForwarding(iface, wg.Forward)
 	}
 	if out, err := exec.Command("systemctl", "restart", unit).CombinedOutput(); err != nil {
 		return "", fmt.Errorf("starting %s: %w: %s", unit, err, out)
 	}
-	return pub, nil
+	return pub, setForwarding(iface, wg.Forward)
+}
+
+// syncConf applies an interface's file to the running interface, without
+// taking it down.
+func syncConf(iface string) error {
+	// wg syncconf takes the file without wg-quick's extra keys.
+	strip, err := exec.Command("wg-quick", "strip", iface).Output()
+	if err != nil {
+		return fmt.Errorf("wg-quick strip: %w", err)
+	}
+	cmd := exec.Command("wg", "syncconf", iface, "/dev/stdin")
+	cmd.Stdin = strings.NewReader(string(strip))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("wg syncconf: %w: %s", err, out)
+	}
+	return nil
+}
+
+// ApplyLinks sets this server's direct links to other servers (Links),
+// keeping its link to the controller.
+func (h LinuxHost) ApplyLinks(l Links) error {
+	file := wireGuardConf(WireGuardInterface)
+	old, err := os.ReadFile(file)
+	if errors.Is(err, os.ErrNotExist) {
+		return errors.New("this server isn't in a lab")
+	}
+	if err != nil {
+		return err
+	}
+	conf, err := l.apply(string(old))
+	if err != nil {
+		return err
+	}
+	if conf == string(old) {
+		return nil
+	}
+	if err := os.WriteFile(file+".tmp", []byte(conf), 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(file+".tmp", file); err != nil {
+		return err
+	}
+	if _, err := os.Stat("/sys/class/net/" + WireGuardInterface); err != nil {
+		return nil // it comes up with them
+	}
+	return syncConf(WireGuardInterface)
+}
+
+// setForwarding turns forwarding of packets arriving on an interface on
+// or off now (wg-quick's PostUp does it at boot).
+func setForwarding(iface string, on bool) error {
+	v := "0\n"
+	if on {
+		v = "1\n"
+	}
+	return os.WriteFile("/proc/sys/net/ipv4/conf/"+iface+"/forwarding", []byte(v), 0o644)
 }
 
 // RemoveWireGuard stops and disables an interface and deletes its file.
@@ -580,6 +713,9 @@ func (h LinuxHost) WireGuardStatus(iface string) (WireGuardStatus, error) {
 	st := WireGuardStatus{Configured: true, PublicKey: pub, Address: confAddress(string(conf)), Handshakes: map[string]int64{}}
 	if out, err := exec.Command("wg", "show", iface, "latest-handshakes").Output(); err == nil {
 		st.Handshakes = parseHandshakes(string(out))
+	}
+	if out, err := exec.Command("wg", "show", iface, "endpoints").Output(); err == nil {
+		st.Endpoints = parseEndpoints(string(out))
 	}
 	return st, nil
 }

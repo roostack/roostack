@@ -2,10 +2,36 @@
 {{define "content"}}
 <section class="card narrow">
   <div class="page-top">{{back "/catalog" "Back"}}{{help "services/add" "Add a service"}}</div>
-  <h1>Install {{.Package.Title}}</h1>
+  <h1>{{if .Another}}Add another {{.Package.Title}}{{else}}Install {{.Package.Title}}{{end}}</h1>
   <p class="hint">{{.Package.Description}}</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  <form method="post" action="/install/{{.Package.Name}}">
+  {{/* The name follows the title, and the web address the name, until
+       they're edited (SPEC.md §8.2). */}}
+  <form method="post" action="/install/{{.Package.Name}}" data-title="{{.Title}}" data-suffix="{{.Suffix}}" data-sub="{{.Subdomain}}"
+    data-pkgtitle="{{.Package.Title}}" data-base="{{.BaseSubdomain}}" data-max="{{.MaxSuffix}}"
+    x-data="{ title: $el.dataset.title, suffix: $el.dataset.suffix, sub: $el.dataset.sub, ownSuffix: false, ownSub: false,
+      slug(t) { return t.toLowerCase().replace($el.dataset.pkgtitle.toLowerCase(), '').replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '').slice(0, Number($el.dataset.max)).replace(/-+$/, '') },
+      titleChanged() { if (!this.ownSuffix) { this.suffix = this.slug(this.title); this.suffixChanged(false) } },
+      suffixChanged(own) { this.ownSuffix = this.ownSuffix || own;
+        if (!this.ownSub && $el.dataset.base) { this.sub = this.suffix ? $el.dataset.base + '-' + this.suffix : $el.dataset.base } } }">
+    {{if .Another}}
+    {{/* A second copy, kept apart from the first in everything: its own
+         data, database, backups, settings and address. */}}
+    <p>{{.Package.Title}} is installed already. This adds another, completely separate copy: its own data, settings, backups
+      and web address.</p>
+    {{end}}
+    <label>Title
+      <input name="title" value="{{.Title}}" maxlength="60" required x-model="title" x-on:input="titleChanged()">
+      <small>What it's called on your pages{{if .Another}}, e.g. "{{.Package.Title}} (work)"{{end}}. You can change it later.</small>
+    </label>
+    <label>Name
+      <span class="with-prefix"><span>{{.Package.Name}}-</span>
+        <input name="name_suffix" value="{{.Suffix}}" maxlength="{{.MaxSuffix}}" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocapitalize="off"
+          spellcheck="false" x-model="suffix" x-on:input="suffixChanged(true)"{{if .Another}} required{{end}}></span>
+      <small>Used for its folders, containers and backups, so it can't change later{{if not .Another}}. Leave it empty for just
+        <code>{{.Package.Name}}</code>{{end}}.</small>
+    </label>
     {{with .Servers}}
     <label>Run it on
       <select name="host">
@@ -17,11 +43,25 @@
     {{if .HasRoute}}
     <label>Web address
       <span class="with-suffix">
-        <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off">
-        <span>.{{.Domain}}</span>
+        <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off"
+          x-model="sub" x-on:input="ownSub = true">
+        <span>.{{or .Domain "your lab's address"}}</span>
       </span>
-      <small>Only reachable from your home network (or VPN).</small>
+      {{if not .Domain}}<small>Your lab has no address yet: the service runs, and gets this address once your lab has one.</small>
+      {{- else if not .Internet}}<small>Only reachable from your home network (or VPN).</small>{{end}}
     </label>
+    {{if .Internet}}
+    {{/* On a lab on the internet, private means only through an SSH
+         tunnel, so services start public (SPEC.md §6.12). */}}
+    {{with .Unsafe}}
+    {{notice "warn" (printf "%s's package says its address isn't safe to make public: %s It starts reachable only through an SSH tunnel; you can make it public from its page, after reading why." $.Package.Title .)}}
+    {{else}}
+    <label class="check"><input type="checkbox" name="public" {{if .Public}}checked{{end}}>
+      <span>Anyone on the internet can reach it (recommended)<small>CrowdSec blocks attackers and password tries are limited.
+        Otherwise it's only reachable through an SSH tunnel, which is for technical users.</small></span></label>
+    {{if not .SharingAsked}}{{template "sharing-question" .}}{{end}}
+    {{end}}
+    {{end}}
     {{end}}
     {{range .Fields}}
       {{if eq .Kind "checkbox"}}

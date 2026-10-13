@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design system · Roostack</title>
+  <link rel="icon" href="{{.Static}}favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="{{.Static}}css/tokens.css">
   {{range themes}}<link rel="stylesheet" href="{{$.Static}}css/themes/{{.ID}}.css">
   {{end}}<link rel="stylesheet" href="{{.Static}}css/app.css">
@@ -12,7 +13,7 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="{{if .Standalone}}#top{{else}}/{{end}}"><span class="brand-mark" aria-hidden="true"></span>Roostack</a>
+    <a class="brand" href="{{if .Standalone}}#top{{else}}/{{end}}">{{brandMark}}Roostack</a>
     <nav><a class="active" href="#top">Design system</a></nav>
   </header>
   <div class="gallery-layout">

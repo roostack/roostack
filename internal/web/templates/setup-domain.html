@@ -1,17 +1,51 @@
-{{define "title"}}Your domain{{end}}
+{{define "title"}}Your lab's address{{end}}
 {{define "content"}}
-<section class="card narrow">
-  <div class="page-top">{{if .Wizard}}<p class="hint">Setup · step 3 of 4</p>{{else}}{{back .Back "Settings"}}{{end}}{{help "settings/domain" "Your domain"}}</div>
-  {{if .Wizard}}<h1>Your domain</h1>
+<section class="card narrow" x-data="{ choice: '{{.Choice}}' }">
+  <div class="page-top">{{if .Wizard}}<p class="hint">Setup · step 3 of 4</p>{{else}}{{back .Back "Settings"}}{{end}}{{help "settings/domain" "Your lab's address"}}</div>
+  {{if .Wizard}}<h1>Your lab's address</h1>
   {{else}}
-  <h1>{{if .StepDone}}Change your domain{{else}}Set up your domain{{end}}</h1>
-  {{if .StepDone}}<p class="hint">Saving checks the new details, then restarts Roostack to use them. Your services keep their data.</p>{{end}}
+  <h1>{{if .StepDone}}Change your lab's address{{else}}Give your lab an address{{end}}</h1>
+  {{if .StepDone}}<p class="hint">Saving checks the new details, then restarts Roostack to use them. Your services keep their data.
+    If the address changes, the old addresses keep working for {{.OldDays}} days, so you can update bookmarks and apps
+    {{- with .Old}}; {{.Domain}}, the address before, stops at once{{end}}.</p>{{end}}
   {{end}}
-  <p>Your services will live at addresses like <strong>photos.{{if .Domain}}{{.Domain}}{{else}}lab.example.com{{end}}</strong>, with a secure (HTTPS) certificate for each.</p>
+  <p>Your services get web addresses, each with a secure (HTTPS) certificate. Choose where they live.</p>
+  <div class="address-choices">
+    {{if not .CloudDisabled}}
+    <div class="address-choice{{if ne .Choice "own"}} recommended{{end}}" x-bind:class="choice !== 'own' && 'recommended'">
+      {{$linked := and .CloudView .CloudView.Linked}}
+      {{if $linked}}<form method="post" action="/setup/address/roost-ac">
+      {{else}}<form method="post" action="/settings/cloud/link">{{if .Wizard}}<input type="hidden" name="in" value="setup">{{end}}{{end}}
+      <p class="address-choice-title">{{icon "proxy"}}A free {{.Suffix}} address {{badge "Recommended" "highlight"}}</p>
+      <p class="hint">Nothing to buy or set up. Uses Roostack Cloud (a free account).</p>
+      <label class="address-name"><span class="sr-only">Name</span>
+        <input name="name" value="{{.CloudName}}" placeholder="smiths" autocapitalize="off" autocomplete="off" required
+          pattern="[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])?" title="3 to 40 lowercase letters, numbers or hyphens"
+          hx-get="/settings/cloud/name" hx-trigger="input changed delay:400ms" hx-target="#name-check" hx-swap="outerHTML">
+        <span>.{{.Suffix}}</span></label>
+      {{template "cloud-name-check" .}}
+      {{with .CloudError}}<p class="error" role="alert">{{.}}</p>{{end}}
+      {{if $linked}}<button type="submit">Use this address</button>
+      <small>Your lab is linked to Roostack Cloud ({{.CloudView.Account}}).</small>
+      {{else}}<button type="submit">Continue to Roostack Cloud</button>
+      <small>You'll sign up or log in there (a free account), confirm this lab, and come straight back here.</small>{{end}}
+      </form>
+      {{template "cloud-live" .CloudView}}
+    </div>
+    {{end}}
+    <div class="address-choice" x-bind:class="choice === 'own' && 'chosen'">
+      <p class="address-choice-title">{{icon "at"}}Your own domain</p>
+      <p class="hint">A domain you own, like <code>smith.family</code>. Services at <code>photos.smith.family</code>.</p>
+      <button type="button" class="secondary" x-on:click="choice = 'own'" x-show="choice !== 'own'">Use my own domain</button>
+      <small><a href="/help/settings/domain/#your-own-domain">How to buy and manage a domain</a></small>
+    </div>
+  </div>
+  <div x-show="choice === 'own'"{{if ne .Choice "own"}} x-cloak{{end}}>
+  <h2 class="section-title">Your own domain</h2>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <form method="post" action="/setup/domain" x-data="{ provider: '{{.Provider}}', manage: {{if .Manage}}true{{else}}false{{end}} }">
     <label>Domain
-      <input name="domain" value="{{.Domain}}" placeholder="lab.example.com" autocapitalize="off" required>
+      <input name="domain" value="{{.Domain}}" placeholder="smith.family" autocapitalize="off" required>
       <small>A domain you own, or a subdomain of it.</small>
     </label>
     <label>Email address
@@ -56,10 +90,11 @@
     {{if .Wizard}}<p class="hint">Roostack checks the details now; your web addresses start working when setup finishes (it restarts once, then).</p>{{end}}
     <button type="submit">Check and save</button>
   </form>
+  </div>
   {{if .Wizard}}
   <form method="post" action="/setup/domain/later" class="later">
     <button type="submit" class="quiet">Set this up later</button>
-    <small>Services won't be reachable over HTTPS until this is done.</small>
+    <small>Services can't be reached until your lab has an address.</small>
   </form>
   {{end}}
 </section>

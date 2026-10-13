@@ -275,20 +275,28 @@ func (m *Manager) moveViaBackup(ctx context.Context, act *activity.Log, name, ti
 	if err != nil {
 		return err
 	}
-	act.Printf("Backup %s", run.SnapshotID)
+	repo, err := m.adminRepo(ctx, target)
+	if err != nil {
+		return err
+	}
+	// The service's own snapshot from that backup.
+	snap, err := repo.ServiceSnapshot(ctx, name, "")
+	if err != nil {
+		return err
+	}
+	if snap.Time.Before(started.Add(-time.Minute)) {
+		return fmt.Errorf("the backup at %s didn't include %s", run.Finished.Format(time.Kitchen), title)
+	}
+	act.Printf("Backup %s", snap.Short)
 	act.Step("Stopping %s on %s", title, m.nameOf(from))
 	if err := src.StopService(ctx, name); err != nil {
 		return err
 	}
 	stopped = true
-	repo, err := m.adminRepo(ctx, target)
-	if err != nil {
-		return err
-	}
 	act.Step("Copying %s's data from the backup to %s", title, m.nameOf(to))
 	for dir, path := range []string{filepath.Join(m.Lab.Paths.ServicesDir, name), filepath.Join(m.Lab.Paths.MediaDir, name)} {
 		strip := len(strings.Split(strings.Trim(path, "/"), "/"))
-		err := pipe(ctx, func(w io.Writer) error { return repo.Dump(ctx, run.SnapshotID, path, w) },
+		err := pipe(ctx, func(w io.Writer) error { return repo.Dump(ctx, snap.ID, path, w) },
 			func(r io.Reader) error { return dst.ImportData(ctx, name, dir, r, strip) })
 		if errors.Is(err, backup.ErrNotInSnapshot) {
 			continue // e.g. no media folder
@@ -359,6 +367,7 @@ func (m *Manager) switchHost(name, to string) error {
 		return err
 	}
 	in.Host = to
+	in.Waiting = false // restored, it runs there
 	// Ports are per server; the new one gives them again.
 	for route, r := range in.Routes {
 		r.Port = 0
@@ -367,6 +376,7 @@ func (m *Manager) switchHost(name, to string) error {
 	if err := in.Save(file); err != nil {
 		return err
 	}
+	m.applyReason = "Moving " + name + " to another server"
 	m.startApplyLocked()
 	return m.assignErr
 }

@@ -54,10 +54,8 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 			data["ServerChoices"] = servers
 		}
 	}
-	if endpoint == "" && hostsHere {
-		if host, _, err := net.SplitHostPort(defaultEndpoint()); err == nil {
-			endpoint = net.JoinHostPort(host, strconv.Itoa(agent.GuestsPort))
-		}
+	if v, ok := extra["Endpoint"].(string); ok {
+		endpoint = v // as it was submitted
 	}
 	var active, removed []manager.GuestView
 	for _, g := range guests {
@@ -67,8 +65,31 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 			removed = append(removed, g)
 		}
 	}
-	data["Guests"], data["Removed"], data["Leftover"], data["Endpoint"] = active, removed, left, endpoint
+	data["Guests"], data["Removed"], data["Leftover"] = active, removed, left
+	hostName := "this server"
+	if hs, ok := data["HostServer"].(manager.Server); ok {
+		hostName = hs.Name
+	}
+	data["AddressChoice"] = s.addressChoices(r, "Address their lab reaches "+hostName+" at", agent.GuestsPort, false, hostsHere, endpoint)
 	data["Offering"] = s.Manager.OfferStorage(r.Context())
+	for _, mn := range s.serverNodes(r) {
+		if mn.view.ID == hostID {
+			if d := s.serverSpaces(r.Context(), mn.view, mn.node); d != nil {
+				data["HostSpace"] = d.store()
+			}
+		}
+	}
+	data["Internet"] = hostsHere && s.onInternet()
+	data["Quota"] = "50"
+	if sp, ok := s.Manager.GuestSpaceLeft(r.Context()); ok {
+		data["Space"] = sp
+		// Never offer more than there is by default.
+		quota := max(min(50, sp.Left/units.GB), 1)
+		data["Quota"] = strconv.FormatInt(quota, 10)
+		// Free space left for the lab's own use after offering it (shown
+		// before the form's script updates it as the number changes).
+		data["SpaceAfter"] = max(sp.Free-sp.Promised-quota*units.GB, 0)
+	}
 	if host, _, err := net.SplitHostPort(defaultEndpoint()); err == nil && hostsHere {
 		data["LANAddr"] = host
 	}
@@ -96,7 +117,7 @@ func (s *Server) inviteGuestSubmit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	name, endpoint := r.FormValue("name"), strings.TrimSpace(r.FormValue("endpoint"))
+	name, endpoint := r.FormValue("name"), addressFromForm(r)
 	inv, err := s.Manager.InviteGuest(r.Context(), name, gigabytes(r.FormValue("quota")), endpoint)
 	if msg, ok := userMessage(err); ok {
 		s.renderStorage(w, r, map[string]any{"Error": msg, "Endpoint": endpoint, "Name": name, "Quota": r.FormValue("quota")})
@@ -107,6 +128,7 @@ func (s *Server) inviteGuestSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.SetSetting(r.Context(), guestsEndpointKey, endpoint)
+	s.useAddress(r.Context(), endpoint)
 	s.Store.Audit(r.Context(), currentUser(r), "storage", "invited "+strings.TrimSpace(name))
 	s.renderStorage(w, r, map[string]any{"Invite": inv.String(), "InviteName": strings.TrimSpace(name),
 		"InviteExpires": time.Now().Add(labnet.InviteLifetime), "Endpoint": endpoint})

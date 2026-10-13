@@ -14,6 +14,10 @@ type Firewall struct {
 	// SSHFrom is "lan" (private ranges only), "any" or "off" (no SSH).
 	SSHFrom string `json:"ssh_from"`
 	Allow   []Rule `json:"allow"`
+	// Forward are the ports one Roostack server may reach on another
+	// through this one (the hub), over Roostack's network (TCP only).
+	// Nothing else is forwarded to, from or within that network.
+	Forward []Rule `json:"forward,omitempty"`
 }
 
 // Rule allows one inbound port.
@@ -98,7 +102,27 @@ func (f Firewall) Validate() error {
 			errs = append(errs, fmt.Errorf("allow[%d]: invalid characters in reason", i))
 		}
 	}
+	for i, r := range f.Forward {
+		if r.Port < 1 || r.Port > 65535 || r.Proto != "tcp" || r.Iface != WireGuardInterface || r.From != "" {
+			errs = append(errs, fmt.Errorf("forward[%d]: only a TCP port between Roostack's servers (iface %q)", i, WireGuardInterface))
+		}
+		if strings.ContainsFunc(r.Reason, func(c rune) bool { return c < ' ' || c == '"' || c == '\\' }) {
+			errs = append(errs, fmt.Errorf("forward[%d]: invalid characters in reason", i))
+		}
+	}
 	return errors.Join(errs...)
+}
+
+// wireguardLimit drops a source's new WireGuard handshakes beyond a few a
+// second. WireGuard answers nobody without a key, but checking each
+// handshake costs the server some work, so a flood of fake ones is capped
+// per address. A handshake initiation is a packet whose first payload byte
+// is 1 (@th,64,8: the byte after the 8-byte UDP header); a real peer sends
+// one every two minutes, or every 5 seconds while retrying, and once its
+// handshake is answered conntrack lets its packets through before this.
+func wireguardLimit(b *strings.Builder, port int) {
+	fmt.Fprintf(b, "\t\tudp dport %d @th,64,8 1 add @wg_handshakes4 { ip saddr limit rate over 5/second burst 20 packets } drop\n", port)
+	fmt.Fprintf(b, "\t\tudp dport %d @th,64,8 1 add @wg_handshakes6 { ip6 saddr limit rate over 5/second burst 20 packets } drop\n", port)
 }
 
 // Ruleset renders the nftables ruleset. Roostack owns only the "inet roostack"
@@ -112,10 +136,19 @@ func (f Firewall) Ruleset() string {
 	b.WriteString("table inet roostack {\n")
 	b.WriteString("\tset lan4 {\n\t\ttype ipv4_addr\n\t\tflags interval\n\t\telements = { " + lanElements(false) + " }\n\t}\n\n")
 	b.WriteString("\tset lan6 {\n\t\ttype ipv6_addr\n\t\tflags interval\n\t\telements = { " + lanElements(true) + " }\n\t}\n\n")
+	// Each source's rate of new WireGuard handshakes (wireguardLimit).
+	b.WriteString("\tset wg_handshakes4 {\n\t\ttype ipv4_addr\n\t\tflags dynamic, timeout\n\t\ttimeout 1m\n\t\tsize 65536\n\t}\n\n")
+	b.WriteString("\tset wg_handshakes6 {\n\t\ttype ipv6_addr\n\t\tflags dynamic, timeout\n\t\ttimeout 1m\n\t\tsize 65536\n\t}\n\n")
 	b.WriteString("\tchain input {\n")
 	b.WriteString("\t\ttype filter hook input priority filter; policy drop;\n\n")
 	b.WriteString("\t\tct state established,related accept\n")
 	b.WriteString("\t\tct state invalid drop\n")
+	// Roostack Cloud's relay brings visitors to Caddy, and nothing else:
+	// its addresses are inside 100.64.0.0/10 (the home-network set below),
+	// so it's settled first (Roostack Cloud's DESIGN §5: the lab accepts
+	// only its forwarded ports from the tunnel).
+	fmt.Fprintf(&b, "\t\tiifname %q tcp dport 443 accept\n", RelayInterface)
+	fmt.Fprintf(&b, "\t\tiifname %q drop\n", RelayInterface)
 	b.WriteString("\t\tiif \"lo\" accept\n")
 	b.WriteString("\t\tmeta l4proto { icmp, ipv6-icmp } accept\n")
 	// DHCPv6 replies come from the router's link-local address to a port
@@ -134,6 +167,9 @@ func (f Firewall) Ruleset() string {
 	})
 	for _, r := range rules {
 		fmt.Fprintf(&b, "\t\t# %s\n", r.Reason)
+		if r.Proto == "udp" && r.Iface == "" && (r.Port == WireGuardPort || r.Port == GuestsPort) {
+			wireguardLimit(&b, r.Port)
+		}
 		switch {
 		case r.Iface != "":
 			fmt.Fprintf(&b, "\t\tiifname %q %s dport %d accept\n", r.Iface, r.Proto, r.Port)
@@ -144,6 +180,20 @@ func (f Firewall) Ruleset() string {
 			fmt.Fprintf(&b, "\t\t%s dport %d accept\n", r.Proto, r.Port)
 		}
 	}
+	b.WriteString("\t}\n\n")
+	// Roostack's network is never a way through this server, except for
+	// the ports listed: the hub forwards one server's backups to another's
+	// store (SPEC.md §10.10). Other forwarding (e.g. other software's
+	// bridges) is left alone.
+	b.WriteString("\tchain forward {\n")
+	b.WriteString("\t\ttype filter hook forward priority filter; policy accept;\n\n")
+	fmt.Fprintf(&b, "\t\tiifname %q oifname %q ct state established,related accept\n", WireGuardInterface, WireGuardInterface)
+	for _, r := range f.Forward {
+		fmt.Fprintf(&b, "\t\t# %s\n", r.Reason)
+		fmt.Fprintf(&b, "\t\tiifname %q oifname %q tcp dport %d accept\n", WireGuardInterface, WireGuardInterface, r.Port)
+	}
+	fmt.Fprintf(&b, "\t\tiifname %q drop\n", WireGuardInterface)
+	fmt.Fprintf(&b, "\t\toifname %q drop\n", WireGuardInterface)
 	b.WriteString("\t}\n}\n")
 	return b.String()
 }

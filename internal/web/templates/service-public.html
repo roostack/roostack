@@ -1,57 +1,99 @@
 {{define "title"}}Public access · {{.Package.Title}}{{end}}
 {{define "content"}}
+{{/* Private means the home network, or on a lab on the internet only
+     through an SSH tunnel (SPEC.md §6.12). */}}
+{{$privateMeans := "reachable from your home network (or VPN) only"}}{{if .Internet}}{{$privateMeans = "reachable only through an SSH tunnel"}}{{end}}
 <section class="card medium">
-  <div class="page-top">{{back (printf "/services/%s" .Package.Name) .Package.Title}}{{help "services/public" "Making a service public"}}</div>
+  <div class="page-top">{{back (printf "/services/%s" $.Name) .Package.Title}}{{help "services/public" "Making a service public"}}</div>
   {{with .Route}}
   <div class="heading">
     <h1>Who can reach {{.Host}}</h1>
-    {{if .Public}}{{badge "Public" "highlight"}}{{else}}{{badge "Home only"}}{{end}}
+    {{if .Public}}{{badge "Public" "highlight"}}{{else}}{{badge "Private"}}{{end}}
   </div>
   {{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
 
   {{if .Route.Public}}
-  <p><strong>Anyone on the internet</strong> can reach <code>{{.Route.Host}}</code>{{if .Route.PrivatePaths}}, except what stays home-only below{{end}}.
-    Roostack's own pages stay private.</p>
+  <p><strong>Anyone on the internet</strong> can reach <code>{{.Route.Host}}</code>{{if .Route.PrivatePaths}}, except the parts below that stay private{{end}}.
+    {{template "public-ui" .}}</p>
   {{with .Route.PrivatePaths}}
-  <ul class="plain">
-    {{range .}}<li><code>{{.Path}}</code>: {{if .Open}}made public anyway{{else}}home only{{end}}</li>{{end}}
-  </ul>
+  <h2>Parts kept private</h2>
+  <p class="hint">{{$.Package.Title}}'s package keeps these private: {{$privateMeans}}. Tick one to make it public too.</p>
+  <form method="post" action="/services/{{$.Name}}/public/{{$.Route.Route}}">
+    <input type="hidden" name="public" value="on">
+    {{if $.Route.Unsafe}}<input type="hidden" name="accept_unsafe" value="on">{{end}}
+    {{range .}}
+    <label class="check"><input type="checkbox" name="open" value="{{.Path}}" {{if .Open}}checked{{end}}>
+      <span>Make <code>{{.Path}}</code> public{{if .Open}} <small>(public now)</small>{{end}}<small>{{.Reason}}</small></span></label>
+    {{end}}
+    {{confirmSubmit (printf "Change which parts of %s are public? Anything ticked can be reached by anyone on the internet." $.Route.Host) "Save" ""}}
+  </form>
   {{end}}
 
   <h2>Checklist</h2>
   <ol class="steps public-steps">
     <li><span class="dot dot-{{if .Protected}}ok{{else}}warn{{end}}" aria-hidden="true"></span><strong>Protection.</strong>
       {{if .Protected}}CrowdSec is running: it blocks addresses that attack your services, and password tries are limited.
-      {{else}}CrowdSec is starting (its first start downloads it, which takes a few minutes). The address's DNS record waits for it.{{end}}</li>
+      {{else}}CrowdSec is starting (its first start downloads it, which takes a few minutes).{{if not .Internet}} The address's DNS record waits for it.{{end}}{{end}}</li>
     <li>{{with .Record}}<span class="dot dot-{{if eq .State "ok"}}ok{{else if or (eq .State "pending") (eq .State "waiting") (eq .State "manual")}}warn{{else}}problem{{end}}" aria-hidden="true"></span>{{end}}<strong>DNS record.</strong>
       {{with .Record}}{{.Message}}{{else}}Roostack is checking it.{{end}}</li>
+    {{if .Internet}}
+    <li><span class="dot dot-none" aria-hidden="true"></span><strong>Your provider's firewall.</strong>
+      Many cloud providers put a firewall in front of your server, such as Linode's Cloud Firewall, Hetzner's Firewall,
+      AWS security groups, DigitalOcean's Cloud Firewalls or Oracle Cloud's security lists. In your provider's control panel,
+      allow TCP ports 80 and 443, and UDP port 443, from anywhere. No provider firewall? There's nothing to do here.</li>
+    {{else if .Edge}}
+    <li><span class="dot dot-none" aria-hidden="true"></span><strong>Through {{or .Edge.Name .Edge.ID}}.</strong>
+      Nothing to change on your router: visitors come in through {{or .Edge.Name .Edge.ID}}{{with .Edge.Address}} (<code>{{.}}</code>){{end}},
+      a cloud server in this lab, which passes their connections on to this server still encrypted. If its provider has a firewall,
+      it has to allow TCP ports 80 and 443. <a href="/settings/public#way-in">Change how visitors come in</a></li>
+    {{else}}
     <li><span class="dot dot-none" aria-hidden="true"></span><strong>Your router.</strong>
       Forward TCP ports 80 and 443, and UDP port 443, to <code>{{or .LANIP "this server"}}</code>{{with .LANIP}} (this server){{end}}.
       Look for "port forwarding", "virtual server" or "NAT" in your router's settings.
-      <small>Port 443 already goes to another device at home? It has to come here instead, or wait for public access through a cloud server.
-        If this server is a cloud server, not at home, there's nothing to do here.</small></li>
-    <li id="check"{{if .CheckLink}} hx-get="/services/{{.Package.Name}}/public/{{.Route.Route}}" hx-select="#check" hx-trigger="every 5s [document.visibilityState === 'visible']" hx-swap="outerHTML"{{end}}>
-      <span class="dot dot-{{if .Check}}ok{{else}}none{{end}}" aria-hidden="true"></span><strong>Check from your phone.</strong>
+      <small>Port 443 already goes to another device at home, or no ports can be forwarded? A cloud server in the lab can be the way in instead
+        (<a href="/settings/public#way-in">Settings → Public access</a>).
+        If this server is a cloud server, say so in <a href="/settings/home-network">Settings → Where it is and DNS</a>.</small></li>
+    {{end}}
+    <li id="check"{{if .CheckLink}} hx-get="/services/{{$.Name}}/public/{{.Route.Route}}" hx-select="#check" hx-trigger="every 5s [document.visibilityState === 'visible']" hx-swap="outerHTML"{{end}}>
+      <span class="dot dot-{{if .Check}}ok{{else}}none{{end}}" aria-hidden="true"></span><strong>{{if .Internet}}Check from a browser.{{else}}Check from your phone.{{end}}</strong>
       {{with .Check}}It worked from outside on {{date .At}} at {{.At.Local.Format "15:04"}} (from {{.From}}).{{end}}
       {{if .CheckLink}}
-      <p>Turn Wi-Fi off, so your phone uses mobile data, then scan this code or open the link. This step ticks itself when it works.</p>
+      {{if .Internet}}<p>Open this link in any browser, on any device (not on this server itself). This step ticks itself when it works.</p>
+      {{else}}<p>Turn Wi-Fi off, so your phone uses mobile data, then scan this code or open the link. This step ticks itself when it works.</p>{{end}}
       {{with .CheckQR}}<div class="qr-box">{{.}}</div>{{end}}
       <p><code class="secret">{{.CheckLink}}</code></p>
       {{else}}
-      <form method="post" action="/services/{{.Package.Name}}/public/{{.Route.Route}}/check">
+      <form method="post" action="/services/{{$.Name}}/public/{{.Route.Route}}/check">
         <button type="submit" class="secondary">{{if .Check}}Check again{{else}}Make a check link{{end}}</button>
       </form>
       {{end}}
     </li>
   </ol>
-  {{confirm (printf "/services/%s/public/%s" .Package.Name .Route.Route) (printf "Make %s private? Only your home network (or VPN) will reach it, and its DNS record points back home." .Route.Host) "Make private" "secondary" "public=off"}}
+  <details class="technical"{{if and .CheckLink (not .Check)}} open{{end}}>
+    <summary>If the check link doesn't open</summary>
+    <p>Look at these in order: whatever is in the way is usually the first one that's wrong.</p>
+    <ol class="steps public-steps">
+      <li><span class="dot dot-ok" aria-hidden="true"></span>Roostack's own firewall lets web traffic in (TCP 80 and 443, UDP 443). It always does.</li>
+      <li><span class="dot dot-none" aria-hidden="true"></span>{{if .Internet}}Your provider's firewall allows those ports (above). Roostack can't see it from here.
+        {{else if .Edge}}{{or .Edge.Name .Edge.ID}} is connected to the lab, and its provider's firewall allows TCP 80 and 443 (above).
+        {{else}}Your router forwards those ports to this server (above). Roostack can't see it from here.{{end}}</li>
+      <li><span class="dot dot-{{if and .Record (eq .Record.State "ok")}}ok{{else}}warn{{end}}" aria-hidden="true"></span>Public DNS
+        points <code>{{.Route.Host}}</code> at {{with .Record}}<code>{{.IP}}</code>{{else}}this lab{{end}}:
+        {{if and .Record (eq .Record.State "ok")}}it does (Roostack checked).{{else}}not yet, see the DNS record step.{{end}}</li>
+      {{if not .Internet}}<li><span class="dot dot-none" aria-hidden="true"></span>Your internet connection can take incoming connections at all:
+        some (called CGNAT, common on mobile and some fibre plans) can't. <a href="/help/services/public/#if-it-doesnt-work" target="_blank" rel="noopener">Tell me more{{template "new-window"}}</a></li>{{end}}
+    </ol>
+  </details>
+  {{confirm (printf "/services/%s/public/%s" $.Name .Route.Route) (printf "Make %s private? %s" .Route.Host (or (and .Internet "Only an SSH tunnel will reach it.") "Only your home network (or VPN) will reach it, and its DNS record points back home.")) "Make private" "quiet danger" "public=off"}}
 
   {{else}}
-  <p>Right now only devices on your home network (or VPN) can open it.</p>
+  <p>{{if .Internet}}Right now it's only reachable through an SSH tunnel, which is for technical users
+    (<a href="/help/services/public/#private-on-a-cloud-server" target="_blank" rel="noopener">how{{template "new-window"}}</a>).
+    {{- else}}Right now only devices on your home network (or VPN) can open it.{{end}}</p>
   <p>Making it public lets <strong>anyone on the internet</strong> reach it: its login page, and anything it shares without a login.
-    Roostack's own pages stay private. Use strong passwords (and two-factor authentication, if {{.Package.Title}} has it).</p>
-  <form method="post" action="/services/{{.Package.Name}}/public/{{.Route.Route}}">
+    {{template "public-ui" .}} Use strong passwords (and two-factor authentication, if {{.Package.Title}} has it).</p>
+  <form method="post" action="/services/{{$.Name}}/public/{{.Route.Route}}">
     <input type="hidden" name="public" value="on">
     {{with .Route.Unsafe}}
     {{notice "error" (printf "%s's package says this address isn't safe to make public: %s" $.Package.Title .)}}
@@ -59,28 +101,15 @@
       <span>I understand, and want to make it public anyway</span></label>
     {{end}}
     {{with .Route.PrivatePaths}}
-    <h2>Parts that stay home-only</h2>
-    <p class="hint">These stay reachable from your home network only, unless you tick them.</p>
+    <h2>Parts kept private</h2>
+    <p class="hint">These stay {{$privateMeans}}, unless you tick them. You can change this later.</p>
     {{range .}}
     <label class="check"><input type="checkbox" name="open" value="{{.Path}}">
       <span>Make <code>{{.Path}}</code> public too<small>{{.Reason}}</small></span></label>
     {{end}}
     {{end}}
-    {{if not .SharingAsked}}
-    <h2>Protection</h2>
-    <p>Roostack starts <strong>CrowdSec</strong>, which spots attacks in the web log and blocks the addresses they come from,
-      and limits how fast anyone can try passwords.</p>
-    <fieldset>
-      <legend>Share attack reports with CrowdSec's community?</legend>
-      <label class="check"><input type="radio" name="share" value="yes" checked>
-        <span>Share them (recommended)<small>Only attackers' addresses and what they tried, never anything about you or your people.
-          In return, addresses others have seen attacking are blocked before they try.</small></span></label>
-      <label class="check"><input type="radio" name="share" value="no">
-        <span>Don't share<small>Blocking attacks still works; you don't get the community's list of attackers.</small></span></label>
-    </fieldset>
-    <p class="hint">You can change this later in Settings → Public access.</p>
-    {{end}}
-    <button type="submit">Make public</button>
+    {{if not .SharingAsked}}{{template "sharing-question" .}}{{end}}
+    {{confirmSubmit (printf "Make %s public? Anyone on the internet will be able to reach it." .Route.Host) "Make public" ""}}
   </form>
   {{end}}
 </section>

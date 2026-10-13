@@ -518,12 +518,31 @@ func (m *Manager) destinationTitle(ctx context.Context, serverID, provider, repo
 
 // PruneJob removes old backups from every repository the controller made
 // (SPEC.md §10.10): servers may only add backups, so the controller does
-// this with the recovery key, weekly.
-func (m *Manager) PruneJob() maintenance.Job {
+// this with the recovery key, weekly. A repository that's locked (its
+// server still backing up, e.g. a big first backup) is tried again an
+// hour later, up to pruneTries times in all.
+func (m *Manager) PruneJob() maintenance.Job { return m.pruneJob(nil, 1) }
+
+// pruneTries is how often a locked repository is tried in a week, and
+// pruneRetry how long apart.
+var (
+	pruneTries = 3
+	pruneRetry = time.Hour
+)
+
+// pruneKey names a repository in a prune (a server's backup or copy).
+func pruneKey(t store.BackupTarget) string { return t.ServerID + " " + t.Provider }
+
+// pruneJob prunes the repositories in only (all if nil); try counts.
+func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
+	title := "Removing old backups of every server"
+	if try > 1 {
+		title = "Removing old backups that were busy last time"
+	}
 	return maintenance.Job{
 		Name: "removing old backups of every server",
 		Run: func(ctx context.Context, h *maintenance.Handle) (err error) {
-			act := m.Activity.Start(activity.Backup, "Removing old backups of every server")
+			act := m.Activity.Start(activity.Backup, title)
 			defer func() { act.Finish(err) }()
 			targets, err := m.BackupStore.BackupTargets(ctx)
 			if err != nil {
@@ -534,9 +553,10 @@ func (m *Manager) PruneJob() maintenance.Job {
 				return err
 			}
 			var errs []error
+			locked := map[string]bool{}
 			for _, t := range append(targets, copies...) {
-				if strings.HasPrefix(t.Provider, "setup") {
-					continue // set up before this; that server prunes it itself
+				if strings.HasPrefix(t.Provider, "setup") || (only != nil && !only[pruneKey(t)]) {
+					continue // set up before this, that server prunes it itself; or not a retry's
 				}
 				repo, err := m.adminRepo(ctx, t)
 				if err != nil {
@@ -544,10 +564,18 @@ func (m *Manager) PruneJob() maintenance.Job {
 					continue
 				}
 				act.Step("%s: keeping 7 daily, 4 weekly and 6 monthly", m.nameOf(t.ServerID))
-				if err := repo.Forget(ctx, backup.DefaultRetention); err != nil {
+				err = repo.Forget(ctx, backup.DefaultRetention)
+				switch {
+				case errors.Is(err, backup.ErrLocked) && try < pruneTries && m.Submit != nil:
+					act.Printf("Busy (a backup is running there): tried again in %s", pruneRetry)
+					locked[pruneKey(t)] = true
+				case err != nil:
 					act.Printf("%v", err)
 					errs = append(errs, fmt.Errorf("%s: %w", m.nameOf(t.ServerID), err))
 				}
+			}
+			if len(locked) > 0 {
+				time.AfterFunc(pruneRetry, func() { m.Submit(m.pruneJob(locked, try+1)) })
 			}
 			return errors.Join(errs...)
 		},

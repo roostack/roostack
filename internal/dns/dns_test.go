@@ -78,7 +78,7 @@ func TestDirectives(t *testing.T) {
 			"dns namecheap {\n\tapi_key {env.DNS_API_KEY}\n\tuser {env.DNS_USER}\n\tclient_ip {env.DNS_CLIENT_IP}\n}"},
 	}
 	for id, c := range cases {
-		if got := Get(id).Directive(c.set); got != c.want {
+		if got, _ := Get(id).Directive(c.set, nil); got != c.want {
 			t.Errorf("%s:\n%s\nwant\n%s", id, got, c.want)
 		}
 	}

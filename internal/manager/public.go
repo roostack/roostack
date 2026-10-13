@@ -79,7 +79,7 @@ func (m *Manager) SetPublic(ctx context.Context, name string, req PublicRequest)
 	if err != nil {
 		return err
 	}
-	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Package.Name == name })
+	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Name() == name })
 	if i < 0 {
 		return ErrNotFound
 	}
@@ -111,6 +111,7 @@ func (m *Manager) SetPublic(ctx context.Context, name string, req PublicRequest)
 	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
 		return err
 	}
+	m.applyReason = "Changing who can reach " + name
 	m.startApplyLocked()
 	return nil
 }
@@ -122,17 +123,7 @@ func (m *Manager) PublicHosts() []string {
 		m.Log.Error("listing public addresses", "err", err)
 		return nil
 	}
-	var hosts []string
-	for _, s := range services {
-		_, routes := generate.Values(m.Lab, s.Package, s.Instance)
-		for _, rc := range routes {
-			if rc.Exposure == pkgspec.ExposurePublic {
-				hosts = append(hosts, rc.Host)
-			}
-		}
-	}
-	slices.Sort(hosts)
-	return hosts
+	return publicHostsOf(m.Lab, services, false)
 }
 
 // SignalSharing says whether the Owner has been asked about CrowdSec
@@ -166,6 +157,7 @@ func (m *Manager) SetSignalSharing(share bool) error {
 	}
 	p := m.publicLocked()
 	p.SharingAsked, p.NoSharing = true, !share
+	m.applyReason = "Changing whether CrowdSec shares attack reports"
 	m.startApplyLocked()
 	return nil
 }

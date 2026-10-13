@@ -6,6 +6,14 @@ can get it back. Roostack backs up every service, and its own settings,
 every night at 2 am.
 
 The **Backups** page shows your plan, and tells you whether it's enough.
+With more than one server, it's in two parts:
+
+- **Each server's backups:** every server backs up its own services, so
+  each has its own status and plan. The list at the top shows how each
+  server's backups are doing; choose one to see its plan.
+- **Your whole lab:** restoring any service (from any of the lab's
+  backups), storage other labs give yours, and the recovery key, which
+  opens every backup in the lab.
 
 ## Three copies: the 3-2-1 rule
 
@@ -92,9 +100,15 @@ attention** on the home page, with what to do.
       `/var/lib/roostack/backup-key`. Other servers' repositories also get
       their own key, and never see the recovery key.
     - **Keeping:** old backups are removed on Sunday by the lab's
-      controller (`restic forget --prune --keep-daily 7 --keep-weekly 4
-      --keep-monthly 6`), then 5% of the data is read back
+      controller (`restic forget --prune --group-by host,tags --keep-daily 7
+      --keep-weekly 4 --keep-monthly 6`: each service is kept on its own, as
+      each has its own snapshot, tagged `service=<name>`), then 5% of the data is read back
       (`restic check --read-data-subset=5%`).
+
+    "Every night" is 2 am on each server's clock. On the nights the clocks
+    change it still runs once (at 3 am when they go forward). A night the
+    server was off (or asleep) is caught up: once it's been on for 10
+    minutes, it backs up if it hasn't for over a day.
 
     List the backups from the command line with
     [`roostack backup snapshots`](../reference/cli.md#backups).

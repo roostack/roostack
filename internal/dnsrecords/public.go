@@ -22,8 +22,11 @@ const (
 
 // PublicRecord is a public address's record.
 type PublicRecord struct {
-	Host    string // e.g. photos.lab.example.com
-	IP      string // what it should point at: the entry's address
+	Host string // e.g. photos.lab.example.com
+	// IP is what it should point at: the entry's address, or Type's value
+	// (a CNAME's target, a TXT record's text) when Type isn't empty.
+	IP      string
+	Type    string // "" for A
 	State   string
 	Message string
 }
@@ -51,6 +54,10 @@ func (m *Manager) publicManual(ctx context.Context) ([]PublicRecord, string) {
 	if len(hosts) == 0 {
 		return nil, ""
 	}
+	if relay, ok := m.relayed(); ok {
+		recs, _ := m.relayedManual(ctx, relay)
+		return recs, relay.Name
+	}
 	addr, err := m.entryAddress(ctx)
 	var recs []PublicRecord
 	for _, h := range hosts {
@@ -71,12 +78,27 @@ func (m *Manager) publicManual(ctx context.Context) ([]PublicRecord, string) {
 func (m *Manager) syncPublic(ctx context.Context, p *dns.Provider, values map[string]string, zone, lanIP string) ([]PublicRecord, string) {
 	hosts := m.publicHosts()
 	wildcard := "*." + m.Lab.Domain
+	relay, relayed := m.relayed()
 	owned, err := m.Records(ctx)
 	if err != nil {
 		m.Log.Error("reading managed DNS records", "err", err)
 	}
+	// Roostack's CNAMEs to the relay, where they aren't wanted any more
+	// (not relayed, or not public): gone, so A records (or the wildcard)
+	// can take over.
 	for _, r := range owned {
-		if r.Name == wildcard || r.Type != "A" || slices.Contains(hosts, r.Name) || r.Value == lanIP {
+		if r.Type != "CNAME" || relayed && slices.Contains(hosts, r.Name) {
+			continue
+		}
+		if name, ok := relName(r.Name, zone); ok {
+			if err := m.removeOwned(ctx, p, values, zone, name, "CNAME"); err != nil {
+				m.Log.Error("removing a CNAME to the relay", "record", r.Name, "err", err)
+			}
+		}
+	}
+	for _, r := range owned {
+		if r.Name == wildcard || r.Type != "A" || slices.Contains(hosts, r.Name) || r.Value == lanIP || r.Name == m.linkHost() && m.linkWanted() ||
+			relayed && slices.Contains(hosts, r.Name) {
 			continue
 		}
 		if name, ok := relName(r.Name, zone); ok {
@@ -90,12 +112,20 @@ func (m *Manager) syncPublic(ctx context.Context, p *dns.Provider, values map[st
 	}
 
 	addr, err := m.entryAddress(ctx)
+	if relayed {
+		addr, err = relay.Name, nil
+	}
 	protected := m.Protected == nil || m.Protected(ctx)
 	var recs []PublicRecord
 	for _, h := range hosts {
 		r := PublicRecord{Host: h, IP: addr}
+		if relayed {
+			r.Type = "CNAME"
+		}
 		name, inZone := relName(h, zone)
 		switch {
+		case relayed && inZone && protected:
+			r.State, r.Message = m.setRelayedHost(ctx, p, values, zone, name, h, relay.Name)
 		case err != nil:
 			r.State, r.Message = PublicError, err.Error()
 		case !inZone:
@@ -123,6 +153,39 @@ func (m *Manager) setPublic(ctx context.Context, p *dns.Provider, values map[str
 		return PublicOK, fmt.Sprintf("%s points at %s.", host, addr)
 	}
 	return PublicPending, "The record is set, but isn't visible yet. DNS changes can take a few minutes."
+}
+
+// coveredByWildcard is the public addresses' state on a lab on the
+// internet: the wildcard, pointing at this server, covers them, so they
+// need no records of their own (SPEC.md §6.12). They're fine once public
+// DNS returns this server's address for them.
+func (m *Manager) coveredByWildcard(ctx context.Context, st Status) ([]PublicRecord, string) {
+	var recs []PublicRecord
+	for _, h := range m.publicHosts() {
+		recs = append(recs, m.covered(ctx, st, h))
+	}
+	if len(recs) == 0 {
+		return nil, ""
+	}
+	return recs, st.IP
+}
+
+// covered is one host's state when the wildcard covers it.
+func (m *Manager) covered(ctx context.Context, st Status, h string) PublicRecord {
+	r := PublicRecord{Host: h, IP: st.IP}
+	got, _ := m.PublicLookup(ctx, h)
+	switch {
+	case slices.Contains(got, st.IP):
+		r.State, r.Message = PublicOK, fmt.Sprintf("%s points at this server (%s), through %s.", h, st.IP, st.Record)
+	case st.State == StateManual:
+		r.State, r.Message = PublicManual, fmt.Sprintf("Add this record at your DNS provider: %s  A  %s", st.Record, st.IP)
+	case len(got) > 0:
+		r.State, r.Message = PublicConflict, fmt.Sprintf("Public DNS answers %s with %s, not this server (%s). "+
+			"A record for it at your DNS provider is in the way: delete it, so %s covers it.", h, strings.Join(got, ", "), st.IP, st.Record)
+	default:
+		r.State, r.Message = PublicPending, fmt.Sprintf("Waiting for %s to be visible in public DNS.", st.Record)
+	}
+	return r
 }
 
 // relName is host relative to zone ("photos.lab" for photos.lab.example.com

@@ -12,6 +12,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 )
@@ -26,6 +27,18 @@ type fakeRemote struct {
 	left      bool
 	name      string
 	settings  *fakeServerSettings
+	closed    bool
+	// home are its home-network addresses; handshakes when its direct
+	// links last connected (links_test.go).
+	home       []string
+	handshakes map[string]int64
+}
+
+func (f *fakeRemote) Close() { f.closed = true }
+func (f *fakeRemote) LinkStatus(context.Context) ([]string, map[string]int64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.home, f.handshakes
 }
 
 func (f *fakeRemote) Identity() nodeid.Identity {
@@ -60,6 +73,8 @@ func (f *fakeRemote) Backups() node.Backups   { return nil }
 func (f *fakeRemote) Restores() node.Restores { return nil }
 func (f *fakeRemote) Updates() node.Updates   { return nil }
 func (f *fakeRemote) Settings() node.Settings {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.settings == nil {
 		return nil
 	}
@@ -72,13 +87,20 @@ type fakeServerSettings struct {
 	dest     *node.BackupDestination
 	copies   []node.BackupCopy
 	promoted string
-	destErr  error // SetBackupDestination fails with it
+	destErr  error  // SetBackupDestination fails with it
+	zone     string // SetTimezone records it
 }
 
-func (f *fakeServerSettings) Timezones() (string, []string, error)              { return "", nil, nil }
-func (f *fakeServerSettings) SetTimezone(context.Context, string) (bool, error) { return false, nil }
-func (f *fakeServerSettings) SSHAccess() (node.SSHAccess, error)                { return node.SSHAccess{}, nil }
-func (f *fakeServerSettings) SetSSH(context.Context, string, bool) error        { return nil }
+func (f *fakeServerSettings) Timezones() (string, []string, error) { return "", nil, nil }
+func (f *fakeServerSettings) SetTimezone(_ context.Context, z string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	changed := f.zone != z
+	f.zone = z
+	return changed, nil
+}
+func (f *fakeServerSettings) SSHAccess() (node.SSHAccess, error)         { return node.SSHAccess{}, nil }
+func (f *fakeServerSettings) SetSSH(context.Context, string, bool) error { return nil }
 func (f *fakeServerSettings) SetRestartPolicy(context.Context, string, int) error {
 	return nil
 }
@@ -138,7 +160,12 @@ func (f *fakeRemote) Rename(_ context.Context, name string) error {
 	return nil
 }
 
-type fakeRegistry struct{ removed, renamed []string }
+type fakeRegistry struct {
+	removed, renamed []string
+	peers            map[string]labnet.Peer
+}
+
+func (f *fakeRegistry) Peers(context.Context) (map[string]labnet.Peer, error) { return f.peers, nil }
 
 func (f *fakeRegistry) Remove(_ context.Context, id string) error {
 	f.removed = append(f.removed, id)
@@ -254,7 +281,31 @@ func TestRemoveAndRenameServer(t *testing.T) {
 
 	m.Remove(ctx, "forgejo")
 	m.Wait()
-	if err := m.RemoveServer(ctx, "n-0000000002"); err != nil || !vps.left || len(reg.removed) != 1 {
+	if err := m.RemoveServer(ctx, "n-0000000002"); err != nil || !vps.left || len(reg.removed) != 1 || !vps.closed {
 		t.Errorf("remove: %v left=%v removed=%v", err, vps.left, reg.removed)
+	}
+}
+
+// A server that just joined gets the controller's time zone once it
+// answers (it restarts as part of the lab first).
+func TestNewServerGetsTheLabsTimezone(t *testing.T) {
+	m, _ := newManager(t)
+	m.Node.(*node.Local).Host = &node.HostSettings{Zone: func() string { return "Australia/Sydney" },
+		Zones: func() ([]string, error) { return []string{"Australia/Sydney", "Etc/UTC"}, nil }}
+	vps := &fakeRemote{}
+	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
+	done := make(chan struct{})
+	go func() { m.MatchTimezone(context.Background(), "n-0000000002"); close(done) }()
+	time.Sleep(50 * time.Millisecond) // not answering yet
+	vps.mu.Lock()
+	vps.settings = &fakeServerSettings{zone: "Etc/UTC"}
+	vps.mu.Unlock()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("it should be set once the server answers")
+	}
+	if vps.settings.zone != "Australia/Sydney" {
+		t.Errorf("zone = %q", vps.settings.zone)
 	}
 }

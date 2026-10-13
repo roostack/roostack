@@ -3,7 +3,9 @@ package agent
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -57,5 +59,44 @@ func TestHostChangesAPI(t *testing.T) {
 	hc, err := c.HostChanges(context.Background())
 	if err != nil || !hc.Any() || hc.Held[0] != "linux-image-amd64" || hc.Fingerprint() == (HostChanges{}).Fingerprint() {
 		t.Errorf("host changes = %+v, %v", hc, err)
+	}
+}
+
+// A cloud provider's Debian mirror isn't software from outside Debian:
+// apt's release files for it (checked against Debian's keys) say
+// "Origin: Debian". Another repository's say otherwise.
+func TestDebianMirrors(t *testing.T) {
+	dir := t.TempDir()
+	aptLists = dir
+	defer func() { aptLists = "/var/lib/apt/lists" }()
+	for name, origin := range map[string]string{
+		"mirrors.linode.com_debian_dists_trixie_InRelease":                           "Debian",
+		"mirrors.linode.com_debian-security_dists_trixie-security_updates_InRelease": "Debian",
+		"download.docker.com_linux_debian_dists_trixie_InRelease":                    "Docker",
+	} {
+		os.WriteFile(filepath.Join(dir, name), []byte("-----BEGIN PGP SIGNED MESSAGE-----\nOrigin: "+origin+"\nLabel: x\n"), 0o644)
+	}
+	files := map[string]string{
+		"/etc/apt/sources.list": "deb http://mirrors.linode.com/debian trixie main\n" +
+			"deb http://mirrors.linode.com/debian-security trixie-security/updates main\n" +
+			"deb https://download.docker.com/linux/debian trixie stable\n" +
+			"deb http://mirrors.example.net/debian trixie main\n", // never downloaded: unknown
+	}
+	got := aptSources(files)
+	want := []string{"sources.list: https://download.docker.com/linux/debian", "sources.list: http://mirrors.example.net/debian"}
+	if !slices.Equal(got, want) {
+		t.Errorf("sources = %q, want %q", got, want)
+	}
+}
+
+// The OS updates log leaves out unattended-upgrade's dpkg log markers.
+func TestUpdatesLogFilter(t *testing.T) {
+	var out strings.Builder
+	f := &lineFilter{w: &out, drop: dpkgLogMarker}
+	f.Write([]byte("==> Installing updates\nLog started: 2026-09-30  23:22:32\nSetting up curl ...\nLog ended: 2026-09-30  23:22:33\n\nAll up"))
+	f.Write([]byte("grades done\n"))
+	f.flush()
+	if want := "==> Installing updates\nSetting up curl ...\n\nAll upgrades done\n"; out.String() != want {
+		t.Errorf("got %q, want %q", out.String(), want)
 	}
 }

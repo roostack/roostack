@@ -1,6 +1,22 @@
-{{define "title"}}Home network{{end}}
+{{define "title"}}Where it is and DNS{{end}}
 {{define "content"}}
-<div class="page-top">{{back "/settings" "Settings"}}{{help "settings/domain#reaching-your-services-from-home" "Reaching your services from home"}}</div>
+<div class="page-top">{{back "/settings" "Settings"}}{{help "settings/domain#where-your-lab-is" "Where your lab is"}}</div>
+<section class="card">
+  <h1>Where it is and DNS</h1>
+  {{with .NetworkForm}}
+  <p>{{if eq .Saved "internet"}}This lab is <strong>on the internet</strong> (a cloud server): services start public, and private
+    ones are only reachable through an SSH tunnel.
+    {{- else if eq .Saved "home"}}This lab is <strong>at home</strong>, behind a router: services are for your home network
+    unless you make them public.
+    {{- else}}Roostack treats this lab as <strong>at home</strong>, behind a router. {{if eq .Detected "internet"}}But this server
+    has a public address of its own, like a cloud server: if it is one, say so below.{{end}}{{end}}</p>
+  <form method="post" action="/settings/network">
+    {{template "network-choice" .}}
+    <p class="hint">Saving restarts Roostack to apply it: its web proxy, firewall rules for private addresses and DNS records change.</p>
+    <button type="submit">Save</button>
+  </form>
+  {{end}}
+</section>
 {{with .DNS}}
 {{/* While records are being updated and checked, this part refreshes itself
      until the sync ends (not while a confirm dialog is open, or the tab is
@@ -17,7 +33,7 @@
     <tbody>
       {{range .}}<tr>
         <td><code>{{.Name}}</code></td><td>{{.Type}}</td><td><code>{{.Value}}</code></td>
-        <td>{{if and (eq .Name $.DNS.Record) (eq $.DNS.State "ok")}}<span class="dot dot-ok" aria-hidden="true"></span>Works from home
+        <td>{{if and (eq .Name $.DNS.Record) (eq $.DNS.State "ok")}}<span class="dot dot-ok" aria-hidden="true"></span>{{if $.DNS.Internet}}Works{{else}}Works from home{{end}}
           {{else if eq .Name $.DNS.Record}}<span class="dot dot-{{if eq $.DNS.State "pending"}}warn{{else}}problem{{end}}" aria-hidden="true"></span>See above
           {{else}}–{{end}}</td>
       </tr>{{end}}
@@ -31,10 +47,10 @@
 </section>
 </div>
 {{else}}
-<section class="card">
-  <h1>Home network</h1>
-  <p>Set up your domain first; Roostack then makes sure devices at home can reach your services.</p>
-  <p><a class="button" href="/settings/domain">Domain and certificates</a></p>
+<section class="card section">
+  <h2>DNS records</h2>
+  <p>Give your lab an address first; Roostack then makes sure your services' addresses lead here.</p>
+  <p><a class="button" href="/settings/domain">Your lab's address</a></p>
 </section>
 {{end}}
 {{end}}

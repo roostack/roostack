@@ -10,6 +10,7 @@ import (
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/firewall"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/podman"
@@ -29,6 +30,10 @@ func apply(args []string) error {
 		return err
 	}
 	lab.HasGPU = config.DetectGPU()
+	// As serve does: private addresses on a lab on the internet use it.
+	if ip, err := dnsrecords.DetectLANIP(); err == nil {
+		lab.HostIP = ip
+	}
 	lab.Timezone = hosttime.Zone()
 	if _, err := withNode(&lab); err != nil {
 		return err
@@ -46,16 +51,16 @@ func apply(args []string) error {
 		return err
 	}
 	for _, s := range ported {
-		if !slices.ContainsFunc(changed, func(c state.Service) bool { return c.Package.Name == s.Package.Name }) {
+		if !slices.ContainsFunc(changed, func(c state.Service) bool { return c.Name() == s.Name() }) {
 			changed = append(changed, s)
 		}
 	}
 	for _, s := range changed {
 		if *dryRun {
-			fmt.Printf("Would save %s: host %s, ports %v\n", s.Package.Name, s.Instance.Host, s.Instance.Routes)
+			fmt.Printf("Would save %s: host %s, ports %v\n", s.Name(), s.Instance.Host, s.Instance.Routes)
 			continue
 		}
-		if err := s.Instance.Save(state.InstanceFile(lab, s.Package.Name)); err != nil {
+		if err := s.Instance.Save(state.InstanceFile(lab, s.Name())); err != nil {
 			return err
 		}
 	}

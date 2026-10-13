@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -30,7 +31,7 @@ func TestGuestHub(t *testing.T) {
 	if h.Enabled(ctx) {
 		t.Fatal("not offered yet")
 	}
-	inv, err := h.NewInvite(ctx, "Tyris's lab", 50<<30, "203.0.113.7:51821")
+	inv, err := h.NewInvite(ctx, "Sam's lab", 50<<30, "203.0.113.7:51821")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,5 +116,40 @@ func TestGuestHub(t *testing.T) {
 		if _, err := ParseStorageInvite(bad); err == nil {
 			t.Errorf("%q: want an error", bad)
 		}
+	}
+}
+
+// statusAgent applies links and reports handshakes as told.
+type statusAgent struct{ handshake int64 }
+
+func (a *statusAgent) ApplyWireGuard(context.Context, agent.WireGuard) (string, error) {
+	return "", nil
+}
+func (a *statusAgent) WireGuardStatus(context.Context, string) (agent.WireGuardStatus, error) {
+	return agent.WireGuardStatus{Handshakes: map[string]int64{"hostkey=": a.handshake}}, nil
+}
+
+// Joining gives up early when the other lab's UDP port can't be reached
+// (no handshake), and says which it is when the link is up but nothing
+// answers.
+func TestJoinStorageUnreachable(t *testing.T) {
+	handshakeTimeout, joinTimeout = 100*time.Millisecond, 3*time.Second
+	t.Cleanup(func() { handshakeTimeout, joinTimeout = 20*time.Second, 45*time.Second })
+	key, _ := agent.NewWireGuardKey()
+	// Nothing listens on 127.0.0.2's guest API port.
+	inv := StorageInvite{HostName: "Mum's lab", Endpoint: "203.0.113.7:51821", HostKey: "hostkey=",
+		HostAddr: netip.MustParseAddr("127.0.0.2"), JoinKey: key, Token: "t"}
+	start := time.Now()
+	err := JoinStorage(context.Background(), inv, "roostack-st1", &statusAgent{})
+	if err == nil || !strings.Contains(err.Error(), "Mum's lab didn't answer at 203.0.113.7:51821") ||
+		!strings.Contains(err.Error(), "Cloud Firewall") || strings.Contains(err.Error(), "127.0.0.2") {
+		t.Errorf("no handshake: %v", err)
+	}
+	if time.Since(start) >= joinTimeout {
+		t.Errorf("it should give up once there's no handshake, not wait %v", time.Since(start))
+	}
+	err = JoinStorage(context.Background(), inv, "roostack-st1", &statusAgent{handshake: 1790000000})
+	if err == nil || !strings.Contains(err.Error(), "the link to Mum's lab at 203.0.113.7:51821 works") {
+		t.Errorf("handshake but no answer: %v", err)
 	}
 }

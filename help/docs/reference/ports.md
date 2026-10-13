@@ -31,7 +31,7 @@ server.
 
 | Port | For |
 |---|---|
-| 127.0.0.1:8480 | Roostack's web pages (Caddy passes them on as `roostack.<your domain>`) |
+| 127.0.0.1:8480 | Roostack's web pages (Caddy passes them on as `roost.<your domain>`) |
 | 127.0.0.1:8473 | CrowdSec's local API, while anything is [public](../services/public.md), for Caddy's bouncer |
 | 127.0.0.1:20000–29999 | Each service's web port, for Caddy; chosen once per service and kept |
 

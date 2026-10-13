@@ -31,6 +31,8 @@ type ServiceDetail struct {
 	// DataSize is bytes in its data folders (-1 until counted; counted in
 	// the background, at most every 10 minutes).
 	DataSize int64 `json:"data_size"`
+	// Install is its install step by step, while it's being installed.
+	Install *InstallProgress `json:"install,omitempty"`
 }
 
 // Container is one of a service's containers.
@@ -69,6 +71,9 @@ const sizeTTL = 24 * time.Hour
 type sizes struct {
 	mu       sync.Mutex
 	services map[string]int64 // each service's data
+	// dirs is each folder counted (a service's data folder, a backup
+	// drive's repository), by path: what's on which disk (disk.go).
+	dirs map[string]int64
 	// backups and guests are the backup store's parts: the lab's own
 	// backups, and other labs'.
 	backups, guests int64
@@ -90,19 +95,6 @@ func (n *Local) dataSize(service string) int64 {
 	return size
 }
 
-// storeSize returns the backup store's counted sizes (-1 if not yet).
-func (n *Local) storeSize() (backups, guests int64, at time.Time) {
-	n.sizes.mu.Lock()
-	defer n.sizes.mu.Unlock()
-	if n.sizes.at.IsZero() || time.Since(n.sizes.at) > sizeTTL {
-		n.countSizesLocked()
-	}
-	if n.sizes.at.IsZero() {
-		return -1, -1, time.Time{}
-	}
-	return n.sizes.backups, n.sizes.guests, n.sizes.at
-}
-
 // CountSizes counts every size again, in the background (after the
 // nightly backup).
 func (n *Local) CountSizes() {
@@ -121,12 +113,29 @@ func (n *Local) countSizesLocked() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
 		_, services := n.Assigned()
-		counted := map[string]int64{}
+		counted, dirs := map[string]int64{}, map[string]int64{}
 		for _, s := range services {
-			if size, err := n.DataSize(ctx, s.Package.Name); err == nil {
-				counted[s.Package.Name] = size
+			// Each folder on its own: they may be on different disks.
+			var total int64
+			var err error
+			for _, d := range n.DataDirs(s.Name()) {
+				var size int64
+				if size, err = n.du(ctx, true, d); err != nil {
+					break
+				}
+				dirs[d], total = size, total+size
+			}
+			if err == nil {
+				counted[s.Name()] = total
 			} else if n.Log != nil {
-				n.Log.Warn("counting a service's data", "service", s.Package.Name, "err", err)
+				n.Log.Warn("counting a service's data", "service", s.Name(), "err", err)
+			}
+		}
+		for _, f := range n.folders() {
+			if f.role == "drive" {
+				if size, err := n.du(ctx, false, f.path); err == nil {
+					dirs[f.path] = size
+				}
 			}
 		}
 		dir := n.Lab.Paths.BackupStoreDir()
@@ -134,7 +143,7 @@ func (n *Local) countSizesLocked() {
 		all, err := n.du(ctx, false, dir)
 		n.sizes.mu.Lock()
 		defer n.sizes.mu.Unlock()
-		n.sizes.counting, n.sizes.at, n.sizes.services = false, time.Now(), counted
+		n.sizes.counting, n.sizes.at, n.sizes.services, n.sizes.dirs = false, time.Now(), counted, dirs
 		n.sizes.backups, n.sizes.guests = -1, -1
 		if err == nil && gerr == nil {
 			n.sizes.backups, n.sizes.guests = all-guests, guests
@@ -150,7 +159,7 @@ func (n *Local) ServiceDetails(ctx context.Context) (map[string]ServiceDetail, e
 	lab := n.lab(a)
 	out := map[string]ServiceDetail{}
 	for _, s := range a.Services {
-		name := s.Package.Name
+		name := s.Name()
 		d := ServiceDetail{Status: "unknown", DataDirs: n.DataDirs(name), DataSize: n.dataSize(name)}
 		gen, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
@@ -160,12 +169,30 @@ func (n *Local) ServiceDetails(ctx context.Context) (map[string]ServiceDetail, e
 		}
 		d.Ports = gen.HostPorts
 		states := map[string]string{}
+		notWritten := true
 		if n.Units != nil {
 			if units, err := n.Units.Status(ctx, gen.Units...); err == nil {
 				d.Status = Summarize(units)
 				for _, u := range units {
 					states[u.Unit] = unitState(u)
+					if u.LoadState != "not-found" {
+						notWritten = false
+					}
 				}
+			} else {
+				notWritten = false
+			}
+		}
+		// Installing: step by step, or waiting for its apply to begin (no
+		// units yet).
+		d.Install = n.installProgress(name)
+		if d.Install == nil && notWritten && n.Units != nil && len(gen.Units) > 0 {
+			d.Install = queuedInstall(!lab.IsNode() && n.caddyBuilding(ctx))
+		}
+		if d.Install != nil {
+			d.Status = "installing"
+			if d.Install.Failed != "" {
+				d.Status = "failed"
 			}
 		}
 		for _, q := range gen.Quadlets {
@@ -176,13 +203,20 @@ func (n *Local) ServiceDetails(ctx context.Context) (map[string]ServiceDetail, e
 			d.Containers = append(d.Containers, Container{Name: unit, Image: quadletValue(q.Content, "Image"),
 				State: states[unit+".service"]})
 		}
+		addr := "127.0.0.1"
+		if lab.IsNode() {
+			addr = lab.OverlayAddr
+		}
 		for i, host := range gen.Hosts {
 			if i < len(gen.Ports) {
-				addr := "127.0.0.1"
-				if lab.IsNode() {
-					addr = lab.OverlayAddr
-				}
 				d.Routes = append(d.Routes, host+" → "+addr+":"+itoa(gen.Ports[i]))
+			}
+		}
+		if !lab.HasAddress() {
+			// No address yet (SPEC.md §6.6): the routes' local ports, for
+			// an SSH tunnel meanwhile.
+			for _, port := range gen.Ports {
+				d.Routes = append(d.Routes, "no web address yet → "+addr+":"+itoa(port))
 			}
 		}
 		out[name] = d
@@ -216,7 +250,13 @@ func (n *Local) BuiltIns(ctx context.Context) ([]BuiltIn, error) {
 	sysUnit("Roostack", "roostack.service", "Runs this server's services, backups and updates"+n.versionText())
 	sysUnit("Roostack agent", "roostack-agent.service", "Does the few things that need root: firewall, WireGuard, OS updates, restarts")
 	if !n.Lab.IsNode() {
-		userUnit("Caddy", "proxy", generate.CaddyUnit+".service", "Web addresses and HTTPS certificates for the lab's services")
+		b := BuiltIn{Name: "Caddy", Kind: "proxy", Status: "unknown", Detail: "Web addresses and HTTPS certificates for the lab's services"}
+		if n.Units != nil {
+			if st, err := n.Units.Status(ctx, generate.CaddyUnit+".service", CaddyBuildUnit); err == nil && len(st) == 2 {
+				b.Status = caddyState(st[0], st[1])
+			}
+		}
+		out = append(out, b)
 	}
 	if a.Storage != nil {
 		userUnit("Backup store", "store", generate.StorageUnit+".service",
@@ -278,6 +318,21 @@ func (n *Local) versionText() string {
 		return ""
 	}
 	return " (version " + n.Version + ")"
+}
+
+// caddyState says what Caddy is doing, from its unit and its image's build
+// unit: building its image (minutes the first time), or waiting for the
+// domain step, whose DNS login its container needs, rather than "inactive".
+func caddyState(caddy, build systemd.UnitStatus) string {
+	switch {
+	case build.ActiveState == "activating":
+		return "building its image (the first time takes several minutes)"
+	case build.ActiveState == "failed":
+		return "its image didn't build"
+	case caddy.LoadState == "not-found":
+		return "waiting for your domain"
+	}
+	return unitState(caddy)
 }
 
 func unitState(u systemd.UnitStatus) string {

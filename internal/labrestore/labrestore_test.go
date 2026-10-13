@@ -80,12 +80,24 @@ func TestFindAndRestoreALab(t *testing.T) {
 	}
 	old := repoAt(key, filepath.Join(disk, "roostack", "lab-1", id.ID))
 	other := repoAt(wrong, filepath.Join(disk, "roostack", "lab-2", "n-9999999999"))
+	// Vaultwarden runs on this server; Photos on another (its data is in
+	// that server's backups).
+	write(t, filepath.Join(paths.InstancesDir(), "vaultwarden.yaml"), "package: vaultwarden\n")
+	write(t, filepath.Join(paths.InstancesDir(), "photos.yaml"), "package: photos\nhost: n-1111111111\n")
+	photos := filepath.Join(paths.ServicesDir, "photos")
+	write(t, filepath.Join(photos, "old.jpg"), "from before it moved")
 	for _, r := range []*backup.Repo{old, other} {
 		if err := r.Init(ctx); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := r.Backup(ctx, backup.BackupOptions{Paths: []string{paths.StateDir, service}, Tags: []string{"roostack"}}); err != nil {
-			t.Fatal(err)
+		for _, b := range []backup.BackupOptions{
+			{Paths: []string{paths.StateDir}, Tags: []string{backup.TagRoostack, backup.TagServer}},
+			{Paths: []string{service}, Tags: []string{backup.TagRoostack, backup.ServiceTag("vaultwarden")}},
+			{Paths: []string{photos}, Tags: []string{backup.TagRoostack, backup.ServiceTag("photos")}},
+		} {
+			if _, err := r.Backup(ctx, b); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 
@@ -122,8 +134,14 @@ func TestFindAndRestoreALab(t *testing.T) {
 	if got := read(t, filepath.Join(service, "data", "db.sqlite3")); got != "vaultwarden's passwords" {
 		t.Errorf("service data = %q", got)
 	}
+	if _, err := os.Stat(photos); !os.IsNotExist(err) {
+		t.Error("a service on another server was restored here")
+	}
 	if got, _ := nodeid.LoadOrCreate(paths.StateDir); got.ID != id.ID {
 		t.Errorf("the restored server is %s, want the old server's identity", got.ID)
+	}
+	if got := backup.ReadGeneration(paths); got != 1 {
+		t.Errorf("a restored lab is a newer generation: %d", got)
 	}
 	if got := read(t, backup.KeyFile(paths)); got != "the lab's recovery key\n" {
 		t.Errorf("the recovery key should become the backup key: %q", got)

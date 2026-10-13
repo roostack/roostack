@@ -56,7 +56,7 @@ func TestHubJoin(t *testing.T) {
 		t.Fatal("no network before the first join code")
 	}
 
-	code, err := h.NewJoinCode(ctx, "10.0.2.2:51820")
+	code, err := h.NewJoinCode(ctx, "10.0.2.2:51820", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestHubJoin(t *testing.T) {
 		t.Errorf("membership = %+v", m)
 	}
 	// A second code gets the next address.
-	if c2, _ := h.NewJoinCode(ctx, "10.0.2.2:51820"); c2.Addr.String() != "100.96.0.3" {
+	if c2, _ := h.NewJoinCode(ctx, "10.0.2.2:51820", ""); c2.Addr.String() != "100.96.0.3" {
 		t.Errorf("second code at %s", c2.Addr)
 	}
 
@@ -117,5 +117,83 @@ func TestHubJoin(t *testing.T) {
 	}
 	if slices.Contains(ag.peerKeys(), ownPub+" 100.96.0.2/32") {
 		t.Error("a removed server must lose its WireGuard peer")
+	}
+}
+
+// TestHubDials: with the controller unreachable, a code says it will dial
+// the new server; the hub dials it (with a keepalive) from the code on,
+// and keeps dialling it once it has joined.
+func TestHubDials(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "roostack.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ag := &fakeAgent{}
+	h := &Hub{StateDir: dir, LabName: "home", Self: nodeid.Identity{ID: "n-0000000001", Name: "nuc"}, Store: st, Agent: ag,
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: time.Now, SwitchDelay: time.Millisecond}
+	ctx := context.Background()
+	if _, err := h.NewJoinCode(ctx, "", ""); err == nil {
+		t.Error("a code with neither address")
+	}
+	code, err := h.NewJoinCode(ctx, "", "203.0.113.7:51820")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code.Endpoint != "" || !code.Listen {
+		t.Fatalf("code: endpoint %q, listen %v", code.Endpoint, code.Listen)
+	}
+	if _, err := ParseJoinCode(code.String()); err != nil {
+		t.Fatalf("parsing a dial-in code: %v", err)
+	}
+	dialled := func(key string) (agent.Peer, bool) {
+		ag.mu.Lock()
+		defer ag.mu.Unlock()
+		for _, p := range ag.last.Peers {
+			if p.PublicKey == key {
+				return p, true
+			}
+		}
+		return agent.Peer{}, false
+	}
+	joinPub, _ := agent.WireGuardPublicKey(code.JoinKey)
+	if p, ok := dialled(joinPub); !ok || p.Endpoint != "203.0.113.7:51820" || p.Keepalive != Keepalive {
+		t.Fatalf("the code's peer: %+v", p)
+	}
+
+	node := Identity{Dir: t.TempDir()}
+	csr, _ := node.CSR("n-0000000002")
+	ownKey, _ := agent.NewWireGuardKey()
+	ownPub, _ := agent.WireGuardPublicKey(ownKey)
+	if _, err := h.Join(ctx, JoinRequest{Token: code.Token, NodeID: "n-0000000002", Name: "vps", PublicKey: ownPub, CSR: csr}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if p, ok := dialled(ownPub); !ok || p.Endpoint != "203.0.113.7:51820" || p.Keepalive != Keepalive {
+		t.Errorf("the joined server's peer: %+v", p)
+	}
+	if peers, _ := h.Peers(ctx); peers["n-0000000002"].Dial != "203.0.113.7:51820" {
+		t.Errorf("peers: %+v", peers)
+	}
+}
+
+// TestJoinCodeEither: a code says where the controller is, or that it
+// will connect, never both or neither.
+func TestJoinCodeEither(t *testing.T) {
+	key, _ := agent.NewWireGuardKey()
+	pub, _ := agent.WireGuardPublicKey(key)
+	base := JoinCode{ControllerKey: pub, ControllerID: "n-0000000001", ControllerAddr: ControllerAddr,
+		Addr: ControllerAddr.Next(), PrefixBits: 24, JoinKey: key, CA: "ab", Token: "t"}
+	for _, c := range []struct {
+		endpoint string
+		listen   bool
+		ok       bool
+	}{{"10.0.2.2:51820", false, true}, {"", true, true}, {"", false, false}, {"10.0.2.2:51820", true, false}} {
+		code := base
+		code.Endpoint, code.Listen = c.endpoint, c.listen
+		if _, err := ParseJoinCode(code.String()); (err == nil) != c.ok {
+			t.Errorf("endpoint %q listen %v: %v", c.endpoint, c.listen, err)
+		}
 	}
 }

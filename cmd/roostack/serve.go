@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"flag"
@@ -15,19 +16,23 @@ import (
 	"syscall"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
-	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/labrestore"
+	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/podman"
 	"roostack.cloud/roostack/internal/public"
@@ -50,6 +55,9 @@ func serve(args []string) error {
 		return err
 	}
 	lab.HasGPU = config.DetectGPU()
+	// On a lab on the internet, an SSH tunnel's requests reach Caddy from
+	// this address, which private addresses allow (SPEC.md §6.12).
+	lab.HostIP = waitForNetwork(log)
 	id, err := withNode(&lab)
 	if err != nil {
 		return err
@@ -140,9 +148,35 @@ func serve(args []string) error {
 			return out
 		},
 		UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) },
-		Submit:    func(j maintenance.Job) { coord.Submit(j) }}
+		Submit:    func(j maintenance.Job) { coord.Submit(j) },
+		Settings:  st}
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
+	srv.UIHost = lab.UIHost()
+	// Roostack Cloud, unless it's turned off (SPEC.md §6.6): only the
+	// controller talks to it.
+	var link *cloud.Service
+	if !lab.Cloud.Disabled {
+		if link, err = cloud.New(lab.Paths.StateDir, lab.Cloud, version, lab.DisplayName, log); err != nil {
+			return err
+		}
+		srv.Cloud = link
+		// Roostack Cloud's relay as a way in (SPEC.md §10.5): its
+		// interface through the agent, its edges for Caddy and DNS.
+		link.WireGuard = agentClient
+		mgr.Relay = manager.Relay{Set: link.Relay, Stop: link.StopRelay, Edges: func() (relay, pub []string) {
+			for _, e := range link.RelayEdges() {
+				relay, pub = append(relay, e.Addr), append(pub, e.PublicIPv4)
+			}
+			return relay, pub
+		}}
+		// How the relay stands (the own domain's proof), every 5 minutes.
+		go link.RefreshRelay(ctx, 5*time.Minute)
+		// The lab's own CrowdSec bans, refused at the relay's edges too.
+		go link.SendBans(ctx, 5*time.Minute, func(ctx context.Context) ([]string, error) {
+			return public.CrowdSecBans(ctx, userLaunch, generate.CrowdSecUnit)
+		})
+	}
 	// Public access (SPEC.md §6.11): check links from a phone, and whether
 	// CrowdSec is up (the records wait for it).
 	crowdSecUp := func(ctx context.Context) bool {
@@ -153,11 +187,51 @@ func serve(args []string) error {
 		return web.RecordPublicCheck(context.Background(), st, host, at, from)
 	}}
 	srv.Protected = crowdSecUp
+	srv.Attacks = func(ctx context.Context, since time.Duration) (public.Attacks, error) {
+		return public.CrowdSecAttacks(ctx, userLaunch, generate.CrowdSecUnit, since)
+	}
 	// Roostack's network between servers (SPEC.md §10.2): this server is
 	// the hub others join.
 	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: lab.DisplayName(), Self: id, Store: st, Agent: agentClient,
-		Log: log, Now: time.Now, Started: restart}
+		Log: log, Now: time.Now, Started: restart,
+		Joined: func(ctx context.Context, id, name string) {
+			st.Audit(ctx, nil, web.AuditServerJoined, name)
+			// A new server keeps the lab's time zone (it can change it).
+			go mgr.MatchTimezone(context.WithoutCancel(ctx), id)
+		}}
+	if lab.Domain != "" {
+		hub.UI = "https://" + lab.UIHost()
+	}
 	hub.Start(ctx)
+	// A fresh server can join an existing lab from its first-run page
+	// (SPEC.md §10.2), as `roostack node join` does: undone if it fails,
+	// then Roostack restarts as part of the lab.
+	srv.JoinLab = func(ctx context.Context, code labnet.JoinCode, name string) (string, error) {
+		self, err := nodeid.LoadOrCreate(lab.Paths.StateDir)
+		if err != nil {
+			return "", err
+		}
+		self.Name = name
+		if err := self.Save(lab.Paths.StateDir); err != nil {
+			return "", err
+		}
+		say := func(format string, args ...any) { log.Info("joining a lab: " + fmt.Sprintf(format, args...)) }
+		if err := labnet.JoinLab(ctx, code, self, lab.Paths.StateDir, agentClient, say); err != nil {
+			// Undo it: the link, and anything saved for the lab.
+			if lerr := labnet.Leave(context.Background(), lab.Paths.StateDir, agentClient); lerr != nil {
+				log.Warn("undoing a failed join", "err", lerr)
+			}
+			return "", err
+		}
+		st.Audit(ctx, nil, "joined a lab", cmp.Or(code.LabName, code.Endpoint)+" as "+name)
+		go func() {
+			// The page goes out first. Not restart(): that waits for the setup
+			// wizard, which a server joining a lab never finishes.
+			time.Sleep(2 * time.Second)
+			restartNow()
+		}()
+		return code.Addr.String(), nil
+	}
 	srv.Network = hub
 	mgr.Registry = hub
 	// Storage for other labs (SPEC.md §10.10): this lab can keep other
@@ -166,7 +240,8 @@ func serve(args []string) error {
 	// storage; the controller keeps the records and answers guests (on
 	// that server's link, forwarded here when it's another server).
 	guestHub := &labnet.GuestHub{LabName: lab.DisplayName(), Store: st, Agent: mgr.GuestLinkAgent(), Log: log, Now: time.Now,
-		Usage: func(ctx context.Context, g store.Guest) (int64, error) { return mgr.GuestUsage(ctx, g.User()) }}
+		Usage:  func(ctx context.Context, g store.Guest) (int64, error) { return mgr.GuestUsage(ctx, g.User()) },
+		Joined: func(ctx context.Context, name string) { st.Audit(ctx, nil, web.AuditGuestJoined, name) }}
 	mgr.GuestHub, mgr.GuestRecords, mgr.LinkAgent = guestHub, st, agentClient
 	guestHub.Start(ctx)
 	go guestHub.ServeGuests(ctx)
@@ -208,7 +283,7 @@ func serve(args []string) error {
 		return ""
 	}
 	// Converge on startup, e.g. after Roostack itself was upgraded.
-	mgr.Apply()
+	mgr.ApplyBecause("Roostack started (after a restart or an update)")
 	// After a lab restore, the services' databases go back once they're set
 	// up again.
 	if r, ok := local.Jobs.Restores.(*backup.Restores); ok {
@@ -237,6 +312,40 @@ func serve(args []string) error {
 		return err
 	}
 	srv.Setup, srv.DNSProvider, srv.LabName = wiz, lab.DNS.Provider, lab.DisplayName()
+	// The previous address stops when its time is up (SPEC.md §6.6).
+	srv.OldAddress = lab.OldAddress
+	go wiz.RunOldAddress(ctx, log)
+	// A roost.ac name from Roostack Cloud becomes the lab's address, and
+	// goes with the link (SPEC.md §6.6).
+	if link != nil {
+		link.UseName = func(ctx context.Context, c cloudapi.NameClaim) error {
+			return wiz.UseRoostAc(ctx, c.Name, c.Credentials)
+		}
+		link.Dropped = func(ctx context.Context) {
+			if err := wiz.DropRoostAc(context.WithoutCancel(ctx)); err != nil {
+				log.Error("taking away the lab's roost.ac address", "err", err)
+			}
+		}
+		go link.Run(ctx)
+	}
+	// Email, through the lab's SMTP server (SPEC.md §6.13).
+	srv.Mail = &mail.Service{LabPath: *labPath, PasswordFile: lab.Paths.MailPasswordFile()}
+	go srv.RunNotifier(ctx)
+	// History older than the Owner's choice goes, on every server (SPEC.md §6.14).
+	go srv.RunHistoryCull(ctx)
+	// Direct links between servers that don't connect fall back to the
+	// controller (SPEC.md §10.10).
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Minute):
+				mgr.CheckLinks(ctx)
+			}
+		}
+	}()
+	srv.DetectNetwork = public.DetectNetwork
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
 	// A new install can instead become a lab restored from its backups.
 	if token != "" {
@@ -252,9 +361,50 @@ func serve(args []string) error {
 			LocalLookup: dnsrecords.SystemLookup, PublicLookup: dnsrecords.PublicLookup,
 			Wait:      90 * time.Second,
 			UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) },
-			// Public addresses point at the home's public address (port
-			// forwarding, the only entry so far), once CrowdSec is up.
-			PublicHosts: mgr.PublicHosts, Entry: public.PortForwarding{}, Protected: crowdSecUp,
+			// Public addresses point at the lab's edge, if it has one
+			// (SPEC.md §10.5), else the home's public address (port
+			// forwarding), once CrowdSec is up.
+			PublicHosts: mgr.PublicHosts, Protected: crowdSecUp,
+			Entry: public.Chosen{Home: public.PortForwarding{}, Edge: func(ctx context.Context) (public.Edge, bool) {
+				if mgr.RelayOn() && mgr.Relay.Edges != nil {
+					// Cloud points relayed names at its edges itself.
+					_, pub := mgr.Relay.Edges()
+					return public.Edge{Name: "Roostack Cloud", Addr: cmp.Or(append(pub, "")...)}, true
+				}
+				e, ok := mgr.Edge(ctx)
+				return public.Edge{Name: cmp.Or(e.Name, e.ID), Addr: e.Address}, ok
+			}},
+			// link.<domain>, once chosen for joining or storage for others.
+			LinkWanted: func() bool { v, _ := st.Setting(context.Background(), web.LinkWantedKey); return v == "on" },
+			// Another copy of this lab runs it now: leave its records alone.
+			Paused: func() bool { v, _ := st.Setting(context.Background(), backup.FenceKey); return v != "" },
+			// The lab's own domain relayed through Roostack Cloud: public
+			// addresses are CNAMEs to its relay name, with the proof's TXT.
+			Relay: func() (dnsrecords.Relayed, bool) {
+				if link == nil || !mgr.RelayOn() || lab.RoostAc() {
+					return dnsrecords.Relayed{}, false
+				}
+				name, d := link.RelayName()
+				r := dnsrecords.Relayed{Name: name}
+				if d != nil {
+					r.ProofName, r.ProofValue = d.ProofName, d.ProofValue
+				}
+				return r, name != ""
+			},
+			// The proof is in place: have Cloud look for it now, while
+			// it hasn't found it (it asks no more often than every 5 s).
+			ProofSet: func() {
+				if link == nil {
+					return
+				}
+				if _, d := link.RelayName(); d != nil && (!d.Verified || d.Missing) {
+					go func() {
+						if err := mgr.CheckRelay(context.Background()); err != nil {
+							log.Warn("asking Roostack Cloud to look for the domain's proof", "err", err)
+						}
+					}()
+				}
+			},
 		}
 		go records.Run(ctx, 30*time.Minute)
 		srv.DNS = records
@@ -299,7 +449,7 @@ func setupToken(ctx context.Context, lab config.Lab, st *store.Store, log *slog.
 		log.Info("waiting for first-run setup", "setup_code", token, "file", path)
 		return token, nil
 	}
-	token, err := auth.NewToken()
+	token, err := authkit.NewToken()
 	if err != nil {
 		return "", err
 	}
@@ -321,13 +471,20 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 	infos := mgr.ServiceInfos(ctx)
 	var views []web.ServiceView
 	for _, s := range all {
-		v := web.ServiceView{Name: s.Package.Name, Title: s.Package.Title, Status: "unknown"}
-		if info, ok := infos[s.Package.Name]; ok {
+		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Status: "unknown"}
+		if info, ok := infos[s.Name()]; ok {
 			v.ServiceDetail, v.Status, v.Server, v.LastBackup = info.ServiceDetail, info.Status, info.Server, info.LastBackup
+		}
+		if s.Instance.Waiting {
+			// Its server is gone: it runs nowhere until restored (SPEC.md §10.10).
+			v.Status, v.Server = web.StatusWaiting, ""
+			if n := mgr.NodeByID(s.Instance.Host); n != nil {
+				v.WasOn = n.Identity().Name
+			}
 		}
 		out, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {
-			log.Error("generating service for status", "service", s.Package.Name, "err", err)
+			log.Error("generating service for status", "service", s.Name(), "err", err)
 			v.Status = "failed"
 			views = append(views, v)
 			continue
@@ -335,6 +492,7 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 		for _, h := range out.Hosts {
 			v.URLs = append(v.URLs, "https://"+h)
 		}
+		v.NoAddress = !lab.HasAddress() && len(s.Package.Routes) > 0
 		views = append(views, v)
 	}
 	return views, nil
@@ -438,6 +596,28 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 			}
 		}
 	}()
+	// Failed backups are tried again (backup/retry.go).
+	go svc.WatchRetries(ctx)
+	// A night the server was off is caught up: a while after starting
+	// (once the services have), then hourly (SPEC.md §6.9).
+	go func() {
+		wait := catchUpDelay
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(wait):
+			}
+			wait = time.Hour
+			queued, err := svc.CatchUp(ctx)
+			switch {
+			case err != nil:
+				log.Warn("catching up a missed backup", "err", err)
+			case queued:
+				log.Info("catching up a missed backup: none for over a day")
+			}
+		}
+	}()
 	if svc.Configured() {
 		go maintenance.Every(ctx,
 			func(now time.Time) time.Time {
@@ -449,6 +629,10 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 	return jobs, coord, nil
 }
 
+// catchUpDelay is how long after starting Roostack checks for a missed
+// nightly backup.
+const catchUpDelay = 10 * time.Minute
+
 // lookupService generates an installed service's output (e.g. to restore
 // it), with its title.
 func lookupService(services serverServices, name string) (*generate.Output, string, error) {
@@ -457,10 +641,37 @@ func lookupService(services serverServices, name string) (*generate.Output, stri
 		return nil, "", err
 	}
 	for _, s := range list {
-		if s.Package.Name == name {
+		if s.Name() == name {
 			out, err := generate.Service(lab, s.Package, s.Instance)
-			return out, s.Package.Title, err
+			return out, s.Title(), err
 		}
 	}
 	return nil, "", fmt.Errorf("%s is not installed", name)
+}
+
+// waitForNetwork waits, up to a minute, until this server has a route to
+// the internet, and returns the address it uses (lab.HostIP). At boot,
+// network-online.target can come before the network is usable: on
+// Linode's Debian image, before DHCP has given the server its address.
+// Starting then made the first apply and the DNS check fail ("network is
+// unreachable"), and Caddy's private addresses miss this server's own
+// (docs/ASSUMPTIONS.md C11).
+func waitForNetwork(log *slog.Logger) string {
+	for i := 0; ; i++ {
+		ip, err := dnsrecords.DetectLANIP()
+		if err == nil {
+			if i > 0 {
+				log.Info("the network is up", "waited", fmt.Sprintf("%ds", i))
+			}
+			return ip
+		}
+		if i == 60 {
+			log.Warn("no network after a minute; carrying on", "err", err)
+			return ""
+		}
+		if i == 0 {
+			log.Info("waiting for the network", "err", err)
+		}
+		time.Sleep(time.Second)
+	}
 }

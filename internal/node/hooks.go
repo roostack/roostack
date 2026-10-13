@@ -150,18 +150,22 @@ func (n *Local) runPendingHooks(ctx context.Context) {
 	services := n.assignment.Services
 	n.mu.Unlock()
 	for _, s := range services {
-		name := s.Package.Name
+		name := s.Name()
 		if v, err := n.State.Setting(ctx, hookKey(name)); err != nil || v != hookPending {
 			continue
 		}
 		n.setHooksRunning(name, true)
+		n.installStep(name, stageSetup, false)
 		err := n.runInstallHooks(ctx, s)
 		n.setHooksRunning(name, false)
 		if err != nil {
 			n.Log.Error("install hooks failed", "service", name, "err", err)
 			n.State.SetSetting(ctx, hookKey(name), hookFailed+err.Error())
+			// The service page's "Setup didn't finish" takes over.
+			n.dropInstall(name)
 			continue
 		}
+		n.installStep(name, stageSetup, true)
 		n.Log.Info("install hooks done", "service", name)
 		n.State.SetSetting(ctx, hookKey(name), hookDone)
 		// Forget values only the install needed (e.g. the admin password).
@@ -197,11 +201,15 @@ func (n *Local) runInstallHooks(ctx context.Context, s state.Service) (err error
 	}
 	ctx, cancel := context.WithTimeout(ctx, deadline)
 	defer cancel()
-	act := n.Activity.Start(activity.Setup, "Setting up "+s.Package.Title)
+	act := n.Activity.Start(activity.Setup, "Setting up "+s.Title())
 	defer func() { act.Finish(err) }()
 	hooks := s.Package.HooksOn(pkgspec.HookInstall)
 	for i, h := range hooks {
-		act.Step("Setup step %d of %d (for example, creating the administrator account)", i+1, len(hooks))
+		if h.Title != "" {
+			act.Step("Setup step %d of %d: %s", i+1, len(hooks), lowerFirst(h.Title))
+		} else {
+			act.Step("Setup step %d of %d", i+1, len(hooks))
+		}
 		run, err := generate.Hook(n.currentLab(), s.Package, s.Instance, h, nil)
 		if err != nil {
 			return err
@@ -216,10 +224,10 @@ func (n *Local) runInstallHooks(ctx context.Context, s state.Service) (err error
 			if err == nil {
 				break
 			}
-			act.Printf("%v. %s may still be starting; trying again in %s.", err, s.Package.Title, retry)
+			act.Printf("%v. %s may still be starting; trying again in %s.", err, s.Title(), retry)
 			select {
 			case <-ctx.Done():
-				return fmt.Errorf("%s didn't finish setting up: %s", s.Package.Title, lastLines(out, err))
+				return fmt.Errorf("%s didn't finish setting up: %s", s.Title(), lastLines(out, err))
 			case <-time.After(retry):
 			}
 		}

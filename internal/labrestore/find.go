@@ -147,7 +147,7 @@ func describe(err error) string {
 // the server that made it.
 func (f *Finder) open(ctx context.Context, url string, env []string) (*Found, error) {
 	repo := f.OpenRepo(url, env)
-	snaps, err := repo.Snapshots(ctx, "roostack")
+	snaps, err := repo.Snapshots(ctx, backup.TagRoostack, backup.TagServer)
 	if err != nil {
 		return nil, err
 	}

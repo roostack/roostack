@@ -7,7 +7,15 @@
     {{if .CanManage}}<a class="button" href="/catalog">Add a service</a>{{end}}
   </div>
   {{if .CanManage}}<p class="hint">{{if .ShowBuiltIn}}<a href="/services">Hide Roostack's own services</a>
-    {{- else}}<a href="/services?builtin=1">Show Roostack's own services</a> (web proxy, backup stores, Roostack itself, network links){{end}}</p>{{end}}
+    {{- else}}<a href="/services?builtin=1">Show Roostack's own services</a> (web proxy, backup stores, Roostack itself, network links){{end}}
+    {{- if .Relayed}} · <a href="/visitors">Visitors through the relay</a>{{end}}</p>{{end}}
+  {{with .BuildActivity}}
+  <section class="card section">
+    <h2>Roostack's web proxy</h2>
+    <p class="hint">The web proxy (Caddy) gives your services their web addresses. Services you add start once it's ready.</p>
+    {{activity .}}
+  </section>
+  {{end}}
   <div hx-get="/partials/services{{if .ShowBuiltIn}}?builtin=1{{end}}" hx-trigger="every 10s [document.visibilityState === 'visible'], visibilitychange[document.visibilityState === 'visible'] from:document, activity-done from:body" hx-swap="innerHTML">
     {{template "services-live" .}}
   </div>
@@ -32,10 +40,15 @@
     <div class="service-head">
       <div>
         <h2>{{if $.CanManage}}<a href="/services/{{.Name}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</h2>
-        {{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a>{{end}}
+        {{if .Install}}{{range .URLs}}<span class="address-pending">{{.}}</span>{{end}}{{template "install-line" .}}
+        {{- else if .NoAddress}}<p class="address-waiting">{{template "address-waiting" $}}</p>
+        {{- else}}{{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a>{{end}}{{end}}
         {{template "service-summary" .}}
       </div>
-      {{status .Status}}
+      <div class="service-actions">
+        {{status .Status}}
+        {{if $.CanManage}}<a class="button secondary with-icon" href="/services/{{.Name}}">{{icon "manage"}}Manage</a>{{end}}
+      </div>
     </div>
     {{if $.CanManage}}{{template "service-details" .}}{{end}}
   </li>

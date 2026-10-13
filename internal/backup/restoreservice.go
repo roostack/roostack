@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 
 	"roostack.cloud/roostack/internal/activity"
@@ -30,15 +31,15 @@ type Restores struct {
 
 // Snapshots lists the backups that contain a service's data, newest first.
 func (r *Restores) Snapshots(ctx context.Context, name string) ([]Snapshot, error) {
-	svc, _, err := r.Lookup(name)
+	if _, _, err := r.Lookup(name); err != nil {
+		return nil, err
+	}
+	snaps, err := r.Repo.Snapshots(ctx, TagRoostack, ServiceTag(name))
 	if err != nil {
 		return nil, err
 	}
-	snaps, err := r.Repo.Snapshots(ctx, "roostack")
-	if err != nil {
-		return nil, err
-	}
-	return SnapshotsFor(snaps, svc), nil
+	slices.SortFunc(snaps, func(a, b Snapshot) int { return b.Time.Compare(a.Time) })
+	return snaps, nil
 }
 
 // Pending reports whether a restore is queued or running.

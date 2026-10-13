@@ -11,6 +11,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -30,7 +31,15 @@ var subdomainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
 
 // Instance is the user's desired state for one installed service.
 type Instance struct {
+	// Name is the service's ID: its units, secrets, data folders, backups
+	// and address in the UI are named after it, and it never changes. Empty
+	// is the package's name (the first copy of a package). A second copy
+	// has a name of its own, e.g. forgejo-work (SPEC.md §8.2).
+	Name    string `yaml:"name,omitempty"`
 	Package string `yaml:"package"`
+	// Title is what people call it ("Forgejo (work)"); empty is the
+	// package's title.
+	Title string `yaml:"title,omitempty"`
 	// Host is the node the service runs on (SPEC.md §10.4). Always set
 	// explicitly (state.AssignHosts), so moving the controller can never
 	// move services with it by accident.
@@ -40,6 +49,10 @@ type Instance struct {
 	Ports    map[string]PortOverride  `yaml:"ports,omitempty"`
 	Settings map[string]any           `yaml:"settings,omitempty"`
 	Updates  string                   `yaml:"updates"`
+	// Waiting: its server (Host) is gone and it waits to be restored from
+	// its backups, onto any server. It runs nowhere until then (SPEC.md
+	// §10.10, "Restoring across the lab").
+	Waiting bool `yaml:"waiting,omitempty"`
 }
 
 // RouteOverride holds user changes to a package route. Empty fields keep the
@@ -62,6 +75,27 @@ type PortOverride struct {
 	Enabled  *bool  `yaml:"enabled,omitempty"`
 	HostPort int    `yaml:"host_port,omitempty"`
 	Exposure string `yaml:"exposure,omitempty"`
+}
+
+// ID is the service's name: Name, or the package's for its first copy.
+func (in *Instance) ID() string {
+	if in.Name != "" {
+		return in.Name
+	}
+	return in.Package
+}
+
+// MaxName is the longest a service's ID can be.
+const MaxName = 40
+
+var nameRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
+// ValidName reports whether name can be a service's ID: it ends up in
+// unit, secret and folder names, and URLs. An ID is also its package's
+// name, or that and a dash and more (Validate), so names say what they
+// are and a package's own name is always free for its first copy.
+func ValidName(name string) bool {
+	return len(name) <= MaxName && nameRe.MatchString(name) && !strings.HasSuffix(name, "-") && !strings.Contains(name, "--")
 }
 
 // Save writes an instance file atomically. Comments in a hand-edited file
@@ -123,6 +157,10 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 
 	if in.Package != p.Name {
 		add("package: instance is for %q but package is %q", in.Package, p.Name)
+	}
+	if in.Name != "" && (!ValidName(in.Name) || (in.Name != p.Name && !strings.HasPrefix(in.Name, p.Name+"-"))) {
+		add("name: %q must be %q, or start with %q and go on with lowercase letters, digits and dashes (up to %d in all)",
+			in.Name, p.Name, p.Name+"-", MaxName)
 	}
 	if in.Version != p.Version {
 		add("version: instance wants %q but package is %q", in.Version, p.Version)

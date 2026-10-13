@@ -18,10 +18,12 @@ import (
 // easy to inspect:
 //   - roostack: the network between a lab's servers (SPEC.md §10.2);
 //   - roostack-guests: other labs that store backups here (§10.10);
-//   - roostack-st1…9: this lab's links to other labs' storage.
+//   - roostack-st1…9: this lab's links to other labs' storage;
+//   - roostack-relay: Roostack Cloud's relay, dialled by the lab (§10.5).
 const (
 	WireGuardInterface = "roostack"
 	GuestsInterface    = "roostack-guests"
+	RelayInterface     = "roostack-relay"
 	WireGuardPort      = 51820
 	GuestsPort         = 51821
 )
@@ -35,17 +37,25 @@ var OverlayRange = netip.MustParsePrefix("100.96.0.0/16")
 // with links to several can tell them apart.
 var GuestRange = netip.MustParsePrefix("100.100.0.0/14")
 
+// RelayRange is Roostack Cloud's relay network (its edges and the labs it
+// relays), given by Cloud. Inside 100.64.0.0/10 like the others, so the
+// firewall lets only TCP 443 in from its interface (Firewall.Ruleset).
+var RelayRange = netip.MustParsePrefix("100.81.0.0/16")
+
 var storeLink = regexp.MustCompile(`^roostack-st[1-9]$`)
 
 // ValidInterface reports whether name is one of Roostack's interfaces.
 func ValidInterface(name string) bool {
-	return name == WireGuardInterface || name == GuestsInterface || storeLink.MatchString(name)
+	return name == WireGuardInterface || name == GuestsInterface || name == RelayInterface || storeLink.MatchString(name)
 }
 
 // rangeFor is the address range an interface's addresses must be in.
 func rangeFor(iface string) netip.Prefix {
-	if iface == WireGuardInterface {
+	switch iface {
+	case WireGuardInterface:
 		return OverlayRange
+	case RelayInterface:
+		return RelayRange
 	}
 	return GuestRange
 }
@@ -78,6 +88,10 @@ type WireGuard struct {
 	// only if the interface has no key yet, so a lab restored onto a new
 	// server keeps the keys its peers know.
 	SavedKey string `json:"saved_key,omitempty"`
+	// Forward turns on forwarding for packets arriving on this interface
+	// (the hub's, between servers; only on Roostack's network). The
+	// firewall's forward chain decides what may pass.
+	Forward bool `json:"forward,omitempty"`
 }
 
 // Peer is another server.
@@ -98,6 +112,8 @@ type WireGuardStatus struct {
 	// Handshakes is when each peer (by public key) last connected, as a
 	// Unix time (0: never).
 	Handshakes map[string]int64 `json:"handshakes,omitempty"`
+	// Endpoints is where each peer last connected from (host:port).
+	Endpoints map[string]string `json:"endpoints,omitempty"`
 }
 
 // Iface is the interface's name.
@@ -134,6 +150,9 @@ func (wg WireGuard) Validate() error {
 	allowed := rangeFor(wg.Iface())
 	if p, err := netip.ParsePrefix(wg.Address); err != nil || !allowed.Contains(p.Addr()) || p.Bits() < allowed.Bits() {
 		errs = append(errs, fmt.Errorf("address %q must be inside %s", wg.Address, allowed))
+	}
+	if wg.Forward && wg.Iface() != WireGuardInterface {
+		errs = append(errs, errors.New("only Roostack's network forwards"))
 	}
 	if wg.ListenPort < 0 || wg.ListenPort > 65535 {
 		errs = append(errs, fmt.Errorf("invalid listen port %d", wg.ListenPort))
@@ -185,6 +204,10 @@ func (wg WireGuard) Config(privateKey string) string {
 	fmt.Fprintf(&b, "PrivateKey = %s\nAddress = %s\n", privateKey, wg.Address)
 	if wg.ListenPort != 0 {
 		fmt.Fprintf(&b, "ListenPort = %d\n", wg.ListenPort)
+	}
+	if wg.Forward {
+		// This interface only, not the whole machine (and again at boot).
+		b.WriteString("PostUp = echo 1 > /proc/sys/net/ipv4/conf/%i/forwarding\n")
 	}
 	for _, p := range wg.Peers {
 		fmt.Fprintf(&b, "\n[Peer]\nPublicKey = %s\nAllowedIPs = %s\n", p.PublicKey, strings.Join(p.AllowedIPs, ", "))
@@ -271,4 +294,123 @@ func WireGuardKeys() (map[string]string, error) {
 		}
 	}
 	return keys, nil
+}
+
+// Links are a server's direct links to other servers on Roostack's
+// network, for backups to their disks (SPEC.md §10.10). They're set apart
+// from its link to the controller: in the interface's file each is marked
+// with LinkMarker, and only marked peers change.
+type Links struct {
+	// Listen: other servers dial this one directly, on WireGuardPort.
+	Listen bool   `json:"listen"`
+	Peers  []Peer `json:"peers"`
+}
+
+// LinkMarker comes before each direct link's [Peer] section.
+const LinkMarker = "# roostack link"
+
+// Validate checks the request: each link is one other server (a single
+// address on Roostack's network).
+func (l Links) Validate() error {
+	var errs []error
+	lab := rangeFor(WireGuardInterface)
+	seen := map[string]bool{}
+	for i, p := range l.Peers {
+		if _, err := parseKey(p.PublicKey); err != nil {
+			errs = append(errs, fmt.Errorf("peers[%d]: public key: %w", i, err))
+		}
+		if seen[p.PublicKey] {
+			errs = append(errs, fmt.Errorf("peers[%d]: listed twice", i))
+		}
+		seen[p.PublicKey] = true
+		if len(p.AllowedIPs) != 1 {
+			errs = append(errs, fmt.Errorf("peers[%d]: a link is one server's address", i))
+		}
+		for _, a := range p.AllowedIPs {
+			if pr, err := netip.ParsePrefix(a); err != nil || !lab.Contains(pr.Addr()) || pr.Bits() != 32 {
+				errs = append(errs, fmt.Errorf("peers[%d]: allowed IP %q must be one address inside %s", i, a, lab))
+			}
+		}
+		if p.Endpoint != "" {
+			host, port, ok := strings.Cut(p.Endpoint, ":")
+			n, err := strconv.Atoi(port)
+			if !ok || err != nil || n < 1 || n > 65535 || !endpointHost.MatchString(host) {
+				errs = append(errs, fmt.Errorf("peers[%d]: endpoint %q must be host:port", i, p.Endpoint))
+			}
+		}
+		if p.Keepalive < 0 || p.Keepalive > 3600 {
+			errs = append(errs, fmt.Errorf("peers[%d]: invalid keepalive", i))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// withLinks rewrites a wg-quick file with these links: the marked peers
+// are replaced, everything else stays as it was, and ListenPort is set (or
+// removed) as asked. A link may not reuse the key of a peer that isn't
+// one (the link to the controller).
+func (l Links) apply(conf string) (string, error) {
+	var keep []string // sections, as text
+	var section []string
+	marked := false
+	flush := func() {
+		if len(section) > 0 && !marked {
+			keep = append(keep, strings.Join(section, "\n"))
+		}
+		section, marked = nil, false
+	}
+	pending := false // the marker line was just seen
+	for _, line := range strings.Split(conf, "\n") {
+		t := strings.TrimSpace(line)
+		switch {
+		case t == LinkMarker:
+			flush()
+			pending = true
+			continue
+		case strings.HasPrefix(t, "["):
+			if !pending {
+				flush()
+			}
+			marked, pending = pending, false
+		}
+		if strings.HasPrefix(t, "ListenPort") && strings.Contains(t, "=") {
+			continue
+		}
+		section = append(section, line)
+	}
+	flush()
+	out := strings.TrimRight(strings.Join(keep, "\n"), "\n")
+	for _, p := range l.Peers {
+		if strings.Contains(out, "PublicKey = "+p.PublicKey) {
+			return "", errors.New("a link can't take over another peer's key")
+		}
+	}
+	if l.Listen {
+		out = strings.Replace(out, "[Interface]\n", fmt.Sprintf("[Interface]\nListenPort = %d\n", WireGuardPort), 1)
+	}
+	var b strings.Builder
+	b.WriteString(out + "\n")
+	for _, p := range l.Peers {
+		fmt.Fprintf(&b, "\n%s\n[Peer]\nPublicKey = %s\nAllowedIPs = %s\n", LinkMarker, p.PublicKey, strings.Join(p.AllowedIPs, ", "))
+		if p.Endpoint != "" {
+			fmt.Fprintf(&b, "Endpoint = %s\n", p.Endpoint)
+		}
+		if p.Keepalive != 0 {
+			fmt.Fprintf(&b, "PersistentKeepalive = %d\n", p.Keepalive)
+		}
+	}
+	return b.String(), nil
+}
+
+// parseEndpoints reads `wg show <iface> endpoints`: where each peer last
+// connected from (host:port), by public key.
+func parseEndpoints(out string) map[string]string {
+	eps := map[string]string{}
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) == 2 && f[1] != "(none)" {
+			eps[f[0]] = f[1]
+		}
+	}
+	return eps
 }

@@ -27,6 +27,15 @@ func TestDesired(t *testing.T) {
 	if !slices.Contains(fw.Allow, want) || fw.Validate() != nil {
 		t.Errorf("package port rule missing or invalid: %+v", fw.Allow)
 	}
+	if len(fw.Forward) != 0 {
+		t.Error("forwarding only on the hub")
+	}
+	// The hub forwards backups to another server's store, nothing else.
+	lab.OverlayAddr = "100.96.0.1"
+	fw, _ = Desired(lab, nil)
+	if len(fw.Forward) != 1 || fw.Forward[0].Port != generate.StoragePort || fw.Validate() != nil {
+		t.Errorf("hub forward = %+v", fw.Forward)
+	}
 }
 
 func TestSSHClients(t *testing.T) {

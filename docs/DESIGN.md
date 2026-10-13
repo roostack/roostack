@@ -20,7 +20,7 @@ Every page is built from the tokens and components here. The gallery shows them 
 | `internal/web/themes.go` | The list of built-in themes (names shown to users) |
 | `internal/web/static/css/app.css` | Base styles, components and page layouts. Uses purpose tokens and scales only |
 | `internal/web/static/css/gallery.css` | Styles for the gallery page itself |
-| `internal/web/templates/components.html` | Templates of components with shared markup (notice, status, badge, server, back, confirm, activity) |
+| `internal/web/templates/components.html` | Templates of components with shared markup (notice, status, badge, server, back, confirm, activity, install steps) |
 | `internal/web/icons.go` | The icons (`icon NAME`), drawn for Roostack |
 | `internal/web/static/app.js` | Roostack's own small script for self-refreshing parts: sends the fingerprint of what a part shows (the server answers 204 when it's unchanged, `renderLive`), and keeps open `<details>` (with an `id`) open when a part does change. Give a `<details>` inside a refreshing area a stable `id`; poll with `every Ns [document.visibilityState === 'visible'], visibilitychange[document.visibilityState === 'visible'] from:document` and render the part with `renderLive` |
 | `internal/web/components.go` | The functions pages call for those components; they check their arguments |
@@ -42,8 +42,10 @@ Purpose colours:
 | `--fg`, `--muted` | Text, secondary text |
 | `--border`, `--border-strong` | Borders, input borders |
 | `--accent`, `--accent-fg`, `--accent-soft` | Actions and links; text on accent; info backgrounds |
-| `--highlight`, `--highlight-fg`, `--highlight-soft` | The brand's spark: the logo mark, where you are (current page), focus rings, "New" badges. Use sparingly |
+| `--highlight`, `--highlight-fg`, `--highlight-soft` | The brand's spark: the brand mark (its comb on a soft-highlight tile), where you are (current page), focus rings, "New" badges. Use sparingly |
 | `--ok`, `--warn`, `--bad` (+ `-bg`, and `--bad-fg`) | Status. Roostack's own themes share them, so a problem always looks like a problem; a palette may override them (`--pal-ok-l`…), as Catppuccin does |
+| `--chart-1`, `--chart-2`, `--chart-3` | Chart colours for parts of a whole (the disk bar): blue, magenta, violet, in that order. The same in every theme (themes' accent and highlight are often close hues), with light and dark steps, checked with the dataviz validator against every theme's surface. Never orange, yellow, red or green (status), and always with a label beside the colour |
+| `--ok-on-fg` | The status green that shows on a text-coloured shape: the brand mark's online light on its server. It's the other mode's green; a palette may set its own (`--pal-ok-on-fg-l`/`-d`), as Everforest does. Not for text |
 
 Never use raw colours (`#…`) or palette variables (`--pal-…`) in `app.css` or templates.
 
@@ -65,7 +67,7 @@ Never use raw colours (`#…`) or palette variables (`--pal-…`) in `app.css` o
 | Rosé Pine | Dawn / Moon | Pine / rose (Roostack status colours) | [Rosé Pine](https://rosepinetheme.com) (MIT) |
 | Tokyo Night | Day / Night | Blue / magenta | [Tokyo Night](https://github.com/folke/tokyonight.nvim) (Apache 2.0) |
 
-Theme files use plain hex colours, and `TestThemesAreReadable` checks every theme in both modes against WCAG contrast: text and muted text on every surface and on notice tints (4.5:1), links (4.5:1), text on buttons (4.5:1), status text on its tint and on cards (4.5:1), and the highlight (3:1, it isn't text). Where a project's own colour is too faint for UI text on its own background (common in light variants), it's nudged just far enough to pass, keeping its hue; each file lists what was adjusted.
+Theme files use plain hex colours, and `TestThemesAreReadable` checks every theme in both modes against WCAG contrast: text and muted text on every surface and on notice tints (4.5:1), links (4.5:1), text on buttons (4.5:1), status text on its tint and on cards (4.5:1), the highlight (3:1, it isn't text), and the brand mark's online light on the text colour (3:1). Where a project's own colour is too faint for UI text on its own background (common in light variants), it's nudged just far enough to pass, keeping its hue; each file lists what was adjusted.
 
 Catppuccin's flavours only differ in how dark they are, so Roostack offers one Catppuccin theme (Latte and Mocha) rather than several near-identical ones. Its identity is its named accent colours instead: users pick one for buttons and links (12 of Catppuccin's 14; red and maroon are left out because red buttons mean "danger" in Roostack), and the highlight pairs with it (pink for cool accents, mauve for warm). Latte's pastels are darkened as needed to be readable as text on Latte's pale backgrounds; Mocha's are used as they are.
 
@@ -90,21 +92,33 @@ Template components are called as functions; everything else is plain HTML with 
 |---|---|---|
 | Buttons | `<button>` (primary), `.secondary`, `.danger`, `.quiet` (looks like a link), `.quiet.danger`; `<a class="button">` for navigation | One primary per form or card |
 | Confirm | `{{confirm ACTION QUESTION TEXT KIND ["name=value"…]}}` | For anything hard to undo. KIND is the button class (`danger`, `secondary`, `quiet`, `""`); trailing `name=value` are hidden fields. The question goes through a data attribute, never into script |
+| Confirm a form | `{{confirmSubmit QUESTION TEXT KIND}}` inside a form | For a form with fields of its own (checkboxes, choices); its required fields are checked before the dialog opens. KIND is the dialog button's class (`danger` or `""`) |
 | Notice | `{{notice KIND TEXT ["link=…" "linkText=…"]}}` | KIND: `info`, `ok`, `warn`, `error` |
-| Status | `{{status .Status}}` | Service state |
+| Status | `{{status .Status}}` | Service state; `installing` gets a spinner |
+| Install steps | `{{template "install-steps" .Service.Install}}` in a notice; `{{template "install-line" .}}` (a ServiceView) in lists | A new service's install (`node.InstallProgress`): `ol.install-steps` with `li.step-done` / `step-now` / `step-todo`, time taken or "for …" so far. `.address-pending` shows an address that isn't a link yet |
 | Badge | `{{badge "New" ["highlight"]}}` | Highlight badges are rare |
 | Back link | `{{back "/settings" "Settings"}}` | |
-| Top bar | `layout.html`: `.brand` with `.brand-mark`; once the lab has a name, `.brand-stack` (a small uppercase `.brand-eyebrow` "Roostack" over `.brand-lab`) | The lab's name is the title, so people know whose lab it is; long names end in "…" (full name on hover) |
+| Brand mark | `{{brandMark}}` | Roostack's small mark (the hen on a server), in the theme's colours through the `bm-*` classes in `app.css`. Generated into `brandmark.go` by `assets/brand/generate.py`: change it there, not by hand. Decorative; the name beside it says what it is |
+| Top bar | `layout.html`: `.brand` with `{{brandMark}}`; once the lab has a name, `.brand-stack` (a small uppercase `.brand-eyebrow` "Roostack" over `.brand-lab`) | The lab's name is the title, so people know whose lab it is; long names end in "…" (full name on hover) |
 | Page help | `<div class="page-top">{{back …}}{{help "settings/people" "People and access"}}</div>` above the page title | Every page with a help page: a question-mark icon and the help page's title, top right, opening in a new window; the back link or setup step sits on its left. `TestHelpLinks` checks each page and #section exists in `help/docs` |
 | New window | `<a href="…" target="_blank" rel="noopener">Text{{template "new-window"}}</a>` | Every link that opens a new window (the help, the design system, services, other sites): an icon after the text, and "(opens in a new window)" for screen readers. `TestNewWindowLinks` checks every such link has it |
 | Card | `.card`, with a `.heading` row for title plus link | One topic per card |
+| Area heading | `<h2 class="area-heading">` between cards | A page with groups of cards: Backups has "Each server's backups" (the server switcher, then that server's cards) and "Your whole lab" (the same whichever server is chosen). Only when there's more than one group |
 | Facts | `<dl class="facts">` | Label/value pairs; stack on phones |
-| Forms | `<label>Text <input><small>hint</small></label>`, `label.check` for checkboxes and radios, `.with-suffix`, `select.inline` | Errors: `<p class="error" role="alert">` above the form |
+| Forms | `<label>Text <input><small>hint</small></label>`, `label.check` for checkboxes and radios, `.with-suffix` (a fixed end, e.g. the domain), `.with-prefix` (a fixed start, e.g. a service's package name), `select.inline` | Errors: `<p class="error" role="alert">` above the form |
 | Rows | `ul.rows` with `li.row-split` | Lists you act on (people, kept copies) |
 | Needs attention | `.attention .item` with `.item-problem` / `.item-warning` | Home page |
 | Activity | `{{activity .SomeActivity}}` | Host operations: status line plus collapsed log; nothing if there's none |
 | Technical details | `<details class="technical">` | Collapsed by default |
 | Secret | `<code class="secret">` | Values to copy, shown once |
+| Area pages | `data["AreaNav"] = areaNav{…}` (Settings: `withArea`; your account: `renderAccount`) | A sidebar of the area's pages, the current one marked, beside the page (`area-nav`). On phones Settings' sidebar hides (the back link leads to its overview) and the account's becomes a row of tabs (`Tabs`) |
+| Address choice | `{{template "address-choice" .AddressChoice}}` inside a form | The address another server or lab connects to (join code, storage invite): radio choices Roostack knows, each with the address in `code`, then "Another address" revealing a field (`address`, `address_other`) |
+| Disk space | `.space-bar` with `.space-<part>` segments (`data-width`), `dl.space-list` with `.swatch` | A disk's use in coloured parts, each named with its size in the key |
+| Copy box | `{{copyBox TEXT}}` | Text people copy and send or paste elsewhere (an invite, a command), with a Copy button |
+| Figures | `dl.stat-tiles` (a `div` of `dt` and `dd`, optional `dd.hint`) | A few totals side by side (visitors through the relay) |
+| Bar chart | `{{template "bar-chart" .Chart}}` (a `barChart`: caption and `barView`s) | Counts over time, a column a period; heights through `data-height` (app.js, as for `data-width`); the exact figure on hover and for screen readers |
+| Ranked list | `{{template "rank-list" .Ranks}}` (`[]rankView`) | Names by count with a bar for each one's share; the rest (`Other`) muted |
+| Choice of period | `nav.period-choice` of links, the current one `aria-current` | How far back a set of figures goes |
 
 ### Adding a component
 

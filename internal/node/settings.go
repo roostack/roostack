@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
@@ -90,6 +91,12 @@ type HostSettings struct {
 	// UseZone switches Roostack itself to a new time zone without a restart
 	// (optional).
 	UseZone func(name string)
+	// UseSSH applies a new SSH choice without a restart: the firewall is
+	// rebuilt at once (Local.UseSSH). Without it, Roostack restarts.
+	UseSSH func(choice string)
+
+	// mu guards Lab's SSH choice, which changes while running.
+	mu sync.Mutex
 }
 
 // Settings is this server's settings, or nil.
@@ -126,7 +133,10 @@ func (h *HostSettings) SetTimezone(ctx context.Context, name string) (bool, erro
 
 func (h *HostSettings) SSHAccess() (SSHAccess, error) {
 	clients, err := h.SSHClients()
-	return SSHAccess{Choice: h.Lab.Firewall.SSH, Clients: clients}, err
+	h.mu.Lock()
+	choice := h.Lab.Firewall.SSH
+	h.mu.Unlock()
+	return SSHAccess{Choice: choice, Clients: clients}, err
 }
 
 func (h *HostSettings) SetSSH(ctx context.Context, choice string, confirmed bool) error {
@@ -146,7 +156,15 @@ func (h *HostSettings) SetSSH(ctx context.Context, choice string, confirmed bool
 	if err := config.Update(h.LabPath, func(l *config.Lab) { l.Firewall.SSH = choice }); err != nil {
 		return err
 	}
-	// Restarting applies the firewall.
+	h.mu.Lock()
+	h.Lab.Firewall.SSH = choice
+	h.mu.Unlock()
+	// The firewall is rebuilt at once: no restart, so the server stays
+	// reachable (another server's is managed from the controller).
+	if h.UseSSH != nil {
+		h.UseSSH(choice)
+		return nil
+	}
 	h.Restart()
 	return nil
 }

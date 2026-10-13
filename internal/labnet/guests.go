@@ -65,6 +65,9 @@ type GuestHub struct {
 	// Changed is called when guests change, so the host's stores follow
 	// (optional).
 	Changed func()
+	// Joined is called when a guest lab first connects with its invite (to
+	// audit it: a security email, SPEC.md §6.13). Optional.
+	Joined func(ctx context.Context, name string)
 
 	mu        sync.Mutex
 	publicKey string
@@ -324,6 +327,9 @@ func (h *GuestHub) Handler() http.Handler {
 			}
 		}()
 		h.Log.Info("guest joined", "guest", g.Name)
+		if h.Joined != nil {
+			h.Joined(r.Context(), g.Name)
+		}
 		WriteJSON(w, http.StatusOK, map[string]string{"host": h.LabName})
 	})
 	mux.HandleFunc("GET /v1/guest/usage", func(w http.ResponseWriter, r *http.Request) {
@@ -393,6 +399,26 @@ func (h *GuestHub) ServeGuests(ctx context.Context) {
 	}
 }
 
+// Joining waits up to handshakeTimeout for the WireGuard link to come up,
+// and joinTimeout in all for the host to answer.
+var (
+	handshakeTimeout = 20 * time.Second
+	joinTimeout      = 45 * time.Second
+)
+
+// linkUp reports whether iface has had a WireGuard handshake with peer,
+// if the agent can say (true if it can't, so joining waits as before).
+func linkUp(ctx context.Context, ag WireGuardAgent, iface, peer string) bool {
+	sa, ok := ag.(interface {
+		WireGuardStatus(ctx context.Context, iface string) (agent.WireGuardStatus, error)
+	})
+	if !ok {
+		return true
+	}
+	st, err := sa.WireGuardStatus(ctx, iface)
+	return err != nil || st.Handshakes[peer] > 0
+}
+
 // JoinStorage links this lab to another lab's storage with an invite,
 // over WireGuard interface iface (roostack-st1…9): up with the invite's
 // one-time key, register this lab's own key, then switch to it.
@@ -408,20 +434,35 @@ func JoinStorage(ctx context.Context, inv StorageInvite, iface string, ag WireGu
 	body, _ := json.Marshal(map[string]string{"token": inv.Token, "public_key": ownPub})
 	url := "http://" + net.JoinHostPort(inv.HostAddr.String(), strconv.Itoa(GuestAPIPort)) + "/v1/guest/join"
 	client := &http.Client{Timeout: 10 * time.Second}
-	deadline := time.Now().Add(45 * time.Second)
+	start := time.Now()
+	handshake := false
 	for {
 		err = post(ctx, client, url, body, nil)
 		var refused *RemoteError
-		if err == nil || errors.As(err, &refused) || time.Now().After(deadline) {
+		if err == nil || errors.As(err, &refused) || time.Since(start) > joinTimeout {
 			break
+		}
+		// No WireGuard handshake at all after a while: the other lab's
+		// UDP port can't be reached, and waiting longer won't help.
+		if !handshake {
+			handshake = linkUp(ctx, ag, iface, inv.HostKey)
+			if !handshake && time.Since(start) > handshakeTimeout {
+				break
+			}
 		}
 		time.Sleep(2 * time.Second)
 	}
 	var refused *RemoteError
 	if err != nil && !errors.As(err, &refused) {
 		_, port, _ := net.SplitHostPort(inv.Endpoint)
-		return fmt.Errorf("couldn't reach %s at %s (%v). They need to forward UDP port %s to their Roostack server; "+
-			"their Storage for others page explains how", inv.HostName, inv.Endpoint, err, port)
+		if !handshake && !linkUp(ctx, ag, iface, inv.HostKey) {
+			return fmt.Errorf("%s didn't answer at %s. Its UDP port %s has to let other labs in: on a cloud server, in the provider's "+
+				"firewall (such as Linode's Cloud Firewall); at home, by forwarding the port on the router. Their Storage for others "+
+				"page explains how. (Details: no WireGuard handshake in %d seconds.)",
+				inv.HostName, inv.Endpoint, port, int(time.Since(start).Seconds()))
+		}
+		return fmt.Errorf("the link to %s at %s works, but Roostack there didn't answer: it may be restarting, so try again in a minute. "+
+			"(Details: %v)", inv.HostName, inv.Endpoint, err)
 	}
 	if err != nil {
 		return fmt.Errorf("%s refused the invite: %w", inv.HostName, err)

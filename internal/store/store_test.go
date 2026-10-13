@@ -289,7 +289,7 @@ func TestGuests(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()
 	now := time.Now()
-	id, err := s.AddGuest(ctx, Guest{Name: "Tyris's lab", Quota: 50 << 30, Addr: "100.101.23.2", PublicKey: "onetime",
+	id, err := s.AddGuest(ctx, Guest{Name: "Sam's lab", Quota: 50 << 30, Addr: "100.101.23.2", PublicKey: "onetime",
 		TokenHash: "h", Expires: now.Add(time.Hour), Port: 8100, StoreHash: "sh", AdminHash: "ah"})
 	if err != nil {
 		t.Fatal(err)
@@ -317,5 +317,29 @@ func TestGuests(t *testing.T) {
 	s.RemoveGuest(ctx, id)
 	if gs, _ := s.Guests(ctx, now); len(gs) != 0 {
 		t.Error("not removed")
+	}
+}
+
+// The hourly clean-up deletes expired sessions and, unless kept signed in,
+// those unused for longer than the idle limit (0: no limit).
+func TestDeleteIdleSessions(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	id, _ := s.CreateUser(ctx, User{Username: "sam", PasswordHash: "x", Role: "admin"})
+	later := time.Now().Add(time.Hour)
+	s.CreateSessionRemember(ctx, "idle", id, later, false)
+	s.CreateSessionRemember(ctx, "kept", id, later, true)
+	s.CreateSessionRemember(ctx, "recent", id, later, false)
+	s.TouchSession(ctx, "idle", time.Now().Add(-2*time.Hour))
+	s.TouchSession(ctx, "kept", time.Now().Add(-2*time.Hour))
+	alive := func(h string) bool { _, _, _, err := s.SessionInfo(ctx, h); return err == nil }
+
+	s.DeleteExpiredSessions(ctx, 0)
+	if !alive("idle") {
+		t.Fatal("no idle limit: kept")
+	}
+	s.DeleteExpiredSessions(ctx, 30*time.Minute)
+	if alive("idle") || !alive("kept") || !alive("recent") {
+		t.Errorf("idle %v, kept %v, recent %v", alive("idle"), alive("kept"), alive("recent"))
 	}
 }

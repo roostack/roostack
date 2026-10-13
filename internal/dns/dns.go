@@ -21,6 +21,10 @@ type Field struct {
 	Optional bool
 	// Sensitive fields are password inputs and never shown back.
 	Sensitive bool
+	// InConfig fields aren't secret: kept in lab.yaml (config.DNS.Values)
+	// and written into Caddy's config as they are, for a module that reads
+	// placeholders only in its secret field (Roostack Cloud's acmedns).
+	InConfig bool
 }
 
 // Provider is a supported DNS provider.
@@ -31,9 +35,14 @@ type Provider struct {
 	Help string
 	// Plugin is the Caddy DNS module built into Roostack's Caddy image.
 	Plugin string
+	// Hidden providers aren't offered to choose from (Roostack Cloud's,
+	// which comes with a roost.ac name).
+	Hidden bool
 	Fields []Field
 	// directive is the Caddyfile "dns" line; set lists the fields given.
 	directive func(set []string) string
+	// configDirective, instead, also has the InConfig fields' values.
+	configDirective func(set []string, values map[string]string) string
 	// probe checks credentials against the provider's API (probes.go).
 	probe probe
 	// records manages DNS records (records.go); nil if unsupported.
@@ -47,6 +56,17 @@ func SecretName(field string) string { return "roostack-caddy-dns-" + field }
 func EnvName(field string) string { return "DNS_" + strings.ToUpper(field) }
 
 func env(field string) string { return "{env." + EnvName(field) + "}" }
+
+// OldSecretName and OldEnvName hold a field of the lab's previous
+// address's provider while that still works (SPEC.md §6.6).
+func OldSecretName(field string) string { return "roostack-caddy-dns-old-" + field }
+func OldEnvName(field string) string    { return "DNS_OLD_" + strings.ToUpper(field) }
+
+// OldDirective turns a directive into the previous address's: the same
+// fields, read from OldEnvName.
+func OldDirective(directive string) string {
+	return strings.ReplaceAll(directive, "{env.DNS_", "{env.DNS_OLD_")
+}
 
 // block renders a Caddyfile dns block with one line per field given.
 func block(name string, set []string, keys ...string) string {
@@ -149,8 +169,19 @@ var providers = []*Provider{
 	},
 }
 
-// Providers lists every supported provider, in display order.
-func Providers() []*Provider { return providers }
+// Providers lists the providers people choose from, in display order.
+func Providers() []*Provider {
+	var out []*Provider
+	for _, p := range providers {
+		if !p.Hidden {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// All is every provider, hidden ones too (for the Caddy image's plugins).
+func All() []*Provider { return providers }
 
 // Get returns a provider by ID, or nil.
 func Get(id string) *Provider {
@@ -162,8 +193,26 @@ func Get(id string) *Provider {
 	return nil
 }
 
-// Directive returns the Caddyfile tls "dns" directive for the given fields.
-func (p *Provider) Directive(set []string) string { return p.directive(set) }
+// Directive returns the Caddyfile tls "dns" directive for the given fields
+// (secrets, read from the environment) and values (InConfig fields).
+func (p *Provider) Directive(set []string, values map[string]string) (string, error) {
+	if p.configDirective == nil {
+		return p.directive(set), nil
+	}
+	for k, v := range values {
+		if !SafeValue(v) {
+			return "", fmt.Errorf("dns: %s's %s has characters that can't go in Caddy's config", p.Title, k)
+		}
+	}
+	return p.configDirective(set, values), nil
+}
+
+// SafeValue reports whether an InConfig value can be written into Caddy's
+// config, quoted: nothing that could end the quotes, start a placeholder
+// or a new line.
+func SafeValue(v string) bool {
+	return v != "" && !strings.ContainsAny(v, "\"\\{}\r\n\t ")
+}
 
 // Validate checks every required field has a value and returns the keys
 // that are set, in field order.

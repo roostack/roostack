@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/setup"
@@ -39,7 +40,7 @@ func TestUsersPage(t *testing.T) {
 	if dad.Role != auth.RoleAdmin || !dad.MustChangePassword {
 		t.Errorf("dad = %+v", dad)
 	}
-	if ok, _ := auth.VerifyPassword(dad.PasswordHash, m[1]); !ok {
+	if ok, _ := authkit.VerifyPassword(dad.PasswordHash, m[1]); !ok {
 		t.Error("the shown password doesn't work")
 	}
 	if code, _ := h.post("/users", url.Values{"username": {"Dad"}, "role": {"member"}}, h.srv.URL); code != http.StatusBadRequest {

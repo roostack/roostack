@@ -11,32 +11,24 @@
   <dl class="facts facts-lined">
     <dt>{{icon "server"}}Role</dt>
     <dd>{{if .Controller}}Runs the lab: keeps its settings and serves this page{{else}}Runs services{{end}}</dd>
+    {{if not .Reachable}}
+    <dt>{{icon "server"}}Connection</dt>
+    <dd><span class="dot dot-problem" aria-hidden="true"></span>Not connected{{with .UnreachableSince}} since {{when .}}{{end}}.
+      If {{.Name}} is still running, it reconnects by itself, with its services.
+      {{if not (or .Services .Waiting)}}Gone for good? <a href="/settings/servers?remove={{.ID}}#server-{{.ID}}">Remove it from the lab</a>.{{end}}
+      {{if or .Services .Waiting}}<br><a href="/settings/servers/{{.ID}}/gone">{{.Name}} is gone: restore its services…</a>{{end}}</dd>
+    {{end}}
     <dt>{{icon "services"}}Services</dt>
-    <dd>{{range $i, $s := .Services}}{{if $i}}, {{end}}<a href="/services/{{$s}}">{{$s}}</a>{{else}}None{{end}}</dd>
+    <dd>{{range $i, $s := .Services}}{{if $i}}, {{end}}<a href="/services/{{$s}}">{{$s}}</a>{{else}}None{{end}}
+      {{with .Waiting}}<br>Waiting to be restored: {{range $i, $s := .}}{{if $i}}, {{end}}<a href="/services/{{$s}}">{{$s}}</a>{{end}}{{end}}</dd>
     <dt>{{icon "changes"}}Changes</dt>
     <dd>{{with .Status}}{{if .Running}}<span class="dot dot-warn" aria-hidden="true"></span>Applying…
       {{- else if .LastErr}}<span class="dot dot-problem" aria-hidden="true"></span>The last change didn't finish: {{.LastErr}}
       {{- else if .Finished}}<span class="dot dot-ok" aria-hidden="true"></span>Up to date · {{when .LastRun}}
       {{- else}}Not applied yet{{end}}{{end}}</dd>
-    <dt>{{icon "disk"}}Disk</dt>
+    <dt>{{icon "disk"}}Disk{{with index $.Spaces .ID}}{{if gt (len .Disks) 1}}s{{end}}{{end}}</dt>
     <dd>{{with index $.Spaces .ID}}
-      <p><strong>{{size .Free}} free</strong> of {{size .Total}}</p>
-      <div class="space-bar" role="img" aria-label="{{size .Used}} used, {{size .Free}} free of {{size .Total}}">
-        <span class="space-used{{with .Level}} space-{{.}}{{end}}" style="width: {{.UsedPercent}}%"></span>
-        {{- if .PromisedLeft}}<span class="space-promised" style="width: {{.PromisedPercent}}%"></span>{{end}}
-      </div>
-      <dl class="space-list">
-        <dt>In use</dt><dd>{{size .Used}}</dd>
-        <dt class="sub">Services' data</dt><dd>{{if gt .Services 0}}{{size .Services}}{{else if eq .Services 0}}none{{else}}not counted yet{{end}}</dd>
-        <dt class="sub">Backups of your lab's servers</dt><dd>{{if ge .Backups 0}}{{size .Backups}}{{else}}not counted yet{{end}}</dd>
-        {{if gt .Guests 0}}<dt class="sub">Backups of other labs</dt><dd>{{size .Guests}}</dd>{{end}}
-        {{if ge .Other 0}}<dt class="sub">The system and everything else</dt><dd>{{size .Other}}</dd>{{end}}
-        {{if .Promised}}<dt>Promised to other labs</dt><dd>{{size .Promised}}, of which {{size .PromisedLeft}} isn't used yet</dd>{{end}}
-        {{if gt .HeldBack 0}}<dt>Held back by the filesystem</dt><dd>{{size .HeldBack}}, for the system (so it keeps working if the disk fills up)</dd>{{end}}
-      </dl>
-      <small>The disk holding Roostack's data. Free space is up to date; the parts are counted daily, after the nightly backup
-        {{- if not .Counted.IsZero}} (last counted {{when .Counted}}){{end}}.</small>
-      {{if .Warning}}{{notice .NoticeKind .Warning}}{{end}}
+      {{template "disks-live" .}}
     {{else}}<small>Couldn't ask {{.Name}} right now.</small>{{end}}</dd>
     <dt>{{icon "location"}}Where</dt>
     <dd>
@@ -48,12 +40,25 @@
       </form>
       <small>Where this server is located{{if not $loc}} (not set yet){{end}}.</small>
     </dd>
+    {{if not .Controller}}
+    <dt>{{icon "server"}}Direct links</dt>
+    <dd>
+      <form method="post" action="/settings/servers/{{.ID}}/link-address" class="inline-form">
+        <label for="link-{{.ID}}" class="sr-only">Address other servers reach {{.Name}} at</label>
+        <input id="link-{{.ID}}" name="address" value="{{index $.LinkAddrs .ID}}" placeholder="Worked out by Roostack" maxlength="260">
+        <button type="submit" class="secondary">Save</button>
+      </form>
+      {{if and $.LinkErrorServer (eq $.LinkErrorServer .ID)}}<p class="error" role="alert">{{$.LinkError}}</p>{{end}}
+      <small>Where other servers reach {{.Name}} directly, for backups to its disk (host:port). Leave it empty and Roostack
+        works it out: its home-network address when both are at home, or its own address on the internet.</small>
+    </dd>
+    {{end}}
     <dt>{{icon "id"}}Server ID</dt>
     <dd><code>{{.ID}}</code></dd>
     {{if not .CertExpires.IsZero}}<dt>{{icon "certificate"}}Certificate</dt>
     <dd>Expires {{date .CertExpires}}</dd>{{end}}
   </dl>
-  {{if .This}}{{activity $.ApplyActivity}}{{end}}
+  <div id="changes-{{.ID}}">{{activity (index $.ApplyActivities .ID)}}</div>
   {{if $.Only}}
   <h3>Settings</h3>
   <dl class="facts">
@@ -77,7 +82,7 @@
   </ul>
   {{end}}
   {{if and $.ErrorServer (eq $.ErrorServer .ID)}}<p class="error" role="alert">{{$.Error}}</p>{{end}}
-  <details{{if and $.ErrorServer (eq $.ErrorServer .ID)}} open{{end}}>
+  <details{{if or (and $.ErrorServer (eq $.ErrorServer .ID)) (eq $.Remove .ID)}} open{{end}}>
     <summary>Rename{{if not .This}} or remove{{end}}</summary>
     <form method="post" action="/settings/servers/{{.ID}}/rename" class="inline-form">
       <label for="name-{{.ID}}" class="sr-only">Name</label>
@@ -95,22 +100,32 @@
 {{end}}{{end}}
 {{if and .CanAdd (not .Only)}}
 <section class="card section" id="add-server">
-  <h2>Add a server</h2>
-  <p class="hint">Another computer at home or in the cloud can run some of your services. Install Roostack on it,
-    then run the command below on it. The servers connect over their own private network (WireGuard).</p>
-  {{if not .ErrorServer}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
   {{with .JoinCode}}
-  <p>On the new server, run this within an hour (the code works once):</p>
-  <pre class="output copyable">sudo roostack node join {{.}}</pre>
-  <p class="hint">Anyone with this code can add a server to your lab until it's used, so don't share it.</p>
-  {{end}}
-  <form method="post" action="/settings/servers/join">
-    <label for="endpoint">Address the new server reaches this one at</label>
-    <input id="endpoint" name="endpoint" value="{{.Endpoint}}" placeholder="192.168.1.20:51820" required>
-    <small class="hint">For a server at home: this server's home-network address and port 51820.
-      For one elsewhere (e.g. in the cloud): your home's public address, after forwarding the port (below).</small>
-    <button type="submit">{{if .JoinCode}}Make another code{{else}}Make a join code{{end}}</button>
+  {{/* A new code is shown in place of the form (like a storage invite), and
+       the page opens here (#add-server in the form's action). */}}
+  <h2>Join code for a new server</h2>
+  <p>Open the new server's setup page (the address its installer showed), enter its setup code, choose
+    <strong>Add it to a lab you already have</strong> and paste this join code. It works once, within an hour.</p>
+  {{copyBox .}}
+  {{with $.JoinDials}}<p class="notice">This server connects to the new one at <code>{{.}}</code>: its UDP port has to be open
+    at its provider (a cloud firewall, if it has one). Roostack opens it in the new server's own firewall while it joins.</p>{{end}}
+  <details>
+    <summary>Or on the new server's command line</summary>
+    {{copyBox (printf "sudo roostack node join %s" .)}}
+  </details>
+  <p class="hint">Anyone with this code can add a server to your lab until it's used, so don't share it. It isn't shown again:
+    if it's lost, make another.</p>
+  <p><a class="button secondary" href="/settings/servers#add-server">Make another code</a></p>
+  {{else}}
+  <h2>Add a server</h2>
+  <p class="hint">Another computer at home or in the cloud can run some of your services. Install Roostack on it, then make a
+    join code here for its setup page. The servers connect over their own private network (WireGuard).</p>
+  {{if not .ErrorServer}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
+  <form method="post" action="/settings/servers/join#add-server">
+    {{template "address-choice" .AddressChoice}}
+    <button type="submit">Make a join code</button>
   </form>
+  {{end}}
   <details>
     <summary>Adding a server outside your home (port forwarding)</summary>
     <p>A server elsewhere connects to this one through your home router, which only lets it in if you ask it to.
@@ -119,11 +134,12 @@
       <li>Open your router's settings page (often <code>http://192.168.1.1</code> or <code>http://192.168.0.1</code>; the address and password are usually on a sticker on the router).</li>
       <li>Find <strong>Port forwarding</strong>. Some routers call it <em>Virtual server</em>, <em>NAT</em>, <em>Port mapping</em> or put it under <em>Advanced</em> or <em>Firewall</em>.</li>
       <li>Add a rule: protocol <strong>UDP</strong> (not TCP), port <strong>51820</strong>, to this server{{with .LANAddr}} at <strong>{{.}}</strong>{{end}}, port 51820.</li>
-      <li>Use your home's public address above, e.g. <code>203.0.113.7:51820</code>. Search "what is my IP" from a device at home to find it. If it changes now and then, a name from your domain that points home works better.</li>
+      <li>Choose <strong>A name from your domain</strong> above: Roostack keeps it pointing at your home's public address, which can change.</li>
     </ol>
     <p class="hint">How to tell it worked: once the new server has joined, it shows up above as up to date.
       If joining says it can't reach the controller, the port isn't forwarded yet (or the address is wrong).
-      Some internet connections (called CGNAT) can't forward ports at all; then put the controller on the server that's reachable instead.</p>
+      Some internet connections (called CGNAT) can't forward ports at all. For a cloud server, there's no need: choose
+      <strong>None: this server connects to the new one instead</strong> above.</p>
   </details>
 </section>
 {{end}}

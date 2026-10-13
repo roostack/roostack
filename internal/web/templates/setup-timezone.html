@@ -20,6 +20,7 @@
     <datalist id="zones">{{range .Zones}}<option value="{{.}}">{{end}}</datalist>
     <p class="hint" x-show="tz !== device" x-cloak>The device you're using is in <strong x-text="device"></strong>.
       <button type="button" class="quiet" x-on:click="tz = device">Use that</button></p>
+    {{with .NetworkForm}}{{template "network-choice" .}}{{end}}
     <button type="submit">{{if .Wizard}}Continue{{else}}Save{{end}}</button>
   </form>
 </section>

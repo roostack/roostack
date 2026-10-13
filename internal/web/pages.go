@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"hash/fnv"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
@@ -36,19 +38,36 @@ type nav struct {
 
 // navFor picks the links a role can use and marks the current section.
 func navFor(u *store.User, page string) nav {
-	active := map[string]string{
-		"home": "home", "services": "services", "service": "services", "catalog": "services",
-		"install": "services", "remove": "services", "backups": "backups",
-		"settings": "settings", "setup-timezone": "settings", "setup-ssh": "settings", "setup-domain": "settings", "setup-backup": "settings",
-		"recovery-key": "settings", "restore": "backups", "backups-recovery-key": "backups", "users": "settings",
-		"settings-domain": "settings", "settings-network": "settings", "settings-updates": "settings", "dns-takeover": "settings", "account": "account", "twofactor": "account",
-	}[page]
+	active := navTab(page)
 	next := map[string]string{"auto": "light", "light": "dark", "dark": "auto"}[u.Theme]
 	if next == "" {
 		u.Theme, next = "auto", "light"
 	}
 	return nav{Active: active, Username: u.Username, Theme: u.Theme, NextTheme: next, Palette: userPalette(u), Accent: userAccent(u),
 		Backups: auth.Can(u.Role, auth.ManageServices), Settings: auth.Can(u.Role, auth.ManageHost)}
+}
+
+// navTab is the top bar's tab a page belongs to: by name for the few that
+// don't follow a pattern, then by prefix, so new pages get it right
+// (TestNavTabs checks every template).
+func navTab(page string) string {
+	if tab, ok := map[string]string{
+		"home": "home", "catalog": "services", "install": "services", "remove": "services", "move": "services", "visitors": "services",
+		"restore": "backups", "recovery-key": "settings", "users": "settings", "dns-takeover": "settings",
+		"account": "account", "twofactor": "account", "account-appearance": "account", "account-notifications": "account",
+		"cloud-open": "settings", "cloud-linked": "settings",
+		"setup-restore": "", "setup-joined": "", // first run, before anyone is logged in
+	}[page]; ok {
+		return tab
+	}
+	for _, p := range []struct{ prefix, tab string }{
+		{"settings", "settings"}, {"setup-", "settings"}, {"service", "services"}, {"backups", "backups"},
+	} {
+		if strings.HasPrefix(page, p.prefix) {
+			return p.tab
+		}
+	}
+	return ""
 }
 
 // pageData collects what most pages show, for the current user.
@@ -63,6 +82,7 @@ func (s *Server) pageData(r *http.Request) (map[string]any, error) {
 		"Services":  services,
 		"CanManage": s.Manager != nil && auth.Can(u.Role, auth.ManageServices),
 		"IsOwner":   auth.Can(u.Role, auth.ManageHost),
+		"Internet":  s.onInternet(),
 		"Apply":     s.applyStatus(),
 		"Server":    s.serverRefOf(r),
 	}, nil
@@ -108,7 +128,14 @@ func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {
 	if a := s.activityFor(r, activity.Apply); a != nil {
 		data["ApplyActivity"] = a
 	}
+	// Caddy's image build, while it runs or if it failed: new services
+	// wait for it, and it takes minutes the first time.
+	if a := s.activityFor(r, activity.Build); a != nil && (a.Running() || a.Err != "") {
+		data["BuildActivity"] = a
+	}
 	s.addBuiltIns(r, data)
+	// Visitors through the relay, for those who manage services.
+	data["Relayed"] = s.Manager.RelayOn() && auth.Can(currentUser(r).Role, auth.ManageServices)
 	s.render(w, "services", data)
 }
 
@@ -171,8 +198,17 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		http.NotFound(w, r)
 		return
 	}
+	// Installing: its log, for the step list's Details. Once it's done, the
+	// step list's polling reloads the page (status, Open link).
+	if install := data["Service"].(ServiceView).Install; install != nil {
+		if a := s.activityFor(r, install.Log); a != nil {
+			data["InstallActivity"] = a
+		}
+	} else if r.URL.Query().Get("installing") == "1" && r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Refresh", "true")
+	}
 	if s.Manager != nil {
-		if p, err := s.Manager.Package(name); err == nil {
+		if p, err := s.Manager.ServicePackage(name); err == nil {
 			data["Package"] = p
 			var actions []serviceAction
 			for _, h := range p.HooksOn(pkgspec.HookAction) {
@@ -219,6 +255,9 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	if failed {
 		w.WriteHeader(http.StatusBadRequest)
 	}
+	if o := s.oldAddress(); o != nil {
+		data["Old"] = o
+	}
 	s.render(w, "service", data)
 }
 
@@ -231,7 +270,10 @@ func (s *Server) backupsPage(w http.ResponseWriter, r *http.Request) {
 	s.renderBackups(w, r, data)
 }
 
-// renderBackups shows a server's Backups page; data may carry an error.
+// renderBackups shows the Backups page; data may carry an error. The
+// status, latest run and plan are the chosen server's (the switcher);
+// restoring, storage at other labs and the recovery key are the whole
+// lab's, the same whichever server is chosen.
 func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[string]any) {
 	m := s.serverRefOf(r)
 	data["Backup"] = s.backupView(r)
@@ -241,9 +283,11 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	if m.This {
 		data["BackupRepo"] = s.BackupRepo
 	}
-	data["CanRestore"] = s.restores(r) != nil && auth.Can(currentUser(r).Role, auth.ManageHost)
-	// The recovery key is the lab's, kept on the server that runs it.
-	data["RecoveryKey"] = m.This && s.Setup != nil && auth.Can(currentUser(r).Role, auth.ManageHost) && s.hasRecoveryKey()
+	owner := auth.Can(currentUser(r).Role, auth.ManageHost)
+	data["CanRestore"] = owner && s.labHasBackups(r)
+	// The recovery key is the lab's, kept by the controller (which serves
+	// this page).
+	data["RecoveryKey"] = s.Setup != nil && owner && s.hasRecoveryKey()
 	if data["RecoveryKey"] == true && s.Manager != nil {
 		if k, err := s.Manager.KeyChangeStatus(); err == nil {
 			data["KeyChange"] = k
@@ -252,16 +296,10 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 	if a := s.activityFor(r, activity.Backup); a != nil {
 		data["BackupActivity"] = a
 	}
-	// Only this server's services can be restored here.
-	var services []ServiceView
-	if all, ok := data["Services"].([]ServiceView); ok {
-		for _, sv := range all {
-			if sv.Server == m.Name || (m.This && sv.Server == "") {
-				services = append(services, sv)
-			}
-		}
-	}
-	data["ServerServices"] = services
+	// Every service in the lab can be restored, from any backup of it
+	// (SPEC.md §10.10), listed by the server it runs on.
+	all, _ := data["Services"].([]ServiceView)
+	data["RestoreGroups"] = s.servicesByServer(all)
 	// Where backups go: the plan (SPEC.md §6.9).
 	if s.Manager != nil && auth.Can(currentUser(r).Role, auth.ManageHost) {
 		// Storage at other labs is the whole lab's, shown on every server's page.
@@ -277,6 +315,82 @@ func (s *Server) renderBackups(w http.ResponseWriter, r *http.Request, data map[
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	s.render(w, "backups", data)
+}
+
+// serviceGroup is the services on one server, or those waiting to be
+// restored (their server is gone).
+type serviceGroup struct {
+	Server   string
+	Waiting  bool
+	Services []ServiceView
+}
+
+// servicesByServer groups services by the server they run on, in the
+// lab's order of servers (one unnamed group with a single server).
+func (s *Server) servicesByServer(services []ServiceView) []serviceGroup {
+	var order []string
+	if s.Manager != nil {
+		if ms, err := s.Manager.Servers(); err == nil && len(ms) > 1 {
+			for _, m := range ms {
+				order = append(order, m.Name)
+			}
+		}
+	}
+	this := ""
+	if s.Node != nil && len(order) > 0 {
+		this = s.Node.Identity().Name
+	}
+	var groups []serviceGroup
+	add := func(name string, sv ServiceView) {
+		for i := range groups {
+			if groups[i].Server == name {
+				groups[i].Services = append(groups[i].Services, sv)
+				return
+			}
+		}
+		groups = append(groups, serviceGroup{Server: name, Services: []ServiceView{sv}})
+	}
+	var waiting []ServiceView
+	for _, sv := range services {
+		if sv.Status == StatusWaiting {
+			waiting = append(waiting, sv)
+			continue
+		}
+		name := ""
+		if len(order) > 0 {
+			name = cmp.Or(sv.Server, this)
+		}
+		add(name, sv)
+	}
+	slices.SortStableFunc(groups, func(a, b serviceGroup) int {
+		return cmp.Compare(slices.Index(order, a.Server), slices.Index(order, b.Server))
+	})
+	if len(waiting) > 0 {
+		// First: they're what needs doing.
+		groups = slices.Insert(groups, 0, serviceGroup{Waiting: true, Services: waiting})
+	}
+	return groups
+}
+
+// labHasBackups reports whether any server in the lab has backups set
+// up, so there's something to restore from.
+func (s *Server) labHasBackups(r *http.Request) bool {
+	if s.restores(r) != nil || (s.Node != nil && s.Node.Restores() != nil) {
+		return true
+	}
+	if s.Manager == nil {
+		return false
+	}
+	servers, err := s.Manager.Servers()
+	if err != nil {
+		return false
+	}
+	for _, m := range servers {
+		if _, _, ok := s.Manager.BackupTargetOf(r.Context(), m.ID); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) backupsPartial(w http.ResponseWriter, r *http.Request) {
@@ -304,7 +418,7 @@ func (s *Server) dnsView(r *http.Request) any {
 }
 
 func (s *Server) accountPage(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "account", map[string]any{"User": currentUser(r)})
+	s.renderAccount(w, "account", "account", map[string]any{"User": currentUser(r)})
 }
 
 // appearanceSubmit saves the user's colour theme and light/dark mode.
@@ -341,7 +455,7 @@ func (s *Server) appearanceSubmit(w http.ResponseWriter, r *http.Request) {
 		s.renderPart(w, "account", "theme-toggle", map[string]any{"OOB": true, "NextTheme": n.NextTheme, "Theme": n.Theme})
 		return
 	}
-	http.Redirect(w, r, "/account#appearance", http.StatusSeeOther)
+	http.Redirect(w, r, "/account/appearance", http.StatusSeeOther)
 }
 
 // themeSubmit saves the user's theme and returns to the page they were
@@ -369,9 +483,9 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	fail := func(msg string) {
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "account", map[string]any{"User": u, "Error": msg})
+		s.renderAccount(w, "account", "account", map[string]any{"User": u, "Error": msg})
 	}
-	ok, err := auth.VerifyPassword(u.PasswordHash, r.FormValue("current"))
+	ok, err := authkit.VerifyPassword(u.PasswordHash, r.FormValue("current"))
 	if err != nil || !ok {
 		fail("Your current password is wrong.")
 		return
@@ -381,11 +495,11 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		fail("The new passwords don't match.")
 		return
 	}
-	if err := auth.CheckPasswordPolicy(pw); err != nil {
+	if err := authkit.CheckPasswordPolicy(pw); err != nil {
 		fail(capitalize(err.Error()) + ".")
 		return
 	}
-	hash, err := auth.HashPassword(pw)
+	hash, err := authkit.HashPassword(pw)
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -394,7 +508,7 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	if err := s.startSession(w, r, u); err != nil {
+	if err := s.startSession(w, r, u, sessionOf(r).Remember); err != nil {
 		s.serverError(w, err)
 		return
 	}
@@ -403,7 +517,7 @@ func (s *Server) passwordSubmit(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/")
 		return
 	}
-	s.render(w, "account", map[string]any{"User": u,
+	s.renderAccount(w, "account", "account", map[string]any{"User": u,
 		"Done": "Password changed. Other devices you were logged in on need to log in again."})
 }
 
