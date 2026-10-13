@@ -5,8 +5,10 @@ LDFLAGS := -X main.version=$(VERSION)
 
 .PHONY: build help test golden vet caddy-check
 
+# Linux binaries for the machine's own architecture, or another with
+# GOARCH=arm64 (or amd64).
 build: help
-	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o bin/ ./cmd/...
+	GOOS=linux CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o bin/ ./cmd/...
 	scripts/copyright.sh > bin/copyright
 
 # The help site (SPEC.md §6.3.1), built with Zensical and embedded in the
