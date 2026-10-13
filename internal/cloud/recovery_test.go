@@ -86,6 +86,12 @@ func TestRelinkWithRecoveryKey(t *testing.T) {
 	before := s.Status().CertFingerprint
 
 	f.Revoke(labID)
+	// Cloud busy (rate limited): the link is kept, and tried again.
+	f.RestoreStatus = 429
+	if err := s.Check(ctx); err == nil || !s.Status().Linked {
+		t.Fatalf("relink rate limited: %v, linked %v", err, s.Status().Linked)
+	}
+	f.RestoreStatus = 0
 	if err := s.Check(ctx); err != nil {
 		t.Fatalf("check: %v", err)
 	}
