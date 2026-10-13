@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +21,7 @@ import (
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/public"
 )
 
 // Settings is an overview grid of areas, each with its own page; on
@@ -32,10 +35,13 @@ type settingsArea struct {
 
 var settingsAreas = []settingsArea{
 	{"lab", "Lab", "Lab name", "/settings/lab"},
+	{"history", "Lab", "History", "/settings/history"},
 	{"people", "People and access", "People", "/settings/people"},
-	{"domain", "Network", "Domain and certificates", "/settings/domain"},
-	{"home-network", "Network", "Home network", "/settings/home-network"},
+	{"email", "People and access", "Email", "/settings/email"},
+	{"domain", "Network", "Your lab's address", "/settings/domain"},
+	{"home-network", "Network", "Where it is and DNS", "/settings/home-network"},
 	{"public", "Network", "Public access", "/settings/public"},
+	{"cloud", "Network", "Roostack Cloud", "/settings/cloud"},
 	{"servers", "Servers", "Servers", "/settings/servers"},
 	{"storage", "Servers", "Storage for others", "/settings/storage"},
 	// Settings that differ per server (switcher.go).
@@ -51,9 +57,13 @@ type settingsGroup struct {
 	Areas []settingsArea
 }
 
-func settingsGroups() []settingsGroup {
+// settingsGroups are the areas in groups, leaving out those in hide.
+func settingsGroups(hide ...string) []settingsGroup {
 	var groups []settingsGroup
 	for _, a := range settingsAreas {
+		if slices.Contains(hide, a.ID) {
+			continue
+		}
 		if len(groups) == 0 || groups[len(groups)-1].Title != a.Group {
 			groups = append(groups, settingsGroup{Title: a.Group})
 		}
@@ -95,6 +105,14 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	if users, err := s.Store.ListUsers(r.Context()); err == nil {
 		set("people", fmt.Sprintf("%d %s can log in", len(users), map[bool]string{true: "person", false: "people"}[len(users) == 1]), "")
 	}
+	set("history", fmt.Sprintf("Kept for %d days", s.historyKeepDays(r.Context())), "")
+	if s.Mail != nil {
+		if m, _ := s.Mail.Settings(); m.Configured() {
+			set("email", "Sends from "+m.From, "ok")
+		} else {
+			set("email", "Not set up: Roostack can't send email", "")
+		}
+	}
 	if s.server(r) != nil {
 		if a, err := s.server(r).SSHAccess(); err == nil {
 			switch a.Choice {
@@ -112,34 +130,43 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	if s.Domain != "" && s.Setup != nil && s.domainDone(r) {
 		set("domain", s.Domain, "ok")
 	} else {
-		set("domain", "Not set up: services can't get HTTPS certificates", "problem")
+		set("domain", "No address yet: services can't be reached", "problem")
 	}
-	if s.DNS != nil {
+	if s.Cloud != nil {
+		summary, level := cloudSummary(s.Cloud.Status())
+		set("cloud", summary, level)
+	}
+	// Where it is, then how DNS is doing (SPEC.md §6.12).
+	internet := s.onInternet()
+	where := map[bool]string{true: "On the internet", false: "At home"}[internet]
+	works := map[bool]string{true: "addresses lead here", false: "devices at home can reach your services"}[internet]
+	if c := s.network(); c.Saved == "" && c.Detected == config.NetworkInternet {
+		set("home-network", "Looks like a cloud server: say where it is", "warn")
+	} else if s.DNS != nil {
 		st := s.DNS.Status()
 		switch st.State {
 		case dnsrecords.StateOK:
-			set("home-network", "Devices at home can reach your services", "ok")
-		case dnsrecords.StatePending:
-			set("home-network", "Checking…", "")
+			set("home-network", where+" · "+works, "ok")
+		case dnsrecords.StatePending, "":
+			set("home-network", where+" · checking DNS…", "")
 		case dnsrecords.StateManual:
 			if st.Reachable {
-				set("home-network", "Devices at home can reach your services", "ok")
+				set("home-network", where+" · "+works, "ok")
 			} else {
-				set("home-network", "A DNS record needs adding", "warn")
+				set("home-network", where+" · a DNS record needs adding", "warn")
 			}
-		case "":
-			set("home-network", "Checking…", "")
 		case dnsrecords.StateUnsupported:
-			set("home-network", "Add a DNS record by hand", "warn")
+			set("home-network", where+" · add a DNS record by hand", "warn")
 		default:
 			set("home-network", dnsHeadline[st.State], "problem")
 		}
 	} else {
-		set("home-network", "Set up a domain first", "")
+		set("home-network", where+" · set up a domain first", "")
 	}
 	if s.Manager != nil {
 		if hosts := s.Manager.PublicHosts(); len(hosts) == 0 {
-			set("public", "Nothing is public: services are for your home network", "")
+			set("public", map[bool]string{true: "Nothing is public: services are only reachable through an SSH tunnel",
+				false: "Nothing is public: services are for your home network"}[internet], "")
 		} else if s.Protected != nil && !s.Protected(r.Context()) {
 			set("public", fmt.Sprintf("%d public; CrowdSec isn't running", len(hosts)), "problem")
 		} else {
@@ -205,7 +232,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var groups []map[string]any
-	for _, g := range settingsGroups() {
+	for _, g := range s.settingsGroups() {
 		var cs []areaCard
 		for _, a := range g.Areas {
 			cs = append(cs, cards[a.ID])
@@ -216,11 +243,30 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "settings", data)
 }
 
+// settingsGroups are this lab's settings areas: Roostack Cloud only
+// while it's in use.
+func (s *Server) settingsGroups() []settingsGroup {
+	if s.Cloud == nil {
+		return settingsGroups("cloud")
+	}
+	return settingsGroups()
+}
+
 // withArea marks a page as a settings area, so it gets the sidebar.
 func withArea(data map[string]any, id string) map[string]any {
-	data["SettingsArea"] = id
-	data["SettingsGroups"] = settingsGroups()
+	data["AreaNav"] = areaNav{Label: "Settings", Home: "/settings", HomeTitle: "All settings", Groups: settingsGroups(), Active: id}
 	return data
+}
+
+// areaNav is the sidebar of a set of area pages (Settings, your account):
+// a link home, then the areas in groups, the current one marked. Tabs:
+// on phones it's a row of tabs at the top (there's no overview page to
+// go back to).
+type areaNav struct {
+	Label, Home, HomeTitle string
+	Groups                 []settingsGroup
+	Active                 string
+	Tabs                   bool
 }
 
 func (s *Server) domainAreaPage(w http.ResponseWriter, r *http.Request) {
@@ -230,9 +276,16 @@ func (s *Server) domainAreaPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["LabDomain"] = s.Domain
+	data["UIHost"] = s.uiHost()
 	data["DomainSet"] = s.Domain != "" && s.Setup != nil && s.domainDone(r)
 	if p := dns.Get(s.DNSProvider); p != nil {
 		data["ProviderTitle"] = p.Title
+	}
+	if o := s.oldAddress(); o != nil {
+		data["Old"], data["OldRows"] = o, s.oldAddressRows(r, o)
+		if p := dns.Get(o.DNS.Provider); p != nil {
+			data["OldProvider"] = p.Title
+		}
 	}
 	s.render(w, "settings-domain", withArea(data, "domain"))
 }
@@ -244,6 +297,7 @@ func (s *Server) homeNetworkPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["DNS"] = s.dnsView(r)
+	data["NetworkForm"] = s.networkForm(r, false)
 	if s.DNS != nil {
 		recs, err := s.DNS.Records(r.Context())
 		if err != nil {
@@ -274,6 +328,8 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		s.serverError(w, err)
 		return
 	}
+	// ?remove=<id> opens that server's remove section (from "Remove it").
+	data["Remove"] = r.FormValue("remove")
 	servers, err := s.Manager.Servers()
 	if err != nil {
 		s.serverError(w, err)
@@ -285,7 +341,23 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		locations[mc.ID] = s.serverLocation(r.Context(), mc.ID)
 	}
 	data["Locations"] = locations
-	data["ApplyActivity"] = s.activityFor(r, activity.Apply)
+	links := map[string]string{}
+	for _, mc := range servers {
+		links[mc.ID] = s.Manager.LinkAddress(r.Context(), mc.ID)
+	}
+	data["LinkAddrs"] = links
+	// Each server's latest apply: why it ran and what it did (SPEC.md §6.14).
+	applies := map[string]*activityView{}
+	for _, mn := range s.serverNodes(r) {
+		if snap, ok := mn.node.LatestActivity(activity.Apply); ok {
+			v := &activityView{Kind: activity.Apply, Snapshot: snap}
+			if !mn.view.This {
+				v.Server = mn.view.ID
+			}
+			applies[mn.view.ID] = v
+		}
+	}
+	data["ApplyActivities"] = applies
 	// Folders moves left behind, per server (asked of each at once).
 	kept := make([][]node.KeptFolder, len(servers))
 	var wg sync.WaitGroup
@@ -299,24 +371,33 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 	}
 	data["Kept"] = keptBy
 	// Each server's disk space, asked of each at once.
-	spaces := make([]*spaceView, len(servers))
+	spaces := make([]*serverDisks, len(servers))
 	for i, mc := range servers {
 		if n := s.Manager.NodeByID(mc.ID); n != nil {
-			wg.Go(func() { spaces[i] = s.serverSpace(r.Context(), serverRef{ID: mc.ID, Name: mc.Name, This: mc.This}, n) })
+			wg.Go(func() { spaces[i] = s.serverSpaces(r.Context(), serverRef{ID: mc.ID, Name: mc.Name, This: mc.This}, n) })
 		}
 	}
 	wg.Wait()
-	spaceBy := map[string]*spaceView{}
+	spaceBy := map[string]*serverDisks{}
 	for i, mc := range servers {
 		spaceBy[mc.ID] = spaces[i]
 	}
 	data["Spaces"] = spaceBy
 	if s.Network != nil {
 		endpoint, _ := s.Store.Setting(r.Context(), endpointKey)
-		if endpoint == "" {
-			endpoint = defaultEndpoint()
+		if v, ok := extra["Endpoint"].(string); ok {
+			endpoint = v // as it was submitted
 		}
-		data["CanAdd"], data["Endpoint"] = true, endpoint
+		data["CanAdd"] = true
+		choice := s.addressChoices(r, "Address the new server reaches this one at", agent.WireGuardPort, true, true, endpoint)
+		// At home, the controller can dial a cloud server instead.
+		if !s.onInternet() {
+			choice.Dial = true
+			if d, ok := extra["Dial"].(string); ok {
+				choice.Selected, choice.DialAddr = "dial", d
+			}
+		}
+		data["AddressChoice"] = choice
 		if host, _, err := net.SplitHostPort(defaultEndpoint()); err == nil {
 			data["LANAddr"] = host
 		}
@@ -338,21 +419,66 @@ func (s *Server) joinCodeSubmit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	endpoint := strings.TrimSpace(r.FormValue("endpoint"))
-	if host, port, err := net.SplitHostPort(endpoint); err != nil || host == "" || port == "" {
-		s.renderServers(w, r, map[string]any{"Endpoint": endpoint,
-			"Error": "Enter the address and port other servers reach this one at, such as 192.168.1.20:51820."})
+	if r.FormValue("address") == "dial" {
+		s.joinCodeDial(w, r)
 		return
 	}
-	code, err := s.Network.NewJoinCode(r.Context(), endpoint)
+	endpoint := addressFromForm(r)
+	if host, port, err := net.SplitHostPort(endpoint); err != nil || host == "" || port == "" {
+		s.renderServers(w, r, map[string]any{"Endpoint": endpoint,
+			"Error": "Choose the address other servers reach this one at, or enter one with its port, such as 192.168.1.20:51820."})
+		return
+	}
+	code, err := s.Network.NewJoinCode(r.Context(), endpoint, "")
 	if err != nil {
 		s.renderServers(w, r, map[string]any{"Endpoint": endpoint, "Error": "Roostack couldn't make a join code: " + err.Error()})
 		return
 	}
 	s.Store.SetSetting(r.Context(), endpointKey, endpoint)
+	s.useAddress(r.Context(), endpoint)
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "join code made for "+code.Addr.String())
 	s.renderServers(w, r, map[string]any{"Endpoint": endpoint, "JoinCode": code.String(),
 		"JoinExpires": time.Now().Add(labnet.JoinCodeLifetime)})
+}
+
+// joinCodeDial makes a join code for a server this one dials, because it
+// can be reached and this one can't (SPEC.md §10.2).
+func (s *Server) joinCodeDial(w http.ResponseWriter, r *http.Request) {
+	typed := strings.TrimSpace(r.FormValue("address_dial"))
+	dial, err := dialAddress(typed)
+	if err != nil {
+		s.renderServers(w, r, map[string]any{"Dial": typed, "Error": err.Error()})
+		return
+	}
+	code, err := s.Network.NewJoinCode(r.Context(), "", dial)
+	if err != nil {
+		s.renderServers(w, r, map[string]any{"Dial": typed, "Error": "Roostack couldn't make a join code: " + err.Error()})
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "servers", "join code made for "+code.Addr.String()+", connecting to "+dial)
+	s.renderServers(w, r, map[string]any{"JoinCode": code.String(), "JoinDials": dial,
+		"JoinExpires": time.Now().Add(labnet.JoinCodeLifetime)})
+}
+
+// dialAddress is a typed public address or name, with WireGuard's port
+// unless one is given. A home-network address isn't one: a server there
+// can be reached the usual way.
+func dialAddress(typed string) (string, error) {
+	host, port := typed, strconv.Itoa(agent.WireGuardPort)
+	if h, p, err := net.SplitHostPort(typed); err == nil {
+		host, port = h, p
+	}
+	if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+		return "", errors.New("That port isn't a number from 1 to 65535.")
+	}
+	if ip, err := netip.ParseAddr(host); err == nil {
+		if !public.IsPublic(ip) {
+			return "", errors.New(host + " isn't a public address. A server at home can join the usual way: choose this server's home-network address.")
+		}
+	} else if host == "" || strings.ContainsAny(host, " /:") || !strings.Contains(host, ".") {
+		return "", errors.New("Enter the new server's public address, such as 203.0.113.7, or a name for it.")
+	}
+	return net.JoinHostPort(host, port), nil
 }
 
 // defaultEndpoint guesses this server's address on the home network.
@@ -458,5 +584,35 @@ func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "deleted kept folder "+path+" on "+id)
+	redirect(w, r, "/settings/servers#server-"+id)
+}
+
+// linkAddressSubmit sets where other servers reach a server directly
+// (SPEC.md §10.10).
+func (s *Server) linkAddressSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	id, addr := r.PathValue("server"), strings.TrimSpace(r.FormValue("address"))
+	err := s.Manager.SetLinkAddress(r.Context(), id, addr)
+	if msg, ok := userMessage(err); ok {
+		w.WriteHeader(http.StatusBadRequest)
+		s.renderServers(w, r, map[string]any{"LinkError": msg, "LinkErrorServer": id})
+		return
+	}
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	what := "cleared " + id + "'s address for direct links"
+	if addr != "" {
+		what = id + " is reached directly at " + addr
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "servers", what)
 	redirect(w, r, "/settings/servers#server-"+id)
 }

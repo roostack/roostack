@@ -61,4 +61,19 @@
     <button type="submit">Add</button>
   </form>
 </section>
+<section class="card section" id="signing-in">
+  <h2>Signing in</h2>
+  {{if .SignInSaved}}{{notice "ok" "Saved. It applies from each person's next page."}}{{end}}
+  <form method="post" action="/settings/signing-in">
+    <label>Sign people out after <select name="idle">
+      {{range .IdleChoices}}<option value="{{.}}"{{if eq . $.IdleMinutes}} selected{{end}}>{{idleText .}}</option>{{end}}
+    </select> without activity</label>
+    <p class="hint">Opening a page or sending a form counts as activity; pages refreshing themselves don't. When the time's up,
+      the page goes back to the login page, so a screen left open doesn't stay signed in.</p>
+    <label class="check"><input type="checkbox" name="remember"{{if .OfferRemember}} checked{{end}}>
+      <span>Offer "Keep me signed in" on the login page<small>For someone's own device: they stay signed in on that browser for
+        30 days, without the limit above.</small></span></label>
+    <button type="submit" class="secondary">Save</button>
+  </form>
+</section>
 {{end}}

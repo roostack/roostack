@@ -54,8 +54,28 @@ func TestBackupCard(t *testing.T) {
 		t.Error("failure and staleness must be shown")
 	}
 
-	fb.status = backup.Status{Configured: true, Running: true, Progress: 42}
-	if body := card(); !strings.Contains(body, "42%") || strings.Contains(body, "Back up now") {
+	// A failure Roostack tries again by itself: the card says when, and
+	// Home doesn't flag it yet; a missing drive is flagged at once.
+	unreachable := &store.BackupRun{OK: false, Finished: time.Now(), Error: "couldn't reach vps's disk in 2m0s"}
+	at := time.Now().Add(time.Hour)
+	fb.status = backup.Status{Configured: true, Last: unreachable, LastOK: ok, Progress: -1, Retry: &backup.Retry{At: at}}
+	if body := card(); !strings.Contains(body, "couldn&#39;t reach vps&#39;s disk in 2m0s Roostack tries again "+whenText(at)+".") {
+		t.Errorf("retry on the card:\n%s", body)
+	}
+	if _, body := h.get("/"); strings.Contains(body, "The last backup didn") {
+		t.Error("no attention item while a retry is planned")
+	}
+	fb.status.Retry = nil
+	if _, body := h.get("/"); !strings.Contains(body, "The last backup didn") {
+		t.Error("once the retries are over, it needs attention")
+	}
+	fb.status.Retry = &backup.Retry{Drive: true}
+	if _, body := h.get("/"); !strings.Contains(body, "It backs up there as soon as the drive is plugged in.") {
+		t.Error("a missing drive needs someone: flagged at once")
+	}
+
+	fb.status = backup.Status{Configured: true, Running: true, Progress: 42, Step: "Copying to vps's disk"}
+	if body := card(); !strings.Contains(body, "42%") || strings.Contains(body, "Back up now") || !strings.Contains(body, "Copying to vps") {
 		t.Error("running backup: show progress, hide the button")
 	}
 
@@ -76,5 +96,40 @@ func TestMembersCannotStartBackups(t *testing.T) {
 	}
 	if code, _ := h.post("/backup/run", nil, h.srv.URL); code != http.StatusForbidden || fb.runs != 0 {
 		t.Errorf("member backup: %d", code)
+	}
+}
+
+// keepingBackups are this server's backups, which can be kept as the
+// right copy of the lab.
+type keepingBackups struct {
+	fakeBackups
+	kept bool
+}
+
+func (k *keepingBackups) KeepThisCopy(context.Context) error {
+	k.kept, k.status.Fenced = true, nil
+	return nil
+}
+
+// An out-of-date copy of the lab says so on Backups and Home, and the
+// Owner can keep it as the right one.
+func TestFencedCopy(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	kb := &keepingBackups{fakeBackups: fakeBackups{status: backup.Status{Configured: true, Progress: -1,
+		Fenced: &backup.Fence{Reason: backup.FenceRestored, Host: "vps", Gen: 1, Since: time.Now()}}}}
+	h.node().backups = kb
+	_, body := h.get("/backups")
+	if !strings.Contains(body, "This lab was restored on another machine (vps)") || !strings.Contains(body, "/backups/keep-this-copy") {
+		t.Error("the card explains, and offers keeping this copy")
+	}
+	if _, body := h.get("/"); !strings.Contains(body, "This lab was restored on another machine (vps)") {
+		t.Error("home says so")
+	}
+	h.post("/backups/keep-this-copy", nil, h.srv.URL)
+	if !kb.kept {
+		t.Error("kept")
+	}
+	if _, body := h.get("/backups"); strings.Contains(body, "restored on another machine") {
+		t.Error("not fenced any more")
 	}
 }

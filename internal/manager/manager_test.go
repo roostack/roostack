@@ -33,8 +33,11 @@ func (f *fakeSystemd) rec(verb string, u []string) error {
 	f.calls = append(f.calls, verb+" "+strings.Join(u, " "))
 	return nil
 }
-func (f *fakeSystemd) DaemonReload(context.Context) error           { return f.rec("daemon-reload", nil) }
-func (f *fakeSystemd) Start(_ context.Context, u ...string) error   { return f.rec("start", u) }
+func (f *fakeSystemd) DaemonReload(context.Context) error         { return f.rec("daemon-reload", nil) }
+func (f *fakeSystemd) Start(_ context.Context, u ...string) error { return f.rec("start", u) }
+func (f *fakeSystemd) StartNoBlock(_ context.Context, u ...string) error {
+	return f.rec("start --no-block", u)
+}
 func (f *fakeSystemd) Restart(_ context.Context, u ...string) error { return f.rec("restart", u) }
 func (f *fakeSystemd) Stop(_ context.Context, u ...string) error    { return f.rec("stop", u) }
 func (f *fakeSystemd) ReloadOrRestart(_ context.Context, u ...string) error {
@@ -197,6 +200,79 @@ func TestInstallAndRemove(t *testing.T) {
 	}
 }
 
+// A second copy of a package is a service of its own: its own name,
+// title, address, units, secrets and data, and removed on its own
+// (SPEC.md §8.2).
+func TestSecondCopy(t *testing.T) {
+	m, secrets := newManager(t)
+	ctx := context.Background()
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	var fe *FormError
+	for _, bad := range []string{"Work Vault", "work", "passwords-work"} {
+		if err := m.Install(ctx, "vaultwarden", InstallRequest{Name: bad}); !errors.As(err, &fe) || !strings.Contains(fe.Msg, "vaultwarden-") {
+			t.Errorf("name %q: %v", bad, err)
+		}
+	}
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Name: "vaultwarden-work", Settings: map[string]string{}}); !errors.As(err, &fe) ||
+		!strings.Contains(fe.Msg, "already used") {
+		t.Errorf("the same address as the first: %v", err)
+	}
+	err := m.Install(ctx, "vaultwarden", InstallRequest{Name: "vaultwarden-work", Title: "Vaultwarden (work)", Subdomain: "vault-work",
+		Settings: map[string]string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if st := m.Status(); st.LastErr != nil {
+		t.Fatalf("apply: %v", st.LastErr)
+	}
+	in, err := instance.Load(state.InstanceFile(m.Lab, "vaultwarden-work"))
+	if err != nil || in.Name != "vaultwarden-work" || in.Package != "vaultwarden" || in.Title != "Vaultwarden (work)" {
+		t.Fatalf("instance: %+v %v", in, err)
+	}
+	for _, f := range []string{"roostack-vaultwarden-app.container", "roostack-vaultwarden-work-app.container"} {
+		if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), f)); err != nil {
+			t.Errorf("%s: %v", f, err)
+		}
+	}
+	if _, ok := secrets.values["roostack-vaultwarden-work-admin_token"]; !ok {
+		t.Error("its own generated secret")
+	}
+	if p, err := m.ServicePackage("vaultwarden-work"); err != nil || p.Title != "Vaultwarden (work)" || p.Name != "vaultwarden" {
+		t.Errorf("its package, titled as itself: %+v %v", p, err)
+	}
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Name: "vaultwarden-work", Subdomain: "vault-3"}); !errors.As(err, &fe) ||
+		!strings.Contains(fe.Msg, "already installed") {
+		t.Errorf("the same name twice: %v", err)
+	}
+	// The title changes later; back to the package's when cleared.
+	if err := m.SetTitle(ctx, "vaultwarden-work", "Work passwords"); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := m.ServicePackage("vaultwarden-work"); p.Title != "Work passwords" {
+		t.Errorf("title = %q", p.Title)
+	}
+	if err := m.SetTitle(ctx, "vaultwarden-work", "Vaultwarden"); err != nil {
+		t.Fatal(err)
+	}
+	if in, _ := instance.Load(state.InstanceFile(m.Lab, "vaultwarden-work")); in.Title != "" {
+		t.Errorf("the package's own title isn't stored: %q", in.Title)
+	}
+	if err := m.SetTitle(ctx, "../etc", "x"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a bad name: %v", err)
+	}
+	if err := m.Remove(ctx, "vaultwarden-work"); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-vaultwarden-app.container")); err != nil {
+		t.Error("removing the copy leaves the first alone")
+	}
+}
+
 func TestBadNames(t *testing.T) {
 	m, _ := newManager(t)
 	for _, name := range []string{"../etc", "", "Vault", "a/b"} {
@@ -333,6 +409,17 @@ func TestFirewallFollowsServices(t *testing.T) {
 	if last.SSHFrom != agent.FromLAN || !slices.Contains(last.Allow, want) {
 		t.Errorf("firewall = %+v, want SSH from the LAN and forgejo's port", last)
 	}
+
+	// A new SSH choice while running: the firewall is rebuilt at once,
+	// with the service's port still there.
+	local(m).UseSSH(config.SSHOff)
+	m.Wait()
+	fw.mu.Lock()
+	last = fw.applied[len(fw.applied)-1]
+	fw.mu.Unlock()
+	if last.SSHFrom != agent.FromOff || !slices.Contains(last.Allow, want) {
+		t.Errorf("after UseSSH: %+v", last)
+	}
 }
 
 func TestOnlyThisNodesServices(t *testing.T) {
@@ -401,5 +488,55 @@ func TestAssignmentHandsOverSecretsAndSetUp(t *testing.T) {
 	m.Wait()
 	if v := kv.m["hooks.forgejo.install"]; v != "" {
 		t.Errorf("setup progress after removing = %q", v)
+	}
+}
+
+// On a lab on the internet a service starts public (SPEC.md §6.12), and
+// its package's private paths stay closed until the Owner opens them.
+func TestInstallPublic(t *testing.T) {
+	m, _ := newManager(t)
+	if err := m.Install(context.Background(), "vaultwarden", InstallRequest{Settings: map[string]string{}, Public: true}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	routes, err := m.Access("vaultwarden")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range routes {
+		if !r.Public {
+			t.Errorf("%s should be public", r.Route)
+		}
+		for _, pp := range r.PrivatePaths {
+			if pp.Open {
+				t.Errorf("%s: %s opened without asking", r.Route, pp.Path)
+			}
+		}
+	}
+	if hosts := m.PublicHosts(); len(hosts) == 0 {
+		t.Error("its address should be listed as public")
+	}
+}
+
+// On a lab on the internet, CrowdSec starts with the public UI before
+// anything has asked about sharing: it shares nothing until the Owner
+// answers (SPEC.md §6.11, §6.12).
+func TestNoSharingUntilAsked(t *testing.T) {
+	m, _ := newManager(t)
+	m.Lab.Network = config.NetworkInternet
+	m.Node.(*node.Local).Lab.Network = config.NetworkInternet
+	m.UpdateLab = func(change func(*config.Lab)) error { change(&m.Lab); return nil }
+	quadlet := filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-crowdsec.container")
+	m.Apply()
+	m.Wait()
+	if data, err := os.ReadFile(quadlet); err != nil || !strings.Contains(string(data), "DISABLE_ONLINE_API=true") {
+		t.Fatalf("before the Owner answers, CrowdSec shares nothing: %v\n%s", err, data)
+	}
+	if err := m.SetSignalSharing(true); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if data, _ := os.ReadFile(quadlet); strings.Contains(string(data), "DISABLE_ONLINE_API") {
+		t.Error("once the Owner chooses to share, it does")
 	}
 }

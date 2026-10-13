@@ -31,6 +31,10 @@ type Membership struct {
 	// ControllerID and ControllerAddr name the controller (for nodes).
 	ControllerID   string     `json:"controller_id,omitempty"`
 	ControllerAddr netip.Addr `json:"controller_addr,omitzero"`
+	// LabName and UI name the lab and where its pages are, from the join
+	// code, for this server's own page (nodes).
+	LabName string `json:"lab_name,omitempty"`
+	UI      string `json:"ui,omitempty"`
 }
 
 // MembershipFile is where a server keeps its membership.

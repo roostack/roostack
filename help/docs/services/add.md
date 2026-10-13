@@ -23,8 +23,49 @@
 4. Choose **Install**.
 
 Roostack downloads the service, starts it and gives it its web address.
-Downloading can take a few minutes the first time. You can watch it on the
-home page; the service shows **starting**, then **running**.
+This usually takes a few minutes. While it does, the service shows
+**installing**, and its page lists each step: done, in progress (with how
+long so far) or still to come, with the full log under **Details**. The
+home page and **Services** show which step it's on. Its address becomes a
+link once it's running.
+
+On a brand-new server, the first install may also wait for Roostack's web
+proxy to finish building (once only, a few minutes). If a step takes much
+longer than usual, the page says so, and whether it's still moving.
+
+## Another copy of a service
+
+You can install a service more than once: two Forgejos, say, one for
+work and one for home. Each copy is completely separate: its own data,
+settings, backups and web address.
+
+On **Add a service**, choose **Add another…** next to one you already
+have. As well as the usual form, it asks for:
+
+Title
+:   What it's called on your pages, such as "Forgejo (work)".
+
+Name
+:   Its short name, used for its folders, containers and backups. It always
+    starts with the service's own (`forgejo-`), and you choose the rest:
+    lowercase letters, digits and dashes, such as `work`. It's filled in
+    from the title as you type. It can't change later.
+
+It also needs a web address of its own, which follows the name (such as
+`git-work`) unless you change it.
+
+Every install asks for a title and name, not only another copy: leave
+them as they are for the usual name (`forgejo`). To change a service's
+title later, open its page and choose **Rename**; its name stays.
+
+??? note "For technical users"
+
+    The name is the service's ID: its instance file is
+    `/var/lib/roostack/services/<name>.yaml` (with `name:` and `package:`),
+    its containers `roostack-<name>-…`, its data
+    `/srv/roostack/services/<name>`, its secrets `roostack-<name>-…` and
+    its backups tagged `service=<name>`. The first copy of a package is
+    named after it.
 
 ## Finishing setup
 
@@ -56,8 +97,12 @@ is ready.
     Roostack then applies the change on the service's server: it generates
     the Quadlet files in `~roostack/.config/containers/systemd/`
     and a Caddy snippet in `/var/lib/roostack/caddy/sites/<name>.caddy`,
-    reloads systemd and starts the units. The apply's log shows on the home
-    page while it runs.
+    reloads systemd and starts the units. Each new container's image is
+    downloaded first (`podman pull`, run as the `roostack` user), then its
+    unit started, one at a time; a new Caddy starts last. The apply's log
+    shows on the home page and under the service's **Details** while it
+    runs. The step list is kept in memory: if Roostack restarts during an
+    install, the service shows its containers' state instead.
 
     Setup steps ("install hooks") run with `podman exec` inside the
     service's containers, retried every 10 seconds for up to 10 minutes

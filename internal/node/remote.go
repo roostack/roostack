@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -26,7 +27,11 @@ import (
 const (
 	statusTimeout = 4 * time.Second
 	statusCache   = 5 * time.Second
-	pushRetry     = 30 * time.Second
+	// downFor: once a server stops answering, calls to it fail at once for
+	// this long, while a background check sees if it's back. Otherwise every
+	// page would wait seconds for each call to a server that's off.
+	downFor   = 30 * time.Second
+	pushRetry = 30 * time.Second
 )
 
 // Remote is another server, as the controller sees it: every operation
@@ -50,6 +55,12 @@ type Remote struct {
 	status    WireStatus
 	statusErr error
 	statusAt  time.Time
+	// downAt is when a call last failed to get through (zero while it
+	// answers); probing: a background check is asking it.
+	downAt  time.Time
+	probing bool
+	// closed: it left the lab; nothing more is sent to it.
+	closed bool
 	// reads caches answers to cachedReads (readCache).
 	reads map[string]cachedRead
 }
@@ -62,7 +73,7 @@ const readCache = 10 * time.Second
 
 var cachedReads = map[string]bool{
 	"/v1/services": true, "/v1/services/details": true, "/v1/builtins": true, "/v1/backups": true,
-	"/v1/disk": true, "/v1/settings": true, "/v1/updates": true, "/v1/host/changes": true, "/v1/kept": true,
+	"/v1/disks": true, "/v1/settings": true, "/v1/updates": true, "/v1/host/changes": true, "/v1/kept": true,
 }
 
 type cachedRead struct {
@@ -117,6 +128,9 @@ func (r *Remote) Apply(a Assignment) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.closed {
+		return
+	}
 	// Typed-in secrets not yet delivered are still needed.
 	if r.latest != nil && len(r.latest.Secrets) > 0 {
 		merged := map[string][]byte{}
@@ -136,6 +150,14 @@ func (r *Remote) Apply(a Assignment) {
 	}
 }
 
+// Close stops sending it assignments: it left the lab (a retry still
+// waiting gives up).
+func (r *Remote) Close() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.closed = true
+}
+
 // unchanged reports whether w is what the server already has: the
 // latest assignment, delivered, with nothing new to hand over (secrets,
 // set-ups).
@@ -147,6 +169,7 @@ func (r *Remote) unchanged(w WireAssignment) bool {
 	}
 	old, next := *r.latest, w
 	old.Version, next.Version = 0, 0
+	old.Reason, next.Reason = "", "" // why doesn't change what
 	a, err1 := json.Marshal(old)
 	b, err2 := json.Marshal(next)
 	return err1 == nil && err2 == nil && bytes.Equal(a, b)
@@ -162,7 +185,7 @@ func (r *Remote) push() {
 		if err == nil {
 			r.deliveredLocked(w.Version)
 		}
-		if r.latest.Version == r.delivered {
+		if r.latest.Version == r.delivered || r.closed {
 			r.pushing = false
 			r.mu.Unlock()
 			return
@@ -203,7 +226,9 @@ func (r *Remote) Pending() (WireAssignment, bool) {
 func (r *Remote) Status() ApplyStatus {
 	st, err := r.wireStatus()
 	if err != nil {
-		return ApplyStatus{Finished: true, LastErr: fmt.Errorf("Roostack can't reach %s: %v", r.ID.Name, err)}
+		// ErrUnreachable whatever the cause, so it's told apart from a change
+		// that failed (the cause is in the log).
+		return ApplyStatus{Finished: true, LastErr: fmt.Errorf("Roostack can't reach %s: %w", r.ID.Name, ErrUnreachable)}
 	}
 	return st.apply()
 }
@@ -221,7 +246,27 @@ func (r *Remote) wireStatus() (WireStatus, error) {
 		r.mu.Unlock()
 		return st, err
 	}
+	if r.down() {
+		// Don't wait for it: check in the background, answer at once.
+		if !r.probing {
+			r.probing = true
+			go func() {
+				r.fetchStatus()
+				r.mu.Lock()
+				r.probing = false
+				r.mu.Unlock()
+			}()
+		}
+		err := r.unreachable()
+		r.mu.Unlock()
+		return WireStatus{}, err
+	}
 	r.mu.Unlock()
+	return r.fetchStatus()
+}
+
+// fetchStatus asks the server for its status, and caches the answer.
+func (r *Remote) fetchStatus() (WireStatus, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), statusTimeout)
 	defer cancel()
 	var st WireStatus
@@ -230,6 +275,18 @@ func (r *Remote) wireStatus() (WireStatus, error) {
 	r.status, r.statusErr, r.statusAt = st, err, time.Now()
 	r.mu.Unlock()
 	return st, err
+}
+
+// ErrUnreachable means another server doesn't answer.
+var ErrUnreachable = errors.New("Roostack can't reach it")
+
+// down reports whether calls to the server stopped getting through lately
+// (r.mu held).
+func (r *Remote) down() bool { return !r.downAt.IsZero() && time.Since(r.downAt) < downFor }
+
+// unreachable is the error for a call while the server is down.
+func (r *Remote) unreachable() error {
+	return fmt.Errorf("Roostack can't reach %s right now: %w", r.ID.Name, ErrUnreachable)
 }
 
 func (r *Remote) ServiceStates(ctx context.Context) (map[string]string, error) {
@@ -439,6 +496,12 @@ func (x remoteSettings) SetRestartPolicy(ctx context.Context, mode string, hour 
 
 // call makes a lab API request to the server.
 func (r *Remote) call(ctx context.Context, method, path string, in, out any) error {
+	r.mu.Lock()
+	down := r.down() && path != "/v1/status"
+	r.mu.Unlock()
+	if down {
+		return r.unreachable()
+	}
 	cacheable := method == http.MethodGet && cachedReads[path]
 	if cacheable {
 		r.mu.Lock()
@@ -468,6 +531,15 @@ func (r *Remote) call(ctx context.Context, method, path string, in, out any) err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := r.Client.Do(req)
+	r.mu.Lock()
+	switch {
+	case err == nil:
+		r.downAt = time.Time{}
+	case ctx.Err() != context.Canceled:
+		// It didn't answer (not the caller giving up).
+		r.downAt = time.Now()
+	}
+	r.mu.Unlock()
 	if err != nil {
 		return err
 	}

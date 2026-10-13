@@ -39,12 +39,15 @@ type Service struct {
 	mu      sync.Mutex
 	pending bool          // queued or running
 	act     *activity.Log // the queued run's log
+	only    []string      // the queued run's destinations (nil: all)
+	retries map[string]*retryState
 }
 
 // Configured reports whether a backup destination is set.
 func (s *Service) Configured() bool { return s.Deps != nil }
 
-// Job is the backup job for the coordinator. It records every attempt.
+// Job is the backup job for the coordinator. It records every attempt,
+// and plans another try of the destinations that failed (retry.go).
 func (s *Service) Job() maintenance.Job {
 	return maintenance.Job{
 		Name:      JobName,
@@ -52,16 +55,18 @@ func (s *Service) Job() maintenance.Job {
 		Run: func(ctx context.Context, h *maintenance.Handle) error {
 			defer s.setPending(false)
 			s.mu.Lock()
-			act := s.act
-			s.act = nil
+			act, only := s.act, s.only
+			s.act, s.only = nil, nil
 			s.mu.Unlock()
 			if act == nil { // resumed after a reboot, or run directly
 				act = s.Activity.Start(activity.Backup, "Backup")
 			}
 			start := time.Now()
 			deps := *s.Deps
-			deps.Log = act
+			deps.Log, deps.Only = act, only
+			results := map[string]error{}
 			deps.OnCopy = func(c Copy, started time.Time, sum *Summary, err error) {
+				results[c.Name] = err
 				run := store.BackupRun{Started: started, Finished: time.Now(), OK: err == nil, Destination: c.Name}
 				if sum != nil {
 					run.SnapshotID, run.FilesNew, run.DataAdded, run.Stored = sum.SnapshotID, sum.FilesNew, sum.DataAdded, sum.Stored
@@ -72,10 +77,34 @@ func (s *Service) Job() maintenance.Job {
 				s.Store.RecordBackup(context.WithoutCancel(ctx), run)
 			}
 			sum, err := Run(ctx, deps, h)
+			// Out of date: stand down until the Owner says otherwise.
+			var fenced *FenceError
+			if errors.As(err, &fenced) {
+				s.setFence(context.WithoutCancel(ctx), &fenced.Fence)
+				act.Finish(err)
+				return nil // not a failure to retry: there's nothing to do
+			}
 			if ctx.Err() != nil && err != nil {
 				act.Printf("Paused for a restart; the backup continues afterwards.")
 			}
+			if deps.wants("") {
+				results[""] = err
+			}
+			// A run that failed before reaching a copy (preparing the
+			// databases) failed it too.
+			for _, c := range deps.Copies {
+				if _, ok := results[c.Name]; !ok && err != nil && deps.wants(c.Name) {
+					results[c.Name] = err
+				}
+			}
+			if ctx.Err() == nil {
+				s.updateRetries(time.Now(), results, only == nil)
+				s.logRetries(act)
+			}
 			act.Finish(err)
+			if !deps.wants("") {
+				return nil // a retry of copies only: the main backup's result stands
+			}
 			run := store.BackupRun{Started: start, Finished: time.Now(), OK: err == nil}
 			if sum != nil {
 				run.SnapshotID, run.FilesNew, run.DataAdded, run.Stored = sum.SnapshotID, sum.FilesNew, sum.DataAdded, sum.Stored
@@ -89,7 +118,7 @@ func (s *Service) Job() maintenance.Job {
 			if rerr := s.Store.RecordBackup(context.WithoutCancel(ctx), run); rerr != nil && err == nil {
 				err = rerr
 			}
-			if err == nil && s.AfterBackup != nil {
+			if err == nil && only == nil && s.AfterBackup != nil {
 				s.AfterBackup()
 			}
 			return err
@@ -133,26 +162,88 @@ func (s *Service) MaintenanceJob() maintenance.Job {
 	}
 }
 
+// MissedAfter is how long after the last backup attempt one counts as
+// missed: a nightly backup plus a couple of hours' slack.
+const MissedAfter = 26 * time.Hour
+
+// CatchUp queues a backup if none was attempted for MissedAfter (or ever):
+// the server was off, or asleep, at the nightly time, which would
+// otherwise only come round again the next night (SPEC.md §6.9). It
+// reports whether it queued one. Failed backups have their own retries
+// (retry.go), so an attempt counts, not a success.
+func (s *Service) CatchUp(ctx context.Context) (bool, error) {
+	if !s.Configured() {
+		return false, nil
+	}
+	last, _, err := s.Store.LastBackup(ctx)
+	if err != nil {
+		return false, err
+	}
+	if last != nil && time.Since(last.Started) < MissedAfter {
+		return false, nil
+	}
+	err = s.Submit()
+	if errors.Is(err, ErrAlreadyQueued) || errors.Is(err, ErrFenced) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // RunNow queues a backup ("Back up now").
 func (s *Service) RunNow() error { return s.Submit() }
 
-// Submit queues a backup unless one is already queued or running.
+// Submit queues a backup to every destination unless one is already
+// queued or running.
 func (s *Service) Submit(chain ...maintenance.Job) error {
 	if !s.Configured() {
 		return errors.New("backups are not set up")
 	}
+	if s.loadFence(context.Background()) != nil {
+		return ErrFenced
+	}
+	if !s.submit(nil, chain...) {
+		return ErrAlreadyQueued
+	}
+	return nil
+}
+
+// submit queues a backup to destinations only (nil: all); false if one is
+// already queued or running.
+func (s *Service) submit(only []string, chain ...maintenance.Job) bool {
 	s.mu.Lock()
 	if s.pending {
 		s.mu.Unlock()
-		return ErrAlreadyQueued
+		return false
 	}
-	s.pending = true
+	s.pending, s.only = true, only
 	// Start the log now, so a backup queued behind other work shows as waiting.
-	s.act = s.Activity.Start(activity.Backup, "Backup")
+	title := "Backup"
+	if only != nil {
+		title = "Backup (trying again)"
+	}
+	s.act = s.Activity.Start(activity.Backup, title)
 	s.act.Step("Waiting for other maintenance to finish")
 	s.mu.Unlock()
 	s.Coord.Submit(append([]maintenance.Job{s.Job()}, chain...)...)
-	return nil
+	return true
+}
+
+// logRetries says in a run's log when its failed destinations are tried
+// again.
+func (s *Service) logRetries(act *activity.Log) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	names := map[string]string{"": "the main destination"}
+	for _, c := range s.Deps.Copies {
+		names[c.Name] = c.Title
+	}
+	for name, st := range s.retries {
+		if st.Drive {
+			act.Printf("%s: backs up as soon as its drive is plugged in.", names[name])
+		} else {
+			act.Printf("%s: tries again at %s.", names[name], st.At.Local().Format("15:04"))
+		}
+	}
 }
 
 func (s *Service) setPending(v bool) {
@@ -169,11 +260,18 @@ type Status struct {
 	Running   bool
 	Queued    bool
 	Progress  int // -1 if unknown
-	Last      *store.BackupRun
-	LastOK    *store.BackupRun
-	Next      time.Time
+	// Step is what a running backup is doing ("Copying to vps's disk").
+	Step string
+	// Retry is the main destination's next try after a failure (nil: none).
+	Retry  *Retry
+	Last   *store.BackupRun
+	LastOK *store.BackupRun
+	Next   time.Time
 	// Copies are the extra copies somewhere else, with their own results.
 	Copies []CopyStatus
+	// Fenced says why backups stood down: this copy of the lab is out of
+	// date (fence.go). Nil normally.
+	Fenced *Fence
 }
 
 // CopyStatus is an extra copy's latest results.
@@ -181,6 +279,7 @@ type CopyStatus struct {
 	Name, Title  string
 	Repository   string
 	Last, LastOK *store.BackupRun
+	Retry        *Retry
 }
 
 // Status reports the current backup state.
@@ -194,7 +293,7 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 		return st, err
 	}
 	for _, c := range s.Deps.Copies {
-		cs := CopyStatus{Name: c.Name, Title: c.Title, Repository: c.Repo.URL}
+		cs := CopyStatus{Name: c.Name, Title: c.Title, Repository: c.Repo.URL, Retry: s.retryFor(c.Name)}
 		if cs.Last, cs.LastOK, err = s.Store.LastBackupTo(ctx, c.Name); err != nil {
 			return st, err
 		}
@@ -203,11 +302,16 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 			st.LocalOnly = false
 		}
 	}
+	st.Retry = s.retryFor("")
+	st.Fenced = s.loadFence(ctx)
 	if s.NextRun != nil {
 		st.Next = s.NextRun()
 	}
 	if r := s.Coord.Status().Running; r != nil && r.Name == JobName {
 		st.Running, st.Progress = true, r.Progress
+		if snap, ok := s.Activity.Latest(activity.Backup); ok && snap.Running() {
+			st.Step = snap.Status
+		}
 	}
 	s.mu.Lock()
 	st.Queued = s.pending && !st.Running

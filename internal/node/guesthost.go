@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/labnet"
 )
 
 // Storage for other labs can be offered by any of a lab's servers (SPEC.md
@@ -54,11 +55,53 @@ func (r *Remote) GuestSpace(ctx context.Context) (int64, int64, error) {
 	return out.Free, out.Total, err
 }
 
+// Linked is a server that reports its direct links to other servers
+// (Local; Remote reports what the server told it).
+type Linked interface {
+	// LinkStatus is its home-network addresses, and when each direct link
+	// last connected, by the other server's public key.
+	LinkStatus(ctx context.Context) ([]string, map[string]int64)
+}
+
+// LinkStatus reads this server's addresses and its direct links.
+func (n *Local) LinkStatus(ctx context.Context) ([]string, map[string]int64) {
+	var addrs []string
+	for _, a := range labnet.HomeAddresses() {
+		addrs = append(addrs, a.IP)
+	}
+	n.mu.Lock()
+	links := n.assignment.Links
+	n.mu.Unlock()
+	if links == nil || len(links.Peers) == 0 || n.Links == nil {
+		return addrs, nil
+	}
+	st, err := n.Links.WireGuardStatus(ctx, agent.WireGuardInterface)
+	if err != nil {
+		return addrs, nil
+	}
+	out := map[string]int64{}
+	for _, p := range links.Peers {
+		out[p.PublicKey] = st.Handshakes[p.PublicKey]
+	}
+	return addrs, out
+}
+
+// LinkStatus is what the server last said about its addresses and links.
+func (r *Remote) LinkStatus(context.Context) ([]string, map[string]int64) {
+	st, err := r.wireStatus()
+	if err != nil {
+		return nil, nil
+	}
+	return st.Addrs, st.Links
+}
+
 // LinkAgent is roostack-agent's WireGuard operations.
 type LinkAgent interface {
 	ApplyWireGuard(ctx context.Context, wg agent.WireGuard) (string, error)
 	WireGuardStatus(ctx context.Context, iface string) (agent.WireGuardStatus, error)
 	RemoveWireGuard(ctx context.Context, iface string) error
+	// ApplyLinks sets the direct links to other servers.
+	ApplyLinks(ctx context.Context, l agent.Links) error
 }
 
 var errNotGuestLink = errors.New("only the guests' link can be configured this way")

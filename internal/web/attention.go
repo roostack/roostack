@@ -1,14 +1,19 @@
 package web
 
 import (
+	"cmp"
+	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/node"
 )
 
 // Attention item levels.
@@ -33,17 +38,25 @@ type attentionItem struct {
 	Text     string
 	Link     string
 	LinkText string
+	// Key, when set, identifies the problem for email whatever its words
+	// (noticeKey): an error's text can change between attempts.
+	Key string
 }
 
 // attention gathers what the current user should know about, filtered by
 // role: Members see nothing they can't act on.
+
+// goneAfter is how long a server can go unreached before Roostack asks
+// whether it's gone for good.
+const goneAfter = 3 * 24 * time.Hour
+
 func (s *Server) attention(r *http.Request) []attentionItem {
 	u := currentUser(r)
 	owner := auth.Can(u.Role, auth.ManageHost)
 	admin := auth.Can(u.Role, auth.ManageServices)
 	var items []attentionItem
 	add := func(level, text, link, linkText string) {
-		items = append(items, attentionItem{level, text, link, linkText})
+		items = append(items, attentionItem{Level: level, Text: text, Link: link, LinkText: linkText})
 	}
 
 	if s.RestorePending != nil && s.RestorePending() {
@@ -59,8 +72,33 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 	}
 	if owner && s.Setup != nil {
 		if p, err := s.Setup.Progress(r.Context()); err == nil && p.DomainLater && !p.DomainDone {
-			add(levelProblem, "Your domain isn't set up, so services can't get secure (HTTPS) certificates.",
-				"/setup/domain", "Set up your domain")
+			add(levelProblem, "Your lab has no address yet, so its services can't be reached on the web.",
+				"/setup/domain", "Give it an address")
+		}
+	}
+	// The lab's previous address, while it still works (SPEC.md §6.6):
+	// everyone has bookmarks and apps to update.
+	if o := s.oldAddress(); o != nil {
+		level, link, text := levelInfo, "", "Your lab's address changed to "+o.Now+". The old addresses ("+o.Domain+
+			") keep working until "+o.Until.Local().Format("2 January")+": update bookmarks, and the server address in apps."
+		if o.Soon() {
+			level = levelWarning
+		}
+		if owner {
+			link = "/settings/domain#old-address"
+		}
+		add(level, text, link, map[bool]string{true: "What to update", false: ""}[owner])
+	}
+	// The link to Roostack Cloud: gone (unlinked there, or restored from
+	// before it was unlinked), or Cloud out of reach for days (SPEC.md §6.6).
+	if owner && s.Cloud != nil {
+		switch st := s.Cloud.Status(); {
+		case !st.Forgotten.IsZero():
+			add(levelWarning, "This lab is no longer linked to Roostack Cloud: Cloud stopped accepting its certificate.",
+				"/settings/cloud", "See why")
+		case st.Linked && st.LastError != "" && time.Since(st.LastContact) > cloudUnreachableFor:
+			add(levelWarning, "Roostack Cloud hasn't been reachable since "+whenText(st.LastContact)+".",
+				"/settings/cloud", "Roostack Cloud")
 		}
 	}
 
@@ -84,9 +122,31 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			}
 			switch st := mc.Status; {
 			case st.Running:
-				add(levelInfo, "Applying changes"+on+"… Downloading a new service can take a few minutes.", "", "")
+				add(levelInfo, "Applying changes"+on+"… Downloading a new service can take a few minutes.",
+					"/settings/servers#changes-"+mc.ID, "See what it's doing")
+			case errors.Is(st.LastErr, node.ErrUnreachable):
+				// Its own item, in words that don't change with each attempt's
+				// error (they made emails flap, 2026-10-08).
+				item := attentionItem{Level: levelProblem, Key: "unreachable:" + mc.ID,
+					Text: "Roostack can't reach " + mc.Name + ". It may be switched off, or its network down.",
+					Link: "/settings/servers#server-" + mc.ID, LinkText: "View servers"}
+				// Days later it may be gone for good (a reinstalled test VM
+				// was): say so plainly, and offer what to do about it.
+				if since := mc.UnreachableSince; owner && !since.IsZero() && time.Since(since) > goneAfter {
+					item.Text = "Roostack hasn't reached " + mc.Name + " since " + whenText(since) + ". If it's gone for good " +
+						"(reinstalled, or switched off for good), "
+					if len(mc.Services) > 0 || len(mc.Waiting) > 0 {
+						item.Text += "its services can come back from their backups on another server."
+						item.Link, item.LinkText = "/settings/servers/"+mc.ID+"/gone", "Restore its services"
+					} else {
+						item.Text += "remove it from the lab."
+						item.Link, item.LinkText = "/settings/servers?remove="+mc.ID+"#server-"+mc.ID, "Remove it"
+					}
+				}
+				items = append(items, item)
 			case st.LastErr != nil:
-				add(levelProblem, "The last change"+on+" didn't finish: "+st.LastErr.Error(), "/services", "View services")
+				items = append(items, attentionItem{Level: levelProblem, Key: "apply:" + mc.ID,
+					Text: "The last change" + on + " didn't finish: " + st.LastErr.Error(), Link: "/services", LinkText: "View services"})
 			}
 			// A server that joined has no firewall until the Owner chooses
 			// who can log in over SSH (this server's is a setup step).
@@ -101,8 +161,73 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 				}
 			}
 		}
+		// Visitors come in through a cloud server that isn't connected:
+		// public services are down from outside (SPEC.md §10.5).
+		if owner && !s.onInternet() && len(s.Manager.PublicHosts()) > 0 {
+			if e, ok := s.Manager.Edge(r.Context()); ok {
+				up := false
+				for _, mc := range servers {
+					if mc.ID == e.ID {
+						up = !errors.Is(mc.Status.LastErr, node.ErrUnreachable)
+					}
+				}
+				if !up || e.Address == "" {
+					name := cmp.Or(e.Name, e.ID)
+					items = append(items, attentionItem{Level: levelProblem, Key: "edge:" + e.ID,
+						Text: "Public services can't be reached from the internet: visitors come in through " + name +
+							", which isn't connected to the lab. Check it's running, or choose port forwarding meanwhile.",
+						Link: "/settings/public#way-in", LinkText: "Public access"})
+				}
+			}
+		}
+		// The lab's own domain through the relay, not proven (yet, or any
+		// more): its public addresses aren't (or soon won't be) relayed.
+		if owner && len(s.Manager.PublicHosts()) > 0 {
+			if d := s.relayDomain(); d != nil {
+				switch {
+				case d.Verified && d.Missing:
+					items = append(items, attentionItem{Level: levelProblem, Key: "relay-proof-missing:" + d.Domain,
+						Text: "Roostack Cloud can't find the record proving " + d.Domain + " is this lab's any more. " +
+							"Public services stop coming through the relay a day after it went: put it back.",
+						Link: "/settings/public#way-in", LinkText: "Public access"})
+				case !d.Verified:
+					items = append(items, attentionItem{Level: levelWarning, Key: "relay-proof:" + d.Domain,
+						Text: "Public services aren't coming through Roostack Cloud's relay yet: it's waiting for the record " +
+							"proving " + d.Domain + " is this lab's.",
+						Link: "/settings/public#way-in", LinkText: "Public access"})
+				}
+			}
+		}
 		if services, err := s.Services(r.Context()); err == nil {
+			// Services whose server is gone: information, not a problem (SPEC.md
+			// §10.10): they wait until the Owner restores or removes them.
+			var waiting []string
+			var from []string
 			for _, svc := range services {
+				if svc.Status == StatusWaiting {
+					waiting = append(waiting, svc.Title)
+					if svc.WasOn != "" && !slices.Contains(from, svc.WasOn) {
+						from = append(from, svc.WasOn)
+					}
+				}
+			}
+			if owner && len(waiting) > 0 {
+				text := fmt.Sprintf("%d services are waiting to be restored", len(waiting))
+				if len(waiting) == 1 {
+					text = waiting[0] + " is waiting to be restored"
+				}
+				if len(from) > 0 {
+					text += " (they were on " + strings.Join(from, ", ") + ")"
+					if len(waiting) == 1 {
+						text = strings.Replace(text, "(they were", "(it was", 1)
+					}
+				}
+				add(levelInfo, text+".", "/backups#restoring", "Restore")
+			}
+			for _, svc := range services {
+				if svc.Status == StatusWaiting {
+					continue
+				}
 				// Asked of the server each service runs on.
 				n := s.Manager.NodeFor(svc.Name)
 				if n == nil {
@@ -115,6 +240,10 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 					add(levelProblem, svc.Title+" didn't finish setting up.", link, "See what went wrong")
 				case hs.Running || hs.Pending:
 					add(levelInfo, "Finishing setting up "+svc.Title+"…", link, "View")
+				case svc.Status == "failed":
+					// systemd gave up restarting it (SPEC.md §6.13: emailed
+					// once it has lasted a few minutes).
+					add(levelProblem, svc.Title+" has stopped working.", link, "See what's wrong")
 				}
 			}
 		}
@@ -129,17 +258,32 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		s.spaceAttention(r, add)
 	}
 
+	// A server with a public address of its own, in a lab Roostack treats
+	// as at home: probably a cloud server nobody has told it about.
+	if owner && s.Setup != nil {
+		if c := s.network(); c.Saved == "" && c.Detected == config.NetworkInternet {
+			add(levelWarning, "This server looks like a cloud server: it has a public address of its own. Tell Roostack, "+
+				"so private services and the public access checklist fit.", "/settings/home-network", "Where it is")
+		}
+	}
+
 	if owner && s.DNS != nil {
 		st := s.DNS.Status()
 		switch st.State {
 		case dnsrecords.StateBlocked, dnsrecords.StateOverridden, dnsrecords.StateConflict, dnsrecords.StateError:
 			// A headline here; the full explanation is on the Settings card.
-			add(levelProblem, dnsHeadline[st.State], "/settings/home-network", "See how to fix it")
+			headline := dnsHeadline[st.State]
+			if st.Internet && st.State == dnsrecords.StateOverridden {
+				headline = "This server's DNS sends your services' addresses somewhere else."
+			}
+			add(levelProblem, headline, "/settings/home-network", "See how to fix it")
 		case dnsrecords.StatePending:
 			add(levelInfo, st.Message, "/settings/home-network", "View")
 		case dnsrecords.StateManual:
 			if !st.Reachable {
-				add(levelWarning, "Devices at home can't find your services yet. "+st.Message, "/settings/home-network", "Home network settings")
+				first := map[bool]string{true: "Your services' addresses don't lead here yet. ",
+					false: "Devices at home can't find your services yet. "}[st.Internet]
+				add(levelWarning, first+st.Message, "/settings/home-network", "DNS settings")
 			}
 		}
 	}
@@ -164,6 +308,10 @@ type serverNode struct {
 
 // certWarning is how close to expiry a lab certificate is flagged.
 const certWarning = 30 * 24 * time.Hour
+
+// retrySoon reports a failed backup Roostack tries again by itself
+// within hours (not one waiting for someone to plug its drive in).
+func retrySoon(r *backup.Retry) bool { return r != nil && !r.Drive }
 
 // serverNodes lists this server, then the lab's other reachable ones.
 func (s *Server) serverNodes(r *http.Request) []serverNode {
@@ -206,6 +354,10 @@ func (s *Server) backupAttention(r *http.Request, m serverRef, n ServiceNode, ow
 		return
 	}
 	link := m.Backups()
+	if f := st.Fenced; f != nil {
+		add(levelProblem, f.Message()+m.on()+".", link, "What to do")
+		return
+	}
 	switch {
 	case !st.Configured && m.This:
 		setup := link
@@ -218,15 +370,18 @@ func (s *Server) backupAttention(r *http.Request, m serverRef, n ServiceNode, ow
 			link, "View")
 	case st.Running:
 		add(levelInfo, "Backing up"+m.on()+"…", link, "View")
+	case st.Last != nil && !st.Last.OK && retrySoon(st.Retry):
+		// Roostack tries again within hours: only once that fails too.
 	case st.Last != nil && !st.Last.OK:
-		add(levelProblem, "The last backup"+m.on()+" didn't finish: "+st.Last.Error, link, "View backups")
+		add(levelProblem, "The last backup"+m.on()+" didn't finish: "+st.Last.Error+retryText(st.Retry), link, "View backups")
 	}
 	// Extra copies (a first one is made with the next backup).
 	for _, c := range st.Copies {
 		switch {
 		case st.Running:
+		case c.Last != nil && !c.Last.OK && retrySoon(c.Retry):
 		case c.Last != nil && !c.Last.OK:
-			add(levelWarning, "The last copy of backups"+m.on()+" to "+c.Title+" didn't finish: "+c.Last.Error, link, "View backups")
+			add(levelWarning, "The last copy of backups"+m.on()+" to "+c.Title+" didn't finish: "+c.Last.Error+retryText(c.Retry), link, "View backups")
 		case c.LastOK != nil && isStale(c.LastOK.Finished):
 			add(levelWarning, "Backups"+m.on()+" haven't been copied to "+c.Title+" since "+whenText(c.LastOK.Finished)+".",
 				link, "View backups")

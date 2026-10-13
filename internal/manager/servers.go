@@ -1,8 +1,10 @@
 package manager
 
 import (
+	"cmp"
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -43,12 +45,43 @@ type Server struct {
 	Controller bool
 	// This is the server serving this request.
 	This bool
-	// Services are the names of the services placed on it.
-	Services []string
-	Status   ApplyStatus
+	// Reachable: it answers (this one always does).
+	Reachable bool
+	// Services are the names of the services placed on it; Waiting
+	// those that were, and wait to be restored (it's gone).
+	Services, Waiting []string
+	Status            ApplyStatus
 	// CertExpires is when its certificate on Roostack's network expires
 	// (renewed automatically well before); zero if unknown.
 	CertExpires time.Time
+	// UnreachableSince is when it was first seen not answering, kept
+	// across restarts; zero while it answers.
+	UnreachableSince time.Time
+}
+
+// unreachableKey + server ID is when it was first seen not answering.
+const unreachableKey = "server-unreachable-since."
+
+// unreachableSince records when a server stopped answering the first
+// time it's seen so, forgets it once it answers again, and says since
+// when.
+func (m *Manager) unreachableSince(ctx context.Context, id string, reachable bool) time.Time {
+	if m.Settings == nil {
+		return time.Time{}
+	}
+	v := m.setting(ctx, unreachableKey+id)
+	if reachable {
+		if v != "" {
+			m.Settings.SetSetting(ctx, unreachableKey+id, "")
+		}
+		return time.Time{}
+	}
+	if t, err := strconv.ParseInt(v, 10, 64); err == nil {
+		return time.Unix(t, 0)
+	}
+	now := time.Now()
+	m.Settings.SetSetting(ctx, unreachableKey+id, strconv.FormatInt(now.Unix(), 10))
+	return now
 }
 
 func (m *Manager) others() []RemoteServer {
@@ -84,14 +117,28 @@ func (m *Manager) NodeFor(service string) node.Node {
 	return m.node(in.Host)
 }
 
-// onNode returns the services placed on a server.
+// onNode returns the services placed on a server (not those waiting to
+// be restored: they run nowhere).
 func (m *Manager) onNode(services []state.Service, id string) []state.Service {
-	if id == m.Lab.NodeID {
-		return state.OnNode(services, id) // including any with no host yet
-	}
 	var out []state.Service
 	for _, s := range services {
-		if s.Instance.Host == id {
+		if s.Instance.Waiting {
+			continue
+		}
+		// The controller also runs any with no host yet.
+		if s.Instance.Host == id || (id == m.Lab.NodeID && s.Instance.Host == "") {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// waitingOn returns the services waiting to be restored that were on a
+// server.
+func waitingOn(services []state.Service, id string) []state.Service {
+	var out []state.Service
+	for _, s := range services {
+		if s.Instance.Waiting && s.Instance.Host == id {
 			out = append(out, s)
 		}
 	}
@@ -114,15 +161,22 @@ func (m *Manager) proxied(services []state.Service, id string) []state.Proxied {
 }
 
 // Apply hands every server its latest assignment (e.g. at startup).
-func (m *Manager) Apply() {
+func (m *Manager) Apply() { m.ApplyBecause("") }
+
+// ApplyBecause starts an apply, saying why in the servers' logs ("" for
+// a change to backups, storage or the lab network).
+func (m *Manager) ApplyBecause(reason string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.applyReason = reason
 	m.startApplyLocked()
 }
 
 // startApplyLocked builds each server's assignment and hands it over;
 // servers apply in the background.
 func (m *Manager) startApplyLocked() {
+	reason := cmp.Or(m.applyReason, "A change to backups, storage or the lab's servers")
+	m.applyReason = ""
 	services, err := state.LoadServices(m.Lab)
 	if err == nil {
 		err = m.allocateAndSave(services)
@@ -134,19 +188,28 @@ func (m *Manager) startApplyLocked() {
 		m.Activity.Start(activity.Apply, "Applying changes").Finish(err)
 		return
 	}
-	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: m.publicLocked().NoSharing}
+	// CrowdSec shares nothing until the Owner has answered (SPEC.md §6.11):
+	// on a lab on the internet it can start with the public UI, before
+	// anything asks.
+	pub := m.publicLocked()
+	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: pub.NoSharing || !pub.SharingAsked}
 	nodes := []node.Node{m.Node}
 	for _, r := range m.others() {
 		nodes = append(nodes, r)
 	}
+	infos := m.linkInfos(context.Background())
+	// The edge passes public visitors on to the controller's Caddy, which
+	// believes it alone about who they are (SPEC.md §10.5).
+	edge, edgeAddrs := m.edgeFor(infos)
+	lab.EdgeAddrs = append(edgeAddrs, m.relayFor(services)...)
 	for _, n := range nodes {
 		id := n.Identity().ID
 		if n == m.Node {
 			id = m.Lab.NodeID
 		}
-		a := node.Assignment{Services: m.onNode(services, id), Lab: lab}
+		a := node.Assignment{Services: m.onNode(services, id), Lab: lab, Reason: reason}
 		for _, s := range a.Services {
-			name := s.Package.Name
+			name := s.Name()
 			for k, v := range m.secrets[name] {
 				if a.Secrets == nil {
 					a.Secrets = map[string][]byte{}
@@ -168,6 +231,10 @@ func (m *Manager) startApplyLocked() {
 			a.Guests, a.GuestAddr = m.guestStores(context.Background())
 		}
 		a.Storage = m.storageFor(context.Background(), id)
+		a.Links = m.linksFor(context.Background(), infos, id)
+		if id == edge {
+			a.Edge = edgeConfig(m.Lab, services)
+		}
 		n.Apply(a)
 	}
 	m.secrets, m.setUp = nil, nil
@@ -188,13 +255,13 @@ func (m *Manager) allocateAndSave(services []state.Service) error {
 			return err
 		}
 		for _, s := range ported {
-			if !slices.ContainsFunc(changed, func(c state.Service) bool { return c.Package.Name == s.Package.Name }) {
+			if !slices.ContainsFunc(changed, func(c state.Service) bool { return c.Name() == s.Name() }) {
 				changed = append(changed, s)
 			}
 		}
 	}
 	for _, s := range changed {
-		if err := s.Instance.Save(state.InstanceFile(m.Lab, s.Package.Name)); err != nil {
+		if err := s.Instance.Save(state.InstanceFile(m.Lab, s.Name())); err != nil {
 			return err
 		}
 	}
@@ -221,25 +288,32 @@ func (m *Manager) Servers() ([]Server, error) {
 	names := func(id string) []string {
 		var out []string
 		for _, s := range m.onNode(all, id) {
-			out = append(out, s.Package.Name)
+			out = append(out, s.Name())
 		}
 		slices.Sort(out)
 		return out
 	}
 	id := m.Node.Identity()
-	servers := []Server{{ID: id.ID, Name: id.Name, Controller: true, This: true, Status: m.Status(),
+	servers := []Server{{ID: id.ID, Name: id.Name, Controller: true, This: true, Reachable: true, Status: m.Status(),
 		Services: names(m.Lab.NodeID)}}
 	others := m.others()
 	statuses := make([]ApplyStatus, len(others))
+	reachable := make([]bool, len(others))
 	// Ask every server at once: an unreachable one takes a few seconds.
 	var wg sync.WaitGroup
 	for i, r := range others {
-		wg.Go(func() { statuses[i] = r.Status() })
+		wg.Go(func() { statuses[i], reachable[i] = r.Status(), r.Settings() != nil })
 	}
 	wg.Wait()
 	for i, r := range others {
 		rid := r.Identity()
-		servers = append(servers, Server{ID: rid.ID, Name: rid.Name, Status: statuses[i], Services: names(rid.ID)})
+		var waiting []string
+		for _, w := range waitingOn(all, rid.ID) {
+			waiting = append(waiting, w.Name())
+		}
+		servers = append(servers, Server{ID: rid.ID, Name: rid.Name, Status: statuses[i], Reachable: reachable[i],
+			Services: names(rid.ID), Waiting: waiting,
+			UnreachableSince: m.unreachableSince(context.Background(), rid.ID, reachable[i])})
 	}
 	if m.Registry != nil {
 		certs := m.Registry.CertExpiries(context.Background())
@@ -323,13 +397,34 @@ func (m *Manager) RemoveServer(ctx context.Context, id string) error {
 	}
 	if on := m.onNode(all, id); len(on) > 0 {
 		return formErrorf("%s still runs %s. Remove it first, or move it to another server.",
-			r.Identity().Name, on[0].Package.Title)
+			r.Identity().Name, on[0].Title())
 	}
-	if err := r.Leave(ctx); err != nil {
-		m.Log.Warn("server didn't answer; removing it anyway", "server", r.Identity().Name, "err", err)
+	if w := waitingOn(all, id); len(w) > 0 {
+		// Its backups are how they come back: keep it until they have.
+		return formErrorf("%s waits to be restored from %s's backups. Restore it or remove it first.",
+			w[0].Title(), r.Identity().Name)
+	}
+	reachable := r.Settings() != nil
+	if err := r.Leave(ctx); err != nil || !reachable {
+		if err != nil {
+			m.Log.Warn("server didn't answer; removing it anyway", "server", r.Identity().Name, "err", err)
+		}
+		// If it comes back, it finds this in its backups and stands down
+		// rather than backing up stale copies (backup/fence.go).
+		m.markRemoved(ctx, id)
 	}
 	m.forgetServerBackups(ctx, id)
-	return m.Registry.Remove(ctx, id)
+	if err := m.Registry.Remove(ctx, id); err != nil {
+		return err
+	}
+	if m.Settings != nil {
+		m.Settings.SetSetting(ctx, unreachableKey+id, "")
+	}
+	// It's out of the lab: stop retrying anything to it.
+	if c, ok := r.(interface{ Close() }); ok {
+		c.Close()
+	}
+	return nil
 }
 
 // RenameServer changes a server's name. Renaming this server restarts
@@ -435,4 +530,64 @@ func (m *Manager) allNodes() []node.Node {
 		nodes = append(nodes, r)
 	}
 	return nodes
+}
+
+// joinedWait is how long the controller waits for a server that just
+// joined to answer (it restarts as part of the lab first).
+var joinedWait = 10 * time.Minute
+
+// MatchTimezone gives a server that just joined the controller's time
+// zone, so the lab's schedules (backups, updates) and logs line up. It
+// waits for the server to answer; the Owner can change it afterwards.
+func (m *Manager) MatchTimezone(ctx context.Context, id string) {
+	if m.Node == nil || m.Node.Settings() == nil {
+		return
+	}
+	zone, _, err := m.Node.Settings().Timezones()
+	if err != nil || zone == "" {
+		return
+	}
+	deadline := time.Now().Add(joinedWait)
+	for time.Now().Before(deadline) {
+		if n := m.node(id); n != nil {
+			if set := n.Settings(); set != nil {
+				changed, err := set.SetTimezone(ctx, zone)
+				switch {
+				case err != nil:
+					m.Log.Warn("giving a new server the lab's time zone", "server", m.nameOf(id), "err", err)
+				case changed:
+					m.Log.Info("gave a new server the lab's time zone", "server", m.nameOf(id), "zone", zone)
+				}
+				return
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(5 * time.Second):
+		}
+	}
+	m.Log.Warn("a new server didn't answer, so it keeps its own time zone", "server", m.nameOf(id))
+}
+
+// markRemoved leaves the removed mark in each of a removed server's
+// repositories the controller can write to.
+func (m *Manager) markRemoved(ctx context.Context, id string) {
+	if m.BackupStore == nil {
+		return
+	}
+	targets, _ := m.BackupStore.BackupTargets(ctx)
+	copies, _ := m.BackupStore.BackupCopies(ctx)
+	for _, t := range append(targets, copies...) {
+		if t.ServerID != id || strings.HasPrefix(t.Provider, "setup") {
+			continue
+		}
+		repo, err := m.adminRepo(ctx, t)
+		if err == nil {
+			err = repo.MarkRemoved(ctx, m.nameOf(id))
+		}
+		if err != nil {
+			m.Log.Warn("marking a removed server's backups", "server", m.nameOf(id), "err", err)
+		}
+	}
 }

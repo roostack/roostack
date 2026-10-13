@@ -1,0 +1,7 @@
+name: immich-family
+package: immich
+title: Photos (family)
+version: 2.1.0-roostack.1
+routes:
+  web: { subdomain: family-photos, port: 20003 }
+updates: notify

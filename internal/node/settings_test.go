@@ -71,6 +71,20 @@ func TestSSH(t *testing.T) {
 	if err := h.SetSSH(ctx, config.SSHFromAny, false); err != nil {
 		t.Error(err)
 	}
+
+	// With UseSSH (a running Roostack), the firewall is rebuilt at once:
+	// no restart, so the server stays reachable.
+	var used []string
+	h.UseSSH = func(c string) { used = append(used, c) }
+	if err := h.SetSSH(ctx, config.SSHOff, true); err != nil {
+		t.Fatal(err)
+	}
+	if *restarts != 2 || len(used) != 1 || used[0] != config.SSHOff {
+		t.Errorf("restarts %d, used %v", *restarts, used)
+	}
+	if a, _ := h.SSHAccess(); a.Choice != config.SSHOff {
+		t.Errorf("the page shows the new choice at once: %q", a.Choice)
+	}
 }
 
 func TestRestartPolicy(t *testing.T) {

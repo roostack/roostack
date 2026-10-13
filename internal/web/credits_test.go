@@ -60,7 +60,7 @@ func TestAboutPage(t *testing.T) {
 			t.Errorf("about page missing %q", want)
 		}
 	}
-	if _, acct := h.get("/account"); !strings.Contains(acct, `from <a href="https://github.com/morhetz/gruvbox"`) {
+	if _, acct := h.get("/account/appearance"); !strings.Contains(acct, `from <a href="https://github.com/morhetz/gruvbox"`) {
 		t.Error("each open-source theme should link to its source")
 	}
 	if _, home := h.get("/"); !strings.Contains(home, `href="/about"`) {

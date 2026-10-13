@@ -26,16 +26,19 @@ import (
 // becomes an error page and fails tests rather than rendering quietly.
 
 var componentFuncs = template.FuncMap{
-	"notice":      notice,
-	"status":      status,
-	"badge":       badge,
-	"back":        back,
-	"help":        helpLink,
-	"confirm":     confirmButton,
-	"activity":    activityBlock,
-	"icon":        icon,
-	"server":      serverChip,
-	"builtinIcon": builtinIcon,
+	"notice":        notice,
+	"status":        status,
+	"badge":         badge,
+	"back":          back,
+	"help":          helpLink,
+	"confirm":       confirmButton,
+	"confirmSubmit": confirmSubmit,
+	"copyBox":       copyBox,
+	"activity":      activityBlock,
+	"icon":          icon,
+	"server":        serverChip,
+	"builtinIcon":   builtinIcon,
+	"brandMark":     func() template.HTML { return brandMark },
 }
 
 func init() {
@@ -175,6 +178,23 @@ func confirmButton(action, question, text, kind string, fields ...string) (templ
 	}
 	return renderComponent("confirm", map[string]any{"Action": action, "Question": question, "Text": text,
 		"Kind": kind, "DialogKind": dialogKind(kind), "Fields": fs, "ID": confirmID(action, question, fields)})
+}
+
+// confirmSubmit is a form's submit button that asks question first, for a
+// form with fields of its own (confirm makes its own form, with hidden
+// fields only). The form's own checks (required fields) run before the
+// dialog opens. kind is the dialog's button class ("danger" or "").
+func confirmSubmit(question, text, kind string) (template.HTML, error) {
+	if kind != "" && kind != "danger" {
+		return "", fmt.Errorf("confirmSubmit: button kind %q must be danger or empty", kind)
+	}
+	return renderComponent("confirm-submit", map[string]any{"Question": question, "Text": text, "Kind": kind,
+		"ID": confirmID("", question, nil)})
+}
+
+// copyBox shows text to copy (an invite, a command) with a Copy button.
+func copyBox(text string) (template.HTML, error) {
+	return renderComponent("copy-box", text)
 }
 
 // activityBlock shows a host operation; nothing if there is none.

@@ -4,41 +4,80 @@
   <div class="page-top">{{back "/backups" "Backups"}}{{help "backups/restore" "Get something back"}}</div>
   <h1>Restore {{.Service.Title}}</h1>
   {{activity .RestoreActivity}}
+  {{/* Drawn again when the restore finishes, so the form comes back. */}}
+  <div id="restore-body" hx-get="/backups/restore/{{.Service.Name}}" hx-select="#restore-body" hx-trigger="activity-done from:body"
+    hx-swap="outerHTML" hx-disinherit="*">
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{if .Pending}}
     {{notice "info" "A restore is in progress. This page shows how it's going."}}
-  {{else if .Snapshots}}
+  {{else if .Groups}}
+  {{$m := index (index .Groups 0).Moments 0}}{{$p := index $m.Places 0}}
+  {{if .JustDone}}{{notice "ok" (printf "%s is restored. Check it works; its previous data is kept below until you delete it." .Service.Title)}}
+  <details class="restore-again">
+    <summary>Restore it again…</summary>{{end}}
   <p>Puts {{.Service.Title}}'s data back to how it was in a backup. {{.Service.Title}} stops for a few minutes while this happens.</p>
-  <form method="post" action="/backups/restore/{{.Service.Name}}">
-    <fieldset>
-      <legend>Which backup?</legend>
-      {{range $i, $s := .Snapshots}}
-      <label class="check"><input type="radio" name="snapshot" value="{{$s.ID}}" {{if eq $i 0}}checked{{end}}>
-        <span>{{when $s.Time}}{{if eq $i 0}} (newest){{end}}<small>{{$s.Short}}</small></span></label>
+  <form method="post" action="/backups/restore/{{.Service.Name}}" data-moment="{{$m.ID}}" data-label="{{$m.Label}}" data-place="{{$p.Title}}"
+    x-data="{ moment: $el.dataset.moment, label: $el.dataset.label, place: $el.dataset.place }">
+    <p>Restoring from <strong x-text="label">{{$m.Label}}</strong>
+      <span class="hint">(read from <span x-text="place">{{$p.Title}}</span>)</span></p>
+    <details class="restore-choices">
+      <summary>Choose a different backup</summary>
+      {{range .Groups}}
+      <fieldset>
+        <legend>{{.Title}}</legend>
+        {{range .Moments}}
+        <label class="check"><input type="radio" name="moment" value="{{.ID}}" data-label="{{.Label}}" data-place="{{(index .Places 0).Title}}"
+            x-model="moment" x-on:change="label = $el.dataset.label; place = $el.dataset.place"{{if eq .ID $m.ID}} checked{{end}}>
+          <span>{{.Label}}{{if eq .ID $m.ID}} (newest){{end}}</span></label>
+        {{end}}
+      </fieldset>
       {{end}}
-    </fieldset>
+      <p class="hint">Choose an older one if the newest already has the problem you're fixing.</p>
+    </details>
+    {{range .Groups}}{{range .Moments}}
+    {{if gt (len .Places) 1}}
+    <label data-moment="{{.ID}}" x-show="moment === $el.dataset.moment"{{if ne .ID $m.ID}} x-cloak{{end}}>Read it from
+      <select name="backup" x-bind:disabled="moment !== $el.parentElement.dataset.moment" x-on:change="place = $el.selectedOptions[0].text">
+        {{range .Places}}<option value="{{.ID}}">{{.Title}}</option>{{end}}
+      </select>
+      <small>The main backup is usually the quickest. Choose a copy if it can't be read.</small>
+    </label>
+    {{else}}
+    <input type="hidden" name="backup" value="{{(index .Places 0).ID}}" data-moment="{{.ID}}" x-bind:disabled="moment !== $el.dataset.moment">
+    {{end}}
+    {{end}}{{end}}
+    {{if gt (len .Servers) 1}}
+    <label>Restore onto
+      <select name="to">{{range .Servers}}<option value="{{.ID}}"{{if eq .ID $.Host}} selected{{end}}>{{.Name}}{{if eq .ID $.Host}} (where it runs now){{end}}</option>{{end}}</select>
+      <small>On another server, {{.Service.Title}} moves there; its data where it ran now is kept aside.</small>
+    </label>
+    {{end}}
     <p class="notice notice-warn">Anything changed in {{.Service.Title}} since that backup will be undone. The current data isn't deleted:
       it's kept aside, listed below, until you delete it.</p>
     <label class="check"><input type="checkbox" name="confirm" required>
       <span>I understand, restore {{.Service.Title}}</span></label>
     <button type="submit">Restore {{.Service.Title}}</button>
   </form>
+  {{if .JustDone}}</details>{{end}}
+  {{range .Notes}}<p class="hint">{{.}}</p>{{end}}
   {{else}}
     {{notice "info" (printf "There's no backup of %s yet. Backups made before it was installed don't contain it." .Service.Title)}}
+    {{range .Notes}}<p class="hint">{{.}}</p>{{end}}
   {{end}}
 
   {{with .Kept}}
   <h2>Kept copies</h2>
-  <p class="hint">Data a restore moved aside. Delete it once you're happy with the restore, to free up space.</p>
+  <p class="hint">Data a restore or a move set aside. Delete it once you're happy with the restore, to free up space.</p>
   <ul class="kept">
     {{range .}}
     <li>
-      <span>{{if .Failed}}From a restore that didn't finish{{else}}Before the restore{{end}} on {{when .Time}}<br><code>{{.Path}}</code></span>
+      <span>{{if .Failed}}From a restore that didn't finish{{else}}Kept aside{{end}} {{when .Time}}{{with .ServerName}} on {{.}}{{end}}<br><code>{{.Path}}</code></span>
       {{confirm (printf "/backups/restore/%s/kept/remove" $.Service.Name) "Delete this copy permanently?" "Delete" "quiet danger"
-        (printf "path=%s" .Path)}}
+        (printf "path=%s" .Path) (printf "server=%s" .Server)}}
     </li>
     {{end}}
   </ul>
   {{end}}
+  </div>
 </section>
 {{end}}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"sync"
@@ -93,6 +94,9 @@ func (s *Server) Handler() http.Handler {
 			Settings: n.Settings() != nil}
 		if st.LastErr != nil {
 			w.LastErr = st.LastErr.Error()
+		}
+		if l, ok := n.(Linked); ok {
+			w.Addrs, w.Links = l.LinkStatus(r.Context())
 		}
 		return w, nil
 	})
@@ -369,12 +373,44 @@ func (s *Server) Handler() http.Handler {
 		}
 		return nil, mv.LoadDumps(ctx(r), svc(r))
 	})
-	handle("GET /v1/disk", func(r *http.Request) (any, error) {
+	handle("GET /v1/disks", func(r *http.Request) (any, error) {
 		d, ok := n.(Disks)
 		if !ok {
 			return nil, ErrNotFound
 		}
-		return d.DiskSpace(ctx(r))
+		return d.DiskSpaces(ctx(r))
+	})
+	handle("GET /v1/history", func(r *http.Request) (any, error) {
+		h, ok := n.(History)
+		if !ok {
+			return nil, ErrNotFound
+		}
+		var before time.Time
+		if v, err := strconv.ParseInt(r.URL.Query().Get("before"), 10, 64); err == nil {
+			before = time.Unix(v, 0)
+		}
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		return h.History(ctx(r), before, r.URL.Query().Get("kind"), min(max(limit, 1), 200))
+	})
+	handle("GET /v1/history/{id}", func(r *http.Request) (any, error) {
+		h, ok := n.(History)
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if !ok || err != nil {
+			return nil, ErrNotFound
+		}
+		return h.HistoryEvent(ctx(r), id)
+	})
+	handle("POST /v1/history/cull", func(r *http.Request) (any, error) {
+		h, ok := n.(History)
+		if !ok {
+			return nil, ErrNotFound
+		}
+		var req struct{ Before int64 }
+		if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+			return nil, err
+		}
+		deleted, err := h.CullHistory(ctx(r), time.Unix(req.Before, 0))
+		return map[string]int64{"Deleted": deleted}, err
 	})
 	handle("GET /v1/kept", func(r *http.Request) (any, error) {
 		mv, err := mover()

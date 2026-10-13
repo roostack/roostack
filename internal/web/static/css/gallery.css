@@ -37,6 +37,7 @@
 .swatch-accent-soft { background: var(--accent-soft); } .swatch-highlight { background: var(--highlight); }
 .swatch-highlight-soft { background: var(--highlight-soft); } .swatch-ok { background: var(--ok); }
 .swatch-warn { background: var(--warn); } .swatch-bad { background: var(--bad); }
+.swatch-ok-on-fg { background: var(--ok-on-fg); border: 9px solid var(--fg); }
 
 .scale { list-style: none; padding: 0; display: grid; gap: var(--space-2); }
 .space-bar { display: inline-block; height: 12px; background: var(--highlight); border-radius: 2px;

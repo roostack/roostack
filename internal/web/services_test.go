@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -13,9 +14,12 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
@@ -29,10 +33,22 @@ import (
 )
 
 type fakeManager struct {
-	installs []manager.InstallRequest
-	removed  []string
-	failWith error
-	status   manager.ApplyStatus
+	// edges can be the lab's edge; edge is the chosen one.
+	edges []manager.EdgeServer
+	edge  string
+	// relay: through Roostack Cloud's relay; relayErr, Cloud's refusal.
+	relay     bool
+	relayErr  error
+	countries config.Countries
+	// relayChecks counts "Check now".
+	relayChecks int
+	guestSpace  manager.GuestSpace
+	disks       []node.DiskSpace
+	events      []store.Event
+	installs    []manager.InstallRequest
+	removed     []string
+	failWith    error
+	status      manager.ApplyStatus
 
 	ports   []manager.PortStatus
 	portErr error
@@ -61,6 +77,18 @@ type fakeManager struct {
 	guestOps    []string
 	backups     BackupService
 	restores    RestoreService
+	// Backups elsewhere in the lab, and restores from them (restore_test.go).
+	otherBackups []manager.BackupMoment
+	backupNotes  []string
+	labRestores  []string
+	// Direct links (links_test.go).
+	linkAddrs  map[string]string
+	linkPath   string
+	linkFailed bool
+	// lostPlan is a gone server's plan (gone_test.go).
+	lostPlan *manager.LostPlan
+	// serviceNode, if set, is the server services run on (else this one).
+	serviceNode node.Node
 	updates     HostUpdates
 	settings    node.Settings
 	disk        *node.DiskSpace
@@ -77,11 +105,44 @@ type fakeManager struct {
 }
 
 // DiskSpace: the fake's disk, if it has one.
-func (f *fakeManager) DiskSpace(context.Context) (node.DiskSpace, error) {
-	if f.disk == nil {
-		return node.DiskSpace{}, errors.New("no disk")
+func (f *fakeManager) History(_ context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
+	var out []store.Event
+	for _, e := range f.events {
+		if (kind == "" || e.Kind == kind) && (before.IsZero() || e.Finished.Before(before)) {
+			out = append(out, e)
+		}
 	}
-	return *f.disk, nil
+	return out, nil
+}
+func (f *fakeManager) HistoryEvent(_ context.Context, id int64) (store.Event, error) {
+	for _, e := range f.events {
+		if e.ID == id {
+			return e, nil
+		}
+	}
+	return store.Event{}, node.ErrNotFound
+}
+func (f *fakeManager) CullHistory(_ context.Context, before time.Time) (int64, error) {
+	var keep []store.Event
+	for _, e := range f.events {
+		if !e.Finished.Before(before) {
+			keep = append(keep, e)
+		}
+	}
+	n := int64(len(f.events) - len(keep))
+	f.events = keep
+	return n, nil
+}
+
+// DiskSpaces is f.disk (the system disk, with the backup store) and any
+// more disks in f.disks.
+func (f *fakeManager) DiskSpaces(context.Context) ([]node.DiskSpace, error) {
+	if f.disk == nil {
+		return nil, errors.New("no disk")
+	}
+	d := *f.disk
+	d.Kind, d.Mount, d.Store = node.DiskSystem, "/", true
+	return append([]node.DiskSpace{d}, f.disks...), nil
 }
 
 func (f *fakeManager) Settings() node.Settings { return f.settings }
@@ -94,7 +155,12 @@ func (f *fakeManager) Apply(node.Assignment) {}
 func (f *fakeManager) ServiceStates(context.Context) (map[string]string, error) {
 	return nil, nil
 }
-func (f *fakeManager) NodeFor(string) node.Node          { return f }
+func (f *fakeManager) NodeFor(string) node.Node {
+	if f.serviceNode != nil {
+		return f.serviceNode
+	}
+	return f
+}
 func (f *fakeManager) OfferStorage(context.Context) bool { return len(f.guests) > 0 }
 func (f *fakeManager) StorageGuests(context.Context) ([]manager.GuestView, error) {
 	return f.guests, nil
@@ -139,6 +205,9 @@ func (f *fakeManager) SetGuestQuota(_ context.Context, id, quota int64) error {
 	f.guestOps = append(f.guestOps, fmt.Sprintf("quota %d %d", id, quota/units.GB))
 	return nil
 }
+func (f *fakeManager) GuestSpaceLeft(context.Context) (manager.GuestSpace, bool) {
+	return f.guestSpace, true
+}
 func (f *fakeManager) LeftoverGuests(context.Context) ([]manager.LeftoverGuest, error) {
 	return []manager.LeftoverGuest{{User: "g9", Size: 2 * units.GB}}, nil
 }
@@ -179,6 +248,60 @@ func (f *fakeManager) MoveInfo(_ context.Context, name string) (manager.MoveInfo
 	}
 	return manager.MoveInfo{From: manager.Server{ID: "n-0123456789", Name: "nuc", This: true}, Size: 5 * units.MB,
 		Suggested: manager.MoveCopy}, nil
+}
+
+// ServiceBackups lists the node's own backups (restores), each a moment
+// of its own, plus any others the test adds.
+func (f *fakeManager) ServiceBackups(ctx context.Context, name string) ([]manager.BackupMoment, []string, error) {
+	var out []manager.BackupMoment
+	if f.restores != nil {
+		snaps, _ := f.restores.Snapshots(ctx, name)
+		for _, s := range snaps {
+			out = append(out, manager.BackupMoment{ServerID: "n-0123456789", ServerName: "nuc", Time: s.Time,
+				Places: []manager.ServiceBackup{{Ref: "backup:n-0123456789", ServerID: "n-0123456789", ServerName: "nuc",
+					Where: "USB drive BACKUP", Main: true, Snapshot: s}}})
+		}
+	}
+	return append(out, f.otherBackups...), f.backupNotes, nil
+}
+func (f *fakeManager) RestoreService(_ context.Context, name, id, to string) error {
+	ref, snap, _ := strings.Cut(id, "@")
+	if ref == "backup:n-0123456789" && cmp.Or(to, "n-0123456789") == "n-0123456789" {
+		return f.restores.Restore(name, snap)
+	}
+	f.labRestores = append(f.labRestores, name+" "+id+" → "+to)
+	return nil
+}
+func (f *fakeManager) Restoring(string) bool                           { return false }
+func (f *fakeManager) LinkAddress(_ context.Context, id string) string { return f.linkAddrs[id] }
+func (f *fakeManager) SetLinkAddress(_ context.Context, id, addr string) error {
+	if addr != "" && !strings.Contains(addr, ":") {
+		return &manager.FormError{Msg: "Enter the address as host:port."}
+	}
+	if f.linkAddrs == nil {
+		f.linkAddrs = map[string]string{}
+	}
+	f.linkAddrs[id] = addr
+	return nil
+}
+func (f *fakeManager) LinkPath(_ context.Context, from, to string) string { return f.linkPath }
+func (f *fakeManager) LinkFailed(context.Context, string, string) bool    { return f.linkFailed }
+func (f *fakeManager) ApplyBecause(reason string) {
+	f.serverOps = append(f.serverOps, "apply: "+reason)
+}
+func (f *fakeManager) LostServerPlan(_ context.Context, id string) (manager.LostPlan, error) {
+	if f.lostPlan == nil || f.lostPlan.Server.ID != id {
+		return manager.LostPlan{}, manager.ErrNotFound
+	}
+	return *f.lostPlan, nil
+}
+func (f *fakeManager) RestoreLostServer(_ context.Context, id string, names []string, to string) error {
+	f.labRestores = append(f.labRestores, "gone "+id+": "+strings.Join(names, ",")+" → "+to)
+	return nil
+}
+func (f *fakeManager) RemoveWaiting(_ context.Context, name string) error {
+	f.labRestores = append(f.labRestores, "remove waiting "+name)
+	return nil
 }
 func (f *fakeManager) MoveService(_ context.Context, name, to, way string) error {
 	if to == "" {
@@ -315,6 +438,14 @@ func (f *fakeManager) Package(name string) (*pkgspec.Package, error) {
 	return pkgspec.Load(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
 }
 
+func (f *fakeManager) ServicePackage(name string) (*pkgspec.Package, error) { return f.Package(name) }
+func (f *fakeManager) SetTitle(_ context.Context, name, title string) error {
+	if strings.TrimSpace(title) == "" {
+		return &manager.FormError{Msg: "Enter a title."}
+	}
+	f.serverOps = append(f.serverOps, "title "+name+"="+title)
+	return nil
+}
 func (f *fakeManager) Install(_ context.Context, _ string, req manager.InstallRequest) error {
 	if f.failWith != nil {
 		return f.failWith
@@ -379,13 +510,13 @@ func loggedIn(t *testing.T, role string) (*harness, *fakeManager) {
 	h.server.Manager, h.server.Node = fm, fm
 	h.server.Domain = "lab.example.com"
 	h.server.HasGPU = true
-	hash, _ := auth.HashPassword("a long password")
+	hash, _ := authkit.HashPassword("a long password")
 	id, _ := h.store.CreateUser(context.Background(), store.User{Username: "u", PasswordHash: hash, Role: role})
 	if role == auth.RoleOwner {
-		secret, _ := auth.NewTOTPSecret()
+		secret, _ := authkit.NewTOTPSecret()
 		h.store.SetTOTP(context.Background(), id, secret, 0)
 		h.post("/login", url.Values{"username": {"u"}, "password": {"a long password"}}, h.srv.URL)
-		code, _ := auth.TOTPCode(secret, nowFunc())
+		code, _ := authkit.TOTPCode(secret, nowFunc())
 		h.post("/login/totp", url.Values{"code": {code}}, h.srv.URL)
 	} else {
 		h.post("/login", url.Values{"username": {"u"}, "password": {"a long password"}}, h.srv.URL)
@@ -407,12 +538,21 @@ func TestInstallFlow(t *testing.T) {
 	if code, _ := h.get("/services/nope"); code != http.StatusNotFound {
 		t.Errorf("unknown service page: %d", code)
 	}
-	if _, body := h.get("/catalog"); !strings.Contains(body, `href="/install/immich"`) || strings.Contains(body, `/install/vaultwarden"`) {
-		t.Error("catalog should offer Immich and mark Vaultwarden installed")
+	if _, body := h.get("/catalog"); !strings.Contains(body, `href="/install/immich">Install`) ||
+		!strings.Contains(body, `href="/install/vaultwarden">Add another…`) {
+		t.Error("catalog should offer Immich, and another Vaultwarden")
+	}
+	// Another copy needs a name and title of its own, and its own address.
+	_, body = h.get("/install/vaultwarden")
+	for _, want := range []string{"Add another Vaultwarden", `name="name_suffix" value="2"`, `name="title" value="Vaultwarden (2)"`,
+		`value="vault-2"`, `<span>vaultwarden-</span>`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("another copy's form is missing %q", want)
+		}
 	}
 
 	_, body = h.get("/install/immich")
-	for _, want := range []string{`value="photos"`, `.lab.example.com`, `name="setting.machine_learning" checked`,
+	for _, want := range []string{`value="photos"`, `name="title" value="Immich"`, `name="name_suffix" value=""`, `.lab.example.com`, `name="setting.machine_learning" checked`,
 		`name="setting.hardware_acceleration" checked`} { // auto + GPU
 		if !strings.Contains(body, want) {
 			t.Errorf("install form missing %s", want)
@@ -626,7 +766,7 @@ func TestServiceSetupAndActions(t *testing.T) {
 
 func TestTemporaryPasswordMustBeChanged(t *testing.T) {
 	h := newHarness(t, "")
-	hash, _ := auth.HashPassword("temporary password")
+	hash, _ := authkit.HashPassword("temporary password")
 	h.store.CreateUser(context.Background(), store.User{Username: "dad", PasswordHash: hash, Role: auth.RoleMember,
 		MustChangePassword: true})
 	h.post("/login", url.Values{"username": {"dad"}, "password": {"temporary password"}}, h.srv.URL)
@@ -676,7 +816,7 @@ func TestServiceSettings(t *testing.T) {
 	}
 
 	_, body := h.get("/services/forgejo")
-	for _, want := range []string{`href="https://git.lab.example.com/-/admin"`, "Site administration<span class=\"new-window\">",
+	for _, want := range []string{`href="https://git.lab.example.com/admin"`, "Site administration<span class=\"new-window\">",
 		`name="subdomain" value="git"`, `name="setting.signups_allowed"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("forgejo settings missing %q", want)
@@ -719,7 +859,7 @@ func TestServiceSettings(t *testing.T) {
 
 func TestAppearance(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleMember)
-	_, body := h.get("/account")
+	_, body := h.get("/account/appearance")
 	if !strings.Contains(body, `name="palette" value="teal" checked`) || !strings.Contains(body, `data-palette="catppuccin" data-mode="dark"`) {
 		t.Fatal("account page should offer every theme, with the default chosen")
 	}
@@ -751,7 +891,7 @@ func TestAppearance(t *testing.T) {
 func TestAccent(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleMember)
 	h.post("/account/appearance", url.Values{"palette": {"catppuccin"}, "accent-catppuccin": {"peach"}, "mode": {"auto"}}, h.srv.URL)
-	_, body := h.get("/account")
+	_, body := h.get("/account/appearance")
 	if !strings.Contains(body, `<html lang="en" data-palette="catppuccin" data-accent="peach">`) ||
 		!strings.Contains(body, `name="accent-catppuccin" value="peach"
           checked`) {
@@ -950,6 +1090,24 @@ func TestMovePage(t *testing.T) {
 	if code, _ := h.get("/services/nope/move"); code != http.StatusNotFound {
 		t.Errorf("unknown service: %d", code)
 	}
+
+	// The controller moves it, even when it ran on another server: the
+	// page shows how it's going there, then that it's done.
+	fm.serviceNode = otherServer{fm}
+	move := h.acts().Start(activity.Move, "Moving Vaultwarden to vps")
+	move.Step("Copying Vaultwarden's data to vps while it keeps running")
+	_, body = h.get("/services/vaultwarden/move")
+	if !strings.Contains(body, "Copying Vaultwarden&#39;s data to vps") || !strings.Contains(body, "Vaultwarden is moving.") ||
+		strings.Contains(body, `name="to"`) {
+		t.Error("while it moves: its progress, no form")
+	}
+	move.Finish(nil)
+	_, body = h.get("/services/vaultwarden/move")
+	if !strings.Contains(body, "Vaultwarden now runs on") || !strings.Contains(body, "<summary>Move it again…</summary>") {
+		t.Error("once it's moved: say so, the form a click away")
+	}
+	fm.serviceNode = nil
+
 	ha, _ := loggedIn(t, auth.RoleAdmin)
 	if code, _ := ha.get("/services/vaultwarden/move"); code == http.StatusOK {
 		t.Error("only Owners move services")
@@ -958,21 +1116,40 @@ func TestMovePage(t *testing.T) {
 
 func TestStorageForOthers(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
-	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Tyris's lab", Quota: 50 * units.GB, Joined: true},
+	// The space the manager reports (its sums are tested in the manager).
+	fm.disk = &node.DiskSpace{Total: 250 * units.GB, Used: 70 * units.GB, Free: 180 * units.GB, Services: 12 * units.GB, Backups: 3 * units.GB, Guests: 10 * units.GB}
+	fm.guestSpace = manager.GuestSpace{Free: 180 * units.GB, Total: 250 * units.GB, Promised: 40 * units.GB, Left: 16_300 * units.MB}
+	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Quota: 50 * units.GB, Joined: true},
 		Used: 3 * units.GB, LastSeen: time.Now()}}
 	_, body := h.get("/settings/storage")
-	for _, want := range []string{"Tyris&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821"} {
+	for _, want := range []string{"Sam&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821",
+		"Space on nuc", "<strong>180.0 GB free</strong> of 250.0 GB", "Backups of other labs",
+		"can be given up to <strong>16.3 GB</strong> more", `value="16"`,
+		"leaves about\n          <strong x-text=\"roostackSize(free - promised - gb * 1e9)\">124.0 GB</strong> free on",
+		// Nothing known yet: they type it.
+		`value="other" x-model="choice" checked`, `name="address_other"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("storage page missing %q", want)
 		}
 	}
-	if code, body := h.post("/settings/storage/invite", url.Values{"name": {"Sam"}, "quota": {"0"}, "endpoint": {"1.2.3.4:51821"}}, h.srv.URL); code != http.StatusBadRequest ||
+	// On a lab on the internet, Roostack knows the address to give them.
+	h.setSetup(&fakeSetup{p: allDone, network: config.NetworkInternet})
+	h.server.DNS = &fakeDNS{st: dnsrecords.Status{Internet: true, IP: "203.0.113.7"}}
+	_, body = h.get("/settings/storage")
+	if !strings.Contains(body, "The public address: <code>203.0.113.7:51821</code>") ||
+		!strings.Contains(body, `value="link.lab.example.com:51821" x-model="choice" required checked`) ||
+		!strings.Contains(body, "Letting them in: your provider's firewall") {
+		t.Errorf("the address should be filled in:\n%s", body[strings.Index(body, `id="invite"`):])
+	}
+	if code, body := h.post("/settings/storage/invite", url.Values{"name": {"Sam"}, "quota": {"0"}, "address": {"other"}, "address_other": {"1.2.3.4:51821"}}, h.srv.URL); code != http.StatusBadRequest ||
 		!strings.Contains(body, "at least 1 GB") {
 		t.Errorf("zero quota: %d", code)
 	}
-	_, body = h.post("/settings/storage/invite", url.Values{"name": {"Sam"}, "quota": {"20"}, "endpoint": {"1.2.3.4:51821"}}, h.srv.URL)
-	if !strings.Contains(body, "Send this invite to Sam") {
-		t.Error("the invite should be shown once")
+	_, body = h.post("/settings/storage/invite", url.Values{"name": {"Sam"}, "quota": {"20"}, "address": {"other"}, "address_other": {"1.2.3.4:51821"}}, h.srv.URL)
+	if !strings.Contains(body, "Invite for Sam") || !strings.Contains(body, `class="copy-box"`) ||
+		strings.Contains(body, `action="/settings/storage/invite#invite"`) ||
+		strings.Contains(body, `action="/settings/storage/invite"`) {
+		t.Error("the invite should be shown once, with a Copy button, in place of the form")
 	}
 	// Where it goes, in the Backups page's own words (the plan chooser).
 	if !strings.Contains(body, "<strong>A friend's lab</strong>") || !strings.Contains(body, "<strong>Their invite code</strong>") {
@@ -1089,17 +1266,25 @@ func TestPerServerSettings(t *testing.T) {
 	}
 }
 
-func TestBackupsPageRestoresThisServersServices(t *testing.T) {
-	h, _ := loggedIn(t, auth.RoleOwner)
+// Restoring is the whole lab's: every service, by the server it runs on,
+// whichever server's backups the page shows.
+func TestBackupsPageRestoresEveryService(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
 	h.node().restores = &fakeRestores{}
-	// Every service names its server, this one's included.
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true}, {ID: "n-9876543210", Name: "vps"}}
 	h.server.Services = func(context.Context) ([]ServiceView, error) {
-		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Server: "nuc"}, {Name: "forgejo", Title: "Forgejo", Server: "vps"}}, nil
+		return []ServiceView{{Name: "forgejo", Title: "Forgejo", Server: "vps"}, {Name: "vaultwarden", Title: "Vaultwarden", Server: "nuc"}}, nil
 	}
-	_, body := h.get("/backups")
-	if strings.Contains(body, "No services installed") || !strings.Contains(body, `href="/backups/restore/vaultwarden"`) ||
-		strings.Contains(body, `href="/backups/restore/forgejo"`) {
-		t.Error("this server's services should be restorable")
+	for _, page := range []string{"/backups", "/backups?server=n-9876543210"} {
+		_, body := h.get(page)
+		nuc, vps := strings.Index(body, "<h3>On nuc</h3>"), strings.Index(body, "<h3>On vps</h3>")
+		if nuc < 0 || vps < nuc || !strings.Contains(body[nuc:vps], `href="/backups/restore/vaultwarden"`) ||
+			!strings.Contains(body[vps:], `href="/backups/restore/forgejo"`) {
+			t.Errorf("%s: every service should be restorable, by server", page)
+		}
+		if !strings.Contains(body, "Each server's backups") || !strings.Contains(body, "Your whole lab") {
+			t.Errorf("%s: the per-server and whole-lab parts should be named", page)
+		}
 	}
 }
 
@@ -1215,14 +1400,14 @@ func TestStorageOfferedByAnotherServer(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true}, {ID: "n-9876543210", Name: "bigdisk"}}
 	_, body := h.get("/settings/storage")
-	if !strings.Contains(body, `name="server"`) || !strings.Contains(body, "Address they reach nuc at") {
+	if !strings.Contains(body, `name="server"`) || !strings.Contains(body, "Address their lab reaches nuc at") {
 		t.Fatalf("the offering server can be chosen:\n%s", body)
 	}
 	h.post("/settings/storage/server", url.Values{"server": {"n-9876543210"}}, h.srv.URL)
 	if fm.guestServer != "n-9876543210" {
 		t.Fatalf("server = %q", fm.guestServer)
 	}
-	if _, body := h.get("/settings/storage"); !strings.Contains(body, "Address they reach bigdisk at") || !strings.Contains(body, "to bigdisk") {
+	if _, body := h.get("/settings/storage"); !strings.Contains(body, "Address their lab reaches bigdisk at") || !strings.Contains(body, "to bigdisk") {
 		t.Error("the page names the server other labs reach")
 	}
 	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Joined: true}}}
@@ -1323,11 +1508,15 @@ func TestLowSpace(t *testing.T) {
 // one runs low, or when other labs were promised more than is free.
 func TestServerDiskSpace(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
-	fm.disk = &node.DiskSpace{Total: 100 * units.GB, Used: 40 * units.GB, Free: 60 * units.GB, Services: 12 * units.GB, Backups: 3 * units.GB, Guests: 1 * units.GB}
+	fm.disk = &node.DiskSpace{Total: 100 * units.GB, Used: 40 * units.GB, Free: 55 * units.GB, Services: 12 * units.GB, Backups: 3 * units.GB, Guests: 1 * units.GB}
 	_, body := h.get("/settings/servers")
-	for _, want := range []string{"<strong>60.0 GB free</strong> of 100.0 GB", "<dt>In use</dt><dd>40.0 GB</dd>",
-		"Services' data</dt><dd>12.0 GB", "Backups of your lab's servers</dt><dd>3.0 GB", "Backups of other labs</dt><dd>1.0 GB",
-		"The system and everything else</dt><dd>24.0 GB", `style="width: 40%"`} {
+	for _, want := range []string{"<strong>55.0 GB free</strong> of 100.0 GB", "<dt>In use</dt><dd>40.0 GB</dd>",
+		`class="space-reserved" data-width="5"`, "Reserved by the system</dt><dd>5.0 GB",
+		"Services&#39; data</dt><dd>12.0 GB", "Backups of your lab&#39;s servers</dt><dd>3.0 GB", "Backups of other labs</dt><dd>1.0 GB",
+		"The system and everything else</dt><dd>24.0 GB", "Free</dt><dd>55.0 GB",
+		// Each part a coloured segment, with its swatch in the key.
+		`class="space-services" data-width="12"`, `class="space-backups" data-width="3"`, `class="space-guests" data-width="1"`,
+		`class="space-other" data-width="24"`, `<span class="swatch space-guests" aria-hidden="true"></span>Backups of other labs`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("servers page missing %q", want)
 		}
@@ -1335,9 +1524,18 @@ func TestServerDiskSpace(t *testing.T) {
 	if _, body := h.get("/"); strings.Contains(body, "disk space") {
 		t.Error("plenty of space: nothing to say")
 	}
-	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Tyris's lab", Quota: 80 * units.GB, Joined: true}, Used: 5 * units.GB}}
+	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Quota: 80 * units.GB, Joined: true}, Used: 5 * units.GB}}
 	if _, body := h.get("/"); !strings.Contains(body, "Other labs could fill This server&#39;s disk: they&#39;ve been promised 75.0 GB more") {
 		t.Error("promised more than is free")
+	}
+	// 55 GB still to come of 55 GB free reaches into the 10 GB kept free.
+	fm.guests[0].Quota = 60 * units.GB
+	if _, body := h.get("/"); !strings.Contains(body, "Space promised to other labs now takes some of what&#39;s kept free on This server&#39;s disk") {
+		t.Error("promised space reaching into the headroom")
+	}
+	fm.guests[0].Quota = 45 * units.GB
+	if _, body := h.get("/"); strings.Contains(body, "Space promised") {
+		t.Error("40 GB to come leaves the 10 GB kept free")
 	}
 	fm.guests = nil
 	fm.disk.Free = 3 * units.GB
@@ -1371,5 +1569,150 @@ func TestLivePartsSkipUnchanged(t *testing.T) {
 	}
 	if other := get("stale"); other.StatusCode != http.StatusOK {
 		t.Errorf("changed: %d, want 200", other.StatusCode)
+	}
+}
+
+// While Caddy's image builds (minutes the first time), the Services page
+// says so, with its log; once it's built, nothing is shown.
+func TestCaddyBuildShown(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	if _, body := h.get("/services"); strings.Contains(body, "<h2>Roostack's web proxy</h2>") {
+		t.Error("no build, no notice")
+	}
+	log := h.acts().Start(activity.Build, "Building Roostack's web proxy")
+	log.Printf("STEP 1/2: FROM caddy-builder")
+	if _, body := h.get("/services"); !strings.Contains(body, "<h2>Roostack's web proxy</h2>") || !strings.Contains(body, "STEP 1/2") {
+		t.Error("a running build should be shown with its log")
+	}
+	log.Finish(nil)
+	if _, body := h.get("/services"); strings.Contains(body, "<h2>Roostack's web proxy</h2>") {
+		t.Error("a finished build isn't shown")
+	}
+}
+
+// While a service installs, its page lists the steps (with the log), its
+// address isn't a link yet, and the Services list and Home say how far
+// it's got instead of offering Open; once it's done, the page reloads.
+func TestInstallingShown(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	started := time.Now().Add(-14 * time.Second)
+	install := &node.InstallProgress{Log: activity.Apply, Steps: []node.InstallStep{
+		{Key: "download a", Title: "Downloading the database (Postgres)", Started: started.Add(-time.Minute), Finished: started},
+		{Key: "download b", Title: "Downloading Vaultwarden", Started: started},
+		{Key: "start b", Title: "Starting Vaultwarden"},
+	}}
+	installing := true
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		v := ServiceView{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", URLs: []string{"https://passwords.lab.example.com"}}
+		if installing {
+			v.Status, v.Install = "installing", install
+		}
+		return []ServiceView{v}, nil
+	}
+	h.acts().Start(activity.Apply, "Applying changes").Printf("Copying blob sha256:0123")
+
+	_, body := h.get("/services/vaultwarden")
+	for _, want := range []string{`class="step-done"`, "Downloading the database (Postgres)", "1 min",
+		`class="step-now"`, "Downloading Vaultwarden…", "for 14 s", `class="step-todo"`, "Copying blob sha256:0123",
+		`<span class="address-pending">https://passwords.lab.example.com</span>`, "ready once installed"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("service page missing %q", want)
+		}
+	}
+	if strings.Contains(body, `href="https://passwords.lab.example.com"`) {
+		t.Error("no link to the address while installing")
+	}
+	for _, path := range []string{"/services", "/"} {
+		_, body := h.get(path)
+		if !strings.Contains(body, "Step 2 of 3: downloading Vaultwarden…") || strings.Contains(body, `href="https://passwords.lab.example.com"`) {
+			t.Errorf("%s: should show the step, not Open", path)
+		}
+	}
+
+	// A step running for longer than usual says so, and that it's moving.
+	install.Steps[1].Started = time.Now().Add(-6 * time.Minute)
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "Still downloading Vaultwarden, for 6 min.") {
+		t.Error("a slow step should say it's still going")
+	}
+
+	// Done: the step list's next poll reloads the page.
+	installing = false
+	req, _ := http.NewRequest("GET", h.srv.URL+"/services/vaultwarden?installing=1", nil)
+	req.Header.Set("HX-Request", "true")
+	resp, err := h.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.Header.Get("HX-Refresh") != "true" {
+		t.Error("a finished install should reload the page")
+	}
+}
+
+// While a server counts what uses its disk, the disk block says so and
+// refreshes itself; once counted, it shows the sizes and stops.
+func TestDiskSpaceWhileCounting(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.disk = &node.DiskSpace{Total: 100 * units.GB, Used: 40 * units.GB, Free: 55 * units.GB, Services: -1, Backups: -1, Guests: -1, Counting: true}
+	_, body := h.get("/settings/servers")
+	if !strings.Contains(body, `hx-get="/settings/servers/n-0123456789/disk"`) || !strings.Contains(body, "counting…") {
+		t.Errorf("counting: %s", body[strings.Index(body, "Disk"):][:1500])
+	}
+	fm.disk.Services, fm.disk.Backups, fm.disk.Guests, fm.disk.Counting = 12*units.GB, 3*units.GB, 0, false
+	code, part := h.get("/settings/servers/n-0123456789/disk")
+	if code != http.StatusOK || !strings.Contains(part, "12.0 GB") || strings.Contains(part, "hx-get") {
+		t.Errorf("counted: %d %s", code, part)
+	}
+	if code, _ := h.get("/settings/servers/n-nope/disk"); code != http.StatusNotFound {
+		t.Errorf("unknown server: %d", code)
+	}
+}
+
+// A server with more than one disk shows each, named, with the parts on
+// it; a nearly full one is named in its warning.
+func TestServerDisks(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.disk = &node.DiskSpace{Total: 100 * units.GB, Used: 40 * units.GB, Free: 55 * units.GB, Services: 12 * units.GB, Backups: 3 * units.GB}
+	fm.disks = []node.DiskSpace{
+		{Kind: node.DiskMedia, Mount: "/srv/roostack/media", Total: 2000 * units.GB, Used: 800 * units.GB, Free: 1200 * units.GB, Services: 790 * units.GB},
+		{Kind: node.DiskBackup, Name: "BACKUP", Mount: "/media/backup", Total: 500 * units.GB, Used: 490 * units.GB, Free: 10 * units.GB, Backups: 480 * units.GB},
+	}
+	_, body := h.get("/settings/servers")
+	for _, want := range []string{"Disks</dt>", "<strong>System disk</strong>", "<strong>Media disk</strong>", "mounted at <code>/srv/roostack/media</code>",
+		"<strong>Backup drive BACKUP</strong>", "Services&#39; data</dt><dd>790.0 GB", "Everything else</dt><dd>10.0 GB",
+		"This server&#39;s backup drive BACKUP is running out of disk space: 10.0 GB free of 500.0 GB"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("servers page missing %q", want)
+		}
+	}
+	if _, body := h.get("/"); !strings.Contains(body, "This server&#39;s backup drive BACKUP is running out") {
+		t.Error("the full drive needs attention")
+	}
+}
+
+// Before the lab has an address, services say so and can't go public
+// (SPEC.md §6.6).
+func TestServicesWithoutAddress(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.server.Domain = ""
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", NoAddress: true}}, nil
+	}
+	for _, path := range []string{"/", "/services", "/services/vaultwarden"} {
+		_, body := h.get(path)
+		if !strings.Contains(body, "Waiting for an address") || !strings.Contains(body, `href="/setup/domain">Give your lab an address`) {
+			t.Errorf("%s should say the service waits for an address", path)
+		}
+	}
+	if _, body := h.get("/services/vaultwarden"); strings.Contains(body, "Make public") || strings.Contains(body, "Reachable from") {
+		t.Error("nothing to make public without an address")
+	}
+	resp, err := h.client.Get(h.srv.URL + "/services/vaultwarden/public/web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.Request.URL.Path != "/services/vaultwarden" {
+		t.Errorf("public access without an address: %s", resp.Request.URL.Path)
 	}
 }

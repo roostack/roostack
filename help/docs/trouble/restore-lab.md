@@ -55,14 +55,34 @@ behind a router.
     you two copies fighting over the same web addresses and certificates.
     Only restore when the old server is gone.
 
+## If the old server comes back
+
+Sometimes the old server wasn't gone after all: the power or the internet
+was out while you were away, and you restored the lab somewhere else to get
+things working. When the old one comes back, it notices at its next backup:
+the restored lab has been backing up into the same storage, and is newer.
+The old copy then stands down. It stops backing up and stops updating your
+web addresses, and its **Backups** and home pages say so. Its services keep
+running until you deal with it: switch it off, or wipe it.
+
+If it's the other way round (the restore was only a test, say), open the
+right copy's **Backups** page and choose **This is the right copy → Keep
+this copy**. It backs up again, and the other copy stands down at its next
+backup. Switch the other one off first.
+
+A server your lab removed while it couldn't be reached (its services were
+restored elsewhere) does the same if it comes back: its own page says it
+was removed, and it no longer backs up into your lab's storage.
+
 ??? note "For technical users"
 
     The restore finds repositories the key opens, restores the controller's
-    latest snapshot (`/var/lib/roostack`, including the database dump and
-    the WireGuard keys, and the Podman secrets), puts the database in place
-    at the next start, then applies the lab. Each service's data comes back
-    with it, and its database is loaded from its dump once its containers
-    are set up again.
+    latest snapshot of itself (tagged `server`: `/var/lib/roostack`,
+    including the database dump and the WireGuard keys, and the Podman
+    secrets), then the latest snapshot of each service on it (tagged
+    `service=<name>`). It puts the database in place at the next start, then
+    applies the lab, and each service's database is loaded from its dump
+    once its containers are set up again.
 
     A restored lab keeps its WireGuard keys and certificate authority, so
     its other servers and the labs it shares storage with still recognise

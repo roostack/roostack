@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
@@ -112,7 +113,7 @@ func Service(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (*Output
 	}
 	g := newGen(lab, p, in, CaddyHostLoopback)
 	if err := g.run(); err != nil {
-		return nil, fmt.Errorf("%s: %w", p.Name, err)
+		return nil, fmt.Errorf("%s: %w", in.ID(), err)
 	}
 	if lab.IsNode() {
 		// The controller's Caddy serves a node's routes (ProxySite).
@@ -132,12 +133,12 @@ func ProxySite(lab config.Lab, p *pkgspec.Package, in *instance.Instance, addr s
 	for _, name := range slices.Sorted(maps.Keys(p.Containers)) {
 		ok, err := g.ctx.enabled("containers."+name+".when", p.Containers[name].When)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", p.Name, err)
+			return nil, fmt.Errorf("%s: %w", in.ID(), err)
 		}
 		g.included[name] = ok
 	}
 	if err := g.caddySite(); err != nil {
-		return nil, fmt.Errorf("%s: %w", p.Name, err)
+		return nil, fmt.Errorf("%s: %w", in.ID(), err)
 	}
 	// The ports are the other server's, not this one's.
 	g.out.Ports = nil
@@ -147,7 +148,7 @@ func ProxySite(lab config.Lab, p *pkgspec.Package, in *instance.Instance, addr s
 func newGen(lab config.Lab, p *pkgspec.Package, in *instance.Instance, upstream string) *gen {
 	return &gen{
 		lab: lab, pkg: p, ctx: buildContext(lab, p, in), upstream: upstream,
-		out:      &Output{Service: p.Name},
+		name: in.ID(), out: &Output{Service: in.ID()},
 		included: map[string]bool{},
 	}
 }
@@ -155,8 +156,10 @@ func newGen(lab config.Lab, p *pkgspec.Package, in *instance.Instance, upstream 
 type gen struct {
 	lab config.Lab
 	pkg *pkgspec.Package
-	ctx *Context
-	out *Output
+	// name is the service's ID (instance.ID): everything is named after it.
+	name string
+	ctx  *Context
+	out  *Output
 	// upstream is the host Caddy reaches the routes' ports on.
 	upstream string
 	// included records which containers passed their `when:` condition.
@@ -199,13 +202,13 @@ func (g *gen) run() error {
 
 func (g *gen) network() error {
 	var u quadlet.Unit
-	u.Section("Unit").Add("Description", "Roostack "+g.pkg.Name+": network")
-	u.Section("Network").Add("NetworkName", "roostack-"+g.pkg.Name)
-	return g.addQuadlet("roostack-"+g.pkg.Name+".network", &u)
+	u.Section("Unit").Add("Description", "Roostack "+g.name+": network")
+	u.Section("Network").Add("NetworkName", "roostack-"+g.name)
+	return g.addQuadlet("roostack-"+g.name+".network", &u)
 }
 
 func (g *gen) container(name string, c *pkgspec.Container) error {
-	svc := g.pkg.Name
+	svc := g.name
 	unit := containerUnitName(svc, name)
 	at := "containers." + name
 	var u quadlet.Unit
@@ -345,7 +348,7 @@ func (g *gen) database(name string, d *pkgspec.Database) error {
 }
 
 func (g *gen) postgres(name string, d *pkgspec.Database) error {
-	svc := g.pkg.Name
+	svc := g.name
 	unit := dbUnitName(svc, name)
 	db := g.ctx.Databases[name]
 	dataDir := filepath.Join(g.serviceDir(), "db", name)
@@ -386,7 +389,7 @@ func (g *gen) postgres(name string, d *pkgspec.Database) error {
 }
 
 func (g *gen) redis(name string, d *pkgspec.Database) error {
-	svc := g.pkg.Name
+	svc := g.name
 	unit := dbUnitName(svc, name)
 
 	var u quadlet.Unit
@@ -429,14 +432,22 @@ func (g *gen) caddySite() error {
 		if rc.Port == 0 {
 			return fmt.Errorf("routes.%s: no host port allocated (run roostack apply)", name)
 		}
-		g.out.Hosts = append(g.out.Hosts, rc.Host)
 		g.out.Ports = append(g.out.Ports, rc.Port)
+		if !g.lab.HasAddress() {
+			// No web address yet (SPEC.md §6.6): the service runs on its
+			// local port, and gets its site once the lab has an address.
+			continue
+		}
+		g.out.Hosts = append(g.out.Hosts, rc.Host)
 		cr := caddy.Route{
-			ID:          g.pkg.Name + "-" + name,
-			Host:        rc.Host,
-			Upstream:    fmt.Sprintf("%s:%d", g.upstream, rc.Port),
-			Private:     rc.Exposure != pkgspec.ExposurePublic,
-			MaxBodySize: r.MaxBodySize,
+			ID:            g.name + "-" + name,
+			Host:          rc.Host,
+			OldHost:       OldHost(g.lab, rc.Host),
+			Upstream:      fmt.Sprintf("%s:%d", g.upstream, rc.Port),
+			Private:       rc.Exposure != pkgspec.ExposurePublic,
+			PrivateFrom:   PrivateFrom(g.lab),
+			PrivateExcept: g.lab.EdgeAddrs,
+			MaxBodySize:   r.MaxBodySize,
 		}
 		if !cr.Private {
 			// The package's private paths stay home-only unless the Owner
@@ -456,18 +467,18 @@ func (g *gen) caddySite() error {
 	if len(routes) == 0 {
 		return nil
 	}
-	site, err := caddy.Site(g.pkg.Name, routes)
+	site, err := caddy.Site(g.name, routes)
 	if err != nil {
 		return err
 	}
-	g.out.CaddySite = &File{Name: g.pkg.Name + ".caddy", Content: site}
+	g.out.CaddySite = &File{Name: g.name + ".caddy", Content: site}
 	return nil
 }
 
 func (g *gen) secrets() {
 	for _, s := range g.pkg.Settings {
 		if s.Type == pkgspec.SettingSecret {
-			g.out.Secrets = append(g.out.Secrets, Secret{Name: secretName(g.pkg.Name, s.Key), Generate: s.Generate,
+			g.out.Secrets = append(g.out.Secrets, Secret{Name: secretName(g.name, s.Key), Generate: s.Generate,
 				Setting: s.Key, InstallOnly: s.InstallOnly})
 		}
 	}
@@ -500,7 +511,7 @@ func (g *gen) addQuadlet(name string, u *quadlet.Unit) error {
 }
 
 func (g *gen) serviceDir() string {
-	return filepath.Join(g.lab.Paths.ServicesDir, g.pkg.Name)
+	return filepath.Join(g.lab.Paths.ServicesDir, g.name)
 }
 
 func (g *gen) dumpDir() string { return filepath.Join(g.serviceDir(), "db-dump") }
@@ -508,7 +519,7 @@ func (g *gen) dumpDir() string { return filepath.Join(g.serviceDir(), "db-dump")
 // storagePath is the host directory for a storage entry (SPEC.md §6.7).
 func (g *gen) storagePath(name string) string {
 	if g.pkg.Storage[name].Location == pkgspec.LocationMedia {
-		return filepath.Join(g.lab.Paths.MediaDir, g.pkg.Name, name)
+		return filepath.Join(g.lab.Paths.MediaDir, g.name, name)
 	}
 	return filepath.Join(g.serviceDir(), name)
 }
@@ -568,4 +579,15 @@ func addPassthrough(u *quadlet.Unit, q pkgspec.Quadlet) {
 			}
 		}
 	}
+}
+
+// OldHost is host's name at the lab's previous address while that still
+// works, or "" (SPEC.md §6.6): the same subdomain there.
+func OldHost(lab config.Lab, host string) string {
+	old := lab.Old(time.Now())
+	sub, ok := strings.CutSuffix(host, "."+lab.Domain)
+	if old == nil || !ok {
+		return ""
+	}
+	return sub + "." + old.Domain
 }

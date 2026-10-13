@@ -52,6 +52,17 @@ func (m *Manager) Start(ctx context.Context, units ...string) error {
 	return m.each(ctx, "start", units)
 }
 
+// StartNoBlock starts units in the background (systemctl --no-block): for
+// jobs that take minutes, such as building an image, which nothing should
+// wait for.
+func (m *Manager) StartNoBlock(ctx context.Context, units ...string) error {
+	if len(units) == 0 {
+		return nil
+	}
+	_, err := m.systemctl(ctx, append([]string{"start", "--no-block"}, units...)...)
+	return err
+}
+
 // Restart restarts units.
 func (m *Manager) Restart(ctx context.Context, units ...string) error {
 	return m.each(ctx, "restart", units)

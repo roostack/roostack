@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
@@ -37,15 +39,18 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		Units:    sd,
 		// Moving a service's data runs tar in podman unshare, outside the
 		// sandbox like backups.
-		Launch:     userLaunch,
-		WireGuard:  agentClient,
-		Links:      agentClient,
-		Version:    version,
-		Lab:        lab,
-		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets()},
-		Log:        log,
+		Launch:    userLaunch,
+		WireGuard: agentClient,
+		Links:     agentClient,
+		Version:   version,
+		Lab:       lab,
+		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets(),
+			// New containers' images are downloaded as their own step, with
+			// podman's output in the apply's log (SPEC.md §6.3.3).
+			Pull: pullImage},
+		Log: log,
 		// Package hooks (e.g. creating Forgejo's admin) run with podman exec.
-		State: st, Secrets: podman.NewSecrets(),
+		State: st, Events: st, Secrets: podman.NewSecrets(),
 		Exec: func(ctx context.Context, container string, env map[string]string, command []string) ([]byte, error) {
 			return podman.Exec(ctx, podman.Run, container, env, command...)
 		},
@@ -62,6 +67,12 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 			Restart: restart,
 		},
 	}
+	// A new SSH choice rebuilds the firewall at once, without a restart.
+	if h, ok := local.Host.(*node.HostSettings); ok {
+		h.UseSSH = local.UseSSH
+	}
+	// Finished logs are kept as history (SPEC.md §6.14).
+	local.KeepHistory()
 	// Backups and restores cover the services this server runs, as its
 	// assignment says (a node keeps no instance files of its own).
 	assigned := func() (config.Lab, []state.Service, error) {
@@ -79,4 +90,16 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		b.AfterBackup = local.CountSizes
 	}
 	return local, agentClient, coord, nil
+}
+
+// pullImage downloads an image as the roostack user (outside Roostack's
+// sandbox, like everything podman does), unless it's already here.
+func pullImage(ctx context.Context, image string, w io.Writer) error {
+	if userLaunch(ctx, nil, "podman", "image", "exists", image).Run() == nil {
+		fmt.Fprintf(w, "Already downloaded.\n")
+		return nil
+	}
+	cmd := userLaunch(ctx, nil, "podman", "pull", image)
+	cmd.Stdout, cmd.Stderr = w, w
+	return cmd.Run()
 }

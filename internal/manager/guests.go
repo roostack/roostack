@@ -47,14 +47,24 @@ type LinkAgent interface {
 // to the first other lab it stores at (the next one +1, …).
 const FirstProxyPort = 8200
 
-// headroom is free space kept beyond every guest's quota (10%).
-const headroom = 10
+// GuestHeadroom is the share of the disk (percent) kept free beyond every
+// guest's quota, for the lab's own services and backups.
+const GuestHeadroom = 10
 
 // GuestView is a guest lab, for the host's page.
 type GuestView struct {
 	store.Guest
 	Used     int64 // bytes, -1 if unknown
 	LastSeen time.Time
+}
+
+// UsedPercent is how much of its space a guest uses, for a bar (0 if
+// unknown).
+func (g GuestView) UsedPercent() int {
+	if g.Used <= 0 || g.Quota <= 0 {
+		return 0
+	}
+	return int(min(g.Used*100/g.Quota, 100))
 }
 
 // DeleteOn is when a removed guest's backups are deleted.
@@ -106,40 +116,18 @@ func (m *Manager) InviteGuest(ctx context.Context, name string, quota int64, end
 	name = strings.TrimSpace(name)
 	switch {
 	case name == "" || len([]rune(name)) > 60:
-		return labnet.StorageInvite{}, formErrorf("Give it a name, such as \"Tyris's lab\".")
+		return labnet.StorageInvite{}, formErrorf("Give it a name, such as \"Sam's lab\".")
 	case quota < units.GB:
 		return labnet.StorageInvite{}, formErrorf("Offer at least 1 GB.")
 	}
 	if host, port, err := splitEndpoint(endpoint); err != nil || host == "" || port == 0 {
 		return labnet.StorageInvite{}, formErrorf("Enter the address and port the other lab reaches this one at, such as 203.0.113.7:51821.")
 	}
-	// Every quota must fit on the disk, with room to spare.
-	guests, err := m.GuestRecords.Guests(ctx, time.Now())
-	if err != nil {
-		return labnet.StorageInvite{}, err
-	}
-	promised := quota
-	for _, g := range guests {
-		promised += g.Quota
-	}
-	host := m.guestHost(ctx)
-	if host == nil {
+	if m.guestHost(ctx) == nil {
 		return labnet.StorageInvite{}, formErrorf("Roostack can't reach %s, which offers the storage, right now.", m.nameOf(m.GuestServer(ctx)))
 	}
-	if free, total, err := host.GuestSpace(ctx); err == nil {
-		used := int64(0)
-		for _, g := range guests {
-			if u, err := host.GuestUsage(ctx, g.User()); err == nil {
-				used += u
-			}
-		}
-		// Space still to hand out: what's free, plus what guests already
-		// have, less the headroom.
-		available := free + used - total*headroom/100
-		if promised > available {
-			return labnet.StorageInvite{}, formErrorf("That doesn't fit: this disk can offer about %s more (after what's promised already and some room to spare).",
-				sizeGB(available-(promised-quota)))
-		}
+	if err := m.quotaFits(ctx, quota, 0); err != nil {
+		return labnet.StorageInvite{}, err
 	}
 	inv, err := m.GuestHub.NewInvite(ctx, name, quota, endpoint)
 	if err != nil {
@@ -147,6 +135,68 @@ func (m *Manager) InviteGuest(ctx context.Context, name string, quota int64, end
 	}
 	m.Apply() // the guest's store starts
 	return inv, nil
+}
+
+// GuestSpace is the disk of the server offering storage, as the invite
+// form explains it (SPEC.md §10.10).
+type GuestSpace struct {
+	Free, Total int64 // the disk's free and total space
+	// Promised is what other labs have been given but not used yet: free
+	// space now that they may fill later (not counting removed labs).
+	Promised int64
+	// Left is about how much more can be promised: Free less Promised and
+	// the headroom (10% of the disk).
+	Left int64
+}
+
+// GuestSpaceLeft describes the space on the server offering storage. ok
+// is false when it can't be asked.
+func (m *Manager) GuestSpaceLeft(ctx context.Context) (GuestSpace, bool) {
+	return m.spaceLeft(ctx, 0)
+}
+
+// spaceLeft is GuestSpaceLeft, not counting guest except's quota (one
+// whose quota is changing).
+func (m *Manager) spaceLeft(ctx context.Context, except int64) (GuestSpace, bool) {
+	var sp GuestSpace
+	if m.GuestRecords == nil {
+		return sp, false
+	}
+	host := m.guestHost(ctx)
+	if host == nil {
+		return sp, false
+	}
+	var err error
+	if sp.Free, sp.Total, err = host.GuestSpace(ctx); err != nil {
+		return sp, false
+	}
+	guests, err := m.GuestRecords.Guests(ctx, time.Now())
+	if err != nil {
+		return sp, false
+	}
+	var own int64 // what the guest whose quota is changing already uses
+	for _, g := range guests {
+		used, _ := host.GuestUsage(ctx, g.User())
+		if g.ID == except {
+			own = used
+			continue
+		}
+		if g.Removed.IsZero() { // a removed lab can't add more
+			sp.Promised += max(g.Quota-used, 0)
+		}
+	}
+	sp.Left = max(sp.Free-sp.Promised-sp.Total*GuestHeadroom/100+own, 0)
+	return sp, true
+}
+
+// quotaFits checks a quota fits on the disk with room to spare, beside
+// every other guest's (SPEC.md §10.10). If the disk can't be asked, it
+// isn't refused.
+func (m *Manager) quotaFits(ctx context.Context, quota, except int64) error {
+	if sp, ok := m.spaceLeft(ctx, except); ok && quota > sp.Left {
+		return formErrorf("That doesn't fit: this disk can offer about %s more (after what's promised already and some room to spare).", sizeGB(sp.Left))
+	}
+	return nil
 }
 
 // RemoveGuest cuts a guest lab's access. Its data stays until
@@ -224,6 +274,9 @@ func (m *Manager) SetGuestQuota(ctx context.Context, id, quota int64) error {
 	}
 	if quota < units.GB {
 		return formErrorf("Offer at least 1 GB.")
+	}
+	if err := m.quotaFits(ctx, quota, id); err != nil {
+		return err
 	}
 	if err := m.GuestRecords.SetGuestQuota(ctx, id, quota); err != nil {
 		return err

@@ -55,3 +55,16 @@ func TestLimitAndNil(t *testing.T) {
 		t.Error("nil registry should give a nil log")
 	}
 }
+
+// dpkg ends its lines in \r\n; progress redraws with \r. Both come out
+// as people saw them: the line, and a progress bar's last state.
+func TestCarriageReturns(t *testing.T) {
+	l := New().Start(OSUpdates, "OS updates")
+	l.Write([]byte("(Reading database ... \r(Reading database ... 50%\r(Reading database ... 26152 files and directories currently installed.)\r\n"))
+	l.Write([]byte("Unpacking openssl (3.5.7-1~deb13u3) over (3.5.7-1~deb13u2) ...\r\nSetting up openssl (3.5.7-1~deb13u3) ...\r\n"))
+	want := []string{"(Reading database ... 26152 files and directories currently installed.)",
+		"Unpacking openssl (3.5.7-1~deb13u3) over (3.5.7-1~deb13u2) ...", "Setting up openssl (3.5.7-1~deb13u3) ..."}
+	if got := l.Snapshot().Lines; !slices.Equal(got, want) {
+		t.Errorf("lines %q, want %q", got, want)
+	}
+}

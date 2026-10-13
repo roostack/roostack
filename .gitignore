@@ -9,3 +9,6 @@ dist/
 /help/site/
 /internal/web/helpsite/*
 !/internal/web/helpsite/README.md
+
+# Tyris's own notes, never committed (CLAUDE.md)
+/NOTES.local.md

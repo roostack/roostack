@@ -7,7 +7,7 @@
   <p><strong>Your data is kept.</strong> It stays in:</p>
   <ul>{{range .DataDirs}}<li><code>{{.}}</code></li>{{end}}</ul>
   <p class="hint">Installing {{.Package.Title}} again later will use this data.</p>
-  <form method="post" action="/services/{{.Package.Name}}/remove">
+  <form method="post" action="/services/{{.Name}}/remove">
     <button type="submit" class="danger">Remove {{.Package.Title}}</button>
   </form>
 </section>

@@ -3,10 +3,13 @@ package backup
 import (
 	"cmp"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,11 +24,68 @@ import (
 // after a reboot).
 const JobName = "backup"
 
-// Plan is everything one lab backup covers (SPEC.md §6.9).
+// Plan is everything one server's backup covers (SPEC.md §6.9): the
+// server's own snapshot (Roostack's state and the Podman secrets store),
+// then one snapshot per service, so each service can be found and restored
+// on its own, onto any server (SPEC.md §10.10).
 type Plan struct {
 	Paths    []string
 	Excludes []string
 	Prepare  []generate.PrepareStep
+	Services []ServicePlan
+}
+
+// ServicePlan is one service's snapshot.
+type ServicePlan struct {
+	Name     string
+	Paths    []string
+	Excludes []string
+	// Secrets are the service's Podman secrets, saved with its data so a
+	// restore on another server (or after its server is lost) has them.
+	Secrets []string
+}
+
+// Snapshot tags. Every snapshot Roostack makes is tagged TagRoostack, plus
+// TagServer (the server's own) or ServiceTag (one service's).
+const (
+	TagRoostack = "roostack"
+	TagServer   = "server"
+)
+
+// ServiceTag tags a service's snapshots.
+func ServiceTag(name string) string { return "service=" + name }
+
+// RunTag tags every snapshot of one backup run, main and copies alike, so
+// a restore can tell which copies hold the same moment.
+func RunTag(started time.Time) string { return "run=" + strconv.FormatInt(started.Unix(), 10) }
+
+// Run identifies the backup run a snapshot is from ("" if untagged).
+func (s Snapshot) Run() string {
+	for _, t := range s.Tags {
+		if run, ok := strings.CutPrefix(t, "run="); ok {
+			return run
+		}
+	}
+	return ""
+}
+
+// Service names the service a snapshot is of ("" for the server's own).
+func (s Snapshot) Service() string {
+	for _, t := range s.Tags {
+		if name, ok := strings.CutPrefix(t, "service="); ok {
+			return name
+		}
+	}
+	return ""
+}
+
+// SecretsDir is where a backup saves each service's secrets for its
+// snapshot (removed again after the upload).
+func SecretsDir(paths config.Paths) string { return filepath.Join(paths.StateDir, "backup-secrets") }
+
+// SecretsFile is a service's saved secrets (JSON: name to value).
+func SecretsFile(paths config.Paths, service string) string {
+	return filepath.Join(SecretsDir(paths), service+".json")
 }
 
 // LabPlan combines the lab's own state with each service's backup plan.
@@ -49,15 +109,23 @@ func LabPlan(paths config.Paths, services []*generate.Output) Plan {
 			// and a half-written key: no backup holds a key that opens it,
 			// and a restored lab isn't left half-way through a change.
 			KeyFile(paths)+".*",
+			// Each service's secrets go in its own snapshot.
+			SecretsDir(paths),
 		),
 	}
 	for _, s := range services {
-		p.Paths = append(p.Paths, s.Backup.Include...)
-		p.Excludes = append(p.Excludes, s.Backup.Exclude...)
+		if len(s.Backup.Include) == 0 {
+			continue // nothing of its own to keep (e.g. a cache)
+		}
+		sp := ServicePlan{Name: s.Service, Paths: slices.Clone(s.Backup.Include), Excludes: s.Backup.Exclude}
+		for _, sec := range s.Secrets {
+			sp.Secrets = append(sp.Secrets, sec.Name)
+		}
+		slices.Sort(sp.Paths)
+		sp.Paths = slices.Compact(sp.Paths)
+		p.Services = append(p.Services, sp)
 		p.Prepare = append(p.Prepare, s.Backup.Prepare...)
 	}
-	slices.Sort(p.Paths)
-	p.Paths = slices.Compact(p.Paths)
 	return p
 }
 
@@ -118,6 +186,36 @@ type JobDeps struct {
 	OnCopy func(c Copy, started time.Time, sum *Summary, err error)
 	// Log shows the run's steps live in the UI (optional, per run).
 	Log *activity.Log
+	// Only limits a run to some destinations, by name ("" the main one,
+	// else a copy's Name): a retry of those that failed. Nil runs all.
+	Only []string
+	// ReadSecret reads a Podman secret, to save with its service's data.
+	// Optional: without it, services' snapshots have no secrets.
+	ReadSecret func(ctx context.Context, name string) ([]byte, error)
+	// Generation is the lab's (fence.go): every snapshot is tagged with
+	// it, and a newer one in a repository means this copy is out of date.
+	Generation int
+}
+
+// wants reports whether a run backs up to destination name.
+func (d JobDeps) wants(name string) bool { return d.Only == nil || slices.Contains(d.Only, name) }
+
+// DriveError is a destination's drive not being ready (its Precheck):
+// the backup there runs as soon as it's plugged in.
+type DriveError struct{ Err error }
+
+func (e *DriveError) Error() string { return e.Err.Error() }
+func (e *DriveError) Unwrap() error { return e.Err }
+
+// precheck runs a destination's check, as a DriveError.
+func precheck(check func() error) error {
+	if check == nil {
+		return nil
+	}
+	if err := check(); err != nil {
+		return &DriveError{err}
+	}
+	return nil
 }
 
 // Copy is an extra copy of a server's backups.
@@ -150,16 +248,27 @@ func NewJob(d JobDeps) maintenance.Job {
 
 // Run performs a full backup. The prepare steps are not interruptible; the
 // upload is, and resumes after a reboot.
+//
+// Each destination is checked first (its drive); one that isn't ready is
+// skipped, and the others go ahead.
 func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err error) {
 	defer func() {
 		if d.OnDone != nil {
 			d.OnDone(summary, err)
 		}
 	}()
-	if d.Precheck != nil {
-		if err := d.Precheck(); err != nil {
-			return nil, err
+	mainErr := error(nil)
+	if d.wants("") {
+		mainErr = precheck(d.Precheck)
+	}
+	copies := 0
+	for _, c := range d.Copies {
+		if d.wants(c.Name) {
+			copies++
 		}
+	}
+	if mainErr != nil && copies == 0 {
+		return nil, mainErr
 	}
 	plan, err := d.Plan()
 	if err != nil {
@@ -177,27 +286,39 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 			return nil, fmt.Errorf("preparing %s: %w", step.Target, err)
 		}
 	}
-	// Skip paths that don't exist yet (e.g. no Podman secrets on a fresh
-	// install); restic treats a missing source as an error.
-	var paths []string
-	for _, p := range plan.Paths {
-		if _, err := os.Stat(p); err == nil {
-			paths = append(paths, p)
-		}
+	snaps, err := d.snapshots(ctx, plan, RunTag(time.Now()), GenTag(d.Generation))
+	if err != nil {
+		return nil, err
 	}
+	defer os.RemoveAll(SecretsDir(d.Paths))
 	r.SetInterruptible(true)
-	summary, err = upload(ctx, d, d.Repo, "", paths, plan.Excludes, r)
+	switch {
+	case mainErr != nil:
+		err = mainErr
+		d.Log.Printf("Not backing up to the main destination: %v", err)
+	case d.wants(""):
+		summary, err = upload(ctx, d, d.Repo, "", snaps, r)
+	}
+	var fenced *FenceError
+	if errors.As(err, &fenced) {
+		d.Log.Printf("%v", err)
+		return nil, err // nowhere else either
+	}
 	// The copies go ahead even if the main destination failed: that's
 	// what they're for.
 	for _, c := range d.Copies {
+		if !d.wants(c.Name) {
+			continue
+		}
 		started := time.Now()
 		var csum *Summary
-		cerr := error(nil)
-		if c.Precheck != nil {
-			cerr = c.Precheck()
-		}
+		cerr := precheck(c.Precheck)
 		if cerr == nil {
-			csum, cerr = upload(ctx, d, c.Repo, c.Title, paths, plan.Excludes, r)
+			csum, cerr = upload(ctx, d, c.Repo, c.Title, snaps, r)
+		}
+		if errors.As(cerr, &fenced) {
+			d.Log.Printf("%v", cerr)
+			return summary, cerr
 		}
 		if cerr != nil {
 			d.Log.Printf("The copy at %s didn't finish: %v", c.Title, cerr)
@@ -212,47 +333,151 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 	return summary, err
 }
 
-// upload backs the paths up to one repository (to is "" for the main one).
-func upload(ctx context.Context, d JobDeps, repo *Repo, to string, paths, excludes []string, r Reporter) (*Summary, error) {
+// reachTimeout limits opening a repository: restic keeps retrying one it
+// can't reach (a server that's off), which would hold up every backup
+// after it.
+var reachTimeout = 2 * time.Minute
+
+// snapshot is one snapshot a run makes, in every repository.
+type snapshot struct {
+	title    string // "" for the server's own
+	paths    []string
+	excludes []string
+	tags     []string
+}
+
+// snapshots lists what a run backs up: the server's own snapshot, then each
+// service's (with its secrets saved next to it). Paths that don't exist yet
+// are skipped (e.g. no Podman secrets on a fresh install, or a service
+// without media); restic treats a missing source as an error.
+func (d JobDeps) snapshots(ctx context.Context, plan Plan, run, gen string) ([]snapshot, error) {
+	existing := func(paths []string) []string {
+		var out []string
+		for _, p := range paths {
+			if _, err := os.Stat(p); err == nil {
+				out = append(out, p)
+			}
+		}
+		return out
+	}
+	var out []snapshot
+	if paths := existing(plan.Paths); len(paths) > 0 {
+		out = append(out, snapshot{paths: paths, excludes: plan.Excludes, tags: []string{TagRoostack, TagServer, run, gen}})
+	}
+	if err := os.RemoveAll(SecretsDir(d.Paths)); err != nil {
+		return nil, err
+	}
+	for _, sp := range plan.Services {
+		paths := existing(sp.Paths)
+		if len(paths) == 0 {
+			continue
+		}
+		if len(sp.Secrets) > 0 && d.ReadSecret != nil {
+			secrets := map[string][]byte{}
+			for _, name := range sp.Secrets {
+				if v, err := d.ReadSecret(ctx, name); err == nil {
+					secrets[name] = v
+				} // else e.g. an install-only secret, used and deleted
+			}
+			file := SecretsFile(d.Paths, sp.Name)
+			if err := writeJSON(file, secrets); err != nil {
+				return nil, fmt.Errorf("saving %s's secrets for its backup: %w", sp.Name, err)
+			}
+			paths = append(paths, file)
+		}
+		out = append(out, snapshot{title: sp.Name, paths: paths, excludes: sp.Excludes, tags: []string{TagRoostack, ServiceTag(sp.Name), run, gen}})
+	}
+	return out, nil
+}
+
+// writeJSON writes v to a file only Roostack can read.
+func writeJSON(file string, v any) error {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(file, data, 0o600)
+}
+
+// upload backs the snapshots up to one repository (to is "" for the main
+// one). The summary adds them up; its snapshot is the server's own.
+func upload(ctx context.Context, d JobDeps, repo *Repo, to string, snaps []snapshot, r Reporter) (*Summary, error) {
+	r.SetProgress(-1) // until this upload reports its own
 	if to == "" {
 		d.Log.Step("Opening the backup storage")
 	} else {
 		d.Log.Step("Copying to %s", to)
 	}
 	d.Log.Printf("Repository: %s", repo.URL)
-	if err := repo.Init(ctx); err != nil {
+	ictx, cancel := context.WithTimeout(ctx, reachTimeout)
+	err := repo.Init(ictx)
+	cancel()
+	if ictx.Err() == context.DeadlineExceeded && ctx.Err() == nil {
+		return nil, fmt.Errorf("couldn't reach %s in %s: is it switched on and connected?", cmp.Or(to, "the backup storage"), reachTimeout)
+	}
+	if err != nil {
 		return nil, err
 	}
-	if to == "" {
-		d.Log.Step("Uploading changes")
-		for _, p := range paths {
-			d.Log.Printf("Including %s", p)
-		}
+	// Out of date (another copy of this lab is newer, or the lab removed
+	// this server): nothing is uploaded, here or anywhere.
+	if err := checkFence(ctx, repo, d.Generation); err != nil {
+		return nil, err
 	}
-	lastTen := -1
-	sum, err := repo.Backup(ctx, BackupOptions{
-		Paths: paths, Excludes: excludes, Tags: []string{"roostack"}, Host: d.Host,
-		OnProgress: func(p Progress) {
-			r.SetProgress(int(p.PercentDone))
-			if ten := int(p.PercentDone) / 10; ten > lastTen {
-				lastTen = ten
-				d.Log.Printf("%3d%%  %s of %s, about %s left", int(p.PercentDone), Bytes(p.BytesDone),
-					Bytes(p.TotalBytes), (time.Duration(p.SecondsRemaining) * time.Second).String())
+	total := &Summary{}
+	for i, snap := range snaps {
+		what := cmp.Or(snap.title, "Roostack's own settings")
+		if to == "" {
+			d.Log.Step("Backing up %s", what)
+			for _, p := range snap.paths {
+				d.Log.Printf("Including %s", p)
 			}
-		},
-	})
-	if sum != nil {
-		d.Log.Step("Backed up: %d new files, %s added (snapshot %s)", sum.FilesNew, Bytes(sum.DataAdded), sum.SnapshotID)
-		// The space it all takes there, for the plan (SPEC.md §6.9).
-		if stored, serr := repo.Stored(ctx); serr == nil {
-			sum.Stored = stored
-			d.Log.Printf("The backups there take %s", Bytes(stored))
 		} else {
-			d.Log.Printf("Couldn't tell how much space the backups there take: %v", serr)
+			d.Log.Step("Copying %s to %s", what, to)
 		}
+		lastTen := -1
+		sum, err := repo.Backup(ctx, BackupOptions{
+			Paths: snap.paths, Excludes: snap.excludes, Tags: snap.tags, Host: d.Host,
+			OnProgress: func(p Progress) {
+				// Overall progress: each snapshot is an equal share.
+				r.SetProgress((i*100 + int(p.PercentDone)) / len(snaps))
+				if ten := int(p.PercentDone) / 10; ten > lastTen && p.TotalBytes > progressLines {
+					lastTen = ten
+					d.Log.Printf("%3d%%  %s of %s, about %s left", int(p.PercentDone), Bytes(p.BytesDone),
+						Bytes(p.TotalBytes), (time.Duration(p.SecondsRemaining) * time.Second).String())
+				}
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("backing up %s: %w", what, err)
+		}
+		d.Log.Printf("%d new files, %s added (snapshot %s)", sum.FilesNew, Bytes(sum.DataAdded), short(sum.SnapshotID))
+		if snap.title == "" || total.SnapshotID == "" {
+			total.SnapshotID = sum.SnapshotID
+		}
+		total.FilesNew += sum.FilesNew
+		total.DataAdded += sum.DataAdded
+		total.Duration += sum.Duration
 	}
-	return sum, err
+	d.Log.Step("Backed up: %d new files, %s added", total.FilesNew, Bytes(total.DataAdded))
+	// The space it all takes there, for the plan (SPEC.md §6.9).
+	if stored, serr := repo.Stored(ctx); serr == nil {
+		total.Stored = stored
+		d.Log.Printf("The backups there take %s", Bytes(stored))
+	} else {
+		d.Log.Printf("Couldn't tell how much space the backups there take: %v", serr)
+	}
+	return total, nil
 }
+
+// progressLines is the size above which an upload logs its progress every
+// 10% (small ones finish too quickly for it to help).
+const progressLines = uint64(100 * units.MB)
+
+// short shortens a snapshot ID as restic shows it.
+func short(id string) string { return id[:min(8, len(id))] }
 
 // prepareService names the service a prepare step belongs to, from its
 // dump path (<services dir>/<service>/db-dump/<file>).

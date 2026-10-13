@@ -11,23 +11,51 @@ package caddy
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"slices"
 	"strings"
 )
 
-// PrivateRanges are the client networks allowed to reach private routes:
-// Caddy's private_ranges (RFC1918, loopback, ULA, link-local) plus the
-// CGNAT range used by Tailscale. See docs/ASSUMPTIONS.md C4/C5.
+// PrivateRanges are the client networks allowed to reach private routes
+// in a lab at home: Caddy's private_ranges (RFC1918, loopback, ULA,
+// link-local) plus the CGNAT range used by Tailscale. See
+// docs/ASSUMPTIONS.md C4/C5.
 const PrivateRanges = "private_ranges 100.64.0.0/10"
+
+// ThisServerOnly is who reaches private routes in a lab on the internet
+// (SPEC.md §6.12): only connections made on the server itself, which is
+// where an SSH tunnel ends. Caddy's pasta network shows a connection to
+// the host's 127.0.0.1 as coming from hostIP, and one to the host's own
+// address as coming from hostLoopback (docs/ASSUMPTIONS.md P9). A cloud
+// provider's private network (shared with other customers) stays out.
+func ThisServerOnly(hostIP, hostLoopback string) string {
+	from := []string{"127.0.0.1/8", "::1"}
+	for _, a := range []string{hostIP, hostLoopback} {
+		if a != "" {
+			from = append(from, a)
+		}
+	}
+	return strings.Join(from, " ")
+}
 
 // Route is one subdomain handled by Caddy.
 type Route struct {
 	// ID must be unique across the lab; used to name Caddy matchers.
-	ID          string
-	Host        string // full hostname, e.g. photos.lab.example.com
-	Upstream    string // container:port on the roostack-proxy network
-	Private     bool
-	MaxBodySize string // optional, e.g. "50GB"
+	ID   string
+	Host string // full hostname, e.g. photos.lab.example.com
+	// OldHost is its name at the lab's previous address, served too for a
+	// while after switching (SPEC.md §6.6); "" when there's none.
+	OldHost  string
+	Upstream string // container:port on the roostack-proxy network
+	Private  bool
+	// PrivateFrom is who reaches it when private, and its private paths
+	// when public: remote_ip ranges. Empty means PrivateRanges.
+	PrivateFrom string
+	// PrivateExcept are addresses inside PrivateFrom that still count as
+	// outside: the lab's edges (SPEC.md §10.5), whose own WireGuard
+	// address a connection without a PROXY header would show.
+	PrivateExcept []string
+	MaxBodySize   string // optional, e.g. "50GB"
 	// On a public route (SPEC.md §6.11): PrivatePaths (and everything
 	// under them) stay home-only, and LoginPaths get a strict rate limit.
 	PrivatePaths []string
@@ -64,10 +92,14 @@ func Site(service string, routes []Route) (string, error) {
 		if err := r.validate(); err != nil {
 			return "", err
 		}
-		fmt.Fprintf(&b, "\n@%s host %s\n", r.ID, r.Host)
+		hosts := r.Host
+		if r.OldHost != "" {
+			hosts += " " + r.OldHost
+		}
+		fmt.Fprintf(&b, "\n@%s host %s\n", r.ID, hosts)
 		fmt.Fprintf(&b, "handle @%s {\n", r.ID)
 		if r.Private {
-			fmt.Fprintf(&b, "\t@%s-external not remote_ip %s\n", r.ID, PrivateRanges)
+			fmt.Fprintf(&b, "\t@%s-external %s\n", r.ID, r.notPrivate("\t"))
 			fmt.Fprintf(&b, "\tabort @%s-external\n", r.ID)
 			if r.MaxBodySize != "" {
 				fmt.Fprintf(&b, "\trequest_body {\n\t\tmax_size %s\n\t}\n", r.MaxBodySize)
@@ -89,8 +121,8 @@ func Site(service string, routes []Route) (string, error) {
 // service sees the request.
 func publicRoute(b *strings.Builder, r Route) {
 	if len(r.PrivatePaths) > 0 {
-		fmt.Fprintf(b, "\t@%s-private-paths {\n\t\tnot remote_ip %s\n\t\tpath %s\n\t}\n",
-			r.ID, PrivateRanges, pathPatterns(r.PrivatePaths))
+		fmt.Fprintf(b, "\t@%s-private-paths {\n\t\t%s\n\t\tpath %s\n\t}\n",
+			r.ID, r.notPrivate("\t\t"), pathPatterns(r.PrivatePaths))
 	}
 	b.WriteString("\troute {\n")
 	if len(r.PrivatePaths) > 0 {
@@ -115,6 +147,25 @@ func publicRoute(b *strings.Builder, r Route) {
 	b.WriteString("\t}\n")
 }
 
+func (r Route) privateFrom() string {
+	if r.PrivateFrom == "" {
+		return PrivateRanges
+	}
+	return r.PrivateFrom
+}
+
+// notPrivate is the matcher for a connection from outside, at indent:
+// not from PrivateFrom, or from one of PrivateExcept (an edge: "not
+// (private and not an edge)", checked with Caddy, docs/ASSUMPTIONS.md
+// Q11).
+func (r Route) notPrivate(indent string) string {
+	if len(r.PrivateExcept) == 0 {
+		return "not remote_ip " + r.privateFrom()
+	}
+	return fmt.Sprintf("not {\n%s\tremote_ip %s\n%s\tnot remote_ip %s\n%s}",
+		indent, r.privateFrom(), indent, strings.Join(r.PrivateExcept, " "), indent)
+}
+
 // pathPatterns matches each path and everything under it.
 func pathPatterns(paths []string) string {
 	var ps []string
@@ -125,8 +176,14 @@ func pathPatterns(paths []string) string {
 }
 
 func (r Route) validate() error {
+	if strings.ContainsAny(r.PrivateFrom, "\t\n{}\"#") {
+		return fmt.Errorf("caddy route %s: invalid private addresses %q", r.ID, r.PrivateFrom)
+	}
+	if err := checkPrefixes(r.PrivateExcept); err != nil {
+		return fmt.Errorf("caddy route %s: %w", r.ID, err)
+	}
 	for _, f := range []struct{ name, val string }{
-		{"id", r.ID}, {"host", r.Host}, {"upstream", r.Upstream}, {"max body size", r.MaxBodySize},
+		{"id", r.ID}, {"host", r.Host}, {"old host", r.OldHost}, {"upstream", r.Upstream}, {"max body size", r.MaxBodySize},
 		{"check upstream", r.CheckUpstream},
 	} {
 		// Guard against anything that could break out of the Caddyfile syntax.
@@ -153,8 +210,18 @@ type MainConfig struct {
 	// (from internal/dns); it may span several lines.
 	DNSDirective string
 	// AdminUpstream is where the Roostack web UI listens, as seen from the
-	// Caddy container. Always private. Empty disables the admin route.
+	// Caddy container. Empty disables the admin route.
 	AdminUpstream string
+	// AdminHost is where it's served: roost.<domain> when empty, or the
+	// domain itself (a roost.ac name, SPEC.md §6.6). OldAdminHost is the
+	// same at the old address.
+	AdminHost, OldAdminHost string
+	// AdminPublic serves the UI to anyone, like a public service (CrowdSec,
+	// rate limits, a strict one on logging in): on a lab on the internet
+	// (SPEC.md §6.3.2). Otherwise it's private.
+	AdminPublic bool
+	// PrivateFrom is who reaches private routes (Route.PrivateFrom).
+	PrivateFrom string
 	// CrowdSecAPI is the address of CrowdSec's local API, as seen from the
 	// Caddy container, set while anything is public (SPEC.md §6.11). The
 	// bouncer's key is in the CrowdSecAPIKeyEnv environment variable.
@@ -162,10 +229,32 @@ type MainConfig struct {
 	// AccessLog is the file Caddy logs requests to, for CrowdSec. Empty
 	// logs none.
 	AccessLog string
+	// OldDomain is the lab's previous address, served as well while it
+	// still works (SPEC.md §6.6), with its own certificate through
+	// OldDNSDirective.
+	OldDomain       string
+	OldDNSDirective string
+	// EdgeFrom are the lab's edges' WireGuard addresses (SPEC.md §10.5):
+	// the only sources whose PROXY header (the visitor's address) Caddy
+	// believes, on its normal port, and outside for the private check.
+	EdgeFrom []string
 }
 
-// AdminSubdomain is where the Roostack UI is served.
-const AdminSubdomain = "roostack"
+// AdminSubdomain is where the Roostack UI is served: roost.<domain>
+// (renamed from roostack. on 2026-10-01: shorter to type and say).
+const AdminSubdomain = "roost"
+
+// LinkSubdomain names this lab for other servers and labs connecting to it
+// over WireGuard (joining, storage for others): link.<domain>, pointing at
+// the home's public address once someone chooses it (SPEC.md §10.2). Not
+// a web address: no service may use it.
+const LinkSubdomain = "link"
+
+// AdminLoginPaths get the strict rate limit when the UI is public: logging
+// in (password, then code) and the recovery key's password-and-code check.
+// Not /setup: the setup code is too long to guess, and the wizard's pages
+// are under it.
+var AdminLoginPaths = []string{"/login", "/backups/recovery-key"}
 
 // Main renders the main Caddyfile.
 func Main(c MainConfig) (string, error) {
@@ -182,39 +271,144 @@ func Main(c MainConfig) (string, error) {
 	if c.Email != "" {
 		fmt.Fprintf(&b, "\temail %s\n", c.Email)
 	}
+	if len(c.EdgeFrom) > 0 {
+		if err := checkPrefixes(c.EdgeFrom); err != nil {
+			return "", fmt.Errorf("caddy: edges: %w", err)
+		}
+		// Visitors through an edge arrive from its WireGuard address with
+		// a PROXY header saying who they are. Anyone else sending one is
+		// refused; everyone else (no header) is unchanged (checked with
+		// Caddy, docs/ASSUMPTIONS.md Q3, Q11).
+		fmt.Fprintf(&b, "\tservers :443 {\n\t\tlistener_wrappers {\n\t\t\tproxy_protocol {\n\t\t\t\tallow %s\n"+
+			"\t\t\t\tfallback_policy reject\n\t\t\t}\n\t\t\ttls\n\t\t}\n\t}\n", strings.Join(c.EdgeFrom, " "))
+	}
 	if c.CrowdSecAPI != "" {
 		// Caddy keeps serving while CrowdSec's API is unreachable, and
 		// retries (docs/ASSUMPTIONS.md P5).
 		fmt.Fprintf(&b, "\tcrowdsec {\n\t\tapi_url %s\n\t\tapi_key {env.%s}\n\t\tticker_interval 15s\n\t}\n",
 			c.CrowdSecAPI, CrowdSecAPIKeyEnv)
 	}
-	b.WriteString("}\n\n")
-	fmt.Fprintf(&b, "*.%s {\n", c.Domain)
+	b.WriteString("}\n")
+	if err := site(&b, c, c.Domain, c.AdminHost, c.DNSDirective, ""); err != nil {
+		return "", err
+	}
+	if c.OldDomain != "" {
+		if strings.ContainsAny(c.OldDomain, " \t\n{}\"#") || strings.TrimSpace(c.OldDNSDirective) == "" {
+			return "", fmt.Errorf("caddy: invalid old address %q", c.OldDomain)
+		}
+		// The previous address (SPEC.md §6.6): the same services, through
+		// the same snippets (their matchers name both hosts).
+		if err := site(&b, c, c.OldDomain, c.OldAdminHost, c.OldDNSDirective, c.Domain); err != nil {
+			return "", err
+		}
+	}
+	return b.String(), nil
+}
+
+// site writes one wildcard site block for domain, with Roostack's pages
+// at adminHost (roost.<domain> if empty; the domain itself is added to the
+// block, since the wildcard doesn't cover it). now is the lab's current
+// address when domain is its previous one.
+func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now string) error {
+	if adminHost == "" {
+		adminHost = AdminSubdomain + "." + domain
+	}
+	if strings.ContainsAny(adminHost, " \t\n{}\"#,") {
+		return fmt.Errorf("caddy: invalid admin host %q", adminHost)
+	}
+	b.WriteString("\n")
+	if now != "" {
+		fmt.Fprintf(b, "# The lab's previous address, until it stops working; it's now %s.\n", now)
+	}
+	if adminHost == domain {
+		fmt.Fprintf(b, "*.%s, %s {\n", domain, domain)
+	} else {
+		fmt.Fprintf(b, "*.%s {\n", domain)
+	}
 	b.WriteString("\ttls {\n")
-	for _, line := range strings.Split(strings.TrimSpace(c.DNSDirective), "\n") {
-		fmt.Fprintf(&b, "\t\t%s\n", line)
+	for _, line := range strings.Split(strings.TrimSpace(directive), "\n") {
+		fmt.Fprintf(b, "\t\t%s\n", line)
 	}
 	b.WriteString("\t}\n")
 	if c.AccessLog != "" {
-		fmt.Fprintf(&b, "\tlog {\n\t\toutput file %s {\n\t\t\troll_size 20MiB\n\t\t\troll_keep 5\n\t\t}\n\t\tformat json\n\t}\n", c.AccessLog)
+		fmt.Fprintf(b, "\tlog {\n\t\toutput file %s {\n\t\t\troll_size 20MiB\n\t\t\troll_keep 5\n\t\t}\n\t\tformat json\n\t}\n", c.AccessLog)
 	}
 	if c.AdminUpstream != "" {
-		admin, err := Site("roostack", []Route{{
-			ID: "roostack-admin", Host: AdminSubdomain + "." + c.Domain,
-			Upstream: c.AdminUpstream, Private: true,
-		}})
+		route := Route{ID: "roostack-admin", Host: adminHost,
+			Upstream: c.AdminUpstream, Private: !c.AdminPublic, PrivateFrom: c.PrivateFrom, PrivateExcept: c.EdgeFrom}
+		if c.AdminPublic {
+			route.LoginPaths = AdminLoginPaths
+		}
+		admin, err := Site("roostack", []Route{route})
 		if err != nil {
-			return "", err
+			return err
 		}
 		// Indent the admin handler into the site block, skipping its header.
 		_, body, _ := strings.Cut(admin, "\n")
 		for _, line := range strings.Split(strings.TrimSpace(body), "\n") {
-			fmt.Fprintf(&b, "\t%s\n", line)
+			fmt.Fprintf(b, "\t%s\n", line)
 		}
 	}
 	b.WriteString("\n\timport sites/*.caddy\n\n")
 	b.WriteString("\t# Unknown subdomains get no response.\n")
 	b.WriteString("\thandle {\n\t\tabort\n\t}\n")
 	b.WriteString("}\n")
+	return nil
+}
+
+// checkPrefixes checks addresses or ranges (100.96.0.2/32) for Caddy.
+func checkPrefixes(list []string) error {
+	for _, p := range list {
+		if _, err := netip.ParsePrefix(p); err != nil {
+			if _, err := netip.ParseAddr(p); err != nil {
+				return fmt.Errorf("invalid address %q", p)
+			}
+		}
+	}
+	return nil
+}
+
+// EdgeConfig is a lab's edge (SPEC.md §10.5): a cloud server passing
+// visitors' connections for the lab's public names to the server whose
+// Caddy serves them, without decrypting them.
+type EdgeConfig struct {
+	// Hosts are the public names it passes on.
+	Hosts []string
+	// Upstream is where (host:port on Roostack's network): the
+	// controller's Caddy.
+	Upstream string
+}
+
+// Edge renders an edge's Caddyfile: Caddy's layer-4 plugin passes TLS
+// connections for Hosts through to Upstream by the name in the handshake,
+// with a PROXY header carrying the visitor's address; other names get
+// nothing. Plain HTTP for Hosts is redirected to HTTPS. No certificates:
+// they stay with the server that serves the names.
+func Edge(c EdgeConfig) (string, error) {
+	if _, err := netip.ParseAddrPort(c.Upstream); err != nil {
+		return "", fmt.Errorf("caddy: edge upstream %q: %w", c.Upstream, err)
+	}
+	for _, h := range c.Hosts {
+		if h == "" || strings.ContainsAny(h, " \t\n{}\"#,*/:") {
+			return "", fmt.Errorf("caddy: invalid public name %q", h)
+		}
+	}
+	var b strings.Builder
+	b.WriteString("# Generated by Roostack: this server is the lab's edge. Do not edit: changes will be overwritten.\n")
+	b.WriteString("{\n\tauto_https off\n")
+	if len(c.Hosts) > 0 {
+		fmt.Fprintf(&b, "\tlayer4 {\n\t\t:443 {\n\t\t\t@public tls sni %s\n", strings.Join(c.Hosts, " "))
+		fmt.Fprintf(&b, "\t\t\troute @public {\n\t\t\t\tproxy {\n\t\t\t\t\tproxy_protocol v2\n\t\t\t\t\tupstream %s\n"+
+			"\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n", c.Upstream)
+	}
+	b.WriteString("}\n")
+	if len(c.Hosts) > 0 {
+		var hs []string
+		for _, h := range c.Hosts {
+			hs = append(hs, "http://"+h)
+		}
+		fmt.Fprintf(&b, "\n%s {\n\tredir https://{host}{uri} 308\n}\n", strings.Join(hs, ", "))
+	}
+	b.WriteString("\n# Any other name: nothing.\nhttp:// {\n\tabort\n}\n")
 	return b.String(), nil
 }

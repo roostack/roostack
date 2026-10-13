@@ -12,3 +12,11 @@ func TestBytes(t *testing.T) {
 		}
 	}
 }
+
+func TestCount(t *testing.T) {
+	for n, want := range map[int64]string{0: "0", 999: "999", 1000: "1,000", 1284: "1,284", 1234567: "1,234,567", -1500: "-1,500"} {
+		if got := Count(n); got != want {
+			t.Errorf("Count(%d) = %q, want %q", n, got, want)
+		}
+	}
+}

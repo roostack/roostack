@@ -118,8 +118,12 @@ With Debian 13 installed, and logged in on the computer (or over SSH):
 
     Logged in as `root` (as on some cloud servers)? Leave out `sudo`.
 
-3. At the end, the installer shows how to open Roostack's setup page, and
-   where to find the **setup code**.
+3. At the end, the installer shows your **setup code** and how to open
+   Roostack's setup page. To see it again:
+
+    ```bash
+    sudo /usr/share/roostack/installed-message
+    ```
 
 Then carry on with [First-run setup](first-run.md).
 

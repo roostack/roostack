@@ -24,7 +24,12 @@ const codePrefix = "roostack-join-"
 // the controller accepts that key only until the code is used or expires.
 type JoinCode struct {
 	// Endpoint is where the controller's WireGuard listens (host:port).
-	Endpoint string `json:"e"`
+	// Empty with Listen: the controller can't be reached (at home, behind
+	// its router), so it dials the new server instead (SPEC.md §10.2).
+	Endpoint string `json:"e,omitempty"`
+	// Listen: the new server listens on WireGuard's port for the
+	// controller to dial it.
+	Listen bool `json:"l,omitempty"`
 	// ControllerKey is the controller's WireGuard public key.
 	ControllerKey string `json:"k"`
 	// ControllerID and ControllerAddr name the controller on the network.
@@ -41,6 +46,10 @@ type JoinCode struct {
 	CA string `json:"f"`
 	// Token proves the code to the controller.
 	Token string `json:"t"`
+	// LabName and UI name the lab and where its pages are, for the new
+	// server's setup page ("Open your lab"). Optional.
+	LabName string `json:"n,omitempty"`
+	UI      string `json:"u,omitempty"`
 }
 
 // String encodes the code for pasting into a terminal.
@@ -68,6 +77,9 @@ func ParseJoinCode(s string) (JoinCode, error) {
 			Endpoint: c.Endpoint}}}
 	if err := wg.Validate(); err != nil {
 		return c, fmt.Errorf("the join code is damaged: %w", err)
+	}
+	if (c.Endpoint == "") == !c.Listen {
+		return c, errors.New("the join code is damaged: it says neither where the controller is nor that it will connect")
 	}
 	if !nodeid.ValidID(c.ControllerID) || c.CA == "" || c.Token == "" {
 		return c, errors.New("the join code is damaged")

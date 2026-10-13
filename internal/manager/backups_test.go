@@ -19,6 +19,7 @@ import (
 	"roostack.cloud/roostack/internal/b2"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labnet"
+	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -357,6 +358,18 @@ func TestRemovedGuestGrace(t *testing.T) {
 	}
 	guests, _ := st.Guests(ctx, time.Now())
 	g := guests[0]
+	// The vps's disk: 500 of 1000 GB free, 1 GB used by Sam, 10 GB
+	// promised, 100 GB kept free: 391 GB more to offer. A quota change
+	// doesn't count the guest's own quota.
+	if sp, ok := m.GuestSpaceLeft(ctx); !ok || sp.Left != 391<<30 || sp.Promised != 9<<30 || sp.Free != 500<<30 {
+		t.Errorf("space %+v, %v", sp, ok)
+	}
+	if err := m.SetGuestQuota(ctx, g.ID, 402<<30); err == nil || !strings.Contains(err.Error(), "doesn't fit") {
+		t.Errorf("a quota that doesn't fit: %v", err)
+	}
+	if err := m.SetGuestQuota(ctx, g.ID, 401<<30); err != nil {
+		t.Errorf("one that does: %v", err)
+	}
 	if stores, _ := m.guestStores(ctx); len(stores) != 1 {
 		t.Fatal("a guest's store runs")
 	}
@@ -404,6 +417,8 @@ func TestRemovedGuestGrace(t *testing.T) {
 }
 
 type fakeLinks struct{}
+
+func (fakeLinks) ApplyLinks(context.Context, agent.Links) error { return nil }
 
 func (fakeLinks) ApplyWireGuard(context.Context, agent.WireGuard) (string, error) {
 	return "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw=", nil
@@ -509,5 +524,67 @@ func TestBackupOnADriveAndPromote(t *testing.T) {
 	if main.Provider != "server:n-0000000002" || len(copies) != 1 || copies[0].Ref != "drive:uuid:64B1" ||
 		here.promoted != "server:n-0000000002 <-> drive:uuid:64B1" {
 		t.Errorf("after promoting: main %+v, copies %+v, server told %q", main, copies, here.promoted)
+	}
+}
+
+// A repository that's locked (its server still backing up) is tried again
+// later, up to pruneTries in all; the others aren't.
+func TestPruneRetriesLocked(t *testing.T) {
+	m, _ := newManager(t)
+	m.Activity = activity.New()
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "roostack.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	m.BackupStore = st
+	dir := t.TempDir()
+	// restic exits 11 when it can't lock the repository.
+	locked := filepath.Join(dir, "locked-restic")
+	os.WriteFile(locked, []byte("#!/bin/sh\nexit 11\n"), 0o755)
+	fine := filepath.Join(dir, "fine-restic")
+	os.WriteFile(fine, []byte("#!/bin/sh\nexit 0\n"), 0o755)
+	var ran []string
+	m.OpenRepo = func(url string, _ []string) *backup.Repo {
+		ran = append(ran, filepath.Base(url))
+		bin := fine
+		if strings.HasSuffix(url, "busy") {
+			bin = locked
+		}
+		return &backup.Repo{Bin: bin, URL: url}
+	}
+	for _, id := range []string{"busy", "idle"} {
+		st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-000000000" + map[string]string{"busy": "2", "idle": "3"}[id],
+			Provider: "local:" + filepath.Join(dir, id), Repository: filepath.Join(dir, id), Created: time.Now()})
+	}
+	pruneRetry = time.Millisecond
+	defer func() { pruneRetry = time.Hour }()
+	submitted := make(chan maintenance.Job, 5)
+	m.Submit = func(j maintenance.Job) { submitted <- j }
+
+	job := m.PruneJob()
+	if err := job.Run(ctx, nil); err != nil {
+		t.Fatalf("a locked repository isn't an error yet: %v", err)
+	}
+	for try := 2; try <= pruneTries; try++ {
+		select {
+		case j := <-submitted:
+			ran = nil
+			err := j.Run(ctx, nil)
+			if len(ran) != 1 || ran[0] != "busy" {
+				t.Errorf("try %d prunes only the busy one: %v", try, ran)
+			}
+			if try == pruneTries && (err == nil || !strings.Contains(err.Error(), "locked")) {
+				t.Errorf("the last try reports it: %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("try %d wasn't queued", try)
+		}
+	}
+	select {
+	case <-submitted:
+		t.Error("no more tries after the last")
+	case <-time.After(50 * time.Millisecond):
 	}
 }

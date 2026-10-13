@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/authkit"
 )
 
 // Showing the recovery key again (SPEC.md §6.9): it opens every backup,
@@ -56,7 +56,7 @@ func (s *Server) recoveryKeyShowSubmit(w http.ResponseWriter, r *http.Request) {
 // again (the page and an error) or by logging out, and returns false.
 func (s *Server) stepUp(w http.ResponseWriter, r *http.Request, action string, again func(status int, msg string)) bool {
 	u := currentUser(r)
-	ok, err := auth.VerifyPassword(u.PasswordHash, r.FormValue("password"))
+	ok, err := authkit.VerifyPassword(u.PasswordHash, r.FormValue("password"))
 	if err != nil {
 		s.serverError(w, err)
 		return false
@@ -69,7 +69,7 @@ func (s *Server) stepUp(w http.ResponseWriter, r *http.Request, action string, a
 			return false
 		}
 		if res == codeLocked {
-			s.Store.Audit(r.Context(), u, action, "two-factor codes locked")
+			s.Store.Audit(r.Context(), u, auditLocked, "checking it's you for "+action)
 			again(http.StatusTooManyRequests, lockedMessage(until))
 			return false
 		}

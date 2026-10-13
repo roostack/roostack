@@ -1,21 +1,22 @@
 # First-run setup
 
 The first time you open Roostack, it asks a few questions to get your
-server ready. It takes about ten minutes. You can leave the domain and the
+server ready. It takes about ten minutes. You can leave your lab's address and the
 backups for later, but Roostack will remind you until they're done.
 
 ## Before you start
 
 You'll need:
 
-- The **setup code**. Roostack writes it in its log when it starts for the
-  first time (*For technical users* below says where). It stops anyone else
-  on your network from setting up Roostack before you do.
+- The **setup code**. The installer shows it when it finishes, and
+  Roostack writes it in its log (*For technical users* below says where).
+  It stops anyone else on your network from setting up Roostack before you
+  do.
 - An **authenticator app** on your phone, such as Google Authenticator,
   Microsoft Authenticator, or the one in your password manager.
-- If you want a web address for your services: your **domain** and a login
-  for the company that runs its DNS. [Your domain](../settings/domain.md)
-  explains what that means.
+- Nothing, for a free roost.ac address. To use **your own domain**
+  instead: the domain and a login for the company that runs its DNS.
+  [Your lab's address](../settings/domain.md) explains both.
 - If you want to set up backups now: a **USB drive**, a second disk, or an
   online storage account.
 
@@ -27,13 +28,24 @@ You'll need:
 
 ## 1. Create your account
 
-Enter the setup code, then choose a username and a password of at least 12
-characters. You can also give your lab a name, like "The Smiths' lab". This
-account is the **Owner**: the one person who can change everything.
+Enter the setup code and choose **Continue**. Roostack then asks
+**What's this server for?**:
 
-Under the form there's **Restore a lab from its backups…**. Choose that
-instead if you're rebuilding a lab you had before (see
-[Restore a whole lab](../trouble/restore-lab.md)).
+A new lab
+:   Choose a username and a password of at least 12 characters. You can
+    also give your lab a name, like "The Smiths' lab". This account is the
+    **Owner**: the one person who can change everything. Carry on below.
+
+Add it to a lab you already have
+:   For a second server: paste a join code from your lab, and this server
+    joins it. See [Add a server](../servers/add.md). The rest of this page
+    doesn't apply: you manage it from your lab.
+
+Restore a lab from its backups
+:   If you're rebuilding a lab you had before (see
+    [Restore a whole lab](../trouble/restore-lab.md)).
+
+Nothing is chosen for you, since each is hard to undo.
 
 ## 2. Turn on two-factor authentication
 
@@ -53,18 +65,26 @@ Choose the server's time zone. Roostack uses it for everything it shows and
 schedules, such as the nightly backup at 2 am. If your device is in a
 different time zone, Roostack points it out.
 
+Then say whether the server is **at home**, behind a router, or **on the
+internet**, like a cloud server (a VPS). Roostack suggests an answer: a
+server with a public address of its own looks like a cloud server. On the
+internet, services start public and Roostack's own pages are at
+`roost.<your domain>`; [Where your lab is](../settings/domain.md#where-your-lab-is)
+explains the difference.
+
 ## 4. Who can log in to this server?
 
 This is about **SSH**, a way for someone to log in to the server from
 another computer to fix things Roostack can't. Roostack's firewall blocks
 everything else apart from your services' web addresses.
 
-Only from my home network *(recommended)*
+Only from my home network *(recommended at home)*
 :   From computers at home, or over a VPN.
 
-From anywhere
-:   Only reachable from the internet if your router sends port 22 to this
-    server. Anyone can then try to log in, so use SSH keys, not passwords.
+From anywhere *(recommended on a cloud server)*
+:   At home, only reachable from the internet if your router sends port 22
+    to this server. Anyone can then try to log in, so use SSH keys, not
+    passwords. On a cloud server, this is how you log in.
 
 Nobody
 :   If something goes wrong that Roostack can't fix, you'll need a keyboard
@@ -73,16 +93,22 @@ Nobody
 If you're connected over SSH right now, Roostack shows it, and warns you if
 your choice would cut that connection.
 
-## 5. Your domain
+## 5. Your lab's address
 
-Your services each get their own web address under your domain, such as
-`photos.smith.family`, with a secure (HTTPS) certificate. Roostack needs to
-prove to the certificate company that the domain is yours, so it asks for a
-login to your DNS provider and checks it works before saving it.
+Your services each get their own web address, with a secure (HTTPS)
+certificate. Choose one of:
+
+- **A free roost.ac address**: type a name, such as `smiths`, and choose
+  **Continue to Roostack Cloud**. Sign up or log in there and confirm; it
+  brings you back, and setup carries on by itself. Services are at
+  `photos.smiths.roost.ac`.
+- **Your own domain**, such as `smith.family`: Roostack needs to prove to
+  the certificate company that the domain is yours, so it asks for a login
+  to your DNS provider and checks it works before saving it.
 
 Choose **Set this up later** to skip this for now. Your services will still
-run, but you can't open them by name until a domain is set up. See
-[Your domain](../settings/domain.md).
+run, but they can't be reached on the web until your lab has an address.
+See [Your lab's address](../settings/domain.md).
 
 ## 6. Your backup plan
 
@@ -115,7 +141,9 @@ and the page carries on by itself. Then you'll see the home page, ready for
     ssh -L 8480:127.0.0.1:8480 you@your-server
     ```
 
-    **The setup code** is printed in the log (`journalctl -u roostack`) and
+    **The setup code** is shown when the package finishes installing (run
+    `sudo /usr/share/roostack/installed-message` to see it again), printed in
+    the log (`journalctl -u roostack`) and
     saved in `/var/lib/roostack/setup-token` (readable by root and the
     `roostack` user only). It's deleted once the Owner exists.
 

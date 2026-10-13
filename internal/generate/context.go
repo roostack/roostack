@@ -76,7 +76,7 @@ type DatabaseContext struct {
 
 func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Context {
 	ctx := &Context{
-		Service:    ServiceContext{Name: p.Name},
+		Service:    ServiceContext{Name: in.ID()},
 		Lab:        LabContext{Domain: lab.Domain},
 		Settings:   map[string]any{},
 		Routes:     map[string]RouteContext{},
@@ -85,7 +85,7 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 		Containers: map[string]ContainerContext{},
 	}
 	for name := range p.Containers {
-		ctx.Containers[name] = ContainerContext{Host: containerUnitName(p.Name, name)}
+		ctx.Containers[name] = ContainerContext{Host: containerUnitName(in.ID(), name)}
 	}
 
 	for _, s := range p.Settings {
@@ -112,8 +112,15 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 			}
 			port = o.Port
 		}
-		host := sub + "." + lab.Domain
-		ctx.Routes[name] = RouteContext{Subdomain: sub, Host: host, URL: "https://" + host, Exposure: exp, Port: port,
+		// Without an address yet, a route's address is its local one, where
+		// an SSH tunnel reaches it: apps that must know their own address
+		// (e.g. Vaultwarden's DOMAIN) still start (SPEC.md §6.6).
+		host, url := "localhost", fmt.Sprintf("http://localhost:%d", port)
+		if lab.HasAddress() {
+			host = sub + "." + lab.Domain
+			url = "https://" + host
+		}
+		ctx.Routes[name] = RouteContext{Subdomain: sub, Host: host, URL: url, Exposure: exp, Port: port,
 			PublicPaths: open}
 	}
 
@@ -123,11 +130,11 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 		switch d.Type {
 		case pkgspec.DBPostgres:
 			ctx.Databases[name] = DatabaseContext{
-				Host: dbUnitName(p.Name, name), Port: 5432,
-				User: pgIdent(p.Name, name), Name: pgIdent(p.Name, name),
+				Host: dbUnitName(in.ID(), name), Port: 5432,
+				User: pgIdent(in.ID(), name), Name: pgIdent(in.ID(), name),
 			}
 		case pkgspec.DBRedis:
-			ctx.Databases[name] = DatabaseContext{Host: dbUnitName(p.Name, name), Port: 6379}
+			ctx.Databases[name] = DatabaseContext{Host: dbUnitName(in.ID(), name), Port: 6379}
 		}
 	}
 	return ctx

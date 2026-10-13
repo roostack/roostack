@@ -1,8 +1,10 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
@@ -13,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -27,6 +30,29 @@ type harness struct {
 }
 
 var nowFunc = time.Now
+
+// wrongCode is a two-factor code that isn't valid for secret now, nor in
+// the windows either side ("000000" is a real code about once in a
+// million runs, which made tests flaky).
+func wrongCode(secret string) string {
+	valid := map[string]bool{}
+	for step := -3; step <= 3; step++ {
+		c, _ := authkit.TOTPCode(secret, nowFunc().Add(time.Duration(step)*30*time.Second))
+		valid[c] = true
+	}
+	for _, c := range []string{"000000", "111111", "222222", "333333", "444444", "555555", "666666", "777777"} {
+		if !valid[c] {
+			return c
+		}
+	}
+	panic("no wrong code")
+}
+
+// userSecret is a test user's two-factor secret.
+func userSecret(h *harness, username string) string {
+	u, _ := h.store.UserByUsername(context.Background(), username)
+	return u.TOTPSecret
+}
 
 func newHarness(t *testing.T, setupToken string) *harness {
 	t.Helper()
@@ -99,13 +125,22 @@ func TestFirstRunSetup(t *testing.T) {
 		t.Fatal("expected the setup page")
 	}
 
+	// The setup code comes first; the choices only after it.
+	if _, body := h.get("/setup"); !strings.Contains(body, `action="/setup/code"`) || strings.Contains(body, "this server for?") {
+		t.Fatal("the setup code first")
+	}
+	if code, body := h.post("/setup/code", url.Values{"token": {"wrong"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "setup code isn&#39;t right") {
+		t.Fatalf("wrong code: %d", code)
+	}
 	form := url.Values{"token": {"wrong"}, "username": {"tyris"},
 		"password": {"a long password"}, "confirm": {"a long password"}}
-	if code, body := h.post("/setup", form, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "setup code is wrong") {
-		t.Fatalf("wrong token: %d", code)
-	}
-	if n, _ := h.store.CountUsers(context.Background()); n != 0 {
+	if h.post("/setup", form, h.srv.URL); func() bool { n, _ := h.store.CountUsers(context.Background()); return n != 0 }() {
 		t.Fatal("no user may be created with a wrong token")
+	}
+	h.post("/setup/code", url.Values{"token": {"the-setup-code"}}, h.srv.URL)
+	if _, body := h.get("/setup"); !strings.Contains(body, "this server for?") || strings.Contains(body, `value="new" x-model="choice" checked`) {
+		t.Fatal("then the choices, nothing chosen")
 	}
 
 	form.Set("token", "the-setup-code")
@@ -142,11 +177,11 @@ func TestFirstRunSetup(t *testing.T) {
 	if !strings.Contains(body, "Enter your code") {
 		t.Fatal("expected the 2FA step")
 	}
-	used, _ := auth.TOTPCode(secret, enrolledAt)
+	used, _ := authkit.TOTPCode(secret, enrolledAt)
 	if code, _ := h.post("/login/totp", url.Values{"code": {used}}, h.srv.URL); code != http.StatusUnauthorized {
 		t.Errorf("reusing the enrollment code: status %d, want 401", code)
 	}
-	next, _ := auth.TOTPCode(secret, enrolledAt.Add(30*time.Second))
+	next, _ := authkit.TOTPCode(secret, enrolledAt.Add(30*time.Second))
 	if _, body := h.post("/login/totp", url.Values{"code": {next}}, h.srv.URL); !strings.Contains(body, "My Services") {
 		t.Error("a fresh code should complete the login")
 	}
@@ -167,11 +202,11 @@ func (h *harness) enrollTOTP(page string) (string, time.Time) {
 	}
 	secret, _, _ := strings.Cut(rest, `"`)
 	now := time.Now()
-	code, err := auth.TOTPCode(secret, now)
+	code, err := authkit.TOTPCode(secret, now)
 	if err != nil {
 		h.t.Fatal(err)
 	}
-	if status, _ := h.post("/account/2fa", url.Values{"secret": {secret}, "code": {"000000"}}, h.srv.URL); status != http.StatusBadRequest {
+	if status, _ := h.post("/account/2fa", url.Values{"secret": {secret}, "code": {wrongCode(secret)}}, h.srv.URL); status != http.StatusBadRequest {
 		h.t.Errorf("a wrong enrollment code: status %d, want 400", status)
 	}
 	if status, _ := h.post("/account/2fa", url.Values{"secret": {secret}, "code": {code}}, h.srv.URL); status != http.StatusOK {
@@ -187,9 +222,9 @@ func (h *harness) enrollTOTP(page string) (string, time.Time) {
 func TestTooManyCodes(t *testing.T) {
 	h := newHarness(t, "")
 	ctx := context.Background()
-	hash, _ := auth.HashPassword("a long password")
+	hash, _ := authkit.HashPassword("a long password")
 	id, _ := h.store.CreateUser(ctx, store.User{Username: "tyris", PasswordHash: hash, Role: auth.RoleOwner})
-	secret, _ := auth.NewTOTPSecret()
+	secret, _ := authkit.NewTOTPSecret()
 	h.store.SetTOTP(ctx, id, secret, 0)
 	login := func() (int, string) {
 		return h.post("/login", url.Values{"username": {"tyris"}, "password": {"a long password"}}, h.srv.URL)
@@ -200,7 +235,7 @@ func TestTooManyCodes(t *testing.T) {
 	for _, tries := range []int{3, 2} { // a new login doesn't start again
 		login()
 		for range tries {
-			status, body = h.post("/login/totp", url.Values{"code": {"000000"}}, h.srv.URL)
+			status, body = h.post("/login/totp", url.Values{"code": {wrongCode(secret)}}, h.srv.URL)
 		}
 	}
 	if status != http.StatusTooManyRequests || !strings.Contains(body, "no code will work until") {
@@ -217,11 +252,11 @@ func TestTooManyCodes(t *testing.T) {
 	// The lock is over: five wrong codes, the last 15 minutes ago.
 	h.store.ResetTOTP(ctx, id)
 	h.store.SetTOTP(ctx, id, secret, 0)
-	for range auth.TOTPFailuresPerLock {
+	for range authkit.TOTPFailuresPerLock {
 		h.store.AddTOTPFailure(ctx, id, time.Now().Add(-15*time.Minute))
 	}
 	login()
-	good, _ := auth.TOTPCode(secret, time.Now())
+	good, _ := authkit.TOTPCode(secret, time.Now())
 	if _, body := h.post("/login/totp", url.Values{"code": {good}}, h.srv.URL); !strings.Contains(body, "My Services") {
 		t.Fatal("the right code should work once the lock is over")
 	}
@@ -232,7 +267,7 @@ func TestTooManyCodes(t *testing.T) {
 
 func TestLoginLogout(t *testing.T) {
 	h := newHarness(t, "")
-	hash, _ := auth.HashPassword("a long password")
+	hash, _ := authkit.HashPassword("a long password")
 	h.store.CreateUser(context.Background(), store.User{Username: "mum", PasswordHash: hash, Role: auth.RoleAdmin})
 
 	if _, body := h.get("/"); !strings.Contains(body, "Log in") {
@@ -332,7 +367,7 @@ func TestHtmxRequestsGetFullPageRedirects(t *testing.T) {
 
 func TestChangePassword(t *testing.T) {
 	h := newHarness(t, "")
-	hash, _ := auth.HashPassword("old password here")
+	hash, _ := authkit.HashPassword("old password here")
 	h.store.CreateUser(context.Background(), store.User{Username: "mum", PasswordHash: hash, Role: auth.RoleMember})
 	h.post("/login", url.Values{"username": {"mum"}, "password": {"old password here"}}, h.srv.URL)
 
@@ -372,11 +407,62 @@ func newClientFor(h *harness) *harness {
 func TestCrashBecomesErrorPage(t *testing.T) {
 	h := newHarness(t, "")
 	h.server.Services = func(context.Context) ([]ServiceView, error) { panic("boom") }
-	hash, _ := auth.HashPassword("a long password")
+	hash, _ := authkit.HashPassword("a long password")
 	h.store.CreateUser(context.Background(), store.User{Username: "mum", PasswordHash: hash, Role: auth.RoleMember})
 	h.post("/login", url.Values{"username": {"mum"}, "password": {"a long password"}}, h.srv.URL)
 	code, body := h.get("/")
 	if code != http.StatusInternalServerError || !strings.Contains(body, "Something went wrong") {
 		t.Errorf("a crash should give an error page, got %d %q", code, body)
+	}
+}
+
+// Roostack's own files are revalidated, so an update's app.js is used at
+// once: an ETag, "no-cache", and 304 while unchanged.
+func TestStaticRevalidated(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	resp, err := http.Get(h.srv.URL + "/static/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	tag := resp.Header.Get("ETag")
+	if tag == "" || resp.Header.Get("Cache-Control") != "no-cache" {
+		t.Fatalf("headers: %v", resp.Header)
+	}
+	req, _ := http.NewRequest("GET", h.srv.URL+"/static/app.js", nil)
+	req.Header.Set("If-None-Match", tag)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotModified {
+		t.Errorf("unchanged: %d", resp.StatusCode)
+	}
+}
+
+// The Content-Security-Policy (style-src 'self') blocks style attributes,
+// so templates mustn't use them: a bar's width is data-width (app.js).
+func TestNoStyleAttributes(t *testing.T) {
+	entries, err := fs.ReadDir(templateFS, "templates")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		b, _ := fs.ReadFile(templateFS, "templates/"+e.Name())
+		if i := bytes.Index(b, []byte(` style="`)); i >= 0 {
+			t.Errorf("%s uses a style attribute, which the browser blocks: %.60s", e.Name(), b[i:])
+		}
+	}
+}
+
+// Every page's footer says which Roostack this is.
+func TestFooterVersion(t *testing.T) {
+	h, _ := loggedIn(t, "owner")
+	h.server.Version = "1.2.3"
+	for _, page := range []string{"/", "/settings", "/about"} {
+		if _, body := h.get(page); !strings.Contains(body, `<footer class="site">Roostack <span class="version" title="Roostack's version">1.2.3</span>`) {
+			t.Errorf("%s: no version in the footer", page)
+		}
 	}
 }

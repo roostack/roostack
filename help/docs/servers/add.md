@@ -6,39 +6,74 @@ some of your services or keep backups.
 ## 1. Install Roostack on it
 
 [Install Roostack](../start/install.md) on the new computer, as you did on
-the first. Don't go through its setup page: joining the lab sets it up.
+the first. Keep its setup code: you need it to join.
 
 ## 2. Make a join code
 
 On your lab's Roostack, go to **Settings → Servers**, and under **Add a
 server**:
 
-1. Enter the **address the new server reaches this one at**:
-    - for a server **at home**: this server's address on your home network,
-      and port 51820, such as `192.168.1.20:51820`;
-    - for a server **elsewhere**: your home's public address and port 51820,
-      such as `203.0.113.7:51820`, once you've set up port forwarding (below).
+1. Choose the **address the new server reaches this one at**. Roostack
+   lists the ones it knows, and suggests the one you used last time:
+    - for a server **at home**: **this server's home-network address**, such
+      as `192.168.1.20:51820`;
+    - for a server **elsewhere**: **a name from your domain**,
+      `link.<your domain>:51820`, once you've set up port forwarding (below).
+      Roostack keeps that name pointing at your home's public address, which
+      can change. (It only creates the name the first time you choose it.)
+      **The public address** works too, until it changes;
+    - **another address**, for anything else: a VPN address, a router that
+      forwards a different outside port, or a name from another dynamic DNS
+      service;
+    - for a **cloud server** joining a lab at home: **None: this server
+      connects to the new one instead**, and the cloud server's public
+      address. Then nothing changes on your router (below).
 2. Choose **Make a join code**.
 
-Roostack shows a command with the code in it. The code works once, for an
-hour. Anyone with it can add a server to your lab, so don't share it.
+Roostack shows the join code. It works once, for an hour. Anyone with it
+can add a server to your lab, so don't share it.
 
 ## 3. Join
 
-On the new server, run the command Roostack showed you:
+Open the new server's setup page (the address its installer showed), enter
+its setup code, choose **Add it to a lab you already have**, paste the join
+code, and give the server a name. Choose **Join the lab**: it connects,
+restarts as part of your lab, and the page says where to manage it. If it
+can't connect, it says why, and nothing is changed: fix it and try again.
+
+On the command line instead, under the code there's **Or on the new
+server's command line**:
 
 ```bash
 sudo roostack node join <code>
 ```
 
-It connects to your lab, and shows up in **Settings → Servers** as up to
-date. It's ready to run services: choose it under **Run it on** when you
+Either way, it shows up in **Settings → Servers** as up to date. It's ready to run services: choose it under **Run it on** when you
 [add a service](../services/add.md), or [move one](move.md) there.
+
+It takes the lab's time zone (the one of the server that runs the lab),
+so backups, updates and logs line up across your servers. To give it a
+different one, change it on its **Time zone** page.
+
+## A cloud server: your lab connects to it
+
+A cloud server (a VPS) has a public address, so your lab can connect out
+to it, and your router needs no change. Choose **None: this server
+connects to the new one instead** and enter the cloud server's public
+address (its provider shows it, such as `203.0.113.7`).
+
+The cloud server has to let your lab in on **UDP port 51820**. Roostack
+opens it in the server's own firewall while it joins, and keeps it open.
+If its provider has a firewall of its own (Linode's *Cloud Firewall*,
+for example), add a rule there: inbound, **UDP**, port **51820**.
+
+If joining says your lab **didn't connect to this server**, that port is
+closed at the provider, or the join code was made for another address.
 
 ## A server outside your home: port forwarding
 
-A server elsewhere connects to your lab through your home router, which
-only lets it in if you ask it to. Roostack has already opened its own
+A server elsewhere can also connect to your lab through your home router,
+which only lets it in if you ask it to. Roostack has already opened its own
 firewall; the router is the step it can't do for you.
 
 1. Open your router's settings page. It's often `http://192.168.1.1` or
@@ -48,9 +83,7 @@ firewall; the router is the step it can't do for you.
    or *Port mapping*, or put it under *Advanced* or *Firewall*.
 3. Add a rule: protocol **UDP** (not TCP), port **51820**, to the server
    that runs your lab, port 51820.
-4. Use your home's public address in the join code. Search "what is my IP"
-   from a device at home to find it. If it changes now and then, a name
-   from your domain that points home works better.
+4. Choose **a name from your domain** for the join code.
 
 If joining says it **can't reach the controller**, the port isn't forwarded
 yet, or the address is wrong.
@@ -58,8 +91,9 @@ yet, or the address is wrong.
 !!! warning "Some connections can't forward ports"
 
     Some internet connections (called *CGNAT*, common on mobile and some
-    fibre connections) can't forward ports at all. Then make the server
-    that's reachable (in the cloud, say) the one that runs the lab.
+    fibre connections) can't forward ports at all. A cloud server doesn't
+    need it (above). Two servers both behind routers like that can't join
+    each other yet.
 
 ??? note "For technical users"
 
@@ -71,3 +105,10 @@ yet, or the address is wrong.
     the fingerprint, gets its own certificate, then switches to its own
     WireGuard key.
     It records its role in `/var/lib/roostack/labnet/membership.json`.
+    With **None: this server connects to the new one instead**, the code
+    has no endpoint and says *listen*: the new server's WireGuard listens on
+    UDP 51820 (opened in Roostack's firewall for the join, and kept open by
+    its assignment afterwards), and the controller dials it at the address
+    typed, with a 25-second keepalive that keeps the home router's NAT
+    mapping open. The controller keeps dialling it there once it has
+    joined (`servers.dial` in its database).

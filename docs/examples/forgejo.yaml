@@ -42,7 +42,7 @@ containers:
     image: codeberg.org/forgejo/forgejo:15.0.9-rootless@sha256:caf1bca332f95cdcf124227a4bfa3b49bbbfbbc8a5e4a97406921cb581165413
     env:
       GITEA_APP_INI: /var/lib/gitea/custom/conf/app.ini
-      FORGEJO__server__ROOT_URL: "https://{{ .Routes.web.Host }}/"
+      FORGEJO__server__ROOT_URL: "{{ .Routes.web.URL }}/"
       # Git over SSH uses Forgejo's built-in SSH server on 2222, published
       # on the host when the Admin turns the ssh port on.
       FORGEJO__server__DISABLE_SSH: "{{ not .Ports.ssh.Enabled }}"
@@ -84,8 +84,8 @@ routes:
     max_body_size: 1GB           # large pushes and release attachments
     public:
       private_paths:
-        - path: /-/admin
-          reason: Forgejo's site administration (users, settings, and running tasks on the server). Administrators can still use it at home.
+        - path: /admin
+          reason: Forgejo's site administration (users, settings, and running tasks on the server). Anyone who gets an administrator's password could use it.
       login_paths:
         - /user/login
         - /user/sign_up
@@ -94,7 +94,7 @@ links:                           # most settings live in Forgejo itself
   - title: Site administration
     description: Users, organisations, email and other Forgejo settings (log in as the administrator)
     route: web
-    path: /-/admin
+    path: /admin
 
 hooks:
   # Create the administrator. Values arrive as environment variables, never

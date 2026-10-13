@@ -8,11 +8,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/instance"
 )
 
 // A lab restore runs in three steps, across a restart of Roostack:
@@ -67,23 +69,35 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 	if !fd.Controller {
 		return errors.New("that's a backup of a server that the controller manages: restore the controller's backup first")
 	}
-	log.Step("Restoring %s's files from the backup of %s", fd.ServerName, fd.Snapshot.Time.Local().Format("2 January 2006 15:04"))
-	for _, p := range fd.Snapshot.Paths {
-		log.Printf("%s", p)
+	log.Step("Restoring %s's settings from the backup of %s", fd.ServerName, fd.Snapshot.Time.Local().Format("2 January 2006 15:04"))
+	if err := restorePaths(ctx, paths, repo, fd.Snapshot, log); err != nil {
+		return err
 	}
-	// Every path goes back where it was, as it was (owners included:
-	// restic runs in the roostack user's namespace, as for backups). Each on
-	// its own, so folders above them (/var, /srv) are left alone.
-	for _, p := range fd.Snapshot.Paths {
-		if err := os.MkdirAll(p, 0o750); err != nil {
-			return err
+	// Then each of the server's services, from its own latest backup
+	// (SPEC.md §10.10). Services on the lab's other servers are restored
+	// later, from their servers' backups, once Roostack runs.
+	services, err := hostedServices(paths, fd.ServerID)
+	if err != nil {
+		return err
+	}
+	for _, name := range services {
+		snap, err := repo.ServiceSnapshot(ctx, name, "")
+		if err != nil {
+			log.Printf("%s: %v", name, err)
+			continue
 		}
-		if err := repo.RestoreDir(ctx, fd.Snapshot.ID, p); err != nil {
-			return fmt.Errorf("restoring %s: %w", p, err)
+		log.Step("Restoring %s from its backup of %s", name, snap.Time.Local().Format("2 January 2006 15:04"))
+		if err := restorePaths(ctx, paths, repo, *snap, log); err != nil {
+			return err
 		}
 	}
 	if _, err := os.Stat(backup.StateDumpFile(paths)); err != nil {
 		return fmt.Errorf("the backup has no copy of Roostack's database: %w", err)
+	}
+	// This machine is the lab now: a newer generation, so the old one
+	// stands down if it comes back (backup/fence.go).
+	if err := backup.WriteGeneration(paths, backup.ReadGeneration(paths)+1); err != nil {
+		return err
 	}
 	log.Step("Keeping the recovery key for the next backups")
 	key, err := os.ReadFile(keyFile)
@@ -95,6 +109,46 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 	}
 	log.Step("Restarting Roostack as the restored lab")
 	return marker{Repository: fd.Repository, Snapshot: fd.Snapshot.ID, Restored: time.Now(), Step: "database"}.save(paths)
+}
+
+// restorePaths puts every path of a snapshot back where it was, as it was
+// (owners included: restic runs in the roostack user's namespace, as for
+// backups). Each on its own, so folders above them (/var, /srv) are left
+// alone. A service's saved secrets aren't needed: the server's own
+// snapshot has the whole secrets store.
+func restorePaths(ctx context.Context, paths config.Paths, repo *backup.Repo, snap backup.Snapshot, log *activity.Log) error {
+	for _, p := range snap.Paths {
+		if strings.HasPrefix(p, backup.SecretsDir(paths)+"/") {
+			continue
+		}
+		log.Printf("%s", p)
+		if err := os.MkdirAll(p, 0o750); err != nil {
+			return err
+		}
+		if err := repo.RestoreDir(ctx, snap.ID, p); err != nil {
+			return fmt.Errorf("restoring %s: %w", p, err)
+		}
+	}
+	return nil
+}
+
+// hostedServices lists the services the restored state places on a server.
+func hostedServices(paths config.Paths, serverID string) ([]string, error) {
+	files, err := filepath.Glob(filepath.Join(paths.InstancesDir(), "*.yaml"))
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, f := range files {
+		in, err := instance.Load(f)
+		if err != nil {
+			return nil, err
+		}
+		if in.Host == "" || in.Host == serverID {
+			out = append(out, strings.TrimSuffix(filepath.Base(f), ".yaml"))
+		}
+	}
+	return out, nil
 }
 
 // StartFromBackup finishes step 2 if a restore is in progress: the

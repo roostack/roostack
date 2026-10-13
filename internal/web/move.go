@@ -3,6 +3,8 @@ package web
 import (
 	"errors"
 	"net/http"
+	"strings"
+	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/manager"
@@ -21,7 +23,7 @@ func (s *Server) renderMove(w http.ResponseWriter, r *http.Request, errMsg strin
 		return
 	}
 	name := r.PathValue("name")
-	p, err := s.Manager.Package(name)
+	p, err := s.Manager.ServicePackage(name)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -47,10 +49,14 @@ func (s *Server) renderMove(w http.ResponseWriter, r *http.Request, errMsg strin
 			targets = append(targets, mc)
 		}
 	}
-	data["Package"], data["Info"], data["Targets"], data["Error"] = p, info, targets, errMsg
+	data["Package"], data["Name"], data["Info"], data["Targets"], data["Error"] = p, name, info, targets, errMsg
 	data["Size"] = sizeText(info.Size)
-	if a := s.activityFor(r, activity.Move); a != nil {
+	// The controller moves it, whichever server it was on.
+	if a := s.serviceActivity(r, activity.Move, func(t string) bool { return strings.HasPrefix(t, "Moving "+p.Title+" to ") }); a != nil {
 		data["MoveActivity"] = a
+		// While it moves, no form; just after, say so first.
+		data["Moving"] = a.Running()
+		data["JustMoved"] = !a.Running() && a.Err == "" && time.Since(a.Finished) < justRestored
 	}
 	if errMsg != "" {
 		w.WriteHeader(http.StatusBadRequest)

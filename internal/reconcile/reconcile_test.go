@@ -2,18 +2,23 @@ package reconcile
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/systemd"
 )
 
 type fakeSystemd struct{ calls []string }
@@ -27,6 +32,9 @@ func (f *fakeSystemd) record(verb string, units []string) error {
 func (f *fakeSystemd) DaemonReload(context.Context) error { return f.record("daemon-reload", nil) }
 func (f *fakeSystemd) Start(_ context.Context, u ...string) error {
 	return f.record("start", u)
+}
+func (f *fakeSystemd) StartNoBlock(_ context.Context, u ...string) error {
+	return f.record("start --no-block", u)
 }
 func (f *fakeSystemd) Restart(_ context.Context, u ...string) error {
 	return f.record("restart", u)
@@ -55,6 +63,8 @@ type env struct {
 	r       *Reconciler
 	systemd *fakeSystemd
 	secrets *fakeSecrets
+	pulled  []string // images downloaded
+	events  []string // progress, as "<stage> <unit>[ done]"
 }
 
 func newEnv(t *testing.T) *env {
@@ -74,6 +84,18 @@ func newEnv(t *testing.T) *env {
 		Paths: lab.Paths, Systemd: e.systemd, Secrets: e.secrets,
 		UserSecret: func(name string) ([]byte, bool) {
 			return []byte("dns-token"), name == dns.SecretName("api_token")
+		},
+		Pull: func(_ context.Context, image string, w io.Writer) error {
+			e.pulled = append(e.pulled, image)
+			fmt.Fprintln(w, "Copying blob sha256:0123")
+			return nil
+		},
+		Progress: func(ev Event) {
+			s := strings.TrimSpace(ev.Stage + " " + ev.Unit)
+			if ev.Done {
+				s += " done"
+			}
+			e.events = append(e.events, s)
 		},
 	}
 	return e
@@ -131,8 +153,19 @@ func TestInstallUpdateRemove(t *testing.T) {
 	if n := plan.StartNotes["roostack-caddy.service"]; !strings.Contains(n, "builds its image") {
 		t.Errorf("caddy's note = %q", n)
 	}
-	if !slices.Contains(e.systemd.calls, "start roostack-caddy.service") || !slices.Contains(e.systemd.calls, "start roostack-vaultwarden-app.service") {
-		t.Errorf("new services start one at a time: %v", e.systemd.calls)
+	// Caddy's image build starts in the background as soon as its file is
+	// written; new services download and start one at a time; a new Caddy
+	// starts last, since its first start waits for that build.
+	if want := []string{"daemon-reload", "start --no-block roostack-caddy-build.service",
+		"start roostack-vaultwarden-app.service", "reload-or-restart roostack-caddy.service"}; !slices.Equal(e.systemd.calls, want) {
+		t.Errorf("calls %v, want %v", e.systemd.calls, want)
+	}
+	if want := []string{"docker.io/vaultwarden/server"}; len(e.pulled) != 1 || !strings.HasPrefix(e.pulled[0], want[0]) {
+		t.Errorf("pulled %v", e.pulled)
+	}
+	if want := []string{"download roostack-vaultwarden-app.service", "download roostack-vaultwarden-app.service done",
+		"start roostack-vaultwarden-app.service", "start roostack-vaultwarden-app.service done", "proxy", "proxy done"}; !slices.Equal(e.events, want) {
+		t.Errorf("events %v", e.events)
 	}
 	if got := string(e.secrets.values[dns.SecretName("api_token")]); got != "dns-token" {
 		t.Errorf("DNS secret = %q, want the user-provided value", got)
@@ -153,8 +186,8 @@ func TestInstallUpdateRemove(t *testing.T) {
 	if !plan.Empty() {
 		t.Errorf("second apply should be empty, got:\n%s", plan)
 	}
-	if slices.Contains(e.systemd.calls, "daemon-reload") {
-		t.Errorf("unexpected daemon-reload on a no-op apply: %v", e.systemd.calls)
+	if slices.Contains(e.systemd.calls, "daemon-reload") || slices.Contains(e.systemd.calls, "start --no-block roostack-caddy-build.service") {
+		t.Errorf("unexpected daemon-reload or build on a no-op apply: %v", e.systemd.calls)
 	}
 
 	// Changing a setting restarts only the affected unit.
@@ -245,5 +278,40 @@ func TestMissingUserSecret(t *testing.T) {
 	}
 	if len(plan.Waiting) != 0 || !slices.Contains(plan.StartUnits, "roostack-caddy.service") {
 		t.Errorf("Caddy should start once its secret is given: %+v", plan)
+	}
+}
+
+// flakySystemd fails to start units, as at boot before the network is up,
+// then reports them as it's told (systemd restarting them).
+type flakySystemd struct {
+	fakeSystemd
+	state string
+}
+
+func (f *flakySystemd) Start(_ context.Context, u ...string) error {
+	f.record("start", u)
+	return errors.New("Job for roostack-crowdsec.service failed")
+}
+func (f *flakySystemd) Status(_ context.Context, units ...string) ([]systemd.UnitStatus, error) {
+	var out []systemd.UnitStatus
+	for _, u := range units {
+		out = append(out, systemd.UnitStatus{Unit: u, ActiveState: f.state})
+	}
+	return out, nil
+}
+
+// A failed start that systemd's restart recovers from isn't a failure; one
+// that stays down is (docs/ASSUMPTIONS.md C11).
+func TestStartSettles(t *testing.T) {
+	for _, c := range []struct {
+		state   string
+		wantErr bool
+	}{{"active", false}, {"failed", true}} {
+		f := &flakySystemd{state: c.state}
+		r := &Reconciler{Systemd: f, Settle: 3 * time.Second}
+		err := r.start(context.Background(), nil, "roostack-crowdsec.service")
+		if (err != nil) != c.wantErr {
+			t.Errorf("%s: err %v", c.state, err)
+		}
 	}
 }

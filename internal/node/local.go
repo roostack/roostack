@@ -1,6 +1,7 @@
 package node
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/firewall"
 	"roostack.cloud/roostack/internal/generate"
@@ -84,6 +86,15 @@ type Assignment struct {
 	// ProxyPorts are where the controller forwards its servers' backups
 	// to other labs' storage (on Roostack's network).
 	ProxyPorts []int
+	// Links are this server's direct links to other servers, for backups
+	// to their disks (SPEC.md §10.10); nil leaves them as they are (the
+	// controller, which every server dials anyway).
+	Links *agent.Links
+	// Edge, if set, makes this server the lab's edge (SPEC.md §10.5): its
+	// Caddy passes visitors for the public names on to the controller.
+	Edge *caddy.EdgeConfig
+	// Reason says why it was sent, for the apply's log.
+	Reason string
 }
 
 // Storage is who may use a server's backup store: bcrypt password hashes
@@ -147,7 +158,9 @@ type Local struct {
 
 	// Hooks (hooks.go). State records install hook progress; without
 	// State and Exec, hooks don't run.
-	State   KV
+	State KV
+	// Events keeps finished logs as history (history.go; optional).
+	Events  HistoryStore
 	Secrets SecretStore
 	Exec    ExecFunc
 	// HookRetry and HookDeadline tune install hook retries (0: defaults).
@@ -167,7 +180,10 @@ type Local struct {
 	// (a failed install retried with new values): they replace the Podman
 	// secrets it already has, before its install hooks run.
 	replaceSecrets map[string][]byte
-	status         ApplyStatus
+	// sshChoice is a new SSH choice made while running (UseSSH); "" uses
+	// Lab's.
+	sshChoice string
+	status    ApplyStatus
 	// again is set when an assignment arrives during an apply, so another
 	// apply runs afterwards.
 	again bool
@@ -176,6 +192,11 @@ type Local struct {
 	hooksBusy, hooksAgain bool
 	hooksRunning          map[string]bool
 	hooksDone             chan struct{}
+
+	// followingBuild: a Caddy image build is being shown (build.go).
+	followingBuild bool
+	// installs are new services being installed, step by step (install.go).
+	installs map[string]*InstallProgress
 }
 
 // Identity is this server's identity.
@@ -193,13 +214,13 @@ func (n *Local) Apply(a Assignment) {
 		n.userSecrets[k] = v
 	}
 	old := n.assignment.Services
-	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage,
-		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts}
+	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage, Links: a.Links,
+		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts, Edge: a.Edge}
 	if n.State != nil {
 		// A service taken off this server forgets its setup progress.
 		for _, s := range old {
-			if _, still := n.serviceLocked(s.Package.Name); !still {
-				n.State.SetSetting(context.Background(), hookKey(s.Package.Name), "")
+			if _, still := n.serviceLocked(s.Name()); !still {
+				n.State.SetSetting(context.Background(), hookKey(s.Name()), "")
 			}
 		}
 		for _, name := range a.SetUp {
@@ -267,18 +288,15 @@ func (n *Local) applyLoop(done chan struct{}) {
 }
 
 func (n *Local) applyOnce(ctx context.Context) (err error) {
-	// A log only for applies that change something (or fail): the one at
-	// every startup usually has nothing to do.
-	var act *activity.Log
-	defer func() {
-		if err != nil && act == nil {
-			act = n.Activity.Start(activity.Apply, "Applying changes")
-		}
-		act.Finish(err)
-	}()
+	// Every apply has a log saying why it ran and what it did; one that
+	// changed nothing (as at most startups) is routine: shown as the
+	// latest, not kept as history (SPEC.md §6.14).
 	n.mu.Lock()
 	a := n.assignment
 	n.mu.Unlock()
+	act := n.Activity.Start(activity.Apply, "Applying changes")
+	defer func() { act.Finish(err) }()
+	act.Printf("Why: %s.", cmp.Or(a.Reason, "Roostack started, or its settings changed"))
 	desired, err := state.Desired(n.lab(a), a.Services, a.Proxied...)
 	if err != nil {
 		return err
@@ -288,6 +306,17 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	}
 	if err := n.addGuestStorage(&desired, a); err != nil {
 		return err
+	}
+	if a.Edge != nil && n.lab(a).IsNode() {
+		// Nodes have no Caddy of their own: the edge's is the system's.
+		edge, err := generate.Edge(n.lab(a), *a.Edge)
+		if err != nil {
+			return err
+		}
+		desired.System.Quadlets = append(desired.System.Quadlets, edge.Quadlets...)
+		desired.System.Caddyfile = edge.Caddyfile
+		desired.System.Dirs = append(desired.System.Dirs, edge.Dirs...)
+		desired.System.Units = append(desired.System.Units, edge.Units...)
 	}
 	r := *n.Reconciler
 	r.UserSecret = func(name string) ([]byte, bool) {
@@ -300,12 +329,26 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	if !plan.Empty() {
-		act = n.Activity.Start(activity.Apply, "Applying changes")
+	if plan.Empty() {
+		act.Step("Nothing to change")
+		act.Routine()
+	} else {
 		r.Log = act
 	}
+	// Caddy's image builds in the background (for minutes the first time):
+	// show it, whether this apply starts it or it was already running when
+	// Roostack restarted (e.g. at the end of the setup wizard).
+	building := (!n.lab(a).IsNode() || a.Edge != nil) && (slices.Contains(plan.BuildUnits, CaddyBuildUnit) || n.caddyBuilding(ctx))
+	// New services are shown step by step while they install.
+	n.planInstalls(a.Services, desired, plan, building)
+	r.Progress = n.installEvent
 	if err := r.Apply(ctx, plan); err != nil {
+		n.failInstalls(err)
 		return err
+	}
+	n.installsApplied()
+	if building {
+		n.followCaddyBuild(n.lab(a).Paths.CaddyBuildLog())
 	}
 	// Created secrets live in Podman now; forget the typed-in values.
 	n.mu.Lock()
@@ -352,22 +395,58 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 				}
 			}
 		}
+		// Other servers dial this one directly for backups to its disk.
+		if a.Links != nil && a.Links.Listen {
+			fw.Allow = append(fw.Allow, agent.Rule{Port: agent.WireGuardPort, Proto: "udp", From: agent.FromAny,
+				Reason: "roostack direct links between servers"})
+		}
 		act.Step("Updating the firewall")
 		if err := n.Firewall.ApplyFirewall(ctx, fw); err != nil {
 			return fmt.Errorf("applying the firewall: %w", err)
+		}
+	}
+	if a.Links != nil && n.Links != nil {
+		act.Step("Updating direct links to other servers")
+		for _, p := range a.Links.Peers {
+			to := "waits for it to connect"
+			if p.Endpoint != "" {
+				to = "at " + p.Endpoint
+			}
+			act.Printf("%s %s", strings.Join(p.AllowedIPs, ", "), to)
+		}
+		if err := n.Links.ApplyLinks(ctx, *a.Links); err != nil {
+			return fmt.Errorf("setting up direct links: %w", err)
 		}
 	}
 	act.Step("All changes applied")
 	return nil
 }
 
+// UseSSH applies a new SSH choice (HostSettings.SetSSH, already saved in
+// lab.yaml) without a restart: the next apply's firewall uses it, and one
+// starts now.
+func (n *Local) UseSSH(choice string) {
+	n.mu.Lock()
+	n.sshChoice = choice
+	a := n.assignment
+	n.mu.Unlock()
+	a.Secrets, a.SetUp, a.Reason = nil, nil, "Who can log in over SSH changed"
+	n.Apply(a)
+}
+
 // lab is the node's lab config with the assignment's lab-wide settings.
 func (n *Local) lab(a Assignment) config.Lab {
 	lab := n.Lab
+	n.mu.Lock()
+	if n.sshChoice != "" {
+		lab.Firewall.SSH = n.sshChoice
+	}
+	n.mu.Unlock()
 	if a.Lab.Domain != "" {
 		lab.Domain, lab.Email = a.Lab.Domain, a.Lab.Email
 		lab.Public.NoSharing = a.Lab.NoSharing
 	}
+	lab.EdgeAddrs = a.Lab.EdgeAddrs
 	return lab
 }
 
@@ -396,7 +475,7 @@ func (n *Local) service(name string) (state.Service, bool) {
 }
 
 func (n *Local) serviceLocked(name string) (state.Service, bool) {
-	i := slices.IndexFunc(n.assignment.Services, func(s state.Service) bool { return s.Package.Name == name })
+	i := slices.IndexFunc(n.assignment.Services, func(s state.Service) bool { return s.Name() == name })
 	if i < 0 {
 		return state.Service{}, false
 	}
@@ -416,7 +495,7 @@ func (n *Local) ServiceStates(ctx context.Context) (map[string]string, error) {
 	lab := n.lab(a)
 	out := map[string]string{}
 	for _, s := range a.Services {
-		name := s.Package.Name
+		name := s.Name()
 		out[name] = "unknown"
 		gen, err := generate.Service(lab, s.Package, s.Instance)
 		if err != nil {

@@ -89,6 +89,18 @@ type Snapshot struct {
 	Tags  []string  `json:"tags"`
 	// Hostname is the computer that made it.
 	Hostname string `json:"hostname"`
+	// Summary is what the backup covered (restic 0.17 and later).
+	Summary *struct {
+		TotalBytes int64 `json:"total_bytes_processed"`
+	} `json:"summary,omitempty"`
+}
+
+// Size is how much data the snapshot holds, in bytes (-1 if unknown).
+func (s Snapshot) Size() int64 {
+	if s.Summary == nil {
+		return -1
+	}
+	return s.Summary.TotalBytes
 }
 
 func (r *Repo) command(ctx context.Context, args ...string) *exec.Cmd {
@@ -380,12 +392,25 @@ func (r *Repo) Snapshots(ctx context.Context, tags ...string) ([]Snapshot, error
 	return snaps, nil
 }
 
-// Forget applies the retention policy and removes unreferenced data.
+// Forget applies the retention policy and removes unreferenced data. Each
+// service's snapshots and the server's own are kept by the policy on their
+// own (grouped by tags), so a service that's no longer backed up (its
+// server lost, waiting to be restored) keeps its last backups rather than
+// losing them to other services' newer ones (SPEC.md §10.10).
 func (r *Repo) Forget(ctx context.Context, keep Retention) error {
-	_, err := r.run(ctx, "forget", "--prune",
+	_, err := r.run(ctx, "forget", "--prune", "--group-by", "host,tags",
 		"--keep-daily", strconv.Itoa(keep.Daily),
 		"--keep-weekly", strconv.Itoa(keep.Weekly),
 		"--keep-monthly", strconv.Itoa(keep.Monthly))
+	return err
+}
+
+// ForgetSnapshots removes snapshots by ID, and the data only they used.
+func (r *Repo) ForgetSnapshots(ctx context.Context, ids ...string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := r.run(ctx, append([]string{"forget", "--prune", "--"}, ids...)...)
 	return err
 }
 

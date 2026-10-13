@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/authkit"
 )
 
 // codeResult is the outcome of checking a two-factor code.
@@ -15,7 +15,7 @@ const (
 	codeOK codeResult = iota
 	codeWrong
 	// codeLocked: too many wrong codes for the account, so none is
-	// accepted for now (auth.TOTPLockedUntil).
+	// accepted for now (authkit.TOTPLockedUntil).
 	codeLocked
 )
 
@@ -33,10 +33,10 @@ func (s *Server) checkCode(ctx context.Context, userID int64, code string) (res 
 		return 0, time.Time{}, err
 	}
 	now := time.Now()
-	if until := auth.TOTPLockedUntil(u.TOTPFailures, u.TOTPFailedAt); now.Before(until) {
+	if until := authkit.TOTPLockedUntil(u.TOTPFailures, u.TOTPFailedAt); now.Before(until) {
 		return codeLocked, until, nil
 	}
-	if step, ok := auth.VerifyTOTP(u.TOTPSecret, code, now, u.TOTPLastStep); ok {
+	if step, ok := authkit.VerifyTOTP(u.TOTPSecret, code, now, u.TOTPLastStep); ok {
 		if ok, err = s.Store.UseTOTPStep(ctx, u.ID, step); err != nil || ok {
 			return codeOK, time.Time{}, err
 		}
@@ -45,7 +45,7 @@ func (s *Server) checkCode(ctx context.Context, userID int64, code string) (res 
 	if err != nil {
 		return 0, time.Time{}, err
 	}
-	if until := auth.TOTPLockedUntil(n, now); !until.IsZero() {
+	if until := authkit.TOTPLockedUntil(n, now); !until.IsZero() {
 		s.Log.Warn("two-factor codes locked", "user", u.Username, "wrong codes", n, "until", until)
 		s.Store.Audit(ctx, u, "2fa locked", fmt.Sprintf("%d wrong codes in a row; none accepted until %s",
 			n, until.Local().Format("2 January 15:04")))

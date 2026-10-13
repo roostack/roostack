@@ -6,29 +6,50 @@
   <p class="hint">Give family or friends space on this server for their Roostack's backups, and they can do the same for you:
     each of you then has a copy somewhere else. Their backups are encrypted before they leave their lab, so you can't read
     them, and each lab gets its own space with a size limit.</p>
+  {{with .HostSpace}}
+  <h2>Space on {{$.HostServer.Name}}</h2>
+  {{template "disks-live" .}}
+  {{with $.Space}}<p>Other labs can be given up to <strong>{{size .Left}}</strong> more, keeping 10% of the disk free for your own
+    services and backups.</p>{{end}}
+  {{end}}
 </section>
 
 {{with .Guests}}
 <section class="card section">
   <h2>Labs storing here</h2>
-  <table class="records">
-    <thead><tr><th>Lab</th><th>Space used</th><th>Connected</th><th></th></tr></thead>
-    <tbody>
-      {{range .}}<tr>
-        <td>{{.Name}}</td>
-        <td>{{if ge .Used 0}}{{size .Used}}{{else}}?{{end}} of {{size .Quota}}
-          <form method="post" action="/settings/storage/guests/{{.ID}}/quota" class="inline-form">
-            <label class="sr-only" for="quota-{{.ID}}">Space for {{.Name}} (GB)</label>
-            <input id="quota-{{.ID}}" name="quota" type="number" min="1" class="inline" value="{{gb .Quota}}"> GB
-            <button type="submit" class="secondary">Change</button>
-          </form></td>
-        <td>{{if not .Joined}}Waiting for them to use the invite (until {{when .Expires}})
-          {{- else if .LastSeen.IsZero}}<span class="dot dot-warn" aria-hidden="true"></span>Not yet: check the port forwarding below
-          {{- else}}<span class="dot dot-ok" aria-hidden="true"></span>{{when .LastSeen}}{{end}}</td>
-        <td>{{confirm (printf "/settings/storage/guests/%d/remove" .ID) (printf "Stop storing backups for %s? They can't add backups from now on. Roostack tells their lab, and deletes what's here in 30 days (or sooner, if you choose)." .Name) "Remove" "quiet danger"}}</td>
-      </tr>{{end}}
-    </tbody>
-  </table>
+  <ul class="rows guests">
+    {{range .}}
+    <li>
+      <div class="row-split">
+        <strong>{{.Name}}</strong>
+        <span class="row-actions" x-data>
+          <button type="button" class="secondary" x-on:click="$refs.quota.showModal()">Change space…</button>
+          <dialog x-ref="quota" class="dialog" aria-labelledby="quota-title-{{.ID}}">
+            <form method="post" action="/settings/storage/guests/{{.ID}}/quota">
+              <p id="quota-title-{{.ID}}"><strong>Space for {{.Name}}</strong></p>
+              <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{gb .Quota}}" required>
+                <small>{{if ge .Used 0}}Their backups take {{size .Used}} now. {{end}}{{with $.Space}}{{$.HostServer.Name}} can give
+                  other labs up to {{size .Left}} more.{{end}}</small></label>
+              <div class="dialog-actions">
+                <button type="button" class="secondary" x-on:click="$refs.quota.close()">Cancel</button>
+                <button type="submit">Save</button>
+              </div>
+            </form>
+          </dialog>
+          {{confirm (printf "/settings/storage/guests/%d/remove" .ID) (printf "Stop storing backups for %s? They can't add backups from now on. Roostack tells their lab, and deletes what's here in 30 days (or sooner, if you choose)." .Name) "Remove" "quiet danger"}}
+        </span>
+      </div>
+      <div class="space-bar guest-space" role="img" aria-label="{{if ge .Used 0}}{{size .Used}}{{else}}Unknown{{end}} used of {{size .Quota}}">
+        <span class="space-used" data-width="{{.UsedPercent}}"></span>
+      </div>
+      <small class="hint">{{if ge .Used 0}}{{size .Used}} of {{size .Quota}} used{{else}}{{size .Quota}} given{{end}} ·
+        {{if not .Joined}}hasn't used the invite yet (it works until {{when .Expires}})
+        {{- else if .LastSeen.IsZero}}<span class="dot dot-warn" aria-hidden="true"></span>hasn't connected yet: check
+          {{if $.Internet}}your provider's firewall{{else}}the port forwarding{{end}} below
+        {{- else}}<span class="dot dot-ok" aria-hidden="true"></span>last connected {{when .LastSeen}}{{end}}</small>
+    </li>
+    {{end}}
+  </ul>
 </section>
 {{end}}
 
@@ -55,14 +76,17 @@
 {{end}}
 
 <section class="card section" id="invite">
+  {{if .Invite}}
+  <h2>Invite for {{.InviteName}}</h2>
+  <p>Send this to {{.InviteName}} privately. It works once, until {{when .InviteExpires}}. On their Backups page,
+    they add a backup, choose <strong>A friend's lab</strong> and paste it under <strong>Their invite code</strong>.</p>
+  {{copyBox .Invite}}
+  <p class="hint">Anyone with it can use the space until it's used, so don't post it anywhere public. It isn't shown again:
+    if it's lost, remove {{.InviteName}} above and make a new one.</p>
+  <p><a class="button secondary" href="/settings/storage#invite">Make another invite</a></p>
+  {{else}}
   <h2>Invite a lab</h2>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  {{with .Invite}}
-  <p>Send this invite to {{$.InviteName}} privately (it works once, until {{when $.InviteExpires}}). On their Backups page,
-    they add a backup, choose <strong>A friend's lab</strong> and paste it under <strong>Their invite code</strong>.</p>
-  <pre class="output copyable">{{.}}</pre>
-  <p class="hint">Anyone with it can use the space until it's used, so don't post it anywhere public.</p>
-  {{end}}
   {{with .ServerChoices}}
   <form method="post" action="/settings/storage/server" class="inline-form">
     <label>Offered by <select name="server">{{range .}}<option value="{{.ID}}" {{if eq .ID $.HostServer.ID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
@@ -70,13 +94,35 @@
     <small class="hint">The server whose disk keeps their backups (e.g. one with a big disk). It can change only while no other lab stores anything.</small>
   </form>
   {{end}}
-  <form method="post" action="/settings/storage/invite">
-    <label>Whose lab <input name="name" value="{{.Name}}" placeholder="Tyris's lab" required></label>
-    <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{or .Quota "50"}}" required></label>
-    <label>Address they reach {{.HostServer.Name}} at <input name="endpoint" value="{{.Endpoint}}" placeholder="203.0.113.7:51821" required></label>
-    <small class="hint">Your home's public address (or a name from your domain that points home) and port 51821.</small>
+  <form method="post" action="/settings/storage/invite#invite">
+    <label>Whose lab <input name="name" value="{{.Name}}" placeholder="Sam's lab" required></label>
+    {{with .Space}}
+    {{/* The space left for this lab updates as the number changes. */}}
+    <div class="quota-field" data-gb="{{$.Quota}}" data-free="{{.Free}}" data-promised="{{.Promised}}" data-left="{{.Left}}"
+      x-data="{ gb: Number($el.dataset.gb), free: Number($el.dataset.free), promised: Number($el.dataset.promised), left: Number($el.dataset.left) }">
+      {{if lt .Left 1000000000}}{{notice "warn" (printf "%s has no space to offer other labs right now: it keeps 10%% of its disk free, and the rest is in use or already given to other labs." $.HostServer.Name)}}{{end}}
+      <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{$.Quota}}" x-model.number="gb" required>
+        <small x-show="gb * 1e9 <= left">Giving them <span x-text="gb">{{$.Quota}}</span> GB leaves about
+          <strong x-text="roostackSize(free - promised - gb * 1e9)">{{size $.SpaceAfter}}</strong> free on {{$.HostServer.Name}}
+          for your own services and backups.</small>
+        <small class="error" x-show="gb * 1e9 > left" x-cloak>That's more than {{$.HostServer.Name}} can offer: up to {{size .Left}}.</small></label>
+    </div>
+    {{else}}
+    <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{.Quota}}" required></label>
+    {{end}}
+    {{template "address-choice" .AddressChoice}}
     <button type="submit">Make an invite</button>
   </form>
+  {{end}}
+  {{if .Internet}}
+  <details>
+    <summary>Letting them in: your provider's firewall</summary>
+    <p>Roostack already allows other labs through {{.HostServer.Name}}'s own firewall. If your cloud provider puts a firewall in
+      front of it (such as Linode's Cloud Firewall or AWS security groups), allow <strong>UDP</strong> port <strong>51821</strong>
+      from anywhere in its control panel. No provider firewall? There's nothing to do.</p>
+    <p class="hint">How to tell it worked: once they've used the invite, "Connected" above shows when their lab last reached this one.</p>
+  </details>
+  {{else}}
   <details>
     <summary>Letting them in: port forwarding</summary>
     <p>Other labs connect to {{.HostServer.Name}} through the router in front of it, which only lets them in if you ask it to.
@@ -92,5 +138,6 @@
       If it stays "Not yet", the port isn't forwarded (or the address is wrong). Some internet connections (called CGNAT) can't forward
       ports at all; then the other lab can host instead, and you store at theirs.</p>
   </details>
+  {{end}}
 </section>
 {{end}}

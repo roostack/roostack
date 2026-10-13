@@ -3,11 +3,13 @@
 // show a one-line status to everyone and the details to those who want
 // them.
 //
-// Logs live in memory: the latest run of each kind is kept. Results that
-// must survive a restart are stored by their owners (e.g. backup runs).
+// Logs live in memory: the latest run of each kind is kept. When one
+// finishes, Finished (if set) is called with it, so it can be kept as
+// history (SPEC.md §6.14); a routine run (nothing changed) isn't.
 package activity
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 	"sync"
@@ -27,6 +29,8 @@ const (
 	BackupSetup = "backup-setup"
 	// LabRestore is rebuilding a lab from its backups on a new server.
 	LabRestore = "lab-restore"
+	// Build is building Roostack's Caddy image in the background.
+	Build = "build"
 )
 
 // BackupSetupFor is the BackupSetup log of one server: the controller
@@ -41,6 +45,9 @@ type Registry struct {
 	mu   sync.Mutex
 	logs map[string]*Log
 	now  func() time.Time
+	// Finished is called with each log as it finishes, unless it was
+	// routine (Log.Routine); optional. Set it before logs start.
+	Finished func(kind string, s Snapshot)
 }
 
 // New returns an empty registry.
@@ -51,7 +58,7 @@ func (r *Registry) Start(kind, title string) *Log {
 	if r == nil {
 		return nil // logging is optional: a nil Log discards
 	}
-	l := &Log{title: title, started: r.now(), now: r.now}
+	l := &Log{title: title, started: r.now(), now: r.now, kind: kind, registry: r}
 	r.mu.Lock()
 	r.logs[kind] = l
 	r.mu.Unlock()
@@ -84,7 +91,22 @@ type Log struct {
 	lines    []string
 	dropped  int
 	partial  string // an incomplete line from Write
+	updated  time.Time
 	now      func() time.Time
+	kind     string
+	registry *Registry
+	routine  bool
+}
+
+// Routine marks a run that changed nothing (e.g. an apply with nothing to
+// do): it's shown as the latest, but not kept as history.
+func (l *Log) Routine() {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	l.routine = true
+	l.mu.Unlock()
 }
 
 // Snapshot is a copy of a log for display.
@@ -96,6 +118,9 @@ type Snapshot struct {
 	Err      string
 	Lines    []string
 	Dropped  int // lines no longer kept
+	// Updated is when it last had output: a long step whose log still
+	// moves hasn't hung.
+	Updated time.Time
 }
 
 // Running reports whether the operation hasn't finished.
@@ -130,11 +155,17 @@ func (l *Log) Write(p []byte) (int, error) {
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if len(p) > 0 && l.now != nil {
+		l.updated = l.now()
+	}
 	text := l.partial + string(p)
 	lines := strings.Split(text, "\n")
 	l.partial = lines[len(lines)-1]
 	for _, line := range lines[:len(lines)-1] {
-		// Progress bars redraw with \r: keep the last state.
+		// Lines may end in \r\n (dpkg's do): the \r isn't a redraw.
+		// Otherwise, progress bars redraw with \r: keep the last state.
+		// Cutting at a trailing \r left every dpkg line empty.
+		line = strings.TrimRight(line, "\r")
 		if i := strings.LastIndexByte(line, '\r'); i >= 0 {
 			line = line[i+1:]
 		}
@@ -165,9 +196,16 @@ func (l *Log) Finish(err error) {
 	} else {
 		l.add("==> Done")
 	}
+	if l.registry != nil && l.registry.Finished != nil && (!l.routine || err != nil) {
+		snap := l.snapshotLocked()
+		go l.registry.Finished(l.kind, snap)
+	}
 }
 
 func (l *Log) add(line string) {
+	if l.now != nil {
+		l.updated = l.now()
+	}
 	l.lines = append(l.lines, line)
 	if over := len(l.lines) - maxLines; over > 0 {
 		l.lines = append(l.lines[:0:0], l.lines[over:]...)
@@ -179,10 +217,14 @@ func (l *Log) add(line string) {
 func (l *Log) Snapshot() Snapshot {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	return l.snapshotLocked()
+}
+
+func (l *Log) snapshotLocked() Snapshot {
 	lines := append([]string(nil), l.lines...)
 	if l.partial != "" {
 		lines = append(lines, l.partial)
 	}
 	return Snapshot{Title: l.title, Status: l.status, Started: l.started, Finished: l.finished,
-		Err: l.err, Lines: lines, Dropped: l.dropped}
+		Err: l.err, Lines: lines, Dropped: l.dropped, Updated: cmp.Or(l.updated, l.started)}
 }

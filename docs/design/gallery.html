@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Design system · Roostack</title>
+  <link rel="icon" href="../../internal/web/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../../internal/web/static/css/tokens.css">
   <link rel="stylesheet" href="../../internal/web/static/css/themes/teal.css">
   <link rel="stylesheet" href="../../internal/web/static/css/themes/ocean.css">
@@ -20,7 +21,7 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"></span>Roostack</a>
+    <a class="brand" href="#top"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg>Roostack</a>
     <nav><a class="active" href="#top">Design system</a></nav>
   </header>
   <div class="gallery-layout">
@@ -33,15 +34,18 @@
       <nav class="gallery-toc" aria-label="Contents">
         <a href="#tokens">Colours</a>
         <a href="#scales">Sizes</a>
+        <a href="#brand">Brand mark</a>
         <a href="#buttons">Buttons</a>
         <a href="#notices">Notices</a>
         <a href="#status">Status and badges</a>
         <a href="#cards">Cards and facts</a>
         <a href="#forms">Forms</a>
         <a href="#lists">Lists</a>
+        <a href="#space">Disk space</a>
         <a href="#tables">Tables</a>
         <a href="#settings">Settings navigation</a>
         <a href="#activity">Activity</a>
+        <a href="#statistics">Statistics</a>
         <a href="#secrets">Secrets and codes</a>
         
       </nav>
@@ -94,6 +98,8 @@
                 <span><code>--warn</code> <code class="resolved" data-resolve="background-color"></code><br><small>Needs attention soon</small></span></li>
               <li data-token><span class="swatch swatch-bad" data-sample></span>
                 <span><code>--bad</code> <code class="resolved" data-resolve="background-color"></code><br><small>Problem</small></span></li>
+              <li data-token><span class="swatch swatch-ok-on-fg" data-sample></span>
+                <span><code>--ok-on-fg</code> <code class="resolved" data-resolve="background-color"></code><br><small>Online lights in the brand mark (on text-coloured shapes)</small></span></li>
               
             </ul>
           </div>
@@ -129,6 +135,8 @@
                 <span><code>--warn</code> <code class="resolved" data-resolve="background-color"></code><br><small>Needs attention soon</small></span></li>
               <li data-token><span class="swatch swatch-bad" data-sample></span>
                 <span><code>--bad</code> <code class="resolved" data-resolve="background-color"></code><br><small>Problem</small></span></li>
+              <li data-token><span class="swatch swatch-ok-on-fg" data-sample></span>
+                <span><code>--ok-on-fg</code> <code class="resolved" data-resolve="background-color"></code><br><small>Online lights in the brand mark (on text-coloured shapes)</small></span></li>
               
             </ul>
           </div>
@@ -162,6 +170,48 @@
           <code>--radius-pill</code><br><code class="resolved" data-resolve="border-top-left-radius"></code></li></ul>
       </section>
 
+      
+      <section id="brand">
+        <h2>Brand mark</h2>
+        <p class="hint">Roostack&#39;s mark, a hen on a server, drawn in the theme&#39;s colours: text colour on a soft-highlight tile, with a highlight comb. It&#39;s generated from assets/brand/generate.py; don&#39;t edit it by hand.</p>
+        
+        <div class="example">
+          <h3>Top bar <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">brandMark inside .brand, before the name. Decorative (hidden from screen readers): the name says what it is.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><a class="brand" href="#"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg>Roostack</a></div>
+            <div class="panel" data-mode="dark"><a class="brand" href="#"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg>Roostack</a></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;a class=&#34;brand&#34; href=&#34;#&#34;&gt;{{brandMark}}Roostack&lt;/a&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;a class=&#34;brand&#34; href=&#34;#&#34;&gt;&lt;svg class=&#34;brand-mark&#34; viewBox=&#34;0 0 64 64&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34;&gt;&lt;rect class=&#34;bm-f-soft&#34; width=&#34;64&#34; height=&#34;64&#34; rx=&#34;14&#34;/&gt;&lt;g transform=&#34;translate(-3.6 .6) scale(1.2)&#34;&gt;&lt;path class=&#34;bm-f-hi&#34; d=&#34;M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z&#34;/&gt;&lt;path class=&#34;bm-f-hi&#34; d=&#34;M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z&#34;/&gt;&lt;path class=&#34;bm-f-fg&#34; d=&#34;M44.2 14.6 49.2 16.6 44.4 18.6Z&#34;/&gt;&lt;path class=&#34;bm-f-fg bm-s-soft&#34; d=&#34;M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z&#34; stroke-width=&#34;1.1&#34; stroke-linejoin=&#34;round&#34;/&gt;&lt;circle class=&#34;bm-f-soft&#34; cx=&#34;40.2&#34; cy=&#34;14.6&#34; r=&#34;1.3&#34;/&gt;&lt;path class=&#34;bm-s-fg&#34; d=&#34;M27 34V37.4M25.4 37.4H29&#34; fill=&#34;none&#34; stroke-width=&#34;1.7&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;/&gt;&lt;path class=&#34;bm-s-fg&#34; d=&#34;M31.4 34V37.4M29.8 37.4H33.4&#34; fill=&#34;none&#34; stroke-width=&#34;1.7&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;/&gt;&lt;/g&gt;&lt;rect class=&#34;bm-f-fg&#34; x=&#34;8&#34; y=&#34;46.5&#34; width=&#34;48&#34; height=&#34;11.5&#34; rx=&#34;3.2&#34;/&gt;&lt;circle class=&#34;bm-f-led&#34; cx=&#34;15&#34; cy=&#34;52.25&#34; r=&#34;2.8&#34;/&gt;&lt;/svg&gt;Roostack&lt;/a&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Top bar with the lab&#39;s name <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">Once the lab has a name, the mark grows to sit beside both lines.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><a class="brand" href="#"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="brand-stack"><span class="brand-eyebrow">Roostack</span><span class="brand-lab">The Smiths' lab</span></span></a></div>
+            <div class="panel" data-mode="dark"><a class="brand" href="#"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="brand-stack"><span class="brand-eyebrow">Roostack</span><span class="brand-lab">The Smiths' lab</span></span></a></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;a class=&#34;brand&#34; href=&#34;#&#34;&gt;{{brandMark}}&lt;span class=&#34;brand-stack&#34;&gt;&lt;span class=&#34;brand-eyebrow&#34;&gt;Roostack&lt;/span&gt;&lt;span class=&#34;brand-lab&#34;&gt;The Smiths&#39; lab&lt;/span&gt;&lt;/span&gt;&lt;/a&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;a class=&#34;brand&#34; href=&#34;#&#34;&gt;&lt;svg class=&#34;brand-mark&#34; viewBox=&#34;0 0 64 64&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34;&gt;&lt;rect class=&#34;bm-f-soft&#34; width=&#34;64&#34; height=&#34;64&#34; rx=&#34;14&#34;/&gt;&lt;g transform=&#34;translate(-3.6 .6) scale(1.2)&#34;&gt;&lt;path class=&#34;bm-f-hi&#34; d=&#34;M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z&#34;/&gt;&lt;path class=&#34;bm-f-hi&#34; d=&#34;M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z&#34;/&gt;&lt;path class=&#34;bm-f-fg&#34; d=&#34;M44.2 14.6 49.2 16.6 44.4 18.6Z&#34;/&gt;&lt;path class=&#34;bm-f-fg bm-s-soft&#34; d=&#34;M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z&#34; stroke-width=&#34;1.1&#34; stroke-linejoin=&#34;round&#34;/&gt;&lt;circle class=&#34;bm-f-soft&#34; cx=&#34;40.2&#34; cy=&#34;14.6&#34; r=&#34;1.3&#34;/&gt;&lt;path class=&#34;bm-s-fg&#34; d=&#34;M27 34V37.4M25.4 37.4H29&#34; fill=&#34;none&#34; stroke-width=&#34;1.7&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;/&gt;&lt;path class=&#34;bm-s-fg&#34; d=&#34;M31.4 34V37.4M29.8 37.4H33.4&#34; fill=&#34;none&#34; stroke-width=&#34;1.7&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;/&gt;&lt;/g&gt;&lt;rect class=&#34;bm-f-fg&#34; x=&#34;8&#34; y=&#34;46.5&#34; width=&#34;48&#34; height=&#34;11.5&#34; rx=&#34;3.2&#34;/&gt;&lt;circle class=&#34;bm-f-led&#34; cx=&#34;15&#34; cy=&#34;52.25&#34; r=&#34;2.8&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;brand-stack&#34;&gt;&lt;span class=&#34;brand-eyebrow&#34;&gt;Roostack&lt;/span&gt;&lt;span class=&#34;brand-lab&#34;&gt;The Smiths&#39; lab&lt;/span&gt;&lt;/span&gt;&lt;/a&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
       
       <section id="buttons">
         <h2>Buttons</h2>
@@ -304,6 +354,61 @@
           </details>
         </div>
         
+        <div class="example">
+          <h3>Confirm a form <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">confirmSubmit QUESTION TEXT KIND: the submit button of a form that has fields of its own (checkboxes, choices), which confirm can&#39;t carry. The form&#39;s own checks (required fields) run first; the dialog&#39;s button submits the form. KIND is the dialog button&#39;s class (danger or &#34;&#34;).</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form method="post" action="#">
+  <label class="check"><input type="checkbox" name="open" value="/admin"><span>Make <code>/admin</code> public too</span></label>
+  <span class="confirm" x-data>
+  <button type="button" x-on:click="$el.closest('form').reportValidity() && $refs.dialog.showModal()">Make public</button>
+  <dialog x-ref="dialog" class="dialog" aria-labelledby="confirm-1kygi7rc11iou">
+    <p id="confirm-1kygi7rc11iou">Make passwords.lab.example.com public? Anyone on the internet will be able to reach it.</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dialog.close()" autofocus>Cancel</button>
+      <button type="submit">Make public</button>
+    </div>
+  </dialog>
+</span>
+</form></div>
+            <div class="panel" data-mode="dark"><form method="post" action="#">
+  <label class="check"><input type="checkbox" name="open" value="/admin"><span>Make <code>/admin</code> public too</span></label>
+  <span class="confirm" x-data>
+  <button type="button" x-on:click="$el.closest('form').reportValidity() && $refs.dialog.showModal()">Make public</button>
+  <dialog x-ref="dialog" class="dialog" aria-labelledby="confirm-1kygi7rc11iou">
+    <p id="confirm-1kygi7rc11iou">Make passwords.lab.example.com public? Anyone on the internet will be able to reach it.</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dialog.close()" autofocus>Cancel</button>
+      <button type="submit">Make public</button>
+    </div>
+  </dialog>
+</span>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;form method=&#34;post&#34; action=&#34;#&#34;&gt;
+  &lt;label class=&#34;check&#34;&gt;&lt;input type=&#34;checkbox&#34; name=&#34;open&#34; value=&#34;/admin&#34;&gt;&lt;span&gt;Make &lt;code&gt;/admin&lt;/code&gt; public too&lt;/span&gt;&lt;/label&gt;
+  {{confirmSubmit &#34;Make passwords.lab.example.com public? Anyone on the internet will be able to reach it.&#34; &#34;Make public&#34; &#34;&#34;}}
+&lt;/form&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;form method=&#34;post&#34; action=&#34;#&#34;&gt;
+  &lt;label class=&#34;check&#34;&gt;
+    &lt;input type=&#34;checkbox&#34; name=&#34;open&#34; value=&#34;/admin&#34;&gt;&lt;span&gt;Make&lt;code&gt;/admin&lt;/code&gt;public too&lt;/span&gt;
+  &lt;/label&gt;&lt;span class=&#34;confirm&#34; x-data&gt;
+  &lt;button type=&#34;button&#34; x-on:click=&#34;$el.closest(&#39;form&#39;).reportValidity() &amp;&amp; $refs.dialog.showModal()&#34;&gt;Make public&lt;/button&gt;&lt;dialog x-ref=&#34;dialog&#34; class=&#34;dialog&#34; aria-labelledby=&#34;confirm-1kygi7rc11iou&#34;&gt;
+  &lt;p id=&#34;confirm-1kygi7rc11iou&#34;&gt;Make passwords.lab.example.com public? Anyone on the internet will be able to reach it.&lt;/p&gt;
+  &lt;div class=&#34;dialog-actions&#34;&gt;
+    &lt;button type=&#34;button&#34; class=&#34;secondary&#34; x-on:click=&#34;$refs.dialog.close()&#34; autofocus&gt;Cancel&lt;/button&gt;
+    &lt;button type=&#34;submit&#34;&gt;Make public&lt;/button&gt;
+  &lt;/div&gt;&lt;/dialog&gt;&lt;/span&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
       </section>
       
       <section id="notices">
@@ -401,24 +506,30 @@
           <p class="hint">Pass the service&#39;s state.</p>
           <div class="panels">
             <div class="panel" data-mode="light"><span class="status status-running">running</span>
+<span class="status status-installing"><span class="spinner" aria-hidden="true"></span> installing</span>
 <span class="status status-starting">starting</span>
 <span class="status status-failed">failed</span>
-<span class="status status-stopped">stopped</span></div>
+<span class="status status-stopped">stopped</span>
+<span class="status status-waiting">waiting to be restored</span></div>
             <div class="panel" data-mode="dark"><span class="status status-running">running</span>
+<span class="status status-installing"><span class="spinner" aria-hidden="true"></span> installing</span>
 <span class="status status-starting">starting</span>
 <span class="status status-failed">failed</span>
-<span class="status status-stopped">stopped</span></div>
+<span class="status status-stopped">stopped</span>
+<span class="status status-waiting">waiting to be restored</span></div>
           </div>
           <details>
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
             <pre class="output">{{status &#34;running&#34;}}
+{{status &#34;installing&#34;}}
 {{status &#34;starting&#34;}}
 {{status &#34;failed&#34;}}
-{{status &#34;stopped&#34;}}</pre>
+{{status &#34;stopped&#34;}}
+{{status &#34;waiting&#34;}}</pre>
             <p class="markup-label">Renders as</p>
-            <pre class="output">&lt;span class=&#34;status status-running&#34;&gt;running&lt;/span&gt;&lt;span class=&#34;status status-starting&#34;&gt;starting&lt;/span&gt;&lt;span class=&#34;status status-failed&#34;&gt;failed&lt;/span&gt;&lt;span class=&#34;status status-stopped&#34;&gt;stopped&lt;/span&gt;</pre>
+            <pre class="output">&lt;span class=&#34;status status-running&#34;&gt;running&lt;/span&gt;&lt;span class=&#34;status status-installing&#34;&gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;installing&lt;/span&gt;&lt;span class=&#34;status status-starting&#34;&gt;starting&lt;/span&gt;&lt;span class=&#34;status status-failed&#34;&gt;failed&lt;/span&gt;&lt;span class=&#34;status status-stopped&#34;&gt;stopped&lt;/span&gt;&lt;span class=&#34;status status-waiting&#34;&gt;waiting to be restored&lt;/span&gt;</pre>
             
           </details>
         </div>
@@ -465,13 +576,15 @@
         
         <div class="example">
           <h3>Icons <span class="badge badge-highlight">Template component</span></h3>
-          <p class="hint">icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text&#39;s colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, new-window, help (icons.go).</p>
+          <p class="hint">icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text&#39;s colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, manage, new-window, help (icons.go).</p>
           <div class="panels">
             <div class="panel" data-mode="light"><p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Role</p>
+<p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Manage</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Disk</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/></svg>Backup store</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg>Network link</p></div>
             <div class="panel" data-mode="dark"><p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Role</p>
+<p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Manage</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Disk</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/></svg>Backup store</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg>Network link</p></div>
@@ -481,11 +594,14 @@
             
             <p class="markup-label">In a template</p>
             <pre class="output">&lt;p class=&#34;with-icon&#34;&gt;{{icon &#34;server&#34;}}Role&lt;/p&gt;
+&lt;p class=&#34;with-icon&#34;&gt;{{icon &#34;manage&#34;}}Manage&lt;/p&gt;
 &lt;p class=&#34;with-icon&#34;&gt;{{icon &#34;disk&#34;}}Disk&lt;/p&gt;
 &lt;p class=&#34;with-icon&#34;&gt;{{icon &#34;store&#34;}}Backup store&lt;/p&gt;
 &lt;p class=&#34;with-icon&#34;&gt;{{icon &#34;network&#34;}}Network link&lt;/p&gt;</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;p class=&#34;with-icon&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;3&#34; y=&#34;4&#34; width=&#34;18&#34; height=&#34;7&#34; rx=&#34;2&#34;/&gt;&lt;rect x=&#34;3&#34; y=&#34;13&#34; width=&#34;18&#34; height=&#34;7&#34; rx=&#34;2&#34;/&gt;&lt;path d=&#34;M7 7.5h.01M7 16.5h.01&#34;/&gt;&lt;/svg&gt;Role
+&lt;/p&gt;
+&lt;p class=&#34;with-icon&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1&#34;/&gt;&lt;circle cx=&#34;15&#34; cy=&#34;6&#34; r=&#34;2&#34;/&gt;&lt;circle cx=&#34;9&#34; cy=&#34;12&#34; r=&#34;2&#34;/&gt;&lt;circle cx=&#34;17&#34; cy=&#34;18&#34; r=&#34;2&#34;/&gt;&lt;/svg&gt;Manage
 &lt;/p&gt;
 &lt;p class=&#34;with-icon&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;ellipse cx=&#34;12&#34; cy=&#34;6&#34; rx=&#34;8&#34; ry=&#34;3&#34;/&gt;&lt;path d=&#34;M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6&#34;/&gt;&lt;path d=&#34;M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3&#34;/&gt;&lt;/svg&gt;Disk
 &lt;/p&gt;
@@ -944,6 +1060,60 @@
         
       </section>
       
+      <section id="space">
+        <h2>Disk space</h2>
+        <p class="hint">A disk&#39;s use as one bar of coloured parts, with a key that names each part and its size (Settings → Servers, Storage for others). The chart colours (--chart-1 to 3) are the same in every theme, so the parts stay apart for colour-blind readers; status colours only outline the bar when space runs low.</p>
+        
+        <div class="example">
+          <h3>Space bar and key <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">Widths are data-width (percent), set by app.js: the Content-Security-Policy blocks style attributes.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><p><strong>55.0 GB free</strong> of 100.0 GB</p>
+<div class="space-bar" role="img" aria-label="40.0 GB used, 60.0 GB free of 100.0 GB"><span class="space-services" data-width="12" title="Services' data: 12.0 GB"></span><span class="space-backups" data-width="3" title="Backups of your lab's servers: 3.0 GB"></span><span class="space-guests" data-width="1" title="Backups of other labs: 1.0 GB"></span><span class="space-other" data-width="24" title="The system and everything else: 24.0 GB"></span><span class="space-promised" data-width="9" title="Promised to other labs, not used yet: 9.0 GB"></span><span class="space-reserved" data-width="5" title="Reserved by the system: 5.0 GB"></span></div>
+<dl class="space-list">
+  <dt>In use</dt><dd>40.0 GB</dd>
+  <dt class="sub"><span class="swatch space-services" aria-hidden="true"></span>Services' data</dt><dd>12.0 GB</dd>
+  <dt class="sub"><span class="swatch space-backups" aria-hidden="true"></span>Backups of your lab's servers</dt><dd>3.0 GB</dd>
+  <dt class="sub"><span class="swatch space-guests" aria-hidden="true"></span>Backups of other labs</dt><dd>1.0 GB</dd>
+  <dt class="sub"><span class="swatch space-other" aria-hidden="true"></span>The system and everything else</dt><dd>24.0 GB</dd>
+  <dt><span class="swatch space-promised" aria-hidden="true"></span>Promised to other labs</dt><dd>10.0 GB, of which 9.0 GB isn't used yet</dd>
+  <dt><span class="swatch space-free" aria-hidden="true"></span>Free</dt><dd>55.0 GB</dd>
+  <dt><span class="swatch space-reserved" aria-hidden="true"></span>Reserved by the system</dt><dd>5.0 GB, kept back by the filesystem so the system keeps working if the disk fills up</dd>
+</dl></div>
+            <div class="panel" data-mode="dark"><p><strong>55.0 GB free</strong> of 100.0 GB</p>
+<div class="space-bar" role="img" aria-label="40.0 GB used, 60.0 GB free of 100.0 GB"><span class="space-services" data-width="12" title="Services' data: 12.0 GB"></span><span class="space-backups" data-width="3" title="Backups of your lab's servers: 3.0 GB"></span><span class="space-guests" data-width="1" title="Backups of other labs: 1.0 GB"></span><span class="space-other" data-width="24" title="The system and everything else: 24.0 GB"></span><span class="space-promised" data-width="9" title="Promised to other labs, not used yet: 9.0 GB"></span><span class="space-reserved" data-width="5" title="Reserved by the system: 5.0 GB"></span></div>
+<dl class="space-list">
+  <dt>In use</dt><dd>40.0 GB</dd>
+  <dt class="sub"><span class="swatch space-services" aria-hidden="true"></span>Services' data</dt><dd>12.0 GB</dd>
+  <dt class="sub"><span class="swatch space-backups" aria-hidden="true"></span>Backups of your lab's servers</dt><dd>3.0 GB</dd>
+  <dt class="sub"><span class="swatch space-guests" aria-hidden="true"></span>Backups of other labs</dt><dd>1.0 GB</dd>
+  <dt class="sub"><span class="swatch space-other" aria-hidden="true"></span>The system and everything else</dt><dd>24.0 GB</dd>
+  <dt><span class="swatch space-promised" aria-hidden="true"></span>Promised to other labs</dt><dd>10.0 GB, of which 9.0 GB isn't used yet</dd>
+  <dt><span class="swatch space-free" aria-hidden="true"></span>Free</dt><dd>55.0 GB</dd>
+  <dt><span class="swatch space-reserved" aria-hidden="true"></span>Reserved by the system</dt><dd>5.0 GB, kept back by the filesystem so the system keeps working if the disk fills up</dd>
+</dl></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;p&gt;&lt;strong&gt;55.0 GB free&lt;/strong&gt; of 100.0 GB&lt;/p&gt;
+&lt;div class=&#34;space-bar&#34; role=&#34;img&#34; aria-label=&#34;40.0 GB used, 60.0 GB free of 100.0 GB&#34;&gt;&lt;span class=&#34;space-services&#34; data-width=&#34;12&#34; title=&#34;Services&#39; data: 12.0 GB&#34;&gt;&lt;/span&gt;&lt;span class=&#34;space-backups&#34; data-width=&#34;3&#34; title=&#34;Backups of your lab&#39;s servers: 3.0 GB&#34;&gt;&lt;/span&gt;&lt;span class=&#34;space-guests&#34; data-width=&#34;1&#34; title=&#34;Backups of other labs: 1.0 GB&#34;&gt;&lt;/span&gt;&lt;span class=&#34;space-other&#34; data-width=&#34;24&#34; title=&#34;The system and everything else: 24.0 GB&#34;&gt;&lt;/span&gt;&lt;span class=&#34;space-promised&#34; data-width=&#34;9&#34; title=&#34;Promised to other labs, not used yet: 9.0 GB&#34;&gt;&lt;/span&gt;&lt;span class=&#34;space-reserved&#34; data-width=&#34;5&#34; title=&#34;Reserved by the system: 5.0 GB&#34;&gt;&lt;/span&gt;&lt;/div&gt;
+&lt;dl class=&#34;space-list&#34;&gt;
+  &lt;dt&gt;In use&lt;/dt&gt;&lt;dd&gt;40.0 GB&lt;/dd&gt;
+  &lt;dt class=&#34;sub&#34;&gt;&lt;span class=&#34;swatch space-services&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;Services&#39; data&lt;/dt&gt;&lt;dd&gt;12.0 GB&lt;/dd&gt;
+  &lt;dt class=&#34;sub&#34;&gt;&lt;span class=&#34;swatch space-backups&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;Backups of your lab&#39;s servers&lt;/dt&gt;&lt;dd&gt;3.0 GB&lt;/dd&gt;
+  &lt;dt class=&#34;sub&#34;&gt;&lt;span class=&#34;swatch space-guests&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;Backups of other labs&lt;/dt&gt;&lt;dd&gt;1.0 GB&lt;/dd&gt;
+  &lt;dt class=&#34;sub&#34;&gt;&lt;span class=&#34;swatch space-other&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;The system and everything else&lt;/dt&gt;&lt;dd&gt;24.0 GB&lt;/dd&gt;
+  &lt;dt&gt;&lt;span class=&#34;swatch space-promised&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;Promised to other labs&lt;/dt&gt;&lt;dd&gt;10.0 GB, of which 9.0 GB isn&#39;t used yet&lt;/dd&gt;
+  &lt;dt&gt;&lt;span class=&#34;swatch space-free&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;Free&lt;/dt&gt;&lt;dd&gt;55.0 GB&lt;/dd&gt;
+  &lt;dt&gt;&lt;span class=&#34;swatch space-reserved&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;Reserved by the system&lt;/dt&gt;&lt;dd&gt;5.0 GB, kept back by the filesystem so the system keeps working if the disk fills up&lt;/dd&gt;
+&lt;/dl&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
+      
       <section id="tables">
         <h2>Tables</h2>
         <p class="hint">For short lists of technical facts, such as DNS records. Prefer rows (above) for things people act on.</p>
@@ -1074,13 +1244,13 @@
   <a href="/settings" class="settings-home">All settings</a>
   
   <p class="settings-group">Lab</p>
-  <a href="/settings/lab">Lab name</a>
+  <a href="/settings/lab">Lab name</a><a href="/settings/history">History</a>
   
   <p class="settings-group">People and access</p>
-  <a href="/settings/people">People</a>
+  <a href="/settings/people">People</a><a href="/settings/email">Email</a>
   
   <p class="settings-group">Network</p>
-  <a href="/settings/domain">Domain and certificates</a><a href="/settings/home-network">Home network</a><a href="/settings/public">Public access</a>
+  <a href="/settings/domain">Your lab&#39;s address</a><a href="/settings/home-network">Where it is and DNS</a><a href="/settings/public">Public access</a><a href="/settings/cloud">Roostack Cloud</a>
   
   <p class="settings-group">Servers</p>
   <a href="/settings/servers">Servers</a><a href="/settings/storage">Storage for others</a>
@@ -1095,13 +1265,13 @@
   <a href="/settings" class="settings-home">All settings</a>
   
   <p class="settings-group">Lab</p>
-  <a href="/settings/lab">Lab name</a>
+  <a href="/settings/lab">Lab name</a><a href="/settings/history">History</a>
   
   <p class="settings-group">People and access</p>
-  <a href="/settings/people">People</a>
+  <a href="/settings/people">People</a><a href="/settings/email">Email</a>
   
   <p class="settings-group">Network</p>
-  <a href="/settings/domain">Domain and certificates</a><a href="/settings/home-network">Home network</a><a href="/settings/public">Public access</a>
+  <a href="/settings/domain">Your lab&#39;s address</a><a href="/settings/home-network">Where it is and DNS</a><a href="/settings/public">Public access</a><a href="/settings/cloud">Roostack Cloud</a>
   
   <p class="settings-group">Servers</p>
   <a href="/settings/servers">Servers</a><a href="/settings/storage">Storage for others</a>
@@ -1116,12 +1286,12 @@
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
-            <pre class="output">{{template &#34;settings-nav&#34; .Settings}}</pre>
+            <pre class="output">{{template &#34;area-nav&#34; .Settings}}</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;nav class=&#34;settings-nav&#34; aria-label=&#34;Settings&#34;&gt;&lt;a href=&#34;/settings&#34; class=&#34;settings-home&#34;&gt;All settings&lt;/a&gt;
-  &lt;p class=&#34;settings-group&#34;&gt;Lab&lt;/p&gt;&lt;a href=&#34;/settings/lab&#34;&gt;Lab name&lt;/a&gt;
-  &lt;p class=&#34;settings-group&#34;&gt;People and access&lt;/p&gt;&lt;a href=&#34;/settings/people&#34;&gt;People&lt;/a&gt;
-  &lt;p class=&#34;settings-group&#34;&gt;Network&lt;/p&gt;&lt;a href=&#34;/settings/domain&#34;&gt;Domain and certificates&lt;/a&gt;&lt;a href=&#34;/settings/home-network&#34;&gt;Home network&lt;/a&gt;&lt;a href=&#34;/settings/public&#34;&gt;Public access&lt;/a&gt;
+  &lt;p class=&#34;settings-group&#34;&gt;Lab&lt;/p&gt;&lt;a href=&#34;/settings/lab&#34;&gt;Lab name&lt;/a&gt;&lt;a href=&#34;/settings/history&#34;&gt;History&lt;/a&gt;
+  &lt;p class=&#34;settings-group&#34;&gt;People and access&lt;/p&gt;&lt;a href=&#34;/settings/people&#34;&gt;People&lt;/a&gt;&lt;a href=&#34;/settings/email&#34;&gt;Email&lt;/a&gt;
+  &lt;p class=&#34;settings-group&#34;&gt;Network&lt;/p&gt;&lt;a href=&#34;/settings/domain&#34;&gt;Your lab&amp;#39;s address&lt;/a&gt;&lt;a href=&#34;/settings/home-network&#34;&gt;Where it is and DNS&lt;/a&gt;&lt;a href=&#34;/settings/public&#34;&gt;Public access&lt;/a&gt;&lt;a href=&#34;/settings/cloud&#34;&gt;Roostack Cloud&lt;/a&gt;
   &lt;p class=&#34;settings-group&#34;&gt;Servers&lt;/p&gt;&lt;a href=&#34;/settings/servers&#34;&gt;Servers&lt;/a&gt;&lt;a href=&#34;/settings/storage&#34;&gt;Storage for others&lt;/a&gt;
   &lt;p class=&#34;settings-group&#34;&gt;Each server&lt;/p&gt;&lt;a href=&#34;/settings/updates&#34; class=&#34;active&#34; aria-current=&#34;page&#34;&gt;Updates and restarts&lt;/a&gt;&lt;a href=&#34;/settings/time-zone&#34;&gt;Time zone&lt;/a&gt;&lt;a href=&#34;/settings/remote-access&#34;&gt;Remote access&lt;/a&gt;&lt;a href=&#34;/backups&#34;&gt;Backups&lt;/a&gt;
 &lt;/nav&gt;</pre>
@@ -1145,7 +1315,7 @@
 <p class="activity-status running"
   >
   <span class="spinner" aria-hidden="true"></span> OS updates: Installing updates…
-    <small>started today 02:00</small>
+    <small>started today 09:00</small>
   
 </p>
 
@@ -1166,7 +1336,7 @@ Unpacking curl (8.14.1-2&#43;deb13u5) ...
 <p class="activity-status running"
   >
   <span class="spinner" aria-hidden="true"></span> OS updates: Installing updates…
-    <small>started today 02:00</small>
+    <small>started today 09:00</small>
   
 </p>
 
@@ -1190,7 +1360,7 @@ Unpacking curl (8.14.1-2&#43;deb13u5) ...
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;div class=&#34;activity&#34;&gt;
   &lt;p class=&#34;activity-status running&#34;
-  &gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;OS updates: Installing updates…&lt;small&gt;started today 02:00&lt;/small&gt;
+  &gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;OS updates: Installing updates…&lt;small&gt;started today 09:00&lt;/small&gt;
   &lt;/p&gt;
   &lt;details class=&#34;activity-details&#34;&gt;
     &lt;summary&gt;Details&lt;/summary&gt;
@@ -1213,7 +1383,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
   
 <p class="activity-status ok"
   >
-  ✓ OS updates finished today 02:00: Installed 3 updates: curl, libcurl4t64, tzdata.
+  ✓ OS updates finished today 09:00: Installed 3 updates: curl, libcurl4t64, tzdata.
 </p>
 
   <details class="activity-details">
@@ -1232,7 +1402,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
   
 <p class="activity-status ok"
   >
-  ✓ OS updates finished today 02:00: Installed 3 updates: curl, libcurl4t64, tzdata.
+  ✓ OS updates finished today 09:00: Installed 3 updates: curl, libcurl4t64, tzdata.
 </p>
 
   <details class="activity-details">
@@ -1255,7 +1425,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;div class=&#34;activity&#34;&gt;
   &lt;p class=&#34;activity-status ok&#34;
-  &gt;✓ OS updates finished today 02:00: Installed 3 updates: curl, libcurl4t64, tzdata.
+  &gt;✓ OS updates finished today 09:00: Installed 3 updates: curl, libcurl4t64, tzdata.
   &lt;/p&gt;
   &lt;details class=&#34;activity-details&#34;&gt;
     &lt;summary&gt;Details&lt;/summary&gt;
@@ -1278,7 +1448,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
   
 <p class="activity-status failed"
   >
-  ✗ OS updates failed today 02:00: exit status 100
+  ✗ OS updates failed today 09:00: exit status 100
   
 </p>
 
@@ -1298,7 +1468,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
   
 <p class="activity-status failed"
   >
-  ✗ OS updates failed today 02:00: exit status 100
+  ✗ OS updates failed today 09:00: exit status 100
   
 </p>
 
@@ -1322,7 +1492,7 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;div class=&#34;activity&#34;&gt;
   &lt;p class=&#34;activity-status failed&#34;
-  &gt;✗ OS updates failed today 02:00: exit status 100
+  &gt;✗ OS updates failed today 09:00: exit status 100
   &lt;/p&gt;
   &lt;details class=&#34;activity-details&#34;&gt;
     &lt;summary&gt;Details&lt;/summary&gt;
@@ -1332,6 +1502,182 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
 &lt;/pre&gt;
   &lt;/details&gt;
 &lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Install steps <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">A new service&#39;s install (node.InstallProgress, in ServiceView.Install): each step done, in progress (with how long so far) or to do. The service page shows every step in a notice; the Services list and Home show one line (install-line).</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="notice" role="status">
+  <p><strong>Installing Forgejo.</strong> This usually takes a few minutes.</p>
+  
+<ol class="install-steps">
+  <li class="step-done"><span class="mark" aria-hidden="true">✓</span>
+    <span>Downloading the database (Postgres)<span class="sr-only"> (done)</span></span>
+    <small>10 s</small></li>
+  <li class="step-done"><span class="mark" aria-hidden="true">✓</span>
+    <span>Starting the database (Postgres)<span class="sr-only"> (done)</span></span>
+    <small>12 s</small></li>
+  <li class="step-now"><span class="mark" aria-hidden="true"><span class="spinner"></span></span>
+    <span>Downloading Forgejo…<span class="sr-only"> (in progress)</span></span>
+    <small></small></li>
+  <li class="step-todo"><span class="mark" aria-hidden="true">○</span>
+    <span>Starting Forgejo<span class="sr-only"> (to do)</span></span>
+    <small></small></li>
+  <li class="step-todo"><span class="mark" aria-hidden="true">○</span>
+    <span>Finishing setup (create the administrator account)<span class="sr-only"> (to do)</span></span>
+    <small></small></li>
+</ol>
+
+</div>
+<p class="install-line"><span class="spinner" aria-hidden="true"></span> Step 3 of 5: downloading Forgejo…</p></div>
+            <div class="panel" data-mode="dark"><div class="notice" role="status">
+  <p><strong>Installing Forgejo.</strong> This usually takes a few minutes.</p>
+  
+<ol class="install-steps">
+  <li class="step-done"><span class="mark" aria-hidden="true">✓</span>
+    <span>Downloading the database (Postgres)<span class="sr-only"> (done)</span></span>
+    <small>10 s</small></li>
+  <li class="step-done"><span class="mark" aria-hidden="true">✓</span>
+    <span>Starting the database (Postgres)<span class="sr-only"> (done)</span></span>
+    <small>12 s</small></li>
+  <li class="step-now"><span class="mark" aria-hidden="true"><span class="spinner"></span></span>
+    <span>Downloading Forgejo…<span class="sr-only"> (in progress)</span></span>
+    <small></small></li>
+  <li class="step-todo"><span class="mark" aria-hidden="true">○</span>
+    <span>Starting Forgejo<span class="sr-only"> (to do)</span></span>
+    <small></small></li>
+  <li class="step-todo"><span class="mark" aria-hidden="true">○</span>
+    <span>Finishing setup (create the administrator account)<span class="sr-only"> (to do)</span></span>
+    <small></small></li>
+</ol>
+
+</div>
+<p class="install-line"><span class="spinner" aria-hidden="true"></span> Step 3 of 5: downloading Forgejo…</p></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;div class=&#34;notice&#34; role=&#34;status&#34;&gt;
+  &lt;p&gt;&lt;strong&gt;Installing Forgejo.&lt;/strong&gt; This usually takes a few minutes.&lt;/p&gt;
+  {{template &#34;install-steps&#34; .Install}}
+&lt;/div&gt;
+{{template &#34;install-line&#34; .InstallService}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;div class=&#34;notice&#34; role=&#34;status&#34;&gt;
+  &lt;p&gt;&lt;strong&gt;Installing Forgejo.&lt;/strong&gt;This usually takes a few minutes.&lt;/p&gt;
+  &lt;ol class=&#34;install-steps&#34;&gt;
+    &lt;li class=&#34;step-done&#34;&gt;&lt;span class=&#34;mark&#34; aria-hidden=&#34;true&#34;&gt;✓&lt;/span&gt;&lt;span&gt;Downloading the database (Postgres)&lt;span class=&#34;sr-only&#34;&gt;(done)&lt;/span&gt;&lt;/span&gt;&lt;small&gt;10 s&lt;/small&gt;&lt;/li&gt;
+    &lt;li class=&#34;step-done&#34;&gt;&lt;span class=&#34;mark&#34; aria-hidden=&#34;true&#34;&gt;✓&lt;/span&gt;&lt;span&gt;Starting the database (Postgres)&lt;span class=&#34;sr-only&#34;&gt;(done)&lt;/span&gt;&lt;/span&gt;&lt;small&gt;12 s&lt;/small&gt;&lt;/li&gt;
+    &lt;li class=&#34;step-now&#34;&gt;&lt;span class=&#34;mark&#34; aria-hidden=&#34;true&#34;&gt;&lt;span class=&#34;spinner&#34;&gt;&lt;/span&gt;&lt;/span&gt;&lt;span&gt;Downloading Forgejo…&lt;span class=&#34;sr-only&#34;&gt;(in progress)&lt;/span&gt;&lt;/span&gt;&lt;small&gt;&lt;/small&gt;&lt;/li&gt;
+    &lt;li class=&#34;step-todo&#34;&gt;&lt;span class=&#34;mark&#34; aria-hidden=&#34;true&#34;&gt;○&lt;/span&gt;&lt;span&gt;Starting Forgejo&lt;span class=&#34;sr-only&#34;&gt;(to do)&lt;/span&gt;&lt;/span&gt;&lt;small&gt;&lt;/small&gt;&lt;/li&gt;
+    &lt;li class=&#34;step-todo&#34;&gt;&lt;span class=&#34;mark&#34; aria-hidden=&#34;true&#34;&gt;○&lt;/span&gt;&lt;span&gt;Finishing setup (create the administrator account)&lt;span class=&#34;sr-only&#34;&gt;(to do)&lt;/span&gt;&lt;/span&gt;&lt;small&gt;&lt;/small&gt;&lt;/li&gt;
+  &lt;/ol&gt;
+&lt;/div&gt;
+&lt;p class=&#34;install-line&#34;&gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;Step 3 of 5: downloading Forgejo…&lt;/p&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
+      
+      <section id="statistics">
+        <h2>Statistics</h2>
+        <p class="hint">Counts over time, such as visitors through Roostack Cloud&#39;s relay. Heights and widths go through data-height and data-width (app.js), as style attributes are blocked.</p>
+        
+        <div class="example">
+          <h3>Figures <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">dl.stat-tiles: a few totals, each a dt and dd, with an optional dd.hint.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><dl class="stat-tiles">
+  <div><dt>Visitors</dt><dd>1,284</dd></div>
+  <div><dt>Data</dt><dd>3.2 GB</dd><dd class="hint">2.9 GB to visitors</dd></div>
+</dl></div>
+            <div class="panel" data-mode="dark"><dl class="stat-tiles">
+  <div><dt>Visitors</dt><dd>1,284</dd></div>
+  <div><dt>Data</dt><dd>3.2 GB</dd><dd class="hint">2.9 GB to visitors</dd></div>
+</dl></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;dl class=&#34;stat-tiles&#34;&gt;
+  &lt;div&gt;&lt;dt&gt;Visitors&lt;/dt&gt;&lt;dd&gt;1,284&lt;/dd&gt;&lt;/div&gt;
+  &lt;div&gt;&lt;dt&gt;Data&lt;/dt&gt;&lt;dd&gt;3.2 GB&lt;/dd&gt;&lt;dd class=&#34;hint&#34;&gt;2.9 GB to visitors&lt;/dd&gt;&lt;/div&gt;
+&lt;/dl&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Bar chart <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">template &#34;bar-chart&#34; with a barChart: a caption and a column a period, its label under it (may be empty) and the exact figure on hover and for screen readers.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><figure class="bar-chart">
+  <figcaption>Visitors each day</figcaption>
+  <div class="bar-cols"><div class="bar-col" title="40 visitors"><span class="bar" data-height="42"></span><span class="bar-label" aria-hidden="true">Tue</span><span class="sr-only">40 visitors</span></div><div class="bar-col" title="55 visitors"><span class="bar" data-height="57"></span><span class="bar-label" aria-hidden="true">Wed</span><span class="sr-only">55 visitors</span></div><div class="bar-col" title="48 visitors"><span class="bar" data-height="50"></span><span class="bar-label" aria-hidden="true">Thu</span><span class="sr-only">48 visitors</span></div><div class="bar-col" title="70 visitors"><span class="bar" data-height="73"></span><span class="bar-label" aria-hidden="true">Fri</span><span class="sr-only">70 visitors</span></div><div class="bar-col" title="95 visitors"><span class="bar" data-height="100"></span><span class="bar-label" aria-hidden="true">Sat</span><span class="sr-only">95 visitors</span></div><div class="bar-col" title="62 visitors"><span class="bar" data-height="65"></span><span class="bar-label" aria-hidden="true">Sun</span><span class="sr-only">62 visitors</span></div><div class="bar-col" title="35 visitors"><span class="bar" data-height="36"></span><span class="bar-label" aria-hidden="true">Today</span><span class="sr-only">35 visitors</span></div></div>
+</figure></div>
+            <div class="panel" data-mode="dark"><figure class="bar-chart">
+  <figcaption>Visitors each day</figcaption>
+  <div class="bar-cols"><div class="bar-col" title="40 visitors"><span class="bar" data-height="42"></span><span class="bar-label" aria-hidden="true">Tue</span><span class="sr-only">40 visitors</span></div><div class="bar-col" title="55 visitors"><span class="bar" data-height="57"></span><span class="bar-label" aria-hidden="true">Wed</span><span class="sr-only">55 visitors</span></div><div class="bar-col" title="48 visitors"><span class="bar" data-height="50"></span><span class="bar-label" aria-hidden="true">Thu</span><span class="sr-only">48 visitors</span></div><div class="bar-col" title="70 visitors"><span class="bar" data-height="73"></span><span class="bar-label" aria-hidden="true">Fri</span><span class="sr-only">70 visitors</span></div><div class="bar-col" title="95 visitors"><span class="bar" data-height="100"></span><span class="bar-label" aria-hidden="true">Sat</span><span class="sr-only">95 visitors</span></div><div class="bar-col" title="62 visitors"><span class="bar" data-height="65"></span><span class="bar-label" aria-hidden="true">Sun</span><span class="sr-only">62 visitors</span></div><div class="bar-col" title="35 visitors"><span class="bar" data-height="36"></span><span class="bar-label" aria-hidden="true">Today</span><span class="sr-only">35 visitors</span></div></div>
+</figure></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;bar-chart&#34; .Chart}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;figure class=&#34;bar-chart&#34;&gt;&lt;figcaption&gt;Visitors each day&lt;/figcaption&gt;
+&lt;div class=&#34;bar-cols&#34;&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;40 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;42&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Tue&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;40 visitors&lt;/span&gt;&lt;/div&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;55 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;57&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Wed&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;55 visitors&lt;/span&gt;&lt;/div&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;48 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;50&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Thu&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;48 visitors&lt;/span&gt;&lt;/div&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;70 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;73&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Fri&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;70 visitors&lt;/span&gt;&lt;/div&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;95 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;100&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Sat&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;95 visitors&lt;/span&gt;&lt;/div&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;62 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;65&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Sun&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;62 visitors&lt;/span&gt;&lt;/div&gt;
+  &lt;div class=&#34;bar-col&#34; title=&#34;35 visitors&#34;&gt;&lt;span class=&#34;bar&#34; data-height=&#34;36&#34;&gt;&lt;/span&gt;&lt;span class=&#34;bar-label&#34; aria-hidden=&#34;true&#34;&gt;Today&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt;35 visitors&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;/figure&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Ranked list <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">template &#34;rank-list&#34; with []rankView: names, a bar for each one&#39;s share of the largest, the count; the rest (Other) muted.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><ul class="rank-list"><li><span class="rank-name">Australia</span><span class="rank-bar" aria-hidden="true"><span data-width="100"></span></span><span class="rank-count">1,130</span></li><li><span class="rank-name">New Zealand</span><span class="rank-bar" aria-hidden="true"><span data-width="8"></span></span><span class="rank-count">96</span></li><li><span class="rank-name">United Kingdom</span><span class="rank-bar" aria-hidden="true"><span data-width="3"></span></span><span class="rank-count">41</span></li><li class="rank-other"><span class="rank-name">Elsewhere</span><span class="rank-bar" aria-hidden="true"><span data-width="1"></span></span><span class="rank-count">17</span></li></ul></div>
+            <div class="panel" data-mode="dark"><ul class="rank-list"><li><span class="rank-name">Australia</span><span class="rank-bar" aria-hidden="true"><span data-width="100"></span></span><span class="rank-count">1,130</span></li><li><span class="rank-name">New Zealand</span><span class="rank-bar" aria-hidden="true"><span data-width="8"></span></span><span class="rank-count">96</span></li><li><span class="rank-name">United Kingdom</span><span class="rank-bar" aria-hidden="true"><span data-width="3"></span></span><span class="rank-count">41</span></li><li class="rank-other"><span class="rank-name">Elsewhere</span><span class="rank-bar" aria-hidden="true"><span data-width="1"></span></span><span class="rank-count">17</span></li></ul></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{template &#34;rank-list&#34; .Ranks}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;ul class=&#34;rank-list&#34;&gt;
+  &lt;li&gt;&lt;span class=&#34;rank-name&#34;&gt;Australia&lt;/span&gt;&lt;span class=&#34;rank-bar&#34; aria-hidden=&#34;true&#34;&gt;&lt;span data-width=&#34;100&#34;&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;rank-count&#34;&gt;1,130&lt;/span&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;span class=&#34;rank-name&#34;&gt;New Zealand&lt;/span&gt;&lt;span class=&#34;rank-bar&#34; aria-hidden=&#34;true&#34;&gt;&lt;span data-width=&#34;8&#34;&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;rank-count&#34;&gt;96&lt;/span&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;span class=&#34;rank-name&#34;&gt;United Kingdom&lt;/span&gt;&lt;span class=&#34;rank-bar&#34; aria-hidden=&#34;true&#34;&gt;&lt;span data-width=&#34;3&#34;&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;rank-count&#34;&gt;41&lt;/span&gt;&lt;/li&gt;
+  &lt;li class=&#34;rank-other&#34;&gt;&lt;span class=&#34;rank-name&#34;&gt;Elsewhere&lt;/span&gt;&lt;span class=&#34;rank-bar&#34; aria-hidden=&#34;true&#34;&gt;&lt;span data-width=&#34;1&#34;&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;rank-count&#34;&gt;17&lt;/span&gt;&lt;/li&gt;
+&lt;/ul&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Choice of period <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">nav.period-choice: links, the current one with aria-current.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><nav class="period-choice" aria-label="How far back"><a href="#">Today</a><a href="#" aria-current="true">7 days</a><a href="#">30 days</a></nav></div>
+            <div class="panel" data-mode="dark"><nav class="period-choice" aria-label="How far back"><a href="#">Today</a><a href="#" aria-current="true">7 days</a><a href="#">30 days</a></nav></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;nav class=&#34;period-choice&#34; aria-label=&#34;How far back&#34;&gt;&lt;a href=&#34;#&#34;&gt;Today&lt;/a&gt;&lt;a href=&#34;#&#34; aria-current=&#34;true&#34;&gt;7 days&lt;/a&gt;&lt;a href=&#34;#&#34;&gt;30 days&lt;/a&gt;&lt;/nav&gt;</pre>
             
           </details>
         </div>
@@ -1353,6 +1699,35 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
             <summary>Markup</summary>
             
             <pre class="output">&lt;code class=&#34;secret&#34;&gt;EXAMPLE-ONLY-NOT-REAL&lt;/code&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Copy box <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">copyBox TEXT: something people copy and send or paste elsewhere (an invite, a command), with a Copy button.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="copy-box" x-data="{ copied: false }">
+  <pre class="output" x-ref="text">sudo roostack node join EXAMPLE-ONLY-NOT-REAL</pre>
+  <button type="button" class="secondary" x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+    ><span x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+</div></div>
+            <div class="panel" data-mode="dark"><div class="copy-box" x-data="{ copied: false }">
+  <pre class="output" x-ref="text">sudo roostack node join EXAMPLE-ONLY-NOT-REAL</pre>
+  <button type="button" class="secondary" x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+    ><span x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+</div></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{copyBox &#34;sudo roostack node join EXAMPLE-ONLY-NOT-REAL&#34;}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;div class=&#34;copy-box&#34; x-data=&#34;{ copied: false }&#34;&gt;
+  &lt;pre class=&#34;output&#34; x-ref=&#34;text&#34;&gt;sudo roostack node join EXAMPLE-ONLY-NOT-REAL&lt;/pre&gt;
+  &lt;button type=&#34;button&#34; class=&#34;secondary&#34; x-on:click=&#34;roostackCopy($refs.text).then(() =&gt;{ copied = true; setTimeout(() =&gt; copied = false, 2000) })&#34; &gt;&lt;span x-text=&#34;copied ? &#39;Copied&#39; : &#39;Copy&#39;&#34;&gt;Copy&lt;/span&gt;&lt;/button&gt;
+&lt;/div&gt;</pre>
             
           </details>
         </div>

@@ -2,16 +2,21 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/public"
 )
 
@@ -36,6 +41,9 @@ func (f *fakeManager) SetPublic(_ context.Context, name string, req manager.Publ
 	}
 	f.publicReqs = append(f.publicReqs, req)
 	f.access[0].Public = req.Public
+	for i, pp := range f.access[0].PrivatePaths {
+		f.access[0].PrivatePaths[i].Open = req.Public && slices.Contains(req.OpenPaths, pp.Path)
+	}
 	return nil
 }
 
@@ -51,6 +59,84 @@ func (f *fakeManager) SignalSharing() (bool, bool) { return f.sharingAsked, f.sh
 func (f *fakeManager) SetSignalSharing(share bool) error {
 	f.sharingAsked, f.share = true, share
 	return nil
+}
+
+func (f *fakeManager) EdgeServers(context.Context) []manager.EdgeServer { return f.edges }
+
+func (f *fakeManager) Edge(context.Context) (manager.EdgeServer, bool) {
+	for _, e := range f.edges {
+		if e.ID == f.edge {
+			return e, true
+		}
+	}
+	return manager.EdgeServer{ID: f.edge}, f.edge != ""
+}
+
+func (f *fakeManager) RelayOn() bool { return f.relay }
+
+func (f *fakeManager) Countries() config.Countries { return f.countries }
+
+func (f *fakeManager) CheckRelay(context.Context) error { f.relayChecks++; return f.relayErr }
+
+func (f *fakeManager) SetCountries(_ context.Context, c config.Countries) error {
+	if f.relayErr != nil {
+		return f.relayErr
+	}
+	f.countries = c
+	return nil
+}
+
+func (f *fakeManager) SetRelay(_ context.Context, on bool) error {
+	if on && f.relayErr != nil {
+		return f.relayErr
+	}
+	f.relay = on
+	if on {
+		f.edge = ""
+	}
+	return nil
+}
+
+func (f *fakeManager) SetEdge(_ context.Context, id string) error {
+	if id != "" && !slices.ContainsFunc(f.edges, func(e manager.EdgeServer) bool { return e.ID == id }) {
+		return &manager.FormError{Msg: "That server can't be the way in."}
+	}
+	f.edge = id
+	return nil
+}
+
+// TestPublicEdge: at home, the Owner chooses how visitors come in: port
+// forwarding, or through a cloud server in the lab; records then say they
+// point at it, and a missing edge is called out.
+func TestPublicEdge(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	if _, body := h.get("/settings/public"); strings.Contains(body, "How people reach your public services") {
+		t.Error("offered a way in without a cloud server")
+	}
+	fm.edges = []manager.EdgeServer{{ID: "n-0000000002", Name: "vps-sydney", Address: "172.105.165.39"}}
+	_, body := h.get("/settings/public")
+	for _, want := range []string{"How people reach your public services", `value="" required checked`, "Through vps-sydney, a cloud server in this lab",
+		"<code>172.105.165.39</code>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %q", want)
+		}
+	}
+	if code, _ := h.post("/settings/public/edge", url.Values{"edge": {"n-0000000099"}}, h.srv.URL); code != http.StatusBadRequest {
+		t.Errorf("a server that can't be the edge: %d", code)
+	}
+	_, body = h.post("/settings/public/edge", url.Values{"edge": {"n-0000000002"}}, h.srv.URL)
+	if fm.edge != "n-0000000002" || !strings.Contains(body, `value="n-0000000002" checked`) || !strings.Contains(body, "Saved. Public addresses follow") {
+		t.Errorf("choosing the edge: edge %q", fm.edge)
+	}
+	// The edge gone from the lab's network: said so.
+	fm.edges = nil
+	if _, body := h.get("/settings/public"); !strings.Contains(body, "n-0000000002 isn't connected to the lab now") {
+		t.Error("a missing edge isn't called out")
+	}
+	h.post("/settings/public/edge", url.Values{"edge": {""}}, h.srv.URL)
+	if fm.edge != "" {
+		t.Error("back to port forwarding")
+	}
 }
 
 // The Owner makes an address public (SPEC.md §6.11): a warning, the
@@ -72,7 +158,8 @@ func TestMakePublic(t *testing.T) {
 		t.Fatal("the service page should say who can reach it, with a way to make it public")
 	}
 	_, body := h.get("/services/vaultwarden/public/web")
-	for _, want := range []string{"anyone on the internet", "Share attack reports", `name="open" value="/admin"`, "Vaultwarden&#39;s admin panel."} {
+	for _, want := range []string{"anyone on the internet", "Share attack reports", `name="open" value="/admin"`, "Vaultwarden&#39;s admin panel.",
+		"Make passwords.lab.example.com public? Anyone on the internet will be able to reach it."} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the page should show %q", want)
 		}
@@ -91,10 +178,21 @@ func TestMakePublic(t *testing.T) {
 	}
 
 	_, body = h.get("/services/vaultwarden/public/web")
-	for _, want := range []string{"CrowdSec is running", "points at 81.2.69.160", "192.168.1.20", "Make a check link", "Make private"} {
+	for _, want := range []string{"CrowdSec is running", "points at 81.2.69.160", "192.168.1.20", "Make a check link",
+		`<button type="button" class="quiet danger"`, `<button type="submit" class="danger">Make private</button>`,
+		"Parts kept private", `name="open" value="/admin" >`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the checklist should show %q", want)
 		}
+	}
+	// While it's public, the private parts can be opened (and closed).
+	h.post("/services/vaultwarden/public/web", url.Values{"public": {"on"}, "open": {"/admin"}}, h.srv.URL)
+	if req := fm.publicReqs[len(fm.publicReqs)-1]; !req.Public || !slices.Equal(req.OpenPaths, []string{"/admin"}) {
+		t.Errorf("opening /admin: %+v", req)
+	}
+	if _, body := h.get("/services/vaultwarden/public/web"); !strings.Contains(body, `value="/admin" checked`) ||
+		!strings.Contains(body, "(public now)") {
+		t.Error("an opened part shows as public")
 	}
 	h.post("/services/vaultwarden/public/web/check", nil, h.srv.URL)
 	_, body = h.get("/services/vaultwarden/public/web")
@@ -177,6 +275,8 @@ func TestPublicSettings(t *testing.T) {
 	}
 	if _, body := h.get("/settings/public"); !strings.Contains(body, "Nothing is public") || !strings.Contains(body, "Not chosen yet") {
 		t.Error("public settings page")
+	} else if strings.Contains(body, `name="share" value="yes" required checked`) || strings.Contains(body, `value="no" checked`) {
+		t.Error("nothing is ticked until the Owner chooses")
 	}
 	h.post("/settings/public/sharing", url.Values{"share": {"no"}}, h.srv.URL)
 	if !fm.sharingAsked || fm.share {
@@ -184,5 +284,111 @@ func TestPublicSettings(t *testing.T) {
 	}
 	if status, _ := h.post("/settings/public/sharing", url.Values{"share": {"maybe"}}, h.srv.URL); status != http.StatusBadRequest {
 		t.Errorf("a bad answer: %d", status)
+	}
+}
+
+// TestEdgeDown: with visitors coming in through a cloud server that isn't
+// connected, public services are down from outside, and that's a problem
+// to fix; connected, nothing to say.
+func TestEdgeDown(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.access = []manager.RouteAccess{{Host: "photos.smith.family", Public: true}}
+	fm.edges = []manager.EdgeServer{{ID: "n-0000000002", Name: "vps-sydney", Address: "172.105.165.39"}}
+	fm.edge = "n-0000000002"
+	this := manager.Server{ID: "n-0123456789", Name: "nuc", Controller: true, This: true, Reachable: true}
+	vps := manager.Server{ID: "n-0000000002", Name: "vps-sydney", Reachable: true}
+	fm.servers = []manager.Server{this, vps}
+	if _, body := h.get("/"); strings.Contains(body, "Public services can&#39;t be reached") {
+		t.Error("a connected edge called out")
+	}
+	vps.Reachable = false
+	vps.Status = manager.ApplyStatus{Finished: true, LastErr: fmt.Errorf("Roostack can't reach vps-sydney: %w", node.ErrUnreachable)}
+	fm.servers = []manager.Server{this, vps}
+	if _, body := h.get("/"); !strings.Contains(body, "Public services can&#39;t be reached from the internet: visitors come in through vps-sydney") ||
+		!strings.Contains(body, `href="/settings/public#way-in"`) {
+		t.Error("an edge that isn't connected isn't called out")
+	}
+}
+
+// TestPublicRelay: a lab linked to Roostack Cloud, with its roost.ac name
+// as its address, can have visitors come in through the relay; Cloud's
+// refusal is shown, and choosing port forwarding again turns it off.
+func TestPublicRelay(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	if _, body := h.get("/settings/public"); strings.Contains(body, "Roostack Cloud&#39;s relay") || strings.Contains(body, "Roostack Cloud's relay") {
+		t.Error("the relay offered without Cloud")
+	}
+	link, f := newCloudWith(t)
+	h.server.Cloud = link
+	link.UseName = func(context.Context, cloudapi.NameClaim) error { return nil }
+	if _, err := link.Start(context.Background(), "", ""); err != nil {
+		t.Fatal(err)
+	}
+	f.Confirm(link.Status().Waiting.Code)
+	for i := 0; i < 200 && !link.Status().Linked; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := link.ClaimName(context.Background(), "smiths"); err != nil {
+		t.Fatal(err)
+	}
+	h.server.Domain = "smiths.roost.test"
+	_, body := h.get("/settings/public")
+	if !strings.Contains(body, "Through Roostack Cloud's relay") || !strings.Contains(body, `value="cloud"`) {
+		t.Fatal("the relay isn't offered to a linked lab with its roost.ac name")
+	}
+	fm.relayErr = &manager.FormError{Msg: "Roostack Cloud's relay isn't open for this account yet."}
+	if _, body := h.post("/settings/public/edge", url.Values{"edge": {"cloud"}}, h.srv.URL); !strings.Contains(body, "isn&#39;t open for this account") || fm.relay {
+		t.Error("Cloud's refusal isn't shown")
+	}
+	fm.relayErr = nil
+	if _, body := h.post("/settings/public/edge", url.Values{"edge": {"cloud"}}, h.srv.URL); !fm.relay || !strings.Contains(body, `value="cloud" checked`) {
+		t.Error("choosing the relay")
+	}
+	h.post("/settings/public/edge", url.Values{"edge": {""}}, h.srv.URL)
+	if fm.relay {
+		t.Error("port forwarding didn't turn the relay off")
+	}
+}
+
+// TestPublicCountries: while relayed, the Owner chooses who can visit by
+// country, and can let everyone in for a while (travel) and end it.
+func TestPublicCountries(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	if _, body := h.get("/settings/public"); strings.Contains(body, "Visitors by country") {
+		t.Error("countries offered without the relay")
+	}
+	fm.relay = true
+	_, body := h.get("/settings/public")
+	if !strings.Contains(body, "Visitors by country") || !strings.Contains(body, `<option value="NZ" >New Zealand</option>`) {
+		t.Fatalf("no countries card:\n%s", body)
+	}
+	if _, body := h.post("/settings/public/countries", url.Values{"mode": {"allow"}}, h.srv.URL); !strings.Contains(body, "Choose at least one country") {
+		t.Error("allowing no countries")
+	}
+	_, body = h.post("/settings/public/countries", url.Values{"mode": {"allow"}, "countries": {"NZ", "AU", "XX"}}, h.srv.URL)
+	if !slices.Equal(fm.countries.Allow, []string{"AU", "NZ"}) || !strings.Contains(body, `<option value="AU" selected>Australia</option>`) ||
+		!strings.Contains(body, "Let everyone in") {
+		t.Errorf("allowing: %+v", fm.countries)
+	}
+	_, body = h.post("/settings/public/countries/open", url.Values{"action": {"open"}, "days": {"14"}}, h.srv.URL)
+	if until := time.Until(fm.countries.OpenUntil); until < 13*24*time.Hour || !strings.Contains(body, "Everyone can visit until") ||
+		!strings.Contains(body, "only visitors from\n      Australia and New Zealand again") {
+		t.Errorf("opening: %v\n%s", fm.countries.OpenUntil, body)
+	}
+	if code, _ := h.post("/settings/public/countries/open", url.Values{"action": {"open"}, "days": {"400"}}, h.srv.URL); code != 400 {
+		t.Errorf("a year and more: %d", code)
+	}
+	h.post("/settings/public/countries/open", url.Values{"action": {"close"}}, h.srv.URL)
+	if !fm.countries.OpenUntil.IsZero() || len(fm.countries.Allow) != 2 {
+		t.Errorf("closing: %+v", fm.countries)
+	}
+	h.post("/settings/public/countries", url.Values{"mode": {"anyone"}, "countries": {"NZ"}}, h.srv.URL)
+	if fm.countries.Limited() {
+		t.Errorf("anyone: %+v", fm.countries)
+	}
+	fm.countries = config.Countries{}
+	if _, body := h.post("/settings/public/countries", url.Values{"mode": {"block"}, "countries": {"RU"}}, h.srv.URL); !slices.Equal(fm.countries.Block, []string{"RU"}) ||
+		strings.Contains(body, "Everyone can visit until") {
+		t.Errorf("blocking: %+v", fm.countries)
 	}
 }

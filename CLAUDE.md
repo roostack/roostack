@@ -20,6 +20,8 @@ Stack: Go (module `roostack.cloud/roostack`, Go 1.26), Debian 13, rootless Podma
 | [docs/DESIGN.md](docs/DESIGN.md) | The design system: tokens, components, rules | The UI gains a component or token |
 | `NOTES.local.md` | The user's own notes | Never: don't edit or commit it |
 
+**Roostack Cloud** (the hosted service on roost.ac) lives in its own repository. Here, design only what works standalone, without Cloud (e.g. remote access, a lab's own edge), like any feature; mention Cloud's capabilities at a high level at most. Cloud's implementation detail (plans, pricing, edges, accounts, anything sensitive) stays in the Cloud repository.
+
 Docs are part of the change, in the same commit. Write them for a reader new to the project: plain sentences, dates on decisions (`Locked (2026-09-28)`), the reason, and what was considered instead.
 
 ## Working with the user
@@ -51,6 +53,9 @@ Key packages:
 | `web` | Handlers (thin) and templates; business logic stays in the packages above |
 | `backup`, `maintenance`, `osupdate` | restic jobs, the maintenance coordinator (one job at a time, reboot window), OS updates |
 | `labnet`, `labrestore`, `setup`, `store`, `agent` | Lab network and joins, full-lab restore, the first-run wizard, SQLite runtime data, the agent client/server |
+| `authkit` (top level, public) | Passwords (argon2id), tokens, two-factor codes; shared with Cloud, which adds a pepper and sealed secrets |
+| `cloudapi` (top level, public) | The lab ↔ Cloud API contract, imported by Cloud's repository too |
+| `cloud` | The controller's link to Roostack Cloud (linking, its certificate, unlinking); `cloudtest` fakes Cloud's side for tests |
 | `units` | The one size formatter (decimal: 1 GB = 1000³ bytes) |
 
 Where things live on a host: see the table in [README.md](README.md). Paths come from `config.Paths`; never hard-code `/srv/roostack` or `/var/lib/roostack` outside `config`.
@@ -102,7 +107,7 @@ ROOSTACK_VM=1 scripts/dev-vm.sh ssh 'sudo install -m755 ~/roostack/bin/roostack 
   - htmx attributes are inherited: a container with `hx-select`/`hx-swap` needs `hx-disinherit="*"`, or children's requests break.
   - Sizes go through `size`/`bytes` in templates and `units.Bytes` in Go; never format bytes by hand.
 - **Writing (UI, docs, comments):** British English (colour, licence), short plain sentences, no jargon for end users but exact detail one click away ("Details", "Manage", "Tell me more"). Say what happened and what to do next. Name things consistently (the backup plan: "main backup", "backup 3", "extra backup").
-- **Security:** never print or log secrets (setup codes, join codes, recovery keys, passwords, TOTP secrets, API tokens); point to where they are instead. Secrets on disk are written 0600 (`writePrivate`). The agent validates every path and argument it's given.
+- **Security:** never print or log secrets (setup codes, join codes, recovery keys, passwords, TOTP secrets, API tokens); point to where they are instead. The one exception is the first-run setup code, which the installer and log show on purpose (docs/ASSUMPTIONS.md K5). Secrets on disk are written 0600 (`writePrivate`). The agent validates every path and argument it's given.
 
 ## Testing
 

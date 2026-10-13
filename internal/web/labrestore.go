@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
-	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labrestore"
 )
@@ -69,7 +69,7 @@ func (s *Server) restoreSessionOf(r *http.Request) *restoreSession {
 	c, err := r.Cookie(restoreCookie)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err != nil || s.restore == nil || !auth.TokensEqual(c.Value, s.restore.id) {
+	if err != nil || s.restore == nil || !authkit.TokensEqual(c.Value, s.restore.id) {
 		return nil
 	}
 	return s.restore
@@ -101,7 +101,7 @@ func (s *Server) labRestorePage(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/setup/restore/progress")
 		return
 	}
-	data := map[string]any{"Kind": "s3"}
+	data := map[string]any{"Kind": "s3", "Passed": s.setupPassed(r)}
 	s.restoreDrives(r, data)
 	if len(data["Drives"].([]agent.Drive)) > 0 {
 		data["Kind"] = "folder"
@@ -118,17 +118,15 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 			AccessKey: r.FormValue("access_key"), SecretKey: r.FormValue("secret_key")}}
 	key := strings.TrimSpace(r.FormValue("recovery_key"))
 	// Everything typed comes back, except the secrets.
-	data := map[string]any{"Kind": src.Kind, "Folder": src.Folder, "URL": src.URL, "S3": src.S3, "Drive": r.FormValue("drive")}
+	data := map[string]any{"Kind": src.Kind, "Folder": src.Folder, "URL": src.URL, "S3": src.S3, "Drive": r.FormValue("drive"),
+		"Passed": s.setupPassed(r)}
 	s.restoreDrives(r, data)
 	fail := func(msg string) {
 		data["Error"] = msg
 		w.WriteHeader(http.StatusBadRequest)
 		s.render(w, "setup-restore", data)
 	}
-	s.mu.Lock()
-	tokenOK := auth.TokensEqual(strings.TrimSpace(r.FormValue("token")), s.setupToken)
-	s.mu.Unlock()
-	if !tokenOK {
+	if !s.setupPassed(r) {
 		time.Sleep(failedLoginDelay)
 		fail("The setup code is wrong. It is shown in the Roostack log and in /var/lib/roostack/setup-token.")
 		return
@@ -157,7 +155,7 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 		fail(capitalize(err.Error()) + ".")
 		return
 	}
-	id, err := auth.NewToken()
+	id, err := authkit.NewToken()
 	if err != nil {
 		s.serverError(w, err)
 		return

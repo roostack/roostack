@@ -34,7 +34,8 @@ Roostack looks after the whole server. If someone changes it by hand in a
 way that could stop updates or the firewall working, the page lists it
 under **Changes Roostack didn't make**:
 
-- software from outside Debian (extra package sources);
+- software from outside Debian (extra package sources; a cloud provider's
+  own copy of Debian, such as `mirrors.linode.com`, counts as Debian);
 - packages held back from updates, which then don't get security fixes;
 - another firewall, whose rules apply as well as Roostack's;
 - Roostack's own firewall missing.

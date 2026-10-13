@@ -56,6 +56,12 @@ func (c *Client) ApplyFirewall(ctx context.Context, fw Firewall) error {
 	return c.call(ctx, http.MethodPut, "/v1/firewall", fw, nil)
 }
 
+// AllowWireGuardJoin opens WireGuard's port until the firewall is next
+// applied, for a join where the controller dials this server.
+func (c *Client) AllowWireGuardJoin(ctx context.Context) error {
+	return c.call(ctx, http.MethodPost, "/v1/firewall/wireguard-join", nil, nil)
+}
+
 // SetTimezone sets the host's time zone (an IANA name like Europe/Berlin).
 func (c *Client) SetTimezone(ctx context.Context, name string) error {
 	return c.call(ctx, http.MethodPut, "/v1/timezone", map[string]string{"timezone": name}, nil)
@@ -159,6 +165,11 @@ func (c *Client) WireGuardStatus(ctx context.Context, iface string) (WireGuardSt
 	var st WireGuardStatus
 	err := c.call(ctx, http.MethodGet, "/v1/wireguard?interface="+url.QueryEscape(iface), nil, &st)
 	return st, err
+}
+
+// ApplyLinks sets this server's direct links to other servers.
+func (c *Client) ApplyLinks(ctx context.Context, l Links) error {
+	return c.call(ctx, http.MethodPut, "/v1/wireguard/links", l, nil)
 }
 
 // RemoveWireGuard takes one of Roostack's WireGuard interfaces down and

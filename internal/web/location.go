@@ -4,17 +4,19 @@ import (
 	"context"
 	"net/http"
 	"strings"
+
+	"roostack.cloud/roostack/internal/manager"
 )
 
 // Where each server is, for the 3-2-1 checks (SPEC.md §6.9): at home, or
 // somewhere else (a VPS, a relative's house). Roostack can't tell, so the
 // Owner says, once per server. Kept on the controller.
 
-const locationKey = "server-location."
+const locationKey = manager.LocationKey
 
 const (
-	locationHome = "home"
-	locationAway = "away"
+	locationHome = manager.LocationHome
+	locationAway = manager.LocationAway
 )
 
 // serverLocation is where a server is: locationHome, locationAway, or ""
@@ -74,6 +76,8 @@ func (s *Server) locationSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "servers", m.Label()+" is "+map[string]string{locationHome: "at home", locationAway: "away from home"}[loc])
+	// Where a server is decides how its direct links reach it.
+	s.Manager.ApplyBecause("A server's location changed")
 	back := r.FormValue("back")
 	if !strings.HasPrefix(back, "/") || strings.HasPrefix(back, "//") {
 		back = "/settings/servers#server-" + m.ID

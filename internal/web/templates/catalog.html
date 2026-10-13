@@ -10,7 +10,7 @@
         <h2>{{.Title}}</h2>
         <p class="hint">{{.Description}}</p>
       </div>
-      {{if .Installed}}{{badge "Installed"}}
+      {{if .Installed}}<span>{{badge "Installed"}} <a class="button secondary" href="/install/{{.Name}}">Add another…</a></span>
       {{else}}<a class="button" href="/install/{{.Name}}">Install</a>{{end}}
     </li>
     {{else}}

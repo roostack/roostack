@@ -1,0 +1,15 @@
+{{define "title"}}{{.Event.Title}} · History{{end}}
+{{define "content"}}
+<div class="page-top">{{back "/settings/history" "History"}}</div>
+<section class="card">
+  <h1>{{.Event.Title}}</h1>
+  <dl class="facts">
+    <dt>Server</dt><dd>{{.Server}}</dd>
+    <dt>Started</dt><dd>{{when .Event.Started}}</dd>
+    <dt>Finished</dt><dd>{{when .Event.Finished}}</dd>
+    <dt>Result</dt><dd>{{with .Event.Error}}<span class="dot dot-problem" aria-hidden="true"></span>Failed: {{.}}{{else}}<span class="dot dot-ok" aria-hidden="true"></span>Done{{with $.Event.Status}}: {{.}}{{end}}{{end}}</dd>
+  </dl>
+  <pre class="output activity-log">{{range .Lines}}{{.}}
+{{end}}</pre>
+</section>
+{{end}}

@@ -43,14 +43,15 @@ type RestoreResult struct {
 	MovedAside map[string]string
 }
 
-// RestoreService restores a service from a snapshot ("" = the latest).
+// RestoreService restores a service from one of its snapshots ("" = the
+// latest).
 //
 // The service is stopped, its current data directories are moved aside,
 // the snapshot is restored, databases are put back from their dumps, and
-// the service is started again. If the snapshot doesn't contain the
-// service's data, the original directories are put back.
+// the service is started again. If getting the files back fails, the
+// original directories are put back.
 func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, snapshotID string) (*RestoreResult, error) {
-	snap, err := r.pickSnapshot(ctx, snapshotID)
+	snap, err := r.Repo.ServiceSnapshot(ctx, svc.Service, snapshotID)
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +81,14 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 
 	r.Log.Step("Restoring files from the backup")
 	for _, dir := range dirs {
+		if !slices.Contains(snap.Paths, dir) {
+			// It didn't exist when the backup was made (e.g. no media yet),
+			// so it doesn't now either.
+			r.Log.Printf("%s (not in the backup: it was empty)", dir)
+			continue
+		}
 		r.Log.Printf("%s", dir)
 		err := r.Repo.RestoreDir(ctx, snap.ID, dir)
-		if errors.Is(err, ErrNotInSnapshot) {
-			return nil, r.undo(ctx, svc, res, suffix, fmt.Errorf("snapshot %s doesn't contain %s", snap.Short, dir))
-		}
 		if err != nil {
 			return nil, r.undo(ctx, svc, res, suffix, err)
 		}
@@ -103,14 +107,15 @@ func (r *Restorer) RestoreService(ctx context.Context, svc *generate.Output, sna
 	return res, nil
 }
 
-// pickSnapshot finds the requested Roostack snapshot, or the latest.
-func (r *Repo) pickSnapshot(ctx context.Context, id string) (*Snapshot, error) {
-	snaps, err := r.Snapshots(ctx, "roostack")
+// ServiceSnapshot finds a backup of a service by ID, or its latest ("" or
+// "latest").
+func (r *Repo) ServiceSnapshot(ctx context.Context, service, id string) (*Snapshot, error) {
+	snaps, err := r.Snapshots(ctx, TagRoostack, ServiceTag(service))
 	if err != nil {
 		return nil, err
 	}
 	if len(snaps) == 0 {
-		return nil, errors.New("there are no backups yet")
+		return nil, fmt.Errorf("there's no backup of %s yet", service)
 	}
 	slices.SortFunc(snaps, func(a, b Snapshot) int { return a.Time.Compare(b.Time) })
 	if id == "" || id == "latest" {
@@ -122,10 +127,6 @@ func (r *Repo) pickSnapshot(ctx context.Context, id string) (*Snapshot, error) {
 		}
 	}
 	return nil, fmt.Errorf("no backup with ID %q", id)
-}
-
-func (r *Restorer) pickSnapshot(ctx context.Context, id string) (*Snapshot, error) {
-	return r.Repo.pickSnapshot(ctx, id)
 }
 
 // undo puts the original data back after a failed restore and starts the
@@ -218,21 +219,6 @@ const (
 	keptFailed     = ".failed-restore-"
 	keptTimeLayout = "20060102-150405"
 )
-
-// SnapshotsFor returns the snapshots that contain all of a service's
-// backed-up directories, newest first.
-func SnapshotsFor(snaps []Snapshot, svc *generate.Output) []Snapshot {
-	var out []Snapshot
-	for _, s := range snaps {
-		if len(svc.Backup.Include) > 0 && !slices.ContainsFunc(svc.Backup.Include, func(dir string) bool {
-			return !slices.Contains(s.Paths, dir)
-		}) {
-			out = append(out, s)
-		}
-	}
-	slices.SortFunc(out, func(a, b Snapshot) int { return b.Time.Compare(a.Time) })
-	return out
-}
 
 // KeptCopy is a directory a restore left behind.
 type KeptCopy struct {

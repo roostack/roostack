@@ -180,7 +180,7 @@ func TestDuplicateHostname(t *testing.T) {
 func TestAdminHostnameReserved(t *testing.T) {
 	lab := newLab(t)
 	writeFile(t, filepath.Join(lab.Paths.InstancesDir(), "vaultwarden.yaml"),
-		"package: vaultwarden\nversion: 1.34.3-roostack.1\nroutes:\n  web: { subdomain: roostack, port: 20001 }\n")
+		"package: vaultwarden\nversion: 1.34.3-roostack.1\nroutes:\n  web: { subdomain: roost, port: 20001 }\n")
 	services, err := LoadServices(lab)
 	if err != nil {
 		t.Fatal(err)

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/setup"
@@ -45,7 +46,7 @@ func TestKeyChangePages(t *testing.T) {
 	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}})
 	u, _ := h.store.UserByUsername(context.Background(), "u")
 	code := func(step int) string {
-		c, _ := auth.TOTPCode(u.TOTPSecret, nowFunc().Add(time.Duration(step)*30*time.Second))
+		c, _ := authkit.TOTPCode(u.TOTPSecret, nowFunc().Add(time.Duration(step)*30*time.Second))
 		return c
 	}
 	if _, body := h.get("/backups"); !strings.Contains(body, `href="/backups/recovery-key/change"`) {
@@ -55,7 +56,7 @@ func TestKeyChangePages(t *testing.T) {
 		t.Error("the page explains what a change protects against")
 	}
 	// A wrong code makes nothing.
-	if status, _ := h.post("/backups/recovery-key/change", url.Values{"password": {"a long password"}, "code": {"000000"}}, h.srv.URL); status != http.StatusBadRequest || len(fm.keyOps) != 0 {
+	if status, _ := h.post("/backups/recovery-key/change", url.Values{"password": {"a long password"}, "code": {wrongCode(userSecret(h, "u"))}}, h.srv.URL); status != http.StatusBadRequest || len(fm.keyOps) != 0 {
 		t.Errorf("wrong code: %d %v", status, fm.keyOps)
 	}
 	status, body := h.post("/backups/recovery-key/change", url.Values{"password": {"a long password"}, "code": {code(1)}}, h.srv.URL)

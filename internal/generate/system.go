@@ -2,6 +2,7 @@ package generate
 
 import (
 	"fmt"
+	"time"
 
 	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
@@ -61,6 +62,11 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 		// Nodes have no Caddy: the controller's serves their routes.
 		return out, nil
 	}
+	if !lab.HasAddress() {
+		// No address yet: Caddy has nothing to serve, so it doesn't run
+		// (SPEC.md §6.6). The UI is reached over an SSH tunnel meanwhile.
+		return out, nil
+	}
 
 	var u quadlet.Unit
 	u.Section("Unit").Add("Description", "Roostack: reverse proxy (Caddy)")
@@ -91,6 +97,21 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 		// Entered by the user in the setup wizard.
 		out.Secrets = append(out.Secrets, Secret{Name: dns.SecretName(f), Holds: CaddyUnit + ".container"})
 	}
+	// The previous address's provider, while it still works (SPEC.md
+	// §6.6): its certificate may need renewing meanwhile.
+	old := lab.Old(time.Now())
+	var oldDirective string
+	if old != nil {
+		var oldFields []string
+		if oldDirective, oldFields, err = dnsConfig(config.Lab{DNS: old.DNS}); err != nil {
+			return nil, fmt.Errorf("the lab's old address: %w", err)
+		}
+		oldDirective = dns.OldDirective(oldDirective)
+		for _, f := range oldFields {
+			cs.Add("Secret", fmt.Sprintf("%s,type=env,target=%s", dns.OldSecretName(f), dns.OldEnvName(f)))
+			out.Secrets = append(out.Secrets, Secret{Name: dns.OldSecretName(f), Holds: CaddyUnit + ".container"})
+		}
+	}
 	if public {
 		cs.Add("Volume", lab.Paths.CaddyLogDir()+":"+caddyLogDir)
 		cs.Add("Secret", fmt.Sprintf("%s,type=env,target=%s", CrowdSecBouncerKey, caddy.CrowdSecAPIKeyEnv))
@@ -107,24 +128,25 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 	}
 	out.Quadlets = append(out.Quadlets, File{Name: CaddyUnit + ".container", Content: u.String()})
 
-	var b quadlet.Unit
-	b.Section("Unit").Add("Description", "Roostack: build the reverse proxy image (Caddy with DNS plugins)")
-	bs := b.Section("Build")
-	bs.Add("ImageTag", CaddyImage)
-	bs.Add("File", CaddyBuildDir+"/Containerfile")
-	bs.Add("SetWorkingDirectory", "file")
-	// The first build compiles Caddy: minutes, not seconds.
-	b.Section("Service").Add("TimeoutStartSec", "1800")
-	if err := b.Validate(); err != nil {
+	build, err := caddyBuild(lab)
+	if err != nil {
 		return nil, err
 	}
-	out.Quadlets = append(out.Quadlets, File{Name: CaddyUnit + ".build", Content: b.String()})
+	out.Quadlets = append(out.Quadlets, build)
 
 	mc := caddy.MainConfig{
 		Domain:        lab.Domain,
 		Email:         lab.Email,
 		DNSDirective:  directive,
 		AdminUpstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, lab.UIPort),
+		AdminPublic:   lab.PublicUI(),
+		PrivateFrom:   PrivateFrom(lab),
+		EdgeFrom:      lab.EdgeAddrs,
+	}
+	mc.AdminHost = lab.UIHost()
+	if old != nil {
+		mc.OldDomain, mc.OldDNSDirective = old.Domain, oldDirective
+		mc.OldAdminHost = config.Lab{Domain: old.Domain, DNS: old.DNS}.UIHost()
 	}
 	out.Dirs = []string{lab.Paths.CaddyDataDir(), lab.Paths.CaddySitesDir()}
 	out.Units = []string{CaddyUnit + ".service"}
@@ -141,6 +163,82 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 	}
 	out.Caddyfile = File{Name: "Caddyfile", Content: main}
 	return out, nil
+}
+
+// caddyBuild is the Quadlet that builds Roostack's Caddy image (with its
+// plugins) on the server.
+func caddyBuild(lab config.Lab) (File, error) {
+	var b quadlet.Unit
+	b.Section("Unit").Add("Description", "Roostack: build the reverse proxy image (Caddy with DNS plugins)")
+	bs := b.Section("Build")
+	bs.Add("ImageTag", CaddyImage)
+	bs.Add("File", CaddyBuildDir+"/Containerfile")
+	bs.Add("SetWorkingDirectory", "file")
+	// The first build compiles Caddy: minutes, not seconds.
+	bsvc := b.Section("Service")
+	bsvc.Add("TimeoutStartSec", "1800")
+	// Its output goes to a file the UI can show (config.Paths.CaddyBuildLog).
+	bsvc.Add("StandardOutput", "truncate:"+lab.Paths.CaddyBuildLog())
+	bsvc.Add("StandardError", "inherit")
+	if err := b.Validate(); err != nil {
+		return File{}, err
+	}
+	return File{Name: CaddyUnit + ".build", Content: b.String()}, nil
+}
+
+// Edge generates an edge's Caddy (SPEC.md §10.5), on a server that isn't
+// the controller (nodes have no Caddy otherwise): the same unit and image
+// as the controller's, publishing TCP 80 and 443 only (no HTTP/3: a PROXY
+// header can't come with it, docs/ASSUMPTIONS.md Q7), with no
+// certificates, DNS logins or sites of its own: just c, passed on to the
+// controller over Roostack's network. Like the controller's, it's on pasta,
+// which keeps visitors' addresses for the PROXY header.
+func Edge(lab config.Lab, c caddy.EdgeConfig) (*SystemOutput, error) {
+	conf, err := caddy.Edge(c)
+	if err != nil {
+		return nil, err
+	}
+	var u quadlet.Unit
+	u.Section("Unit").Add("Description", "Roostack: the lab's edge (Caddy, passing public visitors on)")
+	cs := u.Section("Container")
+	cs.Add("ContainerName", CaddyUnit)
+	cs.Add("Image", CaddyUnit+".build")
+	addTimezone(cs, lab)
+	cs.Add("Network", "pasta")
+	cs.Add("PublishPort", "80:80")
+	cs.Add("PublishPort", "443:443")
+	cs.Add("Volume", lab.Paths.CaddyDir()+":/etc/caddy:ro")
+	cs.Add("Volume", lab.Paths.CaddyDataDir()+":/data")
+	cs.Add("Label", "io.roostack.service=_system")
+	cs.Add("Label", "io.roostack.component=edge")
+	svc := u.Section("Service")
+	svc.Add("ExecReload", "/usr/bin/podman exec "+CaddyUnit+" caddy reload --config /etc/caddy/Caddyfile")
+	svc.Add("Restart", "always")
+	svc.Add("TimeoutStartSec", "900")
+	u.Section("Install").Add("WantedBy", "default.target")
+	if err := u.Validate(); err != nil {
+		return nil, err
+	}
+	build, err := caddyBuild(lab)
+	if err != nil {
+		return nil, err
+	}
+	return &SystemOutput{
+		Quadlets:  []File{{Name: CaddyUnit + ".container", Content: u.String()}, build},
+		Caddyfile: File{Name: "Caddyfile", Content: conf},
+		Dirs:      []string{lab.Paths.CaddyDataDir()},
+		Units:     []string{CaddyUnit + ".service"},
+	}, nil
+}
+
+// PrivateFrom is who reaches the lab's private addresses (SPEC.md §6.12):
+// the home network, or on a lab on the internet only this server itself
+// (an SSH tunnel).
+func PrivateFrom(lab config.Lab) string {
+	if lab.OnInternet() {
+		return caddy.ThisServerOnly(lab.HostIP, CaddyHostLoopback)
+	}
+	return caddy.PrivateRanges
 }
 
 // crowdSecAcquis tells CrowdSec to read Caddy's access log.
@@ -212,7 +310,10 @@ func dnsConfig(lab config.Lab) (string, []string, error) {
 	}
 	directive := lab.DNS.Directive
 	if directive == "" {
-		directive = p.Directive(fields)
+		var err error
+		if directive, err = p.Directive(fields, lab.DNS.Values); err != nil {
+			return "", nil, err
+		}
 	}
 	return directive, fields, nil
 }

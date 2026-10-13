@@ -17,6 +17,7 @@ import (
 )
 
 type fakeHost struct {
+	joinOpen  bool
 	portsSet  bool
 	ruleset   string
 	tz        string
@@ -24,11 +25,15 @@ type fakeHost struct {
 	rebooted  bool
 	updateErr error
 	wg        *WireGuard
+	links     *Links
 	erased    string
 }
 
+func (f *fakeHost) ApplyLinks(l Links) error { f.links = &l; return nil }
+
 func (f *fakeHost) SetUnprivilegedPortStart() error { f.portsSet = true; return nil }
 func (f *fakeHost) ApplyFirewall(r string) error    { f.ruleset = r; return nil }
+func (f *fakeHost) AllowWireGuardJoin() error       { f.joinOpen = true; return nil }
 func (f *fakeHost) SetTimezone(name string) error   { f.tz = name; return nil }
 func (f *fakeHost) RunUpdates(_ context.Context, w io.Writer) error {
 	f.updated = true
@@ -170,6 +175,22 @@ func TestRuleset(t *testing.T) {
 	}
 	if strings.Index(got, "dport 22") > strings.Index(got, "dport 53") {
 		t.Error("rules should be sorted by port")
+	}
+}
+
+// New WireGuard handshakes are limited per source address, before the
+// port's accept; other ports aren't.
+func TestRulesetWireGuardLimit(t *testing.T) {
+	fw := DefaultFirewall()
+	fw.Allow = append(fw.Allow, Rule{Port: WireGuardPort, Proto: "udp", From: FromAny, Reason: "lab network"})
+	got := fw.Ruleset()
+	limit := "udp dport 51820 @th,64,8 1 add @wg_handshakes4 { ip saddr limit rate over 5/second burst 20 packets } drop"
+	if !strings.Contains(got, limit) || !strings.Contains(got, "@wg_handshakes6 { ip6 saddr") ||
+		strings.Index(got, limit) > strings.Index(got, "udp dport 51820 accept") {
+		t.Errorf("handshake limit missing or after the accept:\n%s", got)
+	}
+	if strings.Contains(got, "udp dport 443 @th") {
+		t.Error("only WireGuard's ports are limited")
 	}
 }
 

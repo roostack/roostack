@@ -1,0 +1,51 @@
+{{define "title"}}Restore {{.Plan.Server.Name}}'s services{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <div class="page-top">{{back "/settings/servers" "Servers"}}{{help "servers/gone" "When a server is gone"}}</div>
+  <h1>Restore {{or .Plan.Server.Name "a server"}}'s services</h1>
+  {{activity .RestoreActivity}}
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if and .RestoreActivity .RestoreActivity.Running}}
+    {{notice "info" "Its services are being restored, one after another. This page shows how it's going."}}
+  {{else if .Services}}
+  {{$name := .Plan.Server.Name}}
+  <p>{{$name}} can't be reached. If it's still there (switched off, or its network is down), it reconnects by itself when it's back,
+    with its services: you don't need this page.</p>
+  <p>If it isn't coming back, choose which of its services to restore now, from their backups. The others wait until you restore
+    them, onto any server. Nothing is deleted.</p>
+  <form method="post" action="/settings/servers/{{.Plan.Server.ID}}/gone"
+    x-data="{ total: 0, free: -1, calc() {
+      this.total = [...$el.querySelectorAll('input[name=service]:checked')].reduce((t, c) => t + Math.max(0, Number(c.dataset.size)), 0);
+      const o = $el.querySelector('select[name=to]'); this.free = o ? Number(o.selectedOptions[0].dataset.free) : -1; } }"
+    x-init="calc()" x-on:change="calc()">
+    <fieldset>
+      <legend>Its services</legend>
+      {{range .Services}}
+      <label class="check"><input type="checkbox" name="service" value="{{.Name}}" data-size="{{.Size}}"
+          {{- if not .Label}} disabled{{else if $.TickAll}} checked{{end}}>
+        <span>{{.Title}}{{if ge .Size 0}} · {{size .Size}}{{end}}{{if .Waiting}} {{status "waiting"}}{{end}}
+          <small>{{if .Label}}{{.Label}} (read from {{.Place}}){{else}}No backup of it can be read, so it can't be restored.
+            Remove it from its page, and install it again if you need it.{{end}}</small></span></label>
+      {{end}}
+    </fieldset>
+    {{if .Plan.Targets}}
+    <label>Restore onto
+      <select name="to">{{range .Plan.Targets}}<option value="{{.ID}}" data-free="{{index $.Plan.Free .ID}}">{{.Name}}</option>{{end}}</select>
+      <small x-show="total > 0" x-cloak>Restoring <span x-text="roostackSize(total)"></span><span x-show="free >= 0">;
+        <span x-text="roostackSize(free)"></span> is free there</span>.</small>
+    </label>
+    <p class="notice notice-warn" x-show="free >= 0 && total > free * 0.9" x-cloak>That's more than there's room for.
+      Choose fewer services, or another server.</p>
+    {{else}}
+    {{notice "warn" "No other server is connected to restore onto. Its services can still wait to be restored."}}
+    {{end}}
+    <label class="check"><input type="checkbox" name="confirm" required>
+      <span>{{$name}} isn't coming back<small>Its services won't run there any more, even if it does come back.
+        Once none of them are waiting, it leaves the lab; its backups stay.</small></span></label>
+    <button type="submit">Continue</button>
+  </form>
+  {{else}}
+    <p>{{or .Plan.Server.Name "That server"}} has no services to restore.</p>
+  {{end}}
+</section>
+{{end}}

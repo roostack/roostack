@@ -1,6 +1,7 @@
 package maintenance
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -62,5 +63,33 @@ func TestFileJournal(t *testing.T) {
 	}
 	if names, _ := j.Load(); names != nil {
 		t.Errorf("after clearing: %v", names)
+	}
+}
+
+// Every fires at the wall clock's time even if its timers ran slow (as
+// after a suspend): it looks at the clock often, not once.
+func TestEveryChecksTheClock(t *testing.T) {
+	checkEvery = 10 * time.Millisecond
+	defer func() { checkEvery = time.Minute }()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fired := make(chan time.Time, 3)
+	start := time.Now()
+	// The first time is already past (the machine slept through it): it
+	// fires at once, then each time after.
+	n := 0
+	go Every(ctx, func(now time.Time) time.Time {
+		n++
+		if n == 1 {
+			return start.Add(-time.Hour)
+		}
+		return now.Add(30 * time.Millisecond)
+	}, func() { fired <- time.Now() })
+	for i := range 3 {
+		select {
+		case <-fired:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("fire %d didn't come", i+1)
+		}
 	}
 }

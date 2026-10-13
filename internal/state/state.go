@@ -27,6 +27,23 @@ type Service struct {
 	Package  *pkgspec.Package
 }
 
+// Name is the service's ID (instance.Instance.ID): a second copy of a
+// package has its own (SPEC.md §8.2).
+func (s Service) Name() string {
+	if s.Instance == nil {
+		return s.Package.Name
+	}
+	return s.Instance.ID()
+}
+
+// Title is what people call it: its own title, or its package's.
+func (s Service) Title() string {
+	if s.Instance != nil && s.Instance.Title != "" {
+		return s.Instance.Title
+	}
+	return s.Package.Title
+}
+
 // LoadServices reads every instance file and its package from the catalog.
 func LoadServices(lab config.Lab) ([]Service, error) {
 	dir := lab.Paths.InstancesDir()
@@ -49,8 +66,8 @@ func LoadServices(lab config.Lab) ([]Service, error) {
 			errs = append(errs, err)
 			continue
 		}
-		if in.Package != name {
-			errs = append(errs, fmt.Errorf("%s: file name must match package %q", e.Name(), in.Package))
+		if in.ID() != name {
+			errs = append(errs, fmt.Errorf("%s: file name must match its name %q", e.Name(), in.ID()))
 			continue
 		}
 		// Checked here, not only when generating: a service with a bad host
@@ -81,7 +98,8 @@ type Proxied struct {
 func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.Desired, error) {
 	var d reconcile.Desired
 	// Every hostname must be unique across the lab, including the admin UI.
-	hosts := map[string]string{caddy.AdminSubdomain + "." + lab.Domain: "the Roostack admin UI"}
+	hosts := map[string]string{lab.UIHost(): "the Roostack admin UI",
+		caddy.LinkSubdomain + "." + lab.Domain: "Roostack's address for other servers and labs"}
 	ports := map[int]string{lab.UIPort: "the Roostack admin UI"}
 	hostPorts := map[string]string{} // "2222/tcp" -> service
 	var errs []error
@@ -93,18 +111,18 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		}
 		for _, h := range out.Hosts {
 			if other, dup := hosts[h]; dup {
-				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Package.Name, h, other))
+				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Name(), h, other))
 			}
-			hosts[h] = s.Package.Name
+			hosts[h] = s.Name()
 		}
 		for _, p := range out.Ports {
 			if other, dup := ports[p]; dup {
-				errs = append(errs, fmt.Errorf("%s: port %d is already used by %s", s.Package.Name, p, other))
+				errs = append(errs, fmt.Errorf("%s: port %d is already used by %s", s.Name(), p, other))
 			}
-			ports[p] = s.Package.Name
+			ports[p] = s.Name()
 		}
 		for _, hp := range out.HostPorts {
-			if err := checkHostPort(hp, s.Package.Name, ports, hostPorts); err != nil {
+			if err := checkHostPort(hp, s.Name(), ports, hostPorts); err != nil {
 				errs = append(errs, err)
 			}
 		}
@@ -118,15 +136,16 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 		}
 		for _, h := range out.Hosts {
 			if other, dup := hosts[h]; dup {
-				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Package.Name, h, other))
+				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Name(), h, other))
 			}
-			hosts[h] = s.Package.Name
+			hosts[h] = s.Name()
 		}
 		d.Services = append(d.Services, out)
 	}
 	slices.SortFunc(d.Services, func(a, b *generate.Output) int { return strings.Compare(a.Service, b.Service) })
-	// Generated after the services: CrowdSec runs while any is public.
-	public := slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.Public })
+	// Generated after the services: CrowdSec runs while any is public, or
+	// Roostack's own pages are (a lab on the internet, SPEC.md §6.3.2).
+	public := lab.PublicUI() || slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.Public })
 	sys, err := generate.System(lab, public)
 	if err != nil {
 		return reconcile.Desired{}, errors.Join(append(errs, err)...)
@@ -190,7 +209,8 @@ func AssignHosts(services []Service, nodeID string) []Service {
 func OnNode(services []Service, nodeID string) []Service {
 	var out []Service
 	for _, s := range services {
-		if s.Instance.Host == nodeID || s.Instance.Host == "" {
+		// One waiting to be restored runs nowhere (SPEC.md §10.10).
+		if !s.Instance.Waiting && (s.Instance.Host == nodeID || s.Instance.Host == "") {
 			out = append(out, s)
 		}
 	}
@@ -212,7 +232,7 @@ func AllocatePorts(services []Service) ([]Service, error) {
 	next := config.DefaultRoutePortMin
 	var changed []Service
 	sorted := slices.Clone(services)
-	slices.SortFunc(sorted, func(a, b Service) int { return strings.Compare(a.Package.Name, b.Package.Name) })
+	slices.SortFunc(sorted, func(a, b Service) int { return strings.Compare(a.Name(), b.Name()) })
 	for _, s := range sorted {
 		dirty := false
 		for _, name := range slices.Sorted(maps.Keys(s.Package.Routes)) {
