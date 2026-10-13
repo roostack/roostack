@@ -77,7 +77,10 @@ type Fake struct {
 	Identities          map[string][]byte
 	RestoreRepositories []string
 	Proven              []string
-	challenges          map[string][]byte
+	// RestoreStatus, if set, is how every restore request is answered
+	// (429: rate limited).
+	RestoreStatus int
+	challenges    map[string][]byte
 
 	caCert *x509.Certificate
 	caKey  *ecdsa.PrivateKey
@@ -673,6 +676,10 @@ func (f *Fake) relay(req cloudapi.RelayRequest) cloudapi.Relay {
 func (f *Fake) restore(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.RestoreStatus != 0 {
+		fail(w, f.RestoreStatus, "Too many requests from this address. Try again in a minute.")
+		return
+	}
 	labOf := func(pub []byte) string {
 		for id, k := range f.Identities {
 			if bytes.Equal(k, pub) {

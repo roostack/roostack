@@ -553,9 +553,8 @@ func (s *Service) Check(ctx context.Context) error {
 			err = s.client.do(ctx, true, http.MethodGet, cloudapi.PathLab, nil, &info)
 		} else {
 			s.log.Warn("Roostack Cloud: relinking with the recovery key", "err", rerr)
-			var unreachable *Unreachable
-			if errors.As(rerr, &unreachable) {
-				err = rerr // tried again at the next check
+			if retryLater(rerr) {
+				err = rerr // tried again at the next check; the link is kept
 			}
 		}
 	}

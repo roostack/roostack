@@ -117,6 +117,15 @@ func (s *Service) RegisterIdentity(ctx context.Context) error {
 	return s.save()
 }
 
+// retryLater: Cloud couldn't be reached, or was busy (rate limited, or
+// its own failure). Only a refusal means the lab can't relink.
+func retryLater(err error) bool {
+	var unreachable *Unreachable
+	var cerr *Error
+	return errors.As(err, &unreachable) ||
+		errors.As(err, &cerr) && (cerr.Status == http.StatusTooManyRequests || cerr.Status >= 500)
+}
+
 // relink gets the lab a new certificate by proving its recovery key, when
 // Cloud no longer accepts the one it has (it expired while the lab was
 // off, or a restored lab's backup held an old one). Cloud refuses it for
