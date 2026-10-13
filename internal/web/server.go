@@ -406,7 +406,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	}
 	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
-		"home", "services", "service", "backups", "restore", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
+		"home", "services", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
@@ -590,7 +590,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /services/{name}/title", s.require(auth.ManageServices, s.titleSubmit))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))
 
-	return s.recoverPanics(compress(securityHeaders(sameOrigin(s.loadSession(mux)))))
+	return s.recoverPanics(compress(securityHeaders(sameOrigin(s.loadSession(s.errorPages(mux))))))
 }
 
 type userKey struct{}

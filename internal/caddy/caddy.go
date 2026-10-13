@@ -9,6 +9,7 @@
 package caddy
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -41,8 +42,11 @@ func ThisServerOnly(hostIP, hostLoopback string) string {
 // Route is one subdomain handled by Caddy.
 type Route struct {
 	// ID must be unique across the lab; used to name Caddy matchers.
-	ID   string
-	Host string // full hostname, e.g. photos.lab.example.com
+	ID string
+	// Service and Title are the service's name and what people call it,
+	// for its error pages (internal/errpage): set as Caddy variables.
+	Service, Title string
+	Host           string // full hostname, e.g. photos.lab.example.com
 	// OldHost is its name at the lab's previous address, served too for a
 	// while after switching (SPEC.md §6.6); "" when there's none.
 	OldHost  string
@@ -98,6 +102,10 @@ func Site(service string, routes []Route) (string, error) {
 		}
 		fmt.Fprintf(&b, "\n@%s host %s\n", r.ID, hosts)
 		fmt.Fprintf(&b, "handle @%s {\n", r.ID)
+		// What the error pages say about it (internal/errpage).
+		private := map[bool]string{true: "yes", false: "no"}[r.Private]
+		fmt.Fprintf(&b, "\tvars {\n\t\troostack_name %s\n\t\troostack_title %s\n\t\troostack_private %s\n\t}\n",
+			cmp.Or(r.Service, service), quoteTitle(r.Title), private)
 		if r.Private {
 			fmt.Fprintf(&b, "\t@%s-external %s\n", r.ID, r.notPrivate("\t"))
 			fmt.Fprintf(&b, "\tabort @%s-external\n", r.ID)
@@ -111,6 +119,21 @@ func Site(service string, routes []Route) (string, error) {
 		b.WriteString("}\n")
 	}
 	return b.String(), nil
+}
+
+// quoteTitle makes a service's title safe as one Caddyfile token: quoted,
+// without the characters Caddy (or a template) would treat specially.
+func quoteTitle(t string) string {
+	t = strings.Map(func(r rune) rune {
+		if r < ' ' || strings.ContainsRune("\"{}\\`", r) {
+			return -1
+		}
+		return r
+	}, t)
+	if t == "" {
+		t = "This service"
+	}
+	return `"` + t + `"`
 }
 
 // publicRoute writes a public route's handler (SPEC.md §6.11). Everything
@@ -240,6 +263,10 @@ type MainConfig struct {
 	EdgeFrom []string
 }
 
+// ErrorPagesDir is where the error pages are inside Caddy's container
+// (config.Paths.CaddyDir()/errors, written by internal/generate).
+const ErrorPagesDir = "/etc/caddy/errors"
+
 // AdminSubdomain is where the Roostack UI is served: roost.<domain>
 // (renamed from roostack. on 2026-10-01: shorter to type and say).
 const AdminSubdomain = "roost"
@@ -334,7 +361,7 @@ func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now st
 		fmt.Fprintf(b, "\tlog {\n\t\toutput file %s {\n\t\t\troll_size 20MiB\n\t\t\troll_keep 5\n\t\t}\n\t\tformat json\n\t}\n", c.AccessLog)
 	}
 	if c.AdminUpstream != "" {
-		route := Route{ID: "roostack-admin", Host: adminHost,
+		route := Route{ID: "roostack-admin", Title: "Roostack", Host: adminHost,
 			Upstream: c.AdminUpstream, Private: !c.AdminPublic, PrivateFrom: c.PrivateFrom, PrivateExcept: c.EdgeFrom}
 		if c.AdminPublic {
 			route.LoginPaths = AdminLoginPaths
@@ -350,8 +377,13 @@ func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now st
 		}
 	}
 	b.WriteString("\n\timport sites/*.caddy\n\n")
-	b.WriteString("\t# Unknown subdomains get no response.\n")
-	b.WriteString("\thandle {\n\t\tabort\n\t}\n")
+	// An unknown subdomain gets the "nobody roosts here" page, which names
+	// no lab (anyone can see the wildcard certificate's domain anyway).
+	b.WriteString("\thandle {\n\t\terror 404\n\t}\n\n")
+	// Errors (a service not answering, a blocked visitor, the 404 above)
+	// get Roostack's pages (internal/errpage), with the error's status.
+	fmt.Fprintf(b, "\thandle_errors {\n\t\troot * %s\n\t\ttry_files /{err.status_code}.html /error.html\n\t\ttemplates\n"+
+		"\t\tfile_server {\n\t\t\tstatus {err.status_code}\n\t\t}\n\t}\n", ErrorPagesDir)
 	b.WriteString("}\n")
 	return nil
 }

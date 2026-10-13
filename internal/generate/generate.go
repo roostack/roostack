@@ -148,7 +148,7 @@ func ProxySite(lab config.Lab, p *pkgspec.Package, in *instance.Instance, addr s
 func newGen(lab config.Lab, p *pkgspec.Package, in *instance.Instance, upstream string) *gen {
 	return &gen{
 		lab: lab, pkg: p, ctx: buildContext(lab, p, in), upstream: upstream,
-		name: in.ID(), out: &Output{Service: in.ID()},
+		name: in.ID(), title: cmp.Or(in.Title, p.Title), out: &Output{Service: in.ID()},
 		included: map[string]bool{},
 	}
 }
@@ -157,9 +157,10 @@ type gen struct {
 	lab config.Lab
 	pkg *pkgspec.Package
 	// name is the service's ID (instance.ID): everything is named after it.
-	name string
-	ctx  *Context
-	out  *Output
+	// title is what people call it (its error pages say it).
+	name, title string
+	ctx         *Context
+	out         *Output
 	// upstream is the host Caddy reaches the routes' ports on.
 	upstream string
 	// included records which containers passed their `when:` condition.
@@ -441,6 +442,8 @@ func (g *gen) caddySite() error {
 		g.out.Hosts = append(g.out.Hosts, rc.Host)
 		cr := caddy.Route{
 			ID:            g.name + "-" + name,
+			Service:       g.name,
+			Title:         g.title,
 			Host:          rc.Host,
 			OldHost:       OldHost(g.lab, rc.Host),
 			Upstream:      fmt.Sprintf("%s:%d", g.upstream, rc.Port),

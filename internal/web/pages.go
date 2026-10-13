@@ -57,6 +57,7 @@ func navTab(page string) string {
 		"account": "account", "twofactor": "account", "account-appearance": "account", "account-notifications": "account",
 		"cloud-open": "settings", "cloud-linked": "settings",
 		"setup-restore": "", "setup-joined": "", // first run, before anyone is logged in
+		"error": "", // any page's error (errors.go)
 	}[page]; ok {
 		return tab
 	}
