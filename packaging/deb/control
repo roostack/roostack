@@ -1,6 +1,6 @@
 Package: roostack
 Version: @VERSION@
-Architecture: amd64
+Architecture: @ARCH@
 Maintainer: Roostack <roostack@localhost>
 Section: admin
 Priority: optional

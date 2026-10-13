@@ -5,7 +5,9 @@
 - **A computer that stays on**, with nothing else on it: Roostack looks
   after the whole computer, including its firewall and updates. A small,
   quiet PC such as an Intel NUC is ideal. Roostack runs on x86-64
-  computers (most PCs); Raspberry Pi and other ARM computers come later.
+  computers (most PCs), and on 64-bit ARM computers that run Debian's own
+  Debian 13, such as some ARM mini PCs and ARM cloud servers. Raspberry Pi
+  comes later.
 - **Debian 13**, freshly installed. It's free, and made for computers that
   run for years without anyone looking after them.
 - **Enough disk space** for what you'll keep: your photos and videos need
@@ -25,7 +27,9 @@ Roostack runs on **Debian 13** ("trixie"), installed fresh, with nothing
 else on it. If your computer already runs Debian 13 for nothing else, skip
 to [Install Roostack](#install-roostack). Debian's own
 [installation guide](https://www.debian.org/releases/trixie/amd64/) covers
-every step in detail; this is the short version.
+every step in detail (for an ARM computer, its
+[ARM64 guide](https://www.debian.org/releases/trixie/arm64/)); this is the
+short version.
 
 === "On your own computer"
 
@@ -107,14 +111,17 @@ every step in detail; this is the short version.
 
 With Debian 13 installed, and logged in on the computer (or over SSH):
 
-1. Copy the Roostack package file (`roostack_<version>_amd64.deb`) to the
-   computer.
+1. Copy the Roostack package file for your kind of computer to it:
+   `roostack_<version>_amd64.deb` for a PC, `roostack_<version>_arm64.deb`
+   for an ARM computer. Not sure? `dpkg --print-architecture` says which.
 2. Install it. Debian fetches what Roostack needs (Podman, restic,
    WireGuard and a few others) at the same time:
 
     ```bash
     sudo apt install ./roostack_<version>_amd64.deb
     ```
+
+    (with `arm64` in the name on an ARM computer).
 
     Logged in as `root` (as on some cloud servers)? Leave out `sudo`.
 
@@ -152,6 +159,8 @@ Then carry on with [First-run setup](first-run.md).
 
     **Building the package** from the source: `make build`, then
     `scripts/build-deb.sh`, which writes `dist/roostack_<version>_amd64.deb`.
+    For ARM, `GOARCH=arm64 make build` and the same script, which writes
+    `…_arm64.deb`.
 
     See [Where files live](../reference/files.md) for everything Roostack
     creates.

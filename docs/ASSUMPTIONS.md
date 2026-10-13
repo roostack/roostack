@@ -169,6 +169,19 @@ Prototyped on VM2 (2026-10-10) with throwaway containers: Roostack's Caddy image
 | M3 ⚠️ | S3 credentials are stored in `lab.yaml` (mode 0640, owned by roostack). They're also inside the encrypted backups. Consider moving them to a separate 0600 file or a Podman secret. |
 | M4 | A local backup folder must be writable by the `roostack` user (e.g. a disk mounted for it). Otherwise the wizard shows restic's error. Preparing disks belongs to the installer/agent later. |
 
+## R. ARM64 (ARM64-PLAN.md)
+
+Checked on an arm64 dev VM (Debian 13 cloud image with Debian's standard arm64 kernel, under QEMU with Hypervisor.framework on an Apple Silicon Mac, 4 GB, 4 CPUs; 2026-10-13).
+
+| # | Assumption | Code that depends on it |
+|---|---|---|
+| R1 ✅ | Every package `roostack` depends on exists for arm64 in Debian 13: `apt install` of the arm64 .deb pulled them all. | `packaging/deb/control` |
+| R2 ✅ | The pinned images' multi-arch digests pull the arm64 build: Vaultwarden, Forgejo (with Postgres) and Immich (server, machine learning, its Postgres, Valkey) installed from the catalog and answered on their ports; a backup to a USB drive and a restore of Forgejo (database included) worked. Every pin has both builds (`make check-images`). | SPEC §8.1, `internal/generate` |
+| R3 ✅ | Podman's error for an image with no build for the processor contains "no image found in image index" (Podman 5.4.2; older versions said "manifest list"). | `pullImage` in `cmd/roostack/local.go` |
+| R4 ✅ | Roostack's Caddy image builds on arm64: 278 s in all, 51 s of it compiling, while other images downloaded; the result runs with its DNS plugins. Expect several times longer on a Raspberry Pi. | `build/caddy/Containerfile` |
+| R5 ✅ | With 16 KB memory pages (Debian's `linux-image-arm64-16k`, as the Pi 5's kernel uses), every pinned service image starts: Valkey, Postgres, Vaultwarden, Forgejo, Immich's server, machine learning and database. Not yet run: Caddy, CrowdSec, rest-server (Go programs, expected fine). | ARM64-PLAN.md 2.4 |
+| R6 ✅ | OS updates through Roostack (unattended-upgrades with Debian's origins) work the same on arm64. Drive detection, formatting and the backup drive picker work with a USB drive on QEMU's `virt` machine. | `osupdate`, `internal/agent/drives.go` |
+
 ## H. Dependencies
 
 Picked overnight to keep moving; **approved by the user on 2026-09-26.**
