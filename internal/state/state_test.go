@@ -224,3 +224,63 @@ func TestHostsAndNodes(t *testing.T) {
 		t.Errorf("bad host: %v", err)
 	}
 }
+
+// Services generate from the lab's own copy of their package version, not
+// the catalog's (SPEC.md §8.3.1).
+func TestLabKeepsItsPackages(t *testing.T) {
+	lab := newLab(t)
+	dir := lab.Paths.InstancesDir()
+	writeFile(t, filepath.Join(dir, "vaultwarden.yaml"), "package: vaultwarden\nversion: 1.34.3-roostack.1\n")
+	kept := lab.Paths.LabPackageFile("vaultwarden", "1.34.3-roostack.1")
+
+	// Installed before the lab kept copies: it takes one from the catalog.
+	if _, err := LoadServices(lab); err != nil {
+		t.Fatal(err)
+	}
+	catalog, _ := os.ReadFile(lab.Paths.PackageFile("vaultwarden"))
+	if got, err := os.ReadFile(kept); err != nil || string(got) != string(catalog) {
+		t.Fatalf("the lab's copy is the catalog's file exactly: %v", err)
+	}
+
+	// A newer catalog changes nothing that's installed.
+	writeFile(t, lab.Paths.PackageFile("vaultwarden"), strings.ReplaceAll(string(catalog), "1.34.3", "1.35.0"))
+	services, err := LoadServices(lab)
+	if err != nil || len(services) != 1 || services[0].Package.Version != "1.34.3-roostack.1" {
+		t.Fatalf("services = %+v, %v", services, err)
+	}
+	if err := KeepPackage(lab.Paths, "vaultwarden", "1.36.0-roostack.1"); err == nil {
+		t.Error("the catalog isn't that version")
+	}
+
+	// A version neither the lab nor the catalog has is an error that says so.
+	writeFile(t, filepath.Join(dir, "immich.yaml"), "package: immich\nversion: 1.0.0-roostack.1\n")
+	if _, err := LoadServices(lab); err == nil || !strings.Contains(err.Error(), "no copy of immich 1.0.0-roostack.1") {
+		t.Errorf("err = %v", err)
+	}
+	os.Remove(filepath.Join(dir, "immich.yaml"))
+	if _, err := LoadPackage(lab.Paths, "../vaultwarden", "1"); err == nil {
+		t.Error("a name that isn't a package's")
+	}
+	if _, err := LoadPackage(lab.Paths, "vaultwarden", "../../lab"); err == nil {
+		t.Error("a version that isn't a file name")
+	}
+
+	// Copies no service uses go; the ones in use stay.
+	if err := KeepPackage(lab.Paths, "forgejo", "15.0.9-roostack.1"); err != nil {
+		t.Fatal(err)
+	}
+	old := lab.Paths.LabPackageFile("vaultwarden", "1.33.0-roostack.1")
+	writeFile(t, old, "an older copy")
+	services, _ = LoadServices(lab)
+	if err := PrunePackages(lab.Paths, services); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(kept); err != nil {
+		t.Error("the copy in use must stay")
+	}
+	for _, gone := range []string{old, filepath.Dir(lab.Paths.LabPackageFile("forgejo", "x"))} {
+		if _, err := os.Stat(gone); !os.IsNotExist(err) {
+			t.Errorf("%s should be gone: %v", gone, err)
+		}
+	}
+}

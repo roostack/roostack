@@ -304,3 +304,88 @@ func TestRestoreAcrossTheLab(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// A restore needs nothing but the backup: a service installed at one
+// version still generates from it when the catalog has moved on to a newer
+// one (SPEC.md §8.3.1).
+func TestRestoreUsesTheLabsPackages(t *testing.T) {
+	bin := resticBin(t)
+	m, _ := newManager(t)
+	ctx := context.Background()
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	generated := func() string {
+		t.Helper()
+		services, err := state.LoadServices(m.Lab)
+		if err != nil {
+			t.Fatal(err)
+		}
+		d, err := state.Desired(m.Lab, services)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out strings.Builder
+		for _, s := range d.Services {
+			for _, f := range s.Quadlets {
+				out.WriteString(f.Name + "\n" + f.Content)
+			}
+		}
+		return out.String()
+	}
+	before := generated()
+	if !strings.Contains(before, "vaultwarden/server:1.34.3@") {
+		t.Fatalf("installed from the catalog's 1.34.3:\n%s", before)
+	}
+
+	// The lab's backup, as its plan says (the folders that exist here).
+	repo := &backup.Repo{Bin: bin, URL: filepath.Join(t.TempDir(), "repo"), PasswordFile: filepath.Join(t.TempDir(), "key"),
+		CacheDir: filepath.Join(t.TempDir(), "cache")}
+	os.WriteFile(repo.PasswordFile, []byte("the key\n"), 0o600)
+	if err := repo.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	plan := backup.LabPlan(m.Lab.Paths, nil)
+	var paths []string
+	for _, p := range plan.Paths {
+		if _, err := os.Stat(p); err == nil {
+			paths = append(paths, p)
+		}
+	}
+	if _, err := repo.Backup(ctx, backup.BackupOptions{Paths: paths, Excludes: plan.Excludes,
+		Tags: []string{backup.TagRoostack, backup.TagServer}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Roostack is upgraded: its catalog has a newer Vaultwarden. Then the
+	// server is lost, and the lab restored from its backup.
+	catalog := m.Lab.Paths.PackageFile("vaultwarden")
+	data, _ := os.ReadFile(catalog)
+	newer := strings.ReplaceAll(string(data), "1.34.3", "1.35.0")
+	if newer == string(data) {
+		t.Fatal("the catalog didn't change")
+	}
+	os.WriteFile(catalog, []byte(newer), 0o644)
+	os.RemoveAll(m.Lab.Paths.StateDir)
+	snaps, err := repo.Snapshots(ctx, backup.TagServer)
+	if err != nil || len(snaps) != 1 {
+		t.Fatalf("snapshots: %v %v", snaps, err)
+	}
+	for _, p := range snaps[0].Paths {
+		if err := repo.RestoreDir(ctx, snaps[0].ID, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if after := generated(); after != before {
+		t.Errorf("after the restore it generates from the catalog's newer version:\n%s", after)
+	}
+	if p, err := m.ServicePackage("vaultwarden"); err != nil || p.Version != "1.34.3-roostack.1" {
+		t.Errorf("the service's package: %v %v", p, err)
+	}
+	// What can be installed is the catalog's.
+	if p, err := m.Package("vaultwarden"); err != nil || p.Version != "1.35.0-roostack.1" {
+		t.Errorf("the catalog's package: %v %v", p, err)
+	}
+}

@@ -160,7 +160,8 @@ func (m *Manager) Catalog() ([]CatalogItem, error) {
 	return items, nil
 }
 
-// Package returns a catalog package.
+// Package returns a catalog package: what can be installed. An installed
+// service uses the lab's own copy (ServicePackage, SPEC.md §8.3.1).
 func (m *Manager) Package(name string) (*pkgspec.Package, error) {
 	if !validName(name) {
 		return nil, ErrNotFound
@@ -307,6 +308,11 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 		}
 		return err
 	}
+	// The lab keeps the package file it installs from, before the
+	// instance that uses it (SPEC.md §8.3.1).
+	if err := state.KeepPackage(m.Lab.Paths, p.Name, p.Version); err != nil {
+		return err
+	}
 	if err := in.Save(state.InstanceFile(m.Lab, id)); err != nil {
 		return err
 	}
@@ -427,7 +433,7 @@ func (m *Manager) SetTitle(ctx context.Context, name, title string) error {
 	if err != nil {
 		return err
 	}
-	p, err := m.Package(in.Package)
+	p, err := state.LoadPackage(m.Lab.Paths, in.Package, in.Version)
 	if err != nil {
 		return err
 	}
@@ -458,7 +464,7 @@ func (m *Manager) installedService(name string) (*pkgspec.Package, *instance.Ins
 	if err != nil {
 		return nil, nil, err
 	}
-	p, err := m.Package(in.Package)
+	p, err := state.LoadPackage(m.Lab.Paths, in.Package, in.Version)
 	if err != nil {
 		return nil, nil, err
 	}

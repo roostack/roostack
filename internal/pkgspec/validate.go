@@ -16,7 +16,17 @@ var (
 	envNameRe    = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 	// A single DNS label.
 	subdomainRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
+	// A version names the lab's copy of the package file
+	// (<name>/<version>.yaml, SPEC.md §8.3.1), so it must be a safe file
+	// name: e.g. 1.34.3-roostack.1.
+	versionRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$`)
 )
+
+// ValidName reports whether n can be a package's name.
+func ValidName(n string) bool { return nameRe.MatchString(n) }
+
+// ValidVersion reports whether v can be a package version.
+func ValidVersion(v string) bool { return versionRe.MatchString(v) }
 
 // Quadlet sections a package may add raw keys to.
 var quadletSections = []string{"Unit", "Container", "Service", "Install"}
@@ -40,6 +50,8 @@ func (p *Package) Validate() error {
 	}
 	if p.Version == "" {
 		v.addf("version: required")
+	} else if !ValidVersion(p.Version) {
+		v.addf("version: %q must be letters, digits, dots, dashes, underscores and plus signs, starting with a letter or digit", p.Version)
 	}
 	if len(p.Containers) == 0 {
 		v.addf("containers: at least one container is required")
