@@ -23,6 +23,17 @@ import (
 // docs/ASSUMPTIONS.md C4/C5.
 const PrivateRanges = "private_ranges 100.64.0.0/10"
 
+// CertResolvers are the DNS resolvers Caddy checks a certificate's DNS
+// challenge with before asking Let's Encrypt to look (the tls block's
+// "resolvers"): public ones first, since the check is only of what the
+// internet sees, then pasta's forwarder to the host's own resolver for a
+// network that blocks outside DNS (Caddy tries them in turn). A home
+// router's resolver had kept a domain's old name servers for hours after
+// the domain moved to another DNS host, refreshing them from the old
+// host, so the challenge's record was never seen (VM3, 2026-10-14;
+// docs/ASSUMPTIONS.md D3).
+const CertResolvers = "1.1.1.1 9.9.9.9 169.254.1.1"
+
 // ThisServerOnly is who reaches private routes in a lab on the internet
 // (SPEC.md §6.12): only connections made on the server itself, which is
 // where an SSH tunnel ends. Caddy's pasta network shows a connection to
@@ -229,7 +240,7 @@ func (r Route) validate() error {
 type MainConfig struct {
 	Domain string
 	Email  string
-	// DNSDirective is the tls "dns ..." directive for the DNS-01 challenge
+	// DNSDirective (with CertResolvers) is the tls "dns ..." directive for the DNS-01 challenge
 	// (from internal/dns); it may span several lines.
 	DNSDirective string
 	// AdminUpstream is where the Roostack web UI listens, as seen from the
@@ -356,6 +367,7 @@ func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now st
 	for _, line := range strings.Split(strings.TrimSpace(directive), "\n") {
 		fmt.Fprintf(b, "\t\t%s\n", line)
 	}
+	fmt.Fprintf(b, "\t\tresolvers %s\n", CertResolvers)
 	b.WriteString("\t}\n")
 	if c.AccessLog != "" {
 		fmt.Fprintf(b, "\tlog {\n\t\toutput file %s {\n\t\t\troll_size 20MiB\n\t\t\troll_keep 5\n\t\t}\n\t\tformat json\n\t}\n", c.AccessLog)
