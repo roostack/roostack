@@ -6,9 +6,10 @@ import (
 	"testing"
 )
 
-// The reference examples must always parse, so they stay in sync with the code.
+// The reference examples must always parse, so they stay in sync with the
+// code, and follow the package policy, as registry packages will.
 func TestExamplesParse(t *testing.T) {
-	for _, name := range []string{"vaultwarden", "immich"} {
+	for _, name := range []string{"vaultwarden", "forgejo", "immich"} {
 		t.Run(name, func(t *testing.T) {
 			p, err := Load(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
 			if err != nil {
@@ -17,9 +18,8 @@ func TestExamplesParse(t *testing.T) {
 			if p.Name != name {
 				t.Errorf("name = %q, want %q", p.Name, name)
 			}
-			// The examples use placeholder digests, which count as pinned.
-			if w := p.Warnings(); len(w) > 0 {
-				t.Errorf("unexpected warnings: %v", w)
+			if problems := p.Policy(); len(problems) > 0 {
+				t.Errorf("breaks the package policy: %v", problems)
 			}
 		})
 	}
@@ -46,9 +46,6 @@ routes:
 	}
 	if got := p.Routes["web"].Exposure; got != ExposurePrivate {
 		t.Errorf("route exposure = %q, want %q", got, ExposurePrivate)
-	}
-	if w := p.Warnings(); len(w) != 1 {
-		t.Errorf("want 1 unpinned-image warning, got %v", w)
 	}
 }
 

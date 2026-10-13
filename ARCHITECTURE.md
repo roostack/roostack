@@ -45,7 +45,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `cmd/roostack` | Web service and CLI: `serve`, `apply`, `user`, `render`, `validate` |
 | `cmd/roostack-agent` | The root helper |
 | `internal/config` | Lab settings and **all default paths** in one place, including where the lab is (`network: home|internet`, SPEC.md §6.12) |
-| `internal/pkgspec` | The package format (`schema: roostack/v1alpha1`) and its validation |
+| `internal/pkgspec` | The package format (`schema: roostack/v1alpha1`), its validation, and the package policy registry packages follow (SPEC §8.3.4) |
 | `internal/instance` | A user's installed service, validated against its package |
 | `internal/generate` | Desired state → Quadlets, Caddy config, secrets, dirs, backup plan |
 | `internal/quadlet` | Writing Quadlet/systemd unit files, with escaping |

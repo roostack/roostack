@@ -154,6 +154,13 @@ func (m *Manager) Catalog() ([]CatalogItem, error) {
 			m.Log.Error("loading package", "package", e.Name(), "err", err)
 			continue
 		}
+		// The catalog is official packages, which follow the package
+		// policy (SPEC.md §8.3.4); one that doesn't is a bug in Roostack's
+		// release, not something to hide from its Owner, so it's logged
+		// but still offered.
+		for _, problem := range p.Policy() {
+			m.Log.Error("package breaks the package policy", "package", p.Name, "problem", problem)
+		}
 		items = append(items, CatalogItem{Name: p.Name, Title: p.Title, Description: p.Description, Installed: installed[p.Name]})
 	}
 	slices.SortFunc(items, func(a, b CatalogItem) int { return strings.Compare(a.Title, b.Title) })

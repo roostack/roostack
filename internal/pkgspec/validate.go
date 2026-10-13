@@ -77,24 +77,6 @@ func (p *Package) Validate() error {
 	return v.err()
 }
 
-// Warnings returns non-fatal issues, e.g. images not pinned by digest.
-// The official catalog should have none (SPEC.md §6.10).
-func (p *Package) Warnings() []string {
-	var w []string
-	check := func(where, image string) {
-		if image != "" && !strings.Contains(image, "@sha256:") {
-			w = append(w, fmt.Sprintf("%s: image %q is not pinned by digest", where, image))
-		}
-	}
-	for _, name := range slices.Sorted(maps.Keys(p.Containers)) {
-		check("containers."+name, p.Containers[name].Image)
-	}
-	for _, name := range slices.Sorted(maps.Keys(p.Databases)) {
-		check("databases."+name, p.Databases[name].Image)
-	}
-	return w
-}
-
 func (p *Package) validateSettings(v *validator) {
 	seen := map[string]bool{}
 	for i, s := range p.Settings {
