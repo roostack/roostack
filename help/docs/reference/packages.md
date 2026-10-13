@@ -79,7 +79,8 @@ routes:
     `env` (templates), `secrets` (as environment variables), `mounts` of
     storage, `devices` (such as a GPU), a `health` check, `depends_on`,
     and `when` (a template: the container is left out unless it renders
-    `true`). `quadlet` passes extra Quadlet keys straight through.
+    `true`). `quadlet` passes extra Quadlet keys straight through, except
+    the ones [a package may not use](#what-a-package-may-not-do).
 
 `storage`
 :   Folders the service owns. `class` is `critical` (backed up) or
@@ -117,6 +118,42 @@ routes:
 `links`
 :   Links to the app's own settings pages, shown on the service page.
 
+## What a package may not do
+
+Every package in the registry follows a **package policy**, which Roostack
+checks itself rather than leaving it to reviewers. It stops a package
+reaching beyond its own service: other services' data and secrets, the
+server's files, or the internet before the Owner says so. `roostack
+validate` reports each problem with what to use instead.
+
+| Not allowed | Use instead |
+|---|---|
+| An image without a digest (`app:1.2`) | `app:1.2@sha256:…`, so every lab runs the image that was reviewed |
+| A route or port with `exposure: public` | `private`: only the Owner makes things public |
+| A route with neither `public.login_paths` nor `public.unsafe` | The pages where people sign in, or why the address shouldn't be public |
+
+In `quadlet:`, these lines (in any case) are refused:
+
+| Quadlet line | Use instead |
+|---|---|
+| `Volume=` with a host folder or a named volume, `Mount=` other than `type=tmpfs`, `Rootfs=` | `storage:` and `mounts:`; an anonymous `Volume=/path` or a tmpfs is fine |
+| `EnvironmentFile=` | `env:` and `secrets:` |
+| `Secret=` | `secrets:` |
+| `Image=` | the container's `image:` |
+| `PodmanArgs=`, `GlobalArgs=` | A field in the package format: ask for one |
+| `AddCapability=`, `SecurityLabelDisable=` | Nothing: containers keep Podman's defaults |
+| `Network=`, `Pod=` | Nothing: each service has its own network |
+| `PublishPort=` | `routes:` for web addresses, `ports:` for other connections |
+| `AddDevice=` | `devices:` (`gpu: intel`) |
+| `User=0` or `User=root`, `UIDMap=`, `GIDMap=`, `UserNS=host` | The image's own user, and `UserNS=keep-id:uid=…,gid=…` if its files need that owner |
+| `ContainerName=`, `Label=io.roostack.…` | Nothing: Roostack names and labels its containers |
+| `ExecStart…`, `ExecStop…` or any other `Exec…` in `[Service]` or `[Unit]` | `command:` or `hooks:`, which run inside the container |
+
+Anything else is allowed, and looked at when the package is reviewed:
+Forgejo's `UserNS=keep-id:uid=1000,gid=1000` and Immich's database
+`ShmSize=128m`, for example. A package of your own may break the policy:
+check it with `roostack validate -local`.
+
 ## Templates
 
 Values in `env`, `when` and hooks are Go templates:
@@ -136,6 +173,6 @@ roostack validate package.yaml
 roostack render -lab lab.yaml -package package.yaml -instance service.yaml
 ```
 
-`validate` checks the package and renders every template in it. `render`
-shows exactly what Roostack would generate. See
+`validate` checks the package and the package policy, and renders every
+template in it. `render` shows exactly what Roostack would generate. See
 [Command line](cli.md#looking-at-packages).

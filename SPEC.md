@@ -543,7 +543,7 @@ Any package can be installed more than once (two Forgejos at different addresses
 
 ### 8.3 Service registry — Locked (2026-10-13), not built
 
-**What the Owner asked for (2026-10-13):** a proper registry of services: every package Roostack can install (not only the hero services on roostack.cloud/services), each with its definition file, and a way for the community to add their own. Planned the same day with options for each question; the Owner decided most of them (each subsection says which). The rest was decided in a second and third round the same day; the index's format was locked last (8.3.3). Nothing here is built.
+**What the Owner asked for (2026-10-13):** a proper registry of services: every package Roostack can install (not only the hero services on roostack.cloud/services), each with its definition file, and a way for the community to add their own. Planned the same day with options for each question; the Owner decided most of them (each subsection says which). The rest was decided in a second and third round the same day; the index's format was locked last (8.3.3). Nothing here is built, except where a section says so.
 
 **Where things stand (checked in the code, 2026-10-13).** These shape the plan:
 
@@ -593,7 +593,7 @@ Whatever else is chosen: when a service is installed or updated, the controller 
 - Settings → Updates shows when the catalog was last fetched and from where, and the Owner can turn fetching off (only the bundled snapshot is used then).
 - **Considered:** per-author signatures (e.g. sigstore): more infrastructure, harder for contributors, and the trust that matters is the review (8.3.4), which one registry key states; Git commit signatures alone (a lab would need Git, and the history, to check them).
 
-#### 8.3.4 Trust and review — Locked (2026-10-13): three tiers; a package policy of risky lines
+#### 8.3.4 Trust and review — Locked (2026-10-13): three tiers; a package policy of risky lines; the policy as built (2026-10-14)
 
 **Tiers**, shown as a badge on the catalog and the service page:
 
@@ -609,6 +609,15 @@ Whatever else is chosen: when a service is installed or updated, the controller 
 - Nothing public by default (already true: §6.11), `public:` with `unsafe`, `private_paths` and `login_paths` filled in where they apply.
 
 Local packages may break the policy, with the Owner's confirmation and the list of what breaks it shown.
+
+**The policy — as built (2026-10-14).** `Package.Policy` in `pkgspec` (separate from `Validate`, so a local package can break it) returns every problem, each a sentence naming the field or Quadlet line and what to use instead:
+
+- **Quadlet lines**, in containers' and databases' `quadlet:`, matched whatever their case: the agreed list above, read this way: `Volume=` is refused with any source, a named volume as well as a host path (named volumes are shared by every service of the `roostack` user and aren't backed up; storage only through `storage:`), so only an anonymous `Volume=/path` passes; `Mount=` only as `type=tmpfs`; `User=` when the user part is `0` or `root`; `UserNS=host` only, so Forgejo's `UserNS=keep-id:…` passes; `ExecStart…`, `ExecStop…` and every other `Exec…` key in `[Service]` and `[Unit]` (the `[Container]` section's `Exec=` is the container's own command, and allowed).
+- **Added by the Owner on 2026-10-14**, because the generator appends a package's lines after its own, so they would override what Roostack writes: `Image=` (would replace the pinned image), `Secret=` (could name another service's Podman secret), `EnvironmentFile=` and `Rootfs=` (read host paths), `GlobalArgs=` (like `PodmanArgs=`), `ContainerName=` and `Label=io.roostack.…` (how Roostack finds a service's containers).
+- **Images:** a container's `image`, and a database's when it sets one, must end in `@sha256:` and 64 hex digits; the multi-architecture check is the registry CI's (8.3.7). `Warnings()`, which only reported this, is gone.
+- **Storage and devices:** the format already allows nothing else (mounts name a `storage:` entry; `devices:` takes only `gpu: intel`), so the Quadlet rules above are what enforce it.
+- **Public access:** routes and ports must default to `exposure: private`; every route names at least one `login_paths` entry, or says why it shouldn't be public at all (`unsafe`). Decided by the Owner (2026-10-14) as what "where they apply" can mean mechanically; whether the private paths are right stays with review. A route without a login page (e.g. an API with tokens) marks itself unsafe. Considered: only checking the defaults (leaves the public fields to review alone); a new "no login" field (a format change for a rare case).
+- **Where it runs today:** `roostack validate` fails on a problem (`-local` reports them as warnings, for a package of your own); `roostack render` prints them on stderr and still renders; the catalog loader logs each one as an error and still offers the package, since the bundled catalog is official packages and a problem there is a release bug, caught first by `TestExamplesParse`. Installing doesn't check it yet: that comes with fetching the registry (8.3.3) and "Add your own", where a local package's problems are shown for the Owner to confirm.
 
 **What the UI shows before installing** (every tier): a short summary generated from the definition: what it stores and whether that's backed up, the addresses and ports it asks for, devices, how much memory it expects (a new package field), and links to the definition file and the files Roostack would generate (`roostack render`, in "Details").
 

@@ -70,11 +70,14 @@ the plan without changing anything.
 These change nothing, and don't need a Roostack server:
 
 ```bash
-roostack validate <package.yaml>...
+roostack validate [-local] <package.yaml>...
 roostack render -lab lab.yaml -package <package.yaml> -instance <service.yaml> [-out DIR] [-gpu]
 ```
 
-`validate` checks package files, including every template in them.
+`validate` checks package files, including every template in them, and
+the [package policy](packages.md#what-a-package-may-not-do) every package
+in the registry follows. With `-local`, for a package of your own, what
+breaks the policy is shown as a warning instead.
 `render` prints exactly what Roostack would generate for a service (unit
 files, web server config), or writes it under `-out`.
 

@@ -323,7 +323,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [x] Registry repository created: `github.com/roostack/services` (Owner, 2026-10-13)
 - [ ] Prerequisite, whatever is decided: the lab keeps the package file of each installed version in its desired state (`packages/<name>/<version>.yaml`), generation reads it, it's backed up and replicated; restoring onto a newer Roostack then works (SPEC §8.3.1)
 - [ ] Create the registry repository on GitHub and move the packages there from `docs/examples` (keep small fixtures here for golden tests); releases bundle a snapshot (build-deb, help, references in docs)
-- [ ] Package policy in `pkgspec` (SPEC §8.3.4): a deny-list of risky Quadlet lines, digest pinning an error; local packages may break it with confirmation
+- [x] Package policy in `pkgspec` (SPEC §8.3.4): a deny-list of risky Quadlet lines (plus the keys that override Roostack's own, Owner 2026-10-14), digest pinning an error, routes and ports private by default with login paths or `unsafe`; `roostack validate` enforces it (`-local` warns), `render` and the catalog log it (2026-10-14)
+- [ ] Check the package policy when installing: refuse a registry package that breaks it, and show a local package's problems for the Owner to confirm (with "Add your own")
 - [ ] Package format additions: `about:` (maker, website, source, licence, support, icon, category, keywords), `requires.roostack`, expected memory, upgrade notes
 - [ ] Install summary from the definition (what it stores and backs up, addresses, ports, devices, memory) and the definition in Details
 - [ ] "Add your own" (local packages) on the catalog page, with the warning

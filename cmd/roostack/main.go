@@ -24,7 +24,7 @@ Commands:
   user     Add a user or reset a password
   backup   Set up backups, back up now, list backups
   render   Show or write the files generated for a service (no side effects)
-  validate Check a package file
+  validate Check a package file and the registry's package policy
   node     Join this server to a lab
 
 Run 'roostack <command> -h' for command flags.
@@ -111,6 +111,10 @@ func render(args []string) error {
 	if err != nil {
 		return err
 	}
+	// Still rendered, so an author sees what it would generate.
+	for _, problem := range p.Policy() {
+		fmt.Fprintf(os.Stderr, "%s: package policy: %s\n", *pkgPath, problem)
+	}
 	in, err := instance.Load(*instPath)
 	if err != nil {
 		return err
@@ -132,6 +136,7 @@ func render(args []string) error {
 
 func validate(args []string) error {
 	fs := flag.NewFlagSet("validate", flag.ExitOnError)
+	local := fs.Bool("local", false, "a package of your own: report the package policy's problems as warnings, not errors")
 	fs.Parse(args)
 	if fs.NArg() == 0 {
 		return errors.New("validate: give one or more package files")
@@ -143,14 +148,24 @@ func validate(args []string) error {
 			errs = append(errs, err)
 			continue
 		}
-		for _, w := range p.Warnings() {
-			fmt.Printf("%s: warning: %s\n", path, w)
+		ok := true
+		// Registry packages must follow the package policy; one of your own
+		// may break it (SPEC.md §8.3.4).
+		for _, problem := range p.Policy() {
+			if *local {
+				fmt.Printf("%s: warning: package policy: %s\n", path, problem)
+				continue
+			}
+			errs = append(errs, fmt.Errorf("%s: package policy: %s", path, problem))
+			ok = false
 		}
 		if err := generate.Check(p); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", path, err))
-			continue
+			ok = false
 		}
-		fmt.Printf("%s: ok\n", path)
+		if ok {
+			fmt.Printf("%s: ok\n", path)
+		}
 	}
 	return errors.Join(errs...)
 }
