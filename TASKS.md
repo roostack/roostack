@@ -319,17 +319,19 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 ## Service registry (SPEC §8.3, mostly decided 2026-10-13)
 
 - [x] Owner decided where packages live (own repository, now), fetching (bundled snapshot plus signed index), tiers (community a fast follow), withdrawal levels with an opt-out stop, `/services` on the website (2026-10-13)
-- [ ] Still open (SPEC §8.3, end): updates without a new definition (8.3.8), signing keys, the registry's licence, reviewers, the repository's name and account
+- [x] Second round (2026-10-13): Quadlet deny-list instead of an allow-list, the update bot plus opt-in "follow upstream", two-level keys held by the Owner, Apache-2.0, any maintainer with merge access reviews
+- [ ] Owner: the registry repository's name and GitHub account
 - [ ] Prerequisite, whatever is decided: the lab keeps the package file of each installed version in its desired state (`packages/<name>/<version>.yaml`), generation reads it, it's backed up and replicated; restoring onto a newer Roostack then works (SPEC §8.3.1)
 - [ ] Create the registry repository on GitHub and move the packages there from `docs/examples` (keep small fixtures here for golden tests); releases bundle a snapshot (build-deb, help, references in docs)
-- [ ] Package policy in `pkgspec` (SPEC §8.3.4): allow-listed Quadlet keys only, digest pinning an error; local packages may break it with confirmation
+- [ ] Package policy in `pkgspec` (SPEC §8.3.4): a deny-list of risky Quadlet lines, digest pinning an error; local packages may break it with confirmation
 - [ ] Package format additions: `about:` (maker, website, source, licence, support, icon, category, keywords), `requires.roostack`, expected memory, upgrade notes
 - [ ] Install summary from the definition (what it stores and backs up, addresses, ports, devices, memory) and the definition in Details
 - [ ] "Add your own" (local packages) on the catalog page, with the warning
 - [ ] Service updates (SPEC §7) against several package versions: upstream part for the policy, revision-only changes as patch
 - [ ] Signed index (Ed25519; root and signing keys once agreed), its CI, GitHub Pages behind our own address, the controller's fetch every few hours
 - [ ] Withdrawals: notice, warning, stop (stops the service, keeps data, explains why; opt-out in Settings → Updates)
-- [ ] Upstream update bot in the registry (if 8.3.8 option A is agreed)
+- [ ] Update bot in the registry: hourly upstream checks, pull requests, CI that installs and health-checks (and backs up and restores) each update, auto-merge for official patch releases (SPEC §8.3.8)
+- [ ] "Follow upstream" per service at patch or minor (SPEC §8.3.8): package `updates:` tag pattern, the resolved digest kept in the lab's state, health check and roll back to the previous image, the explanation where it's chosen; withdrawals by image digest
 - [ ] Registry repository with CI (validate, policy, golden render, digest and architecture check, `about:` check), checklist and pull-request template
 - [ ] Help: "Write a package" guide, with the dev-VM test steps and the evidence to submit
 - [ ] Website (roostack-cloud repository): every package under `/services` (heroes first, a page each at `/services/<name>`) built from the index; `services.ts` facts move into packages' `about:`
