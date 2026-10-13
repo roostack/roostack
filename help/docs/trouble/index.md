@@ -45,6 +45,35 @@ Your lab has no address yet
 Changes Roostack didn't make
 :   See [Updates and restarts](../settings/updates.md#changes-roostack-didnt-make).
 
+## A service shows a chicken instead of itself
+
+When a service can't answer, its address shows a picture and a short
+explanation instead. What they mean:
+
+Asleep on the job (502)
+:   The service isn't answering: it's stopped, or still starting after a
+    restart. Check it on its page in Roostack (the link is on the page,
+    when you're at home); **Restart** often helps.
+
+Still hatching (503)
+:   It's starting up. The page tries again by itself.
+
+Taking its sweet time (504)
+:   It took too long to answer, often because it's busy with something big.
+    Try again in a moment.
+
+Too many chickens (403, 429)
+:   Your address sent too many requests, or failed to log in too often, so
+    it's blocked or slowed down for a while. If it wasn't you, wait and try
+    again.
+
+Nobody roosts here (404)
+:   No service uses this address. Check the link, or the service's address
+    on its page in Roostack.
+
+At home, the page also has **Details**: the error itself, for working out
+what went wrong. Visitors from outside see only the picture and the words.
+
 ## Other problems
 
 - [Locked out](locked-out.md): a forgotten password or a lost phone.
