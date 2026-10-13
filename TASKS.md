@@ -320,7 +320,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 - [x] Owner decided where packages live (own repository, now), fetching (bundled snapshot plus signed index), tiers (community a fast follow), withdrawal levels with an opt-out stop, `/services` on the website (2026-10-13)
 - [x] Second round (2026-10-13): Quadlet deny-list instead of an allow-list, the update bot plus opt-in "follow upstream", two-level keys held by the Owner, Apache-2.0, any maintainer with merge access reviews
-- [ ] Owner: the registry repository's name and GitHub account
+- [x] Registry repository created: `github.com/roostack/services` (Owner, 2026-10-13)
 - [ ] Prerequisite, whatever is decided: the lab keeps the package file of each installed version in its desired state (`packages/<name>/<version>.yaml`), generation reads it, it's backed up and replicated; restoring onto a newer Roostack then works (SPEC §8.3.1)
 - [ ] Create the registry repository on GitHub and move the packages there from `docs/examples` (keep small fixtures here for golden tests); releases bundle a snapshot (build-deb, help, references in docs)
 - [ ] Package policy in `pkgspec` (SPEC §8.3.4): a deny-list of risky Quadlet lines, digest pinning an error; local packages may break it with confirmation
