@@ -12,9 +12,11 @@ import (
 	"slices"
 	"sync"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/labrestore"
 	"roostack.cloud/roostack/internal/maintenance"
@@ -67,6 +69,11 @@ func (l *labRestorer) Find(ctx context.Context, src labrestore.Source, key strin
 		return nil, nil, err
 	}
 	f := &labrestore.Finder{OpenRepo: l.openRepo}
+	if !l.lab.Cloud.Disabled {
+		f.CloudAccess = func(ctx context.Context) (cloudapi.RestoreAccess, error) {
+			return cloud.RestoreAccess(ctx, l.lab.Cloud, key)
+		}
+	}
 	return f.Find(ctx, src)
 }
 

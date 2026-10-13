@@ -77,6 +77,9 @@ type Service struct {
 	// UseName makes a claimed roost.ac name the lab's address (it saves
 	// it and restarts Roostack); called when a link asked for a name.
 	UseName func(ctx context.Context, claim cloudapi.NameClaim) error
+	// RecoveryKey reads the lab's recovery key, for its recovery identity
+	// (recovery.go); "" or nil while there's none.
+	RecoveryKey func() (string, error)
 	// Dropped is called when the lab loses its roost.ac address with the
 	// link (unlinked, here or in Cloud): the lab goes back to having no
 	// address.
@@ -104,6 +107,8 @@ type linkState struct {
 	Forgotten time.Time `json:"forgotten,omitzero"`
 	// ForgottenAccount is the account it was linked to.
 	ForgottenAccount string `json:"forgotten_account,omitempty"`
+	// RecoveryIdentity is the public key Cloud was last told (recovery.go).
+	RecoveryIdentity []byte `json:"recovery_identity,omitempty"`
 }
 
 // pending is a link being made: only in memory (a restart forgets it;
@@ -368,6 +373,11 @@ func (s *Service) linked(p *pending, ls cloudapi.LinkStatus) error {
 	if err := s.save(); err != nil {
 		return err
 	}
+	go func() {
+		if err := s.RegisterIdentity(context.Background()); err != nil {
+			s.log.Warn("Roostack Cloud: registering the recovery identity (tried again at the next check)", "err", err)
+		}
+	}()
 	if p.name != "" {
 		go func() {
 			if err := s.ClaimName(context.Background(), p.name); err != nil {
@@ -525,8 +535,10 @@ func (s *Service) forget() {
 }
 
 // Check checks in with Cloud: it refreshes what Cloud says about the
-// lab, renews the certificate when due, and forgets the link if Cloud no
-// longer accepts it (SPEC.md §6.6).
+// lab, renews the certificate when due, and registers the recovery
+// identity if it changed. If Cloud no longer accepts the certificate, the
+// lab relinks with its recovery key, and forgets the link only if that's
+// refused (SPEC.md §6.6, §6.9).
 func (s *Service) Check(ctx context.Context) error {
 	s.mu.Lock()
 	linked := s.st.Linked
@@ -536,8 +548,25 @@ func (s *Service) Check(ctx context.Context) error {
 	}
 	var info cloudapi.LabInfo
 	err := s.client.do(ctx, true, http.MethodGet, cloudapi.PathLab, nil, &info)
+	if errors.Is(err, ErrUnlinked) {
+		if rerr := s.relink(ctx); rerr == nil {
+			err = s.client.do(ctx, true, http.MethodGet, cloudapi.PathLab, nil, &info)
+		} else {
+			s.log.Warn("Roostack Cloud: relinking with the recovery key", "err", rerr)
+			var unreachable *Unreachable
+			if errors.As(rerr, &unreachable) {
+				err = rerr // tried again at the next check
+			}
+		}
+	}
 	if err == nil {
 		err = s.renewIfDue(ctx)
+	}
+	if err == nil {
+		if rerr := s.RegisterIdentity(ctx); rerr != nil {
+			// Not the check's failure: it's tried again at the next one.
+			s.log.Warn("Roostack Cloud: registering the recovery identity", "err", rerr)
+		}
 	}
 	s.mu.Lock()
 	now := s.now()

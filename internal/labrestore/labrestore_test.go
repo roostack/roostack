@@ -6,9 +6,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
@@ -125,6 +127,21 @@ func TestFindAndRestoreALab(t *testing.T) {
 	}
 	if len(unopened) != 1 || unopened[0].Problem == "" {
 		t.Errorf("another lab's backups can't be opened: %+v", unopened)
+	}
+
+	// From Roostack Cloud: the repositories it names, opened with its keys.
+	var envs [][]string
+	cf := &Finder{OpenRepo: func(url string, env []string) *backup.Repo { envs = append(envs, env); return repoAt(key, url) },
+		CloudAccess: func(context.Context) (cloudapi.RestoreAccess, error) {
+			return cloudapi.RestoreAccess{Repositories: []string{old.URL}, Keys: cloudapi.StorageKeys{AccessKeyID: "restore-key", Region: "x"}}, nil
+		}}
+	cfound, _, err := cf.Find(ctx, Source{Kind: "cloud"})
+	if err != nil || len(cfound) != 1 || cfound[0].ServerName != "nuc" || !slices.Contains(cfound[0].Env, "AWS_ACCESS_KEY_ID=restore-key") ||
+		len(envs) == 0 || !slices.Contains(envs[0], "AWS_ACCESS_KEY_ID=restore-key") {
+		t.Errorf("from Cloud: %+v %v", cfound, err)
+	}
+	if _, _, err := (&Finder{}).Find(ctx, Source{Kind: "cloud"}); err == nil {
+		t.Error("Cloud turned off: no error")
 	}
 
 	log := activity.New().Start("restore", "Restoring the lab")

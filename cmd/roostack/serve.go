@@ -161,6 +161,14 @@ func serve(args []string) error {
 			return err
 		}
 		srv.Cloud = link
+		// The recovery key's identity, for restoring and relinking.
+		link.RecoveryKey = func() (string, error) {
+			data, err := os.ReadFile(backup.KeyFile(lab.Paths))
+			if errors.Is(err, os.ErrNotExist) {
+				return "", nil
+			}
+			return string(data), err
+		}
 		// Roostack Cloud's relay as a way in (SPEC.md §10.5): its
 		// interface through the agent, its edges for Caddy and DNS.
 		link.WireGuard = agentClient
