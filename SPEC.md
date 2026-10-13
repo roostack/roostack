@@ -541,9 +541,9 @@ Any package can be installed more than once (two Forgejos at different addresses
 - **Renaming:** the service's page changes its title ("Rename"); its name is shown there and stays.
 - **Considered:** renaming a service's ID later (it would mean renaming units, folders, secrets, databases and backup tags: rejected; the title changes instead); one set of data shared by copies (not what copies are for).
 
-### 8.3 Service registry — Open, leaning (2026-10-13), not built
+### 8.3 Service registry — mostly Locked (2026-10-13), not built
 
-**What the Owner asked for (2026-10-13):** a proper registry of services: every package Roostack can install (not only the hero services on roostack.cloud/services), each with its definition file, and a way for the community to add their own. This section plans it for the Owner to decide; nothing here is built. Each question has options and a recommendation ("Leaning"); the open questions are listed at the end.
+**What the Owner asked for (2026-10-13):** a proper registry of services: every package Roostack can install (not only the hero services on roostack.cloud/services), each with its definition file, and a way for the community to add their own. Planned the same day with options for each question; the Owner decided most of them (each subsection says which). Still open: automatic updates without a new definition (8.3.8), signing keys (8.3.3), the registry's licence and who reviews (end of section). Nothing here is built.
 
 **Where things stand (checked in the code, 2026-10-13).** These shape the plan:
 
@@ -555,7 +555,7 @@ Any package can be installed more than once (two Forgejos at different addresses
 - Packages carry no facts about the project itself (licence, website, source, maker, icon). The website's Services page keeps them by hand (`site/src/data/services.ts` in the roostack-cloud repository).
 - Nodes already receive their services' package files from the controller over the lab API (`node/wire.go`), so only the controller needs to know where packages come from.
 
-#### 8.3.1 The lab keeps the packages it uses — Leaning, a prerequisite
+#### 8.3.1 The lab keeps the packages it uses — Locked (2026-10-13), a prerequisite
 
 Whatever else is chosen: when a service is installed or updated, the controller **copies the exact package file into the lab's desired state** (e.g. `/var/lib/roostack/packages/<name>/<version>.yaml`), and generation reads that copy, not the catalog. It is backed up with the lab and replicated like the instance files.
 
@@ -563,7 +563,7 @@ Whatever else is chosen: when a service is installed or updated, the controller 
 - The catalog becomes only *what can be installed*; the lab's copy is *what is installed*. Copies no service uses are deleted.
 - **Considered:** keeping every past version in each release's catalog (grows forever, and still fails for packages that didn't come from a release).
 
-#### 8.3.2 Where definitions live — Leaning: their own Git repository, `catalog/` here until then
+#### 8.3.2 Where definitions live — Locked (2026-10-13): their own Git repository, from the start
 
 | Option | For | Against |
 |---|---|---|
@@ -571,9 +571,11 @@ Whatever else is chosen: when a service is installed or updated, the controller 
 | **B. A separate public Git repository** ("the registry repository", e.g. `roostack/packages`) | Transparent: every package and every change is a reviewable commit, forkable; packages can be fixed between releases; contributors don't need to touch Roostack's code; its CI builds the index (8.3.3) and the website reads it | A second repository to keep in step (its CI checks out a Roostack version to validate and render) |
 | **C. A registry service on Roostack Cloud** (uploads, an API, a database) | Accounts, download counts, ratings | A lab would depend on Cloud to find packages, against principle 3 (local-first) and the rule that everything works without Cloud; server code to run and secure; less transparent than Git |
 
-**Leaning: B, reached through A.** Move the packages to `catalog/` in this repository now (one place, tested with the generator), and split them into the registry repository when community contributions open or package fixes need to ship between releases, whichever is first. The registry is static files (8.3.3), so anyone can mirror it; Cloud may mirror it too, but is never needed.
+**Decided: B, right away** (the Owner, 2026-10-13). The packages move from `docs/examples` into the registry repository, not into a `catalog/` folder here first, so there's one move and package fixes never wait for a Roostack release. This repository keeps a few small packages as test fixtures for the generator's golden tests; releases bundle a snapshot of the registry (8.3.3). The registry is static files, so anyone can mirror it; Cloud may mirror it too, but is never needed.
 
-#### 8.3.3 How a lab finds and updates packages — Leaning: a bundled snapshot plus a signed index fetched when online
+- **Considered:** A first and splitting later (the earlier leaning: one place while the format moves fast, but two moves, and the split would come when it's busiest).
+
+#### 8.3.3 How a lab finds and updates packages — Locked (2026-10-13): a bundled snapshot plus a signed index fetched when online; keys Open
 
 | Option | For | Against |
 |---|---|---|
@@ -581,24 +583,25 @@ Whatever else is chosen: when a service is installed or updated, the controller 
 | **B. Fetched from the registry only** | Packages update on their own schedule | A new lab without internet, or with the registry down, has no catalog |
 | **C. Both** | The bundled snapshot is the offline baseline (principle 3); a newer index replaces it when the controller can fetch one | Two sources to reason about (the newer index wins) |
 
-**Leaning: C.** The registry's CI publishes a static **index** (every package, every version, each file's SHA-256, its tier, schema, minimum Roostack version and architectures, and any withdrawals) plus the package files, on plain static hosting (like the help site, §6.3.1). The controller fetches it daily and when the catalog page is opened; nodes get packages from the controller as now.
+**Decided: C** (the Owner, 2026-10-13). The registry's CI publishes a static **index** (every package, every version, each file's SHA-256, its tier, schema, minimum Roostack version and architectures, and any withdrawals) plus the package files. The controller fetches it every few hours and when the catalog page is opened; nodes get packages from the controller as now.
 
-- **The index is signed** with an Ed25519 key whose public half is built into Roostack (Go's standard library has Ed25519, so no new dependency; the format could be minisign's, to agree). Package files are trusted through their hashes in the index. TLS alone would trust whoever serves the files; with a signature, mirrors and caches can't change a package, and an old index can't be replayed past a newer one (the index carries a serial number and a date, and a lab refuses one older than it has).
-- The signing key is kept offline; the release machinery signs. Losing it means a Roostack release with a new key; a second, offline key built in alongside allows rotation without that (to agree).
+- **Hosting — Leaning: GitHub** (the Owner's suggestion, 2026-10-13): the repository on GitHub, the index on GitHub Pages, reached through an address of ours (e.g. `packages.roostack.cloud`) so the host can change without a Roostack release. Considered: GitHub's raw file URLs (rate-limited, and the address is GitHub's); Cloudflare like the help site (§6.3.1; fine too, one more moving part).
+- **The index is signed — keys Open.** HTTPS proves a lab is talking to GitHub, not that the files are what the maintainers published: a leaked GitHub token, a bad workflow change, a mirror or a DNS hijack of our address could serve a changed package. A signature checked by the lab catches all of those, lets anyone mirror the files, and stops an old index being replayed (the index carries a serial number and a date, and a lab refuses one older than it has). Package files are trusted through their hashes in the index. Ed25519 is in Go's standard library, so no new dependency.
+- **Leaning: two levels of key.** A **root key** kept offline (a hardware key or paper, held by the Owner), whose public half is built into Roostack; it signs only a short statement naming the current **signing key**. The signing key lives in the registry's CI and signs every index, so publishing stays automatic (needed for 8.3.8). If the signing key leaks or CI is compromised, the Owner signs a new one with the root key and labs drop the old one, without a Roostack release. Losing the root key itself needs a Roostack release with a new one. Considered: one key, offline (every publish waits for a person); one key in CI (a leak means a Roostack release to replace it); the full TUF framework (the same idea with more roles and a dependency); minisign's file format (a known format, but it signs files, not key delegations; our own small JSON format is a few dozen lines).
 - Settings → Updates shows when the catalog was last fetched and from where, and the Owner can turn fetching off (only the bundled snapshot is used then).
 - **Considered:** per-author signatures (e.g. sigstore): more infrastructure, harder for contributors, and the trust that matters is the review (8.3.4), which one registry key states; Git commit signatures alone (a lab would need Git, and the history, to check them).
 
-#### 8.3.4 Trust and review — Leaning: three tiers, one set of rules the lab enforces
+#### 8.3.4 Trust and review — Locked (2026-10-13): three tiers; the enforced package policy Leaning, pending 8.3.8
 
 **Tiers**, shown as a badge on the catalog and the service page:
 
 - **Official:** maintained by the Roostack project, reviewed, and tested on a real lab for each Roostack release (install, backup, restore, update, remove).
-- **Community:** in the registry, written and maintained by its author, reviewed against the checklist below before each version is published, but not tested by Roostack for each release. The UI says who maintains it and when it was last reviewed.
+- **Community — a fast follow** (the Owner, 2026-10-13): opened soon after the registry starts with official packages, not before 1.0 is needed. In the registry, written and maintained by its author, reviewed against the checklist below before each version is published, but not tested by Roostack for each release. The UI says who maintains it and when it was last reviewed.
 - **Your own (local):** a package file the Owner adds themselves ("custom services", §8). Never fetched or reviewed; installing one shows a plain warning that Roostack hasn't checked it. It still has to validate, and it's kept in the lab like any other (8.3.1). This is how a contributor tests a package before submitting it (8.3.7).
 
 **What a package may do is enforced by Roostack, not only by reviewers.** Registry packages (both tiers) are checked against a **package policy** in `pkgspec`:
 
-- Raw Quadlet keys from an allow-list only (e.g. `ShmSize`, `UserNS=keep-id…`), grown by review when a package needs one; no host paths, extra capabilities or `PodmanArgs`. Today's `UserNS` and `ShmSize` uses fit.
+- **Raw Quadlet lines from an allow-list only.** Roostack writes each container's Quadlet file (the `.container` file systemd and Podman run it from) itself, from what the package declares: its image, its folders, its network, its secrets. The `quadlet:` passthrough lets a package add extra lines Roostack doesn't model yet: Forgejo's `UserNS=keep-id…` (whose user owns its files) and Immich's database `ShmSize` (shared memory) are today's only uses. Any line is accepted now, so a package could add `Volume=/var/lib/roostack:/x` (Roostack's own files inside the container) or `PodmanArgs=--privileged`, and reach everything the `roostack` user can, which is the whole lab. The policy allows harmless lines (`ShmSize`, `UserNS=keep-id…` and the like); anything else needs Roostack to model it first, as ports and devices were.
 - Images pinned by digest: an error, not a warning; a multi-architecture index digest when the project publishes one.
 - Storage only through `storage:` (Roostack's folders); devices only through the abstract `devices:` requests.
 - Nothing public by default (already true: §6.11), `public:` with `unsafe`, `private_paths` and `login_paths` filled in where they apply.
@@ -619,11 +622,19 @@ Local packages may break the policy, with the Owner's confirmation and the list 
 
 **What review can't promise:** a container image is the upstream project's code; review checks the definition and where the image comes from, not the code inside it. The tier text says so ("Roostack checked how this is set up; the app itself is made by …").
 
-**Pulling a bad package.** The index can **withdraw** a version or a whole package, with a reason and a severity. A lab that sees a withdrawal stops offering it, and an installed service shows under "Needs attention" with the reason and what to do (update to a fixed version, or remove it). **Roostack never removes or stops a service by itself**: that would risk the Owner's data, and the Owner decides. A lab that doesn't fetch learns of it from the next Roostack release. Published versions are never edited, only withdrawn and superseded.
+**Pulling a bad package — Locked (2026-10-13), levels to detail.** The index can **withdraw** a version or a whole package, with a reason and a level. The Owner asked for levels, up to stopping a service, with an opt-out and a clear explanation:
 
-- **Considered:** one tier only, everything reviewed and tested by the project (doesn't scale to community contributions); no enforced policy, trusting review alone (one missed `Volume=` would expose a whole lab, and local packages would have nothing checking them); stricter rules for community than official (two rule sets to keep; official packages need nothing community ones shouldn't have, and needing an exception is a signal to review).
+- **Notice:** "Needs attention" says what's wrong and what to do (usually: update to the fixed version).
+- **Warning:** the same, and the version can't be installed any more; updating is offered first on the service page.
+- **Stop:** for a package found to be malicious, or an app being actively exploited with no fix: Roostack stops the service (its containers and its addresses), keeps all its data, and says on the service page and in "Needs attention" why, who said so (the registry, with a link), and what to do. The Owner can start it again, with a confirmation that names the risk.
+- **The opt-out:** Settings → Updates, "Let Roostack stop a service the registry says is dangerous", on by default, explained in a sentence there. Off, a Stop is shown as a Warning.
+- **Never:** removing a service or deleting data. A stop is the most the registry can do, so a stolen signing key (8.3.3) could at worst stop services until the Owner starts them again.
 
-#### 8.3.5 Versioning and compatibility — Leaning
+A lab that doesn't fetch learns of withdrawals from the next Roostack release. Published versions are never edited, only withdrawn and superseded. Considered: never stopping anything (the earlier leaning; leaves a known-malicious service running in labs whose Owner doesn't look); removing (data loss is never the registry's call).
+
+- **Considered (tiers and policy):** one tier only, everything reviewed and tested by the project (doesn't scale to community contributions); no enforced policy, trusting review alone (one missed `Volume=` would expose a whole lab, and local packages would have nothing checking them); stricter rules for community than official (two rule sets to keep; official packages need nothing community ones shouldn't have, and needing an exception is a signal to review).
+
+#### 8.3.5 Versioning and compatibility — Locked (2026-10-13), subject to 8.3.8
 
 - **A package version stays `<upstream version>-roostack.<revision>`** (§8.1). The upstream part says which release of the app runs; the revision counts changes to Roostack's definition for that release.
 - **Updates (§7)** compare the upstream part: `patch` and `minor` policies need it to look like semantic versioning, otherwise the service only notifies. A revision-only change (a better definition, the same app) follows the `patch` policy.
@@ -633,14 +644,14 @@ Local packages may break the policy, with the Owner's confirmation and the list 
 - **Upgrade notes and migration steps** (§8.1 Future) become fields of a version, shown before updating.
 - **Considered:** versioning packages independently of upstream (hides which app version runs); following upstream tags automatically (no review of what changed).
 
-#### 8.3.6 How it appears publicly — Leaning: one index, read by the website and the lab
+#### 8.3.6 How it appears publicly — Locked (2026-10-13): one index, read by the website and the lab
 
 - **Facts about the project move into the package**, in a new `about:` block: maker, website, source, licence (SPDX), support/donation link, icon, category, keywords. Today these live in `services.ts`; with the registry they're reviewed with the package (8.3.4) and the same everywhere.
-- **The website** (roostack.cloud, Astro, in the roostack-cloud repository) builds a browsable registry from the index at build time: a page per package with what it is, credit to its project, its tier and maintainer, what Roostack sets up (generated from the definition: storage and backups, address, ports, memory), its versions, and the definition file itself. Search and categories across all packages. The Services page keeps its hand-ordered hero services and their own wording, linking to their registry pages. The website needs nothing from Cloud.
+- **The website** (roostack.cloud, Astro, in the roostack-cloud repository) builds a browsable registry from the index at build time: a page per package with what it is, credit to its project, its tier and maintainer, what Roostack sets up (generated from the definition: storage and backups, address, ports, memory), its versions, and the definition file itself. Search and categories across all packages. **It lives under `/services`** (decided 2026-10-13: "services" is the word people use, in the lab's UI too; "package" is for authors): the hand-ordered hero services and their own wording stay at the top of `/services`, with every package below and a page each at `/services/<name>`. The website needs nothing from Cloud. Considered: `/packages` beside a curated Services page (two places for the same things).
 - **The lab's catalog page** reads the same index (or the bundled snapshot): search, categories, tier badges, "Add your own" for local packages, and the install summary above. Details shows the definition and what it would generate.
 - **Considered:** the website reading Roostack's repository directly (couples the website to Roostack's layout); hand-written pages per package (doesn't scale, and drifts from the definitions).
 
-#### 8.3.7 Contributing a package — Leaning
+#### 8.3.7 Contributing a package — Locked (2026-10-13)
 
 1. **Write:** start from a template (`roostack package new <name>`, or copy an example) and the format reference on the help site, extended with a "Write a package" guide.
 2. **Check:** `roostack validate` (already renders every template with default and flipped settings), plus the package policy (8.3.4); `roostack render` shows the generated files.
@@ -648,16 +659,25 @@ Local packages may break the policy, with the Owner's confirmation and the list 
 4. **Submit:** a pull request to the registry repository, with a checklist template. CI validates, applies the policy, renders golden files with default settings, checks each image digest resolves (and which architectures it has), and checks the `about:` fields. Later, CI could run the install test on a VM.
 5. **Review and publish:** a maintainer goes through the checklist; on merge, the index is rebuilt and signed. The author is the package's maintainer; a community package whose maintainer doesn't keep up with upstream security releases is marked unmaintained, then withdrawn if it becomes unsafe.
 
-#### Open questions for the Owner
+#### 8.3.8 Updates without waiting for a new definition — Open (2026-10-13)
 
-1. Separate registry repository (8.3.2): agree with B reached through A, and when to split?
-2. Fetching (8.3.3): agree with a bundled snapshot plus a signed, fetched index? Where it's hosted (roostack.cloud subdomain on Cloudflare, like the help site, or GitHub)? The signature format (minisign or our own) and a second, offline key for rotation?
-3. Community tier (8.3.4): open community contributions at all before 1.0, or official packages only until the format settles?
-4. The package policy (8.3.4): enforce it on registry packages and allow local ones to break it with confirmation, as proposed?
-5. Withdrawals (8.3.4): only "Needs attention", never stopping a service, even for a package found to be malicious?
-6. Licence of package files: the registry repository's own licence (Apache-2.0 like Roostack, §2.1, or something lighter such as CC0 or MIT for definitions)?
-7. Public pages (8.3.6): where the registry lives on the website (`/services` growing into it, or `/packages` with Services kept as the curated page)?
-8. Who reviews community packages, and how many maintainers must approve?
+The Owner wants (2026-10-13) services to pick up an app's patch releases (security fixes, mostly) without waiting for Roostack to publish new definitions, and to look into it further. With the registry in its own repository and fetched by labs (8.3.2, 8.3.3), nothing waits for a Roostack release any more; the question is whether a person or a lab has to act for each upstream release.
+
+| Option | How | For | Against |
+|---|---|---|---|
+| **A. A bot in the registry** | A job in the registry's CI checks each package's upstream for new releases every hour, writes the new version (tag, digest, `version`) and opens a pull request; CI validates and renders it. Patch releases of official packages merge themselves when CI passes; others wait for a person. Labs fetch the new index within hours and §7's per-service policy decides whether to apply it | Images stay pinned by digest, so every lab runs exactly what was checked and a restore is exact; every update is a commit anyone can see; a broken release can be withdrawn (8.3.4); no new code in the lab | Hours, not minutes, behind upstream; the bot and its auto-merge are ours to run (Renovate or Dependabot do most of it, as GitHub apps rather than a dependency of Roostack) |
+| **B. The lab follows a tag range** | The package says which upstream tags it accepts (e.g. `1.34.*`, or "patch releases of the pinned version"); the lab looks up the newest matching tag itself, pulls it and records the digest it got in its own state (like a lock file) | Fastest; works with no registry change | Every lab runs an image nobody checked with this definition; a patch release that changes something the definition relies on breaks labs with nothing to stop it; withdrawals can't name a bad image in advance; each lab queries the image registry (Docker Hub's rate limits) |
+| **C. Both** | A by default; B as an opt-in per service for people who want updates the moment they're published | Choice | Two update paths to explain and test |
+
+**Leaning: A.** It keeps what pinning gives (exact restores, a reviewable history, withdrawals) and makes patch updates automatic in practice: upstream release → pull request → CI → signed index within hours → the lab applies it under its update policy and maintenance window (§3.2). The hours of delay are small next to how long most labs take to update by hand. B could come later as an opt-in if people want it. To agree: whether patch releases of community packages may merge themselves too (leaning: no, their maintainer merges), and whether CI should also install the update on a VM before merging.
+
+#### Still open for the Owner
+
+1. Updates without a new definition (8.3.8): agree with A?
+2. Signing (8.3.3): agree with an offline root key and a CI signing key, our own small format? Who holds the root key, and where?
+3. The registry repository's licence: leaning **Apache-2.0**, the same as Roostack (§2.1): one licence across the project, contributions come under it explicitly, and Cloud can use the definitions like Roostack's code. Considered: MIT-0 or CC0 (anyone could copy a definition into their own tools without credit; nicer for snippets, but a second licence to explain).
+4. Who reviews community packages, and how many maintainers must approve (TBD, before community packages open).
+5. The registry repository's name and GitHub account (e.g. `roostack/packages`), with Roostack's own repository location (TASKS, "To discuss").
 
 ## 9. MVP Scope — Locked
 
