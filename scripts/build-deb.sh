@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Builds the Roostack package (TASKS 1.12): dist/roostack_<version>_amd64.deb.
-# Run after `make build`. Uses dpkg-deb when it's there (Debian, CI);
+# Builds the Roostack package (TASKS 1.12): dist/roostack_<version>_<arch>.deb,
+# for the architecture the binaries in bin/ were built for (amd64, or arm64
+# after `GOARCH=arm64 make build`; ARM64-PLAN.md 1.2). Run after
+# `make build`. Uses dpkg-deb when it's there (Debian, CI);
 # otherwise assembles the archive with ar and tar, which is all a .deb is.
 set -euo pipefail
 
@@ -22,6 +24,17 @@ fi
 [[ -x bin/roostack && -x bin/roostack-agent && -s bin/copyright ]] || { echo "build first: make build" >&2; exit 1; }
 # A released package always has its help (make build skips it without uv).
 [[ -s internal/web/helpsite/site/index.html ]] || { echo "the help site isn't built: install uv, then make build" >&2; exit 1; }
+# The architecture, from the ELF header's machine field (byte 18), so this
+# runs without Go (dev-install.sh runs it in a VM). Both binaries must agree.
+elf_arch() {
+    case $(od -An -tx1 -j18 -N1 "$1" | tr -d ' ') in
+    3e) echo amd64 ;;
+    b7) echo arm64 ;;
+    *) echo "$1: not a Linux amd64 or arm64 binary" >&2; exit 1 ;;
+    esac
+}
+ARCH=$(elf_arch bin/roostack)
+[[ $(elf_arch bin/roostack-agent) == "$ARCH" ]] || { echo "bin/roostack and bin/roostack-agent are for different processors: make build again" >&2; exit 1; }
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 ROOT=$STAGE/root
@@ -48,14 +61,14 @@ done
 
 CONTROL=$STAGE/control
 install -d "$CONTROL"
-sed "s/@VERSION@/$VERSION/" packaging/deb/control > "$CONTROL/control"
+sed -e "s/@VERSION@/$VERSION/" -e "s/@ARCH@/$ARCH/" packaging/deb/control > "$CONTROL/control"
 echo "Installed-Size: $(du -sk "$ROOT" | cut -f1)" >> "$CONTROL/control"
 install -m 0644 packaging/deb/conffiles packaging/deb/triggers "$CONTROL/"
 install -m 0755 packaging/deb/postinst packaging/deb/prerm packaging/deb/postrm "$CONTROL/"
 (cd "$ROOT" && find . -type f ! -path ./etc/\* -printf '%P\0' | xargs -0 md5sum) > "$CONTROL/md5sums"
 
 mkdir -p dist
-OUT=dist/roostack_${VERSION}_amd64.deb
+OUT=dist/roostack_${VERSION}_${ARCH}.deb
 rm -f "$OUT"
 if command -v dpkg-deb >/dev/null; then
     cp -r "$CONTROL" "$ROOT/DEBIAN"
