@@ -135,4 +135,21 @@ func TestRestoreALabOnFirstRun(t *testing.T) {
 	if fr2.usedDrive != "uuid:64B1" || fr2.src.Folder != "/mnt/roostack-old-backups" {
 		t.Errorf("drive search: %q %+v", fr2.usedDrive, fr2.src)
 	}
+	if _, body := h2.get("/setup/restore"); strings.Contains(body, `value="cloud"`) {
+		t.Error("Roostack Cloud is offered while it's turned off")
+	}
+
+	// From Roostack Cloud: the recovery key is all it takes (SPEC.md §6.9).
+	h3 := newHarness(t, "the-setup-code")
+	fr3 := &fakeLabRestore{}
+	h3.server.LabRestore = fr3
+	h3.server.Cloud = newCloud(t)
+	h3.post("/setup/code", url.Values{"token": {"the-setup-code"}}, h3.srv.URL)
+	if _, body := h3.get("/setup/restore"); !strings.Contains(body, `value="cloud"`) {
+		t.Error("Roostack Cloud isn't offered")
+	}
+	h3.post("/setup/restore", url.Values{"kind": {"cloud"}, "recovery_key": {" the key "}}, h3.srv.URL)
+	if fr3.src.Kind != "cloud" || fr3.key != "the key" {
+		t.Errorf("Cloud search: %+v %q", fr3.src, fr3.key)
+	}
 }

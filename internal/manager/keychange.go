@@ -216,6 +216,14 @@ func (m *Manager) KeyChangeJob() maintenance.Job {
 			}
 			k.Phase = KeyRemoving
 			act.Step("The new recovery key is now the lab's key")
+			// Restoring from Roostack Cloud then needs the new key, not
+			// the old (SPEC.md §6.9); if Cloud can't be reached, the next
+			// check-in tells it.
+			if m.CloudBackup != nil {
+				if err := m.CloudBackup.RegisterIdentity(ctx); err != nil {
+					act.Printf("Roostack Cloud couldn't be told about the new key yet (%v); Roostack tries again at its next daily check.", err)
+				}
+			}
 			if err := m.saveKeyChange(k); err != nil {
 				return err
 			}

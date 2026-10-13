@@ -30,6 +30,17 @@ const (
 	// backup's short-lived keys. GET PathLabStorage → StorageUsage.
 	PathLabStorageKeys = "/v1/lab/storage/keys"
 	PathLabStorage     = "/v1/lab/storage"
+	// PUT RecoveryIdentity (mutual TLS): the lab's recovery identity,
+	// replacing the one before (a new recovery key).
+	PathLabRecoveryIdentity = "/v1/lab/recovery-identity"
+
+	// Proving the recovery key, for a lab that has lost its controller
+	// (no certificate): POST RestoreChallengeRequest → RestoreChallenge,
+	// then one of POST RestoreProof → RestoreAccess (keys to read its
+	// backups) or POST RelinkRequest → Relinked (a new certificate).
+	PathRestoreChallenge = "/v1/restore/challenge"
+	PathRestoreAccess    = "/v1/restore/access"
+	PathRestoreRelink    = "/v1/restore/relink"
 )
 
 // A claimed name's records, at the addresses in its NameClaim's
@@ -219,6 +230,9 @@ const (
 	// StoragePrune is the controller's weekly prune: the lab's folders,
 	// deleting allowed (deleted data is kept 90 days as old versions).
 	StoragePrune = "prune"
+	// StorageRestore is reading the lab's folders to restore it (and
+	// restic's locks, which it takes even to read): RestoreAccess's keys.
+	StorageRestore = "restore"
 )
 
 // StorageRequest asks for keys: for a server's backups (Server, its name
@@ -337,4 +351,65 @@ type NameRequest struct {
 type NameClaim struct {
 	Name        string            `json:"name"`
 	Credentials map[string]string `json:"credentials"`
+}
+
+// The recovery identity (Cloud's DESIGN §3b, "Account recovery"): an
+// Ed25519 key the lab derives from its recovery key, so whoever holds the
+// recovery key can prove it to Cloud without revealing it. The lab
+// registers the public half; Cloud finds the lab by it.
+type RecoveryIdentity struct {
+	PublicKey []byte `json:"public_key"`
+}
+
+// RestoreChallengeRequest asks for a challenge to sign.
+type RestoreChallengeRequest struct {
+	PublicKey []byte `json:"public_key"`
+}
+
+// RestoreChallenge is a value to sign, once, before it expires.
+type RestoreChallenge struct {
+	Challenge string    `json:"challenge"`
+	Expires   time.Time `json:"expires"`
+}
+
+// What a signature is for (part of what's signed, so a signature for one
+// can't be used for the other).
+const (
+	ProveAccess = "access"
+	ProveRelink = "relink"
+)
+
+// RestoreMessage is what the lab signs: the challenge, for one purpose.
+func RestoreMessage(purpose, challenge string) []byte {
+	return []byte("roostack-recovery-identity-v1\n" + purpose + "\n" + challenge)
+}
+
+// RestoreProof is a challenge signed with the recovery identity's key.
+type RestoreProof struct {
+	PublicKey []byte `json:"public_key"`
+	Challenge string `json:"challenge"`
+	Signature []byte `json:"signature"`
+}
+
+// RestoreAccess opens a lab's backups in Roostack Cloud for a restore:
+// keys that read its folders, and the repository of each server in them.
+type RestoreAccess struct {
+	LabID        string      `json:"lab_id"`
+	LabName      string      `json:"lab_name"`
+	Keys         StorageKeys `json:"keys"`
+	Repositories []string    `json:"repositories"`
+}
+
+// RelinkRequest asks for a new certificate for a lab whose own is no
+// longer accepted (it expired while the lab was off, say), for a new key.
+// Cloud refuses it for a lab that was unlinked.
+type RelinkRequest struct {
+	RestoreProof
+	CSR []byte `json:"csr"`
+}
+
+// Relinked is the lab's new certificate (PEM).
+type Relinked struct {
+	LabInfo
+	Certificate string `json:"certificate"`
 }

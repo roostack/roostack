@@ -50,8 +50,10 @@
     </label>{{end}}
     <fieldset>
       <legend>Where are the backups?</legend>
+      {{if .CloudOn}}<label class="check"><input type="radio" name="kind" value="cloud" x-model="kind">
+        <span>Roostack Cloud<small>If the lab backed up to Roostack Cloud: the recovery key is all it takes.</small></span></label>{{end}}
       <label class="check"><input type="radio" name="kind" value="s3" x-model="kind">
-        <span>Cloud storage<small>An S3-compatible account: Backblaze B2, Wasabi, AWS, …</small></span></label>
+        <span>Online storage<small>An S3-compatible account: Backblaze B2, Wasabi, AWS, …</small></span></label>
       <label class="check"><input type="radio" name="kind" value="folder" x-model="kind">
         <span>A disk connected to this server<small>A USB disk or a folder, mounted under /mnt or /media.</small></span></label>
       <label class="check"><input type="radio" name="kind" value="url" x-model="kind">
@@ -74,6 +76,10 @@
         <label>Folder <input name="folder" value="{{.Folder}}" placeholder="/mnt/backup"></label>
       </div>
       <p class="hint">Roostack looks on it (or in the folder) and a few levels below. Just plugged the drive in? <a href="/setup/restore">Look again</a>.</p>
+    </div>
+    <div x-show="kind === 'cloud'" x-cloak>
+      <p class="hint">Roostack proves to Roostack Cloud that you have the lab's recovery key, without sending it, and
+        Roostack Cloud lets this server read the lab's backups. Roostack Cloud emails the lab's account to say so.</p>
     </div>
     <div x-show="kind === 'url'" x-cloak>
       <label>Address <input name="url" value="{{.URL}}" placeholder="rest:https://user:password@backup.example.com/lab"></label>

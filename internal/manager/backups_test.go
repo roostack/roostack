@@ -595,6 +595,15 @@ func TestPruneRetriesLocked(t *testing.T) {
 type fakeCloudBackup struct {
 	quota int64
 	asked []cloudapi.StorageRequest
+	// registered counts RegisterIdentity calls, and what the key file held.
+	registered []string
+	keyFile    string
+}
+
+func (f *fakeCloudBackup) RegisterIdentity(context.Context) error {
+	data, _ := os.ReadFile(f.keyFile)
+	f.registered = append(f.registered, strings.TrimSpace(string(data)))
+	return nil
 }
 
 func (f *fakeCloudBackup) StorageKeys(_ context.Context, req cloudapi.StorageRequest) (cloudapi.StorageKeys, error) {

@@ -9,8 +9,8 @@ You need:
 - a **new computer** with Roostack [installed](../start/install.md) (don't
   set it up);
 - your **recovery key**;
-- to know **where the backups are**: a USB drive, online storage, or
-  another address.
+- to know **where the backups are**: Roostack Cloud, a USB drive, online
+  storage, or another address.
 
 ## Steps
 
@@ -19,7 +19,13 @@ You need:
 2. Enter the **setup code**.
 3. Say **where the backups are**:
 
-    Cloud storage
+    Roostack Cloud
+    :   If your lab backed up to Roostack Cloud. Nothing else to enter:
+        your recovery key is enough. Roostack proves to Roostack Cloud
+        that you have it, without sending it, and Roostack Cloud emails
+        your account to say the backups were opened.
+
+    Online storage
     :   Your online storage account: endpoint, bucket, folder (if you
         chose one), and its keys. Roostack looks for every server's
         backups in the bucket.
@@ -41,6 +47,25 @@ a while. Log in as before.
 
 After that, Roostack sets your services up again, and puts their databases
 back; the home page says so while it's happening.
+
+??? note "If it wasn't you: an email about your recovery key"
+
+    Roostack Cloud emails your account whenever your lab's recovery key is
+    used with it: to read the lab's backups for a restore, or to relink a
+    lab whose certificate stopped working. If you didn't do it, someone has
+    your recovery key, and it opens every backup: change it now, on the
+    lab's **Backups** page (**Change recovery key…**). The old key then
+    stops working, in Roostack Cloud too.
+
+??? note "For technical users"
+
+    The recovery key's **identity** is an Ed25519 key derived from it
+    (HKDF-SHA256). The lab registers its public half with Roostack Cloud
+    when it links, and again when the recovery key changes. Restoring signs
+    a one-time challenge; Roostack Cloud then gives keys that last 12 hours
+    and can read your lab's folders (and write only restic's locks). The
+    same proof gets a lab a new certificate when Roostack Cloud no longer
+    accepts its own, unless the lab was unlinked.
 
 ## If you had more than one server
 

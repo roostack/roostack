@@ -37,6 +37,8 @@ func TestKeyChange(t *testing.T) {
 	defer st.Close()
 	m.BackupStore = st
 	keyFile := backup.KeyFile(m.Lab.Paths)
+	cloud := &fakeCloudBackup{keyFile: keyFile}
+	m.CloudBackup = cloud
 	os.MkdirAll(filepath.Dir(keyFile), 0o700)
 	os.WriteFile(keyFile, []byte("the old recovery key\n"), 0o600)
 	dir := t.TempDir()
@@ -109,6 +111,10 @@ func TestKeyChange(t *testing.T) {
 	}
 	if data, _ := os.ReadFile(keyFile); strings.TrimSpace(string(data)) != newKey {
 		t.Error("the new key should be the lab's key")
+	}
+	// Roostack Cloud is told the new key's identity once it's the lab's.
+	if len(cloud.registered) != 1 || cloud.registered[0] != newKey {
+		t.Errorf("registered with Cloud: %d times (want once, with the new key)", len(cloud.registered))
 	}
 	for _, url := range []string{main, drive} {
 		if !opens(url, newKey) || opens(url, "the old recovery key") {

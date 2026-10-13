@@ -24,7 +24,9 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"roostack.cloud/roostack/awssig"
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/cloudkeys"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/nodeid"
@@ -33,7 +35,9 @@ import (
 // Source is where a lab's backups are.
 type Source struct {
 	// Kind is "folder" (a disk mounted on this server), "s3" (an
-	// S3-compatible provider) or "url" (any restic repository address).
+	// S3-compatible provider), "cloud" (Roostack Cloud backup, opened
+	// with the recovery key alone) or "url" (any restic repository
+	// address).
 	Kind   string
 	Folder string
 	S3     backup.S3
@@ -53,6 +57,7 @@ func (s Source) Problem() string {
 		if strings.TrimSpace(s.URL) == "" {
 			return "Enter the backup's address, e.g. rest:https://…"
 		}
+	case "cloud":
 	default:
 		return "Choose where the backups are."
 	}
@@ -89,6 +94,9 @@ type Finder struct {
 	// OpenRepo opens a repository with the recovery key.
 	OpenRepo func(url string, env []string) *backup.Repo
 	HTTP     *http.Client
+	// CloudAccess asks Roostack Cloud for the lab's backups there, proving
+	// the recovery key (nil: Roostack Cloud is turned off).
+	CloudAccess func(ctx context.Context) (cloudapi.RestoreAccess, error)
 }
 
 // maxRepos bounds a search (a bucket could hold many labs).
@@ -220,6 +228,15 @@ func (f *Finder) repositories(ctx context.Context, src Source) ([]string, []stri
 		return repos, s3.Env(), err
 	case "url":
 		return []string{strings.TrimSpace(src.URL)}, nil, nil
+	case "cloud":
+		if f.CloudAccess == nil {
+			return nil, nil, errors.New("Roostack Cloud is turned off on this server (cloud: disabled in lab.yaml)")
+		}
+		acc, err := f.CloudAccess(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		return acc.Repositories, cloudkeys.Env(acc.Keys), nil
 	}
 	return nil, nil, fmt.Errorf("unknown kind of place %q", src.Kind)
 }

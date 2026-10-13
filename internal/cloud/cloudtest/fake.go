@@ -7,7 +7,9 @@
 package cloudtest
 
 import (
+	"bytes"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
@@ -69,6 +71,13 @@ type Fake struct {
 	// what's stored, and StorageAsked the key requests.
 	StorageQuota, StorageUsed int64
 	StorageAsked              []cloudapi.StorageRequest
+	// Identities are the labs' recovery identities (public keys), by lab
+	// ID; RestoreRepositories what a proven restore is told is there, and
+	// Proven each proof's purpose, in order.
+	Identities          map[string][]byte
+	RestoreRepositories []string
+	Proven              []string
+	challenges          map[string][]byte
 
 	caCert *x509.Certificate
 	caKey  *ecdsa.PrivateKey
@@ -227,6 +236,16 @@ func (f *Fake) Unlink(labID string) {
 	delete(f.labs, labID)
 }
 
+// Revoke stops a lab's certificates working, the lab still linked (as
+// when one expired while the lab was off).
+func (f *Fake) Revoke(labID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if lb := f.labs[labID]; lb != nil {
+		lb.serials = map[string]bool{}
+	}
+}
+
 // Labs are the linked labs' IDs.
 func (f *Fake) Labs() []string {
 	f.mu.Lock()
@@ -277,8 +296,11 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	case r.URL.Path == cloudapi.PathLab || r.URL.Path == cloudapi.PathLabRenew || r.URL.Path == cloudapi.PathLabName ||
 		r.URL.Path == cloudapi.PathLabRelay || r.URL.Path == cloudapi.PathLabRelayBans || r.URL.Path == cloudapi.PathLabRelayStats ||
-		r.URL.Path == cloudapi.PathLabStorageKeys || r.URL.Path == cloudapi.PathLabStorage:
+		r.URL.Path == cloudapi.PathLabStorageKeys || r.URL.Path == cloudapi.PathLabStorage || r.URL.Path == cloudapi.PathLabRecoveryIdentity:
 		f.labAPI(w, r)
+	case r.Method == http.MethodPost && (r.URL.Path == cloudapi.PathRestoreChallenge || r.URL.Path == cloudapi.PathRestoreAccess ||
+		r.URL.Path == cloudapi.PathRestoreRelink):
+		f.restore(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/update":
 		f.acmeUpdate(w, r)
 	case strings.HasPrefix(r.URL.Path, "/v1/records/"):
@@ -370,6 +392,18 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLab:
 		reply(w, cloudapi.LabInfo{LabID: id, Account: f.Account})
+	case r.Method == http.MethodPut && r.URL.Path == cloudapi.PathLabRecoveryIdentity:
+		var req cloudapi.RecoveryIdentity
+		json.NewDecoder(r.Body).Decode(&req)
+		if len(req.PublicKey) != ed25519.PublicKeySize {
+			fail(w, http.StatusBadRequest, "not a public key")
+			return
+		}
+		if f.Identities == nil {
+			f.Identities = map[string][]byte{}
+		}
+		f.Identities[id] = req.PublicKey
+		reply(w, map[string]any{})
 	case r.Method == http.MethodPut && r.URL.Path == cloudapi.PathLabRelay:
 		var req cloudapi.RelayRequest
 		json.NewDecoder(r.Body).Decode(&req)
@@ -631,4 +665,77 @@ func (f *Fake) relay(req cloudapi.RelayRequest) cloudapi.Relay {
 		}
 	}
 	return r
+}
+
+// restore answers the recovery identity's endpoints: a challenge for a
+// registered key, then keys to read the lab's backups or a new
+// certificate, for a signed challenge (once).
+func (f *Fake) restore(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	labOf := func(pub []byte) string {
+		for id, k := range f.Identities {
+			if bytes.Equal(k, pub) {
+				return id
+			}
+		}
+		return ""
+	}
+	if r.URL.Path == cloudapi.PathRestoreChallenge {
+		var req cloudapi.RestoreChallengeRequest
+		json.NewDecoder(r.Body).Decode(&req)
+		if labOf(req.PublicKey) == "" {
+			fail(w, http.StatusNotFound, "No lab in Roostack Cloud has this recovery key.")
+			return
+		}
+		b := make([]byte, 24)
+		rand.Read(b)
+		ch := hex.EncodeToString(b)
+		if f.challenges == nil {
+			f.challenges = map[string][]byte{}
+		}
+		f.challenges[ch] = req.PublicKey
+		reply(w, cloudapi.RestoreChallenge{Challenge: ch, Expires: time.Now().Add(5 * time.Minute)})
+		return
+	}
+	var req cloudapi.RelinkRequest
+	json.NewDecoder(r.Body).Decode(&req)
+	purpose := cloudapi.ProveAccess
+	if r.URL.Path == cloudapi.PathRestoreRelink {
+		purpose = cloudapi.ProveRelink
+	}
+	pub, ok := f.challenges[req.Challenge]
+	delete(f.challenges, req.Challenge)
+	if !ok || !bytes.Equal(pub, req.PublicKey) || len(pub) != ed25519.PublicKeySize ||
+		!ed25519.Verify(pub, cloudapi.RestoreMessage(purpose, req.Challenge), req.Signature) {
+		fail(w, http.StatusUnauthorized, "That doesn't prove the recovery key.")
+		return
+	}
+	id := labOf(pub)
+	f.Proven = append(f.Proven, purpose)
+	if purpose == cloudapi.ProveAccess {
+		name := ""
+		if lb := f.labs[id]; lb != nil {
+			name = lb.name
+		}
+		reply(w, cloudapi.RestoreAccess{LabID: id, LabName: name, Repositories: f.RestoreRepositories,
+			Keys: cloudapi.StorageKeys{AccessKeyID: "fake-restore", SecretAccessKey: "fake", SessionToken: "fake", Region: "test",
+				Expires: time.Now().Add(12 * time.Hour)}})
+		return
+	}
+	if f.labs[id] == nil {
+		fail(w, http.StatusBadRequest, "This lab was unlinked from Roostack Cloud: link it again.")
+		return
+	}
+	csr, err := x509.ParseCertificateRequest(req.CSR)
+	if err != nil || csr.CheckSignature() != nil {
+		fail(w, http.StatusBadRequest, "bad certificate request")
+		return
+	}
+	cert, err := f.issue(id, csr)
+	if err != nil {
+		fail(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	reply(w, cloudapi.Relinked{LabInfo: cloudapi.LabInfo{LabID: id, Account: f.Account}, Certificate: cert})
 }

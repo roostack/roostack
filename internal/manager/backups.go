@@ -66,6 +66,9 @@ type S3Provider = backup.S3
 type CloudBackup interface {
 	StorageKeys(ctx context.Context, req cloudapi.StorageRequest) (cloudapi.StorageKeys, error)
 	StorageUsage(ctx context.Context) (cloudapi.StorageUsage, error)
+	// RegisterIdentity tells Cloud the recovery key's identity (after a
+	// new recovery key), with which the lab can be restored from Cloud.
+	RegisterIdentity(ctx context.Context) error
 }
 
 // CloudChoice is Roostack Cloud backup's choice reference.

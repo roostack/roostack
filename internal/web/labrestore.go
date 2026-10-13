@@ -101,7 +101,10 @@ func (s *Server) labRestorePage(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/setup/restore/progress")
 		return
 	}
-	data := map[string]any{"Kind": "s3", "Passed": s.setupPassed(r)}
+	data := map[string]any{"Kind": "s3", "Passed": s.setupPassed(r), "CloudOn": s.Cloud != nil}
+	if s.Cloud != nil {
+		data["Kind"] = "cloud"
+	}
 	s.restoreDrives(r, data)
 	if len(data["Drives"].([]agent.Drive)) > 0 {
 		data["Kind"] = "folder"
@@ -119,7 +122,7 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 	key := strings.TrimSpace(r.FormValue("recovery_key"))
 	// Everything typed comes back, except the secrets.
 	data := map[string]any{"Kind": src.Kind, "Folder": src.Folder, "URL": src.URL, "S3": src.S3, "Drive": r.FormValue("drive"),
-		"Passed": s.setupPassed(r)}
+		"Passed": s.setupPassed(r), "CloudOn": s.Cloud != nil}
 	s.restoreDrives(r, data)
 	fail := func(msg string) {
 		data["Error"] = msg
@@ -181,7 +184,7 @@ func (s *Server) labRestoreStart(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.LabRestore.Start(sess.found[i]); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "setup-restore", map[string]any{"Kind": "s3", "Error": capitalize(err.Error()) + "."})
+		s.render(w, "setup-restore", map[string]any{"Kind": "s3", "CloudOn": s.Cloud != nil, "Error": capitalize(err.Error()) + "."})
 		return
 	}
 	redirect(w, r, "/setup/restore/progress")
