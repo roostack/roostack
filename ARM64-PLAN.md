@@ -1,7 +1,12 @@
-# Raspberry Pi support: implementation plan
+# ARM64 support, then Raspberry Pi: implementation plan
 
-Written 2026-09-30 for whoever picks this up with a Raspberry Pi to hand. It
-turns SPEC.md §3 "Later: ARM64 (Raspberry Pi, ARM VPS)" into work. Read
+Written 2026-09-30 as a Raspberry Pi plan; reframed 2026-10-13 (Tyris): the
+first goal is **general ARM64 support**, so Roostack runs on an ARM-based
+mini PC ("an ARM NUC") or an ARM cloud server as it does on the reference
+x86 NUC. **Raspberry Pis are the next goal**, supported explicitly on top of
+that: Phases 2 and 3 add what Pis need beyond a generic ARM64 server.
+
+It turns SPEC.md §3 "Later: ARM64 (Raspberry Pi, ARM VPS)" into work. Read
 [CLAUDE.md](CLAUDE.md) first: its rules (docs in the same commit, verify on
 real hardware, never log secrets, ask before adding dependencies) apply here
 too.
@@ -11,6 +16,20 @@ work into TASKS.md as a phase, and what was verified into
 docs/ASSUMPTIONS.md. Then delete this file.
 
 ## Where things stand
+
+Done on 2026-10-13, on an Apple Silicon Mac (M2 Pro):
+
+- **ARM64 dev VMs** (Phase 1.5): `scripts/dev-vm.sh` makes a VM of the
+  machine's own architecture, so on an Apple Silicon Mac it's an arm64 VM at
+  near-native speed (QEMU with Hypervisor.framework, `brew install qemu`).
+  First boot takes about 3 minutes. `make build` now always builds Linux
+  binaries (it built macOS ones on a Mac), for `GOARCH` if set.
+- **16 KB memory pages, tested in that VM** (Phase 2.4): Debian 13 ships a
+  16 KB-page kernel (`linux-image-arm64-16k`), and it boots under the Mac's
+  hypervisor. With it, every pinned image started and ran: Valkey,
+  Postgres, Vaultwarden, Forgejo, and Immich's server, machine learning and
+  database (the server answered its ping). So the Pi 5's page size can be
+  checked without a Pi, whenever a pin changes.
 
 Checked on 2026-09-30:
 
@@ -45,8 +64,8 @@ Checked on 2026-09-30:
 
 ## Decisions
 
-Confirmed by Tyris (2026-09-30). Record them in SPEC.md with that date when
-the work lands.
+Decisions 1 to 4 confirmed by Tyris (2026-09-30); 5 and 6 are open.
+Record them in SPEC.md with their dates when the work lands.
 
 1. **Operating system: Raspberry Pi OS Lite (64-bit), the Debian 13
    "trixie" release.** It's what Pi owners have, it supports the Pi 5, and
@@ -67,36 +86,73 @@ the work lands.
 4. **32-bit Raspberry Pi OS: not supported.** Setup refuses with a clear
    message. Several images have no 32-bit ARM build (Immich), and Podman on
    32-bit is little tested. **Confirmed.**
+5. **What "general ARM64" covers.** *Open.* Recommend: **Debian 13 arm64,
+   installed with Debian's own installer or cloud image, on a machine that
+   boots it with UEFI** (Arm "SystemReady" machines, ARM cloud servers, VMs)
+   joins Debian 13 on x86 as "Fully supported". Such a machine runs Debian's
+   own kernel and updates, so it's no different from the NUC to Roostack.
+   Boards that need a vendor's image or kernel (most Rockchip boards, e.g.
+   Orange Pi 5 and many Radxa boards, often through Armbian) are
+   "Unsupported, may work": their kernels and updates don't come from
+   Debian, so §3.2 can't promise anything. Raspberry Pi OS is the one
+   vendor OS supported, by Phases 2 and 3. Considered: supporting Armbian
+   too (many boards, but each with its own kernel and quirks; later, if
+   people ask).
+6. **Older Raspberry Pis.** *Open.* Decision 2 rules out the Pi 3 and Zero
+   2 W. They are 64-bit and run the same Raspberry Pi OS, so nothing in the
+   code stops them; the limits are 1 GB of memory (512 MB on the Zero 2
+   W), storage on USB 2 and a slow processor. Recommend: keep them
+   unsupported now, then measure what Roostack itself (daemon, Caddy,
+   CrowdSec) and a small service (Vaultwarden) use in a 1 GB arm64 VM
+   (`ROOSTACK_VM_MEMORY=1024`). If that leaves room, offer them later as
+   "may work, for small services" with the low-memory warning (Phase 3.2)
+   and per-package memory needs (Phase 3.3) keeping big services such as
+   Immich off them. Pi 1, Pi 2 and the original Zero: no. They are 32-bit
+   (Decision 4).
 
 ## How to test
 
-- **A real Pi is required** for Phases 2 and 3: nothing Pi-specific shows up
-  in emulation. Ideally a Pi 5 (16 KB pages, NVMe, RTC) and a Pi 4
-  (the older kernel defaults), each on an SSD, plus one spare SD card
-  install to test the warning.
-- **For Phase 1 an ARM64 Debian 13 VM is enough**, either:
-  - emulated locally: `qemu-system-aarch64` with `-M virt` and UEFI firmware
-    (Arch: `qemu-system-aarch64`, `edk2-aarch64`; Debian:
-    `qemu-system-arm`, `qemu-efi-aarch64`). These are new system packages
-    for the dev machine, so check with Tyris first. Slow (no KVM on x86) but
-    fine for installing and running the suite; or
-  - an ARM cloud server (e.g. Hetzner CAX11), which also covers the "ARM
-    VPS" target. Costs money: ask Tyris.
+- **Day to day: an arm64 dev VM on the Apple Silicon Mac**
+  (`scripts/dev-vm.sh up`; it follows the machine's architecture). It runs
+  at near-native speed, so it covers all of Phase 1, most of Phase 2 that
+  isn't Pi-specific, Phase 4 between an x86 VM elsewhere and an arm64 one,
+  and the Pi 5's 16 KB pages (install `linux-image-arm64-16k` in the VM).
+  Size it like the target with `ROOSTACK_VM_MEMORY` and `ROOSTACK_VM_CPUS`
+  (4096 and 4 for a 4 GB Pi). On an x86 machine the same VM is emulated
+  (`ROOSTACK_VM_ARCH=arm64`), slow but usable.
+- **Go checks on a Mac:** parts of Roostack are Linux-only, so `make vet`
+  and `go test` don't build on macOS. `GOOS=linux go vet ./...` works; the
+  test suite has to run in the VM (it needs Go installed there, and restic
+  is already in the VM once Roostack is installed). Worth a `make` target or
+  a `dev-vm.sh test` command; it also runs the suite on arm64 (below).
+- **What a VM can't show:** speed (an M2 core is several times a Pi's, so
+  time image builds and backups on a real Pi), and anything Pi-specific:
+  Raspberry Pi OS's kernel, firmware and `config.txt`/`cmdline.txt`, its
+  update source, the model, the RTC, SD cards, USB-attached SSDs (a VM's
+  disks are virtio), power and heat. QEMU's `raspi4b` machine doesn't help:
+  it's emulation only and incomplete.
+- **A real Pi is required** for Phase 2's Pi-specific checks and Phase 3:
+  ideally a Pi 5 (16 KB pages, NVMe, RTC) and a Pi 4 (the older kernel
+  defaults), each on an SSD, plus one spare SD card install to test the
+  warning.
+- An ARM cloud server (e.g. Hetzner CAX11) would add a real non-Pi ARM64
+  host for Decision 5. Costs money: ask Tyris.
 - Treat the Pi like a dev VM: deploy with `scp` and `install` as in
   CLAUDE.md, and record every check in docs/ASSUMPTIONS.md with ✅ and the
   date, on which model and OS image.
 - Run the full test suite with restic on arm64 too (copy the Pi's
   `/usr/bin/restic`, as CLAUDE.md describes), at least once per phase.
 
-## Phase 1: ARM64 builds and packages (no Pi needed)
+## Phase 1: general ARM64 (no Pi needed)
 
 Goal: `apt install ./roostack_<version>_arm64.deb` on an ARM64 Debian 13
-server gives a working lab, the same as on x86.
+server (an ARM mini PC, cloud server or VM, Decision 5) gives a working
+lab, the same as on x86.
 
-1.1 **Build for either architecture.**
-- Makefile: take `GOARCH` from the environment (`GOARCH=arm64 make build`)
-  and write to `bin/` as now, or to `bin/linux_arm64/` so both can sit side
-  by side. Pick one; the second is kinder to anyone building both.
+1.1 **Build for either architecture.** *Partly done (2026-10-13):*
+`GOARCH=arm64 make build` writes Linux arm64 binaries to `bin/`. Left:
+decide whether `bin/linux_arm64/` (both side by side) is worth it once the
+package script needs both.
 - `make build` also builds the help site, which is architecture-independent:
   no change.
 
@@ -134,25 +190,25 @@ few minutes or runs out of memory on a 4 GB Pi, raise it with Tyris: the
 alternative is publishing a prebuilt multi-arch Roostack Caddy image, which
 is a bigger decision (a registry to run, signing).
 
-1.5 **Dev VM on ARM.** Optional, but it makes Phase 1 repeatable:
-`ROOSTACK_VM_ARCH=arm64 scripts/dev-vm.sh up` uses
-`debian-13-genericcloud-arm64.qcow2`, `qemu-system-aarch64 -M virt -cpu max`
-with the UEFI firmware, and `linux-image-arm64` in cloud-init. Only if Tyris
-agrees to the new system packages.
+1.5 **Dev VM on ARM.** *Done (2026-10-13)*, see "Where things stand".
+Not yet checked: the x86 path of the changed script on the Linux machine
+(it should behave as before).
 
 1.6 **Verify end to end on ARM64:** install the .deb, run the wizard
 (domain, backups to a drive and to B2, recovery key), install Vaultwarden,
 Forgejo and Immich, make one public (SPEC §6.11) and check CrowdSec, run
 OS updates, back up and restore a service. Record the results.
 
-1.7 **Docs:** SPEC §3 (ARM64 moves from "Later" to supported, dated), the
+1.7 **Docs:** SPEC §3 and §3.1 (ARM64 moves from "Later" to supported, with
+Decision 5's tiers, dated), the
 README requirements, `help/docs/start/install.md` (which package to
 download), ARCHITECTURE (the build), TASKS.
 
 ## Phase 2: Raspberry Pi OS
 
 Goal: a Pi 4 or 5 running Raspberry Pi OS Lite 64-bit behaves like the
-reference NUC. Each item starts with checking on the Pi, because several of
+reference NUC. Everything here builds on Phase 1: a Pi is an ARM64 server
+whose OS is Debian with a vendor kernel and firmware. Each item starts with checking on the Pi, because several of
 these are known from older Raspberry Pi OS releases and may have changed.
 
 2.1 **Recognise the OS.**
@@ -200,10 +256,14 @@ these are known from older Raspberry Pi OS releases and may have changed.
 2.4 **The Pi 5's 16 KB memory pages.**
 - Raspberry Pi OS boots the Pi 5 with a 16 KB page kernel (`kernel_2712.img`).
   Software built with jemalloc for 4 KB pages refuses to start ("Unsupported
-  system page size"); Valkey (Immich's Redis) is the likely victim, and
-  maybe Immich's machine learning. Check each catalog package and built-in
-  image on a Pi 5 as shipped, and record which fail.
-- If any fail: Roostack checks `os.Getpagesize()` (Go standard library;
+  system page size"); Valkey (Immich's Redis) was the likely victim, and
+  maybe Immich's machine learning.
+- *Checked 2026-10-13 in an arm64 VM with Debian's 16 KB kernel:* every
+  pinned image runs (see "Where things stand"). Still to do: the same on a
+  Pi 5 as shipped, and make it a repeatable check (a script that boots the
+  VM's 16 KB kernel and starts each pinned image), run when pins change.
+  Caddy, CrowdSec and rest-server are Go and weren't run; check them too.
+- If any fail now or after a pin update: Roostack checks `os.Getpagesize()` (Go standard library;
   the daemon can call it itself) and offers the fix: `kernel=kernel8.img`
   in `/boot/firmware/config.txt` under `[pi5]`, done by the agent with a
   backup of the file, then a restart. Say what it changes and why
@@ -262,9 +322,11 @@ detail (CLAUDE.md "Writing").
 
 ## Phase 3: Hardware checks
 
-Goal: the problems that make Pis unreliable are shown before they cause a
-mysterious failure. Show them in the wizard (as warnings, not blockers,
-except where noted) and on the server's page.
+Goal: the problems that make Pis (and other small ARM boards) unreliable are
+shown before they cause a mysterious failure. Show them in the wizard (as
+warnings, not blockers, except where noted) and on the server's page. Most
+checks are general (SD card, memory, page size, heat, clock) and apply to
+any server; only the power check is Pi-specific.
 
 3.1 **A host-info call.** The server page has nowhere to show hardware
 today. Add `HostInfo` (architecture, model, memory, page size, system disk
@@ -341,8 +403,8 @@ tested:
 
 ## Out of scope
 
-- Other ARM boards and ARM cloud servers beyond checking Phase 1 runs on a
-  generic ARM64 VM (they'd get "Unsupported, may work" per SPEC §3.1).
+- Board-specific work for ARM boards that need a vendor image or kernel
+  (Decision 5: "Unsupported, may work"), and Armbian.
 - Pi-specific hardware beyond storage, power and heat (cameras, GPIO, the
   Hailo AI kit for Immich).
 - A Roostack image for Raspberry Pi Imager (a pre-built SD/SSD image with
@@ -352,7 +414,8 @@ tested:
 
 ## Suggested order and size
 
-1. Phase 1 (a few days with an ARM VM), reviewed and merged on its own.
+1. Phase 1 (a few days with an arm64 dev VM), reviewed and merged on its
+   own: general ARM64 support.
 2. Phase 2.1–2.5 on a Pi 5, then a Pi 4 (a week).
 3. Phase 2.6–2.8 and Phase 3 (a week), with a mock-up of the server page's
    hardware section shown to Tyris before building it (CLAUDE.md: mock-ups
