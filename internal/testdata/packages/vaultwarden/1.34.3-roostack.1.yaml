@@ -1,10 +1,20 @@
-# Reference example: simple package (single container, SQLite).
-# Image digests looked up 2026-09-26. See SPEC.md §8.1.
+# Vaultwarden: one container, SQLite. Image digests looked up 2026-09-26.
 schema: roostack/v1alpha1
 name: vaultwarden
 title: Vaultwarden
 description: Password manager compatible with the Bitwarden apps
 version: 1.34.3-roostack.1          # upstream version + package revision
+
+about:                           # the project, credited in the catalog
+  maker: Daniel García and volunteer maintainers
+  source: https://github.com/dani-garcia/vaultwarden
+  licence: AGPL-3.0-only         # SPDX, from its Cargo.toml
+  support: https://github.com/sponsors/dani-garcia
+  icon: icon.png
+  categories: [passwords]
+  keywords: [password manager, bitwarden, two-factor, passkeys]
+requires:
+  roostack: "0.1"                # the oldest Roostack that can run it
 
 settings:                        # shown in the UI at install and in settings
   - key: signups_allowed
@@ -30,6 +40,7 @@ containers:
       - { storage: data, path: /data }
     health:
       http: { port: 80, path: /alive }
+    memory: 50 MB                # typical use, for the install summary
 
 storage:
   data:
@@ -52,7 +63,7 @@ routes:
     port: 80
     subdomain: vault             # default; user can change it
     exposure: private            # default; user can make it public
-    public:                      # when it is public (SPEC §6.11)
+    public:                      # when it is public
       private_paths:
         - path: /admin
           reason: Vaultwarden's admin panel, which changes the server's settings and every account. Anyone who guesses or steals the admin token could use it.

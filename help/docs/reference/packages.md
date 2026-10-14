@@ -5,8 +5,13 @@ data lives, its databases, its web address and its settings. Roostack
 generates everything else from it (the containers' units, the web server
 config, secrets, folders and the backup plan).
 
-The packages you can install live in
-`/usr/share/roostack/catalog/<name>/package.yaml`. When you install one,
+Packages are kept in Roostack's public registry,
+[github.com/roostack/services](https://github.com/roostack/services), a
+folder per package with a file per version. The ones you can install live in
+`/usr/share/roostack/catalog/<name>/<version>.yaml`, a copy of the registry
+that comes with Roostack (the commit it's from is in
+`/usr/share/roostack/catalog/registry-commit`); Roostack offers the newest
+version of each. When you install one,
 Roostack copies its file into the lab, as
 `/var/lib/roostack/packages/<name>/<version>.yaml`, and the service runs
 from that copy: a newer Roostack with a newer package doesn't change it
@@ -23,6 +28,17 @@ name: vaultwarden
 title: Vaultwarden
 description: Password manager compatible with the Bitwarden apps
 version: 1.34.3-roostack.1          # upstream version + package revision
+
+about:                              # the project, credited in the catalog
+  maker: Daniel García and volunteer maintainers
+  source: https://github.com/dani-garcia/vaultwarden
+  licence: AGPL-3.0-only
+  support: https://github.com/sponsors/dani-garcia
+  icon: icon.png                    # the logo, beside this file
+  categories: [passwords]
+  keywords: [password manager, bitwarden, two-factor, passkeys]
+requires:
+  roostack: "0.1"                   # the oldest Roostack it works with
 
 settings:
   - key: signups_allowed
@@ -47,6 +63,7 @@ containers:
       - { storage: data, path: /data }
     health:
       http: { port: 80, path: /alive }
+    memory: 50 MB                   # what it typically uses
 
 storage:
   data:
@@ -78,6 +95,49 @@ routes:
     `1.34.3-roostack.1`. It names the lab's copy of the file, so it's
     letters, digits, dots, dashes, underscores and plus signs.
 
+`about`
+:   Facts about the project the package runs, shown in the catalog and on
+    roostack.cloud/services, and checked when the package is reviewed:
+
+    - `maker`: who makes the app, in a few words.
+    - `website` and `source`: the project's site and where its code is
+      published, both `https://` addresses.
+    - `licence`: the app's licence as an
+      [SPDX expression](https://spdx.org/licenses/), such as
+      `AGPL-3.0-only` or `MIT OR Apache-2.0`. Say `-only` or `-or-later`
+      for the GNU licences, as the project's licence notice does. For an
+      app whose code isn't published, `closed`: it then has a `website`
+      and no `source`.
+    - `support`: the project's own page for donating or sponsoring.
+    - `icon`: the project's logo, a PNG file beside the package file
+      (`icon.png` in the registry): square, at least 256×256 pixels and at most 100 KB.
+    - `categories`: one to three of `photos` (Photos and videos), `media`
+      (Films, TV and music), `documents` (Documents and notes),
+      `productivity` (Tasks and planning), `home` (Smart home and
+      cameras), `passwords` (Passwords and security), `development`
+      (Developer tools), `publishing` (Websites and blogs) and `network`
+      (Network).
+    - `keywords`: up to ten words or short phrases people might search
+      for.
+
+`requires`
+:   `roostack`: the oldest Roostack release the package works with, such as
+    `"0.6"` or `"0.6.1"`. A lab running an older one doesn't offer it, and
+    says it needs a newer Roostack. Releases are compared number by number
+    (`0.10` is newer than `0.9`).
+
+`upgrade_notes`
+:   What to know before updating, shown before a service updates. Each
+    note has the package `version` it arrived in and the `note` itself; a
+    package keeps the notes it still needs from earlier versions, so
+    someone updating past several versions at once sees all of them:
+
+    ```yaml
+    upgrade_notes:
+      - version: 2.0.0-roostack.1
+        note: Version 2 moves sharing links to a new address; send new ones to people you shared with.
+    ```
+
 `settings`
 :   What people choose, at install and later. `type` is `bool`, `string`,
     `int` or `secret`. A secret can be `generate`d by Roostack, `reveal`ed
@@ -89,8 +149,12 @@ routes:
     `env` (templates), `secrets` (as environment variables), `mounts` of
     storage, `devices` (such as a GPU), a `health` check, `depends_on`,
     and `when` (a template: the container is left out unless it renders
-    `true`). `quadlet` passes extra Quadlet keys straight through, except
-    the ones [a package may not use](#what-a-package-may-not-do).
+    `true`). `memory` is what it typically uses, such as `300 MB` or
+    `1.5 GB` (1 GB is 1000 MB): an estimate for the summary shown before
+    installing, which adds up the containers that would run with the
+    settings chosen. It isn't a limit. `quadlet` passes extra Quadlet keys
+    straight through, except the ones
+    [a package may not use](#what-a-package-may-not-do).
 
 `storage`
 :   Folders the service owns. `class` is `critical` (backed up) or
@@ -101,7 +165,9 @@ routes:
 `databases`
 :   Databases Roostack runs and backs up consistently: `sqlite` (a file in
     the service's storage), `postgres` or `redis` (a container of their
-    own). Roostack makes their passwords.
+    own). Roostack makes their passwords. `postgres` and `redis` take a
+    `memory` like a container's; otherwise Roostack expects 200 MB and
+    50 MB.
 
 `routes`
 :   Web addresses: which container and port, the default `subdomain`,
@@ -141,6 +207,10 @@ validate` reports each problem with what to use instead.
 | An image without a digest (`app:1.2`) | `app:1.2@sha256:…`, so every lab runs the image that was reviewed |
 | A route or port with `exposure: public` | `private`: only the Owner makes things public |
 | A route with neither `public.login_paths` nor `public.unsafe` | The pages where people sign in, or why the address shouldn't be public |
+| No `about.maker`, `about.licence`, `about.icon` or `about.categories`; no `about.source` (or, for `licence: closed`, no `about.website`) | The facts, so the project is credited and reviewers can check them |
+| A licence such as `GPL-3.0` that doesn't say `-only` or `-or-later` | The identifier the project's licence notice gives |
+| No `requires.roostack` | The oldest Roostack release the package works with |
+| A container without `memory` | What it typically uses, for the summary shown before installing |
 
 In `quadlet:`, these lines (in any case) are refused:
 
@@ -183,6 +253,6 @@ roostack validate package.yaml
 roostack render -lab lab.yaml -package package.yaml -instance service.yaml
 ```
 
-`validate` checks the package and the package policy, and renders every
-template in it. `render` shows exactly what Roostack would generate. See
+`validate` checks the package and the package policy, checks the logo
+beside it, and renders every template in it. `render` shows exactly what Roostack would generate. See
 [Command line](cli.md#looking-at-packages).

@@ -163,6 +163,11 @@ func validate(args []string) error {
 			errs = append(errs, fmt.Errorf("%s: %w", path, err))
 			ok = false
 		}
+		// The logo it names, beside the package file (SPEC.md §8.3.6).
+		if err := p.CheckIcon(filepath.Dir(path)); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", path, err))
+			ok = false
+		}
 		if ok {
 			fmt.Printf("%s: ok\n", path)
 		}

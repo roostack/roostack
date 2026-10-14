@@ -22,6 +22,9 @@ if [[ -z ${VERSION:-} ]]; then
 fi
 [[ ${1:-} == --version ]] && { echo "$VERSION"; exit 0; }
 [[ -x bin/roostack && -x bin/roostack-agent && -s bin/copyright ]] || { echo "build first: make build" >&2; exit 1; }
+# The catalog: the registry at the pinned commit (scripts/fetch-catalog.sh).
+[[ $(cat bin/catalog/registry-commit 2>/dev/null) == $(sed -n 's/^commit=//p' packaging/registry) ]] ||
+    { echo "bin/catalog isn't the registry commit packaging/registry names: make build" >&2; exit 1; }
 # A released package always has its help (make build skips it without uv).
 [[ -s internal/web/helpsite/site/index.html ]] || { echo "the help site isn't built: install uv, then make build" >&2; exit 1; }
 # The architecture, from the ELF header's machine field (byte 18), so this
@@ -48,10 +51,10 @@ install -D -m 0644 build/caddy/Containerfile "$ROOT/usr/share/roostack/caddy/Con
 install -D -m 0755 packaging/deb/installed-message "$ROOT/usr/share/roostack/installed-message"
 # The starting lab.yaml: no address yet (SPEC.md §6.6).
 install -D -m 0644 packaging/deb/lab.yaml "$ROOT/usr/share/roostack/lab.yaml"
-for pkg in docs/examples/*.yaml; do
-    name=$(basename "$pkg" .yaml)
-    [[ $name == lab ]] && continue
-    install -D -m 0644 "$pkg" "$ROOT/usr/share/roostack/catalog/$name/package.yaml"
+# The packages that can be installed, in the registry's layout:
+# catalog/<name>/<version>.yaml, icon.png, registry.yaml (SPEC.md §8.3.3).
+(cd bin/catalog && find . -type f) | while read -r f; do
+    install -D -m 0644 "bin/catalog/$f" "$ROOT/usr/share/roostack/catalog/${f#./}"
 done
 # Licences of everything compiled into or served by Roostack (scripts/copyright.sh).
 install -D -m 0644 bin/copyright "$ROOT/usr/share/doc/roostack/copyright"
