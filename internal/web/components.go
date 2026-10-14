@@ -29,6 +29,7 @@ var componentFuncs = template.FuncMap{
 	"notice":        notice,
 	"status":        status,
 	"badge":         badge,
+	"logo":          logo,
 	"back":          back,
 	"help":          helpLink,
 	"confirm":       confirmButton,
@@ -99,17 +100,38 @@ func status(state string) (template.HTML, error) {
 	return renderComponent("status", state)
 }
 
-// badge labels something; variant "highlight" uses the brand highlight.
+// badge labels something. Variants: "highlight" uses the brand highlight
+// ("New"); "ok" for something done (Installed); "warn" for something to
+// weigh before acting (a Community service).
 func badge(text string, variant ...string) (template.HTML, error) {
-	highlight := false
+	v := ""
 	switch {
 	case len(variant) == 0:
-	case len(variant) == 1 && variant[0] == "highlight":
-		highlight = true
+	case len(variant) == 1 && slices.Contains([]string{"highlight", "ok", "warn"}, variant[0]):
+		v = variant[0]
 	default:
-		return "", fmt.Errorf("badge: variant %q must be \"highlight\" or nothing", variant)
+		return "", fmt.Errorf("badge: variant %q must be \"highlight\", \"ok\", \"warn\" or nothing", variant)
 	}
-	return renderComponent("badge", map[string]any{"Text": text, "Highlight": highlight})
+	return renderComponent("badge", map[string]any{"Text": text, "Variant": v})
+}
+
+// logo shows a service's logo (src, a URL on this site) on a light tile,
+// the same in both modes, since projects draw their logos for light
+// backgrounds (Vaultwarden's is black). Without one (src ""), the drawn
+// icon instead (an icons name), on the same tile, so lists line up. The
+// logo is decorative: the service's name is beside it.
+func logo(src, iconName string) (template.HTML, error) {
+	if strings.Contains(src, ":") || strings.HasPrefix(src, "//") {
+		return "", fmt.Errorf("logo: %q must be a path on this site", src)
+	}
+	var drawn template.HTML
+	if src == "" {
+		var err error
+		if drawn, err = icon(iconName); err != nil {
+			return "", fmt.Errorf("logo: %w", err)
+		}
+	}
+	return renderComponent("logo", map[string]any{"Src": src, "Icon": drawn})
 }
 
 // back links to the parent page.

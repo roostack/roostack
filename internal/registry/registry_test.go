@@ -192,12 +192,24 @@ func TestFetchCompatibility(t *testing.T) {
 	if st := f.Status(); st.Packages != 0 || !strings.Contains(st.Skipped["forgejo"], "needs Roostack") {
 		t.Errorf("status: %+v", st)
 	}
+	// The catalog still lists it, with its logo, as needing a newer
+	// Roostack; its package file isn't fetched.
+	listing, err := f.Listing()
+	if l := listing["forgejo"]; err != nil || l.Package == nil || l.NeedsRoostack == "" || !l.Icon || l.Title != "Forgejo" {
+		t.Errorf("listing: %+v, %v", l, err)
+	}
+	if v, err := state.CatalogVersion(config.Paths{CatalogDir: dir}, "forgejo"); err == nil {
+		t.Errorf("offered %s", v)
+	}
 	f.Version, f.Arch = "dev", "riscv64"
 	if err := f.Fetch(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if st := f.Status(); st.Packages != 0 || !strings.Contains(st.Skipped["forgejo"], "no build for riscv64") {
 		t.Errorf("status: %+v", st)
+	}
+	if listing, _ := f.Listing(); listing["forgejo"].NeedsRoostack != "" || listing["forgejo"].Icon {
+		t.Errorf("no build for riscv64: listed %+v", listing["forgejo"])
 	}
 }
 

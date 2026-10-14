@@ -22,8 +22,12 @@
 </ol>
 {{end}}
 
-{{/* badge: Text, and Highlight for the brand highlight colour ("New"). */}}
-{{define "badge"}}<span class="badge{{if .Highlight}} badge-highlight{{end}}">{{.Text}}</span>{{end}}
+{{/* badge: Text, and a Variant: highlight (the brand highlight colour,
+     "New"), ok or warn. */}}
+{{define "badge"}}<span class="badge{{with .Variant}} badge-{{.}}{{end}}">{{.Text}}</span>{{end}}
+
+{{/* logo: a service's logo (Src) or drawn Icon on a light tile. */}}
+{{define "logo"}}<span class="logo-tile">{{with .Src}}<img src="{{.}}" alt="" width="40" height="40" loading="lazy">{{else}}{{.Icon}}{{end}}</span>{{end}}
 
 {{/* back: a link to the parent page. */}}
 {{/* server: a server's name, marked as one of the lab's servers. */}}
@@ -135,7 +139,7 @@
      description where people choose to install it. The logo is
      decorative: the text names the app. */}}
 {{define "project-credit"}}{{with .}}<div class="project-credit">
-  {{- with .IconURL}}<img src="{{.}}" alt="" width="40" height="40">{{end}}
+  {{- with .IconURL}}{{logo . ""}}{{end}}
   <p class="hint">{{with .About.Maker}}Made by {{.}}. {{end}}
     {{- with .About.Licence}}{{if eq . "closed"}}Its code isn't published.{{else}}{{with licenceURL .}}<a href="{{.}}" target="_blank" rel="noopener">{{licenceName $.About.Licence}} licence{{template "new-window"}}</a>{{else}}{{licenceName .}} licence{{end}}.{{end}}{{end}}
     <span class="project-links">

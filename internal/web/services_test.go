@@ -439,7 +439,7 @@ func (h *harness) acts() *activity.Registry {
 
 func (f *fakeManager) Catalog() ([]manager.CatalogItem, error) {
 	return []manager.CatalogItem{
-		{Name: "immich", Title: "Immich", Description: "Photos"},
+		{Name: "immich", Title: "Immich", Description: "Photos", Categories: []string{"photos"}, Icon: true},
 		{Name: "vaultwarden", Title: "Vaultwarden", Installed: true},
 	}, nil
 }

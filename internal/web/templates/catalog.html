@@ -11,20 +11,44 @@
     {{end}}
   {{end}}
   {{if or (not .Registry) .Registry.On}}
-  <ul class="services">
+  {{/* Search and category filters, as people type (Alpine): every word
+       typed must be in the service's name, description, categories or
+       keywords. Without scripts they stay hidden and everything shows. */}}
+  <div x-data="{ q: '', cat: '', match(el) { return (this.cat === '' || el.dataset.categories.split(' ').includes(this.cat)) && this.q.toLowerCase().split(/\s+/).every(w => el.dataset.search.includes(w)) } }">
+  {{if .Items}}
+  <div class="catalog-filter" hidden x-bind:hidden="false">
+    <label><span class="sr-only">Search services</span><input type="search" x-model="q" placeholder="Search: photos, Git, passwords…" autocomplete="off"></label>
+    {{with .Categories}}<div class="filter-chips" role="group" aria-label="Categories">
+      <button type="button" x-on:click="cat = ''" x-bind:aria-pressed="cat === ''">All</button>
+      {{- range .}}
+      <button type="button" data-key="{{.Key}}" x-on:click="cat = $el.dataset.key" x-bind:aria-pressed="cat === $el.dataset.key">{{.Title}}</button>
+      {{- end}}
+    </div>{{end}}
+  </div>
+  {{end}}
+  <ul class="services" x-ref="list">
     {{range .Items}}
-    <li class="card service">
-      <div>
+    <li class="card offer" data-categories="{{.CategoryKeys}}" data-search="{{.Search}}" x-show="match($el)">
+      {{logo .IconURL .DrawnIcon}}
+      <div class="offer-text">
         <h2>{{.Title}}</h2>
+        {{- if eq .Tier "official"}}{{badge "Official"}}{{else if eq .Tier "community"}}{{badge "Community" "warn"}}{{end}}
+        {{- if .Installed}}{{badge "Installed" "ok"}}{{end}}
         <p class="hint">{{.Description}}</p>
+        {{with .CategoryTitles}}<p class="offer-categories">{{.}}</p>{{end}}
       </div>
-      {{if .Installed}}<span>{{badge "Installed"}} <a class="button secondary" href="/install/{{.Name}}">Add another…</a></span>
-      {{else}}<a class="button" href="/install/{{.Name}}">Install</a>{{end}}
+      <div class="offer-action">
+      {{- if .NeedsRoostack}}<p class="offer-later">Needs a newer Roostack: {{.NeedsRoostack}} or newer.{{if $.IsOwner}} <a href="/settings/updates#registry">Details</a>{{end}}</p>
+      {{- else if .Installed}}<a class="button secondary" href="/install/{{.Name}}">Add another…</a>
+      {{- else}}<a class="button" href="/install/{{.Name}}">Install</a>{{end}}
+      </div>
     </li>
     {{else}}
     {{if or (not $.Registry) $.Registry.Status.Serial}}<li class="card">The catalog is empty.</li>{{end}}
     {{end}}
   </ul>
+  {{if .Items}}<p class="hint" hidden x-bind:hidden="[...$refs.list.children].some(el => match(el))">No services match. <button type="button" class="quiet" x-on:click="q = ''; cat = ''">Show all</button></p>{{end}}
+  </div>
   {{end}}
 </section>
 {{end}}

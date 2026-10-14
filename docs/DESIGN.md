@@ -45,6 +45,7 @@ Purpose colours:
 | `--highlight`, `--highlight-fg`, `--highlight-soft` | The brand's spark: the brand mark (its comb on a soft-highlight tile), where you are (current page), focus rings, "New" badges. Use sparingly |
 | `--ok`, `--warn`, `--bad` (+ `-bg`, and `--bad-fg`) | Status. Roostack's own themes share them, so a problem always looks like a problem; a palette may override them (`--pal-ok-l`…), as Catppuccin does |
 | `--chart-1`, `--chart-2`, `--chart-3` | Chart colours for parts of a whole (the disk bar): blue, magenta, violet, in that order. The same in every theme (themes' accent and highlight are often close hues), with light and dark steps, checked with the dataviz validator against every theme's surface. Never orange, yellow, red or green (status), and always with a label beside the colour |
+| `--logo-tile`, `--logo-tile-fg` | The tile behind a service's logo, and a drawn icon's lines on it: light in every theme and mode, since projects draw their logos for light backgrounds (Vaultwarden's is black). Only for the `logo` component |
 | `--ok-on-fg` | The status green that shows on a text-coloured shape: the brand mark's online light on its server. It's the other mode's green; a palette may set its own (`--pal-ok-on-fg-l`/`-d`), as Everforest does. Not for text |
 
 Never use raw colours (`#…`) or palette variables (`--pal-…`) in `app.css` or templates.
@@ -96,7 +97,10 @@ Template components are called as functions; everything else is plain HTML with 
 | Notice | `{{notice KIND TEXT ["link=…" "linkText=…"]}}` | KIND: `info`, `ok`, `warn`, `error` |
 | Status | `{{status .Status}}` | Service state; `installing` gets a spinner |
 | Install steps | `{{template "install-steps" .Service.Install}}` in a notice; `{{template "install-line" .}}` (a ServiceView) in lists | A new service's install (`node.InstallProgress`): `ol.install-steps` with `li.step-done` / `step-now` / `step-todo`, time taken or "for …" so far. `.address-pending` shows an address that isn't a link yet |
-| Badge | `{{badge "New" ["highlight"]}}` | Highlight badges are rare |
+| Badge | `{{badge "New" ["highlight"\|"ok"\|"warn"]}}` | Highlight badges are rare. `ok` for something done (Installed), `warn` for something to weigh before acting (a Community service) |
+| Logo | `{{logo SRC ICON}}` | A service's logo (SRC, a path on this site) on a light tile, the same in both modes; without one (`""`), the drawn ICON on the same tile, so lists line up. Decorative: the name beside it says what it is |
+| Catalog entry | `ul.services` of `li.card.offer`: `{{logo …}}`, `.offer-text` (an `h2` and its badges, `p.hint`, `p.offer-categories`), `.offer-action` (the button, or `p.offer-later` when it can't be installed) | Add a service. On phones the action moves under the text |
+| Filter chips | `div.filter-chips` (`role="group"`, an `aria-label`) of `<button type="button">`, the chosen one `aria-pressed="true"` | Narrows a list to one group (the catalog's categories), with a search box above it in `.catalog-filter`; filtering in the page (Alpine), hidden without scripts so the whole list shows |
 | Back link | `{{back "/settings" "Settings"}}` | |
 | Brand mark | `{{brandMark}}` | Roostack's small mark (the hen on a server), in the theme's colours through the `bm-*` classes in `app.css`. Generated into `brandmark.go` by `assets/brand/generate.py`: change it there, not by hand. Decorative; the name beside it says what it is |
 | Top bar | `layout.html`: `.brand` with `{{brandMark}}`; once the lab has a name, `.brand-stack` (a small uppercase `.brand-eyebrow` "Roostack" over `.brand-lab`) | The lab's name is the title, so people know whose lab it is; long names end in "…" (full name on hover) |
@@ -114,7 +118,7 @@ Template components are called as functions; everything else is plain HTML with 
 | Area pages | `data["AreaNav"] = areaNav{…}` (Settings: `withArea`; your account: `renderAccount`) | A sidebar of the area's pages, the current one marked, beside the page (`area-nav`). On phones Settings' sidebar hides (the back link leads to its overview) and the account's becomes a row of tabs (`Tabs`) |
 | Address choice | `{{template "address-choice" .AddressChoice}}` inside a form | The address another server or lab connects to (join code, storage invite): radio choices Roostack knows, each with the address in `code`, then "Another address" revealing a field (`address`, `address_other`) |
 | Disk space | `.space-bar` with `.space-<part>` segments (`data-width`), `dl.space-list` with `.swatch` | A disk's use in coloured parts, each named with its size in the key |
-| Project credit | `{{template "project-credit" .Credit}}` (a `projectCredit`, from `about:` in a package) | Who makes an app, its licence (linked to its text on spdx.org) and its website, source and support links, beside its logo; on the install page, under the description |
+| Project credit | `{{template "project-credit" .Credit}}` (a `projectCredit`, from `about:` in a package) | Who makes an app, its licence (linked to its text on spdx.org) and its website, source and support links, beside its logo (on the `logo` tile); on the install page, under the description |
 | Copy box | `{{copyBox TEXT}}` | Text people copy and send or paste elsewhere (an invite, a command), with a Copy button |
 | Figures | `dl.stat-tiles` (a `div` of `dt` and `dd`, optional `dd.hint`) | A few totals side by side (visitors through the relay) |
 | Bar chart | `{{template "bar-chart" .Chart}}` (a `barChart`: caption and `barView`s) | Counts over time, a column a period; heights through `data-height` (app.js, as for `data-width`); the exact figure on hover and for screen readers |

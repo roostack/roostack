@@ -18,6 +18,7 @@ type RegistryUpdater interface {
 	Check(ctx context.Context) error
 	CheckIfOlder(ctx context.Context, age time.Duration) error
 	Status() registry.Status
+	Listing() (map[string]registry.Listed, error)
 	URL() string
 	Dir() string
 }
