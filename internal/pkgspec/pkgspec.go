@@ -204,6 +204,10 @@ const (
 
 // Storage is a directory owned by the service.
 type Storage struct {
+	// Title says what it holds, for people ("Your photos and videos"):
+	// the summary shown before installing uses it (SPEC.md §8.3.4), and
+	// shows the storage's name without one.
+	Title    string `yaml:"title"`
 	Class    string `yaml:"class"`
 	Location string `yaml:"location"`
 }

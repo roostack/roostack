@@ -234,7 +234,14 @@ func (p *Package) validateStorage(v *validator, name string, s *Storage) {
 	if s.Location != LocationService && s.Location != LocationMedia {
 		v.addf("%s.location: must be %q or %q", at, LocationService, LocationMedia)
 	}
+	if len([]rune(s.Title)) > maxStorageTitle || strings.ContainsAny(s.Title, "\n\r") {
+		v.addf("%s.title: must be one line of at most %d characters", at, maxStorageTitle)
+	}
 }
+
+// maxStorageTitle keeps a storage's title to a few words, as the install
+// summary lists them in a sentence.
+const maxStorageTitle = 60
 
 func (p *Package) validateDatabase(v *validator, name string, d *Database) {
 	at := "databases." + name

@@ -82,6 +82,7 @@ containers:
 
 storage:
   data:
+    title: Repositories, attachments and settings
     class: critical              # repositories, attachments, app.ini
 
 databases:

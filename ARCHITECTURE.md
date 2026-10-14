@@ -35,7 +35,7 @@ packages/<name>/<version>.yaml ┘             (pure)      (plan → apply)
 ```
 
 1. **`internal/state`** loads the lab config, every instance file, and the lab's own copy of each instance's package version (`packages/<name>/<version>.yaml` in the state folder, SPEC.md §8.3.1). The copy is taken from the catalog when a service is installed, so a newer catalog never changes a running service and a restore needs only the backup; the catalog is only what *can* be installed. Copies no service uses are deleted after each apply. It also checks lab-wide rules (e.g. unique hostnames).
-2. **`internal/generate`** turns package + instance + lab config into output: Quadlet files, a Caddy snippet, required secrets, directories and a backup plan. It is **pure** (no disk access, no side effects), so it's tested with golden files and can be previewed with `roostack render`.
+2. **`internal/generate`** turns package + instance + lab config into output: Quadlet files, a Caddy snippet, required secrets, directories and a backup plan. It is **pure** (no disk access, no side effects), so it's tested with golden files and can be previewed with `roostack render`. `Summarize` uses it for the summary the install page shows before installing (what it keeps, addresses, ports, GPU, memory and the files it would write; SPEC.md §8.3.4).
 3. **`internal/reconcile`** compares that output with what's on disk and builds a **plan** (files to write or remove, units to start, restart or stop, secrets to create, images to build or download). `roostack apply --dry-run` prints the plan; `roostack apply` carries it out. Image builds start in the background; new containers' images are pulled one at a time before their units start, with progress events the node turns into a service's install steps (SPEC.md §6.3.3).
 
 The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` snippets) and **never deletes service data**.
@@ -51,7 +51,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/imagecheck` | Asks container registries which processors a pinned image has builds for (`make check-images`, the registry's index) |
 | `internal/pkgspec` | The package format (`schema: roostack/v1alpha1`), its validation, and the package policy registry packages follow (SPEC §8.3.4) |
 | `internal/instance` | A user's installed service, validated against its package |
-| `internal/generate` | Desired state → Quadlets, Caddy config, secrets, dirs, backup plan |
+| `internal/generate` | Desired state → Quadlets, Caddy config, secrets, dirs, backup plan; the install summary |
 | `internal/quadlet` | Writing Quadlet/systemd unit files, with escaping |
 | `internal/caddy` | Writing the main Caddyfile and per-service snippets |
 | `internal/dns` | Supported DNS providers: credential fields, Caddy directive, and the create-and-delete-a-TXT-record check |

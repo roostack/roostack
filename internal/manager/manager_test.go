@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -542,5 +543,52 @@ func TestNoSharingUntilAsked(t *testing.T) {
 	m.Wait()
 	if data, _ := os.ReadFile(quadlet); strings.Contains(string(data), "DISABLE_ONLINE_API") {
 		t.Error("once the Owner chooses to share, it does")
+	}
+}
+
+// The install page's summary comes from the same draft as Install, with
+// the port Install would pick, and saves nothing (SPEC.md §8.3.4).
+func TestInstallSummary(t *testing.T) {
+	m, _ := newManager(t)
+	ctx := context.Background()
+	if err := m.Install(ctx, "vaultwarden", InstallRequest{Settings: map[string]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+
+	s, err := m.InstallSummary("immich", InstallRequest{Subdomain: "pics", Settings: map[string]string{"machine_learning": "on"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Memory != 2_750_000_000 || len(s.Addresses) != 1 || s.Addresses[0].Host != "pics.lab.example.com" {
+		t.Errorf("summary: memory %d, addresses %+v", s.Memory, s.Addresses)
+	}
+	caddy := s.Files[len(s.Files)-1]
+	if want := fmt.Sprint(config.DefaultRoutePortMin + 1); !strings.Contains(caddy.Content, want) {
+		t.Errorf("the Caddy site should use the next free port, %s:\n%s", want, caddy.Content)
+	}
+	if _, err := os.Stat(state.InstanceFile(m.Lab, "immich")); !os.IsNotExist(err) {
+		t.Errorf("the summary saved an instance: %v", err)
+	}
+
+	// The form's mistakes are the same as Install's.
+	var fe *FormError
+	if _, err := m.InstallSummary("immich", InstallRequest{Name: "other"}); !errors.As(err, &fe) {
+		t.Errorf("a bad name: %v, want a form error", err)
+	}
+
+	data, err := m.PackageFile("vaultwarden")
+	if err != nil || !strings.Contains(string(data), "name: vaultwarden") {
+		t.Errorf("package file: %v", err)
+	}
+	if _, err := m.PackageFile("../etc"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a bad name: %v, want not found", err)
+	}
+	// The logo is beside the package's files in the catalog.
+	if icon, err := m.PackageIcon("vaultwarden"); err != nil || !strings.HasPrefix(string(icon), "\x89PNG") {
+		t.Errorf("icon: %v", err)
+	}
+	if _, err := m.PackageIcon("nope"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("an unknown package's icon: %v, want not found", err)
 	}
 }
