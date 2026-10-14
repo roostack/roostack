@@ -244,7 +244,7 @@ func newBackupDeps(lab config.Lab, st *store.Store, repo *backup.Repo, launch ba
 	host, _ := os.Hostname()
 	return &backup.JobDeps{
 		Repo:       repo,
-		Preparer:   &backup.Preparer{Launch: launch, RoostackBin: roostackBin},
+		Preparer:   &backup.Preparer{Launch: launch, RoostackBin: roostackBin, QuadletDir: lab.Paths.QuadletDir()},
 		DumpState:  st.Backup,
 		Copies:     copyRepos(lab, launch),
 		Precheck:   drivePrecheck(lab.Backup.Drive),

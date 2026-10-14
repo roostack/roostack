@@ -25,6 +25,17 @@ import (
 type Service struct {
 	Instance *instance.Instance
 	Package  *pkgspec.Package
+	// Stop, when set, is Roostack stopping the service because the
+	// registry withdrew its version as dangerous (SPEC.md §8.3.4). Worked
+	// out by the controller for each assignment, never saved.
+	Stop *Stop
+}
+
+// Stop is how a stopped service runs (generate.Stop).
+type Stop struct {
+	// LastBackup: databases on the package's own images still run, until
+	// a backup of the server has finished since the stop.
+	LastBackup bool `json:"last_backup,omitempty"`
 }
 
 // Name is the service's ID (instance.Instance.ID): a second copy of a
@@ -110,6 +121,8 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 			errs = append(errs, err)
 			continue
 		}
+		// A stopped service keeps its names and ports, so nothing else takes
+		// them while it's stopped.
 		for _, h := range out.Hosts {
 			if other, dup := hosts[h]; dup {
 				errs = append(errs, fmt.Errorf("%s: hostname %s is already used by %s", s.Name(), h, other))
@@ -127,9 +140,15 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 				errs = append(errs, err)
 			}
 		}
+		if s.Stop != nil {
+			generate.Stop(out, s.Package, s.Stop.LastBackup)
+		}
 		d.Services = append(d.Services, out)
 	}
 	for _, s := range proxied {
+		if s.Stop != nil {
+			continue // its server has stopped it: nothing to pass on
+		}
 		out, err := generate.ProxySite(lab, s.Package, s.Instance, s.Addr)
 		if err != nil {
 			errs = append(errs, err)

@@ -385,6 +385,11 @@ type Registry struct {
 	// installed from the registry, and the lab doesn't hear of
 	// withdrawals.
 	Disabled bool `yaml:"disabled,omitempty"`
+	// NoStops is the Owner's opt-out from Roostack stopping a service
+	// whose version the registry withdrew as dangerous (Settings →
+	// Updates, SPEC.md §8.3.4): such a withdrawal is then shown as a
+	// warning, and the service keeps running.
+	NoStops bool `yaml:"no_stops,omitempty"`
 }
 
 // OldAddressDays is how long a lab's previous address keeps working after

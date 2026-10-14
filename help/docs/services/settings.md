@@ -46,6 +46,57 @@ tick it, choose the port on the server, and **Save**. The page then shows
 the address to connect to. Extra connections are open to your home network
 only.
 
+## When the registry withdraws a version
+
+The service registry can withdraw a version of a service that turns out to
+be broken or unsafe, saying why, often with a link to read more. Roostack
+then says so on the service's page and under **Needs attention**. There are
+three kinds:
+
+Notice
+:   Something to know, such as a step to take after updating. The service
+    carries on as before.
+
+Warning
+:   The version shouldn't be used. The service keeps running, but that
+    version can't be installed any more. Update it when a fixed version is
+    out, or remove it.
+
+Stop
+:   The version is dangerous: malicious, or being attacked with no fix yet.
+    Roostack stops the service and turns its addresses off, and says so on
+    its page, under **Needs attention** and by email. Everything it stores
+    is kept, and so are its backups. Wait for a fixed version and update
+    it, or remove it.
+
+If you understand the risk and need the service now, the Owner can open
+**Start it anyway…** on its page. **Make it private first** is ticked when
+the service is public: it keeps out whoever is attacking that version, since
+only devices at home and on Roostack's network can reach it. Roostack won't
+stop that version again, but keeps showing it under **Needs attention**
+until you update or remove it.
+
+The Owner can turn stops off in [Settings → Updates](../settings/updates.md#services-you-can-install):
+a stop is then shown as a warning.
+
+Roostack never removes a service or deletes its data because of the
+registry.
+
+??? note "For technical users"
+
+    Whether a service is stopped isn't saved: on every change, the
+    controller checks each service's version, and the SHA-256 of the lab's
+    copy of its package, against the newest index it has. So a stop the
+    registry lifts lets the service start again by itself. **Start it
+    anyway** saves `started_anyway: <version>` in the service's instance
+    file, and updating to another version ends it. When it's stopped, its
+    containers' unit files and its Caddy site are removed. Its folders,
+    secrets and Podman network stay. A database on Roostack's own image
+    (Postgres or Redis, when the package names no image) keeps running, so
+    backups carry on as before. A database on an image the package sets
+    runs until one more backup of the server has finished (Roostack starts
+    one straight away), then stops too. Later backups keep that last dump.
+
 ## Moving it to another server
 
 If you have more than one server, the Owner can move a service to another

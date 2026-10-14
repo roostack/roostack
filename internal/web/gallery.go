@@ -99,7 +99,8 @@ var gallerySections = []gallerySection{
 {{status "starting"}}
 {{status "failed"}}
 {{status "stopped"}}
-{{status "waiting"}}`},
+{{status "waiting"}}
+{{status "registry-stop"}}`},
 			{"Badges", "", `
 {{badge "Preview"}}
 {{badge "New" "highlight"}}

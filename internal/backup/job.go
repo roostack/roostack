@@ -290,7 +290,9 @@ func Run(ctx context.Context, d JobDeps, r Reporter) (summary *Summary, err erro
 	for _, step := range plan.Prepare {
 		d.Log.Step("Saving a consistent copy of %s's %s database", prepareService(step), step.Type)
 		d.Log.Printf("%s → %s", cmp.Or(step.Container, step.Source), step.Target)
-		if err := d.Preparer.Run(ctx, step); err != nil {
+		if err := d.Preparer.Run(ctx, step); errors.Is(err, ErrDumpKept) {
+			d.Log.Printf("Not dumping it: %v", err)
+		} else if err != nil {
 			return nil, fmt.Errorf("preparing %s: %w", step.Target, err)
 		}
 	}

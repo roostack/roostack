@@ -58,6 +58,8 @@ type LabContext struct {
 type WireService struct {
 	Instance []byte `json:"instance"`
 	Package  []byte `json:"package"`
+	// Stop: the controller has stopped it (state.Service.Stop).
+	Stop *state.Stop `json:"stop,omitempty"`
 }
 
 // WireProxied is a service whose routes the receiving server serves for
@@ -82,7 +84,7 @@ func Encode(lab config.Lab, a Assignment, version int64) (WireAssignment, error)
 		if err != nil {
 			return WireService{}, err
 		}
-		return WireService{Instance: in, Package: pkg}, nil
+		return WireService{Instance: in, Package: pkg, Stop: s.Stop}, nil
 	}
 	for _, s := range a.Services {
 		ws, err := enc(s)
@@ -120,7 +122,7 @@ func Decode(w WireAssignment) (Assignment, error) {
 		if err := in.Validate(p); err != nil {
 			return state.Service{}, err
 		}
-		return state.Service{Instance: in, Package: p}, nil
+		return state.Service{Instance: in, Package: p, Stop: ws.Stop}, nil
 	}
 	var errs []error
 	for _, ws := range w.Services {
