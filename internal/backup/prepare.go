@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,7 +29,15 @@ type Preparer struct {
 	// inside podman unshare (so files owned by any container user can be
 	// read).
 	RoostackBin string
+	// QuadletDir is where the server's Quadlet files are (config.Paths), to
+	// tell a database Roostack has stopped from one that should be running.
+	QuadletDir string
 }
+
+// ErrDumpKept is returned by Run for a Postgres database Roostack has
+// stopped (SPEC.md §8.3.4): the dump from an earlier backup is kept, as
+// nothing changes the database while it's stopped.
+var ErrDumpKept = errors.New("the database is stopped, so the dump from an earlier backup is kept")
 
 // Run carries out one prepare step.
 func (p *Preparer) Run(ctx context.Context, step generate.PrepareStep) error {
@@ -38,11 +48,32 @@ func (p *Preparer) Run(ctx context.Context, step generate.PrepareStep) error {
 	case pkgspec.DBSQLite:
 		return p.run(ctx, nil, "podman", "unshare", p.RoostackBin, "backup-helper", "sqlite-copy", step.Source, step.Target)
 	case pkgspec.DBPostgres:
+		if p.stopped(step) {
+			return ErrDumpKept
+		}
 		// Custom format: compressed, and restorable table by table.
 		return p.run(ctx, &step.Target, "podman", "exec", step.Container,
 			"pg_dump", "--username="+step.User, "--dbname="+step.Database, "--format=custom")
 	}
 	return fmt.Errorf("backup: unknown prepare step %q", step.Type)
+}
+
+// stopped says whether a Postgres step's database is one Roostack has
+// stopped, with a dump from an earlier backup to keep. A stop removes the
+// database's Quadlet file (generate.Stop), whereas a database that crashed
+// keeps it, so its dump still fails and the backup says so. The nightly
+// backup's plan already leaves stopped databases out; this covers
+// `roostack backup run`, whose plan comes from the instance files, which
+// don't hold the stop.
+func (p *Preparer) stopped(step generate.PrepareStep) bool {
+	if p.QuadletDir == "" {
+		return false
+	}
+	if _, err := os.Stat(filepath.Join(p.QuadletDir, step.Container+".container")); !errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	_, err := os.Stat(step.Target)
+	return err == nil
 }
 
 // run runs a command; if stdoutTo is set, stdout is written to that file
