@@ -14,15 +14,27 @@
    device). It also works on any element, e.g. the gallery's side-by-side
    light and dark panels. */
 
+/* Space Grotesk, for headings and figures (the website's heading font;
+   SIL Open Font License, fonts/space-grotesk-OFL.txt). Latin only, one
+   variable file for every weight. */
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("../fonts/space-grotesk-latin.woff2") format("woff2");
+  font-weight: 300 700; font-display: swap;
+}
+
 :root {
   /* Spacing: 4px steps at the small end. */
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-7: 48px;
 
-  /* Type: base is 17px, large and clear for non-technical users. */
+  /* Type: base is 16px, 15px in tables and the sidebar (the Owner's
+     choice, 2026-10-14; it was 17px). Headings and figures use the display
+     font. */
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Space Grotesk", var(--font-sans);
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --text-sm: 0.875rem; --text-base: 1rem; --text-lg: 1.15rem;
+  --text-xs: 0.78rem; --text-sm: 0.875rem; --text-base: 1rem; --text-lg: 1.15rem;
   --text-xl: 1.35rem; --text-2xl: 1.7rem;
   --weight-normal: 400; --weight-medium: 500; --weight-bold: 600;
   --leading: 1.5;
@@ -55,6 +67,11 @@
      and mode, since projects draw their logos for light backgrounds
      (Vaultwarden's is black), with dark lines for a drawn icon on it. */
   --logo-tile: #f6f6f3; --logo-tile-fg: #3a3a36;
+
+  /* The aurora behind the page (Console glass, docs/DESIGN.md "Layout"):
+     how strongly its accent and highlight circles show, per mode. The
+     contrast test checks text on cards over the accent at this strength. */
+  --aurora-l: 0.11; --aurora-d: 0.20;
 }
 
 /* Light (the default, and data-mode="light" anywhere). */
@@ -73,6 +90,15 @@
      palette sets its own (--pal-ok-on-fg-l/-d). */
   --ok-on-fg: var(--pal-ok-on-fg-l, var(--pal-ok-d, var(--status-ok-d)));
   --chart-1: var(--chart-1-l); --chart-2: var(--chart-2-l); --chart-3: var(--chart-3-l);
+  /* Console glass (2026-10-14): the page behind the cards, translucent
+     text colour for insets and edges over the aurora, and a card's shadow.
+     Derived here per mode (not in :root), so an element with its own
+     data-mode gets its own mode's values. */
+  --canvas: var(--bg);
+  --glass: color-mix(in srgb, var(--fg) 4%, transparent); --glass-2: color-mix(in srgb, var(--fg) 7%, transparent);
+  --edge: color-mix(in srgb, var(--fg) 10%, transparent); --edge-strong: color-mix(in srgb, var(--fg) 17%, transparent);
+  --lift: 0 1px 2px rgb(0 0 0 / 5%), 0 4px 14px rgb(0 0 0 / 5%);
+  --aurora: var(--aurora-l);
 }
 
 /* Dark: when the device prefers it and the user hasn't chosen light, or
@@ -90,6 +116,11 @@
     --bad: var(--pal-bad-d, var(--status-bad-d)); --bad-bg: var(--pal-bad-bg-d, var(--status-bad-bg-d)); --bad-fg: var(--pal-bad-fg-d, var(--status-bad-fg-d));
     --ok-on-fg: var(--pal-ok-on-fg-d, var(--pal-ok-l, var(--status-ok-l)));
     --chart-1: var(--chart-1-d); --chart-2: var(--chart-2-d); --chart-3: var(--chart-3-d);
+    --canvas: color-mix(in srgb, var(--bg) 62%, black);
+    --glass: color-mix(in srgb, var(--fg) 4%, transparent); --glass-2: color-mix(in srgb, var(--fg) 7%, transparent);
+    --edge: color-mix(in srgb, var(--fg) 10%, transparent); --edge-strong: color-mix(in srgb, var(--fg) 17%, transparent);
+    --lift: 0 1px 0 color-mix(in srgb, var(--fg) 6%, transparent) inset, 0 10px 30px rgb(0 0 0 / 35%);
+    --aurora: var(--aurora-d);
   }
 }
 [data-mode="dark"] {
@@ -104,4 +135,9 @@
   --bad: var(--pal-bad-d, var(--status-bad-d)); --bad-bg: var(--pal-bad-bg-d, var(--status-bad-bg-d)); --bad-fg: var(--pal-bad-fg-d, var(--status-bad-fg-d));
   --ok-on-fg: var(--pal-ok-on-fg-d, var(--pal-ok-l, var(--status-ok-l)));
   --chart-1: var(--chart-1-d); --chart-2: var(--chart-2-d); --chart-3: var(--chart-3-d);
+  --canvas: color-mix(in srgb, var(--bg) 62%, black);
+  --glass: color-mix(in srgb, var(--fg) 4%, transparent); --glass-2: color-mix(in srgb, var(--fg) 7%, transparent);
+  --edge: color-mix(in srgb, var(--fg) 10%, transparent); --edge-strong: color-mix(in srgb, var(--fg) 17%, transparent);
+  --lift: 0 1px 0 color-mix(in srgb, var(--fg) 6%, transparent) inset, 0 10px 30px rgb(0 0 0 / 35%);
+  --aurora: var(--aurora-d);
 }
