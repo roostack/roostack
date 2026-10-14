@@ -212,7 +212,7 @@ p.error[role="alert"] { background: var(--bad-bg); color: var(--bad); padding: v
 .status-running { background: var(--ok-bg); color: var(--ok); }
 .status-starting { background: var(--warn-bg); color: var(--warn); }
 .status-failed { background: var(--bad-bg); color: var(--bad); }
-.status-installing { background: var(--accent-soft); color: var(--accent); }
+.status-installing, .status-updating { background: var(--accent-soft); color: var(--accent); }
 .status-waiting { background: var(--warn-bg); color: var(--warn); }
 .status-registry-stop { background: var(--bad-bg); color: var(--bad); }
 .status .spinner { width: 0.7em; height: 0.7em; vertical-align: -0.05em; }

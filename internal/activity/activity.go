@@ -25,6 +25,8 @@ const (
 	Restore   = "restore"
 	// Move: moving a service to another server (SPEC.md §10.10).
 	Move = "move"
+	// ServiceUpdate is updating a service to a newer version (SPEC.md §7).
+	ServiceUpdate = "service-update"
 	// BackupSetup: creating a server's backup repository (SPEC.md §10.10).
 	BackupSetup = "backup-setup"
 	// LabRestore is rebuilding a lab from its backups on a new server.

@@ -77,6 +77,8 @@ type ServiceView struct {
 	node.ServiceDetail
 	// LastBackup is when its server last finished a backup.
 	LastBackup time.Time
+	// Update is the app version it can update to ("" if none, SPEC.md §7).
+	Update string
 }
 
 // Server serves the web UI.
@@ -193,6 +195,7 @@ type ServiceManager interface {
 	RecoveryKeys
 	LabRestores
 	Withdrawals
+	ServiceUpdates
 }
 
 // LabRestores restores a service from any of the lab's backups, onto any
@@ -597,6 +600,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /services/{name}/actions/{action}", s.require(auth.ManageServices, s.actionSubmit))
 	mux.Handle("GET /services/{name}/remove", s.require(auth.ManageServices, s.removePage))
 	mux.Handle("POST /services/{name}/title", s.require(auth.ManageServices, s.titleSubmit))
+	mux.Handle("POST /services/{name}/update", s.require(auth.ManageServices, s.updateSubmit))
+	mux.Handle("POST /services/{name}/updates", s.require(auth.ManageServices, s.updatePolicySubmit))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))
 
 	return s.recoverPanics(compress(securityHeaders(sameOrigin(s.loadSession(mux)))))

@@ -66,7 +66,9 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 
 | # | Assumption / concern |
 |---|---|
-| F1 | `health.http` in a package **cannot** simply become a Podman `HealthCmd`, because many images have no curl/wget. For now the generator only emits `HealthCmd` for `health.cmd`. HTTP checks will be done by Roostack itself (probably through Caddy). Needs design. |
+| F1 | `health.http` in a package **cannot** simply become a Podman `HealthCmd`, because many images have no curl/wget. For now the generator only emits `HealthCmd` for `health.cmd`. HTTP checks will be done by Roostack itself (probably through Caddy). Needs design. **Partly built (2026-10-14):** after an update (SPEC §7.1) the service's server asks `health.http` itself, through a route's published port when a route leads to the checked container port (an answer below 500 works; a check on a port no route publishes is skipped), and runs `health.cmd` in the container with `sh -c`. Not yet checked continuously. |
+| F2 ✅ | An update's check counts `NRestarts` from `systemctl show` (restarts by `Restart=always` since the unit was last started by hand) and treats `ActiveState=failed` as systemd having given up. **Verified on dev VM 2 (2026-10-14):** a container that exits at once was restarted by systemd until its start limit, then stayed `failed`; the check gave up after 30 seconds and Roostack went back to the previous version, which ran again. |
+| F3 | A Quadlet container's image is pulled when the unit starts only if it's missing (Podman's default `Pull=missing`), so images downloaded before an update's switch (`reconcile.Pull`) are used without downloading again. Not yet tried with a new image on a VM (only a new revision of the same image). |
 
 ## G. Settings
 

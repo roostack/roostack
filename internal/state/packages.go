@@ -76,9 +76,13 @@ func LoadPackage(paths config.Paths, name, version string) (*pkgspec.Package, er
 
 // PrunePackages deletes the lab's copies of package versions no service
 // uses any more. Call it with every service in the lab, after they all
-// loaded.
-func PrunePackages(paths config.Paths, services []Service) error {
+// loaded. keep are more files to keep (a service's previous version while
+// it updates).
+func PrunePackages(paths config.Paths, services []Service, keep ...string) error {
 	used := map[string]bool{}
+	for _, k := range keep {
+		used[k] = true
+	}
 	for _, s := range services {
 		used[paths.LabPackageFile(s.Instance.Package, s.Instance.Version)] = true
 	}

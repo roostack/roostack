@@ -308,6 +308,8 @@ func (m *Manager) awaitLastBackup(host string) {
 // RegistryChanged is called after each check of the registry: if a
 // withdrawal changed what should run, the servers get new assignments.
 func (m *Manager) RegistryChanged() {
+	// A stopped service whose fix is out may update now (update.go).
+	defer func() { go m.UpdateStopped(context.Background()) }()
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	services, err := state.LoadServices(m.Lab)

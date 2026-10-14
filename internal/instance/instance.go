@@ -237,3 +237,24 @@ func typeMatches(typ string, v any) bool {
 	}
 	return false
 }
+
+// AllowsUpdate says whether the update policy applies an update of this
+// kind (pkgspec.UpdateKind) automatically (SPEC.md §7): notify never;
+// patch takes new definitions and patch releases; minor adds minor
+// releases; all takes everything.
+func (in *Instance) AllowsUpdate(kind string) bool {
+	switch in.Updates {
+	case UpdatesAll:
+		return true
+	case UpdatesMinor:
+		return kind == pkgspec.UpdateRevision || kind == pkgspec.UpdatePatch || kind == pkgspec.UpdateMinor
+	case UpdatesPatch:
+		return kind == pkgspec.UpdateRevision || kind == pkgspec.UpdatePatch
+	}
+	return false
+}
+
+// ValidUpdates says whether s is an update policy.
+func ValidUpdates(s string) bool {
+	return s == UpdatesNotify || s == UpdatesPatch || s == UpdatesMinor || s == UpdatesAll
+}

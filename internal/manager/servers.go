@@ -244,7 +244,14 @@ func (m *Manager) startApplyLocked() {
 	m.secrets, m.setUp = nil, nil
 	// Every server has its packages now (Remote.Apply encodes them before
 	// returning), so copies no service uses can go (SPEC.md §8.3.1).
-	if err := state.PrunePackages(m.Lab.Paths, services); err != nil {
+	// A service updating keeps its previous version until it's done.
+	var keep []string
+	for name, version := range m.keptVersions() {
+		if i := slices.IndexFunc(services, func(s state.Service) bool { return s.Name() == name }); i >= 0 {
+			keep = append(keep, m.Lab.Paths.LabPackageFile(services[i].Instance.Package, version))
+		}
+	}
+	if err := state.PrunePackages(m.Lab.Paths, services, keep...); err != nil {
 		m.Log.Error("deleting unused package copies", "err", err)
 	}
 }

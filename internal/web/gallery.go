@@ -85,6 +85,7 @@ var gallerySections = []gallerySection{
 			{"Service status", "Pass the service's state.", `
 {{status "running"}}
 {{status "installing"}}
+{{status "updating"}}
 {{status "starting"}}
 {{status "failed"}}
 {{status "stopped"}}

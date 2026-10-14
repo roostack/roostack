@@ -197,6 +197,9 @@ type Local struct {
 	followingBuild bool
 	// installs are new services being installed, step by step (install.go).
 	installs map[string]*InstallProgress
+
+	// updates are services updating here (update.go).
+	updates updates
 }
 
 // Identity is this server's identity.

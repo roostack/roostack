@@ -85,3 +85,17 @@ type indexCache struct {
 	ixTime time.Time
 	ixSize int64
 }
+
+// Updates says whether the registry's versions of a package can update a
+// service running this version, whose package file is file (SPEC.md §7):
+// the registry has the package, and the version is either its own (the
+// same SHA-256) or no longer in the index. A package of your own that
+// shares a registry version's name and version, with other contents,
+// isn't the registry's to update.
+func (ix *Index) Updates(name, version string, file []byte) bool {
+	if ix == nil || ix.Packages[name] == nil {
+		return false
+	}
+	v := ix.Packages[name].Versions[version]
+	return v == nil || sum(file) == v.SHA256
+}

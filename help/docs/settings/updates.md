@@ -8,7 +8,10 @@ ran and what it did; if it failed, **What happened** shows the details.
 
 **Check for updates now** runs it straight away.
 
-Services have their own versions: see [Services you can install](#services-you-can-install).
+Services have their own versions, from the service registry (see
+[Services you can install](#services-you-can-install)). Each service's page
+offers its updates, and you choose there whether it updates by itself:
+see [Change a service](../services/settings.md#updates).
 
 ## Restarts
 

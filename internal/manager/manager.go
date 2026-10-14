@@ -135,6 +135,8 @@ type Manager struct {
 	// awaiting the servers whose last backup a stop waits for.
 	stopsKey string
 	awaiting map[string]bool
+	// upd are services updating (update.go).
+	upd updates
 }
 
 // CatalogItem is one package in the catalog.
