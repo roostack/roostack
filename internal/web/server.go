@@ -25,7 +25,6 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
-	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
@@ -77,6 +76,9 @@ type ServiceView struct {
 	node.ServiceDetail
 	// LastBackup is when its server last finished a backup.
 	LastBackup time.Time
+	// Local: installed from a package the Owner added themselves ("Your
+	// own", SPEC.md §8.3.4).
+	Local bool
 }
 
 // Server serves the web UI.
@@ -222,9 +224,17 @@ type ServiceCatalog interface {
 	// InstallSummary is what installing with these choices would set up
 	// (SPEC.md §8.3.4); PackageFile and PackageIcon are a catalog
 	// package's file and logo.
-	InstallSummary(name string, req manager.InstallRequest) (*generate.Summary, error)
+	InstallSummary(name string, req manager.InstallRequest) (*manager.InstallSummary, error)
 	PackageFile(name string) ([]byte, error)
 	PackageIcon(name string) ([]byte, error)
+	// CheckPackage is how a package stands against the package policy
+	// (SPEC.md §8.3.4).
+	CheckPackage(p *pkgspec.Package) manager.PolicyCheck
+	// The Owner's own packages ("Add your own", SPEC.md §8.3.4): adding
+	// (or replacing) one, removing one, and the folder they're kept in.
+	AddLocalPackage(data, icon []byte) (*pkgspec.Package, error)
+	RemoveLocalPackage(name string) error
+	LocalPackagesDir() string
 	Remove(ctx context.Context, name string) error
 	DataDirs(name string) []string
 	Ports(name string) ([]manager.PortStatus, error)
@@ -409,9 +419,9 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	if s.help, err = newHelpSite(helpFS); err != nil {
 		return nil, err
 	}
-	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
+	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "local-add", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
-		"home", "services", "service", "backups", "restore", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
+		"home", "services", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
@@ -584,6 +594,9 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("POST /backup/run", s.require(auth.ManageServices, s.backupRun))
 	mux.Handle("GET /catalog", s.require(auth.ManageServices, s.catalogPage))
+	mux.Handle("GET /catalog/add", s.requireOwner(s.localAddPage))
+	mux.Handle("POST /catalog/add", s.requireOwner(s.localAddSubmit))
+	mux.Handle("POST /catalog/{name}/remove", s.requireOwner(s.localRemoveSubmit))
 	mux.Handle("GET /install/{name}", s.require(auth.ManageServices, s.installPage))
 	mux.Handle("POST /install/{name}", s.require(auth.ManageServices, s.installSubmit))
 	mux.Handle("POST /install/{name}/summary", s.require(auth.ManageServices, s.installSummaryPart))
@@ -599,7 +612,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /services/{name}/title", s.require(auth.ManageServices, s.titleSubmit))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))
 
-	return s.recoverPanics(compress(securityHeaders(sameOrigin(s.loadSession(mux)))))
+	return s.recoverPanics(compress(securityHeaders(sameOrigin(s.loadSession(s.errorPages(mux))))))
 }
 
 type userKey struct{}

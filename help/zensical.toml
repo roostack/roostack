@@ -46,6 +46,12 @@ nav = [
     "settings/history.md",
     "settings/updates.md",
   ] },
+  { "Make your own service" = [
+    "packages/index.md",
+    "packages/write.md",
+    "packages/try.md",
+    "packages/submit.md",
+  ] },
   { "When things go wrong" = [
     "trouble/index.md",
     "trouble/locked-out.md",

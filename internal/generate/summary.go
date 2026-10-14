@@ -111,33 +111,8 @@ func Summarize(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (*Summ
 		s.Kept = append(s.Kept, k)
 	}
 
-	for _, name := range slices.Sorted(maps.Keys(p.Containers)) {
-		c := p.Containers[name]
-		ok, err := g.ctx.enabled("containers."+name+".when", c.When)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue
-		}
-		s.Parts = append(s.Parts, Part{Name: name, Memory: c.ExpectedMemory()})
-		for i, d := range c.Devices {
-			on, err := g.ctx.enabled(fmt.Sprintf("containers.%s.devices[%d].when", name, i), d.When)
-			if err != nil {
-				return nil, err
-			}
-			if on && d.GPU != "" {
-				s.GPU = append(s.GPU, name)
-				break
-			}
-		}
-	}
-	for _, name := range slices.Sorted(maps.Keys(p.Databases)) {
-		d := p.Databases[name]
-		if d.Type == pkgspec.DBSQLite {
-			continue // a file the app opens itself
-		}
-		s.Parts = append(s.Parts, Part{Name: name, Database: d.Type, Memory: d.ExpectedMemory()})
+	if s.Parts, s.GPU, err = g.parts(); err != nil {
+		return nil, err
 	}
 	for _, part := range s.Parts {
 		s.Memory += part.Memory
@@ -158,4 +133,56 @@ func Summarize(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (*Summ
 // uses, so Memory is only the least it needs.
 func (s *Summary) MemoryUnknown() bool {
 	return slices.ContainsFunc(s.Parts, func(p Part) bool { return p.Memory == 0 })
+}
+
+// parts are what would run (Summary.Parts), and the containers given the
+// GPU, with the instance's settings.
+func (g *gen) parts() ([]Part, []string, error) {
+	p := g.pkg
+	var parts []Part
+	var gpu []string
+	for _, name := range slices.Sorted(maps.Keys(p.Containers)) {
+		c := p.Containers[name]
+		ok, err := g.ctx.enabled("containers."+name+".when", c.When)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !ok {
+			continue
+		}
+		parts = append(parts, Part{Name: name, Memory: c.ExpectedMemory()})
+		for i, d := range c.Devices {
+			on, err := g.ctx.enabled(fmt.Sprintf("containers.%s.devices[%d].when", name, i), d.When)
+			if err != nil {
+				return nil, nil, err
+			}
+			if on && d.GPU != "" {
+				gpu = append(gpu, name)
+				break
+			}
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(p.Databases)) {
+		d := p.Databases[name]
+		if d.Type == pkgspec.DBSQLite {
+			continue // a file the app opens itself
+		}
+		parts = append(parts, Part{Name: name, Database: d.Type, Memory: d.ExpectedMemory()})
+	}
+	return parts, gpu, nil
+}
+
+// ExpectedMemory is how much memory a service is expected to use with its
+// settings: Summary.Memory without generating its files, for adding up
+// what a server's installed services expect (SPEC.md §8.3.4).
+func ExpectedMemory(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (int64, error) {
+	parts, _, err := newGen(lab, p, in, CaddyHostLoopback).parts()
+	if err != nil {
+		return 0, err
+	}
+	var total int64
+	for _, part := range parts {
+		total += part.Memory
+	}
+	return total, nil
 }

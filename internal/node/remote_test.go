@@ -51,6 +51,9 @@ func (f *fakeNode) ServiceDetails(context.Context) (map[string]ServiceDetail, er
 	return map[string]ServiceDetail{"vaultwarden": {Status: "running", Containers: []Container{{Name: "roostack-vaultwarden-app",
 		Image: "docker.io/vaultwarden/server:1.34", State: "active (running)"}}, DataSize: 1234}}, nil
 }
+func (f *fakeNode) Memory(context.Context) (MemoryInfo, error) {
+	return MemoryInfo{Total: 8_000_000_000, Available: 3_600_000_000}, nil
+}
 func (f *fakeNode) BuiltIns(context.Context) ([]BuiltIn, error) {
 	f.builtIns.Add(1)
 	return []BuiltIn{{Name: "Roostack agent", Kind: "roostack", Status: "active (running)"}}, nil
@@ -157,6 +160,9 @@ func TestRemote(t *testing.T) {
 	if d, err := r.ServiceDetails(ctx); err != nil || d["vaultwarden"].Containers[0].Image != "docker.io/vaultwarden/server:1.34" ||
 		d["vaultwarden"].DataSize != 1234 {
 		t.Errorf("details = %+v, %v", d, err)
+	}
+	if m, err := r.Memory(ctx); err != nil || m.Total != 8_000_000_000 || m.Available != 3_600_000_000 {
+		t.Errorf("memory = %+v, %v", m, err)
 	}
 	if b, err := r.BuiltIns(ctx); err != nil || len(b) != 1 || b[0].Name != "Roostack agent" {
 		t.Errorf("built-ins = %+v, %v", b, err)

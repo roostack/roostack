@@ -187,3 +187,25 @@ func TestPolicyReportsEverything(t *testing.T) {
 		}
 	}
 }
+
+// A package of the Owner's own may leave out the facts registry packages
+// must give; Risks is only what could reach beyond the service.
+func TestRisks(t *testing.T) {
+	p, err := Parse([]byte(policyBase))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.About = About{}
+	p.Requires.Roostack = ""
+	p.Containers["web"].Memory = ""
+	if len(p.Policy()) == 0 {
+		t.Error("Policy should want the missing facts")
+	}
+	if risks := p.Risks(); len(risks) != 0 {
+		t.Errorf("Risks = %q, want none", risks)
+	}
+	p.Containers["web"].Quadlet = Quadlet{"Container": {"PodmanArgs": "--privileged"}}
+	if risks := p.Risks(); len(risks) != 1 || !strings.Contains(risks[0], "PodmanArgs") {
+		t.Errorf("Risks = %q, want PodmanArgs", risks)
+	}
+}
