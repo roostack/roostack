@@ -306,6 +306,9 @@ func serve(args []string) error {
 	}
 	fetcher := &registry.Fetcher{URL: cmp.Or(lab.Registry.URL, registry.DefaultURL), Dir: lab.Paths.CatalogDir, Roots: roots,
 		Version: version, Arch: runtime.GOARCH, Client: &http.Client{Timeout: time.Minute}, Log: log}
+	// Withdrawals reach installed services: after each check, the manager
+	// stops or starts what they change (SPEC.md §8.3.4).
+	mgr.RegistryIndex, fetcher.Fetched = fetcher.Index, mgr.RegistryChanged
 	updater := registry.NewUpdater(fetcher, lab.Registry.Disabled, func(off bool) error {
 		return config.Update(*labPath, func(l *config.Lab) { l.Registry.Disabled = off })
 	}, log)
@@ -506,11 +509,16 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 	}
 	// Each server reports its own services (SPEC.md §10.3).
 	infos := mgr.ServiceInfos(ctx)
+	withdrawn := mgr.Withdrawals(ctx)
 	var views []web.ServiceView
 	for _, s := range all {
-		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Status: "unknown", Local: s.Instance.Local}
+		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Status: "unknown", Package: s.Package.Name, Local: s.Instance.Local}
 		if info, ok := infos[s.Name()]; ok {
 			v.ServiceDetail, v.Status, v.Server, v.LastBackup = info.ServiceDetail, info.Status, info.Server, info.LastBackup
+		}
+		if w := withdrawn[s.Name()]; w != nil && w.Stopped {
+			// The registry withdrew it as dangerous (SPEC.md §8.3.4).
+			v.Status = web.StatusRegistryStop
 		}
 		if s.Instance.Waiting {
 			// Its server is gone: it runs nowhere until restored (SPEC.md §10.10).

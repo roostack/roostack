@@ -228,6 +228,8 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 				}
 				add(levelInfo, text+".", "/backups#restoring", "Restore")
 			}
+			// Versions the service registry withdrew (SPEC.md §8.3.4).
+			s.withdrawalAttention(r, services, func(it attentionItem) { items = append(items, it) })
 			for _, svc := range services {
 				if svc.Status == StatusWaiting {
 					continue

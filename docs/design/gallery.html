@@ -797,13 +797,15 @@
 <span class="status status-starting">starting</span>
 <span class="status status-failed">failed</span>
 <span class="status status-stopped">stopped</span>
-<span class="status status-waiting">waiting to be restored</span></div>
+<span class="status status-waiting">waiting to be restored</span>
+<span class="status status-registry-stop">stopped by Roostack</span></div>
             <div class="panel" data-mode="dark"><span class="status status-running">running</span>
 <span class="status status-installing"><span class="spinner" aria-hidden="true"></span> installing</span>
 <span class="status status-starting">starting</span>
 <span class="status status-failed">failed</span>
 <span class="status status-stopped">stopped</span>
-<span class="status status-waiting">waiting to be restored</span></div>
+<span class="status status-waiting">waiting to be restored</span>
+<span class="status status-registry-stop">stopped by Roostack</span></div>
           </div>
           <details>
             <summary>Markup</summary>
@@ -814,9 +816,10 @@
 {{status &#34;starting&#34;}}
 {{status &#34;failed&#34;}}
 {{status &#34;stopped&#34;}}
-{{status &#34;waiting&#34;}}</pre>
+{{status &#34;waiting&#34;}}
+{{status &#34;registry-stop&#34;}}</pre>
             <p class="markup-label">Renders as</p>
-            <pre class="output">&lt;span class=&#34;status status-running&#34;&gt;running&lt;/span&gt;&lt;span class=&#34;status status-installing&#34;&gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;installing&lt;/span&gt;&lt;span class=&#34;status status-starting&#34;&gt;starting&lt;/span&gt;&lt;span class=&#34;status status-failed&#34;&gt;failed&lt;/span&gt;&lt;span class=&#34;status status-stopped&#34;&gt;stopped&lt;/span&gt;&lt;span class=&#34;status status-waiting&#34;&gt;waiting to be restored&lt;/span&gt;</pre>
+            <pre class="output">&lt;span class=&#34;status status-running&#34;&gt;running&lt;/span&gt;&lt;span class=&#34;status status-installing&#34;&gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;installing&lt;/span&gt;&lt;span class=&#34;status status-starting&#34;&gt;starting&lt;/span&gt;&lt;span class=&#34;status status-failed&#34;&gt;failed&lt;/span&gt;&lt;span class=&#34;status status-stopped&#34;&gt;stopped&lt;/span&gt;&lt;span class=&#34;status status-waiting&#34;&gt;waiting to be restored&lt;/span&gt;&lt;span class=&#34;status status-registry-stop&#34;&gt;stopped by Roostack&lt;/span&gt;</pre>
             
           </details>
         </div>
@@ -847,6 +850,32 @@
 {{badge &#34;Your own&#34; &#34;warn&#34;}}</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;span class=&#34;badge&#34;&gt;Preview&lt;/span&gt;&lt;span class=&#34;badge badge-highlight&#34;&gt;New&lt;/span&gt;&lt;span class=&#34;badge badge-ok&#34;&gt;Installed&lt;/span&gt;&lt;span class=&#34;badge badge-warn&#34;&gt;Community&lt;/span&gt;&lt;span class=&#34;badge badge-warn&#34;&gt;Your own&lt;/span&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Tier badge <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">template &#34;tier-badge&#34; with anything that has .Local and .Tier (a catalog entry, an installed service): who looks after its package. Beside the title, inside the heading.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><h2>Forgejo <span class="badge">Official</span></h2>
+<h2>Paperless-ngx <span class="badge badge-warn">Community</span></h2>
+<h2>My app <span class="badge badge-warn">Your own</span></h2></div>
+            <div class="panel" data-mode="dark"><h2>Forgejo <span class="badge">Official</span></h2>
+<h2>Paperless-ngx <span class="badge badge-warn">Community</span></h2>
+<h2>My app <span class="badge badge-warn">Your own</span></h2></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;h2&gt;Forgejo {{template &#34;tier-badge&#34; .TierOfficial}}&lt;/h2&gt;
+&lt;h2&gt;Paperless-ngx {{template &#34;tier-badge&#34; .TierCommunity}}&lt;/h2&gt;
+&lt;h2&gt;My app {{template &#34;tier-badge&#34; .TierLocal}}&lt;/h2&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;h2&gt;Forgejo&lt;span class=&#34;badge&#34;&gt;Official&lt;/span&gt;&lt;/h2&gt;
+&lt;h2&gt;Paperless-ngx&lt;span class=&#34;badge badge-warn&#34;&gt;Community&lt;/span&gt;&lt;/h2&gt;
+&lt;h2&gt;My app&lt;span class=&#34;badge badge-warn&#34;&gt;Your own&lt;/span&gt;&lt;/h2&gt;</pre>
             
           </details>
         </div>

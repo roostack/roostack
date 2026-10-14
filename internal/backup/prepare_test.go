@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -127,5 +128,33 @@ func TestSQLiteStepUsesUnshare(t *testing.T) {
 	want := fmt.Sprintf("podman unshare /usr/local/bin/roostack backup-helper sqlite-copy /srv/x/data/db.sqlite3 %s/main.sqlite3", dir)
 	if calls[0] != want {
 		t.Errorf("got %q, want %q", calls[0], want)
+	}
+}
+
+// A database Roostack has stopped (no Quadlet file) keeps its earlier
+// dump; one that should be running, or has no dump yet, is dumped
+// (SPEC.md §8.3.4).
+func TestStoppedDatabaseKeepsDump(t *testing.T) {
+	quadlets := t.TempDir()
+	target := filepath.Join(t.TempDir(), "main.sql")
+	step := generate.PrepareStep{Type: pkgspec.DBPostgres, Container: "roostack-x-db-main", User: "u", Database: "d", Target: target}
+	var calls []string
+	p := &Preparer{Launch: fakeLaunch(&calls, "printf today"), QuadletDir: quadlets}
+
+	// No dump yet: tried (and here it works).
+	if err := p.Run(context.Background(), step); err != nil || len(calls) != 1 {
+		t.Fatalf("no earlier dump: %v, calls %q", err, calls)
+	}
+	os.WriteFile(target, []byte("yesterday"), 0o600)
+	if err := p.Run(context.Background(), step); !errors.Is(err, ErrDumpKept) || len(calls) != 1 {
+		t.Errorf("stopped: %v, calls %q", err, calls)
+	}
+	if got, _ := os.ReadFile(target); string(got) != "yesterday" {
+		t.Errorf("dump = %q", got)
+	}
+	// Its Quadlet file is there: it should be running, so it's dumped.
+	os.WriteFile(filepath.Join(quadlets, "roostack-x-db-main.container"), nil, 0o644)
+	if err := p.Run(context.Background(), step); err != nil || len(calls) != 2 {
+		t.Errorf("running: %v, calls %q", err, calls)
 	}
 }
