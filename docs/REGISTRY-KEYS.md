@@ -90,9 +90,10 @@ the old signing key is useless to anyone holding it.
 9. **Set up publishing**, once: in `roostack/services` → Settings → Pages,
    source "GitHub Actions" and custom domain `registry.roostack.cloud`; add
    the DNS record `registry.roostack.cloud CNAME roostack.github.io`; set the
-   repository variables `ROOSTACK_REPO` (this repository) and `ROOSTACK_REF`
-   (the release whose `roostack` builds the index), and, while this
-   repository is private, a secret `ROOSTACK_READ_TOKEN` that can read it.
+   repository variables `ROOSTACK_BINARY_URL` (a Roostack release's
+   linux/amd64 `roostack` binary, which builds the index) and
+   `ROOSTACK_BINARY_SHA256` (its SHA-256: `sha256sum roostack`). Change both
+   when a newer release should check the registry.
 
 10. **Check it.** Run the Publish workflow (Actions → Publish → Run
     workflow), then, with the Roostack from step 8:
