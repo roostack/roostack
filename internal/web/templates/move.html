@@ -1,7 +1,6 @@
 {{define "title"}}Move {{.Package.Title}}{{end}}
 {{define "content"}}
 <section class="card medium">
-  <div class="page-top">{{back (printf "/services/%s" $.Name) .Package.Title}}{{help "servers/move" "Move a service"}}</div>
   <h1>Move {{.Package.Title}} to another server</h1>
   {{with .MoveActivity}}{{activity .}}{{end}}
   {{/* Drawn again when the move finishes: where it runs now. */}}
@@ -46,3 +45,6 @@
   </div>
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "servers/move" "Move a service"}}{{end}}
+{{define "crumbs"}}<a href="/services">Services</a><a href="/services/{{.Name}}">{{.Package.Title}}</a><strong aria-current="page">Move</strong>{{end}}

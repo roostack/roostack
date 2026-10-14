@@ -1,7 +1,6 @@
 {{define "title"}}Your lab's address{{end}}
 {{define "content"}}
 <section class="card">
-  <div class="page-top">{{back "/settings" "Settings"}}{{help "settings/domain" "Your lab's address"}}</div>
   <div class="heading"><h1>Your lab's address</h1></div>
   {{if .DomainSet}}
   <dl class="facts">
@@ -36,3 +35,5 @@
   {{end}}
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "settings/domain" "Your lab's address"}}{{end}}

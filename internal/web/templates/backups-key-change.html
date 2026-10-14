@@ -1,7 +1,6 @@
 {{define "title"}}Change recovery key{{end}}
 {{define "content"}}
 <section class="card narrow">
-  <div class="page-top">{{back "/backups" "Backups"}}{{help "start/recovery-key#changing-it" "Changing your recovery key"}}</div>
   <h1>Change recovery key</h1>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
 
@@ -53,3 +52,5 @@
   {{end}}
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "start/recovery-key#changing-it" "Changing your recovery key"}}{{end}}

@@ -1,6 +1,5 @@
 {{define "title"}}Public access{{end}}
 {{define "content"}}
-<div class="page-top">{{back "/settings" "Settings"}}{{help "services/public" "Making a service public"}}</div>
 <section class="card">
   <h1>Public access</h1>
   <p class="hint">Services are for your home network, unless you make one public from its page.</p>
@@ -146,3 +145,5 @@
   </form>
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "services/public" "Making a service public"}}{{end}}

@@ -1,6 +1,5 @@
 {{define "title"}}Lab name{{end}}
 {{define "content"}}
-<div class="page-top">{{back "/settings" "Settings"}}{{help "settings" "Settings"}}</div>
 <section class="card">
   <h1>Lab name</h1>
   <p>What you call your lab. It's shown at the top of every page, and to other labs you share backup storage with
@@ -13,3 +12,5 @@
   </form>
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "settings" "Settings"}}{{end}}

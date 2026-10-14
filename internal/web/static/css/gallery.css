@@ -52,3 +52,9 @@
 .corners .radius-sm { border-radius: var(--radius-sm); } .corners .radius { border-radius: var(--radius); }
 .corners .radius-lg { border-radius: var(--radius-lg); } .corners .radius-pill { border-radius: var(--radius-pill); }
 .theme-select { display: block; max-width: 320px; margin: 0; font-weight: var(--weight-medium); }
+
+/* Layout examples: the sidebar and page header inside a panel, not fixed
+   to the window. Panels show the canvas the page has behind its cards. */
+@supports (color: color-mix(in srgb, red 50%, blue)) { .panel { background: var(--canvas); } }
+.gallery .gallery-sidebar { position: static; height: auto; max-width: 256px; translate: none; visibility: visible; }
+.gallery .gallery-page-header { padding: 0; min-height: 0; }

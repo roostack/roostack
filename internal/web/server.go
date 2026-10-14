@@ -822,10 +822,20 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 			data["Clock"] = clockView{hosttime.Now(), auth.Can(u.Role, auth.ManageHost)}
 		}
 	}
-	// Settings' sidebar leaves out Roostack Cloud while it isn't in use.
-	if nav, ok := data["AreaNav"].(areaNav); ok && nav.Label == "Settings" {
-		nav.Groups = s.settingsGroups()
-		data["AreaNav"] = nav
+	// Settings' pages are in the sidebar (without Roostack Cloud while it
+	// isn't in use); an area page marks its own.
+	if n, ok := data["Nav"].(nav); ok && n.Settings {
+		for _, g := range s.settingsGroups() {
+			for _, a := range g.Areas {
+				if a.ID != "servers" && a.ID != "backups" { // main areas
+					n.SettingsAreas = append(n.SettingsAreas, a)
+				}
+			}
+		}
+		if an, ok := data["AreaNav"].(areaNav); ok && an.Label == "Settings" {
+			n.Area = an.Active
+		}
+		data["Nav"] = n
 	}
 	// Render into a buffer first, so a template error becomes an error
 	// page rather than half a page sent with 200 OK.

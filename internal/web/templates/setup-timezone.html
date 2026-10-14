@@ -2,7 +2,6 @@
 {{define "content"}}
 {{template "server-switcher" .}}
 <section class="card narrow">
-  <div class="page-top">{{if .Wizard}}<p class="hint">Setup · step 1 of 4</p>{{else}}{{back .Back .BackText}}{{end}}{{help "start/first-run#3-where-is-this-server" "Where is this server?"}}</div>
   {{if .Wizard}}<h1>Where is this server?</h1>
   {{else}}
   <h1>Change the time zone{{if not .Server.This}} of {{.Server.Name}}{{end}}</h1>
@@ -25,3 +24,6 @@
   </form>
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "start/first-run#3-where-is-this-server" "Where is this server?"}}{{end}}
+{{define "crumbs"}}{{if .Wizard}}<span>Setup</span><strong aria-current="page">Step 1 of 4</strong>{{else}}<a href="{{.Back}}">{{.BackText}}</a><strong aria-current="page">{{template "title" .}}</strong>{{end}}{{end}}

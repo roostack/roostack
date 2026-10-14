@@ -1,6 +1,5 @@
 {{define "title"}}Email and notifications{{end}}
 {{define "content"}}
-<div class="page-top">{{help "settings/email#who-gets-email" "Email and notifications"}}</div>
 <section class="card">
   <h1>Email and notifications</h1>
   {{if .Saved}}{{notice "ok" "Saved."}}{{end}}
@@ -24,3 +23,5 @@
   </form>
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "settings/email#who-gets-email" "Email and notifications"}}{{end}}

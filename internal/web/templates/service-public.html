@@ -4,7 +4,6 @@
      through an SSH tunnel (SPEC.md §6.12). */}}
 {{$privateMeans := "reachable from your home network (or VPN) only"}}{{if .Internet}}{{$privateMeans = "reachable only through an SSH tunnel"}}{{end}}
 <section class="card medium">
-  <div class="page-top">{{back (printf "/services/%s" $.Name) .Package.Title}}{{help "services/public" "Making a service public"}}</div>
   {{with .Route}}
   <div class="heading">
     <h1>Who can reach {{.Host}}</h1>
@@ -114,3 +113,6 @@
   {{end}}
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "services/public" "Making a service public"}}{{end}}
+{{define "crumbs"}}<a href="/services">Services</a><a href="/services/{{.Name}}">{{.Package.Title}}</a><strong aria-current="page">Public access</strong>{{end}}

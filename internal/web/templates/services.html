@@ -1,7 +1,6 @@
 {{define "title"}}Services{{end}}
 {{define "content"}}
 <section>
-  <div class="page-top">{{help "services" "Services"}}</div>
   <div class="heading">
     <h1>Services</h1>
     {{if .CanManage}}<a class="button" href="/catalog">Add a service</a>{{end}}
@@ -74,3 +73,5 @@
 {{end}}
 {{end}}
 {{end}}
+
+{{define "page-help"}}{{help "services" "Services"}}{{end}}

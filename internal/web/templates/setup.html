@@ -1,7 +1,6 @@
 {{define "title"}}Welcome{{end}}
 {{define "content"}}
 <section class="card narrow">
-  <div class="page-top">{{help "start/first-run" "First-run setup"}}</div>
   <h1>Welcome to Roostack</h1>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{if not .Passed}}
@@ -76,3 +75,5 @@
   {{end}}
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "start/first-run" "First-run setup"}}{{end}}

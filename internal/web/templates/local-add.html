@@ -1,7 +1,6 @@
 {{define "title"}}Add your own service{{end}}
 {{define "content"}}
 <section class="card narrow">
-  <div class="page-top">{{back "/catalog" "Add a service"}}{{help "services/add#your-own" "Add your own"}}</div>
   <h1>Add your own service</h1>
   {{/* Wording chosen by the Owner (2026-10-14), SPEC.md §8.3.4. */}}
   {{notice "warn" "Nobody has reviewed this package. Services from the service registry are checked before they're offered; a package you add isn't. It decides which app runs and what it's given, so only add one you wrote or got from someone you trust."}}
@@ -30,3 +29,6 @@
   </details>
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "services/add#your-own" "Add your own"}}{{end}}
+{{define "crumbs"}}<a href="/services">Services</a><a href="/catalog">Add a service</a><strong aria-current="page">Add your own</strong>{{end}}

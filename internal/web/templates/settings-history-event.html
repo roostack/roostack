@@ -1,6 +1,5 @@
 {{define "title"}}{{.Event.Title}} · History{{end}}
 {{define "content"}}
-<div class="page-top">{{back "/settings/history" "History"}}</div>
 <section class="card">
   <h1>{{.Event.Title}}</h1>
   <dl class="facts">
@@ -13,3 +12,4 @@
 {{end}}</pre>
 </section>
 {{end}}
+{{define "crumbs"}}<a href="/settings">Settings</a><a href="/settings/history">History</a><strong aria-current="page">{{.Event.Title}}</strong>{{end}}

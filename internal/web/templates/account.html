@@ -1,7 +1,6 @@
 {{define "title"}}Your account{{end}}
 {{define "content"}}
 <section class="card">
-  <div class="page-top">{{help "settings/people#your-own-account" "Your own account"}}</div>
   <h1>Your account</h1>
   {{if .User.MustChangePassword}}
   {{notice "warn" "You're using a temporary password. Choose your own below to continue."}}
@@ -24,3 +23,5 @@
 
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "settings/people#your-own-account" "Your own account"}}{{end}}

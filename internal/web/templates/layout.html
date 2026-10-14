@@ -9,6 +9,7 @@
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/static/favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="preload" href="/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/css/tokens.css">
   {{range themes}}<link rel="stylesheet" href="/static/css/themes/{{.ID}}.css">
   {{end}}
@@ -20,43 +21,84 @@
   <script src="/static/alpine-3.17.4.min.js" defer></script>
   {{block "head" .}}{{end}}
 </head>
-<body>
-  <header class="topbar" x-data="{ open: false }">
-    <a class="brand" href="/">{{brandMark}}
-      {{- with .Nav}}{{with $.LabName}}<span class="brand-stack"><span class="brand-eyebrow">Roostack</span><span class="brand-lab" title="{{.}}">{{.}}</span></span>
-      {{- else}}Roostack{{end}}{{else}}Roostack{{end}}</a>
-    {{with .Nav}}
-    <button type="button" class="menu-toggle" x-on:click="open = !open" aria-label="Menu">☰</button>
-    <nav x-bind:class="open && 'open'">
-      <a href="/" {{if eq .Active "home"}}class="active"{{end}}>Home</a>
-      <a href="/services" {{if eq .Active "services"}}class="active"{{end}}>Services</a>
-      {{if .Backups}}<a href="/backups" {{if eq .Active "backups"}}class="active"{{end}}>Backups</a>{{end}}
-      {{if .Settings}}<a href="/settings" {{if eq .Active "settings"}}class="active"{{end}}>Settings</a>{{end}}
-      <span class="spacer"></span>
-      <a href="/help/" target="_blank" rel="noopener">Help{{template "new-window"}}</a>
-      {{template "theme-toggle" .}}
-      <a href="/account" class="who{{if eq .Active "account"}} active{{end}}" title="{{.Username}}">{{.Username}}</a>
-      <form method="post" action="/logout"><button type="submit" class="quiet">Log out</button></form>
-    </nav>
-    {{end}}
-  </header>
-  <main>
-    {{with .Clock}}
-    <div class="notice notice-warn tz-banner" role="status" x-cloak
-      x-data="{ device: Intl.DateTimeFormat().resolvedOptions().timeZone, offset: -new Date().getTimezoneOffset() }"
-      x-show="offset !== {{.Offset}}">
-      <strong>Times in Roostack are this server's time, not yours.</strong>
-      This server is set to {{.Zone}}, where it's {{.Time}} now. The device you're using is in <span x-text="device"></span>.
-      {{if .Owner}}<a href="/setup/timezone">Change the server's time zone</a> if it's wrong.{{else}}If that's wrong, ask the Owner to change it.{{end}}
+{{/* Console glass (docs/DESIGN.md "Layout"): a floating sidebar beside
+     the page, a drawer behind the menu button on phones, and a faint
+     aurora behind everything. Without a login there's no sidebar. */}}
+<body x-data="{ menu: false }" x-on:keydown.escape.window="menu = false" x-bind:class="menu && 'menu-open'">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  {{with .Nav}}
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="/">{{brandMark}}<span class="sidebar-lab-name"><span>Roostack</span>
+        {{- with $.LabName}}<strong title="{{.}}">{{.}}</strong>{{else}}<strong>Your lab</strong>{{end}}</span></a>
+      <div class="sidebar-nav">
+      <nav class="nav-group" aria-label="Your lab">
+        <a class="nav-item" href="/"{{if eq .Active "home"}} aria-current="page"{{end}}>{{icon "home-page"}}Home</a>
+        <a class="nav-item" href="/services"{{if eq .Active "services"}} aria-current="page"{{end}}>{{icon "services"}}Services</a>
+        {{if .Backups}}<a class="nav-item" href="/backups"{{if eq .Active "backups"}} aria-current="page"{{end}}>{{icon "backups"}}Backups</a>{{end}}
+        {{if .Settings}}<a class="nav-item" href="/settings/servers"{{if eq .Active "servers"}} aria-current="page"{{end}}>{{icon "server"}}Servers</a>{{end}}
+      </nav>
+      {{if .Settings}}
+      <nav class="nav-group" aria-label="Settings">
+        <p class="nav-heading">Settings</p>
+        {{range .SettingsAreas}}<a class="nav-sub" href="{{.Href}}"{{if eq .ID $.Nav.Area}} aria-current="page"{{end}}>{{.Title}}</a>
+        {{end}}
+        <a class="nav-item" href="/settings"{{if and (eq .Active "settings") (not .Area)}} aria-current="page"{{end}}>{{icon "manage"}}All settings</a>
+      </nav>
+      {{end}}
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools">
+          <a href="/help/" target="_blank" rel="noopener">{{icon "help"}}Help{{template "new-window"}}</a>
+          {{template "theme-toggle" .}}
+        </div>
+        <div class="who">
+          <a href="/account" class="who-link"{{if eq .Active "account"}} aria-current="page"{{end}}><span class="avatar" aria-hidden="true">{{initial .Username}}</span>
+            <span class="who-name"><strong title="{{.Username}}">{{.Username}}</strong><span>{{roleName .Role}}</span></span></a>
+          <form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out">{{icon "log-out"}}<span class="sr-only">Log out</span></button></form>
+        </div>
+      </div>
+    </aside>
+    <div class="scrim" x-show="menu" x-cloak x-on:click="menu = false"></div>
+    <div class="main">
+      <header class="page-header">
+        <button type="button" class="menu-button" x-on:click="menu = true; $nextTick(() => document.querySelector('#sidebar .nav-item').focus())" aria-controls="sidebar" x-bind:aria-expanded="menu">{{icon "menu"}}<span class="sr-only">Menu</span></button>
+        <nav class="crumbs" aria-label="Where you are">{{block "crumbs" $}}
+          {{- with .Nav}}{{if not .Landing}}{{with .Section}}<a href="{{.Href}}">{{.Title}}</a>{{end}}{{end}}{{end -}}
+          <strong aria-current="page">{{template "title" .}}</strong>{{end}}</nav>
+        {{block "page-help" $}}{{end}}
+      </header>
+      <main class="page">
+        {{template "page-body" $}}
+      </main>
+      <footer class="site">Roostack{{with $.Version}} <span class="version" title="Roostack's version">{{.}}</span>{{end}} · <a href="/about">About</a> · <a href="/design" target="_blank" rel="noopener">Design system{{template "new-window"}}</a></footer>
     </div>
-    {{end}}
-    {{with .AreaNav}}
-    <div class="settings-shell">
-      {{template "area-nav" .}}
-      <div class="settings-main">{{template "content" $}}</div>
-    </div>
-    {{else}}{{template "content" .}}{{end}}
-  </main>
-  {{if .Nav}}<footer class="site">Roostack{{with .Version}} <span class="version" title="Roostack's version">{{.}}</span>{{end}} · <a href="/about">About</a> · <a href="/design" target="_blank" rel="noopener">Design system{{template "new-window"}}</a></footer>{{end}}
+  </div>
+  {{else}}
+  <div class="bare">
+    <header class="bare-header">
+      <a class="brand" href="/">{{brandMark}}Roostack</a>
+      {{block "page-help" .}}{{end}}
+    </header>
+    <main class="page">
+      {{template "page-body" .}}
+    </main>
+  </div>
+  {{end}}
 </body>
 </html>
+
+{{/* page-body: the time zone banner, your account's tabs, then the page. */}}
+{{define "page-body"}}
+{{with .Clock}}
+<div class="notice notice-warn tz-banner" role="status" x-cloak
+  x-data="{ device: Intl.DateTimeFormat().resolvedOptions().timeZone, offset: -new Date().getTimezoneOffset() }"
+  x-show="offset !== {{.Offset}}">
+  <strong>Times in Roostack are this server's time, not yours.</strong>
+  This server is set to {{.Zone}}, where it's {{.Time}} now. The device you're using is in <span x-text="device"></span>.
+  {{if .Owner}}<a href="/setup/timezone">Change the server's time zone</a> if it's wrong.{{else}}If that's wrong, ask the Owner to change it.{{end}}
+</div>
+{{end}}
+{{with .AreaNav}}{{if .Tabs}}{{template "area-nav" .}}{{end}}{{end}}
+{{template "content" .}}
+{{end}}

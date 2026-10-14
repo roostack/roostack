@@ -1,7 +1,6 @@
 {{define "title"}}Your lab's address{{end}}
 {{define "content"}}
 <section class="card narrow" x-data="{ choice: '{{.Choice}}' }">
-  <div class="page-top">{{if .Wizard}}<p class="hint">Setup · step 3 of 4</p>{{else}}{{back .Back "Settings"}}{{end}}{{help "settings/domain" "Your lab's address"}}</div>
   {{if .Wizard}}<h1>Your lab's address</h1>
   {{else}}
   <h1>{{if .StepDone}}Change your lab's address{{else}}Give your lab an address{{end}}</h1>
@@ -99,3 +98,6 @@
   {{end}}
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "settings/domain" "Your lab's address"}}{{end}}
+{{define "crumbs"}}{{if .Wizard}}<span>Setup</span><strong aria-current="page">Step 3 of 4</strong>{{else}}<a href="{{.Back}}">Settings</a><strong aria-current="page">{{template "title" .}}</strong>{{end}}{{end}}

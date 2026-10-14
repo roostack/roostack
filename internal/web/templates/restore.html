@@ -1,7 +1,6 @@
 {{define "title"}}Restore {{.Service.Title}}{{end}}
 {{define "content"}}
 <section class="card narrow">
-  <div class="page-top">{{back "/backups" "Backups"}}{{help "backups/restore" "Get something back"}}</div>
   <h1>Restore {{.Service.Title}}</h1>
   {{activity .RestoreActivity}}
   {{/* Drawn again when the restore finishes, so the form comes back. */}}
@@ -81,3 +80,5 @@
   </div>
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "backups/restore" "Get something back"}}{{end}}

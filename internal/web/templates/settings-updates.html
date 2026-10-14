@@ -3,7 +3,6 @@
 {{template "server-switcher" .}}
 {{with .Updates}}
 <section class="card" id="updates">
-  <div class="page-top">{{if $.Server.This}}{{back "/settings" "Settings"}}{{else}}{{back "/settings/servers" "Servers"}}{{end}}{{help "settings/updates" "Updates and restarts"}}</div>
   <h1>Updates and restarts{{if not $.Server.This}} · {{$.Server.Name}}{{end}}</h1>
   <p class="hint">{{$.Server.Label}} installs Debian's security and bug-fix updates every night after the backup.</p>
   {{activity .Activity}}
@@ -110,3 +109,5 @@
 </section>
 {{end}}
 {{end}}
+
+{{define "page-help"}}{{help "settings/updates" "Updates and restarts"}}{{end}}

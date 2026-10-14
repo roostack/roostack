@@ -49,8 +49,8 @@
      for screen readers. */}}
 {{define "new-window"}}<span class="new-window">{{icon "new-window"}}<span class="sr-only"> (opens in a new window)</span></span>{{end}}
 
-{{/* help: the page's own help, top right of the .page-top row, whose
-     left is the back link or the setup step. */}}
+{{/* help: the page's own help, at the right of the page header (a page
+     gives it as {{define "page-help"}}). */}}
 {{define "help"}}<a class="page-help" href="{{.Href}}" target="_blank" rel="noopener">{{icon "help"}}<span class="sr-only">Help: </span>{{.Title}}{{template "new-window"}}</a>{{end}}
 
 {{define "back"}}<a class="back" href="{{.Href}}">← {{.Text}}</a>{{end}}
@@ -130,7 +130,7 @@
 {{define "theme-toggle"}}<form method="post" action="/account/theme" id="theme-toggle"{{if .OOB}} hx-swap-oob="true"{{end}}>
   <input type="hidden" name="theme" value="{{.NextTheme}}">
   <button type="submit" class="theme-toggle" title="Switch to {{.NextTheme}} theme"
-    aria-label="Theme: {{.Theme}}. Switch to {{.NextTheme}}.">{{if eq .Theme "light"}}☀ Light{{else if eq .Theme "dark"}}☾ Dark{{else}}◐ Auto{{end}}</button>
+    aria-label="Theme: {{.Theme}}. Switch to {{.NextTheme}}.">{{icon .Theme}}{{if eq .Theme "light"}}Light{{else if eq .Theme "dark"}}Dark{{else}}Auto{{end}}</button>
 </form>{{end}}
 
 {{/* A bar chart (barChart): one column a period, its height a share of the

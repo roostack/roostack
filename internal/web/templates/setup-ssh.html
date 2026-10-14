@@ -2,7 +2,6 @@
 {{define "content"}}
 {{template "server-switcher" .}}
 <section class="card narrow">
-  <div class="page-top">{{if .Wizard}}<p class="hint">Setup · step 2 of 4</p>{{else}}{{back .Back .BackText}}{{end}}{{help "start/first-run#4-who-can-log-in-to-this-server" "Who can log in to this server?"}}</div>
   {{if .Wizard}}<h1>Who can log in to this server?</h1>
   {{else}}
   <h1>Change remote access{{if not .Server.This}} to {{.Server.Name}}{{end}}</h1>
@@ -46,3 +45,6 @@
   </form>
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "start/first-run#4-who-can-log-in-to-this-server" "Who can log in to this server?"}}{{end}}
+{{define "crumbs"}}{{if .Wizard}}<span>Setup</span><strong aria-current="page">Step 2 of 4</strong>{{else}}<a href="{{.Back}}">{{.BackText}}</a><strong aria-current="page">{{template "title" .}}</strong>{{end}}{{end}}

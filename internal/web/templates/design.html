@@ -12,9 +12,10 @@
   <script src="{{.Static}}gallery.js" defer></script>
 </head>
 <body>
-  <header class="topbar">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <header class="bare-header">
     <a class="brand" href="{{if .Standalone}}#top{{else}}/{{end}}">{{brandMark}}Roostack</a>
-    <nav><a class="active" href="#top">Design system</a></nav>
+    <span class="crumbs"><strong>Design system</strong></span>
   </header>
   <div class="gallery-layout">
     <aside class="gallery-aside">

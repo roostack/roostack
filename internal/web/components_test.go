@@ -157,7 +157,7 @@ func TestNavTabs(t *testing.T) {
 			t.Errorf("%s: tab %q", page, got)
 		}
 	}
-	for page, want := range map[string]string{"settings-public": "settings", "settings-servers": "settings", "service-public": "services",
+	for page, want := range map[string]string{"settings-public": "settings", "settings-servers": "servers", "service-public": "services",
 		"backups-key-change": "backups", "move": "services"} {
 		if got := navTab(page); got != want {
 			t.Errorf("%s: %q, want %q", page, got, want)
