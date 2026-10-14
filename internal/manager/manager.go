@@ -136,7 +136,9 @@ type CatalogItem struct {
 // Catalog lists every package, marking the installed ones.
 func (m *Manager) Catalog() ([]CatalogItem, error) {
 	entries, err := os.ReadDir(m.Lab.Paths.CatalogDir)
-	if err != nil {
+	if errors.Is(err, os.ErrNotExist) {
+		entries = nil // nothing fetched from the registry yet (SPEC.md §8.3.3)
+	} else if err != nil {
 		return nil, err
 	}
 	installed, err := m.installed()
@@ -154,10 +156,11 @@ func (m *Manager) Catalog() ([]CatalogItem, error) {
 			m.Log.Error("loading package", "package", e.Name(), "err", err)
 			continue
 		}
-		// The catalog is official packages, which follow the package
-		// policy (SPEC.md §8.3.4); one that doesn't is a bug in Roostack's
-		// release, not something to hide from its Owner, so it's logged
-		// but still offered.
+		// The catalog is registry packages, which follow the package
+		// policy (SPEC.md §8.3.4: the registry's CI won't publish one that
+		// doesn't); one that breaks it anyway is a registry bug, not
+		// something to hide from the Owner, so it's logged but still
+		// offered.
 		for _, problem := range p.Policy() {
 			m.Log.Error("package breaks the package policy", "package", p.Name, "problem", problem)
 		}

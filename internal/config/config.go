@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -22,10 +23,11 @@ const (
 	DefaultHomeDir     = "/var/lib/roostack/home"
 	DefaultServicesDir = "/srv/roostack/services"
 	DefaultMediaDir    = "/srv/roostack/media"
-	// DefaultCatalogDir holds the packages that can be installed: until
-	// labs fetch the registry, a snapshot of it shipped with Roostack
-	// (SPEC.md §8.3.3).
-	DefaultCatalogDir = "/usr/share/roostack/catalog"
+	// DefaultCatalogDir holds the packages that can be installed: the
+	// controller's copy of the registry, fetched and checked against its
+	// signed index (SPEC.md §8.3.3). It can always be fetched again, so
+	// backups leave it out.
+	DefaultCatalogDir = "/var/lib/roostack/catalog"
 	// DefaultUIPort is where the roostack web UI listens on the host.
 	DefaultUIPort = 8480
 	// DefaultUIBind keeps the UI on the host's loopback; Caddy reaches it
@@ -60,8 +62,7 @@ func (p Paths) QuadletDir() string {
 func (p Paths) LabFile() string { return filepath.Join(p.StateDir, "lab.yaml") }
 
 // CatalogPackageDir is a package's folder in the catalog, laid out as in
-// the registry: a file per version, icon.png and registry.yaml (SPEC.md
-// §8.3.3). The catalog is only what can be installed; installed services
+// the registry: <version>.yaml and icon.png (SPEC.md §8.3.3). The catalog is only what can be installed; installed services
 // use the lab's own copy (LabPackageFile).
 func (p Paths) CatalogPackageDir(name string) string { return filepath.Join(p.CatalogDir, name) }
 
@@ -313,6 +314,9 @@ type Lab struct {
 	Mail Mail `yaml:"mail,omitempty"`
 	// Cloud is Roostack Cloud (SPEC.md §6.6).
 	Cloud Cloud `yaml:"cloud,omitempty"`
+	// Registry is where the controller fetches packages from (SPEC.md
+	// §8.3.3).
+	Registry Registry `yaml:"registry,omitempty"`
 	// OldAddress is the lab's previous address, still served for a while
 	// after switching so bookmarks and apps can be updated (SPEC.md §6.6).
 	OldAddress *OldAddress `yaml:"old_address,omitempty"`
@@ -359,6 +363,19 @@ type Cloud struct {
 	// CAFile, for a test Cloud, is the certificate authority its HTTPS
 	// certificate comes from (a real Cloud's is publicly trusted).
 	CAFile string `yaml:"ca_file,omitempty"`
+}
+
+// Registry is the service registry the controller fetches its catalog
+// from (SPEC.md §8.3.3).
+type Registry struct {
+	// URL is the registry's address (registry.DefaultURL when empty); a
+	// mirror's otherwise. Anyone may mirror it: what's fetched is checked
+	// against signatures, not trusted for where it came from.
+	URL string `yaml:"url,omitempty"`
+	// Disabled stops fetching (Settings → Updates): nothing new can be
+	// installed from the registry, and the lab doesn't hear of
+	// withdrawals.
+	Disabled bool `yaml:"disabled,omitempty"`
 }
 
 // OldAddressDays is how long a lab's previous address keeps working after
@@ -551,6 +568,11 @@ func (l Lab) Validate() error {
 	case "", SSHFromLAN, SSHFromAny, SSHOff:
 	default:
 		errs = append(errs, fmt.Errorf("firewall.ssh must be %q, %q or %q", SSHFromLAN, SSHFromAny, SSHOff))
+	}
+	if u := l.Registry.URL; u != "" {
+		if parsed, err := url.Parse(u); err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {
+			errs = append(errs, fmt.Errorf("registry.url must be an http or https address, got %q", u))
+		}
 	}
 	for _, p := range []struct{ name, path string }{
 		{"state_dir", l.Paths.StateDir}, {"home_dir", l.Paths.HomeDir},

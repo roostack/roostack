@@ -128,6 +128,10 @@ type Server struct {
 	// Cloud is the controller's link to Roostack Cloud (SPEC.md §6.6). Nil
 	// when Cloud is turned off (config.Cloud): nothing about it is offered.
 	Cloud CloudLink
+	// Registry keeps the catalog up to date with the service registry
+	// (SPEC.md §8.3.3): the controller's only. Nil on other servers and in
+	// tests that don't need it.
+	Registry RegistryUpdater
 	// BackupRepo is the backup destination, shown on the Backups page.
 	BackupRepo string
 	// HasGPU pre-ticks settings whose default is "auto".
@@ -532,6 +536,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /backups/restore/{name}", s.requireOwner(s.restoreSubmit))
 	mux.Handle("POST /backups/restore/{name}/kept/remove", s.requireOwner(s.removeKeptSubmit))
 	mux.Handle("POST /settings/updates/run", s.requireOwner(s.updateNowSubmit))
+	mux.Handle("POST /settings/updates/registry/check", s.requireOwner(s.registryCheckSubmit))
+	mux.Handle("POST /settings/updates/registry/on", s.requireOwner(s.registryOnSubmit))
 	mux.Handle("POST /settings/host-changes/known", s.requireOwner(s.hostChangesKnownSubmit))
 	mux.Handle("POST /settings/restart", s.requireOwner(s.restartNowSubmit))
 	mux.Handle("POST /settings/restart-policy", s.requireWizard(s.restartPolicySubmit))

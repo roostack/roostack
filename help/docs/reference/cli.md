@@ -81,6 +81,18 @@ breaks the policy is shown as a warning instead.
 `render` prints exactly what Roostack would generate for a service (unit
 files, web server config), or writes it under `-out`.
 
+## The service registry
+
+```bash
+roostack registry check [-url URL]
+```
+
+`check` fetches the [service registry's](../settings/updates.md#services-you-can-install)
+signed list as Roostack does, checks every signature and file, and prints
+what it found, without changing anything. The other `registry` commands
+(`keygen`, `delegate`, `index`) are for the registry's maintainers: they make
+its keys and build its signed list.
+
 ## Servers
 
 ```bash

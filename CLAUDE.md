@@ -93,6 +93,7 @@ make build && ROOSTACK_VM=1 scripts/dev-vm.sh sync
 ROOSTACK_VM=1 scripts/dev-vm.sh ssh 'sudo install -m755 ~/roostack/bin/roostack ~/roostack/bin/roostack-agent /usr/bin/ && sudo systemctl restart roostack-agent roostack'
 ```
 
+- The real service registry can't be fetched until the Owner's key ceremony (docs/REGISTRY-KEYS.md). To test fetching, make test keys with `roostack registry keygen`, build an index from a registry checkout with `roostack registry index`, serve it in the VM (`python3 -m http.server`), build with `REGISTRY_DEV_KEY=<test root public key>` (passed through by `dev-vm.sh sync`/`install`), and set `registry.url` in the VM's `lab.yaml`.
 - Commands as the roostack user need `XDG_RUNTIME_DIR=/run/user/999` and `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/999/bus`, run from its home.
 - QEMU NATs everything: inside a VM all clients come from 10.0.2.2, and another VM reaches VM n's WireGuard at `10.0.2.2:<its port>`.
 - **Verify on a VM, not by reasoning,** anything about Podman, systemd, networking, drives or the sandbox. Test with the unit's full sandbox options: a partial test once missed that `ProtectHome=yes` hides `/run/user`.

@@ -2,16 +2,23 @@
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X main.version=$(VERSION)
+# A development root key for the service registry (SPEC.md §8.3.3), to
+# fetch from a registry signed with test keys: never for a release
+# (docs/REGISTRY-KEYS.md).
+ifneq ($(REGISTRY_DEV_KEY),)
+LDFLAGS += -X roostack.cloud/roostack/internal/registry.devRootKey=$(REGISTRY_DEV_KEY)
+endif
 
 .PHONY: build help test golden vet caddy-check check-images
 
 # Linux binaries for the machine's own architecture, or another with
-# GOARCH=arm64 (or amd64), and the catalog the package ships: the registry
-# at the commit packaging/registry names (SPEC.md §8.3.3).
+# GOARCH=arm64 (or amd64).
 build: help
 	GOOS=linux CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o bin/ ./cmd/...
 	scripts/copyright.sh > bin/copyright
-	scripts/fetch-catalog.sh
+	@# Marks a build that trusts a development key, which build-deb.sh
+	@# refuses to release.
+	@if [ -n "$(REGISTRY_DEV_KEY)" ]; then echo "$(REGISTRY_DEV_KEY)" > bin/registry-dev-key; else rm -f bin/registry-dev-key; fi
 
 # The help site (SPEC.md §6.3.1), built with Zensical and embedded in the
 # binary from internal/web/helpsite/site. Strict: a broken link fails the

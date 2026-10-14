@@ -8,7 +8,7 @@ ran and what it did; if it failed, **What happened** shows the details.
 
 **Check for updates now** runs it straight away.
 
-Services have their own versions, which change when Roostack is updated.
+Services have their own versions: see [Services you can install](#services-you-can-install).
 
 ## Restarts
 
@@ -27,6 +27,47 @@ Only tell me
     fixes for the kernel don't take effect.
 
 Everything starts again by itself after a restart.
+
+## Services you can install
+
+Roostack gets the services you can install, and fixes to them, from the
+**service registry**, [Roostack's public list of packages](https://github.com/roostack/services).
+It checks every few hours, and when you open **Add a service**. On the
+controller, **Settings → Updates and restarts** shows:
+
+- when it last checked, and whether that worked (if not, **What went
+  wrong** says why: usually the server can't reach the internet);
+- how old the list of services is, how many there are, and the registry
+  commit it was built from (a link to exactly those files);
+- **Not offered on this lab**: services that need a newer Roostack, or
+  aren't built for this server's processor.
+
+**Check now** checks straight away.
+
+If the list gets more than two weeks old, Roostack warns you under **Needs
+attention**: the registry publishes a new list every day, so an old one
+means Roostack can't reach it, and doesn't know about fixes or versions
+withdrawn since. You can still install services from the old list.
+
+**Check the service registry for services and fixes** is on unless you
+turn it off. Off, you can't install services from the registry, and
+Roostack doesn't hear when a version is withdrawn because it's unsafe.
+Services you've installed keep running: each runs from the lab's own copy of
+its package.
+
+??? note "For technical users"
+
+    The registry is at `https://registry.roostack.cloud/v1/` (`registry.url`
+    in `lab.yaml` sets another address, such as a mirror). Roostack fetches
+    `keys.json`, signed by the registry's root key (built into Roostack),
+    which names the keys that may sign `index.json`; the index lists every
+    package and version with its SHA-256. Roostack checks both signatures,
+    refuses an index or key list older than one it has seen, and fetches
+    only the package files and logos it needs, checking each one's SHA-256.
+    The files are in `/var/lib/roostack/catalog`; `status.json` there is
+    the last check. `roostack registry check` does the same from the
+    command line and prints what it found. How the keys are kept is in
+    Roostack's `docs/REGISTRY-KEYS.md`.
 
 ## Changes Roostack didn't make
 

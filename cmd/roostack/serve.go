@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -36,6 +37,7 @@ import (
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/podman"
 	"roostack.cloud/roostack/internal/public"
+	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
@@ -295,6 +297,19 @@ func serve(args []string) error {
 	}
 	go labnet.Serve(ctx, lab.Paths.StateDir, controllerAPI(hub, guestHub, mgr, storageKeys), log)
 	go labnet.KeepRenewed(ctx, labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, id.ID, hub.RenewSelf, log)
+	// The catalog: the service registry's packages, fetched and checked
+	// against its signed index (SPEC.md §8.3.3).
+	roots, err := registry.RootKeys()
+	if err != nil {
+		return err
+	}
+	fetcher := &registry.Fetcher{URL: cmp.Or(lab.Registry.URL, registry.DefaultURL), Dir: lab.Paths.CatalogDir, Roots: roots,
+		Version: version, Arch: runtime.GOARCH, Client: &http.Client{Timeout: time.Minute}, Log: log}
+	updater := registry.NewUpdater(fetcher, lab.Registry.Disabled, func(off bool) error {
+		return config.Update(*labPath, func(l *config.Lab) { l.Registry.Disabled = off })
+	}, log)
+	srv.Registry = updater
+	go updater.Run(ctx)
 	startControllerJobs(ctx, mgr, coord, st, log)
 	srv.Maintenance = lab.Maintenance
 	srv.RunningJob = func() string {

@@ -185,8 +185,14 @@ func (d *Database) ExpectedMemory() int64 {
 // build after 0.6.0) and 0.6.0-rc.1 both count as 0.6.0. A version that
 // doesn't start with a release ("dev", a bare commit, before the first
 // tag) is a development build and runs everything.
-func (p *Package) RunsOn(roostack string) bool {
-	need := roostackVersionRe.FindStringSubmatch(p.Requires.Roostack)
+func (p *Package) RunsOn(roostack string) bool { return RunsOn(p.Requires.Roostack, roostack) }
+
+// RunsOn says whether a Roostack whose version is roostack can run a
+// package that requires the release required (a requires.roostack value,
+// as the registry's index carries it: SPEC.md §8.3.3), by the rules of
+// Package.RunsOn.
+func RunsOn(required, roostack string) bool {
+	need := roostackVersionRe.FindStringSubmatch(required)
 	if need == nil {
 		return true // nothing required (Validate refuses anything else)
 	}

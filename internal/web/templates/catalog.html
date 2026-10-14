@@ -3,6 +3,14 @@
 <section>
   <div class="page-top">{{back "/" "Your services"}}{{help "services/add" "Add a service"}}</div>
   <h1>Add a service</h1>
+  {{with .Registry}}
+    {{if not .On}}{{notice "info" "Checking the service registry is turned off, so services can't be installed from it." "link=/settings/updates#registry" "linkText=Turn it on"}}
+    {{else if and .Stale .Status.Serial}}{{notice "warn" (printf "This list is from %s: Roostack can't get a newer one from the service registry, so it doesn't know of fixes or withdrawn versions since." (when .Status.Date)) "link=/settings/updates#registry" "linkText=See why"}}
+    {{else if not .Status.Serial}}{{if .Status.Error}}{{notice "error" "Roostack can't get the list of services from the service registry. Check that this server can reach the internet." "link=/settings/updates#registry" "linkText=See why"}}
+    {{else}}{{notice "info" "Roostack is getting the list of services from the service registry. Reload the page in a minute."}}{{end}}
+    {{end}}
+  {{end}}
+  {{if or (not .Registry) .Registry.On}}
   <ul class="services">
     {{range .Items}}
     <li class="card service">
@@ -14,8 +22,9 @@
       {{else}}<a class="button" href="/install/{{.Name}}">Install</a>{{end}}
     </li>
     {{else}}
-    <li class="card">The catalog is empty.</li>
+    {{if or (not $.Registry) $.Registry.Status.Serial}}<li class="card">The catalog is empty.</li>{{end}}
     {{end}}
   </ul>
+  {{end}}
 </section>
 {{end}}

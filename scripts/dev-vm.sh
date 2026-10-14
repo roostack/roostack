@@ -24,6 +24,10 @@
 # 51819+n and 52819+n. Another VM reaches VM n's WireGuard at
 # 10.0.2.2:<that port> (QEMU's address for this machine).
 #
+# REGISTRY_DEV_KEY=ed25519:… builds Roostack trusting a test root key for
+# the service registry (Makefile; docs/REGISTRY-KEYS.md), for a VM fetching
+# from a registry signed with test keys.
+#
 # The VM's architecture follows this machine's (amd64 on a PC, arm64 on an
 # Apple Silicon Mac), so it runs at full speed. ROOSTACK_VM_ARCH=amd64|arm64
 # picks the other one, emulated and slow. A VM keeps the architecture it was
@@ -203,7 +207,7 @@ start() {
         -device virtio-net-pci,netdev=net0 \
         -device virtio-rng-pci \
         -device qemu-xhci,id=xhci \
-        "${smbios[@]}" \
+        ${smbios[@]+"${smbios[@]}"} \
         -display none -serial file:"$VM_DIR/console.log" \
         -qmp unix:"$QMP",server=on,wait=off \
         -S -daemonize -pidfile "$PIDFILE"
@@ -240,7 +244,7 @@ start() {
 sync_repo() {
     running || { echo "VM is not running" >&2; exit 1; }
     log "Building for linux/$ARCH"
-    GOARCH=$ARCH make -C "$REPO" build >/dev/null
+    GOARCH=$ARCH make -C "$REPO" build ${REGISTRY_DEV_KEY:+REGISTRY_DEV_KEY=$REGISTRY_DEV_KEY} >/dev/null
     log "Copying repo to ~/roostack in the VM"
     # sudo: install leaves a package that root built in dist/.
     vm_ssh 'sudo rm -rf ~/roostack && mkdir -p ~/roostack'

@@ -2,6 +2,7 @@ package web
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -44,12 +45,28 @@ func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	items, err := s.Manager.Catalog()
-	if err != nil {
-		s.serverError(w, err)
-		return
+	// A fresh list from the registry, unless there's one from the last
+	// few minutes (SPEC.md §8.3.3). The page doesn't wait long: the
+	// background check keeps the list current anyway.
+	if s.Registry != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), catalogWait)
+		if err := s.Registry.CheckIfOlder(ctx, catalogCheckAge); err != nil {
+			s.Log.Warn("checking the service registry", "err", err)
+		}
+		cancel()
 	}
-	s.render(w, "catalog", map[string]any{"User": currentUser(r), "Items": items})
+	data := map[string]any{"User": currentUser(r), "Registry": s.registryView()}
+	// Turned off, nothing is offered: the lab wouldn't hear if a version
+	// were withdrawn (SPEC.md §8.3.3).
+	if s.registryOn() {
+		items, err := s.Manager.Catalog()
+		if err != nil {
+			s.serverError(w, err)
+			return
+		}
+		data["Items"] = items
+	}
+	s.render(w, "catalog", data)
 }
 
 func (s *Server) installPage(w http.ResponseWriter, r *http.Request) {
@@ -441,6 +458,10 @@ func (s *Server) servicePkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Pa
 func (s *Server) pkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Package, bool) {
 	if s.Manager == nil {
 		http.NotFound(w, r)
+		return nil, false
+	}
+	if !s.registryOn() {
+		redirect(w, r, "/catalog") // which says why
 		return nil, false
 	}
 	p, err := s.Manager.Package(r.PathValue("name"))

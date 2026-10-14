@@ -20,6 +20,7 @@ Owned by the `roostack` user, and readable only by it (and root).
 | `lab.yaml` | Lab settings: domain, DNS provider, paths, backups, restart window. *Desired state* |
 | `services/<name>.yaml` | Each installed service: its package version, web address, ports, settings and server. *Desired state* |
 | `packages/<name>/<version>.yaml` | The [package](packages.md) file each installed service runs from, copied from the catalog when it was installed. A newer Roostack's catalog doesn't change it, and it's backed up with the lab, so a restore brings back exactly what ran. Copies no service uses are deleted. *Desired state* |
+| `catalog/` | The services you can install, on the controller: for each, the [package](packages.md) file Roostack would install and the project's logo (`<name>/<version>.yaml`, `icon.png`), fetched from the [service registry](../settings/updates.md#services-you-can-install) with its signed list (`index.json`, `keys.json` and their `.sig` files) and `status.json` (the last check). Not backed up: it's fetched again |
 | `roostack.db` | Roostack's database (SQLite): people and their sessions, the audit log, the lab's servers, backup destinations and results |
 | `node.json` | This server's ID and name |
 | `backup-key` | The [recovery key](../start/recovery-key.md), which encrypts every backup. Keep a copy elsewhere |
@@ -76,7 +77,6 @@ replaced, kept until you delete it from the restore page.
 |---|---|
 | `/usr/bin/roostack`, `/usr/bin/roostack-agent` | The programs |
 | `/usr/lib/systemd/system/roostack.service`, `roostack-agent.service` | Their systemd units |
-| `/usr/share/roostack/catalog/<name>/<version>.yaml` | The services you can install ([package format](packages.md)), a copy of the [registry](https://github.com/roostack/services) at the commit in `catalog/registry-commit`, with each project's logo (`icon.png`). Installed services run from the lab's own copy (`/var/lib/roostack/packages`) |
 | `/usr/share/roostack/caddy/Containerfile` | How Roostack's web server image is built, on each server |
 
 ## Changes to the host

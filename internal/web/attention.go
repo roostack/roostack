@@ -101,6 +101,10 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 				"/settings/cloud", "Roostack Cloud")
 		}
 	}
+	// No list from the service registry for a while (SPEC.md §8.3.3).
+	if owner {
+		s.registryAttention(add)
+	}
 
 	if admin && s.Manager != nil {
 		// Each server applies its own changes; name it once there are several.

@@ -93,10 +93,11 @@ func SecretsFile(paths config.Paths, service string) string {
 //
 // Included: /var/lib/roostack (desired state, Caddy config and certificates)
 // and the Podman secrets store, since generated passwords are needed to use
-// restored data. Excluded: the rest of the roostack home directory (container
-// images, which can be downloaded again), the live SQLite database (a
-// consistent copy is taken first), the backup key itself (with the
-// new and old keys of a change), and Roostack Cloud backup's keys.
+// restored data. Excluded: the registry's packages (fetched again), the
+// rest of the roostack home directory (container images, which can be
+// downloaded again), the live SQLite database (a consistent copy is taken
+// first), the backup key itself (with the new and old keys of a change),
+// and Roostack Cloud backup's keys.
 func LabPlan(paths config.Paths, services []*generate.Output) Plan {
 	secrets := filepath.Join(paths.HomeDir, ".local", "share", "containers", "storage", "secrets")
 	p := Plan{
@@ -114,6 +115,9 @@ func LabPlan(paths config.Paths, services []*generate.Output) Plan {
 			SecretsDir(paths),
 			// Roostack Cloud backup's short-lived keys.
 			cloudkeys.File(paths.StateDir, "*"),
+			// The registry's packages, fetched again after a restore
+			// (SPEC.md §8.3.3); installed services use the lab's copies.
+			paths.CatalogDir,
 		),
 	}
 	for _, s := range services {
