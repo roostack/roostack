@@ -76,8 +76,10 @@ roostack render -lab lab.yaml -package <package.yaml> -instance <service.yaml> [
 
 `validate` checks package files, including every template in them and
 the logo each names, and the [package policy](packages.md#what-a-package-may-not-do) every package
-in the registry follows. With `-local`, for a package of your own, what
-breaks the policy is shown as a warning instead.
+in the registry follows. With `-local`, for a package of your own, only
+what it asks for that registry packages can't have is shown, as warnings:
+the same list Roostack shows before installing it. A package of your own
+may leave out the facts about the project (`about:`, `requires`, `memory`).
 `render` prints exactly what Roostack would generate for a service (unit
 files, web server config), or writes it under `-out`.
 

@@ -495,6 +495,34 @@
           </details>
         </div>
         
+        <div class="example">
+          <h3>With a list <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">noticeList KIND TEXT ITEMS: a notice whose text leads into a list (each item plain text, which may be long and technical: it wraps anywhere). For several things to read before deciding, such as what a package of your own asks for.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="notice notice-list notice-warn" role="status">
+  <p>It asks for things packages from the service registry can&#39;t have:</p>
+  <ul><li>containers.web.image: pin the image by digest (name:tag@sha256:…), so every lab runs exactly the image that was reviewed.</li><li>containers.web.quadlet: Container.Volume=/home/me/scans:/consume isn&#39;t allowed: a folder from the server or a named volume is outside the service and its backups; use storage: and mounts: (an anonymous Volume=/path is allowed).</li></ul></div></div>
+            <div class="panel" data-mode="dark"><div class="notice notice-list notice-warn" role="status">
+  <p>It asks for things packages from the service registry can&#39;t have:</p>
+  <ul><li>containers.web.image: pin the image by digest (name:tag@sha256:…), so every lab runs exactly the image that was reviewed.</li><li>containers.web.quadlet: Container.Volume=/home/me/scans:/consume isn&#39;t allowed: a folder from the server or a named volume is outside the service and its backups; use storage: and mounts: (an anonymous Volume=/path is allowed).</li></ul></div></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{noticeList &#34;warn&#34; &#34;It asks for things packages from the service registry can&#39;t have:&#34; .PolicyProblems}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;div class=&#34;notice notice-list notice-warn&#34; role=&#34;status&#34;&gt;
+  &lt;p&gt;It asks for things packages from the service registry can&amp;#39;t have:&lt;/p&gt;
+  &lt;ul&gt;
+    &lt;li&gt;containers.web.image: pin the image by digest (name:tag@sha256:…), so every lab runs exactly the image that was reviewed.&lt;/li&gt;
+    &lt;li&gt;containers.web.quadlet: Container.Volume=/home/me/scans:/consume isn&amp;#39;t allowed: a folder from the server or a named volume is outside the service and its backups; use storage: and mounts: (an anonymous Volume=/path is allowed).&lt;/li&gt;
+  &lt;/ul&gt;
+&lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
       </section>
       
       <section id="status">
@@ -541,11 +569,13 @@
             <div class="panel" data-mode="light"><span class="badge">Preview</span>
 <span class="badge badge-highlight">New</span>
 <span class="badge badge-ok">Installed</span>
-<span class="badge badge-warn">Community</span></div>
+<span class="badge badge-warn">Community</span>
+<span class="badge badge-warn">Your own</span></div>
             <div class="panel" data-mode="dark"><span class="badge">Preview</span>
 <span class="badge badge-highlight">New</span>
 <span class="badge badge-ok">Installed</span>
-<span class="badge badge-warn">Community</span></div>
+<span class="badge badge-warn">Community</span>
+<span class="badge badge-warn">Your own</span></div>
           </div>
           <details>
             <summary>Markup</summary>
@@ -554,9 +584,10 @@
             <pre class="output">{{badge &#34;Preview&#34;}}
 {{badge &#34;New&#34; &#34;highlight&#34;}}
 {{badge &#34;Installed&#34; &#34;ok&#34;}}
-{{badge &#34;Community&#34; &#34;warn&#34;}}</pre>
+{{badge &#34;Community&#34; &#34;warn&#34;}}
+{{badge &#34;Your own&#34; &#34;warn&#34;}}</pre>
             <p class="markup-label">Renders as</p>
-            <pre class="output">&lt;span class=&#34;badge&#34;&gt;Preview&lt;/span&gt;&lt;span class=&#34;badge badge-highlight&#34;&gt;New&lt;/span&gt;&lt;span class=&#34;badge badge-ok&#34;&gt;Installed&lt;/span&gt;&lt;span class=&#34;badge badge-warn&#34;&gt;Community&lt;/span&gt;</pre>
+            <pre class="output">&lt;span class=&#34;badge&#34;&gt;Preview&lt;/span&gt;&lt;span class=&#34;badge badge-highlight&#34;&gt;New&lt;/span&gt;&lt;span class=&#34;badge badge-ok&#34;&gt;Installed&lt;/span&gt;&lt;span class=&#34;badge badge-warn&#34;&gt;Community&lt;/span&gt;&lt;span class=&#34;badge badge-warn&#34;&gt;Your own&lt;/span&gt;</pre>
             
           </details>
         </div>
@@ -839,12 +870,34 @@
     <div class="offer-action"><a class="button" href="#">Install</a></div></li>
   <li class="card offer"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><div class="offer-text"><h2>Paperless-ngx</h2><span class="badge badge-warn">Community</span><p class="hint">Scans, reads and files your paper documents.</p><p class="offer-categories">Documents and notes</p></div>
     <div class="offer-action"><p class="offer-later">Needs a newer Roostack: 0.9 or newer. <a href="#">Details</a></p></div></li>
+  <li class="card offer"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><div class="offer-text"><h2>My app</h2><span class="badge badge-warn">Your own</span><p class="hint">A package you added yourself.</p></div>
+    <div class="offer-action"><form method="post" action="#" class="confirm" x-data>
+  <button type="button" class="quiet danger" x-on:click="$refs.dialog.showModal()">Remove</button>
+  <dialog x-ref="dialog" class="dialog" aria-labelledby="confirm-167k4wplu6v3d">
+    <p id="confirm-167k4wplu6v3d">Remove My app from the list?</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dialog.close()" autofocus>Cancel</button>
+      <button type="submit" class="danger">Remove</button>
+    </div>
+  </dialog>
+</form><a class="button" href="#">Install</a></div></li>
 </ul></div>
             <div class="panel" data-mode="dark"><ul class="services">
   <li class="card offer"><span class="logo-tile"><img src="../../internal/web/static/apple-touch-icon.png" alt="" width="40" height="40" loading="lazy"></span><div class="offer-text"><h2>Forgejo</h2><span class="badge">Official</span><p class="hint">Hosts your own Git repositories.</p><p class="offer-categories">Developer tools</p></div>
     <div class="offer-action"><a class="button" href="#">Install</a></div></li>
   <li class="card offer"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><div class="offer-text"><h2>Paperless-ngx</h2><span class="badge badge-warn">Community</span><p class="hint">Scans, reads and files your paper documents.</p><p class="offer-categories">Documents and notes</p></div>
     <div class="offer-action"><p class="offer-later">Needs a newer Roostack: 0.9 or newer. <a href="#">Details</a></p></div></li>
+  <li class="card offer"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><div class="offer-text"><h2>My app</h2><span class="badge badge-warn">Your own</span><p class="hint">A package you added yourself.</p></div>
+    <div class="offer-action"><form method="post" action="#" class="confirm" x-data>
+  <button type="button" class="quiet danger" x-on:click="$refs.dialog.showModal()">Remove</button>
+  <dialog x-ref="dialog" class="dialog" aria-labelledby="confirm-167k4wplu6v3d">
+    <p id="confirm-167k4wplu6v3d">Remove My app from the list?</p>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dialog.close()" autofocus>Cancel</button>
+      <button type="submit" class="danger">Remove</button>
+    </div>
+  </dialog>
+</form><a class="button" href="#">Install</a></div></li>
 </ul></div>
           </div>
           <details>
@@ -856,6 +909,8 @@
     &lt;div class=&#34;offer-action&#34;&gt;&lt;a class=&#34;button&#34; href=&#34;#&#34;&gt;Install&lt;/a&gt;&lt;/div&gt;&lt;/li&gt;
   &lt;li class=&#34;card offer&#34;&gt;{{logo &#34;&#34; &#34;documents&#34;}}&lt;div class=&#34;offer-text&#34;&gt;&lt;h2&gt;Paperless-ngx&lt;/h2&gt;{{badge &#34;Community&#34; &#34;warn&#34;}}&lt;p class=&#34;hint&#34;&gt;Scans, reads and files your paper documents.&lt;/p&gt;&lt;p class=&#34;offer-categories&#34;&gt;Documents and notes&lt;/p&gt;&lt;/div&gt;
     &lt;div class=&#34;offer-action&#34;&gt;&lt;p class=&#34;offer-later&#34;&gt;Needs a newer Roostack: 0.9 or newer. &lt;a href=&#34;#&#34;&gt;Details&lt;/a&gt;&lt;/p&gt;&lt;/div&gt;&lt;/li&gt;
+  &lt;li class=&#34;card offer&#34;&gt;{{logo &#34;&#34; &#34;services&#34;}}&lt;div class=&#34;offer-text&#34;&gt;&lt;h2&gt;My app&lt;/h2&gt;{{badge &#34;Your own&#34; &#34;warn&#34;}}&lt;p class=&#34;hint&#34;&gt;A package you added yourself.&lt;/p&gt;&lt;/div&gt;
+    &lt;div class=&#34;offer-action&#34;&gt;{{confirm &#34;#&#34; &#34;Remove My app from the list?&#34; &#34;Remove&#34; &#34;quiet danger&#34;}}&lt;a class=&#34;button&#34; href=&#34;#&#34;&gt;Install&lt;/a&gt;&lt;/div&gt;&lt;/li&gt;
 &lt;/ul&gt;</pre>
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;ul class=&#34;services&#34;&gt;
@@ -875,6 +930,22 @@
     &lt;/div&gt;
     &lt;div class=&#34;offer-action&#34;&gt;
       &lt;p class=&#34;offer-later&#34;&gt;Needs a newer Roostack: 0.9 or newer.&lt;a href=&#34;#&#34;&gt;Details&lt;/a&gt;&lt;/p&gt;
+    &lt;/div&gt;
+  &lt;/li&gt;
+  &lt;li class=&#34;card offer&#34;&gt;&lt;span class=&#34;logo-tile&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;3&#34; y=&#34;3&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;rect x=&#34;14&#34; y=&#34;3&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;rect x=&#34;3&#34; y=&#34;14&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;rect x=&#34;14&#34; y=&#34;14&#34; width=&#34;7&#34; height=&#34;7&#34; rx=&#34;1.5&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;
+    &lt;div class=&#34;offer-text&#34;&gt;
+      &lt;h2&gt;My app&lt;/h2&gt;&lt;span class=&#34;badge badge-warn&#34;&gt;Your own&lt;/span&gt;
+      &lt;p class=&#34;hint&#34;&gt;A package you added yourself.&lt;/p&gt;
+    &lt;/div&gt;
+    &lt;div class=&#34;offer-action&#34;&gt;
+      &lt;form method=&#34;post&#34; action=&#34;#&#34; class=&#34;confirm&#34; x-data&gt;
+        &lt;button type=&#34;button&#34; class=&#34;quiet danger&#34; x-on:click=&#34;$refs.dialog.showModal()&#34;&gt;Remove&lt;/button&gt;&lt;dialog x-ref=&#34;dialog&#34; class=&#34;dialog&#34; aria-labelledby=&#34;confirm-167k4wplu6v3d&#34;&gt;
+        &lt;p id=&#34;confirm-167k4wplu6v3d&#34;&gt;Remove My app from the list?&lt;/p&gt;
+        &lt;div class=&#34;dialog-actions&#34;&gt;
+          &lt;button type=&#34;button&#34; class=&#34;secondary&#34; x-on:click=&#34;$refs.dialog.close()&#34; autofocus&gt;Cancel&lt;/button&gt;
+          &lt;button type=&#34;submit&#34; class=&#34;danger&#34;&gt;Remove&lt;/button&gt;
+        &lt;/div&gt;&lt;/dialog&gt;
+      &lt;/form&gt;&lt;a class=&#34;button&#34; href=&#34;#&#34;&gt;Install&lt;/a&gt;
     &lt;/div&gt;
   &lt;/li&gt;
 &lt;/ul&gt;</pre>

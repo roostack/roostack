@@ -5,7 +5,17 @@
   <h1>{{if .Another}}Add another {{.Package.Title}}{{else}}Install {{.Package.Title}}{{end}}</h1>
   <p class="hint">{{.Package.Description}}</p>
   {{template "project-credit" .Credit}}
+  {{/* The package policy (SPEC.md §8.3.4). */}}
+  {{if .Policy.Local}}
+  {{notice "warn" "You added this package yourself, so nobody has reviewed it. Only install it if you wrote it or trust whoever did."}}
+  {{noticeList "warn" "It asks for things packages from the service registry can't have:" .Policy.Problems}}
+  {{if and .Policy.Problems (not .IsOwner)}}<p>Only the Owner can install it, after reading these.</p>{{end}}
+  {{else if .Policy.Problems}}
+  {{noticeList "error" (printf "This version of %s can't be installed: it asks for something packages from the service registry aren't allowed, which the registry should have caught. Nothing has changed on your lab." .Package.Title) .Policy.Problems}}
+  <p><a href="https://github.com/roostack/services/issues" target="_blank" rel="noopener">Tell the registry's maintainers{{template "new-window"}}</a></p>
+  {{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .CanInstall}}
   {{/* The name follows the title, and the web address the name, until
        they're edited (SPEC.md §8.2). */}}
   <form method="post" action="/install/{{.Package.Name}}" data-title="{{.Title}}" data-suffix="{{.Suffix}}" data-sub="{{.Subdomain}}"
@@ -79,8 +89,13 @@
       {{end}}
     {{end}}
     {{template "install-summary" .Summary}}
+    {{if and .Policy.Local .Policy.Problems}}
+    <label class="check"><input type="checkbox" name="accept_risks" required>
+      <span>I've read what it asks for, and want to install it anyway</span></label>
+    {{end}}
     <button type="submit">Install</button>
   </form>
+  {{end}}
 </section>
 {{end}}
 

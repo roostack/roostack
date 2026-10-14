@@ -235,7 +235,8 @@ In `quadlet:`, these lines (in any case) are refused:
 Anything else is allowed, and looked at when the package is reviewed:
 Forgejo's `UserNS=keep-id:uid=1000,gid=1000` and Immich's database
 `ShmSize=128m`, for example. A package of your own may break the policy:
-check it with `roostack validate -local`.
+check it with `roostack validate -local`, and see
+[Add your own](../services/add.md#your-own) for adding it to your lab.
 
 ## Templates
 

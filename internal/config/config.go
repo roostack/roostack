@@ -71,6 +71,15 @@ func (p Paths) CatalogPackageFile(name, version string) string {
 	return filepath.Join(p.CatalogPackageDir(name), version+".yaml")
 }
 
+// LocalPackagesDir holds the packages the Owner added themselves ("Your
+// own", SPEC.md §8.3.4): <name>/<version>.yaml, one version each, and its
+// logo. Under the state folder, so they're backed up with the lab: they
+// can't be fetched again.
+func (p Paths) LocalPackagesDir() string { return filepath.Join(p.StateDir, "local-packages") }
+
+// LocalPackageDir is one of the Owner's own packages' folder.
+func (p Paths) LocalPackageDir(name string) string { return filepath.Join(p.LocalPackagesDir(), name) }
+
 // PackagesDir holds the lab's copy of the package file of every version
 // its services use, so a restore needs nothing but the backup and a newer
 // catalog never changes a running service (SPEC.md §8.3.1).

@@ -38,8 +38,9 @@ longer than usual, the page says so, and whether it's still moving.
 
 ## Official and community services
 
-Every service in the list comes from Roostack's service registry, where
-each package is reviewed before it's published. Each one says who looks
+Every service in the list, except [your own](#your-own), comes from
+Roostack's service registry, where each package is reviewed before it's
+published. Each one says who looks
 after its package:
 
 Official
@@ -53,6 +54,39 @@ Community
 
 Either way, the app itself is made by its own project, credited under
 its description when you choose **Install**.
+
+## Your own
+
+The Owner can add a service the registry doesn't have, from a package
+file: one you wrote (see the [package format](../reference/packages.md)),
+or one someone you trust gave you. At the end of **Add a service**, under
+**Add your own**, choose **Add a package…**, then the package file and,
+if it has one, its logo (a square PNG, at least 256×256 pixels and at
+most 100 KB), and **Add**.
+
+Nobody has reviewed a package you add. Roostack checks that it's a valid
+package it can set up, but not what it runs: the package decides which
+app runs and what it's given. Only add one you wrote, or got from someone
+you trust.
+
+It's then listed with the others, marked **Your own**, and anyone who can
+add services can install it. If it asks for something packages from the
+service registry can't have (an image that isn't pinned, a folder from
+the server, extra container options), installing it lists those, and only
+the Owner can install it, by ticking **I've read what it asks for, and
+want to install it anyway**.
+
+- **A new version:** add the new file. It replaces the one you added
+  before; services installed from it keep running as they are.
+- **Removing it:** **Remove** beside it. Services installed from it keep
+  running; remove those from their own pages.
+- **Names:** yours can't have the name of a package in the service
+  registry. Pick another, such as `myapp-test`.
+- **Where it's kept:** `/var/lib/roostack/local-packages/<name>/`, which
+  is backed up with your lab.
+
+To check a package before adding it, run `roostack validate -local
+package.yaml` on any computer: it shows the same list.
 
 ## Needs a newer Roostack
 

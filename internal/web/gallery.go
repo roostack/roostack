@@ -79,6 +79,8 @@ var gallerySections = []gallerySection{
 {{notice "warn" "Backups are only stored on this server." "link=/backups" "linkText=Improve backups"}}`},
 			{"Error", "Something is broken.", `
 {{notice "error" "The last backup didn't finish: the disk is full."}}`},
+			{"With a list", "noticeList KIND TEXT ITEMS: a notice whose text leads into a list (each item plain text, which may be long and technical: it wraps anywhere). For several things to read before deciding, such as what a package of your own asks for.", `
+{{noticeList "warn" "It asks for things packages from the service registry can't have:" .PolicyProblems}}`},
 		}},
 	{ID: "status", Title: "Status and badges", Intro: "Status says how a service is doing; badges label things. The highlight badge is for the brand's own voice (\"New\"), sparingly.",
 		Examples: []galleryExample{
@@ -93,7 +95,8 @@ var gallerySections = []gallerySection{
 {{badge "Preview"}}
 {{badge "New" "highlight"}}
 {{badge "Installed" "ok"}}
-{{badge "Community" "warn"}}`},
+{{badge "Community" "warn"}}
+{{badge "Your own" "warn"}}`},
 			{"Logo", "logo SRC ICON: a service's logo on a light tile, the same in both modes, since projects draw their logos for light backgrounds; without one (SRC \"\"), the drawn ICON on the same tile. Decorative: the name beside it says what it is.", `
 {{logo .LogoURL ""}}
 {{logo "" "photos"}}
@@ -150,6 +153,8 @@ var gallerySections = []gallerySection{
     <div class="offer-action"><a class="button" href="#">Install</a></div></li>
   <li class="card offer">{{logo "" "documents"}}<div class="offer-text"><h2>Paperless-ngx</h2>{{badge "Community" "warn"}}<p class="hint">Scans, reads and files your paper documents.</p><p class="offer-categories">Documents and notes</p></div>
     <div class="offer-action"><p class="offer-later">Needs a newer Roostack: 0.9 or newer. <a href="#">Details</a></p></div></li>
+  <li class="card offer">{{logo "" "services"}}<div class="offer-text"><h2>My app</h2>{{badge "Your own" "warn"}}<p class="hint">A package you added yourself.</p></div>
+    <div class="offer-action">{{confirm "#" "Remove My app from the list?" "Remove" "quiet danger"}}<a class="button" href="#">Install</a></div></li>
 </ul>`},
 			{"Filter chips", "div.filter-chips of buttons, the chosen one aria-pressed=\"true\": narrows a list to one group (the catalog's categories).", `
 <div class="filter-chips" role="group" aria-label="Categories"><button type="button" aria-pressed="true">All</button><button type="button" aria-pressed="false">Photos and videos</button><button type="button" aria-pressed="false">Developer tools</button></div>`},
@@ -351,6 +356,10 @@ func renderGallery(w io.Writer, static string, standalone bool) error {
 		Maker: "a community project under Codeberg e.V., a non-profit", Licence: "GPL-3.0-or-later",
 		Website: "https://forgejo.org", Source: "https://codeberg.org/forgejo/forgejo", Support: "https://liberapay.com/forgejo"}}
 	sample["LogoURL"] = static + "apple-touch-icon.png"
+	sample["PolicyProblems"] = []string{
+		"containers.web.image: pin the image by digest (name:tag@sha256:…), so every lab runs exactly the image that was reviewed.",
+		"containers.web.quadlet: Container.Volume=/home/me/scans:/consume isn't allowed: a folder from the server or a named volume is outside the service and its backups; use storage: and mounts: (an anonymous Volume=/path is allowed).",
+	}
 	var sections []map[string]any
 	for _, sec := range gallerySections {
 		var examples []renderedExample

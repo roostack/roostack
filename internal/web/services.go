@@ -61,27 +61,38 @@ func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
 	}
 	u := currentUser(r)
 	data := map[string]any{"User": u, "Registry": s.registryView(), "IsOwner": auth.Can(u.Role, auth.ManageHost)}
-	// Turned off, nothing is offered: the lab wouldn't hear if a version
-	// were withdrawn (SPEC.md §8.3.3).
-	if s.registryOn() {
-		items, err := s.Manager.Catalog()
-		if err != nil {
-			s.serverError(w, err)
-			return
+	items, err := s.Manager.Catalog()
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	// Turned off, nothing from the registry is offered: the lab wouldn't
+	// hear if a version were withdrawn (SPEC.md §8.3.3). The Owner's own
+	// packages still are.
+	on := s.registryOn()
+	if !on {
+		items = slices.DeleteFunc(items, func(it manager.CatalogItem) bool { return !it.Local })
+	}
+	var listing map[string]registry.Listed
+	if s.Registry != nil && on {
+		if listing, err = s.Registry.Listing(); err != nil {
+			s.Log.Warn("reading the service registry's index", "err", err)
 		}
-		var listing map[string]registry.Listed
-		if s.Registry != nil {
-			if listing, err = s.Registry.Listing(); err != nil {
-				s.Log.Warn("reading the service registry's index", "err", err)
+	}
+	data["Items"], data["Categories"] = catalogItems(items, listing)
+	// Arrived from adding a package of their own.
+	if added := r.URL.Query().Get("added"); added != "" {
+		for _, it := range items {
+			if it.Name == added && it.Local {
+				data["Added"] = it.Title
 			}
 		}
-		data["Items"], data["Categories"] = catalogItems(items, listing)
-		// Arrived from installing one that needs a newer Roostack (pkg).
-		if needs := r.URL.Query().Get("needs"); needs != "" {
-			for _, it := range data["Items"].([]catalogItem) {
-				if it.Name == needs && it.NeedsRoostack != "" {
-					data["Needs"] = it
-				}
+	}
+	// Arrived from installing one that needs a newer Roostack (pkg).
+	if needs := r.URL.Query().Get("needs"); needs != "" {
+		for _, it := range data["Items"].([]catalogItem) {
+			if it.Name == needs && it.NeedsRoostack != "" {
+				data["Needs"] = it
 			}
 		}
 	}
@@ -113,7 +124,7 @@ func catalogItems(items []manager.CatalogItem, listing map[string]registry.Liste
 	for _, it := range items {
 		offered[it.Name] = true
 		c := catalogItem{CatalogItem: it}
-		if l, ok := listing[it.Name]; ok {
+		if l, ok := listing[it.Name]; ok && !it.Local {
 			c.Tier = l.Tier
 		}
 		out = append(out, c)
@@ -171,6 +182,9 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := s.installRequest(r.PostForm, p)
+	// Only the Owner may accept what a package of their own asks for
+	// (decided by the Owner, 2026-10-14).
+	req.AcceptRisks = r.PostForm.Get("accept_risks") == "on" && auth.Can(currentUser(r).Role, auth.ManageHost)
 	if req.Public {
 		// Asked the first time anything goes public (SPEC.md §6.11).
 		if asked, _ := s.Manager.SignalSharing(); !asked {
@@ -327,14 +341,23 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 			form.Set(f.Key, f.Value)
 		}
 	}
+	// The package policy (SPEC.md §8.3.4): a registry package that breaks
+	// it can't be installed; one of the Owner's own can, once the Owner
+	// has read what it asks for.
+	u := currentUser(r)
+	policy := s.Manager.CheckPackage(p)
+	owner := auth.Can(u.Role, auth.ManageHost)
 	return map[string]any{
+		"Policy":        policy,
+		"IsOwner":       owner,
+		"CanInstall":    len(policy.Problems) == 0 || (policy.Local && owner),
 		"Summary":       s.installSummary(p, s.installRequest(form, p)),
 		"Credit":        newProjectCredit(p),
 		"Internet":      s.onInternet(),
 		"Public":        submitted == nil || public,
 		"Unsafe":        unsafe,
 		"SharingAsked":  asked,
-		"User":          currentUser(r),
+		"User":          u,
 		"Package":       p,
 		"Fields":        fields,
 		"HasRoute":      len(p.Routes) > 0,
@@ -568,12 +591,14 @@ func (s *Server) pkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Package, 
 		http.NotFound(w, r)
 		return nil, false
 	}
-	if !s.registryOn() {
+	name := r.PathValue("name")
+	p, err := s.Manager.Package(name)
+	// With the registry turned off, only the Owner's own packages can be
+	// installed (SPEC.md §8.3.3).
+	if err == nil && !s.registryOn() && !s.Manager.CheckPackage(p).Local {
 		redirect(w, r, "/catalog") // which says why
 		return nil, false
 	}
-	name := r.PathValue("name")
-	p, err := s.Manager.Package(name)
 	if errors.Is(err, manager.ErrNotFound) {
 		// Listed in the catalog, but it needs a newer Roostack: the
 		// catalog says so (SPEC.md §8.3.6).
