@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/state"
 )
@@ -112,6 +113,10 @@ func TestLocalPackages(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.Wait()
+	// The service records that it's the Owner's own, for its pages.
+	if in, err := instance.Load(state.InstanceFile(m.Lab, "forgejo")); err != nil || !in.Local {
+		t.Errorf("the instance should say it's from the Owner's own package: %+v %v", in, err)
+	}
 	kept, err := os.ReadFile(m.Lab.Paths.LabPackageFile("forgejo", p.Version))
 	if err != nil || !bytes.Equal(kept, data) {
 		t.Errorf("the lab's copy of the package: %v", err)

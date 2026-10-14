@@ -77,6 +77,9 @@ type ServiceView struct {
 	node.ServiceDetail
 	// LastBackup is when its server last finished a backup.
 	LastBackup time.Time
+	// Local: installed from a package the Owner added themselves ("Your
+	// own", SPEC.md §8.3.4).
+	Local bool
 }
 
 // Server serves the web UI.

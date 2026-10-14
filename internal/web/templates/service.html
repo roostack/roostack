@@ -3,7 +3,7 @@
 <section class="card medium">
   <div class="page-top">{{back "/services" "Services"}}{{help "services/settings" "Change a service"}}</div>
   <div class="heading">
-    <h1>{{.Service.Title}}</h1>
+    <h1>{{.Service.Title}}{{if .Service.Local}} {{badge "Your own" "warn"}}{{end}}</h1>
     {{status .Service.Status}}
   </div>
   {{with .Package}}<p class="hint">{{.Description}}</p>{{end}}

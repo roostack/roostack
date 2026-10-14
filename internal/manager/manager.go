@@ -274,6 +274,7 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	if err != nil {
 		return err
 	}
+	in.Local = m.IsLocal(p.Name)
 	secrets := map[string][]byte{}
 	for _, s := range p.Settings {
 		if s.Type != pkgspec.SettingSecret || s.Generate {

@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -159,5 +160,23 @@ func TestYourOwnWithRegistryOff(t *testing.T) {
 	}
 	if _, body := h.get("/install/forgejo"); !strings.Contains(body, `name="subdomain"`) {
 		t.Error("turned off: the Owner's own can still be installed")
+	}
+}
+
+// A service installed from one of the Owner's own packages says so on its
+// page and in the list (SPEC.md §8.3.4).
+func TestYourOwnServiceBadge(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleAdmin)
+	badge := `<span class="badge badge-warn">Your own</span>`
+	if _, body := h.get("/services"); strings.Contains(body, badge) {
+		t.Error("a registry service isn't the Owner's own")
+	}
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", Local: true}}, nil
+	}
+	for _, page := range []string{"/services", "/services/vaultwarden"} {
+		if _, body := h.get(page); !strings.Contains(body, badge) {
+			t.Errorf("%s: no Your own badge", page)
+		}
 	}
 }
