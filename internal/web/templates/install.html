@@ -4,6 +4,7 @@
   <div class="page-top">{{back "/catalog" "Back"}}{{help "services/add" "Add a service"}}</div>
   <h1>{{if .Another}}Add another {{.Package.Title}}{{else}}Install {{.Package.Title}}{{end}}</h1>
   <p class="hint">{{.Package.Description}}</p>
+  {{template "project-credit" .Credit}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{/* The name follows the title, and the web address the name, until
        they're edited (SPEC.md §8.2). */}}
@@ -77,7 +78,53 @@
       </label>
       {{end}}
     {{end}}
+    {{template "install-summary" .Summary}}
     <button type="submit">Install</button>
   </form>
 </section>
+{{end}}
+
+{{/* install-summary: what installing would set up, worked out from the
+     package and the form as it stands (SPEC.md §8.3.4), asked for again
+     whenever the form changes (the latest change wins: one made while
+     the last is on its way replaces it). Passwords aren't sent: it
+     doesn't need them. */}}
+{{define "install-summary"}}
+<div class="install-summary" id="install-summary" hx-post="/install/{{.Package.Name}}/summary" hx-trigger="change from:closest form"
+  hx-include="closest form" hx-params="{{.Params}}" hx-sync="this:replace" hx-swap="outerHTML" hx-disinherit="*">
+  <h2>What {{.Package.Title}} sets up</h2>
+  {{if .Err}}<p class="hint">It can't be worked out yet: {{.Err}}</p>{{else}}
+  <dl class="facts">
+    <dt>Keeps</dt>
+    <dd>{{if .BackedUp}}{{.BackedUp}}: <strong>backed up</strong>{{else}}Nothing to back up{{end}}
+      {{- with .Remade}}<br><small class="hint">Not backed up, as {{$.Package.Title}} makes them again: {{.}}.</small>{{end}}</dd>
+    {{range .Addresses}}<dt>Address</dt>
+    <dd>{{if $.NoAddress}}None yet: it gets one once your lab has an address{{else}}{{.Host}}<br>
+      <small class="hint">{{if .Public}}Anyone on the internet{{else}}{{template "private-where" $.Internet}}{{end}}</small>{{end}}</dd>{{end}}
+    {{range .Ports}}<dt>Connection</dt>
+    <dd>{{.Title}}, port {{.HostPort}}{{if ne .Protocol "tcp"}} ({{.Protocol}}){{end}}<br>
+      <small class="hint">{{if .Enabled}}On{{else}}Off until you turn it on, on its page{{end}}; {{if eq .Exposure "public"}}anyone on the internet{{else}}your home network only{{end}}</small></dd>{{end}}
+    {{if .GPU}}<dt>Graphics</dt><dd>Uses this server's graphics chip (GPU)</dd>{{end}}
+    <dt>Memory</dt>
+    <dd>{{if .Memory}}{{if .MemoryUnknown}}At least{{else}}About{{end}} {{size .Memory}}{{else}}Its package doesn't say{{end}}</dd>
+  </dl>
+  <details class="technical" id="install-summary-details">
+    <summary>Details</summary>
+    <dl class="facts">
+      <dt>Runs</dt>
+      <dd>{{range .Parts}}<code>{{.Name}}</code>{{with .Database}} ({{databaseName .}} database){{end}}: {{if .Memory}}{{size .Memory}}{{else}}doesn't say{{end}}<br>{{end}}
+        <small class="hint">What each part typically uses, from the package: an estimate, not a limit.</small></dd>
+      <dt>Data</dt>
+      <dd>{{range .Kept}}{{if .Path}}<code>{{.Path}}</code>{{else}}<code>{{.Name}}</code>{{end}}{{with .Database}} ({{databaseName .}} database){{end}}: {{if .BackedUp}}backed up{{else}}not backed up{{end}}<br>{{end}}</dd>
+      {{with .GPU}}<dt>GPU</dt><dd>{{range .}}<code>{{.}}</code> gets <code>/dev/dri</code><br>{{end}}</dd>{{end}}
+      <dt>Package</dt>
+      <dd><a href="/install/{{.Package.Name}}/package.yaml" target="_blank" rel="noopener">{{.Package.Name}} {{.Package.Version}}{{template "new-window"}}</a></dd>
+      <dt>Files</dt>
+      <dd>What Roostack would write, as <code>roostack render</code> shows them:
+        {{range .Files}}<details id="install-file-{{.Name}}"><summary><code>{{pathBase .Name}}</code></summary>
+          <small class="hint">In <code>{{pathDir .Name}}</code></small><pre class="output">{{.Content}}</pre></details>{{end}}</dd>
+    </dl>
+  </details>
+  {{end}}
+</div>
 {{end}}

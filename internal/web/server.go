@@ -25,6 +25,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
@@ -213,6 +214,12 @@ type ServiceCatalog interface {
 	// SetTitle changes what people call a service (never its name).
 	SetTitle(ctx context.Context, name, title string) error
 	Install(ctx context.Context, name string, req manager.InstallRequest) error
+	// InstallSummary is what installing with these choices would set up
+	// (SPEC.md §8.3.4); PackageFile and PackageIcon are a catalog
+	// package's file and logo.
+	InstallSummary(name string, req manager.InstallRequest) (*generate.Summary, error)
+	PackageFile(name string) ([]byte, error)
+	PackageIcon(name string) ([]byte, error)
 	Remove(ctx context.Context, name string) error
 	DataDirs(name string) []string
 	Ports(name string) ([]manager.PortStatus, error)
@@ -570,6 +577,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /catalog", s.require(auth.ManageServices, s.catalogPage))
 	mux.Handle("GET /install/{name}", s.require(auth.ManageServices, s.installPage))
 	mux.Handle("POST /install/{name}", s.require(auth.ManageServices, s.installSubmit))
+	mux.Handle("POST /install/{name}/summary", s.require(auth.ManageServices, s.installSummaryPart))
+	mux.Handle("GET /install/{name}/package.yaml", s.require(auth.ManageServices, s.packageFile))
+	mux.Handle("GET /install/{name}/icon.png", s.require(auth.ManageServices, s.packageIcon))
 	mux.Handle("POST /services/{name}/ports/{port}", s.require(auth.ManageServices, s.portSubmit))
 	mux.Handle("POST /services/{name}/settings", s.require(auth.ManageServices, s.settingsSubmit))
 	mux.Handle("POST /services/{name}/reveal/{key}", s.require(auth.ManageServices, s.revealSubmit))

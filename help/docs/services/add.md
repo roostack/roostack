@@ -20,7 +20,8 @@
         ones only needed for setup (such as the first administrator's) are
         deleted once setup has finished.
 
-4. Choose **Install**.
+4. Check **What it sets up**, just above the button (see below), then
+   choose **Install**.
 
 Roostack downloads the service, starts it and gives it its web address.
 This usually takes a few minutes. While it does, the service shows
@@ -32,6 +33,49 @@ link once it's running.
 On a brand-new server, the first install may also wait for Roostack's web
 proxy to finish building (once only, a few minutes). If a step takes much
 longer than usual, the page says so, and whether it's still moving.
+
+## What it sets up
+
+Before you install, the page says what the service will do on your
+server, worked out from its package and what you've chosen on the form.
+It changes as you change the form: turning off Immich's smart search, for
+example, lowers the memory it needs.
+
+Keeps
+:   What it stores, and whether that's **backed up**. Some things aren't,
+    because the service makes them again if they're lost, such as
+    thumbnails.
+
+Address
+:   Its web address, and who can reach it.
+
+Connection
+:   Any extra way in besides the web address, such as Forgejo's Git over
+    SSH, and whether it starts on or off.
+
+Graphics
+:   Whether it uses the server's graphics chip (GPU), such as for
+    converting videos.
+
+Memory
+:   About how much memory it needs while it runs, adding up the parts
+    that would run with your choices. It's the package's estimate, not a
+    limit: a service can use more while it's busy.
+
+Under the description, the page also says who makes the app, its licence,
+and links to its website, its source code and a way to support it.
+
+??? note "For technical users"
+
+    **Details** under the summary shows each part that would run and its
+    memory, every folder and database with whether it's backed up, a link
+    to the package file itself, and every file Roostack would write (its
+    Quadlet units and Caddy site), exactly as
+    [`roostack render`](../reference/cli.md#looking-at-packages) shows
+    them, for the choices on the form. The summary is generated
+    (`generate.Summarize`), never written by hand, so it can't disagree
+    with what's installed. Passwords on the form aren't sent for it: no
+    generated file ever holds one.
 
 ## Another copy of a service
 

@@ -45,6 +45,7 @@ containers:
 
 storage:
   data:
+    title: Passwords, accounts and settings
     class: critical              # backed up by default
 
 databases:

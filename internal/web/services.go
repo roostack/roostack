@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -69,20 +70,7 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad form.", http.StatusBadRequest)
 		return
 	}
-	name := p.Name
-	if sfx := strings.ToLower(strings.TrimSpace(r.PostForm.Get("name_suffix"))); sfx != "" {
-		name += "-" + sfx
-	}
-	req := manager.InstallRequest{
-		Name:      name,
-		Title:     r.PostForm.Get("title"),
-		Subdomain: r.PostForm.Get("subdomain"),
-		Host:      r.PostForm.Get("host"),
-		Settings:  map[string]string{},
-		Secrets:   map[string]string{},
-		// On a lab on the internet, services start public (SPEC.md §6.12).
-		Public: s.onInternet() && r.PostForm.Get("public") == "on",
-	}
+	req := s.installRequest(r.PostForm, p)
 	if req.Public {
 		// Asked the first time anything goes public (SPEC.md §6.11).
 		if asked, _ := s.Manager.SignalSharing(); !asked {
@@ -99,15 +87,6 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 			s.Store.Audit(r.Context(), currentUser(r), "public access", "CrowdSec sharing: "+share)
 		}
 	}
-	for _, st := range p.Settings {
-		if v, ok := r.PostForm["setting."+st.Key]; ok {
-			if st.Type == pkgspec.SettingSecret {
-				req.Secrets[st.Key] = v[0]
-			} else {
-				req.Settings[st.Key] = v[0]
-			}
-		}
-	}
 
 	err := s.Manager.Install(r.Context(), p.Name, req)
 	msg, isForm := userMessage(err)
@@ -122,6 +101,35 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "install", p.Name)
 	redirect(w, r, "/")
+}
+
+// installRequest reads the install form (submitted, or as it stands for
+// the summary).
+func (s *Server) installRequest(form url.Values, p *pkgspec.Package) manager.InstallRequest {
+	name := p.Name
+	if sfx := strings.ToLower(strings.TrimSpace(form.Get("name_suffix"))); sfx != "" {
+		name += "-" + sfx
+	}
+	req := manager.InstallRequest{
+		Name:      name,
+		Title:     form.Get("title"),
+		Subdomain: form.Get("subdomain"),
+		Host:      form.Get("host"),
+		Settings:  map[string]string{},
+		Secrets:   map[string]string{},
+		// On a lab on the internet, services start public (SPEC.md §6.12).
+		Public: s.onInternet() && form.Get("public") == "on",
+	}
+	for _, st := range p.Settings {
+		if v, ok := form["setting."+st.Key]; ok && len(v) > 0 {
+			if st.Type == pkgspec.SettingSecret {
+				req.Secrets[st.Key] = v[0]
+			} else {
+				req.Settings[st.Key] = v[0]
+			}
+		}
+	}
+	return req
 }
 
 // installData builds the form. submitted is nil on first display, so
@@ -204,7 +212,24 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 	}
 	_, public := get("public")
 	asked, _ := s.Manager.SignalSharing()
+
+	// The summary of what it sets up, for the form as it stands (SPEC.md
+	// §8.3.4); the page asks for it again as the form changes.
+	form := url.Values{"title": {title}, "name_suffix": {suffix}, "subdomain": {sub}, "host": {host}}
+	if submitted == nil || public {
+		form.Set("public", "on")
+	}
+	for _, f := range fields {
+		switch {
+		case f.Kind == "checkbox" && f.Checked:
+			form.Set(f.Key, "on")
+		case f.Kind != "checkbox" && f.Kind != "password":
+			form.Set(f.Key, f.Value)
+		}
+	}
 	return map[string]any{
+		"Summary":       s.installSummary(p, s.installRequest(form, p)),
+		"Credit":        newProjectCredit(p),
 		"Internet":      s.onInternet(),
 		"Public":        submitted == nil || public,
 		"Unsafe":        unsafe,
