@@ -91,7 +91,8 @@ func SecretsFile(paths config.Paths, service string) string {
 
 // LabPlan combines the lab's own state with each service's backup plan.
 //
-// Included: /var/lib/roostack (desired state, Caddy config and certificates)
+// Included: /var/lib/roostack (desired state, the lab's copies of its
+// packages and the Owner's own packages, Caddy config and certificates)
 // and the Podman secrets store, since generated passwords are needed to use
 // restored data. Excluded: the registry's packages (fetched again), the
 // rest of the roostack home directory (container images, which can be

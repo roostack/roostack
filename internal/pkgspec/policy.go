@@ -17,20 +17,35 @@ import (
 // It's separate from Validate because a package the Owner adds themselves
 // may break it, once they've confirmed the list of what breaks it. The
 // package must already be valid (Parse or Load).
+//
+// It's the facts registry packages must give (missing ones first), then
+// Risks.
 func (p *Package) Policy() []string {
 	var problems []string
 	add := func(format string, args ...any) { problems = append(problems, fmt.Sprintf(format, args...)) }
-
 	p.aboutPolicy(add)
+	for _, name := range slices.Sorted(maps.Keys(p.Containers)) {
+		if p.Containers[name].Memory == "" {
+			add("containers.%s.memory: say how much memory it typically uses (e.g. 300 MB), for the summary shown before installing.", name)
+		}
+	}
+	return append(problems, p.Risks()...)
+}
+
+// Risks is the part of the policy that's about safety: what a package
+// asks for that could reach beyond its service, or change without anyone
+// knowing (SPEC.md §8.3.4). A package of the Owner's own may leave out
+// the facts Policy requires (about:, memory), but these are shown to the
+// Owner to confirm before it's installed.
+func (p *Package) Risks() []string {
+	var problems []string
+	add := func(format string, args ...any) { problems = append(problems, fmt.Sprintf(format, args...)) }
 
 	for _, name := range slices.Sorted(maps.Keys(p.Containers)) {
 		c := p.Containers[name]
 		at := "containers." + name
 		if !pinnedRe.MatchString(c.Image) {
 			add("%s.image: pin the image by digest (name:tag@sha256:…), so every lab runs exactly the image that was reviewed.", at)
-		}
-		if c.Memory == "" {
-			add("%s.memory: say how much memory it typically uses (e.g. 300 MB), for the summary shown before installing.", at)
 		}
 		for _, msg := range quadletPolicy(c.Quadlet) {
 			add("%s.quadlet: %s", at, msg)

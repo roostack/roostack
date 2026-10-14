@@ -7,6 +7,11 @@
 {{define "notice"}}<p class="notice{{with .Kind}} notice-{{.}}{{end}}"{{if eq .Kind "error"}} role="alert"{{else}} role="status"{{end}}>
   {{.Text}}{{with .Link}} <a href="{{.}}">{{$.LinkText}}</a>{{end}}</p>{{end}}
 
+{{/* notice-list: a notice whose text leads into a list of Items. */}}
+{{define "notice-list"}}<div class="notice notice-list{{with .Kind}} notice-{{.}}{{end}}"{{if eq .Kind "error"}} role="alert"{{else}} role="status"{{end}}>
+  <p>{{.Text}}</p>
+  <ul>{{range .Items}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
+
 {{/* status: a service state (running, starting, stopped, failed, unknown; waiting to be restored, or
      registry-stop: stopped because the registry withdrew its version). */}}
 {{define "status"}}<span class="status status-{{.}}">{{if eq . "installing"}}<span class="spinner" aria-hidden="true"></span> {{end}}{{if eq . "waiting"}}waiting to be restored{{else if eq . "registry-stop"}}stopped by Roostack{{else}}{{.}}{{end}}</span>{{end}}
@@ -23,8 +28,12 @@
 </ol>
 {{end}}
 
-{{/* badge: Text, and Highlight for the brand highlight colour ("New"). */}}
-{{define "badge"}}<span class="badge{{if .Highlight}} badge-highlight{{end}}">{{.Text}}</span>{{end}}
+{{/* badge: Text, and a Variant: highlight (the brand highlight colour,
+     "New"), ok or warn. */}}
+{{define "badge"}}<span class="badge{{with .Variant}} badge-{{.}}{{end}}">{{.Text}}</span>{{end}}
+
+{{/* logo: a service's logo (Src) or drawn Icon on a light tile. */}}
+{{define "logo"}}<span class="logo-tile">{{with .Src}}<img src="{{.}}" alt="" width="40" height="40" loading="lazy">{{else}}{{.Icon}}{{end}}</span>{{end}}
 
 {{/* back: a link to the parent page. */}}
 {{/* server: a server's name, marked as one of the lab's servers. */}}
@@ -136,7 +145,7 @@
      description where people choose to install it. The logo is
      decorative: the text names the app. */}}
 {{define "project-credit"}}{{with .}}<div class="project-credit">
-  {{- with .IconURL}}<img src="{{.}}" alt="" width="40" height="40">{{end}}
+  {{- with .IconURL}}{{logo . ""}}{{end}}
   <p class="hint">{{with .About.Maker}}Made by {{.}}. {{end}}
     {{- with .About.Licence}}{{if eq . "closed"}}Its code isn't published.{{else}}{{with licenceURL .}}<a href="{{.}}" target="_blank" rel="noopener">{{licenceName $.About.Licence}} licence{{template "new-window"}}</a>{{else}}{{licenceName .}} licence{{end}}.{{end}}{{end}}
     <span class="project-links">

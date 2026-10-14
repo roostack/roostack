@@ -1,0 +1,11 @@
+{{define "title"}}{{.Page.Headline}}{{end}}
+{{define "content"}}
+<section class="card narrow error-page">
+  {{errorScene .Page.Scene "page"}}
+  <p class="hint">{{.Page.Status}}</p>
+  <h1>{{.Page.Headline}}</h1>
+  <p>{{.Page.Text}}</p>
+  <p>{{if eq .Page.Status 500}}<a class="button" href="">Try again</a> <a href="/">Go to your lab</a>
+    {{- else}}<a class="button" href="/">Go to your lab</a>{{end}}</p>
+</section>
+{{end}}

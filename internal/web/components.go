@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"roostack.cloud/roostack/internal/errpage"
 )
 
 // Components are called from templates as functions (docs/DESIGN.md):
@@ -27,8 +29,10 @@ import (
 
 var componentFuncs = template.FuncMap{
 	"notice":        notice,
+	"noticeList":    noticeList,
 	"status":        status,
 	"badge":         badge,
+	"logo":          logo,
 	"back":          back,
 	"help":          helpLink,
 	"confirm":       confirmButton,
@@ -39,6 +43,9 @@ var componentFuncs = template.FuncMap{
 	"server":        serverChip,
 	"builtinIcon":   builtinIcon,
 	"brandMark":     func() template.HTML { return brandMark },
+	// errorScene NAME ID: an error scene (internal/errpage), its wash's
+	// SVG ID made unique on the page by ID.
+	"errorScene": func(name, id string) template.HTML { return template.HTML(errpage.Scene(name, id)) },
 }
 
 func init() {
@@ -94,22 +101,59 @@ func notice(kind, text string, opts ...string) (template.HTML, error) {
 	return renderComponent("notice", map[string]any{"Kind": kind, "Text": text, "Link": o["link"], "LinkText": o["linkText"]})
 }
 
+// noticeList is a notice whose text leads into a list of items, such as
+// what a package of the Owner's own asks for (SPEC.md §8.3.4). KIND as for
+// notice; nothing shows without items.
+func noticeList(kind, text string, items []string) (template.HTML, error) {
+	if !slices.Contains([]string{"info", "ok", "warn", "error"}, kind) {
+		return "", fmt.Errorf("noticeList: kind %q must be info, ok, warn or error", kind)
+	}
+	if len(items) == 0 {
+		return "", nil
+	}
+	if kind == "info" {
+		kind = ""
+	}
+	return renderComponent("notice-list", map[string]any{"Kind": kind, "Text": text, "Items": items})
+}
+
 // status is a service's state as a pill.
 func status(state string) (template.HTML, error) {
 	return renderComponent("status", state)
 }
 
-// badge labels something; variant "highlight" uses the brand highlight.
+// badge labels something. Variants: "highlight" uses the brand highlight
+// ("New"); "ok" for something done (Installed); "warn" for something to
+// weigh before acting (a Community service).
 func badge(text string, variant ...string) (template.HTML, error) {
-	highlight := false
+	v := ""
 	switch {
 	case len(variant) == 0:
-	case len(variant) == 1 && variant[0] == "highlight":
-		highlight = true
+	case len(variant) == 1 && slices.Contains([]string{"highlight", "ok", "warn"}, variant[0]):
+		v = variant[0]
 	default:
-		return "", fmt.Errorf("badge: variant %q must be \"highlight\" or nothing", variant)
+		return "", fmt.Errorf("badge: variant %q must be \"highlight\", \"ok\", \"warn\" or nothing", variant)
 	}
-	return renderComponent("badge", map[string]any{"Text": text, "Highlight": highlight})
+	return renderComponent("badge", map[string]any{"Text": text, "Variant": v})
+}
+
+// logo shows a service's logo (src, a URL on this site) on a light tile,
+// the same in both modes, since projects draw their logos for light
+// backgrounds (Vaultwarden's is black). Without one (src ""), the drawn
+// icon instead (an icons name), on the same tile, so lists line up. The
+// logo is decorative: the service's name is beside it.
+func logo(src, iconName string) (template.HTML, error) {
+	if strings.Contains(src, ":") || strings.HasPrefix(src, "//") {
+		return "", fmt.Errorf("logo: %q must be a path on this site", src)
+	}
+	var drawn template.HTML
+	if src == "" {
+		var err error
+		if drawn, err = icon(iconName); err != nil {
+			return "", fmt.Errorf("logo: %w", err)
+		}
+	}
+	return renderComponent("logo", map[string]any{"Src": src, "Icon": drawn})
 }
 
 // back links to the parent page.

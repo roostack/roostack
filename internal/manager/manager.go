@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/b2"
@@ -51,6 +52,10 @@ var ErrNotFound = node.ErrNotFound
 type Manager struct {
 	Lab config.Lab
 	Log *slog.Logger
+	// Version is the running Roostack's (main.version), checked against
+	// the requires.roostack of a package the Owner adds (SPEC.md §8.3.5);
+	// empty is a development build, which runs everything.
+	Version string
 	// Relay is Roostack Cloud's relay, a way in for public visitors.
 	Relay Relay
 	// Node is this server (the controller).
@@ -142,27 +147,57 @@ type CatalogItem struct {
 	Name        string
 	Title       string
 	Description string
-	Installed   bool
+	// Categories and Keywords are its about: filters and search terms
+	// (SPEC.md §8.3.6); Icon says its logo is there (PackageIcon).
+	Categories []string
+	Keywords   []string
+	Icon       bool
+	Installed  bool
+	// Local is a package the Owner added themselves ("Your own", SPEC.md
+	// §8.3.4), not one from the service registry.
+	Local bool
 }
 
-// Catalog lists every package, marking the installed ones.
+// Catalog lists every package, marking the installed ones: the Owner's
+// own, then the registry's. A registry package with the name of one of
+// the Owner's own isn't listed: theirs keeps the name (SPEC.md §8.3.4).
 func (m *Manager) Catalog() ([]CatalogItem, error) {
+	installed, err := m.installed()
+	if err != nil {
+		return nil, err
+	}
+	locals, err := state.LocalPackageNames(m.Lab.Paths)
+	if err != nil {
+		return nil, err
+	}
+	var items []CatalogItem
+	local := map[string]bool{}
+	for _, name := range locals {
+		local[name] = true
+		p, err := state.LoadLocalPackage(m.Lab.Paths, name)
+		if err != nil {
+			m.Log.Error("loading one of your own packages", "package", name, "err", err)
+			continue
+		}
+		_, err = os.Stat(state.LocalIconFile(m.Lab.Paths, p))
+		items = append(items, CatalogItem{Name: p.Name, Title: p.Title, Description: p.Description, Categories: p.About.Categories,
+			Keywords: p.About.Keywords, Icon: err == nil, Installed: installed[p.Name], Local: true})
+	}
+
 	entries, err := os.ReadDir(m.Lab.Paths.CatalogDir)
 	if errors.Is(err, os.ErrNotExist) {
 		entries = nil // nothing fetched from the registry yet (SPEC.md §8.3.3)
 	} else if err != nil {
 		return nil, err
 	}
-	installed, err := m.installed()
-	if err != nil {
-		return nil, err
-	}
-	var items []CatalogItem
 	for _, e := range entries {
-		if !e.IsDir() {
+		if !e.IsDir() || local[e.Name()] {
 			continue
 		}
 		p, err := state.LoadCatalogPackage(m.Lab.Paths, e.Name())
+		if errors.Is(err, os.ErrNotExist) {
+			continue // only its logo: it needs a newer Roostack (registry.Listed)
+		}
 		if err != nil {
 			// One broken package shouldn't hide the rest of the catalog.
 			m.Log.Error("loading package", "package", e.Name(), "err", err)
@@ -170,26 +205,36 @@ func (m *Manager) Catalog() ([]CatalogItem, error) {
 		}
 		// The catalog is registry packages, which follow the package
 		// policy (SPEC.md §8.3.4: the registry's CI won't publish one that
-		// doesn't); one that breaks it anyway is a registry bug, not
-		// something to hide from the Owner, so it's logged but still
-		// offered.
+		// doesn't); one that breaks it anyway is a registry bug, so it's
+		// logged, and installing it says why it can't be (Install).
 		for _, problem := range p.Policy() {
 			m.Log.Error("package breaks the package policy", "package", p.Name, "problem", problem)
 		}
-		items = append(items, CatalogItem{Name: p.Name, Title: p.Title, Description: p.Description, Installed: installed[p.Name]})
+		item := CatalogItem{Name: p.Name, Title: p.Title, Description: p.Description, Categories: p.About.Categories,
+			Keywords: p.About.Keywords, Installed: installed[p.Name]}
+		if p.About.Icon != "" {
+			_, err := os.Stat(filepath.Join(m.Lab.Paths.CatalogPackageDir(p.Name), p.About.Icon))
+			item.Icon = err == nil
+		}
+		items = append(items, item)
 	}
 	slices.SortFunc(items, func(a, b CatalogItem) int { return strings.Compare(a.Title, b.Title) })
 	return items, nil
 }
 
-// Package returns the newest version of a catalog package: what can be
-// installed. An installed service uses the lab's own copy
-// (ServicePackage, SPEC.md §8.3.1).
+// Package returns what installing a package would install: one of the
+// Owner's own by that name, or else the newest version in the catalog. An
+// installed service uses the lab's own copy (ServicePackage, SPEC.md
+// §8.3.1).
 func (m *Manager) Package(name string) (*pkgspec.Package, error) {
 	if !validName(name) {
 		return nil, ErrNotFound
 	}
-	p, err := state.LoadCatalogPackage(m.Lab.Paths, name)
+	p, err := state.LoadLocalPackage(m.Lab.Paths, name)
+	if !errors.Is(err, os.ErrNotExist) {
+		return p, err
+	}
+	p, err = state.LoadCatalogPackage(m.Lab.Paths, name)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, ErrNotFound
 	}
@@ -216,6 +261,11 @@ type InstallRequest struct {
 	// which never changes, and what people call it. Empty for the first
 	// copy, which is named after its package.
 	Name, Title string
+	// AcceptRisks says the Owner has read what one of their own packages
+	// asks for that registry packages can't (Package.Risks) and wants it
+	// installed anyway (SPEC.md §8.3.4). The web layer lets only the
+	// Owner set it.
+	AcceptRisks bool
 }
 
 func formErrorf(format string, args ...any) error {
@@ -230,10 +280,14 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	if err != nil {
 		return err
 	}
+	if err := m.CheckPolicy(p, req.AcceptRisks); err != nil {
+		return err
+	}
 	in, id, err := m.draft(p, req, false)
 	if err != nil {
 		return err
 	}
+	in.Local = m.IsLocal(p.Name)
 	secrets := map[string][]byte{}
 	for _, s := range p.Settings {
 		if s.Type != pkgspec.SettingSecret || s.Generate {
@@ -370,10 +424,40 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient bool) (*
 }
 
 // InstallSummary is what installing a package with these choices would
+// set up (generate.Summary), and how that compares with the memory of the
+// server it would run on.
+type InstallSummary struct {
+	*generate.Summary
+	Server ServerMemory
+}
+
+// ServerMemory is a server's memory, for the install summary (SPEC.md
+// §8.3.4): what it has, what's free now, and what the services installed
+// on it expect.
+type ServerMemory struct {
+	// Name is the server's name; This, that it's the one serving the
+	// page; Servers, how many the lab has (to suggest another).
+	Name    string
+	This    bool
+	Servers int
+	// Total and Available are the server's own figures (node.MemoryInfo);
+	// zero when it couldn't say (unreachable, say).
+	Total, Available int64
+	// Expected adds up what its installed services expect
+	// (generate.ExpectedMemory).
+	Expected int64
+}
+
+// memoryWait is how long the summary waits for a server to report its
+// memory: the page asks again whenever the form changes, so a server that
+// doesn't answer shouldn't hold it up.
+const memoryWait = 3 * time.Second
+
+// InstallSummary is what installing a package with these choices would
 // set up, for the install page to show first (SPEC.md §8.3.4). Nothing is
 // saved; the route ports are the ones Install would pick now. Secrets
 // aren't needed: the generated files never hold them.
-func (m *Manager) InstallSummary(name string, req InstallRequest) (*generate.Summary, error) {
+func (m *Manager) InstallSummary(name string, req InstallRequest) (*InstallSummary, error) {
 	p, err := m.Package(name)
 	if err != nil {
 		return nil, err
@@ -388,44 +472,75 @@ func (m *Manager) InstallSummary(name string, req InstallRequest) (*generate.Sum
 	if err != nil {
 		return nil, err
 	}
+	installed := m.onNode(services, in.Host)
 	services = append(services, state.Service{Instance: in, Package: p})
 	if _, err := state.AllocatePorts(m.onNode(services, in.Host)); err != nil {
 		return nil, err
 	}
-	return generate.Summarize(m.Lab, p, in)
-}
-
-// PackageFile is a catalog package's file (its newest version) as written, for people to read
-// before installing (SPEC.md §8.3.4).
-func (m *Manager) PackageFile(name string) ([]byte, error) {
-	if !validName(name) {
-		return nil, ErrNotFound
-	}
-	version, err := state.CatalogVersion(m.Lab.Paths, name)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, ErrNotFound
-	}
+	sum, err := generate.Summarize(m.Lab, p, in)
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(m.Lab.Paths.CatalogPackageFile(name, version))
+	out := &InstallSummary{Summary: sum, Server: ServerMemory{Servers: 1 + len(m.others())}}
+	n := m.node(in.Host)
+	id := n.Identity()
+	out.Server.Name, out.Server.This = id.Name, id.ID == m.Lab.NodeID || in.Host == ""
+	for _, s := range installed {
+		mem, err := generate.ExpectedMemory(m.Lab, s.Package, s.Instance)
+		if err != nil {
+			m.Log.Warn("expected memory", "service", s.Name(), "err", err)
+			continue
+		}
+		out.Server.Expected += mem
+	}
+	if nm, ok := n.(node.Memory); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), memoryWait)
+		defer cancel()
+		if info, err := nm.Memory(ctx); err == nil {
+			out.Server.Total, out.Server.Available = info.Total, info.Available
+		} else {
+			m.Log.Warn("server memory", "server", id.Name, "err", err)
+		}
+	}
+	return out, nil
+}
+
+// PackageFile is the file of the package Package returns, as written, for
+// people to read before installing (SPEC.md §8.3.4).
+func (m *Manager) PackageFile(name string) ([]byte, error) {
+	p, err := m.Package(name)
+	if err != nil {
+		return nil, err
+	}
+	path := m.Lab.Paths.CatalogPackageFile(name, p.Version)
+	if m.IsLocal(name) {
+		path = filepath.Join(m.Lab.Paths.LocalPackageDir(name), p.Version+".yaml")
+	}
+	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, ErrNotFound
 	}
 	return data, err
 }
 
-// PackageIcon is a catalog package's logo (about.icon, a PNG beside its
-// file), or ErrNotFound if it has none.
+// PackageIcon is a package's logo (about.icon, a PNG beside its file;
+// SPEC.md §8.3.6). It's also there for a package listed but needing a
+// newer Roostack, which has only its logo (icon.png) in the catalog.
 func (m *Manager) PackageIcon(name string) ([]byte, error) {
+	path := filepath.Join(m.Lab.Paths.CatalogPackageDir(name), "icon.png")
 	p, err := m.Package(name)
-	if err != nil {
+	switch {
+	case errors.Is(err, ErrNotFound) && validName(name):
+	case err != nil:
 		return nil, err
-	}
-	if p.About.Icon == "" {
+	case m.IsLocal(name):
+		path = state.LocalIconFile(m.Lab.Paths, p)
+	case p.About.Icon == "":
 		return nil, ErrNotFound
+	default:
+		path = filepath.Join(m.Lab.Paths.CatalogPackageDir(name), p.About.Icon)
 	}
-	data, err := os.ReadFile(filepath.Join(m.Lab.Paths.CatalogPackageDir(name), p.About.Icon))
+	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, ErrNotFound
 	}
