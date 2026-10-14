@@ -133,7 +133,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] The `roostack` icon in `icons.go` (a house, for Roostack's own services) could become a line drawing of the hen
   - [x] Sidebar re-work: mock-ups of four directions (docs/mockups/sidebar), chosen 2026-10-14: **Console glass** (DESIGN.md, "Layout"), 16 px text (15 px in tables and the sidebar), Space Grotesk headings, Servers as a main area and Settings' pages in the sidebar
   - [ ] Build Console glass: tokens (`--font-display`, `--canvas`, `--glass*`, `--edge*`, `--lift`, `--text-xs`), vendor Space Grotesk (OFL), the shell (sidebar, drawer on phones, page header), then the components (figures strip, table list, status pill, Friendly/Technical switch, code panel) in the gallery; then move the pages over, Home, Services and a service, Backups, Servers, Settings
-  - [ ] Contrast test for translucent surfaces: text on a card and on the sidebar with the strongest glow behind, every theme and mode
+  - [x] Console glass tokens (2026-10-15): `--font-display`, `--text-xs`, `--canvas`, `--glass*`, `--edge*`, `--lift`, `--aurora`; Space Grotesk vendored in `static/fonts` (OFL, credited); text 16 px
+  - [x] Contrast test for translucent surfaces (2026-10-15): text on a card and on the sidebar with the strongest glow behind, every theme, mode and accent (no bare status text on the sidebar: Nord light's warning is 4.45:1 there)
   - [ ] Roostack Cloud's portal and admin console adopt it after Roostack (their copy comes through `tools/sync-design.sh`)
   - [ ] Decide whether the header gets a search box (find a service, server or setting)
 - [x] **1.15 Settings structure**

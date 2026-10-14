@@ -87,8 +87,43 @@ func themeVariants(t *testing.T, id string) map[string]map[string]string {
 	return variants
 }
 
+// mix is CSS's color-mix(in srgb, a p, b): each channel of the encoded
+// sRGB values, a at p (0 to 1) and b at the rest.
+func mix(a string, p float64, b string) string {
+	out := "#"
+	for i := 0; i < 3; i++ {
+		x, _ := strconv.ParseUint(a[1+2*i:3+2*i], 16, 8)
+		y, _ := strconv.ParseUint(b[1+2*i:3+2*i], 16, 8)
+		out += fmt.Sprintf("%02x", int(math.Round(p*float64(x)+(1-p)*float64(y))))
+	}
+	return out
+}
+
+// Console glass (docs/DESIGN.md "Layout") puts text on translucent
+// surfaces over the page's aurora. These are its numbers, as app.css and
+// tokens.css use them.
+const (
+	darkCanvasBg   = 0.62 // --canvas in dark mode: --bg at 62% with black
+	cardSurface    = 0.80 // .card: --surface at 80%
+	sidebarSurface = 0.70 // .sidebar: --surface at 70%
+)
+
+var auroraVar = regexp.MustCompile(`--aurora-([ld]):\s*([0-9.]+)\s*;`)
+
 func TestThemesAreReadable(t *testing.T) {
 	shared := readVars(t, filepath.Join("static", "css", "tokens.css"))
+	// How strongly the aurora's circles show, per mode (--aurora-l/-d).
+	aurora := map[string]float64{}
+	tokens, err := os.ReadFile(filepath.Join("static", "css", "tokens.css"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range auroraVar.FindAllStringSubmatch(string(tokens), -1) {
+		aurora[m[1]], _ = strconv.ParseFloat(m[2], 64)
+	}
+	if aurora["l"] == 0 || aurora["d"] == 0 {
+		t.Fatal("tokens.css has no --aurora-l or --aurora-d")
+	}
 	for _, th := range Themes {
 		variants := themeVariants(t, th.ID)
 		for _, a := range th.Accents {
@@ -133,6 +168,35 @@ func TestThemesAreReadable(t *testing.T) {
 				for _, s := range []string{"ok", "warn", "bad"} {
 					check(s, s+"-bg", 4.5)   // status pills
 					check(s, "surface", 4.5) // status text on cards
+				}
+				// Text on glass: a card or the sidebar is the surface, partly
+				// see-through, over the canvas tinted where the aurora's accent
+				// or highlight circle is strongest. Text there must still read.
+				canvas := get("bg")
+				if mode == "d" {
+					canvas = mix(canvas, darkCanvasBg, "#000000")
+				}
+				for _, glow := range []string{"accent", "highlight"} {
+					behind := mix(get(glow), aurora[mode], canvas)
+					// The sidebar shows status only as a pill on its own (solid)
+					// tint, never as bare text: Nord's light warning colour is
+					// 4.45:1 on it (2026-10-15).
+					for _, glass := range []struct {
+						name    string
+						surface float64
+						texts   []string
+					}{
+						{"card", cardSurface, []string{"fg", "muted", "accent", "ok", "warn", "bad"}},
+						{"sidebar", sidebarSurface, []string{"fg", "muted", "accent"}},
+					} {
+						bg := mix(get("surface"), glass.surface, behind)
+						for _, fg := range glass.texts {
+							if c := contrast(get(fg), bg); c < 4.5 {
+								t.Errorf("%s (%s): %s %s on a %s over the %s glow (%s) is %.2f:1, need 4.5", name,
+									map[string]string{"l": "light", "d": "dark"}[mode], fg, get(fg), glass.name, glow, bg, c)
+							}
+						}
+					}
 				}
 				// The brand mark's online light: the other mode's green on a
 				// text-coloured server (--ok-on-fg in tokens.css). Not text.

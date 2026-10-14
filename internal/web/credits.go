@@ -22,6 +22,8 @@ var bundledCredits = []Credit{
 	{Name: "Go standard library", By: "The Go Authors", URL: "https://go.dev", License: "BSD-3-Clause"},
 	{Name: "htmx", URL: "https://htmx.org", License: "0BSD", Note: "Page updates without reloading"},
 	{Name: "Alpine.js", URL: "https://alpinejs.dev", License: "MIT", Note: "Small interactive bits of pages"},
+	{Name: "Space Grotesk", By: "The Space Grotesk Project Authors", URL: "https://github.com/floriankarsten/space-grotesk",
+		License: "SIL Open Font License 1.1", Note: "The font for headings and figures"},
 	{Name: "SQLite for Go", By: "The Sqlite Authors", URL: "https://gitlab.com/cznic/sqlite", License: "BSD-3-Clause",
 		Module: "modernc.org/sqlite", Note: "Roostack's database (SQLite itself is public domain)"},
 	{Name: "libc, mathutil, memory", By: "The modernc.org Authors", URL: "https://gitlab.com/cznic", License: "BSD-3-Clause",
