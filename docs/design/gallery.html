@@ -539,18 +539,48 @@
           
           <div class="panels">
             <div class="panel" data-mode="light"><span class="badge">Preview</span>
-<span class="badge badge-highlight">New</span></div>
+<span class="badge badge-highlight">New</span>
+<span class="badge badge-ok">Installed</span>
+<span class="badge badge-warn">Community</span></div>
             <div class="panel" data-mode="dark"><span class="badge">Preview</span>
-<span class="badge badge-highlight">New</span></div>
+<span class="badge badge-highlight">New</span>
+<span class="badge badge-ok">Installed</span>
+<span class="badge badge-warn">Community</span></div>
           </div>
           <details>
             <summary>Markup</summary>
             
             <p class="markup-label">In a template</p>
             <pre class="output">{{badge &#34;Preview&#34;}}
-{{badge &#34;New&#34; &#34;highlight&#34;}}</pre>
+{{badge &#34;New&#34; &#34;highlight&#34;}}
+{{badge &#34;Installed&#34; &#34;ok&#34;}}
+{{badge &#34;Community&#34; &#34;warn&#34;}}</pre>
             <p class="markup-label">Renders as</p>
-            <pre class="output">&lt;span class=&#34;badge&#34;&gt;Preview&lt;/span&gt;&lt;span class=&#34;badge badge-highlight&#34;&gt;New&lt;/span&gt;</pre>
+            <pre class="output">&lt;span class=&#34;badge&#34;&gt;Preview&lt;/span&gt;&lt;span class=&#34;badge badge-highlight&#34;&gt;New&lt;/span&gt;&lt;span class=&#34;badge badge-ok&#34;&gt;Installed&lt;/span&gt;&lt;span class=&#34;badge badge-warn&#34;&gt;Community&lt;/span&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Logo <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">logo SRC ICON: a service&#39;s logo on a light tile, the same in both modes, since projects draw their logos for light backgrounds; without one (SRC &#34;&#34;), the drawn ICON on the same tile. Decorative: the name beside it says what it is.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><span class="logo-tile"><img src="../../internal/web/static/apple-touch-icon.png" alt="" width="40" height="40" loading="lazy"></span>
+<span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-5 4 4 2.5-2.5L20 17"/></svg></span>
+<span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-11 7"/></svg></span></div>
+            <div class="panel" data-mode="dark"><span class="logo-tile"><img src="../../internal/web/static/apple-touch-icon.png" alt="" width="40" height="40" loading="lazy"></span>
+<span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-5 4 4 2.5-2.5L20 17"/></svg></span>
+<span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-11 7"/></svg></span></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">{{logo .LogoURL &#34;&#34;}}
+{{logo &#34;&#34; &#34;photos&#34;}}
+{{logo &#34;&#34; &#34;development&#34;}}</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;span class=&#34;logo-tile&#34;&gt;&lt;img src=&#34;../../internal/web/static/apple-touch-icon.png&#34; alt=&#34;&#34; width=&#34;40&#34; height=&#34;40&#34; loading=&#34;lazy&#34;&gt;&lt;/span&gt;&lt;span class=&#34;logo-tile&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;3&#34; y=&#34;5&#34; width=&#34;18&#34; height=&#34;14&#34; rx=&#34;2&#34;/&gt;&lt;circle cx=&#34;9&#34; cy=&#34;10&#34; r=&#34;1.6&#34;/&gt;&lt;path d=&#34;m4 17 5-5 4 4 2.5-2.5L20 17&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;span class=&#34;logo-tile&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;circle cx=&#34;6&#34; cy=&#34;5&#34; r=&#34;2&#34;/&gt;&lt;circle cx=&#34;6&#34; cy=&#34;19&#34; r=&#34;2&#34;/&gt;&lt;circle cx=&#34;18&#34; cy=&#34;8&#34; r=&#34;2&#34;/&gt;&lt;path d=&#34;M6 7v10M18 10c0 4-6 3-11 7&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;</pre>
             
           </details>
         </div>
@@ -576,7 +606,7 @@
         
         <div class="example">
           <h3>Icons <span class="badge badge-highlight">Template component</span></h3>
-          <p class="hint">icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text&#39;s colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, manage, new-window, help (icons.go).</p>
+          <p class="hint">icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text&#39;s colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, manage, new-window, help, and the catalog&#39;s categories (photos, media, documents, productivity, home, passwords, development, publishing; icons.go).</p>
           <div class="panels">
             <div class="panel" data-mode="light"><p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Role</p>
 <p class="with-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Manage</p>
@@ -801,14 +831,81 @@
         </div>
         
         <div class="example">
+          <h3>Catalog entry <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">li.card.offer in ul.services: a logo, the name with its badges, the description and categories (.offer-categories), and the action (.offer-action); .offer-later in place of the button when it can&#39;t be installed. On phones the action moves under the text.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><ul class="services">
+  <li class="card offer"><span class="logo-tile"><img src="../../internal/web/static/apple-touch-icon.png" alt="" width="40" height="40" loading="lazy"></span><div class="offer-text"><h2>Forgejo</h2><span class="badge">Official</span><p class="hint">Hosts your own Git repositories.</p><p class="offer-categories">Developer tools</p></div>
+    <div class="offer-action"><a class="button" href="#">Install</a></div></li>
+  <li class="card offer"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><div class="offer-text"><h2>Paperless-ngx</h2><span class="badge badge-warn">Community</span><p class="hint">Scans, reads and files your paper documents.</p><p class="offer-categories">Documents and notes</p></div>
+    <div class="offer-action"><p class="offer-later">Needs a newer Roostack: 0.9 or newer. <a href="#">Details</a></p></div></li>
+</ul></div>
+            <div class="panel" data-mode="dark"><ul class="services">
+  <li class="card offer"><span class="logo-tile"><img src="../../internal/web/static/apple-touch-icon.png" alt="" width="40" height="40" loading="lazy"></span><div class="offer-text"><h2>Forgejo</h2><span class="badge">Official</span><p class="hint">Hosts your own Git repositories.</p><p class="offer-categories">Developer tools</p></div>
+    <div class="offer-action"><a class="button" href="#">Install</a></div></li>
+  <li class="card offer"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><div class="offer-text"><h2>Paperless-ngx</h2><span class="badge badge-warn">Community</span><p class="hint">Scans, reads and files your paper documents.</p><p class="offer-categories">Documents and notes</p></div>
+    <div class="offer-action"><p class="offer-later">Needs a newer Roostack: 0.9 or newer. <a href="#">Details</a></p></div></li>
+</ul></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;ul class=&#34;services&#34;&gt;
+  &lt;li class=&#34;card offer&#34;&gt;{{logo .LogoURL &#34;&#34;}}&lt;div class=&#34;offer-text&#34;&gt;&lt;h2&gt;Forgejo&lt;/h2&gt;{{badge &#34;Official&#34;}}&lt;p class=&#34;hint&#34;&gt;Hosts your own Git repositories.&lt;/p&gt;&lt;p class=&#34;offer-categories&#34;&gt;Developer tools&lt;/p&gt;&lt;/div&gt;
+    &lt;div class=&#34;offer-action&#34;&gt;&lt;a class=&#34;button&#34; href=&#34;#&#34;&gt;Install&lt;/a&gt;&lt;/div&gt;&lt;/li&gt;
+  &lt;li class=&#34;card offer&#34;&gt;{{logo &#34;&#34; &#34;documents&#34;}}&lt;div class=&#34;offer-text&#34;&gt;&lt;h2&gt;Paperless-ngx&lt;/h2&gt;{{badge &#34;Community&#34; &#34;warn&#34;}}&lt;p class=&#34;hint&#34;&gt;Scans, reads and files your paper documents.&lt;/p&gt;&lt;p class=&#34;offer-categories&#34;&gt;Documents and notes&lt;/p&gt;&lt;/div&gt;
+    &lt;div class=&#34;offer-action&#34;&gt;&lt;p class=&#34;offer-later&#34;&gt;Needs a newer Roostack: 0.9 or newer. &lt;a href=&#34;#&#34;&gt;Details&lt;/a&gt;&lt;/p&gt;&lt;/div&gt;&lt;/li&gt;
+&lt;/ul&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;ul class=&#34;services&#34;&gt;
+  &lt;li class=&#34;card offer&#34;&gt;&lt;span class=&#34;logo-tile&#34;&gt;&lt;img src=&#34;../../internal/web/static/apple-touch-icon.png&#34; alt=&#34;&#34; width=&#34;40&#34; height=&#34;40&#34; loading=&#34;lazy&#34;&gt;&lt;/span&gt;
+    &lt;div class=&#34;offer-text&#34;&gt;
+      &lt;h2&gt;Forgejo&lt;/h2&gt;&lt;span class=&#34;badge&#34;&gt;Official&lt;/span&gt;
+      &lt;p class=&#34;hint&#34;&gt;Hosts your own Git repositories.&lt;/p&gt;
+      &lt;p class=&#34;offer-categories&#34;&gt;Developer tools&lt;/p&gt;
+    &lt;/div&gt;
+    &lt;div class=&#34;offer-action&#34;&gt;&lt;a class=&#34;button&#34; href=&#34;#&#34;&gt;Install&lt;/a&gt;&lt;/div&gt;
+  &lt;/li&gt;
+  &lt;li class=&#34;card offer&#34;&gt;&lt;span class=&#34;logo-tile&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z&#34;/&gt;&lt;path d=&#34;M14 3v5h5M9 13h6M9 17h6&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;
+    &lt;div class=&#34;offer-text&#34;&gt;
+      &lt;h2&gt;Paperless-ngx&lt;/h2&gt;&lt;span class=&#34;badge badge-warn&#34;&gt;Community&lt;/span&gt;
+      &lt;p class=&#34;hint&#34;&gt;Scans, reads and files your paper documents.&lt;/p&gt;
+      &lt;p class=&#34;offer-categories&#34;&gt;Documents and notes&lt;/p&gt;
+    &lt;/div&gt;
+    &lt;div class=&#34;offer-action&#34;&gt;
+      &lt;p class=&#34;offer-later&#34;&gt;Needs a newer Roostack: 0.9 or newer.&lt;a href=&#34;#&#34;&gt;Details&lt;/a&gt;&lt;/p&gt;
+    &lt;/div&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Filter chips <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">div.filter-chips of buttons, the chosen one aria-pressed=&#34;true&#34;: narrows a list to one group (the catalog&#39;s categories).</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="filter-chips" role="group" aria-label="Categories"><button type="button" aria-pressed="true">All</button><button type="button" aria-pressed="false">Photos and videos</button><button type="button" aria-pressed="false">Developer tools</button></div></div>
+            <div class="panel" data-mode="dark"><div class="filter-chips" role="group" aria-label="Categories"><button type="button" aria-pressed="true">All</button><button type="button" aria-pressed="false">Photos and videos</button><button type="button" aria-pressed="false">Developer tools</button></div></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;div class=&#34;filter-chips&#34; role=&#34;group&#34; aria-label=&#34;Categories&#34;&gt;&lt;button type=&#34;button&#34; aria-pressed=&#34;true&#34;&gt;All&lt;/button&gt;&lt;button type=&#34;button&#34; aria-pressed=&#34;false&#34;&gt;Photos and videos&lt;/button&gt;&lt;button type=&#34;button&#34; aria-pressed=&#34;false&#34;&gt;Developer tools&lt;/button&gt;&lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
           <h3>Project credit <span class="badge badge-highlight">Template component</span></h3>
           <p class="hint">template &#34;project-credit&#34; with a projectCredit (from about: in a package): who makes the app, its licence (linked to its text) and its links, with its logo. Under the description where people choose to install it.</p>
           <div class="panels">
-            <div class="panel" data-mode="light"><div class="project-credit"><img src="../../internal/web/static/apple-touch-icon.png" alt="" width="40" height="40">
+            <div class="panel" data-mode="light"><div class="project-credit"><span class="logo-tile"><img src="../../internal/web/static/apple-touch-icon.png" alt="" width="40" height="40" loading="lazy"></span>
   <p class="hint">Made by a community project under Codeberg e.V., a non-profit. <a href="https://spdx.org/licenses/GPL-3.0-or-later.html" target="_blank" rel="noopener">GPL-3.0 or later licence<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>.
     <span class="project-links"><a href="https://forgejo.org" target="_blank" rel="noopener">Website<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a><a href="https://codeberg.org/forgejo/forgejo" target="_blank" rel="noopener">Source code<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a><a href="https://liberapay.com/forgejo" target="_blank" rel="noopener">Support Forgejo<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a></span></p>
 </div></div>
-            <div class="panel" data-mode="dark"><div class="project-credit"><img src="../../internal/web/static/apple-touch-icon.png" alt="" width="40" height="40">
+            <div class="panel" data-mode="dark"><div class="project-credit"><span class="logo-tile"><img src="../../internal/web/static/apple-touch-icon.png" alt="" width="40" height="40" loading="lazy"></span>
   <p class="hint">Made by a community project under Codeberg e.V., a non-profit. <a href="https://spdx.org/licenses/GPL-3.0-or-later.html" target="_blank" rel="noopener">GPL-3.0 or later licence<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>.
     <span class="project-links"><a href="https://forgejo.org" target="_blank" rel="noopener">Website<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a><a href="https://codeberg.org/forgejo/forgejo" target="_blank" rel="noopener">Source code<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a><a href="https://liberapay.com/forgejo" target="_blank" rel="noopener">Support Forgejo<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a></span></p>
 </div></div>
@@ -819,7 +916,7 @@
             <p class="markup-label">In a template</p>
             <pre class="output">{{template &#34;project-credit&#34; .Credit}}</pre>
             <p class="markup-label">Renders as</p>
-            <pre class="output">&lt;div class=&#34;project-credit&#34;&gt;&lt;img src=&#34;../../internal/web/static/apple-touch-icon.png&#34; alt=&#34;&#34; width=&#34;40&#34; height=&#34;40&#34;&gt;
+            <pre class="output">&lt;div class=&#34;project-credit&#34;&gt;&lt;span class=&#34;logo-tile&#34;&gt;&lt;img src=&#34;../../internal/web/static/apple-touch-icon.png&#34; alt=&#34;&#34; width=&#34;40&#34; height=&#34;40&#34; loading=&#34;lazy&#34;&gt;&lt;/span&gt;
   &lt;p class=&#34;hint&#34;&gt;Made by a community project under Codeberg e.V., a non-profit.&lt;a href=&#34;https://spdx.org/licenses/GPL-3.0-or-later.html&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;GPL-3.0 or later licence&lt;span class=&#34;new-window&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M14 4h6v6&#34;/&gt;&lt;path d=&#34;M20 4l-9 9&#34;/&gt;&lt;path d=&#34;M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;sr-only&#34;&gt;(opens in a new window)&lt;/span&gt;&lt;/span&gt;&lt;/a&gt;.&lt;span class=&#34;project-links&#34;&gt;&lt;a href=&#34;https://forgejo.org&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Website&lt;span class=&#34;new-window&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M14 4h6v6&#34;/&gt;&lt;path d=&#34;M20 4l-9 9&#34;/&gt;&lt;path d=&#34;M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;sr-only&#34;&gt;(opens in a new window)&lt;/span&gt;&lt;/span&gt;&lt;/a&gt;&lt;a href=&#34;https://codeberg.org/forgejo/forgejo&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Source code&lt;span class=&#34;new-window&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M14 4h6v6&#34;/&gt;&lt;path d=&#34;M20 4l-9 9&#34;/&gt;&lt;path d=&#34;M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;sr-only&#34;&gt;(opens in a new window)&lt;/span&gt;&lt;/span&gt;&lt;/a&gt;&lt;a href=&#34;https://liberapay.com/forgejo&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Support Forgejo&lt;span class=&#34;new-window&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M14 4h6v6&#34;/&gt;&lt;path d=&#34;M20 4l-9 9&#34;/&gt;&lt;path d=&#34;M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;sr-only&#34;&gt;(opens in a new window)&lt;/span&gt;&lt;/span&gt;&lt;/a&gt;&lt;/span&gt;
   &lt;/p&gt;
 &lt;/div&gt;</pre>

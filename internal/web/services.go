@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
+	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/registry"
 )
 
 // formField is one input on the install form.
@@ -56,7 +59,8 @@ func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
 		}
 		cancel()
 	}
-	data := map[string]any{"User": currentUser(r), "Registry": s.registryView()}
+	u := currentUser(r)
+	data := map[string]any{"User": u, "Registry": s.registryView(), "IsOwner": auth.Can(u.Role, auth.ManageHost)}
 	// Turned off, nothing is offered: the lab wouldn't hear if a version
 	// were withdrawn (SPEC.md §8.3.3).
 	if s.registryOn() {
@@ -65,9 +69,80 @@ func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
 			s.serverError(w, err)
 			return
 		}
-		data["Items"] = items
+		var listing map[string]registry.Listed
+		if s.Registry != nil {
+			if listing, err = s.Registry.Listing(); err != nil {
+				s.Log.Warn("reading the service registry's index", "err", err)
+			}
+		}
+		data["Items"], data["Categories"] = catalogItems(items, listing)
 	}
 	s.render(w, "catalog", data)
+}
+
+// catalogItem is one service on the catalog page (SPEC.md §8.3.6).
+type catalogItem struct {
+	manager.CatalogItem
+	// Tier is the registry's (registry.TierOfficial or TierCommunity).
+	Tier string
+	// NeedsRoostack is the Roostack release it needs, when it can't be
+	// installed on this one: it's listed, but not offered.
+	NeedsRoostack string
+	// IconURL is its logo's; DrawnIcon the icon shown without one.
+	IconURL, DrawnIcon string
+	// CategoryKeys (space-separated) and Search (lower case) are for the
+	// filter; CategoryTitles is shown.
+	CategoryKeys, CategoryTitles, Search string
+}
+
+// catalogItems lists the packages the lab can install, with what the
+// registry's index says of them, and the ones needing a newer Roostack,
+// by title; and the categories they're in, for the filter, in
+// pkgspec.Categories' order.
+func catalogItems(items []manager.CatalogItem, listing map[string]registry.Listed) ([]catalogItem, []pkgspec.Category) {
+	var out []catalogItem
+	offered := map[string]bool{}
+	for _, it := range items {
+		offered[it.Name] = true
+		c := catalogItem{CatalogItem: it}
+		if l, ok := listing[it.Name]; ok {
+			c.Tier = l.Tier
+		}
+		out = append(out, c)
+	}
+	for name, l := range listing {
+		if offered[name] || l.NeedsRoostack == "" {
+			continue
+		}
+		out = append(out, catalogItem{Tier: l.Tier, NeedsRoostack: l.NeedsRoostack, CatalogItem: manager.CatalogItem{
+			Name: name, Title: l.Title, Description: l.Description, Categories: l.Categories, Icon: l.Icon}})
+	}
+	used := map[string]bool{}
+	for i := range out {
+		c := &out[i]
+		if c.Icon {
+			c.IconURL = "/install/" + c.Name + "/icon.png"
+		}
+		c.DrawnIcon = categoryIcon(c.Categories)
+		var keys, titles []string
+		for _, key := range c.Categories {
+			if title := pkgspec.CategoryTitle(key); title != "" {
+				keys, titles = append(keys, key), append(titles, title)
+				used[key] = true
+			}
+		}
+		c.CategoryKeys, c.CategoryTitles = strings.Join(keys, " "), strings.Join(titles, ", ")
+		words := append([]string{c.Name, c.Title, c.Description}, titles...)
+		c.Search = strings.ToLower(strings.Join(append(words, c.Keywords...), " "))
+	}
+	slices.SortFunc(out, func(a, b catalogItem) int { return strings.Compare(strings.ToLower(a.Title), strings.ToLower(b.Title)) })
+	var categories []pkgspec.Category
+	for _, c := range pkgspec.Categories {
+		if used[c.Key] {
+			categories = append(categories, c)
+		}
+	}
+	return out, categories
 }
 
 func (s *Server) installPage(w http.ResponseWriter, r *http.Request) {

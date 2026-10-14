@@ -1,7 +1,9 @@
 # Add a service
 
 1. On **Services**, choose **Add a service**. You'll see everything you can
-   install; ones you already have are marked **Installed**.
+   install, each with its logo, what it does and its categories; ones you
+   already have are marked **Installed**. Type in the search box, or choose
+   a category such as **Photos and videos**, to narrow the list.
 2. Choose **Install** next to the one you want.
 3. Fill in the form:
 
@@ -33,6 +35,31 @@ link once it's running.
 On a brand-new server, the first install may also wait for Roostack's web
 proxy to finish building (once only, a few minutes). If a step takes much
 longer than usual, the page says so, and whether it's still moving.
+
+## Official and community services
+
+Every service in the list comes from Roostack's service registry, where
+each package is reviewed before it's published. Each one says who looks
+after its package:
+
+Official
+:   Looked after by the Roostack project, which tries it on a real lab
+    (install, backup, restore, update, remove) for each Roostack release.
+
+Community
+:   Written and kept up to date by its author. Roostack's maintainers
+    review each version before it's published, but don't try it on a lab
+    themselves. Read what it sets up before installing it.
+
+Either way, the app itself is made by its own project, credited under
+its description when you choose **Install**.
+
+## Needs a newer Roostack
+
+A service marked **Needs a newer Roostack** uses something this version
+of Roostack can't do yet. It can be installed once Roostack is updated to
+the version it names. The Owner can see the details under **Settings →
+Updates**, in **Services you can install**.
 
 ## What it sets up
 

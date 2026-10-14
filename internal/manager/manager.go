@@ -130,7 +130,12 @@ type CatalogItem struct {
 	Name        string
 	Title       string
 	Description string
-	Installed   bool
+	// Categories and Keywords are its about: filters and search terms
+	// (SPEC.md §8.3.6); Icon says its logo is there (PackageIcon).
+	Categories []string
+	Keywords   []string
+	Icon       bool
+	Installed  bool
 }
 
 // Catalog lists every package, marking the installed ones.
@@ -151,6 +156,9 @@ func (m *Manager) Catalog() ([]CatalogItem, error) {
 			continue
 		}
 		p, err := state.LoadCatalogPackage(m.Lab.Paths, e.Name())
+		if errors.Is(err, os.ErrNotExist) {
+			continue // only its logo: it needs a newer Roostack (registry.Listed)
+		}
 		if err != nil {
 			// One broken package shouldn't hide the rest of the catalog.
 			m.Log.Error("loading package", "package", e.Name(), "err", err)
@@ -164,7 +172,13 @@ func (m *Manager) Catalog() ([]CatalogItem, error) {
 		for _, problem := range p.Policy() {
 			m.Log.Error("package breaks the package policy", "package", p.Name, "problem", problem)
 		}
-		items = append(items, CatalogItem{Name: p.Name, Title: p.Title, Description: p.Description, Installed: installed[p.Name]})
+		item := CatalogItem{Name: p.Name, Title: p.Title, Description: p.Description, Categories: p.About.Categories,
+			Keywords: p.About.Keywords, Installed: installed[p.Name]}
+		if p.About.Icon != "" {
+			_, err := os.Stat(filepath.Join(m.Lab.Paths.CatalogPackageDir(p.Name), p.About.Icon))
+			item.Icon = err == nil
+		}
+		items = append(items, item)
 	}
 	slices.SortFunc(items, func(a, b CatalogItem) int { return strings.Compare(a.Title, b.Title) })
 	return items, nil
@@ -404,16 +418,22 @@ func (m *Manager) PackageFile(name string) ([]byte, error) {
 }
 
 // PackageIcon is a catalog package's logo (about.icon, a PNG beside its
-// file), or ErrNotFound if it has none.
+// file), or ErrNotFound if it has none. A package that needs a newer
+// Roostack has only its logo in the catalog, as icon.png (the registry's
+// name for every logo, registry.IconFile).
 func (m *Manager) PackageIcon(name string) ([]byte, error) {
+	icon := "icon.png"
 	p, err := m.Package(name)
-	if err != nil {
+	switch {
+	case errors.Is(err, ErrNotFound) && validName(name):
+	case err != nil:
 		return nil, err
-	}
-	if p.About.Icon == "" {
+	case p.About.Icon == "":
 		return nil, ErrNotFound
+	default:
+		icon = p.About.Icon
 	}
-	data, err := os.ReadFile(filepath.Join(m.Lab.Paths.CatalogPackageDir(name), p.About.Icon))
+	data, err := os.ReadFile(filepath.Join(m.Lab.Paths.CatalogPackageDir(name), icon))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, ErrNotFound
 	}

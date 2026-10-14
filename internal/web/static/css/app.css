@@ -228,6 +228,8 @@ ol.install-steps small { color: var(--muted); font-weight: var(--weight-normal);
 .install-line { font-size: var(--text-sm); color: var(--muted); margin: var(--space-1) 0; }
 .badge { background: var(--accent-soft); color: var(--accent); }
 .badge-highlight { background: var(--highlight-soft); color: var(--highlight); }
+.badge-ok { background: var(--ok-bg); color: var(--ok); }
+.badge-warn { background: var(--warn-bg); color: var(--warn); }
 
 /* ---------- Lists: bordered rows ---------- */
 ul.rows, ul.kept, ul.users { list-style: none; padding: 0; margin: var(--space-3) 0; }
@@ -269,9 +271,15 @@ pre.output { background: var(--surface-2); border: 1px solid var(--border); bord
   max-height: 16em; overflow: auto; }
 .activity-log { max-height: 24em; }
 
+/* ---------- Logo tile (a service's logo, or a drawn icon) ---------- */
+.logo-tile { flex: none; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
+  width: 48px; height: 48px; padding: 4px; border-radius: var(--radius); border: 1px solid var(--border);
+  background: var(--logo-tile); color: var(--logo-tile-fg); }
+.logo-tile img { width: 100%; height: 100%; object-fit: contain; border-radius: var(--radius-sm); }
+.logo-tile .icon { width: 26px; height: 26px; color: var(--logo-tile-fg); }
+
 /* ---------- Project credit (who makes an app; install page) ---------- */
 .project-credit { display: flex; gap: var(--space-3); align-items: flex-start; margin: var(--space-3) 0; }
-.project-credit img { flex: none; width: 40px; height: 40px; border-radius: var(--radius-sm); }
 .project-credit p { margin: 0; }
 .project-links { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); }
 .spinner { display: inline-block; width: 0.8em; height: 0.8em; border: 2px solid var(--border);
@@ -323,6 +331,29 @@ svg.qr { display: block; width: 200px; height: 200px; border-radius: var(--radiu
 .service h2 { margin: 0; }
 .service h2 a { color: var(--fg); }
 .service a { overflow-wrap: break-word; }
+/* The catalog (Add a service): a search box and category filters over
+   the list, filtering as people type (Alpine); without scripts they stay
+   hidden and every service shows. */
+.catalog-filter { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
+.filter-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.filter-chips button { padding: var(--space-1) var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: none; font-size: var(--text-sm); font-weight: var(--weight-normal); color: var(--fg); }
+.filter-chips button:hover { background: var(--surface-2); filter: none; }
+.filter-chips button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+li.card.offer { display: flex; align-items: center; gap: var(--space-3); }
+.offer-text { flex: 1 1 auto; min-width: 0; }
+.offer-text h2 { display: inline; margin: 0 var(--space-1) 0 0; }
+.offer-text .badge { vertical-align: 0.15em; margin-right: var(--space-1); }
+.offer-text p { margin: var(--space-1) 0 0; }
+.offer-categories { font-size: var(--text-sm); color: var(--muted); }
+.offer-action { flex: none; display: flex; align-items: center; gap: var(--space-2); }
+.offer-later { max-width: 14rem; text-align: right; font-size: var(--text-sm); color: var(--muted); margin: 0; }
+@media (max-width: 640px) {
+  li.card.offer { flex-wrap: wrap; align-items: flex-start; }
+  .offer-text { flex-basis: calc(100% - 48px - var(--space-3)); }
+  .offer-action { flex-basis: 100%; justify-content: flex-end; padding-left: calc(48px + var(--space-3)); }
+  .offer-later { max-width: none; flex: 1; text-align: left; }
+}
 form.port { border-top: 1px solid var(--border); padding-top: var(--space-4); margin-bottom: var(--space-4); }
 
 /* ---------- Misc page parts ---------- */

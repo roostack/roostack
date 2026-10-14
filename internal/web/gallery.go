@@ -91,10 +91,16 @@ var gallerySections = []gallerySection{
 {{status "waiting"}}`},
 			{"Badges", "", `
 {{badge "Preview"}}
-{{badge "New" "highlight"}}`},
+{{badge "New" "highlight"}}
+{{badge "Installed" "ok"}}
+{{badge "Community" "warn"}}`},
+			{"Logo", "logo SRC ICON: a service's logo on a light tile, the same in both modes, since projects draw their logos for light backgrounds; without one (SRC \"\"), the drawn ICON on the same tile. Decorative: the name beside it says what it is.", `
+{{logo .LogoURL ""}}
+{{logo "" "photos"}}
+{{logo "" "development"}}`},
 			{"Server", "server NAME: one of the lab's servers, named in running text (\"On nuc\"), so it's clear it means a server.", `
 <p class="hint">On {{server "nuc"}} · backed up today 02:14</p>`},
-			{"Icons", "icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text's colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, manage, new-window, help (icons.go).", `
+			{"Icons", "icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text's colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, manage, new-window, help, and the catalog's categories (photos, media, documents, productivity, home, passwords, development, publishing; icons.go).", `
 <p class="with-icon">{{icon "server"}}Role</p>
 <p class="with-icon">{{icon "manage"}}Manage</p>
 <p class="with-icon">{{icon "disk"}}Disk</p>
@@ -138,6 +144,15 @@ var gallerySections = []gallerySection{
     <dt>Version</dt> <dd>15.0.9-roostack.1</dd>
   </dl>
 </details>`},
+			{"Catalog entry", "li.card.offer in ul.services: a logo, the name with its badges, the description and categories (.offer-categories), and the action (.offer-action); .offer-later in place of the button when it can't be installed. On phones the action moves under the text.", `
+<ul class="services">
+  <li class="card offer">{{logo .LogoURL ""}}<div class="offer-text"><h2>Forgejo</h2>{{badge "Official"}}<p class="hint">Hosts your own Git repositories.</p><p class="offer-categories">Developer tools</p></div>
+    <div class="offer-action"><a class="button" href="#">Install</a></div></li>
+  <li class="card offer">{{logo "" "documents"}}<div class="offer-text"><h2>Paperless-ngx</h2>{{badge "Community" "warn"}}<p class="hint">Scans, reads and files your paper documents.</p><p class="offer-categories">Documents and notes</p></div>
+    <div class="offer-action"><p class="offer-later">Needs a newer Roostack: 0.9 or newer. <a href="#">Details</a></p></div></li>
+</ul>`},
+			{"Filter chips", "div.filter-chips of buttons, the chosen one aria-pressed=\"true\": narrows a list to one group (the catalog's categories).", `
+<div class="filter-chips" role="group" aria-label="Categories"><button type="button" aria-pressed="true">All</button><button type="button" aria-pressed="false">Photos and videos</button><button type="button" aria-pressed="false">Developer tools</button></div>`},
 			{"Project credit", "template \"project-credit\" with a projectCredit (from about: in a package): who makes the app, its licence (linked to its text) and its links, with its logo. Under the description where people choose to install it.", `
 {{template "project-credit" .Credit}}`},
 		}},
@@ -335,6 +350,7 @@ func renderGallery(w io.Writer, static string, standalone bool) error {
 	sample["Credit"] = &projectCredit{Title: "Forgejo", IconURL: static + "apple-touch-icon.png", About: pkgspec.About{
 		Maker: "a community project under Codeberg e.V., a non-profit", Licence: "GPL-3.0-or-later",
 		Website: "https://forgejo.org", Source: "https://codeberg.org/forgejo/forgejo", Support: "https://liberapay.com/forgejo"}}
+	sample["LogoURL"] = static + "apple-touch-icon.png"
 	var sections []map[string]any
 	for _, sec := range gallerySections {
 		var examples []renderedExample
