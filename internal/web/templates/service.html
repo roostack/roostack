@@ -265,13 +265,19 @@
 {{/* update-form: the Update button (Admins), with a confirmation when
      there are notes to read or no backup to go back to. */}}
 {{define "update-form"}}{{with .Update}}{{if and $.CanManage (not .Blocked)}}
+{{/* A newer version of the Owner's own package asking for more: only
+     the Owner accepts it, as when installing (SPEC.md §8.3.4). */}}
+{{noticeList "warn" (printf "%s asks for things the version it runs didn't, which packages from the service registry can't have:" .ToApp) .NewRisks}}
+{{if and .NewRisks (not $.IsOwner)}}<p>Only the Owner can update it, after reading these.</p>{{else}}
 <form method="post" action="/services/{{$.Service.Name}}/update">
   <input type="hidden" name="to" value="{{.To}}">
+  {{if .NewRisks}}<label class="check"><input type="checkbox" name="accept_risks" required>
+    <span>I've read what it asks for, and want to update anyway</span></label>{{end}}
   {{if or .Notes .NoBackups}}
   {{confirmSubmit .Confirm "Update now" ""}}
   {{else}}<button type="submit">Update now</button>{{end}}
 </form>
-{{end}}{{end}}{{end}}
+{{end}}{{end}}{{end}}{{end}}
 
 {{/* service-update: a newer version (SPEC.md §7): updating, the last
      update's result, or the update on offer. */}}
@@ -305,10 +311,11 @@
   {{if .IsOwner}}<p><small class="hint"><a href="/settings/history?kind=service-update">What happened</a></small></p>{{end}}
 </div>
 {{else if and .Update (not .Withdrawal)}}{{$u := .Update}}
-<div id="update" class="notice{{if or $u.Notes $u.Blocked (eq $u.Kind "major") (eq $u.Kind "other")}} notice-warn{{end}}" role="status">
+<div id="update" class="notice{{if or $u.Notes $u.Blocked $u.NewRisks (eq $u.Kind "major") (eq $u.Kind "other")}} notice-warn{{end}}" role="status">
   {{if eq $u.Kind "revision"}}<p><strong>An update is available:</strong> an improved Roostack package for {{.Service.Title}} {{appVersion $u.To}}
     (package revision {{revision $u.From}} → {{revision $u.To}}). The app itself stays the same.{{if $u.Notes}} Read these first:{{end}}</p>
   {{else}}<p><strong>An update is available:</strong> {{.Service.Title}} {{$u.FromApp}} → {{$u.ToApp}}, {{updateKind $u.Kind}}.{{if $u.Notes}} Read these first:{{end}}</p>{{end}}
+  {{if $u.Local}}<p>It's the version of your own package you added last, so nobody has reviewed it.</p>{{end}}
   {{with $u.Notes}}<ul>{{range .}}<li><strong>{{appVersion .Version}}:</strong> {{.Note}}</li>{{end}}</ul>{{end}}
   {{if $u.Blocked}}<p>{{$u.Blocked}}</p>
   {{else if $u.NoBackups}}<p>{{.Service.Title}}'s server has no backups set up, so if the update changes its data there's no copy to go back to.
@@ -322,6 +329,7 @@
     {{else if eq $u.Policy "notify"}}You chose to be told about updates and apply them yourself.
     {{else if $u.FailedBefore}}It didn't work last time, so Roostack waits for you.
     {{else if $u.Notes}}It has notes to read, so Roostack waits for you.
+    {{else if $u.NewRisks}}It asks for more than the version it runs, so Roostack waits for the Owner.
     {{else if $u.NoBackups}}Automatic updates wait until backups are set up.
     {{else}}This is {{updateKind $u.Kind}}, which your choice doesn't apply by itself.{{end}}
     {{if .CanManage}}<a href="#updates">Change this</a>{{end}}</small></p>

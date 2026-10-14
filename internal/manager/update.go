@@ -88,6 +88,12 @@ type Update struct {
 	FailedBefore bool
 	// Blocked says why it can't update at all (a sentence).
 	Blocked string
+	// Local: the service is from one of the Owner's own packages, and so
+	// is the update (SPEC.md §8.3.4).
+	Local bool
+	// NewRisks are what the Owner's newer package asks for that the
+	// installed one didn't: only the Owner can accept them.
+	NewRisks []string
 }
 
 // FromApp and ToApp are the app's own versions, with the package's
@@ -164,29 +170,22 @@ func (m *Manager) AvailableUpdates(ctx context.Context) map[string]*Update {
 	if err != nil && len(services) == 0 {
 		return nil
 	}
-	if m.RegistryIndex == nil {
-		return nil
-	}
-	ix, err := m.RegistryIndex()
-	if err != nil || ix == nil {
-		return nil
-	}
 	out := map[string]*Update{}
 	for _, s := range services {
 		in := s.Instance
 		if in.Waiting {
 			continue // runs nowhere; restoring it comes first
 		}
-		file, err := os.ReadFile(m.Lab.Paths.LabPackageFile(in.Package, in.Version))
-		if err != nil || !ix.Updates(in.Package, in.Version, file) {
-			continue
-		}
-		p, err := state.LoadCatalogPackage(m.Lab.Paths, in.Package)
-		if err != nil || pkgspec.CompareVersions(p.Version, in.Version) <= 0 {
+		p := m.updateSource(in)
+		if p == nil || pkgspec.CompareVersions(p.Version, in.Version) <= 0 {
 			continue
 		}
 		u := &Update{Service: s.Name(), Title: s.Title(), Package: in.Package, From: in.Version, To: p.Version,
-			Kind: pkgspec.UpdateKind(in.Version, p.Version), Notes: p.NotesSince(in.Version), Policy: in.Updates}
+			Kind: pkgspec.UpdateKind(in.Version, p.Version), Notes: p.NotesSince(in.Version), Policy: in.Updates,
+			Local: in.Local}
+		if in.Local {
+			u.NewRisks = newRisks(s.Package, p)
+		}
 		if _, _, err := updatedInstance(in, s.Package, p); err != nil {
 			u.Blocked = err.Error()
 		}
@@ -194,8 +193,59 @@ func (m *Manager) AvailableUpdates(ctx context.Context) map[string]*Update {
 			u.FailedBefore = true
 		}
 		u.NoBackups = !m.backupsOn(ctx, cmp.Or(in.Host, m.Lab.NodeID))
-		u.Auto = in.AllowsUpdate(u.Kind) && len(u.Notes) == 0 && !u.FailedBefore && !u.NoBackups && u.Blocked == ""
+		u.Auto = in.AllowsUpdate(u.Kind) && len(u.Notes) == 0 && len(u.NewRisks) == 0 && !u.FailedBefore && !u.NoBackups &&
+			u.Blocked == ""
 		out[s.Name()] = u
+	}
+	return out
+}
+
+// updateSource is the package a service would update to: for a service
+// installed from one of the Owner's own packages, that package as the
+// Owner last added it; for the registry's, the registry's offered version
+// (the catalog), when the installed package is the registry's. Nil if
+// there's none. The two never mix: a registry package never updates a
+// service of the Owner's, nor the other way round (SPEC.md §7.1).
+func (m *Manager) updateSource(in *instance.Instance) *pkgspec.Package {
+	if in.Local {
+		p, err := state.LoadLocalPackage(m.Lab.Paths, in.Package)
+		if err != nil {
+			return nil // removed from the list since: nothing newer
+		}
+		return p
+	}
+	if m.RegistryIndex == nil || m.IsLocal(in.Package) {
+		return nil
+	}
+	ix, err := m.RegistryIndex()
+	if err != nil || ix == nil {
+		return nil
+	}
+	file, err := os.ReadFile(m.Lab.Paths.LabPackageFile(in.Package, in.Version))
+	if err != nil || !ix.Updates(in.Package, in.Version, file) {
+		return nil
+	}
+	p, err := state.LoadCatalogPackage(m.Lab.Paths, in.Package)
+	if err != nil {
+		return nil
+	}
+	return p
+}
+
+// newRisks are what a newer version of one of the Owner's own packages
+// asks for that the installed one didn't (pkgspec.Package.Risks): only
+// the Owner can accept them, as when installing, and such an update never
+// applies by itself.
+func newRisks(old, p *pkgspec.Package) []string {
+	had := map[string]bool{}
+	for _, r := range old.Risks() {
+		had[r] = true
+	}
+	var out []string
+	for _, r := range p.Risks() {
+		if !had[r] {
+			out = append(out, r)
+		}
 	}
 	return out
 }
@@ -355,8 +405,10 @@ func (m *Manager) SetUpdatePolicy(ctx context.Context, name, policy string) erro
 }
 
 // UpdateService starts updating a service to version to (the offered
-// one) in the background. by names who asked, for the log.
-func (m *Manager) UpdateService(ctx context.Context, name, to, by string) error {
+// one) in the background. by names who asked, for the log; acceptRisks
+// says the Owner accepted what a newer version of their own package asks
+// for (Update.NewRisks).
+func (m *Manager) UpdateService(ctx context.Context, name, to, by string, acceptRisks bool) error {
 	u := m.AvailableUpdates(ctx)[name]
 	switch {
 	case u == nil:
@@ -368,6 +420,11 @@ func (m *Manager) UpdateService(ctx context.Context, name, to, by string) error 
 		return formErrorf("The update on offer has changed to %s: have a look, then update again.", u.ToApp())
 	case u.Blocked != "":
 		return formErrorf("%s", u.Blocked)
+	case len(u.NewRisks) > 0 && !acceptRisks:
+		return formErrorf("%s %s asks for things the version it runs didn't. Read them, and tick the box if you want to update anyway.", u.Title, u.ToApp())
+	case len(u.NewRisks) > 0:
+		m.Log.Warn("updating to a package of your own with new risks, as the Owner confirmed",
+			"service", name, "version", to, "risks", u.NewRisks)
 	}
 	return m.startUpdate(u, "Update now, by "+by, false, by, true)
 }
@@ -485,9 +542,9 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 		err = fmt.Errorf("Roostack can't reach %s's server", u.Title)
 		return rec
 	}
-	p, perr := state.LoadCatalogPackage(m.Lab.Paths, old.Instance.Package)
-	if perr != nil || p.Version != u.To {
-		err = cmp.Or(perr, fmt.Errorf("the service registry no longer offers %s", u.ToApp()))
+	p := m.updateSource(old.Instance)
+	if p == nil || p.Version != u.To {
+		err = fmt.Errorf("%s %s isn't on offer any more", u.Title, u.ToApp())
 		return rec
 	}
 	newIn, dropped, ierr := updatedInstance(old.Instance, old.Package, p)

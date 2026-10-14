@@ -83,7 +83,8 @@ func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
 	// Installed packages with a newer version: the service page has the
 	// update (SPEC.md §7.1), by package.
 	updates := map[string]*manager.Update{}
-	for _, u := range s.Manager.AvailableUpdates(r.Context()) {
+	avail := s.Manager.AvailableUpdates(r.Context())
+	for _, u := range avail {
 		if updates[u.Package] == nil || u.Service < updates[u.Package].Service {
 			updates[u.Package] = u
 		}
@@ -96,6 +97,16 @@ func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
 				data["Added"] = it.Title
 			}
 		}
+		// Services installed from an older version of it can update now
+		// (SPEC.md §7.1).
+		var using []*manager.Update
+		for _, u := range avail {
+			if u.Local && u.Package == added {
+				using = append(using, u)
+			}
+		}
+		slices.SortFunc(using, func(a, b *manager.Update) int { return strings.Compare(a.Title, b.Title) })
+		data["AddedUpdates"] = using
 	}
 	// Arrived from installing one that needs a newer Roostack (pkg).
 	if needs := r.URL.Query().Get("needs"); needs != "" {

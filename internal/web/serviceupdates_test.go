@@ -18,13 +18,16 @@ import (
 func (f *fakeManager) AvailableUpdates(context.Context) map[string]*manager.Update {
 	return f.svcUpdates
 }
-func (f *fakeManager) UpdateService(_ context.Context, name, to, by string) error {
+func (f *fakeManager) UpdateService(_ context.Context, name, to, by string, acceptRisks bool) error {
 	u := f.svcUpdates[name]
 	if u == nil {
 		return manager.ErrNotFound
 	}
 	if u.To != to {
 		return &manager.FormError{Msg: "The update on offer has changed."}
+	}
+	if len(u.NewRisks) > 0 && !acceptRisks {
+		return &manager.FormError{Msg: "Tick the box."}
 	}
 	f.svcUpdated = append(f.svcUpdated, name+" "+to+" by "+by)
 	return nil
@@ -190,5 +193,36 @@ func TestLastUpdateShown(t *testing.T) {
 	failed.Finished = time.Now()
 	if !lastUpdateShown(failed, nil) {
 		t.Error("recent with nothing on offer: shown")
+	}
+}
+
+// A newer version of the Owner's own package that asks for more lists
+// what, and only the Owner can accept it; an Admin is told so.
+func TestServiceUpdateNewRisks(t *testing.T) {
+	ups := map[string]*manager.Update{"vaultwarden": {Service: "vaultwarden", Title: "Vaultwarden", Package: "vaultwarden",
+		From: "1.34.3-roostack.1", To: "1.34.4-roostack.1", Kind: pkgspec.UpdatePatch, Policy: "notify", Local: true,
+		NewRisks: []string{"containers.app.image: pin the image by digest"}}}
+	h, fm := loggedIn(t, auth.RoleOwner)
+	h.server.Services, fm.svcUpdates = updateServices, ups
+	_, body := h.get("/services/vaultwarden")
+	for _, want := range []string{"nobody has reviewed it", "1.34.4 asks for things the version it runs didn",
+		"containers.app.image: pin the image by digest", `name="accept_risks" required`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("owner page missing %q", want)
+		}
+	}
+	h.post("/services/vaultwarden/update", url.Values{"to": {"1.34.4-roostack.1"}, "accept_risks": {"on"}}, h.srv.URL)
+	if len(fm.svcUpdated) != 1 {
+		t.Errorf("the Owner accepted: %v", fm.svcUpdated)
+	}
+
+	ha, fa := loggedIn(t, auth.RoleAdmin)
+	ha.server.Services, fa.svcUpdates = updateServices, ups
+	_, body = ha.get("/services/vaultwarden")
+	if !strings.Contains(body, "Only the Owner can update it") || strings.Contains(body, `action="/services/vaultwarden/update"`) {
+		t.Error("an admin can't accept the risks")
+	}
+	if code, _ := ha.post("/services/vaultwarden/update", url.Values{"to": {"1.34.4-roostack.1"}, "accept_risks": {"on"}}, ha.srv.URL); code != http.StatusBadRequest {
+		t.Errorf("an admin's accept doesn't count: %d", code)
 	}
 }

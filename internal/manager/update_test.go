@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
@@ -119,6 +121,104 @@ func waitUpdated(t *testing.T, m *Manager, name string) {
 	m.Wait()
 }
 
+// updateSetup gives the manager a running maintenance coordinator,
+// backups that run jobs after them, and services whose health is bad
+// for the version *bad points at.
+func updateSetup(t *testing.T, m *Manager) (*chainBackups, *string) {
+	t.Helper()
+	m.Settings = linkKV{}
+	healthWait, healthStable, healthEvery, statusEvery = 2*time.Second, 100*time.Millisecond, 10*time.Millisecond, 10*time.Millisecond
+	failedFor = 100 * time.Millisecond
+	t.Cleanup(func() {
+		healthWait, healthStable, healthEvery, statusEvery = 5*time.Minute, time.Minute, 5*time.Second, 2*time.Second
+		failedFor = 30 * time.Second
+	})
+	local := m.Node.(*node.Local)
+	coord := &maintenance.Coordinator{Policy: maintenance.DefaultPolicy(), Now: time.Now,
+		Journal: maintenance.FileJournal{Path: filepath.Join(t.TempDir(), "journal.json")},
+		Ticks:   make(chan time.Time), Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	cctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go coord.Run(cctx)
+	backups := &chainBackups{coord: coord}
+	local.Jobs.Coord, local.Jobs.Backups = coord, backups
+	bad := new(string)
+	m.Node = &healthNode{Local: local, m: m, healthy: func(v string) bool { return v != *bad }}
+	return backups, bad
+}
+
+// withVersion is a package file with another version.
+func withVersion(t *testing.T, data []byte, version string) []byte {
+	t.Helper()
+	re := regexp.MustCompile(`(?m)^version: \S+`)
+	if !re.Match(data) {
+		t.Fatal("no version line")
+	}
+	return re.ReplaceAll(data, []byte("version: "+version))
+}
+
+// A service from one of the Owner's own packages updates to the version
+// of it the Owner added last, never to the registry's; one asking for
+// more than before needs the Owner to accept it, and never updates by
+// itself (SPEC.md §7.1).
+func TestLocalPackageUpdate(t *testing.T) {
+	m, _ := newManager(t)
+	ctx := context.Background()
+	updateSetup(t, m)
+	data, icon := pkgtest.Read(t, "forgejo"), forgejoIcon(t)
+	if _, err := m.AddLocalPackage(data, icon); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Install(ctx, "forgejo", forgejoRequest()); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	if len(m.AvailableUpdates(ctx)) != 0 {
+		t.Fatal("nothing newer yet")
+	}
+	if _, err := m.AddLocalPackage(withVersion(t, data, "15.0.10-roostack.1"), icon); err != nil {
+		t.Fatal(err)
+	}
+	u := m.AvailableUpdates(ctx)["forgejo"]
+	if u == nil || !u.Local || u.To != "15.0.10-roostack.1" || u.Kind != pkgspec.UpdatePatch || len(u.NewRisks) != 0 {
+		t.Fatalf("update: %+v", u)
+	}
+	if err := m.UpdateService(ctx, "forgejo", u.To, "alice", false); err != nil {
+		t.Fatal(err)
+	}
+	waitUpdated(t, m, "forgejo")
+	in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo"))
+	if rec := m.LastUpdate(ctx, "forgejo"); in.Version != "15.0.10-roostack.1" || !in.Local || rec.Result != UpdateDone {
+		t.Fatalf("updated: %s local=%v %+v", in.Version, in.Local, rec)
+	}
+
+	// A newer one with an unpinned image: the Owner must accept it.
+	if _, err := m.AddLocalPackage(unpinned(withVersion(t, data, "15.0.11-roostack.1")), icon); err != nil {
+		t.Fatal(err)
+	}
+	m.SetUpdatePolicy(ctx, "forgejo", "all")
+	u = m.AvailableUpdates(ctx)["forgejo"]
+	if u == nil || len(u.NewRisks) != 1 || !strings.Contains(u.NewRisks[0], "image: pin") || u.Auto {
+		t.Fatalf("new risks: %+v", u)
+	}
+	wantFormError(t, m.UpdateService(ctx, "forgejo", u.To, "alice", false), "tick the box")
+	if err := m.UpdateService(ctx, "forgejo", u.To, "alice", true); err != nil {
+		t.Fatal(err)
+	}
+	waitUpdated(t, m, "forgejo")
+	if in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo")); in.Version != "15.0.11-roostack.1" || !in.Local {
+		t.Fatalf("accepted: %s", in.Version)
+	}
+
+	// Removed from the list: nothing newer to offer.
+	if err := m.RemoveLocalPackage("forgejo"); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.AvailableUpdates(ctx)) != 0 {
+		t.Error("no package, no update")
+	}
+}
+
 // An update backs up, holds the server's maintenance, switches the
 // version and checks it; one that doesn't work goes back, isn't offered
 // automatically again, and the previous package file is still there.
@@ -162,10 +262,10 @@ func TestServiceUpdate(t *testing.T) {
 	if u == nil || u.To != "1.34.4-roostack.1" || u.Kind != pkgspec.UpdatePatch || u.Auto || !u.NoBackups || u.Policy != "notify" {
 		t.Fatalf("update: %+v", u)
 	}
-	if err := m.UpdateService(ctx, "vaultwarden", "1.34.9-roostack.1", "alice"); err == nil {
+	if err := m.UpdateService(ctx, "vaultwarden", "1.34.9-roostack.1", "alice", false); err == nil {
 		t.Error("a version not on offer is refused")
 	}
-	if err := m.UpdateService(ctx, "vaultwarden", u.To, "alice"); err != nil {
+	if err := m.UpdateService(ctx, "vaultwarden", u.To, "alice", false); err != nil {
 		t.Fatal(err)
 	}
 	waitUpdated(t, m, "vaultwarden")
@@ -200,7 +300,7 @@ func TestServiceUpdate(t *testing.T) {
 	if u == nil || u.Kind != pkgspec.UpdateMinor || !u.Auto || u.NoBackups {
 		t.Fatalf("a minor update with policy minor and backups: %+v", u)
 	}
-	if err := m.UpdateService(ctx, "vaultwarden", u.To, "alice"); err != nil {
+	if err := m.UpdateService(ctx, "vaultwarden", u.To, "alice", false); err != nil {
 		t.Fatal(err)
 	}
 	waitUpdated(t, m, "vaultwarden")

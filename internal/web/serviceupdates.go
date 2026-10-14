@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
 )
 
@@ -17,8 +18,9 @@ type ServiceUpdates interface {
 	// AvailableUpdates are by service name; services with none are left out.
 	AvailableUpdates(ctx context.Context) map[string]*manager.Update
 	// UpdateService starts updating a service to version to, in the
-	// background; by is who asked.
-	UpdateService(ctx context.Context, name, to, by string) error
+	// background; by is who asked. acceptRisks: the Owner accepted what a
+	// newer version of their own package asks for.
+	UpdateService(ctx context.Context, name, to, by string, acceptRisks bool) error
 	// Updating is a service's update queued or in progress (nil if none).
 	Updating(name string) *manager.ServiceUpdate
 	// LastUpdate is a service's last update (nil if none).
@@ -165,7 +167,10 @@ func (s *Server) updateSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name, to := r.PathValue("name"), r.FormValue("to")
-	err := s.Manager.UpdateService(r.Context(), name, to, currentUser(r).Username)
+	// Only the Owner accepts what a package of their own asks for, as when
+	// installing (SPEC.md §8.3.4).
+	accept := r.FormValue("accept_risks") == "on" && auth.Can(currentUser(r).Role, auth.ManageHost)
+	err := s.Manager.UpdateService(r.Context(), name, to, currentUser(r).Username, accept)
 	if errors.Is(err, manager.ErrNotFound) {
 		http.NotFound(w, r)
 		return
