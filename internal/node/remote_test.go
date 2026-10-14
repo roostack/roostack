@@ -126,6 +126,8 @@ func servers(t *testing.T) (ctrl, node labnet.Identity, lab config.Lab) {
 	lab = config.Default()
 	lab.Domain = "lab.example.com"
 	lab.Paths.CatalogDir = t.TempDir()
+	// The lab's copies of its packages go here (SPEC.md §8.3.1).
+	lab.Paths.StateDir = t.TempDir()
 	data, _ := os.ReadFile(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
 	os.MkdirAll(filepath.Dir(lab.Paths.PackageFile("vaultwarden")), 0o755)
 	os.WriteFile(lab.Paths.PackageFile("vaultwarden"), data, 0o644)
@@ -309,7 +311,12 @@ func mustTLS(t *testing.T, id labnet.Identity, peer string) *tls.Config {
 
 func loadVaultwarden(t *testing.T, lab config.Lab) []state.Service {
 	t.Helper()
-	p, err := pkgspec.Load(lab.Paths.PackageFile("vaultwarden"))
+	// As the controller does: the lab's copy of the catalog's package.
+	cat, err := pkgspec.Load(lab.Paths.PackageFile("vaultwarden"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := state.LoadPackage(lab.Paths, "vaultwarden", cat.Version)
 	if err != nil {
 		t.Fatal(err)
 	}

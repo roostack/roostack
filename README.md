@@ -21,12 +21,13 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the details.
 |---|---|
 | `/var/lib/roostack/lab.yaml` | Lab settings: domain, DNS provider, paths |
 | `/var/lib/roostack/services/<name>.yaml` | Your installed services and their settings |
+| `/var/lib/roostack/packages/<name>/<version>.yaml` | The package file each installed service runs from, copied from the catalog at install |
 | `/srv/roostack/services/<name>/` | Each service's data |
 | `/srv/roostack/media/<name>/` | Large data (photos, videos); can be a separate disk |
 | `/var/lib/roostack/home/.config/containers/systemd/` | Generated Quadlet files (`roostack-*`) |
 | `/var/lib/roostack/caddy/` | Generated Caddy config |
 | `/var/lib/roostack/cloud/` | The lab's link to Roostack Cloud, if it has one (the controller only): its key and certificate, and a log of its requests |
-| `/usr/share/roostack/catalog/` | Package definitions shipped with Roostack |
+| `/usr/share/roostack/catalog/` | Package definitions shipped with Roostack: what can be installed |
 
 All of these can be changed in `lab.yaml`. The defaults are in [internal/config/config.go](internal/config/config.go).
 

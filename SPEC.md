@@ -557,13 +557,16 @@ Any package can be installed more than once (two Forgejos at different addresses
 - Packages carry no facts about the project itself (licence, website, source, maker, icon). The website's Services page keeps them by hand (`site/src/data/services.ts` in the roostack-cloud repository).
 - Nodes already receive their services' package files from the controller over the lab API (`node/wire.go`), so only the controller needs to know where packages come from.
 
-#### 8.3.1 The lab keeps the packages it uses — Locked (2026-10-13), a prerequisite
+#### 8.3.1 The lab keeps the packages it uses — Locked (2026-10-13), as built (2026-10-14)
 
 Whatever else is chosen: when a service is installed or updated, the controller **copies the exact package file into the lab's desired state** (e.g. `/var/lib/roostack/packages/<name>/<version>.yaml`), and generation reads that copy, not the catalog. It is backed up with the lab and replicated like the instance files.
 
 - **Why:** a restore then needs nothing but the backup (principle 1); a newer catalog never changes a running service behind the Owner's back; local and community packages (below) work the same way as official ones; and the Owner can see exactly what is running (principle 4).
 - The catalog becomes only *what can be installed*; the lab's copy is *what is installed*. Copies no service uses are deleted.
 - **Considered:** keeping every past version in each release's catalog (grows forever, and still fails for packages that didn't come from a release).
+- **As built (2026-10-14):** the copy is `/var/lib/roostack/packages/<name>/<version>.yaml` (`config.Paths.LabPackageFile`), the catalog's file byte for byte, 0644 (it isn't secret, and people can read what runs). `state.KeepPackage` writes it when a service is installed, before its instance file; whatever changes a service's version later (§7 updates, 8.3.8) must call it too. `state.LoadServices`, the manager's view of an installed service and the assignment sent to other servers all read the lab's copy; the catalog is read only to list and install packages. After each apply the controller deletes copies no service uses (`state.PrunePackages`), keeping those of services waiting to be restored. A package's `version` is now limited to letters, digits and `._+-` (up to 64), since it names a file.
+  - **Backed up and replicated:** the copies are under the state folder, which the lab's backup already holds whole (`backup.LabPlan`), so they come back with a restore like the instance files; other servers get each package file inside their assignment, as before, now read from the lab's copy. Nothing else keeps instance files, so nothing else was needed.
+  - **Labs from before:** a service whose version has no copy yet gets one from the catalog the first time it's loaded, if the catalog has that version; otherwise loading it fails with an error naming the missing file.
 
 #### 8.3.2 Where definitions live — Locked (2026-10-13): their own Git repository, from the start
 

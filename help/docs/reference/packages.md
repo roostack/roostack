@@ -5,8 +5,13 @@ data lives, its databases, its web address and its settings. Roostack
 generates everything else from it (the containers' units, the web server
 config, secrets, folders and the backup plan).
 
-Packages live in `/usr/share/roostack/catalog/<name>/package.yaml`. The
-format is still settling (`schema: roostack/v1alpha1`).
+The packages you can install live in
+`/usr/share/roostack/catalog/<name>/package.yaml`. When you install one,
+Roostack copies its file into the lab, as
+`/var/lib/roostack/packages/<name>/<version>.yaml`, and the service runs
+from that copy: a newer Roostack with a newer package doesn't change it
+behind your back, and it's in the lab's backups, so a restore needs nothing
+else. The format is still settling (`schema: roostack/v1alpha1`).
 
 ## An example
 
@@ -67,6 +72,11 @@ routes:
 ```
 
 ## The parts
+
+`version`
+:   The app's own version and the package's revision, such as
+    `1.34.3-roostack.1`. It names the lab's copy of the file, so it's
+    letters, digits, dots, dashes, underscores and plus signs.
 
 `settings`
 :   What people choose, at install and later. `type` is `bool`, `string`,
