@@ -10,21 +10,56 @@
     {{else}}{{notice "info" "Roostack is getting the list of services from the service registry. Reload the page in a minute."}}{{end}}
     {{end}}
   {{end}}
-  {{if or (not .Registry) .Registry.On}}
-  <ul class="services">
+  {{with .Added}}{{notice "ok" (printf "Added %s. It's in the list below, marked Your own." .)}}{{end}}
+  {{with .Needs}}{{notice "warn" (printf "%s needs a newer Roostack (%s or newer), so it can't be installed yet. It can be once Roostack is updated." .Title .NeedsRoostack)}}{{end}}
+  {{if or (not .Registry) .Registry.On .Items}}
+  {{/* Search and category filters, as people type (Alpine): every word
+       typed must be in the service's name, description, categories or
+       keywords. Without scripts they stay hidden and everything shows. */}}
+  <div x-data="{ q: '', cat: '', match(el) { return (this.cat === '' || el.dataset.categories.split(' ').includes(this.cat)) && this.q.toLowerCase().split(/\s+/).every(w => el.dataset.search.includes(w)) } }">
+  {{if .Items}}
+  <div class="catalog-filter" hidden x-bind:hidden="false">
+    <label><span class="sr-only">Search services</span><input type="search" x-model="q" placeholder="Search: photos, Git, passwords…" autocomplete="off"></label>
+    {{with .Categories}}<div class="filter-chips" role="group" aria-label="Categories">
+      <button type="button" x-on:click="cat = ''" x-bind:aria-pressed="cat === ''">All</button>
+      {{- range .}}
+      <button type="button" data-key="{{.Key}}" x-on:click="cat = $el.dataset.key" x-bind:aria-pressed="cat === $el.dataset.key">{{.Title}}</button>
+      {{- end}}
+    </div>{{end}}
+  </div>
+  {{end}}
+  <ul class="services" x-ref="list">
     {{range .Items}}
-    <li class="card service">
-      <div>
+    <li class="card offer" data-categories="{{.CategoryKeys}}" data-search="{{.Search}}" x-show="match($el)">
+      {{logo .IconURL .DrawnIcon}}
+      <div class="offer-text">
         <h2>{{.Title}}</h2>
+        {{- if .Local}}{{badge "Your own" "warn"}}{{else if eq .Tier "official"}}{{badge "Official"}}{{else if eq .Tier "community"}}{{badge "Community" "warn"}}{{end}}
+        {{- if .Installed}}{{badge "Installed" "ok"}}{{end}}
         <p class="hint">{{.Description}}</p>
+        {{with .CategoryTitles}}<p class="offer-categories">{{.}}</p>{{end}}
       </div>
-      {{if .Installed}}<span>{{badge "Installed"}} <a class="button secondary" href="/install/{{.Name}}">Add another…</a></span>
-      {{else}}<a class="button" href="/install/{{.Name}}">Install</a>{{end}}
+      <div class="offer-action">
+      {{- if and .Local $.IsOwner}}{{confirm (printf "/catalog/%s/remove" .Name) (printf "Remove %s from the list? Services you've installed from it keep running as they are." .Title) "Remove" "quiet danger"}}{{end}}
+      {{- if .NeedsRoostack}}<p class="offer-later">Needs a newer Roostack: {{.NeedsRoostack}} or newer.{{if $.IsOwner}} <a href="/settings/updates#registry">Details</a>{{end}}</p>
+      {{- else if .Installed}}<a class="button secondary" href="/install/{{.Name}}">Add another…</a>
+      {{- else}}<a class="button" href="/install/{{.Name}}">Install</a>{{end}}
+      </div>
     </li>
     {{else}}
     {{if or (not $.Registry) $.Registry.Status.Serial}}<li class="card">The catalog is empty.</li>{{end}}
     {{end}}
   </ul>
+  {{if .Items}}<p class="hint" hidden x-bind:hidden="[...$refs.list.children].some(el => match(el))">No services match. <button type="button" class="quiet" x-on:click="q = ''; cat = ''">Show all</button></p>{{end}}
+  </div>
+  {{end}}
+  {{/* The Owner's own packages (SPEC.md §8.3.4): only the Owner adds them. */}}
+  {{if .IsOwner}}
+  <div class="card">
+    <h2>Add your own</h2>
+    <p class="hint">A package file you wrote, or got from someone you trust. Roostack checks it's valid; nobody reviews it.</p>
+    <a class="button secondary" href="/catalog/add">Add a package…</a>
+  </div>
   {{end}}
 </section>
 {{end}}

@@ -112,3 +112,27 @@ func TestRelinkWithRecoveryKey(t *testing.T) {
 		t.Errorf("an unlinked lab relinked: %+v", st)
 	}
 }
+
+// A roost.ac name stops counting as the lab's address once the lab uses
+// its own domain (found on VM3, 2026-10-13: pages still showed the name,
+// and unlinking would have dropped the own domain); the same name keeps.
+func TestLabDomain(t *testing.T) {
+	f, s, _ := fakeCloud(t)
+	link(t, f, s, "")
+	s.mu.Lock()
+	s.st.Name, s.st.Address = "smiths", "smiths.roost.test"
+	s.mu.Unlock()
+	s.LabDomain("Smiths.roost.test")
+	if s.Status().Address != "smiths.roost.test" {
+		t.Error("the lab's own roost.ac address was dropped")
+	}
+	dropped := 0
+	s.Dropped = func(context.Context) { dropped++ }
+	s.LabDomain("lab.example.com")
+	if st := s.Status(); st.Address != "" || st.Name != "smiths" {
+		t.Errorf("after choosing an own domain: %+v", st)
+	}
+	if _, err := s.Unlink(context.Background()); err != nil || dropped != 0 {
+		t.Errorf("unlinking dropped the own domain: %v, %d", err, dropped)
+	}
+}

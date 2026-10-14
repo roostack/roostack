@@ -2,11 +2,15 @@ package generate
 
 import (
 	"fmt"
+	"maps"
+	"path/filepath"
+	"slices"
 	"time"
 
 	"roostack.cloud/roostack/internal/caddy"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/errpage"
 	"roostack.cloud/roostack/internal/quadlet"
 )
 
@@ -148,7 +152,13 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 		mc.OldDomain, mc.OldDNSDirective = old.Domain, oldDirective
 		mc.OldAdminHost = config.Lab{Domain: old.Domain, DNS: old.DNS}.UIHost()
 	}
-	out.Dirs = []string{lab.Paths.CaddyDataDir(), lab.Paths.CaddySitesDir()}
+	out.Dirs = []string{lab.Paths.CaddyDataDir(), lab.Paths.CaddySitesDir(), filepath.Join(lab.Paths.CaddyDir(), "errors")}
+	// The services' error pages (SPEC.md §6.3), which Caddy's handle_errors
+	// serves from caddy.ErrorPagesDir.
+	pages := errpage.CaddyPages(lab.DisplayName(), "https://"+lab.UIHost())
+	for _, name := range slices.Sorted(maps.Keys(pages)) {
+		out.Files = append(out.Files, File{Name: filepath.Join(lab.Paths.CaddyDir(), "errors", name), Content: pages[name]})
+	}
 	out.Units = []string{CaddyUnit + ".service"}
 	if public {
 		mc.CrowdSecAPI = fmt.Sprintf("http://%s:%d", CaddyHostLoopback, config.CrowdSecPort)

@@ -141,7 +141,7 @@ func serve(args []string) error {
 	// The lab's other servers (SPEC.md §10), reached over its network.
 	fleet := &node.Fleet{Self: labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, Lab: lab, Log: log,
 		List: st.Servers}
-	mgr := &manager.Manager{Lab: lab, Log: log, Node: local, Activity: local.Activity,
+	mgr := &manager.Manager{Lab: lab, Log: log, Version: version, Node: local, Activity: local.Activity,
 		Others: func() []manager.RemoteServer {
 			var out []manager.RemoteServer
 			for _, r := range fleet.Remotes() {
@@ -163,6 +163,7 @@ func serve(args []string) error {
 			return err
 		}
 		srv.Cloud = link
+		link.LabDomain(lab.Domain)
 		// The recovery key's identity, for restoring and relinking.
 		link.RecoveryKey = func() (string, error) {
 			data, err := os.ReadFile(backup.KeyFile(lab.Paths))
@@ -511,7 +512,7 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 	withdrawn := mgr.Withdrawals(ctx)
 	var views []web.ServiceView
 	for _, s := range all {
-		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Status: "unknown"}
+		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Status: "unknown", Local: s.Instance.Local}
 		if info, ok := infos[s.Name()]; ok {
 			v.ServiceDetail, v.Status, v.Server, v.LastBackup = info.ServiceDetail, info.Status, info.Server, info.LastBackup
 		}
