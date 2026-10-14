@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en" data-palette="teal" data-mode="dark" data-dir="d" data-page="home">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sidebar re-work · mock-ups</title>
+  <!-- Open through a web server at the repo root (python3 -m http.server)
+       so the real tokens and themes load. -->
+  <link rel="stylesheet" href="../../../internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/ocean.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/catppuccin.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/gruvbox.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/nord.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/solarized.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/everforest.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/rose-pine.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/tokyo-night.css">
+  <link rel="stylesheet" href="mock.css">
+  <script>
+    // Read the choices from the address before the page is drawn.
+    const q = new URLSearchParams(location.search), h = document.documentElement;
+    for (const [k, a] of [["d", "dir"], ["p", "page"], ["m", "mode"], ["t", "palette"]]) if (q.get(k)) h.dataset[a] = q.get(k);
+    if (q.has("embed")) h.classList.add("embed");
+  </script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></symbol>
+    <symbol id="i-services" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></symbol>
+    <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></symbol>
+    <symbol id="i-manage" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c2.8 0 5 2.2 5 5"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></symbol>
+    <symbol id="i-photo" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-5 4 4 2.5-2.5L20 17"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M16 7l2 2M14 9l2 2"/></symbol>
+    <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></symbol>
+    <symbol id="i-branch" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-11 7"/></symbol>
+    <symbol id="i-house" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><circle cx="12" cy="14" r="2"/></symbol>
+    <symbol id="i-board" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/><path d="M5.5 8h1.5M11 8h2M11 11h2M17 8h1.5"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.6-4.5L3 9M4 13a8 8 0 0 0 14.6 4.5L21 15"/><path d="M3 4v5h5M21 20v-5h-5"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 8.5 4.75 4.75 0 0 1 17.5 18z"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m10 7 5 5-5 5"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-out" viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/></symbol>
+    <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-disk" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="brand" viewBox="0 0 64 64"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></symbol>
+  </defs>
+</svg>
+
+<div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+
+<div class="app">
+  <!-- ===== The lab's sidebar ===== -->
+  <aside class="side side-lab" aria-label="Roostack">
+    <a class="side-head lab-switch" href="#" data-go="home">
+      <svg class="brand-mark"><use href="#brand"/></svg>
+      <span class="stack"><span>Roostack</span><strong title="Smiths' lab">Smiths' lab</strong></span>
+    </a>
+    <nav class="nav-group" aria-label="Your lab">
+      <a class="nav-item" href="#" data-go="home" data-nav="home"><svg class="i"><use href="#i-home"/></svg>Home</a>
+      <a class="nav-item" href="#" data-go="service" data-nav="service"><svg class="i"><use href="#i-services"/></svg>Services</a>
+      <div class="nav-sub" data-sub="service"><a href="#">Photos</a><a href="#">Passwords</a><a href="#">Films</a><a href="#">Git</a><a href="#">Smart home</a><a href="#">Boards</a><a href="#">Add a service…</a></div>
+      <a class="nav-item" href="#" data-go="backups" data-nav="backups"><svg class="i"><use href="#i-archive"/></svg>Backups</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-server"/></svg>Servers<span class="count" title="1 needs attention">1</span></a>
+    </nav>
+    <nav class="nav-group" aria-label="Settings">
+      <span class="eyebrow">Settings</span>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-globe"/></svg>Domain and network</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-users"/></svg>People</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-refresh"/></svg>Updates</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-cloud"/></svg>Roostack Cloud</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-clock"/></svg>History</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-manage"/></svg>All settings</a>
+    </nav>
+    <div class="side-foot">
+      <div class="side-tools">
+        <a href="#"><svg class="i sm"><use href="#i-help"/></svg>Help</a>
+        <button type="button" data-toggle-mode><svg class="i sm"><use href="#i-moon"/></svg>Dark</button>
+      </div>
+      <div class="who"><span class="avatar">T</span><span class="stack">tom<span>Owner</span></span><svg class="i sm"><use href="#i-logout"/></svg></div>
+    </div>
+  </aside>
+
+  <!-- ===== Roostack Cloud's admin console sidebar ===== -->
+  <aside class="side side-admin" aria-label="Roostack Cloud admin">
+    <a class="side-head lab-switch" href="#">
+      <svg class="brand-mark"><use href="#brand"/></svg>
+      <span class="stack"><span>Roostack Cloud</span><strong>Admin console</strong></span>
+    </a>
+    <nav class="nav-group" aria-label="Admin">
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-pulse"/></svg>Status</a>
+      <a class="nav-item" href="#" aria-current="page"><svg class="i"><use href="#i-users"/></svg>Accounts</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-globe"/></svg>Labs and names</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-server"/></svg>Edges</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-flag"/></svg>Abuse<span class="count">2</span></a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-receipt"/></svg>Billing</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-clock"/></svg>Audit log</a>
+    </nav>
+    <div class="side-foot">
+      <div class="side-tools"><span class="env"><svg class="i sm"><use href="#i-lock"/></svg>test · over WireGuard</span></div>
+      <div class="who"><span class="avatar">T</span><span class="stack">tom@…<span>Owner · two-factor</span></span><svg class="i sm"><use href="#i-logout"/></svg></div>
+    </div>
+  </aside>
+
+  <div class="main">
+
+  <!-- ================= HOME ================= -->
+  <section class="pg" data-pg="home">
+    <header class="top">
+      <button class="menu-btn" type="button" data-menu aria-label="Menu"><svg class="i"><use href="#i-menu"/></svg></button>
+      <nav class="crumbs" aria-label="Where you are"><strong>Home</strong></nav>
+      <span class="spacer"></span>
+      <div class="search hide-phone"><svg class="i sm"><use href="#i-search"/></svg>Find a service, server or setting<kbd>/</kbd></div>
+    </header>
+    <main class="page">
+      <div class="page-head">
+        <div>
+          <h1>Good evening. <span class="grad">Everything's running.</span></h1>
+          <p class="lede">6 services on 3 servers. Backed up last night at 3:02 am; next tonight at 3:00 am.</p>
+        </div>
+        <div class="actions"><a class="btn" href="#">Add a service</a></div>
+      </div>
+
+      <div class="notice warn">
+        <svg class="i"><use href="#i-warn"/></svg>
+        <div class="grow"><strong>mum-and-dad needs a restart to finish its updates.</strong>
+          <span class="muted small">It restarts by itself in tonight's quiet hours (2–5 am). Passwords and Boards will be away for about a minute.</span></div>
+        <a class="btn secondary sm" href="#">Restart now…</a>
+      </div>
+
+      <!-- Direction A: figures, then tables -->
+      <div class="only-a" style="gap: var(--space-4)">
+        <div class="stats">
+          <div class="card stat"><span class="l">Services</span><span class="v">6 <small>running</small></span><span class="s muted">1 updating, 1 installing</span></div>
+          <div class="card stat"><span class="l">Servers</span><span class="v">3 <small>online</small></span><span class="s" style="color:var(--warn)">1 needs a restart</span></div>
+          <div class="card stat"><span class="l">Last backup</span><span class="v">3:02 <small>am</small></span><span class="s muted">All 3 copies, all servers</span></div>
+          <div class="card stat"><span class="l">Disk space</span><span class="v">1.55 <small>of 2.58 TB used</small></span><span class="s muted">Most on nuc (media)</span></div>
+        </div>
+        <div class="grid">
+          <section class="card span-12">
+            <div class="card-head"><h2>Services</h2><a class="more" href="#">All services</a></div>
+            <div class="table-wrap"><table class="list">
+              <thead><tr><th>Service</th><th>Status</th><th class="hide-phone">Address</th><th class="hide-phone">Runs on</th><th class="hide-phone">Backed up</th><th><span class="sr">Actions</span></th></tr></thead>
+              <tbody>
+                <tr><td><span class="name"><span class="ic"><svg class="i"><use href="#i-photo"/></svg></span><span>Photos<small>Immich</small></span></span></td><td><span class="pill ok">Running</span></td><td class="hide-phone"><a href="#">photos.smith.family</a></td><td class="hide-phone">nuc</td><td class="hide-phone num">3:02 am</td><td><a class="btn quiet sm" href="#" data-go="service">Manage</a></td></tr>
+                <tr><td><span class="name"><span class="ic"><svg class="i"><use href="#i-key"/></svg></span><span>Passwords<small>Vaultwarden</small></span></span></td><td><span class="pill ok">Running</span></td><td class="hide-phone"><a href="#">vault.smith.family</a></td><td class="hide-phone">mum-and-dad</td><td class="hide-phone num">3:05 am</td><td><a class="btn quiet sm" href="#">Manage</a></td></tr>
+                <tr><td><span class="name"><span class="ic"><svg class="i"><use href="#i-film"/></svg></span><span>Films<small>Jellyfin</small></span></span></td><td><span class="pill ok">Running</span></td><td class="hide-phone"><a href="#">films.smith.family</a></td><td class="hide-phone">nuc</td><td class="hide-phone num">3:02 am</td><td><a class="btn quiet sm" href="#">Manage</a></td></tr>
+                <tr><td><span class="name"><span class="ic"><svg class="i"><use href="#i-branch"/></svg></span><span>Git<small>Forgejo</small></span></span></td><td><span class="pill ok">Running</span> <span class="pill hl nodot hide-phone">Public</span></td><td class="hide-phone"><a href="#">git.smith.family</a></td><td class="hide-phone">cloud-box</td><td class="hide-phone num">3:10 am</td><td><a class="btn quiet sm" href="#">Manage</a></td></tr>
+                <tr><td><span class="name"><span class="ic"><svg class="i"><use href="#i-house"/></svg></span><span>Smart home<small>Home Assistant</small></span></span></td><td><span class="pill warn">Updating</span></td><td class="hide-phone"><a href="#">home.smith.family</a></td><td class="hide-phone">nuc</td><td class="hide-phone num">3:02 am</td><td><a class="btn quiet sm" href="#">Manage</a></td></tr>
+                <tr><td><span class="name"><span class="ic"><svg class="i"><use href="#i-board"/></svg></span><span>Boards<small>Planka</small></span></span></td><td><span class="pill info">Installing · 3 of 5</span></td><td class="hide-phone muted">boards.smith.family</td><td class="hide-phone">mum-and-dad</td><td class="hide-phone muted">Not yet</td><td><a class="btn quiet sm" href="#">Manage</a></td></tr>
+              </tbody>
+            </table></div>
+          </section>
+          <section class="card span-4 a-activity">
+            <div class="card-head"><h2>Recent activity</h2><a class="more" href="#">History</a></div>
+            <ul class="rows">
+              <li><span class="dot warn"></span><span class="grow">Updating Smart home to 2026.10.2<small>nuc · started 7:41 pm</small></span><time>7:41 pm</time></li>
+              <li><span class="dot ok"></span><span class="grow">Installing Boards<small>mum-and-dad · step 3 of 5, getting its image</small></span><time>7:38 pm</time></li>
+              <li><span class="dot ok"></span><span class="grow">Backed up all servers<small>3 copies each · 1.3 GB new</small></span><time>3:02 am</time></li>
+              <li><span class="dot warn"></span><span class="grow">OS updates installed on mum-and-dad<small>A restart finishes them</small></span><time>2:20 am</time></li>
+              <li><span class="dot ok"></span><span class="grow">Films updated to Jellyfin 10.11.2</span><time>Mon</time></li>
+            </ul>
+          </section>
+          <section class="card span-8 a-servers">
+            <div class="card-head"><h2>Servers</h2><a class="more" href="#">Manage servers</a></div>
+            <div class="table-wrap"><table class="list">
+              <thead><tr><th>Server</th><th>State</th><th class="hide-phone">Services</th><th class="hide-phone">Backed up</th><th class="hide-phone" style="width:30%">Disk</th><th><span class="sr">Actions</span></th></tr></thead>
+              <tbody>
+                <tr><td><span class="name"><span class="ic hl"><svg class="i"><use href="#i-server"/></svg></span><span>nuc<small>At home · runs the lab · this server</small></span></span></td><td><span class="pill ok">Up to date</span></td><td class="hide-phone">Photos, Films, Smart home</td><td class="hide-phone num">3:02 am</td><td class="hide-phone"><div class="space" title="1.21 of 2 TB"><span style="width:19%"></span><span style="width:40%"></span><span style="width:2%"></span></div><div class="space-key"><span>1.21 of 2 TB</span></div></td><td><a class="btn quiet sm" href="#">Settings</a></td></tr>
+                <tr><td><span class="name"><span class="ic"><svg class="i"><use href="#i-server"/></svg></span><span>mum-and-dad<small>At Mum and Dad's</small></span></span></td><td><span class="pill warn">Needs a restart</span></td><td class="hide-phone">Passwords, Boards</td><td class="hide-phone num">3:05 am</td><td class="hide-phone"><div class="space"><span style="width:12%"></span><span style="width:0%"></span><span style="width:50%"></span></div><div class="space-key"><span>312 of 500 GB</span></div></td><td><a class="btn quiet sm" href="#">Settings</a></td></tr>
+                <tr><td><span class="name"><span class="ic"><svg class="i"><use href="#i-cloud"/></svg></span><span>cloud-box<small>A cloud server</small></span></span></td><td><span class="pill ok">Up to date</span></td><td class="hide-phone">Git</td><td class="hide-phone num">3:10 am</td><td class="hide-phone"><div class="space"><span style="width:26%"></span></div><div class="space-key"><span>21 of 80 GB</span></div></td><td><a class="btn quiet sm" href="#">Settings</a></td></tr>
+              </tbody>
+            </table></div>
+          </section>
+        </div>
+      </div>
+
+      <!-- Directions B and C: tiles of different sizes -->
+      <div class="only-bc grid">
+        <section class="card span-8 feature">
+          <div class="card-head"><h2><svg class="i"><use href="#i-services"/></svg>Services</h2><a class="more" href="#">All services</a></div>
+          <div class="svc-grid">
+            <a class="svc" href="#" data-go="service"><span class="ic"><svg class="i"><use href="#i-photo"/></svg></span><strong>Photos</strong><small>photos.smith.family</small><span class="pill ok">Running</span></a>
+            <a class="svc" href="#"><span class="ic"><svg class="i"><use href="#i-key"/></svg></span><strong>Passwords</strong><small>vault.smith.family</small><span class="pill ok">Running</span></a>
+            <a class="svc" href="#"><span class="ic"><svg class="i"><use href="#i-film"/></svg></span><strong>Films</strong><small>films.smith.family</small><span class="pill ok">Running</span></a>
+            <a class="svc" href="#"><span class="ic"><svg class="i"><use href="#i-branch"/></svg></span><strong>Git <span class="pill hl nodot">Public</span></strong><small>git.smith.family</small><span class="pill ok">Running</span></a>
+            <a class="svc" href="#"><span class="ic"><svg class="i"><use href="#i-house"/></svg></span><strong>Smart home</strong><small>home.smith.family</small><span class="pill warn">Updating to 2026.10.2</span></a>
+            <a class="svc" href="#"><span class="ic"><svg class="i"><use href="#i-board"/></svg></span><strong>Boards</strong><small>Getting its image · step 3 of 5</small><span class="steps" aria-hidden="true"><i class="done"></i><i class="done"></i><i class="now"></i><i></i><i></i></span></a>
+          </div>
+        </section>
+        <section class="card span-4">
+          <div class="card-head"><h2><svg class="i"><use href="#i-archive"/></svg>Backups</h2><a class="more" href="#" data-go="backups">Backups</a></div>
+          <div class="big">3:02<small>am, last night</small></div>
+          <p class="muted small" style="margin-top:8px">Every server, all 3 copies. 1.3 GB new. Next tonight at 3:00 am.</p>
+          <div class="rule" style="margin-top: var(--space-4)"><span class="pill ok">3 copies</span><span class="pill ok">2 kinds of storage</span><span class="pill ok">1 away from home</span></div>
+        </section>
+        <section class="card span-7">
+          <div class="card-head"><h2><svg class="i"><use href="#i-server"/></svg>Servers</h2><a class="more" href="#">Manage servers</a></div>
+          <div class="srv"><div class="srv-head"><strong>nuc</strong><span class="pill hl nodot">Runs the lab</span><span class="muted">At home · Photos, Films, Smart home</span><span class="pill ok">Up to date</span></div>
+            <div class="space"><span style="width:19%"></span><span style="width:40%"></span><span style="width:2%"></span></div>
+            <div class="space-key"><span><i style="background:var(--chart-1)"></i>Services 380 GB</span><span><i style="background:var(--chart-2)"></i>Media 790 GB</span><span><i style="background:var(--chart-3)"></i>Backups 40 GB</span><span>1.21 of 2 TB</span></div></div>
+          <div class="srv"><div class="srv-head"><strong>mum-and-dad</strong><span class="muted">At Mum and Dad's · Passwords, Boards</span><span class="pill warn">Needs a restart</span></div>
+            <div class="space"><span style="width:12%"></span><span style="width:0%"></span><span style="width:50%"></span></div>
+            <div class="space-key"><span>312 of 500 GB · most of it backups from home</span></div></div>
+          <div class="srv"><div class="srv-head"><strong>cloud-box</strong><span class="muted">A cloud server · Git</span><span class="pill ok">Up to date</span></div>
+            <div class="space"><span style="width:26%"></span></div>
+            <div class="space-key"><span>21 of 80 GB</span></div></div>
+        </section>
+        <section class="card span-5">
+          <div class="card-head"><h2><svg class="i"><use href="#i-clock"/></svg>Recent activity</h2><a class="more" href="#">History</a></div>
+          <ul class="rows">
+            <li><span class="dot warn"></span><span class="grow">Updating Smart home to 2026.10.2<small>nuc</small></span><time>7:41 pm</time></li>
+            <li><span class="dot ok"></span><span class="grow">Installing Boards<small>mum-and-dad · getting its image</small></span><time>7:38 pm</time></li>
+            <li><span class="dot ok"></span><span class="grow">Backed up all servers<small>1.3 GB new</small></span><time>3:02 am</time></li>
+            <li><span class="dot warn"></span><span class="grow">OS updates installed on mum-and-dad<small>A restart finishes them</small></span><time>2:20 am</time></li>
+          </ul>
+        </section>
+      </div>
+    </main>
+  </section>
+
+  <!-- ================= SERVICE ================= -->
+  <section class="pg" data-pg="service">
+    <header class="top">
+      <button class="menu-btn" type="button" data-menu aria-label="Menu"><svg class="i"><use href="#i-menu"/></svg></button>
+      <nav class="crumbs" aria-label="Where you are"><a href="#" data-go="home">Services</a><svg class="i sm"><use href="#i-right"/></svg><strong>Photos</strong></nav>
+      <span class="spacer"></span>
+      <a class="btn quiet sm hide-phone" href="#"><svg class="i sm"><use href="#i-help"/></svg>Change a service</a>
+    </header>
+    <main class="page">
+      <div class="page-head">
+        <span class="ic lg"><svg class="i"><use href="#i-photo"/></svg></span>
+        <div>
+          <h1 style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">Photos <span class="pill ok">Running</span></h1>
+          <p class="lede">Immich 2.1.0 · keeps your photos and videos, with face and place search.</p>
+        </div>
+        <div class="actions">
+          <label class="switch"><input type="checkbox" aria-label="Show the technical view"><span class="f">Friendly</span><span class="t">Technical</span></label>
+          <a class="btn" href="#">Open Photos <svg class="i sm"><use href="#i-out"/></svg></a>
+        </div>
+      </div>
+
+      <div class="grid friendly-only">
+        <section class="card span-8">
+          <div class="card-head"><h2>How to reach it</h2></div>
+          <dl class="facts">
+            <dt>Address</dt><dd><a href="#">photos.smith.family</a></dd>
+            <dt>Reachable from</dt><dd>Your home network, and your devices through Roostack Cloud · <a href="#">Make public…</a></dd>
+            <dt>Runs on</dt><dd>nuc, at home · <a href="#">Move to another server…</a></dd>
+            <dt>Version</dt><dd>Immich 2.1.0, up to date · updates when you approve them</dd>
+          </dl>
+        </section>
+        <section class="card span-4">
+          <div class="card-head"><h2>Backups</h2><a class="more" href="#" data-go="backups">Backups</a></div>
+          <div class="big" style="font-size:2.2rem">3:02<small>am, last night</small></div>
+          <p class="muted small" style="margin-top:6px">182 GB, on all 3 copies.</p>
+          <p style="margin-top: var(--space-3)"><a class="btn secondary sm" href="#">Restore Photos…</a></p>
+        </section>
+        <section class="card span-8">
+          <div class="card-head"><h2>Settings</h2></div>
+          <dl class="facts">
+            <dt>Face recognition</dt><dd>On · uses the graphics chip in nuc</dd>
+            <dt>Storage</dt><dd>Media disk (<code>/srv/roostack/media</code>) · 790 GB free</dd>
+            <dt>Extra connections</dt><dd>None · <a href="#">Add one…</a></dd>
+          </dl>
+          <p style="margin-top: var(--space-4)"><a class="btn secondary sm" href="#">Change settings</a></p>
+        </section>
+        <section class="card span-4">
+          <div class="card-head"><h2>Actions</h2></div>
+          <ul class="rows">
+            <li><span class="grow">Reset a user's password<small>For someone locked out of Photos</small></span><svg class="i sm"><use href="#i-right"/></svg></li>
+            <li><span class="grow">Restart Photos</span><svg class="i sm"><use href="#i-right"/></svg></li>
+            <li><span class="grow" style="color:var(--bad)">Remove Photos…</span><svg class="i sm"><use href="#i-right"/></svg></li>
+          </ul>
+        </section>
+        <section class="card span-12">
+          <div class="card-head"><h2>About Immich</h2></div>
+          <p class="muted">Made by the Immich team · licence AGPL-3.0 · <a href="#">Website</a> · <a href="#">Source</a> · <a href="#">Support</a></p>
+        </section>
+      </div>
+
+      <div class="grid technical-only">
+        <section class="span-7 code">
+          <div class="bar"><svg class="i sm"><use href="#i-file"/></svg>~/.config/containers/systemd/roostack-immich-server.container<a class="btn quiet sm" href="#">Copy</a></div>
+<pre><code><span class="c"># Generated by Roostack. Do not edit: changes will be overwritten.</span>
+<span class="k">[Unit]</span>
+Description=Roostack immich: server
+Requires=roostack-immich-db-main.service
+After=roostack-immich-db-main.service
+
+<span class="k">[Container]</span>
+ContainerName=roostack-immich-server
+Image=ghcr.io/immich-app/immich-server:v2.1.0@sha256:72a9b9de…
+Network=roostack-immich.network
+PublishPort=127.0.0.1:20002:2283
+Secret=roostack-immich-db-main-password,type=env,target=DB_PASSWORD
+Volume=/srv/roostack/media/immich/library:/data
+AddDevice=/dev/dri
+Label=io.roostack.service=immich</code></pre>
+        </section>
+        <div class="span-5" style="display:grid;gap:var(--space-4);align-content:start">
+          <section class="code">
+            <div class="bar"><svg class="i sm"><use href="#i-file"/></svg>/var/lib/roostack/caddy/sites/immich.caddy</div>
+<pre><code><span class="c"># Generated by Roostack for service "immich".</span>
+@immich-web host photos.smith.family
+handle @immich-web {
+	reverse_proxy 127.0.0.1:20002
+}</code></pre>
+          </section>
+          <section class="code">
+            <div class="bar"><span class="p">$</span> systemctl --user status roostack-immich-server</div>
+<pre><code><span class="ok">● active (running)</span> since Sun 03:06; 2 days ago
+  Memory: 1.1G   CPU: 42min</code></pre>
+          </section>
+          <section class="card">
+            <div class="card-head"><h2>Where its data lives</h2></div>
+            <dl class="facts small">
+              <dt>Library</dt><dd><code>/srv/roostack/media/immich/library</code></dd>
+              <dt>Database</dt><dd><code>/srv/roostack/services/immich/db-main</code></dd>
+              <dt>Log</dt><dd><code>journalctl --user -u 'roostack-immich-*'</code></dd>
+            </dl>
+          </section>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <!-- ================= BACKUPS ================= -->
+  <section class="pg" data-pg="backups">
+    <header class="top">
+      <button class="menu-btn" type="button" data-menu aria-label="Menu"><svg class="i"><use href="#i-menu"/></svg></button>
+      <nav class="crumbs" aria-label="Where you are"><strong>Backups</strong></nav>
+      <span class="spacer"></span>
+      <a class="btn quiet sm hide-phone" href="#"><svg class="i sm"><use href="#i-help"/></svg>Backups and restoring</a>
+    </header>
+    <main class="page">
+      <div class="page-head">
+        <div>
+          <h1>Backups</h1>
+          <p class="lede">Each server backs up its own services, every night, encrypted with your recovery key.</p>
+        </div>
+        <div class="actions"><a class="btn secondary" href="#">Back up now</a></div>
+      </div>
+
+      <nav class="switcher" aria-label="Servers">
+        <a href="#" aria-current="true"><span class="dot ok"></span>nuc <small>3:02 am</small></a>
+        <a href="#"><span class="dot ok"></span>mum-and-dad <small>3:05 am</small></a>
+        <a href="#"><span class="dot ok"></span>cloud-box <small>3:10 am</small></a>
+      </nav>
+
+      <div class="grid">
+        <section class="card span-8 feature">
+          <div class="card-head"><h2>nuc's backup plan</h2><a class="more" href="#">Tell me more</a></div>
+          <div class="rule"><span class="pill ok">3 copies</span><span class="pill ok">2 kinds of storage</span><span class="pill ok">1 away from home</span></div>
+          <div class="copies">
+            <div class="copy"><div class="top-line"><svg class="i"><use href="#i-disk"/></svg><span class="which">Main backup</span></div><span class="where">This server's disk · at home</span><span class="pill ok" style="justify-self:start">3:02 am</span><a class="small" href="#">Manage</a></div>
+            <div class="copy"><div class="top-line"><svg class="i"><use href="#i-archive"/></svg><span class="which">Backup 2</span></div><span class="where">Backup drive (USB, 2 TB) · at home</span><span class="pill ok" style="justify-self:start">3:24 am</span><a class="small" href="#">Manage</a></div>
+            <div class="copy"><div class="top-line"><svg class="i"><use href="#i-server"/></svg><span class="which">Backup 3</span></div><span class="where">mum-and-dad's disk · at Mum and Dad's</span><span class="pill ok" style="justify-self:start">3:41 am</span><a class="small" href="#">Manage</a></div>
+          </div>
+          <p style="margin-top: var(--space-4)"><a class="btn quiet sm" href="#">Add an extra backup…</a></p>
+        </section>
+        <section class="card span-4">
+          <div class="card-head"><h2>Latest run</h2></div>
+          <div class="big" style="font-size:2.4rem">3:02<small>am</small></div>
+          <dl class="facts small" style="margin-top: var(--space-4)">
+            <dt>Took</dt><dd>2 min 14 s</dd>
+            <dt>New data</dt><dd>1.3 GB</dd>
+            <dt>Backed up</dt><dd>Photos, Films, Smart home, the lab's settings</dd>
+            <dt>Next</dt><dd>Tonight at 3:00 am</dd>
+          </dl>
+          <p style="margin-top: var(--space-3)"><a class="small" href="#">Show the log</a></p>
+        </section>
+
+        <h2 class="span-12 eyebrow" style="margin-top: var(--space-3)">Your whole lab</h2>
+        <section class="card span-7">
+          <div class="card-head"><h2>Restoring</h2></div>
+          <p class="muted small" style="margin-bottom: var(--space-3)">Put a service back as it was on a night you choose, onto any server.</p>
+          <div class="table-wrap"><table class="list">
+            <thead><tr><th>Service</th><th class="hide-phone">On</th><th>Latest backup</th><th><span class="sr">Actions</span></th></tr></thead>
+            <tbody>
+              <tr><td><span class="name"><span class="ic"><svg class="i"><use href="#i-photo"/></svg></span>Photos</span></td><td class="hide-phone">nuc</td><td class="num">3:02 am · 182 GB</td><td><a class="btn quiet sm" href="#">Restore…</a></td></tr>
+              <tr><td><span class="name"><span class="ic"><svg class="i"><use href="#i-key"/></svg></span>Passwords</span></td><td class="hide-phone">mum-and-dad</td><td class="num">3:05 am · 48 MB</td><td><a class="btn quiet sm" href="#">Restore…</a></td></tr>
+              <tr><td><span class="name"><span class="ic"><svg class="i"><use href="#i-film"/></svg></span>Films</span></td><td class="hide-phone">nuc</td><td class="num">3:02 am · 2.1 GB</td><td><a class="btn quiet sm" href="#">Restore…</a></td></tr>
+              <tr><td><span class="name"><span class="ic"><svg class="i"><use href="#i-branch"/></svg></span>Git</span></td><td class="hide-phone">cloud-box</td><td class="num">3:10 am · 1.4 GB</td><td><a class="btn quiet sm" href="#">Restore…</a></td></tr>
+            </tbody>
+          </table></div>
+        </section>
+        <div class="span-5" style="display:grid;gap:var(--space-4);align-content:start">
+          <section class="card">
+            <div class="card-head"><h2>Storage at other labs</h2></div>
+            <p class="muted small">The Joneses' lab gives yours 200 GB.</p>
+            <div class="space" style="margin-top: var(--space-3)"><span style="width:42%"></span></div>
+            <div class="space-key"><span>84 of 200 GB used</span></div>
+          </section>
+          <section class="card">
+            <div class="card-head"><h2>Recovery key</h2></div>
+            <p class="muted small">Opens every backup, even without Roostack. Keep it somewhere safe, away from your servers.</p>
+            <p style="margin-top: var(--space-3); display:flex; gap: var(--space-2); flex-wrap: wrap"><a class="btn secondary sm" href="#">Show recovery key…</a><a class="btn quiet sm" href="#">Change it…</a></p>
+          </section>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <!-- ================= CLOUD ADMIN ================= -->
+  <section class="pg" data-pg="admin">
+    <header class="top">
+      <button class="menu-btn" type="button" data-menu aria-label="Menu"><svg class="i"><use href="#i-menu"/></svg></button>
+      <nav class="crumbs" aria-label="Where you are"><strong>Accounts</strong></nav>
+      <span class="spacer"></span>
+      <span class="env hide-phone">test · roostack.dev</span>
+    </header>
+    <main class="page">
+      <div class="page-head">
+        <div><h1>Accounts</h1><p class="lede">412 accounts · 37 pilots · 2 suspended</p></div>
+        <div class="actions"><div class="field"><svg class="i sm"><use href="#i-search"/></svg>Email, account or lab name</div></div>
+      </div>
+      <nav class="chips" aria-label="Show"><a href="#" aria-current="true">All</a><a href="#">Pilots</a><a href="#">Paying</a><a href="#">Suspended</a><a href="#">No lab yet</a></nav>
+      <div class="grid">
+        <section class="card span-8">
+          <div class="table-wrap" style="margin-top: calc(var(--space-5) * -1)"><table class="list">
+            <thead><tr><th>Account</th><th class="hide-phone">Plan</th><th class="hide-phone">Labs</th><th class="hide-phone">Relay this month</th><th class="hide-phone">Two-factor</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr class="sel"><td><span class="name"><span>jo@example.com<small>acct_k3m9… · since 7 Oct 2026</small></span></span></td><td class="hide-phone">Pilot</td><td class="hide-phone num">2</td><td class="hide-phone num">128 GB</td><td class="hide-phone">On</td><td><span class="pill ok">Active</span></td></tr>
+              <tr><td><span class="name"><span>sam@example.net<small>acct_8fq2… · since 2 Oct 2026</small></span></span></td><td class="hide-phone">Free</td><td class="hide-phone num">1</td><td class="hide-phone num">–</td><td class="hide-phone">On</td><td><span class="pill ok">Active</span></td></tr>
+              <tr><td><span class="name"><span>priya@example.org<small>acct_2wd7… · since 29 Sep 2026</small></span></span></td><td class="hide-phone">Pilot</td><td class="hide-phone num">1</td><td class="hide-phone num">41 GB</td><td class="hide-phone">On</td><td><span class="pill ok">Active</span></td></tr>
+              <tr><td><span class="name"><span>alex@example.com<small>acct_v0ph… · since 21 Sep 2026</small></span></span></td><td class="hide-phone">Free</td><td class="hide-phone num">0</td><td class="hide-phone num">–</td><td class="hide-phone">On</td><td><span class="pill plain">No lab yet</span></td></tr>
+              <tr><td><span class="name"><span>lee@example.net<small>acct_q7ra… · since 18 Sep 2026</small></span></span></td><td class="hide-phone">Pilot</td><td class="hide-phone num">1</td><td class="hide-phone num">3 GB</td><td class="hide-phone">On</td><td><span class="pill bad">Suspended</span></td></tr>
+              <tr><td><span class="name"><span>mo@example.org<small>acct_c1zt… · since 11 Sep 2026</small></span></span></td><td class="hide-phone">Free</td><td class="hide-phone num">1</td><td class="hide-phone num">–</td><td class="hide-phone">On</td><td><span class="pill ok">Active</span></td></tr>
+            </tbody>
+          </table></div>
+        </section>
+        <section class="card span-4">
+          <div class="card-head"><h2>jo@example.com</h2><a class="more" href="#">Open</a></div>
+          <dl class="facts small">
+            <dt>Billing user</dt><dd>jo@example.com · verified 7 Oct</dd>
+            <dt>Members</dt><dd>1</dd>
+            <dt>Grants</dt><dd>Pilot · relay 500 GB · storage 200 GB</dd>
+            <dt>Labs</dt><dd>Smiths' lab (smiths.roost.ac) · Mum and Dad (rosehill.roost.ac)</dd>
+            <dt>Last contact</dt><dd>09:41 today</dd>
+          </dl>
+          <p class="muted small" style="margin-top: var(--space-4)">Opening an account is recorded in the audit log.</p>
+        </section>
+      </div>
+    </main>
+  </section>
+
+  </div>
+</div>
+
+<nav class="tabbar" aria-label="Your lab">
+  <a href="#" data-go="home" data-nav="home"><svg class="i"><use href="#i-home"/></svg>Home</a>
+  <a href="#" data-go="service" data-nav="service"><svg class="i"><use href="#i-services"/></svg>Services</a>
+  <a href="#" data-go="backups" data-nav="backups"><svg class="i"><use href="#i-archive"/></svg>Backups</a>
+  <a href="#"><svg class="i"><use href="#i-server"/></svg>Servers</a>
+  <a href="#" data-menu><svg class="i"><use href="#i-menu"/></svg>More</a>
+</nav>
+
+<!-- The mock-up's controls -->
+<div class="mock-bar" role="toolbar" aria-label="Mock-up controls">
+  <span class="lbl">Direction</span>
+  <button data-set="dir" value="a">A Console</button><button data-set="dir" value="b">B Night rail</button><button data-set="dir" value="c">C Glass roost</button><button data-set="dir" value="d">D Console glass</button>
+  <span class="lbl">Page</span>
+  <select data-select="page"><option value="home">Home</option><option value="service">A service</option><option value="backups">Backups</option><option value="admin">Cloud admin</option></select>
+  <button data-set="mode" value="light">Light</button><button data-set="mode" value="dark">Dark</button>
+  <select data-select="palette"><option value="teal">Teal and violet</option><option value="ocean">Ocean and magenta</option><option value="catppuccin">Catppuccin</option><option value="gruvbox">Gruvbox</option><option value="nord">Nord</option><option value="solarized">Solarized</option><option value="everforest">Everforest</option><option value="rose-pine">Rosé Pine</option><option value="tokyo-night">Tokyo Night</option></select>
+  <button data-phone>Phone</button>
+</div>
+<div class="phone-stage"><iframe title="Phone width"></iframe></div>
+
+<script>
+  const html = document.documentElement;
+  const params = { dir: "d", page: "p", mode: "m", palette: "t" };
+  function sync() {
+    const u = new URL(location);
+    for (const [a, k] of Object.entries(params)) u.searchParams.set(k, html.dataset[a]);
+    u.searchParams.delete("embed");
+    history.replaceState(null, "", u);
+    document.querySelectorAll("[data-set]").forEach(b => b.setAttribute("aria-pressed", html.dataset[b.dataset.set] === b.value));
+    document.querySelectorAll("[data-select]").forEach(s => s.value = html.dataset[s.dataset.select]);
+    document.querySelectorAll("[data-nav]").forEach(a => a.toggleAttribute("aria-current", a.dataset.nav === html.dataset.page));
+    document.querySelectorAll("[data-sub]").forEach(s => s.hidden = s.dataset.sub !== html.dataset.page);
+    document.querySelectorAll("[data-toggle-mode]").forEach(b => b.lastChild.textContent = html.dataset.mode === "dark" ? "Light" : "Dark");
+    if (html.classList.contains("phone")) { u.searchParams.set("embed", "1"); document.querySelector(".phone-stage iframe").src = u; }
+  }
+  document.addEventListener("click", e => {
+    const t = e.target.closest("[data-set],[data-go],[data-menu],[data-phone],[data-toggle-mode],.phone-stage");
+    if (!t) return;
+    if (t.matches("[data-set]")) html.dataset[t.dataset.set] = t.value;
+    else if (t.matches("[data-go]")) { e.preventDefault(); html.dataset.page = t.dataset.go; document.body.classList.remove("nav-open"); scrollTo(0, 0); }
+    else if (t.matches("[data-menu]")) { e.preventDefault(); document.body.classList.toggle("nav-open"); return; }
+    else if (t.matches("[data-toggle-mode]")) html.dataset.mode = html.dataset.mode === "dark" ? "light" : "dark";
+    else if (t.matches("[data-phone]")) { html.classList.toggle("phone"); t.setAttribute("aria-pressed", html.classList.contains("phone")); }
+    else if (t === e.target) { html.classList.remove("phone"); }
+    sync();
+  });
+  document.addEventListener("change", e => { const s = e.target.closest("[data-select]"); if (s) { html.dataset[s.dataset.select] = s.value; sync(); } });
+  document.body.addEventListener("click", e => { if (document.body.classList.contains("nav-open") && !e.target.closest(".side,[data-menu]")) document.body.classList.remove("nav-open"); });
+  sync();
+</script>
+</body>
+</html>
