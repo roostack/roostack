@@ -3,10 +3,12 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X main.version=$(VERSION)
 
-.PHONY: build help test golden vet caddy-check
+.PHONY: build help test golden vet caddy-check check-images
 
+# Linux binaries for the machine's own architecture, or another with
+# GOARCH=arm64 (or amd64).
 build: help
-	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o bin/ ./cmd/...
+	GOOS=linux CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o bin/ ./cmd/...
 	scripts/copyright.sh > bin/copyright
 
 # The help site (SPEC.md §6.3.1), built with Zensical and embedded in the
@@ -35,3 +37,8 @@ vet:
 caddy-check:
 	test -n "$(ROOSTACK_CADDY_BIN)" || (echo "set ROOSTACK_CADDY_BIN" && exit 1)
 	ROOSTACK_CADDY_BIN=$(ROOSTACK_CADDY_BIN) go test -run TestCaddyAdapt -v ./internal/caddy/
+
+# Check every pinned image has amd64 and arm64 builds, by asking the
+# registries (ARM64-PLAN.md 1.3). Run after changing a pin.
+check-images:
+	ROOSTACK_IMAGE_CHECK=1 go test -count=1 -run TestImagesMultiArch -v ./internal/generate/

@@ -44,7 +44,7 @@ The exceptions: `roostack user …` runs as root or `roostack`, and `roostack no
 
 ## Requirements
 
-- A dedicated machine running **Debian 13** (x86_64). Ubuntu 26.04 support is planned.
+- A dedicated machine running **Debian 13**, on x86_64 or ARM64 (ARM mini PCs and cloud servers that run Debian's own images). Raspberry Pi and Ubuntu 26.04 support are planned.
 - A domain you own, with a DNS provider Roostack supports, for HTTPS certificates: Cloudflare, Amazon Route 53, Porkbun, Gandi, GoDaddy, Namecheap or Spaceship.
 
 ## Development

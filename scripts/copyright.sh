@@ -39,9 +39,10 @@ License: undecided
 HDR
 
 goroot=$(go env GOROOT)
-# Some distributions keep Go's licence outside GOROOT (Arch: /usr/share/licenses/go).
+# Some distributions keep Go's licence outside GOROOT (Arch:
+# /usr/share/licenses/go; Homebrew: the folder above GOROOT).
 golicense=""
-for f in "$goroot/LICENSE" /usr/share/licenses/go/LICENSE; do
+for f in "$goroot/LICENSE" /usr/share/licenses/go/LICENSE "$goroot/../LICENSE"; do
     [[ -f $f ]] && { golicense=$f; break; }
 done
 [[ -n $golicense ]] || { echo "copyright.sh: can't find Go's LICENSE" >&2; exit 1; }
