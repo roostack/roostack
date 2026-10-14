@@ -99,13 +99,18 @@ var gallerySections = []gallerySection{
 {{status "starting"}}
 {{status "failed"}}
 {{status "stopped"}}
-{{status "waiting"}}`},
+{{status "waiting"}}
+{{status "registry-stop"}}`},
 			{"Badges", "", `
 {{badge "Preview"}}
 {{badge "New" "highlight"}}
 {{badge "Installed" "ok"}}
 {{badge "Community" "warn"}}
 {{badge "Your own" "warn"}}`},
+			{"Tier badge", "template \"tier-badge\" with anything that has .Local and .Tier (a catalog entry, an installed service): who looks after its package. Beside the title, inside the heading.", `
+<h2>Forgejo {{template "tier-badge" .TierOfficial}}</h2>
+<h2>Paperless-ngx {{template "tier-badge" .TierCommunity}}</h2>
+<h2>My app {{template "tier-badge" .TierLocal}}</h2>`},
 			{"Logo", "logo SRC ICON: a service's logo on a light tile, the same in both modes, since projects draw their logos for light backgrounds; without one (SRC \"\"), the drawn ICON on the same tile. Decorative: the name beside it says what it is.", `
 {{logo .LogoURL ""}}
 {{logo "" "photos"}}
@@ -369,6 +374,9 @@ func renderGallery(w io.Writer, static string, standalone bool) error {
 		Maker: "a community project under Codeberg e.V., a non-profit", Licence: "GPL-3.0-or-later",
 		Website: "https://forgejo.org", Source: "https://codeberg.org/forgejo/forgejo", Support: "https://liberapay.com/forgejo"}}
 	sample["LogoURL"] = static + "apple-touch-icon.png"
+	sample["TierOfficial"] = map[string]any{"Tier": "official", "Local": false}
+	sample["TierCommunity"] = map[string]any{"Tier": "community", "Local": false}
+	sample["TierLocal"] = map[string]any{"Tier": "", "Local": true}
 	sample["PolicyProblems"] = []string{
 		"containers.web.image: pin the image by digest (name:tag@sha256:…), so every lab runs exactly the image that was reviewed.",
 		"containers.web.quadlet: Container.Volume=/home/me/scans:/consume isn't allowed: a folder from the server or a named volume is outside the service and its backups; use storage: and mounts: (an anonymous Volume=/path is allowed).",

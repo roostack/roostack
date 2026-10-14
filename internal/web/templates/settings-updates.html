@@ -100,6 +100,13 @@
         running.</small></span></label>
     <button type="submit">Save</button>
   </form>
+  <form method="post" action="/settings/updates/registry/stops">
+    <label class="check"><input type="checkbox" name="on" value="1" {{if .StopsOn}}checked{{end}}>
+      <span>Let Roostack stop a service the registry says is dangerous<small>Recommended. If a version turns out to be malicious,
+        or is being attacked with no fix yet, Roostack stops it (keeping all its data) until you update it or start it again.
+        Turned off, Roostack only warns you.</small></span></label>
+    <button type="submit">Save</button>
+  </form>
 </section>
 {{end}}
 {{end}}

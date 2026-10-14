@@ -45,6 +45,9 @@ type registryView struct {
 	// it's the project's registry.
 	CommitURL string
 	Skipped   []skippedPackage
+	// StopsOn: Roostack may stop a service the registry says is
+	// dangerous (SPEC.md §8.3.4).
+	StopsOn bool
 }
 
 type skippedPackage struct{ Name, Why string }
@@ -59,6 +62,7 @@ func (s *Server) registryView() *registryView {
 	if st.Commit != "" && v.URL == registry.DefaultURL {
 		v.CommitURL = registry.SourceRepo + "/tree/" + st.Commit
 	}
+	v.StopsOn = s.Manager == nil || s.Manager.StopsOn()
 	for _, name := range slices.Sorted(maps.Keys(st.Skipped)) {
 		v.Skipped = append(v.Skipped, skippedPackage{name, st.Skipped[name]})
 	}

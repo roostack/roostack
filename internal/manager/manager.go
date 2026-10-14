@@ -29,6 +29,7 @@ import (
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/state"
 )
 
@@ -102,6 +103,10 @@ type Manager struct {
 	// Settings are the controller's settings (store.Store): servers'
 	// locations and direct links (links.go; optional).
 	Settings KV
+	// RegistryIndex is the newest index the controller has fetched from
+	// the service registry (registry.Fetcher.Index; nil before the first),
+	// for withdrawals of installed services (withdrawals.go; optional).
+	RegistryIndex func() (*registry.Index, error)
 
 	// mu guards state changes (install/remove) and what is still to hand
 	// over to the node.
@@ -128,6 +133,20 @@ type Manager struct {
 	// (public.go); nil until first used, then read from Lab. Kept apart
 	// from Lab, which is read without the lock.
 	public *config.Public
+	// noStops is the Owner's opt-out from registry stops as changed at
+	// runtime (withdrawals.go); nil until first used, then read from Lab.
+	noStops *bool
+	// stopsKey is what the last assignment stopped (markStops), and
+	// awaiting the servers whose last backup a stop waits for.
+	stopsKey string
+	awaiting map[string]bool
+	// relayMu makes updates to Roostack Cloud's relay one at a time, so an
+	// older one can't reach Cloud after a newer one (edge.go). relayGen
+	// counts updates (under mu), so a background one gives way to any
+	// newer; relayWG is the background ones still running.
+	relayMu  sync.Mutex
+	relayGen uint64
+	relayWG  sync.WaitGroup
 }
 
 // CatalogItem is one package in the catalog.
@@ -815,11 +834,13 @@ func (m *Manager) DataDirs(name string) []string {
 	}
 }
 
-// Wait blocks until the current apply finishes (for tests and tools).
+// Wait blocks until the current apply finishes, and the relay update it
+// started (for tests and tools).
 func (m *Manager) Wait() {
 	if w, ok := m.Node.(interface{ Wait() }); ok {
 		w.Wait()
 	}
+	m.relayWG.Wait()
 }
 
 func (m *Manager) installed() (map[string]bool, error) {

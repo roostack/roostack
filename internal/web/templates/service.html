@@ -3,10 +3,54 @@
 <section class="card medium">
   <div class="page-top">{{back "/services" "Services"}}{{help "services/settings" "Change a service"}}</div>
   <div class="heading">
-    <h1>{{.Service.Title}}{{if .Service.Local}} {{badge "Your own" "warn"}}{{end}}</h1>
+    <h1>{{.Service.Title}} {{template "tier-badge" .Service}}</h1>
     {{status .Service.Status}}
   </div>
   {{with .Package}}<p class="hint">{{.Description}}</p>{{end}}
+  {{with .Withdrawal}}{{$t := $.Service.Title}}
+  {{/* The registry withdrew its version (SPEC.md §8.3.4). */}}
+  <div id="withdrawn" class="notice{{if .Stopped}} notice-error{{else if eq .Shown "warning"}} notice-warn{{end}}" role="{{if .Stopped}}alert{{else}}status{{end}}">
+    {{if .Stopped}}
+    <p><strong>Roostack stopped {{$t}} to protect your lab.</strong> The Roostack service registry says the version you have,
+      {{.Version}}, is dangerous: <em>“{{.Reason}}”</em></p>
+    <p>Everything {{$t}} keeps is still here, and so are its backups. Its addresses are off until it runs again.
+      {{- if .LastBackup}} Its database keeps running until one more backup has finished, so that the backup has everything.{{end}}</p>
+    <p><strong>What to do:</strong> wait for a fixed version, then update it{{if $.CanManage}}, or
+      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}. If you understand the risk and need it now, you can start it again.</p>
+    {{else if .StartedAnyway}}
+    <p><strong>{{$t}} is running a version the service registry says is dangerous.</strong> The registry says {{.Version}}
+      is dangerous: <em>“{{.Reason}}”</em> You started it anyway, so Roostack won't stop this version again.</p>
+    <p><strong>What to do:</strong> update it when a fixed version is out{{if $.CanManage}}, or
+      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}.</p>
+    {{else if eq .Level "stop"}}
+    <p><strong>The service registry says this version of {{$t}} is dangerous.</strong> It says {{.Version}}: <em>“{{.Reason}}”</em>
+      Roostack would stop it, but that's turned off in <a href="/settings/updates#registry">Settings → Updates</a>.</p>
+    <p><strong>What to do:</strong> update it when a fixed version is out{{if $.CanManage}}, or
+      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}.</p>
+    {{else if eq .Shown "warning"}}
+    <p><strong>This version of {{$t}} has been withdrawn.</strong> The service registry says {{.Version}} shouldn't be used:
+      <em>“{{.Reason}}”</em> It keeps running, but it can't be installed any more.</p>
+    <p><strong>What to do:</strong> update it when a fixed version is out{{if $.CanManage}}, or
+      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}.</p>
+    {{else}}
+    <p>The service registry has a notice about {{$t}} {{.Version}}: <em>“{{.Reason}}”</em></p>
+    {{end}}
+    <p>{{with .Link}}<a href="{{.}}" target="_blank" rel="noopener">Read the registry's notice{{template "new-window"}}</a> · {{end}}
+      <small class="hint">Said by the service registry{{if not .Since.IsZero}}; stopped {{when .Since}}{{end}}</small></p>
+    {{if and .Stopped $.IsOwner}}
+    <details>
+      <summary>Start {{$t}} anyway…</summary>
+      <form method="post" action="/services/{{$.Service.Name}}/start-anyway">
+        {{if .Public}}<label class="check"><input type="checkbox" name="private" value="1" checked>
+          <span>Make it private first<small>Only devices at home and on Roostack's network can reach it, not the internet.
+            Recommended: it keeps out whoever is attacking this version.</small></span></label>{{end}}
+        {{confirmSubmit (printf "Start %s anyway? The service registry says %s is dangerous: “%s” Running it could let someone into %s and what it keeps. Roostack won't stop this version again; it stays under Needs attention until you update or remove it." $t .Version .Reason $t)
+          "Start it anyway" "danger"}}
+      </form>
+    </details>
+    {{end}}
+  </div>
+  {{end}}
   {{if eq .Service.Status "waiting"}}
   {{notice "warn" (printf "%s isn't running: its server, %s, is gone. Restore it from its backups, onto any server." .Service.Title (or .Service.WasOn "a server that's gone")) (printf "link=/backups/restore/%s" .Service.Name) "linkText=Restore…"}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -66,6 +110,7 @@
   <dl class="facts">
     {{if .Service.NoAddress}}<dt>Address</dt><dd>{{template "address-waiting" $}}</dd>{{end}}
     {{range $u := .Service.URLs}}<dt>Address</dt><dd>{{if $.Service.Install}}<span class="address-pending">{{.}}</span> <small class="hint">· ready once installed</small>
+      {{- else if eq $.Service.Status "registry-stop"}}<span class="address-pending">{{.}}</span> <small class="hint">· off while it's stopped</small>
       {{- else}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a>
       {{- with $.Old}}{{with .URL $u}}<br><small class="hint">Until {{date $.Old.Until}} also at its old address, {{.}}</small>{{end}}{{end}}{{end}}</dd>{{end}}
     {{if not .Service.NoAddress}}{{range .Access}}<dt>Reachable from</dt><dd>{{if .Public}}Anyone on the internet{{else}}{{template "private-where" $.Internet}}{{end}}{{if gt (len $.Access) 1}} <small>({{.Host}})</small>{{end}}

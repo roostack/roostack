@@ -79,7 +79,7 @@ scripts/dev-vm.sh ssh 'cat /usr/bin/restic' > <scratch>/restic
 ROOSTACK_RESTIC_BIN=<scratch>/restic go test ./...
 ```
 
-**On a Mac** parts of Roostack don't build (they're Linux-only), so `make vet` and `go test` fail there: use `GOOS=linux go vet ./...`, and run the suite in the VM with `scripts/dev-vm.sh test` (it builds the test binaries on the Mac, runs them in the VM with its restic, and takes `-test.run …`).
+**On a Mac** parts of Roostack don't build (they're Linux-only), so `make vet` and `go test` fail there: use `GOOS=linux go vet ./...`, and run the suite in the VM with `scripts/dev-vm.sh test` (it builds the test binaries on the Mac, runs them in the VM with its restic, and takes `-test.run …`). Each worktree tests in its own folder in the VM (`~/test-<worktree>`, removed afterwards), so sessions can share a VM; `sync` and `install` still share `~/roostack`.
 
 ## Dev VMs
 

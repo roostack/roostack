@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -268,4 +269,68 @@ func TestRelayWayIn(t *testing.T) {
 		t.Errorf("while off: %v %+v", err, m.Countries())
 	}
 	m.Wait() // the applies above, before the test's directory goes
+}
+
+// TestRelayUpdatesInOrder: an apply's update to the relay waits its turn
+// and then sends the countries as they are, or nothing once the relay is
+// off, so it never undoes a newer change.
+func TestRelayUpdatesInOrder(t *testing.T) {
+	m, _, _, _ := setUpLinks(t)
+	ctx := context.Background()
+	m.UpdateLab = func(change func(*config.Lab)) error { change(&m.Lab); return nil }
+	var mu sync.Mutex
+	var sent []config.Countries
+	m.Relay = Relay{
+		Set: func(_ context.Context, _ []string, c config.Countries, _, _ string) error {
+			mu.Lock()
+			defer mu.Unlock()
+			sent = append(sent, c)
+			return nil
+		},
+		Stop:  func(context.Context) error { return nil },
+		Edges: func() ([]string, []string) { return []string{"100.81.0.1"}, nil },
+	}
+	if err := m.SetRelay(ctx, true); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	sends := func() []config.Countries {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(sent)
+	}
+	if got := sends(); len(got) != 2 { // SetRelay's own, then the apply's
+		t.Fatalf("turning on: %d updates", len(got))
+	}
+
+	// An apply's update held back while the countries change: it sends the new ones.
+	nz := config.Countries{Allow: []string{"NZ"}}
+	m.relayMu.Lock()
+	m.mu.Lock()
+	m.startApplyLocked()
+	m.mu.Unlock()
+	local(m).Wait()
+	m.mu.Lock()
+	m.publicLocked().Countries = nz
+	m.mu.Unlock()
+	m.relayMu.Unlock()
+	m.Wait()
+	if got := sends(); len(got) != 3 || !slices.Equal(got[2].Allow, nz.Allow) {
+		t.Errorf("held back, then countries changed: sent %+v", got)
+	}
+
+	// Held back while the relay is turned off: nothing is sent.
+	m.relayMu.Lock()
+	m.mu.Lock()
+	m.startApplyLocked()
+	m.mu.Unlock()
+	local(m).Wait()
+	m.mu.Lock()
+	m.publicLocked().Relay = false
+	m.mu.Unlock()
+	m.relayMu.Unlock()
+	m.Wait()
+	if got := sends(); len(got) != 3 {
+		t.Errorf("held back, then turned off: sent %+v", got[3:])
+	}
 }
