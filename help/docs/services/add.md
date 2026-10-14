@@ -121,7 +121,10 @@ Graphics
 Memory
 :   About how much memory it needs while it runs, adding up the parts
     that would run with your choices. It's the package's estimate, not a
-    limit: a service can use more while it's busy.
+    limit: a service can use more while it's busy. Below it, how much
+    memory the server it would run on has, and how much is free right
+    now. If the service needs more than is free, a warning says so: it may
+    be slow, or stop working. You can still install it.
 
 Under the description, the page also says who makes the app, its licence,
 and links to its website, its source code and a way to support it.
@@ -133,7 +136,10 @@ and links to its website, its source code and a way to support it.
     to the package file itself, and every file Roostack would write (its
     Quadlet units and Caddy site), exactly as
     [`roostack render`](../reference/cli.md#looking-at-packages) shows
-    them, for the choices on the form. The summary is generated
+    them, for the choices on the form. It also shows what the services
+    already on that server expect. The free memory is the server's own
+    figure (`MemAvailable` in `/proc/meminfo`), which counts what's
+    running; another server reports it over Roostack's network. The summary is generated
     (`generate.Summarize`), never written by hand, so it can't disagree
     with what's installed. Passwords on the form aren't sent for it: no
     generated file ever holds one.

@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/b2"
@@ -411,10 +412,40 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient bool) (*
 }
 
 // InstallSummary is what installing a package with these choices would
+// set up (generate.Summary), and how that compares with the memory of the
+// server it would run on.
+type InstallSummary struct {
+	*generate.Summary
+	Server ServerMemory
+}
+
+// ServerMemory is a server's memory, for the install summary (SPEC.md
+// §8.3.4): what it has, what's free now, and what the services installed
+// on it expect.
+type ServerMemory struct {
+	// Name is the server's name; This, that it's the one serving the
+	// page; Servers, how many the lab has (to suggest another).
+	Name    string
+	This    bool
+	Servers int
+	// Total and Available are the server's own figures (node.MemoryInfo);
+	// zero when it couldn't say (unreachable, say).
+	Total, Available int64
+	// Expected adds up what its installed services expect
+	// (generate.ExpectedMemory).
+	Expected int64
+}
+
+// memoryWait is how long the summary waits for a server to report its
+// memory: the page asks again whenever the form changes, so a server that
+// doesn't answer shouldn't hold it up.
+const memoryWait = 3 * time.Second
+
+// InstallSummary is what installing a package with these choices would
 // set up, for the install page to show first (SPEC.md §8.3.4). Nothing is
 // saved; the route ports are the ones Install would pick now. Secrets
 // aren't needed: the generated files never hold them.
-func (m *Manager) InstallSummary(name string, req InstallRequest) (*generate.Summary, error) {
+func (m *Manager) InstallSummary(name string, req InstallRequest) (*InstallSummary, error) {
 	p, err := m.Package(name)
 	if err != nil {
 		return nil, err
@@ -429,11 +460,37 @@ func (m *Manager) InstallSummary(name string, req InstallRequest) (*generate.Sum
 	if err != nil {
 		return nil, err
 	}
+	installed := m.onNode(services, in.Host)
 	services = append(services, state.Service{Instance: in, Package: p})
 	if _, err := state.AllocatePorts(m.onNode(services, in.Host)); err != nil {
 		return nil, err
 	}
-	return generate.Summarize(m.Lab, p, in)
+	sum, err := generate.Summarize(m.Lab, p, in)
+	if err != nil {
+		return nil, err
+	}
+	out := &InstallSummary{Summary: sum, Server: ServerMemory{Servers: 1 + len(m.others())}}
+	n := m.node(in.Host)
+	id := n.Identity()
+	out.Server.Name, out.Server.This = id.Name, id.ID == m.Lab.NodeID || in.Host == ""
+	for _, s := range installed {
+		mem, err := generate.ExpectedMemory(m.Lab, s.Package, s.Instance)
+		if err != nil {
+			m.Log.Warn("expected memory", "service", s.Name(), "err", err)
+			continue
+		}
+		out.Server.Expected += mem
+	}
+	if nm, ok := n.(node.Memory); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), memoryWait)
+		defer cancel()
+		if info, err := nm.Memory(ctx); err == nil {
+			out.Server.Total, out.Server.Available = info.Total, info.Available
+		} else {
+			m.Log.Warn("server memory", "server", id.Name, "err", err)
+		}
+	}
+	return out, nil
 }
 
 // PackageFile is the file of the package Package returns, as written, for

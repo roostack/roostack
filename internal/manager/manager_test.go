@@ -566,6 +566,11 @@ func TestInstallSummary(t *testing.T) {
 	if s.Memory != 2_750_000_000 || len(s.Addresses) != 1 || s.Addresses[0].Host != "pics.lab.example.com" {
 		t.Errorf("summary: memory %d, addresses %+v", s.Memory, s.Addresses)
 	}
+	// The server it would run on: its memory (this test's machine's), and
+	// what Vaultwarden, already there, expects.
+	if sv := s.Server; !sv.This || sv.Servers != 1 || sv.Expected != 50_000_000 || sv.Total <= 0 || sv.Available <= 0 {
+		t.Errorf("server memory = %+v", sv)
+	}
 	caddy := s.Files[len(s.Files)-1]
 	if want := fmt.Sprint(config.DefaultRoutePortMin + 1); !strings.Contains(caddy.Content, want) {
 		t.Errorf("the Caddy site should use the next free port, %s:\n%s", want, caddy.Content)
