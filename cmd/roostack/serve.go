@@ -508,7 +508,7 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 	infos := mgr.ServiceInfos(ctx)
 	var views []web.ServiceView
 	for _, s := range all {
-		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Status: "unknown", Local: s.Instance.Local}
+		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Status: "unknown", Package: s.Package.Name, Local: s.Instance.Local}
 		if info, ok := infos[s.Name()]; ok {
 			v.ServiceDetail, v.Status, v.Server, v.LastBackup = info.ServiceDetail, info.Status, info.Server, info.LastBackup
 		}

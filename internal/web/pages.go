@@ -71,6 +71,25 @@ func navTab(page string) string {
 	return ""
 }
 
+// withTiers sets each service's Tier from the service registry's index
+// (SPEC.md §8.3.4): the registry's say now, so a package that becomes
+// Official shows as Official. The Owner's own packages have none.
+func (s *Server) withTiers(services []ServiceView) {
+	if s.Registry == nil {
+		return
+	}
+	listing, err := s.Registry.Listing()
+	if err != nil {
+		s.Log.Warn("reading the service registry's index", "err", err)
+		return
+	}
+	for i := range services {
+		if l, ok := listing[services[i].Package]; ok && !services[i].Local && l.Package != nil {
+			services[i].Tier = l.Tier
+		}
+	}
+}
+
 // pageData collects what most pages show, for the current user.
 func (s *Server) pageData(r *http.Request) (map[string]any, error) {
 	u := currentUser(r)
@@ -78,6 +97,7 @@ func (s *Server) pageData(r *http.Request) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.withTiers(services)
 	return map[string]any{
 		"User":      u,
 		"Services":  services,

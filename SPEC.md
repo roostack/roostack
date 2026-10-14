@@ -627,11 +627,13 @@ Whatever else is chosen: when a service is installed or updated, the controller 
 
 #### 8.3.4 Trust and review — Locked (2026-10-13): three tiers; a package policy of risky lines; the policy, the install summary and your own packages as built (2026-10-14)
 
-**Tiers**, shown as a badge on the catalog and the service page:
+**Tiers**, shown as a badge on the catalog and the service page (as built 2026-10-15, below the tiers):
 
 - **Official:** maintained by the Roostack project, reviewed, and tested on a real lab for each Roostack release (install, backup, restore, update, remove).
 - **Community — a fast follow** (the Owner, 2026-10-13): opened soon after the registry starts with official packages, not before 1.0 is needed. In the registry, written and maintained by its author, reviewed against the checklist below before each version is published, but not tested by Roostack for each release. The UI says who maintains it and when it was last reviewed.
 - **Your own (local):** a package file the Owner adds themselves ("custom services", §8). Never fetched or reviewed; installing one shows a plain warning that Roostack hasn't checked it. It still has to validate, and it's kept in the lab like any other (8.3.1). This is how a contributor tests a package before submitting it (8.3.7).
+
+**Tier badges — as built (2026-10-15).** **Official**, **Community** or **Your own** beside a service's name on the catalog, the Services list and the service's page (the `tier-badge` component, one template for all three). For an installed service the registry's tier is read from the index the lab has now, by package name (a second copy too), so it follows the registry: a package that becomes Official shows as Official, and one the registry no longer lists shows none. Your own comes from the instance (`local: true`, above) and wins over a registry package of the same name. Considered: recording the tier at install, like `local` (stable, but stale once the registry changes it). Not built yet: who maintains a Community package and when it was last reviewed, and the tier text ("Roostack checked how this is set up; the app itself is made by …").
 
 **What a package may do is enforced by Roostack, not only by reviewers.** Registry packages (both tiers) are checked against a **package policy** in `pkgspec`:
 
