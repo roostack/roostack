@@ -22,7 +22,9 @@ const (
 	DefaultHomeDir     = "/var/lib/roostack/home"
 	DefaultServicesDir = "/srv/roostack/services"
 	DefaultMediaDir    = "/srv/roostack/media"
-	// DefaultCatalogDir holds official packages shipped with Roostack.
+	// DefaultCatalogDir holds the packages that can be installed: until
+	// labs fetch the registry, a snapshot of it shipped with Roostack
+	// (SPEC.md §8.3.3).
 	DefaultCatalogDir = "/usr/share/roostack/catalog"
 	// DefaultUIPort is where the roostack web UI listens on the host.
 	DefaultUIPort = 8480
@@ -46,7 +48,7 @@ type Paths struct {
 	HomeDir     string `yaml:"home_dir"`     // home of the roostack user
 	ServicesDir string `yaml:"services_dir"` // per-service data (bind mounts)
 	MediaDir    string `yaml:"media_dir"`    // large data, e.g. a separate disk
-	CatalogDir  string `yaml:"catalog_dir"`  // packages: <name>/package.yaml
+	CatalogDir  string `yaml:"catalog_dir"`  // packages: <name>/<version>.yaml
 }
 
 // QuadletDir is where rootless Quadlet files for the roostack user live.
@@ -57,11 +59,15 @@ func (p Paths) QuadletDir() string {
 // LabFile is the lab-wide config file.
 func (p Paths) LabFile() string { return filepath.Join(p.StateDir, "lab.yaml") }
 
-// PackageFile is where a catalog package is defined. The catalog is only
-// what can be installed; installed services use the lab's own copy
-// (LabPackageFile).
-func (p Paths) PackageFile(name string) string {
-	return filepath.Join(p.CatalogDir, name, "package.yaml")
+// CatalogPackageDir is a package's folder in the catalog, laid out as in
+// the registry: a file per version, icon.png and registry.yaml (SPEC.md
+// §8.3.3). The catalog is only what can be installed; installed services
+// use the lab's own copy (LabPackageFile).
+func (p Paths) CatalogPackageDir(name string) string { return filepath.Join(p.CatalogDir, name) }
+
+// CatalogPackageFile is one version of a package in the catalog.
+func (p Paths) CatalogPackageFile(name, version string) string {
+	return filepath.Join(p.CatalogPackageDir(name), version+".yaml")
 }
 
 // PackagesDir holds the lab's copy of the package file of every version

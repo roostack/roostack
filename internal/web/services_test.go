@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -27,6 +26,7 @@ import (
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
@@ -443,7 +443,7 @@ func (f *fakeManager) Package(name string) (*pkgspec.Package, error) {
 	if name != "immich" && name != "vaultwarden" && name != "forgejo" {
 		return nil, manager.ErrNotFound
 	}
-	return pkgspec.Load(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
+	return pkgspec.Load(pkgtest.File(name))
 }
 
 func (f *fakeManager) ServicePackage(name string) (*pkgspec.Package, error) { return f.Package(name) }

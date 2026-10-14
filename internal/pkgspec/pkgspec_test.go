@@ -4,14 +4,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"roostack.cloud/roostack/internal/pkgtest"
 )
 
-// The reference examples must always parse, so they stay in sync with the
-// code, and follow the package policy, as registry packages will.
-func TestExamplesParse(t *testing.T) {
-	for _, name := range []string{"vaultwarden", "forgejo", "immich"} {
+// The package fixtures, copies of registry packages, must always parse, so
+// they stay in sync with the code, and follow the package policy, as
+// registry packages do.
+func TestFixturesParse(t *testing.T) {
+	for _, name := range pkgtest.Names {
 		t.Run(name, func(t *testing.T) {
-			p, err := Load(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
+			p, err := Load(pkgtest.File(name))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -20,6 +23,9 @@ func TestExamplesParse(t *testing.T) {
 			}
 			if problems := p.Policy(); len(problems) > 0 {
 				t.Errorf("breaks the package policy: %v", problems)
+			}
+			if err := p.CheckIcon(filepath.Dir(pkgtest.File(name))); err != nil {
+				t.Error(err)
 			}
 		})
 	}
@@ -142,6 +148,132 @@ title: App
 version: "1"
 containers:
   web: { image: x, quadlet: { Bogus: { A: b } } }`, `section "Bogus" not allowed`},
+		{"memory unit", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+containers:
+  web: { image: x, memory: 300M }`, `containers.web.memory: "300M" must be a number and MB or GB`},
+		{"sqlite memory", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+storage:
+  data: { class: critical }
+containers:
+  web: { image: x }
+databases:
+  main: { type: sqlite, path: data/db.sqlite, memory: 10 MB }`, "image, memory and quadlet are not allowed"},
+		{"database memory", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+containers:
+  web: { image: x }
+databases:
+  main: { type: postgres, memory: lots }`, `databases.main.memory: "lots"`},
+		{"http address", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+about: { website: "http://example.org" }
+containers:
+  web: { image: x }`, `about.website: "http://example.org" must be an https:// address`},
+		{"licence expression", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+about: { licence: "MIT OR" }
+containers:
+  web: { image: x }`, `about.licence: "MIT OR" isn't an SPDX licence expression`},
+		{"closed with a source", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+about: { licence: closed, source: "https://example.org/src" }
+containers:
+  web: { image: x }`, "about.source: a closed-source app has no published source"},
+		{"icon in another folder", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+about: { icon: ../other/icon.png }
+containers:
+  web: { image: x }`, "must be the name of a .png file beside the package file"},
+		{"icon not a png", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+about: { icon: icon.svg }
+containers:
+  web: { image: x }`, "about.icon:"},
+		{"unknown category", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+about: { categories: [photos, games] }
+containers:
+  web: { image: x }`, `about.categories[1]: "games" must be one of photos, media`},
+		{"too many categories", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+about: { categories: [photos, media, home, network] }
+containers:
+  web: { image: x }`, "about.categories: at most 3"},
+		{"category twice", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+about: { categories: [photos, photos] }
+containers:
+  web: { image: x }`, `about.categories[1]: "photos" is listed twice`},
+		{"keyword twice", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+about: { keywords: [git, Git] }
+containers:
+  web: { image: x }`, `about.keywords[1]: "Git" is listed twice`},
+		{"requires a release", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+requires: { roostack: "v0.6" }
+containers:
+  web: { image: x }`, `requires.roostack: "v0.6" must be a Roostack release`},
+		{"upgrade note without text", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "2"
+upgrade_notes:
+  - { version: "2" }
+containers:
+  web: { image: x }`, "upgrade_notes[0].note: required"},
+		{"two notes for a version", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "2"
+upgrade_notes:
+  - { version: "2", note: A }
+  - { version: "2", note: B }
+containers:
+  web: { image: x }`, `upgrade_notes[1].version: "2" has two notes`},
 		{"wrong schema", `
 schema: roostack/v2
 name: app
