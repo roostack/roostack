@@ -213,6 +213,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] Show Cloud backup's space on the backup's card (the repository's size is shown; the lab's quota only in the chooser), and the 80% and 100% warnings Cloud emails on Home too
   - [x] A custom domain through the relay over the internet (2026-10-14): VM3 on `lab.roostack.cloud` (Cloudflare), proven to Cloud, routed, a real certificate, Vaultwarden reached from outside through the edge
   - [ ] Each other provider's CNAME, TXT and delete against a real account (ASSUMPTIONS M7; Cloudflare's CNAME and TXT seen)
+  - [ ] When an old address ends, delete the DNS records Roostack set under it (they're recorded as Roostack's; every provider can delete now), with the old login before it's deleted (SPEC §6.6 "Switching"; VM3 left three under lab.roostack.cloud, 2026-10-14)
   - [ ] Countries per service (Cloud's DESIGN §5 says the Owner's settings are per service), once the lab-wide setting has been used
   - [ ] Countries for the other ways in (port forwarding, the lab's own edge), in the lab's own Caddy, which could show a page saying why
   - [ ] **WAF, step 1 (agreed 2026-10-06, SPEC §6.10):** CrowdSec AppSec virtual patching, on by default for public services. Check the pinned `caddy-crowdsec-bouncer` passes requests to AppSec; add the AppSec component and its virtual-patching collection to the CrowdSec container; show what it blocked (service page, weekly summary); a test that a known exploit request is refused
