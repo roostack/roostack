@@ -3,7 +3,8 @@
 A **package** describes a service for Roostack: its containers, where its
 data lives, its databases, its web address and its settings. Roostack
 generates everything else from it (the containers' units, the web server
-config, secrets, folders and the backup plan).
+config, secrets, folders and the backup plan). To write one, start with
+[Write a package](../packages/write.md); this page is the reference.
 
 Packages are kept in Roostack's public registry,
 [github.com/roostack/services](https://github.com/roostack/services), a
@@ -259,4 +260,6 @@ roostack render -lab lab.yaml -package package.yaml -instance service.yaml
 
 `validate` checks the package and the package policy, checks the logo
 beside it, and renders every template in it. `render` shows exactly what Roostack would generate. See
-[Command line](cli.md#looking-at-packages).
+[Command line](cli.md#looking-at-packages), and
+[Check it](../packages/write.md#check-it) for a `service.yaml` to render
+with.

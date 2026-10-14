@@ -58,7 +58,7 @@ its description when you choose **Install**.
 ## Your own
 
 The Owner can add a service the registry doesn't have, from a package
-file: one you wrote (see the [package format](../reference/packages.md)),
+file: one you wrote (see [Make your own service](../packages/index.md)),
 or one someone you trust gave you. At the end of **Add a service**, under
 **Add your own**, choose **Add a package…**, then the package file and,
 if it has one, its logo (a square PNG, at least 256×256 pixels and at
@@ -86,7 +86,8 @@ want to install it anyway**.
   is backed up with your lab.
 
 To check a package before adding it, run `roostack validate -local
-package.yaml` on any computer: it shows the same list.
+package.yaml` on a Roostack server, or any Linux computer with the
+`roostack` command: it shows the same list.
 
 ## Needs a newer Roostack
 

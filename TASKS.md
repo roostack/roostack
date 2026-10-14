@@ -357,7 +357,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] Update bot in the registry: hourly upstream checks, pull requests, CI that installs and health-checks (and backs up and restores) each update, auto-merge for official patch releases (SPEC §8.3.8)
 - [ ] "Follow upstream" per service at patch or minor (SPEC §8.3.8): package `updates:` tag pattern, the resolved digest kept in the lab's state, health check and roll back to the previous image, the explanation where it's chosen; withdrawals by image digest
 - [ ] Registry repository's CI: validate, policy, render, digests and architectures, `about:` are in `roostack registry index -check` (2026-10-14); still to add: golden renders, a checklist and a pull-request template
-- [ ] Help: "Write a package" guide, with the dev-VM test steps and the evidence to submit
+- [x] Help: "Make your own service" (write, try on a lab, submit), with the evidence as a checklist in the registry's pull-request template (SPEC §8.3.7 as built, 2026-10-14)
+- [ ] The guide's "Update it" step, once service updates (SPEC §7) can move a service to a new package version; `roostack package new <name>` (SPEC §8.3.7), if copying a registry package proves awkward
 - [ ] Website (roostack-cloud repository): every package under `/services` (heroes first, a page each at `/services/<name>`) built from the index; `services.ts` facts move into packages' `about:`
 
 ## ARM64, then Raspberry Pi (ARM64-PLAN.md)
