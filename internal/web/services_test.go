@@ -38,6 +38,9 @@ import (
 type fakeManager struct {
 	// summaries are the install summaries asked for.
 	summaries []manager.InstallRequest
+	// serverMemory is the install summary's server (nuc, 3.6 GB free of 8
+	// GB, if empty).
+	serverMemory manager.ServerMemory
 	// edges can be the lab's edge; edge is the chosen one.
 	edges []manager.EdgeServer
 	edge  string
@@ -53,9 +56,16 @@ type fakeManager struct {
 	disks       []node.DiskSpace
 	events      []store.Event
 	installs    []manager.InstallRequest
-	removed     []string
-	failWith    error
-	status      manager.ApplyStatus
+	// local are the Owner's own packages (by name), with the risks
+	// they ask for; policy is what registry packages break.
+	local         map[string]bool
+	risks, policy []string
+	// added and removedLocal record "Add your own".
+	added        [][]byte
+	removedLocal []string
+	removed      []string
+	failWith     error
+	status       manager.ApplyStatus
 
 	ports   []manager.PortStatus
 	portErr error
@@ -450,10 +460,15 @@ func (h *harness) acts() *activity.Registry {
 }
 
 func (f *fakeManager) Catalog() ([]manager.CatalogItem, error) {
-	return []manager.CatalogItem{
-		{Name: "immich", Title: "Immich", Description: "Photos"},
+	items := []manager.CatalogItem{
+		{Name: "immich", Title: "Immich", Description: "Photos", Categories: []string{"photos"}, Icon: true},
 		{Name: "vaultwarden", Title: "Vaultwarden", Installed: true},
-	}, nil
+	}
+	// Forgejo is the Owner's own when local says so.
+	if f.local["forgejo"] {
+		items = append(items, manager.CatalogItem{Name: "forgejo", Title: "Forgejo", Description: "Git", Local: true})
+	}
+	return items, nil
 }
 
 func (f *fakeManager) Package(name string) (*pkgspec.Package, error) {
@@ -482,7 +497,7 @@ func (f *fakeManager) Install(_ context.Context, _ string, req manager.InstallRe
 // InstallSummary summarizes the request as the manager would, simply:
 // ticked boxes are true, the main route gets the request's subdomain and
 // a port (manager.Manager.InstallSummary has the real rules).
-func (f *fakeManager) InstallSummary(name string, req manager.InstallRequest) (*generate.Summary, error) {
+func (f *fakeManager) InstallSummary(name string, req manager.InstallRequest) (*manager.InstallSummary, error) {
 	f.summaries = append(f.summaries, req)
 	p, err := f.Package(name)
 	if err != nil {
@@ -513,7 +528,16 @@ func (f *fakeManager) InstallSummary(name string, req manager.InstallRequest) (*
 	}
 	lab := config.Default()
 	lab.Domain = "lab.example.com"
-	return generate.Summarize(lab, p, in)
+	sum, err := generate.Summarize(lab, p, in)
+	if err != nil {
+		return nil, err
+	}
+	server := f.serverMemory
+	if server.Name == "" {
+		server = manager.ServerMemory{Name: "nuc", This: true, Servers: 1, Total: 8_000_000_000, Available: 3_600_000_000,
+			Expected: 50_000_000}
+	}
+	return &manager.InstallSummary{Summary: sum, Server: server}, nil
 }
 
 func (f *fakeManager) PackageFile(name string) ([]byte, error) {
@@ -529,6 +553,31 @@ func (f *fakeManager) PackageIcon(name string) ([]byte, error) {
 	}
 	return os.ReadFile(filepath.Join(filepath.Dir(pkgtest.File(name)), "icon.png"))
 }
+
+func (f *fakeManager) CheckPackage(p *pkgspec.Package) manager.PolicyCheck {
+	if f.local[p.Name] {
+		return manager.PolicyCheck{Local: true, Problems: f.risks}
+	}
+	return manager.PolicyCheck{Problems: f.policy}
+}
+
+func (f *fakeManager) AddLocalPackage(data, icon []byte) (*pkgspec.Package, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	f.added = append(f.added, data)
+	return pkgspec.Parse(data)
+}
+
+func (f *fakeManager) RemoveLocalPackage(name string) error {
+	if !f.local[name] {
+		return manager.ErrNotFound
+	}
+	f.removedLocal = append(f.removedLocal, name)
+	return nil
+}
+
+func (f *fakeManager) LocalPackagesDir() string { return "/var/lib/roostack/local-packages" }
 
 func (f *fakeManager) Remove(_ context.Context, name string) error {
 	f.removed = append(f.removed, name)
@@ -1833,6 +1882,25 @@ func TestInstallSummary(t *testing.T) {
 	if req := fm.summaries[len(fm.summaries)-1]; req.Subdomain != "photos" || req.Settings["machine_learning"] != "on" {
 		t.Errorf("first summary for %+v", req)
 	}
+
+	// It compares the memory with what's free on the server, and warns
+	// (only) when it won't fit.
+	if !strings.Contains(body, "This server (nuc) has 8.0 GB, and 3.6 GB is free right now.") ||
+		!strings.Contains(body, "Services already on it expect 50.0 MB.") || strings.Contains(body, "needs about") {
+		t.Error("install page: the server's memory, without a warning, is missing")
+	}
+	fm.serverMemory = manager.ServerMemory{Name: "pi", Servers: 2, Total: 4_000_000_000, Available: 1_900_000_000}
+	_, body = h.get("/install/immich")
+	if !strings.Contains(body, "pi has 4.0 GB, and 1.9 GB is free right now.") ||
+		!strings.Contains(body, "Immich needs about 2.8 GB, but only 1.9 GB is free on pi right now. It may be slow, or stop working. Run it on another server, or free some memory first.") ||
+		!strings.Contains(body, `<button type="submit">Install</button>`) {
+		t.Error("install page: the warning when it won't fit is missing")
+	}
+	fm.serverMemory = manager.ServerMemory{Name: "pi", Servers: 2}
+	if _, body = h.get("/install/immich"); !strings.Contains(body, "pi didn't say how much memory is free.") || strings.Contains(body, "needs about") {
+		t.Error("install page: a server that doesn't say its memory")
+	}
+	fm.serverMemory = manager.ServerMemory{}
 
 	// As the form changes, the summary follows: no machine learning, less
 	// memory, and its container isn't written.

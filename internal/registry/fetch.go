@@ -48,6 +48,10 @@ const StaleAfter = 14 * 24 * time.Hour
 // statusFile is the fetcher's record, beside what it fetched.
 const statusFile = "status.json"
 
+// IconFile is a package's logo in its catalog folder, whatever its
+// package calls it (the index names the registry's packages/<name>/icon.png).
+const IconFile = "icon.png"
+
 // Fetcher keeps the controller's copy of the registry (SPEC.md §8.3.3):
 // the index, the key statement, and for each package the version this
 // lab would install and its icon, at Dir/<name>/<version>.yaml and
@@ -109,6 +113,45 @@ func (f *Fetcher) Status() Status {
 		f.Log.Error("reading the registry fetch status", "err", err)
 	}
 	return s
+}
+
+// Listed is what the catalog shows of a package from the index, beside
+// what its package file says (SPEC.md §8.3.6).
+type Listed struct {
+	*Package
+	// NeedsRoostack is the Roostack release it needs, when no version runs
+	// on this one (Package.NeedsRoostack).
+	NeedsRoostack string
+	// Icon says its logo is in its catalog folder (IconFile).
+	Icon bool
+}
+
+// Listing reads the newest index the lab has, for the catalog: every
+// package in it, by name. Nil before the first fetch. The index was
+// checked against its signature before it was written here.
+func (f *Fetcher) Listing() (map[string]Listed, error) {
+	data, err := os.ReadFile(filepath.Join(f.Dir, IndexFile))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	var ix Index
+	if err := json.Unmarshal(data, &ix); err != nil {
+		return nil, fmt.Errorf("%s: %w", IndexFile, err)
+	}
+	listing := make(map[string]Listed, len(ix.Packages))
+	for name, p := range ix.Packages {
+		if !pkgspec.ValidName(name) || p == nil {
+			continue // Check refused such an index; this one is from disk
+		}
+		l := Listed{Package: p, NeedsRoostack: p.NeedsRoostack(f.Version, f.Arch)}
+		if _, err := os.Stat(filepath.Join(f.Dir, name, IconFile)); err == nil {
+			l.Icon = true
+		}
+		listing[name] = l
+	}
+	return listing, nil
 }
 
 // FetchIfOlder fetches unless the last try was less than age ago, or a
@@ -219,14 +262,25 @@ func (f *Fetcher) fetch(ctx context.Context, st *Status) error {
 
 	// The package files this lab would install, and their icons.
 	keep := map[string]map[string]bool{} // package → file names
+	offered := 0
 	skipped := map[string]string{}
 	var errs []error
 	for name, p := range ix.Packages {
 		version, v, ok := p.Offer(f.Version, f.Arch)
 		if !ok {
 			skipped[name] = whyNotOffered(p, f.Version, f.Arch)
+			// One that needs a newer Roostack is still listed in the
+			// catalog, with its logo (SPEC.md §8.3.6).
+			if p.Icon != nil && p.NeedsRoostack(f.Version, f.Arch) != "" {
+				if err := f.fetchFile(ctx, name, IconFile, *p.Icon, pkgspec.CheckIcon); err != nil {
+					errs = append(errs, fmt.Errorf("%s icon: %w", name, err))
+				} else {
+					keep[name] = map[string]bool{IconFile: true}
+				}
+			}
 			continue
 		}
+		offered++
 		file := version + ".yaml"
 		if err := f.fetchFile(ctx, name, file, v.File, func(data []byte) error {
 			pkg, err := pkgspec.Parse(data)
@@ -243,11 +297,11 @@ func (f *Fetcher) fetch(ctx context.Context, st *Status) error {
 		}
 		keep[name] = map[string]bool{file: true}
 		if p.Icon != nil {
-			if err := f.fetchFile(ctx, name, "icon.png", *p.Icon, pkgspec.CheckIcon); err != nil {
+			if err := f.fetchFile(ctx, name, IconFile, *p.Icon, pkgspec.CheckIcon); err != nil {
 				// The package still installs without its logo.
 				errs = append(errs, fmt.Errorf("%s icon: %w", name, err))
 			} else {
-				keep[name]["icon.png"] = true
+				keep[name][IconFile] = true
 			}
 		}
 	}
@@ -265,7 +319,7 @@ func (f *Fetcher) fetch(ctx context.Context, st *Status) error {
 	if err := f.prune(keep); err != nil {
 		errs = append(errs, err)
 	}
-	st.Serial, st.Date, st.Commit, st.Packages = ix.Serial, ix.Date, ix.Commit, len(keep)
+	st.Serial, st.Date, st.Commit, st.Packages = ix.Serial, ix.Date, ix.Commit, offered
 	st.KeysSerial, st.ETag, st.Skipped = statement.Serial, newTag, skipped
 	return errors.Join(errs...)
 }

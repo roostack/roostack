@@ -273,6 +273,31 @@ func (p *Package) Offer(roostack, arch string) (string, *Version, bool) {
 	return best, p.Versions[best], true
 }
 
+// NeedsRoostack is the Roostack release a package needs when no version
+// of it runs on this one (roostack) but its newest version would run on a
+// newer Roostack: it isn't withdrawn and has a build for arch. The catalog
+// shows such a package as needing a newer Roostack rather than leaving it
+// out (SPEC.md §8.3.6). "" when the package is offered, or can't be for
+// another reason (withdrawn, no build for arch).
+func (p *Package) NeedsRoostack(roostack, arch string) string {
+	if _, _, ok := p.Offer(roostack, arch); ok || p.Withdrawn.Blocks() {
+		return ""
+	}
+	best := ""
+	for version, v := range p.Versions {
+		if v.Withdrawn.Blocks() || len(v.Architectures) > 0 && !slices.Contains(v.Architectures, arch) {
+			continue
+		}
+		if best == "" || pkgspec.CompareVersions(version, best) > 0 {
+			best = version
+		}
+	}
+	if best == "" {
+		return ""
+	}
+	return p.Versions[best].RequiresRoostack
+}
+
 // Delegate writes a key statement naming the signing keys, and its
 // signature by the root keys: the second step of the key ceremony
 // (docs/REGISTRY-KEYS.md).
