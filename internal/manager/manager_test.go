@@ -154,6 +154,11 @@ func TestInstallAndRemove(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(m.Lab.Paths.QuadletDir(), "roostack-vaultwarden-app.container")); err != nil {
 		t.Error("quadlet not written:", err)
 	}
+	// The lab keeps the package file it installed from (SPEC.md §8.3.1).
+	kept := m.Lab.Paths.LabPackageFile("vaultwarden", in.Version)
+	if fi, err := os.Stat(kept); err != nil || fi.Mode().Perm() != 0o644 {
+		t.Errorf("the lab's copy of the package: %v %v", fi, err)
+	}
 
 	items, _ = m.Catalog()
 	if !items[1].Installed {
@@ -194,6 +199,12 @@ func TestInstallAndRemove(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(m.Lab.Paths.ServicesDir, "vaultwarden", "data")); err != nil {
 		t.Error("data must be kept")
+	}
+	if _, err := os.Stat(kept); !os.IsNotExist(err) {
+		t.Errorf("no service uses the lab's copy of vaultwarden's package: it goes (%v)", err)
+	}
+	if _, err := os.Stat(m.Lab.Paths.LabPackageFile("immich", im.Version)); err != nil {
+		t.Errorf("immich's copy stays: %v", err)
 	}
 	if err := m.Remove(ctx, "vaultwarden"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("removing twice: %v", err)
