@@ -59,8 +59,8 @@ func Read(t testing.TB, name string) []byte {
 	return data
 }
 
-// Catalog copies every fixture into dir as a catalog, the layout of
-// /usr/share/roostack/catalog (config.Paths.CatalogDir).
+// Catalog copies every fixture into dir as a catalog, in the layout of
+// config.Paths.CatalogDir.
 func Catalog(t testing.TB, dir string) {
 	t.Helper()
 	err := filepath.WalkDir(Dir(), func(path string, d fs.DirEntry, err error) error {

@@ -504,6 +504,10 @@ func (s *Server) renderUpdates(w http.ResponseWriter, r *http.Request, errMsg st
 		return
 	}
 	data["Updates"] = s.updatesView(r, errMsg)
+	// The registry is the lab's, kept by the controller: on its page.
+	if s.serverRefOf(r).This {
+		data["Registry"] = s.registryView()
+	}
 	if n := s.serverOf(r); n != nil {
 		m := s.serverRefOf(r)
 		s.forgetHostCheck(m.ID) // this page always checks afresh

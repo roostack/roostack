@@ -1,7 +1,0 @@
-# The registry commit this Roostack release ships as its catalog: a
-# stopgap until labs fetch the registry's signed index themselves (SPEC.md
-# §8.3.3). scripts/fetch-catalog.sh reads it; ROOSTACK_REGISTRY overrides
-# the url (a local clone, say, before a commit is pushed). Change the commit
-# to ship newer packages.
-url=https://github.com/roostack/services.git
-commit=8eb8a2e29d95c8266526261d391151a8117387ea

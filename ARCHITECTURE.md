@@ -47,6 +47,8 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `cmd/roostack` | Web service and CLI: `serve`, `apply`, `user`, `render`, `validate` |
 | `cmd/roostack-agent` | The root helper |
 | `internal/config` | Lab settings and **all default paths** in one place, including where the lab is (`network: home|internet`, SPEC.md §6.12) |
+| `internal/registry` | The service registry (SPEC §8.3.3): the signed index and key statement, building them from the registry repository (`roostack registry`), and the controller's fetcher (`Updater`: at start, every 4 hours, on opening the catalog) keeping `CatalogDir` |
+| `internal/imagecheck` | Asks container registries which processors a pinned image has builds for (`make check-images`, the registry's index) |
 | `internal/pkgspec` | The package format (`schema: roostack/v1alpha1`), its validation, and the package policy registry packages follow (SPEC §8.3.4) |
 | `internal/instance` | A user's installed service, validated against its package |
 | `internal/generate` | Desired state → Quadlets, Caddy config, secrets, dirs, backup plan |
@@ -109,7 +111,7 @@ For a service `<svc>`:
 
 ## Package format
 
-Packages live in the registry repository, [`roostack/services`](https://github.com/roostack/services) (SPEC.md §8.3), as `packages/<name>/<version>.yaml` beside `icon.png` and `registry.yaml`. Until labs fetch it, each release ships the registry at the commit [packaging/registry](packaging/registry) names as `/usr/share/roostack/catalog`, fetched by [scripts/fetch-catalog.sh](scripts/fetch-catalog.sh) during `make build`; the catalog offers each package's newest version. Copies of Vaultwarden (simple), Forgejo and Immich (complex) are the tests' fixtures, in [internal/testdata/packages](internal/testdata/packages) (found through `internal/pkgtest`). Field-by-field definitions are in [internal/pkgspec/pkgspec.go](internal/pkgspec/pkgspec.go), and the facts about the project (`about:`, `requires:`, upgrade notes) in [internal/pkgspec/about.go](internal/pkgspec/about.go).
+Packages live in the registry repository, [`roostack/services`](https://github.com/roostack/services) (SPEC.md §8.3), as `packages/<name>/<version>.yaml` beside `icon.png` and `registry.yaml`. The registry's CI builds a signed index from it (`roostack registry index`), published at `https://registry.roostack.cloud/v1/`; the controller fetches the index every few hours and when the catalog opens, checks its signatures, and keeps the version of each package it would install, with its icon, in `/var/lib/roostack/catalog` (`config.Paths.CatalogDir`), where the catalog reads them ([internal/registry](internal/registry); the keys: [docs/REGISTRY-KEYS.md](docs/REGISTRY-KEYS.md)). Copies of Vaultwarden (simple), Forgejo and Immich (complex) are the tests' fixtures, in [internal/testdata/packages](internal/testdata/packages) (found through `internal/pkgtest`). Field-by-field definitions are in [internal/pkgspec/pkgspec.go](internal/pkgspec/pkgspec.go), and the facts about the project (`about:`, `requires:`, upgrade notes) in [internal/pkgspec/about.go](internal/pkgspec/about.go).
 
 Templates use Go `text/template` syntax with these values:
 

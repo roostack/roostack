@@ -7,11 +7,11 @@ config, secrets, folders and the backup plan).
 
 Packages are kept in Roostack's public registry,
 [github.com/roostack/services](https://github.com/roostack/services), a
-folder per package with a file per version. The ones you can install live in
-`/usr/share/roostack/catalog/<name>/<version>.yaml`, a copy of the registry
-that comes with Roostack (the commit it's from is in
-`/usr/share/roostack/catalog/registry-commit`); Roostack offers the newest
-version of each. When you install one,
+folder per package with a file per version. Roostack fetches the registry's
+signed list of packages and keeps the version of each it would install in
+`/var/lib/roostack/catalog/<name>/<version>.yaml`, checked against the list
+([Services you can install](../settings/updates.md#services-you-can-install)).
+When you install one,
 Roostack copies its file into the lab, as
 `/var/lib/roostack/packages/<name>/<version>.yaml`, and the service runs
 from that copy: a newer Roostack with a newer package doesn't change it

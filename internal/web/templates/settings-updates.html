@@ -69,4 +69,37 @@
 {{else}}
 <section class="card"><h1>Updates and restarts</h1><p>Not available.</p></section>
 {{end}}
+{{with $.Registry}}
+<section class="card section" id="registry">
+  <h2>Services you can install</h2>
+  <p class="hint">Roostack gets the services you can install, and fixes to them, from the service registry. It checks every few hours,
+    and only uses files signed by the registry's keys.</p>
+  <dl class="facts">
+    <dt>Last checked</dt>
+    <dd>{{if .Status.Checked.IsZero}}Not yet{{else}}{{when .Status.Checked}}{{if .Status.Error}}: <span class="error">it didn't work</span>{{end}}{{end}}</dd>
+    <dt>List of services</dt>
+    <dd>{{if .Status.Serial}}From {{when .Status.Date}}{{if .Stale}} <span class="dot dot-warn" aria-hidden="true"></span>out of date{{end}},
+      {{.Status.Packages}} services{{with .Status.Commit}} · registry commit {{if $.Registry.CommitURL}}<a href="{{$.Registry.CommitURL}}"><code>{{slice . 0 12}}</code></a>{{else}}<code>{{slice . 0 12}}</code>{{end}}{{end}}
+      {{- else}}None yet{{end}}</dd>
+    <dt>From</dt>
+    <dd><code>{{.URL}}</code><br><small class="hint">Files are kept in <code>{{.Dir}}</code>; <code>registry.url</code> in
+      <code>lab.yaml</code> sets another address, such as a mirror.</small></dd>
+  </dl>
+  {{with .Status.Error}}<details><summary>What went wrong</summary><pre class="output">{{.}}</pre></details>{{end}}
+  {{with .Skipped}}<details><summary>Not offered on this lab ({{len .}})</summary>
+    <ul>{{range .}}<li><code>{{.Name}}</code>: {{.Why}}</li>{{end}}</ul></details>{{end}}
+  {{if .On}}
+  <form method="post" action="/settings/updates/registry/check">
+    <button type="submit" class="secondary">Check now</button>
+  </form>
+  {{end}}
+  <form method="post" action="/settings/updates/registry/on">
+    <label class="check"><input type="checkbox" name="on" value="1" {{if .On}}checked{{end}}>
+      <span>Check the service registry for services and fixes<small>Recommended. Turned off, services can't be installed or
+        updated from the registry, and Roostack doesn't hear when a version is withdrawn because it's unsafe. Installed services keep
+        running.</small></span></label>
+    <button type="submit">Save</button>
+  </form>
+</section>
+{{end}}
 {{end}}

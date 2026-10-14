@@ -22,9 +22,15 @@ if [[ -z ${VERSION:-} ]]; then
 fi
 [[ ${1:-} == --version ]] && { echo "$VERSION"; exit 0; }
 [[ -x bin/roostack && -x bin/roostack-agent && -s bin/copyright ]] || { echo "build first: make build" >&2; exit 1; }
-# The catalog: the registry at the pinned commit (scripts/fetch-catalog.sh).
-[[ $(cat bin/catalog/registry-commit 2>/dev/null) == $(sed -n 's/^commit=//p' packaging/registry) ]] ||
-    { echo "bin/catalog isn't the registry commit packaging/registry names: make build" >&2; exit 1; }
+# A release trusts the registry's real root key, and no development key
+# (SPEC.md §8.3.3, docs/REGISTRY-KEYS.md). Development builds may go
+# without: they can't fetch the real registry until the key ceremony.
+if [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    grep -q '"ed25519:' internal/registry/rootkeys.go ||
+        { echo "a release needs the registry's root key in internal/registry/rootkeys.go (docs/REGISTRY-KEYS.md)" >&2; exit 1; }
+    [[ ! -e bin/registry-dev-key ]] ||
+        { echo "bin/roostack was built with REGISTRY_DEV_KEY: make build without it for a release" >&2; exit 1; }
+fi
 # A released package always has its help (make build skips it without uv).
 [[ -s internal/web/helpsite/site/index.html ]] || { echo "the help site isn't built: install uv, then make build" >&2; exit 1; }
 # The architecture, from the ELF header's machine field (byte 18), so this
@@ -51,11 +57,6 @@ install -D -m 0644 build/caddy/Containerfile "$ROOT/usr/share/roostack/caddy/Con
 install -D -m 0755 packaging/deb/installed-message "$ROOT/usr/share/roostack/installed-message"
 # The starting lab.yaml: no address yet (SPEC.md §6.6).
 install -D -m 0644 packaging/deb/lab.yaml "$ROOT/usr/share/roostack/lab.yaml"
-# The packages that can be installed, in the registry's layout:
-# catalog/<name>/<version>.yaml, icon.png, registry.yaml (SPEC.md §8.3.3).
-(cd bin/catalog && find . -type f) | while read -r f; do
-    install -D -m 0644 "bin/catalog/$f" "$ROOT/usr/share/roostack/catalog/${f#./}"
-done
 # Licences of everything compiled into or served by Roostack (scripts/copyright.sh).
 install -D -m 0644 bin/copyright "$ROOT/usr/share/doc/roostack/copyright"
 for doc in README.md ARCHITECTURE.md SPEC.md THIRD_PARTY.md; do

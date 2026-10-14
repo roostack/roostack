@@ -27,7 +27,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the details.
 | `/var/lib/roostack/home/.config/containers/systemd/` | Generated Quadlet files (`roostack-*`) |
 | `/var/lib/roostack/caddy/` | Generated Caddy config |
 | `/var/lib/roostack/cloud/` | The lab's link to Roostack Cloud, if it has one (the controller only): its key and certificate, and a log of its requests |
-| `/usr/share/roostack/catalog/` | Package definitions shipped with Roostack: what can be installed |
+| `/var/lib/roostack/catalog/` | What can be installed: packages fetched from the service registry and checked against its signed index (the controller only; not backed up) |
 
 All of these can be changed in `lab.yaml`. The defaults are in [internal/config/config.go](internal/config/config.go).
 
@@ -86,4 +86,4 @@ To try it on a Debian 13 VM, see [scripts/dev-install.sh](scripts/dev-install.sh
 - [help/](help/): the help site, for people running Roostack
 - [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md): things the code assumes that haven't been verified on a real host yet
 - [docs/examples/lab.yaml](docs/examples/lab.yaml): an example lab config
-- The packages are in their own repository, [`roostack/services`](https://github.com/roostack/services); `make build` fetches the commit [packaging/registry](packaging/registry) names, which the `.deb` ships as its catalog
+- The packages are in their own repository, [`roostack/services`](https://github.com/roostack/services); labs fetch its signed index ([docs/REGISTRY-KEYS.md](docs/REGISTRY-KEYS.md) for the keys)
