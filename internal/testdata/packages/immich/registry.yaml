@@ -1,0 +1,5 @@
+# What the registry says about this package, kept by the registry's
+# maintainers rather than the package's author. See README.md.
+tier: official
+maintainers:
+  - roostack

@@ -1,11 +1,23 @@
-# Reference example: complex package (multiple containers, custom Postgres,
-# Redis, optional ML, GPU, large media). Image digests looked up 2026-09-26.
-# See SPEC.md §8.1.
+# Immich: several containers, its own Postgres image, Redis, optional
+# machine learning, GPU, large media. Image digests looked up 2026-09-26.
 schema: roostack/v1alpha1
 name: immich
 title: Immich
 description: Photo and video backup, a self-hosted alternative to Google Photos
 version: 2.1.0-roostack.1
+
+about:
+  maker: a full-time team backed by FUTO
+  website: https://immich.app
+  source: https://github.com/immich-app/immich
+  # Its licence notice names version 3 of the AGPL, without "or later".
+  licence: AGPL-3.0-only
+  support: https://buy.immich.app
+  icon: icon.png
+  categories: [photos]
+  keywords: [photos, videos, phone backup, albums, face recognition, google photos alternative]
+requires:
+  roostack: "0.1"
 
 settings:
   - key: machine_learning
@@ -21,6 +33,7 @@ settings:
 containers:
   server:
     image: ghcr.io/immich-app/immich-server:v2.1.0@sha256:72a9b9de6c6abfa7a9c9cdc244ae4d2bd9fea2ae00997f194cbd10aca72ea210
+    memory: 1 GB                 # more while it imports and processes uploads
     env:
       DB_HOSTNAME: "{{ .Databases.main.Host }}"
       DB_USERNAME: "{{ .Databases.main.User }}"
@@ -44,6 +57,7 @@ containers:
   machine-learning:
     when: "{{ .Settings.machine_learning }}"
     image: ghcr.io/immich-app/immich-machine-learning:v2.1.0@sha256:24bfef29bc5c0923c64c98810931eda1449a4b237e6704a715605761bc107ae4
+    memory: 1.5 GB               # once its models are loaded
     mounts:
       - { storage: model-cache, path: /cache }
     health:

@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/pkgtest"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")
@@ -37,7 +38,7 @@ func TestGolden(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", tc.pkg+".yaml"))
+			p, err := pkgspec.Load(pkgtest.File(tc.pkg))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -71,7 +72,7 @@ func TestGolden(t *testing.T) {
 // SSH tunnel ends there), not the cloud provider's shared network
 // (SPEC.md §6.12).
 func TestPrivateOnInternet(t *testing.T) {
-	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	p, err := pkgspec.Load(pkgtest.File("vaultwarden"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +93,7 @@ func TestPrivateOnInternet(t *testing.T) {
 }
 
 func TestErrors(t *testing.T) {
-	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "immich.yaml"))
+	p, err := pkgspec.Load(pkgtest.File("immich"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +295,7 @@ func TestTimezone(t *testing.T) {
 	lab := testLab()
 	lab.Timezone = "Australia/Melbourne"
 	lab.DNS.Provider = "cloudflare" // System needs one
-	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "immich.yaml"))
+	p, err := pkgspec.Load(pkgtest.File("immich"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,7 +323,7 @@ func TestTimezone(t *testing.T) {
 
 func TestCheck(t *testing.T) {
 	for _, name := range []string{"vaultwarden", "forgejo", "immich"} {
-		p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
+		p, err := pkgspec.Load(pkgtest.File(name))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -351,7 +352,7 @@ containers:
 }
 
 func TestNodeAndProxy(t *testing.T) {
-	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	p, err := pkgspec.Load(pkgtest.File("vaultwarden"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -394,7 +395,7 @@ func TestNodeAndProxy(t *testing.T) {
 // Before the lab has an address, a service runs on its local port with no
 // web address, and Caddy doesn't run (SPEC.md §6.6).
 func TestNoAddressYet(t *testing.T) {
-	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	p, err := pkgspec.Load(pkgtest.File("vaultwarden"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -432,7 +433,7 @@ func TestNoAddressYet(t *testing.T) {
 // second site with its own certificate, and every route answering to both
 // names; once it's over, nothing of it is left (SPEC.md §6.6).
 func TestOldAddress(t *testing.T) {
-	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	p, err := pkgspec.Load(pkgtest.File("vaultwarden"))
 	if err != nil {
 		t.Fatal(err)
 	}

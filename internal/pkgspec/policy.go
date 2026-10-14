@@ -21,11 +21,16 @@ func (p *Package) Policy() []string {
 	var problems []string
 	add := func(format string, args ...any) { problems = append(problems, fmt.Sprintf(format, args...)) }
 
+	p.aboutPolicy(add)
+
 	for _, name := range slices.Sorted(maps.Keys(p.Containers)) {
 		c := p.Containers[name]
 		at := "containers." + name
 		if !pinnedRe.MatchString(c.Image) {
 			add("%s.image: pin the image by digest (name:tag@sha256:…), so every lab runs exactly the image that was reviewed.", at)
+		}
+		if c.Memory == "" {
+			add("%s.memory: say how much memory it typically uses (e.g. 300 MB), for the summary shown before installing.", at)
 		}
 		for _, msg := range quadletPolicy(c.Quadlet) {
 			add("%s.quadlet: %s", at, msg)
@@ -61,6 +66,43 @@ func (p *Package) Policy() []string {
 		}
 	}
 	return problems
+}
+
+// aboutPolicy requires the facts about the project that review checks and
+// the catalog and website show (SPEC.md §8.3.6), and the Roostack it needs
+// (§8.3.5). Agreed with the Owner on 2026-10-14: the website, support page
+// and keywords stay optional, since not every project has them; an app
+// whose code isn't published (licence: closed) has a website instead of a
+// source.
+func (p *Package) aboutPolicy(add func(string, ...any)) {
+	a := p.About
+	if a.Maker == "" {
+		add("about.maker: say who makes the app, in a few words, so the catalog credits them.")
+	}
+	switch {
+	case a.Licence == "":
+		add("about.licence: give the app's licence as an SPDX identifier (e.g. AGPL-3.0-only), or %q if its code isn't published.", LicenceClosed)
+	case a.Licence == LicenceClosed:
+		if a.Website == "" {
+			add("about.website: an app whose code isn't published needs its website, so people can see who makes it.")
+		}
+	default:
+		for _, id := range ambiguousLicences(a.Licence) {
+			add("about.licence: %s doesn't say whether later versions apply; use %s-only or %s-or-later, as the project's licence notice says.", id, strings.TrimSuffix(id, "+"), strings.TrimSuffix(id, "+"))
+		}
+		if a.Source == "" {
+			add("about.source: give the address of the app's published code.")
+		}
+	}
+	if a.Icon == "" {
+		add("about.icon: add the project's logo as a PNG beside the package (at least %d×%d pixels, square).", IconMinSize, IconMinSize)
+	}
+	if len(a.Categories) == 0 {
+		add("about.categories: choose at least one, for the catalog's filters.")
+	}
+	if p.Requires.Roostack == "" {
+		add("requires.roostack: give the oldest Roostack release the package works with (e.g. \"0.6\").")
+	}
 }
 
 // pinnedRe is an image reference pinned by a sha256 digest.

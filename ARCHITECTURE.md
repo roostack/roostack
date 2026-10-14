@@ -31,7 +31,7 @@ lab.yaml ──────────────────────┐
 services/<name>.yaml ──────────┼─▶ state ─▶ generate ─▶ reconcile ─▶ files + systemd
 packages/<name>/<version>.yaml ┘             (pure)      (plan → apply)
       ▲
-      └── copied at install from catalog/<name>/package.yaml
+      └── copied at install from catalog/<name>/<version>.yaml
 ```
 
 1. **`internal/state`** loads the lab config, every instance file, and the lab's own copy of each instance's package version (`packages/<name>/<version>.yaml` in the state folder, SPEC.md §8.3.1). The copy is taken from the catalog when a service is installed, so a newer catalog never changes a running service and a restore needs only the backup; the catalog is only what *can* be installed. Copies no service uses are deleted after each apply. It also checks lab-wide rules (e.g. unique hostnames).
@@ -58,7 +58,8 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/setup` | First-run setup wizard logic: time zone, domain and DNS credentials, backup destination, recovery key |
 | `internal/hosttime` | Reads the host's time zone and the valid zone names (tzdata); changing it is the agent's job |
 | `internal/reconcile` | Plan and apply changes to the host |
-| `internal/state` | Load desired state from disk; keep and prune the lab's copies of its packages (SPEC §8.3.1) |
+| `internal/state` | Load desired state from disk; keep and prune the lab's copies of its packages (SPEC §8.3.1); read the catalog's newest version of a package |
+| `internal/pkgtest` | For tests: finds the package fixtures in `internal/testdata/packages` and copies them into a catalog |
 | `internal/systemd` | `systemctl --user` wrapper |
 | `internal/podman` | The few direct `podman` calls (secrets, `exec` for package hooks) |
 | `internal/agent` | Agent server and client: firewall ruleset, time zone, OS updates, reboot, WireGuard interfaces, backup drives and folders, and checks for host changes Roostack didn't make |
@@ -108,7 +109,7 @@ For a service `<svc>`:
 
 ## Package format
 
-See [docs/examples/vaultwarden.yaml](docs/examples/vaultwarden.yaml) (simple) and [docs/examples/immich.yaml](docs/examples/immich.yaml) (complex). Field-by-field definitions are in [internal/pkgspec/pkgspec.go](internal/pkgspec/pkgspec.go).
+Packages live in the registry repository, [`roostack/services`](https://github.com/roostack/services) (SPEC.md §8.3), as `packages/<name>/<version>.yaml` beside `icon.png` and `registry.yaml`. Until labs fetch it, each release ships the registry at the commit [packaging/registry](packaging/registry) names as `/usr/share/roostack/catalog`, fetched by [scripts/fetch-catalog.sh](scripts/fetch-catalog.sh) during `make build`; the catalog offers each package's newest version. Copies of Vaultwarden (simple), Forgejo and Immich (complex) are the tests' fixtures, in [internal/testdata/packages](internal/testdata/packages) (found through `internal/pkgtest`). Field-by-field definitions are in [internal/pkgspec/pkgspec.go](internal/pkgspec/pkgspec.go), and the facts about the project (`about:`, `requires:`, upgrade notes) in [internal/pkgspec/about.go](internal/pkgspec/about.go).
 
 Templates use Go `text/template` syntax with these values:
 
