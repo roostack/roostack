@@ -9,9 +9,10 @@ import (
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/pkgtest"
 )
 
-// newLab sets up a catalog with the reference examples and an empty state dir.
+// newLab sets up a catalog of the package fixtures and an empty state dir.
 func newLab(t *testing.T) config.Lab {
 	t.Helper()
 	root := t.TempDir()
@@ -20,13 +21,7 @@ func newLab(t *testing.T) config.Lab {
 	lab.DNS.Provider = "cloudflare"
 	lab.Paths.StateDir = filepath.Join(root, "state")
 	lab.Paths.CatalogDir = filepath.Join(root, "catalog")
-	for _, name := range []string{"vaultwarden", "immich", "forgejo"} {
-		data, err := os.ReadFile(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		writeFile(t, lab.Paths.PackageFile(name), string(data))
-	}
+	pkgtest.Catalog(t, lab.Paths.CatalogDir)
 	return lab
 }
 
@@ -237,13 +232,14 @@ func TestLabKeepsItsPackages(t *testing.T) {
 	if _, err := LoadServices(lab); err != nil {
 		t.Fatal(err)
 	}
-	catalog, _ := os.ReadFile(lab.Paths.PackageFile("vaultwarden"))
+	catalog, _ := os.ReadFile(lab.Paths.CatalogPackageFile("vaultwarden", "1.34.3-roostack.1"))
 	if got, err := os.ReadFile(kept); err != nil || string(got) != string(catalog) {
 		t.Fatalf("the lab's copy is the catalog's file exactly: %v", err)
 	}
 
 	// A newer catalog changes nothing that's installed.
-	writeFile(t, lab.Paths.PackageFile("vaultwarden"), strings.ReplaceAll(string(catalog), "1.34.3", "1.35.0"))
+	writeFile(t, lab.Paths.CatalogPackageFile("vaultwarden", "1.35.0-roostack.1"), strings.ReplaceAll(string(catalog), "1.34.3", "1.35.0"))
+	os.Remove(lab.Paths.CatalogPackageFile("vaultwarden", "1.34.3-roostack.1"))
 	services, err := LoadServices(lab)
 	if err != nil || len(services) != 1 || services[0].Package.Version != "1.34.3-roostack.1" {
 		t.Fatalf("services = %+v, %v", services, err)
@@ -282,5 +278,38 @@ func TestLabKeepsItsPackages(t *testing.T) {
 		if _, err := os.Stat(gone); !os.IsNotExist(err) {
 			t.Errorf("%s should be gone: %v", gone, err)
 		}
+	}
+}
+
+// The catalog has the registry's layout, a file per version (SPEC.md
+// §8.3.3): installing takes the newest, and registry.yaml isn't a version.
+func TestCatalogNewestVersion(t *testing.T) {
+	lab := newLab(t)
+	old := lab.Paths.CatalogPackageFile("vaultwarden", "1.34.3-roostack.1")
+	data, _ := os.ReadFile(old)
+	for _, v := range []string{"1.34.3-roostack.10", "1.9.0-roostack.1"} {
+		newer := strings.ReplaceAll(string(data), "version: 1.34.3-roostack.1", "version: "+v)
+		writeFile(t, lab.Paths.CatalogPackageFile("vaultwarden", v), newer)
+	}
+	p, err := LoadCatalogPackage(lab.Paths, "vaultwarden")
+	if err != nil || p.Version != "1.34.3-roostack.10" {
+		t.Fatalf("newest = %+v, %v; want 1.34.3-roostack.10", p, err)
+	}
+
+	// A file that isn't the version it's named after is refused.
+	writeFile(t, lab.Paths.CatalogPackageFile("vaultwarden", "2.0.0-roostack.1"), string(data))
+	if _, err := LoadCatalogPackage(lab.Paths, "vaultwarden"); err == nil {
+		t.Error("a file named after another version loaded")
+	}
+
+	for _, name := range []string{"nothing", "../vaultwarden"} {
+		if _, err := LoadCatalogPackage(lab.Paths, name); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%s: err = %v, want not found", name, err)
+		}
+	}
+	// A package folder with only the registry's file has no version.
+	writeFile(t, filepath.Join(lab.Paths.CatalogPackageDir("empty"), "registry.yaml"), "tier: official\n")
+	if _, err := LoadCatalogPackage(lab.Paths, "empty"); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("registry.yaml alone: err = %v, want not found", err)
 	}
 }

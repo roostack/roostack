@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/pkgtest"
 )
 
 // vaultwarden is the example package: a "web" route, a bool setting
 // (signups_allowed) and a secret (admin_token), plus an "ssh" port.
 func vaultwarden(t *testing.T) *pkgspec.Package {
 	t.Helper()
-	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	p, err := pkgspec.Load(pkgtest.File("vaultwarden"))
 	if err != nil {
 		t.Fatal(err)
 	}

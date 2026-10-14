@@ -29,6 +29,7 @@ import (
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/setup"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
@@ -447,7 +448,7 @@ func (f *fakeManager) Package(name string) (*pkgspec.Package, error) {
 	if name != "immich" && name != "vaultwarden" && name != "forgejo" {
 		return nil, manager.ErrNotFound
 	}
-	return pkgspec.Load(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
+	return pkgspec.Load(pkgtest.File(name))
 }
 
 func (f *fakeManager) ServicePackage(name string) (*pkgspec.Package, error) { return f.Package(name) }
@@ -507,14 +508,14 @@ func (f *fakeManager) PackageFile(name string) ([]byte, error) {
 	if _, err := f.Package(name); err != nil {
 		return nil, err
 	}
-	return os.ReadFile(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
+	return os.ReadFile(pkgtest.File(name))
 }
 
 func (f *fakeManager) PackageIcon(name string) ([]byte, error) {
 	if _, err := f.Package(name); err != nil {
 		return nil, err
 	}
-	return os.ReadFile(filepath.Join("..", "..", "docs", "examples", name+".png"))
+	return os.ReadFile(filepath.Join(filepath.Dir(pkgtest.File(name)), "icon.png"))
 }
 
 func (f *fakeManager) Remove(_ context.Context, name string) error {

@@ -5,8 +5,13 @@ data lives, its databases, its web address and its settings. Roostack
 generates everything else from it (the containers' units, the web server
 config, secrets, folders and the backup plan).
 
-The packages you can install live in
-`/usr/share/roostack/catalog/<name>/package.yaml`. When you install one,
+Packages are kept in Roostack's public registry,
+[github.com/roostack/services](https://github.com/roostack/services), a
+folder per package with a file per version. The ones you can install live in
+`/usr/share/roostack/catalog/<name>/<version>.yaml`, a copy of the registry
+that comes with Roostack (the commit it's from is in
+`/usr/share/roostack/catalog/registry-commit`); Roostack offers the newest
+version of each. When you install one,
 Roostack copies its file into the lab, as
 `/var/lib/roostack/packages/<name>/<version>.yaml`, and the service runs
 from that copy: a newer Roostack with a newer package doesn't change it
@@ -29,7 +34,7 @@ about:                              # the project, credited in the catalog
   source: https://github.com/dani-garcia/vaultwarden
   licence: AGPL-3.0-only
   support: https://github.com/sponsors/dani-garcia
-  icon: vaultwarden.png             # the logo, beside this file
+  icon: icon.png                    # the logo, beside this file
   categories: [passwords]
   keywords: [password manager, bitwarden, two-factor, passkeys]
 requires:
@@ -105,8 +110,8 @@ routes:
       app whose code isn't published, `closed`: it then has a `website`
       and no `source`.
     - `support`: the project's own page for donating or sponsoring.
-    - `icon`: the project's logo, a PNG file beside the package file:
-      square, at least 256×256 pixels and at most 100 KB.
+    - `icon`: the project's logo, a PNG file beside the package file
+      (`icon.png` in the registry): square, at least 256×256 pixels and at most 100 KB.
     - `categories`: one to three of `photos` (Photos and videos), `media`
       (Films, TV and music), `documents` (Documents and notes),
       `productivity` (Tasks and planning), `home` (Smart home and

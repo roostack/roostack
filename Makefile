@@ -6,10 +6,12 @@ LDFLAGS := -X main.version=$(VERSION)
 .PHONY: build help test golden vet caddy-check check-images
 
 # Linux binaries for the machine's own architecture, or another with
-# GOARCH=arm64 (or amd64).
+# GOARCH=arm64 (or amd64), and the catalog the package ships: the registry
+# at the commit packaging/registry names (SPEC.md §8.3.3).
 build: help
 	GOOS=linux CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o bin/ ./cmd/...
 	scripts/copyright.sh > bin/copyright
+	scripts/fetch-catalog.sh
 
 # The help site (SPEC.md §6.3.1), built with Zensical and embedded in the
 # binary from internal/web/helpsite/site. Strict: a broken link fails the

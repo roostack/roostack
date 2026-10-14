@@ -1,13 +1,13 @@
 package generate
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/pkgtest"
 )
 
 // summarize is Summarize with the version and updates an install form's
@@ -27,7 +27,7 @@ func summarize(t *testing.T, p *pkgspec.Package, in *instance.Instance) (*Summar
 
 func loadExample(t *testing.T, name string) *pkgspec.Package {
 	t.Helper()
-	p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
+	p, err := pkgspec.Load(pkgtest.File(name))
 	if err != nil {
 		t.Fatal(err)
 	}
