@@ -1,7 +1,6 @@
 {{define "title"}}Backups{{end}}
 {{define "content"}}
 <section>
-  <div class="page-top">{{help "backups" "Your backup plan"}}</div>
   <h1>Backups</h1>
   {{if .Switcher}}
   <h2 class="area-heading">Each server's backups</h2>
@@ -67,3 +66,5 @@
   {{end}}
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "backups" "Your backup plan"}}{{end}}

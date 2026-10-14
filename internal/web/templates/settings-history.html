@@ -1,6 +1,5 @@
 {{define "title"}}History{{end}}
 {{define "content"}}
-<div class="page-top">{{back "/settings" "Settings"}}{{help "settings/history" "History"}}</div>
 <section class="card">
   <h1>History</h1>
   <p class="hint">What Roostack did on each server (applying changes, backups, updates, restores), with its full log, and what
@@ -41,3 +40,5 @@
   {{confirm "/settings/history/delete" "Delete all history, on every server? This can't be undone. The deletion itself is recorded." "Delete all history" "quiet danger"}}
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "settings/history" "History"}}{{end}}

@@ -101,19 +101,18 @@ func TestSettingsOverview(t *testing.T) {
 			t.Errorf("overview missing %q", want)
 		}
 	}
-	// Area pages have the sidebar, with their own area marked.
+	// Area pages are marked in the sidebar.
 	for path, area := range map[string]string{"/settings/updates": "/settings/updates", "/settings/people": "/settings/people",
 		"/settings/remote-access": "/settings/remote-access", "/settings/time-zone": "/settings/time-zone",
 		"/settings/domain": "/settings/domain", "/settings/home-network": "/settings/home-network"} {
 		code, body := h.get(path)
-		if code != http.StatusOK || !strings.Contains(body, `class="settings-nav"`) ||
-			!strings.Contains(body, `href="`+area+`" class="active" aria-current="page"`) {
+		if code != http.StatusOK || !strings.Contains(body, `<a class="nav-sub" href="`+area+`" aria-current="page">`) {
 			t.Errorf("%s: %d, want the sidebar with its area marked", path, code)
 		}
 	}
-	// The first-run wizard has no sidebar.
+	// The first-run wizard isn't a settings page.
 	h.setSetup(&fakeSetup{})
-	if _, body := h.get("/setup/timezone"); strings.Contains(body, `class="settings-nav"`) {
-		t.Error("the wizard shouldn't show the settings sidebar")
+	if _, body := h.get("/setup/timezone"); strings.Contains(body, `<a class="nav-sub" href="/settings/time-zone" aria-current="page">`) {
+		t.Error("the wizard shouldn't be marked as Settings' time zone page")
 	}
 }

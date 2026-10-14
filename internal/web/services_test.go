@@ -1002,7 +1002,7 @@ func TestAppearance(t *testing.T) {
 	oob, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if err != nil || resp.StatusCode != http.StatusOK || !strings.Contains(string(oob), `id="theme-toggle" hx-swap-oob="true"`) ||
-		!strings.Contains(string(oob), "◐ Auto") {
+		!strings.Contains(string(oob), "</svg>Auto</button>") {
 		t.Fatalf("background save: %v %v %s", resp.StatusCode, err, oob)
 	}
 	if _, body := h.get("/services"); !strings.Contains(body, `<html lang="en" data-palette="nord">`) {
@@ -1448,7 +1448,7 @@ func TestLabName(t *testing.T) {
 	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
 	h.setSetup(fs)
 	h.server.LabName = "lab.example.com"
-	if _, body := h.get("/settings"); !strings.Contains(body, `<span class="brand-lab" title="lab.example.com">lab.example.com</span>`) ||
+	if _, body := h.get("/settings"); !strings.Contains(body, `<strong title="lab.example.com">lab.example.com</strong>`) ||
 		!strings.Contains(body, "Lab name") {
 		t.Error("the header and Settings should show the lab's name")
 	}

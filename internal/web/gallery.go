@@ -40,12 +40,42 @@ var galleryTokens = []struct{ Name, Use string }{
 }
 
 var gallerySections = []gallerySection{
+	{ID: "layout", Title: "Layout", Intro: "Console glass (2026-10-14): a sidebar floating beside the page, the page's header on the page, cards on a faint moving aurora (it stops for reduced motion). The layout (templates/layout.html) draws all of it; a page gives its title, content and, if it wants, its breadcrumbs and help. Below 900px the sidebar is a drawer behind the menu button.",
+		Examples: []galleryExample{
+			{"Sidebar", "The lab's name, the main areas, Settings' pages (for those who can change them) and All settings, then Help, Light/Dark/Auto and the person. Where you are has aria-current=\"page\": the highlight tint with a faint highlight edge. The surface at 70% with a blur: status shows here only as a pill on its own tint, never as bare text (the contrast test checks text, muted text and links on it).", `
+<aside class="sidebar gallery-sidebar" aria-label="Roostack (example)">
+  <a class="sidebar-lab" href="#">{{brandMark}}<span class="sidebar-lab-name"><span>Roostack</span><strong>The Smiths' lab</strong></span></a>
+  <nav class="nav-group" aria-label="Your lab (example)">
+    <a class="nav-item" href="#">{{icon "home-page"}}Home</a>
+    <a class="nav-item" href="#" aria-current="page">{{icon "services"}}Services</a>
+    <a class="nav-item" href="#">{{icon "backups"}}Backups</a>
+    <a class="nav-item" href="#">{{icon "server"}}Servers</a>
+  </nav>
+  <nav class="nav-group" aria-label="Settings (example)">
+    <p class="nav-heading">Settings</p>
+    <a class="nav-sub" href="#">Lab name</a>
+    <a class="nav-sub" href="#">People</a>
+    <a class="nav-sub" href="#">Updates and restarts</a>
+    <a class="nav-item" href="#">{{icon "manage"}}All settings</a>
+  </nav>
+  <div class="sidebar-foot">
+    <div class="sidebar-tools"><a href="#">{{icon "help"}}Help</a><button type="button" class="theme-toggle">{{icon "dark"}}Dark</button></div>
+    <div class="who"><a href="#" class="who-link"><span class="avatar" aria-hidden="true">T</span><span class="who-name"><strong>tom</strong><span>Owner</span></span></a>
+      <button type="button" class="icon-button" title="Log out">{{icon "log-out"}}<span class="sr-only">Log out</span></button></div>
+  </div>
+</aside>`},
+			{"Page header", "Breadcrumbs (each step a link, the page itself last, in bold) and the page's help. By default: the main area, then the page's title; a page can give its own as {{\"{{\"}}define \"crumbs\"{{\"}}\"}}. On phones the menu button comes first.", `
+<header class="page-header gallery-page-header">
+  <nav class="crumbs" aria-label="Where you are (example)"><a href="#">Services</a><a href="#">Immich</a><strong aria-current="page">Move</strong></nav>
+  {{help "servers/move" "Move a service"}}
+</header>`},
+		}},
 	{ID: "brand", Title: "Brand mark", Intro: "Roostack's mark, a hen on a server, drawn in the theme's colours: text colour on a soft-highlight tile, with a highlight comb. It's generated from assets/brand/generate.py; don't edit it by hand.",
 		Examples: []galleryExample{
-			{"Top bar", "brandMark inside .brand, before the name. Decorative (hidden from screen readers): the name says what it is.", `
+			{"Without a login", "brandMark inside .brand, before the name (sign-in, first-run setup). Decorative (hidden from screen readers): the name says what it is.", `
 <a class="brand" href="#">{{brandMark}}Roostack</a>`},
-			{"Top bar with the lab's name", "Once the lab has a name, the mark grows to sit beside both lines.", `
-<a class="brand" href="#">{{brandMark}}<span class="brand-stack"><span class="brand-eyebrow">Roostack</span><span class="brand-lab">The Smiths' lab</span></span></a>`},
+			{"In the sidebar", "At the top of the sidebar: a small \"Roostack\" above the lab's name (\"Your lab\" until it has one).", `
+<a class="sidebar-lab" href="#">{{brandMark}}<span class="sidebar-lab-name"><span>Roostack</span><strong>The Smiths' lab</strong></span></a>`},
 		}},
 	{ID: "error-scenes", Title: "Error scenes", Intro: "Pictures for error pages: the mark's hen and server, without the tile, with props and a joke. A joke headline goes with each, and plain words underneath. Generated from assets/errors/generate.py; Caddy's pages for the services use them too (internal/errpage).",
 		Examples: []galleryExample{
@@ -127,9 +157,8 @@ var gallerySections = []gallerySection{
 			{"Opens in a new window", "new-window: ends every link with target=\"_blank\" rel=\"noopener\" (the help, the design system, services' addresses, other sites), so people know Roostack stays open behind it. An icon after the text, and \"(opens in a new window)\" for screen readers. A test checks every such link has it.", `
 <p><a href="#" target="_blank" rel="noopener">Help{{template "new-window"}}</a> ·
 <a href="#" target="_blank" rel="noopener">https://passwords.smith.family{{template "new-window"}}</a></p>`},
-			{"Page help", "help PAGE TITLE: the help page about this one, in a new window, top right of a page-top row above the title (with the back link or setup step on the left). PAGE is its path in the help, optionally with a #section; a test checks each exists.", `
-<div class="page-top">{{back "#" "Settings"}}{{help "settings/people" "People and access"}}</div>
-<h1>People</h1>`},
+			{"Page help", "help PAGE TITLE: the help page about this one, in a new window, at the right of the page header. A page gives it as {{\"{{\"}}define \"page-help\"{{\"}}\"}}. PAGE is its path in the help, optionally with a #section; a test checks each exists.", `
+{{help "settings/people" "People and access"}}`},
 		}},
 	{ID: "cards", Title: "Cards and facts", Intro: "A card holds one topic. A heading row puts its title and main link together; facts list label and value pairs (stacked on phones).",
 		Examples: []galleryExample{
@@ -301,8 +330,8 @@ var gallerySections = []gallerySection{
     </a>
   </li>
 </ul>`},
-			{"Sidebar", "Hidden on phones, where the page's back link leads to the overview. Pages get it by naming their area (withArea in Go); the layout adds it.", `
-{{template "area-nav" .Settings}}`},
+			{"Your account's tabs", "Your account's pages, as tabs at the top of each (Settings' pages are in the sidebar instead). The layout adds them for a page with an areaNav whose Tabs is set.", `
+{{template "area-nav" .Account}}`},
 		}},
 	{ID: "activity", Title: "Activity", Intro: "Operations on the host (OS updates, backups, applying changes, restores): a status line everyone can follow, with the full log under Details. While running, the status line and log refresh themselves.",
 		Examples: []galleryExample{
@@ -439,7 +468,7 @@ func gallerySamples() map[string]any {
 			[]string{"Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Today"}, []string{"40 visitors", "55 visitors", "48 visitors", "70 visitors", "95 visitors", "62 visitors", "35 visitors"})},
 		"Ranks":            topCountries(map[string]int64{"AU": 1130, "NZ": 96, "GB": 41}, 1284, 4),
 		"InstallService":   ServiceView{ServiceDetail: node.ServiceDetail{Install: install}},
-		"Settings":         areaNav{Label: "Settings", Home: "/settings", HomeTitle: "All settings", Groups: settingsGroups(), Active: "updates"},
+		"Account":          areaNav{Label: "Your account", Groups: []settingsGroup{{Areas: accountAreas}}, Active: "appearance", Tabs: true},
 		"UpdatesActivity":  view("Installing updates", "", false, "==> Installing updates", "Unpacking curl (8.14.1-2+deb13u5) ..."),
 		"FinishedActivity": view("Installed 3 updates: curl, libcurl4t64, tzdata.", "", true, "==> Installing updates", "==> Done"),
 		"FailedActivity":   view("Installing updates", "exit status 100", true, "E: Could not get lock /var/lib/dpkg/lock-frontend", "==> Failed: exit status 100"),

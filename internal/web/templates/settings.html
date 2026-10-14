@@ -1,7 +1,6 @@
 {{define "title"}}Settings{{end}}
 {{define "content"}}
 <section>
-  <div class="page-top">{{help "settings" "Settings"}}</div>
   <h1>Settings</h1>
   {{range .Groups}}
   <h2 class="settings-group-title">{{.Title}}</h2>
@@ -28,3 +27,5 @@
      plain one for ""), with its meaning for screen readers. */}}
 {{define "level-dot"}}<span class="dot{{with .}} dot-{{.}}{{else}} dot-none{{end}}" aria-hidden="true"></span>
 {{- with .}}<span class="sr-only">{{if eq . "ok"}}Fine: {{else if eq . "warn"}}Needs attention: {{else}}Problem: {{end}}</span>{{end}}{{end}}
+
+{{define "page-help"}}{{help "settings" "Settings"}}{{end}}

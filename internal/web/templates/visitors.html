@@ -1,6 +1,5 @@
 {{define "title"}}Visitors{{end}}
 {{define "content"}}
-<div class="page-top">{{back "/services" "Services"}}{{help "services/public" "Making a service public"}}</div>
 <h1>Visitors</h1>
 <p class="hint">Public visitors come in through Roostack Cloud's relay. These are its counts for this lab.</p>
 <section class="card section" id="visitors" hx-get="/partials/relay-stats?period={{.Period}}" hx-trigger="load" hx-swap="outerHTML" hx-disinherit="*">
@@ -8,3 +7,5 @@
   <p class="hint"><span class="spinner" aria-hidden="true"></span> Asking Roostack Cloud…</p>
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "services/public" "Making a service public"}}{{end}}

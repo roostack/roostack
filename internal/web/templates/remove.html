@@ -1,7 +1,6 @@
 {{define "title"}}Remove {{.Package.Title}}{{end}}
 {{define "content"}}
 <section class="card narrow">
-  <div class="page-top">{{back "/" "Back"}}{{help "services/remove" "Remove a service"}}</div>
   <h1>Remove {{.Package.Title}}?</h1>
   <p>{{.Package.Title}} will be stopped and removed from your lab.</p>
   <p><strong>Your data is kept.</strong> It stays in:</p>
@@ -12,3 +11,6 @@
   </form>
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "services/remove" "Remove a service"}}{{end}}
+{{define "crumbs"}}<a href="/services">Services</a><a href="/services/{{.Name}}">{{.Package.Title}}</a><strong aria-current="page">Remove</strong>{{end}}

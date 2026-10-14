@@ -50,9 +50,17 @@ var templateFuncs = template.FuncMap{
 	"themes":  func() []Theme { return Themes },
 	"bytes":   func(n uint64) string { return units.Bytes(int64(n)) },
 	// count is a count with thousands separators ("1,284").
-	"count": units.Count,
-	// roleName shows a role as people say it ("Owner").
+	"count":    units.Count,
 	"idleText": idleText,
+	// initial is a name's first letter, capitalised: the person's avatar
+	// in the sidebar.
+	"initial": func(name string) string {
+		for _, r := range name {
+			return strings.ToUpper(string(r))
+		}
+		return "?"
+	},
+	// roleName shows a role as people say it ("Owner").
 	"roleName": func(role string) string {
 		if role == "" {
 			return ""

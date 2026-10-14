@@ -303,12 +303,10 @@
 </div>
 {{end}}
 
-{{/* area-nav: the sidebar of area pages (an areaNav: Settings, your
-     account). On phones, Settings' is hidden (the page's back link leads
-     to the overview); the account's becomes a row of tabs. */}}
+{{/* area-nav: your account's pages as a row of tabs at the top of each
+     (an areaNav with Tabs; Settings' pages are in the sidebar). */}}
 {{define "area-nav"}}
 <nav class="settings-nav{{if .Tabs}} area-tabs{{end}}" aria-label="{{.Label}}">
-  {{with .Home}}<a href="{{.}}" class="settings-home">{{$.HomeTitle}}</a>{{end}}
   {{range .Groups}}
   {{with .Title}}<p class="settings-group">{{.}}</p>{{end}}
   {{range .Areas}}<a href="{{.Href}}"{{if eq .ID $.Active}} class="active" aria-current="page"{{end}}>{{.Title}}</a>{{end}}

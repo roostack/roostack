@@ -1,7 +1,6 @@
 {{define "title"}}Restore {{.Plan.Server.Name}}'s services{{end}}
 {{define "content"}}
 <section class="card narrow">
-  <div class="page-top">{{back "/settings/servers" "Servers"}}{{help "servers/gone" "When a server is gone"}}</div>
   <h1>Restore {{or .Plan.Server.Name "a server"}}'s services</h1>
   {{activity .RestoreActivity}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -49,3 +48,5 @@
   {{end}}
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "servers/gone" "When a server is gone"}}{{end}}

@@ -1,7 +1,6 @@
 {{define "title"}}People{{end}}
 {{define "content"}}
 <section class="card medium">
-  <div class="page-top">{{back "/settings" "Settings"}}{{help "settings/people" "People and access"}}</div>
   <h1>People</h1>
   <p class="hint">Who can log in to Roostack. Each service (Forgejo, Vaultwarden, …) still has its own accounts.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -77,3 +76,5 @@
   </form>
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "settings/people" "People and access"}}{{end}}

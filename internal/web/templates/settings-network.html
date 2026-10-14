@@ -1,6 +1,5 @@
 {{define "title"}}Where it is and DNS{{end}}
 {{define "content"}}
-<div class="page-top">{{back "/settings" "Settings"}}{{help "settings/domain#where-your-lab-is" "Where your lab is"}}</div>
 <section class="card">
   <h1>Where it is and DNS</h1>
   {{with .NetworkForm}}
@@ -54,3 +53,5 @@
 </section>
 {{end}}
 {{end}}
+
+{{define "page-help"}}{{help "settings/domain#where-your-lab-is" "Where your lab is"}}{{end}}

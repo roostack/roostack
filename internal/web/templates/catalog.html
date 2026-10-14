@@ -1,7 +1,6 @@
 {{define "title"}}Add a service{{end}}
 {{define "content"}}
 <section>
-  <div class="page-top">{{back "/" "Your services"}}{{help "services/add" "Add a service"}}</div>
   <h1>Add a service</h1>
   {{with .Registry}}
     {{if not .On}}{{notice "info" "Checking the service registry is turned off, so services can't be installed from it." "link=/settings/updates#registry" "linkText=Turn it on"}}
@@ -66,3 +65,5 @@
   {{end}}
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "services/add" "Add a service"}}{{end}}

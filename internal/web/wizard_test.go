@@ -173,7 +173,7 @@ func TestWizardFlow(t *testing.T) {
 	h.setSetup(fs)
 
 	_, body := h.get("/")
-	if !strings.Contains(body, "Setup · step 1 of 4") || !strings.Contains(body, `data-zone="Etc/UTC"`) ||
+	if !strings.Contains(body, `<span>Setup</span><strong aria-current="page">Step 1 of 4</strong>`) || !strings.Contains(body, `data-zone="Etc/UTC"`) ||
 		!strings.Contains(body, `<option value="Australia/Melbourne">`) {
 		t.Fatalf("an Owner with setup unfinished should land on the time zone step:\n%.3000s", body)
 	}
@@ -470,13 +470,13 @@ func TestSetupFormsAsSettingsPages(t *testing.T) {
 	}
 	var body string
 	_, body = h.get("/setup/domain")
-	if strings.Contains(body, "step 3 of 4") || !strings.Contains(body, "Change your lab's address") || strings.Contains(body, "/setup/domain/later") {
+	if strings.Contains(body, "Step 3 of 4") || !strings.Contains(body, "Change your lab's address") || strings.Contains(body, "/setup/domain/later") {
 		t.Error("changing the domain later must not look like the wizard")
 	}
 
 	// During first-run setup the wizard framing stays.
 	fs.p = setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true}
-	if _, body := h.get("/setup/backup"); !strings.Contains(body, "step 4 of 4") || !strings.Contains(body, "Set up backups later") {
+	if _, body := h.get("/setup/backup"); !strings.Contains(body, `<span>Setup</span><strong aria-current="page">Step 4 of 4</strong>`) || !strings.Contains(body, "Set up backups later") {
 		t.Error("first-run setup keeps its steps")
 	}
 }

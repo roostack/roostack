@@ -20,12 +20,22 @@ import (
 	"roostack.cloud/roostack/internal/store"
 )
 
-// nav is the top navigation, shown to logged-in users.
+// nav is the sidebar (docs/DESIGN.md "Layout"), shown to logged-in users.
 type nav struct {
 	Active   string
 	Username string
+	// Role is the person's role (auth.RoleOwner...), under their name.
+	Role     string
 	Backups  bool
 	Settings bool
+	// SettingsAreas are Settings' pages, listed in the sidebar for those
+	// who can change settings (Servers and Backups are main areas there).
+	// Area is the current one, if the page is one.
+	SettingsAreas []settingsArea
+	Area          string
+	// Landing is a main area's own page (Services, Settings...), whose
+	// breadcrumbs are just its title.
+	Landing bool
 	// Theme is the user's mode (auto, light, dark); NextTheme is what the
 	// toggle switches to.
 	Theme, NextTheme string
@@ -43,11 +53,33 @@ func navFor(u *store.User, page string) nav {
 	if next == "" {
 		u.Theme, next = "auto", "light"
 	}
-	return nav{Active: active, Username: u.Username, Theme: u.Theme, NextTheme: next, Palette: userPalette(u), Accent: userAccent(u),
+	landing := slices.Contains([]string{"home", "services", "backups", "settings", "settings-servers", "account"}, page)
+	return nav{Active: active, Landing: landing, Username: u.Username, Role: u.Role, Theme: u.Theme, NextTheme: next, Palette: userPalette(u), Accent: userAccent(u),
 		Backups: auth.Can(u.Role, auth.ManageServices), Settings: auth.Can(u.Role, auth.ManageHost)}
 }
 
-// navTab is the top bar's tab a page belongs to: by name for the few that
+// crumb is a link in the page header's breadcrumbs.
+type crumb struct{ Href, Title string }
+
+// Section is the main area a page belongs to (nav.Active), for the
+// breadcrumbs: where the first crumb leads. Home has none.
+func (n nav) Section() *crumb {
+	switch n.Active {
+	case "services":
+		return &crumb{"/services", "Services"}
+	case "backups":
+		return &crumb{"/backups", "Backups"}
+	case "servers":
+		return &crumb{"/settings/servers", "Servers"}
+	case "settings":
+		return &crumb{"/settings", "Settings"}
+	case "account":
+		return &crumb{"/account", "Your account"}
+	}
+	return nil
+}
+
+// navTab is the sidebar's main area a page belongs to: by name for the few that
 // don't follow a pattern, then by prefix, so new pages get it right
 // (TestNavTabs checks every template).
 func navTab(page string) string {
@@ -56,6 +88,9 @@ func navTab(page string) string {
 		"restore": "backups", "recovery-key": "settings", "users": "settings", "dns-takeover": "settings",
 		"account": "account", "twofactor": "account", "account-appearance": "account", "account-notifications": "account",
 		"cloud-open": "settings", "cloud-linked": "settings",
+		// Servers is a main area (docs/DESIGN.md "Layout"), though its pages
+		// are still under /settings.
+		"settings-servers": "servers", "settings-server-gone": "servers", "settings-server-unreachable": "servers",
 		"setup-restore": "", "setup-joined": "", // first run, before anyone is logged in
 		"error": "", // any page's error (errors.go)
 	}[page]; ok {

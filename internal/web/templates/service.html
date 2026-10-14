@@ -1,7 +1,6 @@
 {{define "title"}}{{.Service.Title}}{{end}}
 {{define "content"}}
 <section class="card medium">
-  <div class="page-top">{{back "/services" "Services"}}{{help "services/settings" "Change a service"}}</div>
   <div class="heading">
     <h1>{{.Service.Title}} {{template "tier-badge" .Service}}</h1>
     {{status .Service.Status}}
@@ -338,3 +337,5 @@
 <p id="update" class="notice notice-ok" role="status">✓ Updated from {{appVersion $r.From $r.To}} to {{appVersion $r.To $r.From}} {{when $r.Finished}}{{if $r.Automatic}}, by itself{{end}}.</p>
 {{end}}
 {{end}}
+
+{{define "page-help"}}{{help "services/settings" "Change a service"}}{{end}}

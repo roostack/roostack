@@ -1,7 +1,6 @@
 {{define "title"}}Take over a DNS record{{end}}
 {{define "content"}}
 <section class="card narrow">
-  <div class="page-top">{{back "/" "Back"}}{{help "settings/domain#reaching-your-services-from-home" "Reaching your services from home"}}</div>
   <h1>Take over {{.DNS.Record}}?</h1>
   <p>This record already exists at {{.DNS.Provider}}, and Roostack didn't create it.</p>
   <table class="compare">
@@ -22,3 +21,5 @@
   </form>
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "settings/domain#reaching-your-services-from-home" "Reaching your services from home"}}{{end}}

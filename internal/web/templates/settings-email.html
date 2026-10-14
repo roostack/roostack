@@ -1,6 +1,5 @@
 {{define "title"}}Email{{end}}
 {{define "content"}}
-<div class="page-top">{{back "/settings" "Settings"}}{{help "settings/email" "Email"}}</div>
 <section class="card">
   <h1>Email</h1>
   <p>The mail server Roostack sends email through. Use your email provider's SMTP details: most give a separate
@@ -53,3 +52,5 @@
 </section>
 {{end}}
 {{end}}
+
+{{define "page-help"}}{{help "settings/email" "Email"}}{{end}}

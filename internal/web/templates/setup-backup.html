@@ -3,7 +3,6 @@
 <section class="narrow">
   <div class="card">
     {{with .AddressSet}}{{notice "ok" (printf "Your lab's address is %s. Its web addresses start working when setup finishes." .)}}{{end}}
-    <div class="page-top"><p class="hint">Setup · step 4 of 4</p>{{help "backups" "Your backup plan"}}</div>
     <h1>Your backup plan</h1>
     <p>Roostack backs everything up every night, to each backup in your plan. {{if and .Plan .Plan.Internet}}Start with your main backup
       somewhere other than this server, such as online storage.{{else}}Start with your main backup, somewhere at home
@@ -23,3 +22,6 @@
   </div>
 </section>
 {{end}}
+
+{{define "page-help"}}{{help "backups" "Your backup plan"}}{{end}}
+{{define "crumbs"}}<span>Setup</span><strong aria-current="page">Step 4 of 4</strong>{{end}}
