@@ -4,4 +4,4 @@
 # the url (a local clone, say, before a commit is pushed). Change the commit
 # to ship newer packages.
 url=https://github.com/roostack/services.git
-commit=8eb8a2e29d95c8266526261d391151a8117387ea
+commit=a2637ba01e2a04a05b18ca30d0b1f5aa4dd38665
