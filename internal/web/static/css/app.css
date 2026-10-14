@@ -231,6 +231,8 @@ ol.install-steps small { color: var(--muted); font-weight: var(--weight-normal);
 .address-pending { color: var(--muted); overflow-wrap: anywhere; }
 .install-line { font-size: var(--text-sm); color: var(--muted); margin: var(--space-1) 0; }
 .badge { background: var(--accent-soft); color: var(--accent); }
+/* A badge beside a title in the heading itself (a service of your own). */
+h1 > .badge, h2 > .badge { vertical-align: 0.2em; }
 .badge-highlight { background: var(--highlight-soft); color: var(--highlight); }
 .badge-ok { background: var(--ok-bg); color: var(--ok); }
 .badge-warn { background: var(--warn-bg); color: var(--warn); }

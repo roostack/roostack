@@ -138,6 +138,9 @@ func TestInstallAndRemove(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if in.Local {
+		t.Error("a registry package's service isn't the Owner's own")
+	}
 	r := in.Routes["web"]
 	if r.Subdomain != "passwords" || r.Port != config.DefaultRoutePortMin {
 		t.Errorf("route = %+v, want subdomain passwords and the first port", r)
