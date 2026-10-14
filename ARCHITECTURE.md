@@ -32,9 +32,10 @@ services/<name>.yaml ──────────┼─▶ state ─▶ genera
 packages/<name>/<version>.yaml ┘             (pure)      (plan → apply)
       ▲
       └── copied at install from catalog/<name>/<version>.yaml
+          (or local-packages/<name>/<version>.yaml, the Owner's own)
 ```
 
-1. **`internal/state`** loads the lab config, every instance file, and the lab's own copy of each instance's package version (`packages/<name>/<version>.yaml` in the state folder, SPEC.md §8.3.1). The copy is taken from the catalog when a service is installed, so a newer catalog never changes a running service and a restore needs only the backup; the catalog is only what *can* be installed. Copies no service uses are deleted after each apply. It also checks lab-wide rules (e.g. unique hostnames).
+1. **`internal/state`** loads the lab config, every instance file, and the lab's own copy of each instance's package version (`packages/<name>/<version>.yaml` in the state folder, SPEC.md §8.3.1). The copy is taken from the catalog (or the Owner's own packages, `local-packages/`, SPEC.md §8.3.4) when a service is installed, so a newer catalog never changes a running service and a restore needs only the backup; the catalog is only what *can* be installed. Copies no service uses are deleted after each apply. It also checks lab-wide rules (e.g. unique hostnames).
 2. **`internal/generate`** turns package + instance + lab config into output: Quadlet files, a Caddy snippet, required secrets, directories and a backup plan. It is **pure** (no disk access, no side effects), so it's tested with golden files and can be previewed with `roostack render`. `Summarize` uses it for the summary the install page shows before installing (what it keeps, addresses, ports, GPU, memory and the files it would write; SPEC.md §8.3.4).
 3. **`internal/reconcile`** compares that output with what's on disk and builds a **plan** (files to write or remove, units to start, restart or stop, secrets to create, images to build or download). `roostack apply --dry-run` prints the plan; `roostack apply` carries it out. Image builds start in the background; new containers' images are pulled one at a time before their units start, with progress events the node turns into a service's install steps (SPEC.md §6.3.3).
 
@@ -49,7 +50,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/config` | Lab settings and **all default paths** in one place, including where the lab is (`network: home|internet`, SPEC.md §6.12) |
 | `internal/registry` | The service registry (SPEC §8.3.3): the signed index and key statement, building them from the registry repository (`roostack registry`), and the controller's fetcher (`Updater`: at start, every 4 hours, on opening the catalog) keeping `CatalogDir` |
 | `internal/imagecheck` | Asks container registries which processors a pinned image has builds for (`make check-images`, the registry's index) |
-| `internal/pkgspec` | The package format (`schema: roostack/v1alpha1`), its validation, and the package policy registry packages follow (SPEC §8.3.4) |
+| `internal/pkgspec` | The package format (`schema: roostack/v1alpha1`), its validation, and the package policy registry packages follow (SPEC §8.3.4; `Risks` is the part shown for the Owner's own) |
 | `internal/instance` | A user's installed service, validated against its package |
 | `internal/generate` | Desired state → Quadlets, Caddy config, secrets, dirs, backup plan; the install summary |
 | `internal/quadlet` | Writing Quadlet/systemd unit files, with escaping |
@@ -60,7 +61,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/setup` | First-run setup wizard logic: time zone, domain and DNS credentials, backup destination, recovery key |
 | `internal/hosttime` | Reads the host's time zone and the valid zone names (tzdata); changing it is the agent's job |
 | `internal/reconcile` | Plan and apply changes to the host |
-| `internal/state` | Load desired state from disk; keep and prune the lab's copies of its packages (SPEC §8.3.1); read the catalog's newest version of a package |
+| `internal/state` | Load desired state from disk; keep and prune the lab's copies of its packages (SPEC §8.3.1); read the catalog's newest version of a package; keep the Owner's own packages (SPEC §8.3.4) |
 | `internal/pkgtest` | For tests: finds the package fixtures in `internal/testdata/packages` and copies them into a catalog |
 | `internal/systemd` | `systemctl --user` wrapper |
 | `internal/podman` | The few direct `podman` calls (secrets, `exec` for package hooks) |
@@ -79,7 +80,8 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/store` | SQLite runtime data: users, sessions, audit log, settings, backup runs, the lab's servers and join codes, backup providers, targets and copies, and storage for other labs |
 | `internal/auth` | Roles and usernames (passwords, tokens and two-factor codes are `authkit`) |
 | `internal/web` | Web UI: handlers, templates, vendored htmx/Alpine, and the embedded help site at `/help/` (`help.go`, built from `help/` into `helpsite/site` by `make build`) |
-| `internal/manager` | The controller: catalog, install, remove, ports and settings (desired state), public addresses, recovery key changes, moving and restoring services across servers (SPEC §10.10), updating services to newer package versions (`update.go`, SPEC §7.1), and each server's Assignment |
+| `internal/errpage` | The error scenes (generated by `assets/errors/generate.py`) and the services' error pages that Caddy serves (SPEC.md §6.3.4); Roostack's own error pages are in `internal/web/errors.go` |
+| `internal/manager` | The controller: catalog (with the Owner's own packages), the package policy at install, install, remove, ports and settings (desired state), public addresses, recovery key changes, moving and restoring services across servers (SPEC §10.10), updating services to newer package versions (`update.go`, SPEC §7.1), and each server's Assignment |
 | `internal/maintenance` | Maintenance coordinator: job queue and reboot policy |
 | `internal/backup` | restic wrapper, prepare steps, backup plan and job |
 | `internal/b2` | Backblaze B2 application keys limited to one server's folder, made and deleted over B2's native API |

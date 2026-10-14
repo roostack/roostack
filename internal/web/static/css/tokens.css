@@ -50,6 +50,11 @@
      also has a label, so colour never carries it alone. */
   --chart-1-l: #2a78d6; --chart-2-l: #e87ba4; --chart-3-l: #4a3aa7;
   --chart-1-d: #3987e5; --chart-2-d: #d55181; --chart-3-d: #9085e9;
+
+  /* The tile behind a service's logo (2026-10-14): light in every theme
+     and mode, since projects draw their logos for light backgrounds
+     (Vaultwarden's is black), with dark lines for a drawn icon on it. */
+  --logo-tile: #f6f6f3; --logo-tile-fg: #3a3a36;
 }
 
 /* Light (the default, and data-mode="light" anywhere). */

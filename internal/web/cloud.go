@@ -169,7 +169,7 @@ func (s *Server) roostAcSubmit(w http.ResponseWriter, r *http.Request) {
 	if msg == "" && !s.Cloud.Status().Linked {
 		msg = "Link the lab to Roostack Cloud first."
 	}
-	if msg == "" {
+	if msg == "" && !s.ownCloudName(name) {
 		if a, err := s.Cloud.NameAvailable(r.Context(), name); err != nil {
 			msg = cloudMessage(err)
 		} else if !a.Available && !a.Held {
@@ -222,6 +222,8 @@ func (s *Server) cloudNameCheck(w http.ResponseWriter, r *http.Request) {
 		v["Empty"] = true
 	} else if msg := roostAcNameProblem(name); msg != "" {
 		v["Problem"] = msg
+	} else if s.ownCloudName(name) {
+		v["Own"] = true
 	} else if a, err := s.Cloud.NameAvailable(r.Context(), name); err != nil {
 		v["Problem"] = cloudMessage(err)
 	} else if a.Held {
@@ -232,6 +234,15 @@ func (s *Server) cloudNameCheck(w http.ResponseWriter, r *http.Request) {
 		v["Free"] = true
 	}
 	s.renderLive(w, r, "settings-cloud", "cloud-name-check", v)
+}
+
+// ownCloudName: name is the linked lab's own roost.ac name (still claimed,
+// though it may not be the address now). Asking whether it's free is
+// anonymous, so Cloud says it's taken; the claim, made as the lab, gives it
+// back (found on VM3, 2026-10-14, going back from an own domain).
+func (s *Server) ownCloudName(name string) bool {
+	st := s.Cloud.Status()
+	return st.Linked && st.Name != "" && st.Name == name
 }
 
 // cloudBack is where a Cloud form returns to: the wizard's step or

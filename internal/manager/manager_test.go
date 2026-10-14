@@ -138,6 +138,9 @@ func TestInstallAndRemove(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if in.Local {
+		t.Error("a registry package's service isn't the Owner's own")
+	}
 	r := in.Routes["web"]
 	if r.Subdomain != "passwords" || r.Port != config.DefaultRoutePortMin {
 		t.Errorf("route = %+v, want subdomain passwords and the first port", r)
@@ -563,6 +566,11 @@ func TestInstallSummary(t *testing.T) {
 	if s.Memory != 2_750_000_000 || len(s.Addresses) != 1 || s.Addresses[0].Host != "pics.lab.example.com" {
 		t.Errorf("summary: memory %d, addresses %+v", s.Memory, s.Addresses)
 	}
+	// The server it would run on: its memory (this test's machine's), and
+	// what Vaultwarden, already there, expects.
+	if sv := s.Server; !sv.This || sv.Servers != 1 || sv.Expected != 50_000_000 || sv.Total <= 0 || sv.Available <= 0 {
+		t.Errorf("server memory = %+v", sv)
+	}
 	caddy := s.Files[len(s.Files)-1]
 	if want := fmt.Sprint(config.DefaultRoutePortMin + 1); !strings.Contains(caddy.Content, want) {
 		t.Errorf("the Caddy site should use the next free port, %s:\n%s", want, caddy.Content)
@@ -590,5 +598,23 @@ func TestInstallSummary(t *testing.T) {
 	}
 	if _, err := m.PackageIcon("nope"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("an unknown package's icon: %v, want not found", err)
+	}
+	// A package needing a newer Roostack has only its logo: it's served,
+	// but not listed or offered.
+	icon, _ := m.PackageIcon("vaultwarden")
+	if err := os.MkdirAll(m.Lab.Paths.CatalogPackageDir("later"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(m.Lab.Paths.CatalogPackageDir("later"), "icon.png"), icon, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := m.PackageIcon("later"); err != nil || string(got) != string(icon) {
+		t.Errorf("the logo of a package needing a newer Roostack: %v", err)
+	}
+	if _, err := m.Package("later"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a package needing a newer Roostack is offered: %v", err)
+	}
+	if items, _ := m.Catalog(); len(items) != 2 || !items[1].Icon || len(items[1].Categories) == 0 {
+		t.Errorf("catalog: %+v", items)
 	}
 }

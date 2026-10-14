@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
@@ -60,11 +59,14 @@ func tookText(from, to time.Time) string {
 
 // installSummaryView is what installing a service would set up, shown
 // above the Install button and updated as the form changes (SPEC.md
-// §8.3.4). The figures come from the manager (generate.Summarize); this
-// only words them.
+// §8.3.4). The figures come from the manager (generate.Summarize, and the
+// server's memory); this only words them.
 type installSummaryView struct {
-	*generate.Summary
+	*manager.InstallSummary
 	Package *pkgspec.Package
+	// TooBig: it expects more memory than is free on its server right now
+	// (a warning; installing still works).
+	TooBig bool
 	// Err is why there's no summary yet: something on the form to fix.
 	Err string
 	// BackedUp and Remade list what it keeps, in words: what's backed
@@ -100,7 +102,8 @@ func (s *Server) installSummary(p *pkgspec.Package, req manager.InstallRequest) 
 		v.Err = "Roostack couldn't work it out: the log has the details."
 		return v
 	}
-	v.Summary = sum
+	v.InstallSummary = sum
+	v.TooBig = sum.Server.Available > 0 && sum.Memory > sum.Server.Available
 	var backedUp, remade []string
 	databases := 0
 	for _, k := range sum.Kept {

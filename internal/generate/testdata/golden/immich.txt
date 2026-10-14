@@ -124,6 +124,11 @@ WantedBy=default.target
 
 @immich-web host photos.lab.example.com
 handle @immich-web {
+	vars {
+		roostack_name immich
+		roostack_title "Immich"
+		roostack_private yes
+	}
 	@immich-web-external not remote_ip private_ranges 100.64.0.0/10
 	abort @immich-web-external
 	request_body {

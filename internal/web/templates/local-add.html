@@ -1,0 +1,32 @@
+{{define "title"}}Add your own service{{end}}
+{{define "content"}}
+<section class="card narrow">
+  <div class="page-top">{{back "/catalog" "Add a service"}}{{help "services/add#your-own" "Add your own"}}</div>
+  <h1>Add your own service</h1>
+  {{/* Wording chosen by the Owner (2026-10-14), SPEC.md §8.3.4. */}}
+  {{notice "warn" "Nobody has reviewed this package. Services from the service registry are checked before they're offered; a package you add isn't. It decides which app runs and what it's given, so only add one you wrote or got from someone you trust."}}
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  <form method="post" action="/catalog/add" enctype="multipart/form-data">
+    <label>Package file
+      <input type="file" name="package" accept=".yaml,.yml" required>
+      <small>The service's package file, as the <a href="/help/reference/packages/" target="_blank" rel="noopener">package format{{template "new-window"}}</a>
+        describes. Adding a new version of one you added before replaces it; services installed from it keep running as they are.</small>
+    </label>
+    <label>Logo (optional)
+      <input type="file" name="icon" accept="image/png">
+      <small>A square PNG, at least 256×256 pixels and at most 100 KB. Needed if the package names one (<code>about.icon</code>).</small>
+    </label>
+    <button type="submit">Add</button>
+  </form>
+  <details class="technical">
+    <summary>Details</summary>
+    <dl class="facts">
+      <dt>Kept in</dt>
+      <dd><code>{{.Dir}}/&lt;name&gt;/</code>, backed up with your lab</dd>
+      <dt>Checked</dt>
+      <dd>That it's a valid package Roostack can set up, as <code>roostack validate -local</code> does. Anything it asks for that packages
+        from the service registry can't have is shown before you install it.</dd>
+    </dl>
+  </details>
+</section>
+{{end}}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/registry"
 )
 
@@ -19,6 +20,7 @@ type fakeRegistry struct {
 	checks  int // Check calls
 	opened  int // CheckIfOlder calls
 	setOnTo []bool
+	listing map[string]registry.Listed
 }
 
 func (f *fakeRegistry) On() bool { return f.on }
@@ -33,8 +35,11 @@ func (f *fakeRegistry) CheckIfOlder(context.Context, time.Duration) error {
 	return nil
 }
 func (f *fakeRegistry) Status() registry.Status { return f.status }
-func (f *fakeRegistry) URL() string             { return registry.DefaultURL }
-func (f *fakeRegistry) Dir() string             { return "/var/lib/roostack/catalog" }
+func (f *fakeRegistry) Listing() (map[string]registry.Listed, error) {
+	return f.listing, nil
+}
+func (f *fakeRegistry) URL() string { return registry.DefaultURL }
+func (f *fakeRegistry) Dir() string { return "/var/lib/roostack/catalog" }
 
 func fresh() registry.Status {
 	now := time.Now()
@@ -74,6 +79,56 @@ func TestCatalogRegistry(t *testing.T) {
 	}
 	if _, body := h.get("/install/immich"); !strings.Contains(body, "turned off") || strings.Contains(body, `name="subdomain"`) {
 		t.Error("turned off: installing should go back to the catalog")
+	}
+}
+
+// The catalog shows each service's logo (or its category's icon), tier
+// and categories, with filters for the categories in use; one needing a
+// newer Roostack is listed, not offered (SPEC.md §8.3.6).
+func TestCatalogListing(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleAdmin)
+	reg := &fakeRegistry{on: true, status: fresh(), listing: map[string]registry.Listed{
+		"immich":      {Package: &registry.Package{Title: "Immich", Tier: registry.TierOfficial}, Icon: true},
+		"vaultwarden": {Package: &registry.Package{Title: "Vaultwarden", Tier: registry.TierCommunity}},
+		"paperless": {Package: &registry.Package{Title: "Paperless-ngx", Description: "Files your paper.", Tier: registry.TierOfficial,
+			Categories: []string{"documents"}}, NeedsRoostack: "0.9"},
+		"jellyfin": {Package: &registry.Package{Title: "Jellyfin", Tier: registry.TierOfficial}}, // withdrawn, say
+	}}
+	h.server.Registry = reg
+
+	_, body := h.get("/catalog")
+	immich, paperless, vault := strings.Index(body, "<h2>Immich"), strings.Index(body, "<h2>Paperless-ngx"), strings.Index(body, "<h2>Vaultwarden")
+	if immich < 0 || paperless < immich || vault < paperless {
+		t.Errorf("not listed by title: %d %d %d", immich, paperless, vault)
+	}
+	for _, want := range []string{
+		`<span class="logo-tile"><img src="/install/immich/icon.png"`,          // its logo
+		`data-categories="photos"`, "Photos and videos", "Documents and notes", // filters, and each one's
+		`<span class="badge">Official</span>`, `<span class="badge badge-warn">Community</span>`,
+		`<span class="badge badge-ok">Installed</span>`,
+		"Needs a newer Roostack: 0.9 or newer.", "Files your paper.",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the catalog is missing %q", want)
+		}
+	}
+	if strings.Contains(body, "/install/paperless") || strings.Contains(body, "Jellyfin") {
+		t.Error("only packages the lab can install, or could after updating Roostack, are listed; and only those offered")
+	}
+	if strings.Contains(body, `href="/settings/updates#registry">Details`) {
+		t.Error("an Admin can't open Settings → Updates")
+	}
+	if strings.Contains(body, "Network") || strings.Contains(body, "Films, TV and music") {
+		t.Error("filters only for categories in use")
+	}
+
+	// Installing it anyway goes back to the catalog, which says why; an
+	// unknown package is still not found.
+	if _, body := h.get("/install/paperless"); !strings.Contains(body, "Paperless-ngx needs a newer Roostack (0.9 or newer), so it can&#39;t be installed yet.") {
+		t.Errorf("installing one that needs a newer Roostack:\n%s", body)
+	}
+	if code, _ := h.get("/install/jellyfin"); code != http.StatusNotFound {
+		t.Errorf("a package not listed: %d", code)
 	}
 }
 
@@ -143,5 +198,17 @@ func TestRegistryAttention(t *testing.T) {
 	reg.on = false
 	if _, body := h.get("/"); strings.Contains(body, warning) {
 		t.Error("turned off on purpose: no warning")
+	}
+}
+
+// Every catalog category has a drawn icon, for a service without a logo.
+func TestCategoryIcons(t *testing.T) {
+	for _, c := range pkgspec.Categories {
+		if categoryIcon([]string{c.Key}) != c.Key {
+			t.Errorf("category %s has no icon", c.Key)
+		}
+	}
+	if categoryIcon(nil) != "services" {
+		t.Error("no category: the services icon")
 	}
 }

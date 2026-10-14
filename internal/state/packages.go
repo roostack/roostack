@@ -16,9 +16,10 @@ import (
 // restore needs nothing but the backup and a newer catalog never changes a
 // running service. The catalog is only what can be installed.
 
-// KeepPackage copies the catalog's file for a package version into the
-// lab's state as the copy its services use, unless the lab already has
-// that version. It fails if the catalog doesn't have that version.
+// KeepPackage copies the file for a package version into the lab's state
+// as the copy its services use, unless the lab already has that version:
+// from the Owner's own packages if one has that name and version, else
+// from the catalog. It fails if neither has that version.
 func KeepPackage(paths config.Paths, name, version string) error {
 	if !pkgspec.ValidName(name) || !pkgspec.ValidVersion(version) {
 		return fmt.Errorf("package %q version %q: not a valid package name and version", name, version)
@@ -27,7 +28,10 @@ func KeepPackage(paths config.Paths, name, version string) error {
 	if _, err := os.Stat(dst); err == nil {
 		return nil
 	}
-	src := paths.CatalogPackageFile(name, version)
+	src := filepath.Join(paths.LocalPackageDir(name), version+".yaml")
+	if _, err := os.Stat(src); err != nil {
+		src = paths.CatalogPackageFile(name, version)
+	}
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
@@ -133,7 +137,13 @@ func CatalogVersion(paths config.Paths, name string) (string, error) {
 	if !pkgspec.ValidName(name) {
 		return "", fmt.Errorf("package %q: %w", name, os.ErrNotExist)
 	}
-	files, err := os.ReadDir(paths.CatalogPackageDir(name))
+	return newestVersion(paths.CatalogPackageDir(name))
+}
+
+// newestVersion is the newest <version>.yaml in a package's folder. It
+// returns an error wrapping os.ErrNotExist when there's none.
+func newestVersion(dir string) (string, error) {
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return "", err
 	}
@@ -150,7 +160,7 @@ func CatalogVersion(paths config.Paths, name string) (string, error) {
 		}
 	}
 	if newest == "" {
-		return "", fmt.Errorf("%s has no package file: %w", paths.CatalogPackageDir(name), os.ErrNotExist)
+		return "", fmt.Errorf("%s has no package file: %w", dir, os.ErrNotExist)
 	}
 	return newest, nil
 }

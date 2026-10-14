@@ -5,7 +5,17 @@
   <h1>{{if .Another}}Add another {{.Package.Title}}{{else}}Install {{.Package.Title}}{{end}}</h1>
   <p class="hint">{{.Package.Description}}</p>
   {{template "project-credit" .Credit}}
+  {{/* The package policy (SPEC.md §8.3.4). */}}
+  {{if .Policy.Local}}
+  {{notice "warn" "You added this package yourself, so nobody has reviewed it. Only install it if you wrote it or trust whoever did."}}
+  {{noticeList "warn" "It asks for things packages from the service registry can't have:" .Policy.Problems}}
+  {{if and .Policy.Problems (not .IsOwner)}}<p>Only the Owner can install it, after reading these.</p>{{end}}
+  {{else if .Policy.Problems}}
+  {{noticeList "error" (printf "This version of %s can't be installed: it asks for something packages from the service registry aren't allowed, which the registry should have caught. Nothing has changed on your lab." .Package.Title) .Policy.Problems}}
+  <p><a href="https://github.com/roostack/services/issues" target="_blank" rel="noopener">Tell the registry's maintainers{{template "new-window"}}</a></p>
+  {{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .CanInstall}}
   {{/* The name follows the title, and the web address the name, until
        they're edited (SPEC.md §8.2). */}}
   <form method="post" action="/install/{{.Package.Name}}" data-title="{{.Title}}" data-suffix="{{.Suffix}}" data-sub="{{.Subdomain}}"
@@ -79,8 +89,13 @@
       {{end}}
     {{end}}
     {{template "install-summary" .Summary}}
+    {{if and .Policy.Local .Policy.Problems}}
+    <label class="check"><input type="checkbox" name="accept_risks" required>
+      <span>I've read what it asks for, and want to install it anyway</span></label>
+    {{end}}
     <button type="submit">Install</button>
   </form>
+  {{end}}
 </section>
 {{end}}
 
@@ -106,14 +121,22 @@
       <small class="hint">{{if .Enabled}}On{{else}}Off until you turn it on, on its page{{end}}; {{if eq .Exposure "public"}}anyone on the internet{{else}}your home network only{{end}}</small></dd>{{end}}
     {{if .GPU}}<dt>Graphics</dt><dd>Uses this server's graphics chip (GPU)</dd>{{end}}
     <dt>Memory</dt>
-    <dd>{{if .Memory}}{{if .MemoryUnknown}}At least{{else}}About{{end}} {{size .Memory}}{{else}}Its package doesn't say{{end}}</dd>
+    <dd>{{if .Memory}}{{if .MemoryUnknown}}At least{{else}}About{{end}} {{size .Memory}}{{else}}Its package doesn't say{{end}}
+      {{- with .Server}}<br><small class="hint">{{if .This}}This server ({{.Name}}){{else}}{{.Name}}{{end}}
+      {{- if .Total}} has {{size .Total}}, and {{size .Available}} is free right now.{{else}} didn't say how much memory is free.{{end}}</small>{{end}}</dd>
   </dl>
+  {{if .TooBig}}{{notice "warn" (printf "%s needs about %s, but only %s is free on %s right now. It may be slow, or stop working. %s"
+    .Package.Title (size .Memory) (size .Server.Available) .Server.Name
+    (or (and (gt .Server.Servers 1) "Run it on another server, or free some memory first.") "Free some memory first, for example by removing a service you don't use."))}}{{end}}
   <details class="technical" id="install-summary-details">
     <summary>Details</summary>
     <dl class="facts">
       <dt>Runs</dt>
       <dd>{{range .Parts}}<code>{{.Name}}</code>{{with .Database}} ({{databaseName .}} database){{end}}: {{if .Memory}}{{size .Memory}}{{else}}doesn't say{{end}}<br>{{end}}
         <small class="hint">What each part typically uses, from the package: an estimate, not a limit.</small></dd>
+      {{with .Server}}<dt>Server</dt>
+      <dd>{{.Name}}: {{if .Total}}{{size .Total}} in all, {{size .Available}} free now{{else}}its memory isn't known{{end}}<br>
+        <small class="hint">Services already on it expect {{size .Expected}}. Free memory is the server's own figure (<code>MemAvailable</code> in <code>/proc/meminfo</code>), which counts what's running.</small></dd>{{end}}
       <dt>Data</dt>
       <dd>{{range .Kept}}{{if .Path}}<code>{{.Path}}</code>{{else}}<code>{{.Name}}</code>{{end}}{{with .Database}} ({{databaseName .}} database){{end}}: {{if .BackedUp}}backed up{{else}}not backed up{{end}}<br>{{end}}</dd>
       {{with .GPU}}<dt>GPU</dt><dd>{{range .}}<code>{{.}}</code> gets <code>/dev/dri</code><br>{{end}}</dd>{{end}}

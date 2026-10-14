@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
+	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/registry"
 )
 
 // formField is one input on the install form.
@@ -56,27 +59,118 @@ func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
 		}
 		cancel()
 	}
-	data := map[string]any{"User": currentUser(r), "Registry": s.registryView()}
-	// Turned off, nothing is offered: the lab wouldn't hear if a version
-	// were withdrawn (SPEC.md §8.3.3).
-	if s.registryOn() {
-		items, err := s.Manager.Catalog()
-		if err != nil {
-			s.serverError(w, err)
-			return
+	u := currentUser(r)
+	data := map[string]any{"User": u, "Registry": s.registryView(), "IsOwner": auth.Can(u.Role, auth.ManageHost)}
+	items, err := s.Manager.Catalog()
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	// Turned off, nothing from the registry is offered: the lab wouldn't
+	// hear if a version were withdrawn (SPEC.md §8.3.3). The Owner's own
+	// packages still are.
+	on := s.registryOn()
+	if !on {
+		items = slices.DeleteFunc(items, func(it manager.CatalogItem) bool { return !it.Local })
+	}
+	var listing map[string]registry.Listed
+	if s.Registry != nil && on {
+		if listing, err = s.Registry.Listing(); err != nil {
+			s.Log.Warn("reading the service registry's index", "err", err)
 		}
-		data["Items"] = items
-		// Installed packages with a newer version: the service page has
-		// the update (SPEC.md §7), by package.
-		updates := map[string]*manager.Update{}
-		for _, u := range s.Manager.AvailableUpdates(r.Context()) {
-			if updates[u.Package] == nil || u.Service < updates[u.Package].Service {
-				updates[u.Package] = u
+	}
+	data["Items"], data["Categories"] = catalogItems(items, listing)
+	// Installed packages with a newer version: the service page has the
+	// update (SPEC.md §7.1), by package.
+	updates := map[string]*manager.Update{}
+	for _, u := range s.Manager.AvailableUpdates(r.Context()) {
+		if updates[u.Package] == nil || u.Service < updates[u.Package].Service {
+			updates[u.Package] = u
+		}
+	}
+	data["Updates"] = updates
+	// Arrived from adding a package of their own.
+	if added := r.URL.Query().Get("added"); added != "" {
+		for _, it := range items {
+			if it.Name == added && it.Local {
+				data["Added"] = it.Title
 			}
 		}
-		data["Updates"] = updates
+	}
+	// Arrived from installing one that needs a newer Roostack (pkg).
+	if needs := r.URL.Query().Get("needs"); needs != "" {
+		for _, it := range data["Items"].([]catalogItem) {
+			if it.Name == needs && it.NeedsRoostack != "" {
+				data["Needs"] = it
+			}
+		}
 	}
 	s.render(w, "catalog", data)
+}
+
+// catalogItem is one service on the catalog page (SPEC.md §8.3.6).
+type catalogItem struct {
+	manager.CatalogItem
+	// Tier is the registry's (registry.TierOfficial or TierCommunity).
+	Tier string
+	// NeedsRoostack is the Roostack release it needs, when it can't be
+	// installed on this one: it's listed, but not offered.
+	NeedsRoostack string
+	// IconURL is its logo's; DrawnIcon the icon shown without one.
+	IconURL, DrawnIcon string
+	// CategoryKeys (space-separated) and Search (lower case) are for the
+	// filter; CategoryTitles is shown.
+	CategoryKeys, CategoryTitles, Search string
+}
+
+// catalogItems lists the packages the lab can install, with what the
+// registry's index says of them, and the ones needing a newer Roostack,
+// by title; and the categories they're in, for the filter, in
+// pkgspec.Categories' order.
+func catalogItems(items []manager.CatalogItem, listing map[string]registry.Listed) ([]catalogItem, []pkgspec.Category) {
+	var out []catalogItem
+	offered := map[string]bool{}
+	for _, it := range items {
+		offered[it.Name] = true
+		c := catalogItem{CatalogItem: it}
+		if l, ok := listing[it.Name]; ok && !it.Local {
+			c.Tier = l.Tier
+		}
+		out = append(out, c)
+	}
+	for name, l := range listing {
+		if offered[name] || l.NeedsRoostack == "" {
+			continue
+		}
+		out = append(out, catalogItem{Tier: l.Tier, NeedsRoostack: l.NeedsRoostack, CatalogItem: manager.CatalogItem{
+			Name: name, Title: l.Title, Description: l.Description, Categories: l.Categories, Icon: l.Icon}})
+	}
+	used := map[string]bool{}
+	for i := range out {
+		c := &out[i]
+		if c.Icon {
+			c.IconURL = "/install/" + c.Name + "/icon.png"
+		}
+		c.DrawnIcon = categoryIcon(c.Categories)
+		var keys, titles []string
+		for _, key := range c.Categories {
+			if title := pkgspec.CategoryTitle(key); title != "" {
+				keys, titles = append(keys, key), append(titles, title)
+				used[key] = true
+			}
+		}
+		c.CategoryKeys, c.CategoryTitles = strings.Join(keys, " "), strings.Join(titles, ", ")
+		words := append([]string{c.Name, c.Title, c.Description}, titles...)
+		c.Search = strings.ToLower(strings.Join(append(words, c.Keywords...), " "))
+	}
+	slices.SortFunc(out, func(a, b catalogItem) int { return strings.Compare(strings.ToLower(a.Title), strings.ToLower(b.Title)) })
+	var categories []pkgspec.Category
+	for _, c := range pkgspec.Categories {
+		if used[c.Key] {
+			categories = append(categories, c)
+		}
+	}
+	return out, categories
 }
 
 func (s *Server) installPage(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +191,9 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := s.installRequest(r.PostForm, p)
+	// Only the Owner may accept what a package of their own asks for
+	// (decided by the Owner, 2026-10-14).
+	req.AcceptRisks = r.PostForm.Get("accept_risks") == "on" && auth.Can(currentUser(r).Role, auth.ManageHost)
 	if req.Public {
 		// Asked the first time anything goes public (SPEC.md §6.11).
 		if asked, _ := s.Manager.SignalSharing(); !asked {
@@ -253,14 +350,23 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 			form.Set(f.Key, f.Value)
 		}
 	}
+	// The package policy (SPEC.md §8.3.4): a registry package that breaks
+	// it can't be installed; one of the Owner's own can, once the Owner
+	// has read what it asks for.
+	u := currentUser(r)
+	policy := s.Manager.CheckPackage(p)
+	owner := auth.Can(u.Role, auth.ManageHost)
 	return map[string]any{
+		"Policy":        policy,
+		"IsOwner":       owner,
+		"CanInstall":    len(policy.Problems) == 0 || (policy.Local && owner),
 		"Summary":       s.installSummary(p, s.installRequest(form, p)),
 		"Credit":        newProjectCredit(p),
 		"Internet":      s.onInternet(),
 		"Public":        submitted == nil || public,
 		"Unsafe":        unsafe,
 		"SharingAsked":  asked,
-		"User":          currentUser(r),
+		"User":          u,
 		"Package":       p,
 		"Fields":        fields,
 		"HasRoute":      len(p.Routes) > 0,
@@ -494,12 +600,23 @@ func (s *Server) pkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Package, 
 		http.NotFound(w, r)
 		return nil, false
 	}
-	if !s.registryOn() {
+	name := r.PathValue("name")
+	p, err := s.Manager.Package(name)
+	// With the registry turned off, only the Owner's own packages can be
+	// installed (SPEC.md §8.3.3).
+	if err == nil && !s.registryOn() && !s.Manager.CheckPackage(p).Local {
 		redirect(w, r, "/catalog") // which says why
 		return nil, false
 	}
-	p, err := s.Manager.Package(r.PathValue("name"))
 	if errors.Is(err, manager.ErrNotFound) {
+		// Listed in the catalog, but it needs a newer Roostack: the
+		// catalog says so (SPEC.md §8.3.6).
+		if s.Registry != nil {
+			if listing, _ := s.Registry.Listing(); listing[name].NeedsRoostack != "" {
+				redirect(w, r, "/catalog?needs="+url.QueryEscape(name))
+				return nil, false
+			}
+		}
 		http.NotFound(w, r)
 		return nil, false
 	}

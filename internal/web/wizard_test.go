@@ -17,6 +17,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dns"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/osupdate"
@@ -211,6 +212,15 @@ func TestWizardFlow(t *testing.T) {
 			t.Errorf("address step missing %q", want)
 		}
 	}
+	// A lab on a roost.ac name (its DNS provider Roostack Cloud's, not
+	// offered for an own domain) starts the own domain's form on the
+	// first provider, with its fields shown (found on VM3, 2026-10-13).
+	h.server.DNSProvider = config.ProviderCloud
+	_, body = h.get("/setup/domain")
+	if first := "provider: '" + dns.Providers()[0].ID + "'"; !strings.Contains(body, first) {
+		t.Errorf("a roost.ac lab's own-domain form should start on %q", first)
+	}
+	h.server.DNSProvider = ""
 	// With Roostack Cloud turned off, it isn't offered.
 	h.server.Cloud = nil
 	if _, body := h.get("/setup/domain"); strings.Contains(body, "roost.ac") {

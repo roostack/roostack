@@ -101,6 +101,11 @@ WantedBy=default.target
 
 @immich-web host photos.lab.example.com
 handle @immich-web {
+	vars {
+		roostack_name immich
+		roostack_title "Immich"
+		roostack_private no
+	}
 	route {
 		crowdsec
 		rate_limit {
