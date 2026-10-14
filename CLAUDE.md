@@ -64,11 +64,12 @@ Where things live on a host: see the table in [README.md](README.md). Paths come
 ## Commands
 
 ```sh
-make build        # bin/roostack, bin/roostack-agent (CGO off)
+make build        # bin/roostack, bin/roostack-agent: Linux, CGO off; GOARCH=arm64 for ARM
 make vet          # go vet + gofmt check
 go test ./...     # all tests
 make golden       # rewrite generator golden files after an intended change; review the diff
 go test ./internal/web -run TestGalleryFile -update-gallery   # regenerate docs/design/gallery.html
+make check-images # after changing an image pin: every pin has amd64 and arm64 builds (asks the registries)
 ```
 
 **restic-backed tests skip silently** when restic isn't installed on the dev machine (it isn't). Copy the VM's binary once and always run the full suite with it; a skipped test has hidden a breakage before:
@@ -78,9 +79,11 @@ scripts/dev-vm.sh ssh 'cat /usr/bin/restic' > <scratch>/restic
 ROOSTACK_RESTIC_BIN=<scratch>/restic go test ./...
 ```
 
+**On a Mac** parts of Roostack don't build (they're Linux-only), so `make vet` and `go test` fail there: use `GOOS=linux go vet ./...`, and run the suite in the VM with `scripts/dev-vm.sh test` (it builds the test binaries on the Mac, runs them in the VM with its restic, and takes `-test.run …`).
+
 ## Dev VMs
 
-`scripts/dev-vm.sh` runs Debian 13 VMs under plain QEMU/KVM (header comment has the details). `ROOSTACK_VM=n` selects VM n; its ports are offset by `(n-1)*10000` (UI tunnels on 18481, 28481, 38481).
+`scripts/dev-vm.sh` runs Debian 13 VMs under plain QEMU (header comment has the details): KVM on Linux, Hypervisor.framework on macOS. A VM has the machine's own architecture (arm64 on an Apple Silicon Mac, for ARM work: [ARM64-PLAN.md](ARM64-PLAN.md)); `ROOSTACK_VM_ARCH` picks the other, emulated and slow. `ROOSTACK_VM=n` selects VM n; its ports are offset by `(n-1)*10000` (UI tunnels on 18481, 28481, 38481).
 
 ```sh
 ROOSTACK_VM=1 scripts/dev-vm.sh up | ssh [cmd] | ui | down | status
