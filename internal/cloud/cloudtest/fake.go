@@ -468,7 +468,8 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLabName:
 		var req cloudapi.NameRequest
 		json.NewDecoder(r.Body).Decode(&req)
-		if f.Taken[req.Name] {
+		// A lab's own name isn't taken for it (as Cloud's claim).
+		if cur := f.names[id]; f.Taken[req.Name] && (cur == nil || cur.fqdn != req.Name+"."+f.NameSuffix) {
 			fail(w, http.StatusConflict, req.Name+".roost.ac is taken.")
 			return
 		}

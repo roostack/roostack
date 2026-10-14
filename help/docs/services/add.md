@@ -1,7 +1,9 @@
 # Add a service
 
 1. On **Services**, choose **Add a service**. You'll see everything you can
-   install; ones you already have are marked **Installed**.
+   install, each with its logo, what it does and its categories; ones you
+   already have are marked **Installed**. Type in the search box, or choose
+   a category such as **Photos and videos**, to narrow the list.
 2. Choose **Install** next to the one you want.
 3. Fill in the form:
 
@@ -34,6 +36,66 @@ On a brand-new server, the first install may also wait for Roostack's web
 proxy to finish building (once only, a few minutes). If a step takes much
 longer than usual, the page says so, and whether it's still moving.
 
+## Official and community services
+
+Every service in the list, except [your own](#your-own), comes from
+Roostack's service registry, where each package is reviewed before it's
+published. Each one says who looks
+after its package:
+
+Official
+:   Looked after by the Roostack project, which tries it on a real lab
+    (install, backup, restore, update, remove) for each Roostack release.
+
+Community
+:   Written and kept up to date by its author. Roostack's maintainers
+    review each version before it's published, but don't try it on a lab
+    themselves. Read what it sets up before installing it.
+
+Either way, the app itself is made by its own project, credited under
+its description when you choose **Install**.
+
+## Your own
+
+The Owner can add a service the registry doesn't have, from a package
+file: one you wrote (see [Make your own service](../packages/index.md)),
+or one someone you trust gave you. At the end of **Add a service**, under
+**Add your own**, choose **Add a package…**, then the package file and,
+if it has one, its logo (a square PNG, at least 256×256 pixels and at
+most 100 KB), and **Add**.
+
+Nobody has reviewed a package you add. Roostack checks that it's a valid
+package it can set up, but not what it runs: the package decides which
+app runs and what it's given. Only add one you wrote, or got from someone
+you trust.
+
+It's then listed with the others, marked **Your own**, and anyone who can
+add services can install it. If it asks for something packages from the
+service registry can't have (an image that isn't pinned, a folder from
+the server, extra container options), installing it lists those, and only
+the Owner can install it, by ticking **I've read what it asks for, and
+want to install it anyway**.
+
+- **A new version:** add the new file. It replaces the one you added
+  before; services installed from it keep running as they are.
+- **Removing it:** **Remove** beside it. Services installed from it keep
+  running; remove those from their own pages.
+- **Names:** yours can't have the name of a package in the service
+  registry. Pick another, such as `myapp-test`.
+- **Where it's kept:** `/var/lib/roostack/local-packages/<name>/`, which
+  is backed up with your lab.
+
+To check a package before adding it, run `roostack validate -local
+package.yaml` on a Roostack server, or any Linux computer with the
+`roostack` command: it shows the same list.
+
+## Needs a newer Roostack
+
+A service marked **Needs a newer Roostack** uses something this version
+of Roostack can't do yet. It can be installed once Roostack is updated to
+the version it names. The Owner can see the details under **Settings →
+Updates**, in **Services you can install**.
+
 ## What it sets up
 
 Before you install, the page says what the service will do on your
@@ -60,7 +122,10 @@ Graphics
 Memory
 :   About how much memory it needs while it runs, adding up the parts
     that would run with your choices. It's the package's estimate, not a
-    limit: a service can use more while it's busy.
+    limit: a service can use more while it's busy. Below it, how much
+    memory the server it would run on has, and how much is free right
+    now. If the service needs more than is free, a warning says so: it may
+    be slow, or stop working. You can still install it.
 
 Under the description, the page also says who makes the app, its licence,
 and links to its website, its source code and a way to support it.
@@ -72,7 +137,10 @@ and links to its website, its source code and a way to support it.
     to the package file itself, and every file Roostack would write (its
     Quadlet units and Caddy site), exactly as
     [`roostack render`](../reference/cli.md#looking-at-packages) shows
-    them, for the choices on the form. The summary is generated
+    them, for the choices on the form. It also shows what the services
+    already on that server expect. The free memory is the server's own
+    figure (`MemAvailable` in `/proc/meminfo`), which counts what's
+    running; another server reports it over Roostack's network. The summary is generated
     (`generate.Summarize`), never written by hand, so it can't disagree
     with what's installed. Passwords on the form aren't sent for it: no
     generated file ever holds one.

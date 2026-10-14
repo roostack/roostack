@@ -29,6 +29,28 @@ var icons = map[string]string{
 	"store":    `<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/>`,
 	"roostack": `<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>`,
 	"network":  `<circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/>`,
+	// The catalog's categories (pkgspec.Categories, by key; network is
+	// above), drawn as on the website: a service without a logo shows its
+	// first category's.
+	"photos":       `<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-5 4 4 2.5-2.5L20 17"/>`,
+	"media":        `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>`,
+	"documents":    `<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>`,
+	"productivity": `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/><path d="M5.5 8h1.5M11 8h2M11 11h2M17 8h1.5"/>`,
+	"home":         `<path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><circle cx="12" cy="14.5" r="2.5"/>`,
+	"passwords":    `<circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M16 7l2 2M14 9l2 2"/>`,
+	"development":  `<circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-11 7"/>`,
+	"publishing":   `<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 7l3 3M4 20h16"/>`,
+}
+
+// categoryIcon is the drawn icon for a service without a logo: its first
+// category's, or the services icon.
+func categoryIcon(categories []string) string {
+	if len(categories) > 0 {
+		if _, ok := icons[categories[0]]; ok {
+			return categories[0]
+		}
+	}
+	return "services"
 }
 
 // icon draws one of icons; an unknown name is an error, so a typo fails

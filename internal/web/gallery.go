@@ -47,6 +47,15 @@ var gallerySections = []gallerySection{
 			{"Top bar with the lab's name", "Once the lab has a name, the mark grows to sit beside both lines.", `
 <a class="brand" href="#">{{brandMark}}<span class="brand-stack"><span class="brand-eyebrow">Roostack</span><span class="brand-lab">The Smiths' lab</span></span></a>`},
 		}},
+	{ID: "error-scenes", Title: "Error scenes", Intro: "Pictures for error pages: the mark's hen and server, without the tile, with props and a joke. A joke headline goes with each, and plain words underneath. Generated from assets/errors/generate.py; Caddy's pages for the services use them too (internal/errpage).",
+		Examples: []galleryExample{
+			{"Roostack's pages", "errorScene NAME ID, in .es-scene: 404 flown, 403 pecking, 500 scrambled. ID makes the scene's SVG ID unique on the page.", `
+<div class="error-scenes">{{errorScene "flown" "g1"}}{{errorScene "pecking" "g2"}}{{errorScene "scrambled" "g3"}}</div>`},
+			{"Services' pages (Caddy)", "404 vacant, 403 and 429 crowded, 502 asleep, 503 hatching, 504 slow.", `
+<div class="error-scenes">{{errorScene "vacant" "g4"}}{{errorScene "crowded" "g5"}}{{errorScene "asleep" "g6"}}{{errorScene "hatching" "g7"}}{{errorScene "slow" "g8"}}</div>`},
+			{"Roostack Cloud", "The hen on a cloud, for Cloud's own pages (copied from assets/errors).", `
+<div class="error-scenes">{{errorScene "cloud-asleep" "g9"}}{{errorScene "cloud-empty" "g10"}}{{errorScene "cloud-unplugged" "g11"}}</div>`},
+		}},
 	{ID: "buttons", Title: "Buttons", Intro: "One primary button per form or card; others secondary or quiet.",
 		Examples: []galleryExample{
 			{"Primary, secondary, danger, quiet", "Primary does the main thing. Danger removes or deletes. Quiet is for small or optional actions.", `
@@ -79,6 +88,8 @@ var gallerySections = []gallerySection{
 {{notice "warn" "Backups are only stored on this server." "link=/backups" "linkText=Improve backups"}}`},
 			{"Error", "Something is broken.", `
 {{notice "error" "The last backup didn't finish: the disk is full."}}`},
+			{"With a list", "noticeList KIND TEXT ITEMS: a notice whose text leads into a list (each item plain text, which may be long and technical: it wraps anywhere). For several things to read before deciding, such as what a package of your own asks for.", `
+{{noticeList "warn" "It asks for things packages from the service registry can't have:" .PolicyProblems}}`},
 		}},
 	{ID: "status", Title: "Status and badges", Intro: "Status says how a service is doing; badges label things. The highlight badge is for the brand's own voice (\"New\"), sparingly.",
 		Examples: []galleryExample{
@@ -92,10 +103,17 @@ var gallerySections = []gallerySection{
 {{status "registry-stop"}}`},
 			{"Badges", "", `
 {{badge "Preview"}}
-{{badge "New" "highlight"}}`},
+{{badge "New" "highlight"}}
+{{badge "Installed" "ok"}}
+{{badge "Community" "warn"}}
+{{badge "Your own" "warn"}}`},
+			{"Logo", "logo SRC ICON: a service's logo on a light tile, the same in both modes, since projects draw their logos for light backgrounds; without one (SRC \"\"), the drawn ICON on the same tile. Decorative: the name beside it says what it is.", `
+{{logo .LogoURL ""}}
+{{logo "" "photos"}}
+{{logo "" "development"}}`},
 			{"Server", "server NAME: one of the lab's servers, named in running text (\"On nuc\"), so it's clear it means a server.", `
 <p class="hint">On {{server "nuc"}} · backed up today 02:14</p>`},
-			{"Icons", "icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text's colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, manage, new-window, help (icons.go).", `
+			{"Icons", "icon NAME: a small line drawing before a label, to make a list quick to scan. It takes the text's colour and is hidden from screen readers, so the label must say it all. Names: server, services, changes, disk, location, id, certificate, proxy, store, roostack, network, manage, new-window, help, and the catalog's categories (photos, media, documents, productivity, home, passwords, development, publishing; icons.go).", `
 <p class="with-icon">{{icon "server"}}Role</p>
 <p class="with-icon">{{icon "manage"}}Manage</p>
 <p class="with-icon">{{icon "disk"}}Disk</p>
@@ -139,6 +157,17 @@ var gallerySections = []gallerySection{
     <dt>Version</dt> <dd>15.0.9-roostack.1</dd>
   </dl>
 </details>`},
+			{"Catalog entry", "li.card.offer in ul.services: a logo, the name with its badges, the description and categories (.offer-categories), and the action (.offer-action); .offer-later in place of the button when it can't be installed. On phones the action moves under the text.", `
+<ul class="services">
+  <li class="card offer">{{logo .LogoURL ""}}<div class="offer-text"><h2>Forgejo</h2>{{badge "Official"}}<p class="hint">Hosts your own Git repositories.</p><p class="offer-categories">Developer tools</p></div>
+    <div class="offer-action"><a class="button" href="#">Install</a></div></li>
+  <li class="card offer">{{logo "" "documents"}}<div class="offer-text"><h2>Paperless-ngx</h2>{{badge "Community" "warn"}}<p class="hint">Scans, reads and files your paper documents.</p><p class="offer-categories">Documents and notes</p></div>
+    <div class="offer-action"><p class="offer-later">Needs a newer Roostack: 0.9 or newer. <a href="#">Details</a></p></div></li>
+  <li class="card offer">{{logo "" "services"}}<div class="offer-text"><h2>My app</h2>{{badge "Your own" "warn"}}<p class="hint">A package you added yourself.</p></div>
+    <div class="offer-action">{{confirm "#" "Remove My app from the list?" "Remove" "quiet danger"}}<a class="button" href="#">Install</a></div></li>
+</ul>`},
+			{"Filter chips", "div.filter-chips of buttons, the chosen one aria-pressed=\"true\": narrows a list to one group (the catalog's categories).", `
+<div class="filter-chips" role="group" aria-label="Categories"><button type="button" aria-pressed="true">All</button><button type="button" aria-pressed="false">Photos and videos</button><button type="button" aria-pressed="false">Developer tools</button></div>`},
 			{"Project credit", "template \"project-credit\" with a projectCredit (from about: in a package): who makes the app, its licence (linked to its text) and its links, with its logo. Under the description where people choose to install it.", `
 {{template "project-credit" .Credit}}`},
 		}},
@@ -316,6 +345,10 @@ Setting up curl (8.14.1-2+deb13u5) ...</pre>`},
 type renderedExample struct {
 	galleryExample
 	HTML template.HTML
+	// DarkHTML is the copy in the dark panel, its error scenes' SVG IDs
+	// made its own: with the light copy's, the dark scene would use the
+	// light one's gradient (an ID belongs to the first element with it).
+	DarkHTML template.HTML
 	// Component is true for template components ({{template ...}}),
 	// false for plain HTML using CSS classes.
 	Component bool
@@ -336,6 +369,11 @@ func renderGallery(w io.Writer, static string, standalone bool) error {
 	sample["Credit"] = &projectCredit{Title: "Forgejo", IconURL: static + "apple-touch-icon.png", About: pkgspec.About{
 		Maker: "a community project under Codeberg e.V., a non-profit", Licence: "GPL-3.0-or-later",
 		Website: "https://forgejo.org", Source: "https://codeberg.org/forgejo/forgejo", Support: "https://liberapay.com/forgejo"}}
+	sample["LogoURL"] = static + "apple-touch-icon.png"
+	sample["PolicyProblems"] = []string{
+		"containers.web.image: pin the image by digest (name:tag@sha256:…), so every lab runs exactly the image that was reviewed.",
+		"containers.web.quadlet: Container.Volume=/home/me/scans:/consume isn't allowed: a folder from the server or a named volume is outside the service and its backups; use storage: and mounts: (an anonymous Volume=/path is allowed).",
+	}
 	var sections []map[string]any
 	for _, sec := range gallerySections {
 		var examples []renderedExample
@@ -353,6 +391,7 @@ func renderGallery(w io.Writer, static string, standalone bool) error {
 				return err
 			}
 			examples = append(examples, renderedExample{galleryExample: ex, HTML: template.HTML(buf.String()),
+				DarkHTML:  template.HTML(strings.ReplaceAll(buf.String(), "es-wash-", "es-wash-dark-")),
 				Component: strings.Contains(ex.Source, "{{"), Rendered: formatHTML(buf.String())})
 		}
 		sections = append(sections, map[string]any{"ID": sec.ID, "Title": sec.Title, "Intro": sec.Intro, "Examples": examples})

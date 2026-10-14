@@ -644,7 +644,8 @@
 
 {{/* cloud-name-check: whether a roost.ac name is free, as it's typed. */}}
 {{define "cloud-name-check"}}<small id="name-check" class="name-check" role="status">
-  {{- if .Free}}<span class="cloud-linked">✓ {{.Name}}.{{$.Suffix}} is free</span>
+  {{- if .Own}}<span class="cloud-linked">✓ {{.Name}}.{{$.Suffix}} is this lab's name</span>
+  {{- else if .Free}}<span class="cloud-linked">✓ {{.Name}}.{{$.Suffix}} is free</span>
   {{- else if .Held}}{{.Name}}.{{$.Suffix}} is kept for the account that had it. If that's yours, you'll get it back once the lab is linked to it.
   {{- else if .Problem}}<span class="name-taken">{{.Problem}}</span>
   {{- else}}Services at <code>photos.<em>name</em>.{{$.Suffix}}</code>, Roostack itself at <code><em>name</em>.{{$.Suffix}}</code>.{{end}}</small>{{end}}

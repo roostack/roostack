@@ -58,6 +58,11 @@ type Instance struct {
 	// stop the service while it has this version. Another version (an
 	// update) isn't covered.
 	StartedAnyway string `yaml:"started_anyway,omitempty"`
+	// Local: installed from a package the Owner added themselves, not one
+	// from the service registry, so its pages say "Your own" (SPEC.md
+	// §8.3.4). Recorded here because the lab's copy of the package is the
+	// same whichever it came from, and the Owner may remove theirs.
+	Local bool `yaml:"local,omitempty"`
 }
 
 // RouteOverride holds user changes to a package route. Empty fields keep the

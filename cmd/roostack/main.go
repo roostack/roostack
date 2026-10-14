@@ -139,7 +139,7 @@ func render(args []string) error {
 
 func validate(args []string) error {
 	fs := flag.NewFlagSet("validate", flag.ExitOnError)
-	local := fs.Bool("local", false, "a package of your own: report the package policy's problems as warnings, not errors")
+	local := fs.Bool("local", false, "a package of your own: report what it asks for that registry packages can't have as warnings, not errors")
 	fs.Parse(args)
 	if fs.NArg() == 0 {
 		return errors.New("validate: give one or more package files")
@@ -153,8 +153,13 @@ func validate(args []string) error {
 		}
 		ok := true
 		// Registry packages must follow the package policy; one of your own
-		// may break it (SPEC.md §8.3.4).
-		for _, problem := range p.Policy() {
+		// may break it, and leave out the facts registry packages give: what
+		// it asks for is shown before installing, as here (SPEC.md §8.3.4).
+		problems := p.Policy()
+		if *local {
+			problems = p.Risks()
+		}
+		for _, problem := range problems {
 			if *local {
 				fmt.Printf("%s: warning: package policy: %s\n", path, problem)
 				continue

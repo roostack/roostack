@@ -93,6 +93,10 @@ func (u *Updater) CheckIfOlder(ctx context.Context, age time.Duration) error {
 // Status is the record of the last fetches.
 func (u *Updater) Status() Status { return u.Fetcher.Status() }
 
+// Listing is the newest index's packages, for the catalog
+// (Fetcher.Listing).
+func (u *Updater) Listing() (map[string]Listed, error) { return u.Fetcher.Listing() }
+
 // URL is the registry's address.
 func (u *Updater) URL() string { return u.Fetcher.URL }
 

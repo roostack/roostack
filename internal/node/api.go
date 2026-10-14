@@ -380,6 +380,13 @@ func (s *Server) Handler() http.Handler {
 		}
 		return d.DiskSpaces(ctx(r))
 	})
+	handle("GET /v1/memory", func(r *http.Request) (any, error) {
+		m, ok := n.(Memory)
+		if !ok {
+			return nil, ErrNotFound
+		}
+		return m.Memory(ctx(r))
+	})
 	handle("GET /v1/history", func(r *http.Request) (any, error) {
 		h, ok := n.(History)
 		if !ok {

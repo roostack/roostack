@@ -388,6 +388,25 @@ func (s *Service) linked(p *pending, ls cloudapi.LinkStatus) error {
 	return nil
 }
 
+// LabDomain tells the link the lab's address as it starts. A roost.ac
+// name that's no longer the lab's address (the Owner chose their own
+// domain) stops counting as it: otherwise pages kept showing the old name
+// as the address, and unlinking would have dropped the lab's own domain
+// (found on VM3, 2026-10-13). The name stays claimed, and can be chosen
+// again.
+func (s *Service) LabDomain(domain string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.st.Address == "" || strings.EqualFold(s.st.Address, domain) {
+		return
+	}
+	s.log.Info("Roostack Cloud: the lab's address is now its own domain", "was", s.st.Address, "now", domain)
+	s.st.Address = ""
+	if err := s.save(); err != nil {
+		s.log.Error("Roostack Cloud: saving the link", "err", err)
+	}
+}
+
 // ClaimName claims a roost.ac name for the linked lab and makes it the
 // lab's address (UseName), which restarts Roostack. Why it failed is
 // also in Status.AddressError.
