@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -21,6 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
@@ -33,6 +35,8 @@ import (
 )
 
 type fakeManager struct {
+	// summaries are the install summaries asked for.
+	summaries []manager.InstallRequest
 	// edges can be the lab's edge; edge is the chosen one.
 	edges []manager.EdgeServer
 	edge  string
@@ -462,6 +466,57 @@ func (f *fakeManager) Install(_ context.Context, _ string, req manager.InstallRe
 	return nil
 }
 
+// InstallSummary summarizes the request as the manager would, simply:
+// ticked boxes are true, the main route gets the request's subdomain and
+// a port (manager.Manager.InstallSummary has the real rules).
+func (f *fakeManager) InstallSummary(name string, req manager.InstallRequest) (*generate.Summary, error) {
+	f.summaries = append(f.summaries, req)
+	p, err := f.Package(name)
+	if err != nil {
+		return nil, err
+	}
+	if req.Name == p.Name+"-bad" {
+		return nil, &manager.FormError{Msg: "Choose another name."}
+	}
+	in := &instance.Instance{Package: p.Name, Version: p.Version, Updates: instance.UpdatesNotify, Settings: map[string]any{},
+		Routes: map[string]instance.RouteOverride{}}
+	for _, st := range p.Settings {
+		if v, ok := req.Settings[st.Key]; ok {
+			in.Settings[st.Key] = v
+		}
+		if st.Type == pkgspec.SettingBool {
+			in.Settings[st.Key] = req.Settings[st.Key] == "on"
+		}
+	}
+	for route := range p.Routes {
+		o := instance.RouteOverride{Port: 20001}
+		if route == manager.MainRoute(p) {
+			o.Subdomain = req.Subdomain
+		}
+		if req.Public {
+			o.Exposure = pkgspec.ExposurePublic
+		}
+		in.Routes[route] = o
+	}
+	lab := config.Default()
+	lab.Domain = "lab.example.com"
+	return generate.Summarize(lab, p, in)
+}
+
+func (f *fakeManager) PackageFile(name string) ([]byte, error) {
+	if _, err := f.Package(name); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
+}
+
+func (f *fakeManager) PackageIcon(name string) ([]byte, error) {
+	if _, err := f.Package(name); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(filepath.Join("..", "..", "docs", "examples", name+".png"))
+}
+
 func (f *fakeManager) Remove(_ context.Context, name string) error {
 	f.removed = append(f.removed, name)
 	return nil
@@ -614,7 +669,7 @@ func TestSecretFieldsAreNotEchoed(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleAdmin)
 	fm.failWith = &manager.FormError{Msg: "nope"}
 	// Vaultwarden's only secret is generated, so it must not be on the form.
-	if _, body := h.get("/install/vaultwarden"); strings.Contains(body, "admin_token") {
+	if _, body := h.get("/install/vaultwarden"); strings.Contains(body, `name="setting.admin_token"`) {
 		t.Error("generated secrets must not appear on the form")
 	}
 	_, body := h.post("/install/vaultwarden", url.Values{"subdomain": {"vault"}, "setting.admin_token": {"hunter2hunter2"}}, h.srv.URL)
@@ -1735,5 +1790,105 @@ func TestServicesWithoutAddress(t *testing.T) {
 	resp.Body.Close()
 	if resp.Request.URL.Path != "/services/vaultwarden" {
 		t.Errorf("public access without an address: %s", resp.Request.URL.Path)
+	}
+}
+
+// Before installing, the page says what the service would set up, from its
+// package and the form as it stands, and credits its project (SPEC.md
+// §8.3.4, §8.3.6).
+func TestInstallSummary(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+
+	_, body := h.get("/install/immich")
+	for _, want := range []string{
+		"What Immich sets up", "Your photos and videos, and its database: <strong>backed up</strong>",
+		"Not backed up, as Immich makes them again: converted videos, smart search models and thumbnails.",
+		"photos.lab.example.com", "About 2.8 GB", "graphics chip", // machine learning and the GPU are on
+		`<code>machine-learning</code>: 1.5 GB`, `<code>cache</code> (Redis database): 50.0 MB`,
+		`<code>/srv/roostack/media/immich/library</code>: backed up`,
+		`href="/install/immich/package.yaml"`, "<code>roostack-immich-server.container</code>", "<code>immich.caddy</code>", "In <code>/var/lib/roostack/caddy/sites</code>",
+		// The project's credit.
+		`<img src="/install/immich/icon.png"`, "Made by a full-time team backed by FUTO.",
+		`href="https://spdx.org/licenses/AGPL-3.0-only.html"`, "AGPL-3.0 licence", `href="https://buy.immich.app"`,
+		`hx-post="/install/immich/summary"`, `hx-params="*"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("install page is missing %q", want)
+		}
+	}
+	// The first summary is for the form's own defaults.
+	if req := fm.summaries[len(fm.summaries)-1]; req.Subdomain != "photos" || req.Settings["machine_learning"] != "on" {
+		t.Errorf("first summary for %+v", req)
+	}
+
+	// As the form changes, the summary follows: no machine learning, less
+	// memory, and its container isn't written.
+	code, body := h.post("/install/immich/summary", url.Values{"subdomain": {"pics"}, "title": {"Immich"}}, h.srv.URL)
+	if code != http.StatusOK || !strings.Contains(body, "About 1.2 GB") || !strings.Contains(body, "pics.lab.example.com") ||
+		strings.Contains(body, "<code>machine-learning</code>") || strings.Contains(body, "roostack-immich-machine-learning.container") ||
+		strings.Contains(body, "graphics chip") || strings.Contains(body, "<html") {
+		t.Errorf("summary after a change: %d\n%s", code, body)
+	}
+	code, body = h.post("/install/immich/summary", url.Values{"name_suffix": {"bad"}}, h.srv.URL)
+	if code != http.StatusOK || !strings.Contains(body, "It can't be worked out yet: Choose another name.") {
+		t.Errorf("summary of a form with a mistake: %d\n%s", code, body)
+	}
+	if code, _ := h.post("/install/nope/summary", nil, h.srv.URL); code != http.StatusNotFound {
+		t.Errorf("unknown package's summary: %d", code)
+	}
+
+	// Forgejo's passwords aren't sent for the summary; its SSH port is
+	// off until it's turned on.
+	_, body = h.get("/install/forgejo")
+	for _, want := range []string{`hx-params="not setting.admin_password"`, "Git over SSH, port 2222",
+		"Off until you turn it on, on its page; your home network only", "GPL-3.0 or later licence"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("forgejo's install page is missing %q", want)
+		}
+	}
+
+	resp, err := h.client.Get(h.srv.URL + "/install/vaultwarden/package.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.Header.Get("Content-Type") != "text/plain; charset=utf-8" || !strings.Contains(string(data), "name: vaultwarden") {
+		t.Errorf("package file: %s", resp.Header.Get("Content-Type"))
+	}
+	resp, err = h.client.Get(h.srv.URL + "/install/vaultwarden/icon.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "image/png" {
+		t.Errorf("icon: %d %s", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	if code, _ := h.get("/install/nope/package.yaml"); code != http.StatusNotFound {
+		t.Errorf("unknown package's file: %d", code)
+	}
+
+	// Only people who manage services see any of it.
+	m, _ := loggedIn(t, auth.RoleMember)
+	if code, _ := m.get("/install/immich/package.yaml"); code != http.StatusForbidden && code != http.StatusNotFound {
+		t.Errorf("a member reading a package file: %d", code)
+	}
+}
+
+func TestListText(t *testing.T) {
+	for _, tc := range []struct {
+		items []string
+		lower bool
+		want  string
+	}{
+		{nil, false, ""},
+		{[]string{"Data"}, true, "data"},
+		{[]string{"Thumbnails", "Converted videos", "Smart search models"}, true, "thumbnails, converted videos and smart search models"},
+		{[]string{"Your photos and videos", "its database"}, false, "Your photos and videos, and its database"},
+		{[]string{"Notes", "PostgreSQL dumps"}, false, "Notes and PostgreSQL dumps"},
+	} {
+		if got := listText(tc.items, tc.lower); got != tc.want {
+			t.Errorf("listText(%q, %t) = %q, want %q", tc.items, tc.lower, got, tc.want)
+		}
 	}
 }

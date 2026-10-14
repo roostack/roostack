@@ -62,6 +62,7 @@ containers:
 
 storage:
   data:
+    title: Passwords, accounts and settings
     class: critical                 # backed up
 
 databases:
@@ -152,10 +153,12 @@ routes:
     [a package may not use](#what-a-package-may-not-do).
 
 `storage`
-:   Folders the service owns. `class` is `critical` (backed up) or
-    `replaceable` (not, such as caches and thumbnails); `location` is
-    `service` (under `/srv/roostack/services`) or `media` (under
-    `/srv/roostack/media`, for large data).
+:   Folders the service owns. `title` says what one holds, in a few words
+    for people ("Your photos and videos"), for the summary shown before
+    installing. `class` is `critical` (backed up) or `replaceable` (not,
+    such as caches and thumbnails); `location` is `service` (under
+    `/srv/roostack/services`) or `media` (under `/srv/roostack/media`, for
+    large data).
 
 `databases`
 :   Databases Roostack runs and backs up consistently: `sqlite` (a file in
