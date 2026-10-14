@@ -16,19 +16,24 @@ const SchemaV1Alpha1 = "roostack/v1alpha1"
 
 // Package is a catalog entry (catalog/<name>/package.yaml).
 type Package struct {
-	Schema      string                `yaml:"schema"`
-	Name        string                `yaml:"name"`
-	Title       string                `yaml:"title"`
-	Description string                `yaml:"description"`
-	Version     string                `yaml:"version"`
-	Settings    []Setting             `yaml:"settings"`
-	Containers  map[string]*Container `yaml:"containers"`
-	Storage     map[string]*Storage   `yaml:"storage"`
-	Databases   map[string]*Database  `yaml:"databases"`
-	Routes      map[string]*Route     `yaml:"routes"`
-	Ports       map[string]*Port      `yaml:"ports"`
-	Hooks       []*Hook               `yaml:"hooks"`
-	Links       []Link                `yaml:"links"`
+	Schema      string   `yaml:"schema"`
+	Name        string   `yaml:"name"`
+	Title       string   `yaml:"title"`
+	Description string   `yaml:"description"`
+	Version     string   `yaml:"version"`
+	About       About    `yaml:"about"`
+	Requires    Requires `yaml:"requires"`
+	// UpgradeNotes are shown before a service updates to this version
+	// (SPEC.md §8.3.5).
+	UpgradeNotes []UpgradeNote         `yaml:"upgrade_notes"`
+	Settings     []Setting             `yaml:"settings"`
+	Containers   map[string]*Container `yaml:"containers"`
+	Storage      map[string]*Storage   `yaml:"storage"`
+	Databases    map[string]*Database  `yaml:"databases"`
+	Routes       map[string]*Route     `yaml:"routes"`
+	Ports        map[string]*Port      `yaml:"ports"`
+	Hooks        []*Hook               `yaml:"hooks"`
+	Links        []Link                `yaml:"links"`
 }
 
 // Hook events.
@@ -150,7 +155,11 @@ type Container struct {
 	Health    *Health           `yaml:"health"`
 	DependsOn []string          `yaml:"depends_on"`
 	// When is a template; the container is omitted unless it renders "true".
-	When    string  `yaml:"when"`
+	When string `yaml:"when"`
+	// Memory is how much memory the container typically uses, e.g.
+	// "300 MB" (ParseMemory), for the install summary (SPEC.md §8.3.4).
+	// It's an estimate, not a limit.
+	Memory  string  `yaml:"memory"`
 	Quadlet Quadlet `yaml:"quadlet"`
 }
 
@@ -213,7 +222,10 @@ type Database struct {
 	// Image overrides the default image (e.g. Postgres with extensions).
 	Image string `yaml:"image"`
 	// Backup defaults to true.
-	Backup  *bool   `yaml:"backup"`
+	Backup *bool `yaml:"backup"`
+	// Memory is the database's typical memory use, if not Roostack's
+	// default for its type (ExpectedMemory).
+	Memory  string  `yaml:"memory"`
 	Quadlet Quadlet `yaml:"quadlet"`
 }
 

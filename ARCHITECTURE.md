@@ -108,7 +108,7 @@ For a service `<svc>`:
 
 ## Package format
 
-See [docs/examples/vaultwarden.yaml](docs/examples/vaultwarden.yaml) (simple) and [docs/examples/immich.yaml](docs/examples/immich.yaml) (complex). Field-by-field definitions are in [internal/pkgspec/pkgspec.go](internal/pkgspec/pkgspec.go).
+See [docs/examples/vaultwarden.yaml](docs/examples/vaultwarden.yaml) (simple) and [docs/examples/immich.yaml](docs/examples/immich.yaml) (complex). Field-by-field definitions are in [internal/pkgspec/pkgspec.go](internal/pkgspec/pkgspec.go), and the facts about the project (`about:`, `requires:`, upgrade notes) in [internal/pkgspec/about.go](internal/pkgspec/about.go).
 
 Templates use Go `text/template` syntax with these values:
 

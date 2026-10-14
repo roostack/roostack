@@ -57,6 +57,7 @@ func (p *Package) Validate() error {
 		v.addf("containers: at least one container is required")
 	}
 
+	p.validateAbout(v)
 	p.validateSettings(v)
 	for _, name := range slices.Sorted(maps.Keys(p.Storage)) {
 		p.validateStorage(v, name, p.Storage[name])
@@ -252,14 +253,15 @@ func (p *Package) validateDatabase(v *validator, name string, d *Database) {
 		} else if p.Storage[storage] == nil {
 			v.addf("%s.path: unknown storage %q", at, storage)
 		}
-		if d.Image != "" || len(d.Quadlet) > 0 {
-			v.addf("%s: sqlite runs inside the app; image and quadlet are not allowed", at)
+		if d.Image != "" || len(d.Quadlet) > 0 || d.Memory != "" {
+			v.addf("%s: sqlite runs inside the app; image, memory and quadlet are not allowed", at)
 		}
 	case DBPostgres, DBRedis:
 		if d.Path != "" {
 			v.addf("%s.path: only valid for sqlite", at)
 		}
 		validateQuadlet(v, at+".quadlet", d.Quadlet)
+		validateMemory(v, at+".memory", d.Memory)
 	default:
 		v.addf("%s.type: must be one of sqlite, postgres, redis; got %q", at, d.Type)
 	}
@@ -336,7 +338,17 @@ func (p *Package) validateContainer(v *validator, name string, c *Container) {
 			v.addf("%s.depends_on: unknown reference %q (use databases.<name> or containers.<name>)", at, dep)
 		}
 	}
+	validateMemory(v, at+".memory", c.Memory)
 	validateQuadlet(v, at+".quadlet", c.Quadlet)
+}
+
+func validateMemory(v *validator, at, memory string) {
+	if memory == "" {
+		return
+	}
+	if _, err := ParseMemory(memory); err != nil {
+		v.addf("%s: %v", at, err)
+	}
 }
 
 func (p *Package) validateRoute(v *validator, name string, r *Route) {

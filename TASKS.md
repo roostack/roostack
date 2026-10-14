@@ -325,7 +325,11 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] Create the registry repository on GitHub and move the packages there from `docs/examples` (keep small fixtures here for golden tests); releases bundle a snapshot (build-deb, help, references in docs)
 - [x] Package policy in `pkgspec` (SPEC §8.3.4): a deny-list of risky Quadlet lines (plus the keys that override Roostack's own, Owner 2026-10-14), digest pinning an error, routes and ports private by default with login paths or `unsafe`; `roostack validate` enforces it (`-local` warns), `render` and the catalog log it (2026-10-14)
 - [ ] Check the package policy when installing: refuse a registry package that breaks it, and show a local package's problems for the Owner to confirm (with "Add your own")
-- [ ] Package format additions: `about:` (maker, website, source, licence, support, icon, category, keywords), `requires.roostack`, expected memory, upgrade notes
+- [x] Package format additions: `about:` (maker, website, source, licence or `closed`, support, a PNG logo beside the package, one to three of a fixed list of categories, keywords), `requires.roostack` with `RunsOn`, `memory` per container, upgrade notes tied to a version; required for registry packages by the policy; filled in for the examples, with their logos (SPEC §8.3.4–8.3.6; 2026-10-14)
+- [ ] Catalog: hide (or mark "Needs a newer Roostack") versions whose `requires.roostack` is newer than the running Roostack (`Package.RunsOn`), once the catalog has more than the bundled snapshot
+- [ ] Show the logos (`about.icon`) and categories in the catalog: logos on a light tile, since some are black (Vaultwarden's) and would vanish in the dark theme; the drawn category icon when a package has no logo
+- [ ] Show upgrade notes newer than the installed version before a service updates (with SPEC §7 updates); this needs package versions ordered
+- [ ] Website (roostack-cloud): `services.ts` licences use deprecated SPDX ids (`AGPL-3.0`); Immich's is `AGPL-3.0-only` (its notice names version 3 without "or later"). Moot once the facts come from the index
 - [ ] Install summary from the definition (what it stores and backs up, addresses, ports, devices, memory) and the definition in Details
 - [ ] "Add your own" (local packages) on the catalog page, with the warning
 - [ ] Service updates (SPEC §7) against several package versions: upstream part for the policy, revision-only changes as patch; changing an instance's version keeps the new package file first (`state.KeepPackage`, SPEC §8.3.1)

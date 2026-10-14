@@ -10,6 +10,18 @@ title: Forgejo
 description: Git hosting with issues and pull requests, a self-hosted alternative to GitHub
 version: 15.0.9-roostack.1
 
+about:
+  maker: a community project under Codeberg e.V., a non-profit
+  website: https://forgejo.org
+  source: https://codeberg.org/forgejo/forgejo
+  licence: GPL-3.0-or-later
+  support: https://liberapay.com/forgejo
+  icon: forgejo.png
+  categories: [development]
+  keywords: [git, code, issues, pull requests, github alternative]
+requires:
+  roostack: "0.1"
+
 settings:
   # The administrator account, created by the install hook below.
   - key: admin_username
@@ -40,6 +52,7 @@ containers:
     # /var/lib/gitea, including app.ini (which holds generated keys, so it
     # must be backed up with the data).
     image: codeberg.org/forgejo/forgejo:15.0.9-rootless@sha256:caf1bca332f95cdcf124227a4bfa3b49bbbfbbc8a5e4a97406921cb581165413
+    memory: 250 MB
     env:
       GITEA_APP_INI: /var/lib/gitea/custom/conf/app.ini
       FORGEJO__server__ROOT_URL: "{{ .Routes.web.URL }}/"
