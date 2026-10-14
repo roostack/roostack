@@ -4,11 +4,13 @@
 # be indexed. Needs uv (the build) and Node (Wrangler, run with npx at the
 # website's pinned version), and a Cloudflare login (npx wrangler login).
 #
-#   scripts/help-deploy.sh                # build and publish
+#   scripts/help-deploy.sh                # build and publish the preview
+#   scripts/help-deploy.sh --production   # build and publish help.roostack.cloud
 #   scripts/help-deploy.sh --build-only   # build and write headers, to try with
 #                                         # npx wrangler dev in help/
 set -euo pipefail
 cd "$(dirname "$0")/../help"
+mode=${1:-preview}
 uv run zensical build --strict
 
 # Security headers for every page, served by Cloudflare from site/_headers.
@@ -16,7 +18,7 @@ uv run zensical build --strict
 # SHA-256 hash, worked out from the built pages so they always match.
 # Styles allow 'unsafe-inline': Zensical's search box injects a stylesheet
 # (the same reasoning as the help inside Roostack, SPEC.md §6.3.1).
-python3 -I - site <<'PY'
+python3 -I - site "$mode" <<'PY'
 import base64, hashlib, pathlib, re, sys
 site = pathlib.Path(sys.argv[1])
 hashes = set()
@@ -41,9 +43,12 @@ csp = "; ".join([
     ("Strict-Transport-Security", "max-age=31536000"),
     ("X-Content-Type-Options", "nosniff"),
     ("Referrer-Policy", "strict-origin-when-cross-origin"),
-    ("X-Robots-Tag", "noindex, nofollow"),
-]))
+] + ([] if sys.argv[2] == "--production" else [("X-Robots-Tag", "noindex, nofollow")])))
 print(f"_headers: {len(hashes)} inline scripts hashed")
 PY
 
-[ "${1:-}" = --build-only ] || npx --yes wrangler@4.143.0 deploy
+case $mode in
+--build-only) ;;
+--production) npx --yes wrangler@4.143.0 deploy --env production ;;
+*) npx --yes wrangler@4.143.0 deploy ;;
+esac
