@@ -565,6 +565,23 @@ li.card.service { display: block; }
 .server-facts li { margin: var(--space-1) 0; }
 
 /* ---------- Server switcher (per-server settings) ---------- */
+/* Error scenes (internal/errpage): the small mark's hen and server with
+   props, coloured from the theme. The amber is the bright warning amber in
+   both modes, as the server's light borrows the other mode's green. */
+.es-scene { width: 100%; max-width: 320px; height: auto; overflow: visible; display: block; margin: 0 auto; }
+.es-wash { stop-color: var(--highlight-soft); }
+.es-bg { fill: var(--surface); } .es-bgline { stroke: var(--surface); }
+.es-fg { fill: var(--fg); } .es-fgline { stroke: var(--fg); }
+.es-hi { fill: var(--highlight); } .es-hiline { stroke: var(--highlight); }
+.es-ok { fill: var(--ok-on-fg); }
+.es-warn { fill: var(--status-warn-d); } .es-warnline { stroke: var(--status-warn-d); }
+.es-bad { fill: var(--bad); } .es-badline { stroke: var(--bad); }
+.es-off, .es-dimfill { fill: var(--muted); } .es-dim { fill: var(--muted); opacity: .5; }
+.es-dimline { stroke: var(--muted); opacity: .7; } .es-shadow { fill: var(--fg); opacity: .08; }
+.es-txt { font-family: var(--font-sans); font-weight: 800; }
+.error-page { text-align: center; }
+.error-scenes { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-4); align-items: end; }
+
 /* A heading between groups of cards on one page (Backups: each server's,
    then the whole lab's). */
 .area-heading { font-size: var(--text-xl); margin: var(--space-6) 0 var(--space-2); }

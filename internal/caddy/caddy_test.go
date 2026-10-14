@@ -24,7 +24,8 @@ func TestSiteRejectsInjection(t *testing.T) {
 // and the rate limits, all inside one route block so they run in order
 // (docs/ASSUMPTIONS.md P2).
 func TestPublicRoute(t *testing.T) {
-	site, err := Site("vw", []Route{{ID: "vw-web", Host: "vault.example.com", Upstream: "169.254.1.3:20001",
+	// A title Caddy or a template would misread loses those characters.
+	site, err := Site("vw", []Route{{ID: "vw-web", Title: `Vault "{warden}"`, Host: "vault.example.com", Upstream: "169.254.1.3:20001",
 		PrivatePaths: []string{"/admin"}, LoginPaths: []string{"/identity/connect/token"}}})
 	if err != nil {
 		t.Fatal(err)
@@ -32,6 +33,11 @@ func TestPublicRoute(t *testing.T) {
 	want := `
 @vw-web host vault.example.com
 handle @vw-web {
+	vars {
+		roostack_name vw
+		roostack_title "Vault warden"
+		roostack_private no
+	}
 	@vw-web-private-paths {
 		not remote_ip private_ranges 100.64.0.0/10
 		path /admin /admin/*

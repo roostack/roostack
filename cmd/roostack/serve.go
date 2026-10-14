@@ -163,6 +163,7 @@ func serve(args []string) error {
 			return err
 		}
 		srv.Cloud = link
+		link.LabDomain(lab.Domain)
 		// The recovery key's identity, for restoring and relinking.
 		link.RecoveryKey = func() (string, error) {
 			data, err := os.ReadFile(backup.KeyFile(lab.Paths))

@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"roostack.cloud/roostack/internal/errpage"
 )
 
 // Components are called from templates as functions (docs/DESIGN.md):
@@ -41,6 +43,9 @@ var componentFuncs = template.FuncMap{
 	"server":        serverChip,
 	"builtinIcon":   builtinIcon,
 	"brandMark":     func() template.HTML { return brandMark },
+	// errorScene NAME ID: an error scene (internal/errpage), its wash's
+	// SVG ID made unique on the page by ID.
+	"errorScene": func(name, id string) template.HTML { return template.HTML(errpage.Scene(name, id)) },
 }
 
 func init() {

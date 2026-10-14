@@ -37,6 +37,11 @@ WantedBy=default.target
 
 @vaultwarden-web host passwords.lab.example.com
 handle @vaultwarden-web {
+	vars {
+		roostack_name vaultwarden
+		roostack_title "Vaultwarden"
+		roostack_private yes
+	}
 	@vaultwarden-web-external not remote_ip private_ranges 100.64.0.0/10
 	abort @vaultwarden-web-external
 	reverse_proxy 169.254.1.3:20001
