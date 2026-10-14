@@ -47,6 +47,15 @@ var gallerySections = []gallerySection{
 			{"Top bar with the lab's name", "Once the lab has a name, the mark grows to sit beside both lines.", `
 <a class="brand" href="#">{{brandMark}}<span class="brand-stack"><span class="brand-eyebrow">Roostack</span><span class="brand-lab">The Smiths' lab</span></span></a>`},
 		}},
+	{ID: "error-scenes", Title: "Error scenes", Intro: "Pictures for error pages: the mark's hen and server, without the tile, with props and a joke. A joke headline goes with each, and plain words underneath. Generated from assets/errors/generate.py; Caddy's pages for the services use them too (internal/errpage).",
+		Examples: []galleryExample{
+			{"Roostack's pages", "errorScene NAME ID, in .es-scene: 404 flown, 403 pecking, 500 scrambled. ID makes the scene's SVG ID unique on the page.", `
+<div class="error-scenes">{{errorScene "flown" "g1"}}{{errorScene "pecking" "g2"}}{{errorScene "scrambled" "g3"}}</div>`},
+			{"Services' pages (Caddy)", "404 vacant, 403 and 429 crowded, 502 asleep, 503 hatching, 504 slow.", `
+<div class="error-scenes">{{errorScene "vacant" "g4"}}{{errorScene "crowded" "g5"}}{{errorScene "asleep" "g6"}}{{errorScene "hatching" "g7"}}{{errorScene "slow" "g8"}}</div>`},
+			{"Roostack Cloud", "The hen on a cloud, for Cloud's own pages (copied from assets/errors).", `
+<div class="error-scenes">{{errorScene "cloud-asleep" "g9"}}{{errorScene "cloud-empty" "g10"}}{{errorScene "cloud-unplugged" "g11"}}</div>`},
+		}},
 	{ID: "buttons", Title: "Buttons", Intro: "One primary button per form or card; others secondary or quiet.",
 		Examples: []galleryExample{
 			{"Primary, secondary, danger, quiet", "Primary does the main thing. Danger removes or deletes. Quiet is for small or optional actions.", `
@@ -335,6 +344,10 @@ Setting up curl (8.14.1-2+deb13u5) ...</pre>`},
 type renderedExample struct {
 	galleryExample
 	HTML template.HTML
+	// DarkHTML is the copy in the dark panel, its error scenes' SVG IDs
+	// made its own: with the light copy's, the dark scene would use the
+	// light one's gradient (an ID belongs to the first element with it).
+	DarkHTML template.HTML
 	// Component is true for template components ({{template ...}}),
 	// false for plain HTML using CSS classes.
 	Component bool
@@ -377,6 +390,7 @@ func renderGallery(w io.Writer, static string, standalone bool) error {
 				return err
 			}
 			examples = append(examples, renderedExample{galleryExample: ex, HTML: template.HTML(buf.String()),
+				DarkHTML:  template.HTML(strings.ReplaceAll(buf.String(), "es-wash-", "es-wash-dark-")),
 				Component: strings.Contains(ex.Source, "{{"), Rendered: formatHTML(buf.String())})
 		}
 		sections = append(sections, map[string]any{"ID": sec.ID, "Title": sec.Title, "Intro": sec.Intro, "Examples": examples})

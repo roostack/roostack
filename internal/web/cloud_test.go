@@ -154,6 +154,16 @@ func TestCloudLinking(t *testing.T) {
 		len(used) != 1 || used[0].Name != "jones.roost.test" {
 		t.Errorf("claim: %d %+v", code, used)
 	}
+	// Its own name, which anyone else is told is taken: shown as the lab's,
+	// and claimed again (back from an own domain, found on VM3 2026-10-14).
+	f.Taken["jones"] = true
+	if _, body := h.get("/settings/cloud/name?name=jones"); !strings.Contains(body, "jones.roost.test is this lab's name") {
+		t.Errorf("own name check:\n%s", body)
+	}
+	used = nil
+	if code, _ := h.post("/setup/address/roost-ac", url.Values{"name": {"jones"}}, h.srv.URL); code != http.StatusOK || len(used) != 1 {
+		t.Errorf("claiming its own name again: %d %+v", code, used)
+	}
 	f.Unlink(link.Status().LabID)
 	link.Check(context.Background())
 	if _, body := h.get("/"); !strings.Contains(body, "This lab is no longer linked to Roostack Cloud") {

@@ -267,4 +267,5 @@ func TestRelayWayIn(t *testing.T) {
 	if err := m.SetCountries(ctx, config.Countries{Block: []string{"RU"}}); err != nil || len(m.Countries().Block) != 1 {
 		t.Errorf("while off: %v %+v", err, m.Countries())
 	}
+	m.Wait() // the applies above, before the test's directory goes
 }
