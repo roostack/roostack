@@ -26,6 +26,29 @@ Every page is built from the tokens and components here. The gallery shows them 
 | `internal/web/components.go` | The functions pages call for those components; they check their arguments |
 | `internal/web/gallery.go` | The gallery's examples |
 
+## Layout: Console glass (chosen 2026-10-14, not built yet)
+
+The Owner chose the next look for Roostack's UI, and for Roostack Cloud's portal and admin console (which copy this design system with `tools/sync-design.sh`): a **sidebar-based management layout** with some of the website's Night roost glass. Mock-ups, with notes on every direction considered: [docs/mockups/sidebar/](mockups/sidebar/README.md) (direction D; open through a web server at the repo root).
+
+**Why:** the brief (2026-10-14) asked for a more professional, administrative feel: navigation down the side rather than along the top, better use of large screens while staying good on a phone, and the website's look (glow, translucent tiles, Space Grotesk, status pills, the Friendly/Technical switch), in light and dark.
+
+**What it is:**
+
+- **Shell:** a sidebar floating 8 px from the window's edge (16 px corners, the surface at 70% with a blur): the lab's name at the top, then Home, Services, Backups, Servers, then a Settings group listing Settings' pages (and "All settings", the overview), then Help, Light/Dark and the person at the bottom. Where you are: the highlight tint with a faint highlight edge. On phones the sidebar is a drawer behind a menu button. Servers becomes a main area (it was under Settings), and Settings' own sidebar (`area-nav`) folds into this one.
+- **Header:** each page's header sits on the page (no band, no border): breadcrumbs, the page's help link, and a search box later.
+- **Pages:** a 12-column grid up to 1560 px wide with 24 px side padding (16 px on phones); cards side by side; tables for lists people scan (services, servers, restores, accounts); a strip of figures on Home.
+- **Glass:** a faint aurora behind everything (three blurred circles in `--accent`, `--highlight` and `--chart-1`, slowly moving; paler in light mode); cards are the surface at 80% with a blur, so the glow only tints them; translucent insets and secondary buttons.
+- **From the website:** Space Grotesk headings, status pills (a dot and a word on the status tint), the big figure (the last backup's time), gradient text at most once a page, the Friendly/Technical switch on a service's page (flipping to the files behind it).
+- **Text:** 16 px body text (was 17 px), 15 px in tables and the sidebar.
+
+**New tokens** (all derived from existing purpose tokens, so no theme file changes): `--font-display` (Space Grotesk, vendored into `internal/web/static`, OFL), `--text-xs`, `--canvas` (the page behind the cards: `--bg` in light, `--bg` 62% with black in dark, as the website), `--glass`/`--glass-2` and `--edge`/`--edge-strong` (`--fg` at 4, 7, 10, 17%), `--lift` (a card shadow per mode). **New components:** sidebar, page header with breadcrumbs, figures strip, table list, status pill (replacing `status`' look), Friendly/Technical switch, code panel; each goes into the gallery.
+
+**Themes and accessibility:** every built-in theme works as it is. Text sits on translucent surfaces, so `TestThemesAreReadable` gains the worst case: muted text, links and status text on a card and on the sidebar with the strongest glow colour behind (the surface mixed with `--canvas` tinted by `--accent` or `--highlight` at the aurora's strength). Measured in the mock-ups for all nine themes in both modes: 4.54:1 or more on cards (Nord light lowest), and 4.5:1 on the sidebar at 62% surface, which is why it's 70%. The aurora stops for reduced motion; browsers without `color-mix` or `backdrop-filter` get solid surfaces. Focus stays `--focus-ring`.
+
+**Considered** (all in the mock-ups): **A, Console**: a solid sidebar and the same dense pages; the Owner liked it most but found it a little plain. **B, Night rail**: the sidebar always dark, from each theme's dark palette, with solid cards (recommended first; needed a `--nav-*` token set and extra contrast pairs). **C, Glass roost**: the website as it is, floating glass everywhere, a tab bar on phones; too much, especially its padding, and its contrast can't be tested well. **D, Console glass**, A's structure with some of C's glass, was made after the Owner's first look and chosen, with C's header style and a little less side padding.
+
+**Still to decide:** search in the header (shown as a placeholder).
+
 ## Tokens
 
 Three layers:
