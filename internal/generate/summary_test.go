@@ -145,3 +145,13 @@ func TestSummarizeMemoryUnknown(t *testing.T) {
 		t.Errorf("memory %d, unknown %t", s.Memory, s.MemoryUnknown())
 	}
 }
+
+// ExpectedMemory is the summary's memory, for services already installed.
+func TestExpectedMemory(t *testing.T) {
+	p := loadExample(t, "immich")
+	in := &instance.Instance{Package: "immich", Version: p.Version, Updates: instance.UpdatesNotify,
+		Settings: map[string]any{"machine_learning": false}}
+	if mem, err := ExpectedMemory(testLab(), p, in); err != nil || mem != 1_250_000_000 {
+		t.Errorf("ExpectedMemory = %d, %v; want 1.25 GB", mem, err)
+	}
+}

@@ -25,7 +25,6 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
-	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
@@ -224,7 +223,7 @@ type ServiceCatalog interface {
 	// InstallSummary is what installing with these choices would set up
 	// (SPEC.md §8.3.4); PackageFile and PackageIcon are a catalog
 	// package's file and logo.
-	InstallSummary(name string, req manager.InstallRequest) (*generate.Summary, error)
+	InstallSummary(name string, req manager.InstallRequest) (*manager.InstallSummary, error)
 	PackageFile(name string) ([]byte, error)
 	PackageIcon(name string) ([]byte, error)
 	// CheckPackage is how a package stands against the package policy
