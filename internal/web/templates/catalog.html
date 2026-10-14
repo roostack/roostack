@@ -10,6 +10,7 @@
     {{else}}{{notice "info" "Roostack is getting the list of services from the service registry. Reload the page in a minute."}}{{end}}
     {{end}}
   {{end}}
+  {{with .Needs}}{{notice "warn" (printf "%s needs a newer Roostack (%s or newer), so it can't be installed yet. It can be once Roostack is updated." .Title .NeedsRoostack)}}{{end}}
   {{if or (not .Registry) .Registry.On}}
   {{/* Search and category filters, as people type (Alpine): every word
        typed must be in the service's name, description, categories or

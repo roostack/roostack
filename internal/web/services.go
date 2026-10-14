@@ -76,6 +76,14 @@ func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		data["Items"], data["Categories"] = catalogItems(items, listing)
+		// Arrived from installing one that needs a newer Roostack (pkg).
+		if needs := r.URL.Query().Get("needs"); needs != "" {
+			for _, it := range data["Items"].([]catalogItem) {
+				if it.Name == needs && it.NeedsRoostack != "" {
+					data["Needs"] = it
+				}
+			}
+		}
 	}
 	s.render(w, "catalog", data)
 }
@@ -564,8 +572,17 @@ func (s *Server) pkg(w http.ResponseWriter, r *http.Request) (*pkgspec.Package, 
 		redirect(w, r, "/catalog") // which says why
 		return nil, false
 	}
-	p, err := s.Manager.Package(r.PathValue("name"))
+	name := r.PathValue("name")
+	p, err := s.Manager.Package(name)
 	if errors.Is(err, manager.ErrNotFound) {
+		// Listed in the catalog, but it needs a newer Roostack: the
+		// catalog says so (SPEC.md §8.3.6).
+		if s.Registry != nil {
+			if listing, _ := s.Registry.Listing(); listing[name].NeedsRoostack != "" {
+				redirect(w, r, "/catalog?needs="+url.QueryEscape(name))
+				return nil, false
+			}
+		}
 		http.NotFound(w, r)
 		return nil, false
 	}

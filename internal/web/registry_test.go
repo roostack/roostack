@@ -121,6 +121,15 @@ func TestCatalogListing(t *testing.T) {
 	if strings.Contains(body, "Network") || strings.Contains(body, "Films, TV and music") {
 		t.Error("filters only for categories in use")
 	}
+
+	// Installing it anyway goes back to the catalog, which says why; an
+	// unknown package is still not found.
+	if _, body := h.get("/install/paperless"); !strings.Contains(body, "Paperless-ngx needs a newer Roostack (0.9 or newer), so it can&#39;t be installed yet.") {
+		t.Errorf("installing one that needs a newer Roostack:\n%s", body)
+	}
+	if code, _ := h.get("/install/jellyfin"); code != http.StatusNotFound {
+		t.Errorf("a package not listed: %d", code)
+	}
 }
 
 // Settings → Updates shows the registry on the controller's page, and
