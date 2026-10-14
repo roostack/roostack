@@ -141,7 +141,7 @@ func serve(args []string) error {
 	// The lab's other servers (SPEC.md §10), reached over its network.
 	fleet := &node.Fleet{Self: labnet.Identity{Dir: labnet.IdentityDir(lab.Paths.StateDir)}, Lab: lab, Log: log,
 		List: st.Servers}
-	mgr := &manager.Manager{Lab: lab, Log: log, Node: local, Activity: local.Activity,
+	mgr := &manager.Manager{Lab: lab, Log: log, Version: version, Node: local, Activity: local.Activity,
 		Others: func() []manager.RemoteServer {
 			var out []manager.RemoteServer
 			for _, r := range fleet.Remotes() {

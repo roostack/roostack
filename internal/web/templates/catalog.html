@@ -10,8 +10,9 @@
     {{else}}{{notice "info" "Roostack is getting the list of services from the service registry. Reload the page in a minute."}}{{end}}
     {{end}}
   {{end}}
+  {{with .Added}}{{notice "ok" (printf "Added %s. It's in the list below, marked Your own." .)}}{{end}}
   {{with .Needs}}{{notice "warn" (printf "%s needs a newer Roostack (%s or newer), so it can't be installed yet. It can be once Roostack is updated." .Title .NeedsRoostack)}}{{end}}
-  {{if or (not .Registry) .Registry.On}}
+  {{if or (not .Registry) .Registry.On .Items}}
   {{/* Search and category filters, as people type (Alpine): every word
        typed must be in the service's name, description, categories or
        keywords. Without scripts they stay hidden and everything shows. */}}
@@ -33,12 +34,13 @@
       {{logo .IconURL .DrawnIcon}}
       <div class="offer-text">
         <h2>{{.Title}}</h2>
-        {{- if eq .Tier "official"}}{{badge "Official"}}{{else if eq .Tier "community"}}{{badge "Community" "warn"}}{{end}}
+        {{- if .Local}}{{badge "Your own" "warn"}}{{else if eq .Tier "official"}}{{badge "Official"}}{{else if eq .Tier "community"}}{{badge "Community" "warn"}}{{end}}
         {{- if .Installed}}{{badge "Installed" "ok"}}{{end}}
         <p class="hint">{{.Description}}</p>
         {{with .CategoryTitles}}<p class="offer-categories">{{.}}</p>{{end}}
       </div>
       <div class="offer-action">
+      {{- if and .Local $.IsOwner}}{{confirm (printf "/catalog/%s/remove" .Name) (printf "Remove %s from the list? Services you've installed from it keep running as they are." .Title) "Remove" "quiet danger"}}{{end}}
       {{- if .NeedsRoostack}}<p class="offer-later">Needs a newer Roostack: {{.NeedsRoostack}} or newer.{{if $.IsOwner}} <a href="/settings/updates#registry">Details</a>{{end}}</p>
       {{- else if .Installed}}<a class="button secondary" href="/install/{{.Name}}">Add another…</a>
       {{- else}}<a class="button" href="/install/{{.Name}}">Install</a>{{end}}
@@ -49,6 +51,14 @@
     {{end}}
   </ul>
   {{if .Items}}<p class="hint" hidden x-bind:hidden="[...$refs.list.children].some(el => match(el))">No services match. <button type="button" class="quiet" x-on:click="q = ''; cat = ''">Show all</button></p>{{end}}
+  </div>
+  {{end}}
+  {{/* The Owner's own packages (SPEC.md §8.3.4): only the Owner adds them. */}}
+  {{if .IsOwner}}
+  <div class="card">
+    <h2>Add your own</h2>
+    <p class="hint">A package file you wrote, or got from someone you trust. Roostack checks it's valid; nobody reviews it.</p>
+    <a class="button secondary" href="/catalog/add">Add a package…</a>
   </div>
   {{end}}
 </section>

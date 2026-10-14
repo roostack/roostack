@@ -20,7 +20,7 @@ Every page is built from the tokens and components here. The gallery shows them 
 | `internal/web/themes.go` | The list of built-in themes (names shown to users) |
 | `internal/web/static/css/app.css` | Base styles, components and page layouts. Uses purpose tokens and scales only |
 | `internal/web/static/css/gallery.css` | Styles for the gallery page itself |
-| `internal/web/templates/components.html` | Templates of components with shared markup (notice, status, badge, server, back, confirm, activity, install steps, project credit) |
+| `internal/web/templates/components.html` | Templates of components with shared markup (notice, notice list, status, badge, server, back, confirm, activity, install steps, project credit) |
 | `internal/web/icons.go` | The icons (`icon NAME`), drawn for Roostack |
 | `internal/web/static/app.js` | Roostack's own small script for self-refreshing parts: sends the fingerprint of what a part shows (the server answers 204 when it's unchanged, `renderLive`), and keeps open `<details>` (with an `id`) open when a part does change. Give a `<details>` inside a refreshing area a stable `id`; poll with `every Ns [document.visibilityState === 'visible'], visibilitychange[document.visibilityState === 'visible'] from:document` and render the part with `renderLive` |
 | `internal/web/components.go` | The functions pages call for those components; they check their arguments |
@@ -95,6 +95,7 @@ Template components are called as functions; everything else is plain HTML with 
 | Confirm | `{{confirm ACTION QUESTION TEXT KIND ["name=value"…]}}` | For anything hard to undo. KIND is the button class (`danger`, `secondary`, `quiet`, `""`); trailing `name=value` are hidden fields. The question goes through a data attribute, never into script |
 | Confirm a form | `{{confirmSubmit QUESTION TEXT KIND}}` inside a form | For a form with fields of its own (checkboxes, choices); its required fields are checked before the dialog opens. KIND is the dialog button's class (`danger` or `""`) |
 | Notice | `{{notice KIND TEXT ["link=…" "linkText=…"]}}` | KIND: `info`, `ok`, `warn`, `error` |
+| Notice list | `{{noticeList KIND TEXT ITEMS}}` | A notice whose text leads into a list (`ITEMS`, plain strings, wrapped anywhere since they may be long and technical); nothing without items. What a package of your own asks for that registry packages can't have |
 | Status | `{{status .Status}}` | Service state; `installing` gets a spinner |
 | Install steps | `{{template "install-steps" .Service.Install}}` in a notice; `{{template "install-line" .}}` (a ServiceView) in lists | A new service's install (`node.InstallProgress`): `ol.install-steps` with `li.step-done` / `step-now` / `step-todo`, time taken or "for …" so far. `.address-pending` shows an address that isn't a link yet |
 | Badge | `{{badge "New" ["highlight"\|"ok"\|"warn"]}}` | Highlight badges are rare. `ok` for something done (Installed), `warn` for something to weigh before acting (a Community service) |

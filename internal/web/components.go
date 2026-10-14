@@ -27,6 +27,7 @@ import (
 
 var componentFuncs = template.FuncMap{
 	"notice":        notice,
+	"noticeList":    noticeList,
 	"status":        status,
 	"badge":         badge,
 	"logo":          logo,
@@ -93,6 +94,22 @@ func notice(kind, text string, opts ...string) (template.HTML, error) {
 		kind = ""
 	}
 	return renderComponent("notice", map[string]any{"Kind": kind, "Text": text, "Link": o["link"], "LinkText": o["linkText"]})
+}
+
+// noticeList is a notice whose text leads into a list of items, such as
+// what a package of the Owner's own asks for (SPEC.md §8.3.4). KIND as for
+// notice; nothing shows without items.
+func noticeList(kind, text string, items []string) (template.HTML, error) {
+	if !slices.Contains([]string{"info", "ok", "warn", "error"}, kind) {
+		return "", fmt.Errorf("noticeList: kind %q must be info, ok, warn or error", kind)
+	}
+	if len(items) == 0 {
+		return "", nil
+	}
+	if kind == "info" {
+		kind = ""
+	}
+	return renderComponent("notice-list", map[string]any{"Kind": kind, "Text": text, "Items": items})
 }
 
 // status is a service's state as a pill.

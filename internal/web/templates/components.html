@@ -7,6 +7,11 @@
 {{define "notice"}}<p class="notice{{with .Kind}} notice-{{.}}{{end}}"{{if eq .Kind "error"}} role="alert"{{else}} role="status"{{end}}>
   {{.Text}}{{with .Link}} <a href="{{.}}">{{$.LinkText}}</a>{{end}}</p>{{end}}
 
+{{/* notice-list: a notice whose text leads into a list of Items. */}}
+{{define "notice-list"}}<div class="notice notice-list{{with .Kind}} notice-{{.}}{{end}}"{{if eq .Kind "error"}} role="alert"{{else}} role="status"{{end}}>
+  <p>{{.Text}}</p>
+  <ul>{{range .Items}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
+
 {{/* status: a service state (running, starting, stopped, failed, unknown). */}}
 {{define "status"}}<span class="status status-{{.}}">{{if eq . "installing"}}<span class="spinner" aria-hidden="true"></span> {{end}}{{if eq . "waiting"}}waiting to be restored{{else}}{{.}}{{end}}</span>{{end}}
 

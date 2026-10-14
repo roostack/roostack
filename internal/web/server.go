@@ -224,6 +224,14 @@ type ServiceCatalog interface {
 	InstallSummary(name string, req manager.InstallRequest) (*generate.Summary, error)
 	PackageFile(name string) ([]byte, error)
 	PackageIcon(name string) ([]byte, error)
+	// CheckPackage is how a package stands against the package policy
+	// (SPEC.md §8.3.4).
+	CheckPackage(p *pkgspec.Package) manager.PolicyCheck
+	// The Owner's own packages ("Add your own", SPEC.md §8.3.4): adding
+	// (or replacing) one, removing one, and the folder they're kept in.
+	AddLocalPackage(data, icon []byte) (*pkgspec.Package, error)
+	RemoveLocalPackage(name string) error
+	LocalPackagesDir() string
 	Remove(ctx context.Context, name string) error
 	DataDirs(name string) []string
 	Ports(name string) ([]manager.PortStatus, error)
@@ -408,7 +416,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	if s.help, err = newHelpSite(helpFS); err != nil {
 		return nil, err
 	}
-	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "install", "remove", "setup-timezone", "setup-ssh",
+	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "local-add", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
 		"home", "services", "service", "backups", "restore", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
@@ -581,6 +589,9 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("POST /backup/run", s.require(auth.ManageServices, s.backupRun))
 	mux.Handle("GET /catalog", s.require(auth.ManageServices, s.catalogPage))
+	mux.Handle("GET /catalog/add", s.requireOwner(s.localAddPage))
+	mux.Handle("POST /catalog/add", s.requireOwner(s.localAddSubmit))
+	mux.Handle("POST /catalog/{name}/remove", s.requireOwner(s.localRemoveSubmit))
 	mux.Handle("GET /install/{name}", s.require(auth.ManageServices, s.installPage))
 	mux.Handle("POST /install/{name}", s.require(auth.ManageServices, s.installSubmit))
 	mux.Handle("POST /install/{name}/summary", s.require(auth.ManageServices, s.installSummaryPart))

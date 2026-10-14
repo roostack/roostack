@@ -53,9 +53,16 @@ type fakeManager struct {
 	disks       []node.DiskSpace
 	events      []store.Event
 	installs    []manager.InstallRequest
-	removed     []string
-	failWith    error
-	status      manager.ApplyStatus
+	// local are the Owner's own packages (by name), with the risks
+	// they ask for; policy is what registry packages break.
+	local         map[string]bool
+	risks, policy []string
+	// added and removedLocal record "Add your own".
+	added        [][]byte
+	removedLocal []string
+	removed      []string
+	failWith     error
+	status       manager.ApplyStatus
 
 	ports   []manager.PortStatus
 	portErr error
@@ -438,10 +445,15 @@ func (h *harness) acts() *activity.Registry {
 }
 
 func (f *fakeManager) Catalog() ([]manager.CatalogItem, error) {
-	return []manager.CatalogItem{
+	items := []manager.CatalogItem{
 		{Name: "immich", Title: "Immich", Description: "Photos", Categories: []string{"photos"}, Icon: true},
 		{Name: "vaultwarden", Title: "Vaultwarden", Installed: true},
-	}, nil
+	}
+	// Forgejo is the Owner's own when local says so.
+	if f.local["forgejo"] {
+		items = append(items, manager.CatalogItem{Name: "forgejo", Title: "Forgejo", Description: "Git", Local: true})
+	}
+	return items, nil
 }
 
 func (f *fakeManager) Package(name string) (*pkgspec.Package, error) {
@@ -517,6 +529,31 @@ func (f *fakeManager) PackageIcon(name string) ([]byte, error) {
 	}
 	return os.ReadFile(filepath.Join(filepath.Dir(pkgtest.File(name)), "icon.png"))
 }
+
+func (f *fakeManager) CheckPackage(p *pkgspec.Package) manager.PolicyCheck {
+	if f.local[p.Name] {
+		return manager.PolicyCheck{Local: true, Problems: f.risks}
+	}
+	return manager.PolicyCheck{Problems: f.policy}
+}
+
+func (f *fakeManager) AddLocalPackage(data, icon []byte) (*pkgspec.Package, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	f.added = append(f.added, data)
+	return pkgspec.Parse(data)
+}
+
+func (f *fakeManager) RemoveLocalPackage(name string) error {
+	if !f.local[name] {
+		return manager.ErrNotFound
+	}
+	f.removedLocal = append(f.removedLocal, name)
+	return nil
+}
+
+func (f *fakeManager) LocalPackagesDir() string { return "/var/lib/roostack/local-packages" }
 
 func (f *fakeManager) Remove(_ context.Context, name string) error {
 	f.removed = append(f.removed, name)

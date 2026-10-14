@@ -27,6 +27,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the details.
 | `/var/lib/roostack/home/.config/containers/systemd/` | Generated Quadlet files (`roostack-*`) |
 | `/var/lib/roostack/caddy/` | Generated Caddy config |
 | `/var/lib/roostack/cloud/` | The lab's link to Roostack Cloud, if it has one (the controller only): its key and certificate, and a log of its requests |
+| `/var/lib/roostack/local-packages/<name>/` | Packages the Owner added themselves ("Add your own"): one version each, with its logo; backed up |
 | `/var/lib/roostack/catalog/` | What can be installed: packages fetched from the service registry and checked against its signed index (the controller only; not backed up) |
 
 All of these can be changed in `lab.yaml`. The defaults are in [internal/config/config.go](internal/config/config.go).
