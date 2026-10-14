@@ -360,13 +360,14 @@ func TestRestoreUsesTheLabsPackages(t *testing.T) {
 
 	// Roostack is upgraded: its catalog has a newer Vaultwarden. Then the
 	// server is lost, and the lab restored from its backup.
-	catalog := m.Lab.Paths.PackageFile("vaultwarden")
+	catalog := m.Lab.Paths.CatalogPackageFile("vaultwarden", "1.34.3-roostack.1")
 	data, _ := os.ReadFile(catalog)
 	newer := strings.ReplaceAll(string(data), "1.34.3", "1.35.0")
 	if newer == string(data) {
 		t.Fatal("the catalog didn't change")
 	}
-	os.WriteFile(catalog, []byte(newer), 0o644)
+	os.WriteFile(m.Lab.Paths.CatalogPackageFile("vaultwarden", "1.35.0-roostack.1"), []byte(newer), 0o644)
+	os.Remove(catalog)
 	os.RemoveAll(m.Lab.Paths.StateDir)
 	snaps, err := repo.Snapshots(ctx, backup.TagServer)
 	if err != nil || len(snaps) != 1 {

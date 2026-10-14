@@ -1,0 +1,24 @@
+// The public help (SPEC.md §6.3.1): the Zensical build in site/, served as
+// Cloudflare static assets, like the website (roostack.cloud, in Roostack
+// Cloud's repository). Deploy with scripts/help-deploy.sh, which builds the
+// site and writes its headers:
+//
+// - Without --env: the preview, roostack-help-preview on workers.dev, not indexed.
+// - --env production (scripts/help-deploy.sh --production): help.roostack.cloud.
+//   Prepared, not yet published (2026-10-14); Roostack Cloud's ops/site-deploy.sh
+//   publishes it with an API token, never a personal login.
+{
+  "name": "roostack-help-preview",
+  "compatibility_date": "2026-09-28",
+  "workers_dev": true,
+  "assets": { "directory": "./site", "not_found_handling": "404-page" },
+
+  "env": {
+    "production": {
+      "name": "roostack-help",
+      "workers_dev": false,
+      "routes": [{ "pattern": "help.roostack.cloud", "custom_domain": true }],
+      "assets": { "directory": "./site", "not_found_handling": "404-page" }
+    }
+  }
+}

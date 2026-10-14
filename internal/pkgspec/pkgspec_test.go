@@ -4,14 +4,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"roostack.cloud/roostack/internal/pkgtest"
 )
 
-// The reference examples must always parse, so they stay in sync with the
-// code, and follow the package policy, as registry packages will.
-func TestExamplesParse(t *testing.T) {
-	for _, name := range []string{"vaultwarden", "forgejo", "immich"} {
+// The package fixtures, copies of registry packages, must always parse, so
+// they stay in sync with the code, and follow the package policy, as
+// registry packages do.
+func TestFixturesParse(t *testing.T) {
+	for _, name := range pkgtest.Names {
 		t.Run(name, func(t *testing.T) {
-			p, err := Load(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
+			p, err := Load(pkgtest.File(name))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -21,7 +24,7 @@ func TestExamplesParse(t *testing.T) {
 			if problems := p.Policy(); len(problems) > 0 {
 				t.Errorf("breaks the package policy: %v", problems)
 			}
-			if err := p.CheckIcon(filepath.Join("..", "..", "docs", "examples")); err != nil {
+			if err := p.CheckIcon(filepath.Dir(pkgtest.File(name))); err != nil {
 				t.Error(err)
 			}
 		})

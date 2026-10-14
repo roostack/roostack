@@ -14,7 +14,8 @@ import (
 // allowed before 1.0 (SPEC.md §8).
 const SchemaV1Alpha1 = "roostack/v1alpha1"
 
-// Package is a catalog entry (catalog/<name>/package.yaml).
+// Package is one version of a package (catalog/<name>/<version>.yaml, as
+// in the registry: SPEC.md §8.3.3).
 type Package struct {
 	Schema      string   `yaml:"schema"`
 	Name        string   `yaml:"name"`
