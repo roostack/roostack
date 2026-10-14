@@ -255,7 +255,7 @@ Values in `env`, `when` and hooks are Go templates:
 
 ```bash
 roostack validate package.yaml
-roostack render -lab lab.yaml -package package.yaml -instance service.yaml
+roostack render -package package.yaml
 ```
 
 `validate` checks the package and the package policy, checks the logo

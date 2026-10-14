@@ -200,8 +200,17 @@ every registry package follows. For a package only for your own lab, add
 `-local`: what breaks the policy is then a warning, the same list Roostack
 shows before installing it.
 
-To see exactly what Roostack would generate, describe a service in a small
-file, `service.yaml`:
+To see exactly what Roostack would generate:
+
+```bash
+roostack render -package myapp/2.4.1-roostack.1.yaml
+```
+
+It prints the Quadlet files, the web server config, the secrets, folders
+and backup plan for the package with its default settings, in an example
+lab at `lab.example.com`, and changes nothing. The registry shows the same
+for every pull request. To try other settings, describe the service in a
+small file, `service.yaml`, and add `-instance service.yaml`:
 
 ```yaml
 package: myapp
@@ -213,14 +222,7 @@ settings:
   some_setting: true     # any you want to try other than the default
 ```
 
-and, on a Roostack server:
-
-```bash
-sudo roostack render -lab /var/lib/roostack/lab.yaml -package myapp/2.4.1-roostack.1.yaml -instance service.yaml
-```
-
-It prints the Quadlet files, the web server config, the secrets, folders
-and backup plan, and changes nothing. The same files are under **Details**
-on the install page once you've added the package to your lab.
+Once you've added the package to your lab, the same files, for your lab
+and what you chose, are under **Details** on the install page.
 
 Next: [try it on a lab](try.md).

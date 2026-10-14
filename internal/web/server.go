@@ -78,9 +78,17 @@ type ServiceView struct {
 	LastBackup time.Time
 	// Update is the app version it can update to ("" if none, SPEC.md §7).
 	Update string
+	// Package is the name of the package it was installed from (a second
+	// copy's Name is its own, SPEC.md §8.2).
+	Package string
 	// Local: installed from a package the Owner added themselves ("Your
 	// own", SPEC.md §8.3.4).
 	Local bool
+	// Tier is who looks after its package in the service registry now
+	// (registry.TierOfficial or TierCommunity), for its badge (SPEC.md
+	// §8.3.4); empty for the Owner's own, or one the registry no longer
+	// lists. Filled in by the web layer (withTiers).
+	Tier string
 }
 
 // Server serves the web UI.

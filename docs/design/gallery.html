@@ -858,6 +858,32 @@
         </div>
         
         <div class="example">
+          <h3>Tier badge <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">template &#34;tier-badge&#34; with anything that has .Local and .Tier (a catalog entry, an installed service): who looks after its package. Beside the title, inside the heading.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><h2>Forgejo <span class="badge">Official</span></h2>
+<h2>Paperless-ngx <span class="badge badge-warn">Community</span></h2>
+<h2>My app <span class="badge badge-warn">Your own</span></h2></div>
+            <div class="panel" data-mode="dark"><h2>Forgejo <span class="badge">Official</span></h2>
+<h2>Paperless-ngx <span class="badge badge-warn">Community</span></h2>
+<h2>My app <span class="badge badge-warn">Your own</span></h2></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;h2&gt;Forgejo {{template &#34;tier-badge&#34; .TierOfficial}}&lt;/h2&gt;
+&lt;h2&gt;Paperless-ngx {{template &#34;tier-badge&#34; .TierCommunity}}&lt;/h2&gt;
+&lt;h2&gt;My app {{template &#34;tier-badge&#34; .TierLocal}}&lt;/h2&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;h2&gt;Forgejo&lt;span class=&#34;badge&#34;&gt;Official&lt;/span&gt;&lt;/h2&gt;
+&lt;h2&gt;Paperless-ngx&lt;span class=&#34;badge badge-warn&#34;&gt;Community&lt;/span&gt;&lt;/h2&gt;
+&lt;h2&gt;My app&lt;span class=&#34;badge badge-warn&#34;&gt;Your own&lt;/span&gt;&lt;/h2&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
           <h3>Logo <span class="badge badge-highlight">Template component</span></h3>
           <p class="hint">logo SRC ICON: a service&#39;s logo on a light tile, the same in both modes, since projects draw their logos for light backgrounds; without one (SRC &#34;&#34;), the drawn ICON on the same tile. Decorative: the name beside it says what it is.</p>
           <div class="panels">
