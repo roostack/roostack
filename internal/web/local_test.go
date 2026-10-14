@@ -13,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgtest"
+	"roostack.cloud/roostack/internal/registry"
 )
 
 // postFiles posts a multipart form with these files (field: contents),
@@ -163,20 +164,40 @@ func TestYourOwnWithRegistryOff(t *testing.T) {
 	}
 }
 
-// A service installed from one of the Owner's own packages says so on its
-// page and in the list (SPEC.md §8.3.4).
-func TestYourOwnServiceBadge(t *testing.T) {
+// Installed services show who looks after their package, as the catalog
+// does (SPEC.md §8.3.4): the registry's tier now, by package (a second copy
+// too), or "Your own".
+func TestServiceTierBadges(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleAdmin)
-	badge := `<span class="badge badge-warn">Your own</span>`
-	if _, body := h.get("/services"); strings.Contains(body, badge) {
-		t.Error("a registry service isn't the Owner's own")
-	}
+	h.server.Registry = &fakeRegistry{on: true, status: fresh(), listing: map[string]registry.Listed{
+		"vaultwarden": {Package: &registry.Package{Title: "Vaultwarden", Tier: registry.TierCommunity}},
+		"immich":      {Package: &registry.Package{Title: "Immich", Tier: registry.TierOfficial}},
+		"forgejo":     {Package: &registry.Package{Title: "Forgejo", Tier: registry.TierOfficial}},
+	}}
 	h.server.Services = func(context.Context) ([]ServiceView, error) {
-		return []ServiceView{{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", Local: true}}, nil
+		return []ServiceView{
+			{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", Package: "vaultwarden"},
+			{Name: "immich-family", Title: "Immich (family)", Status: "running", Package: "immich"},
+			// The Owner's own, with a name the registry has since used.
+			{Name: "forgejo", Title: "Forgejo", Status: "running", Package: "forgejo", Local: true},
+			{Name: "gone", Title: "Gone", Status: "running", Package: "gone"},
+		}, nil
 	}
-	for _, page := range []string{"/services", "/services/vaultwarden"} {
-		if _, body := h.get(page); !strings.Contains(body, badge) {
-			t.Errorf("%s: no Your own badge", page)
+	_, body := h.get("/services")
+	for _, want := range []string{
+		`Vaultwarden</a> <span class="badge badge-warn">Community</span></h2>`,
+		`Immich (family)</a> <span class="badge">Official</span></h2>`,
+		`Forgejo</a> <span class="badge badge-warn">Your own</span></h2>`,
+		`Gone</a> </h2>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the Services list is missing %s", want)
 		}
+	}
+	if _, body := h.get("/services/immich-family"); !strings.Contains(body, `<h1>Immich (family) <span class="badge">Official</span></h1>`) {
+		t.Error("the service page should show its tier")
+	}
+	if _, body := h.get("/services/forgejo"); !strings.Contains(body, `<span class="badge badge-warn">Your own</span></h1>`) {
+		t.Error("the service page should show Your own")
 	}
 }
