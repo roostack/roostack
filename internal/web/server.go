@@ -202,6 +202,7 @@ type ServiceManager interface {
 	PublicAccess
 	RecoveryKeys
 	LabRestores
+	Withdrawals
 }
 
 // LabRestores restores a service from any of the lab's backups, onto any
@@ -516,6 +517,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /services/{name}/public/{route}", s.requireOwner(s.publicPage))
 	mux.Handle("POST /services/{name}/public/{route}", s.requireOwner(s.publicSubmit))
 	mux.Handle("POST /services/{name}/public/{route}/check", s.requireOwner(s.publicCheckNew))
+	mux.Handle("POST /services/{name}/start-anyway", s.requireOwner(s.startAnywaySubmit))
 	mux.Handle("GET /settings/public", s.requireOwner(s.publicSettingsPage))
 	mux.Handle("POST /settings/public/sharing", s.requireOwner(s.publicSharingSubmit))
 	mux.Handle("POST /settings/public/edge", s.requireOwner(s.publicEdgeSubmit))
@@ -563,6 +565,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/updates/run", s.requireOwner(s.updateNowSubmit))
 	mux.Handle("POST /settings/updates/registry/check", s.requireOwner(s.registryCheckSubmit))
 	mux.Handle("POST /settings/updates/registry/on", s.requireOwner(s.registryOnSubmit))
+	mux.Handle("POST /settings/updates/registry/stops", s.requireOwner(s.registryStopsSubmit))
 	mux.Handle("POST /settings/host-changes/known", s.requireOwner(s.hostChangesKnownSubmit))
 	mux.Handle("POST /settings/restart", s.requireOwner(s.restartNowSubmit))
 	mux.Handle("POST /settings/restart-policy", s.requireWizard(s.restartPolicySubmit))

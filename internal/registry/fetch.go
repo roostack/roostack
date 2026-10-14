@@ -67,8 +67,15 @@ type Fetcher struct {
 	Version, Arch string
 	Client        *http.Client
 	Log           *slog.Logger
+	// Fetched, if set, is called after each fetch, whether it worked or
+	// not: the manager checks whether a withdrawal changed what should
+	// run (SPEC.md §8.3.4).
+	Fetched func()
 
 	mu sync.Mutex
+	// The parsed index (Index).
+	ixMu sync.Mutex
+	indexCache
 }
 
 // Status is what the last fetches did, for Settings → Updates.
@@ -185,7 +192,10 @@ func (f *Fetcher) fetchLocked(ctx context.Context) error {
 		st.Error, st.Fetched = "", st.Checked
 	}
 	if werr := f.writeStatus(st); werr != nil {
-		return errors.Join(err, werr)
+		err = errors.Join(err, werr)
+	}
+	if f.Fetched != nil {
+		f.Fetched()
 	}
 	return err
 }

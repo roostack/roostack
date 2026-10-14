@@ -55,6 +55,14 @@ Roostack doesn't hear when a version is withdrawn because it's unsafe.
 Services you've installed keep running: each runs from the lab's own copy of
 its package.
 
+**Let Roostack stop a service the registry says is dangerous** is on unless
+you turn it off. When a version turns out to be malicious, or is being
+attacked with no fix yet, the registry can say so, and Roostack stops any
+service running that version until you update it or start it again. It
+keeps everything the service stores. Off, Roostack only warns you, and the
+service keeps running. What each kind of withdrawal means is under
+[Change a service](../services/settings.md#when-the-registry-withdraws-a-version).
+
 ??? note "For technical users"
 
     The registry is at `https://registry.roostack.cloud/v1/` (`registry.url`
@@ -68,6 +76,8 @@ its package.
     the last check. `roostack registry check` does the same from the
     command line and prints what it found. How the keys are kept is in
     Roostack's `docs/REGISTRY-KEYS.md`.
+
+    Turning stops off saves `registry.no_stops: true` in `lab.yaml`.
 
 ## Changes Roostack didn't make
 

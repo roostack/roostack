@@ -53,6 +53,11 @@ type Instance struct {
 	// its backups, onto any server. It runs nowhere until then (SPEC.md
 	// §10.10, "Restoring across the lab").
 	Waiting bool `yaml:"waiting,omitempty"`
+	// StartedAnyway is a version the registry withdrew as dangerous that
+	// the Owner chose to run anyway (SPEC.md §8.3.4): Roostack doesn't
+	// stop the service while it has this version. Another version (an
+	// update) isn't covered.
+	StartedAnyway string `yaml:"started_anyway,omitempty"`
 	// Local: installed from a package the Owner added themselves, not one
 	// from the service registry, so its pages say "Your own" (SPEC.md
 	// §8.3.4). Recorded here because the lab's copy of the package is the

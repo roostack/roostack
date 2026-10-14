@@ -190,6 +190,8 @@ func (m *Manager) SetRelay(ctx context.Context, on bool) error {
 	if m.Relay.Set == nil {
 		return formErrorf("Roostack Cloud isn't set up on this lab.")
 	}
+	m.relayMu.Lock()
+	defer m.relayMu.Unlock()
 	if on {
 		services, err := state.LoadServices(m.Lab)
 		if err != nil {
@@ -197,6 +199,7 @@ func (m *Manager) SetRelay(ctx context.Context, on bool) error {
 		}
 		m.mu.Lock()
 		countries := m.publicLocked().Countries
+		m.relayGen++
 		m.mu.Unlock()
 		if err := m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), countries, m.Lab.Timezone, ownDomain(m.Lab)); err != nil {
 			return err
@@ -243,8 +246,11 @@ func (m *Manager) CheckRelay(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	m.relayMu.Lock()
+	defer m.relayMu.Unlock()
 	m.mu.Lock()
 	countries := m.publicLocked().Countries
+	m.relayGen++
 	m.mu.Unlock()
 	return m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), countries, m.Lab.Timezone, ownDomain(m.Lab))
 }
@@ -270,11 +276,18 @@ func (m *Manager) SetCountries(ctx context.Context, c config.Countries) error {
 	if !c.Limited() {
 		c.OpenUntil = time.Time{}
 	}
+	// Held until they're saved, so a background update (relayFor) sends
+	// either the old countries before Cloud hears of these, or these.
+	m.relayMu.Lock()
+	defer m.relayMu.Unlock()
 	if m.RelayOn() && m.Relay.Set != nil {
 		services, err := state.LoadServices(m.Lab)
 		if err != nil {
 			return err
 		}
+		m.mu.Lock()
+		m.relayGen++
+		m.mu.Unlock()
 		if err := m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), c, m.Lab.Timezone, ownDomain(m.Lab)); err != nil {
 			return err
 		}
@@ -290,15 +303,32 @@ func (m *Manager) SetCountries(ctx context.Context, c config.Countries) error {
 
 // relayFor is the relay's edges' addresses for the controller's Caddy,
 // when the relay is on; it also brings the relayed names in line with
-// the public ones (in the background: Cloud may be slow).
+// the public ones (in the background: Cloud may be slow). Callers hold
+// m.mu.
+//
+// The update takes its turn (relayMu) and then reads the countries and
+// whether the relay is still on, so it never undoes a newer SetCountries
+// or SetRelay(false); it's dropped if a newer update came first.
 func (m *Manager) relayFor(services []state.Service) []string {
 	if !m.publicLocked().Relay || m.Relay.Edges == nil {
 		return nil
 	}
-	if m.Relay.Set != nil {
-		hosts, countries, tz, domain := publicHostsOf(m.Lab, services, false), m.publicLocked().Countries, m.Lab.Timezone, ownDomain(m.Lab)
+	if set := m.Relay.Set; set != nil {
+		m.relayGen++
+		gen, hosts, tz, domain := m.relayGen, publicHostsOf(m.Lab, services, false), m.Lab.Timezone, ownDomain(m.Lab)
+		m.relayWG.Add(1)
 		go func() {
-			if err := m.Relay.Set(context.Background(), hosts, countries, tz, domain); err != nil {
+			defer m.relayWG.Done()
+			m.relayMu.Lock()
+			defer m.relayMu.Unlock()
+			m.mu.Lock()
+			p := m.publicLocked()
+			current, countries := gen == m.relayGen && p.Relay, p.Countries
+			m.mu.Unlock()
+			if !current {
+				return
+			}
+			if err := set(context.Background(), hosts, countries, tz, domain); err != nil {
 				m.Log.Error("updating Roostack Cloud's relay", "err", err)
 			}
 		}()
