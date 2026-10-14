@@ -1,6 +1,5 @@
-# Reference example: complex package (multiple containers, custom Postgres,
-# Redis, optional ML, GPU, large media). Image digests looked up 2026-09-26.
-# See SPEC.md §8.1.
+# Immich: several containers, its own Postgres image, Redis, optional
+# machine learning, GPU, large media. Image digests looked up 2026-09-26.
 schema: roostack/v1alpha1
 name: immich
 title: Immich
@@ -14,7 +13,7 @@ about:
   # Its licence notice names version 3 of the AGPL, without "or later".
   licence: AGPL-3.0-only
   support: https://buy.immich.app
-  icon: immich.png
+  icon: icon.png
   categories: [photos]
   keywords: [photos, videos, phone backup, albums, face recognition, google photos alternative]
 requires:

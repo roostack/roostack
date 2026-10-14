@@ -11,8 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -24,7 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/nodeid"
-	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/state"
 )
 
@@ -128,9 +126,7 @@ func servers(t *testing.T) (ctrl, node labnet.Identity, lab config.Lab) {
 	lab.Paths.CatalogDir = t.TempDir()
 	// The lab's copies of its packages go here (SPEC.md §8.3.1).
 	lab.Paths.StateDir = t.TempDir()
-	data, _ := os.ReadFile(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
-	os.MkdirAll(filepath.Dir(lab.Paths.PackageFile("vaultwarden")), 0o755)
-	os.WriteFile(lab.Paths.PackageFile("vaultwarden"), data, 0o644)
+	pkgtest.Catalog(t, lab.Paths.CatalogDir)
 	return issue("n-0000000001", "100.96.0.1"), issue("n-0000000002", "100.96.0.2"), lab
 }
 
@@ -312,7 +308,7 @@ func mustTLS(t *testing.T, id labnet.Identity, peer string) *tls.Config {
 func loadVaultwarden(t *testing.T, lab config.Lab) []state.Service {
 	t.Helper()
 	// As the controller does: the lab's copy of the catalog's package.
-	cat, err := pkgspec.Load(lab.Paths.PackageFile("vaultwarden"))
+	cat, err := state.LoadCatalogPackage(lab.Paths, "vaultwarden")
 	if err != nil {
 		t.Fatal(err)
 	}

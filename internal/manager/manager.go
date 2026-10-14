@@ -148,7 +148,7 @@ func (m *Manager) Catalog() ([]CatalogItem, error) {
 		if !e.IsDir() {
 			continue
 		}
-		p, err := pkgspec.Load(m.Lab.Paths.PackageFile(e.Name()))
+		p, err := state.LoadCatalogPackage(m.Lab.Paths, e.Name())
 		if err != nil {
 			// One broken package shouldn't hide the rest of the catalog.
 			m.Log.Error("loading package", "package", e.Name(), "err", err)
@@ -167,13 +167,14 @@ func (m *Manager) Catalog() ([]CatalogItem, error) {
 	return items, nil
 }
 
-// Package returns a catalog package: what can be installed. An installed
-// service uses the lab's own copy (ServicePackage, SPEC.md §8.3.1).
+// Package returns the newest version of a catalog package: what can be
+// installed. An installed service uses the lab's own copy
+// (ServicePackage, SPEC.md §8.3.1).
 func (m *Manager) Package(name string) (*pkgspec.Package, error) {
 	if !validName(name) {
 		return nil, ErrNotFound
 	}
-	p, err := pkgspec.Load(m.Lab.Paths.PackageFile(name))
+	p, err := state.LoadCatalogPackage(m.Lab.Paths, name)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, ErrNotFound
 	}

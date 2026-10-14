@@ -16,9 +16,9 @@ import (
 // restore needs nothing but the backup and a newer catalog never changes a
 // running service. The catalog is only what can be installed.
 
-// KeepPackage copies the catalog's package file into the lab's state as
-// the copy its services use, unless the lab already has that version. It
-// fails if the catalog's package isn't that version.
+// KeepPackage copies the catalog's file for a package version into the
+// lab's state as the copy its services use, unless the lab already has
+// that version. It fails if the catalog doesn't have that version.
 func KeepPackage(paths config.Paths, name, version string) error {
 	if !pkgspec.ValidName(name) || !pkgspec.ValidVersion(version) {
 		return fmt.Errorf("package %q version %q: not a valid package name and version", name, version)
@@ -27,7 +27,7 @@ func KeepPackage(paths config.Paths, name, version string) error {
 	if _, err := os.Stat(dst); err == nil {
 		return nil
 	}
-	src := paths.PackageFile(name)
+	src := paths.CatalogPackageFile(name, version)
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
@@ -119,4 +119,52 @@ func PrunePackages(paths config.Paths, services []Service) error {
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// CatalogVersion is the newest version of a package in the catalog, from
+// its files' names (<version>.yaml, as in the registry: SPEC.md §8.3.3).
+// It returns an error wrapping os.ErrNotExist when the catalog has no such
+// package.
+func CatalogVersion(paths config.Paths, name string) (string, error) {
+	if !pkgspec.ValidName(name) {
+		return "", fmt.Errorf("package %q: %w", name, os.ErrNotExist)
+	}
+	files, err := os.ReadDir(paths.CatalogPackageDir(name))
+	if err != nil {
+		return "", err
+	}
+	newest := ""
+	for _, f := range files {
+		version, ok := strings.CutSuffix(f.Name(), ".yaml")
+		// registry.yaml is the registry's facts about the package, not a
+		// version of it.
+		if f.IsDir() || !ok || version == "registry" || !pkgspec.ValidVersion(version) {
+			continue
+		}
+		if newest == "" || pkgspec.CompareVersions(version, newest) > 0 {
+			newest = version
+		}
+	}
+	if newest == "" {
+		return "", fmt.Errorf("%s has no package file: %w", paths.CatalogPackageDir(name), os.ErrNotExist)
+	}
+	return newest, nil
+}
+
+// LoadCatalogPackage reads the newest version of a package in the catalog:
+// what installing it would install.
+func LoadCatalogPackage(paths config.Paths, name string) (*pkgspec.Package, error) {
+	version, err := CatalogVersion(paths, name)
+	if err != nil {
+		return nil, err
+	}
+	path := paths.CatalogPackageFile(name, version)
+	p, err := pkgspec.Load(path)
+	if err != nil {
+		return nil, err
+	}
+	if p.Name != name || p.Version != version {
+		return nil, fmt.Errorf("%s is %s %s, not %s %s", path, p.Name, p.Version, name, version)
+	}
+	return p, nil
 }

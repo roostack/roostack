@@ -76,7 +76,7 @@ replaced, kept until you delete it from the restore page.
 |---|---|
 | `/usr/bin/roostack`, `/usr/bin/roostack-agent` | The programs |
 | `/usr/lib/systemd/system/roostack.service`, `roostack-agent.service` | Their systemd units |
-| `/usr/share/roostack/catalog/<name>/package.yaml` | The services you can install ([package format](packages.md)). Installed services run from the lab's own copy (`/var/lib/roostack/packages`) |
+| `/usr/share/roostack/catalog/<name>/<version>.yaml` | The services you can install ([package format](packages.md)), a copy of the [registry](https://github.com/roostack/services) at the commit in `catalog/registry-commit`, with each project's logo (`icon.png`). Installed services run from the lab's own copy (`/var/lib/roostack/packages`) |
 | `/usr/share/roostack/caddy/Containerfile` | How Roostack's web server image is built, on each server |
 
 ## Changes to the host

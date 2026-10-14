@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"roostack.cloud/roostack/internal/pkgtest"
 )
 
 // pinnedImage matches an image pinned by digest (SPEC.md §8.1) anywhere in
@@ -24,7 +26,7 @@ var pinnedImage = regexp.MustCompile(`\b([a-z0-9.-]+\.[a-z]+)/([a-z0-9._/-]+?)(?
 func imageFiles(t *testing.T) []string {
 	t.Helper()
 	files := []string{filepath.Join("..", "..", "build", "caddy", "Containerfile")}
-	for _, pattern := range []string{"*.go", filepath.Join("..", "..", "docs", "examples", "*.yaml")} {
+	for _, pattern := range []string{"*.go", filepath.Join(pkgtest.Dir(), "*", "*.yaml")} {
 		matches, err := filepath.Glob(pattern)
 		if err != nil {
 			t.Fatal(err)

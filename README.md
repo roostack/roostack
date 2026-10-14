@@ -63,12 +63,12 @@ The help site is in [help/](help/): Markdown pages built with [Zensical](https:/
 Useful commands that work without a Roostack host:
 
 ```bash
-# Check package files
-bin/roostack validate docs/examples/*.yaml
+# Check package files (the registry's, or the test fixtures here)
+bin/roostack validate internal/testdata/packages/*/*-roostack.*.yaml
 
 # See exactly what Roostack would generate for a service
 bin/roostack render -lab docs/examples/lab.yaml \
-  -package docs/examples/immich.yaml \
+  -package internal/testdata/packages/immich/2.1.0-roostack.1.yaml \
   -instance internal/generate/testdata/immich.instance.yaml
 ```
 
@@ -85,4 +85,5 @@ To try it on a Debian 13 VM, see [scripts/dev-install.sh](scripts/dev-install.sh
 - [ARCHITECTURE.md](ARCHITECTURE.md): how the code fits together
 - [help/](help/): the help site, for people running Roostack
 - [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md): things the code assumes that haven't been verified on a real host yet
-- [docs/examples/](docs/examples/): reference package definitions
+- [docs/examples/lab.yaml](docs/examples/lab.yaml): an example lab config
+- The packages are in their own repository, [`roostack/services`](https://github.com/roostack/services); `make build` fetches the commit [packaging/registry](packaging/registry) names, which the `.deb` ships as its catalog
