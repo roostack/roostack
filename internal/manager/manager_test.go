@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/reconcile"
 	"roostack.cloud/roostack/internal/state"
 )
@@ -100,14 +101,9 @@ func newManager(t *testing.T) (*Manager, *fakeSecrets) {
 		ServicesDir: filepath.Join(root, "srv"), MediaDir: filepath.Join(root, "media"),
 		CatalogDir: filepath.Join(root, "catalog"),
 	}
-	for _, name := range []string{"vaultwarden", "immich"} {
-		data, err := os.ReadFile(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		os.MkdirAll(filepath.Dir(lab.Paths.PackageFile(name)), 0o755)
-		os.WriteFile(lab.Paths.PackageFile(name), data, 0o644)
-	}
+	pkgtest.Catalog(t, lab.Paths.CatalogDir)
+	// Forgejo is added by the tests that want it (addForgejo).
+	os.RemoveAll(lab.Paths.CatalogPackageDir("forgejo"))
 	os.MkdirAll(lab.Paths.InstancesDir(), 0o755)
 	secrets := &fakeSecrets{values: map[string][]byte{dns.SecretName("api_token"): []byte("existing")}}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -369,12 +365,9 @@ func TestPorts(t *testing.T) {
 
 func addForgejo(t *testing.T, m *Manager) {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "examples", "forgejo.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	os.MkdirAll(filepath.Dir(m.Lab.Paths.PackageFile("forgejo")), 0o755)
-	os.WriteFile(m.Lab.Paths.PackageFile("forgejo"), data, 0o644)
+	dir := m.Lab.Paths.CatalogPackageDir("forgejo")
+	os.MkdirAll(dir, 0o755)
+	os.WriteFile(filepath.Join(dir, filepath.Base(pkgtest.File("forgejo"))), pkgtest.Read(t, "forgejo"), 0o644)
 }
 
 func forgejoRequest() InstallRequest {

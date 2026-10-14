@@ -1,5 +1,5 @@
-# Reference example: medium package (single container, Roostack-managed
-# Postgres). Image digests looked up 2026-09-26. See SPEC.md §8.1.
+# Forgejo: one container, Postgres run by Roostack. Image digests looked up
+# 2026-09-26.
 #
 # v15 is Forgejo's LTS release (supported until 2027-07-15); v16 is newer but
 # supported only until the next major release. LTS suits a lab that
@@ -16,7 +16,7 @@ about:
   source: https://codeberg.org/forgejo/forgejo
   licence: GPL-3.0-or-later
   support: https://liberapay.com/forgejo
-  icon: forgejo.png
+  icon: icon.png
   categories: [development]
   keywords: [git, code, issues, pull requests, github alternative]
 requires:

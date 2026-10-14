@@ -47,8 +47,8 @@ Checked on 2026-09-30:
   | crowdsec | internal/generate/system.go | ✅ |
   | rest-server | internal/generate/storage.go | ✅ |
   | postgres, valkey | internal/generate/defaults.go | ✅ |
-  | vaultwarden, forgejo | docs/examples/*.yaml | ✅ |
-  | immich server, machine learning, postgres | docs/examples/immich.yaml | ✅ |
+  | vaultwarden, forgejo | their packages (then docs/examples, now the registry, SPEC.md §8.3.2) | ✅ |
+  | immich server, machine learning, postgres | Immich's package (likewise) | ✅ |
 
 - **What assumes x86:** the package (`scripts/build-deb.sh`,
   `packaging/deb/control`: `Architecture: amd64`), the dev VM script
