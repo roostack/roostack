@@ -219,6 +219,10 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			if access, err := s.Manager.Access(name); err == nil {
 				data["Access"] = access
 			}
+			// The registry withdrew its version (SPEC.md §8.3.4).
+			if wd := s.Manager.Withdrawals(r.Context())[name]; wd != nil {
+				data["Withdrawal"] = wd
+			}
 		}
 		if n := s.serverOf(r); n != nil {
 			st := n.InstallStatus(r.Context(), name)

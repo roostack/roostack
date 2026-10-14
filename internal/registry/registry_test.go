@@ -425,3 +425,28 @@ func TestFetchIfOlder(t *testing.T) {
 		t.Errorf("fetched again within the hour: %v", err)
 	}
 }
+
+// A withdrawal reaches the lab's copy of a version only if it's the file
+// the index names; the package's and the version's, the more severe wins.
+func TestWithdrawn(t *testing.T) {
+	file := []byte("name: forgejo\n")
+	ix := &Index{Packages: map[string]*Package{"forgejo": {Versions: map[string]*Version{
+		"1.0": {File: File{SHA256: sum(file)}, Withdrawn: &Withdrawal{Level: LevelNotice, Reason: "n"}},
+		"2.0": {File: File{SHA256: sum(file)}}}}}}
+	if w := ix.Withdrawn("forgejo", "1.0", file); w == nil || w.Level != LevelNotice {
+		t.Errorf("version: %+v", w)
+	}
+	if w := ix.Withdrawn("forgejo", "2.0", file); w != nil {
+		t.Errorf("not withdrawn: %+v", w)
+	}
+	ix.Packages["forgejo"].Withdrawn = &Withdrawal{Level: LevelStop, Reason: "s"}
+	if w := ix.Withdrawn("forgejo", "1.0", file); w == nil || w.Level != LevelStop {
+		t.Errorf("package's stop wins: %+v", w)
+	}
+	if w := ix.Withdrawn("forgejo", "1.0", []byte("another file")); w != nil {
+		t.Errorf("a file of your own: %+v", w)
+	}
+	if w := ix.Withdrawn("forgejo", "3.0", file); w != nil || ix.Withdrawn("immich", "1.0", file) != nil {
+		t.Error("unknown versions and packages")
+	}
+}

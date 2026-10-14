@@ -109,6 +109,11 @@ type fakeManager struct {
 	// Recovery key change (keychange_test.go).
 	keyChange *manager.KeyChange
 	keyOps    []string
+
+	// Registry withdrawals (withdrawals_test.go).
+	withdrawn     map[string]*manager.Withdrawal
+	startedAnyway []string
+	stopsOff      bool
 }
 
 // DiskSpace: the fake's disk, if it has one.
