@@ -218,75 +218,26 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	if err != nil {
 		return err
 	}
-	host := cmp.Or(req.Host, m.Lab.NodeID)
-	if m.node(host) == nil {
-		return formErrorf("Choose which server runs %s.", p.Title)
-	}
-	in := &instance.Instance{Package: p.Name, Host: host, Version: p.Version, Updates: instance.UpdatesNotify,
-		Settings: map[string]any{}}
-	title, err := checkTitle(req.Title, p)
+	in, id, err := m.draft(p, req, false)
 	if err != nil {
 		return err
 	}
-	in.Title = title
-	id := p.Name
-	if n := strings.ToLower(strings.TrimSpace(req.Name)); n != "" && n != p.Name {
-		if !strings.HasPrefix(n, p.Name+"-") || !instance.ValidName(n) {
-			return formErrorf("Its name is %s, or %s- and then lowercase letters, digits and dashes (up to %d in all), e.g. %s-work.",
-				p.Name, p.Name, instance.MaxName, p.Name)
-		}
-		id, in.Name = n, n
-	}
-
 	secrets := map[string][]byte{}
 	for _, s := range p.Settings {
-		raw, given := req.Settings[s.Key]
-		switch s.Type {
-		case pkgspec.SettingBool, pkgspec.SettingString, pkgspec.SettingInt:
-			v, err := parseSetting(s, raw, given)
-			if err != nil {
-				return err
-			}
-			in.Settings[s.Key] = v
-		case pkgspec.SettingSecret:
-			if s.Generate {
-				continue
-			}
-			v := req.Secrets[s.Key]
-			if v == "" {
-				return formErrorf("%s is required.", s.Title)
-			}
-			if s.MinLength > 0 && len([]rune(v)) < s.MinLength {
-				return formErrorf("%s must be at least %d characters.", s.Title, s.MinLength)
-			}
-			if strings.ContainsAny(v, "\n\r\x00") {
-				return formErrorf("%s can't contain line breaks.", s.Title)
-			}
-			secrets[node.SecretName(id, s.Key)] = []byte(v)
+		if s.Type != pkgspec.SettingSecret || s.Generate {
+			continue
 		}
-	}
-	if sub := strings.ToLower(strings.TrimSpace(req.Subdomain)); sub != "" {
-		route := MainRoute(p)
-		if route == "" {
-			return formErrorf("%s has no web address to choose.", p.Title)
+		v := req.Secrets[s.Key]
+		if v == "" {
+			return formErrorf("%s is required.", s.Title)
 		}
-		in.Routes = map[string]instance.RouteOverride{route: {Subdomain: sub}}
-	}
-	if req.Public {
-		for name, r := range p.Routes {
-			if r.Public.Unsafe != "" {
-				continue // stays private: making it public needs its warning
-			}
-			if in.Routes == nil {
-				in.Routes = map[string]instance.RouteOverride{}
-			}
-			o := in.Routes[name]
-			o.Exposure = pkgspec.ExposurePublic
-			in.Routes[name] = o
+		if s.MinLength > 0 && len([]rune(v)) < s.MinLength {
+			return formErrorf("%s must be at least %d characters.", s.Title, s.MinLength)
 		}
-	}
-	if err := in.Validate(p); err != nil {
-		return formErrorf("%s", err)
+		if strings.ContainsAny(v, "\n\r\x00") {
+			return formErrorf("%s can't contain line breaks.", s.Title)
+		}
+		secrets[node.SecretName(id, s.Key)] = []byte(v)
 	}
 
 	m.mu.Lock()
@@ -339,6 +290,134 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	m.applyReason = "Installing " + id
 	m.startApplyLocked()
 	return nil
+}
+
+// draft is the service an install request describes, not yet saved and
+// without its ports: its server, title, name (returned as its ID),
+// settings and addresses. Secrets are Install's alone. A lenient draft
+// (for the summary, while the form is being filled in) leaves out
+// settings that aren't valid yet, so they take the package's defaults.
+func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient bool) (*instance.Instance, string, error) {
+	host := cmp.Or(req.Host, m.Lab.NodeID)
+	if m.node(host) == nil {
+		return nil, "", formErrorf("Choose which server runs %s.", p.Title)
+	}
+	in := &instance.Instance{Package: p.Name, Host: host, Version: p.Version, Updates: instance.UpdatesNotify,
+		Settings: map[string]any{}}
+	title, err := checkTitle(req.Title, p)
+	if err != nil {
+		return nil, "", err
+	}
+	in.Title = title
+	id := p.Name
+	if n := strings.ToLower(strings.TrimSpace(req.Name)); n != "" && n != p.Name {
+		if !strings.HasPrefix(n, p.Name+"-") || !instance.ValidName(n) {
+			return nil, "", formErrorf("Its name is %s, or %s- and then lowercase letters, digits and dashes (up to %d in all), e.g. %s-work.",
+				p.Name, p.Name, instance.MaxName, p.Name)
+		}
+		id, in.Name = n, n
+	}
+	for _, s := range p.Settings {
+		if s.Type == pkgspec.SettingSecret {
+			continue
+		}
+		raw, given := req.Settings[s.Key]
+		v, err := parseSetting(s, raw, given)
+		if err != nil && lenient {
+			continue
+		}
+		if err != nil {
+			return nil, "", err
+		}
+		in.Settings[s.Key] = v
+	}
+	if sub := strings.ToLower(strings.TrimSpace(req.Subdomain)); sub != "" {
+		route := MainRoute(p)
+		if route == "" {
+			return nil, "", formErrorf("%s has no web address to choose.", p.Title)
+		}
+		in.Routes = map[string]instance.RouteOverride{route: {Subdomain: sub}}
+	}
+	if req.Public {
+		for name, r := range p.Routes {
+			if r.Public.Unsafe != "" {
+				continue // stays private: making it public needs its warning
+			}
+			if in.Routes == nil {
+				in.Routes = map[string]instance.RouteOverride{}
+			}
+			o := in.Routes[name]
+			o.Exposure = pkgspec.ExposurePublic
+			in.Routes[name] = o
+		}
+	}
+	if err := in.Validate(p); err != nil {
+		return nil, "", formErrorf("%s", err)
+	}
+	return in, id, nil
+}
+
+// InstallSummary is what installing a package with these choices would
+// set up, for the install page to show first (SPEC.md §8.3.4). Nothing is
+// saved; the route ports are the ones Install would pick now. Secrets
+// aren't needed: the generated files never hold them.
+func (m *Manager) InstallSummary(name string, req InstallRequest) (*generate.Summary, error) {
+	p, err := m.Package(name)
+	if err != nil {
+		return nil, err
+	}
+	in, _, err := m.draft(p, req, true)
+	if err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	services, err := state.LoadServices(m.Lab)
+	m.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	services = append(services, state.Service{Instance: in, Package: p})
+	if _, err := state.AllocatePorts(m.onNode(services, in.Host)); err != nil {
+		return nil, err
+	}
+	return generate.Summarize(m.Lab, p, in)
+}
+
+// PackageFile is a catalog package's file (its newest version) as written, for people to read
+// before installing (SPEC.md §8.3.4).
+func (m *Manager) PackageFile(name string) ([]byte, error) {
+	if !validName(name) {
+		return nil, ErrNotFound
+	}
+	version, err := state.CatalogVersion(m.Lab.Paths, name)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(m.Lab.Paths.CatalogPackageFile(name, version))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, ErrNotFound
+	}
+	return data, err
+}
+
+// PackageIcon is a catalog package's logo (about.icon, a PNG beside its
+// file), or ErrNotFound if it has none.
+func (m *Manager) PackageIcon(name string) ([]byte, error) {
+	p, err := m.Package(name)
+	if err != nil {
+		return nil, err
+	}
+	if p.About.Icon == "" {
+		return nil, ErrNotFound
+	}
+	data, err := os.ReadFile(filepath.Join(m.Lab.Paths.CatalogPackageDir(name), p.About.Icon))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, ErrNotFound
+	}
+	return data, err
 }
 
 // PortStatus is a package port with its current settings, for the

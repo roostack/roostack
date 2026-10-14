@@ -10,6 +10,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/pkgspec"
 )
 
 // The design gallery shows every token and component, in light and dark
@@ -137,6 +138,8 @@ var gallerySections = []gallerySection{
     <dt>Version</dt> <dd>15.0.9-roostack.1</dd>
   </dl>
 </details>`},
+			{"Project credit", "template \"project-credit\" with a projectCredit (from about: in a package): who makes the app, its licence (linked to its text) and its links, with its logo. Under the description where people choose to install it.", `
+{{template "project-credit" .Credit}}`},
 		}},
 	{ID: "forms", Title: "Forms", Intro: "Labels wrap their inputs; hints sit underneath in small text. Errors appear above the form.",
 		Examples: []galleryExample{
@@ -328,6 +331,10 @@ func renderGallery(w io.Writer, static string, standalone bool) error {
 		return err
 	}
 	sample := gallerySamples()
+	// The credit's logo is a file beside its package; here, Roostack's own.
+	sample["Credit"] = &projectCredit{Title: "Forgejo", IconURL: static + "apple-touch-icon.png", About: pkgspec.About{
+		Maker: "a community project under Codeberg e.V., a non-profit", Licence: "GPL-3.0-or-later",
+		Website: "https://forgejo.org", Source: "https://codeberg.org/forgejo/forgejo", Support: "https://liberapay.com/forgejo"}}
 	var sections []map[string]any
 	for _, sec := range gallerySections {
 		var examples []renderedExample

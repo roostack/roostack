@@ -129,3 +129,17 @@
 {{/* A ranked list ([]rankView): names with a bar for their share of the
      largest and the count; Other rows (the rest) in muted colour. */}}
 {{define "rank-list"}}<ul class="rank-list">{{range .}}<li{{if .Other}} class="rank-other"{{end}}><span class="rank-name">{{.Name}}</span><span class="rank-bar" aria-hidden="true"><span data-width="{{.Percent}}"></span></span><span class="rank-count">{{count .Count}}</span></li>{{end}}</ul>{{end}}
+
+{{/* project-credit: who makes an app, its licence and its links (a
+     projectCredit, from about: in its package: SPEC.md §8.3.6), under its
+     description where people choose to install it. The logo is
+     decorative: the text names the app. */}}
+{{define "project-credit"}}{{with .}}<div class="project-credit">
+  {{- with .IconURL}}<img src="{{.}}" alt="" width="40" height="40">{{end}}
+  <p class="hint">{{with .About.Maker}}Made by {{.}}. {{end}}
+    {{- with .About.Licence}}{{if eq . "closed"}}Its code isn't published.{{else}}{{with licenceURL .}}<a href="{{.}}" target="_blank" rel="noopener">{{licenceName $.About.Licence}} licence{{template "new-window"}}</a>{{else}}{{licenceName .}} licence{{end}}.{{end}}{{end}}
+    <span class="project-links">
+    {{- with .About.Website}}<a href="{{.}}" target="_blank" rel="noopener">Website{{template "new-window"}}</a>{{end}}
+    {{- with .About.Source}}<a href="{{.}}" target="_blank" rel="noopener">Source code{{template "new-window"}}</a>{{end}}
+    {{- with .About.Support}}<a href="{{.}}" target="_blank" rel="noopener">Support {{$.Title}}{{template "new-window"}}</a>{{end}}</span></p>
+</div>{{end}}{{end}}

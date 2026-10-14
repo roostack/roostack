@@ -20,7 +20,7 @@ Every page is built from the tokens and components here. The gallery shows them 
 | `internal/web/themes.go` | The list of built-in themes (names shown to users) |
 | `internal/web/static/css/app.css` | Base styles, components and page layouts. Uses purpose tokens and scales only |
 | `internal/web/static/css/gallery.css` | Styles for the gallery page itself |
-| `internal/web/templates/components.html` | Templates of components with shared markup (notice, status, badge, server, back, confirm, activity, install steps) |
+| `internal/web/templates/components.html` | Templates of components with shared markup (notice, status, badge, server, back, confirm, activity, install steps, project credit) |
 | `internal/web/icons.go` | The icons (`icon NAME`), drawn for Roostack |
 | `internal/web/static/app.js` | Roostack's own small script for self-refreshing parts: sends the fingerprint of what a part shows (the server answers 204 when it's unchanged, `renderLive`), and keeps open `<details>` (with an `id`) open when a part does change. Give a `<details>` inside a refreshing area a stable `id`; poll with `every Ns [document.visibilityState === 'visible'], visibilitychange[document.visibilityState === 'visible'] from:document` and render the part with `renderLive` |
 | `internal/web/components.go` | The functions pages call for those components; they check their arguments |
@@ -114,6 +114,7 @@ Template components are called as functions; everything else is plain HTML with 
 | Area pages | `data["AreaNav"] = areaNav{…}` (Settings: `withArea`; your account: `renderAccount`) | A sidebar of the area's pages, the current one marked, beside the page (`area-nav`). On phones Settings' sidebar hides (the back link leads to its overview) and the account's becomes a row of tabs (`Tabs`) |
 | Address choice | `{{template "address-choice" .AddressChoice}}` inside a form | The address another server or lab connects to (join code, storage invite): radio choices Roostack knows, each with the address in `code`, then "Another address" revealing a field (`address`, `address_other`) |
 | Disk space | `.space-bar` with `.space-<part>` segments (`data-width`), `dl.space-list` with `.swatch` | A disk's use in coloured parts, each named with its size in the key |
+| Project credit | `{{template "project-credit" .Credit}}` (a `projectCredit`, from `about:` in a package) | Who makes an app, its licence (linked to its text on spdx.org) and its website, source and support links, beside its logo; on the install page, under the description |
 | Copy box | `{{copyBox TEXT}}` | Text people copy and send or paste elsewhere (an invite, a command), with a Copy button |
 | Figures | `dl.stat-tiles` (a `div` of `dt` and `dd`, optional `dd.hint`) | A few totals side by side (visitors through the relay) |
 | Bar chart | `{{template "bar-chart" .Chart}}` (a `barChart`: caption and `barView`s) | Counts over time, a column a period; heights through `data-height` (app.js, as for `data-width`); the exact figure on hover and for screen readers |
