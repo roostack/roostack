@@ -36,7 +36,7 @@
       {{logo .IconURL .DrawnIcon}}
       <div class="offer-text">
         <h2>{{.Title}}</h2>
-        {{- if .Local}}{{badge "Your own" "warn"}}{{else if eq .Tier "official"}}{{badge "Official"}}{{else if eq .Tier "community"}}{{badge "Community" "warn"}}{{end}}
+        {{- template "tier-badge" .}}
         {{- if .Installed}}{{badge "Installed" "ok"}}{{end}}
         <p class="hint">{{.Description}}</p>
         {{with index $.Updates .Name}}<p><a href="/services/{{.Service}}#update">{{.ToApp}} is available</a></p>{{end}}

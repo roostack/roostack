@@ -74,19 +74,24 @@ func main() {
 
 func render(args []string) error {
 	fs := flag.NewFlagSet("render", flag.ExitOnError)
-	labPath := fs.String("lab", "", "lab config file (required)")
+	labPath := fs.String("lab", "", "lab config file (required without -package; with it, an example lab when omitted)")
 	pkgPath := fs.String("package", "", "package file; omit to render the lab-wide system units")
-	instPath := fs.String("instance", "", "instance file (required with -package)")
+	instPath := fs.String("instance", "", "instance file; omit for the package's default settings")
 	outDir := fs.String("out", "", "write files under this directory instead of printing them")
 	gpu := fs.Bool("gpu", false, "pretend the host has a GPU (resolves default: auto)")
 	fs.Parse(args)
 
-	if *labPath == "" {
-		return errors.New("render: -lab is required")
-	}
-	lab, err := config.Load(*labPath)
-	if err != nil {
-		return err
+	// A package renders without a lab of its own, in an example lab, so
+	// anyone can see what it generates (SPEC.md §8.3.7).
+	lab := generate.ExampleLab()
+	switch {
+	case *labPath != "":
+		var err error
+		if lab, err = config.Load(*labPath); err != nil {
+			return err
+		}
+	case *pkgPath == "":
+		return errors.New("render: -lab is required without -package")
 	}
 	lab.HasGPU = *gpu
 
@@ -107,9 +112,6 @@ func render(args []string) error {
 		return writeFiles(*outDir, files)
 	}
 
-	if *instPath == "" {
-		return errors.New("render: -instance is required with -package")
-	}
 	p, err := pkgspec.Load(*pkgPath)
 	if err != nil {
 		return err
@@ -118,9 +120,11 @@ func render(args []string) error {
 	for _, problem := range p.Policy() {
 		fmt.Fprintf(os.Stderr, "%s: package policy: %s\n", *pkgPath, problem)
 	}
-	in, err := instance.Load(*instPath)
-	if err != nil {
-		return err
+	in := generate.ExampleInstance(p)
+	if *instPath != "" {
+		if in, err = instance.Load(*instPath); err != nil {
+			return err
+		}
 	}
 	out, err := generate.Service(lab, p, in)
 	if err != nil {

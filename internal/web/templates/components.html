@@ -30,6 +30,11 @@
 
 {{/* badge: Text, and a Variant: highlight (the brand highlight colour,
      "New"), ok or warn. */}}
+{{/* tier-badge: who looks after a service's package (SPEC.md §8.3.4), from
+     anything with .Local (the Owner's own) and .Tier (the registry's):
+     a catalog entry or an installed service. Nothing for neither. */}}
+{{define "tier-badge"}}{{if .Local}}{{badge "Your own" "warn"}}{{else if eq .Tier "official"}}{{badge "Official"}}{{else if eq .Tier "community"}}{{badge "Community" "warn"}}{{end}}{{end}}
+
 {{define "badge"}}<span class="badge{{with .Variant}} badge-{{.}}{{end}}">{{.Text}}</span>{{end}}
 
 {{/* logo: a service's logo (Src) or drawn Icon on a light tile. */}}

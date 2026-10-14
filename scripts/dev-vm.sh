@@ -6,9 +6,11 @@
 #   scripts/dev-vm.sh ssh [cmd] open a shell, or run a command, as user "dev"
 #   scripts/dev-vm.sh sync      build and copy the repo to ~/roostack in the VM
 #   scripts/dev-vm.sh install   sync, then run scripts/dev-install.sh in the VM
-#   scripts/dev-vm.sh test [flags]  sync, then run the Go tests in the VM (built
-#                               here, so the VM needs no Go); flags go to each
-#                               test binary, e.g. -test.run TestApply
+#   scripts/dev-vm.sh test [flags]  run the Go tests in the VM (built here, so
+#                               the VM needs no Go); flags go to each test
+#                               binary, e.g. -test.run TestApply. Each checkout
+#                               (worktree) gets its own folder in the VM, so
+#                               several can test on one VM at once
 #   scripts/dev-vm.sh ui        tunnel the Roostack UI (loopback-only) to http://127.0.0.1:18481
 #   scripts/dev-vm.sh down      shut the VM down
 #   scripts/dev-vm.sh destroy   delete the VM disk (keeps the downloaded image)
@@ -256,29 +258,43 @@ sync_repo() {
 # Linux, which is how to run it from a Mac (parts of Roostack only build
 # for Linux). Each package's test binary runs in its own folder, as
 # `go test` does, with the VM's restic if it has one (CLAUDE.md "Commands").
+# The sources and binaries go to ~/test-<checkout> in the VM, not
+# ~/roostack, so sessions testing different worktrees on one VM (or
+# syncing for an install meanwhile) don't replace each other's files.
 test_repo() {
-    sync_repo
-    local out=$VM_DIR/tests
-    rm -rf "$out" && mkdir -p "$out"
+    running || { echo "VM is not running" >&2; exit 1; }
+    local tag out
+    tag=test-$(basename "$REPO" | tr -c 'A-Za-z0-9._-\n' -)
+    out=$(mktemp -d)
+    trap "rm -rf '$out'" EXIT # expanded now: out is gone by exit
     log "Building the tests for linux/$ARCH"
-    (cd "$REPO" && GOOS=linux GOARCH=$ARCH CGO_ENABLED=0 go test -c -o "$out/" ./... >/dev/null)
+    mkdir "$out/bin"
+    (cd "$REPO" && GOOS=linux GOARCH=$ARCH CGO_ENABLED=0 go test -c -o "$out/bin/" ./... >/dev/null)
     (cd "$REPO" && go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.Name}} {{.Dir}}{{end}}' ./...) |
-        sed "s| $REPO/| |" | grep . >"$out/packages"
-    COPYFILE_DISABLE=1 tar -C "$out" --no-xattrs -cf - . | vm_ssh 'rm -rf ~/tests && mkdir ~/tests && tar -C ~/tests -xf -'
+        sed "s| $REPO/| |" | grep . >"$out/bin/packages"
+    log "Copying the repo and tests to ~/$tag in the VM"
+    vm_ssh "rm -rf ~/$tag && mkdir -p ~/$tag/src ~/$tag/bin"
+    # No extended attributes or ._ files (macOS adds them; Linux's tar warns).
+    COPYFILE_DISABLE=1 tar -C "$REPO" --exclude=.git --exclude=.DS_Store --exclude=./bin --exclude=./dist \
+        --no-xattrs -cf - . | vm_ssh "tar -C ~/$tag/src -xf -"
+    COPYFILE_DISABLE=1 tar -C "$out/bin" --no-xattrs -cf - . | vm_ssh "tar -C ~/$tag/bin -xf -"
     log "Running the tests in the VM"
-    vm_ssh bash -s -- "$@" <<'SH'
+    vm_ssh bash -s -- "$tag" "$@" <<'SH'
+tag=$1
+shift
+trap 'rm -rf ~/"$tag"' EXIT
 [ -x /usr/bin/restic ] && export ROOSTACK_RESTIC_BIN=/usr/bin/restic ||
     echo "warning: restic isn't installed in the VM, so its tests skip (scripts/dev-vm.sh install)"
 failed=()
 while read -r name dir; do
     start=$(date +%s%N)
-    if out=$(cd ~/roostack/"$dir" && ~/tests/"$name".test -test.count=1 "$@" 2>&1); then
+    if out=$(cd ~/"$tag"/src/"$dir" && ~/"$tag"/bin/"$name".test -test.count=1 "$@" 2>&1); then
         printf 'ok   %-40s %ss\n' "$dir" "$((($(date +%s%N) - start) / 1000000000))"
     else
         printf '%s\nFAIL %s\n' "$out" "$dir"
         failed+=("$dir")
     fi
-done <~/tests/packages
+done <~/"$tag"/bin/packages
 [ ${#failed[@]} -eq 0 ] || { echo "FAILED: ${failed[*]}"; exit 1; }
 SH
 }

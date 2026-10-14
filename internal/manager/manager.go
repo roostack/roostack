@@ -142,6 +142,13 @@ type Manager struct {
 	awaiting map[string]bool
 	// upd are services updating (update.go).
 	upd updates
+	// relayMu makes updates to Roostack Cloud's relay one at a time, so an
+	// older one can't reach Cloud after a newer one (edge.go). relayGen
+	// counts updates (under mu), so a background one gives way to any
+	// newer; relayWG is the background ones still running.
+	relayMu  sync.Mutex
+	relayGen uint64
+	relayWG  sync.WaitGroup
 }
 
 // CatalogItem is one package in the catalog.
@@ -829,11 +836,13 @@ func (m *Manager) DataDirs(name string) []string {
 	}
 }
 
-// Wait blocks until the current apply finishes (for tests and tools).
+// Wait blocks until the current apply finishes, and the relay update it
+// started (for tests and tools).
 func (m *Manager) Wait() {
 	if w, ok := m.Node.(interface{ Wait() }); ok {
 		w.Wait()
 	}
+	m.relayWG.Wait()
 }
 
 func (m *Manager) installed() (map[string]bool, error) {

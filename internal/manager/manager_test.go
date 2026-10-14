@@ -113,6 +113,10 @@ func newManager(t *testing.T) (*Manager, *fakeSecrets) {
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: &fakeSystemd{}, Secrets: secrets},
 		Log:        log,
 	}}
+	// A test may end while an apply it started is still writing files
+	// (e.g. state/caddy): wait for it before the temporary directory goes.
+	// Cleanups run last-registered first, so this runs before root's removal.
+	t.Cleanup(m.Wait)
 	return m, secrets
 }
 

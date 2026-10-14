@@ -71,7 +71,7 @@ These change nothing, and don't need a Roostack server:
 
 ```bash
 roostack validate [-local] <package.yaml>...
-roostack render -lab lab.yaml -package <package.yaml> -instance <service.yaml> [-out DIR] [-gpu]
+roostack render -package <package.yaml> [-instance <service.yaml>] [-lab lab.yaml] [-out DIR] [-gpu]
 ```
 
 `validate` checks package files, including every template in them and
@@ -81,7 +81,10 @@ what it asks for that registry packages can't have is shown, as warnings:
 the same list Roostack shows before installing it. A package of your own
 may leave out the facts about the project (`about:`, `requires`, `memory`).
 `render` prints exactly what Roostack would generate for a service (unit
-files, web server config), or writes it under `-out`.
+files, web server config), or writes it under `-out`. Without
+`-instance`, it's the package with its default settings; without `-lab`,
+in an example lab at `lab.example.com` with Roostack's usual folders. With
+only `-lab`, it renders Roostack's own units for the lab, such as Caddy.
 
 ## The service registry
 
