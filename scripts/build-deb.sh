@@ -52,6 +52,8 @@ for pkg in docs/examples/*.yaml; do
     name=$(basename "$pkg" .yaml)
     [[ $name == lab ]] && continue
     install -D -m 0644 "$pkg" "$ROOT/usr/share/roostack/catalog/$name/package.yaml"
+    # Its logo (about.icon), beside it as in the package's folder.
+    [[ -f docs/examples/$name.png ]] && install -D -m 0644 "docs/examples/$name.png" "$ROOT/usr/share/roostack/catalog/$name/$name.png"
 done
 # Licences of everything compiled into or served by Roostack (scripts/copyright.sh).
 install -D -m 0644 bin/copyright "$ROOT/usr/share/doc/roostack/copyright"

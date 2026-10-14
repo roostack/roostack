@@ -6,6 +6,17 @@ title: Vaultwarden
 description: Password manager compatible with the Bitwarden apps
 version: 1.34.3-roostack.1          # upstream version + package revision
 
+about:                           # the project, credited in the catalog (SPEC §8.3.6)
+  maker: Daniel García and volunteer maintainers
+  source: https://github.com/dani-garcia/vaultwarden
+  licence: AGPL-3.0-only         # SPDX, from its Cargo.toml
+  support: https://github.com/sponsors/dani-garcia
+  icon: vaultwarden.png          # beside this file
+  categories: [passwords]
+  keywords: [password manager, bitwarden, two-factor, passkeys]
+requires:
+  roostack: "0.1"                # the oldest Roostack that can run it
+
 settings:                        # shown in the UI at install and in settings
   - key: signups_allowed
     title: Allow anyone to create an account
@@ -30,6 +41,7 @@ containers:
       - { storage: data, path: /data }
     health:
       http: { port: 80, path: /alive }
+    memory: 50 MB                # typical use, for the install summary
 
 storage:
   data:

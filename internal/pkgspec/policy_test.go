@@ -11,9 +11,17 @@ schema: roostack/v1alpha1
 name: app
 title: App
 version: "1"
+about:
+  maker: Example and volunteers
+  source: https://example.org/app
+  licence: AGPL-3.0-only
+  icon: app.png
+  categories: [documents]
+requires: { roostack: "0.6" }
 containers:
   web:
     image: example.org/app:1@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    memory: 300 MB
 storage:
   data: { class: critical }
 databases:
@@ -106,6 +114,22 @@ func TestPolicy(t *testing.T) {
 		{"exec in unit", quadlet("Unit", "ExecStart", "/bin/true"), "Unit.ExecStart="},
 		{"container exec", quadlet("Container", "Exec", "--verbose"), ""},
 		{"key case", quadlet("Container", "publishport", "8080:80"), "Container.publishport="},
+
+		// Facts about the project, and what it needs (agreed 2026-10-14).
+		{"no maker", func(p *Package) { p.About.Maker = "" }, "about.maker:"},
+		{"no licence", func(p *Package) { p.About.Licence = "" }, "about.licence: give"},
+		{"no source", func(p *Package) { p.About.Source = "" }, "about.source:"},
+		{"closed with a website", func(p *Package) {
+			p.About.Licence, p.About.Source, p.About.Website = LicenceClosed, "", "https://example.org"
+		}, ""},
+		{"closed without a website", func(p *Package) { p.About.Licence, p.About.Source = LicenceClosed, "" }, "about.website:"},
+		{"deprecated licence", func(p *Package) { p.About.Licence = "AGPL-3.0" }, "about.licence: AGPL-3.0 doesn't say whether later versions apply; use AGPL-3.0-only or AGPL-3.0-or-later"},
+		{"deprecated licence with +", func(p *Package) { p.About.Licence = "MIT OR GPL-2.0+" }, "about.licence: GPL-2.0+ doesn't say"},
+		{"no icon", func(p *Package) { p.About.Icon = "" }, "about.icon:"},
+		{"no category", func(p *Package) { p.About.Categories = nil }, "about.categories:"},
+		{"optional facts left out", func(p *Package) { p.About.Website, p.About.Support, p.About.Keywords = "", "", nil }, ""},
+		{"no requires", func(p *Package) { p.Requires.Roostack = "" }, "requires.roostack:"},
+		{"container memory", func(p *Package) { p.Containers["web"].Memory = "" }, "containers.web.memory:"},
 
 		// Public-access rules: login paths, or why it's unsafe.
 		{"unsafe without login paths", func(p *Package) {
