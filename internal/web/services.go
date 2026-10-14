@@ -66,6 +66,15 @@ func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		data["Items"] = items
+		// Installed packages with a newer version: the service page has
+		// the update (SPEC.md §7), by package.
+		updates := map[string]*manager.Update{}
+		for _, u := range s.Manager.AvailableUpdates(r.Context()) {
+			if updates[u.Package] == nil || u.Service < updates[u.Package].Service {
+				updates[u.Package] = u
+			}
+		}
+		data["Updates"] = updates
 	}
 	s.render(w, "catalog", data)
 }

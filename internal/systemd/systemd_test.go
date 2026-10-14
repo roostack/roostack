@@ -30,12 +30,12 @@ func TestCommands(t *testing.T) {
 }
 
 func TestParseShow(t *testing.T) {
-	out := "Id=a.service\nLoadState=loaded\nActiveState=active\nSubState=running\n\n" +
+	out := "Id=a.service\nLoadState=loaded\nActiveState=active\nSubState=running\nNRestarts=3\n\n" +
 		"Id=b.service\nLoadState=not-found\nActiveState=inactive\nSubState=dead\n"
 	got := parseShow([]byte(out))
 	want := []UnitStatus{
-		{"a.service", "loaded", "active", "running"},
-		{"b.service", "not-found", "inactive", "dead"},
+		{"a.service", "loaded", "active", "running", 3},
+		{"b.service", "not-found", "inactive", "dead", 0},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %+v, want %+v", got, want)

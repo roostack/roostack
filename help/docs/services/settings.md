@@ -46,6 +46,74 @@ tick it, choose the port on the server, and **Save**. The page then shows
 the address to connect to. Extra connections are open to your home network
 only.
 
+## Updates
+
+When the service registry has a newer version of a service, its page says
+so, with what kind of update it is (a fix release, a feature release, a new
+major version, or an improved Roostack package for the same version). Some
+updates come with **notes**: things to know before updating, such as a step
+the app takes afterwards. Read them first. Services with an update are also
+listed under **Needs attention**, and marked **Update available** on
+**Services**.
+
+Choose **Update now** to update it. Roostack:
+
+1. downloads the new version while the old one keeps running;
+2. backs up the service's server (only what changed since the last backup is
+   uploaded);
+3. switches the service to the new version, which makes it unavailable for
+   a minute or so;
+4. checks it works: it must run for a minute without stopping, and answer
+   its own health checks.
+
+If the new version doesn't work, Roostack goes back to the version you had,
+and says so on the page and under **Needs attention**. It doesn't try that
+version again by itself; **Try again** does. The app may already have
+changed its data for the new version: if the service isn't working as it
+did, the Owner can put back the backup taken just before the update.
+
+Without backups set up, you can still update, but there's no copy of the
+service's data to go back to.
+
+### Updating by itself
+
+Under **Settings → Updates** on the service's page, choose how it updates:
+
+Tell me, and I'll update it
+:   The default. Updates are shown here and under **Needs attention**.
+
+Fix releases automatically
+:   Fix releases, and improved Roostack packages for the same version.
+
+Fix and feature releases automatically
+:   Not new major versions, which can change how the app works.
+
+Every update automatically
+:   Including new major versions.
+
+Automatic updates happen at night, after the server's backup. They wait for
+you when backups aren't set up, when an update has notes to read, or when
+that version didn't work before. If Roostack stopped a service because the
+registry says its version is dangerous (below), and a fix is out that the
+service's choice would take, it updates straight away instead of waiting for
+the night.
+
+??? note "For technical users"
+
+    The update is to the version the registry offers, the same one **Add a
+    service** would install. The kind comes from the app's version (the part
+    before `-roostack.`), read as major.minor.patch; a version that doesn't
+    look like that only updates automatically on **Every update**. While it
+    switches, the update holds the server's maintenance queue, so no backup,
+    OS update or restart starts in the middle. The check is every unit
+    active, `health.cmd` passing inside its container, and `health.http`
+    answering below 500 through the route's port, with no restarts, for a
+    minute within five. Going back uses the lab's copy of the previous
+    package and the image Podman still has; data isn't rolled back. The
+    service's instance file (`/var/lib/roostack/services/<name>.yaml`) holds
+    the version and the choice (`updates: notify`, `patch`, `minor` or
+    `all`), and the full log is in **Settings → History**.
+
 ## When the registry withdraws a version
 
 The service registry can withdraw a version of a service that turns out to
@@ -60,14 +128,15 @@ Notice
 Warning
 :   The version shouldn't be used. The service keeps running, but that
     version can't be installed any more. Update it when a fixed version is
-    out, or remove it.
+    out (the notice then has **Update now**), or remove it.
 
 Stop
 :   The version is dangerous: malicious, or being attacked with no fix yet.
     Roostack stops the service and turns its addresses off, and says so on
     its page, under **Needs attention** and by email. Everything it stores
     is kept, and so are its backups. Wait for a fixed version and update
-    it, or remove it.
+    it (the notice then has **Update now**, and it may update by itself:
+    see [Updating by itself](#updating-by-itself)), or remove it.
 
 If you understand the risk and need the service now, the Owner can open
 **Start it anyway…** on its page. **Make it private first** is ticked when

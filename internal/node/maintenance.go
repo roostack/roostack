@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/osupdate"
 )
 
@@ -44,6 +45,9 @@ type Maintenance struct {
 	Backups  Backups
 	Restores Restores
 	Updates  Updates
+	// Coord is the server's maintenance coordinator, which updates to
+	// services hold while they switch (update.go).
+	Coord *maintenance.Coordinator
 }
 
 // Backups is this server's backup job, or nil.

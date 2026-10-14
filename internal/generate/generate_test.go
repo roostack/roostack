@@ -543,3 +543,29 @@ func TestEdge(t *testing.T) {
 		t.Errorf("caddyfile:\n%s", out.Caddyfile.Content)
 	}
 }
+
+// A service's output lists its images (downloaded before an update) and
+// how to check it works afterwards: an HTTP check through the route's
+// published port (SPEC.md §7, ASSUMPTIONS F1).
+func TestImagesAndChecks(t *testing.T) {
+	p, err := pkgspec.Load(pkgtest.File("vaultwarden"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "vaultwarden.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := Service(testLab(), p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Images) != 1 || out.Images[0] != p.Containers["app"].Image {
+		t.Errorf("images %v", out.Images)
+	}
+	want := HealthCheck{Container: "roostack-vaultwarden-app",
+		HTTP: fmt.Sprintf("http://127.0.0.1:%d/alive", in.Routes["web"].Port)}
+	if len(out.Checks) != 1 || out.Checks[0] != want {
+		t.Errorf("checks %+v, want %+v", out.Checks, want)
+	}
+}

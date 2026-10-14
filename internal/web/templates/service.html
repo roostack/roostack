@@ -15,23 +15,31 @@
       {{.Version}}, is dangerous: <em>“{{.Reason}}”</em></p>
     <p>Everything {{$t}} keeps is still here, and so are its backups. Its addresses are off until it runs again.
       {{- if .LastBackup}} Its database keeps running until one more backup has finished, so that the backup has everything.{{end}}</p>
-    <p><strong>What to do:</strong> wait for a fixed version, then update it{{if $.CanManage}}, or
-      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}. If you understand the risk and need it now, you can start it again.</p>
+    {{if $.Update}}<p><strong>What to do:</strong> update it to {{$.Update.ToApp}}, which the service registry offers instead{{if $.CanManage}}, or
+      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}.</p>{{template "update-form" $}}
+    {{else}}<p><strong>What to do:</strong> wait for a fixed version, then update it{{if $.CanManage}}, or
+      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}. If you understand the risk and need it now, you can start it again.</p>{{end}}
     {{else if .StartedAnyway}}
     <p><strong>{{$t}} is running a version the service registry says is dangerous.</strong> The registry says {{.Version}}
       is dangerous: <em>“{{.Reason}}”</em> You started it anyway, so Roostack won't stop this version again.</p>
-    <p><strong>What to do:</strong> update it when a fixed version is out{{if $.CanManage}}, or
-      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}.</p>
+    {{if $.Update}}<p><strong>What to do:</strong> update it to {{$.Update.ToApp}}, which the service registry offers instead{{if $.CanManage}}, or
+      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}.</p>{{template "update-form" $}}
+    {{else}}<p><strong>What to do:</strong> update it when a fixed version is out{{if $.CanManage}}, or
+      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}.</p>{{end}}
     {{else if eq .Level "stop"}}
     <p><strong>The service registry says this version of {{$t}} is dangerous.</strong> It says {{.Version}}: <em>“{{.Reason}}”</em>
       Roostack would stop it, but that's turned off in <a href="/settings/updates#registry">Settings → Updates</a>.</p>
-    <p><strong>What to do:</strong> update it when a fixed version is out{{if $.CanManage}}, or
-      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}.</p>
+    {{if $.Update}}<p><strong>What to do:</strong> update it to {{$.Update.ToApp}}, which the service registry offers instead{{if $.CanManage}}, or
+      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}.</p>{{template "update-form" $}}
+    {{else}}<p><strong>What to do:</strong> update it when a fixed version is out{{if $.CanManage}}, or
+      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}.</p>{{end}}
     {{else if eq .Shown "warning"}}
     <p><strong>This version of {{$t}} has been withdrawn.</strong> The service registry says {{.Version}} shouldn't be used:
       <em>“{{.Reason}}”</em> It keeps running, but it can't be installed any more.</p>
-    <p><strong>What to do:</strong> update it when a fixed version is out{{if $.CanManage}}, or
-      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}.</p>
+    {{if $.Update}}<p><strong>What to do:</strong> update it to {{$.Update.ToApp}}, which the service registry offers instead{{if $.CanManage}}, or
+      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}.</p>{{template "update-form" $}}
+    {{else}}<p><strong>What to do:</strong> update it when a fixed version is out{{if $.CanManage}}, or
+      <a href="/services/{{$.Service.Name}}/remove">remove it</a>{{end}}.</p>{{end}}
     {{else}}
     <p>The service registry has a notice about {{$t}} {{.Version}}: <em>“{{.Reason}}”</em></p>
     {{end}}
@@ -51,6 +59,7 @@
     {{end}}
   </div>
   {{end}}
+  {{template "service-update" .}}
   {{if eq .Service.Status "waiting"}}
   {{notice "warn" (printf "%s isn't running: its server, %s, is gone. Restore it from its backups, onto any server." .Service.Title (or .Service.WasOn "a server that's gone")) (printf "link=/backups/restore/%s" .Service.Name) "linkText=Restore…"}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -215,6 +224,22 @@
   </form>
   {{end}}
   {{if .CanManage}}
+  <h3 id="updates">Updates</h3>
+  <form method="post" action="/services/{{.Service.Name}}/updates" class="section">
+    {{$p := .UpdatePolicy}}
+    <label class="check"><input type="radio" name="updates" value="notify"{{if eq $p "notify"}} checked{{end}}>
+      <span>Tell me, and I'll update it<small>Updates are shown here and under “Needs attention”.</small></span></label>
+    <label class="check"><input type="radio" name="updates" value="patch"{{if eq $p "patch"}} checked{{end}}>
+      <span>Fix releases automatically<small>After the nightly backup. Larger updates are shown for you to apply.</small></span></label>
+    <label class="check"><input type="radio" name="updates" value="minor"{{if eq $p "minor"}} checked{{end}}>
+      <span>Fix and feature releases automatically<small>Not new major versions, which can change how it works.</small></span></label>
+    <label class="check"><input type="radio" name="updates" value="all"{{if eq $p "all"}} checked{{end}}>
+      <span>Every update automatically<small>Including new major versions.</small></span></label>
+    <p class="hint">Automatic updates need backups set up, and wait for you when an update has notes to read.
+      If the service registry says the version {{.Service.Title}} runs is dangerous and Roostack stops it, a fix it would take
+      automatically is applied straight away.</p>
+    <button type="submit" class="secondary">Save</button>
+  </form>
   <details class="service-name"{{if .TitleError}} open{{end}}>
     <summary>Rename</summary>
     {{with .TitleError}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -235,4 +260,73 @@
   <p><a class="danger-link" href="/services/{{.Service.Name}}/remove">Remove {{.Service.Title}}…</a></p>
   {{end}}
 </section>
+{{end}}
+
+{{/* update-form: the Update button (Admins), with a confirmation when
+     there are notes to read or no backup to go back to. */}}
+{{define "update-form"}}{{with .Update}}{{if and $.CanManage (not .Blocked)}}
+<form method="post" action="/services/{{$.Service.Name}}/update">
+  <input type="hidden" name="to" value="{{.To}}">
+  {{if or .Notes .NoBackups}}
+  {{confirmSubmit .Confirm "Update now" ""}}
+  {{else}}<button type="submit">Update now</button>{{end}}
+</form>
+{{end}}{{end}}{{end}}
+
+{{/* service-update: a newer version (SPEC.md §7): updating, the last
+     update's result, or the update on offer. */}}
+{{define "service-update"}}
+{{if .Updating}}{{$u := .Updating}}
+<div id="update" class="notice" role="status"
+  hx-get="/services/{{.Service.Name}}?updating=1" hx-trigger="every 3s" hx-select="#update" hx-swap="outerHTML">
+  {{if $u.Waiting}}<p><strong>{{.Service.Title}} will update to {{appVersion $u.To $u.From}}</strong> once another update has finished.</p>
+  {{else}}<p><strong>Updating {{.Service.Title}} to {{appVersion $u.To $u.From}}.</strong> You can leave this page: it carries on.</p>{{end}}
+  {{template "install-steps" $u.Progress}}
+</div>
+{{with .UpdateActivity}}<details class="activity-details"><summary>Details</summary>{{template "activity-log" .}}</details>{{end}}
+{{else if and .LastUpdate (ne .LastUpdate.Result "updated")}}{{$r := .LastUpdate}}
+<div id="update" class="notice notice-error" role="alert">
+  {{if eq $r.Result "rolled-back"}}
+  <p><strong>Updating {{.Service.Title}} to {{appVersion $r.To $r.From}} didn't work, so Roostack went back to {{appVersion $r.From $r.To}}.</strong>
+    {{with $r.Error}}{{sentence .}}{{end}}</p>
+  <p>Roostack won't try {{appVersion $r.To $r.From}} again by itself.{{if not $r.Backup.IsZero}} If {{$.Service.Title}} isn't working as it did,
+    {{appVersion $r.To $r.From}} may have changed its data:
+    {{if $.IsOwner}}<a href="/backups/restore/{{$.Service.Name}}">put back the backup from before the update</a>{{else}}the Owner can put back the backup from before the update{{end}}
+    ({{when $r.Backup}}).{{end}}</p>
+  {{else}}
+  <p><strong>Updating {{.Service.Title}} to {{appVersion $r.To $r.From}} didn't finish.</strong> {{with $r.Error}}{{sentence .}}{{end}}</p>
+  {{if not $r.Backup.IsZero}}<p>The backup from before the update is from {{when $r.Backup}}{{if $.IsOwner}}:
+    <a href="/backups/restore/{{$.Service.Name}}">put it back</a> if {{$.Service.Title}} has lost anything{{end}}.</p>{{end}}
+  {{end}}
+  {{with .UpdateError}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if and .Update (eq .Update.To $r.To) .CanManage (not .Withdrawal)}}
+  <form method="post" action="/services/{{.Service.Name}}/update"><input type="hidden" name="to" value="{{.Update.To}}">
+    <button type="submit" class="secondary">Try again</button></form>{{end}}
+  {{if .IsOwner}}<p><small class="hint"><a href="/settings/history?kind=service-update">What happened</a></small></p>{{end}}
+</div>
+{{else if and .Update (not .Withdrawal)}}{{$u := .Update}}
+<div id="update" class="notice{{if or $u.Notes $u.Blocked (eq $u.Kind "major") (eq $u.Kind "other")}} notice-warn{{end}}" role="status">
+  {{if eq $u.Kind "revision"}}<p><strong>An update is available:</strong> an improved Roostack package for {{.Service.Title}} {{appVersion $u.To}}
+    (package revision {{revision $u.From}} → {{revision $u.To}}). The app itself stays the same.{{if $u.Notes}} Read these first:{{end}}</p>
+  {{else}}<p><strong>An update is available:</strong> {{.Service.Title}} {{$u.FromApp}} → {{$u.ToApp}}, {{updateKind $u.Kind}}.{{if $u.Notes}} Read these first:{{end}}</p>{{end}}
+  {{with $u.Notes}}<ul>{{range .}}<li><strong>{{appVersion .Version}}:</strong> {{.Note}}</li>{{end}}</ul>{{end}}
+  {{if $u.Blocked}}<p>{{$u.Blocked}}</p>
+  {{else if $u.NoBackups}}<p>{{.Service.Title}}'s server has no backups set up, so if the update changes its data there's no copy to go back to.
+    Roostack still goes back to {{$u.FromApp}} if {{$u.ToApp}} doesn't start properly.</p>
+  {{else}}<p>Roostack backs {{.Service.Title}} up first, downloads the new version while the old one keeps running, then switches over and checks it works.
+    If it doesn't, Roostack goes back to {{$u.FromApp}}.{{if or $u.Notes (eq $u.Kind "major")}} Once {{.Service.Title}} has changed its data for
+    {{$u.ToApp}}, only that backup can take you back.{{end}}</p>{{end}}
+  {{with .UpdateError}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{template "update-form" .}}
+  <p><small class="hint">{{if $u.Auto}}Roostack updates it by itself tonight, after the nightly backup.
+    {{else if eq $u.Policy "notify"}}You chose to be told about updates and apply them yourself.
+    {{else if $u.FailedBefore}}It didn't work last time, so Roostack waits for you.
+    {{else if $u.Notes}}It has notes to read, so Roostack waits for you.
+    {{else if $u.NoBackups}}Automatic updates wait until backups are set up.
+    {{else}}This is {{updateKind $u.Kind}}, which your choice doesn't apply by itself.{{end}}
+    {{if .CanManage}}<a href="#updates">Change this</a>{{end}}</small></p>
+</div>
+{{else if .LastUpdate}}{{$r := .LastUpdate}}
+<p id="update" class="notice notice-ok" role="status">✓ Updated from {{appVersion $r.From $r.To}} to {{appVersion $r.To $r.From}} {{when $r.Finished}}{{if $r.Automatic}}, by itself{{end}}.</p>
+{{end}}
 {{end}}

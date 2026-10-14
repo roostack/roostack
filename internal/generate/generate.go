@@ -11,8 +11,10 @@ import (
 	"cmp"
 	"fmt"
 	"maps"
+	"net"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -71,6 +73,23 @@ type Output struct {
 	// needs CrowdSec running.
 	Public bool
 	Backup BackupPlan
+	// Images are the registry images its containers run, for downloading
+	// an update's before switching to it (SPEC.md §7).
+	Images []string
+	// Checks are how to tell its containers work, after an update.
+	Checks []HealthCheck
+}
+
+// HealthCheck checks one container (pkgspec.Health). Exactly one of HTTP
+// and Cmd is set.
+type HealthCheck struct {
+	// Container is its container (and unit) name.
+	Container string
+	// HTTP is a URL the server running it can reach (a route's published
+	// port), answering below 500 when it works.
+	HTTP string
+	// Cmd runs inside the container (with sh -c) and exits 0 when it works.
+	Cmd string
 }
 
 // HostPort is an enabled package port (pkgspec.Port).
@@ -231,6 +250,7 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 	cs := u.Section("Container")
 	cs.Add("ContainerName", unit)
 	cs.Add("Image", c.Image)
+	g.out.Images = append(g.out.Images, c.Image)
 	addTimezone(cs, g.lab)
 	if len(c.Command) > 0 {
 		args := make([]string, len(c.Command))
@@ -312,6 +332,19 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 	if c.Health != nil && c.Health.Cmd != "" {
 		// HTTP checks are done by Roostack itself (ASSUMPTIONS F1).
 		cs.Add("HealthCmd", c.Health.Cmd)
+		g.out.Checks = append(g.out.Checks, HealthCheck{Container: unit, Cmd: c.Health.Cmd})
+	}
+	if c.Health != nil && c.Health.HTTP != nil {
+		// Through a route's published port, when one leads to the checked
+		// port: Roostack checks it after an update (ASSUMPTIONS F1).
+		for _, rn := range slices.Sorted(maps.Keys(g.pkg.Routes)) {
+			r := g.pkg.Routes[rn]
+			if r.Container == name && r.Port == c.Health.HTTP.Port {
+				g.out.Checks = append(g.out.Checks, HealthCheck{Container: unit,
+					HTTP: fmt.Sprintf("http://%s%s", net.JoinHostPort(publish, strconv.Itoa(g.ctx.Routes[rn].Port)), c.Health.HTTP.Path)})
+				break
+			}
+		}
 	}
 	cs.Add("Label", "io.roostack.service="+svc)
 	cs.Add("Label", "io.roostack.component="+name)
@@ -358,6 +391,7 @@ func (g *gen) postgres(name string, d *pkgspec.Database) error {
 	cs := u.Section("Container")
 	cs.Add("ContainerName", unit)
 	cs.Add("Image", cmp.Or(d.Image, DefaultPostgresImage))
+	g.out.Images = append(g.out.Images, cmp.Or(d.Image, DefaultPostgresImage))
 	addTimezone(cs, g.lab)
 	cs.Add("Network", "roostack-"+svc+".network")
 	cs.Env("POSTGRES_USER", db.User)
@@ -397,6 +431,7 @@ func (g *gen) redis(name string, d *pkgspec.Database) error {
 	cs := u.Section("Container")
 	cs.Add("ContainerName", unit)
 	cs.Add("Image", cmp.Or(d.Image, DefaultRedisImage))
+	g.out.Images = append(g.out.Images, cmp.Or(d.Image, DefaultRedisImage))
 	addTimezone(cs, g.lab)
 	cs.Add("Network", "roostack-"+svc+".network")
 	if d.BackedUp() {

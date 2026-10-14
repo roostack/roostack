@@ -114,6 +114,13 @@ type fakeManager struct {
 	withdrawn     map[string]*manager.Withdrawal
 	startedAnyway []string
 	stopsOff      bool
+
+	// Service updates (serviceupdates_test.go).
+	svcUpdates map[string]*manager.Update
+	updating   map[string]*manager.ServiceUpdate
+	lastUpdate map[string]*manager.UpdateRecord
+	policies   map[string]string
+	svcUpdated []string
 }
 
 // DiskSpace: the fake's disk, if it has one.

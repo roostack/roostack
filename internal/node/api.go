@@ -463,6 +463,46 @@ func (s *Server) Handler() http.Handler {
 		return nil, mv.ImportSecrets(ctx(r), secrets)
 	})
 
+	// Updating a service (update.go).
+	updater := func() (Updater, error) {
+		if u, ok := n.(Updater); ok {
+			return u, nil
+		}
+		return nil, errors.New("this server can't update services")
+	}
+	handle("POST /v1/updates", func(r *http.Request) (any, error) {
+		u, err := updater()
+		if err != nil {
+			return nil, err
+		}
+		var req UpdateRequest
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		return u.StartUpdate(ctx(r), req)
+	})
+	handle("GET /v1/updates/{id}", func(r *http.Request) (any, error) {
+		u, err := updater()
+		if err != nil {
+			return nil, err
+		}
+		return u.UpdateStatus(ctx(r), r.PathValue("id"))
+	})
+	handle("POST /v1/updates/{id}/finish", func(r *http.Request) (any, error) {
+		u, err := updater()
+		if err != nil {
+			return nil, err
+		}
+		return nil, u.FinishUpdate(ctx(r), r.PathValue("id"))
+	})
+	handle("GET /v1/services/{service}/health", func(r *http.Request) (any, error) {
+		u, err := updater()
+		if err != nil {
+			return nil, err
+		}
+		return u.CheckHealth(ctx(r), svc(r))
+	})
+
 	// The server's own settings.
 	settings := func() (Settings, error) {
 		if x := n.Settings(); x != nil {

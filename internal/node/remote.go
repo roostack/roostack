@@ -689,3 +689,27 @@ func (r *Remote) BuiltIns(ctx context.Context) ([]BuiltIn, error) {
 	err := r.call(ctx, http.MethodGet, "/v1/builtins", nil, &out)
 	return out, err
 }
+
+// Updating a service (Updater, over the lab API).
+
+func (r *Remote) StartUpdate(ctx context.Context, req UpdateRequest) (string, error) {
+	var id string
+	err := r.call(ctx, http.MethodPost, "/v1/updates", req, &id)
+	return id, err
+}
+
+func (r *Remote) UpdateStatus(ctx context.Context, id string) (UpdateStatus, error) {
+	var out UpdateStatus
+	err := r.call(ctx, http.MethodGet, "/v1/updates/"+url.PathEscape(id), nil, &out)
+	return out, err
+}
+
+func (r *Remote) FinishUpdate(ctx context.Context, id string) error {
+	return r.call(ctx, http.MethodPost, "/v1/updates/"+url.PathEscape(id)+"/finish", struct{}{}, nil)
+}
+
+func (r *Remote) CheckHealth(ctx context.Context, service string) (Health, error) {
+	var out Health
+	err := r.call(ctx, http.MethodGet, "/v1/services/"+url.PathEscape(service)+"/health", nil, &out)
+	return out, err
+}

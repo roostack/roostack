@@ -47,6 +47,7 @@
       </div>
       <div class="service-actions">
         {{status .Status}}
+        {{if and .Update $.CanManage (ne .Status "updating")}}<a href="/services/{{.Name}}#update">{{badge "Update available" "highlight"}}</a>{{end}}
         {{if $.CanManage}}<a class="button secondary with-icon" href="/services/{{.Name}}">{{icon "manage"}}Manage</a>{{end}}
       </div>
     </div>

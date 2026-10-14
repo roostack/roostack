@@ -93,6 +93,11 @@ func startControllerJobs(ctx context.Context, mgr *manager.Manager, coord *maint
 			return maintenance.NextWeekly(now, maintenance.DefaultMaintenanceOn, maintenance.DefaultMaintenanceAt)
 		},
 		func() { coord.Submit(mgr.PruneJob()) })
+	// Nightly, after each server's backup: services whose update policy
+	// takes their update (SPEC.md §3.2, §7).
+	go maintenance.Every(ctx,
+		func(now time.Time) time.Time { return maintenance.NextDaily(now, maintenance.DefaultBackupAt) },
+		func() { go mgr.AutoUpdate(ctx, time.Now().Add(-time.Minute)) })
 	// Hourly, from the start: hear from labs storing this one's backups (a
 	// removal, a new name), and delete removed guest labs' backups once
 	// their grace ends.

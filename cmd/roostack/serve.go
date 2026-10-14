@@ -509,6 +509,7 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 	// Each server reports its own services (SPEC.md §10.3).
 	infos := mgr.ServiceInfos(ctx)
 	withdrawn := mgr.Withdrawals(ctx)
+	updates := mgr.AvailableUpdates(ctx)
 	var views []web.ServiceView
 	for _, s := range all {
 		v := web.ServiceView{Name: s.Name(), Title: s.Title(), Status: "unknown"}
@@ -518,6 +519,13 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 		if w := withdrawn[s.Name()]; w != nil && w.Stopped {
 			// The registry withdrew it as dangerous (SPEC.md §8.3.4).
 			v.Status = web.StatusRegistryStop
+		}
+		// Updates to newer versions (SPEC.md §7).
+		if u := updates[s.Name()]; u != nil {
+			v.Update = u.ToApp()
+		}
+		if mgr.Updating(s.Name()) != nil {
+			v.Status = web.StatusUpdating
 		}
 		if s.Instance.Waiting {
 			// Its server is gone: it runs nowhere until restored (SPEC.md §10.10).
@@ -669,7 +677,7 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 			},
 			func() { coord.Submit(svc.MaintenanceJob()) })
 	}
-	jobs.Backups, jobs.Updates = svc, updates
+	jobs.Backups, jobs.Updates, jobs.Coord = svc, updates, coord
 	return jobs, coord, nil
 }
 

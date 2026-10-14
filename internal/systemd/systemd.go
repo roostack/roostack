@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -99,6 +100,9 @@ type UnitStatus struct {
 	LoadState   string // loaded, not-found, ...
 	ActiveState string // active, inactive, failed, activating, ...
 	SubState    string // running, dead, exited, ...
+	// NRestarts is how often systemd restarted it (Restart=) since it
+	// was last started by hand: a climbing count means it keeps failing.
+	NRestarts int
 }
 
 // Status returns the state of each unit, in the order given.
@@ -106,7 +110,7 @@ func (m *Manager) Status(ctx context.Context, units ...string) ([]UnitStatus, er
 	if len(units) == 0 {
 		return nil, nil
 	}
-	args := append([]string{"show", "--property=Id,LoadState,ActiveState,SubState"}, units...)
+	args := append([]string{"show", "--property=Id,LoadState,ActiveState,SubState,NRestarts"}, units...)
 	out, err := m.systemctl(ctx, args...)
 	if err != nil {
 		return nil, err
@@ -142,6 +146,8 @@ func parseShow(out []byte) []UnitStatus {
 			cur.ActiveState = v
 		case "SubState":
 			cur.SubState = v
+		case "NRestarts":
+			cur.NRestarts, _ = strconv.Atoi(v)
 		}
 	}
 	flush()
@@ -154,7 +160,7 @@ func (m *Manager) SystemStatus(ctx context.Context, units ...string) ([]UnitStat
 	if len(units) == 0 {
 		return nil, nil
 	}
-	args := append([]string{"show", "--property=Id,LoadState,ActiveState,SubState"}, units...)
+	args := append([]string{"show", "--property=Id,LoadState,ActiveState,SubState,NRestarts"}, units...)
 	out, err := m.Run(ctx, "systemctl", args...)
 	if err != nil {
 		return nil, err

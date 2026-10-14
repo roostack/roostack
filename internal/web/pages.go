@@ -223,6 +223,11 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			if wd := s.Manager.Withdrawals(r.Context())[name]; wd != nil {
 				data["Withdrawal"] = wd
 			}
+			// A newer version (SPEC.md §7).
+			s.addUpdateData(r, data, name)
+			if data["UpdateDone"] == true {
+				w.Header().Set("HX-Refresh", "true")
+			}
 		}
 		if n := s.serverOf(r); n != nil {
 			st := n.InstallStatus(r.Context(), name)
