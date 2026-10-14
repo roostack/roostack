@@ -101,8 +101,13 @@ func TestSettingsRegistry(t *testing.T) {
 	if reg.on {
 		t.Error("unticked: fetching should be off")
 	}
-	if _, body := h.get("/settings/updates"); strings.Contains(body, "Check now") || strings.Contains(body, `value="1" checked`) {
+	_, body = h.get("/settings/updates")
+	form, _, _ := strings.Cut(body[strings.Index(body, `action="/settings/updates/registry/on"`):], "</form>")
+	if strings.Contains(body, "Check now") || strings.Contains(form, `value="1" checked`) {
 		t.Error("turned off: no Check now, and the box unticked")
+	}
+	if !strings.Contains(body, "Let Roostack stop a service the registry says is dangerous") {
+		t.Error("the opt-out from stops is beside it")
 	}
 	h.post("/settings/updates/registry/on", url.Values{"on": {"1"}}, h.srv.URL)
 	if !reg.on || len(reg.setOnTo) != 2 {

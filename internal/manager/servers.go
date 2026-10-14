@@ -181,6 +181,10 @@ func (m *Manager) startApplyLocked() {
 	if err == nil {
 		err = m.allocateAndSave(services)
 	}
+	if err == nil {
+		// Services the registry withdrew as dangerous (SPEC.md §8.3.4).
+		m.stopsKey = m.markStops(context.Background(), services)
+	}
 	m.assignErr = err
 	if err != nil {
 		// Typed-in secrets and set-ups wait for the next assignment.
