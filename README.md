@@ -67,10 +67,9 @@ Useful commands that work without a Roostack host:
 # Check package files (the registry's, or the test fixtures here)
 bin/roostack validate internal/testdata/packages/*/*-roostack.*.yaml
 
-# See exactly what Roostack would generate for a service
-bin/roostack render -lab docs/examples/lab.yaml \
-  -package internal/testdata/packages/immich/2.1.0-roostack.1.yaml \
-  -instance internal/generate/testdata/immich.instance.yaml
+# See exactly what Roostack would generate for a service: its defaults in an
+# example lab, or with -lab and -instance, a given lab and service
+bin/roostack render -package internal/testdata/packages/immich/2.1.0-roostack.1.yaml
 ```
 
 Run the web UI locally against a throwaway state directory: point `paths` in a copy of `docs/examples/lab.yaml` at a temp dir and run `bin/roostack serve -lab <file> -listen 127.0.0.1:8480`.
