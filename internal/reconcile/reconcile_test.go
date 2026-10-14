@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/systemd"
 )
 
@@ -109,7 +110,7 @@ func (e *env) desired(t *testing.T, services ...string) Desired {
 	}
 	d := Desired{System: sys}
 	for _, name := range services {
-		p, err := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", name+".yaml"))
+		p, err := pkgspec.Load(pkgtest.File(name))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -220,7 +221,7 @@ func TestInstallUpdateRemove(t *testing.T) {
 
 	// Changing a setting restarts only the affected unit.
 	d := e.desired(t)
-	p, _ := pkgspec.Load(filepath.Join("..", "..", "docs", "examples", "vaultwarden.yaml"))
+	p, _ := pkgspec.Load(pkgtest.File("vaultwarden"))
 	out, err := generate.Service(e.lab, p, &instance.Instance{
 		Package: "vaultwarden", Version: p.Version, Updates: "notify",
 		Settings: map[string]any{"signups_allowed": true},
