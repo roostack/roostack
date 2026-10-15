@@ -185,14 +185,17 @@ func TestServiceTierBadges(t *testing.T) {
 	}
 	_, body := h.get("/services")
 	for _, want := range []string{
-		`Vaultwarden</a> <span class="badge badge-warn">Community</span></h2>`,
-		`Immich (family)</a> <span class="badge">Official</span></h2>`,
-		`Forgejo</a> <span class="badge badge-warn">Your own</span></h2>`,
-		`Gone</a> </h2>`,
+		`Vaultwarden</a> <span class="badge badge-warn">Community</span>`,
+		`Immich (family)</a> <span class="badge">Official</span>`,
+		`Forgejo</a> <span class="badge badge-warn">Your own</span>`,
+		`Gone</a> `,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the Services list is missing %s", want)
 		}
+	}
+	if strings.Contains(body, `Gone</a> <span class="badge`) {
+		t.Error("a package the registry no longer lists has no tier badge")
 	}
 	if _, body := h.get("/services/immich-family"); !strings.Contains(body, `<h1>Immich (family) <span class="badge">Official</span></h1>`) {
 		t.Error("the service page should show its tier")

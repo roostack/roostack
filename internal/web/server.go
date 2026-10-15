@@ -488,7 +488,16 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /settings/domain", s.requireOwner(s.domainAreaPage))
 	mux.Handle("GET /settings/home-network", s.requireOwner(s.homeNetworkPage))
 	mux.Handle("POST /settings/network", s.requireOwner(s.networkSubmit))
-	mux.Handle("GET /settings/servers", s.requireOwner(s.serversPage))
+	// Servers is a main area (docs/DESIGN.md "Layout"); its list was under
+	// Settings, and each server's own pages still are.
+	mux.Handle("GET /servers", s.requireOwner(s.serversPage))
+	mux.Handle("GET /settings/servers", s.requireOwner(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		target := "/servers"
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, target, http.StatusMovedPermanently)
+	})))
 	mux.Handle("GET /settings/servers/{server}", s.requireOwner(s.serverPage))
 	mux.Handle("GET /settings/servers/{server}/disk", s.requireOwner(s.diskPart))
 	s.serverRoutes(mux)

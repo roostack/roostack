@@ -80,7 +80,7 @@ func (s *Server) locationSubmit(w http.ResponseWriter, r *http.Request) {
 	s.Manager.ApplyBecause("A server's location changed")
 	back := r.FormValue("back")
 	if !strings.HasPrefix(back, "/") || strings.HasPrefix(back, "//") {
-		back = "/settings/servers#server-" + m.ID
+		back = "/servers#server-" + m.ID
 	}
 	redirect(w, r, back)
 }

@@ -70,7 +70,7 @@ func (n nav) Section() *crumb {
 	case "backups":
 		return &crumb{"/backups", "Backups"}
 	case "servers":
-		return &crumb{"/settings/servers", "Servers"}
+		return &crumb{"/servers", "Servers"}
 	case "settings":
 		return &crumb{"/settings", "Settings"}
 	case "account":
@@ -150,10 +150,7 @@ func (s *Server) homePage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	data["Attention"] = s.attention(r)
-	if data["CanManage"] == true {
-		data["Servers"] = s.serverViews(r)
-	}
+	s.homeData(r, data)
 	// What an apply is doing (downloading, building), or why it failed
 	// lately: nothing should look like magic.
 	if a := s.activityFor(r, activity.Apply); a != nil && (a.Running() || a.Err != "" && time.Since(a.Finished) < 24*time.Hour) {
@@ -168,11 +165,62 @@ func (s *Server) homePartial(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	s.homeData(r, data)
+	s.renderLive(w, r, "home", "home-live", data)
+}
+
+// homeData adds what Home shows besides the services: what needs
+// attention, and for those who manage services, the servers and the
+// figures across the top (docs/DESIGN.md "Layout").
+func (s *Server) homeData(r *http.Request, data map[string]any) {
 	data["Attention"] = s.attention(r)
 	if data["CanManage"] == true {
-		data["Servers"] = s.serverViews(r)
+		servers := s.serverViews(r)
+		data["Servers"] = servers
+		data["Figures"] = homeFiguresOf(data["Services"].([]ServiceView), servers)
 	}
-	s.renderLive(w, r, "home", "home-live", data)
+}
+
+// homeFigures are Home's figures strip: how many services run, how many
+// servers answer, and the oldest of the servers' last backups (so "last
+// backup" is true of every server).
+type homeFigures struct {
+	Services, Running, Busy, Problems int
+	// ServerIssues counts servers needing attention: one that didn't
+	// answer, a change or OS update that didn't finish, a restart due.
+	Servers, Online, ServerIssues int
+	LastBackup                    time.Time
+	// NotBackedUp counts servers with no backup yet.
+	NotBackedUp int
+}
+
+func homeFiguresOf(services []ServiceView, servers []serverView) homeFigures {
+	f := homeFigures{Services: len(services), Servers: len(servers)}
+	for _, sv := range services {
+		switch sv.Status {
+		case "running":
+			f.Running++
+		case "installing", "updating", "starting":
+			f.Busy++
+		default:
+			f.Problems++
+		}
+	}
+	for _, v := range servers {
+		if v.Reachable {
+			f.Online++
+		}
+		if !v.Reachable || v.Status.LastErr != nil || v.RestartNeeded || v.UpdatesFailed {
+			f.ServerIssues++
+		}
+		switch {
+		case v.LastBackup.IsZero():
+			f.NotBackedUp++
+		case f.LastBackup.IsZero() || v.LastBackup.Before(f.LastBackup):
+			f.LastBackup = v.LastBackup
+		}
+	}
+	return f
 }
 
 func (s *Server) servicesPage(w http.ResponseWriter, r *http.Request) {

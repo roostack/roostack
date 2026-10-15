@@ -182,7 +182,7 @@ func TestFirstRunSetup(t *testing.T) {
 		t.Errorf("reusing the enrollment code: status %d, want 401", code)
 	}
 	next, _ := authkit.TOTPCode(secret, enrolledAt.Add(30*time.Second))
-	if _, body := h.post("/login/totp", url.Values{"code": {next}}, h.srv.URL); !strings.Contains(body, "My Services") {
+	if _, body := h.post("/login/totp", url.Values{"code": {next}}, h.srv.URL); !strings.Contains(body, "<title>Home · Roostack</title>") {
 		t.Error("a fresh code should complete the login")
 	}
 
@@ -257,7 +257,7 @@ func TestTooManyCodes(t *testing.T) {
 	}
 	login()
 	good, _ := authkit.TOTPCode(secret, time.Now())
-	if _, body := h.post("/login/totp", url.Values{"code": {good}}, h.srv.URL); !strings.Contains(body, "My Services") {
+	if _, body := h.post("/login/totp", url.Values{"code": {good}}, h.srv.URL); !strings.Contains(body, "<title>Home · Roostack</title>") {
 		t.Fatal("the right code should work once the lock is over")
 	}
 	if u, _ := h.store.UserByID(ctx, id); u.TOTPFailures != 0 {
@@ -278,7 +278,7 @@ func TestLoginLogout(t *testing.T) {
 		t.Errorf("bad login: %d", code)
 	}
 	code, body = h.post("/login", url.Values{"username": {"mum"}, "password": {"a long password"}}, h.srv.URL)
-	if code != http.StatusOK || !strings.Contains(body, "My Services") {
+	if code != http.StatusOK || !strings.Contains(body, "<title>Home · Roostack</title>") {
 		t.Fatalf("login failed: %d", code)
 	}
 	if !strings.Contains(body, "Protect your account with two-factor authentication") {

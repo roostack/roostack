@@ -10,7 +10,7 @@ the first. Keep its setup code: you need it to join.
 
 ## 2. Make a join code
 
-On your lab's Roostack, go to **Settings → Servers**, and under **Add a
+On your lab's Roostack, go to **Servers**, and under **Add a
 server**:
 
 1. Choose the **address the new server reaches this one at**. Roostack
@@ -48,7 +48,7 @@ server's command line**:
 sudo roostack node join <code>
 ```
 
-Either way, it shows up in **Settings → Servers** as up to date. It's ready to run services: choose it under **Run it on** when you
+Either way, it shows up in **Servers** as up to date. It's ready to run services: choose it under **Run it on** when you
 [add a service](../services/add.md), or [move one](move.md) there.
 
 It takes the lab's time zone (the one of the server that runs the lab),

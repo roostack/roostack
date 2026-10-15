@@ -1,9 +1,11 @@
 {{/* Pieces shared by several pages. */}}
 
+{{/* attention: what needs attention, as items with a link to deal with
+     each (Home; its heading says when everything's working). */}}
 {{define "attention"}}
 {{if .Attention}}
 <section class="attention">
-  <h2>Needs attention</h2>
+  <h2 class="sr-only">Needs attention</h2>
   <ul>
     {{range .Attention}}
     <li class="item item-{{.Level}}">
@@ -13,8 +15,6 @@
     {{end}}
   </ul>
 </section>
-{{else}}
-<p class="all-good">✓ Everything's working.</p>
 {{end}}
 {{end}}
 
@@ -60,23 +60,32 @@
 {{define "address-waiting"}}<span class="with-icon address-waiting-text">{{icon "clock"}}Waiting for an address</span>
   {{- if .IsOwner}} · <a href="/setup/domain">Give your lab an address</a>{{end}}{{end}}
 
-{{define "service-tiles"}}
+{{/* service-table: the services as a table list (Home, Services): name,
+     address or install progress under it, status, server, last backup,
+     then Manage (or Open, for those who don't manage services). */}}
+{{define "service-table"}}
 {{if .Services}}
-<ul class="tiles">
-  {{range .Services}}
-  <li class="card tile">
-    <h2>{{.Title}}</h2>
-    {{template "service-summary" .}}
-    {{if and .NoAddress (not .Install)}}<p class="address-waiting">{{template "address-waiting" $}}</p>{{end}}
-    <div class="tile-links">{{if .Install}}{{template "install-line" .}}{{else}}{{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">Open{{template "new-window"}}</a>{{end}}{{end}}
-      {{- if $.CanManage}}<a class="with-icon" href="/services/{{.Name}}">{{icon "manage"}}Manage</a>{{end}}</div>
-    {{status .Status}}
-    {{if $.CanManage}}{{template "service-details" .}}{{end}}
-  </li>
-  {{end}}
-</ul>
+<div class="table-wrap"><table class="list">
+  <thead><tr><th>Service</th><th>Status</th><th class="hide-phone">Runs on</th><th class="hide-phone">Backed up</th><th><span class="sr-only">Actions</span></th></tr></thead>
+  <tbody>
+    {{range .Services}}{{$svc := .}}
+    <tr>
+      <td><div class="list-name"><div>{{if $.CanManage}}<a href="/services/{{.Name}}">{{.Title}}</a>{{else}}{{.Title}}{{end}} {{template "tier-badge" .}}
+        <small>{{if .Install}}{{template "install-line" .}}
+          {{- else if .NoAddress}}{{template "address-waiting" $}}
+          {{- else if eq .Status "waiting"}}Its server, {{or .WasOn "a server that's gone"}}, is gone
+          {{- else}}{{range $i, $u := .URLs}}{{if $i}} · {{end}}<a href="{{$u}}" target="_blank" rel="noopener">{{trimScheme $u}}{{template "new-window"}}</a>{{end}}{{end}}</small></div></div></td>
+      <td>{{status .Status}}{{if and .Update $.CanManage (ne .Status "updating")}} <a href="/services/{{.Name}}#update">{{badge "Update" "highlight"}}</a>{{end}}</td>
+      <td class="hide-phone">{{with .Server}}{{.}}{{else}}<span class="hint">None</span>{{end}}</td>
+      <td class="hide-phone">{{if not .LastBackup.IsZero}}<span class="num">{{when .LastBackup}}</span>{{else if .Server}}Not yet{{end}}</td>
+      <td>{{if $.CanManage}}<a class="with-icon" href="/services/{{.Name}}">{{icon "manage"}}Manage<span class="sr-only"> {{.Title}}</span></a>
+        {{- else}}{{range $i, $u := .URLs}}{{if not $i}}<a href="{{$u}}" target="_blank" rel="noopener">Open<span class="sr-only"> {{$svc.Title}}</span>{{template "new-window"}}</a>{{end}}{{end}}{{end}}</td>
+    </tr>
+    {{end}}
+  </tbody>
+</table></div>
 {{else}}
-<p class="card">No services are installed yet.{{if .CanManage}} <a href="/catalog">Add one</a>.{{end}}</p>
+<p>No services are installed yet.{{if .CanManage}} <a href="/catalog">Add one</a>.{{end}}</p>
 {{end}}
 {{end}}
 
@@ -394,9 +403,9 @@
           {{- if eq .Path "direct"}} · linked directly{{else if eq .Path "hub"}} · through {{.Via}}, as they can't link directly{{end}}</p>
         {{if .LowSpace}}{{notice "warn" (printf "%s is nearly full: %s free. When it's full, backups here fail." .FreeOn (size .Free))}}{{end}}
         {{if eq .Path "hub"}}{{if .LinkFailed}}
-        {{notice "warn" (printf "A direct link to %s didn't connect, so these backups go through %s, using its connection twice. Check %s can be reached at its address for direct links (UDP port 51820, or the port you entered). Roostack tries again tomorrow, or as soon as you change the address." .HostName .Via .HostName) (printf "link=/settings/servers#server-%s" .Host) "linkText=Check the address"}}
+        {{notice "warn" (printf "A direct link to %s didn't connect, so these backups go through %s, using its connection twice. Check %s can be reached at its address for direct links (UDP port 51820, or the port you entered). Roostack tries again tomorrow, or as soon as you change the address." .HostName .Via .HostName) (printf "link=/servers#server-%s" .Host) "linkText=Check the address"}}
         {{else}}
-        {{notice "warn" (printf "These backups go through %s, using its connection twice: Roostack doesn't know where this server can reach %s directly. If both are on the same home network, set them both to At home; otherwise enter %s's address for direct links (host:port)." .Via .HostName .HostName) (printf "link=/settings/servers#server-%s" .Host) "linkText=Set it on Servers"}}
+        {{notice "warn" (printf "These backups go through %s, using its connection twice: Roostack doesn't know where this server can reach %s directly. If both are on the same home network, set them both to At home; otherwise enter %s's address for direct links (host:port)." .Via .HostName .HostName) (printf "link=/servers#server-%s" .Host) "linkText=Set it on Servers"}}
         {{end}}{{end}}
         {{if eq .Kind "system"}}{{notice "warn" "This backup is on the same disk as your data. It helps if something is deleted or changed by mistake, but if the disk fails, or ransomware gets onto the server, your data and this backup are lost together. Keep your other backups on a separate drive, or away from home."}}{{end}}
         {{range .AskWhere}}

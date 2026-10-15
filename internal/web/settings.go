@@ -42,7 +42,7 @@ var settingsAreas = []settingsArea{
 	{"home-network", "Network", "Where it is and DNS", "/settings/home-network"},
 	{"public", "Network", "Public access", "/settings/public"},
 	{"cloud", "Network", "Roostack Cloud", "/settings/cloud"},
-	{"servers", "Servers", "Servers", "/settings/servers"},
+	{"servers", "Servers", "Servers", "/servers"},
 	{"storage", "Servers", "Storage for others", "/settings/storage"},
 	// Settings that differ per server (switcher.go).
 	{"updates", "Each server", "Updates and restarts", "/settings/updates"},
@@ -551,7 +551,7 @@ func (s *Server) renameServerSubmit(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/restarting") // this server reads its name at startup
 		return
 	}
-	redirect(w, r, "/settings/servers")
+	redirect(w, r, "/servers")
 }
 
 func (s *Server) removeServerSubmit(w http.ResponseWriter, r *http.Request) {
@@ -574,7 +574,7 @@ func (s *Server) removeServerSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "removed "+id)
-	redirect(w, r, "/settings/servers")
+	redirect(w, r, "/servers")
 }
 
 func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
@@ -593,7 +593,7 @@ func (s *Server) removeKeptDataSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "deleted kept folder "+path+" on "+id)
-	redirect(w, r, "/settings/servers#server-"+id)
+	redirect(w, r, "/servers#server-"+id)
 }
 
 // linkAddressSubmit sets where other servers reach a server directly
@@ -623,5 +623,5 @@ func (s *Server) linkAddressSubmit(w http.ResponseWriter, r *http.Request) {
 		what = id + " is reached directly at " + addr
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "servers", what)
-	redirect(w, r, "/settings/servers#server-"+id)
+	redirect(w, r, "/servers#server-"+id)
 }

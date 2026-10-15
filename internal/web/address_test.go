@@ -38,7 +38,7 @@ func TestJoinAddressChoice(t *testing.T) {
 	fd := &fakeDNS{st: dnsrecords.Status{IP: "192.168.1.20", PublicIP: "81.2.69.160"}}
 	h.server.DNS = fd
 
-	_, body := h.get("/settings/servers")
+	_, body := h.get("/servers")
 	for _, want := range []string{"Address the new server reaches this one at", "A name from your domain: <code>link.lab.example.com:51820</code>",
 		"The public address: <code>81.2.69.160:51820</code>", `name="address_other"`} {
 		if !strings.Contains(body, want) {
@@ -50,7 +50,7 @@ func TestJoinAddressChoice(t *testing.T) {
 	}
 	_, made := h.post("/settings/servers/join", url.Values{"address": {"link.lab.example.com:51820"}}, h.srv.URL)
 	if !strings.Contains(made, "Join code for a new server") || !strings.Contains(made, `class="copy-box"`) ||
-		strings.Contains(made, `action="/settings/servers/join`) || !strings.Contains(made, `href="/settings/servers#add-server">Make another code`) {
+		strings.Contains(made, `action="/settings/servers/join`) || !strings.Contains(made, `href="/servers#add-server">Make another code`) {
 		t.Error("a new code is shown in place of the form, with Make another code")
 	}
 	if len(fn.endpoints) != 1 || fn.endpoints[0] != "link.lab.example.com:51820" {
@@ -59,7 +59,7 @@ func TestJoinAddressChoice(t *testing.T) {
 	if v, _ := h.server.Store.Setting(context.Background(), LinkWantedKey); v != "on" {
 		t.Error("choosing the name starts its record")
 	}
-	_, body = h.get("/settings/servers")
+	_, body = h.get("/servers")
 	if !strings.Contains(body, `value="link.lab.example.com:51820" x-model="choice" required checked`) {
 		t.Error("the last one used is suggested")
 	}
@@ -68,7 +68,7 @@ func TestJoinAddressChoice(t *testing.T) {
 	if fn.endpoints[1] != "10.0.2.2:61820" {
 		t.Errorf("typed: %v", fn.endpoints)
 	}
-	if _, body = h.get("/settings/servers"); !strings.Contains(body, `value="10.0.2.2:61820"`) || !strings.Contains(body, `value="other" x-model="choice" checked`) {
+	if _, body = h.get("/servers"); !strings.Contains(body, `value="10.0.2.2:61820"`) || !strings.Contains(body, `value="other" x-model="choice" checked`) {
 		t.Error("a typed address is suggested again as typed")
 	}
 	if code, _ := h.post("/settings/servers/join", url.Values{"address": {"other"}, "address_other": {"nonsense"}}, h.srv.URL); code != 400 {
@@ -86,7 +86,7 @@ func TestJoinDial(t *testing.T) {
 	h.server.Network = fn
 	h.server.DNS = &fakeDNS{st: dnsrecords.Status{IP: "192.168.1.20", PublicIP: "81.2.69.160"}}
 
-	if _, body := h.get("/settings/servers"); !strings.Contains(body, "None: this server connects to the new one instead") ||
+	if _, body := h.get("/servers"); !strings.Contains(body, "None: this server connects to the new one instead") ||
 		!strings.Contains(body, `name="address_dial"`) {
 		t.Fatal("no dial choice at home")
 	}
@@ -148,7 +148,7 @@ func TestSetupJoin(t *testing.T) {
 	}
 	fail = nil
 	_, body := h.post("/setup/join", url.Values{"code": {code}, "name": {"nas"}}, h.srv.URL)
-	for _, want := range []string{"Joined The Smiths&#39; lab", "<code>100.96.0.4</code>", `href="https://roost.lab.example.com/settings/servers"`} {
+	for _, want := range []string{"Joined The Smiths&#39; lab", "<code>100.96.0.4</code>", `href="https://roost.lab.example.com/servers"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("joined page missing %q", want)
 		}
@@ -174,7 +174,7 @@ func TestNodePage(t *testing.T) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	for _, want := range []string{"<h1>nas</h1>", "part of <strong>The Smiths&#39; lab</strong>", `href="https://roost.lab.example.com/settings/servers"`} {
+	for _, want := range []string{"<h1>nas</h1>", "part of <strong>The Smiths&#39; lab</strong>", `href="https://roost.lab.example.com/servers"`} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("node page missing %q:\n%s", want, body)
 		}

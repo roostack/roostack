@@ -6,38 +6,61 @@
 </div>
 {{end}}
 
+{{/* Home (Console glass, docs/DESIGN.md "Layout"): how things are in a
+     line, what needs attention, the figures, then the services and
+     servers as tables. */}}
 {{define "home-live"}}
+<div class="page-head">
+  <div>
+    <h1>{{if .Attention}}{{len .Attention}} {{if eq (len .Attention) 1}}thing needs{{else}}things need{{end}} attention{{else}}<span class="gradient-text">Everything's working.</span>{{end}}</h1>
+    <p class="lede">{{len .Services}} {{if eq (len .Services) 1}}service{{else}}services{{end}}
+      {{- with .Servers}} on {{len .}} {{if eq (len .) 1}}server{{else}}servers{{end}}{{end}}
+      {{- with .Figures}}{{if not .LastBackup.IsZero}}. Every server backed up {{when .LastBackup}}{{end}}{{end}}.</p>
+  </div>
+  {{if .CanManage}}<div class="page-head-actions"><a class="button" href="/catalog">Add a service</a></div>{{end}}
+</div>
 {{template "attention" .}}
-<section>
-  <h1>My Services</h1>
-  {{template "service-tiles" .}}
-</section>
-{{with .Servers}}
-<section>
-  <h1 class="section-title">My Servers</h1>
-  <ul class="tiles">
-    {{range .}}
-    <li class="card tile server-tile">
-      <h2>{{.Name}}{{if .This}} {{badge "This server"}}{{end}}</h2>
-      <p class="hint">{{if .Controller}}Runs the lab{{else}}Runs services{{end}} · {{len .Services}} {{if eq (len .Services) 1}}service{{else}}services{{end}}</p>
-      <ul class="plain server-facts">
-        <li>{{if not .Reachable}}<span class="dot dot-problem" aria-hidden="true"></span>Can't reach it
-          {{- else if .Status.Running}}<span class="dot dot-warn" aria-hidden="true"></span>Applying changes…
-          {{- else if .Status.LastErr}}<span class="dot dot-problem" aria-hidden="true"></span>The last change didn't finish
-          {{- else}}<span class="dot dot-ok" aria-hidden="true"></span>Up to date{{end}}</li>
-        {{if .Reachable}}
-        <li>{{if not .LastBackup.IsZero}}<span class="dot dot-ok" aria-hidden="true"></span>Backed up {{when .LastBackup}}
-          {{- else if .BackupsSetUp}}<span class="dot dot-warn" aria-hidden="true"></span>Not backed up yet
-          {{- else}}<span class="dot dot-problem" aria-hidden="true"></span>Backups not set up{{end}}</li>
-        {{if .UpdatesFailed}}<li><span class="dot dot-problem" aria-hidden="true"></span>The last OS update didn't finish</li>
-        {{else if .RestartNeeded}}<li><span class="dot dot-warn" aria-hidden="true"></span>Needs a restart to finish updates</li>{{end}}
-        {{end}}
-      </ul>
-      {{with .Services}}<p class="hint">{{range $i, $s := .}}{{if $i}}, {{end}}{{$s}}{{end}}</p>{{end}}
-      {{if $.IsOwner}}<a href="/settings/servers/{{.ID}}">Settings for {{.Name}}</a>{{end}}
-    </li>
-    {{end}}
-  </ul>
-</section>
+{{with .Figures}}
+<ul class="figures">
+  <li class="card"><span class="figure-label">Services</span><span class="figure-value">{{.Running}} <small>of {{.Services}} running</small></span>
+    <span class="figure-note{{if .Problems}} bad{{end}}">{{if .Problems}}{{.Problems}} not running{{else if .Busy}}{{.Busy}} getting ready{{else}}All running{{end}}</span></li>
+  <li class="card"><span class="figure-label">Servers</span><span class="figure-value">{{.Online}} <small>of {{.Servers}} online</small></span>
+    <span class="figure-note{{if .ServerIssues}} warn{{end}}">{{if .ServerIssues}}{{.ServerIssues}} {{if eq .ServerIssues 1}}needs{{else}}need{{end}} attention{{else}}All up to date{{end}}</span></li>
+  <li class="card"><span class="figure-label">Last backup</span><span class="figure-value">{{if .LastBackup.IsZero}}None yet{{else}}{{when .LastBackup}}{{end}}</span>
+    <span class="figure-note{{if .NotBackedUp}} warn{{end}}">{{if .NotBackedUp}}{{.NotBackedUp}} {{if eq .NotBackedUp 1}}server{{else}}servers{{end}} not backed up yet{{else}}Every server{{end}}</span></li>
+</ul>
 {{end}}
+<div class="grid">
+  <section class="card">
+    <div class="card-head"><h2>Services</h2>{{if .CanManage}}<a class="more" href="/services">All services</a>{{end}}</div>
+    {{template "service-table" .}}
+  </section>
+  {{with .Servers}}
+  <section class="card">
+    <div class="card-head"><h2>Servers</h2>{{if $.IsOwner}}<a class="more" href="/servers">Manage servers</a>{{end}}</div>
+    <div class="table-wrap"><table class="list">
+      <thead><tr><th>Server</th><th>State</th><th class="hide-phone">Services</th><th class="hide-phone">Backed up</th>{{if $.IsOwner}}<th><span class="sr-only">Actions</span></th>{{end}}</tr></thead>
+      <tbody>
+        {{range .}}
+        <tr>
+          <td><span class="list-name"><span class="logo-tile">{{icon "server"}}</span><span>{{.Name}}
+            <small>{{if .Controller}}Runs the lab{{else}}Runs services{{end}}{{if .This}} · this server{{end}}</small></span></span></td>
+          <td>{{if not .Reachable}}<span class="pill pill-bad">Can't reach it</span>
+            {{- else if .Status.Running}}<span class="pill pill-info">Applying changes</span>
+            {{- else if .Status.LastErr}}<span class="pill pill-bad">The last change didn't finish</span>
+            {{- else if .UpdatesFailed}}<span class="pill pill-bad">The last OS update didn't finish</span>
+            {{- else if .RestartNeeded}}<span class="pill pill-warn">Needs a restart</span>
+            {{- else}}<span class="pill pill-ok">Up to date</span>{{end}}</td>
+          <td class="hide-phone wrap">{{range $i, $s := .Services}}{{if $i}}, {{end}}{{$s}}{{else}}<span class="hint">None</span>{{end}}</td>
+          <td class="hide-phone">{{if not .Reachable}}<span class="hint">Unknown</span>
+            {{- else if not .LastBackup.IsZero}}<span class="num">{{when .LastBackup}}</span>
+            {{- else if .BackupsSetUp}}Not yet{{else}}<span class="error">Backups not set up</span>{{end}}</td>
+          {{if $.IsOwner}}<td><a href="/settings/servers/{{.ID}}">Settings<span class="sr-only"> for {{.Name}}</span></a></td>{{end}}
+        </tr>
+        {{end}}
+      </tbody>
+    </table></div>
+  </section>
+  {{end}}
+</div>
 {{end}}

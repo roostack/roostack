@@ -96,7 +96,7 @@ func (s *Server) formMode(r *http.Request, step string, data map[string]any) map
 	}
 	if !m.This {
 		// Another server's settings are never a wizard step.
-		data["Wizard"], data["Back"], data["BackText"] = false, "/settings/servers", "Servers"
+		data["Wizard"], data["Back"], data["BackText"] = false, "/servers", "Servers"
 	}
 	return data
 }

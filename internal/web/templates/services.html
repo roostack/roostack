@@ -1,30 +1,28 @@
 {{define "title"}}Services{{end}}
 {{define "content"}}
-<section>
-  <div class="heading">
+<div class="page-head">
+  <div>
     <h1>Services</h1>
-    {{if .CanManage}}<a class="button" href="/catalog">Add a service</a>{{end}}
+    <p class="lede">What your lab runs, where, and when each was last backed up.</p>
   </div>
-  {{if .CanManage}}<p class="hint">{{if .ShowBuiltIn}}<a href="/services">Hide Roostack's own services</a>
-    {{- else}}<a href="/services?builtin=1">Show Roostack's own services</a> (web proxy, backup stores, Roostack itself, network links){{end}}
-    {{- if .Relayed}} · <a href="/visitors">Visitors through the relay</a>{{end}}</p>{{end}}
-  {{with .BuildActivity}}
-  <section class="card section">
-    <h2>Roostack's web proxy</h2>
-    <p class="hint">The web proxy (Caddy) gives your services their web addresses. Services you add start once it's ready.</p>
-    {{activity .}}
-  </section>
-  {{end}}
-  <div hx-get="/partials/services{{if .ShowBuiltIn}}?builtin=1{{end}}" hx-trigger="every 10s [document.visibilityState === 'visible'], visibilitychange[document.visibilityState === 'visible'] from:document, activity-done from:body" hx-swap="innerHTML">
-    {{template "services-live" .}}
-  </div>
-  {{with .ApplyActivity}}
-  <section class="card section">
-    <h2>Latest change</h2>
-    {{activity .}}
-  </section>
-  {{end}}
+  {{if .CanManage}}<div class="page-head-actions"><a class="button" href="/catalog">Add a service</a></div>{{end}}
+</div>
+{{with .BuildActivity}}
+<section class="card section">
+  <h2>Roostack's web proxy</h2>
+  <p class="hint">The web proxy (Caddy) gives your services their web addresses. Services you add start once it's ready.</p>
+  {{activity .}}
 </section>
+{{end}}
+<div hx-get="/partials/services{{if .ShowBuiltIn}}?builtin=1{{end}}" hx-trigger="every 10s [document.visibilityState === 'visible'], visibilitychange[document.visibilityState === 'visible'] from:document, activity-done from:body" hx-swap="innerHTML">
+  {{template "services-live" .}}
+</div>
+{{with .ApplyActivity}}
+<section class="card section">
+  <h2>Latest change</h2>
+  {{activity .}}
+</section>
+{{end}}
 {{end}}
 
 {{define "services-live"}}
@@ -32,45 +30,29 @@
   {{if .Running}}{{notice "info" "Applying changes… Downloading a new service can take a few minutes."}}
   {{else if .LastErr}}{{notice "error" (printf "The last change didn't finish: %v" .LastErr)}}{{end}}
 {{end}}
-{{if .Services}}
-<ul class="services">
-  {{range .Services}}
-  <li class="card service">
-    <div class="service-head">
-      <div>
-        <h2>{{if $.CanManage}}<a href="/services/{{.Name}}">{{.Title}}</a>{{else}}{{.Title}}{{end}} {{template "tier-badge" .}}</h2>
-        {{if .Install}}{{range .URLs}}<span class="address-pending">{{.}}</span>{{end}}{{template "install-line" .}}
-        {{- else if .NoAddress}}<p class="address-waiting">{{template "address-waiting" $}}</p>
-        {{- else}}{{range .URLs}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a>{{end}}{{end}}
-        {{template "service-summary" .}}
-      </div>
-      <div class="service-actions">
-        {{status .Status}}
-        {{if and .Update $.CanManage (ne .Status "updating")}}<a href="/services/{{.Name}}#update">{{badge "Update available" "highlight"}}</a>{{end}}
-        {{if $.CanManage}}<a class="button secondary with-icon" href="/services/{{.Name}}">{{icon "manage"}}Manage</a>{{end}}
-      </div>
-    </div>
-    {{if $.CanManage}}{{template "service-details" .}}{{end}}
-  </li>
-  {{end}}
-</ul>
-{{else}}
-<p class="card">No services are installed yet.{{if .CanManage}} <a href="/catalog">Add one</a>.{{end}}</p>
-{{end}}
+<section class="card">
+  <div class="card-head"><h2>Your services</h2>
+    {{if .CanManage}}<span class="more">{{if .Relayed}}<a href="/visitors">Visitors through the relay</a> · {{end}}
+      {{- if .ShowBuiltIn}}<a href="/services">Hide Roostack's own</a>{{else}}<a href="/services?builtin=1">Show Roostack's own</a>{{end}}</span>{{end}}</div>
+  {{template "service-table" .}}
+</section>
 {{with .BuiltIns}}
-<h2 class="section-title">Roostack's own services</h2>
+<h2 class="section-heading section-title">Roostack's own services</h2>
+<p class="hint">The web proxy, backup stores, Roostack itself and network links, on each server.</p>
+<div class="grid">
 {{range .}}
-<section class="card section">
-  <h3>On {{server .Server}}</h3>
+<section class="card">
+  <div class="card-head"><h2>On {{server .Server}}</h2></div>
   {{with .Err}}<p class="error">Roostack can't ask this server right now: {{.}}</p>{{end}}
   {{with .Items}}
-  <table class="records">
-    <thead><tr><th>Part</th><th>State</th><th>What it does</th></tr></thead>
-    <tbody>{{range .}}<tr><td class="with-icon">{{icon (builtinIcon .Kind)}}{{.Name}}</td><td>{{.Status}}</td><td>{{.Detail}}{{if not .LastSeen.IsZero}}; last connected {{when .LastSeen}}{{end}}</td></tr>{{end}}</tbody>
-  </table>
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th>Part</th><th>State</th><th class="hide-phone">What it does</th></tr></thead>
+    <tbody>{{range .}}<tr><td><span class="with-icon">{{icon (builtinIcon .Kind)}}{{.Name}}</span></td><td>{{.Status}}</td><td class="hide-phone wrap">{{.Detail}}{{if not .LastSeen.IsZero}}; last connected {{when .LastSeen}}{{end}}</td></tr>{{end}}</tbody>
+  </table></div>
   {{end}}
 </section>
 {{end}}
+</div>
 {{end}}
 {{end}}
 

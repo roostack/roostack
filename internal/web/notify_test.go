@@ -260,7 +260,7 @@ func TestServerGoneForGood(t *testing.T) {
 	fm.servers = []manager.Server{this, pi}
 	_, body := h.get("/")
 	if !strings.Contains(body, "Roostack hasn&#39;t reached pi since") || !strings.Contains(body, "remove it from the lab") ||
-		!strings.Contains(body, `href="/settings/servers?remove=n-pi00000001#server-n-pi00000001"`) {
+		!strings.Contains(body, `href="/servers?remove=n-pi00000001#server-n-pi00000001"`) {
 		t.Errorf("four days, no services: %s", body[strings.Index(body, "Needs attention"):][:600])
 	}
 	pi.Services = []string{"immich"}
@@ -270,7 +270,7 @@ func TestServerGoneForGood(t *testing.T) {
 	}
 	pi.Services = nil
 	fm.servers = []manager.Server{this, pi}
-	_, body = h.get("/settings/servers?remove=n-pi00000001")
+	_, body = h.get("/servers?remove=n-pi00000001")
 	if !strings.Contains(body, "Not connected since") || !strings.Contains(body, "Remove it from the lab") {
 		t.Error("the Servers page doesn't say since when")
 	}

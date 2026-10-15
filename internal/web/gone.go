@@ -48,7 +48,7 @@ func (s *Server) renderServerGone(w http.ResponseWriter, r *http.Request, errMsg
 	// comes in the URL).
 	act := s.goneActivity(cmp.Or(plan.Server.Name, r.URL.Query().Get("name")))
 	if errors.Is(err, manager.ErrNotFound) && act == nil {
-		redirect(w, r, "/settings/servers")
+		redirect(w, r, "/servers")
 		return
 	}
 	if msg, ok := userMessage(err); ok && act == nil {

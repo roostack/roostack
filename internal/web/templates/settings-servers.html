@@ -1,11 +1,39 @@
 {{define "title"}}Servers{{end}}
 {{define "content"}}
-<section class="card">
-  <h1>Servers</h1>
-  <p class="hint">The computers that run your lab. Each one runs its own services, backups and updates.</p>
+{{/* Servers, a main area (Console glass, docs/DESIGN.md "Layout"): a
+     table of them, then each one's card; or one server's own page (Only). */}}
+<div class="page-head">
+  <div>
+    <h1>{{if .Only}}{{range .Servers}}{{if eq .ID $.Only}}{{.Name}}{{end}}{{end}}{{else}}Servers{{end}}</h1>
+    <p class="lede">{{if .Only}}One of the computers that run your lab.{{else}}The computers that run your lab. Each one runs its own services, backups and updates.{{end}}</p>
+  </div>
+  {{if and .CanAdd (not .Only)}}<div class="page-head-actions"><a class="button secondary" href="#add-server">Add a server</a></div>{{end}}
+</div>
+{{if not .Only}}
+<section class="card section">
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th>Server</th><th>State</th><th class="hide-phone">Services</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      {{range .Servers}}
+      <tr>
+        <td><div class="list-name"><span class="logo-tile">{{icon "server"}}</span><div><a href="#server-{{.ID}}">{{.Name}}</a>
+          <small>{{if .Controller}}Runs the lab{{else}}Runs services{{end}}{{if .This}} · this server{{end}}</small></div></div></td>
+        <td>{{if not .Reachable}}<span class="pill pill-bad">Not connected</span>
+          {{- else if .Status.Running}}<span class="pill pill-info">Applying changes</span>
+          {{- else if .Status.LastErr}}<span class="pill pill-bad">The last change didn't finish</span>
+          {{- else if .Status.Finished}}<span class="pill pill-ok">Up to date</span>
+          {{- else}}<span class="pill">Not applied yet</span>{{end}}</td>
+        <td class="hide-phone wrap">{{range $i, $s := .Services}}{{if $i}}, {{end}}{{$s}}{{else}}<span class="hint">None</span>{{end}}</td>
+        <td><a href="/settings/servers/{{.ID}}">Settings<span class="sr-only"> for {{.Name}}</span></a></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table></div>
 </section>
+{{end}}
+<div class="grid section">
 {{range .Servers}}{{$m := .}}{{if or (not $.Only) (eq $.Only .ID)}}
-<section class="card section" id="server-{{.ID}}">
+<section class="card {{if $.Only}}span-8{{else}}span-6{{end}}" id="server-{{.ID}}">
   <h2>{{.Name}}{{if .This}} {{badge "This server"}}{{end}}</h2>
   <dl class="facts facts-lined">
     <dt>{{icon "server"}}Role</dt>
@@ -14,7 +42,7 @@
     <dt>{{icon "server"}}Connection</dt>
     <dd><span class="dot dot-problem" aria-hidden="true"></span>Not connected{{with .UnreachableSince}} since {{when .}}{{end}}.
       If {{.Name}} is still running, it reconnects by itself, with its services.
-      {{if not (or .Services .Waiting)}}Gone for good? <a href="/settings/servers?remove={{.ID}}#server-{{.ID}}">Remove it from the lab</a>.{{end}}
+      {{if not (or .Services .Waiting)}}Gone for good? <a href="/servers?remove={{.ID}}#server-{{.ID}}">Remove it from the lab</a>.{{end}}
       {{if or .Services .Waiting}}<br><a href="/settings/servers/{{.ID}}/gone">{{.Name}} is gone: restore its services…</a>{{end}}</dd>
     {{end}}
     <dt>{{icon "services"}}Services</dt>
@@ -98,7 +126,7 @@
 </section>
 {{end}}{{end}}
 {{if and .CanAdd (not .Only)}}
-<section class="card section" id="add-server">
+<section class="card span-6" id="add-server">
   {{with .JoinCode}}
   {{/* A new code is shown in place of the form (like a storage invite), and
        the page opens here (#add-server in the form's action). */}}
@@ -114,7 +142,7 @@
   </details>
   <p class="hint">Anyone with this code can add a server to your lab until it's used, so don't share it. It isn't shown again:
     if it's lost, make another.</p>
-  <p><a class="button secondary" href="/settings/servers#add-server">Make another code</a></p>
+  <p><a class="button secondary" href="/servers#add-server">Make another code</a></p>
   {{else}}
   <h2>Add a server</h2>
   <p class="hint">Another computer at home or in the cloud can run some of your services. Install Roostack on it, then make a
@@ -142,6 +170,8 @@
   </details>
 </section>
 {{end}}
+</div>
 {{end}}
 
 {{define "page-help"}}{{help "servers" "Servers"}}{{end}}
+{{define "crumbs"}}{{if .Only}}<a href="/servers">Servers</a>{{range .Servers}}{{if eq .ID $.Only}}<strong aria-current="page">{{.Name}}</strong>{{end}}{{end}}{{else}}<strong aria-current="page">Servers</strong>{{end}}{{end}}
