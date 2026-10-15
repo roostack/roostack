@@ -1,7 +1,11 @@
 {{define "title"}}Visitors{{end}}
 {{define "content"}}
-<h1>Visitors</h1>
-<p class="hint">Public visitors come in through Roostack Cloud's relay. These are its counts for this lab.</p>
+<div class="page-head">
+  <div>
+    <h1>Visitors</h1>
+    <p class="lede">Public visitors come in through Roostack Cloud's relay. These are its counts for this lab.</p>
+  </div>
+</div>
 <section class="card section" id="visitors" hx-get="/partials/relay-stats?period={{.Period}}" hx-trigger="load" hx-swap="outerHTML" hx-disinherit="*">
   <h2>Visitors through the relay</h2>
   <p class="hint"><span class="spinner" aria-hidden="true"></span> Asking Roostack Cloud…</p>

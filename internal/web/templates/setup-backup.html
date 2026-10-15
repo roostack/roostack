@@ -1,9 +1,13 @@
 {{define "title"}}Backups{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Your backup plan</h1>
+  </div>
+</div>
 <section class="narrow">
   <div class="card">
     {{with .AddressSet}}{{notice "ok" (printf "Your lab's address is %s. Its web addresses start working when setup finishes." .)}}{{end}}
-    <h1>Your backup plan</h1>
     <p>Roostack backs everything up every night, to each backup in your plan. {{if and .Plan .Plan.Internet}}Start with your main backup
       somewhere other than this server, such as online storage.{{else}}Start with your main backup, somewhere at home
       that isn't this server's own disk if you can.{{end}} You can add more now, or later on the Backups page.</p>

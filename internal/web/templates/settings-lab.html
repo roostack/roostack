@@ -1,7 +1,11 @@
 {{define "title"}}Lab name{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Lab name</h1>
+  </div>
+</div>
 <section class="card">
-  <h1>Lab name</h1>
   <p>What you call your lab. It's shown at the top of every page, and to other labs you share backup storage with
     (they see it as "{{.LabName}}'s storage").</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}

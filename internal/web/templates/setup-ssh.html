@@ -1,11 +1,12 @@
 {{define "title"}}Remote access{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>{{if .Wizard}}Who can log in to this server?{{else}}Change remote access{{if not .Server.This}} to {{.Server.Name}}{{end}}{{end}}</h1>
+  </div>
+</div>
 {{template "server-switcher" .}}
 <section class="card narrow">
-  {{if .Wizard}}<h1>Who can log in to this server?</h1>
-  {{else}}
-  <h1>Change remote access{{if not .Server.This}} to {{.Server.Name}}{{end}}</h1>
-  {{end}}
   <p>SSH lets someone log in to this server from another computer to fix things Roostack can't. Roostack's firewall
     blocks everything else except your services' web addresses.</p>
   {{with .Clients}}

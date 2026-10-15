@@ -1,7 +1,11 @@
 {{define "title"}}Add a service{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Add a service</h1>
+  </div>
+</div>
 <section>
-  <h1>Add a service</h1>
   {{with .Registry}}
     {{if not .On}}{{notice "info" "Checking the service registry is turned off, so services can't be installed from it." "link=/settings/updates#registry" "linkText=Turn it on"}}
     {{else if and .Stale .Status.Serial}}{{notice "warn" (printf "This list is from %s: Roostack can't get a newer one from the service registry, so it doesn't know of fixes or withdrawn versions since." (when .Status.Date)) "link=/settings/updates#registry" "linkText=See why"}}

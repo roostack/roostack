@@ -1,8 +1,12 @@
 {{define "title"}}Install {{.Package.Title}}{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>{{if .Another}}Add another {{.Package.Title}}{{else}}Install {{.Package.Title}}{{end}}</h1>
+    <p class="lede">{{.Package.Description}}</p>
+  </div>
+</div>
 <section class="card narrow">
-  <h1>{{if .Another}}Add another {{.Package.Title}}{{else}}Install {{.Package.Title}}{{end}}</h1>
-  <p class="hint">{{.Package.Description}}</p>
   {{template "project-credit" .Credit}}
   {{/* The package policy (SPEC.md §8.3.4). */}}
   {{if .Policy.Local}}

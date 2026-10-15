@@ -1,7 +1,11 @@
 {{define "title"}}{{.Server.Name}}{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>{{.Server.Name}}</h1>
+  </div>
+</div>
 <section class="card narrow">
-  <h1>{{.Server.Name}}</h1>
   {{/* Asks every few seconds; the page reloads once the server answers. */}}
   <div hx-get="/settings/servers/{{.Server.ID}}/reachable" hx-trigger="every 5s [document.visibilityState === 'visible']" hx-swap="none">
     <p><span class="spinner" aria-hidden="true"></span> Can't reach {{.Server.Name}} right now.</p>

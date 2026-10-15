@@ -1,7 +1,7 @@
 {{define "title"}}Your account{{end}}
 {{define "content"}}
 <section class="card">
-  <h1>Your account</h1>
+  <div class="card-head"><h2>Your details</h2></div>
   {{if .User.MustChangePassword}}
   {{notice "warn" "You're using a temporary password. Choose your own below to continue."}}
   {{end}}

@@ -1,7 +1,11 @@
 {{define "title"}}Where it is and DNS{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Where it is and DNS</h1>
+  </div>
+</div>
 <section class="card">
-  <h1>Where it is and DNS</h1>
   {{with .NetworkForm}}
   <p>{{if eq .Saved "internet"}}This lab is <strong>on the internet</strong> (a cloud server): services start public, and private
     ones are only reachable through an SSH tunnel.
