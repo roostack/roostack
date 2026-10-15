@@ -57,6 +57,37 @@ var settingsAreas = []settingsArea{
 // choice, 2026-10-15).
 var sidebarSettings = []string{"people", "domain", "updates", "history"}
 
+// Icon is the area's icon in the sidebar (icons.go).
+func (a settingsArea) Icon() string {
+	switch a.ID {
+	case "lab":
+		return "tag"
+	case "history":
+		return "history"
+	case "people":
+		return "users"
+	case "email":
+		return "at"
+	case "domain":
+		return "certificate"
+	case "home-network":
+		return "location"
+	case "public":
+		return "globe"
+	case "cloud":
+		return "cloud"
+	case "storage":
+		return "disk"
+	case "updates":
+		return "changes"
+	case "time-zone":
+		return "clock"
+	case "remote-access":
+		return "terminal"
+	}
+	return "manage"
+}
+
 // settingsGroup is a heading and its areas, for the sidebar and overview.
 type settingsGroup struct {
 	Title string

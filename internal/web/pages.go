@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"roostack.cloud/roostack/authkit"
@@ -33,6 +34,14 @@ type nav struct {
 	// them on a settings page. Area is the current one, if the page is one.
 	SettingsAreas []settingsArea
 	Area          string
+	// Services lists the services under Services while you're there
+	// (their pages; the current one marked).
+	Services []navLink
+	// InService: the page is one service's (Services isn't the page itself).
+	InService bool
+	// ServerIssues counts servers needing attention (not answering, or a
+	// change that didn't finish), shown beside Servers.
+	ServerIssues int
 	// Landing is a main area's own page (Services, Settings...), whose
 	// breadcrumbs are just its title.
 	Landing bool
@@ -56,6 +65,12 @@ func navFor(u *store.User, page string) nav {
 	landing := slices.Contains([]string{"home", "services", "backups", "settings", "settings-servers", "account"}, page)
 	return nav{Active: active, Landing: landing, Username: u.Username, Role: u.Role, Theme: u.Theme, NextTheme: next, Palette: userPalette(u), Accent: userAccent(u),
 		Backups: auth.Can(u.Role, auth.ManageServices), Settings: auth.Can(u.Role, auth.ManageHost)}
+}
+
+// navLink is a link in the sidebar.
+type navLink struct {
+	Href, Title string
+	Current     bool
 }
 
 // crumb is a link in the page header's breadcrumbs.
@@ -125,6 +140,27 @@ func (s *Server) withTiers(services []ServiceView) {
 	}
 }
 
+// withIcons sets each service's logo from its package (if it has one and
+// the person may fetch it: the logo's address is for those who manage
+// services) and the drawn icon of its first category otherwise.
+func (s *Server) withIcons(services []ServiceView, logos bool) {
+	items := map[string]manager.CatalogItem{}
+	if s.Manager != nil && len(services) > 0 {
+		if catalog, err := s.Manager.Catalog(); err == nil {
+			for _, it := range catalog {
+				items[it.Name] = it
+			}
+		}
+	}
+	for i := range services {
+		it := items[services[i].Package]
+		services[i].DrawnIcon = categoryIcon(it.Categories)
+		if logos && it.Icon {
+			services[i].IconURL = "/install/" + it.Name + "/icon.png"
+		}
+	}
+}
+
 // pageData collects what most pages show, for the current user.
 func (s *Server) pageData(r *http.Request) (map[string]any, error) {
 	u := currentUser(r)
@@ -133,6 +169,7 @@ func (s *Server) pageData(r *http.Request) (map[string]any, error) {
 		return nil, err
 	}
 	s.withTiers(services)
+	s.withIcons(services, s.Manager != nil && auth.Can(u.Role, auth.ManageServices))
 	return map[string]any{
 		"User":      u,
 		"Services":  services,
@@ -177,7 +214,96 @@ func (s *Server) homeData(r *http.Request, data map[string]any) {
 	if data["CanManage"] == true {
 		servers := s.serverViews(r)
 		data["Servers"] = servers
-		data["Figures"] = homeFiguresOf(data["Services"].([]ServiceView), servers)
+		f := homeFiguresOf(data["Services"].([]ServiceView), servers)
+		nodes := s.serverNodes(r)
+		disks := s.homeDisks(r, nodes)
+		f.addDisks(disks)
+		data["Figures"] = f
+		// Each server's disks together, for its row in the table.
+		perServer := map[string]diskSummary{}
+		for _, sd := range disks {
+			if sd != nil {
+				perServer[sd.ServerID] = sd.Summary()
+			}
+		}
+		data["ServerDisks"] = perServer
+		// What Roostack did lately on the servers, for the Owner (as
+		// History shows it; what people did stays there).
+		if data["IsOwner"] == true {
+			entries, _ := s.historyEntries(r, nodes, "", time.Time{})
+			var recent []historyEntry
+			for _, e := range entries {
+				if e.Kind != "people" && len(recent) < 5 {
+					recent = append(recent, e)
+				}
+			}
+			data["Recent"] = recent
+		}
+	}
+	data["Greeting"] = greeting(time.Now())
+}
+
+// diskSummary is a server's disks together: used of total, and the
+// worst level among them.
+type diskSummary struct {
+	Used, Total int64
+	Percent     int
+	Level       string
+}
+
+// Summary is a server's disks together, for a row in a table.
+func (sd *serverDisks) Summary() diskSummary {
+	var sum diskSummary
+	for _, d := range sd.Disks {
+		sum.Total += d.Total
+		sum.Used += d.Used
+		if d.Level != "" {
+			sum.Level = d.Level
+		}
+	}
+	sum.Percent = percentOf(sum.Used, sum.Total)
+	return sum
+}
+
+// greeting says hello for the time of day (the server's, like every
+// time Roostack shows).
+func greeting(t time.Time) string {
+	switch h := t.Hour(); {
+	case h >= 5 && h < 12:
+		return "Good morning."
+	case h >= 12 && h < 18:
+		return "Good afternoon."
+	}
+	return "Good evening."
+}
+
+// homeDisks asks every server for its disks at once (nil for one that
+// doesn't answer in time).
+func (s *Server) homeDisks(r *http.Request, nodes []serverNode) []*serverDisks {
+	out := make([]*serverDisks, len(nodes))
+	var wg sync.WaitGroup
+	for i, mn := range nodes {
+		wg.Go(func() { out[i] = s.serverSpaces(r.Context(), mn.view, mn.node) })
+	}
+	wg.Wait()
+	return out
+}
+
+// addDisks adds the lab's disk space to the figures: every disk of every
+// server that answered, and the first one running low.
+func (f *homeFigures) addDisks(servers []*serverDisks) {
+	for _, sd := range servers {
+		if sd == nil {
+			continue
+		}
+		for _, d := range sd.Disks {
+			f.Disks++
+			f.DiskTotal += d.Total
+			f.DiskUsed += d.Used
+			if d.Level != "" && f.DiskWarning == "" {
+				f.DiskWarning = d.Warning
+			}
+		}
 	}
 }
 
@@ -192,6 +318,11 @@ type homeFigures struct {
 	LastBackup                    time.Time
 	// NotBackedUp counts servers with no backup yet.
 	NotBackedUp int
+	// Disks, DiskTotal and DiskUsed are every server's disks together;
+	// DiskWarning says the first one running low.
+	Disks               int
+	DiskTotal, DiskUsed int64
+	DiskWarning         string
 }
 
 func homeFiguresOf(services []ServiceView, servers []serverView) homeFigures {
@@ -314,6 +445,11 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	if s.Manager != nil {
 		if p, err := s.Manager.ServicePackage(name); err == nil {
 			data["Package"] = p
+			// Who makes it, for the About card (the logo is the page's own).
+			if c := newProjectCredit(p); c != nil {
+				c.IconURL = ""
+				data["Credit"] = c
+			}
 			var actions []serviceAction
 			for _, h := range p.HooksOn(pkgspec.HookAction) {
 				actions = append(actions, serviceAction{Name: h.Name, Title: h.Title, Description: h.Description, Fields: inputFields(h)})

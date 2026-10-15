@@ -1166,7 +1166,7 @@ func TestBackupPlan(t *testing.T) {
 	}
 	_, body = h.get("/backups?add=4")
 	for _, want := range []string{"nuc&#39;s disk", "Backblaze", "Make this the main backup", "Stop this backup", "Where should the extra backup go?",
-		`<span class="sr-only">Extra</span>`, "Main backup ·", `✓</span>3 copies`, `✓</span>2 kinds of storage`} {
+		`<span class="sr-only">Extra</span>`, "Main backup ·", `pill-ok plan-ok">3 copies`, `pill-ok plan-ok">2 kinds of storage`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("plan missing %q", want)
 		}
@@ -1595,7 +1595,7 @@ func TestBackupOnAnotherServerLocation(t *testing.T) {
 	h.post("/settings/servers/n-9876543210/location", url.Values{"location": {"away"}}, h.srv.URL)
 	_, body = h.get("/backups")
 	if strings.Contains(body, "Where is") || !strings.Contains(body, "away from home") ||
-		!strings.Contains(body, `<li class="plan-ok"><span class="plan-mark" aria-hidden="true">✓</span>1 away from home`) {
+		!strings.Contains(body, `<li class="pill pill-ok plan-ok">1 away from home`) {
 		t.Error("vps somewhere else: the backup there is away from home")
 	}
 	if _, body := h.get("/servers"); !strings.Contains(body, `name="location" value="away" checked`) {

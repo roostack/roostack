@@ -22,7 +22,7 @@ func TestOldAddress(t *testing.T) {
 	h.server.OldAddress = &config.OldAddress{Domain: "old.example.net", Until: until, DNS: config.DNS{Provider: "cloudflare"}}
 	day := until.Local().Format("2 January")
 
-	if _, body := h.get("/"); !strings.Contains(body, "Your lab&#39;s address changed to lab.example.com. The old addresses (old.example.net) keep working until "+day) ||
+	if _, body := h.get("/"); !strings.Contains(body, "Your lab&#39;s address changed to lab.example.com.</strong><span>The old addresses (old.example.net) keep working until "+day) ||
 		!strings.Contains(body, `href="/settings/domain#old-address"`) {
 		t.Error("home: the old address's notice")
 	}

@@ -106,13 +106,13 @@ func TestSettingsOverview(t *testing.T) {
 	for _, path := range []string{"/settings/updates", "/settings/people", "/settings/domain", "/settings/history",
 		"/settings/remote-access", "/settings/time-zone", "/settings/home-network"} {
 		code, body := h.get(path)
-		if code != http.StatusOK || !strings.Contains(body, `<a class="nav-sub" href="`+path+`" aria-current="page">`) ||
-			!strings.Contains(body, `<a class="nav-sub" href="/settings/storage">`) {
+		if code != http.StatusOK || !strings.Contains(body, `<a class="nav-item" href="`+path+`" aria-current="page">`) ||
+			!strings.Contains(body, `<a class="nav-item" href="/settings/storage">`) {
 			t.Errorf("%s: %d, want every settings page in the sidebar with its own marked", path, code)
 		}
 	}
 	if _, body := h.get("/services"); strings.Contains(body, `href="/settings/storage"`) ||
-		!strings.Contains(body, `<a class="nav-sub" href="/settings/people">`) {
+		!strings.Contains(body, `<a class="nav-item" href="/settings/people">`) {
 		t.Error("outside Settings, the sidebar should list only the everyday settings pages")
 	}
 	// The first-run wizard isn't a settings page.

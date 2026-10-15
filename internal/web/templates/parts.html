@@ -7,10 +7,10 @@
 <section class="attention">
   <h2 class="sr-only">Needs attention</h2>
   <ul>
-    {{range .Attention}}
-    <li class="item item-{{.Level}}">
-      <span>{{.Text}}</span>
-      {{if .Link}}<a href="{{.Link}}">{{.LinkText}}</a>{{end}}
+    {{range .Attention}}{{$s := sentences .Text}}
+    <li class="item notice{{if eq .Level "problem"}} notice-error{{else if eq .Level "warning"}} notice-warn{{end}}">
+      <span class="item-text"><strong>{{index $s 0}}</strong>{{with index $s 1}}<span>{{.}}</span>{{end}}</span>
+      {{if .Link}}<a class="button secondary small" href="{{.Link}}">{{.LinkText}}</a>{{end}}
     </li>
     {{end}}
   </ul>
@@ -66,20 +66,22 @@
 {{define "service-table"}}
 {{if .Services}}
 <div class="table-wrap"><table class="list">
-  <thead><tr><th>Service</th><th>Status</th><th class="hide-phone">Runs on</th><th class="hide-phone">Backed up</th><th><span class="sr-only">Actions</span></th></tr></thead>
+  <thead><tr><th>Service</th><th>Status</th><th class="hide-phone">Address</th><th class="hide-phone">Runs on</th><th class="hide-phone">Backed up</th><th><span class="sr-only">Actions</span></th></tr></thead>
   <tbody>
     {{range .Services}}{{$svc := .}}
     <tr>
-      <td><div class="list-name"><div>{{if $.CanManage}}<a href="/services/{{.Name}}">{{.Title}}</a>{{else}}{{.Title}}{{end}} {{template "tier-badge" .}}
+      <td><div class="list-name">{{logo .IconURL .DrawnIcon}}<div>{{if $.CanManage}}<a href="/services/{{.Name}}">{{.Title}}</a>{{else}}{{.Title}}{{end}} {{template "tier-badge" .}}
         <small>{{if .Install}}{{template "install-line" .}}
-          {{- else if .NoAddress}}{{template "address-waiting" $}}
           {{- else if eq .Status "waiting"}}Its server, {{or .WasOn "a server that's gone"}}, is gone
-          {{- else}}{{range $i, $u := .URLs}}{{if $i}} · {{end}}<a href="{{$u}}" target="_blank" rel="noopener">{{trimScheme $u}}{{template "new-window"}}</a>{{end}}{{end}}</small></div></div></td>
+          {{- else if and .Package (ne .Package .Name)}}{{.Package}}{{end}}</small></div></div></td>
       <td>{{status .Status}}{{if and .Update $.CanManage (ne .Status "updating")}} <a href="/services/{{.Name}}#update">{{badge "Update" "highlight"}}</a>{{end}}</td>
+      <td class="hide-phone wrap">{{if .Install}}{{range .URLs}}<span class="address-pending">{{trimScheme .}}</span>{{end}}
+        {{- else if .NoAddress}}{{template "address-waiting" $}}
+        {{- else}}{{range $i, $u := .URLs}}{{if $i}}<br>{{end}}<a href="{{$u}}" target="_blank" rel="noopener">{{trimScheme $u}}{{template "new-window"}}</a>{{end}}{{end}}</td>
       <td class="hide-phone">{{with .Server}}{{.}}{{else}}<span class="hint">None</span>{{end}}</td>
       <td class="hide-phone">{{if not .LastBackup.IsZero}}<span class="num">{{when .LastBackup}}</span>{{else if .Server}}Not yet{{end}}</td>
-      <td>{{if $.CanManage}}<a class="with-icon" href="/services/{{.Name}}">{{icon "manage"}}Manage<span class="sr-only"> {{.Title}}</span></a>
-        {{- else}}{{range $i, $u := .URLs}}{{if not $i}}<a href="{{$u}}" target="_blank" rel="noopener">Open<span class="sr-only"> {{$svc.Title}}</span>{{template "new-window"}}</a>{{end}}{{end}}{{end}}</td>
+      <td>{{if $.CanManage}}<a class="table-action" href="/services/{{.Name}}">Manage<span class="sr-only"> {{.Title}}</span></a>
+        {{- else}}{{range $i, $u := .URLs}}{{if not $i}}<a class="table-action" href="{{$u}}" target="_blank" rel="noopener">Open<span class="sr-only"> {{$svc.Title}}</span>{{template "new-window"}}</a>{{end}}{{end}}{{end}}</td>
     </tr>
     {{end}}
   </tbody>
@@ -127,9 +129,9 @@
     {{with .Last}}{{if not .OK}}
       {{notice "error" (printf "The last backup (%s) didn't finish: %s%s" (when .Finished) .Error (retryText $.Backup.Retry))}}
     {{end}}{{end}}
-    {{with .LastOK}}
-      <p>Last backup: <strong>{{when .Finished}}</strong>{{if stale .Finished}} <span class="error">(over 2 days ago)</span>{{end}}
-        <span class="hint">· {{.FilesNew}} new or changed files, {{bytes .DataAdded}} added</span></p>
+    {{with .LastOK}}{{$w := whenParts .Finished}}
+      <p class="backup-last"><span class="sr-only">Last backup: </span><span class="big-figure">{{index $w 1}}<small>{{index $w 0}}{{if stale .Finished}} <span class="error">(over 2 days ago)</span>{{end}}</small></span>
+        <span class="hint">The last backup: {{.FilesNew}} new or changed files, {{bytes .DataAdded}} added.</span></p>
     {{else}}
       <p class="error">No backup has finished yet.</p>
     {{end}}
@@ -361,6 +363,12 @@
     <h2>Your backup plan</h2>
     <span class="hint">{{len .Entries}} {{if eq (len .Entries) 1}}backup{{else}}backups{{end}}</span>
   </div>
+  <ul class="plan-checks" aria-label="3-2-1 checks">
+    {{template "plan-check" (list (printf "%t" .Checks.Copies) "3 copies")}}
+    {{template "plan-check" (list (printf "%t" .Checks.TwoKinds) "2 kinds of storage")}}
+    {{template "plan-check" (list (printf "%t" .Checks.Away) (or (and .Internet "1 away from this server") "1 away from home"))}}
+    {{template "plan-check" (list (printf "%t" .Checks.BackedUp) "Backed up lately")}}
+  </ul>
   {{if .Internet}}<p>Keep <strong>3 copies</strong> of your data, on <strong>2 kinds</strong> of storage, with <strong>1 away from this server</strong>.
     Then a failed disk, a mistake, ransomware, or losing the server or your account with its provider can't take everything.</p>
   {{- else}}<p>Keep <strong>3 copies</strong> of your data, on <strong>2 kinds</strong> of storage, with <strong>1 away from home</strong>.
@@ -457,12 +465,6 @@
     {{end}}
     {{end}}
   </ol>
-  <ul class="plan-checks" aria-label="3-2-1 checks">
-    {{template "plan-check" (list (printf "%t" .Checks.Copies) "3 copies")}}
-    {{template "plan-check" (list (printf "%t" .Checks.TwoKinds) "2 kinds of storage")}}
-    {{template "plan-check" (list (printf "%t" .Checks.Away) (or (and .Internet "1 away from this server") "1 away from home"))}}
-    {{template "plan-check" (list (printf "%t" .Checks.BackedUp) "Backed up lately")}}
-  </ul>
 </section>
 {{end}}{{end}}
 
@@ -473,7 +475,7 @@
 {{- else}}<span class="plan-num">{{.Number}}</span>{{end}}{{end}}
 
 {{/* plan-check: one 3-2-1 check, (list "true"|"false" text). */}}
-{{define "plan-check"}}{{$ok := eq (index . 0) "true"}}<li class="{{if $ok}}plan-ok{{else}}plan-warn{{end}}"><span class="plan-mark" aria-hidden="true">{{if $ok}}✓{{else}}✗{{end}}</span>{{index . 1}}<span class="sr-only">: {{if $ok}}yes{{else}}not yet{{end}}</span></li>{{end}}
+{{define "plan-check"}}{{$ok := eq (index . 0) "true"}}<li class="pill {{if $ok}}pill-ok plan-ok{{else}}pill-warn plan-warn{{end}}">{{index . 1}}<span class="sr-only">: {{if $ok}}yes{{else}}not yet{{end}}</span></li>{{end}}
 
 {{/* plan-chooser: where a backup goes (planView: Adding, Options). */}}
 {{define "plan-chooser"}}

@@ -90,6 +90,9 @@ type ServiceView struct {
 	// §8.3.4); empty for the Owner's own, or one the registry no longer
 	// lists. Filled in by the web layer (withTiers).
 	Tier string
+	// IconURL is its package's logo, for those who manage services, and
+	// DrawnIcon the icon shown without one (withIcons).
+	IconURL, DrawnIcon string
 }
 
 // Server serves the web UI.
@@ -849,6 +852,26 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 		}
 		if an, ok := data["AreaNav"].(areaNav); ok && an.Label == "Settings" && inSettings {
 			n.Area = an.Active
+		}
+		if s.Manager != nil {
+			if servers, err := s.Manager.Servers(); err == nil {
+				for _, mc := range servers {
+					if mc.Status.LastErr != nil {
+						n.ServerIssues++
+					}
+				}
+			}
+		}
+		data["Nav"] = n
+	}
+	// Under Services, the sidebar lists them, for those who can open them.
+	if n, ok := data["Nav"].(nav); ok && n.Active == "services" && n.Backups {
+		current, _ := data["Service"].(ServiceView)
+		n.InService = current.Name != ""
+		if services, ok := data["Services"].([]ServiceView); ok {
+			for _, sv := range services {
+				n.Services = append(n.Services, navLink{Href: "/services/" + sv.Name, Title: sv.Title, Current: sv.Name == current.Name})
+			}
 		}
 		data["Nav"] = n
 	}

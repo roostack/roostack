@@ -42,21 +42,22 @@ var galleryTokens = []struct{ Name, Use string }{
 var gallerySections = []gallerySection{
 	{ID: "layout", Title: "Layout", Intro: "Console glass (2026-10-14): a sidebar floating beside the page, the page's header on the page, cards on a faint moving aurora (it stops for reduced motion). The layout (templates/layout.html) draws all of it; a page gives its title, content and, if it wants, its breadcrumbs and help. Below 900px the sidebar is a drawer behind the menu button.",
 		Examples: []galleryExample{
-			{"Sidebar", "The lab's name, the main areas, Settings' pages (for those who can change them) and All settings, then Help, Light/Dark/Auto and the person. Settings lists its everyday pages (sidebarSettings), and every settings page while you're in Settings. Where you are has aria-current=\"page\": the highlight tint with a faint highlight edge. The surface at 70% with a blur: status shows here only as a pill on its own tint, never as bare text (the contrast test checks text, muted text and links on it).", `
+			{"Sidebar", "The lab's name, the main areas, Settings' pages (for those who can change them) and All settings, then Help, Light/Dark/Auto and the person. Under Services, while you're there, each service (.nav-children of .nav-sub). Beside Servers, how many need attention (.nav-count, a warning pill). Settings lists its everyday pages with their icons (sidebarSettings, settingsArea.Icon), and every settings page while you're in Settings. Where you are has aria-current=\"page\": the highlight tint with a faint highlight edge. The surface at 70% with a blur: status shows here only as a pill on its own tint, never as bare text (the contrast test checks text, muted text and links on it).", `
 <aside class="sidebar gallery-sidebar" aria-label="Roostack (example)">
   <a class="sidebar-lab" href="#">{{brandMark}}<span class="sidebar-lab-name"><span>Roostack</span><strong>The Smiths' lab</strong></span></a>
   <nav class="nav-group" aria-label="Your lab (example)">
     <a class="nav-item" href="#">{{icon "home-page"}}Home</a>
-    <a class="nav-item" href="#" aria-current="page">{{icon "services"}}Services</a>
+    <a class="nav-item" href="#" aria-current="true">{{icon "services"}}Services</a>
+    <div class="nav-children"><a class="nav-sub" href="#" aria-current="page">Immich</a><a class="nav-sub" href="#">Vaultwarden</a><a class="nav-sub" href="#">Add a service…</a></div>
     <a class="nav-item" href="#">{{icon "backups"}}Backups</a>
-    <a class="nav-item" href="#">{{icon "server"}}Servers</a>
+    <a class="nav-item" href="#">{{icon "server"}}Servers<span class="nav-count" title="1 needs attention">1</span></a>
   </nav>
   <nav class="nav-group" aria-label="Settings (example)">
     <p class="nav-heading">Settings</p>
-    <a class="nav-sub" href="#">People</a>
-    <a class="nav-sub" href="#">Your lab's address</a>
-    <a class="nav-sub" href="#">Updates and restarts</a>
-    <a class="nav-sub" href="#">History</a>
+    <a class="nav-item" href="#">{{icon "history"}}History</a>
+    <a class="nav-item" href="#">{{icon "users"}}People</a>
+    <a class="nav-item" href="#">{{icon "certificate"}}Your lab's address</a>
+    <a class="nav-item" href="#">{{icon "changes"}}Updates and restarts</a>
     <a class="nav-item" href="#">{{icon "manage"}}All settings</a>
   </nav>
   <div class="sidebar-foot">
@@ -92,16 +93,26 @@ var gallerySections = []gallerySection{
   <li class="card"><span class="figure-label">Last backup</span><span class="figure-value">02:00</span><span class="figure-note">Every server</span></li>
   <li class="card"><span class="figure-label">Disk space</span><span class="figure-value">1.6 TB <small>of 2.6 TB used</small></span><span class="figure-note">Most on nuc</span></li>
 </ul>`},
-			{"Big figure", ".big-figure: the one number a card is about (the last backup's time).", `
-<span class="big-figure">02:00<small>last night</small></span>`},
-			{"Table list", "table.list in a .table-wrap, as a card's last part (it reaches the card's edges). .list-name: a logo, the name and a line under it. .hide-phone on columns that matter less; .num for figures; the last column is the row's action.", `
+			{"Big figure", ".big-figure: the one number a card is about (the last backup's time; whenParts splits a time into its day and clock time).", `
+<span class="big-figure">02:00<small>today</small></span>`},
+			{"Page heading for one thing", ".page-head-title: its logo beside the title, a .title-line with its status beside the h1 (a service's page).", `
+<div class="page-head-title">{{logo "" "photos"}}<div><div class="title-line"><h1>Immich</h1>{{status "running"}}</div><p class="lede">2.1.0 · Photo and video backup</p></div></div>`},
+			{"Meter", ".meter: how full something is, a bar its width from data-width (app.js); .meter-warning or .meter-problem when it runs low. With the figure in small text under it (a server's disks in a table).", `
+<div class="meter"><span data-width="35"></span></div>
+<div class="meter meter-warning"><span data-width="92"></span></div>`},
+			{"Recent activity", "ul.activity-list: a dot (dot-ok, dot-problem), what happened with where in small text, and when.", `
+<ul class="activity-list">
+  <li><span class="dot dot-ok" aria-hidden="true"></span><span class="activity-what"><a href="#">Backup</a><small>nuc · 1 new file, 19.2 MB added</small></span><time>today 02:00</time></li>
+  <li><span class="dot dot-problem" aria-hidden="true"></span><span class="activity-what"><a href="#">OS updates</a><small>vps · a package didn't install</small></span><time>today 01:00</time></li>
+</ul>`},
+			{"Table list", "table.list in a .table-wrap, as a card's last part (it reaches the card's edges). .list-name: a logo, the name and a line under it. Links are quiet (underlined on hover); the row's action is a .table-action. .hide-phone on columns that matter less; .num for figures; the last column is the row's action.", `
 <section class="card">
   <div class="card-head"><h2>Services</h2></div>
   <div class="table-wrap"><table class="list">
     <thead><tr><th>Service</th><th>Status</th><th class="hide-phone">Runs on</th><th class="hide-phone">Backed up</th><th><span class="sr-only">Actions</span></th></tr></thead>
     <tbody>
-      <tr><td><span class="list-name">{{logo "" "photos"}}<span><a href="#">Immich</a><small>photos.smith.family</small></span></span></td><td>{{status "running"}}</td><td class="hide-phone">nuc</td><td class="hide-phone num">02:00</td><td><a href="#">Manage</a></td></tr>
-      <tr><td><span class="list-name">{{logo "" "passwords"}}<span><a href="#">Vaultwarden</a><small>vault.smith.family</small></span></span></td><td>{{status "installing"}}</td><td class="hide-phone">nuc</td><td class="hide-phone num">Not yet</td><td><a href="#">Manage</a></td></tr>
+      <tr><td><div class="list-name">{{logo "" "photos"}}<div><a href="#">Immich</a><small>immich</small></div></div></td><td>{{status "running"}}</td><td class="hide-phone">nuc</td><td class="hide-phone num">02:00</td><td><a class="table-action" href="#">Manage</a></td></tr>
+      <tr><td><div class="list-name">{{logo "" "passwords"}}<div><a href="#">Vaultwarden</a><small>vaultwarden</small></div></div></td><td>{{status "installing"}}</td><td class="hide-phone">nuc</td><td class="hide-phone num">Not yet</td><td><a class="table-action" href="#">Manage</a></td></tr>
     </tbody>
   </table></div>
 </section>`},
@@ -158,7 +169,7 @@ Network=roostack-immich.network</code></pre>
   {{confirmSubmit "Make passwords.lab.example.com public? Anyone on the internet will be able to reach it." "Make public" ""}}
 </form>`},
 		}},
-	{ID: "notices", Title: "Notices", Intro: "Short messages in a page. Info is the default; the colour says how much it matters.",
+	{ID: "notices", Title: "Notices", Intro: "Short messages in a page: a tinted card with its kind's icon (drawn by CSS, so every .notice has one) and a faint edge in its colour. Info is the default; the colour says how much it matters.",
 		Examples: []galleryExample{
 			{"Info", "notice KIND TEXT, where KIND is info, ok, warn or error. Info: something's happening, or worth knowing.", `
 {{notice "info" "Updating DNS records and checking them…"}}`},
@@ -310,20 +321,20 @@ Network=roostack-immich.network</code></pre>
     <a href="#">Change…</a>
   </li>
 </ul>`},
-			{"Needs attention", "The home page's list of things to deal with. Items are problems, warnings, or (no class) information.", `
+			{"Needs attention", "The home page's list of things to deal with (template \"attention\"): each a notice (problem: notice-error, warning: notice-warn, or information), its first sentence in bold and the rest under it, and what to do as a small secondary button.", `
 <div class="attention">
   <ul>
-    <li class="item item-warning">
-      <span>Backups are only stored on this server.</span>
-      <a href="#">Improve backups</a>
+    <li class="item notice notice-warn">
+      <span class="item-text"><strong>Backups are only stored on this server.</strong><span>Add a copy somewhere else to protect against theft, fire or a failed disk.</span></span>
+      <a class="button secondary small" href="#">Improve backups</a>
     </li>
-    <li class="item item-problem">
-      <span>Forgejo didn't finish setting up.</span>
-      <a href="#">See what went wrong</a>
+    <li class="item notice notice-error">
+      <span class="item-text"><strong>Forgejo didn't finish setting up.</strong></span>
+      <a class="button secondary small" href="#">See what went wrong</a>
     </li>
-    <li class="item">
-      <span>Finishing setting up Immich…</span>
-      <a href="#">View</a>
+    <li class="item notice">
+      <span class="item-text"><strong>Finishing setting up Immich…</strong></span>
+      <a class="button secondary small" href="#">View</a>
     </li>
   </ul>
 </div>`},

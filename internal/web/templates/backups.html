@@ -38,12 +38,13 @@
       <p class="hint">Put a service's data back to how it was in a backup, from any of your lab's backups, onto any server.
         Its current data is kept aside first; nothing is deleted.</p>
       <div class="table-wrap"><table class="list">
-        <thead><tr><th>Service</th>{{if $on}}<th>On</th>{{end}}<th><span class="sr-only">Actions</span></th></tr></thead>
+        <thead><tr><th>Service</th>{{if $on}}<th>On</th>{{end}}<th class="hide-phone">Its server's last backup</th><th><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>
           {{range .}}{{$g := .}}{{range .Services}}
-          <tr><td><div class="list-name"><div>{{.Title}}</div></div></td>
+          <tr><td><div class="list-name">{{logo .IconURL .DrawnIcon}}<div>{{.Title}}</div></div></td>
             {{if $on}}<td>{{if $g.Waiting}}<span class="pill pill-warn">Waiting to be restored</span>{{with .WasOn}} <span class="hint">was on {{.}}</span>{{end}}{{else}}{{$g.Server}}{{end}}</td>{{end}}
-            <td><a href="/backups/restore/{{.Name}}">Restore…<span class="sr-only"> {{.Title}}</span></a></td></tr>
+            <td class="hide-phone">{{if not .LastBackup.IsZero}}<span class="num">{{when .LastBackup}}</span>{{else}}<span class="hint">Unknown</span>{{end}}</td>
+            <td><a class="table-action" href="/backups/restore/{{.Name}}">Restore…<span class="sr-only"> {{.Title}}</span></a></td></tr>
           {{end}}{{end}}
         </tbody>
       </table></div>

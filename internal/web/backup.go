@@ -64,10 +64,33 @@ var templateFuncs = template.FuncMap{
 	"roleName": capitalise,
 	// capitalise starts a word with a capital ("running" → "Running").
 	"capitalise": capitalise,
+	// whenParts is a time as when shows it, split into its day and its
+	// clock time ("today", "02:00"), for a big figure.
+	"whenParts": func(t time.Time) [2]string {
+		w := whenText(t)
+		if i := strings.LastIndex(w, " "); i > 0 {
+			return [2]string{w[:i], w[i+1:]}
+		}
+		return [2]string{"", w}
+	},
+	// sentences splits text after its first sentence: the attention
+	// items' bold line, and the rest under it ("" if there's no more).
+	"sentences": firstSentence,
 	// trimScheme shows a web address without its https:// (in tables).
 	"trimScheme": func(u string) string {
 		return strings.TrimPrefix(strings.TrimPrefix(u, "https://"), "http://")
 	},
+}
+
+// firstSentence splits text into its first sentence and the rest: at
+// the first ". ", "? " or "! " followed by a capital letter.
+func firstSentence(text string) [2]string {
+	for i := 0; i+2 < len(text); i++ {
+		if strings.ContainsRune(".?!", rune(text[i])) && text[i+1] == ' ' && text[i+2] >= 'A' && text[i+2] <= 'Z' {
+			return [2]string{text[:i+1], text[i+2:]}
+		}
+	}
+	return [2]string{text, ""}
 }
 
 // capitalise starts s with a capital letter (ASCII; roles and states).

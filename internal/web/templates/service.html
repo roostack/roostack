@@ -5,9 +5,12 @@
      to what runs it and where its files are. */}}
 <div class="views">
 <div class="page-head">
-  <div>
-    <h1>{{.Service.Title}} {{template "tier-badge" .Service}}</h1>
-    <p class="lede">{{status .Service.Status}}{{with .Package}} {{.Description}}{{end}}</p>
+  <div class="page-head-title">
+    {{logo .Service.IconURL .Service.DrawnIcon}}
+    <div>
+      <div class="title-line"><h1>{{.Service.Title}} {{template "tier-badge" .Service}}</h1>{{status .Service.Status}}</div>
+      <p class="lede">{{with .Package}}{{appVersion .Version}} · {{.Description}}{{end}}</p>
+    </div>
   </div>
   <div class="page-head-actions">
     <label class="view-switch"><input type="checkbox"><span>Friendly</span><span>Technical</span><span class="sr-only"> view</span></label>
@@ -138,6 +141,7 @@
         {{- if $.IsOwner}} · <a href="/services/{{$.Service.Name}}/public/{{.Route}}">{{if .Public}}Public access…{{else}}Make public…{{end}}</a>{{end}}</dd>
       {{else}}<dt>Reachable from</dt><dd>{{template "private-where" $.Internet}}</dd>{{end}}{{end}}
       {{with .Service.Server}}<dt>Runs on</dt><dd>{{.}}</dd>{{end}}
+      {{with .Package}}<dt>Version</dt><dd>{{appVersion .Version}}{{if not $.Update}}, up to date{{end}} · <a href="#updates">updates {{if eq $.UpdatePolicy "notify"}}when you approve them{{else}}automatically{{end}}</a></dd>{{end}}
     </dl>
     {{if and .IsOwner .MultiServer}}<p><a href="/services/{{.Service.Name}}/move">Move to another server…</a></p>{{end}}
   </section>
@@ -215,6 +219,12 @@
     </details>
     {{end}}
   </section>
+  {{with .Credit}}
+  <section class="card">
+    <div class="card-head"><h2>About {{.Title}}</h2></div>
+    {{template "project-credit" .}}
+  </section>
+  {{end}}
   </div>
   <div class="span-4 grid-column">
     <section class="card">
