@@ -138,6 +138,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Closer to the mock-ups (2026-10-15): notices with icons, attention items with buttons, one page gap, Settings with icons in the sidebar, services listed under Services, a count beside Servers, logos in tables and on a service's page, disk space and Recent activity on Home, the backup plan as tiles with 3-2-1 pills, server cards a row each
   - [x] A service's settings as a summary on its page, changed on their own page (`/services/<name>/settings`: settings, updates, name), 2026-10-15
   - [x] The other pages on Console glass (2026-10-15): page headings on every page with a sidebar, cards lined up under them, History as a table, Your account under one heading with its tabs
+  - [x] Every theme in both modes, and the solid look without color-mix or backdrop-filter, checked on the built pages (2026-10-15)
   - [x] The count beside Servers includes a restart due, an OS update that didn't finish and a disk running low (2026-10-15): what Home last found, for 10 minutes, as well as what the controller knows
   - [x] A service's technical view shows its Quadlet and Caddy files' contents (2026-10-15): the controller makes them again (generation is pure; a test checks they match what's written), no lab API call
   - [x] Console glass tokens (2026-10-15): `--font-display`, `--text-xs`, `--canvas`, `--glass*`, `--edge*`, `--lift`, `--aurora`; Space Grotesk vendored in `static/fonts` (OFL, credited); text 16 px
