@@ -59,7 +59,7 @@ func TestRegistryStop(t *testing.T) {
 	}
 	_, body = h.get("/services/immich")
 	for _, want := range []string{"Roostack stopped Immich to protect your lab.", "“Being exploited; no fix yet.”",
-		`href="https://example.org/advisory"`, "stopped by Roostack", "off while it's stopped",
+		`href="https://example.org/advisory"`, "Stopped by Roostack", "off while it's stopped",
 		`action="/services/immich/start-anyway"`, `name="private" value="1" checked`, "Start Immich anyway? The service registry says",
 		`href="/services/immich/remove">remove it</a>`} {
 		if !strings.Contains(body, want) {
