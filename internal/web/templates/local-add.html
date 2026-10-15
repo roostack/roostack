@@ -1,7 +1,11 @@
 {{define "title"}}Add your own service{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Add your own service</h1>
+  </div>
+</div>
 <section class="card narrow">
-  <h1>Add your own service</h1>
   {{/* Wording chosen by the Owner (2026-10-14), SPEC.md §8.3.4. */}}
   {{notice "warn" "Nobody has reviewed this package. Services from the service registry are checked before they're offered; a package you add isn't. It decides which app runs and what it's given, so only add one you wrote or got from someone you trust."}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}

@@ -1,7 +1,11 @@
 {{define "title"}}Restore {{.Service.Title}}{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Restore {{.Service.Title}}</h1>
+  </div>
+</div>
 <section class="card narrow">
-  <h1>Restore {{.Service.Title}}</h1>
   {{activity .RestoreActivity}}
   {{/* Drawn again when the restore finishes, so the form comes back. */}}
   <div id="restore-body" hx-get="/backups/restore/{{.Service.Name}}" hx-select="#restore-body" hx-trigger="activity-done from:body"

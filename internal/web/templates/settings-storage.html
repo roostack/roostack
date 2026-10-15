@@ -1,17 +1,21 @@
 {{define "title"}}Storage for others{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Storage for others</h1>
+    <p class="lede">Give family or friends space on this server for their Roostack's backups, and they can do the same for you:
+      each of you then has a copy somewhere else. Their backups are encrypted before they leave their lab, so you can't read
+      them, and each lab gets its own space with a size limit.</p>
+  </div>
+</div>
+{{with .HostSpace}}
 <section class="card">
-  <h1>Storage for others</h1>
-  <p class="hint">Give family or friends space on this server for their Roostack's backups, and they can do the same for you:
-    each of you then has a copy somewhere else. Their backups are encrypted before they leave their lab, so you can't read
-    them, and each lab gets its own space with a size limit.</p>
-  {{with .HostSpace}}
-  <h2>Space on {{$.HostServer.Name}}</h2>
+  <div class="card-head"><h2>Space on {{$.HostServer.Name}}</h2></div>
   {{template "disks-live" .}}
   {{with $.Space}}<p>Other labs can be given up to <strong>{{size .Left}}</strong> more, keeping 10% of the disk free for your own
     services and backups.</p>{{end}}
-  {{end}}
 </section>
+{{end}}
 
 {{with .Guests}}
 <section class="card section">

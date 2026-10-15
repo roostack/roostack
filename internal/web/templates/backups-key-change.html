@@ -1,7 +1,11 @@
 {{define "title"}}Change recovery key{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Change recovery key</h1>
+  </div>
+</div>
 <section class="card narrow">
-  <h1>Change recovery key</h1>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
 
   {{if .NewKey}}

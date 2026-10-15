@@ -1,7 +1,11 @@
 {{define "title"}}Restore {{.Plan.Server.Name}}'s services{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Restore {{or .Plan.Server.Name "a server"}}'s services</h1>
+  </div>
+</div>
 <section class="card narrow">
-  <h1>Restore {{or .Plan.Server.Name "a server"}}'s services</h1>
   {{activity .RestoreActivity}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{if and .RestoreActivity .RestoreActivity.Running}}

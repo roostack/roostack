@@ -1,9 +1,13 @@
 {{define "title"}}History{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>History</h1>
+    <p class="lede">What Roostack did on each server (applying changes, backups, updates, restores), with its full log, and what
+      people did in Roostack. Newest first.</p>
+  </div>
+</div>
 <section class="card">
-  <h1>History</h1>
-  <p class="hint">What Roostack did on each server (applying changes, backups, updates, restores), with its full log, and what
-    people did in Roostack. Newest first.</p>
   {{with .Deleted}}{{notice "ok" (printf "Deleted all history (%s entries)." .)}}{{end}}
   {{range .Unreachable}}{{notice "warn" (printf "Couldn't ask %s for its history right now." .)}}{{end}}
   <form method="get" action="/settings/history" class="inline-form history-filter">
@@ -13,22 +17,26 @@
     <noscript><button type="submit" class="secondary">Show</button></noscript>
   </form>
   {{with .Entries}}
-  <ul class="rows history">
-    {{range .}}<li class="row-split">
-      <span>{{if .Failed}}<span class="dot dot-problem" aria-hidden="true"></span>{{end}}<strong>{{.Title}}</strong>
-        {{- if .Who}} <small class="hint">by {{.Who}}</small>{{end}}
-        {{- if and $.MultiServer .Server}} <small class="hint">on {{.Server}}</small>{{end}}<br>
-        <small class="hint">{{when .At}}{{with .Duration}} · took {{.}}{{end}}{{with .Detail}} · {{.}}{{end}}</small></span>
-      {{if .EventID}}<a href="/settings/history/{{.ServerID}}/{{.EventID}}">Log</a>{{end}}
-    </li>{{end}}
-  </ul>
+  <div class="table-wrap"><table class="list history">
+    <thead><tr><th>What</th><th class="hide-phone">When</th><th><span class="sr-only">Log</span></th></tr></thead>
+    <tbody>
+      {{range .}}<tr>
+        <td class="wrap">{{if .Failed}}<span class="dot dot-problem" aria-hidden="true"></span><span class="sr-only">Failed: </span>{{end}}<strong>{{.Title}}</strong>
+          {{- if .Who}} <small class="hint">by {{.Who}}</small>{{end}}
+          {{- if and $.MultiServer .Server}} <small class="hint">on {{.Server}}</small>{{end}}
+          <br><small class="hint"><span class="show-phone">{{when .At}}{{if or .Duration .Detail}} · {{end}}</span>{{with .Duration}}took {{.}}{{end}}{{if and .Duration .Detail}} · {{end}}{{.Detail}}</small></td>
+        <td class="hide-phone"><span class="num">{{when .At}}</span></td>
+        <td>{{if .EventID}}<a class="table-action" href="/settings/history/{{.ServerID}}/{{.EventID}}">Log</a>{{end}}</td>
+      </tr>{{end}}
+    </tbody>
+  </table></div>
   {{with $.Older}}<p><a class="button secondary" href="/settings/history?kind={{$.Kind}}&amp;before={{.}}">Older</a></p>{{end}}
   {{else}}
   <p class="hint">Nothing yet.</p>
   {{end}}
 </section>
-<section class="card section">
-  <h2>How long it's kept</h2>
+<section class="card">
+  <div class="card-head"><h2>How long it's kept</h2></div>
   <form method="post" action="/settings/history/keep" class="inline-form">
     <label>Keep history for <select name="days">
       {{range .Keeps}}<option value="{{.}}"{{if eq . $.KeepDays}} selected{{end}}>{{if eq . 365}}a year{{else}}{{.}} days{{end}}</option>{{end}}

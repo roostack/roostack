@@ -1,8 +1,12 @@
 {{define "title"}}Public access{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Public access</h1>
+    <p class="lede">Services are for your home network, unless you make one public from its page.</p>
+  </div>
+</div>
 <section class="card">
-  <h1>Public access</h1>
-  <p class="hint">Services are for your home network, unless you make one public from its page.</p>
   {{if .Hosts}}
   <p><span class="dot dot-{{if .Protected}}ok{{else}}problem{{end}}" aria-hidden="true"></span>{{if .Protected}}CrowdSec is running: it blocks addresses that attack, and password tries are limited.{{else}}CrowdSec isn't running. Public services are still reachable, but attackers aren't blocked.{{end}}</p>
   {{with .Records}}

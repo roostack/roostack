@@ -1,7 +1,11 @@
 {{define "title"}}Move {{.Package.Title}}{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Move {{.Package.Title}} to another server</h1>
+  </div>
+</div>
 <section class="card medium">
-  <h1>Move {{.Package.Title}} to another server</h1>
   {{with .MoveActivity}}{{activity .}}{{end}}
   {{/* Drawn again when the move finishes: where it runs now. */}}
   <div id="move-body" hx-get="/services/{{$.Name}}/move" hx-select="#move-body" hx-trigger="activity-done from:body" hx-swap="outerHTML"

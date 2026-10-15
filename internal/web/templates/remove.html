@@ -1,7 +1,11 @@
 {{define "title"}}Remove {{.Package.Title}}{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Remove {{.Package.Title}}?</h1>
+  </div>
+</div>
 <section class="card narrow">
-  <h1>Remove {{.Package.Title}}?</h1>
   <p>{{.Package.Title}} will be stopped and removed from your lab.</p>
   <p><strong>Your data is kept.</strong> It stays in:</p>
   <ul>{{range .DataDirs}}<li><code>{{.}}</code></li>{{end}}</ul>

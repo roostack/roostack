@@ -1,13 +1,14 @@
 {{define "title"}}Your lab's address{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>{{if .Wizard}}Your lab's address{{else if .StepDone}}Change your lab's address{{else}}Give your lab an address{{end}}</h1>
+    {{if and (not .Wizard) .StepDone}}<p class="lede">Saving checks the new details, then restarts Roostack to use them. Your services keep their data.
+      If the address changes, the old addresses keep working for {{.OldDays}} days, so you can update bookmarks and apps
+      {{- with .Old}}; {{.Domain}}, the address before, stops at once{{end}}.</p>{{end}}
+  </div>
+</div>
 <section class="card narrow" x-data="{ choice: '{{.Choice}}' }">
-  {{if .Wizard}}<h1>Your lab's address</h1>
-  {{else}}
-  <h1>{{if .StepDone}}Change your lab's address{{else}}Give your lab an address{{end}}</h1>
-  {{if .StepDone}}<p class="hint">Saving checks the new details, then restarts Roostack to use them. Your services keep their data.
-    If the address changes, the old addresses keep working for {{.OldDays}} days, so you can update bookmarks and apps
-    {{- with .Old}}; {{.Domain}}, the address before, stops at once{{end}}.</p>{{end}}
-  {{end}}
   <p>Your services get web addresses, each with a secure (HTTPS) certificate. Choose where they live.</p>
   <div class="address-choices">
     {{if not .CloudDisabled}}

@@ -37,8 +37,9 @@ type nav struct {
 	// Services lists the services under Services while you're there
 	// (their pages; the current one marked).
 	Services []navLink
-	// InService: the page is one service's (Services isn't the page itself).
-	InService bool
+	// InService: the page is one service's (Services isn't the page itself);
+	// Adding: it's adding one (the catalog, installing).
+	InService, Adding bool
 	// ServerIssues counts servers needing attention (not answering, or a
 	// change that didn't finish), shown beside Servers.
 	ServerIssues int
@@ -63,7 +64,8 @@ func navFor(u *store.User, page string) nav {
 		u.Theme, next = "auto", "light"
 	}
 	landing := slices.Contains([]string{"home", "services", "backups", "settings", "settings-servers", "account"}, page)
-	return nav{Active: active, Landing: landing, Username: u.Username, Role: u.Role, Theme: u.Theme, NextTheme: next, Palette: userPalette(u), Accent: userAccent(u),
+	adding := page == "catalog" || page == "install" || page == "local-add"
+	return nav{Active: active, Landing: landing, Adding: adding, Username: u.Username, Role: u.Role, Theme: u.Theme, NextTheme: next, Palette: userPalette(u), Accent: userAccent(u),
 		Backups: auth.Can(u.Role, auth.ManageServices), Settings: auth.Can(u.Role, auth.ManageHost)}
 }
 

@@ -1,11 +1,12 @@
 {{define "title"}}Time zone{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>{{if .Wizard}}Where is this server?{{else}}Change the time zone{{if not .Server.This}} of {{.Server.Name}}{{end}}{{end}}</h1>
+  </div>
+</div>
 {{template "server-switcher" .}}
 <section class="card narrow">
-  {{if .Wizard}}<h1>Where is this server?</h1>
-  {{else}}
-  <h1>Change the time zone{{if not .Server.This}} of {{.Server.Name}}{{end}}</h1>
-  {{end}}
   <p>Roostack uses {{if .Server.This}}this server's{{else}}each server's own{{end}} time zone for everything it shows and schedules{{if .Server.This}}, such as the nightly backup at 2 am{{end}}.
     It's set to <strong>{{.Current}}</strong>{{with .HostClock.Time}}, where it's {{.}} now{{end}}.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}

@@ -34,10 +34,10 @@
       <div class="sidebar-nav">
       <nav class="nav-group" aria-label="Your lab">
         <a class="nav-item" href="/"{{if eq .Active "home"}} aria-current="page"{{end}}>{{icon "home-page"}}Home</a>
-        <a class="nav-item" href="/services"{{if eq .Active "services"}} aria-current="{{if .InService}}true{{else}}page{{end}}"{{end}}>{{icon "services"}}Services</a>
+        <a class="nav-item" href="/services"{{if eq .Active "services"}} aria-current="{{if or .InService .Adding}}true{{else}}page{{end}}"{{end}}>{{icon "services"}}Services</a>
         {{if eq .Active "services"}}<div class="nav-children">
           {{range .Services}}<a class="nav-sub" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Title}}</a>{{end}}
-          {{if .Backups}}<a class="nav-sub" href="/catalog">Add a service…</a>{{end}}
+          {{if .Backups}}<a class="nav-sub" href="/catalog"{{if .Adding}} aria-current="page"{{end}}>Add a service…</a>{{end}}
         </div>{{end}}
         {{if .Backups}}<a class="nav-item" href="/backups"{{if eq .Active "backups"}} aria-current="page"{{end}}>{{icon "backups"}}Backups</a>{{end}}
         {{if .Settings}}<a class="nav-item" href="/servers"{{if eq .Active "servers"}} aria-current="page"{{end}}>{{icon "server"}}Servers{{with .ServerIssues}}<span class="nav-count" title="{{.}} {{if eq . 1}}needs{{else}}need{{end}} attention">{{.}}</span>{{end}}</a>{{end}}
@@ -103,6 +103,8 @@
   {{if .Owner}}<a href="/setup/timezone">Change the server's time zone</a> if it's wrong.{{else}}If that's wrong, ask the Owner to change it.{{end}}
 </div>
 {{end}}
-{{with .AreaNav}}{{if .Tabs}}{{template "area-nav" .}}{{end}}{{end}}
+{{with .AreaNav}}{{if .Tabs}}
+<div class="page-head"><div><h1>{{.Label}}</h1></div></div>
+{{template "area-nav" .}}{{end}}{{end}}
 {{template "content" .}}
 {{end}}

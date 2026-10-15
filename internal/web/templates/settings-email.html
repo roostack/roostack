@@ -1,7 +1,11 @@
 {{define "title"}}Email{{end}}
 {{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Email</h1>
+  </div>
+</div>
 <section class="card">
-  <h1>Email</h1>
   <p>The mail server Roostack sends email through. Use your email provider's SMTP details: most give a separate
     app password for this, so your main password stays private.</p>
   {{if .Saved}}{{notice "ok" "Saved. Send a test email to check it works."}}{{end}}

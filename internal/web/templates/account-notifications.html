@@ -1,7 +1,7 @@
 {{define "title"}}Email and notifications{{end}}
 {{define "content"}}
 <section class="card">
-  <h1>Email and notifications</h1>
+  <div class="card-head"><h2>Email and notifications</h2></div>
   {{if .Saved}}{{notice "ok" "Saved."}}{{end}}
   {{with .EmailError}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{if not .MailReady}}{{notice "info" (printf "Roostack can't send email yet: %s" (or (and .Owner "set up the mail server in Settings → Email.") "ask your lab's Owner to set it up."))}}{{end}}
