@@ -59,15 +59,14 @@ small, .hint { color: var(--muted); }
 .aurora span:nth-child(3) { background: radial-gradient(closest-side, var(--chart-1) 60%, transparent); left: 18vmax; top: 45vmax; opacity: calc(var(--aurora) * 0.3); }
 @media print { .aurora { display: none; } }
 
-/* The sidebar: the surface at 70% with a blur (solid without color-mix
-   or backdrop-filter). Status shows here only as a pill on its own tint,
+/* The sidebar: the surface at 70% (solid without color-mix), no blur
+   behind it (see the cards). Status shows here only as a pill on its own tint,
    never as bare text (the contrast test, 2026-10-15). */
 .sidebar { position: sticky; top: 8px; height: calc(100vh - 16px); display: flex; flex-direction: column;
   gap: var(--space-3); padding: var(--space-4) var(--space-3) var(--space-3); border-radius: 16px; font-size: 15px;
   background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-1); }
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and (color: color-mix(in srgb, red 50%, blue)) {
+@supports (color: color-mix(in srgb, red 50%, blue)) {
   .sidebar { background: color-mix(in srgb, var(--surface) 70%, transparent); border: 0;
-    -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
     box-shadow: inset 0 0 0 1px var(--edge-strong), var(--lift); }
 }
 .sidebar-lab { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-1) var(--space-2); color: var(--fg); text-decoration: none; }
@@ -162,7 +161,7 @@ footer.site .version { font-family: var(--font-mono); font-size: 0.95em; }
   .shell { grid-template-columns: minmax(0, 1fr); padding: 0; }
   .sidebar { position: fixed; z-index: 30; left: 0; top: 0; bottom: 0; height: auto; width: min(300px, 84vw);
     border-radius: 0 16px 16px 0; translate: -105% 0; visibility: hidden; transition: translate 0.25s, visibility 0.25s; }
-  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and (color: color-mix(in srgb, red 50%, blue)) {
+  @supports (color: color-mix(in srgb, red 50%, blue)) {
     .sidebar { background: var(--surface); }
   }
   .menu-open .sidebar { translate: 0 0; visibility: visible; box-shadow: 0 0 60px rgb(0 0 0 / 40%); }
@@ -179,15 +178,17 @@ footer.site .version { font-family: var(--font-mono); font-size: 0.95em; }
 @media (prefers-reduced-motion: reduce) { .sidebar { transition: none; } }
 
 /* ---------- Card ---------- */
-/* Cards: the surface at 80% with a blur, so the aurora tints them only a
-   little (solid without color-mix or backdrop-filter). On glass the edge
-   is an inset shadow and there's no border: a transparent border would
-   still show the card's own background as a light ring outside it. */
+/* Cards: the surface at 80%, so the aurora tints them only a little
+   (solid without color-mix). No blur behind them: the aurora is already
+   soft, so it barely showed, and blurring every card made Firefox scroll
+   slowly (2026-10-16; DESIGN.md). On glass the edge is an inset shadow
+   and there's no border: a transparent border would still show the
+   card's own background as a light ring outside it. */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
   padding: var(--space-5); box-shadow: var(--shadow-1); }
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and (color: color-mix(in srgb, red 50%, blue)) {
+@supports (color: color-mix(in srgb, red 50%, blue)) {
   .card { background: color-mix(in srgb, var(--surface) 80%, transparent); border: 0;
-    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: inset 0 0 0 1px var(--edge-strong), var(--lift); }
+    box-shadow: inset 0 0 0 1px var(--edge-strong), var(--lift); }
 }
 .card > :last-child { margin-bottom: 0; }
 /* A heading row: title on the left, a link or action on the right. */
@@ -473,8 +474,8 @@ table.list .with-icon { display: inline-flex; align-items: center; gap: var(--sp
 /* Code panel: a file Roostack wrote, or a command and what it shows, with
    where it lives in the bar above. */
 .code-panel { margin: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); min-width: 0; }
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and (color: color-mix(in srgb, red 50%, blue)) {
-  .code-panel { background: color-mix(in srgb, var(--surface-2) 85%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .code-panel { background: color-mix(in srgb, var(--surface-2) 85%, transparent); }
 }
 .code-bar { display: flex; align-items: center; gap: var(--space-2); padding: 8px 14px; border-bottom: 1px solid var(--border);
   font: 12px var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
@@ -863,7 +864,7 @@ li.card.service { display: block; }
 h1 + .area-heading { margin-top: 0; }
 /* The server switcher: a tile per server with its state in a line, the
    chosen one outlined in the highlight. */
-.card.server-switcher { padding: 0; background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; margin-bottom: var(--space-4); }
+.card.server-switcher { padding: 0; background: none; border: 0; box-shadow: none; margin-bottom: var(--space-4); }
 .server-switcher ul { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; }
 .server-switcher li { display: grid; gap: 0; margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-lg);
   background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); }
