@@ -46,17 +46,17 @@ small, .hint { color: var(--muted); }
 .section { margin-top: var(--space-4); }
 .stack > * + * { margin-top: var(--space-3); }
 
-/* The aurora: three blurred circles in the accent, highlight and first
-   chart colour, slowly moving, behind everything. --aurora is how strongly
-   they show (the contrast test checks text on glass over them). */
+/* The aurora: three soft glows in the accent, highlight and first chart
+   colour, still, behind everything. --aurora is how strongly they show
+   (the contrast test checks text on glass over them). Each is a radial
+   gradient, solid in the middle and fading at its edge: they were circles
+   blurred 90px and slowly moving, which made every glass card re-blur on
+   every frame, and Firefox scroll slowly (2026-10-16; DESIGN.md). */
 .aurora { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
-.aurora span { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; filter: blur(90px);
-  animation: aurora-roam 40s ease-in-out infinite alternate; }
-.aurora span:nth-child(1) { background: var(--accent); left: -22vmax; top: -26vmax; opacity: var(--aurora); }
-.aurora span:nth-child(2) { background: var(--highlight); right: -26vmax; top: -8vmax; opacity: calc(var(--aurora) * 0.75); animation-delay: -9s; }
-.aurora span:nth-child(3) { background: var(--chart-1); left: 18vmax; top: 45vmax; opacity: calc(var(--aurora) * 0.3); animation-delay: -17s; }
-@keyframes aurora-roam { to { transform: translate(8vmax, 6vmax) scale(1.1); } }
-@media (prefers-reduced-motion: reduce) { .aurora span { animation: none; } }
+.aurora span { position: absolute; width: 60vmax; height: 60vmax; }
+.aurora span:nth-child(1) { background: radial-gradient(closest-side, var(--accent) 60%, transparent); left: -22vmax; top: -26vmax; opacity: var(--aurora); }
+.aurora span:nth-child(2) { background: radial-gradient(closest-side, var(--highlight) 60%, transparent); right: -26vmax; top: -8vmax; opacity: calc(var(--aurora) * 0.75); }
+.aurora span:nth-child(3) { background: radial-gradient(closest-side, var(--chart-1) 60%, transparent); left: 18vmax; top: 45vmax; opacity: calc(var(--aurora) * 0.3); }
 @media print { .aurora { display: none; } }
 
 /* The sidebar: the surface at 70% with a blur (solid without color-mix
