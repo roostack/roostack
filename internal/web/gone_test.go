@@ -78,8 +78,7 @@ func TestWaitingService(t *testing.T) {
 	}
 	_, body = h.get("/backups")
 	if i := strings.Index(body, `<span class="pill pill-warn">Waiting to be restored</span> <span class="hint">was on nas</span>`); i < 0 ||
-		!strings.HasPrefix(body[i:], `<span class="pill pill-warn">Waiting to be restored</span> <span class="hint">was on nas</span></td>
-            <td><a href="/backups/restore/vaultwarden">`) {
+		!strings.Contains(body[i:min(len(body), i+800)], `<a class="table-action" href="/backups/restore/vaultwarden">`) {
 		t.Error("Restoring should list it first, as waiting")
 	}
 	_, body = h.get("/services/vaultwarden")

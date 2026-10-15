@@ -65,7 +65,28 @@ func (s *Server) historyPage(w http.ResponseWriter, r *http.Request) {
 		before = time.Unix(v, 0)
 	}
 	nodes := s.serverNodes(r)
+	entries, unreachable := s.historyEntries(r, nodes, kind, before)
+	if unreachable != nil {
+		data["Unreachable"] = unreachable
+	}
+	slices.SortStableFunc(entries, func(a, b historyEntry) int { return b.At.Compare(a.At) })
+	if len(entries) > historyPage {
+		entries = entries[:historyPage]
+		data["Older"] = entries[len(entries)-1].At.Unix()
+	}
+	data["Entries"], data["Kind"], data["Kinds"] = entries, kind, historyKinds
+	data["MultiServer"] = len(nodes) > 1
+	data["KeepDays"], data["Keeps"] = s.historyKeepDays(r.Context()), historyKeeps
+	data["Deleted"] = r.URL.Query().Get("deleted")
+	s.render(w, "settings-history", withArea(data, "history"))
+}
+
+// historyEntries is what people did and each server's finished work
+// before a time (or the latest, for the zero time), newest first, at
+// most historyPage of each; and the servers that couldn't be asked.
+func (s *Server) historyEntries(r *http.Request, nodes []serverNode, kind string, before time.Time) ([]historyEntry, []string) {
 	var entries []historyEntry
+	var unreachable []string
 	if kind == "" || kind == "people" {
 		if audit, err := s.Store.AuditBefore(r.Context(), before, historyPage); err == nil {
 			for _, a := range audit {
@@ -81,7 +102,7 @@ func (s *Server) historyPage(w http.ResponseWriter, r *http.Request) {
 			}
 			events, err := h.History(r.Context(), before, kind, historyPage)
 			if err != nil {
-				data["Unreachable"] = append(asStrings(data["Unreachable"]), mn.view.Label())
+				unreachable = append(unreachable, mn.view.Label())
 				continue
 			}
 			for _, e := range events {
@@ -98,15 +119,7 @@ func (s *Server) historyPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	slices.SortStableFunc(entries, func(a, b historyEntry) int { return b.At.Compare(a.At) })
-	if len(entries) > historyPage {
-		entries = entries[:historyPage]
-		data["Older"] = entries[len(entries)-1].At.Unix()
-	}
-	data["Entries"], data["Kind"], data["Kinds"] = entries, kind, historyKinds
-	data["MultiServer"] = len(nodes) > 1
-	data["KeepDays"], data["Keeps"] = s.historyKeepDays(r.Context()), historyKeeps
-	data["Deleted"] = r.URL.Query().Get("deleted")
-	s.render(w, "settings-history", withArea(data, "history"))
+	return entries, unreachable
 }
 
 func asStrings(v any) []string { s, _ := v.([]string); return s }

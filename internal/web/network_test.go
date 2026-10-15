@@ -163,7 +163,7 @@ func TestAppLinkPrivate(t *testing.T) {
 func TestManageLinks(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleAdmin)
 	for _, path := range []string{"/services", "/"} {
-		if _, body := h.get(path); !strings.Contains(body, `href="/services/vaultwarden"><svg`) || !strings.Contains(body, `Manage<span class="sr-only"> Vaultwarden</span></a>`) {
+		if _, body := h.get(path); !strings.Contains(body, `<a class="table-action" href="/services/vaultwarden">Manage<span class="sr-only"> Vaultwarden</span></a>`) {
 			t.Errorf("%s: no Manage link", path)
 		}
 	}

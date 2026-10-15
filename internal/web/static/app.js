@@ -57,6 +57,13 @@
   document.addEventListener("DOMContentLoaded", () => spinners(document));
   document.addEventListener("htmx:load", (e) => spinners(e.detail.elt));
 
+  // The sidebar's links scroll when the window is short (Settings lists
+  // all its pages while you're in it): show where you are.
+  document.addEventListener("DOMContentLoaded", () => {
+    const here = document.querySelector(".sidebar-nav [aria-current=page]");
+    if (here) here.scrollIntoView({ block: "nearest" });
+  });
+
   // roostackSize formats bytes as units.Bytes does (decimal: 1 GB = 1000³
   // bytes), for figures that change as someone types.
   window.roostackSize = (n) => {

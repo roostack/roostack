@@ -12,7 +12,7 @@
 {{if not .Only}}
 <section class="card section">
   <div class="table-wrap"><table class="list">
-    <thead><tr><th>Server</th><th>State</th><th class="hide-phone">Services</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <thead><tr><th>Server</th><th>State</th><th class="hide-phone">Services</th><th class="hide-phone">Disk</th><th><span class="sr-only">Actions</span></th></tr></thead>
     <tbody>
       {{range .Servers}}
       <tr>
@@ -24,7 +24,9 @@
           {{- else if .Status.Finished}}<span class="pill pill-ok">Up to date</span>
           {{- else}}<span class="pill">Not applied yet</span>{{end}}</td>
         <td class="hide-phone wrap">{{range $i, $s := .Services}}{{if $i}}, {{end}}{{$s}}{{else}}<span class="hint">None</span>{{end}}</td>
-        <td><a href="/settings/servers/{{.ID}}">Settings<span class="sr-only"> for {{.Name}}</span></a></td>
+        <td class="hide-phone">{{with index $.Spaces .ID}}{{with .Summary}}<div class="meter{{with .Level}} meter-{{.}}{{end}}" title="{{.Percent}}% used"><span data-width="{{.Percent}}"></span></div>
+          <small class="hint">{{size .Used}} of {{size .Total}}</small>{{end}}{{else}}<span class="hint">Unknown</span>{{end}}</td>
+        <td><a class="table-action" href="/settings/servers/{{.ID}}">Settings<span class="sr-only"> for {{.Name}}</span></a></td>
       </tr>
       {{end}}
     </tbody>
@@ -33,7 +35,7 @@
 {{end}}
 <div class="grid section">
 {{range .Servers}}{{$m := .}}{{if or (not $.Only) (eq $.Only .ID)}}
-<section class="card {{if $.Only}}span-8{{else}}span-6{{end}}" id="server-{{.ID}}">
+<section class="card{{if $.Only}} span-8{{end}}" id="server-{{.ID}}">
   <h2>{{.Name}}{{if .This}} {{badge "This server"}}{{end}}</h2>
   <dl class="facts facts-lined">
     <dt>{{icon "server"}}Role</dt>
@@ -126,7 +128,7 @@
 </section>
 {{end}}{{end}}
 {{if and .CanAdd (not .Only)}}
-<section class="card span-6" id="add-server">
+<section class="card" id="add-server">
   {{with .JoinCode}}
   {{/* A new code is shown in place of the form (like a storage invite), and
        the page opens here (#add-server in the form's action). */}}

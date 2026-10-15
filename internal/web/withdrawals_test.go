@@ -49,7 +49,7 @@ func TestRegistryStop(t *testing.T) {
 	}
 	_, body := h.get("/")
 	for _, want := range []string{
-		"Roostack stopped Immich: the service registry says the version it has is dangerous. Its data is kept.",
+		"Roostack stopped Immich: the service registry says the version it has is dangerous.</strong><span>Its data is kept.",
 		"The version of Vaultwarden you have has been withdrawn by the service registry: Loses uploads.",
 		"The service registry has a notice about Forgejo 15.0.9-roostack.1: Run a repository check after updating.",
 	} {

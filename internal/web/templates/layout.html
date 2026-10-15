@@ -34,14 +34,18 @@
       <div class="sidebar-nav">
       <nav class="nav-group" aria-label="Your lab">
         <a class="nav-item" href="/"{{if eq .Active "home"}} aria-current="page"{{end}}>{{icon "home-page"}}Home</a>
-        <a class="nav-item" href="/services"{{if eq .Active "services"}} aria-current="page"{{end}}>{{icon "services"}}Services</a>
+        <a class="nav-item" href="/services"{{if eq .Active "services"}} aria-current="{{if .InService}}true{{else}}page{{end}}"{{end}}>{{icon "services"}}Services</a>
+        {{if eq .Active "services"}}<div class="nav-children">
+          {{range .Services}}<a class="nav-sub" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Title}}</a>{{end}}
+          {{if .Backups}}<a class="nav-sub" href="/catalog">Add a service…</a>{{end}}
+        </div>{{end}}
         {{if .Backups}}<a class="nav-item" href="/backups"{{if eq .Active "backups"}} aria-current="page"{{end}}>{{icon "backups"}}Backups</a>{{end}}
-        {{if .Settings}}<a class="nav-item" href="/servers"{{if eq .Active "servers"}} aria-current="page"{{end}}>{{icon "server"}}Servers</a>{{end}}
+        {{if .Settings}}<a class="nav-item" href="/servers"{{if eq .Active "servers"}} aria-current="page"{{end}}>{{icon "server"}}Servers{{with .ServerIssues}}<span class="nav-count" title="{{.}} {{if eq . 1}}needs{{else}}need{{end}} attention">{{.}}</span>{{end}}</a>{{end}}
       </nav>
       {{if .Settings}}
       <nav class="nav-group" aria-label="Settings">
         <p class="nav-heading">Settings</p>
-        {{range .SettingsAreas}}<a class="nav-sub" href="{{.Href}}"{{if eq .ID $.Nav.Area}} aria-current="page"{{end}}>{{.Title}}</a>
+        {{range .SettingsAreas}}<a class="nav-item" href="{{.Href}}"{{if eq .ID $.Nav.Area}} aria-current="page"{{end}}>{{icon .Icon}}{{.Title}}</a>
         {{end}}
         <a class="nav-item" href="/settings"{{if and (eq .Active "settings") (not .Area)}} aria-current="page"{{end}}>{{icon "manage"}}All settings</a>
       </nav>
