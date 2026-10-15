@@ -823,17 +823,22 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 			data["Clock"] = clockView{hosttime.Now(), auth.Can(u.Role, auth.ManageHost)}
 		}
 	}
-	// The sidebar lists Settings' everyday pages; one of them marks itself,
-	// and any other settings page marks All settings.
+	// The sidebar lists Settings' everyday pages, or all of them (without
+	// Roostack Cloud while it isn't in use) while you're in Settings; an
+	// area page marks its own.
 	if n, ok := data["Nav"].(nav); ok && n.Settings {
-		for _, id := range sidebarSettings {
-			for _, a := range settingsAreas {
-				if a.ID == id {
+		inSettings := n.Active == "settings"
+		for _, g := range s.settingsGroups() {
+			for _, a := range g.Areas {
+				if a.ID == "servers" || a.ID == "backups" { // main areas
+					continue
+				}
+				if inSettings || slices.Contains(sidebarSettings, a.ID) {
 					n.SettingsAreas = append(n.SettingsAreas, a)
 				}
 			}
 		}
-		if an, ok := data["AreaNav"].(areaNav); ok && an.Label == "Settings" && slices.Contains(sidebarSettings, an.Active) {
+		if an, ok := data["AreaNav"].(areaNav); ok && an.Label == "Settings" && inSettings {
 			n.Area = an.Active
 		}
 		data["Nav"] = n

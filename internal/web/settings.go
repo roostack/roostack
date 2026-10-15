@@ -52,8 +52,9 @@ var settingsAreas = []settingsArea{
 }
 
 // sidebarSettings are the settings pages people come back to, listed in
-// the sidebar under Settings; the rest are a click away in All settings
-// (the Owner's choice, 2026-10-15).
+// the sidebar under Settings; the rest are a click away in All settings,
+// and the list shows them all while you're in Settings (the Owner's
+// choice, 2026-10-15).
 var sidebarSettings = []string{"people", "domain", "updates", "history"}
 
 // settingsGroup is a heading and its areas, for the sidebar and overview.
