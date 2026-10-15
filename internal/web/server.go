@@ -104,6 +104,12 @@ type Server struct {
 	Log      *slog.Logger
 
 	mu sync.Mutex
+	// serverIssues is how many servers needed attention when Home last
+	// asked them all (a restart due, an OS update or change that didn't
+	// finish, a disk running low, not answering), for the sidebar's count
+	// beside Servers without asking each server on every page.
+	serverIssues   int
+	serverIssuesAt time.Time
 	// setupToken must be entered to create the first Owner, so whoever
 	// reaches the UI first on the network can't claim the lab. Empty once
 	// setup is done.
@@ -233,6 +239,9 @@ type ServiceCatalog interface {
 	// ServicePackage is an installed service's package (its name can be
 	// a second copy's own), titled as the service.
 	ServicePackage(name string) (*pkgspec.Package, error)
+	// ServiceFiles are the Quadlet and Caddy files Roostack writes for a
+	// service, for the technical side of its page.
+	ServiceFiles(name string) (*manager.ServiceFiles, error)
 	// SetTitle changes what people call a service (never its name).
 	SetTitle(ctx context.Context, name, title string) error
 	Install(ctx context.Context, name string, req manager.InstallRequest) error
@@ -863,6 +872,12 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 				}
 			}
 		}
+		// What Home found lately counts too, while it's fresh.
+		s.mu.Lock()
+		if time.Since(s.serverIssuesAt) < serverIssuesFresh {
+			n.ServerIssues = max(n.ServerIssues, s.serverIssues)
+		}
+		s.mu.Unlock()
 		data["Nav"] = n
 	}
 	// Under Services, the sidebar lists them, for those who can open them.

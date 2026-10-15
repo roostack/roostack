@@ -327,8 +327,9 @@
 {{define "page-help"}}{{help "services/settings" "Change a service"}}{{end}}
 
 {{/* service-technical: what runs a service and where its files are (the
-     Technical side of its page): each container's state and image, its
-     Quadlet files, web routes, ports and data folders. */}}
+     Technical side of its page): each container's state and image, the
+     Quadlet and Caddy files Roostack writes for it, web routes, ports and
+     data folders. */}}
 {{define "service-technical"}}
 <div class="span-7 grid-column">
   {{range .Service.Containers}}
@@ -338,13 +339,19 @@
 Image: {{.Image}}</code></pre>
   </figure>
   {{else}}<p class="hint">Its server hasn't said which containers it runs.</p>{{end}}
-  {{with .Service.Containers}}
+  {{with .Files}}
+  {{range .Quadlets}}
   <figure class="code-panel">
-    <figcaption class="code-bar">{{icon "documents"}}<span>The roostack user's ~/.config/containers/systemd/</span></figcaption>
-<pre><code><span class="code-comment"># Quadlet files Roostack writes; systemd makes a unit of each.</span>
-{{range .}}{{.Name}}.container
-{{end}}</code></pre>
+    <figcaption class="code-bar">{{icon "documents"}}<span>{{$.Files.QuadletDir}}/{{.Name}}</span></figcaption>
+<pre><code>{{.Content}}</code></pre>
   </figure>
+  {{end}}
+  {{with .CaddySite}}
+  <figure class="code-panel">
+    <figcaption class="code-bar">{{icon "documents"}}<span>{{$.Files.CaddySitesDir}}/{{.Name}}</span> <small>on the controller</small></figcaption>
+<pre><code>{{.Content}}</code></pre>
+  </figure>
+  {{end}}
   {{end}}
   <figure class="code-panel">
     <figcaption class="code-bar"><span>Its log</span></figcaption>
