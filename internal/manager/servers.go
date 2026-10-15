@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
 )
@@ -606,4 +607,40 @@ func (m *Manager) markRemoved(ctx context.Context, id string) {
 			m.Log.Warn("marking a removed server's backups", "server", m.nameOf(id), "err", err)
 		}
 	}
+}
+
+// ServiceFiles are the files Roostack writes for a service, for its page's
+// technical side: its Quadlet units (on the server it runs on) and its
+// Caddy site (on the controller, which forwards to the service's server
+// when it's another one). Generation is pure, so these are what the
+// servers have, made again here rather than read from them.
+type ServiceFiles struct {
+	QuadletDir, CaddySitesDir string
+	Quadlets                  []generate.File
+	CaddySite                 *generate.File
+}
+
+// ServiceFiles makes a service's files as its servers write them.
+func (m *Manager) ServiceFiles(name string) (*ServiceFiles, error) {
+	p, in, err := m.installedService(name)
+	if err != nil {
+		return nil, err
+	}
+	out, err := generate.Service(m.Lab, p, in)
+	if err != nil {
+		return nil, err
+	}
+	f := &ServiceFiles{QuadletDir: m.Lab.Paths.QuadletDir(), CaddySitesDir: m.Lab.Paths.CaddySitesDir(),
+		Quadlets: out.Quadlets, CaddySite: out.CaddySite}
+	if in.Host != "" && in.Host != m.Lab.NodeID {
+		f.CaddySite = nil
+		for _, r := range m.others() {
+			if r.Identity().ID == in.Host {
+				if proxy, err := generate.ProxySite(m.Lab, p, in, r.Address()); err == nil {
+					f.CaddySite = proxy.CaddySite
+				}
+			}
+		}
+	}
+	return f, nil
 }

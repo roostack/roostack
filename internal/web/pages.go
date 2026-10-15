@@ -40,8 +40,9 @@ type nav struct {
 	// InService: the page is one service's (Services isn't the page itself);
 	// Adding: it's adding one (the catalog, installing).
 	InService, Adding bool
-	// ServerIssues counts servers needing attention (not answering, or a
-	// change that didn't finish), shown beside Servers.
+	// ServerIssues counts servers needing attention, shown beside Servers:
+	// a change that didn't finish or not answering (the controller knows),
+	// or what Home last found (Server.serverIssues).
 	ServerIssues int
 	// Landing is a main area's own page (Services, Settings...), whose
 	// breadcrumbs are just its title.
@@ -220,6 +221,22 @@ func (s *Server) homeData(r *http.Request, data map[string]any) {
 		nodes := s.serverNodes(r)
 		disks := s.homeDisks(r, nodes)
 		f.addDisks(disks)
+		// A server with a disk running low needs attention too.
+		low := map[string]bool{}
+		for _, sd := range disks {
+			if sd != nil && sd.Summary().Level != "" {
+				low[sd.ServerID] = true
+			}
+		}
+		f.ServerIssues = 0
+		for _, v := range servers {
+			if !v.Reachable || v.Status.LastErr != nil || v.RestartNeeded || v.UpdatesFailed || low[v.ID] {
+				f.ServerIssues++
+			}
+		}
+		s.mu.Lock()
+		s.serverIssues, s.serverIssuesAt = f.ServerIssues, time.Now()
+		s.mu.Unlock()
 		data["Figures"] = f
 		// Each server's disks together, for its row in the table.
 		perServer := map[string]diskSummary{}
@@ -244,6 +261,10 @@ func (s *Server) homeData(r *http.Request, data map[string]any) {
 	}
 	data["Greeting"] = greeting(time.Now())
 }
+
+// serverIssuesFresh is how long Home's count of servers needing attention
+// shows in the sidebar.
+const serverIssuesFresh = 10 * time.Minute
 
 // diskSummary is a server's disks together: used of total, and the
 // worst level among them.
@@ -315,7 +336,8 @@ func (f *homeFigures) addDisks(servers []*serverDisks) {
 type homeFigures struct {
 	Services, Running, Busy, Problems int
 	// ServerIssues counts servers needing attention: one that didn't
-	// answer, a change or OS update that didn't finish, a restart due.
+	// answer, a change or OS update that didn't finish, a restart due, a
+	// disk running low.
 	Servers, Online, ServerIssues int
 	LastBackup                    time.Time
 	// NotBackedUp counts servers with no backup yet.
@@ -493,6 +515,9 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			data["SetupActivity"] = a
 		}
 		data["DataDirs"] = s.Manager.DataDirs(name)
+		if files, err := s.Manager.ServiceFiles(name); err == nil {
+			data["Files"] = files
+		}
 		ports, err := s.Manager.Ports(name)
 		if err != nil && !errors.Is(err, manager.ErrNotFound) {
 			s.serverError(w, err)

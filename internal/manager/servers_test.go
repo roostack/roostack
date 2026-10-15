@@ -309,3 +309,28 @@ func TestNewServerGetsTheLabsTimezone(t *testing.T) {
 		t.Errorf("zone = %q", vps.settings.zone)
 	}
 }
+
+// A service's files, made again for its page, are what was written.
+func TestServiceFiles(t *testing.T) {
+	m, _ := newManager(t)
+	if err := m.Install(context.Background(), "vaultwarden", InstallRequest{Subdomain: "vault", Settings: map[string]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	f, err := m.ServiceFiles("vaultwarden")
+	if err != nil || len(f.Quadlets) == 0 || f.CaddySite == nil {
+		t.Fatalf("files: %+v %v", f, err)
+	}
+	for _, q := range f.Quadlets {
+		written, err := os.ReadFile(filepath.Join(f.QuadletDir, q.Name))
+		if err != nil || string(written) != q.Content {
+			t.Errorf("%s isn't what was written: %v", q.Name, err)
+		}
+	}
+	if written, err := os.ReadFile(filepath.Join(f.CaddySitesDir, f.CaddySite.Name)); err != nil || string(written) != f.CaddySite.Content {
+		t.Errorf("the Caddy site isn't what was written: %v", err)
+	}
+	if _, err := m.ServiceFiles("nothing"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("an unknown service: %v", err)
+	}
+}
