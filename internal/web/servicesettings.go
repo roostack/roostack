@@ -144,7 +144,7 @@ func (s *Server) settingsSubmit(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	case isForm:
-		s.renderServiceWith(w, r, map[string]any{"SettingsError": msg, "Submitted": r.PostForm}, true)
+		s.renderServiceWith(w, r, map[string]any{"SettingsError": msg, "Submitted": r.PostForm, "EditSettings": true}, true)
 		return
 	case err != nil:
 		s.serverError(w, err)

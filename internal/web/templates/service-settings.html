@@ -1,0 +1,80 @@
+{{define "title"}}Settings · {{.Service.Title}}{{end}}
+{{define "content"}}
+{{/* A service's settings (its page shows them as a summary): its web
+     address and package settings, how it updates, and its name. */}}
+<div class="page-head">
+  <div class="page-head-title">
+    {{logo .Service.IconURL .Service.DrawnIcon}}
+    <div>
+      <h1>{{.Service.Title}}'s settings</h1>
+      <p class="lede">Saving goes back to {{.Service.Title}}'s page. <a href="/services/{{.Service.Name}}">Back without changing anything</a></p>
+    </div>
+  </div>
+</div>
+<div class="grid">
+  <div class="span-8 grid-column">
+    {{if or .HasRoute .SettingFields}}
+    <section class="card">
+      <div class="card-head"><h2>Settings</h2></div>
+      <form method="post" action="/services/{{.Service.Name}}/settings">
+        {{with .SettingsError}}<p class="error" role="alert">{{.}}</p>{{end}}
+        {{if .HasRoute}}
+        <label>Web address
+          <span class="with-suffix">
+            <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off">
+            <span>.{{or .Domain "your lab's address"}}</span>
+          </span>
+          <small>Changing it moves {{.Service.Title}} to the new address; old links stop working.</small>
+        </label>
+        {{end}}
+        {{range .SettingFields}}
+          {{if eq .Kind "checkbox"}}
+          <label class="check"><input type="checkbox" name="{{.Key}}" {{if .Checked}}checked{{end}}>
+            <span>{{.Title}}{{with .Description}}<small>{{.}}</small>{{end}}</span></label>
+          {{else}}
+          <label>{{.Title}}
+            <input type="{{.Kind}}" name="{{.Key}}" value="{{.Value}}" {{if .Required}}required{{end}} {{with .MinLength}}minlength="{{.}}"{{end}}>
+            {{with .Description}}<small>{{.}}</small>{{end}}
+          </label>
+          {{end}}
+        {{end}}
+        <button type="submit">Save</button>
+        <p class="hint">Saving restarts {{.Service.Title}}; it's unavailable for a moment.</p>
+      </form>
+    </section>
+    {{end}}
+    <section class="card" id="updates">
+      <div class="card-head"><h2>Updates</h2></div>
+      <form method="post" action="/services/{{.Service.Name}}/updates">
+        {{$p := .UpdatePolicy}}
+        <label class="check"><input type="radio" name="updates" value="notify"{{if eq $p "notify"}} checked{{end}}>
+          <span>Tell me, and I'll update it<small>Updates are shown on its page and under “Needs attention”.</small></span></label>
+        <label class="check"><input type="radio" name="updates" value="patch"{{if eq $p "patch"}} checked{{end}}>
+          <span>Fix releases automatically<small>After the nightly backup. Larger updates are shown for you to apply.</small></span></label>
+        <label class="check"><input type="radio" name="updates" value="minor"{{if eq $p "minor"}} checked{{end}}>
+          <span>Fix and feature releases automatically<small>Not new major versions, which can change how it works.</small></span></label>
+        <label class="check"><input type="radio" name="updates" value="all"{{if eq $p "all"}} checked{{end}}>
+          <span>Every update automatically<small>Including new major versions.</small></span></label>
+        <p class="hint">Automatic updates need backups set up, and wait for you when an update has notes to read.
+          If the service registry says the version {{.Service.Title}} runs is dangerous and Roostack stops it, a fix it would take
+          automatically is applied straight away.</p>
+        <button type="submit" class="secondary">Save</button>
+      </form>
+    </section>
+    <section class="card" id="name">
+      <div class="card-head"><h2>Name</h2></div>
+      {{with .TitleError}}<p class="error" role="alert">{{.}}</p>{{end}}
+      <form method="post" action="/services/{{.Service.Name}}/title" class="inline-form">
+        <label for="service-title" class="sr-only">Title</label>
+        <input id="service-title" name="title" value="{{.Service.Title}}" maxlength="60" required>
+        <button type="submit" class="secondary">Rename</button>
+      </form>
+      <p class="hint">This changes what it's called on your pages. Its name, <code>{{.Service.Name}}</code>, is used for its folders,
+        containers and backups, so it stays.</p>
+    </section>
+  </div>
+</div>
+{{end}}
+
+{{define "page-help"}}{{help "services/settings" "Change a service"}}{{end}}
+{{define "crumbs"}}<a href="/services">Services</a><a href="/services/{{.Service.Name}}">{{.Service.Title}}</a><strong aria-current="page">Settings</strong>{{end}}

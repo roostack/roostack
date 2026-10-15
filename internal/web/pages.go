@@ -398,6 +398,13 @@ func (s *Server) servicePage(w http.ResponseWriter, r *http.Request) {
 	s.renderServiceWith(w, r, nil, false)
 }
 
+// serviceSettingsPage is where a service's settings change (its page
+// shows them as a summary): web address and package settings, updates,
+// its name.
+func (s *Server) serviceSettingsPage(w http.ResponseWriter, r *http.Request) {
+	s.renderServiceWith(w, r, map[string]any{"EditSettings": true}, false)
+}
+
 // renderService shows a service's page; portErr is a form error for one of
 // its ports ({"port": name, "msg": text}).
 func (s *Server) renderService(w http.ResponseWriter, r *http.Request, portErr map[string]string) {
@@ -411,7 +418,8 @@ type serviceAction struct {
 }
 
 // renderServiceWith shows a service's page with extra data (form errors,
-// an action's result); failed sets a 400 status.
+// an action's result), or its settings page with "EditSettings"; failed
+// sets a 400 status.
 func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra map[string]any, failed bool) {
 	data, err := s.pageData(r)
 	if err != nil {
@@ -507,7 +515,11 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	if o := s.oldAddress(); o != nil {
 		data["Old"] = o
 	}
-	s.render(w, "service", data)
+	page := "service"
+	if data["EditSettings"] == true {
+		page = "service-settings"
+	}
+	s.render(w, page, data)
 }
 
 func (s *Server) backupsPage(w http.ResponseWriter, r *http.Request) {

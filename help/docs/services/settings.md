@@ -14,7 +14,8 @@ version and the folders its data is in.
 Most of a service's settings are in the service itself, and its page links
 straight to them (for example, Vaultwarden's admin panel).
 
-Some settings belong to Roostack, and are on the service's page:
+Some settings belong to Roostack. The service's page sums them up under
+**Settings**; choose **Edit settings** to change them:
 
 Web address
 :   Changing it moves the service to the new address. Links to the old one
@@ -25,6 +26,10 @@ The service's own options
     up.
 
 Choosing **Save** restarts the service, so it's unavailable for a moment.
+
+The same page has how it updates (below) and its **Name**: what it's called
+on your pages. Renaming it doesn't change its name in folders, containers
+and backups.
 
 ## Tokens and passwords Roostack made
 
@@ -84,7 +89,8 @@ read them. Such an update never happens by itself.
 
 ### Updating by itself
 
-Under **Settings → Updates** on the service's page, choose how it updates:
+On the service's page, choose **Edit settings**, then under **Updates**
+choose how it updates:
 
 Tell me, and I'll update it
 :   The default. Updates are shown here and under **Needs attention**.

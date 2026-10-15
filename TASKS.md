@@ -136,6 +136,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Console glass components (2026-10-15): page heading, grid, figures strip, big figure, table list, status pill, Friendly/Technical switch, code panel; in the gallery
   - [x] Pages on Console glass (2026-10-15): Home (figures, tables), Services, a service's page (Friendly/Technical), Backups, Servers (now `/servers`), Settings
   - [x] Closer to the mock-ups (2026-10-15): notices with icons, attention items with buttons, one page gap, Settings with icons in the sidebar, services listed under Services, a count beside Servers, logos in tables and on a service's page, disk space and Recent activity on Home, the backup plan as tiles with 3-2-1 pills, server cards a row each
+  - [x] A service's settings as a summary on its page, changed on their own page (`/services/<name>/settings`: settings, updates, name), 2026-10-15
   - [ ] The other pages (install, restore, account, setup steps, settings areas) onto the grid and page heading as they're next changed
   - [ ] Servers in the sidebar count only what the controller knows (a change that didn't finish, not answering); a restart due or low disk could count too if it can be had without asking each server on every page
   - [ ] A service's technical view could show its generated Quadlet and Caddy files' contents (needs a lab API call to read them from its server)

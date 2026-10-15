@@ -85,7 +85,7 @@ func TestServiceNames(t *testing.T) {
 		fm.installs[1].Title != "Family photos" {
 		t.Errorf("installs %+v", fm.installs)
 	}
-	_, body := h.get("/services/vaultwarden")
+	_, body := h.get("/services/vaultwarden/settings")
 	if !strings.Contains(body, `action="/services/vaultwarden/title"`) || !strings.Contains(body, "<code>vaultwarden</code>") {
 		t.Error("the service page offers renaming, and says the name stays")
 	}
