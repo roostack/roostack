@@ -39,6 +39,21 @@ func init() {
 	templateFuncs["sentence"] = func(s string) string { return strings.TrimRight(strings.TrimSpace(s), ".") + "." }
 	templateFuncs["revision"] = func(v string) string { return strings.TrimPrefix(v[len(upstream(v)):], "-roostack.") }
 	templateFuncs["updateKind"] = updateKindText
+	templateFuncs["updatePolicyText"] = updatePolicyText
+}
+
+// updatePolicyText says how a service updates (its update policy), as
+// its settings page offers it.
+func updatePolicyText(policy string) string {
+	switch policy {
+	case "patch":
+		return "Fix releases automatically"
+	case "minor":
+		return "Fix and feature releases automatically"
+	case "all":
+		return "Every update automatically"
+	}
+	return "Tell me, and I'll update it"
 }
 
 // updateKindText says what kind of update it is (pkgspec.UpdateKind).
@@ -211,5 +226,5 @@ func (s *Server) updatePolicySubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "services", name+" updates: "+policy)
-	redirect(w, r, "/services/"+name+"#updates")
+	redirect(w, r, "/services/"+name)
 }

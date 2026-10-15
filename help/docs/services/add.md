@@ -168,7 +168,7 @@ It also needs a web address of its own, which follows the name (such as
 
 Every install asks for a title and name, not only another copy: leave
 them as they are for the usual name (`forgejo`). To change a service's
-title later, open its page and choose **Rename**; its name stays.
+title later, open its page, choose **Edit settings**, and change its **Name**; its name in folders and backups stays.
 
 ??? note "For technical users"
 

@@ -652,7 +652,7 @@ func (s *Server) titleSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if msg, ok := userMessage(err); ok {
-		s.renderServiceWith(w, r, map[string]any{"TitleError": msg}, true)
+		s.renderServiceWith(w, r, map[string]any{"TitleError": msg, "EditSettings": true}, true)
 		return
 	}
 	if err != nil {

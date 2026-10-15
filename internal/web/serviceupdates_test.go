@@ -73,10 +73,13 @@ func TestServiceUpdateOffered(t *testing.T) {
 	_, body = h.get("/services/vaultwarden")
 	for _, want := range []string{"An update is available:</strong> Vaultwarden 1.36.0 → 1.36.1, a fix release.",
 		`action="/services/vaultwarden/update"`, `name="to" value="1.36.1-roostack.1"`, ">Update now</button>",
-		"You chose to be told about updates and apply them yourself.", `value="notify" checked`} {
+		"You chose to be told about updates and apply them yourself.", "<dd>Tell me, and I&#39;ll update it</dd>"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("service page missing %q", want)
 		}
+	}
+	if _, body = h.get("/services/vaultwarden/settings"); !strings.Contains(body, `value="notify" checked`) {
+		t.Error("its settings page should offer the update choices")
 	}
 	_, body = h.get("/services/immich")
 	for _, want := range []string{"a new major version. Read these first:", "<strong>2.0.0:</strong> Faces are rebuilt.",

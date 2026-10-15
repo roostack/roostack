@@ -141,12 +141,17 @@
         {{- if $.IsOwner}} · <a href="/services/{{$.Service.Name}}/public/{{.Route}}">{{if .Public}}Public access…{{else}}Make public…{{end}}</a>{{end}}</dd>
       {{else}}<dt>Reachable from</dt><dd>{{template "private-where" $.Internet}}</dd>{{end}}{{end}}
       {{with .Service.Server}}<dt>Runs on</dt><dd>{{.}}</dd>{{end}}
-      {{with .Package}}<dt>Version</dt><dd>{{appVersion .Version}}{{if not $.Update}}, up to date{{end}} · <a href="#updates">updates {{if eq $.UpdatePolicy "notify"}}when you approve them{{else}}automatically{{end}}</a></dd>{{end}}
+      {{with .Package}}<dt>Version</dt><dd>{{appVersion .Version}}{{if not $.Update}}, up to date{{end}} · {{with $.UpdatePolicy}}<a href="/services/{{$.Service.Name}}/settings#updates">updates {{if eq . "notify"}}when you approve them{{else}}automatically{{end}}</a>{{end}}</dd>{{end}}
     </dl>
     {{if and .IsOwner .MultiServer}}<p><a href="/services/{{.Service.Name}}/move">Move to another server…</a></p>{{end}}
   </section>
   <section class="card">
-    <div class="card-head"><h2 id="settings">Settings</h2></div>
+    <div class="card-head"><h2 id="settings">Settings</h2>{{if .CanManage}}<a class="button secondary small" href="/services/{{.Service.Name}}/settings">Edit settings</a>{{end}}</div>
+    <dl class="facts">
+      {{if .HasRoute}}<dt>Web address</dt><dd>{{if .Domain}}<code>{{.Subdomain}}.{{.Domain}}</code>{{else}}<code>{{.Subdomain}}</code> <span class="hint">· once your lab has an address</span>{{end}}</dd>{{end}}
+      {{range .SettingFields}}<dt>{{.Title}}</dt><dd>{{if eq .Kind "checkbox"}}{{if .Checked}}On{{else}}Off{{end}}{{else if eq .Kind "password"}}Set{{else}}{{or .Value "Not set"}}{{end}}</dd>{{end}}
+      {{with .UpdatePolicy}}<dt>Updates</dt><dd>{{updatePolicyText .}}</dd>{{end}}
+    </dl>
     {{with .Links}}
     <p class="hint">Most of {{$.Service.Title}}'s settings are in {{$.Service.Title}} itself:</p>
     <ul class="plain">
@@ -162,62 +167,6 @@
       {{else}}<form method="post" action="/services/{{$.Service.Name}}/reveal/{{.Key}}"><button type="submit" class="secondary">Show</button></form>{{end}}
     </div>
     {{end}}
-    {{if or .HasRoute .SettingFields}}
-    <form method="post" action="/services/{{.Service.Name}}/settings" class="section">
-      {{with .SettingsError}}<p class="error" role="alert">{{.}}</p>{{end}}
-      {{if .HasRoute}}
-      <label>Web address
-        <span class="with-suffix">
-          <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off">
-          <span>.{{or .Domain "your lab's address"}}</span>
-        </span>
-        <small>Changing it moves {{.Service.Title}} to the new address; old links stop working.</small>
-      </label>
-      {{end}}
-      {{range .SettingFields}}
-        {{if eq .Kind "checkbox"}}
-        <label class="check"><input type="checkbox" name="{{.Key}}" {{if .Checked}}checked{{end}}>
-          <span>{{.Title}}{{with .Description}}<small>{{.}}</small>{{end}}</span></label>
-        {{else}}
-        <label>{{.Title}}
-          <input type="{{.Kind}}" name="{{.Key}}" value="{{.Value}}" {{if .Required}}required{{end}} {{with .MinLength}}minlength="{{.}}"{{end}}>
-          {{with .Description}}<small>{{.}}</small>{{end}}
-        </label>
-        {{end}}
-      {{end}}
-      <button type="submit">Save</button>
-      <p class="hint">Saving restarts {{.Service.Title}}; it's unavailable for a moment.</p>
-    </form>
-    {{end}}
-    {{if .CanManage}}
-    <h3 id="updates">Updates</h3>
-    <form method="post" action="/services/{{.Service.Name}}/updates" class="section">
-      {{$p := .UpdatePolicy}}
-      <label class="check"><input type="radio" name="updates" value="notify"{{if eq $p "notify"}} checked{{end}}>
-        <span>Tell me, and I'll update it<small>Updates are shown here and under “Needs attention”.</small></span></label>
-      <label class="check"><input type="radio" name="updates" value="patch"{{if eq $p "patch"}} checked{{end}}>
-        <span>Fix releases automatically<small>After the nightly backup. Larger updates are shown for you to apply.</small></span></label>
-      <label class="check"><input type="radio" name="updates" value="minor"{{if eq $p "minor"}} checked{{end}}>
-        <span>Fix and feature releases automatically<small>Not new major versions, which can change how it works.</small></span></label>
-      <label class="check"><input type="radio" name="updates" value="all"{{if eq $p "all"}} checked{{end}}>
-        <span>Every update automatically<small>Including new major versions.</small></span></label>
-      <p class="hint">Automatic updates need backups set up, and wait for you when an update has notes to read.
-        If the service registry says the version {{.Service.Title}} runs is dangerous and Roostack stops it, a fix it would take
-        automatically is applied straight away.</p>
-      <button type="submit" class="secondary">Save</button>
-    </form>
-    <details class="service-name"{{if .TitleError}} open{{end}}>
-      <summary>Rename</summary>
-      {{with .TitleError}}<p class="error" role="alert">{{.}}</p>{{end}}
-      <form method="post" action="/services/{{.Service.Name}}/title" class="inline-form">
-        <label for="service-title" class="sr-only">Title</label>
-        <input id="service-title" name="title" value="{{.Service.Title}}" maxlength="60" required>
-        <button type="submit" class="secondary">Save</button>
-      </form>
-      <p class="hint">This changes what it's called on your pages. Its name, <code>{{.Service.Name}}</code>, is used for its folders,
-        containers and backups, so it stays.</p>
-    </details>
-    {{end}}
   </section>
   {{with .Credit}}
   <section class="card">
@@ -229,7 +178,7 @@
   <div class="span-4 grid-column">
     <section class="card">
       <div class="card-head"><h2>Backups</h2>{{if .IsOwner}}<a class="more" href="/backups">Backups</a>{{end}}</div>
-      {{if not .Service.LastBackup.IsZero}}<span class="big-figure">{{when .Service.LastBackup}}</span>
+      {{if not .Service.LastBackup.IsZero}}{{$w := whenParts .Service.LastBackup}}<span class="big-figure">{{index $w 1}}<small>{{index $w 0}}</small></span>
       <p class="hint">Its server's last backup, with everything {{.Service.Title}} keeps.</p>
       {{else if .Service.Server}}<p>Not backed up yet.</p>{{end}}
       {{if .IsOwner}}<p><a class="button secondary" href="/backups/restore/{{.Service.Name}}">Restore {{.Service.Title}}…</a></p>{{end}}
@@ -368,7 +317,7 @@
     {{else if $u.NewRisks}}It asks for more than the version it runs, so Roostack waits for the Owner.
     {{else if $u.NoBackups}}Automatic updates wait until backups are set up.
     {{else}}This is {{updateKind $u.Kind}}, which your choice doesn't apply by itself.{{end}}
-    {{if .CanManage}}<a href="#updates">Change this</a>{{end}}</small></p>
+    {{if .CanManage}}<a href="/services/{{.Service.Name}}/settings#updates">Change this</a>{{end}}</small></p>
 </div>
 {{else if .LastUpdate}}{{$r := .LastUpdate}}
 <p id="update" class="notice notice-ok" role="status">✓ Updated from {{appVersion $r.From $r.To}} to {{appVersion $r.To $r.From}} {{when $r.Finished}}{{if $r.Automatic}}, by itself{{end}}.</p>

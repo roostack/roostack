@@ -940,9 +940,19 @@ func TestServiceSettings(t *testing.T) {
 			{Name: "vaultwarden", Title: "Vaultwarden", Status: "running", URLs: []string{"https://vault.lab.example.com"}}}, nil
 	}
 
+	// Its page: the links into the app, and a summary of its settings.
 	_, body := h.get("/services/forgejo")
 	for _, want := range []string{`href="https://git.lab.example.com/admin"`, "Site administration<span class=\"new-window\">",
-		`name="subdomain" value="git"`, `name="setting.signups_allowed"`} {
+		`<code>git.lab.example.com</code>`, `href="/services/forgejo/settings">Edit settings`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("forgejo's page missing %q", want)
+		}
+	}
+	if strings.Contains(body, `name="subdomain"`) {
+		t.Error("the settings form is on its own page")
+	}
+	_, body = h.get("/services/forgejo/settings")
+	for _, want := range []string{`name="subdomain" value="git"`, `name="setting.signups_allowed"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("forgejo settings missing %q", want)
 		}
