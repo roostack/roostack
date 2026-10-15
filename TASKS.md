@@ -143,7 +143,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] A service's technical view shows its Quadlet and Caddy files' contents (2026-10-15): the controller makes them again (generation is pure; a test checks they match what's written), no lab API call
   - [x] Console glass tokens (2026-10-15): `--font-display`, `--text-xs`, `--canvas`, `--glass*`, `--edge*`, `--lift`, `--aurora`; Space Grotesk vendored in `static/fonts` (OFL, credited); text 16 px
   - [x] Contrast test for translucent surfaces (2026-10-15): text on a card and on the sidebar with the strongest glow behind, every theme, mode and accent (no bare status text on the sidebar: Nord light's warning is 4.45:1 there)
-  - [ ] Roostack Cloud's portal and admin console adopt it after Roostack (their copy comes through `tools/sync-design.sh`)
+  - [x] Roostack Cloud's portal and admin console adopted it (2026-10-15, through `tools/sync-design.sh`; Cloud's DESIGN §3f "As built: Console glass")
   - [x] Search box in the header: not for now (the Owner, 2026-10-15)
 - [x] **1.15 Settings structure**
   - [x] /settings as a grid of overview cards (current state + status per area)

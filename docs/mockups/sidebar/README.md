@@ -2,7 +2,7 @@
 
 **Chosen (2026-10-14): D, Console glass**, written up in [DESIGN.md](../../DESIGN.md) ("Layout"). These mock-ups stay as the record of what was considered.
 
-Four directions (three, then a fourth after the Owner's first look) for moving Roostack's UI, and Roostack Cloud's portal and admin console, to a sidebar-based management layout that borrows the website's Night roost look, in light and dark. Static HTML on top of the real `tokens.css` and theme files; nothing in the app changes until the Owner chooses.
+Four directions (three, then a fourth after the Owner's first look) for moving Roostack's UI, and Roostack Cloud's portal and admin console, to a sidebar-based management layout that borrows the website's Night roost look, in light and dark. Static HTML on top of the real `tokens.css` and theme files. D was built into Roostack's UI on 2026-10-15, and Cloud's portal and admin console the same day; these pages stay as the record of what was considered.
 
 **Open it** through a web server at the repo root, so the real CSS loads:
 
