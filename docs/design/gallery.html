@@ -36,6 +36,7 @@
         <a href="#tokens">Colours</a>
         <a href="#scales">Sizes</a>
         <a href="#layout">Layout</a>
+        <a href="#page-parts">Page parts</a>
         <a href="#brand">Brand mark</a>
         <a href="#error-scenes">Error scenes</a>
         <a href="#buttons">Buttons</a>
@@ -295,6 +296,252 @@
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;header class=&#34;page-header gallery-page-header&#34;&gt;
 &lt;nav class=&#34;crumbs&#34; aria-label=&#34;Where you are (example)&#34;&gt;&lt;a href=&#34;#&#34;&gt;Services&lt;/a&gt;&lt;a href=&#34;#&#34;&gt;Immich&lt;/a&gt;&lt;strong aria-current=&#34;page&#34;&gt;Move&lt;/strong&gt;&lt;/nav&gt;&lt;a class=&#34;page-help&#34; href=&#34;/help/servers/move/&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;circle cx=&#34;12&#34; cy=&#34;12&#34; r=&#34;9&#34;/&gt;&lt;path d=&#34;M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3&#34;/&gt;&lt;path d=&#34;M12 16.8h.01&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;sr-only&#34;&gt;Help:&lt;/span&gt;Move a service&lt;span class=&#34;new-window&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M14 4h6v6&#34;/&gt;&lt;path d=&#34;M20 4l-9 9&#34;/&gt;&lt;path d=&#34;M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;sr-only&#34;&gt;(opens in a new window)&lt;/span&gt;&lt;/span&gt;&lt;/a&gt;&lt;/header&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
+      
+      <section id="page-parts">
+        <h2>Page parts</h2>
+        <p class="hint">The parts of a Console glass page: its heading, a 12-column grid of cards, figures, tables for lists people scan, and the technical view of a service.</p>
+        
+        <div class="example">
+          <h3>Page heading <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">.page-head: the title, a .lede under it, and .page-head-actions on the right (under it on phones). .gradient-text at most once a page.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="page-head">
+  <div><h1>Good evening. <span class="gradient-text">Everything's running.</span></h1>
+    <p class="lede">3 services on 1 server. Backed up last night at 02:00.</p></div>
+  <div class="page-head-actions"><a class="button" href="#">Add a service</a></div>
+</div></div>
+            <div class="panel" data-mode="dark"><div class="page-head">
+  <div><h1>Good evening. <span class="gradient-text">Everything's running.</span></h1>
+    <p class="lede">3 services on 1 server. Backed up last night at 02:00.</p></div>
+  <div class="page-head-actions"><a class="button" href="#">Add a service</a></div>
+</div></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;div class=&#34;page-head&#34;&gt;
+  &lt;div&gt;&lt;h1&gt;Good evening. &lt;span class=&#34;gradient-text&#34;&gt;Everything&#39;s running.&lt;/span&gt;&lt;/h1&gt;
+    &lt;p class=&#34;lede&#34;&gt;3 services on 1 server. Backed up last night at 02:00.&lt;/p&gt;&lt;/div&gt;
+  &lt;div class=&#34;page-head-actions&#34;&gt;&lt;a class=&#34;button&#34; href=&#34;#&#34;&gt;Add a service&lt;/a&gt;&lt;/div&gt;
+&lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Grid and card heading <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">.grid with .span-3 to .span-8 children (the rest span all 12); one column below 900px. .card-head: a card&#39;s title and a .more link. .section-heading between groups of cards.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="grid">
+  <section class="card span-8"><div class="card-head"><h2>Services</h2><a class="more" href="#">All services</a></div><p>Eight columns.</p></section>
+  <section class="card span-4"><div class="card-head"><h2>Backups</h2></div><p>Four.</p></section>
+</div>
+<h2 class="section-heading">Your whole lab</h2></div>
+            <div class="panel" data-mode="dark"><div class="grid">
+  <section class="card span-8"><div class="card-head"><h2>Services</h2><a class="more" href="#">All services</a></div><p>Eight columns.</p></section>
+  <section class="card span-4"><div class="card-head"><h2>Backups</h2></div><p>Four.</p></section>
+</div>
+<h2 class="section-heading">Your whole lab</h2></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;div class=&#34;grid&#34;&gt;
+  &lt;section class=&#34;card span-8&#34;&gt;&lt;div class=&#34;card-head&#34;&gt;&lt;h2&gt;Services&lt;/h2&gt;&lt;a class=&#34;more&#34; href=&#34;#&#34;&gt;All services&lt;/a&gt;&lt;/div&gt;&lt;p&gt;Eight columns.&lt;/p&gt;&lt;/section&gt;
+  &lt;section class=&#34;card span-4&#34;&gt;&lt;div class=&#34;card-head&#34;&gt;&lt;h2&gt;Backups&lt;/h2&gt;&lt;/div&gt;&lt;p&gt;Four.&lt;/p&gt;&lt;/section&gt;
+&lt;/div&gt;
+&lt;h2 class=&#34;section-heading&#34;&gt;Your whole lab&lt;/h2&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Figures strip <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">.figures: a few cards, each a .figure-label, a .figure-value (a unit in small) and a .figure-note (.warn or .bad when it needs attention). Two to a row on phones.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><ul class="figures">
+  <li class="card"><span class="figure-label">Services</span><span class="figure-value">6 <small>running</small></span><span class="figure-note">1 updating</span></li>
+  <li class="card"><span class="figure-label">Servers</span><span class="figure-value">3 <small>online</small></span><span class="figure-note warn">1 needs a restart</span></li>
+  <li class="card"><span class="figure-label">Last backup</span><span class="figure-value">02:00</span><span class="figure-note">Every server</span></li>
+  <li class="card"><span class="figure-label">Disk space</span><span class="figure-value">1.6 TB <small>of 2.6 TB used</small></span><span class="figure-note">Most on nuc</span></li>
+</ul></div>
+            <div class="panel" data-mode="dark"><ul class="figures">
+  <li class="card"><span class="figure-label">Services</span><span class="figure-value">6 <small>running</small></span><span class="figure-note">1 updating</span></li>
+  <li class="card"><span class="figure-label">Servers</span><span class="figure-value">3 <small>online</small></span><span class="figure-note warn">1 needs a restart</span></li>
+  <li class="card"><span class="figure-label">Last backup</span><span class="figure-value">02:00</span><span class="figure-note">Every server</span></li>
+  <li class="card"><span class="figure-label">Disk space</span><span class="figure-value">1.6 TB <small>of 2.6 TB used</small></span><span class="figure-note">Most on nuc</span></li>
+</ul></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;ul class=&#34;figures&#34;&gt;
+  &lt;li class=&#34;card&#34;&gt;&lt;span class=&#34;figure-label&#34;&gt;Services&lt;/span&gt;&lt;span class=&#34;figure-value&#34;&gt;6 &lt;small&gt;running&lt;/small&gt;&lt;/span&gt;&lt;span class=&#34;figure-note&#34;&gt;1 updating&lt;/span&gt;&lt;/li&gt;
+  &lt;li class=&#34;card&#34;&gt;&lt;span class=&#34;figure-label&#34;&gt;Servers&lt;/span&gt;&lt;span class=&#34;figure-value&#34;&gt;3 &lt;small&gt;online&lt;/small&gt;&lt;/span&gt;&lt;span class=&#34;figure-note warn&#34;&gt;1 needs a restart&lt;/span&gt;&lt;/li&gt;
+  &lt;li class=&#34;card&#34;&gt;&lt;span class=&#34;figure-label&#34;&gt;Last backup&lt;/span&gt;&lt;span class=&#34;figure-value&#34;&gt;02:00&lt;/span&gt;&lt;span class=&#34;figure-note&#34;&gt;Every server&lt;/span&gt;&lt;/li&gt;
+  &lt;li class=&#34;card&#34;&gt;&lt;span class=&#34;figure-label&#34;&gt;Disk space&lt;/span&gt;&lt;span class=&#34;figure-value&#34;&gt;1.6 TB &lt;small&gt;of 2.6 TB used&lt;/small&gt;&lt;/span&gt;&lt;span class=&#34;figure-note&#34;&gt;Most on nuc&lt;/span&gt;&lt;/li&gt;
+&lt;/ul&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Big figure <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">.big-figure: the one number a card is about (the last backup&#39;s time).</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><span class="big-figure">02:00<small>last night</small></span></div>
+            <div class="panel" data-mode="dark"><span class="big-figure">02:00<small>last night</small></span></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;span class=&#34;big-figure&#34;&gt;02:00&lt;small&gt;last night&lt;/small&gt;&lt;/span&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Table list <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">table.list in a .table-wrap, as a card&#39;s last part (it reaches the card&#39;s edges). .list-name: a logo, the name and a line under it. .hide-phone on columns that matter less; .num for figures; the last column is the row&#39;s action.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><section class="card">
+  <div class="card-head"><h2>Services</h2></div>
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th>Service</th><th>Status</th><th class="hide-phone">Runs on</th><th class="hide-phone">Backed up</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      <tr><td><span class="list-name"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-5 4 4 2.5-2.5L20 17"/></svg></span><span><a href="#">Immich</a><small>photos.smith.family</small></span></span></td><td><span class="status status-running">Running</span></td><td class="hide-phone">nuc</td><td class="hide-phone num">02:00</td><td><a href="#">Manage</a></td></tr>
+      <tr><td><span class="list-name"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M16 7l2 2M14 9l2 2"/></svg></span><span><a href="#">Vaultwarden</a><small>vault.smith.family</small></span></span></td><td><span class="status status-installing">Installing</span></td><td class="hide-phone">nuc</td><td class="hide-phone num">Not yet</td><td><a href="#">Manage</a></td></tr>
+    </tbody>
+  </table></div>
+</section></div>
+            <div class="panel" data-mode="dark"><section class="card">
+  <div class="card-head"><h2>Services</h2></div>
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th>Service</th><th>Status</th><th class="hide-phone">Runs on</th><th class="hide-phone">Backed up</th><th><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+      <tr><td><span class="list-name"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 5-5 4 4 2.5-2.5L20 17"/></svg></span><span><a href="#">Immich</a><small>photos.smith.family</small></span></span></td><td><span class="status status-running">Running</span></td><td class="hide-phone">nuc</td><td class="hide-phone num">02:00</td><td><a href="#">Manage</a></td></tr>
+      <tr><td><span class="list-name"><span class="logo-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M16 7l2 2M14 9l2 2"/></svg></span><span><a href="#">Vaultwarden</a><small>vault.smith.family</small></span></span></td><td><span class="status status-installing">Installing</span></td><td class="hide-phone">nuc</td><td class="hide-phone num">Not yet</td><td><a href="#">Manage</a></td></tr>
+    </tbody>
+  </table></div>
+</section></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;section class=&#34;card&#34;&gt;
+  &lt;div class=&#34;card-head&#34;&gt;&lt;h2&gt;Services&lt;/h2&gt;&lt;/div&gt;
+  &lt;div class=&#34;table-wrap&#34;&gt;&lt;table class=&#34;list&#34;&gt;
+    &lt;thead&gt;&lt;tr&gt;&lt;th&gt;Service&lt;/th&gt;&lt;th&gt;Status&lt;/th&gt;&lt;th class=&#34;hide-phone&#34;&gt;Runs on&lt;/th&gt;&lt;th class=&#34;hide-phone&#34;&gt;Backed up&lt;/th&gt;&lt;th&gt;&lt;span class=&#34;sr-only&#34;&gt;Actions&lt;/span&gt;&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+    &lt;tbody&gt;
+      &lt;tr&gt;&lt;td&gt;&lt;span class=&#34;list-name&#34;&gt;{{logo &#34;&#34; &#34;photos&#34;}}&lt;span&gt;&lt;a href=&#34;#&#34;&gt;Immich&lt;/a&gt;&lt;small&gt;photos.smith.family&lt;/small&gt;&lt;/span&gt;&lt;/span&gt;&lt;/td&gt;&lt;td&gt;{{status &#34;running&#34;}}&lt;/td&gt;&lt;td class=&#34;hide-phone&#34;&gt;nuc&lt;/td&gt;&lt;td class=&#34;hide-phone num&#34;&gt;02:00&lt;/td&gt;&lt;td&gt;&lt;a href=&#34;#&#34;&gt;Manage&lt;/a&gt;&lt;/td&gt;&lt;/tr&gt;
+      &lt;tr&gt;&lt;td&gt;&lt;span class=&#34;list-name&#34;&gt;{{logo &#34;&#34; &#34;passwords&#34;}}&lt;span&gt;&lt;a href=&#34;#&#34;&gt;Vaultwarden&lt;/a&gt;&lt;small&gt;vault.smith.family&lt;/small&gt;&lt;/span&gt;&lt;/span&gt;&lt;/td&gt;&lt;td&gt;{{status &#34;installing&#34;}}&lt;/td&gt;&lt;td class=&#34;hide-phone&#34;&gt;nuc&lt;/td&gt;&lt;td class=&#34;hide-phone num&#34;&gt;Not yet&lt;/td&gt;&lt;td&gt;&lt;a href=&#34;#&#34;&gt;Manage&lt;/a&gt;&lt;/td&gt;&lt;/tr&gt;
+    &lt;/tbody&gt;
+  &lt;/table&gt;&lt;/div&gt;
+&lt;/section&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;section class=&#34;card&#34;&gt;
+  &lt;div class=&#34;card-head&#34;&gt;
+    &lt;h2&gt;Services&lt;/h2&gt;
+  &lt;/div&gt;
+  &lt;div class=&#34;table-wrap&#34;&gt;
+    &lt;table class=&#34;list&#34;&gt;&lt;thead&gt;
+      &lt;tr&gt;
+        &lt;th&gt;Service&lt;/th&gt;
+        &lt;th&gt;Status&lt;/th&gt;
+        &lt;th class=&#34;hide-phone&#34;&gt;Runs on&lt;/th&gt;
+        &lt;th class=&#34;hide-phone&#34;&gt;Backed up&lt;/th&gt;
+        &lt;th&gt;&lt;span class=&#34;sr-only&#34;&gt;Actions&lt;/span&gt;&lt;/th&gt;
+      &lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;
+      &lt;tr&gt;
+        &lt;td&gt;&lt;span class=&#34;list-name&#34;&gt;&lt;span class=&#34;logo-tile&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;3&#34; y=&#34;5&#34; width=&#34;18&#34; height=&#34;14&#34; rx=&#34;2&#34;/&gt;&lt;circle cx=&#34;9&#34; cy=&#34;10&#34; r=&#34;1.6&#34;/&gt;&lt;path d=&#34;m4 17 5-5 4 4 2.5-2.5L20 17&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;span&gt;&lt;a href=&#34;#&#34;&gt;Immich&lt;/a&gt;&lt;small&gt;photos.smith.family&lt;/small&gt;&lt;/span&gt;&lt;/span&gt;&lt;/td&gt;
+        &lt;td&gt;&lt;span class=&#34;status status-running&#34;&gt;Running&lt;/span&gt;&lt;/td&gt;
+        &lt;td class=&#34;hide-phone&#34;&gt;nuc&lt;/td&gt;
+        &lt;td class=&#34;hide-phone num&#34;&gt;02:00&lt;/td&gt;
+        &lt;td&gt;&lt;a href=&#34;#&#34;&gt;Manage&lt;/a&gt;&lt;/td&gt;
+      &lt;/tr&gt;
+      &lt;tr&gt;
+        &lt;td&gt;&lt;span class=&#34;list-name&#34;&gt;&lt;span class=&#34;logo-tile&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;circle cx=&#34;8&#34; cy=&#34;15&#34; r=&#34;4&#34;/&gt;&lt;path d=&#34;m11 12 8-8M16 7l2 2M14 9l2 2&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;span&gt;&lt;a href=&#34;#&#34;&gt;Vaultwarden&lt;/a&gt;&lt;small&gt;vault.smith.family&lt;/small&gt;&lt;/span&gt;&lt;/span&gt;&lt;/td&gt;
+        &lt;td&gt;&lt;span class=&#34;status status-installing&#34;&gt;Installing&lt;/span&gt;&lt;/td&gt;
+        &lt;td class=&#34;hide-phone&#34;&gt;nuc&lt;/td&gt;
+        &lt;td class=&#34;hide-phone num&#34;&gt;Not yet&lt;/td&gt;
+        &lt;td&gt;&lt;a href=&#34;#&#34;&gt;Manage&lt;/a&gt;&lt;/td&gt;
+      &lt;/tr&gt;&lt;/tbody&gt;
+    &lt;/table&gt;
+  &lt;/div&gt;
+&lt;/section&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Friendly/Technical switch <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">.view-switch in a .views part: a checkbox that flips its .friendly-only and .technical-only children (CSS only). Without :has, the friendly view shows.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="views">
+  <label class="view-switch"><input type="checkbox"><span>Friendly</span><span>Technical</span><span class="sr-only"> view</span></label>
+  <p class="friendly-only">Immich keeps your photos, at photos.smith.family.</p>
+  <p class="technical-only">It runs as roostack-immich-server, from a Quadlet file.</p>
+</div></div>
+            <div class="panel" data-mode="dark"><div class="views">
+  <label class="view-switch"><input type="checkbox"><span>Friendly</span><span>Technical</span><span class="sr-only"> view</span></label>
+  <p class="friendly-only">Immich keeps your photos, at photos.smith.family.</p>
+  <p class="technical-only">It runs as roostack-immich-server, from a Quadlet file.</p>
+</div></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;div class=&#34;views&#34;&gt;
+  &lt;label class=&#34;view-switch&#34;&gt;&lt;input type=&#34;checkbox&#34;&gt;&lt;span&gt;Friendly&lt;/span&gt;&lt;span&gt;Technical&lt;/span&gt;&lt;span class=&#34;sr-only&#34;&gt; view&lt;/span&gt;&lt;/label&gt;
+  &lt;p class=&#34;friendly-only&#34;&gt;Immich keeps your photos, at photos.smith.family.&lt;/p&gt;
+  &lt;p class=&#34;technical-only&#34;&gt;It runs as roostack-immich-server, from a Quadlet file.&lt;/p&gt;
+&lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Code panel <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">.code-panel: a .code-bar saying where the file lives (or the command), then the file. .code-comment and .code-section colour a little of it.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><figure class="code-panel">
+  <figcaption class="code-bar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>~/.config/containers/systemd/roostack-immich-server.container</figcaption>
+<pre><code><span class="code-comment"># Generated by Roostack. Do not edit: changes will be overwritten.</span>
+<span class="code-section">[Container]</span>
+ContainerName=roostack-immich-server
+Network=roostack-immich.network</code></pre>
+</figure></div>
+            <div class="panel" data-mode="dark"><figure class="code-panel">
+  <figcaption class="code-bar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>~/.config/containers/systemd/roostack-immich-server.container</figcaption>
+<pre><code><span class="code-comment"># Generated by Roostack. Do not edit: changes will be overwritten.</span>
+<span class="code-section">[Container]</span>
+ContainerName=roostack-immich-server
+Network=roostack-immich.network</code></pre>
+</figure></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;figure class=&#34;code-panel&#34;&gt;
+  &lt;figcaption class=&#34;code-bar&#34;&gt;{{icon &#34;documents&#34;}}~/.config/containers/systemd/roostack-immich-server.container&lt;/figcaption&gt;
+&lt;pre&gt;&lt;code&gt;&lt;span class=&#34;code-comment&#34;&gt;# Generated by Roostack. Do not edit: changes will be overwritten.&lt;/span&gt;
+&lt;span class=&#34;code-section&#34;&gt;[Container]&lt;/span&gt;
+ContainerName=roostack-immich-server
+Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;
+&lt;/figure&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;figure class=&#34;code-panel&#34;&gt;&lt;figcaption class=&#34;code-bar&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z&#34;/&gt;&lt;path d=&#34;M14 3v5h5M9 13h6M9 17h6&#34;/&gt;&lt;/svg&gt;~/.config/containers/systemd/roostack-immich-server.container&lt;/figcaption&gt;
+&lt;pre&gt;&lt;code&gt;&lt;span class=&#34;code-comment&#34;&gt;# Generated by Roostack. Do not edit: changes will be overwritten.&lt;/span&gt;
+&lt;span class=&#34;code-section&#34;&gt;[Container]&lt;/span&gt;
+ContainerName=roostack-immich-server
+Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;</pre>
             
           </details>
         </div>
@@ -919,24 +1166,24 @@
         
         <div class="example">
           <h3>Service status <span class="badge badge-highlight">Template component</span></h3>
-          <p class="hint">Pass the service&#39;s state.</p>
+          <p class="hint">Pass the service&#39;s state. A pill: a dot and a word on the status tint (solid, so it reads on glass); work in progress pulses its dot.</p>
           <div class="panels">
-            <div class="panel" data-mode="light"><span class="status status-running">running</span>
-<span class="status status-installing"><span class="spinner" aria-hidden="true"></span> installing</span>
-<span class="status status-updating"><span class="spinner" aria-hidden="true"></span> updating</span>
-<span class="status status-starting">starting</span>
-<span class="status status-failed">failed</span>
-<span class="status status-stopped">stopped</span>
-<span class="status status-waiting">waiting to be restored</span>
-<span class="status status-registry-stop">stopped by Roostack</span></div>
-            <div class="panel" data-mode="dark"><span class="status status-running">running</span>
-<span class="status status-installing"><span class="spinner" aria-hidden="true"></span> installing</span>
-<span class="status status-updating"><span class="spinner" aria-hidden="true"></span> updating</span>
-<span class="status status-starting">starting</span>
-<span class="status status-failed">failed</span>
-<span class="status status-stopped">stopped</span>
-<span class="status status-waiting">waiting to be restored</span>
-<span class="status status-registry-stop">stopped by Roostack</span></div>
+            <div class="panel" data-mode="light"><span class="status status-running">Running</span>
+<span class="status status-installing">Installing</span>
+<span class="status status-updating">Updating</span>
+<span class="status status-starting">Starting</span>
+<span class="status status-failed">Failed</span>
+<span class="status status-stopped">Stopped</span>
+<span class="status status-waiting">Waiting to be restored</span>
+<span class="status status-registry-stop">Stopped by Roostack</span></div>
+            <div class="panel" data-mode="dark"><span class="status status-running">Running</span>
+<span class="status status-installing">Installing</span>
+<span class="status status-updating">Updating</span>
+<span class="status status-starting">Starting</span>
+<span class="status status-failed">Failed</span>
+<span class="status status-stopped">Stopped</span>
+<span class="status status-waiting">Waiting to be restored</span>
+<span class="status status-registry-stop">Stopped by Roostack</span></div>
           </div>
           <details>
             <summary>Markup</summary>
@@ -951,7 +1198,7 @@
 {{status &#34;waiting&#34;}}
 {{status &#34;registry-stop&#34;}}</pre>
             <p class="markup-label">Renders as</p>
-            <pre class="output">&lt;span class=&#34;status status-running&#34;&gt;running&lt;/span&gt;&lt;span class=&#34;status status-installing&#34;&gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;installing&lt;/span&gt;&lt;span class=&#34;status status-updating&#34;&gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt;updating&lt;/span&gt;&lt;span class=&#34;status status-starting&#34;&gt;starting&lt;/span&gt;&lt;span class=&#34;status status-failed&#34;&gt;failed&lt;/span&gt;&lt;span class=&#34;status status-stopped&#34;&gt;stopped&lt;/span&gt;&lt;span class=&#34;status status-waiting&#34;&gt;waiting to be restored&lt;/span&gt;&lt;span class=&#34;status status-registry-stop&#34;&gt;stopped by Roostack&lt;/span&gt;</pre>
+            <pre class="output">&lt;span class=&#34;status status-running&#34;&gt;Running&lt;/span&gt;&lt;span class=&#34;status status-installing&#34;&gt;Installing&lt;/span&gt;&lt;span class=&#34;status status-updating&#34;&gt;Updating&lt;/span&gt;&lt;span class=&#34;status status-starting&#34;&gt;Starting&lt;/span&gt;&lt;span class=&#34;status status-failed&#34;&gt;Failed&lt;/span&gt;&lt;span class=&#34;status status-stopped&#34;&gt;Stopped&lt;/span&gt;&lt;span class=&#34;status status-waiting&#34;&gt;Waiting to be restored&lt;/span&gt;&lt;span class=&#34;status status-registry-stop&#34;&gt;Stopped by Roostack&lt;/span&gt;</pre>
             
           </details>
         </div>
@@ -1772,7 +2019,7 @@
       
       <section id="settings">
         <h2>Settings navigation</h2>
-        <p class="hint">Settings is a grid of areas, each showing its state in a line; area pages list every area in a sidebar on desktop.</p>
+        <p class="hint">Settings is a grid of areas, each showing its state in a line; the sidebar lists its pages (all of them while you&#39;re in Settings).</p>
         
         <div class="example">
           <h3>Area cards <span class="badge">HTML and CSS classes</span></h3>

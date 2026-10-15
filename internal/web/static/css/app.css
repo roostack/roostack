@@ -290,17 +290,130 @@ select.inline { display: inline-block; width: auto; margin: 0 0 0 var(--space-2)
 p.error[role="alert"] { background: var(--bad-bg); color: var(--bad); padding: var(--space-2) var(--space-3);
   border-radius: var(--radius); }
 
-/* ---------- Status pill and badge ---------- */
+/* ---------- Status pill (the website's) and badge ---------- */
+/* A status pill: a dot and a word on the status tint (solid, so it reads
+   on glass too). Work in progress (installing, updating): text on the
+   info tint, its dot pulsing (still with reduced motion). */
 .status, .badge { display: inline-block; padding: 2px 10px; border-radius: var(--radius-pill);
   font-size: var(--text-sm); font-weight: var(--weight-medium); white-space: nowrap; }
-.status { background: var(--surface-2); color: var(--muted); }
+.status { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 8px; font-size: var(--text-xs);
+  font-weight: var(--weight-bold); line-height: 1.6; background: var(--surface-2); color: var(--muted); }
+.status::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .status-running { background: var(--ok-bg); color: var(--ok); }
-.status-starting { background: var(--warn-bg); color: var(--warn); }
-.status-failed { background: var(--bad-bg); color: var(--bad); }
-.status-installing, .status-updating { background: var(--accent-soft); color: var(--accent); }
-.status-waiting { background: var(--warn-bg); color: var(--warn); }
-.status-registry-stop { background: var(--bad-bg); color: var(--bad); }
-.status .spinner { width: 0.7em; height: 0.7em; vertical-align: -0.05em; }
+.status-starting, .status-waiting { background: var(--warn-bg); color: var(--warn); }
+.status-failed, .status-registry-stop { background: var(--bad-bg); color: var(--bad); }
+.status-installing, .status-updating { background: var(--accent-soft); color: var(--fg); }
+.status-installing::before, .status-updating::before { background: var(--accent); animation: status-pulse 1.6s ease-in-out infinite; }
+@keyframes status-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .status::before { animation: none; } }
+
+/* ---------- Console glass page parts (docs/DESIGN.md "Layout") ---------- */
+/* A page's own heading: its title and a line under it, its main actions
+   on the right (under it on phones). */
+.page-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3) var(--space-4); margin-bottom: var(--space-5); }
+.page-head h1 { margin: 0; }
+.page-head .lede { margin: 6px 0 0; color: var(--muted); }
+.page-head-actions { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+/* Gradient text: at most once a page (the website's). */
+.gradient-text { background: linear-gradient(100deg, var(--accent), var(--highlight)); -webkit-background-clip: text; background-clip: text;
+  color: transparent; }
+/* A 12-column grid for cards side by side; one column on phones. */
+.grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--space-4); align-items: start; }
+.grid > * { grid-column: span 12; min-width: 0; margin: 0; }
+.grid > .span-3 { grid-column: span 3; } .grid > .span-4 { grid-column: span 4; } .grid > .span-5 { grid-column: span 5; }
+.grid > .span-6 { grid-column: span 6; } .grid > .span-7 { grid-column: span 7; } .grid > .span-8 { grid-column: span 8; }
+.grid + .grid, .grid + .section-heading { margin-top: var(--space-5); }
+@media (max-width: 1100px) { .grid > .span-3 { grid-column: span 6; } .grid > :is(.span-4, .span-5, .span-6, .span-7, .span-8) { grid-column: span 12; } }
+/* A card's heading row: its title, and a link to more on the right. */
+.card-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+.card-head h2 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.card-head .more { margin-left: auto; font-size: var(--text-sm); font-weight: var(--weight-medium); white-space: nowrap; }
+/* A small heading between groups of cards ("Your whole lab"). */
+.section-heading { margin: 0 0 var(--space-3); font-family: var(--font-display); font-size: var(--text-xs); font-weight: var(--weight-bold);
+  text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+
+/* Figures strip: a row of cards, each a few words and a big number
+   (Home: services, servers, last backup, disk space). */
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: var(--space-4); margin: 0 0 var(--space-5); padding: 0; list-style: none; }
+.figures > .card { display: grid; gap: 2px; align-content: start; padding: var(--space-4); }
+.figure-label { font-size: var(--text-xs); font-weight: var(--weight-bold); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.figure-value { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; font-family: var(--font-display); font-size: 1.6rem;
+  font-weight: var(--weight-bold); letter-spacing: -0.02em; line-height: 1.25; }
+.figure-value small { font-family: var(--font-sans); font-size: var(--text-sm); font-weight: var(--weight-normal); letter-spacing: 0; color: var(--muted); }
+.figure-note { font-size: var(--text-sm); color: var(--muted); }
+.figure-note.warn { color: var(--warn); } .figure-note.bad { color: var(--bad); }
+/* The big figure (the website's 3:02): one number a card is about. */
+.big-figure { display: block; font-family: var(--font-display); font-size: 3rem; font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+.big-figure small { margin-left: 6px; font-family: var(--font-sans); font-size: var(--text-sm); font-weight: var(--weight-normal); letter-spacing: 0; color: var(--muted); }
+
+/* Table list: things people scan and act on (services, servers,
+   restores, people), 15px, full width of its card. Columns that matter
+   less get .hide-phone; the last column holds the row's action. */
+.table-wrap { overflow-x: auto; margin: 0 calc(var(--space-5) * -1) calc(var(--space-5) * -1); }
+table.list { width: 100%; border-collapse: collapse; font-size: 15px; }
+table.list th { padding: 8px var(--space-3); text-align: left; white-space: nowrap; font-size: var(--text-xs); font-weight: var(--weight-bold);
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+table.list td { padding: 10px var(--space-3); border-top: 1px solid var(--border); vertical-align: middle; }
+table.list :is(th, td):first-child { padding-left: var(--space-5); }
+table.list :is(th, td):last-child { padding-right: var(--space-5); text-align: right; }
+table.list tr[aria-current] td { background: var(--highlight-soft); }
+@supports (color: color-mix(in srgb, red 50%, blue)) { table.list td { border-top-color: var(--edge); } }
+/* The first column: a logo or icon tile, the name, a line under it. */
+.list-name { display: flex; align-items: center; gap: var(--space-3); min-width: 0; font-weight: var(--weight-bold); font-size: var(--text-base); }
+.list-name a { color: var(--fg); }
+.list-name small { display: block; font-weight: var(--weight-normal); font-size: var(--text-xs); color: var(--muted); }
+.list-name .logo-tile { width: 34px; height: 34px; padding: 3px; }
+.list-name .logo-tile .icon { width: 20px; height: 20px; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Friendly/Technical switch (the website's): flips a part of the page
+   between what it does and the files behind it. The part is .views; its
+   .friendly-only and .technical-only children show one at a time. */
+.view-switch { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; padding: 3px; border-radius: var(--radius-pill);
+  background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-strong); cursor: pointer; user-select: none; margin: 0; font-weight: var(--weight-normal); }
+.view-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.view-switch::before { content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: var(--radius-pill);
+  background: var(--fg); transition: translate 0.3s cubic-bezier(0.3, 0.7, 0.2, 1); }
+.view-switch:has(input:checked)::before { translate: 100% 0; }
+.view-switch:has(input:focus-visible) { box-shadow: var(--focus-ring); }
+.view-switch span:not(.sr-only) { position: relative; padding: 5px 16px; text-align: center; font-size: var(--text-xs); font-weight: var(--weight-bold);
+  pointer-events: none; transition: color 0.3s; }
+.view-switch span:nth-of-type(1) { color: var(--bg); } .view-switch span:nth-of-type(2) { color: var(--muted); }
+.view-switch:has(input:checked) span:nth-of-type(1) { color: var(--muted); } .view-switch:has(input:checked) span:nth-of-type(2) { color: var(--bg); }
+@supports (color: color-mix(in srgb, red 50%, blue)) { .view-switch { background: var(--glass-2); box-shadow: inset 0 0 0 1px var(--edge-strong); } }
+@media (prefers-reduced-motion: reduce) { .view-switch::before, .view-switch span { transition: none; } }
+.views .technical-only { display: none; }
+.views:has(.view-switch input:checked) .friendly-only { display: none; }
+.views:has(.view-switch input:checked) .technical-only { display: grid; }
+
+/* Code panel: a file Roostack wrote, or a command and what it shows, with
+   where it lives in the bar above. */
+.code-panel { margin: 0; border-radius: var(--radius-lg); overflow: hidden; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); min-width: 0; }
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and (color: color-mix(in srgb, red 50%, blue)) {
+  .code-panel { background: color-mix(in srgb, var(--surface-2) 85%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+}
+.code-bar { display: flex; align-items: center; gap: var(--space-2); padding: 8px 14px; border-bottom: 1px solid var(--border);
+  font: 12px var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
+.code-bar .icon { color: currentColor; }
+.code-bar > :last-child:not(:first-child) { margin-left: auto; }
+.code-panel pre { margin: 0; padding: 14px 16px; font-size: 12.5px; line-height: 1.6; overflow-x: auto; white-space: pre; }
+.code-comment { color: var(--muted); } .code-section { color: var(--accent); }
+
+/* Phones: grids and figures in one or two columns, tables lose their
+   minor columns, page heads stack. */
+@media (max-width: 900px) {
+  .grid > [class*="span-"] { grid-column: span 12; }
+  .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+  .figures > .card { padding: var(--space-3); }
+  .figure-value { font-size: 1.35rem; }
+  .big-figure { font-size: 2.6rem; }
+  .table-wrap { margin: 0 calc(var(--space-4) * -1) calc(var(--space-4) * -1); }
+  table.list :is(th, td):first-child { padding-left: var(--space-4); }
+  table.list :is(th, td):last-child { padding-right: var(--space-4); }
+  .hide-phone { display: none !important; }
+  .page-head-actions { margin-left: 0; width: 100%; }
+  .card { padding: var(--space-4); }
+}
 
 /* ---------- Install steps (install-steps, install-line) ---------- */
 ol.install-steps { list-style: none; padding: 0; margin: var(--space-3) 0; display: grid; gap: var(--space-2); }

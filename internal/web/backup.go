@@ -61,12 +61,17 @@ var templateFuncs = template.FuncMap{
 		return "?"
 	},
 	// roleName shows a role as people say it ("Owner").
-	"roleName": func(role string) string {
-		if role == "" {
-			return ""
-		}
-		return strings.ToUpper(role[:1]) + role[1:]
-	},
+	"roleName": capitalise,
+	// capitalise starts a word with a capital ("running" → "Running").
+	"capitalise": capitalise,
+}
+
+// capitalise starts s with a capital letter (ASCII; roles and states).
+func capitalise(s string) string {
+	if s == "" {
+		return ""
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // whenText formats a time for people, e.g. "today 02:00" or "Mon 3 Oct 02:00".
