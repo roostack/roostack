@@ -28,9 +28,9 @@ type nav struct {
 	Role     string
 	Backups  bool
 	Settings bool
-	// SettingsAreas are Settings' pages, listed in the sidebar for those
-	// who can change settings (Servers and Backups are main areas there).
-	// Area is the current one, if the page is one.
+	// SettingsAreas are Settings' everyday pages (sidebarSettings), listed
+	// in the sidebar for those who can change settings. Area is the current
+	// one, if the page is one; any other settings page marks All settings.
 	SettingsAreas []settingsArea
 	Area          string
 	// Landing is a main area's own page (Services, Settings...), whose

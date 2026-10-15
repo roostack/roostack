@@ -101,13 +101,19 @@ func TestSettingsOverview(t *testing.T) {
 			t.Errorf("overview missing %q", want)
 		}
 	}
-	// Area pages are marked in the sidebar.
-	for path, area := range map[string]string{"/settings/updates": "/settings/updates", "/settings/people": "/settings/people",
-		"/settings/remote-access": "/settings/remote-access", "/settings/time-zone": "/settings/time-zone",
-		"/settings/domain": "/settings/domain", "/settings/home-network": "/settings/home-network"} {
+	// The sidebar's everyday settings pages are marked there; the others
+	// mark All settings.
+	for _, path := range []string{"/settings/updates", "/settings/people", "/settings/domain", "/settings/history"} {
 		code, body := h.get(path)
-		if code != http.StatusOK || !strings.Contains(body, `<a class="nav-sub" href="`+area+`" aria-current="page">`) {
+		if code != http.StatusOK || !strings.Contains(body, `<a class="nav-sub" href="`+path+`" aria-current="page">`) {
 			t.Errorf("%s: %d, want the sidebar with its area marked", path, code)
+		}
+	}
+	for _, path := range []string{"/settings/remote-access", "/settings/time-zone", "/settings/home-network"} {
+		code, body := h.get(path)
+		if code != http.StatusOK || strings.Contains(body, `class="nav-sub" href="`+path+`"`) ||
+			!strings.Contains(body, `<a class="nav-item" href="/settings" aria-current="page">`) {
+			t.Errorf("%s: %d, want All settings marked", path, code)
 		}
 	}
 	// The first-run wizard isn't a settings page.
