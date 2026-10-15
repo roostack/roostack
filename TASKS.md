@@ -142,7 +142,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Console glass tokens (2026-10-15): `--font-display`, `--text-xs`, `--canvas`, `--glass*`, `--edge*`, `--lift`, `--aurora`; Space Grotesk vendored in `static/fonts` (OFL, credited); text 16 px
   - [x] Contrast test for translucent surfaces (2026-10-15): text on a card and on the sidebar with the strongest glow behind, every theme, mode and accent (no bare status text on the sidebar: Nord light's warning is 4.45:1 there)
   - [ ] Roostack Cloud's portal and admin console adopt it after Roostack (their copy comes through `tools/sync-design.sh`)
-  - [ ] Decide whether the header gets a search box (find a service, server or setting)
+  - [x] Search box in the header: not for now (the Owner, 2026-10-15)
 - [x] **1.15 Settings structure**
   - [x] /settings as a grid of overview cards (current state + status per area)
   - [x] Area pages with a sidebar on desktop, back link on phones: People and access (People, Remote access), Network (Domain and certificates, Home network), This machine (Updates and restarts, Time zone)
