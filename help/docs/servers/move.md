@@ -29,7 +29,7 @@ stopped for the last part. Its **web address stays the same**.
 ## The old copy
 
 The service's data stays on the old server, in case you need it. It's
-listed on that server's card in **Settings → Servers**, under **Kept
+listed on that server's card in **Servers**, under **Kept
 copies**, with its size. **Delete** it once you're sure you don't.
 
 ??? note "For technical users"

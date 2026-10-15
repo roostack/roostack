@@ -13,7 +13,7 @@
 **Show** narrows the list to one kind. **Older** pages back.
 
 Runs that changed nothing (most "applying changes" at start-up) aren't
-kept: the latest is shown on **Settings → Servers**, under **Changes**.
+kept: the latest is shown on **Servers**, under **Changes**.
 
 ## How long it's kept
 

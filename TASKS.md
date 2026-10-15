@@ -134,7 +134,9 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Sidebar re-work: mock-ups of four directions (docs/mockups/sidebar), chosen 2026-10-14: **Console glass** (DESIGN.md, "Layout"), 16 px text (15 px in tables and the sidebar), Space Grotesk headings, Servers as a main area and Settings' pages in the sidebar
   - [x] Console glass shell (2026-10-15): floating glass sidebar with Settings' everyday pages (People, address, updates, History; all of them while in Settings), drawer on phones, page header with breadcrumbs and help (every page's old `page-top` row moved into it), the aurora, solid fallbacks; in the gallery
   - [x] Console glass components (2026-10-15): page heading, grid, figures strip, big figure, table list, status pill, Friendly/Technical switch, code panel; in the gallery
-  - [ ] Move the pages over to Console glass: Home, Services and a service, Backups, Servers (its own `/servers` address), Settings
+  - [x] Pages on Console glass (2026-10-15): Home (figures, tables), Services, a service's page (Friendly/Technical), Backups, Servers (now `/servers`), Settings
+  - [ ] The other pages (install, restore, account, setup steps, settings areas) onto the grid and page heading as they're next changed
+  - [ ] A service's technical view could show its generated Quadlet and Caddy files' contents (needs a lab API call to read them from its server)
   - [x] Console glass tokens (2026-10-15): `--font-display`, `--text-xs`, `--canvas`, `--glass*`, `--edge*`, `--lift`, `--aurora`; Space Grotesk vendored in `static/fonts` (OFL, credited); text 16 px
   - [x] Contrast test for translucent surfaces (2026-10-15): text on a card and on the sidebar with the strongest glow behind, every theme, mode and accent (no bare status text on the sidebar: Nord light's warning is 4.45:1 there)
   - [ ] Roostack Cloud's portal and admin console adopt it after Roostack (their copy comes through `tools/sync-design.sh`)

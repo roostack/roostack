@@ -12,7 +12,7 @@ come back on another server, from their backups.
 
 ## Restoring its services
 
-1. Go to **Settings → Servers**. A server that can't be reached says
+1. Go to **Servers**. A server that can't be reached says
    **Not connected**.
 2. Choose ***server* is gone: restore its services…**
 3. Tick the services to restore now. Each one says which backup it comes

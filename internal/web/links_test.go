@@ -19,7 +19,7 @@ func TestLinkAddress(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true, Reachable: true},
 		{ID: "n-9876543210", Name: "nas", Reachable: true}}
-	_, body := h.get("/settings/servers")
+	_, body := h.get("/servers")
 	if strings.Count(body, "/link-address") != 1 || !strings.Contains(body, `action="/settings/servers/n-9876543210/link-address"`) {
 		t.Error("only other servers have an address for direct links")
 	}
@@ -31,7 +31,7 @@ func TestLinkAddress(t *testing.T) {
 	if fm.linkAddrs["n-9876543210"] != "192.168.1.20:51820" {
 		t.Errorf("addresses %v", fm.linkAddrs)
 	}
-	if _, body := h.get("/settings/servers"); !strings.Contains(body, `value="192.168.1.20:51820"`) {
+	if _, body := h.get("/servers"); !strings.Contains(body, `value="192.168.1.20:51820"`) {
 		t.Error("the address should show")
 	}
 }
@@ -62,7 +62,7 @@ func TestPlanThroughTheController(t *testing.T) {
 	fm.linkPath = manager.PathHub
 	_, body := h.get("/backups?server=n-9876543210")
 	if !strings.Contains(body, "These backups go through nuc, using its connection twice") ||
-		!strings.Contains(body, `href="/settings/servers#server-n-5555555555"`) {
+		!strings.Contains(body, `href="/servers#server-n-5555555555"`) {
 		t.Error("through the controller: say how to link directly")
 	}
 	fm.linkFailed = true

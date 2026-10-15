@@ -122,18 +122,18 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 					level, text = levelWarning, mc.Name+"'s certificate on Roostack's network expires "+whenText(mc.CertExpires)+
 						" and isn't renewing. Check that it's running and can reach the controller."
 				}
-				add(level, text, "/settings/servers#server-"+mc.ID, "View servers")
+				add(level, text, "/servers#server-"+mc.ID, "View servers")
 			}
 			switch st := mc.Status; {
 			case st.Running:
 				add(levelInfo, "Applying changes"+on+"… Downloading a new service can take a few minutes.",
-					"/settings/servers#changes-"+mc.ID, "See what it's doing")
+					"/servers#changes-"+mc.ID, "See what it's doing")
 			case errors.Is(st.LastErr, node.ErrUnreachable):
 				// Its own item, in words that don't change with each attempt's
 				// error (they made emails flap, 2026-10-08).
 				item := attentionItem{Level: levelProblem, Key: "unreachable:" + mc.ID,
 					Text: "Roostack can't reach " + mc.Name + ". It may be switched off, or its network down.",
-					Link: "/settings/servers#server-" + mc.ID, LinkText: "View servers"}
+					Link: "/servers#server-" + mc.ID, LinkText: "View servers"}
 				// Days later it may be gone for good (a reinstalled test VM
 				// was): say so plainly, and offer what to do about it.
 				if since := mc.UnreachableSince; owner && !since.IsZero() && time.Since(since) > goneAfter {
@@ -144,7 +144,7 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 						item.Link, item.LinkText = "/settings/servers/"+mc.ID+"/gone", "Restore its services"
 					} else {
 						item.Text += "remove it from the lab."
-						item.Link, item.LinkText = "/settings/servers?remove="+mc.ID+"#server-"+mc.ID, "Remove it"
+						item.Link, item.LinkText = "/servers?remove="+mc.ID+"#server-"+mc.ID, "Remove it"
 					}
 				}
 				items = append(items, item)

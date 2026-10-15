@@ -288,7 +288,7 @@ func TestWizardFlow(t *testing.T) {
 		t.Errorf("continuing without ticking the box: %d", code)
 	}
 	h.post("/setup/recovery-key", url.Values{"saved": {"on"}}, h.srv.URL)
-	if _, body := h.get("/"); !strings.Contains(body, "My Services") {
+	if _, body := h.get("/"); !strings.Contains(body, "<title>Home · Roostack</title>") {
 		t.Error("after the wizard the Owner sees the dashboard")
 	}
 }
@@ -307,7 +307,7 @@ func TestDomainLaterReminder(t *testing.T) {
 func TestWizardOwnerOnly(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleAdmin)
 	h.setSetup(&fakeSetup{})
-	if _, body := h.get("/"); !strings.Contains(body, "My Services") {
+	if _, body := h.get("/"); !strings.Contains(body, "<title>Home · Roostack</title>") {
 		t.Error("admins are not sent into the wizard")
 	}
 	for _, path := range []string{"/setup/timezone", "/setup/domain", "/setup/backup", "/setup/recovery-key"} {

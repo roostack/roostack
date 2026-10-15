@@ -235,7 +235,7 @@ func (s *Server) spaceAttention(r *http.Request, add func(level, text, link, lin
 		if d := s.serverSpaces(r.Context(), mn.view, mn.node); d != nil {
 			for _, v := range d.Disks {
 				if v.Level != "" {
-					add(v.Level, v.Warning, "/settings/servers#server-"+mn.view.ID, "See its disks")
+					add(v.Level, v.Warning, "/servers#server-"+mn.view.ID, "See its disks")
 				}
 			}
 		}

@@ -84,7 +84,7 @@ func (s *Server) restartNowSubmit(w http.ResponseWriter, r *http.Request) {
 	s.Store.Audit(r.Context(), currentUser(r), "restart", m.Label()+" restarted")
 	if !m.This {
 		// This UI stays up; the other server comes back on its own.
-		redirect(w, r, "/settings/servers")
+		redirect(w, r, "/servers")
 		return
 	}
 	s.render(w, "restarting", map[string]any{"User": currentUser(r), "BootID": s.bootID, "Host": true})

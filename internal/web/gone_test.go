@@ -27,7 +27,7 @@ func TestServerGone(t *testing.T) {
 			{Name: "jellyfin", Title: "Jellyfin", Size: -1}},
 		Targets: fm.servers[:1], Free: map[string]int64{"n-0123456789": 412 * units.GB}}
 
-	if _, body := h.get("/settings/servers"); !strings.Contains(body, `href="/settings/servers/n-9876543210/gone">nas is gone`) ||
+	if _, body := h.get("/servers"); !strings.Contains(body, `href="/settings/servers/n-9876543210/gone">nas is gone`) ||
 		strings.Contains(body, `href="/settings/servers/n-0123456789/gone"`) {
 		t.Error("only a server that can't be reached offers it")
 	}
@@ -77,7 +77,9 @@ func TestWaitingService(t *testing.T) {
 		t.Error("home should say a service waits")
 	}
 	_, body = h.get("/backups")
-	if i := strings.Index(body, "<h3>Waiting to be restored</h3>"); i < 0 || !strings.Contains(body[i:], `Restore Vaultwarden…</a> <span class="hint">· was on nas`) {
+	if i := strings.Index(body, `<span class="pill pill-warn">Waiting to be restored</span> <span class="hint">was on nas</span>`); i < 0 ||
+		!strings.HasPrefix(body[i:], `<span class="pill pill-warn">Waiting to be restored</span> <span class="hint">was on nas</span></td>
+            <td><a href="/backups/restore/vaultwarden">`) {
 		t.Error("Restoring should list it first, as waiting")
 	}
 	_, body = h.get("/services/vaultwarden")

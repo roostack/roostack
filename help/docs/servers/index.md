@@ -12,7 +12,7 @@ Each server runs its own services, its own backups and its own updates.
 The servers talk to each other over their own private, encrypted network,
 so a server elsewhere is as easy to manage as one at home.
 
-The Owner manages servers under **Settings → Servers**, which shows each
+The Owner manages servers under **Servers**, which shows each
 one's role, services, disk space, and whether it's up to date.
 
 - [Add a server](add.md)

@@ -64,6 +64,10 @@ var templateFuncs = template.FuncMap{
 	"roleName": capitalise,
 	// capitalise starts a word with a capital ("running" → "Running").
 	"capitalise": capitalise,
+	// trimScheme shows a web address without its https:// (in tables).
+	"trimScheme": func(u string) string {
+		return strings.TrimPrefix(strings.TrimPrefix(u, "https://"), "http://")
+	},
 }
 
 // capitalise starts s with a capital letter (ASCII; roles and states).

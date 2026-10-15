@@ -1,9 +1,14 @@
 {{define "title"}}Settings{{end}}
 {{define "content"}}
 <section>
-  <h1>Settings</h1>
+  <div class="page-head">
+    <div>
+      <h1>Settings</h1>
+      <p class="lede">How your lab is set up, area by area. Each card says how it is now.</p>
+    </div>
+  </div>
   {{range .Groups}}
-  <h2 class="settings-group-title">{{.Title}}</h2>
+  <h2 class="section-heading settings-group-title">{{.Title}}</h2>
   <ul class="area-grid">
     {{range .Cards}}
     <li><a class="card area-card" href="{{.Href}}">
@@ -19,7 +24,7 @@
     {{end}}
   </ul>
   {{end}}
-  <p class="hint">Backups have their own page: <a href="/backups">Backups</a>.</p>
+  <p class="hint section">Backups and Servers have their own pages: <a href="/backups">Backups</a>, <a href="/servers">Servers</a>.</p>
 </section>
 {{end}}
 

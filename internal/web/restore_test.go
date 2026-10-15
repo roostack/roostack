@@ -66,7 +66,7 @@ func TestRestoreFlow(t *testing.T) {
 			Places: []manager.ServiceBackup{copyOf("66bb11cccccc", time.Now().Add(-40*24*time.Hour))}}}
 	fm.backupNotes = []string{"Couldn't read vps's backups at Backblaze: timeout"}
 
-	if _, body := h.get("/backups"); !strings.Contains(body, `href="/backups/restore/vaultwarden">Restore Vaultwarden…`) {
+	if _, body := h.get("/backups"); !strings.Contains(body, `href="/backups/restore/vaultwarden">Restore…<span class="sr-only"> Vaultwarden</span>`) {
 		t.Error("backups page should link to restoring each service")
 	}
 	_, body := h.get("/backups/restore/vaultwarden")

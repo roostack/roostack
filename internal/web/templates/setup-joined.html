@@ -11,6 +11,6 @@
   </ol>
   <p><strong>{{.Name}}</strong> is now part of {{or .Lab "your lab"}}. Everything about it is managed from the lab{{with .UI}}:
     <a href="{{.}}">{{.}}</a>{{end}} → <strong>Settings → Servers</strong>.</p>
-  {{with .UI}}<p><a class="button" href="{{.}}/settings/servers">Open your lab</a></p>{{end}}
+  {{with .UI}}<p><a class="button" href="{{.}}/servers">Open your lab</a></p>{{end}}
 </section>
 {{end}}

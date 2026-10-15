@@ -901,7 +901,7 @@ func TestTemporaryPasswordMustBeChanged(t *testing.T) {
 	}
 	_, body := h.post("/account/password", url.Values{"current": {"temporary password"},
 		"password": {"my own long password"}, "confirm": {"my own long password"}}, h.srv.URL)
-	if !strings.Contains(body, "My Services") {
+	if !strings.Contains(body, "<title>Home · Roostack</title>") {
 		t.Error("after choosing a password, the user should carry on to the dashboard")
 	}
 	if u, _ := h.store.UserByUsername(context.Background(), "dad"); u.MustChangePassword {
@@ -1035,7 +1035,7 @@ func TestAccent(t *testing.T) {
 func TestServers(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fm.status = manager.ApplyStatus{Finished: true, LastRun: time.Now()}
-	_, body := h.get("/settings/servers")
+	_, body := h.get("/servers")
 	for _, want := range []string{"<h2>nuc", "This server", "Runs the lab", `href="/services/vaultwarden"`, "Up to date", "n-0123456789"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("servers page missing %q", want)
@@ -1064,7 +1064,7 @@ func TestServers(t *testing.T) {
 	}
 
 	ha, _ := loggedIn(t, auth.RoleAdmin)
-	if code, _ := ha.get("/settings/servers"); code == http.StatusOK {
+	if code, _ := ha.get("/servers"); code == http.StatusOK {
 		t.Error("only Owners see servers")
 	}
 
@@ -1092,7 +1092,7 @@ func TestServers(t *testing.T) {
 
 	// Kept copies moves left behind, and deleting one.
 	fm.serverOps = nil
-	_, body = h.get("/settings/servers")
+	_, body = h.get("/servers")
 	if !strings.Contains(body, "forgejo.moved-to-nuc-20260928-002806") || !strings.Contains(body, "70.0 MB") ||
 		!strings.Contains(body, "forgejo before it moved away") {
 		t.Errorf("servers page should list kept copies:\n%s", body)
@@ -1333,20 +1333,30 @@ func TestServiceCardsAndBuiltIns(t *testing.T) {
 				Routes: []string{"vault.lab.example.com → 127.0.0.1:18000"}, DataDirs: []string{"/srv/roostack/services/vaultwarden"},
 				DataSize: 12 * units.MB}}}, nil
 	}
+	// The lists: where each runs, its address, its last backup.
 	for _, path := range []string{"/", "/services"} {
 		_, body := h.get(path)
-		for _, want := range []string{`On <span class="server-chip">`, `</svg>nuc</span>`, `id="details-vaultwarden"`, "backed up today", "roostack-vaultwarden-app", "docker.io/vaultwarden/server:1.34.1",
-			"vault.lab.example.com → 127.0.0.1:18000", "/srv/roostack/services/vaultwarden", "12.0 MB"} {
+		for _, want := range []string{`<td class="hide-phone">nuc</td>`, `<span class="num">today `,
+			`href="https://vault.lab.example.com" target="_blank" rel="noopener">vault.lab.example.com`} {
 			if !strings.Contains(body, want) {
 				t.Errorf("%s missing %q", path, want)
 			}
 		}
 	}
+	// Its page's technical view: what runs it and where its data is.
+	_, body := h.get("/services/vaultwarden")
+	for _, want := range []string{`class="view-switch"`, "roostack-vaultwarden-app", "docker.io/vaultwarden/server:1.34.1",
+		"roostack-vaultwarden-app.container", "vault.lab.example.com → 127.0.0.1:18000", "/srv/roostack/services/vaultwarden", "12.0 MB",
+		"journalctl --user -u 'roostack-vaultwarden-*'"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("service page missing %q", want)
+		}
+	}
 	if _, body := h.get("/services"); strings.Contains(body, "Roostack&#39;s own services</h2>") {
 		t.Error("built-ins are hidden by default")
 	}
-	_, body := h.get("/services?builtin=1")
-	if !strings.Contains(body, "</svg>nuc</span></h3>") || !strings.Contains(body, "Caddy") || !strings.Contains(body, `hx-get="/partials/services?builtin=1"`) {
+	_, body = h.get("/services?builtin=1")
+	if !strings.Contains(body, "</svg>nuc</span></h2>") || !strings.Contains(body, "Caddy") || !strings.Contains(body, `hx-get="/partials/services?builtin=1"`) {
 		t.Errorf("built-ins should show and stay shown:\n%s", body)
 	}
 }
@@ -1397,10 +1407,10 @@ func TestPerServerSettings(t *testing.T) {
 	if code, _ := h.get("/settings/servers/n-1111111111"); code != http.StatusNotFound {
 		t.Errorf("unknown server: %d", code)
 	}
-	// Home: My Servers, with a link to each server's settings.
-	if _, body := h.get("/"); !strings.Contains(body, "My Servers") || !strings.Contains(body, `href="/settings/servers/n-9876543210"`) ||
-		!strings.Contains(body, "Needs a restart to finish updates") {
-		t.Errorf("home should show My Servers")
+	// Home: the servers, with a link to each server's settings.
+	if _, body := h.get("/"); !strings.Contains(body, "<h2>Servers</h2>") || !strings.Contains(body, `href="/settings/servers/n-9876543210"`) ||
+		!strings.Contains(body, `<span class="pill pill-warn">Needs a restart</span>`) {
+		t.Errorf("home should show the servers")
 	}
 }
 
@@ -1415,7 +1425,7 @@ func TestBackupsPageRestoresEveryService(t *testing.T) {
 	}
 	for _, page := range []string{"/backups", "/backups?server=n-9876543210"} {
 		_, body := h.get(page)
-		nuc, vps := strings.Index(body, "<h3>On nuc</h3>"), strings.Index(body, "<h3>On vps</h3>")
+		nuc, vps := strings.Index(body, "<td>nuc</td>"), strings.Index(body, "<td>vps</td>")
 		if nuc < 0 || vps < nuc || !strings.Contains(body[nuc:vps], `href="/backups/restore/vaultwarden"`) ||
 			!strings.Contains(body[vps:], `href="/backups/restore/forgejo"`) {
 			t.Errorf("%s: every service should be restorable, by server", page)
@@ -1430,7 +1440,7 @@ func TestCertificateExpiry(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true, CertExpires: time.Now().Add(300 * 24 * time.Hour)},
 		{ID: "n-9876543210", Name: "vps", CertExpires: time.Now().Add(10 * 24 * time.Hour)}}
-	if _, body := h.get("/settings/servers"); strings.Count(body, "Certificate</dt>") != 2 || !strings.Contains(body, "<dd>Expires ") {
+	if _, body := h.get("/servers"); strings.Count(body, "Certificate</dt>") != 2 || !strings.Contains(body, "<dd>Expires ") {
 		t.Error("Servers should show each certificate")
 	}
 	_, body := h.get("/")
@@ -1588,7 +1598,7 @@ func TestBackupOnAnotherServerLocation(t *testing.T) {
 		!strings.Contains(body, `<li class="plan-ok"><span class="plan-mark" aria-hidden="true">✓</span>1 away from home`) {
 		t.Error("vps somewhere else: the backup there is away from home")
 	}
-	if _, body := h.get("/settings/servers"); !strings.Contains(body, `name="location" value="away" checked`) {
+	if _, body := h.get("/servers"); !strings.Contains(body, `name="location" value="away" checked`) {
 		t.Error("the Servers page shows where each server is")
 	}
 	// Both at home: at home.
@@ -1647,7 +1657,7 @@ func TestLowSpace(t *testing.T) {
 func TestServerDiskSpace(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fm.disk = &node.DiskSpace{Total: 100 * units.GB, Used: 40 * units.GB, Free: 55 * units.GB, Services: 12 * units.GB, Backups: 3 * units.GB, Guests: 1 * units.GB}
-	_, body := h.get("/settings/servers")
+	_, body := h.get("/servers")
 	for _, want := range []string{"<strong>55.0 GB free</strong> of 100.0 GB", "<dt>In use</dt><dd>40.0 GB</dd>",
 		`class="space-reserved" data-width="5"`, "Reserved by the system</dt><dd>5.0 GB",
 		"Services&#39; data</dt><dd>12.0 GB", "Backups of your lab&#39;s servers</dt><dd>3.0 GB", "Backups of other labs</dt><dd>1.0 GB",
@@ -1792,7 +1802,7 @@ func TestInstallingShown(t *testing.T) {
 func TestDiskSpaceWhileCounting(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fm.disk = &node.DiskSpace{Total: 100 * units.GB, Used: 40 * units.GB, Free: 55 * units.GB, Services: -1, Backups: -1, Guests: -1, Counting: true}
-	_, body := h.get("/settings/servers")
+	_, body := h.get("/servers")
 	if !strings.Contains(body, `hx-get="/settings/servers/n-0123456789/disk"`) || !strings.Contains(body, "counting…") {
 		t.Errorf("counting: %s", body[strings.Index(body, "Disk"):][:1500])
 	}
@@ -1815,7 +1825,7 @@ func TestServerDisks(t *testing.T) {
 		{Kind: node.DiskMedia, Mount: "/srv/roostack/media", Total: 2000 * units.GB, Used: 800 * units.GB, Free: 1200 * units.GB, Services: 790 * units.GB},
 		{Kind: node.DiskBackup, Name: "BACKUP", Mount: "/media/backup", Total: 500 * units.GB, Used: 490 * units.GB, Free: 10 * units.GB, Backups: 480 * units.GB},
 	}
-	_, body := h.get("/settings/servers")
+	_, body := h.get("/servers")
 	for _, want := range []string{"Disks</dt>", "<strong>System disk</strong>", "<strong>Media disk</strong>", "mounted at <code>/srv/roostack/media</code>",
 		"<strong>Backup drive BACKUP</strong>", "Services&#39; data</dt><dd>790.0 GB", "Everything else</dt><dd>10.0 GB",
 		"This server&#39;s backup drive BACKUP is running out of disk space: 10.0 GB free of 500.0 GB"} {

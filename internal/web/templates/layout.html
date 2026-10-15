@@ -36,7 +36,7 @@
         <a class="nav-item" href="/"{{if eq .Active "home"}} aria-current="page"{{end}}>{{icon "home-page"}}Home</a>
         <a class="nav-item" href="/services"{{if eq .Active "services"}} aria-current="page"{{end}}>{{icon "services"}}Services</a>
         {{if .Backups}}<a class="nav-item" href="/backups"{{if eq .Active "backups"}} aria-current="page"{{end}}>{{icon "backups"}}Backups</a>{{end}}
-        {{if .Settings}}<a class="nav-item" href="/settings/servers"{{if eq .Active "servers"}} aria-current="page"{{end}}>{{icon "server"}}Servers</a>{{end}}
+        {{if .Settings}}<a class="nav-item" href="/servers"{{if eq .Active "servers"}} aria-current="page"{{end}}>{{icon "server"}}Servers</a>{{end}}
       </nav>
       {{if .Settings}}
       <nav class="nav-group" aria-label="Settings">
