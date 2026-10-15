@@ -42,7 +42,7 @@ var galleryTokens = []struct{ Name, Use string }{
 var gallerySections = []gallerySection{
 	{ID: "layout", Title: "Layout", Intro: "Console glass (2026-10-14): a sidebar floating beside the page, the page's header on the page, cards on a faint moving aurora (it stops for reduced motion). The layout (templates/layout.html) draws all of it; a page gives its title, content and, if it wants, its breadcrumbs and help. Below 900px the sidebar is a drawer behind the menu button.",
 		Examples: []galleryExample{
-			{"Sidebar", "The lab's name, the main areas, Settings' pages (for those who can change them) and All settings, then Help, Light/Dark/Auto and the person. Where you are has aria-current=\"page\": the highlight tint with a faint highlight edge. The surface at 70% with a blur: status shows here only as a pill on its own tint, never as bare text (the contrast test checks text, muted text and links on it).", `
+			{"Sidebar", "The lab's name, the main areas, Settings' pages (for those who can change them) and All settings, then Help, Light/Dark/Auto and the person. Settings lists only its everyday pages (sidebarSettings); All settings has the rest. Where you are has aria-current=\"page\": the highlight tint with a faint highlight edge. The surface at 70% with a blur: status shows here only as a pill on its own tint, never as bare text (the contrast test checks text, muted text and links on it).", `
 <aside class="sidebar gallery-sidebar" aria-label="Roostack (example)">
   <a class="sidebar-lab" href="#">{{brandMark}}<span class="sidebar-lab-name"><span>Roostack</span><strong>The Smiths' lab</strong></span></a>
   <nav class="nav-group" aria-label="Your lab (example)">
@@ -53,9 +53,10 @@ var gallerySections = []gallerySection{
   </nav>
   <nav class="nav-group" aria-label="Settings (example)">
     <p class="nav-heading">Settings</p>
-    <a class="nav-sub" href="#">Lab name</a>
     <a class="nav-sub" href="#">People</a>
+    <a class="nav-sub" href="#">Your lab's address</a>
     <a class="nav-sub" href="#">Updates and restarts</a>
+    <a class="nav-sub" href="#">History</a>
     <a class="nav-item" href="#">{{icon "manage"}}All settings</a>
   </nav>
   <div class="sidebar-foot">
