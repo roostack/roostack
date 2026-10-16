@@ -392,8 +392,11 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] For rs-backup-append: the wizard's "Erase it and start afresh…" branch in `templates/parts.html` is now dead (Erasable is never true for a Usable drive); SPEC §6.9's drive paragraph could say "not in use"
 - [x] WireGuard keys decoded strictly (re-encoded and compared); a typed backup folder must exist, and only its `roostack` folder is made, owned through a handle (checked on VM1)
 - [ ] For rs-backup-append: SPEC §6.9 "Backup drives" says the agent creates a typed folder; it must exist now
-- [ ] Agent Lows (WireGuard key decoding, backup folder, unit sandbox), container reach to the agent socket (confirmed reachable with a bind mount; fix to propose: refuse peers outside the initial user namespace), M19 (mark SPEC §6.10 item 3 "not built yet", decided by the user)
-- [ ] Untested: `node join` end to end as root (needs a second VM); the install message on a fresh install
+- [x] `roostack-agent.service` sandboxed (ProtectSystem=strict, address families, capabilities, system calls); socket now `/run/roostack-agent/agent.sock`; every job checked on VM1 and VM5 (ASSUMPTIONS S7)
+- [x] The agent refuses callers outside the host's user namespace (a container given the socket was let in; ASSUMPTIONS S6)
+- [x] The install message on a fresh install (VM5): shows the setup code read as roostack
+- [ ] For rs-package-policy: `help/docs/reference/files.md` lists `/run/roostack-agent.sock`; it's `/run/roostack-agent/agent.sock` now
+- [ ] Untested: `sudo roostack node join` end to end (making a join code needs an Owner with two-factor on the other VM); the agent calls it makes are the ones the service already makes as roostack, checked under the sandbox
 
 ## ARM64, then Raspberry Pi (ARM64-PLAN.md)
 
