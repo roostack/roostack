@@ -24,6 +24,9 @@ type LabRestorer interface {
 	Find(ctx context.Context, src labrestore.Source, key string) ([]labrestore.Found, []labrestore.Unopened, error)
 	Start(fd labrestore.Found) error
 	Running() bool
+	// Unfinished: a restore started and didn't finish, so it can be
+	// started again over what it put back.
+	Unfinished() bool
 	Progress() (activity.Snapshot, bool)
 	// Drives lists this server's drives; UseDrive mounts one, returning
 	// where (to look for backups on it).
@@ -103,7 +106,8 @@ func (s *Server) labRestorePage(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/setup/restore/progress")
 		return
 	}
-	data := map[string]any{"Kind": "s3", "Passed": s.setupPassed(r), "CloudOn": s.Cloud != nil}
+	data := map[string]any{"Kind": "s3", "Passed": s.setupPassed(r), "CloudOn": s.Cloud != nil,
+		"Unfinished": !s.LabRestore.Running() && s.LabRestore.Unfinished()}
 	if s.Cloud != nil {
 		data["Kind"] = "cloud"
 	}

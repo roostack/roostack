@@ -406,6 +406,7 @@ The review is in Roostack Cloud's repository (`REVIEW-2026-10-16.md`); IDs refer
 - [x] Web Lows: the restore page's form values in data attributes (not Alpine expressions); the setup code only from a POST; no caching of the two-factor, join-code, storage-invite and restore pages; no folder listings under /static/ and /help/; the restore cookie's Secure flag behind Caddy
 - [x] Web Lows: audited failed logins (the account's name only when it exists, also in the journal), a person's own notification address, new check links, Cloud cancel and dismiss, and accepted package risks on install and update; `Server.LabName` read under its lock. Cloud's confirm page was already https-only (`checkOpenURL`), now tested
 - [x] Backup and restore Lows: `--` before `restic dump`'s arguments; the restore key deleted once setup completes and never backed up; a fence check that can't list the repository fails the backup; a service whose databases don't load after a restore stays stopped
+- [x] M25: a full-lab restore that failed part-way can be started again (a `restore-started` marker; the page says so). `scripts/dev-vm.sh test` now finds a main package's test binary (`cmd/roostack` has its first test)
 - [ ] `/help` on a build without the help site: the error page replaced the "built without its help pages" message, so `TestHelpServed` fails (since f77f640). Say why on the error page, or change the test
 
 ## To discuss with the user

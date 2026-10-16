@@ -95,3 +95,19 @@ func TestMoreAudited(t *testing.T) {
 		t.Errorf("a changed address is audited once: %+v", logs)
 	}
 }
+
+// A restore that didn't finish can be started again, and the page says so
+// (review M25).
+func TestUnfinishedRestoreSaysSo(t *testing.T) {
+	h := newHarness(t, "the-setup-code")
+	fr := &fakeLabRestore{}
+	h.server.LabRestore = fr
+	const note = "A restore onto this server started and didn&#39;t finish"
+	if _, body := h.get("/setup/restore"); strings.Contains(body, note) {
+		t.Error("nothing unfinished")
+	}
+	fr.unfinished = true
+	if _, body := h.get("/setup/restore"); !strings.Contains(body, note) {
+		t.Error("an unfinished restore is offered again")
+	}
+}

@@ -12,6 +12,7 @@
   <p>Rebuild a lab on this server: its services and their data, settings and accounts come back from a backup.
     You need the <strong>recovery key</strong> you saved when you set the lab up, and to know where its backups are.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .Unfinished}}{{notice "warn" "A restore onto this server started and didn't finish. Start it again below: it puts everything back from the backup again, over what the last one restored."}}{{end}}
 
   {{if .Searched}}
   {{with .Found}}
