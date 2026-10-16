@@ -22,13 +22,18 @@ if [[ -z ${VERSION:-} ]]; then
 fi
 [[ ${1:-} == --version ]] && { echo "$VERSION"; exit 0; }
 [[ -x bin/roostack && -x bin/roostack-agent && -s bin/copyright ]] || { echo "build first: make build" >&2; exit 1; }
-# A release trusts the registry's real root key, and no development key
-# (SPEC.md §8.3.3, docs/REGISTRY-KEYS.md). Development builds may go
-# without: they can't fetch the real registry until the key ceremony.
-if [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    grep -q '"ed25519:' internal/registry/rootkeys.go ||
-        { echo "a release needs the registry's root key in internal/registry/rootkeys.go (docs/REGISTRY-KEYS.md)" >&2; exit 1; }
-    [[ ! -e bin/registry-dev-key ]] ||
+# A package trusts the registry's real root key, and no development key
+# (SPEC.md §8.3.3, docs/REGISTRY-KEYS.md), whatever its version, unless
+# it says it's a development build (ROOSTACK_DEV_BUILD=1, as
+# dev-install.sh does): those can't fetch the real registry until the key
+# ceremony. The keys are the ones make build compiled in, which it
+# records in bin/registry-keys, not a search of the source.
+if [[ ${ROOSTACK_DEV_BUILD:-} != 1 ]]; then
+    [[ -s bin/registry-keys && ! bin/roostack -nt bin/registry-keys ]] ||
+        { echo "bin/registry-keys is missing or older than bin/roostack: make build again" >&2; exit 1; }
+    grep -qx 'root_keys=[1-9][0-9]*' bin/registry-keys ||
+        { echo "a release needs the registry's root key in internal/registry/rootkeys.go (docs/REGISTRY-KEYS.md); for a development build, set ROOSTACK_DEV_BUILD=1" >&2; exit 1; }
+    grep -qx 'dev_key=false' bin/registry-keys ||
         { echo "bin/roostack was built with REGISTRY_DEV_KEY: make build without it for a release" >&2; exit 1; }
 fi
 # A released package always has its help (make build skips it without uv).

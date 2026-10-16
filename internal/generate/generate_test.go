@@ -120,6 +120,59 @@ func TestErrors(t *testing.T) {
 	}
 }
 
+// Each way past the package policy the security review of 2026-10-16
+// found (H2) is refused: one the unit file wouldn't read back as written
+// by pkgspec (Validate and Risks) and by the generator (quadlet.Validate);
+// a line that's valid but reaches beyond the service by the policy.
+func TestPassthroughBypasses(t *testing.T) {
+	tests := []struct {
+		name, section, key string
+		value              any
+		// syntax: the unit file wouldn't read it back as written.
+		syntax bool
+	}{
+		{"space after the key", "Container", "Volume ", "/var/lib/roostack:/lab", true},
+		{"= in the key", "Container", "Volume=/:/host", "rw", true},
+		{"newline in the key", "Container", "ShmSize=1m\nVolume", "/:/host", true},
+		{"newline in the value", "Container", "ShmSize", "1m\nVolume=/:/host", true},
+		{"backslash ending the value", "Container", "ShmSize", `1m\`, true},
+		{"containers.conf module", "Container", "ContainersConfModule", "/srv/roostack/services/vaultwarden/x.conf", false},
+		{"Podman's environment", "Service", "Environment", "CONTAINERS_CONF_OVERRIDE=/srv/roostack/services/vaultwarden/x.conf", false},
+		{"output to a file", "Service", "StandardOutput", "append:/var/lib/roostack/lab.yaml", false},
+		{"conflicts", "Unit", "Conflicts", "roostack-caddy.service", false},
+		{"requires", "Unit", "Requires", "roostack-other-web.service", false},
+		{"on failure", "Unit", "OnFailure", "roostack-caddy.service", false},
+		{"user 00", "Container", "User", "00", false},
+		{"two mounts on a line", "Container", "Mount", "type=tmpfs,destination=/t type=bind,source=/srv,destination=/srv", false},
+		{"two labels on a line", "Container", "Label", "a=b io.roostack.service=other", false},
+		{"unit named after Caddy", "Container", "ServiceName", "roostack-caddy", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := pkgspec.Load(pkgtest.File("vaultwarden"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			in, err := instance.Load(filepath.Join("testdata", "vaultwarden.instance.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			p.Containers["app"].Quadlet = pkgspec.Quadlet{tt.section: {tt.key: tt.value}}
+			if risks := p.Risks(); len(risks) != 1 {
+				t.Errorf("Risks = %q, want one problem", risks)
+			}
+			err = p.Validate()
+			if tt.syntax != (err != nil) {
+				t.Errorf("Validate() = %v, want an error %v", err, tt.syntax)
+			}
+			_, err = Service(testLab(), p, in)
+			if tt.syntax != (err != nil) {
+				t.Errorf("Service() = %v, want an error %v", err, tt.syntax)
+			}
+		})
+	}
+}
+
 func TestTemplateCannotReadSecrets(t *testing.T) {
 	p, err := pkgspec.Parse([]byte(`
 schema: roostack/v1alpha1
