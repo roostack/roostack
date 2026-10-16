@@ -367,6 +367,7 @@
     {{template "plan-check" (list (printf "%t" .Checks.Copies) "3 copies")}}
     {{template "plan-check" (list (printf "%t" .Checks.TwoKinds) "2 kinds of storage")}}
     {{template "plan-check" (list (printf "%t" .Checks.Away) (or (and .Internet "1 away from this server") "1 away from home"))}}
+    {{template "plan-check" (list (printf "%t" .Checks.Safe) "1 safe from ransomware")}}
     {{template "plan-check" (list (printf "%t" .Checks.BackedUp) "Backed up lately")}}
   </ul>
   {{if .Internet}}<p>Keep <strong>3 copies</strong> of your data, on <strong>2 kinds</strong> of storage, with <strong>1 away from this server</strong>.
@@ -385,6 +386,9 @@
         provider, or a problem with your account. Online storage with another company, or your own or a friend's lab, survives it.</li>
       {{- else}}<li><strong>1 away from home.</strong> A fire, flood or burglary takes everything in the house, backups included. Online
         storage, a friend's lab, or a server somewhere else survives it.</li>{{end}}
+      <li><strong>1 safe from ransomware.</strong> Ransomware, or someone who takes over the server, can delete the backups the server
+        can delete. Backups on another server in your lab, at a friend's lab, in Roostack Cloud or on Backblaze B2 (with a key Roostack
+        makes) can only be added to from here, so they survive it.</li>
     </ul>
     <p>Roostack backs up every night, to each backup below. Backups are encrypted, and readable with your recovery key.
       Restores use the <strong>main backup</strong> first{{if not .Internet}}: it's best at home, where restoring is quickest{{end}}. Extra backups past
@@ -415,7 +419,14 @@
         {{else}}
         {{notice "warn" (printf "These backups go through %s, using its connection twice: Roostack doesn't know where this server can reach %s directly. If both are on the same home network, set them both to At home; otherwise enter %s's address for direct links (host:port)." .Via .HostName .HostName) (printf "link=/servers#server-%s" .Host) "linkText=Set it on Servers"}}
         {{end}}{{end}}
-        {{if eq .Kind "system"}}{{notice "warn" "This backup is on the same disk as your data. It helps if something is deleted or changed by mistake, but if the disk fails, or ransomware gets onto the server, your data and this backup are lost together. Keep your other backups on a separate drive, or away from home."}}{{end}}
+        {{if eq .Kind "system"}}{{notice "warn" "This backup is on the same disk as your data. It helps if something is deleted or changed by mistake, but if the disk fails, or ransomware gets onto the server, your data and this backup are lost together. Keep your other backups on a separate drive, or away from home."}}
+        {{- else if and .Access.CanDelete (eq .Kind "online")}}{{notice "warn" "If this server were taken over, its backups here could be deleted too: it has the account's key. To protect them, turn on versioning for the bucket with a rule that keeps old versions for 30 days, and give Roostack a key that can't delete old versions. Or use Backblaze B2, where Roostack gives each server a key that can't delete."}}
+        {{- else if .Access.CanDelete}}{{notice "warn" "If this server were taken over, its backups here could be deleted too. Keep another backup it can't delete: on another server, at a friend's lab, Roostack Cloud or Backblaze B2."}}{{end}}
+        {{with .Access}}{{if .HidesOnly}}<p class="hint">This server's key here can add backups but not erase them; anything it deletes is only hidden.</p>
+        {{if lt .KeepsHidden 0}}<p class="hint">Roostack couldn't check how long this bucket keeps hidden files.</p>
+        {{- else if and (gt .KeepsHidden 0) (lt .KeepsHidden 30)}}{{$after := printf "after %d days" .KeepsHidden}}{{if eq .KeepsHidden 1}}{{$after = "after a day"}}{{end}}
+        {{- notice "warn" (printf "This bucket deletes hidden files %s, so a server that's taken over could still destroy these backups. In Backblaze's settings, keep old versions for at least 30 days." $after)}}{{end}}
+        {{- end}}{{end}}
         {{range .AskWhere}}
         <div class="plan-where">
           <span>Where is {{or .Name "this server"}}?</span>

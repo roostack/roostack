@@ -1,0 +1,196 @@
+package manager
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"roostack.cloud/roostack/internal/b2"
+	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/store"
+)
+
+// Where a server's backups go, and what its own credential can do there
+// (SPEC.md §10.10). A reference ("provider:3", "server:n-…", "drive:…")
+// is resolved once into a destination, so each place that cares switches
+// on a kind rather than on the reference's prefix.
+
+// destKind is a kind of backup destination.
+type destKind int
+
+const (
+	destUnknown destKind = iota
+	destCloud            // Roostack Cloud backup
+	destServer           // a server's backup store (rest-server), in this lab
+	destDrive            // a drive on the server
+	destFolder           // a folder on the server ("folder:" or "local:")
+	destSetup            // set up by the server's own setup wizard
+	destRemote           // a friend's lab's storage
+	destS3               // S3-compatible online storage
+)
+
+// destination is a resolved backup reference.
+type destination struct {
+	kind destKind
+	// id follows the reference's colon: a server, drive, folder or
+	// provider.
+	id string
+	// provider and its configuration, for destRemote and destS3.
+	provider store.BackupProvider
+	remote   RemoteStorage
+	s3       S3Provider
+}
+
+// destinationOf resolves a backup reference.
+func (m *Manager) destinationOf(ctx context.Context, ref string) (destination, error) {
+	kind, id, _ := strings.Cut(ref, ":")
+	d := destination{id: id}
+	switch {
+	case kind == CloudChoice:
+		d.kind = destCloud
+	case kind == "server":
+		d.kind = destServer
+	case kind == "drive":
+		d.kind = destDrive
+	case kind == "folder" || kind == "local":
+		d.kind = destFolder
+	case strings.HasPrefix(ref, "setup"):
+		d.kind = destSetup
+	case kind == "provider":
+		p, err := m.provider(ctx, id)
+		if err != nil {
+			return d, err
+		}
+		d.provider = p
+		if p.Kind == "remote" {
+			d.kind = destRemote
+			return d, json.Unmarshal([]byte(p.Config), &d.remote)
+		}
+		d.kind = destS3
+		return d, json.Unmarshal([]byte(p.Config), &d.s3)
+	default:
+		return d, fmt.Errorf("unknown backup destination %q", ref)
+	}
+	return d, nil
+}
+
+// isB2 reports whether the destination is Backblaze B2.
+func (d destination) isB2() bool { return d.kind == destS3 && b2.IsB2(d.s3.Endpoint) }
+
+// Access is what a server's own backup credential can do to its backups at
+// a destination (SPEC.md §10.10): whether they survive the server being
+// taken over (by ransomware, say), and what it keeps if it leaves the lab.
+type Access struct {
+	// CanDelete: the server can delete or overwrite its backups there:
+	// they're on its own disks, or it holds the account's key.
+	CanDelete bool
+	// HidesOnly: deleting there only hides files (Backblaze, with a key
+	// Roostack made). KeepsHidden is how many days the bucket keeps hidden
+	// files before erasing them: 0 for good, -1 not known.
+	HidesOnly   bool
+	KeepsHidden int
+}
+
+// MinKeepHidden is how many days a bucket must keep hidden files for a
+// backup there to count as safe from ransomware: time to notice, and to
+// bring them back with the account's key.
+const MinKeepHidden = 30
+
+// Safe reports whether the backups would survive the server being taken
+// over: it can't delete them, or what it hides is kept long enough.
+func (a Access) Safe() bool {
+	if a.CanDelete {
+		return false
+	}
+	return !a.HidesOnly || a.KeepsHidden == 0 || a.KeepsHidden >= MinKeepHidden
+}
+
+// BackupAccess says what a server's credential can do at one of its
+// backup destinations (its main backup or a copy).
+func (m *Manager) BackupAccess(ctx context.Context, serverID, ref string) Access {
+	d, err := m.destinationOf(ctx, ref)
+	if err != nil {
+		return Access{CanDelete: true}
+	}
+	t, _ := m.targetAt(ctx, serverID, ref)
+	return m.access(ctx, serverID, d, t)
+}
+
+// access is BackupAccess for a resolved destination and its record.
+func (m *Manager) access(ctx context.Context, serverID string, d destination, t store.BackupTarget) Access {
+	switch d.kind {
+	case destCloud:
+		// Keys for the server's own folder, which can only add (Cloud's
+		// DESIGN §6(b)).
+		return Access{}
+	case destServer:
+		// rest-server with --append-only and --private-repos; but on the
+		// server's own disk it can delete the files directly.
+		return Access{CanDelete: d.id == serverID}
+	case destRemote:
+		// The friend's lab's rest-server is append-only too.
+		return Access{}
+	case destS3:
+		if d.isB2() && t.ScopedKey != "" {
+			labID, _ := m.labID(ctx)
+			return Access{HidesOnly: true, KeepsHidden: m.keepsHidden(ctx, d.s3, backup.ServerFolder(d.s3.Prefix, labID, serverID)+"/")}
+		}
+		return Access{CanDelete: true}
+	}
+	// Drives, folders, and what the server set up itself.
+	return Access{CanDelete: true}
+}
+
+// targetAt is a server's main backup or copy at a reference.
+func (m *Manager) targetAt(ctx context.Context, serverID, ref string) (store.BackupTarget, bool) {
+	if m.BackupStore == nil {
+		return store.BackupTarget{}, false
+	}
+	targets, _ := m.BackupStore.BackupTargets(ctx)
+	copies, _ := m.BackupStore.BackupCopies(ctx)
+	for _, t := range append(targets, copies...) {
+		if t.ServerID == serverID && t.Provider == ref {
+			return t, true
+		}
+	}
+	return store.BackupTarget{}, false
+}
+
+// hiddenCache remembers Backblaze buckets' lifecycle rules for a while, so
+// the Backups page doesn't ask Backblaze each time.
+var hiddenCache = struct {
+	sync.Mutex
+	days map[string]hiddenDays
+}{days: map[string]hiddenDays{}}
+
+type hiddenDays struct {
+	days    int
+	expires time.Time
+}
+
+// keepsHidden is how long a Backblaze bucket keeps hidden files in a
+// folder (b2.Client.KeepsHidden), -1 if Backblaze couldn't be asked.
+func (m *Manager) keepsHidden(ctx context.Context, s3 S3Provider, folder string) int {
+	key := strings.Join([]string{s3.Endpoint, s3.AccessKey, s3.Bucket, folder}, " ")
+	hiddenCache.Lock()
+	c, ok := hiddenCache.days[key]
+	hiddenCache.Unlock()
+	if ok && time.Now().Before(c.expires) {
+		return c.days
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	days, err := m.b2(s3).KeepsHidden(ctx, s3.Bucket, folder)
+	c = hiddenDays{days: days, expires: time.Now().Add(time.Hour)}
+	if err != nil {
+		m.Log.Warn("reading a Backblaze bucket's lifecycle rules", "bucket", s3.Bucket, "err", err)
+		c = hiddenDays{days: -1, expires: time.Now().Add(5 * time.Minute)}
+	}
+	hiddenCache.Lock()
+	hiddenCache.days[key] = c
+	hiddenCache.Unlock()
+	return c.days
+}

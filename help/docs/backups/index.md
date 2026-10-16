@@ -37,7 +37,7 @@ numbered.
 
 ## The checks
 
-Under the plan, Roostack checks four things:
+Under the plan, Roostack checks five things:
 
 3 copies
 :   Your data and at least two backups.
@@ -51,6 +51,14 @@ Under the plan, Roostack checks four things:
 :   Online storage, a friend's lab, or another of your servers that's
     somewhere else. Roostack asks you once where each server is, because it
     can't tell for itself.
+
+1 safe from ransomware
+:   A backup the server can add to but not delete, so ransomware on it, or
+    someone who takes it over, can't destroy every backup. Another server's
+    disk, a friend's lab, Roostack Cloud and Backblaze B2 count (on B2,
+    while your bucket keeps hidden files for 30 days or more). A drive or
+    folder on the server doesn't, and nor does other online storage, where
+    every server has the account's key: their cards say so.
 
 Backed up lately
 :   The last backup worked, and wasn't more than two days ago.
@@ -99,6 +107,14 @@ attention** on the home page, with what to do.
       [recovery key](../start/recovery-key.md), kept in
       `/var/lib/roostack/backup-key`. Other servers' repositories also get
       their own key, and never see the recovery key.
+    - **What a server can delete:** a server never removes old backups
+      itself. On another server's disk and at a friend's lab it reaches
+      [rest-server](https://github.com/restic/rest-server) in append-only
+      mode; on Backblaze B2 it gets a key of its own without
+      `deleteFiles`, so whatever it deletes is only hidden, and Backblaze
+      erases hidden files as the bucket's lifecycle rule says (Roostack
+      reads the rule, and never changes it). Other S3 providers give every
+      server the account's key, which can delete.
     - **Keeping:** old backups are removed on Sunday by the lab's
       controller (`restic forget --prune --group-by host,tags --keep-daily 7
       --keep-weekly 4 --keep-monthly 6`: each service is kept on its own, as

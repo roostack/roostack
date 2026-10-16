@@ -216,6 +216,9 @@ type ServiceManager interface {
 	LabRestores
 	Withdrawals
 	ServiceUpdates
+	// BackupAccess is what a server's own credential can do at one of its
+	// backups: whether they'd survive it being taken over (SPEC.md §10.10).
+	BackupAccess(ctx context.Context, serverID, ref string) manager.Access
 }
 
 // LabRestores restores a service from any of the lab's backups, onto any
