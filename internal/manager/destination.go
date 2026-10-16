@@ -85,6 +85,9 @@ func (d destination) isB2() bool { return d.kind == destS3 && b2.IsB2(d.s3.Endpo
 // a destination (SPEC.md §10.10): whether they survive the server being
 // taken over (by ransomware, say), and what it keeps if it leaves the lab.
 type Access struct {
+	// B2: the destination is Backblaze B2, where a key that can make keys
+	// gives each server one that can't erase (SPEC.md §10.10).
+	B2 bool
 	// CanDelete: the server can delete or overwrite its backups there:
 	// they're on its own disks, or it holds the account's key.
 	CanDelete bool
@@ -137,9 +140,9 @@ func (m *Manager) access(ctx context.Context, serverID string, d destination, t 
 	case destS3:
 		if d.isB2() && t.ScopedKey != "" {
 			labID, _ := m.labID(ctx)
-			return Access{HidesOnly: true, KeepsHidden: m.keepsHidden(ctx, d.s3, backup.ServerFolder(d.s3.Prefix, labID, serverID)+"/")}
+			return Access{B2: true, HidesOnly: true, KeepsHidden: m.keepsHidden(ctx, d.s3, backup.ServerFolder(d.s3.Prefix, labID, serverID)+"/")}
 		}
-		return Access{CanDelete: true}
+		return Access{B2: d.isB2(), CanDelete: true}
 	}
 	// Drives, folders, and what the server set up itself.
 	return Access{CanDelete: true}

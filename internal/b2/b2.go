@@ -90,6 +90,20 @@ func (c *Client) CreateKey(ctx context.Context, name, bucket, prefix string) (Ke
 	return Key{ID: created.ApplicationKeyID, Secret: created.ApplicationKey}, nil
 }
 
+// CanMakeKeys checks the key reaches bucket, and says whether it can make
+// keys (writeKeys): keys made on Backblaze's website can't
+// (docs/ASSUMPTIONS.md N6).
+func (c *Client) CanMakeKeys(ctx context.Context, bucket string) (bool, error) {
+	s, err := c.authorize(ctx)
+	if err != nil {
+		return false, err
+	}
+	if _, err := c.bucket(ctx, s, bucket); err != nil {
+		return false, err
+	}
+	return contains(s.capabilities, "writeKeys"), nil
+}
+
 // KeepsHidden says how many days Backblaze keeps hidden files under prefix
 // before erasing them, by the bucket's lifecycle rules: 0 if it keeps
 // them for good (no rule erases them). The shortest rule that reaches into
