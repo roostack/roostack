@@ -176,7 +176,7 @@ func (s *Server) installSummaryPart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad form.", http.StatusBadRequest)
 		return
 	}
-	s.renderPart(w, "install", "install-summary", s.installSummary(p, s.installRequest(r.PostForm, p)))
+	s.renderPart(w, "install", "install-summary", s.installSummary(p, s.installRequest(r, r.PostForm, p)))
 }
 
 // packageFile shows a catalog package's file as written, for anyone who
