@@ -132,6 +132,35 @@ func TestFilePermissions(t *testing.T) {
 	}
 }
 
+// A symlink where the database or its -wal or -shm file goes is refused,
+// and what it points to is left alone (SPEC.md §6.1).
+func TestOpenRefusesSymlinks(t *testing.T) {
+	for _, name := range []string{"roostack.db", "roostack.db-wal", "roostack.db-shm"} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "roostack.db")
+			if name != "roostack.db" {
+				s, err := Open(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				s.Close()
+			}
+			target := filepath.Join(dir, "elsewhere")
+			if err := os.Symlink(target, filepath.Join(dir, name)); err != nil {
+				t.Fatal(err)
+			}
+			if s, err := Open(path); err == nil {
+				s.Close()
+				t.Fatal("opened with a symlink in place")
+			}
+			if _, err := os.Lstat(target); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("the symlink's target was created: %v", err)
+			}
+		})
+	}
+}
+
 func TestReopenKeepsSchema(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "roostack.db")
 	s, err := Open(path)

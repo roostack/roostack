@@ -16,7 +16,11 @@ while [ ! -s "$TOKEN" ] && [ $i -lt 30 ] && systemctl is-active --quiet roostack
     sleep 1
     i=$((i + 1))
 done
-code=$(cat "$TOKEN" 2>/dev/null)
+# Read as the roostack user, whose folder it is: as root, a symlink put
+# there would be followed. Only the characters a code has are kept, so
+# nothing else reaches the terminal (SPEC.md §6.1).
+code=$(setpriv --reuid=roostack --regid=roostack --clear-groups cat "$TOKEN" 2>/dev/null |
+    tr -cd 'A-Za-z0-9_-' | cut -c1-64)
 
 # Colour only on a terminal, and never when NO_COLOR is set (no-color.org).
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-dumb}" != dumb ]; then

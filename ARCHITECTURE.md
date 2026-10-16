@@ -21,7 +21,7 @@ How the code fits together. For *why* things are the way they are, see [SPEC.md]
 ```
 
 - **`roostack`** (unprivileged, user `roostack`): web UI, desired state, generating and applying config. It owns every rootless container through the `roostack` user's systemd manager.
-- **`roostack-agent`** (root): a small, fixed set of privileged operations, reached over `/run/roostack-agent.sock`. Callers are identified by the kernel (`SO_PEERCRED`); only root and `roostack` are accepted.
+- **`roostack-agent`** (root): a small, fixed set of privileged operations, reached over `/run/roostack-agent/agent.sock`. Callers are identified by the kernel (`SO_PEERCRED`); only root and `roostack` are accepted, and only from the host's own user namespace (not a container). It runs in a systemd sandbox that lets it write only where its jobs need (SPEC §6.1).
 - **Caddy** (rootless container): the only thing listening on 80/443. It runs in its own pasta network namespace so it sees visitors' real IP addresses. It reaches routed containers, which are published on `127.0.0.1:<port>`, through pasta's loopback mapping (`169.254.1.3`). See SPEC.md §6.5 for why.
 
 ## Data flow: desired state → running services

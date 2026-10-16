@@ -197,8 +197,8 @@ func (c *Client) EraseDrive(ctx context.Context, disk, label string) error {
 	return c.call(ctx, http.MethodPost, "/v1/drives/erase", map[string]string{"disk": disk, "label": label}, nil)
 }
 
-// PrepareBackupFolder creates a backup folder (if needed) and a roostack
-// folder in it that Roostack may write to, and returns the latter.
+// PrepareBackupFolder makes a roostack folder that Roostack may write to
+// in a backup folder that exists, and returns it.
 func (c *Client) PrepareBackupFolder(ctx context.Context, dir string) (string, error) {
 	var out struct {
 		Dir string `json:"dir"`
