@@ -85,8 +85,11 @@ where each server is.
     `/mnt/roostack-<name>`. exFAT, FAT and NTFS drives are mounted so the
     `roostack` user owns their files. Erasing makes one GPT partition with
     an ext4 filesystem labelled `ROOSTACK`. The system disk, and LVM, RAID
-    and encrypted disks, are never offered. Instead of a drive you can type
-    a folder under `/mnt`, `/media` or `/srv` (**A folder instead**).
+    and encrypted disks, are never offered. Only a disk with no filesystem
+    backups could use, nothing mounted and nothing in `/etc/fstab` can be
+    erased. Instead of a drive you can type a folder under `/mnt`, `/media`
+    or `/srv` (**A folder instead**) that exists already: Roostack makes a
+    `roostack` folder inside it, owned by the `roostack` user.
 
     **Online storage** is any S3-compatible service; each server's
     repository is `s3:<endpoint>/<bucket>/<folder>/roostack/<lab ID>/<server ID>`. For Backblaze B2, Roostack

@@ -390,6 +390,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] For rs-package-policy: `help/docs/reference/cli.md` "Who runs what" should say `sudo roostack user|backup|apply` now run as roostack
 - [x] M17/M18: drive names lose control characters, UUIDs are checked, fstab lines with whitespace in a field are refused; only blank disks not mounted or in fstab are erased (SPEC §6.1, ASSUMPTIONS S5; checked on VM1 with a crafted USB label)
 - [ ] For rs-backup-append: the wizard's "Erase it and start afresh…" branch in `templates/parts.html` is now dead (Erasable is never true for a Usable drive); SPEC §6.9's drive paragraph could say "not in use"
+- [x] WireGuard keys decoded strictly (re-encoded and compared); a typed backup folder must exist, and only its `roostack` folder is made, owned through a handle (checked on VM1)
+- [ ] For rs-backup-append: SPEC §6.9 "Backup drives" says the agent creates a typed folder; it must exist now
 - [ ] Agent Lows (WireGuard key decoding, backup folder, unit sandbox), container reach to the agent socket (confirmed reachable with a bind mount; fix to propose: refuse peers outside the initial user namespace), M19 (mark SPEC §6.10 item 3 "not built yet", decided by the user)
 - [ ] Untested: `node join` end to end as root (needs a second VM); the install message on a fresh install
 

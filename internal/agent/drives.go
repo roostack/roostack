@@ -343,12 +343,9 @@ func (h LinuxHost) UseDrive(id string) (UsedDrive, error) {
 		return UsedDrive{}, errors.New("the roostack user isn't known")
 	}
 	if id == "system" {
-		if _, err := prepareFolder(SystemBackupDir, []string{"/srv"}, h.UID, h.GID); err != nil {
-			return UsedDrive{}, err
-		}
 		// The folder is Roostack's own backup store too (other servers'
 		// backups, its password file), so it's the roostack user's.
-		if err := chownIn("/srv", SystemBackupDir, h.UID, h.GID); err != nil {
+		if err := systemBackupDir(h.UID, h.GID); err != nil {
 			return UsedDrive{}, err
 		}
 		return UsedDrive{Dir: SystemBackupDir}, nil

@@ -163,12 +163,20 @@ func TestValidUUID(t *testing.T) {
 func TestPrepareFolder(t *testing.T) {
 	root := t.TempDir()
 	uid, gid := os.Getuid(), os.Getgid()
+	// Only the roostack folder is made: the folder given must exist.
+	if _, err := prepareFolder(filepath.Join(root, "backup"), []string{root}, uid, gid); err == nil {
+		t.Error("a folder that doesn't exist")
+	}
+	if _, err := os.Lstat(filepath.Join(root, "backup")); err == nil {
+		t.Error("a missing folder was made")
+	}
+	os.Mkdir(filepath.Join(root, "backup"), 0o755)
 	got, err := prepareFolder(filepath.Join(root, "backup"), []string{root}, uid, gid)
 	if err != nil || got != filepath.Join(root, "backup", "roostack") {
 		t.Fatalf("prepare: %q %v", got, err)
 	}
-	if fi, err := os.Stat(filepath.Join(root, "backup")); err != nil || fi.Sys().(*syscall.Stat_t).Uid != uint32(uid) {
-		t.Error("a folder made on the way is Roostack's")
+	if fi, err := os.Stat(got); err != nil || fi.Sys().(*syscall.Stat_t).Uid != uint32(uid) || fi.Mode().Perm() != 0o750 {
+		t.Errorf("the roostack folder: %v %v", fi, err)
 	}
 	if again, err := prepareFolder(filepath.Join(root, "backup"), []string{root}, uid, gid); err != nil || again != got {
 		t.Errorf("again: %q %v", again, err)
@@ -209,18 +217,22 @@ func TestPrepareFolder(t *testing.T) {
 	}
 }
 
-// chownIn never follows a symlink, even one the roostack user swapped in
-// for its own folder.
-func TestChownInKeepsToItsRoot(t *testing.T) {
+// The roostack folder is never a symlink followed, even one the roostack
+// user put there to point at another folder.
+func TestPrepareFolderRefusesSymlink(t *testing.T) {
 	root, outside := t.TempDir(), t.TempDir()
-	if err := os.Symlink(outside, filepath.Join(root, "backups")); err != nil {
-		t.Fatal(err)
+	os.Mkdir(filepath.Join(root, "backup"), 0o755)
+	for _, target := range []string{outside, filepath.Join(root, "backup", "elsewhere")} {
+		os.Remove(filepath.Join(root, "backup", "roostack"))
+		if err := os.Symlink(target, filepath.Join(root, "backup", "roostack")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := prepareFolder(filepath.Join(root, "backup"), []string{root}, os.Getuid(), os.Getgid()); err == nil {
+			t.Errorf("a roostack folder that's a symlink to %s", target)
+		}
 	}
-	if err := chownIn(root, filepath.Join(root, "backups"), os.Getuid(), os.Getgid()); err != nil {
-		t.Fatalf("chown the link itself: %v", err)
-	}
-	if err := chownIn(root, filepath.Join(root, "backups", "x"), os.Getuid(), os.Getgid()); err == nil {
-		t.Error("a path through a symlink out of the root")
+	if _, err := os.Lstat(filepath.Join(root, "backup", "elsewhere")); err == nil {
+		t.Error("the symlink's target was made")
 	}
 }
 
