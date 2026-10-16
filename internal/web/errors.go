@@ -73,6 +73,11 @@ func (c *errorCatcher) Unwrap() http.ResponseWriter { return c.ResponseWriter }
 // renderError writes an error's page with its status.
 func (s *Server) renderError(w http.ResponseWriter, r *http.Request, code int) {
 	p := ownPages[code]
+	if code == http.StatusNotFound && (s.help == nil || s.help.files == nil) && (r.URL.Path == "/help" || strings.HasPrefix(r.URL.Path, "/help/")) {
+		// A development build without the help site: say so, rather than
+		// that the page has moved.
+		p.Text = "This copy of Roostack was built without its help pages (make build builds them when uv is installed)."
+	}
 	h := w.Header()
 	h.Del("Content-Length")
 	h.Set("Content-Type", "text/html; charset=utf-8")
