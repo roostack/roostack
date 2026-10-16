@@ -396,6 +396,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [x] The agent refuses callers outside the host's user namespace (a container given the socket was let in; ASSUMPTIONS S6)
 - [x] The install message on a fresh install (VM5): shows the setup code read as roostack
 - [ ] For rs-package-policy: `help/docs/reference/files.md` lists `/run/roostack-agent.sock`; it's `/run/roostack-agent/agent.sock` now
+- [x] M19: SPEC §6.10 item 3 (SSH hardening) marked "not built yet" (the Owner's choice)
+- [ ] Build SSH hardening (SPEC §6.10 item 3): an agent call for `sshd_config.d`, a wizard step that checks a key works first, a lasting warning while it's off
 - [ ] Untested: `sudo roostack node join` end to end (making a join code needs an Owner with two-factor on the other VM); the agent calls it makes are the ones the service already makes as roostack, checked under the sandbox
 
 ## ARM64, then Raspberry Pi (ARM64-PLAN.md)
