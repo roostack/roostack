@@ -150,8 +150,10 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{"accountId": "acct", "apiUrl": api.URL, "authorizationToken": "tok",
 			"allowed": map[string]any{"capabilities": []string{"writeKeys", "deleteKeys", "listBuckets"}}})
 	})
+	// The bucket erases hidden files a day after they're hidden.
 	mux.HandleFunc("POST /b2api/v2/b2_list_buckets", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"buckets": []any{map[string]string{"bucketId": "bkt1"}}})
+		json.NewEncoder(w).Encode(map[string]any{"buckets": []any{map[string]any{"bucketId": "bkt1",
+			"lifecycleRules": []any{map[string]any{"fileNamePrefix": "", "daysFromHidingToDeleting": 1}}}}})
 	})
 	mux.HandleFunc("POST /b2api/v2/b2_create_key", func(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&created)
@@ -213,12 +215,63 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	if !strings.HasSuffix(d.Repository, "backblazeb2.com/backups/roostack/"+labID+"/n-0000000002") {
 		t.Errorf("repository = %q", d.Repository)
 	}
-	// Removing the server deletes its key.
+	// The key adds backups but can't erase them (SPEC.md §10.10): what the
+	// server deletes is only hidden, and the bucket keeps that for a day.
+	caps, _ := created["capabilities"].([]any)
+	if len(caps) == 0 || slices.Contains(caps, any("deleteFiles")) {
+		t.Errorf("the server's key may delete: %v", caps)
+	}
+	if a := m.BackupAccess(ctx, "n-0000000002", "provider:1"); a.CanDelete || !a.HidesOnly || a.KeepsHidden != 1 || a.Safe() {
+		t.Errorf("access = %+v", a)
+	}
+	setup, _ := m.Activity.Latest(activity.BackupSetupFor("n-0000000002"))
+	if log := strings.Join(setup.Lines, "\n"); !strings.Contains(log, "can add backups but not erase them") ||
+		!strings.Contains(log, "erases hidden files after a day") {
+		t.Errorf("setup log:\n%s", log)
+	}
+	if c := m.SharedCredentials(ctx, "n-0000000002"); len(c) != 0 {
+		t.Errorf("a scoped key isn't shared: %v", c)
+	}
+
+	// A copy at another provider, with the account's key: it can delete,
+	// and it's shared.
+	if err := m.AddS3Provider(ctx, "Wasabi", S3Provider{Endpoint: "https://s3.wasabisys.com", Bucket: "b",
+		AccessKey: "wasabi-id", SecretKey: "wasabi-key"}); err != nil {
+		t.Fatal(err)
+	}
+	st.SetBackupCopy(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: "provider:2", Repository: "s3:https://s3.wasabisys.com/b/x"})
+	if a := m.BackupAccess(ctx, "n-0000000002", "provider:2"); !a.CanDelete || a.Safe() {
+		t.Errorf("account key access = %+v", a)
+	}
+	want := []SharedCredential{{What: "the account key for Wasabi", Anywhere: true}}
+	if c := m.SharedCredentials(ctx, "n-0000000002"); !slices.Equal(c, want) {
+		t.Errorf("shared = %v", c)
+	}
+	// Another server backed up to the vps's disk.
+	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-0000000003", Provider: "server:n-0000000002", StoreHost: "n-0000000002",
+		Repository: "rest:http://100.96.0.2:8000/n-0000000003/x"})
+
+	// Removing the server deletes its key, says what it still holds, and
+	// forgets backups on its disk (nothing can reach them now); its own
+	// backups at Backblaze stay, still read and pruned with the account's
+	// key.
 	if err := m.RemoveServer(ctx, "n-0000000002"); err != nil {
 		t.Fatal(err)
 	}
 	if len(deleted) != 1 || deleted[0] != "scoped-id" {
 		t.Errorf("deleted = %v", deleted)
+	}
+	removal, _ := m.Activity.Latest(activity.BackupSetupFor("n-0000000002"))
+	if log := strings.Join(removal.Lines, "\n"); !strings.Contains(log, "still holds the account key for Wasabi") ||
+		!strings.Contains(log, "n-0000000003's main backup was on") {
+		t.Errorf("removal log:\n%s", log)
+	}
+	targets, _ := st.BackupTargets(ctx)
+	if len(targets) != 1 || targets[0].ServerID != "n-0000000002" || targets[0].Provider != "provider:1" {
+		t.Errorf("targets = %+v", targets)
+	}
+	if copies, _ := st.BackupCopies(ctx); len(copies) != 0 {
+		t.Errorf("copies = %+v", copies)
 	}
 }
 

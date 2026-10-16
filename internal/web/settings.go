@@ -593,6 +593,16 @@ func (s *Server) removeServerSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("server")
+	// What it keeps for backups that others use too, said once it's gone
+	// so it can be changed (SPEC.md §10.10).
+	shared, name := s.Manager.SharedCredentials(r.Context(), id), id
+	if servers, err := s.Manager.Servers(); err == nil {
+		for _, m := range servers {
+			if m.ID == id {
+				name = m.Name
+			}
+		}
+	}
 	err := s.Manager.RemoveServer(r.Context(), id)
 	if msg, ok := userMessage(err); ok {
 		s.renderServers(w, r, map[string]any{"Error": msg, "ErrorServer": id})
@@ -607,6 +617,10 @@ func (s *Server) removeServerSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "removed "+id)
+	if len(shared) > 0 {
+		s.renderServers(w, r, map[string]any{"Removed": name, "RemovedShared": shared})
+		return
+	}
 	redirect(w, r, "/servers")
 }
 

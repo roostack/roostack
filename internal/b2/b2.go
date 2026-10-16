@@ -3,8 +3,9 @@
 // its own repository (SPEC.md §10.10). Plain HTTP against B2's native API
 // (v2); restic itself uses B2's S3-compatible API with the key.
 //
-// UNTESTED against the real service: written from Backblaze's API
-// documentation; the tests use a fake server.
+// Written from Backblaze's API documentation and checked against a real
+// bucket on 2026-10-16 (docs/ASSUMPTIONS.md N2–N6); the tests use a fake
+// server.
 package b2
 
 import (
@@ -25,11 +26,17 @@ const DefaultAPI = "https://api.backblazeb2.com"
 
 // ErrCantCreateKeys means the account's key isn't allowed to create keys
 // (it lacks the writeKeys capability), so servers share it instead.
-var ErrCantCreateKeys = errors.New("this key can't create other keys (it needs the writeKeys capability)")
+var ErrCantCreateKeys = errors.New("this key can't create other keys (it needs the writeKeys capability, " +
+	"which keys made on Backblaze's website don't have: make one with Backblaze's b2 command-line tool)")
 
-// Capabilities restic needs in its own folder: list, read and write, and
-// delete (its lock files, and pruning).
-var Capabilities = []string{"listBuckets", "listFiles", "readFiles", "writeFiles", "deleteFiles"}
+// Capabilities are what a server's key may do in its own folder: list,
+// read and write, but not deleteFiles (SPEC.md §10.10). Through B2's
+// S3-compatible API, writeFiles lets restic delete a file by name, which
+// only hides it (a delete marker): restic's lock files go as usual, but
+// a server that's taken over can only hide its backups, never erase a
+// version. The controller prunes with the account's key, and Backblaze
+// erases what's hidden as the bucket's lifecycle rules say (KeepsHidden).
+var Capabilities = []string{"listBuckets", "listFiles", "readFiles", "writeFiles"}
 
 // IsB2 reports whether an S3 endpoint is Backblaze B2's.
 func IsB2(endpoint string) bool {
@@ -65,16 +72,9 @@ func (c *Client) CreateKey(ctx context.Context, name, bucket, prefix string) (Ke
 	if !contains(s.capabilities, "writeKeys") {
 		return Key{}, ErrCantCreateKeys
 	}
-	var buckets struct {
-		Buckets []struct {
-			BucketID string `json:"bucketId"`
-		} `json:"buckets"`
-	}
-	if err := c.call(ctx, s, "b2_list_buckets", map[string]string{"accountId": s.accountID, "bucketName": bucket}, &buckets); err != nil {
+	b, err := c.bucket(ctx, s, bucket)
+	if err != nil {
 		return Key{}, err
-	}
-	if len(buckets.Buckets) == 0 {
-		return Key{}, fmt.Errorf("no bucket %q in this account", bucket)
 	}
 	var created struct {
 		ApplicationKeyID string `json:"applicationKeyId"`
@@ -82,12 +82,68 @@ func (c *Client) CreateKey(ctx context.Context, name, bucket, prefix string) (Ke
 	}
 	err = c.call(ctx, s, "b2_create_key", map[string]any{
 		"accountId": s.accountID, "keyName": name, "capabilities": Capabilities,
-		"bucketId": buckets.Buckets[0].BucketID, "namePrefix": prefix,
+		"bucketId": b.BucketID, "namePrefix": prefix,
 	}, &created)
 	if err != nil {
 		return Key{}, err
 	}
 	return Key{ID: created.ApplicationKeyID, Secret: created.ApplicationKey}, nil
+}
+
+// KeepsHidden says how many days Backblaze keeps hidden files under prefix
+// before erasing them, by the bucket's lifecycle rules: 0 if it keeps
+// them for good (no rule erases them). The shortest rule that reaches into
+// the folder counts. An answer without the rules is an error, not "for
+// good" (checked against Backblaze 2026-10-16: any key with listBuckets
+// sees them).
+func (c *Client) KeepsHidden(ctx context.Context, bucket, prefix string) (int, error) {
+	s, err := c.authorize(ctx)
+	if err != nil {
+		return 0, err
+	}
+	b, err := c.bucket(ctx, s, bucket)
+	if err != nil {
+		return 0, err
+	}
+	if b.LifecycleRules == nil {
+		return 0, errors.New("Backblaze didn't say how long this bucket keeps hidden files")
+	}
+	days := 0
+	for _, r := range *b.LifecycleRules {
+		reaches := strings.HasPrefix(prefix, r.FileNamePrefix) || strings.HasPrefix(r.FileNamePrefix, prefix)
+		if !reaches || r.DaysFromHidingToDeleting == nil {
+			continue
+		}
+		if d := max(*r.DaysFromHidingToDeleting, 1); days == 0 || d < days {
+			days = d
+		}
+	}
+	return days, nil
+}
+
+// bucketInfo is the part of b2_list_buckets' answer Roostack uses.
+type bucketInfo struct {
+	BucketID string `json:"bucketId"`
+	// LifecycleRules is nil if the answer left them out.
+	LifecycleRules *[]struct {
+		FileNamePrefix string `json:"fileNamePrefix"`
+		// DaysFromHidingToDeleting is nil when hidden files are kept.
+		DaysFromHidingToDeleting *int `json:"daysFromHidingToDeleting"`
+	} `json:"lifecycleRules"`
+}
+
+// bucket looks a bucket up by name.
+func (c *Client) bucket(ctx context.Context, s session, name string) (bucketInfo, error) {
+	var buckets struct {
+		Buckets []bucketInfo `json:"buckets"`
+	}
+	if err := c.call(ctx, s, "b2_list_buckets", map[string]string{"accountId": s.accountID, "bucketName": name}, &buckets); err != nil {
+		return bucketInfo{}, err
+	}
+	if len(buckets.Buckets) == 0 {
+		return bucketInfo{}, fmt.Errorf("no bucket %q in this account", name)
+	}
+	return buckets.Buckets[0], nil
 }
 
 // DeleteKey removes a key (e.g. of a server that left the lab).

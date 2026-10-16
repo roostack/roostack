@@ -2,7 +2,6 @@ package manager
 
 import (
 	"context"
-	"encoding/json"
 	"path/filepath"
 	"strings"
 )
@@ -28,9 +27,13 @@ const (
 
 // BackupKind says what kind of storage a destination is.
 func (m *Manager) BackupKind(ctx context.Context, serverID, ref string) string {
-	kind, id, _ := strings.Cut(ref, ":")
-	switch kind {
-	case "drive":
+	d, err := m.destinationOf(ctx, ref)
+	if err != nil {
+		return KindOther
+	}
+	id := d.id
+	switch d.kind {
+	case destDrive:
 		switch {
 		case id == "system":
 			return KindSystem
@@ -47,7 +50,7 @@ func (m *Manager) BackupKind(ctx context.Context, serverID, ref string) string {
 			}
 		}
 		return KindDisk
-	case "folder", "local":
+	case destFolder:
 		// A folder in Roostack's own data (the default on the server's
 		// disk) is the server's disk; every server has the same layout.
 		for _, dir := range []string{m.Lab.Paths.BackupStoreDir(), m.Lab.Paths.StateDir} {
@@ -56,25 +59,17 @@ func (m *Manager) BackupKind(ctx context.Context, serverID, ref string) string {
 			}
 		}
 		return KindFolder
-	case "server":
+	case destServer:
 		if id == serverID {
 			return KindSystem
 		}
 		return KindServer
-	case CloudChoice:
+	case destCloud:
 		return KindCloud
-	case "provider":
-		p, err := m.provider(ctx, id)
-		if err != nil {
-			return KindOther
-		}
-		if p.Kind == "remote" {
-			return KindFriend
-		}
-		var s3 S3Provider
-		if json.Unmarshal([]byte(p.Config), &s3) == nil {
-			return KindOnline
-		}
+	case destRemote:
+		return KindFriend
+	case destS3:
+		return KindOnline
 	}
 	return KindOther
 }
