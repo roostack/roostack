@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"io/fs"
 	"net/http"
+	"path"
 	"strings"
 )
 
@@ -25,7 +26,7 @@ func staticHandler(static fs.FS) http.Handler {
 		}
 		return nil
 	})
-	files := http.FileServerFS(static)
+	files := http.FileServerFS(noListings{static})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if tag, ok := etags[strings.TrimPrefix(r.URL.Path, "/")]; ok {
 			w.Header().Set("ETag", tag)
@@ -33,4 +34,22 @@ func staticHandler(static fs.FS) http.Handler {
 		}
 		files.ServeHTTP(w, r)
 	})
+}
+
+// noListings serves a folder only through its index.html: http.FileServer
+// would otherwise list what's in it (security review of 2026-10-16).
+type noListings struct{ fs.FS }
+
+func (n noListings) Open(name string) (fs.File, error) {
+	f, err := n.FS.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	if st, err := f.Stat(); err == nil && st.IsDir() {
+		if _, err := fs.Stat(n.FS, path.Join(name, "index.html")); err != nil {
+			f.Close()
+			return nil, fs.ErrNotExist
+		}
+	}
+	return f, nil
 }

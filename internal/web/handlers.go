@@ -243,6 +243,7 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) twoFactorPage(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
+	w.Header().Set("Cache-Control", "no-store") // the key being set up
 	if u.TOTPSecret != "" {
 		s.renderAccount(w, "twofactor", "2fa", map[string]any{"User": u, "Enabled": true})
 		return
@@ -266,6 +267,7 @@ func (s *Server) twoFactorSubmit(w http.ResponseWriter, r *http.Request) {
 	secret := strings.TrimSpace(r.FormValue("secret"))
 	step, ok := authkit.VerifyTOTP(secret, r.FormValue("code"), time.Now(), 0)
 	if !ok {
+		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(http.StatusBadRequest)
 		s.renderAccount(w, "twofactor", "2fa", s.twoFactorData(u, secret,
 			"That code didn't work. Make sure you added the key above, then enter the current code."))

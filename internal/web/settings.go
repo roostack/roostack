@@ -473,6 +473,7 @@ func (s *Server) joinCodeSubmit(w http.ResponseWriter, r *http.Request) {
 	s.Store.SetSetting(r.Context(), endpointKey, endpoint)
 	s.useAddress(r.Context(), endpoint)
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "join code made for "+code.Addr.String())
+	w.Header().Set("Cache-Control", "no-store") // the join code
 	s.renderServers(w, r, map[string]any{"Endpoint": endpoint, "JoinCode": code.String(),
 		"JoinExpires": time.Now().Add(labnet.JoinCodeLifetime)})
 }
@@ -492,6 +493,7 @@ func (s *Server) joinCodeDial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "join code made for "+code.Addr.String()+", connecting to "+dial)
+	w.Header().Set("Cache-Control", "no-store") // the join code
 	s.renderServers(w, r, map[string]any{"JoinCode": code.String(), "JoinDials": dial,
 		"JoinExpires": time.Now().Add(labnet.JoinCodeLifetime)})
 }

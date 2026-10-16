@@ -111,7 +111,7 @@ func (h *helpSite) Handler() http.Handler {
 				"(`make build` builds them when uv is installed).", http.StatusNotFound)
 		})
 	}
-	files := http.StripPrefix("/help", http.FileServerFS(h.files))
+	files := http.StripPrefix("/help", http.FileServerFS(noListings{h.files}))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Security-Policy", h.csp)
 		files.ServeHTTP(w, r)
