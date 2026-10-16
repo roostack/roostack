@@ -213,3 +213,24 @@ func TestBackupPlanOnInternet(t *testing.T) {
 		}
 	}
 }
+
+// Admins must use two-factor while Roostack's pages are public (SPEC.md
+// §5): on a lab on the internet, unless the UI is kept to a tunnel.
+func TestAdminTwoFactorOnPublicUI(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleAdmin)
+	const asked = "as an Admin you need to turn on two-factor"
+	for _, c := range []struct {
+		network    string
+		tunnelOnly bool
+		required   bool
+	}{
+		{config.NetworkHome, false, false},
+		{config.NetworkInternet, true, false},
+		{config.NetworkInternet, false, true},
+	} {
+		h.setSetup(&fakeSetup{p: allDone, network: c.network, uiTunnelOnly: c.tunnelOnly})
+		if _, body := h.get("/services"); strings.Contains(body, asked) != c.required {
+			t.Errorf("%s, tunnel only %v: two-factor required should be %v:\n%.1500s", c.network, c.tunnelOnly, c.required, body)
+		}
+	}
+}

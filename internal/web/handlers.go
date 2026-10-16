@@ -296,7 +296,8 @@ func (s *Server) twoFactorData(u *store.User, secret, errMsg string) map[string]
 		"SecretFmt": strings.Join(groups, " "),
 		"URL":       template.URL(url),
 		"QR":        code,
-		"Required":  u.Role == auth.RoleOwner,
+		"Required":  s.twoFactorRequired(u),
+		"Owner":     u.Role == auth.RoleOwner,
 		"Error":     errMsg,
 	}
 }

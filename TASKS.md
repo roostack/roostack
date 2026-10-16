@@ -400,6 +400,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 The review is in Roostack Cloud's repository (`REVIEW-2026-10-16.md`); IDs refer to it.
 
 - [x] M15: only an Owner makes a service public at install or answers the CrowdSec sharing question; the install's audit entry says where it runs, whether it went public and any accepted risks (SPEC §6.11)
+- [x] M16: Admins must use two-factor while the UI is public (SPEC §5)
 
 ## To discuss with the user
 
