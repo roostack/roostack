@@ -66,8 +66,9 @@ func wireGuardConf(iface string) string { return "/etc/wireguard/" + iface + ".c
 var WireGuardConf = wireGuardConf(WireGuardInterface)
 
 // WireGuard is the desired WireGuard interface. The server's private key
-// stays with the agent (in the config file, readable by root only); the
-// roostack service only ever sees the public key.
+// stays in the config file, readable by root only; the roostack service
+// sees it only to back it up (WireGuardKeys), so a restored lab keeps the
+// keys its peers know.
 type WireGuard struct {
 	// Interface is which one ("" is roostack).
 	Interface string `json:"interface,omitempty"`
@@ -243,9 +244,12 @@ func WireGuardPublicKey(private string) (string, error) {
 	return base64.StdEncoding.EncodeToString(k.PublicKey().Bytes()), nil
 }
 
+// parseKey decodes a WireGuard key: 32 bytes, base64, written exactly as
+// base64 writes them. The decoder skips newlines, which would otherwise
+// reach a wg-quick file inside a key.
 func parseKey(s string) ([]byte, error) {
 	raw, err := base64.StdEncoding.DecodeString(s)
-	if err != nil || len(raw) != 32 {
+	if err != nil || len(raw) != 32 || base64.StdEncoding.EncodeToString(raw) != s {
 		return nil, errors.New("must be 32 bytes, base64")
 	}
 	return raw, nil
