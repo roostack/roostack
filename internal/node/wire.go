@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/agent"
@@ -121,6 +122,14 @@ func Decode(w WireAssignment) (Assignment, error) {
 		}
 		if err := in.Validate(p); err != nil {
 			return state.Service{}, err
+		}
+		// The controller checked the package policy before installing it;
+		// a node checks again rather than trust that (SPEC.md §8.3.4).
+		// Only a package the Owner added themselves may break it, once
+		// they've accepted what it asks for.
+		if risks := p.Risks(); len(risks) > 0 && !in.Local {
+			return state.Service{}, fmt.Errorf("%s: package %s %s breaks the package policy, so this server won't run it: %s",
+				in.ID(), p.Name, p.Version, strings.Join(risks, " "))
 		}
 		return state.Service{Instance: in, Package: p, Stop: ws.Stop}, nil
 	}
