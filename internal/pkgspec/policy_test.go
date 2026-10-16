@@ -1,8 +1,11 @@
 package pkgspec
 
 import (
+	"slices"
 	"strings"
 	"testing"
+
+	"roostack.cloud/roostack/internal/quadlet"
 )
 
 // policyBase follows the package policy; each case changes one thing.
@@ -115,6 +118,74 @@ func TestPolicy(t *testing.T) {
 		{"container exec", quadlet("Container", "Exec", "--verbose"), ""},
 		{"key case", quadlet("Container", "publishport", "8080:80"), "Container.publishport="},
 
+		// Found by the security review of 2026-10-16 (H2), each checked on
+		// a dev VM with Podman 5.4's Quadlet (docs/ASSUMPTIONS.md A12).
+		{"user 00", quadlet("Container", "User", "00"), "Container.User=00 isn't allowed"},
+		{"user +0 with group", quadlet("Container", "User", "+0:1000"), "Container.User=+0:1000"},
+		{"user quoted 0", quadlet("Container", "User", `"0"`), "Container.User="},
+		{"user 1000", quadlet("Container", "User", "1000"), ""},
+		{"user 10", quadlet("Container", "User", "10"), ""},
+		{"group 0", quadlet("Container", "Group", "0"), "Container.Group=0"},
+		{"userns ns path", quadlet("Container", "UserNS", "ns:/proc/1/ns/user"), "Container.UserNS=ns:/proc/1/ns/user"},
+		{"userns container", quadlet("Container", "UserNS", "container:roostack-other-web"), "Container.UserNS="},
+		{"userns auto", quadlet("Container", "UserNS", "auto"), ""},
+		{"containers.conf module", quadlet("Container", "ContainersConfModule", "/srv/roostack/services/app/x.conf"), "Container.ContainersConfModule="},
+		{"environment host", quadlet("Container", "EnvironmentHost", true), "Container.EnvironmentHost="},
+		{"seccomp profile", quadlet("Container", "SeccompProfile", "unconfined"), "Container.SeccompProfile="},
+		{"log path", quadlet("Container", "LogOpt", "path=/var/lib/roostack/lab.yaml"), "Container.LogOpt="},
+		{"log size", quadlet("Container", "LogOpt", "max-size=10mb"), ""},
+		{"health log folder", quadlet("Container", "HealthLogDestination", "/srv/roostack"), "Container.HealthLogDestination="},
+		{"health log local", quadlet("Container", "HealthLogDestination", "local"), ""},
+		{"annotation", quadlet("Container", "Annotation", "run.oci.keep_original_groups=1"), "Container.Annotation="},
+		{"unmask", quadlet("Container", "Unmask", "ALL"), "Container.Unmask="},
+		{"security label type", quadlet("Container", "SecurityLabelType", "spc_t"), "Container.SecurityLabelType="},
+		{"keep groups", quadlet("Container", "GroupAdd", "keep-groups"), "Container.GroupAdd=keep-groups"},
+		{"sub uid map", quadlet("Container", "SubUIDMap", "roostack"), "Container.SubUIDMap="},
+		{"auto update", quadlet("Container", "AutoUpdate", "registry"), "Container.AutoUpdate=registry isn't allowed: it would replace the pinned image"},
+		{"service name", quadlet("Container", "ServiceName", "roostack-caddy"), "Container.ServiceName=roostack-caddy"},
+		{"two mounts on a line", quadlet("Container", "Mount", "type=tmpfs,destination=/t type=bind,source=/srv,destination=/srv"), "Container.Mount="},
+		{"tmpfs with a source", quadlet("Container", "Mount", "type=tmpfs,source=/srv,destination=/t"), "Container.Mount="},
+		{"two types", quadlet("Container", "Mount", "type=tmpfs,type=bind,destination=/t"), "Container.Mount="},
+		{"two labels on a line", quadlet("Container", "Label", "a=b io.roostack.service=other"), "Container.Label="},
+		{"quoted label", quadlet("Container", "Label", `"io.roostack.service=other"`), "Container.Label="},
+		{"escaped label", quadlet("Container", "Label", `\x69o.roostack.service=other`), "Container.Label="},
+		{"quoted own label", quadlet("Container", "Label", `"org.example.description=My app"`), ""},
+		{"service environment", quadlet("Service", "Environment", "CONTAINERS_CONF_OVERRIDE=/srv/roostack/x.conf"), "Service.Environment="},
+		{"service environment file", quadlet("Service", "EnvironmentFile", "/etc/roostack/env"), "Service.EnvironmentFile="},
+		{"service output", quadlet("Service", "StandardOutput", "append:/var/lib/roostack/lab.yaml"), "Service.StandardOutput="},
+		{"service input", quadlet("Service", "StandardInput", "file:/var/lib/roostack/lab.yaml"), "Service.StandardInput="},
+		{"service user", quadlet("Service", "User", "root"), "Service.User="},
+		{"service group", quadlet("Service", "Group", "roostack"), "Service.Group="},
+		{"service working directory", quadlet("Service", "WorkingDirectory", "/var/lib/roostack"), "Service.WorkingDirectory="},
+		{"service root directory", quadlet("Service", "RootDirectory", "/"), "Service.RootDirectory="},
+		{"service state directory", quadlet("Service", "StateDirectory", "app"), "Service.StateDirectory="},
+		{"service bind paths", quadlet("Service", "BindPaths", "/var/lib/roostack"), "Service.BindPaths="},
+		{"service credential", quadlet("Service", "LoadCredential", "key:/var/lib/roostack/lab.yaml"), "Service.LoadCredential="},
+		{"service slice", quadlet("Service", "Slice", "other.slice"), "Service.Slice="},
+		{"service timeout", quadlet("Service", "TimeoutStopSec", "60"), ""},
+		{"unit conflicts", quadlet("Unit", "Conflicts", "roostack-caddy.service"), "Unit.Conflicts=roostack-caddy.service isn't allowed: it ties the service"},
+		{"unit requires", quadlet("Unit", "Requires", "roostack-other-web.service"), "Unit.Requires="},
+		{"unit on failure", quadlet("Unit", "OnFailure", "roostack-caddy.service"), "Unit.OnFailure="},
+		{"unit failure action", quadlet("Unit", "FailureAction", "exit"), "Unit.FailureAction="},
+		{"unit start limit action", quadlet("Unit", "StartLimitAction", "exit"), "Unit.StartLimitAction="},
+		{"unit description", quadlet("Unit", "Documentation", "https://example.org/app"), ""},
+		{"install alias", quadlet("Install", "Alias", "roostack-caddy.service"), "Install.Alias="},
+		{"install wanted by", quadlet("Install", "WantedBy", "multi-user.target"), "Install.WantedBy="},
+
+		// Only keys on the allow-list (the Owner, 2026-10-16).
+		{"key not looked at", quadlet("Container", "CgroupsMode", "disabled"), "Container.CgroupsMode isn't allowed: it isn't one of the keys Roostack has checked"},
+		{"log driver", quadlet("Container", "LogDriver", "none"), "Container.LogDriver isn't allowed"},
+		{"made-up key", quadlet("Container", "Frobnicate", "yes"), "Container.Frobnicate isn't allowed"},
+		{"unknown key with a list", quadlet("Container", "Frobnicate", []any{"a", "b"}), "Container.Frobnicate isn't allowed"},
+		{"allowed key in another case", quadlet("Container", "shmsize", "1m"), "Container.shmsize isn't allowed: write it as ShmSize"},
+		{"unit condition", quadlet("Unit", "ConditionPathExists", "/srv/roostack"), "Unit.ConditionPathExists isn't allowed"},
+		{"unit description", quadlet("Unit", "Description", "Not Roostack's"), "Unit.Description isn't allowed"},
+		{"service kill signal", quadlet("Service", "KillSignal", "SIGKILL"), "Service.KillSignal isn't allowed"},
+		{"service memory", quadlet("Service", "MemoryMax", "1G"), ""},
+		{"service nice", quadlet("Service", "Nice", 5), ""},
+		{"read-only container", quadlet("Container", "ReadOnly", true), ""},
+		{"health start period", quadlet("Container", "HealthStartPeriod", "2m"), ""},
+
 		// Facts about the project, and what it needs (agreed 2026-10-14).
 		{"no maker", func(p *Package) { p.About.Maker = "" }, "about.maker:"},
 		{"no licence", func(p *Package) { p.About.Licence = "" }, "about.licence: give"},
@@ -207,5 +278,60 @@ func TestRisks(t *testing.T) {
 	p.Containers["web"].Quadlet = Quadlet{"Container": {"PodmanArgs": "--privileged"}}
 	if risks := p.Risks(); len(risks) != 1 || !strings.Contains(risks[0], "PodmanArgs") {
 		t.Errorf("Risks = %q, want PodmanArgs", risks)
+	}
+}
+
+// A key or value that isn't read back as written is refused by Validate
+// (so Parse), and by the policy too, which doesn't rely on Validate
+// having run (REVIEW-2026-10-16 H2).
+func TestQuadletSyntax(t *testing.T) {
+	tests := []struct {
+		name, key string
+		value     any
+	}{
+		{"space after the key", "Volume ", "/var/lib/roostack:/lab"},
+		{"space before the key", " Volume", "/var/lib/roostack:/lab"},
+		{"= in the key", "Volume=/:/host", "rw"},
+		{"newline in the key", "ShmSize=1m\nVolume", "/:/host"},
+		{"empty key", "", "x"},
+		{"dash in the key", "X-Volume", "/:/host"},
+		{"newline in the value", "ShmSize", "1m\nVolume=/:/host"},
+		{"newline in a list", "Tmpfs", []any{"/run", "/tmp\nVolume=/:/host"}},
+		{"backslash at the end", "ShmSize", `1m\`},
+		{"backslash and spaces at the end", "ShmSize", "1m\\  "},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := Parse([]byte(policyBase))
+			if err != nil {
+				t.Fatal(err)
+			}
+			p.Containers["web"].Quadlet = Quadlet{"Container": {tt.key: tt.value}}
+			if err := p.Validate(); err == nil {
+				t.Error("Validate passed it")
+			}
+			if risks := p.Risks(); len(risks) != 1 || !strings.Contains(risks[0], "isn't allowed") {
+				t.Errorf("Risks = %q, want one problem", risks)
+			}
+		})
+	}
+}
+
+// The allow-list and the deny-list don't contradict each other: every
+// allowed key is a plain key, and a rule refusing every value of a key
+// never covers an allowed one (it would make the allow-list entry dead).
+func TestQuadletListsAgree(t *testing.T) {
+	for section, keys := range quadletAllowed {
+		if !slices.Contains(quadletSections, section) {
+			t.Errorf("allow-list section %q isn't one a package may use", section)
+		}
+		for _, key := range keys {
+			if err := quadlet.CheckKey(key); err != nil {
+				t.Errorf("%s.%s: %v", section, key, err)
+			}
+			if r := findQuadletRule(section, key); r != nil && r.denies == nil {
+				t.Errorf("%s.%s is allowed, but a rule refuses every value of it", section, key)
+			}
+		}
 	}
 }
