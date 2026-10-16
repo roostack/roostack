@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"roostack.cloud/roostack/internal/quadlet"
 )
 
 var (
@@ -458,8 +460,20 @@ func validateQuadlet(v *validator, at string, q Quadlet) {
 			continue
 		}
 		for _, key := range slices.Sorted(maps.Keys(q[section])) {
+			// A key or value that wouldn't be read back as written could
+			// add a line the package policy never saw (SPEC.md §8.3.4).
+			if err := quadlet.CheckKey(key); err != nil {
+				v.addf("%s.%s.%q: %v", at, section, key, err)
+				continue
+			}
 			if !isScalarOrList(q[section][key]) {
 				v.addf("%s.%s.%s: must be a scalar or a list of scalars", at, section, key)
+				continue
+			}
+			for _, value := range quadletValues(q[section][key]) {
+				if err := quadlet.CheckValue(value); err != nil {
+					v.addf("%s.%s.%s: %v", at, section, key, err)
+				}
 			}
 		}
 	}

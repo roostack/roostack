@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"roostack.cloud/roostack/internal/quadlet"
 )
 
 // Policy checks the package against the package policy every registry
@@ -124,65 +126,128 @@ func (p *Package) aboutPolicy(add func(string, ...any)) {
 var pinnedRe = regexp.MustCompile(`@sha256:[0-9a-f]{64}$`)
 
 // quadletRule refuses a raw Quadlet line that could reach beyond the
-// service (SPEC.md §8.3.4). Keys match whatever their case.
+// service (SPEC.md §8.3.4).
 type quadletRule struct {
-	section, key string
-	// prefix matches every key starting with key (ExecStart, ExecStop, ...).
-	prefix bool
+	section string
+	// keys are the keys it refuses, whatever their case: a name, a name
+	// ending in * for every key starting with it (Exec*), *name* for
+	// every key containing it, or * for every key in the section.
+	keys []string
 	// denies says whether this value is refused; nil refuses any value.
 	denies func(value string) bool
 	// instead says why, and what the package should use instead.
 	instead string
 }
 
+// matches says whether the rule covers key.
+func (r quadletRule) matches(key string) bool {
+	key = strings.ToLower(key)
+	for _, k := range r.keys {
+		k = strings.ToLower(k)
+		switch {
+		case k == "*":
+			return true
+		case len(k) > 2 && k[0] == '*' && k[len(k)-1] == '*':
+			if strings.Contains(key, k[1:len(k)-1]) {
+				return true
+			}
+		case strings.HasSuffix(k, "*"):
+			if strings.HasPrefix(key, k[:len(k)-1]) {
+				return true
+			}
+		case key == k:
+			return true
+		}
+	}
+	return false
+}
+
+// The reasons rules share.
+const (
+	podmanAnything = "it can pass anything to Podman; something the package format can't say needs a new field"
+	serverCommand  = "it runs a command on the server; commands run inside the container (command: or hooks:)"
+	serverFiles    = "it reads or writes files on the server, outside the service; use storage:, env: and secrets:"
+	roostackWrites = "Roostack writes it itself, from what the package declares"
+	runtimeChange  = "it changes how Podman or systemd runs the container, beyond the service; something the package format can't say needs a new field"
+)
+
 // Agreed with the Owner on 2026-10-13 (the deny-list), plus on 2026-10-14
-// the keys that override what Roostack writes itself: the generator
-// appends a package's lines after its own.
+// the keys that override what Roostack writes itself (the generator
+// appends a package's lines after its own), and on 2026-10-16 those the
+// security review found reaching beyond the service: keys that read or
+// write host paths, change which image or command runs, or tie the unit
+// to others (REVIEW-2026-10-16 H2).
 var quadletRules = []quadletRule{
-	{section: "Container", key: "Volume", denies: volumeHasSource,
+	// [Container]: folders and files on the server.
+	{section: "Container", keys: []string{"Volume"}, denies: volumeHasSource,
 		instead: "a folder from the server or a named volume is outside the service and its backups; use storage: and mounts: (an anonymous Volume=/path is allowed)"},
-	{section: "Container", key: "Mount", denies: func(v string) bool { return !isTmpfsMount(v) },
-		instead: "only type=tmpfs is allowed; use storage: and mounts: for the service's folders"},
-	{section: "Container", key: "Rootfs",
+	{section: "Container", keys: []string{"Mount"}, denies: func(v string) bool { return !isTmpfsMount(v) },
+		instead: "only type=tmpfs is allowed, one per line, without quotes or backslashes; use storage: and mounts: for the service's folders"},
+	{section: "Container", keys: []string{"Rootfs"},
 		instead: "it runs the container from a folder on the server; use the container's image:"},
-	{section: "Container", key: "EnvironmentFile",
-		instead: "it reads a file on the server; use env: and secrets:"},
-	{section: "Container", key: "PodmanArgs",
-		instead: "it can pass anything to Podman; something the package format can't say needs a new field"},
-	{section: "Container", key: "GlobalArgs",
-		instead: "it can pass anything to Podman; something the package format can't say needs a new field"},
-	{section: "Container", key: "AddCapability",
+	{section: "Container", keys: []string{"EnvironmentFile", "EnvironmentHost", "ContainersConfModule", "SeccompProfile"},
+		instead: serverFiles},
+	{section: "Container", keys: []string{"LogOpt"}, denies: func(v string) bool { return strings.Contains(strings.ToLower(v), "path") || strings.Contains(v, `\`) },
+		instead: "a log path writes to a file on the server; Roostack keeps the container's log"},
+	{section: "Container", keys: []string{"HealthLogDestination"}, denies: func(v string) bool { return v != "local" && v != "events_logger" },
+		instead: "a folder for the health log is on the server; use local or events_logger"},
+
+	// [Container]: Podman itself.
+	{section: "Container", keys: []string{"PodmanArgs", "GlobalArgs"}, instead: podmanAnything},
+	{section: "Container", keys: []string{"AddCapability"},
 		instead: "containers keep Podman's default capabilities"},
-	{section: "Container", key: "SecurityLabelDisable",
-		instead: "Roostack keeps Podman's security labels on"},
-	{section: "Container", key: "Network",
+	{section: "Container", keys: []string{"SecurityLabel*", "Unmask", "Annotation"},
+		instead: "Roostack keeps Podman's security settings; annotations can change them too"},
+	{section: "Container", keys: []string{"Network", "Pod"},
 		instead: "Roostack puts each service on its own network"},
-	{section: "Container", key: "Pod",
-		instead: "Roostack puts each service on its own network"},
-	{section: "Container", key: "PublishPort",
+	{section: "Container", keys: []string{"PublishPort"},
 		instead: "use routes: for web addresses and ports: for other connections"},
-	{section: "Container", key: "AddDevice",
+	{section: "Container", keys: []string{"AddDevice"},
 		instead: "use devices: (e.g. gpu: intel)"},
-	{section: "Container", key: "User", denies: isRootUser,
+	{section: "Container", keys: []string{"GroupAdd"}, denies: func(v string) bool {
+		return strings.Contains(strings.ToLower(v), "keep-groups") || strings.Contains(v, `\`)
+	},
+		instead: "keep-groups gives the container the server's groups; use devices: for a GPU"},
+
+	// [Container]: users and namespaces.
+	{section: "Container", keys: []string{"User", "Group"}, denies: isRootUser,
 		instead: "run as the image's own user, with UserNS=keep-id:uid=…,gid=… if its files need that owner"},
-	{section: "Container", key: "UIDMap",
+	{section: "Container", keys: []string{"UIDMap", "GIDMap", "SubUIDMap", "SubGIDMap"},
 		instead: "use UserNS=keep-id:uid=…,gid=… if the service's files need a particular owner"},
-	{section: "Container", key: "GIDMap",
-		instead: "use UserNS=keep-id:uid=…,gid=… if the service's files need a particular owner"},
-	{section: "Container", key: "UserNS", denies: func(v string) bool { return strings.EqualFold(strings.TrimSpace(v), "host") },
-		instead: "the host's user namespace is the roostack user's own; use UserNS=keep-id:uid=…,gid=… if the service's files need a particular owner"},
-	{section: "Container", key: "Image",
+	{section: "Container", keys: []string{"UserNS"}, denies: func(v string) bool { return !isOwnUserNS(v) },
+		instead: "only keep-id, auto, nomap or private: the others share a user namespace beyond the service; use UserNS=keep-id:uid=…,gid=… if the service's files need a particular owner"},
+
+	// [Container]: what Roostack writes itself.
+	{section: "Container", keys: []string{"Image", "AutoUpdate"},
 		instead: "it would replace the pinned image; use image:"},
-	{section: "Container", key: "Secret",
+	{section: "Container", keys: []string{"Secret"},
 		instead: "it could read another service's secrets; use secrets:"},
-	{section: "Container", key: "ContainerName",
-		instead: "Roostack names the containers"},
-	{section: "Container", key: "Label", denies: func(v string) bool { return strings.HasPrefix(strings.TrimSpace(v), "io.roostack.") },
-		instead: "Roostack finds a service's containers by its own io.roostack labels"},
-	{section: "Service", key: "Exec", prefix: true,
-		instead: "it runs a command on the server; commands run inside the container (command: or hooks:)"},
-	{section: "Unit", key: "Exec", prefix: true,
-		instead: "it runs a command on the server; commands run inside the container (command: or hooks:)"},
+	{section: "Container", keys: []string{"ContainerName", "ServiceName"},
+		instead: "Roostack names the containers and their units"},
+	{section: "Container", keys: []string{"Label"}, denies: hasRoostackLabel,
+		instead: "Roostack finds a service's containers by its own io.roostack labels (and write labels without backslashes)"},
+
+	// [Service]: the unit that runs Podman, on the server.
+	{section: "Service", keys: []string{"Exec*"}, instead: serverCommand},
+	{section: "Service", keys: []string{"Environment*", "PassEnvironment", "UnsetEnvironment"},
+		instead: "it sets Podman's own environment, which can point it at other files; use env: for the container's"},
+	{section: "Service", keys: []string{"Standard*", "TTY*", "PIDFile", "*Path*", "*Director*", "*Credential*", "*Image*", "TemporaryFileSystem", "Root*"},
+		instead: serverFiles},
+	{section: "Service", keys: []string{"User", "Group", "SupplementaryGroups", "DynamicUser", "PAMName", "KeyringMode"},
+		instead: "the roostack user runs every service; use UserNS=keep-id:uid=…,gid=… for the container's user"},
+	{section: "Service", keys: []string{"Type", "NotifyAccess", "Delegate*", "Slice", "Sockets", "BusName", "LogNamespace", "SELinuxContext*", "AppArmorProfile", "SmackProcessLabel"},
+		instead: runtimeChange},
+
+	// [Unit] and [Install]: how the unit relates to others.
+	{section: "Unit", keys: []string{"Exec*"}, instead: serverCommand},
+	{section: "Unit", keys: []string{"Requires", "Requisite", "Wants", "BindsTo", "PartOf", "Upholds", "Conflicts", "Before", "After",
+		"OnFailure", "OnSuccess", "PropagatesReloadTo", "ReloadPropagatedFrom", "PropagatesStopTo", "StopPropagatedFrom",
+		"JoinsNamespaceOf", "RequiresMountsFor", "WantsMountsFor", "SourcePath"},
+		instead: "it ties the service to other units; " + roostackWrites + " (depends_on:)"},
+	{section: "Unit", keys: []string{"*Action*", "RebootArgument"},
+		instead: "it acts beyond the service, such as stopping every service of the roostack user"},
+	{section: "Install", keys: []string{"*"},
+		instead: "it ties the service to other units, or names it after one; " + roostackWrites},
 }
 
 // quadletPolicy returns a sentence for each refused line of q.
@@ -190,12 +255,18 @@ func quadletPolicy(q Quadlet) []string {
 	var problems []string
 	for _, section := range slices.Sorted(maps.Keys(q)) {
 		for _, key := range slices.Sorted(maps.Keys(q[section])) {
-			rule := findQuadletRule(section, key)
-			if rule == nil {
+			// Validate refuses these too; the policy doesn't rely on it.
+			if err := quadlet.CheckKey(key); err != nil {
+				problems = append(problems, fmt.Sprintf("%s.%q isn't allowed: %v.", section, key, err))
 				continue
 			}
+			rule := findQuadletRule(section, key)
 			for _, value := range quadletValues(q[section][key]) {
-				if rule.denies != nil && !rule.denies(value) {
+				if err := quadlet.CheckValue(value); err != nil {
+					problems = append(problems, fmt.Sprintf("%s.%s=%q isn't allowed: %v.", section, key, value, err))
+					continue
+				}
+				if rule == nil || rule.denies != nil && !rule.denies(value) {
 					continue
 				}
 				problems = append(problems, fmt.Sprintf("%s.%s=%s isn't allowed: %s.", section, key, value, rule.instead))
@@ -207,10 +278,7 @@ func quadletPolicy(q Quadlet) []string {
 
 func findQuadletRule(section, key string) *quadletRule {
 	for i, r := range quadletRules {
-		if r.section != section {
-			continue
-		}
-		if strings.EqualFold(key, r.key) || r.prefix && len(key) >= len(r.key) && strings.EqualFold(key[:len(r.key)], r.key) {
+		if r.section == section && r.matches(key) {
 			return &quadletRules[i]
 		}
 	}
@@ -233,25 +301,75 @@ func quadletValues(val any) []string {
 // volumeHasSource says whether a Volume= line mounts something into the
 // container ([SOURCE:]DEST[:OPTIONS]): a host path or a named volume, both
 // shared beyond the service. Only an anonymous volume (DEST) has none.
+// Quadlet passes the line to Podman as it is (quotes too: checked on a
+// dev VM, docs/ASSUMPTIONS.md A12).
 func volumeHasSource(v string) bool {
 	src, _, found := strings.Cut(strings.TrimSpace(v), ":")
 	return found && src != ""
 }
 
-// isTmpfsMount says whether a Mount= line is a tmpfs (type=tmpfs, ...),
-// which holds nothing beyond the container.
+// isTmpfsMount says whether a Mount= line is a single tmpfs (type=tmpfs,
+// ...), which holds nothing beyond the container. Quadlet splits a Mount=
+// line into words, unquoting and unescaping them, and each word is a
+// mount of its own (A12), so a line with spaces, quotes or backslashes is
+// refused rather than parsed.
 func isTmpfsMount(v string) bool {
+	if strings.ContainsAny(v, " \t\"'\\") {
+		return false
+	}
+	types := 0
 	for opt := range strings.SplitSeq(v, ",") {
-		k, val, _ := strings.Cut(strings.TrimSpace(opt), "=")
-		if k == "type" {
-			return val == "tmpfs"
+		k, val, _ := strings.Cut(opt, "=")
+		switch strings.ToLower(k) {
+		case "type":
+			types++
+			if val != "tmpfs" {
+				return false
+			}
+		case "source", "src":
+			return false
+		}
+	}
+	return types == 1
+}
+
+// hasRoostackLabel says whether a Label= line sets one of Roostack's own
+// labels. Quadlet reads a Label= line as several key=value words, unquoting
+// them and unescaping \x69 and the like (A12), so each word is checked,
+// and a line with a backslash is refused rather than unescaped here.
+func hasRoostackLabel(v string) bool {
+	if strings.Contains(v, `\`) {
+		return true
+	}
+	for _, word := range strings.Fields(strings.NewReplacer(`"`, " ", "'", " ").Replace(v)) {
+		if strings.HasPrefix(strings.ToLower(word), "io.roostack.") {
+			return true
 		}
 	}
 	return false
 }
 
-// isRootUser says whether a User= line (user[:group]) runs as root.
+// isRootUser says whether a User= or Group= line (name[:group]) is root:
+// root, or a number that is 0 however it's written (0, 00, +0).
 func isRootUser(v string) bool {
-	user, _, _ := strings.Cut(strings.TrimSpace(v), ":")
-	return user == "0" || user == "root"
+	user, _, _ := strings.Cut(strings.Trim(strings.TrimSpace(v), `"'`), ":")
+	user = strings.TrimSpace(user)
+	if strings.EqualFold(user, "root") {
+		return true
+	}
+	digits := strings.TrimLeft(user, "+-")
+	return digits != "" && strings.Trim(digits, "0") == ""
+}
+
+// isOwnUserNS says whether a UserNS= line gives the container a user
+// namespace of its own: keep-id (with options), auto, nomap or private.
+// The others (host, ns:<path>, container:<name>) share one beyond the
+// service.
+func isOwnUserNS(v string) bool {
+	mode, _, _ := strings.Cut(strings.TrimSpace(v), ":")
+	switch mode {
+	case "keep-id", "auto", "nomap", "private":
+		return true
+	}
+	return false
 }

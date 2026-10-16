@@ -216,27 +216,35 @@ validate` reports each problem with what to use instead.
 | No `requires.roostack` | The oldest Roostack release the package works with |
 | A container without `memory` | What it typically uses, for the summary shown before installing |
 
-In `quadlet:`, these lines (in any case) are refused:
+In `quadlet:`, a key is letters and digits only, starting with a letter,
+and a value can't contain a line break or end in a backslash: anything
+else could add a line of its own to the file Roostack writes. These lines
+(in any case) are refused:
 
 | Quadlet line | Use instead |
 |---|---|
-| `Volume=` with a host folder or a named volume, `Mount=` other than `type=tmpfs`, `Rootfs=` | `storage:` and `mounts:`; an anonymous `Volume=/path` or a tmpfs is fine |
-| `EnvironmentFile=` | `env:` and `secrets:` |
+| `Volume=` with a host folder or a named volume, `Mount=` other than a single `type=tmpfs`, `Rootfs=` | `storage:` and `mounts:`; an anonymous `Volume=/path` or a tmpfs is fine |
+| `EnvironmentFile=`, `EnvironmentHost=`, `ContainersConfModule=`, `SeccompProfile=`, a `LogOpt=` with a path, `HealthLogDestination=` a folder | `env:` and `secrets:`: these read or write files on the server |
 | `Secret=` | `secrets:` |
-| `Image=` | the container's `image:` |
+| `Image=`, `AutoUpdate=` | the container's `image:` |
 | `PodmanArgs=`, `GlobalArgs=` | A field in the package format: ask for one |
-| `AddCapability=`, `SecurityLabelDisable=` | Nothing: containers keep Podman's defaults |
+| `AddCapability=`, `SecurityLabel…=`, `Unmask=`, `Annotation=` | Nothing: containers keep Podman's protections |
 | `Network=`, `Pod=` | Nothing: each service has its own network |
 | `PublishPort=` | `routes:` for web addresses, `ports:` for other connections |
-| `AddDevice=` | `devices:` (`gpu: intel`) |
-| `User=0` or `User=root`, `UIDMap=`, `GIDMap=`, `UserNS=host` | The image's own user, and `UserNS=keep-id:uid=…,gid=…` if its files need that owner |
-| `ContainerName=`, `Label=io.roostack.…` | Nothing: Roostack names and labels its containers |
+| `AddDevice=`, `GroupAdd=keep-groups` | `devices:` (`gpu: intel`) |
+| `User=` or `Group=` as root (`root`, `0`, `00`), `UIDMap=`, `GIDMap=`, `SubUIDMap=`, `SubGIDMap=`, `UserNS=` other than `keep-id…`, `auto`, `nomap` or `private` | The image's own user, and `UserNS=keep-id:uid=…,gid=…` if its files need that owner |
+| `ContainerName=`, `ServiceName=`, `Label=io.roostack.…` | Nothing: Roostack names and labels its containers |
 | `ExecStart…`, `ExecStop…` or any other `Exec…` in `[Service]` or `[Unit]` | `command:` or `hooks:`, which run inside the container |
+| In `[Service]`: `Environment…`, `PassEnvironment`, `UnsetEnvironment`, `Standard…`, `TTY…`, `User`, `Group`, `SupplementaryGroups`, `DynamicUser`, `Root…`, `PIDFile`, `TemporaryFileSystem`, any key naming a `Path`, `Directory`, `Credential` or `Image`, and `Type`, `NotifyAccess`, `Delegate`, `Slice`, `Sockets`, `BusName`, `LogNamespace`, `PAMName`, `KeyringMode` and security contexts | `env:` for the container's environment; the rest is how the server runs Podman, which Roostack sets |
+| In `[Unit]`: dependencies and relationships (`Requires`, `Wants`, `BindsTo`, `PartOf`, `Upholds`, `Conflicts`, `Before`, `After`, `OnFailure`, `OnSuccess` and the like), `SourcePath`, and the `…Action` keys | `depends_on:` |
+| Anything in `[Install]` | Nothing: Roostack starts every service with the server |
 
-Anything else is allowed, and looked at when the package is reviewed:
-Forgejo's `UserNS=keep-id:uid=1000,gid=1000` and Immich's database
-`ShmSize=128m`, for example. A package of your own may break the policy:
-check it with `roostack validate -local`, and see
+Quadlet reads a `Label=` or `Mount=` line as several values, so each one
+is checked; write them without backslashes. Anything else is allowed, and
+looked at when the package is reviewed: Forgejo's
+`UserNS=keep-id:uid=1000,gid=1000` and Immich's database `ShmSize=128m`,
+for example. A package of your own may break the policy: check it with
+`roostack validate -local`, and see
 [Add your own](../services/add.md#your-own) for adding it to your lab.
 
 ## Templates
