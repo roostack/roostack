@@ -33,7 +33,7 @@ func TestLabPlan(t *testing.T) {
 		t.Errorf("the server's own paths = %v", p.Paths)
 	}
 	for _, want := range []string{"/var/lib/roostack/home/*", "!/var/lib/roostack/home/.local", "/var/lib/roostack/roostack.db",
-		"/var/lib/roostack/backup-key", "/var/lib/roostack/backup-key.*", "/var/lib/roostack/backup-secrets",
+		"/var/lib/roostack/backup-key", "/var/lib/roostack/backup-key.*", "/var/lib/roostack/restore-key", "/var/lib/roostack/backup-secrets",
 		"/var/lib/roostack/cloud-*-keys.json"} {
 		if !slices.Contains(p.Excludes, want) {
 			t.Errorf("excludes missing %s: %v", want, p.Excludes)
@@ -60,6 +60,7 @@ func TestBackupJob(t *testing.T) {
 	writeFile(t, filepath.Join(secrets, "secrets.json"), "{}")
 	writeFile(t, filepath.Join(paths.HomeDir, ".local", "share", "containers", "storage", "overlay", "big-image"), "layers")
 	writeFile(t, KeyFile(paths), "key")
+	writeFile(t, RestoreKeyFile(paths), "typed for an abandoned restore")
 	writeFile(t, filepath.Join(paths.StateDir, "cloud-backup-keys.json"), "{}")
 
 	result := make(chan error, 1)
@@ -103,7 +104,7 @@ func TestBackupJob(t *testing.T) {
 		t.Error("restore is missing state, the database copy or secrets")
 	}
 	if has(filepath.Join(paths.HomeDir, ".local", "share", "containers", "storage", "overlay")) || has(KeyFile(paths)) ||
-		has(filepath.Join(paths.StateDir, "cloud-backup-keys.json")) {
+		has(RestoreKeyFile(paths)) || has(filepath.Join(paths.StateDir, "cloud-backup-keys.json")) {
 		t.Error("container images, the backup key or Cloud backup's keys were backed up")
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"sync"
 
@@ -38,7 +37,7 @@ type labRestorer struct {
 }
 
 // keyFile holds the recovery key while a restore is being prepared.
-func (l *labRestorer) keyFile() string { return filepath.Join(l.lab.Paths.StateDir, "restore-key") }
+func (l *labRestorer) keyFile() string { return backup.RestoreKeyFile(l.lab.Paths) }
 
 func (l *labRestorer) openRepo(url string, env []string) *backup.Repo {
 	bin, err := exec.LookPath("restic")

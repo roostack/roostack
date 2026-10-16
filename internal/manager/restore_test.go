@@ -302,6 +302,18 @@ func TestRestoreAcrossTheLab(t *testing.T) {
 		t.Errorf("runs on %q", in.Host)
 	}
 
+	// Its databases don't load: the files are back, and it isn't started
+	// again on them.
+	home.log, home.failOn = nil, "load dumps"
+	if err := m.RestoreService(ctx, "forgejo", backups[0].ID(), "n-0000000002"); err != nil {
+		t.Fatal(err)
+	}
+	if l := waitRestore(t, m); !strings.Contains(l.Err, "files are back from the backup, but its databases couldn't be loaded") ||
+		slices.Contains(home.log, "start") {
+		t.Errorf("restore: %q; home did %v", l.Err, home.log)
+	}
+	home.failOn = ""
+
 	// Onto a server that can't be reached: refused.
 	if err := m.RestoreService(ctx, "forgejo", backups[0].ID(), "n-0000000003"); err == nil || !strings.Contains(err.Error(), "can't reach vps") {
 		t.Errorf("err = %v", err)
