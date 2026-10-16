@@ -13,9 +13,12 @@ within a few seconds.
 - A drive that already has files on it can be used as it is. Roostack
   keeps its backups in a folder named `roostack` on it, and leaves
   everything else alone.
-- A **new drive**, or one Roostack can't use as it is, can be **erased and
-  prepared**. Roostack names the drive, its model and size, and asks you to
-  confirm first: everything on it is deleted.
+- A **new drive**, or one with nothing Roostack can use on it, can be
+  **erased and prepared**. Roostack names the drive, its model and size,
+  and asks you to confirm first: everything on it is deleted. Roostack
+  never erases a drive it could use as it is (one with files on it, say),
+  nor one that's in use. To start such a drive afresh, erase it on another
+  computer first.
 - **This server's own disk** is at the end of the list. It helps if you
   delete something by mistake, but not if the disk fails, so it's never
   enough on its own.

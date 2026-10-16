@@ -388,7 +388,9 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [x] `scripts/dev-vm.sh test` looked for `main.test` for `cmd/roostack` (binaries are named after the import path, `roostack.test`); fixed
 - [ ] For rs-network-trust: `TestHubJoin` (internal/labnet/hub_test.go) is timing-dependent: with `SwitchDelay: time.Millisecond` it expects the one-time key still there after `Join`, `Save` and `ClientTLS`, which a busy VM can take longer than; failed once in a shared VM1 run, passed 10/10 alone. Use a longer delay or a channel
 - [ ] For rs-package-policy: `help/docs/reference/cli.md` "Who runs what" should say `sudo roostack user|backup|apply` now run as roostack
-- [ ] M17/M18 (drive names, UUIDs, fstab, erasing only blank disks not in fstab), agent Lows (WireGuard key decoding, backup folder, unit sandbox), container reach to the agent socket (confirmed reachable with a bind mount; fix to propose: refuse peers outside the initial user namespace), M19 (mark SPEC §6.10 item 3 "not built yet", decided by the user)
+- [x] M17/M18: drive names lose control characters, UUIDs are checked, fstab lines with whitespace in a field are refused; only blank disks not mounted or in fstab are erased (SPEC §6.1, ASSUMPTIONS S5; checked on VM1 with a crafted USB label)
+- [ ] For rs-backup-append: the wizard's "Erase it and start afresh…" branch in `templates/parts.html` is now dead (Erasable is never true for a Usable drive); SPEC §6.9's drive paragraph could say "not in use"
+- [ ] Agent Lows (WireGuard key decoding, backup folder, unit sandbox), container reach to the agent socket (confirmed reachable with a bind mount; fix to propose: refuse peers outside the initial user namespace), M19 (mark SPEC §6.10 item 3 "not built yet", decided by the user)
 - [ ] Untested: `node join` end to end as root (needs a second VM); the install message on a fresh install
 
 ## ARM64, then Raspberry Pi (ARM64-PLAN.md)
