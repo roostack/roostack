@@ -186,6 +186,17 @@ Checked on an arm64 dev VM (Debian 13 cloud image with Debian's standard arm64 k
 | R5 ✅ | With 16 KB memory pages (Debian's `linux-image-arm64-16k`, as the Pi 5's kernel uses), every pinned service image starts: Valkey, Postgres, Vaultwarden, Forgejo, Immich's server, machine learning and database. Not yet run: Caddy, CrowdSec, rest-server (Go programs, expected fine). | ARM64-PLAN.md 2.4 |
 | R6 ✅ | OS updates through Roostack (unattended-upgrades with Debian's origins) work the same on arm64. Drive detection, formatting and the backup drive picker work with a USB drive on QEMU's `virt` machine. | `osupdate`, `internal/agent/drives.go` |
 
+## S. The boundary between roostack and root (SPEC §6.1, 2026-10-16)
+
+Checked on the arm64 dev VM 1 (Debian 13, kernel 6.12) for the security review of 2026-10-16.
+
+| # | Assumption | Code that depends on it |
+|---|---|---|
+| S1 ✅ | **SQLite (modernc.org/sqlite 1.59) follows a symlink for the database file, not for `-wal` or `-shm`.** A database path that's a symlink to a missing file: SQLite created the target and wrote to it. A `-wal` or `-shm` symlink to a missing file: "unable to open database file", nothing created; a `-wal` symlink to an existing file: the symlink was replaced, the file left alone (SQLite opens these with `O_NOFOLLOW`). The driver opens with fixed flags, so `SQLITE_OPEN_NOFOLLOW` can't be asked for. | `store.Open` refuses a symlink for any of the three; the command line never opens it as root |
+| S2 ✅ | **`install -d -o roostack …` on an existing symlink to a folder changes the target's owner and mode** (coreutils, Debian 13); `install` of a file over a symlink replaces the symlink. | `packaging/deb/postinst` uses `mkdir` (fails on anything already there) and `chown -h` |
+| S3 ✅ | **TIOCSTI is off for unprivileged processes** (`/proc/sys/dev/tty/legacy_tiocsti` is 0 on Debian 13's kernel). The command line doesn't rely on it: a command it re-runs as `roostack` has no terminal at all. | `cmd/roostack/asroostack.go` |
+| S4 ✅ | **`setpriv` is in `/usr/bin` and `runuser` in `/usr/sbin`** (util-linux, essential). | `packaging/deb/installed-message` |
+
 ## H. Dependencies
 
 Picked overnight to keep moving; **approved by the user on 2026-09-26.**

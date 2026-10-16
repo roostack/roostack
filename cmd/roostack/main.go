@@ -40,35 +40,51 @@ func main() {
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
 	}
+	cmd, args := os.Args[1], os.Args[2:]
 	var err error
-	switch cmd, args := os.Args[1], os.Args[2:]; cmd {
-	case "serve":
-		err = serve(args)
-	case "apply":
-		err = apply(args)
-	case "user":
-		err = user(args)
-	case "backup":
-		err = backupCmd(args)
-	case "backup-helper": // internal: run inside podman unshare
-		err = backupHelper(args)
-	case "render":
-		err = render(args)
-	case "validate":
-		err = validate(args)
-	case "node":
-		err = nodeCmd(args)
-	case "registry":
-		err = registryCmd(args)
-	case "-h", "--help", "help":
-		fmt.Print(usage)
-	default:
-		fmt.Fprintf(os.Stderr, "roostack: unknown command %q\n\n%s", cmd, usage)
-		os.Exit(2)
+	if asServiceUser[cmd] && os.Geteuid() == 0 {
+		err = runAsRoostack(os.Args[1:]) // asroostack.go
+	} else {
+		err = run(cmd, args)
+	}
+	var exit exitStatus
+	if errors.As(err, &exit) {
+		os.Exit(int(exit))
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "roostack:", err)
 		os.Exit(1)
+	}
+}
+
+// run runs one command.
+func run(cmd string, args []string) error {
+	switch cmd {
+	case "serve":
+		return serve(args)
+	case "apply":
+		return apply(args)
+	case "user":
+		return user(args)
+	case "backup":
+		return backupCmd(args)
+	case "backup-helper": // internal: run inside podman unshare
+		return backupHelper(args)
+	case "render":
+		return render(args)
+	case "validate":
+		return validate(args)
+	case "node":
+		return nodeCmd(args)
+	case "registry":
+		return registryCmd(args)
+	case "-h", "--help", "help":
+		fmt.Print(usage)
+		return nil
+	default:
+		fmt.Fprintf(os.Stderr, "roostack: unknown command %q\n\n%s", cmd, usage)
+		os.Exit(2)
+		return nil
 	}
 }
 

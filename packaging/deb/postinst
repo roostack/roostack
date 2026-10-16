@@ -31,11 +31,22 @@ done
 loginctl enable-linger roostack
 uid=$(id -u roostack)
 
-install -d -o roostack -g roostack -m 0750 /var/lib/roostack /var/lib/roostack/services
-install -d -o roostack -g roostack -m 0750 /srv/roostack /srv/roostack/services /srv/roostack/media
-if [ ! -f /var/lib/roostack/lab.yaml ]; then
+install -d -o roostack -g roostack -m 0750 /var/lib/roostack /srv/roostack
+# What's inside those belongs to the roostack user, which could put a
+# symlink there: install -d would follow it and give its target to
+# roostack. So these are only made when nothing is there yet (mkdir fails
+# on a symlink too), and chown -h never follows one (SPEC.md §6.1,
+# docs/ASSUMPTIONS.md S2).
+for d in /var/lib/roostack/services /srv/roostack/services /srv/roostack/media; do
+    if mkdir -m 0750 "$d" 2>/dev/null; then
+        chown -h roostack:roostack "$d"
+    fi
+done
+if [ ! -e /var/lib/roostack/lab.yaml ] && [ ! -L /var/lib/roostack/lab.yaml ]; then
     install -o roostack -g roostack -m 0640 /usr/share/roostack/lab.yaml /var/lib/roostack/lab.yaml
 fi
+# The agent's own files (its sandbox lets it write here, SPEC.md §6.1).
+install -d -m 0755 /etc/roostack
 
 # systemd specifiers can't give the UID of User= in a system unit, so the
 # parts that need it go in a drop-in.

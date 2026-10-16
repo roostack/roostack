@@ -66,7 +66,9 @@ SSH, plug a keyboard and screen into it and log in there.
 
 ??? note "For technical users"
 
-    `roostack user` runs as root or as the `roostack` user, and works on
-    the database directly (`/var/lib/roostack/roostack.db`), so it works
-    even when Roostack isn't running. Both resets delete the person's
-    sessions. It's recorded in the audit log.
+    `roostack user` works on the database directly
+    (`/var/lib/roostack/roostack.db`), so it works even when Roostack isn't
+    running. Started with `sudo`, it runs itself again as the `roostack`
+    user, who owns that folder: root never touches files there, in case
+    something put a symlink in their place. Both resets delete the
+    person's sessions. It's recorded in the audit log.
