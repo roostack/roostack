@@ -64,7 +64,8 @@ func backedUpForgejo(t *testing.T, m *Manager, bin string) *store.Store {
 	svcDir := filepath.Join(paths.ServicesDir, "forgejo")
 	os.MkdirAll(filepath.Join(svcDir, "data"), 0o755)
 	os.WriteFile(filepath.Join(svcDir, "data", "app.ini"), []byte("from the backup"), 0o644)
-	secrets, _ := json.Marshal(map[string][]byte{"roostack-forgejo-db": []byte("the db password")})
+	secrets, _ := json.Marshal(map[string][]byte{"roostack-forgejo-db-main-password": []byte("the db password"),
+		"roostack-forgejo-2-db-main-password": []byte("another copy's")})
 	os.MkdirAll(backup.SecretsDir(paths), 0o700)
 	os.WriteFile(backup.SecretsFile(paths, "forgejo"), secrets, 0o600)
 	os.WriteFile(backup.KeyFile(paths), []byte("the recovery key\n"), 0o600)
@@ -161,7 +162,8 @@ func TestGoneServer(t *testing.T) {
 	if in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo")); in.Waiting || in.Host != "n-0000000003" {
 		t.Errorf("forgejo: %+v", in)
 	}
-	if vps.data[0]["data/app.ini"].Data != "from the backup" || string(vps.secrets["roostack-forgejo-db"]) != "the db password" {
+	if vps.data[0]["data/app.ini"].Data != "from the backup" || string(vps.secrets["roostack-forgejo-db-main-password"]) != "the db password" ||
+		vps.secrets["roostack-forgejo-2-db-main-password"] != nil {
 		t.Errorf("vps has %v", vps.data[0])
 	}
 	if !slices.Equal(reg.removed, []string{"n-0000000002"}) {
@@ -273,7 +275,8 @@ func TestRestoreAcrossTheLab(t *testing.T) {
 	if l := waitRestore(t, m); l.Err != "" {
 		t.Fatalf("restore: %s\n%s", l.Err, strings.Join(l.Lines, "\n"))
 	}
-	if vps.data[0]["data/app.ini"].Data != "from the backup" || string(vps.secrets["roostack-forgejo-db"]) != "the db password" {
+	if vps.data[0]["data/app.ini"].Data != "from the backup" || string(vps.secrets["roostack-forgejo-db-main-password"]) != "the db password" ||
+		vps.secrets["roostack-forgejo-2-db-main-password"] != nil {
 		t.Errorf("vps has %v, secrets %q", vps.data[0], vps.secrets)
 	}
 	if !slices.Contains(home.log, "stop") || !slices.Contains(home.log, "set aside") || !slices.Contains(vps.log, "load dumps") {
@@ -298,6 +301,18 @@ func TestRestoreAcrossTheLab(t *testing.T) {
 	if in, _ := instance.Load(state.InstanceFile(m.Lab, "forgejo")); in.Host != "n-0000000002" {
 		t.Errorf("runs on %q", in.Host)
 	}
+
+	// Its databases don't load: the files are back, and it isn't started
+	// again on them.
+	home.log, home.failOn = nil, "load dumps"
+	if err := m.RestoreService(ctx, "forgejo", backups[0].ID(), "n-0000000002"); err != nil {
+		t.Fatal(err)
+	}
+	if l := waitRestore(t, m); !strings.Contains(l.Err, "files are back from the backup, but its databases couldn't be loaded") ||
+		slices.Contains(home.log, "start") {
+		t.Errorf("restore: %q; home did %v", l.Err, home.log)
+	}
+	home.failOn = ""
 
 	// Onto a server that can't be reached: refused.
 	if err := m.RestoreService(ctx, "forgejo", backups[0].ID(), "n-0000000003"); err == nil || !strings.Contains(err.Error(), "can't reach vps") {

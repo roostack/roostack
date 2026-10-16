@@ -11,6 +11,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
@@ -179,6 +180,36 @@ func (m *Manager) move(ctx context.Context, act *activity.Log, name, title, from
 	return err
 }
 
+// ownSecrets keeps only the secrets the service's generated files use. The
+// names come from the server it ran on, or from that server's backup, so
+// a compromised server could otherwise plant another service's password,
+// or one of Roostack's own, wherever the service lands (security review
+// of 2026-10-16, M20). Anything else is left out, and said.
+func (m *Manager) ownSecrets(act *activity.Log, name string, secrets map[string][]byte) (map[string][]byte, error) {
+	p, in, err := m.installedService(name)
+	if err != nil {
+		return nil, err
+	}
+	out, err := generate.Service(m.Lab, p, in)
+	if err != nil {
+		return nil, err
+	}
+	own := map[string]bool{}
+	for _, s := range out.Secrets {
+		own[s.Name] = true
+	}
+	kept := map[string][]byte{}
+	for n, v := range secrets {
+		if !own[n] {
+			m.Log.Warn("left out a secret that isn't the service's own", "service", name, "secret", n)
+			act.Printf("Left out the secret %q: it isn't %s's", n, p.Title)
+			continue
+		}
+		kept[n] = v
+	}
+	return kept, nil
+}
+
 // finishMove brings the service's secrets, puts the copied data in place,
 // switches where it runs and sets the old copy aside. loadDumps loads its
 // databases from their dumps on the new server (after a backup).
@@ -188,6 +219,9 @@ func (m *Manager) finishMove(ctx context.Context, act *activity.Log, name, title
 	act.Step("Copying its secrets (e.g. database passwords)")
 	secrets, err := src.ExportSecrets(ctx, name)
 	if err != nil {
+		return true, err
+	}
+	if secrets, err = m.ownSecrets(act, name, secrets); err != nil {
 		return true, err
 	}
 	if err := dst.ImportSecrets(ctx, secrets); err != nil {

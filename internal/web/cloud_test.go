@@ -194,3 +194,19 @@ func TestCloudOwnerOnly(t *testing.T) {
 		t.Errorf("admin: %d", code)
 	}
 }
+
+// The page that sends the browser on to Cloud's confirm page does so only
+// to an https address (checkOpenURL; security review of 2026-10-16).
+func TestCloudOpenOnlyHTTPS(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	link, f := newCloudWith(t)
+	h.server.Cloud = link
+	h.server.Setup = &fakeSetup{p: allDone}
+	f.PageURL = "javascript:alert(1)//"
+	_, body := h.post("/settings/cloud/link", nil, h.srv.URL)
+	if strings.Contains(body, `http-equiv="refresh"`) || strings.Contains(body, `href="javascript`) ||
+		!strings.Contains(body, "Roostack Cloud didn't open") {
+		_, main, _ := strings.Cut(body, "<main")
+		t.Errorf("a confirm page that isn't https:\n%.3000s", main)
+	}
+}

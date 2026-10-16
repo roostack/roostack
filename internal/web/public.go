@@ -225,6 +225,7 @@ func (s *Server) publicCheckNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Checks.New(ra.Host)
+	s.Store.Audit(r.Context(), currentUser(r), "public access", "check link made for "+ra.Host)
 	redirect(w, r, "/services/"+r.PathValue("name")+"/public/"+ra.Route+"#check")
 }
 

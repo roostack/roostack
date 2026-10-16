@@ -188,7 +188,7 @@ func (r *Repo) Init(ctx context.Context) error {
 // the full paths, without the leading slash). ErrNotInSnapshot if the
 // snapshot doesn't have it.
 func (r *Repo) Dump(ctx context.Context, snapshotID, dir string, w io.Writer) error {
-	cmd := r.command(ctx, "dump", "--archive", "tar", snapshotID, dir)
+	cmd := r.command(ctx, "dump", "--archive", "tar", "--", snapshotID, dir)
 	cmd.Stdout = w
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -202,7 +202,7 @@ func (r *Repo) Dump(ctx context.Context, snapshotID, dir string, w io.Writer) er
 // DumpFile reads one file from a snapshot. ErrNotInSnapshot if the
 // snapshot doesn't have it.
 func (r *Repo) DumpFile(ctx context.Context, snapshotID, file string) ([]byte, error) {
-	cmd := r.command(ctx, "dump", snapshotID, file)
+	cmd := r.command(ctx, "dump", "--", snapshotID, file)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()

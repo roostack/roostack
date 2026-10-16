@@ -12,6 +12,7 @@
   <p>Rebuild a lab on this server: its services and their data, settings and accounts come back from a backup.
     You need the <strong>recovery key</strong> you saved when you set the lab up, and to know where its backups are.</p>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .Unfinished}}{{notice "warn" "A restore onto this server started and didn't finish. Start it again below: it puts everything back from the backup again, over what the last one restored."}}{{end}}
 
   {{if .Searched}}
   {{with .Found}}
@@ -43,7 +44,10 @@
   <p><a href="/setup/restore">Look somewhere else…</a></p>
 
   {{else}}
-  <form method="post" action="/setup/restore" x-data="{ kind: '{{.Kind}}' }">
+  {{/* Values from the form go in data attributes, never into the Alpine
+       expression itself: the browser undoes html/template's escaping
+       before Alpine evaluates an attribute. */}}
+  <form method="post" action="/setup/restore" data-kind="{{.Kind}}" x-data="{ kind: $el.dataset.kind }">
     {{if not .Passed}}<label>Setup code
       <input name="token" autocomplete="off" required autofocus>
       <small>Shown in the Roostack log, and saved in <code>/var/lib/roostack/setup-token</code>.</small>
@@ -67,7 +71,7 @@
       <label>Secret key <input name="secret_key" type="password" autocomplete="off"></label>
       <p class="hint">Roostack looks for every server's backups in the bucket.</p>
     </div>
-    <div x-show="kind === 'folder'" x-cloak x-data="{ drive: '{{.Drive}}' }">
+    <div x-show="kind === 'folder'" x-cloak data-drive="{{.Drive}}" x-data="{ drive: $el.dataset.drive }">
       {{range .Drives}}<label class="check"><input type="radio" name="drive" value="{{.ID}}" x-model="drive">
         <span><strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else if eq .Kind "network"}}Network share{{else}}Disk{{end}}</span>
           <small>{{if .Size}}{{size .Size}}{{end}}{{with .Model}}{{if ne . $.Name}} · {{.}}{{end}}{{end}}{{with .FSType}} · {{.}}{{end}}</small></span></label>{{end}}

@@ -40,7 +40,7 @@ func (s *Server) setupPassed(r *http.Request) bool {
 	if s.setupToken == "" {
 		return false
 	}
-	if authkit.TokensEqual(strings.TrimSpace(r.FormValue("token")), s.setupToken) {
+	if authkit.TokensEqual(strings.TrimSpace(r.PostFormValue("token")), s.setupToken) {
 		return true
 	}
 	c, err := r.Cookie(setupCodeCookie)
@@ -58,7 +58,7 @@ func (s *Server) setupCodeSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Lock()
-	ok := s.setupToken != "" && authkit.TokensEqual(strings.TrimSpace(r.FormValue("token")), s.setupToken)
+	ok := s.setupToken != "" && authkit.TokensEqual(strings.TrimSpace(r.PostFormValue("token")), s.setupToken)
 	s.mu.Unlock()
 	if !ok {
 		time.Sleep(failedLoginDelay)

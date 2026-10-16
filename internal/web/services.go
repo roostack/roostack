@@ -201,11 +201,14 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad form.", http.StatusBadRequest)
 		return
 	}
-	req := s.installRequest(r.PostForm, p)
+	u := currentUser(r)
+	req := s.installRequest(r, r.PostForm, p)
 	// Only the Owner may accept what a package of their own asks for
 	// (decided by the Owner, 2026-10-14).
-	req.AcceptRisks = r.PostForm.Get("accept_risks") == "on" && auth.Can(currentUser(r).Role, auth.ManageHost)
+	req.AcceptRisks = r.PostForm.Get("accept_risks") == "on" && auth.Can(u.Role, auth.ManageHost)
 	if req.Public {
+		// Only an Owner can make a service public (installRequest), so
+		// only an Owner answers this lab-wide question.
 		// Asked the first time anything goes public (SPEC.md §6.11).
 		if asked, _ := s.Manager.SignalSharing(); !asked {
 			share := r.PostForm.Get("share")
@@ -218,7 +221,7 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 				s.serverError(w, err)
 				return
 			}
-			s.Store.Audit(r.Context(), currentUser(r), "public access", "CrowdSec sharing: "+share)
+			s.Store.Audit(r.Context(), u, "public access", "CrowdSec sharing: "+share)
 		}
 	}
 
@@ -233,13 +236,30 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "install", p.Name)
+	s.Store.Audit(r.Context(), u, "install", s.installAudit(p, req))
 	redirect(w, r, "/")
+}
+
+// installAudit is the audit entry for an install: the service, where it
+// runs, whether it went public, and any risks the Owner accepted for a
+// package of their own (SPEC.md §6.11, §8.3.4).
+func (s *Server) installAudit(p *pkgspec.Package, req manager.InstallRequest) string {
+	detail := cmp.Or(req.Name, p.Name)
+	if req.Host != "" {
+		detail += " on " + req.Host
+	}
+	if req.Public {
+		detail += ", public"
+	}
+	if c := s.Manager.CheckPackage(p); req.AcceptRisks && c.Local && len(c.Problems) > 0 {
+		detail += "; accepted risks: " + strings.Join(c.Problems, "; ")
+	}
+	return detail
 }
 
 // installRequest reads the install form (submitted, or as it stands for
 // the summary).
-func (s *Server) installRequest(form url.Values, p *pkgspec.Package) manager.InstallRequest {
+func (s *Server) installRequest(r *http.Request, form url.Values, p *pkgspec.Package) manager.InstallRequest {
 	name := p.Name
 	if sfx := strings.ToLower(strings.TrimSpace(form.Get("name_suffix"))); sfx != "" {
 		name += "-" + sfx
@@ -251,8 +271,10 @@ func (s *Server) installRequest(form url.Values, p *pkgspec.Package) manager.Ins
 		Host:      form.Get("host"),
 		Settings:  map[string]string{},
 		Secrets:   map[string]string{},
-		// On a lab on the internet, services start public (SPEC.md §6.12).
-		Public: s.onInternet() && form.Get("public") == "on",
+		// On a lab on the internet, services start public (SPEC.md §6.12)
+		// when an Owner installs them; an Admin's start private, since
+		// only an Owner makes anything public (§6.11).
+		Public: s.onInternet() && auth.Can(currentUser(r).Role, auth.ManageHost) && form.Get("public") == "on",
 	}
 	for _, st := range p.Settings {
 		if v, ok := form["setting."+st.Key]; ok && len(v) > 0 {
@@ -371,10 +393,10 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		"Policy":        policy,
 		"IsOwner":       owner,
 		"CanInstall":    len(policy.Problems) == 0 || (policy.Local && owner),
-		"Summary":       s.installSummary(p, s.installRequest(form, p)),
+		"Summary":       s.installSummary(p, s.installRequest(r, form, p)),
 		"Credit":        newProjectCredit(p),
 		"Internet":      s.onInternet(),
-		"Public":        submitted == nil || public,
+		"Public":        owner && (submitted == nil || public),
 		"Unsafe":        unsafe,
 		"SharingAsked":  asked,
 		"User":          u,

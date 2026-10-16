@@ -9,9 +9,12 @@ import "time"
 
 // The API labs talk to. Paths are relative to Cloud's address
 // (Roostack's config.Cloud.Address). Bodies are JSON. Errors are
-// ErrorBody with a status code; 401 or 403 on a lab's own endpoints
-// (mutual TLS, the lab's certificate) means Cloud doesn't know the
-// certificate (any more).
+// ErrorBody with a status code. On a lab's own endpoints (mutual TLS, the
+// lab's certificate), only 401 means Cloud doesn't know the certificate
+// (any more), and the lab then relinks or forgets the link. 403 refuses
+// one request, and 423 Locked every request while the account is
+// suspended: the lab stays linked and shows ErrorBody's message. 429 asks
+// it to slow down.
 const (
 	PathLinks      = "/v1/links"        // POST LinkRequest → LinkStarted
 	PathLinkStatus = "/v1/links/status" // POST LinkSecret → LinkStatus

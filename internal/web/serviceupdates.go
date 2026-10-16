@@ -198,7 +198,11 @@ func (s *Server) updateSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "services", "update "+name+" to "+to)
+	detail := "update " + name + " to " + to
+	if accept {
+		detail += ", accepting what the Owner's own package asks for" // SPEC.md §8.3.4
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "services", detail)
 	redirect(w, r, "/services/"+name+"#update")
 }
 

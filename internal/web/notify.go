@@ -466,7 +466,7 @@ func (s *Server) weeklySummary(ctx context.Context, u *store.User, now time.Time
 
 // composeNotification writes one person's email.
 func (s *Server) composeNotification(u *store.User, m *notifyMail) (subject, body string) {
-	lab := s.LabName
+	lab := s.labName()
 	if lab == "" {
 		lab = "Your lab"
 	}

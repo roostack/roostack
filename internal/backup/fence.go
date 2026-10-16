@@ -114,13 +114,15 @@ func ParseFence(v string) *Fence {
 // ErrFenced means backups stood down (Status.Fenced says why).
 var ErrFenced = errors.New("backups stood down: this copy of the lab is out of date")
 
-// checkFence looks in a repository for a newer generation or a removed
-// mark. A repository that doesn't exist yet (or can't be read) isn't a
-// reason to stand down: the backup itself says what's wrong.
+// checkFence looks in a repository (which exists: upload opened it) for a
+// newer generation or a removed mark. If its backups can't be listed, the
+// backup fails, to be tried again, rather than going ahead without
+// knowing whether this copy of the lab is out of date (security review
+// of 2026-10-16).
 func checkFence(ctx context.Context, repo *Repo, gen int) error {
 	snaps, err := repo.Snapshots(ctx, TagRoostack)
 	if err != nil {
-		return nil
+		return fmt.Errorf("couldn't list the backups there, to check this copy of the lab is the current one: %w", err)
 	}
 	for _, s := range snaps {
 		if hasTag(s, TagRemoved) {
