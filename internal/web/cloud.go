@@ -256,6 +256,7 @@ func cloudBack(r *http.Request) string {
 
 func (s *Server) cloudCancelSubmit(w http.ResponseWriter, r *http.Request) {
 	s.Cloud.Cancel(r.Context())
+	s.Store.Audit(r.Context(), currentUser(r), "cloud", "Cancelled linking the lab to Roostack Cloud")
 	redirect(w, r, cloudBack(r))
 }
 
@@ -274,6 +275,7 @@ func (s *Server) cloudDismissSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	s.Store.Audit(r.Context(), currentUser(r), "cloud", "Dismissed the note that Roostack Cloud no longer knows the lab")
 	redirect(w, r, "/settings/cloud")
 }
 

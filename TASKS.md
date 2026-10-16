@@ -404,6 +404,8 @@ The review is in Roostack Cloud's repository (`REVIEW-2026-10-16.md`); IDs refer
 - [x] M6 (lab side): only a 401 forgets the Cloud link; a 403 or 423 (suspended) keeps it and shows Cloud's message (cloudapi)
 - [x] M20: moves and restores bring only the secrets a service's generated files name (SPEC §10.10)
 - [x] Web Lows: the restore page's form values in data attributes (not Alpine expressions); the setup code only from a POST; no caching of the two-factor, join-code, storage-invite and restore pages; no folder listings under /static/ and /help/; the restore cookie's Secure flag behind Caddy
+- [x] Web Lows: audited failed logins (the account's name only when it exists, also in the journal), a person's own notification address, new check links, Cloud cancel and dismiss, and accepted package risks on install and update; `Server.LabName` read under its lock. Cloud's confirm page was already https-only (`checkOpenURL`), now tested
+- [ ] `/help` on a build without the help site: the error page replaced the "built without its help pages" message, so `TestHelpServed` fails (since f77f640). Say why on the error page, or change the test
 
 ## To discuss with the user
 

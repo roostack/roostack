@@ -119,7 +119,7 @@ func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	username := strings.TrimSpace(r.FormValue("username"))
 	u, err := s.Store.UserByUsername(r.Context(), username)
-	ok := false
+	ok, known := false, err == nil
 	switch {
 	case err == nil:
 		ok, err = authkit.VerifyPassword(u.PasswordHash, r.FormValue("password"))
@@ -133,7 +133,14 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		s.Log.Warn("failed login", "user", username, "remote", r.RemoteAddr)
+		// What was typed isn't logged or audited unless it's an account's
+		// name: people type passwords into the wrong box.
+		who := "an unknown username"
+		if known {
+			who = u.Username
+		}
+		s.Log.Warn("failed login", "user", who, "remote", r.RemoteAddr)
+		s.Store.Audit(r.Context(), nil, "failed login", who+" from "+r.RemoteAddr)
 		time.Sleep(failedLoginDelay)
 		w.WriteHeader(http.StatusUnauthorized)
 		s.renderLogin(w, r, map[string]any{"Error": "Wrong username or password.", "Username": username})

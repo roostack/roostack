@@ -1,12 +1,15 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // Small hardening from the security review of 2026-10-16.
@@ -59,5 +62,36 @@ func TestTwoFactorPageNotCached(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "no-store" {
 		t.Errorf("2FA page: %d, Cache-Control %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
+	}
+}
+
+// Failed logins are audited, naming the account only when it exists (a
+// password typed into the username box isn't kept); so are a person's own
+// notification address and Cloud's cancel and dismiss.
+func TestMoreAudited(t *testing.T) {
+	h := newHarness(t, "")
+	ctx := context.Background()
+	hash, _ := authkit.HashPassword("a long password")
+	h.store.CreateUser(ctx, store.User{Username: "sam", PasswordHash: hash, Role: auth.RoleMember})
+	h.post("/login", url.Values{"username": {"sam"}, "password": {"wrong"}}, h.srv.URL)
+	h.post("/login", url.Values{"username": {"hunter2-my-password"}, "password": {"x"}}, h.srv.URL)
+	logs, _ := h.store.RecentAudit(ctx, 5)
+	if len(logs) != 2 || logs[0].Action != "failed login" || !strings.HasPrefix(logs[0].Detail, "an unknown username from ") ||
+		!strings.HasPrefix(logs[1].Detail, "sam from ") {
+		t.Errorf("failed logins: %+v", logs)
+	}
+
+	h, _ = loggedIn(t, auth.RoleMember)
+	h.post("/account/notifications", url.Values{"email": {"sam@example.com"}}, h.srv.URL)
+	h.post("/account/notifications", url.Values{"email": {"sam@example.com"}}, h.srv.URL)
+	logs, _ = h.store.RecentAudit(ctx, 5)
+	n := 0
+	for _, e := range logs {
+		if e.Detail == "notification email changed to sam@example.com" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("a changed address is audited once: %+v", logs)
 	}
 }

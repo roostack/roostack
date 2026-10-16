@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net/http"
@@ -107,7 +108,7 @@ func (s *Server) emailTestSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	to := strings.TrimSpace(r.FormValue("to"))
-	name := s.LabName
+	name := s.labName()
 	if name == "" {
 		name = "your lab"
 	}
@@ -195,6 +196,10 @@ func (s *Server) notificationsSubmit(w http.ResponseWriter, r *http.Request) {
 	if err := s.Store.SetEmail(r.Context(), u.ID, email); err != nil {
 		s.serverError(w, err)
 		return
+	}
+	// Audited: a changed address also redirects later security emails.
+	if email != u.Email {
+		s.Store.Audit(r.Context(), u, "account", "notification email changed to "+cmp.Or(email, "none"))
 	}
 	if err := s.Store.SetNotify(r.Context(), u.ID, groups); err != nil {
 		s.serverError(w, err)
