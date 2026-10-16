@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -193,4 +194,49 @@ func (m *Manager) keepsHidden(ctx context.Context, s3 S3Provider, folder string)
 	hiddenCache.days[key] = c
 	hiddenCache.Unlock()
 	return c.days
+}
+
+// SharedCredential is a credential a server holds for its backups that
+// others use too, so it keeps it after it leaves the lab (SPEC.md §10.10).
+type SharedCredential struct {
+	// What it is, for a sentence: "the account key for Wasabi".
+	What string
+	// Anywhere: it works from anywhere on the internet. Otherwise it's
+	// only reached through the lab's network, which a removed server
+	// leaves.
+	Anywhere bool
+}
+
+// SharedCredentials lists the shared credentials a server holds for its
+// backups and copies: an online storage account's key (when Roostack
+// couldn't make it one of its own), a friend's lab's storage password.
+func (m *Manager) SharedCredentials(ctx context.Context, serverID string) []SharedCredential {
+	if m.BackupStore == nil {
+		return nil
+	}
+	targets, _ := m.BackupStore.BackupTargets(ctx)
+	copies, _ := m.BackupStore.BackupCopies(ctx)
+	var out []SharedCredential
+	for _, t := range append(targets, copies...) {
+		if t.ServerID != serverID {
+			continue
+		}
+		d, err := m.destinationOf(ctx, t.Provider)
+		if err != nil {
+			continue
+		}
+		var c SharedCredential
+		switch {
+		case d.kind == destRemote:
+			c = SharedCredential{What: "the password for " + d.remote.HostName + "'s storage"}
+		case d.kind == destS3 && t.ScopedKey == "":
+			c = SharedCredential{What: "the account key for " + d.provider.Name, Anywhere: true}
+		default:
+			continue
+		}
+		if !slices.Contains(out, c) {
+			out = append(out, c)
+		}
+	}
+	return out
 }

@@ -320,6 +320,9 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [ ] Bring back what a taken-over server hid on B2 (unhide or restore versions with the account's key): today only Backblaze's own tools do it
     - [ ] Generic S3: check a bucket is versioned with a lifecycle rule and the key can't delete old versions (a probe object), and count it as safe from ransomware then; or make scoped keys where the provider can (AWS, MinIO, Wasabi session policies, as Cloud does)
     - [ ] The controller's prune runs `restic unlock` first, so stale locks from a crashed server don't block it for good (ASSUMPTIONS N1; `internal/backup` needs an `Unlock`)
+    - [x] Removing a server (review M22, 2026-10-16): its log and the Servers page say which shared credentials it still holds; backups stored on its disk are forgotten (so a recovery key change doesn't wait for them), other servers stop copying there
+    - [ ] Change an online storage account's key in place (after removing a server that held it), handing the new key to every server using it; and a friend's lab's storage password per server (review M21)
+    - [ ] A server whose main backup was on a removed server's disk: tell it at once rather than letting nightly backups fail until a new place is chosen
   - [x] Storage for other labs: storage invites with quotas, `roostack-guests` WireGuard interface (UDP 51821), a store pair per guest lab, usage on both sides, last connected (reachability), port-forwarding guide; a guest lab's controller links (`roostack-st1..9`) and forwards its machines' backups
   - [x] A lab whose domain isn't set up yet applies everything but Caddy, which waits for its DNS credentials
   - [x] A server's backup store stops when no server backs up to it (its backups stay on disk)

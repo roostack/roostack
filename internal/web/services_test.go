@@ -133,8 +133,9 @@ type fakeManager struct {
 	svcUpdated []string
 
 	// What servers' credentials can do at their backups, by reference
-	// (else by kind) (plan_test.go).
+	// (else by kind), and what a removed server keeps (plan_test.go).
 	backupAccess map[string]manager.Access
+	shared       []manager.SharedCredential
 }
 
 // BackupAccess is f.backupAccess's, else what the kind suggests: another
@@ -148,6 +149,10 @@ func (f *fakeManager) BackupAccess(ctx context.Context, serverID, ref string) ma
 		return manager.Access{}
 	}
 	return manager.Access{CanDelete: true}
+}
+
+func (f *fakeManager) SharedCredentials(context.Context, string) []manager.SharedCredential {
+	return f.shared
 }
 
 // DiskSpace: the fake's disk, if it has one.
