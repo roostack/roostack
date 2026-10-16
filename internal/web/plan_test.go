@@ -1,6 +1,8 @@
 package web
 
 import (
+	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -61,5 +63,28 @@ func TestPlanSafeFromRansomware(t *testing.T) {
 	fm.copies = []manager.BackupCopy{{Ref: "server:n-0123456789", Title: "nuc's disk", Repository: "rest:http://100.96.0.1:8000/x"}}
 	if _, body = h.get("/backups"); !strings.Contains(body, `pill-ok plan-ok">`+safe) {
 		t.Error("a backup on another server is safe from ransomware")
+	}
+}
+
+// Removing a server says which shared credentials it still holds (M22).
+func TestRemoveServerSharedCredentials(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", This: true, Controller: true}, {ID: "n-1111111111", Name: "pi"}}
+	fm.shared = []manager.SharedCredential{{What: "the account key for Wasabi", Anywhere: true},
+		{What: "the password for Alice's lab's storage"}}
+	code, body := h.post("/settings/servers/n-1111111111/remove", url.Values{}, h.srv.URL)
+	if code != http.StatusOK {
+		t.Fatalf("remove: %d", code)
+	}
+	for _, want := range []string{"pi is out of the lab, but still holds the account key for Wasabi", "make a new key with the provider",
+		"pi still knows the password for Alice&#39;s lab&#39;s storage, but can&#39;t reach it"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("removed page missing %q", want)
+		}
+	}
+	// Nothing shared: back to the Servers page as before.
+	fm.shared = nil
+	if _, body := h.post("/settings/servers/n-1111111111/remove", url.Values{}, h.srv.URL); strings.Contains(body, "is out of the lab") {
+		t.Error("nothing shared, nothing to say")
 	}
 }

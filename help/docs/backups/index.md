@@ -114,7 +114,9 @@ attention** on the home page, with what to do.
       `deleteFiles`, so whatever it deletes is only hidden, and Backblaze
       erases hidden files as the bucket's lifecycle rule says (Roostack
       reads the rule, and never changes it). Other S3 providers give every
-      server the account's key, which can delete.
+      server the account's key, which can delete. When you remove a
+      server, Settings → Servers lists the shared keys and passwords it
+      still holds.
     - **Keeping:** old backups are removed on Sunday by the lab's
       controller (`restic forget --prune --group-by host,tags --keep-daily 7
       --keep-weekly 4 --keep-monthly 6`: each service is kept on its own, as

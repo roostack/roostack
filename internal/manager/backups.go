@@ -424,7 +424,12 @@ func (m *Manager) b2(s3 S3Provider) *b2.Client {
 }
 
 // forgetServerBackups deletes provider keys made for a server that left
-// the lab. Its backups stay (the recovery key still reads them).
+// the lab, and says in its backup log which shared credentials it still
+// holds (M22 of the 2026-10-16 review). Its own backups stay where the
+// controller can still reach them (the recovery key still reads them, and
+// a change of recovery key reaches them). Backups kept on its disk are
+// forgotten, its own and other servers': nothing can reach them now, and
+// a change of recovery key would wait for them for ever.
 func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 	if m.BackupStore == nil {
 		return
@@ -434,19 +439,54 @@ func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 		return
 	}
 	copies, _ := m.BackupStore.BackupCopies(ctx)
-	for _, t := range append(targets, copies...) {
-		if t.ServerID != serverID {
+	name := m.nameOf(serverID)
+	act := m.Activity.Start(activity.BackupSetupFor(serverID), "Taking "+name+"'s backup access away")
+	defer act.Finish(nil)
+	for _, c := range m.SharedCredentials(ctx, serverID) {
+		if c.Anywhere {
+			act.Printf("%s still holds %s, which reaches every server's backups there and can delete them. Change it.", name, c.What)
+		} else {
+			act.Printf("%s still knows %s, but can't reach it without this lab's network.", name, c.What)
+		}
+	}
+	for _, t := range targets {
+		if t.StoreHost != serverID {
 			continue
 		}
+		if t.ServerID != serverID {
+			act.Printf("%s's main backup was on %s's disk: choose somewhere else on its Backups page.", m.nameOf(t.ServerID), name)
+		}
+		if err := m.BackupStore.RemoveBackupTarget(ctx, t.ServerID); err != nil {
+			m.Log.Warn("forgetting backups on a removed server", "server", name, "err", err)
+		}
+	}
+	for _, t := range copies {
+		if t.ServerID != serverID && t.StoreHost != serverID {
+			continue
+		}
+		if t.ServerID != serverID {
+			// The other server stops copying there (it restarts Roostack).
+			act.Printf("%s's backups were also copied to %s's disk: that copy stops.", m.nameOf(t.ServerID), name)
+			err := m.RemoveBackupCopy(ctx, t.ServerID, t.Provider)
+			if err == nil {
+				continue
+			}
+			act.Printf("%s couldn't be told (%v), so its nightly copy there fails until its backups change on its Backups page.",
+				m.nameOf(t.ServerID), firstLine(err.Error()))
+		}
 		m.BackupStore.RemoveBackupCopy(ctx, t.ServerID, t.Provider)
-		if t.ScopedKey == "" {
+	}
+	for _, t := range append(targets, copies...) {
+		if t.ServerID != serverID || t.ScopedKey == "" {
 			continue
 		}
 		d, err := m.destinationOf(ctx, t.Provider)
 		if err != nil || !d.isB2() {
 			continue
 		}
+		act.Step("Deleting %s's Backblaze key", name)
 		if err := m.b2(d.s3).DeleteKey(ctx, t.ScopedKey); err != nil {
+			act.Printf("%v", err)
 			m.Log.Warn("deleting a removed server's Backblaze key", "server", serverID, "err", err)
 		}
 	}
