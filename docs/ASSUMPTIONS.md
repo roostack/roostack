@@ -101,6 +101,16 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 | L18 ✅ | **Memory for the install summary** (2026-10-14): the sandboxed daemon reads `/proc/meminfo` (`MemTotal`, `MemAvailable`; the kernel's kB are 1024 bytes) with its unit's options (`ProtectSystem=strict`, `ProtectHome=tmpfs`, `ProtectKernelTunables` and the rest hide none of it). **Verified** on dev VM 3 through the running service: the page showed 4.1 GB and 3.7 GB free, then 937 MB free while a test process held 2.6 GB, with the warning. Another server reports its own over the lab API (`GET /v1/memory`), tested with a fake. |
 | L6 | Bridge-network ports go through Podman's `rootlessport` userspace proxy, which is why client IPs are lost (C4). |
 
+## N. Backup credentials that can't delete (SPEC §10.10, review H1)
+
+Checked on the dev VM (2026-10-16) with restic 0.18.0 against a small fake S3 server (in-memory; it either refuses `DELETE` from the server's key with `AccessDenied`, or, like Backblaze, turns a delete by name into a hidden version). The controller's side ran from another hostname (`unshare --uts`), as it would on another server.
+
+| # | Finding |
+|---|---|
+| N1 ✅ | **A credential that can't delete at all breaks restic.** `backup` exits 0 but can't remove its lock (`Remove(<lock/…>) failed`), and every lock refresh fails the same way; after about 22½ minutes restic tries a stale-lock refresh, fails, and stops the backup (`Fatal: unable to save snapshot: context canceled`, exit 1). The leftover locks then block anything that needs an exclusive lock: the server's `restic check` and the controller's `forget --prune` exit 11 ("already locked"), even once the locks are over 30 minutes old (restic doesn't skip stale locks when locking; only `restic unlock` removes them, and only stale ones). `check --no-lock` works. So no destination may hand a server a key without delete; append-only has to come from the storage keeping what's deleted (rest-server, Backblaze hiding, bucket versioning). |
+| N2 ⚠️ | **Backblaze: a key with `writeFiles` but not `deleteFiles` can delete a file by name through the S3-compatible API, which hides it; erasing a version needs `deleteFiles`.** From Backblaze's documentation (the S3-compatible app keys page and DeleteObject), not yet tried against a real B2 account. If it's wrong, restic behaves as in N1 and backups longer than ~22 minutes fail: check it with a real bucket before relying on B2 (TASKS). |
+| N3 ✅ | With deletes that only hide (N2's behaviour, on the fake), restic works as usual with the server's key: backups, `check --read-data-subset` and `stats` leave no locks, and the controller's prune runs. A "ransomware" run with the server's key (`forget --prune` of every snapshot) succeeds but only hides the files: every pack, index and snapshot is still there as a hidden version. |
+
 ## P. Public access (SPEC §6.11)
 
 Prototyped on VM2 (2026-09-30) with the Caddy image's new plugins and CrowdSec 1.8.1 as throwaway containers, network options as Roostack's Caddy unit (pasta, `--map-host-loopback`). An "outside" visitor was a network namespace with `203.0.113.10` (a documentation address, not private), and a "home" device one with `192.168.77.10`.

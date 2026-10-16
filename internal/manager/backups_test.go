@@ -150,8 +150,10 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{"accountId": "acct", "apiUrl": api.URL, "authorizationToken": "tok",
 			"allowed": map[string]any{"capabilities": []string{"writeKeys", "deleteKeys", "listBuckets"}}})
 	})
+	// The bucket erases hidden files a day after they're hidden.
 	mux.HandleFunc("POST /b2api/v2/b2_list_buckets", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"buckets": []any{map[string]string{"bucketId": "bkt1"}}})
+		json.NewEncoder(w).Encode(map[string]any{"buckets": []any{map[string]any{"bucketId": "bkt1",
+			"lifecycleRules": []any{map[string]any{"fileNamePrefix": "", "daysFromHidingToDeleting": 1}}}}})
 	})
 	mux.HandleFunc("POST /b2api/v2/b2_create_key", func(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&created)
@@ -213,6 +215,30 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	if !strings.HasSuffix(d.Repository, "backblazeb2.com/backups/roostack/"+labID+"/n-0000000002") {
 		t.Errorf("repository = %q", d.Repository)
 	}
+	// The key adds backups but can't erase them (SPEC.md §10.10): what the
+	// server deletes is only hidden, and the bucket keeps that for a day.
+	caps, _ := created["capabilities"].([]any)
+	if len(caps) == 0 || slices.Contains(caps, any("deleteFiles")) {
+		t.Errorf("the server's key may delete: %v", caps)
+	}
+	if a := m.BackupAccess(ctx, "n-0000000002", "provider:1"); a.CanDelete || !a.HidesOnly || a.KeepsHidden != 1 || a.Safe() {
+		t.Errorf("access = %+v", a)
+	}
+	setup, _ := m.Activity.Latest(activity.BackupSetupFor("n-0000000002"))
+	if log := strings.Join(setup.Lines, "\n"); !strings.Contains(log, "can add backups but not erase them") ||
+		!strings.Contains(log, "erases hidden files after a day") {
+		t.Errorf("setup log:\n%s", log)
+	}
+	// A copy at another provider, with the account's key: it can delete.
+	if err := m.AddS3Provider(ctx, "Wasabi", S3Provider{Endpoint: "https://s3.wasabisys.com", Bucket: "b",
+		AccessKey: "wasabi-id", SecretKey: "wasabi-key"}); err != nil {
+		t.Fatal(err)
+	}
+	st.SetBackupCopy(ctx, store.BackupTarget{ServerID: "n-0000000002", Provider: "provider:2", Repository: "s3:https://s3.wasabisys.com/b/x"})
+	if a := m.BackupAccess(ctx, "n-0000000002", "provider:2"); !a.CanDelete || a.Safe() {
+		t.Errorf("account key access = %+v", a)
+	}
+
 	// Removing the server deletes its key.
 	if err := m.RemoveServer(ctx, "n-0000000002"); err != nil {
 		t.Fatal(err)
