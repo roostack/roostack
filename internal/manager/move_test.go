@@ -212,7 +212,9 @@ func TestMoveService(t *testing.T) {
 	a.data[0]["data/app.ini"] = file{"config", old}
 	a.data[0]["db/base"] = file{"v1", old}
 	a.data[1]["photos/1.jpg"] = file{"jpeg", old}
-	a.secrets["roostack-forgejo-db_password"] = []byte("generated")
+	a.secrets["roostack-forgejo-db-main-password"] = []byte("generated")
+	// Only the service's own secrets are brought (review M20).
+	a.secrets["roostack-caddy-dns-api_token"] = []byte("planted")
 	var fe *FormError
 	if err := m.MoveService(ctx, "forgejo", "n-0000000002", MoveCopy); !errors.As(err, &fe) {
 		t.Errorf("moving to where it runs: %v", err)
@@ -228,7 +230,7 @@ func TestMoveService(t *testing.T) {
 		t.Fatalf("move: %s\n%s", l.Err, strings.Join(l.Lines, "\n"))
 	}
 	if b.data[0]["data/app.ini"].Data != "config" || b.data[1]["photos/1.jpg"].Data != "jpeg" ||
-		string(b.secrets["roostack-forgejo-db_password"]) != "generated" {
+		string(b.secrets["roostack-forgejo-db-main-password"]) != "generated" || b.secrets["roostack-caddy-dns-api_token"] != nil {
 		t.Errorf("vps has %v, secrets %v", b.data, b.secrets)
 	}
 	if !slices.Equal(a.log, []string{"stop", "export secrets", "set aside"}) || !slices.Contains(b.log, "commit") {
