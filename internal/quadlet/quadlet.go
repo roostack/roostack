@@ -3,7 +3,9 @@
 package quadlet
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -57,14 +59,49 @@ func (s *Section) Exec(args []string) *Section {
 	return s.Add("Exec", strings.Join(quoted, " "))
 }
 
-// Validate reports values systemd cannot represent (newlines).
+// Validate reports lines that wouldn't be read back as written: a key
+// that isn't a plain name, or a value with a line break or a trailing
+// backslash (CheckKey, CheckValue). Every unit Roostack writes goes
+// through it, so a package's raw lines can't add or hide others (SPEC.md
+// §8.3.4).
 func (u *Unit) Validate() error {
 	for _, s := range u.sections {
 		for _, e := range s.entries {
-			if strings.ContainsAny(e.value, "\n\r") {
-				return fmt.Errorf("[%s] %s: value contains a newline", s.Name, e.key)
+			if err := CheckKey(e.key); err != nil {
+				return fmt.Errorf("[%s] %q: %w", s.Name, e.key, err)
+			}
+			if err := CheckValue(e.value); err != nil {
+				return fmt.Errorf("[%s] %s: %w", s.Name, e.key, err)
 			}
 		}
+	}
+	return nil
+}
+
+// keyRe is a key systemd and Quadlet read exactly as written: letters and
+// digits, starting with a letter. Both ignore spaces around a key, so
+// "Volume " would be read as Volume, and a key with = or a line break in
+// it would be read as another line.
+var keyRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
+
+// CheckKey says why key can't be written as a unit file key, or nil.
+func CheckKey(key string) error {
+	if !keyRe.MatchString(key) {
+		return errors.New("a key is letters and digits only, starting with a letter")
+	}
+	return nil
+}
+
+// CheckValue says why value can't be written as a unit file value, or
+// nil: a line break would start a new line, and a backslash at the end
+// joins the next line to this one (both checked on a dev VM with
+// Podman 5.4's Quadlet, docs/ASSUMPTIONS.md A12).
+func CheckValue(value string) error {
+	if strings.ContainsAny(value, "\n\r") {
+		return errors.New("value contains a line break")
+	}
+	if strings.HasSuffix(strings.TrimRight(value, " \t"), `\`) {
+		return errors.New("value ends in a backslash, which would join the next line to it")
 	}
 	return nil
 }

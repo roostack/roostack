@@ -28,11 +28,36 @@ Exec=serve --name "two words"
 	}
 }
 
-func TestValidateNewline(t *testing.T) {
-	var u Unit
-	u.Section("Container").Env("BAD", "line1\nline2")
-	if err := u.Validate(); err == nil {
-		t.Error("expected an error for a newline in a value")
+// Validate refuses a line that wouldn't be read back as written: each of
+// these was checked on a dev VM with Podman 5.4's Quadlet
+// (docs/ASSUMPTIONS.md A12, REVIEW-2026-10-16 H2).
+func TestValidate(t *testing.T) {
+	tests := []struct {
+		name, key, value string
+		ok               bool
+	}{
+		{"plain", "ShmSize", "128m", true},
+		{"quoted backslash inside", "Environment", `"A=b\\c"`, true},
+		{"newline in the value", "Environment", "A=1\nVolume=/:/host", false},
+		{"carriage return in the value", "Environment", "A=1\rVolume=/:/host", false},
+		{"backslash at the end", "ShmSize", `128m\`, false},
+		{"backslash then spaces", "ShmSize", "128m\\ \t", false},
+		{"space after the key", "Volume ", "/var/lib/roostack:/lab", false},
+		{"space before the key", " Volume", "/var/lib/roostack:/lab", false},
+		{"= in the key", "Volume=/:/host", "rw", false},
+		{"newline in the key", "ShmSize=1m\nVolume", "/:/host", false},
+		{"dash in the key", "X-Volume", "/:/host", false},
+		{"digit first", "1Volume", "/:/host", false},
+		{"empty key", "", "x", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var u Unit
+			u.Section("Container").Add(tt.key, tt.value)
+			if err := u.Validate(); (err == nil) != tt.ok {
+				t.Errorf("Validate() = %v, want ok %v", err, tt.ok)
+			}
+		})
 	}
 }
 
