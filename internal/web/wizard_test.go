@@ -675,7 +675,7 @@ func TestBackupDrivePicker(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
 	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true}}
 	fs.drives = []agent.Drive{
-		{ID: "uuid:64B1", Kind: "usb", Name: "BACKUP", Model: "SanDisk Ultra", Disk: "/dev/sdb", Size: 128 * units.GB, Free: -1, FSType: "exfat", Usable: true, Erasable: true},
+		{ID: "uuid:64B1", Kind: "usb", Name: "BACKUP", Model: "SanDisk Ultra", Disk: "/dev/sdb", Size: 128 * units.GB, Free: -1, FSType: "exfat", Usable: true},
 		{ID: "disk:/dev/nvme1n1", Kind: "disk", Name: "Samsung SSD 980", Disk: "/dev/nvme1n1", Size: 1000 * units.GB, Free: -1, Erasable: true},
 		{ID: "system", Kind: "system", Name: "This server's own disk", Size: 40 * units.GB, Free: 30 * units.GB, Usable: true},
 	}
@@ -685,11 +685,14 @@ func TestBackupDrivePicker(t *testing.T) {
 		t.Error("the plan starts empty, suggesting a drive at home")
 	}
 	_, body = h.get("/setup/backup?add=2")
-	for _, want := range []string{`value="uuid:64B1" checked`, "USB drive", "Second disk", "Prepare this disk", "Erase it and start afresh",
+	for _, want := range []string{`value="uuid:64B1" checked`, "USB drive", "Second disk", "Prepare this disk",
 		`value="disk:/dev/nvme1n1" disabled`, "it helps with mistakes, not a failed disk or ransomware", "sets it up so it's there after a restart"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("picker missing %q", want)
 		}
+	}
+	if strings.Contains(body, "Erase it and start afresh") {
+		t.Error("a drive with something usable on it is never offered for erasing (the agent refuses it)")
 	}
 	if strings.Contains(body, "Another server") {
 		t.Error("the wizard doesn't offer other servers")

@@ -289,8 +289,6 @@ trap 'rm -rf ~/"$tag"' EXIT
     echo "warning: restic isn't installed in the VM, so its tests skip (scripts/dev-vm.sh install)"
 failed=()
 while read -r name dir; do
-    # go test -c names a main package's binary after its folder.
-    [ "$name" = main ] && name=${dir##*/}
     start=$(date +%s%N)
     if out=$(cd ~/"$tag"/src/"$dir" && ~/"$tag"/bin/"$name".test -test.count=1 "$@" 2>&1); then
         printf 'ok   %-40s %ss\n' "$dir" "$((($(date +%s%N) - start) / 1000000000))"

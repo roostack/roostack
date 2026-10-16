@@ -337,7 +337,7 @@
         {{- else if not .Mount}}<br>Roostack sets it up so it's there after a restart too.{{end}}</small></span></label>
   {{if .Erasable}}
   <div x-data class="drive-erase">
-    <button type="button" class="quiet{{if .Usable}} danger{{end}}" x-on:click="$refs.erase.showModal()">{{if .Usable}}Erase it and start afresh…{{else}}Prepare this disk…{{end}}</button>
+    <button type="button" class="quiet" x-on:click="$refs.erase.showModal()">Prepare this disk…</button>
     <dialog x-ref="erase" class="dialog">
       <p><strong>Erase {{.Name}}?</strong> Everything on {{with .Model}}{{.}}, {{end}}{{size .Size}} (<code>{{.Disk}}</code>) is deleted, for good,
         and it's prepared for Roostack's backups.</p>

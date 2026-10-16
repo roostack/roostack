@@ -41,6 +41,11 @@ func (f *fakeAgent) peerKeys() []string {
 	return out
 }
 
+// joinSwitchDelay is TestHubJoin's SwitchDelay: long enough that the
+// one-time key is still there when the test looks right after the join
+// (1 ms failed on a busy VM), short enough to keep the test quick.
+const joinSwitchDelay = 300 * time.Millisecond
+
 func TestHubJoin(t *testing.T) {
 	dir := t.TempDir()
 	st, err := store.Open(filepath.Join(dir, "roostack.db"))
@@ -50,7 +55,7 @@ func TestHubJoin(t *testing.T) {
 	defer st.Close()
 	ag := &fakeAgent{}
 	h := &Hub{StateDir: dir, LabName: "home", Self: nodeid.Identity{ID: "n-0000000001", Name: "nuc"}, Store: st, Agent: ag,
-		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: time.Now, SwitchDelay: time.Millisecond}
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: time.Now, SwitchDelay: joinSwitchDelay}
 	ctx := context.Background()
 	if h.Enabled() {
 		t.Fatal("no network before the first join code")
@@ -96,8 +101,14 @@ func TestHubJoin(t *testing.T) {
 	if keys := ag.peerKeys(); !slices.Contains(keys, joinPub+" 100.96.0.2/32") {
 		t.Error("the one-time key must stay until the reply has gone")
 	}
-	time.Sleep(50 * time.Millisecond)
-	keys := ag.peerKeys()
+	// The switch happens joinSwitchDelay after the join: wait for it
+	// rather than for a fixed time, so a busy machine doesn't fail this.
+	var keys []string
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if keys = ag.peerKeys(); !slices.Contains(keys, joinPub+" 100.96.0.2/32") {
+			break
+		}
+	}
 	if !slices.Contains(keys, ownPub+" 100.96.0.2/32") || slices.Contains(keys, joinPub+" 100.96.0.2/32") {
 		t.Errorf("the server's own key must replace the one-time key: %v", keys)
 	}

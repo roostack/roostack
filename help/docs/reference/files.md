@@ -92,7 +92,7 @@ changes only these:
 | `/etc/wireguard/roostack*.conf` | The lab's network (`roostack`), other labs storing backups here (`roostack-guests`), and links to other labs (`roostack-st1` to `roostack-st9`) |
 | `/etc/fstab` | A line for each backup drive, marked `# Added by Roostack` |
 | `/mnt/roostack-<drive>/` | Where backup drives are mounted |
-| `/run/roostack-agent.sock` | How Roostack talks to the agent |
+| `/run/roostack-agent/agent.sock` | How Roostack talks to the agent (in a folder of its own, since the agent's sandbox can't write to `/run` itself) |
 
 ??? note "Logs"
 

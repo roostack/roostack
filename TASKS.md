@@ -405,16 +405,16 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 - [x] H6: `roostack user`, `backup` and `apply` started as root run as the roostack user; `node join` joins as roostack and only restarts as root; `store.Open` refuses symlinks; postinst and the install message no longer follow symlinks in roostack's folders (SPEC §6.1, ASSUMPTIONS S1–S4; checked on VM1)
 - [x] `scripts/dev-vm.sh test` looked for `main.test` for `cmd/roostack` (binaries are named after the import path, `roostack.test`); fixed
-- [ ] For rs-network-trust: `TestHubJoin` (internal/labnet/hub_test.go) is timing-dependent: with `SwitchDelay: time.Millisecond` it expects the one-time key still there after `Join`, `Save` and `ClientTLS`, which a busy VM can take longer than; failed once in a shared VM1 run, passed 10/10 alone. Use a longer delay or a channel
-- [ ] For rs-package-policy: `help/docs/reference/cli.md` "Who runs what" should say `sudo roostack user|backup|apply` now run as roostack
+- [x] For rs-network-trust: `TestHubJoin` (internal/labnet/hub_test.go) is timing-dependent: with `SwitchDelay: time.Millisecond` it expects the one-time key still there after `Join`, `Save` and `ClientTLS`, which a busy VM can take longer than; failed once in a shared VM1 run, passed 10/10 alone. Use a longer delay or a channel Done at the merge (2026-10-16): a 300 ms switch, and the test waits for the switch rather than a fixed time.
+- [x] For rs-package-policy: `help/docs/reference/cli.md` "Who runs what" should say `sudo roostack user|backup|apply` now run as roostack Done at the merge (2026-10-16), and in README.md.
 - [x] M17/M18: drive names lose control characters, UUIDs are checked, fstab lines with whitespace in a field are refused; only blank disks not mounted or in fstab are erased (SPEC §6.1, ASSUMPTIONS S5; checked on VM1 with a crafted USB label)
-- [ ] For rs-backup-append: the wizard's "Erase it and start afresh…" branch in `templates/parts.html` is now dead (Erasable is never true for a Usable drive); SPEC §6.9's drive paragraph could say "not in use"
+- [x] For rs-backup-append: the wizard's "Erase it and start afresh…" branch in `templates/parts.html` is now dead (Erasable is never true for a Usable drive); SPEC §6.9's drive paragraph could say "not in use" Done at the merge (2026-10-16): the button only prepares blank disks now, and SPEC §6.9 says a drive in use is never erased.
 - [x] WireGuard keys decoded strictly (re-encoded and compared); a typed backup folder must exist, and only its `roostack` folder is made, owned through a handle (checked on VM1)
-- [ ] For rs-backup-append: SPEC §6.9 "Backup drives" says the agent creates a typed folder; it must exist now
+- [x] For rs-backup-append: SPEC §6.9 "Backup drives" says the agent creates a typed folder; it must exist now Done at the merge (2026-10-16).
 - [x] `roostack-agent.service` sandboxed (ProtectSystem=strict, address families, capabilities, system calls); socket now `/run/roostack-agent/agent.sock`; every job checked on VM1 and VM5 (ASSUMPTIONS S7)
 - [x] The agent refuses callers outside the host's user namespace (a container given the socket was let in; ASSUMPTIONS S6)
 - [x] The install message on a fresh install (VM5): shows the setup code read as roostack
-- [ ] For rs-package-policy: `help/docs/reference/files.md` lists `/run/roostack-agent.sock`; it's `/run/roostack-agent/agent.sock` now
+- [x] For rs-package-policy: `help/docs/reference/files.md` lists `/run/roostack-agent.sock`; it's `/run/roostack-agent/agent.sock` now Done at the merge (2026-10-16).
 - [x] M19: SPEC §6.10 item 3 (SSH hardening) marked "not built yet" (the Owner's choice)
 - [ ] Build SSH hardening (SPEC §6.10 item 3): an agent call for `sshd_config.d`, a wizard step that checks a key works first, a lasting warning while it's off
 - [ ] Untested: `sudo roostack node join` end to end (making a join code needs an Owner with two-factor on the other VM); the agent calls it makes are the ones the service already makes as roostack, checked under the sandbox
@@ -445,7 +445,7 @@ The review is in Roostack Cloud's repository (`REVIEW-2026-10-16.md`); IDs refer
 - [x] Backup and restore Lows: `--` before `restic dump`'s arguments; the restore key deleted once setup completes and never backed up; a fence check that can't list the repository fails the backup; a service whose databases don't load after a restore stays stopped
 - [x] M25: a full-lab restore that failed part-way can be started again (a `restore-started` marker; the page says so). `scripts/dev-vm.sh test` now finds a main package's test binary (`cmd/roostack` has its first test)
 - [x] `.gitignore`: `.DS_Store` and `.claude/worktrees/`
-- [ ] `/help` on a build without the help site: the error page replaced the "built without its help pages" message, so `TestHelpServed` fails (since f77f640). Say why on the error page, or change the test
+- [x] `/help` on a build without the help site: the error page replaced the "built without its help pages" message, so `TestHelpServed` fails (since f77f640). Say why on the error page, or change the test Done at the merge (2026-10-16): the 404 page for /help says the build has no help pages.
 
 ## To discuss with the user
 
