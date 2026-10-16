@@ -13,3 +13,8 @@ dist/
 
 # Tyris's own notes, never committed (CLAUDE.md)
 /NOTES.local.md
+
+# macOS folder metadata, and Claude Code's worktrees (each a checkout of
+# its own)
+.DS_Store
+/.claude/worktrees/
