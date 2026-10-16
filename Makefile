@@ -16,9 +16,11 @@ endif
 build: help
 	GOOS=linux CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o bin/ ./cmd/...
 	scripts/copyright.sh > bin/copyright
-	@# Marks a build that trusts a development key, which build-deb.sh
-	@# refuses to release.
-	@if [ -n "$(REGISTRY_DEV_KEY)" ]; then echo "$(REGISTRY_DEV_KEY)" > bin/registry-dev-key; else rm -f bin/registry-dev-key; fi
+	@# Which registry root keys the build trusts, compiled with the same
+	@# flags for this machine, for build-deb.sh to check before making a
+	@# release (SPEC.md §8.3.3).
+	GOOS= GOARCH= go run -ldflags "$(LDFLAGS)" ./internal/registry/buildkeys > bin/registry-keys
+	@rm -f bin/registry-dev-key
 
 # The help site (SPEC.md §6.3.1), built with Zensical and embedded in the
 # binary from internal/web/helpsite/site. Strict: a broken link fails the
