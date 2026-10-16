@@ -324,6 +324,9 @@ func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJ
 			return err
 		}
 	}
+	if secrets, err = m.ownSecrets(act, j.name, secrets); err != nil {
+		return err
+	}
 	if err := dst.ImportSecrets(ctx, secrets); err != nil {
 		return err
 	}
