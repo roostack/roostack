@@ -33,7 +33,7 @@ func TestLabPlan(t *testing.T) {
 		t.Errorf("the server's own paths = %v", p.Paths)
 	}
 	for _, want := range []string{"/var/lib/roostack/home/*", "!/var/lib/roostack/home/.local", "/var/lib/roostack/roostack.db",
-		"/var/lib/roostack/backup-key", "/var/lib/roostack/backup-key.*", "/var/lib/roostack/restore-key", "/var/lib/roostack/backup-secrets",
+		"/var/lib/roostack/backup-key", "/var/lib/roostack/backup-key.*", "/var/lib/roostack/restore-key", "/var/lib/roostack/restore-started", "/var/lib/roostack/backup-secrets",
 		"/var/lib/roostack/cloud-*-keys.json"} {
 		if !slices.Contains(p.Excludes, want) {
 			t.Errorf("excludes missing %s: %v", want, p.Excludes)

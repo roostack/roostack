@@ -47,8 +47,14 @@ func (l *labRestorer) openRepo(url string, env []string) *backup.Repo {
 	return &backup.Repo{Bin: bin, URL: url, Env: env, PasswordFile: l.keyFile(), Launch: unshared(userLaunch)}
 }
 
-// fresh reports whether nothing has been set up on this server yet.
+// fresh reports whether nothing has been set up on this server yet. A
+// restore that started and didn't finish counts as nothing: its files are
+// the lab's, which it puts back again (security review of 2026-10-16,
+// M25).
 func (l *labRestorer) fresh() error {
+	if l.Unfinished() {
+		return nil
+	}
 	services, err := state.LoadServices(l.lab)
 	if err != nil {
 		return err
@@ -87,6 +93,9 @@ func (l *labRestorer) Start(fd labrestore.Found) error {
 	if l.running {
 		return errors.New("a restore is already running")
 	}
+	if err := os.WriteFile(backup.RestoreStartedFile(l.lab.Paths), []byte(fd.Repository+"\n"), 0o600); err != nil {
+		return err
+	}
 	l.running = true
 	alog := l.acts.Start(activity.LabRestore, "Restoring "+cmp.Or(fd.Name, fd.Domain, "the lab"))
 	go func() {
@@ -100,6 +109,7 @@ func (l *labRestorer) Start(fd labrestore.Found) error {
 			return
 		}
 		os.Remove(l.keyFile())
+		os.Remove(backup.RestoreStartedFile(l.lab.Paths))
 		l.log.Info("lab restored; restarting", "domain", fd.Domain, "server", fd.ServerName)
 		l.restart()
 	}()
@@ -113,6 +123,13 @@ func (l *labRestorer) Drives(ctx context.Context) ([]agent.Drive, error) { retur
 func (l *labRestorer) UseDrive(ctx context.Context, id string) (string, error) {
 	u, err := l.drives.UseDrive(ctx, id)
 	return u.Dir, err
+}
+
+// Unfinished reports a restore that started and didn't finish (it
+// failed, or Roostack stopped part-way).
+func (l *labRestorer) Unfinished() bool {
+	_, err := os.Stat(backup.RestoreStartedFile(l.lab.Paths))
+	return err == nil
 }
 
 // Running reports whether a restore is running.

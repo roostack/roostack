@@ -137,8 +137,9 @@ func serve(args []string) error {
 	}
 	srv.OnSetupComplete = func() {
 		os.Remove(setupTokenPath(lab))
-		// A recovery key typed for a restore that wasn't finished.
+		// A restore that wasn't finished, and the recovery key typed for it.
 		os.Remove(backup.RestoreKeyFile(lab.Paths))
+		os.Remove(backup.RestoreStartedFile(lab.Paths))
 	}
 	srv.Version = version
 

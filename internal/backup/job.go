@@ -108,7 +108,7 @@ func LabPlan(paths config.Paths, services []*generate.Output) Plan {
 			filepath.Join(paths.StateDir, "roostack.db-wal"),
 			filepath.Join(paths.StateDir, "roostack.db-shm"),
 			KeyFile(paths),
-			RestoreKeyFile(paths),
+			RestoreKeyFile(paths), RestoreStartedFile(paths),
 			// A change's new and old keys and its progress (internal/manager),
 			// and a half-written key: no backup holds a key that opens it,
 			// and a restored lab isn't left half-way through a change.
@@ -165,6 +165,13 @@ func KeyFile(paths config.Paths) string { return filepath.Join(paths.StateDir, "
 // full-lab restore is being prepared; it goes once the restore finishes
 // or setup completes, and is never backed up.
 func RestoreKeyFile(paths config.Paths) string { return filepath.Join(paths.StateDir, "restore-key") }
+
+// RestoreStartedFile marks a full-lab restore that has started putting
+// files back and hasn't finished, so it can be started again; it isn't
+// backed up either.
+func RestoreStartedFile(paths config.Paths) string {
+	return filepath.Join(paths.StateDir, "restore-started")
+}
 
 // WireGuardKeysFile is where Roostack keeps a copy of its WireGuard keys for
 // backups (readable by Roostack only, like the lab CA's key).
