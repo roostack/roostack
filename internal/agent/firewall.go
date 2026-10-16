@@ -22,6 +22,12 @@ type Firewall struct {
 	// §10.5). Their connections to 443 go to Caddy's edge listener
 	// (EdgePort), as do all from Roostack Cloud's relay.
 	Edges []string `json:"edges,omitempty"`
+	// JoinPort, on the hub, is the lab API's port: the only one reached
+	// on Roostack's network by anyone but Members, the lab's servers (a
+	// server still joining holds a join code's one-time key for up to an
+	// hour; SPEC.md §10.2). Nothing from them is forwarded either.
+	JoinPort int      `json:"join_port,omitempty"`
+	Members  []string `json:"members,omitempty"`
 }
 
 // EdgePort is Caddy's listener for visitors through the lab's edges, whose
@@ -163,6 +169,14 @@ func (f Firewall) Validate() error {
 			errs = append(errs, fmt.Errorf("edges[%d]: not an address on Roostack's network", i))
 		}
 	}
+	if f.JoinPort < 0 || f.JoinPort > 65535 || (f.JoinPort == 0 && len(f.Members) > 0) {
+		errs = append(errs, errors.New("join_port: invalid port, or members without one"))
+	}
+	for i, m := range f.Members {
+		if a, err := netip.ParseAddr(m); err != nil || !OverlayRange.Contains(a) {
+			errs = append(errs, fmt.Errorf("members[%d]: not an address on Roostack's network", i))
+		}
+	}
 	for i, r := range f.Forward {
 		if r.Port < 1 || r.Port > 65535 || r.Proto != "tcp" || r.Iface != WireGuardInterface || r.From != "" {
 			errs = append(errs, fmt.Errorf("forward[%d]: only a TCP port between Roostack's servers (iface %q)", i, WireGuardInterface))
@@ -224,6 +238,11 @@ func (f Firewall) Ruleset() string {
 		fmt.Fprintf(&b, "\t\tiifname %q ip saddr { %s } tcp dport %d accept\n", WireGuardInterface,
 			strings.Join(f.Edges, ", "), EdgePort)
 	}
+	// On the hub, a server still joining reaches only the lab API.
+	if f.JoinPort != 0 {
+		fmt.Fprintf(&b, "\t\t%stcp dport %d accept\n", f.notMember(), f.JoinPort)
+		fmt.Fprintf(&b, "\t\t%sdrop\n", f.notMember())
+	}
 	// Other labs storing backups here reach the guest API and their own
 	// stores, and this lab's links to other labs' storage take nothing in
 	// (SPEC.md §10.10). Settled here, before any rule by source: their
@@ -283,6 +302,9 @@ func (f Firewall) Ruleset() string {
 		fmt.Fprintf(&b, "\t\tiifname %q drop\n", iface)
 		fmt.Fprintf(&b, "\t\toifname %q drop\n", iface)
 	}
+	if f.JoinPort != 0 {
+		fmt.Fprintf(&b, "\t\t%sdrop\n", f.notMember())
+	}
 	fmt.Fprintf(&b, "\t\tiifname %q oifname %q ct state established,related accept\n", WireGuardInterface, WireGuardInterface)
 	for _, r := range f.Forward {
 		fmt.Fprintf(&b, "\t\t# %s\n", r.Reason)
@@ -308,4 +330,13 @@ func (r Rule) match(verdict string) string {
 		}
 	}
 	return fmt.Sprintf("iifname %q %s%s dport %d %s", r.Iface, from, r.Proto, r.Port, verdict)
+}
+
+// notMember matches traffic on Roostack's network from anyone but the
+// lab's servers (Members).
+func (f Firewall) notMember() string {
+	if len(f.Members) == 0 {
+		return fmt.Sprintf("iifname %q ", WireGuardInterface)
+	}
+	return fmt.Sprintf("iifname %q ip saddr != { %s } ", WireGuardInterface, strings.Join(f.Members, ", "))
 }

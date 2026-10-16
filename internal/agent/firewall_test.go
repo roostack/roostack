@@ -195,3 +195,39 @@ func TestEdgeFirewall(t *testing.T) {
 		t.Errorf("edge rules without edges:\n%s", rs)
 	}
 }
+
+// TestJoiningFirewall: on the hub, a server still joining (a join code's
+// one-time key) reaches the lab API and nothing else, and nothing from it
+// is forwarded; the lab's servers are unaffected (review M23).
+func TestJoiningFirewall(t *testing.T) {
+	fw := DefaultFirewall()
+	fw.Allow = append(fw.Allow, Rule{Port: 8471, Proto: "tcp", Iface: WireGuardInterface, Reason: "roostack servers"})
+	fw.Forward = []Rule{{Port: 8000, Proto: "tcp", Iface: WireGuardInterface, Reason: "backups"}}
+	fw.JoinPort, fw.Members = 8471, []string{"100.96.0.2", "100.96.0.3"}
+	if err := fw.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	rs := fw.Ruleset()
+	in, fwd, _ := strings.Cut(rs, "chain forward")
+	accept := strings.Index(in, `iifname "roostack" ip saddr != { 100.96.0.2, 100.96.0.3 } tcp dport 8471 accept`)
+	drop := strings.Index(in, `iifname "roostack" ip saddr != { 100.96.0.2, 100.96.0.3 } drop`)
+	lan := strings.Index(in, "@lan4")
+	if accept < 0 || drop < accept || lan < drop {
+		t.Errorf("joining rules: accept %d, drop %d, first home-network rule %d\n%s", accept, drop, lan, rs)
+	}
+	fdrop := strings.Index(fwd, `iifname "roostack" ip saddr != { 100.96.0.2, 100.96.0.3 } drop`)
+	if fdrop < 0 || fdrop > strings.Index(fwd, "tcp dport 8000 accept") {
+		t.Errorf("forward chain:\n%s", fwd)
+	}
+	// A hub with no other servers yet: everyone there is joining.
+	fw.Members = nil
+	if rs := fw.Ruleset(); !strings.Contains(rs, "\t\tiifname \"roostack\" tcp dport 8471 accept\n\t\tiifname \"roostack\" drop\n") {
+		t.Errorf("no members:\n%s", rs)
+	}
+	for _, bad := range []Firewall{{SSHFrom: FromLAN, Members: []string{"100.96.0.2"}},
+		{SSHFrom: FromLAN, JoinPort: 8471, Members: []string{"192.168.1.5"}}} {
+		if bad.Validate() == nil {
+			t.Errorf("accepted %+v", bad)
+		}
+	}
+}

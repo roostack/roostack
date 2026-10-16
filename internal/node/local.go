@@ -171,6 +171,10 @@ type Local struct {
 	// Server changes the server's own settings (optional).
 	Host Settings
 
+	// labServers, on the hub, lists the lab's servers' addresses on
+	// Roostack's network (SetLabServers).
+	labServers func(ctx context.Context) ([]string, error)
+
 	mu         sync.Mutex
 	assignment Assignment
 	// userSecrets holds typed-in values until an apply creates the Podman
@@ -376,6 +380,18 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 
 	// The firewall follows the services, e.g. a package port just turned on.
 	if fw, ok := firewall.Desired(n.lab(a), desired.Services); ok && n.Firewall != nil {
+		// On the hub, a server still joining (a join code's one-time key)
+		// reaches only the lab API (SPEC.md §10.2).
+		n.mu.Lock()
+		servers := n.labServers
+		n.mu.Unlock()
+		if lab := n.lab(a); servers != nil && lab.OverlayAddr != "" && !lab.IsNode() {
+			members, err := servers(ctx)
+			if err != nil {
+				return fmt.Errorf("listing the lab's servers: %w", err)
+			}
+			fw.JoinPort, fw.Members = labnet.Port, members
+		}
 		if a.Storage != nil {
 			for _, port := range []int{generate.StoragePort, generate.StorageAdminPort} {
 				fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", Iface: agent.WireGuardInterface,
@@ -438,6 +454,24 @@ func (n *Local) UseSSH(choice string) {
 	a := n.assignment
 	n.mu.Unlock()
 	a.Secrets, a.SetUp, a.Reason = nil, nil, "Who can log in over SSH changed"
+	n.Apply(a)
+}
+
+// SetLabServers tells the hub how to list the lab's servers, for the
+// firewall: anyone else on Roostack's network reaches only the lab API.
+func (n *Local) SetLabServers(f func(ctx context.Context) ([]string, error)) {
+	n.mu.Lock()
+	n.labServers = f
+	n.mu.Unlock()
+}
+
+// Reapply applies the current assignment again, e.g. so the firewall
+// lets a server that just joined the lab in.
+func (n *Local) Reapply(reason string) {
+	n.mu.Lock()
+	a := n.assignment
+	n.mu.Unlock()
+	a.Secrets, a.SetUp, a.Reason = nil, nil, reason
 	n.Apply(a)
 }
 

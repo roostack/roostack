@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
@@ -263,8 +265,11 @@ func (h *Hub) Join(ctx context.Context, req JoinRequest) (JoinResponse, error) {
 	if raw, err := base64.StdEncoding.DecodeString(req.PublicKey); err != nil || len(raw) != 32 {
 		return JoinResponse{}, errors.New("invalid WireGuard key")
 	}
-	name := req.Name
-	if name == "" || len(name) > 63 {
+	// The same rule as renaming a server (manager.RenameServer): a name
+	// with control characters (which could forge log lines or audit
+	// entries) or too long is replaced by the server's ID.
+	name := strings.TrimSpace(req.Name)
+	if name == "" || len([]rune(name)) > 40 || strings.ContainsFunc(name, unicode.IsControl) {
 		name = req.NodeID
 	}
 	m, err := h.Store.Join(ctx, HashToken(req.Token), store.Server{ID: req.NodeID, Name: name, PublicKey: req.PublicKey}, h.Now())
