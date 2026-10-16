@@ -39,7 +39,10 @@ handle @vw-web {
 		roostack_private no
 	}
 	@vw-web-private-paths {
-		not remote_ip private_ranges 100.64.0.0/10
+		not {
+			remote_ip PRIVATE
+			not vars roostack_edge yes
+		}
 		path /admin /admin/*
 	}
 	route {
@@ -64,6 +67,7 @@ handle @vw-web {
 	}
 }
 `
+	want = strings.Replace(want, "PRIVATE", PrivateRanges, 1)
 	if _, body, _ := strings.Cut(site, "\n"); body != want {
 		t.Errorf("public route:\n%s\nwant:\n%s", body, want)
 	}
@@ -160,35 +164,50 @@ func TestEdge(t *testing.T) {
 }
 
 // TestEdgeFrom: with an edge, the controller believes PROXY headers from
-// it alone, and its address counts as outside for the private check.
+// it alone, on its own listener (EdgePort), whose sites count every
+// visitor as outside whatever address the header claims; port 443
+// believes no header, and counts the edge's own address as outside
+// (review H4).
 func TestEdgeFrom(t *testing.T) {
 	main, err := Main(MainConfig{Domain: "smith.family", DNSDirective: "dns cloudflare {env.X}", AdminUpstream: "169.254.1.3:8480",
-		EdgeFrom: []string{"100.96.0.2/32"}})
+		EdgeFrom: []string{"100.96.0.2/32"}, OldDomain: "old.family", OldDNSDirective: "dns cloudflare {env.X}"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"\tservers :443 {\n\t\tlistener_wrappers {\n\t\t\tproxy_protocol {\n\t\t\t\tallow 100.96.0.2/32\n\t\t\t\tfallback_policy reject\n\t\t\t}\n\t\t\ttls\n",
-		"@roostack-admin-external not {\n\t\t\tremote_ip private_ranges 100.64.0.0/10\n\t\t\tnot remote_ip 100.96.0.2/32\n\t\t}",
+		"\tservers :8474 {\n\t\tlistener_wrappers {\n\t\t\tproxy_protocol {\n\t\t\t\tallow 100.96.0.2/32\n\t\t\t\tfallback_policy reject\n\t\t\t}\n\t\t\ttls\n",
+		"@roostack-admin-external not {\n\t\t\tremote_ip " + PrivateRanges + "\n\t\t\tnot vars roostack_edge yes\n\t\t\tnot remote_ip 100.96.0.2/32\n\t\t}",
+		"\n*.smith.family {\n", "\n*.old.family {\n",
+		"\n*.smith.family:8474 {\n\tvars roostack_edge yes\n", "\n*.old.family:8474 {\n\tvars roostack_edge yes\n",
 	} {
 		if !strings.Contains(main, want) {
 			t.Errorf("missing %q in\n%s", want, main)
 		}
+	}
+	if strings.Contains(main, "servers :443") || strings.Count(main, "proxy_protocol") != 1 {
+		t.Errorf("port 443 believes PROXY headers:\n%s", main)
+	}
+	// The edge sites have no Roostack pages, and import the services.
+	_, edgeSites, _ := strings.Cut(main, "*.smith.family:8474 {")
+	if strings.Contains(edgeSites, "roostack-admin") || strings.Count(edgeSites, "import sites/*.caddy") != 2 {
+		t.Errorf("edge sites:\n%s", edgeSites)
 	}
 	site, err := Site("photos", []Route{{ID: "photos", Host: "photos.smith.family", Upstream: "169.254.1.3:20000",
 		PrivatePaths: []string{"/admin"}, PrivateExcept: []string{"100.96.0.2/32"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "@photos-private-paths {\n\t\tnot {\n\t\t\tremote_ip private_ranges 100.64.0.0/10\n\t\t\tnot remote_ip 100.96.0.2/32\n\t\t}\n\t\tpath /admin /admin/*\n\t}"; !strings.Contains(site, want) {
+	if want := "@photos-private-paths {\n\t\tnot {\n\t\t\tremote_ip " + PrivateRanges +
+		"\n\t\t\tnot vars roostack_edge yes\n\t\t\tnot remote_ip 100.96.0.2/32\n\t\t}\n\t\tpath /admin /admin/*\n\t}"; !strings.Contains(site, want) {
 		t.Errorf("private paths:\n%s", site)
 	}
 	if _, err := Main(MainConfig{Domain: "smith.family", DNSDirective: "dns x", EdgeFrom: []string{"nonsense"}}); err == nil {
 		t.Error("accepted a bad edge address")
 	}
-	// Without an edge, nothing changes.
+	// Without an edge, there's no edge listener.
 	plain, _ := Main(MainConfig{Domain: "smith.family", DNSDirective: "dns x", AdminUpstream: "169.254.1.3:8480"})
-	if strings.Contains(plain, "proxy_protocol") || !strings.Contains(plain, "@roostack-admin-external not remote_ip private_ranges") {
+	if strings.Contains(plain, "proxy_protocol") || strings.Contains(plain, ":8474") ||
+		!strings.Contains(plain, "@roostack-admin-external not {\n\t\t\tremote_ip "+PrivateRanges) {
 		t.Errorf("without an edge:\n%s", plain)
 	}
 }

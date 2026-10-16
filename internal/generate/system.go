@@ -89,6 +89,11 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 	cs.Add("PublishPort", "80:80")
 	cs.Add("PublishPort", "443:443")
 	cs.Add("PublishPort", "443:443/udp") // HTTP/3
+	if len(lab.EdgeAddrs) > 0 {
+		// The edges' own listener (caddy.EdgePort); the firewall lets only
+		// the edges reach it.
+		cs.Add("PublishPort", fmt.Sprintf("%d:%d", caddy.EdgePort, caddy.EdgePort))
+	}
 	cs.Add("Volume", lab.Paths.CaddyDir()+":/etc/caddy:ro")
 	cs.Add("Volume", lab.Paths.CaddyDataDir()+":/data")
 	// DNS provider credentials, one Podman secret per field (internal/dns).

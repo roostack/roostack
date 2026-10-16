@@ -166,8 +166,13 @@ func TestHubDials(t *testing.T) {
 	csr, _ := node.CSR("n-0000000002")
 	ownKey, _ := agent.NewWireGuardKey()
 	ownPub, _ := agent.WireGuardPublicKey(ownKey)
-	if _, err := h.Join(ctx, JoinRequest{Token: code.Token, NodeID: "n-0000000002", Name: "vps", PublicKey: ownPub, CSR: csr}); err != nil {
+	// A name with control characters (a forged log line) becomes the ID.
+	if _, err := h.Join(ctx, JoinRequest{Token: code.Token, NodeID: "n-0000000002", Name: "vps\nserver joined id=evil",
+		PublicKey: ownPub, CSR: csr}); err != nil {
 		t.Fatal(err)
+	}
+	if servers, _ := st.Servers(ctx); len(servers) != 1 || servers[0].Name != "n-0000000002" {
+		t.Errorf("servers: %+v", servers)
 	}
 	time.Sleep(50 * time.Millisecond)
 	if p, ok := dialled(ownPub); !ok || p.Endpoint != "203.0.113.7:51820" || p.Keepalive != Keepalive {

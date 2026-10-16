@@ -129,7 +129,10 @@ handle @immich-family-web {
 		roostack_title "Photos (family)"
 		roostack_private yes
 	}
-	@immich-family-web-external not remote_ip private_ranges 100.64.0.0/10
+	@immich-family-web-external not {
+		remote_ip private_ranges 100.64.0.0/12 100.80.0.0/16 100.82.0.0/15 100.84.0.0/14 100.88.0.0/13 100.96.0.0/14 100.104.0.0/13 100.112.0.0/12
+		not vars roostack_edge yes
+	}
 	abort @immich-family-web-external
 	request_body {
 		max_size 50GB
