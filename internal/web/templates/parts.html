@@ -422,6 +422,7 @@
         {{if eq .Kind "system"}}{{notice "warn" "This backup is on the same disk as your data. It helps if something is deleted or changed by mistake, but if the disk fails, or ransomware gets onto the server, your data and this backup are lost together. Keep your other backups on a separate drive, or away from home."}}
         {{- else if and .Access.CanDelete (eq .Kind "online")}}{{notice "warn" "If this server were taken over, its backups here could be deleted too: it has the account's key. To protect them, turn on versioning for the bucket with a rule that keeps old versions for 30 days, and give Roostack a key that can't delete old versions. Or use Backblaze B2, where Roostack gives each server a key that can't delete."}}
         {{- else if .Access.CanDelete}}{{notice "warn" "If this server were taken over, its backups here could be deleted too. Keep another backup it can't delete: on another server, at a friend's lab, Roostack Cloud or Backblaze B2."}}{{end}}
+        {{with .KeyChange}}{{activity .}}{{end}}
         {{with .Access}}{{if .HidesOnly}}<p class="hint">This server's key here can add backups but not erase them; anything it deletes is only hidden.</p>
         {{if lt .KeepsHidden 0}}<p class="hint">Roostack couldn't check how long this bucket keeps hidden files.</p>
         {{- else if and (gt .KeepsHidden 0) (lt .KeepsHidden 30)}}{{$after := printf "after %d days" .KeepsHidden}}{{if eq .KeepsHidden 1}}{{$after = "after a day"}}{{end}}
@@ -446,9 +447,10 @@
           {{- if ge .Free 0}}{{if .Stored}} · {{end}}<span{{with .LowSpace}} class="space-low"{{end}}>{{size .Free}} free on {{.FreeOn}}</span>{{end}}
           {{- if .Lab}}{{if or .Stored (ge .Free 0)}} · {{end}}your lab uses {{if ge .Lab.Used 0}}{{size .Lab.Used}} of {{end}}its {{size .Lab.Quota}} there{{end}}</p>{{end}}
         {{if not $.Plan.Wizard}}
-        <details class="plan-manage" id="plan-manage-{{.Number}}">
+        <details class="plan-manage" id="plan-manage-{{.Number}}"{{if .KeyOpen}} open{{end}}>
           <summary>Manage</summary>
           <p class="hint">Where it is: <code>{{shownRepo .Repository}}</code></p>
+          {{if .KeyAction}}{{template "plan-key" .}}{{end}}
           {{if .Main}}<p><a href="{{$.Plan.Back}}?replace=1#plan">Change where the main backup goes…</a>
             <span class="hint">A new backup starts there; the backups here stay.</span></p>
           {{else}}
@@ -478,6 +480,26 @@
   </ol>
 </section>
 {{end}}{{end}}
+
+{{/* plan-key: a new key for an online storage account (planEntry),
+     under the backup's Manage: every server backing up there gets it. */}}
+{{define "plan-key"}}
+<details class="plan-key" id="plan-key-{{.Number}}"{{if .KeyOpen}} open{{end}}>
+  <summary>Change the key for {{.Title}}…</summary>
+  <form method="post" action="{{.KeyAction}}" x-data="{ busy: false }" x-on:submit="busy = true">
+    <input type="hidden" name="key" value="{{.Ref}}">
+    <p class="hint">Every server backing up to {{.Title}} uses the new key from now on. Make it with the provider first, and delete
+      the old one there once Roostack has this one.{{if .Access.B2}} If it can make keys, each server gets a key of its own that can
+      add backups but not delete them.{{end}}</p>
+    <label>{{if .Access.B2}}Key ID{{else}}Access key{{end}} <input name="access_key" required autocomplete="off" autocapitalize="off"></label>
+    <label>{{if .Access.B2}}Key{{else}}Secret key{{end}} <input name="secret_key" type="password" required autocomplete="off"></label>
+    <div class="plan-actions">
+      <button type="submit" x-bind:disabled="busy">Use this key</button>
+      <span class="hint" x-show="busy" x-cloak><span class="spinner" aria-hidden="true"></span> Checking the key…</span>
+    </div>
+  </form>
+</details>
+{{end}}
 
 {{/* plan-num: a backup's number, or for an extra one (past the 3 copies)
      an icon: copies stacked on copies. */}}

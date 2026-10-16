@@ -130,6 +130,7 @@ func (s *Server) serverRoutes(mux *http.ServeMux) {
 		"POST " + p + "/backups/plan":         s.planAddSubmit(false),
 		"POST " + p + "/backups/plan/promote": s.planPromoteSubmit,
 		"POST " + p + "/backups/plan/remove":  s.planRemoveSubmit,
+		"POST " + p + "/backups/plan/key":     s.planKeySubmit,
 	} {
 		mux.Handle(route, s.requireOwner(func(w http.ResponseWriter, r *http.Request) {
 			n := s.serverOf(r)

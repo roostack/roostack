@@ -136,6 +136,10 @@ type fakeManager struct {
 	// (else by kind), and what a removed server keeps (plan_test.go).
 	backupAccess map[string]manager.Access
 	shared       []manager.SharedCredential
+	// New keys given for online storage accounts: "ref access secret"
+	// (plan_test.go); keyErr fails them.
+	s3Keys []string
+	keyErr error
 }
 
 // BackupAccess is f.backupAccess's, else what the kind suggests: another
@@ -153,6 +157,14 @@ func (f *fakeManager) BackupAccess(ctx context.Context, serverID, ref string) ma
 
 func (f *fakeManager) SharedCredentials(context.Context, string) []manager.SharedCredential {
 	return f.shared
+}
+
+func (f *fakeManager) ChangeS3Key(_ context.Context, ref, accessKey, secretKey string) error {
+	if f.keyErr != nil {
+		return f.keyErr
+	}
+	f.s3Keys = append(f.s3Keys, ref+" "+accessKey+" "+secretKey)
+	return nil
 }
 
 // DiskSpace: the fake's disk, if it has one.

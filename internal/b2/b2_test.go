@@ -92,6 +92,27 @@ func TestCantCreateKeys(t *testing.T) {
 	}
 }
 
+func TestCanMakeKeys(t *testing.T) {
+	ctx := context.Background()
+	srv, _ := fakeB2(t, []string{"listBuckets", "writeKeys"})
+	c := &Client{KeyID: "master-id", Key: "master-key", API: srv.URL}
+	if ok, err := c.CanMakeKeys(ctx, "backups"); !ok || err != nil {
+		t.Errorf("can make keys = %v, %v", ok, err)
+	}
+	if _, err := c.CanMakeKeys(ctx, "other"); err == nil {
+		t.Error("a bucket the key doesn't reach")
+	}
+	if _, err := (&Client{KeyID: "master-id", Key: "wrong", API: srv.URL}).CanMakeKeys(ctx, "backups"); err == nil {
+		t.Error("wrong key")
+	}
+	// A key from Backblaze's website (docs/ASSUMPTIONS.md N6).
+	srv, _ = fakeB2(t, []string{"listBuckets", "listFiles", "readFiles", "writeFiles"})
+	c = &Client{KeyID: "master-id", Key: "master-key", API: srv.URL}
+	if ok, err := c.CanMakeKeys(ctx, "backups"); ok || err != nil {
+		t.Errorf("can make keys = %v, %v", ok, err)
+	}
+}
+
 func TestKeepsHidden(t *testing.T) {
 	ctx := context.Background()
 	for _, tc := range []struct {
