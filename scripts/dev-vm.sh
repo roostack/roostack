@@ -270,8 +270,10 @@ test_repo() {
     log "Building the tests for linux/$ARCH"
     mkdir "$out/bin"
     (cd "$REPO" && GOOS=linux GOARCH=$ARCH CGO_ENABLED=0 go test -c -o "$out/bin/" ./... >/dev/null)
-    (cd "$REPO" && go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.Name}} {{.Dir}}{{end}}' ./...) |
-        sed "s| $REPO/| |" | grep . >"$out/bin/packages"
+    # go test -c names each binary after its import path's last element
+    # (cmd/roostack: roostack.test), not the package's name (main).
+    (cd "$REPO" && go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}} {{.Dir}}{{end}}' ./...) |
+        sed -e "s| $REPO/| |" -e 's|^[^ ]*/||' | grep . >"$out/bin/packages"
     log "Copying the repo and tests to ~/$tag in the VM"
     vm_ssh "rm -rf ~/$tag && mkdir -p ~/$tag/src ~/$tag/bin"
     # No extended attributes or ._ files (macOS adds them; Linux's tar warns).
