@@ -221,6 +221,9 @@ func Open(path string) (*Store, error) {
 	} else if !errors.Is(err, os.ErrExist) {
 		return nil, err
 	}
+	if err := checkFiles(path); err != nil {
+		return nil, err
+	}
 	dsn := "file:" + path + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -235,6 +238,29 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("store: %w", err)
 	}
 	return s, nil
+}
+
+// checkFiles refuses a database whose file is a symlink, or anything but a
+// plain file. SQLite follows a symlink for the database itself, and the
+// modernc driver has no way to ask it not to (SQLITE_OPEN_NOFOLLOW); it
+// opens the -wal and -shm files with O_NOFOLLOW (docs/ASSUMPTIONS.md S1).
+// The folder belongs to the roostack user, who could put a symlink there,
+// so the command line never opens the database as root either (SPEC.md
+// §6.1). They're checked too, for a clear message.
+func checkFiles(path string) error {
+	for _, p := range []string{path, path + "-wal", path + "-shm"} {
+		fi, err := os.Lstat(p)
+		if errors.Is(err, os.ErrNotExist) && p != path {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if !fi.Mode().IsRegular() {
+			return fmt.Errorf("store: %s isn't a plain file (a symlink?): move it aside", p)
+		}
+	}
+	return nil
 }
 
 // Close closes the database.
