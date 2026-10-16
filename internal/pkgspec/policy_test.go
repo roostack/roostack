@@ -1,8 +1,11 @@
 package pkgspec
 
 import (
+	"slices"
 	"strings"
 	"testing"
+
+	"roostack.cloud/roostack/internal/quadlet"
 )
 
 // policyBase follows the package policy; each case changes one thing.
@@ -169,6 +172,20 @@ func TestPolicy(t *testing.T) {
 		{"install alias", quadlet("Install", "Alias", "roostack-caddy.service"), "Install.Alias="},
 		{"install wanted by", quadlet("Install", "WantedBy", "multi-user.target"), "Install.WantedBy="},
 
+		// Only keys on the allow-list (the Owner, 2026-10-16).
+		{"key not looked at", quadlet("Container", "CgroupsMode", "disabled"), "Container.CgroupsMode isn't allowed: it isn't one of the keys Roostack has checked"},
+		{"log driver", quadlet("Container", "LogDriver", "none"), "Container.LogDriver isn't allowed"},
+		{"made-up key", quadlet("Container", "Frobnicate", "yes"), "Container.Frobnicate isn't allowed"},
+		{"unknown key with a list", quadlet("Container", "Frobnicate", []any{"a", "b"}), "Container.Frobnicate isn't allowed"},
+		{"allowed key in another case", quadlet("Container", "shmsize", "1m"), "Container.shmsize isn't allowed: write it as ShmSize"},
+		{"unit condition", quadlet("Unit", "ConditionPathExists", "/srv/roostack"), "Unit.ConditionPathExists isn't allowed"},
+		{"unit description", quadlet("Unit", "Description", "Not Roostack's"), "Unit.Description isn't allowed"},
+		{"service kill signal", quadlet("Service", "KillSignal", "SIGKILL"), "Service.KillSignal isn't allowed"},
+		{"service memory", quadlet("Service", "MemoryMax", "1G"), ""},
+		{"service nice", quadlet("Service", "Nice", 5), ""},
+		{"read-only container", quadlet("Container", "ReadOnly", true), ""},
+		{"health start period", quadlet("Container", "HealthStartPeriod", "2m"), ""},
+
 		// Facts about the project, and what it needs (agreed 2026-10-14).
 		{"no maker", func(p *Package) { p.About.Maker = "" }, "about.maker:"},
 		{"no licence", func(p *Package) { p.About.Licence = "" }, "about.licence: give"},
@@ -297,5 +314,24 @@ func TestQuadletSyntax(t *testing.T) {
 				t.Errorf("Risks = %q, want one problem", risks)
 			}
 		})
+	}
+}
+
+// The allow-list and the deny-list don't contradict each other: every
+// allowed key is a plain key, and a rule refusing every value of a key
+// never covers an allowed one (it would make the allow-list entry dead).
+func TestQuadletListsAgree(t *testing.T) {
+	for section, keys := range quadletAllowed {
+		if !slices.Contains(quadletSections, section) {
+			t.Errorf("allow-list section %q isn't one a package may use", section)
+		}
+		for _, key := range keys {
+			if err := quadlet.CheckKey(key); err != nil {
+				t.Errorf("%s.%s: %v", section, key, err)
+			}
+			if r := findQuadletRule(section, key); r != nil && r.denies == nil {
+				t.Errorf("%s.%s is allowed, but a rule refuses every value of it", section, key)
+			}
+		}
 	}
 }

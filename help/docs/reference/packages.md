@@ -155,8 +155,8 @@ routes:
     `1.5 GB` (1 GB is 1000 MB): an estimate for the summary shown before
     installing, which adds up the containers that would run with the
     settings chosen. It isn't a limit. `quadlet` passes extra Quadlet keys
-    straight through, except the ones
-    [a package may not use](#what-a-package-may-not-do).
+    straight through: only the ones
+    [the package policy allows](#what-a-package-may-not-do).
 
 `storage`
 :   Folders the service owns. `title` says what one holds, in a few words
@@ -240,11 +240,22 @@ else could add a line of its own to the file Roostack writes. These lines
 | Anything in `[Install]` | Nothing: Roostack starts every service with the server |
 
 Quadlet reads a `Label=` or `Mount=` line as several values, so each one
-is checked; write them without backslashes. Anything else is allowed, and
-looked at when the package is reviewed: Forgejo's
-`UserNS=keep-id:uid=1000,gid=1000` and Immich's database `ShmSize=128m`,
-for example. A package of your own may break the policy: check it with
-`roostack validate -local`, and see
+is checked; write them without backslashes.
+
+Beyond those, a package may use only the keys Roostack has checked stay
+inside the service, written exactly as here:
+
+| Section | Keys |
+|---|---|
+| `Container` | `AddHost`, `DNS`, `DNSOption`, `DNSSearch`, `DropCapability`, `Entrypoint`, `Environment`, `Exec`, `ExposeHostPort`, `HostName`, `IP`, `IP6`, `Mask`, `NetworkAlias`, `NoNewPrivileges`, `Notify`, `PidsLimit`, `Pull`, `ReadOnly`, `ReadOnlyTmpfs`, `RunInit`, `ShmSize`, `StopSignal`, `StopTimeout`, `Sysctl`, `Timezone`, `Tmpfs`, `Ulimit`, `WorkingDir`, every `Health…` key, and, with the values above, `Volume`, `Mount`, `User`, `Group`, `UserNS`, `Label`, `LogOpt`, `GroupAdd`, `HealthLogDestination` |
+| `Service` | `Restart`, `RestartSec`, `RestartSteps`, `RestartMaxDelaySec`, `RestartPreventExitStatus`, `RestartForceExitStatus`, `SuccessExitStatus`, `TimeoutSec`, `TimeoutStartSec`, `TimeoutStopSec`, `TimeoutAbortSec`, `RuntimeMaxSec`, `WatchdogSec`, `CPUQuota`, `CPUWeight`, `IOWeight`, `MemoryHigh`, `MemoryMax`, `MemorySwapMax`, `TasksMax`, `LimitNOFILE`, `LimitNPROC`, `Nice`, `OOMPolicy`, `OOMScoreAdjust` |
+| `Unit` | `Documentation`, `StartLimitIntervalSec`, `StartLimitBurst` |
+| `Install` | None |
+
+Forgejo's `UserNS=keep-id:uid=1000,gid=1000` and Immich's database
+`ShmSize=128m` are examples. If a package needs another key, ask for it
+to be added to the policy, saying what it's for. A package of your own
+may break the policy: check it with `roostack validate -local`, and see
 [Add your own](../services/add.md#your-own) for adding it to your lab.
 
 ## Templates

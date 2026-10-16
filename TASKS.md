@@ -354,6 +354,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] Code owners for community packages, when they open: each package's folder gets its maintainers from its `registry.yaml` (`registry.yaml` itself stays the registry maintainers'); a check in `registry index -check` that CODEOWNERS matches
 - [x] Package policy in `pkgspec` (SPEC §8.3.4): a deny-list of risky Quadlet lines (plus the keys that override Roostack's own, Owner 2026-10-14), digest pinning an error, routes and ports private by default with login paths or `unsafe`; `roostack validate` enforces it (`-local` warns), `render` and the catalog log it (2026-10-14)
 - [x] The package policy as a real boundary (security review 2026-10-16, H2; SPEC §8.3.4 as built 2026-10-16): Quadlet keys letters and digits only and values without line breaks or a trailing backslash, refused by `pkgspec` validation, the policy and `quadlet.Unit.Validate` alike; `User=`/`Group=` root however written; `Label=`/`Mount=` checked word by word; `UserNS=` only its own namespace; more `[Container]` keys and the `[Service]`, `[Unit]` and `[Install]` keys that reach the server or other units. Verified with Quadlet on a dev VM (ASSUMPTIONS A12); the registry's packages still pass
+- [x] An allow-list of Quadlet keys (the Owner, 2026-10-16, on the security review's recommendation; SPEC §8.3.4): `[Container]` keys classified from Podman 5.4's 81, a few `[Service]` and `[Unit]` ones, none in `[Install]`; the deny-list stays as a second check
 - [x] Other servers check the package policy again on what the controller sends (`node.Decode` runs `Package.Risks`; the Owner's own packages may break it), refusing the assignment and saying why (security review 2026-10-16, H2; SPEC §8.3.4)
 - [x] Check the package policy when installing: a registry package that breaks it is refused; one of your own shows its risks (`Package.Risks`, apart from the facts only registry packages need) for the Owner to confirm (SPEC §8.3.4; 2026-10-14)
 - [x] Package format additions: `about:` (maker, website, source, licence or `closed`, support, a PNG logo beside the package, one to three of a fixed list of categories, keywords), `requires.roostack` with `RunsOn`, `memory` per container, upgrade notes tied to a version; required for registry packages by the policy; filled in for the examples, with their logos (SPEC §8.3.4–8.3.6; 2026-10-14)
@@ -400,7 +401,6 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 ## To discuss with the user
 
-- [ ] Package policy: move to an allow-list of classified Quadlet keys, keeping the deny-list as a second check? Recommended by the security review (2026-10-16, H2) and by rs-package-policy; SPEC §8.3.4 rejected it on 2026-10-13 as too restrictive (Open there)
 - [ ] Licence: Apache-2.0 assumed (SPEC §2.1, 2026-10-13); confirm, then add `LICENSE` (and `NOTICE`) before the repository goes public
 
 
