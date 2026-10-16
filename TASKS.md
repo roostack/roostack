@@ -395,6 +395,12 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] Phase 4: labs mixing PCs and Pis
 - [ ] Older Pis (3, Zero 2 W): measure Roostack's own memory use in a 1 GB arm64 VM, then decide (ARM64-PLAN.md Decision 6)
 
+## Security review of 2026-10-16: small fixes (rs-quick-fixes)
+
+The review is in Roostack Cloud's repository (`REVIEW-2026-10-16.md`); IDs refer to it.
+
+- [x] M15: only an Owner makes a service public at install or answers the CrowdSec sharing question; the install's audit entry says where it runs, whether it went public and any accepted risks (SPEC §6.11)
+
 ## To discuss with the user
 
 - [ ] Licence: Apache-2.0 assumed (SPEC §2.1, 2026-10-13); confirm, then add `LICENSE` (and `NOTICE`) before the repository goes public

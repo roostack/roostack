@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -109,6 +110,30 @@ func TestInternetLabPages(t *testing.T) {
 	h.post("/install/immich", url.Values{"subdomain": {"photos"}, "public": {"on"}, "share": {"no"}}, h.srv.URL)
 	if len(fm.installs) != 1 || !fm.installs[0].Public || !fm.sharingAsked || fm.share {
 		t.Errorf("installed %+v, sharing asked %v share %v", fm.installs, fm.sharingAsked, fm.share)
+	}
+	if logs, _ := h.store.RecentAudit(context.Background(), 1); len(logs) != 1 || logs[0].Action != "install" ||
+		logs[0].Detail != "immich, public" {
+		t.Errorf("the install's audit entry says it went public: %+v", logs)
+	}
+}
+
+// Only an Owner makes a service public (SPEC.md §6.11): on a lab on the
+// internet an Admin's install starts private, and the Admin can't answer
+// the lab-wide sharing question.
+func TestAdminInstallStaysPrivate(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	h.setSetup(&fakeSetup{p: allDone, network: config.NetworkInternet, uiTunnelOnly: true})
+	_, body := h.get("/install/immich")
+	if strings.Contains(body, `name="public"`) || strings.Contains(body, "Share attack reports") ||
+		!strings.Contains(body, "An Owner can make it public") {
+		t.Errorf("an Admin's install form:\n%.3000s", body)
+	}
+	h.post("/install/immich", url.Values{"subdomain": {"photos"}, "public": {"on"}, "share": {"yes"}}, h.srv.URL)
+	if len(fm.installs) != 1 || fm.installs[0].Public || fm.sharingAsked {
+		t.Errorf("installed %+v, sharing asked %v", fm.installs, fm.sharingAsked)
+	}
+	if logs, _ := h.store.RecentAudit(context.Background(), 1); len(logs) != 1 || logs[0].Detail != "immich" {
+		t.Errorf("audit: %+v", logs)
 	}
 }
 

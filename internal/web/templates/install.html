@@ -69,12 +69,15 @@
          tunnel, so services start public (SPEC.md §6.12). */}}
     {{with .Unsafe}}
     {{notice "warn" (printf "%s's package says its address isn't safe to make public: %s It starts reachable only through an SSH tunnel; you can make it public from its page, after reading why." $.Package.Title .)}}
+    {{else}}{{if not .IsOwner}}
+    {{/* Only an Owner makes a service public (SPEC.md §6.11). */}}
+    <p class="hint">It starts reachable only through an SSH tunnel. An Owner can make it public from its page.</p>
     {{else}}
     <label class="check"><input type="checkbox" name="public" {{if .Public}}checked{{end}}>
       <span>Anyone on the internet can reach it (recommended)<small>CrowdSec blocks attackers and password tries are limited.
         Otherwise it's only reachable through an SSH tunnel, which is for technical users.</small></span></label>
     {{if not .SharingAsked}}{{template "sharing-question" .}}{{end}}
-    {{end}}
+    {{end}}{{end}}
     {{end}}
     {{end}}
     {{range .Fields}}

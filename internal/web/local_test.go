@@ -128,6 +128,10 @@ func TestInstallShowsPolicy(t *testing.T) {
 	if len(fm.installs) != 1 || !fm.installs[0].AcceptRisks {
 		t.Errorf("the Owner's confirmation wasn't passed on: %+v", fm.installs)
 	}
+	if logs, _ := h.store.RecentAudit(context.Background(), 1); len(logs) != 1 ||
+		logs[0].Detail != "forgejo; accepted risks: containers.server.image: pin the image by digest" {
+		t.Errorf("the accepted risks are audited: %+v", logs)
+	}
 
 	// A registry package that breaks it.
 	fm.policy = []string{"containers.app.quadlet: Container.PodmanArgs=--privileged isn't allowed"}
