@@ -39,7 +39,13 @@ type planEntry struct {
 	AtHome, Away, Main     bool
 	// Access is what this server's credential can do there: whether the
 	// backups survive the server being taken over.
-	Access       manager.Access
+	Access manager.Access
+	// KeyAction is where a new key for this online storage account is
+	// posted, and KeyOpen opens its form; KeyChange is the latest change,
+	// while it runs and for an hour after (it says what to do next).
+	KeyAction    string
+	KeyOpen      bool
+	KeyChange    *activityView
 	Last, LastOK *store.BackupRun
 	Retry        *backup.Retry // the next try after a failure
 	CanPromote   bool
@@ -193,6 +199,12 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		}
 		e.AtHome, e.Away = manager.AtHome(e.Kind), manager.Away(e.Kind)
 		e.Access = s.Manager.BackupAccess(ctx, m.ID, e.Ref)
+		if id, ok := strings.CutPrefix(e.Ref, "provider:"); ok && e.Kind == manager.KindOnline && !wizard {
+			e.KeyAction, e.KeyOpen = p.Action+"/key", r.FormValue("key") == e.Ref
+			if a := s.activityFor(r, activity.BackupKeyFor(id)); a != nil && (a.Running() || time.Since(a.Finished) < time.Hour) {
+				e.KeyChange = a
+			}
+		}
 		if e.Kind == manager.KindServer {
 			e.AtHome, e.Away, e.AskWhere = s.backupPlace(ctx, m, strings.TrimPrefix(e.Ref, "server:"))
 		}
@@ -259,6 +271,14 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		case !p.Checks.TwoKinds:
 			return "A different kind of storage", "Suggested: online storage, or a friend's lab: not a disk like the one your data is on."
 		case !p.Checks.Safe:
+			// Backblaze already, with the account's key: a better key is the
+			// quickest way there.
+			for _, e := range p.Entries {
+				if e.Access.B2 && e.Access.CanDelete {
+					return "A backup safe from ransomware", "Suggested: give Roostack a Backblaze key that can make keys (see " + e.Title +
+						"), or use another server in your lab, a friend's lab or Roostack Cloud. This server can add backups there but not delete them."
+				}
+			}
 			return "A backup safe from ransomware", "Suggested: another server in your lab, a friend's lab, Roostack Cloud or Backblaze B2. " +
 				"This server can add backups there but not delete them."
 		}
@@ -563,6 +583,37 @@ func (s *Server) planRemoveSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "backup", "stopped a backup for "+m.Label()+": "+ref)
+	redirect(w, r, m.Backups()+"#plan")
+}
+
+// planKeySubmit gives Roostack a new key for an online storage account
+// one of this server's backups uses; every server backing up there gets
+// its new credentials in the background (SPEC.md §10.10).
+func (s *Server) planKeySubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil || s.serverOf(r) == nil {
+		http.NotFound(w, r)
+		return
+	}
+	m := s.serverRefOf(r)
+	ref := r.FormValue("key")
+	if !s.planRefs(r, m)[ref] {
+		http.NotFound(w, r)
+		return
+	}
+	err := s.Manager.ChangeS3Key(r.Context(), ref, r.FormValue("access_key"), r.FormValue("secret_key"))
+	if msg, ok := userMessage(err); ok {
+		s.renderPlanPage(w, r, false, msg)
+		return
+	}
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "backup", "gave Roostack a new key for "+ref)
 	redirect(w, r, m.Backups()+"#plan")
 }
 

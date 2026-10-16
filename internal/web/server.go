@@ -222,6 +222,9 @@ type ServiceManager interface {
 	// SharedCredentials are the credentials a server keeps for its backups
 	// that others use too, to change after removing it.
 	SharedCredentials(ctx context.Context, serverID string) []manager.SharedCredential
+	// ChangeS3Key gives Roostack a new key for an online storage account,
+	// and every server backing up there its new credentials.
+	ChangeS3Key(ctx context.Context, ref, accessKey, secretKey string) error
 }
 
 // LabRestores restores a service from any of the lab's backups, onto any
@@ -627,6 +630,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /backups/plan/promote", s.requireOwner(s.planPromoteSubmit))
 	mux.Handle("POST /settings/servers/{server}/location", s.requireOwner(s.locationSubmit))
 	mux.Handle("POST /backups/plan/remove", s.requireOwner(s.planRemoveSubmit))
+	mux.Handle("POST /backups/plan/key", s.requireOwner(s.planKeySubmit))
 	mux.Handle("POST /setup/backup/erase", s.requireWizard(s.eraseDriveSubmit))
 	mux.Handle("GET /setup/recovery-key", s.requireWizard(s.recoveryPage))
 	mux.Handle("POST /setup/recovery-key", s.requireWizard(s.recoveryConfirm))

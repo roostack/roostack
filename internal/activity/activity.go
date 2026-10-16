@@ -29,6 +29,9 @@ const (
 	ServiceUpdate = "service-update"
 	// BackupSetup: creating a server's backup repository (SPEC.md §10.10).
 	BackupSetup = "backup-setup"
+	// BackupKey: giving Roostack a new key for an online storage account,
+	// and each server using it its new credentials (SPEC.md §10.10).
+	BackupKey = "backup-key"
 	// LabRestore is rebuilding a lab from its backups on a new server.
 	LabRestore = "lab-restore"
 	// Build is building Roostack's Caddy image in the background.
@@ -38,6 +41,9 @@ const (
 // BackupSetupFor is the BackupSetup log of one server: the controller
 // sets up every server's backups, and keeps a log for each.
 func BackupSetupFor(serverID string) string { return BackupSetup + "." + serverID }
+
+// BackupKeyFor is the BackupKey log of one account (its provider ID).
+func BackupKeyFor(providerID string) string { return BackupKey + "." + providerID }
 
 // maxLines is how many lines a log keeps; older ones are dropped.
 const maxLines = 2000

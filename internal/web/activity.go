@@ -13,6 +13,7 @@ var activityPerm = map[string]auth.Permission{
 	activity.OSUpdates:   auth.ManageHost,
 	activity.Restore:     auth.ManageHost,
 	activity.BackupSetup: auth.ManageHost,
+	activity.BackupKey:   auth.ManageHost,
 	activity.Move:        auth.ManageHost,
 	activity.Backup:      auth.ManageServices,
 	activity.Apply:       auth.ManageServices,
@@ -37,12 +38,13 @@ type activityView struct {
 func (s *Server) activityFor(r *http.Request, kind string) *activityView {
 	base, forServer, _ := strings.Cut(kind, ".")
 	perm, ok := activityPerm[base]
-	if !ok || !auth.Can(currentUser(r).Role, perm) || (forServer != "" && base != activity.BackupSetup) {
+	if !ok || !auth.Can(currentUser(r).Role, perm) || (forServer != "" && base != activity.BackupSetup && base != activity.BackupKey) {
 		return nil
 	}
 	n := s.serverOf(r)
 	if forServer != "" {
-		// Kept by the controller, for the server named in the kind.
+		// Kept by the controller, for the server (or account) named in
+		// the kind.
 		n = s.Node
 	}
 	if n == nil {
