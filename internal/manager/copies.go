@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"strings"
@@ -116,12 +117,15 @@ func (m *Manager) setUpCopy(ctx context.Context, act *activity.Log, serverID str
 }
 
 // copiesFor is what a server is told about its copies: each one it has,
-// with added's key (the others keep theirs).
+// with added's key or credentials (the others keep theirs). added keeps
+// its title when it comes without one.
 func (m *Manager) copiesFor(ctx context.Context, serverID string, added *node.BackupCopy) []node.BackupCopy {
 	var out []node.BackupCopy
 	for _, c := range m.BackupCopiesOf(ctx, serverID) {
 		if added != nil && c.Ref == added.Name {
-			out = append(out, *added)
+			a := *added
+			a.Title = cmp.Or(a.Title, c.Title)
+			out = append(out, a)
 			continue
 		}
 		// The server keeps the credentials and key it has for this one.

@@ -72,7 +72,11 @@ Under **Manage**, on each backup, you can:
   ones stay where they are);
 - make another backup the main one (the two swap, and both keep their
   backups);
-- stop a backup.
+- stop a backup;
+- on online storage, give Roostack a new key for the account. Every
+  server backing up there gets it (on Backblaze B2, a key of its own when
+  the new key can make keys), so you can then delete the old key with the
+  provider: after removing a server that held it, for example.
 
 A backup on the server's own disk comes with a warning: it helps if you
 delete something by mistake, but if the disk fails, you lose the data and
@@ -116,7 +120,8 @@ attention** on the home page, with what to do.
       reads the rule, and never changes it). Other S3 providers give every
       server the account's key, which can delete. When you remove a
       server, Settings → Servers lists the shared keys and passwords it
-      still holds.
+      still holds; change an account's key under **Manage** on a backup
+      there.
     - **Keeping:** old backups are removed on Sunday by the lab's
       controller (`restic forget --prune --group-by host,tags --keep-daily 7
       --keep-weekly 4 --keep-monthly 6`: each service is kept on its own, as
