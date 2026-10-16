@@ -12,20 +12,36 @@ const lsblkFixture = `{"blockdevices": [
  {"name":"sr0","path":"/dev/sr0","type":"rom","size":1073741312,"fstype":null,"label":null,"uuid":null,"mountpoints":[],"tran":"sata","rm":true,"hotplug":false,"model":"QEMU DVD-ROM","fsavail":null},
  {"name":"vda","path":"/dev/vda","type":"disk","size":42949672960,"fstype":null,"label":null,"uuid":null,"mountpoints":[],"tran":"virtio","rm":false,"hotplug":false,"model":null,"fsavail":null,
   "children":[
-   {"name":"vda1","path":"/dev/vda1","type":"part","size":42815438336,"fstype":"ext4","label":null,"uuid":"4d07","mountpoints":["/"],"tran":"virtio","rm":false,"hotplug":false,"model":null,"fsavail":36482535424},
+   {"name":"vda1","path":"/dev/vda1","type":"part","size":42815438336,"fstype":"ext4","label":null,"uuid":"4d07a1b2-0000-4000-8000-000000000001","mountpoints":["/"],"tran":"virtio","rm":false,"hotplug":false,"model":null,"fsavail":36482535424},
    {"name":"vda15","path":"/dev/vda15","type":"part","size":130023424,"fstype":"vfat","label":null,"uuid":"B1C2","mountpoints":["/boot/efi"],"tran":"virtio","rm":false,"hotplug":false,"model":null,"fsavail":120000000}]},
  {"name":"sdb","path":"/dev/sdb","type":"disk","size":128043712512,"fstype":null,"label":null,"uuid":null,"mountpoints":[],"tran":"usb","rm":true,"hotplug":true,"model":"SanDisk Ultra","fsavail":null,
   "children":[
    {"name":"sdb1","path":"/dev/sdb1","type":"part","size":128042663936,"fstype":"exfat","label":"BACKUP","uuid":"64B1-2F3C","mountpoints":[],"tran":"usb","rm":true,"hotplug":true,"model":null,"fsavail":null}]},
  {"name":"nvme1n1","path":"/dev/nvme1n1","type":"disk","size":1000204886016,"fstype":null,"label":null,"uuid":null,"mountpoints":[],"tran":"nvme","rm":false,"hotplug":false,"model":"Samsung SSD 980","fsavail":null},
  {"name":"sdc","path":"/dev/sdc","type":"disk","size":2000398934016,"fstype":"LVM2_member","label":null,"uuid":"lvm","mountpoints":[],"tran":"sata","rm":false,"hotplug":false,"model":"WD Red","fsavail":null},
+ {"name":"sde","path":"/dev/sde","type":"disk","size":64000000000,"fstype":null,"label":null,"uuid":null,"mountpoints":[],"tran":"usb","rm":true,"hotplug":true,"model":"Evil\u000aStick","fsavail":null,
+  "children":[
+   {"name":"sde1","path":"/dev/sde1","type":"part","size":64000000000,"fstype":"ext4","label":"x\u000aUUID=0 / ext4","uuid":"3e2f6a1c-0000-4000-8000-000000000003","mountpoints":[],"tran":"usb","rm":true,"hotplug":true,"model":null,"fsavail":null},
+   {"name":"sde2","path":"/dev/sde2","type":"part","size":1000,"fstype":"ext4","label":null,"uuid":"0 / ext4 defaults\u000aUUID=1","mountpoints":[],"tran":"usb","rm":true,"hotplug":true,"model":null,"fsavail":null}]},
+ {"name":"sdf","path":"/dev/sdf","type":"disk","size":32000000000,"fstype":null,"label":null,"uuid":null,"mountpoints":[],"tran":"usb","rm":true,"hotplug":true,"model":"Mac drive","fsavail":null,
+  "children":[
+   {"name":"sdf1","path":"/dev/sdf1","type":"part","size":32000000000,"fstype":"hfsplus","label":null,"uuid":"5f6e7d8c-0000-4000-8000-000000000004","partuuid":"11111111-02","mountpoints":[],"tran":"usb","rm":true,"hotplug":true,"model":null,"fsavail":null}]},
+ {"name":"sdg","path":"/dev/sdg","type":"disk","size":32000000000,"fstype":null,"label":null,"uuid":null,"mountpoints":[],"tran":"usb","rm":true,"hotplug":true,"model":"Old Mac drive","fsavail":null,
+  "children":[
+   {"name":"sdg1","path":"/dev/sdg1","type":"part","size":32000000000,"fstype":"hfsplus","label":null,"uuid":"6a7b8c9d-0000-4000-8000-000000000005","mountpoints":[],"tran":"usb","rm":true,"hotplug":true,"model":null,"fsavail":null}]},
+ {"name":"sdh","path":"/dev/sdh","type":"disk","size":32000000000,"fstype":null,"label":null,"uuid":null,"mountpoints":[],"tran":"usb","rm":true,"hotplug":true,"model":"Odd drive","fsavail":null,
+  "children":[
+   {"name":"sdh1","path":"/dev/sdh1","type":"part","size":32000000000,"fstype":"ext4","label":null,"uuid":"not-a-uuid","mountpoints":[],"tran":"usb","rm":true,"hotplug":true,"model":null,"fsavail":null}]},
  {"name":"sdd","path":"/dev/sdd","type":"disk","size":500107862016,"fstype":null,"label":null,"uuid":null,"mountpoints":[],"tran":"sata","rm":false,"hotplug":false,"model":"Old disk","fsavail":null,
   "children":[
-   {"name":"sdd1","path":"/dev/sdd1","type":"part","size":500106813440,"fstype":"ext4","label":"photos","uuid":"aa11","mountpoints":["/data"],"tran":"sata","rm":false,"hotplug":false,"model":null,"fsavail":400000000000}]}
+   {"name":"sdd1","path":"/dev/sdd1","type":"part","size":500106813440,"fstype":"ext4","label":"photos","uuid":"aa11a1b2-0000-4000-8000-000000000002","mountpoints":["/data"],"tran":"sata","rm":false,"hotplug":false,"model":null,"fsavail":400000000000}]}
 ]}`
 
+// sdf's filesystem is in fstab (by PARTUUID), so it's in use.
+const fstabFixture = "PARTUUID=d578426d-01 / ext4 rw 0 1\n# comment\nPARTUUID=11111111-02 /mnt/mac hfsplus ro,nofail 0 2\n"
+
 func TestParseDrives(t *testing.T) {
-	drives, err := parseDrives([]byte(lsblkFixture), 30<<30)
+	drives, err := parseDrives([]byte(lsblkFixture), 30<<30, fstabFixture, func(p string) string { return p })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,21 +49,42 @@ func TestParseDrives(t *testing.T) {
 	for _, d := range drives {
 		byID[d.ID] = d
 	}
-	if len(drives) != 4 {
+	if len(drives) != 8 {
 		t.Fatalf("drives = %+v", drives)
 	}
 	if s := byID["system"]; s.Kind != "system" || !s.Usable || s.Erasable || s.Free != 30<<30 || s.Size != 42949672960 {
 		t.Errorf("system = %+v", s)
 	}
-	if u := byID["uuid:64B1-2F3C"]; u.Kind != "usb" || u.Name != "BACKUP" || u.FSType != "exfat" || !u.Usable || !u.Erasable ||
+	// A drive with a filesystem backups can use is never erased (M18).
+	if u := byID["uuid:64B1-2F3C"]; u.Kind != "usb" || u.Name != "BACKUP" || u.FSType != "exfat" || !u.Usable || u.Erasable ||
 		u.Disk != "/dev/sdb" || u.Mount != "" || u.Free != -1 {
 		t.Errorf("usb = %+v", u)
 	}
 	if n := byID["disk:/dev/nvme1n1"]; n.Kind != "disk" || n.Usable || !n.Erasable || n.Name != "Samsung SSD 980" {
 		t.Errorf("blank disk = %+v", n)
 	}
-	if d := byID["uuid:aa11"]; d.Mount != "/data" || d.Free != 400000000000 || d.Name != "photos" {
+	if d := byID["uuid:aa11a1b2-0000-4000-8000-000000000002"]; d.Mount != "/data" || d.Free != 400000000000 || d.Name != "photos" || d.Erasable {
 		t.Errorf("mounted disk = %+v", d)
+	}
+	// A crafted label and model lose their newlines; a filesystem with a
+	// UUID that isn't one isn't offered (M17).
+	if e := byID["uuid:3e2f6a1c-0000-4000-8000-000000000003"]; e.Name != "xUUID=0 / ext4" || e.Model != "EvilStick" || e.Erasable {
+		t.Errorf("crafted label = %+v", e)
+	}
+	for _, d := range drives {
+		if d.Device == "/dev/sde2" || d.Device == "/dev/sdh1" {
+			t.Errorf("a filesystem with an odd UUID is offered: %+v", d)
+		}
+	}
+	if h := byID["disk:/dev/sdh"]; h.Usable || h.Erasable {
+		t.Errorf("a disk with an ext4 filesystem (odd UUID) isn't erased: %+v", h)
+	}
+	// Something backups can't use: erasable unless fstab has it.
+	if f := byID["disk:/dev/sdf"]; f.Erasable {
+		t.Errorf("a disk in fstab = %+v", f)
+	}
+	if g := byID["disk:/dev/sdg"]; !g.Erasable {
+		t.Errorf("an unused Mac drive = %+v", g)
 	}
 	if _, ok := byID["uuid:lvm"]; ok {
 		t.Error("an LVM disk isn't offered")
@@ -63,17 +100,63 @@ func TestNetworkDrives(t *testing.T) {
 	}
 }
 
+func TestInFstab(t *testing.T) {
+	dev := []lsblkDevice{{Path: "/dev/sdb1", UUID: ptr("64B1-2F3C"), Label: ptr("BACKUP")}}
+	resolve := func(p string) string {
+		if p == "/dev/disk/by-id/usb-1" {
+			return "/dev/sdb1"
+		}
+		return p
+	}
+	for tab, want := range map[string]bool{
+		"UUID=64b1-2f3c /mnt/x exfat defaults 0 2":   true,
+		`LABEL="BACKUP" /mnt/x exfat defaults 0 2`:   true,
+		"/dev/sdb1 /mnt/x exfat defaults 0 2":        true,
+		"/dev/disk/by-id/usb-1 /mnt/x exfat 0 2":     true,
+		"# UUID=64B1-2F3C /mnt/x exfat defaults 0 2": false,
+		"UUID=64B1-2F3D /mnt/x exfat defaults 0 2":   false,
+		"LABEL= /mnt/x exfat defaults 0 2":           false,
+	} {
+		if got := inFstab(dev, tab, resolve); got != want {
+			t.Errorf("%q: %v, want %v", tab, got, want)
+		}
+	}
+}
+
+func ptr(s string) *string { return &s }
+
 func TestFstabLine(t *testing.T) {
 	usb := Drive{UUID: "64B1-2F3C", FSType: "exfat"}
-	if got := fstabLine(usb, "/mnt/roostack-backup", 999, 989); got !=
+	if got, _ := fstabLine(usb, "/mnt/roostack-backup", 999, 989); got !=
 		"UUID=64B1-2F3C /mnt/roostack-backup exfat defaults,nofail,x-systemd.automount,x-systemd.device-timeout=10s,uid=999,gid=989,umask=077 0 2" {
 		t.Errorf("exfat: %s", got)
 	}
-	if got := fstabLine(Drive{UUID: "aa", FSType: "ext4"}, "/mnt/x", 1, 1); strings.Contains(got, "uid=") || !strings.Contains(got, "nofail") {
+	if got, _ := fstabLine(Drive{UUID: "64B1-2F3C", FSType: "ext4"}, "/mnt/x", 1, 1); strings.Contains(got, "uid=") || !strings.Contains(got, "nofail") {
 		t.Errorf("ext4: %s", got)
 	}
-	if got := fstabLine(Drive{UUID: "n", FSType: "ntfs"}, "/mnt/x", 1, 1); !strings.Contains(got, " ntfs3 ") {
+	if got, _ := fstabLine(Drive{UUID: "0123456789ABCDEF", FSType: "ntfs"}, "/mnt/x", 1, 1); !strings.Contains(got, " ntfs3 ") {
 		t.Errorf("ntfs uses the kernel's driver: %s", got)
+	}
+	// Nothing that could split the line or add one (M17).
+	for _, bad := range []Drive{{UUID: "a b", FSType: "ext4"}, {UUID: "a\nUUID=b", FSType: "ext4"}, {UUID: "", FSType: "ext4"},
+		{UUID: "a#b", FSType: "ext4"}} {
+		if line, err := fstabLine(bad, "/mnt/x", 1, 1); err == nil {
+			t.Errorf("%q: %q, want an error", bad.UUID, line)
+		}
+	}
+	if _, err := fstabLine(Drive{UUID: "64B1-2F3C", FSType: "ext4"}, "/mnt/a b", 1, 1); err == nil {
+		t.Error("a mount point with a space")
+	}
+}
+
+func TestValidUUID(t *testing.T) {
+	for s, want := range map[string]bool{
+		"120695a4-65b6-43c4-b138-ec5c87087ad8": true, "64B1-2F3C": true, "0123456789ABCDEF": true,
+		"": false, "4d07": false, "64B1-2F3C\n": false, "../../etc": false, "120695a4-65b6-43c4-b138-ec5c87087ad8 x": false,
+	} {
+		if ValidUUID(s) != want {
+			t.Errorf("%q: want %v", s, want)
+		}
 	}
 }
 
