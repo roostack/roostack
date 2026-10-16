@@ -113,6 +113,24 @@ func TestLinkCheckUnlink(t *testing.T) {
 
 // A lab unlinked in Cloud (or restored from a backup made before it was
 // unlinked) forgets the link at its next check, and says so.
+// A suspended account's lab stays linked and shows Cloud's message; only
+// a 401 means Cloud doesn't know the certificate (review M6).
+func TestSuspendedKeepsLink(t *testing.T) {
+	f, s, _ := fakeCloud(t)
+	link(t, f, s, "")
+	f.Suspended = true
+	if err := s.Check(context.Background()); err == nil || errors.Is(err, ErrUnlinked) {
+		t.Fatalf("check = %v", err)
+	}
+	if st := s.Status(); !st.Linked || !st.Forgotten.IsZero() || st.Refused != "This account is suspended." || st.LastError != "" {
+		t.Fatalf("status = %+v", st)
+	}
+	f.Suspended = false
+	if err := s.Check(context.Background()); err != nil || s.Status().Refused != "" {
+		t.Fatalf("after the suspension: %v, %+v", err, s.Status())
+	}
+}
+
 func TestUnlinkedFromCloud(t *testing.T) {
 	f, s, state := fakeCloud(t)
 	link(t, f, s, "")

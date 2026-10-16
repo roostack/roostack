@@ -401,6 +401,7 @@ The review is in Roostack Cloud's repository (`REVIEW-2026-10-16.md`); IDs refer
 
 - [x] M15: only an Owner makes a service public at install or answers the CrowdSec sharing question; the install's audit entry says where it runs, whether it went public and any accepted risks (SPEC §6.11)
 - [x] M16: Admins must use two-factor while the UI is public (SPEC §5)
+- [x] M6 (lab side): only a 401 forgets the Cloud link; a 403 or 423 (suspended) keeps it and shows Cloud's message (cloudapi)
 - [x] M20: moves and restores bring only the secrets a service's generated files name (SPEC §10.10)
 
 ## To discuss with the user
