@@ -385,7 +385,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 ## Security review 2026-10-16: the root boundary (rs-privilege)
 
 - [x] H6: `roostack user`, `backup` and `apply` started as root run as the roostack user; `node join` joins as roostack and only restarts as root; `store.Open` refuses symlinks; postinst and the install message no longer follow symlinks in roostack's folders (SPEC §6.1, ASSUMPTIONS S1–S4; checked on VM1)
-- [ ] `scripts/dev-vm.sh test` can't run `cmd/roostack`'s new test (looks for `bin/main.test`); `TestHubJoin` failed once in the VM run (not touched here: flaky?)
+- [x] `scripts/dev-vm.sh test` looked for `main.test` for `cmd/roostack` (binaries are named after the import path, `roostack.test`); fixed
+- [ ] For rs-network-trust: `TestHubJoin` (internal/labnet/hub_test.go) is timing-dependent: with `SwitchDelay: time.Millisecond` it expects the one-time key still there after `Join`, `Save` and `ClientTLS`, which a busy VM can take longer than; failed once in a shared VM1 run, passed 10/10 alone. Use a longer delay or a channel
 - [ ] For rs-package-policy: `help/docs/reference/cli.md` "Who runs what" should say `sudo roostack user|backup|apply` now run as roostack
 - [ ] M17/M18 (drive names, UUIDs, fstab, erasing only blank disks not in fstab), agent Lows (WireGuard key decoding, backup folder, unit sandbox), container reach to the agent socket (confirmed reachable with a bind mount; fix to propose: refuse peers outside the initial user namespace), M19 (mark SPEC §6.10 item 3 "not built yet", decided by the user)
 - [ ] Untested: `node join` end to end as root (needs a second VM); the install message on a fresh install
