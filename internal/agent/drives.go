@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode"
 )
 
 // Drives for backups (SPEC.md §6.9): the setup wizard lists the drives a
@@ -21,6 +22,14 @@ import (
 // by its filesystem's UUID (for good: it comes back after a reboot, and a
 // missing drive doesn't hold up booting) and can erase an empty or unwanted
 // disk and prepare it.
+//
+// What lsblk says about a drive comes from the drive itself (its label,
+// model and UUID), so a crafted USB stick chooses it: names lose their
+// control characters, UUIDs must look like one, and a line for fstab is
+// refused if any of its fields could split it (review M17, SPEC.md §6.1).
+// Only a disk with nothing usable on it, not mounted and not in fstab, can
+// be erased: the roostack user asks for it, and an idle backup drive is
+// only automounted, so "not mounted now" isn't enough (review M18).
 
 // Drive is a place backups can go.
 type Drive struct {
@@ -43,7 +52,8 @@ type Drive struct {
 	UUID   string `json:"uuid,omitempty"`
 	Mount  string `json:"mount,omitempty"`
 	// Usable: backups can go on it as it is. Erasable: its disk can be
-	// erased and prepared for backups (never the system's disk).
+	// erased and prepared for backups: never the system's disk, nor one
+	// with a filesystem backups can use, mounted, or in /etc/fstab.
 	Usable   bool `json:"usable"`
 	Erasable bool `json:"erasable"`
 }
@@ -76,6 +86,8 @@ type lsblkDevice struct {
 	FSType      *string       `json:"fstype"`
 	Label       *string       `json:"label"`
 	UUID        *string       `json:"uuid"`
+	PartUUID    *string       `json:"partuuid"`
+	PartLabel   *string       `json:"partlabel"`
 	Mountpoints []*string     `json:"mountpoints"`
 	Tran        *string       `json:"tran"`
 	RM          bool          `json:"rm"`
@@ -85,12 +97,31 @@ type lsblkDevice struct {
 	Children    []lsblkDevice `json:"children"`
 }
 
+// str is one of lsblk's values, without control characters (lsblk's
+// JSON escapes them, and decoding brings them back).
 func str(p *string) string {
 	if p == nil {
 		return ""
 	}
-	return strings.TrimSpace(*p)
+	return strings.TrimSpace(printable(*p))
 }
+
+// printable is s without control characters.
+func printable(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
+}
+
+// fsUUID is a filesystem UUID as lsblk shows it: ext4, XFS, Btrfs and F2FS
+// (8-4-4-4-12 hex digits), FAT and exFAT (XXXX-XXXX), NTFS (16 digits).
+var fsUUID = regexp.MustCompile(`^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{4}-[0-9a-fA-F]{4}|[0-9a-fA-F]{16})$`)
+
+// ValidUUID reports whether s is a filesystem UUID (fsUUID).
+func ValidUUID(s string) bool { return fsUUID.MatchString(s) }
 
 func (d lsblkDevice) mounts() []string {
 	var out []string
@@ -111,9 +142,46 @@ func (d lsblkDevice) all() []lsblkDevice {
 	return out
 }
 
+// inFstab reports whether fstab mounts (or swaps on) any of devs, by UUID,
+// PARTUUID, LABEL, PARTLABEL or device path. resolve follows /dev/disk/…
+// symlinks.
+func inFstab(devs []lsblkDevice, fstab string, resolve func(string) string) bool {
+	for _, line := range strings.Split(fstab, "\n") {
+		f := strings.Fields(line)
+		if len(f) < 2 || strings.HasPrefix(f[0], "#") {
+			continue
+		}
+		key, val, tagged := strings.Cut(f[0], "=")
+		val = strings.Trim(val, `"`)
+		for _, d := range devs {
+			switch {
+			case !tagged:
+				if f[0] == d.Path || resolve(f[0]) == d.Path {
+					return true
+				}
+			case key == "UUID" && strings.EqualFold(val, str(d.UUID)),
+				key == "PARTUUID" && strings.EqualFold(val, str(d.PartUUID)),
+				key == "LABEL" && val != "" && val == str(d.Label),
+				key == "PARTLABEL" && val != "" && val == str(d.PartLabel):
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// resolvePath follows symlinks, or gives p back.
+func resolvePath(p string) string {
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return p
+}
+
 // parseDrives turns `lsblk --json --bytes` output into drives. The system
 // disk becomes the one "system" drive; free is the free space on it.
-func parseDrives(data []byte, systemFree int64) ([]Drive, error) {
+// fstab is /etc/fstab's contents: a disk in it is never erasable.
+func parseDrives(data []byte, systemFree int64, fstab string, resolve func(string) string) ([]Drive, error) {
 	var out struct {
 		Blockdevices []lsblkDevice `json:"blockdevices"`
 	}
@@ -126,15 +194,19 @@ func parseDrives(data []byte, systemFree int64) ([]Drive, error) {
 		if disk.Type != "disk" || strings.HasPrefix(disk.Name, "zram") {
 			continue
 		}
-		system, foreign := false, false
+		system, foreign, mounted, hasFS := false, false, false, false
 		for _, d := range disk.all() {
 			for _, m := range d.mounts() {
+				mounted = true
 				if slices.Contains(systemMounts, m) {
 					system = true
 				}
 			}
 			if slices.Contains(notForBackups, str(d.FSType)) {
 				foreign = true
+			}
+			if slices.Contains(usableFS, str(d.FSType)) {
+				hasFS = true
 			}
 		}
 		if system {
@@ -151,7 +223,7 @@ func parseDrives(data []byte, systemFree int64) ([]Drive, error) {
 		if str(disk.Tran) == "usb" || disk.RM || disk.Hotplug {
 			kind = "usb"
 		}
-		base := Drive{Kind: kind, Model: str(disk.Model), Disk: disk.Path, Erasable: true}
+		base := Drive{Kind: kind, Model: str(disk.Model), Disk: disk.Path}
 		name := func(d lsblkDevice) string {
 			if l := str(d.Label); l != "" {
 				return l
@@ -167,7 +239,7 @@ func parseDrives(data []byte, systemFree int64) ([]Drive, error) {
 		var found bool
 		for _, d := range disk.all() {
 			fs := str(d.FSType)
-			if !slices.Contains(usableFS, fs) || str(d.UUID) == "" {
+			if !slices.Contains(usableFS, fs) || !ValidUUID(str(d.UUID)) {
 				continue
 			}
 			found = true
@@ -183,10 +255,11 @@ func parseDrives(data []byte, systemFree int64) ([]Drive, error) {
 			drives = append(drives, dr)
 		}
 		// Nothing usable on it (new, or a filesystem backups can't use):
-		// offered for erasing.
+		// offered for erasing, unless it's in use.
 		if !found {
 			dr := base
 			dr.ID, dr.Name, dr.Device, dr.Size, dr.Free = "disk:"+disk.Path, name(disk), disk.Path, disk.Size, -1
+			dr.Erasable = !hasFS && !mounted && !inFstab(disk.all(), fstab, resolve)
 			drives = append(drives, dr)
 		}
 	}
@@ -204,7 +277,7 @@ func networkDrives(mounts string, free func(string) (int64, int64)) []Drive {
 		}
 		mp := strings.ReplaceAll(f[1], `\040`, " ")
 		avail, size := free(mp)
-		out = append(out, Drive{ID: "mount:" + mp, Kind: "network", Name: f[0], Mount: mp, FSType: f[2],
+		out = append(out, Drive{ID: "mount:" + mp, Kind: "network", Name: printable(f[0]), Mount: mp, FSType: f[2],
 			Size: size, Free: avail, Usable: true})
 	}
 	return out
@@ -221,12 +294,16 @@ func statfs(path string) (free, size int64) {
 // Drives lists the places backups can go.
 func (h LinuxHost) Drives() ([]Drive, error) {
 	out, err := exec.Command("lsblk", "--json", "--bytes", "-o",
-		"NAME,PATH,TYPE,SIZE,FSTYPE,LABEL,UUID,MOUNTPOINTS,TRAN,RM,HOTPLUG,MODEL,FSAVAIL").Output()
+		"NAME,PATH,TYPE,SIZE,FSTYPE,LABEL,UUID,PARTUUID,PARTLABEL,MOUNTPOINTS,TRAN,RM,HOTPLUG,MODEL,FSAVAIL").Output()
 	if err != nil {
 		return nil, fmt.Errorf("lsblk: %w", err)
 	}
+	tab, err := os.ReadFile(fstab)
+	if err != nil {
+		return nil, err
+	}
 	free, _ := statfs("/srv")
-	drives, err := parseDrives(out, free)
+	drives, err := parseDrives(out, free, string(tab), resolvePath)
 	if err != nil {
 		return nil, err
 	}
@@ -266,12 +343,9 @@ func (h LinuxHost) UseDrive(id string) (UsedDrive, error) {
 		return UsedDrive{}, errors.New("the roostack user isn't known")
 	}
 	if id == "system" {
-		if _, err := prepareFolder(SystemBackupDir, []string{"/srv"}, h.UID, h.GID); err != nil {
-			return UsedDrive{}, err
-		}
 		// The folder is Roostack's own backup store too (other servers'
 		// backups, its password file), so it's the roostack user's.
-		if err := chownIn("/srv", SystemBackupDir, h.UID, h.GID); err != nil {
+		if err := systemBackupDir(h.UID, h.GID); err != nil {
 			return UsedDrive{}, err
 		}
 		return UsedDrive{Dir: SystemBackupDir}, nil
@@ -304,6 +378,9 @@ var fstab = "/etc/fstab"
 // mountForGood mounts a filesystem under /mnt, recorded in fstab by UUID
 // (nofail: a missing drive doesn't hold up booting).
 func (h LinuxHost) mountForGood(d Drive) (string, error) {
+	if !ValidUUID(d.UUID) {
+		return "", fmt.Errorf("the drive's filesystem has an odd UUID (%q)", printable(d.UUID))
+	}
 	name := strings.Trim(mountName.ReplaceAllString(strings.ToLower(d.Name), "-"), "-")
 	if name == "" || len(name) > 32 {
 		name = d.UUID[:8]
@@ -324,7 +401,10 @@ func (h LinuxHost) mountForGood(d Drive) (string, error) {
 	if err := os.MkdirAll(mp, 0o755); err != nil {
 		return "", err
 	}
-	line := fstabLine(d, mp, h.UID, h.GID)
+	line, err := fstabLine(d, mp, h.UID, h.GID)
+	if err != nil {
+		return "", err
+	}
 	if known {
 		// A line Roostack wrote before is brought up to date.
 		if updated := updateFstab(string(data), d.UUID, line); updated != string(data) {
@@ -341,7 +421,7 @@ func (h LinuxHost) mountForGood(d Drive) (string, error) {
 		if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
 			prefix = "\n"
 		}
-		_, err = fmt.Fprintf(f, "%s# Added by Roostack: a backup drive (%s)\n%s\n", prefix, d.Name, line)
+		_, err = fmt.Fprintf(f, "%s# Added by Roostack: a backup drive (%s)\n%s\n", prefix, printable(d.Name), line)
 		f.Close()
 		if err != nil {
 			return "", err
@@ -384,8 +464,10 @@ func fstabMount(fstab, uuid string) string {
 	return ""
 }
 
-// fstabLine records a backup drive's mount.
-func fstabLine(d Drive, mp string, uid, gid int) string {
+// fstabLine records a backup drive's mount. It refuses a field that's
+// empty or holds whitespace, a control character or "#": any of them would
+// change what the line means, or add a line.
+func fstabLine(d Drive, mp string, uid, gid int) (string, error) {
 	// Mounted when first used (e.g. by the nightly backup), so a drive
 	// unplugged and plugged back in is there again.
 	fs, opts := d.FSType, "defaults,nofail,x-systemd.automount,x-systemd.device-timeout=10s"
@@ -395,11 +477,21 @@ func fstabLine(d Drive, mp string, uid, gid int) string {
 	if slices.Contains(foreignFS, d.FSType) {
 		opts += fmt.Sprintf(",uid=%d,gid=%d,umask=077", uid, gid)
 	}
-	return fmt.Sprintf("UUID=%s %s %s %s 0 2", d.UUID, mp, fs, opts)
+	if !ValidUUID(d.UUID) {
+		return "", fmt.Errorf("can't add a drive with the UUID %q to /etc/fstab", printable(d.UUID))
+	}
+	fields := []string{"UUID=" + d.UUID, mp, fs, opts, "0", "2"}
+	for _, f := range fields {
+		if f == "" || strings.ContainsFunc(f, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) || r == '#' }) {
+			return "", fmt.Errorf("can't add %q to /etc/fstab", printable(f))
+		}
+	}
+	return strings.Join(fields, " "), nil
 }
 
-// EraseDrive erases a disk that isn't the system's and prepares it for
-// backups: one partition with an ext4 filesystem labelled label.
+// EraseDrive erases a disk and prepares it for backups: one partition with
+// an ext4 filesystem labelled label. Only an Erasable disk: nothing on it
+// backups could use, not mounted, not in fstab.
 func (h LinuxHost) EraseDrive(disk, label string) error {
 	drives, err := h.Drives()
 	if err != nil {
@@ -408,14 +500,12 @@ func (h LinuxHost) EraseDrive(disk, label string) error {
 	ok := false
 	for _, d := range drives {
 		if d.Disk == disk && d.Erasable {
-			if d.Mount != "" {
-				return fmt.Errorf("%s is in use (mounted at %s)", d.Name, d.Mount)
-			}
 			ok = true
 		}
 	}
 	if !ok {
-		return errors.New("that disk can't be erased")
+		return errors.New("that disk can't be erased: Roostack only prepares a disk with nothing on it it could use, " +
+			"that isn't mounted or in /etc/fstab")
 	}
 	label = strings.ToUpper(mountName.ReplaceAllString(label, ""))
 	if label == "" || len(label) > 16 {

@@ -4,8 +4,10 @@
 //
 // It serves HTTP+JSON on a Unix socket. Callers are identified by the
 // kernel (SO_PEERCRED), not by anything they send, and only root and the
-// roostack user are accepted. Every operation validates its input and takes no
-// free-form commands or paths.
+// roostack user are accepted, and only from the host's own user namespace:
+// a rootless container's root is the roostack user to the kernel too.
+// Every operation validates its input and takes no free-form commands or
+// paths.
 package agent
 
 import (
@@ -20,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,9 +30,10 @@ import (
 	"time"
 )
 
-// Default locations.
+// Default locations. The socket is in the agent's runtime directory, the
+// one place in /run its sandbox lets it write (roostack-agent.service).
 const (
-	DefaultSocket       = "/run/roostack-agent.sock"
+	DefaultSocket       = "/run/roostack-agent/agent.sock"
 	DefaultFirewallFile = "/etc/roostack/firewall.nft"
 	sysctlFile          = "/etc/sysctl.d/60-roostack.conf"
 	unprivPortProc      = "/proc/sys/net/ipv4/ip_unprivileged_port_start"
@@ -89,6 +93,9 @@ type Server struct {
 }
 
 type ctxKey struct{}
+
+// nsKey marks a connection from another user namespace (peerInHostNS).
+type nsKey struct{}
 
 // Handler returns the API routes, wrapped in the caller check.
 func (s *Server) Handler() http.Handler {
@@ -317,12 +324,13 @@ func (s *Server) do(w http.ResponseWriter, r *http.Request, what string, fn func
 func (s *Server) checkCaller(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		uid, ok := r.Context().Value(ctxKey{}).(uint32)
+		foreign, _ := r.Context().Value(nsKey{}).(bool)
 		allowed := false
 		for _, a := range s.AllowedUIDs {
-			allowed = allowed || (ok && uid == a)
+			allowed = allowed || (ok && !foreign && uid == a)
 		}
 		if !allowed {
-			s.Log.Warn("rejected caller", "uid", uid, "known", ok, "path", r.URL.Path)
+			s.Log.Warn("rejected caller", "uid", uid, "known", ok, "other_user_namespace", foreign, "path", r.URL.Path)
 			writeError(w, http.StatusForbidden, errors.New("caller not allowed"))
 			return
 		}
@@ -332,7 +340,8 @@ func (s *Server) checkCaller(next http.Handler) http.Handler {
 
 // Serve listens on the Unix socket until ctx is cancelled. The socket is
 // created mode 0660 with the given group, so only root and that group can
-// connect; SO_PEERCRED is still checked on every request.
+// connect; SO_PEERCRED is still checked on every request, and the caller's
+// user namespace (peerInHostNS).
 func (s *Server) Serve(ctx context.Context, socket string, gid int) error {
 	os.Remove(socket) // stale socket from a previous run
 	ln, err := net.Listen("unix", socket)
@@ -350,8 +359,13 @@ func (s *Server) Serve(ctx context.Context, socket string, gid int) error {
 	srv := &http.Server{
 		Handler: s.Handler(),
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-			if uid, ok := peerUID(c); ok {
-				return context.WithValue(ctx, ctxKey{}, uid)
+			uid, pid, ok := peerCred(c)
+			if !ok {
+				return ctx
+			}
+			ctx = context.WithValue(ctx, ctxKey{}, uid)
+			if !peerInHostNS(c, pid) {
+				ctx = context.WithValue(ctx, nsKey{}, true)
 			}
 			return ctx
 		},
@@ -366,15 +380,16 @@ func (s *Server) Serve(ctx context.Context, socket string, gid int) error {
 	return nil
 }
 
-// peerUID returns the UID of the process on the other end of a Unix socket.
-func peerUID(c net.Conn) (uint32, bool) {
+// peerCred returns the UID and PID of the process on the other end of a
+// Unix socket (when it connected).
+func peerCred(c net.Conn) (uid uint32, pid int32, ok bool) {
 	uc, ok := c.(*net.UnixConn)
 	if !ok {
-		return 0, false
+		return 0, 0, false
 	}
 	raw, err := uc.SyscallConn()
 	if err != nil {
-		return 0, false
+		return 0, 0, false
 	}
 	var cred *syscall.Ucred
 	var credErr error
@@ -382,9 +397,86 @@ func peerUID(c net.Conn) (uint32, bool) {
 		cred, credErr = syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
 	})
 	if err != nil || credErr != nil {
-		return 0, false
+		return 0, 0, false
 	}
-	return cred.Uid, true
+	return cred.Uid, cred.Pid, true
+}
+
+// Linux's numbers for what Go's syscall package doesn't name (the same on
+// amd64 and arm64).
+const (
+	soPeerPidfd        = 77  // SO_PEERPIDFD, Linux 6.5
+	sysPidfdSendSignal = 424 // pidfd_send_signal
+)
+
+// peerInHostNS reports whether the process that connected is in the
+// host's own user namespace. A rootless container's root (or a keep-id
+// user) is the roostack user to SO_PEERCRED, so a container given the
+// socket in a bind mount could otherwise call the agent (docs/ASSUMPTIONS.md
+// S6). Only the host's namespace maps every UID to itself, which no
+// unprivileged process can arrange. The process is found through a pidfd
+// (SO_PEERPIDFD), and checked to be still alive after its uid_map is read,
+// so a PID reused meanwhile isn't mistaken for it. Without SO_PEERPIDFD
+// (kernels before 6.5), it falls back to the PID from SO_PEERCRED.
+func peerInHostNS(c net.Conn, pid int32) bool {
+	uc, ok := c.(*net.UnixConn)
+	if !ok {
+		return false
+	}
+	raw, err := uc.SyscallConn()
+	if err != nil {
+		return false
+	}
+	pidfd := -1
+	raw.Control(func(fd uintptr) {
+		if v, err := syscall.GetsockoptInt(int(fd), syscall.SOL_SOCKET, soPeerPidfd); err == nil {
+			pidfd = v
+		}
+	})
+	if pidfd >= 0 {
+		defer syscall.Close(pidfd)
+		info, err := os.ReadFile(fmt.Sprintf("/proc/self/fdinfo/%d", pidfd))
+		if err != nil {
+			return false
+		}
+		if pid = fdinfoPid(string(info)); pid <= 0 {
+			return false
+		}
+	}
+	uidMap, err := os.ReadFile(fmt.Sprintf("/proc/%d/uid_map", pid))
+	if err != nil || !hostUIDMap(string(uidMap)) {
+		return false
+	}
+	if pidfd >= 0 {
+		// Signal 0 only checks. EPERM (no CAP_KILL to signal another user)
+		// still means it's there; ESRCH that it's gone, and the PID may be
+		// someone else's now.
+		if _, _, errno := syscall.Syscall6(sysPidfdSendSignal, uintptr(pidfd), 0, 0, 0, 0, 0); errno != 0 && errno != syscall.EPERM {
+			return false
+		}
+	}
+	return true
+}
+
+// fdinfoPid reads the "Pid:" line of a pidfd's /proc/self/fdinfo entry
+// (-1: the process has exited).
+func fdinfoPid(info string) int32 {
+	for _, line := range strings.Split(info, "\n") {
+		if v, ok := strings.CutPrefix(line, "Pid:"); ok {
+			n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 32)
+			if err != nil {
+				return 0
+			}
+			return int32(n)
+		}
+	}
+	return 0
+}
+
+// hostUIDMap reports whether a /proc/<pid>/uid_map is the host's: one
+// line mapping every UID to itself.
+func hostUIDMap(m string) bool {
+	return slices.Equal(strings.Fields(m), []string{"0", "0", "4294967295"})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

@@ -7,10 +7,38 @@ Wants=network-online.target
 [Service]
 ExecStart=/usr/bin/roostack-agent
 Restart=on-failure
-# The agent needs root for sysctl and nftables, but nothing in /home.
+# Its socket, /run/roostack-agent/agent.sock.
+RuntimeDirectory=roostack-agent
+RuntimeDirectoryMode=0755
+
+# Sandboxing (SPEC.md §6.1, checked on a VM: docs/ASSUMPTIONS.md S7). The
+# agent is root, but writes only where its jobs need: the firewall and
+# sysctl files, WireGuard's files, fstab, and backup drives and folders.
+# OS updates and reboots run in units of their own (systemd-run), outside
+# this sandbox: dpkg scripts may touch anything. Mounts are made by systemd
+# from fstab, so they don't stay in this unit's namespace.
+ProtectSystem=strict
+ReadWritePaths=/etc/fstab /etc/sysctl.d /etc/wireguard -/etc/roostack /mnt -/media /srv
 ProtectHome=yes
 PrivateTmp=yes
 NoNewPrivileges=yes
+# nft and wg use netlink; systemctl, timedatectl and callers use Unix sockets.
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+# Networking (nftables, WireGuard, the port and forwarding sysctls), disks
+# (partitioning and wiping re-read partition tables), handing folders to the
+# roostack user, and reading folders that aren't root's.
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN CAP_CHOWN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
 
 [Install]
 WantedBy=multi-user.target

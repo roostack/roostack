@@ -45,6 +45,9 @@ func TestWireGuardValidate(t *testing.T) {
 		"endpoint no port": func(w *WireGuard) { w.Peers[0].Endpoint = "host" },
 		"bad key":          func(w *WireGuard) { w.Peers[0].PublicKey = "x\\nPostUp=evil" },
 		"bad join key":     func(w *WireGuard) { w.JoinKey = "short" },
+		// Valid base64 to a lenient decoder, which skips newlines.
+		"key with newline":      func(w *WireGuard) { w.Peers[0].PublicKey = "HIgo9xNzJMWLKASShiTqIybxZ0U3\nwGLiUeJ1PKf8ykw=" },
+		"saved key with return": func(w *WireGuard) { w.SavedKey = "yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=\r" },
 	} {
 		w := good
 		w.Peers = []Peer{good.Peers[0]}

@@ -35,7 +35,8 @@ const backupUsage = `Usage:
                                              Restore a service (latest backup by default).
                                              Current data is moved aside, never deleted.
 
-The repository is set in lab.yaml (backup.repository).
+The repository is set in lab.yaml (backup.repository). Run as root or the
+roostack user: started as root, it runs as the roostack user.
 `
 
 func backupCmd(args []string) error {

@@ -7,9 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	osuser "os/user"
-	"path/filepath"
-	"strconv"
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
@@ -20,7 +17,8 @@ import (
 const nodeUsage = `Usage:
   roostack node join <code> [-name <name>]   join a lab (the code comes from its Settings → Servers)
 
-Run as root.
+Run as root: the join itself runs as the roostack user, and root restarts
+Roostack afterwards.
 `
 
 func nodeCmd(args []string) error {
@@ -38,6 +36,21 @@ func nodeCmd(args []string) error {
 	if err != nil {
 		return err
 	}
+	say := func(format string, args ...any) { fmt.Printf("==> "+format+"\n", args...) }
+	// The join writes the roostack user's files and calls the agent, both
+	// of which the roostack user does; root only restarts the service
+	// (asroostack.go).
+	if os.Geteuid() == 0 {
+		if err := runAsRoostack(append([]string{"node"}, args...)); err != nil {
+			return err
+		}
+		say("Restarting Roostack as part of the lab")
+		if out, err := exec.Command("systemctl", "restart", "roostack").CombinedOutput(); err != nil {
+			return fmt.Errorf("restarting roostack: %w: %s", err, out)
+		}
+		say("Done. Manage this server from the lab's Settings → Servers.")
+		return nil
+	}
 	lab, err := config.Load(*labPath)
 	if err != nil {
 		return err
@@ -52,44 +65,13 @@ func nodeCmd(args []string) error {
 			return err
 		}
 	}
-	say := func(format string, args ...any) { fmt.Printf("==> "+format+"\n", args...) }
 	ctx := context.Background()
 	if err := labnet.JoinLab(ctx, c, self, lab.Paths.StateDir, agent.NewClient(agent.DefaultSocket), say); err != nil {
 		return err
 	}
-	if os.Geteuid() == 0 {
-		// Files written as root must belong to the roostack service.
-		if err := chownToRoostack(labnet.IdentityDir(lab.Paths.StateDir), nodeid.File(lab.Paths.StateDir)); err != nil {
-			return err
-		}
-		say("Restarting Roostack as part of the lab")
-		if out, err := exec.Command("systemctl", "restart", "roostack").CombinedOutput(); err != nil {
-			return fmt.Errorf("restarting roostack: %w: %s", err, out)
-		}
-	} else {
+	say("%s has joined the lab.", self.Name)
+	if !fromRoot() {
 		say("Restart Roostack to finish: sudo systemctl restart roostack")
-	}
-	say("Done: %s is now part of the lab. Manage it from the lab's Settings → Servers.", self.Name)
-	return nil
-}
-
-func chownToRoostack(paths ...string) error {
-	u, err := osuser.Lookup("roostack")
-	if err != nil {
-		return err
-	}
-	uid, _ := strconv.Atoi(u.Uid)
-	gid, _ := strconv.Atoi(u.Gid)
-	for _, p := range paths {
-		err := filepath.Walk(p, func(path string, _ os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			return os.Lchown(path, uid, gid)
-		})
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }

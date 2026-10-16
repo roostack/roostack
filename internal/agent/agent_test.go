@@ -270,3 +270,26 @@ func TestWireGuardKeysForBackups(t *testing.T) {
 		t.Errorf("a new key replaces it: %v %+v", err, host.wg)
 	}
 }
+
+// Only the host's user namespace maps every UID to itself; a rootless
+// container's maps its root to the roostack user (docs/ASSUMPTIONS.md S6).
+func TestHostUIDMap(t *testing.T) {
+	for m, want := range map[string]bool{
+		"         0          0 4294967295\n": true,
+		"0 999 1\n1 200000 65536\n":          false,
+		"         0        999          1\n": false,
+		"0 0 4294967295\n1 1 1\n":            false,
+		"":                                   false,
+	} {
+		if hostUIDMap(m) != want {
+			t.Errorf("%q: want %v", m, want)
+		}
+	}
+	info := "pos:\t0\nflags:\t02000002\nmnt_id:\t15\nino:\t1057\nPid:\t4242\nNSpid:\t4242\n"
+	if got := fdinfoPid(info); got != 4242 {
+		t.Errorf("pid = %d", got)
+	}
+	if got := fdinfoPid("Pid:\t-1\n"); got != -1 {
+		t.Errorf("exited: %d", got)
+	}
+}
