@@ -420,6 +420,13 @@
         {{notice "warn" (printf "These backups go through %s, using its connection twice: Roostack doesn't know where this server can reach %s directly. If both are on the same home network, set them both to At home; otherwise enter %s's address for direct links (host:port)." .Via .HostName .HostName) (printf "link=/servers#server-%s" .Host) "linkText=Set it on Servers"}}
         {{end}}{{end}}
         {{if eq .Kind "system"}}{{notice "warn" "This backup is on the same disk as your data. It helps if something is deleted or changed by mistake, but if the disk fails, or ransomware gets onto the server, your data and this backup are lost together. Keep your other backups on a separate drive, or away from home."}}
+        {{- else if and .Access.CanDelete .Access.B2}}
+        {{- $warn := "If this server were taken over, its backups here could be deleted too: it has the account's key, as the key Roostack was given can't make other keys. Give Roostack one that can, and every server backing up here gets a key of its own that can add backups but not delete them."}}
+        {{- if .KeyAction}}{{notice "warn" $warn (printf "link=%s?key=%s#plan-key-%d" $.Plan.Back .Ref .Number) "linkText=Change the key"}}{{else}}{{notice "warn" $warn}}{{end}}
+        <details class="plan-more">
+          <summary>Tell me more</summary>
+          {{template "b2-key-help" "change"}}
+        </details>
         {{- else if and .Access.CanDelete (eq .Kind "online")}}{{notice "warn" "If this server were taken over, its backups here could be deleted too: it has the account's key. To protect them, turn on versioning for the bucket with a rule that keeps old versions for 30 days, and give Roostack a key that can't delete old versions. Or use Backblaze B2, where Roostack gives each server a key that can't delete."}}
         {{- else if .Access.CanDelete}}{{notice "warn" "If this server were taken over, its backups here could be deleted too. Keep another backup it can't delete: on another server, at a friend's lab, Roostack Cloud or Backblaze B2."}}{{end}}
         {{with .KeyChange}}{{activity .}}{{end}}
@@ -480,6 +487,19 @@
   </ol>
 </section>
 {{end}}{{end}}
+
+{{/* b2-key-help: how to make a Backblaze key that can make keys
+     (docs/ASSUMPTIONS.md N6), "add" for the Online storage form or
+     "change" for a backup's card. */}}
+{{define "b2-key-help"}}
+<p>Keys made on Backblaze's website can't make other keys. Make one with Backblaze's command-line tool (<code>b2</code>), signed in with
+  your master application key:</p>
+{{copyBox "b2 account authorize"}}
+{{copyBox "b2 key create roostack listBuckets,listFiles,readFiles,writeFiles,deleteFiles,writeKeys,deleteKeys,listKeys"}}
+<p>It shows the new key's ID and key once: {{if eq . "add"}}enter them above as the access key and secret key{{else}}give them to Roostack
+  with Change the key{{end}}. The key reaches every bucket in your account (Backblaze doesn't let a key that makes keys be limited to
+  one bucket); only the controller keeps it.{{if ne . "add"}} Then delete the old key under App Keys on Backblaze's website.{{end}}</p>
+{{end}}
 
 {{/* plan-key: a new key for an online storage account (planEntry),
      under the backup's Manage: every server backing up there gets it. */}}
@@ -561,16 +581,24 @@
       {{end}}
       <div x-show="choice === 'online'" x-cloak>
         {{range .Options.Online}}<label class="check"><input type="radio" name="provider" value="{{.Ref}}"><span>{{.Title}}<small>{{.Note}}</small></span></label>{{end}}
-        <div x-data="{ provider: '{{if .Options.Online}}{{else}}new{{end}}' }">
+        <div x-data="{ provider: '{{if .Options.Online}}{{else}}new{{end}}', endpoint: '' }">
           {{if .Options.Online}}<label class="check"><input type="radio" name="provider" value="new" x-model="provider"><span>Another account</span></label>{{else}}<input type="hidden" name="provider" value="new">{{end}}
           <div x-show="provider === 'new'"{{if .Options.Online}} x-cloak{{end}}>
             <label>Name <input name="name" placeholder="Backblaze"></label>
-            <label>Endpoint <input name="endpoint" placeholder="https://s3.us-west-004.backblazeb2.com" autocapitalize="off"></label>
+            <label>Endpoint <input name="endpoint" placeholder="https://s3.us-west-004.backblazeb2.com" autocapitalize="off" x-model="endpoint"></label>
             <label>Bucket <input name="bucket" autocapitalize="off"></label>
             <label>Folder in the bucket (optional) <input name="prefix" placeholder="backups" autocapitalize="off"></label>
             <label>Access key <input name="access_key" autocomplete="off" autocapitalize="off"></label>
             <label>Secret key <input name="secret_key" type="password" autocomplete="off"></label>
             <p class="hint">Any of your servers can back up to this account later, each in its own folder.</p>
+            {{/* Backblaze: only once the endpoint is theirs (b2.IsB2). */}}
+            <div x-show="endpoint.includes('.backblazeb2.com')" x-cloak>
+              {{notice "info" "Backblaze: give Roostack a key that can make keys, and each server gets one of its own that can add backups but not delete them. Keys from Backblaze's website can't."}}
+              <details class="plan-more">
+                <summary>How</summary>
+                {{template "b2-key-help" "add"}}
+              </details>
+            </div>
           </div>
         </div>
       </div>

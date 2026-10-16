@@ -129,3 +129,40 @@ func TestPlanChangeKey(t *testing.T) {
 		t.Error("a refused key: the message, and the form open")
 	}
 }
+
+// Backblaze with the account's key: the card says how to make a key that
+// can make keys, links to the form, and the plan suggests it; the Online
+// storage form says so once the endpoint is Backblaze's
+// (docs/ASSUMPTIONS.md N6).
+func TestPlanB2KeyHelp(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.destination = "drive:usb1"
+	fm.copies = []manager.BackupCopy{{Ref: "provider:1", Title: "Backblaze", Repository: "s3:https://s3.us-west-004.backblazeb2.com/b/roostack/l/n"}}
+	fm.backupAccess = map[string]manager.Access{"provider:1": {B2: true, CanDelete: true}}
+	_, body := h.get("/backups")
+	const command = "b2 key create roostack listBuckets,listFiles,readFiles,writeFiles,deleteFiles,writeKeys,deleteKeys,listKeys"
+	for _, want := range []string{"as the key Roostack was given can&#39;t make other keys", `href="/backups?key=provider:1#plan-key-3"`,
+		">Change the key<", command, "b2 account authorize", "give them to Roostack\n  with Change the key",
+		"Then delete the old key under App Keys", "Suggested: give Roostack a Backblaze key that can make keys (see Backblaze)"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Backblaze card missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Or use Backblaze B2") {
+		t.Error("a Backblaze backup mustn't suggest Backblaze")
+	}
+	// Its own key: no help needed.
+	fm.backupAccess["provider:1"] = manager.Access{B2: true, HidesOnly: true}
+	if _, body = h.get("/backups"); strings.Contains(body, command) {
+		t.Error("a server with a key of its own needs no new one")
+	}
+
+	// The Online storage form, while adding a backup.
+	_, body = h.get("/backups?add=4")
+	for _, want := range []string{`x-model="endpoint"`, `x-show="endpoint.includes('.backblazeb2.com')"`,
+		"Backblaze: give Roostack a key that can make keys", command, "enter them above as the access key and secret key"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Online storage form missing %q", want)
+		}
+	}
+}

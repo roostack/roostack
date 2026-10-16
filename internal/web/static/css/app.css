@@ -760,6 +760,8 @@ ul.guests .space-used { background: var(--chart-3); }
 .plan-where form { display: flex; gap: var(--space-2); }
 .plan-manage { margin-top: var(--space-2); }
 .plan-manage code { overflow-wrap: anywhere; }
+/* "Tell me more" under a card's notice, and the new-key form in Manage. */
+.plan-more, .plan-key { margin: var(--space-2) 0; }
 .plan-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-2); }
 .plan-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: var(--space-2); margin: var(--space-3) 0; }
 .plan-choice { display: flex; gap: var(--space-2); align-items: flex-start; margin: 0; padding: var(--space-2) var(--space-3);
