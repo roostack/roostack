@@ -695,12 +695,13 @@ func (s *Server) requireLogin(h http.HandlerFunc) http.Handler {
 	})
 }
 
-// require checks the user is logged in and has a permission. Owners must
-// set up two-factor authentication before doing anything else (SPEC.md §5).
+// require checks the user is logged in and has a permission. Those who
+// must use two-factor authentication set it up before doing anything else
+// (SPEC.md §5).
 func (s *Server) require(p auth.Permission, h http.HandlerFunc) http.Handler {
 	return s.requireLogin(func(w http.ResponseWriter, r *http.Request) {
 		u := currentUser(r)
-		if u.Role == auth.RoleOwner && u.TOTPSecret == "" {
+		if u.TOTPSecret == "" && s.twoFactorRequired(u) {
 			redirect(w, r, "/account/2fa")
 			return
 		}
@@ -721,6 +722,21 @@ func (s *Server) require(p auth.Permission, h http.HandlerFunc) http.Handler {
 		}
 		h(w, r)
 	})
+}
+
+// twoFactorRequired says whether someone must use two-factor
+// authentication (SPEC.md §5): Owners always, and Admins while Roostack's
+// own pages are public (a lab on the internet whose UI isn't kept to an
+// SSH tunnel), since they can reveal secrets and change services.
+func (s *Server) twoFactorRequired(u *store.User) bool {
+	switch u.Role {
+	case auth.RoleOwner:
+		return true
+	case auth.RoleAdmin:
+		c := s.network()
+		return c.Saved == config.NetworkInternet && !c.UITunnelOnly
+	}
+	return false
 }
 
 // sameOrigin rejects cross-site form posts (CSRF). Browsers always send an
