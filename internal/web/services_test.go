@@ -131,6 +131,28 @@ type fakeManager struct {
 	lastUpdate map[string]*manager.UpdateRecord
 	policies   map[string]string
 	svcUpdated []string
+
+	// What servers' credentials can do at their backups, by reference
+	// (else by kind), and what a removed server keeps (plan_test.go).
+	backupAccess map[string]manager.Access
+	shared       []manager.SharedCredential
+}
+
+// BackupAccess is f.backupAccess's, else what the kind suggests: another
+// server, a friend's lab and Roostack Cloud only take new backups.
+func (f *fakeManager) BackupAccess(ctx context.Context, serverID, ref string) manager.Access {
+	if a, ok := f.backupAccess[ref]; ok {
+		return a
+	}
+	switch f.BackupKind(ctx, serverID, ref) {
+	case manager.KindServer, manager.KindFriend, manager.KindCloud:
+		return manager.Access{}
+	}
+	return manager.Access{CanDelete: true}
+}
+
+func (f *fakeManager) SharedCredentials(context.Context, string) []manager.SharedCredential {
+	return f.shared
 }
 
 // DiskSpace: the fake's disk, if it has one.

@@ -130,19 +130,19 @@ func (m *Manager) BackupChoices(ctx context.Context) ([]BackupChoice, error) {
 		return nil, err
 	}
 	for _, p := range providers {
-		note := "These credentials can reach the whole bucket; each server uses its own folder."
-		switch p.Kind {
-		case "remote":
-			var r RemoteStorage
-			json.Unmarshal([]byte(p.Config), &r)
-			note = fmt.Sprintf("Encrypted before it leaves; %s can't read it. Up to %s for this whole lab.", r.HostName, sizeGB(r.Quota))
-		case "s3":
-			var s3 S3Provider
-			if json.Unmarshal([]byte(p.Config), &s3) == nil && b2.IsB2(s3.Endpoint) {
-				note = "Each server gets its own key, limited to its folder (if this account's key may create keys)."
-			}
+		ref := fmt.Sprintf("provider:%d", p.ID)
+		d, err := m.destinationOf(ctx, ref)
+		if err != nil {
+			continue
 		}
-		out = append(out, BackupChoice{Ref: fmt.Sprintf("provider:%d", p.ID), Title: p.Name, Note: note})
+		note := "Every server uses this account's key, which can delete what's there; each server uses its own folder."
+		switch {
+		case d.kind == destRemote:
+			note = fmt.Sprintf("Encrypted before it leaves; %s can't read it. Up to %s for this whole lab.", d.remote.HostName, sizeGB(d.remote.Quota))
+		case d.isB2():
+			note = "Each server gets its own key, limited to its folder, that can add backups but not erase them (if this account's key may create keys)."
+		}
+		out = append(out, BackupChoice{Ref: ref, Title: p.Name, Note: note})
 	}
 	if c, ok := m.cloudChoice(ctx); ok {
 		out = append(out, c)
@@ -318,43 +318,30 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 		dest = node.BackupDestination{Repository: target.Repository, Drive: drive}
 		admin = m.OpenRepo(target.Repository, nil)
 	case "provider":
-		p, err := m.provider(ctx, id)
+		d, err := m.destinationOf(ctx, choice.Ref)
 		if err != nil {
 			return fail(err)
 		}
-		if p.Kind == "remote" {
-			var r RemoteStorage
-			if err := json.Unmarshal([]byte(p.Config), &r); err != nil {
-				return fail(err)
-			}
-			url, env, adminURL, adminEnv := m.remoteRepos(r, labID, serverID)
+		if d.kind == destRemote {
+			url, env, adminURL, adminEnv := m.remoteRepos(d.remote, labID, serverID)
 			target.Repository = url
 			dest = node.BackupDestination{Repository: url, Env: env}
 			admin = m.OpenRepo(adminURL, adminEnv)
 			break
 		}
-		var s3 S3Provider
-		if err := json.Unmarshal([]byte(p.Config), &s3); err != nil {
-			return fail(err)
-		}
+		s3 := d.s3
 		target.Repository = s3.Repository(labID, serverID)
 		env := s3.Env()
 		dest = node.BackupDestination{Repository: target.Repository, Env: env}
 		// The controller keeps using the account's key; the server gets
-		// one limited to its folder where the provider can make one.
+		// one limited to its folder, which can't erase, where the
+		// provider can make one (SPEC.md §10.10).
 		admin = m.OpenRepo(target.Repository, env)
-		if b2.IsB2(s3.Endpoint) {
-			act.Step("Making a Backblaze key for %s, limited to its folder", m.nameOf(serverID))
-			folder := backup.ServerFolder(s3.Prefix, labID, serverID) + "/"
-			key, err := m.b2(s3).CreateKey(ctx, "roostack-"+labID+"-"+serverID, s3.Bucket, folder)
-			if err != nil {
-				act.Printf("%v. %s uses the account's key instead.", err, m.nameOf(serverID))
-			} else {
-				target.ScopedKey = key.ID
-				scoped := s3
-				scoped.AccessKey, scoped.SecretKey = key.ID, key.Secret
-				dest.Env = scoped.Env()
-			}
+		if d.isB2() {
+			m.scopedB2Key(ctx, act, serverID, labID, s3, &target, &dest)
+		} else {
+			act.Printf("%s uses this account's key, which can delete its backups there: if %s were taken over, they could be deleted too.",
+				m.nameOf(serverID), m.nameOf(serverID))
 		}
 	default:
 		return fail(fmt.Errorf("unknown backup destination %q", choice.Ref))
@@ -392,6 +379,42 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 	return target, dest, nil
 }
 
+// scopedB2Key makes a server a Backblaze key limited to its folder, which
+// can add backups but not erase them, and says how long the bucket keeps
+// what it hides. Without one (the account's key can't make keys), the
+// server keeps the account's key.
+func (m *Manager) scopedB2Key(ctx context.Context, act *activity.Log, serverID, labID string, s3 S3Provider,
+	target *store.BackupTarget, dest *node.BackupDestination) {
+	name := m.nameOf(serverID)
+	act.Step("Making a Backblaze key for %s, limited to its folder", name)
+	folder := backup.ServerFolder(s3.Prefix, labID, serverID) + "/"
+	key, err := m.b2(s3).CreateKey(ctx, "roostack-"+labID+"-"+serverID, s3.Bucket, folder)
+	if err != nil {
+		act.Printf("%v. %s uses the account's key instead, which can delete its backups there.", err, name)
+		return
+	}
+	target.ScopedKey = key.ID
+	scoped := s3
+	scoped.AccessKey, scoped.SecretKey = key.ID, key.Secret
+	dest.Env = scoped.Env()
+	act.Printf("%s's key can add backups but not erase them: what it deletes is only hidden.", name)
+	switch days := m.keepsHidden(ctx, s3, folder); {
+	case days < 0:
+		act.Printf("Roostack couldn't read how long this bucket keeps hidden files.")
+	case days == 0:
+		act.Printf("This bucket keeps hidden files for good. Old backups the controller removes still take space until a lifecycle rule erases them.")
+	case days < MinKeepHidden:
+		after := fmt.Sprintf("after %d days", days)
+		if days == 1 {
+			after = "after a day"
+		}
+		act.Printf("This bucket erases hidden files %s, so a server that's taken over could still destroy its backups. "+
+			"In Backblaze's settings, keep old versions for at least %d days.", after, MinKeepHidden)
+	default:
+		act.Printf("This bucket keeps hidden files for %d days.", days)
+	}
+}
+
 // b2 is a Backblaze client for an account.
 func (m *Manager) b2(s3 S3Provider) *b2.Client {
 	if m.NewB2 != nil {
@@ -401,7 +424,12 @@ func (m *Manager) b2(s3 S3Provider) *b2.Client {
 }
 
 // forgetServerBackups deletes provider keys made for a server that left
-// the lab. Its backups stay (the recovery key still reads them).
+// the lab, and says in its backup log which shared credentials it still
+// holds (M22 of the 2026-10-16 review). Its own backups stay where the
+// controller can still reach them (the recovery key still reads them, and
+// a change of recovery key reaches them). Backups kept on its disk are
+// forgotten, its own and other servers': nothing can reach them now, and
+// a change of recovery key would wait for them for ever.
 func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 	if m.BackupStore == nil {
 		return
@@ -411,27 +439,54 @@ func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 		return
 	}
 	copies, _ := m.BackupStore.BackupCopies(ctx)
-	for _, t := range append(targets, copies...) {
-		if t.ServerID != serverID {
+	name := m.nameOf(serverID)
+	act := m.Activity.Start(activity.BackupSetupFor(serverID), "Taking "+name+"'s backup access away")
+	defer act.Finish(nil)
+	for _, c := range m.SharedCredentials(ctx, serverID) {
+		if c.Anywhere {
+			act.Printf("%s still holds %s, which reaches every server's backups there and can delete them. Change it.", name, c.What)
+		} else {
+			act.Printf("%s still knows %s, but can't reach it without this lab's network.", name, c.What)
+		}
+	}
+	for _, t := range targets {
+		if t.StoreHost != serverID {
 			continue
+		}
+		if t.ServerID != serverID {
+			act.Printf("%s's main backup was on %s's disk: choose somewhere else on its Backups page.", m.nameOf(t.ServerID), name)
+		}
+		if err := m.BackupStore.RemoveBackupTarget(ctx, t.ServerID); err != nil {
+			m.Log.Warn("forgetting backups on a removed server", "server", name, "err", err)
+		}
+	}
+	for _, t := range copies {
+		if t.ServerID != serverID && t.StoreHost != serverID {
+			continue
+		}
+		if t.ServerID != serverID {
+			// The other server stops copying there (it restarts Roostack).
+			act.Printf("%s's backups were also copied to %s's disk: that copy stops.", m.nameOf(t.ServerID), name)
+			err := m.RemoveBackupCopy(ctx, t.ServerID, t.Provider)
+			if err == nil {
+				continue
+			}
+			act.Printf("%s couldn't be told (%v), so its nightly copy there fails until its backups change on its Backups page.",
+				m.nameOf(t.ServerID), firstLine(err.Error()))
 		}
 		m.BackupStore.RemoveBackupCopy(ctx, t.ServerID, t.Provider)
-		if t.ScopedKey == "" {
+	}
+	for _, t := range append(targets, copies...) {
+		if t.ServerID != serverID || t.ScopedKey == "" {
 			continue
 		}
-		kind, id, _ := strings.Cut(t.Provider, ":")
-		if kind != "provider" {
+		d, err := m.destinationOf(ctx, t.Provider)
+		if err != nil || !d.isB2() {
 			continue
 		}
-		p, err := m.provider(ctx, id)
-		if err != nil {
-			continue
-		}
-		var s3 S3Provider
-		if json.Unmarshal([]byte(p.Config), &s3) != nil {
-			continue
-		}
-		if err := m.b2(s3).DeleteKey(ctx, t.ScopedKey); err != nil {
+		act.Step("Deleting %s's Backblaze key", name)
+		if err := m.b2(d.s3).DeleteKey(ctx, t.ScopedKey); err != nil {
+			act.Printf("%v", err)
 			m.Log.Warn("deleting a removed server's Backblaze key", "server", serverID, "err", err)
 		}
 	}
@@ -652,43 +707,34 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 // store's admin access for a server's disk, or the provider's
 // credentials.
 func (m *Manager) adminRepo(ctx context.Context, t store.BackupTarget) (*backup.Repo, error) {
-	kind, id, _ := strings.Cut(t.Provider, ":")
-	switch kind {
-	case "local", "drive", "folder": // a drive or folder on the controller
+	d, err := m.destinationOf(ctx, t.Provider)
+	if err != nil {
+		return nil, err
+	}
+	switch d.kind {
+	case destFolder, destDrive: // a drive or folder on the controller
 		return m.OpenRepo(t.Repository, nil), nil
-	case CloudChoice:
+	case destCloud:
 		r := m.OpenRepo(t.Repository, nil)
 		r.Credentials = m.cloudPruneKeys().Env
 		return r, nil
-	case "server":
+	case destServer:
 		pw, _, ok, err := m.BackupStore.StoreAdmin(ctx, t.StoreHost)
 		if err != nil || !ok {
 			return nil, fmt.Errorf("no admin access to %s's backup store", m.nameOf(t.StoreHost))
 		}
 		url := strings.Replace(t.Repository, fmt.Sprintf(":%d/", generate.StoragePort), fmt.Sprintf(":%d/", generate.StorageAdminPort), 1)
 		return m.OpenRepo(url, []string{"RESTIC_REST_USERNAME=controller", "RESTIC_REST_PASSWORD=" + pw}), nil
-	case "provider":
-		p, err := m.provider(ctx, id)
+	case destRemote:
+		labID, err := m.labID(ctx)
 		if err != nil {
 			return nil, err
 		}
-		if p.Kind == "remote" {
-			var r RemoteStorage
-			if err := json.Unmarshal([]byte(p.Config), &r); err != nil {
-				return nil, err
-			}
-			labID, err := m.labID(ctx)
-			if err != nil {
-				return nil, err
-			}
-			_, _, url, env := m.remoteRepos(r, labID, t.ServerID)
-			return m.OpenRepo(url, env), nil
-		}
-		var s3 S3Provider
-		if err := json.Unmarshal([]byte(p.Config), &s3); err != nil {
-			return nil, err
-		}
-		return m.OpenRepo(t.Repository, s3.Env()), nil
+		_, _, url, env := m.remoteRepos(d.remote, labID, t.ServerID)
+		return m.OpenRepo(url, env), nil
+	case destS3:
+		// The account's key: it can erase what servers hide.
+		return m.OpenRepo(t.Repository, d.s3.Env()), nil
 	}
 	return nil, fmt.Errorf("unknown backup destination %q", t.Provider)
 }

@@ -37,9 +37,12 @@ type planEntry struct {
 	Ref, Title, Repository string
 	Kind, KindTitle        string // manager.Kind*
 	AtHome, Away, Main     bool
-	Last, LastOK           *store.BackupRun
-	Retry                  *backup.Retry // the next try after a failure
-	CanPromote             bool
+	// Access is what this server's credential can do there: whether the
+	// backups survive the server being taken over.
+	Access       manager.Access
+	Last, LastOK *store.BackupRun
+	Retry        *backup.Retry // the next try after a failure
+	CanPromote   bool
 	// AskWhere are the servers whose location decides at home or away.
 	AskWhere []locationAsk
 	// Space, where known: Stored is what the backups there take (from
@@ -68,9 +71,10 @@ type planSlot struct {
 	Suggest string
 }
 
-// planChecks are the 3-2-1 checks.
+// planChecks are the 3-2-1 checks, and Safe: one backup the server can't
+// delete, so ransomware on it can't take every backup (SPEC.md §6.9).
 type planChecks struct {
-	Copies, TwoKinds, Away, BackedUp bool
+	Copies, TwoKinds, Away, Safe, BackedUp bool
 }
 
 // planView is a server's plan for the page.
@@ -188,6 +192,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 			}
 		}
 		e.AtHome, e.Away = manager.AtHome(e.Kind), manager.Away(e.Kind)
+		e.Access = s.Manager.BackupAccess(ctx, m.ID, e.Ref)
 		if e.Kind == manager.KindServer {
 			e.AtHome, e.Away, e.AskWhere = s.backupPlace(ctx, m, strings.TrimPrefix(e.Ref, "server:"))
 		}
@@ -221,6 +226,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	for _, e := range p.Entries {
 		p.Checks.TwoKinds = p.Checks.TwoKinds || manager.StorageFamily(e.Kind) != manager.StorageFamily(manager.KindSystem)
 		p.Checks.Away = p.Checks.Away || e.Away
+		p.Checks.Safe = p.Checks.Safe || e.Access.Safe()
 	}
 	if len(p.Entries) > 0 && p.Entries[0].LastOK != nil && !isStale(p.Entries[0].LastOK.Finished) {
 		p.Checks.BackedUp = true
@@ -252,6 +258,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 			return "A backup away from home", "Suggested: online storage, or space at a friend's lab. It survives a fire or theft at home."
 		case !p.Checks.TwoKinds:
 			return "A different kind of storage", "Suggested: online storage, or a friend's lab: not a disk like the one your data is on."
+		case !p.Checks.Safe:
+			return "A backup safe from ransomware", "Suggested: another server in your lab, a friend's lab, Roostack Cloud or Backblaze B2. " +
+				"This server can add backups there but not delete them."
 		}
 		return "", ""
 	}
