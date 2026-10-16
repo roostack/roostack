@@ -58,6 +58,9 @@ type Fake struct {
 	// pilot grant. Relayed is each relayed lab's request, by lab ID.
 	NoRelay bool
 	Relayed map[string]cloudapi.RelayRequest
+	// Suspended answers every lab request 423 Locked, as Cloud does
+	// while the account is suspended.
+	Suspended bool
 	// Bans are each relayed lab's CrowdSec bans as last sent.
 	Bans map[string][]string
 	// RelayStats is what the relay's statistics answer, and StatsQuery
@@ -390,6 +393,10 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 	lb := f.labs[id]
 	if lb == nil || !lb.serials[c.SerialNumber.Text(16)] {
 		fail(w, http.StatusUnauthorized, "this lab isn't linked")
+		return
+	}
+	if f.Suspended {
+		fail(w, http.StatusLocked, "This account is suspended.")
 		return
 	}
 	switch {

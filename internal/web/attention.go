@@ -96,6 +96,8 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		case !st.Forgotten.IsZero():
 			add(levelWarning, "This lab is no longer linked to Roostack Cloud: Cloud stopped accepting its certificate.",
 				"/settings/cloud", "See why")
+		case st.Linked && st.Refused != "":
+			add(levelWarning, "Roostack Cloud refuses this lab's requests: "+st.Refused, "/settings/cloud", "Roostack Cloud")
 		case st.Linked && st.LastError != "" && time.Since(st.LastContact) > cloudUnreachableFor:
 			add(levelWarning, "Roostack Cloud hasn't been reachable since "+whenText(st.LastContact)+".",
 				"/settings/cloud", "Roostack Cloud")

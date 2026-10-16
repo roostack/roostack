@@ -15,7 +15,9 @@
       before it was unlinked. Link it again below if you still want it.</p>
     <form method="post" action="/settings/cloud/dismiss"><button type="submit" class="quiet">Dismiss</button></form>
   </div>
-  {{end}}{{end}}
+  {{end}}
+  {{if and .Linked .Refused}}{{notice "warn" (printf "Roostack Cloud refuses this lab's requests: %s The lab stays linked; Roostack asks again every hour." .Refused)}}{{end}}
+  {{end}}
   {{template "cloud-live" .Cloud}}
 </section>
 {{end}}

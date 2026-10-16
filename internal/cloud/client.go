@@ -31,6 +31,16 @@ type Error struct {
 
 func (e *Error) Error() string { return e.Message }
 
+// refusal is Cloud's message when it knows the lab but refuses what it
+// asked (403, or 423 while the account is suspended): the link is kept.
+func refusal(err error) (string, bool) {
+	var e *Error
+	if errors.As(err, &e) && (e.Status == http.StatusForbidden || e.Status == http.StatusLocked) {
+		return e.Message, true
+	}
+	return "", false
+}
+
 // Unreachable wraps a failure to reach Cloud at all (network, TLS).
 type Unreachable struct{ Err error }
 
@@ -126,7 +136,10 @@ func (c *client) do(ctx context.Context, authed bool, method, path string, in, o
 	if err != nil {
 		return &Unreachable{Err: err}
 	}
-	if authed && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) {
+	// Only 401 means Cloud doesn't know the certificate. A 403 or 423
+	// (Locked: the account is suspended) refuses the request but keeps
+	// the lab linked, so it's an Error with Cloud's message (cloudapi).
+	if authed && resp.StatusCode == http.StatusUnauthorized {
 		return ErrUnlinked
 	}
 	if resp.StatusCode >= 300 {

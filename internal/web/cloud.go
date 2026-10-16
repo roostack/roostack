@@ -280,6 +280,8 @@ func (s *Server) cloudDismissSubmit(w http.ResponseWriter, r *http.Request) {
 // cloudSummary is the Settings overview's line for Roostack Cloud.
 func cloudSummary(st cloud.Status) (string, string) {
 	switch {
+	case st.Linked && st.Refused != "":
+		return "Linked, but Roostack Cloud refuses its requests", "warn"
 	case st.Linked && st.LastError != "" && time.Since(st.LastContact) > cloudUnreachableFor:
 		return "Linked, but it can't be reached", "warn"
 	case st.Linked:
