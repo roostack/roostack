@@ -216,7 +216,17 @@ func serve(args []string) error {
 			st.Audit(ctx, nil, web.AuditServerJoined, name)
 			// A new server keeps the lab's time zone (it can change it).
 			go mgr.MatchTimezone(context.WithoutCancel(ctx), id)
+			// The firewall lets it past the lab API now (SetLabServers).
+			local.Reapply("A server joined the lab")
 		}}
+	local.SetLabServers(func(ctx context.Context) ([]string, error) {
+		servers, err := st.Servers(ctx)
+		var addrs []string
+		for _, s := range servers {
+			addrs = append(addrs, s.Addr)
+		}
+		return addrs, err
+	})
 	if lab.Domain != "" {
 		hub.UI = "https://" + lab.UIHost()
 	}

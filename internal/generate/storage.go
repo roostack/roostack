@@ -81,6 +81,9 @@ type GuestStorage struct {
 	User  string `json:"user"` // rest-server user, e.g. g3
 	Port  int    `json:"port"` // its store; admin access on Port+1
 	Quota int64  `json:"quota"`
+	// Addr is its address on the guests' link: only it reaches its store
+	// (the firewall, SPEC.md §6.10).
+	Addr string `json:"addr,omitempty"`
 	// StoreHash and AdminHash are bcrypt hashes of its passwords.
 	StoreHash string `json:"store_hash"`
 	AdminHash string `json:"admin_hash"`

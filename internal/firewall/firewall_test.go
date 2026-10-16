@@ -36,6 +36,13 @@ func TestDesired(t *testing.T) {
 	if len(fw.Forward) != 1 || fw.Forward[0].Port != generate.StoragePort || fw.Validate() != nil {
 		t.Errorf("hub forward = %+v", fw.Forward)
 	}
+	// The lab's own edge goes to Caddy's edge listener; a relay edge is
+	// the agent's business (its interface).
+	lab.EdgeAddrs = []string{"100.96.0.2/32", "100.81.0.9/32"}
+	fw, _ = Desired(lab, nil)
+	if !slices.Equal(fw.Edges, []string{"100.96.0.2"}) || fw.Validate() != nil {
+		t.Errorf("edges = %v", fw.Edges)
+	}
 }
 
 func TestSSHClients(t *testing.T) {
