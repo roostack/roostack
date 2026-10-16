@@ -126,7 +126,8 @@ func (p *Package) aboutPolicy(add func(string, ...any)) {
 var pinnedRe = regexp.MustCompile(`@sha256:[0-9a-f]{64}$`)
 
 // quadletRule refuses a raw Quadlet line that could reach beyond the
-// service (SPEC.md §8.3.4).
+// service, and says what to use instead (SPEC.md §8.3.4): the deny-list,
+// checked before the allow-list (quadletAllowed).
 type quadletRule struct {
 	section string
 	// keys are the keys it refuses, whatever their case: a name, a name
@@ -250,7 +251,46 @@ var quadletRules = []quadletRule{
 		instead: "it ties the service to other units, or names it after one; " + roostackWrites},
 }
 
-// quadletPolicy returns a sentence for each refused line of q.
+// quadletAllowed are the keys a package may use, by section: an
+// allow-list, decided by the Owner on 2026-10-16 after the security review
+// of that day, replacing "any key but the deny-list" (SPEC.md §8.3.4).
+// They're the keys Roostack has looked at and found to stay inside the
+// service: for [Container], from the keys Podman 5.4's Quadlet knows
+// (Debian 13's; podman-systemd.unit(5)); for [Service] and [Unit], a few
+// of systemd's that only change how and when this unit runs. Some are
+// allowed only with certain values (quadletRules, which still apply). A
+// key that isn't here, including one a newer Podman adds, waits until
+// it's been looked at: a package that needs one asks for it.
+var quadletAllowed = map[string][]string{
+	"Container": {
+		// Inside the container.
+		"AddHost", "DNS", "DNSOption", "DNSSearch", "DropCapability", "Entrypoint", "Environment", "Exec",
+		"ExposeHostPort", "HostName", "IP", "IP6", "Mask", "NetworkAlias", "NoNewPrivileges", "Notify",
+		"PidsLimit", "Pull", "ReadOnly", "ReadOnlyTmpfs", "RunInit", "ShmSize", "StopSignal", "StopTimeout",
+		"Sysctl", "Timezone", "Tmpfs", "Ulimit", "WorkingDir",
+		"HealthCmd", "HealthInterval", "HealthMaxLogCount", "HealthMaxLogSize", "HealthOnFailure",
+		"HealthRetries", "HealthStartPeriod", "HealthStartupCmd", "HealthStartupInterval",
+		"HealthStartupRetries", "HealthStartupSuccess", "HealthStartupTimeout", "HealthTimeout",
+		// With some values only (quadletRules).
+		"Volume", "Mount", "User", "Group", "UserNS", "Label", "LogOpt", "GroupAdd", "HealthLogDestination",
+	},
+	"Service": {
+		// When it's restarted or given up on.
+		"Restart", "RestartSec", "RestartSteps", "RestartMaxDelaySec", "RestartPreventExitStatus",
+		"RestartForceExitStatus", "SuccessExitStatus", "TimeoutSec", "TimeoutStartSec", "TimeoutStopSec",
+		"TimeoutAbortSec", "RuntimeMaxSec", "WatchdogSec",
+		// How much of the server it may use.
+		"CPUQuota", "CPUWeight", "IOWeight", "MemoryHigh", "MemoryMax", "MemorySwapMax", "TasksMax",
+		"LimitNOFILE", "LimitNPROC", "Nice", "OOMPolicy", "OOMScoreAdjust",
+	},
+	"Unit": {"Documentation", "StartLimitIntervalSec", "StartLimitBurst"},
+}
+
+// quadletPolicy returns a sentence for each refused line of q: a key or
+// value that wouldn't be read back as written, a line the deny-list
+// refuses (which says what to use instead), and a key that isn't on the
+// allow-list. The deny-list stays as a second check, should a key be
+// allowed by mistake.
 func quadletPolicy(q Quadlet) []string {
 	var problems []string
 	for _, section := range slices.Sorted(maps.Keys(q)) {
@@ -261,19 +301,35 @@ func quadletPolicy(q Quadlet) []string {
 				continue
 			}
 			rule := findQuadletRule(section, key)
+			refused := false
 			for _, value := range quadletValues(q[section][key]) {
 				if err := quadlet.CheckValue(value); err != nil {
 					problems = append(problems, fmt.Sprintf("%s.%s=%q isn't allowed: %v.", section, key, value, err))
+					refused = true
 					continue
 				}
 				if rule == nil || rule.denies != nil && !rule.denies(value) {
 					continue
 				}
 				problems = append(problems, fmt.Sprintf("%s.%s=%s isn't allowed: %s.", section, key, value, rule.instead))
+				refused = true
+			}
+			if !refused && !slices.Contains(quadletAllowed[section], key) {
+				problems = append(problems, fmt.Sprintf("%s.%s isn't allowed: %s.", section, key, notAllowed(section, key)))
 			}
 		}
 	}
 	return problems
+}
+
+// notAllowed says why a key isn't on the allow-list, and what to do.
+func notAllowed(section, key string) string {
+	for _, k := range quadletAllowed[section] {
+		if strings.EqualFold(k, key) {
+			return fmt.Sprintf("write it as %s, as systemd and Quadlet only read it that way", k)
+		}
+	}
+	return "it isn't one of the keys Roostack has checked stay inside the service; a package that needs it asks for it to be added to the package policy"
 }
 
 func findQuadletRule(section, key string) *quadletRule {
