@@ -34,7 +34,14 @@ func fakeB2(t *testing.T, capabilities []string, rules ...map[string]any) (*http
 			json.NewEncoder(w).Encode(map[string]any{"buckets": []any{}})
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{"buckets": []any{map[string]any{"bucketId": "bkt1", "lifecycleRules": rules}}})
+		b := map[string]any{"bucketId": "bkt1", "lifecycleRules": rules}
+		if rules == nil {
+			b["lifecycleRules"] = []any{} // as Backblaze answers: no rules
+		}
+		if len(rules) == 1 && rules[0] == nil {
+			delete(b, "lifecycleRules") // an answer without them
+		}
+		json.NewEncoder(w).Encode(map[string]any{"buckets": []any{b}})
 	})
 	mux.HandleFunc("POST /b2api/v2/b2_create_key", func(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&created)
@@ -104,6 +111,15 @@ func TestKeepsHidden(t *testing.T) {
 		if got, err := c.KeepsHidden(ctx, "backups", "roostack/lab1/n-1/"); err != nil || got != tc.want {
 			t.Errorf("%s: %d, %v; want %d", tc.name, got, err, tc.want)
 		}
+	}
+}
+
+// An answer without the bucket's rules isn't "kept for good".
+func TestKeepsHiddenUnknown(t *testing.T) {
+	srv, _ := fakeB2(t, []string{"listBuckets"}, nil)
+	c := &Client{KeyID: "master-id", Key: "master-key", API: srv.URL}
+	if _, err := c.KeepsHidden(context.Background(), "backups", "roostack/lab1/n-1/"); err == nil {
+		t.Error("no rules in the answer should be an error")
 	}
 }
 

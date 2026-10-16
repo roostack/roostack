@@ -3,8 +3,9 @@
 // its own repository (SPEC.md §10.10). Plain HTTP against B2's native API
 // (v2); restic itself uses B2's S3-compatible API with the key.
 //
-// UNTESTED against the real service: written from Backblaze's API
-// documentation; the tests use a fake server.
+// Written from Backblaze's API documentation and checked against a real
+// bucket on 2026-10-16 (docs/ASSUMPTIONS.md N2–N6); the tests use a fake
+// server.
 package b2
 
 import (
@@ -25,7 +26,8 @@ const DefaultAPI = "https://api.backblazeb2.com"
 
 // ErrCantCreateKeys means the account's key isn't allowed to create keys
 // (it lacks the writeKeys capability), so servers share it instead.
-var ErrCantCreateKeys = errors.New("this key can't create other keys (it needs the writeKeys capability)")
+var ErrCantCreateKeys = errors.New("this key can't create other keys (it needs the writeKeys capability, " +
+	"which keys made on Backblaze's website don't have: make one with Backblaze's b2 command-line tool)")
 
 // Capabilities are what a server's key may do in its own folder: list,
 // read and write, but not deleteFiles (SPEC.md §10.10). Through B2's
@@ -91,7 +93,9 @@ func (c *Client) CreateKey(ctx context.Context, name, bucket, prefix string) (Ke
 // KeepsHidden says how many days Backblaze keeps hidden files under prefix
 // before erasing them, by the bucket's lifecycle rules: 0 if it keeps
 // them for good (no rule erases them). The shortest rule that reaches into
-// the folder counts.
+// the folder counts. An answer without the rules is an error, not "for
+// good" (checked against Backblaze 2026-10-16: any key with listBuckets
+// sees them).
 func (c *Client) KeepsHidden(ctx context.Context, bucket, prefix string) (int, error) {
 	s, err := c.authorize(ctx)
 	if err != nil {
@@ -101,8 +105,11 @@ func (c *Client) KeepsHidden(ctx context.Context, bucket, prefix string) (int, e
 	if err != nil {
 		return 0, err
 	}
+	if b.LifecycleRules == nil {
+		return 0, errors.New("Backblaze didn't say how long this bucket keeps hidden files")
+	}
 	days := 0
-	for _, r := range b.LifecycleRules {
+	for _, r := range *b.LifecycleRules {
 		reaches := strings.HasPrefix(prefix, r.FileNamePrefix) || strings.HasPrefix(r.FileNamePrefix, prefix)
 		if !reaches || r.DaysFromHidingToDeleting == nil {
 			continue
@@ -116,8 +123,9 @@ func (c *Client) KeepsHidden(ctx context.Context, bucket, prefix string) (int, e
 
 // bucketInfo is the part of b2_list_buckets' answer Roostack uses.
 type bucketInfo struct {
-	BucketID       string `json:"bucketId"`
-	LifecycleRules []struct {
+	BucketID string `json:"bucketId"`
+	// LifecycleRules is nil if the answer left them out.
+	LifecycleRules *[]struct {
 		FileNamePrefix string `json:"fileNamePrefix"`
 		// DaysFromHidingToDeleting is nil when hidden files are kept.
 		DaysFromHidingToDeleting *int `json:"daysFromHidingToDeleting"`
