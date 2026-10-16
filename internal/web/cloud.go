@@ -256,6 +256,7 @@ func cloudBack(r *http.Request) string {
 
 func (s *Server) cloudCancelSubmit(w http.ResponseWriter, r *http.Request) {
 	s.Cloud.Cancel(r.Context())
+	s.Store.Audit(r.Context(), currentUser(r), "cloud", "Cancelled linking the lab to Roostack Cloud")
 	redirect(w, r, cloudBack(r))
 }
 
@@ -274,12 +275,15 @@ func (s *Server) cloudDismissSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	s.Store.Audit(r.Context(), currentUser(r), "cloud", "Dismissed the note that Roostack Cloud no longer knows the lab")
 	redirect(w, r, "/settings/cloud")
 }
 
 // cloudSummary is the Settings overview's line for Roostack Cloud.
 func cloudSummary(st cloud.Status) (string, string) {
 	switch {
+	case st.Linked && st.Refused != "":
+		return "Linked, but Roostack Cloud refuses its requests", "warn"
 	case st.Linked && st.LastError != "" && time.Since(st.LastContact) > cloudUnreachableFor:
 		return "Linked, but it can't be reached", "warn"
 	case st.Linked:

@@ -324,6 +324,9 @@ func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJ
 			return err
 		}
 	}
+	if secrets, err = m.ownSecrets(act, j.name, secrets); err != nil {
+		return err
+	}
 	if err := dst.ImportSecrets(ctx, secrets); err != nil {
 		return err
 	}
@@ -349,7 +352,11 @@ func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJ
 	}
 	act.Step("Loading its databases from the backup, and starting it")
 	if err := dst.LoadDumps(ctx, j.name); err != nil {
-		return err
+		// Its files are the backup's now: started again on them, without
+		// its databases, it would run half-restored (security review of
+		// 2026-10-16). It stays stopped until it's restored again.
+		stopped = false
+		return fmt.Errorf("%s's files are back from the backup, but its databases couldn't be loaded, so it stays stopped; restore it again to retry (%w)", j.title, err)
 	}
 	stopped = false
 	if j.to != j.host && reachable {

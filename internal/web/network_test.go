@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -110,6 +111,30 @@ func TestInternetLabPages(t *testing.T) {
 	if len(fm.installs) != 1 || !fm.installs[0].Public || !fm.sharingAsked || fm.share {
 		t.Errorf("installed %+v, sharing asked %v share %v", fm.installs, fm.sharingAsked, fm.share)
 	}
+	if logs, _ := h.store.RecentAudit(context.Background(), 1); len(logs) != 1 || logs[0].Action != "install" ||
+		logs[0].Detail != "immich, public" {
+		t.Errorf("the install's audit entry says it went public: %+v", logs)
+	}
+}
+
+// Only an Owner makes a service public (SPEC.md §6.11): on a lab on the
+// internet an Admin's install starts private, and the Admin can't answer
+// the lab-wide sharing question.
+func TestAdminInstallStaysPrivate(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleAdmin)
+	h.setSetup(&fakeSetup{p: allDone, network: config.NetworkInternet, uiTunnelOnly: true})
+	_, body := h.get("/install/immich")
+	if strings.Contains(body, `name="public"`) || strings.Contains(body, "Share attack reports") ||
+		!strings.Contains(body, "An Owner can make it public") {
+		t.Errorf("an Admin's install form:\n%.3000s", body)
+	}
+	h.post("/install/immich", url.Values{"subdomain": {"photos"}, "public": {"on"}, "share": {"yes"}}, h.srv.URL)
+	if len(fm.installs) != 1 || fm.installs[0].Public || fm.sharingAsked {
+		t.Errorf("installed %+v, sharing asked %v", fm.installs, fm.sharingAsked)
+	}
+	if logs, _ := h.store.RecentAudit(context.Background(), 1); len(logs) != 1 || logs[0].Detail != "immich" {
+		t.Errorf("audit: %+v", logs)
+	}
 }
 
 // At home, nothing changes: the router, a phone on mobile data, and
@@ -185,6 +210,27 @@ func TestBackupPlanOnInternet(t *testing.T) {
 			if i := strings.Index(body, w); i >= 0 {
 				t.Errorf("no home suggestions on a cloud server: %q", body[max(0, i-300):i+100])
 			}
+		}
+	}
+}
+
+// Admins must use two-factor while Roostack's pages are public (SPEC.md
+// §5): on a lab on the internet, unless the UI is kept to a tunnel.
+func TestAdminTwoFactorOnPublicUI(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleAdmin)
+	const asked = "as an Admin you need to turn on two-factor"
+	for _, c := range []struct {
+		network    string
+		tunnelOnly bool
+		required   bool
+	}{
+		{config.NetworkHome, false, false},
+		{config.NetworkInternet, true, false},
+		{config.NetworkInternet, false, true},
+	} {
+		h.setSetup(&fakeSetup{p: allDone, network: c.network, uiTunnelOnly: c.tunnelOnly})
+		if _, body := h.get("/services"); strings.Contains(body, asked) != c.required {
+			t.Errorf("%s, tunnel only %v: two-factor required should be %v:\n%.1500s", c.network, c.tunnelOnly, c.required, body)
 		}
 	}
 }

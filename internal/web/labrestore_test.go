@@ -21,7 +21,11 @@ type fakeLabRestore struct {
 	key       string
 	started   *labrestore.Found
 	usedDrive string
+	// unfinished: a restore started earlier and didn't finish.
+	unfinished bool
 }
+
+func (f *fakeLabRestore) Unfinished() bool { return f.unfinished }
 
 func (f *fakeLabRestore) Find(_ context.Context, src labrestore.Source, key string) ([]labrestore.Found, []labrestore.Unopened, error) {
 	f.mu.Lock()

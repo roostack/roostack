@@ -130,6 +130,7 @@ func (s *Server) inviteGuestSubmit(w http.ResponseWriter, r *http.Request) {
 	s.Store.SetSetting(r.Context(), guestsEndpointKey, endpoint)
 	s.useAddress(r.Context(), endpoint)
 	s.Store.Audit(r.Context(), currentUser(r), "storage", "invited "+strings.TrimSpace(name))
+	w.Header().Set("Cache-Control", "no-store") // the invite
 	s.renderStorage(w, r, map[string]any{"Invite": inv.String(), "InviteName": strings.TrimSpace(name),
 		"InviteExpires": time.Now().Add(labnet.InviteLifetime), "Endpoint": endpoint})
 }

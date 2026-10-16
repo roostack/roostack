@@ -24,6 +24,9 @@ type LabRestorer interface {
 	Find(ctx context.Context, src labrestore.Source, key string) ([]labrestore.Found, []labrestore.Unopened, error)
 	Start(fd labrestore.Found) error
 	Running() bool
+	// Unfinished: a restore started and didn't finish, so it can be
+	// started again over what it put back.
+	Unfinished() bool
 	Progress() (activity.Snapshot, bool)
 	// Drives lists this server's drives; UseDrive mounts one, returning
 	// where (to look for backups on it).
@@ -75,8 +78,10 @@ func (s *Server) restoreSessionOf(r *http.Request) *restoreSession {
 	return s.restore
 }
 
-// restoreAllowed: a fresh install, with restoring available.
+// restoreAllowed: a fresh install, with restoring available. Its pages
+// aren't cached: they echo where the backups are, credentials included.
 func (s *Server) restoreAllowed(w http.ResponseWriter, r *http.Request) bool {
+	w.Header().Set("Cache-Control", "no-store")
 	switch {
 	case !s.needsSetup():
 		// Done (Roostack restarted as the restored lab), or never needed.
@@ -101,7 +106,8 @@ func (s *Server) labRestorePage(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/setup/restore/progress")
 		return
 	}
-	data := map[string]any{"Kind": "s3", "Passed": s.setupPassed(r), "CloudOn": s.Cloud != nil}
+	data := map[string]any{"Kind": "s3", "Passed": s.setupPassed(r), "CloudOn": s.Cloud != nil,
+		"Unfinished": !s.LabRestore.Running() && s.LabRestore.Unfinished()}
 	if s.Cloud != nil {
 		data["Kind"] = "cloud"
 	}
@@ -167,7 +173,7 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 	s.restore = &restoreSession{id: id, found: found}
 	s.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: restoreCookie, Value: id, Path: "/setup/restore", HttpOnly: true,
-		SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil})
+		SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r)})
 	data["Found"], data["Unopened"], data["Searched"] = found, unopened, true
 	s.render(w, "setup-restore", data)
 }

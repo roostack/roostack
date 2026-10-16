@@ -99,6 +99,9 @@ type linkState struct {
 	// LastTry and LastError: the last check, when it didn't reach Cloud.
 	LastTry   time.Time `json:"last_try,omitzero"`
 	LastError string    `json:"last_error,omitempty"`
+	// Refused is Cloud's message when the last check reached it and it
+	// refused (e.g. the account is suspended): the link is kept.
+	Refused string `json:"refused,omitempty"`
 	// Relay is Roostack Cloud's relay for the lab, when it's on.
 	Relay *relayState `json:"relay,omitempty"`
 	// Forgotten is when Cloud stopped accepting the lab's certificate,
@@ -170,6 +173,7 @@ type Status struct {
 	Since, LastContact   time.Time
 	LastTry              time.Time
 	LastError            string
+	Refused              string
 	Forgotten            time.Time
 	ForgottenAccount     string
 	CertFingerprint      string
@@ -197,6 +201,7 @@ func (s *Service) Status() Status {
 	st := Status{Linked: s.st.Linked, LabInfo: s.st.LabInfo, Name: s.st.Name, Address: s.st.Address,
 		AddressError: s.addrErr, Since: s.st.Since,
 		LastContact: s.st.LastContact, LastTry: s.st.LastTry, LastError: s.st.LastError,
+		Refused:   s.st.Refused,
 		Forgotten: s.st.Forgotten, ForgottenAccount: s.st.ForgottenAccount,
 		StartError: s.startErr, Dir: s.dir, URL: s.cfg.Address()}
 	if s.cert != nil && s.cert.Leaf != nil {
@@ -572,7 +577,7 @@ func (s *Service) Check(ctx context.Context) error {
 			err = s.client.do(ctx, true, http.MethodGet, cloudapi.PathLab, nil, &info)
 		} else {
 			s.log.Warn("Roostack Cloud: relinking with the recovery key", "err", rerr)
-			if retryLater(rerr) {
+			if _, refused := refusal(rerr); refused || retryLater(rerr) {
 				err = rerr // tried again at the next check; the link is kept
 			}
 		}
@@ -597,10 +602,16 @@ func (s *Service) Check(ctx context.Context) error {
 		s.forget()
 		s.st = linkState{Forgotten: now, ForgottenAccount: account}
 	case err != nil:
-		s.st.LastTry, s.st.LastError = now, err.Error()
+		s.st.LastTry = now
+		if msg, refused := refusal(err); refused {
+			// Cloud answered: the lab is in touch, but refused.
+			s.st.LastContact, s.st.LastError, s.st.Refused = now, "", msg
+		} else {
+			s.st.LastError = err.Error()
+		}
 	default:
 		s.st.LabInfo = info
-		s.st.LastContact, s.st.LastTry, s.st.LastError = now, time.Time{}, ""
+		s.st.LastContact, s.st.LastTry, s.st.LastError, s.st.Refused = now, time.Time{}, "", ""
 	}
 	serr := s.save()
 	s.mu.Unlock()
