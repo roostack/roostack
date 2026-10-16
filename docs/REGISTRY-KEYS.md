@@ -85,7 +85,8 @@ the old signing key is useless to anyone holding it.
 8. **Build the root key into Roostack.** In this repository, put the root
    public key into `rootKeys` in `internal/registry/rootkeys.go`, with a
    comment giving the date, and commit it. Release builds refuse to be made
-   without it (`scripts/build-deb.sh`).
+   without it (`scripts/build-deb.sh` checks what `make build` compiled in,
+   recorded in `bin/registry-keys`).
 
 9. **Set up publishing**, once: in `roostack/services` → Settings → Pages,
    source "GitHub Actions" and custom domain `registry.roostack.cloud`; add
@@ -137,7 +138,9 @@ both in `rootKeys`; once labs have moved to it, drop the old one.
 
 Tests and dev VMs use throwaway keys: `make build REGISTRY_DEV_KEY=ed25519:…`
 builds a Roostack that also trusts that root key. `scripts/build-deb.sh`
-refuses to make a release from such a build.
+refuses to make a release from such a build, or from any build until the
+real root key is in `rootKeys`; a development package is made with
+`ROOSTACK_DEV_BUILD=1 scripts/build-deb.sh` (`scripts/dev-install.sh` does).
 
 ## Record
 
