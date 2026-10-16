@@ -271,6 +271,14 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		case !p.Checks.TwoKinds:
 			return "A different kind of storage", "Suggested: online storage, or a friend's lab: not a disk like the one your data is on."
 		case !p.Checks.Safe:
+			// Backblaze already, with the account's key: a better key is the
+			// quickest way there.
+			for _, e := range p.Entries {
+				if e.Access.B2 && e.Access.CanDelete {
+					return "A backup safe from ransomware", "Suggested: give Roostack a Backblaze key that can make keys (see " + e.Title +
+						"), or use another server in your lab, a friend's lab or Roostack Cloud. This server can add backups there but not delete them."
+				}
+			}
 			return "A backup safe from ransomware", "Suggested: another server in your lab, a friend's lab, Roostack Cloud or Backblaze B2. " +
 				"This server can add backups there but not delete them."
 		}

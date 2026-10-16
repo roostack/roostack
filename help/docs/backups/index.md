@@ -117,7 +117,14 @@ attention** on the home page, with what to do.
       mode; on Backblaze B2 it gets a key of its own without
       `deleteFiles`, so whatever it deletes is only hidden, and Backblaze
       erases hidden files as the bucket's lifecycle rule says (Roostack
-      reads the rule, and never changes it). Other S3 providers give every
+      reads the rule, and never changes it). Roostack can only make those
+      keys with an account key that can make keys (`writeKeys`), which
+      keys made on Backblaze's website never have: make one with
+      Backblaze's command-line tool, signed in with your master
+      application key, `b2 key create roostack
+      listBuckets,listFiles,readFiles,writeFiles,deleteFiles,writeKeys,deleteKeys,listKeys`
+      (the backup's card shows the commands). Until then every server
+      gets the account's key. Other S3 providers give every
       server the account's key, which can delete. When you remove a
       server, Settings → Servers lists the shared keys and passwords it
       still holds; change an account's key under **Manage** on a backup
