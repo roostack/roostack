@@ -87,7 +87,7 @@ func TestPrivateOnInternet(t *testing.T) {
 		t.Fatal(err)
 	}
 	site := out.CaddySite.Content
-	if !strings.Contains(site, "not remote_ip 127.0.0.1/8 ::1 203.0.113.5 169.254.1.3\n") || strings.Contains(site, "private_ranges") {
+	if !strings.Contains(site, "\tremote_ip 127.0.0.1/8 ::1 203.0.113.5 169.254.1.3\n") || strings.Contains(site, "private_ranges") {
 		t.Errorf("private route on the internet:\n%s", site)
 	}
 }

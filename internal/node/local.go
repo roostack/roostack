@@ -386,15 +386,19 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 			fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", Iface: agent.WireGuardInterface,
 				Reason: "backups to another lab"})
 		}
-		// Other labs reach only their own stores and the guest API.
+		// Other labs reach only the guest API and each its own store
+		// (SPEC.md §6.10); the agent drops everything else from them.
 		if a.GuestAddr != "" {
 			fw.Allow = append(fw.Allow,
 				agent.Rule{Port: agent.GuestsPort, Proto: "udp", From: agent.FromAny, Reason: "storage for other labs (wireguard)"},
 				agent.Rule{Port: labnet.GuestAPIPort, Proto: "tcp", Iface: agent.GuestsInterface, Reason: "storage for other labs"})
 			for _, g := range a.Guests {
+				if g.Addr == "" {
+					continue // from an older controller: no way to tell it from other guests
+				}
 				for _, port := range []int{g.Port, g.Port + 1} {
 					fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", Iface: agent.GuestsInterface,
-						Reason: "storage for " + g.User})
+						Source: g.Addr, Reason: "storage for " + g.User})
 				}
 			}
 		}

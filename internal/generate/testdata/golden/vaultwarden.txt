@@ -42,7 +42,10 @@ handle @vaultwarden-web {
 		roostack_title "Vaultwarden"
 		roostack_private yes
 	}
-	@vaultwarden-web-external not remote_ip private_ranges 100.64.0.0/10
+	@vaultwarden-web-external not {
+		remote_ip private_ranges 100.64.0.0/12 100.80.0.0/16 100.82.0.0/15 100.84.0.0/14 100.88.0.0/13 100.96.0.0/14 100.104.0.0/13 100.112.0.0/12
+		not vars roostack_edge yes
+	}
 	abort @vaultwarden-web-external
 	reverse_proxy 169.254.1.3:20001
 }

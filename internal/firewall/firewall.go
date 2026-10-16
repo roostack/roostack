@@ -55,6 +55,14 @@ func Desired(lab config.Lab, services []*generate.Output) (fw agent.Firewall, ok
 				Reason: "backups from one server to another's disk"})
 		}
 	}
+	// The lab's edges reach Caddy on its edge listener only (SPEC.md
+	// §10.5); Roostack Cloud's relay edges arrive on their own interface,
+	// which the agent always handles so.
+	for _, e := range lab.EdgeAddrs {
+		if p, err := netip.ParsePrefix(e); err == nil && p.IsSingleIP() && agent.OverlayRange.Contains(p.Addr()) {
+			fw.Edges = append(fw.Edges, p.Addr().String())
+		}
+	}
 	// A node's web services are reached by the controller's Caddy.
 	if lab.IsNode() {
 		for _, s := range services {
