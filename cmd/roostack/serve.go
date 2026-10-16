@@ -135,7 +135,11 @@ func serve(args []string) error {
 	if err != nil {
 		return err
 	}
-	srv.OnSetupComplete = func() { os.Remove(setupTokenPath(lab)) }
+	srv.OnSetupComplete = func() {
+		os.Remove(setupTokenPath(lab))
+		// A recovery key typed for a restore that wasn't finished.
+		os.Remove(backup.RestoreKeyFile(lab.Paths))
+	}
 	srv.Version = version
 
 	// The lab's other servers (SPEC.md §10), reached over its network.
