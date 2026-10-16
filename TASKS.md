@@ -447,6 +447,11 @@ The review is in Roostack Cloud's repository (`REVIEW-2026-10-16.md`); IDs refer
 - [x] M25: a full-lab restore that failed part-way can be started again (a `restore-started` marker; the page says so). `scripts/dev-vm.sh test` now finds a main package's test binary (`cmd/roostack` has its first test)
 - [x] `.gitignore`: `.DS_Store` and `.claude/worktrees/`
 - [x] `/help` on a build without the help site: the error page replaced the "built without its help pages" message, so `TestHelpServed` fails (since f77f640). Say why on the error page, or change the test Done at the merge (2026-10-16): the 404 page for /help says the build has no help pages.
+- [ ] **Not yet taken up from the review** (2026-10-16; the review is REVIEW-2026-10-16.md in the roostack-cloud checkout, not committed):
+  - [ ] M24: verify on a VM what rest-server 0.14.0 `--append-only` refuses (overwriting an existing blob; overwriting `config`), record it in docs/ASSUMPTIONS.md, and add a controller-side way to quarantine files restic can't decrypt (a junk `snapshots/` or `index/` file a server appends stops every listing, prune and check of that repository), shown under Needs attention rather than only in the activity log
+  - [ ] M26: `manager.PendingFor` applies on every `/v1/assignment` pull, nftables reload included, with no limit per caller: return the latest assignment unless there is none, and limit pulls per server
+  - [ ] M26: a node's own repository can hold a forged "controller" snapshot that the full-lab restore offers beside the real one (`labrestore/find.go` reads the role from inside the snapshot): show each candidate's folder, refuse a controller whose folder isn't the server it claims, and restore only the state, secrets and service folders
+  - [ ] Check on a VM that the move's `tar -xpf - --strip-components` into `<dir>.incoming` (`internal/node/move.go`) can't be steered outside it by a hostile stream (`..` left after stripping, hard links)
 
 ## To discuss with the user
 
