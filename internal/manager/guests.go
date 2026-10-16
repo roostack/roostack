@@ -304,7 +304,7 @@ func (m *Manager) guestStores(ctx context.Context) ([]generate.GuestStorage, str
 		if !g.Removed.IsZero() {
 			continue // no more backups
 		}
-		out = append(out, generate.GuestStorage{User: g.User(), Port: g.Port, Quota: g.Quota,
+		out = append(out, generate.GuestStorage{User: g.User(), Port: g.Port, Quota: g.Quota, Addr: g.Addr,
 			StoreHash: g.StoreHash, AdminHash: g.AdminHash})
 	}
 	return out, addr.String()

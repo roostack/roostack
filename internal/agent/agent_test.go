@@ -201,14 +201,15 @@ func TestRulesetSSHOff(t *testing.T) {
 	if strings.Contains(got, "dport 22") || !strings.Contains(got, "udp dport 546 accept") {
 		t.Errorf("ssh off: want no port 22 rule and DHCPv6 allowed:\n%s", got)
 	}
-	if !strings.Contains(got, "elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10 }") ||
+	if !strings.Contains(got, "elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/12, 100.80.0.0/16, 100.82.0.0/15, "+
+		"100.84.0.0/14, 100.88.0.0/13, 100.96.0.0/14, 100.104.0.0/13, 100.112.0.0/12 }") ||
 		!strings.Contains(got, "elements = { fc00::/7, fe80::/10 }") {
 		t.Errorf("LAN sets wrong:\n%s", got)
 	}
 }
 
 func TestIsLAN(t *testing.T) {
-	for addr, want := range map[string]bool{"192.168.86.20": true, "10.0.2.2": true, "100.101.1.1": true,
+	for addr, want := range map[string]bool{"192.168.86.20": true, "10.0.2.2": true, "100.96.0.5": true, "100.101.1.1": false,
 		"::ffff:192.168.1.5": true, "fe80::1": true, "8.8.8.8": false, "2001:db8::1": false} {
 		if got := IsLAN(netip.MustParseAddr(addr)); got != want {
 			t.Errorf("IsLAN(%s) = %v", addr, got)

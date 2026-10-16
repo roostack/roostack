@@ -18,10 +18,25 @@ import (
 )
 
 // PrivateRanges are the client networks allowed to reach private routes
-// in a lab at home: Caddy's private_ranges (RFC1918, loopback, ULA,
-// link-local) plus the CGNAT range used by Tailscale. See
-// docs/ASSUMPTIONS.md C4/C5.
-const PrivateRanges = "private_ranges 100.64.0.0/10"
+// in a lab at home: Caddy's private_ranges (RFC1918, loopback, ULA) plus
+// the CGNAT range 100.64.0.0/10 used by Tailscale and Roostack's network,
+// written out without the ranges of other labs storing backups here
+// (100.100.0.0/14) and Roostack Cloud's relay (100.81.0.0/16), which are
+// never private (SPEC.md §6.10). The same as agent.LANRanges (a test
+// checks); see docs/ASSUMPTIONS.md C4/C5.
+const PrivateRanges = "private_ranges 100.64.0.0/12 100.80.0.0/16 100.82.0.0/15 100.84.0.0/14 100.88.0.0/13 " +
+	"100.96.0.0/14 100.104.0.0/13 100.112.0.0/12"
+
+// EdgePort is where the lab's edges reach the controller's Caddy (SPEC.md
+// §10.5): a listener of its own, which believes their PROXY headers and
+// whose sites count every visitor as outside, so a header claiming a home
+// address reaches nothing private (review H4). The firewall sends edges'
+// connections to 443 here (agent.EdgePort, the same number).
+const EdgePort = 8474
+
+// EdgeVar is set on requests that came through an edge (the edge
+// listener's sites), and every private check counts them as outside.
+const EdgeVar = "roostack_edge"
 
 // CertResolvers are the DNS resolvers Caddy checks a certificate's DNS
 // challenge with before asking Let's Encrypt to look (the tls block's
@@ -189,15 +204,17 @@ func (r Route) privateFrom() string {
 }
 
 // notPrivate is the matcher for a connection from outside, at indent:
-// not from PrivateFrom, or from one of PrivateExcept (an edge: "not
-// (private and not an edge)", checked with Caddy, docs/ASSUMPTIONS.md
-// Q11).
+// "not (private, not through an edge, and not from an edge)": not from
+// PrivateFrom, through the edge listener (EdgeVar), whatever address its
+// PROXY header claims, or from one of PrivateExcept (an edge's own
+// address, which a connection without a header shows). Checked with
+// Caddy, docs/ASSUMPTIONS.md Q11, Q12.
 func (r Route) notPrivate(indent string) string {
-	if len(r.PrivateExcept) == 0 {
-		return "not remote_ip " + r.privateFrom()
+	lines := []string{"remote_ip " + r.privateFrom(), "not vars " + EdgeVar + " yes"}
+	if len(r.PrivateExcept) > 0 {
+		lines = append(lines, "not remote_ip "+strings.Join(r.PrivateExcept, " "))
 	}
-	return fmt.Sprintf("not {\n%s\tremote_ip %s\n%s\tnot remote_ip %s\n%s}",
-		indent, r.privateFrom(), indent, strings.Join(r.PrivateExcept, " "), indent)
+	return "not {\n" + indent + "\t" + strings.Join(lines, "\n"+indent+"\t") + "\n" + indent + "}"
 }
 
 // pathPatterns matches each path and everything under it.
@@ -270,7 +287,7 @@ type MainConfig struct {
 	OldDNSDirective string
 	// EdgeFrom are the lab's edges' WireGuard addresses (SPEC.md §10.5):
 	// the only sources whose PROXY header (the visitor's address) Caddy
-	// believes, on its normal port, and outside for the private check.
+	// believes, on EdgePort only, and outside for the private check.
 	EdgeFrom []string
 }
 
@@ -313,12 +330,12 @@ func Main(c MainConfig) (string, error) {
 		if err := checkPrefixes(c.EdgeFrom); err != nil {
 			return "", fmt.Errorf("caddy: edges: %w", err)
 		}
-		// Visitors through an edge arrive from its WireGuard address with
-		// a PROXY header saying who they are. Anyone else sending one is
-		// refused; everyone else (no header) is unchanged (checked with
-		// Caddy, docs/ASSUMPTIONS.md Q3, Q11).
-		fmt.Fprintf(&b, "\tservers :443 {\n\t\tlistener_wrappers {\n\t\t\tproxy_protocol {\n\t\t\t\tallow %s\n"+
-			"\t\t\t\tfallback_policy reject\n\t\t\t}\n\t\t\ttls\n\t\t}\n\t}\n", strings.Join(c.EdgeFrom, " "))
+		// Visitors through an edge arrive on EdgePort from its WireGuard
+		// address with a PROXY header saying who they are. Anyone else
+		// sending one is refused. Port 443 believes no header at all
+		// (checked with Caddy, docs/ASSUMPTIONS.md Q3, Q11, Q12).
+		fmt.Fprintf(&b, "\tservers :%d {\n\t\tlistener_wrappers {\n\t\t\tproxy_protocol {\n\t\t\t\tallow %s\n"+
+			"\t\t\t\tfallback_policy reject\n\t\t\t}\n\t\t\ttls\n\t\t}\n\t}\n", EdgePort, strings.Join(c.EdgeFrom, " "))
 	}
 	if c.CrowdSecAPI != "" {
 		// Caddy keeps serving while CrowdSec's API is unreachable, and
@@ -327,16 +344,23 @@ func Main(c MainConfig) (string, error) {
 			c.CrowdSecAPI, CrowdSecAPIKeyEnv)
 	}
 	b.WriteString("}\n")
-	if err := site(&b, c, c.Domain, c.AdminHost, c.DNSDirective, ""); err != nil {
-		return "", err
+	if c.OldDomain != "" && (strings.ContainsAny(c.OldDomain, " \t\n{}\"#") || strings.TrimSpace(c.OldDNSDirective) == "") {
+		return "", fmt.Errorf("caddy: invalid old address %q", c.OldDomain)
 	}
-	if c.OldDomain != "" {
-		if strings.ContainsAny(c.OldDomain, " \t\n{}\"#") || strings.TrimSpace(c.OldDNSDirective) == "" {
-			return "", fmt.Errorf("caddy: invalid old address %q", c.OldDomain)
+	// The sites again on the edge listener, if there are edges.
+	for _, edge := range []bool{false, true} {
+		if edge && len(c.EdgeFrom) == 0 {
+			break
+		}
+		if err := site(&b, c, c.Domain, c.AdminHost, c.DNSDirective, "", edge); err != nil {
+			return "", err
 		}
 		// The previous address (SPEC.md §6.6): the same services, through
 		// the same snippets (their matchers name both hosts).
-		if err := site(&b, c, c.OldDomain, c.OldAdminHost, c.OldDNSDirective, c.Domain); err != nil {
+		if c.OldDomain == "" {
+			continue
+		}
+		if err := site(&b, c, c.OldDomain, c.OldAdminHost, c.OldDNSDirective, c.Domain, edge); err != nil {
 			return "", err
 		}
 	}
@@ -346,8 +370,11 @@ func Main(c MainConfig) (string, error) {
 // site writes one wildcard site block for domain, with Roostack's pages
 // at adminHost (roost.<domain> if empty; the domain itself is added to the
 // block, since the wildcard doesn't cover it). now is the lab's current
-// address when domain is its previous one.
-func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now string) error {
+// address when domain is its previous one. An edge site is the same on
+// EdgePort, for visitors through an edge: it sets EdgeVar, so every
+// private check counts them as outside, and has no Roostack pages (the
+// UI is never reached through an edge).
+func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now string, edge bool) error {
 	if adminHost == "" {
 		adminHost = AdminSubdomain + "." + domain
 	}
@@ -358,10 +385,18 @@ func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now st
 	if now != "" {
 		fmt.Fprintf(b, "# The lab's previous address, until it stops working; it's now %s.\n", now)
 	}
+	port := ""
+	if edge {
+		port = fmt.Sprintf(":%d", EdgePort)
+		fmt.Fprintf(b, "# Visitors through the lab's edges: never private (SPEC.md §10.5).\n")
+	}
 	if adminHost == domain {
-		fmt.Fprintf(b, "*.%s, %s {\n", domain, domain)
+		fmt.Fprintf(b, "*.%s%s, %s%s {\n", domain, port, domain, port)
 	} else {
-		fmt.Fprintf(b, "*.%s {\n", domain)
+		fmt.Fprintf(b, "*.%s%s {\n", domain, port)
+	}
+	if edge {
+		fmt.Fprintf(b, "\tvars %s yes\n", EdgeVar)
 	}
 	b.WriteString("\ttls {\n")
 	for _, line := range strings.Split(strings.TrimSpace(directive), "\n") {
@@ -372,7 +407,7 @@ func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now st
 	if c.AccessLog != "" {
 		fmt.Fprintf(b, "\tlog {\n\t\toutput file %s {\n\t\t\troll_size 20MiB\n\t\t\troll_keep 5\n\t\t}\n\t\tformat json\n\t}\n", c.AccessLog)
 	}
-	if c.AdminUpstream != "" {
+	if c.AdminUpstream != "" && !edge {
 		route := Route{ID: "roostack-admin", Title: "Roostack", Host: adminHost,
 			Upstream: c.AdminUpstream, Private: !c.AdminPublic, PrivateFrom: c.PrivateFrom, PrivateExcept: c.EdgeFrom}
 		if c.AdminPublic {
