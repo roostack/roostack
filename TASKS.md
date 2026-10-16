@@ -403,6 +403,7 @@ The review is in Roostack Cloud's repository (`REVIEW-2026-10-16.md`); IDs refer
 - [x] M16: Admins must use two-factor while the UI is public (SPEC §5)
 - [x] M6 (lab side): only a 401 forgets the Cloud link; a 403 or 423 (suspended) keeps it and shows Cloud's message (cloudapi)
 - [x] M20: moves and restores bring only the secrets a service's generated files name (SPEC §10.10)
+- [x] Web Lows: the restore page's form values in data attributes (not Alpine expressions); the setup code only from a POST; no caching of the two-factor, join-code, storage-invite and restore pages; no folder listings under /static/ and /help/; the restore cookie's Secure flag behind Caddy
 
 ## To discuss with the user
 

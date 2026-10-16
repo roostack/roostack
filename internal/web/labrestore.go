@@ -75,8 +75,10 @@ func (s *Server) restoreSessionOf(r *http.Request) *restoreSession {
 	return s.restore
 }
 
-// restoreAllowed: a fresh install, with restoring available.
+// restoreAllowed: a fresh install, with restoring available. Its pages
+// aren't cached: they echo where the backups are, credentials included.
 func (s *Server) restoreAllowed(w http.ResponseWriter, r *http.Request) bool {
+	w.Header().Set("Cache-Control", "no-store")
 	switch {
 	case !s.needsSetup():
 		// Done (Roostack restarted as the restored lab), or never needed.
@@ -167,7 +169,7 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 	s.restore = &restoreSession{id: id, found: found}
 	s.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: restoreCookie, Value: id, Path: "/setup/restore", HttpOnly: true,
-		SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil})
+		SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r)})
 	data["Found"], data["Unopened"], data["Searched"] = found, unopened, true
 	s.render(w, "setup-restore", data)
 }
