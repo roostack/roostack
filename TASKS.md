@@ -452,6 +452,7 @@ The review is in Roostack Cloud's repository (`REVIEW-2026-10-16.md`); IDs refer
 Changes to the lab ↔ Cloud contract (`cloudapi`) made with Roostack Cloud's side.
 
 - [x] M10 (lab side): registering the recovery identity carries a signature over the lab's ID (`cloudapi.ProveRegister`); Cloud and `cloudtest` refuse one without it (SPEC §6.9)
+- [x] M10 (lab side): a restore from Roostack Cloud is given every lab with the recovery key (`cloudapi.RestoreAccess.Labs`: a lab unlinked and linked again has two); the restore page shows each with its backups, and the person chooses (SPEC §6.9)
 
 - [ ] **Not yet taken up from the review** (2026-10-16; the review is REVIEW-2026-10-16.md in the roostack-cloud checkout, not committed):
   - [ ] M24: verify on a VM what rest-server 0.14.0 `--append-only` refuses (overwriting an existing blob; overwriting `config`), record it in docs/ASSUMPTIONS.md, and add a controller-side way to quarantine files restic can't decrypt (a junk `snapshots/` or `index/` file a server appends stops every listing, prune and check of that repository), shown under Needs attention rather than only in the activity log

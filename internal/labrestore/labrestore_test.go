@@ -8,7 +8,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/activity"
@@ -129,16 +131,32 @@ func TestFindAndRestoreALab(t *testing.T) {
 		t.Errorf("another lab's backups can't be opened: %+v", unopened)
 	}
 
-	// From Roostack Cloud: the repositories it names, opened with its keys.
+	// From Roostack Cloud: every lab with the recovery key, in Cloud's
+	// order, each repository opened with its lab's keys; a lab whose
+	// backups are gone is said so.
 	var envs [][]string
-	cf := &Finder{OpenRepo: func(url string, env []string) *backup.Repo { envs = append(envs, env); return repoAt(key, url) },
+	var mu sync.Mutex
+	cf := &Finder{OpenRepo: func(url string, env []string) *backup.Repo {
+		mu.Lock()
+		envs = append(envs, env)
+		mu.Unlock()
+		return repoAt(key, url)
+	},
 		CloudAccess: func(context.Context) (cloudapi.RestoreAccess, error) {
-			return cloudapi.RestoreAccess{Repositories: []string{old.URL}, Keys: cloudapi.StorageKeys{AccessKeyID: "restore-key", Region: "x"}}, nil
+			return cloudapi.RestoreAccess{Labs: []cloudapi.RestoreLab{
+				{LabID: "lab_new", LabName: "Smith family", LinkedAt: time.Now()},
+				{LabID: "lab_old", LabName: "Smith family", UnlinkedAt: time.Now().Add(-time.Hour), Repositories: []string{old.URL},
+					Keys: cloudapi.StorageKeys{AccessKeyID: "restore-key", Region: "x"}},
+			}}, nil
 		}}
-	cfound, _, err := cf.Find(ctx, Source{Kind: "cloud"})
-	if err != nil || len(cfound) != 1 || cfound[0].ServerName != "nuc" || !slices.Contains(cfound[0].Env, "AWS_ACCESS_KEY_ID=restore-key") ||
-		len(envs) == 0 || !slices.Contains(envs[0], "AWS_ACCESS_KEY_ID=restore-key") {
+	cfound, cunopened, err := cf.Find(ctx, Source{Kind: "cloud"})
+	if err != nil || len(cfound) != 1 || cfound[0].ServerName != "nuc" || cfound[0].Lab == nil || cfound[0].Lab.ID != "lab_old" ||
+		!slices.Contains(cfound[0].Env, "AWS_ACCESS_KEY_ID=restore-key") || len(envs) != 1 || !slices.Contains(envs[0], "AWS_ACCESS_KEY_ID=restore-key") {
 		t.Errorf("from Cloud: %+v %v", cfound, err)
+	}
+	if len(cunopened) != 1 || cunopened[0].Lab == nil || cunopened[0].Lab.ID != "lab_new" ||
+		!strings.Contains(cunopened[0].Problem, "no longer keeps") {
+		t.Errorf("from Cloud, not offered: %+v", cunopened)
 	}
 	if _, _, err := (&Finder{}).Find(ctx, Source{Kind: "cloud"}); err == nil {
 		t.Error("Cloud turned off: no error")

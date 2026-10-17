@@ -23,6 +23,9 @@ type fakeLabRestore struct {
 	usedDrive string
 	// unfinished: a restore started earlier and didn't finish.
 	unfinished bool
+	// found and unopened, if set, are what Find finds.
+	found    []labrestore.Found
+	unopened []labrestore.Unopened
 }
 
 func (f *fakeLabRestore) Unfinished() bool { return f.unfinished }
@@ -31,6 +34,9 @@ func (f *fakeLabRestore) Find(_ context.Context, src labrestore.Source, key stri
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.src, f.key = src, key
+	if f.found != nil {
+		return f.found, f.unopened, nil
+	}
 	snap := backup.Snapshot{ID: "abc", Time: time.Now().Add(-time.Hour)}
 	return []labrestore.Found{
 			{Repository: "/mnt/backup/roostack/l/n-1", Domain: "lab.example.com", ServerName: "nuc", Controller: true, Snapshot: snap, Snapshots: 12},
@@ -155,5 +161,48 @@ func TestRestoreALabOnFirstRun(t *testing.T) {
 	h3.post("/setup/restore", url.Values{"kind": {"cloud"}, "recovery_key": {" the key "}}, h3.srv.URL)
 	if fr3.src.Kind != "cloud" || fr3.key != "the key" {
 		t.Errorf("Cloud search: %+v %q", fr3.src, fr3.key)
+	}
+}
+
+// From Roostack Cloud, every lab with the recovery key is shown with its
+// own backups, and the person chooses which to restore (review M10).
+func TestRestoreChoosesACloudLab(t *testing.T) {
+	h := newHarness(t, "the-setup-code")
+	h.server.Cloud = newCloud(t)
+	day := func(d int) time.Time { return time.Date(2026, 3, d, 10, 0, 0, 0, time.Local) }
+	linked := &labrestore.CloudLab{ID: "lab_new", Name: "Smith family", LinkedAt: day(10)}
+	old := &labrestore.CloudLab{ID: "lab_old", Name: "Smith family", LinkedAt: day(1), UnlinkedAt: day(9)}
+	gone := &labrestore.CloudLab{ID: "lab_older", Name: "Smiths", LinkedAt: day(2), UnlinkedAt: day(3)}
+	snap := backup.Snapshot{ID: "abc", Time: day(12)}
+	fr := &fakeLabRestore{
+		found: []labrestore.Found{
+			{Repository: "s3:https://s.test/b/labs/lab_new/n-0123456789", Name: "Smith family", ServerName: "nuc", ServerID: "n-0123456789",
+				Controller: true, Snapshot: snap, Snapshots: 3, Lab: linked},
+			{Repository: "s3:https://s.test/b/labs/lab_old/n-0123456789", Name: "Smith family", ServerName: "nuc", ServerID: "n-0123456789",
+				Controller: true, Snapshot: snap, Snapshots: 40, Lab: old},
+		},
+		unopened: []labrestore.Unopened{
+			{Lab: gone, Problem: "Roostack Cloud no longer keeps its backups."},
+		},
+	}
+	h.server.LabRestore = fr
+	h.post("/setup/code", url.Values{"token": {"the-setup-code"}}, h.srv.URL)
+	_, body := h.post("/setup/restore", url.Values{"kind": {"cloud"}, "recovery_key": {"the key"}}, h.srv.URL)
+	for _, want := range []string{"Roostack Cloud has 3 labs with this recovery key", "Linked to Roostack Cloud since 10 March 2026",
+		"9 March 2026: once it's restored, link it again", "Smiths in Roostack Cloud", "no longer keeps its backups",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page doesn't say %q:\n%s", want, body)
+		}
+	}
+	if n := strings.Count(body, `showModal()">Restore this lab`); n != 2 {
+		t.Errorf("%d labs to restore, want 2", n)
+	}
+	if i, j := strings.Index(body, "since 10 March"), strings.Index(body, "9 March 2026: once"); i < 0 || j < i {
+		t.Error("the linked lab should come first")
+	}
+	if code, _ := h.post("/setup/restore/start", url.Values{"backup": {"1"}}, h.srv.URL); code != http.StatusOK || fr.started == nil ||
+		fr.started.Lab != old {
+		t.Fatalf("restoring the older lab: %d %+v", code, fr.started)
 	}
 }
