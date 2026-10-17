@@ -140,6 +140,14 @@ type fakeManager struct {
 	// (plan_test.go); keyErr fails them.
 	s3Keys []string
 	keyErr error
+
+	// Main backups lost with a removed server, by server (plan_test.go).
+	lostMain map[string]store.LostBackup
+}
+
+func (f *fakeManager) LostMainBackup(_ context.Context, serverID string) (store.LostBackup, bool) {
+	l, ok := f.lostMain[serverID]
+	return l, ok
 }
 
 // BackupAccess is f.backupAccess's, else what the kind suggests: another

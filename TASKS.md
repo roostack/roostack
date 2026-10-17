@@ -324,7 +324,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [x] Removing a server (review M22, 2026-10-16): its log and the Servers page say which shared credentials it still holds; backups stored on its disk are forgotten (so a recovery key change doesn't wait for them), other servers stop copying there
     - [x] Change an online storage account's key in place (2026-10-16): Manage → "Change the key for …" on a backup there; checked first, then every server backing up there gets new credentials (on B2 with `writeKeys`, a key of its own), the controller last (SPEC §10.10)
     - [ ] A friend's lab's storage password per server (review M21)
-    - [ ] A server whose main backup was on a removed server's disk: tell it at once rather than letting nightly backups fail until a new place is chosen
+    - [x] A server whose main backup was on a removed server's disk: its plan and "needs attention" say so at once (`lost_backups`, until it has a new main backup), rather than each nightly failure (2026-10-17)
   - [x] Storage for other labs: storage invites with quotas, `roostack-guests` WireGuard interface (UDP 51821), a store pair per guest lab, usage on both sides, last connected (reachability), port-forwarding guide; a guest lab's controller links (`roostack-st1..9`) and forwards its machines' backups
   - [x] A lab whose domain isn't set up yet applies everything but Caddy, which waits for its DNS credentials
   - [x] A server's backup store stops when no server backs up to it (its backups stay on disk)

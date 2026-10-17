@@ -5,9 +5,12 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // The plan counts a backup as safe from ransomware only where this
@@ -164,5 +167,39 @@ func TestPlanB2KeyHelp(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("Online storage form missing %q", want)
 		}
+	}
+}
+
+// A main backup on a server that left the lab: the plan and "needs
+// attention" say so at once, rather than each nightly failure.
+func TestPlanLostMainBackup(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.copies = []manager.BackupCopy{{Ref: "provider:1", Title: "Wasabi", Repository: "s3:https://s3.wasabisys.com/b/roostack/l/n"}}
+	h.node().backups = &fakeBackups{status: backup.Status{Configured: true, Progress: -1,
+		Last: &store.BackupRun{Finished: time.Now(), Error: "connection refused"}}}
+	fm.lostMain = map[string]store.LostBackup{"n-0123456789": {ServerID: "n-0123456789", HostName: "pi",
+		Lost: time.Date(2026, 10, 17, 9, 0, 0, 0, time.Local)}}
+	_, body := h.get("/backups")
+	for _, want := range []string{"The main backup was on pi&#39;s disk, and pi left the lab on 17 October",
+		"nightly backups fail, though the other backups still run", `href="/backups?add=3#plan"`, "Choose a new place"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("plan missing %q", want)
+		}
+	}
+	if _, body = h.get("/backups?add=3"); !strings.Contains(body, "Where should your main backup go?") {
+		t.Error("the chooser is for the main backup")
+	}
+	_, body = h.get("/")
+	if !strings.Contains(body, "The main backup was on pi&#39;s disk, and pi has left the lab") {
+		t.Error("needs attention says why")
+	}
+	if strings.Contains(body, "The last backup didn") {
+		t.Error("not each failure as well")
+	}
+
+	// A new main backup: nothing more to say.
+	fm.destination, fm.lostMain = "provider:2", nil
+	if _, body = h.get("/backups"); strings.Contains(body, "left the lab") {
+		t.Error("a new main backup ends it")
 	}
 }

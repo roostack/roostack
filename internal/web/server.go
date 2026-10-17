@@ -225,6 +225,9 @@ type ServiceManager interface {
 	// ChangeS3Key gives Roostack a new key for an online storage account,
 	// and every server backing up there its new credentials.
 	ChangeS3Key(ctx context.Context, ref, accessKey, secretKey string) error
+	// LostMainBackup says whether a server's main backup was on a server
+	// that left the lab, while it has no new one.
+	LostMainBackup(ctx context.Context, serverID string) (store.LostBackup, bool)
 }
 
 // LabRestores restores a service from any of the lab's backups, onto any
