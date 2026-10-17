@@ -56,6 +56,9 @@ type Repo struct {
 	// unshare, so it can read files owned by container users
 	// (docs/ASSUMPTIONS.md B2). Launch must handle cancellation.
 	Launch func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd
+	// Hints, if set, tells restic which key file to try (hints.go), so a
+	// slow key someone added doesn't slow every open.
+	Hints *KeyHints
 }
 
 // Retention is how many snapshots to keep (SPEC.md §6.9 defaults).
@@ -119,6 +122,9 @@ func (r *Repo) command(ctx context.Context, args ...string) *exec.Cmd {
 		env = append(env, "RESTIC_CACHE_DIR="+r.CacheDir)
 	}
 	env = append(env, r.Env...)
+	if hint := r.keyHint(ctx); hint != "" {
+		env = append(env, "RESTIC_KEY_HINT="+hint)
+	}
 	var keysErr error
 	if r.Credentials != nil {
 		creds, err := r.Credentials(ctx)
@@ -181,8 +187,15 @@ func (r *Repo) Init(ctx context.Context) error {
 	if !errors.Is(err, ErrNoRepository) {
 		return err // exists (nil) or a real error
 	}
-	_, err = r.run(ctx, "init")
-	return err
+	if _, err = r.run(ctx, "init"); err != nil {
+		return err
+	}
+	// Its only key is this one: remember it while nobody can have added a
+	// slow one (hints.go).
+	if r.Hints != nil {
+		r.recordHint(ctx)
+	}
+	return nil
 }
 
 // Dump writes a folder from a snapshot as a tar stream (paths in it are
@@ -215,28 +228,43 @@ func (r *Repo) DumpFile(ctx context.Context, snapshotID, file string) ([]byte, e
 
 // AddKey adds another key (password) to the repository, e.g. a server's
 // own key next to the recovery key (SPEC.md §10.10). user names it in
-// `restic key list`.
+// `restic key list`. It returns the new key's ID (for a key hint, which it
+// records for this Repo's URL), or "" if restic didn't say.
 //
 // The new key goes in a file next to the repository's key file, not in
 // /tmp: restic may run outside Roostack's sandbox (Launch, for a drive),
 // where Roostack's private /tmp doesn't exist, but the key file's folder
 // is visible to both. CreateTemp makes it 0600.
-func (r *Repo) AddKey(ctx context.Context, key, user string) error {
+func (r *Repo) AddKey(ctx context.Context, key, user string) (string, error) {
 	f, err := os.CreateTemp(filepath.Dir(r.PasswordFile), ".new-key-*")
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer os.Remove(f.Name())
 	if _, err := f.WriteString(key + "\n"); err != nil {
 		f.Close()
-		return err
+		return "", err
 	}
 	if err := f.Close(); err != nil {
-		return err
+		return "", err
 	}
-	_, err = r.run(ctx, "key", "add", "--new-password-file", f.Name(), "--user", user, "--host", "roostack")
-	return err
+	out, err := r.run(ctx, "key", "add", "--new-password-file", f.Name(), "--user", user, "--host", "roostack")
+	if err != nil {
+		return "", err
+	}
+	m := addedKey.FindSubmatch(out)
+	if m == nil {
+		return "", nil
+	}
+	id := string(m[1])
+	if r.Hints != nil {
+		r.Hints.Set(r.URL, []byte(key), id)
+	}
+	return id, nil
 }
+
+// addedKey is what `restic key add` says (0.18: "saved new key with ID …").
+var addedKey = regexp.MustCompile(`saved new key with ID ([0-9a-f]{8,64})`)
 
 // Key is one of a repository's keys (`restic key list`).
 type Key struct {

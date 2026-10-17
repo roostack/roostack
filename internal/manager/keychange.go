@@ -281,7 +281,9 @@ func (m *Manager) addNewKey(ctx context.Context, act *activity.Log, k *KeyChange
 			if err != nil {
 				return err
 			}
-			if err := old.AddKey(ctx, strings.TrimSpace(string(key)), "recovery"); err != nil {
+			// AddKey records the new key's ID for the key hint, which the
+			// controller then uses with the new key (ASSUMPTIONS O6).
+			if _, err := old.AddKey(ctx, strings.TrimSpace(string(key)), "recovery"); err != nil {
 				return err
 			}
 			_, err = next.Keys(ctx)

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -57,6 +58,8 @@ type BackupCopy struct {
 	Env        []string `json:"env,omitempty"`
 	Cloud      bool     `json:"cloud,omitempty"`
 	Key        string   `json:"key,omitempty"`
+	// KeyHint is the ID of its key in the repository (backup.KeyHints).
+	KeyHint string `json:"key_hint,omitempty"`
 	// Drive is the drive it's on, if it's one.
 	Drive config.BackupDrive `json:"drive,omitzero"`
 }
@@ -70,6 +73,10 @@ type BackupDestination struct {
 	// Cloud: in Roostack Cloud backup, with short-lived keys (no Env).
 	Cloud bool   `json:"cloud,omitempty"`
 	Key   string `json:"key,omitempty"`
+	// KeyHint is the ID of the server's key there (its own, or the
+	// recovery key's for the controller), so restic tries no other key
+	// (backup.KeyHints, docs/ASSUMPTIONS.md O6).
+	KeyHint string `json:"key_hint,omitempty"`
 	// PrunedByController: this server only adds backups.
 	PrunedByController bool `json:"pruned_by_controller,omitempty"`
 	// Drive is the drive it's on, if it's one (backups check it's there).
@@ -294,6 +301,7 @@ func (h *HostSettings) SetBackupDestination(ctx context.Context, d BackupDestina
 			return err
 		}
 	}
+	h.recordKeyHint(d.Repository, backup.KeyFile(h.Lab.Paths), d.KeyHint)
 	if err := config.Update(h.LabPath, func(l *config.Lab) {
 		l.Backup.Repository, l.Backup.Env, l.Backup.PrunedByController, l.Backup.Cloud = d.Repository, d.Env, d.PrunedByController, d.Cloud
 		l.Backup.Drive = d.Drive
@@ -337,6 +345,7 @@ func (h *HostSettings) SetBackupCopies(ctx context.Context, copies []BackupCopy)
 				return err
 			}
 		}
+		h.recordKeyHint(c.Repository, cmp.Or(keyFile, backup.KeyFile(h.Lab.Paths)), c.KeyHint)
 		if c.Drive == (config.BackupDrive{}) && known {
 			c.Drive = old.Drive
 		}
@@ -347,6 +356,17 @@ func (h *HostSettings) SetBackupCopies(ctx context.Context, copies []BackupCopy)
 	}
 	h.Restart()
 	return nil
+}
+
+// recordKeyHint remembers the controller's hint to the key in keyFile
+// (backup.KeyHints); without one, restic is asked when first needed.
+func (h *HostSettings) recordKeyHint(repository, keyFile, hint string) {
+	if hint == "" {
+		return
+	}
+	if err := backup.Hints(h.Lab.Paths).SetFor(repository, keyFile, hint); err != nil {
+		slog.Warn("recording a backup key hint", "repository", repository, "err", err)
+	}
 }
 
 // fileName makes a destination reference ("provider:3") safe as a file name.

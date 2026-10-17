@@ -52,9 +52,11 @@ func TestBackupDestinationOnAServersDisk(t *testing.T) {
 	recovery := filepath.Join(dir, "recovery")
 	os.WriteFile(recovery, []byte("the recovery key\n"), 0o600)
 	var urls []string
+	hints := &backup.KeyHints{File: filepath.Join(dir, "hints.json")}
 	m.OpenRepo = func(url string, env []string) *backup.Repo {
 		urls = append(urls, url)
-		return &backup.Repo{Bin: bin, URL: filepath.Join(dir, "repo"), PasswordFile: recovery, CacheDir: filepath.Join(dir, "cache")}
+		return &backup.Repo{Bin: bin, URL: filepath.Join(dir, "repo"), PasswordFile: recovery, CacheDir: filepath.Join(dir, "cache"),
+			Hints: hints}
 	}
 	ctx := context.Background()
 
@@ -111,6 +113,15 @@ func TestBackupDestinationOnAServersDisk(t *testing.T) {
 	r := &backup.Repo{Bin: bin, URL: filepath.Join(dir, "repo"), PasswordFile: server, CacheDir: filepath.Join(dir, "cache")}
 	if _, err := r.Snapshots(ctx); err != nil {
 		t.Errorf("server key: %v", err)
+	}
+	// It's told its key's ID for the key hint, and the controller noted
+	// the recovery key's when it made the repository (ASSUMPTIONS O6).
+	if id, _ := r.CurrentKey(ctx); id == "" || d.KeyHint != id {
+		t.Errorf("key hint %q, the server's key is %q", d.KeyHint, id)
+	}
+	recoveryKey, _ := os.ReadFile(recovery)
+	if id := hints.Get(filepath.Join(dir, "repo"), recoveryKey); id == "" || id == d.KeyHint {
+		t.Errorf("the recovery key's hint = %q", id)
 	}
 	// nuc's store lets the vps and the controller in.
 	stg := m.storageFor(ctx, "n-0000000001")

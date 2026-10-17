@@ -159,6 +159,7 @@ func newRepo(lab config.Lab, launch backupLaunch) (*backup.Repo, error) {
 	r := &backup.Repo{
 		Bin: restic, URL: lab.Backup.Repository, PasswordFile: backup.KeyFile(lab.Paths),
 		Env: lab.Backup.Env, LimitUploadKiB: lab.Backup.LimitUploadKiB, Launch: unshared(launch),
+		Hints: backup.Hints(lab.Paths),
 	}
 	if lab.Backup.Cloud {
 		r.Credentials = cloudBackupCache(lab).Env
@@ -213,7 +214,7 @@ func copyRepos(lab config.Lab, launch backupLaunch) []backup.Copy {
 	for _, c := range lab.Backup.Copies {
 		keyFile := cmp.Or(c.KeyFile, backup.KeyFile(lab.Paths))
 		r := &backup.Repo{Bin: restic, URL: c.Repository, PasswordFile: keyFile, Env: c.Env,
-			LimitUploadKiB: lab.Backup.LimitUploadKiB, Launch: unshared(launch)}
+			LimitUploadKiB: lab.Backup.LimitUploadKiB, Launch: unshared(launch), Hints: backup.Hints(lab.Paths)}
 		if c.Cloud {
 			r.Credentials = cloudBackupCache(lab).Env
 		}

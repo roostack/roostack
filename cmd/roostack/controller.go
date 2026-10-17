@@ -79,7 +79,8 @@ func repoOpener(lab config.Lab) func(url string, env []string) *backup.Repo {
 		if err != nil {
 			bin = "restic"
 		}
-		repo := &backup.Repo{Bin: bin, URL: url, PasswordFile: backup.KeyFile(lab.Paths), Env: env}
+		repo := &backup.Repo{Bin: bin, URL: url, PasswordFile: backup.KeyFile(lab.Paths), Env: env,
+			Hints: backup.Hints(lab.Paths)}
 		// A folder (a drive) is written outside Roostack's sandbox, as backups are.
 		if strings.HasPrefix(url, "/") {
 			repo.Launch = unshared(userLaunch)
