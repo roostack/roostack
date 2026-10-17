@@ -210,6 +210,13 @@ var migrations = []string{
 	// with its join code, kept once it has joined.
 	`ALTER TABLE join_codes ADD COLUMN dial TEXT NOT NULL DEFAULT '';
 	ALTER TABLE servers ADD COLUMN dial TEXT NOT NULL DEFAULT '';`,
+	// Main backups that were on a server that left the lab, until each
+	// server has a new one (SPEC.md §10.10).
+	`CREATE TABLE lost_backups (
+		server_id TEXT PRIMARY KEY,
+		host_name TEXT NOT NULL,
+		lost_at   INTEGER NOT NULL
+	);`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -1179,6 +1186,51 @@ func (s *Store) SetBackupTarget(ctx context.Context, t BackupTarget) error {
 func (s *Store) RemoveBackupTarget(ctx context.Context, serverID string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM backup_targets WHERE server_id = ?`, serverID)
 	return err
+}
+
+// LostBackup is a server's main backup that was on another server's disk
+// when that server left the lab: nothing can reach it now, and the server
+// needs a new place for its backups (SPEC.md §10.10).
+type LostBackup struct {
+	ServerID string
+	// HostName is the name of the server it was on.
+	HostName string
+	Lost     time.Time
+}
+
+// SetLostBackup records that a server's main backup was lost.
+func (s *Store) SetLostBackup(ctx context.Context, l LostBackup) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO lost_backups (server_id, host_name, lost_at) VALUES (?, ?, ?)
+		ON CONFLICT(server_id) DO UPDATE SET host_name = excluded.host_name, lost_at = excluded.lost_at`,
+		l.ServerID, l.HostName, l.Lost.Unix())
+	return err
+}
+
+// RemoveLostBackup forgets a lost main backup (the server has a new one,
+// or left the lab too).
+func (s *Store) RemoveLostBackup(ctx context.Context, serverID string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM lost_backups WHERE server_id = ?`, serverID)
+	return err
+}
+
+// LostBackups lists the lost main backups.
+func (s *Store) LostBackups(ctx context.Context) ([]LostBackup, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT server_id, host_name, lost_at FROM lost_backups ORDER BY server_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []LostBackup
+	for rows.Next() {
+		var l LostBackup
+		var lost int64
+		if err := rows.Scan(&l.ServerID, &l.HostName, &lost); err != nil {
+			return nil, err
+		}
+		l.Lost = time.Unix(lost, 0)
+		out = append(out, l)
+	}
+	return out, rows.Err()
 }
 
 // BackupTargets lists where each server backs up.

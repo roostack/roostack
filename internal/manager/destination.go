@@ -92,10 +92,15 @@ type Access struct {
 	// they're on its own disks, or it holds the account's key.
 	CanDelete bool
 	// HidesOnly: deleting there only hides files (Backblaze, with a key
-	// Roostack made). KeepsHidden is how many days the bucket keeps hidden
-	// files before erasing them: 0 for good, -1 not known.
+	// Roostack made; or a bucket that keeps old versions, with a key that
+	// can't erase them: S3Check). KeepsHidden is how many days the bucket
+	// keeps hidden files before erasing them: 0 for good, -1 not known.
 	HidesOnly   bool
 	KeepsHidden int
+	// Versioned: the storage keeps old versions of what's overwritten or
+	// deleted (Backblaze always), so the controller can roll the server's
+	// folder back to an earlier time (RollBack).
+	Versioned bool
 }
 
 // MinKeepHidden is how many days a bucket must keep hidden files for a
@@ -140,9 +145,20 @@ func (m *Manager) access(ctx context.Context, serverID string, d destination, t 
 	case destS3:
 		if d.isB2() && t.ScopedKey != "" {
 			labID, _ := m.labID(ctx)
-			return Access{B2: true, HidesOnly: true, KeepsHidden: m.keepsHidden(ctx, d.s3, backup.ServerFolder(d.s3.Prefix, labID, serverID)+"/")}
+			return Access{B2: true, HidesOnly: true, Versioned: true,
+				KeepsHidden: m.keepsHidden(ctx, d.s3, backup.ServerFolder(d.s3.Prefix, labID, serverID)+"/")}
 		}
-		return Access{B2: d.isB2(), CanDelete: true}
+		if d.isB2() {
+			return Access{B2: true, CanDelete: true, Versioned: true}
+		}
+		// Other providers: every server has the account's key.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		c := m.s3CheckOf(ctx, d.s3)
+		if c.HidesOnly() {
+			return Access{HidesOnly: true, KeepsHidden: c.KeepsOld, Versioned: true}
+		}
+		return Access{CanDelete: true, Versioned: c.Err == "" && c.Versioned}
 	}
 	// Drives, folders, and what the server set up itself.
 	return Access{CanDelete: true}

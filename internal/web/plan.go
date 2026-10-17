@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -67,6 +68,16 @@ type planEntry struct {
 	Path, Via      string
 	Host, HostName string
 	LinkFailed     bool
+	// RollbackAction is where rolling this backup back to an earlier time
+	// is posted, where the storage keeps old versions (Access.Versioned);
+	// RollbackOpen opens its form, RollbackBefore is the time in it
+	// (datetime-local's form). RollbackLog is the latest check or
+	// rollback (for an hour), and RollbackPlan a check that can be acted
+	// on.
+	RollbackAction, RollbackBefore string
+	RollbackOpen                   bool
+	RollbackLog                    *activityView
+	RollbackPlan                   *manager.RollbackPlan
 }
 
 // planSlot is an empty place in the plan, with a suggestion for it.
@@ -105,6 +116,9 @@ type planView struct {
 	Error                       string
 	// Next is when the next backup runs (zero if unknown).
 	Next time.Time
+	// Lost: the main backup was on a server that left the lab, and there's
+	// no new one yet.
+	Lost *store.LostBackup
 	// Internet: this server is the lab on the internet (a cloud server,
 	// SPEC.md §6.12): "away" means away from it and its provider, and a
 	// drive at home isn't there to suggest.
@@ -205,6 +219,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 				e.KeyChange = a
 			}
 		}
+		if e.Access.Versioned && !wizard {
+			s.planRollback(r, m, &e)
+		}
 		if e.Kind == manager.KindServer {
 			e.AtHome, e.Away, e.AskWhere = s.backupPlace(ctx, m, strings.TrimPrefix(e.Ref, "server:"))
 		}
@@ -218,6 +235,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 			e.Last, e.LastOK, e.Retry = st.Last, st.LastOK, st.Retry
 		}
 		add(e)
+	}
+	if l, ok := s.Manager.LostMainBackup(ctx, m.ID); ok && !hasMain {
+		p.Lost = &l
 	}
 	for _, c := range s.Manager.BackupCopiesOf(ctx, m.ID) {
 		e := planEntry{Ref: c.Ref, Title: c.Title, Repository: c.Repository}
@@ -321,7 +341,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	switch {
 	case p.Replacing:
 		p.Adding, p.ChooserTitle, p.ChooserButton = 2, "Where should the main backup go instead?", "Use this for the main backup"
-	case p.Adding == 2:
+	case p.Adding == 2 || p.Lost != nil:
 		p.ChooserTitle, p.ChooserButton = "Where should your main backup go?", "Add the main backup"
 	case p.Adding > planCopies:
 		p.ChooserTitle, p.ChooserButton = "Where should the extra backup go?", "Add the extra backup"
@@ -630,4 +650,99 @@ func (s *Server) renderPlanPage(w http.ResponseWriter, r *http.Request, wizard b
 	}
 	data["Error"] = msg
 	s.renderBackups(w, r, data)
+}
+
+// rollbackTime is how the time to go back to is passed ("before"): a
+// date and a time, as datetime-local writes them.
+const rollbackTime = "2006-01-02T15:04"
+
+// rollbackBefore is the time to go back to: "before", or the form's date
+// and time fields.
+func rollbackBefore(r *http.Request) (time.Time, error) {
+	v := r.FormValue("before")
+	if v == "" {
+		v = r.FormValue("before_date") + "T" + r.FormValue("before_time")
+	}
+	return time.ParseInLocation(rollbackTime, v, time.Local)
+}
+
+// planRollback fills in rolling a backup back (SPEC.md §10.10): the form,
+// the latest check or rollback, and a check that can be acted on.
+func (s *Server) planRollback(r *http.Request, m serverRef, e *planEntry) {
+	e.RollbackAction = m.path("/backups/plan", "/backups/plan") + "/rollback"
+	e.RollbackOpen = r.FormValue("rollback") == e.Ref
+	if a := s.activityFor(r, activity.BackupRollbackFor(m.ID, e.Ref)); a != nil && (a.Running() || time.Since(a.Finished) < time.Hour) {
+		e.RollbackLog = a
+		e.RollbackOpen = e.RollbackOpen || a.Running()
+	}
+	before := time.Now().Add(-24 * time.Hour)
+	if p := s.Manager.RollbackChecked(m.ID, e.Ref); p != nil {
+		e.RollbackPlan, before = p, p.Before
+	} else if t, err := rollbackBefore(r); err == nil {
+		before = t
+	}
+	e.RollbackBefore = before.Local().Format(rollbackTime)
+}
+
+// planRollbackSubmit checks what putting one of a server's backups back
+// as it was at a time changes ("check"), or, once checked, does it
+// ("run"), in the background.
+func (s *Server) planRollbackSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil || s.serverOf(r) == nil {
+		http.NotFound(w, r)
+		return
+	}
+	m := s.serverRefOf(r)
+	ref := r.FormValue("destination")
+	if !s.planRefs(r, m)[ref] {
+		http.NotFound(w, r)
+		return
+	}
+	ctx := r.Context()
+	before, err := rollbackBefore(r)
+	if err != nil {
+		s.renderPlanPage(w, r, false, "Choose the date and time to go back to.")
+		return
+	}
+	run := r.FormValue("step") == "run"
+	if run {
+		err = s.Manager.RollBack(ctx, m.ID, ref, before)
+	} else {
+		err = s.Manager.CheckRollback(ctx, m.ID, ref, before)
+	}
+	if msg, ok := userMessage(err); ok {
+		s.renderPlanPage(w, r, false, msg)
+		return
+	}
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	if run {
+		s.Store.Audit(ctx, currentUser(r), "backup", "rolled "+m.Label()+"'s backups at "+ref+" back to "+before.Format(time.RFC3339))
+	}
+	redirect(w, r, m.Backups()+"?"+url.Values{"rollback": {ref}}.Encode()+"#plan-rollback-"+strconv.Itoa(s.planNumber(r, m, ref)))
+}
+
+// planNumber is a backup's number in a server's plan (2 for the main
+// backup, then its copies in order), as backupPlan numbers them.
+func (s *Server) planNumber(r *http.Request, m serverRef, ref string) int {
+	n := 2
+	if t, _, ok := s.Manager.BackupTargetOf(r.Context(), m.ID); ok {
+		if t.Provider == ref {
+			return n
+		}
+		n++
+	}
+	for _, c := range s.Manager.BackupCopiesOf(r.Context(), m.ID) {
+		if c.Ref == ref {
+			break
+		}
+		n++
+	}
+	return n
 }

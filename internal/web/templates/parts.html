@@ -388,7 +388,8 @@
         storage, a friend's lab, or a server somewhere else survives it.</li>{{end}}
       <li><strong>1 safe from ransomware.</strong> Ransomware, or someone who takes over the server, can delete the backups the server
         can delete. Backups on another server in your lab, at a friend's lab, in Roostack Cloud or on Backblaze B2 (with a key Roostack
-        makes) can only be added to from here, so they survive it.</li>
+        makes) can only be added to from here, so they survive it, as do backups in online storage that keeps old versions with a
+        key that can't erase them.</li>
     </ul>
     <p>Roostack backs up every night, to each backup below. Backups are encrypted, and readable with your recovery key.
       Restores use the <strong>main backup</strong> first{{if not .Internet}}: it's best at home, where restoring is quickest{{end}}. Extra backups past
@@ -396,6 +397,7 @@
   </details>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{with .Hint}}{{notice "info" .}}{{end}}
+  {{with .Lost}}{{notice "error" (printf "The main backup was on %s's disk, and %s left the lab on %s, so nothing can reach those backups now. Choose a new place for the main backup: until then, nightly backups fail%s." .HostName .HostName (.Lost.Local.Format "2 January") (or (and $.Plan.Entries ", though the other backups still run") "")) (printf "link=%s?add=%d#plan" $.Plan.Back $.Plan.More) "linkText=Choose a new place"}}{{end}}
   {{with .Busy}}{{activity .}}{{end}}
   <ol class="plan-list">
     <li class="plan-card plan-data">
@@ -427,13 +429,14 @@
           <summary>Tell me more</summary>
           {{template "b2-key-help" "change"}}
         </details>
+        {{- else if and .Access.CanDelete .Access.Versioned (eq .Kind "online")}}{{notice "warn" "If this server were taken over, its backups here could be deleted too: the bucket keeps old versions, but the account's key, which every server here has, can erase them. Give Roostack a key that can't delete old versions (in AWS's terms, without s3:DeleteObjectVersion)."}}
         {{- else if and .Access.CanDelete (eq .Kind "online")}}{{notice "warn" "If this server were taken over, its backups here could be deleted too: it has the account's key. To protect them, turn on versioning for the bucket with a rule that keeps old versions for 30 days, and give Roostack a key that can't delete old versions. Or use Backblaze B2, where Roostack gives each server a key that can't delete."}}
         {{- else if .Access.CanDelete}}{{notice "warn" "If this server were taken over, its backups here could be deleted too. Keep another backup it can't delete: on another server, at a friend's lab, Roostack Cloud or Backblaze B2."}}{{end}}
         {{with .KeyChange}}{{activity .}}{{end}}
-        {{with .Access}}{{if .HidesOnly}}<p class="hint">This server's key here can add backups but not erase them; anything it deletes is only hidden.</p>
+        {{with .Access}}{{if .HidesOnly}}<p class="hint">{{if .B2}}This server's key here can add backups but not erase them{{else}}The bucket keeps old versions, and the account's key can't erase them{{end}}; anything this server deletes is only hidden.</p>
         {{if lt .KeepsHidden 0}}<p class="hint">Roostack couldn't check how long this bucket keeps hidden files.</p>
         {{- else if and (gt .KeepsHidden 0) (lt .KeepsHidden 30)}}{{$after := printf "after %d days" .KeepsHidden}}{{if eq .KeepsHidden 1}}{{$after = "after a day"}}{{end}}
-        {{- notice "warn" (printf "This bucket deletes hidden files %s, so a server that's taken over could still destroy these backups. In Backblaze's settings, keep old versions for at least 30 days." $after)}}{{end}}
+        {{- notice "warn" (printf "This bucket deletes hidden files %s, so a server that's taken over could still destroy these backups. %s, keep old versions for at least 30 days." $after (or (and .B2 "In Backblaze's settings") "In the bucket's lifecycle rules"))}}{{end}}
         {{- end}}{{end}}
         {{range .AskWhere}}
         <div class="plan-where">
@@ -454,10 +457,11 @@
           {{- if ge .Free 0}}{{if .Stored}} · {{end}}<span{{with .LowSpace}} class="space-low"{{end}}>{{size .Free}} free on {{.FreeOn}}</span>{{end}}
           {{- if .Lab}}{{if or .Stored (ge .Free 0)}} · {{end}}your lab uses {{if ge .Lab.Used 0}}{{size .Lab.Used}} of {{end}}its {{size .Lab.Quota}} there{{end}}</p>{{end}}
         {{if not $.Plan.Wizard}}
-        <details class="plan-manage" id="plan-manage-{{.Number}}"{{if .KeyOpen}} open{{end}}>
+        <details class="plan-manage" id="plan-manage-{{.Number}}"{{if or .KeyOpen .RollbackOpen}} open{{end}}>
           <summary>Manage</summary>
           <p class="hint">Where it is: <code>{{shownRepo .Repository}}</code></p>
           {{if .KeyAction}}{{template "plan-key" .}}{{end}}
+          {{if .RollbackAction}}{{template "plan-rollback" .}}{{end}}
           {{if .Main}}<p><a href="{{$.Plan.Back}}?replace=1#plan">Change where the main backup goes…</a>
             <span class="hint">A new backup starts there; the backups here stay.</span></p>
           {{else}}
@@ -518,6 +522,39 @@
       <span class="hint" x-show="busy" x-cloak><span class="spinner" aria-hidden="true"></span> Checking the key…</span>
     </div>
   </form>
+</details>
+{{end}}
+
+{{/* plan-rollback: putting a backup at online storage that keeps old
+     versions back as it was at a time (planEntry), under the backup's
+     Manage: check what changes, then confirm (SPEC.md §10.10). */}}
+{{define "plan-rollback"}}
+<details class="plan-key" id="plan-rollback-{{.Number}}"{{if .RollbackOpen}} open{{end}}>
+  <summary>Bring back what was hidden or changed…</summary>
+  <p class="hint">If this server was taken over, it may have hidden or overwritten its backups here. {{.Title}} keeps old versions, so
+    Roostack can put every file in this backup back as it was at a time you choose. Nothing is erased: anything added since is
+    hidden, and you can undo it by going back to a time just before. Remove a server that was taken over from the lab first, so it
+    can't change anything again.</p>
+  <form method="post" action="{{.RollbackAction}}" x-data="{ busy: false }" x-on:submit="busy = true">
+    <input type="hidden" name="destination" value="{{.Ref}}">
+    <input type="hidden" name="step" value="check">
+    {{/* A date and a time, not one datetime-local: Chrome's is too wide for a phone here. */}}
+    <fieldset class="plan-when">
+      <legend>Go back to</legend>
+      <input type="date" name="before_date" value="{{slice .RollbackBefore 0 10}}" aria-label="Date" required>
+      <input type="time" name="before_time" value="{{slice .RollbackBefore 11}}" aria-label="Time" required>
+    </fieldset>
+    <div class="plan-actions">
+      <button type="submit" class="secondary" x-bind:disabled="busy">Check what changes</button>
+      <span class="hint">Nothing changes yet.</span>
+    </div>
+  </form>
+  {{with .RollbackLog}}{{activity .}}{{end}}
+  {{with .RollbackPlan}}<div>{{noticeList "info" (printf "Going back to %s:" (.Before.Local.Format "2 January 15:04")) .Summary}}</div>{{if not .Empty}}
+  <div class="plan-actions">
+    {{confirm $.RollbackAction (printf "Go back to %s in these backups? %s Nothing is erased, and you can undo it." (.Before.Local.Format "2 January 15:04") .SummaryText) "Go back to this time" "" (printf "destination=%s" $.Ref) (printf "before=%s" $.RollbackBefore) "step=run"}}
+  </div>
+  {{end}}{{end}}
 </details>
 {{end}}
 
