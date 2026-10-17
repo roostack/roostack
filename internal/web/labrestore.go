@@ -174,8 +174,56 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: restoreCookie, Value: id, Path: "/setup/restore", HttpOnly: true,
 		SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r)})
-	data["Found"], data["Unopened"], data["Searched"] = found, unopened, true
+	data["Found"], data["Searched"] = found, true
+	data["Groups"], data["Forged"], data["Unopened"] = labGroups(found, unopened)
 	s.render(w, "setup-restore", data)
+}
+
+// labChoice is a backup found, with its place in the search (what
+// the restore form sends).
+type labChoice struct {
+	Index int
+	labrestore.Found
+}
+
+// labGroup is one lab's backups in Roostack Cloud (Lab is nil for
+// backups found elsewhere). Gone says why a lab has none.
+type labGroup struct {
+	Lab   *labrestore.CloudLab
+	Found []labChoice
+	Gone  string
+}
+
+// labGroups sorts a search's results for the page: the backups by
+// lab in Roostack Cloud (a lab unlinked and linked again has two, and the
+// person chooses; SPEC.md §6.9), the backups refused as forged, and the
+// rest that weren't opened.
+func labGroups(found []labrestore.Found, unopened []labrestore.Unopened) (groups []*labGroup, forged, others []labrestore.Unopened) {
+	group := func(lab *labrestore.CloudLab) *labGroup {
+		for _, g := range groups {
+			if g.Lab == lab {
+				return g
+			}
+		}
+		g := &labGroup{Lab: lab}
+		groups = append(groups, g)
+		return g
+	}
+	for i, fd := range found {
+		g := group(fd.Lab)
+		g.Found = append(g.Found, labChoice{Index: i, Found: fd})
+	}
+	for _, u := range unopened {
+		switch {
+		case u.Forged:
+			forged = append(forged, u)
+		case u.Repository == "" && u.Lab != nil:
+			group(u.Lab).Gone = u.Problem
+		default:
+			others = append(others, u)
+		}
+	}
+	return groups, forged, others
 }
 
 func (s *Server) labRestoreStart(w http.ResponseWriter, r *http.Request) {

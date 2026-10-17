@@ -1,6 +1,7 @@
 package labrestore
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -69,6 +71,16 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 	if !fd.Controller {
 		return errors.New("that's a backup of a server that the controller manages: restore the controller's backup first")
 	}
+	if fd.Folder != fd.ServerID {
+		// Find refuses these; a caller holding one built elsewhere too.
+		return &forgedError{name: cmp.Or(fd.ServerName, fd.ServerID), id: fd.ServerID, folder: fd.Folder}
+	}
+	// Only what Roostack backs up of a server: its state and the secrets
+	// store (backup.LabPlan). A backup listing anything else wasn't made
+	// by Roostack, and isn't put back (security review of 2026-10-16, M26).
+	if err := allowed(fd.Snapshot, "the server's backup", []string{paths.StateDir, secretsStore(paths)}, nil); err != nil {
+		return err
+	}
 	log.Step("Restoring %s's settings from the backup of %s", fd.ServerName, fd.Snapshot.Time.Local().Format("2 January 2006 15:04"))
 	if err := restorePaths(ctx, paths, repo, fd.Snapshot, log); err != nil {
 		return err
@@ -85,6 +97,17 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 		if err != nil {
 			log.Printf("%s: %v", name, err)
 			continue
+		}
+		// A service's backup holds only its own folders (generate's
+		// storage: under the services' folder, or the media folder).
+		var own []string
+		for _, dir := range []string{paths.ServicesDir, paths.MediaDir} {
+			if dir != "" {
+				own = append(own, filepath.Join(dir, name))
+			}
+		}
+		if err := allowed(*snap, name+"'s backup", nil, own); err != nil {
+			return err
 		}
 		log.Step("Restoring %s from its backup of %s", name, snap.Time.Local().Format("2 January 2006 15:04"))
 		if err := restorePaths(ctx, paths, repo, *snap, log); err != nil {
@@ -109,6 +132,30 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 	}
 	log.Step("Restarting Roostack as the restored lab")
 	return marker{Repository: fd.Repository, Snapshot: fd.Snapshot.ID, Restored: time.Now(), Step: "database"}.save(paths)
+}
+
+// secretsStore is the Podman secrets store, which a server's backup
+// holds beside the state folder (as backup.LabPlan names it).
+func secretsStore(paths config.Paths) string {
+	return filepath.Join(paths.HomeDir, ".local", "share", "containers", "storage", "secrets")
+}
+
+// allowed checks that each of a snapshot's paths is one of exact, or a
+// folder inside one of under, before any is put back: what restores
+// trust of a backup is where its files go.
+func allowed(snap backup.Snapshot, what string, exact, under []string) error {
+	for _, p := range snap.Paths {
+		ok := filepath.IsAbs(p) && filepath.Clean(p) == p && slices.Contains(exact, p)
+		for _, dir := range under {
+			ok = ok || filepath.IsAbs(p) && filepath.Clean(p) == p && (p == dir || strings.HasPrefix(p, dir+"/"))
+		}
+		if !ok {
+			return fmt.Errorf("%s holds %s, which isn't one of the places Roostack restores (Roostack's state folder, the secrets store and "+
+				"each service's folders, as this server's paths in lab.yaml set them): it wasn't made by Roostack, or the old server "+
+				"kept its files elsewhere (set the paths in lab.yaml to match first)", what, p)
+		}
+	}
+	return nil
 }
 
 // restorePaths puts every path of a snapshot back where it was, as it was
