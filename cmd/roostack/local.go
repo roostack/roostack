@@ -61,6 +61,7 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 			SetZone: agentClient.SetTimezone,
 			Zone:    hosttime.Zone, Zones: hosttime.Zones,
 			SSHClients: firewall.SSHClients,
+			SSHServer:  agentClient,
 			UseZone: func(name string) {
 				if loc, err := time.LoadLocation(name); err == nil {
 					time.Local = loc

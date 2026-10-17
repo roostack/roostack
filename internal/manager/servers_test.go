@@ -99,8 +99,8 @@ func (f *fakeServerSettings) SetTimezone(_ context.Context, z string) (bool, err
 	f.zone = z
 	return changed, nil
 }
-func (f *fakeServerSettings) SSHAccess() (node.SSHAccess, error)         { return node.SSHAccess{}, nil }
-func (f *fakeServerSettings) SetSSH(context.Context, string, bool) error { return nil }
+func (f *fakeServerSettings) SSHAccess(bool) (node.SSHAccess, error)       { return node.SSHAccess{}, nil }
+func (f *fakeServerSettings) SetSSH(context.Context, node.SSHChange) error { return nil }
 func (f *fakeServerSettings) SetRestartPolicy(context.Context, string, int) error {
 	return nil
 }
