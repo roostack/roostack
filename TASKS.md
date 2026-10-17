@@ -453,11 +453,11 @@ Changes to the lab ↔ Cloud contract (`cloudapi`) made with Roostack Cloud's si
 
 - [x] M10 (lab side): registering the recovery identity carries a signature over the lab's ID (`cloudapi.ProveRegister`); Cloud and `cloudtest` refuse one without it (SPEC §6.9)
 - [x] M10 (lab side): a restore from Roostack Cloud is given every lab with the recovery key (`cloudapi.RestoreAccess.Labs`: a lab unlinked and linked again has two); the restore page shows each with its backups, and the person chooses (SPEC §6.9)
+- [x] M26 (the restore's part): a node's own repository could hold a forged "controller" snapshot that the full-lab restore offered beside the real one (`labrestore/find.go` read the role from inside the snapshot). Each backup found now says whose folder it's in, a controller's backup is offered only from its own server's folder (`labrestore.FolderServer`), and a restore puts back only the state folder, the secrets store and each service's folders (SPEC §6.9)
 
 - [ ] **Not yet taken up from the review** (2026-10-16; the review is REVIEW-2026-10-16.md in the roostack-cloud checkout, not committed):
   - [ ] M24: verify on a VM what rest-server 0.14.0 `--append-only` refuses (overwriting an existing blob; overwriting `config`), record it in docs/ASSUMPTIONS.md, and add a controller-side way to quarantine files restic can't decrypt (a junk `snapshots/` or `index/` file a server appends stops every listing, prune and check of that repository), shown under Needs attention rather than only in the activity log
   - [ ] M26: `manager.PendingFor` applies on every `/v1/assignment` pull, nftables reload included, with no limit per caller: return the latest assignment unless there is none, and limit pulls per server
-  - [ ] M26: a node's own repository can hold a forged "controller" snapshot that the full-lab restore offers beside the real one (`labrestore/find.go` reads the role from inside the snapshot): show each candidate's folder, refuse a controller whose folder isn't the server it claims, and restore only the state, secrets and service folders
   - [ ] Check on a VM that the move's `tar -xpf - --strip-components` into `<dir>.incoming` (`internal/node/move.go`) can't be steered outside it by a hostile stream (`..` left after stripping, hard links)
 
 ## To discuss with the user
