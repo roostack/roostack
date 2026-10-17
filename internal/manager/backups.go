@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -43,6 +44,9 @@ type BackupStore interface {
 	RemoveBackupCopy(ctx context.Context, serverID, provider string) error
 	SetBackupTarget(ctx context.Context, t store.BackupTarget) error
 	RemoveBackupTarget(ctx context.Context, serverID string) error
+	SetLostBackup(ctx context.Context, l store.LostBackup) error
+	RemoveLostBackup(ctx context.Context, serverID string) error
+	LostBackups(ctx context.Context) ([]store.LostBackup, error)
 	StoreAdmin(ctx context.Context, serverID string) (password, hash string, ok bool, err error)
 	SetStoreAdmin(ctx context.Context, serverID, password, hash string) error
 	LabID(ctx context.Context) (string, error)
@@ -231,7 +235,29 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, server
 		return err
 	}
 	act.Step("Backups for %s go to %s", m.nameOf(serverID), choice.Title)
+	if err := m.BackupStore.RemoveLostBackup(ctx, serverID); err != nil {
+		m.Log.Warn("forgetting a lost main backup", "server", serverID, "err", err)
+	}
 	return nil
+}
+
+// LostMainBackup says whether a server's main backup was on a server that
+// left the lab, while it has no new one (SPEC.md §10.10).
+func (m *Manager) LostMainBackup(ctx context.Context, serverID string) (store.LostBackup, bool) {
+	if m.BackupStore == nil {
+		return store.LostBackup{}, false
+	}
+	targets, err := m.BackupStore.BackupTargets(ctx)
+	if err != nil || slices.ContainsFunc(targets, func(t store.BackupTarget) bool { return t.ServerID == serverID }) {
+		return store.LostBackup{}, false
+	}
+	lost, _ := m.BackupStore.LostBackups(ctx)
+	for _, l := range lost {
+		if l.ServerID == serverID {
+			return l, true
+		}
+	}
+	return store.LostBackup{}, false
 }
 
 // createRepository creates a server's repository at a choice, with the
@@ -439,6 +465,7 @@ func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 		return
 	}
 	copies, _ := m.BackupStore.BackupCopies(ctx)
+	m.BackupStore.RemoveLostBackup(ctx, serverID)
 	name := m.nameOf(serverID)
 	act := m.Activity.Start(activity.BackupSetupFor(serverID), "Taking "+name+"'s backup access away")
 	defer act.Finish(nil)
@@ -454,7 +481,13 @@ func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 			continue
 		}
 		if t.ServerID != serverID {
+			// Its plan and "needs attention" say so until it has a new
+			// one, rather than its nightly backups failing unexplained.
 			act.Printf("%s's main backup was on %s's disk: choose somewhere else on its Backups page.", m.nameOf(t.ServerID), name)
+			lost := store.LostBackup{ServerID: t.ServerID, HostName: name, Lost: time.Now()}
+			if err := m.BackupStore.SetLostBackup(ctx, lost); err != nil {
+				m.Log.Warn("recording a lost main backup", "server", t.ServerID, "err", err)
+			}
 		}
 		if err := m.BackupStore.RemoveBackupTarget(ctx, t.ServerID); err != nil {
 			m.Log.Warn("forgetting backups on a removed server", "server", name, "err", err)

@@ -105,6 +105,9 @@ type planView struct {
 	Error                       string
 	// Next is when the next backup runs (zero if unknown).
 	Next time.Time
+	// Lost: the main backup was on a server that left the lab, and there's
+	// no new one yet.
+	Lost *store.LostBackup
 	// Internet: this server is the lab on the internet (a cloud server,
 	// SPEC.md §6.12): "away" means away from it and its provider, and a
 	// drive at home isn't there to suggest.
@@ -219,6 +222,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 		}
 		add(e)
 	}
+	if l, ok := s.Manager.LostMainBackup(ctx, m.ID); ok && !hasMain {
+		p.Lost = &l
+	}
 	for _, c := range s.Manager.BackupCopiesOf(ctx, m.ID) {
 		e := planEntry{Ref: c.Ref, Title: c.Title, Repository: c.Repository}
 		if st != nil {
@@ -321,7 +327,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	switch {
 	case p.Replacing:
 		p.Adding, p.ChooserTitle, p.ChooserButton = 2, "Where should the main backup go instead?", "Use this for the main backup"
-	case p.Adding == 2:
+	case p.Adding == 2 || p.Lost != nil:
 		p.ChooserTitle, p.ChooserButton = "Where should your main backup go?", "Add the main backup"
 	case p.Adding > planCopies:
 		p.ChooserTitle, p.ChooserButton = "Where should the extra backup go?", "Add the extra backup"

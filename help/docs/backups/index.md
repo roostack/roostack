@@ -92,7 +92,10 @@ that backup together.
   months.
 
 If a backup fails or is more than two days old, it shows in **Needs
-attention** on the home page, with what to do.
+attention** on the home page, with what to do. If you remove a server that
+held another server's main backup, that server's plan and **Needs
+attention** say so straight away: choose a new place for its main backup
+(its other backups carry on meanwhile).
 
 ??? note "For technical users"
 
@@ -130,7 +133,8 @@ attention** on the home page, with what to do.
       still holds; change an account's key under **Manage** on a backup
       there.
     - **Keeping:** old backups are removed on Sunday by the lab's
-      controller (`restic forget --prune --group-by host,tags --keep-daily 7
+      controller (first `restic unlock`, which clears only stale locks,
+      such as those of a backup that crashed; then `restic forget --prune --group-by host,tags --keep-daily 7
       --keep-weekly 4 --keep-monthly 6`: each service is kept on its own, as
       each has its own snapshot, tagged `service=<name>`), then 5% of the data is read back
       (`restic check --read-data-subset=5%`).

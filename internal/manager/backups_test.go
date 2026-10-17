@@ -273,6 +273,18 @@ func TestBackupDestinationB2ScopedKey(t *testing.T) {
 	if copies, _ := st.BackupCopies(ctx); len(copies) != 0 {
 		t.Errorf("copies = %+v", copies)
 	}
+	// The server whose main backup was there is told until it has a new
+	// one.
+	if l, ok := m.LostMainBackup(ctx, "n-0000000003"); !ok || l.HostName != "vps" {
+		t.Errorf("lost main backup = %+v, %t", l, ok)
+	}
+	if _, ok := m.LostMainBackup(ctx, "n-0000000002"); ok {
+		t.Error("the removed server's own main backup is elsewhere")
+	}
+	st.SetBackupTarget(ctx, store.BackupTarget{ServerID: "n-0000000003", Provider: "provider:2", Repository: "s3:https://s3.wasabisys.com/b/y"})
+	if _, ok := m.LostMainBackup(ctx, "n-0000000003"); ok {
+		t.Error("a new main backup ends it")
+	}
 }
 
 // An extra copy of the vps's backups on nuc's disk: its own repository,
