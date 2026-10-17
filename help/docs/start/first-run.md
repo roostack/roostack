@@ -93,6 +93,65 @@ Nobody
 If you're connected over SSH right now, Roostack shows it, and warns you if
 your choice would cut that connection.
 
+Then choose **how they log in** (not asked for "Nobody", or on a server
+with no SSH server):
+
+With an SSH key only *(recommended)*
+:   Passwords are refused, so nobody can guess one, and nobody can log in as
+    `root`: log in as yourself and use `sudo`. Roostack offers this once
+    it has seen someone log in with a key, as an account that can use
+    `sudo`, so turning passwords off can't lock you out. Until then, see
+    [Set up an SSH key](#set-up-an-ssh-key), then choose **check again**.
+
+With a key or a password
+:   SSH works as before. Anyone who can reach it can try to guess a
+    password, so Roostack shows a warning on the home page until it's keys
+    only.
+
+With "Nobody", it's keys only straight away: nothing can reach SSH, so
+there's nobody to lock out, and if you open SSH later passwords are
+already off. Change any of this later in **Settings → Remote access**
+(for each server).
+
+### Set up an SSH key
+
+An SSH key is a pair of files on your own computer: a private key that
+never leaves it, and a public key you copy to the server. On your computer
+(macOS, Linux, or Windows' PowerShell):
+
+1. **Make a key**, if you don't have one (press Enter to accept where it
+   goes, and choose a passphrase):
+
+    ```bash
+    ssh-keygen -t ed25519
+    ```
+
+2. **Copy it to the server**, using your account's name and the server's
+   address (while it still takes passwords):
+
+    ```bash
+    ssh-copy-id you@192.168.1.20
+    ```
+
+    No `ssh-copy-id` (Windows)? Show the public key with
+    `type $env:USERPROFILE\.ssh\id_ed25519.pub`, then on the server add
+    that line to `~/.ssh/authorized_keys`.
+
+3. **Log in with it** once: `ssh you@192.168.1.20` shouldn't ask for the
+   server's password (it may ask for the key's passphrase). Then choose
+   **check again** on the Remote access page.
+
+The account must be able to use `sudo`, since `root` can't log in with
+keys only. On a cloud server where you only log in as `root`, make an
+account first, give it `sudo` and your key, then log in as it:
+
+```bash
+adduser you
+usermod -aG sudo you
+install -d -m 700 -o you -g you /home/you/.ssh
+install -m 600 -o you -g you ~/.ssh/authorized_keys /home/you/.ssh/
+```
+
 ## 5. Your lab's address
 
 Your services each get their own web address, with a secure (HTTPS)
@@ -153,9 +212,24 @@ and the page carries on by itself. Then you'll see the home page, ready for
     |---|---|
     | Account | The `users` table in `/var/lib/roostack/roostack.db` (the password as an argon2id hash) |
     | Time zone | The host's time zone, set by `roostack-agent` with `timedatectl` |
-    | Remote access | The nftables firewall, applied by `roostack-agent` and saved in `/etc/roostack/firewall.nft` |
+    | Remote access | The nftables firewall, applied by `roostack-agent` and saved in `/etc/roostack/firewall.nft`; keys only in `/etc/ssh/sshd_config.d/10-roostack.conf` (at once, not at the restart) |
     | Domain | `/var/lib/roostack/lab.yaml`; the DNS credentials as Podman secrets |
     | Backups | The recovery key in `/var/lib/roostack/backup-key`; the destination in the database |
 
     Settings from steps 3 to 6 take effect together at the restart at the
     end, so you don't watch Roostack restart after every step.
+
+    **Keys only** is one file, `/etc/ssh/sshd_config.d/10-roostack.conf`,
+    with `PasswordAuthentication no`, `KbdInteractiveAuthentication no`
+    and `PermitRootLogin no`. Debian's `sshd_config` reads that folder
+    first and sshd keeps the first value it reads, so it wins over later
+    files such as cloud images' `50-cloud-init.conf`. `roostack-agent`
+    checks each change with `sshd -t` (putting the old file back if sshd
+    refuses it) and then reloads SSH; logged-in sessions stay connected.
+    What Roostack shows and warns about is what sshd really does, from
+    `sshd -T`, so another file turning passwords back on is caught too
+    (a `Match` block isn't). The key check reads sshd's `Accepted
+    publickey` lines from the journal, only those journald says came from
+    root running sshd (`_UID=0`, `_EXE=/usr/lib/openssh/sshd-session`),
+    which nobody else can fake; the account must still exist, not be
+    root, and be in the `sudo` group.

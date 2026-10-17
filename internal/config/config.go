@@ -260,11 +260,20 @@ const (
 	SSHOff     = "off" // blocked
 )
 
+// How people log in over SSH (Firewall.SSHLogin; SPEC.md §6.10 item 3).
+const (
+	SSHLoginKey      = "key"      // keys only, no root logins
+	SSHLoginPassword = "password" // sshd's own settings (passwords allowed)
+)
+
 // Firewall configures the host firewall that roostack-agent applies.
 type Firewall struct {
 	// SSH is who may reach this server's SSH server. Empty means the
 	// Owner hasn't chosen yet, and Roostack leaves the firewall alone.
 	SSH string `yaml:"ssh,omitempty"`
+	// SSHLogin is how people log in over SSH: SSHLoginKey writes Roostack's
+	// drop-in for sshd. Empty means not chosen yet (or no SSH server).
+	SSHLogin string `yaml:"ssh_login,omitempty"`
 }
 
 // Restart choices (Maintenance.Restart).
@@ -582,6 +591,11 @@ func (l Lab) Validate() error {
 	case "", SSHFromLAN, SSHFromAny, SSHOff:
 	default:
 		errs = append(errs, fmt.Errorf("firewall.ssh must be %q, %q or %q", SSHFromLAN, SSHFromAny, SSHOff))
+	}
+	switch l.Firewall.SSHLogin {
+	case "", SSHLoginKey, SSHLoginPassword:
+	default:
+		errs = append(errs, fmt.Errorf("firewall.ssh_login must be %q or %q", SSHLoginKey, SSHLoginPassword))
 	}
 	if u := l.Registry.URL; u != "" {
 		if parsed, err := url.Parse(u); err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" {

@@ -163,9 +163,20 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			if owner && !mc.This {
 				if n := s.Manager.NodeByID(mc.ID); n != nil {
 					if set := n.Settings(); set != nil {
-						if a, err := set.SSHAccess(); err == nil && a.Choice == "" {
+						if a, err := set.SSHAccess(false); err == nil && a.Choice == "" {
 							add(levelWarning, mc.Name+"'s firewall is off until you choose who can log in to it over SSH.",
 								"/settings/servers/"+mc.ID+"/remote-access", "Choose")
+						}
+					}
+				}
+			}
+			// SSH takes passwords where people can reach it: a warning that
+			// lasts until it's keys only (SPEC.md §6.10 item 3).
+			if owner {
+				if n := s.Manager.NodeByID(mc.ID); n != nil {
+					if set := n.Settings(); set != nil {
+						if a, err := set.SSHAccess(false); err == nil && a.PasswordsOpen() {
+							s.sshPasswordsAttention(add, mc.This, len(servers) > 1, mc.Name, mc.ID, a.Choice)
 						}
 					}
 				}
@@ -457,4 +468,27 @@ func (s *Server) updatesAttention(r *http.Request, m serverRef, n ServiceNode, a
 		add(levelInfo, fmt.Sprintf("%s will restart around %02d:00 to finish installing updates.", m.Label(), hour),
 			m.Updates(), "Details")
 	}
+}
+
+// sshPasswordsAttention warns that a server's SSH takes passwords: a
+// problem when it's open to anywhere, a warning from the home network.
+func (s *Server) sshPasswordsAttention(add func(level, text, link, linkText string), this, several bool, name, id, choice string) {
+	who := "SSH on this server"
+	if several {
+		who = "SSH on " + name
+	}
+	link := "/settings/servers/" + id + "/remote-access"
+	if this {
+		link = "/settings/remote-access"
+	}
+	if choice == config.SSHFromAny {
+		add(levelProblem, who+" accepts passwords from anywhere, so anyone who can reach it can try to guess one.",
+			link, "Turn passwords off")
+		return
+	}
+	where := "your home network"
+	if this && s.network().Internet() {
+		where = "its private network"
+	}
+	add(levelWarning, who+" still accepts passwords: anyone on "+where+" can try to guess one.", link, "Turn passwords off")
 }

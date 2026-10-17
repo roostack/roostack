@@ -463,13 +463,18 @@ func (x remoteSettings) SetTimezone(ctx context.Context, name string) (bool, err
 	return out.Changed, err
 }
 
-func (x remoteSettings) SSHAccess() (SSHAccess, error) {
+func (x remoteSettings) SSHAccess(fresh bool) (SSHAccess, error) {
+	if fresh {
+		var a SSHAccess
+		err := x.r.call(context.Background(), http.MethodGet, "/v1/settings/ssh", nil, &a)
+		return a, err
+	}
 	w, err := x.get()
 	return w.SSH, err
 }
 
-func (x remoteSettings) SetSSH(ctx context.Context, choice string, confirmed bool) error {
-	return x.r.call(ctx, http.MethodPut, "/v1/settings/ssh", map[string]any{"Choice": choice, "Confirmed": confirmed}, nil)
+func (x remoteSettings) SetSSH(ctx context.Context, c SSHChange) error {
+	return x.r.call(ctx, http.MethodPut, "/v1/settings/ssh", c, nil)
 }
 
 func (x remoteSettings) PromoteBackupCopy(ctx context.Context, name string, old BackupCopy) error {

@@ -420,7 +420,9 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [x] The install message on a fresh install (VM5): shows the setup code read as roostack
 - [x] For rs-package-policy: `help/docs/reference/files.md` lists `/run/roostack-agent.sock`; it's `/run/roostack-agent/agent.sock` now Done at the merge (2026-10-16).
 - [x] M19: SPEC §6.10 item 3 (SSH hardening) marked "not built yet" (the Owner's choice)
-- [ ] Build SSH hardening (SPEC §6.10 item 3): an agent call for `sshd_config.d`, a wizard step that checks a key works first, a lasting warning while it's off
+- [x] Build SSH hardening (SPEC §6.10 item 3, 2026-10-17): keys only and no root logins in `/etc/ssh/sshd_config.d/10-roostack.conf` (agent `PUT /v1/ssh`, checked with `sshd -t`), asked with who can log in (setup step 2, Settings → Remote access) once a key login by a sudo account is seen, keys only straight away for "Nobody", a Needs attention warning while SSH takes passwords. Checked on VM3 with the agent's sandbox (docs/ASSUMPTIONS.md J3)
+  - [ ] Read `Match` blocks too (`sshd -T -C …` for the addresses that can reach SSH): today a `Match` that turns passwords back on isn't warned about
+  - [ ] Socket-activated SSH (`ssh.socket`) not checked on a VM: each connection should read the drop-in itself
 - [ ] Untested: `sudo roostack node join` end to end (making a join code needs an Owner with two-factor on the other VM); the agent calls it makes are the ones the service already makes as roostack, checked under the sandbox
 
 ## ARM64, then Raspberry Pi (ARM64-PLAN.md)

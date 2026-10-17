@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/node"
 )
 
 // Settings that differ per server (updates and restarts, time zone,
@@ -69,19 +70,34 @@ func summarizeSSH(r *http.Request, n ServiceNode) (string, string) {
 	if set == nil {
 		return "Not available", ""
 	}
-	a, err := set.SSHAccess()
+	a, err := set.SSHAccess(false)
 	if err != nil {
 		return "Unknown", ""
 	}
+	return sshSummary(a)
+}
+
+// sshSummary is a server's remote access in a few words, and its status:
+// who can reach SSH, and whether they may try passwords (SPEC.md §6.10).
+func sshSummary(a node.SSHAccess) (string, string) {
+	text, status := "", "ok"
 	switch a.Choice {
 	case config.SSHFromLAN:
-		return "SSH from your home network only", "ok"
+		text = "SSH from your home network only"
 	case config.SSHFromAny:
-		return "SSH from anywhere", "warn"
+		text, status = "SSH from anywhere", "warn"
 	case config.SSHOff:
 		return "SSH is off", "ok"
+	default:
+		return "Not chosen yet; the firewall is off", "warn"
 	}
-	return "Not chosen yet; the firewall is off", "warn"
+	switch {
+	case a.PasswordsOpen():
+		return text + ", passwords allowed", "warn"
+	case a.SSHD.Installed && a.SSHD.KeysOnly:
+		return text + ", keys only", status
+	}
+	return text, status
 }
 
 func summarizeBackups(r *http.Request, n ServiceNode) (string, string) {
