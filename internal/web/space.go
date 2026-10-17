@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/manager"
@@ -18,7 +17,8 @@ import (
 // Servers, on the backup plan, and as attention items on the home page.
 
 // Low space: a warning below lowFreeWarn (or 10% of the disk), a problem
-// below lowFreeProblem (or 5%).
+// below lowFreeProblem (or 5%). On a disk under 20 GB the floors shrink to
+// a quarter and a tenth of it: a 2 GB drive with 1.9 GB free isn't low.
 const (
 	lowFreeWarn    = 5 * units.GB
 	lowFreeProblem = 2 * units.GB
@@ -100,9 +100,9 @@ func lowSpace(free, total int64) string {
 	switch {
 	case free < 0 || total <= 0:
 		return ""
-	case free < lowFreeProblem || free*20 < total:
+	case free < min(lowFreeProblem, total/10) || free*20 < total:
 		return levelProblem
-	case free < lowFreeWarn || free*10 < total:
+	case free < min(lowFreeWarn, total/4) || free*10 < total:
 		return levelWarning
 	}
 	return ""
@@ -131,7 +131,8 @@ func diskTitle(d node.DiskSpace) string {
 		return "Media disk"
 	}
 	if d.Name != "" {
-		return "Backup drive " + d.Name
+		// As the backup plan names it ("USB drive BACKUP").
+		return d.Name
 	}
 	return "Backup drive"
 }
@@ -173,7 +174,7 @@ func (s *Server) serverSpaces(ctx context.Context, m serverRef, n any) *serverDi
 		// "This server" with one disk, "This server's media disk" with more.
 		subject, disk := name, m.Label()+"'s disk"
 		if len(disks) > 1 {
-			disk = m.Label() + "'s " + strings.ToLower(v.Title[:1]) + v.Title[1:]
+			disk = m.Label() + "'s " + lowerFirstWord(v.Title) // "USB drive BACKUP" stays
 			subject = disk
 		}
 		if ds.Store {

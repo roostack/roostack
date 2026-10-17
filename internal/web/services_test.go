@@ -17,6 +17,7 @@ import (
 
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
@@ -1712,13 +1713,20 @@ func TestBackupOnTheSameDiskWarns(t *testing.T) {
 // Each backup shows the space it takes, and what's free where that's known.
 func TestBackupPlanSpace(t *testing.T) {
 	h, fm := loggedIn(t, auth.RoleOwner)
-	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}})
+	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}}
+	h.setSetup(fs)
 	fm.destination = "drive:system"
 	h.node().backups = &fakeBackups{status: backup.Status{Configured: true, Progress: -1,
 		LastOK: &store.BackupRun{OK: true, Finished: time.Now(), Stored: uint64(1536 * units.MB)}}}
 	_, body := h.get("/backups")
 	if !strings.Contains(body, "Backups here take <strong>1.5 GB</strong> · <span>30.0 GB free on this server&#39;s disk</span>") {
 		t.Errorf("space on the main backup:\n%s", body[strings.Index(body, `id="plan"`):])
+	}
+	// Nearly full: the card says so, starting with a capital whatever
+	// the place is called.
+	fs.drives = []agent.Drive{{ID: "system", Kind: "system", Name: "This server's own disk", Usable: true, Size: 100 * units.GB, Free: units.GB}}
+	if _, body := h.get("/backups"); !strings.Contains(body, "Nearly full: 1.0 GB free on this server&#39;s disk. When it&#39;s full, backups here fail.") {
+		t.Errorf("a nearly full disk on the plan:\n%s", body[strings.Index(body, `id="plan"`):])
 	}
 }
 
@@ -1728,10 +1736,15 @@ func TestLowSpace(t *testing.T) {
 		want        string
 	}{
 		{100 * units.GB, 200 * units.GB, ""},
-		{15 * units.GB, 200 * units.GB, levelWarning}, // under 10%
-		{4 * units.GB, 20 * units.GB, levelWarning},   // under 5 GB
-		{8 * units.GB, 200 * units.GB, levelProblem},  // under 5%
-		{1 * units.GB, 10 * units.GB, levelProblem},   // under 2 GB
+		{15 * units.GB, 200 * units.GB, levelWarning},  // under 10%
+		{4 * units.GB, 20 * units.GB, levelWarning},    // under 5 GB
+		{8 * units.GB, 200 * units.GB, levelProblem},   // under 5%
+		{1500 * units.MB, 25 * units.GB, levelProblem}, // under 2 GB
+		// A disk under 20 GB: the floors are a quarter and a tenth of it.
+		{1900 * units.MB, 2100 * units.MB, ""},
+		{400 * units.MB, 2000 * units.MB, levelWarning},
+		{150 * units.MB, 2000 * units.MB, levelProblem},
+		{3 * units.GB, 10 * units.GB, ""},
 		{-1, 10 * units.GB, ""},
 	} {
 		if got := lowSpace(c.free, c.total); got != c.want {
@@ -1911,17 +1924,17 @@ func TestServerDisks(t *testing.T) {
 	fm.disk = &node.DiskSpace{Total: 100 * units.GB, Used: 40 * units.GB, Free: 55 * units.GB, Services: 12 * units.GB, Backups: 3 * units.GB}
 	fm.disks = []node.DiskSpace{
 		{Kind: node.DiskMedia, Mount: "/srv/roostack/media", Total: 2000 * units.GB, Used: 800 * units.GB, Free: 1200 * units.GB, Services: 790 * units.GB},
-		{Kind: node.DiskBackup, Name: "BACKUP", Mount: "/media/backup", Total: 500 * units.GB, Used: 490 * units.GB, Free: 10 * units.GB, Backups: 480 * units.GB},
+		{Kind: node.DiskBackup, Name: "USB drive BACKUP", Mount: "/media/backup", Total: 500 * units.GB, Used: 490 * units.GB, Free: 10 * units.GB, Backups: 480 * units.GB},
 	}
 	_, body := h.get("/servers")
 	for _, want := range []string{"Disks</dt>", "<strong>System disk</strong>", "<strong>Media disk</strong>", "mounted at <code>/srv/roostack/media</code>",
-		"<strong>Backup drive BACKUP</strong>", "Services&#39; data</dt><dd>790.0 GB", "Everything else</dt><dd>10.0 GB",
-		"This server&#39;s backup drive BACKUP is running out of disk space: 10.0 GB free of 500.0 GB"} {
+		"<strong>USB drive BACKUP</strong>", "Services&#39; data</dt><dd>790.0 GB", "Everything else</dt><dd>10.0 GB",
+		"This server&#39;s USB drive BACKUP is running out of disk space: 10.0 GB free of 500.0 GB"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("servers page missing %q", want)
 		}
 	}
-	if _, body := h.get("/"); !strings.Contains(body, "This server&#39;s backup drive BACKUP is running out") {
+	if _, body := h.get("/"); !strings.Contains(body, "This server&#39;s USB drive BACKUP is running out") {
 		t.Error("the full drive needs attention")
 	}
 }

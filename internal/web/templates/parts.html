@@ -416,7 +416,7 @@
         <p class="plan-title">{{.Title}}</p>
         <p class="hint">{{if .Main}}Main backup · {{end}}{{with .KindTitle}}{{.}} · {{end}}{{if .AtHome}}at home{{else if .Away}}away from home{{else if .AskWhere}}at home or away?{{else}}location not known{{end}}{{if .Main}} · restores use it first{{end}}
           {{- if eq .Path "direct"}} · linked directly{{else if eq .Path "hub"}} · through {{.Via}}, as they can't link directly{{end}}</p>
-        {{if .LowSpace}}{{notice "warn" (printf "%s is nearly full: %s free. When it's full, backups here fail." .FreeOn (size .Free))}}{{end}}
+        {{if .LowSpace}}{{notice "warn" (printf "Nearly full: %s free on %s. When it's full, backups here fail." (size .Free) .FreeOn)}}{{end}}
         {{if eq .Path "hub"}}{{if .LinkFailed}}
         {{notice "warn" (printf "A direct link to %s didn't connect, so these backups go through %s, using its connection twice. Check %s can be reached at its address for direct links (UDP port 51820, or the port you entered). Roostack tries again tomorrow, or as soon as you change the address." .HostName .Via .HostName) (printf "link=/servers#server-%s" .Host) "linkText=Check the address"}}
         {{else}}
