@@ -149,6 +149,9 @@ type fakeManager struct {
 	rollbacks    []string
 	rollbackPlan *manager.RollbackPlan
 	rollbackErr  error
+
+	// Files found in backups and couldn't be read (junk_test.go).
+	junk []manager.JunkReport
 }
 
 func (f *fakeManager) rollback(step, serverID, ref string, before time.Time) error {

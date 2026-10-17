@@ -133,6 +133,8 @@ type Manager struct {
 	links linkState
 	// keyMu makes recovery key changes one at a time (keychange.go).
 	keyMu sync.Mutex
+	// junk is what the junk checks remember (quarantine.go).
+	junk junkState
 	// public is the lab's public access settings as changed at runtime
 	// (public.go); nil until first used, then read from Lab. Kept apart
 	// from Lab, which is read without the lock.

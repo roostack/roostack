@@ -63,6 +63,10 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		add(levelInfo, "Finishing the restore: putting the services' databases back from the backup. Some services may not work until it's done.",
 			"", "")
 	}
+	// Files the controller found in backups and couldn't read (junk.go).
+	if owner && s.Manager != nil {
+		s.junkAttention(r.Context(), add)
+	}
 	// Another lab that stopped storing this lab's backups (it said so).
 	if owner && s.Manager != nil {
 		for _, e := range s.Manager.EndingStorages(r.Context()) {

@@ -351,7 +351,11 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 			return fail(err)
 		}
 		if d.kind == destRemote {
-			url, env, adminURL, adminEnv := m.remoteRepos(d.remote, labID, serverID)
+			r, err := m.remoteServerUser(ctx, choice.Ref, serverID)
+			if err != nil {
+				return fail(err)
+			}
+			url, env, adminURL, adminEnv := m.remoteRepos(r, labID, serverID)
 			target.Repository = url
 			dest = node.BackupDestination{Repository: url, Env: env}
 			admin = m.OpenRepo(adminURL, adminEnv)
@@ -479,6 +483,7 @@ func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 			act.Printf("%s still knows %s, but can't reach it without this lab's network.", name, c.What)
 		}
 	}
+	m.removeRemoteUsers(ctx, act, serverID)
 	for _, t := range targets {
 		if t.StoreHost != serverID {
 			continue
@@ -773,11 +778,7 @@ func (m *Manager) adminRepo(ctx context.Context, t store.BackupTarget) (*backup.
 		url := strings.Replace(t.Repository, fmt.Sprintf(":%d/", generate.StoragePort), fmt.Sprintf(":%d/", generate.StorageAdminPort), 1)
 		return m.OpenRepo(url, []string{"RESTIC_REST_USERNAME=controller", "RESTIC_REST_PASSWORD=" + pw}), nil
 	case destRemote:
-		labID, err := m.labID(ctx)
-		if err != nil {
-			return nil, err
-		}
-		_, _, url, env := m.remoteRepos(d.remote, labID, t.ServerID)
+		url, env := remoteAdmin(d.remote, t.Repository)
 		return m.OpenRepo(url, env), nil
 	case destS3:
 		// The account's key: it can erase what servers hide.

@@ -87,12 +87,13 @@ func repoOpener(lab config.Lab) func(url string, env []string) *backup.Repo {
 // startControllerJobs runs the controller's recurring work until ctx ends.
 func startControllerJobs(ctx context.Context, mgr *manager.Manager, coord *maintenance.Coordinator, st *store.Store, log *slog.Logger) {
 	// Weekly, the controller removes old backups from every server's
-	// repository (servers may only add backups).
+	// repository (servers may only add backups), first removing files
+	// there restic can't read, which would stop the prune (quarantine.go).
 	go maintenance.Every(ctx,
 		func(now time.Time) time.Time {
 			return maintenance.NextWeekly(now, maintenance.DefaultMaintenanceOn, maintenance.DefaultMaintenanceAt)
 		},
-		func() { coord.Submit(mgr.PruneJob()) })
+		func() { coord.Submit(mgr.JunkJob(nil), mgr.PruneJob()) })
 	// Nightly, after each server's backup: services whose update policy
 	// takes their update (SPEC.md §3.2, §7).
 	go maintenance.Every(ctx,
@@ -107,6 +108,9 @@ func startControllerJobs(ctx context.Context, mgr *manager.Manager, coord *maint
 			// reached (SPEC.md §6.9) tries again.
 			mgr.ResumeKeyChange()
 			mgr.CheckRemotes(ctx)
+			// A backup that failed as junk in its repository makes it fail
+			// gets that repository checked now, not at the weekly check.
+			mgr.CheckForJunk(ctx)
 			if err := mgr.PurgeRemovedGuests(ctx, time.Now()); err != nil {
 				log.Error("deleting removed guest labs' backups", "err", err)
 			}

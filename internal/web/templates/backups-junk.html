@@ -1,0 +1,42 @@
+{{define "title"}}Files removed from backups{{end}}
+{{define "content"}}
+<div class="page-head">
+  <div>
+    {{back "/backups" "Backups"}}
+    <h1>Files removed from backups</h1>
+  </div>
+</div>
+<section class="card narrow">
+  {{if .Reports}}
+  <p>Roostack checks every backup each week, and again when one fails, for files it can't read with your lab's key. A server can
+    add files to its backups but not delete them, so a server that's been taken over can't destroy its backups, but it can add
+    junk that stops them working. Roostack removes junk wherever it can, and lists it here.</p>
+  {{range .Reports}}
+  <div class="section">
+    <h2>{{.Server}}'s backups on {{.Where}}{{if .Copy}} (a copy){{end}}</h2>
+    <p class="hint">Found {{when .Found}}, in <code>{{shownRepo .Repository}}</code>.</p>
+    <ul class="plain">
+      {{range .Files}}<li><code>{{.Path}}</code>{{if ge .Size 0}} · {{size .Size}}{{end}}: {{if .Removed}}removed{{else}}<strong>not removed</strong>{{end}}
+        <small>{{.Why}}</small></li>{{end}}
+    </ul>
+    {{if .Removed}}
+    <p>Only {{call $.OrList .Writers}} could have put them there. If this happens again,
+      {{if eq (len .Writers) 1}}{{index .Writers 0}}{{else}}one of them{{end}} may have been taken over: check what runs there, and who
+      can sign in.</p>
+    {{else}}
+    {{with .Err}}{{notice "warn" .}}{{end}}
+    <p>Until they're gone, backups there fail. Delete the files marked "not removed" from inside that folder, with the storage's own
+      tools. Only {{call $.OrList .Writers}} could have put them there.</p>
+    {{end}}
+  </div>
+  {{end}}
+  <form method="post" action="/backups/junk/dismiss" class="section">
+    <button type="submit">Got it, clear this list</button>
+  </form>
+  {{else}}
+  <p>Roostack hasn't found any files it can't read in your backups.</p>
+  {{end}}
+</section>
+{{end}}
+
+{{define "page-help"}}{{help "trouble/backup-junk" "Files removed from backups"}}{{end}}

@@ -216,6 +216,7 @@ type ServiceManager interface {
 	LabRestores
 	Withdrawals
 	ServiceUpdates
+	BackupJunk
 	// BackupAccess is what a server's own credential can do at one of its
 	// backups: whether they'd survive it being taken over (SPEC.md §10.10).
 	BackupAccess(ctx context.Context, serverID, ref string) manager.Access
@@ -465,7 +466,8 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
 		"home", "services", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
-		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors"} {
+		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
+		"backups-junk"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -603,6 +605,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /backups/recovery-key/change/confirm", s.requireOwner(s.keyChangeConfirm))
 	mux.Handle("POST /backups/recovery-key/change/cancel", s.requireOwner(s.keyChangeCancel))
 	mux.Handle("POST /backups/keep-this-copy", s.requireOwner(s.keepThisCopySubmit))
+	mux.Handle("GET /backups/junk", s.requireOwner(s.junkPage))
+	mux.Handle("POST /backups/junk/dismiss", s.requireOwner(s.junkDismissSubmit))
 	mux.Handle("GET /backups/restore/{name}", s.requireOwner(s.restorePage))
 	mux.Handle("POST /backups/restore/{name}", s.requireOwner(s.restoreSubmit))
 	mux.Handle("POST /backups/restore/{name}/kept/remove", s.requireOwner(s.removeKeptSubmit))
