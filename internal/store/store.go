@@ -217,6 +217,14 @@ var migrations = []string{
 		host_name TEXT NOT NULL,
 		lost_at   INTEGER NOT NULL
 	);`,
+	// Each guest lab's servers have their own user at its store (SPEC.md
+	// §10.10, review M21): the bcrypt hash of each one's password.
+	`CREATE TABLE storage_guest_users (
+		guest_id INTEGER NOT NULL REFERENCES storage_guests(id) ON DELETE CASCADE,
+		name     TEXT NOT NULL,
+		hash     TEXT NOT NULL,
+		PRIMARY KEY (guest_id, name)
+	);`,
 }
 
 // Open opens (creating if needed) and migrates the database.
@@ -1338,9 +1346,14 @@ type Guest struct {
 	TokenHash string
 	Expires   time.Time // the invite, until joined
 	// Port is its store's; its admin access is on Port+1.
-	Port                 int
+	Port int
+	// StoreHash is the hash of the store password every server of the
+	// guest lab shared, for labs invited before servers had their own
+	// (empty since); AdminHash is the guest's admin password's.
 	StoreHash, AdminHash string
-	Created              time.Time
+	// Users are its servers' own store users: name to bcrypt hash.
+	Users   map[string]string
+	Created time.Time
 	// Removed is when the host stopped storing its backups (zero if it
 	// still does); its data is deleted after a grace period.
 	Removed time.Time
@@ -1387,7 +1400,44 @@ func (s *Store) Guests(ctx context.Context, now time.Time) ([]Guest, error) {
 		}
 		out = append(out, g)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	users, err := s.db.QueryContext(ctx, `SELECT guest_id, name, hash FROM storage_guest_users`)
+	if err != nil {
+		return nil, err
+	}
+	defer users.Close()
+	for users.Next() {
+		var id int64
+		var name, hash string
+		if err := users.Scan(&id, &name, &hash); err != nil {
+			return nil, err
+		}
+		for i := range out {
+			if out[i].ID == id {
+				if out[i].Users == nil {
+					out[i].Users = map[string]string{}
+				}
+				out[i].Users[name] = hash
+			}
+		}
+	}
+	return out, users.Err()
+}
+
+// SetGuestUser adds or changes one of a guest lab's store users.
+func (s *Store) SetGuestUser(ctx context.Context, guestID int64, name, hash string) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO storage_guest_users (guest_id, name, hash) VALUES (?, ?, ?)
+		ON CONFLICT (guest_id, name) DO UPDATE SET hash = excluded.hash`, guestID, name, hash)
+	return err
+}
+
+// RemoveGuestUser removes one of a guest lab's store users.
+func (s *Store) RemoveGuestUser(ctx context.Context, guestID int64, name string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM storage_guest_users WHERE guest_id = ? AND name = ?`, guestID, name)
+	return err
 }
 
 // JoinGuest uses a guest's invite: its own WireGuard key replaces the

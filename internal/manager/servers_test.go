@@ -32,6 +32,8 @@ type fakeRemote struct {
 	// links last connected (links_test.go).
 	home       []string
 	handshakes map[string]int64
+	// backups are its backups' results, if set (quarantine_test.go).
+	backups node.Backups
 }
 
 func (f *fakeRemote) Close() { f.closed = true }
@@ -69,7 +71,7 @@ func (f *fakeRemote) RevealSecret(context.Context, string, string) (string, erro
 func (f *fakeRemote) LatestActivity(string) (activity.Snapshot, bool) {
 	return activity.Snapshot{}, false
 }
-func (f *fakeRemote) Backups() node.Backups   { return nil }
+func (f *fakeRemote) Backups() node.Backups   { return f.backups }
 func (f *fakeRemote) Restores() node.Restores { return nil }
 func (f *fakeRemote) Updates() node.Updates   { return nil }
 func (f *fakeRemote) Settings() node.Settings {
