@@ -35,6 +35,10 @@ type Bucket struct {
 	NoErase, NoLifecycle bool
 	// PageSize is how many versions a listing returns at most (1000 if 0).
 	PageSize int
+	// MarkersFirst lists a page's delete markers before its versions, as
+	// Backblaze does (docs/ASSUMPTIONS.md N9), rather than each object's
+	// together as AWS does.
+	MarkersFirst bool
 	// Now is the time things happen (time.Now if nil).
 	Now func() time.Time
 
@@ -242,6 +246,18 @@ func (b *Bucket) list(w http.ResponseWriter, q url.Values) {
 	if len(all) > size {
 		all = all[:size]
 		out.Truncated, out.NextKey, out.NextVersionID = true, all[size-1].Key, all[size-1].VersionID
+	}
+	if b.MarkersFirst {
+		slices.SortStableFunc(all, func(a, b item) int {
+			am, bm := a.XMLName.Local == "DeleteMarker", b.XMLName.Local == "DeleteMarker"
+			switch {
+			case am && !bm:
+				return -1
+			case bm && !am:
+				return 1
+			}
+			return 0
+		})
 	}
 	out.Items = all
 	reply(w, out)
