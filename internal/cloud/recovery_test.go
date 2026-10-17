@@ -30,15 +30,16 @@ func TestRecoveryIdentity(t *testing.T) {
 
 // A linked lab registers its recovery identity; with the recovery key
 // alone, a new install can then read the lab's backups in Cloud. A new
-// recovery key replaces the identity, and the old key stops working.
+// recovery key replaces the identity, and the old key stops working. A
+// lab unlinked and linked again has two labs' backups with its key.
 func TestRestoreFromCloud(t *testing.T) {
 	ctx := context.Background()
 	f, s, _ := fakeCloud(t)
 	key := "the first recovery key"
 	s.RecoveryKey = func() (string, error) { return key + "\n", nil }
-	f.RestoreRepositories = []string{"s3:https://storage.test/b/labs/l/n-1"}
 	link(t, f, s, "")
 	labID := s.Status().LabID
+	f.RestoreRepositories = map[string][]string{labID: {"s3:https://storage.test/b/labs/l/n-1"}}
 	id, _ := RecoveryIdentity(key)
 	waitFor(t, func() bool { return bytes.Equal(f.Identities[labID], id.Public().(ed25519.PublicKey)) })
 	// The registration was signed over the lab's ID (review M10): one
@@ -56,7 +57,8 @@ func TestRestoreFromCloud(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if acc.LabID != labID || acc.LabName != "Smith family" || !slices.Equal(acc.Repositories, f.RestoreRepositories) || acc.Keys.AccessKeyID == "" {
+	if len(acc.Labs) != 1 || acc.Labs[0].LabID != labID || acc.Labs[0].LabName != "Smith family" ||
+		!slices.Equal(acc.Labs[0].Repositories, f.RestoreRepositories[labID]) || acc.Labs[0].Keys.AccessKeyID == "" {
 		t.Errorf("access = %+v", acc)
 	}
 	if _, err := RestoreAccess(ctx, s.cfg, "not the key"); err == nil {
@@ -81,6 +83,23 @@ func TestRestoreFromCloud(t *testing.T) {
 	}
 	if _, err := RestoreAccess(ctx, s.cfg, key); err != nil {
 		t.Errorf("the new key: %v", err)
+	}
+
+	// Unlinked in Cloud, the lab forgets the link; linked again, it's a
+	// new lab with the same key. Both labs' backups are offered, the
+	// linked one first (review M10: only one was).
+	f.Unlink(labID)
+	s.Check(ctx)
+	if s.Status().Linked {
+		t.Fatal("still linked after Cloud unlinked it")
+	}
+	link(t, f, s, "")
+	newID := s.Status().LabID
+	waitFor(t, func() bool { return f.Identities[newID] != nil })
+	acc, err = RestoreAccess(ctx, s.cfg, key)
+	if err != nil || len(acc.Labs) != 2 || acc.Labs[0].LabID != newID || !acc.Labs[0].UnlinkedAt.IsZero() ||
+		acc.Labs[1].LabID != labID || acc.Labs[1].UnlinkedAt.IsZero() || len(acc.Labs[1].Repositories) != 1 {
+		t.Errorf("after linking again: %+v %v", acc, err)
 	}
 }
 

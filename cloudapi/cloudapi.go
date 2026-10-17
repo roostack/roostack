@@ -39,8 +39,9 @@ const (
 
 	// Proving the recovery key, for a lab that has lost its controller
 	// (no certificate): POST RestoreChallengeRequest → RestoreChallenge,
-	// then one of POST RestoreProof → RestoreAccess (keys to read its
-	// backups) or POST RelinkRequest → Relinked (a new certificate).
+	// then one of POST RestoreProof → RestoreAccess (keys to read the
+	// backups of every lab with the key) or POST RelinkRequest → Relinked
+	// (a new certificate for the linked one).
 	PathRestoreChallenge = "/v1/restore/challenge"
 	PathRestoreAccess    = "/v1/restore/access"
 	PathRestoreRelink    = "/v1/restore/relink"
@@ -401,11 +402,24 @@ type RestoreProof struct {
 	Signature []byte `json:"signature"`
 }
 
-// RestoreAccess opens a lab's backups in Roostack Cloud for a restore:
-// keys that read its folders, and the repository of each server in them.
+// RestoreAccess opens the backups in Roostack Cloud of every lab with the
+// recovery key, for a restore: the linked one first, then those unlinked,
+// the latest unlinked first. A lab unlinked and linked again keeps its
+// recovery key under a new lab ID, and each has its own backups, so the
+// person restoring chooses.
 type RestoreAccess struct {
-	LabID        string      `json:"lab_id"`
-	LabName      string      `json:"lab_name"`
+	Labs []RestoreLab `json:"labs"`
+}
+
+// RestoreLab is one lab's backups: keys that read its folders, and the
+// repository of each server in them (none, once they're no longer kept).
+type RestoreLab struct {
+	LabID   string `json:"lab_id"`
+	LabName string `json:"lab_name"`
+	// LinkedAt is when it was linked, and UnlinkedAt when it was unlinked
+	// (zero while it's linked).
+	LinkedAt     time.Time   `json:"linked_at"`
+	UnlinkedAt   time.Time   `json:"unlinked_at,omitzero"`
 	Keys         StorageKeys `json:"keys"`
 	Repositories []string    `json:"repositories"`
 }

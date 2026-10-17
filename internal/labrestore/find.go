@@ -4,6 +4,7 @@
 package labrestore
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"encoding/xml"
@@ -80,6 +81,9 @@ type Found struct {
 	Controller bool
 	// StateDir is where the server kept Roostack's state.
 	StateDir string
+	// Lab is the lab in Roostack Cloud the backup belongs to (nil when it
+	// isn't from Roostack Cloud).
+	Lab *CloudLab
 }
 
 // Unopened is a backup the recovery key doesn't open (another lab's, or a
@@ -87,6 +91,24 @@ type Found struct {
 type Unopened struct {
 	Repository string
 	Problem    string
+	Lab        *CloudLab
+}
+
+// CloudLab is a lab in Roostack Cloud with the recovery key. A lab that
+// was unlinked and linked again has two, each with its own backups, so
+// the person restoring chooses (SPEC.md §6.9).
+type CloudLab struct {
+	ID, Name string
+	// LinkedAt is when it was linked; UnlinkedAt when it was unlinked (zero
+	// while it's linked).
+	LinkedAt, UnlinkedAt time.Time
+}
+
+// place is a repository to look in, with the credentials it needs.
+type place struct {
+	url string
+	env []string
+	lab *CloudLab
 }
 
 // Finder looks for a lab's backups.
@@ -103,38 +125,51 @@ type Finder struct {
 const maxRepos = 50
 
 // Find lists the backups at src that the recovery key opens, newest
-// first, and those it doesn't.
+// first (from Roostack Cloud: each lab's, in Cloud's order), and those it
+// doesn't.
 func (f *Finder) Find(ctx context.Context, src Source) ([]Found, []Unopened, error) {
-	repos, env, err := f.repositories(ctx, src)
+	places, empty, err := f.places(ctx, src)
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(repos) == 0 {
+	if len(places) == 0 {
+		if src.Kind == "cloud" {
+			return nil, nil, errors.New("Roostack Cloud has no backups (any more) of a lab with this recovery key")
+		}
 		return nil, nil, errors.New("no Roostack backups there")
 	}
-	found := make([]*Found, len(repos))
-	problems := make([]string, len(repos))
+	found := make([]*Found, len(places))
+	errs := make([]error, len(places))
 	var wg sync.WaitGroup
-	for i, url := range repos {
+	for i, p := range places {
 		wg.Go(func() {
-			fd, err := f.open(ctx, url, env)
-			found[i] = fd
-			if err != nil {
-				problems[i] = describe(err)
-			}
+			found[i], errs[i] = f.open(ctx, p)
 		})
 	}
 	wg.Wait()
 	var out []Found
 	var unopened []Unopened
-	for i := range repos {
+	for i, p := range places {
 		if found[i] != nil {
 			out = append(out, *found[i])
 		} else {
-			unopened = append(unopened, Unopened{Repository: repos[i], Problem: problems[i]})
+			unopened = append(unopened, Unopened{Repository: p.url, Problem: describe(errs[i]), Lab: p.lab})
 		}
 	}
-	slices.SortFunc(out, func(a, b Found) int { return b.Snapshot.Time.Compare(a.Snapshot.Time) })
+	// Cloud lists its labs in order (the linked one, then the latest
+	// unlinked); within a lab, the newest backup first.
+	order := map[*CloudLab]int{}
+	for _, p := range places {
+		if _, ok := order[p.lab]; !ok {
+			order[p.lab] = len(order)
+		}
+	}
+	slices.SortFunc(out, func(a, b Found) int {
+		return cmp.Or(cmp.Compare(order[a.Lab], order[b.Lab]), b.Snapshot.Time.Compare(a.Snapshot.Time))
+	})
+	for _, lab := range empty {
+		unopened = append(unopened, Unopened{Lab: lab, Problem: "Roostack Cloud no longer keeps its backups."})
+	}
 	return out, unopened, nil
 }
 
@@ -153,7 +188,8 @@ func describe(err error) string {
 
 // open reads a repository's latest Roostack backup and what it says about
 // the server that made it.
-func (f *Finder) open(ctx context.Context, url string, env []string) (*Found, error) {
+func (f *Finder) open(ctx context.Context, p place) (*Found, error) {
+	url, env := p.url, p.env
 	repo := f.OpenRepo(url, env)
 	snaps, err := repo.Snapshots(ctx, backup.TagRoostack, backup.TagServer)
 	if err != nil {
@@ -164,7 +200,7 @@ func (f *Finder) open(ctx context.Context, url string, env []string) (*Found, er
 	}
 	slices.SortFunc(snaps, func(a, b backup.Snapshot) int { return a.Time.Compare(b.Time) })
 	snap := snaps[len(snaps)-1]
-	fd := &Found{Repository: url, Env: env, Snapshot: snap, Snapshots: len(snaps)}
+	fd := &Found{Repository: url, Env: env, Snapshot: snap, Snapshots: len(snaps), Lab: p.lab}
 	// The state folder is the backed-up path holding the server's identity.
 	dirs := slices.Clone(snap.Paths)
 	slices.SortStableFunc(dirs, func(a, b string) int { // the default first
@@ -211,9 +247,15 @@ func (f *Finder) open(ctx context.Context, url string, env []string) (*Found, er
 	return fd, nil
 }
 
-// repositories lists the restic repositories at src, and the credentials
-// they need.
-func (f *Finder) repositories(ctx context.Context, src Source) ([]string, []string, error) {
+// places lists the restic repositories at src, with the credentials they
+// need. From Roostack Cloud they're every lab's with the recovery key;
+// empty are its labs with no backups kept.
+func (f *Finder) places(ctx context.Context, src Source) (out []place, empty []*CloudLab, err error) {
+	each := func(repos, env []string, lab *CloudLab) {
+		for _, r := range repos {
+			out = append(out, place{url: r, env: env, lab: lab})
+		}
+	}
 	switch src.Kind {
 	case "folder":
 		folder := strings.TrimSpace(src.Folder)
@@ -221,13 +263,16 @@ func (f *Finder) repositories(ctx context.Context, src Source) ([]string, []stri
 		if err == nil && len(repos) == 0 && len(denied) > 0 {
 			err = unreadable(folder)
 		}
-		return repos, nil, err
+		each(repos, nil, nil)
+		return out, nil, err
 	case "s3":
 		s3 := src.S3.Clean()
 		repos, err := f.s3Repos(ctx, s3)
-		return repos, s3.Env(), err
+		each(repos, s3.Env(), nil)
+		return out, nil, err
 	case "url":
-		return []string{strings.TrimSpace(src.URL)}, nil, nil
+		each([]string{strings.TrimSpace(src.URL)}, nil, nil)
+		return out, nil, nil
 	case "cloud":
 		if f.CloudAccess == nil {
 			return nil, nil, errors.New("Roostack Cloud is turned off on this server (cloud: disabled in lab.yaml)")
@@ -236,7 +281,18 @@ func (f *Finder) repositories(ctx context.Context, src Source) ([]string, []stri
 		if err != nil {
 			return nil, nil, err
 		}
-		return acc.Repositories, cloudkeys.Env(acc.Keys), nil
+		for _, l := range acc.Labs {
+			lab := &CloudLab{ID: l.LabID, Name: l.LabName, LinkedAt: l.LinkedAt, UnlinkedAt: l.UnlinkedAt}
+			if len(l.Repositories) == 0 {
+				empty = append(empty, lab)
+			}
+			each(l.Repositories, cloudkeys.Env(l.Keys), lab)
+			if len(out) >= maxRepos {
+				out = out[:maxRepos]
+				break
+			}
+		}
+		return out, empty, nil
 	}
 	return nil, nil, fmt.Errorf("unknown kind of place %q", src.Kind)
 }

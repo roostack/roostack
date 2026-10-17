@@ -39,7 +39,10 @@ You need:
 
 4. Enter your **recovery key**, and choose **Look for backups**.
 5. Roostack lists the backups the key opens, with when each was last
-   backed up. Choose **Restore this lab** next to your lab.
+   backed up. Choose **Restore this lab** next to your lab. If you once
+   unlinked the lab from Roostack Cloud and linked it again, Roostack
+   Cloud keeps the backups from before for a while: the page lists each
+   link's backups, with when it was linked or unlinked, so you can choose.
 
 Roostack puts everything back, then restarts as your lab. Keep the page
 open: it moves on to the login page when it's done. Large backups can take
