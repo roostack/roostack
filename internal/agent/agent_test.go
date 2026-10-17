@@ -27,6 +27,7 @@ type fakeHost struct {
 	wg        *WireGuard
 	links     *Links
 	erased    string
+	keysOnly  bool
 }
 
 func (f *fakeHost) ApplyLinks(l Links) error { f.links = &l; return nil }
@@ -64,6 +65,10 @@ func (f *fakeHost) WireGuardKeys() (map[string]string, error) {
 	return map[string]string{"roostack": "HIgo9xNzJMWLKASShiTqIybxZ0U3wGLiUeJ1PKf8ykw="}, nil
 }
 func (f *fakeHost) RemoveWireGuard(string) error { f.wg = nil; return nil }
+func (f *fakeHost) SSHStatus() (SSHStatus, error) {
+	return SSHStatus{Installed: true, KeysOnly: f.keysOnly, Passwords: !f.keysOnly}, nil
+}
+func (f *fakeHost) SetSSHKeysOnly(on bool) error { f.keysOnly = on; return nil }
 
 // start runs a real server on a Unix socket, so SO_PEERCRED is exercised.
 func start(t *testing.T, allowed []uint32) (*Client, *fakeHost) {

@@ -13,12 +13,14 @@ RuntimeDirectoryMode=0755
 
 # Sandboxing (SPEC.md §6.1, checked on a VM: docs/ASSUMPTIONS.md S7). The
 # agent is root, but writes only where its jobs need: the firewall and
-# sysctl files, WireGuard's files, fstab, and backup drives and folders.
+# sysctl files, WireGuard's files, fstab, SSH's drop-in folder (keys only,
+# SPEC.md §6.10; "-": a server may have no SSH server), and backup drives
+# and folders.
 # OS updates and reboots run in units of their own (systemd-run), outside
 # this sandbox: dpkg scripts may touch anything. Mounts are made by systemd
 # from fstab, so they don't stay in this unit's namespace.
 ProtectSystem=strict
-ReadWritePaths=/etc/fstab /etc/sysctl.d /etc/wireguard -/etc/roostack /mnt -/media /srv
+ReadWritePaths=/etc/fstab /etc/sysctl.d /etc/wireguard -/etc/roostack -/etc/ssh/sshd_config.d /mnt -/media /srv
 ProtectHome=yes
 PrivateTmp=yes
 NoNewPrivileges=yes
