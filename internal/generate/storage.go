@@ -3,6 +3,8 @@ package generate
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"slices"
 
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/quadlet"
@@ -84,9 +86,48 @@ type GuestStorage struct {
 	// Addr is its address on the guests' link: only it reaches its store
 	// (the firewall, SPEC.md §6.10).
 	Addr string `json:"addr,omitempty"`
-	// StoreHash and AdminHash are bcrypt hashes of its passwords.
-	StoreHash string `json:"store_hash"`
+	// Users are the guest lab's servers' own store users, name to bcrypt
+	// hash (SPEC.md §10.10): each reaches only its own repositories
+	// (--private-repos), as on a server's disk.
+	Users map[string]string `json:"users,omitempty"`
+	// StoreHash is the bcrypt hash of the store password all of a guest
+	// lab's servers shared before they had their own (empty for guests
+	// invited since); AdminHash is its admin access's.
+	StoreHash string `json:"store_hash,omitempty"`
 	AdminHash string `json:"admin_hash"`
+}
+
+// storeUser and storeHash are what a store user's htpasswd line may
+// hold: a plain name, and a bcrypt hash (no ":" or line breaks).
+var (
+	storeUser = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
+	storeHash = regexp.MustCompile(`^\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}$`)
+)
+
+// StoreLine is a store user's line in a rest-server password file, or
+// false if the name or hash isn't one Roostack makes.
+func StoreLine(name, hash string) (string, bool) {
+	if !storeUser.MatchString(name) || !storeHash.MatchString(hash) {
+		return "", false
+	}
+	return name + ":" + hash, true
+}
+
+// StoreLines are a guest's store users' lines, sorted, the shared user's
+// first (if any). Lines that aren't valid are left out.
+func (g GuestStorage) StoreLines() []string {
+	var out []string
+	if l, ok := StoreLine(g.User, g.StoreHash); ok {
+		out = append(out, l)
+	}
+	var users []string
+	for name, hash := range g.Users {
+		if l, ok := StoreLine(name, hash); ok && name != g.User {
+			users = append(users, l)
+		}
+	}
+	slices.Sort(users)
+	return append(out, users...)
 }
 
 // GuestStoreDir is where a guest lab's backups are kept.

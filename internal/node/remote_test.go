@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -331,7 +332,7 @@ func loadVaultwarden(t *testing.T, lab config.Lab) []state.Service {
 // (a node can offer storage for others).
 func TestWireCarriesGuests(t *testing.T) {
 	a := Assignment{Storage: &Storage{Users: map[string]string{"n-1": "h"}},
-		Guests: []generate.GuestStorage{{User: "g1", Port: 8100, Quota: 1 << 30, StoreHash: "s", AdminHash: "a"}}, GuestAddr: "100.103.66.1"}
+		Guests: []generate.GuestStorage{{User: "g1", Port: 8100, Quota: 1 << 30, Users: map[string]string{"n-2": "h2"}, AdminHash: "a"}}, GuestAddr: "100.103.66.1"}
 	w, err := Encode(config.Default(), a, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -340,7 +341,7 @@ func TestWireCarriesGuests(t *testing.T) {
 	var back WireAssignment
 	json.Unmarshal(data, &back)
 	got, err := Decode(back)
-	if err != nil || len(got.Guests) != 1 || got.Guests[0] != a.Guests[0] || got.GuestAddr != a.GuestAddr || got.Storage == nil {
+	if err != nil || len(got.Guests) != 1 || !reflect.DeepEqual(got.Guests[0], a.Guests[0]) || got.GuestAddr != a.GuestAddr || got.Storage == nil {
 		t.Errorf("decoded %+v, %v", got, err)
 	}
 }

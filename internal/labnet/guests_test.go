@@ -95,6 +95,62 @@ func TestGuestHub(t *testing.T) {
 	if _, u := usage(inv.User, inv.AdminPassword); u.Host != "Mum's lab" || !u.DeleteOn.IsZero() {
 		t.Errorf("the host's name, and no removal: %+v", u)
 	}
+	if inv.StorePassword != "" {
+		t.Error("new invites have no shared store password")
+	}
+
+	// The guest's controller gives each of its servers a store user.
+	changed := 0
+	h.Changed = func() { changed++ }
+	call := func(method, name, body, user, pw string) int {
+		req, _ := http.NewRequest(method, srv.URL+"/v1/guest/users/"+name, strings.NewReader(body))
+		req.SetBasicAuth(user, pw)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	_, hash, _ := NewStorePassword()
+	body := `{"hash":"` + hash + `"}`
+	if code := call(http.MethodPut, "n-0000000002", body, inv.User, inv.AdminPassword); code != http.StatusOK || changed != 1 {
+		t.Fatalf("set a server's user: %d, changed %d", code, changed)
+	}
+	users := func() map[string]string {
+		guests, _ := st.Guests(ctx, time.Now())
+		for _, g := range guests {
+			if g.User() == inv.User {
+				return g.Users
+			}
+		}
+		return nil
+	}
+	if users()["n-0000000002"] != hash {
+		t.Errorf("users = %v", users())
+	}
+	for _, c := range []struct {
+		name, body, user, pw string
+		want                 int
+	}{
+		{"n-3", body, inv.User, "wrong", http.StatusForbidden},
+		{"n-3", body, inv2.User, inv2.AdminPassword, http.StatusForbidden}, // not joined
+		{"n-3", `{"hash":"plain"}`, inv.User, inv.AdminPassword, http.StatusBadRequest},
+		{"n-3", `{"hash":"` + hash + `\nx:` + hash + `"}`, inv.User, inv.AdminPassword, http.StatusBadRequest},
+		{"a%3Ab", body, inv.User, inv.AdminPassword, http.StatusBadRequest},
+		{inv.User, body, inv.User, inv.AdminPassword, http.StatusBadRequest}, // the lab's own name
+	} {
+		if code := call(http.MethodPut, c.name, c.body, c.user, c.pw); code != c.want {
+			t.Errorf("PUT %s %s as %s: %d, want %d", c.name, c.body, c.user, code, c.want)
+		}
+	}
+	if len(users()) != 1 {
+		t.Errorf("refused users were added: %v", users())
+	}
+	if code := call(http.MethodDelete, "n-0000000002", "", inv.User, inv.AdminPassword); code != http.StatusOK || len(users()) != 0 {
+		t.Errorf("remove a server's user: %d %v", code, users())
+	}
+	call(http.MethodPut, "n-0000000002", body, inv.User, inv.AdminPassword)
 	// Removed: the guest still hears, with the date its backups go.
 	guests, _ := st.Guests(ctx, time.Now())
 	removedAt := time.Now().Add(-time.Hour)
@@ -106,7 +162,23 @@ func TestGuestHub(t *testing.T) {
 	if code, u := usage(inv.User, inv.AdminPassword); code != http.StatusOK || !u.DeleteOn.Equal(removedAt.Add(GuestGrace).Truncate(time.Second)) {
 		t.Errorf("a removed guest: %d %+v", code, u)
 	}
-	if code, _ := usage(inv.User, inv.StorePassword); code != http.StatusForbidden {
+	if code := call(http.MethodPut, "n-0000000003", body, inv.User, inv.AdminPassword); code != http.StatusForbidden {
+		t.Errorf("a removed guest adds users: %d", code)
+	}
+	// Its users go with it.
+	for _, g := range guests {
+		if g.User() == inv.User {
+			st.RemoveGuest(ctx, g.ID)
+		}
+	}
+	var left int
+	for _, g := range must(st.Guests(ctx, time.Now())) {
+		left += len(g.Users)
+	}
+	if left != 0 {
+		t.Error("a deleted guest's users stay")
+	}
+	if code, _ := usage(inv.User, "wrong"); code != http.StatusForbidden {
 		t.Error("usage needs the admin password")
 	}
 	if code, _ := usage(inv2.User, inv2.AdminPassword); code != http.StatusForbidden {
@@ -152,4 +224,11 @@ func TestJoinStorageUnreachable(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "the link to Mum's lab at 203.0.113.7:51821 works") {
 		t.Errorf("handshake but no answer: %v", err)
 	}
+}
+
+func must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
 }

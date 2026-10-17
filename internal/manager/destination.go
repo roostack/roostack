@@ -230,7 +230,9 @@ func (m *Manager) SharedCredentials(ctx context.Context, serverID string) []Shar
 		}
 		var c SharedCredential
 		switch {
-		case d.kind == destRemote:
+		case d.kind == destRemote && d.remote.Servers[serverID] == "":
+			// Set up before servers had their own users there (its own is
+			// removed with it: removeRemoteUsers).
 			c = SharedCredential{What: "the password for " + d.remote.HostName + "'s storage"}
 		case d.kind == destS3 && t.ScopedKey == "":
 			c = SharedCredential{What: "the account key for " + d.provider.Name, Anywhere: true}

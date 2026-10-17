@@ -1,6 +1,7 @@
 package labnet
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -13,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,6 +23,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -38,6 +41,12 @@ const (
 	FirstGuestPort = 8100
 )
 
+// GuestAPI is the guest API's address at a host lab (its address on the
+// guests' link); tests point it elsewhere.
+var GuestAPI = func(hostAddr netip.Addr) string {
+	return "http://" + net.JoinHostPort(hostAddr.String(), strconv.Itoa(GuestAPIPort))
+}
+
 // InviteLifetime is how long a storage invite works.
 const InviteLifetime = 24 * time.Hour
 
@@ -48,6 +57,8 @@ type GuestStore interface {
 	AddGuest(ctx context.Context, g store.Guest) (int64, error)
 	Guests(ctx context.Context, now time.Time) ([]store.Guest, error)
 	JoinGuest(ctx context.Context, tokenHash, publicKey string, now time.Time) (store.Guest, error)
+	SetGuestUser(ctx context.Context, guestID int64, name, hash string) error
+	RemoveGuestUser(ctx context.Context, guestID int64, name string) error
 	Setting(ctx context.Context, key string) (string, error)
 	SetSetting(ctx context.Context, key, value string) error
 }
@@ -88,9 +99,13 @@ type StorageInvite struct {
 	Token   string `json:"t"`
 	// HostName names the host lab to the guest.
 	HostName string `json:"n"`
-	// The guest's store: its user and passwords, and ports.
+	// The guest's store: its user and admin password, and ports. Its
+	// servers' own users are added later, over the guest API
+	// (SetGuestUser). StorePassword is the password all of a guest lab's
+	// servers shared before they had their own: only in invites made
+	// before 2026-10-17.
 	User          string `json:"u"`
-	StorePassword string `json:"sp"`
+	StorePassword string `json:"sp,omitempty"`
 	AdminPassword string `json:"ap"`
 	Port          int    `json:"p"`
 	Quota         int64  `json:"q"`
@@ -119,7 +134,7 @@ func ParseStorageInvite(s string) (StorageInvite, error) {
 	if err := c.link("roostack-st1", c.JoinKey).Validate(); err != nil {
 		return c, fmt.Errorf("the invite is damaged: %w", err)
 	}
-	if c.Token == "" || c.User == "" || c.StorePassword == "" || c.AdminPassword == "" || c.Port < 1024 || c.Port > 65000 {
+	if c.Token == "" || c.User == "" || c.AdminPassword == "" || c.Port < 1024 || c.Port > 65000 {
 		return c, errors.New("the invite is damaged")
 	}
 	return c, nil
@@ -252,16 +267,12 @@ func (h *GuestHub) NewInvite(ctx context.Context, name string, quota int64, endp
 	}
 	pub, _ := agent.WireGuardPublicKey(key)
 	token, tokenHash := NewToken()
-	storePW, storeHash, err := password()
-	if err != nil {
-		return StorageInvite{}, err
-	}
 	adminPW, adminHash, err := password()
 	if err != nil {
 		return StorageInvite{}, err
 	}
 	id, err := h.Store.AddGuest(ctx, store.Guest{Name: name, Quota: quota, Addr: addr.String(), PublicKey: pub,
-		TokenHash: tokenHash, Expires: h.Now().Add(InviteLifetime), Port: port, StoreHash: storeHash, AdminHash: adminHash})
+		TokenHash: tokenHash, Expires: h.Now().Add(InviteLifetime), Port: port, AdminHash: adminHash})
 	if err != nil {
 		return StorageInvite{}, err
 	}
@@ -275,8 +286,7 @@ func (h *GuestHub) NewInvite(ctx context.Context, name string, quota int64, endp
 	hostKey := h.publicKey
 	h.mu.Unlock()
 	inv := StorageInvite{Endpoint: endpoint, HostKey: hostKey, HostAddr: p.Addr().Next(), Addr: addr, JoinKey: key,
-		Token: token, HostName: h.LabName, User: store.Guest{ID: id}.User(), StorePassword: storePW,
-		AdminPassword: adminPW, Port: port, Quota: quota}
+		Token: token, HostName: h.LabName, User: store.Guest{ID: id}.User(), AdminPassword: adminPW, Port: port, Quota: quota}
 	if _, err := ParseStorageInvite(inv.String()); err != nil {
 		return StorageInvite{}, err
 	}
@@ -349,8 +359,64 @@ func (h *GuestHub) Handler() http.Handler {
 		}
 		WriteJSON(w, http.StatusOK, u)
 	})
+	// A guest lab's servers each have their own store user (SPEC.md
+	// §10.10, review M21), so one taken over can't add to another's
+	// backups or read them: the guest's controller sets each one's
+	// password hash, and removes the user when the server leaves.
+	mux.HandleFunc("PUT /v1/guest/users/{name}", func(w http.ResponseWriter, r *http.Request) {
+		g, ok := h.guest(r)
+		if !ok || !g.Removed.IsZero() {
+			WriteError(w, http.StatusForbidden, errors.New("not a guest here"))
+			return
+		}
+		var req struct {
+			Hash string `json:"hash"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
+			WriteError(w, http.StatusBadRequest, err)
+			return
+		}
+		name := r.PathValue("name")
+		if _, ok := generate.StoreLine(name, req.Hash); !ok || name == g.User() {
+			WriteError(w, http.StatusBadRequest, errors.New("invalid user name or password hash"))
+			return
+		}
+		if _, exists := g.Users[name]; !exists && len(g.Users) >= MaxGuestUsers {
+			WriteError(w, http.StatusConflict, fmt.Errorf("a lab can have at most %d servers storing here", MaxGuestUsers))
+			return
+		}
+		if err := h.Store.SetGuestUser(r.Context(), g.ID, name, req.Hash); err != nil {
+			WriteError(w, http.StatusInternalServerError, err)
+			return
+		}
+		h.Log.Info("guest server's store user set", "guest", g.Name, "user", name)
+		if h.Changed != nil {
+			h.Changed()
+		}
+		WriteJSON(w, http.StatusOK, map[string]string{})
+	})
+	mux.HandleFunc("DELETE /v1/guest/users/{name}", func(w http.ResponseWriter, r *http.Request) {
+		g, ok := h.guest(r)
+		if !ok {
+			WriteError(w, http.StatusForbidden, errors.New("not a guest here"))
+			return
+		}
+		if err := h.Store.RemoveGuestUser(r.Context(), g.ID, r.PathValue("name")); err != nil {
+			WriteError(w, http.StatusInternalServerError, err)
+			return
+		}
+		h.Log.Info("guest server's store user removed", "guest", g.Name, "user", r.PathValue("name"))
+		if h.Changed != nil {
+			h.Changed()
+		}
+		WriteJSON(w, http.StatusOK, map[string]string{})
+	})
 	return mux
 }
+
+// MaxGuestUsers is how many servers of one guest lab can have a store
+// user.
+const MaxGuestUsers = 64
 
 // guest authenticates a guest by its admin password.
 func (h *GuestHub) guest(r *http.Request) (store.Guest, bool) {
@@ -432,7 +498,7 @@ func JoinStorage(ctx context.Context, inv StorageInvite, iface string, ag WireGu
 		return err
 	}
 	body, _ := json.Marshal(map[string]string{"token": inv.Token, "public_key": ownPub})
-	url := "http://" + net.JoinHostPort(inv.HostAddr.String(), strconv.Itoa(GuestAPIPort)) + "/v1/guest/join"
+	url := GuestAPI(inv.HostAddr) + "/v1/guest/join"
 	client := &http.Client{Timeout: 10 * time.Second}
 	start := time.Now()
 	handshake := false
@@ -474,7 +540,7 @@ func JoinStorage(ctx context.Context, inv StorageInvite, iface string, ag WireGu
 // Usage asks the host how much this lab stores there.
 func Usage(ctx context.Context, hostAddr netip.Addr, user, adminPassword string) (GuestUsage, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"http://"+net.JoinHostPort(hostAddr.String(), strconv.Itoa(GuestAPIPort))+"/v1/guest/usage", nil)
+		GuestAPI(hostAddr)+"/v1/guest/usage", nil)
 	if err != nil {
 		return GuestUsage{}, err
 	}
@@ -486,6 +552,45 @@ func Usage(ctx context.Context, hostAddr netip.Addr, user, adminPassword string)
 	defer resp.Body.Close()
 	var u GuestUsage
 	return u, DecodeResponse(resp, &u)
+}
+
+// SetGuestUser gives one of this lab's servers its own user at the
+// host's store, with a password's bcrypt hash (NewStorePassword).
+func SetGuestUser(ctx context.Context, hostAddr netip.Addr, user, adminPassword, name, hash string) error {
+	body, _ := json.Marshal(map[string]string{"hash": hash})
+	return guestCall(ctx, http.MethodPut, hostAddr, user, adminPassword, "/v1/guest/users/"+url.PathEscape(name), body)
+}
+
+// RemoveGuestUser removes one of this lab's servers' users at the host.
+func RemoveGuestUser(ctx context.Context, hostAddr netip.Addr, user, adminPassword, name string) error {
+	return guestCall(ctx, http.MethodDelete, hostAddr, user, adminPassword, "/v1/guest/users/"+url.PathEscape(name), nil)
+}
+
+// guestCall calls the host's guest API as this lab (its admin password).
+func guestCall(ctx context.Context, method string, hostAddr netip.Addr, user, adminPassword, path string, body []byte) error {
+	req, err := http.NewRequestWithContext(ctx, method,
+		GuestAPI(hostAddr)+path, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(user, adminPassword)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return DecodeResponse(resp, nil)
+}
+
+// NewStorePassword returns a random password for a store user, and its
+// bcrypt hash.
+func NewStorePassword() (string, string, error) { return password() }
+
+// HashPassword is a password's bcrypt hash, for a store user.
+func HashPassword(pw string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
+	return string(hash), err
 }
 
 // password returns a random password and its bcrypt hash.

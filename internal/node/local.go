@@ -634,10 +634,17 @@ func (n *Local) addGuestStorage(d *reconcile.Desired, a Assignment) error {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return err
 		}
-		for name, hash := range map[string]string{generate.StorePasswords: g.StoreHash, generate.AdminPasswords: g.AdminHash} {
-			if err := writeIfChanged(filepath.Join(dir, name), g.User+":"+hash+"\n"); err != nil {
-				return err
-			}
+		// Each of its servers has its own user; the admin access is the
+		// guest lab's controller's (SPEC.md §10.10).
+		var lines strings.Builder
+		for _, l := range g.StoreLines() {
+			lines.WriteString(l + "\n")
+		}
+		if err := writeIfChanged(filepath.Join(dir, generate.StorePasswords), lines.String()); err != nil {
+			return err
+		}
+		if err := writeIfChanged(filepath.Join(dir, generate.AdminPasswords), g.User+":"+g.AdminHash+"\n"); err != nil {
+			return err
 		}
 	}
 	return nil

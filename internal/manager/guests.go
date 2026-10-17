@@ -6,11 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/labnet"
@@ -305,21 +308,29 @@ func (m *Manager) guestStores(ctx context.Context) ([]generate.GuestStorage, str
 			continue // no more backups
 		}
 		out = append(out, generate.GuestStorage{User: g.User(), Port: g.Port, Quota: g.Quota, Addr: g.Addr,
-			StoreHash: g.StoreHash, AdminHash: g.AdminHash})
+			Users: g.Users, StoreHash: g.StoreHash, AdminHash: g.AdminHash})
 	}
 	return out, addr.String()
 }
 
 // RemoteStorage is this lab's storage at another lab: a provider.
 type RemoteStorage struct {
-	HostName      string     `json:"host_name"`
-	Iface         string     `json:"iface"`
-	HostAddr      netip.Addr `json:"host_addr"`
-	User          string     `json:"user"`
-	StorePassword string     `json:"store_password"`
-	AdminPassword string     `json:"admin_password"`
-	Port          int        `json:"port"`
-	Quota         int64      `json:"quota"`
+	HostName string     `json:"host_name"`
+	Iface    string     `json:"iface"`
+	HostAddr netip.Addr `json:"host_addr"`
+	// User is this lab's name at the host, with AdminPassword its access
+	// that can delete (the controller's, for pruning).
+	User          string `json:"user"`
+	AdminPassword string `json:"admin_password"`
+	// Servers are this lab's servers' own store passwords there, by
+	// server ID (each is its own store user: remoteServerUser).
+	Servers map[string]string `json:"servers,omitempty"`
+	// StorePassword is the store password every server shared, in links
+	// made before servers had their own (2026-10-17): backups set up then
+	// keep it.
+	StorePassword string `json:"store_password,omitempty"`
+	Port          int    `json:"port"`
+	Quota         int64  `json:"quota"`
 	// ProxyPort is where the controller forwards its servers' backups.
 	ProxyPort int `json:"proxy_port"`
 	// Ref is its backup choice ("provider:<id>"); not stored.
@@ -358,6 +369,8 @@ func (m *Manager) AddRemoteStorage(ctx context.Context, code string) error {
 	r := RemoteStorage{HostName: inv.HostName, Iface: iface, HostAddr: inv.HostAddr, User: inv.User,
 		StorePassword: inv.StorePassword, AdminPassword: inv.AdminPassword, Port: inv.Port, Quota: inv.Quota,
 		ProxyPort: FirstProxyPort + n - 1}
+	// Each server gets its own user there when its backups are set up
+	// (remoteServerUser).
 	cfg, _ := json.Marshal(r)
 	if _, err := m.BackupStore.AddBackupProvider(ctx, store.BackupProvider{Kind: "remote",
 		Name: inv.HostName + "'s storage", Config: string(cfg)}); err != nil {
@@ -471,20 +484,112 @@ func (m *Manager) proxyPorts(ctx context.Context) []int {
 }
 
 // remoteRepos returns a server's repository at another lab: as the
-// server reaches it (through the controller's proxy) and as the
-// controller does (directly, with the lab's admin access there).
+// server reaches it (through the controller's proxy, as its own user
+// there: remoteServerUser) and as the controller does (directly, with the
+// lab's admin access there).
 func (m *Manager) remoteRepos(r RemoteStorage, labID, serverID string) (serverURL string, serverEnv []string, adminURL string, adminEnv []string) {
-	// rest-server takes at most two levels; the user is this lab's own.
-	path := "/" + r.User + "/" + serverID
+	// rest-server takes at most two levels, and a user reaches only the
+	// first level named after it (--private-repos), as on a server's
+	// disk.
+	path := "/" + serverID + "/" + labID
 	host := m.addressOf(m.Lab.NodeID)
 	if serverID == m.Lab.NodeID {
 		host = "127.0.0.1"
 	}
 	serverURL = fmt.Sprintf("rest:http://%s:%d%s", host, r.ProxyPort, path)
-	serverEnv = []string{"RESTIC_REST_USERNAME=" + r.User, "RESTIC_REST_PASSWORD=" + r.StorePassword}
-	adminURL = fmt.Sprintf("rest:http://%s:%d%s", r.HostAddr, r.Port+1, path)
-	adminEnv = []string{"RESTIC_REST_USERNAME=" + r.User, "RESTIC_REST_PASSWORD=" + r.AdminPassword}
+	serverEnv = []string{"RESTIC_REST_USERNAME=" + serverID, "RESTIC_REST_PASSWORD=" + r.Servers[serverID]}
+	adminURL, adminEnv = remoteAdmin(r, serverURL)
 	return
+}
+
+// remoteAdmin is the controller's access to a repository at another lab,
+// from the server's URL for it (through the proxy): the same path on the
+// host's admin port. Backups set up before servers had their own users
+// are at /<lab's user>/<server ID>, and keep working.
+func remoteAdmin(r RemoteStorage, serverURL string) (string, []string) {
+	path := serverURL
+	if u, err := url.Parse(strings.TrimPrefix(serverURL, "rest:")); err == nil {
+		path = u.Path
+	}
+	return fmt.Sprintf("rest:http://%s:%d%s", r.HostAddr, r.Port+1, path),
+		[]string{"RESTIC_REST_USERNAME=" + r.User, "RESTIC_REST_PASSWORD=" + r.AdminPassword}
+}
+
+// remoteConfigMu makes changes to a friend's lab's record one at a time
+// (servers' users are added as their backups are set up).
+var remoteConfigMu sync.Mutex
+
+// remoteServerUser makes sure a server has its own user at another lab's
+// store (SPEC.md §10.10, review M21), so a server that's taken over can't
+// add to its siblings' backups there or read them: a password kept in the
+// lab's record, whose hash the host is given over the guest API (again
+// each time, in case it lost it). It returns the record with it.
+func (m *Manager) remoteServerUser(ctx context.Context, ref, serverID string) (RemoteStorage, error) {
+	remoteConfigMu.Lock()
+	defer remoteConfigMu.Unlock()
+	d, err := m.destinationOf(ctx, ref)
+	if err != nil {
+		return RemoteStorage{}, err
+	}
+	r := d.remote
+	r.Ref = ref
+	pw := r.Servers[serverID]
+	var hash string
+	if pw == "" {
+		pw, hash, err = labnet.NewStorePassword()
+	} else {
+		hash, err = labnet.HashPassword(pw)
+	}
+	if err != nil {
+		return r, err
+	}
+	if err := labnet.SetGuestUser(ctx, r.HostAddr, r.User, r.AdminPassword, serverID, hash); err != nil {
+		return r, formErrorf("%s didn't take a user for %s: %v. Check their lab is running, and try again.", r.HostName, m.nameOf(serverID), err)
+	}
+	if r.Servers[serverID] == pw {
+		return r, nil
+	}
+	if r.Servers == nil {
+		r.Servers = map[string]string{}
+	}
+	r.Servers[serverID] = pw
+	cfg, _ := json.Marshal(r)
+	p := d.provider
+	p.Config = string(cfg)
+	return r, m.BackupStore.UpdateBackupProvider(ctx, p)
+}
+
+// removeRemoteUsers removes a server's users at other labs (it's leaving
+// the lab), and forgets their passwords.
+func (m *Manager) removeRemoteUsers(ctx context.Context, act *activity.Log, serverID string) {
+	if m.BackupStore == nil {
+		return
+	}
+	remoteConfigMu.Lock()
+	defer remoteConfigMu.Unlock()
+	for _, r := range m.RemoteStorages(ctx) {
+		if r.Servers[serverID] == "" {
+			continue
+		}
+		if err := labnet.RemoveGuestUser(ctx, r.HostAddr, r.User, r.AdminPassword, serverID); err != nil {
+			act.Printf("Couldn't remove %s's user at %s (%v): it can't reach it without this lab's network anyway.",
+				m.nameOf(serverID), r.HostName, err)
+			m.Log.Warn("removing a server's user at another lab", "server", serverID, "host", r.HostName, "err", err)
+		} else {
+			act.Printf("Removed %s's user at %s.", m.nameOf(serverID), r.HostName)
+		}
+		_, id, _ := strings.Cut(r.Ref, ":")
+		p, err := m.provider(ctx, id)
+		if err != nil {
+			continue
+		}
+		delete(r.Servers, serverID)
+		cfg, _ := json.Marshal(r)
+		p.Config = string(cfg)
+		if err := m.BackupStore.UpdateBackupProvider(ctx, p); err != nil {
+			m.Log.Warn("forgetting a removed server's password at another lab", "err", err)
+		}
+	}
 }
 
 func splitEndpoint(s string) (string, int, error) {

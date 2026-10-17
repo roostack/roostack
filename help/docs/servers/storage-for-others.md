@@ -6,7 +6,8 @@ online storage.
 
 Their backups are **encrypted before they leave their lab**, so you can't
 read them, and they can't read yours. Each lab gets its own space, with a
-size limit you choose.
+size limit you choose. Within it, each of their servers can only add to
+its own backups: one that's taken over can't touch the others'.
 
 ## Offering space to someone
 
@@ -47,8 +48,13 @@ in case it was a mistake, or sooner if you choose **Delete now**.
 
     Other labs connect over a second WireGuard interface,
     `roostack-guests` (UDP 51821), separate from your own lab's network.
-    Each guest lab gets its own rest-server store, with its own user and
-    quota, on the offering server, under `/srv/roostack/backups/guests`. On their
-    side, the link to your lab is a WireGuard interface named
-    `roostack-st1` (up to `roostack-st9`), and their servers' backups are
-    forwarded through their controller.
+    Each guest lab gets its own pair of rest-server stores (append-only
+    for its servers, and an admin one for its controller's clean-ups),
+    with a quota, on the offering server, under
+    `/srv/roostack/backups/guests/g<number>`. Each of its servers has its
+    own user there (`--private-repos`), added by their controller over
+    the guest API when that server's backups are first set up, and removed
+    when the server leaves their lab. Your lab keeps only the passwords'
+    hashes. On their side, the link to your lab is a WireGuard interface
+    named `roostack-st1` (up to `roostack-st9`), and their servers'
+    backups are forwarded through their controller.
