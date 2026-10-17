@@ -140,6 +140,9 @@ type fakeManager struct {
 	// (plan_test.go); keyErr fails them.
 	s3Keys []string
 	keyErr error
+
+	// Files found in backups and couldn't be read (junk_test.go).
+	junk []manager.JunkReport
 }
 
 // BackupAccess is f.backupAccess's, else what the kind suggests: another

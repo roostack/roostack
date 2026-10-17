@@ -42,6 +42,10 @@ Your lab has no address yet
 :   Choose, and the firewall comes on: see
     [First-run setup](../start/first-run.md#4-who-can-log-in-to-this-server).
 
+Roostack removed files it can't read from *server*'s backups
+:   Something added junk to those backups, which stopped them working. See
+    [Files removed from backups](backup-junk.md).
+
 Changes Roostack didn't make
 :   See [Updates and restarts](../settings/updates.md#changes-roostack-didnt-make).
 
@@ -78,6 +82,7 @@ what went wrong. Visitors from outside see only the picture and the words.
 
 - [Locked out](locked-out.md): a forgotten password or a lost phone.
 - [Restore a whole lab](restore-lab.md): the server died, or was lost.
+- [Files removed from backups](backup-junk.md): junk a server added.
 - A service's data is broken: [Get something back](../backups/restore.md).
 
 ??? note "For technical users"
