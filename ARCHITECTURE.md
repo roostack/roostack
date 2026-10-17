@@ -85,6 +85,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/maintenance` | Maintenance coordinator: job queue and reboot policy |
 | `internal/backup` | restic wrapper, prepare steps, backup plan and job |
 | `internal/b2` | Backblaze B2 application keys limited to one server's folder, made and deleted over B2's native API |
+| `internal/s3api` | The few S3 calls Roostack makes beside restic (path-style, signed with `awssig`): a bucket's versioning and lifecycle rules, the probe that shows a key can't erase old versions, and listing and copying back old versions to roll a server's folder back (Backblaze's S3-compatible API too); `s3api/s3fake` is an in-memory versioned bucket for tests |
 | `internal/mail` | Sending email through the lab's SMTP server (SPEC.md §6.13): settings in lab.yaml, the password in its own 0600 file, STARTTLS or TLS with the standard library's client |
 | `internal/units` | The one size formatter (decimal units: 1 GB = 1000³ bytes) |
 | `internal/cloudkeys` | Roostack Cloud backup's short-lived keys on a server (SPEC.md §6.9): kept 0600 in the state folder, renewed with under an hour left, passed to restic as environment variables. The controller's come from Cloud, other servers' from the controller (`POST /v1/storage-keys` on the lab API) |

@@ -21,6 +21,8 @@ var activityPerm = map[string]auth.Permission{
 	activity.Build:       auth.ManageServices,
 	// Updating a service (SPEC.md §7).
 	activity.ServiceUpdate: auth.ManageServices,
+	// Rolling backups back (SPEC.md §10.10).
+	activity.BackupRollback: auth.ManageHost,
 }
 
 // activityView is one activity's live status and log (parts.html).
@@ -38,7 +40,7 @@ type activityView struct {
 func (s *Server) activityFor(r *http.Request, kind string) *activityView {
 	base, forServer, _ := strings.Cut(kind, ".")
 	perm, ok := activityPerm[base]
-	if !ok || !auth.Can(currentUser(r).Role, perm) || (forServer != "" && base != activity.BackupSetup && base != activity.BackupKey) {
+	if !ok || !auth.Can(currentUser(r).Role, perm) || (forServer != "" && base != activity.BackupSetup && base != activity.BackupKey && base != activity.BackupRollback) {
 		return nil
 	}
 	n := s.serverOf(r)

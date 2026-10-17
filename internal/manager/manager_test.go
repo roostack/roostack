@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,6 +22,8 @@ import (
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/reconcile"
+	"roostack.cloud/roostack/internal/s3api"
+	"roostack.cloud/roostack/internal/s3api/s3fake"
 	"roostack.cloud/roostack/internal/state"
 )
 
@@ -113,6 +116,13 @@ func newManager(t *testing.T) (*Manager, *fakeSecrets) {
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: &fakeSystemd{}, Secrets: secrets},
 		Log:        log,
 	}}
+	// Online storage is a bucket that keeps no versions, unless a test
+	// gives one that does: no test reaches a real provider.
+	plain := httptest.NewServer(&s3fake.Bucket{Name: "b"})
+	t.Cleanup(plain.Close)
+	m.NewS3 = func(s3 S3Provider) *s3api.Client {
+		return &s3api.Client{Endpoint: plain.URL, Bucket: "b", AccessKey: s3.AccessKey, SecretKey: s3.SecretKey}
+	}
 	// A test may end while an apply it started is still writing files
 	// (e.g. state/caddy): wait for it before the temporary directory goes.
 	// Cleanups run last-registered first, so this runs before root's removal.

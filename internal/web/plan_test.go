@@ -34,9 +34,9 @@ func TestPlanSafeFromRansomware(t *testing.T) {
 
 	// Backblaze with a key of its own: deletes only hide. A bucket that
 	// erases hidden files after a day doesn't count.
-	fm.backupAccess = map[string]manager.Access{"provider:1": {HidesOnly: true, KeepsHidden: 1}}
+	fm.backupAccess = map[string]manager.Access{"provider:1": {B2: true, HidesOnly: true, KeepsHidden: 1}}
 	_, body = h.get("/backups")
-	for _, want := range []string{`pill-warn plan-warn">` + safe, "anything it deletes is only hidden",
+	for _, want := range []string{`pill-warn plan-warn">` + safe, "anything this server deletes is only hidden",
 		"This bucket deletes hidden files after a day"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("short lifecycle missing %q", want)
@@ -201,5 +201,74 @@ func TestPlanLostMainBackup(t *testing.T) {
 	fm.destination, fm.lostMain = "provider:2", nil
 	if _, body = h.get("/backups"); strings.Contains(body, "left the lab") {
 		t.Error("a new main backup ends it")
+	}
+}
+
+// A backup at storage that keeps old versions can be put back as it was
+// at a time, under Manage: checked first, then confirmed (SPEC.md §10.10).
+func TestPlanRollback(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fm.destination = "drive:usb1"
+	fm.copies = []manager.BackupCopy{{Ref: "provider:1", Title: "Wasabi", Repository: "s3:https://s3.wasabisys.com/b/roostack/l/n"}}
+	_, body := h.get("/backups")
+	if strings.Contains(body, "Bring back what was hidden") {
+		t.Error("not where old versions aren't kept")
+	}
+	fm.backupAccess = map[string]manager.Access{"provider:1": {HidesOnly: true, KeepsHidden: 7, Versioned: true}}
+	_, body = h.get("/backups")
+	for _, want := range []string{"Bring back what was hidden or changed…", `action="/backups/plan/rollback"`, `type="datetime-local" name="before"`,
+		"The bucket keeps old versions, and the account's key can't erase them",
+		"In the bucket&#39;s lifecycle rules, keep old versions for at least 30 days"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("plan missing %q", want)
+		}
+	}
+	if strings.Contains(body, `id="plan-rollback-3" open`) || strings.Contains(body, `name="step" value="run"`) {
+		t.Error("closed, and nothing to confirm before a check")
+	}
+
+	h.post("/backups/plan/rollback", url.Values{"destination": {"provider:1"}, "before": {"2026-10-16T09:00"}, "step": {"check"}}, h.srv.URL)
+	if len(fm.rollbacks) != 1 || fm.rollbacks[0] != "check n-0123456789 provider:1 2026-10-16T09:00" {
+		t.Fatalf("rollbacks = %v", fm.rollbacks)
+	}
+	// Checked: what it changes, and a confirmation for that time.
+	before := time.Date(2026, 10, 16, 9, 0, 0, 0, time.Local)
+	fm.rollbackPlan = &manager.RollbackPlan{Before: before, Changed: 3,
+		Summary: []string{"1 backup (a snapshot) hidden since then comes back."}}
+	_, body = h.get("/backups?rollback=provider:1")
+	for _, want := range []string{`id="plan-manage-3" open`, `id="plan-rollback-3" open`, `value="2026-10-16T09:00"`, "Go back to 16 October 09:00",
+		"Go back to 16 October 09:00 in these backups? 1 backup (a snapshot) hidden since then comes back. Nothing is erased",
+		`name="step" value="run"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("checked plan missing %q", want)
+		}
+	}
+	h.post("/backups/plan/rollback", url.Values{"destination": {"provider:1"}, "before": {"2026-10-16T09:00"}, "step": {"run"}}, h.srv.URL)
+	if len(fm.rollbacks) != 2 || fm.rollbacks[1] != "run n-0123456789 provider:1 2026-10-16T09:00" {
+		t.Errorf("rollbacks = %v", fm.rollbacks)
+	}
+
+	// Refused: said on the page; a time that isn't one; another place.
+	fm.rollbackErr = &manager.FormError{Msg: "Choose a time that has passed."}
+	if _, body = h.post("/backups/plan/rollback", url.Values{"destination": {"provider:1"}, "before": {"2030-01-01T00:00"}}, h.srv.URL); !strings.Contains(body, "Choose a time that has passed.") {
+		t.Error("a refusal is shown")
+	}
+	if _, body = h.post("/backups/plan/rollback", url.Values{"destination": {"provider:1"}, "before": {"yesterday"}}, h.srv.URL); !strings.Contains(body, "Choose the date and time to go back to.") {
+		t.Error("a time that isn't one")
+	}
+	if code, _ := h.post("/backups/plan/rollback", url.Values{"destination": {"provider:2"}, "before": {"2026-10-16T09:00"}}, h.srv.URL); code != http.StatusNotFound {
+		t.Errorf("another place: %d", code)
+	}
+	// Only Owners.
+	ha, _ := loggedIn(t, auth.RoleAdmin)
+	if code, _ := ha.post("/backups/plan/rollback", url.Values{"destination": {"provider:1"}, "before": {"2026-10-16T09:00"}}, ha.srv.URL); code != http.StatusForbidden {
+		t.Errorf("an admin: %d", code)
+	}
+
+	// Versions kept, but the key can erase them: the card says so.
+	fm.backupAccess = map[string]manager.Access{"provider:1": {CanDelete: true, Versioned: true}}
+	if _, body = h.get("/backups"); !strings.Contains(body, "the bucket keeps old versions, but the account&#39;s key") ||
+		!strings.Contains(body, "Bring back what was hidden") {
+		t.Error("versioned, with a key that can erase")
 	}
 }
