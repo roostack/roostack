@@ -483,7 +483,7 @@ The review of 2026-10-16 found no CI for either Go repository.
 
 Every page the two review rounds changed, in Roostack and Roostack Cloud, at 1280 px and 375 px, light and dark (the list is in the session's report). Fixed: phone-width overflow (Needs attention, the link code under "Setting up …", the disk key, long buttons, the page header, copy boxes), wording (the junk items and page, the restore page, the rollback check), and Cloud's login wording and console layout. Not fixed here:
 
-- [ ] The SSH pages (setup step and Settings → Remote access; rs-trust-classes' files): in Details, `sshd -T` breaks at its hyphen on a phone ("sshd -" / "T"); the same page is "Remote access" in the breadcrumbs, "Change remote access" as its heading and "Who can log in to this server?" as its help link
+- [x] The SSH pages (setup step and Settings → Remote access; rs-trust-classes' files): in Details, `sshd -T` breaks at its hyphen on a phone ("sshd -" / "T"); the same page is "Remote access" in the breadcrumbs, "Change remote access" as its heading and "Who can log in to this server?" as its help link (2026-10-17: `code.nowrap` for short commands; "Remote access" in all three in Settings, the question in all three in the wizard)
 - [ ] The low-space warning on a small backup drive (a 2 GB USB drive on VM2): "This server's backup drive USB drive ROOSTACK is running out of disk space: 1.9 GB free of 2.1 GB" with 90% free. The threshold seems absolute; and "backup drive USB drive" repeats itself
 - [ ] First-run setup's recovery key step has "Settings / Your recovery key" as its breadcrumbs, where the other steps say "Setup / Step n of 4"
 - [ ] First-run setup's address step forgets the name typed for roost.ac after linking was cancelled in Roostack Cloud

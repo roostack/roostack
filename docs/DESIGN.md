@@ -153,7 +153,7 @@ Template components are called as functions; everything else is plain HTML with 
 | Friendly/Technical switch | `.views` containing `label.view-switch` (`<input type="checkbox">`, two `span`s) and `.friendly-only` / `.technical-only` parts | A service's page flips to the files behind it; CSS only (`:has`), the friendly view without it |
 | Code panel | `figure.code-panel`: `figcaption.code-bar` (where the file lives, or the command), then `pre > code`; `.code-comment`, `.code-section` | A file Roostack wrote or a command's output, in the technical view |
 | Area heading | `<h2 class="area-heading">` between cards | A page with groups of cards: Backups has "Each server's backups" (the server switcher, then that server's cards) and "Your whole lab" (the same whichever server is chosen). Only when there's more than one group |
-| Facts | `<dl class="facts">` | Label/value pairs; stack on phones |
+| Facts | `<dl class="facts">` | Label/value pairs; stack on phones. A short command in one is `<code class="nowrap">`, so `sshd -T` doesn't break at its hyphen on a phone |
 | Forms | `<label>Text <input><small>hint</small></label>`, `label.check` for checkboxes and radios, `.with-suffix` (a fixed end, e.g. the domain), `.with-prefix` (a fixed start, e.g. a service's package name), `select.inline` | Errors: `<p class="error" role="alert">` above the form |
 | Rows | `ul.rows` with `li.row-split` | Lists you act on (people, kept copies) |
 | Needs attention | `.attention .item` with `.item-problem` / `.item-warning` | Home page. Text wraps anywhere (an address, a key). An error shows only its first line: restic's stack trace stays on the Backups page, under the failed backup's Details |

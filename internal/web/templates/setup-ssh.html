@@ -2,7 +2,7 @@
 {{define "content"}}
 <div class="page-head">
   <div>
-    <h1>{{if .Wizard}}Who can log in to this server?{{else}}Change remote access{{if not .Server.This}} to {{.Server.Name}}{{end}}{{end}}</h1>
+    <h1>{{if .Wizard}}Who can log in to this server?{{else}}Remote access{{if not .Server.This}} to {{.Server.Name}}{{end}}{{end}}</h1>
   </div>
 </div>
 {{template "server-switcher" .}}
@@ -75,11 +75,11 @@
     <dt>SSH now</dt>
     <dd>{{if .SSHD.Passwords}}Takes passwords{{else if .SSHD.PasswordsOutside}}Takes passwords from some addresses outside your home
       network{{else}}Refuses passwords{{end}}{{with .SSHD.PasswordsMatch}} ({{.}}){{end}}; root logins: {{if eq .SSHD.RootLogin "no"}}refused{{else if eq .SSHD.RootLogin "yes"}}allowed, with a password too{{else if .SSHD.RootLogin}}with a key only ({{.SSHD.RootLogin}}){{else}}unknown{{end}}
-      (from <code>sshd -T</code>, and <code>sshd -T -C</code> for each connection its <code>Match</code> blocks may change)</dd>
+      (from <code class="nowrap">sshd -T</code>, and <code class="nowrap">sshd -T -C</code> for each connection its <code>Match</code> blocks may change)</dd>
     <dt>Keys only</dt>
     <dd>Roostack writes <code>{{.DropIn}}</code> ({{if .SSHD.KeysOnly}}there now{{else}}not there now{{end}}):
       <code>PasswordAuthentication no</code>, <code>KbdInteractiveAuthentication no</code>, <code>PermitRootLogin no</code>. It checks
-      the change with <code>sshd -t</code> and puts the old file back if sshd refuses it, then reloads SSH. Logged-in sessions stay
+      the change with <code class="nowrap">sshd -t</code> and puts the old file back if sshd refuses it, then reloads SSH. Logged-in sessions stay
       connected.</dd>
     <dt>Key check</dt>
     <dd>Keys only needs a key login, as an account in the <code>sudo</code> group, in SSH's log, written by sshd itself
@@ -91,7 +91,8 @@
 </section>
 {{end}}
 
-{{define "page-help"}}{{help "start/first-run#4-who-can-log-in-to-this-server" "Who can log in to this server?"}}{{end}}
+{{/* The page is "Remote access" in Settings (its breadcrumbs, heading and help link), and its question in the wizard. */}}
+{{define "page-help"}}{{if .Wizard}}{{help "start/first-run#4-who-can-log-in-to-this-server" "Who can log in to this server?"}}{{else}}{{help "start/first-run#4-who-can-log-in-to-this-server" "Remote access"}}{{end}}{{end}}
 {{define "crumbs"}}{{if .Wizard}}<span>Setup</span><strong aria-current="page">Step 2 of 4</strong>{{else}}<a href="{{.Back}}">{{.BackText}}</a><strong aria-current="page">{{template "title" .}}</strong>{{end}}{{end}}
 {{/* Over Roostack's network, only the controller reaches SSH (SPEC.md §10.2). */}}
 {{define "ssh-other-servers"}}{{if .MultiServer}} Not from this lab's other servers{{if not .Server.This}}, except the one that runs

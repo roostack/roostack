@@ -458,6 +458,8 @@ table.list .with-icon { display: inline-flex; align-items: center; gap: var(--sp
 .list-name .logo-tile { width: 34px; height: 34px; padding: 3px; }
 .list-name .logo-tile .icon { width: 20px; height: 20px; }
 .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* A short command in running text (`sshd -T`): not broken at its hyphen. */
+code.nowrap { white-space: nowrap; }
 /* Only on phones (where a .hide-phone column's content moves). */
 .show-phone { display: none; }
 
