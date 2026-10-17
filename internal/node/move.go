@@ -1,6 +1,7 @@
 package node
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -159,18 +161,159 @@ func (n *Local) ImportData(ctx context.Context, service string, dir int, r io.Re
 	if err := os.MkdirAll(in, 0o750); err != nil {
 		return err
 	}
+	// Symbolic links left by an earlier pass of the copy, which tar would
+	// follow (checkStream).
+	have, err := n.unshare(ctx, "find", in, "-mindepth", "1", "-type", "l", "-printf", "%P\\0").Output()
+	if err != nil {
+		return fmt.Errorf("listing links in %s: %w", in, err)
+	}
+	links := map[string]bool{}
+	for _, p := range strings.Split(string(have), "\x00") {
+		if p != "" {
+			links[p] = true
+		}
+	}
 	args := []string{"tar", "-C", in, "-xpf", "-", "--numeric-owner"}
 	if strip > 0 {
 		args = append(args, "--strip-components="+strconv.Itoa(strip))
 	}
 	cmd := n.unshare(ctx, args...)
-	cmd.Stdin = r
+	pr, pw := io.Pipe()
+	cmd.Stdin = pr
+	checked := make(chan error, 1)
+	go func() {
+		err := checkStream(r, pw, strip, links)
+		pw.CloseWithError(err)
+		checked <- err
+	}()
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	err = cmd.Run()
+	pr.Close() // tar stopped: so does the check
+	if cerr := <-checked; cerr != nil && !errors.Is(cerr, io.ErrClosedPipe) {
+		return fmt.Errorf("unpacking into %s: %w", in, cerr)
+	}
+	if err != nil {
 		return fmt.Errorf("unpacking into %s: %w: %s", in, err, strings.TrimSpace(stderr.String()))
 	}
 	return nil
+}
+
+// checkStream passes a tar stream on to tar, member by member, refusing
+// one that could reach outside the folder it's unpacked in: a name with
+// "..", anything inside a symbolic link (one sent earlier in the stream,
+// or in links: those already there from an earlier pass), a folder in
+// place of a link, or a hard link to something inside one. GNU tar itself
+// refuses ".." and delays links sent in the same stream, but follows a
+// link already on disk (docs/ASSUMPTIONS.md L19, checked on VM1), and a
+// copy sends its data more than once into the same folder. The stream
+// stops at the member refused, which never reaches tar. strip is tar's
+// --strip-components; links is updated as the stream goes.
+func checkStream(r io.Reader, w io.Writer, strip int, links map[string]bool) error {
+	tr := tar.NewReader(r)
+	tw := tar.NewWriter(w)
+	for {
+		h, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return tw.Close()
+		}
+		if err != nil {
+			return err
+		}
+		if err := checkMember(h, strip, links); err != nil {
+			return err
+		}
+		// Written again as read: tar's format is chosen to fit, and a
+		// sparse file is sent whole.
+		h.Format = tar.FormatUnknown
+		if h.Typeflag == tar.TypeGNUSparse {
+			h.Typeflag = tar.TypeReg
+		}
+		for k := range h.PAXRecords {
+			if strings.HasPrefix(k, "GNU.sparse.") {
+				delete(h.PAXRecords, k)
+			}
+		}
+		if err := tw.WriteHeader(h); err != nil {
+			return err
+		}
+		if _, err := io.Copy(tw, tr); err != nil {
+			return err
+		}
+	}
+}
+
+// checkMember checks one member of a stream for checkStream.
+func checkMember(h *tar.Header, strip int, links map[string]bool) error {
+	name, ok := strippedName(h.Name, strip)
+	if !ok {
+		return fmt.Errorf("the data sent has a file named %q, which would be outside the folder", h.Name)
+	}
+	if name == "" {
+		return nil // tar skips it (too few components), or it's the folder itself
+	}
+	if l := linkAbove(name, links); l != "" {
+		return fmt.Errorf("the data sent has %q inside the symbolic link %q, which could point anywhere", name, l)
+	}
+	switch h.Typeflag {
+	case tar.TypeSymlink:
+		links[name] = true
+	case tar.TypeLink:
+		// Checked as tar unpacks it, and as sent in case tar doesn't strip
+		// it the same way.
+		target, ok := strippedName(h.Linkname, strip)
+		whole, _ := strippedName(h.Linkname, 0)
+		if !ok {
+			return fmt.Errorf("the data sent has a hard link to %q, which would be outside the folder", h.Linkname)
+		}
+		for _, t := range []string{target, whole} {
+			if l := linkAbove(t, links); l != "" {
+				return fmt.Errorf("the data sent has a hard link to %q inside the symbolic link %q, which could point anywhere", t, l)
+			}
+		}
+		if links[target] || links[whole] {
+			links[name] = true // another name for the link
+		} else {
+			delete(links, name)
+		}
+	case tar.TypeDir:
+		if links[name] {
+			return fmt.Errorf("the data sent has a folder %q in place of a symbolic link", name)
+		}
+	default:
+		delete(links, name) // tar removes a link before writing a file there
+	}
+	return nil
+}
+
+// strippedName is a member's name as tar unpacks it: without leading
+// slashes or its first strip components (as GNU tar counts them), and
+// cleaned. "" if tar would skip it; false if it has a ".." component.
+func strippedName(name string, strip int) (string, bool) {
+	if slices.Contains(strings.Split(name, "/"), "..") {
+		return "", false
+	}
+	p := strings.TrimLeft(name, "/")
+	for range strip {
+		_, rest, ok := strings.Cut(p, "/")
+		if !ok {
+			return "", true
+		}
+		p = strings.TrimLeft(rest, "/")
+	}
+	p = path.Clean("/" + p)
+	return strings.TrimPrefix(p, "/"), true
+}
+
+// linkAbove returns the folder above name (or name's own path's parents)
+// that is a symbolic link, or "".
+func linkAbove(name string, links map[string]bool) string {
+	for i := range len(name) {
+		if name[i] == '/' && links[name[:i]] {
+			return name[:i]
+		}
+	}
+	return ""
 }
 
 func (n *Local) PruneData(ctx context.Context, service string, dir int, keep []string) error {
