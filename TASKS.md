@@ -473,7 +473,7 @@ Changes to the lab ↔ Cloud contract (`cloudapi`) made with Roostack Cloud's si
 The review of 2026-10-16 found no CI for either Go repository.
 
 - [x] CI running `make vet`, `go test ./...` with restic 0.18.0 (so the backup tests don't skip) and govulncheck on every pull request and push to `main` (`.github/workflows/ci.yml`, README "Continuous integration"); no secrets. Checked before the first run: actionlint clean, the suite passed on VM1 with its restic, govulncheck clear on Go 1.27.2
-  - [ ] Its first run on GitHub, on a draft pull request
+  - [x] Its first run on GitHub (2026-10-17, draft pull request Tyris/roostack#1): green in about 6 minutes; restic 0.18.0 used (the backup tests ran, `internal/backup` 149 s), govulncheck clear
 - [ ] Maybe: govulncheck weekly too, so a new advisory shows without waiting for a push
 
 ## To discuss with the user
