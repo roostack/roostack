@@ -33,6 +33,12 @@ Setup stays on this page until it's finished, all seven steps. Then the
 page closes for good and tells you where Roostack is from then on: at
 your lab's address if you gave it one (step 5), otherwise through SSH.
 
+Once your account exists, the page asks you to log in if you come back
+to it later, and it closes **24 hours** after your account was made,
+finished or not, to keep your server safe. If that happens, carry on
+through SSH ([Not on the same network?](install.md#not-on-the-same-network)):
+setup continues where you left it.
+
 On a cloud server, or if the page doesn't open, use SSH instead:
 [Not on the same network?](install.md#not-on-the-same-network)
 
@@ -225,9 +231,12 @@ and the page carries on by itself. Then you'll see the home page, ready for
     a self-signed certificate (`/var/lib/roostack/setup-tls.crt`). The
     browser must use the server's address, not a name: a name gets
     *421 Misdirected Request*, which stops other sites reaching the page
-    through a name pointed at your server (DNS rebinding). When setup is
-    finished, the listener stops, the firewall closes the port and the
-    certificate is deleted. Until the lab has an address, the UI is then
+    through a name pointed at your server (DNS rebinding). Once the Owner
+    exists, everything there needs the Owner signed in there; a session
+    from there doesn't work on Roostack's other pages, nor the other way
+    round. When setup is finished, or 24 hours after the Owner was made,
+    the listener stops, the firewall closes the port, the certificate is
+    deleted and everything signed in there is signed out. Until the lab has an address, the UI is then
     reached with an SSH tunnel from your computer, then
     <http://127.0.0.1:8480>, which works during setup too:
 

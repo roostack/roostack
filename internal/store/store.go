@@ -225,7 +225,15 @@ var migrations = []string{
 		hash     TEXT NOT NULL,
 		PRIMARY KEY (guest_id, name)
 	);`,
+	// Where a session was signed in (SPEC.md §6.3.2): "" for Roostack's
+	// pages, OriginSetup for the setup pages on the home network. Each
+	// works only where it was made.
+	`ALTER TABLE sessions ADD COLUMN origin TEXT NOT NULL DEFAULT '';`,
 }
+
+// OriginSetup marks sessions signed in on the setup pages on the home
+// network (SPEC.md §6.3.2).
+const OriginSetup = "setup"
 
 // Open opens (creating if needed) and migrates the database.
 func Open(path string) (*Store, error) {
@@ -670,6 +678,16 @@ func (s *Store) CountUsers(ctx context.Context) (int, error) {
 	return n, err
 }
 
+// FirstUserCreated is when the first account (the Owner made at first-run
+// setup) was created; ok is false while there's none.
+func (s *Store) FirstUserCreated(ctx context.Context) (at time.Time, ok bool, err error) {
+	var unix sql.NullInt64
+	if err := s.db.QueryRowContext(ctx, `SELECT min(created_at) FROM users`).Scan(&unix); err != nil {
+		return time.Time{}, false, err
+	}
+	return time.Unix(unix.Int64, 0), unix.Valid, nil
+}
+
 // CreateUser adds an account and returns its ID.
 func (s *Store) CreateUser(ctx context.Context, u User) (int64, error) {
 	res, err := s.db.ExecContext(ctx,
@@ -789,21 +807,40 @@ func (s *Store) CreateSession(ctx context.Context, tokenHash string, userID int6
 // CreateSessionRemember stores a session; remember: "keep me signed in"
 // (no sign-out for inactivity).
 func (s *Store) CreateSessionRemember(ctx context.Context, tokenHash string, userID int64, expires time.Time, remember bool) error {
+	return s.CreateSessionAt(ctx, "", tokenHash, userID, expires, remember)
+}
+
+// CreateSessionAt stores a session signed in at origin ("" or
+// OriginSetup), where alone it works.
+func (s *Store) CreateSessionAt(ctx context.Context, origin, tokenHash string, userID int64, expires time.Time, remember bool) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO sessions (token_hash, user_id, expires_at, last_seen, remember) VALUES (?, ?, ?, ?, ?)`,
-		tokenHash, userID, expires.Unix(), time.Now().Unix(), remember)
+		`INSERT INTO sessions (token_hash, user_id, expires_at, last_seen, remember, origin) VALUES (?, ?, ?, ?, ?, ?)`,
+		tokenHash, userID, expires.Unix(), time.Now().Unix(), remember, origin)
 	return err
 }
 
 // SessionInfo is a session's user, when it was last used, and whether it's
-// "keep me signed in".
+// "keep me signed in", for a session of Roostack's own pages.
 func (s *Store) SessionInfo(ctx context.Context, tokenHash string) (u *User, lastSeen time.Time, remember bool, err error) {
+	return s.SessionInfoAt(ctx, "", tokenHash)
+}
+
+// SessionInfoAt is SessionInfo for a session signed in at origin: one
+// from anywhere else isn't found.
+func (s *Store) SessionInfoAt(ctx context.Context, origin, tokenHash string) (u *User, lastSeen time.Time, remember bool, err error) {
 	var seen int64
 	row := s.db.QueryRowContext(ctx, `SELECT `+userColumns+`, s.last_seen, s.remember
 		 FROM sessions s JOIN users ON users.id = s.user_id
-		 WHERE s.token_hash = ? AND s.expires_at > ?`, tokenHash, time.Now().Unix())
+		 WHERE s.token_hash = ? AND s.expires_at > ? AND s.origin = ?`, tokenHash, time.Now().Unix(), origin)
 	u, err = scanUserRow(scanTail{row, []any{&seen, &remember}})
 	return u, time.Unix(seen, 0), remember, err
+}
+
+// DeleteSessionsAt signs out every session signed in at origin, e.g. the
+// setup pages' once they close.
+func (s *Store) DeleteSessionsAt(ctx context.Context, origin string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE origin = ?`, origin)
+	return err
 }
 
 // scanTail scans a user row with extra columns after the user's.
@@ -825,7 +862,7 @@ func (s *Store) SessionUser(ctx context.Context, tokenHash string) (*User, error
 	return s.scanUser(s.db.QueryRowContext(ctx,
 		`SELECT `+userColumns+`
 		 FROM sessions s JOIN users ON users.id = s.user_id
-		 WHERE s.token_hash = ? AND s.expires_at > ?`, tokenHash, time.Now().Unix()))
+		 WHERE s.token_hash = ? AND s.expires_at > ? AND s.origin = ''`, tokenHash, time.Now().Unix()))
 }
 
 // DeleteSession logs a session out.

@@ -203,8 +203,9 @@ To see it again:
 sudo /usr/share/roostack/installed-message
 ```
 
-The setup page is only there until setup is finished. Then it closes, and
-Roostack tells you where to find it from then on.
+The setup page is only there until setup is finished, and for 24 hours at
+most once your account exists. Then it closes, and Roostack tells you
+where to find it from then on.
 
 ### Check the setup page's certificate
 
@@ -279,8 +280,9 @@ Then carry on with [First-run setup](first-run.md).
     certificate is made when Roostack first starts
     (`/var/lib/roostack/setup-tls.crt`, its key `setup-tls.key`), and the
     log shows the address and fingerprint too
-    (`journalctl -u roostack | grep "setup pages"`). When setup is finished
-    the listener stops, the port closes and the certificate is deleted.
+    (`journalctl -u roostack | grep "setup pages"`). When setup is finished,
+    or 24 hours after the Owner was made, the listener stops, the port
+    closes, the certificate is deleted and its sessions are signed out.
     Compute the fingerprint yourself with
     `openssl x509 -in /var/lib/roostack/setup-tls.crt -noout -fingerprint -sha256`.
 

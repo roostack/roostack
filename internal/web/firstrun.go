@@ -24,7 +24,11 @@ import (
 	"sync"
 	"time"
 
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/trust"
 )
 
@@ -192,18 +196,71 @@ func SetupURL(addr netip.Addr) string {
 	return "https://" + netip.AddrPortFrom(addr, config.SetupPort).String()
 }
 
-// setupOpen reports whether first-run setup is still going: the setup
-// code hasn't been used yet, or the Owner hasn't finished the wizard's
-// steps. The setup pages are served to the home network until then.
-func (s *Server) setupOpen(ctx context.Context) bool {
-	if s.needsSetup() {
+// SetupOwnerLimit is how long the setup pages stay on the home network
+// once the Owner exists, finished or not (SPEC.md §6.3.2). It counts from
+// the account's creation, kept in the database, so a restart doesn't
+// start it again.
+const SetupOwnerLimit = 24 * time.Hour
+
+// FirstRunOpen reports whether the setup pages are served to the home
+// network: while the setup code hasn't been used (codeUnused), then while
+// the Owner hasn't finished the wizard, for SetupOwnerLimit at most.
+func FirstRunOpen(ctx context.Context, st *store.Store, codeUnused bool, wizard interface {
+	Progress(context.Context) (setup.Progress, error)
+}, now time.Time) bool {
+	if codeUnused {
 		return true
 	}
-	if s.Setup == nil {
+	if wizard == nil || ownerTooLong(ctx, st, now) {
 		return false
 	}
-	p, err := s.Setup.Progress(ctx)
+	p, err := wizard.Progress(ctx)
 	return err == nil && p.Next() != ""
+}
+
+// ownerTooLong reports whether the Owner was made SetupOwnerLimit ago or
+// more (or that can't be told).
+func ownerTooLong(ctx context.Context, st *store.Store, now time.Time) bool {
+	created, ok, err := st.FirstUserCreated(ctx)
+	return err != nil || !ok || now.Sub(created) >= SetupOwnerLimit
+}
+
+// setupOpen is FirstRunOpen for this server.
+func (s *Server) setupOpen(ctx context.Context) bool {
+	if s.Setup == nil {
+		return s.needsSetup()
+	}
+	return FirstRunOpen(ctx, s.Store, s.needsSetup(), s.Setup, time.Now())
+}
+
+// EndSetupPages signs out everything signed in on the setup pages once
+// they've closed (SPEC.md §6.3.2). Roostack's start does it too, in case
+// they closed with Roostack.
+func EndSetupPages(ctx context.Context, st *store.Store) error {
+	return st.DeleteSessionsAt(ctx, store.OriginSetup)
+}
+
+// EndSetupPages is EndSetupPages, and this process's own records of the
+// setup pages' browsers: the setup code's passes, logins waiting for a
+// two-factor code and a restore's search.
+func (s *Server) EndSetupPages(ctx context.Context) error {
+	prefix := originSetup
+	s.mu.Lock()
+	for k := range s.setupPasses {
+		if strings.HasPrefix(k, prefix) {
+			delete(s.setupPasses, k)
+		}
+	}
+	for k := range s.pending {
+		if strings.HasPrefix(k, prefix) {
+			delete(s.pending, k)
+		}
+	}
+	if s.restore != nil && s.restore.origin == prefix {
+		s.restore = nil
+	}
+	s.mu.Unlock()
+	return EndSetupPages(ctx, s.Store)
 }
 
 // setupListenerKey marks a request that came in on the setup listener,
@@ -215,6 +272,58 @@ type setupListened struct {
 	s *Server
 	// done closes the listener, once the page saying so has gone.
 	done func()
+}
+
+// originSetup prefixes the setup listener's in-memory records (originOf).
+const originSetup = store.OriginSetup + ":"
+
+// originOf is where r came in, for the setup code's passes, logins waiting
+// for a code and a restore's search: originSetup on the setup listener, ""
+// on Roostack's own pages. Each works only where it was made.
+func originOf(r *http.Request) string {
+	if fromSetupListener(r) {
+		return originSetup
+	}
+	return ""
+}
+
+// sessionOrigin is where r came in, as sessions record it.
+func sessionOrigin(r *http.Request) string {
+	if fromSetupListener(r) {
+		return store.OriginSetup
+	}
+	return ""
+}
+
+// fromSetupListener reports whether r came in on the setup listener.
+func fromSetupListener(r *http.Request) bool {
+	_, ok := r.Context().Value(setupListenerKey{}).(setupListened)
+	return ok
+}
+
+// setupGate, on the setup listener, lets only the Owner past once the
+// Owner exists, signed in there (and with two-factor, once it's set up);
+// before, the setup code guards the pages. Logging in and the files its
+// page needs are all that's open to anyone else (SPEC.md §6.3.2).
+func (s *Server) setupGate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if s.needsSetup() || path == "/login" || path == "/login/totp" || strings.HasPrefix(path, "/static/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		u := currentUser(r)
+		switch {
+		case u == nil:
+			redirect(w, r, "/login")
+		case u.Role != auth.RoleOwner:
+			http.Error(w, "Only the Owner can finish setup here.", http.StatusForbidden)
+		case u.TOTPSecret == "" && path != "/account/2fa" && path != "/logout":
+			redirect(w, r, "/account/2fa")
+		default:
+			next.ServeHTTP(w, r)
+		}
+	})
 }
 
 // finishedOnSetupListener answers a request whose redirect follows the
@@ -234,15 +343,15 @@ func finishedOnSetupListener(w http.ResponseWriter, r *http.Request) bool {
 // firstRunPaths are what the setup listener serves: the first-run pages
 // and wizard, logging in and two-factor set-up for the Owner, the parts
 // the wizard's pages load or post to (its address step's Cloud link and
-// network choice, the backup step's live logs and a destination's
+// network choice, the backup step's live log and a destination's
 // location), the help and static files. "/" sends the Owner on to the
-// wizard's next step.
+// wizard's next step. Nothing else, even for the Owner.
 var firstRunPaths = []string{"/", "/login", "/login/totp", "/logout", "/account/2fa", "/settings/network",
 	"/settings/home-network", "/settings/cloud/live", "/settings/cloud/linked", "/settings/cloud/progress",
 	"/settings/cloud/name", "/settings/cloud/link", "/settings/cloud/cancel", "/setup", "/help"}
 
 // firstRunPrefixes are folders the setup listener serves all of.
-var firstRunPrefixes = []string{"/setup/", "/static/", "/help/", "/activity/"}
+var firstRunPrefixes = []string{"/setup/", "/static/", "/help/", "/activity/" + activity.BackupSetup}
 
 // firstRunPath reports whether the setup listener serves path.
 func firstRunPath(path string) bool {
@@ -272,7 +381,7 @@ func hostIsAddr(host string) bool {
 // SetupHandler serves the first-run pages on the setup listener. done is
 // called once setup is finished and the page saying so has been sent.
 func (s *Server) SetupHandler(done func()) http.Handler {
-	inner := s.Handler()
+	inner := s.handler(s.setupGate)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !hostIsAddr(r.Host) {
 			http.Error(w, "Open the setup page at the server's address, as the installer showed it.", http.StatusMisdirectedRequest)
@@ -296,11 +405,17 @@ func (s *Server) SetupHandler(done func()) http.Handler {
 	})
 }
 
-// setupFinished says setup is done and where Roostack is from now on: the
-// setup listener closes.
+// setupFinished says setup is done and where Roostack is from now on, or,
+// past SetupOwnerLimit with the wizard unfinished, how to finish it over
+// SSH: the setup listener closes.
 func (s *Server) setupFinished(w http.ResponseWriter, r *http.Request) {
-	data := map[string]any{"Host": r.Host}
-	if s.FirstRunAddress != nil {
+	data := map[string]any{"Host": r.Host, "Hours": int(SetupOwnerLimit.Hours())}
+	if s.Setup != nil {
+		if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
+			data["Unfinished"] = true
+		}
+	}
+	if s.FirstRunAddress != nil && data["Unfinished"] == nil {
 		data["Address"] = s.FirstRunAddress()
 	}
 	if ap, err := netip.ParseAddrPort(r.Host); err == nil {

@@ -144,7 +144,7 @@ Shared pieces (attention list, backup and DNS cards) live in `templates/parts.ht
 
 `roostack serve` serves server-rendered pages (Go `html/template`), using htmx for live updates such as the service list refreshing every 10 seconds. Protections:
 
-- **First run:** creating the Owner needs a one-time setup code, printed in the log and saved to `/var/lib/roostack/setup-token`. The setup listener on the home network (`:8443`) serves only the first-run routes (`firstRunPaths`), answers only a `Host` that's an IP address (DNS rebinding), closes connections not between two home addresses, and shows **Setup is finished** instead of the wizard's last redirect, then stops (SPEC §6.3.2).
+- **First run:** creating the Owner needs a one-time setup code, printed in the log and saved to `/var/lib/roostack/setup-token`. The setup listener on the home network (`:8443`) serves only the first-run routes (`firstRunPaths`), answers only a `Host` that's an IP address (DNS rebinding), closes connections not between two home addresses, lets only the Owner signed in there past once the Owner exists (`setupGate`), keeps its sessions apart (`sessions.origin`), and shows **Setup is finished** instead of the wizard's last redirect, then stops and signs everything out; 24 hours after the Owner at most (SPEC §6.3.2).
 - **Login:** a wrong password waits 500 ms; an unknown username costs the same password check as a known one, so timing doesn't reveal which usernames exist.
 - **Sessions:** random tokens in an `HttpOnly`, `SameSite=Lax` cookie. Only a SHA-256 hash is stored.
 - **Two-factor (TOTP):** Owners must enroll before using the UI. A login with 2FA first passes the password, then the code (`/login/totp`). Each code works once.

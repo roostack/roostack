@@ -66,13 +66,16 @@ const restoreCookie = "roostack_restore"
 type restoreSession struct {
 	id    string
 	found []labrestore.Found
+	// origin is where the search was made (originOf): it's only found
+	// there.
+	origin string
 }
 
 func (s *Server) restoreSessionOf(r *http.Request) *restoreSession {
 	c, err := r.Cookie(restoreCookie)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err != nil || s.restore == nil || !authkit.TokensEqual(c.Value, s.restore.id) {
+	if err != nil || s.restore == nil || s.restore.origin != originOf(r) || !authkit.TokensEqual(c.Value, s.restore.id) {
 		return nil
 	}
 	return s.restore
@@ -170,7 +173,7 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Lock()
-	s.restore = &restoreSession{id: id, found: found}
+	s.restore = &restoreSession{id: id, found: found, origin: originOf(r)}
 	s.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: restoreCookie, Value: id, Path: "/setup/restore", HttpOnly: true,
 		SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r)})

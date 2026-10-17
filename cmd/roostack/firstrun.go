@@ -15,22 +15,16 @@ import (
 )
 
 // setupPages prepares the first-run pages for the home network (SPEC.md
-// §6.3.2), while setup lasts: the setup code hasn't been used, or the
-// Owner hasn't finished the wizard. It makes the certificate and tells the
-// node to open the port in the firewall from its first apply, and returns
-// the listener for serveSetupPages to run; nil when setup is done (the
-// certificate is deleted, if one was left).
+// §6.3.2), while setup lasts (web.FirstRunOpen): the setup code hasn't
+// been used, or the Owner hasn't finished the wizard, for a day at most.
+// It makes the certificate and tells the node to open the port in the
+// firewall from its first apply, and returns the listener for
+// serveSetupPages to run; nil when setup is done (anything left from the
+// setup pages, their certificate and sessions, is deleted).
 func setupPages(ctx context.Context, lab config.Lab, st *store.Store, token string, local *node.Local,
 	log *slog.Logger) *web.SetupListener {
-	open := token != ""
-	if !open {
-		p, err := (&setup.Setup{Lab: lab, Store: st}).Progress(ctx)
-		open = err == nil && p.Next() != ""
-	}
-	if !open {
-		if err := web.RemoveSetupCert(lab.Paths); err != nil {
-			log.Error("deleting the setup pages' certificate", "err", err)
-		}
+	if !web.FirstRunOpen(ctx, st, token != "", &setup.Setup{Lab: lab, Store: st}, time.Now()) {
+		endSetupPages(ctx, lab, st, log)
 		return nil
 	}
 	addrs := web.HomeAddrs()
@@ -66,10 +60,24 @@ func serveSetupPages(ctx context.Context, l *web.SetupListener, srv *web.Server,
 	if ctx.Err() != nil {
 		return // Roostack is stopping: they're back at its next start
 	}
-	log.Info("first-run setup is finished: the setup pages on the home network are closed")
+	log.Info("the setup pages on the home network are closed (setup is finished, or a day has passed since the Owner was made)")
 	local.SetSetupPort(0)
+	if err := srv.EndSetupPages(ctx); err != nil {
+		log.Error("signing out of the setup pages", "err", err)
+	}
+	endSetupPages(ctx, lab, nil, log)
+	local.Reapply("The setup pages are closed: closing their port")
+}
+
+// endSetupPages deletes what's left of the setup pages: their certificate
+// and, given st, everything signed in on them.
+func endSetupPages(ctx context.Context, lab config.Lab, st *store.Store, log *slog.Logger) {
 	if err := web.RemoveSetupCert(lab.Paths); err != nil {
 		log.Error("deleting the setup pages' certificate", "err", err)
 	}
-	local.Reapply("First-run setup is finished: closing the setup pages' port")
+	if st != nil {
+		if err := web.EndSetupPages(ctx, st); err != nil {
+			log.Error("signing out of the setup pages", "err", err)
+		}
+	}
 }

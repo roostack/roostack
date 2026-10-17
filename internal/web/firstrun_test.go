@@ -18,8 +18,11 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
+	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // setupClient is a browser on the home network that has checked the
@@ -79,7 +82,7 @@ func TestSetupListenerServesOnlySetup(t *testing.T) {
 	}
 	for _, path := range []string{"/services", "/settings/people", "/backups/recovery-key", "/healthz", "/catalog",
 		"/settings/cloud/unlink", "/.well-known/roostack-check/x", "/restarting", "/settings/servers/abc/remove",
-		"/settings/servers/abc/x/location"} {
+		"/settings/servers/abc/x/location", "/activity/apply/status", "/activity/os-updates/log"} {
 		if code, _ := do(t, c, "GET", ts.URL, path, "", "", nil); code != http.StatusNotFound {
 			t.Errorf("%s on the setup listener: %d, want 404", path, code)
 		}
@@ -134,6 +137,7 @@ func TestSetupListenerServesOnlySetup(t *testing.T) {
 // a redirect into a listener that's closing.
 func TestSetupFinishedRedirect(t *testing.T) {
 	h := newHarness(t, "")
+	h.store.CreateFirstUser(context.Background(), store.User{Username: "tyris", PasswordHash: "x", Role: auth.RoleOwner})
 	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}}
 	h.server.Setup = fs
 	closed := false
@@ -262,5 +266,114 @@ func TestHostIsAddr(t *testing.T) {
 		if got := hostIsAddr(host); got != want {
 			t.Errorf("hostIsAddr(%q) = %v", host, got)
 		}
+	}
+}
+
+// TestSetupListenerOwnerOnly: once the Owner exists, the setup listener
+// serves only logging in to anyone else; a session works only where it
+// was signed in (the setup pages or Roostack's own), and closing the
+// setup pages signs out everything signed in on them (SPEC.md §6.3.2).
+func TestSetupListenerOwnerOnly(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t, "the-setup-code")
+	h.server.Setup = &fakeSetup{}
+	ts := httptest.NewTLSServer(h.server.SetupHandler(func() {}))
+	defer ts.Close()
+	u, _ := url.Parse(ts.URL)
+	c := setupClient(t, "")
+	do(t, c, "POST", ts.URL, "/setup/code", "", ts.URL, url.Values{"token": {"the-setup-code"}})
+	do(t, c, "POST", ts.URL, "/setup", "", ts.URL, url.Values{"token": {"the-setup-code"}, "username": {"tyris"},
+		"password": {"a long password"}, "confirm": {"a long password"}})
+	var listenerSession string
+	for _, ck := range c.Jar.Cookies(u) {
+		if ck.Name == sessionCookie {
+			listenerSession = ck.Value
+		}
+	}
+	if listenerSession == "" {
+		t.Fatal("no session on the setup listener")
+	}
+	// The Owner, signed in here, goes on to two-factor first.
+	if _, body := do(t, c, "GET", ts.URL, "/setup/timezone", "", "", nil); !strings.Contains(body, "need to turn on two-factor") {
+		t.Error("the Owner without two-factor: not sent to set it up")
+	}
+	// The setup code no longer works here.
+	if _, body := do(t, setupClient(t, ""), "POST", ts.URL, "/setup/code", "", ts.URL, url.Values{"token": {"the-setup-code"}}); !strings.Contains(body, `action="/login"`) {
+		t.Error("the setup code after the Owner: not the login page")
+	}
+
+	// Anyone else gets the login page, whatever they ask for, even with
+	// a session from Roostack's own pages.
+	owner, _ := h.store.UserByUsername(ctx, "tyris")
+	h.store.CreateSessionAt(ctx, "", authkit.HashToken("ui-session"), owner.ID, time.Now().Add(time.Hour), false)
+	stranger := setupClient(t, "")
+	stranger.Jar.SetCookies(u, []*http.Cookie{{Name: sessionCookie, Value: "ui-session"}})
+	for _, path := range []string{"/", "/setup/timezone", "/help/", "/account/2fa", "/settings/network", "/setup/restore"} {
+		if _, body := do(t, stranger, "GET", ts.URL, path, "", "", nil); !strings.Contains(body, `action="/login"`) {
+			t.Errorf("%s without the setup pages' session: not the login page", path)
+		}
+	}
+	if code, _ := do(t, stranger, "GET", ts.URL, "/static/css/app.css", "", "", nil); code != http.StatusOK {
+		t.Errorf("the login page's files: %d", code)
+	}
+	// And the setup pages' session doesn't work on Roostack's own pages.
+	req, _ := http.NewRequest("GET", h.srv.URL+"/", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: listenerSession})
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.Request.URL.Path != "/login" {
+		t.Errorf("the setup pages' session on Roostack's own pages ended at %s", resp.Request.URL.Path)
+	}
+
+	// Closing the setup pages signs out their sessions, not the others.
+	if err := h.server.EndSetupPages(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := h.store.SessionInfoAt(ctx, store.OriginSetup, authkit.HashToken(listenerSession)); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("the setup pages' session after they closed: %v", err)
+	}
+	if _, _, _, err := h.store.SessionInfo(ctx, authkit.HashToken("ui-session")); err != nil {
+		t.Errorf("Roostack's own session after the setup pages closed: %v", err)
+	}
+}
+
+// TestSetupOwnerLimit: the setup pages close a day after the Owner was
+// made, finished or not, counted from the account in the database; then
+// the page shows how to carry on over SSH.
+func TestSetupOwnerLimit(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t, "")
+	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true}}
+	if !FirstRunOpen(ctx, h.store, true, fs, time.Now()) {
+		t.Error("closed before the setup code was used")
+	}
+	if FirstRunOpen(ctx, h.store, false, fs, time.Now()) {
+		t.Error("open with the code used but no Owner")
+	}
+	h.store.CreateFirstUser(ctx, store.User{Username: "tyris", PasswordHash: "x", Role: auth.RoleOwner})
+	if !FirstRunOpen(ctx, h.store, false, fs, time.Now().Add(SetupOwnerLimit-time.Minute)) {
+		t.Error("closed within the day, wizard unfinished")
+	}
+	if FirstRunOpen(ctx, h.store, false, fs, time.Now().Add(SetupOwnerLimit+time.Minute)) {
+		t.Error("still open a day after the Owner was made")
+	}
+	fs.p = setup.Progress{TimezoneDone: true, SSHDone: true, DomainLater: true, BackupLater: true}
+	if FirstRunOpen(ctx, h.store, false, fs, time.Now()) {
+		t.Error("open with the wizard finished")
+	}
+
+	// The page once closed with the wizard unfinished.
+	fs.p = setup.Progress{TimezoneDone: true}
+	h.server.Setup = fs
+	r := httptest.NewRequest("GET", "/setup/ssh", nil)
+	r.Host = "192.168.1.20:8443"
+	w := httptest.NewRecorder()
+	h.server.setupFinished(w, r)
+	if body := w.Body.String(); !strings.Contains(body, "This setup page has closed") || !strings.Contains(body, "24 hours") ||
+		!strings.Contains(body, "ssh -L 8480:127.0.0.1:8480 you@192.168.1.20") {
+		t.Errorf("closed unfinished:\n%s", body)
 	}
 }

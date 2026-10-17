@@ -47,7 +47,7 @@ func (s *Server) setupPassed(r *http.Request) bool {
 	if err != nil {
 		return false
 	}
-	until, ok := s.setupPasses[authkit.HashToken(c.Value)]
+	until, ok := s.setupPasses[originOf(r)+authkit.HashToken(c.Value)]
 	return ok && time.Now().Before(until)
 }
 
@@ -78,7 +78,8 @@ func (s *Server) setupCodeSubmit(w http.ResponseWriter, r *http.Request) {
 			delete(s.setupPasses, k)
 		}
 	}
-	s.setupPasses[authkit.HashToken(token)] = now.Add(setupPassFor)
+	// Kept with where it was entered: it works only there (SPEC.md §6.3.2).
+	s.setupPasses[originOf(r)+authkit.HashToken(token)] = now.Add(setupPassFor)
 	s.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: setupCodeCookie, Value: token, Path: "/setup", MaxAge: int(setupPassFor.Seconds()),
 		HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r)})
