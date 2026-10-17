@@ -81,6 +81,10 @@ type Host interface {
 	// RemoveWireGuard takes an interface down and deletes its
 	// configuration (e.g. the server left its lab).
 	RemoveWireGuard(iface string) error
+	// SSHStatus reads what the SSH server does; SetSSHKeysOnly writes or
+	// removes Roostack's drop-in in its configuration (ssh.go).
+	SSHStatus() (SSHStatus, error)
+	SetSSHKeysOnly(on bool) error
 }
 
 // Server is the agent's HTTP API.
@@ -292,6 +296,26 @@ func (s *Server) Handler() http.Handler {
 		}
 		s.Log.Info("apply wireguard", "uid", uid, "address", wg.Address, "peers", len(wg.Peers))
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "public_key": pub})
+	})
+	// SSH hardening (ssh.go): only on or off; the drop-in's content is
+	// the agent's own.
+	mux.HandleFunc("GET /v1/ssh", func(w http.ResponseWriter, r *http.Request) {
+		// What could be read comes back with the error, so the page still
+		// knows there's an SSH server.
+		st, err := s.Host.SSHStatus()
+		if err != nil {
+			st.Error = err.Error()
+		}
+		writeJSON(w, http.StatusOK, st)
+	})
+	mux.HandleFunc("PUT /v1/ssh", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			KeysOnly bool `json:"keys_only"`
+		}
+		if !decode(w, r, 4<<10, &req) {
+			return
+		}
+		s.do(w, r, "set ssh keys only "+strconv.FormatBool(req.KeysOnly), func() error { return s.Host.SetSSHKeysOnly(req.KeysOnly) })
 	})
 	return s.checkCaller(mux)
 }
