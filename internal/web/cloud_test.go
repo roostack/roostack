@@ -72,6 +72,18 @@ func TestCloudLinking(t *testing.T) {
 	}
 	link.Cancel(context.Background())
 
+	// Cancelled in Cloud: the address step, back where it was, still has
+	// the name that was typed.
+	h.post("/settings/cloud/link", url.Values{"name": {"smiths"}, "in": {"setup"}}, h.srv.URL)
+	f.Decline(f.Codes()[0])
+	for i := 0; i < 300 && link.Status().Waiting != nil; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if _, body := h.get("/setup/domain"); !strings.Contains(body, `<input name="name" value="smiths"`) ||
+		!strings.Contains(body, "Linking was cancelled, or the code expired, in Roostack Cloud") {
+		t.Errorf("the address step after linking was cancelled in Cloud: %.3000s", body)
+	}
+
 	// Linking, in the same tab: this page goes on to Cloud's, which sends
 	// the browser back to the lab's page for the link, at the address the
 	// browser uses (the form's Origin).

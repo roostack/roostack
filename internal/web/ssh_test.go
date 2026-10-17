@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/setup"
 )
 
 // SSH keys only (SPEC.md §6.10 item 3): offered once a key login by an
@@ -74,6 +75,31 @@ func TestSSHKeysOnlyPage(t *testing.T) {
 	fs.ssh = config.SSHOff
 	if _, body := h.get("/"); strings.Contains(body, "accepts passwords") {
 		t.Error("SSH off: no warning")
+	}
+}
+
+// The page has one name in Settings (its breadcrumbs, heading and help
+// link) and its question in the wizard; short commands in its Details
+// don't break at their hyphens on a phone.
+func TestSSHPageNames(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{p: allDone, ssh: config.SSHFromLAN, sshd: agent.SSHStatus{Installed: true}}
+	h.setSetup(fs)
+	_, body := h.get("/settings/remote-access")
+	for _, want := range []string{`<strong aria-current="page">Remote access</strong>`, "<h1>Remote access</h1>",
+		`<span class="sr-only">Help: </span>Remote access`, `<code class="nowrap">sshd -T</code>`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Settings' remote access page missing %q", want)
+		}
+	}
+	if strings.Contains(body, "Who can log in to this server?") || strings.Contains(body, "Change remote access") {
+		t.Error("Settings' remote access page names itself otherwise")
+	}
+
+	fs.p = setup.Progress{TimezoneDone: true}
+	if _, body := h.get("/setup/ssh"); !strings.Contains(body, "<h1>Who can log in to this server?</h1>") ||
+		!strings.Contains(body, `<span class="sr-only">Help: </span>Who can log in to this server?`) {
+		t.Error("the wizard's step asks its question")
 	}
 }
 

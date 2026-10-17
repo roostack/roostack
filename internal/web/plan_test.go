@@ -144,7 +144,7 @@ func TestPlanB2KeyHelp(t *testing.T) {
 	fm.backupAccess = map[string]manager.Access{"provider:1": {B2: true, CanDelete: true}}
 	_, body := h.get("/backups")
 	const command = "b2 key create roostack listBuckets,listFiles,readFiles,writeFiles,deleteFiles,writeKeys,deleteKeys,listKeys"
-	for _, want := range []string{"as the key Roostack was given can&#39;t make other keys", `href="/backups?key=provider:1#plan-key-3"`,
+	for _, want := range []string{"it uses the account&#39;s key, because the key Roostack was given can&#39;t make a key for each server", `href="/backups?key=provider:1#plan-key-3"`,
 		">Change the key<", command, "b2 account authorize", "give them to Roostack\n  with Change the key",
 		"Then delete the old key under App Keys", "Suggested: give Roostack a Backblaze key that can make keys (see Backblaze)"} {
 		if !strings.Contains(body, want) {

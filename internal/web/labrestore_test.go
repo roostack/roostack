@@ -193,7 +193,9 @@ func TestRestoreChoosesACloudLab(t *testing.T) {
 	_, body := h.post("/setup/restore", url.Values{"kind": {"cloud"}, "recovery_key": {"the key"}}, h.srv.URL)
 	for _, want := range []string{"Roostack Cloud has 3 labs with this recovery key", "Linked to Roostack Cloud since 10 March 2026",
 		"9 March 2026: once it's restored, link it again", "Smiths in Roostack Cloud", "no longer keeps its backups",
-		"Not offered: it says it&#39;s the backup of nuc", "in its own folder"} {
+		"Not offered: it says it&#39;s the backup of nuc", "in its own folder",
+		// A lab linked again has two labs of one name: the headings differ.
+		"<h3>Smith family in Roostack Cloud (linked now)</h3>", "<h3>Smith family in Roostack Cloud (unlinked 9 March 2026)</h3>"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the page doesn't say %q:\n%s", want, body)
 		}

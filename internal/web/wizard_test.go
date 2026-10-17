@@ -294,8 +294,9 @@ func TestWizardFlow(t *testing.T) {
 	if resp.Request.URL.Path != "/setup/recovery-key" || resp.Header.Get("Cache-Control") != "no-store" {
 		t.Errorf("recovery key page: %s, cache %q", resp.Request.URL.Path, resp.Header.Get("Cache-Control"))
 	}
-	if code, _ := h.post("/setup/recovery-key", nil, h.srv.URL); code != http.StatusBadRequest {
-		t.Errorf("continuing without ticking the box: %d", code)
+	if code, body := h.post("/setup/recovery-key", nil, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, `<span>Setup</span><strong aria-current="page">Step 4 of 4</strong>`) {
+		t.Errorf("continuing without ticking the box: %d (the backup step's breadcrumbs)", code)
 	}
 	h.post("/setup/recovery-key", url.Values{"saved": {"on"}}, h.srv.URL)
 	if _, body := h.get("/"); !strings.Contains(body, "<title>Home · Roostack</title>") {

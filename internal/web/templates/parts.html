@@ -416,7 +416,7 @@
         <p class="plan-title">{{.Title}}</p>
         <p class="hint">{{if .Main}}Main backup · {{end}}{{with .KindTitle}}{{.}} · {{end}}{{if .AtHome}}at home{{else if .Away}}away from home{{else if .AskWhere}}at home or away?{{else}}location not known{{end}}{{if .Main}} · restores use it first{{end}}
           {{- if eq .Path "direct"}} · linked directly{{else if eq .Path "hub"}} · through {{.Via}}, as they can't link directly{{end}}</p>
-        {{if .LowSpace}}{{notice "warn" (printf "%s is nearly full: %s free. When it's full, backups here fail." .FreeOn (size .Free))}}{{end}}
+        {{if .LowSpace}}{{notice "warn" (printf "Nearly full: %s free on %s. When it's full, backups here fail." (size .Free) .FreeOn)}}{{end}}
         {{if eq .Path "hub"}}{{if .LinkFailed}}
         {{notice "warn" (printf "A direct link to %s didn't connect, so these backups go through %s, using its connection twice. Check %s can be reached at its address for direct links (UDP port 51820, or the port you entered). Roostack tries again tomorrow, or as soon as you change the address." .HostName .Via .HostName) (printf "link=/servers#server-%s" .Host) "linkText=Check the address"}}
         {{else}}
@@ -424,7 +424,7 @@
         {{end}}{{end}}
         {{if eq .Kind "system"}}{{notice "warn" "This backup is on the same disk as your data. It helps if something is deleted or changed by mistake, but if the disk fails, or ransomware gets onto the server, your data and this backup are lost together. Keep your other backups on a separate drive, or away from home."}}
         {{- else if and .Access.CanDelete .Access.B2}}
-        {{- $warn := "If this server were taken over, its backups here could be deleted too: it has the account's key, as the key Roostack was given can't make other keys. Give Roostack one that can, and every server backing up here gets a key of its own that can add backups but not delete them."}}
+        {{- $warn := "If this server were taken over, its backups here could be deleted too: it uses the account's key, because the key Roostack was given can't make a key for each server. Give Roostack one that can, and every server backing up here gets a key of its own that can add backups but not delete them."}}
         {{- if .KeyAction}}{{notice "warn" $warn (printf "link=%s?key=%s#plan-key-%d" $.Plan.Back .Ref .Number) "linkText=Change the key"}}{{else}}{{notice "warn" $warn}}{{end}}
         <details class="plan-more">
           <summary>Tell me more</summary>

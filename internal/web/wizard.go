@@ -350,7 +350,13 @@ func (s *Server) addressData(data map[string]any) map[string]any {
 	}
 	data["Suffix"] = s.cloudSuffix(context.Background())
 	if s.Cloud != nil {
-		data["CloudView"] = cloudView{Status: s.Cloud.Status(), Setup: true, Suffix: data["Suffix"].(string)}
+		st := s.Cloud.Status()
+		data["CloudView"] = cloudView{Status: st, Setup: true, Suffix: data["Suffix"].(string)}
+		// Back from a link that didn't happen (cancelled in Cloud, say):
+		// the name typed is still there.
+		if _, ok := data["CloudName"]; !ok && st.TriedName != "" {
+			data["CloudName"] = st.TriedName
+		}
 	}
 	if _, ok := data["Choice"]; !ok {
 		data["Choice"] = ""

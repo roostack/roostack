@@ -193,6 +193,18 @@ func (f *Fake) Confirm(code string) error {
 	return fmt.Errorf("no link waiting with code %s", code)
 }
 
+// Decline cancels a link by its code, as the Owner would on Cloud's
+// page: the lab hears it has expired.
+func (f *Fake) Decline(code string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, l := range f.links {
+		if l.code == code && l.state == cloudapi.StateWaiting {
+			l.state = cloudapi.StateExpired
+		}
+	}
+}
+
 func (f *Fake) confirm(l *link) error {
 	l.labID = "lab-" + hex.EncodeToString(serial().Bytes()[:4])
 	f.labs[l.labID] = &lab{name: l.labName, serials: map[string]bool{}, linked: time.Now()}
