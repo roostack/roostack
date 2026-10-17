@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"regexp"
 	"slices"
@@ -16,10 +17,12 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/firewall"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/trust"
 )
 
 // requireWizard allows the setup wizard to the Owner.
@@ -196,10 +199,9 @@ func (s *Server) timezoneSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 // sshClient is a current SSH connection, and which choices would cut it off.
+// sshClient is someone connected over SSH, and where they're from.
 type sshClient struct {
-	Addr     string
-	LAN      bool
-	CutByLAN bool
+	Addr, Where string
 }
 
 func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[string]any, error) {
@@ -210,16 +212,18 @@ func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[str
 	if err != nil {
 		return nil, err
 	}
-	var clients []sshClient
-	cutByLAN := false
-	for _, c := range a.Clients {
-		lan := agent.IsLAN(c)
-		clients = append(clients, sshClient{Addr: c.String(), LAN: lan, CutByLAN: !lan})
-		cutByLAN = cutByLAN || !lan
-	}
 	// A lab on the internet is reached from anywhere (SPEC.md §6.12); the
 	// choice is this server's (the lab's controller).
 	internet := s.serverRefOf(r).This && s.network().Internet()
+	var clients []sshClient
+	for _, c := range a.Clients {
+		clients = append(clients, sshClient{Addr: c.String(), Where: sshClientWhere(c, a.Controller, internet)})
+	}
+	multi := false
+	if s.Manager != nil {
+		ms, err := s.Manager.Servers()
+		multi = err == nil && len(ms) > 1
+	}
 	if choice == "" {
 		choice = cmp.Or(a.Choice, map[bool]string{true: config.SSHFromAny, false: config.SSHFromLAN}[internet])
 	}
@@ -240,10 +244,32 @@ func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[str
 		}
 	}
 	return s.formMode(r, "ssh", map[string]any{"User": currentUser(r), "Choice": choice, "Clients": clients,
-		"CutByLAN": cutByLAN, "Error": errMsg, "Internet": internet,
+		"CutByLAN":    len(firewall.CutsOff(config.SSHFromLAN, a.Clients, a.Controller)) > 0,
+		"CutByAny":    len(firewall.CutsOff(config.SSHFromAny, a.Clients, a.Controller)) > 0,
+		"MultiServer": multi, "Error": errMsg, "Internet": internet, "PasswordsOpen": a.PasswordsOpen(),
 		"Login": login, "SSHD": a.SSHD, "SSHDError": a.SSHDError, "KeyWorks": keyWorks, "KeyText": keyText,
 		"NoSudo": strings.Join(noSudo, ", "), "SavedLogin": a.Login,
 		"DropIn": agent.SSHDropIn}), nil
+}
+
+// sshClientWhere says where an SSH client is from, as the choice of who
+// can log in sees it: the lab's servers apart (only the controller reaches
+// SSH over Roostack's network), then home or not.
+func sshClientWhere(c, controller netip.Addr, internet bool) string {
+	c = c.Unmap()
+	switch {
+	case c == controller:
+		return "the server that runs this lab, over Roostack's network"
+	case trust.ServersRange.Contains(c):
+		return "another server in this lab, over Roostack's network"
+	case internet && trust.IsHome(c):
+		return "a private network"
+	case internet:
+		return "the internet"
+	case trust.IsHome(c):
+		return "your home network"
+	}
+	return "outside your home network"
 }
 
 func (s *Server) sshPage(w http.ResponseWriter, r *http.Request) {

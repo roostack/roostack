@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"roostack.cloud/roostack/internal/trust"
 )
 
 func TestWireGuardKeys(t *testing.T) {
@@ -71,18 +73,18 @@ func TestWireGuardAPI(t *testing.T) {
 	}
 }
 
-func TestInterfaceRule(t *testing.T) {
+func TestServersRule(t *testing.T) {
 	fw := DefaultFirewall()
-	fw.Allow = append(fw.Allow, Rule{Port: 8471, Proto: "tcp", Iface: WireGuardInterface, Reason: "roostack servers"})
+	fw.Allow = append(fw.Allow, Rule{Port: 8471, Proto: "tcp", For: trust.Servers, Reason: "roostack servers"})
 	if err := fw.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(fw.Ruleset(), `iifname "roostack" tcp dport 8471 accept`) {
+	if !strings.Contains(fw.Ruleset(), `iifname "roostack" ip saddr 100.96.0.0/17 tcp dport 8471 accept`) {
 		t.Errorf("ruleset:\n%s", fw.Ruleset())
 	}
-	fw.Allow[len(fw.Allow)-1].Iface = "eth0"
+	fw.Allow[len(fw.Allow)-1].Source = "100.96.0.2"
 	if fw.Validate() == nil {
-		t.Error("only Roostack's interface is allowed")
+		t.Error("a source is only for a guest lab's rule")
 	}
 }
 
@@ -120,20 +122,20 @@ func TestInterfaces(t *testing.T) {
 // passes through Roostack's network.
 func TestForwardRules(t *testing.T) {
 	fw := DefaultFirewall()
-	fw.Forward = []Rule{{Port: 8000, Proto: "tcp", Iface: WireGuardInterface, Reason: "backup stores"}}
+	fw.Forward = []Rule{{Port: 8000, Proto: "tcp", For: trust.Servers, Reason: "backup stores"}}
 	if err := fw.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	rs := fw.Ruleset()
 	for _, want := range []string{"chain forward {", "policy accept;",
 		`iifname "roostack" oifname "roostack" ct state established,related accept`,
-		`iifname "roostack" oifname "roostack" tcp dport 8000 accept`, `iifname "roostack" drop`, `oifname "roostack" drop`} {
+		`iifname "roostack" oifname "roostack" ip saddr 100.96.0.0/17 tcp dport 8000 accept`, `iifname "roostack" drop`, `oifname "roostack" drop`} {
 		if !strings.Contains(rs, want) {
 			t.Errorf("missing %q:\n%s", want, rs)
 		}
 	}
-	for _, bad := range []Rule{{Port: 8000, Proto: "udp", Iface: WireGuardInterface}, {Port: 8000, Proto: "tcp", Iface: "eth0"},
-		{Port: 8000, Proto: "tcp"}, {Port: 8000, Proto: "tcp", Iface: WireGuardInterface, From: FromAny}} {
+	for _, bad := range []Rule{{Port: 8000, Proto: "udp", For: trust.Servers}, {Port: 8000, Proto: "tcp", For: trust.Guests},
+		{Port: 8000, Proto: "tcp"}, {Port: 8000, Proto: "tcp", For: trust.Anyone}} {
 		if (Firewall{SSHFrom: FromLAN, Forward: []Rule{bad}}).Validate() == nil {
 			t.Errorf("%+v should be refused", bad)
 		}

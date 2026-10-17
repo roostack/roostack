@@ -60,7 +60,7 @@ StandardError=inherit
 			roostack_private yes
 		}
 		@roostack-admin-external not {
-			remote_ip private_ranges 100.64.0.0/12 100.80.0.0/16 100.82.0.0/15 100.84.0.0/14 100.88.0.0/13 100.96.0.0/14 100.104.0.0/13 100.112.0.0/12
+			remote_ip private_ranges 100.64.0.0/12 100.80.0.0/16 100.82.0.0/15 100.84.0.0/14 100.88.0.0/13 100.96.128.0/17 100.97.0.0/16 100.98.0.0/15 100.104.0.0/13 100.112.0.0/12
 			not vars roostack_edge yes
 		}
 		abort @roostack-admin-external

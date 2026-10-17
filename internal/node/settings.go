@@ -88,6 +88,10 @@ type SSHAccess struct {
 	Choice  string // config.SSH*, or "" if not chosen yet
 	Login   string // config.SSHLogin*, or "" if not chosen yet
 	Clients []netip.Addr
+	// Controller is the controller's address on Roostack's network, the
+	// one server that reaches SSH over it; invalid on the controller
+	// (firewall.Controller).
+	Controller netip.Addr
 	// SSHD is what the SSH server does now (roostack-agent); SSHDError
 	// says why it couldn't be read.
 	SSHD      agent.SSHStatus
@@ -95,9 +99,20 @@ type SSHAccess struct {
 }
 
 // PasswordsOpen reports whether people who can reach SSH may try
-// passwords: what the lasting warning is about (SPEC.md §6.10 item 3).
+// passwords: what the lasting warning is about (SPEC.md §6.10 item 3). A
+// Match block turning them on only for addresses outside the home network
+// matters once SSH is open to anyone.
 func (a SSHAccess) PasswordsOpen() bool {
-	return (a.Choice == config.SSHFromLAN || a.Choice == config.SSHFromAny) && a.SSHD.Installed && a.SSHD.Passwords
+	if !a.SSHD.Installed {
+		return false
+	}
+	switch a.Choice {
+	case config.SSHFromLAN:
+		return a.SSHD.Passwords
+	case config.SSHFromAny:
+		return a.SSHD.Passwords || a.SSHD.PasswordsOutside
+	}
+	return false
 }
 
 // SSHChange is a new choice of who may log in over SSH, and how.
@@ -185,7 +200,8 @@ func (h *HostSettings) SSHAccess(fresh bool) (SSHAccess, error) {
 	clients, err := h.SSHClients()
 	sshd, serr := h.sshStatus(context.Background(), fresh)
 	h.mu.Lock()
-	a := SSHAccess{Choice: h.Lab.Firewall.SSH, Login: h.Lab.Firewall.SSHLogin, Clients: clients, SSHD: sshd}
+	a := SSHAccess{Choice: h.Lab.Firewall.SSH, Login: h.Lab.Firewall.SSHLogin, Clients: clients,
+		Controller: firewall.Controller(h.Lab), SSHD: sshd}
 	h.mu.Unlock()
 	if serr != nil {
 		a.SSHDError = serr.Error()
@@ -232,7 +248,10 @@ func (h *HostSettings) SetSSH(ctx context.Context, c SSHChange) error {
 	if err != nil {
 		return err
 	}
-	if cut := firewall.CutsOff(c.Choice, clients); len(cut) > 0 && !c.Confirmed {
+	h.mu.Lock()
+	controller := firewall.Controller(h.Lab)
+	h.mu.Unlock()
+	if cut := firewall.CutsOff(c.Choice, clients, controller); len(cut) > 0 && !c.Confirmed {
 		return formErrorf("That would disconnect the SSH connection from %s. "+
 			"Tick the box if that's what you want.", cut[0])
 	}

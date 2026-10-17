@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"roostack.cloud/roostack/internal/trust"
 )
 
 // Roostack's WireGuard interfaces, managed with Debian's wg-quick so they are
@@ -21,26 +23,19 @@ import (
 //   - roostack-st1…9: this lab's links to other labs' storage;
 //   - roostack-relay: Roostack Cloud's relay, dialled by the lab (§10.5).
 const (
-	WireGuardInterface = "roostack"
-	GuestsInterface    = "roostack-guests"
-	RelayInterface     = "roostack-relay"
+	WireGuardInterface = trust.LabInterface
+	GuestsInterface    = trust.GuestsInterface
+	RelayInterface     = trust.RelayInterface
 	WireGuardPort      = 51820
 	GuestsPort         = 51821
 )
 
-// OverlayRange holds every server's address on Roostack's network. It is
-// inside 100.64.0.0/10, so the firewall and Caddy treat it as private.
-var OverlayRange = netip.MustParsePrefix("100.96.0.0/16")
-
-// GuestRange holds the addresses of links between labs (storage for
-// others). Each storing lab picks its own /24 in it at random, so a lab
-// with links to several can tell them apart.
-var GuestRange = netip.MustParsePrefix("100.100.0.0/14")
-
-// RelayRange is Roostack Cloud's relay network (its edges and the labs it
-// relays), given by Cloud. Inside 100.64.0.0/10 like the others, so the
-// firewall lets only TCP 443 in from its interface (Firewall.Ruleset).
-var RelayRange = netip.MustParsePrefix("100.81.0.0/16")
+// The addresses on those interfaces (internal/trust).
+var (
+	OverlayRange = trust.OverlayRange
+	GuestRange   = trust.GuestRange
+	RelayRange   = trust.RelayRange
+)
 
 var storeLink = regexp.MustCompile(`^roostack-st[1-9]$`)
 

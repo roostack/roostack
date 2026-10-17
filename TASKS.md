@@ -353,8 +353,9 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Other labs (`roostack-guests`) reach only the guest API and each its own store (by its address); `roostack-st*` links take nothing in; nothing is forwarded to or from them or the relay; their ranges and the relay's are cut out of the home set and Caddy's private list (H3)
   - [x] Edges reach Caddy on its own listener (8474), where every visitor is outside whatever its PROXY header says; port 443 believes no header; the firewall sends the relay's and the lab's edges' 443 there, so Cloud's edges need no change (H4, ASSUMPTIONS Q12)
   - [x] On the hub, a server still joining (a join code's one-time key) reaches only the lab API; a joining server's name loses control characters (M23, the cheap part)
-  - [ ] Lab servers as their own trust class (M23, proposal): take Roostack's network (100.96.0.0/16) out of the home set, so other servers (a cheap VPS, the edge) reach the lab API, node web ports, stores and the edge listener, but not the UI, private routes or SSH over the overlay. To decide with the user: whether anyone relies on reaching private routes over the overlay (a service on a node calling another service by name)
-  - [ ] One place for trust classes (review §6): the agent's ruleset, `internal/firewall.Desired`, `node.Local`'s inline rules and Caddy's list still each say part of it
+  - [x] Lab servers as their own trust class (M23, decided 2026-10-17): on `roostack`, servers (`100.96.0.0/17`) reach the lab API, services' web ports, stores, proxy ports and the edge listener, SSH only from the controller; out of the home set and Caddy's list; `100.96.128.0/17` kept for people's devices, home; the SSH page names servers and says they can't log in (SPEC §10.2, ASSUMPTIONS Q13)
+  - [ ] People's devices on Roostack's network (remote access for people, SPEC §10.2): `100.96.128.0/17` is kept and counts as home; the hub would need to forward their traffic to other servers' home ports (today it forwards only the store port, from servers)
+  - [x] One place for trust classes (review §6): `internal/trust` defines the classes (by interface and address) and what each reaches; firewall rules name a class (`Rule.For`), `firewall.Desired` builds every rule (`node.Local`'s inline ones moved there as `Roles`), and Caddy's private list is made from `trust.HomeRanges`. A test runs a source of every class through an evaluator of the generated nftables rules against `trust.May`, another checks Caddy's list against `trust.IsHome`
 
 ## Service registry (SPEC §8.3, mostly decided 2026-10-13)
 
@@ -421,8 +422,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [x] For rs-package-policy: `help/docs/reference/files.md` lists `/run/roostack-agent.sock`; it's `/run/roostack-agent/agent.sock` now Done at the merge (2026-10-16).
 - [x] M19: SPEC §6.10 item 3 (SSH hardening) marked "not built yet" (the Owner's choice)
 - [x] Build SSH hardening (SPEC §6.10 item 3, 2026-10-17): keys only and no root logins in `/etc/ssh/sshd_config.d/10-roostack.conf` (agent `PUT /v1/ssh`, checked with `sshd -t`), asked with who can log in (setup step 2, Settings → Remote access) once a key login by a sudo account is seen, keys only straight away for "Nobody", a Needs attention warning while SSH takes passwords. Checked on VM3 with the agent's sandbox (docs/ASSUMPTIONS.md J3)
-  - [ ] Read `Match` blocks too (`sshd -T -C …` for the addresses that can reach SSH): today a `Match` that turns passwords back on isn't warned about
-  - [ ] Socket-activated SSH (`ssh.socket`) not checked on a VM: each connection should read the drop-in itself
+  - [x] Read `Match` blocks too: `sshd -T -C` for an address in each home range, the servers' range and the internet, and each address and user a block names; the page names the block and the warning counts it (SPEC §6.10 item 3)
+  - [x] Socket-activated SSH (`ssh.socket`) checked on VM4: it starts `ssh.service` (no per-connection read); a reload failed (sshd can't rebind the socket's port), so the agent restarts it then, and while it's idle the check and status use `sshd -G` (`/run/sshd` is gone) (ASSUMPTIONS J4)
 - [x] `sudo roostack node join` end to end (2026-10-17, VM5 joining VM1's lab; ASSUMPTIONS L20): joined as roostack, nothing root-owned left in Roostack's folders, Roostack restarted as a node, pulled its assignment, and took a main backup on VM1's disk
 
 ## ARM64, then Raspberry Pi (ARM64-PLAN.md)

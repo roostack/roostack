@@ -12,7 +12,7 @@
   {{with .Clients}}
   <div class="notice">
     <p><strong>Connected over SSH right now:</strong></p>
-    <ul>{{range .}}<li><code>{{.Addr}}</code> ({{if $.Internet}}{{if .LAN}}a private network{{else}}the internet{{end}}{{else}}{{if .LAN}}your home network{{else}}outside your home network{{end}}{{end}})</li>{{end}}</ul>
+    <ul>{{range .}}<li><code>{{.Addr}}</code> ({{.Where}})</li>{{end}}</ul>
   </div>
   {{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -24,10 +24,10 @@
           you log in. Anyone can try to, so use SSH keys, not passwords.</small></span></label>
       <label class="check"><input type="radio" name="ssh" value="lan" x-model="choice">
         <span>Only from private networks<small>Such as your provider's private network, or a VPN to it. Not from your own
-          internet connection: you'd need your provider's web console to get back in.</small></span></label>
+          internet connection: you'd need your provider's web console to get back in.{{template "ssh-other-servers" .}}</small></span></label>
       {{else}}
       <label class="check"><input type="radio" name="ssh" value="lan" x-model="choice">
-        <span>Only from my home network (recommended)<small>From computers at home, or over a VPN.</small></span></label>
+        <span>Only from my home network (recommended)<small>From computers at home, or over a VPN.{{template "ssh-other-servers" .}}</small></span></label>
       <label class="check"><input type="radio" name="ssh" value="any" x-model="choice">
         <span>From anywhere<small>Only reachable from the internet if your router forwards port 22 to this server.
           Anyone can then try to log in, so use SSH keys, not passwords.</small></span></label>
@@ -54,11 +54,12 @@
             keys only.</small></span></label>
       </fieldset>
       {{if and (eq .SavedLogin "key") (not .SSHD.KeysOnly)}}{{notice "warn" (printf "Roostack's file in SSH's settings (%s) is missing, so SSH works as its own settings say. Save to write it again." .DropIn)}}{{end}}
+      {{if and .PasswordsOpen .SSHD.PasswordsMatch .SSHD.KeysOnly}}{{notice "warn" (printf "SSH still takes passwords from some addresses: “%s” in its settings turns them back on, and Roostack's file can't change what a Match block says. Edit that block (in /etc/ssh/sshd_config or a file in /etc/ssh/sshd_config.d) to make SSH keys only." .SSHD.PasswordsMatch)}}{{end}}
       {{with .SSHDError}}{{notice "warn" (printf "Roostack couldn't read SSH's settings: %s" .)}}{{end}}
     </div>
     {{end}}
     {{if .Clients}}
-    <div x-show="choice === 'off' {{if .CutByLAN}}|| choice === 'lan'{{end}}" x-cloak>
+    <div x-show="choice === 'off' {{if .CutByLAN}}|| choice === 'lan'{{end}}{{if .CutByAny}}|| choice === 'any'{{end}}" x-cloak>
       <p class="error">This will disconnect the SSH connection listed above.</p>
       <label class="check"><input type="checkbox" name="confirm"><span>I understand</span></label>
     </div>
@@ -72,8 +73,9 @@
   <summary>Details</summary>
   <dl class="facts">
     <dt>SSH now</dt>
-    <dd>{{if .SSHD.Passwords}}Takes passwords{{else}}Refuses passwords{{end}}; root logins: {{if eq .SSHD.RootLogin "no"}}refused{{else if eq .SSHD.RootLogin "yes"}}allowed, with a password too{{else if .SSHD.RootLogin}}with a key only ({{.SSHD.RootLogin}}){{else}}unknown{{end}}
-      (from <code>sshd -T</code>)</dd>
+    <dd>{{if .SSHD.Passwords}}Takes passwords{{else if .SSHD.PasswordsOutside}}Takes passwords from some addresses outside your home
+      network{{else}}Refuses passwords{{end}}{{with .SSHD.PasswordsMatch}} ({{.}}){{end}}; root logins: {{if eq .SSHD.RootLogin "no"}}refused{{else if eq .SSHD.RootLogin "yes"}}allowed, with a password too{{else if .SSHD.RootLogin}}with a key only ({{.SSHD.RootLogin}}){{else}}unknown{{end}}
+      (from <code>sshd -T</code>, and <code>sshd -T -C</code> for each connection its <code>Match</code> blocks may change)</dd>
     <dt>Keys only</dt>
     <dd>Roostack writes <code>{{.DropIn}}</code> ({{if .SSHD.KeysOnly}}there now{{else}}not there now{{end}}):
       <code>PasswordAuthentication no</code>, <code>KbdInteractiveAuthentication no</code>, <code>PermitRootLogin no</code>. It checks
@@ -91,3 +93,6 @@
 
 {{define "page-help"}}{{help "start/first-run#4-who-can-log-in-to-this-server" "Who can log in to this server?"}}{{end}}
 {{define "crumbs"}}{{if .Wizard}}<span>Setup</span><strong aria-current="page">Step 2 of 4</strong>{{else}}<a href="{{.Back}}">{{.BackText}}</a><strong aria-current="page">{{template "title" .}}</strong>{{end}}{{end}}
+{{/* Over Roostack's network, only the controller reaches SSH (SPEC.md §10.2). */}}
+{{define "ssh-other-servers"}}{{if .MultiServer}} Not from this lab's other servers{{if not .Server.This}}, except the one that runs
+  the lab{{end}}.{{end}}{{end}}

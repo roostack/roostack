@@ -25,6 +25,7 @@ import (
 	"roostack.cloud/roostack/internal/s3api"
 	"roostack.cloud/roostack/internal/s3api/s3fake"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/trust"
 )
 
 type fakeSystemd struct {
@@ -427,7 +428,7 @@ func TestFirewallFollowsServices(t *testing.T) {
 	m.SetPort(ctx, "forgejo", "ssh", true, 2222)
 	m.Wait()
 	last := fw.applied[len(fw.applied)-1]
-	want := agent.Rule{Port: 2222, Proto: "tcp", From: agent.FromLAN, Reason: "forgejo ssh"}
+	want := agent.Rule{Port: 2222, Proto: "tcp", For: trust.Home, Reason: "forgejo ssh"}
 	if last.SSHFrom != agent.FromLAN || !slices.Contains(last.Allow, want) {
 		t.Errorf("firewall = %+v, want SSH from the LAN and forgejo's port", last)
 	}

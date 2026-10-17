@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"roostack.cloud/roostack/internal/caddy"
+	"roostack.cloud/roostack/internal/trust"
 )
 
 // TestRelayFirewall: from Roostack Cloud's relay only TCP 443 gets in,
@@ -39,30 +40,9 @@ func TestRelayInterface(t *testing.T) {
 	}
 }
 
-// TestHomeNetwork: other labs (storage for others) and Roostack Cloud's
-// relay are never the home network, for the firewall or Caddy (review H3).
-func TestHomeNetwork(t *testing.T) {
-	for _, a := range []string{"100.100.0.2", "100.103.255.254", "100.81.0.1", "::ffff:100.100.7.9"} {
-		if IsLAN(netip.MustParseAddr(a)) {
-			t.Errorf("%s counts as the home network", a)
-		}
-	}
-	for _, a := range []string{"192.168.1.5", "10.0.2.2", "100.96.0.2", "100.64.0.1", "100.127.255.254", "100.80.9.9", "100.99.1.1", "100.104.0.1"} {
-		if !IsLAN(netip.MustParseAddr(a)) {
-			t.Errorf("%s isn't the home network", a)
-		}
-	}
-	// Caddy's private addresses are the same.
-	var cgnat []string
-	for _, p := range LANRanges {
-		if CGNATRange.Overlaps(p) {
-			cgnat = append(cgnat, p.String())
-		}
-	}
-	if want := "private_ranges " + strings.Join(cgnat, " "); caddy.PrivateRanges != want {
-		t.Errorf("caddy.PrivateRanges = %q, the firewall's home network is %q", caddy.PrivateRanges, want)
-	}
-	// And the nftables set says so too.
+// TestHomeNetworkSet: the nftables sets are trust.HomeRanges, with the
+// CGNAT range cut up (review H3).
+func TestHomeNetworkSet(t *testing.T) {
 	rs := DefaultFirewall().Ruleset()
 	if !strings.Contains(rs, "elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/12, 100.80.0.0/16,") ||
 		strings.Contains(rs, "100.64.0.0/10") {
@@ -70,36 +50,17 @@ func TestHomeNetwork(t *testing.T) {
 	}
 }
 
-func TestWithout(t *testing.T) {
-	p := netip.MustParsePrefix
-	got := Without(p("10.0.0.0/8"), p("10.1.0.0/16"))
-	var s []string
-	for _, x := range got {
-		s = append(s, x.String())
-	}
-	want := "10.0.0.0/16 10.2.0.0/15 10.4.0.0/14 10.8.0.0/13 10.16.0.0/12 10.32.0.0/11 10.64.0.0/10 10.128.0.0/9"
-	if strings.Join(s, " ") != want {
-		t.Errorf("Without = %v, want %s", s, want)
-	}
-	if got := Without(p("10.1.0.0/16"), p("10.0.0.0/8")); len(got) != 0 {
-		t.Errorf("a range inside the hole: %v", got)
-	}
-	if got := Without(p("10.0.0.0/8"), p("192.168.0.0/16")); len(got) != 1 {
-		t.Errorf("an unrelated hole: %v", got)
-	}
-}
-
 // guestFirewall is a server offering storage to two other labs.
 func guestFirewall() Firewall {
 	fw := DefaultFirewall()
 	fw.Allow = append(fw.Allow,
-		Rule{Port: 8080, Proto: "tcp", From: FromLAN, Reason: "a home-only package port"},
-		Rule{Port: GuestsPort, Proto: "udp", From: FromAny, Reason: "storage for other labs (wireguard)"},
-		Rule{Port: 8472, Proto: "tcp", Iface: GuestsInterface, Reason: "storage for other labs"},
-		Rule{Port: 8100, Proto: "tcp", Iface: GuestsInterface, Source: "100.100.5.2", Reason: "storage for g1"},
-		Rule{Port: 8101, Proto: "tcp", Iface: GuestsInterface, Source: "100.100.5.2", Reason: "storage for g1"},
-		Rule{Port: 8102, Proto: "tcp", Iface: GuestsInterface, Source: "100.100.5.3", Reason: "storage for g2"},
-		Rule{Port: 8103, Proto: "tcp", Iface: GuestsInterface, Source: "100.100.5.3", Reason: "storage for g2"},
+		Rule{Port: 8080, Proto: "tcp", For: trust.Home, Reason: "a home-only package port"},
+		Rule{Port: GuestsPort, Proto: "udp", For: trust.Anyone, Reason: "storage for other labs (wireguard)"},
+		Rule{Port: 8472, Proto: "tcp", For: trust.Guests, Reason: "storage for other labs"},
+		Rule{Port: 8100, Proto: "tcp", For: trust.Guests, Source: "100.100.5.2", Reason: "storage for g1"},
+		Rule{Port: 8101, Proto: "tcp", For: trust.Guests, Source: "100.100.5.2", Reason: "storage for g1"},
+		Rule{Port: 8102, Proto: "tcp", For: trust.Guests, Source: "100.100.5.3", Reason: "storage for g2"},
+		Rule{Port: 8103, Proto: "tcp", For: trust.Guests, Source: "100.100.5.3", Reason: "storage for g2"},
 	)
 	return fw
 }
@@ -140,17 +101,17 @@ func TestGuestFirewall(t *testing.T) {
 		}
 	}
 	// A guest's source is outside every "lan" rule's set.
-	if IsLAN(netip.MustParseAddr("100.100.5.2")) {
+	if trust.IsHome(netip.MustParseAddr("100.100.5.2")) {
 		t.Error("a guest is on the home network")
 	}
 }
 
 func TestRuleSource(t *testing.T) {
 	for _, r := range []Rule{
-		{Port: 8100, Proto: "tcp", Iface: GuestsInterface, Source: "192.168.1.5"},
-		{Port: 8100, Proto: "tcp", From: FromAny, Source: "100.100.5.2"},
-		{Port: 8100, Proto: "tcp", Iface: GuestsInterface, Source: "100.100.5.2/24"},
-		{Port: 8100, Proto: "tcp", Iface: GuestsInterface, Source: "100.100.5.2 accept"},
+		{Port: 8100, Proto: "tcp", For: trust.Guests, Source: "192.168.1.5"},
+		{Port: 8100, Proto: "tcp", For: trust.Anyone, Source: "100.100.5.2"},
+		{Port: 8100, Proto: "tcp", For: trust.Guests, Source: "100.100.5.2/24"},
+		{Port: 8100, Proto: "tcp", For: trust.Guests, Source: "100.100.5.2 accept"},
 	} {
 		if (Firewall{SSHFrom: FromLAN, Allow: []Rule{r}}).Validate() == nil {
 			t.Errorf("accepted %+v", r)
@@ -191,7 +152,7 @@ func TestEdgeFirewall(t *testing.T) {
 		}
 	}
 	// Without edges of its own, only the relay's 443 is redirected.
-	if rs := DefaultFirewall().Ruleset(); strings.Contains(rs, `iifname "roostack" ip saddr`) {
+	if rs := DefaultFirewall().Ruleset(); strings.Contains(rs, `iifname "roostack" ip saddr {`) {
 		t.Errorf("edge rules without edges:\n%s", rs)
 	}
 }
@@ -201,31 +162,35 @@ func TestEdgeFirewall(t *testing.T) {
 // is forwarded; the lab's servers are unaffected (review M23).
 func TestJoiningFirewall(t *testing.T) {
 	fw := DefaultFirewall()
-	fw.Allow = append(fw.Allow, Rule{Port: 8471, Proto: "tcp", Iface: WireGuardInterface, Reason: "roostack servers"})
-	fw.Forward = []Rule{{Port: 8000, Proto: "tcp", Iface: WireGuardInterface, Reason: "backups"}}
+	fw.Allow = append(fw.Allow, Rule{Port: 8471, Proto: "tcp", For: trust.Servers, Reason: "roostack servers"})
+	fw.Forward = []Rule{{Port: 8000, Proto: "tcp", For: trust.Servers, Reason: "backups"}}
 	fw.JoinPort, fw.Members = 8471, []string{"100.96.0.2", "100.96.0.3"}
 	if err := fw.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	rs := fw.Ruleset()
 	in, fwd, _ := strings.Cut(rs, "chain forward")
-	accept := strings.Index(in, `iifname "roostack" ip saddr != { 100.96.0.2, 100.96.0.3 } tcp dport 8471 accept`)
-	drop := strings.Index(in, `iifname "roostack" ip saddr != { 100.96.0.2, 100.96.0.3 } drop`)
+	accept := strings.Index(in, `iifname "roostack" ip saddr 100.96.0.0/17 ip saddr != { 100.96.0.2, 100.96.0.3 } tcp dport 8471 accept`)
+	drop := strings.Index(in, `iifname "roostack" ip saddr 100.96.0.0/17 ip saddr != { 100.96.0.2, 100.96.0.3 } drop`)
 	lan := strings.Index(in, "@lan4")
 	if accept < 0 || drop < accept || lan < drop {
 		t.Errorf("joining rules: accept %d, drop %d, first home-network rule %d\n%s", accept, drop, lan, rs)
 	}
-	fdrop := strings.Index(fwd, `iifname "roostack" ip saddr != { 100.96.0.2, 100.96.0.3 } drop`)
+	fdrop := strings.Index(fwd, `iifname "roostack" ip saddr 100.96.0.0/17 ip saddr != { 100.96.0.2, 100.96.0.3 } drop`)
 	if fdrop < 0 || fdrop > strings.Index(fwd, "tcp dport 8000 accept") {
 		t.Errorf("forward chain:\n%s", fwd)
 	}
 	// A hub with no other servers yet: everyone there is joining.
 	fw.Members = nil
-	if rs := fw.Ruleset(); !strings.Contains(rs, "\t\tiifname \"roostack\" tcp dport 8471 accept\n\t\tiifname \"roostack\" drop\n") {
+	if rs := fw.Ruleset(); !strings.Contains(rs, "\t\tiifname \"roostack\" ip saddr 100.96.0.0/17 tcp dport 8471 accept\n"+
+		"\t\tiifname \"roostack\" ip saddr 100.96.0.0/17 drop\n") {
 		t.Errorf("no members:\n%s", rs)
 	}
 	for _, bad := range []Firewall{{SSHFrom: FromLAN, Members: []string{"100.96.0.2"}},
-		{SSHFrom: FromLAN, JoinPort: 8471, Members: []string{"192.168.1.5"}}} {
+		{SSHFrom: FromLAN, JoinPort: 8471, Members: []string{"192.168.1.5"}},
+		{SSHFrom: FromLAN, JoinPort: 8471, Members: []string{"100.96.128.5"}}, // a person's device
+		{SSHFrom: FromLAN, Controller: "100.96.128.1"}, {SSHFrom: FromLAN, Controller: "100.96.0.1 accept"},
+		{SSHFrom: FromLAN, Edges: []string{"100.96.200.1"}}} {
 		if bad.Validate() == nil {
 			t.Errorf("accepted %+v", bad)
 		}

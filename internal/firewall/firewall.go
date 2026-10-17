@@ -18,13 +18,36 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/trust"
 )
 
+// Roles are what a server does beyond its services that the firewall
+// opens a way in for (node.Local works them out from its assignment).
+type Roles struct {
+	// Hub: Members are the lab's servers' addresses on Roostack's network,
+	// and anyone else there is still joining and reaches only the lab API
+	// (SPEC.md §10.2).
+	Hub     bool
+	Members []string
+	// Store: the server keeps a backup store for the lab's other servers.
+	Store bool
+	// ProxyPorts are where the controller passes its servers' backups on
+	// to other labs' storage.
+	ProxyPorts []int
+	// Guests, when GuestAddr is set, are the other labs storing backups
+	// here (SPEC.md §10.10).
+	GuestAddr string
+	Guests    []generate.GuestStorage
+	// LinksListen: other servers dial this one directly.
+	LinksListen bool
+}
+
 // Desired returns the firewall for the lab: web traffic (Caddy decides
-// what is private), SSH as the Owner chose, and every enabled package port.
-// ok is false until the Owner has chosen SSH access, and Roostack then leaves
-// the firewall alone.
-func Desired(lab config.Lab, services []*generate.Output) (fw agent.Firewall, ok bool) {
+// what is private), SSH as the Owner chose, every enabled package port and
+// what the server's roles need, each for its trust class (internal/trust).
+// ok is false until the Owner has chosen SSH access, and Roostack then
+// leaves the firewall alone.
+func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent.Firewall, ok bool) {
 	if lab.Firewall.SSH == "" {
 		return agent.Firewall{}, false
 	}
@@ -33,26 +56,31 @@ func Desired(lab config.Lab, services []*generate.Output) (fw agent.Firewall, ok
 		config.SSHOff: agent.FromOff}[lab.Firewall.SSH]
 	for _, s := range services {
 		for _, hp := range s.HostPorts {
-			from := agent.FromLAN
+			to := trust.Home
 			if hp.Exposure == pkgspec.ExposurePublic {
-				from = agent.FromAny
+				to = trust.Anyone
 			}
-			fw.Allow = append(fw.Allow, agent.Rule{Port: hp.Port, Proto: hp.Protocol, From: from,
+			fw.Allow = append(fw.Allow, agent.Rule{Port: hp.Port, Proto: hp.Protocol, For: to,
 				Reason: s.Service + " " + hp.Name})
 		}
 	}
 	// Roostack's network between servers (SPEC.md §10.2).
 	if lab.OverlayAddr != "" {
-		fw.Allow = append(fw.Allow, agent.Rule{Port: labnet.Port, Proto: "tcp", Iface: agent.WireGuardInterface,
+		fw.Allow = append(fw.Allow, agent.Rule{Port: labnet.Port, Proto: "tcp", For: trust.Servers,
 			Reason: "roostack servers"})
 		if !lab.IsNode() {
 			// The controller is the hub other servers dial.
-			fw.Allow = append(fw.Allow, agent.Rule{Port: agent.WireGuardPort, Proto: "udp", From: agent.FromAny,
+			fw.Allow = append(fw.Allow, agent.Rule{Port: agent.WireGuardPort, Proto: "udp", For: trust.Anyone,
 				Reason: "roostack wireguard"})
 			// Servers back up to each other's disks through the hub when
 			// they can't link directly (SPEC.md §10.10): only the store.
-			fw.Forward = append(fw.Forward, agent.Rule{Port: generate.StoragePort, Proto: "tcp", Iface: agent.WireGuardInterface,
+			fw.Forward = append(fw.Forward, agent.Rule{Port: generate.StoragePort, Proto: "tcp", For: trust.Servers,
 				Reason: "backups from one server to another's disk"})
+			// A server still joining (a join code's one-time key) reaches
+			// only the lab API.
+			if roles.Hub {
+				fw.JoinPort, fw.Members = labnet.Port, roles.Members
+			}
 		}
 	}
 	// The lab's edges reach Caddy on its edge listener only (SPEC.md
@@ -63,16 +91,60 @@ func Desired(lab config.Lab, services []*generate.Output) (fw agent.Firewall, ok
 			fw.Edges = append(fw.Edges, p.Addr().String())
 		}
 	}
+	// Over Roostack's network, only the controller reaches SSH (SPEC.md
+	// §10.2): the Owner can go on from it to a cloud server whose SSH is
+	// for the home network only.
+	if c := Controller(lab); c.IsValid() {
+		fw.Controller = c.String()
+	}
 	// A node's web services are reached by the controller's Caddy.
 	if lab.IsNode() {
 		for _, s := range services {
 			for _, p := range s.Ports {
-				fw.Allow = append(fw.Allow, agent.Rule{Port: p, Proto: "tcp", Iface: agent.WireGuardInterface,
+				fw.Allow = append(fw.Allow, agent.Rule{Port: p, Proto: "tcp", For: trust.Servers,
 					Reason: s.Service + " web (via the controller)"})
 			}
 		}
 	}
+	if roles.Store {
+		for _, port := range []int{generate.StoragePort, generate.StorageAdminPort} {
+			fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", For: trust.Servers, Reason: "backup store"})
+		}
+	}
+	for _, port := range roles.ProxyPorts {
+		fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", For: trust.Servers, Reason: "backups to another lab"})
+	}
+	// Other labs reach only the guest API and each its own store (SPEC.md
+	// §6.10); the agent drops everything else from them.
+	if roles.GuestAddr != "" {
+		fw.Allow = append(fw.Allow,
+			agent.Rule{Port: agent.GuestsPort, Proto: "udp", For: trust.Anyone, Reason: "storage for other labs (wireguard)"},
+			agent.Rule{Port: labnet.GuestAPIPort, Proto: "tcp", For: trust.Guests, Reason: "storage for other labs"})
+		for _, g := range roles.Guests {
+			if g.Addr == "" {
+				continue // from an older controller: no way to tell it from other guests
+			}
+			for _, port := range []int{g.Port, g.Port + 1} {
+				fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", For: trust.Guests,
+					Source: g.Addr, Reason: "storage for " + g.User})
+			}
+		}
+	}
+	// Other servers dial this one directly for backups to its disk.
+	if roles.LinksListen {
+		fw.Allow = append(fw.Allow, agent.Rule{Port: agent.WireGuardPort, Proto: "udp", For: trust.Anyone,
+			Reason: "roostack direct links between servers"})
+	}
 	return fw, true
+}
+
+// Controller is the controller's address on Roostack's network, seen from
+// another server; invalid on the controller, or a server in no lab.
+func Controller(lab config.Lab) netip.Addr {
+	if lab.OverlayAddr == "" || !lab.IsNode() {
+		return netip.Addr{}
+	}
+	return labnet.ControllerAddr
 }
 
 // Files read, overridable in tests.
@@ -153,10 +225,16 @@ func parseAddr(s string) (netip.Addr, int, error) {
 }
 
 // CutsOff reports which of the connected SSH clients a choice would block.
-func CutsOff(choice string, clients []netip.Addr) []netip.Addr {
+// Of the lab's servers, only the controller reaches SSH, whatever the
+// choice but "Nobody" (Controller).
+func CutsOff(choice string, clients []netip.Addr, controller netip.Addr) []netip.Addr {
 	var cut []netip.Addr
 	for _, c := range clients {
-		if choice == config.SSHOff || (choice == config.SSHFromLAN && !agent.IsLAN(c)) {
+		c = c.Unmap()
+		switch {
+		case choice == config.SSHOff,
+			trust.ServersRange.Contains(c) && c != controller,
+			choice == config.SSHFromLAN && !trust.IsHome(c) && !trust.ServersRange.Contains(c):
 			cut = append(cut, c)
 		}
 	}

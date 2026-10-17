@@ -1,11 +1,15 @@
 package caddy
 
 import (
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"roostack.cloud/roostack/internal/trust"
 )
 
 func TestSiteRejectsInjection(t *testing.T) {
@@ -210,4 +214,56 @@ func TestEdgeFrom(t *testing.T) {
 		!strings.Contains(plain, "@roostack-admin-external not {\n\t\t\tremote_ip "+PrivateRanges) {
 		t.Errorf("without an edge:\n%s", plain)
 	}
+}
+
+// TestPrivateRanges: Caddy's private list is the firewall's home network
+// (internal/trust): an address is private to Caddy if and only if it's
+// home, apart from loopback (Caddy's own, private_ranges), and IPv6
+// link-local and fc00::/8, which only the firewall's set has (Caddy never
+// lets in more than the firewall counts as home).
+func TestPrivateRanges(t *testing.T) {
+	want := "private_ranges 100.64.0.0/12 100.80.0.0/16 100.82.0.0/15 100.84.0.0/14 100.88.0.0/13 " +
+		"100.96.128.0/17 100.97.0.0/16 100.98.0.0/15 100.104.0.0/13 100.112.0.0/12"
+	if PrivateRanges != want {
+		t.Errorf("PrivateRanges = %q, want %q", PrivateRanges, want)
+	}
+	// Caddy's private_ranges shorthand.
+	var caddy []netip.Prefix
+	for _, r := range strings.Fields(strings.Replace(PrivateRanges, "private_ranges",
+		"192.168.0.0/16 172.16.0.0/12 10.0.0.0/8 127.0.0.1/8 fd00::/8 ::1/128", 1)) {
+		caddy = append(caddy, netip.MustParsePrefix(r).Masked())
+	}
+	private := func(a netip.Addr) bool {
+		for _, p := range caddy {
+			if p.Contains(a) {
+				return true
+			}
+		}
+		return false
+	}
+	var samples []netip.Addr
+	for _, p := range append(slices.Clone(trust.HomeRanges), trust.CGNATRange, trust.GuestRange, trust.RelayRange,
+		trust.OverlayRange, trust.ServersRange, trust.DevicesRange, netip.MustParsePrefix("100.0.0.0/8"), netip.MustParsePrefix("2001:db8::/32")) {
+		// Each range's first and last address, and the ones either side.
+		first, last := p.Masked().Addr(), lastAddr(p)
+		samples = append(samples, first, first.Prev(), last, last.Next())
+	}
+	for _, a := range samples {
+		if !a.IsValid() || a.IsLoopback() || a.IsLinkLocalUnicast() || netip.MustParsePrefix("fc00::/8").Contains(a) {
+			continue
+		}
+		if private(a) != trust.IsHome(a) {
+			t.Errorf("%s: private to Caddy %v, home to the firewall %v", a, private(a), trust.IsHome(a))
+		}
+	}
+}
+
+// lastAddr is p's last address.
+func lastAddr(p netip.Prefix) netip.Addr {
+	b := p.Masked().Addr().AsSlice()
+	for i := p.Bits(); i < len(b)*8; i++ {
+		b[i/8] |= 0x80 >> (i % 8)
+	}
+	a, _ := netip.AddrFromSlice(b)
+	return a
 }

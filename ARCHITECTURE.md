@@ -76,7 +76,8 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/node` | A server in the lab (SPEC.md §10): the `Node` interface and `Local`, which applies its Assignment (reconcile, firewall), runs package hooks, actions and secret reveals, and holds the server's maintenance jobs (backups, restores, OS updates and restarts), its own settings (time zone, SSH access and keys only, restart policy) and activity, and keeps its finished logs as history (`events`, SPEC.md §6.14). `Remote` is another server over the lab API (`Server` serves it on each node); `Fleet` keeps one per joined server |
 | `internal/activity` | Live logs of host operations (OS updates, backups, applies, setup hooks) for the UI: a status line plus collapsible details |
 | `internal/osupdate` | Nightly OS updates job, restart-needed detection, "restart now" |
-| `internal/firewall` | Builds the firewall from the lab and its services; lists current SSH connections |
+| `internal/firewall` | Builds the firewall from the lab, its services and the server's roles (store, guests, hub), each rule for a trust class; lists current SSH connections |
+| `internal/trust` | Who a connection comes from (home, anyone, the lab's servers, other labs, edges, the relay) and what each may reach (SPEC.md §6.10): the one definition the agent's ruleset and Caddy's private list are made from, with tests that check both against it |
 | `internal/store` | SQLite runtime data: users, sessions, audit log, settings, backup runs, the lab's servers and join codes, backup providers, targets and copies, and storage for other labs |
 | `internal/auth` | Roles and usernames (passwords, tokens and two-factor codes are `authkit`) |
 | `internal/web` | Web UI: handlers, templates, vendored htmx/Alpine, and the embedded help site at `/help/` (`help.go`, built from `help/` into `helpsite/site` by `make build`) |

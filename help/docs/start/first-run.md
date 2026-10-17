@@ -79,7 +79,9 @@ another computer to fix things Roostack can't. Roostack's firewall blocks
 everything else apart from your services' web addresses.
 
 Only from my home network *(recommended at home)*
-:   From computers at home, or over a VPN.
+:   From computers at home, or over a VPN. Not from your lab's other
+    servers, apart from the one that runs the lab, so you can go on from it
+    to a cloud server whose SSH is set to this too.
 
 From anywhere *(recommended on a cloud server)*
 :   At home, only reachable from the internet if your router sends port 22
@@ -112,6 +114,20 @@ With "Nobody", it's keys only straight away: nothing can reach SSH, so
 there's nobody to lock out, and if you open SSH later passwords are
 already off. Change any of this later in **Settings → Remote access**
 (for each server).
+
+??? note "For technical users"
+
+    Keys only is one file, `/etc/ssh/sshd_config.d/10-roostack.conf`
+    (`PasswordAuthentication no`, `KbdInteractiveAuthentication no`,
+    `PermitRootLogin no`), checked with `sshd -t` before SSH reloads. What
+    Roostack reports is what sshd really does (`sshd -T`), so a file of
+    your own that turns passwords back on shows up too. A `Match` block
+    overrides that file for the connections it matches, so Roostack also
+    asks `sshd -T -C` about connections from your home network, your other
+    servers and the internet, and from the addresses and users your
+    `Match` blocks name; the page names a block that turns passwords back
+    on. With socket-activated SSH (`ssh.socket`), Roostack restarts
+    `ssh.service` instead of reloading it.
 
 ### Set up an SSH key
 
