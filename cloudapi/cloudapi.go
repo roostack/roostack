@@ -1,5 +1,5 @@
 // Package cloudapi is the API between a Roostack lab and Roostack Cloud
-// (roost.ac): the paths and bodies both sides use, so they can't drift.
+// (api.roostack.cloud): the paths and bodies both sides use, so they can't drift.
 // Roostack's client is internal/cloud; Cloud implements the server. Only
 // what works standalone stays in Roostack: this package carries no Cloud
 // logic, only the contract (SPEC.md §6.6).
