@@ -246,7 +246,7 @@ func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[str
 	return s.formMode(r, "ssh", map[string]any{"User": currentUser(r), "Choice": choice, "Clients": clients,
 		"CutByLAN":    len(firewall.CutsOff(config.SSHFromLAN, a.Clients, a.Controller)) > 0,
 		"CutByAny":    len(firewall.CutsOff(config.SSHFromAny, a.Clients, a.Controller)) > 0,
-		"MultiServer": multi, "Error": errMsg, "Internet": internet,
+		"MultiServer": multi, "Error": errMsg, "Internet": internet, "PasswordsOpen": a.PasswordsOpen(),
 		"Login": login, "SSHD": a.SSHD, "SSHDError": a.SSHDError, "KeyWorks": keyWorks, "KeyText": keyText,
 		"NoSudo": strings.Join(noSudo, ", "), "SavedLogin": a.Login,
 		"DropIn": agent.SSHDropIn}), nil

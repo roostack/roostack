@@ -92,9 +92,20 @@ type SSHAccess struct {
 }
 
 // PasswordsOpen reports whether people who can reach SSH may try
-// passwords: what the lasting warning is about (SPEC.md §6.10 item 3).
+// passwords: what the lasting warning is about (SPEC.md §6.10 item 3). A
+// Match block turning them on only for addresses outside the home network
+// matters once SSH is open to anyone.
 func (a SSHAccess) PasswordsOpen() bool {
-	return (a.Choice == config.SSHFromLAN || a.Choice == config.SSHFromAny) && a.SSHD.Installed && a.SSHD.Passwords
+	if !a.SSHD.Installed {
+		return false
+	}
+	switch a.Choice {
+	case config.SSHFromLAN:
+		return a.SSHD.Passwords
+	case config.SSHFromAny:
+		return a.SSHD.Passwords || a.SSHD.PasswordsOutside
+	}
+	return false
 }
 
 // SSHChange is a new choice of who may log in over SSH, and how.

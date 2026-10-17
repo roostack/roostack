@@ -131,3 +131,39 @@ func TestSSHClientWhere(t *testing.T) {
 		}
 	}
 }
+
+// A Match block that turns passwords back on is warned about (SPEC.md
+// §6.10 item 3): named on the page, and on Home while it lets in someone
+// who can reach SSH.
+func TestSSHMatchPasswords(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{p: allDone, ssh: config.SSHFromLAN, sshLogin: config.SSHLoginKey,
+		sshd: agent.SSHStatus{Installed: true, KeysOnly: true, Passwords: true, PasswordsMatch: "Match Address 192.168.7.0/24",
+			RootLogin: "no"}}
+	h.setSetup(fs)
+	_, body := h.get("/settings/remote-access")
+	for _, want := range []string{"SSH still takes passwords from some addresses: “Match Address 192.168.7.0/24” in its settings",
+		"Takes passwords (Match Address 192.168.7.0/24)"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("remote access page missing %q", want)
+		}
+	}
+	if _, body := h.get("/"); !strings.Contains(body, "SSH on this server still accepts passwords") {
+		t.Error("Home warns about a Match block for home addresses")
+	}
+	// Only for addresses outside home: nothing to warn about until SSH is
+	// open to them.
+	fs.sshd.Passwords, fs.sshd.PasswordsOutside, fs.sshd.PasswordsMatch = false, true, "Match Address 203.0.113.0/24"
+	if _, body := h.get("/"); strings.Contains(body, "accepts passwords") {
+		t.Error("SSH from home only: a Match block for the internet can't be reached")
+	}
+	_, body = h.get("/settings/remote-access")
+	if strings.Contains(body, "SSH still takes passwords from some addresses") ||
+		!strings.Contains(body, "Takes passwords from some addresses outside your home\n      network (Match Address 203.0.113.0/24)") {
+		t.Error("the details still say what SSH does")
+	}
+	fs.ssh = config.SSHFromAny
+	if _, body := h.get("/"); !strings.Contains(body, "SSH on this server accepts passwords from anywhere") {
+		t.Error("SSH from anywhere: the Match block is reached")
+	}
+}
