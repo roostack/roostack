@@ -92,8 +92,9 @@ the old signing key is useless to anyone holding it.
    source "GitHub Actions" and custom domain `registry.roostack.cloud`; add
    the DNS record `registry.roostack.cloud CNAME roostack.github.io`; set the
    repository variables `ROOSTACK_BINARY_URL` (a Roostack release's
-   linux/amd64 `roostack` binary, which builds the index) and
-   `ROOSTACK_BINARY_SHA256` (its SHA-256: `sha256sum roostack`). Change both
+   linux/amd64 `roostack` binary, which builds the index; the address is
+   in [RELEASING.md](RELEASING.md)) and `ROOSTACK_BINARY_SHA256` (its
+   SHA-256, from the release's `SHA256SUMS`). Change both
    when a newer release should check the registry.
 
 10. **Check it.** Run the Publish workflow (Actions → Publish → Run

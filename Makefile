@@ -1,7 +1,11 @@
 # Common development tasks. Everything is plain `go`; this just saves typing.
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS := -X main.version=$(VERSION)
+# Reproducible builds (docs/RELEASING.md): -trimpath leaves out the folder
+# the code was built in, and an empty build ID leaves out the go tool's
+# own cache keys, so the same commit and Go build the same binary
+# anywhere.
+LDFLAGS := -buildid= -X main.version=$(VERSION)
 # A development root key for the service registry (SPEC.md §8.3.3), to
 # fetch from a registry signed with test keys: never for a release
 # (docs/REGISTRY-KEYS.md).
@@ -9,12 +13,12 @@ ifneq ($(REGISTRY_DEV_KEY),)
 LDFLAGS += -X roostack.cloud/roostack/internal/registry.devRootKey=$(REGISTRY_DEV_KEY)
 endif
 
-.PHONY: build help test golden vet caddy-check check-images
+.PHONY: build help release test golden vet caddy-check check-images
 
 # Linux binaries for the machine's own architecture, or another with
 # GOARCH=arm64 (or amd64).
 build: help
-	GOOS=linux CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o bin/ ./cmd/...
+	GOOS=linux CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/ ./cmd/...
 	scripts/copyright.sh > bin/copyright
 	@# Which registry root keys the build trusts, compiled with the same
 	@# flags for this machine, for build-deb.sh to check before making a
@@ -32,6 +36,13 @@ help:
 	else \
 		echo "warning: uv isn't installed, so the help site isn't built into Roostack" >&2; \
 	fi
+
+# A release, from a checkout of its tag: both packages, both plain
+# binaries and SHA256SUMS in dist/release (scripts/build-release.sh,
+# docs/RELEASING.md). The release workflow runs the same, and so can
+# anyone checking that a release was built from its source.
+release:
+	scripts/build-release.sh
 
 test:
 	go test ./...

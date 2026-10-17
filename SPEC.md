@@ -173,6 +173,15 @@ Roostack runs **directly on the host** (not in a container), as two processes sh
 - **Rationale:** Builds a single static binary, which makes `.deb` packaging trivial. Low memory use suits NUC-class hardware. Podman is written in Go and there are mature systemd/D-Bus libraries. The language is small, readable and widely known, which fits the simplicity principle. The maintainer wants to learn it.
 - **Considered:** Rust (steeper learning curve, slower to build with); Python (easiest to write, but harder to package and ship as a host service).
 
+### 6.2.1 Releases: signed and reproducible — as built (2026-10-18)
+
+Part of "encryption anyone can check" (TASKS): what a lab runs should be checkable against the published source, not taken on trust. Details and the key's ceremony: docs/RELEASING.md.
+
+- **A release is a tag** `vMAJOR.MINOR.PATCH` on `main`. Pushing it runs `.github/workflows/release.yml`, which builds both packages (amd64, arm64), the plain `roostack` binaries (for the registry's Publish workflow, §8.3.3) and `SHA256SUMS`, signs `SHA256SUMS`, and hands the files to `apt-publish.yml`, which publishes them at `dl.roostack.cloud/releases/<version>/` and in the apt repository. Not GitHub's releases: the repository is private.
+- **Reproducible:** the same tag builds the same bytes anywhere. `scripts/build-release.sh` (`make release`) pins the Go release (the go tool fetches it), uses `-trimpath` and an empty build ID, ignores the builder's go settings, and builds the help site with the Zensical in `uv.lock`; `build-deb.sh` dates every file with the commit's time, sorts, and compresses on one thread. The workflow builds in a Debian 13 image pinned by digest, twice (two runners, two folders), and stops unless both builds are identical. Considered: comparing only the binaries (the .deb is what servers install, so it must match too); Ubuntu's own tools on the runner (they change with the runner image, so a later rebuild might not match).
+- **Signed with one OpenPGP key** (Ed25519): the primary key certifies only and stays offline; a signing subkey, without a passphrase, is the secret of a GitHub environment `release` that waits for a reviewer. The same key signs the apt repository, and the package installs its public half as apt's keyring, so updates to the key reach labs with Roostack's updates. Considered: a passphrase on the CI copy (it would sit beside the key in the same environment, protecting nothing more); the primary key in CI (a leak would mean replacing the key on every lab); Ed25519 signatures with the registry's tooling (apt checks OpenPGP).
+- **Guards:** no release without the registry's real root key (§8.3.3) or with a development build, from a changed checkout, from a tag `git describe` doesn't give, from a commit not on `main`, or while the committed public key is the placeholder.
+
 ### 6.3 Web UI: Go templates + htmx + Alpine.js — Locked
 
 - Server-rendered HTML, embedded in the `roostack` binary. No JavaScript build step.

@@ -4,7 +4,13 @@
 # after `GOARCH=arm64 make build`; ARM64-PLAN.md 1.2). Run after
 # `make build`. Uses dpkg-deb when it's there (Debian, CI);
 # otherwise assembles the archive with ar and tar, which is all a .deb is.
+#
+# Reproducible (docs/RELEASING.md): the same binaries and commit make the
+# same .deb, byte for byte. Every file's time is SOURCE_DATE_EPOCH (the
+# commit's time unless it's set), owners are root, lists are sorted, and
+# xz runs on one thread (its output differs with threads).
 set -euo pipefail
+umask 022
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 cd "$REPO"
@@ -21,6 +27,10 @@ if [[ -z ${VERSION:-} ]]; then
     [[ $VERSION == *-dirty ]] && VERSION="${VERSION}.$(date +%Y%m%d%H%M%S)"
 fi
 [[ ${1:-} == --version ]] && { echo "$VERSION"; exit 0; }
+# The time every file in the package gets: the commit's, or now for a
+# copy with no git history (a dev VM's).
+SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct 2>/dev/null || date +%s)}
+export SOURCE_DATE_EPOCH
 [[ -x bin/roostack && -x bin/roostack-agent && -s bin/copyright ]] || { echo "build first: make build" >&2; exit 1; }
 # A package trusts the registry's real root key, and no development key
 # (SPEC.md §8.3.3, docs/REGISTRY-KEYS.md), whatever its version, unless
@@ -71,22 +81,31 @@ done
 CONTROL=$STAGE/control
 install -d "$CONTROL"
 sed -e "s/@VERSION@/$VERSION/" -e "s/@ARCH@/$ARCH/" packaging/deb/control > "$CONTROL/control"
-echo "Installed-Size: $(du -sk "$ROOT" | cut -f1)" >> "$CONTROL/control"
+# In KiB, counted as dpkg-gencontrol does (each file rounded up, 1 for
+# anything else), not with du, whose answer depends on the filesystem.
+find "$ROOT" -mindepth 1 \( -type f -printf '%s\n' -o -printf '1024\n' \) |
+    awk '{ k += int(($1 + 1023) / 1024) } END { print "Installed-Size: " k }' >> "$CONTROL/control"
 install -m 0644 packaging/deb/conffiles packaging/deb/triggers "$CONTROL/"
 install -m 0755 packaging/deb/postinst packaging/deb/prerm packaging/deb/postrm "$CONTROL/"
-(cd "$ROOT" && find . -type f ! -path ./etc/\* -printf '%P\0' | xargs -0 md5sum) > "$CONTROL/md5sums"
+(cd "$ROOT" && find . -type f ! -path ./etc/\* -printf '%P\0' | LC_ALL=C sort -z | xargs -0 md5sum) > "$CONTROL/md5sums"
 
 mkdir -p dist
 OUT=dist/roostack_${VERSION}_${ARCH}.deb
 rm -f "$OUT"
+stamp() { find "$@" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +; }
 if command -v dpkg-deb >/dev/null; then
     cp -r "$CONTROL" "$ROOT/DEBIAN"
-    dpkg-deb --root-owner-group -Zxz --build "$ROOT" "$OUT" >/dev/null
+    stamp "$ROOT"
+    # dpkg-deb sorts the files and, with SOURCE_DATE_EPOCH, dates the ar
+    # members with it.
+    dpkg-deb --root-owner-group -Zxz -z6 --threads-max=1 --build "$ROOT" "$OUT" >/dev/null
 else
-    tarx() { tar --owner=0 --group=0 --numeric-owner --sort=name -C "$1" -cJf "$2" .; }
+    stamp "$ROOT" "$CONTROL"
+    tarx() { tar --format=gnu --owner=0 --group=0 --numeric-owner --sort=name -C "$1" -c . | xz -6 -T1 > "$2"; }
     tarx "$CONTROL" "$STAGE/control.tar.xz"
     tarx "$ROOT" "$STAGE/data.tar.xz"
     echo "2.0" > "$STAGE/debian-binary"
-    (cd "$STAGE" && ar rc "$REPO/$OUT" debian-binary control.tar.xz data.tar.xz)
+    # D: zero times and owners in the ar headers.
+    (cd "$STAGE" && ar rcD "$REPO/$OUT" debian-binary control.tar.xz data.tar.xz)
 fi
 echo "$OUT"

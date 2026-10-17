@@ -2,6 +2,8 @@
 # (make vet), the whole test suite with restic (so the backup tests run
 # rather than skip), and govulncheck. On Linux, so everything builds;
 # nothing here needs a secret (README.md, "Continuous integration").
+# govulncheck also runs weekly on main, as new vulnerabilities are
+# published in code that hasn't changed.
 #
 # Actions are pinned by commit, with the release in a comment: update
 # both together.
@@ -11,6 +13,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    # Mondays at 03:17 UTC (off the hour, when GitHub is less busy).
+    - cron: "17 3 * * 1"
 
 permissions:
   contents: read
@@ -30,9 +35,11 @@ env:
   RESTIC_VERSION: "0.18.0"
   RESTIC_SHA256: 98f6dd8bf5b59058d04bfd8dab58e196cc2a680666ccee90275a3b722374438e
   GOVULNCHECK_VERSION: v1.9.0
+  ACTIONLINT_VERSION: v1.7.12
 
 jobs:
   vet:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,6 +52,7 @@ jobs:
         run: make vet
 
   test:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -79,3 +87,18 @@ jobs:
       # Fails only on a vulnerability the code can reach.
       - name: govulncheck
         run: go run "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION" ./...
+
+  # The workflows themselves (and the shell in them, with the runner's
+  # shellcheck).
+  actionlint:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: actionlint
+        run: go run "github.com/rhysd/actionlint/cmd/actionlint@$ACTIONLINT_VERSION"
