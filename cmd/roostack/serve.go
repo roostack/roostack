@@ -269,7 +269,10 @@ func serve(args []string) error {
 	// that server's link, forwarded here when it's another server).
 	guestHub := &labnet.GuestHub{LabName: lab.DisplayName(), Store: st, Agent: mgr.GuestLinkAgent(), Log: log, Now: time.Now,
 		Usage:  func(ctx context.Context, g store.Guest) (int64, error) { return mgr.GuestUsage(ctx, g.User()) },
-		Joined: func(ctx context.Context, name string) { st.Audit(ctx, nil, web.AuditGuestJoined, name) }}
+		Joined: func(ctx context.Context, name string) { st.Audit(ctx, nil, web.AuditGuestJoined, name) },
+		// A guest server's store user added or removed: the guest's store
+		// follows (its password file).
+		Changed: func() { mgr.Apply() }}
 	mgr.GuestHub, mgr.GuestRecords, mgr.LinkAgent = guestHub, st, agentClient
 	guestHub.Start(ctx)
 	go guestHub.ServeGuests(ctx)
