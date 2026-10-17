@@ -208,7 +208,7 @@ func TestRulesetSSHOff(t *testing.T) {
 		t.Errorf("ssh off: want no port 22 rule and DHCPv6 allowed:\n%s", got)
 	}
 	if !strings.Contains(got, "elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/12, 100.80.0.0/16, 100.82.0.0/15, "+
-		"100.84.0.0/14, 100.88.0.0/13, 100.96.0.0/14, 100.104.0.0/13, 100.112.0.0/12 }") ||
+		"100.84.0.0/14, 100.88.0.0/13, 100.96.128.0/17, 100.97.0.0/16, 100.98.0.0/15, 100.104.0.0/13, 100.112.0.0/12 }") ||
 		!strings.Contains(got, "elements = { fc00::/7, fe80::/10 }") {
 		t.Errorf("LAN sets wrong:\n%s", got)
 	}

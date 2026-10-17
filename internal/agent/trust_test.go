@@ -19,8 +19,9 @@ import (
 // listener and a port nothing opens.
 func TestTrustClasses(t *testing.T) {
 	a := netip.MustParseAddr
-	members := []netip.Addr{a("100.96.0.2"), a("100.96.0.3")}
+	members := []netip.Addr{a("100.96.0.1"), a("100.96.0.2"), a("100.96.0.3")}
 	edges := []netip.Addr{a("100.96.0.3")}
+	lab := trust.Lab{Members: members, Edges: edges, Controller: a("100.96.0.1")}
 	sources := []struct {
 		name, iface string
 		addr        netip.Addr
@@ -32,6 +33,11 @@ func TestTrustClasses(t *testing.T) {
 		{"internet (IPv6)", "eth0", a("2001:db8::9")},
 		{"a guest's address, elsewhere", "eth0", a("100.100.5.2")},
 		{"server", WireGuardInterface, a("100.96.0.2")},
+		{"controller", WireGuardInterface, a("100.96.0.1")},
+		{"person's device on Roostack's network", WireGuardInterface, a("100.96.128.5")},
+		{"outside Roostack's ranges on its interface", WireGuardInterface, a("100.97.0.1")},
+		{"IPv6 on Roostack's network", WireGuardInterface, a("fd00::7")},
+		{"a server's address, elsewhere", "eth0", a("100.96.0.2")},
 		{"edge", WireGuardInterface, a("100.96.0.3")},
 		{"joining server", WireGuardInterface, a("100.96.0.9")},
 		{"guest lab 1", GuestsInterface, a("100.100.5.2")},
@@ -53,14 +59,16 @@ func TestTrustClasses(t *testing.T) {
 			Rule{Port: 8100, Proto: "tcp", For: trust.Guests, Source: "100.100.5.2", Reason: "storage for g1"},
 		)
 		fw.Edges = []string{"100.96.0.3"}
-		fw.JoinPort, fw.Members = 8471, []string{"100.96.0.2", "100.96.0.3"}
+		fw.JoinPort, fw.Members = 8471, []string{"100.96.0.1", "100.96.0.2", "100.96.0.3"}
+		fw.Controller = "100.96.0.1"
 		if err := fw.Validate(); err != nil {
 			t.Fatal(err)
 		}
 		nft := parseRuleset(t, fw.Ruleset())
 		rules := slices.Clone(fw.Allow)
 		if ssh != FromOff {
-			rules = append(rules, Rule{Port: 22, Proto: "tcp", For: trust.Class(ssh)})
+			rules = append(rules, Rule{Port: 22, Proto: "tcp", For: trust.Class(ssh)},
+				Rule{Port: 22, Proto: "tcp", For: trust.Controller})
 		}
 		probes := []Rule{{Port: 443, Proto: "tcp"}, {Port: EdgePort, Proto: "tcp"}, {Port: 9999, Proto: "tcp"},
 			{Port: 22, Proto: "tcp"}}
@@ -68,7 +76,7 @@ func TestTrustClasses(t *testing.T) {
 			probes = append(probes, Rule{Port: r.Port, Proto: r.Proto})
 		}
 		for _, s := range sources {
-			class := trust.Classify(s.iface, s.addr, trust.Lab{Members: members, Edges: edges})
+			class := trust.Classify(s.iface, s.addr, lab)
 			for _, p := range probes {
 				wantPort, want := p.Port, false
 				switch {
@@ -205,6 +213,10 @@ func (n nftRules) match(st []string, iface string, src netip.Addr, proto string,
 			switch arg() {
 			case "l4proto":
 				if !strings.Contains(arg(), "icmp") || !strings.Contains(proto, "icmp") {
+					return "", false
+				}
+			case "nfproto":
+				if (arg() == "ipv6") != src.Unmap().Is6() {
 					return "", false
 				}
 			default:

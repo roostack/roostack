@@ -12,7 +12,7 @@
   {{with .Clients}}
   <div class="notice">
     <p><strong>Connected over SSH right now:</strong></p>
-    <ul>{{range .}}<li><code>{{.Addr}}</code> ({{if $.Internet}}{{if .LAN}}a private network{{else}}the internet{{end}}{{else}}{{if .LAN}}your home network{{else}}outside your home network{{end}}{{end}})</li>{{end}}</ul>
+    <ul>{{range .}}<li><code>{{.Addr}}</code> ({{.Where}})</li>{{end}}</ul>
   </div>
   {{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -24,10 +24,10 @@
           you log in. Anyone can try to, so use SSH keys, not passwords.</small></span></label>
       <label class="check"><input type="radio" name="ssh" value="lan" x-model="choice">
         <span>Only from private networks<small>Such as your provider's private network, or a VPN to it. Not from your own
-          internet connection: you'd need your provider's web console to get back in.</small></span></label>
+          internet connection: you'd need your provider's web console to get back in.{{template "ssh-other-servers" .}}</small></span></label>
       {{else}}
       <label class="check"><input type="radio" name="ssh" value="lan" x-model="choice">
-        <span>Only from my home network (recommended)<small>From computers at home, or over a VPN.</small></span></label>
+        <span>Only from my home network (recommended)<small>From computers at home, or over a VPN.{{template "ssh-other-servers" .}}</small></span></label>
       <label class="check"><input type="radio" name="ssh" value="any" x-model="choice">
         <span>From anywhere<small>Only reachable from the internet if your router forwards port 22 to this server.
           Anyone can then try to log in, so use SSH keys, not passwords.</small></span></label>
@@ -58,7 +58,7 @@
     </div>
     {{end}}
     {{if .Clients}}
-    <div x-show="choice === 'off' {{if .CutByLAN}}|| choice === 'lan'{{end}}" x-cloak>
+    <div x-show="choice === 'off' {{if .CutByLAN}}|| choice === 'lan'{{end}}{{if .CutByAny}}|| choice === 'any'{{end}}" x-cloak>
       <p class="error">This will disconnect the SSH connection listed above.</p>
       <label class="check"><input type="checkbox" name="confirm"><span>I understand</span></label>
     </div>
@@ -91,3 +91,6 @@
 
 {{define "page-help"}}{{help "start/first-run#4-who-can-log-in-to-this-server" "Who can log in to this server?"}}{{end}}
 {{define "crumbs"}}{{if .Wizard}}<span>Setup</span><strong aria-current="page">Step 2 of 4</strong>{{else}}<a href="{{.Back}}">{{.BackText}}</a><strong aria-current="page">{{template "title" .}}</strong>{{end}}{{end}}
+{{/* Over Roostack's network, only the controller reaches SSH (SPEC.md §10.2). */}}
+{{define "ssh-other-servers"}}{{if .MultiServer}} Not from this lab's other servers{{if not .Server.This}}, except the one that runs
+  the lab{{end}}.{{end}}{{end}}

@@ -111,13 +111,44 @@ func TestSSHClients(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
-	if cut := CutsOff(config.SSHFromLAN, got); !slices.Equal(cut, want[2:]) {
+	if cut := CutsOff(config.SSHFromLAN, got, netip.Addr{}); !slices.Equal(cut, want[2:]) {
 		t.Errorf("home network only cuts off %v", cut)
 	}
-	if cut := CutsOff(config.SSHOff, got); len(cut) != 3 {
+	if cut := CutsOff(config.SSHOff, got, netip.Addr{}); len(cut) != 3 {
 		t.Errorf("off cuts off %v", cut)
 	}
-	if cut := CutsOff(config.SSHFromAny, got); len(cut) != 0 {
+	if cut := CutsOff(config.SSHFromAny, got, netip.Addr{}); len(cut) != 0 {
 		t.Errorf("anywhere cuts off %v", cut)
+	}
+}
+
+// Of the lab's servers, only the controller reaches SSH over Roostack's
+// network, whatever the choice but "Nobody" (SPEC.md §10.2); a person's
+// device there is home.
+func TestCutsOffServers(t *testing.T) {
+	ctrl, other, device := netip.MustParseAddr("100.96.0.1"), netip.MustParseAddr("100.96.0.4"), netip.MustParseAddr("100.96.128.9")
+	clients := []netip.Addr{ctrl, other, device}
+	for choice, want := range map[string][]netip.Addr{config.SSHFromLAN: {other}, config.SSHFromAny: {other},
+		config.SSHOff: clients} {
+		if cut := CutsOff(choice, clients, ctrl); !slices.Equal(cut, want) {
+			t.Errorf("%s cuts off %v, want %v", choice, cut, want)
+		}
+	}
+	// On the controller (no controller to keep), every server is cut off.
+	if cut := CutsOff(config.SSHFromAny, clients, netip.Addr{}); !slices.Equal(cut, []netip.Addr{ctrl, other}) {
+		t.Errorf("on the controller: %v", cut)
+	}
+	lab := config.Default()
+	lab.OverlayAddr = "100.96.0.4"
+	if Controller(lab).IsValid() {
+		t.Error("the controller has no controller to let in")
+	}
+	lab.Role = config.RoleNode
+	lab.Firewall.SSH = config.SSHFromLAN
+	if Controller(lab) != ctrl {
+		t.Errorf("a node's controller is %v", Controller(lab))
+	}
+	if fw, _ := Desired(lab, nil, Roles{}); fw.Controller != "100.96.0.1" || fw.Validate() != nil {
+		t.Errorf("a node's firewall lets in %q", fw.Controller)
 	}
 }

@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/manager"
 )
 
 // SSH keys only (SPEC.md §6.10 item 3): offered once a key login by an
@@ -81,5 +83,51 @@ func TestSSHNoServer(t *testing.T) {
 	h.setSetup(&fakeSetup{p: allDone, ssh: config.SSHFromLAN})
 	if _, body := h.get("/settings/remote-access"); strings.Contains(body, "How do they log in?") {
 		t.Error("no SSH server: no login choice")
+	}
+}
+
+// Of the lab's servers, only the controller reaches SSH over Roostack's
+// network (SPEC.md §10.2, review M23): the page says so in a lab with more
+// than one server, names who's connected, and asks before cutting off a
+// session from another server, whatever the choice.
+func TestSSHLabServers(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{p: allDone, ssh: config.SSHFromLAN, clients: []netip.Addr{netip.MustParseAddr("192.168.1.20"),
+		netip.MustParseAddr("100.96.0.4")}}
+	h.setSetup(fs)
+	_, body := h.get("/settings/remote-access")
+	if strings.Contains(body, "Not from this lab's other servers") {
+		t.Error("a lab of one server: nothing to say about other servers")
+	}
+	fm.servers = []manager.Server{{ID: "n-0123456789", Name: "nuc", Controller: true, This: true},
+		{ID: "n-1", Name: "vps"}}
+	_, body = h.get("/settings/remote-access")
+	for _, want := range []string{"From computers at home, or over a VPN. Not from this lab's other servers.</small>",
+		"<code>192.168.1.20</code> (your home network)", "<code>100.96.0.4</code> (another server in this lab, over Roostack&#39;s network)",
+		`|| choice === 'lan'`, `|| choice === 'any'`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("remote access page missing %q", want)
+		}
+	}
+}
+
+func TestSSHClientWhere(t *testing.T) {
+	ctrl := netip.MustParseAddr("100.96.0.1")
+	for _, c := range []struct {
+		addr     string
+		internet bool
+		want     string
+	}{
+		{"100.96.0.1", false, "the server that runs this lab, over Roostack's network"},
+		{"100.96.0.7", false, "another server in this lab, over Roostack's network"},
+		{"100.96.128.7", false, "your home network"},
+		{"192.168.1.5", false, "your home network"},
+		{"203.0.113.9", false, "outside your home network"},
+		{"10.0.0.5", true, "a private network"},
+		{"203.0.113.9", true, "the internet"},
+	} {
+		if got := sshClientWhere(netip.MustParseAddr(c.addr), ctrl, c.internet); got != c.want {
+			t.Errorf("%s: %q, want %q", c.addr, got, c.want)
+		}
 	}
 }

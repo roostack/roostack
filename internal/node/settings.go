@@ -81,6 +81,10 @@ type SSHAccess struct {
 	Choice  string // config.SSH*, or "" if not chosen yet
 	Login   string // config.SSHLogin*, or "" if not chosen yet
 	Clients []netip.Addr
+	// Controller is the controller's address on Roostack's network, the
+	// one server that reaches SSH over it; invalid on the controller
+	// (firewall.Controller).
+	Controller netip.Addr
 	// SSHD is what the SSH server does now (roostack-agent); SSHDError
 	// says why it couldn't be read.
 	SSHD      agent.SSHStatus
@@ -178,7 +182,8 @@ func (h *HostSettings) SSHAccess(fresh bool) (SSHAccess, error) {
 	clients, err := h.SSHClients()
 	sshd, serr := h.sshStatus(context.Background(), fresh)
 	h.mu.Lock()
-	a := SSHAccess{Choice: h.Lab.Firewall.SSH, Login: h.Lab.Firewall.SSHLogin, Clients: clients, SSHD: sshd}
+	a := SSHAccess{Choice: h.Lab.Firewall.SSH, Login: h.Lab.Firewall.SSHLogin, Clients: clients,
+		Controller: firewall.Controller(h.Lab), SSHD: sshd}
 	h.mu.Unlock()
 	if serr != nil {
 		a.SSHDError = serr.Error()
@@ -225,7 +230,10 @@ func (h *HostSettings) SetSSH(ctx context.Context, c SSHChange) error {
 	if err != nil {
 		return err
 	}
-	if cut := firewall.CutsOff(c.Choice, clients); len(cut) > 0 && !c.Confirmed {
+	h.mu.Lock()
+	controller := firewall.Controller(h.Lab)
+	h.mu.Unlock()
+	if cut := firewall.CutsOff(c.Choice, clients, controller); len(cut) > 0 && !c.Confirmed {
 		return formErrorf("That would disconnect the SSH connection from %s. "+
 			"Tick the box if that's what you want.", cut[0])
 	}

@@ -79,7 +79,9 @@ another computer to fix things Roostack can't. Roostack's firewall blocks
 everything else apart from your services' web addresses.
 
 Only from my home network *(recommended at home)*
-:   From computers at home, or over a VPN.
+:   From computers at home, or over a VPN. Not from your lab's other
+    servers, apart from the one that runs the lab, so you can go on from it
+    to a cloud server whose SSH is set to this too.
 
 From anywhere *(recommended on a cloud server)*
 :   At home, only reachable from the internet if your router sends port 22

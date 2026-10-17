@@ -8,7 +8,7 @@ Roostack's firewall (nftables) blocks everything that isn't listed here.
 |---|---|---|
 | 80/tcp | Web (redirects to HTTPS) | Anyone who can reach the server |
 | 443/tcp, 443/udp | Your services and Roostack, over HTTPS (udp: HTTP/3) | Anyone who can reach the server |
-| 22/tcp | SSH | Your choice: home network only, anyone, or nobody |
+| 22/tcp | SSH | Your choice: home network only, anyone, or nobody. Over the lab's network, only from the server that runs the lab |
 | 51820/udp | The lab's network (WireGuard), on the server that runs the lab | Anyone, so servers elsewhere can join |
 | 51821/udp | Other labs storing backups here (WireGuard), on the server offering the space | Anyone, so other labs can connect |
 | Your choice | A service's [extra connections](../services/settings.md#extra-connections), such as git over SSH | Your home network |
@@ -19,6 +19,10 @@ reachable from the internet unless your router forwards a port to the
 server.
 
 ## Only over Roostack's own networks
+
+Only your lab's servers reach these, over the lab's network; other labs
+reach only their own storage here. Your servers aren't your home network:
+over the lab's network they reach nothing else.
 
 | Port | For |
 |---|---|
@@ -48,7 +52,13 @@ server.
     "Your home network" means these ranges, for both the firewall and
     Caddy's private check: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
     `100.64.0.0/10` (also used by VPNs such as Tailscale), `fc00::/7` and
-    `fe80::/10`.
+    `fe80::/10`, **except** your lab's servers on its network
+    (`100.96.0.0/17`), other labs storing backups here (`100.100.0.0/14`)
+    and Roostack Cloud's relay (`100.81.0.0/16`). `100.96.128.0/17` is kept
+    for your own devices joining the lab's network, still to be built, and
+    counts as home. The firewall settles Roostack's own interfaces first:
+    on `roostack`, a server reaches only the ports in the second table and
+    SSH from the server that runs the lab.
     `roostack apply -dry-run` prints the firewall Roostack would apply.
 
     Caddy runs in its own network namespace (pasta), so it sees visitors'

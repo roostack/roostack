@@ -223,7 +223,7 @@ func TestEdgeFrom(t *testing.T) {
 // lets in more than the firewall counts as home).
 func TestPrivateRanges(t *testing.T) {
 	want := "private_ranges 100.64.0.0/12 100.80.0.0/16 100.82.0.0/15 100.84.0.0/14 100.88.0.0/13 " +
-		"100.96.0.0/14 100.104.0.0/13 100.112.0.0/12"
+		"100.96.128.0/17 100.97.0.0/16 100.98.0.0/15 100.104.0.0/13 100.112.0.0/12"
 	if PrivateRanges != want {
 		t.Errorf("PrivateRanges = %q, want %q", PrivateRanges, want)
 	}
@@ -243,7 +243,7 @@ func TestPrivateRanges(t *testing.T) {
 	}
 	var samples []netip.Addr
 	for _, p := range append(slices.Clone(trust.HomeRanges), trust.CGNATRange, trust.GuestRange, trust.RelayRange,
-		trust.OverlayRange, netip.MustParsePrefix("100.0.0.0/8"), netip.MustParsePrefix("2001:db8::/32")) {
+		trust.OverlayRange, trust.ServersRange, trust.DevicesRange, netip.MustParsePrefix("100.0.0.0/8"), netip.MustParsePrefix("2001:db8::/32")) {
 		// Each range's first and last address, and the ones either side.
 		first, last := p.Masked().Addr(), lastAddr(p)
 		samples = append(samples, first, first.Prev(), last, last.Next())

@@ -154,7 +154,7 @@ Stop
 If you understand the risk and need the service now, the Owner can open
 **Start it anyway…** on its page. **Make it private first** is ticked when
 the service is public: it keeps out whoever is attacking that version, since
-only devices at home and on Roostack's network can reach it. Roostack won't
+only devices at home (or on a VPN) can reach it. Roostack won't
 stop that version again, but keeps showing it under **Needs attention**
 until you update or remove it.
 

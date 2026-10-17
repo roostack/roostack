@@ -72,7 +72,13 @@ Under **Rename or remove** on a server's card:
     itself, and keeps running it if the controller is away.
 
     The lab's network is WireGuard (interface `roostack`, UDP port 51820,
-    addresses in `100.96.0.0/24`). Over it, each server serves the lab API
+    addresses in `100.96.0.0/24`). Your servers aren't your home network:
+    over it, a server reaches only what Roostack opens for servers (the
+    lab API, services' web ports for the lab's Caddy, backup stores, and an
+    edge's way in to Caddy), and SSH only from the server that runs the
+    lab. It never reaches Roostack's pages, private services, a service's
+    home-only extra connections, or SSH from another server, so a cheap
+    cloud server in the lab can't get at home what a laptop there could. Over it, each server serves the lab API
     on port 8471 with mutual TLS: the controller runs the lab's own
     certificate authority (`/var/lib/roostack/labca`), and gives each
     server a certificate for a year, renewed automatically 120 days before

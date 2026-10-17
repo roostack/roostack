@@ -152,7 +152,7 @@ func TestEdgeFirewall(t *testing.T) {
 		}
 	}
 	// Without edges of its own, only the relay's 443 is redirected.
-	if rs := DefaultFirewall().Ruleset(); strings.Contains(rs, `iifname "roostack" ip saddr`) {
+	if rs := DefaultFirewall().Ruleset(); strings.Contains(rs, `iifname "roostack" ip saddr {`) {
 		t.Errorf("edge rules without edges:\n%s", rs)
 	}
 }
@@ -170,23 +170,27 @@ func TestJoiningFirewall(t *testing.T) {
 	}
 	rs := fw.Ruleset()
 	in, fwd, _ := strings.Cut(rs, "chain forward")
-	accept := strings.Index(in, `iifname "roostack" ip saddr != { 100.96.0.2, 100.96.0.3 } tcp dport 8471 accept`)
-	drop := strings.Index(in, `iifname "roostack" ip saddr != { 100.96.0.2, 100.96.0.3 } drop`)
+	accept := strings.Index(in, `iifname "roostack" ip saddr 100.96.0.0/17 ip saddr != { 100.96.0.2, 100.96.0.3 } tcp dport 8471 accept`)
+	drop := strings.Index(in, `iifname "roostack" ip saddr 100.96.0.0/17 ip saddr != { 100.96.0.2, 100.96.0.3 } drop`)
 	lan := strings.Index(in, "@lan4")
 	if accept < 0 || drop < accept || lan < drop {
 		t.Errorf("joining rules: accept %d, drop %d, first home-network rule %d\n%s", accept, drop, lan, rs)
 	}
-	fdrop := strings.Index(fwd, `iifname "roostack" ip saddr != { 100.96.0.2, 100.96.0.3 } drop`)
+	fdrop := strings.Index(fwd, `iifname "roostack" ip saddr 100.96.0.0/17 ip saddr != { 100.96.0.2, 100.96.0.3 } drop`)
 	if fdrop < 0 || fdrop > strings.Index(fwd, "tcp dport 8000 accept") {
 		t.Errorf("forward chain:\n%s", fwd)
 	}
 	// A hub with no other servers yet: everyone there is joining.
 	fw.Members = nil
-	if rs := fw.Ruleset(); !strings.Contains(rs, "\t\tiifname \"roostack\" tcp dport 8471 accept\n\t\tiifname \"roostack\" drop\n") {
+	if rs := fw.Ruleset(); !strings.Contains(rs, "\t\tiifname \"roostack\" ip saddr 100.96.0.0/17 tcp dport 8471 accept\n"+
+		"\t\tiifname \"roostack\" ip saddr 100.96.0.0/17 drop\n") {
 		t.Errorf("no members:\n%s", rs)
 	}
 	for _, bad := range []Firewall{{SSHFrom: FromLAN, Members: []string{"100.96.0.2"}},
-		{SSHFrom: FromLAN, JoinPort: 8471, Members: []string{"192.168.1.5"}}} {
+		{SSHFrom: FromLAN, JoinPort: 8471, Members: []string{"192.168.1.5"}},
+		{SSHFrom: FromLAN, JoinPort: 8471, Members: []string{"100.96.128.5"}}, // a person's device
+		{SSHFrom: FromLAN, Controller: "100.96.128.1"}, {SSHFrom: FromLAN, Controller: "100.96.0.1 accept"},
+		{SSHFrom: FromLAN, Edges: []string{"100.96.200.1"}}} {
 		if bad.Validate() == nil {
 			t.Errorf("accepted %+v", bad)
 		}

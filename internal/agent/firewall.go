@@ -30,6 +30,11 @@ type Firewall struct {
 	// hour; SPEC.md §10.2). Nothing from them is forwarded either.
 	JoinPort int      `json:"join_port,omitempty"`
 	Members  []string `json:"members,omitempty"`
+	// Controller, on another server, is the controller's address on
+	// Roostack's network: the one server that reaches SSH over it, unless
+	// SSHFrom is off (SPEC.md §10.2). The lab's servers reach nothing else
+	// that isn't opened for them (internal/trust).
+	Controller string `json:"controller,omitempty"`
 }
 
 // EdgePort is Caddy's listener for visitors through the lab's edges, whose
@@ -106,16 +111,19 @@ func (f Firewall) Validate() error {
 		}
 	}
 	for i, e := range f.Edges {
-		if a, err := netip.ParseAddr(e); err != nil || !OverlayRange.Contains(a) {
-			errs = append(errs, fmt.Errorf("edges[%d]: not an address on Roostack's network", i))
+		if a, err := netip.ParseAddr(e); err != nil || !trust.ServersRange.Contains(a) {
+			errs = append(errs, fmt.Errorf("edges[%d]: not a server's address on Roostack's network", i))
 		}
+	}
+	if a, err := netip.ParseAddr(f.Controller); f.Controller != "" && (err != nil || !trust.ServersRange.Contains(a)) {
+		errs = append(errs, errors.New("controller: not a server's address on Roostack's network"))
 	}
 	if f.JoinPort < 0 || f.JoinPort > 65535 || (f.JoinPort == 0 && len(f.Members) > 0) {
 		errs = append(errs, errors.New("join_port: invalid port, or members without one"))
 	}
 	for i, m := range f.Members {
-		if a, err := netip.ParseAddr(m); err != nil || !OverlayRange.Contains(a) {
-			errs = append(errs, fmt.Errorf("members[%d]: not an address on Roostack's network", i))
+		if a, err := netip.ParseAddr(m); err != nil || !trust.ServersRange.Contains(a) {
+			errs = append(errs, fmt.Errorf("members[%d]: not a server's address on Roostack's network", i))
 		}
 	}
 	for i, r := range f.Forward {
@@ -198,13 +206,14 @@ func (f Firewall) Ruleset() string {
 	for _, iface := range otherLabs {
 		fmt.Fprintf(&b, "\t\tiifname %q drop\n", iface)
 	}
+	f.servers(&b)
 	b.WriteString("\t\tiif \"lo\" accept\n")
 	b.WriteString("\t\tmeta l4proto { icmp, ipv6-icmp } accept\n")
 	// DHCPv6 replies come from the router's link-local address to a port
 	// conntrack doesn't pair with the multicast request.
 	b.WriteString("\t\tip6 saddr fe80::/10 udp dport 546 accept\n\n")
 
-	rules := slices.DeleteFunc(slices.Clone(f.Allow), func(r Rule) bool { return r.For == trust.Guests })
+	rules := slices.DeleteFunc(slices.Clone(f.Allow), func(r Rule) bool { return r.For == trust.Guests || r.For == trust.Servers })
 	if f.SSHFrom != FromOff {
 		rules = append(rules, Rule{Port: 22, Proto: "tcp", For: trust.Class(f.SSHFrom), Reason: "ssh"})
 	}
@@ -220,8 +229,6 @@ func (f Firewall) Ruleset() string {
 			wireguardLimit(&b, r.Port)
 		}
 		switch r.For {
-		case trust.Servers:
-			fmt.Fprintf(&b, "\t\t%s\n", r.match("accept"))
 		case trust.Home:
 			fmt.Fprintf(&b, "\t\tip saddr @lan4 %s dport %d accept\n", r.Proto, r.Port)
 			fmt.Fprintf(&b, "\t\tip6 saddr @lan6 %s dport %d accept\n", r.Proto, r.Port)
@@ -247,7 +254,8 @@ func (f Firewall) Ruleset() string {
 	fmt.Fprintf(&b, "\t\tiifname %q oifname %q ct state established,related accept\n", WireGuardInterface, WireGuardInterface)
 	for _, r := range f.Forward {
 		fmt.Fprintf(&b, "\t\t# %s\n", r.Reason)
-		fmt.Fprintf(&b, "\t\tiifname %q oifname %q tcp dport %d accept\n", WireGuardInterface, WireGuardInterface, r.Port)
+		fmt.Fprintf(&b, "\t\tiifname %q oifname %q ip saddr %s tcp dport %d accept\n", WireGuardInterface, WireGuardInterface,
+			trust.ServersRange, r.Port)
 	}
 	fmt.Fprintf(&b, "\t\tiifname %q drop\n", WireGuardInterface)
 	fmt.Fprintf(&b, "\t\toifname %q drop\n", WireGuardInterface)
@@ -259,12 +267,31 @@ func (f Firewall) Ruleset() string {
 // this lab's links to their storage (nftables matches the name's prefix).
 var otherLabs = []string{GuestsInterface, trust.StoreLinks}
 
-// iface is the interface a rule's class arrives on, if it has one.
-func (r Rule) iface() string {
-	return map[trust.Class]string{trust.Servers: WireGuardInterface, trust.Guests: GuestsInterface}[r.For]
+// servers writes what the lab's servers reach on Roostack's network: the
+// rules for them, SSH from the controller and ping, nothing else (SPEC.md
+// §10.2, review M23). Settled here, before any rule by source, like the
+// other labs: the servers' range isn't home anyway. People's devices
+// (trust.DevicesRange) go on to the home network's rules; nothing else on
+// that interface gets in.
+func (f Firewall) servers(b *strings.Builder) {
+	from := fmt.Sprintf("iifname %q ip saddr %s ", WireGuardInterface, trust.ServersRange)
+	rules := slices.DeleteFunc(slices.Clone(f.Allow), func(r Rule) bool { return r.For != trust.Servers })
+	slices.SortStableFunc(rules, func(a, b Rule) int { return a.Port - b.Port })
+	for _, r := range rules {
+		fmt.Fprintf(b, "\t\t# %s\n", r.Reason)
+		fmt.Fprintf(b, "\t\t%s%s dport %d accept\n", from, r.Proto, r.Port)
+	}
+	if f.Controller != "" && f.SSHFrom != FromOff {
+		b.WriteString("\t\t# ssh from the controller\n")
+		fmt.Fprintf(b, "\t\tiifname %q ip saddr %s tcp dport 22 accept\n", WireGuardInterface, f.Controller)
+	}
+	b.WriteString("\t\t# nothing else from the lab's servers; people's devices are home\n")
+	fmt.Fprintf(b, "\t\t%smeta l4proto icmp accept\n", from)
+	fmt.Fprintf(b, "\t\tiifname %q ip saddr != %s drop\n", WireGuardInterface, trust.DevicesRange)
+	fmt.Fprintf(b, "\t\tiifname %q meta nfproto ipv6 drop\n", WireGuardInterface)
 }
 
-// match renders an interface rule's nftables match and verdict.
+// match renders a guests' rule's nftables match and verdict.
 func (r Rule) match(verdict string) string {
 	from := ""
 	if a, err := netip.ParseAddr(r.Source); err == nil {
@@ -273,14 +300,15 @@ func (r Rule) match(verdict string) string {
 			from = fmt.Sprintf("ip6 saddr %s ", a)
 		}
 	}
-	return fmt.Sprintf("iifname %q %s%s dport %d %s", r.iface(), from, r.Proto, r.Port, verdict)
+	return fmt.Sprintf("iifname %q %s%s dport %d %s", GuestsInterface, from, r.Proto, r.Port, verdict)
 }
 
-// notMember matches traffic on Roostack's network from anyone but the
-// lab's servers (Members).
+// notMember matches traffic on Roostack's network from a server's address
+// that isn't one of the lab's servers (Members).
 func (f Firewall) notMember() string {
+	from := fmt.Sprintf("iifname %q ip saddr %s ", WireGuardInterface, trust.ServersRange)
 	if len(f.Members) == 0 {
-		return fmt.Sprintf("iifname %q ", WireGuardInterface)
+		return from
 	}
-	return fmt.Sprintf("iifname %q ip saddr != { %s } ", WireGuardInterface, strings.Join(f.Members, ", "))
+	return fmt.Sprintf("%sip saddr != { %s } ", from, strings.Join(f.Members, ", "))
 }

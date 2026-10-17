@@ -79,7 +79,7 @@ func TestServersRule(t *testing.T) {
 	if err := fw.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(fw.Ruleset(), `iifname "roostack" tcp dport 8471 accept`) {
+	if !strings.Contains(fw.Ruleset(), `iifname "roostack" ip saddr 100.96.0.0/17 tcp dport 8471 accept`) {
 		t.Errorf("ruleset:\n%s", fw.Ruleset())
 	}
 	fw.Allow[len(fw.Allow)-1].Source = "100.96.0.2"
@@ -129,7 +129,7 @@ func TestForwardRules(t *testing.T) {
 	rs := fw.Ruleset()
 	for _, want := range []string{"chain forward {", "policy accept;",
 		`iifname "roostack" oifname "roostack" ct state established,related accept`,
-		`iifname "roostack" oifname "roostack" tcp dport 8000 accept`, `iifname "roostack" drop`, `oifname "roostack" drop`} {
+		`iifname "roostack" oifname "roostack" ip saddr 100.96.0.0/17 tcp dport 8000 accept`, `iifname "roostack" drop`, `oifname "roostack" drop`} {
 		if !strings.Contains(rs, want) {
 			t.Errorf("missing %q:\n%s", want, rs)
 		}

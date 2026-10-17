@@ -61,7 +61,7 @@
       <summary>Start {{$t}} anyway…</summary>
       <form method="post" action="/services/{{$.Service.Name}}/start-anyway">
         {{if .Public}}<label class="check"><input type="checkbox" name="private" value="1" checked>
-          <span>Make it private first<small>Only devices at home and on Roostack's network can reach it, not the internet.
+          <span>Make it private first<small>Only devices at home (or on a VPN) can reach it, not the internet.
             Recommended: it keeps out whoever is attacking this version.</small></span></label>{{end}}
         {{confirmSubmit (printf "Start %s anyway? The service registry says %s is dangerous: “%s” Running it could let someone into %s and what it keeps. Roostack won't stop this version again; it stays under Needs attention until you update or remove it." $t .Version .Reason $t)
           "Start it anyway" "danger"}}
