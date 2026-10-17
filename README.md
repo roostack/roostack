@@ -76,6 +76,16 @@ Run the web UI locally against a throwaway state directory: point `paths` in a c
 
 To try it on a Debian 13 VM, see [scripts/dev-install.sh](scripts/dev-install.sh) (development only, not the real installer).
 
+### Continuous integration
+
+GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) checks every pull request and every push to `main`, on Ubuntu 24.04 with Go 1.27.2:
+
+- `make vet`: `go vet` and gofmt;
+- `go test ./...` with restic 0.18.0 (Debian 13's, downloaded from restic's release and checked against its SHA-256), so the backup tests run rather than skip;
+- govulncheck, which fails only on a vulnerability the code can reach.
+
+It needs no secrets. The help site isn't built: no test needs it. Actions are pinned by commit, with the release beside each in a comment.
+
 ## Project documents
 
 - [PLAN.md](PLAN.md): the project brief

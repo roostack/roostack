@@ -468,6 +468,14 @@ Changes to the lab ↔ Cloud contract (`cloudapi`) made with Roostack Cloud's si
   - [ ] M26: `manager.PendingFor` applies on every `/v1/assignment` pull, nftables reload included, with no limit per caller: return the latest assignment unless there is none, and limit pulls per server
   - [ ] Check on a VM that the move's `tar -xpf - --strip-components` into `<dir>.incoming` (`internal/node/move.go`) can't be steered outside it by a hostile stream (`..` left after stripping, hard links)
 
+## Continuous integration (2026-10-17)
+
+The review of 2026-10-16 found no CI for either Go repository.
+
+- [x] CI running `make vet`, `go test ./...` with restic 0.18.0 (so the backup tests don't skip) and govulncheck on every pull request and push to `main` (`.github/workflows/ci.yml`, README "Continuous integration"); no secrets. Checked before the first run: actionlint clean, the suite passed on VM1 with its restic, govulncheck clear on Go 1.27.2
+  - [x] Its first run on GitHub (2026-10-17, draft pull request Tyris/roostack#1): green in about 6 minutes; restic 0.18.0 used (the backup tests ran, `internal/backup` 149 s), govulncheck clear
+- [ ] Maybe: govulncheck weekly too, so a new advisory shows without waiting for a push
+
 ## To discuss with the user
 
 - [ ] Licence: Apache-2.0 assumed (SPEC §2.1, 2026-10-13); confirm, then add `LICENSE` (and `NOTICE`) before the repository goes public
