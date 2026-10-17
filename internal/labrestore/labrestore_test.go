@@ -322,20 +322,6 @@ func TestFolderServer(t *testing.T) {
 	}
 }
 
-func TestRegion(t *testing.T) {
-	for endpoint, want := range map[string]string{
-		"https://s3.us-west-004.backblazeb2.com":  "us-west-004",
-		"https://s3.eu-central-1.wasabisys.com":   "eu-central-1",
-		"https://s3.ap-southeast-2.amazonaws.com": "ap-southeast-2",
-		"https://abc123.r2.cloudflarestorage.com": "auto",
-		"https://minio.home.example.com:9000":     "us-east-1",
-	} {
-		if got := region(endpoint); got != want {
-			t.Errorf("region(%s) = %q, want %q", endpoint, got, want)
-		}
-	}
-}
-
 func TestShownHidesPasswords(t *testing.T) {
 	for in, want := range map[string]string{
 		"rest:https://roostack:s3cret@backup.example.com/lab": "rest:https://roostack@backup.example.com/lab",

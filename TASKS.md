@@ -322,7 +322,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
     - [x] Keys from Backblaze's website can't make keys (ASSUMPTIONS N6), so most Owners get the shared account key: the plan's card and the "Online storage" form (for a Backblaze endpoint) say how to make one that can with the `b2` command-line tool, and Change the key gives an existing account one (2026-10-16, SPEC §10.10)
     - [x] Generic S3: check a bucket is versioned with a lifecycle rule and the key can't delete old versions (a probe object), and count it as safe from ransomware then (2026-10-17, `S3Check`; ASSUMPTIONS N8)
     - [ ] Scoped keys per server where an S3 provider can make them (AWS, MinIO, Wasabi session policies, as Cloud does), so a server can't reach the others' folders
-    - [ ] `labrestore` guesses an S3 region with its own copy of `backup.S3.Region`: use the one (restore-integrity's area)
+    - [x] `labrestore` guessed an S3 region with its own copy of `backup.S3.Region`; it uses that one now (2026-10-17)
     - [x] The controller's prune runs `restic unlock` first (stale locks only), so stale locks from a crashed server don't block it for good (ASSUMPTIONS N1, N7; 2026-10-17)
     - [x] Removing a server (review M22, 2026-10-16): its log and the Servers page say which shared credentials it still holds; backups stored on its disk are forgotten (so a recovery key change doesn't wait for them), other servers stop copying there
     - [x] Change an online storage account's key in place (2026-10-16): Manage → "Change the key for …" on a backup there; checked first, then every server backing up there gets new credentials (on B2 with `writeKeys`, a key of its own), the controller last (SPEC §10.10)
