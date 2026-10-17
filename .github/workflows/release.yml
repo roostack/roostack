@@ -10,8 +10,9 @@
 # 4. sign: SHA256SUMS.asc, with the signing subkey from the `release`
 #    environment (it waits for a reviewer), checked with gpgv against the
 #    committed public key. Everything goes on as the artifact
-#    `release-files`, which apt-publish.yml publishes (dl.roostack.cloud
-#    and the apt repository).
+#    `release-files`.
+# 5. publish: apt-publish.yml takes `release-files` and publishes them at
+#    dl.roostack.cloud and in the apt repository.
 #
 # Actions are pinned by commit, with the release in a comment: update
 # both together.
@@ -46,6 +47,9 @@ env:
 jobs:
   check:
     runs-on: ubuntu-24.04
+    outputs:
+      # The release's version: the tag without its v (v1.2.3 → 1.2.3).
+      version: ${{ steps.tag.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,6 +58,7 @@ jobs:
       # Only a release of reviewed code: the tag's commit is on main, and
       # the tag is the one git describe gives (as the build checks again).
       - name: The tag is on main
+        id: tag
         env:
           TAG: ${{ github.ref_name }}
         run: |
@@ -63,6 +68,7 @@ jobs:
             { echo "::error::git describe says $(git describe --tags), not $TAG: one release tag per commit"; exit 1; }
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main ||
             { echo "::error::$TAG isn't on main: release only merged, reviewed code"; exit 1; }
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
       - name: The release key is a real one
         run: scripts/sign-release.sh --check-key
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -183,3 +189,12 @@ jobs:
           path: release/
           if-no-files-found: error
           retention-days: 90
+
+  # Its own job in the `release` environment, which holds the bucket's
+  # keys and the signing subkey (for the apt repository's InRelease).
+  publish:
+    needs: [check, sign]
+    uses: ./.github/workflows/apt-publish.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
+    secrets: inherit

@@ -56,7 +56,10 @@ For the registry's Publish workflow (REGISTRY-KEYS.md, step 9):
      (Actions → the run → Review deployments), then signs `SHA256SUMS` and
      checks the signature with `gpgv` against
      `packaging/keys/roostack-release.asc`;
-   - and hands the files on as the artifact `release-files`.
+   - and hands the files on as the artifact `release-files`;
+   - **publish:** `apt-publish.yml`, called with the version, publishes them
+     at dl.roostack.cloud and in the apt repository (in the `release`
+     environment too, so a reviewer approves it as well).
 
 A release refuses to be made:
 
