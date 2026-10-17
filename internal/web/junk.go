@@ -23,22 +23,22 @@ type BackupJunk interface {
 // junkAttention adds one item per backup with junk found.
 func (s *Server) junkAttention(ctx context.Context, add func(level, text, link, linkText string)) {
 	for _, rep := range s.Manager.JunkReports(ctx) {
-		files := fmt.Sprintf("%d files", len(rep.Files))
+		files, they, them := fmt.Sprintf("%d files", len(rep.Files)), "they", "them"
 		if len(rep.Files) == 1 {
-			files = "a file"
+			files, they, them = "a file", "it", "it"
 		}
-		backups := rep.Server + "'s backups"
+		backups, hold := rep.Server+"'s backups", "hold"
 		if rep.Copy {
-			backups = "the copy of " + rep.Server + "'s backups"
+			backups, hold = "the copy of "+rep.Server+"'s backups", "holds"
 		}
 		if rep.Removed() {
 			add(levelWarning, "Roostack removed "+files+" it can't read from "+backups+" on "+rep.Where+
-				": they stopped those backups working. Only "+orList(rep.Writers)+" could have put them there.",
+				": "+they+" stopped those backups working. Only "+orList(rep.Writers)+" could have put "+them+" there.",
 				"/backups/junk", "Details")
 			continue
 		}
-		add(levelProblem, backups+" on "+rep.Where+" hold "+files+" Roostack can't read, which stop them working, "+
-			"and Roostack couldn't remove them.", "/backups/junk", "What to do")
+		add(levelProblem, capitalise(backups)+" on "+rep.Where+" "+hold+" "+files+" Roostack can't read, which "+
+			plural(len(rep.Files), "stops", "stop")+" those backups working, and Roostack couldn't remove "+them+".", "/backups/junk", "What to do")
 	}
 }
 

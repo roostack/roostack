@@ -156,7 +156,7 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 				items = append(items, item)
 			case st.LastErr != nil:
 				items = append(items, attentionItem{Level: levelProblem, Key: "apply:" + mc.ID,
-					Text: "The last change" + on + " didn't finish: " + st.LastErr.Error(), Link: "/services", LinkText: "View services"})
+					Text: "The last change" + on + " didn't finish: " + firstLine(st.LastErr.Error()), Link: "/services", LinkText: "View services"})
 			}
 			// A server that joined has no firewall until the Owner chooses
 			// who can log in over SSH (this server's is a setup step).
@@ -410,7 +410,7 @@ func (s *Server) backupAttention(r *http.Request, m serverRef, n ServiceNode, ow
 		// Roostack tries again within hours: only once that fails too.
 	case lost:
 	case st.Last != nil && !st.Last.OK:
-		add(levelProblem, "The last backup"+m.on()+" didn't finish: "+st.Last.Error+retryText(st.Retry), link, "View backups")
+		add(levelProblem, "The last backup"+m.on()+" didn't finish: "+firstLine(st.Last.Error)+retryText(st.Retry), link, "View backups")
 	}
 	// Extra copies (a first one is made with the next backup).
 	for _, c := range st.Copies {
@@ -418,7 +418,7 @@ func (s *Server) backupAttention(r *http.Request, m serverRef, n ServiceNode, ow
 		case st.Running:
 		case c.Last != nil && !c.Last.OK && retrySoon(c.Retry):
 		case c.Last != nil && !c.Last.OK:
-			add(levelWarning, "The last copy of backups"+m.on()+" to "+c.Title+" didn't finish: "+c.Last.Error+retryText(c.Retry), link, "View backups")
+			add(levelWarning, "The last copy of backups"+m.on()+" to "+c.Title+" didn't finish: "+firstLine(c.Last.Error)+retryText(c.Retry), link, "View backups")
 		case c.LastOK != nil && isStale(c.LastOK.Finished):
 			add(levelWarning, "Backups"+m.on()+" haven't been copied to "+c.Title+" since "+whenText(c.LastOK.Finished)+".",
 				link, "View backups")

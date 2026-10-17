@@ -127,7 +127,8 @@
     {{if .Running}}{{notice "info" (printf "%s… %s" (or .Step "Backing up") (percent .Progress))}}
     {{else if .Queued}}{{notice "info" "A backup is waiting to start."}}{{end}}
     {{with .Last}}{{if not .OK}}
-      {{notice "error" (printf "The last backup (%s) didn't finish: %s%s" (when .Finished) .Error (retryText $.Backup.Retry))}}
+      {{notice "error" (printf "The last backup (%s) didn't finish: %s%s" (when .Finished) (firstLine .Error) (retryText $.Backup.Retry))}}
+      {{with otherLines .Error}}<details class="plan-error"><summary>Details</summary><pre class="output">{{.}}</pre></details>{{end}}
     {{end}}{{end}}
     {{with .LastOK}}{{$w := whenParts .Finished}}
       <p class="backup-last"><span class="sr-only">Last backup: </span><span class="big-figure">{{index $w 1}}<small>{{index $w 0}}{{if stale .Finished}} <span class="error">(over 2 days ago)</span>{{end}}</small></span>
@@ -450,7 +451,8 @@
         {{end}}
         {{with .Last}}{{if .OK}}<p class="plan-ok"><span class="dot dot-{{if stale .Finished}}warn{{else}}ok{{end}}" aria-hidden="true"></span>Backed up {{when .Finished}}
           <span class="hint">· {{.FilesNew}} new or changed files, {{bytes .DataAdded}} added</span></p>
-        {{- else}}<p class="error"><span class="dot dot-problem" aria-hidden="true"></span>The last backup here ({{when .Finished}}) didn't finish: {{.Error}}{{retryText $e.Retry}}</p>{{end}}
+        {{- else}}<p class="error"><span class="dot dot-problem" aria-hidden="true"></span>The last backup here ({{when .Finished}}) didn't finish: {{firstLine .Error}}{{retryText $e.Retry}}</p>
+          {{- with otherLines .Error}}<details class="plan-error"><summary>Details</summary><pre class="output">{{.}}</pre></details>{{end}}{{end}}
         {{- else}}<p class="hint">Not backed up here yet: the first backup runs {{if $.Plan.Next.IsZero}}tonight{{else}}{{when $.Plan.Next}}{{end}}.</p>{{end}}
         {{if or .Stored (ge .Free 0) .Lab}}<p class="hint plan-space">
           {{- if .Stored}}Backups here take <strong>{{size .Stored}}</strong>{{end}}
@@ -546,7 +548,7 @@
     </fieldset>
     <div class="plan-actions">
       <button type="submit" class="secondary" x-bind:disabled="busy">Check what changes</button>
-      <span class="hint">Nothing changes yet.</span>
+      <span class="hint">Checking changes nothing.</span>
     </div>
   </form>
   {{with .RollbackLog}}{{activity .}}{{end}}

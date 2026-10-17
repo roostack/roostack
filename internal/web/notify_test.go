@@ -278,3 +278,20 @@ func TestServerGoneForGood(t *testing.T) {
 		t.Error("the remove part isn't open")
 	}
 }
+
+// A backup error with restic's stack trace in it shows only its first line
+// under Needs attention (the trace has no break points and widened a
+// phone's page, 2026-10-17); the backups page keeps the rest under Details.
+func TestAttentionFirstErrorLine(t *testing.T) {
+	h, _, fb := notifyHarness(t, auth.RoleOwner)
+	fb.status.Last = &store.BackupRun{OK: false, Finished: time.Now(), Error: "restic backup: exit status 1: Error loading snapshot 1a2b3c: ciphertext verification failed\n" +
+		"github.com/restic/restic/internal/repository.(*Repository).LoadUnpacked\n\t/restic/internal/repository/repository.go:290"}
+	_, body := h.get("/")
+	if !strings.Contains(body, "ciphertext verification failed") || strings.Contains(body, "LoadUnpacked") {
+		t.Errorf("home: %s", body[strings.Index(body, "Needs attention"):][:600])
+	}
+	_, body = h.get("/backups")
+	if i := strings.Index(body, `class="plan-error"`); i < 0 || !strings.Contains(body[i:], "LoadUnpacked") {
+		t.Error("the backups page has no Details with the rest")
+	}
+}
