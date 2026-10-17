@@ -165,7 +165,9 @@ func TestRestoreALabOnFirstRun(t *testing.T) {
 }
 
 // From Roostack Cloud, every lab with the recovery key is shown with its
-// own backups, and the person chooses which to restore (review M10).
+// own backups, and the person chooses which to restore (review M10). A
+// controller's backup refused as forged is shown as a warning, each
+// backup says whose folder it's in (review M26).
 func TestRestoreChoosesACloudLab(t *testing.T) {
 	h := newHarness(t, "the-setup-code")
 	h.server.Cloud = newCloud(t)
@@ -177,11 +179,12 @@ func TestRestoreChoosesACloudLab(t *testing.T) {
 	fr := &fakeLabRestore{
 		found: []labrestore.Found{
 			{Repository: "s3:https://s.test/b/labs/lab_new/n-0123456789", Name: "Smith family", ServerName: "nuc", ServerID: "n-0123456789",
-				Controller: true, Snapshot: snap, Snapshots: 3, Lab: linked},
+				Folder: "n-0123456789", Controller: true, Snapshot: snap, Snapshots: 3, Lab: linked},
 			{Repository: "s3:https://s.test/b/labs/lab_old/n-0123456789", Name: "Smith family", ServerName: "nuc", ServerID: "n-0123456789",
-				Controller: true, Snapshot: snap, Snapshots: 40, Lab: old},
+				Folder: "n-0123456789", Controller: true, Snapshot: snap, Snapshots: 40, Lab: old},
 		},
 		unopened: []labrestore.Unopened{
+			{Repository: "s3:https://s.test/b/labs/lab_new/n-1111111111", Problem: "It says it's the backup of nuc", Lab: linked, Forged: true},
 			{Lab: gone, Problem: "Roostack Cloud no longer keeps its backups."},
 		},
 	}
@@ -190,7 +193,7 @@ func TestRestoreChoosesACloudLab(t *testing.T) {
 	_, body := h.post("/setup/restore", url.Values{"kind": {"cloud"}, "recovery_key": {"the key"}}, h.srv.URL)
 	for _, want := range []string{"Roostack Cloud has 3 labs with this recovery key", "Linked to Roostack Cloud since 10 March 2026",
 		"9 March 2026: once it's restored, link it again", "Smiths in Roostack Cloud", "no longer keeps its backups",
-	} {
+		"Not offered: It says it&#39;s the backup of nuc", "in its own folder"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the page doesn't say %q:\n%s", want, body)
 		}

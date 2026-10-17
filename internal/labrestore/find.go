@@ -81,17 +81,24 @@ type Found struct {
 	Controller bool
 	// StateDir is where the server kept Roostack's state.
 	StateDir string
+	// Folder is the server whose folder the repository is in (FolderServer),
+	// or "" if its address names none.
+	Folder string
 	// Lab is the lab in Roostack Cloud the backup belongs to (nil when it
 	// isn't from Roostack Cloud).
 	Lab *CloudLab
 }
 
 // Unopened is a backup the recovery key doesn't open (another lab's, or a
-// mistyped key), or that couldn't be read.
+// mistyped key), that couldn't be read, or that isn't offered.
 type Unopened struct {
 	Repository string
 	Problem    string
 	Lab        *CloudLab
+	// Forged: it says it's the controller's backup, but it isn't in that
+	// server's folder (security review of 2026-10-16, M26). Pages show
+	// it as a warning, not among the others.
+	Forged bool
 }
 
 // CloudLab is a lab in Roostack Cloud with the recovery key. A lab that
@@ -126,7 +133,7 @@ const maxRepos = 50
 
 // Find lists the backups at src that the recovery key opens, newest
 // first (from Roostack Cloud: each lab's, in Cloud's order), and those it
-// doesn't.
+// doesn't, or that aren't offered.
 func (f *Finder) Find(ctx context.Context, src Source) ([]Found, []Unopened, error) {
 	places, empty, err := f.places(ctx, src)
 	if err != nil {
@@ -153,7 +160,8 @@ func (f *Finder) Find(ctx context.Context, src Source) ([]Found, []Unopened, err
 		if found[i] != nil {
 			out = append(out, *found[i])
 		} else {
-			unopened = append(unopened, Unopened{Repository: p.url, Problem: describe(errs[i]), Lab: p.lab})
+			var forged *forgedError
+			unopened = append(unopened, Unopened{Repository: p.url, Problem: describe(errs[i]), Lab: p.lab, Forged: errors.As(errs[i], &forged)})
 		}
 	}
 	// Cloud lists its labs in order (the linked one, then the latest
@@ -171,6 +179,38 @@ func (f *Finder) Find(ctx context.Context, src Source) ([]Found, []Unopened, err
 		unopened = append(unopened, Unopened{Lab: lab, Problem: "Roostack Cloud no longer keeps its backups."})
 	}
 	return out, unopened, nil
+}
+
+// forgedError is a backup that says it's the controller's, in another
+// server's folder.
+type forgedError struct{ name, id, folder string }
+
+func (e *forgedError) Error() string {
+	where := "a folder that isn't named after any server"
+	if e.folder != "" {
+		where = "server " + e.folder + "'s folder"
+	}
+	return fmt.Sprintf("It says it's the backup of %s (%s), the lab's controller, but it's in %s. Roostack keeps each server's backups "+
+		"in a folder named after it, so this isn't offered: another server of the lab could have made it, to take the lab over when "+
+		"it's restored. If you moved the backups yourself, put them back in a folder named %s.", e.name, e.id, where, e.id)
+}
+
+// FolderServer is the server whose folder a repository is in, from its
+// address: every server's backups are in a folder named after its ID
+// (<folder>/roostack/<lab>/<server> on a disk or online storage, Roostack
+// Cloud's labs/<lab>/<server>, a friend's lab's <user>/<server>), except
+// on a backup store of the lab's own, which keeps <server>/<lab>. A
+// server can only write in its own folder there, so the folder before the
+// last wins when it's a server's. "" if the address names no server.
+func FolderServer(repository string) string {
+	parts := strings.Split(strings.TrimRight(repository, "/"), "/")
+	if n := len(parts); n >= 2 && nodeid.ValidID(parts[n-2]) {
+		return parts[n-2]
+	}
+	if last := parts[len(parts)-1]; nodeid.ValidID(last) {
+		return last
+	}
+	return ""
 }
 
 func describe(err error) string {
@@ -200,7 +240,7 @@ func (f *Finder) open(ctx context.Context, p place) (*Found, error) {
 	}
 	slices.SortFunc(snaps, func(a, b backup.Snapshot) int { return a.Time.Compare(b.Time) })
 	snap := snaps[len(snaps)-1]
-	fd := &Found{Repository: url, Env: env, Snapshot: snap, Snapshots: len(snaps), Lab: p.lab}
+	fd := &Found{Repository: url, Env: env, Snapshot: snap, Snapshots: len(snaps), Folder: FolderServer(url), Lab: p.lab}
 	// The state folder is the backed-up path holding the server's identity.
 	dirs := slices.Clone(snap.Paths)
 	slices.SortStableFunc(dirs, func(a, b string) int { // the default first
@@ -234,6 +274,14 @@ func (f *Finder) open(ctx context.Context, p place) (*Found, error) {
 		if json.Unmarshal(data, &m) == nil {
 			fd.Controller = m.Role != config.RoleNode
 		}
+	}
+	// A server's backups hold whatever it puts in them, and each server
+	// has the keys to its own folder: a node could make a backup that
+	// says it's the controller, which a restore would then trust
+	// (security review of 2026-10-16, M26). Only the controller's own
+	// folder can hold the controller's backups.
+	if fd.Controller && fd.Folder != fd.ServerID {
+		return nil, &forgedError{name: cmp.Or(fd.ServerName, fd.ServerID), id: fd.ServerID, folder: fd.Folder}
 	}
 	if data, err := repo.DumpFile(ctx, snap.ID, filepath.Join(fd.StateDir, "lab.yaml")); err == nil {
 		var lab struct {

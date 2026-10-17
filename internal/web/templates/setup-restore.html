@@ -15,6 +15,7 @@
   {{if .Unfinished}}{{notice "warn" "A restore onto this server started and didn't finish. Start it again below: it puts everything back from the backup again, over what the last one restored."}}{{end}}
 
   {{if .Searched}}
+  {{range .Forged}}{{notice "warn" (printf "Not offered: %s (%s)" .Problem (shownRepo .Repository))}}{{end}}
   {{if .Found}}
   <h2>Backups the recovery key opens</h2>
   {{if gt (len .Groups) 1}}{{with index .Groups 0}}{{if .Lab}}
@@ -34,6 +35,7 @@
     <li>
       <strong>{{or $f.Name $f.Domain "A lab"}}</strong>: {{$f.ServerName}}{{if not $f.Controller}} <span class="hint">(a server the controller manages)</span>{{end}}
       <br><small class="hint">Last backed up {{date $f.Snapshot.Time}}, {{$f.Snapshot.Time.Local.Format "15:04"}} · {{$f.Snapshots}} {{if eq $f.Snapshots 1}}backup{{else}}backups{{end}} ·
+        in {{if eq $f.Folder $f.ServerID}}its own folder{{else if $f.Folder}}server {{$f.Folder}}'s folder{{else}}a folder not named after a server{{end}},
         <code>{{shownRepo $f.Repository}}</code></small>
       {{if $f.Controller}}
       <br>{{confirm "/setup/restore/start" (printf "Restore %s onto this server? Its services, settings and accounts come back from the backup of %s." (or $f.Name $f.Domain "this lab") (date $f.Snapshot.Time)) "Restore this lab" "" (printf "backup=%d" $f.Index)}}
