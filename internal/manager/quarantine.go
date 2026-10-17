@@ -186,6 +186,10 @@ func (m *Manager) junkWriters(t store.BackupTarget, d destination) []string {
 	case destServer:
 		out = append(out, m.nameOf(d.id))
 	case destRemote:
+		if d.remote.Servers[t.ServerID] == "" {
+			// Set up before servers had their own users there.
+			out = append(out, "any of this lab's servers")
+		}
 		out = append(out, d.remote.HostName)
 	case destS3:
 		out = append(out, "anyone with "+d.provider.Name+"'s key")
