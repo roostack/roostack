@@ -193,13 +193,17 @@ func TestRestoreChoosesACloudLab(t *testing.T) {
 	_, body := h.post("/setup/restore", url.Values{"kind": {"cloud"}, "recovery_key": {"the key"}}, h.srv.URL)
 	for _, want := range []string{"Roostack Cloud has 3 labs with this recovery key", "Linked to Roostack Cloud since 10 March 2026",
 		"9 March 2026: once it's restored, link it again", "Smiths in Roostack Cloud", "no longer keeps its backups",
-		"Not offered: It says it&#39;s the backup of nuc", "in its own folder"} {
+		"Not offered: it says it&#39;s the backup of nuc", "in its own folder"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the page doesn't say %q:\n%s", want, body)
 		}
 	}
 	if n := strings.Count(body, `showModal()">Restore this lab`); n != 2 {
 		t.Errorf("%d labs to restore, want 2", n)
+	}
+	// A lab with no backups left has nothing to restore and link again.
+	if n := strings.Count(body, "once it's restored"); n != 1 {
+		t.Errorf("%d labs told to link again once restored, want 1", n)
 	}
 	if i, j := strings.Index(body, "since 10 March"), strings.Index(body, "9 March 2026: once"); i < 0 || j < i {
 		t.Error("the linked lab should come first")

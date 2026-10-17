@@ -25,6 +25,10 @@ var templateFuncs = template.FuncMap{
 	// again today 14:00."), or nothing.
 	"retryText": retryText,
 	"stale":     isStale,
+	// firstLine and otherLines split an error: restic's own first line,
+	// then what follows (a stack trace, at worst), shown under Details.
+	"firstLine":  firstLine,
+	"otherLines": otherLines,
 	// shownRepo is a backup's address without its password.
 	"shownRepo": labrestore.Shown,
 	// date is a day, e.g. 28 September 2027.
@@ -91,6 +95,14 @@ func firstSentence(text string) [2]string {
 		}
 	}
 	return [2]string{text, ""}
+}
+
+// otherLines is what follows text's first line (notify.go's firstLine),
+// or "": restic's stack trace after its error, at worst, which has no
+// break points and widens a phone's page, so it's shown under Details.
+func otherLines(text string) string {
+	_, rest, _ := strings.Cut(text, "\n")
+	return strings.TrimSpace(rest)
 }
 
 // capitalise starts s with a capital letter (ASCII; roles and states).

@@ -11,7 +11,7 @@
 </div>
 {{/* After removing a server: the shared credentials it still holds. */}}
 {{range .RemovedShared}}
-{{if .Anywhere}}{{notice "warn" (printf "%s is out of the lab, but still holds %s, which reaches every server's backups there and can delete them. If it might be in the wrong hands, make a new key with the provider and give it to Roostack: on the Backups page, open Manage on a backup there, then Change the key. Then delete the old key with the provider." $.Removed .What)}}
+{{if .Anywhere}}{{notice "warn" (printf "%s is out of the lab, but still holds %s, which reaches every server's backups there and can delete them. If it might be in the wrong hands, make a new key with the provider and give it to Roostack: on the Backups page, open Manage on a backup there, then Change the key. Then delete the old key with the provider." $.Removed .What) "link=/backups#plan" "linkText=Go to Backups"}}
 {{- else}}{{notice "info" (printf "%s still knows %s, but can't reach it without your lab's network." $.Removed .What)}}{{end}}
 {{end}}
 {{if not .Only}}

@@ -18,6 +18,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: var(--weight-bold); 
 h1 { font-size: 1.65rem; line-height: 1.15; margin: 0 0 var(--space-4); }
 h2 { font-size: var(--text-lg); line-height: 1.25; margin: var(--space-5) 0 var(--space-2); }
 h1 + h2, .heading h2 { margin-top: 0; }
+/* A card's padding is its heading's space above. */
+.card > h2:first-child { margin-top: 0; }
 p { margin: 0 0 var(--space-3); }
 code, pre { font-family: var(--font-mono); font-size: 0.9em; }
 small, .hint { color: var(--muted); }
@@ -127,8 +129,9 @@ button.icon-button:hover { color: var(--fg); background: var(--surface-2); filte
 button.icon-button .icon { color: currentColor; width: 18px; height: 18px; vertical-align: 0; }
 
 /* The page's header sits on the page (no band, no border): where you are
-   (breadcrumbs, each step a link, the page itself last) and its help. */
-.page-header { display: flex; align-items: center; gap: var(--space-3); min-height: 56px; padding: var(--space-2) var(--space-5); }
+   (breadcrumbs, each step a link, the page itself last) and its help, on
+   a line of its own when both don't fit (a phone). */
+.page-header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); min-height: 56px; padding: var(--space-2) var(--space-5); }
 .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; font-size: var(--text-sm); color: var(--muted); }
 .crumbs > * + *::before { content: "/"; margin-right: var(--space-2); color: var(--muted); font-weight: var(--weight-normal); opacity: 0.7; }
 .crumbs a { color: inherit; text-decoration: none; }
@@ -247,7 +250,9 @@ dl.facts-lined { gap: 0 var(--space-4); }
 dl.facts-lined > dt, dl.facts-lined > dd { padding: var(--space-3) 0; border-top: 1px solid var(--border); }
 dl.facts-lined > dt:first-of-type, dl.facts-lined > dt:first-of-type + dd { border-top: 0; }
 dl.facts-lined > dd > p:first-child { margin-top: 0; }
-.space-list { display: grid; grid-template-columns: max-content auto; gap: var(--space-1) var(--space-4); margin: var(--space-2) 0;
+/* The key's labels take up to about half the width (on a phone they wrap),
+   so a size with a note after it isn't squeezed into a strip. */
+.space-list { display: grid; grid-template-columns: fit-content(55%) minmax(0, 1fr); gap: var(--space-1) var(--space-4); margin: var(--space-2) 0;
   font-size: var(--text-sm); }
 .space-list dt { color: var(--muted); }
 .space-list dt.sub { padding-left: var(--space-4); }
@@ -268,6 +273,8 @@ dl.facts-lined > dd > p:first-child { margin-top: 0; }
 .notice::before { content: ""; position: absolute; left: var(--space-4); top: calc(var(--space-3) + 0.15em); width: 18px; height: 18px;
   background: var(--notice-colour); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5M12 8h.01'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5M12 8h.01'/%3E%3C/svg%3E") center / contain no-repeat; }
 .notice > :last-child { margin-bottom: 0; }
+/* An error's text (a path, a key) may have no break points. */
+.notice { overflow-wrap: anywhere; }
 .notice-ok { background: var(--ok-bg); --notice-colour: var(--ok); }
 .notice-ok::before { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m8 12 3 3 5-6'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m8 12 3 3 5-6'/%3E%3C/svg%3E"); }
 .notice-warn { background: var(--warn-bg); --notice-colour: var(--warn); }
@@ -283,6 +290,9 @@ button, a.button { display: inline-flex; align-items: center; gap: var(--space-2
   font-weight: var(--weight-bold); padding: 9px 16px; border: 1px solid transparent; border-radius: 10px;
   background: var(--accent); color: var(--accent-fg); cursor: pointer; text-decoration: none; white-space: nowrap; }
 button:hover, a.button:hover { filter: brightness(1.08); }
+/* On a phone a long label ("Link and go back to <lab>") wraps rather than
+   leaving its card; a short one still fits on one line. */
+@media (max-width: 640px) { button, a.button { white-space: normal; max-width: 100%; } }
 button:disabled { opacity: 0.55; cursor: default; filter: none; }
 button.secondary, a.button.secondary { background: var(--surface); color: var(--fg); border-color: var(--border-strong); }
 button.secondary:hover, a.button.secondary:hover { background: var(--surface-2); filter: none; }
@@ -504,12 +514,16 @@ table.list .with-icon { display: inline-flex; align-items: center; gap: var(--sp
 
 /* ---------- Install steps (install-steps, install-line) ---------- */
 ol.install-steps { list-style: none; padding: 0; margin: var(--space-3) 0; display: grid; gap: var(--space-2); }
-ol.install-steps li { display: grid; grid-template-columns: 1.4em 1fr auto; gap: var(--space-2); align-items: baseline; color: var(--muted); }
+ol.install-steps li { display: grid; grid-template-columns: 1.4em minmax(0, 1fr) auto; gap: var(--space-2); align-items: baseline; color: var(--muted); }
 ol.install-steps li.step-done { color: var(--fg); }
 ol.install-steps li.step-done .mark { color: var(--ok); }
 ol.install-steps li.step-now { color: var(--fg); font-weight: var(--weight-medium); }
 ol.install-steps .mark { text-align: center; }
-ol.install-steps small { color: var(--muted); font-weight: var(--weight-normal); white-space: nowrap; }
+ol.install-steps small { color: var(--muted); font-weight: var(--weight-normal); }
+/* How long a step took stays on one line; a note under a step's words
+   (the link code, cloud-linked.html) wraps on a phone. */
+ol.install-steps li > small { white-space: nowrap; }
+ol.install-steps span small { display: block; }
 .address-pending { color: var(--muted); overflow-wrap: anywhere; }
 .install-line { font-size: var(--text-sm); color: var(--muted); margin: var(--space-1) 0; }
 .badge { background: var(--accent-soft); color: var(--accent); }
@@ -595,6 +609,12 @@ code.secret { display: inline-block; font-size: 1.1em; padding: var(--space-1) v
   margin: var(--space-3) 0; overflow-wrap: anywhere; }
 .copy-box { display: flex; gap: var(--space-2); align-items: flex-start; margin: var(--space-2) 0; }
 .copy-box pre.output { flex: 1; min-width: 0; margin: 0; }
+/* On a phone the Copy button goes under its text, which keeps the width
+   (a command nested in a card's "Tell me more" was a few letters wide). */
+@media (max-width: 640px) {
+  .copy-box { flex-direction: column; }
+  .copy-box pre.output { align-self: stretch; }
+}
 .qr-box { margin: var(--space-3) 0; }
 svg.qr { display: block; width: 200px; height: 200px; border-radius: var(--radius-sm); }
 .recovery { font-size: var(--text-lg); text-align: center; }
@@ -609,7 +629,7 @@ svg.qr { display: block; width: 200px; height: 200px; border-radius: var(--radiu
    sentence in bold, the rest muted, and what to do as a button. */
 .attention ul { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); }
 .attention .item { display: flex; align-items: center; gap: var(--space-3) var(--space-4); margin: 0; }
-.attention .item-text { flex: 1; min-width: 0; }
+.attention .item-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .attention .item-text strong { display: block; }
 .attention .item-text span { font-size: var(--text-sm); }
 .attention .item > a { flex: none; }
@@ -760,6 +780,10 @@ ul.guests .space-used { background: var(--chart-3); }
 .plan-where { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: var(--space-2) 0;
   padding: var(--space-2) var(--space-3); border-radius: var(--radius); background: var(--surface-2); }
 .plan-where form { display: flex; gap: var(--space-2); }
+/* A failed backup's first line wraps anywhere; the rest (restic's stack
+   trace, at worst) is under Details. */
+.plan-card p.error { overflow-wrap: anywhere; }
+.plan-error { margin: var(--space-2) 0; }
 .plan-manage { margin-top: var(--space-2); }
 .plan-manage code { overflow-wrap: anywhere; }
 /* "Tell me more" under a card's notice, and the new-key form in Manage. */
