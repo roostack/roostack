@@ -187,9 +187,12 @@ func TestBackupDestination(t *testing.T) {
 	h.Lab.Paths.StateDir = t.TempDir()
 	ctx := context.Background()
 	d := BackupDestination{Repository: "rest:http://100.96.0.1:8000/n-0000000002/lab",
-		Env: []string{"RESTIC_REST_USERNAME=n-0000000002", "RESTIC_REST_PASSWORD=pw"}, Key: "server key"}
+		Env: []string{"RESTIC_REST_USERNAME=n-0000000002", "RESTIC_REST_PASSWORD=pw"}, Key: "server key", KeyHint: "0123abcd"}
 	if err := h.SetBackupDestination(ctx, d); err != nil {
 		t.Fatal(err)
+	}
+	if id := backup.Hints(h.Lab.Paths).Get(d.Repository, []byte("server key")); id != "0123abcd" {
+		t.Errorf("key hint = %q", id)
 	}
 	lab, _ := config.Load(h.LabPath)
 	key, _ := os.ReadFile(backup.KeyFile(h.Lab.Paths))

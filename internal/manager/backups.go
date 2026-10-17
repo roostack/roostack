@@ -404,10 +404,13 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 			return fail(err)
 		}
 		act.Step("Adding a key for %s", m.nameOf(serverID))
-		if err := admin.AddKey(ctx, key, serverID); err != nil {
+		id, err := admin.AddKey(ctx, key, serverID)
+		if err != nil {
 			return fail(err)
 		}
-		dest.Key = key
+		dest.Key, dest.KeyHint = key, id
+	} else {
+		dest.KeyHint = admin.KeyID(ctx)
 	}
 	return target, dest, nil
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -141,7 +142,7 @@ func TestAddKey(t *testing.T) {
 	if err := r.Init(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.AddKey(ctx, "server key", "n-0000000002"); err != nil {
+	if _, err := r.AddKey(ctx, "server key", "n-0000000002"); err != nil {
 		t.Fatal(err)
 	}
 	// The server opens the repository with its own key.
@@ -165,7 +166,7 @@ func TestReplaceKey(t *testing.T) {
 	if err != nil || old == "" {
 		t.Fatalf("current key: %q %v", old, err)
 	}
-	if err := r.AddKey(ctx, "new recovery key", "recovery"); err != nil {
+	if _, err := r.AddKey(ctx, "new recovery key", "recovery"); err != nil {
 		t.Fatal(err)
 	}
 	next := *r
@@ -204,7 +205,7 @@ func TestAddKeyFileVisibleOutsideSandbox(t *testing.T) {
 		}
 		return DirectLaunch(ctx, env, name, args...)
 	}
-	if err := r.AddKey(ctx, "another key", "recovery"); err != nil {
+	if _, err := r.AddKey(ctx, "another key", "recovery"); err != nil {
 		t.Fatal(err)
 	}
 	if filepath.Dir(keyArg) != filepath.Dir(r.PasswordFile) {
@@ -274,5 +275,66 @@ func TestUnlockClearsStaleLocks(t *testing.T) {
 	}
 	if err := r.Forget(ctx, DefaultRetention); err != nil {
 		t.Errorf("prune after Unlock: %v", err)
+	}
+}
+
+// A key hint makes restic try only the server's own key, so a key someone
+// added can't stop or slow an open (ASSUMPTIONS O5, O6).
+func TestKeyHint(t *testing.T) {
+	r := testRepo(t)
+	ctx := context.Background()
+	// Made before hints were kept: the first command asks restic once.
+	if err := r.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	want, err := r.CurrentKey(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Hints = &KeyHints{File: filepath.Join(t.TempDir(), "hints.json")}
+	if _, err := r.Snapshots(ctx); err != nil {
+		t.Fatal(err)
+	}
+	password, _ := os.ReadFile(r.PasswordFile)
+	if got := r.Hints.Get(r.URL, password); got != want {
+		t.Errorf("looked-up hint = %q, want %q", got, want)
+	}
+
+	// A new repository and a key added to it are noted as they're made.
+	made := testRepo(t)
+	made.Hints = r.Hints
+	if err := made.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	mine, _ := os.ReadFile(made.PasswordFile)
+	if id, _ := made.CurrentKey(ctx); id == "" || made.Hints.Get(made.URL, mine) != id {
+		t.Errorf("Init's hint = %q, key %q", made.Hints.Get(made.URL, mine), id)
+	}
+	added, err := made.AddKey(ctx, "server key", "n-0000000002")
+	if err != nil || added == "" || made.Hints.Get(made.URL, []byte("server key\n")) != added {
+		t.Errorf("AddKey: %q %v, hint %q", added, err, made.Hints.Get(made.URL, []byte("server key")))
+	}
+
+	// A key restic refuses (scrypt needing 4 GiB), named to sort first:
+	// without the hint restic may read it and give up; with it, never.
+	junk := `{"created":"2026-10-17T00:00:00Z","username":"x","hostname":"x","kdf":"scrypt","N":4194304,"r":8,"p":1,` +
+		`"salt":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==","data":"AAAA"}`
+	writeFile(t, filepath.Join(r.URL, "keys", strings.Repeat("0", 64)), junk)
+	if _, err := r.Snapshots(ctx); err != nil {
+		t.Errorf("with the hint: %v", err)
+	}
+	var env []string
+	r.Launch = func(ctx context.Context, e []string, name string, args ...string) *exec.Cmd {
+		env = e
+		return DirectLaunch(ctx, e, name, args...)
+	}
+	r.Snapshots(ctx)
+	if !slices.Contains(env, "RESTIC_KEY_HINT="+want) {
+		t.Errorf("env = %v", env)
+	}
+
+	// Hints that aren't key IDs are refused.
+	if err := r.Hints.Set(r.URL, password, "abc; rm -rf /"); err == nil {
+		t.Error("a hint that isn't an ID was taken")
 	}
 }

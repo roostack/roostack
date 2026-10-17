@@ -16,7 +16,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -394,24 +393,6 @@ func unreadable(folder string) error {
 		"Let it read them (sudo chown -R roostack:roostack %s), then look again", folder, folder)
 }
 
-// region guesses an S3-compatible provider's region from its endpoint
-// (s3.us-west-004.backblazeb2.com, s3.eu-central-1.wasabisys.com, …).
-func region(endpoint string) string {
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return "us-east-1"
-	}
-	if strings.HasSuffix(u.Hostname(), ".r2.cloudflarestorage.com") {
-		return "auto"
-	}
-	if m := regionRE.FindStringSubmatch(u.Hostname()); m != nil {
-		return m[1]
-	}
-	return "us-east-1"
-}
-
-var regionRE = regexp.MustCompile(`^s3[.-]([a-z]{2,}-[a-z]+-\d+)\.`)
-
 // s3Repos finds repositories in a bucket: at the folder itself, and each
 // server's under <folder>/roostack/<lab>/<server> (backup.ServerFolder).
 func (f *Finder) s3Repos(ctx context.Context, s3 backup.S3) ([]string, error) {
@@ -485,7 +466,7 @@ func (f *Finder) s3List(ctx context.Context, s3 backup.S3, q url.Values, out *li
 		return err
 	}
 	req.Header.Set("X-Amz-Content-Sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855") // empty body
-	awssig.Sign(req, nil, s3.AccessKey, s3.SecretKey, region(s3.Endpoint), "s3", time.Now())
+	awssig.Sign(req, nil, s3.AccessKey, s3.SecretKey, s3.Region(), "s3", time.Now())
 	client := f.HTTP
 	if client == nil {
 		client = &http.Client{Timeout: 30 * time.Second}

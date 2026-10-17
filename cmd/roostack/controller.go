@@ -35,8 +35,12 @@ func controllerAPI(hub *labnet.Hub, guestHub *labnet.GuestHub, mgr *manager.Mana
 	// Everything else is for servers still in the lab, with the
 	// certificate the controller last gave them (revocation, renewal).
 	api.Handle("GET /v1/assignment", hub.Require(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		a, ok := mgr.PendingFor(labnet.Caller(r))
-		if !ok {
+		a, err := mgr.PendingFor(labnet.Caller(r))
+		switch {
+		case errors.Is(err, manager.ErrPullTooSoon):
+			labnet.WriteError(w, http.StatusTooManyRequests, err)
+			return
+		case err != nil:
 			labnet.WriteError(w, http.StatusNotFound, errors.New("no assignment for this server"))
 			return
 		}
@@ -75,7 +79,8 @@ func repoOpener(lab config.Lab) func(url string, env []string) *backup.Repo {
 		if err != nil {
 			bin = "restic"
 		}
-		repo := &backup.Repo{Bin: bin, URL: url, PasswordFile: backup.KeyFile(lab.Paths), Env: env}
+		repo := &backup.Repo{Bin: bin, URL: url, PasswordFile: backup.KeyFile(lab.Paths), Env: env,
+			Hints: backup.Hints(lab.Paths)}
 		// A folder (a drive) is written outside Roostack's sandbox, as backups are.
 		if strings.HasPrefix(url, "/") {
 			repo.Launch = unshared(userLaunch)
