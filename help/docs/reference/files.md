@@ -78,6 +78,9 @@ replaced, kept until you delete it from the restore page.
 | `/usr/bin/roostack`, `/usr/bin/roostack-agent` | The programs |
 | `/usr/lib/systemd/system/roostack.service`, `roostack-agent.service` | Their systemd units |
 | `/usr/share/roostack/caddy/Containerfile` | How Roostack's web server image is built, on each server |
+| `/etc/apt/sources.list.d/roostack.sources` | Where Roostack's own updates come from: its apt repository, and the series this server follows (`Suites:`). You may point `URIs:` at a mirror ([Updates](../settings/updates.md#roostacks-own-updates)) |
+| `/usr/share/keyrings/roostack-archive-keyring.gpg` | The key Roostack's packages are signed with, which apt checks them against |
+| `/etc/apt/apt.conf.d/52roostack-unattended-upgrades` | Nightly updates: Debian's stable updates and Roostack's fixes install by themselves, and only Roostack restarts the server |
 
 ## Changes to the host
 
@@ -94,6 +97,8 @@ changes only these:
 | `/etc/fstab` | A line for each backup drive, marked `# Added by Roostack` |
 | `/mnt/roostack-<drive>/` | Where backup drives are mounted |
 | `/run/roostack-agent/agent.sock` | How Roostack talks to the agent (in a folder of its own, since the agent's sandbox can't write to `/run` itself) |
+| `/run/roostack-agent/os-updates.log` | The last OS updates' output |
+| `/etc/apt/sources.list.d/roostack.sources` | Its `Suites:` line, when you accept a new series of Roostack |
 
 ??? note "Logs"
 

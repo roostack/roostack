@@ -8,6 +8,43 @@ ran and what it did; if it failed, **What happened** shows the details.
 
 **Check for updates now** runs it straight away.
 
+## Roostack's own updates
+
+Roostack updates itself the same way. Its releases come in **series**:
+0.4.0, 0.4.1 and 0.4.2 are the 0.4 series, and only fix things. Each
+server installs the fixes in its series by itself, with that night's
+updates. The page's **Roostack** line says which series the server is on.
+
+A new series (0.5) can bring new features and change how things work, so
+it waits for you. When one is out, the page says **Roostack 0.5.0 is
+available**. Choose **Update to Roostack 0.5.0**, and the server moves to
+it with its next updates: tonight, after the backup, or straight away with
+**Check for updates now**. If the server's last backup didn't work, or is
+more than a day old, it waits for one that worked, and the page says so.
+Each server in a lab has its own Updates page; update each one.
+
+??? note "For technical users"
+
+    Roostack comes from its own apt repository, `https://apt.roostack.cloud`,
+    one suite per series. The package installs its source,
+    `/etc/apt/sources.list.d/roostack.sources` (`Suites:` is the series),
+    and the key it's checked with,
+    `/usr/share/keyrings/roostack-archive-keyring.gpg`.
+    `/etc/apt/apt.conf.d/52roostack-unattended-upgrades` lets
+    unattended-upgrades install packages whose origin is `Roostack`.
+
+    Roostack learns about new series from `https://apt.roostack.cloud/series`
+    (from the address in its source, so a mirror works), a few minutes after
+    starting and every six hours. That list only prompts the offer: moving to
+    a series changes `Suites:` and runs `apt-get update`, which checks the new
+    suite's signature; if that fails, the source goes back as it was. Then
+    `apt-get install roostack` keeps the source as it is on disk
+    (`--force-confold`), so a mirror you set in `URIs:` stays.
+
+    You can point `URIs:` at a mirror of the repository. Keep `Signed-By:`:
+    with it, apt takes only packages signed with Roostack's key, and Roostack
+    doesn't count the source as software from outside Debian.
+
 Services have their own versions, from the service registry (see
 [Services you can install](#services-you-can-install)). Each service's page
 offers its updates, and you choose there whether it updates by itself:
@@ -101,7 +138,11 @@ stops warning about them, until something else changes.
 
     Updates run through `roostack-agent`, as a transient systemd unit
     (`roostack-os-updates`): `apt-get update`, then `unattended-upgrade -v`,
-    with its output streamed to the page. A restart is needed when
+    with its output streamed to the page from
+    `/run/roostack-agent/os-updates.log`. The unit doesn't depend on the
+    agent, because updating Roostack restarts both its processes: the page
+    then says Roostack updated itself, and the rest of that run is in the
+    log file. A restart is needed when
     `/run/reboot-required` exists (the packages are in
     `/run/reboot-required.pkgs`). All maintenance (backups, updates,
     restarts, restores) goes through one queue, one job at a time, so a

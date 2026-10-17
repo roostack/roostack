@@ -36,7 +36,7 @@ type fakeAgent struct {
 	err error
 }
 
-func (f fakeAgent) RunUpdates(_ context.Context, w io.Writer) error {
+func (f fakeAgent) RunUpdates(_ context.Context, _ string, w io.Writer) error {
 	io.WriteString(w, f.out)
 	return f.err
 }

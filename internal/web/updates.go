@@ -8,6 +8,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/osupdate"
 )
 
@@ -22,6 +23,17 @@ type updatesView struct {
 	ErrorMsg string
 	// Activity is the live (or last) update run.
 	Activity *activityView
+	// Series is Roostack's own release series and any newer one (SPEC.md
+	// §7); nil if it couldn't be read.
+	Series *seriesView
+}
+
+// seriesView is Roostack's release series on the Updates page.
+type seriesView struct {
+	osupdate.Series
+	// NoBackups: the server isn't backed up through Roostack, so moving to
+	// a new series has no backup to go back to.
+	NoBackups bool
 }
 
 func (s *Server) updatesView(r *http.Request, errMsg string) *updatesView {
@@ -45,6 +57,16 @@ func (s *Server) updatesView(r *http.Request, errMsg string) *updatesView {
 	if v.Mode == "" {
 		v.Mode = config.RestartAuto
 	}
+	if ser, err := s.updates(r).Series(r.Context()); err != nil {
+		s.Log.Error("reading Roostack's release series", "err", err)
+	} else {
+		v.Series = &seriesView{Series: ser, NoBackups: true}
+		if n := s.serverOf(r); n != nil && n.Backups() != nil {
+			if st, err := n.Backups().Status(r.Context()); err == nil {
+				v.Series.NoBackups = !st.Configured
+			}
+		}
+	}
 	for h := range 24 {
 		v.Hours = append(v.Hours, h)
 	}
@@ -62,6 +84,32 @@ func (s *Server) updateNowSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	m := s.serverRefOf(r)
 	s.Store.Audit(r.Context(), currentUser(r), "updates", "OS updates started on "+m.Label())
+	redirect(w, r, m.Updates())
+}
+
+// seriesAcceptSubmit is the Owner's go-ahead to move a server to a new
+// release series of Roostack (SPEC.md §7): its next OS updates install it.
+func (s *Server) seriesAcceptSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.updates(r) == nil {
+		http.NotFound(w, r)
+		return
+	}
+	series := r.FormValue("series")
+	err := s.updates(r).AcceptSeries(r.Context(), series)
+	if errors.Is(err, osupdate.ErrNoSuchSeries) {
+		s.renderUpdates(w, r, node.SeriesGoneMsg)
+		return
+	}
+	if msg, ok := userMessage(err); ok {
+		s.renderUpdates(w, r, msg)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	m := s.serverRefOf(r)
+	s.Store.Audit(r.Context(), currentUser(r), "updates", "Roostack "+series+" accepted for "+m.Label())
 	redirect(w, r, m.Updates())
 }
 

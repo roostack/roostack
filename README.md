@@ -86,6 +86,8 @@ GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) checks eve
 
 It needs no secrets. The help site isn't built: no test needs it. Actions are pinned by commit, with the release beside each in a comment.
 
+Releases are published by [.github/workflows/apt-publish.yml](.github/workflows/apt-publish.yml), which the release workflow calls once a release's files are built and signed: it checks their signature, uploads them to `dl.roostack.cloud/releases/<version>/`, and adds the packages to Roostack's apt repository at `apt.roostack.cloud` ([scripts/build-apt-repo.sh](scripts/build-apt-repo.sh), SPEC §7.2). It runs in the `release` environment, whose required reviewer approves each release, and is the only place the signing key and the bucket's credentials are used.
+
 ## Project documents
 
 - [PLAN.md](PLAN.md): the project brief

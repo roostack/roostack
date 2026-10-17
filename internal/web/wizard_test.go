@@ -520,6 +520,23 @@ type fakeUpdates struct {
 	submitted int
 	restarted bool
 	busy      bool
+	series    osupdate.Series
+	accepted  string
+}
+
+func (f *fakeUpdates) Series(context.Context) (osupdate.Series, error) {
+	s := f.series
+	if f.accepted != "" {
+		s.Accepted = f.accepted
+	}
+	return s, nil
+}
+func (f *fakeUpdates) AcceptSeries(_ context.Context, series string) error {
+	if series != f.series.Newest {
+		return osupdate.ErrNoSuchSeries
+	}
+	f.accepted = series
+	return nil
 }
 
 func (f *fakeUpdates) Last(context.Context) (*osupdate.Result, error) { return f.last, nil }
@@ -588,6 +605,54 @@ func TestUpdatesCard(t *testing.T) {
 	ha.node().updates = fu
 	if _, home := ha.get("/"); strings.Contains(home, "OS updates") {
 		t.Error("admins shouldn't see OS update problems")
+	}
+}
+
+// A new release series of Roostack waits for the Owner (SPEC.md §7).
+func TestRoostackSeries(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupLater: true}})
+	fu := &fakeUpdates{series: osupdate.Series{Current: "0.4", Source: "https://apt.roostack.cloud"}}
+	h.node().updates = fu
+
+	_, body := h.get("/settings/updates")
+	if !strings.Contains(body, "The 0.4 releases: their fixes install by themselves") || strings.Contains(body, "is available") {
+		t.Errorf("no new series: page wrong")
+	}
+	fu.series.Newest, fu.series.NewestVersion = "0.5", "0.5.0"
+	_, body = h.get("/settings/updates")
+	for _, want := range []string{"Roostack 0.5.0 is available", `action="/settings/updates/series"`, `name="series" value="0.5"`,
+		"Update to Roostack 0.5.0", "backed up through Roostack, so there won"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("offer: page lacks %q", want)
+		}
+	}
+	// The page went stale: another series is on offer now.
+	if code, body := h.post("/settings/updates/series", url.Values{"series": {"0.6"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "on offer any more") || fu.accepted != "" {
+		t.Errorf("stale series: %d, accepted %q", code, fu.accepted)
+	}
+	if code, _ := h.post("/settings/updates/series", url.Values{"series": {"0.5"}}, h.srv.URL); code >= 400 || fu.accepted != "0.5" {
+		t.Errorf("accept: %d, accepted %q", code, fu.accepted)
+	}
+	fu.series.Waiting = "the last backup didn't work"
+	_, body = h.get("/settings/updates")
+	if !strings.Contains(body, "Roostack 0.5 installs with this server's next updates") || !strings.Contains(body, "waiting: the last backup didn&#39;t work.") ||
+		strings.Contains(body, "Update to Roostack") {
+		t.Error("accepted: page wrong")
+	}
+	// A development build follows nothing.
+	fu.series, fu.accepted = osupdate.Series{}, ""
+	if _, body = h.get("/settings/updates"); !strings.Contains(body, "Doesn't update itself") {
+		t.Error("development build: page wrong")
+	}
+
+	// Only the Owner accepts.
+	ha, _ := loggedIn(t, auth.RoleAdmin)
+	ha.node().updates = fu
+	fu.series = osupdate.Series{Current: "0.4", Newest: "0.5", NewestVersion: "0.5.0"}
+	if code, _ := ha.post("/settings/updates/series", url.Values{"series": {"0.5"}}, ha.srv.URL); code < 400 || fu.accepted != "" {
+		t.Errorf("admin accepted: %d", code)
 	}
 }
 
