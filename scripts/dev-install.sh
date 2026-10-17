@@ -25,7 +25,7 @@ cat <<EOM
 
 Development notes:
   - From the dev machine, scripts/dev-vm.sh ui tunnels the UI to
-    http://127.0.0.1:18481 (VM n: port 18481 + (n-1)*10000).
+    http://127.0.0.1:18481 (VM n: see scripts/dev-vm.sh, e.g. 28481 for VM 2).
   - The setup code: sudo cat /var/lib/roostack/setup-token
   - To deploy new binaries later: sudo install -m755 ~/roostack/bin/roostack ~/roostack/bin/roostack-agent /usr/bin/
     and sudo systemctl restart roostack (or run this script again).

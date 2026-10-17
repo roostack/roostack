@@ -83,7 +83,7 @@ ROOSTACK_RESTIC_BIN=<scratch>/restic go test ./...
 
 ## Dev VMs
 
-`scripts/dev-vm.sh` runs Debian 13 VMs under plain QEMU (header comment has the details): KVM on Linux, Hypervisor.framework on macOS. A VM has the machine's own architecture (arm64 on an Apple Silicon Mac, for ARM work: [ARM64-PLAN.md](ARM64-PLAN.md)); `ROOSTACK_VM_ARCH` picks the other, emulated and slow. `ROOSTACK_VM=n` selects VM n; its ports are offset by `(n-1)*10000` (UI tunnels on 18481, 28481, 38481).
+`scripts/dev-vm.sh` runs Debian 13 VMs under plain QEMU (header comment has the details): KVM on Linux, Hypervisor.framework on macOS. A VM has the machine's own architecture (arm64 on an Apple Silicon Mac, for ARM work: [ARM64-PLAN.md](ARM64-PLAN.md)); `ROOSTACK_VM_ARCH` picks the other, emulated and slow. `ROOSTACK_VM=n` selects VM n, 1 to 9 (disk space allows about four at once); VMs 1–5's ports are offset by `(n-1)*10000` (UI tunnels on 18481, 28481, … 58481), VMs 6–9's are 6x481 and so on with x = n−6 (UI tunnels 60481 to 63481).
 
 ```sh
 ROOSTACK_VM=1 scripts/dev-vm.sh up | ssh [cmd] | ui | down | status

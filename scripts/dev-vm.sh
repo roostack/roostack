@@ -22,9 +22,12 @@
 #   51820/udp -> 51820 (Roostack's WireGuard network), 52820/udp -> 51821 (storage for other labs)
 #
 # More VMs (e.g. a second machine joining the lab): ROOSTACK_VM=2 scripts/dev-vm.sh up
-# VM n uses ssh port 2221+n, the other TCP ports plus (n-1)*10000, and UDP
-# 51819+n and 52819+n. Another VM reaches VM n's WireGuard at
-# 10.0.2.2:<that port> (QEMU's address for this machine).
+# VMs 1-9 work. VM n uses ssh port 2221+n and UDP 51819+n and 52819+n. Its
+# other TCP ports are VM 1's plus (n-1)*10000 for VMs 1-5 (VM 2's UI tunnel is
+# 28481, VM 5's 58481), and 6x480, 6x080, 6x443, 6x481 for VMs 6-9 with
+# x = n-6 (VM 6's UI tunnel is 60481, VM 9's 63481): the 10000 step would pass
+# 65535 from VM 6. Another VM reaches VM n's WireGuard at 10.0.2.2:<its UDP
+# port> (QEMU's address for this machine).
 #
 # REGISTRY_DEV_KEY=ed25519:… builds Roostack trusting a test root key for
 # the service registry (Makefile; docs/REGISTRY-KEYS.md), for a VM fetching
@@ -47,7 +50,11 @@ N=${ROOSTACK_VM:-1}
 SUFFIX=$([[ $N == 1 ]] || echo "-$N")
 NAME=roostack-dev$SUFFIX
 VM_DIR=${ROOSTACK_VM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/roostack-dev-vm$SUFFIX}
-OFF=$(((N - 1) * 10000))
+# tcp_port BASE: VM N's port for VM 1's port BASE (18xxx), as the header says.
+tcp_port() {
+    if ((N <= 5)); then echo $(($1 + (N - 1) * 10000)); else echo $((60000 + (N - 6) * 1000 + $1 - 18000)); fi
+}
+UI_PORT=$(tcp_port 18481)
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 case $(uname -m) in
 x86_64 | amd64) HOST_ARCH=amd64 ;;
@@ -205,7 +212,7 @@ start() {
     "${qemu[@]}" \
         -name "$NAME" -machine "$machine" -cpu "$cpu" -m "$MEMORY" -smp "$CPUS" \
         -drive file="$DISK",if=virtio,id=disk0,discard=unmap \
-        -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$((18480 + OFF))-:8480,hostfwd=tcp:127.0.0.1:$((18080 + OFF))-:80,hostfwd=tcp:127.0.0.1:$((18443 + OFF))-:443,hostfwd=udp::$WG_PORT-:51820,hostfwd=udp::$GUESTS_PORT-:51821" \
+        -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$(tcp_port 18480)-:8480,hostfwd=tcp:127.0.0.1:$(tcp_port 18080)-:80,hostfwd=tcp:127.0.0.1:$(tcp_port 18443)-:443,hostfwd=udp::$WG_PORT-:51820,hostfwd=udp::$GUESTS_PORT-:51821" \
         -device virtio-net-pci,netdev=net0 \
         -device virtio-rng-pci \
         -device qemu-xhci,id=xhci \
@@ -339,12 +346,12 @@ ssh) shift; vm_ssh -t "$@" ;;
 sync) sync_repo ;;
 test) shift; test_repo "$@" ;;
 install) sync_repo; vm_ssh -t "cd ~/roostack && sudo VERSION=$("$REPO/scripts/build-deb.sh" --version) scripts/dev-install.sh" ;;
-ui) log "Roostack UI: http://127.0.0.1:$((18481 + OFF)) (Ctrl-C to stop)"
+ui) log "Roostack UI: http://127.0.0.1:$UI_PORT (Ctrl-C to stop)"
     # Reconnect when the VM restarts (e.g. after OS updates) or the
     # connection drops; notice a dead connection within ~15s.
     while true; do
         vm_ssh -N -o ServerAliveInterval=5 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes \
-            -L 127.0.0.1:$((18481 + OFF)):127.0.0.1:8480 || true
+            -L 127.0.0.1:$UI_PORT:127.0.0.1:8480 || true
         log "Tunnel closed; reconnecting…"
         sleep 3
     done ;;
