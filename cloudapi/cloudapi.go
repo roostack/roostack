@@ -359,9 +359,12 @@ type NameClaim struct {
 // The recovery identity (Cloud's DESIGN §3b, "Account recovery"): an
 // Ed25519 key the lab derives from its recovery key, so whoever holds the
 // recovery key can prove it to Cloud without revealing it. The lab
-// registers the public half; Cloud finds the lab by it.
+// registers the public half, with Signature: RestoreMessage(ProveRegister,
+// its lab ID) signed with the key, so a lab can only register a key it
+// holds (Cloud refuses it otherwise). Cloud finds the lab by it.
 type RecoveryIdentity struct {
 	PublicKey []byte `json:"public_key"`
+	Signature []byte `json:"signature"`
 }
 
 // RestoreChallengeRequest asks for a challenge to sign.
@@ -376,13 +379,17 @@ type RestoreChallenge struct {
 }
 
 // What a signature is for (part of what's signed, so a signature for one
-// can't be used for the other).
+// can't be used for another).
 const (
 	ProveAccess = "access"
 	ProveRelink = "relink"
+	// ProveRegister signs the lab's own ID, not a challenge: registering
+	// the recovery identity (RecoveryIdentity).
+	ProveRegister = "register"
 )
 
-// RestoreMessage is what the lab signs: the challenge, for one purpose.
+// RestoreMessage is what the lab signs: the challenge (or, to register,
+// its lab ID), for one purpose.
 func RestoreMessage(purpose, challenge string) []byte {
 	return []byte("roostack-recovery-identity-v1\n" + purpose + "\n" + challenge)
 }

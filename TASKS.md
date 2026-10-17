@@ -447,6 +447,12 @@ The review is in Roostack Cloud's repository (`REVIEW-2026-10-16.md`); IDs refer
 - [x] M25: a full-lab restore that failed part-way can be started again (a `restore-started` marker; the page says so). `scripts/dev-vm.sh test` now finds a main package's test binary (`cmd/roostack` has its first test)
 - [x] `.gitignore`: `.DS_Store` and `.claude/worktrees/`
 - [x] `/help` on a build without the help site: the error page replaced the "built without its help pages" message, so `TestHelpServed` fails (since f77f640). Say why on the error page, or change the test Done at the merge (2026-10-16): the 404 page for /help says the build has no help pages.
+## Security review of 2026-10-16: restore integrity (restore-integrity, 2026-10-17)
+
+Changes to the lab ↔ Cloud contract (`cloudapi`) made with Roostack Cloud's side.
+
+- [x] M10 (lab side): registering the recovery identity carries a signature over the lab's ID (`cloudapi.ProveRegister`); Cloud and `cloudtest` refuse one without it (SPEC §6.9)
+
 - [ ] **Not yet taken up from the review** (2026-10-16; the review is REVIEW-2026-10-16.md in the roostack-cloud checkout, not committed):
   - [ ] M24: verify on a VM what rest-server 0.14.0 `--append-only` refuses (overwriting an existing blob; overwriting `config`), record it in docs/ASSUMPTIONS.md, and add a controller-side way to quarantine files restic can't decrypt (a junk `snapshots/` or `index/` file a server appends stops every listing, prune and check of that repository), shown under Needs attention rather than only in the activity log
   - [ ] M26: `manager.PendingFor` applies on every `/v1/assignment` pull, nftables reload included, with no limit per caller: return the latest assignment unless there is none, and limit pulls per server

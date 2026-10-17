@@ -102,12 +102,15 @@ func (s *Service) RegisterIdentity(ctx context.Context) error {
 	}
 	pub := id.Public().(ed25519.PublicKey)
 	s.mu.Lock()
-	linked, same := s.st.Linked, bytes.Equal(s.st.RecoveryIdentity, pub)
+	linked, same, labID := s.st.Linked, bytes.Equal(s.st.RecoveryIdentity, pub), s.st.LabID
 	s.mu.Unlock()
 	if !linked || same {
 		return nil
 	}
-	if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRecoveryIdentity, cloudapi.RecoveryIdentity{PublicKey: pub}, nil); err != nil {
+	// Signed over the lab's ID, so Cloud knows the lab holds the key
+	// (security review of 2026-10-16, M10).
+	req := cloudapi.RecoveryIdentity{PublicKey: pub, Signature: ed25519.Sign(id, cloudapi.RestoreMessage(cloudapi.ProveRegister, labID))}
+	if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRecoveryIdentity, req, nil); err != nil {
 		return err
 	}
 	s.mu.Lock()
