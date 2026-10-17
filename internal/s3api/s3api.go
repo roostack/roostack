@@ -146,8 +146,10 @@ type Version struct {
 	Size           int64
 }
 
-// Versions lists every version and delete marker under prefix, each
-// object's newest first, a page at a time.
+// Versions lists every version and delete marker under prefix, a page at
+// a time. AWS lists each object's together, newest first; Backblaze lists
+// a page's delete markers before its versions (docs/ASSUMPTIONS.md N9),
+// so callers gather an object's versions by key and time.
 func (c *Client) Versions(ctx context.Context, prefix string, each func(Version) error) error {
 	q := url.Values{"versions": {""}, "prefix": {prefix}, "max-keys": {"1000"}}
 	for {

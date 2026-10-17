@@ -538,16 +538,21 @@
   <form method="post" action="{{.RollbackAction}}" x-data="{ busy: false }" x-on:submit="busy = true">
     <input type="hidden" name="destination" value="{{.Ref}}">
     <input type="hidden" name="step" value="check">
-    <label>Go back to <input type="datetime-local" name="before" value="{{.RollbackBefore}}" required></label>
+    {{/* A date and a time, not one datetime-local: Chrome's is too wide for a phone here. */}}
+    <fieldset class="plan-when">
+      <legend>Go back to</legend>
+      <input type="date" name="before_date" value="{{slice .RollbackBefore 0 10}}" aria-label="Date" required>
+      <input type="time" name="before_time" value="{{slice .RollbackBefore 11}}" aria-label="Time" required>
+    </fieldset>
     <div class="plan-actions">
       <button type="submit" class="secondary" x-bind:disabled="busy">Check what changes</button>
       <span class="hint">Nothing changes yet.</span>
     </div>
   </form>
   {{with .RollbackLog}}{{activity .}}{{end}}
-  {{with .RollbackPlan}}{{if not .Empty}}
+  {{with .RollbackPlan}}<div>{{noticeList "info" (printf "Going back to %s:" (.Before.Local.Format "2 January 15:04")) .Summary}}</div>{{if not .Empty}}
   <div class="plan-actions">
-    {{confirm $.RollbackAction (printf "Go back to %s in these backups? %s Nothing is erased, and you can undo it." (.Before.Local.Format "2 January 15:04") .SummaryText) (printf "Go back to %s" (.Before.Local.Format "2 January 15:04")) "" (printf "destination=%s" $.Ref) (printf "before=%s" $.RollbackBefore) "step=run"}}
+    {{confirm $.RollbackAction (printf "Go back to %s in these backups? %s Nothing is erased, and you can undo it." (.Before.Local.Format "2 January 15:04") .SummaryText) "Go back to this time" "" (printf "destination=%s" $.Ref) (printf "before=%s" $.RollbackBefore) "step=run"}}
   </div>
   {{end}}{{end}}
 </details>

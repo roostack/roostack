@@ -652,8 +652,19 @@ func (s *Server) renderPlanPage(w http.ResponseWriter, r *http.Request, wizard b
 	s.renderBackups(w, r, data)
 }
 
-// rollbackTime is how a time goes in a datetime-local field.
+// rollbackTime is how the time to go back to is passed ("before"): a
+// date and a time, as datetime-local writes them.
 const rollbackTime = "2006-01-02T15:04"
+
+// rollbackBefore is the time to go back to: "before", or the form's date
+// and time fields.
+func rollbackBefore(r *http.Request) (time.Time, error) {
+	v := r.FormValue("before")
+	if v == "" {
+		v = r.FormValue("before_date") + "T" + r.FormValue("before_time")
+	}
+	return time.ParseInLocation(rollbackTime, v, time.Local)
+}
 
 // planRollback fills in rolling a backup back (SPEC.md §10.10): the form,
 // the latest check or rollback, and a check that can be acted on.
@@ -667,7 +678,7 @@ func (s *Server) planRollback(r *http.Request, m serverRef, e *planEntry) {
 	before := time.Now().Add(-24 * time.Hour)
 	if p := s.Manager.RollbackChecked(m.ID, e.Ref); p != nil {
 		e.RollbackPlan, before = p, p.Before
-	} else if t, err := time.ParseInLocation(rollbackTime, r.FormValue("before"), time.Local); err == nil {
+	} else if t, err := rollbackBefore(r); err == nil {
 		before = t
 	}
 	e.RollbackBefore = before.Local().Format(rollbackTime)
@@ -688,7 +699,7 @@ func (s *Server) planRollbackSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	before, err := time.ParseInLocation(rollbackTime, r.FormValue("before"), time.Local)
+	before, err := rollbackBefore(r)
 	if err != nil {
 		s.renderPlanPage(w, r, false, "Choose the date and time to go back to.")
 		return

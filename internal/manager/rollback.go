@@ -313,7 +313,10 @@ func (m *Manager) rollbackJob(serverID, ref string, before time.Time) maintenanc
 		if err != nil {
 			return err
 		}
-		if len(snaps) > 0 {
+		switch {
+		case len(snaps) == 1:
+			act.Printf("1 backup there now, from %s.", snaps[0].Time.Local().Format("2 January 15:04"))
+		case len(snaps) > 1:
 			newest := slices.MaxFunc(snaps, func(a, b backup.Snapshot) int { return a.Time.Compare(b.Time) })
 			act.Printf("%d backups there now, the newest from %s.", len(snaps), newest.Time.Local().Format("2 January 15:04"))
 		}
@@ -329,29 +332,37 @@ func (m *Manager) rollbackJob(serverID, ref string, before time.Time) maintenanc
 // what's hidden goes the other way.
 func (m *Manager) rollbackPlan(ctx context.Context, cl *s3api.Client, folder string, before time.Time) (*RollbackPlan, error) {
 	plan := &RollbackPlan{Before: before}
-	var key string
-	var versions []s3api.Version
-	decide := func() {
-		if key == "" {
-			return
-		}
-		plan.Files++
-		if c, ok := rollbackChangeOf(folder, key, versions, before); ok {
-			plan.changes = append(plan.changes, c)
-		}
-	}
+	// Each file's versions, gathered: Backblaze lists a page's delete
+	// markers apart from its versions, not each file's together
+	// (docs/ASSUMPTIONS.md N9).
+	byKey := map[string][]s3api.Version{}
 	err := cl.Versions(ctx, folder, func(v s3api.Version) error {
-		if v.Key != key {
-			decide()
-			key, versions = v.Key, nil
-		}
-		versions = append(versions, v)
+		byKey[v.Key] = append(byKey[v.Key], v)
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing the files' versions: %w", err)
 	}
-	decide()
+	for key, versions := range byKey {
+		// Newest first; the latest is newest even at the same time.
+		slices.SortStableFunc(versions, func(a, b s3api.Version) int {
+			if c := b.Modified.Compare(a.Modified); c != 0 {
+				return c
+			}
+			switch {
+			case a.Latest && !b.Latest:
+				return -1
+			case b.Latest && !a.Latest:
+				return 1
+			}
+			return 0
+		})
+		plan.Files++
+		if c, ok := rollbackChangeOf(folder, key, versions, before); ok {
+			plan.changes = append(plan.changes, c)
+		}
+	}
+	slices.SortFunc(plan.changes, func(a, b rollbackChange) int { return strings.Compare(a.Key, b.Key) })
 	rank := map[string]int{"config": 0, "keys": 1, "data": 2, "index": 3, "snapshots": 4}
 	slices.SortStableFunc(plan.changes, func(a, b rollbackChange) int {
 		ah, bh := a.Kind == rollHide, b.Kind == rollHide

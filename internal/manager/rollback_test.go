@@ -123,10 +123,19 @@ func TestS3BucketKeepsWhatsDeleted(t *testing.T) {
 // file back as it was, erasing nothing, leaves lock files alone, and can
 // itself be undone (SPEC.md §10.10).
 func TestRollBack(t *testing.T) {
+	for _, markersFirst := range []bool{false, true} {
+		t.Run(map[bool]string{false: "AWS", true: "Backblaze"}[markersFirst], func(t *testing.T) { testRollBack(t, markersFirst) })
+	}
+}
+
+// testRollBack rolls back with versions listed as AWS does, or as
+// Backblaze does (delete markers first).
+func testRollBack(t *testing.T, markersFirst bool) {
 	now := time.Now().Add(-10 * time.Hour)
 	at := func(h int) time.Time { return now.Add(time.Duration(h) * time.Hour) }
 	clock := now
-	b := &s3fake.Bucket{Name: "b", Versioning: "Enabled", NoErase: true, PageSize: 3, Now: func() time.Time { return clock }}
+	b := &s3fake.Bucket{Name: "b", Versioning: "Enabled", NoErase: true, PageSize: 3, MarkersFirst: markersFirst,
+		Now: func() time.Time { return clock }}
 	m, _ := s3Lab(t, b)
 	ctx := context.Background()
 	labID, _ := m.labID(ctx)

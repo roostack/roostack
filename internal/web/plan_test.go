@@ -216,7 +216,7 @@ func TestPlanRollback(t *testing.T) {
 	}
 	fm.backupAccess = map[string]manager.Access{"provider:1": {HidesOnly: true, KeepsHidden: 7, Versioned: true}}
 	_, body = h.get("/backups")
-	for _, want := range []string{"Bring back what was hidden or changed…", `action="/backups/plan/rollback"`, `type="datetime-local" name="before"`,
+	for _, want := range []string{"Bring back what was hidden or changed…", `action="/backups/plan/rollback"`, `type="date" name="before_date"`, `type="time" name="before_time"`,
 		"The bucket keeps old versions, and the account's key can't erase them",
 		"In the bucket&#39;s lifecycle rules, keep old versions for at least 30 days"} {
 		if !strings.Contains(body, want) {
@@ -227,7 +227,7 @@ func TestPlanRollback(t *testing.T) {
 		t.Error("closed, and nothing to confirm before a check")
 	}
 
-	h.post("/backups/plan/rollback", url.Values{"destination": {"provider:1"}, "before": {"2026-10-16T09:00"}, "step": {"check"}}, h.srv.URL)
+	h.post("/backups/plan/rollback", url.Values{"destination": {"provider:1"}, "before_date": {"2026-10-16"}, "before_time": {"09:00"}, "step": {"check"}}, h.srv.URL)
 	if len(fm.rollbacks) != 1 || fm.rollbacks[0] != "check n-0123456789 provider:1 2026-10-16T09:00" {
 		t.Fatalf("rollbacks = %v", fm.rollbacks)
 	}
@@ -236,7 +236,8 @@ func TestPlanRollback(t *testing.T) {
 	fm.rollbackPlan = &manager.RollbackPlan{Before: before, Changed: 3,
 		Summary: []string{"1 backup (a snapshot) hidden since then comes back."}}
 	_, body = h.get("/backups?rollback=provider:1")
-	for _, want := range []string{`id="plan-manage-3" open`, `id="plan-rollback-3" open`, `value="2026-10-16T09:00"`, "Go back to 16 October 09:00",
+	for _, want := range []string{`id="plan-manage-3" open`, `id="plan-rollback-3" open`, `value="2026-10-16"`, `value="09:00"`, `name="before" value="2026-10-16T09:00"`, ">Go back to this time<",
+		"Going back to 16 October 09:00:", "<li>1 backup (a snapshot) hidden since then comes back.</li>", "Go back to 16 October 09:00",
 		"Go back to 16 October 09:00 in these backups? 1 backup (a snapshot) hidden since then comes back. Nothing is erased",
 		`name="step" value="run"`} {
 		if !strings.Contains(body, want) {
