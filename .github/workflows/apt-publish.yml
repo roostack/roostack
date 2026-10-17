@@ -7,7 +7,8 @@
 #   2. uploads the files to dl.roostack.cloud/releases/<version>/;
 #   3. adds the packages to the apt repository at apt.roostack.cloud
 #      (scripts/build-apt-repo.sh), signed with the release key's signing
-#      subkey, rebuilt from what's already published there.
+#      subkey, rebuilt from what's already published there, and puts the
+#      keyring beside it (apt.roostack.cloud/roostack-archive-keyring.gpg).
 #
 # release.yml calls it as a job of the same run, after the job that
 # uploads the artifact "release-files":
@@ -182,3 +183,8 @@ jobs:
           s3 s3 cp --no-progress --recursive --exclude '*' --include '*/InRelease' \
             --content-type text/plain "$repo/dists" "$bucket/dists"
           s3 s3 cp --no-progress --content-type text/plain "$repo/series" "$bucket/series"
+          # The keyring as apt wants it, for scripts/install.sh to fetch
+          # (it checks the file's SHA-256) before Roostack is installed.
+          gpg --batch --dearmor < packaging/keys/roostack-release.asc > "$RUNNER_TEMP/roostack-archive-keyring.gpg"
+          s3 s3 cp --no-progress --content-type application/pgp-keys \
+            "$RUNNER_TEMP/roostack-archive-keyring.gpg" "$bucket/roostack-archive-keyring.gpg"
