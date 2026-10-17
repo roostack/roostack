@@ -89,6 +89,7 @@ changes only these:
 |---|---|
 | `/etc/roostack/firewall.nft` | The firewall (nftables), loaded again at start |
 | `/etc/sysctl.d/60-roostack.conf` | Lets containers use ports 80 and 443 |
+| `/etc/ssh/sshd_config.d/10-roostack.conf` | SSH with keys only: no passwords, no root logins, while **Remote access** says so |
 | `/etc/wireguard/roostack*.conf` | The lab's network (`roostack`), other labs storing backups here (`roostack-guests`), and links to other labs (`roostack-st1` to `roostack-st9`) |
 | `/etc/fstab` | A line for each backup drive, marked `# Added by Roostack` |
 | `/mnt/roostack-<drive>/` | Where backup drives are mounted |

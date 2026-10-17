@@ -57,7 +57,15 @@ straight after logging in.
 ## You can't log in to the server either
 
 If remote access is set to **Nobody**, or you can't reach the server over
-SSH, plug a keyboard and screen into it and log in there.
+SSH, plug a keyboard and screen into it and log in there (on a cloud
+server, use your provider's web console). Your password works there even
+with SSH set to keys only: that only changes SSH.
+
+Lost your SSH key, with SSH set to keys only? Log in to Roostack and choose
+**With a key or a password** under **Settings → Remote access**, or, on
+the server itself, remove `/etc/ssh/sshd_config.d/10-roostack.conf` and
+run `sudo systemctl reload ssh`. Then [set up a new
+key](../start/first-run.md#set-up-an-ssh-key) and turn keys only back on.
 
 !!! tip "Two Owners"
 

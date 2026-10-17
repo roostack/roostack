@@ -35,15 +35,57 @@
       <label class="check"><input type="radio" name="ssh" value="off" x-model="choice">
         <span>Nobody<small>If something goes wrong that Roostack can't fix, you'll need a keyboard and screen plugged into this server.</small></span></label>
     </fieldset>
+    {{if .SSHD.Installed}}
+    <div x-show="choice !== 'off'" x-cloak>
+      <h2>How do they log in?</h2>
+      {{if .KeyWorks}}{{notice "ok" .KeyText}}
+      {{else if not .SSHD.KeysOnly}}{{notice "warn" "Roostack hasn't seen anyone log in with an SSH key and an account that can use sudo, so it can't turn passwords off without the risk of locking you out."}}
+      {{with .NoSudo}}<p class="hint">Seen logging in with a key, but they can't use sudo: {{.}}. Root can't log in with keys only, so log in once as an
+        account in the <code>sudo</code> group.</p>{{end}}
+      <p><a href="/help/start/first-run/#set-up-an-ssh-key" target="_blank" rel="noopener">How to set up a key{{template "new-window"}}</a>,
+        then <a href="{{if .Wizard}}/setup/ssh{{else}}{{.Server.RemoteAccess}}{{end}}">check again</a>.</p>
+      {{end}}
+      <fieldset>
+        <label class="check"><input type="radio" name="login" value="key"{{if eq .Login "key"}} checked{{end}}>
+          <span>With an SSH key only (recommended)<small>Passwords are refused, and nobody can log in as root: log in as yourself and use
+            <code>sudo</code>.</small></span></label>
+        <label class="check"><input type="radio" name="login" value="password"{{if eq .Login "password"}} checked{{end}}>
+          <span>With a key or a password<small>Anyone who can reach SSH can try to guess a password. Roostack shows a warning until it's
+            keys only.</small></span></label>
+      </fieldset>
+      {{if and (eq .SavedLogin "key") (not .SSHD.KeysOnly)}}{{notice "warn" (printf "Roostack's file in SSH's settings (%s) is missing, so SSH works as its own settings say. Save to write it again." .DropIn)}}{{end}}
+      {{with .SSHDError}}{{notice "warn" (printf "Roostack couldn't read SSH's settings: %s" .)}}{{end}}
+    </div>
+    {{end}}
     {{if .Clients}}
     <div x-show="choice === 'off' {{if .CutByLAN}}|| choice === 'lan'{{end}}" x-cloak>
       <p class="error">This will disconnect the SSH connection listed above.</p>
       <label class="check"><input type="checkbox" name="confirm"><span>I understand</span></label>
     </div>
     {{end}}
-    {{if .Wizard}}<p class="hint">The firewall takes effect when setup finishes (Roostack restarts once, then).</p>{{end}}
+    {{if .Wizard}}<p class="hint">The firewall takes effect when setup finishes (Roostack restarts once, then).{{if .SSHD.Installed}} How people
+      log in changes at once.{{end}}</p>{{end}}
     <button type="submit">{{if .Wizard}}Continue{{else}}Save{{end}}</button>
   </form>
+{{if .SSHD.Installed}}
+<details class="technical">
+  <summary>Details</summary>
+  <dl class="facts">
+    <dt>SSH now</dt>
+    <dd>{{if .SSHD.Passwords}}Takes passwords{{else}}Refuses passwords{{end}}; root logins: {{if eq .SSHD.RootLogin "no"}}refused{{else if eq .SSHD.RootLogin "yes"}}allowed, with a password too{{else if .SSHD.RootLogin}}with a key only ({{.SSHD.RootLogin}}){{else}}unknown{{end}}
+      (from <code>sshd -T</code>)</dd>
+    <dt>Keys only</dt>
+    <dd>Roostack writes <code>{{.DropIn}}</code> ({{if .SSHD.KeysOnly}}there now{{else}}not there now{{end}}):
+      <code>PasswordAuthentication no</code>, <code>KbdInteractiveAuthentication no</code>, <code>PermitRootLogin no</code>. It checks
+      the change with <code>sshd -t</code> and puts the old file back if sshd refuses it, then reloads SSH. Logged-in sessions stay
+      connected.</dd>
+    <dt>Key check</dt>
+    <dd>Keys only needs a key login, as an account in the <code>sudo</code> group, in SSH's log, written by sshd itself
+      (<code>journalctl _UID=0 _EXE=/usr/lib/openssh/sshd-session</code>).
+      With "Nobody" it's keys only without a check: nobody can reach SSH.</dd>
+  </dl>
+</details>
+{{end}}
 </section>
 {{end}}
 
