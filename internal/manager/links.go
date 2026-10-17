@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/trust"
 )
 
 // Direct links between servers (SPEC.md §10.10): servers dial only the
@@ -163,7 +164,7 @@ func (m *Manager) reachAt(ctx context.Context, infos map[string]linkInfo, from, 
 		}
 	}
 	if locTo == LocationAway {
-		if ap, err := netip.ParseAddrPort(infos[to].Seen); err == nil && !agent.IsLAN(ap.Addr()) {
+		if ap, err := netip.ParseAddrPort(infos[to].Seen); err == nil && !trust.IsHome(ap.Addr()) {
 			return net.JoinHostPort(ap.Addr().Unmap().String(), port)
 		}
 	}

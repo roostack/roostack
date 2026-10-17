@@ -8,12 +8,13 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"roostack.cloud/roostack/internal/trust"
 )
 
 type fakeHost struct {
@@ -135,7 +136,7 @@ func TestAPI(t *testing.T) {
 	}
 
 	bad := DefaultFirewall()
-	bad.Allow = append(bad.Allow, Rule{Port: 0, Proto: "tcp", From: FromAny})
+	bad.Allow = append(bad.Allow, Rule{Port: 0, Proto: "tcp", For: trust.Anyone})
 	if err := c.ApplyFirewall(ctx, bad); err == nil || !strings.Contains(err.Error(), "invalid port") {
 		t.Errorf("want invalid port error, got %v", err)
 	}
@@ -164,7 +165,7 @@ func TestRejectsOtherUsers(t *testing.T) {
 
 func TestRuleset(t *testing.T) {
 	fw := DefaultFirewall()
-	fw.Allow = append(fw.Allow, Rule{Port: 53, Proto: "udp", From: FromLAN, Reason: "pihole dns"})
+	fw.Allow = append(fw.Allow, Rule{Port: 53, Proto: "udp", For: trust.Home, Reason: "pihole dns"})
 	got := fw.Ruleset()
 	for _, want := range []string{
 		"policy drop;",
@@ -187,7 +188,7 @@ func TestRuleset(t *testing.T) {
 // port's accept; other ports aren't.
 func TestRulesetWireGuardLimit(t *testing.T) {
 	fw := DefaultFirewall()
-	fw.Allow = append(fw.Allow, Rule{Port: WireGuardPort, Proto: "udp", From: FromAny, Reason: "lab network"})
+	fw.Allow = append(fw.Allow, Rule{Port: WireGuardPort, Proto: "udp", For: trust.Anyone, Reason: "lab network"})
 	got := fw.Ruleset()
 	limit := "udp dport 51820 @th,64,8 1 add @wg_handshakes4 { ip saddr limit rate over 5/second burst 20 packets } drop"
 	if !strings.Contains(got, limit) || !strings.Contains(got, "@wg_handshakes6 { ip6 saddr") ||
@@ -213,21 +214,14 @@ func TestRulesetSSHOff(t *testing.T) {
 	}
 }
 
-func TestIsLAN(t *testing.T) {
-	for addr, want := range map[string]bool{"192.168.86.20": true, "10.0.2.2": true, "100.96.0.5": true, "100.101.1.1": false,
-		"::ffff:192.168.1.5": true, "fe80::1": true, "8.8.8.8": false, "2001:db8::1": false} {
-		if got := IsLAN(netip.MustParseAddr(addr)); got != want {
-			t.Errorf("IsLAN(%s) = %v", addr, got)
-		}
-	}
-}
-
 func TestFirewallValidate(t *testing.T) {
 	for _, fw := range []Firewall{
 		{SSHFrom: "everyone"},
-		{SSHFrom: FromLAN, Allow: []Rule{{Port: 80, Proto: "sctp", From: FromAny}}},
-		{SSHFrom: FromLAN, Allow: []Rule{{Port: 80, Proto: "tcp", From: "internet"}}},
-		{SSHFrom: FromLAN, Allow: []Rule{{Port: 80, Proto: "tcp", From: FromAny, Reason: "x\"\n}"}}},
+		{SSHFrom: FromLAN, Allow: []Rule{{Port: 80, Proto: "sctp", For: trust.Anyone}}},
+		{SSHFrom: FromLAN, Allow: []Rule{{Port: 80, Proto: "tcp", For: "internet"}}},
+		{SSHFrom: FromLAN, Allow: []Rule{{Port: 80, Proto: "tcp", For: trust.Relay}}},
+		{SSHFrom: FromLAN, Allow: []Rule{{Port: 80, Proto: "tcp"}}},
+		{SSHFrom: FromLAN, Allow: []Rule{{Port: 80, Proto: "tcp", For: trust.Anyone, Reason: "x\"\n}"}}},
 	} {
 		if err := fw.Validate(); err == nil {
 			t.Errorf("expected an error for %+v", fw)

@@ -21,7 +21,6 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/firewall"
 	"roostack.cloud/roostack/internal/generate"
-	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/reconcile"
 	"roostack.cloud/roostack/internal/state"
@@ -379,50 +378,19 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	}
 
 	// The firewall follows the services, e.g. a package port just turned on.
-	if fw, ok := firewall.Desired(n.lab(a), desired.Services); ok && n.Firewall != nil {
-		// On the hub, a server still joining (a join code's one-time key)
-		// reaches only the lab API (SPEC.md §10.2).
-		n.mu.Lock()
-		servers := n.labServers
-		n.mu.Unlock()
-		if lab := n.lab(a); servers != nil && lab.OverlayAddr != "" && !lab.IsNode() {
-			members, err := servers(ctx)
-			if err != nil {
-				return fmt.Errorf("listing the lab's servers: %w", err)
-			}
-			fw.JoinPort, fw.Members = labnet.Port, members
+	roles := firewall.Roles{Store: a.Storage != nil, ProxyPorts: a.ProxyPorts, GuestAddr: a.GuestAddr, Guests: a.Guests,
+		LinksListen: a.Links != nil && a.Links.Listen}
+	n.mu.Lock()
+	servers := n.labServers
+	n.mu.Unlock()
+	if lab := n.lab(a); servers != nil && n.Firewall != nil && lab.OverlayAddr != "" && !lab.IsNode() && lab.Firewall.SSH != "" {
+		members, err := servers(ctx)
+		if err != nil {
+			return fmt.Errorf("listing the lab's servers: %w", err)
 		}
-		if a.Storage != nil {
-			for _, port := range []int{generate.StoragePort, generate.StorageAdminPort} {
-				fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", Iface: agent.WireGuardInterface,
-					Reason: "backup store"})
-			}
-		}
-		for _, port := range a.ProxyPorts {
-			fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", Iface: agent.WireGuardInterface,
-				Reason: "backups to another lab"})
-		}
-		// Other labs reach only the guest API and each its own store
-		// (SPEC.md §6.10); the agent drops everything else from them.
-		if a.GuestAddr != "" {
-			fw.Allow = append(fw.Allow,
-				agent.Rule{Port: agent.GuestsPort, Proto: "udp", From: agent.FromAny, Reason: "storage for other labs (wireguard)"},
-				agent.Rule{Port: labnet.GuestAPIPort, Proto: "tcp", Iface: agent.GuestsInterface, Reason: "storage for other labs"})
-			for _, g := range a.Guests {
-				if g.Addr == "" {
-					continue // from an older controller: no way to tell it from other guests
-				}
-				for _, port := range []int{g.Port, g.Port + 1} {
-					fw.Allow = append(fw.Allow, agent.Rule{Port: port, Proto: "tcp", Iface: agent.GuestsInterface,
-						Source: g.Addr, Reason: "storage for " + g.User})
-				}
-			}
-		}
-		// Other servers dial this one directly for backups to its disk.
-		if a.Links != nil && a.Links.Listen {
-			fw.Allow = append(fw.Allow, agent.Rule{Port: agent.WireGuardPort, Proto: "udp", From: agent.FromAny,
-				Reason: "roostack direct links between servers"})
-		}
+		roles.Hub, roles.Members = true, members
+	}
+	if fw, ok := firewall.Desired(n.lab(a), desired.Services, roles); ok && n.Firewall != nil {
 		act.Step("Updating the firewall")
 		if err := n.Firewall.ApplyFirewall(ctx, fw); err != nil {
 			return fmt.Errorf("applying the firewall: %w", err)

@@ -15,24 +15,33 @@ import (
 	"net/netip"
 	"slices"
 	"strings"
+
+	"roostack.cloud/roostack/internal/trust"
 )
 
 // PrivateRanges are the client networks allowed to reach private routes
 // in a lab at home: Caddy's private_ranges (RFC1918, loopback, ULA) plus
-// the CGNAT range 100.64.0.0/10 used by Tailscale and Roostack's network,
-// written out without the ranges of other labs storing backups here
-// (100.100.0.0/14) and Roostack Cloud's relay (100.81.0.0/16), which are
-// never private (SPEC.md §6.10). The same as agent.LANRanges (a test
-// checks); see docs/ASSUMPTIONS.md C4/C5.
-const PrivateRanges = "private_ranges 100.64.0.0/12 100.80.0.0/16 100.82.0.0/15 100.84.0.0/14 100.88.0.0/13 " +
-	"100.96.0.0/14 100.104.0.0/13 100.112.0.0/12"
+// the home network's part of the CGNAT range 100.64.0.0/10 (Tailscale),
+// from trust.HomeRanges, the firewall's home network too (SPEC.md §6.10;
+// docs/ASSUMPTIONS.md C4/C5).
+var PrivateRanges = privateRanges()
+
+func privateRanges() string {
+	out := []string{"private_ranges"}
+	for _, p := range trust.HomeRanges {
+		if trust.CGNATRange.Overlaps(p) {
+			out = append(out, p.String())
+		}
+	}
+	return strings.Join(out, " ")
+}
 
 // EdgePort is where the lab's edges reach the controller's Caddy (SPEC.md
 // §10.5): a listener of its own, which believes their PROXY headers and
 // whose sites count every visitor as outside, so a header claiming a home
 // address reaches nothing private (review H4). The firewall sends edges'
-// connections to 443 here (agent.EdgePort, the same number).
-const EdgePort = 8474
+// connections to 443 here.
+const EdgePort = trust.EdgePort
 
 // EdgeVar is set on requests that came through an edge (the edge
 // listener's sites), and every private check counts them as outside.

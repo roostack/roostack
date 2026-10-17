@@ -20,6 +20,7 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/trust"
 )
 
 // requireWizard allows the setup wizard to the Owner.
@@ -213,7 +214,7 @@ func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[str
 	var clients []sshClient
 	cutByLAN := false
 	for _, c := range a.Clients {
-		lan := agent.IsLAN(c)
+		lan := trust.IsHome(c)
 		clients = append(clients, sshClient{Addr: c.String(), LAN: lan, CutByLAN: !lan})
 		cutByLAN = cutByLAN || !lan
 	}

@@ -6,6 +6,8 @@ import (
 	"net/netip"
 	"slices"
 	"strings"
+
+	"roostack.cloud/roostack/internal/trust"
 )
 
 // Firewall is the desired inbound firewall (SPEC.md §6.10). Everything not
@@ -33,92 +35,33 @@ type Firewall struct {
 // EdgePort is Caddy's listener for visitors through the lab's edges, whose
 // sites count everyone as outside (caddy.EdgePort, the same number): a
 // PROXY header can't claim a home address there (review H4).
-const EdgePort = 8474
+const EdgePort = trust.EdgePort
 
-// Rule allows one inbound port.
+// Rule allows one inbound port to one trust class (internal/trust).
 type Rule struct {
 	Port  int    `json:"port"`
 	Proto string `json:"proto"` // tcp or udp
-	From  string `json:"from"`  // lan or any
-	// Iface limits the rule to traffic arriving on an interface; only
-	// Roostack's WireGuard interfaces are allowed.
-	Iface string `json:"iface,omitempty"`
-	// Source limits an interface's rule to one address on it (a guest
-	// lab reaches only its own store, SPEC.md §10.10).
+	// For is who reaches it: trust.Anyone, trust.Home, trust.Servers
+	// (the lab's servers, on Roostack's network) or trust.Guests (other
+	// labs storing backups here).
+	For trust.Class `json:"for"`
+	// Source limits a guests' rule to one address (a guest lab reaches
+	// only its own store, SPEC.md §10.10).
 	Source string `json:"source,omitempty"`
 	// Reason is shown in the generated file, e.g. "caddy https".
 	Reason string `json:"reason"`
 }
 
-// Source values.
+// SSHFrom values.
 const (
-	FromLAN = "lan"
-	FromAny = "any"
-	FromOff = "off" // SSHFrom only
+	FromLAN = string(trust.Home)
+	FromAny = string(trust.Anyone)
+	FromOff = "off"
 )
-
-// CGNATRange is the shared address space (RFC 6598) Tailscale uses, and
-// Roostack's own WireGuard networks are inside.
-var CGNATRange = netip.MustParsePrefix("100.64.0.0/10")
-
-// LANRanges are the "home network" (and VPN) sources: the private ranges,
-// and the CGNAT range (Tailscale, Roostack's network) except other labs
-// (GuestRange) and Roostack Cloud's relay (RelayRange), which are never
-// home (SPEC.md §6.10). They match caddy.PrivateRanges (docs/ASSUMPTIONS.md
-// C5).
-var LANRanges = slices.Concat(
-	[]netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("172.16.0.0/12"),
-		netip.MustParsePrefix("192.168.0.0/16")},
-	Without(CGNATRange, GuestRange, RelayRange),
-	[]netip.Prefix{netip.MustParsePrefix("fc00::/7"), netip.MustParsePrefix("fe80::/10")},
-)
-
-// Without returns the ranges covering p except holes, as few as it can.
-func Without(p netip.Prefix, holes ...netip.Prefix) []netip.Prefix {
-	p = p.Masked()
-	split := false
-	for _, h := range holes {
-		switch {
-		case h.Bits() <= p.Bits() && h.Contains(p.Addr()):
-			return nil // the hole covers p
-		case h.Bits() > p.Bits() && p.Contains(h.Addr()):
-			split = true
-		}
-	}
-	if !split {
-		return []netip.Prefix{p}
-	}
-	// Halve p and look at each half.
-	lo := netip.PrefixFrom(p.Addr(), p.Bits()+1)
-	hi := netip.PrefixFrom(lastAddr(lo).Next(), p.Bits()+1)
-	return append(Without(lo, holes...), Without(hi, holes...)...)
-}
-
-// lastAddr is p's last address.
-func lastAddr(p netip.Prefix) netip.Addr {
-	b := p.Masked().Addr().AsSlice()
-	for i := p.Bits(); i < len(b)*8; i++ {
-		b[i/8] |= 0x80 >> (i % 8)
-	}
-	a, _ := netip.AddrFromSlice(b)
-	return a
-}
-
-// IsLAN reports whether addr is on the home network (or a VPN) as the
-// firewall sees it.
-func IsLAN(addr netip.Addr) bool {
-	addr = addr.Unmap()
-	for _, p := range LANRanges {
-		if p.Contains(addr) {
-			return true
-		}
-	}
-	return false
-}
 
 func lanElements(v6 bool) string {
 	var out []string
-	for _, p := range LANRanges {
+	for _, p := range trust.HomeRanges {
 		if p.Addr().Is6() == v6 {
 			out = append(out, p.String())
 		}
@@ -130,9 +73,9 @@ func lanElements(v6 bool) string {
 // what is private), SSH from the LAN only.
 func DefaultFirewall() Firewall {
 	return Firewall{SSHFrom: FromLAN, Allow: []Rule{
-		{Port: 80, Proto: "tcp", From: FromAny, Reason: "caddy http (redirects to https)"},
-		{Port: 443, Proto: "tcp", From: FromAny, Reason: "caddy https"},
-		{Port: 443, Proto: "udp", From: FromAny, Reason: "caddy http/3"},
+		{Port: 80, Proto: "tcp", For: trust.Anyone, Reason: "caddy http (redirects to https)"},
+		{Port: 443, Proto: "tcp", For: trust.Anyone, Reason: "caddy https"},
+		{Port: 443, Proto: "udp", For: trust.Anyone, Reason: "caddy http/3"},
 	}}
 }
 
@@ -149,15 +92,13 @@ func (f Firewall) Validate() error {
 		if r.Proto != "tcp" && r.Proto != "udp" {
 			errs = append(errs, fmt.Errorf("allow[%d]: proto must be tcp or udp", i))
 		}
-		if r.From != FromLAN && r.From != FromAny && !(r.Iface != "" && r.From == "") {
-			errs = append(errs, fmt.Errorf("allow[%d]: from must be %q or %q", i, FromLAN, FromAny))
-		}
-		if r.Iface != "" && !ValidInterface(r.Iface) {
-			errs = append(errs, fmt.Errorf("allow[%d]: iface must be one of Roostack's WireGuard interfaces", i))
+		if !r.For.Ruled() {
+			errs = append(errs, fmt.Errorf("allow[%d]: for must be %q, %q, %q or %q", i, trust.Anyone, trust.Home,
+				trust.Servers, trust.Guests))
 		}
 		if r.Source != "" {
-			if a, err := netip.ParseAddr(r.Source); err != nil || r.Iface == "" || !rangeFor(r.Iface).Contains(a) {
-				errs = append(errs, fmt.Errorf("allow[%d]: source must be an address on the rule's interface", i))
+			if a, err := netip.ParseAddr(r.Source); err != nil || r.For != trust.Guests || !trust.GuestRange.Contains(a) {
+				errs = append(errs, fmt.Errorf("allow[%d]: source must be a guest lab's address", i))
 			}
 		}
 		if strings.ContainsFunc(r.Reason, func(c rune) bool { return c < ' ' || c == '"' || c == '\\' }) {
@@ -178,8 +119,8 @@ func (f Firewall) Validate() error {
 		}
 	}
 	for i, r := range f.Forward {
-		if r.Port < 1 || r.Port > 65535 || r.Proto != "tcp" || r.Iface != WireGuardInterface || r.From != "" {
-			errs = append(errs, fmt.Errorf("forward[%d]: only a TCP port between Roostack's servers (iface %q)", i, WireGuardInterface))
+		if r.Port < 1 || r.Port > 65535 || r.Proto != "tcp" || r.For != trust.Servers || r.Source != "" {
+			errs = append(errs, fmt.Errorf("forward[%d]: only a TCP port between Roostack's servers (for %q)", i, trust.Servers))
 		}
 		if strings.ContainsFunc(r.Reason, func(c rune) bool { return c < ' ' || c == '"' || c == '\\' }) {
 			errs = append(errs, fmt.Errorf("forward[%d]: invalid characters in reason", i))
@@ -249,7 +190,7 @@ func (f Firewall) Ruleset() string {
 	// addresses are never home, but nothing on these interfaces should
 	// depend on that.
 	for _, r := range f.Allow {
-		if r.Iface != "" && r.Iface != WireGuardInterface {
+		if r.For == trust.Guests {
 			fmt.Fprintf(&b, "\t\t# %s\n", r.Reason)
 			fmt.Fprintf(&b, "\t\t%s\n", r.match("accept"))
 		}
@@ -263,11 +204,9 @@ func (f Firewall) Ruleset() string {
 	// conntrack doesn't pair with the multicast request.
 	b.WriteString("\t\tip6 saddr fe80::/10 udp dport 546 accept\n\n")
 
-	rules := slices.DeleteFunc(slices.Clone(f.Allow), func(r Rule) bool {
-		return r.Iface != "" && r.Iface != WireGuardInterface
-	})
+	rules := slices.DeleteFunc(slices.Clone(f.Allow), func(r Rule) bool { return r.For == trust.Guests })
 	if f.SSHFrom != FromOff {
-		rules = append(rules, Rule{Port: 22, Proto: "tcp", From: f.SSHFrom, Reason: "ssh"})
+		rules = append(rules, Rule{Port: 22, Proto: "tcp", For: trust.Class(f.SSHFrom), Reason: "ssh"})
 	}
 	slices.SortStableFunc(rules, func(a, b Rule) int {
 		if a.Port != b.Port {
@@ -277,13 +216,13 @@ func (f Firewall) Ruleset() string {
 	})
 	for _, r := range rules {
 		fmt.Fprintf(&b, "\t\t# %s\n", r.Reason)
-		if r.Proto == "udp" && r.Iface == "" && (r.Port == WireGuardPort || r.Port == GuestsPort) {
+		if r.Proto == "udp" && r.For == trust.Anyone && (r.Port == WireGuardPort || r.Port == GuestsPort) {
 			wireguardLimit(&b, r.Port)
 		}
-		switch {
-		case r.Iface != "":
+		switch r.For {
+		case trust.Servers:
 			fmt.Fprintf(&b, "\t\t%s\n", r.match("accept"))
-		case r.From == FromLAN:
+		case trust.Home:
 			fmt.Fprintf(&b, "\t\tip saddr @lan4 %s dport %d accept\n", r.Proto, r.Port)
 			fmt.Fprintf(&b, "\t\tip6 saddr @lan6 %s dport %d accept\n", r.Proto, r.Port)
 		default:
@@ -318,7 +257,12 @@ func (f Firewall) Ruleset() string {
 
 // otherLabs are the interfaces to other labs: guests storing here, and
 // this lab's links to their storage (nftables matches the name's prefix).
-var otherLabs = []string{GuestsInterface, "roostack-st*"}
+var otherLabs = []string{GuestsInterface, trust.StoreLinks}
+
+// iface is the interface a rule's class arrives on, if it has one.
+func (r Rule) iface() string {
+	return map[trust.Class]string{trust.Servers: WireGuardInterface, trust.Guests: GuestsInterface}[r.For]
+}
 
 // match renders an interface rule's nftables match and verdict.
 func (r Rule) match(verdict string) string {
@@ -329,7 +273,7 @@ func (r Rule) match(verdict string) string {
 			from = fmt.Sprintf("ip6 saddr %s ", a)
 		}
 	}
-	return fmt.Sprintf("iifname %q %s%s dport %d %s", r.Iface, from, r.Proto, r.Port, verdict)
+	return fmt.Sprintf("iifname %q %s%s dport %d %s", r.iface(), from, r.Proto, r.Port, verdict)
 }
 
 // notMember matches traffic on Roostack's network from anyone but the

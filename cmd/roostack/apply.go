@@ -81,17 +81,14 @@ func apply(args []string) error {
 		return err
 	}
 	fmt.Print(plan)
-	fw, fwOK := firewall.Desired(lab, desired.Services)
+	fw, fwOK := firewall.Desired(lab, desired.Services, firewall.Roles{})
 	if fwOK {
+		// Each rule names its trust class (internal/trust): any, lan (the
+		// home network), servers (the lab's, on Roostack's network) or
+		// guests (other labs storing backups here).
 		fmt.Printf("Firewall: SSH from %s", fw.SSHFrom)
 		for _, rule := range fw.Allow {
-			// A rule for one interface (Roostack's WireGuard network) has
-			// no source: anything arriving on that interface may use it.
-			if rule.Iface != "" {
-				fmt.Printf(", %d/%s on %s", rule.Port, rule.Proto, rule.Iface)
-			} else {
-				fmt.Printf(", %d/%s from %s", rule.Port, rule.Proto, rule.From)
-			}
+			fmt.Printf(", %d/%s for %s", rule.Port, rule.Proto, rule.For)
 		}
 		fmt.Println()
 	}

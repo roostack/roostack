@@ -57,6 +57,7 @@ Key packages:
 | `cloudapi` (top level, public) | The lab ↔ Cloud API contract, imported by Cloud's repository too |
 | `awssig` (top level, public) | AWS Signature Version 4 with the standard library only (Route 53, S3-compatible storage); Cloud signs Wasabi's STS and S3 calls with it |
 | `cloud` | The controller's link to Roostack Cloud (linking, its certificate, unlinking); `cloudtest` fakes Cloud's side for tests |
+| `trust` | Who a connection comes from and what each class may reach: the firewall and Caddy's private list both read it |
 | `units` | The one size formatter (decimal: 1 GB = 1000³ bytes) |
 
 Where things live on a host: see the table in [README.md](README.md). Paths come from `config.Paths`; never hard-code `/srv/roostack` or `/var/lib/roostack` outside `config`.

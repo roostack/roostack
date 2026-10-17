@@ -354,7 +354,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Edges reach Caddy on its own listener (8474), where every visitor is outside whatever its PROXY header says; port 443 believes no header; the firewall sends the relay's and the lab's edges' 443 there, so Cloud's edges need no change (H4, ASSUMPTIONS Q12)
   - [x] On the hub, a server still joining (a join code's one-time key) reaches only the lab API; a joining server's name loses control characters (M23, the cheap part)
   - [ ] Lab servers as their own trust class (M23, proposal): take Roostack's network (100.96.0.0/16) out of the home set, so other servers (a cheap VPS, the edge) reach the lab API, node web ports, stores and the edge listener, but not the UI, private routes or SSH over the overlay. To decide with the user: whether anyone relies on reaching private routes over the overlay (a service on a node calling another service by name)
-  - [ ] One place for trust classes (review §6): the agent's ruleset, `internal/firewall.Desired`, `node.Local`'s inline rules and Caddy's list still each say part of it
+  - [x] One place for trust classes (review §6): `internal/trust` defines the classes (by interface and address) and what each reaches; firewall rules name a class (`Rule.For`), `firewall.Desired` builds every rule (`node.Local`'s inline ones moved there as `Roles`), and Caddy's private list is made from `trust.HomeRanges`. A test runs a source of every class through an evaluator of the generated nftables rules against `trust.May`, another checks Caddy's list against `trust.IsHome`
 
 ## Service registry (SPEC §8.3, mostly decided 2026-10-13)
 
