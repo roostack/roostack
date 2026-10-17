@@ -20,8 +20,9 @@
         <small>{{.Why}}</small></li>{{end}}
     </ul>
     {{if .Removed}}
-    <p>Only {{call $.OrList .Writers}} could have put them there. If this happens again, one of them may have been taken over:
-      check what runs there, and who can sign in.</p>
+    <p>Only {{call $.OrList .Writers}} could have put them there. If this happens again,
+      {{if eq (len .Writers) 1}}{{index .Writers 0}}{{else}}one of them{{end}} may have been taken over: check what runs there, and who
+      can sign in.</p>
     {{else}}
     {{with .Err}}{{notice "warn" .}}{{end}}
     <p>Until they're gone, backups there fail. Delete the files marked "not removed" from inside that folder, with the storage's own

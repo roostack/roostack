@@ -172,10 +172,17 @@ func (m *Manager) checkJunk(ctx context.Context, act *activity.Log, t store.Back
 	}
 }
 
-// junkWhere names a repository for people.
+// junkWhere names a repository for people, in the middle of a sentence
+// ("… backups on this server's own disk").
 func (m *Manager) junkWhere(ctx context.Context, t store.BackupTarget) string {
 	choices, _ := m.BackupChoices(ctx)
-	return m.destinationTitle(ctx, t.ServerID, t.Provider, t.Repository, choices)
+	title := m.destinationTitle(ctx, t.ServerID, t.Provider, t.Repository, choices)
+	for _, w := range []string{"This ", "The ", "A "} {
+		if rest, ok := strings.CutPrefix(title, w); ok {
+			return strings.ToLower(w) + rest
+		}
+	}
+	return title
 }
 
 // junkWriters are who could have written to a server's repository: the

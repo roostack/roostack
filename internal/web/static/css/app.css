@@ -531,6 +531,8 @@ ul.guests .row-split > strong { flex: 1 1 10em; } /* the buttons go underneath w
 ul.guests .guest-space { margin: var(--space-2) 0 var(--space-1); }
 ul.plain { list-style: none; padding: 0; margin: var(--space-2) 0; }
 ul.plain li { margin: var(--space-2) 0; }
+/* Long names (repository files, addresses) wrap rather than overflow on a phone. */
+ul.plain code { overflow-wrap: anywhere; }
 
 /* ---------- Disclosure (details) ---------- */
 details > summary { cursor: pointer; color: var(--muted); font-size: var(--text-sm); }
