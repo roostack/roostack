@@ -230,6 +230,12 @@ func describe(err error) string {
 func (f *Finder) open(ctx context.Context, p place) (*Found, error) {
 	url, env := p.url, p.env
 	repo := f.OpenRepo(url, env)
+	// A fresh server has no key hints: find which key opens it once, so
+	// the commands after this one (here and in Restore) try only that one,
+	// however slow a key someone added (SPEC.md §10.10 "Key hints").
+	if err := repo.LearnKey(ctx); err != nil {
+		return nil, err
+	}
 	snaps, err := repo.Snapshots(ctx, backup.TagRoostack, backup.TagServer)
 	if err != nil {
 		return nil, err
