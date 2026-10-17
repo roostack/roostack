@@ -755,6 +755,15 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
 .plan-body p { margin: 0 0 var(--space-1); }
 .plan-title { font-weight: 600; }
 .plan-slot .plan-title { color: var(--muted); }
+/* On a phone a card's body takes the card's whole width: the number sits
+   beside the title only, and an open disclosure's indent is smaller. */
+@media (max-width: 640px) {
+  .plan-card:not(.plan-slot) { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center;
+    padding: var(--space-3); }
+  .plan-card:not(.plan-slot) > .plan-body { display: contents; }
+  .plan-card:not(.plan-slot) > .plan-body > :not(.plan-title) { grid-column: 1 / -1; }
+  .plan-card .plan-body details[open] > :not(summary) { margin-left: 0; padding-left: var(--space-2); }
+}
 .space-low { color: var(--warn); font-weight: 600; }
 .space-bar { display: flex; height: 10px; border-radius: var(--radius-pill); background: var(--surface-2); overflow: hidden;
   border: 1px solid var(--border); margin: var(--space-1) 0 var(--space-2); max-width: 28rem; }
