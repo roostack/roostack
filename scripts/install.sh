@@ -75,6 +75,8 @@ main() {
 # accepts a new series on the Updates page, Roostack changes Suites to it.
 # You may point URIs at a mirror; keep Signed-By, which checks that the
 # packages are Roostack's.
+# scripts/install.sh writes these same bytes before installing Roostack:
+# change both together, or dpkg asks about this file on a fresh install.
 Types: deb
 URIs: $REPO
 Suites: $SUITE
