@@ -193,6 +193,15 @@ func TestCancelAndUnreachable(t *testing.T) {
 	if s.Status().Waiting != nil || len(f.Codes()) != 0 {
 		t.Fatalf("still waiting: %+v %v", s.Status(), f.Codes())
 	}
+	// The name an attempt asked for is kept once it ends without a link,
+	// until the next one starts.
+	if _, err := s.Start(context.Background(), "smiths", ""); err != nil || s.Status().TriedName != "" {
+		t.Fatalf("start: %v, tried %q", err, s.Status().TriedName)
+	}
+	s.Cancel(context.Background())
+	if s.Status().TriedName != "smiths" {
+		t.Errorf("cancelled: tried %q", s.Status().TriedName)
+	}
 	a, err := s.NameAvailable(context.Background(), "taken")
 	if err != nil || a.Available || a.Reason == "" {
 		t.Fatalf("taken: %+v %v", a, err)

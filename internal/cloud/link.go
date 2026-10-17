@@ -73,6 +73,9 @@ type Service struct {
 	// startErr is why the last attempt to start linking failed;
 	// addrErr why the roost.ac name asked for couldn't be set up.
 	startErr, addrErr string
+	// triedName is the roost.ac name an attempt that didn't link asked
+	// for (failed, expired, or cancelled here or in Cloud).
+	triedName string
 
 	// UseName makes a claimed roost.ac name the lab's address (it saves
 	// it and restarts Roostack); called when a link asked for a name.
@@ -179,9 +182,11 @@ type Status struct {
 	CertFingerprint      string
 	CertIssued, CertEnds time.Time
 	// Waiting is a link being made; StartError why the last one didn't
-	// start.
+	// start. TriedName is the roost.ac name the last attempt asked for,
+	// if it didn't link, so the address step can offer it again.
 	Waiting    *Waiting
 	StartError string
+	TriedName  string
 	// Dir is where the link is kept; URL is Cloud's address.
 	Dir, URL string
 }
@@ -203,7 +208,7 @@ func (s *Service) Status() Status {
 		LastContact: s.st.LastContact, LastTry: s.st.LastTry, LastError: s.st.LastError,
 		Refused:   s.st.Refused,
 		Forgotten: s.st.Forgotten, ForgottenAccount: s.st.ForgottenAccount,
-		StartError: s.startErr, Dir: s.dir, URL: s.cfg.Address()}
+		StartError: s.startErr, TriedName: s.triedName, Dir: s.dir, URL: s.cfg.Address()}
 	if s.cert != nil && s.cert.Leaf != nil {
 		sum := sha256.Sum256(s.cert.Leaf.Raw)
 		st.CertFingerprint = strings.ToUpper(hex.EncodeToString(sum[:8]))
@@ -274,7 +279,7 @@ func (s *Service) Start(ctx context.Context, name, returnURL string) (string, er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err != nil {
-		s.startErr = err.Error()
+		s.startErr, s.triedName = err.Error(), name
 		return "", err
 	}
 	if s.pending != nil {
@@ -282,7 +287,7 @@ func (s *Service) Start(ctx context.Context, name, returnURL string) (string, er
 	}
 	pctx, cancel := context.WithDeadline(context.Background(), started.Expires)
 	p := &pending{key: key, name: name, started: started, cancel: cancel}
-	s.pending, s.startErr = p, ""
+	s.pending, s.startErr, s.triedName = p, "", ""
 	go s.poll(pctx, p)
 	return started.OpenURL, nil
 }
@@ -308,7 +313,7 @@ func (s *Service) poll(ctx context.Context, p *pending) {
 		case <-ctx.Done():
 			s.mu.Lock()
 			if s.pending == p {
-				s.pending = nil
+				s.pending, s.triedName = nil, p.name
 				if !s.st.Linked && ctx.Err() == context.DeadlineExceeded {
 					s.startErr = "The code expired before it was confirmed in Roostack Cloud. Try again."
 				}
@@ -337,14 +342,14 @@ func (s *Service) poll(ctx context.Context, p *pending) {
 			if err := s.linked(p, ls); err != nil {
 				s.log.Error("Roostack Cloud: linking", "err", err)
 				s.mu.Lock()
-				s.pending, s.startErr = nil, "Linking didn't finish: "+err.Error()
+				s.pending, s.startErr, s.triedName = nil, "Linking didn't finish: "+err.Error(), p.name
 				s.mu.Unlock()
 			}
 			return
 		case cloudapi.StateExpired:
 			s.mu.Lock()
 			if s.pending == p {
-				s.pending, s.startErr = nil, "Linking was cancelled, or the code expired, in Roostack Cloud. Try again."
+				s.pending, s.startErr, s.triedName = nil, "Linking was cancelled, or the code expired, in Roostack Cloud. Try again.", p.name
 			}
 			s.mu.Unlock()
 			return
@@ -371,7 +376,7 @@ func (s *Service) linked(p *pending, ls cloudapi.LinkStatus) error {
 		return err
 	}
 	now := s.now()
-	s.cert, s.pending = cert, nil
+	s.cert, s.pending, s.triedName = cert, nil, ""
 	s.client.renewed()
 	s.st = linkState{Linked: true, LabInfo: ls.LabInfo, Name: p.name, Since: now, LastContact: now}
 	s.log.Info("Roostack Cloud: lab linked", "account", ls.Account, "lab", ls.LabID)
@@ -488,6 +493,9 @@ func (s *Service) Cancel(ctx context.Context) {
 	s.mu.Lock()
 	p := s.pending
 	s.pending, s.startErr = nil, ""
+	if p != nil {
+		s.triedName = p.name
+	}
 	s.mu.Unlock()
 	if p == nil {
 		return
