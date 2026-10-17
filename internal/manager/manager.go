@@ -155,6 +155,8 @@ type Manager struct {
 	relayMu  sync.Mutex
 	relayGen uint64
 	relayWG  sync.WaitGroup
+	// pulls are when each server last fetched its assignment (servers.go).
+	pulls pullTimes
 }
 
 // CatalogItem is one package in the catalog.

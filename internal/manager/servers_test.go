@@ -336,3 +336,55 @@ func TestServiceFiles(t *testing.T) {
 		t.Errorf("an unknown service: %v", err)
 	}
 }
+
+// pendingRemote is a server that keeps its latest assignment, as
+// node.Remote does, for fetching.
+type pendingRemote struct {
+	*fakeRemote
+}
+
+func (p pendingRemote) Pending() (node.WireAssignment, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.n == 0 {
+		return node.WireAssignment{}, false
+	}
+	return node.WireAssignment{Version: int64(p.n)}, true
+}
+
+// A server fetching its assignment gets the latest one; assignments are
+// built only when there's none, and fetching again at once is refused
+// (M26 of the 2026-10-16 review).
+func TestPendingFor(t *testing.T) {
+	m, _ := newManager(t)
+	vps := pendingRemote{&fakeRemote{settings: &fakeServerSettings{}}}
+	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
+	defer func(g time.Duration) { pullGap = g }(pullGap)
+	pullGap = time.Hour
+
+	// None yet (the controller just started): it's built.
+	w, err := m.PendingFor("n-0000000002")
+	m.Wait()
+	if err != nil || w.Version != 1 {
+		t.Fatalf("first fetch: %+v %v", w, err)
+	}
+	if _, err := m.PendingFor("n-0000000002"); !errors.Is(err, ErrPullTooSoon) {
+		t.Errorf("fetching again at once: %v", err)
+	}
+	if _, err := m.PendingFor("n-0000000009"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a server not in the lab: %v", err)
+	}
+	// Later fetches get the latest without applying anew.
+	pullGap = 0
+	for range 5 {
+		if w, err := m.PendingFor("n-0000000002"); err != nil || w.Version != 1 {
+			t.Fatalf("later fetch: %+v %v", w, err)
+		}
+	}
+	m.Wait()
+	vps.mu.Lock()
+	defer vps.mu.Unlock()
+	if vps.n != 1 {
+		t.Errorf("fetches applied %d times, want once", vps.n)
+	}
+}

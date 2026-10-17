@@ -3,6 +3,7 @@ package manager
 import (
 	"cmp"
 	"context"
+	"errors"
 	"slices"
 	"strconv"
 	"strings"
@@ -375,21 +376,59 @@ func (m *Manager) ServiceStates(ctx context.Context) map[string]ServiceState {
 	return out
 }
 
-// PendingFor returns the assignment a server fetches when it starts
-// (SPEC.md §10.3: nodes pull), building fresh assignments first.
-func (m *Manager) PendingFor(id string) (node.WireAssignment, bool) {
-	m.Apply()
+// pullGap is the least time between two assignment fetches by one server
+// (M26 of the 2026-10-16 review). A server fetches when it starts, every
+// 15 minutes, and every 30 seconds while fetching fails.
+var pullGap = 10 * time.Second
+
+// ErrPullTooSoon refuses a server fetching its assignment again within
+// pullGap.
+var ErrPullTooSoon = errors.New("this server fetched its assignment moments ago; try again shortly")
+
+// pullTimes are when each server last fetched its assignment.
+type pullTimes struct {
+	mu   sync.Mutex
+	last map[string]time.Time
+}
+
+// PendingFor returns the assignment a server fetches when it starts and
+// every so often (SPEC.md §10.3: nodes pull): the latest one built for
+// it. Only when there's none yet (the controller restarted since) does it
+// build them, which applies on every server, so a taken-over server
+// asking again and again can't keep the controller reloading its
+// firewall; and a server asking within pullGap of its last fetch is
+// refused (ErrPullTooSoon). ErrNotFound for a server not in the lab.
+func (m *Manager) PendingFor(id string) (node.WireAssignment, error) {
+	m.pulls.mu.Lock()
+	if last, ok := m.pulls.last[id]; ok && time.Since(last) < pullGap {
+		m.pulls.mu.Unlock()
+		return node.WireAssignment{}, ErrPullTooSoon
+	}
+	if m.pulls.last == nil {
+		m.pulls.last = map[string]time.Time{}
+	}
+	m.pulls.last[id] = time.Now()
+	m.pulls.mu.Unlock()
+	type pending interface {
+		Pending() (node.WireAssignment, bool)
+	}
+	var p pending
 	for _, r := range m.others() {
-		if r.Identity().ID != id {
-			continue
-		}
-		if p, ok := r.(interface {
-			Pending() (node.WireAssignment, bool)
-		}); ok {
-			return p.Pending()
+		if r.Identity().ID == id {
+			p, _ = r.(pending)
 		}
 	}
-	return node.WireAssignment{}, false
+	if p == nil {
+		return node.WireAssignment{}, ErrNotFound
+	}
+	if w, ok := p.Pending(); ok {
+		return w, nil
+	}
+	m.Apply()
+	if w, ok := p.Pending(); ok {
+		return w, nil
+	}
+	return node.WireAssignment{}, ErrNotFound
 }
 
 // RemoveServer takes another server out of the lab. Its services must be
