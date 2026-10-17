@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -420,6 +421,28 @@ func (r *Repo) Forget(ctx context.Context, keep Retention) error {
 		"--keep-monthly", strconv.Itoa(keep.Monthly))
 	return err
 }
+
+// Unlock removes stale locks: those of a restic that crashed or was
+// killed (on this host and no longer running), or not refreshed for 30
+// minutes. Locks of a restic that's still running stay, so it's safe
+// while a server backs up. restic doesn't skip stale locks when it locks a
+// repository for itself, so without this a crashed backup blocks every
+// prune and check there for good (docs/ASSUMPTIONS.md N1). It returns how
+// many it removed.
+func (r *Repo) Unlock(ctx context.Context) (int, error) {
+	out, err := r.run(ctx, "unlock")
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	if m := unlockedRE.FindSubmatch(out); m != nil {
+		n, _ = strconv.Atoi(string(m[1]))
+	}
+	return n, nil
+}
+
+// unlockedRE is what restic unlock prints when it removed locks.
+var unlockedRE = regexp.MustCompile(`removed (\d+) locks?`)
 
 // ForgetSnapshots removes snapshots by ID, and the data only they used.
 func (r *Repo) ForgetSnapshots(ctx context.Context, ids ...string) error {

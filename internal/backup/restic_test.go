@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // These tests run the real restic binary when ROOSTACK_RESTIC_BIN is set (or
@@ -228,5 +229,50 @@ func TestCredentials(t *testing.T) {
 	out, err := r.run(context.Background(), "-c", "echo $AWS_SESSION_TOKEN")
 	if err != nil || strings.TrimSpace(string(out)) != "tok" {
 		t.Errorf("with keys: %q %v", out, err)
+	}
+}
+
+// A restic that's killed leaves its lock behind, which blocks a prune
+// until Unlock clears it; a running restic's lock stays
+// (docs/ASSUMPTIONS.md N1).
+func TestUnlockClearsStaleLocks(t *testing.T) {
+	r := testRepo(t)
+	ctx := context.Background()
+	if err := r.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// A backup reading from stdin holds its lock until stdin closes.
+	cmd := r.command(ctx, "backup", "--stdin", "--stdin-filename", "x")
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer stdin.Close()
+	locks := filepath.Join(r.URL, "locks")
+	for i := 0; ; i++ {
+		if entries, _ := os.ReadDir(locks); len(entries) > 0 {
+			break
+		}
+		if i == 100 {
+			t.Fatal("the backup didn't lock the repository")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if n, err := r.Unlock(ctx); err != nil || n != 0 {
+		t.Errorf("a running backup's lock must stay: removed %d, %v", n, err)
+	}
+	cmd.Process.Kill()
+	cmd.Wait()
+	if err := r.Forget(ctx, DefaultRetention); !errors.Is(err, ErrLocked) {
+		t.Fatalf("a killed backup's lock blocks a prune: %v", err)
+	}
+	if n, err := r.Unlock(ctx); err != nil || n != 1 {
+		t.Errorf("Unlock = %d, %v; want 1 removed", n, err)
+	}
+	if err := r.Forget(ctx, DefaultRetention); err != nil {
+		t.Errorf("prune after Unlock: %v", err)
 	}
 }

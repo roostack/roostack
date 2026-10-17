@@ -685,6 +685,16 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 					continue
 				}
 				act.Step("%s: keeping 7 daily, 4 weekly and 6 monthly", m.nameOf(t.ServerID))
+				// Stale locks first, or one crashed backup blocks every
+				// prune there (docs/ASSUMPTIONS.md N1); a running
+				// backup's lock stays.
+				if n, err := repo.Unlock(ctx); err != nil {
+					act.Printf("Couldn't clear old locks: %s", firstLine(err.Error()))
+				} else if n == 1 {
+					act.Printf("Cleared an old lock left by a backup that didn't finish")
+				} else if n > 1 {
+					act.Printf("Cleared %d old locks left by backups that didn't finish", n)
+				}
 				err = repo.Forget(ctx, backup.DefaultRetention)
 				switch {
 				case errors.Is(err, backup.ErrLocked) && try < pruneTries && m.Submit != nil:
