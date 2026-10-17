@@ -1,6 +1,10 @@
 package backup
 
-import "strings"
+import (
+	"net/url"
+	"regexp"
+	"strings"
+)
 
 // S3 is an S3-compatible provider (Backblaze B2, Wasabi, AWS, …) that any
 // of a lab's servers can back up to, each in its own folder (SPEC.md
@@ -48,3 +52,22 @@ func (s S3) Env() []string {
 func ServerFolder(base, labID, serverID string) string {
 	return strings.Trim(strings.Join([]string{strings.Trim(base, "/"), "roostack", labID, serverID}, "/"), "/")
 }
+
+// Region guesses the provider's region from its endpoint
+// (s3.us-west-004.backblazeb2.com, s3.eu-central-1.wasabisys.com, …),
+// which requests are signed for; us-east-1 if it doesn't say.
+func (s S3) Region() string {
+	u, err := url.Parse(s.Endpoint)
+	if err != nil {
+		return "us-east-1"
+	}
+	if strings.HasSuffix(u.Hostname(), ".r2.cloudflarestorage.com") {
+		return "auto"
+	}
+	if m := regionRE.FindStringSubmatch(u.Hostname()); m != nil {
+		return m[1]
+	}
+	return "us-east-1"
+}
+
+var regionRE = regexp.MustCompile(`^s3[.-]([a-z]{2,}-[a-z]+-\d+)\.`)

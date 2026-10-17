@@ -140,7 +140,9 @@ func (m *Manager) BackupChoices(ctx context.Context) ([]BackupChoice, error) {
 			continue
 		}
 		note := "Every server uses this account's key, which can delete what's there; each server uses its own folder."
-		switch {
+		switch c, checked := m.savedS3Check(d.s3); {
+		case d.kind == destS3 && !d.isB2() && checked && c.HidesOnly():
+			note = "Every server uses this account's key, in its own folder; the bucket keeps what's deleted, so it can be brought back."
 		case d.kind == destRemote:
 			note = fmt.Sprintf("Encrypted before it leaves; %s can't read it. Up to %s for this whole lab.", d.remote.HostName, sizeGB(d.remote.Quota))
 		case d.isB2():
@@ -366,8 +368,9 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 		if d.isB2() {
 			m.scopedB2Key(ctx, act, serverID, labID, s3, &target, &dest)
 		} else {
-			act.Printf("%s uses this account's key, which can delete its backups there: if %s were taken over, they could be deleted too.",
-				m.nameOf(serverID), m.nameOf(serverID))
+			// Whether what it deletes is kept (SPEC.md §10.10).
+			act.Step("Checking whether the bucket keeps what's deleted")
+			sayS3Check(act, m.checkS3(ctx, s3))
 		}
 	default:
 		return fail(fmt.Errorf("unknown backup destination %q", choice.Ref))
@@ -708,6 +711,7 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 			}
 			var errs []error
 			locked := map[string]bool{}
+			m.recheckS3(ctx, act, append(targets, copies...))
 			for _, t := range append(targets, copies...) {
 				if strings.HasPrefix(t.Provider, "setup") || (only != nil && !only[pruneKey(t)]) {
 					continue // set up before this, that server prunes it itself; or not a retry's
@@ -878,4 +882,20 @@ func DriveTitle(d agent.Drive) string {
 		return "Network share " + d.Name
 	}
 	return "Disk " + d.Name
+}
+
+// recheckS3 checks again, weekly, whether each S3 bucket (not Backblaze)
+// the lab backs up to keeps what's deleted (S3Check): its settings or
+// the key's permissions may have changed.
+func (m *Manager) recheckS3(ctx context.Context, act *activity.Log, targets []store.BackupTarget) {
+	seen := map[string]bool{}
+	for _, t := range targets {
+		d, err := m.destinationOf(ctx, t.Provider)
+		if err != nil || d.kind != destS3 || d.isB2() || seen[t.Provider] {
+			continue
+		}
+		seen[t.Provider] = true
+		act.Step("Checking whether %s keeps what's deleted", d.provider.Name)
+		sayS3Check(act, m.checkS3(ctx, d.s3))
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -67,6 +68,16 @@ type planEntry struct {
 	Path, Via      string
 	Host, HostName string
 	LinkFailed     bool
+	// RollbackAction is where rolling this backup back to an earlier time
+	// is posted, where the storage keeps old versions (Access.Versioned);
+	// RollbackOpen opens its form, RollbackBefore is the time in it
+	// (datetime-local's form). RollbackLog is the latest check or
+	// rollback (for an hour), and RollbackPlan a check that can be acted
+	// on.
+	RollbackAction, RollbackBefore string
+	RollbackOpen                   bool
+	RollbackLog                    *activityView
+	RollbackPlan                   *manager.RollbackPlan
 }
 
 // planSlot is an empty place in the plan, with a suggestion for it.
@@ -207,6 +218,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 			if a := s.activityFor(r, activity.BackupKeyFor(id)); a != nil && (a.Running() || time.Since(a.Finished) < time.Hour) {
 				e.KeyChange = a
 			}
+		}
+		if e.Access.Versioned && !wizard {
+			s.planRollback(r, m, &e)
 		}
 		if e.Kind == manager.KindServer {
 			e.AtHome, e.Away, e.AskWhere = s.backupPlace(ctx, m, strings.TrimPrefix(e.Ref, "server:"))
@@ -636,4 +650,88 @@ func (s *Server) renderPlanPage(w http.ResponseWriter, r *http.Request, wizard b
 	}
 	data["Error"] = msg
 	s.renderBackups(w, r, data)
+}
+
+// rollbackTime is how a time goes in a datetime-local field.
+const rollbackTime = "2006-01-02T15:04"
+
+// planRollback fills in rolling a backup back (SPEC.md §10.10): the form,
+// the latest check or rollback, and a check that can be acted on.
+func (s *Server) planRollback(r *http.Request, m serverRef, e *planEntry) {
+	e.RollbackAction = m.path("/backups/plan", "/backups/plan") + "/rollback"
+	e.RollbackOpen = r.FormValue("rollback") == e.Ref
+	if a := s.activityFor(r, activity.BackupRollbackFor(m.ID, e.Ref)); a != nil && (a.Running() || time.Since(a.Finished) < time.Hour) {
+		e.RollbackLog = a
+		e.RollbackOpen = e.RollbackOpen || a.Running()
+	}
+	before := time.Now().Add(-24 * time.Hour)
+	if p := s.Manager.RollbackChecked(m.ID, e.Ref); p != nil {
+		e.RollbackPlan, before = p, p.Before
+	} else if t, err := time.ParseInLocation(rollbackTime, r.FormValue("before"), time.Local); err == nil {
+		before = t
+	}
+	e.RollbackBefore = before.Local().Format(rollbackTime)
+}
+
+// planRollbackSubmit checks what putting one of a server's backups back
+// as it was at a time changes ("check"), or, once checked, does it
+// ("run"), in the background.
+func (s *Server) planRollbackSubmit(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil || s.serverOf(r) == nil {
+		http.NotFound(w, r)
+		return
+	}
+	m := s.serverRefOf(r)
+	ref := r.FormValue("destination")
+	if !s.planRefs(r, m)[ref] {
+		http.NotFound(w, r)
+		return
+	}
+	ctx := r.Context()
+	before, err := time.ParseInLocation(rollbackTime, r.FormValue("before"), time.Local)
+	if err != nil {
+		s.renderPlanPage(w, r, false, "Choose the date and time to go back to.")
+		return
+	}
+	run := r.FormValue("step") == "run"
+	if run {
+		err = s.Manager.RollBack(ctx, m.ID, ref, before)
+	} else {
+		err = s.Manager.CheckRollback(ctx, m.ID, ref, before)
+	}
+	if msg, ok := userMessage(err); ok {
+		s.renderPlanPage(w, r, false, msg)
+		return
+	}
+	if errors.Is(err, manager.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	if run {
+		s.Store.Audit(ctx, currentUser(r), "backup", "rolled "+m.Label()+"'s backups at "+ref+" back to "+before.Format(time.RFC3339))
+	}
+	redirect(w, r, m.Backups()+"?"+url.Values{"rollback": {ref}}.Encode()+"#plan-rollback-"+strconv.Itoa(s.planNumber(r, m, ref)))
+}
+
+// planNumber is a backup's number in a server's plan (2 for the main
+// backup, then its copies in order), as backupPlan numbers them.
+func (s *Server) planNumber(r *http.Request, m serverRef, ref string) int {
+	n := 2
+	if t, _, ok := s.Manager.BackupTargetOf(r.Context(), m.ID); ok {
+		if t.Provider == ref {
+			return n
+		}
+		n++
+	}
+	for _, c := range s.Manager.BackupCopiesOf(r.Context(), m.ID) {
+		if c.Ref == ref {
+			break
+		}
+		n++
+	}
+	return n
 }

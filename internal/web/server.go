@@ -228,6 +228,12 @@ type ServiceManager interface {
 	// LostMainBackup says whether a server's main backup was on a server
 	// that left the lab, while it has no new one.
 	LostMainBackup(ctx context.Context, serverID string) (store.LostBackup, bool)
+	// CheckRollback works out what putting a server's backups at online
+	// storage back as they were at a time changes; RollbackChecked is the
+	// latest check, and RollBack does it once checked (SPEC.md §10.10).
+	CheckRollback(ctx context.Context, serverID, ref string, before time.Time) error
+	RollbackChecked(serverID, ref string) *manager.RollbackPlan
+	RollBack(ctx context.Context, serverID, ref string, before time.Time) error
 }
 
 // LabRestores restores a service from any of the lab's backups, onto any
@@ -634,6 +640,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/servers/{server}/location", s.requireOwner(s.locationSubmit))
 	mux.Handle("POST /backups/plan/remove", s.requireOwner(s.planRemoveSubmit))
 	mux.Handle("POST /backups/plan/key", s.requireOwner(s.planKeySubmit))
+	mux.Handle("POST /backups/plan/rollback", s.requireOwner(s.planRollbackSubmit))
 	mux.Handle("POST /setup/backup/erase", s.requireWizard(s.eraseDriveSubmit))
 	mux.Handle("GET /setup/recovery-key", s.requireWizard(s.recoveryPage))
 	mux.Handle("POST /setup/recovery-key", s.requireWizard(s.recoveryConfirm))

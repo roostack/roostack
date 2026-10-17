@@ -32,6 +32,10 @@ const (
 	// BackupKey: giving Roostack a new key for an online storage account,
 	// and each server using it its new credentials (SPEC.md §10.10).
 	BackupKey = "backup-key"
+	// BackupRollback: checking what rolling a server's backups at online
+	// storage back to an earlier time changes, then doing it (SPEC.md
+	// §10.10).
+	BackupRollback = "backup-rollback"
 	// LabRestore is rebuilding a lab from its backups on a new server.
 	LabRestore = "lab-restore"
 	// Build is building Roostack's Caddy image in the background.
@@ -44,6 +48,12 @@ func BackupSetupFor(serverID string) string { return BackupSetup + "." + serverI
 
 // BackupKeyFor is the BackupKey log of one account (its provider ID).
 func BackupKeyFor(providerID string) string { return BackupKey + "." + providerID }
+
+// BackupRollbackFor is the BackupRollback log of one server's backups at
+// one place (a reference such as "provider:1").
+func BackupRollbackFor(serverID, ref string) string {
+	return BackupRollback + "." + serverID + "." + ref
+}
 
 // maxLines is how many lines a log keeps; older ones are dropped.
 const maxLines = 2000

@@ -30,6 +30,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/registry"
+	"roostack.cloud/roostack/internal/s3api"
 	"roostack.cloud/roostack/internal/state"
 )
 
@@ -93,6 +94,9 @@ type Manager struct {
 	remoteSeen map[string]labnet.GuestUsage
 	// NewB2 makes a Backblaze client (tests; nil uses the real service).
 	NewB2 func(keyID, key string) *b2.Client
+	// NewS3 makes an S3 client for an online storage account (tests; nil
+	// uses the account's endpoint).
+	NewS3 func(s3 S3Provider) *s3api.Client
 	// Activity shows problems building an assignment (optional).
 	Activity *activity.Registry
 	// UpdateLab saves a change to lab.yaml (config.Update), for settings
