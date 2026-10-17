@@ -7,20 +7,30 @@
 # works until the Owner's account exists.
 
 TOKEN=/var/lib/roostack/setup-token
+CERT=/var/lib/roostack/setup-tls.crt
 PORT=8480
+SETUP_PORT=8443
 
-# Roostack writes the code when it first starts (postinst has just started
-# it), so give it a moment.
+# Roostack writes the code and the setup pages' certificate when it first
+# starts (postinst has just started it), so give it a moment.
 i=0
-while [ ! -s "$TOKEN" ] && [ $i -lt 30 ] && systemctl is-active --quiet roostack.service; do
+while { [ ! -s "$TOKEN" ] || [ ! -s "$CERT" ]; } && [ $i -lt 30 ] && systemctl is-active --quiet roostack.service; do
     sleep 1
     i=$((i + 1))
 done
 # Read as the roostack user, whose folder it is: as root, a symlink put
 # there would be followed. Only the characters a code has are kept, so
 # nothing else reaches the terminal (SPEC.md §6.1).
-code=$(setpriv --reuid=roostack --regid=roostack --clear-groups cat "$TOKEN" 2>/dev/null |
-    tr -cd 'A-Za-z0-9_-' | cut -c1-64)
+asroostack() { setpriv --reuid=roostack --regid=roostack --clear-groups "$@" 2>/dev/null; }
+code=$(asroostack cat "$TOKEN" | tr -cd 'A-Za-z0-9_-' | cut -c1-64)
+# The certificate's SHA-256 fingerprint, as browsers show it (AB:CD:…), in
+# two halves to fit the terminal (SPEC.md §6.3.2).
+pem=$(asroostack cat "$CERT" | sed '/-----/d')
+fp=
+if [ -n "$pem" ]; then
+    fp=$(echo "$pem" | base64 -d | sha256sum | cut -c1-64 | tr 'a-f' 'A-F' | sed 's/../&:/g; s/:$//')
+fi
+fp1=$(echo "$fp" | cut -c1-48) fp2=$(echo "$fp" | cut -c49-)
 
 # Colour only on a terminal, and never when NO_COLOR is set (no-color.org).
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-dumb}" != dumb ]; then
@@ -36,6 +46,12 @@ fi
 addr=$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')
 [ -n "$addr" ] || addr=$(hostname -I 2>/dev/null | awk '{print $1}')
 who=${SUDO_USER:-root}
+# The setup pages are served to the home network only: an address in a
+# private range (a cloud server's public one gets the SSH tunnel).
+home=
+case "$addr" in
+10.* | 192.168.* | 172.1[6-9].* | 172.2[0-9].* | 172.3[01].*) [ -s "$CERT" ] && [ -n "$fp" ] && home=$addr ;;
+esac
 
 cat <<MSG
 
@@ -57,7 +73,33 @@ MSG
     exit 0
 fi
 
-if [ -n "$code" ]; then
+if [ -n "$code" ] && [ -n "$home" ]; then
+    cat <<MSG
+${bold}Adding this server to a lab you already have?${off} Don't use the setup page:
+on your lab, go to Settings > Servers > Add a server, and run the command
+it gives you on this server.
+
+${bold}To set up a new lab${off}, open the setup page on a computer or phone on the
+same network as this server:
+
+    ${link}https://$home:$SETUP_PORT${off}
+
+Your browser warns that the connection isn't private: the page has its own
+certificate, made by this server. Check it's this one (the warning's
+details, or the padlock), then go on. Its SHA-256 fingerprint is:
+
+    $fp1
+    $fp2
+
+Then enter the setup code:  ${code_on} $code ${off}
+
+Or through SSH instead: from your computer, run this in a terminal, leave
+it open, and open ${link}http://127.0.0.1:$PORT${off}
+
+    ${link}ssh -L $PORT:127.0.0.1:$PORT $who@$home${off}
+
+MSG
+elif [ -n "$code" ]; then
     cat <<MSG
 ${bold}Adding this server to a lab you already have?${off} Don't use the setup page:
 on your lab, go to Settings > Servers > Add a server, and run the command

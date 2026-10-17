@@ -22,6 +22,7 @@ How the code fits together. For *why* things are the way they are, see [SPEC.md]
 
 - **`roostack`** (unprivileged, user `roostack`): web UI, desired state, generating and applying config. It owns every rootless container through the `roostack` user's systemd manager.
 - **`roostack-agent`** (root): a small, fixed set of privileged operations, reached over `/run/roostack-agent/agent.sock`. Callers are identified by the kernel (`SO_PEERCRED`); only root and `roostack` are accepted, and only from the host's own user namespace (not a container). It runs in a systemd sandbox that lets it write only where its jobs need (SPEC §6.1).
+- **During first-run setup**, `roostack` also listens on `:8443` (HTTPS, with a self-signed certificate made at its first start) for the setup pages only, to the home network only, and stops when setup is finished (`internal/web/firstrun.go`, SPEC §6.3.2).
 - **Caddy** (rootless container): the only thing listening on 80/443. It runs in its own pasta network namespace so it sees visitors' real IP addresses. It reaches routed containers, which are published on `127.0.0.1:<port>`, through pasta's loopback mapping (`169.254.1.3`). See SPEC.md §6.5 for why.
 
 ## Data flow: desired state → running services
@@ -143,7 +144,7 @@ Shared pieces (attention list, backup and DNS cards) live in `templates/parts.ht
 
 `roostack serve` serves server-rendered pages (Go `html/template`), using htmx for live updates such as the service list refreshing every 10 seconds. Protections:
 
-- **First run:** creating the Owner needs a one-time setup code, printed in the log and saved to `/var/lib/roostack/setup-token`.
+- **First run:** creating the Owner needs a one-time setup code, printed in the log and saved to `/var/lib/roostack/setup-token`. The setup listener on the home network (`:8443`) serves only the first-run routes (`firstRunPaths`), answers only a `Host` that's an IP address (DNS rebinding), closes connections not between two home addresses, and shows **Setup is finished** instead of the wizard's last redirect, then stops (SPEC §6.3.2).
 - **Login:** a wrong password waits 500 ms; an unknown username costs the same password check as a known one, so timing doesn't reveal which usernames exist.
 - **Sessions:** random tokens in an `HttpOnly`, `SameSite=Lax` cookie. Only a SHA-256 hash is stored.
 - **Two-factor (TOTP):** Owners must enroll before using the UI. A login with 2FA first passes the password, then the code (`/login/totp`). Each code works once.

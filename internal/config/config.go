@@ -42,6 +42,9 @@ const (
 	// loopback while anything is public, for Caddy's bouncer (SPEC.md
 	// §6.11).
 	CrowdSecPort = 8473
+	// SetupPort is where the first-run setup pages are served to the home
+	// network over HTTPS until setup is done (SPEC.md §6.3.2).
+	SetupPort = 8443
 )
 
 // Paths are the filesystem locations Roostack reads and writes.
@@ -119,6 +122,12 @@ func (p Paths) CaddyLogDir() string { return filepath.Join(p.StateDir, "caddy-lo
 // system user), which Roostack can't read, so the build writes here and
 // the UI shows it while it runs.
 func (p Paths) CaddyBuildLog() string { return filepath.Join(p.StateDir, "caddy-build.log") }
+
+// SetupCertFile and SetupKeyFile are the setup pages' self-signed
+// certificate and its key (0600), made at Roostack's first start and
+// deleted when setup is done (SPEC.md §6.3.2).
+func (p Paths) SetupCertFile() string { return filepath.Join(p.StateDir, "setup-tls.crt") }
+func (p Paths) SetupKeyFile() string  { return filepath.Join(p.StateDir, "setup-tls.key") }
 
 // CrowdSecDir holds CrowdSec's configuration and database.
 func (p Paths) CrowdSecDir() string { return filepath.Join(p.StateDir, "crowdsec") }

@@ -40,18 +40,29 @@ type Roles struct {
 	Guests    []generate.GuestStorage
 	// LinksListen: other servers dial this one directly.
 	LinksListen bool
+	// SetupPort is the first-run setup pages' port while setup lasts, for
+	// the home network only (SPEC.md §6.3.2); 0 otherwise.
+	SetupPort int
 }
 
 // Desired returns the firewall for the lab: web traffic (Caddy decides
 // what is private), SSH as the Owner chose, every enabled package port and
 // what the server's roles need, each for its trust class (internal/trust).
-// ok is false until the Owner has chosen SSH access, and Roostack then
-// leaves the firewall alone.
+// Until the Owner has chosen SSH access, Roostack leaves the firewall
+// alone, apart from keeping the setup pages to the home network (an
+// Unchosen firewall); ok is false when there's nothing to apply: no
+// choice and no setup pages, on a server that isn't the controller.
 func Desired(lab config.Lab, services []*generate.Output, roles Roles) (fw agent.Firewall, ok bool) {
 	if lab.Firewall.SSH == "" {
-		return agent.Firewall{}, false
+		// The controller's table goes once setup is done, since an
+		// Unchosen firewall with no setup port deletes it.
+		if lab.IsNode() {
+			return agent.Firewall{}, false
+		}
+		return agent.Firewall{Unchosen: true, SetupPort: roles.SetupPort}, true
 	}
 	fw = agent.DefaultFirewall()
+	fw.SetupPort = roles.SetupPort
 	fw.SSHFrom = map[string]string{config.SSHFromLAN: agent.FromLAN, config.SSHFromAny: agent.FromAny,
 		config.SSHOff: agent.FromOff}[lab.Firewall.SSH]
 	for _, s := range services {

@@ -15,12 +15,6 @@
   [backups](../backups/index.md).
 - A connection to your home network, preferably by cable.
 
-!!! info "Easier installs are coming"
-
-    Roostack isn't published yet, so for now you install it from a package
-    file built from its source. Soon you'll be able to add Roostack's
-    package source and install it with one command.
-
 ## Install Debian
 
 Roostack runs on **Debian 13** ("trixie"), installed fresh, with nothing
@@ -109,32 +103,153 @@ short version.
 
 ## Install Roostack
 
-With Debian 13 installed, and logged in on the computer (or over SSH):
+With Debian 13 installed, log in on the computer (or over SSH) and run:
 
-1. Copy the Roostack package file for your kind of computer to it:
-   `roostack_<version>_amd64.deb` for a PC, `roostack_<version>_arm64.deb`
-   for an ARM computer. Not sure? `dpkg --print-architecture` says which.
-2. Install it. Debian fetches what Roostack needs (Podman, restic,
-   WireGuard and a few others) at the same time:
+```bash
+curl -fsSL https://dl.roostack.cloud/install.sh | sudo sh
+```
+
+It adds Roostack's package source to Debian and installs Roostack from it,
+with what it needs (Podman, restic, WireGuard and a few others). This
+takes a few minutes. From then on, Roostack is updated with the rest of
+the system.
+
+- Logged in as `root` (as on some cloud servers)? Leave out `sudo`.
+- `curl: command not found`? Run `sudo apt install curl` first.
+- It stops without changing anything if the computer isn't running
+  Debian 13, or isn't a 64-bit PC or ARM computer.
+
+??? note "What the command does, and doing it by hand"
+
+    The installer is a short script you can read before running it:
 
     ```bash
-    sudo apt install ./roostack_<version>_amd64.deb
+    curl -fsSL https://dl.roostack.cloud/install.sh | less
     ```
 
-    (with `arm64` in the name on an ARM computer).
+    It downloads nothing but Roostack's release key, and does the same as
+    these steps, which you can follow instead:
 
-    Logged in as `root` (as on some cloud servers)? Leave out `sudo`.
+    1. **Get Roostack's release key and check it.** Packages from Roostack
+       are signed with this key, so check it really is Roostack's before
+       telling Debian to trust it (this needs `gpg`: `sudo apt install gpg`):
 
-3. At the end, the installer shows your **setup code** and how to open
-   Roostack's setup page. To see it again:
+        ```bash
+        curl -fsSLO https://apt.roostack.cloud/roostack-archive-keyring.gpg
+        gpg --show-keys roostack-archive-keyring.gpg
+        ```
 
-    ```bash
-    sudo /usr/share/roostack/installed-message
-    ```
+        The long line of letters and digits it shows is the key's
+        fingerprint. It must be exactly:
+
+        ```text
+        RELEASE-KEY-FINGERPRINT
+        ```
+
+        If it isn't, stop: that file isn't Roostack's key. If it is,
+        install it where Debian keeps such keys:
+
+        ```bash
+        sudo install -m 644 roostack-archive-keyring.gpg /usr/share/keyrings/
+        ```
+
+        (The script checks the key differently, against the SHA-256 of the
+        whole file written into it, since a fresh Debian has no `gpg`.)
+
+    2. **Add Roostack's package source**, signed by that key only:
+
+        ```bash
+        sudo tee /etc/apt/sources.list.d/roostack.sources <<'EOF'
+        # Roostack's own packages (SPEC.md §7), installed by the roostack package.
+        # Suites is Roostack's release series: patch releases in it install by
+        # themselves each night (52roostack-unattended-upgrades). When the Owner
+        # accepts a new series on the Updates page, Roostack changes Suites to it.
+        # You may point URIs at a mirror; keep Signed-By, which checks that the
+        # packages are Roostack's.
+        Types: deb
+        URIs: https://apt.roostack.cloud
+        Suites: SUITE
+        Components: main
+        Architectures: amd64 arm64
+        Signed-By: /usr/share/keyrings/roostack-archive-keyring.gpg
+        EOF
+        ```
+
+        Copy it whole, comments included: the package brings the same
+        file, and apt asks about it if they differ. `Suites` is Roostack's
+        release series: Roostack installs new versions in it by itself, and
+        a new series waits until you accept it.
+
+    3. **Install Roostack:**
+
+        ```bash
+        sudo apt update
+        sudo apt install roostack
+        ```
+
+## When it's installed
+
+At the end, the installer shows how to open Roostack's **setup page**:
+
+- an address such as `https://192.168.1.20:8443`, to open in a browser on
+  a computer or phone **on the same network** as the server;
+- the **fingerprint** of the page's certificate, to check in the browser
+  (below);
+- your **setup code**, which you'll type on the setup page.
+
+To see it again:
+
+```bash
+sudo /usr/share/roostack/installed-message
+```
+
+The setup page is only there until setup is finished. Then it closes, and
+Roostack tells you where to find it from then on.
+
+### Check the setup page's certificate
+
+Your browser warns that the connection isn't private (or that there's a
+security risk). That's expected: the server has no name yet, so the page
+uses a certificate the server made for itself, which the browser can't
+check. **You** check it instead, so you know it's your server answering,
+not something else on the network:
+
+1. In the warning, open its details and view the certificate (in Chrome
+   and Edge, click the error code under the warning; in Firefox,
+   **Advanced** then **View Certificate**; in Safari, **Show Details**
+   then **view the certificate**).
+2. Find its **SHA-256 fingerprint** and compare it with the one the
+   installer showed: pairs of letters and digits, such as `3F:A2:…`.
+   Checking the first and last few pairs is enough.
+3. If they're the same, go on to the page (**Proceed**, **Accept the
+   risk and continue** or **visit this website**). If they're not, don't
+   type anything there: use the SSH way below instead, and ask someone
+   technical to look at your network.
+
+On a phone the certificate can be hard to find: a computer is easier.
+
+### Not on the same network?
+
+On a cloud server, or if the page doesn't open, reach the setup page
+through SSH instead. From your computer (Windows, macOS or Linux), run
+this in a terminal and leave it open, with your own username and the
+server's address:
+
+```bash
+ssh -L 8480:127.0.0.1:8480 you@192.168.1.20
+```
+
+Then open <http://127.0.0.1:8480> in your browser. The installer shows
+this command with the address filled in.
 
 Then carry on with [First-run setup](first-run.md).
 
 ??? note "For technical users"
+
+    **What the installer adds:** Roostack's release key,
+    `/usr/share/keyrings/roostack-archive-keyring.gpg`, and its package
+    source, `/etc/apt/sources.list.d/roostack.sources`. The package brings
+    the same two files and looks after them from then on.
 
     **What the package installs:** `/usr/bin/roostack` and
     `/usr/bin/roostack-agent`, their systemd units, and the Containerfile for
@@ -157,10 +272,26 @@ Then carry on with [First-run setup](first-run.md).
       the service the `roostack` user's runtime directory;
     - it enables and starts `roostack-agent` and `roostack`.
 
+    **The setup page on the home network** is served by `roostack` on port
+    8443, over HTTPS, while first-run setup lasts: only the first-run pages,
+    only to private addresses (the firewall opens the port to the home
+    network only), and only to an address in the browser, never a name. Its
+    certificate is made when Roostack first starts
+    (`/var/lib/roostack/setup-tls.crt`, its key `setup-tls.key`), and the
+    log shows the address and fingerprint too
+    (`journalctl -u roostack | grep "setup pages"`). When setup is finished
+    the listener stops, the port closes and the certificate is deleted.
+    Compute the fingerprint yourself with
+    `openssl x509 -in /var/lib/roostack/setup-tls.crt -noout -fingerprint -sha256`.
+
     **Building the package** from the source: `make build`, then
     `scripts/build-deb.sh`, which writes `dist/roostack_<version>_amd64.deb`.
     For ARM, `GOARCH=arm64 make build` and the same script, which writes
-    `…_arm64.deb`.
+    `…_arm64.deb`. Install a package file with
+    `sudo apt install ./roostack_<version>_amd64.deb`. To try `install.sh`
+    against a test repository, set `ROOSTACK_REPO` (its URL),
+    `ROOSTACK_SUITE` and `ROOSTACK_KEY_SHA256` (the SHA-256 of its
+    `roostack-archive-keyring.gpg`).
 
     See [Where files live](../reference/files.md) for everything Roostack
     creates.

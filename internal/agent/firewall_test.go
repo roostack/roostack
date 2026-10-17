@@ -196,3 +196,51 @@ func TestJoiningFirewall(t *testing.T) {
 		}
 	}
 }
+
+// TestSetupPortFirewall: the first-run setup pages' port is open to the
+// home network only while setup lasts, before and after the Owner has
+// chosen the firewall, and goes when setup is done (SPEC.md §6.3.2).
+func TestSetupPortFirewall(t *testing.T) {
+	const home4, home6 = "ip saddr @lan4 tcp dport 8443 accept", "ip6 saddr @lan6 tcp dport 8443 accept"
+	// Chosen: one more rule for the home network; the policy drops the rest.
+	fw := DefaultFirewall()
+	fw.SetupPort = 8443
+	rs := fw.Ruleset()
+	if err := fw.Validate(); err != nil || !strings.Contains(rs, home4) || !strings.Contains(rs, home6) ||
+		!strings.Contains(rs, "policy drop;") || strings.Contains(rs, "\ttcp dport 8443 accept") {
+		t.Errorf("chosen, during setup (%v):\n%s", err, rs)
+	}
+	fw.SetupPort = 0
+	if rs := fw.Ruleset(); strings.Contains(rs, "8443") {
+		t.Errorf("chosen, after setup:\n%s", rs)
+	}
+
+	// Not chosen yet: only the setup port is touched, everything else is
+	// accepted as without Roostack's table.
+	fw = Firewall{Unchosen: true, SetupPort: 8443}
+	rs = fw.Ruleset()
+	lan, drop := strings.Index(rs, home4), strings.Index(rs, "\t\ttcp dport 8443 drop")
+	if err := fw.Validate(); err != nil || lan < 0 || drop < lan || !strings.Contains(rs, "policy accept;") ||
+		strings.Contains(rs, "policy drop") || strings.Contains(rs, "dport 22") || strings.Contains(rs, "dport 443") {
+		t.Errorf("unchosen, during setup (%v):\n%s", err, rs)
+	}
+	// After setup, still unchosen: Roostack's table goes.
+	fw.SetupPort = 0
+	rs = fw.Ruleset()
+	if err := fw.Validate(); err != nil || strings.Contains(rs, "table inet roostack {") ||
+		!strings.Contains(rs, "delete table inet roostack") {
+		t.Errorf("unchosen, after setup (%v):\n%s", err, rs)
+	}
+
+	// Unchosen means nothing else may be asked for.
+	for _, bad := range []Firewall{
+		{Unchosen: true, SSHFrom: FromAny},
+		{Unchosen: true, Allow: []Rule{{Port: 22, Proto: "tcp", For: trust.Anyone, Reason: "ssh"}}},
+		{Unchosen: true, JoinPort: 8471},
+		{SSHFrom: FromLAN, SetupPort: 70000},
+	} {
+		if bad.Validate() == nil {
+			t.Errorf("accepted %+v", bad)
+		}
+	}
+}

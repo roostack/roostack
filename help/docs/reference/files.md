@@ -25,6 +25,7 @@ Owned by the `roostack` user, and readable only by it (and root).
 | `node.json` | This server's ID and name |
 | `backup-key` | The [recovery key](../start/recovery-key.md), which encrypts every backup. Keep a copy elsewhere |
 | `setup-token` | The first-run setup code; deleted once the Owner exists |
+| `setup-tls.crt`, `setup-tls.key` | The [setup page](../start/install.md#check-the-setup-pages-certificate)'s self-signed certificate and its key, for the home network during first-run setup; deleted when setup is finished |
 | `caddy/` | The generated web server config: `Caddyfile`, and `sites/<name>.caddy` for each service |
 | `caddy-data/` | HTTPS certificates and the certificate account |
 | `caddy-build.log` | The output of the latest build of Roostack's web proxy image (Caddy), shown on the Services page while it runs |

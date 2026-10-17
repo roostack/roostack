@@ -1,0 +1,23 @@
+{{define "title"}}Setup is finished{{end}}
+{{define "content"}}
+{{/* The setup listener's last page (SPEC.md §6.3.2): it closes now, so say
+     where Roostack is from now on. */}}
+<section class="card narrow">
+  <h1>Setup is finished</h1>
+  {{with .Address}}
+  <p>From now on, open Roostack at <a href="{{.}}">{{.}}</a>. Bookmark it.</p>
+  <p class="hint">Roostack is starting there with your new settings. The first time, getting its certificate can take a minute or
+    two: if the page doesn't open straight away, try again shortly.</p>
+  <p><a class="button" href="{{.}}">Open Roostack</a></p>
+  {{else}}
+  <p>Your lab has no address yet, so from now on you reach Roostack through an SSH connection from your computer. Run this in a
+    terminal and leave it open:</p>
+  <pre class="output">ssh -L 8480:127.0.0.1:8480 you@{{or .ServerAddr "your-server"}}</pre>
+  <p>(with your own username on the server instead of <code>you</code>), then open <a href="http://127.0.0.1:8480">http://127.0.0.1:8480</a>.
+    Once your lab has an address, you open Roostack there instead.</p>
+  {{end}}
+  <p class="hint">This setup page, <code>https://{{.Host}}</code>, has closed for good, and its certificate is deleted.</p>
+</section>
+{{end}}
+
+{{define "page-help"}}{{help "start/first-run" "First-run setup"}}{{end}}

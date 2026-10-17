@@ -49,6 +49,16 @@ Why `XDG_RUNTIME_DIR`: Roostack runs containers through the `roostack` user's ow
 - A dedicated machine running **Debian 13**, on x86_64 or ARM64 (ARM mini PCs and cloud servers that run Debian's own images). Raspberry Pi and Ubuntu 26.04 support are planned.
 - A domain you own, with a DNS provider Roostack supports, for HTTPS certificates: Cloudflare, Amazon Route 53, Porkbun, Gandi, GoDaddy, Namecheap or Spaceship.
 
+## Installing
+
+Once Roostack is released, one command on a fresh Debian 13 installs it from Roostack's signed apt repository:
+
+```bash
+curl -fsSL https://dl.roostack.cloud/install.sh | sudo sh
+```
+
+[scripts/install.sh](scripts/install.sh) checks the system, fetches the release key and checks it against the SHA-256 written into the script, adds the package source (`/etc/apt/sources.list.d/roostack.sources`, signed by `/usr/share/keyrings/roostack-archive-keyring.gpg` only) and runs `apt install roostack`. The help's [Install Roostack](help/docs/start/install.md) gives the same steps by hand. At the end, the installer shows the setup page's address on the home network (`https://<server>:8443`, with its own certificate and that certificate's fingerprint to check) and the setup code; an SSH tunnel to `127.0.0.1:8480` works too (SPEC §6.3.2).
+
 ## Development
 
 You need Go 1.26 or newer, and [uv](https://docs.astral.sh/uv/) to build the help site (without it, Roostack builds without its help pages).
@@ -74,7 +84,7 @@ bin/roostack render -package internal/testdata/packages/immich/2.1.0-roostack.1.
 
 Run the web UI locally against a throwaway state directory: point `paths` in a copy of `docs/examples/lab.yaml` at a temp dir and run `bin/roostack serve -lab <file> -listen 127.0.0.1:8480`.
 
-To try it on a Debian 13 VM, see [scripts/dev-install.sh](scripts/dev-install.sh) (development only, not the real installer).
+To try it on a Debian 13 VM, see [scripts/dev-install.sh](scripts/dev-install.sh) (development only; the real installer is [scripts/install.sh](scripts/install.sh), which can be pointed at a test repository with `ROOSTACK_REPO`, `ROOSTACK_SUITE` and `ROOSTACK_KEY_SHA256`).
 
 ### Continuous integration
 
