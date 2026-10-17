@@ -56,9 +56,10 @@ Under the plan, Roostack checks five things:
 :   A backup the server can add to but not delete, so ransomware on it, or
     someone who takes it over, can't destroy every backup. Another server's
     disk, a friend's lab, Roostack Cloud and Backblaze B2 count (on B2,
-    while your bucket keeps hidden files for 30 days or more). A drive or
-    folder on the server doesn't, and nor does other online storage, where
-    every server has the account's key: their cards say so.
+    while your bucket keeps hidden files for 30 days or more). Other online
+    storage counts when its bucket keeps old versions for 30 days or more
+    and the key you gave Roostack can't erase them: Roostack checks. A
+    drive or folder on the server doesn't count: its card says so.
 
 Backed up lately
 :   The last backup worked, and wasn't more than two days ago.
@@ -76,7 +77,30 @@ Under **Manage**, on each backup, you can:
 - on online storage, give Roostack a new key for the account. Every
   server backing up there gets it (on Backblaze B2, a key of its own when
   the new key can make keys), so you can then delete the old key with the
-  provider: after removing a server that held it, for example.
+  provider: after removing a server that held it, for example;
+- on online storage that keeps old versions, bring back what was hidden
+  or changed (below).
+
+## If a server was taken over
+
+Someone who takes over a server, or ransomware on it, can try to destroy
+its backups. Where it can't delete them, it may still **hide** them, or
+**overwrite** their files. Backblaze B2, and online storage that keeps old
+versions, keep what was there, so Roostack can put it back.
+
+1. First, remove the server from your lab (Settings → Servers), or wipe
+   it, so it can't change anything again.
+2. On its Backups page, open **Manage** on the backup, then **Bring back
+   what was hidden or changed…**
+3. Choose a time from before it was taken over, and **Check what
+   changes**. Nothing changes yet: Roostack lists what would come back,
+   what would be put back as it was, and what was added since and would
+   be hidden.
+4. If that looks right, choose **Go back to** that time, and confirm.
+
+Nothing is erased: if you chose the wrong time, go back again to a time
+just before you did it. Whatever's left over is erased later by your
+bucket's own rule for old versions.
 
 A backup on the server's own disk comes with a warning: it helps if you
 delete something by mistake, but if the disk fails, you lose the data and
@@ -92,7 +116,10 @@ that backup together.
   months.
 
 If a backup fails or is more than two days old, it shows in **Needs
-attention** on the home page, with what to do.
+attention** on the home page, with what to do. If you remove a server that
+held another server's main backup, that server's plan and **Needs
+attention** say so straight away: choose a new place for its main backup
+(its other backups carry on meanwhile).
 
 ??? note "For technical users"
 
@@ -125,12 +152,27 @@ attention** on the home page, with what to do.
       listBuckets,listFiles,readFiles,writeFiles,deleteFiles,writeKeys,deleteKeys,listKeys`
       (the backup's card shows the commands). Until then every server
       gets the account's key. Other S3 providers give every
-      server the account's key, which can delete. When you remove a
+      server the account's key. Roostack checks whether that key can
+      destroy backups there: it reads the bucket's versioning and
+      lifecycle rules, and writes a small file, `roostack-check` in your
+      lab's folder, deletes it and tries to erase its old version, which a
+      safe key isn't allowed to (in AWS's terms, a policy without
+      `s3:DeleteObjectVersion`). It checks when a backup is added there,
+      when the key changes, and weekly. When you remove a
       server, Settings → Servers lists the shared keys and passwords it
       still holds; change an account's key under **Manage** on a backup
       there.
+    - **Going back to a time:** Roostack lists every version of the files
+      in the server's folder (`ListObjectVersions`, with the account's
+      key) and, for each file changed since that time, copies its version
+      from then back on top (`CopyObject` with its `versionId`) or, if it
+      was added since, hides it (a delete marker). restic's `locks/`
+      folder is left alone; afterwards `restic unlock` clears stale locks
+      and `restic check` checks the repository. Nothing is erased, so it
+      also works with a key that can't erase versions.
     - **Keeping:** old backups are removed on Sunday by the lab's
-      controller (`restic forget --prune --group-by host,tags --keep-daily 7
+      controller (first `restic unlock`, which clears only stale locks,
+      such as those of a backup that crashed; then `restic forget --prune --group-by host,tags --keep-daily 7
       --keep-weekly 4 --keep-monthly 6`: each service is kept on its own, as
       each has its own snapshot, tagged `service=<name>`), then 5% of the data is read back
       (`restic check --read-data-subset=5%`).

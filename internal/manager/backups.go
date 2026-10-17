@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -43,6 +44,9 @@ type BackupStore interface {
 	RemoveBackupCopy(ctx context.Context, serverID, provider string) error
 	SetBackupTarget(ctx context.Context, t store.BackupTarget) error
 	RemoveBackupTarget(ctx context.Context, serverID string) error
+	SetLostBackup(ctx context.Context, l store.LostBackup) error
+	RemoveLostBackup(ctx context.Context, serverID string) error
+	LostBackups(ctx context.Context) ([]store.LostBackup, error)
 	StoreAdmin(ctx context.Context, serverID string) (password, hash string, ok bool, err error)
 	SetStoreAdmin(ctx context.Context, serverID, password, hash string) error
 	LabID(ctx context.Context) (string, error)
@@ -136,7 +140,9 @@ func (m *Manager) BackupChoices(ctx context.Context) ([]BackupChoice, error) {
 			continue
 		}
 		note := "Every server uses this account's key, which can delete what's there; each server uses its own folder."
-		switch {
+		switch c, checked := m.savedS3Check(d.s3); {
+		case d.kind == destS3 && !d.isB2() && checked && c.HidesOnly():
+			note = "Every server uses this account's key, in its own folder; the bucket keeps what's deleted, so it can be brought back."
 		case d.kind == destRemote:
 			note = fmt.Sprintf("Encrypted before it leaves; %s can't read it. Up to %s for this whole lab.", d.remote.HostName, sizeGB(d.remote.Quota))
 		case d.isB2():
@@ -231,7 +237,29 @@ func (m *Manager) setUpRepository(ctx context.Context, act *activity.Log, server
 		return err
 	}
 	act.Step("Backups for %s go to %s", m.nameOf(serverID), choice.Title)
+	if err := m.BackupStore.RemoveLostBackup(ctx, serverID); err != nil {
+		m.Log.Warn("forgetting a lost main backup", "server", serverID, "err", err)
+	}
 	return nil
+}
+
+// LostMainBackup says whether a server's main backup was on a server that
+// left the lab, while it has no new one (SPEC.md §10.10).
+func (m *Manager) LostMainBackup(ctx context.Context, serverID string) (store.LostBackup, bool) {
+	if m.BackupStore == nil {
+		return store.LostBackup{}, false
+	}
+	targets, err := m.BackupStore.BackupTargets(ctx)
+	if err != nil || slices.ContainsFunc(targets, func(t store.BackupTarget) bool { return t.ServerID == serverID }) {
+		return store.LostBackup{}, false
+	}
+	lost, _ := m.BackupStore.LostBackups(ctx)
+	for _, l := range lost {
+		if l.ServerID == serverID {
+			return l, true
+		}
+	}
+	return store.LostBackup{}, false
 }
 
 // createRepository creates a server's repository at a choice, with the
@@ -340,8 +368,9 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 		if d.isB2() {
 			m.scopedB2Key(ctx, act, serverID, labID, s3, &target, &dest)
 		} else {
-			act.Printf("%s uses this account's key, which can delete its backups there: if %s were taken over, they could be deleted too.",
-				m.nameOf(serverID), m.nameOf(serverID))
+			// Whether what it deletes is kept (SPEC.md §10.10).
+			act.Step("Checking whether the bucket keeps what's deleted")
+			sayS3Check(act, m.checkS3(ctx, s3))
 		}
 	default:
 		return fail(fmt.Errorf("unknown backup destination %q", choice.Ref))
@@ -439,6 +468,7 @@ func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 		return
 	}
 	copies, _ := m.BackupStore.BackupCopies(ctx)
+	m.BackupStore.RemoveLostBackup(ctx, serverID)
 	name := m.nameOf(serverID)
 	act := m.Activity.Start(activity.BackupSetupFor(serverID), "Taking "+name+"'s backup access away")
 	defer act.Finish(nil)
@@ -454,7 +484,13 @@ func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 			continue
 		}
 		if t.ServerID != serverID {
+			// Its plan and "needs attention" say so until it has a new
+			// one, rather than its nightly backups failing unexplained.
 			act.Printf("%s's main backup was on %s's disk: choose somewhere else on its Backups page.", m.nameOf(t.ServerID), name)
+			lost := store.LostBackup{ServerID: t.ServerID, HostName: name, Lost: time.Now()}
+			if err := m.BackupStore.SetLostBackup(ctx, lost); err != nil {
+				m.Log.Warn("recording a lost main backup", "server", t.ServerID, "err", err)
+			}
 		}
 		if err := m.BackupStore.RemoveBackupTarget(ctx, t.ServerID); err != nil {
 			m.Log.Warn("forgetting backups on a removed server", "server", name, "err", err)
@@ -675,6 +711,7 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 			}
 			var errs []error
 			locked := map[string]bool{}
+			m.recheckS3(ctx, act, append(targets, copies...))
 			for _, t := range append(targets, copies...) {
 				if strings.HasPrefix(t.Provider, "setup") || (only != nil && !only[pruneKey(t)]) {
 					continue // set up before this, that server prunes it itself; or not a retry's
@@ -685,6 +722,16 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 					continue
 				}
 				act.Step("%s: keeping 7 daily, 4 weekly and 6 monthly", m.nameOf(t.ServerID))
+				// Stale locks first, or one crashed backup blocks every
+				// prune there (docs/ASSUMPTIONS.md N1); a running
+				// backup's lock stays.
+				if n, err := repo.Unlock(ctx); err != nil {
+					act.Printf("Couldn't clear old locks: %s", firstLine(err.Error()))
+				} else if n == 1 {
+					act.Printf("Cleared an old lock left by a backup that didn't finish")
+				} else if n > 1 {
+					act.Printf("Cleared %d old locks left by backups that didn't finish", n)
+				}
 				err = repo.Forget(ctx, backup.DefaultRetention)
 				switch {
 				case errors.Is(err, backup.ErrLocked) && try < pruneTries && m.Submit != nil:
@@ -835,4 +882,20 @@ func DriveTitle(d agent.Drive) string {
 		return "Network share " + d.Name
 	}
 	return "Disk " + d.Name
+}
+
+// recheckS3 checks again, weekly, whether each S3 bucket (not Backblaze)
+// the lab backs up to keeps what's deleted (S3Check): its settings or
+// the key's permissions may have changed.
+func (m *Manager) recheckS3(ctx context.Context, act *activity.Log, targets []store.BackupTarget) {
+	seen := map[string]bool{}
+	for _, t := range targets {
+		d, err := m.destinationOf(ctx, t.Provider)
+		if err != nil || d.kind != destS3 || d.isB2() || seen[t.Provider] {
+			continue
+		}
+		seen[t.Provider] = true
+		act.Step("Checking whether %s keeps what's deleted", d.provider.Name)
+		sayS3Check(act, m.checkS3(ctx, d.s3))
+	}
 }

@@ -368,6 +368,17 @@ func (s *Server) backupAttention(r *http.Request, m serverRef, n ServiceNode, ow
 		add(levelProblem, f.Message()+m.on()+".", link, "What to do")
 		return
 	}
+	// The main backup's server left the lab: its nightly backups there
+	// fail until it has a new place, so say why at once rather than each
+	// failure.
+	lost := false
+	if s.Manager != nil {
+		if l, ok := s.Manager.LostMainBackup(r.Context(), m.ID); ok {
+			lost = true
+			add(levelProblem, "The main backup"+m.on()+" was on "+l.HostName+"'s disk, and "+l.HostName+
+				" has left the lab. Choose a new place for it: until then, nightly backups there fail.", link+"#plan", "Choose a new place")
+		}
+	}
 	switch {
 	case !st.Configured && m.This:
 		setup := link
@@ -382,6 +393,7 @@ func (s *Server) backupAttention(r *http.Request, m serverRef, n ServiceNode, ow
 		add(levelInfo, "Backing up"+m.on()+"…", link, "View")
 	case st.Last != nil && !st.Last.OK && retrySoon(st.Retry):
 		// Roostack tries again within hours: only once that fails too.
+	case lost:
 	case st.Last != nil && !st.Last.OK:
 		add(levelProblem, "The last backup"+m.on()+" didn't finish: "+st.Last.Error+retryText(st.Retry), link, "View backups")
 	}
@@ -398,7 +410,7 @@ func (s *Server) backupAttention(r *http.Request, m serverRef, n ServiceNode, ow
 		}
 	}
 	switch {
-	case !st.Configured || st.Running || (st.Last != nil && !st.Last.OK):
+	case !st.Configured || st.Running || (st.Last != nil && !st.Last.OK) || lost:
 	case st.LastOK == nil:
 		add(levelInfo, "The first backup"+m.on()+" runs "+whenText(st.Next)+". You can also back up now.", link, "Back up now")
 	case isStale(st.LastOK.Finished):

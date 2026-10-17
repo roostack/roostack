@@ -140,6 +140,35 @@ type fakeManager struct {
 	// (plan_test.go); keyErr fails them.
 	s3Keys []string
 	keyErr error
+
+	// Main backups lost with a removed server, by server (plan_test.go).
+	lostMain map[string]store.LostBackup
+
+	// Rolling backups back: "check|run server ref time" (plan_test.go);
+	// rollbackPlan is the latest check, rollbackErr fails them.
+	rollbacks    []string
+	rollbackPlan *manager.RollbackPlan
+	rollbackErr  error
+}
+
+func (f *fakeManager) rollback(step, serverID, ref string, before time.Time) error {
+	if f.rollbackErr != nil {
+		return f.rollbackErr
+	}
+	f.rollbacks = append(f.rollbacks, strings.Join([]string{step, serverID, ref, before.Format("2006-01-02T15:04")}, " "))
+	return nil
+}
+func (f *fakeManager) CheckRollback(_ context.Context, serverID, ref string, before time.Time) error {
+	return f.rollback("check", serverID, ref, before)
+}
+func (f *fakeManager) RollBack(_ context.Context, serverID, ref string, before time.Time) error {
+	return f.rollback("run", serverID, ref, before)
+}
+func (f *fakeManager) RollbackChecked(string, string) *manager.RollbackPlan { return f.rollbackPlan }
+
+func (f *fakeManager) LostMainBackup(_ context.Context, serverID string) (store.LostBackup, bool) {
+	l, ok := f.lostMain[serverID]
+	return l, ok
 }
 
 // BackupAccess is f.backupAccess's, else what the kind suggests: another

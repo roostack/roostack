@@ -73,7 +73,13 @@ func (m *Manager) ChangeS3Key(ctx context.Context, ref, accessKey, secretKey str
 		act.Printf("This key can't make other keys, so every server backing up to %s uses it, and could delete its backups there.", p.Name)
 	}
 	go func() {
-		act.Finish(m.handOutS3Key(context.Background(), act, p.Name, scoped, s3, using))
+		ctx := context.Background()
+		if !d.isB2() {
+			// The new key may be allowed more, or less (SPEC.md §10.10).
+			act.Step("Checking whether %s keeps what's deleted", p.Name)
+			sayS3Check(act, m.checkS3(ctx, s3))
+		}
+		act.Finish(m.handOutS3Key(ctx, act, p.Name, scoped, s3, using))
 	}()
 	return nil
 }
