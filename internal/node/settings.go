@@ -10,7 +10,9 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
+	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/firewall"
@@ -25,10 +27,13 @@ type Settings interface {
 	// SetTimezone returns true if the zone changed (Roostack then restarts:
 	// Go reads the local zone once, and schedules depend on it).
 	SetTimezone(ctx context.Context, name string) (changed bool, err error)
-	SSHAccess() (SSHAccess, error)
+	// SSHAccess reads who may log in over SSH, and how. fresh reads the SSH
+	// server's state again rather than one read up to sshCache ago.
+	SSHAccess(fresh bool) (SSHAccess, error)
 	// SetSSH refuses a choice that would cut off a current SSH connection
-	// unless confirmed.
-	SetSSH(ctx context.Context, choice string, confirmed bool) error
+	// unless confirmed, and keys only unless a key is known to work
+	// (SPEC.md §6.10).
+	SetSSH(ctx context.Context, c SSHChange) error
 	SetRestartPolicy(ctx context.Context, mode string, hour int) error
 	// RestartPolicy is when the server may restart after updates.
 	RestartPolicy() (mode string, hour int)
@@ -74,8 +79,37 @@ type BackupDestination struct {
 // SSHAccess is the current SSH choice and who is connected now.
 type SSHAccess struct {
 	Choice  string // config.SSH*, or "" if not chosen yet
+	Login   string // config.SSHLogin*, or "" if not chosen yet
 	Clients []netip.Addr
+	// SSHD is what the SSH server does now (roostack-agent); SSHDError
+	// says why it couldn't be read.
+	SSHD      agent.SSHStatus
+	SSHDError string `json:",omitempty"`
 }
+
+// PasswordsOpen reports whether people who can reach SSH may try
+// passwords: what the lasting warning is about (SPEC.md §6.10 item 3).
+func (a SSHAccess) PasswordsOpen() bool {
+	return (a.Choice == config.SSHFromLAN || a.Choice == config.SSHFromAny) && a.SSHD.Installed && a.SSHD.Passwords
+}
+
+// SSHChange is a new choice of who may log in over SSH, and how.
+type SSHChange struct {
+	Choice string // config.SSH*
+	Login  string // config.SSHLogin*; "Nobody" always means keys only
+	// Confirmed: cutting off current SSH connections is meant.
+	Confirmed bool
+}
+
+// SSHServer reads and changes the SSH server's settings (roostack-agent).
+type SSHServer interface {
+	SSHStatus(ctx context.Context) (agent.SSHStatus, error)
+	SetSSHKeysOnly(ctx context.Context, on bool) error
+}
+
+// sshCache is how long a read of the SSH server's state is used for pages
+// that poll (the home page's Needs attention list).
+const sshCache = 30 * time.Second
 
 // HostSettings changes this server's settings: the time zone through
 // roostack-agent, the rest in lab.yaml.
@@ -89,6 +123,8 @@ type HostSettings struct {
 	Zones func() ([]string, error)
 	// SSHClients lists who is connected over SSH now (internal/firewall).
 	SSHClients func() ([]netip.Addr, error)
+	// SSHServer changes the SSH server's settings (roostack-agent).
+	SSHServer SSHServer
 	// Restart restarts Roostack so every part picks up the new settings.
 	Restart func()
 	// UseZone switches Roostack itself to a new time zone without a restart
@@ -98,8 +134,12 @@ type HostSettings struct {
 	// rebuilt at once (Local.UseSSH). Without it, Roostack restarts.
 	UseSSH func(choice string)
 
-	// mu guards Lab's SSH choice, which changes while running.
-	mu sync.Mutex
+	// mu guards Lab's SSH choice, which changes while running, and the
+	// last read of the SSH server.
+	mu     sync.Mutex
+	sshd   agent.SSHStatus
+	sshErr error
+	sshAt  time.Time
 }
 
 // Settings is this server's settings, or nil.
@@ -134,38 +174,87 @@ func (h *HostSettings) SetTimezone(ctx context.Context, name string) (bool, erro
 	return true, nil
 }
 
-func (h *HostSettings) SSHAccess() (SSHAccess, error) {
+func (h *HostSettings) SSHAccess(fresh bool) (SSHAccess, error) {
 	clients, err := h.SSHClients()
+	sshd, serr := h.sshStatus(context.Background(), fresh)
 	h.mu.Lock()
-	choice := h.Lab.Firewall.SSH
+	a := SSHAccess{Choice: h.Lab.Firewall.SSH, Login: h.Lab.Firewall.SSHLogin, Clients: clients, SSHD: sshd}
 	h.mu.Unlock()
-	return SSHAccess{Choice: choice, Clients: clients}, err
+	if serr != nil {
+		a.SSHDError = serr.Error()
+	}
+	return a, err
 }
 
-func (h *HostSettings) SetSSH(ctx context.Context, choice string, confirmed bool) error {
-	switch choice {
+// sshStatus reads the SSH server's state, or uses a read up to sshCache
+// old unless fresh.
+func (h *HostSettings) sshStatus(ctx context.Context, fresh bool) (agent.SSHStatus, error) {
+	if h.SSHServer == nil {
+		return agent.SSHStatus{}, nil
+	}
+	h.mu.Lock()
+	if !fresh && !h.sshAt.IsZero() && time.Since(h.sshAt) < sshCache {
+		defer h.mu.Unlock()
+		return h.sshd, h.sshErr
+	}
+	h.mu.Unlock()
+	st, err := h.SSHServer.SSHStatus(ctx)
+	h.mu.Lock()
+	h.sshd, h.sshErr, h.sshAt = st, err, time.Now()
+	h.mu.Unlock()
+	return st, err
+}
+
+func (h *HostSettings) SetSSH(ctx context.Context, c SSHChange) error {
+	switch c.Choice {
 	case config.SSHFromLAN, config.SSHFromAny, config.SSHOff:
 	default:
 		return formErrorf("Choose who can connect.")
+	}
+	sshd, err := h.sshStatus(ctx, true)
+	switch {
+	case !sshd.Installed && err == nil:
+		c.Login = "" // no SSH server: nothing to choose
+	case c.Choice == config.SSHOff:
+		// Nobody can reach SSH, so keys only can't lock anyone out.
+		c.Login = config.SSHLoginKey
+	case c.Login != config.SSHLoginKey && c.Login != config.SSHLoginPassword:
+		return formErrorf("Choose how people log in over SSH.")
 	}
 	clients, err := h.SSHClients()
 	if err != nil {
 		return err
 	}
-	if cut := firewall.CutsOff(choice, clients); len(cut) > 0 && !confirmed {
+	if cut := firewall.CutsOff(c.Choice, clients); len(cut) > 0 && !c.Confirmed {
 		return formErrorf("That would disconnect the SSH connection from %s. "+
 			"Tick the box if that's what you want.", cut[0])
 	}
-	if err := config.Update(h.LabPath, func(l *config.Lab) { l.Firewall.SSH = choice }); err != nil {
+	if keys := c.Login == config.SSHLoginKey; c.Login != "" && keys != sshd.KeysOnly {
+		// Turning passwords and root logins off needs proof that someone
+		// can still log in and use sudo (SPEC.md §6.10 item 3).
+		if _, ok := sshd.SudoKeyLogin(); keys && c.Choice != config.SSHOff && !ok {
+			return formErrorf("Roostack hasn't seen anyone log in with an SSH key and an account that can use sudo, " +
+				"so turning passwords off could lock you out. Log in once with your key, then try again, " +
+				"or choose \"With a key or a password\".")
+		}
+		err := h.SSHServer.SetSSHKeysOnly(ctx, keys)
+		h.mu.Lock()
+		h.sshAt = time.Time{} // read it again next time
+		h.mu.Unlock()
+		if err != nil {
+			return formErrorf("Roostack couldn't change SSH's settings, so they're as they were: %v", err)
+		}
+	}
+	if err := config.Update(h.LabPath, func(l *config.Lab) { l.Firewall.SSH, l.Firewall.SSHLogin = c.Choice, c.Login }); err != nil {
 		return err
 	}
 	h.mu.Lock()
-	h.Lab.Firewall.SSH = choice
+	h.Lab.Firewall.SSH, h.Lab.Firewall.SSHLogin = c.Choice, c.Login
 	h.mu.Unlock()
 	// The firewall is rebuilt at once: no restart, so the server stays
 	// reachable (another server's is managed from the controller).
 	if h.UseSSH != nil {
-		h.UseSSH(choice)
+		h.UseSSH(c.Choice)
 		return nil
 	}
 	h.Restart()

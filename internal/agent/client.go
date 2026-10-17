@@ -214,6 +214,23 @@ func (c *Client) HostChanges(ctx context.Context) (HostChanges, error) {
 	return hc, err
 }
 
+// SSHStatus reads what the server's SSH server does (SPEC.md §6.10).
+func (c *Client) SSHStatus(ctx context.Context) (SSHStatus, error) {
+	var st SSHStatus
+	if err := c.call(ctx, http.MethodGet, "/v1/ssh", nil, &st); err != nil {
+		return st, err
+	}
+	if st.Error != "" {
+		return st, errors.New(st.Error)
+	}
+	return st, nil
+}
+
+// SetSSHKeysOnly turns SSH's keys-only settings on or off.
+func (c *Client) SetSSHKeysOnly(ctx context.Context, on bool) error {
+	return c.call(ctx, http.MethodPut, "/v1/ssh", map[string]bool{"keys_only": on}, nil)
+}
+
 // SaveWireGuardKeys copies Roostack's WireGuard keys into KeysFile (readable
 // by Roostack only), for the backup.
 func (c *Client) SaveWireGuardKeys(ctx context.Context) error {

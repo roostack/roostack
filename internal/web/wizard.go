@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strings"
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
@@ -201,11 +202,11 @@ type sshClient struct {
 	CutByLAN bool
 }
 
-func (s *Server) sshData(r *http.Request, choice, errMsg string) (map[string]any, error) {
+func (s *Server) sshData(r *http.Request, choice, login, errMsg string) (map[string]any, error) {
 	if s.server(r) == nil {
 		return nil, errNoServer
 	}
-	a, err := s.server(r).SSHAccess()
+	a, err := s.server(r).SSHAccess(true)
 	if err != nil {
 		return nil, err
 	}
@@ -222,12 +223,31 @@ func (s *Server) sshData(r *http.Request, choice, errMsg string) (map[string]any
 	if choice == "" {
 		choice = cmp.Or(a.Choice, map[bool]string{true: config.SSHFromAny, false: config.SSHFromLAN}[internet])
 	}
+	// Keys only is the default once a key is known to work, or already on
+	// (SPEC.md §6.10 item 3); "Nobody" saved it, so it stays.
+	keyLogin, keyWorks := a.SSHD.SudoKeyLogin()
+	if login == "" {
+		login = cmp.Or(a.Login, map[bool]string{true: config.SSHLoginKey, false: config.SSHLoginPassword}[keyWorks || a.SSHD.KeysOnly])
+	}
+	var keyText string
+	var noSudo []string
+	if keyWorks {
+		keyText = fmt.Sprintf("Your SSH key works: %s logged in with one from %s %s.", keyLogin.User, keyLogin.From, whenText(keyLogin.At))
+	}
+	for _, l := range a.SSHD.KeyLogins {
+		if !l.Sudo {
+			noSudo = append(noSudo, l.User)
+		}
+	}
 	return s.formMode(r, "ssh", map[string]any{"User": currentUser(r), "Choice": choice, "Clients": clients,
-		"CutByLAN": cutByLAN, "Error": errMsg, "Internet": internet}), nil
+		"CutByLAN": cutByLAN, "Error": errMsg, "Internet": internet,
+		"Login": login, "SSHD": a.SSHD, "SSHDError": a.SSHDError, "KeyWorks": keyWorks, "KeyText": keyText,
+		"NoSudo": strings.Join(noSudo, ", "), "SavedLogin": a.Login,
+		"DropIn": agent.SSHDropIn}), nil
 }
 
 func (s *Server) sshPage(w http.ResponseWriter, r *http.Request) {
-	data, err := s.sshData(r, "", "")
+	data, err := s.sshData(r, "", "", "")
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -236,18 +256,18 @@ func (s *Server) sshPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
-	choice := r.FormValue("ssh")
+	choice, login := r.FormValue("ssh"), r.FormValue("login")
 	if s.server(r) == nil {
 		http.NotFound(w, r)
 		return
 	}
 	m := s.serverRefOf(r)
-	err := s.server(r).SetSSH(r.Context(), choice, r.FormValue("confirm") == "on")
+	err := s.server(r).SetSSH(r.Context(), node.SSHChange{Choice: choice, Login: login, Confirmed: r.FormValue("confirm") == "on"})
 	if err == nil && m.This {
 		err = s.Setup.Done(r.Context(), setup.StepSSH)
 	}
 	if msg, ok := userMessage(err); ok {
-		data, derr := s.sshData(r, choice, msg)
+		data, derr := s.sshData(r, choice, login, msg)
 		if derr != nil {
 			s.serverError(w, derr)
 			return
@@ -260,7 +280,11 @@ func (s *Server) sshSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "setup", m.Label()+" SSH access set to "+choice)
+	how := map[string]string{config.SSHLoginKey: ", keys only", config.SSHLoginPassword: ", keys or passwords"}[login]
+	if choice == config.SSHOff {
+		how = ""
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "setup", m.Label()+" SSH access set to "+choice+how)
 	if !m.This {
 		redirect(w, r, m.RemoteAccess())
 		return

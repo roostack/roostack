@@ -526,7 +526,7 @@ func (s *Server) Handler() http.Handler {
 		if err != nil {
 			return nil, err
 		}
-		ssh, err := x.SSHAccess()
+		ssh, err := x.SSHAccess(false)
 		mode, hour := x.RestartPolicy()
 		return wireSettings{Timezone: zone, Zones: zones, SSH: ssh, RestartMode: mode, RestartHour: hour}, err
 	})
@@ -542,19 +542,25 @@ func (s *Server) Handler() http.Handler {
 		changed, err := x.SetTimezone(ctx(r), req.Timezone)
 		return map[string]bool{"changed": changed}, err
 	})
+	// A fresh read of SSH (the remote access page), not cached like
+	// /v1/settings.
+	handle("GET /v1/settings/ssh", func(r *http.Request) (any, error) {
+		x, err := settings()
+		if err != nil {
+			return nil, err
+		}
+		return x.SSHAccess(true)
+	})
 	handle("PUT /v1/settings/ssh", func(r *http.Request) (any, error) {
 		x, err := settings()
 		if err != nil {
 			return nil, err
 		}
-		var req struct {
-			Choice    string
-			Confirmed bool
-		}
+		var req SSHChange
 		if err := decode(r, &req); err != nil {
 			return nil, err
 		}
-		return nil, x.SetSSH(ctx(r), req.Choice, req.Confirmed)
+		return nil, x.SetSSH(ctx(r), req)
 	})
 	handle("POST /v1/settings/backup-copies/promote", func(r *http.Request) (any, error) {
 		x, err := settings()

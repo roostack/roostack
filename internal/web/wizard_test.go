@@ -38,6 +38,8 @@ type fakeSetup struct {
 	zone        string
 	restarted   bool
 	ssh         string
+	sshLogin    string
+	sshd        agent.SSHStatus
 	policy      string
 	clients     []netip.Addr
 	domainErr   error
@@ -69,14 +71,22 @@ func (f *fakeSetup) Done(_ context.Context, step string) error {
 func (f *fakeSetup) Timezones() (string, []string, error) {
 	return f.zone, []string{"Australia/Melbourne", "Etc/UTC"}, nil
 }
-func (f *fakeSetup) SSHAccess() (node.SSHAccess, error) {
-	return node.SSHAccess{Choice: f.ssh, Clients: f.clients}, nil
+func (f *fakeSetup) SSHAccess(bool) (node.SSHAccess, error) {
+	return node.SSHAccess{Choice: f.ssh, Login: f.sshLogin, Clients: f.clients, SSHD: f.sshd}, nil
 }
-func (f *fakeSetup) SetSSH(_ context.Context, choice string, confirmed bool) error {
-	if choice == "off" && len(f.clients) > 0 && !confirmed {
+func (f *fakeSetup) SetSSH(_ context.Context, c node.SSHChange) error {
+	if c.Choice == "off" && len(f.clients) > 0 && !c.Confirmed {
 		return &node.FormError{Msg: "That would disconnect the SSH connection."}
 	}
-	f.ssh, f.restarted = choice, true
+	if c.Choice == "off" {
+		c.Login = config.SSHLoginKey
+	}
+	if _, ok := f.sshd.SudoKeyLogin(); c.Login == config.SSHLoginKey && c.Choice != "off" && !f.sshd.KeysOnly && !ok {
+		return &node.FormError{Msg: "Roostack hasn't seen anyone log in with an SSH key."}
+	}
+	f.sshd.KeysOnly = c.Login == config.SSHLoginKey
+	f.sshd.Passwords = !f.sshd.KeysOnly
+	f.ssh, f.sshLogin, f.restarted = c.Choice, c.Login, true
 	return nil
 }
 func (f *fakeSetup) RestartPolicy() (string, int) {

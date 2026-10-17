@@ -151,17 +151,9 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if s.server(r) != nil {
-		if a, err := s.server(r).SSHAccess(); err == nil {
-			switch a.Choice {
-			case config.SSHFromLAN:
-				set("remote-access", "SSH from your home network only", "ok")
-			case config.SSHFromAny:
-				set("remote-access", "SSH from anywhere", "warn")
-			case config.SSHOff:
-				set("remote-access", "SSH is off", "ok")
-			default:
-				set("remote-access", "Not chosen yet; the firewall is off", "warn")
-			}
+		if a, err := s.server(r).SSHAccess(false); err == nil {
+			text, status := sshSummary(a)
+			set("remote-access", text, status)
 		}
 	}
 	if s.Domain != "" && s.Setup != nil && s.domainDone(r) {
