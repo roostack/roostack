@@ -424,7 +424,7 @@
         {{end}}{{end}}
         {{if eq .Kind "system"}}{{notice "warn" "This backup is on the same disk as your data. It helps if something is deleted or changed by mistake, but if the disk fails, or ransomware gets onto the server, your data and this backup are lost together. Keep your other backups on a separate drive, or away from home."}}
         {{- else if and .Access.CanDelete .Access.B2}}
-        {{- $warn := "If this server were taken over, its backups here could be deleted too: it has the account's key, as the key Roostack was given can't make other keys. Give Roostack one that can, and every server backing up here gets a key of its own that can add backups but not delete them."}}
+        {{- $warn := "If this server were taken over, its backups here could be deleted too: it uses the account's key, because the key Roostack was given can't make a key for each server. Give Roostack one that can, and every server backing up here gets a key of its own that can add backups but not delete them."}}
         {{- if .KeyAction}}{{notice "warn" $warn (printf "link=%s?key=%s#plan-key-%d" $.Plan.Back .Ref .Number) "linkText=Change the key"}}{{else}}{{notice "warn" $warn}}{{end}}
         <details class="plan-more">
           <summary>Tell me more</summary>
