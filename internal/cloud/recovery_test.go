@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"net/http"
 	"slices"
 	"testing"
 
@@ -40,6 +41,16 @@ func TestRestoreFromCloud(t *testing.T) {
 	labID := s.Status().LabID
 	id, _ := RecoveryIdentity(key)
 	waitFor(t, func() bool { return bytes.Equal(f.Identities[labID], id.Public().(ed25519.PublicKey)) })
+	// The registration was signed over the lab's ID (review M10): one
+	// signed for another lab's, or unsigned, is refused.
+	other, _ := RecoveryIdentity("another lab's key")
+	pub := other.Public().(ed25519.PublicKey)
+	for _, sig := range [][]byte{nil, ed25519.Sign(other, cloudapi.RestoreMessage(cloudapi.ProveRegister, "lab-other"))} {
+		req := cloudapi.RecoveryIdentity{PublicKey: pub, Signature: sig}
+		if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRecoveryIdentity, req, nil); err == nil {
+			t.Errorf("registered with signature %x", sig)
+		}
+	}
 
 	acc, err := RestoreAccess(ctx, s.cfg, " "+key+" ")
 	if err != nil {
@@ -54,6 +65,7 @@ func TestRestoreFromCloud(t *testing.T) {
 
 	// A new recovery key: told at the next check (or at once, by the key
 	// change), and only once.
+	registered := f.Requests["PUT "+cloudapi.PathLabRecoveryIdentity]
 	key = "the second recovery key"
 	if err := s.Check(ctx); err != nil {
 		t.Fatal(err)
@@ -61,8 +73,8 @@ func TestRestoreFromCloud(t *testing.T) {
 	if err := s.Check(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if n := f.Requests["PUT "+cloudapi.PathLabRecoveryIdentity]; n != 2 {
-		t.Errorf("registered %d times, want 2 (linking, then the new key)", n)
+	if n := f.Requests["PUT "+cloudapi.PathLabRecoveryIdentity] - registered; n != 1 {
+		t.Errorf("registered %d times for the new key, want 1", n)
 	}
 	if _, err := RestoreAccess(ctx, s.cfg, "the first recovery key"); err == nil {
 		t.Error("the old recovery key still works")

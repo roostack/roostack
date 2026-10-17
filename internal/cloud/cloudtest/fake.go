@@ -409,6 +409,10 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 			fail(w, http.StatusBadRequest, "not a public key")
 			return
 		}
+		if !ed25519.Verify(req.PublicKey, cloudapi.RestoreMessage(cloudapi.ProveRegister, id), req.Signature) {
+			fail(w, http.StatusBadRequest, "The registration isn't signed with the recovery identity's key.")
+			return
+		}
 		if f.Identities == nil {
 			f.Identities = map[string][]byte{}
 		}
