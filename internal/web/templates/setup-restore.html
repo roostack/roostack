@@ -15,30 +15,47 @@
   {{if .Unfinished}}{{notice "warn" "A restore onto this server started and didn't finish. Start it again below: it puts everything back from the backup again, over what the last one restored."}}{{end}}
 
   {{if .Searched}}
-  {{with .Found}}
+  {{range .Forged}}{{notice "warn" (printf "Not offered: %s (%s)" .Problem (shownRepo .Repository))}}{{end}}
+  {{if .Found}}
   <h2>Backups the recovery key opens</h2>
+  {{if gt (len .Groups) 1}}{{with index .Groups 0}}{{if .Lab}}
+  <p>Roostack Cloud has {{len $.Groups}} labs with this recovery key: the lab was unlinked and linked again, and each kept its own
+    backups. Choose the one to restore. The lab linked now comes first, then the others, the latest unlinked first.</p>
+  {{end}}{{end}}{{end}}
+  {{range .Groups}}
+  {{with .Lab}}
+  <h3>{{or .Name "A lab"}} in Roostack Cloud</h3>
+  <p class="hint">{{if .UnlinkedAt.IsZero}}Linked to Roostack Cloud since {{date .LinkedAt}}.{{else}}Linked {{date .LinkedAt}}, unlinked
+    {{date .UnlinkedAt}}: once it's restored, link it again from its Settings to use Roostack Cloud.{{end}}</p>
+  {{end}}
+  {{with .Gone}}<p class="hint">{{.}}</p>{{end}}
+  {{with .Found}}
   <ul class="plain found-backups">
-    {{range $i, $f := .}}
+    {{range .}}{{$f := .}}
     <li>
       <strong>{{or $f.Name $f.Domain "A lab"}}</strong>: {{$f.ServerName}}{{if not $f.Controller}} <span class="hint">(a server the controller manages)</span>{{end}}
       <br><small class="hint">Last backed up {{date $f.Snapshot.Time}}, {{$f.Snapshot.Time.Local.Format "15:04"}} · {{$f.Snapshots}} {{if eq $f.Snapshots 1}}backup{{else}}backups{{end}} ·
+        in {{if eq $f.Folder $f.ServerID}}its own folder{{else if $f.Folder}}server {{$f.Folder}}'s folder{{else}}a folder not named after a server{{end}},
         <code>{{shownRepo $f.Repository}}</code></small>
       {{if $f.Controller}}
-      <br>{{confirm "/setup/restore/start" (printf "Restore %s onto this server? Its services, settings and accounts come back from the backup of %s." (or $f.Name $f.Domain "this lab") (date $f.Snapshot.Time)) "Restore this lab" "" (printf "backup=%d" $i)}}
+      <br>{{confirm "/setup/restore/start" (printf "Restore %s onto this server? Its services, settings and accounts come back from the backup of %s." (or $f.Name $f.Domain "this lab") (date $f.Snapshot.Time)) "Restore this lab" "" (printf "backup=%d" $f.Index)}}
       {{end}}
     </li>
     {{end}}
   </ul>
+  {{end}}
+  {{end}}
   <p class="hint">The lab's controller comes back on this server, from its latest backup. Its other servers (if any) reconnect by
     themselves if they can reach this one the way they reached the old one: the same address, and UDP port 51820
     forwarded to it if it's behind a router.</p>
   {{else}}
+  {{range .Groups}}{{$gone := .Gone}}{{with .Lab}}<p class="hint"><strong>{{or .Name "A lab"}}</strong> in Roostack Cloud: {{$gone}}</p>{{end}}{{end}}
   <p class="error" role="alert">The recovery key doesn't open any backup there.</p>
   {{end}}
   {{with .Unopened}}
   <details>
     <summary>{{len .}} other {{if eq (len .) 1}}backup{{else}}backups{{end}} there</summary>
-    <ul class="plain">{{range .}}<li><code>{{shownRepo .Repository}}</code>: {{.Problem}}</li>{{end}}</ul>
+    <ul class="plain">{{range .}}<li>{{with .Lab}}{{or .Name "A lab"}} in Roostack Cloud{{if not .UnlinkedAt.IsZero}} (unlinked {{date .UnlinkedAt}}){{end}}: {{end}}<code>{{shownRepo .Repository}}</code>: {{.Problem}}</li>{{end}}</ul>
   </details>
   {{end}}
   <p><a href="/setup/restore">Look somewhere else…</a></p>

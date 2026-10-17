@@ -39,7 +39,10 @@ You need:
 
 4. Enter your **recovery key**, and choose **Look for backups**.
 5. Roostack lists the backups the key opens, with when each was last
-   backed up. Choose **Restore this lab** next to your lab.
+   backed up. Choose **Restore this lab** next to your lab. If you once
+   unlinked the lab from Roostack Cloud and linked it again, Roostack
+   Cloud keeps the backups from before for a while: the page lists each
+   link's backups, with when it was linked or unlinked, so you can choose.
 
 Roostack puts everything back, then restarts as your lab. Keep the page
 open: it moves on to the login page when it's done. Large backups can take
@@ -101,11 +104,15 @@ was removed, and it no longer backs up into your lab's storage.
 
 ??? note "For technical users"
 
-    The restore finds repositories the key opens, restores the controller's
-    latest snapshot of itself (tagged `server`: `/var/lib/roostack`,
+    The restore finds repositories the key opens, and shows whose folder
+    each is in: every server's backups are in a folder named after its ID.
+    A backup that says it's the controller's is offered only from that
+    server's own folder, since any of the lab's servers could make one. It
+    restores the controller's latest snapshot of itself (tagged `server`: `/var/lib/roostack`,
     including the database dump and the WireGuard keys, and the Podman
     secrets), then the latest snapshot of each service on it (tagged
-    `service=<name>`). It puts the database in place at the next start, then
+    `service=<name>`), and nothing outside those places and each
+    service's own folders. It puts the database in place at the next start, then
     applies the lab, and each service's database is loaded from its dump
     once its containers are set up again.
 

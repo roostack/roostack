@@ -39,8 +39,9 @@ const (
 
 	// Proving the recovery key, for a lab that has lost its controller
 	// (no certificate): POST RestoreChallengeRequest → RestoreChallenge,
-	// then one of POST RestoreProof → RestoreAccess (keys to read its
-	// backups) or POST RelinkRequest → Relinked (a new certificate).
+	// then one of POST RestoreProof → RestoreAccess (keys to read the
+	// backups of every lab with the key) or POST RelinkRequest → Relinked
+	// (a new certificate for the linked one).
 	PathRestoreChallenge = "/v1/restore/challenge"
 	PathRestoreAccess    = "/v1/restore/access"
 	PathRestoreRelink    = "/v1/restore/relink"
@@ -359,9 +360,12 @@ type NameClaim struct {
 // The recovery identity (Cloud's DESIGN §3b, "Account recovery"): an
 // Ed25519 key the lab derives from its recovery key, so whoever holds the
 // recovery key can prove it to Cloud without revealing it. The lab
-// registers the public half; Cloud finds the lab by it.
+// registers the public half, with Signature: RestoreMessage(ProveRegister,
+// its lab ID) signed with the key, so a lab can only register a key it
+// holds (Cloud refuses it otherwise). Cloud finds the lab by it.
 type RecoveryIdentity struct {
 	PublicKey []byte `json:"public_key"`
+	Signature []byte `json:"signature"`
 }
 
 // RestoreChallengeRequest asks for a challenge to sign.
@@ -376,13 +380,17 @@ type RestoreChallenge struct {
 }
 
 // What a signature is for (part of what's signed, so a signature for one
-// can't be used for the other).
+// can't be used for another).
 const (
 	ProveAccess = "access"
 	ProveRelink = "relink"
+	// ProveRegister signs the lab's own ID, not a challenge: registering
+	// the recovery identity (RecoveryIdentity).
+	ProveRegister = "register"
 )
 
-// RestoreMessage is what the lab signs: the challenge, for one purpose.
+// RestoreMessage is what the lab signs: the challenge (or, to register,
+// its lab ID), for one purpose.
 func RestoreMessage(purpose, challenge string) []byte {
 	return []byte("roostack-recovery-identity-v1\n" + purpose + "\n" + challenge)
 }
@@ -394,11 +402,24 @@ type RestoreProof struct {
 	Signature []byte `json:"signature"`
 }
 
-// RestoreAccess opens a lab's backups in Roostack Cloud for a restore:
-// keys that read its folders, and the repository of each server in them.
+// RestoreAccess opens the backups in Roostack Cloud of every lab with the
+// recovery key, for a restore: the linked one first, then those unlinked,
+// the latest unlinked first. A lab unlinked and linked again keeps its
+// recovery key under a new lab ID, and each has its own backups, so the
+// person restoring chooses.
 type RestoreAccess struct {
-	LabID        string      `json:"lab_id"`
-	LabName      string      `json:"lab_name"`
+	Labs []RestoreLab `json:"labs"`
+}
+
+// RestoreLab is one lab's backups: keys that read its folders, and the
+// repository of each server in them (none, once they're no longer kept).
+type RestoreLab struct {
+	LabID   string `json:"lab_id"`
+	LabName string `json:"lab_name"`
+	// LinkedAt is when it was linked, and UnlinkedAt when it was unlinked
+	// (zero while it's linked).
+	LinkedAt     time.Time   `json:"linked_at"`
+	UnlinkedAt   time.Time   `json:"unlinked_at,omitzero"`
 	Keys         StorageKeys `json:"keys"`
 	Repositories []string    `json:"repositories"`
 }

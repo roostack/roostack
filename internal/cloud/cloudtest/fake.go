@@ -8,6 +8,7 @@ package cloudtest
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -26,6 +27,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -75,10 +77,11 @@ type Fake struct {
 	StorageQuota, StorageUsed int64
 	StorageAsked              []cloudapi.StorageRequest
 	// Identities are the labs' recovery identities (public keys), by lab
-	// ID; RestoreRepositories what a proven restore is told is there, and
-	// Proven each proof's purpose, in order.
+	// ID, unlinked labs' included; RestoreRepositories what a proven
+	// restore is told is there, by lab ID; and Proven each proof's
+	// purpose, in order.
 	Identities          map[string][]byte
-	RestoreRepositories []string
+	RestoreRepositories map[string][]string
 	Proven              []string
 	// RestoreStatus, if set, is how every restore request is answered
 	// (429: rate limited).
@@ -91,6 +94,9 @@ type Fake struct {
 	mu    sync.Mutex
 	links map[string]*link // by secret
 	labs  map[string]*lab  // by lab ID
+	// unlinked are the labs unlinked, by lab ID: their backups can still
+	// be restored.
+	unlinked map[string]*lab
 	// names are claimed names, by lab ID.
 	names map[string]*claimed
 	// Records are the claimed names' records ("fqdn TYPE" → value), and
@@ -119,6 +125,8 @@ type claimed struct {
 type lab struct {
 	name    string
 	serials map[string]bool // certificates it may use
+	// linked and unlinked are when (unlinked: zero while it's linked).
+	linked, unlinked time.Time
 }
 
 // New makes a fake Cloud with its own certificate authority.
@@ -187,7 +195,7 @@ func (f *Fake) Confirm(code string) error {
 
 func (f *Fake) confirm(l *link) error {
 	l.labID = "lab-" + hex.EncodeToString(serial().Bytes()[:4])
-	f.labs[l.labID] = &lab{name: l.labName, serials: map[string]bool{}}
+	f.labs[l.labID] = &lab{name: l.labName, serials: map[string]bool{}, linked: time.Now()}
 	cert, err := f.issue(l.labID, l.csr)
 	if err != nil {
 		return err
@@ -239,6 +247,13 @@ func (f *Fake) Codes() []string {
 func (f *Fake) Unlink(labID string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if lb := f.labs[labID]; lb != nil {
+		lb.unlinked = time.Now()
+		if f.unlinked == nil {
+			f.unlinked = map[string]*lab{}
+		}
+		f.unlinked[labID] = lb
+	}
 	delete(f.labs, labID)
 }
 
@@ -407,6 +422,10 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&req)
 		if len(req.PublicKey) != ed25519.PublicKeySize {
 			fail(w, http.StatusBadRequest, "not a public key")
+			return
+		}
+		if !ed25519.Verify(req.PublicKey, cloudapi.RestoreMessage(cloudapi.ProveRegister, id), req.Signature) {
+			fail(w, http.StatusBadRequest, "The registration isn't signed with the recovery identity's key.")
 			return
 		}
 		if f.Identities == nil {
@@ -688,18 +707,33 @@ func (f *Fake) restore(w http.ResponseWriter, r *http.Request) {
 		fail(w, f.RestoreStatus, "Too many requests from this address. Try again in a minute.")
 		return
 	}
-	labOf := func(pub []byte) string {
+	// labsOf lists the labs with the identity, as Cloud does: the linked
+	// one first, then those unlinked, the latest first.
+	labsOf := func(pub []byte) []string {
+		var out []string
 		for id, k := range f.Identities {
-			if bytes.Equal(k, pub) {
-				return id
+			if bytes.Equal(k, pub) && (f.labs[id] != nil || f.unlinked[id] != nil) {
+				out = append(out, id)
 			}
 		}
-		return ""
+		slices.SortFunc(out, func(a, b string) int {
+			la, lb := f.labs[a], f.labs[b]
+			switch {
+			case la != nil && lb == nil:
+				return -1
+			case la == nil && lb != nil:
+				return 1
+			case la == nil:
+				return f.unlinked[b].unlinked.Compare(f.unlinked[a].unlinked)
+			}
+			return strings.Compare(a, b)
+		})
+		return out
 	}
 	if r.URL.Path == cloudapi.PathRestoreChallenge {
 		var req cloudapi.RestoreChallengeRequest
 		json.NewDecoder(r.Body).Decode(&req)
-		if labOf(req.PublicKey) == "" {
+		if len(labsOf(req.PublicKey)) == 0 {
 			fail(w, http.StatusNotFound, "No lab in Roostack Cloud has this recovery key.")
 			return
 		}
@@ -726,17 +760,23 @@ func (f *Fake) restore(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusUnauthorized, "That doesn't prove the recovery key.")
 		return
 	}
-	id := labOf(pub)
+	ids := labsOf(pub)
 	f.Proven = append(f.Proven, purpose)
 	if purpose == cloudapi.ProveAccess {
-		name := ""
-		if lb := f.labs[id]; lb != nil {
-			name = lb.name
+		var acc cloudapi.RestoreAccess
+		for _, id := range ids {
+			lb := cmp.Or(f.labs[id], f.unlinked[id])
+			acc.Labs = append(acc.Labs, cloudapi.RestoreLab{LabID: id, LabName: lb.name, LinkedAt: lb.linked, UnlinkedAt: lb.unlinked,
+				Repositories: f.RestoreRepositories[id],
+				Keys: cloudapi.StorageKeys{AccessKeyID: "fake-restore-" + id, SecretAccessKey: "fake", SessionToken: "fake", Region: "test",
+					Expires: time.Now().Add(12 * time.Hour)}})
 		}
-		reply(w, cloudapi.RestoreAccess{LabID: id, LabName: name, Repositories: f.RestoreRepositories,
-			Keys: cloudapi.StorageKeys{AccessKeyID: "fake-restore", SecretAccessKey: "fake", SessionToken: "fake", Region: "test",
-				Expires: time.Now().Add(12 * time.Hour)}})
+		reply(w, acc)
 		return
+	}
+	id := ""
+	if len(ids) > 0 {
+		id = ids[0]
 	}
 	if f.labs[id] == nil {
 		fail(w, http.StatusBadRequest, "This lab was unlinked from Roostack Cloud: link it again.")
