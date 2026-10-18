@@ -736,11 +736,10 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
 .activity-status { overflow-wrap: anywhere; }
 
 /* ---------- Backup plan (backup-plan): numbered backups and empty slots ---------- */
-/* The plan's copies side by side as tiles (the mock-ups' 3-2-1 copies); one
-   being added, or whose Manage is open, takes the whole row. */
-.plan-list { list-style: none; padding: 0; margin: var(--space-3) 0; display: grid; gap: var(--space-3);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); }
-.plan-list > .plan-adding, .plan-list > .plan-card:has(details[open]) { grid-column: 1 / -1; }
+/* The plan's copies one under another, whatever the width (the Owner,
+   2026-10-18: side by side, their numbers read wrong, and a box being
+   added took a row of its own, away from where it was). */
+.plan-list { list-style: none; padding: 0; margin: var(--space-3) 0; display: grid; gap: var(--space-3); }
 @supports (color: color-mix(in srgb, red 50%, blue)) {
   .plan-card:not(.plan-slot) { background: var(--glass); border: 0; box-shadow: inset 0 0 0 1px var(--edge); }
   .plan-card.plan-data { background: var(--glass-2); }

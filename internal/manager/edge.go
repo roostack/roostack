@@ -227,6 +227,33 @@ func (m *Manager) SetRelay(ctx context.Context, on bool) error {
 	return nil
 }
 
+// RelayGone turns the relay off in the lab's settings without asking
+// Roostack Cloud: the link it came with has gone (unlinked here or in
+// Cloud), and the relay with it, so the lab stops asking Cloud to update
+// it (SPEC.md §10.5). apply false is for Roostack's start, whose own
+// apply follows.
+func (m *Manager) RelayGone(apply bool) error {
+	if m.UpdateLab == nil {
+		return errors.New("manager: UpdateLab is not set")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.publicLocked().Relay {
+		return nil
+	}
+	if err := m.UpdateLab(func(l *config.Lab) { l.Public.Relay = false }); err != nil {
+		return err
+	}
+	m.publicLocked().Relay = false
+	m.relayGen++ // an update on its way is dropped
+	m.Log.Info("Roostack Cloud's relay is off: it went with the link to Roostack Cloud")
+	if apply {
+		m.applyReason = "Roostack Cloud's relay went with the link: changing how public visitors reach the lab"
+		m.startApplyLocked()
+	}
+	return nil
+}
+
 // ownDomain is the lab's own domain, for the relay ("" when its address
 // is a roost.ac name, whose names Cloud runs).
 func ownDomain(lab config.Lab) string {

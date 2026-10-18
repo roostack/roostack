@@ -399,7 +399,7 @@
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{with .Hint}}{{notice "info" .}}{{end}}
   {{with .Lost}}{{notice "error" (printf "The main backup was on %s's disk, and %s left the lab on %s, so nothing can reach those backups now. Choose a new place for the main backup: until then, nightly backups fail%s." .HostName .HostName (.Lost.Local.Format "2 January") (or (and $.Plan.Entries ", though the other backups still run") "")) (printf "link=%s?add=%d#plan" $.Plan.Back $.Plan.More) "linkText=Choose a new place"}}{{end}}
-  {{with .Busy}}{{activity .}}{{end}}
+  {{if not .BusyIn}}{{with .Busy}}{{activity .}}{{end}}{{end}}
   <ol class="plan-list">
     <li class="plan-card plan-data">
       <span class="plan-num">1</span>
@@ -416,6 +416,7 @@
         <p class="plan-title">{{.Title}}</p>
         <p class="hint">{{if .Main}}Main backup · {{end}}{{with .KindTitle}}{{.}} · {{end}}{{if .AtHome}}at home{{else if .Away}}away from home{{else if .AskWhere}}at home or away?{{else}}location not known{{end}}{{if .Main}} · restores use it first{{end}}
           {{- if eq .Path "direct"}} · linked directly{{else if eq .Path "hub"}} · through {{.Via}}, as they can't link directly{{end}}</p>
+        {{if eq $.Plan.BusyIn .Number}}{{activity $.Plan.Busy}}{{end}}
         {{if .LowSpace}}{{notice "warn" (printf "Nearly full: %s free on %s. When it's full, backups here fail." (size .Free) .FreeOn)}}{{end}}
         {{if eq .Path "hub"}}{{if .LinkFailed}}
         {{notice "warn" (printf "A direct link to %s didn't connect, so these backups go through %s, using its connection twice. Check %s can be reached at its address for direct links (UDP port 51820, or the port you entered). Roostack tries again tomorrow, or as soon as you change the address." .HostName .Via .HostName) (printf "link=/servers#server-%s" .Host) "linkText=Check the address"}}
@@ -479,7 +480,15 @@
     {{end}}
     {{end}}
     {{range .Slots}}
-    {{if eq $.Plan.Adding .Number}}{{template "plan-chooser" $.Plan}}{{else}}
+    {{if eq $.Plan.Adding .Number}}{{template "plan-chooser" $.Plan}}{{else if eq $.Plan.BusyIn .Number}}
+    <li class="plan-card plan-adding">
+      {{template "plan-num" .}}
+      <div class="plan-body">
+        <p class="plan-title">{{.Title}}</p>
+        {{activity $.Plan.Busy}}
+      </div>
+    </li>
+    {{else}}
     <li class="plan-card plan-slot">
       {{template "plan-num" .}}
       <div class="plan-body">
@@ -729,7 +738,9 @@
   <h2 class="section-title">Unlinking</h2>
   <p>{{if .Address}}Your lab's address, {{.Address}}, stops working, so
     {{with .Services}}these services can't be reached until you give the lab another address: {{range $i, $s := .}}{{if $i}}, {{end}}{{$s}}{{end}}.{{else}}services can't be reached until you give the lab another address.{{end}}
-    The name is kept for your account for a year.{{else}}Nothing on this lab uses Roostack Cloud yet.{{end}}
+    The name is kept for your account for a year.{{else if not .Relayed}}Nothing on this lab uses Roostack Cloud yet.{{end}}
+    {{if .Relayed}}Public visitors stop coming in through Roostack Cloud's relay: it's turned off here, and public services can be
+    reached only if your router sends visitors to this server (see Public access).{{end}}
     Everything else on this server carries on as it is.</p>
   {{confirm "/settings/cloud/unlink" "Unlink this lab from Roostack Cloud?" "Unlink from Roostack Cloud" "quiet danger"}}
 {{- end}}

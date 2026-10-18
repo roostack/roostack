@@ -130,9 +130,9 @@ func (m *Manager) handOutS3Key(ctx context.Context, act *activity.Log, name stri
 	}
 	var missed []string
 	for _, u := range using {
-		server := m.nameOf(u.ServerID)
+		server := m.serverName(u.ServerID)
 		if u.ScopedKey != "" {
-			act.Printf("%s keeps the key of its own it has.", server)
+			act.Printf("%s keeps the key of its own it has.", capital(server))
 			continue
 		}
 		n := m.node(u.ServerID)

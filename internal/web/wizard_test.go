@@ -790,6 +790,19 @@ func TestActivity(t *testing.T) {
 	if _, log := h.get("/activity/os-updates/log"); !strings.Contains(log, "==&gt; Done") || strings.Contains(log, "hx-get") {
 		t.Errorf("finished log should stop polling:\n%s", log)
 	}
+	// A log that went with a restart (a backup copy's new settings): the
+	// page reloads rather than spinning on its last answer.
+	resp, err = h.client.Get(h.srv.URL + "/activity/backup-setup.n-1/status?was=running")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.Header.Get("HX-Refresh") != "true" {
+		t.Errorf("a log gone with a restart: %d, HX-Refresh %q", resp.StatusCode, resp.Header.Get("HX-Refresh"))
+	}
+	if code, _ := h.get("/activity/backup-setup.n-1/status"); code != http.StatusNotFound {
+		t.Errorf("no such log: %d", code)
+	}
 
 	// Admins can't see host activity.
 	ha, _ := loggedIn(t, auth.RoleAdmin)

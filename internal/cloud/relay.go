@@ -179,20 +179,34 @@ func (s *Service) StopRelay(ctx context.Context) error {
 	return err
 }
 
+// ErrNoCrowdSec is what SendBans's bans returns while CrowdSec isn't
+// meant to run (nothing is public, SPEC.md §6.11): nothing to send, and
+// nothing wrong.
+var ErrNoCrowdSec = errors.New("CrowdSec isn't running: nothing is public")
+
 // SendBans sends the lab's CrowdSec bans to Cloud every so often while
 // the lab is relayed, until ctx ends, so the edges refuse those visitors
 // for this lab (Roostack Cloud's DESIGN §5, "Collective defence"). Every
 // time, not only on a change: Cloud drops bans an hour after the last
-// word. bans fails while CrowdSec isn't running; nothing is sent then.
+// word. Nothing is sent while bans fails: ErrNoCrowdSec is said once in
+// the log, anything else (CrowdSec should be there) each time.
 func (s *Service) SendBans(ctx context.Context, every time.Duration, bans func(context.Context) ([]string, error)) {
+	quiet := false
 	for {
 		s.mu.Lock()
 		relayed := s.st.Linked && s.st.Relay != nil
 		s.mu.Unlock()
 		if relayed {
-			if err := s.sendBans(ctx, bans); err != nil {
+			err := s.sendBans(ctx, bans)
+			switch {
+			case errors.Is(err, ErrNoCrowdSec):
+				if !quiet {
+					s.log.Info("Roostack Cloud: no CrowdSec bans to send to the relay while nothing is public")
+				}
+			case err != nil:
 				s.log.Warn("Roostack Cloud: sending CrowdSec's bans to the relay", "err", err)
 			}
+			quiet = errors.Is(err, ErrNoCrowdSec)
 		}
 		select {
 		case <-ctx.Done():

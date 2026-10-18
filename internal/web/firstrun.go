@@ -399,7 +399,9 @@ func (s *Server) SetupHandler(done func()) http.Handler {
 		for _, h := range []string{"X-Forwarded-For", "X-Forwarded-Proto", "X-Forwarded-Host", "X-Real-Ip"} {
 			r.Header.Del(h)
 		}
-		if !s.setupOpen(r.Context()) {
+		// Once setup is finished every page is the one saying so, but its
+		// own stylesheets and scripts still load while the listener lingers.
+		if !s.setupOpen(r.Context()) && !strings.HasPrefix(r.URL.Path, "/static/") {
 			s.setupFinished(w, r)
 			done()
 			return
@@ -444,19 +446,47 @@ type SetupListener struct {
 	Log  *slog.Logger
 	// Check is how often to look whether setup was finished elsewhere
 	// (e.g. over an SSH tunnel); Linger how long the page saying it's
-	// finished has to reach the browser before the listener closes.
-	// Defaults: 30 s and 3 s.
+	// finished, and the files it loads, have to reach the browser before
+	// the listener closes. Defaults: 30 s and 5 s.
 	Check, Linger time.Duration
 	// Allow says which connections are served, by the addresses at each
 	// end; the default is the home network to this server's address on
 	// it (trust.IsHome). For tests.
 	Allow func(remote, local netip.Addr) bool
+
+	once, finishOnce sync.Once
+	finished         chan struct{} // closed by Finish
+	closed           chan struct{} // closed when Serve returns
+}
+
+// init makes the channels, whichever of Finish, Closed and Serve comes
+// first.
+func (l *SetupListener) init() {
+	l.once.Do(func() { l.finished, l.closed = make(chan struct{}), make(chan struct{}) })
+}
+
+// Finish says setup is finished: the listener closes Linger later, time
+// for the page saying so and its files. Called by the wizard's end, which
+// may come before the page is asked for; more calls do nothing.
+func (l *SetupListener) Finish() {
+	l.init()
+	l.finishOnce.Do(func() { close(l.finished) })
+}
+
+// Closed is closed once the listener has stopped serving: the restart at
+// the wizard's end waits for it, or the page's files would find the port
+// closed.
+func (l *SetupListener) Closed() <-chan struct{} {
+	l.init()
+	return l.closed
 }
 
 // Run serves until setup is finished (or ctx ends), then returns nil.
 func (l *SetupListener) Run(ctx context.Context) error {
 	ln, err := net.Listen("tcp", l.Addr)
 	if err != nil {
+		l.init()
+		close(l.closed)
 		return err
 	}
 	return l.Serve(ctx, ln)
@@ -464,12 +494,13 @@ func (l *SetupListener) Run(ctx context.Context) error {
 
 // Serve is Run on a listener of the caller's.
 func (l *SetupListener) Serve(ctx context.Context, ln net.Listener) error {
-	finished := make(chan struct{})
-	var once sync.Once
-	done := func() { once.Do(func() { close(finished) }) }
-	defer done() // the goroutine below ends with the listener
+	l.init()
+	defer close(l.closed)
+	stopped := make(chan struct{})
+	defer func() { <-stopped }()
+	defer l.Finish() // the goroutine below ends with the listener
 	srv := &http.Server{
-		Handler:           l.Server.SetupHandler(done),
+		Handler:           l.Server.SetupHandler(l.Finish),
 		ReadHeaderTimeout: 10 * time.Second,
 		// Browsers that haven't accepted the certificate yet end each
 		// handshake with an error: not worth a log line each.
@@ -481,19 +512,21 @@ func (l *SetupListener) Serve(ctx context.Context, ln net.Listener) error {
 		l.Check = 30 * time.Second
 	}
 	if l.Linger <= 0 {
-		l.Linger = 3 * time.Second
+		l.Linger = 5 * time.Second
 	}
 	if l.Allow == nil {
 		l.Allow = func(remote, local netip.Addr) bool { return trust.IsHome(remote) && trust.IsHome(local) }
 	}
 	go func() {
+		defer close(stopped)
 		tick := time.NewTicker(l.Check)
 		defer tick.Stop()
 		for {
 			select {
 			case <-ctx.Done():
-			case <-finished:
-				// Let the page saying so reach the browser first.
+			case <-l.finished:
+				// Let the page saying so, and its files, reach the browser
+				// first.
 				time.Sleep(l.Linger)
 			case <-tick.C:
 				if l.Server.setupOpen(ctx) {

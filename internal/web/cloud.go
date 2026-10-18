@@ -57,6 +57,9 @@ type cloudView struct {
 	Setup bool
 	// Services use the lab's roost.ac address (unlinking takes it away).
 	Services []string
+	// Relayed: public visitors come in through Cloud's relay (unlinking
+	// turns it off).
+	Relayed  bool
 	Requests []cloud.Request
 	// Suffix is the one Cloud's names have (cloudSuffix).
 	Suffix string
@@ -79,6 +82,7 @@ func (s *Server) cloudView(r *http.Request, setup bool) cloudView {
 			}
 		}
 	}
+	v.Relayed = v.Linked && s.Manager != nil && s.Manager.RelayOn()
 	if !setup {
 		v.Requests = s.Cloud.Requests()
 		if len(v.Requests) > 30 {

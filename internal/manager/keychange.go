@@ -260,7 +260,7 @@ func (m *Manager) addNewKey(ctx context.Context, act *activity.Log, k *KeyChange
 			kr.Added, kr.Removed = true, true // the backup was removed since
 			continue
 		}
-		act.Step("Adding the new key to %s's backup", m.nameOf(kr.ServerID))
+		act.Step("Adding the new key to %s's backup", m.serverName(kr.ServerID))
 		err := func() error {
 			old, err := r.open(backup.KeyFile(m.Lab.Paths))
 			if err != nil {
@@ -291,7 +291,7 @@ func (m *Manager) addNewKey(ctx context.Context, act *activity.Log, k *KeyChange
 		}()
 		if err != nil {
 			kr.Error = firstLine(err.Error())
-			act.Printf("%s: %s", m.nameOf(kr.ServerID), kr.Error)
+			act.Printf("%s", m.aboutServer(kr.ServerID, kr.Error))
 			continue
 		}
 		kr.Added = true
@@ -313,7 +313,7 @@ func (m *Manager) removeOldKey(ctx context.Context, act *activity.Log, k *KeyCha
 			kr.Removed = true
 			continue
 		}
-		act.Step("Removing the old key from %s's backup", m.nameOf(kr.ServerID))
+		act.Step("Removing the old key from %s's backup", m.serverName(kr.ServerID))
 		err := func() error {
 			repo, err := r.open(backup.KeyFile(m.Lab.Paths))
 			if err != nil {
@@ -330,7 +330,7 @@ func (m *Manager) removeOldKey(ctx context.Context, act *activity.Log, k *KeyCha
 		}()
 		if err != nil {
 			kr.Error = firstLine(err.Error())
-			act.Printf("%s: %s", m.nameOf(kr.ServerID), kr.Error)
+			act.Printf("%s", m.aboutServer(kr.ServerID, kr.Error))
 			continue
 		}
 		kr.Removed = true

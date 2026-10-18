@@ -116,16 +116,16 @@ func (m *Manager) checkJunk(ctx context.Context, act *activity.Log, t store.Back
 	}
 	d, err := m.destinationOf(ctx, t.Provider)
 	if err != nil {
-		say("%s: %v", m.nameOf(t.ServerID), err)
+		say("%s", m.aboutServer(t.ServerID, err.Error()))
 		return
 	}
 	repo, err := m.adminRepo(ctx, t)
 	if err != nil {
-		say("%s: %v", m.nameOf(t.ServerID), err)
+		say("%s", m.aboutServer(t.ServerID, err.Error()))
 		return
 	}
 	if act != nil {
-		act.Step("%s: %s", m.nameOf(t.ServerID), m.junkWhere(ctx, t))
+		act.Step("%s", m.aboutServer(t.ServerID, m.junkWhere(ctx, t)))
 	}
 	m.junk.mu.Lock()
 	if m.junk.good == nil {
@@ -176,7 +176,12 @@ func (m *Manager) checkJunk(ctx context.Context, act *activity.Log, t store.Back
 // ("… backups on this server's own disk").
 func (m *Manager) junkWhere(ctx context.Context, t store.BackupTarget) string {
 	choices, _ := m.BackupChoices(ctx)
-	title := m.destinationTitle(ctx, t.ServerID, t.Provider, t.Repository, choices)
+	return inSentence(m.destinationTitle(ctx, t.ServerID, t.Provider, t.Repository, choices))
+}
+
+// inSentence is a destination's title inside a sentence: "The folder
+// /mnt/x" becomes "the folder /mnt/x".
+func inSentence(title string) string {
 	for _, w := range []string{"This ", "The ", "A "} {
 		if rest, ok := strings.CutPrefix(title, w); ok {
 			return strings.ToLower(w) + rest
@@ -188,7 +193,7 @@ func (m *Manager) junkWhere(ctx context.Context, t store.BackupTarget) string {
 // junkWriters are who could have written to a server's repository: the
 // server itself, and whoever has the files.
 func (m *Manager) junkWriters(t store.BackupTarget, d destination) []string {
-	out := []string{m.nameOf(t.ServerID)}
+	out := []string{m.serverName(t.ServerID)}
 	switch d.kind {
 	case destServer:
 		out = append(out, m.nameOf(d.id))

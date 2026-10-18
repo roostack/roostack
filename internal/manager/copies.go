@@ -58,7 +58,7 @@ func (m *Manager) AddBackupCopy(ctx context.Context, serverID, ref string) error
 	}
 	main, _, ok := m.BackupTargetOf(ctx, serverID)
 	if !ok {
-		return formErrorf("Choose where %s's backups go first; a copy goes somewhere else.", n.Identity().Name)
+		return formErrorf("Choose where %s backups go first; a copy goes somewhere else.", m.backupsOf(serverID))
 	}
 	choice, err := m.choiceFor(ctx, serverID, ref)
 	if err != nil {
@@ -68,17 +68,17 @@ func (m *Manager) AddBackupCopy(ctx context.Context, serverID, ref string) error
 	case choice == nil:
 		return formErrorf("Choose where the copy goes.")
 	case ref == main.Provider:
-		return formErrorf("That's where %s's backups already go. A copy protects you only somewhere else.", n.Identity().Name)
+		return formErrorf("That's where %s backups already go. A copy protects you only somewhere else.", m.backupsOf(serverID))
 	case strings.HasPrefix(ref, "server:") && strings.TrimPrefix(ref, "server:") == main.StoreHost:
-		return formErrorf("That's where %s's backups already go.", n.Identity().Name)
+		return formErrorf("That's where %s backups already go.", m.backupsOf(serverID))
 	}
 	for _, c := range m.BackupCopiesOf(ctx, serverID) {
 		if c.Ref == ref {
-			return formErrorf("%s's backups are already copied there.", n.Identity().Name)
+			return formErrorf("%s backups are already copied there.", capital(m.backupsOf(serverID)))
 		}
 	}
 	name := n.Identity().Name
-	act := m.Activity.Start(activity.BackupSetupFor(serverID), "Adding a copy of "+name+"'s backups")
+	act := m.Activity.Start(activity.BackupSetupFor(serverID), "Adding a copy of "+m.backupsOf(serverID)+" backups")
 	go func() {
 		err := m.setUpCopy(context.Background(), act, serverID, n, *choice)
 		if err != nil {
@@ -107,13 +107,35 @@ func (m *Manager) setUpCopy(ctx context.Context, act *activity.Log, serverID str
 	if err := m.BackupStore.SetBackupCopy(ctx, target); err != nil {
 		return err
 	}
-	act.Step("Telling %s about the copy (it restarts Roostack)", m.nameOf(serverID))
+	if m.alone() {
+		act.Step("Saving the copy (Roostack restarts to use it)")
+	} else {
+		act.Step("Telling %s about the copy (it restarts Roostack)", m.nameOf(serverID))
+	}
 	c := node.BackupCopy{Name: choice.Ref, Title: choice.Title, Repository: dest.Repository, Env: dest.Env, Cloud: dest.Cloud, Key: dest.Key, KeyHint: dest.KeyHint, Drive: dest.Drive}
 	if err := n.Settings().SetBackupCopies(ctx, m.copiesFor(ctx, serverID, &c)); err != nil {
 		return err
 	}
-	act.Step("%s's backups are also copied to %s from the next backup", m.nameOf(serverID), choice.Title)
+	act.Step("%s backups are also copied to %s from the next backup", capital(m.backupsOf(serverID)), inSentence(choice.Title))
 	return nil
+}
+
+// backupsOf is whose backups they are, before "backups": a server's
+// ("nas's"), or "the" in a lab of one.
+func (m *Manager) backupsOf(serverID string) string {
+	if serverID == m.Lab.NodeID && m.alone() {
+		return "the"
+	}
+	return m.nameOf(serverID) + "'s"
+}
+
+// capital starts a sentence with s: "this server" and "the" take a
+// capital, a server's own name stays as it is ("nas", not "Nas").
+func capital(s string) string {
+	if s == "the" || strings.HasPrefix(s, "the ") || strings.HasPrefix(s, "this ") {
+		return strings.ToUpper(s[:1]) + s[1:]
+	}
+	return s
 }
 
 // copiesFor is what a server is told about its copies: each one it has,

@@ -93,7 +93,7 @@ func (m *Manager) ServiceBackups(ctx context.Context, name string) ([]BackupMome
 				}
 			}
 			if err != nil {
-				problems[i] = fmt.Sprintf("Couldn't read %s's backups at %s: %s", m.nameOf(kr.ServerID), where, firstLine(err.Error()))
+				problems[i] = fmt.Sprintf("Couldn't read %s backups at %s: %s", m.backupsOf(kr.ServerID), where, firstLine(err.Error()))
 			}
 		})
 	}
@@ -237,7 +237,7 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	go func() {
 		ctx := context.Background()
 		err := m.restoreFrom(ctx, act, restoreJob{name: name, title: p.Title, host: host, to: to,
-			repo: repo, snap: *snap, from: fmt.Sprintf("%s's backup at %s", m.nameOf(kr.ServerID), where)}, dst)
+			repo: repo, snap: *snap, from: fmt.Sprintf("%s backup at %s", m.backupsOf(kr.ServerID), where)}, dst)
 		if err != nil {
 			m.Log.Error("restoring a service", "service", name, "err", err)
 		}
@@ -282,21 +282,25 @@ func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJ
 	stopped := false
 	defer func() {
 		if err != nil && stopped {
-			act.Step("Starting %s again on %s", j.title, m.nameOf(j.host))
+			act.Step("Starting %s again%s", j.title, m.onServer(j.host))
 			if serr := src.StartService(context.WithoutCancel(ctx), j.name); serr != nil {
 				act.Printf("%v", serr)
 			}
 		}
 	}()
 	if reachable {
-		act.Step("Stopping %s on %s", j.title, m.nameOf(j.host))
+		act.Step("Stopping %s%s", j.title, m.onServer(j.host))
 		if err := src.StopService(ctx, j.name); err != nil {
 			return err
 		}
 		stopped = true
 	}
 
-	act.Step("Copying %s's data from the backup to %s", j.title, m.nameOf(j.to))
+	if to := m.onServer(j.to); to == "" {
+		act.Step("Copying %s's data from the backup", j.title)
+	} else {
+		act.Step("Copying %s's data from the backup to %s", j.title, m.nameOf(j.to))
+	}
 	for dir, path := range []string{filepath.Join(m.Lab.Paths.ServicesDir, j.name), filepath.Join(m.Lab.Paths.MediaDir, j.name)} {
 		if !slices.ContainsFunc(j.snap.Paths, func(p string) bool { return p == path || strings.HasPrefix(p, path+"/") }) {
 			continue // e.g. no media folder
@@ -319,7 +323,7 @@ func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJ
 		if !reachable {
 			return err
 		}
-		act.Printf("%v; using the ones %s has", err, m.nameOf(j.host))
+		act.Printf("%v; using the ones %s has", err, m.serverName(j.host))
 		if secrets, err = src.ExportSecrets(ctx, j.name); err != nil {
 			return err
 		}
@@ -331,7 +335,7 @@ func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJ
 		return err
 	}
 
-	act.Step("Putting the data in place on %s", m.nameOf(j.to))
+	act.Step("Putting the data in place%s", m.onServer(j.to))
 	kept, err := dst.CommitData(ctx, j.name)
 	for _, k := range kept {
 		act.Printf("The data that was there is kept at %s until you delete it", k)
@@ -368,7 +372,7 @@ func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJ
 			act.Printf("The old copy stays on %s at %s until you delete it", m.nameOf(j.host), a)
 		}
 	}
-	act.Step("%s is back to the backup from %s, on %s", j.title, j.snap.Time.Local().Format("Mon 2 Jan 15:04"), m.nameOf(j.to))
+	act.Step("%s is back to the backup from %s%s", j.title, j.snap.Time.Local().Format("Mon 2 Jan 15:04"), strings.Replace(m.onServer(j.to), " on", ", on", 1))
 	return nil
 }
 

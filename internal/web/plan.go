@@ -112,8 +112,12 @@ type planView struct {
 	ChooserTitle, ChooserButton string
 	ChooserNum                  planSlot
 	Options                     planOptions
-	Busy                        *activityView
-	Error                       string
+	// Busy is a backup being set up (or one that failed lately); BusyIn
+	// the number of the box it's for while it runs (from the chooser's
+	// redirect, "setting"), where it shows instead of above the list.
+	Busy   *activityView
+	BusyIn int
+	Error  string
 	// Next is when the next backup runs (zero if unknown).
 	Next time.Time
 	// Lost: the main backup was on a server that left the lab, and there's
@@ -356,6 +360,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	// reason stays in view).
 	if a := s.activityFor(r, activity.BackupSetupFor(m.ID)); a != nil && (a.Running() || a.Err != "" && time.Since(a.Finished) < time.Hour) {
 		p.Busy = a
+		if n, _ := strconv.Atoi(r.FormValue("setting")); a.Running() && n >= 2 && n <= p.More && p.Adding == 0 {
+			p.BusyIn = n
+		}
 	}
 	return p
 }
@@ -493,7 +500,16 @@ func (s *Server) planAddSubmit(wizard bool) http.HandlerFunc {
 			}
 		}
 		s.Store.Audit(ctx, currentUser(r), "backup", "added a backup for "+m.Label()+": "+ref)
-		redirect(w, r, back+"#plan")
+		// Its progress shows in the box it's for (the Owner, 2026-10-18).
+		box := r.FormValue("add")
+		if r.FormValue("replace") == "1" || !hasMain {
+			box = "2"
+		}
+		sep := "?"
+		if strings.Contains(back, "?") {
+			sep = "&"
+		}
+		redirect(w, r, back+sep+url.Values{"setting": {box}}.Encode()+"#plan")
 	}
 }
 

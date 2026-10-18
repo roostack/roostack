@@ -35,6 +35,11 @@ numbered.
     One backup is far better than none. Set up the main backup first; the
     plan suggests what to add next.
 
+Each place in the plan is a box, one under another. **Add** opens the
+choices in the box you're adding, and once you've chosen, that box shows
+what Roostack is doing to set it up. At the end Roostack restarts to use
+it, and the page shows the new backup.
+
 ## The checks
 
 Under the plan, Roostack checks five things:

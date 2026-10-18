@@ -117,7 +117,10 @@ of once a day, so it shows the answer soon after.
 key. If your lab's address is a roost.ac name, it stops working at once
 and your lab goes back to having no address, so your services can't be
 reached until you give it another. The name
-is kept for your account for a year. If Roostack Cloud can't be reached at
+is kept for your account for a year. If public visitors come in through
+Roostack Cloud's relay, the relay is turned off too: your public services
+can then be reached only if your router sends visitors to your server (see
+Public access). If Roostack Cloud can't be reached at
 the time, the lab is unlinked anyway: remove it on your account's page too.
 
 ## "No longer linked"

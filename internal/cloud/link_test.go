@@ -1,6 +1,7 @@
 package cloud
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -359,6 +360,36 @@ func (f *fakeWG) RemoveWireGuard(_ context.Context, iface string) error {
 	return nil
 }
 
+// TestUnlinkedRelay: a relayed lab unlinked, here or in Cloud, says the
+// relay went with the link (the lab's settings turn it off); one not
+// relayed says nothing.
+func TestUnlinkedRelay(t *testing.T) {
+	ctx := context.Background()
+	for _, inCloud := range []bool{false, true} {
+		for _, relayed := range []bool{false, true} {
+			f, s, _ := fakeCloud(t)
+			s.WireGuard = &fakeWG{}
+			unrelayed := 0
+			s.Unrelayed = func(context.Context) { unrelayed++ }
+			link(t, f, s, "")
+			if relayed {
+				if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}, config.Countries{}, "", ""); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if inCloud {
+				f.Unlink(s.Status().LabID)
+				s.Check(ctx)
+			} else if _, err := s.Unlink(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if want := map[bool]int{true: 1}[relayed]; unrelayed != want || s.Status().Linked {
+				t.Errorf("in Cloud %v, relayed %v: Unrelayed called %d times", inCloud, relayed, unrelayed)
+			}
+		}
+	}
+}
+
 // TestRelay: the relay's interface is made (its key) before Cloud is
 // asked, then dials every edge at the address Cloud gave; the same names
 // again change nothing; stopping tells Cloud and removes the interface.
@@ -429,6 +460,24 @@ func TestRelay(t *testing.T) {
 	}
 	if len(f.Bans) != 1 {
 		t.Errorf("bans sent for %d labs", len(f.Bans))
+	}
+	// Without CrowdSec (nothing public), the log says so once; a failure
+	// while CrowdSec should be there is a warning each round.
+	sendFor := func(err error) string {
+		var buf bytes.Buffer
+		logs := s.log
+		s.log = slog.New(slog.NewTextHandler(&buf, nil))
+		defer func() { s.log = logs }()
+		bctx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+		defer cancel()
+		s.SendBans(bctx, time.Millisecond, func(context.Context) ([]string, error) { return nil, err })
+		return buf.String()
+	}
+	if out := sendFor(ErrNoCrowdSec); strings.Count(out, "\n") != 1 || !strings.Contains(out, "level=INFO") {
+		t.Errorf("without CrowdSec:\n%s", out)
+	}
+	if out := sendFor(errors.New("asking CrowdSec: exit status 125")); strings.Count(out, "level=WARN") < 2 {
+		t.Errorf("CrowdSec failing:\n%s", out)
 	}
 	// The lab's own domain: its relay name and proof; asked again while
 	// it isn't proven (Cloud looks again), not once it is.

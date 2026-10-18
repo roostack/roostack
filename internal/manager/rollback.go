@@ -195,7 +195,7 @@ func (m *Manager) CheckRollback(ctx context.Context, serverID, ref string, befor
 	act := m.Activity.Start(kind, "Checking what going back to "+before.Local().Format("2 January 15:04")+" changes")
 	go func() {
 		ctx := context.Background()
-		act.Step("Listing every version of the files in %s's folder", m.nameOf(serverID))
+		act.Step("Listing every version of the files in %s's folder", m.serverName(serverID))
 		plan, err := m.rollbackPlan(ctx, m.s3Client(s3), folder, before)
 		if err == nil {
 			plan.ServerID, plan.Ref, plan.Checked = serverID, ref, time.Now()

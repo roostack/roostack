@@ -222,8 +222,22 @@ func serve(args []string) error {
 		}
 		// The lab's own CrowdSec bans, refused at the relay's edges too.
 		go link.SendBans(ctx, 5*time.Minute, func(ctx context.Context) ([]string, error) {
+			// CrowdSec runs while anything is public, its unit there
+			// with it (SPEC.md §6.11).
+			unit := filepath.Join(lab.Paths.QuadletDir(), generate.CrowdSecUnit+".container")
+			if _, err := os.Stat(unit); errors.Is(err, os.ErrNotExist) {
+				return nil, cloud.ErrNoCrowdSec
+			}
 			return public.CrowdSecBans(ctx, userLaunch, generate.CrowdSecUnit)
 		})
+	}
+	// The relay in the lab's settings without a link (unlinked before
+	// Unrelayed turned it off, or Cloud turned off here): off, so nothing
+	// asks Cloud to update it (SPEC.md §10.5).
+	if lab.Public.Relay && (link == nil || !link.Status().Linked) {
+		if err := mgr.RelayGone(false); err != nil {
+			log.Error("turning Roostack Cloud's relay off", "err", err)
+		}
 	}
 	// Public access (SPEC.md §6.11): check links from a phone, and whether
 	// CrowdSec is up (the records wait for it).
@@ -390,9 +404,26 @@ func serve(args []string) error {
 		// The wizard's end restarts Roostack if a step asked for it.
 		RestartPending: restartPending.Load,
 		Finished: func() {
-			if restartPending.Load() {
-				restartNow()
+			if pages != nil {
+				// The setup pages on the home network close a few seconds
+				// later: the page saying setup is finished, and its
+				// stylesheets, load before the restart ends them.
+				pages.Finish()
 			}
+			if !restartPending.Load() {
+				return
+			}
+			if pages == nil {
+				restartNow()
+				return
+			}
+			go func() {
+				select {
+				case <-pages.Closed():
+				case <-time.After(30 * time.Second):
+				}
+				restartNow()
+			}()
 		},
 	}
 	wizard.Store(wiz)
@@ -425,6 +456,11 @@ func serve(args []string) error {
 		link.Dropped = func(ctx context.Context) {
 			if err := wiz.DropRoostAc(context.WithoutCancel(ctx)); err != nil {
 				log.Error("taking away the lab's roost.ac address", "err", err)
+			}
+		}
+		link.Unrelayed = func(context.Context) {
+			if err := mgr.RelayGone(true); err != nil {
+				log.Error("turning Roostack Cloud's relay off", "err", err)
 			}
 		}
 		go link.Run(ctx)

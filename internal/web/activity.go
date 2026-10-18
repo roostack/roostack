@@ -70,6 +70,14 @@ func (s *Server) activityFor(r *http.Request, kind string) *activityView {
 func (s *Server) activityPart(w http.ResponseWriter, r *http.Request) {
 	v := s.activityFor(r, r.PathValue("kind"))
 	part := map[string]string{"status": "activity-status", "log": "activity-log"}[r.PathValue("part")]
+	if v == nil && part == "activity-status" && r.URL.Query().Get("was") == "running" {
+		// The log went with a restart (logs live in memory), often one the
+		// activity caused itself, like a backup copy's new settings. Not
+		// found would leave the page's last answer spinning (htmx doesn't
+		// swap an error): the page shows what's true now instead.
+		w.Header().Set("HX-Refresh", "true")
+		return
+	}
 	if v == nil || part == "" {
 		http.NotFound(w, r)
 		return

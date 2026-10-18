@@ -91,6 +91,10 @@ type Service struct {
 	// link (unlinked, here or in Cloud): the lab goes back to having no
 	// address.
 	Dropped func(ctx context.Context)
+	// Unrelayed is called when the lab loses Roostack Cloud's relay with
+	// the link (unlinked, here or in Cloud): the lab's settings turn the
+	// relay off, so nothing asks Cloud for it again (SPEC.md §10.5).
+	Unrelayed func(ctx context.Context)
 	// Report is what the lab tells Cloud after each check-in (its own
 	// email recipients, its servers' last backups to Cloud; report.go);
 	// nil: nothing.
@@ -555,7 +559,7 @@ func (s *Service) Unlink(ctx context.Context) (reached bool, err error) {
 		s.log.Warn("Roostack Cloud: telling Cloud the lab is unlinked", "err", err)
 	}
 	s.mu.Lock()
-	address := s.st.Address
+	address, relayed := s.st.Address, s.st.Relay != nil
 	s.forget()
 	s.st = linkState{}
 	s.log.Info("Roostack Cloud: lab unlinked", "cloud_told", reached)
@@ -563,6 +567,9 @@ func (s *Service) Unlink(ctx context.Context) (reached bool, err error) {
 	s.mu.Unlock()
 	if address != "" && s.Dropped != nil {
 		s.Dropped(ctx)
+	}
+	if relayed && s.Unrelayed != nil {
+		s.Unrelayed(ctx)
 	}
 	return reached, err
 }
@@ -642,12 +649,12 @@ func (s *Service) Check(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	now := s.now()
-	dropped := false
+	dropped, unrelayed := false, false
 	switch {
 	case errors.Is(err, ErrUnlinked):
 		s.log.Warn("Roostack Cloud no longer accepts this lab's certificate; forgetting the link")
 		account := s.st.Account
-		dropped = s.st.Address != ""
+		dropped, unrelayed = s.st.Address != "", s.st.Relay != nil
 		s.forget()
 		s.st = linkState{Forgotten: now, ForgottenAccount: account}
 	case err != nil:
@@ -666,6 +673,9 @@ func (s *Service) Check(ctx context.Context) error {
 	s.mu.Unlock()
 	if dropped && s.Dropped != nil {
 		s.Dropped(ctx)
+	}
+	if unrelayed && s.Unrelayed != nil {
+		s.Unrelayed(ctx)
 	}
 	if serr != nil {
 		return serr

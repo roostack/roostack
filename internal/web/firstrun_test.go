@@ -168,6 +168,14 @@ func TestSetupFinishedRedirect(t *testing.T) {
 		!strings.Contains(body, "ssh -L 8480:127.0.0.1:8480 you@192.168.1.20") || !closed {
 		t.Errorf("finished without an address: %d, closed %v\n%s", w.Code, closed, body)
 	}
+	// The page's own stylesheet loads on the listener, not that page again.
+	r = httptest.NewRequest("GET", "/static/css/app.css", nil)
+	r.Host = "192.168.1.20:8443"
+	w = httptest.NewRecorder()
+	h.server.SetupHandler(func() {}).ServeHTTP(w, r)
+	if ct := w.Header().Get("Content-Type"); w.Code != http.StatusOK || !strings.HasPrefix(ct, "text/css") {
+		t.Errorf("the stylesheet after setup: %d %s", w.Code, ct)
+	}
 	// Elsewhere, or while setup goes on, a redirect is a redirect.
 	fs.p = setup.Progress{}
 	w = httptest.NewRecorder()
@@ -220,6 +228,11 @@ func TestSetupListenerStops(t *testing.T) {
 	if c, err := net.DialTimeout("tcp", ln.Addr().String(), time.Second); err == nil {
 		c.Close()
 		t.Error("the setup port still takes connections")
+	}
+	select {
+	case <-l.Closed():
+	default:
+		t.Error("Closed isn't closed once the listener has stopped")
 	}
 
 	// From outside the home network: closed before TLS.

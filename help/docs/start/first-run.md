@@ -241,7 +241,9 @@ and the page carries on by itself. Then you'll see the home page, ready for
     exists, everything there needs the Owner signed in there; a session
     from there doesn't work on Roostack's other pages, nor the other way
     round. When setup is finished, or 24 hours after the Owner was made,
-    the listener stops, the firewall closes the port, the certificate is
+    the listener stops (when setup is finished, a few seconds later, so
+    the page saying so loads in full; reloading it after that doesn't
+    work), the firewall closes the port, the certificate is
     deleted and everything signed in there is signed out. Until the lab has an address, the UI is then
     reached with an SSH tunnel from your computer, then
     <http://127.0.0.1:8480>, which works during setup too:

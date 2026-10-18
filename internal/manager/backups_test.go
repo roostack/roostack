@@ -773,3 +773,29 @@ func TestCloudBackupDestination(t *testing.T) {
 		t.Errorf("target: %+v", t2)
 	}
 }
+
+// TestServerNames: a lab of one server doesn't name it in its backups'
+// logs (the name is the host's, which the Owner may never have chosen);
+// a lab of several does.
+func TestServerNames(t *testing.T) {
+	m, _ := newManager(t)
+	m.Lab.NodeID = "n-0000000001"
+	local(m).ID = nodeid.Identity{ID: "n-0000000001", Name: "roostack-dev"}
+	alone := []string{m.serverName("n-0000000001"), m.onServer("n-0000000001"), m.aboutServer("n-0000000001", "keeping 7 daily"),
+		m.backupsOf("n-0000000001")}
+	if want := []string{"this server", "", "Keeping 7 daily", "the"}; !slices.Equal(alone, want) {
+		t.Errorf("one server: %q, want %q", alone, want)
+	}
+	m.Others = func() []RemoteServer { return []RemoteServer{&fakeRemote{settings: &fakeServerSettings{}}} }
+	several := []string{m.serverName("n-0000000001"), m.onServer("n-0000000001"), m.aboutServer("n-0000000001", "keeping 7 daily"),
+		m.backupsOf("n-0000000001")}
+	if want := []string{"roostack-dev", " on roostack-dev", "roostack-dev: keeping 7 daily", "roostack-dev's"}; !slices.Equal(several, want) {
+		t.Errorf("several servers: %q, want %q", several, want)
+	}
+	// A sentence starts with "This server" or "The", never "Roostack-dev".
+	for in, want := range map[string]string{"this server": "This server", "the": "The", "roostack-dev's": "roostack-dev's"} {
+		if got := capital(in); got != want {
+			t.Errorf("capital(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
