@@ -77,8 +77,11 @@ and nothing else:
   (each person's address on their account page, if they get **Problems**:
   see [Email](email.md)). Roostack Cloud's emails about your lab then go to
   them too, not only to the account's Owner: a name approved or refused, a
-  suspension, the lab not heard from for days, its recovery key used. Each
-  such email says why that person is getting it.
+  suspension, the lab not heard from for days, its recovery key used.
+  Roostack Cloud first emails each address once, asking whether it may;
+  nothing more goes to an address until its owner says yes. Each email
+  after that says why that person is getting it, with a link to stop them.
+  Roostack Cloud keeps 10 addresses per lab.
 - **Each server's last backup to Roostack Cloud**, if it backs up there,
   so your lab's page on Roostack Cloud can show it.
 
