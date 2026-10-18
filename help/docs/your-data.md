@@ -65,8 +65,9 @@ read. People's passwords are kept only as a one-way hash.
     `/var/lib/roostack/home/.local/share/containers/storage/secrets`. Every
     file Roostack keeps is in [Where files live](reference/files.md).
 
-    The recovery key is 32 random bytes when it's first made. A server's
-    own backup key is 24 random bytes. In restic, every key only unlocks
+    The recovery key is 32 random bytes (256 bits), written as 64 hex
+    digits in groups of four; a new one from **Change recovery key** is
+    made the same way. A server's own backup key is 24 random bytes. In restic, every key only unlocks
     the repository's own master key, so any key that opens a backup can
     read all of it.
 

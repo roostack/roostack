@@ -109,7 +109,7 @@ func (m *Manager) StartKeyChange(ctx context.Context) error {
 	if _, err := os.Stat(backup.KeyFile(m.Lab.Paths)); err != nil {
 		return formErrorf("The lab has no recovery key yet: it's made with the first backup.")
 	}
-	key, _, err := newPassword()
+	key, err := backup.NewRecoveryKey()
 	if err != nil {
 		return err
 	}

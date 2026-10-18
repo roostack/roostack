@@ -26,7 +26,7 @@ import (
 // registers with Cloud. Whoever has the printed recovery key can then
 // prove it to Cloud, to restore the lab from its Cloud backups or relink
 // it, without the recovery key leaving the server. The recovery key is
-// 256 random bits (authkit.NewToken), so it's derived directly (HKDF);
+// 256 random bits (backup.NewRecoveryKey), so it's derived directly (HKDF);
 // a password would need a slow derivation instead.
 
 // identityInfo names the derivation; a new version would change it.

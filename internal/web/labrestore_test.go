@@ -215,6 +215,13 @@ func TestRestoreALabOnFirstRun(t *testing.T) {
 	if fr3.src.Kind != "cloud" || fr3.key != "the key" {
 		t.Errorf("Cloud search: %+v %q", fr3.src, fr3.key)
 	}
+	// A key typed back from paper, without its dashes or in capitals, is
+	// the key as it was made.
+	h3.post("/setup/restore", url.Values{"kind": {"cloud"},
+		"recovery_key": {"3F9A07C2 11AABB22 CC33DD44 EE55FF66 00112233 44556677 8899AABB CCDDEEFF"}}, h3.srv.URL)
+	if want := "3f9a-07c2-11aa-bb22-cc33-dd44-ee55-ff66-0011-2233-4455-6677-8899-aabb-ccdd-eeff"; fr3.key != want {
+		t.Errorf("typed key reached the restore as %q", fr3.key)
+	}
 }
 
 // From Roostack Cloud, every lab with the recovery key is shown with its

@@ -15,7 +15,6 @@ import (
 	"syscall"
 	"time"
 
-	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/cloudkeys"
@@ -107,7 +106,7 @@ func backupCmd(args []string) error {
 func backupInit(ctx context.Context, lab config.Lab, repo *backup.Repo) error {
 	keyFile := backup.KeyFile(lab.Paths)
 	if _, err := os.Stat(keyFile); errors.Is(err, os.ErrNotExist) {
-		key, err := authkit.NewToken()
+		key, err := backup.NewRecoveryKey()
 		if err != nil {
 			return err
 		}

@@ -16,6 +16,12 @@ setup wizard, or later on the **Backups** page), and shows it straight
 away. It asks you to confirm you've saved it before carrying on. Adding more backups, or changing where they go, doesn't change
 the key: it opens all of them.
 
+It's 64 letters and digits in groups of four, like
+`3f9a-07c2-11aa-…-eeff`. They're only the digits 0 to 9 and the letters a
+to f, so there's no `O` to mistake for a `0`, or `l` for a `1`. When you
+type it back in, the dashes and capitals don't matter: `3F9A 07C2 …` works
+too.
+
 ## Keeping it safe
 
 - **Print it** (there's a **Print** button), or write it down, and keep it
