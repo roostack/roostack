@@ -16,6 +16,7 @@ about:
   source: https://codeberg.org/forgejo/forgejo
   licence: GPL-3.0-or-later
   support: https://liberapay.com/forgejo
+  releases: https://codeberg.org/forgejo/forgejo/releases/tag/v{version}
   icon: icon.png
   categories: [development]
   keywords: [git, code, issues, pull requests, github alternative]

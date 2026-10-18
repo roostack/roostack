@@ -622,10 +622,16 @@ func TestRoostackSeries(t *testing.T) {
 	fu.series.Newest, fu.series.NewestVersion = "0.5", "0.5.0"
 	_, body = h.get("/settings/updates")
 	for _, want := range []string{"Roostack 0.5.0 is available", `action="/settings/updates/series"`, `name="series" value="0.5"`,
-		"Update to Roostack 0.5.0", "backed up through Roostack, so there won"} {
+		"Update to Roostack 0.5.0", "backed up through Roostack, so there won",
+		`href="https://help.roostack.cloud/whats-new/#roostack-0.5"`, "What's new in 0.5"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("offer: page lacks %q", want)
 		}
+	}
+	// Home says so too, as information.
+	if _, home := h.get("/"); !strings.Contains(home, "Roostack 0.5.0 is available.") || !strings.Contains(home, "It starts a new series of releases") ||
+		!strings.Contains(home, `href="/settings/updates#roostack"`) {
+		t.Error("offer: not on Home")
 	}
 	// The page went stale: another series is on offer now.
 	if code, body := h.post("/settings/updates/series", url.Values{"series": {"0.6"}}, h.srv.URL); code != http.StatusBadRequest ||
@@ -638,8 +644,11 @@ func TestRoostackSeries(t *testing.T) {
 	fu.series.Waiting = "the last backup didn't work"
 	_, body = h.get("/settings/updates")
 	if !strings.Contains(body, "Roostack 0.5 installs with this server's next updates") || !strings.Contains(body, "waiting: the last backup didn&#39;t work.") ||
-		strings.Contains(body, "Update to Roostack") {
+		strings.Contains(body, "Update to Roostack") || !strings.Contains(body, "What's new in 0.5") {
 		t.Error("accepted: page wrong")
+	}
+	if _, home := h.get("/"); !strings.Contains(home, "Roostack 0.5 is waiting to install: the last backup didn&#39;t work.") {
+		t.Error("accepted, waiting: not on Home")
 	}
 	// A development build follows nothing.
 	fu.series, fu.accepted = osupdate.Series{}, ""
@@ -653,6 +662,9 @@ func TestRoostackSeries(t *testing.T) {
 	fu.series = osupdate.Series{Current: "0.4", Newest: "0.5", NewestVersion: "0.5.0"}
 	if code, _ := ha.post("/settings/updates/series", url.Values{"series": {"0.5"}}, ha.srv.URL); code < 400 || fu.accepted != "" {
 		t.Errorf("admin accepted: %d", code)
+	}
+	if _, home := ha.get("/"); strings.Contains(home, "Roostack 0.5.0 is available") {
+		t.Error("admins are told about a series they can't accept")
 	}
 }
 

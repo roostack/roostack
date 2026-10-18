@@ -22,7 +22,7 @@
       {{- else}}Not needed{{end}}
       {{- if not .Restart.LastBoot.IsZero}} <span class="hint">· last restarted {{when .Restart.LastBoot}}</span>{{end}}</dd>
     {{with .Series}}
-    <dt>Roostack</dt>
+    <dt id="roostack">Roostack</dt>
     <dd>{{if .Current}}The {{.Current}} releases: their fixes install by themselves with these updates
       {{- with .Source}} <span class="hint">· from <code>{{.}}</code></span>{{end}}
       {{- else}}Doesn't update itself: its package source is turned off, as in a development build
@@ -32,12 +32,14 @@
   {{with .Series}}{{if .Accepted}}
   <div class="notice" role="status">
     <p><strong>Roostack {{.Accepted}} installs with this server's next updates:</strong> tonight after the backup, or now with
-      <em>Check for updates now</em>.{{with .Waiting}} It's waiting: {{.}}.{{end}}</p>
+      <em>Check for updates now</em>.{{with .Waiting}} It's waiting: {{.}}.{{end}}
+      <a href="{{.WhatsNew}}" target="_blank" rel="noopener">What's new in {{.Accepted}}{{template "new-window"}}</a></p>
   </div>
   {{else if .Newest}}
   <div class="notice" role="status">
     <p><strong>Roostack {{.NewestVersion}} is available.</strong> It starts a new series of releases, which can change how things
-      work, so it waits for you. Once you say yes, this server moves to it with its next updates, after a backup.</p>
+      work, so it waits for you. Once you say yes, this server moves to it with its next updates, after a backup.
+      <a href="{{.WhatsNew}}" target="_blank" rel="noopener">What's new in {{.Newest}}{{template "new-window"}}</a></p>
     {{if .NoBackups}}<p>This server isn't backed up through Roostack, so there won't be a backup to go back to.</p>{{end}}
     <form method="post" action="{{$.Server.SeriesAccept}}">
       <input type="hidden" name="series" value="{{.Newest}}">

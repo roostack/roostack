@@ -65,6 +65,7 @@ nav = [
     "reference/ports.md",
     "reference/packages.md",
   ] },
+  { "What's new" = "whats-new.md" },
 ]
 
 extra_css = ["stylesheets/roostack.css"]

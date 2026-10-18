@@ -16,12 +16,15 @@ server installs the fixes in its series by itself, with that night's
 updates. The page's **Roostack** line says which series the server is on.
 
 A new series (0.5) can bring new features and change how things work, so
-it waits for you. When one is out, the page says **Roostack 0.5.0 is
-available**. Choose **Update to Roostack 0.5.0**, and the server moves to
-it with its next updates: tonight, after the backup, or straight away with
-**Check for updates now**. If the server's last backup didn't work, or is
-more than a day old, it waits for one that worked, and the page says so.
-Each server in a lab has its own Updates page; update each one.
+it waits for you. When one is out, **Needs attention** on the home page
+says so (and the Monday summary email, if you get it), and this page says
+**Roostack 0.5.0 is available**, with a link to [what's
+new](../whats-new.md) in it. Choose **Update to Roostack 0.5.0**, and the
+server moves to it with its next updates: tonight, after the backup, or
+straight away with **Check for updates now**. If the server's last backup
+didn't work, or is more than a day old, it waits for one that worked, and
+the page says so. Each server in a lab has its own Updates page; update
+each one.
 
 ??? note "For technical users"
 
@@ -140,9 +143,11 @@ stops warning about them, until something else changes.
     (`roostack-os-updates`): `apt-get update`, then `unattended-upgrade -v`,
     with its output streamed to the page from
     `/run/roostack-agent/os-updates.log`. The unit doesn't depend on the
-    agent, because updating Roostack restarts both its processes: the page
-    then says Roostack updated itself, and the rest of that run is in the
-    log file. A restart is needed when
+    agent, because updating Roostack restarts both its processes. The unit
+    writes its exit status to `/run/roostack-agent/os-updates.exit`, and
+    Roostack, once restarted, waits for the run to end and records it (the
+    page then says Roostack updated itself, with the whole run's log). A
+    restart is needed when
     `/run/reboot-required` exists (the packages are in
     `/run/reboot-required.pkgs`). All maintenance (backups, updates,
     restarts, restores) goes through one queue, one job at a time, so a

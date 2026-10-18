@@ -92,6 +92,15 @@ func TestInstallProgress(t *testing.T) {
 	if p := n.installProgress("forgejo"); p == nil || p.Failed != "no network" {
 		t.Fatalf("failed: %+v", p)
 	}
+	// It outlives a restart of Roostack (kept in the server's settings),
+	// and the next apply starts its containers as new ones again.
+	again := &Local{Reconciler: n.Reconciler, State: kv}
+	if p := again.installProgress("forgejo"); p == nil || p.Failed != "no network" || len(p.Steps) != 6 {
+		t.Fatalf("after a restart: %+v", p)
+	}
+	if u := again.unfinishedUnits(); len(u) != 2 || !u[db] || !u[app] {
+		t.Errorf("unfinished units: %v", u)
+	}
 	n.planInstalls([]state.Service{svc}, desired, &reconcile.Plan{StartUnits: []string{db, app}}, false)
 	if n.installProgress("forgejo") != nil {
 		t.Error("the next apply clears a failed install")
@@ -109,6 +118,14 @@ func TestInstallProgress(t *testing.T) {
 	n.installsApplied()
 	if p := n.installProgress("forgejo"); p == nil || p.Step().Key != stageSetup {
 		t.Fatalf("after the apply, only setup is left: %+v", p)
+	}
+	if u := n.unfinishedUnits(); len(u) != 0 {
+		t.Errorf("its containers have started: %v", u)
+	}
+	// Taken off this server meanwhile: forgotten.
+	n.planInstalls(nil, reconcile.Desired{}, &reconcile.Plan{}, false)
+	if p := n.installProgress("forgejo"); p != nil || kv[installsKey] != "" {
+		t.Errorf("a service no longer here: %+v %q", p, kv[installsKey])
 	}
 
 	// Arriving already set up (moved or restored from another server): no

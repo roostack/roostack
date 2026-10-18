@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"runtime"
+	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
@@ -110,6 +111,14 @@ func pullImage(ctx context.Context, image string, w io.Writer) error {
 	// older versions said "manifest list".
 	if err != nil && bytes.Contains(out.Bytes(), []byte("no image found in")) {
 		return &reconcile.NoImageForArch{Image: image, Arch: runtime.GOARCH}
+	}
+	// Podman's own "Error: …" line says why, rather than only its exit
+	// status (the install's notice shows it).
+	if err != nil {
+		lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+		if why, ok := strings.CutPrefix(strings.TrimSpace(lines[len(lines)-1]), "Error: "); ok {
+			return fmt.Errorf("%w: %s", err, why)
+		}
 	}
 	return err
 }

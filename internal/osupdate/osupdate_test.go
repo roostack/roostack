@@ -40,6 +40,9 @@ func (f fakeAgent) RunUpdates(_ context.Context, _ string, w io.Writer) error {
 	io.WriteString(w, f.out)
 	return f.err
 }
+func (f fakeAgent) UpdatesStatus(context.Context) (agent.UpdatesRun, error) {
+	return agent.UpdatesRun{}, nil
+}
 func (f fakeAgent) Reboot(context.Context) error { return nil }
 func (f fakeAgent) HostChanges(context.Context) (agent.HostChanges, error) {
 	return agent.HostChanges{AptSources: []string{"docker.list: https://download.docker.com/linux/debian"}}, nil

@@ -450,6 +450,15 @@ func (s *Server) weeklySummary(ctx context.Context, u *store.User, now time.Time
 				fmt.Fprintf(&b, "- %s: %s free of %s\n", v.Title, sizeText(v.Free), sizeText(v.Total))
 			}
 		}
+		// A new release series, which only the Owner can accept (SPEC.md
+		// §7.2); the server is named by the heading already.
+		if up := mn.node.Updates(); up != nil && auth.Can(u.Role, auth.ManageHost) {
+			if ser, err := up.Series(ctx); err == nil {
+				if text := seriesText(ser, serverRef{This: true}); text != "" {
+					fmt.Fprintf(&b, "- %s%s\n", text, s.linkLine(mn.view.Updates()+"#roostack"))
+				}
+			}
+		}
 	}
 	// What CrowdSec saw on the public addresses (only once a service is
 	// public: before that, it doesn't run).

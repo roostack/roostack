@@ -47,6 +47,9 @@ func (f *fakeHost) RunUpdates(_ context.Context, series string, w io.Writer) err
 	}
 	return nil
 }
+func (f *fakeHost) UpdatesStatus() (UpdatesRun, error) {
+	return UpdatesRun{Ended: time.Unix(1760000000, 0), Status: 100, Output: "==> Installing updates\n"}, nil
+}
 func (f *fakeHost) Reboot() error { f.rebooted = true; return nil }
 func (f *fakeHost) ApplyWireGuard(wg WireGuard) (string, error) {
 	f.wg = &wg
@@ -143,6 +146,10 @@ func TestAPI(t *testing.T) {
 	host.updateErr = errors.New("exit status 100")
 	if err := c.RunUpdates(ctx, "", io.Discard); err == nil || err.Error() != "exit status 100" {
 		t.Errorf("failed updates: %v", err)
+	}
+	if run, err := c.UpdatesStatus(ctx); err != nil || run.Running || run.Status != 100 || !run.Ended.Equal(time.Unix(1760000000, 0)) ||
+		run.Output != "==> Installing updates\n" {
+		t.Errorf("last updates: %+v %v", run, err)
 	}
 	if err := c.Reboot(ctx); err != nil || !host.rebooted {
 		t.Errorf("reboot: %v", err)

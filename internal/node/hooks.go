@@ -83,8 +83,14 @@ func (n *Local) InstallStatus(ctx context.Context, name string) HookStatus {
 	return st
 }
 
-// RetryInstall runs a service's failed install hooks again.
+// RetryInstall tries a service's failed install again: its containers, if
+// one didn't download or start (an apply now, install.go), or else its
+// failed install hooks.
 func (n *Local) RetryInstall(ctx context.Context, name string) error {
+	if p := n.installProgress(name); p != nil && p.Failed != "" {
+		n.Reapply("Trying " + name + "'s install again")
+		return nil
+	}
 	if n.State == nil {
 		return ErrNotFound
 	}

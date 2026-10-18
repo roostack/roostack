@@ -35,6 +35,7 @@ about:                              # the project, credited in the catalog
   source: https://github.com/dani-garcia/vaultwarden
   licence: AGPL-3.0-only
   support: https://github.com/sponsors/dani-garcia
+  releases: https://github.com/dani-garcia/vaultwarden/releases/tag/{version}
   icon: icon.png                    # the logo, beside this file
   categories: [passwords]
   keywords: [password manager, bitwarden, two-factor, passkeys]
@@ -111,6 +112,10 @@ routes:
       app whose code isn't published, `closed`: it then has a `website`
       and no `source`.
     - `support`: the project's own page for donating or sponsoring.
+    - `releases`: where the project says what's new in each version, an
+      `https://` address with `{version}` where the app's version goes
+      (the version without `-roostack.N`), or one page for every version.
+      A service's update links to it as **What's new in** *version*.
     - `icon`: the project's logo, a PNG file beside the package file
       (`icon.png` in the registry): square, at least 256×256 pixels and at most 100 KB.
     - `categories`: one to three of `photos` (Photos and videos), `media`

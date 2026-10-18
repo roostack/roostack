@@ -165,6 +165,37 @@ func TestPullNoImageForArch(t *testing.T) {
 	}
 }
 
+// A new container whose download failed (or Roostack restarted halfway)
+// has its Quadlet file already: listed as unfinished, the next apply
+// starts it as a new one again, downloading first.
+func TestUnfinishedStartsAgain(t *testing.T) {
+	e := newEnv(t)
+	e.apply(t, e.desired(t))
+	e.r.Pull = func(context.Context, string, io.Writer) error { return errors.New("connection reset by peer") }
+	ctx := context.Background()
+	plan, err := e.r.Plan(ctx, e.desired(t, "vaultwarden"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.r.Apply(ctx, plan); err == nil || !strings.Contains(err.Error(), "connection reset") {
+		t.Fatalf("apply: %v", err)
+	}
+	e.r.Pull = func(_ context.Context, image string, _ io.Writer) error {
+		e.pulled = append(e.pulled, image)
+		return nil
+	}
+	e.pulled, e.events = nil, nil
+	if plan := e.apply(t, e.desired(t, "vaultwarden")); !plan.Empty() || len(e.pulled) != 0 {
+		t.Errorf("without being told, it's only started: %v", e.pulled)
+	}
+	e.r.Unfinished = map[string]bool{"roostack-vaultwarden-app.service": true}
+	plan = e.apply(t, e.desired(t, "vaultwarden"))
+	if plan.Empty() || len(plan.Write) != 0 || plan.Pulls["roostack-vaultwarden-app.service"] == "" || len(e.pulled) != 1 ||
+		!slices.Contains(e.events, "download roostack-vaultwarden-app.service done") {
+		t.Errorf("unfinished: plan\n%s\npulled %v, events %v", plan, e.pulled, e.events)
+	}
+}
+
 func TestInstallUpdateRemove(t *testing.T) {
 	e := newEnv(t)
 

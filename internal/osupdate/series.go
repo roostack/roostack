@@ -2,6 +2,7 @@ package osupdate
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -50,6 +51,22 @@ type Series struct {
 	// Checked is the last look at the repository; Error, when it failed.
 	Checked time.Time
 	Error   string
+}
+
+// WhatsNewPage is the public help's page describing each release series,
+// with a heading per series (help/docs/whats-new.md). It's the published
+// help, not the one built into this Roostack, which can't know about a
+// newer series.
+const WhatsNewPage = "https://help.roostack.cloud/whats-new/"
+
+// WhatsNew is the link to what's new in the series on offer, or accepted
+// ("" when there's none).
+func (s Series) WhatsNew() string {
+	series := cmp.Or(s.Accepted, s.Newest)
+	if series == "" {
+		return ""
+	}
+	return WhatsNewPage + "#roostack-" + series
 }
 
 // seriesCheck is the stored result of the last look at the repository.

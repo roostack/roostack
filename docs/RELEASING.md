@@ -35,7 +35,10 @@ For the registry's Publish workflow (REGISTRY-KEYS.md, step 9):
 ## Making a release
 
 1. Check `main`'s last CI run passed, and that TASKS, SPEC and the help are
-   up to date.
+   up to date. For a new series (a `.0` release), write its section in
+   [help/docs/whats-new.md](../help/docs/whats-new.md), with the id
+   `roostack-<series>`, and publish the help: servers on an older series
+   link to it when they offer the new one.
 2. Tag the commit and push the tag:
 
    ```sh

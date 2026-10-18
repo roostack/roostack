@@ -166,6 +166,7 @@ about:
   source: https://example.org/src
   licence: MIT OR Apache-2.0
   support: https://example.org/donate
+  releases: https://example.org/releases/tag/v{version}
   icon: app.png
   categories: [documents, productivity]
   keywords: [notes, markdown, wiki]
@@ -181,6 +182,12 @@ containers:
 	}
 	if p.Requires.Roostack != "0.6" || p.About.Categories[1] != "productivity" || p.UpgradeNotes[0].Version != "2.0.0-roostack.1" {
 		t.Errorf("parsed %+v", p)
+	}
+	if got := p.About.ReleasesURL("2.0.0"); got != "https://example.org/releases/tag/v2.0.0" {
+		t.Errorf("ReleasesURL = %q", got)
+	}
+	if got := (About{Releases: "https://example.org/changelog"}).ReleasesURL("2.0.0"); got != "https://example.org/changelog" {
+		t.Errorf("one page for every version: %q", got)
 	}
 	if got := CategoryTitle("productivity"); got != "Tasks and planning" {
 		t.Errorf("CategoryTitle = %q", got)

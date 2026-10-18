@@ -86,6 +86,11 @@ type Reconciler struct {
 	// Settle is how long a unit that failed to start gets to come up after
 	// all, through systemd restarting it (0 means 30 s).
 	Settle time.Duration
+	// Unfinished are units of new containers whose first start didn't
+	// finish (a failed download, or Roostack restarted halfway): they're
+	// started as new ones again, downloading first, though their Quadlet
+	// files are written already (optional).
+	Unfinished map[string]bool
 }
 
 // UnitStatuser reads units' states; a Systemd that implements it lets a
@@ -213,10 +218,11 @@ func startNote(quadlet string) string {
 }
 
 // Empty reports whether the plan changes nothing (StartUnits is always
-// populated, and starting running units is harmless).
+// populated, and starting running units is harmless). Starting a new
+// container again (Reconciler.Unfinished) is a change.
 func (p *Plan) Empty() bool {
 	return len(p.Dirs) == 0 && len(p.Secrets) == 0 && len(p.Write) == 0 &&
-		len(p.Remove) == 0 && !p.ReloadCaddy
+		len(p.Remove) == 0 && !p.ReloadCaddy && len(p.StartNotes) == 0
 }
 
 // String describes the plan for people.
@@ -346,10 +352,31 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 		units = slices.DeleteFunc(units, func(u string) bool { return u == unitFor(name) })
 	}
 	slices.Sort(plan.Waiting)
+	// startNew starts a container as a new one: saying what its first
+	// start involves, and downloading its image first.
+	startNew := func(name, content string) {
+		note := startNote(content)
+		if note == "" {
+			return
+		}
+		if plan.StartNotes == nil {
+			plan.StartNotes = map[string]string{}
+		}
+		plan.StartNotes[unitFor(name)] = note
+		if image := quadletImage(content); image != "" && !strings.HasSuffix(image, ".build") {
+			if plan.Pulls == nil {
+				plan.Pulls = map[string]string{}
+			}
+			plan.Pulls[unitFor(name)] = image
+		}
+	}
 	for _, name := range slices.Sorted(maps.Keys(wantQuadlets)) {
 		content := wantQuadlets[name]
 		old, exists := haveQuadlets[name]
 		if exists && old == content {
+			if r.Unfinished[unitFor(name)] {
+				startNew(name, content)
+			}
 			continue
 		}
 		plan.Write = append(plan.Write, FileChange{filepath.Join(quadletDir, name), content})
@@ -359,17 +386,8 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 		}
 		if exists {
 			plan.RestartUnits = append(plan.RestartUnits, unitFor(name))
-		} else if note := startNote(content); note != "" {
-			if plan.StartNotes == nil {
-				plan.StartNotes = map[string]string{}
-			}
-			plan.StartNotes[unitFor(name)] = note
-			if image := quadletImage(content); image != "" && !strings.HasSuffix(image, ".build") {
-				if plan.Pulls == nil {
-					plan.Pulls = map[string]string{}
-				}
-				plan.Pulls[unitFor(name)] = image
-			}
+		} else {
+			startNew(name, content)
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(haveQuadlets)) {

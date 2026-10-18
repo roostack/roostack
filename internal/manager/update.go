@@ -76,6 +76,9 @@ type Update struct {
 	Kind string
 	// Notes are the upgrade notes to read first (oldest first).
 	Notes []pkgspec.UpgradeNote
+	// WhatsNew links to what the project says is new in the app's version
+	// To ("" for a revision, or when the package doesn't say where).
+	WhatsNew string
 	// Policy is the service's update policy (instance.Updates*).
 	Policy string
 	// Auto: Roostack applies it by itself, after the nightly backup.
@@ -183,6 +186,9 @@ func (m *Manager) AvailableUpdates(ctx context.Context) map[string]*Update {
 		u := &Update{Service: s.Name(), Title: s.Title(), Package: in.Package, From: in.Version, To: p.Version,
 			Kind: pkgspec.UpdateKind(in.Version, p.Version), Notes: p.NotesSince(in.Version), Policy: in.Updates,
 			Local: in.Local}
+		if u.Kind != pkgspec.UpdateRevision {
+			u.WhatsNew = p.About.ReleasesURL(pkgspec.Upstream(p.Version))
+		}
 		if in.Local {
 			u.NewRisks = newRisks(s.Package, p)
 		}

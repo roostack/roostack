@@ -58,6 +58,9 @@ type Host interface {
 	// A series (already checked with ValidSeries) first moves Roostack's
 	// apt source to that release series and installs it (updates.go).
 	RunUpdates(ctx context.Context, series string, w io.Writer) error
+	// UpdatesStatus reads the latest run of updates, which may have
+	// outlived the agent that started it (updates.go).
+	UpdatesStatus() (UpdatesRun, error)
 	// Reboot restarts the host shortly after returning.
 	Reboot() error
 	// ApplyWireGuard configures one of Roostack's WireGuard interfaces
@@ -174,6 +177,16 @@ func (s *Server) Handler() http.Handler {
 		st.enc.Encode(end)
 		st.flush()
 		st.mu.Unlock()
+	})
+	// The latest run of OS updates: still going, or how it ended, even if
+	// the agent restarted meanwhile (UpdatesRun).
+	mux.HandleFunc("GET /v1/updates/last", func(w http.ResponseWriter, r *http.Request) {
+		run, err := s.Host.UpdatesStatus()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, run)
 	})
 	mux.HandleFunc("POST /v1/reboot", func(w http.ResponseWriter, r *http.Request) {
 		s.do(w, r, "reboot", s.Host.Reboot)

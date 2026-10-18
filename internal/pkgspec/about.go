@@ -31,6 +31,11 @@ type About struct {
 	Licence string `yaml:"licence"`
 	// Support is the project's own page for donating or sponsoring.
 	Support string `yaml:"support"`
+	// Releases is where the project says what's new in each version:
+	// https, with {version} where the app's version goes
+	// (https://github.com/x/y/releases/tag/v{version}), or one page for
+	// every version. Optional; updates link to it (ReleasesURL).
+	Releases string `yaml:"releases"`
 	// Icon is the project's logo: a PNG file beside the package file,
 	// square and at least IconMinSize pixels (CheckIcon).
 	Icon string `yaml:"icon"`
@@ -38,6 +43,18 @@ type About struct {
 	// filters; Keywords are anything else people might search for.
 	Categories []string `yaml:"categories"`
 	Keywords   []string `yaml:"keywords"`
+}
+
+// ReleasesPlaceholder is where the app's version goes in About.Releases.
+const ReleasesPlaceholder = "{version}"
+
+// ReleasesURL is the link to what's new in an app version (the upstream
+// part of a package version), or "" when the package doesn't say where.
+func (a About) ReleasesURL(version string) string {
+	if a.Releases == "" {
+		return ""
+	}
+	return strings.ReplaceAll(a.Releases, ReleasesPlaceholder, url.PathEscape(version))
 }
 
 // LicenceClosed is the licence of an app whose code isn't published
@@ -282,6 +299,11 @@ func (p *Package) validateAbout(v *validator) {
 	} {
 		if f.val != "" && !validHTTPS(f.val) {
 			v.addf("%s: %q must be an https:// address", f.at, f.val)
+		}
+	}
+	if r := a.Releases; r != "" {
+		if u := a.ReleasesURL("1.2.3"); !validHTTPS(u) || strings.ContainsAny(u, "{}") {
+			v.addf("about.releases: %q must be an https:// address, with %s where the version goes if it has one place per version", r, ReleasesPlaceholder)
 		}
 	}
 	if a.Licence != "" && a.Licence != LicenceClosed {

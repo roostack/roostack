@@ -81,7 +81,9 @@
   <div id="install-status" class="notice{{if .Failed}} notice-error{{else if slowStep .}} notice-warn{{end}}" role="status"
     {{if not .Failed}}hx-get="/services/{{$.Service.Name}}?installing=1" hx-trigger="every 3s" hx-select="#install-status" hx-swap="outerHTML"{{end}}>
     {{if .Failed}}<p><strong>Installing {{$.Service.Title}} didn't finish:</strong> {{.Failed}}</p>
-    <p>Roostack tries again the next time it applies a change or restarts. The details below say more.</p>
+    <p>Roostack tries again the next time it applies a change or restarts{{if $.CanManage}}, or now with <em>Try again</em>{{end}}.
+      The details below say more.</p>
+    {{if $.CanManage}}<form method="post" action="/services/{{$.Service.Name}}/setup/retry"><button type="submit">Try again</button></form>{{end}}
     {{else if slowStep .}}<p><strong>Still {{lowerFirst .Step.Title}}, for {{took .Step.Started .Step.Finished}}.</strong> That's longer than usual,
       {{with took .LogUpdated .Step.Finished}}but it's still going: its log last changed {{.}} ago.{{else}}but it's still going.{{end}}
       A slow or busy connection can do this. If it fails, this page says what went wrong.</p>
@@ -299,7 +301,9 @@
 <div id="update" class="notice{{if or $u.Notes $u.Blocked $u.NewRisks (eq $u.Kind "major") (eq $u.Kind "other")}} notice-warn{{end}}" role="status">
   {{if eq $u.Kind "revision"}}<p><strong>An update is available:</strong> an improved Roostack package for {{.Service.Title}} {{appVersion $u.To}}
     (package revision {{revision $u.From}} → {{revision $u.To}}). The app itself stays the same.{{if $u.Notes}} Read these first:{{end}}</p>
-  {{else}}<p><strong>An update is available:</strong> {{.Service.Title}} {{$u.FromApp}} → {{$u.ToApp}}, {{updateKind $u.Kind}}.{{if $u.Notes}} Read these first:{{end}}</p>{{end}}
+  {{else}}<p><strong>An update is available:</strong> {{.Service.Title}} {{$u.FromApp}} → {{$u.ToApp}}, {{updateKind $u.Kind}}.
+    {{- with $u.WhatsNew}} <a href="{{.}}" target="_blank" rel="noopener">What's new in {{$u.ToApp}}{{template "new-window"}}</a>{{end}}
+    {{- if $u.Notes}} Read these first:{{end}}</p>{{end}}
   {{if $u.Local}}<p>It's the version of your own package you added last, so nobody has reviewed it.</p>{{end}}
   {{with $u.Notes}}<ul>{{range .}}<li><strong>{{appVersion .Version}}:</strong> {{.Note}}</li>{{end}}</ul>{{end}}
   {{if $u.Blocked}}<p>{{$u.Blocked}}</p>

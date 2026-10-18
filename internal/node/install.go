@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 	"strings"
 	"time"
@@ -18,6 +19,15 @@ import (
 // starting each container, Caddy serving its web address, and its setup
 // steps. Shown instead of "stopped" until the last step is done, so people
 // can see it's still going (a first install can take minutes).
+//
+// Installs are kept in the server's settings (installsKey), so one that a
+// restart of Roostack cut off is still shown, and carries on: its
+// containers are started as new ones again, downloading first
+// (unfinishedUnits). A failed one is tried again by the next apply, or at
+// once with RetryInstall.
+
+// installsKey holds the installs in progress or failed, as JSON.
+const installsKey = "installs"
 
 // InstallProgress is a service's install so far.
 type InstallProgress struct {
@@ -101,10 +111,14 @@ func (n *Local) planInstalls(services []state.Service, desired reconcile.Desired
 	now := time.Now()
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	// A failed install is shown until the next apply, which tries again
-	// with its units already written: its units' state says how that went.
+	defer n.saveInstallsLocked()
+	n.loadInstallsLocked()
+	// A failed install is shown until the next apply, which tries again:
+	// its containers are new again (unfinishedUnits), so it's tracked again
+	// below. So is one a restart cut off. One no longer on this server is
+	// forgotten.
 	for name, p := range n.installs {
-		if p.Failed != "" {
+		if _, ok := byName[name]; p.Failed != "" || !ok {
 			delete(n.installs, name)
 		}
 	}
@@ -172,6 +186,7 @@ func (n *Local) installEvent(ev reconcile.Event) {
 	now := time.Now()
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	defer n.saveInstallsLocked()
 	for _, p := range n.installs {
 		for i := range p.Steps {
 			if p.Steps[i].Key != key {
@@ -194,6 +209,7 @@ func (n *Local) installEvent(ev reconcile.Event) {
 func (n *Local) failInstalls(err error) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	defer n.saveInstallsLocked()
 	for _, p := range n.installs {
 		if p.Failed == "" && p.Current() < len(p.Steps) {
 			p.Failed = err.Error()
@@ -207,10 +223,12 @@ func (n *Local) installStep(service, key string, done bool) {
 	now := time.Now()
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	n.loadInstallsLocked()
 	p := n.installs[service]
 	if p == nil {
 		return
 	}
+	defer n.saveInstallsLocked()
 	for i := range p.Steps {
 		if p.Steps[i].Key == key {
 			if done {
@@ -229,7 +247,9 @@ func (n *Local) installStep(service, key string, done bool) {
 func (n *Local) dropInstall(service string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	n.loadInstallsLocked()
 	delete(n.installs, service)
+	n.saveInstallsLocked()
 }
 
 // installsApplied is called once an apply has finished: every step it
@@ -239,6 +259,7 @@ func (n *Local) installsApplied() {
 	now := time.Now()
 	n.mu.Lock()
 	defer n.mu.Unlock()
+	defer n.saveInstallsLocked()
 	for _, p := range n.installs {
 		for i := range p.Steps {
 			if p.Steps[i].Key != stageSetup && p.Steps[i].Finished.IsZero() {
@@ -264,6 +285,7 @@ func (n *Local) forgetFinishedLocked() {
 // log's latest output time; nil if it isn't being installed.
 func (n *Local) installProgress(service string) *InstallProgress {
 	n.mu.Lock()
+	n.loadInstallsLocked()
 	p := n.installs[service]
 	var out *InstallProgress
 	if p != nil {
@@ -275,6 +297,82 @@ func (n *Local) installProgress(service string) *InstallProgress {
 	if out != nil && n.Activity != nil {
 		if snap, ok := n.Activity.Latest(out.Log); ok && snap.Updated.After(out.LogUpdated) {
 			out.LogUpdated = snap.Updated
+		}
+	}
+	return out
+}
+
+// loadInstallsLocked reads the installs kept in the server's settings,
+// the first time they're needed (after Roostack started).
+func (n *Local) loadInstallsLocked() {
+	if n.installsLoaded || n.State == nil {
+		return
+	}
+	n.installsLoaded = true
+	v, err := n.State.Setting(context.Background(), installsKey)
+	if err != nil || v == "" {
+		return
+	}
+	var saved map[string]*InstallProgress
+	if err := json.Unmarshal([]byte(v), &saved); err != nil {
+		n.Log.Error("reading the installs in progress", "err", err)
+		return
+	}
+	if n.installs == nil {
+		n.installs = map[string]*InstallProgress{}
+	}
+	for name, p := range saved {
+		if _, ok := n.installs[name]; !ok {
+			n.installs[name] = p
+		}
+	}
+}
+
+// saveInstallsLocked keeps the installs in the server's settings.
+func (n *Local) saveInstallsLocked() {
+	if n.State == nil {
+		return
+	}
+	v := ""
+	if len(n.installs) > 0 {
+		data, err := json.Marshal(n.installs)
+		if err != nil {
+			return
+		}
+		v = string(data)
+	}
+	if err := n.State.SetSetting(context.Background(), installsKey, v); err != nil {
+		n.Log.Error("keeping the installs in progress", "err", err)
+	}
+}
+
+// unfinishedUnits are the containers of installs whose containers haven't
+// all started: a download failed, or Roostack restarted halfway. Their
+// Quadlet files are written already, so the next apply would only start
+// them, with no download step; instead it starts them as new ones again
+// (reconcile.Reconciler.Unfinished), so the install shows step by step.
+func (n *Local) unfinishedUnits() map[string]bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.loadInstallsLocked()
+	out := map[string]bool{}
+	for _, p := range n.installs {
+		var units []string
+		unfinished := false
+		for _, s := range p.Steps {
+			stage, unit, ok := strings.Cut(s.Key, " ")
+			if !ok || stage != reconcile.StageDownload && stage != reconcile.StageStart {
+				continue
+			}
+			units = append(units, unit)
+			if s.Finished.IsZero() {
+				unfinished = true
+			}
+		}
+		if unfinished {
+			for _, u := range units {
+				out[u] = true
+			}
 		}
 	}
 	return out
