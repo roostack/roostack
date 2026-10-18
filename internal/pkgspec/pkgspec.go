@@ -255,6 +255,11 @@ type Route struct {
 	Subdomain   string `yaml:"subdomain"`
 	Exposure    string `yaml:"exposure"`
 	MaxBodySize string `yaml:"max_body_size"`
+	// ClientIPHeader names a header the app reads the visitor's address
+	// from, for apps that don't read X-Forwarded-For (Vaultwarden reads
+	// X-Real-IP): Roostack's proxy sets it to the visitor's address,
+	// replacing any the visitor sent (SPEC.md §8.1).
+	ClientIPHeader string `yaml:"client_ip_header"`
 	// Public says what's safe when the Owner makes the address public
 	// (SPEC.md §6.11).
 	Public PublicRules `yaml:"public"`

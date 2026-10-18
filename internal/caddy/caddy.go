@@ -95,6 +95,10 @@ type Route struct {
 	// address a connection without a PROXY header would show.
 	PrivateExcept []string
 	MaxBodySize   string // optional, e.g. "50GB"
+	// ClientIPHeader, if set, is a header the service reads the visitor's
+	// address from (e.g. X-Real-IP): set to {remote_host}, as the rate
+	// limits use, replacing any the visitor sent.
+	ClientIPHeader string
 	// On a public route (SPEC.md §6.11): PrivatePaths (and everything
 	// under them) stay home-only, and LoginPaths get a strict rate limit.
 	PrivatePaths []string
@@ -158,7 +162,7 @@ func Site(service string, routes []Route) (string, error) {
 			if r.MaxBodySize != "" {
 				fmt.Fprintf(&b, "\trequest_body {\n\t\tmax_size %s\n\t}\n", r.MaxBodySize)
 			}
-			fmt.Fprintf(&b, "\treverse_proxy %s\n", r.Upstream)
+			b.WriteString(r.reverseProxy("\t"))
 		} else {
 			publicRoute(&b, r)
 		}
@@ -223,8 +227,19 @@ func publicRoute(b *strings.Builder, r Route) {
 	if r.MaxBodySize != "" {
 		fmt.Fprintf(b, "\t\trequest_body {\n\t\t\tmax_size %s\n\t\t}\n", r.MaxBodySize)
 	}
-	fmt.Fprintf(b, "\t\treverse_proxy %s\n", r.Upstream)
+	b.WriteString(r.reverseProxy("\t\t"))
 	b.WriteString("\t}\n")
+}
+
+// reverseProxy is the directive passing a request to the service, at
+// indent: with the visitor's address in the service's own header, if it
+// names one.
+func (r Route) reverseProxy(indent string) string {
+	if r.ClientIPHeader == "" {
+		return fmt.Sprintf("%sreverse_proxy %s\n", indent, r.Upstream)
+	}
+	return fmt.Sprintf("%sreverse_proxy %s {\n%s\theader_up %s {remote_host}\n%s}\n",
+		indent, r.Upstream, indent, r.ClientIPHeader, indent)
 }
 
 func (r Route) privateFrom() string {
@@ -266,7 +281,7 @@ func (r Route) validate() error {
 	}
 	for _, f := range []struct{ name, val string }{
 		{"id", r.ID}, {"host", r.Host}, {"old host", r.OldHost}, {"upstream", r.Upstream}, {"max body size", r.MaxBodySize},
-		{"check upstream", r.CheckUpstream},
+		{"check upstream", r.CheckUpstream}, {"client IP header", r.ClientIPHeader},
 	} {
 		// Guard against anything that could break out of the Caddyfile syntax.
 		if strings.ContainsAny(f.val, " \t\n{}\"#") {

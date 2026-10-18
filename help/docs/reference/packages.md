@@ -186,7 +186,11 @@ routes:
 
 `routes`
 :   Web addresses: which container and port, the default `subdomain`,
-    `exposure` (`private` or `public`) and `max_body_size`. `public` says
+    `exposure` (`private` or `public`), `max_body_size`, and
+    `client_ip_header`: Roostack's proxy sends the visitor's address in
+    `X-Forwarded-For`; an app that reads another header (Vaultwarden reads
+    `X-Real-IP`) names it here, and the proxy sets it too, replacing any
+    the visitor sent. It must be an `X-` header other than `X-Forwarded-*`. `public` says
     what's safe once the Owner makes the address public: `unsafe` (why the
     whole address shouldn't be), `private_paths` (paths, and everything
     under them, that stay home-only, each with its reason) and

@@ -391,6 +391,9 @@ func (p *Package) validateRoute(v *validator, name string, r *Route) {
 	if r.Exposure != ExposurePrivate && r.Exposure != ExposurePublic {
 		v.addf("%s.exposure: must be %q or %q", at, ExposurePrivate, ExposurePublic)
 	}
+	if h := r.ClientIPHeader; h != "" && !ValidClientIPHeader(h) {
+		v.addf("%s.client_ip_header: %q must be an X- header name other than X-Forwarded-* (e.g. X-Real-IP)", at, h)
+	}
 	seen := map[string]bool{}
 	for i, pp := range r.Public.PrivatePaths {
 		if !ValidPath(pp.Path) {
@@ -409,6 +412,15 @@ func (p *Package) validateRoute(v *validator, name string, r *Route) {
 			v.addf("%s.public.login_paths[%d]: %q must start with / and have only letters, digits and - _ . : / (no * or trailing /)", at, i, lp)
 		}
 	}
+}
+
+var clientIPHeaderRe = regexp.MustCompile(`^[Xx]-[A-Za-z0-9-]+$`)
+
+// ValidClientIPHeader says whether h can carry the visitor's address to an
+// app: an X- header, not one of the X-Forwarded-* headers Caddy already
+// sets, so a package can't change what other apps rely on.
+func ValidClientIPHeader(h string) bool {
+	return clientIPHeaderRe.MatchString(h) && !strings.HasPrefix(strings.ToLower(h), "x-forwarded-")
 }
 
 var pathRe = regexp.MustCompile(`^(/[A-Za-z0-9._:-]+)+$`)

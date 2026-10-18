@@ -337,3 +337,21 @@ func lastAddr(p netip.Prefix) netip.Addr {
 	a, _ := netip.AddrFromSlice(b)
 	return a
 }
+
+// A route naming the header its service reads the visitor's address from
+// sets it from the connection, private or public.
+func TestClientIPHeader(t *testing.T) {
+	for _, private := range []bool{true, false} {
+		site, err := Site("vw", []Route{{ID: "vw-web", Host: "vault.example.com", Upstream: "169.254.1.3:20001",
+			Private: private, ClientIPHeader: "X-Real-IP"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(site, "reverse_proxy 169.254.1.3:20001 {\n") || !strings.Contains(site, "\theader_up X-Real-IP {remote_host}\n") {
+			t.Errorf("private %v: no X-Real-IP header:\n%s", private, site)
+		}
+	}
+	if _, err := Site("vw", []Route{{ID: "vw-web", Host: "h", Upstream: "u:1", Private: true, ClientIPHeader: "X-Real-IP {x}"}}); err == nil {
+		t.Error("a header name with spaces or braces must be refused")
+	}
+}

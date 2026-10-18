@@ -504,16 +504,17 @@ func (g *gen) caddySite() error {
 		}
 		g.out.Hosts = append(g.out.Hosts, rc.Host)
 		cr := caddy.Route{
-			ID:            g.name + "-" + name,
-			Service:       g.name,
-			Title:         g.title,
-			Host:          rc.Host,
-			OldHost:       OldHost(g.lab, rc.Host),
-			Upstream:      fmt.Sprintf("%s:%d", g.upstream, rc.Port),
-			Private:       rc.Exposure != pkgspec.ExposurePublic,
-			PrivateFrom:   PrivateFrom(g.lab),
-			PrivateExcept: g.lab.EdgeAddrs,
-			MaxBodySize:   r.MaxBodySize,
+			ID:             g.name + "-" + name,
+			Service:        g.name,
+			Title:          g.title,
+			Host:           rc.Host,
+			OldHost:        OldHost(g.lab, rc.Host),
+			Upstream:       fmt.Sprintf("%s:%d", g.upstream, rc.Port),
+			Private:        rc.Exposure != pkgspec.ExposurePublic,
+			PrivateFrom:    PrivateFrom(g.lab),
+			PrivateExcept:  g.lab.EdgeAddrs,
+			MaxBodySize:    r.MaxBodySize,
+			ClientIPHeader: r.ClientIPHeader,
 		}
 		if !cr.Private {
 			// The package's private paths stay home-only unless the Owner

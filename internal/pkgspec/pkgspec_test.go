@@ -352,3 +352,15 @@ func TestValidPath(t *testing.T) {
 		}
 	}
 }
+
+// A route's client_ip_header is an X- header, not one Caddy already sets.
+func TestValidClientIPHeader(t *testing.T) {
+	for h, want := range map[string]bool{
+		"X-Real-IP": true, "X-Client-IP": true, "x-real-ip": true,
+		"X-Forwarded-For": false, "x-forwarded-proto": false, "Host": false, "Authorization": false, "X-Real IP": false, "X-": false,
+	} {
+		if got := ValidClientIPHeader(h); got != want {
+			t.Errorf("ValidClientIPHeader(%q) = %v, want %v", h, got, want)
+		}
+	}
+}
