@@ -88,6 +88,6 @@ func (s *Server) hostChangesKnownSubmit(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	s.forgetHostCheck(m.ID)
-	s.Store.Audit(r.Context(), currentUser(r), "host", "marked host changes on "+m.Label()+" as known")
+	s.Store.Audit(r.Context(), currentUser(r), "host", "marked host changes on "+m.InSentence()+" as known")
 	redirect(w, r, m.Updates())
 }

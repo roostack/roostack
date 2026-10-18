@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -247,6 +248,11 @@ func TestPlanRollback(t *testing.T) {
 	h.post("/backups/plan/rollback", url.Values{"destination": {"provider:1"}, "before": {"2026-10-16T09:00"}, "step": {"run"}}, h.srv.URL)
 	if len(fm.rollbacks) != 2 || fm.rollbacks[1] != "run n-0123456789 provider:1 2026-10-16T09:00" {
 		t.Errorf("rollbacks = %v", fm.rollbacks)
+	}
+	// History names the server in a sentence without a capital.
+	if logs, _ := h.store.RecentAudit(context.Background(), 1); len(logs) != 1 ||
+		!strings.HasPrefix(logs[0].Detail, "rolled this server's backups at provider:1 back to ") {
+		t.Errorf("audit = %+v", logs)
 	}
 
 	// Refused: said on the page; a time that isn't one; another place.

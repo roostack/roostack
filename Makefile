@@ -13,7 +13,7 @@ ifneq ($(REGISTRY_DEV_KEY),)
 LDFLAGS += -X roostack.cloud/roostack/internal/registry.devRootKey=$(REGISTRY_DEV_KEY)
 endif
 
-.PHONY: build help release test golden vet caddy-check check-images
+.PHONY: build help release verify-release test golden vet caddy-check check-images
 
 # Linux binaries for the machine's own architecture, or another with
 # GOARCH=arm64 (or amd64).
@@ -43,6 +43,12 @@ help:
 # anyone checking that a release was built from its source.
 release:
 	scripts/build-release.sh
+
+# Checks a published release against its source: its signature, then a
+# rebuild from its tag in the release's own image, file by file
+# (scripts/verify-release.sh, docs/RELEASING.md). make verify-release VERSION=1.2.3
+verify-release:
+	scripts/verify-release.sh "$(VERSION)"
 
 test:
 	go test ./...

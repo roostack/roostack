@@ -1,7 +1,6 @@
 package cloud
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"crypto/ecdsa"
@@ -785,66 +784,4 @@ func (s *Service) Run(ctx context.Context) {
 		case <-t.C:
 		}
 	}
-}
-
-// Request is one request the lab made to Cloud.
-type Request struct {
-	At     time.Time
-	Method string
-	Path   string
-	// Status is the HTTP status; 0 if Cloud wasn't reached (Error says why).
-	Status int
-	Error  string
-	// Count is how many times in a row it was made with the same answer
-	// (asking about a link every few seconds is one line), up to At.
-	Count int `json:",omitempty"`
-}
-
-// record appends a request to requests.log, keeping the latest few.
-func (s *Service) record(method, path string, status int, err error) {
-	r := Request{At: s.now().UTC(), Method: method, Path: path, Status: status}
-	if err != nil {
-		r.Error = err.Error()
-	}
-	line, _ := json.Marshal(r)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := os.MkdirAll(s.dir, 0o700); err != nil {
-		return
-	}
-	old, _ := os.ReadFile(s.file("requests.log"))
-	lines := bytes.Split(bytes.TrimSpace(old), []byte("\n"))
-	if len(old) == 0 {
-		lines = nil
-	}
-	// The same request with the same answer as the last one adds to it.
-	var last Request
-	if n := len(lines); n > 0 && json.Unmarshal(lines[n-1], &last) == nil &&
-		last.Method == r.Method && last.Path == r.Path && last.Status == r.Status && last.Error == r.Error {
-		r.Count = max(last.Count, 1) + 1
-		line, _ = json.Marshal(r)
-		lines = lines[:n-1]
-	}
-	lines = append(lines, line)
-	if len(lines) > keepRequests {
-		lines = lines[len(lines)-keepRequests:]
-	}
-	if err := writeFile(s.file("requests.log"), append(bytes.Join(lines, []byte("\n")), '\n'), 0o600); err != nil {
-		s.log.Warn("Roostack Cloud: recording a request", "err", err)
-	}
-}
-
-// Requests are the lab's recent requests to Cloud, newest first.
-func (s *Service) Requests() []Request {
-	s.mu.Lock()
-	data, _ := os.ReadFile(s.file("requests.log"))
-	s.mu.Unlock()
-	var out []Request
-	for _, line := range bytes.Split(bytes.TrimSpace(data), []byte("\n")) {
-		var r Request
-		if json.Unmarshal(line, &r) == nil && !r.At.IsZero() {
-			out = append([]Request{r}, out...)
-		}
-	}
-	return out
 }

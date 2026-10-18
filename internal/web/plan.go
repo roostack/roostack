@@ -499,7 +499,7 @@ func (s *Server) planAddSubmit(wizard bool) http.HandlerFunc {
 				return
 			}
 		}
-		s.Store.Audit(ctx, currentUser(r), "backup", "added a backup for "+m.Label()+": "+ref)
+		s.Store.Audit(ctx, currentUser(r), "backup", "added a backup for "+m.InSentence()+": "+ref)
 		// Its progress shows in the box it's for (the Owner, 2026-10-18).
 		box := r.FormValue("add")
 		if r.FormValue("replace") == "1" || !hasMain {
@@ -592,7 +592,7 @@ func (s *Server) planPromoteSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "backup", "made "+r.FormValue("destination")+" backup 1 for "+m.Label())
+	s.Store.Audit(r.Context(), currentUser(r), "backup", "made "+r.FormValue("destination")+" backup 1 for "+m.InSentence())
 	redirect(w, r, m.Backups()+"#plan")
 }
 
@@ -618,7 +618,7 @@ func (s *Server) planRemoveSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.Store.Audit(r.Context(), currentUser(r), "backup", "stopped a backup for "+m.Label()+": "+ref)
+	s.Store.Audit(r.Context(), currentUser(r), "backup", "stopped a backup for "+m.InSentence()+": "+ref)
 	redirect(w, r, m.Backups()+"#plan")
 }
 
@@ -739,7 +739,7 @@ func (s *Server) planRollbackSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if run {
-		s.Store.Audit(ctx, currentUser(r), "backup", "rolled "+m.Label()+"'s backups at "+ref+" back to "+before.Format(time.RFC3339))
+		s.Store.Audit(ctx, currentUser(r), "backup", "rolled "+m.InSentence()+"'s backups at "+ref+" back to "+before.Format(time.RFC3339))
 	}
 	redirect(w, r, m.Backups()+"?"+url.Values{"rollback": {ref}}.Encode()+"#plan-rollback-"+strconv.Itoa(s.planNumber(r, m, ref)))
 }

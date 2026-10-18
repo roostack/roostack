@@ -730,7 +730,8 @@
     <dt>Lab ID</dt><dd><code>{{.LabID}}</code></dd>
     <dt>Told Cloud</dt><dd>{{if .Reported.IsZero}}Nothing yet{{else}}{{when .Reported}}{{end}}: after each daily check-in, the email addresses
       of the people here who get this lab's problems (Roostack Cloud's emails about the lab go to them too), and each server's last backup
-      to Roostack Cloud (for the lab's page there). Nothing else.</dd>
+      to Roostack Cloud (for the lab's page there). Nothing else.
+      <a href="/help/your-data/#what-roostack-cloud-can-and-cant-see" target="_blank" rel="noopener">What Roostack Cloud can and can't see{{template "new-window"}}</a></dd>
     <dt>Roostack Cloud</dt><dd><code>{{.URL}}</code></dd>
   </dl>
   {{template "cloud-requests" .}}
@@ -747,7 +748,9 @@
 {{- else if not .Setup}}
 <p>Roostack Cloud is an optional online service for Roostack labs. Your lab works without it. Linking the lab to a free
   Roostack Cloud account gives it a <strong>free {{$.Suffix}} address</strong>, so you don't need a domain of your own.</p>
-<p class="hint">Later, it will also offer backups away from home and checks of your lab from the internet: each one your choice.</p>
+<p class="hint">An account with Roostack Cloud storage can also keep the lab's backups away from home, encrypted before they leave,
+  and later Roostack Cloud will check your lab from the internet: each one your choice.
+  <a href="/help/your-data/#what-roostack-cloud-can-and-cant-see" target="_blank" rel="noopener">What Roostack Cloud can and can't see{{template "new-window"}}</a></p>
 {{with .StartError}}<p class="error" role="alert">{{.}}</p>{{end}}
 <form method="post" action="/settings/cloud/link">
   <button type="submit">Link to Roostack Cloud</button>
@@ -784,9 +787,12 @@
 {{/* cloud-requests: the lab's recent requests to Roostack Cloud. */}}
 {{define "cloud-requests"}}{{with .Requests}}
 <details class="technical" id="cloud-requests"><summary>Recent requests to Roostack Cloud</summary>
+  <p class="hint">Everything this lab has asked Roostack Cloud lately, and what it sent, with secrets left out
+    (<code>requests.log</code>). <a href="/help/your-data/#what-roostack-sends" target="_blank" rel="noopener">What each one is for{{template "new-window"}}</a></p>
   <table class="records">
     <tr><th>When</th><th>Request</th><th>Answer</th></tr>
-    {{range .}}<tr><td>{{when .At}}</td><td><code>{{.Method}} {{.Path}}</code>{{if gt .Count 1}} <small class="hint">× {{.Count}}</small>{{end}}</td><td>{{if .Status}}{{.Status}}{{else}}<small class="hint">{{.Error}}</small>{{end}}</td></tr>{{end}}
+    {{range .}}<tr><td>{{when .At}}</td><td><code>{{.Method}} {{.Path}}</code>{{if gt .Count 1}} <small class="hint">× {{.Count}}</small>{{end}}
+      {{- with .Sent}}<br><small class="hint">Sent <code>{{.}}</code></small>{{end}}</td><td>{{if .Status}}{{.Status}}{{else}}<small class="hint">{{.Error}}</small>{{end}}</td></tr>{{end}}
   </table>
 </details>{{end}}{{end}}
 

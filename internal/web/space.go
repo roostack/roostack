@@ -172,10 +172,10 @@ func (s *Server) serverSpaces(ctx context.Context, m serverRef, n any) *serverDi
 		v := &spaceView{DiskSpace: ds, ServerID: m.ID, Title: diskTitle(ds)}
 		out.Counting = out.Counting || ds.Counting
 		// "This server" with one disk, "This server's media disk" with more.
-		subject, disk := name, m.Label()+"'s disk"
+		subject, disk := name, m.InSentence()+"'s disk"
 		if len(disks) > 1 {
-			disk = m.Label() + "'s " + lowerFirstWord(v.Title) // "USB drive BACKUP" stays
-			subject = disk
+			disk = m.InSentence() + "'s " + lowerFirstWord(v.Title) // "USB drive BACKUP" stays
+			subject = m.Label() + "'s " + lowerFirstWord(v.Title)
 		}
 		if ds.Store {
 			v.Promised, v.PromisedLeft = promised, promisedLeft

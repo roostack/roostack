@@ -41,8 +41,11 @@ env:
   GOVULNCHECK_VERSION: v1.9.0
   # uv, which builds the help site with the Zensical in help/uv.lock,
   # from uv's release, checked against the SHA-256 in its .sha256 file.
+  # The aarch64 one is for rebuilding on an ARM machine
+  # (scripts/verify-release.sh reads these).
   UV_VERSION: "0.12.22"
   UV_SHA256: b9980552309f09c15172b8be828555e375097f16deb459795ce7bfd200380f0b
+  UV_SHA256_AARCH64: 6f66a14e8239871fb477f9746c941fedfa77e8fe28a8bc7c07e1dc7f53a66712
 
 jobs:
   check:

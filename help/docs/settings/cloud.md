@@ -3,8 +3,10 @@
 Roostack Cloud is an optional online service for Roostack labs. Your lab
 works without it. Linking the lab to a free Roostack Cloud account gives it
 a **free roost.ac address** (such as `smiths.roost.ac`), so you don't need a
-domain of your own. Later it will also offer backups away from home and
-checks of your lab from the internet, each one your choice.
+domain of your own. An account with Roostack Cloud storage (in the pilot,
+for now) can also keep your backups away from home, encrypted before they
+leave, and later Roostack Cloud will check your lab from the internet:
+each one your choice.
 
 You'll find it under **Settings → Roostack Cloud**, or in the setup
 wizard's address step.
@@ -45,17 +47,22 @@ provider. Roostack Cloud never has your certificates or their keys.
 ## What your lab sends, and keeps
 
 When it links, your lab sends Roostack Cloud its name, the roost.ac name it
-asks for (if any), Roostack's version, and a public key. Nothing else: no
+asks for (if any), Roostack's version, a public key, and the address of
+its own page to come back to (as your browser reached it). Nothing else: no
 email address, and no list of your services.
 
 Your lab keeps a **certificate** for that key, and uses it to prove who it
-is each time it talks to Roostack Cloud (once a day, and when Roostack
-starts). The private key never leaves your server. The certificate renews
+is each time it talks to Roostack Cloud: once a day and when Roostack
+starts, and for what you use (a name, backups there, the relay); [Your
+data and your keys](../your-data.md#what-roostack-sends) lists every
+request. The private key never leaves your server. The certificate renews
 itself with a new key.
 
 For technical users, **Details** on the page shows the certificate's
 fingerprint and dates, Roostack Cloud's address, and the lab's recent
-requests to it (when, what, and the answer; never what was sent). The files
+requests to it: when, what, what it sent (with secrets left out) and the
+answer. [Your data and your keys](../your-data.md#what-roostack-sends)
+says what each request is for, and how to watch them yourself. The files
 are in `/var/lib/roostack/cloud/`:
 
 | File | Holds |
@@ -63,15 +70,15 @@ are in `/var/lib/roostack/cloud/`:
 | `lab.key` | The lab's private key (readable only by Roostack) |
 | `lab.crt` | Its certificate from Roostack Cloud |
 | `link.json` | The account, since when, the last contact, and what Roostack Cloud holds back |
-| `requests.log` | The latest 200 requests to Roostack Cloud |
+| `requests.log` | The latest 200 requests to Roostack Cloud, one a line, with what each sent (never a secret) |
 
 They're part of Roostack's state, so they're in your backups: a lab you
 restore is still linked.
 
 ## What your lab tells Roostack Cloud each day
 
-After it checks in each day, your lab tells Roostack Cloud two more things,
-and nothing else:
+After it checks in each day, your lab tells Roostack Cloud its name (as it
+is now, in Settings → Lab name) and two more things, and nothing else:
 
 - **The email addresses of the people here who get the lab's problems**
   (each person's address on their account page, if they get **Problems**:
@@ -83,7 +90,8 @@ and nothing else:
   after that says why that person is getting it, with a link to stop them.
   Roostack Cloud keeps 10 addresses per lab.
 - **Each server's last backup to Roostack Cloud**, if it backs up there,
-  so your lab's page on Roostack Cloud can show it.
+  with the server's name, so your lab's page on Roostack Cloud can show
+  it.
 
 **Emails to** on the page lists each address and how it stands: getting
 Roostack Cloud's emails, not confirmed yet (and when Roostack Cloud emailed

@@ -135,7 +135,9 @@ func TestCloudLinking(t *testing.T) {
 	}
 	_, body = h.get("/settings/cloud")
 	for _, want := range []string{"Linked</span> since", "o••••@example.com", "Your lab's address, smiths.roost.test",
-		"Fingerprint <code>", "lab.key", "Recent requests to Roostack Cloud", "POST /v1/links", "Unlink this lab from Roostack Cloud?"} {
+		"Fingerprint <code>", "lab.key", "Recent requests to Roostack Cloud", "POST /v1/links", "Unlink this lab from Roostack Cloud?",
+		// What each request sent, without the link's secret.
+		"&#34;lab_name&#34;:&#34;Smith family&#34;", "&#34;secret&#34;:&#34;(not recorded)&#34;", `href="/help/your-data/#what-roostack-sends"`, `href="/help/your-data/#what-roostack-cloud-can-and-cant-see"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("linked page missing %q", want)
 		}

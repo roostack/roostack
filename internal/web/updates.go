@@ -83,7 +83,7 @@ func (s *Server) updateNowSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := s.serverRefOf(r)
-	s.Store.Audit(r.Context(), currentUser(r), "updates", "OS updates started on "+m.Label())
+	s.Store.Audit(r.Context(), currentUser(r), "updates", "OS updates started on "+m.InSentence())
 	redirect(w, r, m.Updates())
 }
 
@@ -109,7 +109,7 @@ func (s *Server) seriesAcceptSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := s.serverRefOf(r)
-	s.Store.Audit(r.Context(), currentUser(r), "updates", "Roostack "+series+" accepted for "+m.Label())
+	s.Store.Audit(r.Context(), currentUser(r), "updates", "Roostack "+series+" accepted for "+m.InSentence())
 	redirect(w, r, m.Updates())
 }
 
@@ -157,7 +157,7 @@ func (s *Server) restartPolicySubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := s.serverRefOf(r)
-	s.Store.Audit(r.Context(), currentUser(r), "setup", "restart policy changed on "+m.Label())
+	s.Store.Audit(r.Context(), currentUser(r), "setup", "restart policy changed on "+m.InSentence())
 	if !m.This {
 		redirect(w, r, m.Updates())
 		return

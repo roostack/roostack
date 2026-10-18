@@ -56,8 +56,9 @@ type client struct {
 	anon   *http.Client
 	authed *http.Client
 	authT  *http.Transport
-	// log records each request (never its body).
-	log func(method, path string, status int, err error)
+	// log records each request with its body (the request log leaves out
+	// secrets, requestlog.go), never the answer.
+	log func(method, path string, body []byte, status int, err error)
 }
 
 // newClient reaches Cloud at cfg's address; cert gives the lab's current
@@ -98,12 +99,13 @@ func newClient(cfg config.Cloud, cert func() *tls.Certificate) (*client, error) 
 // do sends in (if any) as JSON and decodes the answer into out (if any).
 func (c *client) do(ctx context.Context, authed bool, method, path string, in, out any) error {
 	var body io.Reader
+	var sent []byte
 	if in != nil {
 		data, err := json.Marshal(in)
 		if err != nil {
 			return err
 		}
-		body = bytes.NewReader(data)
+		body, sent = bytes.NewReader(data), data
 	}
 	req, err := http.NewRequestWithContext(ctx, method, c.base.String()+path, body)
 	if err != nil {
@@ -124,14 +126,14 @@ func (c *client) do(ctx context.Context, authed bool, method, path string, in, o
 		}
 		// A certificate Cloud refuses can end the TLS handshake itself.
 		if authed && refusedCert(err) {
-			c.record(method, path, 0, ErrUnlinked)
+			c.record(method, path, sent, 0, ErrUnlinked)
 			return ErrUnlinked
 		}
-		c.record(method, path, 0, err)
+		c.record(method, path, sent, 0, err)
 		return &Unreachable{Err: err}
 	}
 	defer resp.Body.Close()
-	c.record(method, path, resp.StatusCode, nil)
+	c.record(method, path, sent, resp.StatusCode, nil)
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return &Unreachable{Err: err}
@@ -173,9 +175,9 @@ func refusedCert(err error) bool {
 	return false
 }
 
-func (c *client) record(method, path string, status int, err error) {
+func (c *client) record(method, path string, sent []byte, status int, err error) {
 	if c.log != nil {
-		c.log(method, path, status, err)
+		c.log(method, path, sent, status, err)
 	}
 }
 
