@@ -103,7 +103,7 @@ func (c *Client) RunUpdates(ctx context.Context, series string, w io.Writer) err
 			Error string  `json:"error"`
 		}
 		if err := dec.Decode(&msg); err != nil {
-			return fmt.Errorf("roostack-agent: updates stopped unexpectedly: %w", err)
+			return fmt.Errorf("%w: %w", ErrUpdatesCut, err)
 		}
 		switch {
 		case msg.Line != nil:
@@ -114,6 +114,18 @@ func (c *Client) RunUpdates(ctx context.Context, series string, w io.Writer) err
 			return nil
 		}
 	}
+}
+
+// ErrUpdatesCut means the agent stopped sending a run of updates before
+// saying how it ended: it restarted, as upgrading Roostack makes it do.
+// The run carries on without it; UpdatesStatus says how it ends.
+var ErrUpdatesCut = errors.New("roostack-agent stopped following the OS updates")
+
+// UpdatesStatus reads the latest run of OS updates (agent.UpdatesRun).
+func (c *Client) UpdatesStatus(ctx context.Context) (UpdatesRun, error) {
+	var run UpdatesRun
+	err := c.call(ctx, http.MethodGet, "/v1/updates/last", nil, &run)
+	return run, err
 }
 
 // Reboot restarts the host a few seconds after answering.

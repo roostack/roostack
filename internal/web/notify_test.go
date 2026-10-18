@@ -17,6 +17,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -215,6 +216,9 @@ func TestWeeklySummary(t *testing.T) {
 	h.server.Attacks = func(context.Context, time.Duration) (public.Attacks, error) {
 		return public.Attacks{Alerts: 3, Addresses: 2, Blocked: 2, Kinds: []string{"http-probing"}}, nil
 	}
+	// A new release series is information, not something needing
+	// attention: it has a line of its own.
+	h.node().updates = &fakeUpdates{series: osupdate.Series{Current: "0.4", Newest: "0.5", NewestVersion: "0.5.0"}}
 	monday := time.Date(2026, 10, 5, 9, 0, 0, 0, time.Local)
 	h.server.notify(ctx, monday.Add(-48*time.Hour)) // Saturday: not due
 	if len(fm.sent) != 0 {
@@ -225,6 +229,7 @@ func TestWeeklySummary(t *testing.T) {
 		t.Fatalf("Monday: %+v", fm.sent)
 	}
 	for _, want := range []string{"Last backup:", "CrowdSec saw 3 attacks from 2 addresses, and blocked 2. Most were: http-probing.",
+		"- Roostack 0.5.0 is available. It starts a new series of releases, so it waits for you to say yes.\n  https://roost.lab.example.com/settings/updates#roostack",
 		"Nothing needs attention."} {
 		if !strings.Contains(fm.sent[0].Body, want) {
 			t.Errorf("summary missing %q:\n%s", want, fm.sent[0].Body)

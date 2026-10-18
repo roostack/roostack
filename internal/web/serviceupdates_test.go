@@ -64,7 +64,8 @@ func TestServiceUpdateOffered(t *testing.T) {
 		"vaultwarden": {Service: "vaultwarden", Title: "Vaultwarden", From: "1.36.0-roostack.1", To: "1.36.1-roostack.1",
 			Kind: pkgspec.UpdatePatch, Policy: "notify"},
 		"immich": {Service: "immich", Title: "Immich", From: "1.9.4-roostack.1", To: "2.1.0-roostack.1", Kind: pkgspec.UpdateMajor,
-			Policy: "minor", Notes: []pkgspec.UpgradeNote{{Version: "2.0.0-roostack.1", Note: "Faces are rebuilt."}}},
+			Policy: "minor", Notes: []pkgspec.UpgradeNote{{Version: "2.0.0-roostack.1", Note: "Faces are rebuilt."}},
+			WhatsNew: "https://github.com/immich-app/immich/releases/tag/v2.1.0"},
 	}
 	_, body := h.get("/")
 	if !strings.Contains(body, "Updates are available for Immich (2.1.0) and Vaultwarden (1.36.1).") {
@@ -82,7 +83,8 @@ func TestServiceUpdateOffered(t *testing.T) {
 		t.Error("its settings page should offer the update choices")
 	}
 	_, body = h.get("/services/immich")
-	for _, want := range []string{"a new major version. Read these first:", "<strong>2.0.0:</strong> Faces are rebuilt.",
+	for _, want := range []string{"a new major version. <a href=\"https://github.com/immich-app/immich/releases/tag/v2.1.0\" target=\"_blank\" rel=\"noopener\">What's new in 2.1.0",
+		"</a> Read these first:", "<strong>2.0.0:</strong> Faces are rebuilt.",
 		"Update Immich to 2.1.0? Roostack backs it up first", "It has notes to read, so Roostack waits for you."} {
 		if !strings.Contains(body, want) {
 			t.Errorf("immich page missing %q", want)

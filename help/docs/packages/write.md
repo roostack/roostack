@@ -48,6 +48,7 @@ about:
   source: https://github.com/example/myapp
   licence: AGPL-3.0-only
   support: https://opencollective.com/myapp
+  releases: https://github.com/example/myapp/releases/tag/v{version}
   icon: icon.png
   categories: [documents]
   keywords: [notes, wiki, markdown]
@@ -59,8 +60,11 @@ Take the licence from the project's own licence file or notice, as an
 [SPDX identifier](https://spdx.org/licenses/). For the GNU licences, say
 `-only` or `-or-later` as the notice does. The logo is the project's own,
 as a square PNG beside the package file, at least 256×256 pixels and at
-most 100 KB. `requires.roostack` is the oldest Roostack release your
-package works with: the one you tried it on, unless you know better.
+most 100 KB. `releases` is where the project describes each version, with
+`{version}` where the app's version goes (here, `2.4.1`): when a service
+updates, Roostack links to what's new in the version it updates to.
+`requires.roostack` is the oldest Roostack release your package works
+with: the one you tried it on, unless you know better.
 
 ## Containers and images
 

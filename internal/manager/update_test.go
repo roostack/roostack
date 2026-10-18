@@ -180,7 +180,8 @@ func TestLocalPackageUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	u := m.AvailableUpdates(ctx)["forgejo"]
-	if u == nil || !u.Local || u.To != "15.0.10-roostack.1" || u.Kind != pkgspec.UpdatePatch || len(u.NewRisks) != 0 {
+	if u == nil || !u.Local || u.To != "15.0.10-roostack.1" || u.Kind != pkgspec.UpdatePatch || len(u.NewRisks) != 0 ||
+		u.WhatsNew != "https://codeberg.org/forgejo/forgejo/releases/tag/v15.0.10" {
 		t.Fatalf("update: %+v", u)
 	}
 	if err := m.UpdateService(ctx, "forgejo", u.To, "alice", false); err != nil {

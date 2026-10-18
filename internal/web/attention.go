@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/osupdate"
 )
 
 // Attention item levels.
@@ -454,6 +455,11 @@ func (s *Server) updatesAttention(r *http.Request, m serverRef, n ServiceNode, a
 		add(levelProblem, "OS updates didn't finish last time"+m.on()+". The server may be missing security fixes.",
 			m.Updates(), "See what happened")
 	}
+	if ser, err := u.Series(r.Context()); err == nil {
+		if text := seriesText(ser, m); text != "" {
+			add(levelInfo, text, m.Updates()+"#roostack", map[bool]string{true: "Details", false: "See what's new"}[ser.Accepted != ""])
+		}
+	}
 	rs := u.RestartStatus()
 	if !rs.Needed {
 		return
@@ -468,6 +474,23 @@ func (s *Server) updatesAttention(r *http.Request, m serverRef, n ServiceNode, a
 		add(levelInfo, fmt.Sprintf("%s will restart around %02d:00 to finish installing updates.", m.Label(), hour),
 			m.Updates(), "Details")
 	}
+}
+
+// seriesText is a line about a newer release series of Roostack on a
+// server (SPEC.md §7.2): on offer, waiting for the Owner's go-ahead; or
+// accepted, installing with its next OS updates. "" when there's none.
+// Information only: Roostack carries on working on the series it has.
+func seriesText(ser osupdate.Series, m serverRef) string {
+	switch {
+	case ser.Accepted != "" && ser.Waiting != "":
+		return "Roostack " + ser.Accepted + " is waiting to install" + m.on() + ": " + ser.Waiting + "."
+	case ser.Accepted != "":
+		return "Roostack " + ser.Accepted + " installs with the next OS updates" + m.on() + ", tonight after the backup."
+	case ser.Newest != "":
+		return "Roostack " + ser.NewestVersion + " is available" + m.on() + ". It starts a new series of releases, " +
+			"so it waits for you to say yes."
+	}
+	return ""
 }
 
 // sshPasswordsAttention warns that a server's SSH takes passwords: a

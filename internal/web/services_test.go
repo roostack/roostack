@@ -1843,7 +1843,7 @@ func TestCaddyBuildShown(t *testing.T) {
 // address isn't a link yet, and the Services list and Home say how far
 // it's got instead of offering Open; once it's done, the page reloads.
 func TestInstallingShown(t *testing.T) {
-	h, _ := loggedIn(t, auth.RoleOwner)
+	h, fm := loggedIn(t, auth.RoleOwner)
 	started := time.Now().Add(-14 * time.Second)
 	install := &node.InstallProgress{Log: activity.Apply, Steps: []node.InstallStep{
 		{Key: "download a", Title: "Downloading the database (Postgres)", Started: started.Add(-time.Minute), Finished: started},
@@ -1883,6 +1883,18 @@ func TestInstallingShown(t *testing.T) {
 	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "Still downloading Vaultwarden, for 6 min.") {
 		t.Error("a slow step should say it's still going")
 	}
+
+	// A failed download can be tried again straight away.
+	install.Failed = "downloading docker.io/vaultwarden/server:1.34.3: connection reset by peer"
+	_, body = h.get("/services/vaultwarden")
+	if !strings.Contains(body, "Installing Vaultwarden didn't finish:</strong> downloading docker.io/vaultwarden/server:1.34.3") ||
+		!strings.Contains(body, `action="/services/vaultwarden/setup/retry"><button type="submit">Try again</button>`) {
+		t.Error("a failed install should offer Try again")
+	}
+	if code, _ := h.post("/services/vaultwarden/setup/retry", url.Values{}, h.srv.URL); code >= 400 || !slices.Equal(fm.retried, []string{"vaultwarden"}) {
+		t.Errorf("try again: %d %v", code, fm.retried)
+	}
+	install.Failed = ""
 
 	// Done: the step list's next poll reloads the page.
 	installing = false

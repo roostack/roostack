@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -16,13 +17,16 @@ import (
 // updatesTimeout bounds how long the agent follows one run of OS updates.
 const updatesTimeout = time.Hour
 
-// updatesUnit runs the updates. UpdatesLog is where its output goes: in
-// the agent's runtime directory, which it can clear before a run, and
-// which outlives a restart of the agent (RuntimeDirectoryPreserve), so
-// the end of a run that upgraded Roostack can still be read there.
+// updatesUnit runs the updates. UpdatesLog is where its output goes, and
+// UpdatesExit gets its exit status when it ends: in the agent's runtime
+// directory, which it can clear before a run, and which outlives a
+// restart of the agent (RuntimeDirectoryPreserve), so a run that upgraded
+// Roostack can still be read there (UpdatesStatus). A restart of the
+// server clears them.
 const (
 	updatesUnit = "roostack-os-updates"
 	UpdatesLog  = "/run/roostack-agent/os-updates.log"
+	UpdatesExit = "/run/roostack-agent/os-updates.exit"
 )
 
 // seriesPattern is a release series, as Roostack's apt suites are named
@@ -37,7 +41,8 @@ func ValidSeries(s string) bool { return seriesPattern.MatchString(s) }
 const RoostackSource = "/etc/apt/sources.list.d/roostack.sources"
 
 // updatesScript announces its steps with "==> " lines (see
-// internal/activity). With ROOSTACK_SERIES set, it first moves Roostack's
+// internal/activity), and writes its exit status to UpdatesExit however it
+// ends (but for being killed). With ROOSTACK_SERIES set, it first moves Roostack's
 // source to that series (SPEC.md §7, "A new release series"): only its
 // Suites line changes, so a mirror in URIs stays. If the new series can't
 // be fetched (apt checks its signature), the source goes back as it was.
@@ -45,7 +50,8 @@ const RoostackSource = "/etc/apt/sources.list.d/roostack.sources"
 // it is on disk (--force-confold): the new package's own source names the
 // same series, and differs only if someone changed it, such as for a
 // mirror. unattended-upgrade would leave a package out instead of asking.
-const updatesScript = `src=` + RoostackSource + `
+const updatesScript = `trap 'echo $? >` + UpdatesExit + `' EXIT
+src=` + RoostackSource + `
 if [ -n "${ROOSTACK_SERIES:-}" ]; then
     echo "==> Moving Roostack to its $ROOSTACK_SERIES releases"
     [ -f "$src" ] || { echo "$src is missing"; exit 1; }
@@ -79,8 +85,10 @@ unattended-upgrade -v`
 func (h LinuxHost) RunUpdates(ctx context.Context, series string, w io.Writer) error {
 	ctx, cancel := context.WithTimeout(ctx, updatesTimeout)
 	defer cancel()
-	if err := os.Remove(UpdatesLog); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
+	for _, f := range []string{UpdatesLog, UpdatesExit} {
+		if err := os.Remove(f); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 	}
 	args := []string{"--unit=" + updatesUnit, "--wait", "--quiet", "--collect",
 		"--property=StandardOutput=truncate:" + UpdatesLog, "--property=StandardError=inherit",
@@ -106,6 +114,62 @@ func (h LinuxHost) RunUpdates(ctx context.Context, series string, w io.Writer) e
 		}
 	}
 	return err
+}
+
+// UpdatesRun is the latest run of OS updates as the host has it.
+type UpdatesRun struct {
+	// Running: its unit is still going.
+	Running bool `json:"running"`
+	// Ended is when it ended, and Status its exit status; zero if it hasn't
+	// (still running, or cut off: the server restarted, or it was killed).
+	Ended  time.Time `json:"ended,omitzero"`
+	Status int       `json:"status"`
+	// Output is its log so far, without dpkg's log markers, shortened in
+	// the middle when long (updatesOutputMax).
+	Output string `json:"output,omitempty"`
+}
+
+// updatesOutputMax bounds the output UpdatesStatus returns: the start and
+// the end of a long log are what say what happened.
+const updatesOutputMax = 256 << 10
+
+// UpdatesStatus reads the latest run of OS updates: whether its unit is
+// still running, its exit status once it has ended, and its log. It's how
+// Roostack learns how a run ended after it restarted halfway through
+// (upgrading Roostack restarts it).
+func (h LinuxHost) UpdatesStatus() (UpdatesRun, error) {
+	var run UpdatesRun
+	state, err := exec.Command("systemctl", "show", "--property=ActiveState", "--value", updatesUnit+".service").Output()
+	if err != nil {
+		return run, fmt.Errorf("systemctl show: %w", err)
+	}
+	switch strings.TrimSpace(string(state)) {
+	case "active", "activating", "deactivating", "reloading":
+		run.Running = true
+	}
+	if data, err := os.ReadFile(UpdatesExit); err == nil {
+		if st, serr := os.Stat(UpdatesExit); serr == nil {
+			if n, perr := strconv.Atoi(strings.TrimSpace(string(data))); perr == nil {
+				run.Ended, run.Status = st.ModTime(), n
+			}
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return run, err
+	}
+	data, err := os.ReadFile(UpdatesLog)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return run, err
+	}
+	var out strings.Builder
+	f := &lineFilter{w: &out, drop: dpkgLogMarker}
+	f.Write(data)
+	f.flush()
+	run.Output = out.String()
+	if n := len(run.Output); n > updatesOutputMax {
+		head := updatesOutputMax / 4
+		run.Output = run.Output[:head] + "\n…\n" + run.Output[n-(updatesOutputMax-head):]
+	}
+	return run, nil
 }
 
 // followFile copies what's written to path to w until done says the

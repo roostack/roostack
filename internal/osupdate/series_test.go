@@ -3,13 +3,20 @@ package osupdate
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/agent"
 )
 
 // seriesAgent records the series a run was asked to move to.
@@ -150,18 +157,102 @@ func TestNewSeries(t *testing.T) {
 	}
 }
 
-// A run that upgrades Roostack is cut off when Roostack restarts; that's
-// not a failure (SPEC.md §7).
+// cutAgent cuts a run off as upgrading Roostack does: the agent restarts
+// and stops sending its output, and the run carries on. Each look at the
+// run returns the next of runs (the last one from then on).
+type cutAgent struct {
+	fakeAgent
+	mu   sync.Mutex
+	runs []agent.UpdatesRun
+}
+
+func (a *cutAgent) RunUpdates(_ context.Context, _ string, w io.Writer) error {
+	io.WriteString(w, "==> Installing updates\nUnpacking roostack (0.4.1) over (0.4.0) ...\r\n")
+	return fmt.Errorf("%w: unexpected EOF", agent.ErrUpdatesCut)
+}
+
+func (a *cutAgent) UpdatesStatus(context.Context) (agent.UpdatesRun, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	run := a.runs[0]
+	if len(a.runs) > 1 {
+		a.runs = a.runs[1:]
+	}
+	return run, nil
+}
+
+// A run that upgrades Roostack carries on after the agent restarts; it's
+// followed to its end and recorded, by this process or, if Roostack
+// restarted too, by the next (SPEC.md §7).
 func TestJobUpgradesRoostack(t *testing.T) {
-	s, coord := newService(t, fakeAgent{out: "Unpacking roostack (0.4.1) over (0.4.0) ...\r\nSetting up roostack (0.4.1) ...\r\n",
-		err: errors.New("signal: terminated")})
+	ctx := context.Background()
+	out := "Packages that will be upgraded: curl roostack\nUnpacking roostack (0.4.1) over (0.4.0) ...\nSetting up roostack (0.4.1) ...\n"
+	ag := &cutAgent{}
+	s, coord := newService(t, ag)
+	s.Activity, s.PollEvery = activity.New(), time.Millisecond
+	ended := s.Now().Add(3 * time.Minute)
+	ag.runs = []agent.UpdatesRun{{Running: true, Output: out[:40]}, {Ended: ended, Output: out}}
 	s.Submit()
-	if err := coord.jobs[0].Run(context.Background(), nil); err != nil {
+	if err := coord.jobs[0].Run(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
-	last, _ := s.Last(context.Background())
-	if !last.OK || !strings.Contains(last.Summary, "Roostack updated itself to 0.4.1 and restarted") {
+	last, _ := s.Last(ctx)
+	if !last.OK || last.Summary != "Roostack updated itself to 0.4.1 and restarted. Installed 2 updates: curl, roostack." ||
+		!strings.Contains(last.Output, "Setting up roostack (0.4.1)") {
 		t.Errorf("last = %+v", last)
+	}
+	if v, _ := s.Store.Setting(ctx, runningKey); v != "" || s.Pending() {
+		t.Errorf("still marked running: %q, pending %v", v, s.Pending())
+	}
+
+	// Roostack restarts while following it: the run's left for the next
+	// start, which records it once it ends, and says so in the log.
+	ag.runs = []agent.UpdatesRun{{Running: true}}
+	s.Submit()
+	stop, cancel := context.WithCancel(ctx)
+	go func() { time.Sleep(20 * time.Millisecond); cancel() }()
+	if err := coord.jobs[1].Run(stop, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("stopping: %v", err)
+	}
+	if v, _ := s.Store.Setting(ctx, runningKey); v == "" {
+		t.Fatal("the mark went with the process")
+	}
+	if last, _ := s.Last(ctx); last.Summary != "Roostack updated itself to 0.4.1 and restarted. Installed 2 updates: curl, roostack." {
+		t.Errorf("a cut-off run overwrote the last result: %+v", last)
+	}
+	coord2 := &fakeCoord{}
+	next := &Service{Agent: ag, Store: s.Store, Coord: coord2, Now: s.Now, Log: s.Log, Activity: activity.New(), PollEvery: time.Millisecond}
+	ag.runs = []agent.UpdatesRun{{Running: true}, {Ended: ended, Status: 1, Output: "E: Sub-process /usr/bin/dpkg returned an error code (1)\n"}}
+	next.Resume(ctx)
+	if len(coord2.jobs) != 1 || coord2.jobs[0].Name != JobName || !next.Pending() {
+		t.Fatalf("resume: %+v", coord2.jobs)
+	}
+	if err := coord2.jobs[0].Run(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if last, _ := next.Last(ctx); last.OK || last.Summary != "Updating didn't finish: exit status 1" ||
+		!strings.Contains(last.Output, "returned an error code") {
+		t.Errorf("resumed: %+v", last)
+	}
+	if act, _ := next.Activity.Latest(activity.OSUpdates); !slices.Contains(act.Lines, "E: Sub-process /usr/bin/dpkg returned an error code (1)") {
+		t.Errorf("resumed log: %+v", act.Lines)
+	}
+	if next.Resume(ctx); len(coord2.jobs) != 1 {
+		t.Error("resumed twice")
+	}
+
+	// The server restarted during the run (its status went with /run), or
+	// the status left is an earlier run's: it didn't finish.
+	for _, run := range []agent.UpdatesRun{{}, {Ended: s.Now().Add(-time.Hour), Output: out}} {
+		s.setMark(ctx, &runMark{Started: s.Now()})
+		ag.runs = []agent.UpdatesRun{run}
+		c := &fakeCoord{}
+		s.Coord = c
+		s.Resume(ctx)
+		c.jobs[0].Run(ctx, nil)
+		if last, _ := s.Last(ctx); last.OK || !strings.Contains(last.Summary, "didn't finish: they were stopped, probably by the server restarting") {
+			t.Errorf("cut off by %+v: %+v", run, last)
+		}
 	}
 	if roostackUpgrade("Unpacking curl (8.14.1)") != "" {
 		t.Error("another package counted as Roostack")

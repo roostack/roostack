@@ -201,8 +201,10 @@ type Local struct {
 
 	// followingBuild: a Caddy image build is being shown (build.go).
 	followingBuild bool
-	// installs are new services being installed, step by step (install.go).
-	installs map[string]*InstallProgress
+	// installs are new services being installed, step by step (install.go);
+	// installsLoaded, once they've been read from State.
+	installs       map[string]*InstallProgress
+	installsLoaded bool
 
 	// updates are services updating here (update.go).
 	updates updates
@@ -334,6 +336,8 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 		v, ok := n.userSecrets[name]
 		return v, ok
 	}
+	// An install a failed download or a restart cut off starts again.
+	r.Unfinished = n.unfinishedUnits()
 	plan, err := r.Plan(ctx, desired)
 	if err != nil {
 		return err

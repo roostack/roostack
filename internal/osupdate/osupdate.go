@@ -10,6 +10,7 @@ package osupdate
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -40,13 +41,19 @@ var (
 	ProcStat           = "/proc/stat"
 )
 
-const lastKey = "os.updates.last"
+const (
+	lastKey    = "os.updates.last"
+	runningKey = "os.updates.running" // a runMark while a run lasts
+)
 
 // Agent is what's needed from roostack-agent.
 type Agent interface {
 	// RunUpdates installs updates; a series first moves Roostack to that
 	// release series (series.go).
 	RunUpdates(ctx context.Context, series string, w io.Writer) error
+	// UpdatesStatus reads the latest run, which may have outlived the
+	// agent and this process.
+	UpdatesStatus(ctx context.Context) (agent.UpdatesRun, error)
 	Reboot(ctx context.Context) error
 	HostChanges(ctx context.Context) (agent.HostChanges, error)
 }
@@ -119,10 +126,25 @@ type Service struct {
 	// §7). Nil means no check.
 	BackupCheck func(ctx context.Context) string
 
+	// PollEvery is how often a run is checked while it carries on without
+	// the agent following it (0: every 5 seconds).
+	PollEvery time.Duration
+
 	mu      sync.Mutex
 	pending bool          // queued or running
 	act     *activity.Log // the queued run's log
 }
+
+// runMark is kept while a run lasts, so a Roostack that restarted
+// halfway through (upgrading Roostack restarts it) can still record how
+// it ended (Resume).
+type runMark struct {
+	Started time.Time `json:"started"`
+}
+
+// runLimit is how long after its start a run is followed: the agent gives
+// up on one after an hour (agent.updatesTimeout).
+const runLimit = 2 * time.Hour
 
 // ErrAlreadyQueued means updates are already queued or running.
 var ErrAlreadyQueued = errors.New("OS updates are already queued")
@@ -173,35 +195,156 @@ func (s *Service) Job() maintenance.Job {
 			if series != "" {
 				act.Printf("Moving Roostack to its %s releases, as you accepted.", series)
 			}
+			mark := runMark{Started: s.Now()}
+			s.setMark(ctx, &mark)
 			var buf bytes.Buffer
 			err := s.Agent.RunUpdates(ctx, series, io.MultiWriter(act, &buf))
-			out := headTail(buf.String(), 3<<10, 5<<10)
-			res := Result{At: s.Now(), OK: err == nil, Summary: Summarize(out), Output: out}
-			// Upgrading Roostack restarts the agent and this service, which
-			// cuts the run's output off here, but not the run (SPEC.md §7).
-			// This process may not live to record it.
-			if v := roostackUpgrade(out); err != nil && v != "" {
-				res.OK, err = true, nil
-				res.Summary = "Roostack updated itself to " + v + " and restarted, so the rest of this run isn't shown here " +
-					"(it carried on: " + agent.UpdatesLog + ")."
-			}
-			if err != nil {
-				res.Summary = "Updating didn't finish: " + err.Error()
+			var res Result
+			if errors.Is(err, agent.ErrUpdatesCut) {
+				// Upgrading Roostack restarts the agent, which stops sending
+				// the run's output, but the run carries on (SPEC.md §7). It's
+				// followed to its end here, or, if this process is restarted
+				// too, by the next one (Resume).
+				act.Printf("Roostack's agent restarted (upgrading Roostack restarts it), and the run carries on: " +
+					"following it until it ends.")
+				if res, err = s.follow(ctx, mark); err != nil {
+					act.Finish(err) // Roostack is stopping: the next start records it
+					return err
+				}
 			} else {
-				act.Step("%s", res.Summary)
-			}
-			if data, jerr := json.Marshal(res); jerr == nil {
-				if serr := s.Store.SetSetting(context.WithoutCancel(ctx), lastKey, string(data)); serr != nil {
-					s.Log.Error("recording OS update result", "err", serr)
+				out := headTail(buf.String(), 3<<10, 5<<10)
+				res = Result{At: s.Now(), OK: err == nil, Summary: Summarize(out), Output: out}
+				if err != nil {
+					res.Summary = "Updating didn't finish: " + err.Error()
 				}
 			}
-			if s.CheckReboot() {
-				act.Printf("A restart is needed to finish installing updates.")
-			}
-			act.Finish(err)
-			return err
+			return s.record(ctx, act, res, err)
 		},
 	}
+}
+
+// record saves a run's result and says it in its log, forgets the run's
+// mark, and asks for a restart if updates need one.
+func (s *Service) record(ctx context.Context, act *activity.Log, res Result, err error) error {
+	if err == nil {
+		act.Step("%s", res.Summary)
+	}
+	ctx = context.WithoutCancel(ctx)
+	if data, jerr := json.Marshal(res); jerr == nil {
+		if serr := s.Store.SetSetting(ctx, lastKey, string(data)); serr != nil {
+			s.Log.Error("recording OS update result", "err", serr)
+		}
+	}
+	s.setMark(ctx, nil)
+	if s.CheckReboot() {
+		act.Printf("A restart is needed to finish installing updates.")
+	}
+	act.Finish(err)
+	return err
+}
+
+func (s *Service) setMark(ctx context.Context, m *runMark) {
+	v := ""
+	if m != nil {
+		data, _ := json.Marshal(m)
+		v = string(data)
+	}
+	if err := s.Store.SetSetting(context.WithoutCancel(ctx), runningKey, v); err != nil {
+		s.Log.Error("recording that OS updates are running", "err", err)
+	}
+}
+
+// follow waits for a run the agent no longer follows to end, and reads
+// how it went (agent.UpdatesRun).
+func (s *Service) follow(ctx context.Context, mark runMark) (Result, error) {
+	every := cmp.Or(s.PollEvery, 5*time.Second)
+	for {
+		run, err := s.Agent.UpdatesStatus(ctx)
+		switch {
+		case err == nil && !run.Running:
+			return runResult(run, mark, s.Now()), nil
+		case s.Now().Sub(mark.Started) > runLimit:
+			why := "it's still running"
+			if err != nil {
+				why = "Roostack can't ask the agent: " + err.Error()
+			}
+			return Result{At: s.Now(), Summary: "Roostack stopped waiting for the OS updates started " +
+				mark.Started.Local().Format("2 January 15:04") + ": " + why + ". Its log is " + agent.UpdatesLog + "."}, nil
+		}
+		select {
+		case <-ctx.Done():
+			return Result{}, ctx.Err()
+		case <-time.After(every):
+		}
+	}
+}
+
+// runResult is a run's result as the agent last saw it. A run that never
+// said how it ended, or whose ending is older than the mark (an earlier
+// run's), was cut off: the server restarted, which stops it.
+func runResult(run agent.UpdatesRun, mark runMark, now time.Time) Result {
+	out := headTail(run.Output, 3<<10, 5<<10)
+	res := Result{At: now, Output: out}
+	switch {
+	case run.Ended.IsZero() || run.Ended.Before(mark.Started.Add(-time.Second)):
+		res.Summary = "The OS updates started " + mark.Started.Local().Format("2 January 15:04") +
+			" didn't finish: they were stopped, probably by the server restarting. The next run carries on."
+		res.Output = ""
+	case run.Status != 0:
+		res.Summary = "Updating didn't finish: exit status " + strconv.Itoa(run.Status)
+	default:
+		res.OK, res.Summary = true, Summarize(out)
+		if v := roostackUpgrade(out); v != "" {
+			res.Summary = "Roostack updated itself to " + v + " and restarted. " + res.Summary
+		}
+	}
+	return res
+}
+
+// Resume records a run of OS updates that was still going when Roostack
+// stopped: upgrading Roostack restarts it halfway through one (SPEC.md
+// §7). As a maintenance job, so nothing else starts meanwhile, it follows
+// the run to its end and records it. Called once at start.
+func (s *Service) Resume(ctx context.Context) {
+	v, err := s.Store.Setting(ctx, runningKey)
+	if err != nil || v == "" {
+		return
+	}
+	var mark runMark
+	if err := json.Unmarshal([]byte(v), &mark); err != nil {
+		s.setMark(ctx, nil)
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pending {
+		return
+	}
+	s.pending = true
+	s.Coord.Submit(maintenance.Job{
+		Name: JobName,
+		Run: func(ctx context.Context, h *maintenance.Handle) error {
+			defer func() {
+				s.mu.Lock()
+				s.pending = false
+				s.mu.Unlock()
+			}()
+			act := s.Activity.Start(activity.OSUpdates, "OS updates")
+			act.Step("Finishing the run started %s", mark.Started.Local().Format("2 January 15:04"))
+			act.Printf("Roostack restarted while OS updates were running (upgrading Roostack restarts it): " +
+				"following the run until it ends, to record how it went.")
+			res, err := s.follow(ctx, mark)
+			if err != nil {
+				act.Finish(err) // Roostack is stopping again
+				return err
+			}
+			if res.Output != "" {
+				act.Printf("The run's output:")
+				io.WriteString(act, res.Output)
+			}
+			return s.record(ctx, act, res, nil)
+		},
+	})
 }
 
 // Last returns the last update run, or nil if there hasn't been one.

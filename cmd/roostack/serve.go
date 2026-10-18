@@ -696,6 +696,9 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 		return ""
 	}
 	go updates.WatchSeries(ctx, 5*time.Minute, 6*time.Hour)
+	// A run of OS updates that upgraded Roostack restarted it halfway
+	// through: record how that run ends (SPEC.md §7).
+	updates.Resume(ctx)
 	// Debian's own apt timers may also install an update that needs a
 	// restart; notice it.
 	updates.CheckReboot()

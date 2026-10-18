@@ -3,9 +3,19 @@
 <section class="card medium">
   {{if .Restoring}}
   <h1>Restoring your lab</h1>
+  {{if .OnSetup}}
+  <p class="hint">Roostack puts your services' files, settings and accounts back, then restarts as your lab. Keep this page open
+    until it says where to go next. Large backups can take a while.</p>
+  {{/* Once Roostack restarts, nothing answers here any more: the page
+       then shows where to go next, as the last progress it got said. */}}
+  <div x-data="{ lost: false }" x-on:htmx:send-error="lost = true">
+    <div hx-get="/setup/restore/progress" hx-trigger="every 2s" hx-swap="innerHTML">{{template "restore-progress" .}}</div>
+  </div>
+  {{else}}
   <p class="hint">Roostack puts your services' files, settings and accounts back, then restarts as your lab. Keep this page open;
     it moves on to the login page when it's done. Large backups can take a while.</p>
   <div hx-get="/setup/restore/progress" hx-trigger="every 2s" hx-swap="innerHTML">{{template "restore-progress" .}}</div>
+  {{end}}
   {{else}}
   {{back "/setup" "Set up a new lab instead"}}
   <h1>Restore a lab from its backups</h1>
@@ -123,10 +133,32 @@
   {{else if .Err}}✗ {{.Title}} failed: {{.Err}}
   {{else}}✓ {{.Title}}: done. Roostack is restarting as your lab…{{end}}
 </p>
+{{if $.OnSetup}}
+{{if and (not $.Running) (not .Err)}}{{template "restore-next" $}}
+{{else if $.Running}}<div x-show="lost" x-cloak>{{template "restore-next" $}}</div>{{end}}
+{{end}}
 <pre class="output activity-log">{{range .Lines}}{{.}}
 {{end}}</pre>
 {{if and .Err (not $.Running)}}<p><a href="/setup/restore">Try again…</a></p>{{end}}
 {{end}}
+{{end}}
+
+{{/* restore-next: where to go once Roostack restarts as the restored lab,
+     for a restore started on the setup pages at home, which close then
+     (SPEC.md §6.3.2): the lab's address from its restored settings, and
+     the SSH tunnel, which always works. */}}
+{{define "restore-next"}}
+<div class="notice" role="status">
+  <p><strong>This setup page closes as Roostack restarts as your lab.</strong>
+    {{if .Address}}In a minute or two, open your lab at <a href="{{.Address}}">{{.Address}}</a> and log in with your account
+    from the lab.{{else}}Your lab has no address that opens from here, so carry on through an SSH connection from your
+    computer.{{end}}</p>
+  <p>{{if .Address}}If it doesn't open from here, connect through SSH from your computer instead: run{{else}}Run{{end}}
+    this in a terminal and leave it open:</p>
+  <pre class="output">ssh -L 8480:127.0.0.1:8480 you@{{or .ServerAddr "your-server"}}</pre>
+  <p>(with your own username on the server instead of <code>you</code>), then open
+    <a href="http://127.0.0.1:8480">http://127.0.0.1:8480</a>.</p>
+</div>
 {{end}}
 
 {{define "page-help"}}{{help "trouble/restore-lab" "Restore a whole lab"}}{{end}}

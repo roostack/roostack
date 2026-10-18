@@ -183,6 +183,14 @@ version: "1"
 about: { website: "http://example.org" }
 containers:
   web: { image: x }`, `about.website: "http://example.org" must be an https:// address`},
+		{"releases with another placeholder", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+about: { releases: "https://example.org/releases/{{ .Version }}" }
+containers:
+  web: { image: x }`, `with {version} where the version goes`},
 		{"licence expression", `
 schema: roostack/v1alpha1
 name: app

@@ -2,7 +2,9 @@ package web
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"sync"
@@ -26,6 +28,8 @@ type fakeLabRestore struct {
 	// found and unopened, if set, are what Find finds.
 	found    []labrestore.Found
 	unopened []labrestore.Unopened
+	// finished: the restore is done, and Roostack about to restart.
+	finished bool
 }
 
 func (f *fakeLabRestore) Unfinished() bool { return f.unfinished }
@@ -64,11 +68,59 @@ func (f *fakeLabRestore) UseDrive(_ context.Context, id string) (string, error) 
 func (f *fakeLabRestore) Running() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.started != nil
+	return f.started != nil && !f.finished
 }
 
 func (f *fakeLabRestore) Progress() (activity.Snapshot, bool) {
-	return activity.Snapshot{Title: "Restoring lab.example.com", Status: "Restoring nuc's files", Lines: []string{"/var/lib/roostack"}}, true
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	snap := activity.Snapshot{Title: "Restoring lab.example.com", Status: "Restoring nuc's files", Lines: []string{"/var/lib/roostack"}}
+	if f.finished {
+		snap.Finished = time.Now()
+	}
+	return snap, true
+}
+
+// A restore started on the setup pages at home can't follow Roostack once
+// it restarts as the restored lab (that closes them): the page says where
+// to go next, once it's done or as soon as nothing answers.
+func TestRestoreALabFromSetupPages(t *testing.T) {
+	h := newHarness(t, "the-setup-code")
+	h.server.Setup = &fakeSetup{}
+	fr := &fakeLabRestore{}
+	h.server.LabRestore = fr
+	ts := httptest.NewTLSServer(h.server.SetupHandler(func() {}))
+	defer ts.Close()
+	c := setupClient(t, "")
+	do(t, c, "POST", ts.URL, "/setup/code", "", ts.URL, url.Values{"token": {"the-setup-code"}})
+	do(t, c, "POST", ts.URL, "/setup/restore", "", ts.URL, url.Values{"kind": {"folder"}, "drive": {"other"}, "folder": {"/mnt/backup"},
+		"recovery_key": {"the key"}})
+	if code, _ := do(t, c, "POST", ts.URL, "/setup/restore/start", "", ts.URL, url.Values{"backup": {"0"}}); code != http.StatusOK || fr.started == nil {
+		t.Fatalf("start: %d", code)
+	}
+	_, body := do(t, c, "GET", ts.URL, "/setup/restore/progress", "", "", nil)
+	if !strings.Contains(body, `x-on:htmx:send-error="lost = true"`) || !strings.Contains(body, `<div x-show="lost" x-cloak>`) ||
+		!strings.Contains(body, "Your lab has no address that opens from here") || !strings.Contains(body, "ssh -L 8480:127.0.0.1:8480 you@127.0.0.1") {
+		t.Errorf("while restoring:\n%s", body)
+	}
+	// Done: the restored settings give the lab's address.
+	fr.mu.Lock()
+	fr.finished = true
+	fr.mu.Unlock()
+	h.server.FirstRunAddress = func() string { return "https://roost.lab.example.com" }
+	req, _ := http.NewRequest("GET", ts.URL+"/setup/restore/progress", nil)
+	req.Header.Set("HX-Request", "true")
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if body := string(data); !strings.Contains(body, "This setup page closes as Roostack restarts as your lab.") ||
+		!strings.Contains(body, `open your lab at <a href="https://roost.lab.example.com">`) || strings.Contains(body, `x-show="lost"`) ||
+		!strings.Contains(body, "ssh -L 8480:127.0.0.1:8480 you@127.0.0.1") {
+		t.Errorf("done:\n%s", body)
+	}
 }
 
 func TestRestoreALabOnFirstRun(t *testing.T) {

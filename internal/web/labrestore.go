@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -257,6 +258,18 @@ func (s *Server) labRestoreProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	p, _ := s.LabRestore.Progress()
 	data := map[string]any{"Progress": p, "Running": s.LabRestore.Running() || p.Finished.IsZero()}
+	// On the setup pages at home, the page can't follow Roostack once it
+	// restarts as the restored lab: that closes them. It says where to go
+	// instead, from the restored settings once they're back (restore-next).
+	if fromSetupListener(r) {
+		data["OnSetup"] = true
+		if s.FirstRunAddress != nil {
+			data["Address"] = s.FirstRunAddress()
+		}
+		if ap, err := netip.ParseAddrPort(r.Host); err == nil {
+			data["ServerAddr"] = ap.Addr().String()
+		}
+	}
 	if r.Header.Get("HX-Request") != "" {
 		s.renderPart(w, "setup-restore", "restore-progress", data)
 		return
