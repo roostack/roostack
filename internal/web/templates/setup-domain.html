@@ -101,4 +101,4 @@
 {{end}}
 
 {{define "page-help"}}{{help "settings/domain" "Your lab's address"}}{{end}}
-{{define "crumbs"}}{{if .Wizard}}<span>Setup</span><strong aria-current="page">Step 3 of 4</strong>{{else}}<a href="{{.Back}}">Settings</a><strong aria-current="page">{{template "title" .}}</strong>{{end}}{{end}}
+{{define "crumbs"}}<a href="{{.Back}}">Settings</a><strong aria-current="page">{{template "title" .}}</strong>{{end}}

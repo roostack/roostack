@@ -512,6 +512,8 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 
 	mux.Handle("GET /account/2fa", s.requireLogin(s.twoFactorPage))
 	mux.Handle("POST /account/2fa", s.requireLogin(s.twoFactorSubmit))
+	mux.Handle("GET "+wizardTwoFactor, s.requireLogin(s.twoFactorPage))
+	mux.Handle("POST "+wizardTwoFactor, s.requireLogin(s.twoFactorSubmit))
 
 	mux.Handle("GET /{$}", s.require(auth.ViewDashboard, s.homePage))
 	mux.Handle("GET /partials/home", s.require(auth.ViewDashboard, s.homePartial))
@@ -742,7 +744,7 @@ func (s *Server) require(p auth.Permission, h http.HandlerFunc) http.Handler {
 	return s.requireLogin(func(w http.ResponseWriter, r *http.Request) {
 		u := currentUser(r)
 		if u.TOTPSecret == "" && s.twoFactorRequired(u) {
-			redirect(w, r, "/account/2fa")
+			redirect(w, r, s.twoFactorPath(r, u))
 			return
 		}
 		if u.MustChangePassword {
@@ -902,10 +904,16 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 		// For the banner shown when the browser's clock differs from the
 		// host's (every time Roostack shows is host time).
 		// Not while changing it, nor while restarting to use a new one (the
-		// old zone is still in effect).
-		if page != "setup-timezone" && page != "restarting" {
+		// old zone is still in effect), nor on the wizard's step before
+		// the one that asks it.
+		if page != "setup-timezone" && page != "restarting" && !(page == "twofactor" && data["Wizard"] == true) {
 			data["Clock"] = clockView{hosttime.Now(), auth.Can(u.Role, auth.ManageHost)}
 		}
+	}
+	// The setup wizard's steps show only themselves, and how far along
+	// they are (wizardSteps).
+	if data["Wizard"] == true {
+		data["Step"], data["Steps"] = wizardSteps[page], wizardStepCount
 	}
 	// The sidebar lists Settings' everyday pages, or all of them (without
 	// Roostack Cloud while it isn't in use) while you're in Settings; an

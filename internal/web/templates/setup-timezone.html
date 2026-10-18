@@ -27,4 +27,4 @@
 {{end}}
 
 {{define "page-help"}}{{help "start/first-run#3-where-is-this-server" "Where is this server?"}}{{end}}
-{{define "crumbs"}}{{if .Wizard}}<span>Setup</span><strong aria-current="page">Step 1 of 4</strong>{{else}}<a href="{{.Back}}">{{.BackText}}</a><strong aria-current="page">{{template "title" .}}</strong>{{end}}{{end}}
+{{define "crumbs"}}<a href="{{.Back}}">{{.BackText}}</a><strong aria-current="page">{{template "title" .}}</strong>{{end}}

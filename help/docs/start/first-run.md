@@ -65,6 +65,10 @@ Nothing is chosen for you, since each is hard to undo.
 
 ## 2. Turn on two-factor authentication
 
+From here until setup is finished, the page shows only setup: where you
+are (Step 1 of 5 is this one), the help, and **Log out** at the top.
+The rest of Roostack appears once you're done.
+
 The Owner can change everything, so Roostack asks for a second proof that
 it's you each time you log in: a six-digit code from your phone.
 

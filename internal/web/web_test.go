@@ -196,11 +196,7 @@ func TestFirstRunSetup(t *testing.T) {
 // returns the secret and the time the code was generated for.
 func (h *harness) enrollTOTP(page string) (string, time.Time) {
 	h.t.Helper()
-	_, rest, ok := strings.Cut(page, `name="secret" value="`)
-	if !ok {
-		h.t.Fatal("no secret on the 2FA page")
-	}
-	secret, _, _ := strings.Cut(rest, `"`)
+	secret := totpSecretOf(h.t, page)
 	now := time.Now()
 	code, err := authkit.TOTPCode(secret, now)
 	if err != nil {
@@ -213,6 +209,17 @@ func (h *harness) enrollTOTP(page string) (string, time.Time) {
 		h.t.Fatalf("enrollment failed: %d", status)
 	}
 	return secret, now
+}
+
+// totpSecretOf reads the key being set up from a two-factor page.
+func totpSecretOf(t *testing.T, page string) string {
+	t.Helper()
+	_, rest, ok := strings.Cut(page, `name="secret" value="`)
+	if !ok {
+		t.Fatal("no secret on the 2FA page")
+	}
+	secret, _, _ := strings.Cut(rest, `"`)
+	return secret
 }
 
 // Wrong two-factor codes count against the account, however many logins
