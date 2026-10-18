@@ -186,8 +186,12 @@ the system.
 
         ```bash
         sudo apt update
-        sudo apt install roostack
+        sudo apt install --no-install-recommends roostack
         ```
+
+        `--no-install-recommends` leaves out extras Podman suggests that
+        Roostack doesn't use (about 300 MB); Roostack asks for everything
+        it needs itself.
 
 ## When it's installed
 

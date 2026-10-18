@@ -9,7 +9,7 @@
 #   2. fetches Roostack's release key and checks it against the SHA-256
 #      written below, before anything trusts it;
 #   3. adds Roostack's package source, signed by that key only;
-#   4. runs apt update and apt install roostack.
+#   4. runs apt update and apt install --no-install-recommends roostack.
 # Safe to run again: each step writes the same files.
 #
 # For testing, ROOSTACK_REPO is another repository to use (plain HTTP is
@@ -91,10 +91,12 @@ SOURCES
     # one written here is kept, without dpkg stopping to ask. Nothing asks
     # questions (debconf's noninteractive frontend): with its input closed,
     # debconf otherwise tries three other frontends first and prints why
-    # each failed.
+    # each failed. Without Podman's recommended extras (buildah, criu, a
+    # compiler...): Roostack depends on the ones it uses itself
+    # (packaging/deb/control), so this saves about 300 MB.
     echo "Installing Roostack"
     apt-get update
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold roostack </dev/null
 }
 
