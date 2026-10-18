@@ -58,6 +58,13 @@ func (f *fakeSecrets) Create(_ context.Context, name string, v []byte) error {
 	f.values[name] = v
 	return nil
 }
+func (f *fakeSecrets) Read(_ context.Context, name string) ([]byte, error) {
+	v, ok := f.values[name]
+	if !ok {
+		return nil, fmt.Errorf("no secret %s", name)
+	}
+	return v, nil
+}
 
 type env struct {
 	lab     config.Lab
@@ -310,6 +317,51 @@ func TestSystemFileRestarts(t *testing.T) {
 	}
 	if plan := e.apply(t, Desired{System: sys}); len(plan.RestartUnits) != 0 {
 		t.Errorf("nothing changed:\n%s", plan)
+	}
+}
+
+// A database URL secret is made from the database's password: one made
+// in the same apply, or (made again, say after it was lost) the one
+// Podman already has (SPEC.md §8.1).
+func TestDatabaseURLSecret(t *testing.T) {
+	e := newEnv(t)
+	p, err := pkgspec.Parse([]byte(`
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+databases:
+  main: { type: postgres }
+containers:
+  web:
+    image: example/app:1
+    secrets: { DATABASE_URL: databases.main.url }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := generate.Service(e.lab, p, &instance.Instance{Package: "app", Version: "1", Updates: "notify"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sys, err := generate.System(e.lab, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := Desired{System: sys, Services: []*generate.Output{out}}
+	plan := e.apply(t, d)
+	if s := plan.String(); !strings.Contains(s, "roostack-app-db-main-url (made from roostack-app-db-main-password)") {
+		t.Errorf("plan:\n%s", s)
+	}
+	pw := string(e.secrets.values["roostack-app-db-main-password"])
+	want := "postgresql://app:" + pw + "@roostack-app-db-main:5432/app"
+	if pw == "" || string(e.secrets.values["roostack-app-db-main-url"]) != want {
+		t.Fatalf("URL = %q, want %q", e.secrets.values["roostack-app-db-main-url"], want)
+	}
+	delete(e.secrets.values, "roostack-app-db-main-url")
+	e.apply(t, d)
+	if got := string(e.secrets.values["roostack-app-db-main-url"]); got != want {
+		t.Errorf("made again from the existing password: %q", got)
 	}
 }
 

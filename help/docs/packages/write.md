@@ -98,8 +98,11 @@ Give each container what the app's own documentation asks for:
   [templates](../reference/packages.md#templates), such as
   `"{{ .Routes.web.URL }}"` for the app's own address.
 - `secrets`: passwords and keys, as environment variables. Point one at a
-  `secret` setting, or at `databases.<name>.password`. Roostack keeps
-  them as Podman secrets, never in a file.
+  `secret` setting, at `databases.<name>.password`, or at
+  `databases.<name>.url` for an app that takes its database only as one
+  URL with the password in it (`postgresql://user:password@host:5432/name`,
+  as apps using Prisma do). Roostack keeps them as Podman secrets, never
+  in a file.
 - `mounts`: the app's data folders, each one a `storage` entry (below).
 - `health`: how Roostack tells it's working, such as
   `http: { port: 8080, path: /health }`.
@@ -181,7 +184,11 @@ service's page: booleans, strings, numbers and secrets. A setting can turn
 a container on or off with `when:`, as Immich's smart search does. A
 `secret` with `generate: true` is made by Roostack; one with
 `install_only: true` is asked for at install and deleted once setup has
-run (the first administrator's password, say).
+run (the first administrator's password, say). A setting with an
+`install_value` takes that value until the install hooks succeed, then the
+one chosen: for an app that makes its first account only by signing up,
+sign-ups can be on while the hook signs the Owner up, and off afterwards
+(`default: false`, `install_value: true`).
 
 `hooks` run commands inside a container: `on: install` once after the
 first start, and `on: action` as a button on the service's page. Whatever

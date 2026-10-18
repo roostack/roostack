@@ -308,7 +308,7 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	act := n.Activity.Start(activity.Apply, "Applying changes")
 	defer func() { act.Finish(err) }()
 	act.Printf("Why: %s.", cmp.Or(a.Reason, "Roostack started, or its settings changed"))
-	desired, err := state.Desired(n.lab(a), a.Services, a.Proxied...)
+	desired, err := state.Desired(n.lab(a), n.withInstallValues(ctx, a.Services), a.Proxied...)
 	if err != nil {
 		return err
 	}

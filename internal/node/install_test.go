@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/reconcile"
 	"roostack.cloud/roostack/internal/state"
@@ -147,5 +148,30 @@ func TestContainerLabel(t *testing.T) {
 		if got := containerLabel("Immich", "immich", c.unit, c.image, false); got != c.want {
 			t.Errorf("%s: %q, want %q", c.unit, got, c.want)
 		}
+	}
+}
+
+// Until a service's install hooks succeed (pending, or failed and waiting
+// for Try again), its settings with install values take them; then, or
+// for a service never set up here, its own (SPEC.md §8.1).
+func TestInstallValues(t *testing.T) {
+	pkg := &pkgspec.Package{Name: "papra", Settings: []pkgspec.Setting{
+		{Key: "signups", Type: pkgspec.SettingBool, Default: false, InstallValue: true},
+		{Key: "title", Type: pkgspec.SettingString, Default: "Papra"},
+	}}
+	in := &instance.Instance{Package: "papra", Settings: map[string]any{"signups": false, "title": "Our documents"}}
+	svc := state.Service{Package: pkg, Instance: in}
+	for _, c := range []struct {
+		hooks   string
+		signups any
+	}{{hookPending, true}, {hookFailed + "no answer", true}, {hookDone, false}, {"", false}} {
+		n := &Local{State: memKV{hookKey("papra"): c.hooks}}
+		got := n.withInstallValues(context.Background(), []state.Service{svc})[0].Instance.Settings
+		if got["signups"] != c.signups || got["title"] != "Our documents" {
+			t.Errorf("hooks %q: settings %v", c.hooks, got)
+		}
+	}
+	if in.Settings["signups"] != false {
+		t.Error("the instance itself was changed")
 	}
 }

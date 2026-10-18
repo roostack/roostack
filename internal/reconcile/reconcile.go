@@ -51,6 +51,8 @@ type Systemd interface {
 type Secrets interface {
 	List(ctx context.Context) (map[string]bool, error)
 	Create(ctx context.Context, name string, value []byte) error
+	// Read is for a database URL secret, made from its password secret.
+	Read(ctx context.Context, name string) ([]byte, error)
 }
 
 // NoImageForArch is a Pull that failed because the image has no build for
@@ -241,8 +243,11 @@ func (p *Plan) String() string {
 	var secrets []string
 	for _, s := range p.Secrets {
 		how := "user-provided"
-		if s.Generate {
+		switch {
+		case s.Generate:
 			how = "generated"
+		case s.DBURL != nil:
+			how = "made from " + s.DBURL.PasswordSecret
 		}
 		secrets = append(secrets, fmt.Sprintf("%s (%s)", s.Name, how))
 	}
@@ -338,6 +343,11 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 			existing[s.Name] = true // shared secrets are listed once
 		}
 	}
+	// Database URLs last: each is made from its password, which may be
+	// new in this plan.
+	slices.SortStableFunc(plan.Secrets, func(a, b generate.Secret) int {
+		return cmp.Compare(boolInt(a.DBURL != nil), boolInt(b.DBURL != nil))
+	})
 
 	// Quadlet files. One waiting for a secret is neither written nor
 	// removed, and its unit isn't started.
@@ -465,15 +475,20 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 	if len(p.Secrets) > 0 {
 		log.Step("Creating secrets")
 	}
+	created := map[string][]byte{}
 	for _, s := range p.Secrets {
 		log.Printf("%s", s.Name) // never the value
 		value, err := r.secretValue(s)
+		if s.DBURL != nil {
+			value, err = r.dbURL(ctx, *s.DBURL, created)
+		}
 		if err != nil {
 			return err
 		}
 		if err := r.Secrets.Create(ctx, s.Name, value); err != nil {
 			return err
 		}
+		created[s.Name] = value
 	}
 	if len(p.StopUnits) > 0 {
 		log.Step("Stopping removed services")
@@ -604,6 +619,26 @@ func (r *Reconciler) secretValue(s generate.Secret) ([]byte, error) {
 		}
 	}
 	return nil, fmt.Errorf("reconcile: secret %s must be provided by the user", s.Name)
+}
+
+// dbURL makes a database URL secret's value from its password: one made
+// earlier in this apply, or the one Podman already has.
+func (r *Reconciler) dbURL(ctx context.Context, d generate.DBURL, created map[string][]byte) ([]byte, error) {
+	pw, ok := created[d.PasswordSecret]
+	if !ok {
+		var err error
+		if pw, err = r.Secrets.Read(ctx, d.PasswordSecret); err != nil {
+			return nil, fmt.Errorf("reconcile: reading %s for its database URL: %w", d.PasswordSecret, err)
+		}
+	}
+	return []byte(d.URL(strings.TrimSpace(string(pw)))), nil
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // isOwnedQuadlet reports whether Roostack manages a file in the Quadlet dir.

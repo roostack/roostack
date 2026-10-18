@@ -129,6 +129,16 @@ func (p *Package) validateSettings(v *validator) {
 		if s.Generate && s.Type != SettingSecret {
 			v.addf("%s.generate: only valid for secret settings", at)
 		}
+		if s.InstallValue != nil {
+			switch {
+			case s.Type == SettingSecret || s.InstallOnly:
+				v.addf("%s.install_value: only for settings that are kept and aren't secrets", at)
+			case !installValueFits(s.Type, s.InstallValue):
+				v.addf("%s.install_value: must be a %s, like the setting", at, s.Type)
+			case !p.hasInstallHook():
+				v.addf("%s.install_value: used only until the install hooks succeed, and there are none", at)
+			}
+		}
 		if s.Reveal && (s.Type != SettingSecret || s.InstallOnly) {
 			v.addf("%s.reveal: only for secrets that are kept (not install_only)", at)
 		}
@@ -441,8 +451,8 @@ func (p *Package) checkSecretRef(ref string) error {
 	if db, ok := strings.CutPrefix(ref, "databases."); ok {
 		name, field, _ := strings.Cut(db, ".")
 		d := p.Databases[name]
-		if d == nil || d.Type != DBPostgres || field != "password" {
-			return fmt.Errorf("%q: only databases.<postgres db>.password is supported", ref)
+		if d == nil || d.Type != DBPostgres || (field != "password" && field != "url") {
+			return fmt.Errorf("%q: only databases.<postgres db>.password or .url is supported", ref)
 		}
 		return nil
 	}
@@ -506,3 +516,29 @@ func (v *validator) addf(format string, args ...any) {
 }
 
 func (v *validator) err() error { return errors.Join(v.errs...) }
+
+// installValueFits reports whether an install_value is of the setting's type.
+func installValueFits(typ string, v any) bool {
+	switch typ {
+	case SettingBool:
+		_, ok := v.(bool)
+		return ok
+	case SettingString:
+		_, ok := v.(string)
+		return ok
+	case SettingInt:
+		_, ok := v.(int)
+		return ok
+	}
+	return false
+}
+
+// hasInstallHook reports whether the package has an install hook.
+func (p *Package) hasInstallHook() bool {
+	for _, h := range p.Hooks {
+		if h.On == HookInstall {
+			return true
+		}
+	}
+	return false
+}

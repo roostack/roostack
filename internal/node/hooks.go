@@ -3,6 +3,8 @@ package node
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -174,6 +176,10 @@ func (n *Local) runPendingHooks(ctx context.Context) {
 		n.installStep(name, stageSetup, true)
 		n.Log.Info("install hooks done", "service", name)
 		n.State.SetSetting(ctx, hookKey(name), hookDone)
+		// Settings used only during the install now take their own value.
+		if hasInstallValues(s.Package) {
+			n.Reapply(name + " finished setting up: its settings for after the install")
+		}
 		// Forget values only the install needed (e.g. the admin password).
 		for _, st := range s.Package.Settings {
 			if st.Type == pkgspec.SettingSecret && st.InstallOnly {
@@ -330,4 +336,43 @@ func lastLines(out []byte, err error) string {
 		s = "…" + s[len(s)-maxOutput:]
 	}
 	return s
+}
+
+// withInstallValues gives services whose install hooks haven't succeeded
+// yet (pending, or failed and waiting for Try again) their settings'
+// install values (SPEC.md §8.1): e.g. sign-ups on, so a hook can make the
+// first account by signing up. Each such service is a copy; the rest are
+// as given.
+func (n *Local) withInstallValues(ctx context.Context, services []state.Service) []state.Service {
+	if n.State == nil {
+		return services
+	}
+	out := make([]state.Service, len(services))
+	for i, s := range services {
+		out[i] = s
+		if !hasInstallValues(s.Package) {
+			continue
+		}
+		v, err := n.State.Setting(ctx, hookKey(s.Name()))
+		if err != nil || (v != hookPending && !strings.HasPrefix(v, hookFailed)) {
+			continue
+		}
+		in := *s.Instance
+		in.Settings = maps.Clone(in.Settings)
+		if in.Settings == nil {
+			in.Settings = map[string]any{}
+		}
+		for _, st := range s.Package.Settings {
+			if st.InstallValue != nil {
+				in.Settings[st.Key] = st.InstallValue
+			}
+		}
+		out[i].Instance = &in
+	}
+	return out
+}
+
+// hasInstallValues reports whether a package has settings with install values.
+func hasInstallValues(p *pkgspec.Package) bool {
+	return p != nil && slices.ContainsFunc(p.Settings, func(s pkgspec.Setting) bool { return s.InstallValue != nil })
 }

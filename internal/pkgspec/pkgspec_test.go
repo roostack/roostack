@@ -80,6 +80,46 @@ title: App
 version: "1"
 containers:
   web: { image: x, secrets: { TOKEN: missing } }`, `"missing" is not a secret setting`},
+		{"a URL from a database that isn't Postgres", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+databases:
+  cache: { type: redis }
+containers:
+  web: { image: x, secrets: { CACHE_URL: databases.cache.url } }`, `only databases.<postgres db>.password or .url is supported`},
+		{"install_value on a secret", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+settings:
+  - { key: token, type: secret, generate: true, install_value: x }
+containers:
+  web: { image: x }
+hooks:
+  - { on: install, container: web, command: [setup] }`, "install_value: only for settings that are kept and aren't secrets"},
+		{"install_value of another type", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+settings:
+  - { key: signups, type: bool, default: false, install_value: "yes" }
+containers:
+  web: { image: x }
+hooks:
+  - { on: install, container: web, command: [setup] }`, "install_value: must be a bool, like the setting"},
+		{"install_value without install hooks", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+settings:
+  - { key: signups, type: bool, default: false, install_value: true }
+containers:
+  web: { image: x }`, "install_value: used only until the install hooks succeed, and there are none"},
 		{"secret with default", `
 schema: roostack/v1alpha1
 name: app

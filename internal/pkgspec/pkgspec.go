@@ -132,6 +132,11 @@ type Setting struct {
 	// Reveal lets Admins see a secret's value on the service page (e.g.
 	// the token for the app's own admin page).
 	Reveal bool `yaml:"reveal"`
+	// InstallValue, if set, is the value used until the install hooks
+	// succeed, whatever the Owner chose: e.g. sign-ups on so a hook can
+	// make the first account by signing up, then the chosen value (SPEC.md
+	// §8.1). Not for secrets.
+	InstallValue any `yaml:"install_value"`
 }
 
 // Link points into the app's own pages, where most of its settings live

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"maps"
 	"net"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -51,6 +52,27 @@ type Secret struct {
 	// been given (e.g. Caddy until the domain step): the rest of the lab
 	// is applied without it.
 	Holds string
+	// DBURL, if set, makes this secret a database's whole URL, password
+	// included, from the database's password secret: for apps that take
+	// their database only as a URL (databases.<name>.url; SPEC.md §8.1).
+	DBURL *DBURL
+}
+
+// DBURL is what a database URL secret is made of. The password comes from
+// the PasswordSecret when the secret is created.
+type DBURL struct {
+	PasswordSecret string
+	Scheme         string // postgresql
+	User, Host     string
+	Port           int
+	Name           string
+}
+
+// URL is the database's URL with password (url.UserPassword escapes it).
+func (d DBURL) URL(password string) string {
+	u := url.URL{Scheme: d.Scheme, User: url.UserPassword(d.User, password),
+		Host: net.JoinHostPort(d.Host, strconv.Itoa(d.Port)), Path: "/" + d.Name}
+	return u.String()
 }
 
 // Output is everything generated for one service.
@@ -527,6 +549,24 @@ func (g *gen) secrets() {
 				Setting: s.Key, InstallOnly: s.InstallOnly})
 		}
 	}
+	// A database URL, made from its password, for each one a container
+	// asks for (hooks take only secret settings and inputs).
+	var refs []string
+	for _, c := range g.pkg.Containers {
+		refs = slices.AppendSeq(refs, maps.Values(c.Secrets))
+	}
+	seen := map[string]bool{}
+	for _, ref := range refs {
+		name, ok := dbURLRef(ref)
+		if !ok || seen[name] || g.pkg.Databases[name] == nil {
+			continue
+		}
+		seen[name] = true
+		db := g.ctx.Databases[name]
+		g.out.Secrets = append(g.out.Secrets, Secret{Name: secretName(g.name, ref), DBURL: &DBURL{
+			PasswordSecret: secretName(g.name, "databases."+name+".password"), Scheme: "postgresql",
+			User: db.User, Host: db.Host, Port: db.Port, Name: db.Name}})
+	}
 	slices.SortFunc(g.out.Secrets, func(a, b Secret) int { return strings.Compare(a.Name, b.Name) })
 }
 
@@ -584,11 +624,24 @@ func dbUnitName(svc, db string) string { return "roostack-" + svc + "-db-" + db 
 
 // secretName maps a package secret reference to a Podman secret name.
 func secretName(svc, ref string) string {
+	if name, ok := dbURLRef(ref); ok {
+		return "roostack-" + svc + "-db-" + name + "-url"
+	}
 	if db, ok := strings.CutPrefix(ref, "databases."); ok {
 		name, _, _ := strings.Cut(db, ".")
 		return "roostack-" + svc + "-db-" + name + "-password"
 	}
 	return "roostack-" + svc + "-" + ref
+}
+
+// dbURLRef reports whether ref is databases.<name>.url, and its name.
+func dbURLRef(ref string) (string, bool) {
+	db, ok := strings.CutPrefix(ref, "databases.")
+	if !ok {
+		return "", false
+	}
+	name, field, _ := strings.Cut(db, ".")
+	return name, field == "url"
 }
 
 // addServiceSections adds the [Service] and [Install] sections every

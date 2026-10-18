@@ -217,6 +217,63 @@ containers:
 	}
 }
 
+// dbURLPackage asks for its database as a URL, in two containers.
+const dbURLPackage = `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+databases:
+  main: { type: postgres }
+containers:
+  web:
+    image: example/app:1
+    secrets: { DATABASE_URL: databases.main.url, DB_PASSWORD: databases.main.password }
+  worker:
+    image: example/app:1
+    secrets: { DATABASE_URL: databases.main.url }
+`
+
+// databases.<name>.url is a secret of its own, made from the password
+// (SPEC.md §8.1), once however many containers ask for it.
+func TestDatabaseURLSecret(t *testing.T) {
+	p, err := pkgspec.Parse([]byte(dbURLPackage))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := Service(testLab(), p, &instance.Instance{Package: "app", Version: "1", Updates: "notify"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var urls []Secret
+	for _, s := range out.Secrets {
+		if s.DBURL != nil {
+			urls = append(urls, s)
+		}
+	}
+	if len(urls) != 1 || urls[0].Name != "roostack-app-db-main-url" || *urls[0].DBURL != (DBURL{
+		PasswordSecret: "roostack-app-db-main-password", Scheme: "postgresql",
+		User: "app", Host: "roostack-app-db-main", Port: 5432, Name: "app"}) {
+		t.Fatalf("URL secrets = %+v", urls)
+	}
+	var app string
+	for _, q := range out.Quadlets {
+		if q.Name == "roostack-app-web.container" {
+			app = q.Content
+		}
+	}
+	for _, want := range []string{"Secret=roostack-app-db-main-url,type=env,target=DATABASE_URL",
+		"Secret=roostack-app-db-main-password,type=env,target=DB_PASSWORD"} {
+		if !strings.Contains(app, want) {
+			t.Errorf("container lacks %q:\n%s", want, app)
+		}
+	}
+	// The password is escaped in the URL.
+	if got := urls[0].DBURL.URL("p@ss/w:rd"); got != "postgresql://app:p%40ss%2Fw%3Ard@roostack-app-db-main:5432/app" {
+		t.Errorf("URL = %s", got)
+	}
+}
+
 // The lab-wide units, private and with something public (then CrowdSec
 // runs, Caddy logs requests for it and gets the bouncer's key: SPEC.md
 // §6.11).

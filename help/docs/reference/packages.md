@@ -149,7 +149,10 @@ routes:
 :   What people choose, at install and later. `type` is `bool`, `string`,
     `int` or `secret`. A secret can be `generate`d by Roostack, `reveal`ed
     to Admins, or `install_only` (deleted once setup has run). Secrets are
-    Podman secrets, never in files.
+    Podman secrets, never in files. A setting that isn't a secret can have
+    an `install_value`, used until the install hooks succeed (or while
+    they've failed and wait for Try again); the package needs an install
+    hook for it.
 
 `containers`
 :   Each container: an `image` (pinned by tag and digest), `command`,
@@ -174,7 +177,10 @@ routes:
 `databases`
 :   Databases Roostack runs and backs up consistently: `sqlite` (a file in
     the service's storage), `postgres` or `redis` (a container of their
-    own). Roostack makes their passwords. `postgres` and `redis` take a
+    own). Roostack makes their passwords. A container's `secrets` can point
+    at a Postgres database's `databases.<name>.password`, or at
+    `databases.<name>.url`: the whole URL, password included, which
+    Roostack makes from the password. `postgres` and `redis` take a
     `memory` like a container's; otherwise Roostack expects 200 MB and
     50 MB.
 
