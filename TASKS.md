@@ -457,7 +457,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 Packages go to the registry (`roostack/services`), each checked with `roostack validate` and tried on a lab (install, a backup, a restore, removal) before it's committed.
 
-- [ ] Fits today: HedgeDoc, Linkwarden, Wiki.js, Kan, Papra, Paperless-ngx, Gitea, Lychee, PhotoPrism, Mealie, Actual Budget, Miniflux, ntfy, Uptime Kuma, Radicale, Stirling-PDF, Audiobookshelf
+- [x] Done 2026-10-18, each tried on VM3: HedgeDoc, Wiki.js, Papra, Linkwarden, Paperless-ngx; Immich updated to 3.3.3, Vaultwarden to 1.37.4, Forgejo to 15.0.10
+- [ ] Fits today: Kan, Gitea, Lychee, PhotoPrism, Mealie, Actual Budget, Miniflux, ntfy, Uptime Kuma, Radicale, Stirling-PDF, Audiobookshelf
 - [ ] Needs media folders (below): Jellyfin, Plex, Navidrome
 - [ ] Needs MySQL (below): Ghost
 - [ ] Needs Roostack support, a session each: Frigate (and Viseron), Pi-hole, Home Assistant
@@ -469,6 +470,9 @@ Packages go to the registry (`roostack/services`), each checked with `roostack v
 - [ ] **A setting's `warning:`** (SPEC §8.1 "Configuring a service"): in pkgspec and validate, shown beside the option at install and in the service's settings, in the warning colour; then move HedgeDoc's Libravatar warning from its description into it (a new package revision)
 - [x] **A setting with another value during install** (found writing Papra, 2026-10-18; the Owner agreed): `install_value:` on a setting, used until the install hooks succeed (SPEC §8.1); Papra's package defaults sign-ups off with it, tried on a VM
 - [x] **`databases.<name>.url`** as a secret Roostack makes (the whole URL, password included), for apps that take their database only as a URL (Linkwarden, Kan, Cal.diy: Prisma): the Owner agreed 2026-10-18; built (SPEC §8.1), tried with Linkwarden on a VM
+- [x] **`.Lab.TimeZone` in package templates** (found writing Paperless-ngx, 2026-10-18): the server's time zone, "UTC" when unknown, for apps with their own time-zone setting rather than the container's (`PAPERLESS_TIME_ZONE`); in the packages reference, tried on VM3
+- [ ] **Publishing the new packages:** Papra, Linkwarden and Paperless-ngx use `install_value`, `databases.<name>.url` or `.Lab.TimeZone`, so they wait for a Roostack release with them (the registry's Publish workflow checks with a pinned release)
+- [ ] **Forgejo 19 (the next LTS, April 2027):** the package stays on the 15 LTS line (v17.0.0 had an upstream "don't upgrade" warning on 2026-10-18, and 16 ends 2026-10-29)
 - [ ] **Extra settings per service** (Settings → Advanced, Owner only): extra environment variables, plain or secret; the package's own variables refused; kept in the instance, through updates; shown in the generated files and Details
 - [ ] **Config files a package declares** (`config_files:`), with Frigate and Home Assistant: an editor in the browser (syntax check, the app's own check, the previous version kept, restart on save); a code editor library only if chosen with the Owner
 - [ ] **Frigate** (a session): devices beyond Intel graphics (Coral and other USB accelerators), shared memory, cameras over RTSP

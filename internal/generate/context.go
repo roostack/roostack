@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 	"text/template"
@@ -42,6 +43,10 @@ type ServiceContext struct {
 // LabContext exposes lab-wide values.
 type LabContext struct {
 	Domain string
+	// TimeZone is the server's time zone (e.g. "Europe/Berlin"), "UTC"
+	// when it isn't known: for apps that keep their own setting rather
+	// than reading the container's (Paperless-ngx's PAPERLESS_TIME_ZONE).
+	TimeZone string
 }
 
 // RouteContext is a resolved route.
@@ -77,7 +82,7 @@ type DatabaseContext struct {
 func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Context {
 	ctx := &Context{
 		Service:    ServiceContext{Name: in.ID()},
-		Lab:        LabContext{Domain: lab.Domain},
+		Lab:        LabContext{Domain: lab.Domain, TimeZone: cmp.Or(lab.Timezone, "UTC")},
 		Settings:   map[string]any{},
 		Routes:     map[string]RouteContext{},
 		Ports:      map[string]PortContext{},

@@ -217,6 +217,40 @@ containers:
 	}
 }
 
+// .Lab.TimeZone is the server's time zone, or UTC when it isn't known.
+func TestTemplateTimeZone(t *testing.T) {
+	p, err := pkgspec.Parse([]byte(`
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+containers:
+  web:
+    image: example/app:1
+    env: { APP_TIME_ZONE: "{{ .Lab.TimeZone }}" }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for tz, want := range map[string]string{"Australia/Melbourne": "Australia/Melbourne", "": "UTC"} {
+		lab := testLab()
+		lab.Timezone = tz
+		out, err := Service(lab, p, &instance.Instance{Package: "app", Version: "1", Updates: "notify"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var c string
+		for _, q := range out.Quadlets {
+			if q.Name == "roostack-app-web.container" {
+				c = q.Content
+			}
+		}
+		if !strings.Contains(c, "Environment=APP_TIME_ZONE="+want+"\n") {
+			t.Errorf("time zone %q: container lacks APP_TIME_ZONE=%s:\n%s", tz, want, c)
+		}
+	}
+}
+
 // dbURLPackage asks for its database as a URL, in two containers.
 const dbURLPackage = `
 schema: roostack/v1alpha1

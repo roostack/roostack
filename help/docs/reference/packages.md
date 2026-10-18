@@ -280,6 +280,7 @@ Values in `env`, `when` and hooks are Go templates:
 | `.Databases.<name>.Host` / `.Port` / `.User` / `.Name` | Connection details for a database |
 | `(index .Containers "<name>").Host` | Another container of the service |
 | `.Lab.Domain`, `.Service.Name` | The lab's domain, and the service's name |
+| `.Lab.TimeZone` | The server's time zone, e.g. `Europe/Berlin` (`UTC` if it isn't known). Containers already run in it; this is for apps with their own time-zone setting |
 
 ## Checking a package
 
