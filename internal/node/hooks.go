@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -65,6 +66,19 @@ func (e *ActionError) Error() string { return fmt.Sprintf("%s: %v", e.Title, e.E
 func (e *ActionError) Unwrap() error { return e.Err }
 
 func hookKey(service string) string { return "hooks." + service + ".install" }
+
+// errSetupStopped ends a service's setup when the service is removed, or
+// installed afresh, while it runs. It isn't a failure: the setup's state
+// belongs to whatever replaced it.
+var errSetupStopped = errors.New("setup stopped: the service was removed or installed again")
+
+// stopSetupLocked stops the service's running setup, if any (n.mu held).
+func (n *Local) stopSetupLocked(name string) {
+	if cancel := n.hooksCancel[name]; cancel != nil {
+		cancel(errSetupStopped)
+		delete(n.hooksCancel, name)
+	}
+}
 
 // InstallStatus reports a service's install hooks.
 func (n *Local) InstallStatus(ctx context.Context, name string) HookStatus {
@@ -162,10 +176,30 @@ func (n *Local) runPendingHooks(ctx context.Context) {
 		if v, err := n.State.Setting(ctx, hookKey(name)); err != nil || v != hookPending {
 			continue
 		}
+		hctx, cancel := context.WithCancelCause(ctx)
+		n.mu.Lock()
+		if n.hooksCancel == nil {
+			n.hooksCancel = map[string]context.CancelCauseFunc{}
+		}
+		n.hooksCancel[name] = cancel
+		n.mu.Unlock()
 		n.setHooksRunning(name, true)
 		n.installStep(name, stageSetup, false)
-		err := n.runInstallHooks(ctx, s)
+		err := n.runInstallHooks(hctx, s)
 		n.setHooksRunning(name, false)
+		n.mu.Lock()
+		if errors.Is(context.Cause(hctx), errSetupStopped) {
+			err = errSetupStopped
+		} else {
+			delete(n.hooksCancel, name)
+		}
+		n.mu.Unlock()
+		cancel(nil)
+		if errors.Is(err, errSetupStopped) {
+			// Leave the state alone: Apply set it for what replaced it.
+			n.Log.Info("install hooks stopped", "service", name, "reason", err)
+			continue
+		}
 		if err != nil {
 			n.Log.Error("install hooks failed", "service", name, "err", err)
 			n.State.SetSetting(ctx, hookKey(name), hookFailed+err.Error())
@@ -239,6 +273,9 @@ func (n *Local) runInstallHooks(ctx context.Context, s state.Service) (err error
 			act.Printf("%v. %s may still be starting; trying again in %s.", err, s.Title(), retry)
 			select {
 			case <-ctx.Done():
+				if errors.Is(context.Cause(ctx), errSetupStopped) {
+					return errSetupStopped
+				}
 				return fmt.Errorf("%s didn't finish setting up: %s", s.Title(), lastLines(out, err))
 			case <-time.After(retry):
 			}

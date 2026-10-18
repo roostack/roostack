@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -306,5 +307,56 @@ func TestInstallOverLeftData(t *testing.T) {
 	local(m).WaitHooks()
 	if len(ex.calls) != 1 || ex.calls[0]["ADMIN_USERNAME"] != "mum" {
 		t.Errorf("setup with the settings filled in: %v", ex.calls)
+	}
+}
+
+// Removing a service while its setup keeps retrying stops the setup, which
+// isn't recorded as failed; installing it again then sets it up afresh
+// rather than waiting behind the old setup until its deadline.
+func TestInstallHookStoppedByRemoval(t *testing.T) {
+	m, _, kv, ex := newHookManager(t)
+	ctx := context.Background()
+	local(m).HookDeadline = time.Minute
+	var ready atomic.Bool // until then, every call fails
+	ex.fail = func(int) bool { return !ready.Load() }
+
+	if err := m.Install(ctx, "forgejo", forgejoRequest()); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	for start := time.Now(); ; time.Sleep(time.Millisecond) {
+		ex.mu.Lock()
+		n := len(ex.calls)
+		ex.mu.Unlock()
+		if n > 0 {
+			break
+		}
+		if time.Since(start) > 5*time.Second {
+			t.Fatal("the setup never ran")
+		}
+	}
+	if err := m.Remove(ctx, "forgejo"); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	stopped := make(chan struct{})
+	go func() { local(m).WaitHooks(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the removed service's setup kept retrying")
+	}
+	if v, _ := kv.Setting(ctx, "hooks.forgejo.install"); v != "" {
+		t.Errorf("setup state after removal = %q, want none", v)
+	}
+
+	ready.Store(true)
+	if err := m.Install(ctx, "forgejo", forgejoRequest()); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	local(m).WaitHooks()
+	if st := local(m).InstallStatus(ctx, "forgejo"); st.Pending || st.Running || st.Failed != "" {
+		t.Errorf("status after installing again = %+v, want done", st)
 	}
 }

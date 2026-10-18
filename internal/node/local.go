@@ -197,7 +197,10 @@ type Local struct {
 
 	hooksBusy, hooksAgain bool
 	hooksRunning          map[string]bool
-	hooksDone             chan struct{}
+	// hooksCancel stops a service's running setup, when the service is
+	// removed or installed afresh meanwhile (errSetupStopped).
+	hooksCancel map[string]context.CancelCauseFunc
+	hooksDone   chan struct{}
 
 	// followingBuild: a Caddy image build is being shown (build.go).
 	followingBuild bool
@@ -228,13 +231,19 @@ func (n *Local) Apply(a Assignment) {
 	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage, Links: a.Links,
 		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts, Edge: a.Edge}
 	if n.State != nil {
-		// A service taken off this server forgets its setup progress.
+		// A service taken off this server forgets its setup progress, and
+		// stops any setup still running: its hooks would keep retrying
+		// for a service that's gone.
 		for _, s := range old {
 			if _, still := n.serviceLocked(s.Name()); !still {
+				n.stopSetupLocked(s.Name())
 				n.State.SetSetting(context.Background(), hookKey(s.Name()), "")
 			}
 		}
 		for _, name := range a.SetUp {
+			// Installed afresh (removed and installed again while its
+			// setup ran): the old setup's package may differ.
+			n.stopSetupLocked(name)
 			if err := n.State.SetSetting(context.Background(), hookKey(name), hookPending); err != nil {
 				n.Log.Error("recording pending setup", "service", name, "err", err)
 			}
