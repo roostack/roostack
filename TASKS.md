@@ -466,6 +466,9 @@ Packages go to the registry (`roostack/services`), each checked with `roostack v
 - [ ] **Media folders** (a session): packages ask for media to read (films, TV, music, books); a lab-wide media library that drives, folders and SMB shares are bind-mounted into; mounted read-only, not backed up. Design with the Owner first (a mock-up)
 - [ ] **SMB shares** (with media folders, or before): add a NAS share from the UI, its login kept root-only, mounted by the agent like a drive (see Phase 2, NAS shares, in §6.9's items)
 - [ ] **MySQL and MariaDB** as database types (a session): Roostack's pinned images, password, dump before backups and restore, health check, major-version upgrades
+- [ ] **A setting's `warning:`** (SPEC §8.1 "Configuring a service"): in pkgspec and validate, shown beside the option at install and in the service's settings, in the warning colour; then move HedgeDoc's Libravatar warning from its description into it (a new package revision)
+- [ ] **Extra settings per service** (Settings → Advanced, Owner only): extra environment variables, plain or secret; the package's own variables refused; kept in the instance, through updates; shown in the generated files and Details
+- [ ] **Config files a package declares** (`config_files:`), with Frigate and Home Assistant: an editor in the browser (syntax check, the app's own check, the previous version kept, restart on save); a code editor library only if chosen with the Owner
 - [ ] **Frigate** (a session): devices beyond Intel graphics (Coral and other USB accelerators), shared memory, cameras over RTSP
 - [ ] **Pi-hole** (a session): DNS on port 53, beside any resolver the server runs
 - [ ] **Home Assistant** (a session): finding devices on the home network (host networking, or what's needed instead), within the package policy
