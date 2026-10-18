@@ -453,6 +453,23 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] The guide's "Update it" step, once service updates (SPEC §7) can move a service to a new package version; `roostack package new <name>` (SPEC §8.3.7), if copying a registry package proves awkward
 - [ ] Website (roostack-cloud repository): every package under `/services` (heroes first, a page each at `/services/<name>`) built from the index; `services.ts` facts move into packages' `about:`
 
+## More services (the Owner, 2026-10-18; SPEC §8.1 "More services")
+
+Packages go to the registry (`roostack/services`), each checked with `roostack validate` and tried on a lab (install, a backup, a restore, removal) before it's committed.
+
+- [ ] Fits today: HedgeDoc, Linkwarden, Wiki.js, Kan, Papra, Paperless-ngx, Gitea, Lychee, PhotoPrism, Mealie, Actual Budget, Miniflux, ntfy, Uptime Kuma, Radicale, Stirling-PDF, Audiobookshelf
+- [ ] Needs media folders (below): Jellyfin, Plex, Navidrome
+- [ ] Needs MySQL (below): Ghost
+- [ ] Needs Roostack support, a session each: Frigate (and Viseron), Pi-hole, Home Assistant
+- [ ] Cal.diy: heavy, and its README says personal, non-production use; decide with the Owner
+- [ ] **Before go-live: every placeholder logo replaced** with the project's own, once its terms allow it or the project agrees (each package's file says why it has a placeholder)
+- [ ] **Media folders** (a session): packages ask for media to read (films, TV, music, books); a lab-wide media library that drives, folders and SMB shares are bind-mounted into; mounted read-only, not backed up. Design with the Owner first (a mock-up)
+- [ ] **SMB shares** (with media folders, or before): add a NAS share from the UI, its login kept root-only, mounted by the agent like a drive (see Phase 2, NAS shares, in §6.9's items)
+- [ ] **MySQL and MariaDB** as database types (a session): Roostack's pinned images, password, dump before backups and restore, health check, major-version upgrades
+- [ ] **Frigate** (a session): devices beyond Intel graphics (Coral and other USB accelerators), shared memory, cameras over RTSP
+- [ ] **Pi-hole** (a session): DNS on port 53, beside any resolver the server runs
+- [ ] **Home Assistant** (a session): finding devices on the home network (host networking, or what's needed instead), within the package policy
+
 ## Security review 2026-10-16: the root boundary (rs-privilege)
 
 - [x] H6: `roostack user`, `backup` and `apply` started as root run as the roostack user; `node join` joins as roostack and only restarts as root; `store.Open` refuses symlinks; postinst and the install message no longer follow symlinks in roostack's folders (SPEC §6.1, ASSUMPTIONS S1–S4; checked on VM1)
