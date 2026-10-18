@@ -22,8 +22,20 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/trust"
 )
+
+// wizardSteps numbers the setup wizard's pages, by template, for the
+// header they show instead of the app's navigation while the wizard lasts
+// (data["Wizard"]): after the Owner account, two-factor, where the server
+// is, who can log in, the lab's address (with Roostack Cloud's pages, when
+// linking), then backups and the recovery key.
+var wizardSteps = map[string]int{"twofactor": 1, "setup-timezone": 2, "setup-ssh": 3,
+	"setup-domain": 4, "cloud-open": 4, "cloud-linked": 4, "setup-backup": 5, "recovery-key": 5}
+
+// wizardStepCount is how many steps wizardSteps has.
+const wizardStepCount = 5
 
 // requireWizard allows the setup wizard to the Owner.
 func (s *Server) requireWizard(h http.HandlerFunc) http.Handler {
@@ -46,16 +58,53 @@ func (s *Server) requireOwner(h http.HandlerFunc) http.Handler {
 			return
 		}
 		if u.TOTPSecret == "" {
-			redirect(w, r, "/account/2fa")
+			redirect(w, r, s.twoFactorPath(r, u))
 			return
 		}
 		if u.MustChangePassword {
 			redirect(w, r, "/account")
 			return
 		}
+		if ownerNeedsEmail(u) {
+			redirect(w, r, "/account/notifications")
+			return
+		}
 		h(w, r)
 	})
 }
+
+// wizardNext is the setup wizard's next step, or Home once it's finished.
+func (s *Server) wizardNext(r *http.Request) string {
+	if s.Setup != nil {
+		if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
+			return p.Next()
+		}
+	}
+	return "/"
+}
+
+// wizardOpen reports whether this server's setup wizard has steps left.
+func (s *Server) wizardOpen(r *http.Request) bool {
+	return s.Setup != nil && s.inWizard(r)
+}
+
+// twoFactorInWizard reports whether u turns on two-factor as a step of
+// the setup wizard, its first: the Owner, while the wizard lasts.
+// Otherwise it's a page of their account.
+func (s *Server) twoFactorInWizard(r *http.Request, u *store.User) bool {
+	return u.Role == auth.RoleOwner && s.wizardOpen(r)
+}
+
+// twoFactorPath is where u turns on two-factor (twoFactorInWizard).
+func (s *Server) twoFactorPath(r *http.Request, u *store.User) string {
+	if s.twoFactorInWizard(r, u) {
+		return wizardTwoFactor
+	}
+	return "/account/2fa"
+}
+
+// wizardTwoFactor is the setup wizard's two-factor step.
+const wizardTwoFactor = "/setup/two-factor"
 
 // healthz reports this process's boot ID. With ?since=<old boot ID> from the
 // restarting page, it tells htmx to move on once a new process answers.
@@ -585,7 +634,7 @@ func (s *Server) recoveryPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	s.render(w, "recovery-key", map[string]any{"User": currentUser(r), "Key": key})
+	s.render(w, "recovery-key", map[string]any{"User": currentUser(r), "Key": key, "Wizard": true})
 }
 
 func (s *Server) recoveryConfirm(w http.ResponseWriter, r *http.Request) {
@@ -600,7 +649,7 @@ func (s *Server) recoveryConfirm(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "recovery-key", map[string]any{"User": currentUser(r), "Key": key,
+		s.render(w, "recovery-key", map[string]any{"User": currentUser(r), "Key": key, "Wizard": true,
 			"Error": "Tick the box once you've saved the key."})
 		return
 	}

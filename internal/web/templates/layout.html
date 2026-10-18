@@ -23,10 +23,11 @@
 </head>
 {{/* Console glass (docs/DESIGN.md "Layout"): a floating sidebar beside
      the page, a drawer behind the menu button on phones, and a faint
-     aurora behind everything. Without a login there's no sidebar. */}}
+     aurora behind everything. Without a login there's no sidebar, nor
+     during the setup wizard, which shows its step and Log out instead. */}}
 <body x-data="{ menu: false }" x-on:keydown.escape.window="menu = false" x-bind:class="menu && 'menu-open'">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
-  {{with .Nav}}
+  {{with and (not .Wizard) .Nav}}
   <div class="shell">
     <aside class="sidebar" id="sidebar" aria-label="Roostack">
       <a class="sidebar-lab" href="/">{{brandMark}}<span class="sidebar-lab-name"><span>Roostack</span>
@@ -82,9 +83,11 @@
   <div class="bare">
     <header class="bare-header">
       <a class="brand" href="/">{{brandMark}}Roostack</a>
+      {{with .Step}}<nav class="crumbs" aria-label="Where you are"><span>Setup</span><strong aria-current="page">Step {{.}} of {{$.Steps}}</strong></nav>{{end}}
       {{block "page-help" .}}{{end}}
+      {{if and .Wizard .Nav}}<form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out">{{icon "log-out"}}<span class="sr-only">Log out</span></button></form>{{end}}
     </header>
-    <main class="page">
+    <main class="page{{if .Wizard}} wizard{{end}}">
       {{template "page-body" .}}
     </main>
   </div>

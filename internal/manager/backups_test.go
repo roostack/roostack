@@ -420,7 +420,7 @@ func TestRemovedGuestGrace(t *testing.T) {
 	vps := &fakeRemote{settings: &fakeServerSettings{}}
 	m.Others = func() []RemoteServer { return []RemoteServer{vps} }
 	m.GuestRecords = st
-	m.GuestHub = &labnet.GuestHub{LabName: "nuc's lab", Store: st, Agent: m.GuestLinkAgent(), Log: m.Log, Now: time.Now}
+	m.GuestHub = &labnet.GuestHub{LabName: func() string { return "nuc's lab" }, Store: st, Agent: m.GuestLinkAgent(), Log: m.Log, Now: time.Now}
 	ctx := context.Background()
 	// The vps offers the storage.
 	if err := m.SetGuestServer(ctx, "n-0000000002"); err != nil || m.HostsGuests(ctx) {

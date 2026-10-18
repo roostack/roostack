@@ -48,7 +48,9 @@ Enter the setup code and choose **Continue**. Roostack then asks
 **What's this server for?**:
 
 A new lab
-:   Choose a username and a password of at least 12 characters. You can
+:   Choose a username, your email address and a password of at least 12
+    characters. Roostack emails you there when the lab needs you, once
+    email is set up (see [Email](../settings/email.md)). You can
     also give your lab a name, like "The Smiths' lab". This account is the
     **Owner**: the one person who can change everything. Carry on below.
 
@@ -64,6 +66,10 @@ Restore a lab from its backups
 Nothing is chosen for you, since each is hard to undo.
 
 ## 2. Turn on two-factor authentication
+
+From here until setup is finished, the page shows only setup: where you
+are (Step 1 of 5 is this one), the help, and **Log out** at the top.
+The rest of Roostack appears once you're done.
 
 The Owner can change everything, so Roostack asks for a second proof that
 it's you each time you log in: a six-digit code from your phone.

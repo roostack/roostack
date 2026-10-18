@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/mail"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // Email (SPEC.md §6.13): the SMTP server Roostack sends through (Settings
@@ -169,6 +170,22 @@ func (s *Server) appearancePage(w http.ResponseWriter, r *http.Request) {
 	s.renderAccount(w, "account-appearance", "appearance", map[string]any{"User": currentUser(r)})
 }
 
+// emailProblem says what's wrong with an email address someone typed, or
+// "" if nothing is.
+func emailProblem(email string) string {
+	if a, err := netmail.ParseAddress(email); err != nil || a.Address != email {
+		return "Enter an email address, such as sam@example.com."
+	}
+	return ""
+}
+
+// ownerNeedsEmail reports whether u must give an email address before
+// anything else: every Owner has one, so the lab can reach them when it
+// needs them (SPEC.md §6.13).
+func ownerNeedsEmail(u *store.User) bool {
+	return u.Role == auth.RoleOwner && u.Email == ""
+}
+
 func (s *Server) notificationsPage(w http.ResponseWriter, r *http.Request) {
 	s.renderNotifications(w, r, map[string]any{"Saved": r.URL.Query().Get("saved") == "1"})
 }
@@ -181,7 +198,7 @@ func (s *Server) renderNotifications(w http.ResponseWriter, r *http.Request, ext
 		ready = m.Configured()
 	}
 	data := map[string]any{"User": u, "Groups": groupsFor(u.Role), "Chosen": userGroups(u), "MailReady": ready,
-		"Owner": auth.Can(u.Role, auth.ManageHost)}
+		"Owner": auth.Can(u.Role, auth.ManageHost), "NeedEmail": ownerNeedsEmail(u)}
 	for k, v := range extra {
 		data[k] = v
 	}
@@ -197,11 +214,16 @@ func (s *Server) notificationsSubmit(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
 	r.ParseForm()
 	email := strings.TrimSpace(r.FormValue("email"))
-	if email != "" {
-		if a, err := netmail.ParseAddress(email); err != nil || a.Address != email {
-			s.renderNotifications(w, r, map[string]any{"EmailError": "Enter an email address, such as sam@example.com.", "EmailValue": email})
-			return
-		}
+	msg := ""
+	switch {
+	case email == "" && u.Role == auth.RoleOwner:
+		msg = "As the Owner, you need an email address, so Roostack can tell you when the lab needs you."
+	case email != "":
+		msg = emailProblem(email)
+	}
+	if msg != "" {
+		s.renderNotifications(w, r, map[string]any{"EmailError": msg, "EmailValue": email})
+		return
 	}
 	var chosen []string
 	for _, g := range groupsFor(u.Role) {
@@ -223,6 +245,10 @@ func (s *Server) notificationsSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.Store.SetNotify(r.Context(), u.ID, groups); err != nil {
 		s.serverError(w, err)
+		return
+	}
+	if ownerNeedsEmail(u) { // asked for it before anything else: carry on
+		redirect(w, r, "/")
 		return
 	}
 	redirect(w, r, "/account/notifications?saved=1")

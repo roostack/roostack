@@ -66,7 +66,9 @@ type GuestStore interface {
 // GuestHub is the host's side: the guests' WireGuard interface and their
 // invites.
 type GuestHub struct {
-	LabName string
+	// LabName is the lab's name as it is now (the setup wizard names it
+	// without a restart), as guests see it.
+	LabName func() string
 	Store   GuestStore
 	Agent   WireGuardAgent
 	Log     *slog.Logger
@@ -286,7 +288,7 @@ func (h *GuestHub) NewInvite(ctx context.Context, name string, quota int64, endp
 	hostKey := h.publicKey
 	h.mu.Unlock()
 	inv := StorageInvite{Endpoint: endpoint, HostKey: hostKey, HostAddr: p.Addr().Next(), Addr: addr, JoinKey: key,
-		Token: token, HostName: h.LabName, User: store.Guest{ID: id}.User(), AdminPassword: adminPW, Port: port, Quota: quota}
+		Token: token, HostName: h.LabName(), User: store.Guest{ID: id}.User(), AdminPassword: adminPW, Port: port, Quota: quota}
 	if _, err := ParseStorageInvite(inv.String()); err != nil {
 		return StorageInvite{}, err
 	}
@@ -340,7 +342,7 @@ func (h *GuestHub) Handler() http.Handler {
 		if h.Joined != nil {
 			h.Joined(r.Context(), g.Name)
 		}
-		WriteJSON(w, http.StatusOK, map[string]string{"host": h.LabName})
+		WriteJSON(w, http.StatusOK, map[string]string{"host": h.LabName()})
 	})
 	mux.HandleFunc("GET /v1/guest/usage", func(w http.ResponseWriter, r *http.Request) {
 		g, ok := h.guest(r)
@@ -348,7 +350,7 @@ func (h *GuestHub) Handler() http.Handler {
 			WriteError(w, http.StatusForbidden, errors.New("not a guest here"))
 			return
 		}
-		u := GuestUsage{Used: -1, Quota: g.Quota, Host: h.LabName}
+		u := GuestUsage{Used: -1, Quota: g.Quota, Host: h.LabName()}
 		if !g.Removed.IsZero() {
 			u.DeleteOn = g.Removed.Add(GuestGrace)
 		}

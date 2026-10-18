@@ -48,7 +48,7 @@ func TestRemoteStorageServerUsers(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer hst.Close()
-	hub := &labnet.GuestHub{LabName: "Mum's lab", Store: hst, Agent: hostAgent{},
+	hub := &labnet.GuestHub{LabName: func() string { return "Mum's lab" }, Store: hst, Agent: hostAgent{},
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: time.Now}
 	inv, err := hub.NewInvite(ctx, "Sam's lab", 10<<30, "203.0.113.7:51821")
 	if err != nil {

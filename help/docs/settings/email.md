@@ -35,7 +35,9 @@ address).
 
 Each person adds their own address on their account's **Email and
 notifications** page (click your name at the top). Leave it empty to get
-no email.
+no email, except as an Owner: every Owner has an address, so the lab can
+reach them. Someone made an Owner without one is asked for it before
+anything else.
 
 ## Notifications
 

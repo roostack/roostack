@@ -200,6 +200,11 @@ const (
 // out (null) is unknown, and Cloud keeps what it had; an empty list
 // replaces it with none.
 type LabReport struct {
+	// Name is what the lab calls itself now (Roostack's Settings → Lab
+	// name), which Cloud shows for it in place of the name it gave when it
+	// linked: one line, at most MaxLabName characters ("": unknown, Cloud
+	// keeps the name it has).
+	Name string `json:"name,omitempty"`
 	// Emails are the addresses the lab's own problems are emailed to
 	// (Roostack's SPEC.md §6.13): Cloud's emails about the lab go to them
 	// too, once each has confirmed (LabInfo.Recipients). At most
@@ -215,6 +220,10 @@ const (
 	MaxReportEmails  = 20
 	MaxReportServers = 100
 )
+
+// MaxLabName is the longest lab name Cloud takes, in characters (a
+// LinkRequest's LabName, a LabReport's Name).
+const MaxLabName = 80
 
 // ServerBackup is a server's backups in Roostack Cloud: Server is its
 // folder there (StorageRequest.Server), Name what the lab calls it, and

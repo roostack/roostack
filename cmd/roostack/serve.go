@@ -170,11 +170,16 @@ func serve(args []string) error {
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
 	srv.UIHost = lab.UIHost()
+	// The lab's name as it is now: the setup wizard names it without a
+	// restart (it waits for the wizard's end, if anything asks for one),
+	// so Cloud, the network's join codes and other labs' guests would
+	// otherwise hear "My lab".
+	labName := config.NameAt(*labPath, lab)
 	// Roostack Cloud, unless it's turned off (SPEC.md §6.6): only the
 	// controller talks to it.
 	var link *cloud.Service
 	if !lab.Cloud.Disabled {
-		if link, err = cloud.New(lab.Paths.StateDir, lab.Cloud, version, lab.DisplayName, log); err != nil {
+		if link, err = cloud.New(lab.Paths.StateDir, lab.Cloud, version, labName, log); err != nil {
 			return err
 		}
 		srv.Cloud = link
@@ -202,7 +207,8 @@ func serve(args []string) error {
 		mgr.CloudBackup = link
 		// What the lab tells Cloud after each check-in (SPEC.md §6.6): who
 		// gets its problems by email, whom Cloud's emails about the lab go
-		// to too, and each server's last backup there.
+		// to too, and each server's last backup there (link adds the lab's
+		// name).
 		link.Report = func(ctx context.Context) (cloudapi.LabReport, error) {
 			emails, err := srv.ProblemRecipients(ctx)
 			if err != nil {
@@ -234,7 +240,7 @@ func serve(args []string) error {
 	}
 	// Roostack's network between servers (SPEC.md §10.2): this server is
 	// the hub others join.
-	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: lab.DisplayName(), Self: id, Store: st, Agent: agentClient,
+	hub := &labnet.Hub{StateDir: lab.Paths.StateDir, LabName: labName, Self: id, Store: st, Agent: agentClient,
 		Log: log, Now: time.Now, Started: restart,
 		Joined: func(ctx context.Context, id, name string) {
 			st.Audit(ctx, nil, web.AuditServerJoined, name)
@@ -291,7 +297,7 @@ func serve(args []string) error {
 	// The guests' link and stores are on whichever server offers the
 	// storage; the controller keeps the records and answers guests (on
 	// that server's link, forwarded here when it's another server).
-	guestHub := &labnet.GuestHub{LabName: lab.DisplayName(), Store: st, Agent: mgr.GuestLinkAgent(), Log: log, Now: time.Now,
+	guestHub := &labnet.GuestHub{LabName: labName, Store: st, Agent: mgr.GuestLinkAgent(), Log: log, Now: time.Now,
 		Usage:  func(ctx context.Context, g store.Guest) (int64, error) { return mgr.GuestUsage(ctx, g.User()) },
 		Joined: func(ctx context.Context, name string) { st.Audit(ctx, nil, web.AuditGuestJoined, name) },
 		// A guest server's store user added or removed: the guest's store

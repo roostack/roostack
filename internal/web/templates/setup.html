@@ -35,6 +35,10 @@
       <label>Username
         <input name="username" value="{{.Username}}" autocomplete="username" required>
       </label>
+      <label>Email address
+        <input name="email" type="email" value="{{.Email}}" autocomplete="email" placeholder="you@example.com" required>
+        <small>Where Roostack emails you when the lab needs you, once email is set up. You can change it later.</small>
+      </label>
       <label>Password
         <input name="password" type="password" x-model="pw" autocomplete="new-password" required minlength="12">
         <small>At least 12 characters. A few random words works well.</small>
