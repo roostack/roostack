@@ -149,7 +149,32 @@ type LabInfo struct {
 	// for approval, refused, or suspended (none: every name works, or a
 	// Cloud from before it doesn't say).
 	Names []NameStatus `json:"names,omitempty"`
+	// Recipients are the addresses of the lab's last report (LabReport.
+	// Emails), each with whether it gets Cloud's emails about the lab:
+	// each confirms first, from a link Cloud emails it (none: the lab
+	// hasn't reported, or a Cloud from before it doesn't say).
+	Recipients []RecipientStatus `json:"recipients,omitempty"`
 }
+
+// RecipientStatus is one of the lab's reported addresses (Email) and how
+// it stands (State): RecipientWaiting for it to confirm (Asked is when
+// Cloud emailed it the link, zero while the limits hold the email back),
+// RecipientConfirmed (it gets Cloud's emails about the lab), RecipientDeclined
+// (it said no, or stopped them), or RecipientNotKept (past the most
+// Cloud keeps for a lab).
+type RecipientStatus struct {
+	Email string    `json:"email"`
+	State string    `json:"state"`
+	Asked time.Time `json:"asked,omitzero"`
+}
+
+// Recipient states (RecipientStatus.State).
+const (
+	RecipientWaiting   = "waiting"
+	RecipientConfirmed = "confirmed"
+	RecipientDeclined  = "declined"
+	RecipientNotKept   = "not_kept"
+)
 
 // NameStatus is one of the lab's names that doesn't work because of
 // Cloud (Host, in full): a name that looks like a bank's, a government
@@ -177,7 +202,8 @@ const (
 type LabReport struct {
 	// Emails are the addresses the lab's own problems are emailed to
 	// (Roostack's SPEC.md §6.13): Cloud's emails about the lab go to them
-	// too. At most MaxReportEmails.
+	// too, once each has confirmed (LabInfo.Recipients). At most
+	// MaxReportEmails, of which Cloud keeps the first 10.
 	Emails []string `json:"emails"`
 	// Backups are the lab's servers backing up to Roostack Cloud, each
 	// with its last backup there. At most MaxReportServers.
