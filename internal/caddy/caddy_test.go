@@ -86,6 +86,75 @@ handle @vw-web {
 	}
 }
 
+// TestPublicRouteWAF: with the WAF on, AppSec checks outside visitors'
+// requests after the bans and the rate limits, just before the service
+// (SPEC.md §6.10 item 4); home devices, and private routes, skip it.
+func TestPublicRouteWAF(t *testing.T) {
+	site, err := Site("vw", []Route{{ID: "vw-web", Host: "vault.example.com", Upstream: "169.254.1.3:20001", WAF: true,
+		PrivateExcept: []string{"100.96.0.2/32"}},
+		{ID: "vw-home", Host: "home.example.com", Upstream: "169.254.1.3:20002", Private: true, WAF: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `	@vw-web-outside not {
+		remote_ip PRIVATE
+		not vars roostack_edge yes
+		not remote_ip 100.96.0.2/32
+	}
+	route {
+		crowdsec
+		rate_limit {
+			zone vw-web {
+				key {remote_host}
+				events 1000
+				window 10s
+			}
+		}
+		appsec @vw-web-outside
+		reverse_proxy 169.254.1.3:20001
+	}
+`
+	want = strings.Replace(want, "PRIVATE", PrivateRanges, 1)
+	if !strings.Contains(site, want) {
+		t.Errorf("public route with the WAF:\n%s\nwant:\n%s", site, want)
+	}
+	if strings.Count(site, "appsec") != 1 {
+		t.Errorf("only the public route is checked:\n%s", site)
+	}
+	// Off: no AppSec at all.
+	site, _ = Site("vw", []Route{{ID: "vw-web", Host: "vault.example.com", Upstream: "169.254.1.3:20001"}})
+	if strings.Contains(site, "appsec") || strings.Contains(site, "-outside") {
+		t.Errorf("the WAF turned off:\n%s", site)
+	}
+}
+
+// TestMainAppSec: the bouncer's AppSec settings (fail open, a body cap),
+// and the UI checked by AppSec when it's public.
+func TestMainAppSec(t *testing.T) {
+	c := MainConfig{Domain: "lab.example.com", DNSDirective: "dns cloudflare {env.DNS_API_TOKEN}",
+		AdminUpstream: "169.254.1.3:8480", CrowdSecAPI: "http://169.254.1.3:8473", AppSecURL: "http://169.254.1.3:8475/"}
+	main, err := Main(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "\tcrowdsec {\n\t\tapi_url http://169.254.1.3:8473\n\t\tapi_key {env.CROWDSEC_API_KEY}\n\t\tticker_interval 15s\n" +
+		"\t\tappsec_url http://169.254.1.3:8475/\n\t\tappsec_max_body_bytes 1048576\n\t\tappsec_fail_open\n\t}\n"
+	if !strings.Contains(main, want) {
+		t.Errorf("crowdsec block:\n%s", main)
+	}
+	if strings.Contains(main, "appsec @") {
+		t.Error("a private UI is checked by AppSec")
+	}
+	c.AdminPublic = true
+	if main, _ = Main(c); !strings.Contains(main, "appsec @roostack-admin-outside") {
+		t.Errorf("a public UI isn't checked by AppSec:\n%s", main)
+	}
+	c.AppSecURL = "http://x/ {"
+	if _, err := Main(c); err == nil {
+		t.Error("an AppSec address that breaks the Caddyfile")
+	}
+}
+
 func TestMainNeedsDNS(t *testing.T) {
 	if _, err := Main(MainConfig{Domain: "example.com"}); err == nil {
 		t.Error("expected an error without a DNS directive")
@@ -103,7 +172,7 @@ func TestCaddyAdapt(t *testing.T) {
 	main, err := Main(MainConfig{
 		Domain: "lab.example.com", Email: "a@example.com", DNSDirective: "dns cloudflare {env.DNS_API_TOKEN}",
 		AdminUpstream: "host.containers.internal:8480",
-		CrowdSecAPI:   "http://169.254.1.3:8473", AccessLog: "/var/log/caddy/access.log",
+		CrowdSecAPI:   "http://169.254.1.3:8473", AppSecURL: "http://169.254.1.3:8475/", AccessLog: "/var/log/caddy/access.log",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +181,7 @@ func TestCaddyAdapt(t *testing.T) {
 		{ID: "svc-web", Host: "web.lab.example.com", Upstream: "roostack-svc-web:80", Private: true, MaxBodySize: "10GB"},
 		{ID: "svc-api", Host: "api.lab.example.com", Upstream: "roostack-svc-api:8080",
 			PrivatePaths: []string{"/admin", "/-/admin"}, LoginPaths: []string{"/login"}, MaxBodySize: "1GB",
-			CheckUpstream: "169.254.1.3:8480"},
+			CheckUpstream: "169.254.1.3:8480", WAF: true},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -129,7 +198,8 @@ func TestCaddyAdapt(t *testing.T) {
 		t.Fatalf("caddy adapt failed: %v\n%s", err, out)
 	}
 	for _, want := range []string{`"web.lab.example.com"`, `"api.lab.example.com"`, `"*.lab.example.com"`, `"cloudflare"`,
-		`"handler":"crowdsec"`, `"handler":"rate_limit"`, `"/-/admin/*"`, `"crowdsec":{`, `"filename":"/var/log/caddy/access.log"`, `"path_regexp"`} {
+		`"handler":"crowdsec"`, `"handler":"rate_limit"`, `"/-/admin/*"`, `"crowdsec":{`, `"filename":"/var/log/caddy/access.log"`, `"path_regexp"`,
+		`"handler":"appsec"`, `"appsec_url":"http://169.254.1.3:8475/"`, `"appsec_fail_open":true`, `"appsec_max_body_bytes":1048576`} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("adapted config missing %s", want)
 		}

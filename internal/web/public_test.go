@@ -25,7 +25,7 @@ func (f *fakeManager) Access(name string) ([]manager.RouteAccess, error) {
 		return nil, manager.ErrNotFound
 	}
 	if f.access == nil {
-		f.access = []manager.RouteAccess{{Route: "web", Host: "passwords.lab.example.com",
+		f.access = []manager.RouteAccess{{Route: "web", Host: "passwords.lab.example.com", WAF: true,
 			PrivatePaths: []manager.PathAccess{{Path: "/admin", Reason: "Vaultwarden's admin panel."}}}}
 	}
 	return f.access, nil
@@ -43,6 +43,16 @@ func (f *fakeManager) SetPublic(_ context.Context, name string, req manager.Publ
 	f.access[0].Public = req.Public
 	for i, pp := range f.access[0].PrivatePaths {
 		f.access[0].PrivatePaths[i].Open = req.Public && slices.Contains(req.OpenPaths, pp.Path)
+	}
+	return nil
+}
+
+func (f *fakeManager) SetWAF(_ context.Context, name string, on bool) error {
+	if _, err := f.Access(name); err != nil {
+		return err
+	}
+	for i := range f.access {
+		f.access[i].WAF = on
 	}
 	return nil
 }
@@ -390,5 +400,83 @@ func TestPublicCountries(t *testing.T) {
 	if _, body := h.post("/settings/public/countries", url.Values{"mode": {"block"}, "countries": {"RU"}}, h.srv.URL); !slices.Equal(fm.countries.Block, []string{"RU"}) ||
 		strings.Contains(body, "Everyone can visit until") {
 		t.Errorf("blocking: %+v", fm.countries)
+	}
+}
+
+// Blocking known exploits (SPEC.md §6.10 item 4): a public service's page
+// counts what AppSec refused this week and lists the newest, by its
+// description, path (never the query) and rule; the Owner can turn it off
+// for the service after a warning, and on again.
+func TestKnownExploits(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	now := time.Now()
+	asked := 0
+	h.server.Blocks = func(context.Context, time.Duration) ([]public.Block, error) {
+		asked++
+		return []public.Block{
+			{At: now, Host: "passwords.lab.example.com", Rule: "vpatch-CVE-2017-9841", What: "PHPUnit RCE (CVE-2017-9841)",
+				Path: "/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php", From: "203.0.113.10"},
+			{At: now.Add(-time.Minute), Host: "git.lab.example.com", Rule: "vpatch-env-access", What: "Detect access to .env files", Path: "/.env"},
+			{At: now.Add(-2 * time.Minute), Host: "passwords.lab.example.com", Rule: "vpatch-env-access", What: "Detect access to .env files", Path: "/.env"},
+		}, nil
+	}
+	// Private: no card.
+	if _, body := h.get("/services/vaultwarden"); strings.Contains(body, "Known exploits") {
+		t.Error("a private service shows refused requests")
+	}
+	fm.Access("vaultwarden")
+	fm.access[0].Public = true
+	_, body := h.get("/services/vaultwarden")
+	for _, want := range []string{"Known exploits", `<span class="big-figure">2<small>refused this week</small>`, "PHPUnit RCE (CVE-2017-9841)",
+		"<code>/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php</code>", "from 203.0.113.10", "vpatch-CVE-2017-9841",
+		`href="/services/vaultwarden/public/web#waf"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the service page should show %q", want)
+		}
+	}
+	if h.get("/services/vaultwarden"); asked != 1 {
+		t.Errorf("CrowdSec asked %d times: pages that poll use the last answer for a minute", asked)
+	}
+
+	_, body = h.get("/services/vaultwarden/public/web")
+	if !strings.Contains(body, "Blocking known exploits") || !strings.Contains(body, "Stop blocking known exploits for Vaultwarden?") {
+		t.Fatal("the public access page should say it's on, with a way to turn it off")
+	}
+	h.post("/services/vaultwarden/public/web/waf", url.Values{"waf": {"off"}}, h.srv.URL)
+	if fm.access[0].WAF {
+		t.Fatal("not turned off")
+	}
+	if logs, _ := h.store.RecentAudit(context.Background(), 1); len(logs) == 0 || logs[0].Detail != "blocking known exploits turned off for vaultwarden" {
+		t.Errorf("audit: %+v", logs)
+	}
+	if _, body := h.get("/services/vaultwarden"); !strings.Contains(body, "Not blocked: requests that try a known exploit reach Vaultwarden.") {
+		t.Error("the service page should say it's off")
+	}
+	if _, body := h.get("/services/vaultwarden/public/web"); !strings.Contains(body, "Not blocked for Vaultwarden") ||
+		!strings.Contains(body, ">Block known exploits</button>") {
+		t.Error("the public access page should warn while it's off")
+	}
+	h.post("/services/vaultwarden/public/web/waf", url.Values{"waf": {"on"}}, h.srv.URL)
+	if !fm.access[0].WAF {
+		t.Error("not turned on again")
+	}
+
+	// Only the Owner.
+	ha, fa := loggedIn(t, auth.RoleAdmin)
+	fa.Access("vaultwarden")
+	if code, _ := ha.post("/services/vaultwarden/public/web/waf", url.Values{"waf": {"off"}}, ha.srv.URL); code != http.StatusForbidden || !fa.access[0].WAF {
+		t.Errorf("an Admin turned it off: %d", code)
+	}
+}
+
+// The weekly summary's line, by service, most first.
+func TestWAFSummary(t *testing.T) {
+	blocks := []public.Block{{Host: "vault.example.com"}, {Host: "photos.example.com"}, {Host: "photos.example.com"}, {Host: "old.example.com"}}
+	got := wafSummary(blocks, map[string]string{"vault.example.com": "Vaultwarden", "photos.example.com": "Immich"})
+	if want := "refused 4 requests that tried a known exploit (Immich 2, Vaultwarden 1, old.example.com 1)."; got != want {
+		t.Errorf("got %q", got)
+	}
+	if wafSummary(nil, nil) != "" {
+		t.Error("none")
 	}
 }

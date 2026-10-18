@@ -216,6 +216,9 @@ func TestWeeklySummary(t *testing.T) {
 	h.server.Attacks = func(context.Context, time.Duration) (public.Attacks, error) {
 		return public.Attacks{Alerts: 3, Addresses: 2, Blocked: 2, Kinds: []string{"http-probing"}}, nil
 	}
+	h.server.Blocks = func(context.Context, time.Duration) ([]public.Block, error) {
+		return []public.Block{{Host: "passwords.lab.example.com"}}, nil
+	}
 	// A new release series is information, not something needing
 	// attention: it has a line of its own.
 	h.node().updates = &fakeUpdates{series: osupdate.Series{Current: "0.4", Newest: "0.5", NewestVersion: "0.5.0"}}
@@ -228,7 +231,7 @@ func TestWeeklySummary(t *testing.T) {
 	if len(fm.sent) != 1 || !strings.Contains(fm.sent[0].Subject, "This week") {
 		t.Fatalf("Monday: %+v", fm.sent)
 	}
-	for _, want := range []string{"Last backup:", "CrowdSec saw 3 attacks from 2 addresses, and blocked 2. Most were: http-probing.",
+	for _, want := range []string{"Last backup:", "CrowdSec saw 3 attacks from 2 addresses, and blocked 2. Most were: http-probing. It also refused 1 request that tried a known exploit (Vaultwarden 1).",
 		"- Roostack 0.5.0 is available. It starts a new series of releases, so it waits for you to say yes.\n  https://roost.lab.example.com/settings/updates#roostack",
 		"Nothing needs attention."} {
 		if !strings.Contains(fm.sent[0].Body, want) {

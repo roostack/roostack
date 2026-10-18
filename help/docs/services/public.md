@@ -26,7 +26,8 @@ On the service's page, next to **Reachable from**, choose **Make
 public…**. Roostack explains what changes and asks you to confirm, then:
 
 1. **Protection.** Roostack starts **CrowdSec**, which spots attacks in
-   the web log and blocks the addresses they come from, and it limits how
+   the web log and blocks the addresses they come from, refuses requests
+   that try [known exploits](#blocking-known-exploits), and it limits how
    fast anyone can try passwords. The first time, you choose whether
    CrowdSec shares attack reports with its community (only attackers'
    addresses and what they tried). Sharing gets you the community's list
@@ -177,6 +178,86 @@ ones Roostack can check itself.
     home already has it, Roostack can't share it. Public access through a
     cloud server, which needs no router changes, is planned.
 
+## Blocking known exploits
+
+While a service is public, CrowdSec also checks each request from the
+internet before the service gets it. If the request tries an **exploit of
+a known vulnerability** in a popular app, such as reading a website's
+secret `.env` file, or a bug in an old version of a web app, CrowdSec
+refuses it: the visitor gets "403 Forbidden", and the service never sees
+the request. An address that tries two different exploits is blocked
+altogether for four hours.
+
+This is sometimes called **virtual patching**: it protects a service from
+attacks on vulnerabilities it may have, even before you've updated it. It
+doesn't replace updates. It's on for every public service, and for
+Roostack's own pages when they're public. Private services aren't
+affected, and neither are devices on your home network.
+
+The service's page shows, under **Known exploits**, how many requests were
+refused in the last week, and the latest few: what they tried (for example
+"PHPUnit RCE (CVE-2017-9841)"), the address they asked for, when, from
+where, and the rule that refused them. Roostack never shows or keeps
+what was sent with a request. The weekly summary email says how many were
+refused, by service.
+
+### If it refuses something it shouldn't
+
+The rules are written for specific exploits, so a refused request is
+nearly always an attack. Rarely, one matches something a service really
+does. You'd notice that part of the service fails from outside, with "403
+Forbidden", but works at home (requests from home aren't checked).
+
+1. On the service's page, under **Known exploits**, look for a request
+   refused when it failed, from your own address (a website such as
+   "what is my IP" shows it). Its line names the rule, such as
+   `vpatch-CVE-2024-1234`.
+2. If it's yours, turn the blocking off for that service: choose
+   **Manage** on the card (or open **Public access** from **Reachable
+   from**), then under **Blocking known exploits**, **It refused something
+   … needs**, choose **Stop blocking**. Only that service changes, on all
+   its public addresses. CrowdSec still blocks addresses that attack it,
+   and password tries are still limited. The page warns while it's off,
+   with **Block known exploits** to turn it back on.
+3. Tell CrowdSec, so the rule is fixed for everyone: their rules are at
+   [github.com/crowdsecurity/hub](https://github.com/crowdsecurity/hub).
+   Give the rule's name and what the service was doing, not your
+   address. Once a fixed rule reaches Roostack (with an update), turn the
+   blocking back on.
+
+If you were blocked altogether (every page of every public service says
+"403 Forbidden" from outside), the block ends after four hours. A technical
+user can end it now (below).
+
+??? note "For technical users"
+
+    - Caddy's handler for a public address runs CrowdSec's bouncer, the
+      rate limits, then the bouncer's `appsec` handler, for visitors from
+      outside only (the same check as private addresses: a visitor
+      through an edge or Roostack Cloud's relay is always outside).
+    - AppSec runs inside the `roostack-crowdsec` container, on
+      `127.0.0.1:8475`, set up by
+      `/var/lib/roostack/crowdsec/appsec.yaml` with CrowdSec's
+      `crowdsecurity/appsec-default` settings: the rules of the Hub's
+      `crowdsecurity/appsec-virtual-patching` and
+      `crowdsecurity/appsec-generic-rules` collections. They come from one
+      commit of [CrowdSec's Hub](https://github.com/crowdsecurity/hub),
+      set in `/var/lib/roostack/crowdsec/config.yaml.local`, and change
+      with Roostack's updates.
+    - The bouncer sends AppSec the request's address, path, headers and
+      the first 1 MiB of its body, over the server's loopback. If AppSec
+      doesn't answer within 2 seconds (CrowdSec restarting, say), the
+      request goes through, and **Settings → Public access** says
+      CrowdSec isn't running.
+    - Each refused request is a CrowdSec alert of kind `waf`. In the
+      container (`podman exec roostack-crowdsec …` as the `roostack`
+      user): `cscli alerts list --kind waf` lists them, `cscli alerts
+      inspect -d <id>` shows one, and `cscli decisions delete --ip
+      <address>` ends a block.
+    - **Stop blocking** sets `no_waf: true` in the service's instance file
+      (`/var/lib/roostack/services/<name>.yaml`). A package can't turn it
+      off.
+
 ## Parts that stay private
 
 Some services have pages that shouldn't be public, such as an admin panel.
@@ -252,11 +333,13 @@ Roostack's own pages aren't either, CrowdSec stops.
     - Caddy's handler for a public address first refuses outside visitors
       on private paths, then asks CrowdSec's bouncer, then applies a rate
       limit per visitor address: 1000 requests per 10 seconds, and 10 a
-      minute on the login pages the package names.
+      minute on the login pages the package names. Then CrowdSec's AppSec
+      checks outside visitors' requests ([Blocking known
+      exploits](#blocking-known-exploits)).
     - CrowdSec runs as `roostack-crowdsec` while anything is public, reading
       Caddy's JSON access log from `/var/lib/roostack/caddy-logs`. Its
       configuration and database are in `/var/lib/roostack/crowdsec`, and
-      its local API is on `127.0.0.1:8473`. `cscli decisions list`, run in
+      its local API is on `127.0.0.1:8473` (AppSec on `127.0.0.1:8475`). `cscli decisions list`, run in
       the container, shows who is blocked.
     - Your home's public address comes from DNS: OpenDNS's
       `myip.opendns.com`, or Google's `o-o.myaddr.l.google.com`.

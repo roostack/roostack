@@ -463,16 +463,26 @@ func (s *Server) weeklySummary(ctx context.Context, u *store.User, now time.Time
 	// What CrowdSec saw on the public addresses (only once a service is
 	// public: before that, it doesn't run).
 	if s.Attacks != nil && s.Protected != nil && s.Protected(ctx) {
+		// The requests AppSec refused (SPEC.md §6.10 item 4), by service.
+		var refused string
+		if blocks, ok := s.wafBlocks(ctx); ok {
+			refused = wafSummary(blocks, s.titlesByHost(ctx))
+		}
 		if a, err := s.Attacks(ctx, 7*24*time.Hour); err == nil {
 			b.WriteString("\nPublic addresses: ")
 			switch {
-			case a.Alerts == 0:
+			case a.Alerts == 0 && refused == "":
 				b.WriteString("no attacks seen.\n")
+			case a.Alerts == 0:
+				b.WriteString("CrowdSec " + refused + "\n")
 			default:
 				fmt.Fprintf(&b, "CrowdSec saw %d %s from %d %s, and blocked %d.",
 					a.Alerts, plural(a.Alerts, "attack", "attacks"), a.Addresses, plural(a.Addresses, "address", "addresses"), a.Blocked)
 				if len(a.Kinds) > 0 {
 					b.WriteString(" Most were: " + strings.Join(a.Kinds, ", ") + ".")
+				}
+				if refused != "" {
+					b.WriteString(" It also " + refused)
 				}
 				b.WriteString("\n")
 			}

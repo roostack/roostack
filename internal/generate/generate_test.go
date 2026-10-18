@@ -92,6 +92,28 @@ func TestPrivateOnInternet(t *testing.T) {
 	}
 }
 
+// TestNoWAF: AppSec checks a public service's routes unless the Owner
+// turned it off for the service (SPEC.md §6.10 item 4).
+func TestNoWAF(t *testing.T) {
+	p, err := pkgspec.Load(pkgtest.File("immich"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "immich-no-ml.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := Service(testLab(), p, in)
+	if err != nil || !strings.Contains(out.CaddySite.Content, "appsec @immich-web-outside") {
+		t.Fatalf("on by default: %v\n%s", err, out.CaddySite.Content)
+	}
+	in.NoWAF = true
+	if out, err = Service(testLab(), p, in); err != nil || strings.Contains(out.CaddySite.Content, "appsec") ||
+		!strings.Contains(out.CaddySite.Content, "crowdsec") {
+		t.Errorf("turned off, CrowdSec's bans stay: %v\n%s", err, out.CaddySite.Content)
+	}
+}
+
 func TestErrors(t *testing.T) {
 	p, err := pkgspec.Load(pkgtest.File("immich"))
 	if err != nil {

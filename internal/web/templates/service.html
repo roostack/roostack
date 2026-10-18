@@ -185,6 +185,20 @@
       {{else if .Service.Server}}<p>Not backed up yet.</p>{{end}}
       {{if .IsOwner}}<p><a class="button secondary" href="/backups/restore/{{.Service.Name}}">Restore {{.Service.Title}}…</a></p>{{end}}
     </section>
+    {{/* What CrowdSec's AppSec refused, while it's public (SPEC.md §6.10). */}}
+    {{with .WAF}}
+    <section class="card">
+      <div class="card-head"><h2>Known exploits</h2>{{if $.IsOwner}}<a class="more" href="/services/{{$.Service.Name}}/public/{{.Route}}#waf">Manage</a>{{end}}</div>
+      {{if not .On}}<p><span class="dot dot-warn" aria-hidden="true"></span>Not blocked: requests that try a known exploit reach {{$.Service.Title}}.</p>
+      {{else if .Unknown}}<p class="hint">Blocked, but CrowdSec isn't answering yet, so what it refused can't be shown.</p>
+      {{else}}<span class="big-figure">{{.Count}}<small>refused this week</small></span>
+      <p class="hint">Requests from the internet that tried an exploit of a known vulnerability, refused before they reached {{$.Service.Title}}.</p>
+      {{with .Latest}}<ul class="plain">{{range .}}
+        <li>{{or .What .Rule}}<br><small class="hint"><code>{{.Path}}</code> · {{when .At}} · from {{.From}}<br>Rule: {{.Rule}}</small></li>{{end}}
+      </ul>{{end}}
+      {{end}}
+    </section>
+    {{end}}
     {{with .Actions}}
     <section class="card">
     <div class="card-head"><h2>Actions</h2></div>

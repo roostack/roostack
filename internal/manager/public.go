@@ -27,6 +27,10 @@ type RouteAccess struct {
 	Unsafe string
 	// PrivatePaths stay home-only when it's public, unless opened.
 	PrivatePaths []PathAccess
+	// WAF: CrowdSec's AppSec checks requests to the service's public
+	// addresses (SPEC.md §6.10 item 4), unless the Owner turned it off.
+	// The same for each of a service's addresses.
+	WAF bool
 }
 
 // PathAccess is a path the package keeps home-only on a public address.
@@ -47,7 +51,8 @@ func (m *Manager) Access(name string) ([]RouteAccess, error) {
 	var out []RouteAccess
 	for _, rn := range slices.Sorted(maps.Keys(p.Routes)) {
 		r, rc := p.Routes[rn], routes[rn]
-		ra := RouteAccess{Route: rn, Host: rc.Host, Public: rc.Exposure == pkgspec.ExposurePublic, Unsafe: r.Public.Unsafe}
+		ra := RouteAccess{Route: rn, Host: rc.Host, Public: rc.Exposure == pkgspec.ExposurePublic, Unsafe: r.Public.Unsafe,
+			WAF: !in.NoWAF}
 		for _, pp := range r.Public.PrivatePaths {
 			ra.PrivatePaths = append(ra.PrivatePaths, PathAccess{Path: pp.Path, Reason: pp.Reason,
 				Open: slices.Contains(in.Routes[rn].PublicPaths, pp.Path)})
@@ -112,6 +117,33 @@ func (m *Manager) SetPublic(ctx context.Context, name string, req PublicRequest)
 		return err
 	}
 	m.applyReason = "Changing who can reach " + name
+	m.startApplyLocked()
+	return nil
+}
+
+// SetWAF turns CrowdSec's AppSec on or off for a service's public
+// addresses (SPEC.md §6.10 item 4), then applies the change (Caddy
+// reloads).
+func (m *Manager) SetWAF(ctx context.Context, name string, on bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	services, err := state.LoadServices(m.Lab)
+	if err != nil {
+		return err
+	}
+	i := slices.IndexFunc(services, func(s state.Service) bool { return s.Name() == name })
+	if i < 0 {
+		return ErrNotFound
+	}
+	in := services[i].Instance
+	if in.NoWAF == !on {
+		return nil
+	}
+	in.NoWAF = !on
+	if err := in.Save(state.InstanceFile(m.Lab, name)); err != nil {
+		return err
+	}
+	m.applyReason = "Changing whether known exploits are blocked for " + name
 	m.startApplyLocked()
 	return nil
 }

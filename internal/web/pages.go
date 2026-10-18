@@ -490,6 +490,9 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			s.addSettingsData(data, name, p, nil)
 			if access, err := s.Manager.Access(name); err == nil {
 				data["Access"] = access
+				if v := s.wafCard(r.Context(), access); v != nil {
+					data["WAF"] = v
+				}
 			}
 			// The registry withdrew its version (SPEC.md §8.3.4).
 			if wd := s.Manager.Withdrawals(r.Context())[name]; wd != nil {

@@ -42,6 +42,10 @@ const (
 	// loopback while anything is public, for Caddy's bouncer (SPEC.md
 	// §6.11).
 	CrowdSecPort = 8473
+	// AppSecPort is where CrowdSec's AppSec component (its web
+	// application firewall) listens on the host's loopback, beside its
+	// local API, for Caddy's bouncer (SPEC.md §6.10 item 4).
+	AppSecPort = 8475
 	// SetupPort is where the first-run setup pages are served to the home
 	// network over HTTPS until setup is done (SPEC.md §6.3.2).
 	SetupPort = 8443

@@ -102,6 +102,10 @@ type Route struct {
 	// CheckUpstream is the Roostack UI, which answers the outside check
 	// link on a public route (internal/public). Empty leaves it out.
 	CheckUpstream string
+	// WAF has CrowdSec's AppSec component check each outside visitor's
+	// request on a public route (SPEC.md §6.10 item 4): on unless the
+	// Owner turned it off for the service. Needs MainConfig.AppSecURL.
+	WAF bool
 }
 
 // CheckPattern is the only path on a public address that reaches
@@ -121,6 +125,13 @@ const (
 // CrowdSecAPIKeyEnv is the environment variable holding the bouncer's
 // key to CrowdSec's local API, in the Caddy container.
 const CrowdSecAPIKeyEnv = "CROWDSEC_API_KEY"
+
+// AppSecMaxBody is how much of a request's body the bouncer sends to
+// AppSec (SPEC.md §6.10 item 4). The bouncer otherwise reads the whole
+// body into memory first (a video upload), and CrowdSec refuses a body
+// over 10 MB outright; the start of a body is where exploits are. The
+// rest still reaches the service.
+const AppSecMaxBody = 1 << 20
 
 // Site renders the snippet for one service's routes. It is imported inside
 // the wildcard site block, so it only contains handle blocks.
@@ -175,12 +186,20 @@ func quoteTitle(t string) string {
 // is inside one route block, which runs in the order written: Caddy would
 // otherwise run a route block before an abort next to it, letting outside
 // visitors into private paths (docs/ASSUMPTIONS.md P2). Then CrowdSec's
-// bouncer turns away banned addresses, and rate limits apply before the
-// service sees the request.
+// bouncer turns away banned addresses, rate limits apply, and AppSec
+// refuses requests that try known exploits (SPEC.md §6.10 item 4), before
+// the service sees the request. AppSec checks only outside visitors:
+// whoever can reach the service's private routes is trusted with them
+// anyway, and a rule that wrongly matches a request of the household's
+// doesn't lock it out. It comes after the limits, so a flood doesn't reach
+// it.
 func publicRoute(b *strings.Builder, r Route) {
 	if len(r.PrivatePaths) > 0 {
 		fmt.Fprintf(b, "\t@%s-private-paths {\n\t\t%s\n\t\tpath %s\n\t}\n",
 			r.ID, r.notPrivate("\t\t"), pathPatterns(r.PrivatePaths))
+	}
+	if r.WAF {
+		fmt.Fprintf(b, "\t@%s-outside %s\n", r.ID, r.notPrivate("\t"))
 	}
 	b.WriteString("\troute {\n")
 	if len(r.PrivatePaths) > 0 {
@@ -194,6 +213,9 @@ func publicRoute(b *strings.Builder, r Route) {
 	}
 	fmt.Fprintf(b, "\t\t\tzone %s {\n\t\t\t\tkey {remote_host}\n\t\t\t\tevents %d\n\t\t\t\twindow %s\n\t\t\t}\n", r.ID, RateLimitEvents, RateLimitWindow)
 	b.WriteString("\t\t}\n")
+	if r.WAF {
+		fmt.Fprintf(b, "\t\tappsec @%s-outside\n", r.ID)
+	}
 	if r.CheckUpstream != "" {
 		fmt.Fprintf(b, "\t\t@%s-check path_regexp %s\n", r.ID, CheckPattern)
 		fmt.Fprintf(b, "\t\treverse_proxy @%s-check %s\n", r.ID, r.CheckUpstream)
@@ -286,6 +308,10 @@ type MainConfig struct {
 	// Caddy container, set while anything is public (SPEC.md §6.11). The
 	// bouncer's key is in the CrowdSecAPIKeyEnv environment variable.
 	CrowdSecAPI string
+	// AppSecURL is CrowdSec's AppSec component, as seen from the Caddy
+	// container (SPEC.md §6.10 item 4): set with CrowdSecAPI. The UI, when
+	// it's public, is checked by it too.
+	AppSecURL string
 	// AccessLog is the file Caddy logs requests to, for CrowdSec. Empty
 	// logs none.
 	AccessLog string
@@ -325,7 +351,7 @@ func Main(c MainConfig) (string, error) {
 	if strings.TrimSpace(c.DNSDirective) == "" {
 		return "", errors.New("caddy: no DNS provider configured")
 	}
-	if c.Domain == "" || strings.ContainsAny(c.Domain+c.Email+c.CrowdSecAPI+c.AccessLog, " \t\n{}\"#") {
+	if c.Domain == "" || strings.ContainsAny(c.Domain+c.Email+c.CrowdSecAPI+c.AppSecURL+c.AccessLog, " \t\n{}\"#") {
 		return "", fmt.Errorf("caddy: invalid domain, email, CrowdSec address or log file")
 	}
 
@@ -349,8 +375,15 @@ func Main(c MainConfig) (string, error) {
 	if c.CrowdSecAPI != "" {
 		// Caddy keeps serving while CrowdSec's API is unreachable, and
 		// retries (docs/ASSUMPTIONS.md P5).
-		fmt.Fprintf(&b, "\tcrowdsec {\n\t\tapi_url %s\n\t\tapi_key {env.%s}\n\t\tticker_interval 15s\n\t}\n",
+		fmt.Fprintf(&b, "\tcrowdsec {\n\t\tapi_url %s\n\t\tapi_key {env.%s}\n\t\tticker_interval 15s\n",
 			c.CrowdSecAPI, CrowdSecAPIKeyEnv)
+		if c.AppSecURL != "" {
+			// AppSec failing (CrowdSec restarting or slow past the
+			// bouncer's 2 seconds) lets requests through: fail open, like
+			// the bans (SPEC.md §6.10 item 4).
+			fmt.Fprintf(&b, "\t\tappsec_url %s\n\t\tappsec_max_body_bytes %d\n\t\tappsec_fail_open\n", c.AppSecURL, AppSecMaxBody)
+		}
+		b.WriteString("\t}\n")
 	}
 	b.WriteString("}\n")
 	if c.OldDomain != "" && (strings.ContainsAny(c.OldDomain, " \t\n{}\"#") || strings.TrimSpace(c.OldDNSDirective) == "") {
@@ -421,6 +454,7 @@ func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now st
 			Upstream: c.AdminUpstream, Private: !c.AdminPublic, PrivateFrom: c.PrivateFrom, PrivateExcept: c.EdgeFrom}
 		if c.AdminPublic {
 			route.LoginPaths = AdminLoginPaths
+			route.WAF = c.AppSecURL != ""
 		}
 		admin, err := Site("roostack", []Route{route})
 		if err != nil {

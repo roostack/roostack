@@ -29,10 +29,30 @@
   </form>
   {{end}}
 
+  <h2 id="waf">Blocking known exploits</h2>
+  {{if .Route.WAF}}
+  <p><span class="dot dot-ok" aria-hidden="true"></span>CrowdSec checks each request from the internet before {{.Package.Title}} gets it,
+    and refuses ones that try an exploit of a known vulnerability in popular apps, so {{.Package.Title}} is protected even before you update it.
+    What it refused is on <a href="/services/{{$.Name}}">{{.Package.Title}}'s page</a>.</p>
+  <details class="technical">
+    <summary>It refused something {{.Package.Title}} needs</summary>
+    <p>That's rare: the rules are written for specific exploits. Look at what it refused on {{.Package.Title}}'s page, and
+      <a href="/help/services/public/#if-it-refuses-something-it-shouldnt" target="_blank" rel="noopener">what to do about it{{template "new-window"}}</a>.
+      As a last resort, turn it off for {{.Package.Title}} (all its public addresses):</p>
+    {{confirm (printf "/services/%s/public/%s/waf" $.Name .Route.Route) (printf "Stop blocking known exploits for %s? Requests that try one will reach it: if it has a vulnerability you haven't updated yet, anyone on the internet can use it." .Package.Title) "Stop blocking" "quiet danger" "waf=off"}}
+  </details>
+  {{else}}
+  {{notice "warn" (printf "Not blocked for %s: requests that try a known exploit reach it, so a vulnerability you haven't updated yet can be used against it." .Package.Title)}}
+  <form method="post" action="/services/{{$.Name}}/public/{{.Route.Route}}/waf">
+    <input type="hidden" name="waf" value="on">
+    <button type="submit">Block known exploits</button>
+  </form>
+  {{end}}
+
   <h2>Checklist</h2>
   <ol class="steps public-steps">
     <li><span class="dot dot-{{if .Protected}}ok{{else}}warn{{end}}" aria-hidden="true"></span><strong>Protection.</strong>
-      {{if .Protected}}CrowdSec is running: it blocks addresses that attack your services, and password tries are limited.
+      {{if .Protected}}CrowdSec is running: it blocks addresses that attack your services{{if .Route.WAF}} and requests that try known exploits{{end}}, and password tries are limited.
       {{else}}CrowdSec is starting (its first start downloads it, which takes a few minutes).{{if not .Internet}} The address's DNS record waits for it.{{end}}{{end}}</li>
     <li>{{with .Record}}<span class="dot dot-{{if eq .State "ok"}}ok{{else if or (eq .State "pending") (eq .State "waiting") (eq .State "manual")}}warn{{else}}problem{{end}}" aria-hidden="true"></span>{{end}}<strong>DNS record.</strong>
       {{with .Record}}{{.Message}}{{else}}Roostack is checking it.{{end}}</li>

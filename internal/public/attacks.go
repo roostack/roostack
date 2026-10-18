@@ -25,7 +25,9 @@ type Attacks struct {
 type Launch func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd
 
 // CrowdSecAttacks asks CrowdSec (`cscli alerts list` in its container)
-// what it saw since since ago.
+// what it saw since since ago: its scenarios' alerts, not each request
+// AppSec refused (CrowdSecBlocks), though a second refused request bans
+// the address, which is one of these.
 func CrowdSecAttacks(ctx context.Context, launch Launch, container string, since time.Duration) (Attacks, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -40,6 +42,7 @@ func CrowdSecAttacks(ctx context.Context, launch Launch, container string, since
 // parseAlerts sums cscli's alerts (JSON).
 func parseAlerts(out []byte) (Attacks, error) {
 	var alerts []struct {
+		Kind     string `json:"kind"`
 		Scenario string `json:"scenario"`
 		Source   struct {
 			Value string `json:"value"`
@@ -53,6 +56,9 @@ func parseAlerts(out []byte) (Attacks, error) {
 	var a Attacks
 	addrs, kinds := map[string]bool{}, map[string]int{}
 	for _, al := range alerts {
+		if al.Kind == "waf" {
+			continue // a request AppSec refused (CrowdSecBlocks)
+		}
 		a.Alerts++
 		addrs[cmpOr(al.Source.IP, al.Source.Value)] = true
 		if len(al.Decisions) > 0 {

@@ -288,6 +288,31 @@ func TestInstallUpdateRemove(t *testing.T) {
 	}
 }
 
+// TestSystemFileRestarts: CrowdSec reads its files only when it starts, so
+// a changed one (a new Hub commit) restarts it; a first start doesn't.
+func TestSystemFileRestarts(t *testing.T) {
+	e := newEnv(t)
+	sys, err := generate.System(e.lab, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan := e.apply(t, Desired{System: sys}); slices.Contains(plan.RestartUnits, "roostack-crowdsec.service") {
+		t.Errorf("first start restarts CrowdSec:\n%s", plan)
+	}
+	local := filepath.Join(e.lab.Paths.CrowdSecDir(), "config.yaml.local")
+	os.WriteFile(local, []byte("an older commit"), 0o644)
+	plan := e.apply(t, Desired{System: sys})
+	if !slices.Equal(plan.RestartUnits, []string{"roostack-crowdsec.service"}) {
+		t.Errorf("a changed file doesn't restart CrowdSec:\n%s", plan)
+	}
+	if b, _ := os.ReadFile(local); !strings.Contains(string(b), generate.CrowdSecHub) {
+		t.Errorf("not rewritten: %s", b)
+	}
+	if plan := e.apply(t, Desired{System: sys}); len(plan.RestartUnits) != 0 {
+		t.Errorf("nothing changed:\n%s", plan)
+	}
+}
+
 func TestLeavesUnownedFilesAlone(t *testing.T) {
 	e := newEnv(t)
 	dir := e.lab.Paths.QuadletDir()

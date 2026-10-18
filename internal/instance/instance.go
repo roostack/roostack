@@ -63,6 +63,10 @@ type Instance struct {
 	// §8.3.4). Recorded here because the lab's copy of the package is the
 	// same whichever it came from, and the Owner may remove theirs.
 	Local bool `yaml:"local,omitempty"`
+	// NoWAF: the Owner turned off CrowdSec's AppSec (the web application
+	// firewall) for this service's public addresses, after a warning
+	// (SPEC.md §6.10 item 4). Only the Owner can: a package has no say.
+	NoWAF bool `yaml:"no_waf,omitempty"`
 }
 
 // RouteOverride holds user changes to a package route. Empty fields keep the

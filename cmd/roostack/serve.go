@@ -242,7 +242,8 @@ func serve(args []string) error {
 	// Public access (SPEC.md §6.11): check links from a phone, and whether
 	// CrowdSec is up (the records wait for it).
 	crowdSecUp := func(ctx context.Context) bool {
-		return public.CrowdSecUp(ctx, fmt.Sprintf("127.0.0.1:%d", config.CrowdSecPort))
+		return public.CrowdSecUp(ctx, fmt.Sprintf("127.0.0.1:%d", config.CrowdSecPort)) &&
+			public.AppSecUp(ctx, fmt.Sprintf("127.0.0.1:%d", config.AppSecPort))
 	}
 	srv.Checks = &public.Checks{Record: func(host string, at time.Time, from string) error {
 		log.Info("public address checked from outside", "host", host, "from", from)
@@ -251,6 +252,9 @@ func serve(args []string) error {
 	srv.Protected = crowdSecUp
 	srv.Attacks = func(ctx context.Context, since time.Duration) (public.Attacks, error) {
 		return public.CrowdSecAttacks(ctx, userLaunch, generate.CrowdSecUnit, since)
+	}
+	srv.Blocks = func(ctx context.Context, since time.Duration) ([]public.Block, error) {
+		return public.CrowdSecBlocks(ctx, userLaunch, generate.CrowdSecUnit, since)
 	}
 	// Roostack's network between servers (SPEC.md §10.2): this server is
 	// the hub others join.

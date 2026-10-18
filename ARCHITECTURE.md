@@ -58,7 +58,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/caddy` | Writing the main Caddyfile and per-service snippets |
 | `internal/dns` | Supported DNS providers: credential fields, Caddy directive, and the create-and-delete-a-TXT-record check |
 | `internal/dnsrecords` | Keeps `*.<domain>` pointing at the LAN IP (only records Roostack created) and checks home devices can resolve it; points each public address at the public entry's address once CrowdSec is up |
-| `internal/public` | Public access (SPEC.md §6.11): the entry visitors come in through (port forwarding: the lab's public address, found over DNS), CrowdSec's health, check links opened from outside, and guessing whether the server is on the internet (§6.12) |
+| `internal/public` | Public access (SPEC.md §6.11): the entry visitors come in through (port forwarding: the lab's public address, found over DNS), CrowdSec's health (its local API and AppSec), what it saw and what AppSec refused (§6.10), check links opened from outside, and guessing whether the server is on the internet (§6.12) |
 | `internal/setup` | First-run setup wizard logic: time zone, domain and DNS credentials, backup destination, recovery key |
 | `internal/hosttime` | Reads the host's time zone and the valid zone names (tzdata); changing it is the agent's job |
 | `internal/reconcile` | Plan and apply changes to the host |

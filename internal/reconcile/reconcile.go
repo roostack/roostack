@@ -427,13 +427,18 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 	}
 
 	// Other system files (e.g. CrowdSec's acquisition file), written when
-	// they change. Removing the unit that uses one leaves it, like data.
+	// they change, restarting the container that reads them if it was
+	// already there and isn't restarting anyway. Removing the unit that
+	// uses one leaves it, like data.
 	for _, f := range d.System.Files {
 		if old, err := os.ReadFile(f.Name); err != nil || string(old) != f.Content {
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				return nil, err
 			}
 			plan.Write = append(plan.Write, FileChange{f.Name, f.Content})
+			if _, ok := haveQuadlets[f.Restarts]; ok && !slices.Contains(plan.RestartUnits, unitFor(f.Restarts)) {
+				plan.RestartUnits = append(plan.RestartUnits, unitFor(f.Restarts))
+			}
 		}
 	}
 

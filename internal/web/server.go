@@ -179,7 +179,8 @@ type Server struct {
 	// DNS reports whether home devices can reach services (SPEC.md §6.5.1).
 	DNS DNSStatus
 	// Checks are the outside check links for public addresses, and
-	// Protected says whether CrowdSec is running (SPEC.md §6.11; public.go).
+	// Protected says whether CrowdSec is running, AppSec with it (SPEC.md
+	// §6.10, §6.11; public.go).
 	Checks    *public.Checks
 	Protected func(ctx context.Context) bool
 	// JoinLab adds this fresh server to an existing lab, named name, and
@@ -192,6 +193,10 @@ type Server struct {
 	// Attacks says what CrowdSec saw on the public addresses over a while,
 	// for the weekly summary (optional).
 	Attacks func(ctx context.Context, since time.Duration) (public.Attacks, error)
+	// Blocks are the requests CrowdSec's AppSec refused over a while, for
+	// the service pages and the weekly summary (optional; waf.go).
+	Blocks func(ctx context.Context, since time.Duration) ([]public.Block, error)
+	waf    wafCache
 	// Version is Roostack's version, shown in every page's footer and on
 	// the About page.
 	Version string
@@ -573,6 +578,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /services/{name}/public/{route}", s.requireOwner(s.publicPage))
 	mux.Handle("POST /services/{name}/public/{route}", s.requireOwner(s.publicSubmit))
 	mux.Handle("POST /services/{name}/public/{route}/check", s.requireOwner(s.publicCheckNew))
+	mux.Handle("POST /services/{name}/public/{route}/waf", s.requireOwner(s.wafSubmit))
 	mux.Handle("POST /services/{name}/start-anyway", s.requireOwner(s.startAnywaySubmit))
 	mux.Handle("GET /settings/public", s.requireOwner(s.publicSettingsPage))
 	mux.Handle("POST /settings/public/sharing", s.requireOwner(s.publicSharingSubmit))

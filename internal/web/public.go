@@ -31,6 +31,9 @@ import (
 type PublicAccess interface {
 	Access(name string) ([]manager.RouteAccess, error)
 	SetPublic(ctx context.Context, name string, req manager.PublicRequest) error
+	// SetWAF turns blocking known exploits on or off for a service's
+	// public addresses (SPEC.md §6.10 item 4).
+	SetWAF(ctx context.Context, name string, on bool) error
 	PublicHosts() []string
 	SignalSharing() (asked, share bool)
 	SetSignalSharing(share bool) error

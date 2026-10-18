@@ -29,6 +29,10 @@ import (
 type File struct {
 	Name    string
 	Content string
+	// Restarts is a container (its Quadlet file's name) that reads the
+	// file only when it starts, so a change to it restarts the container
+	// (CrowdSec's files).
+	Restarts string
 }
 
 // Secret is a Podman secret the service needs.
@@ -168,7 +172,7 @@ func newGen(lab config.Lab, p *pkgspec.Package, in *instance.Instance, upstream 
 	return &gen{
 		lab: lab, pkg: p, ctx: buildContext(lab, p, in), upstream: upstream,
 		name: in.ID(), title: cmp.Or(in.Title, p.Title), out: &Output{Service: in.ID()},
-		included: map[string]bool{},
+		included: map[string]bool{}, waf: !in.NoWAF,
 	}
 }
 
@@ -184,6 +188,8 @@ type gen struct {
 	upstream string
 	// included records which containers passed their `when:` condition.
 	included map[string]bool
+	// waf: CrowdSec's AppSec checks its public routes (SPEC.md §6.10).
+	waf bool
 }
 
 func (g *gen) run() error {
@@ -496,6 +502,7 @@ func (g *gen) caddySite() error {
 				}
 			}
 			cr.LoginPaths = r.Public.LoginPaths
+			cr.WAF = g.waf
 			// The check link reaches the UI on the Caddy server (internal/public).
 			cr.CheckUpstream = fmt.Sprintf("%s:%d", CaddyHostLoopback, g.lab.UIPort)
 			g.out.Public = true
