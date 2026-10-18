@@ -68,19 +68,19 @@ func TestShowRecoveryKey(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)
 	h.setSetup(&fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}})
 	u, _ := h.store.UserByUsername(context.Background(), "u")
-	code := func(step int) string {
-		c, _ := authkit.TOTPCode(u.TOTPSecret, nowFunc().Add(time.Duration(step)*30*time.Second))
-		return c
-	}
 	if _, body := h.get("/backups"); !strings.Contains(body, `href="/backups/recovery-key"`) {
 		t.Fatal("the Backups page should offer to show the key")
 	}
 	if _, body := h.get("/backups/recovery-key"); strings.Contains(body, "the-recovery-key") {
 		t.Fatal("the key must not show before checking it's you")
 	}
+	// The code that works, kept: worked out again later, it could be the
+	// next 30-second step's, a new code that rightly works (the cause of
+	// this test's failures under load, 2026-10-18).
+	good, _ := authkit.TOTPCode(u.TOTPSecret, nowFunc().Add(30*time.Second))
 	// Right code, wrong password; right password, wrong code.
 	for _, form := range []url.Values{
-		{"password": {"not my password"}, "code": {code(1)}},
+		{"password": {"not my password"}, "code": {good}},
 		{"password": {"a long password"}, "code": {wrongCode(u.TOTPSecret)}},
 	} {
 		if status, body := h.post("/backups/recovery-key", form, h.srv.URL); status != http.StatusBadRequest ||
@@ -89,7 +89,7 @@ func TestShowRecoveryKey(t *testing.T) {
 		}
 	}
 	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/backups/recovery-key",
-		strings.NewReader(url.Values{"password": {"a long password"}, "code": {code(1)}}.Encode()))
+		strings.NewReader(url.Values{"password": {"a long password"}, "code": {good}}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Origin", h.srv.URL)
 	resp, err := h.client.Do(req)
@@ -103,7 +103,7 @@ func TestShowRecoveryKey(t *testing.T) {
 			resp.Header.Get("Cache-Control"))
 	}
 	// The same code can't be used twice.
-	if status, _ := h.post("/backups/recovery-key", url.Values{"password": {"a long password"}, "code": {code(1)}}, h.srv.URL); status != http.StatusBadRequest {
+	if status, _ := h.post("/backups/recovery-key", url.Values{"password": {"a long password"}, "code": {good}}, h.srv.URL); status != http.StatusBadRequest {
 		t.Errorf("a used code: %d", status)
 	}
 	logs, _ := h.store.RecentAudit(context.Background(), 10)

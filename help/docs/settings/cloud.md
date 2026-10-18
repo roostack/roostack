@@ -85,9 +85,12 @@ and nothing else:
 - **Each server's last backup to Roostack Cloud**, if it backs up there,
   so your lab's page on Roostack Cloud can show it.
 
-**Details** on the page says when your lab last told it. Someone who stops
-getting Problems emails, or removes their address, drops off at the next
-day's report.
+**Emails to** on the page lists each address and how it stands: getting
+Roostack Cloud's emails, not confirmed yet (and when Roostack Cloud emailed
+the link), turned down, or past the 10 it keeps. **Settings → Email** says
+the same under each person. **Details** says when your lab last told
+Roostack Cloud. Someone who stops getting Problems emails, or removes their
+address, drops off at the next day's report.
 
 ## When Roostack Cloud holds something back
 

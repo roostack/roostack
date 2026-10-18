@@ -409,6 +409,13 @@ func (s *Server) Handler() http.Handler {
 		}
 		return m.Memory(ctx(r))
 	})
+	handle("GET /v1/services/{service}/left-data", func(r *http.Request) (any, error) {
+		l, ok := n.(LeftData)
+		if !ok {
+			return nil, ErrNotFound
+		}
+		return l.LeftData(ctx(r), svc(r))
+	})
 	handle("GET /v1/history", func(r *http.Request) (any, error) {
 		h, ok := n.(History)
 		if !ok {

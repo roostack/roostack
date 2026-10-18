@@ -40,8 +40,9 @@ type fakeManager struct {
 	// summaries are the install summaries asked for.
 	summaries []manager.InstallRequest
 	// serverMemory is the install summary's server (nuc, 3.6 GB free of 8
-	// GB, if empty).
+	// GB, if empty); leftData, the data from before it finds there.
 	serverMemory manager.ServerMemory
+	leftData     []string
 	// edges can be the lab's edge; edge is the chosen one.
 	edges []manager.EdgeServer
 	edge  string
@@ -609,7 +610,7 @@ func (f *fakeManager) InstallSummary(name string, req manager.InstallRequest) (*
 		server = manager.ServerMemory{Name: "nuc", This: true, Servers: 1, Total: 8_000_000_000, Available: 3_600_000_000,
 			Expected: 50_000_000}
 	}
-	return &manager.InstallSummary{Summary: sum, Server: server}, nil
+	return &manager.InstallSummary{Summary: sum, Server: server, LeftData: f.leftData}, nil
 }
 
 func (f *fakeManager) PackageFile(name string) ([]byte, error) {
@@ -2024,6 +2025,28 @@ func TestInstallSummary(t *testing.T) {
 		t.Error("install page: a server that doesn't say its memory")
 	}
 	fm.serverMemory = manager.ServerMemory{}
+
+	// Data from before on the server: the page says it's used.
+	if strings.Contains(body, "data from before") {
+		t.Error("data from before, with none")
+	}
+	fm.leftData = []string{"/srv/roostack/services/immich", "/srv/roostack/media/immich"}
+	if _, body = h.get("/install/immich"); !strings.Contains(body, "<strong>Immich's data from before is still on nuc</strong>") ||
+		!strings.Contains(body, "In <code>/srv/roostack/services/immich</code> and <code>/srv/roostack/media/immich</code>.") {
+		t.Error("install page: data from before isn't said")
+	}
+	// Forgejo's administrator may then be left empty (it keeps its own).
+	_, body = h.get("/install/forgejo")
+	field, _, _ := strings.Cut(body[strings.Index(body, `name="setting.admin_username"`):], ">")
+	if !strings.Contains(body, "With its data from before, leave these empty: Forgejo keeps what it has") || strings.Contains(field, "required") {
+		t.Errorf("install page over data from before: the administrator is still asked for (%s)", field)
+	}
+	fm.leftData = nil
+	_, body = h.get("/install/forgejo")
+	field, _, _ = strings.Cut(body[strings.Index(body, `name="setting.admin_username"`):], ">")
+	if strings.Contains(body, "With its data from before") || !strings.Contains(field, "required") {
+		t.Error("install page, afresh: the administrator should be required")
+	}
 
 	// As the form changes, the summary follows: no machine learning, less
 	// memory, and its container isn't written.

@@ -428,6 +428,8 @@ func (s *Server) backupAttention(r *http.Request, m serverRef, n ServiceNode, ow
 	}
 	switch {
 	case !st.Configured || st.Running || (st.Last != nil && !st.Last.OK) || lost:
+	case st.LastOK == nil && st.Queued:
+		add(levelInfo, "The first backup"+m.on()+" is waiting to start.", link, "View backups")
 	case st.LastOK == nil:
 		add(levelInfo, "The first backup"+m.on()+" runs "+whenText(st.Next)+". You can also back up now.", link, "Back up now")
 	case isStale(st.LastOK.Finished):

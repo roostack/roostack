@@ -61,7 +61,9 @@ Weekly summary
     CrowdSec saw and blocked on your public addresses, and anything still
     needing attention.
 
-Owners see who gets what at the bottom of **Settings → Email**.
+Owners see who gets what at the bottom of **Settings → Email**. On a lab
+linked to [Roostack Cloud](cloud.md), it also says whether each person
+getting Problems has confirmed Roostack Cloud's emails about the lab.
 
 Owners and Admins get the first three unless they change it; Members can't
 act on the lab's problems, so they get none of them. Everyone always gets

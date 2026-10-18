@@ -41,6 +41,9 @@ type Service struct {
 	act     *activity.Log // the queued run's log
 	only    []string      // the queued run's destinations (nil: all)
 	retries map[string]*retryState
+	// catchUpAt is when CatchUp next looks for a missed backup (zero:
+	// unknown), so the next backup's time can say when that runs one.
+	catchUpAt time.Time
 }
 
 // Configured reports whether a backup destination is set.
@@ -108,6 +111,7 @@ func (s *Service) Job() maintenance.Job {
 			run := store.BackupRun{Started: start, Finished: time.Now(), OK: err == nil}
 			if sum != nil {
 				run.SnapshotID, run.FilesNew, run.DataAdded, run.Stored = sum.SnapshotID, sum.FilesNew, sum.DataAdded, sum.Stored
+				run.Services = sum.Services
 			}
 			if err != nil {
 				run.Error = err.Error()
@@ -168,25 +172,39 @@ const MissedAfter = 26 * time.Hour
 
 // CatchUp queues a backup if none was attempted for MissedAfter (or ever):
 // the server was off, or asleep, at the nightly time, which would
-// otherwise only come round again the next night (SPEC.md §6.9). It
-// reports whether it queued one. Failed backups have their own retries
-// (retry.go), so an attempt counts, not a success.
-func (s *Service) CatchUp(ctx context.Context) (bool, error) {
+// otherwise only come round again the next night; and the first backup
+// runs soon after backups are set up, not that night (SPEC.md §6.9). It
+// says why it queued one ("": it didn't). Failed backups have their own
+// retries (retry.go), so an attempt counts, not a success.
+func (s *Service) CatchUp(ctx context.Context) (string, error) {
 	if !s.Configured() {
-		return false, nil
+		return "", nil
 	}
 	last, _, err := s.Store.LastBackup(ctx)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	if last != nil && time.Since(last.Started) < MissedAfter {
-		return false, nil
+		return "", nil
 	}
 	err = s.Submit()
 	if errors.Is(err, ErrAlreadyQueued) || errors.Is(err, ErrFenced) {
-		return false, nil
+		return "", nil
 	}
-	return err == nil, err
+	if err != nil {
+		return "", err
+	}
+	if last == nil {
+		return "no backup yet", nil
+	}
+	return "none for over a day", nil
+}
+
+// CatchUpAt says when CatchUp next runs, for the next backup's time.
+func (s *Service) CatchUpAt(t time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.catchUpAt = t
 }
 
 // RunNow queues a backup ("Back up now").
@@ -306,6 +324,14 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	st.Fenced = s.loadFence(ctx)
 	if s.NextRun != nil {
 		st.Next = s.NextRun()
+	}
+	// The catch-up runs one before the night when none was tried for a
+	// day, or ever (a new lab's first backup).
+	s.mu.Lock()
+	at := s.catchUpAt
+	s.mu.Unlock()
+	if !at.IsZero() && (st.Next.IsZero() || at.Before(st.Next)) && (st.Last == nil || at.Sub(st.Last.Started) >= MissedAfter) {
+		st.Next = at
 	}
 	if r := s.Coord.Status().Running; r != nil && r.Name == JobName {
 		st.Running, st.Progress = true, r.Progress

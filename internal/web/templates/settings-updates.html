@@ -108,7 +108,7 @@
     <dd>{{if .Status.Checked.IsZero}}Not yet{{else}}{{when .Status.Checked}}{{if .Status.Error}}: <span class="error">it didn't work</span>{{end}}{{end}}</dd>
     <dt>List of services</dt>
     <dd>{{if .Status.Serial}}From {{when .Status.Date}}{{if .Stale}} <span class="dot dot-warn" aria-hidden="true"></span>out of date{{end}},
-      {{.Status.Packages}} services{{with .Status.Commit}} · registry commit {{if $.Registry.CommitURL}}<a href="{{$.Registry.CommitURL}}"><code>{{slice . 0 12}}</code></a>{{else}}<code>{{slice . 0 12}}</code>{{end}}{{end}}
+      {{.Status.Packages}} services{{with .Status.Commit}} · registry commit {{if $.Registry.CommitURL}}<a href="{{$.Registry.CommitURL}}"><code>{{shortCommit .}}</code></a>{{else}}<code>{{shortCommit .}}</code>{{end}}{{end}}
       {{- else}}None yet{{end}}</dd>
     <dt>From</dt>
     <dd><code>{{.URL}}</code><br><small class="hint">Files are kept in <code>{{.Dir}}</code>; <code>registry.url</code> in

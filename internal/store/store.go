@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite" // pure Go driver, keeps the binary static
@@ -229,6 +230,10 @@ var migrations = []string{
 	// pages, OriginSetup for the setup pages on the home network. Each
 	// works only where it was made.
 	`ALTER TABLE sessions ADD COLUMN origin TEXT NOT NULL DEFAULT '';`,
+	// The services each main backup has (comma-separated; NULL: from
+	// before they were kept), so a service installed since its server's
+	// last backup isn't shown as in it.
+	`ALTER TABLE backup_runs ADD COLUMN services TEXT;`,
 }
 
 // OriginSetup marks sessions signed in on the setup pages on the home
@@ -936,14 +941,22 @@ type BackupRun struct {
 	Destination string
 	// Stored is the space the repository took after it (0 if unknown).
 	Stored uint64
+	// Services are the services it backed up, for a main backup (nil:
+	// unknown, from before they were kept).
+	Services []string
 }
 
 // RecordBackup stores the result of a backup.
 func (s *Store) RecordBackup(ctx context.Context, r BackupRun) error {
+	var services *string
+	if r.Services != nil {
+		joined := strings.Join(r.Services, ",")
+		services = &joined
+	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO backup_runs (started_at, finished_at, ok, snapshot_id, files_new, data_added, error, destination, stored)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		r.Started.Unix(), r.Finished.Unix(), r.OK, r.SnapshotID, r.FilesNew, r.DataAdded, r.Error, r.Destination, r.Stored)
+		`INSERT INTO backup_runs (started_at, finished_at, ok, snapshot_id, files_new, data_added, error, destination, stored, services)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.Started.Unix(), r.Finished.Unix(), r.OK, r.SnapshotID, r.FilesNew, r.DataAdded, r.Error, r.Destination, r.Stored, services)
 	return err
 }
 
@@ -964,12 +977,13 @@ func (s *Store) LastBackupTo(ctx context.Context, destination string) (last, las
 	return last, lastOK, err
 }
 
-const backupQuery = `SELECT started_at, finished_at, ok, snapshot_id, files_new, data_added, error, destination, stored FROM backup_runs`
+const backupQuery = `SELECT started_at, finished_at, ok, snapshot_id, files_new, data_added, error, destination, stored, services FROM backup_runs`
 
 func (s *Store) scanBackup(row *sql.Row) (*BackupRun, error) {
 	var r BackupRun
 	var started, finished int64
-	err := row.Scan(&started, &finished, &r.OK, &r.SnapshotID, &r.FilesNew, &r.DataAdded, &r.Error, &r.Destination, &r.Stored)
+	var services sql.NullString
+	err := row.Scan(&started, &finished, &r.OK, &r.SnapshotID, &r.FilesNew, &r.DataAdded, &r.Error, &r.Destination, &r.Stored, &services)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -977,6 +991,12 @@ func (s *Store) scanBackup(row *sql.Row) (*BackupRun, error) {
 		return nil, err
 	}
 	r.Started, r.Finished = time.Unix(started, 0), time.Unix(finished, 0)
+	if services.Valid {
+		r.Services = []string{}
+		if services.String != "" {
+			r.Services = strings.Split(services.String, ",")
+		}
+	}
 	return &r, nil
 }
 

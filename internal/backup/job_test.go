@@ -140,6 +140,9 @@ func TestServiceSnapshots(t *testing.T) {
 	if err != nil || len(server) != 1 || server[0].ID != sum.SnapshotID {
 		t.Fatalf("the server's snapshot: %v %v", server, err)
 	}
+	if !slices.Equal(sum.Services, []string{"photos"}) {
+		t.Errorf("the run's services: %q", sum.Services)
+	}
 	snap, err := repo.ServiceSnapshot(ctx, "photos", "")
 	if err != nil {
 		t.Fatal(err)

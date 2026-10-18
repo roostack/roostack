@@ -155,3 +155,50 @@ func TestProblemRecipients(t *testing.T) {
 		t.Errorf("recipients: %v %v, want %v", got, err, want)
 	}
 }
+
+// TestCloudRecipients: Settings → Email and Settings → Roostack Cloud say
+// how each address getting the lab's problems stands with Roostack Cloud
+// (waiting to confirm, confirmed), once the lab is linked and reports.
+func TestCloudRecipients(t *testing.T) {
+	h, _, _ := notifyHarness(t, auth.RoleOwner)
+	if _, body := h.get("/settings/email"); strings.Contains(body, "Roostack Cloud") {
+		t.Error("Roostack Cloud named before the lab is linked")
+	}
+	link, f := newCloudWith(t)
+	h.server.Cloud = link
+	ctx := context.Background()
+	if _, err := link.Start(ctx, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	f.Confirm(link.Status().Waiting.Code)
+	for i := 0; i < 200 && !link.Status().Linked; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if _, body := h.get("/settings/email"); !strings.Contains(body, "Roostack Cloud hears of them at the lab's next daily check-in") {
+		t.Error("not told before the first report")
+	}
+	link.Report = func(ctx context.Context) (cloudapi.LabReport, error) {
+		emails, err := h.server.ProblemRecipients(ctx)
+		return cloudapi.LabReport{Emails: emails}, err
+	}
+	f.AskedAt = time.Now()
+	if err := link.Check(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, body := h.get("/settings/email"); !strings.Contains(body, "Hasn't confirmed Roostack Cloud's emails about the lab yet: Cloud emailed a link") {
+		t.Errorf("waiting:\n%s", body[strings.Index(body, `id="who"`):])
+	}
+	f.Confirmed = map[string]string{"sam@example.com": cloudapi.RecipientConfirmed}
+	if err := link.Check(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, body := h.get("/settings/email"); !strings.Contains(body, "Gets Roostack Cloud's emails about the lab") {
+		t.Error("confirmed: not shown on Settings → Email")
+	}
+	_, body := h.get("/settings/cloud")
+	for _, want := range []string{"<dt>Emails to</dt>", "<li>sam@example.com<br>", "Gets Roostack Cloud's emails about the lab"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the Cloud page: no %q", want)
+		}
+	}
+}

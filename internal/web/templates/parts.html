@@ -707,6 +707,9 @@
     {{- with .AddressError}}<br><small class="error">{{.}}</small>{{end}}</dd>
   <dt>Last contact</dt><dd>{{when .LastContact}}
     {{- with .LastError}}<br><small class="hint">Couldn't reach Roostack Cloud {{when $.LastTry}} ({{.}}); Roostack tries again every hour.</small>{{end}}</dd>
+  {{with .Recipients}}<dt>Emails to</dt><dd>The account's Owner, and the people here who get the lab's problems
+    (<a href="/settings/email#who">Settings → Email</a>), once each confirms:
+    <ul class="plain">{{range .}}<li>{{.Email}}<br><small class="hint">{{template "cloud-recipient" .}}</small></li>{{end}}</ul></dd>{{end}}
 </dl>
 <details class="technical" id="cloud-details">
   <summary>Details</summary>
@@ -755,6 +758,16 @@
 {{- else}}<span class="dot dot-warn" aria-hidden="true"></span><code>{{.Host}}</code> is waiting for Roostack Cloud's approval
   {{- if not .Since.IsZero}}, since {{when .Since}}{{end}}. It looks like a bank's, a government service's or a well-known brand's name,
   so a person checks it first. Until then it isn't published or relayed; Cloud decides within 7 days, and emails the account's Owner.
+{{- end}}{{end}}
+
+{{/* cloud-recipient: how one of the addresses the lab reports stands with
+     Roostack Cloud (a cloudapi.RecipientStatus; SPEC.md §6.6): Cloud's
+     emails about the lab go to it once it has confirmed. */}}
+{{define "cloud-recipient"}}{{if eq .State "confirmed"}}<span class="dot dot-ok" aria-hidden="true"></span>Gets Roostack Cloud's emails about the lab
+{{- else if eq .State "declined"}}<span class="dot dot-none" aria-hidden="true"></span>Turned down Roostack Cloud's emails about the lab
+{{- else if eq .State "not_kept"}}<span class="dot dot-none" aria-hidden="true"></span>Not sent Roostack Cloud's emails: it takes the first 10 addresses of a lab
+{{- else}}<span class="dot dot-warn" aria-hidden="true"></span>Hasn't confirmed Roostack Cloud's emails about the lab yet
+  {{- if .Asked.IsZero}}: Cloud will email a link to confirm{{else}}: Cloud emailed a link {{when .Asked}}{{end}}
 {{- end}}{{end}}
 
 {{/* cloud-requests: the lab's recent requests to Roostack Cloud. */}}

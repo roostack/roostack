@@ -449,7 +449,7 @@ func upload(ctx context.Context, d JobDeps, repo *Repo, to string, snaps []snaps
 	if err := checkFence(ctx, repo, d.Generation); err != nil {
 		return nil, err
 	}
-	total := &Summary{}
+	total := &Summary{Services: []string{}}
 	for i, snap := range snaps {
 		what := cmp.Or(snap.title, "Roostack's own settings")
 		if to == "" {
@@ -483,6 +483,9 @@ func upload(ctx context.Context, d JobDeps, repo *Repo, to string, snaps []snaps
 		total.FilesNew += sum.FilesNew
 		total.DataAdded += sum.DataAdded
 		total.Duration += sum.Duration
+		if snap.title != "" {
+			total.Services = append(total.Services, snap.title)
+		}
 	}
 	d.Log.Step("Backed up: %d new files, %s added", total.FilesNew, Bytes(total.DataAdded))
 	// The space it all takes there, for the plan (SPEC.md §6.9).

@@ -52,6 +52,40 @@ func TestReport(t *testing.T) {
 	}
 }
 
+// TestRecipients: how each reported address stands comes with the
+// check-in, and at once after a report that changed the addresses.
+func TestRecipients(t *testing.T) {
+	f, s, _ := fakeCloud(t)
+	link(t, f, s, "")
+	ctx := context.Background()
+	emails := []string{"owner@example.com", "ann@example.com"}
+	s.Report = func(context.Context) (cloudapi.LabReport, error) { return cloudapi.LabReport{Emails: emails}, nil }
+	f.Confirmed = map[string]string{"owner@example.com": cloudapi.RecipientConfirmed}
+	if err := s.Check(ctx); err != nil {
+		t.Fatal(err)
+	}
+	got := s.Status().Recipients
+	if len(got) != 2 || got[0].State != cloudapi.RecipientConfirmed || got[1].Email != "ann@example.com" || got[1].State != cloudapi.RecipientWaiting {
+		t.Errorf("after the first report: %+v", got)
+	}
+	// Ann declines; the next check-in says so.
+	f.Confirmed["ann@example.com"] = cloudapi.RecipientDeclined
+	if err := s.Check(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Status().Recipients; len(got) != 2 || got[1].State != cloudapi.RecipientDeclined {
+		t.Errorf("after Ann declined: %+v", got)
+	}
+	// Removed from the report: gone at once.
+	emails = emails[:1]
+	if err := s.Check(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Status().Recipients; len(got) != 1 {
+		t.Errorf("after removing Ann: %+v", got)
+	}
+}
+
 // TestStanding: what Cloud says of the lab when it checks in (an account
 // or a name suspended, a name waiting or refused) is kept and shown, and
 // the lab checks in hourly while something's on hold; a claimed name

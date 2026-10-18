@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // A lab's servers (SPEC.md §10): this one, the controller, which keeps
@@ -517,8 +518,9 @@ type ServiceInfo struct {
 	node.ServiceDetail
 	// Server names the server it runs on; ServerID is its ID.
 	Server, ServerID string
-	// LastBackup is when its server last finished a backup (zero: never,
-	// or backups aren't set up there).
+	// LastBackup is when its server last finished a backup with it in
+	// (zero: never, it was installed since, or backups aren't set up
+	// there).
 	LastBackup time.Time
 }
 
@@ -527,7 +529,7 @@ func (m *Manager) ServiceInfos(ctx context.Context) map[string]ServiceInfo {
 	nodes := m.allNodes()
 	type result struct {
 		details map[string]node.ServiceDetail
-		backup  time.Time
+		backup  *store.BackupRun
 	}
 	results := make([]result, len(nodes))
 	var wg sync.WaitGroup
@@ -539,8 +541,8 @@ func (m *Manager) ServiceInfos(ctx context.Context) map[string]ServiceInfo {
 			}
 			results[i].details = d
 			if b := n.Backups(); b != nil {
-				if st, err := b.Status(ctx); err == nil && st.LastOK != nil {
-					results[i].backup = st.LastOK.Finished
+				if st, err := b.Status(ctx); err == nil {
+					results[i].backup = st.LastOK
 				}
 			}
 		})
@@ -549,8 +551,12 @@ func (m *Manager) ServiceInfos(ctx context.Context) map[string]ServiceInfo {
 	out := map[string]ServiceInfo{}
 	for i, n := range nodes {
 		for name, d := range results[i].details {
-			out[name] = ServiceInfo{ServiceDetail: d, Server: n.Identity().Name, ServerID: n.Identity().ID,
-				LastBackup: results[i].backup}
+			info := ServiceInfo{ServiceDetail: d, Server: n.Identity().Name, ServerID: n.Identity().ID}
+			// A backup from before runs listed their services counts.
+			if b := results[i].backup; b != nil && (b.Services == nil || slices.Contains(b.Services, name)) {
+				info.LastBackup = b.Finished
+			}
+			out[name] = info
 		}
 	}
 	return out

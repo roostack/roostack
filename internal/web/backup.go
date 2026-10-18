@@ -43,6 +43,14 @@ var templateFuncs = template.FuncMap{
 	// image is a container image without its digest (shown in full on
 	// hover): docker.io/vaultwarden/server:1.34.3.
 	"image": func(ref string) string { name, _, _ := strings.Cut(ref, "@"); return name },
+	// shortCommit is a git commit's first 12 characters, or all of it
+	// if it's shorter (an index can say anything there).
+	"shortCommit": func(c string) string {
+		if r := []rune(c); len(r) > 12 {
+			return string(r[:12])
+		}
+		return c
+	},
 	"percent": func(p int) string {
 		if p < 0 {
 			return ""

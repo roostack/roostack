@@ -266,3 +266,45 @@ func (m *Manager) mustPackage(t *testing.T, name string) *pkgspec.Package {
 	}
 	return p
 }
+
+// TestInstallOverLeftData: over a service's data from before, its
+// first-time settings may be left empty: it installs without them and its
+// install hooks don't run (the app keeps its accounts); filled in, they
+// run as on a fresh install. Without that data, they're asked for.
+func TestInstallOverLeftData(t *testing.T) {
+	m, _, kv, ex := newHookManager(t)
+	ctx := context.Background()
+	var fe *FormError
+	if err := m.Install(ctx, "forgejo", InstallRequest{}); !errors.As(err, &fe) {
+		t.Fatalf("no data from before, setup left empty: %v", err)
+	}
+	data := filepath.Join(m.Lab.Paths.ServicesDir, "forgejo")
+	os.MkdirAll(filepath.Join(data, "data"), 0o755)
+	if sum, err := m.InstallSummary("forgejo", InstallRequest{}); err != nil || !slices.Equal(sum.LeftData, []string{data}) {
+		t.Fatalf("the summary's data from before: %v %v", sum, err)
+	}
+	if err := m.Install(ctx, "forgejo", InstallRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	local(m).WaitHooks()
+	if len(ex.calls) != 0 || kv.m["hooks.forgejo.install"] != "" {
+		t.Errorf("setup ran over the data from before: %d calls, %q", len(ex.calls), kv.m["hooks.forgejo.install"])
+	}
+	_, in, err := m.installedService("forgejo")
+	if err != nil || in.Settings["admin_username"] != nil {
+		t.Errorf("installed with %v, %v", in, err)
+	}
+
+	// Filled in: setup runs again (e.g. another administrator).
+	m.Remove(ctx, "forgejo")
+	m.Wait()
+	if err := m.Install(ctx, "forgejo", forgejoRequest()); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	local(m).WaitHooks()
+	if len(ex.calls) != 1 || ex.calls[0]["ADMIN_USERNAME"] != "mum" {
+		t.Errorf("setup with the settings filled in: %v", ex.calls)
+	}
+}

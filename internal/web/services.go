@@ -28,6 +28,9 @@ type formField struct {
 	Checked     bool
 	Required    bool
 	MinLength   int
+	// KeepsFirst: the first of a package's install-only settings, over
+	// its data from before (left empty, the app keeps what it has).
+	KeepsFirst bool
 }
 
 // inputFields builds the form fields for an action's inputs.
@@ -383,6 +386,20 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 			form.Set(f.Key, f.Value)
 		}
 	}
+	summary := s.installSummary(p, s.installRequest(r, form, p))
+	// Over its data from before, the first-time settings may be left
+	// empty: the app keeps what it has (SPEC.md §8.1, "hooks"). Only when the
+	// server says the data is there: one that can't say asks as before.
+	if summary.InstallSummary != nil && len(summary.LeftData) > 0 {
+		first := true
+		for i, st := range p.Settings {
+			if !st.InstallOnly || st.Generate {
+				continue
+			}
+			j := slices.IndexFunc(fields, func(f formField) bool { return f.Key == "setting."+p.Settings[i].Key })
+			fields[j].Required, fields[j].KeepsFirst, first = false, first, false
+		}
+	}
 	// The package policy (SPEC.md §8.3.4): a registry package that breaks
 	// it can't be installed; one of the Owner's own can, once the Owner
 	// has read what it asks for.
@@ -393,7 +410,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		"Policy":        policy,
 		"IsOwner":       owner,
 		"CanInstall":    len(policy.Problems) == 0 || (policy.Local && owner),
-		"Summary":       s.installSummary(p, s.installRequest(r, form, p)),
+		"Summary":       summary,
 		"Credit":        newProjectCredit(p),
 		"Internet":      s.onInternet(),
 		"Public":        owner && (submitted == nil || public),

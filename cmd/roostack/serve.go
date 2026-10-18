@@ -730,23 +730,25 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 	}()
 	// Failed backups are tried again (backup/retry.go).
 	go svc.WatchRetries(ctx)
-	// A night the server was off is caught up: a while after starting
-	// (once the services have), then hourly (SPEC.md §6.9).
+	// A night the server was off is caught up, and a new lab's first
+	// backup made: a while after starting (once the services have), then
+	// hourly (SPEC.md §6.9).
 	go func() {
 		wait := catchUpDelay
 		for {
+			svc.CatchUpAt(time.Now().Add(wait))
 			select {
 			case <-ctx.Done():
 				return
 			case <-time.After(wait):
 			}
 			wait = time.Hour
-			queued, err := svc.CatchUp(ctx)
+			why, err := svc.CatchUp(ctx)
 			switch {
 			case err != nil:
 				log.Warn("catching up a missed backup", "err", err)
-			case queued:
-				log.Info("catching up a missed backup: none for over a day")
+			case why != "":
+				log.Info("catching up a missed backup: " + why)
 			}
 		}
 	}()

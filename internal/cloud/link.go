@@ -628,8 +628,16 @@ func (s *Service) Check(ctx context.Context) error {
 			// Not the check's failure: it's tried again at the next one.
 			s.log.Warn("Roostack Cloud: registering the recovery identity", "err", rerr)
 		}
-		if rerr := s.report(ctx); rerr != nil {
+		reported, rerr := s.report(ctx)
+		if rerr != nil {
 			s.log.Warn("Roostack Cloud: telling Cloud the lab's report (tried again at the next check)", "err", rerr)
+		}
+		// New or removed addresses: how they stand now, for the pages.
+		if reported != nil && !sameRecipients(info.Recipients, reported) {
+			var fresh cloudapi.LabInfo
+			if gerr := s.client.do(ctx, true, http.MethodGet, cloudapi.PathLab, nil, &fresh); gerr == nil {
+				info = fresh
+			}
 		}
 	}
 	s.mu.Lock()

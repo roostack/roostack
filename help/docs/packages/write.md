@@ -186,7 +186,9 @@ run (the first administrator's password, say).
 `hooks` run commands inside a container: `on: install` once after the
 first start, and `on: action` as a button on the service's page. Whatever
 people type reaches the command only as an environment variable, and an
-install hook must be safe to run twice. `links` point to the app's own
+install hook must be safe to run twice. Installed again over its data from
+before, a service may be installed with its `install_only` settings left
+empty, and its install hooks don't run then. `links` point to the app's own
 settings pages.
 
 ## Check it
