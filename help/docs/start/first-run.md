@@ -48,7 +48,9 @@ Enter the setup code and choose **Continue**. Roostack then asks
 **What's this server for?**:
 
 A new lab
-:   Choose a username and a password of at least 12 characters. You can
+:   Choose a username, your email address and a password of at least 12
+    characters. Roostack emails you there when the lab needs you, once
+    email is set up (see [Email](../settings/email.md)). You can
     also give your lab a name, like "The Smiths' lab". This account is the
     **Owner**: the one person who can change everything. Carry on below.
 

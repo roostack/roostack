@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -95,5 +96,54 @@ func TestEmailSettings(t *testing.T) {
 	ha.server.Mail = fm
 	if code, _ := ha.get("/settings/email"); code != http.StatusForbidden {
 		t.Errorf("admins can't change the mail server: %d", code)
+	}
+}
+
+// Every Owner has an email address (SPEC.md §6.13): one without (made on
+// the People page or the command line, or given the role later) is asked
+// for it before anything else, and an Owner can't clear theirs. Others
+// can have none.
+func TestOwnerNeedsEmail(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	ctx := context.Background()
+	u, _ := h.store.UserByUsername(ctx, "u")
+	h.store.SetEmail(ctx, u.ID, "")
+	landsOn := func(h *harness, path string) (string, string) {
+		t.Helper()
+		resp, err := h.client.Get(h.srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		return resp.Request.URL.Path, string(body)
+	}
+	for _, path := range []string{"/", "/services", "/settings/people"} {
+		if at, body := landsOn(h, path); at != "/account/notifications" || !strings.Contains(body, "Add yours below to continue") {
+			t.Errorf("%s for an Owner without an address: ended at %s", path, at)
+		}
+	}
+	if code, body := h.post("/account/notifications", url.Values{"email": {""}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, "As the Owner, you need an email address") {
+		t.Errorf("an Owner giving none: %d", code)
+	}
+	if _, body := h.post("/account/notifications", url.Values{"email": {"u@example.com"}, "notify": {"problems"}}, h.srv.URL); !strings.Contains(body, "<title>Home · Roostack</title>") {
+		t.Error("with an address, the Owner carries on to Home")
+	}
+	// Clearing it later is refused too.
+	if code, _ := h.post("/account/notifications", url.Values{"email": {""}}, h.srv.URL); code != http.StatusBadRequest {
+		t.Errorf("an Owner clearing their address: %d, want 400", code)
+	}
+	if u, _ := h.store.UserByUsername(ctx, "u"); u.Email != "u@example.com" {
+		t.Errorf("the Owner's address is now %q", u.Email)
+	}
+
+	// An Admin may have none.
+	ha, _ := loggedIn(t, auth.RoleAdmin)
+	if at, _ := landsOn(ha, "/"); at != "/" {
+		t.Errorf("an Admin without an address: ended at %s", at)
+	}
+	if code, _ := ha.post("/account/notifications", url.Values{"email": {""}}, ha.srv.URL); code != http.StatusOK {
+		t.Errorf("an Admin with no address: %d", code)
 	}
 }

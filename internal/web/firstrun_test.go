@@ -108,7 +108,7 @@ func TestSetupListenerServesOnlySetup(t *testing.T) {
 
 	// The Owner, then the wizard's steps, still on the setup listener.
 	do(t, c, "POST", ts.URL, "/setup/code", "", origin, url.Values{"token": {"the-setup-code"}})
-	form := url.Values{"token": {"the-setup-code"}, "username": {"tyris"}, "password": {"a long password"},
+	form := url.Values{"token": {"the-setup-code"}, "username": {"tyris"}, "email": {"tyris@example.com"}, "password": {"a long password"},
 		"confirm": {"a long password"}}
 	_, body := do(t, c, "POST", ts.URL, "/setup", "", origin, form)
 	if !strings.Contains(body, `action="/setup/two-factor"`) || !strings.Contains(body, "Step 1 of 5") {
@@ -300,7 +300,7 @@ func TestSetupListenerOwnerOnly(t *testing.T) {
 	u, _ := url.Parse(ts.URL)
 	c := setupClient(t, "")
 	do(t, c, "POST", ts.URL, "/setup/code", "", ts.URL, url.Values{"token": {"the-setup-code"}})
-	do(t, c, "POST", ts.URL, "/setup", "", ts.URL, url.Values{"token": {"the-setup-code"}, "username": {"tyris"},
+	do(t, c, "POST", ts.URL, "/setup", "", ts.URL, url.Values{"token": {"the-setup-code"}, "username": {"tyris"}, "email": {"tyris@example.com"},
 		"password": {"a long password"}, "confirm": {"a long password"}})
 	var listenerSession string
 	for _, ck := range c.Jar.Cookies(u) {

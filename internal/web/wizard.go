@@ -65,6 +65,10 @@ func (s *Server) requireOwner(h http.HandlerFunc) http.Handler {
 			redirect(w, r, "/account")
 			return
 		}
+		if ownerNeedsEmail(u) {
+			redirect(w, r, "/account/notifications")
+			return
+		}
 		h(w, r)
 	})
 }

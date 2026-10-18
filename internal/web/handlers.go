@@ -34,11 +34,13 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	username := strings.TrimSpace(r.FormValue("username"))
+	email := strings.TrimSpace(r.FormValue("email"))
 	password := r.FormValue("password")
 	labName := strings.TrimSpace(r.FormValue("lab_name"))
 	fail := func(msg string) {
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "setup", s.setupData(map[string]any{"Choice": "new", "Error": msg, "Username": username, "LabName": labName}))
+		s.render(w, "setup", s.setupData(map[string]any{"Choice": "new", "Error": msg, "Username": username, "Email": email,
+			"LabName": labName}))
 	}
 	if s.LabRestore != nil && s.LabRestore.Running() {
 		fail("A lab is being restored onto this server.")
@@ -51,6 +53,10 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	case !auth.ValidUsername(username):
 		fail("Choose a username of letters and digits (dots, dashes and underscores are fine too), up to 32 characters.")
+		return
+	case emailProblem(email) != "":
+		// Every Owner has one (ownerNeedsEmail).
+		fail(emailProblem(email))
 		return
 	case password != r.FormValue("confirm"):
 		fail("The passwords don't match.")
@@ -79,7 +85,7 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		s.LabName = labName
 		s.mu.Unlock()
 	}
-	created, err := s.Store.CreateFirstUser(r.Context(), store.User{Username: username, PasswordHash: hash, Role: auth.RoleOwner})
+	created, err := s.Store.CreateFirstUser(r.Context(), store.User{Username: username, PasswordHash: hash, Role: auth.RoleOwner, Email: email})
 	if err != nil {
 		s.serverError(w, err)
 		return

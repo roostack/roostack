@@ -104,5 +104,9 @@ func TestKeepMeSignedIn(t *testing.T) {
 }
 
 func storeUser(name, hash, role string) store.User {
-	return store.User{Username: name, PasswordHash: hash, Role: role}
+	u := store.User{Username: name, PasswordHash: hash, Role: role}
+	if role == auth.RoleOwner {
+		u.Email = name + "@example.com" // every Owner has one (ownerNeedsEmail)
+	}
+	return u
 }

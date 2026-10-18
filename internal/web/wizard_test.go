@@ -508,7 +508,7 @@ func TestTwoFactorWizardStep(t *testing.T) {
 	h.setSetup(fs)
 	ctx := context.Background()
 	hash, _ := authkit.HashPassword("a long password")
-	id, _ := h.store.CreateUser(ctx, store.User{Username: "tyris", PasswordHash: hash, Role: auth.RoleOwner})
+	id, _ := h.store.CreateUser(ctx, store.User{Username: "tyris", PasswordHash: hash, Role: auth.RoleOwner, Email: "tyris@example.com"})
 	h.post("/login", url.Values{"username": {"tyris"}, "password": {"a long password"}}, h.srv.URL)
 	// landsOn gets path and says where it ended up.
 	landsOn := func(path string) (string, string) {
