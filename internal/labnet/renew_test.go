@@ -38,7 +38,7 @@ func TestCertRevocationAndRenewal(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	h := &Hub{StateDir: dir, LabName: "home", Self: nodeid.Identity{ID: "n-0000000001", Name: "nuc"}, Store: st, Agent: &fakeAgent{},
+	h := &Hub{StateDir: dir, LabName: func() string { return "home" }, Self: nodeid.Identity{ID: "n-0000000001", Name: "nuc"}, Store: st, Agent: &fakeAgent{},
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: time.Now, SwitchDelay: time.Millisecond}
 	ctx := context.Background()
 	code, err := h.NewJoinCode(ctx, "10.0.2.2:51820", "")

@@ -45,12 +45,14 @@ type WireGuardAgent interface {
 // dial it over WireGuard, and it lets them join.
 type Hub struct {
 	StateDir string
-	LabName  string
-	Self     nodeid.Identity
-	Store    HubStore
-	Agent    WireGuardAgent
-	Log      *slog.Logger
-	Now      func() time.Time
+	// LabName is the lab's name as it is now (the setup wizard names it
+	// without a restart), for the network's CA and join codes.
+	LabName func() string
+	Self    nodeid.Identity
+	Store   HubStore
+	Agent   WireGuardAgent
+	Log     *slog.Logger
+	Now     func() time.Time
 	// Started is called once the network is first set up (Roostack restarts
 	// to pick up its new role, e.g. for the firewall). Optional.
 	Started func()
@@ -113,7 +115,7 @@ func (h *Hub) init(ctx context.Context) error {
 	if h.Enabled() {
 		return nil
 	}
-	ca, err := LoadOrCreateCA(CADir(h.StateDir), h.LabName)
+	ca, err := LoadOrCreateCA(CADir(h.StateDir), h.LabName())
 	if err != nil {
 		return err
 	}
@@ -212,7 +214,7 @@ func (h *Hub) NewJoinCode(ctx context.Context, endpoint, dial string) (JoinCode,
 	if err := h.SyncPeers(ctx); err != nil {
 		return JoinCode{}, err
 	}
-	ca, err := LoadOrCreateCA(CADir(h.StateDir), h.LabName)
+	ca, err := LoadOrCreateCA(CADir(h.StateDir), h.LabName())
 	if err != nil {
 		return JoinCode{}, err
 	}
@@ -221,7 +223,7 @@ func (h *Hub) NewJoinCode(ctx context.Context, endpoint, dial string) (JoinCode,
 	h.mu.Unlock()
 	c := JoinCode{Endpoint: endpoint, Listen: dial != "", ControllerKey: ctrlKey, ControllerID: h.Self.ID, ControllerAddr: ControllerAddr,
 		Addr: addr, PrefixBits: DefaultPrefix.Bits(), JoinKey: key, CA: ca.Fingerprint(), Token: token,
-		LabName: h.LabName, UI: h.UI}
+		LabName: h.LabName(), UI: h.UI}
 	// Check it the way the new server will (e.g. the endpoint's format).
 	if _, err := ParseJoinCode(c.String()); err != nil {
 		return JoinCode{}, err
@@ -276,7 +278,7 @@ func (h *Hub) Join(ctx context.Context, req JoinRequest) (JoinResponse, error) {
 	if err != nil {
 		return JoinResponse{}, err
 	}
-	ca, err := LoadOrCreateCA(CADir(h.StateDir), h.LabName)
+	ca, err := LoadOrCreateCA(CADir(h.StateDir), h.LabName())
 	if err != nil {
 		return JoinResponse{}, err
 	}
