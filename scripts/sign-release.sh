@@ -18,6 +18,13 @@ PUBLIC=$REPO/packaging/keys/roostack-release.asc
 
 fail() { echo "sign-release.sh: $*" >&2; exit 1; }
 
+# On Debian 13, gpg can be there without gpgv (apt checks signatures
+# with sqv now, and gnupg without its recommended packages lacks it);
+# without gpgv the check below failed as if the key were wrong.
+for tool in gpg gpgv; do
+    command -v "$tool" >/dev/null || fail "$tool isn't installed (Debian: apt install gnupg gpgv)"
+done
+
 GNUPGHOME=$(mktemp -d)
 export GNUPGHOME
 trap 'rm -rf "$GNUPGHOME"' EXIT

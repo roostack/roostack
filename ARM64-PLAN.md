@@ -217,6 +217,19 @@ OS updates, back up and restore a service. Record the results.
   recovery key), Vaultwarden, Forgejo and Immich (with machine learning)
   installed and answering, a backup, a restore of Forgejo, OS updates
   (ASSUMPTIONS R1–R6), and the whole test suite (`dev-vm.sh test`).
+- *Done again as a user installs it (2026-10-18, ASSUMPTIONS R7):* a
+  release built by `scripts/build-release.sh` from a tag, with a
+  throwaway release key and registry root key, signed by
+  `sign-release.sh`, published with `build-apt-repo.sh` and served from
+  the Mac; a fresh VM installed it with `scripts/install.sh` in about 20
+  seconds; the wizard ran from the Mac over the setup pages (port 8443,
+  the certificate's fingerprint checked against the installer's); the
+  catalog came from a registry signed with the test keys; Forgejo
+  installed, was removed and installed again over its kept data; Immich
+  with machine learning found an uploaded photo by smart search; a
+  backup, then a restore of Forgejo undid what changed after it. Nothing
+  in the packages needed fixing. The rough edges found are in TASKS,
+  under "ARM64, then Raspberry Pi".
 - *Left:* a domain (Caddy running, certificates), making a service public
   with CrowdSec, and backups to B2. They need a real domain and a B2
   bucket; none of them depends on the processor beyond the images already

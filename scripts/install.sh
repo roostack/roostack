@@ -88,10 +88,14 @@ SOURCES
 
     # 4. Roostack, and what it needs from Debian (Podman, restic, WireGuard...).
     # Should the source differ from the package's (a test repository), the
-    # one written here is kept, without dpkg stopping to ask.
+    # one written here is kept, without dpkg stopping to ask. Nothing asks
+    # questions (debconf's noninteractive frontend): with its input closed,
+    # debconf otherwise tries three other frontends first and prints why
+    # each failed.
     echo "Installing Roostack"
     apt-get update
-    apt-get install -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold roostack </dev/null
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold roostack </dev/null
 }
 
 main
