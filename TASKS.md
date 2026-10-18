@@ -514,8 +514,8 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 ## To discuss with the user
 
 - [x] Licence: Apache-2.0, confirmed 2026-10-18 (SPEC §2.1); `LICENSE` and `NOTICE` added
+- [x] Repository: `github.com/roostack/roostack` (moved from Tyris/roostack by the Owner, 2026-10-18; Cloud's is `roostack/cloud`). The module path `roostack.cloud/roostack` is answered by a go-import page on the website, `roostack.cloud/roostack` (roostack-cloud `site/src/pages/roostack.astro`, and its Worker for each package's path)
 
 
 - K5: setup-code approach for first-run setup (add to SPEC?)
-- Repo location not decided yet (the module path is `roostack.cloud/roostack`: it needs a go-import page on roostack.cloud once the code is public)
 - roost.ac must go on the Public Suffix List before people get subdomains there (so browsers keep one lab's cookies away from another's); the request takes weeks, so file it early (SPEC §6.6)
