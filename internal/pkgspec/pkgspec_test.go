@@ -339,3 +339,16 @@ containers:
 		})
 	}
 }
+
+// Paths for Caddy's matchers are plain: no patterns, spaces or braces, but
+// colons are fine (Lychee's /api/v2/Auth::login).
+func TestValidPath(t *testing.T) {
+	for p, want := range map[string]bool{
+		"/admin": true, "/api/v2/Auth::login": true, "/user/sign_up": true, "/.well-known/x": true,
+		"admin": false, "/admin/": false, "/admin/*": false, "/a b": false, "/a{b}": false, "/": false, "/a?b=1": false,
+	} {
+		if got := ValidPath(p); got != want {
+			t.Errorf("ValidPath(%q) = %v, want %v", p, got, want)
+		}
+	}
+}

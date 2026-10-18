@@ -457,8 +457,8 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 Packages go to the registry (`roostack/services`), each checked with `roostack validate` and tried on a lab (install, a backup, a restore, removal) before it's committed.
 
-- [x] Done 2026-10-18, each tried on VM3: HedgeDoc, Wiki.js, Papra, Linkwarden, Paperless-ngx; Immich updated to 3.3.3, Vaultwarden to 1.37.4, Forgejo to 15.0.10; Mealie, Gitea, Miniflux
-- [ ] Fits today: Kan, Lychee, PhotoPrism, Actual Budget, ntfy, Uptime Kuma, Radicale, Stirling-PDF, Audiobookshelf
+- [x] Done 2026-10-18, each tried on VM3: HedgeDoc, Wiki.js, Papra, Linkwarden, Paperless-ngx; Immich updated to 3.3.3, Vaultwarden to 1.37.4, Forgejo to 15.0.10; Mealie, Gitea, Miniflux, Lychee
+- [ ] Fits today: PhotoPrism, Actual Budget, ntfy, Uptime Kuma, Radicale, Stirling-PDF, Audiobookshelf
 - [ ] Needs media folders (below): Jellyfin, Plex, Navidrome
 - [ ] Needs MySQL (below): Ghost
 - [ ] Needs Roostack support, a session each: Frigate (and Viseron), Pi-hole, Home Assistant
@@ -470,6 +470,9 @@ Packages go to the registry (`roostack/services`), each checked with `roostack v
 - [ ] **A setting's `warning:`** (SPEC §8.1 "Configuring a service"): in pkgspec and validate, shown beside the option at install and in the service's settings, in the warning colour; then move HedgeDoc's Libravatar warning from its description into it (a new package revision)
 - [x] **A setting with another value during install** (found writing Papra, 2026-10-18; the Owner agreed): `install_value:` on a setting, used until the install hooks succeed (SPEC §8.1); Papra's package defaults sign-ups off with it, tried on a VM
 - [x] **`databases.<name>.url`** as a secret Roostack makes (the whole URL, password included), for apps that take their database only as a URL (Linkwarden, Kan, Cal.diy: Prisma): the Owner agreed 2026-10-18; built (SPEC §8.1), tried with Linkwarden on a VM
+- [x] **Colons in a route's paths** (found writing Lychee, 2026-10-18: its login is `/api/v2/Auth::login`): allowed in `private_paths` and `login_paths`; Caddy's path matcher takes them as plain characters (checked on VM3: only that path matched)
+- [ ] **Kan** waits on upstream and Roostack: its web image has no version tags since 0.2.1 (only `latest`/`main`), and its migrations run in a separate one-shot container (`kan-migrate`), which packages can't declare. Revisit when Kan tags its images; a one-shot container type ("init" containers run before the service starts) would help other apps too
+- [ ] **Generated secrets in other formats**, if more Laravel apps come (Lychee's `APP_KEY` wants "base64:" and standard base64; its package converts Roostack's URL-safe value in a shell wrapper)
 - [x] **A setup still retrying when its service is removed or installed again** (found with Miniflux, 2026-10-18): it kept retrying the old commands for 10 minutes, delayed other setups, then marked the reinstall failed. Now it stops, unrecorded (SPEC §8.1 hooks); tested, and tried on VM3
 - [x] **`.Lab.TimeZone` in package templates** (found writing Paperless-ngx, 2026-10-18): the server's time zone, "UTC" when unknown, for apps with their own time-zone setting rather than the container's (`PAPERLESS_TIME_ZONE`); in the packages reference, tried on VM3
 - [ ] **Publishing the new packages:** Papra, Linkwarden, Paperless-ngx and Mealie use `install_value`, `databases.<name>.url` or `.Lab.TimeZone`, so they wait for a Roostack release with them (the registry's Publish workflow checks with a pinned release)

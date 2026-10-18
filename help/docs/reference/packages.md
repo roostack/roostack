@@ -193,7 +193,8 @@ routes:
     `login_paths` (where people sign in, which get a strict rate limit for
     outside visitors). The Owner can still open an unsafe address or path,
     after a warning that gives the package's reason. Paths are plain: they
-    start with `/`, with no `*` or trailing `/`.
+    start with `/` and have letters, digits and `- _ . :` between the
+    slashes, with no `*` or trailing `/`.
 
 `ports`
 :   [Extra connections](../services/settings.md#extra-connections) that

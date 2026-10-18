@@ -394,7 +394,7 @@ func (p *Package) validateRoute(v *validator, name string, r *Route) {
 	seen := map[string]bool{}
 	for i, pp := range r.Public.PrivatePaths {
 		if !ValidPath(pp.Path) {
-			v.addf("%s.public.private_paths[%d].path: %q must start with / and have only letters, digits and - _ . / (no * or trailing /)", at, i, pp.Path)
+			v.addf("%s.public.private_paths[%d].path: %q must start with / and have only letters, digits and - _ . : / (no * or trailing /)", at, i, pp.Path)
 		}
 		if strings.TrimSpace(pp.Reason) == "" {
 			v.addf("%s.public.private_paths[%d].reason: say why it shouldn't be public", at, i)
@@ -406,15 +406,17 @@ func (p *Package) validateRoute(v *validator, name string, r *Route) {
 	}
 	for i, lp := range r.Public.LoginPaths {
 		if !ValidPath(lp) {
-			v.addf("%s.public.login_paths[%d]: %q must start with / and have only letters, digits and - _ . / (no * or trailing /)", at, i, lp)
+			v.addf("%s.public.login_paths[%d]: %q must start with / and have only letters, digits and - _ . : / (no * or trailing /)", at, i, lp)
 		}
 	}
 }
 
-var pathRe = regexp.MustCompile(`^(/[A-Za-z0-9._-]+)+$`)
+var pathRe = regexp.MustCompile(`^(/[A-Za-z0-9._:-]+)+$`)
 
 // ValidPath says whether p is a plain URL path Roostack can put in a
-// Caddyfile matcher: it matches p and everything under it.
+// Caddyfile matcher: it matches p and everything under it. Colons are
+// allowed for routes like Lychee's /api/v2/Auth::login (a plain
+// character to Caddy's path matcher, checked on a VM 2026-10-18).
 func ValidPath(p string) bool { return pathRe.MatchString(p) }
 
 func (p *Package) validatePort(v *validator, name string, r *Port) {

@@ -495,6 +495,7 @@ Nothing is public unless the Owner makes it so (§1 principle 6). The Owner make
 - **Rate limits — Locked (2026-09-30):** every public address gets a generous limit per visitor address, and the login pages a package names get a strict one.
 - **As built (2026-09-30):**
   - Packages: `routes.<r>.public` with `unsafe` (a reason), `private_paths` (each with a reason) and `login_paths`; the Owner's opened paths are the instance's `public_paths`.
+  - Paths are plain, for Caddy's `path` matcher (the path and everything under it): letters, digits and `- _ . :` between slashes. *Colons allowed (2026-10-18)* for Lychee's `/api/v2/Auth::login`; Caddy treats them as plain characters (checked on VM3).
   - Caddy, for a public address, in one `route` block: private paths refused to outside visitors, CrowdSec's bouncer, 1000 requests per 10 s per visitor and 10 a minute on login paths, CrowdSec's AppSec for outside visitors (from 2026-10-19, §6.10 item 4), then the service. The only path that reaches Roostack is the check link (a 32-digit token).
   - While anything is public, the lab runs CrowdSec (pinned image) reading Caddy's JSON access log; the bouncer's key is a generated Podman secret. The sharing opt-out travels in the assignment.
   - The entry is `internal/public.Entry`; port forwarding finds the home's address over DNS. `dnsrecords` sets each public address's record once CrowdSec's health check answers, re-syncing every 5 minutes (30 s while waiting), and points it home again when the address goes private: the providers' record APIs can't delete yet.
