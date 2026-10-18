@@ -1,12 +1,15 @@
 {{define "title"}}Two-factor authentication{{end}}
 {{define "content"}}
+{{if .Wizard}}<div class="page-head"><div><h1>Turn on two-factor authentication</h1></div></div>{{end}}
 <section class="card narrow">
-  <div class="card-head"><h2>Two-factor authentication</h2></div>
+  {{if not .Wizard}}<div class="card-head"><h2>Two-factor authentication</h2></div>{{end}}
   {{if .Enabled}}
   <p>Two-factor authentication is <strong>on</strong> for your account.</p>
   <p><a href="/">Back to your services</a></p>
   {{else}}
-  {{if .Required}}<p>{{if .Owner}}As the Owner, you{{else}}Roostack's pages can be reached from the internet, so as an Admin you{{end}} need to turn on two-factor authentication before continuing. It protects the lab if your password is ever stolen.</p>{{end}}
+  {{if .Wizard}}<p>As the Owner, you can change everything in this lab, so each time you log in Roostack asks for a six-digit code
+    from your phone as well as your password. It protects the lab if your password is ever stolen.</p>
+  {{else if .Required}}<p>{{if .Owner}}As the Owner, you{{else}}Roostack's pages can be reached from the internet, so as an Admin you{{end}} need to turn on two-factor authentication before continuing. It protects the lab if your password is ever stolen.</p>{{end}}
   <ol class="steps">
     <li>Install an authenticator app on your phone, such as Aegis, 2FAS, Google Authenticator or your password manager.</li>
     <li>In the app, add an account and scan this code:
@@ -17,15 +20,15 @@
     <li>Enter the 6-digit code the app shows.</li>
   </ol>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  <form method="post" action="/account/2fa">
+  <form method="post" action="{{.Action}}">
     <input type="hidden" name="secret" value="{{.Secret}}">
     <label>Code
       <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required autofocus>
     </label>
-    <button type="submit">Turn on</button>
+    <button type="submit">{{if .Wizard}}Continue{{else}}Turn on{{end}}</button>
   </form>
   {{end}}
 </section>
 {{end}}
 
-{{define "page-help"}}{{help "settings/people#two-factor-authentication" "Two-factor authentication"}}{{end}}
+{{define "page-help"}}{{if .Wizard}}{{help "start/first-run#2-turn-on-two-factor-authentication" "Two-factor authentication"}}{{else}}{{help "settings/people#two-factor-authentication" "Two-factor authentication"}}{{end}}{{end}}

@@ -691,8 +691,8 @@ func (s *Store) FirstUserCreated(ctx context.Context) (at time.Time, ok bool, er
 // CreateUser adds an account and returns its ID.
 func (s *Store) CreateUser(ctx context.Context, u User) (int64, error) {
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO users (username, password_hash, role, must_change_password, created_at) VALUES (?, ?, ?, ?, ?)`,
-		u.Username, u.PasswordHash, u.Role, u.MustChangePassword, time.Now().Unix())
+		`INSERT INTO users (username, password_hash, role, must_change_password, email, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		u.Username, u.PasswordHash, u.Role, u.MustChangePassword, u.Email, time.Now().Unix())
 	if err != nil {
 		return 0, err
 	}
@@ -704,9 +704,9 @@ func (s *Store) CreateUser(ctx context.Context, u User) (int64, error) {
 // user already exists.
 func (s *Store) CreateFirstUser(ctx context.Context, u User) (bool, error) {
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO users (username, password_hash, role, created_at)
-		 SELECT ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM users)`,
-		u.Username, u.PasswordHash, u.Role, time.Now().Unix())
+		`INSERT INTO users (username, password_hash, role, email, created_at)
+		 SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM users)`,
+		u.Username, u.PasswordHash, u.Role, u.Email, time.Now().Unix())
 	if err != nil {
 		return false, err
 	}

@@ -122,7 +122,7 @@ func (s *Server) cloudLive(w http.ResponseWriter, r *http.Request) {
 func (s *Server) cloudLinkSubmit(w http.ResponseWriter, r *http.Request) {
 	name := strings.ToLower(strings.TrimSpace(r.FormValue("name")))
 	setup := r.FormValue("in") == "setup"
-	data := map[string]any{"User": currentUser(r), "Setup": setup, "CloudName": name}
+	data := map[string]any{"User": currentUser(r), "Setup": setup, "Wizard": setup && s.wizardOpen(r), "CloudName": name}
 	fail := func(msg string) {
 		data["Error"] = msg
 		w.WriteHeader(http.StatusBadRequest)
@@ -375,10 +375,7 @@ func (s *Server) cloudNext(r *http.Request, setup bool, st cloudStage) string {
 	if st.Failed {
 		return "/setup/domain"
 	}
-	next := "/"
-	if p, err := s.Setup.Progress(r.Context()); err == nil && p.Next() != "" {
-		next = p.Next()
-	}
+	next := s.wizardNext(r)
 	if st.Address != "" {
 		next += "?address=1"
 	}
@@ -401,7 +398,7 @@ func (s *Server) cloudLinkedPage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	data["Stage"], data["Setup"], data["Suffix"] = st, setup, s.cloudSuffix(r.Context())
+	data["Stage"], data["Setup"], data["Wizard"], data["Suffix"] = st, setup, setup && s.wizardOpen(r), s.cloudSuffix(r.Context())
 	s.render(w, "cloud-linked", data)
 }
 

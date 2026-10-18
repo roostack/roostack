@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/auth"
@@ -22,6 +23,7 @@ import (
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/osupdate"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
 )
 
@@ -183,7 +185,7 @@ func TestWizardFlow(t *testing.T) {
 	h.setSetup(fs)
 
 	_, body := h.get("/")
-	if !strings.Contains(body, `<span>Setup</span><strong aria-current="page">Step 1 of 4</strong>`) || !strings.Contains(body, `data-zone="Etc/UTC"`) ||
+	if !strings.Contains(body, `<span>Setup</span><strong aria-current="page">Step 2 of 5</strong>`) || !strings.Contains(body, `data-zone="Etc/UTC"`) ||
 		!strings.Contains(body, `<option value="Australia/Melbourne">`) {
 		t.Fatalf("an Owner with setup unfinished should land on the time zone step:\n%.3000s", body)
 	}
@@ -295,7 +297,7 @@ func TestWizardFlow(t *testing.T) {
 		t.Errorf("recovery key page: %s, cache %q", resp.Request.URL.Path, resp.Header.Get("Cache-Control"))
 	}
 	if code, body := h.post("/setup/recovery-key", nil, h.srv.URL); code != http.StatusBadRequest ||
-		!strings.Contains(body, `<span>Setup</span><strong aria-current="page">Step 4 of 4</strong>`) {
+		!strings.Contains(body, `<span>Setup</span><strong aria-current="page">Step 5 of 5</strong>`) {
 		t.Errorf("continuing without ticking the box: %d (the backup step's breadcrumbs)", code)
 	}
 	h.post("/setup/recovery-key", url.Values{"saved": {"on"}}, h.srv.URL)
@@ -481,14 +483,85 @@ func TestSetupFormsAsSettingsPages(t *testing.T) {
 	}
 	var body string
 	_, body = h.get("/setup/domain")
-	if strings.Contains(body, "Step 3 of 4") || !strings.Contains(body, "Change your lab's address") || strings.Contains(body, "/setup/domain/later") {
+	if strings.Contains(body, "Step 4 of 5") || !strings.Contains(body, "Change your lab's address") || strings.Contains(body, "/setup/domain/later") ||
+		!strings.Contains(body, `class="sidebar"`) {
 		t.Error("changing the domain later must not look like the wizard")
 	}
 
 	// During first-run setup the wizard framing stays.
 	fs.p = setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true}
-	if _, body := h.get("/setup/backup"); !strings.Contains(body, `<span>Setup</span><strong aria-current="page">Step 4 of 4</strong>`) || !strings.Contains(body, "Set up backups later") {
+	if _, body := h.get("/setup/backup"); !strings.Contains(body, `<span>Setup</span><strong aria-current="page">Step 5 of 5</strong>`) || !strings.Contains(body, "Set up backups later") {
 		t.Error("first-run setup keeps its steps")
+	}
+}
+
+// TestTwoFactorWizardStep: while the wizard lasts, the Owner turns on
+// two-factor as its first step, shown like its others (no sidebar, its
+// step, Log out), and the code goes on to the next step; the account's
+// page sends them there meanwhile. After the wizard, two-factor is the
+// account's page again (SPEC.md §6.3).
+func TestTwoFactorWizardStep(t *testing.T) {
+	h := newHarness(t, "")
+	fm := &fakeManager{}
+	h.server.Manager, h.server.Node = fm, fm
+	fs := &fakeSetup{zone: "Etc/UTC"}
+	h.setSetup(fs)
+	ctx := context.Background()
+	hash, _ := authkit.HashPassword("a long password")
+	id, _ := h.store.CreateUser(ctx, store.User{Username: "tyris", PasswordHash: hash, Role: auth.RoleOwner, Email: "tyris@example.com"})
+	h.post("/login", url.Values{"username": {"tyris"}, "password": {"a long password"}}, h.srv.URL)
+	// landsOn gets path and says where it ended up.
+	landsOn := func(path string) (string, string) {
+		t.Helper()
+		resp, err := h.client.Get(h.srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		return resp.Request.URL.Path, string(body)
+	}
+
+	for _, path := range []string{"/", "/setup/timezone", "/account/2fa", "/settings/people"} {
+		if at, _ := landsOn(path); at != "/setup/two-factor" {
+			t.Errorf("%s without two-factor, in the wizard: ended at %s", path, at)
+		}
+	}
+	_, body := landsOn("/setup/two-factor")
+	if !strings.Contains(body, `<span>Setup</span><strong aria-current="page">Step 1 of 5</strong>`) ||
+		!strings.Contains(body, `action="/setup/two-factor"`) || !strings.Contains(body, `action="/logout"`) ||
+		strings.Contains(body, `class="sidebar"`) || strings.Contains(body, "Your account") || strings.Contains(body, "tz-banner") {
+		t.Fatalf("the wizard's two-factor step:\n%.4000s", body)
+	}
+	secret := totpSecretOf(t, body)
+	code, body := h.post("/setup/two-factor", url.Values{"secret": {secret}, "code": {wrongCode(secret)}}, h.srv.URL)
+	if code != http.StatusBadRequest || !strings.Contains(body, "That code didn") || !strings.Contains(body, "Step 1 of 5") {
+		t.Errorf("a wrong code: %d, want the wizard's step again:\n%.4000s", code, body)
+	}
+	totp, _ := authkit.TOTPCode(secret, time.Now())
+	h.post("/setup/two-factor", url.Values{"secret": {secret}, "code": {totp}}, h.srv.URL)
+	if u, _ := h.store.UserByUsername(ctx, "tyris"); u.TOTPSecret != secret {
+		t.Fatal("two-factor isn't on")
+	}
+	at, body := landsOn("/setup/two-factor")
+	if at != "/setup/timezone" || !strings.Contains(body, "Step 2 of 5") || strings.Contains(body, `class="sidebar"`) {
+		t.Errorf("with two-factor on, the wizard goes on to the time zone; ended at %s", at)
+	}
+
+	// After the wizard, an Owner whose two-factor was reset turns it on
+	// again on the account's page.
+	fs.p = setup.Progress{TimezoneDone: true, SSHDone: true, DomainLater: true, BackupLater: true}
+	h.store.ResetTOTP(ctx, id)
+	h.post("/logout", nil, h.srv.URL)
+	h.post("/login", url.Values{"username": {"tyris"}, "password": {"a long password"}}, h.srv.URL)
+	for _, path := range []string{"/", "/setup/two-factor"} {
+		if at, _ := landsOn(path); at != "/account/2fa" {
+			t.Errorf("%s after the wizard: ended at %s, want the account's page", path, at)
+		}
+	}
+	if _, body := landsOn("/account/2fa"); !strings.Contains(body, `action="/account/2fa"`) || !strings.Contains(body, `class="sidebar"`) ||
+		strings.Contains(body, "Step 1 of 5") {
+		t.Errorf("two-factor after the wizard isn't the account's page:\n%.4000s", body)
 	}
 }
 

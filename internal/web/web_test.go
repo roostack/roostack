@@ -109,7 +109,7 @@ func TestFirstRunNamesTheLab(t *testing.T) {
 	h := newHarness(t, "the-setup-code")
 	fs := &fakeSetup{}
 	h.server.Setup = fs
-	form := url.Values{"token": {"the-setup-code"}, "lab_name": {"The Smiths' lab"}, "username": {"tyris"},
+	form := url.Values{"token": {"the-setup-code"}, "lab_name": {"The Smiths' lab"}, "username": {"tyris"}, "email": {"tyris@example.com"},
 		"password": {"a long password"}, "confirm": {"a long password"}}
 	h.post("/setup", form, h.srv.URL)
 	if fs.labName != "The Smiths' lab" || fs.restarted || h.server.LabName != "The Smiths' lab" {
@@ -144,6 +144,14 @@ func TestFirstRunSetup(t *testing.T) {
 	}
 
 	form.Set("token", "the-setup-code")
+	// The Owner gives an email address (ownerNeedsEmail).
+	for _, bad := range []string{"", "not an address", "Tyris <tyris@example.com>"} {
+		form.Set("email", bad)
+		if code, body := h.post("/setup", form, h.srv.URL); code != http.StatusBadRequest || !strings.Contains(body, "Enter an email address") {
+			t.Errorf("email %q: %d, want it refused", bad, code)
+		}
+	}
+	form.Set("email", "tyris@example.com")
 	form.Set("confirm", "different password")
 	if _, body := h.post("/setup", form, h.srv.URL); !strings.Contains(body, "don&#39;t match") {
 		t.Error("mismatched passwords should be rejected")
@@ -162,7 +170,7 @@ func TestFirstRunSetup(t *testing.T) {
 		t.Error("OnSetupComplete not called")
 	}
 	u, err := h.store.UserByUsername(context.Background(), "tyris")
-	if err != nil || u.Role != auth.RoleOwner {
+	if err != nil || u.Role != auth.RoleOwner || u.Email != "tyris@example.com" {
 		t.Errorf("owner not created: %+v %v", u, err)
 	}
 
@@ -196,11 +204,7 @@ func TestFirstRunSetup(t *testing.T) {
 // returns the secret and the time the code was generated for.
 func (h *harness) enrollTOTP(page string) (string, time.Time) {
 	h.t.Helper()
-	_, rest, ok := strings.Cut(page, `name="secret" value="`)
-	if !ok {
-		h.t.Fatal("no secret on the 2FA page")
-	}
-	secret, _, _ := strings.Cut(rest, `"`)
+	secret := totpSecretOf(h.t, page)
 	now := time.Now()
 	code, err := authkit.TOTPCode(secret, now)
 	if err != nil {
@@ -215,6 +219,17 @@ func (h *harness) enrollTOTP(page string) (string, time.Time) {
 	return secret, now
 }
 
+// totpSecretOf reads the key being set up from a two-factor page.
+func totpSecretOf(t *testing.T, page string) string {
+	t.Helper()
+	_, rest, ok := strings.Cut(page, `name="secret" value="`)
+	if !ok {
+		t.Fatal("no secret on the 2FA page")
+	}
+	secret, _, _ := strings.Cut(rest, `"`)
+	return secret
+}
+
 // Wrong two-factor codes count against the account, however many logins
 // they're spread over (SPEC.md §6.10): the fifth locks codes, even the
 // right one, and the password step says so; after the lock, the right code
@@ -223,7 +238,7 @@ func TestTooManyCodes(t *testing.T) {
 	h := newHarness(t, "")
 	ctx := context.Background()
 	hash, _ := authkit.HashPassword("a long password")
-	id, _ := h.store.CreateUser(ctx, store.User{Username: "tyris", PasswordHash: hash, Role: auth.RoleOwner})
+	id, _ := h.store.CreateUser(ctx, store.User{Username: "tyris", PasswordHash: hash, Role: auth.RoleOwner, Email: "tyris@example.com"})
 	secret, _ := authkit.NewTOTPSecret()
 	h.store.SetTOTP(ctx, id, secret, 0)
 	login := func() (int, string) {

@@ -708,7 +708,11 @@ func loggedIn(t *testing.T, role string) (*harness, *fakeManager) {
 	h.server.Domain = "lab.example.com"
 	h.server.HasGPU = true
 	hash, _ := authkit.HashPassword("a long password")
-	id, _ := h.store.CreateUser(context.Background(), store.User{Username: "u", PasswordHash: hash, Role: role})
+	u := store.User{Username: "u", PasswordHash: hash, Role: role}
+	if role == auth.RoleOwner {
+		u.Email = "u@example.com" // every Owner has one (ownerNeedsEmail)
+	}
+	id, _ := h.store.CreateUser(context.Background(), u)
 	if role == auth.RoleOwner {
 		secret, _ := authkit.NewTOTPSecret()
 		h.store.SetTOTP(context.Background(), id, secret, 0)

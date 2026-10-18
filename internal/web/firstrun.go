@@ -302,9 +302,10 @@ func fromSetupListener(r *http.Request) bool {
 }
 
 // setupGate, on the setup listener, lets only the Owner past once the
-// Owner exists, signed in there (and with two-factor, once it's set up);
-// before, the setup code guards the pages. Logging in and the files its
-// page needs are all that's open to anyone else (SPEC.md §6.3.2).
+// Owner exists, signed in there, and only to the wizard's two-factor step
+// (and its help) until they've turned it on; before, the setup code guards
+// the pages. Logging in and the files its page needs are all that's open
+// to anyone else (SPEC.md §6.3.2).
 func (s *Server) setupGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -318,8 +319,10 @@ func (s *Server) setupGate(next http.Handler) http.Handler {
 			redirect(w, r, "/login")
 		case u.Role != auth.RoleOwner:
 			http.Error(w, "Only the Owner can finish setup here.", http.StatusForbidden)
-		case u.TOTPSecret == "" && path != "/account/2fa" && path != "/logout":
-			redirect(w, r, "/account/2fa")
+		case u.TOTPSecret == "" && path != wizardTwoFactor && path != "/logout" && path != "/help" && !strings.HasPrefix(path, "/help/"):
+			// The listener lasts only while the wizard does, so two-factor
+			// is always its step here.
+			redirect(w, r, wizardTwoFactor)
 		default:
 			next.ServeHTTP(w, r)
 		}
@@ -341,12 +344,12 @@ func finishedOnSetupListener(w http.ResponseWriter, r *http.Request) bool {
 }
 
 // firstRunPaths are what the setup listener serves: the first-run pages
-// and wizard, logging in and two-factor set-up for the Owner, the parts
+// and wizard (two-factor set-up is its first step), logging in, the parts
 // the wizard's pages load or post to (its address step's Cloud link and
 // network choice, the backup step's live log and a destination's
 // location), the help and static files. "/" sends the Owner on to the
 // wizard's next step. Nothing else, even for the Owner.
-var firstRunPaths = []string{"/", "/login", "/login/totp", "/logout", "/account/2fa", "/settings/network",
+var firstRunPaths = []string{"/", "/login", "/login/totp", "/logout", "/settings/network",
 	"/settings/home-network", "/settings/cloud/live", "/settings/cloud/linked", "/settings/cloud/progress",
 	"/settings/cloud/name", "/settings/cloud/link", "/settings/cloud/cancel", "/setup", "/help"}
 

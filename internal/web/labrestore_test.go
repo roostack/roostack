@@ -169,7 +169,8 @@ func TestRestoreALabOnFirstRun(t *testing.T) {
 		t.Errorf("progress:\n%s", body)
 	}
 	// No Owner can be created meanwhile.
-	owner := url.Values{"token": {"the-setup-code"}, "username": {"tyris"}, "password": {"a long password"}, "confirm": {"a long password"}}
+	owner := url.Values{"token": {"the-setup-code"}, "username": {"tyris"}, "email": {"tyris@example.com"}, "password": {"a long password"},
+		"confirm": {"a long password"}}
 	if code, _ := h.post("/setup", owner, h.srv.URL); code != http.StatusBadRequest {
 		t.Errorf("creating an Owner during a restore: %d", code)
 	}

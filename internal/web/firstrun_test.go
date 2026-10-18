@@ -69,8 +69,10 @@ func do(t *testing.T, c *http.Client, method, base, path, host, origin string, f
 // refuses forms from other sites (SPEC.md §6.3.2).
 func TestSetupListenerServesOnlySetup(t *testing.T) {
 	h := newHarness(t, "the-setup-code")
-	fs := &fakeSetup{}
-	h.server.Setup = fs
+	fm := &fakeManager{}
+	h.server.Manager, h.server.Node = fm, fm
+	fs := &fakeSetup{zone: "Etc/UTC"}
+	h.setSetup(fs)
 	done := make(chan struct{}, 1)
 	ts := httptest.NewTLSServer(h.server.SetupHandler(func() { done <- struct{}{} }))
 	defer ts.Close()
@@ -106,10 +108,26 @@ func TestSetupListenerServesOnlySetup(t *testing.T) {
 
 	// The Owner, then the wizard's steps, still on the setup listener.
 	do(t, c, "POST", ts.URL, "/setup/code", "", origin, url.Values{"token": {"the-setup-code"}})
-	form := url.Values{"token": {"the-setup-code"}, "username": {"tyris"}, "password": {"a long password"},
+	form := url.Values{"token": {"the-setup-code"}, "username": {"tyris"}, "email": {"tyris@example.com"}, "password": {"a long password"},
 		"confirm": {"a long password"}}
-	if _, body := do(t, c, "POST", ts.URL, "/setup", "", origin, form); !strings.Contains(body, "need to turn on two-factor") {
+	_, body := do(t, c, "POST", ts.URL, "/setup", "", origin, form)
+	if !strings.Contains(body, `action="/setup/two-factor"`) || !strings.Contains(body, "Step 1 of 5") {
 		t.Fatal("after the Owner, two-factor on the setup listener")
+	}
+	// Until it's on, only its step and the help; the account's page isn't
+	// served here.
+	if code, _ := do(t, c, "GET", ts.URL, "/help/", "", "", nil); code != http.StatusOK {
+		t.Errorf("the help before two-factor: %d", code)
+	}
+	if code, _ := do(t, c, "GET", ts.URL, "/account/2fa", "", "", nil); code != http.StatusNotFound {
+		t.Errorf("the account's two-factor page on the setup listener: %d, want 404", code)
+	}
+	// The code goes on to the wizard's next step, still here.
+	secret := totpSecretOf(t, body)
+	totp, _ := authkit.TOTPCode(secret, time.Now())
+	if _, body := do(t, c, "POST", ts.URL, "/setup/two-factor", "", origin, url.Values{"secret": {secret}, "code": {totp}}); !strings.Contains(body, "Step 2 of 5") ||
+		!strings.Contains(body, "Where is this server?") {
+		t.Errorf("after two-factor on the setup listener:\n%.3000s", body)
 	}
 	select {
 	case <-done:
@@ -282,7 +300,7 @@ func TestSetupListenerOwnerOnly(t *testing.T) {
 	u, _ := url.Parse(ts.URL)
 	c := setupClient(t, "")
 	do(t, c, "POST", ts.URL, "/setup/code", "", ts.URL, url.Values{"token": {"the-setup-code"}})
-	do(t, c, "POST", ts.URL, "/setup", "", ts.URL, url.Values{"token": {"the-setup-code"}, "username": {"tyris"},
+	do(t, c, "POST", ts.URL, "/setup", "", ts.URL, url.Values{"token": {"the-setup-code"}, "username": {"tyris"}, "email": {"tyris@example.com"},
 		"password": {"a long password"}, "confirm": {"a long password"}})
 	var listenerSession string
 	for _, ck := range c.Jar.Cookies(u) {
@@ -294,7 +312,7 @@ func TestSetupListenerOwnerOnly(t *testing.T) {
 		t.Fatal("no session on the setup listener")
 	}
 	// The Owner, signed in here, goes on to two-factor first.
-	if _, body := do(t, c, "GET", ts.URL, "/setup/timezone", "", "", nil); !strings.Contains(body, "need to turn on two-factor") {
+	if _, body := do(t, c, "GET", ts.URL, "/setup/timezone", "", "", nil); !strings.Contains(body, `action="/setup/two-factor"`) {
 		t.Error("the Owner without two-factor: not sent to set it up")
 	}
 	// The setup code no longer works here.
@@ -308,7 +326,7 @@ func TestSetupListenerOwnerOnly(t *testing.T) {
 	h.store.CreateSessionAt(ctx, "", authkit.HashToken("ui-session"), owner.ID, time.Now().Add(time.Hour), false)
 	stranger := setupClient(t, "")
 	stranger.Jar.SetCookies(u, []*http.Cookie{{Name: sessionCookie, Value: "ui-session"}})
-	for _, path := range []string{"/", "/setup/timezone", "/help/", "/account/2fa", "/settings/network", "/setup/restore"} {
+	for _, path := range []string{"/", "/setup/timezone", "/help/", "/setup/two-factor", "/settings/network", "/setup/restore"} {
 		if _, body := do(t, stranger, "GET", ts.URL, path, "", "", nil); !strings.Contains(body, `action="/login"`) {
 			t.Errorf("%s without the setup pages' session: not the login page", path)
 		}

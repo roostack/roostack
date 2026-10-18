@@ -93,7 +93,7 @@
 
 {{/* The page is "Remote access" in Settings (its breadcrumbs, heading and help link), and its question in the wizard. */}}
 {{define "page-help"}}{{if .Wizard}}{{help "start/first-run#4-who-can-log-in-to-this-server" "Who can log in to this server?"}}{{else}}{{help "start/first-run#4-who-can-log-in-to-this-server" "Remote access"}}{{end}}{{end}}
-{{define "crumbs"}}{{if .Wizard}}<span>Setup</span><strong aria-current="page">Step 2 of 4</strong>{{else}}<a href="{{.Back}}">{{.BackText}}</a><strong aria-current="page">{{template "title" .}}</strong>{{end}}{{end}}
+{{define "crumbs"}}<a href="{{.Back}}">{{.BackText}}</a><strong aria-current="page">{{template "title" .}}</strong>{{end}}
 {{/* Over Roostack's network, only the controller reaches SSH (SPEC.md §10.2). */}}
 {{define "ssh-other-servers"}}{{if .MultiServer}} Not from this lab's other servers{{if not .Server.This}}, except the one that runs
   the lab{{end}}.{{end}}{{end}}

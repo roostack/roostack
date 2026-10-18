@@ -34,11 +34,13 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	username := strings.TrimSpace(r.FormValue("username"))
+	email := strings.TrimSpace(r.FormValue("email"))
 	password := r.FormValue("password")
 	labName := strings.TrimSpace(r.FormValue("lab_name"))
 	fail := func(msg string) {
 		w.WriteHeader(http.StatusBadRequest)
-		s.render(w, "setup", s.setupData(map[string]any{"Choice": "new", "Error": msg, "Username": username, "LabName": labName}))
+		s.render(w, "setup", s.setupData(map[string]any{"Choice": "new", "Error": msg, "Username": username, "Email": email,
+			"LabName": labName}))
 	}
 	if s.LabRestore != nil && s.LabRestore.Running() {
 		fail("A lab is being restored onto this server.")
@@ -51,6 +53,10 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	case !auth.ValidUsername(username):
 		fail("Choose a username of letters and digits (dots, dashes and underscores are fine too), up to 32 characters.")
+		return
+	case emailProblem(email) != "":
+		// Every Owner has one (ownerNeedsEmail).
+		fail(emailProblem(email))
 		return
 	case password != r.FormValue("confirm"):
 		fail("The passwords don't match.")
@@ -79,7 +85,7 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		s.LabName = labName
 		s.mu.Unlock()
 	}
-	created, err := s.Store.CreateFirstUser(r.Context(), store.User{Username: username, PasswordHash: hash, Role: auth.RoleOwner})
+	created, err := s.Store.CreateFirstUser(r.Context(), store.User{Username: username, PasswordHash: hash, Role: auth.RoleOwner, Email: email})
 	if err != nil {
 		s.serverError(w, err)
 		return
@@ -248,8 +254,14 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, "/")
 }
 
+// twoFactorPage turns on two-factor: a page of the account, or for the
+// Owner while the setup wizard lasts its first step (twoFactorInWizard),
+// shown like its other steps.
 func (s *Server) twoFactorPage(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
+	if s.twoFactorElsewhere(w, r, u) {
+		return
+	}
 	w.Header().Set("Cache-Control", "no-store") // the key being set up
 	if u.TOTPSecret != "" {
 		s.renderAccount(w, "twofactor", "2fa", map[string]any{"User": u, "Enabled": true})
@@ -260,11 +272,39 @@ func (s *Server) twoFactorPage(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	s.renderAccount(w, "twofactor", "2fa", s.twoFactorData(u, secret, ""))
+	s.renderTwoFactor(w, r, s.twoFactorData(r, u, secret, ""))
+}
+
+// twoFactorElsewhere sends u to where they turn on two-factor if r isn't
+// it (twoFactorPath), or once it's on, from the wizard's step on to the
+// wizard's next. It reports whether it did.
+func (s *Server) twoFactorElsewhere(w http.ResponseWriter, r *http.Request, u *store.User) bool {
+	switch {
+	case r.URL.Path == wizardTwoFactor && u.TOTPSecret != "":
+		redirect(w, r, s.wizardNext(r))
+	case u.TOTPSecret == "" && r.URL.Path != s.twoFactorPath(r, u):
+		redirect(w, r, s.twoFactorPath(r, u))
+	default:
+		return false
+	}
+	return true
+}
+
+// renderTwoFactor shows the two-factor page where r asked for it.
+func (s *Server) renderTwoFactor(w http.ResponseWriter, r *http.Request, data map[string]any) {
+	if r.URL.Path == wizardTwoFactor {
+		data["Wizard"] = true
+		s.render(w, "twofactor", data)
+		return
+	}
+	s.renderAccount(w, "twofactor", "2fa", data)
 }
 
 func (s *Server) twoFactorSubmit(w http.ResponseWriter, r *http.Request) {
 	u := currentUser(r)
+	if s.twoFactorElsewhere(w, r, u) {
+		return
+	}
 	if u.TOTPSecret != "" {
 		redirect(w, r, "/account/2fa")
 		return
@@ -276,7 +316,7 @@ func (s *Server) twoFactorSubmit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(http.StatusBadRequest)
-		s.renderAccount(w, "twofactor", "2fa", s.twoFactorData(u, secret,
+		s.renderTwoFactor(w, r, s.twoFactorData(r, u, secret,
 			"That code didn't work. Make sure you added the key above, then enter the current code."))
 		return
 	}
@@ -285,10 +325,14 @@ func (s *Server) twoFactorSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), u, "2fa enabled", "")
+	if r.URL.Path == wizardTwoFactor {
+		redirect(w, r, s.wizardNext(r))
+		return
+	}
 	redirect(w, r, "/")
 }
 
-func (s *Server) twoFactorData(u *store.User, secret, errMsg string) map[string]any {
+func (s *Server) twoFactorData(r *http.Request, u *store.User, secret, errMsg string) map[string]any {
 	// Group the key in fours so it's easier to type into an app.
 	var groups []string
 	for i := 0; i < len(secret); i += 4 {
@@ -308,6 +352,7 @@ func (s *Server) twoFactorData(u *store.User, secret, errMsg string) map[string]
 		"Required":  s.twoFactorRequired(u),
 		"Owner":     u.Role == auth.RoleOwner,
 		"Error":     errMsg,
+		"Action":    r.URL.Path,
 	}
 }
 
