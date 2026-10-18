@@ -457,10 +457,10 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 Packages go to the registry (`roostack/services`), each checked with `roostack validate` and tried on a lab (install, a backup, a restore, removal) before it's committed.
 
-- [x] Done 2026-10-18, each tried on VM3: HedgeDoc, Wiki.js, Papra, Linkwarden, Paperless-ngx; Immich updated to 3.3.3, Vaultwarden to 1.37.4, Forgejo to 15.0.10; Mealie, Gitea, Miniflux, Lychee
-- [ ] Fits today: PhotoPrism, Actual Budget, ntfy, Uptime Kuma, Radicale, Stirling-PDF, Audiobookshelf
+- [x] Done 2026-10-18, each tried on VM3: HedgeDoc, Wiki.js, Papra, Linkwarden, Paperless-ngx; Immich updated to 3.3.3, Vaultwarden to 1.37.4, Forgejo to 15.0.10; Mealie, Gitea, Miniflux, Lychee, Actual Budget, ntfy, Uptime Kuma, Radicale, Audiobookshelf
+- [ ] **Stirling-PDF: the Owner's call.** Since v3 its login and accounts are in `app/proprietary`, whose licence allows production use only with a paid User License (beyond trial or "minimal use"); the MIT part runs without accounts, so anyone who reaches it can use it. Options: offer it without accounts (private, with the address marked unsafe to make public), leave it out, or offer a fully open alternative
 - [ ] Needs media folders (below): Jellyfin, Plex, Navidrome
-- [ ] Needs MySQL (below): Ghost
+- [ ] Needs MySQL or MariaDB (below): Ghost; PhotoPrism (its docs recommend SQLite only for small libraries, and moving to MariaDB later is an unofficial migration)
 - [ ] Needs Roostack support, a session each: Frigate (and Viseron), Pi-hole, Home Assistant
 - [ ] Cal.diy: heavy, and its README says personal, non-production use; decide with the Owner
 - [ ] **Before go-live: every placeholder logo replaced** with the project's own, once its terms allow it or the project agrees (each package's file says why it has a placeholder)
@@ -472,10 +472,11 @@ Packages go to the registry (`roostack/services`), each checked with `roostack v
 - [x] **`databases.<name>.url`** as a secret Roostack makes (the whole URL, password included), for apps that take their database only as a URL (Linkwarden, Kan, Cal.diy: Prisma): the Owner agreed 2026-10-18; built (SPEC §8.1), tried with Linkwarden on a VM
 - [x] **Colons in a route's paths** (found writing Lychee, 2026-10-18: its login is `/api/v2/Auth::login`): allowed in `private_paths` and `login_paths`; Caddy's path matcher takes them as plain characters (checked on VM3: only that path matched)
 - [ ] **Kan** waits on upstream and Roostack: its web image has no version tags since 0.2.1 (only `latest`/`main`), and its migrations run in a separate one-shot container (`kan-migrate`), which packages can't declare. Revisit when Kan tags its images; a one-shot container type ("init" containers run before the service starts) would help other apps too
+- [ ] **Several SQLite files per database?** (found with Actual Budget): a `sqlite` database is one file; Actual keeps one per budget (`user-files/group-<id>.sqlite`), backed up as plain files for now (written only while a device syncs; devices keep whole budgets). A glob path (each match copied with SQLite's backup) would make them consistent: the Owner's call
 - [ ] **Generated secrets in other formats**, if more Laravel apps come (Lychee's `APP_KEY` wants "base64:" and standard base64; its package converts Roostack's URL-safe value in a shell wrapper)
 - [x] **A setup still retrying when its service is removed or installed again** (found with Miniflux, 2026-10-18): it kept retrying the old commands for 10 minutes, delayed other setups, then marked the reinstall failed. Now it stops, unrecorded (SPEC §8.1 hooks); tested, and tried on VM3
 - [x] **`.Lab.TimeZone` in package templates** (found writing Paperless-ngx, 2026-10-18): the server's time zone, "UTC" when unknown, for apps with their own time-zone setting rather than the container's (`PAPERLESS_TIME_ZONE`); in the packages reference, tried on VM3
-- [ ] **Publishing the new packages:** Papra, Linkwarden, Paperless-ngx and Mealie use `install_value`, `databases.<name>.url` or `.Lab.TimeZone`, so they wait for a Roostack release with them (the registry's Publish workflow checks with a pinned release)
+- [ ] **Publishing the new packages:** Papra, Linkwarden, Paperless-ngx, Mealie and Lychee use `install_value`, `databases.<name>.url`, `.Lab.TimeZone` or colons in paths, so they wait for a Roostack release with them (the registry's Publish workflow checks with a pinned release)
 - [ ] **Forgejo 19 (the next LTS, April 2027):** the package stays on the 15 LTS line (v17.0.0 had an upstream "don't upgrade" warning on 2026-10-18, and 16 ends 2026-10-29)
 - [ ] **Extra settings per service** (Settings → Advanced, Owner only): extra environment variables, plain or secret; the package's own variables refused; kept in the instance, through updates; shown in the generated files and Details
 - [ ] **Config files a package declares** (`config_files:`), with Frigate and Home Assistant: an editor in the browser (syntax check, the app's own check, the previous version kept, restart on save); a code editor library only if chosen with the Owner
