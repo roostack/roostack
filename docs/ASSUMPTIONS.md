@@ -183,6 +183,8 @@ Prototyped on VM2 (2026-10-10) with throwaway containers: Roostack's Caddy image
 | # | Assumption / concern |
 |---|---|
 | I1 | Postgres data is mounted at `/var/lib/postgresql/data`. The official Postgres 18+ images changed this layout (`/var/lib/postgresql/<major>/docker`), so the path will need to depend on the image/version. |
+| I3 | **MySQL and MariaDB upgrade their data across a major version as they start** (SPEC §8.1): MySQL by itself (8.0.16+), MariaDB with `MARIADB_AUTO_UPGRADE=1` (its entrypoint runs `mariadb-upgrade`). Relied on when Roostack moves `DefaultMySQLImage` or `DefaultMariaDBImage` to a newer major version, within the jumps each supports (e.g. MySQL 8.4 to 9.7 LTS, MariaDB 11.8 to 12.3 LTS). Not yet tried: check on a VM with real data at the first pin change. |
+| I4 ✅ | **MySQL 8.4.11 and MariaDB 11.8.9 as Roostack runs them (2026-10-19, VM3, rootless Podman).** The images read `*_PASSWORD_FILE` from a mounted Podman secret and make the app's user and database; `*_RANDOM_ROOT_PASSWORD=yes` leaves root unusable; `mysqladmin`/`mariadb-admin ping -h 127.0.0.1` succeeds only once the real server listens (14 s and 10 s on first start); the app's user dumps with `--single-transaction --no-tablespaces --routines --triggers --events` without warnings, and can `DROP DATABASE` and `CREATE DATABASE` its own; `MYSQL_PWD` works with both clients. Idle memory 458 MB and 127 MB. Then end to end with Ghost (MySQL) and PhotoPrism (MariaDB). |
 | I2 | Postgres reads its password from a Podman secret mounted as a file (`POSTGRES_PASSWORD_FILE`); the app gets the same secret as an env var. Assumes the default secret mount mode is readable by the Postgres user in the container. |
 
 ## J. Firewall

@@ -275,14 +275,14 @@ func (p *Package) validateDatabase(v *validator, name string, d *Database) {
 		if d.Image != "" || len(d.Quadlet) > 0 || d.Memory != "" {
 			v.addf("%s: sqlite runs inside the app; image, memory and quadlet are not allowed", at)
 		}
-	case DBPostgres, DBRedis:
+	case DBPostgres, DBRedis, DBMySQL, DBMariaDB:
 		if d.Path != "" {
 			v.addf("%s.path: only valid for sqlite", at)
 		}
 		validateQuadlet(v, at+".quadlet", d.Quadlet)
 		validateMemory(v, at+".memory", d.Memory)
 	default:
-		v.addf("%s.type: must be one of sqlite, postgres, redis; got %q", at, d.Type)
+		v.addf("%s.type: must be one of sqlite, postgres, mysql, mariadb, redis; got %q", at, d.Type)
 	}
 }
 
@@ -465,8 +465,10 @@ func (p *Package) checkSecretRef(ref string) error {
 	if db, ok := strings.CutPrefix(ref, "databases."); ok {
 		name, field, _ := strings.Cut(db, ".")
 		d := p.Databases[name]
-		if d == nil || d.Type != DBPostgres || (field != "password" && field != "url") {
-			return fmt.Errorf("%q: only databases.<postgres db>.password or .url is supported", ref)
+		// .url only for Postgres so far: no MySQL app needs one yet
+		// (the Owner, 2026-10-19).
+		if d == nil || !d.HasPassword() || (field != "password" && field != "url") || (field == "url" && d.Type != DBPostgres) {
+			return fmt.Errorf("%q: only databases.<postgres, mysql or mariadb db>.password, or .url for postgres, is supported", ref)
 		}
 		return nil
 	}

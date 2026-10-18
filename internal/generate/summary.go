@@ -105,7 +105,7 @@ func Summarize(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (*Summ
 	for _, name := range slices.Sorted(maps.Keys(p.Databases)) {
 		d := p.Databases[name]
 		k := Kept{Name: name, Database: d.Type, BackedUp: d.BackedUp()}
-		if d.Type == pkgspec.DBPostgres || (d.Type == pkgspec.DBRedis && d.BackedUp()) {
+		if d.HasPassword() || (d.Type == pkgspec.DBRedis && d.BackedUp()) {
 			k.Path = filepath.Join(g.serviceDir(), "db", name)
 		}
 		s.Kept = append(s.Kept, k)

@@ -166,6 +166,10 @@ func ParseMemory(s string) (int64, error) {
 const (
 	DefaultPostgresMemory = 200_000_000
 	DefaultRedisMemory    = 50_000_000
+	// MySQL 8.4 and MariaDB 11.8 idle on a dev VM: 458 MB and 127 MB
+	// (2026-10-19; MySQL's performance schema and buffer pool).
+	DefaultMySQLMemory   = 500_000_000
+	DefaultMariaDBMemory = 150_000_000
 )
 
 // ExpectedMemory returns the container's expected memory in bytes, or 0
@@ -188,6 +192,10 @@ func (d *Database) ExpectedMemory() int64 {
 		return DefaultPostgresMemory
 	case DBRedis:
 		return DefaultRedisMemory
+	case DBMySQL:
+		return DefaultMySQLMemory
+	case DBMariaDB:
+		return DefaultMariaDBMemory
 	}
 	return 0
 }

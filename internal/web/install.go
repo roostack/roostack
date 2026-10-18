@@ -278,6 +278,10 @@ func databaseName(kind string) string {
 		return "PostgreSQL"
 	case pkgspec.DBRedis:
 		return "Redis"
+	case pkgspec.DBMySQL:
+		return "MySQL"
+	case pkgspec.DBMariaDB:
+		return "MariaDB"
 	case pkgspec.DBSQLite:
 		return "SQLite"
 	}

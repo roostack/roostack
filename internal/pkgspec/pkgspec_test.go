@@ -66,6 +66,24 @@ title: App
 version: "1"
 containers:
   web: { image: x, imagee: y }`, "field imagee not found"},
+		{"url for a mysql database", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+databases:
+  main: { type: mysql }
+containers:
+  web: { image: x, secrets: { DATABASE_URL: databases.main.url } }`, "or .url for postgres"},
+		{"password for a redis database", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+databases:
+  cache: { type: redis }
+containers:
+  web: { image: x, secrets: { P: databases.cache.password } }`, "only databases.<postgres, mysql or mariadb db>.password"},
 		{"unknown storage in mount", `
 schema: roostack/v1alpha1
 name: app
@@ -88,7 +106,7 @@ version: "1"
 databases:
   cache: { type: redis }
 containers:
-  web: { image: x, secrets: { CACHE_URL: databases.cache.url } }`, `only databases.<postgres db>.password or .url is supported`},
+  web: { image: x, secrets: { CACHE_URL: databases.cache.url } }`, `or .url for postgres, is supported`},
 		{"install_value on a secret", `
 schema: roostack/v1alpha1
 name: app

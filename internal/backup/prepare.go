@@ -54,11 +54,32 @@ func (p *Preparer) Run(ctx context.Context, step generate.PrepareStep) error {
 		// Custom format: compressed, and restorable table by table.
 		return p.run(ctx, &step.Target, "podman", "exec", step.Container,
 			"pg_dump", "--username="+step.User, "--dbname="+step.Database, "--format=custom")
+	case pkgspec.DBMySQL, pkgspec.DBMariaDB:
+		if p.stopped(step) {
+			return ErrDumpKept
+		}
+		// A consistent snapshot without locking (InnoDB), as the app's own
+		// user; no tablespaces, which need a privilege it lacks.
+		return p.run(ctx, &step.Target, "podman", "exec", step.Container, "sh", "-c",
+			mysqlCommand(step.Type, "dump")+" --single-transaction --no-tablespaces --routines --triggers --events "+
+				"-h 127.0.0.1 -u \"$1\" \"$2\"", "dump", step.User, step.Database)
 	}
 	return fmt.Errorf("backup: unknown prepare step %q", step.Type)
 }
 
-// stopped says whether a Postgres step's database is one Roostack has
+// mysqlCommand is the start of a shell command running a MySQL or MariaDB
+// client tool ("dump" or "client") inside the database's container, with
+// the app's password from the container's secret file in MYSQL_PWD: never
+// on a command line (SPEC.md §8.1, "MySQL and MariaDB").
+func mysqlCommand(kind, tool string) string {
+	names := map[string]string{"dump": "mysqldump", "client": "mysql"}
+	if kind == pkgspec.DBMariaDB {
+		names = map[string]string{"dump": "mariadb-dump", "client": "mariadb"}
+	}
+	return `MYSQL_PWD="$(cat /run/secrets/db-password)" exec ` + names[tool]
+}
+
+// stopped says whether a database step's database is one Roostack has
 // stopped, with a dump from an earlier backup to keep. A stop removes the
 // database's Quadlet file (generate.Stop), whereas a database that crashed
 // keeps it, so its dump still fails and the backup says so. The nightly

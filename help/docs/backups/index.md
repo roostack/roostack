@@ -136,7 +136,8 @@ attention** say so straight away: choose a new place for its main backup
     - **What's in it:** `/var/lib/roostack` (desired state, Caddy's
       certificates, a consistent copy of Roostack's database) and the
       Podman secrets store, plus every service's data folders. Databases
-      are dumped first (a SQLite copy, or `pg_dump` for Postgres), so
+      are dumped first (a SQLite copy, `pg_dump` for Postgres, or
+      `mysqldump`/`mariadb-dump` for MySQL and MariaDB), so
       their backups are consistent. Container images aren't included:
       they're downloaded again.
     - **Encryption:** every repository is encrypted with your

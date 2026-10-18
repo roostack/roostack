@@ -147,8 +147,10 @@ databases:
     type: postgres
 ```
 
-`postgres` and `redis` run in containers of their own; the app finds them
-with `{{ .Databases.main.Host }}` and the rest. For SQLite, give the file's
+`postgres`, `mysql`, `mariadb` and `redis` run in containers of their own;
+the app finds them with `{{ .Databases.main.Host }}` and the rest
+(`.Port`, `.User`, `.Name`), and gets the password from
+`databases.main.password` in its `secrets`. For SQLite, give the file's
 place in a storage folder (`path: data/db.sqlite3`), and Roostack copies it
 safely before each backup. A Redis used only as a queue or cache can say
 `backup: false`.

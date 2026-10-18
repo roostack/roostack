@@ -735,3 +735,77 @@ func TestImagesAndChecks(t *testing.T) {
 		t.Errorf("checks %+v, want %+v", out.Checks, want)
 	}
 }
+
+// MySQL and MariaDB run as Postgres does: Roostack's pinned image, the
+// app's user and database, its password from a secret, a random root
+// password nobody keeps, a health check over TCP, and a dump before each
+// backup (SPEC.md §8.1).
+func TestMySQLDatabases(t *testing.T) {
+	p, err := pkgspec.Parse([]byte(`
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+databases:
+  main: { type: mysql }
+  extra: { type: mariadb }
+containers:
+  web:
+    image: example/app:1
+    env: { DB: "{{ .Databases.main.Host }}:{{ .Databases.main.Port }}/{{ .Databases.main.Name }} as {{ .Databases.main.User }}", DB2: "{{ .Databases.extra.Name }}" }
+    secrets: { DB_PASSWORD: databases.main.password }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := Service(testLab(), p, &instance.Instance{Package: "app", Version: "1", Updates: "notify"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{}
+	for _, q := range out.Quadlets {
+		files[q.Name] = q.Content
+	}
+	for unit, want := range map[string][]string{
+		"roostack-app-db-main.container": {"Image=" + DefaultMySQLImage, "Environment=MYSQL_USER=app", "Environment=MYSQL_DATABASE=app",
+			"Environment=MYSQL_PASSWORD_FILE=/run/secrets/db-password", "Environment=MYSQL_RANDOM_ROOT_PASSWORD=yes",
+			"Secret=roostack-app-db-main-password,type=mount,target=db-password", "/db/main:/var/lib/mysql",
+			"HealthCmd=mysqladmin ping -h 127.0.0.1 --silent", "Notify=healthy"},
+		"roostack-app-db-extra.container": {"Image=" + DefaultMariaDBImage, "Environment=MARIADB_USER=app_extra",
+			"Environment=MARIADB_AUTO_UPGRADE=1", "Environment=MARIADB_RANDOM_ROOT_PASSWORD=yes", "HealthCmd=mariadb-admin ping -h 127.0.0.1 --silent"},
+		"roostack-app-web.container": {"Environment=\"DB=roostack-app-db-main:3306/app as app\"", "Environment=DB2=app_extra",
+			"Secret=roostack-app-db-main-password,type=env,target=DB_PASSWORD"},
+	} {
+		for _, w := range want {
+			if !strings.Contains(files[unit], w) {
+				t.Errorf("%s lacks %q:\n%s", unit, w, files[unit])
+			}
+		}
+	}
+	if strings.Contains(files["roostack-app-db-main.container"], "AUTO_UPGRADE") {
+		t.Error("MySQL upgrades by itself; MARIADB_AUTO_UPGRADE is for MariaDB")
+	}
+	var steps []string
+	for _, s := range out.Backup.Prepare {
+		steps = append(steps, s.Type+" "+s.Container+" "+s.User+" "+s.Database+" "+filepath.Base(s.Target))
+	}
+	slices.Sort(steps)
+	if want := []string{"mariadb roostack-app-db-extra app_extra app_extra extra.sql", "mysql roostack-app-db-main app app main.sql"}; !slices.Equal(steps, want) {
+		t.Errorf("prepare steps = %q, want %q", steps, want)
+	}
+}
+
+// MySQL user names have at most 32 characters: a longer name keeps its
+// start and a hash of the whole, the same every time.
+func TestMySQLIdent(t *testing.T) {
+	if got := mysqlIdent("ghost", "main"); got != "ghost" {
+		t.Errorf("short: %q", got)
+	}
+	long := mysqlIdent("a-very-long-service-name-indeed", "reporting")
+	if len(long) != 32 || !strings.HasPrefix(long, "a_very_long_service_nam_") || long != mysqlIdent("a-very-long-service-name-indeed", "reporting") {
+		t.Errorf("long: %q", long)
+	}
+	if long == mysqlIdent("a-very-long-service-name-indeed", "reportinh") {
+		t.Error("different names must stay different")
+	}
+}

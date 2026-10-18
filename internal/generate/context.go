@@ -2,6 +2,8 @@ package generate
 
 import (
 	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"text/template"
@@ -140,6 +142,11 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 			}
 		case pkgspec.DBRedis:
 			ctx.Databases[name] = DatabaseContext{Host: dbUnitName(in.ID(), name), Port: 6379}
+		case pkgspec.DBMySQL, pkgspec.DBMariaDB:
+			ctx.Databases[name] = DatabaseContext{
+				Host: dbUnitName(in.ID(), name), Port: 3306,
+				User: mysqlIdent(in.ID(), name), Name: mysqlIdent(in.ID(), name),
+			}
 		}
 	}
 	return ctx
@@ -198,6 +205,18 @@ func pgIdent(service, db string) string {
 		id += "_" + db
 	}
 	return strings.ReplaceAll(id, "-", "_")
+}
+
+// mysqlIdent is a MySQL or MariaDB user and database name: as Postgres's,
+// but MySQL's user names have at most 32 characters, so a longer one keeps
+// its start and gains a short hash of the whole, which stays the same.
+func mysqlIdent(service, db string) string {
+	id := pgIdent(service, db)
+	if len(id) <= 32 {
+		return id
+	}
+	sum := sha256.Sum256([]byte(id))
+	return id[:23] + "_" + hex.EncodeToString(sum[:])[:8]
 }
 
 // render executes a template string against the context. Strings without

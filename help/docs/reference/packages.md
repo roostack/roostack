@@ -176,13 +176,16 @@ routes:
 
 `databases`
 :   Databases Roostack runs and backs up consistently: `sqlite` (a file in
-    the service's storage), `postgres` or `redis` (a container of their
-    own). Roostack makes their passwords. A container's `secrets` can point
-    at a Postgres database's `databases.<name>.password`, or at
+    the service's storage), `postgres`, `mysql`, `mariadb` or `redis` (a
+    container of their own). Roostack makes their passwords. A container's
+    `secrets` can point at a Postgres, MySQL or MariaDB database's
+    `databases.<name>.password`, or at a Postgres database's
     `databases.<name>.url`: the whole URL, password included, which
-    Roostack makes from the password. `postgres` and `redis` take a
-    `memory` like a container's; otherwise Roostack expects 200 MB and
-    50 MB.
+    Roostack makes from the password. Roostack's images are Postgres 17,
+    MySQL 8.4 and MariaDB 11.8 (their long-term-support lines), and Valkey
+    for `redis`; `image` picks another. The containers take a `memory` like
+    a container's; otherwise Roostack expects 200 MB for Postgres, 500 MB
+    for MySQL, 150 MB for MariaDB and 50 MB for Redis.
 
 `routes`
 :   Web addresses: which container and port, the default `subdomain`,

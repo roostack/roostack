@@ -174,7 +174,7 @@ registry.
     file, and updating to another version ends it. When it's stopped, its
     containers' unit files and its Caddy site are removed. Its folders,
     secrets and Podman network stay. A database on Roostack's own image
-    (Postgres or Redis, when the package names no image) keeps running, so
+    (Postgres, MySQL, MariaDB or Redis, when the package names no image) keeps running, so
     backups carry on as before. A database on an image the package sets
     runs until one more backup of the server has finished (Roostack starts
     one straight away), then stops too. Later backups keep that last dump.

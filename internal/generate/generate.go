@@ -140,8 +140,8 @@ type BackupPlan struct {
 
 // PrepareStep is one backup prepare action.
 type PrepareStep struct {
-	Type string // pkgspec.DBSQLite or pkgspec.DBPostgres
-	// Container is the unit/container to run a dump in (postgres).
+	Type string // pkgspec.DBSQLite, DBPostgres, DBMySQL or DBMariaDB
+	// Container is the unit/container to run a dump in (the servers).
 	Container string
 	User      string
 	Database  string
@@ -405,6 +405,8 @@ func (g *gen) database(name string, d *pkgspec.Database) error {
 		return g.postgres(name, d)
 	case pkgspec.DBRedis:
 		return g.redis(name, d)
+	case pkgspec.DBMySQL, pkgspec.DBMariaDB:
+		return g.mysql(name, d)
 	}
 	return fmt.Errorf("databases.%s: unsupported type %q", name, d.Type)
 }
@@ -445,6 +447,64 @@ func (g *gen) postgres(name string, d *pkgspec.Database) error {
 	if d.BackedUp() {
 		g.out.Backup.Prepare = append(g.out.Backup.Prepare, PrepareStep{
 			Type: pkgspec.DBPostgres, Container: unit, User: db.User, Database: db.Name,
+			Target: filepath.Join(g.dumpDir(), name+".sql"),
+		})
+	}
+	return nil
+}
+
+// mysql generates a MySQL or MariaDB container (SPEC.md §8.1, "MySQL and
+// MariaDB"): the app's user and database, its password from a Podman
+// secret, and a random root password nobody keeps (Roostack needs only
+// the app's user, which can drop and recreate its own database).
+func (g *gen) mysql(name string, d *pkgspec.Database) error {
+	svc := g.name
+	unit := dbUnitName(svc, name)
+	db := g.ctx.Databases[name]
+	dataDir := filepath.Join(g.serviceDir(), "db", name)
+	image, prefix, admin := DefaultMySQLImage, "MYSQL", "mysqladmin"
+	if d.Type == pkgspec.DBMariaDB {
+		image, prefix, admin = DefaultMariaDBImage, "MARIADB", "mariadb-admin"
+	}
+	image = cmp.Or(d.Image, image)
+
+	var u quadlet.Unit
+	u.Section("Unit").Add("Description", fmt.Sprintf("Roostack %s: database %s (%s)", svc, name, d.Type))
+	cs := u.Section("Container")
+	cs.Add("ContainerName", unit)
+	cs.Add("Image", image)
+	g.out.Images = append(g.out.Images, image)
+	addTimezone(cs, g.lab)
+	cs.Add("Network", "roostack-"+svc+".network")
+	cs.Env(prefix+"_USER", db.User)
+	cs.Env(prefix+"_DATABASE", db.Name)
+	cs.Env(prefix+"_PASSWORD_FILE", "/run/secrets/db-password")
+	cs.Env(prefix+"_RANDOM_ROOT_PASSWORD", "yes")
+	if d.Type == pkgspec.DBMariaDB {
+		// A newer major version upgrades the data as it starts (ASSUMPTIONS
+		// I3); MySQL does so by itself.
+		cs.Env("MARIADB_AUTO_UPGRADE", "1")
+	}
+	cs.Add("Secret", secretName(svc, "databases."+name+".password")+",type=mount,target=db-password")
+	cs.Add("Volume", dataDir+":/var/lib/mysql")
+	// Over TCP: on first start the image's entrypoint runs a temporary
+	// server on its socket only, which mustn't count as ready.
+	cs.Add("HealthCmd", admin+" ping -h 127.0.0.1 --silent")
+	addDBHealthTiming(cs)
+	cs.Add("Label", "io.roostack.service="+svc)
+	cs.Add("Label", "io.roostack.component=db-"+name)
+	addPassthrough(&u, d.Quadlet)
+	addServiceSections(&u)
+
+	if err := g.addQuadlet(unit+".container", &u); err != nil {
+		return err
+	}
+	g.out.Units = append(g.out.Units, unit+".service")
+	g.out.Dirs = append(g.out.Dirs, dataDir)
+	g.out.Secrets = append(g.out.Secrets, Secret{Name: secretName(svc, "databases."+name+".password"), Generate: true})
+	if d.BackedUp() {
+		g.out.Backup.Prepare = append(g.out.Backup.Prepare, PrepareStep{
+			Type: d.Type, Container: unit, User: db.User, Database: db.Name,
 			Target: filepath.Join(g.dumpDir(), name+".sql"),
 		})
 	}

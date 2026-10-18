@@ -38,7 +38,7 @@ func Stop(o *Output, p *pkgspec.Package, lastBackup bool) {
 	}
 	o.Units = units
 	o.Backup.Prepare = slices.DeleteFunc(o.Backup.Prepare, func(s PrepareStep) bool {
-		return s.Type == pkgspec.DBPostgres && !keep[s.Container+".container"]
+		return s.Container != "" && !keep[s.Container+".container"]
 	})
 	o.CaddySite, o.Hosts, o.Ports, o.HostPorts, o.Public = nil, nil, nil, nil, false
 }

@@ -222,7 +222,22 @@ const (
 	DBSQLite   = "sqlite"
 	DBPostgres = "postgres"
 	DBRedis    = "redis"
+	DBMySQL    = "mysql"
+	DBMariaDB  = "mariadb"
 )
+
+// MySQLFamily says whether a database type is MySQL or MariaDB, which
+// Roostack runs the same way (SPEC.md §8.1, "MySQL and MariaDB").
+func MySQLFamily(kind string) bool { return kind == DBMySQL || kind == DBMariaDB }
+
+// HasPassword says whether Roostack makes a password for the database
+// (databases.<name>.password): the database servers, not SQLite or Redis.
+func (d *Database) HasPassword() bool { return d.Type == DBPostgres || MySQLFamily(d.Type) }
+
+// Dumped says whether the database is backed up through a dump its own
+// container makes before each backup (Postgres, MySQL and MariaDB), rather
+// than from its files.
+func (d *Database) Dumped() bool { return d.HasPassword() && d.BackedUp() }
 
 // Database is a Roostack-managed database following the standard pattern.
 type Database struct {

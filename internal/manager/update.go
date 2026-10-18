@@ -681,6 +681,10 @@ func updateImages(m *Manager, p *pkgspec.Package, in *instance.Instance) []strin
 			images = append(images, generate.DefaultPostgresImage)
 		case d.Type == pkgspec.DBRedis:
 			images = append(images, generate.DefaultRedisImage)
+		case d.Type == pkgspec.DBMySQL:
+			images = append(images, generate.DefaultMySQLImage)
+		case d.Type == pkgspec.DBMariaDB:
+			images = append(images, generate.DefaultMariaDBImage)
 		}
 	}
 	slices.Sort(images)

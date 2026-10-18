@@ -195,6 +195,26 @@ func (r *Restorer) LoadDumps(ctx context.Context, svc *generate.Output) error {
 			if err != nil {
 				return err
 			}
+		case pkgspec.DBMySQL, pkgspec.DBMariaDB:
+			if err := r.Units.Start(ctx, step.Container+".service"); err != nil {
+				return err
+			}
+			// The app's user may drop and recreate its own database: what
+			// the app made since the backup goes, then the dump goes in. Its
+			// name is letters, digits and _ (generate.mysqlIdent), so it
+			// needs no quoting.
+			dump, err := os.Open(step.Target)
+			if err != nil {
+				return err
+			}
+			client := mysqlCommand(step.Type, "client") + ` -h 127.0.0.1 -u "$1"`
+			err = r.run(ctx, dump, "podman", "exec", "-i", step.Container, "sh", "-c",
+				"("+client+" -e \"DROP DATABASE IF EXISTS $2; CREATE DATABASE $2\") && "+client+" \"$2\"",
+				"restore", step.User, step.Database)
+			dump.Close()
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

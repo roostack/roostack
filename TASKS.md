@@ -457,15 +457,15 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 
 Packages go to the registry (`roostack/services`), each checked with `roostack validate` and tried on a lab (install, a backup, a restore, removal) before it's committed.
 
-- [x] Done 2026-10-18, each tried on VM3: HedgeDoc, Wiki.js, Papra, Linkwarden, Paperless-ngx; Immich updated to 3.3.3, Vaultwarden to 1.37.4, Forgejo to 15.0.10; Mealie, Gitea, Miniflux, Lychee, Actual Budget, ntfy, Uptime Kuma, Radicale, Audiobookshelf
+- [x] Done 2026-10-18, each tried on VM3: HedgeDoc, Wiki.js, Papra, Linkwarden, Paperless-ngx; Immich updated to 3.3.3, Vaultwarden to 1.37.4, Forgejo to 15.0.10; Mealie, Gitea, Miniflux, Lychee, Actual Budget, ntfy, Uptime Kuma, Radicale, Audiobookshelf; Stirling-PDF; Ghost (MySQL) and PhotoPrism (MariaDB), 2026-10-19
 - [ ] Needs media folders (below): Jellyfin, Plex, Navidrome
-- [ ] Needs MySQL or MariaDB (below): Ghost; PhotoPrism (its docs recommend SQLite only for small libraries, and moving to MariaDB later is an unofficial migration)
 - [ ] Needs Roostack support, a session each: Frigate (and Viseron), Pi-hole, Home Assistant
 - [ ] Cal.diy: heavy, and its README says personal, non-production use; decide with the Owner
 - [ ] **Before go-live: every placeholder logo replaced** with the project's own, once its terms allow it or the project agrees (each package's file says why it has a placeholder)
 - [ ] **Media folders** (a session): packages ask for media to read (films, TV, music, books); a lab-wide media library that drives, folders and SMB shares are bind-mounted into; mounted read-only, not backed up. Design with the Owner first (a mock-up)
 - [ ] **SMB shares** (with media folders, or before): add a NAS share from the UI, its login kept root-only, mounted by the agent like a drive (see Phase 2, NAS shares, in §6.9's items)
-- [ ] **MySQL and MariaDB** as database types (a session): Roostack's pinned images, password, dump before backups and restore, health check, major-version upgrades
+- [x] **MySQL and MariaDB** as database types (2026-10-19): MySQL 8.4 and MariaDB 11.8 pinned, password, dump before backups and restore, health check; major versions upgrade as the servers start (SPEC §8.1, ASSUMPTIONS I3, I4). Ghost and PhotoPrism packaged on them, tried on VM3
+- [ ] **Check ASSUMPTIONS I3 at the first MySQL or MariaDB pin change:** a service with real data, updated across the major version
 - [ ] **A setting's `warning:`** (SPEC §8.1 "Configuring a service"): in pkgspec and validate, shown beside the option at install and in the service's settings, in the warning colour; then move HedgeDoc's Libravatar warning from its description into it (a new package revision)
 - [x] **A setting with another value during install** (found writing Papra, 2026-10-18; the Owner agreed): `install_value:` on a setting, used until the install hooks succeed (SPEC §8.1); Papra's package defaults sign-ups off with it, tried on a VM
 - [x] **`databases.<name>.url`** as a secret Roostack makes (the whole URL, password included), for apps that take their database only as a URL (Linkwarden, Kan, Cal.diy: Prisma): the Owner agreed 2026-10-18; built (SPEC §8.1), tried with Linkwarden on a VM
@@ -477,7 +477,7 @@ Packages go to the registry (`roostack/services`), each checked with `roostack v
 - [ ] **Generated secrets in other formats**, if more Laravel apps come (Lychee's `APP_KEY` wants "base64:" and standard base64; its package converts Roostack's URL-safe value in a shell wrapper)
 - [x] **A setup still retrying when its service is removed or installed again** (found with Miniflux, 2026-10-18): it kept retrying the old commands for 10 minutes, delayed other setups, then marked the reinstall failed. Now it stops, unrecorded (SPEC §8.1 hooks); tested, and tried on VM3
 - [x] **`.Lab.TimeZone` in package templates** (found writing Paperless-ngx, 2026-10-18): the server's time zone, "UTC" when unknown, for apps with their own time-zone setting rather than the container's (`PAPERLESS_TIME_ZONE`); in the packages reference, tried on VM3
-- [ ] **Publishing the new packages:** Papra, Linkwarden, Paperless-ngx, Mealie and Lychee use `install_value`, `databases.<name>.url`, `.Lab.TimeZone` or colons in paths, so they wait for a Roostack release with them (the registry's Publish workflow checks with a pinned release)
+- [ ] **Publishing the new packages:** Papra, Linkwarden, Paperless-ngx, Mealie, Lychee, Ghost, PhotoPrism and Vaultwarden 1.37.4-roostack.2 use `install_value`, `databases.<name>.url`, `.Lab.TimeZone`, colons in paths, `client_ip_header`, `mysql` or `mariadb`, so they wait for a Roostack release with them (the registry's Publish workflow checks with a pinned release)
 - [ ] **Forgejo 19 (the next LTS, April 2027):** the package stays on the 15 LTS line (v17.0.0 had an upstream "don't upgrade" warning on 2026-10-18, and 16 ends 2026-10-29)
 - [ ] **Extra settings per service** (Settings → Advanced, Owner only): extra environment variables, plain or secret; the package's own variables refused; kept in the instance, through updates; shown in the generated files and Details
 - [ ] **Config files a package declares** (`config_files:`), with Frigate and Home Assistant: an editor in the browser (syntax check, the app's own check, the previous version kept, restart on save); a code editor library only if chosen with the Owner
