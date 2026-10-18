@@ -8,8 +8,12 @@ When you remove a service:
 - it's **stopped and removed** from your lab, and its web address stops
   working;
 - **its data is kept**, in the folders shown. Nothing is deleted;
-- if you **install it again** later, it uses that data, and carries on
-  where it left off.
+- if you **install it again** later, under the same name on the same
+  server, it uses that data, and carries on where it left off. The install
+  page says so. Its first-time settings (such as Forgejo's administrator)
+  can then be left empty: the service keeps the accounts it has. Fill them
+  in only to set it up again with them, for example to add another
+  administrator.
 
 Only Owners and Admins can remove services.
 

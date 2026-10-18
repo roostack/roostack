@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 )
@@ -219,8 +220,15 @@ func TestBackupRuns(t *testing.T) {
 	s.RecordBackup(ctx, BackupRun{Started: now, Finished: now, OK: true, SnapshotID: "aaa", FilesNew: 3})
 	s.RecordBackup(ctx, BackupRun{Started: now, Finished: now, OK: false, Error: "disk full"})
 	last, ok, err := s.LastBackup(ctx)
-	if err != nil || last.OK || last.Error != "disk full" || ok.SnapshotID != "aaa" || ok.FilesNew != 3 {
+	if err != nil || last.OK || last.Error != "disk full" || ok.SnapshotID != "aaa" || ok.FilesNew != 3 || ok.Services != nil {
 		t.Errorf("last=%+v ok=%+v err=%v", last, ok, err)
+	}
+	// The services a run backed up: none is not unknown.
+	for _, want := range [][]string{{}, {"immich", "forgejo"}} {
+		s.RecordBackup(ctx, BackupRun{Started: now, Finished: now, OK: true, Services: want})
+		if _, ok, _ := s.LastBackup(ctx); ok.Services == nil || !slices.Equal(ok.Services, want) {
+			t.Errorf("services %q: got %#v", want, ok.Services)
+		}
 	}
 }
 

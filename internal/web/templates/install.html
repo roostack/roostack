@@ -81,6 +81,8 @@
     {{end}}
     {{end}}
     {{range .Fields}}
+      {{if .KeepsFirst}}<p class="hint">With its data from before, leave these empty: {{$.Package.Title}} keeps what it has,
+        its accounts too. Filled in, its first-time setup runs again with them.</p>{{end}}
       {{if eq .Kind "checkbox"}}
       <label class="check">
         <input type="checkbox" name="{{.Key}}" {{if .Checked}}checked{{end}}>
@@ -115,6 +117,11 @@
   hx-include="closest form" hx-params="{{.Params}}" hx-sync="this:replace" hx-swap="outerHTML" hx-disinherit="*">
   <h2>What {{.Package.Title}} sets up</h2>
   {{if .Err}}<p class="hint">It can't be worked out yet: {{.Err}}</p>{{else}}
+  {{with .LeftData}}<div class="notice" role="status">
+    <p><strong>{{$.Package.Title}}'s data from before is still on {{$.Server.Name}}</strong>, from when it was installed there and removed.
+      It starts with that data, as it was: everything in it comes back, accounts and passwords too.</p>
+    <p class="hint">In {{range $i, $d := .}}{{if $i}} and {{end}}<code>{{$d}}</code>{{end}}. To start afresh instead, choose another name.</p>
+  </div>{{end}}
   <dl class="facts">
     <dt>Keeps</dt>
     <dd>{{if .BackedUp}}{{.BackedUp}}: <strong>backed up</strong>{{else}}Nothing to back up{{end}}

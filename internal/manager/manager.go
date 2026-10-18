@@ -300,14 +300,23 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	if err := m.CheckPolicy(p, req.AcceptRisks); err != nil {
 		return err
 	}
-	in, id, err := m.draft(p, req, false)
+	// Over its data from before, with its first-time settings left
+	// empty, the app keeps what it has: they aren't asked for, and the
+	// install hooks don't run (SPEC.md §8.1, "hooks").
+	keep := false
+	if setupLeftEmpty(p, req) {
+		if d, id, err := m.draft(p, req, true, false); err == nil {
+			keep = len(m.leftData(ctx, d.Host, id)) > 0
+		}
+	}
+	in, id, err := m.draft(p, req, false, keep)
 	if err != nil {
 		return err
 	}
 	in.Local = m.IsLocal(p.Name)
 	secrets := map[string][]byte{}
 	for _, s := range p.Settings {
-		if s.Type != pkgspec.SettingSecret || s.Generate {
+		if s.Type != pkgspec.SettingSecret || s.Generate || keep && s.InstallOnly {
 			continue
 		}
 		v := req.Secrets[s.Key]
@@ -363,7 +372,7 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	}
 	// Install hooks (e.g. creating the admin account) run once the
 	// service has started.
-	if len(p.HooksOn(pkgspec.HookInstall)) > 0 {
+	if len(p.HooksOn(pkgspec.HookInstall)) > 0 && !keep {
 		m.setUp = append(m.setUp, id)
 	}
 	if m.secrets == nil {
@@ -380,7 +389,8 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 // settings and addresses. Secrets are Install's alone. A lenient draft
 // (for the summary, while the form is being filled in) leaves out
 // settings that aren't valid yet, so they take the package's defaults.
-func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient bool) (*instance.Instance, string, error) {
+// keep leaves out the install-only settings (over data from before).
+func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bool) (*instance.Instance, string, error) {
 	host := cmp.Or(req.Host, m.Lab.NodeID)
 	if m.node(host) == nil {
 		return nil, "", formErrorf("Choose which server runs %s.", p.Title)
@@ -401,7 +411,7 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient bool) (*
 		id, in.Name = n, n
 	}
 	for _, s := range p.Settings {
-		if s.Type == pkgspec.SettingSecret {
+		if s.Type == pkgspec.SettingSecret || keep && s.InstallOnly {
 			continue
 		}
 		raw, given := req.Settings[s.Key]
@@ -446,6 +456,11 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient bool) (*
 type InstallSummary struct {
 	*generate.Summary
 	Server ServerMemory
+	// LeftData are the service's data folders from before on its server
+	// (it was installed there and removed, which keeps its data): the app
+	// starts with what's in them. None if it starts afresh, or the server
+	// couldn't say.
+	LeftData []string
 }
 
 // ServerMemory is a server's memory, for the install summary (SPEC.md
@@ -479,7 +494,7 @@ func (m *Manager) InstallSummary(name string, req InstallRequest) (*InstallSumma
 	if err != nil {
 		return nil, err
 	}
-	in, _, err := m.draft(p, req, true)
+	in, _, err := m.draft(p, req, true, false)
 	if err != nil {
 		return nil, err
 	}
@@ -510,15 +525,16 @@ func (m *Manager) InstallSummary(name string, req InstallRequest) (*InstallSumma
 		}
 		out.Server.Expected += mem
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), memoryWait)
+	defer cancel()
 	if nm, ok := n.(node.Memory); ok {
-		ctx, cancel := context.WithTimeout(context.Background(), memoryWait)
-		defer cancel()
 		if info, err := nm.Memory(ctx); err == nil {
 			out.Server.Total, out.Server.Available = info.Total, info.Available
 		} else {
 			m.Log.Warn("server memory", "server", id.Name, "err", err)
 		}
 	}
+	out.LeftData = m.leftData(ctx, in.Host, cmp.Or(in.Name, p.Name))
 	return out, nil
 }
 
@@ -842,6 +858,44 @@ func (m *Manager) DataDirs(name string) []string {
 		filepath.Join(m.Lab.Paths.ServicesDir, name),
 		filepath.Join(m.Lab.Paths.MediaDir, name),
 	}
+}
+
+// leftData lists a service's data folders from before on a server (it was
+// installed there and removed, which keeps its data; SPEC.md §8.1).
+// None when there are none, or the server can't say: a server from before
+// answers 404, and nothing is assumed then.
+func (m *Manager) leftData(ctx context.Context, host, name string) []string {
+	nl, ok := m.node(host).(node.LeftData)
+	if !ok {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, memoryWait)
+	defer cancel()
+	dirs, err := nl.LeftData(ctx, name)
+	if err != nil && !errors.Is(err, node.ErrNotFound) {
+		m.Log.Warn("a service's data from before", "server", host, "service", name, "err", err)
+	}
+	if err != nil {
+		return nil
+	}
+	return dirs
+}
+
+// setupLeftEmpty says the install request leaves every one of the
+// package's install-only settings empty (and it has some): over data from
+// before, that keeps what the app has rather than setting it up again.
+func setupLeftEmpty(p *pkgspec.Package, req InstallRequest) bool {
+	settings := InstallSettings(p)
+	for _, s := range settings {
+		v := req.Settings[s.Key]
+		if s.Type == pkgspec.SettingSecret {
+			v = req.Secrets[s.Key]
+		}
+		if strings.TrimSpace(v) != "" && !(s.Type == pkgspec.SettingBool && v != "on" && v != "true") {
+			return false
+		}
+	}
+	return len(settings) > 0
 }
 
 // Wait blocks until the current apply finishes, and the relay update it

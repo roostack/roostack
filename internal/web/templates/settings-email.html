@@ -47,11 +47,14 @@
 <section class="card section" id="who">
   <h2>Who gets what</h2>
   <p class="hint">Each person chooses on their account's <a href="/account/notifications">Email and notifications</a> page.
-    Everyone with an address also gets security emails about their own account.</p>
+    Everyone with an address also gets security emails about their own account.{{if $.CloudLinked}} Those who get the lab's problems
+    get Roostack Cloud's emails about the lab too, once each confirms from a link Cloud emails them.{{end}}</p>
   <ul class="rows">
     {{range .}}<li class="row-split"><span><strong>{{.Name}}</strong> <small class="hint">{{roleName .Role}}</small><br>
       <small class="hint">{{if .Email}}{{.Email}} · {{if .Groups}}{{range $i, $g := .Groups}}{{if $i}}, {{end}}{{$g}}{{end}}{{else}}their own account's security only{{end}}
-        {{- else}}No address: no email{{end}}</small></span></li>{{end}}
+        {{- else}}No address: no email{{end}}</small>
+      {{- with .Cloud}}<br><small class="hint">{{template "cloud-recipient" .}}</small>
+      {{- else}}{{if .CloudNext}}<br><small class="hint">Roostack Cloud hears of them at the lab's next daily check-in</small>{{end}}{{end}}</span></li>{{end}}
   </ul>
 </section>
 {{end}}

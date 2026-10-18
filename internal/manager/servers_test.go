@@ -12,9 +12,11 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/store"
 )
 
 // fakeRemote is another server that records its assignments.
@@ -386,5 +388,23 @@ func TestPendingFor(t *testing.T) {
 	defer vps.mu.Unlock()
 	if vps.n != 1 {
 		t.Errorf("fetches applied %d times, want once", vps.n)
+	}
+}
+
+// TestServiceLastBackup: a service's last backup is its server's only if
+// that backup has it (one installed since has none yet); a backup from
+// before runs listed their services counts.
+func TestServiceLastBackup(t *testing.T) {
+	m, _ := newManager(t)
+	t0 := time.Now().Add(-time.Hour).Truncate(time.Second)
+	for _, c := range []struct {
+		services []string
+		want     time.Time
+	}{{[]string{}, time.Time{}}, {[]string{"immich"}, time.Time{}}, {[]string{"immich", "forgejo"}, t0}, {nil, t0}} {
+		vps := &fakeRemote{backups: fakeBackups{st: backup.Status{Configured: true, LastOK: &store.BackupRun{Finished: t0, OK: true, Services: c.services}}}}
+		m.Others = func() []RemoteServer { return []RemoteServer{vps} }
+		if got := m.ServiceInfos(context.Background())["forgejo"].LastBackup; !got.Equal(c.want) {
+			t.Errorf("a backup of %q: forgejo's last backup %v, want %v", c.services, got, c.want)
+		}
 	}
 }

@@ -86,6 +86,8 @@ type Summary struct {
 	// Stored is the space the whole repository takes, after the backup
 	// (0 if unknown).
 	Stored uint64
+	// Services are the services a run backed up (a run's total only).
+	Services []string
 }
 
 // Snapshot is one backup in the repository.

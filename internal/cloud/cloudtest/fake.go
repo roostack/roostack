@@ -80,6 +80,12 @@ type Fake struct {
 	// them 404, as a Cloud from before them does.
 	Reports   map[string]cloudapi.LabReport
 	NoReports bool
+	// Confirmed are the reported addresses' states other than waiting
+	// (confirmed, declined), by address; the first 10 reported are kept,
+	// the rest not, as Cloud does (LabInfo.Recipients). AskedAt is when
+	// each kept one was asked to confirm (zero: held back).
+	Confirmed map[string]string
+	AskedAt   time.Time
 	// Bans are each relayed lab's CrowdSec bans as last sent.
 	Bans map[string][]string
 	// RelayStats is what the relay's statistics answer, and StatsQuery
@@ -450,7 +456,8 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLab:
-		reply(w, cloudapi.LabInfo{LabID: id, Account: f.Account, Suspended: f.SuspendedFor, Names: f.NameStates})
+		reply(w, cloudapi.LabInfo{LabID: id, Account: f.Account, Suspended: f.SuspendedFor, Names: f.NameStates,
+			Recipients: f.recipients(id)})
 	case r.Method == http.MethodPut && r.URL.Path == cloudapi.PathLabReport:
 		var req cloudapi.LabReport
 		json.NewDecoder(r.Body).Decode(&req)
@@ -844,4 +851,21 @@ func (f *Fake) restore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply(w, cloudapi.Relinked{LabInfo: cloudapi.LabInfo{LabID: id, Account: f.Account}, Certificate: cert})
+}
+
+// recipients is how the addresses of the lab's last report stand (f.mu
+// held): none until it reports.
+func (f *Fake) recipients(id string) []cloudapi.RecipientStatus {
+	var out []cloudapi.RecipientStatus
+	for i, e := range f.Reports[id].Emails {
+		r := cloudapi.RecipientStatus{Email: e, State: cloudapi.RecipientWaiting, Asked: f.AskedAt}
+		if st, ok := f.Confirmed[e]; ok {
+			r.State = st
+		}
+		if i >= 10 {
+			r = cloudapi.RecipientStatus{Email: e, State: cloudapi.RecipientNotKept}
+		}
+		out = append(out, r)
+	}
+	return out
 }

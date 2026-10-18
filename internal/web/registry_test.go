@@ -148,6 +148,13 @@ func TestSettingsRegistry(t *testing.T) {
 		}
 	}
 
+	// A hand-built or mirrored index may give a short commit.
+	reg.status.Commit = "abc12"
+	if code, body := h.get("/settings/updates"); code != http.StatusOK || !strings.Contains(body, "<code>abc12</code>") {
+		t.Errorf("a short commit: %d", code)
+	}
+	reg.status = fresh()
+
 	h.post("/settings/updates/registry/check", nil, h.srv.URL)
 	if reg.checks != 1 {
 		t.Errorf("Check now: %d checks", reg.checks)

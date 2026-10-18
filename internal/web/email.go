@@ -10,7 +10,9 @@ import (
 	"strconv"
 	"strings"
 
+	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/store"
@@ -50,11 +52,21 @@ func (s *Server) renderEmail(w http.ResponseWriter, r *http.Request, extra map[s
 	}
 	data["Mail"], data["HasPassword"] = m, hasPassword
 	data["TestTo"], data["Saved"] = currentUser(r).Email, r.URL.Query().Get("saved") == "1"
-	// Who gets what: each person's address and groups.
+	// Who gets what: each person's address and groups, and how those
+	// getting problems stand with Roostack Cloud (SPEC.md §6.6).
+	var cloudSt cloud.Status
+	if s.Cloud != nil {
+		cloudSt = s.Cloud.Status()
+	}
+	data["CloudLinked"] = cloudSt.Linked
 	if users, err := s.Store.ListUsers(r.Context()); err == nil {
 		type recipient struct {
 			Name, Role, Email string
 			Groups            []string
+			// Cloud is how the address stands with Roostack Cloud;
+			// CloudNext: Cloud hasn't been told it yet.
+			Cloud     *cloudapi.RecipientStatus
+			CloudNext bool
 		}
 		var list []recipient
 		for i := range users {
@@ -66,7 +78,15 @@ func (s *Server) renderEmail(w http.ResponseWriter, r *http.Request, extra map[s
 					groups = append(groups, g.Title)
 				}
 			}
-			list = append(list, recipient{u.Username, u.Role, u.Email, groups})
+			rc := recipient{Name: u.Username, Role: u.Role, Email: u.Email, Groups: groups}
+			if cloudSt.Linked && u.Email != "" && chosen[notifyProblems] {
+				if j := slices.IndexFunc(cloudSt.Recipients, func(c cloudapi.RecipientStatus) bool { return strings.EqualFold(c.Email, u.Email) }); j >= 0 {
+					rc.Cloud = &cloudSt.Recipients[j]
+				} else {
+					rc.CloudNext = true
+				}
+			}
+			list = append(list, rc)
 		}
 		data["Recipients"] = list
 	}
