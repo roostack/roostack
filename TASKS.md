@@ -54,7 +54,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] People page for the Owner (add, role, new temporary password, turn off 2FA, remove; last Owner protected); `roostack user reset-2fa`
   - [x] Service settings: links into the app's admin pages, editable Roostack settings and web address, revealable secrets (Vaultwarden admin token)
   - [x] Theme toggle (auto/light/dark, saved per user)
-  - [ ] Mark untested catalog packages (Immich) before release (not needed while in development)
+  - [ ] Mark untested catalog packages (Immich) before release (not needed while in development). 2026-10-18: Forgejo and Immich work end to end on arm64 (ASSUMPTIONS R7), so neither needs the mark there; Immich hasn't run on amd64 yet
   - [x] Split the UI into pages: Home (needs attention + services), Services, Backups, Settings, Account; role-aware navigation; works on phones
   - [x] Change your own password (logs out other devices)
   - [x] Install/remove services from the UI (catalog, settings form, remove keeps data, background apply with status)
@@ -305,13 +305,13 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [ ] **The release key's ceremony** (the Owner): [docs/RELEASING.md](docs/RELEASING.md), "The ceremony": the OpenPGP key and its signing subkey, the `release` environment (a required reviewer, tags `v*` only) with the secret `ROOSTACK_RELEASE_SIGNING_KEY`, the public key into `packaging/keys/roostack-release.asc`, the fingerprint published. Until then the release workflow refuses to run; it also needs the registry's ceremony (REGISTRY-KEYS.md)
   - [ ] Confirm the release names (placeholders): the file names, `dl.roostack.cloud/releases/<ver>/`, the key's user ID `Roostack releases <releases@roostack.cloud>`
   - [ ] Pre-releases (`v1.2.0-rc.1`): the release workflow takes only `vMAJOR.MINOR.PATCH`; a Debian version would need `~rc.1` to sort before the release
-- [ ] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)
+- [x] **1.13 Packages:** Forgejo (Postgres) and Immich (complex)
   - [x] Forgejo v15 LTS: rootless image, Roostack Postgres, HTTPS clone; backup/restore tested on the VM
   - [x] Package `ports:` option; Forgejo git over SSH (tested on the VM: clone via LAN IP on 2222)
   - [x] Package hooks (`install`, `action`); Forgejo creates its admin at install and has "Reset a password" (hook scripts tested on the VM)
-  - [ ] Forgejo: fresh install through the UI (user to test: remove Forgejo, install again)
+  - [x] Forgejo: fresh install through the UI, removed, and installed again over its kept data (2026-10-18, arm64 VM, ASSUMPTIONS R7)
   - [x] If an install hook fails because of what was typed (e.g. an invalid username), the service page offers the install settings to fix (passwords kept unless retyped) and runs the hooks again with them
-  - [ ] Immich on the VM
+  - [x] Immich on the VM: with machine learning, a photo uploaded and found by smart search (2026-10-13 and 2026-10-18, arm64 VM, ASSUMPTIONS R2 and R7)
   - [x] `roostack validate` renders every template (default and flipped settings, with and without GPU, hooks too)
 
 ## Phase 2: Multiple machines (SPEC §10, draft)
@@ -461,6 +461,14 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Every pinned image has amd64 and arm64 builds (`make check-images`); a pull with no build for the server's processor says so
   - [x] Every pinned service image runs under a 16 KB-page kernel (the Pi 5's), checked in the VM
   - [ ] End to end on the arm64 VM: see ARM64-PLAN.md 1.6 for what's done and left
+  - [x] End to end as a user installs it (2026-10-18, ASSUMPTIONS R7): a release with throwaway keys, its apt repository, `install.sh`, the wizard over the setup pages, Forgejo (installed, removed, installed again) and Immich from a test-signed registry, a backup and a restore of Forgejo
+  - [x] `sign-release.sh` said the key was wrong when `gpgv` was missing (Debian 13's apt uses sqv, and `gnupg` without recommended packages lacks it): it now checks for `gpg` and `gpgv` first
+  - [x] `install.sh` printed debconf's failed frontends (Dialog, Readline, Teletype): apt now runs with `DEBIAN_FRONTEND=noninteractive`
+  - [ ] A service installed after its server's last backup: its page's Backups card shows that backup's time and "Its server's last backup, with everything Immich keeps", though the backup has none of it (the restore page rightly says there's no backup of it yet). Show "Not backed up yet" until a backup has it
+  - [ ] The first backup: Home says it "runs tomorrow 02:00", but the catch-up (`CatchUp`) runs one 10 minutes after Roostack starts with backups set up, and logs "none for over a day". Say when it will really run, and log "no backup yet" for a server never backed up
+  - [ ] Installing a service again over its kept data: the install page doesn't say the data will be used, and asks for the administrator's password, which the hook ignores when that administrator exists (Forgejo keeps the old password). Say so on the install page when kept data is there
+  - [ ] To discuss: Podman's recommended packages make a fresh install 66 packages and 435 MB (buildah, criu, cpp, gnupg among them). Installing with `--no-install-recommends` plus the few Roostack needs would be smaller; check which Podman needs on a VM first
+  - [ ] The install message is coloured when apt's own output goes to a file or pipe (apt runs dpkg in a pseudo-terminal, so `[ -t 1 ]` holds): harmless in a terminal, escape codes in logs
 - [ ] Phase 2: Raspberry Pi OS (needs a Pi 4 and a Pi 5)
 - [ ] Phase 3: hardware checks (SD card, memory, heat, power, clock)
 - [ ] Phase 4: labs mixing PCs and Pis

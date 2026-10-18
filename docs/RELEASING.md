@@ -118,6 +118,11 @@ with GnuPG 2.4.7, checked with gpgv; the package installed and passed
 `dpkg --verify`; and each refusal above was tried. The workflow itself
 hasn't run on GitHub yet (its runners are amd64).
 
+**End to end (2026-10-18):** a release made the same way, published with
+`build-apt-repo.sh`, installed on a fresh arm64 VM through
+`scripts/install.sh` and ran a lab (docs/ASSUMPTIONS.md R7). Signing
+needs `gpgv` as well as `gpg`; on Debian 13 they're separate packages.
+
 ### Checking a release yourself
 
 On any Linux machine with Podman (a Roostack server has it) or Docker, from
