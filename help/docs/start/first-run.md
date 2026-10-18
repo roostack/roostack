@@ -8,10 +8,10 @@ backups for later, but Roostack will remind you until they're done.
 
 You'll need:
 
-- The **setup code**. The installer shows it when it finishes, and
-  Roostack writes it in its log (*For technical users* below says where).
-  It stops anyone else on your network from setting up Roostack before you
-  do.
+- The **setup code** and the setup page's address. The installer shows
+  them when it finishes, and Roostack writes them in its log (*For
+  technical users* below says where). The code stops anyone else on your
+  network from setting up Roostack before you do.
 - An **authenticator app** on your phone, such as Google Authenticator,
   Microsoft Authenticator, or the one in your password manager.
 - Nothing, for a free roost.ac address. To use **your own domain**
@@ -20,11 +20,27 @@ You'll need:
 - If you want to set up backups now: a **USB drive**, a second disk, or an
   online storage account.
 
-!!! note "Opening Roostack for the first time"
+## Open the setup page
 
-    For now, you open Roostack the first time through an SSH connection to
-    the server (see *For technical users* below). A simpler way, from any
-    device on your home network, is still being built.
+Open the address the installer showed, such as
+`https://192.168.1.20:8443`, in a browser on a computer or phone on the
+**same network** as the server. Your browser warns that the connection
+isn't private: compare the certificate's fingerprint with the installer's
+first, as [Check the setup page's certificate](install.md#check-the-setup-pages-certificate)
+explains, then go on to the page.
+
+Setup stays on this page until it's finished, all seven steps. Then the
+page closes for good and tells you where Roostack is from then on: at
+your lab's address if you gave it one (step 5), otherwise through SSH.
+
+Once your account exists, the page asks you to log in if you come back
+to it later, and it closes **24 hours** after your account was made,
+finished or not, to keep your server safe. If that happens, carry on
+through SSH ([Not on the same network?](install.md#not-on-the-same-network)):
+setup continues where you left it.
+
+On a cloud server, or if the page doesn't open, use SSH instead:
+[Not on the same network?](install.md#not-on-the-same-network)
 
 ## 1. Create your account
 
@@ -209,15 +225,28 @@ and the page carries on by itself. Then you'll see the home page, ready for
 ??? note "For technical users"
 
     **Opening the UI the first time.** The UI listens on `127.0.0.1:8480`
-    on the server only. Until a domain is set up, reach it with an SSH
-    tunnel from your computer, then open <http://127.0.0.1:8480>:
+    on the server only. During first-run setup, Roostack also serves the
+    setup pages, and only those, on port 8443 over HTTPS to the home
+    network (private addresses, opened in the firewall for them only), with
+    a self-signed certificate (`/var/lib/roostack/setup-tls.crt`). The
+    browser must use the server's address, not a name: a name gets
+    *421 Misdirected Request*, which stops other sites reaching the page
+    through a name pointed at your server (DNS rebinding). Once the Owner
+    exists, everything there needs the Owner signed in there; a session
+    from there doesn't work on Roostack's other pages, nor the other way
+    round. When setup is finished, or 24 hours after the Owner was made,
+    the listener stops, the firewall closes the port, the certificate is
+    deleted and everything signed in there is signed out. Until the lab has an address, the UI is then
+    reached with an SSH tunnel from your computer, then
+    <http://127.0.0.1:8480>, which works during setup too:
 
     ```bash
     ssh -L 8480:127.0.0.1:8480 you@your-server
     ```
 
     **The setup code** is shown when the package finishes installing (run
-    `sudo /usr/share/roostack/installed-message` to see it again), printed in
+    `sudo /usr/share/roostack/installed-message` to see it again, with the
+    setup page's address and certificate fingerprint), printed in
     the log (`journalctl -u roostack`) and
     saved in `/var/lib/roostack/setup-token` (readable by root and the
     `roostack` user only). It's deleted once the Owner exists.

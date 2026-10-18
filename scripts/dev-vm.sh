@@ -19,12 +19,13 @@
 #
 # Ports forwarded to 127.0.0.1 on this machine:
 #   2222 -> 22 (ssh), 18480 -> 8480 (Roostack UI), 18080 -> 80, 18443 -> 443,
+#   18444 -> 8443 (the first-run setup pages: https://127.0.0.1:18444),
 #   51820/udp -> 51820 (Roostack's WireGuard network), 52820/udp -> 51821 (storage for other labs)
 #
 # More VMs (e.g. a second machine joining the lab): ROOSTACK_VM=2 scripts/dev-vm.sh up
 # VMs 1-9 work. VM n uses ssh port 2221+n and UDP 51819+n and 52819+n. Its
 # other TCP ports are VM 1's plus (n-1)*10000 for VMs 1-5 (VM 2's UI tunnel is
-# 28481, VM 5's 58481), and 6x480, 6x080, 6x443, 6x481 for VMs 6-9 with
+# 28481, VM 5's 58481), and 6x480, 6x080, 6x443, 6x444, 6x481 for VMs 6-9 with
 # x = n-6 (VM 6's UI tunnel is 60481, VM 9's 63481): the 10000 step would pass
 # 65535 from VM 6. Another VM reaches VM n's WireGuard at 10.0.2.2:<its UDP
 # port> (QEMU's address for this machine).
@@ -212,7 +213,7 @@ start() {
     "${qemu[@]}" \
         -name "$NAME" -machine "$machine" -cpu "$cpu" -m "$MEMORY" -smp "$CPUS" \
         -drive file="$DISK",if=virtio,id=disk0,discard=unmap \
-        -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$(tcp_port 18480)-:8480,hostfwd=tcp:127.0.0.1:$(tcp_port 18080)-:80,hostfwd=tcp:127.0.0.1:$(tcp_port 18443)-:443,hostfwd=udp::$WG_PORT-:51820,hostfwd=udp::$GUESTS_PORT-:51821" \
+        -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$SSH_PORT-:22,hostfwd=tcp:127.0.0.1:$(tcp_port 18480)-:8480,hostfwd=tcp:127.0.0.1:$(tcp_port 18080)-:80,hostfwd=tcp:127.0.0.1:$(tcp_port 18443)-:443,hostfwd=tcp:127.0.0.1:$(tcp_port 18444)-:8443,hostfwd=udp::$WG_PORT-:51820,hostfwd=udp::$GUESTS_PORT-:51821" \
         -device virtio-net-pci,netdev=net0 \
         -device virtio-rng-pci \
         -device qemu-xhci,id=xhci \

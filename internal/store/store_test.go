@@ -50,6 +50,36 @@ func TestUsersAndSessions(t *testing.T) {
 		t.Errorf("expired session should not be valid, got %v", err)
 	}
 
+	// A session works only where it was signed in, and the setup pages'
+	// go together (SPEC.md §6.3.2).
+	if err := s.CreateSessionAt(ctx, OriginSetup, "setup-tok", u.ID, time.Now().Add(time.Hour), false); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := s.SessionInfo(ctx, "setup-tok"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("the setup pages' session on Roostack's own pages: %v", err)
+	}
+	if _, err := s.SessionUser(ctx, "setup-tok"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("the setup pages' session as a user's: %v", err)
+	}
+	if _, _, _, err := s.SessionInfoAt(ctx, OriginSetup, "tok"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("Roostack's own session on the setup pages: %v", err)
+	}
+	if got, _, _, err := s.SessionInfoAt(ctx, OriginSetup, "setup-tok"); err != nil || got.ID != u.ID {
+		t.Errorf("the setup pages' session there: %v", err)
+	}
+	if err := s.DeleteSessionsAt(ctx, OriginSetup); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := s.SessionInfoAt(ctx, OriginSetup, "setup-tok"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("the setup pages' session after they closed: %v", err)
+	}
+	if _, err := s.SessionUser(ctx, "tok"); err != nil {
+		t.Errorf("Roostack's own session after the setup pages closed: %v", err)
+	}
+	if at, ok, err := s.FirstUserCreated(ctx); err != nil || !ok || time.Since(at) > time.Minute {
+		t.Errorf("first account made %v (%v, %v)", at, ok, err)
+	}
+
 	// A password reset logs the user out everywhere.
 	if err := s.SetPassword(ctx, "tyris", "new", true); err != nil {
 		t.Fatal(err)

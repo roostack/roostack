@@ -12,6 +12,7 @@ Roostack's firewall (nftables) blocks everything that isn't listed here.
 | 51820/udp | The lab's network (WireGuard), on the server that runs the lab | Anyone, so servers elsewhere can join |
 | 51821/udp | Other labs storing backups here (WireGuard), on the server offering the space | Anyone, so other labs can connect |
 | Your choice | A service's [extra connections](../services/settings.md#extra-connections), such as git over SSH | Your home network |
+| 8443/tcp | The [setup page](../start/install.md#when-its-installed), over HTTPS, only until first-run setup is finished | Your home network |
 
 Services are private, so while "anyone" can reach port 443, a service
 answers only visitors from your home network (or a VPN into it). Nothing is

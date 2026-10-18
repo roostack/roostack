@@ -15,7 +15,7 @@ import (
 
 func TestDesired(t *testing.T) {
 	lab := config.Default()
-	if _, ok := Desired(lab, nil, Roles{}); ok {
+	if fw, ok := Desired(lab, nil, Roles{}); !ok || !fw.Unchosen || fw.SetupPort != 0 {
 		t.Error("no firewall until the Owner has chosen SSH access")
 	}
 	lab.Firewall.SSH = config.SSHOff
@@ -150,5 +150,33 @@ func TestCutsOffServers(t *testing.T) {
 	}
 	if fw, _ := Desired(lab, nil, Roles{}); fw.Controller != "100.96.0.1" || fw.Validate() != nil {
 		t.Errorf("a node's firewall lets in %q", fw.Controller)
+	}
+}
+
+// TestDesiredSetupPort: the setup pages' port follows Roles.SetupPort,
+// for the home network, whether or not the Owner has chosen the firewall;
+// a node leaves it alone until then (SPEC.md §6.3.2).
+func TestDesiredSetupPort(t *testing.T) {
+	lab := config.Default()
+	fw, ok := Desired(lab, nil, Roles{SetupPort: config.SetupPort})
+	if !ok || !fw.Unchosen || fw.SetupPort != config.SetupPort || fw.Validate() != nil {
+		t.Errorf("unchosen, during setup: %+v %v", fw, ok)
+	}
+	fw, ok = Desired(lab, nil, Roles{})
+	if !ok || !fw.Unchosen || fw.SetupPort != 0 {
+		t.Errorf("unchosen, after setup: %+v %v (the table goes)", fw, ok)
+	}
+	lab.Firewall.SSH = config.SSHFromLAN
+	fw, ok = Desired(lab, nil, Roles{SetupPort: config.SetupPort})
+	if !ok || fw.Unchosen || fw.SetupPort != config.SetupPort || fw.Validate() != nil {
+		t.Errorf("chosen, during setup: %+v", fw)
+	}
+	if fw, _ := Desired(lab, nil, Roles{}); fw.SetupPort != 0 {
+		t.Errorf("chosen, after setup: %+v", fw)
+	}
+	node := config.Default()
+	node.Role = config.RoleNode
+	if _, ok := Desired(node, nil, Roles{}); ok {
+		t.Error("a node without a choice: no firewall")
 	}
 }

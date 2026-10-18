@@ -180,7 +180,7 @@ func (s *Server) startPending(w http.ResponseWriter, r *http.Request, u *store.U
 			delete(s.pending, k)
 		}
 	}
-	s.pending[authkit.HashToken(token)] = &pendingLogin{userID: u.ID, expires: now.Add(pendingDuration), remember: r.FormValue("remember") == "on"}
+	s.pending[originOf(r)+authkit.HashToken(token)] = &pendingLogin{userID: u.ID, expires: now.Add(pendingDuration), remember: r.FormValue("remember") == "on"}
 	s.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{
 		Name: pendingCookie, Value: token, Path: "/login", MaxAge: int(pendingDuration.Seconds()),
@@ -195,7 +195,7 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, "/login")
 		return
 	}
-	key := authkit.HashToken(c.Value)
+	key := originOf(r) + authkit.HashToken(c.Value)
 	s.mu.Lock()
 	p := s.pending[key]
 	if p != nil && time.Now().After(p.expires) {

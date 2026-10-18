@@ -173,6 +173,9 @@ type Local struct {
 	// labServers, on the hub, lists the lab's servers' addresses on
 	// Roostack's network (SetLabServers).
 	labServers func(ctx context.Context) ([]string, error)
+	// setupPort is the first-run setup pages' port while setup lasts
+	// (SetSetupPort).
+	setupPort int
 
 	mu         sync.Mutex
 	assignment Assignment
@@ -382,6 +385,7 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 		LinksListen: a.Links != nil && a.Links.Listen}
 	n.mu.Lock()
 	servers := n.labServers
+	roles.SetupPort = n.setupPort
 	n.mu.Unlock()
 	if lab := n.lab(a); servers != nil && n.Firewall != nil && lab.OverlayAddr != "" && !lab.IsNode() && lab.Firewall.SSH != "" {
 		members, err := servers(ctx)
@@ -430,6 +434,14 @@ func (n *Local) UseSSH(choice string) {
 func (n *Local) SetLabServers(f func(ctx context.Context) ([]string, error)) {
 	n.mu.Lock()
 	n.labServers = f
+	n.mu.Unlock()
+}
+
+// SetSetupPort opens the first-run setup pages' port to the home network
+// from the next apply, or closes it with 0 (SPEC.md §6.3.2).
+func (n *Local) SetSetupPort(port int) {
+	n.mu.Lock()
+	n.setupPort = port
 	n.mu.Unlock()
 }
 

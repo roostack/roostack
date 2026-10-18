@@ -527,6 +527,9 @@ const deviceCookie = "roostack_device"
 // noteDevice remembers the browser u just logged in from; a new one, for
 // someone who has logged in before, is audited (and so emailed).
 func (s *Server) noteDevice(w http.ResponseWriter, r *http.Request, u *store.User) {
+	if fromSetupListener(r) {
+		return // no cookie that outlives the setup pages (SPEC.md §6.3.2)
+	}
 	token := ""
 	if c, err := r.Cookie(deviceCookie); err == nil && len(c.Value) == 32 {
 		token = c.Value

@@ -417,8 +417,24 @@ func TestFirewallFollowsServices(t *testing.T) {
 
 	m.Apply()
 	m.Wait()
-	if len(fw.applied) != 0 {
-		t.Fatal("the firewall must be left alone until the Owner chose SSH access")
+	for _, a := range fw.applied {
+		if !a.Unchosen || a.SetupPort != 0 {
+			t.Fatalf("the firewall must be left alone until the Owner chose SSH access: %+v", a)
+		}
+	}
+	// During first-run setup, only the setup pages' port, for the home
+	// network; then it goes (SPEC.md §6.3.2).
+	local(m).SetSetupPort(config.SetupPort)
+	m.Apply()
+	m.Wait()
+	if last := fw.applied[len(fw.applied)-1]; !last.Unchosen || last.SetupPort != config.SetupPort {
+		t.Errorf("during setup: %+v", last)
+	}
+	local(m).SetSetupPort(0)
+	local(m).Reapply("setup is finished")
+	m.Wait()
+	if last := fw.applied[len(fw.applied)-1]; !last.Unchosen || last.SetupPort != 0 {
+		t.Errorf("after setup: %+v", last)
 	}
 
 	m.Lab.Firewall.SSH = config.SSHFromLAN

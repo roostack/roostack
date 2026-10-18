@@ -81,7 +81,10 @@ func apply(args []string) error {
 		return err
 	}
 	fmt.Print(plan)
+	// Before the Owner has chosen the firewall, it's first-run setup's
+	// (serve), not this command's.
 	fw, fwOK := firewall.Desired(lab, desired.Services, firewall.Roles{})
+	fwOK = fwOK && !fw.Unchosen
 	if fwOK {
 		// Each rule names its trust class (internal/trust): any, lan (the
 		// home network), servers (the lab's, on Roostack's network) or

@@ -120,7 +120,12 @@ func serve(args []string) error {
 		return err
 	}
 	if lab.IsNode() {
-		// Run by another server (the controller): no UI of its own.
+		// Run by another server (the controller): no UI of its own, so no
+		// setup pages either (one that joined from them leaves their
+		// certificate).
+		if err := web.RemoveSetupCert(lab.Paths); err != nil {
+			log.Error("deleting the setup pages' certificate", "err", err)
+		}
 		return serveNode(ctx, lab, local, agentClient, restart, log)
 	}
 
@@ -128,6 +133,9 @@ func serve(args []string) error {
 	if err != nil {
 		return err
 	}
+	// The setup pages on the home network (SPEC.md §6.3.2), decided before
+	// the first apply, whose firewall opens their port.
+	pages := setupPages(ctx, lab, st, token, local, log)
 	var mgrRef *manager.Manager
 	srv, err := web.NewServer(st, func(ctx context.Context) ([]web.ServiceView, error) {
 		return serviceViews(ctx, lab, mgrRef, log)
@@ -370,6 +378,19 @@ func serve(args []string) error {
 		return err
 	}
 	srv.Setup, srv.DNSProvider, srv.LabName = wiz, lab.DNS.Provider, lab.DisplayName()
+	// Where the setup pages on the home network send the Owner once setup
+	// is finished: the address saved in the wizard, if Roostack's own
+	// pages are there.
+	srv.FirstRunAddress = func() string {
+		l, err := config.Load(*labPath)
+		if err != nil || !l.HasAddress() || (l.OnInternet() && !l.PublicUI()) {
+			return ""
+		}
+		return "https://" + l.UIHost()
+	}
+	if pages != nil {
+		go serveSetupPages(ctx, pages, srv, lab, local, log)
+	}
 	// The previous address stops when its time is up (SPEC.md §6.6).
 	srv.OldAddress = lab.OldAddress
 	go wiz.RunOldAddress(ctx, log)

@@ -117,6 +117,10 @@ type Server struct {
 	// OnSetupComplete is called after the first Owner is created (e.g. to
 	// delete the token file).
 	OnSetupComplete func()
+	// FirstRunAddress is the lab's address for Roostack's own pages
+	// ("https://…"), as saved now, or "" without one: where the setup
+	// listener sends the Owner once setup is finished (SPEC.md §6.3.2).
+	FirstRunAddress func() string
 
 	// pending holds logins that passed the password check and are waiting
 	// for a 2FA code, keyed by token hash. In memory: a restart just means
@@ -467,7 +471,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		"home", "services", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
-		"backups-junk"} {
+		"backups-junk", "setup-finished"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -479,7 +483,11 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 }
 
 // Handler returns all routes wrapped in the common middleware.
-func (s *Server) Handler() http.Handler {
+func (s *Server) Handler() http.Handler { return s.handler(nil) }
+
+// handler is Handler, with gate (if any) between the session and the
+// routes: the setup listener's (setupGate).
+func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	static, _ := fs.Sub(staticFS, "static")
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", staticHandler(static)))
@@ -673,7 +681,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /services/{name}/updates", s.require(auth.ManageServices, s.updatePolicySubmit))
 	mux.Handle("POST /services/{name}/remove", s.require(auth.ManageServices, s.removeSubmit))
 
-	return s.recoverPanics(compress(securityHeaders(sameOrigin(s.loadSession(s.errorPages(mux))))))
+	routes := s.errorPages(mux)
+	if gate != nil {
+		routes = gate(routes)
+	}
+	return s.recoverPanics(compress(securityHeaders(sameOrigin(s.loadSession(routes)))))
 }
 
 type userKey struct{}
@@ -688,7 +700,9 @@ func (s *Server) loadSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if c, err := r.Cookie(sessionCookie); err == nil && c.Value != "" {
 			hash := authkit.HashToken(c.Value)
-			u, lastSeen, remember, err := s.Store.SessionInfo(r.Context(), hash)
+			// Only a session signed in here: the setup pages' and
+			// Roostack's own don't work on each other (SPEC.md §6.3.2).
+			u, lastSeen, remember, err := s.Store.SessionInfoAt(r.Context(), sessionOrigin(r), hash)
 			switch {
 			case err == nil:
 				r = s.checkSession(r, hash, u, lastSeen, remember)
@@ -814,8 +828,13 @@ func (s *Server) recoverPanics(next http.Handler) http.Handler {
 // redirect sends the browser elsewhere. For htmx background requests (like
 // the dashboard's live refresh) a normal redirect would be followed
 // silently and the other page's HTML swapped into the current page, so htmx
-// is told to navigate the whole page instead.
+// is told to navigate the whole page instead. On the setup listener, the
+// redirect after setup's last step is the page saying where Roostack is
+// from now on (finishedOnSetupListener).
 func redirect(w http.ResponseWriter, r *http.Request, url string) {
+	if finishedOnSetupListener(w, r) {
+		return
+	}
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", url)
 		w.WriteHeader(http.StatusOK)
@@ -846,12 +865,13 @@ func (s *Server) startSession(w http.ResponseWriter, r *http.Request, u *store.U
 	if err != nil {
 		return err
 	}
-	remember = remember && s.offerRemember(r.Context())
+	// Not on the setup pages: their sessions end when they close.
+	remember = remember && s.offerRemember(r.Context()) && !fromSetupListener(r)
 	expires := time.Now().Add(sessionDuration)
 	if remember {
 		expires = time.Now().Add(rememberDuration)
 	}
-	if err := s.Store.CreateSessionRemember(r.Context(), authkit.HashToken(token), u.ID, expires, remember); err != nil {
+	if err := s.Store.CreateSessionAt(r.Context(), sessionOrigin(r), authkit.HashToken(token), u.ID, expires, remember); err != nil {
 		return err
 	}
 	c := &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: isHTTPS(r)}
