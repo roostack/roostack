@@ -37,6 +37,10 @@ var PollEvery = 3 * time.Second
 // How often the lab checks in once linked (SPEC.md §6.6).
 const (
 	checkEvery = 24 * time.Hour
+	// watchEvery is how often it checks in while Cloud has something of
+	// it on hold (a name waiting for approval, a suspension), so the
+	// Owner hears soon when it's decided or lifted.
+	watchEvery = time.Hour
 	// retryEvery is how soon a check that couldn't reach Cloud is tried
 	// again.
 	retryEvery = time.Hour
@@ -87,6 +91,10 @@ type Service struct {
 	// link (unlinked, here or in Cloud): the lab goes back to having no
 	// address.
 	Dropped func(ctx context.Context)
+	// Report is what the lab tells Cloud after each check-in (its own
+	// email recipients, its servers' last backups to Cloud; report.go);
+	// nil: nothing.
+	Report func(ctx context.Context) (cloudapi.LabReport, error)
 }
 
 // linkState is what's kept in link.json.
@@ -115,6 +123,23 @@ type linkState struct {
 	ForgottenAccount string `json:"forgotten_account,omitempty"`
 	// RecoveryIdentity is the public key Cloud was last told (recovery.go).
 	RecoveryIdentity []byte `json:"recovery_identity,omitempty"`
+	// Reported is when the lab last told Cloud its report (report.go);
+	// zero if it never has, or Cloud is from before reports.
+	Reported time.Time `json:"reported,omitzero"`
+}
+
+// onHold says Cloud has something of the lab on hold: a name waiting for
+// approval, or the account or a name suspended (watchEvery).
+func (st linkState) onHold() bool {
+	if st.Suspended != "" || st.Relay != nil && st.Relay.Relay.Suspended != "" {
+		return true
+	}
+	for _, n := range st.Names {
+		if n.State != cloudapi.NameRefused {
+			return true
+		}
+	}
+	return false
 }
 
 // pending is a link being made: only in memory (a restart forgets it;
@@ -171,14 +196,16 @@ func (s *Service) currentCert() *tls.Certificate {
 type Status struct {
 	Linked bool
 	cloudapi.LabInfo
-	Name, Address        string
-	AddressError         string
-	Since, LastContact   time.Time
-	LastTry              time.Time
-	LastError            string
-	Refused              string
-	Forgotten            time.Time
-	ForgottenAccount     string
+	Name, Address      string
+	AddressError       string
+	Since, LastContact time.Time
+	LastTry            time.Time
+	LastError          string
+	Refused            string
+	Forgotten          time.Time
+	ForgottenAccount   string
+	// Reported is when the lab last told Cloud its report.
+	Reported             time.Time
 	CertFingerprint      string
 	CertIssued, CertEnds time.Time
 	// Waiting is a link being made; StartError why the last one didn't
@@ -206,7 +233,7 @@ func (s *Service) Status() Status {
 	st := Status{Linked: s.st.Linked, LabInfo: s.st.LabInfo, Name: s.st.Name, Address: s.st.Address,
 		AddressError: s.addrErr, Since: s.st.Since,
 		LastContact: s.st.LastContact, LastTry: s.st.LastTry, LastError: s.st.LastError,
-		Refused:   s.st.Refused,
+		Refused: s.st.Refused, Reported: s.st.Reported,
 		Forgotten: s.st.Forgotten, ForgottenAccount: s.st.ForgottenAccount,
 		StartError: s.startErr, TriedName: s.triedName, Dir: s.dir, URL: s.cfg.Address()}
 	if s.cert != nil && s.cert.Leaf != nil {
@@ -437,6 +464,9 @@ func (s *Service) ClaimName(ctx context.Context, name string) error {
 	if err == nil {
 		s.mu.Lock()
 		s.st.Name, s.st.Address = name, claim.Name
+		// Whether the name waits for approval, or was refused, as Cloud
+		// says with the claim (nil: it works, or an older Cloud).
+		s.st.Names = withName(s.st.Names, claim.Name, claim.Status)
 		err = s.save()
 		s.mu.Unlock()
 	}
@@ -598,6 +628,9 @@ func (s *Service) Check(ctx context.Context) error {
 			// Not the check's failure: it's tried again at the next one.
 			s.log.Warn("Roostack Cloud: registering the recovery identity", "err", rerr)
 		}
+		if rerr := s.report(ctx); rerr != nil {
+			s.log.Warn("Roostack Cloud: telling Cloud the lab's report (tried again at the next check)", "err", rerr)
+		}
 	}
 	s.mu.Lock()
 	now := s.now()
@@ -717,7 +750,11 @@ func (s *Service) Run(ctx context.Context) {
 		s.mu.Lock()
 		st := s.st
 		s.mu.Unlock()
-		due := st.Linked && (first || s.now().Sub(st.LastContact) >= checkEvery &&
+		every := checkEvery
+		if st.onHold() {
+			every = watchEvery
+		}
+		due := st.Linked && (first || s.now().Sub(st.LastContact) >= every &&
 			(st.LastTry.IsZero() || s.now().Sub(st.LastTry) >= retryEvery))
 		if due {
 			if err := s.Check(ctx); err != nil && ctx.Err() == nil {

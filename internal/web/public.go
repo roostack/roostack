@@ -306,6 +306,15 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 		data["CanRelay"], data["Relay"] = s.canRelay(), s.Manager.RelayOn()
 		data["RelayError"] = r.FormValue("relay_error")
 		data["RelayDomain"] = s.relayDomain()
+		// Turned off or suspended in Cloud (only set when it is: a zero
+		// time would read as true in the template).
+		if s.Manager.RelayOn() && s.Cloud != nil {
+			off, suspended := s.Cloud.RelayStanding()
+			if !off.IsZero() {
+				data["RelayOff"] = off
+			}
+			data["RelaySuspended"] = suspended
+		}
 		if s.DNS != nil {
 			st := s.DNS.Status()
 			data["DNSManaged"] = st.Managing && st.CanManage
@@ -406,6 +415,23 @@ func (s *Server) publicRelayCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	redirect(w, r, "/settings/public#way-in")
+}
+
+// publicRelayOn turns Roostack Cloud's relay on again after the lab's
+// account turned it off in Cloud (Roostack Cloud's DESIGN §3f): only here,
+// since the lab's own updates leave it off.
+func (s *Server) publicRelayOn(w http.ResponseWriter, r *http.Request) {
+	if s.Cloud == nil || !s.Manager.RelayOn() {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.Cloud.TurnRelayOn(r.Context()); err != nil {
+		redirect(w, r, "/settings/public?relay_error="+url.QueryEscape(cloudMessage(err))+"#way-in")
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "public access", "Roostack Cloud's relay turned on again")
+	s.refreshDNS()
+	redirect(w, r, "/settings/public?saved=relay-on#way-in")
 }
 
 // publicCountriesSubmit sets who the relay lets in by country: anyone,

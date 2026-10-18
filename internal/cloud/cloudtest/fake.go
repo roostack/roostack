@@ -60,9 +60,26 @@ type Fake struct {
 	// pilot grant. Relayed is each relayed lab's request, by lab ID.
 	NoRelay bool
 	Relayed map[string]cloudapi.RelayRequest
-	// Suspended answers every lab request 423 Locked, as Cloud does
-	// while the account is suspended.
+	// Suspended answers every lab request 423 Locked, as Cloud did
+	// before 2026-10-16 while the account was suspended.
 	Suspended bool
+	// SuspendedFor is why the account is suspended, as Cloud says now:
+	// the lab may still check in (told why) and report; its other
+	// requests are answered 423 Locked.
+	SuspendedFor string
+	// NameStates are what the lab is told about its names (waiting,
+	// refused, suspended): when it checks in, with the relay's answers,
+	// and with a claim (that name's).
+	NameStates []cloudapi.NameStatus
+	// RelayOff is when the account turned the relay off at Cloud (zero:
+	// it's on), until the lab asks to turn it on; RelaySuspended why
+	// it's suspended.
+	RelayOff       time.Time
+	RelaySuspended string
+	// Reports are each lab's last report, by lab ID; NoReports answers
+	// them 404, as a Cloud from before them does.
+	Reports   map[string]cloudapi.LabReport
+	NoReports bool
 	// Bans are each relayed lab's CrowdSec bans as last sent.
 	Bans map[string][]string
 	// RelayStats is what the relay's statistics answer, and StatsQuery
@@ -329,7 +346,8 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	case r.URL.Path == cloudapi.PathLab || r.URL.Path == cloudapi.PathLabRenew || r.URL.Path == cloudapi.PathLabName ||
 		r.URL.Path == cloudapi.PathLabRelay || r.URL.Path == cloudapi.PathLabRelayBans || r.URL.Path == cloudapi.PathLabRelayStats ||
-		r.URL.Path == cloudapi.PathLabStorageKeys || r.URL.Path == cloudapi.PathLabStorage || r.URL.Path == cloudapi.PathLabRecoveryIdentity:
+		r.URL.Path == cloudapi.PathLabStorageKeys || r.URL.Path == cloudapi.PathLabStorage || r.URL.Path == cloudapi.PathLabRecoveryIdentity ||
+		r.URL.Path == cloudapi.PathLabReport && !f.NoReports:
 		f.labAPI(w, r)
 	case r.Method == http.MethodPost && (r.URL.Path == cloudapi.PathRestoreChallenge || r.URL.Path == cloudapi.PathRestoreAccess ||
 		r.URL.Path == cloudapi.PathRestoreRelink):
@@ -426,9 +444,21 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusLocked, "This account is suspended.")
 		return
 	}
+	if f.SuspendedFor != "" && r.URL.Path != cloudapi.PathLab && r.URL.Path != cloudapi.PathLabReport && r.URL.Path != cloudapi.PathLabRenew {
+		fail(w, http.StatusLocked, "This lab's Roostack Cloud account is suspended: "+f.SuspendedFor+". Its Owner can see why at roost.ac.")
+		return
+	}
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLab:
-		reply(w, cloudapi.LabInfo{LabID: id, Account: f.Account})
+		reply(w, cloudapi.LabInfo{LabID: id, Account: f.Account, Suspended: f.SuspendedFor, Names: f.NameStates})
+	case r.Method == http.MethodPut && r.URL.Path == cloudapi.PathLabReport:
+		var req cloudapi.LabReport
+		json.NewDecoder(r.Body).Decode(&req)
+		if f.Reports == nil {
+			f.Reports = map[string]cloudapi.LabReport{}
+		}
+		f.Reports[id] = req
+		reply(w, map[string]any{})
 	case r.Method == http.MethodPut && r.URL.Path == cloudapi.PathLabRecoveryIdentity:
 		var req cloudapi.RecoveryIdentity
 		json.NewDecoder(r.Body).Decode(&req)
@@ -456,6 +486,9 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 			f.Relayed = map[string]cloudapi.RelayRequest{}
 		}
 		f.Relayed[id] = req
+		if req.TurnOn {
+			f.RelayOff = time.Time{}
+		}
 		reply(w, f.relay(req))
 	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLabRelay:
 		req, ok := f.Relayed[id]
@@ -518,9 +551,15 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 		if base == "" {
 			base = "https://" + r.Host
 		}
-		reply(w, cloudapi.NameClaim{Name: c.fqdn, Credentials: map[string]string{cloudapi.CredServerURL: base,
+		claim := cloudapi.NameClaim{Name: c.fqdn, Credentials: map[string]string{cloudapi.CredServerURL: base,
 			cloudapi.CredUsername: c.user, cloudapi.CredPassword: c.pass, cloudapi.CredSubdomain: c.sub,
-			cloudapi.CredRecordsURL: base + "/v1/records"}})
+			cloudapi.CredRecordsURL: base + "/v1/records"}}
+		for _, n := range f.NameStates {
+			if n.Host == c.fqdn {
+				claim.Status = &n
+			}
+		}
+		reply(w, claim)
 	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLabRenew:
 		var req cloudapi.RenewRequest
 		json.NewDecoder(r.Body).Decode(&req)
@@ -698,7 +737,7 @@ func Start(t testing.TB) (*Fake, config.Cloud) {
 func (f *Fake) relay(req cloudapi.RelayRequest) cloudapi.Relay {
 	r := cloudapi.Relay{Addr: "100.81.1.1", Prefix: 16, Name: "r-test.relay.roost.test", Edges: []cloudapi.RelayEdge{{Name: "syd-1",
 		Endpoint: "198.51.100.10:51830", PublicKey: "ZWRnZWVkZ2VlZGdlZWRnZWVkZ2VlZGdlZWRnZWVkZ2U=", Addr: "100.81.0.1",
-		PublicIPv4: "198.51.100.10"}}}
+		PublicIPv4: "198.51.100.10"}}, TurnedOff: f.RelayOff, Suspended: f.RelaySuspended, Names: f.NameStates}
 	if req.Domain != "" {
 		r.Domain = &cloudapi.RelayDomain{Domain: req.Domain, ProofName: "_roostack." + req.Domain, ProofValue: "roostack-proof=test",
 			Verified: f.DomainVerified}

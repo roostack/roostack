@@ -30,7 +30,15 @@
 <section class="card section" id="way-in">
   <h2>How people reach your public services</h2>
   {{if eq .Saved "edge"}}<p class="notice notice-ok" role="status">Saved. Public addresses follow within a few minutes, as DNS updates.</p>{{end}}
+  {{if eq .Saved "relay-on"}}<p class="notice notice-ok" role="status">The relay is on again. Public addresses point at it within a few minutes, as DNS updates.</p>{{end}}
   {{with .RelayError}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{with .RelaySuspended}}<p class="notice notice-error" role="alert"><strong>Roostack Cloud has suspended this lab's relay:</strong> {{.}}.
+    Public services don't come through it until Cloud lifts the suspension. Roostack Cloud emailed the account's Owner why, and how to appeal.</p>
+  {{else}}{{with .RelayOff}}<div class="notice notice-warn" role="status"><p><strong>The relay was turned off in Roostack Cloud {{when .}}</strong>,
+    from the account's page there. Public services don't come through it, and their addresses point at this lab's own address again.
+    Roostack doesn't turn it on by itself.</p>
+    <form method="post" action="/settings/public/relay-on#way-in"><button type="submit" class="secondary">Turn the relay on</button></form></div>
+  {{end}}{{end}}
   {{with .RelayDomain}}
   {{if and .Verified (not .Missing)}}<p class="notice notice-ok" role="status">Roostack Cloud has checked that {{.Domain}} is this lab's: its public addresses come through the relay.</p>
   {{else if .Verified}}<p class="notice notice-error" role="alert"><strong>The record proving {{.Domain}} is this lab's has gone.</strong> Public services stop coming through the relay a day after it went. Put it back: <code>{{.ProofName}}</code> TXT <code>{{.ProofValue}}</code>.</p>

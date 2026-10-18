@@ -31,6 +31,11 @@ type CloudLink interface {
 	RelayStats(ctx context.Context, days int, byDay bool) (cloudapi.RelayStats, error)
 	// RelayName is the lab's relay name and its own domain's proof.
 	RelayName() (string, *cloudapi.RelayDomain)
+	// RelayStanding is when the account turned the relay off at Cloud,
+	// and why Cloud suspended it, as Cloud last said; TurnRelayOn turns
+	// it on again (the Owner's choice: the lab's updates leave it off).
+	RelayStanding() (turnedOff time.Time, suspended string)
+	TurnRelayOn(ctx context.Context) error
 }
 
 // cloudSuffix is the suffix the lab's Cloud gives names, for the pages.
@@ -277,6 +282,42 @@ func (s *Server) cloudDismissSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "cloud", "Dismissed the note that Roostack Cloud no longer knows the lab")
 	redirect(w, r, "/settings/cloud")
+}
+
+// cloudStanding adds what Roostack Cloud has on hold to Needs attention:
+// the account suspended, names suspended, refused or waiting for
+// approval, and the relay suspended or turned off in Cloud (as Cloud last
+// said: its check-in, and the relay's answers).
+func (s *Server) cloudStanding(add func(level, text, link, linkText string)) {
+	st := s.Cloud.Status()
+	if !st.Linked {
+		return
+	}
+	if st.Suspended != "" {
+		add(levelProblem, "Roostack Cloud has suspended this lab's account: "+strings.TrimSuffix(st.Suspended, ".")+
+			". Its names and relay don't work until it's lifted.", "/settings/cloud", "Roostack Cloud")
+	}
+	for _, n := range st.Names {
+		switch n.State {
+		case cloudapi.NameSuspended:
+			add(levelProblem, n.Host+" is suspended by Roostack Cloud: "+strings.TrimSuffix(n.Reason, ".")+".", "/settings/cloud#names", "Roostack Cloud")
+		case cloudapi.NameRefused:
+			add(levelProblem, n.Host+" wasn't approved by Roostack Cloud, so it doesn't work: choose another name.", "/settings/cloud#names", "Why")
+		case cloudapi.NameWaiting:
+			add(levelInfo, n.Host+" is waiting for Roostack Cloud's approval: it works once approved.", "/settings/cloud#names", "Why")
+		}
+	}
+	if s.Manager == nil || !s.Manager.RelayOn() {
+		return
+	}
+	switch off, suspended := s.Cloud.RelayStanding(); {
+	case suspended != "":
+		add(levelProblem, "Roostack Cloud has suspended this lab's relay: "+strings.TrimSuffix(suspended, ".")+
+			". Public services don't come through it.", "/settings/public#way-in", "Public access")
+	case !off.IsZero():
+		add(levelWarning, "Public services don't come through Roostack Cloud's relay: it was turned off in Roostack Cloud.",
+			"/settings/public#way-in", "Turn it on")
+	}
 }
 
 // cloudSummary is the Settings overview's line for Roostack Cloud.

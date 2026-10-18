@@ -106,6 +106,7 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			add(levelWarning, "Roostack Cloud hasn't been reachable since "+whenText(st.LastContact)+".",
 				"/settings/cloud", "Roostack Cloud")
 		}
+		s.cloudStanding(add)
 	}
 	// No list from the service registry for a while (SPEC.md §8.3.3).
 	if owner {

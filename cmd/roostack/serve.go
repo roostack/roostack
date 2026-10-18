@@ -200,6 +200,20 @@ func serve(args []string) error {
 		go link.RefreshRelay(ctx, 5*time.Minute)
 		// Roostack Cloud backup as a destination (SPEC.md §6.9).
 		mgr.CloudBackup = link
+		// What the lab tells Cloud after each check-in (SPEC.md §6.6): who
+		// gets its problems by email, whom Cloud's emails about the lab go
+		// to too, and each server's last backup there.
+		link.Report = func(ctx context.Context) (cloudapi.LabReport, error) {
+			emails, err := srv.ProblemRecipients(ctx)
+			if err != nil {
+				return cloudapi.LabReport{}, err
+			}
+			backups, err := mgr.CloudBackups(ctx)
+			if err != nil {
+				return cloudapi.LabReport{}, err
+			}
+			return cloudapi.LabReport{Emails: emails, Backups: backups}, nil
+		}
 		// The lab's own CrowdSec bans, refused at the relay's edges too.
 		go link.SendBans(ctx, 5*time.Minute, func(ctx context.Context) ([]string, error) {
 			return public.CrowdSecBans(ctx, userLaunch, generate.CrowdSecUnit)

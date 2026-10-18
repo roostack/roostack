@@ -115,6 +115,21 @@ limit comes back by itself afterwards.
 Addresses your lab's CrowdSec bans are turned away by the relay too, for
 your lab only, so an attacker it caught doesn't keep using your bandwidth.
 
+### Turned off in Roostack Cloud
+
+Your Roostack Cloud account's page can turn the relay off, even while your
+lab is off (to stop what you pay for, say). Your lab then hears it from
+Roostack Cloud within a few minutes: **Settings → Public access** says when
+it was turned off, and Home says public services don't come through the
+relay. Their addresses point at your home's own address again meanwhile.
+
+Your lab never turns it back on by itself. When you want it again, choose
+**Turn the relay on** in **Settings → Public access**.
+
+If Roostack Cloud has **suspended** the relay (after an abuse report),
+the page says why, and there's no button: Roostack Cloud emailed the
+account's Owner how to appeal.
+
 ### Visitors through the relay
 
 While the relay is on, **Settings → Public access** (or, for Admins,

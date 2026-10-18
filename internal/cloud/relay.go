@@ -92,8 +92,55 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.st.Relay = st
+	s.st.Relay, s.st.Names = st, relay.Names
 	return s.save()
+}
+
+// TurnRelayOn turns the relay on again after the lab's account turned it
+// off at Cloud (Relay.TurnedOff): the same names and countries as last
+// asked, with TurnOn. Only the Owner asks this: the lab's own updates
+// leave it off (Roostack Cloud's DESIGN §3f).
+func (s *Service) TurnRelayOn(ctx context.Context) error {
+	s.mu.Lock()
+	cur := s.st.Relay
+	s.mu.Unlock()
+	if cur == nil || s.WireGuard == nil {
+		return errors.New("public visitors don't come in through Roostack Cloud's relay")
+	}
+	// The interface as it is: this asks for its key.
+	pub, err := s.WireGuard.ApplyWireGuard(ctx, s.relayInterface(fmt.Sprintf("%s/%d", cur.Relay.Addr, cur.Relay.Prefix), cur))
+	if err != nil {
+		return fmt.Errorf("setting up the relay's network: %w", err)
+	}
+	req := cloudapi.RelayRequest{PublicKey: pub, Hosts: cur.Hosts, Countries: cur.Countries, TimeZone: cur.TimeZone,
+		Domain: cur.Domain, TurnOn: true}
+	var relay cloudapi.Relay
+	if err := s.client.do(ctx, true, http.MethodPut, cloudapi.PathLabRelay, req, &relay); err != nil {
+		return err
+	}
+	if !relay.TurnedOff.IsZero() {
+		return errors.New("Roostack Cloud kept the relay off")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.st.Relay == nil || s.st.Relay.Relay.Addr != relay.Addr {
+		return errors.New("the relay changed while it was being turned on: try again")
+	}
+	s.st.Relay.Relay, s.st.Names = relay, relay.Names
+	s.log.Info("Roostack Cloud: the relay was turned on again")
+	return s.save()
+}
+
+// RelayStanding is when the lab's account turned the relay off at Cloud
+// (zero: it's on) and why Cloud suspended it ("": it isn't), as Cloud
+// last said; both zero when not relayed.
+func (s *Service) RelayStanding() (turnedOff time.Time, suspended string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.st.Relay == nil {
+		return time.Time{}, ""
+	}
+	return s.st.Relay.Relay.TurnedOff, s.st.Relay.Relay.Suspended
 }
 
 // relayInterface is the relay's WireGuard: an address on the relay
@@ -224,6 +271,8 @@ func (s *Service) RefreshRelay(ctx context.Context, every time.Duration) {
 		s.mu.Lock()
 		if s.st.Relay != nil && relay.Addr == s.st.Relay.Relay.Addr {
 			s.st.Relay.Relay.Domain, s.st.Relay.Relay.Name = relay.Domain, relay.Name
+			s.st.Relay.Relay.TurnedOff, s.st.Relay.Relay.Suspended = relay.TurnedOff, relay.Suspended
+			s.st.Names = relay.Names
 			if err := s.save(); err != nil {
 				s.log.Warn("Roostack Cloud: saving how the relay stands", "err", err)
 			}

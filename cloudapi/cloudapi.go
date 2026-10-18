@@ -36,6 +36,10 @@ const (
 	// PUT RecoveryIdentity (mutual TLS): the lab's recovery identity,
 	// replacing the one before (a new recovery key).
 	PathLabRecoveryIdentity = "/v1/lab/recovery-identity"
+	// PUT LabReport (mutual TLS), after each check-in: what the lab
+	// tells Cloud about itself. A Cloud from before it answers 404, and
+	// the lab carries on without it.
+	PathLabReport = "/v1/lab/report"
 
 	// Proving the recovery key, for a lab that has lost its controller
 	// (no certificate): POST RestoreChallengeRequest → RestoreChallenge,
@@ -138,6 +142,61 @@ type LabInfo struct {
 	// Account is how the account is shown to the lab (e.g. its email
 	// address, partly hidden).
 	Account string `json:"account"`
+	// Suspended is why the lab's account is suspended, a sentence for
+	// people ("": it isn't, or a Cloud from before it doesn't say).
+	Suspended string `json:"suspended,omitempty"`
+	// Names are the lab's names that don't work because of Cloud: waiting
+	// for approval, refused, or suspended (none: every name works, or a
+	// Cloud from before it doesn't say).
+	Names []NameStatus `json:"names,omitempty"`
+}
+
+// NameStatus is one of the lab's names that doesn't work because of
+// Cloud (Host, in full): a name that looks like a bank's, a government
+// service's or a brand's waits for approval (NameWaiting), and may be
+// refused (NameRefused); any name may be suspended after an abuse report
+// (NameSuspended). Reason says why, for people, when refused or
+// suspended; Since is when it started.
+type NameStatus struct {
+	Host   string    `json:"host"`
+	State  string    `json:"state"`
+	Reason string    `json:"reason,omitempty"`
+	Since  time.Time `json:"since,omitzero"`
+}
+
+// Name states (NameStatus.State).
+const (
+	NameWaiting   = "waiting"
+	NameRefused   = "refused"
+	NameSuspended = "suspended"
+)
+
+// LabReport is what the lab tells Cloud after each check-in. A field left
+// out (null) is unknown, and Cloud keeps what it had; an empty list
+// replaces it with none.
+type LabReport struct {
+	// Emails are the addresses the lab's own problems are emailed to
+	// (Roostack's SPEC.md §6.13): Cloud's emails about the lab go to them
+	// too. At most MaxReportEmails.
+	Emails []string `json:"emails"`
+	// Backups are the lab's servers backing up to Roostack Cloud, each
+	// with its last backup there. At most MaxReportServers.
+	Backups []ServerBackup `json:"backups"`
+}
+
+// The most a LabReport carries.
+const (
+	MaxReportEmails  = 20
+	MaxReportServers = 100
+)
+
+// ServerBackup is a server's backups in Roostack Cloud: Server is its
+// folder there (StorageRequest.Server), Name what the lab calls it, and
+// Last when its last backup there finished (zero: none yet).
+type ServerBackup struct {
+	Server string    `json:"server"`
+	Name   string    `json:"name,omitempty"`
+	Last   time.Time `json:"last,omitzero"`
 }
 
 // NameAvailability says whether a roost.ac name can be had.
@@ -157,6 +216,11 @@ type RelayRequest struct {
 	// in Hosts are relayed once it's proven the lab's (Relay.Domain): they
 	// point at Relay.Name with a CNAME.
 	Domain string `json:"domain,omitempty"`
+	// TurnOn turns the relay on again after its account turned it off
+	// at Cloud (Relay.TurnedOff): only when the lab's Owner asks, since
+	// the lab's own updates leave it off. A Cloud from before it ignores
+	// it (and never says the relay is off).
+	TurnOn bool `json:"turn_on,omitempty"`
 }
 
 // RelayDomain is how the lab's own domain stands: the TXT record that
@@ -291,6 +355,17 @@ type Relay struct {
 	// edges. Domain is how that domain stands, if there is one.
 	Name   string       `json:"name,omitempty"`
 	Domain *RelayDomain `json:"domain,omitempty"`
+	// TurnedOff is when the lab's account turned the relay off at Cloud
+	// (zero: it's on, or a Cloud from before it doesn't say): visitors no
+	// longer come through it, and its names have the lab's own records
+	// again, until the lab asks with RelayRequest.TurnOn.
+	TurnedOff time.Time `json:"turned_off,omitzero"`
+	// Suspended is why Cloud suspended the relay after an abuse report
+	// ("": it isn't): visitors don't come through it until it's lifted.
+	Suspended string `json:"suspended,omitempty"`
+	// Names are the lab's names that don't work because of Cloud, as in
+	// LabInfo.Names.
+	Names []NameStatus `json:"names,omitempty"`
 }
 
 // RelayEdge is one of Cloud's edges, as a lab dials it.
@@ -355,6 +430,10 @@ type NameRequest struct {
 type NameClaim struct {
 	Name        string            `json:"name"`
 	Credentials map[string]string `json:"credentials"`
+	// Status is set when the name doesn't work yet: waiting for approval,
+	// or refused for the account before (nil: it works, or a Cloud from
+	// before it doesn't say).
+	Status *NameStatus `json:"status,omitempty"`
 }
 
 // The recovery identity (Cloud's DESIGN §3b, "Account recovery"): an

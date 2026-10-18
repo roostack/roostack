@@ -51,6 +51,25 @@ var notifyGroups = []notifyGroup{
 	{notifyWeekly, "Weekly summary", "On Monday mornings: backups, disk space, attacks blocked on your public addresses, and anything still needing attention.", auth.ManageServices},
 }
 
+// ProblemRecipients are the addresses the lab's problems are emailed to
+// (SPEC.md §6.13): each person with an address who gets the Problems
+// group. The lab reports them to Roostack Cloud, whose emails about the
+// lab go to them too (SPEC.md §6.6).
+func (s *Server) ProblemRecipients(ctx context.Context) ([]string, error) {
+	users, err := s.Store.ListUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := []string{}
+	for i := range users {
+		u := &users[i]
+		if e := strings.ToLower(u.Email); e != "" && userGroups(u)[notifyProblems] && !slices.Contains(out, e) {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
 // groupsFor are the groups a role can choose.
 func groupsFor(role string) []notifyGroup {
 	var out []notifyGroup

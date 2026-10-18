@@ -62,11 +62,48 @@ are in `/var/lib/roostack/cloud/`:
 |---|---|
 | `lab.key` | The lab's private key (readable only by Roostack) |
 | `lab.crt` | Its certificate from Roostack Cloud |
-| `link.json` | The account, since when, and the last contact |
+| `link.json` | The account, since when, the last contact, and what Roostack Cloud holds back |
 | `requests.log` | The latest 200 requests to Roostack Cloud |
 
 They're part of Roostack's state, so they're in your backups: a lab you
 restore is still linked.
+
+## What your lab tells Roostack Cloud each day
+
+After it checks in each day, your lab tells Roostack Cloud two more things,
+and nothing else:
+
+- **The email addresses of the people here who get the lab's problems**
+  (each person's address on their account page, if they get **Problems**:
+  see [Email](email.md)). Roostack Cloud's emails about your lab then go to
+  them too, not only to the account's Owner: a name approved or refused, a
+  suspension, the lab not heard from for days, its recovery key used. Each
+  such email says why that person is getting it.
+- **Each server's last backup to Roostack Cloud**, if it backs up there,
+  so your lab's page on Roostack Cloud can show it.
+
+**Details** on the page says when your lab last told it. Someone who stops
+getting Problems emails, or removes their address, drops off at the next
+day's report.
+
+## When Roostack Cloud holds something back
+
+Roostack Cloud tells your lab what it's holding back, and **Settings →
+Roostack Cloud** and Home show it:
+
+- **A name waiting for approval:** a name that looks like a bank's, a
+  government service's or a well-known brand's (`paypal.smiths.roost.ac`)
+  waits until a person at Roostack Cloud checks it, within 7 days. Until
+  then it isn't published or relayed.
+- **A name that wasn't approved:** it doesn't work, with the reason. Choose
+  another name for that service.
+- **A name or the whole account suspended,** after an abuse report: with
+  the reason. A suspended name is out of DNS; a suspended account's names
+  don't work and the relay is off, though your lab itself carries on and
+  stays linked. Roostack Cloud emails the account's Owner how to appeal.
+
+While something waits on Roostack Cloud, your lab checks every hour instead
+of once a day, so it shows the answer soon after.
 
 ## Unlinking
 

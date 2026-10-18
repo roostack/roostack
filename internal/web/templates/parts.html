@@ -716,6 +716,9 @@
     <dt>Kept in</dt><dd><code>{{.Dir}}</code>: the key (<code>lab.key</code>, readable only by Roostack), the certificate (<code>lab.crt</code>),
       the link (<code>link.json</code>) and the requests below (<code>requests.log</code>). Backed up with Roostack's state.</dd>
     <dt>Lab ID</dt><dd><code>{{.LabID}}</code></dd>
+    <dt>Told Cloud</dt><dd>{{if .Reported.IsZero}}Nothing yet{{else}}{{when .Reported}}{{end}}: after each daily check-in, the email addresses
+      of the people here who get this lab's problems (Roostack Cloud's emails about the lab go to them too), and each server's last backup
+      to Roostack Cloud (for the lab's page there). Nothing else.</dd>
     <dt>Roostack Cloud</dt><dd><code>{{.URL}}</code></dd>
   </dl>
   {{template "cloud-requests" .}}
@@ -741,6 +744,18 @@
 {{with .StartError}}<p class="error" role="alert">{{.}}</p>{{end}}
 {{- end}}
 </div>{{end}}
+
+{{/* cloud-name: one of the lab's names Roostack Cloud has on hold
+     (cloudapi.NameStatus). */}}
+{{define "cloud-name"}}{{if eq .State "suspended"}}<span class="dot dot-problem" aria-hidden="true"></span><code>{{.Host}}</code> is suspended
+  {{- with .Reason}}: {{.}}{{end}}. It's out of DNS, and Roostack Cloud's relay doesn't route it; the rest of the lab carries on.
+  Roostack Cloud emailed the account's Owner why, and how to appeal.
+{{- else if eq .State "refused"}}<span class="dot dot-problem" aria-hidden="true"></span><code>{{.Host}}</code> wasn't approved
+  {{- with .Reason}}: {{.}}{{end}}. It isn't published or relayed: choose another name for it.
+{{- else}}<span class="dot dot-warn" aria-hidden="true"></span><code>{{.Host}}</code> is waiting for Roostack Cloud's approval
+  {{- if not .Since.IsZero}}, since {{when .Since}}{{end}}. It looks like a bank's, a government service's or a well-known brand's name,
+  so a person checks it first. Until then it isn't published or relayed; Cloud decides within 7 days, and emails the account's Owner.
+{{- end}}{{end}}
 
 {{/* cloud-requests: the lab's recent requests to Roostack Cloud. */}}
 {{define "cloud-requests"}}{{with .Requests}}
