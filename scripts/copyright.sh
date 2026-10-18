@@ -28,13 +28,14 @@ cat <<HDR
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Roostack
 Source: https://roostack.cloud
-Comment: Roostack's own licence hasn't been chosen yet (TASKS.md). The other
+Comment: Roostack itself is under the Apache License 2.0. The other
  paragraphs cover code compiled into or served by Roostack (THIRD_PARTY.md).
 
 Files: *
 Copyright: The Roostack authors
-License: undecided
- Roostack's own licence hasn't been chosen yet.
+License: Apache-2.0
+ On Debian systems, the full text of the Apache License 2.0 is in
+ /usr/share/common-licenses/Apache-2.0.
 
 HDR
 

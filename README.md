@@ -112,3 +112,7 @@ The release workflow then calls [.github/workflows/apt-publish.yml](.github/work
 - [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md): things the code assumes that haven't been verified on a real host yet
 - [docs/examples/lab.yaml](docs/examples/lab.yaml): an example lab config
 - The packages are in their own repository, [`roostack/services`](https://github.com/roostack/services); labs fetch its signed index ([docs/REGISTRY-KEYS.md](docs/REGISTRY-KEYS.md) for the keys)
+
+## Licence
+
+Roostack is under the [Apache License 2.0](LICENSE) (SPEC §2.1). The services it installs keep their own licences, and the software Roostack is built from is listed in [THIRD_PARTY.md](THIRD_PARTY.md).
