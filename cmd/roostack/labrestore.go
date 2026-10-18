@@ -44,7 +44,8 @@ func (l *labRestorer) openRepo(url string, env []string) *backup.Repo {
 	if err != nil {
 		bin = "restic"
 	}
-	return &backup.Repo{Bin: bin, URL: url, Env: env, PasswordFile: l.keyFile(), Launch: unshared(userLaunch)}
+	return &backup.Repo{Bin: bin, URL: url, Env: env, PasswordFile: l.keyFile(), Launch: unshared(userLaunch),
+		Hints: &backup.KeyHints{File: backup.RestoreHintsFile(l.lab.Paths)}}
 }
 
 // fresh reports whether nothing has been set up on this server yet. A
@@ -110,6 +111,7 @@ func (l *labRestorer) Start(fd labrestore.Found) error {
 		}
 		os.Remove(l.keyFile())
 		os.Remove(backup.RestoreStartedFile(l.lab.Paths))
+		os.Remove(backup.RestoreHintsFile(l.lab.Paths))
 		l.log.Info("lab restored; restarting", "domain", fd.Domain, "server", fd.ServerName)
 		l.restart()
 	}()

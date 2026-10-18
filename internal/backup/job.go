@@ -108,7 +108,7 @@ func LabPlan(paths config.Paths, services []*generate.Output) Plan {
 			filepath.Join(paths.StateDir, "roostack.db-wal"),
 			filepath.Join(paths.StateDir, "roostack.db-shm"),
 			KeyFile(paths),
-			RestoreKeyFile(paths), RestoreStartedFile(paths),
+			RestoreKeyFile(paths), RestoreStartedFile(paths), RestoreHintsFile(paths),
 			// A change's new and old keys and its progress (internal/manager),
 			// and a half-written key: no backup holds a key that opens it,
 			// and a restored lab isn't left half-way through a change.

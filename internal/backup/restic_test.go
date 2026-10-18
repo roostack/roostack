@@ -338,3 +338,81 @@ func TestKeyHint(t *testing.T) {
 		t.Error("a hint that isn't an ID was taken")
 	}
 }
+
+// A full-lab restore learns each repository's key once (LearnKey) and
+// keeps it (Add); a hint that's wrong only means restic tries every key.
+func TestLearnKey(t *testing.T) {
+	r := testRepo(t)
+	ctx := context.Background()
+	if err := r.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.AddKey(ctx, "a server's key", "n-0000000002"); err != nil {
+		t.Fatal(err)
+	}
+	want, err := r.CurrentKey(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var commands [][]string
+	r.Launch = func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd {
+		commands = append(commands, args)
+		return DirectLaunch(ctx, env, name, args...)
+	}
+	r.Hints = &KeyHints{File: filepath.Join(t.TempDir(), "hints.json")}
+	if err := r.LearnKey(ctx); err != nil {
+		t.Fatal(err)
+	}
+	password, _ := os.ReadFile(r.PasswordFile)
+	if got := r.Hints.Get(r.URL, password); got != want || len(commands) != 1 || commands[0][0] != "key" {
+		t.Errorf("learned %q (want %q) with %v", got, want, commands)
+	}
+	if err := r.LearnKey(ctx); err != nil || len(commands) != 1 {
+		t.Errorf("known already: %v, %v", err, commands)
+	}
+
+	// The open's own error, and nothing recorded.
+	wrong := *r
+	wrong.PasswordFile = filepath.Join(t.TempDir(), "wrong")
+	writeFile(t, wrong.PasswordFile, "another lab's key\n")
+	if err := wrong.LearnKey(ctx); !errors.Is(err, ErrWrongKey) {
+		t.Errorf("wrong key: %v", err)
+	}
+	if r.Hints.Get(r.URL, []byte("another lab's key")) != "" {
+		t.Error("a key that doesn't open it got a hint")
+	}
+	none := *r
+	none.URL = filepath.Join(t.TempDir(), "nothing")
+	if err := none.LearnKey(ctx); !errors.Is(err, ErrNoRepository) {
+		t.Errorf("no repository: %v", err)
+	}
+
+	// A stale hint (no such key, or another key) still opens it.
+	server, _ := r.Keys(ctx)
+	for _, k := range server {
+		if k.ID == want {
+			continue
+		}
+		for _, stale := range []string{strings.Repeat("e", 64), k.ID} {
+			r.Hints.Set(r.URL, password, stale)
+			if _, err := r.Snapshots(ctx); err != nil {
+				t.Errorf("with the stale hint %s: %v", stale[:8], err)
+			}
+		}
+	}
+
+	// Add keeps another file's hints over these, and skips what isn't an ID.
+	learned := &KeyHints{File: filepath.Join(t.TempDir(), "learned.json")}
+	learned.Set(r.URL, password, want)
+	learned.Set("/elsewhere", password, "abcdef0123456789")
+	if err := r.Hints.Add(learned); err != nil {
+		t.Fatal(err)
+	}
+	if r.Hints.Get(r.URL, password) != want || r.Hints.Get("/elsewhere", password) != "abcdef0123456789" {
+		t.Errorf("after Add: %q %q", r.Hints.Get(r.URL, password), r.Hints.Get("/elsewhere", password))
+	}
+	info, err := os.Stat(r.Hints.File)
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Errorf("hints file: %v %v", info, err)
+	}
+}

@@ -79,6 +79,10 @@ func TestFindAndRestoreALab(t *testing.T) {
 	write(t, backup.StateDumpFile(paths), "the lab's database")
 	write(t, filepath.Join(service, "data", "db.sqlite3"), "vaultwarden's passwords")
 	disk := t.TempDir()
+	// The old server kept a hint for its backups that's out of date: the
+	// restore's own, just learned, replaces it.
+	stale := strings.Repeat("e", 64)
+	backup.Hints(paths).Set(filepath.Join(disk, "roostack", "lab-1", id.ID), []byte("the lab's recovery key"), stale)
 	repoAt := func(keyFile, dir string) *backup.Repo {
 		return &backup.Repo{Bin: bin, URL: dir, PasswordFile: keyFile, CacheDir: filepath.Join(keys, "cache")}
 	}
@@ -118,7 +122,30 @@ func TestFindAndRestoreALab(t *testing.T) {
 	write(t, filepath.Join(paths.StateDir, "roostack.db"), "empty database")
 	write(t, filepath.Join(paths.StateDir, "roostack.db-wal"), "wal")
 
-	f := &Finder{OpenRepo: func(url string, env []string) *backup.Repo { return repoAt(key, url) }}
+	// The new server opens them with the hints of the restore, and every
+	// command is noted, with the hint it gave restic.
+	hints := &backup.KeyHints{File: backup.RestoreHintsFile(paths)}
+	type command struct{ url, verb, hint string }
+	var commands []command
+	var cmu sync.Mutex
+	restoring := func(url string) *backup.Repo {
+		r := repoAt(key, url)
+		r.Hints = hints
+		r.Launch = func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd {
+			c := command{url: url, verb: args[0]}
+			for _, e := range env {
+				if h, ok := strings.CutPrefix(e, "RESTIC_KEY_HINT="); ok {
+					c.hint = h
+				}
+			}
+			cmu.Lock()
+			commands = append(commands, c)
+			cmu.Unlock()
+			return backup.DirectLaunch(ctx, env, name, args...)
+		}
+		return r
+	}
+	f := &Finder{OpenRepo: func(url string, env []string) *backup.Repo { return restoring(url) }}
 	if _, _, err := f.Find(ctx, Source{Kind: "folder", Folder: filepath.Join(root, "nowhere")}); err == nil {
 		t.Error("a missing folder")
 	}
@@ -182,8 +209,41 @@ func TestFindAndRestoreALab(t *testing.T) {
 	}
 
 	log := activity.New().Start("restore", "Restoring the lab")
-	if err := Restore(ctx, paths, repoAt(key, found[0].Repository), found[0], key, log); err != nil {
+	if err := Restore(ctx, paths, restoring(found[0].Repository), found[0], key, log); err != nil {
 		t.Fatal(err)
+	}
+	// Each repository the key opens was asked which key once (`key list`);
+	// every other command on it said which key to try. Another lab's
+	// failed once, and wasn't opened again.
+	recovery := []byte("the lab's recovery key\n")
+	keyOf := map[string]string{}
+	for _, r := range []*backup.Repo{old, forged} {
+		if keyOf[r.URL], err = r.CurrentKey(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	asked := map[string]int{}
+	for _, c := range commands {
+		switch {
+		case c.url == other.URL:
+			asked[c.url]++
+		case c.verb == "key":
+			asked[c.url]++
+			if c.hint != "" {
+				t.Errorf("asked with a hint: %+v", c)
+			}
+		case keyOf[c.url] == "" || c.hint != keyOf[c.url]:
+			t.Errorf("%s on %s with hint %q, want %q", c.verb, c.url, c.hint, keyOf[c.url])
+		}
+	}
+	if asked[old.URL] != 1 || asked[forged.URL] != 1 || asked[other.URL] != 1 || len(commands) < 6 {
+		t.Errorf("asked %v in %d commands", asked, len(commands))
+	}
+	// The restored lab keeps them, over its own from before.
+	for _, r := range []*backup.Repo{old, forged} {
+		if got := backup.Hints(paths).Get(r.URL, recovery); got != keyOf[r.URL] {
+			t.Errorf("the restored lab's hint for %s = %q, want %q", r.URL, got, keyOf[r.URL])
+		}
 	}
 	if got := read(t, filepath.Join(service, "data", "db.sqlite3")); got != "vaultwarden's passwords" {
 		t.Errorf("service data = %q", got)

@@ -45,6 +45,14 @@ func HintsFile(paths config.Paths) string {
 // Hints returns the server's key hints.
 func Hints(paths config.Paths) *KeyHints { return &KeyHints{File: HintsFile(paths)} }
 
+// RestoreHintsFile is where a full-lab restore keeps the hints it learns
+// while it looks for and restores the lab's backups: apart from
+// HintsFile, which the restored state replaces, and never backed up.
+// Restore adds them to the restored lab's hints (SPEC.md §10.10).
+func RestoreHintsFile(paths config.Paths) string {
+	return filepath.Join(paths.StateDir, "restore-key-hints.json")
+}
+
 // hintsMu orders this process's writes; another process (the roostack
 // command) may lose a race, which only means asking restic again later.
 var hintsMu sync.Mutex
@@ -95,6 +103,26 @@ func (h *KeyHints) Set(url string, password []byte, id string) error {
 		return nil
 	}
 	m[name] = id
+	return h.write(m)
+}
+
+// Add records every hint in from, over any of h's for the same repository
+// and password: a restore's, just learned from restic, over the restored
+// lab's from when it was backed up.
+func (h *KeyHints) Add(from *KeyHints) error {
+	hintsMu.Lock()
+	defer hintsMu.Unlock()
+	m := h.read()
+	for name, id := range from.read() {
+		if keyID.MatchString(id) {
+			m[name] = id
+		}
+	}
+	return h.write(m)
+}
+
+// write replaces the file with m, atomically. The caller holds hintsMu.
+func (h *KeyHints) write(m map[string]string) error {
 	data, err := json.Marshal(m)
 	if err != nil {
 		return err
@@ -156,6 +184,46 @@ func (r *Repo) keyHint(ctx context.Context) string {
 	}
 	lookups.Delete(name)
 	return id
+}
+
+// LearnKey makes sure the hints say which key the password opens, asking
+// restic if they don't (`key list`: the one open that may still be slow),
+// for a caller about to run several commands on a repository it has no
+// hint for: a full-lab restore on a fresh server. Its error is restic's
+// for opening the repository (ErrWrongKey, ErrNoRepository, …), so the
+// caller can stop there rather than pay for the same failure twice; a
+// repository that opened but whose hint couldn't be recorded isn't one.
+// Without Hints it does nothing.
+func (r *Repo) LearnKey(ctx context.Context) error {
+	if r.Hints == nil {
+		return nil
+	}
+	password, err := os.ReadFile(r.PasswordFile)
+	if err != nil {
+		return err
+	}
+	if r.Hints.Get(r.URL, password) != "" {
+		return nil
+	}
+	name := hintName(r.URL, password)
+	bare := *r
+	bare.Hints = nil
+	keys, err := bare.Keys(ctx)
+	if err != nil {
+		lookups.Store(name, time.Now())
+		return err
+	}
+	for _, k := range keys {
+		if k.Current {
+			if r.Hints.Set(r.URL, password, k.ID) != nil {
+				break
+			}
+			lookups.Delete(name)
+			return nil
+		}
+	}
+	lookups.Store(name, time.Now())
+	return nil
 }
 
 // recordHint asks restic which key the password opens, and records it.

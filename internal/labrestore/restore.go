@@ -130,6 +130,15 @@ func Restore(ctx context.Context, paths config.Paths, repo *backup.Repo, fd Foun
 	if err := writeFile(backup.KeyFile(paths), key); err != nil {
 		return err
 	}
+	// The restored lab's hints are from its last backup, and its
+	// repositories may have moved since (a drive mounted elsewhere): add
+	// those this restore learned, for the restored lab's first commands
+	// (SPEC.md §10.10 "Key hints").
+	if repo.Hints != nil {
+		if err := backup.Hints(paths).Add(repo.Hints); err != nil {
+			log.Printf("Couldn't keep which key opens each backup (%v): Roostack will ask restic again", err)
+		}
+	}
 	log.Step("Restarting Roostack as the restored lab")
 	return marker{Repository: fd.Repository, Snapshot: fd.Snapshot.ID, Restored: time.Now(), Step: "database"}.save(paths)
 }
