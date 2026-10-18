@@ -68,6 +68,31 @@ install -D -m 0755 bin/roostack-agent "$ROOT/usr/bin/roostack-agent"
 install -D -m 0644 packaging/systemd/roostack.service "$ROOT/usr/lib/systemd/system/roostack.service"
 install -D -m 0644 packaging/systemd/roostack-agent.service "$ROOT/usr/lib/systemd/system/roostack-agent.service"
 install -D -m 0644 packaging/apt/52roostack-unattended-upgrades "$ROOT/etc/apt/apt.conf.d/52roostack-unattended-upgrades"
+# Roostack's apt repository (SPEC.md §7): the source follows this version's
+# release series (0.4.1 → suite 0.4), and the keyring is the release key's
+# public part, unarmoured as apt's Signed-By wants. A development build's
+# source is turned off: its versions aren't the repository's.
+SUITE=dev
+[[ $VERSION =~ ^([0-9]+\.[0-9]+)\. ]] && SUITE=${BASH_REMATCH[1]}
+install -d "$ROOT/etc/apt/sources.list.d"
+sed "s/@SUITE@/$SUITE/" packaging/apt/roostack.sources > "$ROOT/etc/apt/sources.list.d/roostack.sources"
+if [[ ${ROOSTACK_DEV_BUILD:-} == 1 ]]; then
+    printf '# A development build: it follows no repository.\nEnabled: no\n' >> "$ROOT/etc/apt/sources.list.d/roostack.sources"
+fi
+chmod 0644 "$ROOT/etc/apt/sources.list.d/roostack.sources"
+# Until the key ceremony the file is a placeholder (docs/RELEASING.md).
+RELEASE_KEY=packaging/keys/roostack-release.asc
+if grep -qx -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "$RELEASE_KEY" 2>/dev/null; then
+    install -d "$ROOT/usr/share/keyrings"
+    # gpg --dearmor without gpg: the armour's body is base64, after its
+    # headers and before the checksum line (=XXXX).
+    tr -d '\r' < "$RELEASE_KEY" | sed -e '1,/^$/d' -e '/^-----END /,$d' -e '/^=/d' | base64 -d \
+        > "$ROOT/usr/share/keyrings/roostack-archive-keyring.gpg"
+    chmod 0644 "$ROOT/usr/share/keyrings/roostack-archive-keyring.gpg"
+elif [[ ${ROOSTACK_DEV_BUILD:-} != 1 ]]; then
+    echo "a release needs the release key's public part in $RELEASE_KEY (the key ceremony: docs/RELEASING.md)" >&2
+    exit 1
+fi
 install -D -m 0644 build/caddy/Containerfile "$ROOT/usr/share/roostack/caddy/Containerfile"
 install -D -m 0755 packaging/deb/installed-message "$ROOT/usr/share/roostack/installed-message"
 # The starting lab.yaml: no address yet (SPEC.md §6.6).

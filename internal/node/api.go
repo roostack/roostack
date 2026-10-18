@@ -256,6 +256,28 @@ func (s *Server) Handler() http.Handler {
 		}
 		return nil, u.AcknowledgeHostChanges(ctx(r))
 	})
+	handle("GET /v1/updates/series", func(r *http.Request) (any, error) {
+		u, err := updates()
+		if err != nil {
+			return nil, err
+		}
+		return u.Series(ctx(r))
+	})
+	handle("POST /v1/updates/series", func(r *http.Request) (any, error) {
+		u, err := updates()
+		if err != nil {
+			return nil, err
+		}
+		var req struct{ Series string }
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		err = u.AcceptSeries(ctx(r), req.Series)
+		if errors.Is(err, osupdate.ErrNoSuchSeries) {
+			return nil, &FormError{SeriesGoneMsg}
+		}
+		return nil, err
+	})
 	handle("POST /v1/updates/run", func(r *http.Request) (any, error) {
 		u, err := updates()
 		if err != nil {

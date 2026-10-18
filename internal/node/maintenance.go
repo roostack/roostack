@@ -37,7 +37,16 @@ type Updates interface {
 	// HostChanges are changes to the host Roostack didn't make (SPEC.md §3.2).
 	HostChanges(ctx context.Context) (osupdate.HostCheck, error)
 	AcknowledgeHostChanges(ctx context.Context) error
+	// Series is Roostack's own release series on this server and any
+	// newer one; AcceptSeries is the Owner's go-ahead to move to it
+	// (SPEC.md §7).
+	Series(ctx context.Context) (osupdate.Series, error)
+	AcceptSeries(ctx context.Context, series string) error
 }
+
+// SeriesGoneMsg is said when the release series the Owner accepted is no
+// longer the one on offer (osupdate.ErrNoSuchSeries).
+const SeriesGoneMsg = "That Roostack release isn't on offer any more. Reload the page to see what is."
 
 // Maintenance is this server's maintenance jobs. A nil job isn't
 // available (e.g. backups aren't set up yet).

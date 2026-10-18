@@ -113,21 +113,29 @@ func debianHost(uri string) bool {
 	return host == "debian.org" || strings.HasSuffix(host, ".debian.org")
 }
 
+// RoostackKeyring is the key Roostack's own packages are signed with
+// (SPEC.md §7).
+const RoostackKeyring = "/usr/share/keyrings/roostack-archive-keyring.gpg"
+
 // aptSources lists the non-Debian sources in apt's configuration files
 // (one-line .list files and deb822 .sources files), by file name.
+// Roostack's own source isn't one: whatever its address (a mirror is
+// fine), apt takes only packages signed with Roostack's key from it.
 func aptSources(files map[string]string) []string {
 	var out []string
 	for _, name := range slices.Sorted(maps.Keys(files)) {
-		// A deb822 stanza's URIs count once it's known whether it's enabled.
+		// A deb822 stanza's URIs count once it's known whether it's
+		// enabled and what checks it.
 		var stanza []string
-		enabled := true
+		enabled, signedBy := true, ""
 		flush := func() {
+			own := filepath.Base(name) == "roostack.sources" && signedBy == RoostackKeyring
 			for _, u := range stanza {
-				if enabled && !debianSource(u) {
+				if enabled && !own && !debianSource(u) {
 					out = append(out, filepath.Base(name)+": "+u)
 				}
 			}
-			stanza, enabled = nil, true
+			stanza, enabled, signedBy = nil, true, ""
 		}
 		sc := bufio.NewScanner(strings.NewReader(files[name]))
 		for sc.Scan() {
@@ -150,6 +158,8 @@ func aptSources(files map[string]string) []string {
 				switch strings.ToLower(strings.TrimSpace(k)) {
 				case "enabled":
 					enabled = strings.TrimSpace(v) != "no"
+				case "signed-by":
+					signedBy = strings.TrimSpace(v)
 				case "uris":
 					stanza = append(stanza, strings.Fields(v)...)
 				}

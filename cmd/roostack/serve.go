@@ -589,7 +589,8 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 		Reboot:  func() error { return ag.Reboot(context.Background()) },
 	}
 	jobs := node.Maintenance{}
-	updates := &osupdate.Service{Agent: ag, Store: st, Coord: coord, Now: time.Now, Log: log, Activity: acts}
+	updates := &osupdate.Service{Agent: ag, Store: st, Coord: coord, Now: time.Now, Log: log, Activity: acts,
+		HTTP: &http.Client{Timeout: time.Minute}}
 	svc := &backup.Service{
 		Coord:      coord,
 		Store:      st,
@@ -652,6 +653,26 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 				log.Warn("nightly OS updates not started", "err", err)
 			}
 		})
+	// A new release series of Roostack waits for the Owner, then for a
+	// backup that worked within the last day (SPEC.md §7).
+	updates.BackupCheck = func(ctx context.Context) string {
+		if !svc.Configured() {
+			return "" // the offer said there's no backup to go back to
+		}
+		bs, err := svc.Status(ctx)
+		switch {
+		case err != nil:
+			return "Roostack couldn't read this server's backups"
+		case bs.Last == nil || bs.Last.Finished.IsZero():
+			return "there's no backup yet"
+		case !bs.Last.OK:
+			return "the last backup didn't work"
+		case time.Since(bs.Last.Finished) > 26*time.Hour:
+			return "the last backup is more than a day old"
+		}
+		return ""
+	}
+	go updates.WatchSeries(ctx, 5*time.Minute, 6*time.Hour)
 	// Debian's own apt timers may also install an update that needs a
 	// restart; notice it.
 	updates.CheckReboot()

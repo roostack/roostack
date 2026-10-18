@@ -94,6 +94,9 @@ func (m serverRef) path(this, other string) string {
 
 func (m serverRef) Updates() string    { return m.path("/settings/updates", "/updates") }
 func (m serverRef) UpdatesRun() string { return m.path("/settings/updates/run", "/updates/run") }
+func (m serverRef) SeriesAccept() string {
+	return m.path("/settings/updates/series", "/updates/series")
+}
 func (m serverRef) HostChangesKnown() string {
 	return m.path("/settings/host-changes/known", "/host-changes/known")
 }
@@ -118,6 +121,7 @@ func (s *Server) serverRoutes(mux *http.ServeMux) {
 	for route, h := range map[string]http.HandlerFunc{
 		"GET " + p + "/updates":               s.updatesPage,
 		"POST " + p + "/updates/run":          s.updateNowSubmit,
+		"POST " + p + "/updates/series":       s.seriesAcceptSubmit,
 		"POST " + p + "/host-changes/known":   s.hostChangesKnownSubmit,
 		"POST " + p + "/restart":              s.restartNowSubmit,
 		"POST " + p + "/restart-policy":       s.restartPolicySubmit,

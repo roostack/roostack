@@ -1,0 +1,190 @@
+# Publishes a release (SPEC.md §7, "Roostack's own updates"), once
+# release.yml has built and signed its files:
+#
+#   1. checks SHA256SUMS.asc against the release key's public part
+#      (packaging/keys/roostack-release.asc), and every file against
+#      SHA256SUMS;
+#   2. uploads the files to dl.roostack.cloud/releases/<version>/;
+#   3. adds the packages to the apt repository at apt.roostack.cloud
+#      (scripts/build-apt-repo.sh), signed with the release key's signing
+#      subkey, rebuilt from what's already published there, and puts the
+#      keyring beside it (apt.roostack.cloud/roostack-archive-keyring.gpg).
+#
+# release.yml calls it as a job of the same run, after the job that
+# uploads the artifact "release-files":
+#
+#   publish:
+#     needs: <that job>
+#     uses: ./.github/workflows/apt-publish.yml
+#     with: { version: "0.4.1" }
+#     secrets: inherit
+#
+# It runs in the "release" environment, whose required reviewer approves
+# each release, and whose secrets are the only ones that can sign or
+# upload: ROOSTACK_RELEASE_SIGNING_KEY (the signing subkey, armoured;
+# ROOSTACK_RELEASE_SIGNING_PASSPHRASE if it has one) and the R2 bucket's
+# S3 credentials, made by roostack-cloud's ops/tofu/releases
+# (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT, R2_BUCKET).
+#
+# Both sites are one Cloudflare R2 bucket: releases/ for dl, and dists/,
+# pool/ and series for apt (each name serves the whole bucket).
+#
+# The tools come from a Debian 13 image pinned by digest, and its packages
+# from Debian's snapshot of the same day, so every run uses the same
+# apt-ftparchive, gpg and aws. Actions are pinned by commit, with the
+# release in a comment, as in ci.yml: update both together.
+name: Publish release
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The release's version, without a "v" (0.4.1).
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment: release
+    # One publish at a time: each rebuilds the repository from what the
+    # last one published.
+    concurrency:
+      group: apt-publish
+      cancel-in-progress: false
+    container:
+      image: debian:trixie-20261005-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
+    env:
+      VERSION: ${{ inputs.version }}
+      DEBIAN_SNAPSHOT: 20261005T000000Z
+      # R2 speaks the S3 API; region "auto". The AWS CLI's newer default
+      # checksums aren't ones every S3-compatible store accepts, so only
+      # where S3 requires them.
+      AWS_DEFAULT_REGION: auto
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+    # bash -eo pipefail, so a failure inside a pipe stops the step too.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check the version
+        run: |
+          echo "$VERSION" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+' ||
+            { echo "version must be major.minor.patch, without a v: $VERSION" >&2; exit 1; }
+
+      # Snapshots' Release files have long expired; their signatures are
+      # still checked.
+      - name: Install the tools
+        run: |
+          apt-get update -q --snapshot "$DEBIAN_SNAPSHOT" -o Acquire::Check-Valid-Until=false
+          apt-get install -y -q --no-install-recommends --snapshot "$DEBIAN_SNAPSHOT" \
+            apt-utils gnupg gpgv awscli ca-certificates
+          apt-ftparchive --version | head -1; gpg --version | head -1; aws --version
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-files
+          path: release
+
+      - name: Check the release's signature and files
+        working-directory: release
+        run: |
+          gpg --batch --dearmor < ../packaging/keys/roostack-release.asc > "$RUNNER_TEMP/release-key.gpg"
+          gpgv --keyring "$RUNNER_TEMP/release-key.gpg" SHA256SUMS.asc SHA256SUMS
+          sha256sum --strict -c SHA256SUMS
+          # Nothing is published that SHA256SUMS doesn't cover.
+          for f in *; do
+            case $f in SHA256SUMS | SHA256SUMS.asc) continue ;; esac
+            awk '{print $2}' SHA256SUMS | sed 's/^\*//' | grep -qxF "$f" ||
+              { echo "$f isn't in SHA256SUMS" >&2; exit 1; }
+          done
+          for arch in amd64 arm64; do
+            [ -f "roostack_${VERSION}_${arch}.deb" ] || { echo "roostack_${VERSION}_${arch}.deb is missing" >&2; exit 1; }
+          done
+
+      - name: Import the signing subkey
+        env:
+          SIGNING_KEY: ${{ secrets.ROOSTACK_RELEASE_SIGNING_KEY }}
+          SIGNING_PASSPHRASE: ${{ secrets.ROOSTACK_RELEASE_SIGNING_PASSPHRASE }}
+        run: |
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          install -d -m 0700 "$GNUPGHOME"
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          printf '%s\n' "$SIGNING_KEY" | gpg --batch --quiet --import
+          # The subkey that can sign and whose secret is here (the
+          # primary key stays offline).
+          fpr=$(gpg --batch --with-colons --with-subkey-fingerprints --list-secret-keys |
+            awk -F: '$1 == "ssb" { s = ($12 ~ /s/ && $15 != "#") } $1 == "fpr" && s { print $10; s = 0 }' | head -1)
+          [ -n "$fpr" ] || { echo "ROOSTACK_RELEASE_SIGNING_KEY has no signing subkey" >&2; exit 1; }
+          echo "SIGNING_FPR=$fpr" >> "$GITHUB_ENV"
+          if [ -n "$SIGNING_PASSPHRASE" ]; then
+            echo allow-preset-passphrase > "$GNUPGHOME/gpg-agent.conf"
+            gpgconf --kill gpg-agent
+            gpg-connect-agent /bye
+            grip=$(gpg --batch --with-colons --with-keygrip --list-secret-keys "$fpr!" |
+              awk -F: -v f="$fpr" '$1 == "fpr" { cur = $10 } $1 == "grp" && cur == f { print $10; exit }')
+            printf '%s' "$SIGNING_PASSPHRASE" | /usr/lib/gnupg/gpg-preset-passphrase --preset "$grip"
+          fi
+
+      - name: Upload the release files
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        working-directory: release
+        run: |
+          . ../scripts/r2-put-once.sh
+          # The checksums last, so they never list a file that isn't there yet.
+          for f in *; do
+            case $f in SHA256SUMS | SHA256SUMS.asc) continue ;; esac
+            put_once "$f" "releases/$VERSION/$f"
+          done
+          put_once SHA256SUMS.asc "releases/$VERSION/SHA256SUMS.asc" text/plain
+          put_once SHA256SUMS "releases/$VERSION/SHA256SUMS" text/plain
+
+      - name: Add the packages to the apt repository
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          . scripts/r2-put-once.sh
+          bucket="s3://$R2_BUCKET"
+          repo="$RUNNER_TEMP/repo"
+          mkdir -p "$repo/dists"
+          # What's published: every suite's signed indexes, which the
+          # script checks before building on them. Not the pool, which
+          # only ever gains files, nor by-hash/, which only ever gains
+          # copies.
+          s3 s3 sync --no-progress --exclude '*/by-hash/*' "$bucket/dists" "$repo/dists"
+          scripts/build-apt-repo.sh --key "$SIGNING_FPR!" --keyring packaging/keys/roostack-release.asc \
+            "$repo" release/roostack_"$VERSION"_*.deb
+          # In the order a client reads them backwards: packages, then the
+          # indexes (by-hash first), then the signed Release files that
+          # name them, then the list of series. A client mid-way sees the
+          # old Release, whose indexes are all still there.
+          if [ -d "$repo/pool" ]; then
+            (cd "$repo" && find pool -type f) | while read -r f; do put_once "$repo/$f" "$f"; done
+          fi
+          s3 s3 cp --no-progress --recursive --exclude '*' --include '*/by-hash/*' "$repo/dists" "$bucket/dists"
+          s3 s3 cp --no-progress --recursive --exclude '*' --include '*/Packages' --include '*/Packages.gz' "$repo/dists" "$bucket/dists"
+          s3 s3 cp --no-progress --recursive --exclude '*' --include '*/Release' --include '*/Release.gpg' \
+            --content-type text/plain "$repo/dists" "$bucket/dists"
+          s3 s3 cp --no-progress --recursive --exclude '*' --include '*/InRelease' \
+            --content-type text/plain "$repo/dists" "$bucket/dists"
+          s3 s3 cp --no-progress --content-type text/plain "$repo/series" "$bucket/series"
+          # The keyring as apt wants it, for scripts/install.sh to fetch
+          # (it checks the file's SHA-256) before Roostack is installed.
+          gpg --batch --dearmor < packaging/keys/roostack-release.asc > "$RUNNER_TEMP/roostack-archive-keyring.gpg"
+          s3 s3 cp --no-progress --content-type application/pgp-keys \
+            "$RUNNER_TEMP/roostack-archive-keyring.gpg" "$bucket/roostack-archive-keyring.gpg"

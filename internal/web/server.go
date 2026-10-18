@@ -611,6 +611,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /backups/restore/{name}", s.requireOwner(s.restoreSubmit))
 	mux.Handle("POST /backups/restore/{name}/kept/remove", s.requireOwner(s.removeKeptSubmit))
 	mux.Handle("POST /settings/updates/run", s.requireOwner(s.updateNowSubmit))
+	mux.Handle("POST /settings/updates/series", s.requireOwner(s.seriesAcceptSubmit))
 	mux.Handle("POST /settings/updates/registry/check", s.requireOwner(s.registryCheckSubmit))
 	mux.Handle("POST /settings/updates/registry/on", s.requireOwner(s.registryOnSubmit))
 	mux.Handle("POST /settings/updates/registry/stops", s.requireOwner(s.registryStopsSubmit))

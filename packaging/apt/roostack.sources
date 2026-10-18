@@ -1,0 +1,14 @@
+# Roostack's own packages (SPEC.md §7), installed by the roostack package.
+# Suites is Roostack's release series: patch releases in it install by
+# themselves each night (52roostack-unattended-upgrades). When the Owner
+# accepts a new series on the Updates page, Roostack changes Suites to it.
+# You may point URIs at a mirror; keep Signed-By, which checks that the
+# packages are Roostack's.
+# scripts/install.sh writes these same bytes before installing Roostack:
+# change both together, or dpkg asks about this file on a fresh install.
+Types: deb
+URIs: https://apt.roostack.cloud
+Suites: @SUITE@
+Components: main
+Architectures: amd64 arm64
+Signed-By: /usr/share/keyrings/roostack-archive-keyring.gpg

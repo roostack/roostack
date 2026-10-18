@@ -75,7 +75,7 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/labnet` | The network between a lab's servers (SPEC.md §10.2, §10.9): the controller's CA and each server's certificate, join codes, membership (role and overlay address), the hub (WireGuard peers, joining) and the mutual-TLS lab API server |
 | `internal/node` | A server in the lab (SPEC.md §10): the `Node` interface and `Local`, which applies its Assignment (reconcile, firewall), runs package hooks, actions and secret reveals, and holds the server's maintenance jobs (backups, restores, OS updates and restarts), its own settings (time zone, SSH access and keys only, restart policy) and activity, and keeps its finished logs as history (`events`, SPEC.md §6.14). `Remote` is another server over the lab API (`Server` serves it on each node); `Fleet` keeps one per joined server |
 | `internal/activity` | Live logs of host operations (OS updates, backups, applies, setup hooks) for the UI: a status line plus collapsible details |
-| `internal/osupdate` | Nightly OS updates job, restart-needed detection, "restart now" |
+| `internal/osupdate` | Nightly OS updates job, restart-needed detection, "restart now"; Roostack's own release series: noticing a new one in its apt repository and moving to it once the Owner accepts (SPEC §7.2) |
 | `internal/firewall` | Builds the firewall from the lab, its services and the server's roles (store, guests, hub), each rule for a trust class; lists current SSH connections |
 | `internal/trust` | Who a connection comes from (home, anyone, the lab's servers, other labs, edges, the relay) and what each may reach (SPEC.md §6.10): the one definition the agent's ruleset and Caddy's private list are made from, with tests that check both against it |
 | `internal/store` | SQLite runtime data: users, sessions, audit log, settings, backup runs, the lab's servers and join codes, backup providers, targets and copies, and storage for other labs |
@@ -157,4 +157,4 @@ Installing or removing a service from the UI only changes desired state (an inst
 
 ## Not built yet
 
-The main pieces still to come: public exposure (with CrowdSec), an SFTP backup destination, the apt repository and signing, moving the controller and failover between servers, and edge servers for public services at home. See [TASKS.md](TASKS.md) for everything, by phase.
+The main pieces still to come: public exposure (with CrowdSec), an SFTP backup destination, moving the controller and failover between servers, and edge servers for public services at home. See [TASKS.md](TASKS.md) for everything, by phase.

@@ -15,6 +15,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"slices"
 	"strconv"
@@ -43,7 +44,9 @@ const lastKey = "os.updates.last"
 
 // Agent is what's needed from roostack-agent.
 type Agent interface {
-	RunUpdates(ctx context.Context, w io.Writer) error
+	// RunUpdates installs updates; a series first moves Roostack to that
+	// release series (series.go).
+	RunUpdates(ctx context.Context, series string, w io.Writer) error
 	Reboot(ctx context.Context) error
 	HostChanges(ctx context.Context) (agent.HostChanges, error)
 }
@@ -108,6 +111,13 @@ type Service struct {
 	Log   *slog.Logger
 	// Activity shows each run live in the UI (optional).
 	Activity *activity.Registry
+	// HTTP fetches the list of Roostack's release series (series.go);
+	// nil uses the default client.
+	HTTP *http.Client
+	// BackupCheck says why Roostack can't move to a new release series
+	// now ("" when it can): it waits for a backup that worked (SPEC.md
+	// §7). Nil means no check.
+	BackupCheck func(ctx context.Context) string
 
 	mu      sync.Mutex
 	pending bool          // queued or running
@@ -159,10 +169,22 @@ func (s *Service) Job() maintenance.Job {
 				act = s.Activity.Start(activity.OSUpdates, "OS updates")
 			}
 			act.Step("Starting")
+			series := s.seriesToInstall(ctx)
+			if series != "" {
+				act.Printf("Moving Roostack to its %s releases, as you accepted.", series)
+			}
 			var buf bytes.Buffer
-			err := s.Agent.RunUpdates(ctx, io.MultiWriter(act, &buf))
+			err := s.Agent.RunUpdates(ctx, series, io.MultiWriter(act, &buf))
 			out := headTail(buf.String(), 3<<10, 5<<10)
 			res := Result{At: s.Now(), OK: err == nil, Summary: Summarize(out), Output: out}
+			// Upgrading Roostack restarts the agent and this service, which
+			// cuts the run's output off here, but not the run (SPEC.md §7).
+			// This process may not live to record it.
+			if v := roostackUpgrade(out); err != nil && v != "" {
+				res.OK, err = true, nil
+				res.Summary = "Roostack updated itself to " + v + " and restarted, so the rest of this run isn't shown here " +
+					"(it carried on: " + agent.UpdatesLog + ")."
+			}
 			if err != nil {
 				res.Summary = "Updating didn't finish: " + err.Error()
 			} else {
@@ -289,6 +311,20 @@ func headTail(s string, head, tail int) string {
 		return s
 	}
 	return s[:head] + "\n…\n" + s[len(s)-tail:]
+}
+
+// roostackUpgrade is the version of Roostack a run's output says dpkg
+// unpacked, or "".
+func roostackUpgrade(out string) string {
+	_, rest, ok := strings.Cut(out, "Unpacking roostack (")
+	if !ok {
+		return ""
+	}
+	v, _, ok := strings.Cut(rest, ")")
+	if !ok || strings.ContainsAny(v, " \n") {
+		return ""
+	}
+	return v
 }
 
 // Summarize turns unattended-upgrade's verbose output into a sentence.

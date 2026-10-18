@@ -440,6 +440,16 @@ func (u remoteUpdates) AcknowledgeHostChanges(ctx context.Context) error {
 	return u.r.call(ctx, http.MethodPost, "/v1/host/changes/known", struct{}{}, nil)
 }
 
+func (u remoteUpdates) Series(ctx context.Context) (osupdate.Series, error) {
+	var s osupdate.Series
+	err := u.r.call(ctx, http.MethodGet, "/v1/updates/series", nil, &s)
+	return s, err
+}
+
+func (u remoteUpdates) AcceptSeries(ctx context.Context, series string) error {
+	return u.r.call(ctx, http.MethodPost, "/v1/updates/series", map[string]string{"Series": series}, nil)
+}
+
 func (u remoteUpdates) RestartNow(ctx context.Context) error {
 	return u.r.call(ctx, http.MethodPost, "/v1/restart", struct{}{}, nil)
 }

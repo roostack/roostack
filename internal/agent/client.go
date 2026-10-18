@@ -68,9 +68,18 @@ func (c *Client) SetTimezone(ctx context.Context, name string) error {
 }
 
 // RunUpdates installs available OS updates, writing their output to w as
-// it arrives.
-func (c *Client) RunUpdates(ctx context.Context, w io.Writer) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://roostack-agent/v1/updates/run", nil)
+// it arrives. A series first moves Roostack to that release series
+// (SPEC.md §7); "" leaves it on its own.
+func (c *Client) RunUpdates(ctx context.Context, series string, w io.Writer) error {
+	var body io.Reader = http.NoBody
+	if series != "" {
+		data, err := json.Marshal(map[string]string{"series": series})
+		if err != nil {
+			return err
+		}
+		body = bytes.NewReader(data)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://roostack-agent/v1/updates/run", body)
 	if err != nil {
 		return err
 	}

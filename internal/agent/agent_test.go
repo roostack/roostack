@@ -29,6 +29,7 @@ type fakeHost struct {
 	links     *Links
 	erased    string
 	keysOnly  bool
+	series    string
 }
 
 func (f *fakeHost) ApplyLinks(l Links) error { f.links = &l; return nil }
@@ -37,8 +38,9 @@ func (f *fakeHost) SetUnprivilegedPortStart() error { f.portsSet = true; return 
 func (f *fakeHost) ApplyFirewall(r string) error    { f.ruleset = r; return nil }
 func (f *fakeHost) AllowWireGuardJoin() error       { f.joinOpen = true; return nil }
 func (f *fakeHost) SetTimezone(name string) error   { f.tz = name; return nil }
-func (f *fakeHost) RunUpdates(_ context.Context, w io.Writer) error {
+func (f *fakeHost) RunUpdates(_ context.Context, series string, w io.Writer) error {
 	f.updated = true
+	f.series = series
 	fmt.Fprint(w, "==> Installing updates\nNo packages found that can be upgraded unattended")
 	if f.updateErr != nil {
 		return f.updateErr
@@ -123,12 +125,23 @@ func TestAPI(t *testing.T) {
 	}
 
 	var out strings.Builder
-	if err := c.RunUpdates(ctx, &out); err != nil || !host.updated ||
+	if err := c.RunUpdates(ctx, "", &out); err != nil || !host.updated || host.series != "" ||
 		out.String() != "==> Installing updates\nNo packages found that can be upgraded unattended\n" {
 		t.Errorf("updates: %q %v", out.String(), err)
 	}
+	// Moving to a new release series (SPEC.md §7): only a series, never
+	// anything that could reach the script as more than that.
+	if err := c.RunUpdates(ctx, "0.5", io.Discard); err != nil || host.series != "0.5" {
+		t.Errorf("updates with a series: %v, series %q", err, host.series)
+	}
+	for _, bad := range []string{"0", "0.5.1", "0.5;id", "0.5\nx", "../0.5", " 0.5", "a.b"} {
+		host.series = "unchanged"
+		if err := c.RunUpdates(ctx, bad, io.Discard); err == nil || host.series != "unchanged" {
+			t.Errorf("series %q: %v, ran with %q", bad, err, host.series)
+		}
+	}
 	host.updateErr = errors.New("exit status 100")
-	if err := c.RunUpdates(ctx, io.Discard); err == nil || err.Error() != "exit status 100" {
+	if err := c.RunUpdates(ctx, "", io.Discard); err == nil || err.Error() != "exit status 100" {
 		t.Errorf("failed updates: %v", err)
 	}
 	if err := c.Reboot(ctx); err != nil || !host.rebooted {

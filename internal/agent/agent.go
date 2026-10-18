@@ -27,7 +27,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 )
 
 // Default locations. The socket is in the agent's runtime directory, the
@@ -56,7 +55,9 @@ type Host interface {
 	SetTimezone(name string) error
 	// RunUpdates refreshes the package lists and installs available
 	// updates with unattended-upgrades, writing its output to w as it runs.
-	RunUpdates(ctx context.Context, w io.Writer) error
+	// A series (already checked with ValidSeries) first moves Roostack's
+	// apt source to that release series and installs it (updates.go).
+	RunUpdates(ctx context.Context, series string, w io.Writer) error
 	// Reboot restarts the host shortly after returning.
 	Reboot() error
 	// ApplyWireGuard configures one of Roostack's WireGuard interfaces
@@ -140,22 +141,34 @@ func (s *Server) Handler() http.Handler {
 	})
 	// Streams newline-delimited JSON: {"line": ...} as output arrives,
 	// then {"done": true, "error": ...}.
+	// The body is optional: {"series": "0.5"} also moves Roostack to that
+	// release series, once the Owner has accepted it (SPEC.md §7).
 	mux.HandleFunc("POST /v1/updates/run", func(w http.ResponseWriter, r *http.Request) {
 		uid, _ := r.Context().Value(ctxKey{}).(uint32)
+		var req struct {
+			Series string `json:"series"`
+		}
+		if r.ContentLength != 0 && !decode(w, r, 4<<10, &req) {
+			return
+		}
+		if req.Series != "" && !ValidSeries(req.Series) {
+			writeError(w, http.StatusBadRequest, fmt.Errorf("invalid release series %q", req.Series))
+			return
+		}
 		w.Header().Set("Content-Type", "application/x-ndjson")
 		w.WriteHeader(http.StatusOK)
 		st := &lineStream{enc: json.NewEncoder(w), flush: w.(http.Flusher).Flush}
 		// Once started, updates run to the end even if the caller goes
 		// away (e.g. Roostack restarts): stopping dpkg halfway leaves packages
 		// half-installed.
-		err := s.Host.RunUpdates(context.WithoutCancel(r.Context()), st)
+		err := s.Host.RunUpdates(context.WithoutCancel(r.Context()), req.Series, st)
 		st.close()
 		end := map[string]any{"done": true}
 		if err != nil {
-			s.Log.Error("OS updates failed", "uid", uid, "err", err)
+			s.Log.Error("OS updates failed", "uid", uid, "series", req.Series, "err", err)
 			end["error"] = err.Error()
 		} else {
-			s.Log.Info("OS updates", "uid", uid)
+			s.Log.Info("OS updates", "uid", uid, "series", req.Series)
 		}
 		st.mu.Lock()
 		st.enc.Encode(end)
@@ -576,31 +589,6 @@ func (h LinuxHost) SetTimezone(name string) error {
 		return fmt.Errorf("timedatectl: %w: %s", err, out)
 	}
 	return nil
-}
-
-// updatesTimeout bounds one run of OS updates.
-const updatesTimeout = time.Hour
-
-// updatesScript announces its steps with "==> " lines (see
-// internal/activity).
-const updatesScript = `echo "==> Downloading the list of available updates"
-apt-get update -q || exit
-echo "==> Installing updates"
-unattended-upgrade -v`
-
-// RunUpdates runs apt-get update and unattended-upgrade in a transient
-// systemd unit, outside the agent's own sandbox (dpkg scripts may touch
-// anything), streaming their output to w.
-func (h LinuxHost) RunUpdates(ctx context.Context, w io.Writer) error {
-	ctx, cancel := context.WithTimeout(ctx, updatesTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "systemd-run", "--unit=roostack-os-updates", "--wait", "--pipe", "--quiet",
-		"--collect", "--setenv=DEBIAN_FRONTEND=noninteractive", "--", "sh", "-c", updatesScript)
-	out := &lineFilter{w: w, drop: dpkgLogMarker}
-	cmd.Stdout, cmd.Stderr = out, out
-	err := cmd.Run()
-	out.flush()
-	return err
 }
 
 // dpkgLogMarker: unattended-upgrade -v prints "Log started: <time>" and

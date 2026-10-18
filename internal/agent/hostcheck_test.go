@@ -35,10 +35,16 @@ Suites: trixie-security
 		"/etc/apt/sources.list":                "# deb http://example.com/old stable main\ndeb http://ftp.au.debian.org/debian trixie main\n",
 		"/etc/apt/sources.list.d/off.sources":  "Types: deb\nURIs: https://repo.example.com/apt\nEnabled: no\n",
 		"/etc/apt/sources.list.d/tail.sources": "Types: deb\nURIs: https://pkgs.tailscale.com/stable/debian\nSuites: trixie\n",
+		// Roostack's own, here from a mirror: still checked with its key.
+		"/etc/apt/sources.list.d/roostack.sources": "# Roostack\nTypes: deb\nURIs: https://mirror.example.com/roostack\nSuites: 0.4\n" +
+			"Signed-By: /usr/share/keyrings/roostack-archive-keyring.gpg\n",
+		// The same name without Roostack's key is someone else's.
+		"/var/x/roostack.sources": "Types: deb\nURIs: https://evil.example.com/apt\nSuites: 0.4\nSigned-By: /etc/apt/keyrings/other.gpg\n",
 	}
 	got := aptSources(files)
 	want := []string{"cloud.sources: mirror+file:///etc/apt/mirrors/other.list",
-		"docker.list: https://download.docker.com/linux/debian", "tail.sources: https://pkgs.tailscale.com/stable/debian"}
+		"docker.list: https://download.docker.com/linux/debian", "tail.sources: https://pkgs.tailscale.com/stable/debian",
+		"roostack.sources: https://evil.example.com/apt"}
 	if !slices.Equal(got, want) {
 		t.Errorf("sources = %q, want %q", got, want)
 	}

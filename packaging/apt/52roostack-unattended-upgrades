@@ -1,11 +1,20 @@
-// Installed by Roostack (SPEC.md §3.2): Debian stable updates install
-// automatically, and only Roostack decides when to reboot. Replaced when Roostack
+// Installed by Roostack (SPEC.md §3.2, §7): Debian stable updates and
+// Roostack's patch releases install automatically, and only Roostack
+// decides when to reboot. Replaced when Roostack
 // is upgraded; put your own settings in a later file (e.g. 60local).
 
 // Debian's defaults (50unattended-upgrades) already include stable and
 // security; also take stable-updates (urgent fixes between point releases).
 Unattended-Upgrade::Origins-Pattern {
         "origin=Debian,codename=${distro_codename}-updates,label=Debian";
+};
+
+// Roostack's own patch releases (SPEC.md §7): its source
+// (sources.list.d/roostack.sources) follows one release series, so
+// everything from it is a fix to the version installed. A new series
+// waits until the Owner accepts it on the Updates page.
+Unattended-Upgrade::Origins-Pattern {
+        "origin=Roostack,label=Roostack";
 };
 
 // Roostack reboots in its maintenance window, after backups (roostack-agent).
