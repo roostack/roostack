@@ -498,6 +498,20 @@ func (l Lab) DisplayName() string {
 	return "My lab"
 }
 
+// NameAt is the lab's name (DisplayName) as the config at path says when
+// it's called: the setup wizard and Settings → Lab name change it while
+// Roostack runs, the wizard without restarting. If the file can't be
+// read, it's fallback's.
+func NameAt(path string, fallback Lab) func() string {
+	return func() string {
+		lab, err := Load(path)
+		if err != nil {
+			return fallback.DisplayName()
+		}
+		return lab.DisplayName()
+	}
+}
+
 // Default returns a Lab with default paths and no domain.
 func Default() Lab {
 	return Lab{UIPort: DefaultUIPort, UIBind: DefaultUIBind, Paths: Paths{

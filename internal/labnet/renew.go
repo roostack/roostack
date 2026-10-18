@@ -114,7 +114,7 @@ func (h *Hub) Renew(ctx context.Context, id, used string, csr []byte) (JoinRespo
 	if !ok {
 		return JoinResponse{}, errRevoked
 	}
-	ca, err := LoadOrCreateCA(CADir(h.StateDir), h.LabName)
+	ca, err := LoadOrCreateCA(CADir(h.StateDir), h.LabName())
 	if err != nil {
 		return JoinResponse{}, err
 	}
@@ -135,7 +135,7 @@ func (h *Hub) Renew(ctx context.Context, id, used string, csr []byte) (JoinRespo
 
 // RenewSelf renews the controller's own certificate with its CA.
 func (h *Hub) RenewSelf(_ context.Context, csr []byte) ([]byte, error) {
-	ca, err := LoadOrCreateCA(CADir(h.StateDir), h.LabName)
+	ca, err := LoadOrCreateCA(CADir(h.StateDir), h.LabName())
 	if err != nil {
 		return nil, err
 	}

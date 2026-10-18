@@ -51,6 +51,34 @@ func TestUpdateKeepsOtherFields(t *testing.T) {
 }
 
 // A new install's lab.yaml has only comments: no address yet (SPEC.md §6.6).
+// TestNameAt: the lab's name as the file says now, not as it was read at
+// start (the wizard names the lab while Roostack runs); the name at start
+// if the file can't be read.
+func TestNameAt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lab.yaml")
+	if err := Default().Save(path); err != nil {
+		t.Fatal(err)
+	}
+	start, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := NameAt(path, start)
+	if got := name(); got != "My lab" {
+		t.Errorf("before it's named: %q", got)
+	}
+	if err := Update(path, func(l *Lab) { l.Name = "Test" }); err != nil {
+		t.Fatal(err)
+	}
+	if got := name(); got != "Test" {
+		t.Errorf("after the wizard named it: %q", got)
+	}
+	os.Remove(path)
+	if got := name(); got != "My lab" {
+		t.Errorf("no file: %q", got)
+	}
+}
+
 func TestLoadNewInstall(t *testing.T) {
 	data, err := os.ReadFile("../../packaging/deb/lab.yaml")
 	if err != nil {

@@ -25,7 +25,7 @@ func TestGuestHub(t *testing.T) {
 	}
 	defer st.Close()
 	ag := &fakeAgent{}
-	h := &GuestHub{LabName: "Mum's lab", Store: st, Agent: ag, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: time.Now,
+	h := &GuestHub{LabName: func() string { return "Mum's lab" }, Store: st, Agent: ag, Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: time.Now,
 		Usage: func(context.Context, store.Guest) (int64, error) { return 3 << 30, nil }}
 	ctx := context.Background()
 	if h.Enabled(ctx) {

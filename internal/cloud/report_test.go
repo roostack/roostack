@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,6 +50,45 @@ func TestReport(t *testing.T) {
 	s.Report = func(context.Context) (cloudapi.LabReport, error) { return cloudapi.LabReport{}, errors.New("no users") }
 	if err := s.Check(ctx); err != nil || f.Reports != nil {
 		t.Errorf("a report that failed: %v, %+v", err, f.Reports)
+	}
+}
+
+// TestReportName: the report carries the lab's name as it is now (the
+// wizard and Settings rename it while Roostack runs), left out when Cloud
+// wouldn't take it, so Cloud keeps the one it has.
+func TestReportName(t *testing.T) {
+	f, s, _ := fakeCloud(t)
+	name := "My lab"
+	s.labName = func() string { return name }
+	ctx := context.Background()
+	// Linked from the wizard's address step: named "Test" by then, though
+	// Roostack started before it was named.
+	name = "Test"
+	open, err := s.Start(ctx, "", "")
+	if err != nil || open == "" {
+		t.Fatal(err)
+	}
+	if lab, _ := f.Asked(s.Status().Waiting.Code); lab != "Test" {
+		t.Errorf("linked as %q", lab)
+	}
+	if err := f.Confirm(s.Status().Waiting.Code); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return s.Status().Linked })
+	s.Report = func(context.Context) (cloudapi.LabReport, error) { return cloudapi.LabReport{}, nil }
+	for _, c := range []struct{ name, want string }{
+		{"Test", "Test"},
+		{"  The Smiths' lab ", "The Smiths' lab"},
+		{strings.Repeat("a", 70) + ".example.com", ""},
+		{"Two\nlines", ""},
+	} {
+		name = c.name
+		if err := s.Check(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if got := f.Reports[s.Status().LabID].Name; got != c.want {
+			t.Errorf("named %q: Cloud was told %q", c.name, got)
+		}
 	}
 }
 

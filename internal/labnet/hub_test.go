@@ -54,7 +54,7 @@ func TestHubJoin(t *testing.T) {
 	}
 	defer st.Close()
 	ag := &fakeAgent{}
-	h := &Hub{StateDir: dir, LabName: "home", Self: nodeid.Identity{ID: "n-0000000001", Name: "nuc"}, Store: st, Agent: ag,
+	h := &Hub{StateDir: dir, LabName: func() string { return "home" }, Self: nodeid.Identity{ID: "n-0000000001", Name: "nuc"}, Store: st, Agent: ag,
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: time.Now, SwitchDelay: joinSwitchDelay}
 	ctx := context.Background()
 	if h.Enabled() {
@@ -142,7 +142,7 @@ func TestHubDials(t *testing.T) {
 	}
 	defer st.Close()
 	ag := &fakeAgent{}
-	h := &Hub{StateDir: dir, LabName: "home", Self: nodeid.Identity{ID: "n-0000000001", Name: "nuc"}, Store: st, Agent: ag,
+	h := &Hub{StateDir: dir, LabName: func() string { return "home" }, Self: nodeid.Identity{ID: "n-0000000001", Name: "nuc"}, Store: st, Agent: ag,
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: time.Now, SwitchDelay: time.Millisecond}
 	ctx := context.Background()
 	if _, err := h.NewJoinCode(ctx, "", ""); err == nil {
