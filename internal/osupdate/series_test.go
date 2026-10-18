@@ -167,3 +167,29 @@ func TestJobUpgradesRoostack(t *testing.T) {
 		t.Error("another package counted as Roostack")
 	}
 }
+
+// scripts/install.sh writes the package's source byte for byte, so dpkg
+// takes it over on a fresh install without asking.
+func TestInstallerSourceMatchesPackage(t *testing.T) {
+	script, err := os.ReadFile("../../scripts/install.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg, err := os.ReadFile("../../packaging/apt/roostack.sources")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, rest, ok := strings.Cut(string(script), "<<SOURCES\n")
+	text, _, ok2 := strings.Cut(rest, "\nSOURCES\n")
+	if !ok || !ok2 {
+		t.Fatal("install.sh has no SOURCES here-document")
+	}
+	text = strings.NewReplacer(
+		"$REPO", "https://apt.roostack.cloud",
+		"$SUITE", "@SUITE@",
+		"$KEYRING", "/usr/share/keyrings/roostack-archive-keyring.gpg",
+	).Replace(text) + "\n"
+	if text != string(pkg) {
+		t.Errorf("install.sh writes\n%s\nbut the package has\n%s", text, pkg)
+	}
+}
