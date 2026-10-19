@@ -54,10 +54,12 @@ from home, and it's a different kind of storage from a disk.
 If your lab is [linked to Roostack Cloud](../settings/cloud.md), you can
 back up to Roostack Cloud's own storage, in Australia. There's nothing to
 set up: no account, keys or address. The chooser, and then the backup in
-the plan, show how much of your plan's space your lab uses (as Roostack
-Cloud measured it, once a day). From 80% full, Home says so too, as
-Roostack Cloud's emails do. If your account has several labs, they share
-the space, and each lab shows only what its own backups take.
+the plan, show how much of your plan's space is used (as Roostack Cloud
+measured it, once a day). If your account has several labs, they share
+the space: each shows what they take together, and its own share
+("your account's labs use 8.5 GB of the 10.0 GB in your plan (85%),
+this lab 3.0 GB"). From 80% full, Home says so too, as Roostack Cloud's
+emails do.
 
 Your backups are encrypted with your recovery key before they leave, so
 Roostack Cloud stores them but can't read them. It's away from home, and

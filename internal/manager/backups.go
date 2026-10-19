@@ -90,9 +90,15 @@ func (m *Manager) cloudChoice(ctx context.Context) (BackupChoice, bool) {
 	if err != nil || u.QuotaBytes <= 0 {
 		return BackupChoice{}, false
 	}
+	used := fmt.Sprintf("This lab uses %s of %s.", units.Bytes(u.UsedBytes), units.Bytes(u.QuotaBytes))
+	if u.AccountUsedBytes > u.UsedBytes {
+		// The account's other labs share the space (a Cloud from before
+		// 2026-10-19 doesn't say).
+		used = fmt.Sprintf("Your account's labs use %s of %s; this lab %s.", units.Bytes(u.AccountUsedBytes),
+			units.Bytes(u.QuotaBytes), units.Bytes(u.UsedBytes))
+	}
 	return BackupChoice{Ref: CloudChoice, Title: "Roostack Cloud",
-		Note: fmt.Sprintf("Encrypted with your recovery key before it leaves; Roostack Cloud can't read it. "+
-			"This lab uses %s of %s.", units.Bytes(u.UsedBytes), units.Bytes(u.QuotaBytes))}, true
+		Note: "Encrypted with your recovery key before it leaves; Roostack Cloud can't read it. " + used}, true
 }
 
 // cloudPruneKeys are the controller's keys to the lab's folders in

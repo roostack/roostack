@@ -104,9 +104,11 @@ type Fake struct {
 	// edge's new key and address.
 	RelayEdges []cloudapi.RelayEdge
 	// StorageQuota is Cloud backup's quota (0: not open), StorageUsed
-	// what's stored, and StorageAsked the key requests.
-	StorageQuota, StorageUsed int64
-	StorageAsked              []cloudapi.StorageRequest
+	// what's stored, StorageAccountUsed what the account's labs store
+	// together (0: not said, as a Cloud from before it), and StorageAsked
+	// the key requests.
+	StorageQuota, StorageUsed, StorageAccountUsed int64
+	StorageAsked                                  []cloudapi.StorageRequest
 	// Identities are the labs' recovery identities (public keys), by lab
 	// ID, unlinked labs' included; RestoreRepositories what a proven
 	// restore is told is there, by lab ID; and Proven each proof's
@@ -533,7 +535,8 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 		reply(w, cloudapi.StorageKeys{Repository: "s3:https://s3.test/backups/" + strings.TrimSuffix(prefix, "/"), Prefix: prefix,
 			AccessKeyID: "TEMP", SecretAccessKey: "s", SessionToken: "tok", Region: "test", Expires: time.Now().Add(12 * time.Hour)})
 	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLabStorage:
-		reply(w, cloudapi.StorageUsage{QuotaBytes: f.StorageQuota, UsedBytes: f.StorageUsed, Servers: []cloudapi.ServerStorage{}})
+		reply(w, cloudapi.StorageUsage{QuotaBytes: f.StorageQuota, UsedBytes: f.StorageUsed, AccountUsedBytes: f.StorageAccountUsed,
+			Servers: []cloudapi.ServerStorage{}})
 	case r.Method == http.MethodGet && r.URL.Path == cloudapi.PathLabRelayStats:
 		f.StatsQuery = r.URL.RawQuery
 		reply(w, f.RelayStats)

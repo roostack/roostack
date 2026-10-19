@@ -460,7 +460,9 @@
           {{- if .Stored}}Backups here take <strong>{{size .Stored}}</strong>{{end}}
           {{- if ge .Free 0}}{{if .Stored}} · {{end}}<span{{with .LowSpace}} class="space-low"{{end}}>{{size .Free}} free on {{.FreeOn}}</span>{{end}}
           {{- if .Lab}}{{if or .Stored (ge .Free 0)}} · {{end}}your lab uses {{if ge .Lab.Used 0}}{{size .Lab.Used}} of {{end}}its {{size .Lab.Quota}} there{{end}}
-          {{- with .Cloud}}{{if $e.Stored}} · {{end}}<span{{if ge .Percent 80}} class="space-low"{{end}}>{{if $e.Stored}}your{{else}}Your{{end}} lab uses {{size .Used}} of the {{size .Quota}} in your plan ({{.Percent}}%)</span>{{end}}</p>{{end}}
+          {{- with .Cloud}}{{if $e.Stored}} · {{end}}<span{{if ge .Percent 80}} class="space-low"{{end}}>
+            {{- if .Shared}}{{if $e.Stored}}your{{else}}Your{{end}} account&#39;s labs use {{size .Used}} of the {{size .Quota}} in your plan ({{.Percent}}%), this lab {{size .Lab}}
+            {{- else}}{{if $e.Stored}}your{{else}}Your{{end}} lab uses {{size .Used}} of the {{size .Quota}} in your plan ({{.Percent}}%){{end}}</span>{{end}}</p>{{end}}
         {{if not $.Plan.Wizard}}
         <details class="plan-manage" id="plan-manage-{{.Number}}"{{if or .KeyOpen .RollbackOpen}} open{{end}}>
           <summary>Manage</summary>

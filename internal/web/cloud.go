@@ -49,11 +49,15 @@ func (s *Server) cloudSuffix(ctx context.Context) string {
 }
 
 // cloudSpace is Roostack Cloud backup's space, as Cloud last said
-// (asked at each check-in): what this lab's backups take there, and the
-// account's quota, which its labs share (Cloud's DESIGN §6(b)).
+// (asked at each check-in): the account's quota, which its labs share
+// (Cloud's DESIGN §6(b)), what they take of it together (Used), and this
+// lab's share (Lab). Shared says the account's other labs take some too;
+// a Cloud from before it (2026-10-19) gives only this lab's, which is
+// then all Used says.
 type cloudSpace struct {
-	Used, Quota int64
-	Percent     int64
+	Used, Lab, Quota int64
+	Percent          int64
+	Shared           bool
 }
 
 // cloudSpaceOf is Cloud backup's space, if the lab may use it (nil
@@ -63,20 +67,27 @@ func cloudSpaceOf(st cloud.Status) *cloudSpace {
 		return nil
 	}
 	u := st.Storage
-	return &cloudSpace{Used: u.UsedBytes, Quota: u.QuotaBytes, Percent: u.UsedBytes * 100 / u.QuotaBytes}
+	c := &cloudSpace{Used: max(u.AccountUsedBytes, u.UsedBytes), Lab: u.UsedBytes, Quota: u.QuotaBytes}
+	c.Shared, c.Percent = c.Used > c.Lab, c.Used*100/c.Quota
+	return c
 }
 
 // cloudSpaceWarn is the share of the quota from which Cloud emails the
 // account, and the lab says so too: 80%, then 100% (Cloud's DESIGN §6(b)).
 const cloudSpaceWarn = 80
 
-// Warning is what Home and the backup's card say once the lab's backups
-// take 80% of the quota or more ("" below that, or for nil).
+// Warning is what Home and the backup's card say once the account's
+// labs take 80% of the quota or more ("" below that, or for nil): the
+// same moments Cloud emails the account.
 func (c *cloudSpace) Warning() string {
 	if c == nil || c.Percent < cloudSpaceWarn {
 		return ""
 	}
 	took := fmt.Sprintf("this lab's backups there take %s of the %s in your plan", units.Bytes(c.Used), units.Bytes(c.Quota))
+	if c.Shared {
+		took = fmt.Sprintf("your account's labs take %s of the %s in your plan, this lab's backups %s",
+			units.Bytes(c.Used), units.Bytes(c.Quota), units.Bytes(c.Lab))
+	}
 	if c.Percent >= 100 {
 		return "Roostack Cloud backup is full: " + took + ". Roostack Cloud will be in touch about more space."
 	}

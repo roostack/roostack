@@ -368,10 +368,17 @@ type StorageKeys struct {
 // StorageUsage is what the lab stores in Roostack Cloud, as last measured
 // (daily), and its quota (zero: none). Bytes are decimal.
 type StorageUsage struct {
+	// QuotaBytes is the account's, which its labs share, and UsedBytes
+	// this lab's use of it.
 	QuotaBytes int64           `json:"quota_bytes"`
 	UsedBytes  int64           `json:"used_bytes"`
 	MeasuredAt time.Time       `json:"measured_at,omitzero"`
 	Servers    []ServerStorage `json:"servers"`
+	// AccountUsedBytes is what all the account's linked labs store
+	// together, this one's included: what Cloud holds against QuotaBytes,
+	// and warns the account about at 80% and 100%. Zero from a Cloud
+	// before it (2026-10-19): take UsedBytes.
+	AccountUsedBytes int64 `json:"account_used_bytes,omitempty"`
 }
 
 // ServerStorage is one server's share of StorageUsage.

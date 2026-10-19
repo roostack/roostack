@@ -247,6 +247,37 @@ func TestCloudBackupSpace(t *testing.T) {
 			t.Errorf("the card at %d bytes: no %q", c.used, c.want)
 		}
 	}
+	// The account's labs together (a Cloud from 2026-10-19 on): the
+	// card and the warnings go by their total, as Cloud's emails do,
+	// and say this lab's share. Only this lab's: as before.
+	for _, c := range []struct {
+		lab, account int64
+		card, warn   string
+	}{
+		{3_000_000_000, 8_500_000_000, "Your account&#39;s labs use 8.5 GB of the 10.0 GB in your plan (85%), this lab 3.0 GB",
+			"Roostack Cloud backup is 85% full: your account&#39;s labs take 8.5 GB of the 10.0 GB in your plan, this lab&#39;s backups 3.0 GB."},
+		{4_000_000_000, 10_100_000_000, "Your account&#39;s labs use 10.1 GB of the 10.0 GB in your plan (101%), this lab 4.0 GB",
+			"Roostack Cloud backup is full: your account&#39;s labs take 10.1 GB of the 10.0 GB in your plan, this lab&#39;s backups 4.0 GB."},
+		{3_000_000_000, 6_000_000_000, "Your account&#39;s labs use 6.0 GB of the 10.0 GB in your plan (60%), this lab 3.0 GB", ""},
+		{8_100_000_000, 8_100_000_000, "Your lab uses 8.1 GB of the 10.0 GB in your plan (81%)",
+			"Roostack Cloud backup is 81% full: this lab&#39;s backups there take 8.1 GB of the 10.0 GB in your plan."},
+	} {
+		f.StorageUsed, f.StorageAccountUsed = c.lab, c.account
+		if err := link.Check(ctx); err != nil {
+			t.Fatal(err)
+		}
+		_, home := h.get("/")
+		_, body := h.get("/backups")
+		if !strings.Contains(body, c.card) {
+			t.Errorf("the card with %d of %d: no %q", c.lab, c.account, c.card)
+		}
+		switch {
+		case c.warn == "" && (strings.Contains(home, "Roostack Cloud backup is") || strings.Contains(body, "Roostack Cloud backup is")):
+			t.Errorf("a warning with %d of %d", c.lab, c.account)
+		case c.warn != "" && (!strings.Contains(home, c.warn) || !strings.Contains(body, c.warn)):
+			t.Errorf("with %d of %d, Home or the card has no %q", c.lab, c.account, c.warn)
+		}
+	}
 	// Unlinked: nothing about it.
 	if _, err := link.Unlink(ctx); err != nil {
 		t.Fatal(err)

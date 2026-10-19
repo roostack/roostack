@@ -670,7 +670,10 @@ func TestPruneRetriesLocked(t *testing.T) {
 // (recording what each was asked for).
 type fakeCloudBackup struct {
 	quota int64
-	asked []cloudapi.StorageRequest
+	// accountUsed is what the account's labs store together (0: not
+	// said, as a Cloud from before 2026-10-19).
+	accountUsed int64
+	asked       []cloudapi.StorageRequest
 	// registered counts RegisterIdentity calls, and what the key file held.
 	registered []string
 	keyFile    string
@@ -693,7 +696,7 @@ func (f *fakeCloudBackup) StorageKeys(_ context.Context, req cloudapi.StorageReq
 }
 
 func (f *fakeCloudBackup) StorageUsage(context.Context) (cloudapi.StorageUsage, error) {
-	return cloudapi.StorageUsage{QuotaBytes: f.quota, UsedBytes: 120_000_000_000}, nil
+	return cloudapi.StorageUsage{QuotaBytes: f.quota, UsedBytes: 120_000_000_000, AccountUsedBytes: f.accountUsed}, nil
 }
 
 // Roostack Cloud backup as a destination (SPEC.md §6.9): offered only with
@@ -741,6 +744,13 @@ func TestCloudBackupDestination(t *testing.T) {
 	i := slices.IndexFunc(choices, func(c BackupChoice) bool { return c.Ref == CloudChoice })
 	if i < 0 || !strings.Contains(choices[i].Note, "120.0 GB of 500.0 GB") || !strings.Contains(choices[i].Note, "can't read it") {
 		t.Fatalf("choices: %+v", choices)
+	}
+	// With the account's other labs: their total, and this lab's share.
+	cloud.accountUsed = 300_000_000_000
+	choices, _ = m.BackupChoices(ctx)
+	if i := slices.IndexFunc(choices, func(c BackupChoice) bool { return c.Ref == CloudChoice }); i < 0 ||
+		!strings.Contains(choices[i].Note, "Your account's labs use 300.0 GB of 500.0 GB; this lab 120.0 GB.") {
+		t.Fatalf("choices with the account's labs: %+v", choices)
 	}
 	if err := m.SetBackupDestination(ctx, "n-0000000002", CloudChoice); err != nil {
 		t.Fatal(err)
