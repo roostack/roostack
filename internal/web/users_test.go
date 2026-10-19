@@ -101,19 +101,24 @@ func TestSettingsOverview(t *testing.T) {
 			t.Errorf("overview missing %q", want)
 		}
 	}
-	// In Settings the sidebar lists every settings page, the current one
-	// marked; elsewhere only the everyday ones.
+	// In Settings the sidebar lists every settings page under Settings,
+	// the current one marked and Settings marked as its main area; on the
+	// overview, Settings is the page; elsewhere it lists none.
 	for _, path := range []string{"/settings/updates", "/settings/people", "/settings/domain", "/settings/history",
 		"/settings/remote-access", "/settings/time-zone", "/settings/home-network"} {
 		code, body := h.get(path)
-		if code != http.StatusOK || !strings.Contains(body, `<a class="nav-item" href="`+path+`" aria-current="page">`) ||
-			!strings.Contains(body, `<a class="nav-item" href="/settings/storage">`) {
-			t.Errorf("%s: %d, want every settings page in the sidebar with its own marked", path, code)
+		if code != http.StatusOK || !strings.Contains(body, `<a class="nav-sub" href="`+path+`" aria-current="page">`) ||
+			!strings.Contains(body, `<a class="nav-sub" href="/settings/storage">`) ||
+			!strings.Contains(body, `<a class="nav-item" href="/settings" aria-current="true">`) {
+			t.Errorf("%s: %d, want every settings page under Settings with its own marked", path, code)
 		}
 	}
-	if _, body := h.get("/services"); strings.Contains(body, `href="/settings/storage"`) ||
-		!strings.Contains(body, `<a class="nav-item" href="/settings/people">`) {
-		t.Error("outside Settings, the sidebar should list only the everyday settings pages")
+	if !strings.Contains(body, `<a class="nav-item" href="/settings" aria-current="page">`) || !strings.Contains(body, `<a class="nav-sub" href="/settings/people">`) {
+		t.Error("on the overview, Settings should be the page, with every settings page under it")
+	}
+	if _, body := h.get("/services"); strings.Contains(body, `href="/settings/people"`) ||
+		!strings.Contains(body, `<a class="nav-item" href="/settings">`) || strings.Contains(body, "All settings") {
+		t.Error("outside Settings, the sidebar should show Settings alone")
 	}
 	// The first-run wizard isn't a settings page.
 	h.setSetup(&fakeSetup{})

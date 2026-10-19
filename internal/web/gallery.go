@@ -43,23 +43,16 @@ var galleryTokens = []struct{ Name, Use string }{
 var gallerySections = []gallerySection{
 	{ID: "layout", Title: "Layout", Intro: "Console glass (2026-10-14): a sidebar floating beside the page, the page's header on the page, cards on a faint moving aurora (it stops for reduced motion). The layout (templates/layout.html) draws all of it; a page gives its title, content and, if it wants, its breadcrumbs and help. Below 900px the sidebar is a drawer behind the menu button.",
 		Examples: []galleryExample{
-			{"Sidebar", "The lab's name, the main areas, Settings' pages (for those who can change them) and All settings, then Help, Light/Dark/Auto and the person. Under Services, while you're there, each service (.nav-children of .nav-sub). Beside Servers, how many need attention (.nav-count, a warning pill). Settings lists its everyday pages with their icons (sidebarSettings, settingsArea.Icon), and every settings page while you're in Settings. Where you are has aria-current=\"page\": the highlight tint with a faint highlight edge. The surface at 70% with a blur: status shows here only as a pill on its own tint, never as bare text (the contrast test checks text, muted text and links on it).", `
+			{"Sidebar", "The lab's name, the main areas (Settings last, for those who can change settings), then Help, Light/Dark/Auto and the person. A main area's own pages hang under it while you're there (.nav-children of .nav-sub, each with a 16 px icon): under Services each service (its logo, .nav-logo, or its drawn icon) and Add a service; under Settings every settings page (settingsArea.Icon). Beside Servers, how many need attention (.nav-count, a warning pill). Where you are has aria-current=\"page\" (its main area \"true\"): the highlight tint with a faint highlight edge. The surface at 70% with a blur: status shows here only as a pill on its own tint, never as bare text (the contrast test checks text, muted text and links on it).", `
 <aside class="sidebar gallery-sidebar" aria-label="Roostack (example)">
   <a class="sidebar-lab" href="#">{{brandMark}}<span class="sidebar-lab-name"><span>Roostack</span><strong>The Smiths' lab</strong></span></a>
   <nav class="nav-group" aria-label="Your lab (example)">
     <a class="nav-item" href="#">{{icon "home-page"}}Home</a>
     <a class="nav-item" href="#" aria-current="true">{{icon "services"}}Services</a>
-    <div class="nav-children"><a class="nav-sub" href="#" aria-current="page">Immich</a><a class="nav-sub" href="#">Vaultwarden</a><a class="nav-sub" href="#">Add a service…</a></div>
+    <div class="nav-children"><a class="nav-sub" href="#" aria-current="page">{{icon "photos"}}Immich</a><a class="nav-sub" href="#">{{icon "passwords"}}Vaultwarden</a><a class="nav-sub" href="#">{{icon "plus"}}Add a service…</a></div>
     <a class="nav-item" href="#">{{icon "backups"}}Backups</a>
     <a class="nav-item" href="#">{{icon "server"}}Servers<span class="nav-count" title="1 needs attention">1</span></a>
-  </nav>
-  <nav class="nav-group" aria-label="Settings (example)">
-    <p class="nav-heading">Settings</p>
-    <a class="nav-item" href="#">{{icon "history"}}History</a>
-    <a class="nav-item" href="#">{{icon "users"}}People</a>
-    <a class="nav-item" href="#">{{icon "certificate"}}Your lab's address</a>
-    <a class="nav-item" href="#">{{icon "changes"}}Updates and restarts</a>
-    <a class="nav-item" href="#">{{icon "manage"}}All settings</a>
+    <a class="nav-item" href="#">{{icon "manage"}}Settings</a>
   </nav>
   <div class="sidebar-foot">
     <div class="sidebar-tools"><a href="#">{{icon "help"}}Help</a><button type="button" class="theme-toggle">{{icon "dark"}}Dark</button></div>

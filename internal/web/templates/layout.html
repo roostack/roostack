@@ -37,21 +37,21 @@
         <a class="nav-item" href="/"{{if eq .Active "home"}} aria-current="page"{{end}}>{{icon "home-page"}}Home</a>
         <a class="nav-item" href="/services"{{if eq .Active "services"}} aria-current="{{if or .InService .Adding}}true{{else}}page{{end}}"{{end}}>{{icon "services"}}Services</a>
         {{if eq .Active "services"}}<div class="nav-children">
-          {{range .Services}}<a class="nav-sub" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Title}}</a>{{end}}
-          {{if .Backups}}<a class="nav-sub" href="/catalog"{{if .Adding}} aria-current="page"{{end}}>Add a service…</a>{{end}}
+          {{range .Services}}<a class="nav-sub" href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>
+            {{- with .Logo}}<img class="nav-logo" src="{{.}}" alt="" width="16" height="16" loading="lazy">{{else}}{{icon .Icon}}{{end}}{{.Title}}</a>{{end}}
+          {{if .Backups}}<a class="nav-sub" href="/catalog"{{if .Adding}} aria-current="page"{{end}}>{{icon "plus"}}Add a service…</a>{{end}}
         </div>{{end}}
         {{if .Backups}}<a class="nav-item" href="/backups"{{if eq .Active "backups"}} aria-current="page"{{end}}>{{icon "backups"}}Backups</a>{{end}}
         {{if .Settings}}<a class="nav-item" href="/servers"{{if eq .Active "servers"}} aria-current="page"{{end}}>{{icon "server"}}Servers{{with .ServerIssues}}<span class="nav-count" title="{{.}} {{if eq . 1}}needs{{else}}need{{end}} attention">{{.}}</span>{{end}}</a>{{end}}
         {{if and .Backups .Monitoring}}<a class="nav-item" href="/monitoring"{{if eq .Active "monitoring"}} aria-current="page"{{end}}>{{icon "monitoring"}}Monitoring</a>{{end}}
+        {{/* Settings is a main area; while you're in it, every settings
+             page hangs under it, as each service does under Services
+             (docs/mockups/settings-nav, F). */}}
+        {{if .Settings}}<a class="nav-item" href="/settings"{{if eq .Active "settings"}} aria-current="{{if .Landing}}page{{else}}true{{end}}"{{end}}>{{icon "manage"}}Settings</a>
+        {{if .SettingsAreas}}<div class="nav-children">
+          {{range .SettingsAreas}}<a class="nav-sub" href="{{.Href}}"{{if eq .ID $.Nav.Area}} aria-current="page"{{end}}>{{icon .Icon}}{{.Title}}</a>{{end}}
+        </div>{{end}}{{end}}
       </nav>
-      {{if .Settings}}
-      <nav class="nav-group" aria-label="Settings">
-        <p class="nav-heading">Settings</p>
-        {{range .SettingsAreas}}<a class="nav-item" href="{{.Href}}"{{if eq .ID $.Nav.Area}} aria-current="page"{{end}}>{{icon .Icon}}{{.Title}}</a>
-        {{end}}
-        <a class="nav-item" href="/settings"{{if and (eq .Active "settings") (not .Area)}} aria-current="page"{{end}}>{{icon "manage"}}All settings</a>
-      </nav>
-      {{end}}
       </div>
       <div class="sidebar-foot">
         <div class="sidebar-tools">

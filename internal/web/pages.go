@@ -32,13 +32,14 @@ type nav struct {
 	// those who see Backups (SPEC.md §6.15).
 	Monitoring bool
 	Settings   bool
-	// SettingsAreas are Settings' pages listed in the sidebar for those who
-	// can change settings: the everyday ones (sidebarSettings), or all of
-	// them on a settings page. Area is the current one, if the page is one.
+	// SettingsAreas are Settings' pages, listed under Settings in the
+	// sidebar while you're in Settings (for those who can change
+	// settings). Area is the current one, if the page is one.
 	SettingsAreas []settingsArea
 	Area          string
 	// Services lists the services under Services while you're there
-	// (their pages; the current one marked).
+	// (their pages, each with its logo or drawn icon; the current one
+	// marked).
 	Services []navLink
 	// InService: the page is one service's (Services isn't the page itself);
 	// Adding: it's adding one (the catalog, installing).
@@ -73,9 +74,11 @@ func navFor(u *store.User, page string) nav {
 		Backups: auth.Can(u.Role, auth.ManageServices), Settings: auth.Can(u.Role, auth.ManageHost)}
 }
 
-// navLink is a link in the sidebar.
+// navLink is a link in the sidebar: Logo is its image's address, if it
+// has one, and Icon its drawn icon otherwise (icons.go).
 type navLink struct {
 	Href, Title string
+	Logo, Icon  string
 	Current     bool
 }
 

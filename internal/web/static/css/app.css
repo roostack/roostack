@@ -92,6 +92,11 @@ small, .hint { color: var(--muted); }
 .nav-sub { padding: 4px var(--space-3); font-size: var(--text-sm); }
 .nav-sub:not([aria-current]) { color: var(--muted); }
 .nav-sub:not([aria-current]):hover { color: var(--fg); }
+/* A sub-item's icon (a service's logo, if it has one), smaller than a
+   main item's; where you are, in the highlight. */
+.nav-sub .icon, .nav-logo { width: 16px; height: 16px; flex: none; vertical-align: 0; }
+.nav-logo { border-radius: 4px; object-fit: contain; }
+.nav-sub[aria-current] .icon { color: var(--highlight); }
 /* How many need attention (Servers): a warning pill, never bare text. */
 .nav-count { margin-left: auto; padding: 1px 7px; border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: var(--weight-bold);
   background: var(--warn-bg); color: var(--warn); }

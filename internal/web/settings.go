@@ -52,12 +52,6 @@ var settingsAreas = []settingsArea{
 	{"backups", "Each server", "Backups", "/backups"},
 }
 
-// sidebarSettings are the settings pages people come back to, listed in
-// the sidebar under Settings; the rest are a click away in All settings,
-// and the list shows them all while you're in Settings (the Owner's
-// choice, 2026-10-15).
-var sidebarSettings = []string{"people", "domain", "updates", "history"}
-
 // Icon is the area's icon in the sidebar (icons.go).
 func (a settingsArea) Icon() string {
 	switch a.ID {

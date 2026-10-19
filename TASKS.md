@@ -145,6 +145,7 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
   - [x] Contrast test for translucent surfaces (2026-10-15): text on a card and on the sidebar with the strongest glow behind, every theme, mode and accent (no bare status text on the sidebar: Nord light's warning is 4.45:1 there)
   - [x] Roostack Cloud's portal and admin console adopted it (2026-10-15, through `tools/sync-design.sh`; Cloud's DESIGN §3f "As built: Console glass")
   - [x] Search box in the header: not for now (the Owner, 2026-10-15)
+  - [x] Settings in the sidebar (2026-10-19): mock-ups of seven directions (docs/mockups/settings-nav), chosen F: Settings a main item with every settings page under it while you're in Settings ("All settings" and the everyday list gone), icons on Settings' and Services' sub-items (a service's logo or drawn icon); in the gallery
 - [x] **1.15 Settings structure**
   - [x] /settings as a grid of overview cards (current state + status per area)
   - [x] Area pages with a sidebar on desktop, back link on phones: People and access (People, Remote access), Network (Domain and certificates, Home network), This machine (Updates and restarts, Time zone)
