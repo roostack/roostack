@@ -202,3 +202,56 @@ func TestCloudRecipients(t *testing.T) {
 		}
 	}
 }
+
+// TestCloudBackupSpace: Roostack Cloud backup's space, as Cloud said at
+// the last check-in, is on its backup's card, and from 80% of the quota
+// (when Cloud emails the account) on Home and the card too.
+func TestCloudBackupSpace(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	link, f := newCloudWith(t)
+	h.server.Cloud = link
+	ctx := context.Background()
+	if _, err := link.Start(ctx, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	f.Confirm(link.Status().Waiting.Code)
+	for i := 0; i < 200 && !link.Status().Linked; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	fm.destination = "cloud"
+	f.StorageQuota, f.StorageUsed = 10_000_000_000, 5_000_000_000
+	if err := link.Check(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, body := h.get("/backups"); !strings.Contains(body, "Your lab uses 5.0 GB of the 10.0 GB in your plan (50%)") {
+		t.Error("the card doesn't show Cloud backup's space")
+	}
+	if _, home := h.get("/"); strings.Contains(home, "Roostack Cloud backup is") {
+		t.Error("a warning at 50%")
+	}
+	for _, c := range []struct {
+		used int64
+		want string
+	}{
+		{8_500_000_000, "Roostack Cloud backup is 85% full: this lab&#39;s backups there take 8.5 GB of the 10.0 GB in your plan."},
+		{10_200_000_000, "Roostack Cloud backup is full: this lab&#39;s backups there take 10.2 GB of the 10.0 GB in your plan."},
+	} {
+		f.StorageUsed = c.used
+		if err := link.Check(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if _, home := h.get("/"); !strings.Contains(home, c.want) {
+			t.Errorf("Home at %d bytes: no %q", c.used, c.want)
+		}
+		if _, body := h.get("/backups"); !strings.Contains(body, c.want) || !strings.Contains(body, `<span class="space-low">Your lab uses`) {
+			t.Errorf("the card at %d bytes: no %q", c.used, c.want)
+		}
+	}
+	// Unlinked: nothing about it.
+	if _, err := link.Unlink(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, home := h.get("/"); strings.Contains(home, "Roostack Cloud backup is") {
+		t.Error("a warning after unlinking")
+	}
+}

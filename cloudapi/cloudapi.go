@@ -24,7 +24,12 @@ const (
 	PathLab        = "/v1/lab"          // GET → LabInfo; DELETE unlinks (mutual TLS)
 	PathLabRenew   = "/v1/lab/renew"    // POST RenewRequest → RenewResponse (mutual TLS)
 	PathLabName    = "/v1/lab/name"     // POST NameRequest → NameClaim (mutual TLS)
-	PathLabRelay   = "/v1/lab/relay"    // PUT RelayRequest → Relay; GET → Relay; DELETE stops relaying (mutual TLS)
+	// POST NameRelease → NameReleased (mutual TLS): the lab is done with
+	// a name it kept (NameRequest.KeepEarlier), or gives back the new one
+	// (its earlier name is in use again). A Cloud from before it answers
+	// 404: it released the earlier name with the claim.
+	PathLabNameRelease = "/v1/lab/name/release"
+	PathLabRelay       = "/v1/lab/relay" // PUT RelayRequest → Relay; GET → Relay; DELETE stops relaying (mutual TLS)
 	// PUT RelayBans (mutual TLS); 404 while the lab isn't relayed.
 	PathLabRelayBans = "/v1/lab/relay/bans"
 	// GET ?days=N[&by=day] → RelayStats (mutual TLS).
@@ -451,9 +456,41 @@ type ErrorBody struct {
 	Error string `json:"error"`
 }
 
-// NameRequest claims a roost.ac name for the lab.
+// NameRequest claims a roost.ac name for the lab. KeepEarlier keeps the
+// lab's name until now working (its records and challenge login) beside
+// the new one, until the lab releases it (PathLabNameRelease) or
+// KeptFor passes: the lab can go back to it if using the new one fails,
+// and its old addresses keep working while people update them (SPEC.md
+// §6.6). Without it (an older lab), the earlier name is released with
+// the claim. Only one earlier name is kept: claiming again ends the one
+// before.
 type NameRequest struct {
+	Name        string `json:"name"`
+	KeepEarlier bool   `json:"keep_earlier,omitempty"`
+}
+
+// KeptFor is how long Cloud keeps a lab's earlier name working after a
+// claim with KeepEarlier, if the lab doesn't release it first: a day
+// more than the lab keeps its old addresses (30 days).
+const KeptFor = 31 * 24 * time.Hour
+
+// KeptName is the earlier name a claim kept, and until when.
+type KeptName struct {
+	Name  string    `json:"name"`
+	Until time.Time `json:"until"`
+}
+
+// NameRelease is a name the lab is done with (its full name): the
+// earlier one it kept, which then goes (held for the account, as an
+// unlinked lab's), or the one it just claimed, which goes the same way
+// while the kept earlier one is the lab's again, as it was.
+type NameRelease struct {
 	Name string `json:"name"`
+}
+
+// NameReleased is the lab's name in use after a release ("": none).
+type NameReleased struct {
+	InUse string `json:"in_use"`
 }
 
 // NameClaim is the lab's name and the credentials that write its records
@@ -465,6 +502,10 @@ type NameRequest struct {
 type NameClaim struct {
 	Name        string            `json:"name"`
 	Credentials map[string]string `json:"credentials"`
+	// Kept is the lab's earlier name, kept working (NameRequest.
+	// KeepEarlier); nil if there was none, or it was released (a Cloud
+	// from before it).
+	Kept *KeptName `json:"kept,omitempty"`
 	// Status is set when the name doesn't work yet: waiting for approval,
 	// or refused for the account before (nil: it works, or a Cloud from
 	// before it doesn't say).

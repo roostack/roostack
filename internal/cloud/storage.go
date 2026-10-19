@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 
 	"roostack.cloud/roostack/cloudapi"
 )
@@ -20,12 +21,26 @@ func (s *Service) StorageKeys(ctx context.Context, req cloudapi.StorageRequest) 
 }
 
 // StorageUsage is what the lab stores in Roostack Cloud backup, against
-// its quota (zero: it may not use it).
+// its quota (zero: it may not use it). The answer is kept, for
+// Status.Storage. The quota is the account's, which its labs share, and
+// the use this lab's (Cloud's DESIGN §6(b)).
 func (s *Service) StorageUsage(ctx context.Context) (cloudapi.StorageUsage, error) {
 	var u cloudapi.StorageUsage
 	if !s.Status().Linked {
 		return u, nil
 	}
-	err := s.client.do(ctx, true, http.MethodGet, cloudapi.PathLabStorage, nil, &u)
-	return u, err
+	if err := s.client.do(ctx, true, http.MethodGet, cloudapi.PathLabStorage, nil, &u); err != nil {
+		return u, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.st.Linked {
+		kept := u
+		kept.Servers = slices.Clone(u.Servers)
+		s.st.Storage = &kept
+		if err := s.save(); err != nil {
+			s.log.Warn("Roostack Cloud: keeping Cloud backup's space", "err", err)
+		}
+	}
+	return u, nil
 }

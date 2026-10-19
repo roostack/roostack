@@ -80,6 +80,11 @@ type Fake struct {
 	// them 404, as a Cloud from before them does.
 	Reports   map[string]cloudapi.LabReport
 	NoReports bool
+	// NoKeep is a Cloud from before names were kept: KeepEarlier is
+	// ignored (the earlier name goes with the claim) and releasing
+	// answers 404. Released are the names the labs released, in order.
+	NoKeep   bool
+	Released []string
 	// Confirmed are the reported addresses' states other than waiting
 	// (confirmed, declined), by address; the first 10 reported are kept,
 	// the rest not, as Cloud does (LabInfo.Recipients). AskedAt is when
@@ -95,6 +100,9 @@ type Fake struct {
 	// DomainVerified says a relayed lab's own domain is proven (its TXT
 	// record found).
 	DomainVerified bool
+	// RelayEdges are the relay's edges (nil: one, syd-1), for a rebuilt
+	// edge's new key and address.
+	RelayEdges []cloudapi.RelayEdge
 	// StorageQuota is Cloud backup's quota (0: not open), StorageUsed
 	// what's stored, and StorageAsked the key requests.
 	StorageQuota, StorageUsed int64
@@ -120,8 +128,10 @@ type Fake struct {
 	// unlinked are the labs unlinked, by lab ID: their backups can still
 	// be restored.
 	unlinked map[string]*lab
-	// names are claimed names, by lab ID.
+	// names are claimed names, by lab ID; kept the earlier names kept
+	// beside them (NameRequest.KeepEarlier).
 	names map[string]*claimed
+	kept  map[string]*claimed
 	// Records are the claimed names' records ("fqdn TYPE" → value), and
 	// TXT the challenge records written through acme-dns (by subdomain).
 	Records map[string]string
@@ -168,7 +178,7 @@ func New() *Fake {
 	ca, _ := x509.ParseCertificate(der)
 	return &Fake{Account: "o••••@example.com", Taken: map[string]bool{"taken": true}, Held: map[string]bool{"held": true}, CertLife: 90 * 24 * time.Hour,
 		caCert: ca, caKey: key, links: map[string]*link{}, labs: map[string]*lab{}, Requests: map[string]int{},
-		NameSuffix: "roost.test", names: map[string]*claimed{}, Records: map[string]string{}, TXT: map[string][]string{}}
+		NameSuffix: "roost.test", names: map[string]*claimed{}, kept: map[string]*claimed{}, Records: map[string]string{}, TXT: map[string][]string{}}
 }
 
 // CAPEM is the fake's certificate authority, which signs its HTTPS
@@ -353,7 +363,7 @@ func (f *Fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == cloudapi.PathLab || r.URL.Path == cloudapi.PathLabRenew || r.URL.Path == cloudapi.PathLabName ||
 		r.URL.Path == cloudapi.PathLabRelay || r.URL.Path == cloudapi.PathLabRelayBans || r.URL.Path == cloudapi.PathLabRelayStats ||
 		r.URL.Path == cloudapi.PathLabStorageKeys || r.URL.Path == cloudapi.PathLabStorage || r.URL.Path == cloudapi.PathLabRecoveryIdentity ||
-		r.URL.Path == cloudapi.PathLabReport && !f.NoReports:
+		r.URL.Path == cloudapi.PathLabReport && !f.NoReports || r.URL.Path == cloudapi.PathLabNameRelease && !f.NoKeep:
 		f.labAPI(w, r)
 	case r.Method == http.MethodPost && (r.URL.Path == cloudapi.PathRestoreChallenge || r.URL.Path == cloudapi.PathRestoreAccess ||
 		r.URL.Path == cloudapi.PathRestoreRelink):
@@ -542,6 +552,7 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodDelete && r.URL.Path == cloudapi.PathLab:
 		delete(f.labs, id)
 		delete(f.names, id)
+		delete(f.kept, id)
 		reply(w, map[string]any{})
 	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLabName:
 		var req cloudapi.NameRequest
@@ -553,6 +564,14 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		c := &claimed{fqdn: req.Name + "." + f.NameSuffix, user: hex.EncodeToString(serial().Bytes()[:8]),
 			pass: hex.EncodeToString(serial().Bytes()), sub: hex.EncodeToString(serial().Bytes()[:8])}
+		// The earlier name kept, as Cloud keeps it: one at most.
+		prev := f.names[id]
+		delete(f.kept, id)
+		var kept *cloudapi.KeptName
+		if req.KeepEarlier && !f.NoKeep && prev != nil && prev.fqdn != c.fqdn {
+			f.kept[id] = prev
+			kept = &cloudapi.KeptName{Name: prev.fqdn, Until: time.Now().Add(cloudapi.KeptFor)}
+		}
 		f.names[id] = c
 		base := f.ChallengeURL
 		if base == "" {
@@ -560,13 +579,35 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		claim := cloudapi.NameClaim{Name: c.fqdn, Credentials: map[string]string{cloudapi.CredServerURL: base,
 			cloudapi.CredUsername: c.user, cloudapi.CredPassword: c.pass, cloudapi.CredSubdomain: c.sub,
-			cloudapi.CredRecordsURL: base + "/v1/records"}}
+			cloudapi.CredRecordsURL: base + "/v1/records"}, Kept: kept}
 		for _, n := range f.NameStates {
 			if n.Host == c.fqdn {
 				claim.Status = &n
 			}
 		}
 		reply(w, claim)
+	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLabNameRelease:
+		// As Cloud's names.ReleaseName: the kept name goes; the new one
+		// given back brings the kept one back.
+		var req cloudapi.NameRelease
+		json.NewDecoder(r.Body).Decode(&req)
+		cur, kept := f.names[id], f.kept[id]
+		switch {
+		case kept != nil && kept.fqdn == req.Name:
+			delete(f.kept, id)
+		case cur != nil && cur.fqdn == req.Name && kept != nil:
+			f.names[id], cur = kept, kept
+			delete(f.kept, id)
+		case cur != nil && cur.fqdn == req.Name:
+			fail(w, http.StatusBadRequest, req.Name+" is this lab's name, and it has no earlier name kept to go back to.")
+			return
+		}
+		f.Released = append(f.Released, req.Name)
+		var out cloudapi.NameReleased
+		if cur != nil {
+			out.InUse = cur.fqdn
+		}
+		reply(w, out)
 	case r.Method == http.MethodPost && r.URL.Path == cloudapi.PathLabRenew:
 		var req cloudapi.RenewRequest
 		json.NewDecoder(r.Body).Decode(&req)
@@ -586,12 +627,14 @@ func (f *Fake) labAPI(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// account finds the claimed name an acme-dns account belongs to (f.mu
-// held).
+// account finds the claimed or kept name an acme-dns account belongs to
+// (f.mu held).
 func (f *Fake) account(r *http.Request) *claimed {
-	for _, c := range f.names {
-		if c.user == r.Header.Get(cloudapi.HeaderUser) && c.pass == r.Header.Get(cloudapi.HeaderKey) {
-			return c
+	for _, names := range []map[string]*claimed{f.names, f.kept} {
+		for _, c := range names {
+			if c.user == r.Header.Get(cloudapi.HeaderUser) && c.pass == r.Header.Get(cloudapi.HeaderKey) {
+				return c
+			}
 		}
 	}
 	return nil
@@ -739,12 +782,15 @@ func Start(t testing.TB) (*Fake, config.Cloud) {
 	return f, config.Cloud{URL: srv.URL, CAFile: ca}
 }
 
-// relay is the fake's answer to a relay request: one edge, a relay name,
+// relay is the fake's answer to a relay request: its edges, a relay name,
 // and the own domain's proof (verified as DomainVerified says).
 func (f *Fake) relay(req cloudapi.RelayRequest) cloudapi.Relay {
 	r := cloudapi.Relay{Addr: "100.81.1.1", Prefix: 16, Name: "r-test.relay.roost.test", Edges: []cloudapi.RelayEdge{{Name: "syd-1",
 		Endpoint: "198.51.100.10:51830", PublicKey: "ZWRnZWVkZ2VlZGdlZWRnZWVkZ2VlZGdlZWRnZWVkZ2U=", Addr: "100.81.0.1",
 		PublicIPv4: "198.51.100.10"}}, TurnedOff: f.RelayOff, Suspended: f.RelaySuspended, Names: f.NameStates}
+	if f.RelayEdges != nil {
+		r.Edges = f.RelayEdges
+	}
 	if req.Domain != "" {
 		r.Domain = &cloudapi.RelayDomain{Domain: req.Domain, ProofName: "_roostack." + req.Domain, ProofValue: "roostack-proof=test",
 			Verified: f.DomainVerified}

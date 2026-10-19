@@ -61,6 +61,8 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 	}
 	hosts = slices.Sorted(slices.Values(hosts))
 	c := cloudapi.RelayCountries{Allow: countries.Allow, Block: countries.Block, OpenUntil: countries.OpenUntil}
+	s.relayMu.Lock()
+	defer s.relayMu.Unlock()
 	s.mu.Lock()
 	linked, cur := s.st.Linked, s.st.Relay
 	s.mu.Unlock()
@@ -91,9 +93,23 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 		return fmt.Errorf("connecting to Roostack Cloud's edges: %w", err)
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.st.Relay, s.st.Names = st, relay.Names
-	return s.save()
+	err = s.save()
+	s.mu.Unlock()
+	if cur != nil && !slices.Equal(cur.Relay.Edges, relay.Edges) {
+		s.edgesChanged()
+	}
+	return err
+}
+
+// edgesChanged says the relay's edges changed, and has the lab apply
+// them (EdgesChanged), in the background: the apply asks for the relay
+// again, which waits for relayMu.
+func (s *Service) edgesChanged() {
+	s.log.Info("Roostack Cloud: the relay's edges changed; the lab now dials the new ones")
+	if s.EdgesChanged != nil {
+		go s.EdgesChanged()
+	}
 }
 
 // TurnRelayOn turns the relay on again after the lab's account turned it
@@ -101,6 +117,8 @@ func (s *Service) Relay(ctx context.Context, hosts []string, countries config.Co
 // asked, with TurnOn. Only the Owner asks this: the lab's own updates
 // leave it off (Roostack Cloud's DESIGN §3f).
 func (s *Service) TurnRelayOn(ctx context.Context) error {
+	s.relayMu.Lock()
+	defer s.relayMu.Unlock()
 	s.mu.Lock()
 	cur := s.st.Relay
 	s.mu.Unlock()
@@ -121,14 +139,34 @@ func (s *Service) TurnRelayOn(ctx context.Context) error {
 	if !relay.TurnedOff.IsZero() {
 		return errors.New("Roostack Cloud kept the relay off")
 	}
+	if relay.Addr != cur.Relay.Addr {
+		return errors.New("the relay changed while it was being turned on: try again")
+	}
+	// Edges changed meanwhile (one rebuilt) are dialled before they're
+	// kept; otherwise the next refresh would see nothing to change.
+	changed := len(relay.Edges) > 0 && !slices.Equal(cur.Relay.Edges, relay.Edges)
+	if !changed {
+		relay.Edges = cur.Relay.Edges
+	} else {
+		next := *cur
+		next.Relay.Edges = relay.Edges
+		if _, err := s.WireGuard.ApplyWireGuard(ctx, s.relayInterface(fmt.Sprintf("%s/%d", relay.Addr, relay.Prefix), &next)); err != nil {
+			return fmt.Errorf("connecting to Roostack Cloud's changed edges: %w", err)
+		}
+	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.st.Relay == nil || s.st.Relay.Relay.Addr != relay.Addr {
+	if s.st.Relay == nil {
+		s.mu.Unlock()
 		return errors.New("the relay changed while it was being turned on: try again")
 	}
 	s.st.Relay.Relay, s.st.Names = relay, relay.Names
 	s.log.Info("Roostack Cloud: the relay was turned on again")
-	return s.save()
+	err = s.save()
+	s.mu.Unlock()
+	if changed {
+		s.edgesChanged()
+	}
+	return err
 }
 
 // RelayStanding is when the lab's account turned the relay off at Cloud
@@ -161,6 +199,8 @@ func (s *Service) relayInterface(addr string, st *relayState) agent.WireGuard {
 // back, and the interface goes. Cloud being unreachable doesn't stop the
 // lab dropping its side.
 func (s *Service) StopRelay(ctx context.Context) error {
+	s.relayMu.Lock()
+	defer s.relayMu.Unlock()
 	var err error
 	if s.Status().Linked {
 		err = s.client.do(ctx, true, http.MethodDelete, cloudapi.PathLabRelay, nil, nil)
@@ -263,7 +303,9 @@ func (s *Service) RelayName() (string, *cloudapi.RelayDomain) {
 }
 
 // RefreshRelay asks Cloud how the relay stands (its own domain's proof,
-// the edges), keeping its answer, every so often until ctx ends.
+// the edges), keeping its answer, every so often until ctx ends. Changed
+// edges (one rebuilt with a new address and key, Cloud's `cloud
+// edge-update`) are dialled at once, and the lab applies them.
 func (s *Service) RefreshRelay(ctx context.Context, every time.Duration) {
 	for {
 		select {
@@ -271,28 +313,67 @@ func (s *Service) RefreshRelay(ctx context.Context, every time.Duration) {
 			return
 		case <-time.After(every):
 		}
-		s.mu.Lock()
-		relayed := s.st.Linked && s.st.Relay != nil
-		s.mu.Unlock()
-		if !relayed {
-			continue
-		}
-		var relay cloudapi.Relay
-		if err := s.client.do(ctx, true, http.MethodGet, cloudapi.PathLabRelay, nil, &relay); err != nil {
+		if err := s.refreshRelay(ctx); err != nil {
 			s.log.Warn("Roostack Cloud: asking how the relay stands", "err", err)
-			continue
 		}
-		s.mu.Lock()
-		if s.st.Relay != nil && relay.Addr == s.st.Relay.Relay.Addr {
-			s.st.Relay.Relay.Domain, s.st.Relay.Relay.Name = relay.Domain, relay.Name
-			s.st.Relay.Relay.TurnedOff, s.st.Relay.Relay.Suspended = relay.TurnedOff, relay.Suspended
-			s.st.Names = relay.Names
-			if err := s.save(); err != nil {
-				s.log.Warn("Roostack Cloud: saving how the relay stands", "err", err)
-			}
-		}
-		s.mu.Unlock()
 	}
+}
+
+// refreshRelay asks Cloud how the relay stands once.
+func (s *Service) refreshRelay(ctx context.Context) error {
+	s.relayMu.Lock()
+	defer s.relayMu.Unlock()
+	s.mu.Lock()
+	relayed := s.st.Linked && s.st.Relay != nil
+	s.mu.Unlock()
+	if !relayed {
+		return nil
+	}
+	var relay cloudapi.Relay
+	if err := s.client.do(ctx, true, http.MethodGet, cloudapi.PathLabRelay, nil, &relay); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	cur := s.st.Relay
+	if cur == nil || relay.Addr != cur.Relay.Addr {
+		// Unlinked meanwhile, or a new address: the next Relay takes it.
+		s.mu.Unlock()
+		return nil
+	}
+	cur.Relay.Domain, cur.Relay.Name = relay.Domain, relay.Name
+	cur.Relay.TurnedOff, cur.Relay.Suspended = relay.TurnedOff, relay.Suspended
+	s.st.Names = relay.Names
+	changed := len(relay.Edges) > 0 && !slices.Equal(cur.Relay.Edges, relay.Edges) && s.WireGuard != nil
+	next := *cur
+	next.Relay.Edges = relay.Edges
+	err := s.save()
+	s.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("saving how the relay stands: %w", err)
+	}
+	if !changed {
+		return nil
+	}
+	// The interface dials the new edges first, and only then are they
+	// kept: a failure leaves the old ones, and the next refresh tries
+	// again.
+	if _, err := s.WireGuard.ApplyWireGuard(ctx, s.relayInterface(fmt.Sprintf("%s/%d", next.Relay.Addr, next.Relay.Prefix), &next)); err != nil {
+		return fmt.Errorf("connecting to Roostack Cloud's changed edges: %w", err)
+	}
+	s.mu.Lock()
+	if s.st.Relay == nil {
+		// Unlinked meanwhile: the interface goes after this.
+		s.mu.Unlock()
+		return nil
+	}
+	s.st.Relay.Relay.Edges = relay.Edges
+	err = s.save()
+	s.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("saving the relay's edges: %w", err)
+	}
+	s.edgesChanged()
+	return nil
 }
 
 // RelayEdges are the relay's edges as Cloud last said (nil when not

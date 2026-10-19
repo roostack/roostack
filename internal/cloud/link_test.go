@@ -341,15 +341,96 @@ func TestCheckClaim(t *testing.T) {
 	}
 }
 
+// TestClaimKeepsEarlier: a lab with a roost.ac name claiming another
+// asks Cloud to keep the earlier one (SPEC.md §6.6). If using the new one
+// fails, it's given back and the earlier one is the lab's again; if it
+// works, the earlier one is released once it's no longer the lab's old
+// address. A give-back Cloud didn't hear is tried at the next check; an
+// older Cloud releases the earlier name with the claim, as before.
+func TestClaimKeepsEarlier(t *testing.T) {
+	ctx := context.Background()
+	f, s, _ := fakeCloud(t)
+	var useErr error
+	s.UseName = func(context.Context, cloudapi.NameClaim) error { return useErr }
+	old := ""
+	s.OldAddress = func() string { return old }
+	link(t, f, s, "")
+	if err := s.ClaimName(ctx, "smiths"); err != nil || s.Status().Address != "smiths.roost.test" || s.st.Kept != nil {
+		t.Fatalf("first: %v %+v", err, s.st.Kept)
+	}
+	lastSent := func() string {
+		for _, r := range s.Requests() {
+			if r.Path == cloudapi.PathLabName {
+				return r.Sent
+			}
+		}
+		return ""
+	}
+	if strings.Contains(lastSent(), "keep_earlier") {
+		t.Error("kept an earlier name there wasn't")
+	}
+
+	// Using jones fails: given back, smiths is the lab's again.
+	useErr = errors.New("couldn't restart")
+	if err := s.ClaimName(ctx, "jones"); err == nil {
+		t.Fatal("no error")
+	}
+	if !strings.Contains(lastSent(), `"keep_earlier":true`) || !slices.Equal(f.Released, []string{"jones.roost.test"}) ||
+		s.Status().Address != "smiths.roost.test" || s.st.Kept != nil || s.st.GiveBack != "" {
+		t.Errorf("after failing: released %v, address %q, kept %+v, give back %q", f.Released, s.Status().Address, s.st.Kept, s.st.GiveBack)
+	}
+
+	// It works: smiths kept while it's the lab's old address, then released.
+	useErr = nil
+	if err := s.ClaimName(ctx, "jones"); err != nil {
+		t.Fatal(err)
+	}
+	if k := s.st.Kept; s.Status().Address != "jones.roost.test" || k == nil || k.Name != "smiths.roost.test" {
+		t.Fatalf("kept: %+v", k)
+	}
+	old = "smiths.roost.test"
+	if err := s.Check(ctx); err != nil || len(f.Released) != 1 || s.st.Kept == nil {
+		t.Errorf("released while still the old address: %v %v", err, f.Released)
+	}
+	old = ""
+	if err := s.Check(ctx); err != nil || !slices.Equal(f.Released, []string{"jones.roost.test", "smiths.roost.test"}) || s.st.Kept != nil {
+		t.Errorf("after the old address ended: %v %v %+v", err, f.Released, s.st.Kept)
+	}
+
+	// The give-back didn't reach Cloud: tried at the next check.
+	useErr = errors.New("couldn't restart")
+	s.UseName = func(context.Context, cloudapi.NameClaim) error { f.NoKeep = true; return useErr }
+	if err := s.ClaimName(ctx, "browns"); err == nil || s.st.GiveBack != "browns.roost.test" || s.Status().Address != "jones.roost.test" {
+		t.Fatalf("give-back not heard: %v %q %q", err, s.st.GiveBack, s.Status().Address)
+	}
+	f.NoKeep = false
+	if err := s.Check(ctx); err != nil || s.st.GiveBack != "" || f.Released[len(f.Released)-1] != "browns.roost.test" {
+		t.Errorf("given back at the check: %v %q %v", err, s.st.GiveBack, f.Released)
+	}
+
+	// An older Cloud: nothing kept, nothing to release.
+	f.NoKeep = true
+	n := len(f.Released)
+	s.UseName = func(context.Context, cloudapi.NameClaim) error { return useErr }
+	if err := s.ClaimName(ctx, "greens"); err == nil || s.st.Kept != nil || len(f.Released) != n || s.Status().Address != "" {
+		t.Errorf("an older Cloud: %v %+v %v %q", err, s.st.Kept, f.Released, s.Status().Address)
+	}
+}
+
 // fakeWG is the agent's WireGuard for the relay.
 type fakeWG struct {
 	applied []agent.WireGuard
 	removed []string
+	// fail is what applying returns (nil: it works).
+	fail error
 }
 
 func (f *fakeWG) ApplyWireGuard(_ context.Context, wg agent.WireGuard) (string, error) {
 	if err := wg.Validate(); err != nil {
 		return "", err
+	}
+	if f.fail != nil {
+		return "", f.fail
 	}
 	f.applied = append(f.applied, wg)
 	return "bGFibGFibGFibGFibGFibGFibGFibGFibGFibGFibGE=", nil
@@ -387,6 +468,76 @@ func TestUnlinkedRelay(t *testing.T) {
 				t.Errorf("in Cloud %v, relayed %v: Unrelayed called %d times", inCloud, relayed, unrelayed)
 			}
 		}
+	}
+}
+
+// TestRelayEdgesChanged: an edge rebuilt with a new address and key
+// (Cloud's `cloud edge-update`) reaches a relayed lab at its next refresh:
+// the relay's WireGuard dials the new edge, then it's kept and the lab
+// applies; dialling failing keeps the old edge for the next refresh, and
+// the same edges again change nothing. Turning the relay on again takes
+// changed edges too.
+func TestRelayEdgesChanged(t *testing.T) {
+	f, s, state := fakeCloud(t)
+	wg := &fakeWG{}
+	s.WireGuard = wg
+	applied := make(chan struct{}, 4)
+	s.EdgesChanged = func() { applied <- struct{}{} }
+	ctx := context.Background()
+	link(t, f, s, "")
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}, config.Countries{}, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	old := s.RelayEdges()
+	n := len(wg.applied)
+	if err := s.refreshRelay(ctx); err != nil || len(wg.applied) != n || len(applied) != 0 {
+		t.Errorf("the same edges: %v, %d applies, %d changes", err, len(wg.applied)-n, len(applied))
+	}
+	rebuilt := cloudapi.RelayEdge{Name: "syd-1", Endpoint: "203.0.113.20:51830",
+		PublicKey: "bmV3ZWRnZW5ld2VkZ2VuZXdlZGdlbmV3ZWRnZW5ld2U=", Addr: "100.81.0.1", PublicIPv4: "203.0.113.20"}
+	f.RelayEdges = []cloudapi.RelayEdge{rebuilt}
+	wg.fail = errors.New("the agent is away")
+	if err := s.refreshRelay(ctx); err == nil || !slices.Equal(s.RelayEdges(), old) || len(applied) != 0 {
+		t.Errorf("dialling failed: %v, edges %+v", err, s.RelayEdges())
+	}
+	wg.fail = nil
+	if err := s.refreshRelay(ctx); err != nil {
+		t.Fatal(err)
+	}
+	last := wg.applied[len(wg.applied)-1]
+	if len(last.Peers) != 1 || last.Peers[0].PublicKey != rebuilt.PublicKey || last.Peers[0].Endpoint != rebuilt.Endpoint ||
+		last.Address != "100.81.1.1/16" {
+		t.Errorf("the interface: %+v", last)
+	}
+	if got := s.RelayEdges(); !slices.Equal(got, f.RelayEdges) {
+		t.Errorf("edges kept: %+v", got)
+	}
+	select {
+	case <-applied:
+	case <-time.After(5 * time.Second):
+		t.Error("the lab didn't apply the new edges")
+	}
+	// Turning the relay on again, with an edge rebuilt meanwhile: dialled
+	// at once (a later refresh would see nothing to change).
+	again := rebuilt
+	again.PublicKey, again.Endpoint = "YWdhaW5hZ2FpbmFnYWluYWdhaW5hZ2FpbmFnYWluYWc=", "203.0.113.30:51830"
+	f.RelayEdges = []cloudapi.RelayEdge{again}
+	if err := s.TurnRelayOn(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if last := wg.applied[len(wg.applied)-1]; len(last.Peers) != 1 || last.Peers[0].PublicKey != again.PublicKey ||
+		!slices.Equal(s.RelayEdges(), f.RelayEdges) {
+		t.Errorf("turned on: %+v, edges %+v", last, s.RelayEdges())
+	}
+	select {
+	case <-applied:
+	case <-time.After(5 * time.Second):
+		t.Error("the lab didn't apply the edges it was turned on with")
+	}
+	// Kept across a restart (link.json).
+	s2, err := New(state, s.cfg, "test", s.labName, s.log)
+	if err != nil || !slices.Equal(s2.RelayEdges(), f.RelayEdges) {
+		t.Errorf("after a restart: %+v %v", s2.RelayEdges(), err)
 	}
 }
 

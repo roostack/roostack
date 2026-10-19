@@ -61,6 +61,9 @@ type planEntry struct {
 	// "vps's disk"); LowSpace is lowSpace's level for it.
 	FreeOn, LowSpace string
 	Lab              *labnet.GuestUsage
+	// Cloud is Roostack Cloud backup's space, on its backup (nil
+	// otherwise, or not known yet).
+	Cloud *cloudSpace
 	// Path says how backups reach another server's disk: manager.PathDirect
 	// or PathHub (through the controller, named by Via); "" otherwise.
 	// For PathHub, Host and HostName are that server, and LinkFailed says
@@ -214,6 +217,9 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 				}
 				cancel()
 			}
+		}
+		if e.Kind == manager.KindCloud && s.Cloud != nil {
+			e.Cloud = cloudSpaceOf(s.Cloud.Status())
 		}
 		e.AtHome, e.Away = manager.AtHome(e.Kind), manager.Away(e.Kind)
 		e.Access = s.Manager.BackupAccess(ctx, m.ID, e.Ref)

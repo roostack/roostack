@@ -184,6 +184,15 @@ func serve(args []string) error {
 		}
 		srv.Cloud = link
 		link.LabDomain(lab.Domain)
+		// The previous address while it works: an earlier roost.ac name
+		// Cloud keeps is released once it ends (SPEC.md §6.6), which
+		// restarts Roostack.
+		link.OldAddress = func() string {
+			if o := lab.OldAddress; o != nil && time.Now().Before(o.Until) {
+				return o.Domain
+			}
+			return ""
+		}
 		// The recovery key's identity, for restoring and relinking.
 		link.RecoveryKey = func() (string, error) {
 			data, err := os.ReadFile(backup.KeyFile(lab.Paths))
@@ -201,7 +210,12 @@ func serve(args []string) error {
 			}
 			return relay, pub
 		}}
-		// How the relay stands (the own domain's proof), every 5 minutes.
+		// How the relay stands (the own domain's proof, its edges), every
+		// 5 minutes; changed edges (one rebuilt) reach Caddy and the
+		// firewall with an apply.
+		link.EdgesChanged = func() {
+			mgr.ApplyBecause("Roostack Cloud's relay changed its edges: changing how public visitors reach the lab")
+		}
 		go link.RefreshRelay(ctx, 5*time.Minute)
 		// Roostack Cloud backup as a destination (SPEC.md §6.9).
 		mgr.CloudBackup = link
@@ -490,15 +504,21 @@ func serve(args []string) error {
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
 	// A new install can instead become a lab restored from its backups.
 	if token != "" {
-		srv.LabRestore = &labRestorer{lab: lab, drives: agentClient, acts: local.Activity, restart: restartNow, log: log}
+		srv.LabRestore = &labRestorer{lab: lab, drives: agentClient, acts: local.Activity, restart: restartNow, log: log, cloud: link}
 	}
 
 	// Keep *.<domain> pointing at this server for devices at home, and
 	// check they can see it (SPEC.md §6.5.1).
 	if lab.DNS.Provider != "" {
+		// A roost.ac name's records are set through Roostack Cloud: its
+		// request log shows them (SPEC.md §6.6).
+		recordsHTTP := &http.Client{Timeout: 30 * time.Second}
+		if link != nil {
+			recordsHTTP.Transport = link.RecordsTransport(nil)
+		}
 		records := &dnsrecords.Manager{
 			Lab: lab, Secrets: podman.NewSecrets(), Store: st, Log: log,
-			HTTP:        &http.Client{Timeout: 30 * time.Second},
+			HTTP:        recordsHTTP,
 			LocalLookup: dnsrecords.SystemLookup, PublicLookup: dnsrecords.PublicLookup,
 			Wait:      90 * time.Second,
 			UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) },

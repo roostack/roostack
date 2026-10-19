@@ -9,7 +9,6 @@ import (
 	"crypto/hkdf"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
@@ -18,7 +17,6 @@ import (
 	"strings"
 
 	"roostack.cloud/roostack/cloudapi"
-	"roostack.cloud/roostack/internal/config"
 )
 
 // The recovery identity (SPEC.md §6.9, "Restoring from Roostack Cloud"):
@@ -59,22 +57,20 @@ func prove(ctx context.Context, c *client, id ed25519.PrivateKey, purpose string
 
 // RestoreAccess asks Cloud, with the recovery key, for keys to read the
 // lab's backups there: for a new install restoring a lab that has lost
-// its controller. It needs no link.
-func RestoreAccess(ctx context.Context, cfg config.Cloud, recoveryKey string) (cloudapi.RestoreAccess, error) {
-	c, err := newClient(cfg, func() *tls.Certificate { return nil })
-	if err != nil {
-		return cloudapi.RestoreAccess{}, err
-	}
+// its controller. It needs no link (no certificate is shown), and its
+// requests are in the request log like any other (KeepRequests keeps
+// them through the restore).
+func (s *Service) RestoreAccess(ctx context.Context, recoveryKey string) (cloudapi.RestoreAccess, error) {
 	id, err := RecoveryIdentity(recoveryKey)
 	if err != nil {
 		return cloudapi.RestoreAccess{}, err
 	}
-	proof, err := prove(ctx, c, id, cloudapi.ProveAccess)
+	proof, err := prove(ctx, s.client, id, cloudapi.ProveAccess)
 	if err != nil {
 		return cloudapi.RestoreAccess{}, err
 	}
 	var out cloudapi.RestoreAccess
-	err = c.do(ctx, false, http.MethodPost, cloudapi.PathRestoreAccess, proof, &out)
+	err = s.client.do(ctx, false, http.MethodPost, cloudapi.PathRestoreAccess, proof, &out)
 	return out, err
 }
 
