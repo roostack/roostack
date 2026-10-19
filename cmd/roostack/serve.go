@@ -462,9 +462,9 @@ func serve(args []string) error {
 	if pages != nil {
 		go serveSetupPages(ctx, pages, srv, lab, local, log)
 	}
-	// The previous address stops when its time is up (SPEC.md §6.6).
+	// The previous address stops when its time is up (SPEC.md §6.6),
+	// checked once its DNS records can be deleted (below).
 	srv.OldAddress = lab.OldAddress
-	go wiz.RunOldAddress(ctx, log)
 	// A roost.ac name from Roostack Cloud becomes the lab's address, and
 	// goes with the link (SPEC.md §6.6).
 	if link != nil {
@@ -508,8 +508,10 @@ func serve(args []string) error {
 	}
 
 	// Keep *.<domain> pointing at this server for devices at home, and
-	// check they can see it (SPEC.md §6.5.1).
-	if lab.DNS.Provider != "" {
+	// check they can see it (SPEC.md §6.5.1). The records of an old
+	// address follow while it works, and go when it ends (SPEC.md §6.6),
+	// even if the lab has no address now.
+	if lab.DNS.Provider != "" || lab.OldAddress != nil {
 		// A roost.ac name's records are set through Roostack Cloud: its
 		// request log shows them (SPEC.md §6.6).
 		recordsHTTP := &http.Client{Timeout: 30 * time.Second}
@@ -522,6 +524,15 @@ func serve(args []string) error {
 			LocalLookup: dnsrecords.SystemLookup, PublicLookup: dnsrecords.PublicLookup,
 			Wait:      90 * time.Second,
 			UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) },
+			// The old address as lab.yaml has it now: it's kept after it
+			// stops working, until its records are deleted.
+			OldAddress: func() *config.OldAddress {
+				l, err := config.Load(*labPath)
+				if err != nil {
+					return lab.OldAddress
+				}
+				return l.OldAddress
+			},
 			// Public addresses point at the lab's edge, if it has one
 			// (SPEC.md §10.5), else the home's public address (port
 			// forwarding), once CrowdSec is up.
@@ -567,9 +578,13 @@ func serve(args []string) error {
 				}
 			},
 		}
-		go records.Run(ctx, 30*time.Minute)
-		srv.DNS = records
+		wiz.RemoveOldRecords = records.RemoveOld
+		if lab.DNS.Provider != "" {
+			go records.Run(ctx, 30*time.Minute)
+			srv.DNS = records
+		}
 	}
+	go wiz.RunOldAddress(ctx, log)
 
 	addr := *listen
 	if addr == "" {

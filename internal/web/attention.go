@@ -315,6 +315,27 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		}
 	}
 
+	// DNS records Roostack couldn't update or delete (SPEC.md §6.6, §6.11).
+	if owner && s.DNS != nil {
+		st := s.DNS.Status()
+		if len(st.NotDeleted) > 0 {
+			add(levelWarning, "Roostack couldn't delete the DNS record of an address that isn't public any more, so it still "+
+				"points at your home. It keeps trying.", "/settings/public#not-deleted", "View")
+		}
+		switch o := st.Old; {
+		case o != nil && o.Ended && o.Message != "" && len(o.Records) > 0:
+			add(levelWarning, "Roostack couldn't delete the DNS records it set under your lab's old address, "+o.Domain+".",
+				"/settings/domain#old-records", "View")
+		case o != nil && !o.Ended && o.Message != "":
+			add(levelWarning, "Roostack couldn't update the DNS records of your lab's old address, "+o.Domain+
+				", so some old addresses may stop working early.", "/settings/domain#old-address", "View")
+		}
+		if len(st.Left) > 0 {
+			add(levelWarning, "DNS records Roostack set under an address your lab no longer uses are still there: "+
+				"delete them at your DNS provider.", "/settings/domain#old-records", "View")
+		}
+	}
+
 	if owner {
 		for _, mn := range s.serverNodes(r) {
 			s.updatesAttention(r, mn.view, mn.node, add)

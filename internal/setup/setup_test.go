@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -311,6 +312,74 @@ func TestSwitchKeepsOldAddress(t *testing.T) {
 	}
 	if secrets[dns.SecretName("api_key")] == nil {
 		t.Error("the current provider's secrets stay")
+	}
+}
+
+// When the old address ends, the records Roostack set under it are
+// deleted with its login first (RemoveOldRecords). While some are left,
+// lab.yaml keeps it (no longer working) and its login, to try again; a
+// restart part-way through carries on, without restarting again. Switching
+// again ends an earlier old address, records first (SPEC.md §6.6).
+func TestOldAddressRecordsGo(t *testing.T) {
+	s, secrets, restarts := newSetup(t)
+	ctx := context.Background()
+	save := func(domain string) {
+		t.Helper()
+		if err := s.SaveDomain(ctx, domain, "me@example.com", "cloudflare", map[string]string{"api_token": "good"}, DomainOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		secrets[dns.SecretName("api_token")] = []byte("token-" + domain)
+	}
+	load := func() config.Lab {
+		t.Helper()
+		lab, err := config.Load(s.LabPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return lab
+	}
+	var removing []string
+	done := false
+	s.RemoveOldRecords = func(_ context.Context, old config.OldAddress) bool {
+		removing = append(removing, old.Domain)
+		return done
+	}
+	save("home.example.com")
+	save("smith.family")
+	if len(removing) != 0 {
+		t.Fatalf("nothing old to remove yet: %v", removing)
+	}
+	// Switching back within the 30 days doesn't delete the address being
+	// returned to; switching again ends an earlier old address.
+	save("home.example.com")
+	save("third.example.org")
+	if !slices.Equal(removing, []string{"smith.family"}) || load().OldAddress.Domain != "home.example.com" {
+		t.Fatalf("removed %v; old %+v", removing, load().OldAddress)
+	}
+
+	// Stopped now, with records left: it stops working, but stays in
+	// lab.yaml with its login; Roostack restarts, as Caddy served it.
+	removing, before := nil, *restarts
+	if err := s.EndOldAddress(ctx); err != nil || !slices.Equal(removing, []string{"home.example.com"}) || *restarts != before+1 {
+		t.Fatalf("end: %v, removed %v, restarts %d", err, removing, *restarts-before)
+	}
+	if o := load().OldAddress; o == nil || time.Now().Before(o.Until) || load().Old(time.Now()) != nil {
+		t.Fatalf("kept, not working: %+v", o)
+	}
+	if err := s.cleanOldSecrets(ctx); err != nil || string(secrets[dns.OldSecretName("api_token")]) != "token-home.example.com" {
+		t.Fatalf("the old login is kept while records are left: %v", err)
+	}
+	// Restarted: the hourly check tries again, and it's done.
+	s.Lab = load()
+	done = true
+	if err := s.finishOld(ctx, s.Lab.Old(time.Now()) != nil); err != nil {
+		t.Fatal(err)
+	}
+	if load().OldAddress != nil || *restarts != before+1 || secrets[dns.OldSecretName("api_token")] != nil {
+		t.Errorf("finished: %+v, restarts %d, old login left %v", load().OldAddress, *restarts-before, secrets[dns.OldSecretName("api_token")] != nil)
+	}
+	if string(secrets[dns.SecretName("api_token")]) != "token-third.example.org" {
+		t.Error("the current login stays")
 	}
 }
 

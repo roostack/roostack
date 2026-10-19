@@ -18,8 +18,8 @@ func (fakeEntry) Kind() string                              { return "port forwa
 func (e fakeEntry) Address(context.Context) (string, error) { return e.ip, e.err }
 
 // A public address gets its own record at the entry's address, only once
-// CrowdSec is up; made private again, it points home like the wildcard
-// (SPEC.md §6.11).
+// CrowdSec is up; made private again, its record is deleted, and the
+// wildcard covers it (SPEC.md §6.11).
 func TestPublicRecords(t *testing.T) {
 	m, g := newManager(t, managed, []string{"192.168.1.20"}, []string{"192.168.1.20", "81.2.69.160"})
 	hosts := []string{"photos.lab.example.com"}
@@ -41,10 +41,10 @@ func TestPublicRecords(t *testing.T) {
 		t.Error("the wildcard should still point home")
 	}
 
-	// Private again: back home, and no longer listed.
+	// Private again: deleted, and no longer listed.
 	hosts = nil
 	st = m.Sync(context.Background())
-	if len(st.Public) != 0 || g.get("photos.lab") != "192.168.1.20" {
+	if len(st.Public) != 0 || g.get("photos.lab") != "" {
 		t.Errorf("private again: %+v, record %q", st.Public, g.get("photos.lab"))
 	}
 }

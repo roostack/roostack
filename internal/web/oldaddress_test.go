@@ -8,6 +8,7 @@ import (
 
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/setup"
 )
 
@@ -48,5 +49,62 @@ func TestOldAddress(t *testing.T) {
 	h.server.OldAddress.Until = time.Now().Add(-time.Minute)
 	if _, body := h.get("/"); strings.Contains(body, "old.example.net") {
 		t.Error("ended: still mentioned")
+	}
+}
+
+// The records Roostack set under an old address: a problem keeping them
+// up to date is said while it works; once it has ended, those it couldn't
+// delete are listed, with why, until the Owner says they're gone; so are
+// records under no address the lab has (SPEC.md §6.6).
+func TestOldAddressRecords(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}}
+	h.server.Setup = fs
+	h.server.OldAddress = &config.OldAddress{Domain: "old.example.net", Until: time.Now().Add(20 * 24 * time.Hour),
+		DNS: config.DNS{Provider: "cloudflare"}}
+	fd := &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateOK, Old: &dnsrecords.OldRecords{Domain: "old.example.net",
+		Provider: "Cloudflare", Records: []dnsrecords.Record{{Name: "*.old.example.net", Type: "A", Value: "192.168.1.20"}},
+		Message: "Roostack couldn't update its records under old.example.net with that address's login at Cloudflare: 403 Forbidden"}}}
+	h.server.DNS = fd
+	if _, body := h.get("/settings/domain"); !strings.Contains(body, "403 Forbidden") || strings.Contains(body, `id="old-records"`) {
+		t.Error("while it works: the problem, and nothing to delete by hand yet")
+	}
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "couldn&#39;t update the DNS records of your lab&#39;s old address") {
+		t.Error("home: the problem")
+	}
+
+	h.server.OldAddress.Until = time.Now().Add(-time.Hour)
+	fd.st.Old.Ended = true
+	fd.st.Old.Message = "Roostack couldn't delete its records under old.example.net with that address's login at Cloudflare: 403 Forbidden"
+	fd.st.Left = []dnsrecords.Record{{Name: "vault.older.example.org", Type: "A", Value: "81.2.69.160"}}
+	_, body := h.get("/settings/domain")
+	for _, want := range []string{`id="old-records"`, "403 Forbidden", "<code>*.old.example.net</code>", "tries again every hour",
+		"<code>vault.older.example.org</code>", "I&#39;ve deleted them"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("ended: missing %q", want)
+		}
+	}
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "couldn&#39;t delete the DNS records it set under your lab&#39;s old address, old.example.net") ||
+		!strings.Contains(body, "an address your lab no longer uses") {
+		t.Error("home: what's left")
+	}
+	if code, body := h.post("/settings/domain/old/forget", nil, h.srv.URL); code != http.StatusOK || !fd.forgot || !fs.oldFinished ||
+		!strings.Contains(body, "no longer looks after those records") || strings.Contains(body, `id="old-records"`) {
+		t.Errorf("forget: %d, forgot %v, finished %v", code, fd.forgot, fs.oldFinished)
+	}
+}
+
+// A record Roostack couldn't delete when its address went private is
+// said on Public access, and on Home.
+func TestNotDeletedRecords(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	h.server.DNS = &fakeDNS{st: dnsrecords.Status{State: dnsrecords.StateOK, NotDeleted: []dnsrecords.PublicRecord{{
+		Host: "photos.lab.example.com", IP: "81.2.69.160", State: dnsrecords.PublicError,
+		Message: "Roostack couldn't delete its record, which still points at 81.2.69.160: 500. It tries again in a few minutes."}}}}
+	if _, body := h.get("/settings/public"); !strings.Contains(body, `id="not-deleted"`) || !strings.Contains(body, "<code>photos.lab.example.com</code>") {
+		t.Error("public access: the record left")
+	}
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "couldn&#39;t delete the DNS record of an address that isn&#39;t public any more") {
+		t.Error("home: the record left")
 	}
 }

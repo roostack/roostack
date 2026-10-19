@@ -162,22 +162,30 @@ one: add new ones in each app. Settings inside apps that include the
 address (such as Vaultwarden's) change by themselves.
 
 When you've updated everything, **Stop the old addresses now** ends it
-early. Otherwise it ends by itself after 30 days, and Roostack deletes the
-old DNS provider's login it kept for the old address's certificate.
+early. Otherwise it ends by itself after 30 days.
 
-!!! note "The old domain's DNS records"
-    Roostack stops updating the old domain's DNS records when you switch,
-    and can't delete them afterwards. Once the old address stops, you can
-    delete them at your DNS provider. If your home's internet address
-    changes during the 30 days, old addresses that pointed to it stop
-    working sooner.
+**The old domain's DNS records.** During the 30 days, the records Roostack
+set under the old domain follow your home's addresses, as the new
+domain's do. A service you make private loses its old record too. When the
+old address stops, Roostack deletes those records, using the old DNS
+provider's login it kept, and then deletes that login. It deletes only the
+records it set, and only those nobody has changed since: one you've
+changed is yours.
+
+If the old provider refuses (you deleted the old login's API key, say),
+**Settings → Your lab's address** lists the records still there, with what
+the provider said, and Home says so too. Roostack keeps the login and tries
+again every hour. To finish it yourself, delete the records at the old DNS
+provider, then choose **I've deleted them**: Roostack stops trying, and
+deletes the login.
 
 Only one old address is kept: if you change the address again within the
-30 days, the address before stops at once.
+30 days, the address before stops at once, and Roostack deletes its
+records first.
 
 **From one roost.ac name to another,** Roostack Cloud keeps the old name
 working for those 30 days too (its records, and its certificate's
-renewals), then lets it go: it stays kept for your account for a year, so
-nobody else can take it. If the new name can't be set up, your lab keeps
-the old one, as it was.
+renewals), then lets it go, records and all: it stays kept for your
+account for a year, so nobody else can take it. If the new name can't be
+set up, your lab keeps the old one, as it was.
 

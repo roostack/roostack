@@ -60,6 +60,12 @@ type Setup struct {
 	// called when the wizard ends without one of its own (optional).
 	RestartPending func() bool
 	Finished       func()
+	// RemoveOldRecords deletes the DNS records Roostack set under the lab's
+	// old address once it has stopped working, with that address's login
+	// (optional; dnsrecords.Manager.RemoveOld). false: not all of them, so
+	// lab.yaml keeps the old address and its login, to try again at the
+	// next hourly check (SPEC.md §6.6).
+	RemoveOldRecords func(ctx context.Context, old config.OldAddress) bool
 }
 
 // PendingRestart reports whether settings from the wizard still wait for
@@ -250,9 +256,17 @@ func (s *Setup) keepOldAddress(ctx context.Context, domain string) (*config.OldA
 	if step, err := s.Store.Setting(ctx, keyDomain); err != nil || step != "done" || cur.Domain == "" || cur.Domain == domain {
 		return nil, err
 	}
+	// An earlier old address stops now: its records go first, with its
+	// login, which the one being left replaces. Any it can't delete are
+	// listed for the Owner to delete by hand.
+	if o := cur.OldAddress; o != nil && o.Domain != domain && o.Domain != cur.Domain && s.RemoveOldRecords != nil {
+		rctx, cancel := context.WithTimeout(ctx, removeOldFor)
+		s.RemoveOldRecords(rctx, *o)
+		cancel()
+	}
 	// An earlier old address's secrets are overwritten (or, for fields the
 	// new one doesn't use, removed by cleanOldSecrets after the restart).
-	for _, f := range dnsFields(cur.DNS) {
+	for _, f := range dns.CredentialFields(cur.DNS) {
 		v, err := s.Secrets.Read(ctx, dns.SecretName(f))
 		if err != nil {
 			return nil, fmt.Errorf("keeping %s's DNS credentials for its old addresses: %w", cur.Domain, err)
@@ -263,22 +277,6 @@ func (s *Setup) keepOldAddress(ctx context.Context, domain string) (*config.OldA
 	}
 	return &config.OldAddress{Domain: cur.Domain, DNS: cur.DNS,
 		Until: time.Now().Add(config.OldAddressDays * 24 * time.Hour).Truncate(time.Minute)}, nil
-}
-
-// dnsFields are the credential fields a provider setting uses.
-func dnsFields(d config.DNS) []string {
-	if len(d.Fields) > 0 {
-		return d.Fields
-	}
-	var fields []string
-	if p := dns.Get(d.Provider); p != nil {
-		for _, f := range p.Fields {
-			if !f.Optional {
-				fields = append(fields, f.Key)
-			}
-		}
-	}
-	return fields
 }
 
 // cleanOldSecrets removes the old address's secrets that lab.yaml no
@@ -293,7 +291,7 @@ func (s *Setup) cleanOldSecrets(ctx context.Context) error {
 	}
 	keep := map[string]bool{}
 	if cur.OldAddress != nil {
-		for _, f := range dnsFields(cur.OldAddress.DNS) {
+		for _, f := range dns.CredentialFields(cur.OldAddress.DNS) {
 			keep[dns.OldSecretName(f)] = true
 		}
 	}
@@ -311,19 +309,70 @@ func (s *Setup) cleanOldSecrets(ctx context.Context) error {
 	return nil
 }
 
-// EndOldAddress stops the lab's previous address working now (or when its
-// time is up), and Roostack restarts so Caddy stops serving it; its DNS
-// credentials are deleted after the restart (SPEC.md §6.6).
+// EndOldAddress stops the lab's previous address working now (SPEC.md
+// §6.6): it ends in lab.yaml at once, its DNS records are deleted and
+// Roostack restarts so Caddy stops serving it (finishOld).
 func (s *Setup) EndOldAddress(ctx context.Context) error {
 	cur, err := s.current()
 	if err != nil || cur.OldAddress == nil {
 		return err
 	}
-	if err := config.Update(s.LabPath, func(lab *config.Lab) { lab.OldAddress = nil }); err != nil {
+	if now := time.Now(); now.Before(cur.OldAddress.Until) {
+		if err := config.Update(s.LabPath, func(lab *config.Lab) {
+			if lab.OldAddress != nil {
+				lab.OldAddress.Until = now
+			}
+		}); err != nil {
+			return err
+		}
+	}
+	return s.finishOld(ctx, true)
+}
+
+// FinishOldAddress forgets an old address that has stopped working, once
+// its records are gone (or the Owner had Roostack forget them): it goes
+// from lab.yaml, and its login with it.
+func (s *Setup) FinishOldAddress(ctx context.Context) error {
+	return s.finishOld(ctx, false)
+}
+
+// removeOldFor bounds deleting the old address's records, so a provider
+// that doesn't answer can't hold up the rest (it's tried again hourly).
+const removeOldFor = 2 * time.Minute
+
+// finishOld finishes an old address whose time is up: the records
+// Roostack set under it are deleted with its login (RemoveOldRecords),
+// then it goes from lab.yaml; restart says Caddy still serves it, so
+// Roostack restarts. The login goes after that, once nothing uses it
+// (cleanOldSecrets). While records are left, lab.yaml keeps the old
+// address (no longer served) and its login, to try again; a restart
+// part-way through carries on from what's left.
+func (s *Setup) finishOld(ctx context.Context, restart bool) error {
+	cur, err := s.current()
+	if err != nil || cur.OldAddress == nil || time.Now().Before(cur.OldAddress.Until) {
 		return err
 	}
-	if s.Restart != nil {
+	old := *cur.OldAddress
+	done := true
+	if s.RemoveOldRecords != nil {
+		rctx, cancel := context.WithTimeout(ctx, removeOldFor)
+		done = s.RemoveOldRecords(rctx, old)
+		cancel()
+	}
+	if done {
+		if err := config.Update(s.LabPath, func(lab *config.Lab) {
+			if lab.OldAddress != nil && lab.OldAddress.Domain == old.Domain {
+				lab.OldAddress = nil
+			}
+		}); err != nil {
+			return err
+		}
+	}
+	switch {
+	case restart && s.Restart != nil:
 		s.Restart()
+	case done:
+		return s.cleanOldSecrets(ctx)
 	}
 	return nil
 }
@@ -332,6 +381,9 @@ func (s *Setup) EndOldAddress(ctx context.Context) error {
 // removes credentials no longer needed, checking every hour until ctx
 // ends.
 func (s *Setup) RunOldAddress(ctx context.Context, log *slog.Logger) {
+	// Caddy serves the old address if it still worked when Roostack
+	// started.
+	served := s.Lab.Old(time.Now()) != nil
 	t := time.NewTicker(time.Hour)
 	defer t.Stop()
 	for {
@@ -339,8 +391,10 @@ func (s *Setup) RunOldAddress(ctx context.Context, log *slog.Logger) {
 			log.Warn("removing the old address's DNS credentials", "err", err)
 		}
 		if cur, err := s.current(); err == nil && cur.OldAddress != nil && !time.Now().Before(cur.OldAddress.Until) {
-			log.Info("the lab's old address stops working now", "address", cur.OldAddress.Domain)
-			if err := s.EndOldAddress(ctx); err != nil {
+			if served {
+				log.Info("the lab's old address stops working now", "address", cur.OldAddress.Domain)
+			}
+			if err := s.finishOld(ctx, served); err != nil {
 				log.Error("ending the lab's old address", "err", err)
 			}
 		}
@@ -424,7 +478,7 @@ func (s *Setup) DropRoostAc(ctx context.Context) error {
 		return err
 	}
 	// Caddy stops at the restart (no address), so its credentials can go.
-	for _, f := range dnsFields(cur.DNS) {
+	for _, f := range dns.CredentialFields(cur.DNS) {
 		if err := s.Secrets.Remove(ctx, dns.SecretName(f)); err != nil {
 			return err
 		}
