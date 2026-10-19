@@ -72,7 +72,7 @@ func TestCreatesWildcardAndChecks(t *testing.T) {
 
 	// The records Roostack manages are listed with their current values.
 	recs, err := m.Records(context.Background())
-	if err != nil || len(recs) != 1 || recs[0] != (Record{Name: "*.lab.example.com", Type: "A", Value: "192.168.1.99"}) {
+	if err != nil || len(recs) != 1 || recs[0] != (Record{Name: "*.lab.example.com", Type: "A", Value: "192.168.1.99", Via: "gandi"}) {
 		t.Errorf("records = %+v, %v", recs, err)
 	}
 }

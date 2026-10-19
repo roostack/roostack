@@ -190,7 +190,10 @@ func (m *Manager) TakeOver(ctx context.Context) error {
 	if st.State != StateConflict {
 		return errors.New("there is no conflicting record to take over")
 	}
-	if err := m.Store.SetSetting(ctx, ownerKey(st.Record, "A"), "taken over"); err != nil {
+	m.mu.Lock()
+	via := m.Lab.DNS.Provider
+	m.mu.Unlock()
+	if err := m.own(ctx, st.Record, "A", "taken over", via); err != nil {
 		return err
 	}
 	m.Log.Warn("taking over DNS record", "record", st.Record, "was", st.Current)
@@ -407,17 +410,32 @@ func (e *conflictError) Error() string {
 		"Delete it at your DNS provider, or point it at %s.", e.record, e.current, e.want)
 }
 
-// ownerKey is where Roostack remembers a record it created and its value.
-const ownerPrefix = "dns.owned."
+// ownerKey is where Roostack remembers a record it created and its value;
+// viaKey, the DNS provider it set it with, so a record left under an
+// address the lab no longer has says where it is, and a roost.ac name's
+// go with the name (SPEC.md §6.6).
+const (
+	ownerPrefix = "dns.owned."
+	viaPrefix   = "dns.via."
+)
 
 func ownerKey(fqdn, typ string) string { return ownerPrefix + fqdn + "/" + typ }
+func viaKey(fqdn, typ string) string   { return viaPrefix + fqdn + "/" + typ }
 
 // Record is a DNS record Roostack manages at the provider.
 type Record struct {
 	Name  string // e.g. *.lab.example.com
 	Type  string // e.g. A
 	Value string // what Roostack last set it to
+	// Via is the DNS provider it was set with (dns.Provider's ID); "" if
+	// it was set before Roostack kept that.
+	Via string
 }
+
+// ThroughCloud reports whether the record was set through Roostack
+// Cloud: a roost.ac name's, which Cloud removes when the lab lets the
+// name go (SPEC.md §6.6).
+func (r Record) ThroughCloud() bool { return r.Via == config.ProviderCloud }
 
 // Records lists the records Roostack manages (the ones it created, adopted
 // or took over), by name.
@@ -426,13 +444,18 @@ func (m *Manager) Records(ctx context.Context) ([]Record, error) {
 	if err != nil {
 		return nil, err
 	}
+	via, err := m.Store.SettingsWithPrefix(ctx, viaPrefix)
+	if err != nil {
+		return nil, err
+	}
 	var recs []Record
 	for key, value := range owned {
-		name, typ, ok := strings.Cut(strings.TrimPrefix(key, ownerPrefix), "/")
+		rec := strings.TrimPrefix(key, ownerPrefix)
+		name, typ, ok := strings.Cut(rec, "/")
 		if !ok || value == "" {
 			continue // released (value cleared) or not a record
 		}
-		recs = append(recs, Record{Name: name, Type: typ, Value: value})
+		recs = append(recs, Record{Name: name, Type: typ, Value: value, Via: via[viaPrefix+rec]})
 	}
 	slices.SortFunc(recs, func(a, b Record) int { return strings.Compare(a.Name+a.Type, b.Name+b.Type) })
 	return recs, nil
@@ -467,7 +490,25 @@ func (m *Manager) ensureRecord(ctx context.Context, p *dns.Provider, values map[
 	default:
 		return &conflictError{record: fqdn, current: strings.Join(current, ", "), want: value}
 	}
-	return m.Store.SetSetting(ctx, key, value)
+	return m.own(ctx, fqdn, typ, value, p.ID)
+}
+
+// own records a record as Roostack's: its value, and the provider it's
+// at.
+func (m *Manager) own(ctx context.Context, fqdn, typ, value, via string) error {
+	if err := m.Store.SetSetting(ctx, viaKey(fqdn, typ), via); err != nil {
+		return err
+	}
+	return m.Store.SetSetting(ctx, ownerKey(fqdn, typ), value)
+}
+
+// disown clears Roostack's ownership of a record (the record itself is
+// left as it is).
+func (m *Manager) disown(ctx context.Context, fqdn, typ string) error {
+	if err := m.Store.SetSetting(ctx, ownerKey(fqdn, typ), ""); err != nil {
+		return err
+	}
+	return m.Store.SetSetting(ctx, viaKey(fqdn, typ), "")
 }
 
 // removeOwned deletes a record Roostack set, if it's still as Roostack
@@ -497,7 +538,7 @@ func (m *Manager) removeOwned(ctx context.Context, p *dns.Provider, values map[s
 		m.Log.Warn("DNS record changed by hand: left in place, and Roostack no longer manages it",
 			"record", fqdn, "type", typ, "set_to", owned, "now", strings.Join(current, ", "))
 	}
-	return m.Store.SetSetting(ctx, key, "")
+	return m.disown(ctx, fqdn, typ)
 }
 
 // release lets go of an A record no longer wanted: deleted, or, where the

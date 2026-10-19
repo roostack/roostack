@@ -53,15 +53,26 @@
     <tbody>{{range .Records}}<tr><td><code>{{.Name}}</code></td><td>{{.Type}}</td><td><code>{{.Value}}</code></td></tr>{{end}}</tbody>
   </table>
   {{end}}
-  {{with .LeftRecords}}
-  <p>Roostack set these records for an address your lab no longer uses, and couldn't delete them. Delete them at that
-    address's DNS provider, then tell Roostack.</p>
+  {{$unknown := false}}
+  {{range .LeftRecords}}
+  {{if .Provider}}
+  <p>Roostack set these records at {{.Provider}} for an address your lab no longer uses, and couldn't delete them.
+    Delete them at {{.Provider}}, then tell Roostack.</p>
+  {{else}}{{$unknown = true}}
+  <p>Roostack set these records for an address your lab no longer uses. If that address was a
+    {{$.CloudSuffix}} name, there's nothing to do there: Roostack Cloud removed its records when your lab let the name go.
+    Otherwise delete them at that address's DNS provider. Then tell Roostack.</p>
+  {{end}}
   <table class="records">
     <thead><tr><th>Name</th><th>Type</th><th>Points to</th></tr></thead>
-    <tbody>{{range .}}<tr><td><code>{{.Name}}</code></td><td>{{.Type}}</td><td><code>{{.Value}}</code></td></tr>{{end}}</tbody>
+    <tbody>{{range .Records}}<tr><td><code>{{.Name}}</code></td><td>{{.Type}}</td><td><code>{{.Value}}</code></td></tr>{{end}}</tbody>
   </table>
   {{end}}
+  {{if $unknown}}
+  {{confirm "/settings/domain/old/forget" "Are these records gone? Roostack stops looking after them (it leaves them as they are), and deletes the old address's login if it still has it." "They're gone" "secondary"}}
+  {{else}}
   {{confirm "/settings/domain/old/forget" "Have you deleted these records? Roostack stops trying to delete them, and deletes the old address's login if it still has it." "I've deleted them" "secondary"}}
+  {{end}}
 </section>
 {{end}}
 {{end}}

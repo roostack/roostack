@@ -76,17 +76,31 @@ func TestOldAddressRecords(t *testing.T) {
 	h.server.OldAddress.Until = time.Now().Add(-time.Hour)
 	fd.st.Old.Ended = true
 	fd.st.Old.Message = "Roostack couldn't delete its records under old.example.net with that address's login at Cloudflare: 403 Forbidden"
-	fd.st.Left = []dnsrecords.Record{{Name: "vault.older.example.org", Type: "A", Value: "81.2.69.160"}}
+	fd.st.Left = []dnsrecords.Record{{Name: "vault.older.example.org", Type: "A", Value: "81.2.69.160", Via: "porkbun"}}
 	_, body := h.get("/settings/domain")
 	for _, want := range []string{`id="old-records"`, "403 Forbidden", "<code>*.old.example.net</code>", "tries again every hour",
-		"<code>vault.older.example.org</code>", "I&#39;ve deleted them"} {
+		"<code>vault.older.example.org</code>", "Delete them at Porkbun", "I&#39;ve deleted them"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("ended: missing %q", want)
 		}
 	}
 	if _, body := h.get("/partials/home"); !strings.Contains(body, "couldn&#39;t delete the DNS records it set under your lab&#39;s old address, old.example.net") ||
-		!strings.Contains(body, "an address your lab no longer uses") {
+		!strings.Contains(body, "an address your lab no longer uses are still there: delete them at Porkbun.") {
 		t.Error("home: what's left")
+	}
+
+	// Records from before Roostack noted their provider: it can't say
+	// where, and they may have been a roost.ac name's, which Cloud removed.
+	fd.st.Left = append(fd.st.Left, dnsrecords.Record{Name: "*.smiths.roost.ac", Type: "A", Value: "192.168.1.20"})
+	_, body = h.get("/settings/domain")
+	for _, want := range []string{"Delete them at Porkbun", "roost.ac name, there's nothing to do there", "<code>*.smiths.roost.ac</code>",
+		"They&#39;re gone"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("not noted: missing %q", want)
+		}
+	}
+	if _, body := h.get("/partials/home"); !strings.Contains(body, "still there: delete them at your DNS provider.") {
+		t.Error("home: two providers, or one not known")
 	}
 	if code, body := h.post("/settings/domain/old/forget", nil, h.srv.URL); code != http.StatusOK || !fd.forgot || !fs.oldFinished ||
 		!strings.Contains(body, "no longer looks after those records") || strings.Contains(body, `id="old-records"`) {

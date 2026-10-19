@@ -3,10 +3,13 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/dnsrecords"
 )
 
 // oldWarnFor is how long before the lab's old address stops that the
@@ -82,6 +85,46 @@ func (s *Server) oldAddressEnd(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "setup", "the old address "+o.Domain+" stopped early")
 	redirect(w, r, "/restarting")
+}
+
+// leftGroup is records left under an address the lab no longer has, at
+// one DNS provider (its title; "" where Roostack didn't note which).
+type leftGroup struct {
+	Provider string
+	Records  []dnsrecords.Record
+}
+
+// leftGroups sorts records left under an address the lab no longer has by
+// the provider they're at, so the page can say where to delete each
+// (SPEC.md §6.6). Those Roostack didn't note come last.
+func leftGroups(recs []dnsrecords.Record) []leftGroup {
+	var groups []leftGroup
+	at := map[string]int{}
+	for _, r := range recs {
+		title := ""
+		if p := dns.Get(r.Via); p != nil {
+			title = p.Title
+		}
+		i, ok := at[title]
+		if !ok {
+			i = len(groups)
+			at[title] = i
+			groups = append(groups, leftGroup{Provider: title})
+		}
+		groups[i].Records = append(groups[i].Records, r)
+	}
+	slices.SortStableFunc(groups, func(a, b leftGroup) int {
+		switch {
+		case a.Provider == b.Provider:
+			return 0
+		case a.Provider == "":
+			return 1
+		case b.Provider == "":
+			return -1
+		}
+		return strings.Compare(a.Provider, b.Provider)
+	})
+	return groups
 }
 
 // oldRecordsForget stops Roostack trying to delete the DNS records it

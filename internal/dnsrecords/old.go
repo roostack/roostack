@@ -67,7 +67,11 @@ func (m *Manager) recordsUnder(ctx context.Context, domain, other string) ([]Rec
 }
 
 // left lists Roostack's records under neither the lab's address nor its
-// old one: left behind by an address that has gone (SPEC.md §6.6).
+// old one: left behind by an address that has gone (SPEC.md §6.6). A
+// roost.ac name's are let go instead, whichever way the name went
+// (unlinking, Cloud no longer knowing the lab, a switch): Roostack Cloud
+// removes a name's records when the lab no longer has it, and the Owner
+// has no login there to delete them anyway.
 func (m *Manager) left(ctx context.Context, lab config.Lab) []Record {
 	owned, err := m.Records(ctx)
 	if err != nil {
@@ -75,10 +79,21 @@ func (m *Manager) left(ctx context.Context, lab config.Lab) []Record {
 		return nil
 	}
 	old := m.oldDomain()
-	var recs []Record
+	var recs, cloud []Record
 	for _, r := range owned {
-		if domainOf(r.Name, lab.Domain, old) == "" {
+		switch {
+		case domainOf(r.Name, lab.Domain, old) != "":
+		case r.ThroughCloud():
+			cloud = append(cloud, r)
+		default:
 			recs = append(recs, r)
+		}
+	}
+	if len(cloud) > 0 {
+		m.Log.Info("letting go of the DNS records of a roost.ac name the lab no longer has: Roostack Cloud removes them",
+			"records", len(cloud))
+		if err := m.forget(ctx, cloud); err != nil {
+			m.Log.Error("letting go of a roost.ac name's DNS records", "err", err)
 		}
 	}
 	return recs
@@ -337,7 +352,7 @@ func (m *Manager) Forget(ctx context.Context) error {
 // forget clears Roostack's ownership of records, leaving them in place.
 func (m *Manager) forget(ctx context.Context, recs []Record) error {
 	for _, r := range recs {
-		if err := m.Store.SetSetting(ctx, ownerKey(r.Name, r.Type), ""); err != nil {
+		if err := m.disown(ctx, r.Name, r.Type); err != nil {
 			return err
 		}
 		m.Log.Info("DNS record no longer managed by Roostack", "record", r.Name, "type", r.Type)

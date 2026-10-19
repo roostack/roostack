@@ -307,3 +307,49 @@ func TestLeftRecords(t *testing.T) {
 		t.Errorf("after forgetting: %v (the working old address's stays)", got)
 	}
 }
+
+// A roost.ac name's records are let go once the lab no longer has the
+// name, however it went (here: unlinking took it, and the lab has no
+// address): Roostack Cloud removes them. Records at the Owner's own
+// provider are listed with it; ones from before Roostack noted the
+// provider are listed without (SPEC.md §6.6).
+func TestLeftRoostAcReleased(t *testing.T) {
+	ctx := context.Background()
+	c := newCleanupLab(t)
+	m := c.manager("", "gandi", nil)
+	m.Lab.DNS = config.DNS{}
+	m.own(ctx, "*.smiths.roost.ac", "A", "192.168.1.20", config.ProviderCloud)
+	m.own(ctx, "smiths.roost.ac", "A", "192.168.1.20", config.ProviderCloud)
+	m.own(ctx, "vault.lab.example.com", "CNAME", "r-abc.relay.roost.ac", "cloudflare")
+	m.Store.SetSetting(ctx, ownerKey("*.older.example.org", "A"), "192.168.1.20")
+	st := m.Sync(ctx)
+	want := []Record{
+		{Name: "*.older.example.org", Type: "A", Value: "192.168.1.20"},
+		{Name: "vault.lab.example.com", Type: "CNAME", Value: "r-abc.relay.roost.ac", Via: "cloudflare"},
+	}
+	if !slices.Equal(st.Left, want) {
+		t.Errorf("left: %+v", st.Left)
+	}
+	if got := owned(t, m); !slices.Equal(got, []string{"*.older.example.org", "vault.lab.example.com"}) {
+		t.Errorf("still Roostack's: %v (the roost.ac name's are let go)", got)
+	}
+}
+
+// Each record Roostack sets notes the provider it's at, and loses it
+// with the record.
+func TestRecordsNoteTheirProvider(t *testing.T) {
+	ctx := context.Background()
+	c := newCleanupLab(t)
+	m := c.manager("lab.example.com", "gandi", nil)
+	m.Sync(ctx)
+	recs, err := m.Records(ctx)
+	if err != nil || len(recs) != 1 || recs[0].Via != "gandi" {
+		t.Fatalf("%+v, %v", recs, err)
+	}
+	if err := m.forget(ctx, recs); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := m.Store.Setting(ctx, viaKey("*.lab.example.com", "A")); v != "" {
+		t.Errorf("provider kept after letting go: %q", v)
+	}
+}

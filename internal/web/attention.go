@@ -332,9 +332,13 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 			add(levelWarning, "Roostack couldn't update the DNS records of your lab's old address, "+o.Domain+
 				", so some old addresses may stop working early.", "/settings/domain#old-address", "View")
 		}
-		if len(st.Left) > 0 {
+		if groups := leftGroups(st.Left); len(groups) > 0 {
+			where := "your DNS provider"
+			if len(groups) == 1 && groups[0].Provider != "" {
+				where = groups[0].Provider
+			}
 			add(levelWarning, "DNS records Roostack set under an address your lab no longer uses are still there: "+
-				"delete them at your DNS provider.", "/settings/domain#old-records", "View")
+				"delete them at "+where+".", "/settings/domain#old-records", "View")
 		}
 	}
 

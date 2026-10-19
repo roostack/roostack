@@ -321,7 +321,8 @@ func (s *Server) domainAreaPage(w http.ResponseWriter, r *http.Request) {
 		} else if o != nil {
 			data["OldProblem"] = o.Message
 		}
-		data["LeftRecords"] = st.Left
+		data["LeftRecords"] = leftGroups(st.Left)
+		data["CloudSuffix"] = s.cloudSuffix(r.Context())
 	}
 	data["Forgot"] = r.FormValue("forgot") != ""
 	s.render(w, "settings-domain", withArea(data, "domain"))
