@@ -115,8 +115,15 @@ func TestSetupListenerServesOnlySetup(t *testing.T) {
 		t.Fatal("after the Owner, two-factor on the setup listener")
 	}
 	// Until it's on, only its step and the help; the account's page isn't
-	// served here.
-	if code, _ := do(t, c, "GET", ts.URL, "/help/", "", "", nil); code != http.StatusOK {
+	// served here. The help is embedded only after `make build`; without it,
+	// /help/ says so. Either way it's the help answering, not the gate
+	// sending the browser back to two-factor.
+	switch code, help := do(t, c, "GET", ts.URL, "/help/", "", "", nil); {
+	case strings.Contains(help, `action="/setup/two-factor"`):
+		t.Errorf("the help before two-factor: sent to the two-factor step")
+	case h.server.help.files == nil && (code != http.StatusNotFound || !strings.Contains(help, "built without its help")):
+		t.Errorf("the help before two-factor, none built: %d", code)
+	case h.server.help.files != nil && code != http.StatusOK:
 		t.Errorf("the help before two-factor: %d", code)
 	}
 	if code, _ := do(t, c, "GET", ts.URL, "/account/2fa", "", "", nil); code != http.StatusNotFound {
