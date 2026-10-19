@@ -8,6 +8,7 @@ dist/
 /help/.venv/
 /help/site/
 /help/.wrangler/
+/help/.dev.vars
 /internal/web/helpsite/*
 !/internal/web/helpsite/README.md
 
