@@ -77,7 +77,8 @@ Under **Manage**, on each backup, you can:
 - change where the main backup goes (new backups start there, and the old
   ones stay where they are);
 - make another backup the main one (the two swap, and both keep their
-  backups);
+  backups and their last results: each result belongs to the place it
+  went to, not to its number on the plan);
 - stop a backup;
 - on online storage, give Roostack a new key for the account. Every
   server backing up there gets it (on Backblaze B2, a key of its own when

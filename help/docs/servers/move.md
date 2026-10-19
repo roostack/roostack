@@ -6,7 +6,8 @@ retiring.
 
 1. Open the service's page and choose **Move to another server…**.
 2. The page shows where it runs now and how much data it has. Choose the
-   server to **move it to**.
+   server to **move it to**. A server whose kind of processor the service
+   has no version for is listed, but can't be chosen, and says so.
 3. Choose **how**:
 
     Copy directly

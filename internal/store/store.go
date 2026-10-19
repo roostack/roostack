@@ -234,6 +234,12 @@ var migrations = []string{
 	// before they were kept), so a service installed since its server's
 	// last backup isn't shown as in it.
 	`ALTER TABLE backup_runs ADD COLUMN services TEXT;`,
+	// The repository each backup run went to (SPEC.md §6.9): results
+	// follow a destination when the main backup and a copy swap. Older
+	// runs are given theirs once, from lab.yaml (AdoptBackupRuns);
+	// destination is kept only for that.
+	`ALTER TABLE backup_runs ADD COLUMN repository TEXT NOT NULL DEFAULT '';
+	CREATE INDEX backup_runs_repository ON backup_runs (repository, id);`,
 }
 
 // OriginSetup marks sessions signed in on the setup pages on the home
@@ -937,12 +943,14 @@ type BackupRun struct {
 	FilesNew          int
 	DataAdded         uint64
 	Error             string
-	// Destination is the extra copy it went to, or "" for the main one.
-	Destination string
+	// Repository is the restic repository it went to: what a backup's
+	// results are found by, whether it's the main backup or a copy at the
+	// time (they swap).
+	Repository string
 	// Stored is the space the repository took after it (0 if unknown).
 	Stored uint64
-	// Services are the services it backed up, for a main backup (nil:
-	// unknown, from before they were kept).
+	// Services are the services it backed up (nil: unknown, from before
+	// they were kept, or a copy's run before 2026-10-19).
 	Services []string
 }
 
@@ -954,36 +962,66 @@ func (s *Store) RecordBackup(ctx context.Context, r BackupRun) error {
 		services = &joined
 	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO backup_runs (started_at, finished_at, ok, snapshot_id, files_new, data_added, error, destination, stored, services)
+		`INSERT INTO backup_runs (started_at, finished_at, ok, snapshot_id, files_new, data_added, error, repository, stored, services)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		r.Started.Unix(), r.Finished.Unix(), r.OK, r.SnapshotID, r.FilesNew, r.DataAdded, r.Error, r.Destination, r.Stored, services)
+		r.Started.Unix(), r.Finished.Unix(), r.OK, r.SnapshotID, r.FilesNew, r.DataAdded, r.Error, r.Repository, r.Stored, services)
 	return err
 }
 
-// LastBackup returns the most recent attempt to the main destination, and
-// the most recent success (which may be the same run). Either may be nil.
-func (s *Store) LastBackup(ctx context.Context) (last, lastOK *BackupRun, err error) {
-	return s.LastBackupTo(ctx, "")
-}
-
-// LastBackupTo is LastBackup for one destination ("" is the main one).
-func (s *Store) LastBackupTo(ctx context.Context, destination string) (last, lastOK *BackupRun, err error) {
-	last, err = s.scanBackup(s.db.QueryRowContext(ctx, backupQuery+` WHERE destination = ? ORDER BY id DESC LIMIT 1`, destination))
+// LastBackup returns the most recent attempt to a repository, and the
+// most recent success (which may be the same run). Either may be nil.
+func (s *Store) LastBackup(ctx context.Context, repository string) (last, lastOK *BackupRun, err error) {
+	if repository == "" {
+		return nil, nil, nil
+	}
+	last, err = s.scanBackup(s.db.QueryRowContext(ctx, backupQuery+` WHERE repository = ? ORDER BY id DESC LIMIT 1`, repository))
 	if err != nil {
 		return nil, nil, err
 	}
 	lastOK, err = s.scanBackup(s.db.QueryRowContext(ctx,
-		backupQuery+` WHERE ok = 1 AND destination = ? ORDER BY id DESC LIMIT 1`, destination))
+		backupQuery+` WHERE ok = 1 AND repository = ? ORDER BY id DESC LIMIT 1`, repository))
 	return last, lastOK, err
 }
 
-const backupQuery = `SELECT started_at, finished_at, ok, snapshot_id, files_new, data_added, error, destination, stored, services FROM backup_runs`
+const backupQuery = `SELECT started_at, finished_at, ok, snapshot_id, files_new, data_added, error, repository, stored, services FROM backup_runs`
+
+// AdoptBackupRuns gives runs recorded before repositories were (by role:
+// destination "" for the main backup, else a copy's name) the repository
+// that role has in lab.yaml now: repositories maps each destination to
+// it. It does that once, the first time it's called (Roostack's first
+// start since runs have repositories); runs of a role lab.yaml no longer
+// has (a copy since stopped) keep none and aren't shown, as before.
+func (s *Store) AdoptBackupRuns(ctx context.Context, repositories map[string]string) error {
+	const done = "backup.runs.by-repository"
+	if v, err := s.Setting(ctx, done); err != nil || v != "" {
+		return err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for destination, repository := range repositories {
+		if repository == "" {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE backup_runs SET repository = ? WHERE repository = '' AND destination = ?`,
+			repository, destination); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO settings (key, value) VALUES (?, '1')
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value`, done); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
 func (s *Store) scanBackup(row *sql.Row) (*BackupRun, error) {
 	var r BackupRun
 	var started, finished int64
 	var services sql.NullString
-	err := row.Scan(&started, &finished, &r.OK, &r.SnapshotID, &r.FilesNew, &r.DataAdded, &r.Error, &r.Destination, &r.Stored, &services)
+	err := row.Scan(&started, &finished, &r.OK, &r.SnapshotID, &r.FilesNew, &r.DataAdded, &r.Error, &r.Repository, &r.Stored, &services)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

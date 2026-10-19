@@ -213,22 +213,74 @@ func TestReopenKeepsSchema(t *testing.T) {
 func TestBackupRuns(t *testing.T) {
 	s := open(t)
 	ctx := context.Background()
-	if last, ok, err := s.LastBackup(ctx); last != nil || ok != nil || err != nil {
+	if last, ok, err := s.LastBackup(ctx, "/mnt/a"); last != nil || ok != nil || err != nil {
 		t.Fatalf("empty: %v %v %v", last, ok, err)
 	}
 	now := time.Now()
-	s.RecordBackup(ctx, BackupRun{Started: now, Finished: now, OK: true, SnapshotID: "aaa", FilesNew: 3})
-	s.RecordBackup(ctx, BackupRun{Started: now, Finished: now, OK: false, Error: "disk full"})
-	last, ok, err := s.LastBackup(ctx)
-	if err != nil || last.OK || last.Error != "disk full" || ok.SnapshotID != "aaa" || ok.FilesNew != 3 || ok.Services != nil {
+	s.RecordBackup(ctx, BackupRun{Started: now, Finished: now, OK: true, SnapshotID: "aaa", FilesNew: 3, Repository: "/mnt/a"})
+	s.RecordBackup(ctx, BackupRun{Started: now, Finished: now, OK: false, Error: "disk full", Repository: "/mnt/a"})
+	// Another repository's runs are its own.
+	s.RecordBackup(ctx, BackupRun{Started: now, Finished: now, OK: true, SnapshotID: "bbb", Repository: "s3:https://s3.example/b"})
+	last, ok, err := s.LastBackup(ctx, "/mnt/a")
+	if err != nil || last.OK || last.Error != "disk full" || ok.SnapshotID != "aaa" || ok.FilesNew != 3 || ok.Services != nil ||
+		ok.Repository != "/mnt/a" {
 		t.Errorf("last=%+v ok=%+v err=%v", last, ok, err)
+	}
+	if last, _, _ := s.LastBackup(ctx, "s3:https://s3.example/b"); last == nil || last.SnapshotID != "bbb" {
+		t.Errorf("the other repository: %+v", last)
+	}
+	if last, ok, _ := s.LastBackup(ctx, ""); last != nil || ok != nil {
+		t.Error("no repository has no runs")
 	}
 	// The services a run backed up: none is not unknown.
 	for _, want := range [][]string{{}, {"immich", "forgejo"}} {
-		s.RecordBackup(ctx, BackupRun{Started: now, Finished: now, OK: true, Services: want})
-		if _, ok, _ := s.LastBackup(ctx); ok.Services == nil || !slices.Equal(ok.Services, want) {
+		s.RecordBackup(ctx, BackupRun{Started: now, Finished: now, OK: true, Services: want, Repository: "/mnt/a"})
+		if _, ok, _ := s.LastBackup(ctx, "/mnt/a"); ok.Services == nil || !slices.Equal(ok.Services, want) {
 			t.Errorf("services %q: got %#v", want, ok.Services)
 		}
+	}
+}
+
+// TestAdoptBackupRuns: runs recorded by role before repositories were
+// (destination "" the main backup, else a copy's name) get the repository
+// that role has in lab.yaml, once, so nothing shown before is lost.
+func TestAdoptBackupRuns(t *testing.T) {
+	s := open(t)
+	ctx := context.Background()
+	at := time.Now().Add(-time.Hour)
+	for _, r := range []struct {
+		destination, snapshot string
+		ok                    bool
+	}{{"", "main1", true}, {"", "", false}, {"provider:1", "copy1", true}, {"provider:9", "gone", true}} {
+		if _, err := s.db.ExecContext(ctx, `INSERT INTO backup_runs (started_at, finished_at, ok, snapshot_id, destination)
+			VALUES (?, ?, ?, ?, ?)`, at.Unix(), at.Unix(), r.ok, r.snapshot, r.destination); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repos := map[string]string{"": "/mnt/usb/roostack", "provider:1": "s3:https://s3.example/b"}
+	if err := s.AdoptBackupRuns(ctx, repos); err != nil {
+		t.Fatal(err)
+	}
+	last, ok, _ := s.LastBackup(ctx, "/mnt/usb/roostack")
+	if last == nil || last.OK || ok == nil || ok.SnapshotID != "main1" {
+		t.Errorf("main backup: last=%+v ok=%+v", last, ok)
+	}
+	if _, ok, _ := s.LastBackup(ctx, "s3:https://s3.example/b"); ok == nil || ok.SnapshotID != "copy1" {
+		t.Errorf("copy: %+v", ok)
+	}
+	// Once only: a later start (after a swap, say) changes nothing.
+	s.db.ExecContext(ctx, `INSERT INTO backup_runs (started_at, finished_at, ok, snapshot_id, destination) VALUES (?, ?, 1, 'late', '')`,
+		at.Unix(), at.Unix())
+	if err := s.AdoptBackupRuns(ctx, map[string]string{"": "s3:https://s3.example/b"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := s.LastBackup(ctx, "s3:https://s3.example/b"); ok == nil || ok.SnapshotID != "copy1" {
+		t.Errorf("adopted twice: %+v", ok)
+	}
+	var orphans int
+	s.db.QueryRowContext(ctx, `SELECT count(*) FROM backup_runs WHERE repository = ''`).Scan(&orphans)
+	if orphans != 2 { // the stopped copy's run, and the one recorded after
+		t.Errorf("runs without a repository: %d, want 2", orphans)
 	}
 }
 

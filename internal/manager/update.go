@@ -195,6 +195,12 @@ func (m *Manager) AvailableUpdates(ctx context.Context) map[string]*Update {
 		if _, _, err := updatedInstance(in, s.Package, p); err != nil {
 			u.Blocked = err.Error()
 		}
+		// In a lab mixing processors the newest version may have no
+		// build for the one this service's server has (SPEC.md §8.3.3).
+		if a, _ := m.noBuildFor(ctx, p.Name, p.Version, in.Host); a != "" && u.Blocked == "" {
+			u.Blocked = fmt.Sprintf("This version has no build for %s's kind of processor (%s), so it can't run there. "+
+				"Roostack offers it once it has one.", m.serverName(cmp.Or(in.Host, m.Lab.NodeID)), a)
+		}
 		if rec := m.LastUpdate(ctx, s.Name()); rec != nil && rec.To == p.Version && rec.Result != UpdateDone {
 			u.FailedBefore = true
 		}

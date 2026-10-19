@@ -80,6 +80,11 @@ did, the Owner can put back the backup taken just before the update.
 Without backups set up, you can still update, but there's no copy of the
 service's data to go back to.
 
+If your servers have different kinds of processor, the newest version may
+have no build for the one this service's server has. The page then says so
+instead of offering it; it's offered once the service registry has a build
+for that processor.
+
 A service installed from **your own** package updates when the Owner adds a
 newer version of that package under **Add a service → Add your own**; it
 never takes a version from the service registry. If the newer version asks

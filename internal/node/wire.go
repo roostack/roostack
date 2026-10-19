@@ -171,6 +171,8 @@ type WireStatus struct {
 	// server's public key (SPEC.md §10.10).
 	Addrs []string         `json:"addrs,omitempty"`
 	Links map[string]int64 `json:"links,omitempty"`
+	// Arch is its processor (GOARCH), for placing services (Processor).
+	Arch string `json:"arch,omitempty"`
 }
 
 func (w WireStatus) apply() ApplyStatus {

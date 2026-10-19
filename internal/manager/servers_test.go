@@ -36,6 +36,14 @@ type fakeRemote struct {
 	handshakes map[string]int64
 	// backups are its backups' results, if set (quarantine_test.go).
 	backups node.Backups
+	// arch is its processor ("": it doesn't say; arch_test.go).
+	arch string
+}
+
+func (f *fakeRemote) Arch() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.arch
 }
 
 func (f *fakeRemote) Close() { f.closed = true }

@@ -92,6 +92,9 @@ func (s *Server) Handler() http.Handler {
 		w := WireStatus{Running: st.Running, LastRun: st.LastRun, Finished: st.Finished, Version: s.Version(),
 			Backups: n.Backups() != nil, Restores: n.Restores() != nil, Updates: n.Updates() != nil,
 			Settings: n.Settings() != nil}
+		if p, ok := n.(Processor); ok {
+			w.Arch = p.Arch()
+		}
 		if st.LastErr != nil {
 			w.LastErr = st.LastErr.Error()
 		}

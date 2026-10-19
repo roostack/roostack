@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -62,11 +63,16 @@ type Fetcher struct {
 	Dir string // config.Paths.CatalogDir
 	// Roots are the root keys (RootKeys).
 	Roots []ed25519.PublicKey
-	// Version is the running Roostack's (main.version) and Arch the
-	// controller's processor (GOARCH): only versions it can run are kept.
-	Version, Arch string
-	Client        *http.Client
-	Log           *slog.Logger
+	// Version is the running Roostack's (main.version): only versions it
+	// can run are kept.
+	Version string
+	// Arches are the lab's processors (GOARCH: the controller's and every
+	// other server's it knows): a package's newest version with a build
+	// for one of them is kept. In a lab mixing processors that may not run
+	// on every server; installing checks the one chosen (SPEC.md §8.3.3).
+	Arches func() []string
+	Client *http.Client
+	Log    *slog.Logger
 	// Fetched, if set, is called after each fetch, whether it worked or
 	// not: the manager checks whether a withdrawal changed what should
 	// run (SPEC.md §8.3.4).
@@ -96,6 +102,23 @@ type Status struct {
 	ETag string `json:"etag,omitempty"`
 	// Skipped are packages with no version this lab can install, and why.
 	Skipped map[string]string `json:"skipped,omitempty"`
+	// Arches are the lab's processors the last fetch kept versions for: a
+	// server with another one joining fetches again.
+	Arches []string `json:"arches,omitempty"`
+}
+
+// arches are the lab's processors, sorted, each once.
+func (f *Fetcher) arches() []string {
+	var out []string
+	if f.Arches != nil {
+		for _, a := range f.Arches() {
+			if a != "" && !slices.Contains(out, a) {
+				out = append(out, a)
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // Stale says whether the newest index the lab has is older than
@@ -141,11 +164,12 @@ func (f *Fetcher) Listing() (map[string]Listed, error) {
 		return nil, fmt.Errorf("%s: %w", IndexFile, err)
 	}
 	listing := make(map[string]Listed, len(ix.Packages))
+	arches := f.arches()
 	for name, p := range ix.Packages {
 		if !pkgspec.ValidName(name) || p == nil {
 			continue // Check refused such an index; this one is from disk
 		}
-		l := Listed{Package: p, NeedsRoostack: p.NeedsRoostack(f.Version, f.Arch)}
+		l := Listed{Package: p, NeedsRoostack: p.NeedsRoostack(f.Version, arches...)}
 		if _, err := os.Stat(filepath.Join(f.Dir, name, IconFile)); err == nil {
 			l.Icon = true
 		}
@@ -156,13 +180,14 @@ func (f *Fetcher) Listing() (map[string]Listed, error) {
 
 // FetchIfOlder fetches unless the last try was less than age ago, or a
 // fetch is running already (its result will do): for the catalog page,
-// which checks when it's opened and mustn't wait behind a slow fetch.
+// which checks when it's opened and mustn't wait behind a slow fetch. A
+// lab whose processors changed since (a Pi joined) fetches anyway.
 func (f *Fetcher) FetchIfOlder(ctx context.Context, age time.Duration) error {
 	if !f.mu.TryLock() {
 		return nil
 	}
 	defer f.mu.Unlock()
-	if time.Since(f.Status().Checked) < age {
+	if st := f.Status(); time.Since(st.Checked) < age && slices.Equal(st.Arches, f.arches()) {
 		return nil
 	}
 	return f.fetchLocked(ctx)
@@ -263,15 +288,16 @@ func (f *Fetcher) fetch(ctx context.Context, st *Status) error {
 	// The package files this lab would install, and their icons.
 	keep := map[string]map[string]bool{} // package → file names
 	offered := 0
+	arches := f.arches()
 	skipped := map[string]string{}
 	var errs []error
 	for name, p := range ix.Packages {
-		version, v, ok := p.Offer(f.Version, f.Arch)
+		version, v, ok := p.Offer(f.Version, arches...)
 		if !ok {
-			skipped[name] = whyNotOffered(p, f.Version, f.Arch)
+			skipped[name] = whyNotOffered(p, f.Version, arches)
 			// One that needs a newer Roostack is still listed in the
 			// catalog, with its logo (SPEC.md §8.3.6).
-			if p.Icon != nil && p.NeedsRoostack(f.Version, f.Arch) != "" {
+			if p.Icon != nil && p.NeedsRoostack(f.Version, arches...) != "" {
 				if err := f.fetchFile(ctx, name, IconFile, *p.Icon, pkgspec.CheckIcon); err != nil {
 					errs = append(errs, fmt.Errorf("%s icon: %w", name, err))
 				} else {
@@ -320,13 +346,13 @@ func (f *Fetcher) fetch(ctx context.Context, st *Status) error {
 		errs = append(errs, err)
 	}
 	st.Serial, st.Date, st.Commit, st.Packages = ix.Serial, ix.Date, ix.Commit, offered
-	st.KeysSerial, st.ETag, st.Skipped = statement.Serial, newTag, skipped
+	st.KeysSerial, st.ETag, st.Skipped, st.Arches = statement.Serial, newTag, skipped, arches
 	return errors.Join(errs...)
 }
 
 // whyNotOffered says, for Settings, why a package has no version this lab
 // can install.
-func whyNotOffered(p *Package, roostack, arch string) string {
+func whyNotOffered(p *Package, roostack string, arches []string) string {
 	if p.Withdrawn.Blocks() {
 		return "withdrawn: " + p.Withdrawn.Reason
 	}
@@ -345,7 +371,7 @@ func whyNotOffered(p *Package, roostack, arch string) string {
 	case !pkgspec.RunsOn(v.RequiresRoostack, roostack):
 		return newest + " needs Roostack " + v.RequiresRoostack + " or newer"
 	default:
-		return newest + " has no build for " + arch
+		return newest + " has no build for " + strings.Join(arches, " or ")
 	}
 }
 

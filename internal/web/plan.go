@@ -242,7 +242,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	if hasMain {
 		e := planEntry{Ref: main.Provider, Title: mainTitle, Repository: main.Repository, Main: true}
 		if st != nil {
-			e.Last, e.LastOK, e.Retry = st.Last, st.LastOK, st.Retry
+			e.Last, e.LastOK, e.Retry = st.For(main.Repository)
 		}
 		add(e)
 	}
@@ -252,11 +252,7 @@ func (s *Server) backupPlan(r *http.Request, m serverRef, wizard bool) *planView
 	for _, c := range s.Manager.BackupCopiesOf(ctx, m.ID) {
 		e := planEntry{Ref: c.Ref, Title: c.Title, Repository: c.Repository}
 		if st != nil {
-			for _, cs := range st.Copies {
-				if cs.Name == c.Ref {
-					e.Last, e.LastOK, e.Retry = cs.Last, cs.LastOK, cs.Retry
-				}
-			}
+			e.Last, e.LastOK, e.Retry = st.For(c.Repository)
 		}
 		add(e)
 	}

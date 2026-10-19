@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -100,6 +101,9 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	}
 	if to == from {
 		return formErrorf("%s already runs there.", p.Title)
+	}
+	if err := m.checkArch(ctx, p, cmp.Or(in.Title, p.Title), to); err != nil {
+		return err
 	}
 	src, ok1 := m.node(from).(node.Mover)
 	dst, ok2 := m.node(to).(node.Mover)
