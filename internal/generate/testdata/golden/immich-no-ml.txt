@@ -127,6 +127,7 @@ handle @immich-web {
 				window 10s
 			}
 		}
+		vars roostack_waf yes
 		appsec @immich-web-outside
 		@immich-web-check path_regexp ^/\.well-known/roostack-check/[0-9a-f]{32}$
 		reverse_proxy @immich-web-check 169.254.1.3:8480

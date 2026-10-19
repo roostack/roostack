@@ -267,7 +267,7 @@ and the page carries on by itself. Then you'll see the home page, ready for
     | Time zone | The host's time zone, set by `roostack-agent` with `timedatectl` |
     | Remote access | The nftables firewall, applied by `roostack-agent` and saved in `/etc/roostack/firewall.nft`; keys only in `/etc/ssh/sshd_config.d/10-roostack.conf` (at once, not at the restart) |
     | Domain | `/var/lib/roostack/lab.yaml`; the DNS credentials as Podman secrets |
-    | Backups | The recovery key in `/var/lib/roostack/backup-key`; the destination in the database |
+    | Backups | The recovery key in `/var/lib/roostack/backup-key`; where backups go in `/var/lib/roostack/lab.yaml` (`backup:`; each server has its own) |
 
     Settings from steps 3 to 6 take effect together at the restart at the
     end, so you don't watch Roostack restart after every step.

@@ -9,7 +9,8 @@ Pictures for error pages (SPEC.md §6.3.4): the small mark's hen and server
 | `pecking` | Roostack: 403 |
 | `scrambled` | Roostack: 500; services: any other error |
 | `vacant` | Services: 404 |
-| `crowded` | Services: 403 (blocked), 429 (rate limited) |
+| `shooed` | Services: 403 (refused by CrowdSec: a banned address, or a request that looked like an attack) |
+| `crowded` | Services: 429 (rate limited) |
 | `asleep` | Services: 502 |
 | `hatching` | Services: 503 |
 | `slow` | Services: 504 |

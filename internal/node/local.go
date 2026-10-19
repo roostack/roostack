@@ -361,6 +361,9 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	// show it, whether this apply starts it or it was already running when
 	// Roostack restarted (e.g. at the end of the setup wizard).
 	building := (!n.lab(a).IsNode() || a.Edge != nil) && (slices.Contains(plan.BuildUnits, CaddyBuildUnit) || n.caddyBuilding(ctx))
+	if building {
+		n.clearBuildLog(ctx, plan, n.lab(a).Paths.CaddyBuildLog())
+	}
 	// New services are shown step by step while they install.
 	n.planInstalls(a.Services, desired, plan, building)
 	r.Progress = n.installEvent

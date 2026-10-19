@@ -130,6 +130,12 @@ const (
 // key to CrowdSec's local API, in the Caddy container.
 const CrowdSecAPIKeyEnv = "CROWDSEC_API_KEY"
 
+// WAFVar is set on a public route's request once it's past the bans and
+// the rate limits, just before AppSec checks it. The bouncer refuses a
+// banned address and a request AppSec matched with the same 403, so the
+// refused page (internal/errpage) tells them apart by it.
+const WAFVar = "roostack_waf"
+
 // AppSecMaxBody is how much of a request's body the bouncer sends to
 // AppSec (SPEC.md §6.10 item 4). The bouncer otherwise reads the whole
 // body into memory first (a video upload), and CrowdSec refuses a body
@@ -196,7 +202,8 @@ func quoteTitle(t string) string {
 // whoever can reach the service's private routes is trusted with them
 // anyway, and a rule that wrongly matches a request of the household's
 // doesn't lock it out. It comes after the limits, so a flood doesn't reach
-// it.
+// it. Their refusals go to the error pages (handle_errors), and WAFVar
+// says which of them refused.
 func publicRoute(b *strings.Builder, r Route) {
 	if len(r.PrivatePaths) > 0 {
 		fmt.Fprintf(b, "\t@%s-private-paths {\n\t\t%s\n\t\tpath %s\n\t}\n",
@@ -218,6 +225,7 @@ func publicRoute(b *strings.Builder, r Route) {
 	fmt.Fprintf(b, "\t\t\tzone %s {\n\t\t\t\tkey {remote_host}\n\t\t\t\tevents %d\n\t\t\t\twindow %s\n\t\t\t}\n", r.ID, RateLimitEvents, RateLimitWindow)
 	b.WriteString("\t\t}\n")
 	if r.WAF {
+		fmt.Fprintf(b, "\t\tvars %s yes\n", WAFVar)
 		fmt.Fprintf(b, "\t\tappsec @%s-outside\n", r.ID)
 	}
 	if r.CheckUpstream != "" {
@@ -390,7 +398,9 @@ func Main(c MainConfig) (string, error) {
 	if c.CrowdSecAPI != "" {
 		// Caddy keeps serving while CrowdSec's API is unreachable, and
 		// retries (docs/ASSUMPTIONS.md P5).
-		fmt.Fprintf(&b, "\tcrowdsec {\n\t\tapi_url %s\n\t\tapi_key {env.%s}\n\t\tticker_interval 15s\n",
+		// Its refusals are Caddy errors, so the visitor gets the refused
+		// page (handle_errors) rather than a bare "403 Forbidden".
+		fmt.Fprintf(&b, "\tcrowdsec {\n\t\tapi_url %s\n\t\tapi_key {env.%s}\n\t\tticker_interval 15s\n\t\tenable_caddy_error\n",
 			c.CrowdSecAPI, CrowdSecAPIKeyEnv)
 		if c.AppSecURL != "" {
 			// AppSec failing (CrowdSec restarting or slow past the

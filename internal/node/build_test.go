@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/internal/reconcile"
 	"roostack.cloud/roostack/internal/systemd"
 )
 
@@ -91,4 +92,30 @@ func TestCaddyState(t *testing.T) {
 			t.Errorf("%+v %+v: %q, want %q", c.caddy, c.build, got, c.want)
 		}
 	}
+}
+
+// An apply that starts a build empties the log an earlier build left, so
+// the follower doesn't take it for the new build's (and stop at once, as
+// the unit isn't running yet); a build already running keeps its log.
+func TestClearBuildLog(t *testing.T) {
+	logFile := filepath.Join(t.TempDir(), "caddy-build.log")
+	for _, c := range []struct {
+		state string
+		build bool
+		want  string
+	}{{"inactive", true, ""}, {"failed", true, ""}, {"activating", true, "old\n"}, {"inactive", false, "old\n"}} {
+		os.WriteFile(logFile, []byte("old\n"), 0o644)
+		plan := &reconcile.Plan{}
+		if c.build {
+			plan.BuildUnits = []string{"roostack-x-build.service", CaddyBuildUnit}
+		}
+		n := &Local{Units: &buildUnits{states: []string{c.state}}}
+		n.clearBuildLog(context.Background(), plan, logFile)
+		if b, _ := os.ReadFile(logFile); string(b) != c.want {
+			t.Errorf("%s, build %v: log %q, want %q", c.state, c.build, b, c.want)
+		}
+	}
+	// No log yet: nothing to empty, and no error.
+	n := &Local{Units: &buildUnits{states: []string{"inactive"}}}
+	n.clearBuildLog(context.Background(), &reconcile.Plan{BuildUnits: []string{CaddyBuildUnit}}, filepath.Join(t.TempDir(), "none.log"))
 }

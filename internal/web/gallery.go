@@ -142,8 +142,8 @@ Network=roostack-immich.network</code></pre>
 		Examples: []galleryExample{
 			{"Roostack's pages", "errorScene NAME ID, in .es-scene: 404 flown, 403 pecking, 500 scrambled. ID makes the scene's SVG ID unique on the page.", `
 <div class="error-scenes">{{errorScene "flown" "g1"}}{{errorScene "pecking" "g2"}}{{errorScene "scrambled" "g3"}}</div>`},
-			{"Services' pages (Caddy)", "404 vacant, 403 and 429 crowded, 502 asleep, 503 hatching, 504 slow.", `
-<div class="error-scenes">{{errorScene "vacant" "g4"}}{{errorScene "crowded" "g5"}}{{errorScene "asleep" "g6"}}{{errorScene "hatching" "g7"}}{{errorScene "slow" "g8"}}</div>`},
+			{"Services' pages (Caddy)", "404 vacant, 403 shooed (refused by CrowdSec: a banned address, or a request that looked like an attack), 429 crowded, 502 asleep, 503 hatching, 504 slow.", `
+<div class="error-scenes">{{errorScene "vacant" "g4"}}{{errorScene "shooed" "g12"}}{{errorScene "crowded" "g5"}}{{errorScene "asleep" "g6"}}{{errorScene "hatching" "g7"}}{{errorScene "slow" "g8"}}</div>`},
 			{"Roostack Cloud", "The hen on a cloud, for Cloud's own pages (copied from assets/errors).", `
 <div class="error-scenes">{{errorScene "cloud-asleep" "g9"}}{{errorScene "cloud-empty" "g10"}}{{errorScene "cloud-unplugged" "g11"}}</div>`},
 		}},

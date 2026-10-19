@@ -175,8 +175,8 @@ def snail_on_server():
             '<path class="bgline" d="M10.4 10.6m-3.8 0a3.8 3.8 0 1 0 3.8-3.8a6.6 6.6 0 1 0 6.6 6.6" fill="none" stroke-width="1.3" stroke-linecap="round" opacity=".7"/>'
             '<path class="hi" d="M19.8 15.6c.4-2 1.6-3.2 2.6-3 .2-1.6 2-1.8 2.4-.6 1.2-.4 2.2.6 1.6 2-.2.8-.8 1.4-1.4 1.6z"/>'
             '</g>')
-def broom(x, y):
-    return (f'<g transform="translate({x} {y}) rotate(28)"><path class="fgline" d="M0 0v26" fill="none" stroke-width="1.8" stroke-linecap="round"/>'
+def broom(x, y, rot=28):
+    return (f'<g transform="translate({x} {y}) rotate({rot})"><path class="fgline" d="M0 0v26" fill="none" stroke-width="1.8" stroke-linecap="round"/>'
             '<path class="warn" d="M-5 26h10l2 10H-7z"/><path class="fgline" d="M-3 29v6M0 29v6M3 29v6" fill="none" stroke-width=".7"/></g>')
 def crowd():
     # Too many hens on one server: squeezed shoulder to shoulder, one
@@ -185,6 +185,9 @@ def crowd():
             + hen(x=83, y=37, s=.68) + hen(x=56, y=17, s=.62) + hen(x=104, y=40, s=.62, rot=38)
             + txt(122, 34, '!', 9, 'hi'))
 def noentry(x, y): return f'<circle class="bad" cx="{x}" cy="{y}" r="7"/><rect class="bg" x="{x-4.6}" y="{y-1.2}" width="9.2" height="2.4" rx="1.2"/>'
+def noentry_post(x, y):
+    # A no-entry sign on a post standing on the ground.
+    return f'<path class="fgline" d="M{x} {y+6}V82.5" fill="none" stroke-width="1.8" stroke-linecap="round"/>' + noentry(x, y)
 def plug_dangle():
     return ('<path class="fgline" d="M100 74c6 6 4 14 10 16" fill="none" stroke-width="1.6" stroke-linecap="round"/>'
             '<g transform="translate(108 88) rotate(-20)"><rect class="fg" x="0" y="0" width="7" height="6" rx="1.5"/>'
@@ -207,6 +210,7 @@ SCENES = {
     "asleep": scene(ground(), moon(30, 14), star(52, 12, .8), star(124, 22, 1), star(140, 10, .7), server('warn'), hen(SHUT, NIGHTCAP), zz(108, 30)),
     "hatching": scene(ground(), lamp(46, 24), server('warn'), egg_hatching(), cone(118, 64)),
     "slow": scene(ground(), server('warn'), snail_on_server(), hourglass(118, 42)),
+    "shooed": scene(ground(), server(), hen(), noentry_post(120, 48), broom(122, 51, -26), feather(40, 30, -25, .7), feather(30, 46, 50, .55)),
     "crowded": scene(ground(), server(), crowd(), feather(40, 26, -20, .7), feather(118, 18, 30, .6), feather(132, 40, 70, .5)),
     # Roostack Cloud's (its pages are built in its own repository).
     "cloud-asleep": scene(moon(30, 14), star(52, 10, .8), star(128, 18, 1), cloud('warn'), hen(SHUT, NIGHTCAP), zz(108, 30)),

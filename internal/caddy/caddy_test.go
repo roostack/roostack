@@ -110,6 +110,7 @@ func TestPublicRouteWAF(t *testing.T) {
 				window 10s
 			}
 		}
+		vars roostack_waf yes
 		appsec @vw-web-outside
 		reverse_proxy 169.254.1.3:20001
 	}
@@ -118,18 +119,19 @@ func TestPublicRouteWAF(t *testing.T) {
 	if !strings.Contains(site, want) {
 		t.Errorf("public route with the WAF:\n%s\nwant:\n%s", site, want)
 	}
-	if strings.Count(site, "appsec") != 1 {
+	if strings.Count(site, "appsec") != 1 || strings.Count(site, WAFVar) != 1 {
 		t.Errorf("only the public route is checked:\n%s", site)
 	}
 	// Off: no AppSec at all.
 	site, _ = Site("vw", []Route{{ID: "vw-web", Host: "vault.example.com", Upstream: "169.254.1.3:20001"}})
-	if strings.Contains(site, "appsec") || strings.Contains(site, "-outside") {
+	if strings.Contains(site, "appsec") || strings.Contains(site, "-outside") || strings.Contains(site, WAFVar) {
 		t.Errorf("the WAF turned off:\n%s", site)
 	}
 }
 
-// TestMainAppSec: the bouncer's AppSec settings (fail open, a body cap),
-// and the UI checked by AppSec when it's public.
+// TestMainAppSec: the bouncer's settings (its refusals as Caddy errors,
+// for the refused page; AppSec failing open, a body cap), and the UI
+// checked by AppSec when it's public.
 func TestMainAppSec(t *testing.T) {
 	c := MainConfig{Domain: "lab.example.com", DNSDirective: "dns cloudflare {env.DNS_API_TOKEN}",
 		AdminUpstream: "169.254.1.3:8480", CrowdSecAPI: "http://169.254.1.3:8473", AppSecURL: "http://169.254.1.3:8475/"}
@@ -137,7 +139,7 @@ func TestMainAppSec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "\tcrowdsec {\n\t\tapi_url http://169.254.1.3:8473\n\t\tapi_key {env.CROWDSEC_API_KEY}\n\t\tticker_interval 15s\n" +
+	want := "\tcrowdsec {\n\t\tapi_url http://169.254.1.3:8473\n\t\tapi_key {env.CROWDSEC_API_KEY}\n\t\tticker_interval 15s\n\t\tenable_caddy_error\n" +
 		"\t\tappsec_url http://169.254.1.3:8475/\n\t\tappsec_max_body_bytes 1048576\n\t\tappsec_fail_open\n\t}\n"
 	if !strings.Contains(main, want) {
 		t.Errorf("crowdsec block:\n%s", main)
@@ -199,7 +201,8 @@ func TestCaddyAdapt(t *testing.T) {
 	}
 	for _, want := range []string{`"web.lab.example.com"`, `"api.lab.example.com"`, `"*.lab.example.com"`, `"cloudflare"`,
 		`"handler":"crowdsec"`, `"handler":"rate_limit"`, `"/-/admin/*"`, `"crowdsec":{`, `"filename":"/var/log/caddy/access.log"`, `"path_regexp"`,
-		`"handler":"appsec"`, `"appsec_url":"http://169.254.1.3:8475/"`, `"appsec_fail_open":true`, `"appsec_max_body_bytes":1048576`} {
+		`"handler":"appsec"`, `"appsec_url":"http://169.254.1.3:8475/"`, `"appsec_fail_open":true`, `"appsec_max_body_bytes":1048576`,
+		`"enable_caddy_error":true`, `"roostack_waf":"yes"`} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("adapted config missing %s", want)
 		}

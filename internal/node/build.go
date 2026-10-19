@@ -6,10 +6,12 @@ import (
 	"errors"
 	"io"
 	"os"
+	"slices"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/reconcile"
 )
 
 // CaddyBuildUnit builds Roostack's Caddy image (generate.System).
@@ -55,6 +57,21 @@ func (n *Local) followCaddyBuild(logFile string) {
 		}()
 		act.Finish(n.copyBuildLog(context.Background(), logFile, act))
 	}()
+}
+
+// clearBuildLog empties the build log before plan starts a new build, so
+// what the follower reads afterwards is that build's: the unit truncates
+// the log only once it runs, and until then an earlier build's log would
+// look like the new one's, finished. A build already running keeps its
+// log: it writes on where it was, and restarted by plan it truncates the
+// log itself (copyBuildLog notices).
+func (n *Local) clearBuildLog(ctx context.Context, plan *reconcile.Plan, logFile string) {
+	if !slices.Contains(plan.BuildUnits, CaddyBuildUnit) || n.caddyBuilding(ctx) {
+		return
+	}
+	if err := os.Truncate(logFile, 0); err != nil && !errors.Is(err, os.ErrNotExist) {
+		n.Log.Error("emptying the Caddy build's log", "err", err)
+	}
 }
 
 // copyBuildLog copies new lines of the build log to w until the build unit

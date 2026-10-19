@@ -45,6 +45,7 @@ func main() {
 	if asServiceUser[cmd] && os.Geteuid() == 0 {
 		err = runAsRoostack(os.Args[1:]) // asroostack.go
 	} else {
+		setOwnSession()
 		err = run(cmd, args)
 	}
 	var exit exitStatus

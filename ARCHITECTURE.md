@@ -152,10 +152,10 @@ Shared pieces (attention list, backup and DNS cards) live in `templates/parts.ht
 - **Headers:** a strict Content-Security-Policy, `nosniff`, and no framing.
 - **Roles** are checked per route (`auth.Can`).
 
-Installing or removing a service from the UI only changes desired state (an instance file); `internal/manager` then builds this server's Assignment (the services placed on it, plus any values typed into the install form, which the manager forgets once handed over) and gives it to the node, which applies it in the background, one apply at a time; the dashboard shows progress or the last error. Assignments are the seam for more servers: a remote node will receive the same thing over Roostack's network. Removing a service never deletes its data. For now, services installed from the UI are always private.
+Installing or removing a service from the UI only changes desired state (an instance file); `internal/manager` then builds this server's Assignment (the services placed on it, plus any values typed into the install form, which the manager forgets once handed over) and gives it to the node, which applies it in the background, one apply at a time; the dashboard shows progress or the last error. Assignments are the seam for more servers: a remote node will receive the same thing over Roostack's network. Removing a service never deletes its data. A service starts private; the Owner can make it public from its page (SPEC.md §6.11).
 
 **Package hooks** run commands inside a service's containers with `podman exec`. After an apply succeeds, `install` hooks run once, retried every 10 s for up to 10 minutes while the app starts; their progress is kept in the settings table (`hooks.<service>.install`). `action` hooks are buttons on the service page. Values from users (settings, action inputs, secrets) reach the command only as environment variables, passed as an env file on stdin, so they never appear in a command line, a unit file or a process listing. `install_only` secrets (e.g. Forgejo's admin password) are deleted once the install hooks succeed.
 
 ## Not built yet
 
-The main pieces still to come: public exposure (with CrowdSec), an SFTP backup destination, moving the controller and failover between servers, and edge servers for public services at home. See [TASKS.md](TASKS.md) for everything, by phase.
+The main pieces still to come: an SFTP backup destination, and moving the controller and failover between servers. See [TASKS.md](TASKS.md) for everything, by phase.

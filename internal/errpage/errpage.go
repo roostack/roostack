@@ -8,6 +8,8 @@ import (
 	"html"
 	"slices"
 	"strings"
+
+	"roostack.cloud/roostack/internal/caddy"
 )
 
 // Scene returns a scene's SVG with its wash's ID made unique by id (SVG IDs
@@ -39,12 +41,11 @@ type Page struct {
 	Scene, Headline, Text string
 }
 
-// The services' pages, by the status Caddy answers with. "{service}" is
-// the service's title, filled in by Caddy (its route sets it).
+// The services' pages, by the status Caddy answers with (403's are below).
+// "{service}" is the service's title, filled in by Caddy (its route sets
+// it).
 var servicePages = []Page{
 	{404, "vacant", "Nobody roosts here.", "No service uses this address. It may have been removed, or the link is wrong."},
-	{403, "crowded", "Too many chickens.",
-		"Your address has been blocked for a while, after too many requests or failed tries. If that wasn't you, try again later."},
 	{429, "crowded", "Too many chickens.", "Too many requests from your address, so it's slowed down for a while. Try again in a minute."},
 	{502, "asleep", "{service} is asleep on the job.",
 		"It isn't answering right now. It may be stopped, or still starting after a restart: try again in a few minutes."},
@@ -52,6 +53,20 @@ var servicePages = []Page{
 	{504, "slow", "Taking its sweet time.", "{service} took too long to answer. It may be busy (a big upload, or an update): try again in a moment."},
 	{0, "scrambled", "That one got scrambled.", "Something went wrong reaching {service}. Trying again often works."},
 }
+
+// The refused pages: CrowdSec's bouncer answers both a banned address and
+// a request AppSec matched with a 403 (SPEC.md §6.10 item 4), so 403.html
+// shows exploitPage when the route had passed the request on to AppSec
+// (caddy.WAFVar), and bannedPage otherwise. Neither repeats anything from
+// the request, nor has "Try again": the same request is refused again.
+var (
+	bannedPage = Page{403, "shooed", "Shooed out of the henhouse.",
+		"Requests from your address are turned away for a while, because it was seen probing or attacking websites, this one or others. " +
+			"If that wasn't you, it may have been someone else on the same network: try again later, or from another connection."}
+	exploitPage = Page{403, "shooed", "That one ruffled some feathers.",
+		"This request was turned away before it reached {service}, because it looked like an attack. " +
+			"If you were only using {service} as usual, tell whoever runs it: the check sometimes gets it wrong, and they can fix it."}
+)
 
 // CaddyPages are the files of the services' error pages, by file name, for
 // /etc/caddy/errors (Caddy's handle_errors serves <status>.html, or
@@ -69,6 +84,7 @@ func CaddyPages(labName, ui string) map[string]string {
 		}
 		out[name] = caddyPage(p, labName, ui)
 	}
+	out["403.html"] = refusedPage()
 	return out
 }
 
@@ -79,16 +95,16 @@ const (
 	tplPrivate = `{{if eq (placeholder "http.vars.roostack_private") "yes"}}`
 )
 
+// fill escapes a page's words and puts the service's title in.
+func fill(s string) string { return strings.ReplaceAll(html.EscapeString(s), "{service}", tplService) }
+
 func caddyPage(p Page, labName, ui string) string {
-	fill := func(s string) string { return strings.ReplaceAll(html.EscapeString(s), "{service}", tplService) }
 	refresh := ""
 	if p.Status == 503 {
 		refresh = `<meta http-equiv="refresh" content="10">`
 	}
 	lab := html.EscapeString(labName)
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
-		refresh + `<meta name="robots" content="noindex"><title>` + fill(p.Headline) + `</title><style>` + sceneCSS + pageCSS + `</style></head>` +
-		`<body><main>` + Scene(p.Scene, "page") +
+	return pageHead(refresh, fill(p.Headline)) + `<body><main>` + Scene(p.Scene, "page") +
 		`<p class="code">{{placeholder "http.error.status_code"}} · {{.Host | html}}</p>` +
 		`<h1>` + fill(p.Headline) + `</h1><p>` + fill(p.Text) + `</p>` +
 		`<p><a class="button" href="">Try again</a>` +
@@ -97,6 +113,27 @@ func caddyPage(p Page, labName, ui string) string {
 		` · {{placeholder "http.error.message" | html}} · {{now | date "2 Jan 2006 15:04"}}</code></p></details>` +
 		`<p class="foot">Served by Roostack in ` + lab + `</p>{{end}}` +
 		`</main></body></html>` + "\n"
+}
+
+// refusedPage is 403.html: bannedPage or exploitPage (above). Only public
+// routes refuse, so like a public service's other pages it never names the
+// lab, links to Roostack or has the details.
+func refusedPage() string {
+	waf := `{{if eq (placeholder "http.vars.` + caddy.WAFVar + `") "yes"}}`
+	either := func(f func(Page) string) string {
+		return waf + f(exploitPage) + `{{else}}` + f(bannedPage) + `{{end}}`
+	}
+	return pageHead("", either(func(p Page) string { return fill(p.Headline) })) + `<body><main>` +
+		either(func(p Page) string { return Scene(p.Scene, "page") }) +
+		`<p class="code">{{placeholder "http.error.status_code"}}</p>` +
+		either(func(p Page) string { return `<h1>` + fill(p.Headline) + `</h1><p>` + fill(p.Text) + `</p>` }) +
+		`</main></body></html>` + "\n"
+}
+
+// pageHead is the start of a page, up to its body.
+func pageHead(extra, title string) string {
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+		extra + `<meta name="robots" content="noindex"><title>` + title + `</title><style>` + sceneCSS + pageCSS + `</style></head>`
 }
 
 // pageCSS lays a service's error page out in the default theme's colours,
