@@ -175,3 +175,9 @@ old DNS provider's login it kept for the old address's certificate.
 Only one old address is kept: if you change the address again within the
 30 days, the address before stops at once.
 
+**From one roost.ac name to another,** Roostack Cloud keeps the old name
+working for those 30 days too (its records, and its certificate's
+renewals), then lets it go: it stays kept for your account for a year, so
+nobody else can take it. If the new name can't be set up, your lab keeps
+the old one, as it was.
+

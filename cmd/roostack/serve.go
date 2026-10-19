@@ -184,6 +184,15 @@ func serve(args []string) error {
 		}
 		srv.Cloud = link
 		link.LabDomain(lab.Domain)
+		// The previous address while it works: an earlier roost.ac name
+		// Cloud keeps is released once it ends (SPEC.md §6.6), which
+		// restarts Roostack.
+		link.OldAddress = func() string {
+			if o := lab.OldAddress; o != nil && time.Now().Before(o.Until) {
+				return o.Domain
+			}
+			return ""
+		}
 		// The recovery key's identity, for restoring and relinking.
 		link.RecoveryKey = func() (string, error) {
 			data, err := os.ReadFile(backup.KeyFile(lab.Paths))

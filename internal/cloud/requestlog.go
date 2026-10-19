@@ -47,6 +47,8 @@ var recordedFields = map[string]bool{
 	// LinkRequest: what the lab tells Cloud when it links. csr is the
 	// certificate request (its public key; the private key stays).
 	"lab_name": true, "name": true, "version": true, "csr": true, "return_url": true,
+	// NameRequest's keep_earlier (NameRelease's name is above).
+	"keep_earlier": true,
 	// LinkSecret: the secret that finishes linking, which only the lab
 	// and Cloud know.
 	"secret": false,

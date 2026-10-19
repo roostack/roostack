@@ -115,7 +115,7 @@ what Caddy and restic send is below.
 | When | What's sent | Why |
 |---|---|---|
 | **Linking** | Your lab's name, the roost.ac name you'd like, Roostack's version, a certificate request (a public key), and the address of the page to come back to (the address your browser used for your lab, such as `https://192.168.1.20:8443/…`). Then, every 3 seconds until you confirm (10 minutes at most), the link's secret | So Roostack Cloud can show you which lab you're confirming, and give it a certificate |
-| **Choosing a name** | The name you're typing, to check it's free; then the name you chose | Your roost.ac address |
+| **Choosing a name** | The name you're typing, to check it's free; then the name you chose, and whether to keep your lab's roost.ac name until now working beside it. Later, that the old name can go (once your old addresses stop), or that the new one can, if your lab couldn't use it | Your roost.ac address |
 | **Once a day**, and when Roostack starts | A check-in, with nothing in it: Cloud answers with the account, your names and anything held back. Every hour instead while something waits on Cloud | To show you how the link stands |
 | **After each check-in** | The lab's name; the email addresses of the people here who get the lab's problems by email; and, for each server backing up to Roostack Cloud, its ID, its name and when its last backup there finished | Cloud's emails about your lab go to those people too, once each agrees; your lab's page there shows the backups |
 | **Every two months or so** | A new certificate request (a new key) | The certificate renews itself before it ends |

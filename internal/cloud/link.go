@@ -87,6 +87,10 @@ type Service struct {
 	// UseName makes a claimed roost.ac name the lab's address (it saves
 	// it and restarts Roostack); called when a link asked for a name.
 	UseName func(ctx context.Context, claim cloudapi.NameClaim) error
+	// OldAddress is the lab's previous address while it still works
+	// (config.Lab.OldAddress; "" for none): an earlier roost.ac name Cloud
+	// keeps is released once it isn't (Kept). Nil: none.
+	OldAddress func() string
 	// RecoveryKey reads the lab's recovery key, for its recovery identity
 	// (recovery.go); "" or nil while there's none.
 	RecoveryKey func() (string, error)
@@ -141,6 +145,14 @@ type linkState struct {
 	// Storage is Cloud backup's space as Cloud last said (storage.go):
 	// asked at each check-in, so pages show it without asking Cloud.
 	Storage *cloudapi.StorageUsage `json:"storage,omitempty"`
+	// Kept is the lab's earlier roost.ac name, which Cloud keeps working
+	// after a claim (NameRequest.KeepEarlier) while the lab's old address
+	// is in use; released at a check-in once it isn't (OldAddress).
+	// GiveBack is a name claimed that the lab couldn't use and couldn't
+	// give back at once (Cloud not reached): given back at a check-in, so
+	// the kept earlier name is the lab's again (SPEC.md §6.6).
+	Kept     *cloudapi.KeptName `json:"kept,omitempty"`
+	GiveBack string             `json:"give_back,omitempty"`
 }
 
 // onHold says Cloud has something of the lab on hold: a name waiting for
@@ -470,9 +482,20 @@ func (s *Service) LabDomain(domain string) {
 // ClaimName claims a roost.ac name for the linked lab and makes it the
 // lab's address (UseName), which restarts Roostack. Why it failed is
 // also in Status.AddressError.
+//
+// A lab whose address is a roost.ac name asks Cloud to keep that one
+// working (KeepEarlier, SPEC.md §6.6): if the new one then fails (its
+// check, or using it), it's given back and the earlier one is the lab's
+// again, as it was; if it works, the earlier one keeps working as the
+// lab's old address, and is released once that ends (releaseKept). An
+// older Cloud releases the earlier name with the claim, as before.
 func (s *Service) ClaimName(ctx context.Context, name string) error {
+	s.mu.Lock()
+	earlier := s.st.Address
+	s.mu.Unlock()
 	var claim cloudapi.NameClaim
-	err := s.client.do(ctx, true, http.MethodPost, cloudapi.PathLabName, cloudapi.NameRequest{Name: name}, &claim)
+	err := s.client.do(ctx, true, http.MethodPost, cloudapi.PathLabName, cloudapi.NameRequest{Name: name, KeepEarlier: earlier != ""}, &claim)
+	claimed := err == nil
 	if err == nil && (claim.Name == "" || len(claim.Credentials) == 0) {
 		err = errors.New("Roostack Cloud's answer had no name or credentials")
 	}
@@ -490,11 +513,19 @@ func (s *Service) ClaimName(ctx context.Context, name string) error {
 		// Whether the name waits for approval, or was refused, as Cloud
 		// says with the claim (nil: it works, or an older Cloud).
 		s.st.Names = withName(s.st.Names, claim.Name, claim.Status)
+		// One kept at most, as at Cloud: the claim ended any before.
+		s.st.Kept, s.st.GiveBack = claim.Kept, ""
 		err = s.save()
 		s.mu.Unlock()
 	}
 	if err == nil {
 		err = s.UseName(ctx, claim)
+	}
+	// Claimed but not used, with the earlier name kept: give the new one
+	// back, so the earlier one is the lab's at Cloud again.
+	var gaveBack error
+	if err != nil && claimed && claim.Kept != nil {
+		gaveBack = s.giveBack(ctx, claim.Name)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -507,10 +538,76 @@ func (s *Service) ClaimName(ctx context.Context, name string) error {
 		}
 		if s.st.Address == claim.Name {
 			s.st.Address = ""
-			s.save()
+			if claim.Kept != nil {
+				s.st.Address, s.st.Kept = earlier, nil
+				if gaveBack != nil {
+					s.st.GiveBack = claim.Name
+				}
+			}
+		}
+		if serr := s.save(); serr != nil {
+			s.log.Error("Roostack Cloud: saving the link", "err", serr)
 		}
 	}
 	return err
+}
+
+// giveBack gives Cloud back a name the lab claimed but couldn't use: the
+// earlier name it kept is the lab's again (cloudapi.NameRelease).
+func (s *Service) giveBack(ctx context.Context, name string) error {
+	var out cloudapi.NameReleased
+	err := s.client.do(ctx, true, http.MethodPost, cloudapi.PathLabNameRelease, cloudapi.NameRelease{Name: name}, &out)
+	if err != nil {
+		s.log.Warn("Roostack Cloud: giving back a name the lab couldn't use (tried again at the next check)", "name", name, "err", err)
+		return err
+	}
+	s.log.Info("Roostack Cloud: gave back a name the lab couldn't use", "name", name, "in_use", out.InUse)
+	return nil
+}
+
+// releaseKept tells Cloud, after a check-in, the names the lab is done
+// with: a claimed name it couldn't give back at once (GiveBack), and the
+// earlier name Cloud keeps once it's no longer the lab's old address
+// (Kept). An older Cloud (404) or one that has let the name go already
+// changes nothing; anything else is tried again at the next check.
+func (s *Service) releaseKept(ctx context.Context) {
+	s.mu.Lock()
+	giveBack, kept := s.st.GiveBack, s.st.Kept
+	s.mu.Unlock()
+	old := ""
+	if s.OldAddress != nil {
+		old = s.OldAddress()
+	}
+	done := func(err error) bool {
+		var e *Error
+		return err == nil || errors.As(err, &e) && (e.Status == http.StatusNotFound || e.Status == http.StatusBadRequest)
+	}
+	if giveBack != "" && done(s.giveBack(ctx, giveBack)) {
+		s.mu.Lock()
+		if s.st.GiveBack == giveBack {
+			s.st.GiveBack = ""
+			s.save()
+		}
+		s.mu.Unlock()
+	}
+	if kept == nil || strings.EqualFold(old, kept.Name) && s.now().Before(kept.Until) {
+		return
+	}
+	var out cloudapi.NameReleased
+	err := s.client.do(ctx, true, http.MethodPost, cloudapi.PathLabNameRelease, cloudapi.NameRelease{Name: kept.Name}, &out)
+	if !done(err) {
+		s.log.Warn("Roostack Cloud: releasing the lab's earlier name (tried again at the next check)", "name", kept.Name, "err", err)
+		return
+	}
+	if err == nil {
+		s.log.Info("Roostack Cloud: released the lab's earlier name, no longer its old address", "name", kept.Name)
+	}
+	s.mu.Lock()
+	if s.st.Kept != nil && s.st.Kept.Name == kept.Name {
+		s.st.Kept = nil
+		s.save()
+	}
+	s.mu.Unlock()
 }
 
 // certFor checks a certificate (PEM) Cloud issued is for key and current.
@@ -610,7 +707,7 @@ func (s *Service) forget() {
 	}
 	s.cert = nil
 	s.st.Linked = false
-	s.st.Storage = nil
+	s.st.Storage, s.st.Kept, s.st.GiveBack = nil, nil, ""
 	// Not linked, not relayed: the relay's interface goes too.
 	if s.st.Relay != nil && s.WireGuard != nil {
 		go func() {
@@ -661,6 +758,8 @@ func (s *Service) Check(ctx context.Context) error {
 		if rerr != nil {
 			s.log.Warn("Roostack Cloud: telling Cloud the lab's report (tried again at the next check)", "err", rerr)
 		}
+		// Names the lab is done with.
+		s.releaseKept(ctx)
 		// Cloud backup's space, for the pages (kept by StorageUsage).
 		if _, serr := s.StorageUsage(ctx); serr != nil {
 			s.log.Warn("Roostack Cloud: asking how much Cloud backup space the lab uses (asked again at the next check)", "err", serr)

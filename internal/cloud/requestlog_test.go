@@ -27,7 +27,7 @@ func TestRecordedFields(t *testing.T) {
 		cloudapi.LinkRequest{}, cloudapi.LinkSecret{}, cloudapi.LabReport{}, cloudapi.RelayRequest{},
 		cloudapi.RelayBans{}, cloudapi.StorageRequest{}, cloudapi.RenewRequest{}, cloudapi.NameRequest{},
 		cloudapi.RecoveryIdentity{}, cloudapi.RestoreChallengeRequest{}, cloudapi.RestoreProof{},
-		cloudapi.RelinkRequest{}, cloudapi.ACMEUpdate{}, cloudapi.RecordValue{},
+		cloudapi.RelinkRequest{}, cloudapi.ACMEUpdate{}, cloudapi.RecordValue{}, cloudapi.NameRelease{},
 	}
 	var walk func(reflect.Type)
 	walk = func(ty reflect.Type) {

@@ -341,6 +341,82 @@ func TestCheckClaim(t *testing.T) {
 	}
 }
 
+// TestClaimKeepsEarlier: a lab with a roost.ac name claiming another
+// asks Cloud to keep the earlier one (SPEC.md §6.6). If using the new one
+// fails, it's given back and the earlier one is the lab's again; if it
+// works, the earlier one is released once it's no longer the lab's old
+// address. A give-back Cloud didn't hear is tried at the next check; an
+// older Cloud releases the earlier name with the claim, as before.
+func TestClaimKeepsEarlier(t *testing.T) {
+	ctx := context.Background()
+	f, s, _ := fakeCloud(t)
+	var useErr error
+	s.UseName = func(context.Context, cloudapi.NameClaim) error { return useErr }
+	old := ""
+	s.OldAddress = func() string { return old }
+	link(t, f, s, "")
+	if err := s.ClaimName(ctx, "smiths"); err != nil || s.Status().Address != "smiths.roost.test" || s.st.Kept != nil {
+		t.Fatalf("first: %v %+v", err, s.st.Kept)
+	}
+	lastSent := func() string {
+		for _, r := range s.Requests() {
+			if r.Path == cloudapi.PathLabName {
+				return r.Sent
+			}
+		}
+		return ""
+	}
+	if strings.Contains(lastSent(), "keep_earlier") {
+		t.Error("kept an earlier name there wasn't")
+	}
+
+	// Using jones fails: given back, smiths is the lab's again.
+	useErr = errors.New("couldn't restart")
+	if err := s.ClaimName(ctx, "jones"); err == nil {
+		t.Fatal("no error")
+	}
+	if !strings.Contains(lastSent(), `"keep_earlier":true`) || !slices.Equal(f.Released, []string{"jones.roost.test"}) ||
+		s.Status().Address != "smiths.roost.test" || s.st.Kept != nil || s.st.GiveBack != "" {
+		t.Errorf("after failing: released %v, address %q, kept %+v, give back %q", f.Released, s.Status().Address, s.st.Kept, s.st.GiveBack)
+	}
+
+	// It works: smiths kept while it's the lab's old address, then released.
+	useErr = nil
+	if err := s.ClaimName(ctx, "jones"); err != nil {
+		t.Fatal(err)
+	}
+	if k := s.st.Kept; s.Status().Address != "jones.roost.test" || k == nil || k.Name != "smiths.roost.test" {
+		t.Fatalf("kept: %+v", k)
+	}
+	old = "smiths.roost.test"
+	if err := s.Check(ctx); err != nil || len(f.Released) != 1 || s.st.Kept == nil {
+		t.Errorf("released while still the old address: %v %v", err, f.Released)
+	}
+	old = ""
+	if err := s.Check(ctx); err != nil || !slices.Equal(f.Released, []string{"jones.roost.test", "smiths.roost.test"}) || s.st.Kept != nil {
+		t.Errorf("after the old address ended: %v %v %+v", err, f.Released, s.st.Kept)
+	}
+
+	// The give-back didn't reach Cloud: tried at the next check.
+	useErr = errors.New("couldn't restart")
+	s.UseName = func(context.Context, cloudapi.NameClaim) error { f.NoKeep = true; return useErr }
+	if err := s.ClaimName(ctx, "browns"); err == nil || s.st.GiveBack != "browns.roost.test" || s.Status().Address != "jones.roost.test" {
+		t.Fatalf("give-back not heard: %v %q %q", err, s.st.GiveBack, s.Status().Address)
+	}
+	f.NoKeep = false
+	if err := s.Check(ctx); err != nil || s.st.GiveBack != "" || f.Released[len(f.Released)-1] != "browns.roost.test" {
+		t.Errorf("given back at the check: %v %q %v", err, s.st.GiveBack, f.Released)
+	}
+
+	// An older Cloud: nothing kept, nothing to release.
+	f.NoKeep = true
+	n := len(f.Released)
+	s.UseName = func(context.Context, cloudapi.NameClaim) error { return useErr }
+	if err := s.ClaimName(ctx, "greens"); err == nil || s.st.Kept != nil || len(f.Released) != n || s.Status().Address != "" {
+		t.Errorf("an older Cloud: %v %+v %v %q", err, s.st.Kept, f.Released, s.Status().Address)
+	}
+}
+
 // fakeWG is the agent's WireGuard for the relay.
 type fakeWG struct {
 	applied []agent.WireGuard
