@@ -537,3 +537,19 @@ func TestOfferArches(t *testing.T) {
 		}
 	}
 }
+
+// A fetch that fails is reported even when the catalog folder can't be
+// written (a read-only path under Roostack's sandbox), and a build
+// without a root key says so.
+func TestFetchStatusUnwritable(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "not-a-folder")
+	os.WriteFile(file, nil, 0o644)
+	f := &Fetcher{URL: "https://registry.invalid/v1/", Dir: filepath.Join(file, "catalog")}
+	if err := f.Fetch(context.Background()); err == nil {
+		t.Fatal("no error")
+	}
+	st := f.Status()
+	if !st.NoRootKey || !strings.Contains(st.Error, "no registry root key") || st.Checked.IsZero() || st.Fetching {
+		t.Errorf("status %+v", st)
+	}
+}

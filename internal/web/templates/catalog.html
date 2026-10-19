@@ -9,8 +9,11 @@
   {{with .Registry}}
     {{if not .On}}{{notice "info" "Checking the service registry is turned off, so services can't be installed from it." "link=/settings/updates#registry" "linkText=Turn it on"}}
     {{else if and .Stale .Status.Serial}}{{notice "warn" (printf "This list is from %s: Roostack can't get a newer one from the service registry, so it doesn't know of fixes or withdrawn versions since." (when .Status.Date)) "link=/settings/updates#registry" "linkText=See why"}}
-    {{else if not .Status.Serial}}{{if .Status.Error}}{{notice "error" "Roostack can't get the list of services from the service registry. Check that this server can reach the internet." "link=/settings/updates#registry" "linkText=See why"}}
-    {{else}}{{notice "info" "Roostack is getting the list of services from the service registry. Reload the page in a minute."}}{{end}}
+    {{else if not .Status.Serial}}
+      {{if .Status.NoRootKey}}{{notice "warn" "This build of Roostack can't check the service registry's signatures, so it can't install services from it. Services you add yourself still work." "link=/settings/updates#registry" "linkText=Details"}}
+      {{else if .Status.Fetching}}<div hx-get="/catalog/ready" hx-trigger="every 5s" hx-swap="none">{{notice "info" "Roostack is getting the list of services from the service registry. This page shows them as soon as it has them."}}</div>
+      {{else if .Status.Error}}{{notice "error" (printf "Roostack can't get the list of services from the service registry: %s." (firstLine .Status.Error)) "link=/settings/updates#registry" "linkText=See why"}}
+      {{else}}<div hx-get="/catalog/ready" hx-trigger="every 5s" hx-swap="none">{{notice "info" "Roostack hasn't got the list of services from the service registry yet. This page shows them as soon as it has them."}}</div>{{end}}
     {{end}}
   {{end}}
   {{with .Added}}{{notice "ok" (printf "Added %s. It's in the list below, marked Your own." .)}}{{end}}

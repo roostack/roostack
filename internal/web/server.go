@@ -703,6 +703,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 
 	mux.Handle("POST /backup/run", s.require(auth.ManageServices, s.backupRun))
 	mux.Handle("GET /catalog", s.require(auth.ManageServices, s.catalogPage))
+	mux.Handle("GET /catalog/ready", s.require(auth.ManageServices, s.catalogReady))
 	mux.Handle("GET /catalog/add", s.requireOwner(s.localAddPage))
 	mux.Handle("POST /catalog/add", s.requireOwner(s.localAddSubmit))
 	mux.Handle("POST /catalog/{name}/remove", s.requireOwner(s.localRemoveSubmit))

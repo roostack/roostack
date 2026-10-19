@@ -219,3 +219,32 @@ func TestCategoryIcons(t *testing.T) {
 		t.Error("no category: the services icon")
 	}
 }
+
+// Without a list yet, the catalog says why: no root key in this build, a
+// failed fetch with its reason, or a fetch running, while it asks
+// /catalog/ready until there's something to show and then reloads.
+func TestCatalogWaitingForRegistry(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	reg := &fakeRegistry{on: true, status: registry.Status{Fetching: true}}
+	h.server.Registry = reg
+	_, body := h.get("/catalog")
+	if !strings.Contains(body, "This page shows them as soon as it has them") || !strings.Contains(body, `hx-get="/catalog/ready"`) {
+		t.Errorf("fetching:\n%s", body)
+	}
+	resp, err := h.client.Get(h.srv.URL + "/catalog/ready")
+	if err != nil || resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("ready while fetching: %v %v", resp.StatusCode, err)
+	}
+	reg.status = registry.Status{Error: "Get \"https://registry.roostack.cloud/v1/keys.json\": dial tcp: lookup registry.roostack.cloud: no such host\nsecond line of the error", Checked: time.Now()}
+	resp, _ = h.client.Get(h.srv.URL + "/catalog/ready")
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("HX-Refresh") != "true" {
+		t.Errorf("ready after a failure: %d %q", resp.StatusCode, resp.Header.Get("HX-Refresh"))
+	}
+	if _, body = h.get("/catalog"); !strings.Contains(body, "no such host.") || strings.Contains(body, "second line of the error") || strings.Contains(body, `hx-get="/catalog/ready"`) {
+		t.Errorf("failed:\n%s", body)
+	}
+	reg.status = registry.Status{NoRootKey: true, Error: "this build of Roostack has no registry root key", Checked: time.Now()}
+	if _, body = h.get("/catalog"); !strings.Contains(body, "can&#39;t check the service registry&#39;s signatures") {
+		t.Errorf("no root key:\n%s", body)
+	}
+}

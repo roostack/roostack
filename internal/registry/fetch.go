@@ -79,6 +79,12 @@ type Fetcher struct {
 	Fetched func()
 
 	mu sync.Mutex
+	// last is the status the last fetch recorded, kept here too, so its
+	// error shows even when the file can't be written (a catalog folder
+	// the sandbox makes read-only); fetching is set while one runs.
+	statusMu sync.Mutex
+	last     *Status
+	fetching bool
 	// The parsed index (Index).
 	ixMu sync.Mutex
 	indexCache
@@ -98,6 +104,11 @@ type Status struct {
 	Packages int       `json:"packages"`
 	// KeysSerial is the newest key statement's serial seen.
 	KeysSerial int64 `json:"keys_serial"`
+	// Fetching: a fetch is running now. NoRootKey: this build has no
+	// registry root key, so it can't check what it fetches (until the
+	// key ceremony, docs/REGISTRY-KEYS.md). Neither is kept.
+	Fetching  bool `json:"-"`
+	NoRootKey bool `json:"-"`
 	// ETag is the index's, to ask whether it changed.
 	ETag string `json:"etag,omitempty"`
 	// Skipped are packages with no version this lab can install, and why.
@@ -127,14 +138,22 @@ func (s Status) Stale(now time.Time) bool { return now.Sub(s.Date) > StaleAfter 
 
 // Status reads the record of the last fetches; zero before the first.
 func (f *Fetcher) Status() Status {
+	f.statusMu.Lock()
+	last, fetching := f.last, f.fetching
+	f.statusMu.Unlock()
 	var s Status
-	data, err := os.ReadFile(filepath.Join(f.Dir, statusFile))
-	if err == nil {
-		err = json.Unmarshal(data, &s)
+	if last != nil {
+		s = *last
+	} else {
+		data, err := os.ReadFile(filepath.Join(f.Dir, statusFile))
+		if err == nil {
+			err = json.Unmarshal(data, &s)
+		}
+		if err != nil && !errors.Is(err, os.ErrNotExist) && f.Log != nil {
+			f.Log.Error("reading the registry fetch status", "err", err)
+		}
 	}
-	if err != nil && !errors.Is(err, os.ErrNotExist) && f.Log != nil {
-		f.Log.Error("reading the registry fetch status", "err", err)
-	}
+	s.Fetching, s.NoRootKey = fetching, len(f.Roots) == 0
 	return s
 }
 
@@ -203,6 +222,14 @@ func (f *Fetcher) Fetch(ctx context.Context) error {
 }
 
 func (f *Fetcher) fetchLocked(ctx context.Context) error {
+	f.statusMu.Lock()
+	f.fetching = true
+	f.statusMu.Unlock()
+	defer func() {
+		f.statusMu.Lock()
+		f.fetching = false
+		f.statusMu.Unlock()
+	}()
 	st := f.Status()
 	if st.URL != f.URL {
 		// Another address: its ETag means nothing here. Serials stay, so
@@ -218,7 +245,11 @@ func (f *Fetcher) fetchLocked(ctx context.Context) error {
 	}
 	if werr := f.writeStatus(st); werr != nil {
 		err = errors.Join(err, werr)
+		st.Error = err.Error()
 	}
+	f.statusMu.Lock()
+	f.last = &st
+	f.statusMu.Unlock()
 	if f.Fetched != nil {
 		f.Fetched()
 	}

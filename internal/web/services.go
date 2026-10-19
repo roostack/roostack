@@ -47,6 +47,21 @@ func inputFields(h *pkgspec.Hook) []formField {
 	return fields
 }
 
+// catalogReady is asked every few seconds by the catalog page while it
+// waits for the registry's list: 204 while it's still waiting, then the
+// page reloads (htmx's HX-Refresh) to show the list, or why there isn't
+// one.
+func (s *Server) catalogReady(w http.ResponseWriter, r *http.Request) {
+	if s.Registry != nil {
+		if st := s.Registry.Status(); st.Serial == 0 && (st.Fetching || st.Error == "") && !st.NoRootKey && s.registryOn() {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+	w.Header().Set("HX-Refresh", "true")
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
 	if s.Manager == nil {
 		http.NotFound(w, r)
