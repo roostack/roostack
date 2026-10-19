@@ -409,6 +409,13 @@ node reports its architecture (Phase 3.1). Where the architectures come
 from: either the catalog records them per image (written by the Phase 1.3
 check), or Roostack reads the index at install time. Recommend the
 catalog: it works offline.
+*Built 2026-10-19 (SPEC §8.3.3, "Labs mixing processors"):* each server
+says its processor in its lab API status, ahead of the rest of Phase 3.1's
+host info; the architectures come from the index the controller keeps on
+disk (it works offline too). The install form and the move page list a
+server the service can't run on as unavailable, with the reason, and an
+update with no build for its server's processor is blocked. The package
+field below isn't added.
 
 **We may add a package field saying a service can't run on ARM** (Tyris,
 2026-09-30), e.g. `architectures: [amd64]` in `pkgspec`, defaulting to

@@ -402,6 +402,11 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bo
 		return nil, "", err
 	}
 	in.Title = title
+	// In a lab mixing processors, it may have no build for this server's
+	// (SPEC.md §8.3.3).
+	if err := m.checkArch(context.Background(), p, p.Title, host); err != nil {
+		return nil, "", err
+	}
 	id := p.Name
 	if n := strings.ToLower(strings.TrimSpace(req.Name)); n != "" && n != p.Name {
 		if !strings.HasPrefix(n, p.Name+"-") || !instance.ValidName(n) {

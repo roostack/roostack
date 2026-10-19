@@ -86,6 +86,8 @@ type fakeManager struct {
 	servers     []manager.Server
 	serverOps   []string
 	destination string
+	destRepo    string // the main backup's repository ("": fakeMainRepo)
+	noBuild     []manager.NoBuild
 	copies      []manager.BackupCopy
 	ending      []manager.EndingStorage
 	retriedWith []string
@@ -432,8 +434,9 @@ func (f *fakeManager) BackupKind(_ context.Context, _, ref string) string {
 func (f *fakeManager) PromoteBackupCopy(_ context.Context, _, ref string) error {
 	for i, c := range f.copies {
 		if c.Ref == ref {
-			f.copies[i] = manager.BackupCopy{Ref: f.destination, Title: "nuc's disk"}
-			f.destination = ref
+			main, _, _ := f.BackupTargetOf(context.Background(), "")
+			f.copies[i] = manager.BackupCopy{Ref: f.destination, Title: "nuc's disk", Repository: main.Repository}
+			f.destination, f.destRepo = ref, c.Repository
 			return nil
 		}
 	}
@@ -451,17 +454,22 @@ func (f *fakeManager) RemoveBackupCopy(_ context.Context, _, ref string) error {
 	f.copies = slices.DeleteFunc(f.copies, func(c manager.BackupCopy) bool { return c.Ref == ref })
 	return nil
 }
+
+// fakeMainRepo is the main backup's repository, unless a test sets one.
+const fakeMainRepo = "rest:http://100.96.0.1:8000/x"
+
 func (f *fakeManager) BackupTargetOf(_ context.Context, id string) (store.BackupTarget, string, bool) {
 	if f.destination == "" {
 		return store.BackupTarget{}, "", false
 	}
-	return store.BackupTarget{ServerID: id, Provider: f.destination, Repository: "rest:http://100.96.0.1:8000/x"}, "nuc's disk", true
+	return store.BackupTarget{ServerID: id, Provider: f.destination, Repository: cmp.Or(f.destRepo, fakeMainRepo)},
+		"nuc's disk", true
 }
 func (f *fakeManager) SetBackupDestination(_ context.Context, id, ref string) error {
 	if ref == "" {
 		return &manager.FormError{Msg: "Choose where backups go."}
 	}
-	f.destination = ref
+	f.destination, f.destRepo = ref, ""
 	return nil
 }
 func (f *fakeManager) AddS3Provider(_ context.Context, name string, p manager.S3Provider) error {
@@ -626,6 +634,8 @@ func (f *fakeManager) PackageIcon(name string) ([]byte, error) {
 	}
 	return os.ReadFile(filepath.Join(filepath.Dir(pkgtest.File(name)), "icon.png"))
 }
+
+func (f *fakeManager) NoBuildOn(*pkgspec.Package) []manager.NoBuild { return f.noBuild }
 
 func (f *fakeManager) CheckPackage(p *pkgspec.Package) manager.PolicyCheck {
 	if f.local[p.Name] {
@@ -1721,7 +1731,7 @@ func TestBackupPlanSpace(t *testing.T) {
 	fs := &fakeSetup{p: setup.Progress{TimezoneDone: true, SSHDone: true, DomainDone: true, BackupDone: true, RecoverySaved: true}}
 	h.setSetup(fs)
 	fm.destination = "drive:system"
-	h.node().backups = &fakeBackups{status: backup.Status{Configured: true, Progress: -1,
+	h.node().backups = &fakeBackups{status: backup.Status{Configured: true, Progress: -1, Repository: fakeMainRepo,
 		LastOK: &store.BackupRun{OK: true, Finished: time.Now(), Stored: uint64(1536 * units.MB)}}}
 	_, body := h.get("/backups")
 	if !strings.Contains(body, "Backups here take <strong>1.5 GB</strong> · <span>30.0 GB free on this server&#39;s disk</span>") {

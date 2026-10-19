@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -385,7 +384,7 @@ func serve(args []string) error {
 		return err
 	}
 	fetcher := &registry.Fetcher{URL: cmp.Or(lab.Registry.URL, registry.DefaultURL), Dir: lab.Paths.CatalogDir, Roots: roots,
-		Version: version, Arch: runtime.GOARCH, Client: &http.Client{Timeout: time.Minute}, Log: log}
+		Version: version, Arches: mgr.LabArches, Client: &http.Client{Timeout: time.Minute}, Log: log}
 	// Withdrawals reach installed services: after each check, the manager
 	// stops or starts what they change (SPEC.md §8.3.4).
 	mgr.RegistryIndex, fetcher.Fetched = fetcher.Index, mgr.RegistryChanged
@@ -694,6 +693,15 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 	jobs := node.Maintenance{}
 	updates := &osupdate.Service{Agent: ag, Store: st, Coord: coord, Now: time.Now, Log: log, Activity: acts,
 		HTTP: &http.Client{Timeout: time.Minute}}
+	// Backup runs recorded before they had repositories get theirs, once
+	// (SPEC.md §6.9).
+	repos := map[string]string{"": lab.Backup.Repository}
+	for _, c := range lab.Backup.Copies {
+		repos[c.Name] = c.Repository
+	}
+	if err := st.AdoptBackupRuns(ctx, repos); err != nil {
+		log.Warn("giving older backup runs their repositories", "err", err)
+	}
 	svc := &backup.Service{
 		Coord:      coord,
 		Store:      st,

@@ -9,7 +9,10 @@
 
     Run it on
     :   Which of your servers runs it, if you have more than one. Its data
-        stays on that server, and is backed up there.
+        stays on that server, and is backed up there. If your servers have
+        different kinds of processor (a PC and a Raspberry Pi, say), a
+        service with no version for one of them can't run on that server:
+        the form says so and offers only the others.
 
     Web address
     :   The first part of its address, such as `passwords` for

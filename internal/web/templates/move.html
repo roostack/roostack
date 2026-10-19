@@ -25,8 +25,9 @@
   <form method="post">
     <fieldset>
       <legend>Move it to</legend>
-      {{range .}}<label class="check"><input type="radio" name="to" value="{{.ID}}" required>
-        <span>{{.Name}}{{if .This}} (this server){{end}}</span></label>{{end}}
+      {{range .}}{{$no := index $.NoBuild .ID}}<label class="check"><input type="radio" name="to" value="{{.ID}}" required{{if $no}} disabled{{end}}>
+        <span>{{.Name}}{{if .This}} (this server){{end}}{{if $no}}<br><small>{{$.Package.Title}} can't run there: it has no
+          version for its kind of processor ({{$no}}).</small>{{end}}</span></label>{{end}}
     </fieldset>
     <fieldset>
       <legend>How</legend>

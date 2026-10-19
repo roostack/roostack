@@ -49,7 +49,14 @@ func (s *Server) renderMove(w http.ResponseWriter, r *http.Request, errMsg strin
 			targets = append(targets, mc)
 		}
 	}
+	// A server whose processor it has no version for isn't offered
+	// (SPEC.md §8.3.3).
+	noBuild := map[string]string{}
+	for _, nb := range s.Manager.NoBuildOn(p) {
+		noBuild[nb.ID] = nb.Arch
+	}
 	data["Package"], data["Name"], data["Info"], data["Targets"], data["Error"] = p, name, info, targets, errMsg
+	data["NoBuild"] = noBuild
 	data["Size"] = sizeText(info.Size)
 	// The controller moves it, whichever server it was on.
 	if a := s.serviceActivity(r, activity.Move, func(t string) bool { return strings.HasPrefix(t, "Moving "+p.Title+" to ") }); a != nil {

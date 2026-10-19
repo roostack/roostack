@@ -279,3 +279,59 @@ func TestPlanRollback(t *testing.T) {
 		t.Error("versioned, with a key that can erase")
 	}
 }
+
+// TestPlanAfterSwap: after "Make this backup 1" each backup shows its own
+// last result, found by its repository: whether the page asks the server
+// before it has restarted with the swap (its status still has the old
+// roles) or after.
+func TestPlanAfterSwap(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	fb := &fakeBackups{}
+	h.node().backups = fb
+	const usb, b2 = "/mnt/roostack-usb/roostack/lab-1/n-1", "s3:https://s3.us-west-004.backblazeb2.com/b/roostack/lab-1/n-1"
+	fm.destination, fm.destRepo = "drive:usb1", usb
+	fm.copies = []manager.BackupCopy{{Ref: "provider:1", Title: "Backblaze", Repository: b2}}
+	day := time.Now().Add(-5 * time.Hour)
+	usbRun := &store.BackupRun{Started: day, Finished: day, Error: "the backup drive USB isn't connected", Repository: usb}
+	b2Run := &store.BackupRun{Started: day, Finished: day, OK: true, FilesNew: 42, Repository: b2}
+	before := backup.Status{Configured: true, Repository: usb, Last: usbRun,
+		Copies: []backup.CopyStatus{{Name: "provider:1", Title: "Backblaze", Repository: b2, Last: b2Run, LastOK: b2Run}}}
+	after := backup.Status{Configured: true, Repository: b2, Last: b2Run, LastOK: b2Run,
+		Copies: []backup.CopyStatus{{Name: "drive:usb1", Title: "USB", Repository: usb, Last: usbRun}}}
+	// cards splits the plan into its backups' cards, main first: each
+	// card's result comes before its "Where it is".
+	cards := func() []string {
+		_, body := h.get("/backups")
+		parts := strings.Split(body, "Where it is: <code>")
+		if len(parts) != 3 {
+			t.Fatalf("%d backups on the plan, want 2", len(parts)-1)
+		}
+		return []string{parts[0][strings.LastIndex(parts[0], "plan-manage")-400:], parts[1]}
+	}
+	fb.status = before
+	if c := cards(); !strings.Contains(c[0], "isn&#39;t connected") || !strings.Contains(c[1], "42 new or changed files") {
+		t.Fatalf("before the swap: main %q\ncopy %q", c[0], c[1])
+	}
+	if code, _ := h.post("/backups/plan/promote", url.Values{"destination": {"provider:1"}}, h.srv.URL); code != http.StatusOK {
+		t.Fatalf("promote: %d", code)
+	}
+	if fm.destination != "provider:1" || fm.copies[0].Repository != usb {
+		t.Fatalf("not swapped: %q %+v", fm.destination, fm.copies)
+	}
+	for name, st := range map[string]backup.Status{"before the server restarts": before, "after": after} {
+		fb.status = st
+		c := cards()
+		if !strings.Contains(c[0], "42 new or changed files") || strings.Contains(c[0], "isn&#39;t connected") {
+			t.Errorf("%s: backup 1 (Backblaze now) shows %q", name, c[0])
+		}
+		if !strings.Contains(c[1], "isn&#39;t connected") || strings.Contains(c[1], "42 new or changed files") {
+			t.Errorf("%s: the USB drive shows %q", name, c[1])
+		}
+	}
+	// The Home card reads the restarted server's status: the main backup
+	// is Backblaze's.
+	fb.status = after
+	if _, body := h.get("/partials/backups"); strings.Contains(body, "isn&#39;t connected") {
+		t.Error("Home shows the old main backup's failure")
+	}
+}

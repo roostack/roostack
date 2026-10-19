@@ -282,6 +282,9 @@ type ServiceCatalog interface {
 	// CheckPackage is how a package stands against the package policy
 	// (SPEC.md §8.3.4).
 	CheckPackage(p *pkgspec.Package) manager.PolicyCheck
+	// NoBuildOn lists the servers a package has no version for the
+	// processor of (SPEC.md §8.3.3).
+	NoBuildOn(p *pkgspec.Package) []manager.NoBuild
 	// The Owner's own packages ("Add your own", SPEC.md §8.3.4): adding
 	// (or replacing) one, removing one, and the folder they're kept in.
 	AddLocalPackage(data, icon []byte) (*pkgspec.Package, error)

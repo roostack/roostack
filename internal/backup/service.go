@@ -70,9 +70,12 @@ func (s *Service) Job() maintenance.Job {
 			results := map[string]error{}
 			deps.OnCopy = func(c Copy, started time.Time, sum *Summary, err error) {
 				results[c.Name] = err
-				run := store.BackupRun{Started: started, Finished: time.Now(), OK: err == nil, Destination: c.Name}
+				// Recorded by repository, not as a copy: a copy can become
+				// the main backup and keeps its results (SPEC.md §6.9).
+				run := store.BackupRun{Started: started, Finished: time.Now(), OK: err == nil, Repository: c.Repo.URL}
 				if sum != nil {
 					run.SnapshotID, run.FilesNew, run.DataAdded, run.Stored = sum.SnapshotID, sum.FilesNew, sum.DataAdded, sum.Stored
+					run.Services = sum.Services
 				}
 				if err != nil {
 					run.Error = err.Error()
@@ -108,7 +111,7 @@ func (s *Service) Job() maintenance.Job {
 			if !deps.wants("") {
 				return nil // a retry of copies only: the main backup's result stands
 			}
-			run := store.BackupRun{Started: start, Finished: time.Now(), OK: err == nil}
+			run := store.BackupRun{Started: start, Finished: time.Now(), OK: err == nil, Repository: deps.Repo.URL}
 			if sum != nil {
 				run.SnapshotID, run.FilesNew, run.DataAdded, run.Stored = sum.SnapshotID, sum.FilesNew, sum.DataAdded, sum.Stored
 				run.Services = sum.Services
@@ -180,7 +183,7 @@ func (s *Service) CatchUp(ctx context.Context) (string, error) {
 	if !s.Configured() {
 		return "", nil
 	}
-	last, _, err := s.Store.LastBackup(ctx)
+	last, _, err := s.Store.LastBackup(ctx, s.Deps.Repo.URL)
 	if err != nil {
 		return "", err
 	}
@@ -280,6 +283,8 @@ type Status struct {
 	Progress  int // -1 if unknown
 	// Step is what a running backup is doing ("Copying to vps's disk").
 	Step string
+	// Repository is the main backup's; Last and LastOK are its results.
+	Repository string
 	// Retry is the main destination's next try after a failure (nil: none).
 	Retry  *Retry
 	Last   *store.BackupRun
@@ -290,6 +295,25 @@ type Status struct {
 	// Fenced says why backups stood down: this copy of the lab is out of
 	// date (fence.go). Nil normally.
 	Fenced *Fence
+}
+
+// For returns the results of the destination with a repository, main
+// backup or copy. Pages match their entries by repository rather than by
+// role, so a page read while a swap of the main backup and a copy is
+// still reaching the server shows each its own (SPEC.md §6.9).
+func (st Status) For(repository string) (last, lastOK *store.BackupRun, retry *Retry) {
+	if repository == "" {
+		return nil, nil, nil
+	}
+	if st.Repository == repository {
+		return st.Last, st.LastOK, st.Retry
+	}
+	for _, c := range st.Copies {
+		if c.Repository == repository {
+			return c.Last, c.LastOK, c.Retry
+		}
+	}
+	return nil, nil, nil
 }
 
 // CopyStatus is an extra copy's latest results.
@@ -306,13 +330,16 @@ func (s *Service) Status(ctx context.Context) (Status, error) {
 	if !st.Configured {
 		return st, nil
 	}
+	// Results are found by repository, so after the main backup and a
+	// copy swap each shows its own (SPEC.md §6.9).
 	var err error
-	if st.Last, st.LastOK, err = s.Store.LastBackup(ctx); err != nil {
+	st.Repository = s.Deps.Repo.URL
+	if st.Last, st.LastOK, err = s.Store.LastBackup(ctx, st.Repository); err != nil {
 		return st, err
 	}
 	for _, c := range s.Deps.Copies {
 		cs := CopyStatus{Name: c.Name, Title: c.Title, Repository: c.Repo.URL, Retry: s.retryFor(c.Name)}
-		if cs.Last, cs.LastOK, err = s.Store.LastBackupTo(ctx, c.Name); err != nil {
+		if cs.Last, cs.LastOK, err = s.Store.LastBackup(ctx, c.Repo.URL); err != nil {
 			return st, err
 		}
 		st.Copies = append(st.Copies, cs)

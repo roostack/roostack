@@ -83,7 +83,9 @@ controller, **Settings → Updates and restarts** shows:
 - how old the list of services is, how many there are, and the registry
   commit it was built from (a link to exactly those files);
 - **Not offered on this lab**: services that need a newer Roostack, or
-  aren't built for this server's processor.
+  aren't built for the processor of any of your servers. In a lab mixing
+  processors (a PC and a Raspberry Pi), a service built for only one of
+  them is offered for the servers it can run on.
 
 **Check now** checks straight away.
 

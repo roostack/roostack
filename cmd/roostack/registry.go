@@ -201,7 +201,7 @@ func registryCheck(args []string) error {
 		return err
 	}
 	defer os.RemoveAll(dir)
-	f := &registry.Fetcher{URL: *url, Dir: dir, Roots: roots, Version: version, Arch: *arch}
+	f := &registry.Fetcher{URL: *url, Dir: dir, Roots: roots, Version: version, Arches: func() []string { return []string{*arch} }}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	err = f.Fetch(ctx)

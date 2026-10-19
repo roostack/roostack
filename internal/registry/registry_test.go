@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -27,6 +28,9 @@ type testRegistry struct {
 	signing ed25519.PrivateKey
 	srv     *httptest.Server
 	now     time.Time
+	// platforms are an image's builds, as the image registries would say
+	// (nil: amd64 and arm64 for every image).
+	platforms func(image string) []string
 }
 
 func newKey(t *testing.T) ed25519.PrivateKey {
@@ -91,7 +95,12 @@ func (r *testRegistry) tryBuild(key ed25519.PrivateKey) (*Index, error) {
 	r.now = r.now.Add(time.Hour)
 	return Build(BuildOptions{Repo: r.repo, Out: r.site, Key: key, Roots: publics([]ed25519.PrivateKey{r.root}),
 		Commit: "abc123", Now: r.now,
-		Platforms: func(string) ([]string, error) { return []string{"linux/amd64", "linux/arm64"}, nil }})
+		Platforms: func(image string) ([]string, error) {
+			if r.platforms != nil {
+				return r.platforms(image), nil
+			}
+			return []string{"linux/amd64", "linux/arm64"}, nil
+		}})
 }
 
 func (r *testRegistry) write(path, content string) {
@@ -102,7 +111,8 @@ func (r *testRegistry) write(path, content string) {
 }
 
 func (r *testRegistry) fetcher(dir string) *Fetcher {
-	return &Fetcher{URL: r.srv.URL + "/", Dir: dir, Roots: publics([]ed25519.PrivateKey{r.root}), Version: "v0.9.0", Arch: "amd64"}
+	return &Fetcher{URL: r.srv.URL + "/", Dir: dir, Roots: publics([]ed25519.PrivateKey{r.root}), Version: "v0.9.0",
+		Arches: func() []string { return []string{"amd64"} }}
 }
 
 // A lab fetches a signed index and the files it needs, which the catalog
@@ -201,7 +211,7 @@ func TestFetchCompatibility(t *testing.T) {
 	if v, err := state.CatalogVersion(config.Paths{CatalogDir: dir}, "forgejo"); err == nil {
 		t.Errorf("offered %s", v)
 	}
-	f.Version, f.Arch = "dev", "riscv64"
+	f.Version, f.Arches = "dev", func() []string { return []string{"riscv64"} }
 	if err := f.Fetch(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -460,5 +470,70 @@ func TestWithdrawn(t *testing.T) {
 	}
 	if w := ix.Withdrawn("forgejo", "3.0", file); w != nil || ix.Withdrawn("immich", "1.0", file) != nil {
 		t.Error("unknown versions and packages")
+	}
+}
+
+// TestFetchMixedLab: in a lab mixing processors, a package with a build
+// for only one of them is still kept, for the servers it can run on
+// (installing checks the server chosen); a lab gaining a processor
+// fetches again (SPEC.md §8.3.3).
+func TestFetchMixedLab(t *testing.T) {
+	r := newTestRegistry(t)
+	r.platforms = func(image string) []string {
+		if strings.Contains(image, "vaultwarden") {
+			return []string{"linux/amd64"}
+		}
+		return []string{"linux/amd64", "linux/arm64"}
+	}
+	ix := r.build()
+	if a := ix.Architectures("vaultwarden", "1.34.3-roostack.1"); !slices.Equal(a, []string{"amd64"}) {
+		t.Fatalf("vaultwarden's architectures: %v", a)
+	}
+	if a := ix.Architectures("vaultwarden", "9.9.9"); a != nil {
+		t.Errorf("a version the index doesn't have: %v", a)
+	}
+	dir := t.TempDir()
+	f := r.fetcher(dir)
+	arches := []string{"arm64"} // a lab of Pis
+	f.Arches = func() []string { return arches }
+	if err := f.Fetch(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if st := f.Status(); !strings.Contains(st.Skipped["vaultwarden"], "no build for arm64") || !slices.Equal(st.Arches, []string{"arm64"}) {
+		t.Errorf("only arm64: %+v", st)
+	}
+	// A PC joins: Vaultwarden is offered, for it. The catalog page's
+	// check fetches again at once, though the last fetch was just now.
+	arches = []string{"arm64", "amd64", "arm64", ""}
+	if err := f.FetchIfOlder(context.Background(), time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := state.CatalogVersion(config.Paths{CatalogDir: dir}, "vaultwarden"); v != "1.34.3-roostack.1" {
+		t.Errorf("a lab with a PC: offered %q", v)
+	}
+	if st := f.Status(); st.Skipped["vaultwarden"] != "" || !slices.Equal(st.Arches, []string{"amd64", "arm64"}) {
+		t.Errorf("amd64 and arm64: %+v", st)
+	}
+	checked := f.Status().Checked
+	if err := f.FetchIfOlder(context.Background(), time.Hour); err != nil || !f.Status().Checked.Equal(checked) {
+		t.Errorf("nothing changed: fetched again (%v)", err)
+	}
+}
+
+// Offer keeps the newest version with a build for any of the lab's
+// processors.
+func TestOfferArches(t *testing.T) {
+	p := &Package{Versions: map[string]*Version{
+		"1.0.0-roostack.1": {Architectures: []string{"amd64", "arm64"}},
+		"1.1.0-roostack.1": {Architectures: []string{"amd64"}},
+	}}
+	for _, c := range []struct {
+		arches []string
+		want   string
+	}{{[]string{"arm64"}, "1.0.0-roostack.1"}, {[]string{"amd64"}, "1.1.0-roostack.1"},
+		{[]string{"amd64", "arm64"}, "1.1.0-roostack.1"}, {[]string{"riscv64"}, ""}} {
+		if v, _, _ := p.Offer("dev", c.arches...); v != c.want {
+			t.Errorf("%v: offered %q, want %q", c.arches, v, c.want)
+		}
 	}
 }

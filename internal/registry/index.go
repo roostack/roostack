@@ -249,9 +249,11 @@ func (w *Withdrawal) check() error {
 
 // Offer is the version of a package a lab offers to install: the newest
 // that isn't withdrawn (a notice doesn't count), that this Roostack can
-// run, and that has a build for the lab's processor (arch, as GOARCH says
-// it). False when there's none.
-func (p *Package) Offer(roostack, arch string) (string, *Version, bool) {
+// run, and that has a build for one of the lab's processors (arches, as
+// GOARCH says them). In a lab mixing processors it may run on only some
+// of its servers: installing checks the one chosen (SPEC.md §8.3.3).
+// False when there's none.
+func (p *Package) Offer(roostack string, arches ...string) (string, *Version, bool) {
 	if p.Withdrawn.Blocks() {
 		return "", nil, false
 	}
@@ -260,7 +262,7 @@ func (p *Package) Offer(roostack, arch string) (string, *Version, bool) {
 		if v.Withdrawn.Blocks() || !pkgspec.RunsOn(v.RequiresRoostack, roostack) {
 			continue
 		}
-		if len(v.Architectures) > 0 && !slices.Contains(v.Architectures, arch) {
+		if !v.RunsOnAny(arches) {
 			continue
 		}
 		if best == "" || pkgspec.CompareVersions(version, best) > 0 {
@@ -273,19 +275,45 @@ func (p *Package) Offer(roostack, arch string) (string, *Version, bool) {
 	return best, p.Versions[best], true
 }
 
+// RunsOnAny says whether a version has a build for one of arches, or
+// doesn't say which it has (CI didn't check).
+func (v *Version) RunsOnAny(arches []string) bool {
+	if len(v.Architectures) == 0 {
+		return true
+	}
+	for _, a := range arches {
+		if slices.Contains(v.Architectures, a) {
+			return true
+		}
+	}
+	return false
+}
+
+// Architectures are the processors a package's version has a build of
+// every image for (Version.Architectures), to check against the server it
+// runs on. Nil when the index doesn't say: CI didn't check, or the index
+// doesn't have that version.
+func (ix *Index) Architectures(name, version string) []string {
+	if ix == nil || ix.Packages[name] == nil || ix.Packages[name].Versions[version] == nil {
+		return nil
+	}
+	return ix.Packages[name].Versions[version].Architectures
+}
+
 // NeedsRoostack is the Roostack release a package needs when no version
 // of it runs on this one (roostack) but its newest version would run on a
-// newer Roostack: it isn't withdrawn and has a build for arch. The catalog
-// shows such a package as needing a newer Roostack rather than leaving it
-// out (SPEC.md §8.3.6). "" when the package is offered, or can't be for
-// another reason (withdrawn, no build for arch).
-func (p *Package) NeedsRoostack(roostack, arch string) string {
-	if _, _, ok := p.Offer(roostack, arch); ok || p.Withdrawn.Blocks() {
+// newer Roostack: it isn't withdrawn and has a build for one of arches.
+// The catalog shows such a package as needing a newer Roostack rather than
+// leaving it out (SPEC.md §8.3.6). "" when the package is offered, or
+// can't be for another reason (withdrawn, no build for the lab's
+// processors).
+func (p *Package) NeedsRoostack(roostack string, arches ...string) string {
+	if _, _, ok := p.Offer(roostack, arches...); ok || p.Withdrawn.Blocks() {
 		return ""
 	}
 	best := ""
 	for version, v := range p.Versions {
-		if v.Withdrawn.Blocks() || len(v.Architectures) > 0 && !slices.Contains(v.Architectures, arch) {
+		if v.Withdrawn.Blocks() || !v.RunsOnAny(arches) {
 			continue
 		}
 		if best == "" || pkgspec.CompareVersions(version, best) > 0 {

@@ -175,6 +175,14 @@ func joinAnd(names []string) string {
 	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }
 
+// joinOr joins names as "a, b or c".
+func joinOr(names []string) string {
+	if len(names) < 2 {
+		return strings.Join(names, "")
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
+}
+
 // updateSubmit starts updating a service (Admins).
 func (s *Server) updateSubmit(w http.ResponseWriter, r *http.Request) {
 	if s.Manager == nil {

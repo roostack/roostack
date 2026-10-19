@@ -363,6 +363,42 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		servers = ms
 	}
 	host, _ := get("host")
+	// In a lab mixing processors, the servers it has no version for
+	// aren't offered, and the form says why (SPEC.md §8.3.3); it starts
+	// on one it can run on.
+	noBuild, noBuildText := map[string]string{}, ""
+	if len(servers) > 0 {
+		var names, arches []string
+		for _, nb := range s.Manager.NoBuildOn(p) {
+			noBuild[nb.ID] = nb.Arch
+			names = append(names, nb.Name)
+			if !slices.Contains(arches, nb.Arch) {
+				arches = append(arches, nb.Arch)
+			}
+		}
+		if len(names) > 0 {
+			its := "its"
+			if len(names) > 1 {
+				its = "their"
+			}
+			noBuildText = fmt.Sprintf("%s can't run on %s: it has no version for %s kind of processor (%s).",
+				p.Title, joinOr(names), its, joinAnd(arches))
+		}
+		chosen := host
+		for _, m := range servers {
+			if chosen == "" && m.This {
+				chosen = m.ID // "" is this server
+			}
+		}
+		if _, no := noBuild[chosen]; no && submitted == nil {
+			for _, m := range servers {
+				if _, no := noBuild[m.ID]; !no {
+					host = m.ID
+					break
+				}
+			}
+		}
+	}
 	// On a lab on the internet: public from the start, unless the package
 	// says its address isn't safe to be (SPEC.md §6.12).
 	unsafe := ""
@@ -425,6 +461,8 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		"Error":         errMsg,
 		"Servers":       servers,
 		"Host":          host,
+		"NoBuild":       noBuild,
+		"NoBuildText":   noBuildText,
 		"Another":       another,
 		"Suffix":        suffix,
 		"Title":         title,

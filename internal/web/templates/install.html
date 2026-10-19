@@ -49,9 +49,10 @@
     {{with .Servers}}
     <label>Run it on
       <select name="host">
-        {{range .}}<option value="{{.ID}}" {{if eq .ID $.Host}}selected{{end}}>{{.Name}}{{if .This}} (this server){{end}}</option>{{end}}
+        {{range .}}{{$no := index $.NoBuild .ID}}<option value="{{.ID}}" {{if eq .ID $.Host}}selected{{end}}{{if $no}} disabled{{end}}>
+          {{- .Name}}{{if .This}} (this server){{end}}{{if $no}}: can't run it{{end}}</option>{{end}}
       </select>
-      <small>Its data stays on that server, and it's backed up there.</small>
+      <small>{{with $.NoBuildText}}{{.}} {{end}}Its data stays on that server, and it's backed up there.</small>
     </label>
     {{end}}
     {{if .HasRoute}}
