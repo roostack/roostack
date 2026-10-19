@@ -3,7 +3,7 @@
 Films, TV, music, books and photos you already have can be played by
 services like Plex, Jellyfin and Navidrome without copying them. A **media
 library** is a folder with a name: a folder on a USB drive or second disk,
-or a folder already on the server. Services can **read** a library but
+a network share on a NAS, or a folder already on the server. Services can **read** a library but
 never change it, and Roostack **doesn't back libraries up**: they're things
 you have elsewhere, or keep safe yourself.
 
@@ -25,6 +25,29 @@ the files are on:
 4. Tick the **services that can read it**, then **Add library**.
 
 A drive that holds your backups can't be a library: keep media on another.
+
+## A share on a NAS
+
+Under **Or a network share** on the same page:
+
+1. Choose the kind: **SMB** (Windows sharing, what most NASes offer) or
+   **NFS**.
+2. Type the NAS's name or address (`nas.local`, `192.168.1.20`) and the
+   share's name as the NAS calls it. The whole share becomes the library, so
+   share just the folder you want.
+3. For SMB, a **username and password** on the NAS, or leave them empty for
+   a share anyone on your network can open. An account that can only read is
+   best.
+4. Give it a name, tick the services, then **Check and add the share**.
+
+Roostack first mounts the share for a moment to check it, and tells you if
+the NAS refused the login, has no such share, or didn't answer; nothing is
+saved until it works. The password is kept on that server only, in a file
+only the system can read, and Roostack's pages never show it again.
+
+If the NAS is switched off, services see an error instead of their files
+and the list says **Not answering**. Switch it back on and the share is
+mounted the next time a service looks.
 
 ## Files only their owner can read
 
@@ -68,3 +91,5 @@ files stay where they are.
 | A library | `/mnt/roostack-library/<name>`, read-only |
 | A drive used for libraries | `/mnt/roostack-media-<drive>`, read-only, in `/etc/fstab` by its UUID |
 | What a service can read | `/mnt/roostack-library-views/<service>`, mounted into the service |
+| A share's login (SMB) | `/etc/roostack/shares/<name>.cred`, readable by root only |
+| A share | a line in `/etc/fstab` marked `# Added by Roostack: media library <name> (a share)` |

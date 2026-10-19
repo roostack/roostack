@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"net/http"
+	"net/url"
 
 	"roostack.cloud/roostack/internal/agent"
 )
@@ -14,6 +15,8 @@ type Media interface {
 	Drives(ctx context.Context) ([]agent.Drive, error)
 	LibraryFolders(ctx context.Context, l agent.Library) (agent.FolderList, error)
 	Libraries(ctx context.Context) ([]agent.LibraryStatus, error)
+	CheckShare(ctx context.Context, s agent.Share) (agent.FolderList, error)
+	SaveShareLogin(ctx context.Context, name string, s agent.Share) error
 }
 
 // Media is this server's media libraries, through its agent; nil without
@@ -48,6 +51,16 @@ func (x remoteMedia) Libraries(ctx context.Context) ([]agent.LibraryStatus, erro
 	return libs, err
 }
 
+func (x remoteMedia) CheckShare(ctx context.Context, s agent.Share) (agent.FolderList, error) {
+	var list agent.FolderList
+	err := x.r.call(ctx, http.MethodPost, "/v1/media/shares/check", s, &list)
+	return list, err
+}
+
+func (x remoteMedia) SaveShareLogin(ctx context.Context, name string, s agent.Share) error {
+	return x.r.call(ctx, http.MethodPut, "/v1/media/shares/"+url.PathEscape(name)+"/login", s, nil)
+}
+
 // mediaRoutes serves Media on the lab API.
 func (s *Server) mediaRoutes(handle func(string, func(r *http.Request) (any, error)), decode func(*http.Request, any) error) {
 	media := func() (Media, error) {
@@ -77,6 +90,35 @@ func (s *Server) mediaRoutes(handle func(string, func(r *http.Request) (any, err
 			return nil, &FormError{Msg: err.Error()}
 		}
 		return list, nil
+	})
+	handle("POST /v1/media/shares/check", func(r *http.Request) (any, error) {
+		m, err := media()
+		if err != nil {
+			return nil, err
+		}
+		var sh agent.Share
+		if err := decode(r, &sh); err != nil {
+			return nil, err
+		}
+		list, err := m.CheckShare(r.Context(), sh)
+		if err != nil {
+			return nil, &FormError{Msg: err.Error()}
+		}
+		return list, nil
+	})
+	handle("PUT /v1/media/shares/{name}/login", func(r *http.Request) (any, error) {
+		m, err := media()
+		if err != nil {
+			return nil, err
+		}
+		var sh agent.Share
+		if err := decode(r, &sh); err != nil {
+			return nil, err
+		}
+		if err := m.SaveShareLogin(r.Context(), r.PathValue("name"), sh); err != nil {
+			return nil, &FormError{Msg: err.Error()}
+		}
+		return nil, nil
 	})
 	handle("GET /v1/media/libraries", func(r *http.Request) (any, error) {
 		m, err := media()

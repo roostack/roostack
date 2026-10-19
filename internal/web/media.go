@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"net/http"
 	"net/url"
@@ -76,6 +77,9 @@ type mediaAddView struct {
 	Here, Name string
 	Readers    []manager.LibraryReader
 	Error      string
+	// The share form's values, kept when it comes back (never the
+	// password).
+	ShareType, ShareServer, SharePath, ShareUser, ShareTitle string
 }
 
 // FolderHref opens a folder below the current place.
@@ -189,11 +193,14 @@ func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg s
 		v.Drives = drives
 		v.Roots = agent.LibraryFolderRoots
 	}
-	if v.List != nil {
-		if v.Readers, err = s.Libraries.LibraryReaders(ctx, v.Server); err != nil {
-			s.serverError(w, err)
-			return
-		}
+	if v.Readers, err = s.Libraries.LibraryReaders(ctx, v.Server); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	v.ShareType = cmp.Or(r.PostFormValue("share_type"), "smb")
+	v.ShareServer, v.SharePath, v.ShareUser = r.PostFormValue("share_server"), r.PostFormValue("share_path"), r.PostFormValue("share_user")
+	if r.PostFormValue("where") == "share" {
+		v.ShareTitle = r.PostFormValue("title")
 	}
 	if name := r.PostFormValue("title"); name != "" {
 		v.Name = name
@@ -211,6 +218,13 @@ func (s *Server) mediaAddSubmit(w http.ResponseWriter, r *http.Request) {
 	req := manager.LibraryRequest{Server: r.FormValue("server"), Title: r.FormValue("title"), Drive: r.FormValue("drive"),
 		DriveName: r.FormValue("name"), Sub: r.FormValue("sub"), Folder: r.FormValue("folder"),
 		AsOwner: r.FormValue("as_owner") == "on", Services: r.Form["service"]}
+	if r.FormValue("where") == "share" {
+		req.Share = &agent.Share{Type: r.FormValue("share_type"), Server: r.FormValue("share_server"),
+			Path: r.FormValue("share_path"), Username: r.FormValue("share_user"), Password: r.FormValue("share_password")}
+		if req.Share.Type == "nfs" {
+			req.Share.Username, req.Share.Password = "", ""
+		}
+	}
 	err := s.Libraries.AddLibrary(r.Context(), req)
 	if msg, ok := userMessage(err); ok {
 		s.renderMediaAdd(w, r, msg)

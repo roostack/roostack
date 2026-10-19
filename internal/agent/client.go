@@ -253,6 +253,18 @@ func (c *Client) RemoveLibraryViews(ctx context.Context, service string) error {
 	return c.call(ctx, http.MethodDelete, "/v1/library-views/"+url.PathEscape(service), nil, nil)
 }
 
+// CheckShare mounts a share for a moment and lists it.
+func (c *Client) CheckShare(ctx context.Context, s Share) (FolderList, error) {
+	var list FolderList
+	err := c.call(ctx, http.MethodPost, "/v1/shares/check", s, &list)
+	return list, err
+}
+
+// SaveShareLogin keeps an SMB share's login for a library.
+func (c *Client) SaveShareLogin(ctx context.Context, name string, s Share) error {
+	return c.call(ctx, http.MethodPut, "/v1/shares/"+url.PathEscape(name)+"/login", s, nil)
+}
+
 // PrepareBackupFolder makes a roostack folder that Roostack may write to
 // in a backup folder that exists, and returns it.
 func (c *Client) PrepareBackupFolder(ctx context.Context, dir string) (string, error) {

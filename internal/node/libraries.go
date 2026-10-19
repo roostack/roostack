@@ -25,6 +25,8 @@ type LibraryAgent interface {
 	UnmountLibrary(ctx context.Context, name string) error
 	SetLibraryViews(ctx context.Context, service string, libraries []string) error
 	RemoveLibraryViews(ctx context.Context, service string) error
+	CheckShare(ctx context.Context, s agent.Share) (agent.FolderList, error)
+	SaveShareLogin(ctx context.Context, name string, s agent.Share) error
 }
 
 // Runtime settings (State) recording what was applied, so an apply only

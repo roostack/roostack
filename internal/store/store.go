@@ -257,6 +257,13 @@ var migrations = []string{
 		created_at  INTEGER NOT NULL,
 		PRIMARY KEY (server_id, name)
 	);`,
+	// A media library can be a network share (SMB or NFS): its server,
+	// share or export, and SMB username. Never its password, which only
+	// the server holding it keeps (root's).
+	`ALTER TABLE media_libraries ADD COLUMN share_type TEXT NOT NULL DEFAULT '';
+	ALTER TABLE media_libraries ADD COLUMN share_server TEXT NOT NULL DEFAULT '';
+	ALTER TABLE media_libraries ADD COLUMN share_path TEXT NOT NULL DEFAULT '';
+	ALTER TABLE media_libraries ADD COLUMN share_user TEXT NOT NULL DEFAULT '';`,
 }
 
 // OriginSetup marks sessions signed in on the setup pages on the home

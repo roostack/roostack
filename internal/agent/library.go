@@ -69,6 +69,9 @@ type Library struct {
 	Folder string `json:"folder,omitempty"`
 	// AsOwner, if set, shows this owner's files as Roostack's (drives only).
 	AsOwner *Owner `json:"as_owner,omitempty"`
+	// Share, if set, is a network share: the whole share is the library,
+	// mounted read-only (shares.go).
+	Share *Share `json:"share,omitempty"`
 }
 
 // Owner is a user whose files a library reads as Roostack's.
@@ -150,6 +153,9 @@ func (h LinuxHost) MountLibrary(l Library) error {
 	if !ValidLibraryName(l.Name) {
 		return fmt.Errorf("%q can't name a library: lower-case letters, digits and -", printable(l.Name))
 	}
+	if l.Share != nil {
+		return h.mountShare(l)
+	}
 	base, sub, err := h.libraryBase(l, false)
 	if err != nil {
 		return err
@@ -226,6 +232,8 @@ func (h LinuxHost) UnmountLibrary(name string) error {
 		return err
 	}
 	tab := removeBlock(string(data), libraryTag(name))
+	tab = removeBlock(tab, shareTag(name))
+	os.Remove(shareLoginFile(name))
 	// Services' views of it go first.
 	for _, v := range viewEntries(tab) {
 		if v.library == name {
@@ -260,10 +268,24 @@ func (h LinuxHost) Libraries() ([]LibraryStatus, error) {
 	}
 	mounts, _ := os.ReadFile("/proc/self/mountinfo")
 	var out []LibraryStatus
-	for _, e := range libraryEntries(string(data)) {
+	for _, e := range append(libraryEntries(string(data)), shareEntries(string(data))...) {
 		st := LibraryStatus{Name: e.name, Source: e.source, AsOwner: e.asOwner}
-		st.Mounted = mountedAt(string(mounts), filepath.Join(LibraryRoot, e.name))
-		if dev := mediaDriveDevice(string(data), e.base); dev != "" {
+		// Libraries are mounted when first looked at: look (briefly: a NAS
+		// that's off, or a drive unplugged, would hold the page up).
+		target := filepath.Join(LibraryRoot, e.name)
+		if !mountedAt(string(mounts), target) {
+			done := make(chan struct{})
+			go func() { statfs(target); close(done) }()
+			select {
+			case <-done:
+			case <-time.After(3 * time.Second):
+			}
+			mounts, _ = os.ReadFile("/proc/self/mountinfo")
+		}
+		st.Mounted = mountedAt(string(mounts), target)
+		if e.share {
+			st.Connected = st.Mounted // a share is there when it's mounted
+		} else if dev := mediaDriveDevice(string(data), e.base); dev != "" {
 			_, err := os.Stat("/dev/disk/by-uuid/" + strings.TrimPrefix(dev, "UUID="))
 			st.Connected = err == nil
 		} else {
@@ -732,6 +754,7 @@ func removeMediaDrive(tab, mp string) string {
 // libraryEntry is a library's line in fstab.
 type libraryEntry struct {
 	name, source, base, asOwner string
+	share                       bool
 }
 
 // libraryEntries reads the libraries' lines in fstab.
@@ -740,8 +763,8 @@ func libraryEntries(tab string) []libraryEntry {
 	lines := strings.Split(tab, "\n")
 	for i, l := range lines {
 		name, ok := strings.CutPrefix(l, "# Added by Roostack: media library ")
-		if !ok || i+1 >= len(lines) {
-			continue
+		if !ok || i+1 >= len(lines) || strings.HasSuffix(name, " (a share)") {
+			continue // a share's (shareEntries)
 		}
 		f := strings.Fields(lines[i+1])
 		if len(f) < 4 {
@@ -796,7 +819,7 @@ func (h LinuxHost) SetLibraryViews(service string, libraries []string) error {
 	}
 	tab := string(data)
 	known := map[string]bool{}
-	for _, e := range libraryEntries(tab) {
+	for _, e := range append(libraryEntries(tab), shareEntries(tab)...) {
 		known[e.name] = true
 	}
 	want := map[string]bool{}

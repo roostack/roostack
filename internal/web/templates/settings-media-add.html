@@ -75,6 +75,41 @@
     {{range .Roots}}<li class="row-split"><a href="{{$.Add.RootHref .}}">{{.}}</a></li>{{end}}
   </ul>
   <p class="hint">Folders under {{join .Roots ", "}}, apart from Roostack's own.</p>
+
+  <h2>Or a network share</h2>
+  <form method="post" action="/settings/media/add" x-data="{ type: '{{.ShareType}}' }">
+    <input type="hidden" name="server" value="{{.Server}}">
+    <input type="hidden" name="where" value="share">
+    <fieldset class="inline-choices"><legend>Kind</legend>
+      <label class="check"><input type="radio" name="share_type" value="smb" x-model="type"{{if ne .ShareType "nfs"}} checked{{end}}>
+        <span>SMB<small>Windows sharing: most NASes</small></span></label>
+      <label class="check"><input type="radio" name="share_type" value="nfs" x-model="type"{{if eq .ShareType "nfs"}} checked{{end}}>
+        <span>NFS<small>Unix sharing</small></span></label>
+    </fieldset>
+    <label>Server <input name="share_server" value="{{.ShareServer}}" placeholder="nas.local or 192.168.1.20" required autocapitalize="off" spellcheck="false">
+      <small>The NAS or computer sharing it.</small></label>
+    <label>Share <input name="share_path" value="{{.SharePath}}" required autocapitalize="off" spellcheck="false"
+        x-bind:placeholder="type === 'nfs' ? '/volume1/media' : 'media'">
+      <small x-show="type !== 'nfs'">The share's name, as the NAS calls it. The whole share becomes the library: share just the
+        folder you want, if it's not all of it.</small>
+      <small x-show="type === 'nfs'" x-cloak>The export's path. The NAS must let this server's address mount it.</small></label>
+    <div x-show="type !== 'nfs'">
+      <label>Username <input name="share_user" value="{{.ShareUser}}" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <small>Leave empty for a share anyone on your network can open.</small></label>
+      <label>Password <input name="share_password" type="password" autocomplete="new-password">
+        <small>Kept on {{.ServerName}} where only its system can read it, to connect to the share; Roostack's pages can't show it
+          again. A NAS account that can only read is best.</small></label>
+    </div>
+    <label>Name <input name="title" value="{{.ShareTitle}}" maxlength="60" placeholder="Media" required>
+      <small>What it's called on your pages, and its folder's name inside services, in lower case.</small></label>
+    {{if .Readers}}
+    <fieldset><legend>Services that can read it</legend>
+      {{range .Readers}}<label class="check"><input type="checkbox" name="service" value="{{.Name}}" checked><span>{{.Title}}</span></label>{{end}}
+    </fieldset>
+    {{end}}
+    <button type="submit">Check and add the share</button>
+    <p class="hint">Roostack mounts it read-only for a moment to check it first; nothing is saved if that fails.</p>
+  </form>
   {{end}}
 </section>
 {{end}}

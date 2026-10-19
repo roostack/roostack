@@ -27,6 +27,10 @@ func (f *fakeLibraries) Drives(context.Context) ([]agent.Drive, error) { return 
 func (f *fakeLibraries) LibraryFolders(context.Context, agent.Library) (agent.FolderList, error) {
 	return agent.FolderList{}, nil
 }
+func (f *fakeLibraries) CheckShare(context.Context, agent.Share) (agent.FolderList, error) {
+	return agent.FolderList{}, nil
+}
+func (f *fakeLibraries) SaveShareLogin(context.Context, string, agent.Share) error { return nil }
 func (f *fakeLibraries) Libraries(context.Context) ([]agent.LibraryStatus, error) {
 	var out []agent.LibraryStatus
 	for name := range f.mounted {

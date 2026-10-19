@@ -93,6 +93,10 @@ type Host interface {
 	// folder); RemoveLibraryViews removes its folder.
 	SetLibraryViews(service string, libraries []string) error
 	RemoveLibraryViews(service string) error
+	// CheckShare mounts a share for a moment to list it; SaveShareLogin
+	// keeps an SMB login for a library, root's only (shares.go).
+	CheckShare(s Share) (FolderList, error)
+	SaveShareLogin(name string, s Share) error
 	// RemoveWireGuard takes an interface down and deletes its
 	// configuration (e.g. the server left its lab).
 	RemoveWireGuard(iface string) error
@@ -317,6 +321,30 @@ func (s *Server) Handler() http.Handler {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("POST /v1/shares/check", func(w http.ResponseWriter, r *http.Request) {
+		var sh Share
+		if !decode(w, r, 8<<10, &sh) {
+			return
+		}
+		list, err := s.Host.CheckShare(sh)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, list)
+	})
+	mux.HandleFunc("PUT /v1/shares/{name}/login", func(w http.ResponseWriter, r *http.Request) {
+		var sh Share
+		if !decode(w, r, 8<<10, &sh) {
+			return
+		}
+		if err := s.Host.SaveShareLogin(r.PathValue("name"), sh); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		s.Log.Info("share login saved", "library", r.PathValue("name"), "server", sh.Server) // never the password
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})
 	mux.HandleFunc("DELETE /v1/library-views/{service}", func(w http.ResponseWriter, r *http.Request) {

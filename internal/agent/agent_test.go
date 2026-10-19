@@ -33,6 +33,7 @@ type fakeHost struct {
 	library   *Library
 	unmounted string
 	views     []string
+	share     string
 }
 
 func (f *fakeHost) ApplyLinks(l Links) error { f.links = &l; return nil }
@@ -74,6 +75,13 @@ func (f *fakeHost) MountLibrary(l Library) error     { f.library = &l; return ni
 func (f *fakeHost) UnmountLibrary(name string) error { f.unmounted = name; return nil }
 func (f *fakeHost) SetLibraryViews(service string, libs []string) error {
 	f.views = append([]string{service}, libs...)
+	return nil
+}
+func (f *fakeHost) CheckShare(s Share) (FolderList, error) {
+	return FolderList{Folders: []FolderEntry{{Name: s.Path}}}, nil
+}
+func (f *fakeHost) SaveShareLogin(name string, s Share) error {
+	f.share = name + " " + s.Username
 	return nil
 }
 func (f *fakeHost) RemoveLibraryViews(service string) error {

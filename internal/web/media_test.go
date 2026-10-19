@@ -134,6 +134,18 @@ func TestMediaAdd(t *testing.T) {
 		!slices.Equal(a.Services, []string{"plex", "navidrome"}) || a.DriveName != "MEDIA" {
 		t.Errorf("added %+v", a)
 	}
+	share := url.Values{"server": {"n-1"}, "where": {"share"}, "share_type": {"smb"}, "share_server": {"nas.local"}, "share_path": {"media"},
+		"share_user": {"sam"}, "share_password": {"s3cret pass"}, "title": {"Media"}, "service": {"plex"}}
+	h.post("/settings/media/add", share, h.srv.URL)
+	if a := libs.added[len(libs.added)-1]; a.Share == nil || a.Share.Server != "nas.local" || a.Share.Path != "media" ||
+		a.Share.Username != "sam" || a.Share.Password != "s3cret pass" || a.Title != "Media" {
+		t.Errorf("a share: %+v %+v", a, a.Share)
+	}
+	share.Set("title", " ")
+	if _, body := h.post("/settings/media/add", share, h.srv.URL); !strings.Contains(body, `value="nas.local"`) ||
+		strings.Contains(body, "s3cret pass") || !strings.Contains(body, "Give the library a name") {
+		t.Errorf("a share's form comes back with its values but never the password:\n%s", body)
+	}
 	form.Set("title", " ")
 	if _, body := h.post("/settings/media/add", form, h.srv.URL); !strings.Contains(body, "Give the library a name") {
 		t.Errorf("a form error comes back on the page:\n%s", body)

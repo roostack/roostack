@@ -47,6 +47,9 @@ func (m *Manager) librariesFor(ctx context.Context, serverID string) []agent.Lib
 // agentLibrary is a stored library as the agent mounts it.
 func agentLibrary(l store.MediaLibrary) agent.Library {
 	a := agent.Library{Name: l.Name, Drive: l.Drive, Sub: l.Sub, Folder: l.Folder}
+	if l.ShareType != "" {
+		a.Share = &agent.Share{Type: l.ShareType, Server: l.ShareServer, Path: l.SharePath, Username: l.ShareUser}
+	}
 	if l.OwnerUID != 0 {
 		a.AsOwner = &agent.Owner{UID: l.OwnerUID, GID: l.OwnerGID, Name: l.OwnerName}
 	}
@@ -131,6 +134,12 @@ func (m *Manager) MediaLibraries(ctx context.Context) ([]ServerLibraries, error)
 
 // libraryWhere says where a library is, in words.
 func libraryWhere(l store.MediaLibrary) string {
+	switch l.ShareType {
+	case "smb":
+		return "The SMB share " + l.SharePath + " on " + l.ShareServer
+	case "nfs":
+		return "The NFS share " + l.ShareServer + ":" + l.SharePath
+	}
 	if l.Folder != "" {
 		return l.Folder
 	}
@@ -203,6 +212,9 @@ type LibraryRequest struct {
 	AsOwner bool
 	// Services may read it (names of services on its server).
 	Services []string
+	// Share, if set, makes it a network share (its password only goes to
+	// the server, to check it and keep its login).
+	Share *agent.Share
 }
 
 // libraryNameRe and LibraryName: a library's name comes from its title.
@@ -237,6 +249,9 @@ func (m *Manager) AddLibrary(ctx context.Context, req LibraryRequest) error {
 			return formErrorf("%s already has a library called %s: choose another name.", m.nameOf(req.Server), l.Title)
 		}
 	}
+	if req.Share != nil {
+		return m.addShare(ctx, req, name, title)
+	}
 	l := agent.Library{Name: name, Drive: req.Drive, Sub: req.Sub, Folder: req.Folder}
 	if (l.Drive == "") == (l.Folder == "") {
 		return formErrorf("Choose where the library is: a drive, or a folder on the server.")
@@ -266,6 +281,48 @@ func (m *Manager) AddLibrary(ctx context.Context, req LibraryRequest) error {
 	m.applyReason = "Adding the media library " + title
 	m.startApplyLocked()
 	return nil
+}
+
+// addShare checks a share with its server, keeps its login there, and
+// adds it as a library.
+func (m *Manager) addShare(ctx context.Context, req LibraryRequest, name, title string) error {
+	media, err := m.libraryMedia(req.Server)
+	if err != nil {
+		return err
+	}
+	sh := *req.Share
+	sh.Server, sh.Path, sh.Username = strings.TrimSpace(sh.Server), strings.TrimSpace(sh.Path), strings.TrimSpace(sh.Username)
+	if sh.Type == "nfs" && !strings.HasPrefix(sh.Path, "/") {
+		sh.Path = "/" + sh.Path
+	}
+	if _, err := media.CheckShare(ctx, sh); err != nil {
+		return formErrorf("%s", userText(err))
+	}
+	if err := media.SaveShareLogin(ctx, name, sh); err != nil {
+		return formErrorf("%s", userText(err))
+	}
+	lib := store.MediaLibrary{ServerID: req.Server, Name: name, Title: title, ShareType: sh.Type, ShareServer: sh.Server,
+		SharePath: sh.Path, ShareUser: sh.Username}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if err := m.Libraries.SetMediaLibrary(ctx, lib); err != nil {
+		return err
+	}
+	if err := m.setReadersLocked(req.Server, name, req.Services); err != nil {
+		return err
+	}
+	m.applyReason = "Adding the media library " + title
+	m.startApplyLocked()
+	return nil
+}
+
+// userText is an error's words for a form: a FormError's own.
+func userText(err error) string {
+	var fe *node.FormError
+	if errors.As(err, &fe) {
+		return fe.Msg
+	}
+	return err.Error()
 }
 
 // RemoveLibrary removes a library from its server and from the services

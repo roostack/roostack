@@ -20,13 +20,17 @@ type MediaLibrary struct {
 	OwnerUID  int
 	OwnerGID  int
 	OwnerName string
-	Created   time.Time
+	// ShareType ("smb" or "nfs"), ShareServer, SharePath and ShareUser
+	// make it a network share; its password isn't kept here.
+	ShareType, ShareServer, SharePath, ShareUser string
+	Created                                      time.Time
 }
 
 // MediaLibraries lists every server's media libraries, by server and name.
 func (s *Store) MediaLibraries(ctx context.Context) ([]MediaLibrary, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT server_id, name, title, drive, drive_name, sub, folder,
-		owner_uid, owner_gid, owner_name, created_at FROM media_libraries ORDER BY server_id, title, name`)
+		owner_uid, owner_gid, owner_name, share_type, share_server, share_path, share_user, created_at
+		FROM media_libraries ORDER BY server_id, title, name`)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +40,7 @@ func (s *Store) MediaLibraries(ctx context.Context) ([]MediaLibrary, error) {
 		var l MediaLibrary
 		var created int64
 		if err := rows.Scan(&l.ServerID, &l.Name, &l.Title, &l.Drive, &l.DriveName, &l.Sub, &l.Folder,
-			&l.OwnerUID, &l.OwnerGID, &l.OwnerName, &created); err != nil {
+			&l.OwnerUID, &l.OwnerGID, &l.OwnerName, &l.ShareType, &l.ShareServer, &l.SharePath, &l.ShareUser, &created); err != nil {
 			return nil, err
 		}
 		l.Created = time.Unix(created, 0)
@@ -52,11 +56,14 @@ func (s *Store) SetMediaLibrary(ctx context.Context, l MediaLibrary) error {
 		l.Created = time.Now()
 	}
 	_, err := s.db.ExecContext(ctx, `INSERT INTO media_libraries (server_id, name, title, drive, drive_name, sub, folder,
-		owner_uid, owner_gid, owner_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		owner_uid, owner_gid, owner_name, share_type, share_server, share_path, share_user, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(server_id, name) DO UPDATE SET title = excluded.title, drive = excluded.drive,
 		drive_name = excluded.drive_name, sub = excluded.sub, folder = excluded.folder, owner_uid = excluded.owner_uid,
-		owner_gid = excluded.owner_gid, owner_name = excluded.owner_name`,
-		l.ServerID, l.Name, l.Title, l.Drive, l.DriveName, l.Sub, l.Folder, l.OwnerUID, l.OwnerGID, l.OwnerName, l.Created.Unix())
+		owner_gid = excluded.owner_gid, owner_name = excluded.owner_name, share_type = excluded.share_type,
+		share_server = excluded.share_server, share_path = excluded.share_path, share_user = excluded.share_user`,
+		l.ServerID, l.Name, l.Title, l.Drive, l.DriveName, l.Sub, l.Folder, l.OwnerUID, l.OwnerGID, l.OwnerName,
+		l.ShareType, l.ShareServer, l.SharePath, l.ShareUser, l.Created.Unix())
 	return err
 }
 

@@ -197,3 +197,67 @@ func TestLibraryAPI(t *testing.T) {
 		t.Errorf("unmount %q %v", host.unmounted, err)
 	}
 }
+
+// A share is checked before anything is mounted: a server's name or
+// address, an SMB share's name or an NFS export's path, no line breaks in
+// a login, no login for NFS.
+func TestCheckShare(t *testing.T) {
+	ok := func(s Share) bool {
+		err := checkShare(s)
+		return err == nil || strings.Contains(err.Error(), "needs the") // mount.cifs/mount.nfs may be missing here
+	}
+	for _, s := range []Share{{Type: "smb", Server: "nas.local", Path: "My Media", Username: "sam", Password: "p@ss w0rd"},
+		{Type: "smb", Server: "192.168.1.20", Path: "media"}, {Type: "nfs", Server: "nas", Path: "/volume1/media"}} {
+		if !ok(s) {
+			t.Errorf("%+v: %v", s, checkShare(s))
+		}
+	}
+	for _, s := range []Share{{Type: "smb", Server: "nas", Path: "a/b"}, {Type: "smb", Server: "nas local", Path: "m"},
+		{Type: "smb", Server: "nas", Path: "m", Password: "a\nb"}, {Type: "smb", Server: "nas", Path: "m", Username: "a,b"},
+		{Type: "nfs", Server: "nas", Path: "volume1"}, {Type: "nfs", Server: "nas", Path: "/v", Username: "sam"},
+		{Type: "afp", Server: "nas", Path: "m"}, {Type: "smb", Server: "nas", Path: "m#x"}} {
+		if err := checkShare(s); err == nil || strings.Contains(err.Error(), "needs the") {
+			t.Errorf("%+v must be refused: %v", s, err)
+		}
+	}
+}
+
+// A share mounts read-only, automounted, an SMB share's files Roostack's
+// and never writable, its login from its file (or as a guest).
+func TestShareFstab(t *testing.T) {
+	h := LinuxHost{UID: 999, GID: 989}
+	smb := Share{Type: "smb", Server: "nas.local", Path: "My Media", Username: "sam"}
+	opts := h.shareOptions(smb, "/etc/roostack/shares/media.cred")
+	for _, want := range []string{"ro,", "x-systemd.automount", "_netdev", "nofail", "credentials=/etc/roostack/shares/media.cred",
+		"uid=999,gid=989,file_mode=0444,dir_mode=0555"} {
+		if !strings.Contains(opts, want) {
+			t.Errorf("smb options lack %q: %s", want, opts)
+		}
+	}
+	if opts := h.shareOptions(Share{Type: "smb", Server: "nas", Path: "m"}, ""); !strings.Contains(opts, ",guest") {
+		t.Errorf("a guest share: %s", opts)
+	}
+	if opts := h.shareOptions(Share{Type: "nfs", Server: "nas", Path: "/v"}, ""); strings.Contains(opts, "uid=") || !strings.HasPrefix(opts, "ro,") {
+		t.Errorf("nfs options: %s", opts)
+	}
+	if got := fstabEscape(shareSource(smb)); got != `//nas.local/My\040Media` {
+		t.Errorf("source %q", got)
+	}
+	tab := withBlock("", shareTag("media"), `//nas.local/My\040Media /mnt/roostack-library/media cifs ro 0 0`)
+	tab = withBlock(tab, libraryTag("films"), "/mnt/d/Films /mnt/roostack-library/films none bind,ro 0 0")
+	if e := shareEntries(tab); len(e) != 1 || e[0].name != "media" || e[0].source != "//nas.local/My Media" || !e[0].share {
+		t.Errorf("shares %+v", e)
+	}
+	if e := libraryEntries(tab); len(e) != 1 || e[0].name != "films" {
+		t.Errorf("a share isn't a drive's library: %+v", e)
+	}
+	if got := removeBlock(tab, shareTag("media")); strings.Contains(got, "nas.local") {
+		t.Errorf("removing the share left %q", got)
+	}
+	for out, want := range map[string]string{"mount error(13): Permission denied": "refused the login",
+		"mount error(2): No such file or directory": "no share by that name", "mount error(112): Host is down": "didn't answer"} {
+		if got := shareFailure(out); !strings.Contains(got, want) {
+			t.Errorf("%q: %q", out, got)
+		}
+	}
+}
