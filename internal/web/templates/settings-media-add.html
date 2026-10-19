@@ -5,112 +5,129 @@
 {{with .Add}}
 <div class="page-head"><div><h1>Add a media library</h1>
   <p class="lede">On {{.ServerName}}. Services you choose can read it but never change it, and it isn't backed up.</p></div></div>
-<section class="card section">
+{{/* One form (SPEC.md §8.1): where it is, chosen with the segmented
+     control (each choice's fields show by CSS, so it works without
+     scripts; the server uses only the chosen one's), then its name and the
+     services that read it. Alpine follows the choice for the suggested
+     name, the required fields and the button. */}}
+<form class="card section media-add" method="post" action="/settings/media/add" data-where="{{.Where}}" data-title="{{.Title}}"
+  data-edited="{{if .TitleEdited}}yes{{end}}"
+  x-data="{ where: $el.dataset.where, title: $el.dataset.title, edited: $el.dataset.edited === 'yes', names: {} }"
+  x-on:change="if ($event.target.name === 'where') { where = $event.target.value; if (!edited) title = names[where] || '' }">
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
-  {{if .List}}
-  <nav class="crumbs folder-crumbs" aria-label="Folders opened">
-    <a href="/settings/media/add?server={{.Server}}">Where</a>{{range .Crumbs}}<a href="{{.Href}}">{{.Name}}</a>{{end}}
-  </nav>
-  {{if .List.Folders}}
-  <ul class="rows folders">
-    {{range .List.Folders}}
-    <li class="row-split"><a href="{{$.Add.FolderHref .Name}}">{{.Name}}</a>
-      <small class="hint">{{if .Folders}}{{.Folders}} {{if eq .Folders 1}}folder{{else}}folders{{end}}{{end}}{{if and .Folders .Files}}, {{end}}{{if .Files}}{{.Files}} {{if eq .Files 1}}file{{else}}files{{end}}{{end}}{{if and (not .Folders) (not .Files)}}empty{{end}}</small></li>
-    {{end}}
-  </ul>
-  {{else}}<p class="hint">No folders here.</p>{{end}}
-
-  <form method="post" action="/settings/media/add">
-    <input type="hidden" name="server" value="{{.Server}}">
-    {{if .Drive}}<input type="hidden" name="drive" value="{{.Drive}}"><input type="hidden" name="name" value="{{.DriveName}}">
-    <input type="hidden" name="sub" value="{{.Sub}}">{{else}}<input type="hidden" name="folder" value="{{.Folder}}">{{end}}
-    <h2>Use {{.Here}}</h2>
-    {{with .List.Check}}{{if .Unreadable}}
-    <div class="notice notice-warn" role="status">
-      <p>{{if and .Closed .Owner}}<strong>This folder can only be opened by its owner, {{or .Owner.Name .Owner.UID}}</strong>, so services
-        couldn't open anything in it.{{else if .Closed}}<strong>Services couldn't open this folder</strong>: it belongs to the system or
-        to someone else.{{else if .Owner}}<strong>{{.OwnerFiles}} of the {{.Sampled}} files and folders Roostack looked at can only be read by their owner, {{or .Owner.Name .Owner.UID}}</strong>,
-        so services couldn't open them.{{else}}<strong>Services couldn't open {{.Unreadable}} of the {{.Sampled}} files and folders Roostack looked at</strong>:
-        they belong to the system or to several people.{{end}}{{if .Partial}} (Roostack looked at the first {{.Sampled}}.){{end}}</p>
-      {{if and .Owner $.Add.Drive}}
-      <label class="check"><input type="checkbox" name="as_owner" checked>
-        <span>Let services read them as {{or .Owner.Name .Owner.UID}}
-          <small>Roostack mounts the folder so {{or .Owner.Name .Owner.UID}}'s files show as Roostack's own, for this library only:
-            services can read everything {{or .Owner.Name .Owner.UID}} can, and still change nothing. Nothing on the drive changes;
-            removing the library undoes it.{{if gt .Unreadable .OwnerFiles}} Files of other people stay unreadable.{{end}}</small></span></label>
-      {{else if .Owner}}<p class="hint">Make them readable to everyone on the server, or put them on a drive: a library on a drive
-        can be read as their owner.</p>{{end}}
-    </div>
-    {{end}}{{end}}
-    <label>Name <input name="title" value="{{.Name}}" maxlength="60" required>
-      <small>What it's called on your pages, and its folder's name inside services, in lower case.</small></label>
-    {{if .Readers}}
-    <fieldset><legend>Services that can read it</legend>
-      {{range .Readers}}<label class="check"><input type="checkbox" name="service" value="{{.Name}}" checked><span>{{.Title}}</span></label>{{end}}
-    </fieldset>
-    {{else}}<p class="hint">No service on {{.ServerName}} reads media libraries yet: the ones you install choose theirs.</p>{{end}}
-    <button type="submit">Add library</button>
-  </form>
-
-  {{else}}
   <h2>Where is it?</h2>
-  {{if .Drives}}
-  <div class="drives">
-    {{range .Drives}}
-    {{if .Backup}}
-    <div class="drive drive-unusable"><span><strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else}}Second disk{{end}}</span>
-      <small>Your backups' drive: keep media on another</small></span></div>
-    {{else}}
-    <div class="drive"><a href="{{$.Add.DriveHref .}}">
-      <strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else}}Second disk{{end}}</span>
-      <small>{{size .Size}}{{if ge .Free 0}}, {{size .Free}} free{{end}} · {{.FSType}}{{with .Model}} · {{.}}{{end}}{{with .Mount}} · at {{.}}{{end}}</small></a></div>
-    {{end}}
-    {{end}}
-  </div>
-  <p class="hint">Just plugged a drive in? <a href="/settings/media/add?server={{.Server}}">Look again</a>. Roostack mounts it
-    read-only: nothing on it changes.</p>
-  {{else}}<p class="hint">No USB drives or second disks on {{.ServerName}}. Plug one in and <a href="/settings/media/add?server={{.Server}}">look again</a>.</p>{{end}}
-  <h2>Or a folder on {{.ServerName}}</h2>
-  <ul class="rows folders">
-    {{range .Roots}}<li class="row-split"><a href="{{$.Add.RootHref .}}">{{.}}</a></li>{{end}}
-  </ul>
-  <p class="hint">Folders under {{join .Roots ", "}}, apart from Roostack's own.</p>
+  <input type="hidden" name="server" value="{{.Server}}">
+  <div class="seg-group">
+    {{segmented "where" "Where it is" .Where (choice "drive" "Drive" "disk") (choice "folder" (printf "Folder on %s" .ServerName) "server") (choice "share" "Network share" "network")}}
 
-  <h2>Or a network share</h2>
-  <form method="post" action="/settings/media/add" x-data="{ type: '{{.ShareType}}' }">
-    <input type="hidden" name="server" value="{{.Server}}">
-    <input type="hidden" name="where" value="share">
-    <fieldset class="inline-choices"><legend>Kind</legend>
-      <label class="check"><input type="radio" name="share_type" value="smb" x-model="type"{{if ne .ShareType "nfs"}} checked{{end}}>
-        <span>SMB<small>Windows sharing: most NASes</small></span></label>
-      <label class="check"><input type="radio" name="share_type" value="nfs" x-model="type"{{if eq .ShareType "nfs"}} checked{{end}}>
-        <span>NFS<small>Unix sharing</small></span></label>
-    </fieldset>
-    <label>Server <input name="share_server" value="{{.ShareServer}}" placeholder="nas.local or 192.168.1.20" required autocapitalize="off" spellcheck="false">
-      <small>The NAS or computer sharing it.</small></label>
-    <label>Share <input name="share_path" value="{{.SharePath}}" required autocapitalize="off" spellcheck="false"
-        x-bind:placeholder="type === 'nfs' ? '/volume1/media' : 'media'">
-      <small x-show="type !== 'nfs'">The share's name, as the NAS calls it. The whole share becomes the library: share just the
-        folder you want, if it's not all of it.</small>
-      <small x-show="type === 'nfs'" x-cloak>The export's path. The NAS must let this server's address mount it.</small></label>
-    <div x-show="type !== 'nfs'">
-      <label>Username <input name="share_user" value="{{.ShareUser}}" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <small>Leave empty for a share anyone on your network can open.</small></label>
-      <label>Password <input name="share_password" type="password" autocomplete="new-password">
-        <small>Kept on {{.ServerName}} where only its system can read it, to connect to the share; Roostack's pages can't show it
-          again. A NAS account that can only read is best.</small></label>
+    <div class="seg-panel" data-seg="1">
+      <p class="hint seg-hint">A USB drive or second disk. Roostack mounts it read-only: nothing on it changes.</p>
+      {{with .DrivesError}}<p class="error" role="alert">{{.}}</p>{{end}}
+      {{if .Drives}}
+      <div class="drives">
+        {{range .Drives}}
+        {{if .Backup}}
+        <div class="drive drive-unusable"><label class="check"><input type="radio" name="drive" value="{{.UUID}}" disabled>
+          <span><strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else}}Second disk{{end}}</span>
+            <small>Your backups' drive: keep media on another</small></span></label></div>
+        {{else}}
+        <div class="drive"><label class="check"><input type="radio" name="drive" value="{{.UUID}}"{{if eq .UUID $.Add.DrivePlace.Drive}} checked{{end}}
+            hx-get="{{$.Add.DriveHref .}}" hx-trigger="change" hx-target="#place-drive" hx-select="#place-drive" hx-swap="outerHTML">
+          <span><strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else}}Second disk{{end}}</span>
+            <small>{{size .Size}}{{if ge .Free 0}}, {{size .Free}} free{{end}} · {{.FSType}}{{with .Model}} · {{.}}{{end}}{{with .Mount}} · at {{.}}{{end}}</small>
+            {{if ne .UUID $.Add.DrivePlace.Drive}}<noscript><a href="{{$.Add.DriveHref .}}">Use this drive</a></noscript>{{end}}</span></label></div>
+        {{end}}
+        {{end}}
+      </div>
+      <p class="hint">Just plugged a drive in? <a href="/settings/media/add?server={{.Server}}">Look again</a>.</p>
+      {{else if not .DrivesError}}<p class="hint">No USB drives or second disks on {{.ServerName}}. Plug one in and
+        <a href="/settings/media/add?server={{.Server}}">look again</a>.</p>{{end}}
+      {{if .HasDrive}}{{template "media-place" .DrivePlace}}{{end}}
     </div>
-    <label>Name <input name="title" value="{{.ShareTitle}}" maxlength="60" placeholder="Media" required>
-      <small>What it's called on your pages, and its folder's name inside services, in lower case.</small></label>
-    {{if .Readers}}
-    <fieldset><legend>Services that can read it</legend>
-      {{range .Readers}}<label class="check"><input type="checkbox" name="service" value="{{.Name}}" checked><span>{{.Title}}</span></label>{{end}}
-    </fieldset>
-    {{end}}
-    <button type="submit">Check and add the share</button>
-    <p class="hint">Roostack mounts it read-only for a moment to check it first; nothing is saved if that fails.</p>
-  </form>
-  {{end}}
-</section>
+
+    <div class="seg-panel" data-seg="2">
+      <p class="hint seg-hint">A folder already on {{.ServerName}}, under {{join .Roots ", "}} (apart from Roostack's own).</p>
+      {{template "media-place" .Place}}
+    </div>
+
+    <div class="seg-panel" data-seg="3">
+      <p class="hint seg-hint">A folder shared by a NAS or another computer. The whole share becomes the library: share just the
+        folder you want, if it's not all of it.</p>
+      <div class="seg-group">
+        {{segmented "share_type" "Kind of share" .ShareType (choice "smb" "SMB") (choice "nfs" "NFS") "size=small"}}
+        <p class="seg-panel hint seg-hint" data-seg="1">Windows sharing: most NASes. The share is its name, as the NAS calls it.</p>
+        <p class="seg-panel hint seg-hint" data-seg="2">Unix sharing. The share is the export's path, and the NAS must let
+          {{.ServerName}}'s address mount it.</p>
+        <div class="field-row">
+          <label>Server <input name="share_server" value="{{.ShareServer}}" placeholder="nas.local or 192.168.1.20" autocapitalize="off"
+              spellcheck="false" x-bind:required="where === 'share'">
+            <small>The NAS or computer sharing it.</small></label>
+          <label>Share <input name="share_path" value="{{.SharePath}}" placeholder="media or /volume1/media" autocapitalize="off"
+              spellcheck="false" x-bind:required="where === 'share'"></label>
+        </div>
+        <div class="seg-panel" data-seg="1"><div class="field-row">
+          <label>Username <input name="share_user" value="{{.ShareUser}}" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <small>Empty for a share anyone on your network can open.</small></label>
+          <label>Password <input name="share_password" type="password" autocomplete="new-password">
+            <small>Kept on {{.ServerName}}, readable only by its system; Roostack's pages can't show it again. A NAS account
+              that can only read is best.</small></label>
+        </div></div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="form-rule">
+  <label>Name <input class="name-input" name="title" value="{{.Title}}" maxlength="60" placeholder="Films" required x-model="title" x-on:input="edited = true">
+    <small>What it's called on your pages, and its folder's name inside services, in lower case.</small></label>
+  {{if .Readers}}
+  <fieldset><legend>Services that can read it</legend>
+    <div class="check-row">
+      {{range .Readers}}<label class="check"><input type="checkbox" name="service" value="{{.Name}}"{{if .Checked}} checked{{end}}><span>{{.Title}}</span></label>{{end}}
+    </div>
+  </fieldset>
+  {{else}}<p class="hint">No service on {{.ServerName}} reads media libraries yet: the ones you install choose theirs.</p>{{end}}
+  {{/* The button says what happens: a share is checked first. */}}
+  <button type="submit"><span x-show="where !== 'share'">Add library</span><span x-show="where === 'share'" x-cloak>Check and add the share</span></button>
+  <p class="hint" x-show="where === 'share'" x-cloak>Roostack mounts a share read-only for a moment to check it first; nothing is saved if that fails.</p>
+  {{pickerDialog "folder-picker-dialog" "#place-drive"}}
+  {{pickerDialog "server-picker-dialog" "#place-folder"}}
+</form>
 {{end}}
+{{end}}
+
+{{/* media-place (a mediaPlace): the folder chosen on a drive or on the
+     server, with the button opening the folder picker, and what the check
+     of it found. Its own part of the page (#place-drive, #place-folder),
+     replaced when a folder is chosen in the picker or another drive. */}}
+{{define "media-place"}}
+<div id="place-{{if .Drive}}drive{{else}}folder{{end}}" data-name="{{.Name}}"
+  x-init="names[$el.id === 'place-drive' ? 'drive' : 'folder'] = $el.dataset.name; if (!edited && where === ($el.id === 'place-drive' ? 'drive' : 'folder')) title = $el.dataset.name">
+  {{if .Drive}}<input type="hidden" name="name" value="{{.DriveName}}"><input type="hidden" name="sub" value="{{.Sub}}">
+  {{else}}<input type="hidden" name="folder" value="{{.Folder}}">{{end}}
+  <p class="field-label">Folder</p>
+  <div class="folder-choice{{if not .Label}} empty{{end}}">
+    {{icon "folder"}}
+    <span class="path"><strong>{{if .Label}}{{.Label}}{{if and .Drive (not .Sub)}} (the whole drive){{end}}{{else}}No folder chosen yet{{end}}</strong>
+      {{with .Counts}}<small>{{.}}</small>{{end}}</span>
+    <a class="button secondary" href="{{.PickHref}}" data-picker="{{if .Drive}}folder{{else}}server{{end}}-picker-dialog">Choose a folder…</a>
+  </div>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{with .Check}}
+  <div class="notice notice-warn" role="status">
+    <p>{{if and .Closed .Owner}}<strong>This folder can only be opened by its owner, {{or .Owner.Name .Owner.UID}}</strong>, so services
+      couldn't open anything in it.{{else if .Closed}}<strong>Services couldn't open this folder</strong>: it belongs to the system or
+      to someone else.{{else if .Owner}}<strong>{{.OwnerFiles}} of the {{.Sampled}} files and folders Roostack looked at can only be read by their owner, {{or .Owner.Name .Owner.UID}}</strong>,
+      so services couldn't open them.{{else}}<strong>Services couldn't open {{.Unreadable}} of the {{.Sampled}} files and folders Roostack looked at</strong>:
+      they belong to the system or to several people.{{end}}{{if .Partial}} (Roostack looked at the first {{.Sampled}}.){{end}}</p>
+    {{if and .Owner $.Drive}}
+    <label class="check"><input type="checkbox" name="as_owner" checked>
+      <span>Let services read them as {{or .Owner.Name .Owner.UID}}
+        <small>Roostack mounts the folder so {{or .Owner.Name .Owner.UID}}'s files show as Roostack's own, for this library only:
+          services can read everything {{or .Owner.Name .Owner.UID}} can, and still change nothing. Nothing on the drive changes;
+          removing the library undoes it.{{if gt .Unreadable .OwnerFiles}} Files of other people stay unreadable.{{end}}</small></span></label>
+    {{else if .Owner}}<p class="hint">Make them readable to everyone on the server, or put them on a drive: a library on a drive
+      can be read as their owner.</p>{{end}}
+  </div>
+  {{end}}
+</div>
 {{end}}

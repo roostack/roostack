@@ -44,6 +44,7 @@
         <a href="#status">Status and badges</a>
         <a href="#cards">Cards and facts</a>
         <a href="#forms">Forms</a>
+        <a href="#choosing">Choosing</a>
         <a href="#lists">Lists</a>
         <a href="#space">Disk space</a>
         <a href="#tables">Tables</a>
@@ -1877,6 +1878,188 @@ Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;</pre>
     &lt;span&gt;Restart automatically at &lt;select class=&#34;inline&#34;&gt;&lt;option&gt;04:00&lt;/option&gt;&lt;/select&gt;&lt;/span&gt;
   &lt;/label&gt;
 &lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
+      
+      <section id="choosing">
+        <h2>Choosing</h2>
+        <p class="hint">Controls for choices that a plain list of inputs makes long: a small exclusive choice as a row of buttons, related fields side by side, and a folder chosen in a dialog.</p>
+        
+        <div class="example">
+          <h3>Segmented control <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">segmented NAME LABEL SELECTED (choice VALUE TEXT [ICON])… [&#34;size=small&#34;]: two to four exclusive choices as radios drawn as one row of buttons; on phones a full-size one fills the width, the icon above the words. Inside a .seg-group, the chosen choice&#39;s .seg-panel (data-seg, counting from 1) shows, by CSS alone, so it works without scripts; a .seg-hint first in a panel says what that choice is. For choices that each bring their own fields (where a media library is, SMB or NFS); a choice whose consequences need a sentence each stays radios with notes.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form>
+  <div class="seg-group">
+    <div class="segmented" role="radiogroup" aria-label="Where it is"><label><input type="radio" name="where" value="drive" checked><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><span>Drive</span></label><label><input type="radio" name="where" value="folder"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg><span>Folder on nuc</span></label><label><input type="radio" name="where" value="share"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span>Network share</span></label></div>
+    <p class="seg-panel hint seg-hint" data-seg="1">A USB drive or second disk. Roostack mounts it read-only: nothing on it changes.</p>
+    <p class="seg-panel hint seg-hint" data-seg="2">A folder already on nuc, under /mnt, /media or /srv.</p>
+    <p class="seg-panel hint seg-hint" data-seg="3">A folder shared by a NAS or another computer.</p>
+  </div>
+  <div class="segmented small" role="radiogroup" aria-label="Kind of share"><label><input type="radio" name="share_type" value="smb" checked><span>SMB</span></label><label><input type="radio" name="share_type" value="nfs"><span>NFS</span></label></div>
+</form></div>
+            <div class="panel" data-mode="dark"><form>
+  <div class="seg-group">
+    <div class="segmented" role="radiogroup" aria-label="Where it is"><label><input type="radio" name="where" value="drive" checked><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><span>Drive</span></label><label><input type="radio" name="where" value="folder"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg><span>Folder on nuc</span></label><label><input type="radio" name="where" value="share"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span>Network share</span></label></div>
+    <p class="seg-panel hint seg-hint" data-seg="1">A USB drive or second disk. Roostack mounts it read-only: nothing on it changes.</p>
+    <p class="seg-panel hint seg-hint" data-seg="2">A folder already on nuc, under /mnt, /media or /srv.</p>
+    <p class="seg-panel hint seg-hint" data-seg="3">A folder shared by a NAS or another computer.</p>
+  </div>
+  <div class="segmented small" role="radiogroup" aria-label="Kind of share"><label><input type="radio" name="share_type" value="smb" checked><span>SMB</span></label><label><input type="radio" name="share_type" value="nfs"><span>NFS</span></label></div>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;form&gt;
+  &lt;div class=&#34;seg-group&#34;&gt;
+    {{segmented &#34;where&#34; &#34;Where it is&#34; &#34;drive&#34; (choice &#34;drive&#34; &#34;Drive&#34; &#34;disk&#34;) (choice &#34;folder&#34; &#34;Folder on nuc&#34; &#34;server&#34;) (choice &#34;share&#34; &#34;Network share&#34; &#34;network&#34;)}}
+    &lt;p class=&#34;seg-panel hint seg-hint&#34; data-seg=&#34;1&#34;&gt;A USB drive or second disk. Roostack mounts it read-only: nothing on it changes.&lt;/p&gt;
+    &lt;p class=&#34;seg-panel hint seg-hint&#34; data-seg=&#34;2&#34;&gt;A folder already on nuc, under /mnt, /media or /srv.&lt;/p&gt;
+    &lt;p class=&#34;seg-panel hint seg-hint&#34; data-seg=&#34;3&#34;&gt;A folder shared by a NAS or another computer.&lt;/p&gt;
+  &lt;/div&gt;
+  {{segmented &#34;share_type&#34; &#34;Kind of share&#34; &#34;smb&#34; (choice &#34;smb&#34; &#34;SMB&#34;) (choice &#34;nfs&#34; &#34;NFS&#34;) &#34;size=small&#34;}}
+&lt;/form&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;form&gt;
+  &lt;div class=&#34;seg-group&#34;&gt;
+    &lt;div class=&#34;segmented&#34; role=&#34;radiogroup&#34; aria-label=&#34;Where it is&#34;&gt;
+      &lt;label&gt;
+        &lt;input type=&#34;radio&#34; name=&#34;where&#34; value=&#34;drive&#34; checked&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;ellipse cx=&#34;12&#34; cy=&#34;6&#34; rx=&#34;8&#34; ry=&#34;3&#34;/&gt;&lt;path d=&#34;M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6&#34;/&gt;&lt;path d=&#34;M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3&#34;/&gt;&lt;/svg&gt;&lt;span&gt;Drive&lt;/span&gt;
+      &lt;/label&gt;
+      &lt;label&gt;
+        &lt;input type=&#34;radio&#34; name=&#34;where&#34; value=&#34;folder&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;3&#34; y=&#34;4&#34; width=&#34;18&#34; height=&#34;7&#34; rx=&#34;2&#34;/&gt;&lt;rect x=&#34;3&#34; y=&#34;13&#34; width=&#34;18&#34; height=&#34;7&#34; rx=&#34;2&#34;/&gt;&lt;path d=&#34;M7 7.5h.01M7 16.5h.01&#34;/&gt;&lt;/svg&gt;&lt;span&gt;Folder on nuc&lt;/span&gt;
+      &lt;/label&gt;
+      &lt;label&gt;
+        &lt;input type=&#34;radio&#34; name=&#34;where&#34; value=&#34;share&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;circle cx=&#34;5&#34; cy=&#34;12&#34; r=&#34;2.5&#34;/&gt;&lt;circle cx=&#34;19&#34; cy=&#34;5&#34; r=&#34;2.5&#34;/&gt;&lt;circle cx=&#34;19&#34; cy=&#34;19&#34; r=&#34;2.5&#34;/&gt;&lt;path d=&#34;m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8&#34;/&gt;&lt;/svg&gt;&lt;span&gt;Network share&lt;/span&gt;
+      &lt;/label&gt;
+    &lt;/div&gt;
+    &lt;p class=&#34;seg-panel hint seg-hint&#34; data-seg=&#34;1&#34;&gt;A USB drive or second disk. Roostack mounts it read-only: nothing on it changes.&lt;/p&gt;
+    &lt;p class=&#34;seg-panel hint seg-hint&#34; data-seg=&#34;2&#34;&gt;A folder already on nuc, under /mnt, /media or /srv.&lt;/p&gt;
+    &lt;p class=&#34;seg-panel hint seg-hint&#34; data-seg=&#34;3&#34;&gt;A folder shared by a NAS or another computer.&lt;/p&gt;
+  &lt;/div&gt;
+  &lt;div class=&#34;segmented small&#34; role=&#34;radiogroup&#34; aria-label=&#34;Kind of share&#34;&gt;
+    &lt;label&gt;
+      &lt;input type=&#34;radio&#34; name=&#34;share_type&#34; value=&#34;smb&#34; checked&gt;&lt;span&gt;SMB&lt;/span&gt;
+    &lt;/label&gt;
+    &lt;label&gt;
+      &lt;input type=&#34;radio&#34; name=&#34;share_type&#34; value=&#34;nfs&#34;&gt;&lt;span&gt;NFS&lt;/span&gt;
+    &lt;/label&gt;
+  &lt;/div&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Fields side by side <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">.field-row: two fields to a row (each at least 14rem), one under another when there isn&#39;t room; .field-row.wide-first for a field and a short one (a server and its port). input.name-input for a name, rather than the card&#39;s whole width.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form>
+  <div class="field-row wide-first">
+    <label>SMTP server <input value="smtp.example.com"></label>
+    <label>Port <input type="number" value="587"></label>
+  </div>
+  <div class="field-row">
+    <label>Username <input value="sam"><small>Empty for a share anyone on your network can open.</small></label>
+    <label>Password <input type="password"><small>Kept on nuc, readable only by its system.</small></label>
+  </div>
+  <label>Name <input class="name-input" value="Films"></label>
+</form></div>
+            <div class="panel" data-mode="dark"><form>
+  <div class="field-row wide-first">
+    <label>SMTP server <input value="smtp.example.com"></label>
+    <label>Port <input type="number" value="587"></label>
+  </div>
+  <div class="field-row">
+    <label>Username <input value="sam"><small>Empty for a share anyone on your network can open.</small></label>
+    <label>Password <input type="password"><small>Kept on nuc, readable only by its system.</small></label>
+  </div>
+  <label>Name <input class="name-input" value="Films"></label>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;form&gt;
+  &lt;div class=&#34;field-row wide-first&#34;&gt;
+    &lt;label&gt;SMTP server &lt;input value=&#34;smtp.example.com&#34;&gt;&lt;/label&gt;
+    &lt;label&gt;Port &lt;input type=&#34;number&#34; value=&#34;587&#34;&gt;&lt;/label&gt;
+  &lt;/div&gt;
+  &lt;div class=&#34;field-row&#34;&gt;
+    &lt;label&gt;Username &lt;input value=&#34;sam&#34;&gt;&lt;small&gt;Empty for a share anyone on your network can open.&lt;/small&gt;&lt;/label&gt;
+    &lt;label&gt;Password &lt;input type=&#34;password&#34;&gt;&lt;small&gt;Kept on nuc, readable only by its system.&lt;/small&gt;&lt;/label&gt;
+  &lt;/div&gt;
+  &lt;label&gt;Name &lt;input class=&#34;name-input&#34; value=&#34;Films&#34;&gt;&lt;/label&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Folder picker <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">The folder chosen as a value (.folder-choice: the folder icon, the place and what it holds, then a secondary button), which opens the picker: template &#34;folder-picker&#34; with a folderPicker, the folders opened so far as crumbs, the folders here (each opening on a click, with what it holds), what this one holds, Cancel and Use. A link with data-picker=&#34;ID&#34; shows it in pickerDialog ID PLACE (app.js loads the link&#39;s page into the dialog, and Use replaces the page&#39;s PLACE); without scripts the same link is a page.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="folder-choice"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>MEDIA › Films</strong><small>3 folders, 1 file</small></span><a class="button secondary" href="#">Choose a folder…</a></div>
+<div class="gallery-picker"><div class="folder-picker" id="folder-picker">
+  <h2 class="picker-title">Choose a folder on MEDIA</h2>
+  <nav class="picker-crumbs" aria-label="Folders opened"><a href="#">MEDIA</a><span class="sep" aria-hidden="true">›</span><strong aria-current="true">Films</strong></nav>
+  
+  <ul class="picker-list">
+    <li><a href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="name">Blade Runner (1982)</span><small>3 files</small><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7 5 5-5 5"/></svg></a></li>
+    <li><a href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="name">Paddington 2 (2017)</span><small>2 files</small><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7 5 5-5 5"/></svg></a></li>
+    <li><a href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="name">Extras</span><small>4 folders, 1 file</small><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7 5 5-5 5"/></svg></a></li>
+    
+  </ul>
+  <p class="picker-here hint">MEDIA › Films holds 3 folders, 1 file.</p>
+  <div class="dialog-actions">
+    
+    <a class="button secondary" href="#" data-cancel>Cancel</a>
+    <a class="button" href="#" data-use>Use Films</a>
+  </div>
+</div></div></div>
+            <div class="panel" data-mode="dark"><div class="folder-choice"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>MEDIA › Films</strong><small>3 folders, 1 file</small></span><a class="button secondary" href="#">Choose a folder…</a></div>
+<div class="gallery-picker"><div class="folder-picker" id="folder-picker">
+  <h2 class="picker-title">Choose a folder on MEDIA</h2>
+  <nav class="picker-crumbs" aria-label="Folders opened"><a href="#">MEDIA</a><span class="sep" aria-hidden="true">›</span><strong aria-current="true">Films</strong></nav>
+  
+  <ul class="picker-list">
+    <li><a href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="name">Blade Runner (1982)</span><small>3 files</small><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7 5 5-5 5"/></svg></a></li>
+    <li><a href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="name">Paddington 2 (2017)</span><small>2 files</small><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7 5 5-5 5"/></svg></a></li>
+    <li><a href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="name">Extras</span><small>4 folders, 1 file</small><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7 5 5-5 5"/></svg></a></li>
+    
+  </ul>
+  <p class="picker-here hint">MEDIA › Films holds 3 folders, 1 file.</p>
+  <div class="dialog-actions">
+    
+    <a class="button secondary" href="#" data-cancel>Cancel</a>
+    <a class="button" href="#" data-use>Use Films</a>
+  </div>
+</div></div></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;div class=&#34;folder-choice&#34;&gt;{{icon &#34;folder&#34;}}&lt;span class=&#34;path&#34;&gt;&lt;strong&gt;MEDIA › Films&lt;/strong&gt;&lt;small&gt;3 folders, 1 file&lt;/small&gt;&lt;/span&gt;&lt;a class=&#34;button secondary&#34; href=&#34;#&#34;&gt;Choose a folder…&lt;/a&gt;&lt;/div&gt;
+&lt;div class=&#34;gallery-picker&#34;&gt;{{template &#34;folder-picker&#34; .Picker}}&lt;/div&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;div class=&#34;folder-choice&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;path&#34;&gt;&lt;strong&gt;MEDIA › Films&lt;/strong&gt;&lt;small&gt;3 folders, 1 file&lt;/small&gt;&lt;/span&gt;&lt;a class=&#34;button secondary&#34; href=&#34;#&#34;&gt;Choose a folder…&lt;/a&gt;&lt;/div&gt;
+&lt;div class=&#34;gallery-picker&#34;&gt;
+  &lt;div class=&#34;folder-picker&#34; id=&#34;folder-picker&#34;&gt;
+    &lt;h2 class=&#34;picker-title&#34;&gt;Choose a folder on MEDIA&lt;/h2&gt;
+    &lt;nav class=&#34;picker-crumbs&#34; aria-label=&#34;Folders opened&#34;&gt;&lt;a href=&#34;#&#34;&gt;MEDIA&lt;/a&gt;&lt;span class=&#34;sep&#34; aria-hidden=&#34;true&#34;&gt;›&lt;/span&gt;&lt;strong aria-current=&#34;true&#34;&gt;Films&lt;/strong&gt;&lt;/nav&gt;
+    &lt;ul class=&#34;picker-list&#34;&gt;
+      &lt;li&gt;&lt;a href=&#34;#&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;name&#34;&gt;Blade Runner (1982)&lt;/span&gt;&lt;small&gt;3 files&lt;/small&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;m10 7 5 5-5 5&#34;/&gt;&lt;/svg&gt;&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href=&#34;#&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;name&#34;&gt;Paddington 2 (2017)&lt;/span&gt;&lt;small&gt;2 files&lt;/small&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;m10 7 5 5-5 5&#34;/&gt;&lt;/svg&gt;&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href=&#34;#&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;name&#34;&gt;Extras&lt;/span&gt;&lt;small&gt;4 folders, 1 file&lt;/small&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;m10 7 5 5-5 5&#34;/&gt;&lt;/svg&gt;&lt;/a&gt;&lt;/li&gt;
+    &lt;/ul&gt;
+    &lt;p class=&#34;picker-here hint&#34;&gt;MEDIA › Films holds 3 folders, 1 file.&lt;/p&gt;
+    &lt;div class=&#34;dialog-actions&#34;&gt;&lt;a class=&#34;button secondary&#34; href=&#34;#&#34; data-cancel&gt;Cancel&lt;/a&gt;&lt;a class=&#34;button&#34; href=&#34;#&#34; data-use&gt;Use Films&lt;/a&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;</pre>
             
           </details>
         </div>

@@ -344,6 +344,50 @@ label.check small { display: block; font-weight: var(--weight-normal); }
 select.inline { display: inline-block; width: auto; margin: 0 0 0 var(--space-2); padding: var(--space-1) var(--space-2); }
 .inline-form { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .inline-form label { margin: 0; }
+
+/* Segmented control: a small exclusive choice as one row of buttons
+   (radios). Inside a .seg-group, the chosen one's .seg-panel shows; CSS
+   only, so it works without scripts. On phones a full-size one fills the
+   width, its choices equal columns with the icon above the words. */
+.segmented { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; margin: 0 0 var(--space-3);
+  border: 1px solid var(--edge-strong); border-radius: var(--radius); background: var(--glass); }
+.segmented label { position: relative; display: inline-flex; align-items: center; gap: var(--space-2); margin: 0;
+  padding: 7px 14px; border-radius: calc(var(--radius) - 3px); color: var(--muted); font-weight: var(--weight-medium);
+  cursor: pointer; white-space: nowrap; }
+.segmented label:hover { color: var(--fg); }
+.segmented input { position: absolute; opacity: 0; pointer-events: none; margin: 0; }
+.segmented label:has(input:checked) { background: var(--surface); color: var(--fg);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18), inset 0 0 0 1px var(--edge-strong); }
+.segmented label:has(input:checked) .icon { color: var(--accent); }
+.segmented label:has(input:focus-visible) { box-shadow: var(--focus-ring); }
+.segmented .icon { width: 18px; height: 18px; }
+.segmented.small label { padding: 4px 12px; font-size: var(--text-sm); }
+@media (max-width: 640px) {
+  .segmented:not(.small) { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; }
+  .segmented:not(.small) label { flex-direction: column; justify-content: center; gap: 2px; padding: 8px 4px;
+    white-space: normal; text-align: center; font-size: var(--text-sm); line-height: 1.2; }
+}
+.seg-panel { display: none; }
+.seg-group:has(> .segmented > label:nth-child(1) > input:checked) > .seg-panel[data-seg="1"],
+.seg-group:has(> .segmented > label:nth-child(2) > input:checked) > .seg-panel[data-seg="2"],
+.seg-group:has(> .segmented > label:nth-child(3) > input:checked) > .seg-panel[data-seg="3"],
+.seg-group:has(> .segmented > label:nth-child(4) > input:checked) > .seg-panel[data-seg="4"] { display: block; }
+/* The chosen choice's one-line hint, first in its panel. */
+.seg-hint { margin: calc(-1 * var(--space-1)) 0 var(--space-4); }
+
+/* Fields side by side (server and port, username and password), one under
+   another when there isn't room. */
+.field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0 var(--space-4); }
+.field-row.wide-first { grid-template-columns: minmax(14rem, 1fr) minmax(7rem, 10rem); }
+@media (max-width: 640px) { .field-row.wide-first { grid-template-columns: 1fr; } }
+/* An input as wide as what it usually holds (a name). */
+input.name-input { max-width: 24rem; }
+/* A label for a control that isn't an input (the folder chosen). */
+.field-label { margin: var(--space-4) 0 var(--space-2); font-weight: var(--weight-medium); }
+/* A rule between a form's parts (where something is, then its name). */
+hr.form-rule { border: 0; border-top: 1px solid var(--border); margin: var(--space-5) 0 var(--space-4); }
+/* Checkboxes side by side (services that can read a library). */
+.check-row { display: flex; flex-wrap: wrap; gap: 0 var(--space-5); }
 p.error[role="alert"] { background: var(--bad-bg); color: var(--bad); padding: var(--space-2) var(--space-3);
   border-radius: var(--radius); }
 
@@ -753,12 +797,6 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
 .drive > label { margin: 0; flex: 1 1 16rem; }
 .drive-unusable > label { color: var(--muted); }
 .drive-erase { flex: 0 0 auto; }
-/* A drive card that's a link (media libraries: open its folders). */
-.drive > a { flex: 1 1 16rem; color: inherit; text-decoration: none; }
-.drive > a strong { color: var(--accent); }
-.drive > a:hover strong, .drive > a:focus-visible strong { text-decoration: underline; }
-.drive > a small, .drive-unusable > span small { display: block; color: var(--muted); }
-.drive-unusable > span { color: var(--muted); }
 
 .activity-status { overflow-wrap: anywhere; }
 
@@ -897,6 +935,47 @@ dialog.dialog::backdrop { background: rgb(0 0 0 / 0.45); }
 dialog.dialog p { margin: 0 0 var(--space-4); overflow-wrap: anywhere; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; }
 form.confirm { display: inline; }
+
+/* The folder picker: the folder chosen as a value with a button to
+   change it (.folder-choice), and the picker (folders opened as crumbs,
+   then the folders here, each with what it holds), in a dialog or, without
+   scripts, a page. */
+.folder-choice { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-3);
+  margin: 0 0 var(--space-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--glass); }
+.folder-choice > .icon { width: 22px; height: 22px; color: var(--accent); flex: none; }
+.folder-choice .path { flex: 1 1 12rem; min-width: 0; }
+.folder-choice .path strong { display: block; overflow-wrap: anywhere; }
+.folder-choice .path small { display: block; }
+.folder-choice.empty .path strong { color: var(--muted); font-weight: var(--weight-normal); }
+.picker-title { margin: 0 0 var(--space-2); font-size: var(--text-lg); }
+.picker-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--space-1); margin: 0 0 var(--space-2); font-size: var(--text-sm); }
+.picker-crumbs .sep { color: var(--muted); }
+.picker-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius);
+  max-height: 20rem; overflow-y: auto; background: var(--surface); }
+.picker-list li + li { border-top: 1px solid var(--border); }
+.picker-list a { display: flex; align-items: center; gap: var(--space-3); padding: 10px var(--space-3); color: var(--fg); text-decoration: none; }
+.picker-list a:hover, .picker-list a:focus-visible { background: var(--glass-2); }
+.picker-list a:hover .name { text-decoration: underline; }
+.picker-list .icon { width: 20px; height: 20px; color: var(--muted); flex: none; }
+.picker-list .icon:first-child { color: var(--accent); }
+.picker-list .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.picker-list small { flex: none; }
+.picker-list .empty-note { padding: var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.picker-here { margin: var(--space-2) 0 0; }
+.folder-picker .dialog-actions { margin-top: var(--space-4); align-items: center; }
+.folder-picker .dialog-actions .hint { margin: 0 auto 0 0; }
+/* In its dialog: wider than a question, the close button in the corner;
+   nearly the whole screen on phones. margin: auto keeps it centred in a
+   card, whose last child loses its bottom margin. */
+dialog.dialog.picker { position: fixed; width: min(38rem, calc(100vw - 2 * var(--space-4))); max-width: none; margin: auto; }
+dialog.picker .picker-close { position: absolute; top: var(--space-3); right: var(--space-3); }
+dialog.picker .picker-title { padding-right: var(--space-6); }
+@media (max-width: 640px) {
+  dialog.dialog.picker { width: calc(100vw - 16px); height: calc(100dvh - 16px); max-height: none; margin: 8px; }
+  dialog.picker[open], dialog.picker .picker-body, dialog.picker .folder-picker { display: flex; flex-direction: column; min-height: 0; }
+  dialog.picker .picker-body, dialog.picker .folder-picker { flex: 1; }
+  dialog.picker .picker-list { max-height: none; flex: 1; }
+}
 
 /* ---------- Service cards ---------- */
 .service-head { display: flex; justify-content: space-between; gap: var(--space-3); align-items: flex-start; }

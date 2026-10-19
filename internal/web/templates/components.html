@@ -166,3 +166,41 @@
     {{- with .About.Source}}<a href="{{.}}" target="_blank" rel="noopener">Source code{{template "new-window"}}</a>{{end}}
     {{- with .About.Support}}<a href="{{.}}" target="_blank" rel="noopener">Support {{$.Title}}{{template "new-window"}}</a>{{end}}</span></p>
 </div>{{end}}{{end}}
+
+{{/* segmented: a small exclusive choice as a row of buttons (radios, so
+     it works without scripts). Inside a .seg-group, CSS shows the chosen
+     one's .seg-panel (data-seg counts the choices from 1). */}}
+{{define "segmented"}}<div class="segmented{{if .Small}} small{{end}}" role="radiogroup" aria-label="{{.Label}}">
+  {{- range .Choices}}<label><input type="radio" name="{{$.Name}}" value="{{.Value}}"{{if eq .Value $.Selected}} checked{{end}}>{{.Icon}}<span>{{.Text}}</span></label>{{end -}}
+</div>{{end}}
+
+{{/* folder-picker (a folderPicker): the folders in a place, each opening
+     on a click, with the folders opened so far and what this one holds;
+     Use chooses it. A page of its own without scripts; app.js shows it in
+     a dialog.picker (folder-picker-dialog) instead. */}}
+{{define "folder-picker"}}<div class="folder-picker" id="folder-picker">
+  <h2 class="picker-title">{{.Title}}</h2>
+  <nav class="picker-crumbs" aria-label="Folders opened">
+    {{- range $i, $c := .Crumbs}}{{if $i}}<span class="sep" aria-hidden="true">›</span>{{end}}{{if .Href}}<a href="{{.Href}}">{{.Name}}</a>{{else}}<strong aria-current="true">{{.Name}}</strong>{{end}}{{end -}}
+  </nav>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  <ul class="picker-list">
+    {{range .Folders}}<li><a href="{{.Href}}">{{icon "folder"}}<span class="name">{{.Name}}</span>
+      {{- if not .NoCounts}}<small>{{folderCounts .Folders .Files}}</small>{{end}}{{icon "chevron"}}</a></li>
+    {{else}}{{if not .Error}}<li class="empty-note">No folders in here.</li>{{end}}{{end}}
+  </ul>
+  {{if .UseHref}}<p class="picker-here hint">{{.Label}} holds {{.Counts}}.</p>{{end}}
+  <div class="dialog-actions">
+    {{if not .UseHref}}<p class="hint">Open a folder to choose it.</p>{{end}}
+    <a class="button secondary" href="{{.CancelHref}}" data-cancel>Cancel</a>
+    {{with .UseHref}}<a class="button" href="{{.}}" data-use>{{$.UseText}}</a>{{end}}
+  </div>
+</div>{{end}}
+
+{{/* folder-picker-dialog: the dialog app.js opens for a link with
+     data-picker="ID"; PLACE is the selector of the page's part a folder
+     chosen replaces. */}}
+{{define "folder-picker-dialog"}}<dialog class="dialog picker" id="{{.ID}}" data-place="{{.Place}}" aria-label="Choose a folder">
+  <button type="button" class="icon-button picker-close">{{icon "close"}}<span class="sr-only">Close</span></button>
+  <div class="picker-body"></div>
+</dialog>{{end}}

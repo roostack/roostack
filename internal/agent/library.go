@@ -101,7 +101,9 @@ type LibraryStatus struct {
 type FolderList struct {
 	Path    string        `json:"path"`
 	Folders []FolderEntry `json:"folders"`
-	Check   Readability   `json:"check"`
+	// Files are the files in the place itself (not in its folders).
+	Files int         `json:"files"`
+	Check Readability `json:"check"`
 }
 
 // FolderEntry is one folder, with what's in it (counts stop at a limit).
@@ -141,7 +143,12 @@ func (h LinuxHost) LibraryFolders(l Library) (FolderList, error) {
 	if err != nil {
 		return FolderList{}, err
 	}
-	return listFolders(base, sub, h.UID, h.groups())
+	list, err := listFolders(base, sub, h.UID, h.groups())
+	if err == nil && l.Folder != "" {
+		// Roostack's own folders can't be libraries: they aren't offered.
+		list.Folders = slices.DeleteFunc(list.Folders, func(f FolderEntry) bool { return ownFolder(filepath.Join(base, f.Name)) })
+	}
+	return list, err
 }
 
 // MountLibrary mounts a library for good (fstab), replacing one of the
@@ -357,6 +364,17 @@ func (h LinuxHost) libraryBase(l Library, browse bool) (base, sub string, err er
 	return "", "", errors.New("a library is a folder on a drive, or a folder on the server")
 }
 
+// ownFolder says whether a folder on the server is, or is in, one of
+// Roostack's own (its data, the libraries' mount points, its drives').
+func ownFolder(p string) bool {
+	for _, own := range []string{"/srv/roostack", LibraryRoot, "/mnt/roostack-"} {
+		if p == own || strings.HasPrefix(p, own+"/") || (strings.HasSuffix(own, "-") && strings.HasPrefix(p, own)) {
+			return true
+		}
+	}
+	return false
+}
+
 // driveByUUID finds a connected drive by its filesystem's UUID.
 func (h LinuxHost) driveByUUID(uuid string) (Drive, error) {
 	if !ValidUUID(uuid) {
@@ -373,10 +391,8 @@ func libraryFolder(p string) (string, error) {
 	if !filepath.IsAbs(p) || rootOf(p, LibraryFolderRoots) == "" {
 		return "", fmt.Errorf("pick a folder under %s", strings.Join(LibraryFolderRoots, ", "))
 	}
-	for _, own := range []string{"/srv/roostack", LibraryRoot, "/mnt/roostack-"} {
-		if p == own || strings.HasPrefix(p, own+"/") || (strings.HasSuffix(own, "-") && strings.HasPrefix(p, own)) {
-			return "", errors.New("that's one of Roostack's own folders")
-		}
+	if ownFolder(p) {
+		return "", errors.New("that's one of Roostack's own folders")
 	}
 	if real, err := filepath.EvalSymlinks(p); err != nil {
 		return "", err
@@ -433,7 +449,11 @@ func listFolders(base, sub string, uid int, gids []int) (FolderList, error) {
 	}
 	list := FolderList{Path: sub}
 	for _, e := range entries {
-		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") || e.Name() == "lost+found" || e.Type()&fs.ModeSymlink != 0 {
+		if !e.IsDir() {
+			list.Files++
+			continue
+		}
+		if strings.HasPrefix(e.Name(), ".") || e.Name() == "lost+found" || e.Type()&fs.ModeSymlink != 0 {
 			continue
 		}
 		fe := FolderEntry{Name: e.Name()}

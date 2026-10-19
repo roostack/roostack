@@ -46,6 +46,10 @@ var componentFuncs = template.FuncMap{
 	"builtinIcon":   builtinIcon,
 	"uptimeBar":     uptimeBar,
 	"checkState":    checkState,
+	"segmented":     segmented,
+	"choice":        segChoice,
+	"folderCounts":  folderCounts,
+	"pickerDialog":  pickerDialog,
 	"brandMark":     func() template.HTML { return brandMark },
 	// errorScene NAME ID: an error scene (internal/errpage), its wash's
 	// SVG ID made unique on the page by ID.
@@ -287,4 +291,100 @@ func activityBlock(v *activityView) (template.HTML, error) {
 // with the server icon ("On [nuc]").
 func serverChip(name string) (template.HTML, error) {
 	return renderComponent("server", name)
+}
+
+// segmentChoice is one of a segmented control's choices.
+type segmentChoice struct {
+	Value, Text string
+	Icon        template.HTML
+}
+
+// segChoice is a segmented control's choice: VALUE, TEXT and optionally
+// an ICON (an icons name).
+func segChoice(value, text string, iconName ...string) (segmentChoice, error) {
+	if value == "" || text == "" || len(iconName) > 1 {
+		return segmentChoice{}, fmt.Errorf("choice: %q %q needs a value and text, and at most one icon", value, text)
+	}
+	c := segmentChoice{Value: value, Text: text}
+	if len(iconName) == 1 {
+		var err error
+		if c.Icon, err = icon(iconName[0]); err != nil {
+			return segmentChoice{}, fmt.Errorf("choice: %w", err)
+		}
+	}
+	return c, nil
+}
+
+// segmented is a small exclusive choice drawn as a row of buttons:
+// radios named NAME (LABEL says what they choose, for screen readers),
+// SELECTED checked (the first choice if it's ""), then two to four
+// choices (choice VALUE TEXT [ICON]) and optionally "size=small". Inside
+// a .seg-group, the choice's panel shows (a .seg-panel with data-seg
+// counting choices from 1): CSS only, so it works without scripts.
+func segmented(name, label, selected string, args ...any) (template.HTML, error) {
+	var choices []segmentChoice
+	var opts []string
+	for _, a := range args {
+		switch a := a.(type) {
+		case segmentChoice:
+			choices = append(choices, a)
+		case string:
+			opts = append(opts, a)
+		default:
+			return "", fmt.Errorf("segmented: %v is neither a choice nor an option", a)
+		}
+	}
+	o, err := options("segmented", opts, "size")
+	if err != nil {
+		return "", err
+	}
+	if s := o["size"]; s != "" && s != "small" {
+		return "", fmt.Errorf("segmented: size %q must be small or nothing", s)
+	}
+	if name == "" || label == "" || len(choices) < 2 || len(choices) > 4 {
+		return "", fmt.Errorf("segmented: %q needs a name, a label and two to four choices", name)
+	}
+	found := selected == ""
+	for i, c := range choices {
+		for _, d := range choices[:i] {
+			if d.Value == c.Value {
+				return "", fmt.Errorf("segmented: %q has two choices %q", name, c.Value)
+			}
+		}
+		found = found || c.Value == selected
+	}
+	if !found {
+		return "", fmt.Errorf("segmented: %q has no choice %q", name, selected)
+	}
+	if selected == "" {
+		selected = choices[0].Value
+	}
+	return renderComponent("segmented", map[string]any{"Name": name, "Label": label, "Selected": selected,
+		"Choices": choices, "Small": o["size"] == "small"})
+}
+
+// folderCounts says what a folder holds ("2 folders, 1 file", "empty"),
+// for the folder picker.
+func folderCounts(folders, files int) string {
+	var parts []string
+	if folders > 0 {
+		parts = append(parts, strconv.Itoa(folders)+plural(folders, " folder", " folders"))
+	}
+	if files > 0 {
+		parts = append(parts, strconv.Itoa(files)+plural(files, " file", " files"))
+	}
+	if len(parts) == 0 {
+		return "empty"
+	}
+	return strings.Join(parts, ", ")
+}
+
+// pickerDialog is the dialog a folder picker opens in (app.js): a link
+// with data-picker="ID" opens it, and a folder chosen replaces the page's
+// part PLACE (an id selector, "#place-drive").
+func pickerDialog(id, place string) (template.HTML, error) {
+	if id == "" || !strings.HasPrefix(place, "#") || strings.ContainsAny(place, " ,>") {
+		return "", fmt.Errorf("pickerDialog: %q needs an id, and %q an id selector", id, place)
+	}
+	return renderComponent("folder-picker-dialog", map[string]any{"ID": id, "Place": place})
 }

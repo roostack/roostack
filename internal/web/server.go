@@ -495,7 +495,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		"home", "services", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
-		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-library", "monitoring", "monitoring-check"} {
+		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -596,6 +596,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /settings/media", s.requireOwner(s.mediaPage))
 	mux.Handle("GET /settings/media/add", s.requireOwner(s.mediaAddPage))
 	mux.Handle("POST /settings/media/add", s.requireOwner(s.mediaAddSubmit))
+	mux.Handle("GET /settings/media/folders", s.requireOwner(s.mediaFoldersPage))
 	mux.Handle("GET /settings/media/{server}/{name}", s.requireOwner(s.mediaLibraryPage))
 	mux.Handle("POST /settings/media/{server}/{name}/readers", s.requireOwner(s.mediaReadersSubmit))
 	mux.Handle("POST /settings/media/{server}/{name}/remove", s.requireOwner(s.mediaRemoveSubmit))

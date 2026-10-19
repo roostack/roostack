@@ -87,4 +87,47 @@
     sel.addRange(range);
     return document.execCommand("copy") ? Promise.resolve() : Promise.reject(new Error("copy failed"));
   };
+
+  // The folder picker (a media library's folder): a link with
+  // data-picker="<dialog id>" opens that dialog and shows the page it links
+  // to (#folder-picker of it) inside; the picker's own links then open
+  // folders in the dialog, and its data-use link loads the add page's
+  // part named by the dialog's data-place (the folder chosen) in place of
+  // the page's. Without scripts the same links are pages of their own.
+  const pickerLoad = (dialog, href) => {
+    const body = dialog.querySelector(".picker-body");
+    body.replaceChildren(Object.assign(document.createElement("p"), { className: "hint", textContent: "Looking at the folders…" }));
+    return htmx.ajax("GET", href, { target: body, select: "#folder-picker", swap: "innerHTML ignoreTitle:true" }).then(() => {
+      if (!body.querySelector("#folder-picker")) body.firstChild.textContent = "Roostack couldn't list the folders. Close this and try again.";
+      const first = body.querySelector(".picker-list a, [data-use]");
+      if (first) first.focus();
+    });
+  };
+  document.addEventListener("click", (e) => {
+    const open = e.target.closest("a[data-picker]");
+    if (open) {
+      const dialog = document.getElementById(open.dataset.picker);
+      if (!dialog || !window.htmx) return;
+      e.preventDefault();
+      dialog.showModal();
+      pickerLoad(dialog, open.href);
+      return;
+    }
+    const dialog = e.target.closest("dialog.picker");
+    if (!dialog) return;
+    if (e.target.closest(".picker-close, [data-cancel]")) {
+      e.preventDefault();
+      dialog.close();
+      return;
+    }
+    const link = e.target.closest(".picker-body a[href]");
+    if (!link) return;
+    e.preventDefault();
+    if (link.matches("[data-use]")) {
+      const place = dialog.dataset.place;
+      htmx.ajax("GET", link.href, { target: place, select: place, swap: "outerHTML ignoreTitle:true" }).then(() => dialog.close());
+    } else {
+      pickerLoad(dialog, link.href);
+    }
+  });
 })();

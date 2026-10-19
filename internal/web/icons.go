@@ -44,6 +44,8 @@ var icons = map[string]string{
 	"terminal": `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/>`,
 	"warn":     `<path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/>`,
 	"chevron":  `<path d="m10 7 5 5-5 5"/>`,
+	"folder":   `<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>`,
+	"close":    `<path d="M6 6l12 12M18 6 6 18"/>`,
 	"plus":     `<path d="M12 5v14M5 12h14"/>`,
 	// Roostack's own services.
 	"proxy":    `<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>`,
