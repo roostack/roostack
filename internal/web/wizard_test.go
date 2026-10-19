@@ -54,6 +54,7 @@ type fakeSetup struct {
 	lastValues   map[string]string
 	lastOpts     setup.DomainOptions
 	oldEnded     bool
+	oldFinished  bool
 }
 
 func (f *fakeSetup) Progress(context.Context) (setup.Progress, error) { return f.p, nil }
@@ -160,8 +161,9 @@ func (f *fakeSetup) SaveDomain(_ context.Context, d, e, provider string, values 
 	f.p.DomainDone = true
 	return nil
 }
-func (f *fakeSetup) DomainLater(context.Context) error   { f.p.DomainLater = true; return nil }
-func (f *fakeSetup) EndOldAddress(context.Context) error { f.oldEnded = true; return nil }
+func (f *fakeSetup) DomainLater(context.Context) error      { f.p.DomainLater = true; return nil }
+func (f *fakeSetup) EndOldAddress(context.Context) error    { f.oldEnded = true; return nil }
+func (f *fakeSetup) FinishOldAddress(context.Context) error { f.oldFinished = true; return nil }
 func (f *fakeSetup) BackupAdded(_ context.Context, first bool) error {
 	f.noKey = false
 	f.p.BackupDone = true
@@ -366,6 +368,7 @@ type fakeDNS struct {
 	records   []dnsrecords.Record
 	managing  []bool
 	takenOver bool
+	forgot    bool
 }
 
 func (f *fakeDNS) Status() dnsrecords.Status                            { return f.st }
@@ -379,6 +382,16 @@ func (f *fakeDNS) SetManaging(on, risk bool) error {
 }
 func (f *fakeDNS) TakeOver(context.Context) error { f.takenOver = true; return nil }
 func (f *fakeDNS) Refresh()                       {}
+
+// Forget forgets what Roostack couldn't delete under old addresses.
+func (f *fakeDNS) Forget(context.Context) error {
+	f.forgot = true
+	if f.st.Old != nil && f.st.Old.Ended {
+		f.st.Old = nil
+	}
+	f.st.Left = nil
+	return nil
+}
 
 func TestDNSCard(t *testing.T) {
 	h, _ := loggedIn(t, auth.RoleOwner)

@@ -315,6 +315,18 @@ func (s *Server) domainAreaPage(w http.ResponseWriter, r *http.Request) {
 			data["OldProvider"] = p.Title
 		}
 	}
+	// The old address's records: a problem keeping them up to date, or
+	// ones Roostack couldn't delete (SPEC.md §6.6).
+	if s.DNS != nil {
+		st := s.DNS.Status()
+		if o := st.Old; o != nil && o.Ended {
+			data["OldRecords"] = o
+		} else if o != nil {
+			data["OldProblem"] = o.Message
+		}
+		data["LeftRecords"] = st.Left
+	}
+	data["Forgot"] = r.FormValue("forgot") != ""
 	s.render(w, "settings-domain", withArea(data, "domain"))
 }
 

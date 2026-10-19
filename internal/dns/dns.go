@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"roostack.cloud/roostack/internal/config"
 )
 
 // Field is one value the user enters for a provider.
@@ -56,6 +58,23 @@ func SecretName(field string) string { return "roostack-caddy-dns-" + field }
 func EnvName(field string) string { return "DNS_" + strings.ToUpper(field) }
 
 func env(field string) string { return "{env." + EnvName(field) + "}" }
+
+// CredentialFields are the credential fields (Podman secrets) a provider
+// setting uses: those saved with it, or else the provider's required ones.
+func CredentialFields(d config.DNS) []string {
+	if len(d.Fields) > 0 {
+		return d.Fields
+	}
+	var fields []string
+	if p := Get(d.Provider); p != nil {
+		for _, f := range p.Fields {
+			if !f.Optional {
+				fields = append(fields, f.Key)
+			}
+		}
+	}
+	return fields
+}
 
 // OldSecretName and OldEnvName hold a field of the lab's previous
 // address's provider while that still works (SPEC.md §6.6).

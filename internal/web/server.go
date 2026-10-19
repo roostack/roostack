@@ -385,6 +385,9 @@ type LabSetup interface {
 	DomainLater(ctx context.Context) error
 	// EndOldAddress stops the previous address working now, and restarts.
 	EndOldAddress(ctx context.Context) error
+	// FinishOldAddress forgets an old address that has stopped working
+	// once its DNS records are gone (or forgotten), with its login.
+	FinishOldAddress(ctx context.Context) error
 	// BackupAdded records the wizard's backup step done (first: its first
 	// backup, so the recovery key must be confirmed).
 	BackupAdded(ctx context.Context, first bool) error
@@ -410,6 +413,9 @@ type DNSStatus interface {
 	Records(ctx context.Context) ([]dnsrecords.Record, error)
 	SetManaging(on, acceptRisk bool) error
 	TakeOver(ctx context.Context) error
+	// Forget stops treating as Roostack's the records it couldn't delete
+	// under an address the lab no longer uses (the Owner deletes them).
+	Forget(ctx context.Context) error
 	// Refresh syncs the records soon (after a change).
 	Refresh()
 }
@@ -641,6 +647,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /setup/domain", s.requireWizard(s.domainSubmit))
 	mux.Handle("POST /setup/domain/later", s.requireWizard(s.domainLater))
 	mux.Handle("POST /settings/domain/old/end", s.requireWizard(s.oldAddressEnd))
+	mux.Handle("POST /settings/domain/old/forget", s.requireWizard(s.oldRecordsForget))
 	mux.Handle("POST /setup/address/roost-ac", s.requireWizard(s.roostAcSubmit))
 	mux.Handle("GET /settings/cloud", s.requireCloud(s.cloudPage))
 	mux.Handle("GET /settings/cloud/live", s.requireCloud(s.cloudLive))

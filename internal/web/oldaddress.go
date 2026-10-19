@@ -84,6 +84,37 @@ func (s *Server) oldAddressEnd(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, "/restarting")
 }
 
+// oldRecordsForget stops Roostack trying to delete the DNS records it
+// couldn't delete under an address the lab no longer uses: the Owner
+// deletes them by hand (SPEC.md §6.6). An old address waiting only for
+// them goes, with its login.
+func (s *Server) oldRecordsForget(w http.ResponseWriter, r *http.Request) {
+	if s.DNS == nil {
+		redirect(w, r, "/settings/domain")
+		return
+	}
+	var names []string
+	st := s.DNS.Status()
+	if o := st.Old; o != nil && o.Ended {
+		for _, rec := range o.Records {
+			names = append(names, rec.Name+" "+rec.Type)
+		}
+	}
+	for _, rec := range st.Left {
+		names = append(names, rec.Name+" "+rec.Type)
+	}
+	if err := s.DNS.Forget(r.Context()); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	if err := s.Setup.FinishOldAddress(r.Context()); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "setup", "forgot DNS records left under an old address: "+strings.Join(names, ", "))
+	redirect(w, r, "/settings/domain?forgot=1")
+}
+
 // uiHost is where Roostack's own pages are: UIHost, or roost.<domain>
 // when it isn't set.
 func (s *Server) uiHost() string {

@@ -338,6 +338,9 @@ func (s *Server) publicSettingsPage(w http.ResponseWriter, r *http.Request) {
 			data["Records"], data["PublicIP"], data["Proof"] = st.Public, st.PublicIP, st.Proof
 		}
 	}
+	if s.DNS != nil {
+		data["NotDeleted"] = s.DNS.Status().NotDeleted
+	}
 	data["Saved"] = r.FormValue("saved")
 	s.render(w, "settings-public", withArea(data, "public"))
 }

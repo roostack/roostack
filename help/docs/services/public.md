@@ -335,9 +335,14 @@ rarely need, such as an admin page.
 ## Making it private again
 
 On the same page, choose **Make private**. The service is reachable from
-home only again (on a cloud server, through an SSH tunnel only), and at
-home its DNS record points back home. Once nothing is public, and
-Roostack's own pages aren't either, CrowdSec stops.
+home only again (on a cloud server, through an SSH tunnel only). At home,
+Roostack deletes the DNS record it made for the address, and the record
+for all your services (`*.<your domain>`) covers it again. It deletes only
+the record it made, and only if nobody has changed it since: one you've
+changed is yours, and Roostack leaves it alone. If your DNS provider
+doesn't answer, **Settings → Public access** says so and Roostack tries
+again every few minutes. Once nothing is public, and Roostack's own pages
+aren't either, CrowdSec stops.
 
 ??? note "For technical users"
 

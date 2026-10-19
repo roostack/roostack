@@ -61,10 +61,24 @@ func (p *Provider) GetRecord(ctx context.Context, hc *http.Client, v map[string]
 // A record before it becomes a CNAME: a name with a CNAME can have no
 // other record). None there is no error.
 func (p *Provider) DeleteRecord(ctx context.Context, hc *http.Client, v map[string]string, zone, name, typ string) error {
-	if p.records == nil {
-		return errors.New(p.Title + " record management isn't supported")
+	if !p.CanDeleteRecords() {
+		return errors.New(p.Title + " records can't be deleted by Roostack")
 	}
 	return p.records.remove(ctx, hc, v, zone, name, typ)
+}
+
+// CanDeleteRecords reports whether Roostack can delete records here
+// (every provider but Roostack Cloud's, whose records API only reads and
+// sets a roost.ac name's records: they go when the name is released).
+func (p *Provider) CanDeleteRecords() bool { return p.records != nil && p.records.remove != nil }
+
+// SameValue reports whether two record values are the same, as Roostack
+// compares them: a CNAME's target in any case, other values exactly.
+func SameValue(typ, a, b string) bool {
+	if typ == "CNAME" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }
 
 // plain is a value as Roostack compares it: a CNAME's target without its

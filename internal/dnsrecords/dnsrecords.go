@@ -5,7 +5,12 @@
 // (some routers block private IPs in DNS answers).
 //
 // Each public address gets its own record, pointing at the public entry's
-// address (SPEC.md §6.11, stage 2; public.go).
+// address (SPEC.md §6.11, stage 2; public.go). One made private again
+// loses it.
+//
+// After the lab moves to another address, the old one's records are kept
+// up to date while it works, and deleted when it ends (SPEC.md §6.6;
+// old.go).
 //
 // On a lab on the internet (SPEC.md §6.12) the wildcard points at the
 // lab's public address instead, and covers public addresses too: there's
@@ -75,6 +80,15 @@ type Status struct {
 	// Proof is the TXT record proving the domain is the lab's, while it's
 	// relayed through Roostack Cloud (relay.go).
 	Proof *PublicRecord
+	// NotDeleted are records of addresses no longer public that Roostack
+	// couldn't delete (it tries again at each sync).
+	NotDeleted []PublicRecord
+	// Old is how the records Roostack set under the lab's old address
+	// stand, while there are any (old.go).
+	Old *OldRecords
+	// Left are records Roostack set under an address the lab no longer
+	// has, which it couldn't delete: the Owner deletes them by hand.
+	Left []Record
 }
 
 // Secrets reads Podman secret values (the DNS credentials).
@@ -119,9 +133,17 @@ type Manager struct {
 	// ProofSet is told the proof's TXT record is in place (optional), so
 	// Roostack Cloud can be asked to look for it at once.
 	ProofSet func()
+	// OldAddress is the lab's previous address as lab.yaml has it now
+	// (optional; Lab.OldAddress otherwise): kept after it stops working,
+	// until its records are deleted (SPEC.md §6.6).
+	OldAddress func() *config.OldAddress
 
 	mu     sync.Mutex
 	status Status
+	// notDeleted is the latest sync's NotDeleted.
+	notDeleted []PublicRecord
+	// oldZones caches each old domain's zone, when lab.yaml has none.
+	oldZones map[string]string
 	// syncMu makes sure only one sync runs at a time.
 	syncMu  sync.Mutex
 	syncing bool
@@ -230,7 +252,7 @@ func (m *Manager) Run(ctx context.Context, interval time.Duration) {
 		}
 		st := m.Sync(ctx)
 		next := interval
-		if len(st.Public) > 0 {
+		if len(st.Public) > 0 || len(st.NotDeleted) > 0 {
 			// A home's public address can change (SPEC.md §6.11).
 			next = min(interval, PublicInterval)
 		}
@@ -250,7 +272,7 @@ func (m *Manager) Run(ctx context.Context, interval time.Duration) {
 const PublicInterval = 5 * time.Minute
 
 // Sync makes sure the wildcard record points at the LAN IP, then checks
-// what the home network sees.
+// what the home network sees. The old address's records follow.
 func (m *Manager) Sync(ctx context.Context) Status {
 	m.syncMu.Lock()
 	defer m.syncMu.Unlock()
@@ -263,6 +285,20 @@ func (m *Manager) Sync(ctx context.Context) Status {
 		m.syncing = false
 		m.mu.Unlock()
 	}()
+	m.mu.Lock()
+	m.notDeleted = nil
+	m.mu.Unlock()
+	st := m.syncCurrent(ctx, lab)
+	m.mu.Lock()
+	st.NotDeleted = m.notDeleted
+	m.mu.Unlock()
+	st.Old = m.syncOld(ctx, lab, st)
+	st.Left = m.left(ctx, lab)
+	return m.set(st)
+}
+
+// syncCurrent keeps the records of the lab's current address.
+func (m *Manager) syncCurrent(ctx context.Context, lab config.Lab) Status {
 	record := "*." + lab.Domain
 	ip := lab.DNS.LANIP
 	if ip == "" && lab.OnInternet() {
@@ -273,7 +309,7 @@ func (m *Manager) Sync(ctx context.Context) Status {
 	if ip == "" {
 		var err error
 		if ip, err = m.lanIP(); err != nil {
-			return m.set(Status{State: StateError, Record: record, Message: "Couldn't find this server's LAN address: " + err.Error()})
+			return Status{State: StateError, Record: record, Message: "Couldn't find this server's LAN address: " + err.Error()}
 		}
 	}
 	st := Status{Record: record, IP: ip, Managing: lab.DNS.ManageRecords, AcceptedRisk: lab.DNS.AllowRiskyRecords,
@@ -285,13 +321,13 @@ func (m *Manager) Sync(ctx context.Context) Status {
 	}
 	if p == nil || lab.Domain == "" {
 		st.State, st.Message = StateManual, "Set up your domain first."
-		return m.set(st)
+		return st
 	}
 	ok, risky := p.ManagesRecords()
 	switch {
 	case !ok:
 		st.State, st.Message = StateUnsupported, p.Title+" records can't be managed by Roostack yet."
-		return m.set(st)
+		return st
 	case !lab.DNS.ManageRecords, risky && !lab.DNS.AllowRiskyRecords:
 		st.State = StateManual
 		st = m.check(ctx, st)
@@ -304,7 +340,7 @@ func (m *Manager) Sync(ctx context.Context) Status {
 			_, st.Proof = m.relayedManual(ctx, relay)
 		}
 		st = m.linkManual(ctx, st)
-		return m.set(st)
+		return st
 	}
 
 	values := map[string]string{}
@@ -315,7 +351,7 @@ func (m *Manager) Sync(ctx context.Context) Status {
 		v, err := m.Secrets.Read(ctx, dns.SecretName(f))
 		if err != nil {
 			st.State, st.Message = StateError, "Couldn't read the DNS credentials: "+err.Error()
-			return m.set(st)
+			return st
 		}
 		values[f] = string(v)
 	}
@@ -324,7 +360,7 @@ func (m *Manager) Sync(ctx context.Context) Status {
 		var err error
 		if zone, err = p.Check(ctx, values, lab.Domain); err != nil {
 			st.State, st.Message = StateError, err.Error()
-			return m.set(st)
+			return st
 		}
 	}
 	name := "*"
@@ -332,7 +368,7 @@ func (m *Manager) Sync(ctx context.Context) Status {
 		name += "." + rel
 	} else if lab.Domain != zone {
 		st.State, st.Message = StateError, fmt.Sprintf("%s isn't in the zone %s", lab.Domain, zone)
-		return m.set(st)
+		return st
 	}
 
 	err := m.ensure(ctx, p, values, zone, name, ip)
@@ -351,7 +387,7 @@ func (m *Manager) Sync(ctx context.Context) Status {
 		if !lab.OnInternet() {
 			st.Public, st.PublicIP = m.syncPublic(ctx, p, values, zone, ip)
 		}
-		return m.set(st)
+		return st
 	}
 	st = m.check(ctx, st)
 	if lab.OnInternet() {
@@ -361,7 +397,7 @@ func (m *Manager) Sync(ctx context.Context) Status {
 	}
 	st.Proof = m.syncProof(ctx, p, values, zone)
 	st = m.linkManaged(ctx, st, p, values, zone)
-	return m.set(st)
+	return st
 }
 
 type conflictError struct{ record, current, want string }
@@ -434,19 +470,75 @@ func (m *Manager) ensureRecord(ctx context.Context, p *dns.Provider, values map[
 	return m.Store.SetSetting(ctx, key, value)
 }
 
-// removeOwned deletes a record Roostack set (none, or one it didn't set:
-// left alone).
+// removeOwned deletes a record Roostack set, if it's still as Roostack
+// left it. One changed by hand since (another value, or more values) is
+// the Owner's now: left in place, and no longer Roostack's. None there,
+// or none of Roostack's: nothing to do. Only a delete that failed keeps
+// the record Roostack's, to try again.
 func (m *Manager) removeOwned(ctx context.Context, p *dns.Provider, values map[string]string, zone, name, typ string) error {
 	fqdn := fqdnOf(zone, name)
 	key := ownerKey(fqdn, typ)
-	if owned, err := m.Store.Setting(ctx, key); err != nil || owned == "" {
+	owned, err := m.Store.Setting(ctx, key)
+	if err != nil || owned == "" {
 		return err
 	}
-	if err := p.DeleteRecord(ctx, m.HTTP, values, zone, name, typ); err != nil {
-		return fmt.Errorf("deleting %s from %s: %w", fqdn, p.Title, err)
+	current, err := p.GetRecord(ctx, m.HTTP, values, zone, name, typ)
+	if err != nil {
+		return fmt.Errorf("reading %s from %s: %w", fqdn, p.Title, err)
 	}
-	m.Log.Info("DNS record deleted", "record", fqdn, "type", typ)
+	switch {
+	case len(current) == 0:
+	case len(current) == 1 && dns.SameValue(typ, current[0], owned):
+		if err := p.DeleteRecord(ctx, m.HTTP, values, zone, name, typ); err != nil {
+			return fmt.Errorf("deleting %s from %s: %w", fqdn, p.Title, err)
+		}
+		m.Log.Info("DNS record deleted", "record", fqdn, "type", typ)
+	default:
+		m.Log.Warn("DNS record changed by hand: left in place, and Roostack no longer manages it",
+			"record", fqdn, "type", typ, "set_to", owned, "now", strings.Join(current, ", "))
+	}
 	return m.Store.SetSetting(ctx, key, "")
+}
+
+// release lets go of an A record no longer wanted: deleted, or, where the
+// provider can't delete (Roostack Cloud's), pointed home like the
+// wildcard.
+func (m *Manager) release(ctx context.Context, p *dns.Provider, values map[string]string, zone, name string, rec Record, home string) error {
+	if p.CanDeleteRecords() {
+		return m.removeOwned(ctx, p, values, zone, name, "A")
+	}
+	if rec.Value == home || home == "" {
+		return nil
+	}
+	return m.ensure(ctx, p, values, zone, name, home)
+}
+
+// wantsA reports whether the current address wants an A record at host:
+// the wildcard, the name itself where Roostack's pages are (a roost.ac
+// name), a public address or link.<domain>.
+func (m *Manager) wantsA(lab config.Lab, host string, publicHosts []string) bool {
+	return host == "*."+lab.Domain || host == lab.Domain && lab.UIHost() == lab.Domain ||
+		slices.Contains(publicHosts, host) || host == m.linkHost() && m.linkWanted()
+}
+
+// domainOf says which of domains a host is under ("" for none); where one
+// domain is under another, the longer one.
+func domainOf(host string, domains ...string) string {
+	best := ""
+	for _, d := range domains {
+		if d != "" && (host == d || strings.HasSuffix(host, "."+d)) && len(d) > len(best) {
+			best = d
+		}
+	}
+	return best
+}
+
+// zoneName is host relative to zone, "" for the zone itself.
+func zoneName(host, zone string) (string, bool) {
+	if host == zone {
+		return "", true
+	}
+	return relName(host, zone)
 }
 
 // fqdnOf joins a zone-relative name and the zone ("" is the zone itself).

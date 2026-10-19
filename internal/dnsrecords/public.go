@@ -72,13 +72,16 @@ func (m *Manager) publicManual(ctx context.Context) ([]PublicRecord, string) {
 }
 
 // syncPublic points each public address at the entry's address, once
-// protection is running. An address that's no longer public goes back to
-// the LAN address, like the wildcard: providers' record APIs here can't
-// delete yet (TASKS.md 1.18).
+// protection is running. An address that's no longer public loses its
+// record, and the wildcard covers it again: only Roostack's own record,
+// as Roostack left it (removeOwned). Roostack Cloud's records API can't
+// delete, so there it points home like the wildcard. Records under the
+// lab's old address are old.go's.
 func (m *Manager) syncPublic(ctx context.Context, p *dns.Provider, values map[string]string, zone, lanIP string) ([]PublicRecord, string) {
 	hosts := m.publicHosts()
-	wildcard := "*." + m.Lab.Domain
 	relay, relayed := m.relayed()
+	old := m.oldDomain()
+	current := func(r Record) bool { return domainOf(r.Name, m.Lab.Domain, old) == m.Lab.Domain }
 	owned, err := m.Records(ctx)
 	if err != nil {
 		m.Log.Error("reading managed DNS records", "err", err)
@@ -87,7 +90,7 @@ func (m *Manager) syncPublic(ctx context.Context, p *dns.Provider, values map[st
 	// (not relayed, or not public): gone, so A records (or the wildcard)
 	// can take over.
 	for _, r := range owned {
-		if r.Type != "CNAME" || relayed && slices.Contains(hosts, r.Name) {
+		if r.Type != "CNAME" || relayed && slices.Contains(hosts, r.Name) || !current(r) {
 			continue
 		}
 		if name, ok := relName(r.Name, zone); ok {
@@ -96,14 +99,20 @@ func (m *Manager) syncPublic(ctx context.Context, p *dns.Provider, values map[st
 			}
 		}
 	}
+	// A delete that failed is listed (NotDeleted), and tried again at the
+	// next sync.
 	for _, r := range owned {
-		if r.Name == wildcard || r.Type != "A" || slices.Contains(hosts, r.Name) || r.Value == lanIP || r.Name == m.linkHost() && m.linkWanted() ||
-			relayed && slices.Contains(hosts, r.Name) {
+		if r.Type != "A" || !current(r) || m.wantsA(m.Lab, r.Name, hosts) {
 			continue
 		}
-		if name, ok := relName(r.Name, zone); ok {
-			if err := m.ensure(ctx, p, values, zone, name, lanIP); err != nil {
-				m.Log.Error("pointing a private address home again", "record", r.Name, "err", err)
+		if name, ok := zoneName(r.Name, zone); ok {
+			if err := m.release(ctx, p, values, zone, name, r, lanIP); err != nil {
+				m.Log.Error("removing a private address's record", "record", r.Name, "err", err)
+				m.mu.Lock()
+				m.notDeleted = append(m.notDeleted, PublicRecord{Host: r.Name, IP: r.Value, State: PublicError,
+					Message: fmt.Sprintf("Roostack couldn't delete its record, which still points at %s: %v. "+
+						"It tries again in a few minutes.", r.Value, err)})
+				m.mu.Unlock()
 			}
 		}
 	}

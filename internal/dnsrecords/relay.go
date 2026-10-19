@@ -67,8 +67,10 @@ func (m *Manager) relayedState(ctx context.Context, host, target string) (string
 func (m *Manager) syncProof(ctx context.Context, p *dns.Provider, values map[string]string, zone string) *PublicRecord {
 	relay, ok := m.relayed()
 	owned, _ := m.Records(ctx)
+	old := m.oldDomain()
 	for _, r := range owned {
-		if r.Type != "TXT" || !strings.HasPrefix(r.Name, "_roostack.") || ok && r.Name == relay.ProofName {
+		if r.Type != "TXT" || !strings.HasPrefix(r.Name, "_roostack.") || ok && r.Name == relay.ProofName ||
+			domainOf(r.Name, m.Lab.Domain, old) != m.Lab.Domain {
 			continue
 		}
 		if name, in := relName(r.Name, zone); in {

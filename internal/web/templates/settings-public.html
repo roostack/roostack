@@ -26,6 +26,17 @@
   <p>Nothing is public.</p>
   {{end}}
 </section>
+{{with .NotDeleted}}
+<section class="card section" id="not-deleted">
+  <h2>Records Roostack couldn't delete</h2>
+  <p>These addresses aren't public any more, but their DNS records are still there. Until they're gone, they still lead to
+    where public visitors come in, though Roostack no longer lets visitors from the internet through to them.</p>
+  <table class="records">
+    <thead><tr><th>Address</th><th>DNS record</th></tr></thead>
+    <tbody>{{range .}}<tr><td><code>{{.Host}}</code></td><td>{{.Message}}</td></tr>{{end}}</tbody>
+  </table>
+</section>
+{{end}}
 {{if or .EdgeServers .Edge .CanRelay .Relay}}
 <section class="card section" id="way-in">
   <h2>How people reach your public services</h2>
