@@ -1,0 +1,265 @@
+<!doctype html><html lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings in the sidebar · Roostack (mock-up)</title>
+  <link rel="icon" href="/internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/internal/web/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="/internal/web/static/css/app.css">
+  <link rel="stylesheet" href="mock.css">
+  <script src="mock.js"></script>
+  <script src="/internal/web/static/alpine-3.17.4.min.js" defer></script>
+</head>
+<!-- The real layout (internal/web/templates/layout.html) with the
+     Settings group drawn per direction. -->
+<body x-data="mock()" x-on:keydown.escape.window="menu = false" x-bind:class="menu && 'menu-open'">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="#home"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="sidebar-lab-name"><span>Roostack</span><strong title="Smiths' lab">Smiths' lab</strong></span></a>
+      <div class="sidebar-nav">
+        <nav class="nav-group" aria-label="Your lab">
+          <template x-for="m in main" :key="m.id">
+            <div class="contents">
+              <a class="nav-item" :href="'#' + m.id" :aria-current="here(m.id) || (m.id === 'services' && inServices ? 'true' : null)" x-show="role === 'owner' || m.id !== 'servers'"><span class="ic" x-html="ic(m.icon)"></span><span x-text="m.title"></span><template x-if="m.count && role === 'owner'"><span class="nav-count" title="1 needs attention" x-text="m.count"></span></template></a>
+              <!-- Under Services while you're there, each service (as built). -->
+              <template x-if="m.id === 'services' && inServices">
+                <div class="nav-children">
+                  <template x-for="v in services" :key="v.id">
+                    <a class="nav-sub" :href="'#' + v.id" :aria-current="here(v.id)"><span class="ic" x-show="subIcons" x-html="ic(v.icon)"></span><span x-text="v.title"></span></a>
+                  </template>
+                  <a class="nav-sub" href="#services"><span class="ic" x-show="subIcons" x-html="ic('plus')"></span><span>Add a service…</span></a>
+                </div>
+              </template>
+            </div>
+          </template>
+          <!-- E. A as a main item: Settings beside the other main areas,
+               its pinned pages under it as Services' are, the button
+               beside it folding out every page. -->
+          <template x-if="role === 'owner' && dir === 'e'">
+            <div class="nav-e">
+              <div class="nav-head">
+                <a class="nav-item" href="#settings" :aria-current="page === 'settings' ? 'page' : (inSettings ? 'true' : null)"><span class="ic" x-html="ic('manage')"></span>Settings</a>
+                <button type="button" class="nav-fold" x-on:click="open = !open" :aria-expanded="open.toString()" aria-controls="settings-pages"
+                  :title="open ? 'Show only pinned pages' : 'Show every settings page'"><span x-html="ic('chevron')"></span><span class="sr-only">Every settings page</span></button>
+              </div>
+              <ul class="nav-list nav-children" id="settings-pages" :class="open && 'is-open'" aria-label="Settings pages">
+                <template x-for="a in pinList" :key="a.id">
+                  <li class="nav-row">
+                    <a class="nav-sub" :href="'#' + a.id" :aria-current="here(a.id)" x-text="a.title"></a>
+                    <button type="button" class="nav-pin" x-show="open || !pinned(a.id)" x-on:click="togglePin(a.id)" :aria-pressed="pinned(a.id).toString()"
+                      :title="pinned(a.id) ? 'Unpin: only under every settings page' : 'Pin: always in the sidebar'"><span x-html="ic('pin')"></span><span class="sr-only" x-text="'Pin ' + a.title"></span></button>
+                  </li>
+                </template>
+              </ul>
+            </div>
+          </template>
+          <!-- F. E without pins: Settings a main item, every settings
+               page under it while you're in Settings, nothing otherwise. -->
+          <template x-if="role === 'owner' && dir === 'f'">
+            <div class="contents">
+              <a class="nav-item" href="#settings" :aria-current="page === 'settings' ? 'page' : (inSettings ? 'true' : null)"><span class="ic" x-html="ic('manage')"></span>Settings</a>
+              <div class="nav-children" x-show="inSettings">
+                <template x-for="a in fList" :key="a.id">
+                  <a class="nav-sub" :href="'#' + a.id" :aria-current="here(a.id)"><span class="ic" x-show="subIcons" x-html="ic(a.icon)"></span><span x-text="a.title"></span></a>
+                </template>
+              </div>
+            </div>
+          </template>
+          <!-- G. F with pins: pinned pages always under Settings, first;
+               the rest while you're in Settings, each with its pin. -->
+          <template x-if="role === 'owner' && dir === 'g'">
+            <div class="nav-e nav-g">
+              <a class="nav-item" href="#settings" :aria-current="page === 'settings' ? 'page' : (inSettings ? 'true' : null)"><span class="ic" x-html="ic('manage')"></span>Settings</a>
+              <ul class="nav-list nav-children" aria-label="Settings pages" x-show="gPinned.length || gRest.length">
+                <template x-for="a in gPinned" :key="a.id">
+                  <li class="nav-row">
+                    <a class="nav-sub" :href="'#' + a.id" :aria-current="here(a.id)" x-text="a.title"></a>
+                    <button type="button" class="nav-pin" x-on:click="togglePin(a.id)" aria-pressed="true" title="Unpin"><span x-html="ic('pin')"></span><span class="sr-only" x-text="'Pin ' + a.title"></span></button>
+                  </li>
+                </template>
+                <li class="nav-divider" aria-hidden="true" x-show="gPinned.length && gRest.length"></li>
+                <template x-for="a in gRest" :key="a.id">
+                  <li class="nav-row">
+                    <a class="nav-sub" :href="'#' + a.id" :aria-current="here(a.id)" x-text="a.title"></a>
+                    <button type="button" class="nav-pin" x-on:click="togglePin(a.id)" aria-pressed="false" title="Pin: keep it at the top, always in the sidebar"><span x-html="ic('pin')"></span><span class="sr-only" x-text="'Pin ' + a.title"></span></button>
+                  </li>
+                </template>
+              </ul>
+            </div>
+          </template>
+        </nav>
+
+        <!-- Today, for comparison: a heading that isn't a link, the
+             everyday pages (every page while you're in Settings), All
+             settings at the bottom. -->
+        <template x-if="role === 'owner' && dir === 'now'">
+          <nav class="nav-group" aria-label="Settings">
+            <p class="nav-heading">Settings</p>
+            <template x-for="a in todayList" :key="a.id">
+              <a class="nav-item" :href="'#' + a.id" :aria-current="here(a.id)"><span class="ic" x-html="ic(a.icon)"></span><span x-text="a.title"></span></a>
+            </template>
+            <a class="nav-item" href="#settings" :aria-current="here('settings')"><span class="ic" x-html="ic('manage')"></span>All settings</a>
+          </nav>
+        </template>
+
+        <!-- A. Pins: the heading opens the overview; the button beside it
+             folds out every page; each page can be pinned, and pinned
+             pages stay when it's closed (the everyday set by default). -->
+        <template x-if="role === 'owner' && dir === 'a'">
+          <nav class="nav-group" aria-label="Settings">
+            <div class="nav-head">
+              <a class="nav-head-link" href="#settings" :aria-current="here('settings')">Settings</a>
+              <button type="button" class="nav-fold" x-on:click="open = !open" :aria-expanded="open.toString()" aria-controls="settings-pages"
+                :title="open ? 'Show only pinned pages' : 'Show every settings page'"><span x-html="ic('chevron')"></span><span class="sr-only">Every settings page</span></button>
+            </div>
+            <ul class="nav-list" id="settings-pages" :class="open && 'is-open'">
+              <template x-for="a in pinList" :key="a.id">
+                <li class="nav-row">
+                  <a class="nav-item" :href="'#' + a.id" :aria-current="here(a.id)"><span class="ic" x-html="ic(a.icon)"></span><span x-text="a.title"></span></a>
+                  <button type="button" class="nav-pin" x-show="open || !pinned(a.id)" x-on:click="togglePin(a.id)" :aria-pressed="pinned(a.id).toString()"
+                    :title="pinned(a.id) ? 'Unpin: only under every settings page' : 'Pin: always in the sidebar'"><span x-html="ic('pin')"></span><span class="sr-only" x-text="'Pin ' + a.title"></span></button>
+                </li>
+              </template>
+            </ul>
+            <p class="nav-note" x-show="open" x-cloak>Pinned pages stay when this is closed.</p>
+          </nav>
+        </template>
+
+        <!-- B. Groups: the overview's groups, each folding out; the
+             current page's group opens by itself. -->
+        <template x-if="role === 'owner' && dir === 'b'">
+          <nav class="nav-group" aria-label="Settings">
+            <div class="nav-head">
+              <a class="nav-head-link" href="#settings" :aria-current="here('settings')">Settings</a>
+            </div>
+            <template x-for="(g, i) in groups" :key="g.title">
+              <div class="nav-fold-group">
+                <button type="button" class="nav-item nav-group-button" x-on:click="toggleGroup(g)" :aria-expanded="groupOpen(g).toString()" :aria-controls="'settings-group-' + i"
+                  :class="groupHere(g) && 'has-current'"><span class="ic chev" x-html="ic('chevron')"></span><span x-text="g.title"></span></button>
+                <div class="nav-children" :id="'settings-group-' + i" x-show="groupOpen(g)">
+                  <template x-for="a in g.areas" :key="a.id">
+                    <a class="nav-sub" :href="'#' + a.id" :aria-current="here(a.id)" x-text="a.title"></a>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </nav>
+        </template>
+
+        <!-- C. Recent: the last four settings pages you opened; the
+             button beside the heading folds out every page. -->
+        <template x-if="role === 'owner' && dir === 'c'">
+          <nav class="nav-group" aria-label="Settings">
+            <div class="nav-head">
+              <a class="nav-head-link" href="#settings" :aria-current="here('settings')">Settings</a>
+              <button type="button" class="nav-fold" x-on:click="open = !open" :aria-expanded="open.toString()" aria-controls="settings-pages"
+                :title="open ? 'Show only recent pages' : 'Show every settings page'"><span x-html="ic('chevron')"></span><span class="sr-only">Every settings page</span></button>
+            </div>
+            <p class="nav-note" x-show="!open">Recently opened</p>
+            <ul class="nav-list" id="settings-pages" :class="open && 'is-open'">
+              <template x-for="a in recentList" :key="a.id">
+                <li class="nav-row"><a class="nav-item" :href="'#' + a.id" :aria-current="here(a.id)"><span class="ic" x-html="ic(a.icon)"></span><span x-text="a.title"></span></a></li>
+              </template>
+            </ul>
+          </nav>
+        </template>
+
+        <!-- D. Filter: a box under the heading narrows every settings
+             page as you type (titles, groups and a few words each);
+             empty, the everyday pages. -->
+        <template x-if="role === 'owner' && dir === 'd'">
+          <nav class="nav-group" aria-label="Settings">
+            <div class="nav-head">
+              <a class="nav-head-link" href="#settings" :aria-current="here('settings')">Settings</a>
+            </div>
+            <div class="nav-filter">
+              <span class="ic" x-html="ic('search')"></span>
+              <input type="search" x-model="filter" placeholder="Find a setting" aria-label="Find a setting" aria-controls="settings-pages"
+                x-on:keydown.enter.prevent="pickFirst()" x-on:keydown.escape.stop="filter = ''" autocomplete="off">
+            </div>
+            <ul class="nav-list" id="settings-pages" aria-live="polite">
+              <template x-for="a in filtered" :key="a.id">
+                <li class="nav-row"><a class="nav-item" :href="'#' + a.id" :aria-current="here(a.id)" x-on:click="filter = ''"><span class="ic" x-html="ic(a.icon)"></span><span x-text="a.title"></span></a></li>
+              </template>
+            </ul>
+            <p class="nav-note" x-show="filter && !filtered.length" x-cloak>No settings page matches. <a href="#settings">Every settings page</a></p>
+          </nav>
+        </template>
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools">
+          <a href="#help"><span class="ic" x-html="ic('help')"></span>Help</a>
+          <button type="button" class="theme-toggle" x-on:click="mode = mode === 'dark' ? 'light' : 'dark'" x-text="mode === 'dark' ? 'Light' : 'Dark'"></button>
+        </div>
+        <div class="who">
+          <a href="#account" class="who-link"><span class="avatar" aria-hidden="true">J</span>
+            <span class="who-name"><strong>jo</strong><span x-text="role === 'owner' ? 'Owner' : 'Admin'"></span></span></a>
+        </div>
+      </div>
+    </aside>
+    <div class="scrim" x-show="menu" x-cloak x-on:click="menu = false"></div>
+    <div class="main">
+      <header class="page-header">
+        <button type="button" class="menu-button" x-on:click="menu = true; $nextTick(() => document.querySelector('#sidebar .nav-item').focus())" aria-controls="sidebar" :aria-expanded="menu.toString()"><span class="ic" x-html="ic('menu')"></span><span class="sr-only">Menu</span></button>
+        <nav class="crumbs" aria-label="Where you are">
+          <a :href="area(page) ? '#settings' : '#services'" x-show="area(page) || svc(page)" x-text="area(page) ? 'Settings' : 'Services'"></a>
+          <strong aria-current="page" x-text="title"></strong>
+        </nav>
+      </header>
+      <main class="page">
+        <div class="page-head"><div><h1 x-text="title"></h1><p class="lede" x-text="lede"></p></div></div>
+        <template x-if="page === 'settings'">
+          <div class="overview">
+            <template x-for="g in overview" :key="g.title">
+              <section>
+                <h2 class="section-heading settings-group-title" x-text="g.title"></h2>
+                <ul class="area-grid">
+                  <template x-for="c in g.cards" :key="c.id">
+                    <li><a class="card area-card" :href="'#' + c.id">
+                      <span class="area-title" x-text="c.title"></span>
+                      <template x-if="Array.isArray(c.s[0])">
+                        <span class="area-servers"><template x-for="l in c.s[0]"><span class="area-server"><span class="dot" :class="l[2] ? 'dot-' + l[2] : 'dot-none'" aria-hidden="true"></span><span><strong x-text="l[0]"></strong><br><span class="area-summary" x-text="l[1]"></span></span></span></template></span>
+                      </template>
+                      <template x-if="!Array.isArray(c.s[0])">
+                        <span class="area-summary"><span x-show="c.s[1]" class="dot" :class="'dot-' + c.s[1]" aria-hidden="true"></span><span x-text="c.s[0]"></span></span>
+                      </template>
+                    </a></li>
+                  </template>
+                </ul>
+              </section>
+            </template>
+          </div>
+        </template>
+        <template x-if="page !== 'settings'">
+          <div class="medium"><div class="card stand-in">
+            <p>This page's own content isn't part of the mock-up. Look at the sidebar: try opening and closing Settings, pinning, and moving between pages.</p>
+            <p class="hint" x-show="role !== 'owner'">An Admin doesn't see Settings or Servers at all: only an Owner can change settings (auth.ManageHost).</p>
+          </div></div>
+        </template>
+      </main>
+    </div>
+  </div>
+
+  <!-- The mock-up's controls. -->
+  <div class="mock-bar" role="toolbar" aria-label="Mock-up controls">
+    <span class="lbl">Direction</span>
+    <template x-for="d in [['now','Today'],['a','A Pins'],['b','B Groups'],['c','C Recent'],['d','D Filter'],['e','E Main item'],['f','F In Settings'],['g','G Pins on top']]">
+      <button type="button" x-on:click="dir = d[0]" :aria-pressed="(dir === d[0]).toString()" x-text="d[1]"></button>
+    </template>
+    <span class="lbl">Page</span>
+    <select x-on:change="location.hash = $event.target.value" :value="page" aria-label="Page">
+      <option value="home">Home</option><option value="services">Services</option><option value="svc-photos">A service (Photos)</option><option value="settings">Settings (overview)</option>
+      <template x-for="a in areas"><option :value="a.id" x-text="a.title" :selected="page === a.id"></option></template>
+    </select>
+    <button type="button" x-on:click="subIcons = !subIcons" :aria-pressed="subIcons.toString()">Sub-item icons</button>
+    <button type="button" x-on:click="role = role === 'owner' ? 'admin' : 'owner'" x-text="role === 'owner' ? 'As Owner' : 'As Admin'"></button>
+    <button type="button" x-on:click="mode = mode === 'dark' ? 'light' : 'dark'" x-text="mode === 'dark' ? 'Dark' : 'Light'"></button>
+    <button type="button" x-on:click="phone = !phone; $nextTick(() => sync())" :aria-pressed="phone.toString()">Phone</button>
+    <button type="button" x-on:click="resetMock()" title="Forget pins, recent pages and what's open">Reset</button>
+  </div>
+  <div class="phone-stage" x-show="phone" x-cloak x-on:click.self="phone = false"><iframe x-ref="phone" title="Phone width"></iframe></div>
+</body>
+</html>
