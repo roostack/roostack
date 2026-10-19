@@ -4,7 +4,7 @@ Architecture: @ARCH@
 Maintainer: Roostack <roostack@localhost>
 Section: admin
 Priority: optional
-Depends: podman (>= 5.4), passt, nftables, uidmap, crun, catatonit, dbus-user-session, aardvark-dns, ca-certificates, restic, unattended-upgrades, wireguard-tools, systemd
+Depends: podman (>= 5.4), passt, nftables, uidmap, crun, catatonit, dbus-user-session, aardvark-dns, ca-certificates, restic, unattended-upgrades, wireguard-tools, cifs-utils, nfs-common, systemd
 Homepage: https://roostack.cloud
 Description: Homelab management for people who aren't sysadmins
  Roostack installs and runs self-hosted services (as rootless Podman

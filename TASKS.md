@@ -472,7 +472,7 @@ Packages go to the registry (`roostack/services`), each checked with `roostack v
   - [ ] The move page naming libraries the service reads that its new server lacks
   - [x] Packages (2026-10-19): Jellyfin, Navidrome, Plex, each tried on VM3 with libraries (one read as its owner): their apps found the files, backups brought back their own libraries
   - [x] SMB and NFS shares (2026-10-19): the whole share as a library, a check before saving with mount's own reason put plainly, the login kept root-only on its server, automounted read-only; tried on VM3 (Samba and NFS, wrong login, no NAS, reboot, removal)
-  - [ ] `cifs-utils` and `nfs-common` in the package: the installer's `--no-install-recommends` means Recommends never install; decide with the Owner (Depends, or installed on demand by the agent)
+  - [x] `cifs-utils` and `nfs-common` as Depends of the package (the Owner, 2026-10-19), as the installer leaves Recommends out
 - [x] **MySQL and MariaDB** as database types (2026-10-19): MySQL 8.4 and MariaDB 11.8 pinned, password, dump before backups and restore, health check; major versions upgrade as the servers start (SPEC §8.1, ASSUMPTIONS I3, I4). Ghost and PhotoPrism packaged on them, tried on VM3
 - [ ] **Check ASSUMPTIONS I3 at the first MySQL or MariaDB pin change:** a service with real data, updated across the major version
 - [ ] **A setting's `warning:`** (SPEC §8.1 "Configuring a service"): in pkgspec and validate, shown beside the option at install and in the service's settings, in the warning colour; then move HedgeDoc's Libravatar warning from its description into it (a new package revision)
