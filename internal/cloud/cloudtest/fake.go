@@ -95,6 +95,9 @@ type Fake struct {
 	// DomainVerified says a relayed lab's own domain is proven (its TXT
 	// record found).
 	DomainVerified bool
+	// RelayEdges are the relay's edges (nil: one, syd-1), for a rebuilt
+	// edge's new key and address.
+	RelayEdges []cloudapi.RelayEdge
 	// StorageQuota is Cloud backup's quota (0: not open), StorageUsed
 	// what's stored, and StorageAsked the key requests.
 	StorageQuota, StorageUsed int64
@@ -739,12 +742,15 @@ func Start(t testing.TB) (*Fake, config.Cloud) {
 	return f, config.Cloud{URL: srv.URL, CAFile: ca}
 }
 
-// relay is the fake's answer to a relay request: one edge, a relay name,
+// relay is the fake's answer to a relay request: its edges, a relay name,
 // and the own domain's proof (verified as DomainVerified says).
 func (f *Fake) relay(req cloudapi.RelayRequest) cloudapi.Relay {
 	r := cloudapi.Relay{Addr: "100.81.1.1", Prefix: 16, Name: "r-test.relay.roost.test", Edges: []cloudapi.RelayEdge{{Name: "syd-1",
 		Endpoint: "198.51.100.10:51830", PublicKey: "ZWRnZWVkZ2VlZGdlZWRnZWVkZ2VlZGdlZWRnZWVkZ2U=", Addr: "100.81.0.1",
 		PublicIPv4: "198.51.100.10"}}, TurnedOff: f.RelayOff, Suspended: f.RelaySuspended, Names: f.NameStates}
+	if f.RelayEdges != nil {
+		r.Edges = f.RelayEdges
+	}
 	if req.Domain != "" {
 		r.Domain = &cloudapi.RelayDomain{Domain: req.Domain, ProofName: "_roostack." + req.Domain, ProofValue: "roostack-proof=test",
 			Verified: f.DomainVerified}

@@ -105,9 +105,12 @@ browser name in its requests.
 ### Roostack Cloud
 
 Only if you [link your lab](settings/cloud.md) to it, and only from the
-controller: your other servers never talk to Roostack Cloud. All of it
-goes to `https://api.roostack.cloud`, and each request is in the lab's
-[request log](#the-request-log).
+controller: your other servers never talk to Roostack Cloud. It goes to
+`https://api.roostack.cloud`, and a roost.ac name's records and
+certificate checks to Roostack Cloud's DNS (its "challenge server").
+Each request Roostack makes is in the lab's
+[request log](#the-request-log), apart from reading back its DNS records;
+what Caddy and restic send is below.
 
 | When | What's sent | Why |
 |---|---|---|
@@ -117,7 +120,9 @@ goes to `https://api.roostack.cloud`, and each request is in the lab's
 | **After each check-in** | The lab's name; the email addresses of the people here who get the lab's problems by email; and, for each server backing up to Roostack Cloud, its ID, its name and when its last backup there finished | Cloud's emails about your lab go to those people too, once each agrees; your lab's page there shows the backups |
 | **Every two months or so** | A new certificate request (a new key) | The certificate renews itself before it ends |
 | **After linking, and when the recovery key changes** | A public key worked out from the recovery key, and a signature that proves the lab has the key | [Restoring without the old server](#restoring-without-the-old-server) |
-| **Backups to Roostack Cloud** | Before backing up, and before the weekly clean-up: which server, and what for (backing up, or cleaning up). When you choose where backups go: how much space the lab uses | Cloud answers with storage keys for 12 hours, for that server's folder only |
+| **Backups to Roostack Cloud** | Before backing up, and before the weekly clean-up: which server, and what for (backing up, or cleaning up). After each check-in, and when you choose where backups go: a question, with nothing in it, about how much space the lab uses | Cloud answers with storage keys for 12 hours, for that server's folder only. The space is shown on the backup, and on Home from 80% full |
+| **Your roost.ac name's DNS records**, when they change | Your server's address on your home network (`*.smiths.roost.ac` and `smiths.roost.ac` point there), and, for services you make public, your home's internet address. Every few minutes Roostack also reads them back, which sends only their names; those reads aren't in the request log | Your services' addresses |
+| **Restoring on a fresh install** | A public key worked out from the recovery key, then a signature that proves you have the key | Cloud answers with keys to read your backups there. The restored lab's request log keeps these requests |
 | **The relay**, if public visitors come in through it | When it's set up or changed: your public services' names, the relay's WireGuard public key, which countries may visit, your time zone and your own domain (if relayed). Every 5 minutes: a check on it, and the addresses your lab's attack protection (CrowdSec) has banned, so the relay turns them away too | To bring visitors to your lab, and keep attackers out before they reach it |
 | **Unlinking** | That the lab is leaving | |
 
@@ -125,13 +130,10 @@ Also sent to Roostack Cloud, but not through the request log:
 
 - **Your backups** (if you back up there): restic's encrypted files,
   straight to Roostack Cloud's storage.
-- **Your roost.ac name's DNS records:** your server's address on your home
-  network (`*.smiths.roost.ac` and `smiths.roost.ac` point there), and, for
-  services you make public, your home's internet address.
 - **Certificate checks:** when Caddy gets or renews a certificate, it
-  writes Let's Encrypt's check value to Roostack Cloud's DNS (a "challenge
-  server"). When you first get a name, Roostack writes a test value the
-  same way; that one is in the request log.
+  writes Let's Encrypt's check value to Roostack Cloud's challenge server
+  itself, so Roostack doesn't see it. When you first get a name, Roostack
+  writes a test value the same way; that one is in the request log.
 - **Visitors through the relay**, still encrypted.
 
 ### Everyone else
@@ -220,9 +222,10 @@ same way. Long values, such as a certificate request, are shortened.
     It holds what was sent, which includes the email addresses of the
     people who get problems by email and the addresses CrowdSec banned. It
     never holds Cloud's answers (storage keys come back in them). Not in
-    it: what Caddy writes to Cloud's challenge server, the roost.ac
-    records, restic's traffic to Cloud's storage, and a restore on a fresh
-    install (before there's a lab to keep a log).
+    it: what Caddy writes to Cloud's challenge server at each renewal, and
+    restic's traffic to Cloud's storage. Requests to the challenge server
+    and to Roostack Cloud's records API show their whole address; their
+    login is in headers, which aren't recorded.
 
 ### The server's log
 

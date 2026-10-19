@@ -31,6 +31,9 @@ type labRestorer struct {
 	acts    *activity.Registry
 	restart func()
 	log     *slog.Logger
+	// cloud is the link to Roostack Cloud, for restoring from it (nil:
+	// Cloud is turned off).
+	cloud *cloud.Service
 
 	mu      sync.Mutex
 	running bool
@@ -75,9 +78,9 @@ func (l *labRestorer) Find(ctx context.Context, src labrestore.Source, key strin
 		return nil, nil, err
 	}
 	f := &labrestore.Finder{OpenRepo: l.openRepo}
-	if !l.lab.Cloud.Disabled {
+	if l.cloud != nil {
 		f.CloudAccess = func(ctx context.Context) (cloudapi.RestoreAccess, error) {
-			return cloud.RestoreAccess(ctx, l.lab.Cloud, key)
+			return l.cloud.RestoreAccess(ctx, key)
 		}
 	}
 	return f.Find(ctx, src)
@@ -100,7 +103,18 @@ func (l *labRestorer) Start(fd labrestore.Found) error {
 	l.running = true
 	alog := l.acts.Start(activity.LabRestore, "Restoring "+cmp.Or(fd.Name, fd.Domain, "the lab"))
 	go func() {
+		// What this install asked Cloud stays in the restored lab's
+		// request log.
+		var keepAgain func() error
+		if l.cloud != nil {
+			keepAgain = l.cloud.KeepRequests()
+		}
 		err := labrestore.Restore(context.Background(), l.lab.Paths, l.openRepo(fd.Repository, fd.Env), fd, l.keyFile(), alog)
+		if err == nil && keepAgain != nil {
+			if kerr := keepAgain(); kerr != nil {
+				l.log.Warn("keeping this install's requests to Roostack Cloud in the restored lab's request log", "err", kerr)
+			}
+		}
 		alog.Finish(err)
 		l.mu.Lock()
 		l.running = false

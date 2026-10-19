@@ -2,15 +2,21 @@ package cloud
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/cloudapi"
+	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/dns"
 )
 
 // Every field of every request the lab sends to Cloud is decided: shown
@@ -21,7 +27,7 @@ func TestRecordedFields(t *testing.T) {
 		cloudapi.LinkRequest{}, cloudapi.LinkSecret{}, cloudapi.LabReport{}, cloudapi.RelayRequest{},
 		cloudapi.RelayBans{}, cloudapi.StorageRequest{}, cloudapi.RenewRequest{}, cloudapi.NameRequest{},
 		cloudapi.RecoveryIdentity{}, cloudapi.RestoreChallengeRequest{}, cloudapi.RestoreProof{},
-		cloudapi.RelinkRequest{}, cloudapi.ACMEUpdate{},
+		cloudapi.RelinkRequest{}, cloudapi.ACMEUpdate{}, cloudapi.RecordValue{},
 	}
 	var walk func(reflect.Type)
 	walk = func(ty reflect.Type) {
@@ -128,5 +134,71 @@ func TestRequestLogLeavesOutSecrets(t *testing.T) {
 	}
 	if !linked || !polled {
 		t.Errorf("linking isn't logged as it should be:\n%s", data)
+	}
+}
+
+// TestRecordsInRequestLog: a roost.ac name's records, set through
+// Cloud's records API by the DNS provider, are in the request log (what
+// was set, never the login); reading them isn't, nor requests to
+// anything else.
+func TestRecordsInRequestLog(t *testing.T) {
+	ctx := context.Background()
+	f, s, state := fakeCloud(t)
+	var claim cloudapi.NameClaim
+	s.UseName = func(_ context.Context, c cloudapi.NameClaim) error { claim = c; return nil }
+	link(t, f, s, "")
+	if err := s.ClaimName(ctx, "smiths"); err != nil {
+		t.Fatal(err)
+	}
+	hc := &http.Client{Transport: s.RecordsTransport(s.client.anon.Transport)}
+	p := dns.Get(config.ProviderCloud)
+	if err := p.SetRecord(ctx, hc, claim.Credentials, claim.Name, "", "A", "192.168.1.10"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.GetRecord(ctx, hc, claim.Credentials, claim.Name, "", "A"); err != nil {
+		t.Fatal(err)
+	}
+	// Something else through the same client: not Cloud's.
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer other.Close()
+	if resp, err := hc.Get(other.URL); err == nil {
+		resp.Body.Close()
+	}
+	got := s.Requests()
+	if len(got) == 0 || got[0].Method != http.MethodPut || !strings.HasSuffix(got[0].Path, "/v1/records/@/A") ||
+		got[0].Sent != `{"value":"192.168.1.10"}` || got[0].Status != http.StatusOK {
+		t.Errorf("the records' requests: %+v", got[:min(2, len(got))])
+	}
+	data, _ := os.ReadFile(filepath.Join(Dir(state), "requests.log"))
+	if bytes.Contains(data, []byte(claim.Credentials[cloudapi.CredPassword])) || bytes.Contains(data, []byte(other.URL)) {
+		t.Errorf("the log has the login, or another server's request:\n%s", data)
+	}
+}
+
+// TestKeepRequests: a lab restored onto a new install keeps, in its own
+// request log, what the new install asked Cloud while restoring.
+func TestKeepRequests(t *testing.T) {
+	_, s, _ := fakeCloud(t)
+	at := time.Date(2026, 10, 19, 9, 0, 0, 0, time.UTC)
+	s.now = func() time.Time { return at }
+	s.record(http.MethodPost, cloudapi.PathRestoreAccess, nil, http.StatusOK, nil)
+	keepAgain := s.KeepRequests()
+	// The restore puts back the lab's own log, from before.
+	old := Request{At: at.Add(-time.Hour), Method: http.MethodGet, Path: cloudapi.PathLab, Status: http.StatusOK}
+	line, _ := json.Marshal(old)
+	if err := os.WriteFile(s.file("requests.log"), append(line, '\n'), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := keepAgain(); err != nil {
+		t.Fatal(err)
+	}
+	got := s.Requests()
+	if len(got) != 2 || got[0].Path != cloudapi.PathRestoreAccess || got[1].Path != cloudapi.PathLab {
+		t.Errorf("after the restore: %+v", got)
+	}
+	// Twice changes nothing.
+	keepAgain()
+	if n := len(s.Requests()); n != 2 {
+		t.Errorf("%d requests after keeping them again", n)
 	}
 }

@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"roostack.cloud/roostack/cloudapi"
 	"roostack.cloud/roostack/internal/cloud"
 	"roostack.cloud/roostack/internal/dns"
+	"roostack.cloud/roostack/internal/units"
 )
 
 // CloudLink is the controller's link to Roostack Cloud (cloud.Service;
@@ -44,6 +46,41 @@ func (s *Server) cloudSuffix(ctx context.Context) string {
 		return cloudapi.DefaultNameSuffix
 	}
 	return s.Cloud.NameSuffix(ctx)
+}
+
+// cloudSpace is Roostack Cloud backup's space, as Cloud last said
+// (asked at each check-in): what this lab's backups take there, and the
+// account's quota, which its labs share (Cloud's DESIGN §6(b)).
+type cloudSpace struct {
+	Used, Quota int64
+	Percent     int64
+}
+
+// cloudSpaceOf is Cloud backup's space, if the lab may use it (nil
+// otherwise, or until Cloud has said).
+func cloudSpaceOf(st cloud.Status) *cloudSpace {
+	if !st.Linked || st.Storage == nil || st.Storage.QuotaBytes <= 0 {
+		return nil
+	}
+	u := st.Storage
+	return &cloudSpace{Used: u.UsedBytes, Quota: u.QuotaBytes, Percent: u.UsedBytes * 100 / u.QuotaBytes}
+}
+
+// cloudSpaceWarn is the share of the quota from which Cloud emails the
+// account, and the lab says so too: 80%, then 100% (Cloud's DESIGN §6(b)).
+const cloudSpaceWarn = 80
+
+// Warning is what Home and the backup's card say once the lab's backups
+// take 80% of the quota or more ("" below that, or for nil).
+func (c *cloudSpace) Warning() string {
+	if c == nil || c.Percent < cloudSpaceWarn {
+		return ""
+	}
+	took := fmt.Sprintf("this lab's backups there take %s of the %s in your plan", units.Bytes(c.Used), units.Bytes(c.Quota))
+	if c.Percent >= 100 {
+		return "Roostack Cloud backup is full: " + took + ". Roostack Cloud will be in touch about more space."
+	}
+	return fmt.Sprintf("Roostack Cloud backup is %d%% full: %s.", c.Percent, took)
 }
 
 // cloudUnreachableFor is how long Cloud can't be reached before the home
@@ -296,6 +333,10 @@ func (s *Server) cloudStanding(add func(level, text, link, linkText string)) {
 	st := s.Cloud.Status()
 	if !st.Linked {
 		return
+	}
+	// Cloud backup's space, at the levels Cloud emails about.
+	if text := cloudSpaceOf(st).Warning(); text != "" {
+		add(levelWarning, text, "/backups#plan", "Backups")
 	}
 	if st.Suspended != "" {
 		add(levelProblem, "Roostack Cloud has suspended this lab's account: "+strings.TrimSuffix(st.Suspended, ".")+

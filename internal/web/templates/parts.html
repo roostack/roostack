@@ -418,6 +418,7 @@
           {{- if eq .Path "direct"}} · linked directly{{else if eq .Path "hub"}} · through {{.Via}}, as they can't link directly{{end}}</p>
         {{if eq $.Plan.BusyIn .Number}}{{activity $.Plan.Busy}}{{end}}
         {{if .LowSpace}}{{notice "warn" (printf "Nearly full: %s free on %s. When it's full, backups here fail." (size .Free) .FreeOn)}}{{end}}
+        {{with .Cloud}}{{with .Warning}}{{notice "warn" .}}{{end}}{{end}}
         {{if eq .Path "hub"}}{{if .LinkFailed}}
         {{notice "warn" (printf "A direct link to %s didn't connect, so these backups go through %s, using its connection twice. Check %s can be reached at its address for direct links (UDP port 51820, or the port you entered). Roostack tries again tomorrow, or as soon as you change the address." .HostName .Via .HostName) (printf "link=/servers#server-%s" .Host) "linkText=Check the address"}}
         {{else}}
@@ -455,10 +456,11 @@
         {{- else}}<p class="error"><span class="dot dot-problem" aria-hidden="true"></span>The last backup here ({{when .Finished}}) didn't finish: {{firstLine .Error}}{{retryText $e.Retry}}</p>
           {{- with otherLines .Error}}<details class="plan-error"><summary>Details</summary><pre class="output">{{.}}</pre></details>{{end}}{{end}}
         {{- else}}<p class="hint">Not backed up here yet: the first backup runs {{if $.Plan.Next.IsZero}}tonight{{else}}{{when $.Plan.Next}}{{end}}.</p>{{end}}
-        {{if or .Stored (ge .Free 0) .Lab}}<p class="hint plan-space">
+        {{if or .Stored (ge .Free 0) .Lab .Cloud}}<p class="hint plan-space">
           {{- if .Stored}}Backups here take <strong>{{size .Stored}}</strong>{{end}}
           {{- if ge .Free 0}}{{if .Stored}} · {{end}}<span{{with .LowSpace}} class="space-low"{{end}}>{{size .Free}} free on {{.FreeOn}}</span>{{end}}
-          {{- if .Lab}}{{if or .Stored (ge .Free 0)}} · {{end}}your lab uses {{if ge .Lab.Used 0}}{{size .Lab.Used}} of {{end}}its {{size .Lab.Quota}} there{{end}}</p>{{end}}
+          {{- if .Lab}}{{if or .Stored (ge .Free 0)}} · {{end}}your lab uses {{if ge .Lab.Used 0}}{{size .Lab.Used}} of {{end}}its {{size .Lab.Quota}} there{{end}}
+          {{- with .Cloud}}{{if $e.Stored}} · {{end}}<span{{if ge .Percent 80}} class="space-low"{{end}}>{{if $e.Stored}}your{{else}}Your{{end}} lab uses {{size .Used}} of the {{size .Quota}} in your plan ({{.Percent}}%)</span>{{end}}</p>{{end}}
         {{if not $.Plan.Wizard}}
         <details class="plan-manage" id="plan-manage-{{.Number}}"{{if or .KeyOpen .RollbackOpen}} open{{end}}>
           <summary>Manage</summary>

@@ -345,11 +345,16 @@ func TestCheckClaim(t *testing.T) {
 type fakeWG struct {
 	applied []agent.WireGuard
 	removed []string
+	// fail is what applying returns (nil: it works).
+	fail error
 }
 
 func (f *fakeWG) ApplyWireGuard(_ context.Context, wg agent.WireGuard) (string, error) {
 	if err := wg.Validate(); err != nil {
 		return "", err
+	}
+	if f.fail != nil {
+		return "", f.fail
 	}
 	f.applied = append(f.applied, wg)
 	return "bGFibGFibGFibGFibGFibGFibGFibGFibGFibGFibGE=", nil
@@ -387,6 +392,76 @@ func TestUnlinkedRelay(t *testing.T) {
 				t.Errorf("in Cloud %v, relayed %v: Unrelayed called %d times", inCloud, relayed, unrelayed)
 			}
 		}
+	}
+}
+
+// TestRelayEdgesChanged: an edge rebuilt with a new address and key
+// (Cloud's `cloud edge-update`) reaches a relayed lab at its next refresh:
+// the relay's WireGuard dials the new edge, then it's kept and the lab
+// applies; dialling failing keeps the old edge for the next refresh, and
+// the same edges again change nothing. Turning the relay on again takes
+// changed edges too.
+func TestRelayEdgesChanged(t *testing.T) {
+	f, s, state := fakeCloud(t)
+	wg := &fakeWG{}
+	s.WireGuard = wg
+	applied := make(chan struct{}, 4)
+	s.EdgesChanged = func() { applied <- struct{}{} }
+	ctx := context.Background()
+	link(t, f, s, "")
+	if err := s.Relay(ctx, []string{"photos.smiths.roost.test"}, config.Countries{}, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	old := s.RelayEdges()
+	n := len(wg.applied)
+	if err := s.refreshRelay(ctx); err != nil || len(wg.applied) != n || len(applied) != 0 {
+		t.Errorf("the same edges: %v, %d applies, %d changes", err, len(wg.applied)-n, len(applied))
+	}
+	rebuilt := cloudapi.RelayEdge{Name: "syd-1", Endpoint: "203.0.113.20:51830",
+		PublicKey: "bmV3ZWRnZW5ld2VkZ2VuZXdlZGdlbmV3ZWRnZW5ld2U=", Addr: "100.81.0.1", PublicIPv4: "203.0.113.20"}
+	f.RelayEdges = []cloudapi.RelayEdge{rebuilt}
+	wg.fail = errors.New("the agent is away")
+	if err := s.refreshRelay(ctx); err == nil || !slices.Equal(s.RelayEdges(), old) || len(applied) != 0 {
+		t.Errorf("dialling failed: %v, edges %+v", err, s.RelayEdges())
+	}
+	wg.fail = nil
+	if err := s.refreshRelay(ctx); err != nil {
+		t.Fatal(err)
+	}
+	last := wg.applied[len(wg.applied)-1]
+	if len(last.Peers) != 1 || last.Peers[0].PublicKey != rebuilt.PublicKey || last.Peers[0].Endpoint != rebuilt.Endpoint ||
+		last.Address != "100.81.1.1/16" {
+		t.Errorf("the interface: %+v", last)
+	}
+	if got := s.RelayEdges(); !slices.Equal(got, f.RelayEdges) {
+		t.Errorf("edges kept: %+v", got)
+	}
+	select {
+	case <-applied:
+	case <-time.After(5 * time.Second):
+		t.Error("the lab didn't apply the new edges")
+	}
+	// Turning the relay on again, with an edge rebuilt meanwhile: dialled
+	// at once (a later refresh would see nothing to change).
+	again := rebuilt
+	again.PublicKey, again.Endpoint = "YWdhaW5hZ2FpbmFnYWluYWdhaW5hZ2FpbmFnYWluYWc=", "203.0.113.30:51830"
+	f.RelayEdges = []cloudapi.RelayEdge{again}
+	if err := s.TurnRelayOn(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if last := wg.applied[len(wg.applied)-1]; len(last.Peers) != 1 || last.Peers[0].PublicKey != again.PublicKey ||
+		!slices.Equal(s.RelayEdges(), f.RelayEdges) {
+		t.Errorf("turned on: %+v, edges %+v", last, s.RelayEdges())
+	}
+	select {
+	case <-applied:
+	case <-time.After(5 * time.Second):
+		t.Error("the lab didn't apply the edges it was turned on with")
+	}
+	// Kept across a restart (link.json).
+	s2, err := New(state, s.cfg, "test", s.labName, s.log)
+	if err != nil || !slices.Equal(s2.RelayEdges(), f.RelayEdges) {
+		t.Errorf("after a restart: %+v %v", s2.RelayEdges(), err)
 	}
 }
 

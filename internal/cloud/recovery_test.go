@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 
 	"roostack.cloud/roostack/cloudapi"
@@ -53,15 +54,25 @@ func TestRestoreFromCloud(t *testing.T) {
 		}
 	}
 
-	acc, err := RestoreAccess(ctx, s.cfg, " "+key+" ")
+	// A new install, not linked, restoring.
+	fresh, err := New(t.TempDir(), s.cfg, "test", s.labName, s.log)
 	if err != nil {
 		t.Fatal(err)
+	}
+	acc, err := fresh.RestoreAccess(ctx, " "+key+" ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// In its request log, without the signature.
+	if got := fresh.Requests(); len(got) != 2 || got[0].Path != cloudapi.PathRestoreAccess || got[1].Path != cloudapi.PathRestoreChallenge ||
+		!strings.Contains(got[0].Sent, `"signature":"(not recorded)"`) {
+		t.Errorf("the request log: %+v", got)
 	}
 	if len(acc.Labs) != 1 || acc.Labs[0].LabID != labID || acc.Labs[0].LabName != "Smith family" ||
 		!slices.Equal(acc.Labs[0].Repositories, f.RestoreRepositories[labID]) || acc.Labs[0].Keys.AccessKeyID == "" {
 		t.Errorf("access = %+v", acc)
 	}
-	if _, err := RestoreAccess(ctx, s.cfg, "not the key"); err == nil {
+	if _, err := fresh.RestoreAccess(ctx, "not the key"); err == nil {
 		t.Error("another key was let in")
 	}
 
@@ -78,10 +89,10 @@ func TestRestoreFromCloud(t *testing.T) {
 	if n := f.Requests["PUT "+cloudapi.PathLabRecoveryIdentity] - registered; n != 1 {
 		t.Errorf("registered %d times for the new key, want 1", n)
 	}
-	if _, err := RestoreAccess(ctx, s.cfg, "the first recovery key"); err == nil {
+	if _, err := fresh.RestoreAccess(ctx, "the first recovery key"); err == nil {
 		t.Error("the old recovery key still works")
 	}
-	if _, err := RestoreAccess(ctx, s.cfg, key); err != nil {
+	if _, err := fresh.RestoreAccess(ctx, key); err != nil {
 		t.Errorf("the new key: %v", err)
 	}
 
@@ -96,7 +107,7 @@ func TestRestoreFromCloud(t *testing.T) {
 	link(t, f, s, "")
 	newID := s.Status().LabID
 	waitFor(t, func() bool { return f.Identities[newID] != nil })
-	acc, err = RestoreAccess(ctx, s.cfg, key)
+	acc, err = fresh.RestoreAccess(ctx, key)
 	if err != nil || len(acc.Labs) != 2 || acc.Labs[0].LabID != newID || !acc.Labs[0].UnlinkedAt.IsZero() ||
 		acc.Labs[1].LabID != labID || acc.Labs[1].UnlinkedAt.IsZero() || len(acc.Labs[1].Repositories) != 1 {
 		t.Errorf("after linking again: %+v %v", acc, err)

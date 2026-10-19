@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -69,8 +70,11 @@ type Service struct {
 	client   *client
 	now      func() time.Time
 
-	mu      sync.Mutex
-	st      linkState
+	mu sync.Mutex
+	st linkState
+	// relayMu takes turns at changing the relay (its WireGuard and its
+	// state), so a refresh never undoes a newer Relay or StopRelay.
+	relayMu sync.Mutex
 	cert    *tls.Certificate
 	pending *pending
 	// startErr is why the last attempt to start linking failed;
@@ -94,6 +98,11 @@ type Service struct {
 	// the link (unlinked, here or in Cloud): the lab's settings turn the
 	// relay off, so nothing asks Cloud for it again (SPEC.md §10.5).
 	Unrelayed func(ctx context.Context)
+	// EdgesChanged is called when Cloud's answer changes the relay's edges
+	// (an edge rebuilt with a new address and key, added or gone), once
+	// the relay's WireGuard dials them: the lab applies again, so Caddy
+	// and the firewall know the new edges' relay addresses.
+	EdgesChanged func()
 	// Report is what the lab tells Cloud after each check-in (its own
 	// email recipients, its servers' last backups to Cloud; report.go);
 	// nil: nothing.
@@ -129,6 +138,9 @@ type linkState struct {
 	// Reported is when the lab last told Cloud its report (report.go);
 	// zero if it never has, or Cloud is from before reports.
 	Reported time.Time `json:"reported,omitzero"`
+	// Storage is Cloud backup's space as Cloud last said (storage.go):
+	// asked at each check-in, so pages show it without asking Cloud.
+	Storage *cloudapi.StorageUsage `json:"storage,omitempty"`
 }
 
 // onHold says Cloud has something of the lab on hold: a name waiting for
@@ -208,7 +220,10 @@ type Status struct {
 	Forgotten          time.Time
 	ForgottenAccount   string
 	// Reported is when the lab last told Cloud its report.
-	Reported             time.Time
+	Reported time.Time
+	// Storage is Cloud backup's space as Cloud last said (nil: not
+	// asked yet; a zero quota: the lab may not use it).
+	Storage              *cloudapi.StorageUsage
 	CertFingerprint      string
 	CertIssued, CertEnds time.Time
 	// Waiting is a link being made; StartError why the last one didn't
@@ -239,6 +254,11 @@ func (s *Service) Status() Status {
 		Refused: s.st.Refused, Reported: s.st.Reported,
 		Forgotten: s.st.Forgotten, ForgottenAccount: s.st.ForgottenAccount,
 		StartError: s.startErr, TriedName: s.triedName, Dir: s.dir, URL: s.cfg.Address()}
+	if u := s.st.Storage; u != nil {
+		c := *u
+		c.Servers = slices.Clone(u.Servers)
+		st.Storage = &c
+	}
 	if s.cert != nil && s.cert.Leaf != nil {
 		sum := sha256.Sum256(s.cert.Leaf.Raw)
 		st.CertFingerprint = strings.ToUpper(hex.EncodeToString(sum[:8]))
@@ -590,9 +610,12 @@ func (s *Service) forget() {
 	}
 	s.cert = nil
 	s.st.Linked = false
+	s.st.Storage = nil
 	// Not linked, not relayed: the relay's interface goes too.
 	if s.st.Relay != nil && s.WireGuard != nil {
 		go func() {
+			s.relayMu.Lock() // after a refresh dialling changed edges
+			defer s.relayMu.Unlock()
 			if err := s.WireGuard.RemoveWireGuard(context.Background(), agent.RelayInterface); err != nil {
 				s.log.Error("Roostack Cloud: removing the relay's network", "err", err)
 			}
@@ -637,6 +660,10 @@ func (s *Service) Check(ctx context.Context) error {
 		reported, rerr := s.report(ctx)
 		if rerr != nil {
 			s.log.Warn("Roostack Cloud: telling Cloud the lab's report (tried again at the next check)", "err", rerr)
+		}
+		// Cloud backup's space, for the pages (kept by StorageUsage).
+		if _, serr := s.StorageUsage(ctx); serr != nil {
+			s.log.Warn("Roostack Cloud: asking how much Cloud backup space the lab uses (asked again at the next check)", "err", serr)
 		}
 		// New or removed addresses: how they stand now, for the pages.
 		if reported != nil && !sameRecipients(info.Recipients, reported) {

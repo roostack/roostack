@@ -4,9 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
+	"slices"
 	"time"
 	"unicode/utf8"
+
+	"roostack.cloud/roostack/cloudapi"
 )
 
 // The request log, requests.log in the lab's Cloud folder: every request
@@ -61,6 +66,10 @@ var recordedFields = map[string]bool{
 	// when the lab gets a name (checkClaim). Its login goes in headers,
 	// which aren't recorded.
 	"subdomain": true, "txt": true,
+	// RecordValue: a roost.ac name's record, set through Cloud's records
+	// API (dns/cloud.go): the lab's address at home or its public one,
+	// which public DNS shows anyway.
+	"value": true,
 }
 
 // notRecorded stands for a value the log leaves out.
@@ -174,3 +183,84 @@ func (s *Service) Requests() []Request {
 	}
 	return out
 }
+
+// KeepRequests is for a lab restored onto this install: it reads the
+// request log now, before the restore puts back the lab's own (its Cloud
+// folder), and keepAgain adds these requests to it afterwards. Without
+// it, what the new install asked Cloud while restoring (RestoreAccess)
+// would leave no trace (SPEC.md §6.6).
+func (s *Service) KeepRequests() (keepAgain func() error) {
+	s.mu.Lock()
+	ours, _ := os.ReadFile(s.file("requests.log"))
+	s.mu.Unlock()
+	return func() error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		theirs, _ := os.ReadFile(s.file("requests.log"))
+		var all []Request
+		for _, data := range [][]byte{theirs, ours} {
+			for _, line := range bytes.Split(bytes.TrimSpace(data), []byte("\n")) {
+				var r Request
+				if json.Unmarshal(line, &r) == nil && !r.At.IsZero() {
+					all = append(all, r)
+				}
+			}
+		}
+		if len(all) == 0 {
+			return nil
+		}
+		slices.SortStableFunc(all, func(a, b Request) int { return a.At.Compare(b.At) })
+		all = slices.CompactFunc(all, func(a, b Request) bool { return a == b })
+		if len(all) > keepRequests {
+			all = all[len(all)-keepRequests:]
+		}
+		var out []byte
+		for _, r := range all {
+			line, _ := json.Marshal(r)
+			out = append(append(out, line...), '\n')
+		}
+		if err := os.MkdirAll(s.dir, 0o700); err != nil {
+			return err
+		}
+		return writeFile(s.file("requests.log"), out, 0o600)
+	}
+}
+
+// RecordsTransport has the request log show the lab's changes to a
+// roost.ac name's records through Cloud's records API (the DNS provider
+// in dns/cloud.go, through the records manager's HTTP client): requests
+// carrying Cloud's login header (cloudapi.HeaderUser, which only they
+// and the challenge server use) that change something. Reads aren't
+// recorded: they send only the record's name, and the records manager
+// reads every record every few minutes while anything is public, which
+// would push everything else out of the log. The login itself is in
+// headers, which aren't recorded. Other requests pass by unrecorded.
+func (s *Service) RecordsTransport(next http.RoundTripper) http.RoundTripper {
+	if next == nil {
+		next = http.DefaultTransport
+	}
+	return roundTripper(func(req *http.Request) (*http.Response, error) {
+		if req.Header.Get(cloudapi.HeaderUser) == "" || req.Method == http.MethodGet || req.Method == http.MethodHead {
+			return next.RoundTrip(req)
+		}
+		var body []byte
+		if req.GetBody != nil {
+			if rc, err := req.GetBody(); err == nil {
+				body, _ = io.ReadAll(rc)
+				rc.Close()
+			}
+		}
+		resp, err := next.RoundTrip(req)
+		status := 0
+		if err == nil {
+			status = resp.StatusCode
+		}
+		s.record(req.Method, req.URL.String(), body, status, err)
+		return resp, err
+	})
+}
+
+// roundTripper is a function as an http.RoundTripper.
+type roundTripper func(*http.Request) (*http.Response, error)
+
+func (f roundTripper) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
