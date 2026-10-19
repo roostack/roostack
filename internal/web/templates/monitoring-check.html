@@ -1,0 +1,90 @@
+{{define "title"}}{{.Check.Name}}{{end}}
+{{define "page-help"}}{{help "servers/monitoring" "Monitoring"}}{{end}}
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <div class="title-line"><h1>{{.Check.Name}}</h1>{{checkState .Check.State}}</div>
+    <p class="lede">{{.Line}}</p>
+  </div>
+</div>
+
+{{if eq .Check.State "down"}}
+{{notice "error" (printf "Not answering since %s: %s." (when .Check.DownSince) .Check.Last.Err)}}
+{{else if eq .Check.State "paused"}}
+{{notice "info" (printf "Paused: %s. It's checked again once that's over." .Check.Last.Err)}}
+{{end}}
+
+<div class="grid">
+  <div class="span-8 grid-column">
+    <section class="card">
+      <div class="card-head"><h2>Last 90 days</h2></div>
+      {{uptimeBar .History.Days}}
+      <div class="bar-ends hint"><span>90 days ago</span><span>Today</span></div>
+      <dl class="facts">
+        <dt>Uptime</dt><dd>{{with .History.Day1.Text}}{{.}} over 24 hours{{else}}Not counted yet{{end}}
+          {{- with .History.Week.Text}} · {{.}} over 7 days{{end}}
+          {{- with .History.Month.Text}} · {{.}} over 30 days{{end}}
+          {{- with .History.Quarter.Text}} · {{.}} over 90 days{{end}}</dd>
+      </dl>
+    </section>
+    {{if .Spark}}
+    <section class="card">
+      <div class="card-head"><h2>Answer time, last 24 hours</h2>{{with .History.AvgMillis}}<span class="hint">{{.}} ms on average</span>{{end}}</div>
+      <svg class="spark" viewBox="0 0 600 80" preserveAspectRatio="none" role="img" aria-label="Answer time over the last 24 hours">
+        <polyline points="{{.Spark}}" fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
+      <div class="bar-ends hint"><span>24 hours ago</span><span>Now</span></div>
+      <p class="hint">The slowest answer was {{.History.MaxMillis}} ms.</p>
+    </section>
+    {{end}}
+    <section class="card">
+      <div class="card-head"><h2>When it was down</h2></div>
+      {{if .Outages}}
+      <div class="table-wrap"><table class="list">
+        <thead><tr><th>When</th><th>For</th><th>What came back</th></tr></thead>
+        <tbody>
+        {{range .Outages}}<tr><td>{{when .Started}}</td><td>{{.For}}{{if .Ended.IsZero}} so far{{end}}</td><td>{{capitalise .Err}}</td></tr>
+        {{end}}
+        </tbody>
+      </table></div>
+      {{else}}<p class="hint">Not down in the last 90 days.</p>{{end}}
+    </section>
+  </div>
+  <div class="span-4 grid-column">
+    <section class="card">
+      <div class="card-head"><h2>What's checked</h2></div>
+      <dl class="facts">
+        {{with .Check.URL}}<dt>Address</dt><dd><code>{{.}}</code></dd>{{end}}
+        {{with .Check.TCP}}<dt>Connects to</dt><dd><code>{{.}}</code></dd>{{end}}
+        {{with .Check.Ping}}<dt>Pings</dt><dd><code>{{.}}</code></dd>{{end}}
+        {{if eq .Check.Kind "service"}}<dt>Asked at</dt><dd>{{or .CheckedFrom "this server"}}'s Caddy, on the server itself</dd>
+        <dt>Runs on</dt><dd>{{.Check.Server}}</dd>{{end}}
+        {{if eq .Check.Kind "domain"}}<dt>How</dt><dd>Whether devices at home find this server at the lab's address, from the
+          DNS records' own checks</dd>{{end}}
+        <dt>Up means</dt><dd>{{if .Check.URL}}{{if .Check.Statuses}}It answers {{range $i, $s := .Check.Statuses}}{{if $i}}, {{end}}{{$s}}{{end}}{{else}}An answer below 500{{end}} within 10 seconds{{if not .Check.SkipVerify}}, with a valid certificate{{end}}
+          {{- else if .Check.TCP}}It accepts a connection within 10 seconds{{else if .Check.Ping}}It answers a ping within 10 seconds
+          {{- else}}It points at your home{{end}}</dd>
+        {{if not .Check.Last.CertExpires.IsZero}}<dt>Certificate</dt><dd>{{if lt .CertDays 0}}Expired on {{date .Check.Last.CertExpires}}{{else}}Until {{date .Check.Last.CertExpires}} ({{daysText .CertDays}}){{end}}{{if .Check.SkipVerify}}, not checked{{end}}</dd>{{end}}
+        {{if not .Check.Alert}}<dt>Alerts</dt><dd>{{if eq .Check.Kind "own"}}Off: Roostack doesn't tell anyone when it stops answering{{else}}Shown with the rest of "needs attention"{{end}}</dd>{{end}}
+      </dl>
+      {{with .ServiceHref}}<p><a href="{{.}}">The service's page</a></p>{{end}}
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Latest checks</h2></div>
+      {{if .Latest}}
+      <div class="table-wrap"><table class="list">
+        <tbody>
+        {{range .Latest}}<tr><td>{{.At.Local.Format "15:04"}}</td>
+          <td>{{if .Paused}}Paused{{else if .Up}}{{with .Status}}{{.}} · {{end}}{{.Millis}} ms{{else}}{{capitalise .Err}}{{end}}</td></tr>
+        {{end}}
+        </tbody>
+      </table></div>
+      {{else}}<p class="hint">None in the last 24 hours.</p>{{end}}
+    </section>
+    {{with .OwnID}}
+    <section class="card">
+      {{confirm (printf "/monitoring/checks/%s/remove" .) (printf "Remove the check %s? What Roostack kept about it goes too." $.Check.Name) "Remove check" "quiet danger"}}
+    </section>
+    {{end}}
+  </div>
+</div>
+{{end}}

@@ -347,7 +347,14 @@ type MainConfig struct {
 	// the only sources whose PROXY header (the visitor's address) Caddy
 	// believes, on EdgePort only, and outside for the private check.
 	EdgeFrom []string
+	// StatusPage serves the lab's public status page at
+	// status.<domain>, from StatusPageDir (SPEC.md §6.15).
+	StatusPage bool
 }
+
+// StatusPageDir is where the public status page's files are inside
+// Caddy's container: Roostack writes them every minute.
+const StatusPageDir = "/etc/caddy/status"
 
 // ErrorPagesDir is where the error pages are inside Caddy's container
 // (config.Paths.CaddyDir()/errors, written by internal/generate).
@@ -362,6 +369,11 @@ const AdminSubdomain = "roost"
 // the home's public address once someone chooses it (SPEC.md §10.2). Not
 // a web address: no service may use it.
 const LinkSubdomain = "link"
+
+// StatusSubdomain is the lab's public status page, status.<domain>
+// (SPEC.md §6.15): a static file Roostack writes, served once the Owner
+// turns it on. No service may use it.
+const StatusSubdomain = "status"
 
 // AdminLoginPaths get the strict rate limit when the UI is public: logging
 // in (password, then code) and the recovery key's password-and-code check.
@@ -490,6 +502,11 @@ func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now st
 		for _, line := range strings.Split(strings.TrimSpace(body), "\n") {
 			fmt.Fprintf(b, "\t%s\n", line)
 		}
+	}
+	if c.StatusPage && now == "" {
+		// The public status page (SPEC.md §6.15): plain files, for anyone.
+		fmt.Fprintf(b, "\n\t@status host %s.%s\n\thandle @status {\n\t\theader Cache-Control \"max-age=30\"\n\t\troot * %s\n\t\tfile_server\n\t}\n",
+			StatusSubdomain, domain, StatusPageDir)
 	}
 	b.WriteString("\n\timport sites/*.caddy\n\n")
 	// An unknown subdomain gets the "nobody roosts here" page, which names

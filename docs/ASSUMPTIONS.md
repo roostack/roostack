@@ -275,6 +275,15 @@ Checked on the arm64 dev VM 1 (Debian 13, kernel 6.12) for the security review o
 | T6 ✅ | **Recording a run that upgraded Roostack (VM1, 2026-10-18):** the updates unit's `trap 'echo $? >…' EXIT` (dash) wrote `0` to `/run/roostack-agent/os-updates.exit` after unattended-upgrade installed 0.4.1 from a test repository; the package restarted both processes 3 s into the run (the old one's job ended "context canceled", its mark kept), and the new one resumed it as a maintenance job and recorded "Roostack updated itself to 0.4.1 and restarted. Installed 1 update: roostack." with the run's log. | `internal/agent/updates.go`, `internal/osupdate` |
 | T7 ✅ | **Podman reports no download progress without a terminal (VM1, Podman 5.4.2):** piped, `podman pull` prints "Copying blob sha256:…" once per layer and nothing in between; it has no option for progress (only `--quiet`). | `cmd/roostack/local.go` (`pullImage`), SPEC §6.3.3 |
 
+## U. Monitoring (SPEC §6.15)
+
+| # | Assumption / concern |
+|---|---|
+| U1 ✅ | **The controller reaches its own Caddy on `127.0.0.1:443`, and Caddy lets it into private routes** (2026-10-19, VM3, Podman 5.4, pasta): Caddy publishes 443 through pasta, a connection from the host's loopback arrives, and the private check (`private_ranges` at home, `127.0.0.1/8` on a lab on the internet) allows it. Checked from `roostack.service` itself: Vaultwarden's private route answered 200 in a few milliseconds with the site's name as SNI and `Host`. |
+| U2 ✅ | **Ping sockets work from `roostack.service`** (2026-10-19, VM3, Debian 13): `net.ipv4.ping_group_range` is `0 2147483647` by default, so the roostack user's unprivileged ICMP socket (`SOCK_DGRAM`, `IPPROTO_ICMP`) pings without capabilities, inside the unit's sandbox (its address families include `AF_INET`). Checked with someone's own check of the QEMU gateway. A host that narrows the range makes ping checks fail with "pinging isn't allowed here". |
+| U3 ✅ | **Caddy serves the status page's folder** (2026-10-19, VM3): `/var/lib/roostack/caddy/status`, written by the roostack daemon (0644, folders 0755) inside the folder mounted read-only at `/etc/caddy`, served at `status.<domain>` with its stylesheets and font. |
+| U4 | **What VM3 couldn't show:** a real certificate (VM3 has no domain: its Caddyfile was edited by hand to `tls internal` and Caddy's local root trusted, test-only), the status page through Roostack Cloud's relay or a lab's edge, and its DNS record. Check those on a lab with a real address. |
+
 ## H. Dependencies
 
 Picked overnight to keep moving; **approved by the user on 2026-09-26.**

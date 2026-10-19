@@ -155,7 +155,7 @@ func (m *Manager) PublicHosts() []string {
 		m.Log.Error("listing public addresses", "err", err)
 		return nil
 	}
-	return publicHostsOf(m.Lab, services, false)
+	return publicHostsOf(m.withStatusPage(), services, false)
 }
 
 // SignalSharing says whether the Owner has been asked about CrowdSec

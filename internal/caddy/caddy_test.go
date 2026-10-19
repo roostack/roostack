@@ -358,3 +358,22 @@ func TestClientIPHeader(t *testing.T) {
 		t.Error("a header name with spaces or braces must be refused")
 	}
 }
+
+// The status page is served at status.<domain> from its folder, at the
+// current address only (SPEC.md §6.15), and not at all while it's off.
+func TestStatusPage(t *testing.T) {
+	c := MainConfig{Domain: "smith.family", DNSDirective: "dns cloudflare {env.X}", AdminUpstream: "169.254.1.3:8480",
+		OldDomain: "old.family", OldDNSDirective: "dns cloudflare {env.X}", StatusPage: true}
+	main, err := Main(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(main, "@status host status.smith.family") != 1 || strings.Contains(main, "status.old.family") ||
+		!strings.Contains(main, "root * "+StatusPageDir) {
+		t.Errorf("status page:\n%s", main)
+	}
+	c.StatusPage = false
+	if main, _ = Main(c); strings.Contains(main, "@status") {
+		t.Errorf("served while off:\n%s", main)
+	}
+}

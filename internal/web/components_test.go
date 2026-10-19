@@ -152,7 +152,7 @@ func helpSlug(s string) string {
 // first run, help pages) deliberately don't.
 func TestNavTabs(t *testing.T) {
 	none := []string{"about", "components", "design", "layout", "login", "node-home", "parts", "restarting", "setup", "setup-joined",
-		"setup-restore", "totp", "error"}
+		"setup-restore", "totp", "error", "status-page"}
 	entries, err := os.ReadDir("templates")
 	if err != nil {
 		t.Fatal(err)

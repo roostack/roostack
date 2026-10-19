@@ -280,6 +280,8 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 		for _, mn := range s.serverNodes(r) {
 			s.backupAttention(r, mn.view, mn.node, owner, add)
 		}
+		// What monitoring found down (SPEC.md §6.15).
+		s.monitorAttention(func(it attentionItem) { items = append(items, it) })
 	}
 	if owner {
 		s.spaceAttention(r, add)

@@ -264,6 +264,46 @@ var migrations = []string{
 	ALTER TABLE media_libraries ADD COLUMN share_server TEXT NOT NULL DEFAULT '';
 	ALTER TABLE media_libraries ADD COLUMN share_path TEXT NOT NULL DEFAULT '';
 	ALTER TABLE media_libraries ADD COLUMN share_user TEXT NOT NULL DEFAULT '';`,
+	// Monitoring (SPEC.md §6.15): every check's results for two days, each
+	// hour's summary for as long as the lab keeps history, the times a
+	// check was down, and the checks people added.
+	`CREATE TABLE monitor_results (
+		key          TEXT NOT NULL,
+		at           INTEGER NOT NULL,
+		up           INTEGER NOT NULL,
+		paused       INTEGER NOT NULL,
+		status       INTEGER NOT NULL DEFAULT 0,
+		millis       INTEGER NOT NULL DEFAULT 0,
+		error        TEXT NOT NULL DEFAULT '',
+		cert_issued  INTEGER NOT NULL DEFAULT 0,
+		cert_expires INTEGER NOT NULL DEFAULT 0
+	);
+	CREATE INDEX monitor_results_key ON monitor_results (key, at);
+	CREATE TABLE monitor_hours (
+		key        TEXT NOT NULL,
+		hour       INTEGER NOT NULL,
+		checks     INTEGER NOT NULL,
+		ups        INTEGER NOT NULL,
+		paused     INTEGER NOT NULL,
+		millis_sum INTEGER NOT NULL,
+		millis_max INTEGER NOT NULL,
+		PRIMARY KEY (key, hour)
+	);
+	CREATE TABLE monitor_outages (
+		key     TEXT NOT NULL,
+		started INTEGER NOT NULL,
+		ended   INTEGER NOT NULL DEFAULT 0,
+		error   TEXT NOT NULL DEFAULT ''
+	);
+	CREATE INDEX monitor_outages_key ON monitor_outages (key, started);
+	CREATE TABLE monitor_checks (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		name        TEXT NOT NULL,
+		address     TEXT NOT NULL,
+		skip_verify INTEGER NOT NULL DEFAULT 0,
+		alert       INTEGER NOT NULL DEFAULT 1,
+		created_at  INTEGER NOT NULL
+	);`,
 }
 
 // OriginSetup marks sessions signed in on the setup pages on the home

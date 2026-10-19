@@ -200,5 +200,6 @@ roostack-caddy-dns-api_token generate=false
 /var/lib/roostack/caddy-data
 /var/lib/roostack/caddy/sites
 /var/lib/roostack/caddy/errors
+/var/lib/roostack/caddy/status
 ==> units
 roostack-caddy.service

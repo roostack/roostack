@@ -204,6 +204,12 @@ routes:
     after a warning that gives the package's reason. Paths are plain: they
     start with `/` and have letters, digits and `- _ . :` between the
     slashes, with no `*` or trailing `/`.
+    [Monitoring](../servers/monitoring.md) asks each route every minute: the
+    container's `health.http` path when the route leads to that port, or
+    `/`, and any answer below 500 is up. `monitor` changes that for an app
+    whose usual answer doesn't say it works: a `path` to ask instead, and
+    the `statuses` that count as up, e.g.
+    `monitor: { path: /api/health, statuses: [200] }`.
 
 `ports`
 :   [Extra connections](../services/settings.md#extra-connections) that

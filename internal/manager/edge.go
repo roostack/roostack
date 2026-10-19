@@ -141,6 +141,10 @@ func edgeConfig(lab config.Lab, services []state.Service) *caddy.EdgeConfig {
 // the edge.
 func publicHostsOf(lab config.Lab, services []state.Service, old bool) []string {
 	var hosts []string
+	if lab.Monitoring.StatusPage && lab.HasAddress() {
+		// The public status page (SPEC.md §6.15).
+		hosts = append(hosts, caddy.StatusSubdomain+"."+lab.Domain)
+	}
 	for _, s := range services {
 		_, routes := generate.Values(lab, s.Package, s.Instance)
 		for _, rc := range routes {
@@ -201,7 +205,7 @@ func (m *Manager) SetRelay(ctx context.Context, on bool) error {
 		countries := m.publicLocked().Countries
 		m.relayGen++
 		m.mu.Unlock()
-		if err := m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), countries, m.Lab.Timezone, ownDomain(m.Lab)); err != nil {
+		if err := m.Relay.Set(ctx, publicHostsOf(m.withStatusPage(), services, false), countries, m.Lab.Timezone, ownDomain(m.Lab)); err != nil {
 			return err
 		}
 	} else if err := m.Relay.Stop(ctx); err != nil {
@@ -279,7 +283,7 @@ func (m *Manager) CheckRelay(ctx context.Context) error {
 	countries := m.publicLocked().Countries
 	m.relayGen++
 	m.mu.Unlock()
-	return m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), countries, m.Lab.Timezone, ownDomain(m.Lab))
+	return m.Relay.Set(ctx, publicHostsOf(m.withStatusPage(), services, false), countries, m.Lab.Timezone, ownDomain(m.Lab))
 }
 
 // Countries is who the relay lets in by the country their address is in.
@@ -315,7 +319,7 @@ func (m *Manager) SetCountries(ctx context.Context, c config.Countries) error {
 		m.mu.Lock()
 		m.relayGen++
 		m.mu.Unlock()
-		if err := m.Relay.Set(ctx, publicHostsOf(m.Lab, services, false), c, m.Lab.Timezone, ownDomain(m.Lab)); err != nil {
+		if err := m.Relay.Set(ctx, publicHostsOf(m.withStatusPage(), services, false), c, m.Lab.Timezone, ownDomain(m.Lab)); err != nil {
 			return err
 		}
 	}
@@ -342,7 +346,7 @@ func (m *Manager) relayFor(services []state.Service) []string {
 	}
 	if set := m.Relay.Set; set != nil {
 		m.relayGen++
-		gen, hosts, tz, domain := m.relayGen, publicHostsOf(m.Lab, services, false), m.Lab.Timezone, ownDomain(m.Lab)
+		gen, hosts, tz, domain := m.relayGen, publicHostsOf(m.withStatusPage(), services, false), m.Lab.Timezone, ownDomain(m.Lab)
 		m.relayWG.Add(1)
 		go func() {
 			defer m.relayWG.Done()

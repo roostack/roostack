@@ -165,6 +165,7 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 		DNSDirective:  directive,
 		AdminUpstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, lab.UIPort),
 		AdminPublic:   lab.PublicUI(),
+		StatusPage:    lab.Monitoring.StatusPage,
 		PrivateFrom:   PrivateFrom(lab),
 		EdgeFrom:      lab.EdgeAddrs,
 	}
@@ -173,7 +174,8 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 		mc.OldDomain, mc.OldDNSDirective = old.Domain, oldDirective
 		mc.OldAdminHost = config.Lab{Domain: old.Domain, DNS: old.DNS}.UIHost()
 	}
-	out.Dirs = []string{lab.Paths.CaddyDataDir(), lab.Paths.CaddySitesDir(), filepath.Join(lab.Paths.CaddyDir(), "errors")}
+	out.Dirs = []string{lab.Paths.CaddyDataDir(), lab.Paths.CaddySitesDir(), filepath.Join(lab.Paths.CaddyDir(), "errors"),
+		lab.Paths.StatusPageDir()}
 	// The services' error pages (SPEC.md §6.3), which Caddy's handle_errors
 	// serves from caddy.ErrorPagesDir.
 	pages := errpage.CaddyPages(lab.DisplayName(), "https://"+lab.UIHost())

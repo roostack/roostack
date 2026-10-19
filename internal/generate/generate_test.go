@@ -849,3 +849,31 @@ containers:
 		}
 	}
 }
+
+// Each route with an address gets a monitor (SPEC.md §6.15): the
+// container's health path when the route leads to its port, or the
+// package's monitor settings.
+func TestRouteMonitors(t *testing.T) {
+	p, err := pkgspec.Load(pkgtest.File("vaultwarden"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := instance.Load(filepath.Join("testdata", "vaultwarden.instance.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := Service(testLab(), p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Monitors) != 1 || out.Monitors[0].Path != "/alive" || out.Monitors[0].Host != out.Hosts[0] || out.Monitors[0].Route != "web" {
+		t.Errorf("monitors %+v (hosts %v)", out.Monitors, out.Hosts)
+	}
+	p.Routes["web"].Monitor = &pkgspec.RouteMonitor{Path: "/api/ping", Statuses: []int{200}}
+	if out, err = Service(testLab(), p, in); err != nil {
+		t.Fatal(err)
+	}
+	if m := out.Monitors[0]; m.Path != "/api/ping" || !slices.Equal(m.Statuses, []int{200}) {
+		t.Errorf("with the package's monitor: %+v", m)
+	}
+}

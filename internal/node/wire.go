@@ -55,6 +55,9 @@ type LabContext struct {
 	// EdgeAddrs are the lab's edges' WireGuard addresses (config.Lab), for
 	// the server running Caddy.
 	EdgeAddrs []string `json:"edge_addrs,omitempty"`
+	// StatusPage: the server running Caddy serves the public status page
+	// (config.Monitoring, SPEC.md §6.15).
+	StatusPage bool `json:"status_page,omitempty"`
 }
 
 // WireService is a service's instance and package files.

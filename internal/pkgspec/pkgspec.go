@@ -291,9 +291,24 @@ type Route struct {
 	// X-Real-IP): Roostack's proxy sets it to the visitor's address,
 	// replacing any the visitor sent (SPEC.md §8.1).
 	ClientIPHeader string `yaml:"client_ip_header"`
+	// Monitor changes how Roostack's monitoring checks the route, for an
+	// app whose usual answer doesn't say it works (SPEC.md §6.15); most
+	// packages leave it out.
+	Monitor *RouteMonitor `yaml:"monitor"`
 	// Public says what's safe when the Owner makes the address public
 	// (SPEC.md §6.11).
 	Public PublicRules `yaml:"public"`
+}
+
+// RouteMonitor is how monitoring checks a route (SPEC.md §6.15). Without
+// it, Roostack asks the container's health.http path when the route leads
+// to that port, or /, and any answer below 500 is up.
+type RouteMonitor struct {
+	// Path is asked instead, e.g. /api/health.
+	Path string `yaml:"path"`
+	// Statuses are the HTTP statuses that count as up, instead of any
+	// below 500.
+	Statuses []int `yaml:"statuses"`
 }
 
 // PublicRules mark what isn't safe to make public, and the login pages

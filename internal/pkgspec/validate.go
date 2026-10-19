@@ -398,6 +398,16 @@ func (p *Package) validateRoute(v *validator, name string, r *Route) {
 	if h := r.ClientIPHeader; h != "" && !ValidClientIPHeader(h) {
 		v.addf("%s.client_ip_header: %q must be an X- header name other than X-Forwarded-* (e.g. X-Real-IP)", at, h)
 	}
+	if m := r.Monitor; m != nil {
+		if m.Path != "" && m.Path != "/" && !ValidPath(m.Path) {
+			v.addf("%s.monitor.path: %q must start with / and have only letters, digits and - _ . : /", at, m.Path)
+		}
+		for i, st := range m.Statuses {
+			if st < 100 || st > 599 {
+				v.addf("%s.monitor.statuses[%d]: %d isn't an HTTP status", at, i, st)
+			}
+		}
+	}
 	seen := map[string]bool{}
 	for i, pp := range r.Public.PrivatePaths {
 		if !ValidPath(pp.Path) {

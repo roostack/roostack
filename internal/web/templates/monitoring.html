@@ -1,0 +1,132 @@
+{{define "title"}}Monitoring{{end}}
+{{define "page-help"}}{{help "servers/monitoring" "Monitoring"}}{{end}}
+{{define "check-rows"}}
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th>Check</th><th class="hide-phone">Last 30 days</th><th class="num hide-phone">Uptime</th><th>Now</th><th></th></tr></thead>
+    <tbody>
+    {{range .}}
+      <tr>
+        <td class="list-name"><span>{{.Name}}<small>{{.Line}}</small></span></td>
+        <td class="hide-phone">{{if .Days}}{{uptimeBar .Days "size=mini"}}{{end}}</td>
+        <td class="num hide-phone">{{.Month.Text}}</td>
+        <td>{{checkState .State}}</td>
+        <td>{{if ne .State "unknown"}}<a href="{{.Href}}">Details</a>{{end}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table></div>
+{{end}}
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Monitoring</h1>
+    <p class="lede">Every minute, Roostack checks that each service answers at its address, and tells you when one stops.
+      It checks from inside your lab, so it can't tell whether your router lets the internet in.</p>
+  </div>
+</div>
+
+{{if not .On}}
+{{notice "warn" "Monitoring is off: Roostack isn't checking anything, and won't tell you when a service stops answering."}}
+{{end}}
+{{range .Down}}
+{{notice "error" .Down (printf "link=%s" .Href) "linkText=See what's wrong"}}
+{{end}}
+
+{{if .On}}
+<section class="card">
+  <div class="card-head"><h2>Services</h2>{{with .CheckedFrom}}<span class="hint">Checked every minute from {{.}}</span>{{end}}</div>
+  {{if .Services}}{{template "check-rows" .Services}}
+  {{else if .StatusHost}}<p class="hint">No service has a web address to check yet.</p>
+  {{else}}<p class="hint">Services get web addresses once your lab has an address: <a href="/setup/domain">give it one</a>.</p>{{end}}
+</section>
+
+{{if .Servers}}
+<section class="card">
+  <div class="card-head"><h2>Servers</h2></div>
+  {{template "check-rows" .Servers}}
+</section>
+{{end}}
+{{end}}
+
+<section class="card" id="own">
+  <div class="card-head"><h2>Your own checks</h2></div>
+  <p class="hint">Anything else on your network you'd like to know about, such as your router or a NAS.</p>
+  {{if .Own}}{{template "check-rows" .Own}}{{end}}
+
+  <details class="add-check"{{if .FormError}} open{{end}}>
+    <summary class="button secondary">Add a check…</summary>
+    <form method="post" action="/monitoring/checks" class="stack">
+      {{with .FormError}}{{notice "error" .}}{{end}}
+      <label>Name <input name="name" value="{{.Form.name}}" maxlength="60" placeholder="Printer" required></label>
+      <label>Address <input name="address" value="{{.Form.address}}" placeholder="https://nas.local, 192.168.1.20 or printer.local:631" required>
+        <small class="hint">A web address, to check it answers; a name or IP address, to check it answers a ping;
+          or one with a port (<code>:631</code>), to check something listens there.</small></label>
+      <label class="check"><input type="checkbox" name="skip_verify"{{if eq .Form.skip_verify "on"}} checked{{end}}>
+        <span>Don't check its certificate
+          <small class="hint">For a device with its own self-signed certificate, as many routers and NASes have.</small></span></label>
+      <label class="check"><input type="checkbox" name="alert"{{if or (not .FormError) (eq .Form.alert "on")}} checked{{end}}>
+        <span>Tell me when it stops answering</span></label>
+      <p><button type="submit">Add check</button></p>
+    </form>
+  </details>
+</section>
+
+{{if .IsOwner}}
+{{if .StatusHost}}
+<section class="card" id="status-page">
+  <div class="card-head"><h2>Public status page</h2>{{if .StatusOn}}<span class="pill pill-ok">On</span>{{else}}<span class="pill">Off</span>{{end}}</div>
+  <p>{{if .StatusOn}}Anyone can see{{else}}Turned on, anyone can see{{end}} the services you tick at
+    {{if .StatusOn}}<a href="https://{{.StatusHost}}" target="_blank" rel="noopener">{{.StatusHost}}{{template "new-window"}}</a>{{else}}<code>{{.StatusHost}}</code>{{end}}:
+    whether each is up, and its uptime. Never an address or what went wrong.</p>
+  <form method="post" action="/monitoring/status-page" class="stack">
+    <input type="hidden" name="choices" value="yes">
+    {{if .StatusChoices}}
+    <fieldset>
+      <legend>Show on the page</legend>
+      {{range .StatusChoices}}<label class="check"><input type="checkbox" name="show" value="{{.Key}}"{{if .Shown}} checked{{end}}>
+        <span>{{.Name}} <small class="hint">{{.Hint}}</small></span></label>
+      {{end}}
+    </fieldset>
+    {{else}}<p class="hint">Nothing to show yet: services appear here once they have addresses.</p>{{end}}
+    <p class="actions">
+      {{if .StatusOn}}<button type="submit">Save</button> <button type="submit" name="on" value="no" class="secondary">Turn the page off</button>
+      {{else}}<button type="submit" name="on" value="yes">Turn the page on</button>{{end}}
+    </p>
+  </form>
+</section>
+{{end}}
+
+<section class="card">
+  <div class="card-head"><h2>Checking</h2>{{if .On}}<span class="pill pill-ok">On</span>{{else}}<span class="pill">Off</span>{{end}}</div>
+  {{if .On}}
+  <p class="hint">Turning monitoring off stops the checks and their emails. Services' own health checks, and the rest of
+    "needs attention", carry on.</p>
+  <form method="post" action="/monitoring/switch"><input type="hidden" name="on" value="no"><button type="submit" class="secondary">Turn monitoring off</button></form>
+  {{else}}
+  <form method="post" action="/monitoring/switch"><input type="hidden" name="on" value="yes"><button type="submit">Turn monitoring on</button></form>
+  {{end}}
+</section>
+{{end}}
+
+<section class="card section">
+  <details class="technical"><summary>How it checks</summary>
+    <dl class="facts">
+      <dt>Services</dt><dd>Every minute, {{or .CheckedFrom "this server"}} (the lab's controller) asks each service's address
+        through its own Caddy, which serves every address in the lab, using the address's name, so DNS and your router
+        don't come into it. Up means it connected, the certificate is valid for the name, and an answer came within 10
+        seconds with a status below 500 (a login page or "sign in first" counts as up), unless the service's package says
+        otherwise.</dd>
+      <dt>Servers</dt><dd>Each of the lab's other servers must accept a connection on the lab network (port 8471).</dd>
+      <dt>Problems</dt><dd>Three failed checks in a row (so one slow answer emails nobody), shown under "needs attention" and
+        emailed once they've lasted a few minutes; fixed at the first good one. A service stopped on purpose, starting,
+        being set up, updated or restored, or whose server isn't answering, is paused.</dd>
+      <dt>Certificates</dt><dd>A warning when less than a fifth of a certificate's life is left: Caddy renews at a third, so
+        renewing is failing.</dd>
+      <dt>History</dt><dd>Every result for two days, then each hour's summary, kept as long as
+        {{if .IsOwner}}<a href="/settings/history">History</a>{{else}}History{{end}} keeps things, in the controller's database.</dd>
+      {{if .StatusHost}}<dt>Status page</dt><dd>A plain file Roostack writes every minute, served by Caddy at
+        <code>{{.StatusHost}}</code>. Nothing on it runs code.</dd>{{end}}
+    </dl>
+  </details>
+</section>
+{{end}}

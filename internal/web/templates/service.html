@@ -178,6 +178,20 @@
   {{end}}
   </div>
   <div class="span-4 grid-column">
+    {{with .Uptime}}
+    <section class="card">
+      <div class="card-head"><h2>Uptime</h2><a class="more" href="{{.Href}}">Details</a></div>
+      {{with .History.Month.Text}}<span class="big-figure">{{.}}<small>last 30 days</small></span>{{end}}
+      {{uptimeBar .History.Days}}
+      <div class="bar-ends hint"><span>30 days ago</span><span>Today</span></div>
+      <p class="hint">{{checkState .Status.State}}
+        {{if eq .Status.State "down"}}Not answering since {{when .Status.DownSince}}: {{.Status.Last.Err}}.
+        {{- else if eq .Status.State "paused"}}Not checked while {{.Status.Last.Err}}.
+        {{- else if eq .Status.State "up"}}Answers in {{.Status.Last.Millis}} ms, checked {{when .Status.Last.At}}.
+        {{- else}}Roostack checks it within a minute.{{end}}
+        {{if ge .CertDays 0}}{{if .Status.CertWarning}}<strong>{{capitalise (certWarning .Status)}}.</strong>{{else}}Its certificate is good for {{daysText .CertDays}} more.{{end}}{{end}}</p>
+    </section>
+    {{end}}
     <section class="card">
       <div class="card-head"><h2>Backups</h2>{{if .IsOwner}}<a class="more" href="/backups">Backups</a>{{end}}</div>
       {{if not .Service.LastBackup.IsZero}}{{$w := whenParts .Service.LastBackup}}<span class="big-figure">{{index $w 1}}<small>{{index $w 0}}</small></span>

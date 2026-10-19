@@ -313,3 +313,18 @@ func TestCatalogNewestVersion(t *testing.T) {
 		t.Errorf("registry.yaml alone: err = %v, want not found", err)
 	}
 }
+
+// status.<domain> is the lab's public status page (SPEC.md §6.15): no
+// service may take it.
+func TestStatusHostnameReserved(t *testing.T) {
+	lab := newLab(t)
+	writeFile(t, filepath.Join(lab.Paths.InstancesDir(), "vaultwarden.yaml"),
+		"package: vaultwarden\nversion: 1.34.3-roostack.1\nroutes:\n  web: { subdomain: status, port: 20001 }\n")
+	services, err := LoadServices(lab)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Desired(lab, services); err == nil || !strings.Contains(err.Error(), "status page") {
+		t.Errorf("error = %v, want a status page conflict", err)
+	}
+}

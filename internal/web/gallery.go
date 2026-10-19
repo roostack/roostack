@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
@@ -409,6 +410,15 @@ Network=roostack-immich.network</code></pre>
 </div>
 {{template "install-line" .InstallService}}`},
 		}},
+	{ID: "monitoring", Title: "Monitoring", Intro: "Whether a check answers, and how it did each day (SPEC.md §6.15).",
+		Examples: []galleryExample{
+			{"Check state", "checkState with a check's state: up, down, paused (its service stopped on purpose, being updated…) or not checked yet.", `
+{{checkState "up"}} {{checkState "down"}} {{checkState "paused"}} {{checkState "unknown"}}`},
+			{"Uptime bar", "uptimeBar with a check's days (monitor.History.Days), oldest first: up whenever checked, down a little, down an hour or more, not checked. Each says how its day went on hover. .bar-ends labels the two ends. size=mini is the small one in lists.", `
+{{uptimeBar .UptimeDays}}
+<div class="bar-ends hint"><span>30 days ago</span><span>Today</span></div>
+{{uptimeBar .UptimeDays "size=mini"}}`},
+		}},
 	{ID: "statistics", Title: "Statistics", Intro: "Counts over time, such as visitors through Roostack Cloud's relay. Heights and widths go through data-height and data-width (app.js), as style attributes are blocked.",
 		Examples: []galleryExample{
 			{"Figures", "dl.stat-tiles: a few totals, each a dt and dd, with an optional dd.hint.", `
@@ -524,7 +534,8 @@ func gallerySamples() map[string]any {
 		{Title: "Finishing setup (create the administrator account)"},
 	}}
 	return map[string]any{
-		"Install": install,
+		"Install":    install,
+		"UptimeDays": galleryUptime(),
 		"Chart": barChart{Title: "Visitors each day", Bars: bars([]int64{40, 55, 48, 70, 95, 62, 35},
 			[]string{"Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Today"}, []string{"40 visitors", "55 visitors", "48 visitors", "70 visitors", "95 visitors", "62 visitors", "35 visitors"})},
 		"Ranks":            topCountries(map[string]int64{"AU": 1130, "NZ": 96, "GB": 41}, 1284, 4),
@@ -545,4 +556,25 @@ func (s *Server) galleryPage(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(buf.Bytes())
+}
+
+// galleryUptime is 30 days of a check that started 5 days in, was down a
+// few minutes twice and an hour once (fixed dates, so the gallery file
+// doesn't change from day to day).
+func galleryUptime() []monitor.Day {
+	today := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	days := make([]monitor.Day, 30)
+	for i := range days {
+		d := monitor.Day{Date: today.AddDate(0, 0, i-29), Checks: 1440, Ups: 1440, State: monitor.DayOK}
+		switch {
+		case i < 5:
+			d = monitor.Day{Date: d.Date, State: monitor.DayNone}
+		case i == 12 || i == 25:
+			d.Ups, d.State = 1436, monitor.DayWarn
+		case i == 20:
+			d.Ups, d.State = 1350, monitor.DayBad
+		}
+		days[i] = d
+	}
+	return days
 }

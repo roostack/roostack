@@ -1,0 +1,11 @@
+/* The lab's public status page (SPEC.md §6.15, templates/status-page.html):
+   its own narrow page, without the sidebar, on the design system's tokens
+   and components (app.css). */
+body.status-page { min-height: 100vh; }
+.status-main { max-width: 44rem; margin: 0 auto; padding: var(--space-6, 32px) 16px; }
+.status-main h1 { margin-bottom: 0; }
+.status-list { list-style: none; padding: 0; margin: var(--space-4) 0 0; }
+.status-list li { padding: var(--space-4) 0; border-bottom: 1px solid var(--border); }
+.status-row { display: flex; align-items: center; gap: var(--space-3); }
+.status-row strong { flex: 1; }
+.status-main footer { margin-top: var(--space-5); text-align: center; }

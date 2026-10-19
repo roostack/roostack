@@ -13,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/labrestore"
+	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/units"
 )
 
@@ -21,6 +22,9 @@ const backupStale = 48 * time.Hour
 
 var templateFuncs = template.FuncMap{
 	"when": whenText,
+	// daysText and certWarning are monitoring's (monitor.go).
+	"daysText":    daysText,
+	"certWarning": func(st monitor.Status) string { return certWarningText(st, time.Now()) },
 	// retryText says when a failed backup is tried again (" Roostack tries
 	// again today 14:00."), or nothing.
 	"retryText": retryText,

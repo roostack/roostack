@@ -107,6 +107,24 @@ type Output struct {
 	Images []string
 	// Checks are how to tell its containers work, after an update.
 	Checks []HealthCheck
+	// Monitors are how monitoring checks its routes from outside, one per
+	// route with an address (SPEC.md §6.15).
+	Monitors []RouteMonitor
+}
+
+// RouteMonitor is how monitoring checks one route: an HTTPS request for
+// Path at Host, through the lab's Caddy.
+type RouteMonitor struct {
+	Route string // the package's route name
+	Host  string
+	// Path is the package's monitor.path, else its container's health.http
+	// path when the route leads to that port, else /.
+	Path string
+	// Statuses count as up (the package's monitor.statuses); empty: any
+	// below 500.
+	Statuses []int
+	// Public: the route is open to the internet.
+	Public bool
 }
 
 // HealthCheck checks one container (pkgspec.Health). Exactly one of HTTP
@@ -575,6 +593,7 @@ func (g *gen) caddySite() error {
 			continue
 		}
 		g.out.Hosts = append(g.out.Hosts, rc.Host)
+		g.out.Monitors = append(g.out.Monitors, g.routeMonitor(name, r, rc.Host, rc.Exposure == pkgspec.ExposurePublic))
 		cr := caddy.Route{
 			ID:             g.name + "-" + name,
 			Service:        g.name,
@@ -613,6 +632,21 @@ func (g *gen) caddySite() error {
 	}
 	g.out.CaddySite = &File{Name: g.name + ".caddy", Content: site}
 	return nil
+}
+
+// routeMonitor is how monitoring checks a route (SPEC.md §6.15).
+func (g *gen) routeMonitor(name string, r *pkgspec.Route, host string, public bool) RouteMonitor {
+	m := RouteMonitor{Route: name, Host: host, Path: "/", Public: public}
+	if c := g.pkg.Containers[r.Container]; c != nil && c.Health != nil && c.Health.HTTP != nil && c.Health.HTTP.Port == r.Port {
+		m.Path = c.Health.HTTP.Path
+	}
+	if r.Monitor != nil {
+		if r.Monitor.Path != "" {
+			m.Path = r.Monitor.Path
+		}
+		m.Statuses = r.Monitor.Statuses
+	}
+	return m
 }
 
 func (g *gen) secrets() {

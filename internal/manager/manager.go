@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
@@ -138,6 +139,9 @@ type Manager struct {
 	keyMu sync.Mutex
 	// junk is what the junk checks remember (quarantine.go).
 	junk junkState
+	// statusPage is the public status page's switch as last set (nil:
+	// lab.yaml's at start; monitor.go).
+	statusPage atomic.Pointer[bool]
 	// public is the lab's public access settings as changed at runtime
 	// (public.go); nil until first used, then read from Lab. Kept apart
 	// from Lab, which is read without the lock.

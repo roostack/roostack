@@ -31,6 +31,7 @@ import (
 	"roostack.cloud/roostack/internal/mail"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/osupdate"
@@ -487,6 +488,13 @@ func serve(args []string) error {
 	// Email, through the lab's SMTP server (SPEC.md §6.13).
 	srv.Mail = &mail.Service{LabPath: *labPath, PasswordFile: lab.Paths.MailPasswordFile()}
 	go srv.RunNotifier(ctx)
+	// Monitoring: every service's address, the servers, the lab's address
+	// and people's own checks, every minute (SPEC.md §6.15).
+	srv.AutoChecks = mgr.MonitorChecks
+	srv.StatusPage, srv.StatusPageDir = mgr, lab.Paths.StatusPageDir()
+	srv.Monitor = &monitor.Monitor{Checks: srv.MonitorChecks, Store: st, Log: log,
+		Enabled: srv.MonitorOn, KeepDays: srv.HistoryKeepDays, Changed: srv.WriteStatusPage}
+	go srv.Monitor.Run(ctx)
 	// History older than the Owner's choice goes, on every server (SPEC.md §6.14).
 	go srv.RunHistoryCull(ctx)
 	// Direct links between servers that don't connect fall back to the

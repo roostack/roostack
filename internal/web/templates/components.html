@@ -35,6 +35,14 @@
      a catalog entry or an installed service. Nothing for neither. */}}
 {{define "tier-badge"}}{{if .Local}}{{badge "Your own" "warn"}}{{else if eq .Tier "official"}}{{badge "Official"}}{{else if eq .Tier "community"}}{{badge "Community" "warn"}}{{end}}{{end}}
 
+{{/* uptime-bar: a check's days (uptimeBar), oldest first. */}}
+{{define "uptime-bar"}}<div class="uptime-bar{{if .Mini}} mini{{end}}" role="img" aria-label="Uptime over the last {{.Days}} days">
+  {{- range .Bars}}<span class="{{.State}}" title="{{.Title}}"></span>{{end -}}
+</div>{{end}}
+
+{{/* check-state: a monitoring check's state (checkState). */}}
+{{define "check-state"}}{{if eq . "up"}}<span class="pill pill-ok">Up</span>{{else if eq . "down"}}<span class="pill pill-bad">Down</span>{{else if eq . "paused"}}<span class="pill">Paused</span>{{else}}<span class="pill">Not checked yet</span>{{end}}{{end}}
+
 {{define "badge"}}<span class="badge{{with .Variant}} badge-{{.}}{{end}}">{{.Text}}</span>{{end}}
 
 {{/* logo: a service's logo (Src) or drawn Icon on a light tile. */}}

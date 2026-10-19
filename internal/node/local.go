@@ -494,6 +494,7 @@ func (n *Local) lab(a Assignment) config.Lab {
 		lab.Public.NoSharing = a.Lab.NoSharing
 	}
 	lab.EdgeAddrs = a.Lab.EdgeAddrs
+	lab.Monitoring.StatusPage = a.Lab.StatusPage
 	return lab
 }
 

@@ -26,9 +26,12 @@ type nav struct {
 	Active   string
 	Username string
 	// Role is the person's role (auth.RoleOwner...), under their name.
-	Role     string
-	Backups  bool
-	Settings bool
+	Role    string
+	Backups bool
+	// Monitoring: this server runs monitoring (the controller), shown to
+	// those who see Backups (SPEC.md §6.15).
+	Monitoring bool
+	Settings   bool
 	// SettingsAreas are Settings' pages listed in the sidebar for those who
 	// can change settings: the everyday ones (sidebarSettings), or all of
 	// them on a settings page. Area is the current one, if the page is one.
@@ -64,7 +67,7 @@ func navFor(u *store.User, page string) nav {
 	if next == "" {
 		u.Theme, next = "auto", "light"
 	}
-	landing := slices.Contains([]string{"home", "services", "backups", "settings", "settings-servers", "account"}, page)
+	landing := slices.Contains([]string{"home", "services", "backups", "settings", "settings-servers", "account", "monitoring"}, page)
 	adding := page == "catalog" || page == "install" || page == "local-add"
 	return nav{Active: active, Landing: landing, Adding: adding, Username: u.Username, Role: u.Role, Theme: u.Theme, NextTheme: next, Palette: userPalette(u), Accent: userAccent(u),
 		Backups: auth.Can(u.Role, auth.ManageServices), Settings: auth.Can(u.Role, auth.ManageHost)}
@@ -89,6 +92,8 @@ func (n nav) Section() *crumb {
 		return &crumb{"/backups", "Backups"}
 	case "servers":
 		return &crumb{"/servers", "Servers"}
+	case "monitoring":
+		return &crumb{"/monitoring", "Monitoring"}
 	case "settings":
 		return &crumb{"/settings", "Settings"}
 	case "account":
@@ -115,7 +120,7 @@ func navTab(page string) string {
 		return tab
 	}
 	for _, p := range []struct{ prefix, tab string }{
-		{"settings", "settings"}, {"setup-", "settings"}, {"service", "services"}, {"backups", "backups"},
+		{"settings", "settings"}, {"setup-", "settings"}, {"service", "services"}, {"backups", "backups"}, {"monitoring", "monitoring"},
 	} {
 		if strings.HasPrefix(page, p.prefix) {
 			return p.tab
@@ -546,6 +551,9 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		data["Old"] = o
 	}
 	page := "service"
+	if u := s.serviceUptime(r.Context(), name); u != nil && data["CanManage"] == true {
+		data["Uptime"] = u
+	}
 	if data["EditSettings"] == true {
 		page = "service-settings"
 		if s.Libraries != nil {

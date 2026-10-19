@@ -9,8 +9,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"roostack.cloud/roostack/internal/errpage"
+	"roostack.cloud/roostack/internal/monitor"
 )
 
 // Components are called from templates as functions (docs/DESIGN.md):
@@ -42,6 +44,8 @@ var componentFuncs = template.FuncMap{
 	"icon":          icon,
 	"server":        serverChip,
 	"builtinIcon":   builtinIcon,
+	"uptimeBar":     uptimeBar,
+	"checkState":    checkState,
 	"brandMark":     func() template.HTML { return brandMark },
 	// errorScene NAME ID: an error scene (internal/errpage), its wash's
 	// SVG ID made unique on the page by ID.
@@ -120,6 +124,36 @@ func noticeList(kind, text string, items []string) (template.HTML, error) {
 // status is a service's state as a pill.
 func status(state string) (template.HTML, error) {
 	return renderComponent("status", state)
+}
+
+// uptimeBar shows a check's days, oldest first (SPEC.md §6.15): a bar per
+// day, up, down a little, down for an hour or more, or not checked, each
+// saying how it went on hover. The option size=mini makes the small one
+// in lists.
+func uptimeBar(days []monitor.Day, opts ...string) (template.HTML, error) {
+	o, err := options("uptimeBar", opts, "size")
+	if err != nil {
+		return "", err
+	}
+	if s := o["size"]; s != "" && s != "mini" {
+		return "", fmt.Errorf("uptimeBar: size %q must be mini or nothing", s)
+	}
+	type bar struct{ State, Title string }
+	bars := make([]bar, len(days))
+	now := time.Now()
+	for i, d := range days {
+		bars[i] = bar{d.State, d.Title(now)}
+	}
+	return renderComponent("uptime-bar", map[string]any{"Bars": bars, "Mini": o["size"] == "mini", "Days": len(days)})
+}
+
+// checkState is a monitoring check's state as a pill: up, down, paused,
+// or not checked yet.
+func checkState(state string) (template.HTML, error) {
+	if !slices.Contains([]string{monitor.StateUp, monitor.StateDown, monitor.StatePaused, monitor.StateUnknown}, state) {
+		return "", fmt.Errorf("checkState: unknown state %q", state)
+	}
+	return renderComponent("check-state", state)
 }
 
 // badge labels something. Variants: "highlight" uses the brand highlight

@@ -1,0 +1,35 @@
+<!doctype html><html lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="60">
+  <title>{{.LabName}} · Status</title>
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/themes/teal.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/status.css">
+</head>
+{{/* The lab's public status page (SPEC.md §6.15): a plain file Roostack
+     writes every minute, served by Caddy at status.<domain>. Only the
+     checks the Owner ticked; never an address or an error. */ -}}
+<body class="status-page">
+  <main class="status-main">
+    <header>
+      <h1>{{.LabName}}</h1>
+      <p class="hint">Whether its services are working</p>
+    </header>
+    {{if .Down}}{{notice "error" .Down}}{{else if .Rows}}{{notice "ok" "Everything is working."}}{{end}}
+    {{if .Rows}}
+    <ul class="status-list">
+      {{range .Rows}}
+      <li>
+        <div class="status-row"><strong>{{.Name}}</strong><span class="hint">{{.Uptime}}</span>{{checkState .State}}</div>
+        {{uptimeBar .Days}}
+      </li>
+      {{end}}
+    </ul>
+    <p class="bar-ends hint"><span>90 days ago</span><span>Today</span></p>
+    {{else}}<p>Nothing is shown here yet.</p>{{end}}
+    <footer class="hint">Checked every minute from inside the lab · updated {{.Updated}} · Made with Roostack</footer>
+  </main>
+</body></html>

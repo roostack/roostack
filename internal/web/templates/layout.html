@@ -42,6 +42,7 @@
         </div>{{end}}
         {{if .Backups}}<a class="nav-item" href="/backups"{{if eq .Active "backups"}} aria-current="page"{{end}}>{{icon "backups"}}Backups</a>{{end}}
         {{if .Settings}}<a class="nav-item" href="/servers"{{if eq .Active "servers"}} aria-current="page"{{end}}>{{icon "server"}}Servers{{with .ServerIssues}}<span class="nav-count" title="{{.}} {{if eq . 1}}needs{{else}}need{{end}} attention">{{.}}</span>{{end}}</a>{{end}}
+        {{if and .Backups .Monitoring}}<a class="nav-item" href="/monitoring"{{if eq .Active "monitoring"}} aria-current="page"{{end}}>{{icon "monitoring"}}Monitoring</a>{{end}}
       </nav>
       {{if .Settings}}
       <nav class="nav-group" aria-label="Settings">

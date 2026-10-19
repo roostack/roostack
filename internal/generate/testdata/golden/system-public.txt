@@ -278,6 +278,7 @@ roostack-crowdsec-bouncer-key generate=true
 /var/lib/roostack/caddy-data
 /var/lib/roostack/caddy/sites
 /var/lib/roostack/caddy/errors
+/var/lib/roostack/caddy/status
 /var/lib/roostack/caddy-logs
 /var/lib/roostack/crowdsec/config
 /var/lib/roostack/crowdsec/data

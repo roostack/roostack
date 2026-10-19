@@ -493,16 +493,18 @@ Packages go to the registry (`roostack/services`), each checked with `roostack v
 - [ ] **Frigate** (a session): devices beyond Intel graphics (Coral and other USB accelerators), shared memory, cameras over RTSP
 - [ ] **Pi-hole** (a session): DNS on port 53, beside any resolver the server runs
 - [ ] **Home Assistant** (a session): finding devices on the home network (host networking, or what's needed instead), within the package policy
-- [ ] **Monitoring** (design locked 2026-10-19, SPEC §6.15): Roostack's own checks every minute from the controller, history in SQLite, alerts through "needs attention" and the notifier, a public status page Roostack writes. Gatus was tried on VM3 and set aside (SPEC)
+- [ ] **Monitoring** (design locked 2026-10-19, built the same day, SPEC §6.15): Roostack's own checks every minute from the controller, history in SQLite, alerts through "needs attention" and the notifier, a public status page Roostack writes. Gatus was tried on VM3 and set aside (SPEC)
   - [x] Mock-ups (2026-10-19, `docs/mockups/monitoring`): a service's uptime card, the Monitoring page (a main item beside Servers, the Owner's choice), a check's Details, the public status page
   - [ ] Wording: the Owner doesn't like it yet (the status page's subtitle, the uptime card); revisit with them before or while building the pages
-  - [ ] Checks: routes over the lab network with SNI (status, time, certificate days left), servers, the domain's names; paused while stopped, installing, updating or restarting
-  - [ ] Store: results for two days, hourly summaries as long as History's setting
-  - [ ] Alerts: three failures in a row → "needs attention" and the notifier; certificate warnings
-  - [ ] Pages: a service's uptime card, the Monitoring page in the main sidebar (the switch, every check, Details)
-  - [ ] Your own checks: a web address, a host and port, or a ping (check the sandbox allows it on a VM)
-  - [ ] The public status page (`status.<lab>`, static, the checks ticked)
-  - [ ] `monitor:` on a package's route, in pkgspec, validate and the packages reference
+  - [x] Checks (2026-10-19): routes through the controller's Caddy with SNI (status, time, certificate dates), servers' lab API, the lab's address from the DNS records' checks; paused while stopped, starting, set up, updated, restored or its server is down
+  - [x] Store (2026-10-19): results for two days, hourly summaries as long as History's setting, outages
+  - [x] Alerts (2026-10-19): three failures in a row → "needs attention" and the notifier; certificate warnings
+  - [x] Pages (2026-10-19): a service's Uptime card, the Monitoring page in the main sidebar (the switch, every check, Details), components in the gallery
+  - [x] Your own checks (2026-10-19): a web address, a host and port, or a ping (works in the sandbox, ASSUMPTIONS U2)
+  - [x] The public status page (2026-10-19): `status.<lab>`, static, the checks ticked, its switch in lab.yaml, its name public
+  - [ ] Check on a lab with a real address (ASSUMPTIONS U4): a real certificate, the status page through an edge and Roostack Cloud's relay, its DNS record
+  - [ ] When a service is removed, forget its checks' history (`store.ForgetMonitorCheck`; own checks already do); until then it goes with History's limit
+  - [x] `monitor:` on a package's route (2026-10-19), in pkgspec, validate and the packages reference
 
 ## Security review 2026-10-16: the root boundary (rs-privilege)
 

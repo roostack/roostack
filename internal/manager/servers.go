@@ -199,7 +199,8 @@ func (m *Manager) startApplyLocked() {
 	// on a lab on the internet it can start with the public UI, before
 	// anything asks.
 	pub := m.publicLocked()
-	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: pub.NoSharing || !pub.SharingAsked}
+	lab := node.LabContext{Domain: m.Lab.Domain, Email: m.Lab.Email, NoSharing: pub.NoSharing || !pub.SharingAsked,
+		StatusPage: m.StatusPageOn()}
 	nodes := []node.Node{m.Node}
 	for _, r := range m.others() {
 		nodes = append(nodes, r)
@@ -241,7 +242,7 @@ func (m *Manager) startApplyLocked() {
 		a.Libraries = m.librariesFor(context.Background(), id)
 		a.Links = m.linksFor(context.Background(), infos, id)
 		if id == edge {
-			a.Edge = edgeConfig(m.Lab, services)
+			a.Edge = edgeConfig(m.withStatusPage(), services)
 		}
 		n.Apply(a)
 	}

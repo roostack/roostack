@@ -127,6 +127,10 @@ func (p Paths) CaddyDir() string { return filepath.Join(p.StateDir, "caddy") }
 // CaddySitesDir holds one snippet per service.
 func (p Paths) CaddySitesDir() string { return filepath.Join(p.CaddyDir(), "sites") }
 
+// StatusPageDir holds the public status page Roostack writes every minute
+// (SPEC.md §6.15), which Caddy serves at status.<domain>.
+func (p Paths) StatusPageDir() string { return filepath.Join(p.CaddyDir(), "status") }
+
 // CaddyDataDir holds certificates and the ACME account.
 func (p Paths) CaddyDataDir() string { return filepath.Join(p.StateDir, "caddy-data") }
 
@@ -361,6 +365,8 @@ type Lab struct {
 	// Registry is where the controller fetches packages from (SPEC.md
 	// §8.3.3).
 	Registry Registry `yaml:"registry,omitempty"`
+	// Monitoring is how the lab's monitoring is shown (SPEC.md §6.15).
+	Monitoring Monitoring `yaml:"monitoring,omitempty"`
 	// OldAddress is the lab's previous address, still served for a while
 	// after switching so bookmarks and apps can be updated (SPEC.md §6.6).
 	OldAddress *OldAddress `yaml:"old_address,omitempty"`
@@ -407,6 +413,13 @@ type Cloud struct {
 	// CAFile, for a test Cloud, is the certificate authority its HTTPS
 	// certificate comes from (a real Cloud's is publicly trusted).
 	CAFile string `yaml:"ca_file,omitempty"`
+}
+
+// Monitoring holds monitoring's lab settings (SPEC.md §6.15); the rest
+// (switching it off, what the status page shows) is runtime data.
+type Monitoring struct {
+	// StatusPage serves the public status page at status.<domain>.
+	StatusPage bool `yaml:"status_page,omitempty"`
 }
 
 // Registry is the service registry the controller fetches its catalog

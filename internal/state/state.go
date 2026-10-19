@@ -111,7 +111,8 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	var d reconcile.Desired
 	// Every hostname must be unique across the lab, including the admin UI.
 	hosts := map[string]string{lab.UIHost(): "the Roostack admin UI",
-		caddy.LinkSubdomain + "." + lab.Domain: "Roostack's address for other servers and labs"}
+		caddy.LinkSubdomain + "." + lab.Domain:   "Roostack's address for other servers and labs",
+		caddy.StatusSubdomain + "." + lab.Domain: "the lab's public status page"}
 	ports := map[int]string{lab.UIPort: "the Roostack admin UI"}
 	hostPorts := map[string]string{} // "2222/tcp" -> service
 	var errs []error

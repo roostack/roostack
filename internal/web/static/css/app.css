@@ -292,16 +292,16 @@ dl.facts-lined > dd > p:first-child { margin-top: 0; }
 .notice-list li + li { margin-top: var(--space-1); }
 
 /* ---------- Buttons: primary (default), secondary, danger, quiet ---------- */
-button, a.button { display: inline-flex; align-items: center; gap: var(--space-2); font: inherit;
+button, a.button, summary.button { display: inline-flex; align-items: center; gap: var(--space-2); font: inherit;
   font-weight: var(--weight-bold); padding: 9px 16px; border: 1px solid transparent; border-radius: 10px;
   background: var(--accent); color: var(--accent-fg); cursor: pointer; text-decoration: none; white-space: nowrap; }
-button:hover, a.button:hover { filter: brightness(1.08); }
+button:hover, a.button:hover, summary.button:hover { filter: brightness(1.08); }
 /* On a phone a long label ("Link and go back to <lab>") wraps rather than
    leaving its card; a short one still fits on one line. */
 @media (max-width: 640px) { button, a.button { white-space: normal; max-width: 100%; } }
 button:disabled { opacity: 0.55; cursor: default; filter: none; }
-button.secondary, a.button.secondary { background: var(--surface); color: var(--fg); border-color: var(--border-strong); }
-button.secondary:hover, a.button.secondary:hover { background: var(--surface-2); filter: none; }
+button.secondary, a.button.secondary, summary.button.secondary { background: var(--surface); color: var(--fg); border-color: var(--border-strong); }
+button.secondary:hover, a.button.secondary:hover, summary.button.secondary:hover { background: var(--surface-2); filter: none; }
 /* On glass, secondary buttons are translucent text colour (the website's). */
 @supports (color: color-mix(in srgb, red 50%, blue)) {
   button.secondary, a.button.secondary { background: var(--glass-2); border-color: var(--edge-strong); }
@@ -360,6 +360,22 @@ p.error[role="alert"] { background: var(--bad-bg); color: var(--bad); padding: v
 .status-installing::before, .status-updating::before, .pill-info::before { background: var(--accent); animation: status-pulse 1.6s ease-in-out infinite; }
 @keyframes status-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .status::before, .pill::before { animation: none; } }
+
+/* ---------- Uptime (monitoring, SPEC.md §6.15) ---------- */
+/* A bar per day, oldest first: up, down a little (warn), down an hour or
+   more (bad), not checked (the border colour). .mini is the small one in
+   lists; .bar-ends labels the bar's two ends under it. */
+.uptime-bar { display: flex; gap: 2px; height: 28px; margin: var(--space-3) 0 var(--space-1); }
+.uptime-bar span { flex: 1; min-width: 0; border-radius: 2px; background: var(--ok); }
+.uptime-bar span.warn { background: var(--warn); }
+.uptime-bar span.bad { background: var(--bad); }
+.uptime-bar span.none { background: var(--border); }
+.uptime-bar.mini { height: 18px; width: 150px; gap: 1px; margin: 0; }
+.uptime-bar.mini span { border-radius: 1px; }
+@media (max-width: 600px) { .uptime-bar { gap: 1px; } .uptime-bar span { border-radius: 1px; } }
+.bar-ends { display: flex; justify-content: space-between; margin-top: 0; }
+/* An answer-time line over a day (an inline SVG polyline). */
+.spark { display: block; width: 100%; height: 80px; color: var(--accent); margin-top: var(--space-3); }
 
 /* ---------- Console glass page parts (docs/DESIGN.md "Layout") ---------- */
 /* A page's own heading: its title and a line under it, its main actions
@@ -961,3 +977,9 @@ h1 + .area-heading { margin-top: 0; }
 .rank-count { color: var(--muted); font-variant-numeric: tabular-nums; }
 .stat-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-4); }
 .stat-lists h3 { font-size: var(--text-sm); color: var(--muted); font-weight: normal; margin: 0 0 var(--space-1); }
+
+/* Adding a check of your own (Monitoring): the form opens under its button. */
+.add-check { margin-top: var(--space-4); }
+.add-check > summary { list-style: none; display: inline-block; }
+.add-check > summary::-webkit-details-marker { display: none; }
+.add-check form { margin-top: var(--space-4); max-width: 34rem; }

@@ -93,6 +93,24 @@ storage:
   data: {}
 containers:
   web: { image: x, mounts: [{ storage: data, libraries: true, path: /media }] }`, "set storage or libraries, not both"},
+		{"a monitor path that isn't a path", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+containers:
+  web: { image: x }
+routes:
+  web: { container: web, port: 80, subdomain: app, exposure: private, monitor: { path: "health" } }`, `monitor.path: "health" must start with /`},
+		{"a monitor status that isn't one", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+containers:
+  web: { image: x }
+routes:
+  web: { container: web, port: 80, subdomain: app, exposure: private, monitor: { statuses: [200, 1000] } }`, "monitor.statuses[1]: 1000 isn't an HTTP status"},
 		{"unknown storage in mount", `
 schema: roostack/v1alpha1
 name: app

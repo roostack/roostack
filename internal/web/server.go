@@ -29,6 +29,7 @@ import (
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/monitor"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/pkgspec"
@@ -136,6 +137,14 @@ type Server struct {
 	Manager ServiceManager
 	// Libraries are the media libraries (media.go); nil: none.
 	Libraries LibraryManager
+	// Monitor runs monitoring's checks (monitor.go, SPEC.md §6.15); nil:
+	// none (a server that isn't the controller). AutoChecks are the
+	// manager's (services and servers). StatusPage switches the public
+	// status page (the manager), which is written to StatusPageDir.
+	Monitor       *monitor.Monitor
+	AutoChecks    func(ctx context.Context) []monitor.Check
+	StatusPage    StatusPageSwitch
+	StatusPageDir string
 	// Node is the server running the services. Set with Manager.
 	Node ServiceNode
 	// Network adds servers to the lab (SPEC.md §10.2). Nil hides it.
@@ -487,7 +496,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		"home", "services", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
-		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-library"} {
+		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-library", "monitoring", "monitoring-check"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -579,6 +588,12 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /account/notifications", s.requireLogin(s.notificationsSubmit))
 	mux.Handle("GET /account/appearance", s.requireLogin(s.appearancePage))
 	mux.Handle("GET /settings/storage", s.requireOwner(s.storagePage))
+	mux.Handle("GET /monitoring", s.require(auth.ManageServices, s.monitoringPage))
+	mux.Handle("GET /monitoring/check/{key}", s.require(auth.ManageServices, s.monitorCheckPage))
+	mux.Handle("POST /monitoring/checks", s.require(auth.ManageServices, s.monitorAddSubmit))
+	mux.Handle("POST /monitoring/checks/{id}/remove", s.require(auth.ManageServices, s.monitorRemoveSubmit))
+	mux.Handle("POST /monitoring/switch", s.requireOwner(s.monitorSwitchSubmit))
+	mux.Handle("POST /monitoring/status-page", s.requireOwner(s.statusPageSubmit))
 	mux.Handle("GET /settings/media", s.requireOwner(s.mediaPage))
 	mux.Handle("GET /settings/media/add", s.requireOwner(s.mediaAddPage))
 	mux.Handle("POST /settings/media/add", s.requireOwner(s.mediaAddSubmit))
@@ -922,7 +937,9 @@ func isHTTPS(r *http.Request) bool {
 
 func (s *Server) render(w http.ResponseWriter, page string, data map[string]any) {
 	if u, ok := data["User"].(*store.User); ok && u != nil {
-		data["Nav"] = navFor(u, page)
+		n := navFor(u, page)
+		n.Monitoring = s.Monitor != nil
+		data["Nav"] = n
 		// Every page's footer shows Roostack's version.
 		if _, set := data["Version"]; !set {
 			data["Version"] = s.Version
