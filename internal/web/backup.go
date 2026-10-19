@@ -216,7 +216,7 @@ func (s *Server) backupRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := s.serverRefOf(r)
-	s.Store.Audit(r.Context(), currentUser(r), "backup", "started manually on "+m.Label())
+	s.Store.Audit(r.Context(), currentUser(r), "backup", "started manually on "+m.InSentence())
 	redirect(w, r, m.Backups())
 }
 

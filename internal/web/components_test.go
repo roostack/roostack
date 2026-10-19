@@ -97,6 +97,7 @@ func TestPageHelpTargets(t *testing.T) {
 		regexp.MustCompile(`href="/help/([^"]*)"`),
 	}
 	heading := regexp.MustCompile(`(?m)^#{1,6} +(.+?) *$`)
+	anchorID := regexp.MustCompile(`\{ *#([^ }]+) *\}$`)
 	docs := filepath.Join("..", "..", "help", "docs")
 	files, err := fs.Glob(templateFS, "templates/*.html")
 	if err != nil {
@@ -120,6 +121,11 @@ func TestPageHelpTargets(t *testing.T) {
 				}
 				found := section == ""
 				for _, h := range heading.FindAllStringSubmatch(string(src), -1) {
+					// A heading's own anchor: "## Title { #id }".
+					if m := anchorID.FindStringSubmatch(h[1]); m != nil {
+						found = found || m[1] == section
+						continue
+					}
 					found = found || helpSlug(h[1]) == section
 				}
 				if !found {

@@ -21,9 +21,14 @@ Owned by the `roostack` user, and readable only by it (and root).
 | `services/<name>.yaml` | Each installed service: its package version, web address, ports, settings and server. *Desired state* |
 | `packages/<name>/<version>.yaml` | The [package](packages.md) file each installed service runs from, copied from the catalog when it was installed. A newer Roostack's catalog doesn't change it, and it's backed up with the lab, so a restore brings back exactly what ran. Copies no service uses are deleted. *Desired state* |
 | `catalog/` | The services you can install, on the controller: for each, the [package](packages.md) file Roostack would install and the project's logo (`<name>/<version>.yaml`, `icon.png`), fetched from the [service registry](../settings/updates.md#services-you-can-install) with its signed list (`index.json`, `keys.json` and their `.sig` files) and `status.json` (the last check). Not backed up: it's fetched again |
-| `roostack.db` | Roostack's database (SQLite): people and their sessions, the audit log, the lab's servers, backup destinations and results |
+| `roostack.db` | Roostack's database (SQLite): people and their sessions, the audit log, the lab's servers, backup destinations (with online storage accounts' keys) and results |
 | `node.json` | This server's ID and name |
-| `backup-key` | The [recovery key](../start/recovery-key.md), which encrypts every backup. Keep a copy elsewhere |
+| `backup-key` | On the controller, the [recovery key](../start/recovery-key.md), which encrypts every backup (keep a copy elsewhere); on another server, its own key to its main backup. `backup-key.new`, `.old` and `.change.json` while the key is changed. Never backed up |
+| `backup-copies/<name>.key` | On a server other than the controller, its key to each extra backup |
+| `backup-key-hints.json` | Which key file in each backup a key opens (no keys in it) |
+| `mail-password` | The password for sending email |
+| `cloud/` | The link to [Roostack Cloud](../settings/cloud.md): the lab's key and certificate, `link.json` and `requests.log` |
+| `cloud-backup-keys.json`, `cloud-prune-keys.json` | Roostack Cloud's short-lived storage keys, while backups go there. Never backed up |
 | `setup-token` | The first-run setup code; deleted once the Owner exists |
 | `setup-tls.crt`, `setup-tls.key` | The [setup page](../start/install.md#check-the-setup-pages-certificate)'s self-signed certificate and its key, for the home network during first-run setup; deleted when setup is finished |
 | `caddy/` | The generated web server config: `Caddyfile`, and `sites/<name>.caddy` for each service |
@@ -94,7 +99,7 @@ changes only these:
 | `/etc/roostack/firewall.nft` | The firewall (nftables), loaded again at start |
 | `/etc/sysctl.d/60-roostack.conf` | Lets containers use ports 80 and 443 |
 | `/etc/ssh/sshd_config.d/10-roostack.conf` | SSH with keys only: no passwords, no root logins, while **Remote access** says so |
-| `/etc/wireguard/roostack*.conf` | The lab's network (`roostack`), other labs storing backups here (`roostack-guests`), and links to other labs (`roostack-st1` to `roostack-st9`) |
+| `/etc/wireguard/roostack*.conf` | The lab's network (`roostack`), other labs storing backups here (`roostack-guests`), links to other labs (`roostack-st1` to `roostack-st9`), and Roostack Cloud's relay (`roostack-relay`) |
 | `/etc/fstab` | A line for each backup drive, marked `# Added by Roostack` |
 | `/mnt/roostack-<drive>/` | Where backup drives are mounted |
 | `/run/roostack-agent/agent.sock` | How Roostack talks to the agent (in a folder of its own, since the agent's sandbox can't write to `/run` itself) |

@@ -67,6 +67,7 @@ Where things live on a host: see the table in [README.md](README.md). Paths come
 ```sh
 make build        # bin/roostack, bin/roostack-agent: Linux, CGO off, reproducible (-trimpath); GOARCH=arm64 for ARM
 make release      # a release from a checkout of its tag, on Linux: .debs, binaries, SHA256SUMS (docs/RELEASING.md)
+make verify-release VERSION=x.y.z  # check a published release: its signature, then a rebuild of its tag in the release's image
 make vet          # go vet + gofmt check
 go test ./...     # all tests
 make golden       # rewrite generator golden files after an intended change; review the diff

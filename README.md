@@ -97,7 +97,7 @@ GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) checks eve
 
 It needs no secrets. The help site isn't built: no test needs it. Actions are pinned by commit, with the release beside each in a comment.
 
-Pushing a tag like `v1.2.3` runs the release workflow ([.github/workflows/release.yml](.github/workflows/release.yml)): it builds the release twice, in a pinned Debian 13 image, checks both builds are identical, and, once a reviewer approves, signs `SHA256SUMS` with the release key's subkey. `make release` builds the same files from a checkout of the tag, so anyone can check a release was built from its source. See [docs/RELEASING.md](docs/RELEASING.md).
+Pushing a tag like `v1.2.3` runs the release workflow ([.github/workflows/release.yml](.github/workflows/release.yml)): it builds the release twice, in a pinned Debian 13 image, checks both builds are identical, and, once a reviewer approves, signs `SHA256SUMS` with the release key's subkey. `make release` builds the same files from a checkout of the tag, and `make verify-release VERSION=1.2.3` checks a published release against its tag: its signature, then a rebuild in the same image, file by file. See [docs/RELEASING.md](docs/RELEASING.md).
 
 The release workflow then calls [.github/workflows/apt-publish.yml](.github/workflows/apt-publish.yml), which checks the files' signature, uploads them to `dl.roostack.cloud/releases/<version>/`, and adds the packages to Roostack's apt repository at `apt.roostack.cloud` ([scripts/build-apt-repo.sh](scripts/build-apt-repo.sh), SPEC §7.2). It runs in the `release` environment too, so a reviewer approves it separately; the bucket's credentials are used nowhere else.
 

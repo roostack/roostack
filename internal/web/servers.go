@@ -85,6 +85,16 @@ func (m serverRef) Label() string {
 	return m.Name
 }
 
+// InSentence is how a sentence refers to the server after its first
+// word: "this server", or its name ("added a backup for this server").
+// Label's capital belongs only at the start (found 2026-10-18).
+func (m serverRef) InSentence() string {
+	if m.This || m.Name == "" {
+		return "this server"
+	}
+	return m.Name
+}
+
 func (m serverRef) path(this, other string) string {
 	if m.This {
 		return this

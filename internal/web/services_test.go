@@ -1779,12 +1779,12 @@ func TestServerDiskSpace(t *testing.T) {
 		t.Error("plenty of space: nothing to say")
 	}
 	fm.guests = []manager.GuestView{{Guest: store.Guest{ID: 1, Name: "Sam's lab", Quota: 80 * units.GB, Joined: true}, Used: 5 * units.GB}}
-	if _, body := h.get("/"); !strings.Contains(body, "Other labs could fill This server&#39;s disk: they&#39;ve been promised 75.0 GB more") {
+	if _, body := h.get("/"); !strings.Contains(body, "Other labs could fill this server&#39;s disk: they&#39;ve been promised 75.0 GB more") {
 		t.Error("promised more than is free")
 	}
 	// 55 GB still to come of 55 GB free reaches into the 10 GB kept free.
 	fm.guests[0].Quota = 60 * units.GB
-	if _, body := h.get("/"); !strings.Contains(body, "Space promised to other labs now takes some of what&#39;s kept free on This server&#39;s disk") {
+	if _, body := h.get("/"); !strings.Contains(body, "Space promised to other labs now takes some of what&#39;s kept free on this server&#39;s disk") {
 		t.Error("promised space reaching into the headroom")
 	}
 	fm.guests[0].Quota = 45 * units.GB

@@ -42,6 +42,15 @@ technical users**.
 
     [When things go wrong](trouble/index.md)
 
+-   **Your data and your keys**
+
+    ---
+
+    Where the keys are, what Roostack sends off your server and to whom,
+    and how to check it yourself.
+
+    [Your data and your keys](your-data.md)
+
 -   **Technical reference**
 
     ---

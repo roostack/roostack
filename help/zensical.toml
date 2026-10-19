@@ -58,6 +58,7 @@ nav = [
     "trouble/restore-lab.md",
     "trouble/backup-junk.md",
   ] },
+  { "Your data and your keys" = "your-data.md" },
   { "Technical reference" = [
     "reference/index.md",
     "reference/files.md",

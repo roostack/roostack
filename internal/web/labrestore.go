@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
-	"strings"
 	"time"
 
 	"roostack.cloud/roostack/authkit"
@@ -129,7 +128,8 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 	src := labrestore.Source{Kind: r.FormValue("kind"), Folder: r.FormValue("folder"), URL: r.FormValue("url"),
 		S3: backup.S3{Endpoint: r.FormValue("endpoint"), Bucket: r.FormValue("bucket"), Prefix: r.FormValue("prefix"),
 			AccessKey: r.FormValue("access_key"), SecretKey: r.FormValue("secret_key")}}
-	key := strings.TrimSpace(r.FormValue("recovery_key"))
+	// However it's grouped or spaced, as it was made.
+	key := backup.TypedRecoveryKey(r.FormValue("recovery_key"))
 	// Everything typed comes back, except the secrets.
 	data := map[string]any{"Kind": src.Kind, "Folder": src.Folder, "URL": src.URL, "S3": src.S3, "Drive": r.FormValue("drive"),
 		"Passed": s.setupPassed(r), "CloudOn": s.Cloud != nil}

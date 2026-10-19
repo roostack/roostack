@@ -125,33 +125,56 @@ needs `gpgv` as well as `gpg`; on Debian 13 they're separate packages.
 
 ### Checking a release yourself
 
-On any Linux machine with Podman (a Roostack server has it) or Docker, from
-a checkout of the release's tag:
+Anyone can check that a published release is exactly what its tag
+builds, on any Linux machine with Podman (a Roostack server has it) or
+Docker, or a Mac with Podman's or Docker's Linux machine. From a checkout
+with the release's tag (`git fetch --tags`):
 
 ```sh
-git clone <the repository> roostack && cd roostack
-git checkout v0.1.0
-# The image the release was built in: release.yml's container image, at the tag.
-image=$(sed -n 's/^ *image: //p' .github/workflows/release.yml)
-podman run --rm -it -v "$PWD:/src" -w /src "$image" bash
+make verify-release VERSION=0.1.0
 ```
 
-Then, inside the container (uv's version and SHA-256 are in release.yml
-too):
+[scripts/verify-release.sh](../scripts/verify-release.sh) does it, in
+order:
 
-```sh
-apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git make
-git config --global --add safe.directory /src
-curl -fsSL https://go.dev/dl/go1.27.2.linux-amd64.tar.gz | tar -xz -C /usr/local
-curl -fsSL https://github.com/astral-sh/uv/releases/download/0.12.22/uv-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /usr/local
-export PATH=/usr/local/go/bin:/usr/local/uv-x86_64-unknown-linux-gnu:$PATH
-make release
-```
+1. downloads the release's `SHA256SUMS` and `SHA256SUMS.asc` from
+   `dl.roostack.cloud` (`FROM=dir` takes them from a folder instead);
+2. checks the signature against the release key the tag has
+   (`packaging/keys/roostack-release.asc`; `KEY=file` for another, such
+   as one from roostack.cloud), and shows the key's fingerprint, to
+   compare with the one published (below, and on roostack.cloud);
+3. builds the tag afresh, in the image the release was built in (the
+   tag's `release.yml` pins it by digest), with the same uv (checked
+   against the SHA-256 in `release.yml`) and the release's own Go (the
+   go tool fetches it, checked against Go's checksum database);
+4. compares each rebuilt file's SHA-256 with the signed `SHA256SUMS`, file
+   by file, and ends with a plain verdict: "Roostack 0.1.0 matches its
+   source", or "DOES NOT MATCH" with the files that differ.
 
-(on an arm64 machine, `linux-arm64` and `aarch64` in those two downloads).
-Compare `dist/release/SHA256SUMS` with the published one: they should be
-the same. If they aren't, [diffoscope](https://diffoscope.org) shows what
-differs (`diffoscope roostack_0.1.0_amd64.deb dist/release/roostack_0.1.0_amd64.deb`).
+It needs only git, curl and Podman or Docker; everything else runs in the
+container, and the rebuilt files are left in `dist/verify-<version>`. It
+takes about ten minutes, most of it downloading Go, Python and the
+modules, as the release workflow does. If a file differs,
+[diffoscope](https://diffoscope.org) shows how
+(`diffoscope roostack_0.1.0_amd64.deb dist/verify-0.1.0/files/roostack_0.1.0_amd64.deb`).
+
+A machine of either architecture rebuilds both packages: Go
+cross-compiles, and the image's `dpkg-deb` and xz make the same bytes on
+both (see the test below).
+
+**Tested (2026-10-19)** on an arm64 Debian 13 VM, against a release made
+the way the release workflow makes it (Go from go.dev, as `setup-go`
+installs it) with a throwaway release key and registry root key: the
+rebuild, with Debian's Go fetching the release's Go, matched every file;
+a `SHA256SUMS` changed after signing was refused before anything was
+built; and a `SHA256SUMS` signed with one file's sum changed said
+"DOES NOT MATCH" for that file alone.
+
+What it doesn't check: that the tag is the one on GitHub (it uses the
+tag in your checkout; fetch it from the repository yourself), and that the
+key is the Owner's (that's the fingerprint, compared by you). The source
+must be public for "anyone" to do this: until then, people with access to
+the repository can (TASKS, "Encryption anyone can check").
 
 ### Checking a download
 

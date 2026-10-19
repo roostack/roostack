@@ -51,9 +51,11 @@ func (s *Service) checkClaim(ctx context.Context, claim cloudapi.NameClaim) erro
 	req.Header.Set(cloudapi.HeaderKey, c[cloudapi.CredPassword])
 	resp, err := s.challengeClient().Do(req)
 	if err != nil {
+		s.client.record(http.MethodPost, server+"/update", body, 0, err)
 		return fmt.Errorf("Roostack Cloud's challenge server didn't answer (%v): certificates for %s need it. Try again in a minute.", err, claim.Name)
 	}
 	resp.Body.Close()
+	s.client.record(http.MethodPost, server+"/update", body, resp.StatusCode, nil)
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Roostack Cloud's challenge server refused the name's login (status %d): certificates for %s need it. Try again; if it keeps happening, unlink and link the lab again.", resp.StatusCode, claim.Name)
 	}
