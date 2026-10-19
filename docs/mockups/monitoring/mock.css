@@ -1,0 +1,32 @@
+/* Monitoring mock-ups (2026-10-19): only what the real stylesheet lacks. */
+.uptime-bar { display: flex; gap: 2px; height: 28px; margin: var(--space-3) 0 var(--space-1); }
+.uptime-bar span { flex: 1; min-width: 0; border-radius: 2px; background: var(--ok); }
+.uptime-bar span.warn { background: var(--warn); }
+.uptime-bar span.bad { background: var(--bad); }
+.uptime-bar span.none { background: var(--border); }
+.uptime-bar.mini { height: 18px; width: 150px; gap: 1px; margin: 0; }
+.uptime-bar.mini span { border-radius: 1px; }
+.bar-ends { display: flex; justify-content: space-between; margin-top: 0; }
+.spark { display: block; width: 100%; height: 80px; color: var(--accent); margin-top: var(--space-3); }
+.add-check { margin-top: var(--space-4); }
+.add-check > summary { list-style: none; display: inline-block; }
+.add-check > summary::-webkit-details-marker { display: none; }
+.add-check form { margin-top: var(--space-4); max-width: 34rem; }
+.add-check label:not(.check) { display: block; margin-bottom: var(--space-4); }
+.add-check label:not(.check) input { display: block; width: 100%; margin-top: var(--space-1); }
+/* The public status page: its own narrow page, no sidebar. */
+body.pub { min-height: 100vh; }
+.pub-main { max-width: 44rem; margin: 0 auto; padding: var(--space-6, 32px) 16px; }
+.pub-head h1 { margin-bottom: 0; }
+.pub-list { list-style: none; padding: 0; margin: var(--space-4) 0 0; }
+.pub-list li { padding: var(--space-4) 0; border-bottom: 1px solid var(--border); }
+.pub-row { display: flex; align-items: center; gap: var(--space-3); }
+.pub-row strong { flex: 1; }
+.pub-foot { margin-top: var(--space-5); text-align: center; }
+/* The mock-ups' own switch, bottom right. */
+.mock-bar { position: fixed; right: 12px; bottom: 12px; z-index: 50; display: flex; gap: 6px; flex-wrap: wrap; padding: 6px;
+  border-radius: 10px; background: var(--fg); color: var(--bg); font-size: 13px; }
+.mock-bar a, .mock-bar button { color: inherit; background: none; border: 0; padding: 2px 6px; font: inherit; cursor: pointer; text-decoration: none; }
+.mock-bar [aria-current] { text-decoration: underline; }
+.facts code { overflow-wrap: anywhere; }
+@media (max-width: 600px) { .uptime-bar { gap: 1px; } .uptime-bar span { border-radius: 1px; } }

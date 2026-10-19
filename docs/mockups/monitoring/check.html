@@ -1,0 +1,151 @@
+<!doctype html><html lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
+  <title>Vaultwarden's address · Roostack (mock-up)</title>
+  <link rel="icon" href="/internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/internal/web/static/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="apple-touch-icon" href="/internal/web/static/apple-touch-icon.png">
+  <link rel="preload" href="/internal/web/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/ocean.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/catppuccin.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/gruvbox.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/nord.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/solarized.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/everforest.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/rose-pine.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/tokyo-night.css">
+  
+  <link rel="stylesheet" href="/internal/web/static/css/app.css">
+    <link rel="stylesheet" href="mock.css">
+</head>
+
+<body x-data="{ menu: false }" x-on:keydown.escape.window="menu = false" x-bind:class="menu && 'menu-open'">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="/"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="sidebar-lab-name"><span>Roostack</span><strong title="Smiths' lab">Smiths' lab</strong></span></a>
+      <div class="sidebar-nav">
+      <nav class="nav-group" aria-label="Your lab">
+        <a class="nav-item" href="/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></svg>Home</a>
+        <a class="nav-item" href="/services"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Services</a>
+        
+        <a class="nav-item" href="/backups"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>Backups</a>
+        <a class="nav-item" href="/servers"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Servers</a>
+        <a class="nav-item" href="monitoring.html" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Monitoring</a>
+      </nav>
+      
+      <nav class="nav-group" aria-label="Settings">
+        <p class="nav-heading">Settings</p>
+        <a class="nav-item" href="/settings/lab"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/></svg>Lab name</a>
+        <a class="nav-item" href="/settings/history"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>History</a>
+        <a class="nav-item" href="/settings/people"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c2.8 0 5 2.2 5 5"/></svg>People</a>
+        <a class="nav-item" href="/settings/email"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1"/></svg>Email</a>
+        <a class="nav-item" href="/settings/domain"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3z"/><path d="m9 12 2 2 4-4"/></svg>Your lab&#39;s address</a>
+        <a class="nav-item" href="/settings/home-network"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Where it is and DNS</a>
+        <a class="nav-item" href="/settings/public"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>Public access</a>
+        <a class="nav-item" href="/settings/cloud"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 8.5 4.75 4.75 0 0 1 17.5 18z"/></svg>Roostack Cloud</a>
+        <a class="nav-item" href="/settings/media"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>Media libraries</a>
+        <a class="nav-item" href="/settings/storage"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Storage for others</a>
+        <a class="nav-item" href="/settings/updates"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.5-4.5L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8 8 0 0 0 14.5 4.5L21 15"/><path d="M21 20v-5h-5"/></svg>Updates and restarts</a>
+        <a class="nav-item" href="/settings/time-zone"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Time zone</a>
+        <a class="nav-item" href="/settings/remote-access"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>Remote access</a>
+        
+        <a class="nav-item" href="/settings"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>All settings</a>
+      </nav>
+      
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools">
+          <a href="/help/" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg>Help<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+          <form method="post" action="/account/theme" id="theme-toggle">
+  <input type="hidden" name="theme" value="light">
+  <button type="submit" class="theme-toggle" title="Switch to light theme"
+    aria-label="Theme: auto. Switch to light."><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>Auto</button>
+</form>
+        </div>
+        <div class="who">
+          <a href="/account" class="who-link"><span class="avatar" aria-hidden="true">O</span>
+            <span class="who-name"><strong title="owner">owner</strong><span>Owner</span></span></a>
+          <form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></svg><span class="sr-only">Log out</span></button></form>
+        </div>
+      </div>
+    </aside>
+    <div class="scrim" x-show="menu" x-cloak x-on:click="menu = false"></div>
+    <div class="main">
+      <header class="page-header">
+        <button type="button" class="menu-button" x-on:click="menu = true; $nextTick(() => document.querySelector('#sidebar .nav-item').focus())" aria-controls="sidebar" x-bind:aria-expanded="menu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr-only">Menu</span></button>
+        <nav class="crumbs" aria-label="Where you are"><a href="monitoring.html">Monitoring</a><strong aria-current="page">Vaultwarden's address</strong></nav>
+        <a class="page-help" href="/help/servers/monitoring/" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg><span class="sr-only">Help: </span>Monitoring<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+      </header>
+      <main class="page">
+<div class="page-head">
+  <div class="page-head-title">
+    <span class="logo-tile"><img src="vaultwarden.png" alt="" width="40" height="40"></span>
+    <div>
+      <div class="title-line"><h1>Vaultwarden's address</h1><span class="status status-running">Up</span></div>
+      <p class="lede">Checked every minute since 3 October.</p>
+    </div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="span-8 grid-column">
+    <section class="card">
+      <div class="card-head"><h2>Last 90 days</h2></div>
+      <div class="uptime-bar" role="img" aria-label="Uptime over the last 90 days"><span class="ok" title="89 days ago: Up all day"></span><span class="ok" title="88 days ago: Up all day"></span><span class="ok" title="87 days ago: Up all day"></span><span class="ok" title="86 days ago: Up all day"></span><span class="ok" title="85 days ago: Up all day"></span><span class="ok" title="84 days ago: Up all day"></span><span class="ok" title="83 days ago: Up all day"></span><span class="ok" title="82 days ago: Up all day"></span><span class="ok" title="81 days ago: Up all day"></span><span class="ok" title="80 days ago: Up all day"></span><span class="ok" title="79 days ago: Up all day"></span><span class="ok" title="78 days ago: Up all day"></span><span class="ok" title="77 days ago: Up all day"></span><span class="ok" title="76 days ago: Up all day"></span><span class="ok" title="75 days ago: Up all day"></span><span class="ok" title="74 days ago: Up all day"></span><span class="ok" title="73 days ago: Up all day"></span><span class="ok" title="72 days ago: Up all day"></span><span class="ok" title="71 days ago: Up all day"></span><span class="ok" title="70 days ago: Up all day"></span><span class="ok" title="69 days ago: Up all day"></span><span class="ok" title="68 days ago: Up all day"></span><span class="ok" title="67 days ago: Up all day"></span><span class="ok" title="66 days ago: Up all day"></span><span class="ok" title="65 days ago: Up all day"></span><span class="ok" title="64 days ago: Up all day"></span><span class="ok" title="63 days ago: Up all day"></span><span class="ok" title="62 days ago: Up all day"></span><span class="ok" title="61 days ago: Up all day"></span><span class="ok" title="60 days ago: Up all day"></span><span class="ok" title="59 days ago: Up all day"></span><span class="ok" title="58 days ago: Up all day"></span><span class="ok" title="57 days ago: Up all day"></span><span class="ok" title="56 days ago: Up all day"></span><span class="ok" title="55 days ago: Up all day"></span><span class="ok" title="54 days ago: Up all day"></span><span class="ok" title="53 days ago: Up all day"></span><span class="ok" title="52 days ago: Up all day"></span><span class="ok" title="51 days ago: Up all day"></span><span class="ok" title="50 days ago: Up all day"></span><span class="ok" title="49 days ago: Up all day"></span><span class="ok" title="48 days ago: Up all day"></span><span class="ok" title="47 days ago: Up all day"></span><span class="ok" title="46 days ago: Up all day"></span><span class="ok" title="45 days ago: Up all day"></span><span class="ok" title="44 days ago: Up all day"></span><span class="ok" title="43 days ago: Up all day"></span><span class="ok" title="42 days ago: Up all day"></span><span class="ok" title="41 days ago: Up all day"></span><span class="warn" title="40 days ago: Down for a few minutes"></span><span class="ok" title="39 days ago: Up all day"></span><span class="ok" title="38 days ago: Up all day"></span><span class="ok" title="37 days ago: Up all day"></span><span class="ok" title="36 days ago: Up all day"></span><span class="ok" title="35 days ago: Up all day"></span><span class="ok" title="34 days ago: Up all day"></span><span class="ok" title="33 days ago: Up all day"></span><span class="ok" title="32 days ago: Up all day"></span><span class="ok" title="31 days ago: Up all day"></span><span class="ok" title="30 days ago: Up all day"></span><span class="ok" title="29 days ago: Up all day"></span><span class="ok" title="28 days ago: Up all day"></span><span class="ok" title="27 days ago: Up all day"></span><span class="ok" title="26 days ago: Up all day"></span><span class="ok" title="25 days ago: Up all day"></span><span class="ok" title="24 days ago: Up all day"></span><span class="ok" title="23 days ago: Up all day"></span><span class="ok" title="22 days ago: Up all day"></span><span class="ok" title="21 days ago: Up all day"></span><span class="ok" title="20 days ago: Up all day"></span><span class="ok" title="19 days ago: Up all day"></span><span class="ok" title="18 days ago: Up all day"></span><span class="ok" title="17 days ago: Up all day"></span><span class="ok" title="16 days ago: Up all day"></span><span class="ok" title="15 days ago: Up all day"></span><span class="ok" title="14 days ago: Up all day"></span><span class="ok" title="13 days ago: Up all day"></span><span class="warn" title="12 days ago: Down for a few minutes"></span><span class="ok" title="11 days ago: Up all day"></span><span class="ok" title="10 days ago: Up all day"></span><span class="ok" title="9 days ago: Up all day"></span><span class="ok" title="8 days ago: Up all day"></span><span class="ok" title="7 days ago: Up all day"></span><span class="ok" title="6 days ago: Up all day"></span><span class="ok" title="5 days ago: Up all day"></span><span class="ok" title="4 days ago: Up all day"></span><span class="ok" title="3 days ago: Up all day"></span><span class="ok" title="2 days ago: Up all day"></span><span class="ok" title="Yesterday: Up all day"></span><span class="ok" title="Today: Up all day"></span></div>
+      <div class="bar-ends hint"><span>90 days ago</span><span>Today</span></div>
+      <dl class="facts">
+        <dt>Uptime</dt><dd>100% today · 99.98% over 7 days · 99.97% over 30 days · 99.95% over 90 days</dd>
+      </dl>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Answer time, last 24 hours</h2><span class="hint">usually 140 ms</span></div>
+      <svg class="spark" viewBox="0 0 600 80" preserveAspectRatio="none" role="img" aria-label="Answer time over the last 24 hours">
+  <polyline points="0.0,70.2 6.3,68.4 12.6,68.7 18.9,70.7 25.3,69.5 31.6,66.8 37.9,68.3 44.2,69.0 50.5,68.2 56.8,68.4 63.2,71.0 69.5,68.3 75.8,71.3 82.1,66.8 88.4,67.2 94.7,69.0 101.1,70.1 107.4,68.6 113.7,70.2 120.0,70.4 126.3,67.8 132.6,69.0 138.9,68.7 145.3,67.2 151.6,68.6 157.9,69.0 164.2,69.4 170.5,68.2 176.8,67.0 183.2,70.6 189.5,70.2 195.8,68.2 202.1,70.6 208.4,67.0 214.7,66.7 221.1,68.7 227.4,69.5 233.7,67.6 240.0,71.3 246.3,68.0 252.6,31.2 258.9,6.0 265.3,47.7 271.6,67.6 277.9,68.4 284.2,71.2 290.5,69.8 296.8,67.5 303.2,71.3 309.5,67.2 315.8,67.0 322.1,70.0 328.4,69.0 334.7,68.3 341.1,67.7 347.4,66.8 353.7,66.9 360.0,69.5 366.3,67.8 372.6,67.4 378.9,66.8 385.3,69.2 391.6,69.4 397.9,67.7 404.2,67.3 410.5,68.5 416.8,69.1 423.2,66.7 429.5,70.7 435.8,66.9 442.1,69.5 448.4,70.9 454.7,71.2 461.1,70.7 467.4,68.9 473.7,70.3 480.0,70.1 486.3,68.0 492.6,69.2 498.9,67.5 505.3,68.2 511.6,67.1 517.9,69.8 524.2,69.3 530.5,68.8 536.8,67.2 543.2,69.5 549.5,68.5 555.8,69.6 562.1,68.7 568.4,68.4 574.7,69.3 581.1,68.4 587.4,70.2 593.7,66.9 600.0,69.7" fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>
+      <div class="bar-ends hint"><span>Yesterday 19:42</span><span>Now</span></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>When it was down</h2></div>
+      <div class="table-wrap"><table class="list">
+        <thead><tr><th>When</th><th>For</th><th>What came back</th></tr></thead>
+        <tbody>
+          <tr><td>7 Oct, 03:12</td><td>4 minutes</td><td>No answer within 10 seconds</td></tr>
+          <tr><td>9 Sep, 14:40</td><td>12 minutes</td><td>502 Bad Gateway: Caddy couldn't reach Vaultwarden</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+  </div>
+  <div class="span-4 grid-column">
+    <section class="card">
+      <div class="card-head"><h2>What's checked</h2></div>
+      <dl class="facts">
+        <dt>Address</dt><dd><code>https://vault.smiths.roost.ac/alive</code></dd>
+        <dt>Asked at</dt><dd>nuc's Caddy, 100.96.0.1, over the lab network</dd>
+        <dt>Up means</dt><dd>A valid certificate and an answer below 500 within 10 seconds</dd>
+        <dt>Certificate</dt><dd>Let's Encrypt, until 19 December (61 days)</dd>
+      </dl>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Latest checks</h2></div>
+      <div class="table-wrap"><table class="list">
+        <tbody><tr><td>19:42</td><td>200</td><td class="num">121 ms</td><td><span class="status status-running">Up</span></td></tr><tr><td>19:41</td><td>200</td><td class="num">137 ms</td><td><span class="status status-running">Up</span></td></tr><tr><td>19:40</td><td>200</td><td class="num">158 ms</td><td><span class="status status-running">Up</span></td></tr><tr><td>19:39</td><td>200</td><td class="num">130 ms</td><td><span class="status status-running">Up</span></td></tr><tr><td>19:38</td><td>200</td><td class="num">140 ms</td><td><span class="status status-running">Up</span></td></tr><tr><td>19:37</td><td>200</td><td class="num">154 ms</td><td><span class="status status-running">Up</span></td></tr></tbody>
+      </table></div>
+    </section>
+  </div>
+</div>
+</main>
+      <footer class="site">Roostack <span class="version" title="Roostack's version">13bc0b5-dirty</span> · <a href="/about">About</a> · <a href="/design" target="_blank" rel="noopener">Design system<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a></footer>
+    </div>
+  </div>
+  
+<script src="mock.js"></script>
+</body>
+</html>
+
+
+
