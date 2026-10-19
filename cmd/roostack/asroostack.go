@@ -78,11 +78,10 @@ func runAsRoostack(args []string) error {
 		return err
 	}
 	cmd := exec.Command(exe, args...)
-	cmd.Env = append(os.Environ(),
-		"HOME="+u.HomeDir, "USER="+serviceUser, "LOGNAME="+serviceUser,
-		fmt.Sprintf("XDG_RUNTIME_DIR=/run/user/%d", uid),
-		fmt.Sprintf("DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%d/bus", uid),
-		asServiceUserEnv+"=1")
+	cmd.Env = append(os.Environ(), "HOME="+u.HomeDir, "USER="+serviceUser, "LOGNAME="+serviceUser, asServiceUserEnv+"=1")
+	for k, v := range userSession(int(uid)) {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
 	// Wrapped, so exec makes pipes rather than passing the terminal on.
 	cmd.Stdout = &controlFilter{w: os.Stdout}
 	cmd.Stderr = &controlFilter{w: os.Stderr}
@@ -123,6 +122,44 @@ func runAsRoostack(args []string) error {
 		return exitStatus(code)
 	}
 	return err
+}
+
+// userSession is the environment that finds a user's systemd manager:
+// systemctl --user and rootless Podman look for it through XDG_RUNTIME_DIR
+// and its D-Bus socket there.
+func userSession(uid int) map[string]string {
+	dir := fmt.Sprintf("/run/user/%d", uid)
+	return map[string]string{"XDG_RUNTIME_DIR": dir, "DBUS_SESSION_BUS_ADDRESS": "unix:path=" + dir + "/bus"}
+}
+
+// ownSession is what a command run as the roostack user itself needs set
+// to reach that user's systemd manager (userSession): sudo -u roostack
+// passes on neither, and su keeps root's. Nothing when it's set already
+// (the service has it from its unit), and nothing for root, which re-runs
+// the commands that need it as roostack (runAsRoostack), or for another
+// user, who has no business with roostack's manager.
+func ownSession(uid int, serviceUID string, getenv func(string) string) map[string]string {
+	if strconv.Itoa(uid) != serviceUID {
+		return nil
+	}
+	want := userSession(uid)
+	if getenv("XDG_RUNTIME_DIR") == want["XDG_RUNTIME_DIR"] && getenv("DBUS_SESSION_BUS_ADDRESS") != "" {
+		return nil
+	}
+	return want
+}
+
+// setOwnSession sets ownSession's variables for this process and the
+// commands it runs, so "sudo -u roostack roostack backup snapshots" works
+// as it is.
+func setOwnSession() {
+	u, err := osuser.Lookup(serviceUser)
+	if err != nil {
+		return // not installed here: nothing to find
+	}
+	for k, v := range ownSession(os.Geteuid(), u.Uid, os.Getenv) {
+		os.Setenv(k, v)
+	}
 }
 
 // controlFilter passes output on without control characters other than

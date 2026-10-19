@@ -61,9 +61,10 @@ func wireGuardConf(iface string) string { return "/etc/wireguard/" + iface + ".c
 var WireGuardConf = wireGuardConf(WireGuardInterface)
 
 // WireGuard is the desired WireGuard interface. The server's private key
-// stays in the config file, readable by root only; the roostack service
-// sees it only to back it up (WireGuardKeys), so a restored lab keeps the
-// keys its peers know.
+// is in the config file, readable by root only, and in the copy the
+// roostack service keeps for its backups (WireGuardKeys, saved 0600 as
+// backup.WireGuardKeysFile, the roostack user's), so a restored lab keeps
+// the keys its peers know.
 type WireGuard struct {
 	// Interface is which one ("" is roostack).
 	Interface string `json:"interface,omitempty"`

@@ -12,7 +12,7 @@ func TestScene(t *testing.T) {
 		!strings.Contains(b, `id="es-wash-2"`) {
 		t.Errorf("IDs: %.200s", a)
 	}
-	if Scene("nope", "1") != "" || len(Names()) != 11 {
+	if Scene("nope", "1") != "" || len(Names()) != 12 {
 		t.Errorf("names: %v", Names())
 	}
 }
@@ -41,5 +41,22 @@ func TestCaddyPages(t *testing.T) {
 	}
 	if !strings.Contains(pages["503.html"], `http-equiv="refresh"`) || strings.Contains(p, `http-equiv="refresh"`) {
 		t.Error("only the starting page reloads itself")
+	}
+}
+
+// The refused page tells a ban from a request AppSec matched by the var
+// the route sets before AppSec, says nothing about the request or the lab,
+// and offers no "Try again".
+func TestRefusedPage(t *testing.T) {
+	p := CaddyPages(`The Smiths' lab`, "https://roost.lab.example.com")["403.html"]
+	waf := `{{if eq (placeholder "http.vars.roostack_waf") "yes"}}`
+	i, j := strings.Index(p, waf+"<h1>"+fill(exploitPage.Headline)), strings.Index(p, "{{else}}<h1>"+fill(bannedPage.Headline))
+	if i < 0 || j < i || !strings.Contains(p, "<title>"+waf) || !strings.Contains(p, tplService+", because it looked like an attack") {
+		t.Errorf("the two refusals:\n%s", p)
+	}
+	for _, leak := range []string{"Smiths", "roost.lab.example.com", ".Host", "http.request", "http.error.message", "Try again", "<details>"} {
+		if strings.Contains(p, leak) {
+			t.Errorf("the refused page has %q", leak)
+		}
 	}
 }

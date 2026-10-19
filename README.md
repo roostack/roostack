@@ -34,13 +34,13 @@ All of these can be changed in `lab.yaml`. The defaults are in [internal/config/
 
 ## Running `roostack` commands on a server
 
-Most commands (`backup`, `apply`) work on the `roostack` user's files and containers, so run them as that user, with its systemd session:
+Most commands (`backup`, `apply`) work on the `roostack` user's files and containers, so run them as that user:
 
 ```bash
-sudo -u roostack XDG_RUNTIME_DIR=/run/user/$(id -u roostack) roostack backup snapshots
+sudo -u roostack roostack backup snapshots
 ```
 
-Why `XDG_RUNTIME_DIR`: Roostack runs containers through the `roostack` user's own systemd manager (rootless Podman), and `systemctl --user` finds that manager through `$XDG_RUNTIME_DIR` (`/run/user/<uid>`, where its D-Bus socket is). `sudo -u` doesn't set it, so without it you get *"Failed to connect to user scope bus … $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined"*. The `roostack` service gets it from its systemd unit.
+Roostack runs containers through the `roostack` user's own systemd manager (rootless Podman), which `systemctl --user` finds through `XDG_RUNTIME_DIR` (`/run/user/<uid>`, where its D-Bus socket is). `sudo -u` doesn't set it, so `roostack` sets it itself when it runs as the `roostack` user. Other programs still need it, for example `sudo -u roostack XDG_RUNTIME_DIR=/run/user/$(id -u roostack) systemctl --user status 'roostack-*'`.
 
 `roostack user`, `backup` and `apply` can also be run with plain `sudo`: started as root, they run themselves again as the roostack user, with its systemd session, so root never opens files the roostack user could have replaced with a link. `roostack node join` runs as root, joins as roostack and only restarts the service as root. See the help's [command line page](help/docs/reference/cli.md).
 

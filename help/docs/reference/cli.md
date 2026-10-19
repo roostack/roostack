@@ -9,16 +9,17 @@ Run `roostack <command> -h` on the server for each command's options.
 ## Who runs what
 
 Most commands work on the `roostack` user's files and containers, so they
-run as that user, with its systemd session:
+run as that user:
 
 ```bash
-sudo -u roostack XDG_RUNTIME_DIR=/run/user/$(id -u roostack) roostack <command>
+sudo -u roostack roostack <command>
 ```
 
-`systemctl --user` finds the user's systemd through `XDG_RUNTIME_DIR`,
-which `sudo -u` doesn't set; without it, commands fail with *"Failed to
-connect to user scope bus"*. The examples below write this as `roostack`
-for short.
+The examples below write this as `roostack` for short. Run as the
+roostack user, `roostack` finds that user's systemd itself (it sets
+`XDG_RUNTIME_DIR`, which `sudo -u` doesn't). Other programs, such as
+`systemctl --user` or `podman`, still need it given:
+`sudo -u roostack XDG_RUNTIME_DIR=/run/user/$(id -u roostack) systemctl --user …`.
 
 `roostack user`, `roostack backup` and `roostack apply` can also be run
 with plain `sudo`: started as root, they run themselves again as the

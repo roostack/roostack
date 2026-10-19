@@ -67,10 +67,11 @@ services**. Then:
     reads the name in each TLS handshake, passes connections for public
     names to the controller's port 443 over WireGuard with a PROXY protocol
     (v2) header, and drops any other name. Plain HTTP for those names is
-    redirected. The controller's Caddy accepts the PROXY header only from
-    the cloud server's WireGuard address, and treats that address as
-    outside, so a connection without a header can't reach anything
-    private. HTTP/3 (UDP) doesn't pass through the cloud server: browsers
+    redirected. The controller's firewall sends the cloud server's
+    connections to a listener of Caddy's own (port 8474), which accepts the
+    PROXY header only from the cloud server's WireGuard address and counts
+    every visitor there as outside, whatever address the header claims, so
+    nothing through the cloud server can reach anything private. HTTP/3 (UDP) doesn't pass through the cloud server: browsers
     use HTTP/2. For now one cloud server is the way in for every public
     address.
 
@@ -184,8 +185,10 @@ While a service is public, CrowdSec also checks each request from the
 internet before the service gets it. If the request tries an **exploit of
 a known vulnerability** in a popular app, such as reading a website's
 secret `.env` file, or a bug in an old version of a web app, CrowdSec
-refuses it: the visitor gets "403 Forbidden", and the service never sees
-the request. An address that tries two different exploits is blocked
+refuses it: the visitor gets a page saying *That one ruffled some
+feathers*, that the request looked like an attack, and to tell whoever
+runs the service if they were only using it as usual. The service never
+sees the request. An address that tries two different exploits is blocked
 altogether for four hours.
 
 This is sometimes called **virtual patching**: it protects a service from
@@ -205,8 +208,10 @@ refused, by service.
 
 The rules are written for specific exploits, so a refused request is
 nearly always an attack. Rarely, one matches something a service really
-does. You'd notice that part of the service fails from outside, with "403
-Forbidden", but works at home (requests from home aren't checked).
+does. You'd notice that part of the service fails from outside, with
+*That one ruffled some feathers* (or just "403 Forbidden", where the app
+loads that part in the background), but works at home (requests from
+home aren't checked).
 
 1. On the service's page, under **Known exploits**, look for a request
    refused when it failed, from your own address (a website such as
@@ -226,7 +231,8 @@ Forbidden", but works at home (requests from home aren't checked).
    blocking back on.
 
 If you were blocked altogether (every page of every public service says
-"403 Forbidden" from outside), the block ends after four hours. A technical
+*Shooed out of the henhouse* from outside), the block ends after four
+hours. A technical
 user can end it now (below).
 
 ??? note "For technical users"
@@ -243,12 +249,20 @@ user can end it now (below).
       `crowdsecurity/appsec-generic-rules` collections. They come from one
       commit of [CrowdSec's Hub](https://github.com/crowdsecurity/hub),
       set in `/var/lib/roostack/crowdsec/config.yaml.local`, and change
-      with Roostack's updates.
+      with Roostack's updates. The lists some of CrowdSec's attack
+      scenarios use (from `hub-data.crowdsec.net`) can't be pinned that
+      way: CrowdSec fetches the latest of them when it starts.
     - The bouncer sends AppSec the request's address, path, headers and
       the first 1 MiB of its body, over the server's loopback. If AppSec
       doesn't answer within 2 seconds (CrowdSec restarting, say), the
       request goes through, and **Settings → Public access** says
       CrowdSec isn't running.
+    - The bouncer hands its refusals to Caddy as errors
+      (`enable_caddy_error`), so a visitor gets
+      `/var/lib/roostack/caddy/errors/403.html`. A ban and a refused
+      request are the same error to Caddy; the page tells them apart by
+      `roostack_waf`, which the address's handler sets just before
+      AppSec. It never repeats anything from the request.
     - Each refused request is a CrowdSec alert of kind `waf`. In the
       container (`podman exec roostack-crowdsec …` as the `roostack`
       user): `cscli alerts list --kind waf` lists them, `cscli alerts
