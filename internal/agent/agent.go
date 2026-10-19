@@ -82,6 +82,17 @@ type Host interface {
 	Drives() ([]Drive, error)
 	UseDrive(id string) (UsedDrive, error)
 	EraseDrive(disk, label string) error
+	// LibraryFolders lists the folders where a media library could be;
+	// MountLibrary mounts one for good, UnmountLibrary forgets it, and
+	// Libraries lists them (library.go).
+	LibraryFolders(l Library) (FolderList, error)
+	MountLibrary(l Library) error
+	UnmountLibrary(name string) error
+	Libraries() ([]LibraryStatus, error)
+	// SetLibraryViews sets the libraries a service may read (its view
+	// folder); RemoveLibraryViews removes its folder.
+	SetLibraryViews(service string, libraries []string) error
+	RemoveLibraryViews(service string) error
 	// RemoveWireGuard takes an interface down and deletes its
 	// configuration (e.g. the server left its lab).
 	RemoveWireGuard(iface string) error
@@ -248,6 +259,68 @@ func (s *Server) Handler() http.Handler {
 		uid, _ := r.Context().Value(ctxKey{}).(uint32)
 		s.Log.Warn("erasing a disk for backups", "disk", req.Disk, "uid", uid)
 		if err := s.Host.EraseDrive(req.Disk, req.Label); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("GET /v1/libraries", func(w http.ResponseWriter, r *http.Request) {
+		libs, err := s.Host.Libraries()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, libs)
+	})
+	mux.HandleFunc("POST /v1/libraries/folders", func(w http.ResponseWriter, r *http.Request) {
+		var l Library
+		if !decode(w, r, 8<<10, &l) {
+			return
+		}
+		list, err := s.Host.LibraryFolders(l)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, list)
+	})
+	mux.HandleFunc("PUT /v1/libraries/{name}", func(w http.ResponseWriter, r *http.Request) {
+		var l Library
+		if !decode(w, r, 8<<10, &l) {
+			return
+		}
+		l.Name = r.PathValue("name")
+		if err := s.Host.MountLibrary(l); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		s.Log.Info("media library mounted", "name", l.Name, "drive", l.Drive, "sub", l.Sub, "folder", l.Folder, "as_owner", l.AsOwner != nil)
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("DELETE /v1/libraries/{name}", func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		if err := s.Host.UnmountLibrary(name); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		s.Log.Info("media library removed", "name", name)
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("PUT /v1/library-views/{service}", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Libraries []string `json:"libraries"`
+		}
+		if !decode(w, r, 8<<10, &req) {
+			return
+		}
+		if err := s.Host.SetLibraryViews(r.PathValue("service"), req.Libraries); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("DELETE /v1/library-views/{service}", func(w http.ResponseWriter, r *http.Request) {
+		if err := s.Host.RemoveLibraryViews(r.PathValue("service")); err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}

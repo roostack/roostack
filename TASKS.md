@@ -467,8 +467,8 @@ Packages go to the registry (`roostack/services`), each checked with `roostack v
 - [ ] Cal.diy: heavy, and its README says personal, non-production use; decide with the Owner
 - [ ] **Before go-live: every placeholder logo replaced** with the project's own, once its terms allow it or the project agrees (each package's file says why it has a placeholder)
 - [ ] **Media libraries** (design locked 2026-10-19 with a mock-up, SPEC §8.1 "Media libraries"): libraries per server (drive folder, share, or a folder on the server), chosen per service, read-only and not backed up, `ro,rslave`; "read as owner" through idmapped mounts
-  - [ ] Agent: list a drive's folders (and a server's), sample readability and the main owner, mount and unmount a library (fstab: drive by UUID read-only + bind, optionally idmapped), refuse backup drives and Roostack's folders
-  - [ ] Store and manager: libraries per server, sent to nodes with their assignment; a service's `libraries:` in its instance; generate `{ libraries: true, path: … }` mounts
+  - [x] Agent (2026-10-19): list a drive's or folder's folders, sample readability and the main owner, mount and unmount a library (fstab: drive by UUID read-only, then a bind, optionally idmapped), a view folder per service, refusals; tried on VM3 with its sandbox (unplug, replug, reboot)
+  - [ ] Store and manager: libraries per server, sent to nodes with their assignment; a service's `libraries:` in its instance; the node sets its services' views (agent) before starting them; generate `{ libraries: true, path: … }` as the view folder `ro,rslave`
   - [ ] UI: Settings → Media libraries (list, add, manage, remove), library checkboxes on install and in a service's settings, the move page naming missing libraries, gallery entries
   - [ ] Packages: Jellyfin, Navidrome, Plex
   - [ ] SMB and NFS shares (with `cifs-utils` and `nfs-common` as Recommends): login kept root-only, a check before saving

@@ -30,6 +30,9 @@ type fakeHost struct {
 	erased    string
 	keysOnly  bool
 	series    string
+	library   *Library
+	unmounted string
+	views     []string
 }
 
 func (f *fakeHost) ApplyLinks(l Links) error { f.links = &l; return nil }
@@ -64,6 +67,22 @@ func (f *fakeHost) UseDrive(id string) (UsedDrive, error) {
 	return UsedDrive{Dir: "/mnt/roostack-x", UUID: "u"}, nil
 }
 func (f *fakeHost) EraseDrive(disk, label string) error { f.erased = disk; return nil }
+func (f *fakeHost) LibraryFolders(l Library) (FolderList, error) {
+	return FolderList{Path: l.Sub, Folders: []FolderEntry{{Name: "Films", Folders: 2}}}, nil
+}
+func (f *fakeHost) MountLibrary(l Library) error     { f.library = &l; return nil }
+func (f *fakeHost) UnmountLibrary(name string) error { f.unmounted = name; return nil }
+func (f *fakeHost) SetLibraryViews(service string, libs []string) error {
+	f.views = append([]string{service}, libs...)
+	return nil
+}
+func (f *fakeHost) RemoveLibraryViews(service string) error {
+	f.views = []string{"removed", service}
+	return nil
+}
+func (f *fakeHost) Libraries() ([]LibraryStatus, error) {
+	return []LibraryStatus{{Name: "films", Mounted: true, Connected: true}}, nil
+}
 func (f *fakeHost) HostChanges() (HostChanges, error) {
 	return HostChanges{Held: []string{"linux-image-amd64"}}, nil
 }

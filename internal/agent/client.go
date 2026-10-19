@@ -218,6 +218,41 @@ func (c *Client) EraseDrive(ctx context.Context, disk, label string) error {
 	return c.call(ctx, http.MethodPost, "/v1/drives/erase", map[string]string{"disk": disk, "label": label}, nil)
 }
 
+// Libraries lists the media libraries mounted on this server.
+func (c *Client) Libraries(ctx context.Context) ([]LibraryStatus, error) {
+	var libs []LibraryStatus
+	err := c.call(ctx, http.MethodGet, "/v1/libraries", nil, &libs)
+	return libs, err
+}
+
+// LibraryFolders lists the folders where a media library could be, and
+// how many files there Roostack could read.
+func (c *Client) LibraryFolders(ctx context.Context, l Library) (FolderList, error) {
+	var list FolderList
+	err := c.call(ctx, http.MethodPost, "/v1/libraries/folders", l, &list)
+	return list, err
+}
+
+// MountLibrary mounts a media library for good (replacing one of its name).
+func (c *Client) MountLibrary(ctx context.Context, l Library) error {
+	return c.call(ctx, http.MethodPut, "/v1/libraries/"+url.PathEscape(l.Name), l, nil)
+}
+
+// UnmountLibrary unmounts a media library and forgets it.
+func (c *Client) UnmountLibrary(ctx context.Context, name string) error {
+	return c.call(ctx, http.MethodDelete, "/v1/libraries/"+url.PathEscape(name), nil, nil)
+}
+
+// SetLibraryViews sets the media libraries a service may read.
+func (c *Client) SetLibraryViews(ctx context.Context, service string, libraries []string) error {
+	return c.call(ctx, http.MethodPut, "/v1/library-views/"+url.PathEscape(service), map[string][]string{"libraries": libraries}, nil)
+}
+
+// RemoveLibraryViews removes a service's library views.
+func (c *Client) RemoveLibraryViews(ctx context.Context, service string) error {
+	return c.call(ctx, http.MethodDelete, "/v1/library-views/"+url.PathEscape(service), nil, nil)
+}
+
 // PrepareBackupFolder makes a roostack folder that Roostack may write to
 // in a backup folder that exists, and returns it.
 func (c *Client) PrepareBackupFolder(ctx context.Context, dir string) (string, error) {
