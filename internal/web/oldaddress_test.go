@@ -94,7 +94,7 @@ func TestOldAddressRecords(t *testing.T) {
 	fd.st.Left = append(fd.st.Left, dnsrecords.Record{Name: "*.smiths.roost.ac", Type: "A", Value: "192.168.1.20"})
 	_, body = h.get("/settings/domain")
 	for _, want := range []string{"Delete them at Porkbun", "roost.ac name, there's nothing to do there", "<code>*.smiths.roost.ac</code>",
-		"They&#39;re gone"} {
+		"I&#39;ve deleted them"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("not noted: missing %q", want)
 		}
