@@ -809,3 +809,43 @@ func TestMySQLIdent(t *testing.T) {
 		t.Error("different names must stay different")
 	}
 }
+
+// A container reading media libraries binds the service's view folder,
+// read-only and rslave, so libraries come and go inside it (SPEC.md §8.1).
+func TestLibrariesMount(t *testing.T) {
+	p, err := pkgspec.Parse([]byte(`
+schema: roostack/v1alpha1
+name: player
+title: Player
+version: "1"
+storage:
+  config: { class: critical }
+containers:
+  app:
+    image: example/player:1
+    mounts:
+      - { storage: config, path: /config }
+      - { libraries: true, path: /media }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := Service(testLab(), p, &instance.Instance{Package: "player", Version: "1", Updates: "notify", Libraries: []string{"films"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var app string
+	for _, q := range out.Quadlets {
+		if q.Name == "roostack-player-app.container" {
+			app = q.Content
+		}
+	}
+	if !strings.Contains(app, "Volume=/mnt/roostack-library-views/player:/media:ro,rslave\n") || !out.ReadsLibraries {
+		t.Errorf("reads libraries %v:\n%s", out.ReadsLibraries, app)
+	}
+	for _, d := range out.Backup.Include {
+		if strings.Contains(d, "library") {
+			t.Errorf("libraries must never be backed up: %q", d)
+		}
+	}
+}

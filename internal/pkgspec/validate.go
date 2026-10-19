@@ -322,7 +322,11 @@ func (p *Package) validateContainer(v *validator, name string, c *Container) {
 		}
 	}
 	for i, m := range c.Mounts {
-		if p.Storage[m.Storage] == nil {
+		switch {
+		case m.Libraries && m.Storage != "":
+			v.addf("%s.mounts[%d]: set storage or libraries, not both", at, i)
+		case m.Libraries:
+		case p.Storage[m.Storage] == nil:
 			v.addf("%s.mounts[%d]: unknown storage %q", at, i, m.Storage)
 		}
 		if !path.IsAbs(m.Path) {

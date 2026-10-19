@@ -60,6 +60,19 @@ type Paths struct {
 	CatalogDir  string `yaml:"catalog_dir"`  // packages: <name>/<version>.yaml
 }
 
+// Media libraries' places (SPEC.md §8.1, "Media libraries"): fixed, and
+// root's, not under the configurable paths (the roostack user owns those
+// and could swap a mount point for a symlink). LibraryRoot holds a mount
+// point per library; LibraryViews a folder per service with the libraries
+// it may read, which its containers bind.
+const (
+	LibraryRoot  = "/mnt/roostack-library"
+	LibraryViews = "/mnt/roostack-library-views"
+)
+
+// LibraryView is a service's folder of the media libraries it may read.
+func LibraryView(service string) string { return filepath.Join(LibraryViews, service) }
+
 // QuadletDir is where rootless Quadlet files for the roostack user live.
 func (p Paths) QuadletDir() string {
 	return filepath.Join(p.HomeDir, ".config", "containers", "systemd")

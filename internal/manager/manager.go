@@ -70,7 +70,10 @@ type Manager struct {
 	// BackupStore records backup providers and targets, and OpenRepo opens
 	// a repository with the recovery key (backups.go; optional).
 	BackupStore BackupStore
-	OpenRepo    func(url string, env []string) *backup.Repo
+	// Libraries keeps the servers' media libraries (store.Store; SPEC.md
+	// §8.1, "Media libraries"). Nil: none.
+	Libraries LibraryStore
+	OpenRepo  func(url string, env []string) *backup.Repo
 	// CloudBackup is Roostack Cloud backup, when the lab is linked (nil:
 	// none): its short-lived keys and the lab's usage (SPEC.md §6.9).
 	CloudBackup CloudBackup

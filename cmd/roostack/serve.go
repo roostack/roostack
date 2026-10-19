@@ -341,6 +341,7 @@ func serve(args []string) error {
 	// Backups across servers (SPEC.md §10.10): the controller creates
 	// each server's repository with the recovery key.
 	mgr.BackupStore = st
+	mgr.Libraries = st
 	// This lab's storage at other labs: forward its servers' backups.
 	for _, r := range mgr.RemoteStorages(ctx) {
 		go forwardToRemote(ctx, lab, r, log)

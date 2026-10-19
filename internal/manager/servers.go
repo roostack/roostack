@@ -238,6 +238,7 @@ func (m *Manager) startApplyLocked() {
 			a.Guests, a.GuestAddr = m.guestStores(context.Background())
 		}
 		a.Storage = m.storageFor(context.Background(), id)
+		a.Libraries = m.librariesFor(context.Background(), id)
 		a.Links = m.linksFor(context.Background(), infos, id)
 		if id == edge {
 			a.Edge = edgeConfig(m.Lab, services)

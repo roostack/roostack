@@ -92,6 +92,9 @@ type Assignment struct {
 	// Edge, if set, makes this server the lab's edge (SPEC.md §10.5): its
 	// Caddy passes visitors for the public names on to the controller.
 	Edge *caddy.EdgeConfig
+	// Libraries are this server's media libraries (SPEC.md §8.1, "Media
+	// libraries"): mounted, and the rest unmounted, by its agent.
+	Libraries []agent.Library
 	// Reason says why it was sent, for the apply's log.
 	Reason string
 }
@@ -150,8 +153,11 @@ type Local struct {
 	WireGuard WireGuardStatuser
 	// Links configures WireGuard links (the guests' link when this server
 	// hosts storage for other labs).
-	Links   LinkAgent
-	Version string
+	Links LinkAgent
+	// Libraries mounts media libraries and services' views of them
+	// (libraries.go; optional: without it, none are mounted).
+	Libraries LibraryAgent
+	Version   string
 
 	sizes sizes
 
@@ -229,7 +235,7 @@ func (n *Local) Apply(a Assignment) {
 	}
 	old := n.assignment.Services
 	n.assignment = Assignment{Services: a.Services, Lab: a.Lab, Proxied: a.Proxied, Storage: a.Storage, Links: a.Links,
-		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts, Edge: a.Edge}
+		Guests: a.Guests, GuestAddr: a.GuestAddr, ProxyPorts: a.ProxyPorts, Edge: a.Edge, Libraries: a.Libraries}
 	if n.State != nil {
 		// A service taken off this server forgets its setup progress, and
 		// stops any setup still running: its hooks would keep retrying
@@ -327,6 +333,8 @@ func (n *Local) applyOnce(ctx context.Context) (err error) {
 	if err := n.addGuestStorage(&desired, a); err != nil {
 		return err
 	}
+	// Media libraries, and services' views of them, before services start.
+	n.applyLibraries(ctx, act, a, desired)
 	if a.Edge != nil && n.lab(a).IsNode() {
 		// Nodes have no Caddy of their own: the edge's is the system's.
 		edge, err := generate.Edge(n.lab(a), *a.Edge)

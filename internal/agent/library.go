@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 	"unicode"
+
+	"roostack.cloud/roostack/internal/config"
 )
 
 // Media libraries (SPEC.md §8.1, "Media libraries"): folders of media
@@ -34,7 +36,7 @@ import (
 // user's files, on a drive that isn't the system's.
 
 // LibraryRoot holds the libraries' mount points, one folder per library.
-const LibraryRoot = "/mnt/roostack-library"
+const LibraryRoot = config.LibraryRoot
 
 // LibraryViews holds a folder per service, with bind mounts of the
 // libraries it may read: its containers bind that folder (ro,rslave). A
@@ -42,7 +44,7 @@ const LibraryRoot = "/mnt/roostack-library"
 // of the mount, stale once the drive is unplugged and never remounted;
 // mounts inside a bound folder reach the container as they come and go
 // (docs/ASSUMPTIONS.md M1, M3).
-const LibraryViews = "/mnt/roostack-library-views"
+const LibraryViews = config.LibraryViews
 
 // serviceName is a service's ID (instance names), for its view folder.
 var serviceName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)

@@ -84,6 +84,15 @@ databases:
   cache: { type: redis }
 containers:
   web: { image: x, secrets: { P: databases.cache.password } }`, "only databases.<postgres, mysql or mariadb db>.password"},
+		{"a mount of storage and libraries", `
+schema: roostack/v1alpha1
+name: app
+title: App
+version: "1"
+storage:
+  data: {}
+containers:
+  web: { image: x, mounts: [{ storage: data, libraries: true, path: /media }] }`, "set storage or libraries, not both"},
 		{"unknown storage in mount", `
 schema: roostack/v1alpha1
 name: app

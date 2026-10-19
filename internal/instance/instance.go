@@ -67,6 +67,10 @@ type Instance struct {
 	// firewall) for this service's public addresses, after a warning
 	// (SPEC.md §6.10 item 4). Only the Owner can: a package has no say.
 	NoWAF bool `yaml:"no_waf,omitempty"`
+	// Libraries are the media libraries of its server it may read, for a
+	// package that reads them (SPEC.md §8.1, "Media libraries"): chosen at
+	// install (all, by default) and in its settings.
+	Libraries []string `yaml:"libraries,omitempty"`
 }
 
 // RouteOverride holds user changes to a package route. Empty fields keep the
@@ -165,6 +169,9 @@ func Parse(data []byte) (*Instance, error) {
 }
 
 // Validate checks the instance against its package.
+// libraryNameRe is a media library's name (agent.ValidLibraryName).
+var libraryNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
+
 func (in *Instance) Validate(p *pkgspec.Package) error {
 	var errs []error
 	add := func(format string, args ...any) { errs = append(errs, fmt.Errorf(format, args...)) }
@@ -181,6 +188,14 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 	}
 	if in.Host != "" && !nodeid.ValidID(in.Host) {
 		add("host: %q is not a node ID", in.Host)
+	}
+	for _, l := range in.Libraries {
+		if !libraryNameRe.MatchString(l) {
+			add("libraries: %q isn't a media library's name", l)
+		}
+	}
+	if len(in.Libraries) > 0 && !p.ReadsLibraries() {
+		add("libraries: the package reads no media libraries")
 	}
 	if !slices.Contains([]string{UpdatesNotify, UpdatesPatch, UpdatesMinor, UpdatesAll}, in.Updates) {
 		add("updates: must be notify, patch, minor or all; got %q", in.Updates)

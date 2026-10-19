@@ -157,7 +157,9 @@ routes:
 `containers`
 :   Each container: an `image` (pinned by tag and digest), `command`,
     `env` (templates), `secrets` (as environment variables), `mounts` of
-    storage, `devices` (such as a GPU), a `health` check, `depends_on`,
+    storage or, with `{ libraries: true, path: /media }`, of the media
+    libraries the Owner chose for the service (each in a folder of its
+    name under the path, read-only, never backed up), `devices` (such as a GPU), a `health` check, `depends_on`,
     and `when` (a template: the container is left out unless it renders
     `true`). `memory` is what it typically uses, such as `300 MB` or
     `1.5 GB` (1 GB is 1000 MB): an estimate for the summary shown before

@@ -240,6 +240,23 @@ var migrations = []string{
 	// destination is kept only for that.
 	`ALTER TABLE backup_runs ADD COLUMN repository TEXT NOT NULL DEFAULT '';
 	CREATE INDEX backup_runs_repository ON backup_runs (repository, id);`,
+	// Media libraries, per server (SPEC.md §8.1, "Media libraries"): a
+	// folder on a drive (its filesystem's UUID, and the folder on it) or
+	// on the server, optionally read as its owner (uid and gid; 0: not).
+	`CREATE TABLE media_libraries (
+		server_id   TEXT NOT NULL,
+		name        TEXT NOT NULL,
+		title       TEXT NOT NULL,
+		drive       TEXT NOT NULL DEFAULT '',
+		drive_name  TEXT NOT NULL DEFAULT '',
+		sub         TEXT NOT NULL DEFAULT '',
+		folder      TEXT NOT NULL DEFAULT '',
+		owner_uid   INTEGER NOT NULL DEFAULT 0,
+		owner_gid   INTEGER NOT NULL DEFAULT 0,
+		owner_name  TEXT NOT NULL DEFAULT '',
+		created_at  INTEGER NOT NULL,
+		PRIMARY KEY (server_id, name)
+	);`,
 }
 
 // OriginSetup marks sessions signed in on the setup pages on the home

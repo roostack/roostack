@@ -1,10 +1,13 @@
 package node
 
 import (
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
 
+	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/pkgtest"
@@ -47,5 +50,21 @@ func TestDecodeChecksPolicy(t *testing.T) {
 	}
 	if _, err := Decode(WireAssignment{Version: 1, Proxied: []WireProxied{{WireService: wire(false).Services[0]}}}); err == nil {
 		t.Error("a proxied service breaking the policy was accepted")
+	}
+}
+
+// A server's media libraries reach it with its assignment.
+func TestWireLibraries(t *testing.T) {
+	libs := []agent.Library{{Name: "films", Drive: "1111-2222", Sub: "Films", AsOwner: &agent.Owner{UID: 1000, GID: 1000}}}
+	w, err := Encode(config.Lab{}, Assignment{Libraries: libs}, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(w)
+	var back WireAssignment
+	json.Unmarshal(b, &back)
+	a, err := Decode(back)
+	if err != nil || len(a.Libraries) != 1 || a.Libraries[0].Sub != "Films" || a.Libraries[0].AsOwner.UID != 1000 {
+		t.Errorf("%+v %v", a.Libraries, err)
 	}
 }

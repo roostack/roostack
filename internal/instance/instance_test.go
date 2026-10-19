@@ -94,6 +94,9 @@ func TestValidate(t *testing.T) {
 		// Secrets never go in the instance file (it isn't private).
 		{func(in *Instance) { in.Settings["admin_token"] = "x" }, "settings.admin_token: secrets are stored"},
 		{func(in *Instance) { in.Settings["signups_allowed"] = "yes" }, "settings.signups_allowed: expected a bool"},
+		// Vaultwarden reads no media libraries (SPEC.md §8.1).
+		{func(in *Instance) { in.Libraries = []string{"films"} }, "libraries: the package reads no media libraries"},
+		{func(in *Instance) { in.Libraries = []string{"Bad Name"} }, "isn't a media library's name"},
 	} {
 		in := good()
 		tc.change(in)

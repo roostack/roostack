@@ -45,6 +45,7 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		Launch:    userLaunch,
 		WireGuard: agentClient,
 		Links:     agentClient,
+		Libraries: agentClient,
 		Version:   version,
 		Lab:       lab,
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets(),

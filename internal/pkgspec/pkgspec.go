@@ -169,11 +169,27 @@ type Container struct {
 	Quadlet Quadlet `yaml:"quadlet"`
 }
 
-// Mount binds a storage entry into a container.
+// Mount binds a storage entry into a container, or with Libraries the
+// media libraries the Owner chose for the service, each in a folder of
+// its name under Path, read-only (SPEC.md §8.1, "Media libraries").
 type Mount struct {
-	Storage  string `yaml:"storage"`
-	Path     string `yaml:"path"`
-	ReadOnly bool   `yaml:"readonly"`
+	Storage   string `yaml:"storage"`
+	Libraries bool   `yaml:"libraries"`
+	Path      string `yaml:"path"`
+	ReadOnly  bool   `yaml:"readonly"`
+}
+
+// ReadsLibraries says whether any of the package's containers mounts the
+// media libraries.
+func (p *Package) ReadsLibraries() bool {
+	for _, c := range p.Containers {
+		for _, m := range c.Mounts {
+			if m.Libraries {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Device is an abstract hardware request mapped to host devices by Roostack.

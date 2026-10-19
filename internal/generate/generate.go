@@ -78,6 +78,9 @@ func (d DBURL) URL(password string) string {
 // Output is everything generated for one service.
 type Output struct {
 	Service string
+	// ReadsLibraries: a container mounts its view of the media libraries,
+	// which the server makes before starting it (SPEC.md §8.1).
+	ReadsLibraries bool
 	// Quadlets go in config.Paths.QuadletDir().
 	Quadlets []File
 	// CaddySite goes in <CaddyDir>/sites/. Nil when the service has no routes.
@@ -337,6 +340,15 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 	// Parent directories must be mounted before nested ones (ASSUMPTIONS B4).
 	slices.SortStableFunc(mounts, func(a, b pkgspec.Mount) int { return strings.Compare(a.Path, b.Path) })
 	for _, m := range mounts {
+		if m.Libraries {
+			// The service's view folder: a mount of each library it may
+			// read appears in it as it comes and goes (rslave), read-only
+			// (SPEC.md §8.1, docs/ASSUMPTIONS.md M3). The server makes the
+			// folder before starting it.
+			cs.Add("Volume", config.LibraryView(svc)+":"+m.Path+":ro,rslave")
+			g.out.ReadsLibraries = true
+			continue
+		}
 		vol := g.storagePath(m.Storage) + ":" + m.Path
 		if m.ReadOnly {
 			vol += ":ro"
