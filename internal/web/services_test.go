@@ -1058,6 +1058,41 @@ func TestServiceSettings(t *testing.T) {
 		t.Errorf("clash: %d", code)
 	}
 
+	// One form, one Save: how it updates and the libraries it reads are on
+	// it too; a mistake saves none of it and keeps what was chosen.
+	libs := newFakeLibraries()
+	libs.reader = "forgejo"
+	h.server.Libraries = libs
+	_, body = h.get("/services/forgejo/settings")
+	for _, want := range []string{`name="updates" value="notify" checked`, `name="library" value="films" checked`, `name="library" value="music">`,
+		`name="libraries_chosen"`, `class="switch" role="switch" name="setting.signups_allowed"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the settings form lacks %q", want)
+		}
+	}
+	if strings.Contains(body, `action="/services/forgejo/updates"`) || strings.Contains(body, `action="/services/forgejo/libraries"`) {
+		t.Error("updates and libraries still have forms of their own")
+	}
+	code, body = h.post("/services/forgejo/settings", url.Values{"subdomain": {"taken"}, "updates": {"minor"},
+		"libraries_chosen": {"1"}, "library": {"music"}}, h.srv.URL)
+	if code != http.StatusBadRequest || !strings.Contains(body, `value="minor" checked`) || !strings.Contains(body, `value="music" checked`) ||
+		fm.UpdatePolicy("forgejo") != "notify" || libs.svcLibs["forgejo"] != nil {
+		t.Errorf("a mistake: %d, policy %s, libraries %v", code, fm.UpdatePolicy("forgejo"), libs.svcLibs["forgejo"])
+	}
+	n := len(fm.updated)
+	h.post("/services/forgejo/settings", url.Values{"settings_shown": {"1"}, "subdomain": {"code"}, "updates": {"minor"},
+		"libraries_chosen": {"1"}, "library": {"music"}}, h.srv.URL)
+	if len(fm.updated) != n+1 || fm.UpdatePolicy("forgejo") != "minor" || !slices.Equal(libs.svcLibs["forgejo"], []string{"music"}) {
+		t.Errorf("saved: %d settings, policy %s, libraries %v", len(fm.updated)-n, fm.UpdatePolicy("forgejo"), libs.svcLibs["forgejo"])
+	}
+	// Unchanged libraries aren't set again (that would apply for nothing).
+	before := libs.setLibs
+	h.post("/services/forgejo/settings", url.Values{"subdomain": {"code"}, "libraries_chosen": {"1"}, "library": {"music"}}, h.srv.URL)
+	if libs.setLibs != before {
+		t.Error("unchanged libraries set again")
+	}
+	h.server.Libraries = nil
+
 	// Vaultwarden's admin token is shown on request, and audited.
 	_, body = h.get("/services/vaultwarden")
 	if !strings.Contains(body, `action="/services/vaultwarden/reveal/admin_token"`) || strings.Contains(body, "s3cret-token") {

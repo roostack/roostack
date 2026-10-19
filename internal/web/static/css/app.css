@@ -344,6 +344,14 @@ label.check small { display: block; font-weight: var(--weight-normal); }
 select.inline { display: inline-block; width: auto; margin: 0 0 0 var(--space-2); padding: var(--space-1) var(--space-2); }
 .inline-form { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .inline-form label { margin: 0; }
+/* An input with its button after it (Rename, Save): the button as tall as
+   the input, on the same line; the input as wide as a name, not the card. */
+.inline-form > :is(input, select) { margin-top: 0; width: auto; flex: 1 1 12rem; max-width: 24rem; }
+.inline-form > button { align-self: stretch; }
+/* A dropdown in a sentence before a button: as tall as an input, so the
+   button beside it lines up. */
+.inline-form select.inline { padding-top: 9px; padding-bottom: 9px; }
+.inline-form > small { flex-basis: 100%; }
 
 /* Segmented control: a small exclusive choice as one row of buttons
    (radios). Inside a .seg-group, the chosen one's .seg-panel shows; CSS
@@ -401,6 +409,22 @@ input.number-input { max-width: 9rem; }
 .with-suffix input.number-input { flex: 0 1 9rem; }
 /* A label for a control that isn't an input (the folder chosen). */
 .field-label { margin: 0 0 var(--space-2); font-weight: var(--weight-medium); }
+/* A form's section heading (the install form's "Name and address"):
+   small capitals, quieter than a card's heading. */
+h2.form-section { margin: 0 0 var(--space-3); font-family: var(--font-sans); font-size: var(--text-sm);
+  font-weight: var(--weight-bold); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+/* A Details line inside a form, for a field rarely changed (a service's
+   name): quiet, close under the fields above it. */
+details.form-more { margin: calc(-1 * var(--space-2)) 0 var(--space-4); }
+details.form-more > summary { color: var(--muted); font-size: var(--text-sm); cursor: pointer; }
+details.form-more[open] > summary { margin-bottom: var(--space-3); }
+/* The install form, and what it sets up beside it, staying in view (under
+   it when there isn't room). */
+.install-grid { align-items: start; }
+.install-aside { position: sticky; top: var(--space-4); }
+.install-aside .install-summary > h2 { margin-top: 0; }
+select.host-select { max-width: 24rem; }
+
 /* A rule between a form's parts (where something is, then its name). */
 hr.form-rule { border: 0; border-top: 1px solid var(--border); margin: var(--space-5) 0 var(--space-4); }
 /* Checkboxes side by side (services that can read a library). */

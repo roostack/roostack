@@ -23,6 +23,10 @@ type fakeLibraries struct {
 	readers  map[string][]string
 	svcLibs  map[string][]string
 	folderOf []agent.Library
+	// reader is the service that reads libraries (ServiceLibraries).
+	reader string
+	// setLibs counts SetServiceLibraries calls.
+	setLibs int
 }
 
 func newFakeLibraries() *fakeLibraries {
@@ -70,13 +74,22 @@ func (f *fakeLibraries) SetLibraryReaders(_ context.Context, server, name string
 }
 func (f *fakeLibraries) SetServiceLibraries(_ context.Context, service string, libs []string) error {
 	f.svcLibs[service] = libs
+	f.setLibs++
 	return nil
 }
 func (f *fakeLibraries) ServerLibraryChoices(context.Context, string) []store.MediaLibrary {
 	return []store.MediaLibrary{{ServerID: "n-1", Name: "films", Title: "Films"}}
 }
-func (f *fakeLibraries) ServiceLibraries(context.Context, string) (manager.ServiceLibraryChoice, error) {
-	return manager.ServiceLibraryChoice{}, nil
+func (f *fakeLibraries) ServiceLibraries(_ context.Context, service string) (manager.ServiceLibraryChoice, error) {
+	if service != f.reader {
+		return manager.ServiceLibraryChoice{}, nil
+	}
+	chosen, ok := f.svcLibs[service]
+	if !ok {
+		chosen = []string{"films"}
+	}
+	return manager.ServiceLibraryChoice{Reads: true, ServerName: "nuc", Chosen: chosen,
+		Choices: []store.MediaLibrary{{ServerID: "n-1", Name: "films", Title: "Films"}, {ServerID: "n-1", Name: "music", Title: "Music"}}}, nil
 }
 
 // Settings → Media libraries lists each library with where it is, its

@@ -92,7 +92,7 @@
   {{if not .Adding}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
   {{with .ServerChoices}}
   <form method="post" action="/settings/storage/server" class="inline-form">
-    <label>Offered by <select name="server">{{range .}}<option value="{{.ID}}" {{if eq .ID $.HostServer.ID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+    <label>Offered by <select name="server" class="inline">{{range .}}<option value="{{.ID}}" {{if eq .ID $.HostServer.ID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
     <button type="submit" class="secondary">Change</button>
     <small class="hint">The server whose disk keeps their backups (e.g. one with a big disk). It can change only while no other lab stores anything.</small>
   </form>

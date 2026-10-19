@@ -335,6 +335,19 @@ Network=roostack-immich.network</code></pre>
     <div class="dialog-actions"><a class="button secondary" href="#" data-close>Cancel</a><button type="button">Add check</button></div>
   </form>
 </dialog>`},
+			{"Form sections and Details", "h2.form-section: a small heading inside a long form (the install form's Name and address, Where it runs, its settings), with hr.form-rule between sections. details.form-more: a quiet Details line under the fields, for one rarely changed (a service's name for folders and backups).", `
+<form>
+  <h2 class="form-section">Name and address</h2>
+  <div class="field-row"><label>Title <input value="Forgejo"></label><label>Web address <span class="with-suffix"><input value="git"><span>.lab.example.com</span></span></label></div>
+  <details class="form-more"><summary>Its name for folders and backups: <code>forgejo</code></summary>
+    <label>Name <span class="with-prefix"><span>forgejo-</span><input value=""></span></label></details>
+  <hr class="form-rule">
+  <h2 class="form-section">Forgejo's settings</h2>
+  <label class="check"><input type="checkbox" class="switch" role="switch"><span>Allow anyone to create an account</span></label>
+</form>`},
+			{"Input with its button", "form.inline-form: an input then its button (Rename, Save), the button as tall as the input and on its line; a dropdown in a sentence (select.inline) before a button is as tall as an input.", `
+<form class="inline-form"><label class="sr-only" for="gallery-rename">Title</label><input id="gallery-rename" value="Forgejo"><button type="button" class="secondary">Rename</button></form>
+<form class="inline-form"><label>Keep history for <select class="inline"><option>90 days</option></select></label><button type="button" class="secondary">Save</button></form>`},
 			{"Switch", "label.check with input.switch role=\"switch\": an on/off setting that saves with its form (still a checkbox without styles). Ticking items from a list, or confirming something (\"I understand\"), stays a checkbox.", `
 <form>
   <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Offer "Keep me signed in" on the login page<small>For someone's own device.</small></span></label>

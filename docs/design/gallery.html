@@ -2059,6 +2059,63 @@ Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;</pre>
         </div>
         
         <div class="example">
+          <h3>Form sections and Details <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">h2.form-section: a small heading inside a long form (the install form&#39;s Name and address, Where it runs, its settings), with hr.form-rule between sections. details.form-more: a quiet Details line under the fields, for one rarely changed (a service&#39;s name for folders and backups).</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form>
+  <h2 class="form-section">Name and address</h2>
+  <div class="field-row"><label>Title <input value="Forgejo"></label><label>Web address <span class="with-suffix"><input value="git"><span>.lab.example.com</span></span></label></div>
+  <details class="form-more"><summary>Its name for folders and backups: <code>forgejo</code></summary>
+    <label>Name <span class="with-prefix"><span>forgejo-</span><input value=""></span></label></details>
+  <hr class="form-rule">
+  <h2 class="form-section">Forgejo's settings</h2>
+  <label class="check"><input type="checkbox" class="switch" role="switch"><span>Allow anyone to create an account</span></label>
+</form></div>
+            <div class="panel" data-mode="dark"><form>
+  <h2 class="form-section">Name and address</h2>
+  <div class="field-row"><label>Title <input value="Forgejo"></label><label>Web address <span class="with-suffix"><input value="git"><span>.lab.example.com</span></span></label></div>
+  <details class="form-more"><summary>Its name for folders and backups: <code>forgejo</code></summary>
+    <label>Name <span class="with-prefix"><span>forgejo-</span><input value=""></span></label></details>
+  <hr class="form-rule">
+  <h2 class="form-section">Forgejo's settings</h2>
+  <label class="check"><input type="checkbox" class="switch" role="switch"><span>Allow anyone to create an account</span></label>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;form&gt;
+  &lt;h2 class=&#34;form-section&#34;&gt;Name and address&lt;/h2&gt;
+  &lt;div class=&#34;field-row&#34;&gt;&lt;label&gt;Title &lt;input value=&#34;Forgejo&#34;&gt;&lt;/label&gt;&lt;label&gt;Web address &lt;span class=&#34;with-suffix&#34;&gt;&lt;input value=&#34;git&#34;&gt;&lt;span&gt;.lab.example.com&lt;/span&gt;&lt;/span&gt;&lt;/label&gt;&lt;/div&gt;
+  &lt;details class=&#34;form-more&#34;&gt;&lt;summary&gt;Its name for folders and backups: &lt;code&gt;forgejo&lt;/code&gt;&lt;/summary&gt;
+    &lt;label&gt;Name &lt;span class=&#34;with-prefix&#34;&gt;&lt;span&gt;forgejo-&lt;/span&gt;&lt;input value=&#34;&#34;&gt;&lt;/span&gt;&lt;/label&gt;&lt;/details&gt;
+  &lt;hr class=&#34;form-rule&#34;&gt;
+  &lt;h2 class=&#34;form-section&#34;&gt;Forgejo&#39;s settings&lt;/h2&gt;
+  &lt;label class=&#34;check&#34;&gt;&lt;input type=&#34;checkbox&#34; class=&#34;switch&#34; role=&#34;switch&#34;&gt;&lt;span&gt;Allow anyone to create an account&lt;/span&gt;&lt;/label&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Input with its button <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">form.inline-form: an input then its button (Rename, Save), the button as tall as the input and on its line; a dropdown in a sentence (select.inline) before a button is as tall as an input.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form class="inline-form"><label class="sr-only" for="gallery-rename">Title</label><input id="gallery-rename" value="Forgejo"><button type="button" class="secondary">Rename</button></form>
+<form class="inline-form"><label>Keep history for <select class="inline"><option>90 days</option></select></label><button type="button" class="secondary">Save</button></form></div>
+            <div class="panel" data-mode="dark"><form class="inline-form"><label class="sr-only" for="gallery-rename">Title</label><input id="gallery-rename" value="Forgejo"><button type="button" class="secondary">Rename</button></form>
+<form class="inline-form"><label>Keep history for <select class="inline"><option>90 days</option></select></label><button type="button" class="secondary">Save</button></form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;form class=&#34;inline-form&#34;&gt;&lt;label class=&#34;sr-only&#34; for=&#34;gallery-rename&#34;&gt;Title&lt;/label&gt;&lt;input id=&#34;gallery-rename&#34; value=&#34;Forgejo&#34;&gt;&lt;button type=&#34;button&#34; class=&#34;secondary&#34;&gt;Rename&lt;/button&gt;&lt;/form&gt;
+&lt;form class=&#34;inline-form&#34;&gt;&lt;label&gt;Keep history for &lt;select class=&#34;inline&#34;&gt;&lt;option&gt;90 days&lt;/option&gt;&lt;/select&gt;&lt;/label&gt;&lt;button type=&#34;button&#34; class=&#34;secondary&#34;&gt;Save&lt;/button&gt;&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
           <h3>Switch <span class="badge">HTML and CSS classes</span></h3>
           <p class="hint">label.check with input.switch role=&#34;switch&#34;: an on/off setting that saves with its form (still a checkbox without styles). Ticking items from a list, or confirming something (&#34;I understand&#34;), stays a checkbox.</p>
           <div class="panels">

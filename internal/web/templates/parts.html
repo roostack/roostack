@@ -844,3 +844,20 @@
   </details>
   {{end}}
 </section>{{end}}
+
+{{/* setting-fields: a package's settings ([]formField), as the install
+     form and a service's settings show them: text settings two to a row,
+     in the package's order, then on/off settings as switches. */}}
+{{define "setting-fields"}}
+{{$text := false}}{{range .}}{{if ne .Kind "checkbox"}}{{$text = true}}{{end}}{{end}}
+{{if $text}}<div class="field-row">
+  {{range .}}{{if ne .Kind "checkbox"}}<label>{{.Title}}
+    <input type="{{.Kind}}" name="{{.Key}}" value="{{.Value}}" {{if eq .Kind "password"}}autocomplete="new-password"{{end}}
+      {{if .Required}}required{{end}} {{with .MinLength}}minlength="{{.}}"{{end}}>
+    {{with .Description}}<small>{{.}}</small>{{end}}
+  </label>{{end}}{{end}}
+</div>{{end}}
+{{range .}}{{if eq .Kind "checkbox"}}<label class="check"><input type="checkbox" class="switch" role="switch" name="{{.Key}}" {{if .Checked}}checked{{end}}>
+  <span>{{.Title}}{{with .Description}}<small>{{.}}</small>{{end}}</span></label>
+{{end}}{{end}}
+{{end}}

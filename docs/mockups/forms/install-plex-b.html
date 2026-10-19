@@ -1,0 +1,232 @@
+<!doctype html><html lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
+  <title>Install Forgejo · Roostack (mock-up)</title>
+  <link rel="icon" href="/internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/internal/web/static/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="apple-touch-icon" href="/internal/web/static/apple-touch-icon.png">
+  <link rel="preload" href="/internal/web/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/ocean.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/catppuccin.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/gruvbox.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/nord.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/solarized.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/everforest.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/rose-pine.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/tokyo-night.css">
+  
+  <link rel="stylesheet" href="/internal/web/static/css/app.css">
+  <link rel="stylesheet" href="mock.css">
+  <script src="mock.js"></script>
+    
+  <script src="/internal/web/static/app.js" defer></script>
+  <script src="/internal/web/static/alpine-3.17.4.min.js" defer></script>
+  
+</head>
+
+<body x-data="{ menu: false }" x-on:keydown.escape.window="menu = false" x-bind:class="menu && 'menu-open'">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="/"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="sidebar-lab-name"><span>Roostack</span><strong title="Test lab">Test lab</strong></span></a>
+      <div class="sidebar-nav">
+      <nav class="nav-group" aria-label="Your lab">
+        <a class="nav-item" href="/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></svg>Home</a>
+        <a class="nav-item" href="/services" aria-current="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Services</a>
+        <div class="nav-children">
+          
+          <a class="nav-sub" href="/catalog" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add a service…</a>
+        </div>
+        <a class="nav-item" href="/backups"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>Backups</a>
+        <a class="nav-item" href="/servers"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Servers</a>
+        <a class="nav-item" href="/monitoring"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Monitoring</a>
+        
+        <a class="nav-item" href="/settings"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</a>
+        
+      </nav>
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools">
+          <a href="/help/" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg>Help<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+          <form method="post" action="/account/theme" id="theme-toggle">
+  <input type="hidden" name="theme" value="light">
+  <button type="submit" class="theme-toggle" title="Switch to light theme"
+    aria-label="Theme: auto. Switch to light."><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>Auto</button>
+</form>
+        </div>
+        <div class="who">
+          <a href="/account" class="who-link"><span class="avatar" aria-hidden="true">O</span>
+            <span class="who-name"><strong title="owner">owner</strong><span>Owner</span></span></a>
+          <form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></svg><span class="sr-only">Log out</span></button></form>
+        </div>
+      </div>
+    </aside>
+    <div class="scrim" x-show="menu" x-cloak x-on:click="menu = false"></div>
+    <div class="main">
+      <header class="page-header">
+        <button type="button" class="menu-button" x-on:click="menu = true; $nextTick(() => document.querySelector('#sidebar .nav-item').focus())" aria-controls="sidebar" x-bind:aria-expanded="menu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr-only">Menu</span></button>
+        <nav class="crumbs" aria-label="Where you are"><a href="/services">Services</a><a href="/catalog">Add a service</a><strong aria-current="page">Plex</strong></nav>
+        <a class="page-help" href="/help/services/add/" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg><span class="sr-only">Help: </span>Add a service<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+      </header>
+      <main class="page">
+<div class="page-head"><div><h1>Install Plex</h1>
+  <p class="lede">Plays your films, TV and music on your TV, phone and computer, with Plex&#39;s apps, from your own media libraries</p></div></div>
+<div class="grid install-grid">
+<section class="card span-7">
+  <div class="project-credit"><span class="logo-tile"><img src="plex.png" alt="" width="40" height="40"></span>
+  <p class="hint">Made by Plex, Inc.. Its code isn't published.
+    <span class="project-links"><a href="https://www.plex.tv" target="_blank" rel="noopener">Website<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a></span></p>
+</div>
+  <form method="post" action="#">
+    <h2 class="form-section">Name and address</h2>
+    <div class="field-row">
+      <label>Title <input name="title" value="Plex" maxlength="60" required>
+        <small>What it's called on your pages. You can change it later.</small></label>
+      <label>Web address <span class="with-suffix"><input name="subdomain" value="plex" required><span>.mon.test</span></span>
+        <small>Only reachable from your home network (or VPN).</small></label>
+    </div>
+    <details class="form-more">
+      <summary>Its name for folders and backups: <code>plex</code></summary>
+      <label>Name <span class="with-prefix"><span>plex-</span><input name="name_suffix" value=""></span>
+        <small>Used for its folders, containers and backups, so it can't change later. Leave it empty for just <code>plex</code>.</small></label>
+    </details>
+
+    <hr class="form-rule">
+    <h2 class="form-section">Where it runs</h2>
+    <label>Run it on <select name="host" class="name-select"><option>roostack-dev-3 (this server)</option><option>roostack-test</option></select>
+      <small>Its data stays on that server, and it's backed up there.</small></label>
+    <fieldset><legend>Media libraries it can read</legend>
+      <div class="check-row">
+        <label class="check"><input type="checkbox" checked><span>Films</span></label>
+        <label class="check"><input type="checkbox" checked><span>Music</span></label>
+        <label class="check"><input type="checkbox" checked><span>NFS music</span></label>
+      </div>
+      <small class="hint">Read-only, in its media folder, and not backed up. You can change this in its settings later.</small>
+    </fieldset>
+
+    <hr class="form-rule">
+    <h2 class="form-section">Plex's settings</h2>
+    <label>Claim code (optional) <input class="name-input" name="setting.claim_token">
+      <small>From plex.tv/claim, signed in to your Plex account: it links this server to your account as it first starts, and works once, for 4 minutes. Without it, open Plex from your home network and sign in to claim it.</small></label>
+    <label class="check"><input type="checkbox" class="switch" role="switch" name="setting.hardware_acceleration">
+      <span>Use the GPU for video transcoding<small>Hardware transcoding also needs Plex Pass, turned on in Plex's settings.</small></span></label>
+
+    <hr class="form-rule">
+    <button type="submit">Install</button>
+  </form>
+</section>
+<aside class="card span-5 install-aside">
+  <div class="install-summary" id="install-summary"
+ >
+  <h2>What Plex sets up</h2>
+  
+  
+  <dl class="facts">
+    <dt>Keeps</dt>
+    <dd>Plex&#39;s database, settings and artwork: <strong>backed up</strong><br><small class="hint">Not backed up, as Plex makes them again: video being transcoded.</small></dd>
+    <dt>Address</dt>
+    <dd>plex.mon.test<br>
+      <small class="hint">Your home network (or VPN)</small></dd>
+    
+    
+    <dt>Memory</dt>
+    <dd>About 300.0 MB<br><small class="hint">This server (roostack-dev-3) has 4.1 GB, and 3.2 GB is free right now.</small></dd>
+  </dl>
+  
+  <details class="technical" id="install-summary-details">
+    <summary>Details</summary>
+    <dl class="facts">
+      <dt>Runs</dt>
+      <dd><code>app</code>: 300.0 MB<br>
+        <small class="hint">What each part typically uses, from the package: an estimate, not a limit.</small></dd>
+      <dt>Server</dt>
+      <dd>roostack-dev-3: 4.1 GB in all, 3.2 GB free now<br>
+        <small class="hint">Services already on it expect 60.0 MB. Free memory is the server's own figure (<code>MemAvailable</code> in <code>/proc/meminfo</code>), which counts what's running.</small></dd>
+      <dt>Data</dt>
+      <dd><code>/srv/roostack/services/plex/config</code>: backed up<br><code>/srv/roostack/services/plex/transcode</code>: not backed up<br></dd>
+      
+      <dt>Package</dt>
+      <dd><a href="/install/plex/package.yaml" target="_blank" rel="noopener">plex 1.43.4.10903-roostack.1<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a></dd>
+      <dt>Files</dt>
+      <dd>What Roostack would write, as <code>roostack render</code> shows them:
+        <details id="install-file-/var/lib/roostack/home/.config/containers/systemd/roostack-plex.network"><summary><code>roostack-plex.network</code></summary>
+          <small class="hint">In <code>/var/lib/roostack/home/.config/containers/systemd</code></small><pre class="output"># Generated by Roostack. Do not edit: changes will be overwritten.
+
+[Unit]
+Description=Roostack plex: network
+
+[Network]
+NetworkName=roostack-plex
+</pre></details><details id="install-file-/var/lib/roostack/home/.config/containers/systemd/roostack-plex-app.container"><summary><code>roostack-plex-app.container</code></summary>
+          <small class="hint">In <code>/var/lib/roostack/home/.config/containers/systemd</code></small><pre class="output"># Generated by Roostack. Do not edit: changes will be overwritten.
+
+[Unit]
+Description=Roostack plex: app
+
+[Container]
+ContainerName=roostack-plex-app
+Image=docker.io/plexinc/pms-docker:1.43.4.10903-e5521bd8c@sha256:e0ab27395614a8e1a4fdf84c6bc60ac664915cfdde70c52d030c7728a1c48e14
+Timezone=Australia/Melbourne
+Network=roostack-plex.network
+PublishPort=127.0.0.1:20001:32400
+Environment=ADVERTISE_IP=https://plex.mon.test
+Environment=PLEX_CLAIM=
+Environment=PLEX_GID=0
+Environment=PLEX_UID=0
+Environment=TZ=Australia/Melbourne
+Volume=/srv/roostack/services/plex/config:/config
+Volume=/mnt/roostack-library-views/plex:/media:ro,rslave
+Volume=/srv/roostack/services/plex/transcode:/transcode
+Label=io.roostack.service=plex
+Label=io.roostack.component=app
+HostName=plex
+
+[Service]
+Restart=always
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target
+</pre></details><details id="install-file-/var/lib/roostack/caddy/sites/plex.caddy"><summary><code>plex.caddy</code></summary>
+          <small class="hint">In <code>/var/lib/roostack/caddy/sites</code></small><pre class="output"># Generated by Roostack for service &#34;plex&#34;. Do not edit: changes will be overwritten.
+
+@plex-web host plex.mon.test
+handle @plex-web {
+	vars {
+		roostack_name plex
+		roostack_title &#34;Plex&#34;
+		roostack_private yes
+	}
+	@plex-web-external not {
+		remote_ip private_ranges 100.64.0.0/12 100.80.0.0/16 100.82.0.0/15 100.84.0.0/14 100.88.0.0/13 100.96.128.0/17 100.97.0.0/16 100.98.0.0/15 100.104.0.0/13 100.112.0.0/12
+		not vars roostack_edge yes
+	}
+	abort @plex-web-external
+	request_body {
+		max_size 100MB
+	}
+	reverse_proxy 169.254.1.3:20001
+}
+</pre></details></dd>
+    </dl>
+  </details>
+  
+</div>
+</aside>
+</div>
+
+      </main>
+      <footer class="site">Roostack <span class="version" title="Roostack's version">77570bc-dirty</span> · <a href="/about">About</a> · <a href="/design" target="_blank" rel="noopener">Design system<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a></footer>
+    </div>
+  </div>
+  
+</body>
+</html>
+
+
+
