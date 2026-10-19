@@ -46,6 +46,8 @@ var icons = map[string]string{
 	"chevron":  `<path d="m10 7 5 5-5 5"/>`,
 	"folder":   `<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>`,
 	"close":    `<path d="M6 6l12 12M18 6 6 18"/>`,
+	"copy":     `<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>`,
+	"check":    `<path d="m5 12.5 4.5 4.5L19 7.5"/>`,
 	"plus":     `<path d="M12 5v14M5 12h14"/>`,
 	// Roostack's own services.
 	"proxy":    `<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>`,

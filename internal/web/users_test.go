@@ -126,3 +126,31 @@ func TestSettingsOverview(t *testing.T) {
 		t.Error("the wizard shouldn't be marked as Settings' time zone page")
 	}
 }
+
+// Adding someone chooses their role with a segmented control; a form
+// that comes back keeps the role chosen, and one that isn't a role comes
+// back as Member rather than breaking the page.
+func TestUsersAddRoleChoice(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	_, body := h.get("/users")
+	for _, want := range []string{`class="segmented"`, `name="role" value="member" checked`, `value="owner"`,
+		`class="switch" role="switch" name="remember"`, `name="idle" class="inline"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page lacks %q", want)
+		}
+	}
+	if !strings.Contains(body, `id="add-someone" aria-labelledby="add-someone-title">`) {
+		t.Error("the add dialog is open, or missing")
+	}
+	if _, body := h.get("/settings/people?add=someone"); !strings.Contains(body, `id="add-someone" aria-labelledby="add-someone-title" open>`) {
+		t.Error("?add=someone doesn't open the dialog")
+	}
+	if code, body := h.post("/users", url.Values{"username": {"bad name"}, "role": {"admin"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, `name="role" value="admin" checked`) || !strings.Contains(body, `aria-labelledby="add-someone-title" open>`) {
+		t.Errorf("a refused form keeps its role: %d", code)
+	}
+	if code, body := h.post("/users", url.Values{"username": {"sam"}, "role": {"king"}}, h.srv.URL); code != http.StatusBadRequest ||
+		!strings.Contains(body, `name="role" value="member" checked`) {
+		t.Errorf("an unknown role: %d", code)
+	}
+}

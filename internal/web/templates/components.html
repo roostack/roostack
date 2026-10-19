@@ -97,8 +97,9 @@
      clipboard needs HTTPS). */}}
 {{define "copy-box"}}<div class="copy-box" x-data="{ copied: false }">
   <pre class="output" x-ref="text">{{.}}</pre>
-  <button type="button" class="secondary" x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
-    ><span x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+  <button type="button" class="icon-button copy-button" title="Copy" x-bind:title="copied ? 'Copied' : 'Copy'"
+    x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+    ><span x-show="!copied">{{icon "copy"}}</span><span x-show="copied" x-cloak>{{icon "check"}}</span><span class="sr-only" aria-live="polite" x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
 </div>{{end}}
 
 {{/* activity: a host operation (*activityView): a status line for

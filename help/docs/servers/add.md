@@ -11,7 +11,7 @@ the first. Keep its setup code: you need it to join.
 ## 2. Make a join code
 
 On your lab's Roostack, go to **Servers**, and under **Add a
-server**:
+server** choose **Make a join code…**:
 
 1. Choose the **address the new server reaches this one at**. Roostack
    lists the ones it knows, and suggests the one you used last time:

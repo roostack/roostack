@@ -71,8 +71,9 @@ func TestJoinAddressChoice(t *testing.T) {
 	if _, body = h.get("/servers"); !strings.Contains(body, `value="10.0.2.2:61820"`) || !strings.Contains(body, `value="other" x-model="choice" checked`) {
 		t.Error("a typed address is suggested again as typed")
 	}
-	if code, _ := h.post("/settings/servers/join", url.Values{"address": {"other"}, "address_other": {"nonsense"}}, h.srv.URL); code != 400 {
-		t.Errorf("no port: %d", code)
+	if code, body := h.post("/settings/servers/join", url.Values{"address": {"other"}, "address_other": {"nonsense"}}, h.srv.URL); code != 400 ||
+		!strings.Contains(body, `id="add-server" aria-labelledby="add-server-title" open>`) {
+		t.Errorf("no port: %d, or its dialog isn't open", code)
 	}
 }
 

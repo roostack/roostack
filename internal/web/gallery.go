@@ -326,6 +326,20 @@ Network=roostack-immich.network</code></pre>
   </div>
   <label>Name <input class="name-input" value="Films"></label>
 </form>`},
+			{"Form in a dialog", "Adding one thing to a list (a check, someone, an invite, a server): a secondary button, a link with data-dialog=\"ID\" and an href that opens the page with ?add=…, opens dialog.form-dialog ID: .dialog-head (the heading and a close link), the form, .dialog-actions (a data-close Cancel link, then its button). The page renders it open when its form came back with a mistake, or from ?add=…; app.js makes an open one modal, and without scripts it shows in the page as a card. The first field has autofocus. Here, open in the page as without scripts.", `
+<dialog class="dialog form-dialog" open aria-labelledby="gallery-dialog-title">
+  <div class="dialog-head"><h2 id="gallery-dialog-title">Add a check</h2><a class="icon-button" href="#" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
+  <form>
+    <div class="field-row"><label>Name <input value="Printer"></label><label>Address <input value="printer.local:631"></label></div>
+    <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Tell me when it stops answering</span></label>
+    <div class="dialog-actions"><a class="button secondary" href="#" data-close>Cancel</a><button type="button">Add check</button></div>
+  </form>
+</dialog>`},
+			{"Switch", "label.check with input.switch role=\"switch\": an on/off setting that saves with its form (still a checkbox without styles). Ticking items from a list, or confirming something (\"I understand\"), stays a checkbox.", `
+<form>
+  <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Offer "Keep me signed in" on the login page<small>For someone's own device.</small></span></label>
+  <label class="check"><input type="checkbox" class="switch" role="switch"><span>Allow anyone to create an account</span></label>
+</form>`},
 			{"Folder picker", "The folder chosen as a value (.folder-choice: the folder icon, the place and what it holds, then a secondary button), which opens the picker: template \"folder-picker\" with a folderPicker, the folders opened so far as crumbs, the folders here (each opening on a click, with what it holds), what this one holds, Cancel and Use. A link with data-picker=\"ID\" shows it in pickerDialog ID PLACE (app.js loads the link's page into the dialog, and Use replaces the page's PLACE); without scripts the same link is a page.", `
 <div class="folder-choice">{{icon "folder"}}<span class="path"><strong>MEDIA › Films</strong><small>3 folders, 1 file</small></span><a class="button secondary" href="#">Choose a folder…</a></div>
 <div class="gallery-picker">{{template "folder-picker" .Picker}}</div>`},
@@ -458,7 +472,7 @@ Network=roostack-immich.network</code></pre>
 		Examples: []galleryExample{
 			{"Secret", "", `
 <code class="secret">EXAMPLE-ONLY-NOT-REAL</code>`},
-			{"Copy box", "copyBox TEXT: something people copy and send or paste elsewhere (an invite, a command), with a Copy button.", `
+			{"Copy box", "copyBox TEXT: something people copy and send or paste elsewhere (an invite, a command), with a copy icon at its top right that turns into a tick for a moment once copied (the Owner, 2026-10-20: a button beside it took space and wrapped under it on phones).", `
 {{copyBox "sudo roostack node join EXAMPLE-ONLY-NOT-REAL"}}`},
 			{"Output", "Command output in logs and results.", `
 <pre class="output">==> Installing updates

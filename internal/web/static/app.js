@@ -88,6 +88,31 @@
     return document.execCommand("copy") ? Promise.resolve() : Promise.reject(new Error("copy failed"));
   };
 
+  // A form in a dialog (dialog.form-dialog): a link with data-dialog="<id>"
+  // opens it, its data-close links close it; without scripts they're
+  // links to the page with it open (as a card), and without it. One the
+  // page opened (a form that came back with a mistake) becomes a dialog.
+  document.addEventListener("DOMContentLoaded", () => {
+    for (const d of document.querySelectorAll("dialog.form-dialog[open]")) {
+      d.close();
+      d.showModal();
+    }
+  });
+  document.addEventListener("click", (e) => {
+    const open = e.target.closest("a[data-dialog]");
+    const dialog = open && document.getElementById(open.dataset.dialog);
+    if (dialog) {
+      e.preventDefault();
+      dialog.showModal();
+      return;
+    }
+    const close = e.target.closest("dialog.form-dialog [data-close]");
+    if (close) {
+      e.preventDefault();
+      close.closest("dialog").close();
+    }
+  });
+
   // The folder picker (a media library's folder): a link with
   // data-picker="<dialog id>" opens that dialog and shows the page it links
   // to (#folder-picker of it) inside; the picker's own links then open

@@ -90,6 +90,18 @@ func TestMonitoringOwnChecks(t *testing.T) {
 	if !strings.Contains(body, "A web address starts with http://") || !strings.Contains(body, `value="ftp://nas.local"`) {
 		t.Errorf("a bad address:\n%s", body)
 	}
+	// The add form is a dialog: it comes back open with the mistake, and
+	// ?add=check (its button, without scripts) opens it; otherwise closed.
+	if !strings.Contains(body, `id="add-check" aria-labelledby="add-check-title" open>`) {
+		t.Error("a refused check's dialog isn't open")
+	}
+	if _, body := h.get("/monitoring?add=check"); !strings.Contains(body, `id="add-check" aria-labelledby="add-check-title" open>`) {
+		t.Error("?add=check doesn't open the dialog")
+	}
+	if _, body := h.get("/monitoring"); !strings.Contains(body, `id="add-check" aria-labelledby="add-check-title">`) ||
+		!strings.Contains(body, `data-dialog="add-check"`) {
+		t.Error("the dialog is open, or has no button")
+	}
 	h.post("/monitoring/checks", url.Values{"name": {"NAS"}, "address": {"https://nas.local:5001"}, "skip_verify": {"on"}, "alert": {"on"}}, h.srv.URL)
 	checks, _ := h.store.MonitorChecks(context.Background())
 	if len(checks) != 1 || checks[0].Address != "https://nas.local:5001" || !checks[0].SkipVerify || !checks[0].Alert {

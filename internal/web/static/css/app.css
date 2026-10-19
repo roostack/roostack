@@ -375,6 +375,20 @@ select.inline { display: inline-block; width: auto; margin: 0 0 0 var(--space-2)
 /* The chosen choice's one-line hint, first in its panel. */
 .seg-hint { margin: calc(-1 * var(--space-1)) 0 var(--space-4); }
 
+/* Switch: an on/off setting that saves with its form, drawn as a switch
+   (a checkbox with role="switch", so it's still a checkbox without
+   styles or scripts). Ticking items from a list, or confirming something,
+   stays a checkbox. */
+label.check input.switch { appearance: none; flex: none; position: relative; width: 36px; height: 20px; margin-top: 2px;
+  border-radius: var(--radius-pill); background: var(--border-strong); cursor: pointer; transition: background 0.15s; }
+label.check input.switch::before { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 0.3); transition: transform 0.15s; }
+label.check input.switch:checked { background: var(--accent); }
+label.check input.switch:checked::before { transform: translateX(16px); background: var(--accent-fg); }
+label.check input.switch:focus-visible { border-radius: var(--radius-pill); }
+label.check input.switch:disabled { opacity: 0.55; cursor: default; }
+@media (prefers-reduced-motion: reduce) { label.check input.switch, label.check input.switch::before { transition: none; } }
+
 /* Fields side by side (server and port, username and password), one under
    another when there isn't room. */
 .field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0 var(--space-4); }
@@ -382,8 +396,11 @@ select.inline { display: inline-block; width: auto; margin: 0 0 0 var(--space-2)
 @media (max-width: 640px) { .field-row.wide-first { grid-template-columns: 1fr; } }
 /* An input as wide as what it usually holds (a name). */
 input.name-input { max-width: 24rem; }
+/* A number's input as wide as a number (a size, a port), its unit after it. */
+input.number-input { max-width: 9rem; }
+.with-suffix input.number-input { flex: 0 1 9rem; }
 /* A label for a control that isn't an input (the folder chosen). */
-.field-label { margin: var(--space-4) 0 var(--space-2); font-weight: var(--weight-medium); }
+.field-label { margin: 0 0 var(--space-2); font-weight: var(--weight-medium); }
 /* A rule between a form's parts (where something is, then its name). */
 hr.form-rule { border: 0; border-top: 1px solid var(--border); margin: var(--space-5) 0 var(--space-4); }
 /* Checkboxes side by side (services that can read a library). */
@@ -680,14 +697,14 @@ pre.output { background: var(--surface-2); border: 1px solid var(--border); bord
 code.secret { display: inline-block; font-size: 1.1em; padding: var(--space-1) var(--space-2); }
 .secret-row { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
   margin: var(--space-3) 0; overflow-wrap: anywhere; }
-.copy-box { display: flex; gap: var(--space-2); align-items: flex-start; margin: var(--space-2) 0; }
-.copy-box pre.output { flex: 1; min-width: 0; margin: 0; }
-/* On a phone the Copy button goes under its text, which keeps the width
-   (a command nested in a card's "Tell me more" was a few letters wide). */
-@media (max-width: 640px) {
-  .copy-box { flex-direction: column; }
-  .copy-box pre.output { align-self: stretch; }
-}
+/* The text to copy, its copy button floating at its top right (an
+   icon: a tick for a moment once copied). */
+.copy-box { position: relative; margin: var(--space-2) 0; }
+.copy-box pre.output { margin: 0; padding-right: calc(var(--space-3) + 34px); }
+.copy-box .copy-button { position: absolute; top: 4px; right: 4px; padding: 6px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--border); }
+.copy-box .copy-button:hover { background: var(--surface-2); }
+.copy-box .copy-button span:not(.sr-only) { display: flex; }
 .qr-box { margin: var(--space-3) 0; }
 svg.qr { display: block; width: 200px; height: 200px; border-radius: var(--radius-sm); }
 .recovery { font-size: var(--text-lg); text-align: center; }
@@ -935,6 +952,21 @@ dialog.dialog::backdrop { background: rgb(0 0 0 / 0.45); }
 dialog.dialog p { margin: 0 0 var(--space-4); overflow-wrap: anywhere; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; }
 form.confirm { display: inline; }
+
+/* A form in a dialog (adding a check, someone, an invite, a server): its
+   heading and a close button, the form, then Cancel and its button. A
+   link with data-dialog="ID" opens it (app.js); without scripts the link
+   reloads the page with the dialog open in the page, as a card. A form
+   that came back with a mistake opens as a dialog again. */
+dialog.dialog.form-dialog { position: fixed; width: min(34rem, calc(100vw - 2 * var(--space-4))); max-width: none;
+  max-height: calc(100dvh - 2 * var(--space-4)); overflow-y: auto; margin: auto; padding: var(--space-5); }
+dialog.form-dialog:not(:modal) { position: static; width: auto; margin: var(--space-4) 0 0; box-shadow: none; }
+.dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+.dialog-head h2 { margin: 0; }
+dialog.form-dialog .dialog-actions { margin-top: var(--space-4); }
+@media (max-width: 640px) {
+  dialog.dialog.form-dialog:modal { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); margin: auto 8px 8px; padding: var(--space-4); }
+}
 
 /* The folder picker: the folder chosen as a value with a button to
    change it (.folder-choice), and the picker (folders opened as crumbs,

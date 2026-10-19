@@ -1361,9 +1361,11 @@ func TestStorageForOthers(t *testing.T) {
 	for _, want := range []string{"Sam&#39;s lab", "3.0 GB", "50.0 GB", "Data from labs you removed", "g9", "UDP", "51821",
 		"Space on nuc", "<strong>180.0 GB free</strong> of 250.0 GB", "Backups of other labs",
 		"can be given up to <strong>16.3 GB</strong> more", `value="16"`,
-		"leaves about\n          <strong x-text=\"roostackSize(free - promised - gb * 1e9)\">124.0 GB</strong> free on",
+		"leaves about\n            <strong x-text=\"roostackSize(free - promised - gb * 1e9)\">124.0 GB</strong> free on",
 		// Nothing known yet: they type it.
-		`value="other" x-model="choice" checked`, `name="address_other"`} {
+		`value="other" x-model="choice" checked`, `name="address_other"`,
+		// The invite is a form in a dialog, closed until asked for.
+		`data-dialog="add-invite"`, `<dialog class="dialog form-dialog" id="add-invite" aria-labelledby="add-invite-title">`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("storage page missing %q", want)
 		}

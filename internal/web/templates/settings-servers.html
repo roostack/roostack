@@ -154,11 +154,20 @@
   <h2>Add a server</h2>
   <p class="hint">Another computer at home or in the cloud can run some of your services. Install Roostack on it, then make a
     join code here for its setup page. The servers connect over their own private network (WireGuard).</p>
-  {{if not .ErrorServer}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
-  <form method="post" action="/settings/servers/join#add-server">
-    {{template "address-choice" .AddressChoice}}
-    <button type="submit">Make a join code</button>
-  </form>
+  {{if not .ErrorServer}}{{if not .Adding}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}{{end}}
+  <p><a class="button" href="/servers?add=server#add-server" data-dialog="add-server">Make a join code…</a></p>
+  <dialog class="dialog form-dialog" id="add-server" aria-labelledby="add-server-title"{{if .Adding}} open{{end}}>
+    <div class="dialog-head"><h2 id="add-server-title">Make a join code</h2>
+      <a class="icon-button" href="/servers#add-server" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
+    <form method="post" action="/settings/servers/join#add-server">
+      {{if .Adding}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
+      {{template "address-choice" .AddressChoice}}
+      <div class="dialog-actions">
+        <a class="button secondary" href="/servers#add-server" data-close>Cancel</a>
+        <button type="submit">Make a join code</button>
+      </div>
+    </form>
+  </dialog>
   {{end}}
   <details>
     <summary>Adding a server outside your home (port forwarding)</summary>

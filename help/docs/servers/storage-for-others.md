@@ -11,7 +11,8 @@ its own backups: one that's taken over can't touch the others'.
 
 ## Offering space to someone
 
-On **Settings → Storage for others**, under **Invite a lab**:
+On **Settings → Storage for others**, under **Invite a lab**, choose **Make
+an invite…**:
 
 1. Enter **whose lab** it is, and **how much space** they get (in GB).
 2. Choose the **address their lab reaches your server at**: best, **a name

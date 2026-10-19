@@ -326,6 +326,9 @@ func (s *Server) renderMonitoring(w http.ResponseWriter, r *http.Request, formEr
 	data["StatusOn"] = s.statusPageOn()
 	data["StatusChoices"] = s.statusChoices(ctx, append(slices.Clone(services), own...))
 	data["FormError"], data["Form"] = formErr, form
+	// The add form's dialog opens with a mistake to fix, or from ?add=check
+	// (its button, without scripts).
+	data["Adding"] = formErr != "" || r.URL.Query().Get("add") == "check"
 	s.render(w, "monitoring", data)
 }
 

@@ -448,6 +448,9 @@ func (s *Server) renderServers(w http.ResponseWriter, r *http.Request, extra map
 		status = http.StatusBadRequest
 	}
 	w.WriteHeader(status)
+	// The join code form's dialog opens with a mistake to fix, or from
+	// ?add=server (its button, without scripts).
+	data["Adding"] = data["Adding"] == true || r.URL.Query().Get("add") == "server"
 	s.render(w, "settings-servers", withArea(data, "servers"))
 }
 
@@ -464,12 +467,12 @@ func (s *Server) joinCodeSubmit(w http.ResponseWriter, r *http.Request) {
 	endpoint := addressFromForm(r)
 	if host, port, err := net.SplitHostPort(endpoint); err != nil || host == "" || port == "" {
 		s.renderServers(w, r, map[string]any{"Endpoint": endpoint,
-			"Error": "Choose the address other servers reach this one at, or enter one with its port, such as 192.168.1.20:51820."})
+			"Error": "Choose the address other servers reach this one at, or enter one with its port, such as 192.168.1.20:51820.", "Adding": true})
 		return
 	}
 	code, err := s.Network.NewJoinCode(r.Context(), endpoint, "")
 	if err != nil {
-		s.renderServers(w, r, map[string]any{"Endpoint": endpoint, "Error": "Roostack couldn't make a join code: " + err.Error()})
+		s.renderServers(w, r, map[string]any{"Endpoint": endpoint, "Error": "Roostack couldn't make a join code: " + err.Error(), "Adding": true})
 		return
 	}
 	s.Store.SetSetting(r.Context(), endpointKey, endpoint)
@@ -486,12 +489,12 @@ func (s *Server) joinCodeDial(w http.ResponseWriter, r *http.Request) {
 	typed := strings.TrimSpace(r.FormValue("address_dial"))
 	dial, err := dialAddress(typed)
 	if err != nil {
-		s.renderServers(w, r, map[string]any{"Dial": typed, "Error": err.Error()})
+		s.renderServers(w, r, map[string]any{"Dial": typed, "Error": err.Error(), "Adding": true})
 		return
 	}
 	code, err := s.Network.NewJoinCode(r.Context(), "", dial)
 	if err != nil {
-		s.renderServers(w, r, map[string]any{"Dial": typed, "Error": "Roostack couldn't make a join code: " + err.Error()})
+		s.renderServers(w, r, map[string]any{"Dial": typed, "Error": "Roostack couldn't make a join code: " + err.Error(), "Adding": true})
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "servers", "join code made for "+code.Addr.String()+", connecting to "+dial)

@@ -100,6 +100,9 @@ func (s *Server) renderStorage(w http.ResponseWriter, r *http.Request, extra map
 	if extra["Error"] != nil {
 		w.WriteHeader(http.StatusBadRequest)
 	}
+	// The invite form's dialog opens with a mistake to fix, or from
+	// ?add=invite (its button, without scripts).
+	data["Adding"] = data["Adding"] == true || r.URL.Query().Get("add") == "invite"
 	s.render(w, "settings-storage", withArea(data, "storage"))
 }
 
@@ -120,7 +123,7 @@ func (s *Server) inviteGuestSubmit(w http.ResponseWriter, r *http.Request) {
 	name, endpoint := r.FormValue("name"), addressFromForm(r)
 	inv, err := s.Manager.InviteGuest(r.Context(), name, gigabytes(r.FormValue("quota")), endpoint)
 	if msg, ok := userMessage(err); ok {
-		s.renderStorage(w, r, map[string]any{"Error": msg, "Endpoint": endpoint, "Name": name, "Quota": r.FormValue("quota")})
+		s.renderStorage(w, r, map[string]any{"Error": msg, "Endpoint": endpoint, "Name": name, "Quota": r.FormValue("quota"), "Adding": true})
 		return
 	}
 	if err != nil {

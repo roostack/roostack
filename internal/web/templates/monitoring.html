@@ -53,22 +53,33 @@
   <p class="hint">Anything else on your network you'd like to know about, such as your router or a NAS.</p>
   {{if .Own}}{{template "check-rows" .Own}}{{end}}
 
-  <details class="add-check"{{if .FormError}} open{{end}}>
-    <summary class="button secondary">Add a check…</summary>
-    <form method="post" action="/monitoring/checks" class="stack">
+  <p><a class="button secondary" href="/monitoring?add=check#own" data-dialog="add-check">Add a check…</a></p>
+  <dialog class="dialog form-dialog" id="add-check" aria-labelledby="add-check-title"{{if .Adding}} open{{end}}>
+    <div class="dialog-head"><h2 id="add-check-title">Add a check</h2>
+      <a class="icon-button" href="/monitoring#own" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
+    <form method="post" action="/monitoring/checks">
       {{with .FormError}}{{notice "error" .}}{{end}}
-      <label>Name <input name="name" value="{{.Form.name}}" maxlength="60" placeholder="Printer" required></label>
-      <label>Address <input name="address" value="{{.Form.address}}" placeholder="https://nas.local, 192.168.1.20 or printer.local:631" required>
-        <small class="hint">A web address, to check it answers; a name or IP address, to check it answers a ping;
-          or one with a port (<code>:631</code>), to check something listens there.</small></label>
-      <label class="check"><input type="checkbox" name="skip_verify"{{if eq .Form.skip_verify "on"}} checked{{end}}>
-        <span>Don't check its certificate
-          <small class="hint">For a device with its own self-signed certificate, as many routers and NASes have.</small></span></label>
-      <label class="check"><input type="checkbox" name="alert"{{if or (not .FormError) (eq .Form.alert "on")}} checked{{end}}>
+      <div class="field-row">
+        <label>Name <input name="name" value="{{.Form.name}}" maxlength="60" placeholder="Printer" required autofocus></label>
+        <label>Address <input name="address" value="{{.Form.address}}" placeholder="nas.local or 192.168.1.20" required
+          autocapitalize="off" spellcheck="false"></label>
+      </div>
+      <p class="hint">The address: a web address (<code>https://nas.local</code>), to check it answers; a name or IP address, to
+        check it answers a ping; or one with a port (<code>printer.local:631</code>), to check something listens there.</p>
+      <label class="check"><input type="checkbox" class="switch" role="switch" name="alert"{{if or (not .FormError) (eq .Form.alert "on")}} checked{{end}}>
         <span>Tell me when it stops answering</span></label>
-      <p><button type="submit">Add check</button></p>
+      <details{{if eq .Form.skip_verify "on"}} open{{end}}>
+        <summary>Details</summary>
+        <label class="check"><input type="checkbox" name="skip_verify"{{if eq .Form.skip_verify "on"}} checked{{end}}>
+          <span>Don't check its certificate
+            <small class="hint">For a device with its own self-signed certificate, as many routers and NASes have.</small></span></label>
+      </details>
+      <div class="dialog-actions">
+        <a class="button secondary" href="/monitoring#own" data-close>Cancel</a>
+        <button type="submit">Add check</button>
+      </div>
     </form>
-  </details>
+  </dialog>
 </section>
 
 {{if .IsOwner}}

@@ -54,7 +54,7 @@ func TestEmailSettings(t *testing.T) {
 		t.Error("the overview says email isn't set up")
 	}
 	_, body := h.get("/settings/email")
-	if !strings.Contains(body, `value="587"`) || !strings.Contains(body, `value="starttls" checked`) ||
+	if !strings.Contains(body, `value="587"`) || !strings.Contains(body, `name="security" value="starttls" checked`) || !strings.Contains(body, `class="field-row wide-first"`) ||
 		!strings.Contains(body, `name="from" value="no_reply@lab.example.com"`) {
 		t.Errorf("defaults: %s", body)
 	}

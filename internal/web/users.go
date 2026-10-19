@@ -33,6 +33,13 @@ func (s *Server) renderUsers(w http.ResponseWriter, r *http.Request, status int,
 	for k, v := range extra {
 		data[k] = v
 	}
+	// The add form's dialog opens with a mistake to fix, or from
+	// ?add=someone (its button, without scripts).
+	data["Adding"] = data["Adding"] == true || r.URL.Query().Get("add") == "someone"
+	// A role that isn't one comes back as the first choice.
+	if role, _ := data["NewRole"].(string); !auth.ValidRole(role) {
+		data["NewRole"] = ""
+	}
 	// Temporary passwords must not be cached or shown again.
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
@@ -42,7 +49,7 @@ func (s *Server) renderUsers(w http.ResponseWriter, r *http.Request, status int,
 func (s *Server) userAddSubmit(w http.ResponseWriter, r *http.Request) {
 	name, role := strings.TrimSpace(r.FormValue("username")), r.FormValue("role")
 	fail := func(msg string) {
-		s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": msg, "NewName": name, "NewRole": role})
+		s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": msg, "NewName": name, "NewRole": role, "Adding": true})
 	}
 	switch {
 	case !auth.ValidUsername(name):

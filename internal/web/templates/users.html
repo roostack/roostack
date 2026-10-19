@@ -7,7 +7,7 @@
   </div>
 </div>
 <section class="card medium">
-  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if not .Adding}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
   {{with .Done}}{{notice "ok" .}}{{end}}
   {{with .TempPassword}}
   <div class="notice" role="status">
@@ -49,31 +49,39 @@
     {{end}}
   </ul>
 
-  <h2>Add someone</h2>
-  <form method="post" action="/users">
-    <label>Username <input name="username" value="{{.NewName}}" required autocapitalize="off" autocomplete="off" maxlength="32"></label>
-    <fieldset>
-      <legend>What can they do?</legend>
-      <label class="check"><input type="radio" name="role" value="member" {{if or (not .NewRole) (eq .NewRole "member")}}checked{{end}}>
-        <span>Member<small>Sees the services and their links.</small></span></label>
-      <label class="check"><input type="radio" name="role" value="admin" {{if eq .NewRole "admin"}}checked{{end}}>
-        <span>Admin<small>Also installs, changes and removes services, and runs backups.</small></span></label>
-      <label class="check"><input type="radio" name="role" value="owner" {{if eq .NewRole "owner"}}checked{{end}}>
-        <span>Owner<small>Everything, including this server's settings, restores and people. Needs two-factor.</small></span></label>
-    </fieldset>
-    <button type="submit">Add</button>
-  </form>
+  <p><a class="button secondary" href="/settings/people?add=someone" data-dialog="add-someone">Add someone…</a></p>
+  <dialog class="dialog form-dialog" id="add-someone" aria-labelledby="add-someone-title"{{if .Adding}} open{{end}}>
+    <div class="dialog-head"><h2 id="add-someone-title">Add someone</h2>
+      <a class="icon-button" href="/settings/people" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
+    <form method="post" action="/users">
+      {{if .Adding}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
+      <div class="field-row">
+        <label>Username <input name="username" value="{{.NewName}}" required autocapitalize="off" autocomplete="off" maxlength="32" autofocus></label>
+        <div class="seg-group">
+          <p class="field-label">What can they do?</p>
+          {{segmented "role" "What they can do" .NewRole (choice "member" "Member") (choice "admin" "Admin") (choice "owner" "Owner")}}
+          <p class="seg-panel hint seg-hint" data-seg="1">Sees the services and their links.</p>
+          <p class="seg-panel hint seg-hint" data-seg="2">Also installs, changes and removes services, and runs backups.</p>
+          <p class="seg-panel hint seg-hint" data-seg="3">Everything, including this server's settings, restores and people. Needs two-factor.</p>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <a class="button secondary" href="/settings/people" data-close>Cancel</a>
+        <button type="submit">Add</button>
+      </div>
+    </form>
+  </dialog>
 </section>
 <section class="card section" id="signing-in">
   <h2>Signing in</h2>
   {{if .SignInSaved}}{{notice "ok" "Saved. It applies from each person's next page."}}{{end}}
   <form method="post" action="/settings/signing-in">
-    <label>Sign people out after <select name="idle">
+    <label>Sign people out after <select name="idle" class="inline">
       {{range .IdleChoices}}<option value="{{.}}"{{if eq . $.IdleMinutes}} selected{{end}}>{{idleText .}}</option>{{end}}
     </select> without activity</label>
     <p class="hint">Opening a page or sending a form counts as activity; pages refreshing themselves don't. When the time's up,
       the page goes back to the login page, so a screen left open doesn't stay signed in.</p>
-    <label class="check"><input type="checkbox" name="remember"{{if .OfferRemember}} checked{{end}}>
+    <label class="check"><input type="checkbox" class="switch" role="switch" name="remember"{{if .OfferRemember}} checked{{end}}>
       <span>Offer "Keep me signed in" on the login page<small>For someone's own device: they stay signed in on that browser for
         30 days, without the limit above.</small></span></label>
     <button type="submit" class="secondary">Save</button>
