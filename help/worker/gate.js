@@ -14,6 +14,13 @@ const realm = 'Basic realm="Roostack (not launched yet)", charset="UTF-8"';
 /** gate answers a request the gate stops, or null when it may go on. */
 export async function gate(request, env) {
   if (env.GATE === "off") return null;
+  // HTTPS first: Basic Auth sends the password readably, so never ask
+  // for it over plain HTTP (but `wrangler dev` on this machine).
+  const url = new URL(request.url);
+  if (url.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
+    url.protocol = "https:";
+    return Response.redirect(url.toString(), 301);
+  }
   if (!env.SITE_PASSWORD) {
     return plain(503, "This site isn't open yet.\n");
   }
