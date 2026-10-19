@@ -48,7 +48,7 @@ func TestMonitoringPage(t *testing.T) {
 	h.server.Monitor.Round(ctx)
 	_, body := h.get("/monitoring")
 	for _, want := range []string{"Vaultwarden", "vault.lab.example.com · on nuc · 140 ms", "mum-and-dad", `href="/monitoring/check/service:vaultwarden:web"`,
-		"Public status page", "status.lab.example.com", "Turn monitoring off", `class="uptime-bar mini"`} {
+		"Public status page", "status.lab.example.com", `name="on" value="yes" checked`, `class="uptime-bar mini"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the page lacks %q", want)
 		}
@@ -180,8 +180,14 @@ func TestMonitoringOwnerSettings(t *testing.T) {
 		t.Fatal("monitoring is still on")
 	}
 	h.server.Monitor.Round(ctx)
-	if _, body := h.get("/monitoring"); !strings.Contains(body, "Monitoring is off") || !strings.Contains(body, "Turn monitoring on") {
+	if _, body := h.get("/monitoring"); !strings.Contains(body, "Monitoring is off") ||
+		!strings.Contains(body, `class="switch" role="switch" name="on" value="yes"`+"\n") {
 		t.Errorf("off:\n%s", body)
+	}
+	// The switch, ticked, sends "yes" before its hidden "no".
+	h.post("/monitoring/switch", url.Values{"on": {"yes", "no"}}, h.srv.URL)
+	if !h.server.MonitorOn(ctx) {
+		t.Error("the switch didn't turn monitoring on")
 	}
 }
 

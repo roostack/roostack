@@ -108,14 +108,18 @@
 {{end}}
 
 <section class="card">
-  <div class="card-head"><h2>Checking</h2>{{if .On}}<span class="pill pill-ok">On</span>{{else}}<span class="pill">Off</span>{{end}}</div>
-  {{if .On}}
-  <p class="hint">Turning monitoring off stops the checks and their emails. Services' own health checks, and the rest of
-    "needs attention", carry on.</p>
-  <form method="post" action="/monitoring/switch"><input type="hidden" name="on" value="no"><button type="submit" class="secondary">Turn monitoring off</button></form>
-  {{else}}
-  <form method="post" action="/monitoring/switch"><input type="hidden" name="on" value="yes"><button type="submit">Turn monitoring on</button></form>
-  {{end}}
+  {{/* A switch in the card's head, saved as it's flipped (a Save button
+       without scripts). The checkbox comes first: ticked, "yes" is the
+       first value of "on"; unticked, only the hidden "no" is sent. */}}
+  <div class="card-head"><h2>Checking</h2>
+    <form method="post" action="/monitoring/switch" class="head-switch" x-data>
+      <label class="check"><input type="checkbox" class="switch" role="switch" name="on" value="yes"{{if .On}} checked{{end}}
+        x-on:change="$el.form.submit()"><span>{{if .On}}On{{else}}Off{{end}}<span class="sr-only">: monitoring</span></span></label>
+      <input type="hidden" name="on" value="no">
+      <noscript><button type="submit" class="secondary">Save</button></noscript>
+    </form></div>
+  <p class="hint">{{if .On}}Turning monitoring off stops the checks and their emails.{{else}}Monitoring is off: nothing is checked, and
+    nobody is emailed.{{end}} Services' own health checks, and the rest of "needs attention", carry on.</p>
 </section>
 {{end}}
 

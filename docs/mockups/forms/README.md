@@ -12,6 +12,8 @@ python3 -m http.server 8791 --bind 127.0.0.1
 
 then <http://127.0.0.1:8791/docs/mockups/forms/install-forgejo-a.html>; the bar at the bottom right switches pages, and light or dark.
 
+**Chosen** (the Owner, 2026-10-20): **B** for the install form, **A** for a service's settings; built (docs/DESIGN.md "Forms").
+
 ## Install
 
 Today: Title, Name, Run it on, the media libraries, Web address, then the package's settings, one under another, in a narrow card (460 px).

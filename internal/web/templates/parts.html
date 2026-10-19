@@ -636,12 +636,18 @@
         <div x-data="{ provider: '{{if .Options.Online}}{{else}}new{{end}}', endpoint: '' }">
           {{if .Options.Online}}<label class="check"><input type="radio" name="provider" value="new" x-model="provider"><span>Another account</span></label>{{else}}<input type="hidden" name="provider" value="new">{{end}}
           <div x-show="provider === 'new'"{{if .Options.Online}} x-cloak{{end}}>
-            <label>Name <input name="name" placeholder="Backblaze"></label>
-            <label>Endpoint <input name="endpoint" placeholder="https://s3.us-west-004.backblazeb2.com" autocapitalize="off" x-model="endpoint"></label>
-            <label>Bucket <input name="bucket" autocapitalize="off"></label>
-            <label>Folder in the bucket (optional) <input name="prefix" placeholder="backups" autocapitalize="off"></label>
-            <label>Access key <input name="access_key" autocomplete="off" autocapitalize="off"></label>
-            <label>Secret key <input name="secret_key" type="password" autocomplete="off"></label>
+            <div class="field-row">
+              <label>Name <input name="name" placeholder="Backblaze"></label>
+              <label>Endpoint <input name="endpoint" placeholder="https://s3.us-west-004.backblazeb2.com" autocapitalize="off" spellcheck="false" x-model="endpoint"></label>
+            </div>
+            <div class="field-row">
+              <label>Bucket <input name="bucket" autocapitalize="off" spellcheck="false"></label>
+              <label>Folder in the bucket (optional) <input name="prefix" placeholder="backups" autocapitalize="off" spellcheck="false"></label>
+            </div>
+            <div class="field-row">
+              <label>Access key <input name="access_key" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+              <label>Secret key <input name="secret_key" type="password" autocomplete="off"></label>
+            </div>
             <p class="hint">Any of your servers can back up to this account later, each in its own folder.</p>
             {{/* Backblaze: only once the endpoint is theirs (b2.IsB2). */}}
             <div x-show="endpoint.includes('.backblazeb2.com')" x-cloak>
