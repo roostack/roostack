@@ -187,6 +187,13 @@ Prototyped on VM2 (2026-10-10) with throwaway containers: Roostack's Caddy image
 | I4 ✅ | **MySQL 8.4.11 and MariaDB 11.8.9 as Roostack runs them (2026-10-19, VM3, rootless Podman).** The images read `*_PASSWORD_FILE` from a mounted Podman secret and make the app's user and database; `*_RANDOM_ROOT_PASSWORD=yes` leaves root unusable; `mysqladmin`/`mariadb-admin ping -h 127.0.0.1` succeeds only once the real server listens (14 s and 10 s on first start); the app's user dumps with `--single-transaction --no-tablespaces --routines --triggers --events` without warnings, and can `DROP DATABASE` and `CREATE DATABASE` its own; `MYSQL_PWD` works with both clients. Idle memory 458 MB and 127 MB. Then end to end with Ghost (MySQL) and PhotoPrism (MariaDB). |
 | I2 | Postgres reads its password from a Podman secret mounted as a file (`POSTGRES_PASSWORD_FILE`); the app gets the same secret as an env var. Assumes the default secret mount mode is readable by the Postgres user in the container. |
 
+## M. Media libraries
+
+| # | Assumption / concern |
+|---|---|
+| M1 ✅ | **A mount made after a rootless container started appears in it only with `rslave`** (2026-10-19, VM3, Debian 13, Podman rootless): a loop-mounted ext4 image mounted under a folder bind-mounted `:ro` stayed invisible inside the running container; with `:ro,rslave` it appeared, and went when unmounted on the host. A mount made before the container started is seen either way. Read-only holds; files of an unmapped owner show as `nobody` and are readable when world-readable. |
+| M2 ✅ | **Idmapped bind mounts make an owner's private files readable to Roostack, changing nothing** (2026-10-19, VM3, kernel 6.12, util-linux 2.41.5): `mount --bind -o ro,X-mount.idmap="u:1000:<roostack uid>:1 g:1000:<roostack gid>:1"` of a read-only ext4 mount whose files were uid 1000, mode 600/700: the roostack user and a rootless container (`ro,rslave`) read them; files of uid 1001 stayed unreadable; the drive's owners and modes were unchanged; writes refused. The same from two fstab lines (the drive by UUID with `x-systemd.automount`, then the bind with `x-systemd.requires-mounts-for` and `X-mount.idmap=u:…\040g:…`), started by systemd. Not tried: NFS (the kernel doesn't support idmapped NFS mounts), exFAT/NTFS (mounted with Roostack as owner instead). |
+
 ## J. Firewall
 
 | # | Assumption / concern |

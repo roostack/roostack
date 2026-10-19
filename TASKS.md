@@ -458,12 +458,16 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 Packages go to the registry (`roostack/services`), each checked with `roostack validate` and tried on a lab (install, a backup, a restore, removal) before it's committed.
 
 - [x] Done 2026-10-18, each tried on VM3: HedgeDoc, Wiki.js, Papra, Linkwarden, Paperless-ngx; Immich updated to 3.3.3, Vaultwarden to 1.37.4, Forgejo to 15.0.10; Mealie, Gitea, Miniflux, Lychee, Actual Budget, ntfy, Uptime Kuma, Radicale, Audiobookshelf; Stirling-PDF; Ghost (MySQL) and PhotoPrism (MariaDB), 2026-10-19
-- [ ] Needs media folders (below): Jellyfin, Plex, Navidrome
+- [ ] Needs media libraries (below): Jellyfin, Plex, Navidrome
 - [ ] Needs Roostack support, a session each: Frigate (and Viseron), Pi-hole, Home Assistant
 - [ ] Cal.diy: heavy, and its README says personal, non-production use; decide with the Owner
 - [ ] **Before go-live: every placeholder logo replaced** with the project's own, once its terms allow it or the project agrees (each package's file says why it has a placeholder)
-- [ ] **Media folders** (a session): packages ask for media to read (films, TV, music, books); a lab-wide media library that drives, folders and SMB shares are bind-mounted into; mounted read-only, not backed up. Design with the Owner first (a mock-up)
-- [ ] **SMB shares** (with media folders, or before): add a NAS share from the UI, its login kept root-only, mounted by the agent like a drive (see Phase 2, NAS shares, in §6.9's items)
+- [ ] **Media libraries** (design locked 2026-10-19 with a mock-up, SPEC §8.1 "Media libraries"): libraries per server (drive folder, share, or a folder on the server), chosen per service, read-only and not backed up, `ro,rslave`; "read as owner" through idmapped mounts
+  - [ ] Agent: list a drive's folders (and a server's), sample readability and the main owner, mount and unmount a library (fstab: drive by UUID read-only + bind, optionally idmapped), refuse backup drives and Roostack's folders
+  - [ ] Store and manager: libraries per server, sent to nodes with their assignment; a service's `libraries:` in its instance; generate `{ libraries: true, path: … }` mounts
+  - [ ] UI: Settings → Media libraries (list, add, manage, remove), library checkboxes on install and in a service's settings, the move page naming missing libraries, gallery entries
+  - [ ] Packages: Jellyfin, Navidrome, Plex
+  - [ ] SMB and NFS shares (with `cifs-utils` and `nfs-common` as Recommends): login kept root-only, a check before saving
 - [x] **MySQL and MariaDB** as database types (2026-10-19): MySQL 8.4 and MariaDB 11.8 pinned, password, dump before backups and restore, health check; major versions upgrade as the servers start (SPEC §8.1, ASSUMPTIONS I3, I4). Ghost and PhotoPrism packaged on them, tried on VM3
 - [ ] **Check ASSUMPTIONS I3 at the first MySQL or MariaDB pin change:** a service with real data, updated across the major version
 - [ ] **A setting's `warning:`** (SPEC §8.1 "Configuring a service"): in pkgspec and validate, shown beside the option at install and in the service's settings, in the warning colour; then move HedgeDoc's Libravatar warning from its description into it (a new package revision)
