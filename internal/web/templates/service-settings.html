@@ -43,6 +43,20 @@
       </form>
     </section>
     {{end}}
+    {{with .Libraries}}
+    <section class="card" id="libraries">
+      <div class="card-head"><h2>Media libraries</h2><a class="more" href="/settings/media">Media libraries</a></div>
+      {{if .Choices}}
+      <form method="post" action="/services/{{$.Service.Name}}/libraries">
+        {{range .Choices}}<label class="check"><input type="checkbox" name="library" value="{{.Name}}"{{if has $.Libraries.Chosen .Name}} checked{{end}}>
+          <span>{{.Title}}<small><code>{{.Name}}</code> in {{$.Service.Title}}</small></span></label>{{end}}
+        <p class="hint">Read-only for {{$.Service.Title}}, and not backed up.</p>
+        <button type="submit" class="secondary">Save</button>
+      </form>
+      {{else}}<p class="hint">{{.ServerName}} has no media libraries yet. <a href="/settings/media">Add one</a>, and choose
+        {{$.Service.Title}} to read it.</p>{{end}}
+    </section>
+    {{end}}
     <section class="card" id="updates">
       <div class="card-head"><h2>Updates</h2></div>
       <form method="post" action="/services/{{.Service.Name}}/updates">

@@ -134,6 +134,8 @@ type Server struct {
 
 	// Manager installs and removes services. Nil disables those pages.
 	Manager ServiceManager
+	// Libraries are the media libraries (media.go); nil: none.
+	Libraries LibraryManager
 	// Node is the server running the services. Set with Manager.
 	Node ServiceNode
 	// Network adds servers to the lab (SPEC.md §10.2). Nil hides it.
@@ -485,7 +487,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		"home", "services", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
-		"backups-junk", "setup-finished"} {
+		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-library"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -577,6 +579,12 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /account/notifications", s.requireLogin(s.notificationsSubmit))
 	mux.Handle("GET /account/appearance", s.requireLogin(s.appearancePage))
 	mux.Handle("GET /settings/storage", s.requireOwner(s.storagePage))
+	mux.Handle("GET /settings/media", s.requireOwner(s.mediaPage))
+	mux.Handle("GET /settings/media/add", s.requireOwner(s.mediaAddPage))
+	mux.Handle("POST /settings/media/add", s.requireOwner(s.mediaAddSubmit))
+	mux.Handle("GET /settings/media/{server}/{name}", s.requireOwner(s.mediaLibraryPage))
+	mux.Handle("POST /settings/media/{server}/{name}/readers", s.requireOwner(s.mediaReadersSubmit))
+	mux.Handle("POST /settings/media/{server}/{name}/remove", s.requireOwner(s.mediaRemoveSubmit))
 	mux.Handle("POST /settings/storage/invite", s.requireOwner(s.inviteGuestSubmit))
 	mux.Handle("POST /settings/storage/guests/{id}/remove", s.requireOwner(s.removeGuestSubmit))
 	mux.Handle("POST /settings/storage/guests/{id}/delete", s.requireOwner(s.deleteRemovedGuestSubmit))
@@ -690,6 +698,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /install/{name}/icon.png", s.require(auth.ManageServices, s.packageIcon))
 	mux.Handle("POST /services/{name}/ports/{port}", s.require(auth.ManageServices, s.portSubmit))
 	mux.Handle("POST /services/{name}/settings", s.require(auth.ManageServices, s.settingsSubmit))
+	mux.Handle("POST /services/{name}/libraries", s.require(auth.ManageServices, s.serviceLibrariesSubmit))
 	mux.Handle("POST /services/{name}/reveal/{key}", s.require(auth.ManageServices, s.revealSubmit))
 	mux.Handle("POST /services/{name}/setup/retry", s.require(auth.ManageServices, s.retrySetupSubmit))
 	mux.Handle("POST /services/{name}/setup/retry-with", s.require(auth.ManageServices, s.retryWithSubmit))

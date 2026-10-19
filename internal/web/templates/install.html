@@ -55,6 +55,21 @@
       <small>{{with $.NoBuildText}}{{.}} {{end}}Its data stays on that server, and it's backed up there.</small>
     </label>
     {{end}}
+    {{with .LibraryGroups}}
+    <div x-data="{ host: '' }" x-init="host = $el.closest('form').querySelector('[name=host]')?.value || ''"
+      x-on:change.window="host = $el.closest('form').querySelector('[name=host]')?.value || ''">
+      <input type="hidden" name="libraries_chosen" value="1">
+      {{range $i, $g := .}}
+      <fieldset x-show="host === '{{$g.ServerID}}' || (host === '' && {{if eq $i 0}}true{{else}}false{{end}})"{{if ne $i 0}} x-cloak{{end}}>
+        <legend>Media libraries it can read</legend>
+        {{range $g.Choices}}<label class="check"><input type="checkbox" name="library.{{$g.ServerID}}" value="{{.Name}}"{{if .Checked}} checked{{end}}>
+          <span>{{.Title}}</span></label>{{else}}<p class="hint">{{$g.ServerName}} has no media libraries yet: {{$.Package.Title}} would
+          have nothing to read until you <a href="/settings/media">add some</a>.</p>{{end}}
+        <small class="hint">Read-only, in its media folder, and not backed up. You can change this in its settings later.</small>
+      </fieldset>
+      {{end}}
+    </div>
+    {{end}}
     {{if .HasRoute}}
     <label>Web address
       <span class="with-suffix">

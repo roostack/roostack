@@ -158,6 +158,10 @@ func TestSample(t *testing.T) {
 	if r := sample(dir, me, []int{os.Getgid()}, 100, time.Now().Add(time.Minute)); r.Unreadable != 0 || r.Owner != nil {
 		t.Errorf("as the owner: %+v", r)
 	}
+	// A folder that can't be opened at all says so.
+	if r := sample(filepath.Join(dir, "closed"), me+1, []int{-1}, 100, time.Now().Add(time.Minute)); !r.Closed || r.Sampled != 1 {
+		t.Errorf("closed: %+v", r)
+	}
 	// A limit stops it, and says so.
 	if r := sample(dir, me, nil, 1, time.Now().Add(time.Minute)); !r.Partial || r.Sampled != 1 {
 		t.Errorf("limited: %+v", r)

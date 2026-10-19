@@ -31,6 +31,7 @@ import (
 type fakeNode struct {
 	applied  chan Assignment
 	settings *fakeSettings
+	media    Media
 	healthy  atomic.Bool  // its last apply worked (else "image pull failed")
 	builtIns atomic.Int32 // calls
 }
@@ -85,6 +86,7 @@ func (f *fakeNode) Backups() Backups   { return nil }
 func (f *fakeNode) Restores() Restores { return nil }
 func (f *fakeNode) Updates() Updates   { return nil }
 func (f *fakeNode) Settings() Settings { return f.settings }
+func (f *fakeNode) Media() Media       { return f.media }
 
 type fakeSettings struct{ zone string }
 

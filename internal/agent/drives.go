@@ -56,6 +56,9 @@ type Drive struct {
 	// with a filesystem backups can use, mounted, or in /etc/fstab.
 	Usable   bool `json:"usable"`
 	Erasable bool `json:"erasable"`
+	// Backup: one of Roostack's backup drives (in fstab as one), which
+	// can't hold media libraries.
+	Backup bool `json:"backup,omitempty"`
 }
 
 // SystemBackupDir is where backups go on the server's own disk.
@@ -306,6 +309,9 @@ func (h LinuxHost) Drives() ([]Drive, error) {
 	drives, err := parseDrives(out, free, string(tab), resolvePath)
 	if err != nil {
 		return nil, err
+	}
+	for i := range drives {
+		drives[i].Backup = drives[i].UUID != "" && backupDrive(string(tab), drives[i].UUID)
 	}
 	if mounts, err := os.ReadFile("/proc/mounts"); err == nil {
 		drives = append(drives, networkDrives(string(mounts), statfs)...)

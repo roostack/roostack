@@ -35,6 +35,7 @@ nav = [
     "servers/add.md",
     "servers/move.md",
     "servers/gone.md",
+    "servers/media-libraries.md",
     "servers/storage-for-others.md",
   ] },
   { "Settings" = [

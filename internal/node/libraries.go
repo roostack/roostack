@@ -18,6 +18,8 @@ import (
 
 // LibraryAgent is roostack-agent's media library operations.
 type LibraryAgent interface {
+	Drives(ctx context.Context) ([]agent.Drive, error)
+	LibraryFolders(ctx context.Context, l agent.Library) (agent.FolderList, error)
 	Libraries(ctx context.Context) ([]agent.LibraryStatus, error)
 	MountLibrary(ctx context.Context, l agent.Library) error
 	UnmountLibrary(ctx context.Context, name string) error

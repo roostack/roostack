@@ -22,6 +22,7 @@ import (
 // fakeRemote is another server that records its assignments.
 type fakeRemote struct {
 	guestLink []agent.WireGuard
+	media     node.Media
 	deleted   []string
 	mu        sync.Mutex
 	last      node.Assignment
@@ -84,6 +85,8 @@ func (f *fakeRemote) LatestActivity(string) (activity.Snapshot, bool) {
 func (f *fakeRemote) Backups() node.Backups   { return f.backups }
 func (f *fakeRemote) Restores() node.Restores { return nil }
 func (f *fakeRemote) Updates() node.Updates   { return nil }
+func (f *fakeRemote) Media() node.Media       { return f.media }
+
 func (f *fakeRemote) Settings() node.Settings {
 	f.mu.Lock()
 	defer f.mu.Unlock()

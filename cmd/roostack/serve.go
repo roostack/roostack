@@ -168,6 +168,7 @@ func serve(args []string) error {
 		Settings:  st}
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
+	srv.Libraries = mgr
 	srv.UIHost = lab.UIHost()
 	// The lab's name as it is now: the setup wizard names it without a
 	// restart (it waits for the wizard's end, if anything asks for one),

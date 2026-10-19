@@ -57,6 +57,8 @@ type Node interface {
 	// Settings are the server's own settings (settings.go); nil when
 	// they can't be changed from Roostack.
 	Settings() Settings
+	// Media is its media libraries (media.go); nil when it can't have any.
+	Media() Media
 }
 
 // Assignment is what the controller wants a node to run.

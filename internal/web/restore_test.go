@@ -12,6 +12,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/setup"
 )
@@ -146,6 +147,8 @@ func TestRestoreFlow(t *testing.T) {
 
 // otherServer is another server in the lab, with no activities.
 type otherServer struct{ *fakeManager }
+
+func (otherServer) Media() node.Media { return nil }
 
 func (otherServer) Identity() nodeid.Identity {
 	return nodeid.Identity{ID: "n-9876543210", Name: "vps"}

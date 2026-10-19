@@ -1,0 +1,31 @@
+{{define "title"}}{{.Library.Title}}{{end}}
+{{define "crumbs"}}<a href="/settings">Settings</a><a href="/settings/media">Media libraries</a><strong aria-current="page">{{.Library.Title}}</strong>{{end}}
+{{define "page-help"}}{{help "servers/media-libraries" "Media libraries"}}{{end}}
+{{define "content"}}
+{{with .Library}}
+<div class="page-head"><div><h1>{{.Title}}</h1>
+  <p class="lede">A media library on {{$.Server.ServerName}}: read-only for services, and not backed up.</p></div></div>
+<section class="card section">
+  <dl class="facts">
+    <dt>Where</dt><dd>{{.Where}}</dd>
+    <dt>Now</dt><dd>{{if .Unknown}}Its server isn't answering.{{else if not .Connected}}Not connected: plug it in. Until then services see an empty folder.{{else if not .Mounted}}Not mounted yet.{{else}}Connected{{with .Size}}, on a {{size .}} disk{{end}}.{{end}}</dd>
+    {{with .OwnerName}}<dt>Read as</dt><dd>its owner, {{.}}: their files show as Roostack's, for this library only.</dd>{{end}}
+    <dt>In services</dt><dd><code>&lt;their media folder&gt;/{{.Name}}</code></dd>
+  </dl>
+</section>
+<section class="card section">
+  <h2>Services that can read it</h2>
+  {{if $.Readers}}
+  <form method="post" action="/settings/media/{{.ServerID}}/{{.Name}}/readers">
+    {{range $.Readers}}<label class="check"><input type="checkbox" name="service" value="{{.Name}}"{{if has .Libraries $.Library.Name}} checked{{end}}><span>{{.Title}}</span></label>{{end}}
+    <button type="submit" class="secondary">Save</button>
+  </form>
+  {{else}}<p class="hint">No service on {{$.Server.ServerName}} reads media libraries.</p>{{end}}
+</section>
+<section class="card section">
+  <h2>Remove it</h2>
+  <p>Services stop seeing it. Nothing on the drive or in the folder changes.</p>
+  {{confirm (printf "/settings/media/%s/%s/remove" .ServerID .Name) (printf "Remove the media library %s? Services stop seeing it; its files stay where they are." .Title) "Remove library" "quiet danger"}}
+</section>
+{{end}}
+{{end}}

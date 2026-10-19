@@ -1,0 +1,88 @@
+package node
+
+import (
+	"context"
+	"net/http"
+
+	"roostack.cloud/roostack/internal/agent"
+)
+
+// Media is what the controller's pages ask a server about its media
+// libraries (SPEC.md §8.1, "Media libraries"): its drives, the folders a
+// library could be, and its libraries' state.
+type Media interface {
+	Drives(ctx context.Context) ([]agent.Drive, error)
+	LibraryFolders(ctx context.Context, l agent.Library) (agent.FolderList, error)
+	Libraries(ctx context.Context) ([]agent.LibraryStatus, error)
+}
+
+// Media is this server's media libraries, through its agent; nil without
+// one.
+func (n *Local) Media() Media {
+	if n.Libraries == nil {
+		return nil
+	}
+	return n.Libraries
+}
+
+// Media asks another server about its media libraries.
+func (r *Remote) Media() Media { return remoteMedia{r} }
+
+type remoteMedia struct{ r *Remote }
+
+func (x remoteMedia) Drives(ctx context.Context) ([]agent.Drive, error) {
+	var d []agent.Drive
+	err := x.r.call(ctx, http.MethodGet, "/v1/media/drives", nil, &d)
+	return d, err
+}
+
+func (x remoteMedia) LibraryFolders(ctx context.Context, l agent.Library) (agent.FolderList, error) {
+	var list agent.FolderList
+	err := x.r.call(ctx, http.MethodPost, "/v1/media/folders", l, &list)
+	return list, err
+}
+
+func (x remoteMedia) Libraries(ctx context.Context) ([]agent.LibraryStatus, error) {
+	var libs []agent.LibraryStatus
+	err := x.r.call(ctx, http.MethodGet, "/v1/media/libraries", nil, &libs)
+	return libs, err
+}
+
+// mediaRoutes serves Media on the lab API.
+func (s *Server) mediaRoutes(handle func(string, func(r *http.Request) (any, error)), decode func(*http.Request, any) error) {
+	media := func() (Media, error) {
+		if m := s.Node.Media(); m != nil {
+			return m, nil
+		}
+		return nil, ErrNotFound
+	}
+	handle("GET /v1/media/drives", func(r *http.Request) (any, error) {
+		m, err := media()
+		if err != nil {
+			return nil, err
+		}
+		return m.Drives(r.Context())
+	})
+	handle("POST /v1/media/folders", func(r *http.Request) (any, error) {
+		m, err := media()
+		if err != nil {
+			return nil, err
+		}
+		var l agent.Library
+		if err := decode(r, &l); err != nil {
+			return nil, err
+		}
+		list, err := m.LibraryFolders(r.Context(), l)
+		if err != nil {
+			return nil, &FormError{Msg: err.Error()}
+		}
+		return list, nil
+	})
+	handle("GET /v1/media/libraries", func(r *http.Request) (any, error) {
+		m, err := media()
+		if err != nil {
+			return nil, err
+		}
+		return m.Libraries(r.Context())
+	})
+}

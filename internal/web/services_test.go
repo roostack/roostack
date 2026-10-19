@@ -245,6 +245,7 @@ func (f *fakeManager) DiskSpaces(context.Context) ([]node.DiskSpace, error) {
 }
 
 func (f *fakeManager) Settings() node.Settings { return f.settings }
+func (f *fakeManager) Media() node.Media       { return nil }
 
 // The fake is also the lab's one server.
 func (f *fakeManager) Identity() nodeid.Identity {

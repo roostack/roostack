@@ -23,6 +23,10 @@ type fakeLibraries struct {
 	calls   []string
 }
 
+func (f *fakeLibraries) Drives(context.Context) ([]agent.Drive, error) { return nil, nil }
+func (f *fakeLibraries) LibraryFolders(context.Context, agent.Library) (agent.FolderList, error) {
+	return agent.FolderList{}, nil
+}
 func (f *fakeLibraries) Libraries(context.Context) ([]agent.LibraryStatus, error) {
 	var out []agent.LibraryStatus
 	for name := range f.mounted {

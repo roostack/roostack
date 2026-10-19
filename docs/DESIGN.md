@@ -156,6 +156,7 @@ Template components are called as functions; everything else is plain HTML with 
 | Facts | `<dl class="facts">` | Label/value pairs; stack on phones. A short command in one is `<code class="nowrap">`, so `sshd -T` doesn't break at its hyphen on a phone |
 | Forms | `<label>Text <input><small>hint</small></label>`, `label.check` for checkboxes and radios, `.with-suffix` (a fixed end, e.g. the domain), `.with-prefix` (a fixed start, e.g. a service's package name), `select.inline` | Errors: `<p class="error" role="alert">` above the form |
 | Rows | `ul.rows` with `li.row-split` | Lists you act on (people, kept copies) |
+| Drive cards | `.drives` of `.drive`: a `label.check` with a radio (the backup plan's chooser), or a link (`.drive > a`: a media library's drive, opening its folders); `.drive-unusable` greys one out with why (a backup drive) | A drive's name, a badge for its kind, and its size and filesystem in a `small` line |
 | Needs attention | `.attention .item` with `.item-problem` / `.item-warning` | Home page. Text wraps anywhere (an address, a key). An error shows only its first line: restic's stack trace stays on the Backups page, under the failed backup's Details |
 | Activity | `{{activity .SomeActivity}}` | Host operations: status line plus collapsed log; nothing if there's none |
 | Technical details | `<details class="technical">` | Collapsed by default |

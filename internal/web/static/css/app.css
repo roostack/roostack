@@ -732,6 +732,12 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
 .drive > label { margin: 0; flex: 1 1 16rem; }
 .drive-unusable > label { color: var(--muted); }
 .drive-erase { flex: 0 0 auto; }
+/* A drive card that's a link (media libraries: open its folders). */
+.drive > a { flex: 1 1 16rem; color: inherit; text-decoration: none; }
+.drive > a strong { color: var(--accent); }
+.drive > a:hover strong, .drive > a:focus-visible strong { text-decoration: underline; }
+.drive > a small, .drive-unusable > span small { display: block; color: var(--muted); }
+.drive-unusable > span { color: var(--muted); }
 
 .activity-status { overflow-wrap: anywhere; }
 

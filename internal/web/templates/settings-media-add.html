@@ -1,0 +1,81 @@
+{{define "title"}}Add a media library{{end}}
+{{define "crumbs"}}<a href="/settings">Settings</a><a href="/settings/media">Media libraries</a><strong aria-current="page">Add a library</strong>{{end}}
+{{define "page-help"}}{{help "servers/media-libraries" "Media libraries"}}{{end}}
+{{define "content"}}
+{{with .Add}}
+<div class="page-head"><div><h1>Add a media library</h1>
+  <p class="lede">On {{.ServerName}}. Services you choose can read it but never change it, and it isn't backed up.</p></div></div>
+<section class="card section">
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .List}}
+  <nav class="crumbs folder-crumbs" aria-label="Folders opened">
+    <a href="/settings/media/add?server={{.Server}}">Where</a>{{range .Crumbs}}<a href="{{.Href}}">{{.Name}}</a>{{end}}
+  </nav>
+  {{if .List.Folders}}
+  <ul class="rows folders">
+    {{range .List.Folders}}
+    <li class="row-split"><a href="{{$.Add.FolderHref .Name}}">{{.Name}}</a>
+      <small class="hint">{{if .Folders}}{{.Folders}} {{if eq .Folders 1}}folder{{else}}folders{{end}}{{end}}{{if and .Folders .Files}}, {{end}}{{if .Files}}{{.Files}} {{if eq .Files 1}}file{{else}}files{{end}}{{end}}{{if and (not .Folders) (not .Files)}}empty{{end}}</small></li>
+    {{end}}
+  </ul>
+  {{else}}<p class="hint">No folders here.</p>{{end}}
+
+  <form method="post" action="/settings/media/add">
+    <input type="hidden" name="server" value="{{.Server}}">
+    {{if .Drive}}<input type="hidden" name="drive" value="{{.Drive}}"><input type="hidden" name="name" value="{{.DriveName}}">
+    <input type="hidden" name="sub" value="{{.Sub}}">{{else}}<input type="hidden" name="folder" value="{{.Folder}}">{{end}}
+    <h2>Use {{.Here}}</h2>
+    {{with .List.Check}}{{if .Unreadable}}
+    <div class="notice notice-warn" role="status">
+      <p>{{if and .Closed .Owner}}<strong>This folder can only be opened by its owner, {{or .Owner.Name .Owner.UID}}</strong>, so services
+        couldn't open anything in it.{{else if .Closed}}<strong>Services couldn't open this folder</strong>: it belongs to the system or
+        to someone else.{{else if .Owner}}<strong>{{.OwnerFiles}} of the {{.Sampled}} files and folders Roostack looked at can only be read by their owner, {{or .Owner.Name .Owner.UID}}</strong>,
+        so services couldn't open them.{{else}}<strong>Services couldn't open {{.Unreadable}} of the {{.Sampled}} files and folders Roostack looked at</strong>:
+        they belong to the system or to several people.{{end}}{{if .Partial}} (Roostack looked at the first {{.Sampled}}.){{end}}</p>
+      {{if and .Owner $.Add.Drive}}
+      <label class="check"><input type="checkbox" name="as_owner" checked>
+        <span>Let services read them as {{or .Owner.Name .Owner.UID}}
+          <small>Roostack mounts the folder so {{or .Owner.Name .Owner.UID}}'s files show as Roostack's own, for this library only:
+            services can read everything {{or .Owner.Name .Owner.UID}} can, and still change nothing. Nothing on the drive changes;
+            removing the library undoes it.{{if gt .Unreadable .OwnerFiles}} Files of other people stay unreadable.{{end}}</small></span></label>
+      {{else if .Owner}}<p class="hint">Make them readable to everyone on the server, or put them on a drive: a library on a drive
+        can be read as their owner.</p>{{end}}
+    </div>
+    {{end}}{{end}}
+    <label>Name <input name="title" value="{{.Name}}" maxlength="60" required>
+      <small>What it's called on your pages, and its folder's name inside services, in lower case.</small></label>
+    {{if .Readers}}
+    <fieldset><legend>Services that can read it</legend>
+      {{range .Readers}}<label class="check"><input type="checkbox" name="service" value="{{.Name}}" checked><span>{{.Title}}</span></label>{{end}}
+    </fieldset>
+    {{else}}<p class="hint">No service on {{.ServerName}} reads media libraries yet: the ones you install choose theirs.</p>{{end}}
+    <button type="submit">Add library</button>
+  </form>
+
+  {{else}}
+  <h2>Where is it?</h2>
+  {{if .Drives}}
+  <div class="drives">
+    {{range .Drives}}
+    {{if .Backup}}
+    <div class="drive drive-unusable"><span><strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else}}Second disk{{end}}</span>
+      <small>Your backups' drive: keep media on another</small></span></div>
+    {{else}}
+    <div class="drive"><a href="{{$.Add.DriveHref .}}">
+      <strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else}}Second disk{{end}}</span>
+      <small>{{size .Size}}{{if ge .Free 0}}, {{size .Free}} free{{end}} · {{.FSType}}{{with .Model}} · {{.}}{{end}}{{with .Mount}} · at {{.}}{{end}}</small></a></div>
+    {{end}}
+    {{end}}
+  </div>
+  <p class="hint">Just plugged a drive in? <a href="/settings/media/add?server={{.Server}}">Look again</a>. Roostack mounts it
+    read-only: nothing on it changes.</p>
+  {{else}}<p class="hint">No USB drives or second disks on {{.ServerName}}. Plug one in and <a href="/settings/media/add?server={{.Server}}">look again</a>.</p>{{end}}
+  <h2>Or a folder on {{.ServerName}}</h2>
+  <ul class="rows folders">
+    {{range .Roots}}<li class="row-split"><a href="{{$.Add.RootHref .}}">{{.}}</a></li>{{end}}
+  </ul>
+  <p class="hint">Folders under {{join .Roots ", "}}, apart from Roostack's own.</p>
+  {{end}}
+</section>
+{{end}}
+{{end}}

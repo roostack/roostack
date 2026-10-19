@@ -286,6 +286,11 @@ type InstallRequest struct {
 	// installed anyway (SPEC.md §8.3.4). The web layer lets only the
 	// Owner set it.
 	AcceptRisks bool
+	// Libraries are the media libraries of its server it may read, for a
+	// package that reads them; when LibrariesChosen is false (no form
+	// asked), all of them (SPEC.md §8.1, "Media libraries").
+	Libraries       []string
+	LibrariesChosen bool
 }
 
 func formErrorf(format string, args ...any) error {
@@ -409,6 +414,9 @@ func (m *Manager) draft(p *pkgspec.Package, req InstallRequest, lenient, keep bo
 	// (SPEC.md §8.3.3).
 	if err := m.checkArch(context.Background(), p, p.Title, host); err != nil {
 		return nil, "", err
+	}
+	if p.ReadsLibraries() {
+		in.Libraries = m.chosenLibraries(context.Background(), host, req.Libraries, req.LibrariesChosen)
 	}
 	id := p.Name
 	if n := strings.ToLower(strings.TrimSpace(req.Name)); n != "" && n != p.Name {

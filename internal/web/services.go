@@ -279,6 +279,11 @@ func (s *Server) installRequest(r *http.Request, form url.Values, p *pkgspec.Pac
 		// only an Owner makes anything public (§6.11).
 		Public: s.onInternet() && auth.Can(currentUser(r).Role, auth.ManageHost) && form.Get("public") == "on",
 	}
+	// The media libraries ticked for the server chosen (SPEC.md §8.1).
+	if form.Get("libraries_chosen") != "" {
+		req.LibrariesChosen = true
+		req.Libraries = form["library."+cmp.Or(req.Host, s.thisServerID())]
+	}
 	for _, st := range p.Settings {
 		if v, ok := form["setting."+st.Key]; ok && len(v) > 0 {
 			if st.Type == pkgspec.SettingSecret {
@@ -468,6 +473,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		"Title":         title,
 		"BaseSubdomain": base,
 		"MaxSuffix":     max(1, instance.MaxName-len(p.Name)-1),
+		"LibraryGroups": s.libraryGroups(r, p, submitted),
 	}
 }
 

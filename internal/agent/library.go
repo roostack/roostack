@@ -114,6 +114,8 @@ type Readability struct {
 	Sampled    int  `json:"sampled"`
 	Unreadable int  `json:"unreadable"`
 	Partial    bool `json:"partial"` // the sample stopped before the end
+	// Closed: the folder itself can't be opened, so nothing in it could.
+	Closed bool `json:"closed,omitempty"`
 	// Owner owns most of the unreadable files, if a library can read them
 	// as that owner (a regular user); OwnerFiles are theirs.
 	Owner      *Owner `json:"owner,omitempty"`
@@ -456,12 +458,16 @@ func sample(dir string, uid int, gids []int, limit int, deadline time.Time) Read
 			return nil
 		}
 		if d.IsDir() {
+			if d.Name() == "lost+found" && p != dir {
+				return fs.SkipDir // the filesystem's own, root's: never media
+			}
 			if !canRead(info.Mode(), int(st.Uid), int(st.Gid), uid, gids, true) {
 				// What's inside can't be reached: count the folder as one.
 				r.Sampled++
 				r.Unreadable++
 				owners[[2]int{int(st.Uid), int(st.Gid)}]++
 				if p == dir {
+					r.Closed = true
 					return fs.SkipAll
 				}
 				return fs.SkipDir
@@ -475,13 +481,15 @@ func sample(dir string, uid int, gids []int, limit int, deadline time.Time) Read
 		}
 		return nil
 	})
+	// The regular user owning most of them (root's or a system account's
+	// can't be read as Roostack's anyway).
 	var best [2]int
 	for o, n := range owners {
-		if n > owners[best] || (n == owners[best] && o[0] < best[0]) {
+		if regularUser(o[0], o[1]) && (n > owners[best] || (n == owners[best] && o[0] < best[0])) {
 			best = o
 		}
 	}
-	if n := owners[best]; n > 0 && regularUser(best[0], best[1]) {
+	if n := owners[best]; n > 0 {
 		o := &Owner{UID: best[0], GID: best[1]}
 		if u, err := user.LookupId(strconv.Itoa(best[0])); err == nil {
 			o.Name = u.Username

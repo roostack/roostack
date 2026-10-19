@@ -43,6 +43,7 @@ var settingsAreas = []settingsArea{
 	{"public", "Network", "Public access", "/settings/public"},
 	{"cloud", "Network", "Roostack Cloud", "/settings/cloud"},
 	{"servers", "Servers", "Servers", "/servers"},
+	{"media", "Servers", "Media libraries", "/settings/media"},
 	{"storage", "Servers", "Storage for others", "/settings/storage"},
 	// Settings that differ per server (switcher.go).
 	{"updates", "Each server", "Updates and restarts", "/settings/updates"},
@@ -78,6 +79,8 @@ func (a settingsArea) Icon() string {
 		return "cloud"
 	case "storage":
 		return "disk"
+	case "media":
+		return "media"
 	case "updates":
 		return "changes"
 	case "time-zone":

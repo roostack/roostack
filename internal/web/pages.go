@@ -548,6 +548,11 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	page := "service"
 	if data["EditSettings"] == true {
 		page = "service-settings"
+		if s.Libraries != nil {
+			if c, err := s.Libraries.ServiceLibraries(r.Context(), name); err == nil && c.Reads {
+				data["Libraries"] = c
+			}
+		}
 	}
 	s.render(w, page, data)
 }

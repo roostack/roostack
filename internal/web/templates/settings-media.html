@@ -1,0 +1,59 @@
+{{define "title"}}Media libraries{{end}}
+{{define "page-help"}}{{help "servers/media-libraries" "Media libraries"}}{{end}}
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Media libraries</h1>
+    <p class="lede">Films, TV, music, books and photos you already have, on drives and in folders, for services like Plex,
+      Jellyfin and Navidrome to play. Services can read them but never change them, and Roostack doesn't back them up:
+      they're things you have elsewhere or keep safe yourself.</p>
+  </div>
+</div>
+{{range .Servers}}
+{{if $.Several}}<h2 class="area-heading">On {{.ServerName}}{{if .This}} (this server){{end}}</h2>{{end}}
+{{if .Libraries}}
+<section class="card">
+  <div class="card-head"><h2>{{len .Libraries}} {{if eq (len .Libraries) 1}}library{{else}}libraries{{end}}</h2>
+    {{if .CanHave}}<a class="button secondary" href="/settings/media/add?server={{.ServerID}}">Add a library…</a>{{end}}</div>
+  <div class="table-wrap"><table class="list">
+    <thead><tr><th>Library</th><th class="hide-phone">Read by</th><th></th></tr></thead>
+    <tbody>
+    {{range .Libraries}}
+      <tr>
+        <td class="list-name"><span>{{.Title}}
+          <small{{if and (not .Unknown) (not .Connected)}} class="warn"{{end}}>{{.Where}} ·
+            {{if .Unknown}}its server isn't answering{{else if not .Connected}}Not connected: plug it in. Until then services see an empty folder.{{else if not .Mounted}}not mounted yet{{else}}Connected{{with .Size}} · on a {{size .}} disk{{end}}{{end}}{{with .OwnerName}} · read as its owner, {{.}}{{end}}</small></span></td>
+        <td class="hide-phone">{{with .ReadBy}}{{join . ", "}}{{else}}No service yet{{end}}</td>
+        <td><a href="/settings/media/{{.ServerID}}/{{.Name}}">Manage</a></td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table></div>
+</section>
+{{else}}
+<section class="card section">
+  {{if .CanHave}}
+  <p>No media libraries on {{.ServerName}} yet.{{if $.Several}} Each server has its own: services on other servers can't see these.{{end}}</p>
+  <a class="button secondary" href="/settings/media/add?server={{.ServerID}}">Add a library…</a>
+  {{else}}
+  <p class="hint">{{.ServerName}} can't have media libraries: it isn't answering, or its Roostack is too old.</p>
+  {{end}}
+</section>
+{{end}}
+{{end}}
+<section class="card section">
+  <details class="technical"><summary>Where they are</summary>
+    <dl class="facts">
+      <dt>On the server</dt><dd>Each library is mounted read-only at <code>/mnt/roostack-library/&lt;name&gt;</code>. Roostack
+        never writes there.</dd>
+      <dt>In a service</dt><dd>The libraries chosen for it, read-only, each in a folder of its name inside the folder its package
+        says (often <code>/media</code>). Each service has its own folder of them, <code>/mnt/roostack-library-views/&lt;service&gt;</code>,
+        so a drive plugged in later appears in the running service too.</dd>
+      <dt>Drives</dt><dd>Mounted read-only by their filesystem's UUID in <code>/etc/fstab</code> (<code>nofail</code>,
+        <code>x-systemd.automount</code>), like backup drives: one that's unplugged never holds up booting. A library read as its
+        owner is an idmapped mount (<code>X-mount.idmap</code>): the owner's files show as Roostack's, for that library only.</dd>
+      <dt>Backups</dt><dd>Not backed up.</dd>
+    </dl>
+  </details>
+</section>
+{{end}}
