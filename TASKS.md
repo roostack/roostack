@@ -633,6 +633,14 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 
 - [x] **The forms' design applied to single sign-on and the package editor** (2026-10-20, after merging them): People's add, change-someone and group forms in dialogs, the role a segmented control, switches; a service's single sign-on choosing who with a segmented control, changed in a dialog; the editor's small fixed choices as segmented controls and its on/off fields as switches; buttons as tall as inputs everywhere. Roostack Cloud's copy of the editor picks these up with its next update of this module (internal/editor)
 
+## Bringing services from Docker Compose (SPEC §8.4, proposed 2026-10-20)
+
+- [x] The plan: what Roostack has to build on, what moving each part of a Compose homelab takes, Immich and Plex step by step, the journey, safety, a first version and questions (docs/MIGRATION-PLAN.md)
+- [ ] The Owner's answers to the plan's questions (§13): their homelab (same machine or new, where the files are, versions, GPU, addresses, access) and the design choices (a page in Roostack, Plex's path rewrite, matching versions, `rsync`)
+- [ ] Rehearsal on VM 3, once agreed: Docker with Compose Immich and Plex, then their data into Roostack's packages (Immich's own path rewrite, `Plex SQLite`'s, timings, Docker beside Roostack); docs/ASSUMPTIONS.md entries
+- [ ] The first version, once agreed: `internal/migrate` (read, plan, copy, move, back) with the Immich and Plex recipes, the page, the help pages
+- [ ] Later: the same machine (a read-only mount of the old disk, a dump file such as Immich's own backups), Jellyfin, Vaultwarden and Navidrome, an older Immich, a recipe part in the package format
+
 ## To discuss with the user
 
 - [x] Single sign-on for services (SPEC §5.2; research in docs/SSO-RESEARCH.md; mock-ups in docs/mockups/sso). Decided 2026-10-20: Roostack itself is the identity provider, its OIDC part on the standard library, groups in the first version, two-factor as for Roostack with a choice to ask everyone, 30-day "keep me signed in" ticked, the look on People with a mark or a wide logo. Built and checked end to end on VM3 the same day with Mealie (OIDC) and Stirling-PDF (the wall): docs/ASSUMPTIONS.md V1–V6; the conformance suite passes (V7)
