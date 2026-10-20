@@ -1,0 +1,18 @@
+/* What the real stylesheet lacks for these mock-ups: a form's section
+   headings, a "Details" disclosure inside a form, the install page's
+   summary beside the form (B), and the switch at the bottom right. */
+h2.form-section { margin: 0 0 var(--space-3); font-size: var(--text-base); text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); font-family: var(--font-sans); font-weight: var(--weight-bold); }
+details.form-more { margin: calc(-1 * var(--space-2)) 0 var(--space-4); }
+details.form-more > summary { color: var(--muted); font-size: var(--text-sm); cursor: pointer; }
+details.form-more[open] > summary { margin-bottom: var(--space-3); }
+select.name-select { max-width: 24rem; }
+.install-grid { align-items: start; }
+.install-aside { position: sticky; top: var(--space-4); }
+.install-aside .install-summary h2 { margin-top: 0; }
+.mock-bar { position: fixed; right: 12px; bottom: 12px; z-index: 50; display: flex; gap: 4px; flex-wrap: wrap; max-width: calc(100vw - 24px);
+  padding: 6px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border-strong);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.25); font-size: 13px; }
+.mock-bar a, .mock-bar button { padding: 4px 8px; border-radius: 6px; color: var(--fg); text-decoration: none;
+  background: none; border: 0; font-weight: 500; font-size: 13px; }
+.mock-bar a[aria-current] { background: var(--accent); color: var(--accent-fg); }

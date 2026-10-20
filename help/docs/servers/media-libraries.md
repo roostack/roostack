@@ -15,20 +15,24 @@ runs on.
 On **Settings → Media libraries**, choose **Add a library…** for the server
 the files are on:
 
-1. Choose **where it is**: one of the server's drives, or one of the places
-   folders on the server can be (`/mnt`, `/media` or `/srv`). Roostack mounts
-   a drive **read-only**, so nothing on it changes.
-2. Open folders until you're in the one you want, or stay at the top for the
-   whole drive.
+1. Under **Where is it?**, choose **Drive** (a USB drive or second disk) or
+   **Folder on** the server (a folder under `/mnt`, `/media` or `/srv`).
+   For a drive, choose which one. Roostack mounts a drive **read-only**, so
+   nothing on it changes.
+2. A drive starts as the whole drive. To use one folder on it, or to choose a
+   folder on the server, press **Choose a folder…**: open folders until
+   you're in the one you want (each says how many folders and files it
+   holds), then press **Use** with its name.
 3. Give the library a **name**. It's also the library's folder's name inside
-   services, in lower case (`Films` becomes `films`).
+   services, in lower case (`Films` becomes `films`). Roostack suggests the
+   folder's name.
 4. Tick the **services that can read it**, then **Add library**.
 
 A drive that holds your backups can't be a library: keep media on another.
 
 ## A share on a NAS
 
-Under **Or a network share** on the same page:
+Under **Where is it?** on the same page, choose **Network share**:
 
 1. Choose the kind: **SMB** (Windows sharing, what most NASes offer) or
    **NFS**.

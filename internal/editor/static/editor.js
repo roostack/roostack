@@ -470,6 +470,8 @@
     "storage.*.location": S.lists.locations, "databases.*.type": S.lists.databaseTypes, "routes.*.exposure": S.lists.exposures,
     "ports.*.exposure": S.lists.exposures, "ports.*.protocol": ["tcp", "udp"], "hooks[].on": S.lists.hookEvents, "containers.*.devices[].gpu": S.lists.gpuKinds,
   };
+  // The value a field has when it's left out, shown beside its choice.
+  const defaults = { "storage.*.location": "service", "ports.*.protocol": "tcp" };
   const references = {
     "routes.*.container": ["containers"], "ports.*.container": ["containers"], "hooks[].container": ["containers"],
     "links[].route": ["routes"], "containers.*.mounts[].storage": ["storage"],
@@ -593,8 +595,16 @@
       input = categoriesInput(path, val);
       wrap.append(h("span", { class: "pe-label" }, hp.label), input);
     } else if (f.type === "bool") {
-      input = h("input", { id, type: "checkbox", checked: val === true || val === "true", onchange: (e) => change(path, e.target.checked ? true : null) });
+      input = h("input", { id, type: "checkbox", role: "switch", checked: val === true || val === "true", onchange: (e) => change(path, e.target.checked ? true : null) });
       wrap.append(h("label", { class: "pe-check", for: id }, input, " ", hp.label || path[path.length - 1]));
+    } else if (enums[hk] && enums[hk].length >= 2 && enums[hk].length <= 4 && (!textOf(val) || enums[hk].includes(textOf(val)))) {
+      // A small fixed choice: a row of buttons (radios), as Roostack's
+      // segmented control; nothing chosen while it's unset.
+      const lid = id + "-l";
+      input = h("div", { class: "pe-seg", role: "radiogroup", "aria-labelledby": lid },
+        enums[hk].map((o, i) => h("label", {}, h("input", { type: "radio", name: id, value: o, id: i ? undefined : id, checked: textOf(val) === o,
+          onchange: () => change(path, o) }), h("span", {}, o + (defaults[hk] === o ? " (the default)" : "")))));
+      wrap.append(h("span", { class: "pe-label", id: lid }, hp.label || path[path.length - 1]), input);
     } else if (enums[hk] || references[hk]) {
       const options = enums[hk] || keysOf(references[hk]);
       input = h("select", { id, class: "pe-input", onchange: (e) => change(path, e.target.value) },

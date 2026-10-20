@@ -298,7 +298,7 @@ dl.facts-lined > dd > p:first-child { margin-top: 0; }
 
 /* ---------- Buttons: primary (default), secondary, danger, quiet ---------- */
 button, a.button, summary.button { display: inline-flex; align-items: center; gap: var(--space-2); font: inherit;
-  font-weight: var(--weight-bold); padding: 9px 16px; border: 1px solid transparent; border-radius: 10px;
+  font-weight: var(--weight-bold); padding: 10px 16px; border: 1px solid transparent; border-radius: 10px;
   background: var(--accent); color: var(--accent-fg); cursor: pointer; text-decoration: none; white-space: nowrap; }
 button:hover, a.button:hover, summary.button:hover { filter: brightness(1.08); }
 /* On a phone a long label ("Link and go back to <lab>") wraps rather than
@@ -344,6 +344,91 @@ label.check small { display: block; font-weight: var(--weight-normal); }
 select.inline { display: inline-block; width: auto; margin: 0 0 0 var(--space-2); padding: var(--space-1) var(--space-2); }
 .inline-form { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .inline-form label { margin: 0; }
+/* An input with its button after it (Rename, Save): the button as tall as
+   the input, on the same line; the input as wide as a name, not the card. */
+.inline-form > :is(input, select) { margin-top: 0; width: auto; flex: 1 1 12rem; max-width: 24rem; }
+.inline-form > button { align-self: stretch; }
+/* A dropdown in a sentence before a button: as tall as an input, so the
+   button beside it lines up. */
+.inline-form select.inline { padding-top: 9px; padding-bottom: 9px; }
+.inline-form > small { flex-basis: 100%; }
+
+/* Segmented control: a small exclusive choice as one row of buttons
+   (radios). Inside a .seg-group, the chosen one's .seg-panel shows; CSS
+   only, so it works without scripts. On phones a full-size one fills the
+   width, its choices equal columns with the icon above the words. */
+.segmented { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; margin: 0 0 var(--space-3);
+  border: 1px solid var(--edge-strong); border-radius: var(--radius); background: var(--glass); }
+.segmented label { position: relative; display: inline-flex; align-items: center; gap: var(--space-2); margin: 0;
+  padding: 7px 14px; border-radius: calc(var(--radius) - 3px); color: var(--muted); font-weight: var(--weight-medium);
+  cursor: pointer; white-space: nowrap; }
+.segmented label:hover { color: var(--fg); }
+.segmented input { position: absolute; opacity: 0; pointer-events: none; margin: 0; }
+.segmented label:has(input:checked) { background: var(--surface); color: var(--fg);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18), inset 0 0 0 1px var(--edge-strong); }
+.segmented label:has(input:checked) .icon { color: var(--accent); }
+.segmented label:has(input:focus-visible) { box-shadow: var(--focus-ring); }
+.segmented .icon { width: 18px; height: 18px; }
+.segmented.small label { padding: 4px 12px; font-size: var(--text-sm); }
+@media (max-width: 640px) {
+  .segmented:not(.small) { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; }
+  .segmented:not(.small) label { flex-direction: column; justify-content: center; gap: 2px; padding: 8px 4px;
+    white-space: normal; text-align: center; font-size: var(--text-sm); line-height: 1.2; }
+}
+.seg-panel { display: none; }
+.seg-group:has(> .segmented > label:nth-child(1) > input:checked) > .seg-panel[data-seg="1"],
+.seg-group:has(> .segmented > label:nth-child(2) > input:checked) > .seg-panel[data-seg="2"],
+.seg-group:has(> .segmented > label:nth-child(3) > input:checked) > .seg-panel[data-seg="3"],
+.seg-group:has(> .segmented > label:nth-child(4) > input:checked) > .seg-panel[data-seg="4"] { display: block; }
+/* The chosen choice's one-line hint, first in its panel. */
+.seg-hint { margin: calc(-1 * var(--space-1)) 0 var(--space-4); }
+
+/* Switch: an on/off setting that saves with its form, drawn as a switch
+   (a checkbox with role="switch", so it's still a checkbox without
+   styles or scripts). Ticking items from a list, or confirming something,
+   stays a checkbox. */
+label.check input.switch { appearance: none; flex: none; position: relative; width: 36px; height: 20px; margin-top: 2px;
+  border-radius: var(--radius-pill); background: var(--border-strong); cursor: pointer; transition: background 0.15s; }
+label.check input.switch::before { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 0.3); transition: transform 0.15s; }
+label.check input.switch:checked { background: var(--accent); }
+label.check input.switch:checked::before { transform: translateX(16px); background: var(--accent-fg); }
+label.check input.switch:focus-visible { border-radius: var(--radius-pill); }
+label.check input.switch:disabled { opacity: 0.55; cursor: default; }
+@media (prefers-reduced-motion: reduce) { label.check input.switch, label.check input.switch::before { transition: none; } }
+
+/* Fields side by side (server and port, username and password), one under
+   another when there isn't room. */
+.field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0 var(--space-4); }
+.field-row.wide-first { grid-template-columns: minmax(14rem, 1fr) minmax(7rem, 10rem); }
+@media (max-width: 640px) { .field-row.wide-first { grid-template-columns: 1fr; } }
+/* An input as wide as what it usually holds (a name). */
+input.name-input { max-width: 24rem; }
+/* A number's input as wide as a number (a size, a port), its unit after it. */
+input.number-input { max-width: 9rem; }
+.with-suffix input.number-input { flex: 0 1 9rem; }
+/* A label for a control that isn't an input (the folder chosen). */
+.field-label { margin: 0 0 var(--space-2); font-weight: var(--weight-medium); }
+/* A form's section heading (the install form's "Name and address"):
+   small capitals, quieter than a card's heading. */
+h2.form-section { margin: 0 0 var(--space-3); font-family: var(--font-sans); font-size: var(--text-sm);
+  font-weight: var(--weight-bold); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+/* A Details line inside a form, for a field rarely changed (a service's
+   name): quiet, close under the fields above it. */
+details.form-more { margin: calc(-1 * var(--space-2)) 0 var(--space-4); }
+details.form-more > summary { color: var(--muted); font-size: var(--text-sm); cursor: pointer; }
+details.form-more[open] > summary { margin-bottom: var(--space-3); }
+/* The install form, and what it sets up beside it, staying in view (under
+   it when there isn't room). */
+.install-grid { align-items: start; }
+.install-aside { position: sticky; top: var(--space-4); }
+.install-aside .install-summary > h2 { margin-top: 0; }
+select.host-select { max-width: 24rem; }
+
+/* A rule between a form's parts (where something is, then its name). */
+hr.form-rule { border: 0; border-top: 1px solid var(--border); margin: var(--space-5) 0 var(--space-4); }
+/* Checkboxes side by side (services that can read a library). */
+.check-row { display: flex; flex-wrap: wrap; gap: 0 var(--space-5); }
 p.error[role="alert"] { background: var(--bad-bg); color: var(--bad); padding: var(--space-2) var(--space-3);
   border-radius: var(--radius); }
 
@@ -413,6 +498,10 @@ p.error[role="alert"] { background: var(--bad-bg); color: var(--bad); padding: v
 .card-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
 .card-head h2 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .card-head > .button { margin-left: auto; }
+/* An on/off switch for the card's subject, at the right of its head. */
+.card-head > form.head-switch { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
+.card-head > form.head-switch label.check { margin: 0; align-items: center; }
+.card-head > form.head-switch label.check input.switch { margin-top: 0; }
 .card-head .more { margin-left: auto; font-size: var(--text-sm); font-weight: var(--weight-medium); white-space: nowrap; }
 /* A small heading between groups of cards ("Your whole lab"). */
 .section-heading { margin: var(--space-2) 0 calc(var(--space-3) - var(--space-5)); font-family: var(--font-display); font-size: var(--text-xs); font-weight: var(--weight-bold);
@@ -637,14 +726,14 @@ pre.output { background: var(--surface-2); border: 1px solid var(--border); bord
 code.secret { display: inline-block; font-size: 1.1em; padding: var(--space-1) var(--space-2); }
 .secret-row { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
   margin: var(--space-3) 0; overflow-wrap: anywhere; }
-.copy-box { display: flex; gap: var(--space-2); align-items: flex-start; margin: var(--space-2) 0; }
-.copy-box pre.output { flex: 1; min-width: 0; margin: 0; }
-/* On a phone the Copy button goes under its text, which keeps the width
-   (a command nested in a card's "Tell me more" was a few letters wide). */
-@media (max-width: 640px) {
-  .copy-box { flex-direction: column; }
-  .copy-box pre.output { align-self: stretch; }
-}
+/* The text to copy, its copy button floating at its top right (an
+   icon: a tick for a moment once copied). */
+.copy-box { position: relative; margin: var(--space-2) 0; }
+.copy-box pre.output { margin: 0; padding-right: calc(var(--space-3) + 34px); }
+.copy-box .copy-button { position: absolute; top: 4px; right: 4px; padding: 6px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--border); }
+.copy-box .copy-button:hover { background: var(--surface-2); }
+.copy-box .copy-button span:not(.sr-only) { display: flex; }
 .qr-box { margin: var(--space-3) 0; }
 svg.qr { display: block; width: 200px; height: 200px; border-radius: var(--radius-sm); }
 .recovery { font-size: var(--text-lg); text-align: center; }
@@ -754,12 +843,6 @@ form.later { margin-top: var(--space-4); padding-top: var(--space-4); border-top
 .drive > label { margin: 0; flex: 1 1 16rem; }
 .drive-unusable > label { color: var(--muted); }
 .drive-erase { flex: 0 0 auto; }
-/* A drive card that's a link (media libraries: open its folders). */
-.drive > a { flex: 1 1 16rem; color: inherit; text-decoration: none; }
-.drive > a strong { color: var(--accent); }
-.drive > a:hover strong, .drive > a:focus-visible strong { text-decoration: underline; }
-.drive > a small, .drive-unusable > span small { display: block; color: var(--muted); }
-.drive-unusable > span { color: var(--muted); }
 
 .activity-status { overflow-wrap: anywhere; }
 
@@ -898,6 +981,65 @@ dialog.dialog::backdrop { background: rgb(0 0 0 / 0.45); }
 dialog.dialog p { margin: 0 0 var(--space-4); overflow-wrap: anywhere; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; }
 form.confirm { display: inline; }
+
+/* A form in a dialog (adding a check, someone, an invite, a server): its
+   heading and a close button, the form, then Cancel and its button. A
+   link with data-dialog="ID" opens it (app.js); without scripts the link
+   reloads the page with the dialog open in the page, as a card. A form
+   that came back with a mistake opens as a dialog again. */
+dialog.dialog.form-dialog { position: fixed; width: min(34rem, calc(100vw - 2 * var(--space-4))); max-width: none;
+  max-height: calc(100dvh - 2 * var(--space-4)); overflow-y: auto; margin: auto; padding: var(--space-5); }
+dialog.form-dialog:not(:modal) { position: static; width: auto; margin: var(--space-4) 0 0; box-shadow: none; }
+.dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+.dialog-head h2 { margin: 0; }
+dialog.form-dialog .dialog-actions { margin-top: var(--space-4); }
+/* A dialog of several small forms (a person's role, password, removal):
+   one under another. */
+dialog.form-dialog > form + form, dialog.form-dialog > form + .confirm { display: block; margin-top: var(--space-3); }
+@media (max-width: 640px) {
+  dialog.dialog.form-dialog:modal { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); margin: auto 8px 8px; padding: var(--space-4); }
+}
+
+/* The folder picker: the folder chosen as a value with a button to
+   change it (.folder-choice), and the picker (folders opened as crumbs,
+   then the folders here, each with what it holds), in a dialog or, without
+   scripts, a page. */
+.folder-choice { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-3);
+  margin: 0 0 var(--space-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--glass); }
+.folder-choice > .icon { width: 22px; height: 22px; color: var(--accent); flex: none; }
+.folder-choice .path { flex: 1 1 12rem; min-width: 0; }
+.folder-choice .path strong { display: block; overflow-wrap: anywhere; }
+.folder-choice .path small { display: block; }
+.folder-choice.empty .path strong { color: var(--muted); font-weight: var(--weight-normal); }
+.picker-title { margin: 0 0 var(--space-2); font-size: var(--text-lg); }
+.picker-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--space-1); margin: 0 0 var(--space-2); font-size: var(--text-sm); }
+.picker-crumbs .sep { color: var(--muted); }
+.picker-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius);
+  max-height: 20rem; overflow-y: auto; background: var(--surface); }
+.picker-list li + li { border-top: 1px solid var(--border); }
+.picker-list a { display: flex; align-items: center; gap: var(--space-3); padding: 10px var(--space-3); color: var(--fg); text-decoration: none; }
+.picker-list a:hover, .picker-list a:focus-visible { background: var(--glass-2); }
+.picker-list a:hover .name { text-decoration: underline; }
+.picker-list .icon { width: 20px; height: 20px; color: var(--muted); flex: none; }
+.picker-list .icon:first-child { color: var(--accent); }
+.picker-list .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.picker-list small { flex: none; }
+.picker-list .empty-note { padding: var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.picker-here { margin: var(--space-2) 0 0; }
+.folder-picker .dialog-actions { margin-top: var(--space-4); align-items: center; }
+.folder-picker .dialog-actions .hint { margin: 0 auto 0 0; }
+/* In its dialog: wider than a question, the close button in the corner;
+   nearly the whole screen on phones. margin: auto keeps it centred in a
+   card, whose last child loses its bottom margin. */
+dialog.dialog.picker { position: fixed; width: min(38rem, calc(100vw - 2 * var(--space-4))); max-width: none; margin: auto; }
+dialog.picker .picker-close { position: absolute; top: var(--space-3); right: var(--space-3); }
+dialog.picker .picker-title { padding-right: var(--space-6); }
+@media (max-width: 640px) {
+  dialog.dialog.picker { width: calc(100vw - 16px); height: calc(100dvh - 16px); max-height: none; margin: 8px; }
+  dialog.picker[open], dialog.picker .picker-body, dialog.picker .folder-picker { display: flex; flex-direction: column; min-height: 0; }
+  dialog.picker .picker-body, dialog.picker .folder-picker { flex: 1; }
+  dialog.picker .picker-list { max-height: none; flex: 1; }
+}
 
 /* ---------- Service cards ---------- */
 .service-head { display: flex; justify-content: space-between; gap: var(--space-3); align-items: flex-start; }
@@ -1039,9 +1181,10 @@ button.wide { width: 100%; }
 .person-details legend, .group-form legend, .look-form legend, .add-person legend { font-weight: var(--weight-bold); margin-bottom: var(--space-2); }
 .group-list { list-style: none; padding: 0; margin: 0 0 var(--space-4); display: grid; gap: var(--space-2); }
 .group-list > li { border: 1px solid var(--edge); border-radius: 12px; padding: var(--space-3) var(--space-4); background: var(--glass); }
-.group-list summary { list-style: none; display: flex; align-items: center; gap: var(--space-3); cursor: pointer; }
-.group-list summary::-webkit-details-marker { display: none; }
-.group-list summary .more { margin-left: auto; color: var(--accent); font-size: var(--text-sm); }
+.group-line { display: flex; align-items: center; gap: var(--space-3); }
+.group-line .more { margin-left: auto; color: var(--accent); font-size: var(--text-sm); }
+/* A group's dialog: deleting it sits apart from saving it. */
+.group-delete { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--border); }
 .group-name small { display: block; }
 .group-form { margin-top: var(--space-4); }
 .group-form > label, .add-person label:not(.check) { display: block; margin-bottom: var(--space-4); }
@@ -1080,6 +1223,5 @@ button.wide { width: 100%; }
 .sso-steps .icon { margin-top: 3px; flex: none; color: var(--accent); }
 .sso-who fieldset { border: 0; padding: 0; margin: var(--space-3) 0; }
 .sso-who legend { font-weight: var(--weight-bold); margin-bottom: var(--space-2); }
-.sso-choose { margin-left: 30px; }
-.sso-who:has(input[value="all"]:checked) .sso-choose { opacity: .55; }
+.sso-choose .check-row { gap: 0 var(--space-5); }
 .sso-off { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); }

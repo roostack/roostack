@@ -636,12 +636,18 @@
         <div x-data="{ provider: '{{if .Options.Online}}{{else}}new{{end}}', endpoint: '' }">
           {{if .Options.Online}}<label class="check"><input type="radio" name="provider" value="new" x-model="provider"><span>Another account</span></label>{{else}}<input type="hidden" name="provider" value="new">{{end}}
           <div x-show="provider === 'new'"{{if .Options.Online}} x-cloak{{end}}>
-            <label>Name <input name="name" placeholder="Backblaze"></label>
-            <label>Endpoint <input name="endpoint" placeholder="https://s3.us-west-004.backblazeb2.com" autocapitalize="off" x-model="endpoint"></label>
-            <label>Bucket <input name="bucket" autocapitalize="off"></label>
-            <label>Folder in the bucket (optional) <input name="prefix" placeholder="backups" autocapitalize="off"></label>
-            <label>Access key <input name="access_key" autocomplete="off" autocapitalize="off"></label>
-            <label>Secret key <input name="secret_key" type="password" autocomplete="off"></label>
+            <div class="field-row">
+              <label>Name <input name="name" placeholder="Backblaze"></label>
+              <label>Endpoint <input name="endpoint" placeholder="https://s3.us-west-004.backblazeb2.com" autocapitalize="off" spellcheck="false" x-model="endpoint"></label>
+            </div>
+            <div class="field-row">
+              <label>Bucket <input name="bucket" autocapitalize="off" spellcheck="false"></label>
+              <label>Folder in the bucket (optional) <input name="prefix" placeholder="backups" autocapitalize="off" spellcheck="false"></label>
+            </div>
+            <div class="field-row">
+              <label>Access key <input name="access_key" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+              <label>Secret key <input name="secret_key" type="password" autocomplete="off"></label>
+            </div>
             <p class="hint">Any of your servers can back up to this account later, each in its own folder.</p>
             {{/* Backblaze: only once the endpoint is theirs (b2.IsB2). */}}
             <div x-show="endpoint.includes('.backblazeb2.com')" x-cloak>
@@ -844,3 +850,20 @@
   </details>
   {{end}}
 </section>{{end}}
+
+{{/* setting-fields: a package's settings ([]formField), as the install
+     form and a service's settings show them: text settings two to a row,
+     in the package's order, then on/off settings as switches. */}}
+{{define "setting-fields"}}
+{{$text := false}}{{range .}}{{if ne .Kind "checkbox"}}{{$text = true}}{{end}}{{end}}
+{{if $text}}<div class="field-row">
+  {{range .}}{{if ne .Kind "checkbox"}}<label>{{.Title}}
+    <input type="{{.Kind}}" name="{{.Key}}" value="{{.Value}}" {{if eq .Kind "password"}}autocomplete="new-password"{{end}}
+      {{if .Required}}required{{end}} {{with .MinLength}}minlength="{{.}}"{{end}}>
+    {{with .Description}}<small>{{.}}</small>{{end}}
+  </label>{{end}}{{end}}
+</div>{{end}}
+{{range .}}{{if eq .Kind "checkbox"}}<label class="check"><input type="checkbox" class="switch" role="switch" name="{{.Key}}" {{if .Checked}}checked{{end}}>
+  <span>{{.Title}}{{with .Description}}<small>{{.}}</small>{{end}}</span></label>
+{{end}}{{end}}
+{{end}}

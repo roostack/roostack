@@ -1,0 +1,197 @@
+<!doctype html><html lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
+  <title>Add a media library · Roostack (mock-up)</title>
+  <link rel="icon" href="/internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/internal/web/static/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="apple-touch-icon" href="/internal/web/static/apple-touch-icon.png">
+  <link rel="preload" href="/internal/web/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/ocean.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/catppuccin.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/gruvbox.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/nord.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/solarized.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/everforest.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/rose-pine.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/tokyo-night.css">
+  
+  <link rel="stylesheet" href="/internal/web/static/css/app.css">
+  <link rel="stylesheet" href="mock.css">
+  <script src="mock.js"></script>
+    
+    <script src="/internal/web/static/alpine-3.17.4.min.js" defer></script>
+  
+</head>
+
+<body x-data="{ menu: false }" x-on:keydown.escape.window="menu = false" x-bind:class="menu && 'menu-open'">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="/"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="sidebar-lab-name"><span>Roostack</span><strong title="Test lab">Test lab</strong></span></a>
+      <div class="sidebar-nav">
+      <nav class="nav-group" aria-label="Your lab">
+        <a class="nav-item" href="/"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></svg>Home</a>
+        <a class="nav-item" href="/services"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Services</a>
+        
+        <a class="nav-item" href="/backups"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>Backups</a>
+        <a class="nav-item" href="/servers"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Servers</a>
+        <a class="nav-item" href="/monitoring"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Monitoring</a>
+        
+        <a class="nav-item" href="/settings" aria-current="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</a>
+        <div class="nav-children">
+          <a class="nav-sub" href="/settings/lab"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/></svg>Lab name</a><a class="nav-sub" href="/settings/history"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>History</a><a class="nav-sub" href="/settings/people"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c2.8 0 5 2.2 5 5"/></svg>People</a><a class="nav-sub" href="/settings/email"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1"/></svg>Email</a><a class="nav-sub" href="/settings/domain"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3z"/><path d="m9 12 2 2 4-4"/></svg>Your lab&#39;s address</a><a class="nav-sub" href="/settings/home-network"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Where it is and DNS</a><a class="nav-sub" href="/settings/public"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>Public access</a><a class="nav-sub" href="/settings/cloud"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 8.5 4.75 4.75 0 0 1 17.5 18z"/></svg>Roostack Cloud</a><a class="nav-sub" href="/settings/media" aria-current="page"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>Media libraries</a><a class="nav-sub" href="/settings/storage"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Storage for others</a><a class="nav-sub" href="/settings/updates"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.5-4.5L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8 8 0 0 0 14.5 4.5L21 15"/><path d="M21 20v-5h-5"/></svg>Updates and restarts</a><a class="nav-sub" href="/settings/time-zone"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Time zone</a><a class="nav-sub" href="/settings/remote-access"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>Remote access</a>
+        </div>
+      </nav>
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools">
+          <a href="/help/" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg>Help<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+          <form method="post" action="/account/theme" id="theme-toggle">
+  <input type="hidden" name="theme" value="light">
+  <button type="submit" class="theme-toggle" title="Switch to light theme"
+    aria-label="Theme: auto. Switch to light."><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>Auto</button>
+</form>
+        </div>
+        <div class="who">
+          <a href="/account" class="who-link"><span class="avatar" aria-hidden="true">O</span>
+            <span class="who-name"><strong title="owner">owner</strong><span>Owner</span></span></a>
+          <form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></svg><span class="sr-only">Log out</span></button></form>
+        </div>
+      </div>
+    </aside>
+    <div class="scrim" x-show="menu" x-cloak x-on:click="menu = false"></div>
+    <div class="main">
+      <header class="page-header">
+        <button type="button" class="menu-button" x-on:click="menu = true; $nextTick(() => document.querySelector('#sidebar .nav-item').focus())" aria-controls="sidebar" x-bind:aria-expanded="menu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr-only">Menu</span></button>
+        <nav class="crumbs" aria-label="Where you are"><a href="/settings">Settings</a><a href="/settings/media">Media libraries</a><strong aria-current="page">Add a library</strong></nav>
+        <a class="page-help" href="/help/servers/media-libraries/" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg><span class="sr-only">Help: </span>Media libraries<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+      </header>
+      <main class="page">
+<div class="page-head"><div><h1>Add a media library</h1>
+  <p class="lede">On roostack-dev-3. Services you choose can read it but never change it, and it isn't backed up.</p></div></div>
+<form class="card section" method="post" action="#" x-data="picker('drive:MEDIA')"
+  x-init="if (new URLSearchParams(location.search).get('open')) { start(where === 'folder' ? 'server' : 'drive:MEDIA'); if (where === 'drive') path = ['Films']; $nextTick(() => $refs.dlg.showModal()) }
+    ; if (new URLSearchParams(location.search).get('chosen')) { root = 'drive:MEDIA'; path = ['Films']; use() }">
+  <h2>Where is it?</h2>
+  <div class="segmented" role="radiogroup" aria-label="Where it is">
+    <label><input type="radio" name="where" value="drive" x-model="where"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><span>Drive</span></label>
+    <label><input type="radio" name="where" value="folder" x-model="where"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg><span>Folder on roostack-dev-3</span></label>
+    <label><input type="radio" name="where" value="share" x-model="where"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span>Network share</span></label>
+  </div>
+
+  <div x-show="where === 'drive'">
+    <p class="hint segmented-hint">A USB drive or second disk. Roostack mounts it read-only: nothing on it changes.</p>
+    <div class="drives">
+      <div class="drive drive-unusable"><label class="check"><input type="radio" name="drive" disabled>
+        <span><strong>ROOSTACK</strong> <span class="badge">USB drive</span><small>Your backups' drive: keep media on another</small></span></label></div>
+      <div class="drive"><label class="check"><input type="radio" name="drive" checked>
+        <span><strong>MEDIA</strong> <span class="badge">USB drive</span><small>1.1 GB, 965.7 MB free · ext4 · QEMU HARDDISK · at /mnt/roostack-media-media</small></span></label></div>
+    </div>
+    <p class="hint">Just plugged a drive in? <a href="#">Look again</a>.</p>
+    <p class="field-label"><strong>Folder</strong></p>
+    <div class="folder-choice">
+      <svg class="icon folder" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg>
+      <span class="path"><strong x-text="chosen && chosenRoot === 'drive:MEDIA' ? chosenLabel : 'MEDIA (the whole drive)'"></strong>
+        <small x-text="chosen && chosenRoot === 'drive:MEDIA' ? chosenCounts : '2 folders, 1 file'"></small></span>
+      <button type="button" class="secondary" x-on:click="start('drive:MEDIA'); $refs.dlg.showModal()">Choose a folder…</button>
+    </div>
+  </div>
+
+  <div x-show="where === 'folder'" x-cloak>
+    <p class="hint segmented-hint">A folder already on roostack-dev-3, under /mnt, /media or /srv (apart from Roostack's own).</p>
+    <p class="field-label"><strong>Folder</strong></p>
+    <div class="folder-choice" x-bind:class="!(chosen && chosenRoot === 'server') && 'empty'">
+      <svg class="icon folder" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg>
+      <span class="path"><strong x-text="chosen && chosenRoot === 'server' ? chosenLabel : 'No folder chosen yet'"></strong>
+        <small x-show="chosen && chosenRoot === 'server'" x-text="chosenCounts"></small></span>
+      <button type="button" class="secondary" x-on:click="start('server'); $refs.dlg.showModal()">Choose a folder…</button>
+    </div>
+  </div>
+
+  <template x-if="where !== 'share' && chosen && (chosenRoot === 'server') === (where === 'folder') && chosenCheck.unreadable">
+    <div class="notice notice-warn" role="status">
+      <p x-show="chosenCheck.owner"><strong x-text="`${chosenCheck.ownerFiles} of the ${chosenCheck.sampled} files and folders Roostack looked at can only be read by their owner, ${chosenCheck.owner}`"></strong>, so services couldn't open them.</p>
+      <p x-show="!chosenCheck.owner"><strong x-text="`Services couldn't open ${chosenCheck.unreadable} of the ${chosenCheck.sampled} files and folders Roostack looked at`"></strong>: they belong to the system or to several people.</p>
+      <label class="check" x-show="where === 'drive' && chosenCheck.owner"><input type="checkbox" name="as_owner" checked>
+        <span>Let services read them as <span x-text="chosenCheck.owner"></span>
+          <small>Roostack mounts the folder so dev's files show as Roostack's own, for this library only: services can read everything dev can, and still change nothing. Nothing on the drive changes; removing the library undoes it.</small></span></label>
+    </div>
+  </template>
+
+  <div x-show="where === 'share'" x-cloak>
+    <p class="hint segmented-hint">A folder shared by a NAS or another computer. The whole share becomes the library.</p>
+    <div class="segmented small" role="radiogroup" aria-label="Kind of share">
+      <label><input type="radio" name="share_type" value="smb" x-model="share"><span>SMB</span></label>
+      <label><input type="radio" name="share_type" value="nfs" x-model="share"><span>NFS</span></label>
+    </div>
+    <p class="hint segmented-hint" x-text="share === 'smb' ? 'Windows sharing: most NASes.' : 'Unix sharing. The NAS must let this server\'s address mount it.'"></p>
+    <div class="field-row">
+      <label>Server <input name="share_server" placeholder="nas.local or 192.168.1.20" autocapitalize="off" spellcheck="false">
+        <small>The NAS or computer sharing it.</small></label>
+      <label>Share <input name="share_path" x-bind:placeholder="share === 'nfs' ? '/volume1/media' : 'media'" autocapitalize="off" spellcheck="false">
+        <small x-text="share === 'nfs' ? 'The export\'s path.' : 'The share\'s name, as the NAS calls it.'"></small></label>
+    </div>
+    <div class="field-row" x-show="share === 'smb'">
+      <label>Username <input name="share_user" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <small>Empty for a share anyone on your network can open.</small></label>
+      <label>Password <input name="share_password" type="password" autocomplete="new-password">
+        <small>Kept on roostack-dev-3, readable only by its system. A NAS account that can only read is best.</small></label>
+    </div>
+  </div>
+
+  <hr class="form-rule">
+  <label class="short-input">Name <input name="title" maxlength="60" required x-bind:value="where === 'share' ? '' : (suggested || (where === 'drive' ? 'MEDIA' : ''))" x-bind:placeholder="where === 'share' ? 'Media' : ''">
+    <small>What it's called on your pages, and its folder's name inside services, in lower case.</small></label>
+  <fieldset><legend>Services that can read it</legend>
+    <div class="check-row">
+      <label class="check"><input type="checkbox" name="service" checked><span>Jellyfin</span></label>
+      <label class="check"><input type="checkbox" name="service" checked><span>Navidrome</span></label>
+    </div>
+  </fieldset>
+  <button type="submit" x-text="where === 'share' ? 'Check and add the share' : 'Add library'"></button>
+  <p class="hint" x-show="where === 'share'">Roostack mounts it read-only for a moment to check it first; nothing is saved if that fails.</p>
+
+  <dialog class="dialog picker" x-ref="dlg" aria-labelledby="picker-title">
+    <div class="picker-head"><h2 id="picker-title">Choose a folder on <span x-text="rootName"></span></h2>
+      <button type="button" class="icon-button" x-on:click="$refs.dlg.close()"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg><span class="sr-only">Close</span></button></div>
+    <div class="picker-body">
+      <nav class="picker-crumbs" aria-label="Folders opened">
+        <template x-if="path.length"><button type="button" x-on:click="up(0)" x-text="root === 'server' ? 'roostack-dev-3' : rootName"></button></template>
+        <template x-if="!path.length"><strong aria-current="true" x-text="root === 'server' ? 'roostack-dev-3' : rootName"></strong></template>
+        <template x-for="(p, i) in path" :key="i">
+          <span><span class="sep">›</span>
+            <template x-if="i < path.length - 1"><button type="button" x-on:click="up(i + 1)" x-text="p"></button></template>
+            <template x-if="i === path.length - 1"><strong aria-current="true" x-text="p"></strong></template></span>
+        </template>
+      </nav>
+      <ul class="picker-list">
+        <template x-for="e in entries" :key="e.name">
+          <li><button type="button" x-on:click="open(e.name)"><svg class="icon folder" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg>
+            <span class="name" x-text="root === 'server' && !path.length ? '/' + e.name : e.name"></span><small x-text="counts(e)"></small><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7 5 5-5 5"/></svg></button></li>
+        </template>
+        <li class="empty-note" x-show="!entries.length">No folders in here.</li>
+      </ul>
+      <p class="picker-here hint" x-show="canUse"><span x-text="label()"></span> holds <span x-text="here"></span>.</p>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" x-on:click="$refs.dlg.close()">Cancel</button>
+      <button type="button" x-bind:disabled="!canUse" x-on:click="use(); $refs.dlg.close()" x-text="canUse ? 'Use ' + (path.length ? path.at(-1) : rootName) : 'Open a folder'"></button>
+    </div>
+  </dialog>
+</form>
+
+      </main>
+      <footer class="site">Roostack <span class="version" title="Roostack's version">69c4a69</span> · <a href="/about">About</a> · <a href="/design" target="_blank" rel="noopener">Design system<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a></footer>
+    </div>
+  </div>
+  
+</body>
+</html>
+
+
+

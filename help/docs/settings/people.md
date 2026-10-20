@@ -19,7 +19,8 @@ last one. Give someone **Admin** if they help look after the services, and
 
 ## Adding someone
 
-On **Settings → People**, add their username and choose a role. Roostack
+On **Settings → People**, choose **Add someone…**, then type their username
+and choose what they can do (Member, Admin or Owner). Roostack
 shows a **temporary password**, once. Give it to them in person or in a
 message; they choose their own when they first log in.
 

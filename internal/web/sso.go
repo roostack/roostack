@@ -70,6 +70,9 @@ type ssoCard struct {
 	EnvNames  []string
 	Bypass    []pkgspec.PrivatePath
 	Error     string
+	// Open: the dialog choosing who can sign in shows (a mistake in it,
+	// or ?sso=who, its button without scripts).
+	Open bool
 }
 
 // ssoChoice is a group or person to tick.

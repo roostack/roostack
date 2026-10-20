@@ -8,8 +8,8 @@
 </div>
 <div class="grid">
 <section class="card span-12" id="people">
-  <div class="card-head"><h2>People</h2><a class="button secondary small" href="#add">Add someone</a></div>
-  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  <div class="card-head"><h2>People</h2><a class="button secondary small" href="/settings/people?add=someone" data-dialog="add-someone">Add someone…</a></div>
+  {{if not (or .Adding .OpenPerson)}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
   {{with .Done}}{{notice "ok" .}}{{end}}
   {{with .TempPassword}}
   <div class="notice" role="status">
@@ -29,16 +29,24 @@
         <span class="person-role">{{roleName .Role}}<br><small class="hint">two-factor {{if .TOTPSecret}}on{{else}}off{{end}}{{if .MustChangePassword}} · hasn't chosen a password yet{{end}}</small></span>
         {{if $.SSO}}<span class="person-groups">{{range index $.UserGroups .ID}}<span class="badge">{{.}}</span> {{end}}</span>{{end}}
       </div>
-      <details class="user-actions">
-        <summary>Change…</summary>
+      <a class="more person-change" href="/settings/people?person={{.ID}}#people" data-dialog="person-{{.ID}}">Change…</a>
+      {{/* Changing someone is a form in a dialog (docs/DESIGN.md "Forms"):
+           their details, then their role and sign-in, then removing them. */}}
+      <dialog class="dialog form-dialog" id="person-{{.ID}}" aria-labelledby="person-{{.ID}}-title"{{if eq .ID $.OpenPerson}} open{{end}}>
+        <div class="dialog-head"><h2 id="person-{{.ID}}-title">{{.Username}}</h2>
+          <a class="icon-button" href="/settings/people#people" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
+        {{if eq .ID $.OpenPerson}}{{with $.Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
         <form method="post" action="/users/{{.ID}}/details" class="person-details">
-          <label>Full name <input name="name" value="{{.Name}}" autocomplete="off" maxlength="100"><small>What apps call them. Optional.</small></label>
-          <label>Email address <input name="email" type="email" value="{{.Email}}" autocomplete="off"><small>{{if $.SSO}}Services with single sign-on find or make their account by it. {{end}}Roostack's emails go here too.</small></label>
+          <div class="field-row">
+            <label>Full name <input name="name" value="{{.Name}}" autocomplete="off" maxlength="100"><small>What apps call them. Optional.</small></label>
+            <label>Email address <input name="email" type="email" value="{{.Email}}" autocomplete="off"><small>{{if $.SSO}}Services with single sign-on find or make their account by it. {{end}}Roostack's emails go here too.</small></label>
+          </div>
           {{if and $.SSO $.Groups}}<fieldset><legend>Groups</legend>
-            {{range $.Groups}}<label class="check"><input type="checkbox" name="group" value="{{.ID}}"{{if .Has $u.ID}} checked{{end}}><span>{{.Name}}</span></label>{{end}}
+            <div class="check-row">{{range $.Groups}}<label class="check"><input type="checkbox" name="group" value="{{.ID}}"{{if .Has $u.ID}} checked{{end}}><span>{{.Name}}</span></label>{{end}}</div>
           </fieldset>{{end}}
-          <button type="submit" class="secondary">Save</button>
+          <button type="submit">Save</button>
         </form>
+        {{if ne .ID $.User.ID}}<hr class="form-rule">{{end}}
         {{if ne .ID $.User.ID}}
         <form method="post" action="/users/{{.ID}}/role" class="inline-form">
           <label>Role
@@ -57,7 +65,7 @@
         {{confirm (printf "/users/%d/remove" .ID) (printf "Remove %s? They will no longer be able to log in." .Username)
           (printf "Remove %s" .Username) "quiet danger"}}
         {{end}}
-      </details>
+      </dialog>
     </li>
     {{end}}
   </ul>
@@ -72,8 +80,13 @@
   <ul class="group-list">
     {{range .Groups}}{{$g := .}}
     <li>
-      <details{{if eq .ID $.OpenGroup}} open{{end}}>
-        <summary><span class="group-name"><strong>{{.Name}}</strong><small class="hint">{{len .Members}} {{if eq (len .Members) 1}}person{{else}}people{{end}}{{with .ServiceTitles}} · {{.}}{{end}}</small></span><span class="more">Change…</span></summary>
+      <div class="group-line"><span class="group-name"><strong>{{.Name}}</strong><small class="hint">{{len .Members}} {{if eq (len .Members) 1}}person{{else}}people{{end}}{{with .ServiceTitles}} · {{.}}{{end}}</small></span>
+        <a class="more" href="/settings/people?group={{.ID}}#groups" data-dialog="group-{{.ID}}">Change…</a></div>
+      {{/* Changing a group is a form in a dialog (docs/DESIGN.md "Forms"),
+           open by itself just after the group is made. */}}
+      <dialog class="dialog form-dialog" id="group-{{.ID}}" aria-labelledby="group-{{.ID}}-title"{{if eq .ID $.OpenGroup}} open{{end}}>
+        <div class="dialog-head"><h2 id="group-{{.ID}}-title">{{.Name}}</h2>
+          <a class="icon-button" href="/settings/people#groups" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
         <form method="post" action="/settings/people/groups/{{.ID}}" class="group-form">
           <label>Name <input name="name" value="{{.Name}}" required maxlength="60"></label>
           <fieldset><legend>Who's in it</legend><div class="two-col">
@@ -84,11 +97,16 @@
               <span><span class="with-logo-inline">{{if .Logo}}<img src="{{.Logo}}" alt="" width="18" height="18">{{end}}{{.Title}}</span>{{if .Everyone}}<small>Everyone in the lab can use it.</small>{{end}}</span></label>{{end}}
           </div>
           <p class="hint">Only services with single sign-on are listed. Each service's page says who can use it, too.</p></fieldset>{{end}}
-          <div class="form-row"><button type="submit">Save</button>
-            {{confirm (printf "/settings/people/groups/%d/remove" .ID) (printf "Delete the group %s? Its people stay; they lose the services they could use only through it." .Name)
-              (printf "Delete %s…" .Name) "quiet danger"}}</div>
+          <div class="dialog-actions">
+            <a class="button secondary" href="/settings/people#groups" data-close>Cancel</a>
+            <button type="submit">Save</button>
+          </div>
         </form>
-      </details>
+        <div class="group-delete">
+          {{confirm (printf "/settings/people/groups/%d/remove" .ID) (printf "Delete the group %s? Its people stay; they lose the services they could use only through it." .Name)
+            (printf "Delete %s…" .Name) "quiet danger"}}
+        </div>
+      </dialog>
     </li>
     {{end}}
   </ul>
@@ -148,48 +166,52 @@
   <h2>Signing in</h2>
   {{if .SignInSaved}}{{notice "ok" "Saved. It applies from each person's next page."}}{{end}}
   <form method="post" action="/settings/signing-in">
-    <label>Sign people out {{if .SSO}}of Roostack's pages {{end}}after <select name="idle">
+    <label>Sign people out {{if .SSO}}of Roostack's pages {{end}}after <select name="idle" class="inline">
       {{range .IdleChoices}}<option value="{{.}}"{{if eq . $.IdleMinutes}} selected{{end}}>{{idleText .}}</option>{{end}}
     </select> without activity</label>
     <p class="hint">Opening a page or sending a form counts as activity; pages refreshing themselves don't. When the time's up,
       the page goes back to the login page, so a screen left open doesn't stay signed in.</p>
-    <label class="check"><input type="checkbox" name="remember"{{if .OfferRemember}} checked{{end}}>
+    <label class="check"><input type="checkbox" class="switch" role="switch" name="remember"{{if .OfferRemember}} checked{{end}}>
       <span>Offer "Keep me signed in" on {{if .SSO}}Roostack's {{else}}the {{end}}login page<small>For someone's own device: they stay signed in on that browser for
         30 days, without the limit above.</small></span></label>
     {{if .SSO}}
     <input type="hidden" name="sso" value="1">
-    <label class="check"><input type="checkbox" name="signin_remember"{{if .SignInRemember}} checked{{end}}>
+    <label class="check"><input type="checkbox" class="switch" role="switch" name="signin_remember"{{if .SignInRemember}} checked{{end}}>
       <span>On the sign-in page for services, keep people signed in for 30 days unless they untick it<small>Services are what family use every day; Roostack's own pages keep the shorter limit above.</small></span></label>
-    <label class="check"><input type="checkbox" name="signin_two_factor"{{if .SignInTwoFactor}} checked{{end}}>
+    <label class="check"><input type="checkbox" class="switch" role="switch" name="signin_two_factor"{{if .SignInTwoFactor}} checked{{end}}>
       <span>Ask everyone for two-factor on the sign-in page for services<small>Owners always need it, and Admins whenever Roostack's pages can be reached from the internet.</small></span></label>
     {{end}}
     <button type="submit" class="secondary">Save</button>
   </form>
 </section>
 
-<section class="card span-12" id="add">
-  <h2>Add someone</h2>
+{{/* Adding someone is a form in a dialog (docs/DESIGN.md "Forms"). */}}
+<dialog class="dialog form-dialog" id="add-someone" aria-labelledby="add-someone-title"{{if .Adding}} open{{end}}>
+  <div class="dialog-head"><h2 id="add-someone-title">Add someone</h2>
+    <a class="icon-button" href="/settings/people" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
   <form method="post" action="/users" class="add-person">
-    <div class="two-col">
-      <label>Username <input name="username" value="{{.NewName}}" required autocapitalize="off" autocomplete="off" maxlength="32"></label>
+    {{if .Adding}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
+    <div class="field-row">
+      <label>Username <input name="username" value="{{.NewName}}" required autocapitalize="off" autocomplete="off" maxlength="32" autofocus></label>
       <label>Email address <input name="email" type="email" value="{{.NewEmail}}" autocomplete="off">{{if .SSO}}<small>Services with single sign-on use it to find or make their account.</small>{{end}}</label>
     </div>
-    <fieldset>
-      <legend>What can they do{{if .SSO}} in Roostack{{end}}?</legend>
-      <label class="check"><input type="radio" name="role" value="member" {{if or (not .NewRole) (eq .NewRole "member")}}checked{{end}}>
-        <span>Member<small>Sees the services{{if .SSO}} they can use{{end}} and their links.</small></span></label>
-      <label class="check"><input type="radio" name="role" value="admin" {{if eq .NewRole "admin"}}checked{{end}}>
-        <span>Admin<small>Also installs, changes and removes services, and runs backups.</small></span></label>
-      <label class="check"><input type="radio" name="role" value="owner" {{if eq .NewRole "owner"}}checked{{end}}>
-        <span>Owner<small>Everything, including this server's settings, restores and people. Needs two-factor.</small></span></label>
-    </fieldset>
+    <div class="seg-group">
+      <p class="field-label">What can they do{{if .SSO}} in Roostack{{end}}?</p>
+      {{segmented "role" "What they can do" .NewRole (choice "member" "Member") (choice "admin" "Admin") (choice "owner" "Owner")}}
+      <p class="seg-panel hint seg-hint" data-seg="1">Sees the services{{if .SSO}} they can use{{end}} and their links.</p>
+      <p class="seg-panel hint seg-hint" data-seg="2">Also installs, changes and removes services, and runs backups.</p>
+      <p class="seg-panel hint seg-hint" data-seg="3">Everything, including this server's settings, restores and people. Needs two-factor.</p>
+    </div>
     {{if and .SSO .Groups}}<fieldset>
       <legend>Groups</legend>
-      {{range .Groups}}<label class="check"><input type="checkbox" name="group" value="{{.ID}}"><span>{{.Name}}</span></label>{{end}}
+      <div class="check-row">{{range .Groups}}<label class="check"><input type="checkbox" name="group" value="{{.ID}}"><span>{{.Name}}</span></label>{{end}}</div>
     </fieldset>{{end}}
-    <button type="submit">Add</button>
+    <div class="dialog-actions">
+      <a class="button secondary" href="/settings/people" data-close>Cancel</a>
+      <button type="submit">Add</button>
+    </div>
   </form>
-</section>
+</dialog>
 </div>
 {{end}}
 

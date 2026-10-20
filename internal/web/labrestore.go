@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/netip"
+	"slices"
 	"strconv"
 	"time"
 
@@ -133,6 +134,10 @@ func (s *Server) labRestoreFind(w http.ResponseWriter, r *http.Request) {
 	// Everything typed comes back, except the secrets.
 	data := map[string]any{"Kind": src.Kind, "Folder": src.Folder, "URL": src.URL, "S3": src.S3, "Drive": r.FormValue("drive"),
 		"Passed": s.setupPassed(r), "CloudOn": s.Cloud != nil}
+	// The form's choice of where comes back as it was, if it's one.
+	if !slices.Contains([]string{"s3", "folder", "url"}, src.Kind) && !(src.Kind == "cloud" && s.Cloud != nil) {
+		data["Kind"] = "s3"
+	}
 	s.restoreDrives(r, data)
 	fail := func(msg string) {
 		data["Error"] = msg

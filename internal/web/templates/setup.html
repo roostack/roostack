@@ -32,21 +32,25 @@
         <input name="lab_name" value="{{.LabName}}" maxlength="60" placeholder="The Smiths' lab">
         <small>Shown at the top of every page, and to other labs you share backup storage with. You can change it later.</small>
       </label>
-      <label>Username
-        <input name="username" value="{{.Username}}" autocomplete="username" required>
-      </label>
-      <label>Email address
-        <input name="email" type="email" value="{{.Email}}" autocomplete="email" placeholder="you@example.com" required>
-        <small>Where Roostack emails you when the lab needs you, once email is set up. You can change it later.</small>
-      </label>
-      <label>Password
-        <input name="password" type="password" x-model="pw" autocomplete="new-password" required minlength="12">
-        <small>At least 12 characters. A few random words works well.</small>
-      </label>
-      <label>Confirm password
-        <input name="confirm" type="password" x-model="confirm" autocomplete="new-password" required>
-        <small class="error" x-show="confirm && pw !== confirm" x-cloak>The passwords don't match.</small>
-      </label>
+      <div class="field-row">
+        <label>Username
+          <input name="username" value="{{.Username}}" autocomplete="username" required>
+        </label>
+        <label>Email address
+          <input name="email" type="email" value="{{.Email}}" autocomplete="email" placeholder="you@example.com" required>
+          <small>Where Roostack emails you when the lab needs you, once email is set up. You can change it later.</small>
+        </label>
+      </div>
+      <div class="field-row">
+        <label>Password
+          <input name="password" type="password" x-model="pw" autocomplete="new-password" required minlength="12">
+          <small>At least 12 characters. A few random words works well.</small>
+        </label>
+        <label>Confirm password
+          <input name="confirm" type="password" x-model="confirm" autocomplete="new-password" required>
+          <small class="error" x-show="confirm && pw !== confirm" x-cloak>The passwords don't match.</small>
+        </label>
+      </div>
       <button type="submit">Create account</button>
     </form>
 

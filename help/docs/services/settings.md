@@ -25,9 +25,16 @@ The service's own options
 :   Whatever the service lets Roostack set, such as whether anyone can sign
     up.
 
-Choosing **Save** restarts the service, so it's unavailable for a moment.
+The media libraries it reads
+:   For a service that plays media (see [Media libraries](../servers/media-libraries.md)).
 
-The same page has how it updates (below) and its **Name**: what it's called
+How it updates
+:   See [Updating by itself](#updating-by-itself) below.
+
+One **Save** keeps all of it. It restarts the service, so it's unavailable
+for a moment, only when its address, options or libraries changed.
+
+Below is its **Name**: what it's called
 on your pages. Renaming it doesn't change its name in folders, containers
 and backups.
 
@@ -95,18 +102,20 @@ read them. Such an update never happens by itself.
 ### Updating by itself
 
 On the service's page, choose **Edit settings**, then under **Updates**
-choose how it updates:
+choose how it updates, and **Save**:
 
-Tell me, and I'll update it
-:   The default. Updates are shown here and under **Needs attention**.
+Tell me
+:   The default. Updates are shown here and under **Needs attention**, and
+    you apply them.
 
-Fix releases automatically
-:   Fix releases, and improved Roostack packages for the same version.
+Fixes
+:   Fix releases go on by themselves, and improved Roostack packages for the
+    same version.
 
-Fix and feature releases automatically
+Fixes and features
 :   Not new major versions, which can change how the app works.
 
-Every update automatically
+Everything
 :   Including new major versions.
 
 Automatic updates happen at night, after the server's backup. They wait for

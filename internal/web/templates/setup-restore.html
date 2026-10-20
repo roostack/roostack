@@ -79,26 +79,29 @@
       <input name="token" autocomplete="off" required autofocus>
       <small>Shown in the Roostack log, and saved in <code>/var/lib/roostack/setup-token</code>.</small>
     </label>{{end}}
-    <fieldset>
-      <legend>Where are the backups?</legend>
-      {{if .CloudOn}}<label class="check"><input type="radio" name="kind" value="cloud" x-model="kind">
-        <span>Roostack Cloud<small>If the lab backed up to Roostack Cloud: the recovery key is all it takes.</small></span></label>{{end}}
-      <label class="check"><input type="radio" name="kind" value="s3" x-model="kind">
-        <span>Online storage<small>An S3-compatible account: Backblaze B2, Wasabi, AWS, …</small></span></label>
-      <label class="check"><input type="radio" name="kind" value="folder" x-model="kind">
-        <span>A disk connected to this server<small>A USB disk or a folder, mounted under /mnt or /media.</small></span></label>
-      <label class="check"><input type="radio" name="kind" value="url" x-model="kind">
-        <span>Another address<small>Any restic repository address, e.g. <code>rest:https://…</code>.</small></span></label>
-    </fieldset>
+    {{/* Where the backups are: a segmented control, its fields following
+         the choice (Alpine; without scripts every choice's fields show). */}}
+    <div x-on:change="if ($event.target.name === 'kind') kind = $event.target.value">
+      <p class="field-label">Where are the backups?</p>
+      {{if .CloudOn}}{{segmented "kind" "Where the backups are" .Kind (choice "cloud" "Roostack Cloud" "cloud") (choice "s3" "Online storage" "globe") (choice "folder" "A disk here" "disk") (choice "url" "Another address" "network")}}
+      {{- else}}{{segmented "kind" "Where the backups are" .Kind (choice "s3" "Online storage" "globe") (choice "folder" "A disk here" "disk") (choice "url" "Another address" "network")}}{{end}}
+    </div>
     <div x-show="kind === 's3'">
-      <label>Endpoint <input name="endpoint" value="{{.S3.Endpoint}}" placeholder="https://s3.us-west-004.backblazeb2.com"></label>
-      <label>Bucket <input name="bucket" value="{{.S3.Bucket}}"></label>
-      <label>Folder in the bucket (if you chose one) <input name="prefix" value="{{.S3.Prefix}}"></label>
-      <label>Access key <input name="access_key" autocomplete="off"></label>
-      <label>Secret key <input name="secret_key" type="password" autocomplete="off"></label>
-      <p class="hint">Roostack looks for every server's backups in the bucket.</p>
+      <p class="hint seg-hint">An S3-compatible account: Backblaze B2, Wasabi, AWS, … Roostack looks for every server's backups in the bucket.</p>
+      <div class="field-row">
+        <label>Endpoint <input name="endpoint" value="{{.S3.Endpoint}}" placeholder="https://s3.us-west-004.backblazeb2.com" autocapitalize="off" spellcheck="false"></label>
+        <label>Bucket <input name="bucket" value="{{.S3.Bucket}}" autocapitalize="off" spellcheck="false"></label>
+      </div>
+      <div class="field-row">
+        <label>Access key <input name="access_key" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label>Secret key <input name="secret_key" type="password" autocomplete="off"></label>
+      </div>
+      <details class="form-more"{{if .S3.Prefix}} open{{end}}><summary>A folder in the bucket</summary>
+        <label>Folder in the bucket (if you chose one) <input name="prefix" value="{{.S3.Prefix}}" autocapitalize="off" spellcheck="false"></label>
+      </details>
     </div>
     <div x-show="kind === 'folder'" x-cloak data-drive="{{.Drive}}" x-data="{ drive: $el.dataset.drive }">
+      <p class="hint seg-hint">A USB disk or a folder, mounted under /mnt or /media.</p>
       {{range .Drives}}<label class="check"><input type="radio" name="drive" value="{{.ID}}" x-model="drive">
         <span><strong>{{.Name}}</strong> <span class="badge">{{if eq .Kind "usb"}}USB drive{{else if eq .Kind "network"}}Network share{{else}}Disk{{end}}</span>
           <small>{{if .Size}}{{size .Size}}{{end}}{{with .Model}}{{if ne . $.Name}} · {{.}}{{end}}{{end}}{{with .FSType}} · {{.}}{{end}}</small></span></label>{{end}}
@@ -109,10 +112,11 @@
       <p class="hint">Roostack looks on it (or in the folder) and a few levels below. Just plugged the drive in? <a href="/setup/restore">Look again</a>.</p>
     </div>
     <div x-show="kind === 'cloud'" x-cloak>
-      <p class="hint">Roostack proves to Roostack Cloud that you have the lab's recovery key, without sending it, and
+      <p class="hint seg-hint">If the lab backed up to Roostack Cloud, the recovery key is all it takes. Roostack proves to Roostack Cloud that you have the lab's recovery key, without sending it, and
         Roostack Cloud lets this server read the lab's backups. Roostack Cloud emails the lab's account to say so.</p>
     </div>
     <div x-show="kind === 'url'" x-cloak>
+      <p class="hint seg-hint">Any restic repository address, e.g. <code>rest:https://…</code>.</p>
       <label>Address <input name="url" value="{{.URL}}" placeholder="rest:https://user:password@backup.example.com/lab"></label>
     </div>
     <label>Recovery key

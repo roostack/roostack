@@ -45,6 +45,10 @@ var icons = map[string]string{
 	"sign-in":  `<rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><path d="M12 15v2"/>`,
 	"warn":     `<path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/>`,
 	"chevron":  `<path d="m10 7 5 5-5 5"/>`,
+	"folder":   `<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>`,
+	"close":    `<path d="M6 6l12 12M18 6 6 18"/>`,
+	"copy":     `<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>`,
+	"check":    `<path d="m5 12.5 4.5 4.5L19 7.5"/>`,
 	"plus":     `<path d="M12 5v14M5 12h14"/>`,
 	// The package editor's (SPEC.md §8.3.7): importing a file, and a
 	// suggestion. internal/editor/static/editor.js draws its own copies

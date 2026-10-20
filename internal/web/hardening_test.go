@@ -50,6 +50,11 @@ func TestRestorePageReflection(t *testing.T) {
 	if strings.Contains(body, "kind: '") || strings.Contains(body, "drive: '") || !strings.Contains(body, "$el.dataset.kind") {
 		t.Errorf("form values reach an Alpine expression:\n%.3000s", body)
 	}
+	// A choice of where that isn't one comes back as online storage, in
+	// the segmented control.
+	if !strings.Contains(body, `name="kind" value="s3" checked`) || strings.Contains(body, "alert(1)") {
+		t.Errorf("an unknown kind:\n%.3000s", body)
+	}
 }
 
 // The page with a two-factor key being set up isn't cached.

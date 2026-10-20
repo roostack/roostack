@@ -302,6 +302,61 @@ Network=roostack-immich.network</code></pre>
   </label>
 </form>`},
 		}},
+	{ID: "choosing", Title: "Choosing", Intro: "Controls for choices that a plain list of inputs makes long: a small exclusive choice as a row of buttons, related fields side by side, and a folder chosen in a dialog.",
+		Examples: []galleryExample{
+			{"Segmented control", "segmented NAME LABEL SELECTED (choice VALUE TEXT [ICON])… [\"size=small\"]: two to four exclusive choices as radios drawn as one row of buttons; on phones a full-size one fills the width, the icon above the words. Inside a .seg-group, the chosen choice's .seg-panel (data-seg, counting from 1) shows, by CSS alone, so it works without scripts; a .seg-hint first in a panel says what that choice is. For choices that each bring their own fields (where a media library is, SMB or NFS); a choice whose consequences need a sentence each stays radios with notes.", `
+<form>
+  <div class="seg-group">
+    {{segmented "where" "Where it is" "drive" (choice "drive" "Drive" "disk") (choice "folder" "Folder on nuc" "server") (choice "share" "Network share" "network")}}
+    <p class="seg-panel hint seg-hint" data-seg="1">A USB drive or second disk. Roostack mounts it read-only: nothing on it changes.</p>
+    <p class="seg-panel hint seg-hint" data-seg="2">A folder already on nuc, under /mnt, /media or /srv.</p>
+    <p class="seg-panel hint seg-hint" data-seg="3">A folder shared by a NAS or another computer.</p>
+  </div>
+  {{segmented "share_type" "Kind of share" "smb" (choice "smb" "SMB") (choice "nfs" "NFS") "size=small"}}
+</form>`},
+			{"Fields side by side", ".field-row: two fields to a row (each at least 14rem), one under another when there isn't room; .field-row.wide-first for a field and a short one (a server and its port). input.name-input for a name, rather than the card's whole width.", `
+<form>
+  <div class="field-row wide-first">
+    <label>SMTP server <input value="smtp.example.com"></label>
+    <label>Port <input type="number" value="587"></label>
+  </div>
+  <div class="field-row">
+    <label>Username <input value="sam"><small>Empty for a share anyone on your network can open.</small></label>
+    <label>Password <input type="password"><small>Kept on nuc, readable only by its system.</small></label>
+  </div>
+  <label>Name <input class="name-input" value="Films"></label>
+</form>`},
+			{"Form in a dialog", "Adding one thing to a list (a check, someone, an invite, a server): a secondary button, a link with data-dialog=\"ID\" and an href that opens the page with ?add=…, opens dialog.form-dialog ID: .dialog-head (the heading and a close link), the form, .dialog-actions (a data-close Cancel link, then its button). The page renders it open when its form came back with a mistake, or from ?add=…; app.js makes an open one modal, and without scripts it shows in the page as a card. The first field has autofocus. Here, open in the page as without scripts.", `
+<dialog class="dialog form-dialog" open aria-labelledby="gallery-dialog-title">
+  <div class="dialog-head"><h2 id="gallery-dialog-title">Add a check</h2><a class="icon-button" href="#" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
+  <form>
+    <div class="field-row"><label>Name <input value="Printer"></label><label>Address <input value="printer.local:631"></label></div>
+    <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Tell me when it stops answering</span></label>
+    <div class="dialog-actions"><a class="button secondary" href="#" data-close>Cancel</a><button type="button">Add check</button></div>
+  </form>
+</dialog>`},
+			{"Form sections and Details", "h2.form-section: a small heading inside a long form (the install form's Name and address, Where it runs, its settings), with hr.form-rule between sections. details.form-more: a quiet Details line under the fields, for one rarely changed (a service's name for folders and backups).", `
+<form>
+  <h2 class="form-section">Name and address</h2>
+  <div class="field-row"><label>Title <input value="Forgejo"></label><label>Web address <span class="with-suffix"><input value="git"><span>.lab.example.com</span></span></label></div>
+  <details class="form-more"><summary>Its name for folders and backups: <code>forgejo</code></summary>
+    <label>Name <span class="with-prefix"><span>forgejo-</span><input value=""></span></label></details>
+  <hr class="form-rule">
+  <h2 class="form-section">Forgejo's settings</h2>
+  <label class="check"><input type="checkbox" class="switch" role="switch"><span>Allow anyone to create an account</span></label>
+</form>`},
+			{"Input with its button", "form.inline-form: an input then its button (Rename, Save), the button as tall as the input and on its line; a dropdown in a sentence (select.inline) before a button is as tall as an input.", `
+<form class="inline-form"><label class="sr-only" for="gallery-rename">Title</label><input id="gallery-rename" value="Forgejo"><button type="button" class="secondary">Rename</button></form>
+<form class="inline-form"><label>Keep history for <select class="inline"><option>90 days</option></select></label><button type="button" class="secondary">Save</button></form>`},
+			{"Switch", "label.check with input.switch role=\"switch\": an on/off setting that saves with its form (still a checkbox without styles). Ticking items from a list, or confirming something (\"I understand\"), stays a checkbox.", `
+<form>
+  <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Offer "Keep me signed in" on the login page<small>For someone's own device.</small></span></label>
+  <label class="check"><input type="checkbox" class="switch" role="switch"><span>Allow anyone to create an account</span></label>
+</form>`},
+			{"Folder picker", "The folder chosen as a value (.folder-choice: the folder icon, the place and what it holds, then a secondary button), which opens the picker: template \"folder-picker\" with a folderPicker, the folders opened so far as crumbs, the folders here (each opening on a click, with what it holds), what this one holds, Cancel and Use. A link with data-picker=\"ID\" shows it in pickerDialog ID PLACE (app.js loads the link's page into the dialog, and Use replaces the page's PLACE); without scripts the same link is a page.", `
+<div class="folder-choice">{{icon "folder"}}<span class="path"><strong>MEDIA › Films</strong><small>3 folders, 1 file</small></span><a class="button secondary" href="#">Choose a folder…</a></div>
+<div class="gallery-picker">{{template "folder-picker" .Picker}}</div>`},
+		}},
 	{ID: "lists", Title: "Lists", Intro: "Rows with borders for lists of things you can act on.",
 		Examples: []galleryExample{
 			{"Rows", "", `
@@ -445,7 +500,7 @@ Network=roostack-immich.network</code></pre>
 		Examples: []galleryExample{
 			{"Secret", "", `
 <code class="secret">EXAMPLE-ONLY-NOT-REAL</code>`},
-			{"Copy box", "copyBox TEXT: something people copy and send or paste elsewhere (an invite, a command), with a Copy button.", `
+			{"Copy box", "copyBox TEXT: something people copy and send or paste elsewhere (an invite, a command), with a copy icon at its top right that turns into a tick for a moment once copied (the Owner, 2026-10-20: a button beside it took space and wrapped under it on phones).", `
 {{copyBox "sudo roostack node join EXAMPLE-ONLY-NOT-REAL"}}`},
 			{"Output", "Command output in logs and results.", `
 <pre class="output">==> Installing updates
@@ -557,6 +612,10 @@ func gallerySamples() map[string]any {
 		"UpdatesActivity":  view("Installing updates", "", false, "==> Installing updates", "Unpacking curl (8.14.1-2+deb13u5) ..."),
 		"FinishedActivity": view("Installed 3 updates: curl, libcurl4t64, tzdata.", "", true, "==> Installing updates", "==> Done"),
 		"FailedActivity":   view("Installing updates", "exit status 100", true, "E: Could not get lock /var/lib/dpkg/lock-frontend", "==> Failed: exit status 100"),
+		"Picker": folderPicker{Title: "Choose a folder on MEDIA", Crumbs: []mediaCrumb{{"MEDIA", "#"}, {"Films", ""}},
+			Folders: []pickerFolder{{Name: "Blade Runner (1982)", Href: "#", Files: 3}, {Name: "Paddington 2 (2017)", Href: "#", Files: 2},
+				{Name: "Extras", Href: "#", Folders: 4, Files: 1}},
+			Label: "MEDIA › Films", Counts: "3 folders, 1 file", UseHref: "#", UseText: "Use Films", CancelHref: "#"},
 	}
 }
 

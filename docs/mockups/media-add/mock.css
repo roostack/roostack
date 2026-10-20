@@ -1,0 +1,91 @@
+/* What the real stylesheet lacks for these mock-ups: the segmented control,
+   the folder picker (dialog and inline), fields side by side. */
+
+/* Segmented control: radios drawn as one row of buttons. */
+.segmented { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; margin: 0 0 var(--space-3);
+  border: 1px solid var(--edge-strong); border-radius: var(--radius); background: var(--glass); }
+.segmented label { position: relative; display: inline-flex; align-items: center; gap: var(--space-2); margin: 0;
+  padding: 7px 14px; border-radius: calc(var(--radius) - 3px); color: var(--muted); font-weight: var(--weight-medium);
+  cursor: pointer; white-space: nowrap; }
+.segmented label:hover { color: var(--fg); }
+.segmented input { position: absolute; opacity: 0; pointer-events: none; }
+.segmented label:has(input:checked) { background: var(--surface); color: var(--fg); box-shadow: 0 1px 3px rgb(0 0 0 / 0.18), inset 0 0 0 1px var(--edge-strong); }
+.segmented label:has(input:checked) .icon { color: var(--accent); }
+.segmented label:has(input:focus-visible) { outline: var(--focus-ring); outline-offset: 1px; }
+.segmented .icon { width: 18px; height: 18px; }
+.segmented.small label { padding: 4px 12px; font-size: var(--text-sm); }
+@media (max-width: 640px) {
+  .segmented:not(.small) { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; }
+  .segmented:not(.small) label { flex-direction: column; gap: 2px; padding: 8px 4px; white-space: normal;
+    text-align: center; font-size: var(--text-sm); line-height: 1.2; }
+}
+.segmented-hint { margin: calc(-1 * var(--space-1)) 0 var(--space-4); }
+
+/* Fields side by side, one under another on phones. */
+.field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0 var(--space-4); }
+
+/* The folder chosen, with a button to change it. */
+.folder-choice { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-3);
+  margin: 0 0 var(--space-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--glass); }
+.folder-choice > .icon { width: 22px; height: 22px; color: var(--accent); flex: none; }
+.folder-choice .path { flex: 1 1 12rem; min-width: 0; }
+.folder-choice .path strong { display: block; overflow-wrap: anywhere; }
+.folder-choice .path small { display: block; }
+.folder-choice.empty .path strong { color: var(--muted); font-weight: var(--weight-normal); }
+
+/* The picker: crumbs, then folders you open, each with what's in it. */
+.picker-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 0 0 var(--space-2); font-size: var(--text-sm); }
+.picker-crumbs button { padding: 2px 6px; background: none; border: 0; color: var(--accent); font-weight: var(--weight-normal); }
+.picker-crumbs button:hover { text-decoration: underline; filter: none; }
+.picker-crumbs [aria-current] { padding: 2px 6px; font-weight: var(--weight-medium); }
+.picker-crumbs .sep { color: var(--muted); }
+.picker-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius);
+  max-height: 20rem; overflow-y: auto; background: var(--surface); }
+.picker-list li + li { border-top: 1px solid var(--border); }
+.picker-list button { display: flex; width: 100%; align-items: center; gap: var(--space-3); padding: 10px var(--space-3);
+  background: none; border: 0; border-radius: 0; color: var(--fg); font-weight: var(--weight-normal); text-align: left; }
+.picker-list button:hover { background: var(--glass-2); filter: none; }
+.picker-list button .icon { width: 20px; height: 20px; color: var(--muted); flex: none; }
+.picker-list button .icon.folder { color: var(--accent); }
+.picker-list .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.picker-list small { flex: none; }
+.picker-list .empty-note { padding: var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.picker-here { margin: var(--space-2) 0 0; font-size: var(--text-sm); }
+
+/* The picker as a dialog: wider than a confirmation; nearly the whole
+   screen on phones. */
+dialog.dialog.picker { width: min(38rem, calc(100vw - 2 * var(--space-4))); max-width: none; padding: 0; margin: auto; }
+dialog.picker .picker-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-2); }
+dialog.picker .picker-head h2 { margin: 0; font-size: var(--text-lg); }
+dialog.picker .picker-body { padding: 0 var(--space-4); }
+dialog.picker .dialog-actions { padding: var(--space-4); align-items: center; }
+dialog.picker .dialog-actions .hint { margin: 0 auto 0 0; }
+@media (max-width: 640px) {
+  dialog.dialog.picker { width: calc(100vw - 16px); height: calc(100dvh - 16px); max-height: none; margin: 8px; }
+  dialog.picker[open] { display: flex; flex-direction: column; }
+  dialog.picker .picker-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  dialog.picker .picker-list { max-height: none; flex: 1; }
+  dialog.picker .dialog-actions .hint { flex-basis: 100%; }
+}
+
+/* The picker inline, in the card (direction B). */
+.picker-inline { margin: 0 0 var(--space-4); }
+.picker-inline .picker-list button .use { margin-left: var(--space-2); }
+
+/* Choices as a row of cards (direction B's drives). */
+.mock-bar { position: fixed; right: 12px; bottom: 12px; z-index: 50; display: flex; gap: 4px; flex-wrap: wrap;
+  padding: 6px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border-strong);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.25); font-size: 13px; }
+.mock-bar a, .mock-bar button { padding: 4px 8px; border-radius: 6px; color: var(--fg); text-decoration: none;
+  background: none; border: 0; font-weight: 500; font-size: 13px; }
+.mock-bar a[aria-current] { background: var(--accent); color: var(--accent-fg); }
+
+/* A field's label above a control that isn't an input. */
+.field-label { margin: var(--space-4) 0 var(--space-2); }
+/* A rule between a form's parts. */
+hr.form-rule { border: 0; border-top: 1px solid var(--border); margin: var(--space-5) 0 var(--space-4); }
+/* An input as wide as what it holds. */
+label.short-input input { max-width: 24rem; }
+/* Checkboxes side by side. */
+.check-row { display: flex; flex-wrap: wrap; gap: 0 var(--space-5); }

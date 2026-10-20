@@ -269,12 +269,12 @@ func (s *Server) userDetailsSubmit(w http.ResponseWriter, r *http.Request) {
 	name := strings.Join(strings.Fields(r.FormValue("name")), " ")
 	email := strings.TrimSpace(r.FormValue("email"))
 	if len(name) > 100 {
-		s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": "A full name can be up to 100 characters."})
+		s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": "A full name can be up to 100 characters.", "OpenPerson": u.ID})
 		return
 	}
 	if email != "" {
 		if a, err := mail.ParseAddress(email); err != nil || a.Address != email {
-			s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": email + " isn't an email address."})
+			s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": email + " isn't an email address.", "OpenPerson": u.ID})
 			return
 		}
 	}

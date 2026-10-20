@@ -83,6 +83,9 @@ func TestLibraryFolder(t *testing.T) {
 		}
 	}
 	LibraryFolderRoots = []string{"/srv", "/mnt"}
+	if !ownFolder("/srv/roostack") || !ownFolder("/mnt/roostack-media-data") || ownFolder("/srv/media") || ownFolder("/mnt/nas") {
+		t.Error("ownFolder")
+	}
 	for _, own := range []string{"/srv/roostack", "/srv/roostack/media", LibraryRoot + "/x", "/mnt/roostack-media-data"} {
 		if _, err := libraryFolder(own); err == nil || !strings.Contains(err.Error(), "Roostack's own") {
 			t.Errorf("%q: %v", own, err)
@@ -167,8 +170,12 @@ func TestSample(t *testing.T) {
 		t.Errorf("limited: %+v", r)
 	}
 	list, err := listFolders(dir, "", me, []int{os.Getgid()})
-	if err != nil || len(list.Folders) != 2 || list.Folders[1].Name != "open" || list.Folders[1].Files != 2 {
+	if err != nil || len(list.Folders) != 2 || list.Folders[1].Name != "open" || list.Folders[1].Files != 2 || list.Files != 0 {
 		t.Errorf("list: %+v %v", list, err)
+	}
+	// The place's own files are counted too.
+	if list, err := listFolders(dir, "open", me, []int{os.Getgid()}); err != nil || len(list.Folders) != 0 || list.Files != 2 {
+		t.Errorf("a folder's files: %+v %v", list, err)
 	}
 }
 

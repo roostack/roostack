@@ -56,6 +56,26 @@ body.pe-page .pe { max-width: 1560px; margin: 0 auto; }
 .pe .pe-label { display: block; font-weight: var(--weight-medium); }
 .pe .pe-check { display: flex; gap: var(--space-2); align-items: center; font-weight: var(--weight-medium); }
 .pe .pe-check input { width: auto; margin: 0; }
+/* An on/off field as a switch (a checkbox with role="switch"), as
+   Roostack's own (docs/DESIGN.md "Switch"). */
+.pe input[role="switch"] { appearance: none; flex: none; position: relative; width: 36px; height: 20px; margin: 0;
+  border-radius: var(--radius-pill); background: var(--border-strong); cursor: pointer; transition: background 0.15s; }
+.pe input[role="switch"]::before { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 0.3); transition: transform 0.15s; }
+.pe input[role="switch"]:checked { background: var(--accent); }
+.pe input[role="switch"]:checked::before { transform: translateX(16px); background: var(--accent-fg); }
+.pe input[role="switch"]:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+@media (prefers-reduced-motion: reduce) { .pe input[role="switch"], .pe input[role="switch"]::before { transition: none; } }
+/* A small fixed choice as a row of buttons, as Roostack's segmented
+   control (docs/DESIGN.md). */
+.pe .pe-seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; margin-top: var(--space-1);
+  border: 1px solid var(--edge-strong, var(--border-strong)); border-radius: var(--radius); background: var(--glass, var(--surface-2)); }
+.pe .pe-seg label { position: relative; display: inline-flex; align-items: center; padding: 5px 12px; border-radius: calc(var(--radius) - 3px);
+  color: var(--muted); font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; white-space: nowrap; }
+.pe .pe-seg label:hover { color: var(--fg); }
+.pe .pe-seg input { position: absolute; opacity: 0; pointer-events: none; margin: 0; }
+.pe .pe-seg label:has(input:checked) { background: var(--surface); color: var(--fg); box-shadow: 0 1px 3px rgb(0 0 0 / 0.18), inset 0 0 0 1px var(--edge-strong, var(--border-strong)); }
+.pe .pe-seg label:has(input:focus-visible) { box-shadow: var(--focus-ring); }
 .pe .pe-file { font-size: var(--text-sm); }
 
 .pe-card { padding: var(--space-5); border-radius: 16px; background: var(--surface); box-shadow: var(--lift, var(--shadow-1)); }
@@ -129,7 +149,7 @@ body.pe-page .pe { max-width: 1560px; margin: 0 auto; }
 .pe-problems-head h2 { margin: 0; }
 .pe-tally { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .pe .pe-switch { margin-left: auto; display: flex; gap: var(--space-2); align-items: baseline; font-size: var(--text-sm); font-weight: var(--weight-medium); }
-.pe-switch input { margin: 0; }
+.pe-switch input { margin: 0; align-self: center; }
 .pe-problem-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: 2px; font-size: var(--text-sm); }
 .pe-problem { display: grid; grid-template-columns: 6.8em minmax(0, 1fr) auto; gap: 2px var(--space-3); align-items: baseline; padding: 6px var(--space-3);
   border-radius: var(--radius); background: var(--surface-2); }

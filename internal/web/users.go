@@ -36,6 +36,25 @@ func (s *Server) renderUsers(w http.ResponseWriter, r *http.Request, status int,
 	for k, v := range extra {
 		data[k] = v
 	}
+	// The add form's dialog opens with a mistake to fix, or from
+	// ?add=someone (its button, without scripts).
+	data["Adding"] = data["Adding"] == true || r.URL.Query().Get("add") == "someone"
+	// ?person=<id> opens that person's dialog (its Change… without scripts).
+	if _, set := data["OpenPerson"]; !set {
+		if id, err := strconv.ParseInt(r.URL.Query().Get("person"), 10, 64); err == nil {
+			data["OpenPerson"] = id
+		}
+	}
+	// ?group=<id> opens that group's dialog (its Change… without scripts).
+	if _, set := data["OpenGroup"]; !set {
+		if id, err := strconv.ParseInt(r.URL.Query().Get("group"), 10, 64); err == nil {
+			data["OpenGroup"] = id
+		}
+	}
+	// A role that isn't one comes back as the first choice.
+	if role, _ := data["NewRole"].(string); !auth.ValidRole(role) {
+		data["NewRole"] = ""
+	}
 	// Temporary passwords must not be cached or shown again.
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
@@ -46,7 +65,7 @@ func (s *Server) userAddSubmit(w http.ResponseWriter, r *http.Request) {
 	name, role := strings.TrimSpace(r.FormValue("username")), r.FormValue("role")
 	email := strings.TrimSpace(r.FormValue("email"))
 	fail := func(msg string) {
-		s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": msg, "NewName": name, "NewRole": role, "NewEmail": email})
+		s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": msg, "NewName": name, "NewRole": role, "NewEmail": email, "Adding": true})
 	}
 	switch {
 	case !auth.ValidUsername(name):

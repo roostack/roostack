@@ -11,21 +11,26 @@
   {{if .Saved}}{{notice "ok" "Saved. Send a test email to check it works."}}{{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{with .Mail}}
-  <form method="post" action="/settings/email">
-    <label>SMTP server <input name="host" value="{{.Host}}" placeholder="smtp.example.com" required autocapitalize="off" spellcheck="false"></label>
-    <fieldset>
-      <legend>Connection</legend>
-      <label class="check"><input type="radio" name="security" value="starttls" {{if ne .Security "tls"}}checked{{end}}>
-        <span>STARTTLS, usually port 587<small>Most providers. Roostack never sends the password unless the connection is encrypted.</small></span></label>
-      <label class="check"><input type="radio" name="security" value="tls" {{if eq .Security "tls"}}checked{{end}}>
-        <span>TLS, usually port 465<small>Encrypted from the start.</small></span></label>
-    </fieldset>
-    <label>Port <input name="port" type="number" min="1" max="65535" value="{{.Port}}" class="inline" required></label>
-    <label>Username <input name="username" value="{{.Username}}" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <small>Often your email address. Leave it empty if the server needs no login.</small></label>
-    <label>Password <input name="password" type="password" autocomplete="new-password"
-      placeholder="{{if $.HasPassword}}Saved: leave empty to keep it{{end}}">
-      <small>Kept on this server, readable only by Roostack, and never shown again.</small></label>
+  <form method="post" action="/settings/email" x-data>
+    <div class="field-row wide-first">
+      <label>SMTP server <input name="host" value="{{.Host}}" placeholder="smtp.example.com" required autocapitalize="off" spellcheck="false"></label>
+      <label>Port <input name="port" type="number" min="1" max="65535" value="{{.Port}}" required x-ref="port"></label>
+    </div>
+    {{/* The usual port follows the connection, unless another was typed. */}}
+    <div class="seg-group" x-on:change="if ($event.target.name === 'security' && ['', '587', '465'].includes($refs.port.value)) $refs.port.value = $event.target.value === 'tls' ? '465' : '587'">
+      <p class="field-label">Connection</p>
+      {{segmented "security" "Connection" (or .Security "starttls") (choice "starttls" "STARTTLS") (choice "tls" "TLS")}}
+      <p class="seg-panel hint seg-hint" data-seg="1">Most providers, usually on port 587. Roostack never sends the password unless the
+        connection is encrypted.</p>
+      <p class="seg-panel hint seg-hint" data-seg="2">Encrypted from the start, usually on port 465.</p>
+    </div>
+    <div class="field-row">
+      <label>Username <input name="username" value="{{.Username}}" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <small>Often your email address. Empty if the server needs no login.</small></label>
+      <label>Password <input name="password" type="password" autocomplete="new-password"
+        placeholder="{{if $.HasPassword}}Saved: leave empty to keep it{{end}}">
+        <small>Kept on this server, readable only by Roostack, and never shown again.</small></label>
+    </div>
     {{if $.HasPassword}}<label class="check"><input type="checkbox" name="clear_password"><span>Forget the saved password</span></label>{{end}}
     <label>Send from <input name="from" value="{{.From}}" placeholder="roostack@example.com" required autocapitalize="off" spellcheck="false">
       <small>The address emails come from. Your provider may only allow addresses you own: Roostack suggests one on your

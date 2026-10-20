@@ -408,7 +408,7 @@ Image: {{.Image}}</code></pre>
 {{define "sso-card"}}
 <section class="card" id="sso">
   <div class="card-head"><h2>Single sign-on</h2>{{if .On}}<span class="status status-running">On</span>{{else}}<span class="status status-off">Off</span>{{end}}</div>
-  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if not .Open}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
   {{if .On}}
   {{if .Wall}}<p>Everyone who opens {{.Title}} signs in on the lab's sign-in page first, so only the people you choose reach it.</p>
   {{else}}<p>People sign in to {{.Title}} with their account here, on the lab's sign-in page. {{.Title}} makes their account in {{.Title}} the first time
@@ -422,10 +422,19 @@ Image: {{.Image}}</code></pre>
     {{with .Note}}<dt>Still its own sign-in</dt><dd>{{.}}</dd>{{end}}
   </dl>
   {{if .CanChoose}}
-  <details class="sso-change"{{if .Error}} open{{end}}>
-    <summary>Change who can sign in</summary>
-    <form method="post" action="/services/{{.Name}}/sso/access" class="sso-who">{{template "sso-who" .}}<button type="submit" class="secondary">Save</button></form>
-  </details>
+  <p><a class="button secondary" href="/services/{{.Name}}?sso=who#sso" data-dialog="sso-who-dialog">Change who can sign in…</a></p>
+  <dialog class="dialog form-dialog" id="sso-who-dialog" aria-labelledby="sso-who-title"{{if .Open}} open{{end}}>
+    <div class="dialog-head"><h2 id="sso-who-title">Single sign-on for {{.Title}}</h2>
+      <a class="icon-button" href="/services/{{.Name}}#sso" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
+    <form method="post" action="/services/{{.Name}}/sso/access" class="sso-who">
+      {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+      {{template "sso-who" .}}
+      <div class="dialog-actions">
+        <a class="button secondary" href="/services/{{.Name}}#sso" data-close>Cancel</a>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
   {{end}}
   <details class="technical">
     <summary>Details</summary>
@@ -462,16 +471,19 @@ Image: {{.Image}}</code></pre>
 {{end}}
 
 {{define "sso-who"}}
-<fieldset>
-  <legend>Who can sign in to {{.Title}}</legend>
-  <label class="check"><input type="radio" name="who" value="all"{{if not .Access.Chosen}} checked{{end}}>
-    <span>Everyone in the lab<small>All {{.Everyone}} {{if eq .Everyone 1}}person{{else}}people{{end}}, and anyone you add later.</small></span></label>
-  <label class="check"><input type="radio" name="who" value="chosen"{{if .Access.Chosen}} checked{{end}}>
-    <span>Chosen groups and people</span></label>
-  <div class="sso-choose">
+{{/* Everyone, or chosen groups and people: a segmented control, the
+     choices shown under "Chosen" (CSS, so it works without scripts). */}}
+{{$who := "all"}}{{if .Access.Chosen}}{{$who = "chosen"}}{{end}}
+<div class="seg-group">
+  <p class="field-label">Who can sign in to {{.Title}}</p>
+  {{segmented "who" (printf "Who can sign in to %s" .Title) $who (choice "all" "Everyone in the lab") (choice "chosen" "Chosen groups and people")}}
+  <p class="seg-panel hint seg-hint" data-seg="1">All {{.Everyone}} {{if eq .Everyone 1}}person{{else}}people{{end}}, and anyone you add later.</p>
+  <div class="seg-panel sso-choose" data-seg="2">
+    <div class="check-row">
     {{range .Groups}}<label class="check"><input type="checkbox" name="group" value="{{.ID}}"{{if .Checked}} checked{{end}}><span>{{.Name}}{{with .Detail}}<small>{{.}}</small>{{end}}</span></label>{{end}}
     {{range .People}}<label class="check"><input type="checkbox" name="person" value="{{.ID}}"{{if .Checked}} checked{{end}}><span>{{.Name}}{{with .Detail}}<small>{{.}}</small>{{end}}</span></label>{{end}}
+    </div>
     {{if not .Groups}}<p class="hint">Make groups, such as Family, on <a href="/settings/people#groups">People</a>.</p>{{end}}
   </div>
-</fieldset>
+</div>
 {{end}}

@@ -11,7 +11,7 @@
   {{with .Deleted}}{{notice "ok" (printf "Deleted all history (%s entries)." .)}}{{end}}
   {{range .Unreachable}}{{notice "warn" (printf "Couldn't ask %s for its history right now." .)}}{{end}}
   <form method="get" action="/settings/history" class="inline-form history-filter">
-    <label>Show <select name="kind" x-data x-on:change="$el.form.submit()">
+    <label>Show <select name="kind" class="inline" x-data x-on:change="$el.form.submit()">
       {{range .Kinds}}<option value="{{.ID}}"{{if eq .ID $.Kind}} selected{{end}}>{{.Title}}</option>{{end}}
     </select></label>
     <noscript><button type="submit" class="secondary">Show</button></noscript>
@@ -38,7 +38,7 @@
 <section class="card">
   <div class="card-head"><h2>How long it's kept</h2></div>
   <form method="post" action="/settings/history/keep" class="inline-form">
-    <label>Keep history for <select name="days">
+    <label>Keep history for <select name="days" class="inline">
       {{range .Keeps}}<option value="{{.}}"{{if eq . $.KeepDays}} selected{{end}}>{{if eq . 365}}a year{{else}}{{.}} days{{end}}</option>{{end}}
     </select></label>
     <button type="submit" class="secondary">Save</button>

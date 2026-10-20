@@ -89,33 +89,42 @@
   <p><a class="button secondary" href="/settings/storage#invite">Make another invite</a></p>
   {{else}}
   <h2>Invite a lab</h2>
-  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if not .Adding}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
   {{with .ServerChoices}}
   <form method="post" action="/settings/storage/server" class="inline-form">
-    <label>Offered by <select name="server">{{range .}}<option value="{{.ID}}" {{if eq .ID $.HostServer.ID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+    <label>Offered by <select name="server" class="inline">{{range .}}<option value="{{.ID}}" {{if eq .ID $.HostServer.ID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
     <button type="submit" class="secondary">Change</button>
     <small class="hint">The server whose disk keeps their backups (e.g. one with a big disk). It can change only while no other lab stores anything.</small>
   </form>
   {{end}}
-  <form method="post" action="/settings/storage/invite#invite">
-    <label>Whose lab <input name="name" value="{{.Name}}" placeholder="Sam's lab" required></label>
-    {{with .Space}}
-    {{/* The space left for this lab updates as the number changes. */}}
-    <div class="quota-field" data-gb="{{$.Quota}}" data-free="{{.Free}}" data-promised="{{.Promised}}" data-left="{{.Left}}"
-      x-data="{ gb: Number($el.dataset.gb), free: Number($el.dataset.free), promised: Number($el.dataset.promised), left: Number($el.dataset.left) }">
-      {{if lt .Left 1000000000}}{{notice "warn" (printf "%s has no space to offer other labs right now: it keeps 10%% of its disk free, and the rest is in use or already given to other labs." $.HostServer.Name)}}{{end}}
-      <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{$.Quota}}" x-model.number="gb" required>
-        <small x-show="gb * 1e9 <= left">Giving them <span x-text="gb">{{$.Quota}}</span> GB leaves about
-          <strong x-text="roostackSize(free - promised - gb * 1e9)">{{size $.SpaceAfter}}</strong> free on {{$.HostServer.Name}}
-          for your own services and backups.</small>
-        <small class="error" x-show="gb * 1e9 > left" x-cloak>That's more than {{$.HostServer.Name}} can offer: up to {{size .Left}}.</small></label>
-    </div>
-    {{else}}
-    <label>Space for them (GB) <input name="quota" type="number" min="1" value="{{.Quota}}" required></label>
-    {{end}}
-    {{template "address-choice" .AddressChoice}}
-    <button type="submit">Make an invite</button>
-  </form>
+  <p><a class="button" href="/settings/storage?add=invite#invite" data-dialog="add-invite">Make an invite…</a></p>
+  <dialog class="dialog form-dialog" id="add-invite" aria-labelledby="add-invite-title"{{if .Adding}} open{{end}}>
+    <div class="dialog-head"><h2 id="add-invite-title">Invite a lab</h2>
+      <a class="icon-button" href="/settings/storage#invite" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
+    <form method="post" action="/settings/storage/invite#invite">
+      {{if .Adding}}{{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}{{end}}
+      <label>Whose lab <input name="name" value="{{.Name}}" placeholder="Sam's lab" required autofocus></label>
+      {{with .Space}}
+      {{/* The space left for this lab updates as the number changes. */}}
+      <div class="quota-field" data-gb="{{$.Quota}}" data-free="{{.Free}}" data-promised="{{.Promised}}" data-left="{{.Left}}"
+        x-data="{ gb: Number($el.dataset.gb), free: Number($el.dataset.free), promised: Number($el.dataset.promised), left: Number($el.dataset.left) }">
+        {{if lt .Left 1000000000}}{{notice "warn" (printf "%s has no space to offer other labs right now: it keeps 10%% of its disk free, and the rest is in use or already given to other labs." $.HostServer.Name)}}{{end}}
+        <label>Space for them <span class="with-suffix"><input class="number-input" name="quota" type="number" min="1" value="{{$.Quota}}" x-model.number="gb" required><span>GB</span></span>
+          <small x-show="gb * 1e9 <= left">Giving them <span x-text="gb">{{$.Quota}}</span> GB leaves about
+            <strong x-text="roostackSize(free - promised - gb * 1e9)">{{size $.SpaceAfter}}</strong> free on {{$.HostServer.Name}}
+            for your own services and backups.</small>
+          <small class="error" x-show="gb * 1e9 > left" x-cloak>That's more than {{$.HostServer.Name}} can offer: up to {{size .Left}}.</small></label>
+      </div>
+      {{else}}
+      <label>Space for them <span class="with-suffix"><input class="number-input" name="quota" type="number" min="1" value="{{.Quota}}" required><span>GB</span></span></label>
+      {{end}}
+      {{template "address-choice" .AddressChoice}}
+      <div class="dialog-actions">
+        <a class="button secondary" href="/settings/storage#invite" data-close>Cancel</a>
+        <button type="submit">Make an invite</button>
+      </div>
+    </form>
+  </dialog>
   {{end}}
   {{if .Internet}}
   <details>

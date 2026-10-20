@@ -178,8 +178,9 @@ Name
 It also needs a web address of its own, which follows the name (such as
 `git-work`) unless you change it.
 
-Every install asks for a title and name, not only another copy: leave
-them as they are for the usual name (`forgejo`). To change a service's
+Every install asks for a title, and has a name under **Its name for folders
+and backups** (open for another copy): leave them as they are for the usual
+name (`forgejo`). To change a service's
 title later, open its page, choose **Edit settings**, and change its **Name**; its name in folders and backups stays.
 
 ??? note "For technical users"

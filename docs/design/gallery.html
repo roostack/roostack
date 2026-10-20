@@ -44,6 +44,7 @@
         <a href="#status">Status and badges</a>
         <a href="#cards">Cards and facts</a>
         <a href="#forms">Forms</a>
+        <a href="#choosing">Choosing</a>
         <a href="#lists">Lists</a>
         <a href="#space">Disk space</a>
         <a href="#tables">Tables</a>
@@ -1884,6 +1885,327 @@ Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;</pre>
         
       </section>
       
+      <section id="choosing">
+        <h2>Choosing</h2>
+        <p class="hint">Controls for choices that a plain list of inputs makes long: a small exclusive choice as a row of buttons, related fields side by side, and a folder chosen in a dialog.</p>
+        
+        <div class="example">
+          <h3>Segmented control <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">segmented NAME LABEL SELECTED (choice VALUE TEXT [ICON])… [&#34;size=small&#34;]: two to four exclusive choices as radios drawn as one row of buttons; on phones a full-size one fills the width, the icon above the words. Inside a .seg-group, the chosen choice&#39;s .seg-panel (data-seg, counting from 1) shows, by CSS alone, so it works without scripts; a .seg-hint first in a panel says what that choice is. For choices that each bring their own fields (where a media library is, SMB or NFS); a choice whose consequences need a sentence each stays radios with notes.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form>
+  <div class="seg-group">
+    <div class="segmented" role="radiogroup" aria-label="Where it is"><label><input type="radio" name="where" value="drive" checked><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><span>Drive</span></label><label><input type="radio" name="where" value="folder"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg><span>Folder on nuc</span></label><label><input type="radio" name="where" value="share"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span>Network share</span></label></div>
+    <p class="seg-panel hint seg-hint" data-seg="1">A USB drive or second disk. Roostack mounts it read-only: nothing on it changes.</p>
+    <p class="seg-panel hint seg-hint" data-seg="2">A folder already on nuc, under /mnt, /media or /srv.</p>
+    <p class="seg-panel hint seg-hint" data-seg="3">A folder shared by a NAS or another computer.</p>
+  </div>
+  <div class="segmented small" role="radiogroup" aria-label="Kind of share"><label><input type="radio" name="share_type" value="smb" checked><span>SMB</span></label><label><input type="radio" name="share_type" value="nfs"><span>NFS</span></label></div>
+</form></div>
+            <div class="panel" data-mode="dark"><form>
+  <div class="seg-group">
+    <div class="segmented" role="radiogroup" aria-label="Where it is"><label><input type="radio" name="where" value="drive" checked><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><span>Drive</span></label><label><input type="radio" name="where" value="folder"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg><span>Folder on nuc</span></label><label><input type="radio" name="where" value="share"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span>Network share</span></label></div>
+    <p class="seg-panel hint seg-hint" data-seg="1">A USB drive or second disk. Roostack mounts it read-only: nothing on it changes.</p>
+    <p class="seg-panel hint seg-hint" data-seg="2">A folder already on nuc, under /mnt, /media or /srv.</p>
+    <p class="seg-panel hint seg-hint" data-seg="3">A folder shared by a NAS or another computer.</p>
+  </div>
+  <div class="segmented small" role="radiogroup" aria-label="Kind of share"><label><input type="radio" name="share_type" value="smb" checked><span>SMB</span></label><label><input type="radio" name="share_type" value="nfs"><span>NFS</span></label></div>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;form&gt;
+  &lt;div class=&#34;seg-group&#34;&gt;
+    {{segmented &#34;where&#34; &#34;Where it is&#34; &#34;drive&#34; (choice &#34;drive&#34; &#34;Drive&#34; &#34;disk&#34;) (choice &#34;folder&#34; &#34;Folder on nuc&#34; &#34;server&#34;) (choice &#34;share&#34; &#34;Network share&#34; &#34;network&#34;)}}
+    &lt;p class=&#34;seg-panel hint seg-hint&#34; data-seg=&#34;1&#34;&gt;A USB drive or second disk. Roostack mounts it read-only: nothing on it changes.&lt;/p&gt;
+    &lt;p class=&#34;seg-panel hint seg-hint&#34; data-seg=&#34;2&#34;&gt;A folder already on nuc, under /mnt, /media or /srv.&lt;/p&gt;
+    &lt;p class=&#34;seg-panel hint seg-hint&#34; data-seg=&#34;3&#34;&gt;A folder shared by a NAS or another computer.&lt;/p&gt;
+  &lt;/div&gt;
+  {{segmented &#34;share_type&#34; &#34;Kind of share&#34; &#34;smb&#34; (choice &#34;smb&#34; &#34;SMB&#34;) (choice &#34;nfs&#34; &#34;NFS&#34;) &#34;size=small&#34;}}
+&lt;/form&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;form&gt;
+  &lt;div class=&#34;seg-group&#34;&gt;
+    &lt;div class=&#34;segmented&#34; role=&#34;radiogroup&#34; aria-label=&#34;Where it is&#34;&gt;
+      &lt;label&gt;
+        &lt;input type=&#34;radio&#34; name=&#34;where&#34; value=&#34;drive&#34; checked&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;ellipse cx=&#34;12&#34; cy=&#34;6&#34; rx=&#34;8&#34; ry=&#34;3&#34;/&gt;&lt;path d=&#34;M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6&#34;/&gt;&lt;path d=&#34;M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3&#34;/&gt;&lt;/svg&gt;&lt;span&gt;Drive&lt;/span&gt;
+      &lt;/label&gt;
+      &lt;label&gt;
+        &lt;input type=&#34;radio&#34; name=&#34;where&#34; value=&#34;folder&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;3&#34; y=&#34;4&#34; width=&#34;18&#34; height=&#34;7&#34; rx=&#34;2&#34;/&gt;&lt;rect x=&#34;3&#34; y=&#34;13&#34; width=&#34;18&#34; height=&#34;7&#34; rx=&#34;2&#34;/&gt;&lt;path d=&#34;M7 7.5h.01M7 16.5h.01&#34;/&gt;&lt;/svg&gt;&lt;span&gt;Folder on nuc&lt;/span&gt;
+      &lt;/label&gt;
+      &lt;label&gt;
+        &lt;input type=&#34;radio&#34; name=&#34;where&#34; value=&#34;share&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;circle cx=&#34;5&#34; cy=&#34;12&#34; r=&#34;2.5&#34;/&gt;&lt;circle cx=&#34;19&#34; cy=&#34;5&#34; r=&#34;2.5&#34;/&gt;&lt;circle cx=&#34;19&#34; cy=&#34;19&#34; r=&#34;2.5&#34;/&gt;&lt;path d=&#34;m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8&#34;/&gt;&lt;/svg&gt;&lt;span&gt;Network share&lt;/span&gt;
+      &lt;/label&gt;
+    &lt;/div&gt;
+    &lt;p class=&#34;seg-panel hint seg-hint&#34; data-seg=&#34;1&#34;&gt;A USB drive or second disk. Roostack mounts it read-only: nothing on it changes.&lt;/p&gt;
+    &lt;p class=&#34;seg-panel hint seg-hint&#34; data-seg=&#34;2&#34;&gt;A folder already on nuc, under /mnt, /media or /srv.&lt;/p&gt;
+    &lt;p class=&#34;seg-panel hint seg-hint&#34; data-seg=&#34;3&#34;&gt;A folder shared by a NAS or another computer.&lt;/p&gt;
+  &lt;/div&gt;
+  &lt;div class=&#34;segmented small&#34; role=&#34;radiogroup&#34; aria-label=&#34;Kind of share&#34;&gt;
+    &lt;label&gt;
+      &lt;input type=&#34;radio&#34; name=&#34;share_type&#34; value=&#34;smb&#34; checked&gt;&lt;span&gt;SMB&lt;/span&gt;
+    &lt;/label&gt;
+    &lt;label&gt;
+      &lt;input type=&#34;radio&#34; name=&#34;share_type&#34; value=&#34;nfs&#34;&gt;&lt;span&gt;NFS&lt;/span&gt;
+    &lt;/label&gt;
+  &lt;/div&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Fields side by side <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">.field-row: two fields to a row (each at least 14rem), one under another when there isn&#39;t room; .field-row.wide-first for a field and a short one (a server and its port). input.name-input for a name, rather than the card&#39;s whole width.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form>
+  <div class="field-row wide-first">
+    <label>SMTP server <input value="smtp.example.com"></label>
+    <label>Port <input type="number" value="587"></label>
+  </div>
+  <div class="field-row">
+    <label>Username <input value="sam"><small>Empty for a share anyone on your network can open.</small></label>
+    <label>Password <input type="password"><small>Kept on nuc, readable only by its system.</small></label>
+  </div>
+  <label>Name <input class="name-input" value="Films"></label>
+</form></div>
+            <div class="panel" data-mode="dark"><form>
+  <div class="field-row wide-first">
+    <label>SMTP server <input value="smtp.example.com"></label>
+    <label>Port <input type="number" value="587"></label>
+  </div>
+  <div class="field-row">
+    <label>Username <input value="sam"><small>Empty for a share anyone on your network can open.</small></label>
+    <label>Password <input type="password"><small>Kept on nuc, readable only by its system.</small></label>
+  </div>
+  <label>Name <input class="name-input" value="Films"></label>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;form&gt;
+  &lt;div class=&#34;field-row wide-first&#34;&gt;
+    &lt;label&gt;SMTP server &lt;input value=&#34;smtp.example.com&#34;&gt;&lt;/label&gt;
+    &lt;label&gt;Port &lt;input type=&#34;number&#34; value=&#34;587&#34;&gt;&lt;/label&gt;
+  &lt;/div&gt;
+  &lt;div class=&#34;field-row&#34;&gt;
+    &lt;label&gt;Username &lt;input value=&#34;sam&#34;&gt;&lt;small&gt;Empty for a share anyone on your network can open.&lt;/small&gt;&lt;/label&gt;
+    &lt;label&gt;Password &lt;input type=&#34;password&#34;&gt;&lt;small&gt;Kept on nuc, readable only by its system.&lt;/small&gt;&lt;/label&gt;
+  &lt;/div&gt;
+  &lt;label&gt;Name &lt;input class=&#34;name-input&#34; value=&#34;Films&#34;&gt;&lt;/label&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Form in a dialog <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">Adding one thing to a list (a check, someone, an invite, a server): a secondary button, a link with data-dialog=&#34;ID&#34; and an href that opens the page with ?add=…, opens dialog.form-dialog ID: .dialog-head (the heading and a close link), the form, .dialog-actions (a data-close Cancel link, then its button). The page renders it open when its form came back with a mistake, or from ?add=…; app.js makes an open one modal, and without scripts it shows in the page as a card. The first field has autofocus. Here, open in the page as without scripts.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><dialog class="dialog form-dialog" open aria-labelledby="gallery-dialog-title">
+  <div class="dialog-head"><h2 id="gallery-dialog-title">Add a check</h2><a class="icon-button" href="#" data-close><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg><span class="sr-only">Close</span></a></div>
+  <form>
+    <div class="field-row"><label>Name <input value="Printer"></label><label>Address <input value="printer.local:631"></label></div>
+    <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Tell me when it stops answering</span></label>
+    <div class="dialog-actions"><a class="button secondary" href="#" data-close>Cancel</a><button type="button">Add check</button></div>
+  </form>
+</dialog></div>
+            <div class="panel" data-mode="dark"><dialog class="dialog form-dialog" open aria-labelledby="gallery-dialog-title">
+  <div class="dialog-head"><h2 id="gallery-dialog-title">Add a check</h2><a class="icon-button" href="#" data-close><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg><span class="sr-only">Close</span></a></div>
+  <form>
+    <div class="field-row"><label>Name <input value="Printer"></label><label>Address <input value="printer.local:631"></label></div>
+    <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Tell me when it stops answering</span></label>
+    <div class="dialog-actions"><a class="button secondary" href="#" data-close>Cancel</a><button type="button">Add check</button></div>
+  </form>
+</dialog></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;dialog class=&#34;dialog form-dialog&#34; open aria-labelledby=&#34;gallery-dialog-title&#34;&gt;
+  &lt;div class=&#34;dialog-head&#34;&gt;&lt;h2 id=&#34;gallery-dialog-title&#34;&gt;Add a check&lt;/h2&gt;&lt;a class=&#34;icon-button&#34; href=&#34;#&#34; data-close&gt;{{icon &#34;close&#34;}}&lt;span class=&#34;sr-only&#34;&gt;Close&lt;/span&gt;&lt;/a&gt;&lt;/div&gt;
+  &lt;form&gt;
+    &lt;div class=&#34;field-row&#34;&gt;&lt;label&gt;Name &lt;input value=&#34;Printer&#34;&gt;&lt;/label&gt;&lt;label&gt;Address &lt;input value=&#34;printer.local:631&#34;&gt;&lt;/label&gt;&lt;/div&gt;
+    &lt;label class=&#34;check&#34;&gt;&lt;input type=&#34;checkbox&#34; class=&#34;switch&#34; role=&#34;switch&#34; checked&gt;&lt;span&gt;Tell me when it stops answering&lt;/span&gt;&lt;/label&gt;
+    &lt;div class=&#34;dialog-actions&#34;&gt;&lt;a class=&#34;button secondary&#34; href=&#34;#&#34; data-close&gt;Cancel&lt;/a&gt;&lt;button type=&#34;button&#34;&gt;Add check&lt;/button&gt;&lt;/div&gt;
+  &lt;/form&gt;
+&lt;/dialog&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;dialog class=&#34;dialog form-dialog&#34; open aria-labelledby=&#34;gallery-dialog-title&#34;&gt;
+&lt;div class=&#34;dialog-head&#34;&gt;
+  &lt;h2 id=&#34;gallery-dialog-title&#34;&gt;Add a check&lt;/h2&gt;&lt;a class=&#34;icon-button&#34; href=&#34;#&#34; data-close&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M6 6l12 12M18 6 6 18&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;sr-only&#34;&gt;Close&lt;/span&gt;&lt;/a&gt;
+&lt;/div&gt;
+&lt;form&gt;
+  &lt;div class=&#34;field-row&#34;&gt;
+    &lt;label&gt;Name
+      &lt;input value=&#34;Printer&#34;&gt;
+    &lt;/label&gt;
+    &lt;label&gt;Address
+      &lt;input value=&#34;printer.local:631&#34;&gt;
+    &lt;/label&gt;
+  &lt;/div&gt;
+  &lt;label class=&#34;check&#34;&gt;
+    &lt;input type=&#34;checkbox&#34; class=&#34;switch&#34; role=&#34;switch&#34; checked&gt;&lt;span&gt;Tell me when it stops answering&lt;/span&gt;
+  &lt;/label&gt;
+  &lt;div class=&#34;dialog-actions&#34;&gt;&lt;a class=&#34;button secondary&#34; href=&#34;#&#34; data-close&gt;Cancel&lt;/a&gt;
+    &lt;button type=&#34;button&#34;&gt;Add check&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/form&gt;&lt;/dialog&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Form sections and Details <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">h2.form-section: a small heading inside a long form (the install form&#39;s Name and address, Where it runs, its settings), with hr.form-rule between sections. details.form-more: a quiet Details line under the fields, for one rarely changed (a service&#39;s name for folders and backups).</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form>
+  <h2 class="form-section">Name and address</h2>
+  <div class="field-row"><label>Title <input value="Forgejo"></label><label>Web address <span class="with-suffix"><input value="git"><span>.lab.example.com</span></span></label></div>
+  <details class="form-more"><summary>Its name for folders and backups: <code>forgejo</code></summary>
+    <label>Name <span class="with-prefix"><span>forgejo-</span><input value=""></span></label></details>
+  <hr class="form-rule">
+  <h2 class="form-section">Forgejo's settings</h2>
+  <label class="check"><input type="checkbox" class="switch" role="switch"><span>Allow anyone to create an account</span></label>
+</form></div>
+            <div class="panel" data-mode="dark"><form>
+  <h2 class="form-section">Name and address</h2>
+  <div class="field-row"><label>Title <input value="Forgejo"></label><label>Web address <span class="with-suffix"><input value="git"><span>.lab.example.com</span></span></label></div>
+  <details class="form-more"><summary>Its name for folders and backups: <code>forgejo</code></summary>
+    <label>Name <span class="with-prefix"><span>forgejo-</span><input value=""></span></label></details>
+  <hr class="form-rule">
+  <h2 class="form-section">Forgejo's settings</h2>
+  <label class="check"><input type="checkbox" class="switch" role="switch"><span>Allow anyone to create an account</span></label>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;form&gt;
+  &lt;h2 class=&#34;form-section&#34;&gt;Name and address&lt;/h2&gt;
+  &lt;div class=&#34;field-row&#34;&gt;&lt;label&gt;Title &lt;input value=&#34;Forgejo&#34;&gt;&lt;/label&gt;&lt;label&gt;Web address &lt;span class=&#34;with-suffix&#34;&gt;&lt;input value=&#34;git&#34;&gt;&lt;span&gt;.lab.example.com&lt;/span&gt;&lt;/span&gt;&lt;/label&gt;&lt;/div&gt;
+  &lt;details class=&#34;form-more&#34;&gt;&lt;summary&gt;Its name for folders and backups: &lt;code&gt;forgejo&lt;/code&gt;&lt;/summary&gt;
+    &lt;label&gt;Name &lt;span class=&#34;with-prefix&#34;&gt;&lt;span&gt;forgejo-&lt;/span&gt;&lt;input value=&#34;&#34;&gt;&lt;/span&gt;&lt;/label&gt;&lt;/details&gt;
+  &lt;hr class=&#34;form-rule&#34;&gt;
+  &lt;h2 class=&#34;form-section&#34;&gt;Forgejo&#39;s settings&lt;/h2&gt;
+  &lt;label class=&#34;check&#34;&gt;&lt;input type=&#34;checkbox&#34; class=&#34;switch&#34; role=&#34;switch&#34;&gt;&lt;span&gt;Allow anyone to create an account&lt;/span&gt;&lt;/label&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Input with its button <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">form.inline-form: an input then its button (Rename, Save), the button as tall as the input and on its line; a dropdown in a sentence (select.inline) before a button is as tall as an input.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form class="inline-form"><label class="sr-only" for="gallery-rename">Title</label><input id="gallery-rename" value="Forgejo"><button type="button" class="secondary">Rename</button></form>
+<form class="inline-form"><label>Keep history for <select class="inline"><option>90 days</option></select></label><button type="button" class="secondary">Save</button></form></div>
+            <div class="panel" data-mode="dark"><form class="inline-form"><label class="sr-only" for="gallery-rename">Title</label><input id="gallery-rename" value="Forgejo"><button type="button" class="secondary">Rename</button></form>
+<form class="inline-form"><label>Keep history for <select class="inline"><option>90 days</option></select></label><button type="button" class="secondary">Save</button></form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;form class=&#34;inline-form&#34;&gt;&lt;label class=&#34;sr-only&#34; for=&#34;gallery-rename&#34;&gt;Title&lt;/label&gt;&lt;input id=&#34;gallery-rename&#34; value=&#34;Forgejo&#34;&gt;&lt;button type=&#34;button&#34; class=&#34;secondary&#34;&gt;Rename&lt;/button&gt;&lt;/form&gt;
+&lt;form class=&#34;inline-form&#34;&gt;&lt;label&gt;Keep history for &lt;select class=&#34;inline&#34;&gt;&lt;option&gt;90 days&lt;/option&gt;&lt;/select&gt;&lt;/label&gt;&lt;button type=&#34;button&#34; class=&#34;secondary&#34;&gt;Save&lt;/button&gt;&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Switch <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">label.check with input.switch role=&#34;switch&#34;: an on/off setting that saves with its form (still a checkbox without styles). Ticking items from a list, or confirming something (&#34;I understand&#34;), stays a checkbox.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form>
+  <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Offer "Keep me signed in" on the login page<small>For someone's own device.</small></span></label>
+  <label class="check"><input type="checkbox" class="switch" role="switch"><span>Allow anyone to create an account</span></label>
+</form></div>
+            <div class="panel" data-mode="dark"><form>
+  <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Offer "Keep me signed in" on the login page<small>For someone's own device.</small></span></label>
+  <label class="check"><input type="checkbox" class="switch" role="switch"><span>Allow anyone to create an account</span></label>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;form&gt;
+  &lt;label class=&#34;check&#34;&gt;&lt;input type=&#34;checkbox&#34; class=&#34;switch&#34; role=&#34;switch&#34; checked&gt;&lt;span&gt;Offer &#34;Keep me signed in&#34; on the login page&lt;small&gt;For someone&#39;s own device.&lt;/small&gt;&lt;/span&gt;&lt;/label&gt;
+  &lt;label class=&#34;check&#34;&gt;&lt;input type=&#34;checkbox&#34; class=&#34;switch&#34; role=&#34;switch&#34;&gt;&lt;span&gt;Allow anyone to create an account&lt;/span&gt;&lt;/label&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Folder picker <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">The folder chosen as a value (.folder-choice: the folder icon, the place and what it holds, then a secondary button), which opens the picker: template &#34;folder-picker&#34; with a folderPicker, the folders opened so far as crumbs, the folders here (each opening on a click, with what it holds), what this one holds, Cancel and Use. A link with data-picker=&#34;ID&#34; shows it in pickerDialog ID PLACE (app.js loads the link&#39;s page into the dialog, and Use replaces the page&#39;s PLACE); without scripts the same link is a page.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="folder-choice"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>MEDIA › Films</strong><small>3 folders, 1 file</small></span><a class="button secondary" href="#">Choose a folder…</a></div>
+<div class="gallery-picker"><div class="folder-picker" id="folder-picker">
+  <h2 class="picker-title">Choose a folder on MEDIA</h2>
+  <nav class="picker-crumbs" aria-label="Folders opened"><a href="#">MEDIA</a><span class="sep" aria-hidden="true">›</span><strong aria-current="true">Films</strong></nav>
+  
+  <ul class="picker-list">
+    <li><a href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="name">Blade Runner (1982)</span><small>3 files</small><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7 5 5-5 5"/></svg></a></li>
+    <li><a href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="name">Paddington 2 (2017)</span><small>2 files</small><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7 5 5-5 5"/></svg></a></li>
+    <li><a href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="name">Extras</span><small>4 folders, 1 file</small><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7 5 5-5 5"/></svg></a></li>
+    
+  </ul>
+  <p class="picker-here hint">MEDIA › Films holds 3 folders, 1 file.</p>
+  <div class="dialog-actions">
+    
+    <a class="button secondary" href="#" data-cancel>Cancel</a>
+    <a class="button" href="#" data-use>Use Films</a>
+  </div>
+</div></div></div>
+            <div class="panel" data-mode="dark"><div class="folder-choice"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>MEDIA › Films</strong><small>3 folders, 1 file</small></span><a class="button secondary" href="#">Choose a folder…</a></div>
+<div class="gallery-picker"><div class="folder-picker" id="folder-picker">
+  <h2 class="picker-title">Choose a folder on MEDIA</h2>
+  <nav class="picker-crumbs" aria-label="Folders opened"><a href="#">MEDIA</a><span class="sep" aria-hidden="true">›</span><strong aria-current="true">Films</strong></nav>
+  
+  <ul class="picker-list">
+    <li><a href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="name">Blade Runner (1982)</span><small>3 files</small><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7 5 5-5 5"/></svg></a></li>
+    <li><a href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="name">Paddington 2 (2017)</span><small>2 files</small><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7 5 5-5 5"/></svg></a></li>
+    <li><a href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="name">Extras</span><small>4 folders, 1 file</small><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m10 7 5 5-5 5"/></svg></a></li>
+    
+  </ul>
+  <p class="picker-here hint">MEDIA › Films holds 3 folders, 1 file.</p>
+  <div class="dialog-actions">
+    
+    <a class="button secondary" href="#" data-cancel>Cancel</a>
+    <a class="button" href="#" data-use>Use Films</a>
+  </div>
+</div></div></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;div class=&#34;folder-choice&#34;&gt;{{icon &#34;folder&#34;}}&lt;span class=&#34;path&#34;&gt;&lt;strong&gt;MEDIA › Films&lt;/strong&gt;&lt;small&gt;3 folders, 1 file&lt;/small&gt;&lt;/span&gt;&lt;a class=&#34;button secondary&#34; href=&#34;#&#34;&gt;Choose a folder…&lt;/a&gt;&lt;/div&gt;
+&lt;div class=&#34;gallery-picker&#34;&gt;{{template &#34;folder-picker&#34; .Picker}}&lt;/div&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;div class=&#34;folder-choice&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;path&#34;&gt;&lt;strong&gt;MEDIA › Films&lt;/strong&gt;&lt;small&gt;3 folders, 1 file&lt;/small&gt;&lt;/span&gt;&lt;a class=&#34;button secondary&#34; href=&#34;#&#34;&gt;Choose a folder…&lt;/a&gt;&lt;/div&gt;
+&lt;div class=&#34;gallery-picker&#34;&gt;
+  &lt;div class=&#34;folder-picker&#34; id=&#34;folder-picker&#34;&gt;
+    &lt;h2 class=&#34;picker-title&#34;&gt;Choose a folder on MEDIA&lt;/h2&gt;
+    &lt;nav class=&#34;picker-crumbs&#34; aria-label=&#34;Folders opened&#34;&gt;&lt;a href=&#34;#&#34;&gt;MEDIA&lt;/a&gt;&lt;span class=&#34;sep&#34; aria-hidden=&#34;true&#34;&gt;›&lt;/span&gt;&lt;strong aria-current=&#34;true&#34;&gt;Films&lt;/strong&gt;&lt;/nav&gt;
+    &lt;ul class=&#34;picker-list&#34;&gt;
+      &lt;li&gt;&lt;a href=&#34;#&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;name&#34;&gt;Blade Runner (1982)&lt;/span&gt;&lt;small&gt;3 files&lt;/small&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;m10 7 5 5-5 5&#34;/&gt;&lt;/svg&gt;&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href=&#34;#&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;name&#34;&gt;Paddington 2 (2017)&lt;/span&gt;&lt;small&gt;2 files&lt;/small&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;m10 7 5 5-5 5&#34;/&gt;&lt;/svg&gt;&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href=&#34;#&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;name&#34;&gt;Extras&lt;/span&gt;&lt;small&gt;4 folders, 1 file&lt;/small&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;m10 7 5 5-5 5&#34;/&gt;&lt;/svg&gt;&lt;/a&gt;&lt;/li&gt;
+    &lt;/ul&gt;
+    &lt;p class=&#34;picker-here hint&#34;&gt;MEDIA › Films holds 3 folders, 1 file.&lt;/p&gt;
+    &lt;div class=&#34;dialog-actions&#34;&gt;&lt;a class=&#34;button secondary&#34; href=&#34;#&#34; data-cancel&gt;Cancel&lt;/a&gt;&lt;a class=&#34;button&#34; href=&#34;#&#34; data-use&gt;Use Films&lt;/a&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
+      
       <section id="lists">
         <h2>Lists</h2>
         <p class="hint">Rows with borders for lists of things you can act on.</p>
@@ -2729,17 +3051,19 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
         
         <div class="example">
           <h3>Copy box <span class="badge badge-highlight">Template component</span></h3>
-          <p class="hint">copyBox TEXT: something people copy and send or paste elsewhere (an invite, a command), with a Copy button.</p>
+          <p class="hint">copyBox TEXT: something people copy and send or paste elsewhere (an invite, a command), with a copy icon at its top right that turns into a tick for a moment once copied (the Owner, 2026-10-20: a button beside it took space and wrapped under it on phones).</p>
           <div class="panels">
             <div class="panel" data-mode="light"><div class="copy-box" x-data="{ copied: false }">
   <pre class="output" x-ref="text">sudo roostack node join EXAMPLE-ONLY-NOT-REAL</pre>
-  <button type="button" class="secondary" x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
-    ><span x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+  <button type="button" class="icon-button copy-button" title="Copy" x-bind:title="copied ? 'Copied' : 'Copy'"
+    x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+    ><span x-show="!copied"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg></span><span x-show="copied" x-cloak><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span><span class="sr-only" aria-live="polite" x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
 </div></div>
             <div class="panel" data-mode="dark"><div class="copy-box" x-data="{ copied: false }">
   <pre class="output" x-ref="text">sudo roostack node join EXAMPLE-ONLY-NOT-REAL</pre>
-  <button type="button" class="secondary" x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
-    ><span x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+  <button type="button" class="icon-button copy-button" title="Copy" x-bind:title="copied ? 'Copied' : 'Copy'"
+    x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+    ><span x-show="!copied"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg></span><span x-show="copied" x-cloak><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span><span class="sr-only" aria-live="polite" x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
 </div></div>
           </div>
           <details>
@@ -2750,7 +3074,9 @@ Unpacking curl (8.14.1-2&amp;#43;deb13u5) ...
             <p class="markup-label">Renders as</p>
             <pre class="output">&lt;div class=&#34;copy-box&#34; x-data=&#34;{ copied: false }&#34;&gt;
   &lt;pre class=&#34;output&#34; x-ref=&#34;text&#34;&gt;sudo roostack node join EXAMPLE-ONLY-NOT-REAL&lt;/pre&gt;
-  &lt;button type=&#34;button&#34; class=&#34;secondary&#34; x-on:click=&#34;roostackCopy($refs.text).then(() =&gt;{ copied = true; setTimeout(() =&gt; copied = false, 2000) })&#34; &gt;&lt;span x-text=&#34;copied ? &#39;Copied&#39; : &#39;Copy&#39;&#34;&gt;Copy&lt;/span&gt;&lt;/button&gt;
+  &lt;button type=&#34;button&#34; class=&#34;icon-button copy-button&#34; title=&#34;Copy&#34; x-bind:title=&#34;copied ? &#39;Copied&#39; : &#39;Copy&#39;&#34;
+    x-on:click=&#34;roostackCopy($refs.text).then(() =&gt;{ copied = true; setTimeout(() =&gt; copied = false, 2000) })&#34; &gt;&lt;span x-show=&#34;!copied&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;8&#34; y=&#34;8&#34; width=&#34;12&#34; height=&#34;12&#34; rx=&#34;2&#34;/&gt;&lt;path d=&#34;M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;span x-show=&#34;copied&#34; x-cloak&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;m5 12.5 4.5 4.5L19 7.5&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;span class=&#34;sr-only&#34; aria-live=&#34;polite&#34; x-text=&#34;copied ? &#39;Copied&#39; : &#39;Copy&#39;&#34;&gt;Copy&lt;/span&gt;
+  &lt;/button&gt;
 &lt;/div&gt;</pre>
             
           </details>

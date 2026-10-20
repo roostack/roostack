@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"roostack.cloud/roostack/internal/manager"
@@ -137,7 +138,30 @@ func (s *Server) settingsSubmit(w http.ResponseWriter, r *http.Request) {
 			req.Settings[key] = v[0]
 		}
 	}
-	err := s.Manager.UpdateSettings(r.Context(), name, req)
+	// One form (service-settings.html): its address and settings, if it
+	// has any, then how it updates and the libraries it reads. A mistake
+	// in the settings saves nothing.
+	var err error
+	if r.PostForm.Get("settings_shown") != "" || r.PostForm.Has("subdomain") || len(req.Settings) > 0 {
+		err = s.Manager.UpdateSettings(r.Context(), name, req)
+	}
+	if policy := r.PostForm.Get("updates"); err == nil && policy != "" {
+		if !slices.Contains(updatePolicies, policy) {
+			http.Error(w, "unknown update policy", http.StatusBadRequest)
+			return
+		}
+		if policy != s.Manager.UpdatePolicy(name) {
+			if err = s.Manager.SetUpdatePolicy(r.Context(), name, policy); err == nil {
+				s.Store.Audit(r.Context(), currentUser(r), "services", name+" updates: "+policy)
+			}
+		}
+	}
+	if err == nil && s.Libraries != nil && r.PostForm.Get("libraries_chosen") != "" {
+		chosen := r.PostForm["library"]
+		if c, cerr := s.Libraries.ServiceLibraries(r.Context(), name); cerr != nil || !sameSet(c.Chosen, chosen) {
+			err = s.Libraries.SetServiceLibraries(r.Context(), name, chosen)
+		}
+	}
 	msg, isForm := userMessage(err)
 	switch {
 	case errors.Is(err, manager.ErrNotFound):
@@ -173,4 +197,12 @@ func (s *Server) revealSubmit(w http.ResponseWriter, r *http.Request) {
 	s.Store.Audit(r.Context(), currentUser(r), "secret shown", name+" "+key)
 	w.Header().Set("Cache-Control", "no-store")
 	s.renderServiceWith(w, r, map[string]any{"Revealed": map[string]string{key: v}}, false)
+}
+
+// sameSet says whether a and b hold the same strings, in any order.
+func sameSet(a, b []string) bool {
+	a, b = slices.Clone(a), slices.Clone(b)
+	slices.Sort(a)
+	slices.Sort(b)
+	return slices.Equal(a, b)
 }

@@ -6,7 +6,10 @@
     <p class="lede">{{.Package.Description}}</p>
   </div>
 </div>
-<section class="card narrow">
+{{/* The form, with what it sets up beside it on a wide screen (the
+     Owner's choice of mock-ups, 2026-10-20: docs/mockups/forms, B). */}}
+<div class="grid install-grid">
+<section class="card span-7">
   {{template "project-credit" .Credit}}
   {{/* The package policy (SPEC.md §8.3.4). */}}
   {{if .Policy.Local}}
@@ -21,7 +24,7 @@
   {{if .CanInstall}}
   {{/* The name follows the title, and the web address the name, until
        they're edited (SPEC.md §8.2). */}}
-  <form method="post" action="/install/{{.Package.Name}}" data-title="{{.Title}}" data-suffix="{{.Suffix}}" data-sub="{{.Subdomain}}"
+  <form method="post" action="/install/{{.Package.Name}}" id="install-form" data-pkgname="{{.Package.Name}}" data-title="{{.Title}}" data-suffix="{{.Suffix}}" data-sub="{{.Subdomain}}"
     data-pkgtitle="{{.Package.Title}}" data-base="{{.BaseSubdomain}}" data-max="{{.MaxSuffix}}"
     x-data="{ title: $el.dataset.title, suffix: $el.dataset.suffix, sub: $el.dataset.sub, ownSuffix: false, ownSub: false,
       slug(t) { return t.toLowerCase().replace($el.dataset.pkgtitle.toLowerCase(), '').replace(/[^a-z0-9]+/g, '-')
@@ -35,51 +38,37 @@
     <p>{{.Package.Title}} is installed already. This adds another, completely separate copy: its own data, settings, backups
       and web address.</p>
     {{end}}
-    <label>Title
-      <input name="title" value="{{.Title}}" maxlength="60" required x-model="title" x-on:input="titleChanged()">
-      <small>What it's called on your pages{{if .Another}}, e.g. "{{.Package.Title}} (work)"{{end}}. You can change it later.</small>
-    </label>
-    <label>Name
-      <span class="with-prefix"><span>{{.Package.Name}}-</span>
-        <input name="name_suffix" value="{{.Suffix}}" maxlength="{{.MaxSuffix}}" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocapitalize="off"
-          spellcheck="false" x-model="suffix" x-on:input="suffixChanged(true)"{{if .Another}} required{{end}}></span>
-      <small>Used for its folders, containers and backups, so it can't change later{{if not .Another}}. Leave it empty for just
-        <code>{{.Package.Name}}</code>{{end}}.</small>
-    </label>
-    {{with .Servers}}
-    <label>Run it on
-      <select name="host">
-        {{range .}}{{$no := index $.NoBuild .ID}}<option value="{{.ID}}" {{if eq .ID $.Host}}selected{{end}}{{if $no}} disabled{{end}}>
-          {{- .Name}}{{if .This}} (this server){{end}}{{if $no}}: can't run it{{end}}</option>{{end}}
-      </select>
-      <small>{{with $.NoBuildText}}{{.}} {{end}}Its data stays on that server, and it's backed up there.</small>
-    </label>
-    {{end}}
-    {{with .LibraryGroups}}
-    <div x-data="{ host: '' }" x-init="host = $el.closest('form').querySelector('[name=host]')?.value || ''"
-      x-on:change.window="host = $el.closest('form').querySelector('[name=host]')?.value || ''">
-      <input type="hidden" name="libraries_chosen" value="1">
-      {{range $i, $g := .}}
-      <fieldset x-show="host === '{{$g.ServerID}}' || (host === '' && {{if eq $i 0}}true{{else}}false{{end}})"{{if ne $i 0}} x-cloak{{end}}>
-        <legend>Media libraries it can read</legend>
-        {{range $g.Choices}}<label class="check"><input type="checkbox" name="library.{{$g.ServerID}}" value="{{.Name}}"{{if .Checked}} checked{{end}}>
-          <span>{{.Title}}</span></label>{{else}}<p class="hint">{{$g.ServerName}} has no media libraries yet: {{$.Package.Title}} would
-          have nothing to read until you <a href="/settings/media">add some</a>.</p>{{end}}
-        <small class="hint">Read-only, in its media folder, and not backed up. You can change this in its settings later.</small>
-      </fieldset>
+    <h2 class="form-section">Name and address</h2>
+    <div class="field-row">
+      <label>Title
+        <input name="title" value="{{.Title}}" maxlength="60" required x-model="title" x-on:input="titleChanged()">
+        <small>What it's called on your pages{{if .Another}}, e.g. "{{.Package.Title}} (work)"{{end}}. You can change it later.</small>
+      </label>
+      {{if .HasRoute}}
+      <label>Web address
+        <span class="with-suffix">
+          <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off"
+            x-model="sub" x-on:input="ownSub = true">
+          <span>.{{or .Domain "your lab's address"}}</span>
+        </span>
+        {{if not .Domain}}<small>Your lab has no address yet: the service runs, and gets this address once your lab has one.</small>
+        {{- else if not .Internet}}<small>Only reachable from your home network (or VPN).</small>{{end}}
+      </label>
       {{end}}
     </div>
-    {{end}}
+    {{/* The name is rarely changed, and never again: under Details, open
+         for another copy, whose name must differ. */}}
+    <details class="form-more"{{if .Another}} open{{end}}>
+      <summary>Its name for folders and backups: <code x-text="suffix ? $root.dataset.pkgname + '-' + suffix : $root.dataset.pkgname">{{.Package.Name}}{{with .Suffix}}-{{.}}{{end}}</code></summary>
+      <label>Name
+        <span class="with-prefix"><span>{{.Package.Name}}-</span>
+          <input name="name_suffix" value="{{.Suffix}}" maxlength="{{.MaxSuffix}}" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocapitalize="off"
+            spellcheck="false" x-model="suffix" x-on:input="suffixChanged(true)"{{if .Another}} required{{end}}></span>
+        <small>Used for its folders, containers and backups, so it can't change later{{if not .Another}}. Leave it empty for just
+          <code>{{.Package.Name}}</code>{{end}}.</small>
+      </label>
+    </details>
     {{if .HasRoute}}
-    <label>Web address
-      <span class="with-suffix">
-        <input name="subdomain" value="{{.Subdomain}}" required pattern="[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?" autocapitalize="off"
-          x-model="sub" x-on:input="ownSub = true">
-        <span>.{{or .Domain "your lab's address"}}</span>
-      </span>
-      {{if not .Domain}}<small>Your lab has no address yet: the service runs, and gets this address once your lab has one.</small>
-      {{- else if not .Internet}}<small>Only reachable from your home network (or VPN).</small>{{end}}
-    </label>
     {{if .Internet}}
     {{/* On a lab on the internet, private means only through an SSH
          tunnel, so services start public (SPEC.md §6.12). */}}
@@ -96,23 +85,42 @@
     {{end}}{{end}}
     {{end}}
     {{end}}
-    {{range .Fields}}
-      {{if .KeepsFirst}}<p class="hint">With its data from before, leave these empty: {{$.Package.Title}} keeps what it has,
-        its accounts too. Filled in, its first-time setup runs again with them.</p>{{end}}
-      {{if eq .Kind "checkbox"}}
-      <label class="check">
-        <input type="checkbox" name="{{.Key}}" {{if .Checked}}checked{{end}}>
-        <span>{{.Title}}{{with .Description}}<small>{{.}}</small>{{end}}</span>
-      </label>
-      {{else}}
-      <label>{{.Title}}
-        <input type="{{.Kind}}" name="{{.Key}}" value="{{.Value}}" {{if eq .Kind "password"}}autocomplete="new-password"{{end}}
-          {{if .Required}}required{{end}} {{with .MinLength}}minlength="{{.}}"{{end}}>
-        {{with .Description}}<small>{{.}}</small>{{end}}
-      </label>
-      {{end}}
+    {{if or .Servers .LibraryGroups}}
+    <hr class="form-rule">
+    <h2 class="form-section">Where it runs</h2>
+    {{with .Servers}}
+    <label>Run it on
+      <select name="host" class="host-select">
+        {{range .}}{{$no := index $.NoBuild .ID}}<option value="{{.ID}}" {{if eq .ID $.Host}}selected{{end}}{{if $no}} disabled{{end}}>
+          {{- .Name}}{{if .This}} (this server){{end}}{{if $no}}: can't run it{{end}}</option>{{end}}
+      </select>
+      <small>{{with $.NoBuildText}}{{.}} {{end}}Its data stays on that server, and it's backed up there.</small>
+    </label>
     {{end}}
-    {{template "install-summary" .Summary}}
+    {{with .LibraryGroups}}
+    <div x-data="{ host: '' }" x-init="host = $el.closest('form').querySelector('[name=host]')?.value || ''"
+      x-on:change.window="host = $el.closest('form').querySelector('[name=host]')?.value || ''">
+      <input type="hidden" name="libraries_chosen" value="1">
+      {{range $i, $g := .}}
+      <fieldset x-show="host === '{{$g.ServerID}}' || (host === '' && {{if eq $i 0}}true{{else}}false{{end}})"{{if ne $i 0}} x-cloak{{end}}>
+        <legend>Media libraries it can read</legend>
+        {{if $g.Choices}}<div class="check-row">{{range $g.Choices}}<label class="check"><input type="checkbox" name="library.{{$g.ServerID}}" value="{{.Name}}"{{if .Checked}} checked{{end}}>
+          <span>{{.Title}}</span></label>{{end}}</div>{{else}}<p class="hint">{{$g.ServerName}} has no media libraries yet: {{$.Package.Title}} would
+          have nothing to read until you <a href="/settings/media">add some</a>.</p>{{end}}
+        <small class="hint">Read-only, in its media folder, and not backed up. You can change this in its settings later.</small>
+      </fieldset>
+      {{end}}
+    </div>
+    {{end}}
+    {{end}}
+    {{with .Fields}}
+    <hr class="form-rule">
+    <h2 class="form-section">{{$.Package.Title}}'s settings</h2>
+    {{range .}}{{if .KeepsFirst}}<p class="hint">With its data from before, leave these empty: {{$.Package.Title}} keeps what it has,
+      its accounts too. Filled in, its first-time setup runs again with them.</p>{{end}}{{end}}
+    {{template "setting-fields" .}}
+    {{end}}
+    <hr class="form-rule">
     {{if and .Policy.Local .Policy.Problems}}
     <label class="check"><input type="checkbox" name="accept_risks" required>
       <span>I've read what it asks for, and want to install it anyway</span></label>
@@ -121,6 +129,8 @@
   </form>
   {{end}}
 </section>
+{{if .CanInstall}}<aside class="card span-5 install-aside">{{template "install-summary" .Summary}}</aside>{{end}}
+</div>
 {{end}}
 
 {{/* install-summary: what installing would set up, worked out from the
@@ -129,8 +139,8 @@
      the last is on its way replaces it). Passwords aren't sent: it
      doesn't need them. */}}
 {{define "install-summary"}}
-<div class="install-summary" id="install-summary" hx-post="/install/{{.Package.Name}}/summary" hx-trigger="change from:closest form"
-  hx-include="closest form" hx-params="{{.Params}}" hx-sync="this:replace" hx-swap="outerHTML" hx-disinherit="*">
+<div class="install-summary" id="install-summary" hx-post="/install/{{.Package.Name}}/summary" hx-trigger="change from:#install-form"
+  hx-include="#install-form" hx-params="{{.Params}}" hx-sync="this:replace" hx-swap="outerHTML" hx-disinherit="*">
   <h2>What {{.Package.Title}} sets up</h2>
   {{if .Err}}<p class="hint">It can't be worked out yet: {{.Err}}</p>{{else}}
   {{with .LeftData}}<div class="notice" role="status">

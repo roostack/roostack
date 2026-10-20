@@ -429,6 +429,15 @@ func TestServiceSSOCard(t *testing.T) {
 			t.Errorf("on card missing %q", want)
 		}
 	}
+	// Who can sign in changes in a dialog, which ?sso=who opens; the choice
+	// is a segmented control.
+	if !strings.Contains(body, `data-dialog="sso-who-dialog"`) || strings.Contains(body, `aria-labelledby="sso-who-title" open>`) ||
+		!strings.Contains(body, `name="who" value="chosen" checked`) {
+		t.Error("the who dialog: no button, open, or not the choice")
+	}
+	if _, body := h.get("/services/mealie?sso=who"); !strings.Contains(body, `aria-labelledby="sso-who-title" open>`) {
+		t.Error("?sso=who doesn't open the dialog")
+	}
 	h.post("/services/mealie/sso", url.Values{"sso": {"off"}}, h.srv.URL)
 	if fs.on["mealie"] {
 		t.Error("still on")
@@ -469,8 +478,19 @@ func TestPeopleSSO(t *testing.T) {
 	mum := addPerson(t, h.store, "mum", "member")
 	h.store.SetServiceAccess(ctx, "mealie", store.Access{Chosen: true})
 
-	if code, _ := h.post("/settings/people/groups", url.Values{"name": {"Family"}}, h.srv.URL); code != 200 {
+	code, body := h.post("/settings/people/groups", url.Values{"name": {"Family"}}, h.srv.URL)
+	if code != 200 {
 		t.Fatalf("add group: %d", code)
+	}
+	// A new group's dialog opens, to choose its people and services.
+	if !strings.Contains(body, `aria-labelledby="group-1-title" open>`) {
+		t.Error("the new group's dialog isn't open")
+	}
+	if _, body := h.get("/settings/people?group=1"); !strings.Contains(body, `aria-labelledby="group-1-title" open>`) {
+		t.Error("?group= doesn't open its dialog")
+	}
+	if _, body := h.get("/settings/people"); strings.Contains(body, `aria-labelledby="group-1-title" open>`) || !strings.Contains(body, `data-dialog="group-1"`) {
+		t.Error("the group's dialog is open, or has no button")
 	}
 	if code, body := h.post("/settings/people/groups", url.Values{"name": {"family"}}, h.srv.URL); code != 400 || !strings.Contains(body, "already a group") {
 		t.Errorf("a second Family: %d", code)
@@ -492,7 +512,7 @@ func TestPeopleSSO(t *testing.T) {
 	if code, body := h.post("/users/"+itoa64(mum)+"/details", url.Values{"email": {"not an address"}}, h.srv.URL); code != 400 || !strings.Contains(body, "isn&#39;t an email address") {
 		t.Errorf("bad email: %d", code)
 	}
-	_, body := h.get("/settings/people")
+	_, body = h.get("/settings/people")
 	for _, want := range []string{`id="groups"`, `id="sign-in-page"`, "login.lab.example.com", `data-palette="nord"`, "Margaret Smith",
 		"Ask everyone for two-factor"} {
 		if !strings.Contains(body, want) {
@@ -533,5 +553,22 @@ func TestCheckLogo(t *testing.T) {
 	}
 	if _, err := checkLogo(make([]byte, maxLogo+1), false); err == nil {
 		t.Error("too big")
+	}
+}
+
+// Changing someone is a dialog: ?person= opens it, and refused details
+// open it again with the mistake.
+func TestPersonDialog(t *testing.T) {
+	h, _ := loggedIn(t, "owner")
+	mum := addPerson(t, h.store, "mum", "member")
+	open := `id="person-` + itoa64(mum) + `" aria-labelledby="person-` + itoa64(mum) + `-title" open>`
+	if _, body := h.get("/settings/people"); strings.Contains(body, open) || !strings.Contains(body, `data-dialog="person-`+itoa64(mum)+`"`) {
+		t.Error("mum's dialog is open, or has no button")
+	}
+	if _, body := h.get("/settings/people?person=" + itoa64(mum)); !strings.Contains(body, open) {
+		t.Error("?person= doesn't open the dialog")
+	}
+	if code, body := h.post("/users/"+itoa64(mum)+"/details", url.Values{"email": {"not an address"}}, h.srv.URL); code != 400 || !strings.Contains(body, open) {
+		t.Errorf("a refused email: %d, or the dialog isn't open", code)
 	}
 }

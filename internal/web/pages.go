@@ -563,6 +563,7 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			if msg, ok := data["SSOError"].(string); ok {
 				c.Error = msg
 			}
+			c.Open = c.On && c.CanChoose && (c.Error != "" || r.URL.Query().Get("sso") == "who")
 			data["SSO"] = c
 		}
 	}
@@ -571,6 +572,16 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 		if s.Libraries != nil {
 			if c, err := s.Libraries.ServiceLibraries(r.Context(), name); err == nil && c.Reads {
 				data["Libraries"] = c
+			}
+		}
+		// A form that came back keeps what was chosen.
+		if sub, ok := data["Submitted"].(url.Values); ok {
+			if c, ok := data["Libraries"].(manager.ServiceLibraryChoice); ok && sub.Get("libraries_chosen") != "" {
+				c.Chosen = sub["library"]
+				data["Libraries"] = c
+			}
+			if p := sub.Get("updates"); slices.Contains(updatePolicies, p) {
+				data["UpdatePolicy"] = p
 			}
 		}
 	}

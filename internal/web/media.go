@@ -1,7 +1,6 @@
 package web
 
 import (
-	"cmp"
 	"context"
 	"net/http"
 	"net/url"
@@ -16,9 +15,10 @@ import (
 )
 
 // Media libraries (SPEC.md §8.1, "Media libraries"): Settings → Media
-// libraries lists each server's, adds one by stepping through a drive's
-// folders (or a server's) with plain links, and manages each; services'
-// install pages and settings choose the libraries they read.
+// libraries lists each server's, adds one on a single form (where it is,
+// a folder chosen in the folder picker, its name and readers), and
+// manages each; services' install pages and settings choose the libraries
+// they read.
 
 func init() {
 	// join lists strings with a separator, e.g. services reading a library.
@@ -59,54 +59,125 @@ func (s *Server) mediaPage(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "settings-media", withArea(data, "media"))
 }
 
-// mediaCrumb is one step of the folders opened so far.
+// mediaCrumb is one step of the folders opened so far ("" Href: the one
+// open now).
 type mediaCrumb struct{ Name, Href string }
 
-// mediaAddView is what the add page shows: where it's looking, and the
-// folders there.
+// mediaPlace is where a new library would be, so far: a drive and a
+// folder on it, or a folder on the server; with what's there and what the
+// check of it found.
+type mediaPlace struct {
+	Drive, DriveName, Sub string
+	Folder                string
+	// Label is the place in words ("MEDIA › Films", "/srv/media"; "" for
+	// no folder chosen yet), Counts what it holds, Name the library's
+	// suggested name.
+	Label, Counts, Name string
+	Check               *agent.Readability
+	// PickHref opens the folder picker there.
+	PickHref string
+	Error    string
+}
+
+// mediaReader is a service that could read the new library.
+type mediaReader struct {
+	Name, Title string
+	Checked     bool
+}
+
+// mediaAddView is the add page: one form, where the library is chosen
+// with a segmented control (a drive, a folder on the server or a network
+// share), then its name and the services that read it.
 type mediaAddView struct {
 	Server, ServerName string
-	// Drive (UUID), DriveName and Sub; or Folder; neither: choosing.
-	Drive, DriveName, Sub, Folder string
-	Drives                        []agent.Drive
-	Roots                         []string
-	List                          *agent.FolderList
-	Crumbs                        []mediaCrumb
-	// Here is the place chosen so far, in words; Name the library's
-	// suggested name.
-	Here, Name string
-	Readers    []manager.LibraryReader
-	Error      string
+	// Where is drive, folder or share.
+	Where             string
+	Drives            []agent.Drive
+	DrivesError       string
+	DrivePlace, Place mediaPlace
+	HasDrive          bool
+	Roots             []string
+	Readers           []mediaReader
+	Title             string
+	TitleEdited       bool
+	Error             string
 	// The share form's values, kept when it comes back (never the
 	// password).
-	ShareType, ShareServer, SharePath, ShareUser, ShareTitle string
+	ShareType, ShareServer, SharePath, ShareUser string
 }
 
-// FolderHref opens a folder below the current place.
-func (v mediaAddView) FolderHref(name string) string {
-	q := url.Values{"server": {v.Server}}
-	if v.Drive != "" {
-		q.Set("drive", v.Drive)
-		q.Set("name", v.DriveName)
-		q.Set("sub", strings.TrimPrefix(v.Sub+"/"+name, "/"))
-	} else {
-		q.Set("folder", path.Join(v.Folder, name))
-	}
-	return "/settings/media/add?" + q.Encode()
-}
+// mediaAddHref is the add page with a place chosen.
+func mediaAddHref(q url.Values) string { return "/settings/media/add?" + q.Encode() }
 
-// DriveHref opens a drive's folders.
+// DriveHref chooses a drive (its whole drive), for its radio's refresh.
 func (v mediaAddView) DriveHref(d agent.Drive) string {
-	return "/settings/media/add?" + url.Values{"server": {v.Server}, "drive": {d.UUID}, "name": {d.Name}}.Encode()
-}
-
-// RootHref opens one of the places folders on the server can be.
-func (v mediaAddView) RootHref(root string) string {
-	return "/settings/media/add?" + url.Values{"server": {v.Server}, "folder": {root}}.Encode()
+	return mediaAddHref(url.Values{"server": {v.Server}, "where": {"drive"}, "drive": {d.UUID}, "name": {d.Name}})
 }
 
 func (s *Server) mediaAddPage(w http.ResponseWriter, r *http.Request) {
 	s.renderMediaAdd(w, r, "")
+}
+
+// mediaServer finds the server a media page is about (this one if none is
+// named).
+func (s *Server) mediaServer(r *http.Request, id string) (manager.ServerLibraries, bool, error) {
+	servers, err := s.Libraries.MediaLibraries(r.Context())
+	if err != nil {
+		return manager.ServerLibraries{}, false, err
+	}
+	for _, sv := range servers {
+		if sv.ServerID == id || (id == "" && sv.This) {
+			return sv, true, nil
+		}
+	}
+	return manager.ServerLibraries{}, false, nil
+}
+
+// cleanSub is a folder on a drive as the agent takes it ("" for its top).
+func cleanSub(sub string) string {
+	sub = strings.Trim(path.Clean("/"+sub), "/")
+	if sub == "." {
+		return ""
+	}
+	return sub
+}
+
+// mediaPlaceAt looks at a place: its folders' counts and the check. A
+// refusal people can act on (a backup drive) is the place's Error.
+func (s *Server) mediaPlaceAt(ctx context.Context, server string, p mediaPlace) (mediaPlace, error) {
+	q := url.Values{"server": {server}}
+	l := agent.Library{Drive: p.Drive, Sub: p.Sub, Folder: p.Folder}
+	if p.Drive != "" {
+		q.Set("drive", p.Drive)
+		q.Set("name", p.DriveName)
+		q.Set("sub", p.Sub)
+		p.Label, p.Name = p.DriveName, p.DriveName
+		if p.Sub != "" {
+			parts := strings.Split(p.Sub, "/")
+			p.Label, p.Name = p.DriveName+" › "+strings.Join(parts, " › "), parts[len(parts)-1]
+		}
+	} else {
+		q.Set("folder", p.Folder)
+	}
+	p.PickHref = "/settings/media/folders?" + q.Encode()
+	if p.Drive == "" {
+		if p.Folder == "" {
+			return p, nil
+		}
+		p.Label, p.Name = p.Folder, path.Base(p.Folder)
+	}
+	list, err := s.Libraries.LibraryFolders(ctx, server, l)
+	if msg, ok := userMessage(err); ok {
+		p.Error = msg
+		return p, nil
+	} else if err != nil {
+		return p, err
+	}
+	p.Counts = folderCounts(len(list.Folders), list.Files)
+	if list.Check.Unreadable > 0 {
+		p.Check = &list.Check
+	}
+	return p, nil
 }
 
 func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg string) {
@@ -123,90 +194,202 @@ func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg s
 	if q == nil {
 		q = r.URL.Query()
 	}
-	v := mediaAddView{Server: q.Get("server"), Drive: q.Get("drive"), DriveName: q.Get("name"),
-		Sub: strings.Trim(path.Clean("/"+q.Get("sub")), "/"), Folder: q.Get("folder"), Error: errMsg}
-	if v.Sub == "." {
-		v.Sub = ""
-	}
-	servers, err := s.Libraries.MediaLibraries(r.Context())
+	sv, ok, err := s.mediaServer(r, q.Get("server"))
 	if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	for _, sv := range servers {
-		if sv.ServerID == v.Server || (v.Server == "" && sv.This) {
-			v.Server, v.ServerName = sv.ServerID, sv.ServerName
-		}
-	}
-	if v.ServerName == "" {
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	ctx := r.Context()
-	switch {
-	case v.Drive != "":
-		list, err := s.Libraries.LibraryFolders(ctx, v.Server, agent.Library{Drive: v.Drive, Sub: v.Sub})
-		if msg, ok := userMessage(err); ok {
-			v.Error = msg
-			break
-		} else if err != nil {
-			s.serverError(w, err)
-			return
+	posted := r.Method == http.MethodPost
+	v := mediaAddView{Server: sv.ServerID, ServerName: sv.ServerName, Where: q.Get("where"), Error: errMsg,
+		Roots: agent.LibraryFolderRoots}
+	if !slices.Contains([]string{"drive", "folder", "share"}, v.Where) {
+		v.Where = "drive"
+		if q.Get("folder") != "" {
+			v.Where = "folder"
 		}
-		v.List = &list
-		base := url.Values{"server": {v.Server}, "drive": {v.Drive}, "name": {v.DriveName}}
-		v.Crumbs = append(v.Crumbs, mediaCrumb{v.DriveName, "/settings/media/add?" + base.Encode()})
-		v.Here, v.Name = "the drive "+v.DriveName, v.DriveName
-		if v.Sub != "" {
-			parts := strings.Split(v.Sub, "/")
-			for i, p := range parts {
-				base.Set("sub", strings.Join(parts[:i+1], "/"))
-				v.Crumbs = append(v.Crumbs, mediaCrumb{p, "/settings/media/add?" + base.Encode()})
-			}
-			v.Here, v.Name = v.DriveName+" › "+strings.Join(parts, " › "), parts[len(parts)-1]
-		}
-	case v.Folder != "":
-		list, err := s.Libraries.LibraryFolders(ctx, v.Server, agent.Library{Folder: v.Folder})
-		if msg, ok := userMessage(err); ok {
-			v.Error = msg
-			break
-		} else if err != nil {
-			s.serverError(w, err)
-			return
-		}
-		v.List = &list
-		v.Folder = path.Clean(v.Folder)
-		dir := ""
-		for _, p := range strings.Split(strings.Trim(v.Folder, "/"), "/") {
-			dir += "/" + p
-			v.Crumbs = append(v.Crumbs, mediaCrumb{p, v.RootHref(dir)})
-		}
-		v.Here, v.Name = v.Folder, path.Base(v.Folder)
-	default:
-		drives, err := s.Libraries.LibraryDrives(ctx, v.Server)
-		if msg, ok := userMessage(err); ok {
-			v.Error = msg
-		} else if err != nil {
-			s.serverError(w, err)
-			return
-		}
-		v.Drives = drives
-		v.Roots = agent.LibraryFolderRoots
 	}
-	if v.Readers, err = s.Libraries.LibraryReaders(ctx, v.Server); err != nil {
+	ctx := r.Context()
+	drives, err := s.Libraries.LibraryDrives(ctx, v.Server)
+	if msg, ok := userMessage(err); ok {
+		v.DrivesError = msg
+	} else if err != nil {
 		s.serverError(w, err)
 		return
 	}
-	v.ShareType = cmp.Or(r.PostFormValue("share_type"), "smb")
-	v.ShareServer, v.SharePath, v.ShareUser = r.PostFormValue("share_server"), r.PostFormValue("share_path"), r.PostFormValue("share_user")
-	if r.PostFormValue("where") == "share" {
-		v.ShareTitle = r.PostFormValue("title")
+	v.Drives = drives
+	// The drive chosen: the one asked for, or the first that can be one.
+	for _, d := range drives {
+		if !d.Backup && (d.UUID == q.Get("drive") || (!v.HasDrive && q.Get("drive") == "")) {
+			v.HasDrive = true
+			v.DrivePlace = mediaPlace{Drive: d.UUID, DriveName: d.Name}
+			if d.UUID == q.Get("drive") {
+				v.DrivePlace.Sub = cleanSub(q.Get("sub"))
+			}
+		}
 	}
-	if name := r.PostFormValue("title"); name != "" {
-		v.Name = name
+	if v.HasDrive {
+		if v.DrivePlace, err = s.mediaPlaceAt(ctx, v.Server, v.DrivePlace); err != nil {
+			s.serverError(w, err)
+			return
+		}
+	}
+	folder := q.Get("folder")
+	if folder != "" {
+		folder = path.Clean("/" + folder)
+	}
+	if v.Place, err = s.mediaPlaceAt(ctx, v.Server, mediaPlace{Folder: folder}); err != nil {
+		s.serverError(w, err)
+		return
+	}
+	readers, err := s.Libraries.LibraryReaders(ctx, v.Server)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	for _, rd := range readers {
+		v.Readers = append(v.Readers, mediaReader{Name: rd.Name, Title: rd.Title, Checked: !posted || slices.Contains(q["service"], rd.Name)})
+	}
+	v.ShareType = r.PostFormValue("share_type")
+	if v.ShareType != "nfs" {
+		v.ShareType = "smb"
+	}
+	v.ShareServer, v.SharePath, v.ShareUser = r.PostFormValue("share_server"), r.PostFormValue("share_path"), r.PostFormValue("share_user")
+	switch {
+	case posted:
+		v.Title, v.TitleEdited = r.PostFormValue("title"), true
+	case v.Where == "drive":
+		v.Title = v.DrivePlace.Name
+	case v.Where == "folder":
+		v.Title = v.Place.Name
 	}
 	data["Add"] = v
 	s.render(w, "settings-media-add", withArea(data, "media"))
+}
+
+// folderPicker is the folder picker (components.html "folder-picker"):
+// the folders in a place, and choosing it.
+type folderPicker struct {
+	Title   string
+	Crumbs  []mediaCrumb
+	Folders []pickerFolder
+	// Label and Counts say what the place is and holds; UseHref chooses
+	// it ("" where nothing can be chosen: the list of places on a server).
+	Label, Counts     string
+	UseHref, UseText  string
+	CancelHref, Error string
+}
+
+// pickerFolder is a folder in the picker, opening it.
+type pickerFolder struct {
+	Name, Href     string
+	Folders, Files int
+	NoCounts       bool
+}
+
+// mediaFoldersPage is the folder picker: in the add page's dialog
+// (app.js shows its #folder-picker), or a page of its own without scripts.
+// Each folder opens a folder below; Use goes back to the add page with it
+// chosen.
+func (s *Server) mediaFoldersPage(w http.ResponseWriter, r *http.Request) {
+	if s.Libraries == nil {
+		http.NotFound(w, r)
+		return
+	}
+	data, err := s.pageData(r)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	q := r.URL.Query()
+	sv, ok, err := s.mediaServer(r, q.Get("server"))
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	server := sv.ServerID
+	back := url.Values{"server": {server}}
+	at := func(set url.Values) string {
+		u := url.Values{"server": {server}}
+		for k, vs := range set {
+			u[k] = vs
+		}
+		return "/settings/media/folders?" + u.Encode()
+	}
+	var p folderPicker
+	var l agent.Library
+	var folderHref func(name string) string
+	if drive := q.Get("drive"); drive != "" {
+		name, sub := q.Get("name"), cleanSub(q.Get("sub"))
+		l = agent.Library{Drive: drive, Sub: sub}
+		base := url.Values{"drive": {drive}, "name": {name}}
+		p.Title, p.Label, p.UseText = "Choose a folder on "+name, name, "Use "+name
+		p.Crumbs = []mediaCrumb{{name, at(base)}}
+		if sub != "" {
+			parts := strings.Split(sub, "/")
+			for i, part := range parts {
+				p.Crumbs = append(p.Crumbs, mediaCrumb{part, at(url.Values{"drive": {drive}, "name": {name}, "sub": {strings.Join(parts[:i+1], "/")}})})
+			}
+			p.Label, p.UseText = name+" › "+strings.Join(parts, " › "), "Use "+parts[len(parts)-1]
+		}
+		back.Set("where", "drive")
+		back.Set("drive", drive)
+		back.Set("name", name)
+		p.CancelHref = mediaAddHref(back)
+		back.Set("sub", sub)
+		p.UseHref = mediaAddHref(back)
+		folderHref = func(f string) string {
+			return at(url.Values{"drive": {drive}, "name": {name}, "sub": {strings.TrimPrefix(sub+"/"+f, "/")}})
+		}
+	} else {
+		folder := q.Get("folder")
+		back.Set("where", "folder")
+		p.CancelHref = mediaAddHref(back)
+		p.Title = "Choose a folder on " + sv.ServerName
+		p.Crumbs = []mediaCrumb{{sv.ServerName, at(nil)}}
+		if folder == "" {
+			// The places folders can be, to start with.
+			for _, root := range agent.LibraryFolderRoots {
+				p.Folders = append(p.Folders, pickerFolder{Name: root, Href: at(url.Values{"folder": {root}}), NoCounts: true})
+			}
+			p.Crumbs[0].Href = ""
+			data["Picker"] = p
+			s.render(w, "settings-media-folders", withArea(data, "media"))
+			return
+		}
+		folder = path.Clean("/" + folder)
+		l = agent.Library{Folder: folder}
+		dir := ""
+		for _, part := range strings.Split(strings.Trim(folder, "/"), "/") {
+			dir += "/" + part
+			p.Crumbs = append(p.Crumbs, mediaCrumb{part, at(url.Values{"folder": {dir}})})
+		}
+		p.Label, p.UseText = folder, "Use "+path.Base(folder)
+		back.Set("folder", folder)
+		p.UseHref = mediaAddHref(back)
+		folderHref = func(f string) string { return at(url.Values{"folder": {path.Join(folder, f)}}) }
+	}
+	p.Crumbs[len(p.Crumbs)-1].Href = ""
+	list, err := s.Libraries.LibraryFolders(r.Context(), server, l)
+	if msg, ok := userMessage(err); ok {
+		p.Error, p.UseHref = msg, ""
+	} else if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	for _, f := range list.Folders {
+		p.Folders = append(p.Folders, pickerFolder{Name: f.Name, Href: folderHref(f.Name), Folders: f.Folders, Files: f.Files})
+	}
+	p.Counts = folderCounts(len(list.Folders), list.Files)
+	data["Picker"] = p
+	s.render(w, "settings-media-folders", withArea(data, "media"))
 }
 
 func (s *Server) mediaAddSubmit(w http.ResponseWriter, r *http.Request) {
@@ -218,6 +401,15 @@ func (s *Server) mediaAddSubmit(w http.ResponseWriter, r *http.Request) {
 	req := manager.LibraryRequest{Server: r.FormValue("server"), Title: r.FormValue("title"), Drive: r.FormValue("drive"),
 		DriveName: r.FormValue("name"), Sub: r.FormValue("sub"), Folder: r.FormValue("folder"),
 		AsOwner: r.FormValue("as_owner") == "on", Services: r.Form["service"]}
+	// The form holds every choice's fields: only the chosen one's count.
+	switch r.FormValue("where") {
+	case "drive":
+		req.Folder = ""
+	case "folder":
+		req.Drive, req.DriveName, req.Sub, req.AsOwner = "", "", "", false
+	case "share":
+		req.Drive, req.DriveName, req.Sub, req.Folder, req.AsOwner = "", "", "", "", false
+	}
 	if r.FormValue("where") == "share" {
 		req.Share = &agent.Share{Type: r.FormValue("share_type"), Server: r.FormValue("share_server"),
 			Path: r.FormValue("share_path"), Username: r.FormValue("share_user"), Password: r.FormValue("share_password")}
