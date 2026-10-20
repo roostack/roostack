@@ -163,8 +163,17 @@ func Match(p *pkgspec.Package, setup *Setup, prefixes []Prefix, ch Choices, file
 		}
 	}
 
-	// Each storage, where its first container mounts it.
-	for _, name := range slices.Sorted(maps.Keys(p.Storage)) {
+	// Each storage, where its first container mounts it: what's backed
+	// up first, as it's what matters most.
+	critical := func(name string) int {
+		if p.Storage[name].Class == pkgspec.ClassCritical {
+			return 0
+		}
+		return 1
+	}
+	for _, name := range slices.SortedFunc(maps.Keys(p.Storage), func(a, b string) int {
+		return cmp.Or(cmp.Compare(critical(a), critical(b)), cmp.Compare(a, b))
+	}) {
 		st := p.Storage[name]
 		s := Storage{Name: name, Title: cmp.Or(st.Title, name), Class: st.Class, Media: st.Location == pkgspec.LocationMedia}
 		s.Part, s.Path = mountOf(p, name)

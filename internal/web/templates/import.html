@@ -21,7 +21,7 @@
   <div class="span-8 grid-column steps" id="import-steps"{{if .Live}} hx-get="/services/{{.Name}}/import?part=live" hx-trigger="every 2s [document.visibilityState === 'visible']" hx-swap="innerHTML" hx-disinherit="*"{{end}}>
     {{template "import-steps" .}}
   </div>
-  <aside class="card span-4 steps-aside" aria-label="On the old machine">
+  {{if lt .Reached 7}}<aside class="card span-4 steps-aside" aria-label="On the old machine">
     <div class="card-head"><h2>On the old machine</h2></div>
     <p class="hint">Roostack never runs anything there. What you do:</p>
     <ol class="todo-list">
@@ -33,7 +33,7 @@
         <small class="hint">Postgres dumps in custom format only, for now: Immich's own nightly backups (<code>.sql.gz</code>) can't be loaded yet.</small></li>{{end}}
       <li><strong>Before the switch,</strong> stop it and keep it stopped: two copies of {{.Title}} would each think they're the one.</li>
     </ol>
-  </aside>
+  </aside>{{end}}
   <aside class="card span-4 steps-help" aria-label="Help">
     <div class="card-head"><h2>Help</h2></div>
     <ul class="plain">
@@ -41,7 +41,7 @@
       {{if eq .Package.Name "immich"}}<li><a href="/help/services/bring-data-immich" target="_blank" rel="noopener">Moving Immich{{template "new-window"}}</a><br><small class="hint">Versions, VectorChord, the external domain</small></li>{{end}}
       {{if eq .Package.Name "plex"}}<li><a href="/help/services/bring-data-plex" target="_blank" rel="noopener">Moving Plex{{template "new-window"}}</a><br><small class="hint">Its identity, libraries, remote access</small></li>{{end}}
     </ul>
-    <p>{{confirm (printf "/services/%s/import/cancel" .Name) (printf "Stop bringing data into %s? Roostack unmounts your files and deletes what it copied so far; your files aren't touched." .Title) "Stop bringing data in…" "quiet danger"}}</p>
+    {{if lt .Reached 7}}<p>{{confirm (printf "/services/%s/import/cancel" .Name) (printf "Stop bringing data into %s? Roostack unmounts your files and deletes what it copied so far; your files aren't touched." .Title) "Stop bringing data in…" "quiet danger"}}</p>{{end}}
   </aside>
 </div>
 {{pickerDialog "import-source-dialog" "#import-place"}}
@@ -54,6 +54,32 @@
 
 {{/* import-steps: the steps, refreshed while something runs. */}}
 {{define "import-steps"}}{{$o := .Open}}{{$r := .Reached}}
+{{if eq $r 7}}
+{{/* Done: the steps as they went, then the result. The copy is
+     unmounted, so nothing more is worked out from it. */}}
+<section class="card step-card step-done"><div class="card-head"><h2><span class="step-num">{{icon "check"}}</span>Your files</h2></div>
+  <p class="step-summary">{{with .V.Source}}{{.Title}}{{if ne .Kind "folder"}}<small>Unmounted now</small>{{end}}{{end}}</p></section>
+<section class="card step-card step-done"><div class="card-head"><h2><span class="step-num">{{icon "check"}}</span>Your old setup</h2></div>
+  <p class="step-summary">{{if .V.Setup}}{{.V.Setup.From}}{{with .V.Setup.Project}} of {{.}}{{end}}: {{len .V.Setup.Containers}} container{{if ne (len .V.Setup.Containers) 1}}s{{end}}{{else}}None given{{end}}</p></section>
+<section class="card step-card step-done"><div class="card-head"><h2><span class="step-num">{{icon "check"}}</span>What was brought</h2></div>
+  <p class="step-summary">{{range $i, $b := .V.Brought}}{{if $i}}, {{end}}{{$b}}{{end}}
+    {{with .Libs}}<small>{{range $i, $l := .}}{{if $i}}, {{end}}{{.Title}} at <code>{{.OldTarget}}</code>{{end}}</small>{{end}}</p></section>
+<section class="card step-card step-done"><div class="card-head"><h2><span class="step-num">{{icon "check"}}</span>Checked and copied</h2></div>
+  <p class="step-summary">{{with .V.Copy}}{{size .Bytes}} in {{count .Files}} files{{end}}</p></section>
+<section class="card step-card step-result" id="step-6">
+  <div class="card-head"><h2><span class="step-num">{{icon "check"}}</span>Switched to this data</h2><a class="more" href="/settings/history?kind=import">History</a></div>
+  <div class="notice notice-ok" role="status"><p><strong>{{.Title}} is running with your data.</strong> Switched {{when .V.Switched}}.</p></div>
+  <p><strong>Check it:</strong> sign in with your old account, open what you keep there, and use it as you did. Then look in {{.Title}}'s own
+    settings for anything that names the old machine, such as its own address.</p>
+  {{with .V.Kept}}<p class="hint">Its data from before is kept until you delete it: <a href="/backups/restore/{{$.Name}}">put it back or delete it</a>.</p>{{end}}
+  {{with .V.Source}}{{if eq .Kind "drive"}}<p class="hint">Your files are unmounted: unplug the drive whenever you like.</p>
+  {{else if eq .Kind "share"}}<p class="hint">Roostack no longer reads the share: your copy there can go whenever you like.</p>
+  {{else}}<p class="hint">Your copy in <code>{{.Title}}</code> isn't needed any more: delete it whenever you like.</p>{{end}}{{end}}
+  <div class="actions-row"><a class="button" href="/services/{{.Name}}">Go to {{.Title}}</a>
+    <form method="post" action="/services/{{.Name}}/import/cancel"><input type="hidden" name="again" value="1">
+      <button type="submit" class="quiet">Bring data in again…</button></form></div>
+</section>
+{{else}}
 
 {{/* 1. Where the files are. */}}
 {{if eq $o 1}}
@@ -76,7 +102,7 @@
 <section class="card step-card" id="step-2">
   <div class="card-head"><h2><span class="step-num">2</span>Your old setup <small class="hint">optional</small></h2></div>
   {{if and .V.Setup (ne .From "none")}}
-  <p>{{if .V.Setup.Project}}{{.Title}}'s Compose project, <code>{{.V.Setup.Project}}</code>: {{else}}The old setup: {{end}}{{len .V.Setup.Containers}} containers,
+  <p>{{if .V.Setup.Project}}{{.Title}}'s Compose project, <code>{{.V.Setup.Project}}</code>: {{else}}The old setup: {{end}}{{len .V.Setup.Containers}} container{{if ne (len .V.Setup.Containers) 1}}s{{end}},
     read from {{.V.Setup.From}}. <a href="?step=2&amp;paste=1#step-2">Paste again</a></p>
   <div class="table-wrap"><table class="list stack-phone">
     <thead><tr><th>Old container</th><th class="hide-phone">Image</th><th>Is {{.Title}}'s</th></tr></thead>
@@ -92,7 +118,7 @@
     <div class="path-row">
       <label class="path-old-label" for="old-{{.I}}">On the old machine</label>
       <span class="field-label path-now-label" id="now-{{.I}}">Is now</span>
-      <input class="path-old" id="old-{{.I}}" name="old.{{.I}}" value="{{.Old}}" spellcheck="false" autocapitalize="off"{{if not .Old}} placeholder="/opt/immich"{{end}}>
+      <input class="path-old" id="old-{{.I}}" name="old.{{.I}}" value="{{.Old}}" spellcheck="false" autocapitalize="off"{{if not .Old}} placeholder="/opt/{{$.Name}}"{{end}}>
       <span class="path-arrow" aria-hidden="true">→</span>
       <div class="folder-choice path-now" id="choose-prefix-{{.I}}" aria-labelledby="now-{{.I}}">{{icon "folder"}}<span class="path"><strong>{{.NowLabel}}</strong></span>
         <input type="hidden" name="now.{{.I}}" value="{{.Now}}">
@@ -136,7 +162,7 @@
 {{else}}
 <section class="card step-card step-done" id="step-2">
   <div class="card-head"><h2><span class="step-num">{{icon "check"}}</span>Your old setup</h2><a class="more" href="?step=2#step-2">Change</a></div>
-  <p class="step-summary">{{if .V.Setup}}{{.V.Setup.From}}{{with .V.Setup.Project}} of {{.}}{{end}}: {{len .V.Setup.Containers}} containers{{else}}None given: folders chosen by hand{{end}}
+  <p class="step-summary">{{if .V.Setup}}{{.V.Setup.From}}{{with .V.Setup.Project}} of {{.}}{{end}}: {{len .V.Setup.Containers}} container{{if ne (len .V.Setup.Containers) 1}}s{{end}}{{else}}None given: folders chosen by hand{{end}}
     {{range .Paths}}{{if .Old}}<small><code>{{.Old}}</code> is {{.NowLabel}}</small>{{end}}{{end}}</p>
 </section>
 {{end}}
@@ -269,16 +295,6 @@
 
 {{/* 6. The switch, and its result. */}}
 {{if lt $r 6}}<section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">6</span>Switch to this data</h2></div></section>
-{{else if eq $r 7}}
-<section class="card step-card step-result" id="step-6">
-  <div class="card-head"><h2><span class="step-num">{{icon "check"}}</span>Switched to this data</h2><a class="more" href="/settings/history?kind=import">History</a></div>
-  <div class="notice notice-ok" role="status"><p><strong>{{.Title}} is running with your data.</strong> Switched {{when .V.Switched}}.</p></div>
-  <p><strong>Check it:</strong> sign in with your old account, open what you keep there, and use it as you did. Then look in {{.Title}}'s own
-    settings for anything that names the old machine, such as its own address.</p>
-  {{with .V.Kept}}<p class="hint">Its data from before is kept until you delete it: <a href="/backups/restore/{{$.Name}}">put it back or delete it</a>.</p>{{end}}
-  <p class="hint">Your files are unmounted: unplug the drive whenever you like.</p>
-  <div class="actions-row"><a class="button" href="/services/{{.Name}}">Go to {{.Title}}</a></div>
-</section>
 {{else}}
 <section class="card step-card" id="step-6">
   <div class="card-head"><h2><span class="step-num">6</span>Switch to this data</h2></div>
@@ -309,6 +325,7 @@
   </form>
   {{end}}
 </section>
+{{end}}
 {{end}}
 {{end}}
 

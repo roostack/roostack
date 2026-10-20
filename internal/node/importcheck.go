@@ -50,7 +50,7 @@ func (n *Local) CheckImport(ctx context.Context, service string) error {
 	return n.startImportRun(service, func(ctx context.Context) {
 		var act *activity.Log
 		if n.Activity != nil {
-			act = n.Activity.Start(activity.ImportFor(service), "Checking what's brought into "+s.Title())
+			act = n.Activity.Start(activity.ImportRunFor(service), "Checking what's brought into "+s.Title())
 		}
 		report, err := n.runImportCheck(ctx, s, act)
 		act.Finish(err)
@@ -212,6 +212,10 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		set := slices.Collect(maps.Keys(c.Env))
 		set = append(set, slices.Collect(maps.Keys(c.Secrets))...)
 		set = append(set, "TZ")
+		// Its image is fetched now if need be (the switch would anyway), so
+		// its own defaults aren't reported as the old container's.
+		act.Step("Fetching %s's image to compare its settings", title)
+		n.pullImage(ctx, act, newImage)
 		if diff := importer.EnvDiff(oc.Env, set, n.imageEnv(ctx, newImage)); len(diff) > 0 {
 			it := add(importer.LevelWarn, fmt.Sprintf("%s the old %s had that Roostack doesn't set:", countText(int64(len(diff)), "setting"), m.Old),
 				"compare them with "+title+"'s settings here, and its own settings page. A config file's settings belong in "+title+"'s own settings before you move, or they're lost.")
@@ -244,7 +248,7 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 			case counts[nd] == 0:
 			case shown[at] != "":
 				add(importer.LevelOK, fmt.Sprintf("The data names %s %s times:", nd, units.Count(int64(counts[nd]))),
-					fmt.Sprintf("%s is shown there, so they're right as they are.", shown[at]))
+					"a media library is shown there, so they're right as they are.")
 			default:
 				left = true
 				add(importer.LevelWarn, fmt.Sprintf("Old folders left in the data: %s %s times,", nd, units.Count(int64(counts[nd]))),

@@ -251,6 +251,12 @@ func (s *Server) renderImport(w http.ResponseWriter, r *http.Request, errMsg str
 	data["Import"] = pg
 	data["Service"] = svc
 	if r.URL.Query().Get("part") == "live" {
+		if !pg.Live {
+			// Finished: the whole page, so its status and the side
+			// panel change too, and the refreshing stops.
+			w.Header().Set("HX-Refresh", "true")
+			return
+		}
 		s.renderLive(w, r, "import", "import-steps", pg)
 		return
 	}
@@ -447,7 +453,11 @@ func (s *Server) importRows(r *http.Request, pg *importPage) {
 		}
 	}
 	var at []string
-	for _, l := range v.Plan.Libraries {
+	libs := v.Plan.Libraries
+	if pg.Reached == stepDone {
+		libs = v.BroughtLibraries // the copy is unmounted now
+	}
+	for _, l := range libs {
 		pg.Libs = append(pg.Libs, importLibRow{Library: l, Title: cmp.Or(titles[l.Library], l.Library)})
 		if l.Library != "" {
 			at = append(at, l.OldTarget)
@@ -964,6 +974,12 @@ func (s *Server) importCancelSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := x.CancelImport(r.Context(), name); err != nil {
 		s.importDone(w, r, err, "", "")
+		return
+	}
+	if r.FormValue("again") != "" {
+		// Done, and starting another: the page from step 1.
+		s.Store.Audit(r.Context(), currentUser(r), "import", name+": starting again")
+		http.Redirect(w, r, "/services/"+url.PathEscape(name)+"/import", http.StatusSeeOther)
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "import", name+": cancelled")

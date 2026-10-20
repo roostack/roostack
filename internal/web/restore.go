@@ -158,6 +158,8 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 					v.What = "Before bringing data in"
 				case f.FailedImport:
 					v.What = "Brought in, then set aside"
+				case f.Replaced:
+					v.What = "Replaced by putting a copy back"
 				case f.MovedAway:
 					v.What = "The old copy, after moving"
 				}

@@ -104,10 +104,13 @@ type ImportState struct {
 	Copy     *ImportCopy      `json:"copy,omitempty"`
 	// Step is the switch's last step on this server.
 	Step *SwitchStep `json:"step,omitempty"`
-	// Switched is when the data was switched in, and Kept what it set
-	// aside then.
-	Switched time.Time `json:"switched,omitzero"`
-	Kept     []string  `json:"kept,omitempty"`
+	// Switched is when the data was switched in, Kept what it set aside
+	// then, Brought what was brought (titles, for its page) and
+	// BroughtLibraries the media libraries shown at old folders.
+	Switched         time.Time          `json:"switched,omitzero"`
+	Kept             []string           `json:"kept,omitempty"`
+	Brought          []string           `json:"brought,omitempty"`
+	BroughtLibraries []importer.Library `json:"brought_libraries,omitempty"`
 }
 
 // SwitchStep is a step of the switch, running or done.

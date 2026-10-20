@@ -81,7 +81,7 @@ func (n *Local) checkLibraryMounts(ctx context.Context, mountinfo func() string)
 		}
 	}
 	for _, b := range all {
-		lookAt(b.path) // an automount mounts when looked at
+		lookAt(b.path) // an automount mounts when opened
 	}
 	table := mountinfo()
 	n.libWatch.mu.Lock()
@@ -144,10 +144,18 @@ func (n *Local) running(ctx context.Context, units []string) bool {
 	return true
 }
 
-// lookAt stats a path, giving up after libraryLookTimeout.
+// lookAt opens a folder and reads a name from it, giving up after
+// libraryLookTimeout. Opening it is what makes an automount mount: a stat
+// of the mount point alone doesn't, since Linux 4.14.
 func lookAt(path string) {
 	done := make(chan struct{})
-	go func() { os.Stat(path); close(done) }()
+	go func() {
+		if f, err := os.Open(path); err == nil {
+			f.Readdirnames(1)
+			f.Close()
+		}
+		close(done)
+	}()
 	select {
 	case <-done:
 	case <-time.After(libraryLookTimeout):

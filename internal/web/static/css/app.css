@@ -1317,5 +1317,9 @@ ol.todo-list small { display: block; }
 .status-switching { background: var(--accent-soft); color: var(--fg); }
 .status-switching::before { background: var(--accent); animation: status-pulse 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .status-switching::before { animation: none; } }
-/* A kept copy's actions: Put back and Delete, side by side. */
+/* A kept copy's actions: Put back and Delete, side by side, going
+   underneath its path when there isn't room. */
+ul.kept > li { flex-wrap: wrap; }
+ul.kept > li > span:first-child { flex: 1 1 14em; }
 .kept-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+.kept-actions button { white-space: nowrap; }

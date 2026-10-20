@@ -527,10 +527,11 @@ type KeptFolder struct {
 	// (otherwise, data that was here before a service moved in).
 	MovedAway bool
 	// Imported: its data from before data was brought in (SPEC.md §8.4);
-	// FailedImport: what was brought, set aside when putting that back.
-	Imported, FailedImport bool
-	Time                   time.Time
-	Size                   int64 // bytes, -1 if unknown
+	// FailedImport: what was brought, set aside when that failed;
+	// Replaced: what a put back replaced.
+	Imported, FailedImport, Replaced bool
+	Time                             time.Time
+	Size                             int64 // bytes, -1 if unknown
 }
 
 // keptName matches kept folders' names: <service>.before-move-<time>,
@@ -557,7 +558,7 @@ func (n *Local) KeptData(ctx context.Context) ([]KeptFolder, error) {
 			}
 			t, _ := time.ParseInLocation(timeLayout, m[3], time.Local)
 			k := KeptFolder{Path: filepath.Join(base, e.Name()), Service: m[1], MovedAway: strings.HasPrefix(m[2], "moved-"),
-				Imported: m[2] == "before-import-", FailedImport: m[2] == "failed-import-", Time: t, Size: -1}
+				Imported: m[2] == "before-import-", FailedImport: m[2] == "failed-import-", Replaced: m[2] == "before-put-back-", Time: t, Size: -1}
 			if out, err := n.unshare(ctx, "du", "-sb", k.Path).Output(); err == nil {
 				if f := strings.Fields(string(out)); len(f) > 0 {
 					k.Size, _ = strconv.ParseInt(f[0], 10, 64)

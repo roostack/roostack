@@ -12,6 +12,7 @@ import (
 
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/systemd"
 	"roostack.cloud/roostack/internal/units"
 )
@@ -161,7 +162,9 @@ func (n *Local) ServiceDetails(ctx context.Context) (map[string]ServiceDetail, e
 	for _, s := range a.Services {
 		name := s.Name()
 		d := ServiceDetail{Status: "unknown", DataDirs: n.DataDirs(name), DataSize: n.dataSize(name)}
-		gen, err := generate.Service(lab, s.Package, s.Instance)
+		// What runs of it: only its databases while it waits for its data
+		// or is stopped by Roostack (state.Output).
+		gen, err := state.Output(lab, s)
 		if err != nil {
 			d.Status = "failed"
 			out[name] = d

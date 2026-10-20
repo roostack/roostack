@@ -132,8 +132,11 @@ func TestImportImmich(t *testing.T) {
 		os.MkdirAll(filepath.Dir(filepath.Join(src, f)), 0o755)
 		os.WriteFile(filepath.Join(src, f), []byte(data), 0o644)
 	}
-	// What the service has now: its empty database's folder.
+	// What the service has now: its empty database, which runs while it
+	// waits; and its media folder, only empty folders.
 	os.MkdirAll(filepath.Join(lab.Paths.ServicesDir, "immich", "db", "main"), 0o750)
+	os.WriteFile(filepath.Join(lab.Paths.ServicesDir, "immich", "db", "main", "PG_VERSION"), []byte("14\n"), 0o600)
+	os.MkdirAll(filepath.Join(lab.Paths.MediaDir, "immich", "library"), 0o750)
 
 	if err := n.SetImportSource(ctx, "immich", ImportSource{Kind: "drive", Title: "T7 Shield › immich",
 		Library: agent.Library{Drive: "1111-2222", Sub: "immich"}}); err != nil {

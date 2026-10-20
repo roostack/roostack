@@ -191,6 +191,18 @@ func TestImportPage(t *testing.T) {
 	if !strings.Contains(body, "Immich is running with your data.") || !strings.Contains(body, `class="card step-card step-result"`) {
 		t.Error("the result")
 	}
+	if !strings.Contains(body, "unplug the drive whenever you like") || strings.Contains(body, "Stop bringing data in…") {
+		t.Error("the result's drive, or the way to stop")
+	}
+	// A page left open while it switched is drawn again whole.
+	resp, err := h.client.Get(h.srv.URL + "/services/immich/import?part=live")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.Header.Get("HX-Refresh") != "true" {
+		t.Error("the finished page isn't drawn again")
+	}
 
 	// Admins can't.
 	h2, fm2 := loggedIn(t, auth.RoleAdmin)

@@ -673,7 +673,9 @@ func (m *Manager) ServiceFiles(name string) (*ServiceFiles, error) {
 	if err != nil {
 		return nil, err
 	}
-	out, err := generate.Service(m.Lab, p, in)
+	// As written now: only its network and databases while it waits for
+	// its data (SPEC.md §8.4).
+	out, err := state.Output(m.Lab, state.Service{Package: p, Instance: in})
 	if err != nil {
 		return nil, err
 	}

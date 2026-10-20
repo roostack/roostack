@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -53,7 +54,7 @@ func (n *Local) runImportCopy(ctx context.Context, s state.Service) error {
 	st := n.loadImport(ctx, service)
 	var act *activity.Log
 	if n.Activity != nil {
-		act = n.Activity.Start(activity.ImportFor(service), "Copying "+title+"'s data")
+		act = n.Activity.Start(activity.ImportRunFor(service), "Copying "+title+"'s data")
 	}
 	total := st.Check.Bytes
 	cp := &ImportCopy{Running: true, Started: time.Now(), Files: st.Check.Files, Bytes: total}
@@ -279,9 +280,29 @@ func (n *Local) switchStep(ctx context.Context, s state.Service, step string) er
 		var at importer.Progress
 		return n.copyImport(ctx, s, n.loadImport(ctx, service), nil, func(importer.Progress) {}, &at)
 	case SwitchCommit:
+		st := n.loadImport(ctx, service)
+		files := importFiles(service, st)
+		plan := importer.Match(s.Package, st.Setup, st.Prefixes, st.Choices, files, n.libraryFinder(s, files))
+		var brought []string
+		for _, sp := range plan.Storage {
+			if sp.From != "" {
+				brought = append(brought, sp.Title)
+			}
+		}
+		for _, db := range plan.Databases {
+			if db.From != "" {
+				brought = append(brought, fmt.Sprintf("database %q", db.Name))
+			}
+		}
+		var libs []importer.Library
+		for _, l := range plan.Libraries {
+			if l.Library != "" {
+				libs = append(libs, l)
+			}
+		}
 		kept, err := n.commitStaged(service, keptImport)
 		n.updateImport(ctx, service, func(st *ImportState) error {
-			st.Kept = kept
+			st.Kept, st.Brought, st.BroughtLibraries = kept, brought, libs
 			return nil
 		})
 		if err != nil {
@@ -315,7 +336,7 @@ func (n *Local) switchStep(ctx context.Context, s state.Service, step string) er
 		}
 		n.forgetSamples(service)
 		return n.updateImport(ctx, service, func(st *ImportState) error {
-			st.Switched, st.Copy, st.Check = time.Now(), nil, nil
+			st.Switched = time.Now()
 			return nil
 		})
 	}
@@ -336,16 +357,35 @@ func (n *Local) commitStaged(service, suffix string) ([]string, error) {
 			continue
 		}
 		if _, err := os.Stat(d); err == nil {
-			if err := os.Rename(d, d+at); err != nil {
-				return kept, err
+			// A service waiting for its data may have only the empty
+			// folders its install made: nothing to keep, as the page
+			// promised. (Folders a container's user owns may not go: then
+			// they're kept like data.)
+			if !onlyFolders(d) || os.RemoveAll(d) != nil {
+				if err := os.Rename(d, d+at); err != nil {
+					return kept, err
+				}
+				kept = append(kept, d+at)
 			}
-			kept = append(kept, d+at)
 		}
 		if err := os.Rename(in, d); err != nil {
 			return kept, err
 		}
 	}
 	return kept, nil
+}
+
+// onlyFolders says whether dir holds no files, only (empty) folders.
+func onlyFolders(dir string) bool {
+	empty := true
+	filepath.WalkDir(dir, func(_ string, e fs.DirEntry, err error) error {
+		if err != nil || !e.IsDir() {
+			empty = false
+			return fs.SkipAll
+		}
+		return nil
+	})
+	return empty
 }
 
 // loadImported loads the dumps brought (SQLite came with its folder),
