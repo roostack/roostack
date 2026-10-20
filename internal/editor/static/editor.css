@@ -1,0 +1,241 @@
+/* Roostack's package editor (SPEC.md §8.3.7, "The package editor").
+   From the design system's purpose tokens and scales only (tokens.css),
+   and everything under .pe: the editor runs in Roostack (beside app.css),
+   on roostack.cloud (beside the site's styles) and opened from a file
+   (with tokens.css only), and looks the same in all three. Chosen from
+   docs/mockups/package-editor (2026-10-20). */
+
+.pe { color: var(--fg); font-family: var(--font-sans); font-size: var(--text-base); line-height: var(--leading); }
+.pe *, .pe *::before, .pe *::after { box-sizing: border-box; }
+.pe [hidden] { display: none !important; }
+.pe h1 { margin: 0; font-family: var(--font-display); font-size: var(--text-2xl); font-weight: var(--weight-bold); line-height: 1.2; }
+.pe h2 { margin: 0 0 var(--space-3); font-family: var(--font-display); font-size: var(--text-lg); font-weight: var(--weight-bold); line-height: 1.3; }
+.pe h3 { margin: var(--space-4) 0 var(--space-2); font-size: var(--text-base); font-weight: var(--weight-bold); }
+.pe p { margin: 0 0 var(--space-3); }
+.pe a { color: var(--accent); }
+.pe code, .pe .mono { font-family: var(--font-mono); font-size: 0.92em; }
+.pe code { overflow-wrap: anywhere; }
+.pe-hint, .pe small { color: var(--muted); font-size: var(--text-sm); }
+.pe-note { padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--accent-soft); }
+
+/* Where it runs. */
+.pe:not(.pe-where-roostack) .pe-only-roostack { display: none !important; }
+.pe.pe-where-roostack .pe-only-standalone { display: none !important; }
+.pe:not(.pe-where-website) .pe-only-website { display: none !important; }
+.pe:not([data-view="edit"]) .pe-only-edit { display: none !important; }
+
+/* The page, opened from a file. */
+body.pe-page { margin: 0; padding: var(--space-5); background: var(--canvas, var(--bg)); }
+body.pe-page .pe { max-width: 1560px; margin: 0 auto; }
+
+/* ---------- Buttons, inputs, cards ---------- */
+/* Every button starts plain: in Roostack, app.css styles each button as
+   its main action, and this file comes after it. :where keeps these
+   below the classes that follow. */
+:where(.pe) button { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 0; border: 0; border-radius: 0; background: none;
+  color: inherit; font: inherit; font-weight: inherit; text-align: inherit; white-space: normal; cursor: pointer; filter: none; }
+:where(.pe) button:hover { filter: none; }
+:where(.pe) label { margin: 0; font-weight: inherit; }
+.pe .pe-button { display: inline-flex; align-items: center; gap: var(--space-2); padding: 9px 16px; border: 1px solid transparent; border-radius: 10px;
+  background: var(--accent); color: var(--accent-fg); font-weight: var(--weight-bold); cursor: pointer; text-decoration: none; white-space: nowrap; }
+.pe .pe-button:hover { filter: brightness(1.08); }
+.pe .pe-button.secondary { background: var(--surface); color: var(--fg); border-color: var(--border-strong); }
+.pe .pe-button.secondary:hover { background: var(--surface-2); filter: none; }
+.pe .pe-button.quiet { background: none; color: var(--muted); border-color: transparent; font-weight: var(--weight-medium); }
+.pe .pe-button.quiet:hover { color: var(--fg); background: var(--surface-2); filter: none; }
+.pe .pe-button.small { padding: 5px 12px; font-size: var(--text-sm); }
+.pe .pe-button .pe-svg { width: 18px; height: 18px; flex: none; }
+.pe .pe-button small { color: var(--muted); font-weight: var(--weight-normal); }
+.pe .pe-link { padding: 0; border: 0; background: none; color: var(--accent); font-weight: var(--weight-medium); text-decoration: underline; cursor: pointer; }
+.pe :focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.pe .pe-input, .pe .pe-textarea { display: block; width: 100%; margin: var(--space-1) 0 0; padding: 9px 12px; font: inherit; color: var(--fg);
+  background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--radius); }
+.pe .pe-input.mono, .pe .pe-textarea { font-family: var(--font-mono); font-size: 0.9em; }
+.pe select.pe-input { appearance: auto; }
+.pe .pe-label { display: block; font-weight: var(--weight-medium); }
+.pe .pe-check { display: flex; gap: var(--space-2); align-items: center; font-weight: var(--weight-medium); }
+.pe .pe-check input { width: auto; margin: 0; }
+.pe .pe-file { font-size: var(--text-sm); }
+
+.pe-card { padding: var(--space-5); border-radius: 16px; background: var(--surface); box-shadow: var(--lift, var(--shadow-1)); }
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  .pe-card { background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: var(--lift, var(--shadow-1)), inset 0 0 0 1px var(--edge, var(--border)); }
+}
+.pe-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+.pe-inline { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.pe-inline .pe-input { flex: 1; min-width: 8em; margin: 0; }
+.pe-error, .pe-msg-bad { color: var(--bad); }
+.pe-msg-warn { color: var(--warn); }
+.pe-ok { color: var(--ok); font-weight: var(--weight-medium); }
+
+/* Pills: a count, on its status's tint. */
+.pe-pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 8px; border-radius: var(--radius-pill); font-size: var(--text-sm);
+  font-weight: var(--weight-medium); background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.pe-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pe-pill-bad { background: var(--bad-bg); color: var(--bad); }
+.pe-pill-warn { background: var(--warn-bg); color: var(--warn); }
+.pe-pill-ok { background: var(--ok-bg); color: var(--ok); }
+.pe-pill-hi { background: var(--highlight-soft); color: var(--highlight); }
+
+/* Chips: a suggestion to take, or a value to toggle. */
+.pe-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.pe .pe-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: var(--radius-pill); font-size: var(--text-sm);
+  font-weight: var(--weight-medium); background: var(--surface); color: var(--fg); border: 1px solid var(--border-strong); cursor: pointer; }
+.pe .pe-chip:hover { border-color: var(--highlight); }
+.pe .pe-chip.is-on { background: var(--accent-soft); border-color: var(--accent); }
+.pe .pe-value { cursor: default; padding-right: 4px; }
+.pe .pe-x { padding: 0 6px; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 1.1em; line-height: 1; }
+.pe .pe-x:hover { color: var(--bad); }
+
+/* ---------- The heading ---------- */
+.pe-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3) var(--space-4); margin-bottom: var(--space-5); }
+.pe-lede { max-width: 70ch; margin: 6px 0 0; color: var(--muted); }
+.pe-head-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* ---------- Start ---------- */
+.pe-draft { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg); background: var(--accent-soft); }
+.pe-draft p { margin: 0; flex: 1; }
+.pe-starts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-4); }
+.pe .pe-start { display: grid; gap: var(--space-2); align-content: start; justify-items: start; padding: var(--space-5); text-align: left; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 16px; background: var(--surface); box-shadow: var(--lift, var(--shadow-1)); }
+.pe .pe-start:hover { border-color: var(--highlight); }
+.pe-start .pe-svg { width: 28px; height: 28px; color: var(--accent); }
+.pe-start strong { font-family: var(--font-display); font-size: var(--text-lg); }
+.pe-start > span:last-child { color: var(--muted); }
+.pe-icon { display: inline-flex; }
+.pe-examples { margin: var(--space-5) 0 var(--space-3); }
+.pe-example-list { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* ---------- Code ---------- */
+.pe .pe-code { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.65; tab-size: 2; }
+
+/* ---------- Import ---------- */
+.pe-import { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.pe-import .pe-textarea { resize: vertical; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
+.pe-env { margin-top: var(--space-3); }
+.pe-env summary { cursor: pointer; font-weight: var(--weight-medium); }
+.pe-report-head { display: flex; align-items: center; gap: var(--space-2); }
+.pe-report-list { margin: 0; padding-left: var(--space-5); }
+.pe-report-list li + li { margin-top: var(--space-1); }
+.pe-imported { margin-bottom: var(--space-4); }
+.pe-imported > summary { cursor: pointer; font-weight: var(--weight-bold); }
+.pe-server { margin-bottom: var(--space-4); }
+
+/* ---------- Problems ---------- */
+.pe-problems { padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); }
+.pe-problems-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+.pe-problems-head h2 { margin: 0; }
+.pe-tally { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pe .pe-switch { margin-left: auto; display: flex; gap: var(--space-2); align-items: baseline; font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.pe-switch input { margin: 0; }
+.pe-problem-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: 2px; font-size: var(--text-sm); }
+.pe-problem { display: grid; grid-template-columns: 6.8em minmax(0, 1fr) auto; gap: 2px var(--space-3); align-items: baseline; padding: 6px var(--space-3);
+  border-radius: var(--radius); background: var(--surface-2); }
+.pe-none { display: block; color: var(--ok); }
+.pe-sev { font-size: var(--text-xs); font-weight: var(--weight-bold); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.pe-sev-validation .pe-sev { color: var(--bad); }
+.pe-sev-registry .pe-sev { color: var(--warn); }
+.pe-sev-suggestion .pe-sev { color: var(--highlight); }
+.pe .pe-path { font-family: var(--font-mono); font-size: 0.95em; }
+.pe .pe-line { padding: 0; border: 0; background: none; color: var(--muted); font-size: var(--text-xs); white-space: nowrap; cursor: pointer; }
+.pe .pe-line:hover { color: var(--fg); text-decoration: underline; }
+.pe-msg .pe-chips { display: flex; }
+.pe-more { margin-top: var(--space-2); }
+
+/* ---------- The two panes ---------- */
+.pe-tabs { display: none; }
+.pe-panes { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.pe-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+.pe-index { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 2px; padding: 6px; border-radius: 14px; background: var(--surface);
+  box-shadow: var(--lift, var(--shadow-1)); font-size: var(--text-sm); }
+.pe-index a { padding: 4px 10px; border-radius: var(--radius-pill); color: var(--fg); text-decoration: none; }
+.pe-index a:hover { background: var(--surface-2); }
+.pe-index a.has-bad::after, .pe-index a.has-warn::after { content: ""; display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%;
+  vertical-align: 1px; background: var(--warn); }
+.pe-index a.has-bad::after { background: var(--bad); }
+.pe-section { min-width: 0; scroll-margin-top: 64px; }
+.pe-section h2 { display: flex; align-items: center; gap: var(--space-2); }
+.pe-list-part { margin-top: var(--space-4); }
+
+/* A named entry or a list's item. */
+.pe-item { margin-bottom: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--surface-2); }
+.pe-item > summary { cursor: pointer; margin-bottom: var(--space-2); }
+.pe-item > summary code { margin-left: var(--space-2); color: var(--muted); }
+.pe-item-tools { display: flex; justify-content: flex-end; margin-top: calc(-1 * var(--space-6)); }
+.pe-more-options { margin-top: var(--space-2); }
+.pe-more-options > summary { cursor: pointer; color: var(--accent); font-weight: var(--weight-medium); font-size: var(--text-sm); margin-bottom: var(--space-2); }
+
+/* A field: its label, input, its problems, and its help when it's the one
+   you're on. */
+.pe-field { margin: 0 calc(-1 * var(--space-3)) var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-lg); }
+.pe-field.is-focus { background: var(--surface); box-shadow: inset 0 0 0 1px var(--highlight); }
+.pe-field.has-bad > .pe-input, .pe-field.has-bad > .pe-inline .pe-input { border-color: var(--bad); }
+.pe-field.has-warn > .pe-input, .pe-field.has-warn > .pe-inline .pe-input { border-color: var(--warn); }
+.pe-field.has-hint > .pe-label::after, .pe-field.has-hint > .pe-check::after { content: "suggestion"; margin-left: var(--space-2); padding: 0 6px; border-radius: var(--radius-pill);
+  background: var(--highlight-soft); color: var(--highlight); font-size: var(--text-xs); font-weight: var(--weight-medium); vertical-align: 1px; }
+.pe-messages p { margin: 4px 0 0; font-size: var(--text-sm); }
+.pe-help { margin-top: var(--space-2); font-size: var(--text-sm); }
+.pe-help p { margin-bottom: var(--space-2); }
+.pe-suggest { margin: var(--space-2) 0; padding: var(--space-3); border-radius: var(--radius); background: var(--highlight-soft); }
+.pe-suggest p { margin: 0; }
+.pe-suggest .pe-svg { width: 14px; height: 14px; color: var(--highlight); vertical-align: -2px; }
+.pe-group { padding-bottom: var(--space-3); }
+.pe-group > .pe-field { margin-left: 0; margin-right: 0; }
+.pe-name-field { margin-top: 0; }
+
+/* Rows: env, secrets, Quadlet lines, mounts. */
+.pe-rows { display: grid; gap: var(--space-2); margin-top: var(--space-1); }
+.pe-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; }
+.pe-row .pe-input { margin: 0; }
+.pe-row-quadlet { grid-template-columns: auto minmax(0, 0.8fr) minmax(0, 1.2fr) auto; }
+.pe-quadlet-key { font-size: var(--text-sm); white-space: nowrap; }
+.pe-row:has(.pe-quadlet-key) { grid-template-columns: auto minmax(0, 1fr) auto; }
+.pe-subitem { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 var(--space-3); align-items: end; padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius); background: var(--surface); }
+.pe-subitem > .pe-button { justify-self: start; margin-bottom: var(--space-3); }
+.pe-list .pe-inline { margin-top: var(--space-1); }
+.pe-logo-img { border-radius: var(--radius); background: var(--logo-tile, #fff); }
+
+/* The YAML: line numbers beside a text box, scrolled together. */
+.pe-yaml { position: sticky; top: var(--space-4); padding: var(--space-3); border-radius: 16px; background: var(--surface); box-shadow: var(--lift, var(--shadow-1)); }
+.pe-yaml-head { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); align-items: baseline; padding: 2px 4px var(--space-2); font-size: var(--text-sm); }
+.pe-editor { display: grid; grid-template-columns: auto minmax(0, 1fr); height: calc(100vh - 8rem); min-height: 24rem; border-radius: var(--radius); background: var(--surface-2);
+  border: 1px solid var(--border); overflow: hidden; }
+.pe-gutter { overflow: hidden; padding: 10px 0; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.65; text-align: right; color: var(--muted);
+  user-select: none; background: var(--surface-2); border-right: 1px solid var(--border); }
+.pe-gutter span { display: block; padding: 0 8px 0 10px; border-left: 3px solid transparent; }
+.pe-gutter .pe-mark-bad { border-left-color: var(--bad); color: var(--bad); }
+.pe-gutter .pe-mark-warn { border-left-color: var(--warn); color: var(--warn); }
+.pe-gutter .pe-mark-hint { border-left-color: var(--highlight); }
+.pe-gutter .is-focus { background: var(--highlight-soft); color: var(--fg); }
+.pe .pe-source { display: block; width: 100%; height: 100%; margin: 0; padding: 10px 12px; resize: none; border: 0; outline: none; color: var(--fg);
+  background: transparent; white-space: pre; overflow: auto; overflow-wrap: normal; }
+.pe .pe-source:focus-visible { box-shadow: inset var(--focus-ring); }
+
+/* ---------- Phones: the panes as tabs ---------- */
+@media (max-width: 900px) {
+  .pe-import, .pe-panes { grid-template-columns: minmax(0, 1fr); }
+  .pe-yaml { position: static; }
+  .pe-editor { height: 70vh; }
+  .pe-tabs { display: flex; gap: 2px; margin-bottom: var(--space-3); padding: 4px; border-radius: 14px; background: var(--surface-2); }
+  .pe .pe-tabs button { flex: 1; display: inline-flex; justify-content: center; align-items: center; gap: 6px; padding: 7px 8px; border: 0; border-radius: 10px;
+    background: none; font-weight: var(--weight-medium); white-space: nowrap; cursor: pointer; }
+  .pe .pe-tabs button[aria-selected="true"] { background: var(--surface); box-shadow: var(--lift, var(--shadow-1)); font-weight: var(--weight-bold); }
+  .pe-tabs .pe-pill { padding: 0 8px 0 6px; }
+  .pe[data-tab="form"] .pe-yaml, .pe[data-tab="yaml"] .pe-form, .pe:not([data-tab="problems"]) .pe-problem-list,
+  .pe:not([data-tab="problems"]) .pe-more, .pe[data-tab="problems"] .pe-panes { display: none; }
+  .pe-problems { padding: var(--space-3) var(--space-4); }
+  .pe-problem { grid-template-columns: 6.8em minmax(0, 1fr); }
+  .pe-problem .pe-line { grid-column: 2; justify-self: start; }
+  .pe-index { position: static; }
+  .pe-head-actions { margin-left: 0; }
+  .pe .pe-switch { margin-left: 0; }
+  .pe-row, .pe-row-quadlet { grid-template-columns: minmax(0, 1fr); }
+  .pe-row:has(.pe-quadlet-key) { grid-template-columns: minmax(0, 1fr) auto; }
+  .pe-row:has(.pe-quadlet-key) .pe-quadlet-key { grid-column: 1 / -1; }
+  .pe-card { padding: var(--space-4); }
+  body.pe-page { padding: var(--space-4); }
+  .pe .pe-button { white-space: normal; }
+}

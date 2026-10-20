@@ -20,6 +20,40 @@ Every field is described in the
 [package format reference](../reference/packages.md). This page goes
 through them in the order you'll need them.
 
+## The package editor
+
+The **package editor** writes a package with you, in your browser:
+
+- on [roostack.cloud](https://roostack.cloud/package-editor), or
+  [downloaded](https://roostack.cloud/package-editor/roostack-package-editor.html)
+  as one file that works with no network;
+- in your lab, as the Owner: **Services → Add a service → Add your own →
+  Write one in the package editor**.
+
+Start from the app's **Docker Compose file** (and its `.env`, if it has
+one), a package file, or one of the three above. From a Compose file,
+the editor converts what fits (images, ports, folders, environment,
+databases, health checks, what starts after what) and lists what it
+didn't, and why: what Roostack doesn't allow (the Docker socket, a
+privileged container), what Roostack does itself (restarts, the
+database's own password), and what's over to you (the image's digest,
+memory, where people sign in).
+
+The form and the YAML sit side by side and follow each other; your
+comments stay. Each field has its help, with suggestions you can take
+in one click (a licence's `-only` or `-or-later`, sign-in paths, which
+folders are backed up). **Problems** lists what `roostack validate`
+would refuse (validation errors), what the service registry's package
+policy would refuse (registry errors) and the suggestions; each opens
+its field and its line. Tick **For my own lab only** for a package you'll
+only add to your own lab: registry errors are then allowed, as with
+`roostack validate -local`.
+
+The editor checks a package as `roostack validate` does, with one
+exception: it can't render the templates, so it checks only what they
+name. `roostack validate`, or **Check with this Roostack** in your lab,
+does the rest.
+
 ## Name and version
 
 ```yaml

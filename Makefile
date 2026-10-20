@@ -13,7 +13,7 @@ ifneq ($(REGISTRY_DEV_KEY),)
 LDFLAGS += -X roostack.cloud/roostack/internal/registry.devRootKey=$(REGISTRY_DEV_KEY)
 endif
 
-.PHONY: build help release verify-release test golden vet caddy-check check-images
+.PHONY: build help release verify-release test editor-test golden vet caddy-check check-images
 
 # Linux binaries for the machine's own architecture, or another with
 # GOARCH=arm64 (or amd64).
@@ -50,8 +50,14 @@ release:
 verify-release:
 	scripts/verify-release.sh "$(VERSION)"
 
-test:
+test: editor-test
 	go test ./...
+
+# The package editor's JavaScript tests, with Node 20 or later: its checks
+# against pkgspec's on every package of the corpus, the Compose import and
+# the suggestions (SPEC.md §8.3.7). No packages to install.
+editor-test:
+	node --test internal/editor/test/*.test.js
 
 # Rewrite generator golden files after an intended output change; review the diff.
 golden:

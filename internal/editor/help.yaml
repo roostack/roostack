@@ -1,0 +1,515 @@
+# Help for every field of the package format, shown under the field in
+# the package editor (SPEC.md §8.3.7, "The package editor"). A test
+# (TestSchemaFile) fails if a field has none, or if an entry names a field
+# that doesn't exist; it writes them into static/schema.js.
+#
+# Paths: a map's entries are *, a list's items []. Each entry has:
+#   label    what the form calls the field
+#   help     a sentence or two: what it's for, and how to get it right
+#   example  a value, shown as the input's placeholder
+#   link     the help site's page and anchor, under help/docs
+#   same     another entry's path, for one that says the same
+#
+# Sections (about, containers.*, …) may have an entry too: its help is
+# shown at the top of the section.
+
+schema:
+  label: Schema
+  help: Which version of the package format this is. Always roostack/v1alpha1 for now.
+  example: roostack/v1alpha1
+  link: reference/packages#the-parts
+name:
+  label: Name
+  help: Lowercase letters, digits and dashes, starting with a letter. It names the service's folders, containers and backups, so it can't change once people use it.
+  example: myapp
+  link: packages/write#name-and-version
+title:
+  label: Title
+  help: The app's name as people know it, shown in the catalog and on the service's page.
+  example: My App
+  link: packages/write#name-and-version
+description:
+  label: Description
+  help: What it does, in one line, for the list of services. Say what people get, not how it works.
+  example: Keeps your notes and finds them again
+  link: packages/write#name-and-version
+version:
+  label: Version
+  help: The app's own version, then -roostack. and the package's revision, starting at 1. A better package for the same app version is a new revision, in a new file.
+  example: 2.4.1-roostack.1
+  link: packages/write#name-and-version
+
+about:
+  label: The project
+  help: Facts about the project the package runs, shown in the catalog and on roostack.cloud/services, and checked when the package is reviewed. Registry packages need most of them; one for your own lab may leave them out.
+  link: packages/write#the-project
+about.maker:
+  label: Who makes it
+  help: Who makes the app, in a few words, so the catalog credits them.
+  example: a volunteer community
+  link: reference/packages#the-parts
+about.website:
+  label: Website
+  help: The project's own site, an https:// address. Leave it out if the project has none beyond its code.
+  example: https://myapp.example
+  link: reference/packages#the-parts
+about.source:
+  label: Source code
+  help: Where the app's code is published, an https:// address. An app whose code isn't published (licence closed) has none.
+  example: https://github.com/example/myapp
+  link: reference/packages#the-parts
+about.licence:
+  label: Licence
+  help: The app's licence as an SPDX identifier, taken from the project's own licence file or notice. For the GNU licences, say -only or -or-later as the notice does. For an app whose code isn't published, closed.
+  example: AGPL-3.0-only
+  link: packages/write#the-project
+about.support:
+  label: Donations
+  help: The project's own page for donating or sponsoring, if it has one.
+  example: https://opencollective.com/myapp
+  link: reference/packages#the-parts
+about.releases:
+  label: What's new
+  help: Where the project says what's new in each version, with {version} where the app's version goes (without -roostack.N), or one page for every version. A service's update links to it.
+  example: https://github.com/example/myapp/releases/tag/v{version}
+  link: packages/write#the-project
+about.icon:
+  label: Logo
+  help: The project's logo, a PNG file beside the package file (icon.png in the registry), square, at least 256×256 pixels and at most 100 KB.
+  example: icon.png
+  link: packages/write#the-project
+about.categories:
+  label: Categories
+  help: One to three, for the catalog's filters.
+  link: reference/packages#the-parts
+about.keywords:
+  label: Keywords
+  help: Up to ten words or short phrases people might search for, beyond the app's name.
+  example: notes, wiki, markdown
+  link: reference/packages#the-parts
+
+requires:
+  label: What it needs
+  link: reference/packages#the-parts
+requires.roostack:
+  label: Oldest Roostack
+  help: The oldest Roostack release the package works with, such as 0.6 or 0.6.1. The one you tried it on, unless you know better. A lab running an older one doesn't offer it.
+  example: "0.6"
+  link: packages/write#the-project
+
+upgrade_notes:
+  label: Upgrade notes
+  help: What to know before updating, shown before a service updates. Keep the notes still needed from earlier versions, so someone updating past several at once sees all of them.
+  link: reference/packages#the-parts
+upgrade_notes[].version:
+  label: Arrived in
+  help: The package version the note arrived in.
+  example: 2.0.0-roostack.1
+  link: reference/packages#the-parts
+upgrade_notes[].note:
+  label: Note
+  help: What to know or do, in a sentence or two.
+  example: Version 2 moves sharing links to a new address; send new ones to people you shared with.
+  link: reference/packages#the-parts
+
+settings:
+  label: Settings
+  help: What people choose, at install and later on the service's page. Most of an app's settings stay in the app; these are the ones it needs from the start, and secrets.
+  link: packages/write#settings-setup-and-links
+settings[].key:
+  label: Key
+  help: 'Lowercase letters, digits and underscores. Templates use it as {{ .Settings.key }}, and secrets: name it.'
+  example: signups_allowed
+  link: packages/write#settings-setup-and-links
+settings[].title:
+  label: Title
+  help: The setting's name on the install form and the service's settings.
+  example: Allow anyone to create an account
+  link: packages/write#settings-setup-and-links
+settings[].description:
+  label: Description
+  help: A sentence under the title, if the title doesn't say it all.
+  link: packages/write#settings-setup-and-links
+settings[].type:
+  label: Type
+  help: 'bool (on or off), string, int (a whole number) or secret (a password or key: a Podman secret, never in a file).'
+  link: reference/packages#the-parts
+settings[].default:
+  label: Default
+  help: The value until someone chooses another. Secrets have none (use generate). A bool can be auto, on when the server has a GPU.
+  link: reference/packages#the-parts
+settings[].generate:
+  label: Roostack makes it
+  help: 'For a secret: Roostack creates a random value, so nobody has to think of one.'
+  link: packages/write#settings-setup-and-links
+settings[].required:
+  label: Required
+  help: 'For a string: it can''t be left empty.'
+  link: reference/packages#the-parts
+settings[].min_length:
+  label: Shortest
+  help: For a string or secret, the fewest characters accepted, such as 8 for a password.
+  example: "8"
+  link: reference/packages#the-parts
+settings[].install_only:
+  label: Only at install
+  help: Asked for at install and used only by install hooks, such as the first administrator's password. A secret like this is deleted once setup has run.
+  link: packages/write#settings-setup-and-links
+settings[].reveal:
+  label: Admins can see it
+  help: 'For a secret that''s kept: Admins can show it on the service''s page (each view is logged), such as a token for the app''s own admin page.'
+  link: reference/packages#the-parts
+settings[].install_value:
+  label: Value during install
+  help: 'Used until the install hooks succeed, whatever was chosen, then the chosen value. For an app that makes its first account only by signing up: sign-ups on while the hook signs the Owner up, then off. Needs an install hook.'
+  link: packages/write#settings-setup-and-links
+
+containers:
+  label: Containers
+  help: 'The app''s containers, each from an image the project publishes itself. Databases aren''t containers here: declare them under databases, and Roostack runs them.'
+  link: packages/write#containers-and-images
+containers.*.image:
+  label: Image
+  help: The project's own image, pinned to its tag and its multi-architecture digest (name:tag@sha256:…), so every lab runs the image you tried.
+  example: docker.io/example/myapp:2.4.1@sha256:…
+  link: packages/write#containers-and-images
+containers.*.command:
+  label: Command
+  help: What the container runs, if not the image's own command, one argument per item. Templates work here.
+  link: reference/packages#the-parts
+containers.*.env:
+  label: Environment
+  help: Settings as environment variables, as the app's documentation lists them. Values can be templates, such as {{ .Routes.web.URL }} for the app's own address.
+  link: packages/write#containers-and-images
+containers.*.secrets:
+  label: Secrets
+  help: Passwords and keys as environment variables, each pointing at a secret setting, databases.<name>.password, or databases.<name>.url (Postgres's whole address). Roostack keeps them as Podman secrets, never in a file.
+  link: packages/write#containers-and-images
+containers.*.mounts:
+  label: Mounts
+  help: The app's data folders, each a storage entry mounted at a path, or the media libraries the Owner chose.
+  link: packages/write#data
+containers.*.mounts[].storage:
+  label: Storage
+  help: Which storage entry to mount.
+  example: data
+  link: packages/write#data
+containers.*.mounts[].libraries:
+  label: Media libraries
+  help: Mount the media libraries the Owner chose for the service instead, each in a folder of its name under the path, read-only and never backed up.
+  link: reference/packages#the-parts
+containers.*.mounts[].path:
+  label: Path
+  help: Where it appears inside the container, from the app's documentation.
+  example: /data
+  link: packages/write#data
+containers.*.mounts[].readonly:
+  label: Read-only
+  help: The container can read it but not change it.
+  link: reference/packages#the-parts
+containers.*.devices:
+  label: Devices
+  help: Hardware the container asks for, such as a GPU for transcoding or recognising faces.
+  link: reference/packages#the-parts
+containers.*.devices[].gpu:
+  label: GPU
+  help: The kind of GPU; intel for now.
+  example: intel
+  link: reference/packages#the-parts
+containers.*.devices[].when:
+  label: When
+  help: A template that renders true or false; the device is asked for only when true.
+  example: "{{ .Settings.hardware_transcoding }}"
+  link: reference/packages#templates
+containers.*.health:
+  label: Health check
+  help: How Roostack tells the container is working. Set http or cmd, not both.
+  link: packages/write#containers-and-images
+containers.*.health.http.port:
+  label: Port
+  help: The port inside the container to ask.
+  example: "8080"
+  link: packages/write#containers-and-images
+containers.*.health.http.path:
+  label: Path
+  help: The address to ask; any answer below 500 means it's working. Many apps have one, such as /health or /api/status.
+  example: /health
+  link: packages/write#containers-and-images
+containers.*.health.cmd:
+  label: Command
+  help: A command run inside the container instead; it works when it exits with 0.
+  example: pg_isready
+  link: reference/packages#the-parts
+containers.*.depends_on:
+  label: Starts after
+  help: What has to start first, such as databases.main or containers.worker.
+  example: databases.main
+  link: packages/write#containers-and-images
+containers.*.when:
+  label: When
+  help: A template that renders true or false; the container is left out unless it's true. For optional parts, so turned-off features don't use memory.
+  example: "{{ .Settings.smart_search }}"
+  link: reference/packages#templates
+containers.*.memory:
+  label: Memory
+  help: What it typically uses, such as 300 MB or 1.5 GB (1 GB is 1000 MB), for the summary shown before installing. An estimate, not a limit; measure it once it runs.
+  example: 300 MB
+  link: packages/try#measure-its-memory
+containers.*.quadlet:
+  label: Quadlet lines
+  help: Extra lines for the container's Quadlet file, by section, for what the format doesn't cover. Only the keys the package policy allows, such as UserNS=keep-id:uid=1000,gid=1000 for an app whose files need that owner.
+  link: reference/packages#what-a-package-may-not-do
+
+storage:
+  label: Data
+  help: Every folder the app writes to that should survive a restart. Getting the classes right is the most important part of a package.
+  link: packages/write#data
+storage.*.title:
+  label: What it holds
+  help: A few words for people, for the summary before installing ("Your notes and attachments"). At most 60 characters.
+  example: Your notes and attachments
+  link: packages/write#data
+storage.*.class:
+  label: Backed up
+  help: critical is backed up; replaceable isn't, because the app makes it again (caches, thumbnails, converted files). Anything people would miss is critical.
+  link: packages/write#data
+storage.*.location:
+  label: Where
+  help: service (Roostack's service folder) or media (the large data disk, if there is one), for large data such as photos and documents.
+  link: reference/packages#the-parts
+
+databases:
+  label: Databases
+  help: Databases Roostack runs, makes passwords for and backs up consistently. Declare them here rather than running your own container.
+  link: packages/write#data
+databases.*.type:
+  label: Type
+  help: sqlite (a file in the app's storage), postgres, mysql, mariadb or redis (a container of their own). Roostack runs Postgres 17, MySQL 8.4, MariaDB 11.8 and Valkey.
+  link: packages/write#data
+databases.*.path:
+  label: File
+  help: For sqlite, the file's place in a storage folder, as storage/file. Roostack copies it safely before each backup.
+  example: data/db.sqlite3
+  link: packages/write#data
+databases.*.image:
+  label: Image
+  help: Another image instead of Roostack's own, pinned by digest, for an app that needs extensions (Immich's Postgres).
+  link: reference/packages#the-parts
+databases.*.backup:
+  label: Backed up
+  help: Leave it out to back the database up. false for a Redis used only as a queue or cache, which is safe to lose.
+  link: packages/write#data
+databases.*.memory:
+  label: Memory
+  help: What it typically uses, if not Roostack's estimate (200 MB for Postgres, 500 MB for MySQL, 150 MB for MariaDB, 50 MB for Redis).
+  example: 200 MB
+  link: reference/packages#the-parts
+databases.*.quadlet:
+  same: containers.*.quadlet
+
+routes:
+  label: Web addresses
+  help: Where people reach the app. Every address starts private (home only); the Owner makes it public, and the package says what's safe then.
+  link: packages/write#its-web-address
+routes.*.container:
+  label: Container
+  help: The container that answers.
+  link: packages/write#its-web-address
+routes.*.port:
+  label: Port
+  help: The port inside the container, from the app's documentation (in a Compose file, the second number of 8080:80).
+  example: "8080"
+  link: packages/write#its-web-address
+routes.*.subdomain:
+  label: Subdomain
+  help: The default name before your lab's domain, such as notes for notes.smith.family. People can change it.
+  example: notes
+  link: packages/write#its-web-address
+routes.*.exposure:
+  label: Exposure
+  help: Always private in a package; only the Owner makes an address public.
+  link: packages/write#its-web-address
+routes.*.max_body_size:
+  label: Largest upload
+  help: The largest request the app accepts, for apps people upload large files to, such as 100MB.
+  example: 100MB
+  link: reference/packages#the-parts
+routes.*.client_ip_header:
+  label: Visitor's address header
+  help: For an app that reads the visitor's address from a header other than X-Forwarded-For, such as X-Real-IP. Roostack sets it, replacing any the visitor sent.
+  example: X-Real-IP
+  link: reference/packages#the-parts
+routes.*.monitor:
+  label: Monitoring
+  help: How monitoring checks the address, for an app whose usual answer doesn't say it works. Most packages leave it out.
+  link: servers/monitoring
+routes.*.monitor.path:
+  label: Path
+  help: The address to ask instead of the health check's or /.
+  example: /api/health
+  link: servers/monitoring
+routes.*.monitor.statuses:
+  label: Statuses
+  help: The HTTP statuses that count as up, instead of any below 500.
+  example: "200"
+  link: servers/monitoring
+routes.*.public:
+  label: Once it's public
+  help: What's safe once the Owner makes the address public. A registry package names where people sign in, or says why the address shouldn't be public at all.
+  link: packages/write#its-web-address
+routes.*.public.unsafe:
+  label: Not safe to make public
+  help: Why the whole address shouldn't be public, such as an API with no login. The Owner sees it as a warning, and can still go ahead.
+  link: packages/write#its-web-address
+routes.*.public.private_paths:
+  label: Home-only paths
+  help: Paths, and everything under them, that stay home-only on a public address, such as an admin page.
+  link: packages/write#its-web-address
+routes.*.public.private_paths[].path:
+  label: Path
+  help: 'Plain, starting with /, with letters, digits and - _ . : between the slashes, and no * or trailing /.'
+  example: /admin
+  link: packages/write#its-web-address
+routes.*.public.private_paths[].reason:
+  label: Why
+  help: Why it shouldn't be public, shown to the Owner if they open it anyway.
+  example: The app's admin pages, which change every account.
+  link: packages/write#its-web-address
+routes.*.public.login_paths:
+  label: Where people sign in
+  help: The addresses that check a password. Outside visitors get a strict limit on tries there, so nobody can guess passwords quickly.
+  example: /login
+  link: packages/write#its-web-address
+
+ports:
+  label: Extra connections
+  help: 'Connections that aren''t web pages, such as Git over SSH: a container''s port published on the server, off unless the Admin turns it on.'
+  link: reference/packages#the-parts
+ports.*.title:
+  label: Title
+  help: What the connection is, as people see it.
+  example: Git over SSH
+  link: reference/packages#the-parts
+ports.*.description:
+  label: Description
+  help: A sentence on what it's for.
+  link: reference/packages#the-parts
+ports.*.container:
+  label: Container
+  help: The container whose port it is.
+  link: reference/packages#the-parts
+ports.*.port:
+  label: Port inside
+  help: The port inside the container.
+  example: "22"
+  link: reference/packages#the-parts
+ports.*.protocol:
+  label: Protocol
+  help: tcp (the default) or udp.
+  link: reference/packages#the-parts
+ports.*.host_port:
+  label: Port on the server
+  help: The suggested port on the server, 1024 or above; the Admin can change it.
+  example: "2222"
+  link: reference/packages#the-parts
+ports.*.enabled:
+  label: On by default
+  help: Turn it on when the service is installed. Most leave it off.
+  link: reference/packages#the-parts
+ports.*.exposure:
+  label: Exposure
+  help: Always private in a package (home only); only the Owner opens a connection to the internet.
+  link: reference/packages#the-parts
+
+hooks:
+  label: Setup and actions
+  help: Commands run inside a container, once after the first start (install) or as a button on the service's page (action). Values people type reach them only as environment variables.
+  link: packages/write#settings-setup-and-links
+hooks[].on:
+  label: When
+  help: install runs once after the first start, and must be safe to run twice; action is a button on the service's page.
+  link: packages/write#settings-setup-and-links
+hooks[].name:
+  label: Name
+  help: For an action, lowercase letters, digits and dashes, used in its address.
+  example: reset-password
+  link: reference/packages#the-parts
+hooks[].title:
+  label: Title
+  help: For an action, the button's label.
+  example: Reset a password
+  link: reference/packages#the-parts
+hooks[].description:
+  label: Description
+  help: What it does, shown beside the button.
+  link: reference/packages#the-parts
+hooks[].container:
+  label: Container
+  help: The container it runs in.
+  link: reference/packages#the-parts
+hooks[].command:
+  label: Command
+  help: 'Run as it is, one argument per item, with no templates: settings and inputs arrive as environment variables, so they can''t change what a script does.'
+  link: packages/write#settings-setup-and-links
+hooks[].env:
+  label: Environment
+  help: Environment variables for the command; values can be templates, such as {{ .Settings.admin_username }} or an action's {{ .Inputs.username }}.
+  link: reference/packages#templates
+hooks[].secrets:
+  label: Secrets
+  help: Secret settings as environment variables, or for an action inputs.<key> for a secret input.
+  link: reference/packages#the-parts
+hooks[].inputs:
+  label: Inputs
+  help: 'For an action, what to ask for when it runs: strings or secrets.'
+  link: reference/packages#the-parts
+hooks[].inputs[].key:
+  same: settings[].key
+hooks[].inputs[].title:
+  same: settings[].title
+hooks[].inputs[].description:
+  same: settings[].description
+hooks[].inputs[].type:
+  label: Type
+  help: string or secret.
+  link: reference/packages#the-parts
+hooks[].inputs[].default:
+  label: Default
+  help: Not for inputs.
+  link: reference/packages#the-parts
+hooks[].inputs[].generate:
+  same: hooks[].inputs[].default
+hooks[].inputs[].required:
+  same: settings[].required
+hooks[].inputs[].min_length:
+  same: settings[].min_length
+hooks[].inputs[].install_only:
+  same: hooks[].inputs[].default
+hooks[].inputs[].reveal:
+  same: hooks[].inputs[].default
+hooks[].inputs[].install_value:
+  same: hooks[].inputs[].default
+
+links:
+  label: Links into the app
+  help: The app's own settings pages, shown first under Settings on the service's page.
+  link: packages/write#settings-setup-and-links
+links[].title:
+  label: Title
+  example: Site administration
+  help: The link's text.
+  link: reference/packages#the-parts
+links[].description:
+  label: Description
+  help: What's there, and who can use it.
+  link: reference/packages#the-parts
+links[].route:
+  label: Web address
+  help: Which of the package's web addresses it's on.
+  example: web
+  link: reference/packages#the-parts
+links[].path:
+  label: Path
+  help: The page's path, starting with a single /.
+  example: /admin
+  link: reference/packages#the-parts

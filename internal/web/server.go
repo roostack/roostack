@@ -25,6 +25,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/editor"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
@@ -298,6 +299,9 @@ type ServiceCatalog interface {
 	// The Owner's own packages ("Add your own", SPEC.md §8.3.4): adding
 	// (or replacing) one, removing one, and the folder they're kept in.
 	AddLocalPackage(data, icon []byte) (*pkgspec.Package, error)
+	// CheckLocalPackage checks one without adding it, for the package
+	// editor's Check with this Roostack (SPEC.md §8.3.7).
+	CheckLocalPackage(data []byte) (manager.LocalPackageCheck, error)
 	RemoveLocalPackage(name string) error
 	LocalPackagesDir() string
 	Remove(ctx context.Context, name string) error
@@ -490,7 +494,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	if s.help, err = newHelpSite(helpFS); err != nil {
 		return nil, err
 	}
-	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "local-add", "install", "remove", "setup-timezone", "setup-ssh",
+	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "local-add", "local-editor", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
 		"home", "services", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
@@ -515,6 +519,9 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	static, _ := fs.Sub(staticFS, "static")
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", staticHandler(static)))
+	// The package editor's own files (SPEC.md §8.3.7), the same as
+	// roostack.cloud serves.
+	mux.Handle("GET /editor/", http.StripPrefix("/editor/", staticHandler(editor.Files())))
 	mux.Handle("GET /help/", s.help.Handler())
 	mux.Handle("GET /help", http.RedirectHandler("/help/", http.StatusMovedPermanently))
 
@@ -704,6 +711,8 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /catalog", s.require(auth.ManageServices, s.catalogPage))
 	mux.Handle("GET /catalog/ready", s.require(auth.ManageServices, s.catalogReady))
 	mux.Handle("GET /catalog/add", s.requireOwner(s.localAddPage))
+	mux.Handle("GET /catalog/editor", s.requireOwner(s.localEditorPage))
+	mux.Handle("POST /catalog/editor/check", s.requireOwner(s.localEditorCheck))
 	mux.Handle("POST /catalog/add", s.requireOwner(s.localAddSubmit))
 	mux.Handle("POST /catalog/{name}/remove", s.requireOwner(s.localRemoveSubmit))
 	mux.Handle("GET /install/{name}", s.require(auth.ManageServices, s.installPage))

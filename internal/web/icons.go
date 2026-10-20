@@ -45,6 +45,11 @@ var icons = map[string]string{
 	"warn":     `<path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/>`,
 	"chevron":  `<path d="m10 7 5 5-5 5"/>`,
 	"plus":     `<path d="M12 5v14M5 12h14"/>`,
+	// The package editor's (SPEC.md §8.3.7): importing a file, and a
+	// suggestion. internal/editor/static/editor.js draws its own copies
+	// (TestEditorIcons).
+	"import": `<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/>`,
+	"spark":  `<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>`,
 	// Roostack's own services.
 	"proxy":    `<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>`,
 	"store":    `<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/>`,

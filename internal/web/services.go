@@ -112,7 +112,7 @@ func (s *Server) catalogPage(w http.ResponseWriter, r *http.Request) {
 	if added := r.URL.Query().Get("added"); added != "" {
 		for _, it := range items {
 			if it.Name == added && it.Local {
-				data["Added"] = it.Title
+				data["Added"] = it
 			}
 		}
 		// Services installed from an older version of it can update now

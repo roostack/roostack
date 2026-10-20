@@ -16,7 +16,9 @@ containers, YAML and a terminal.
 
 ## Just for your lab
 
-1. [Write the package](write.md), starting from one in the registry.
+1. [Write the package](write.md), starting from one in the registry, or
+   from the app's Docker Compose file in
+   [the package editor](write.md#the-package-editor).
 2. Check it with `roostack validate -local` (see
    [Check it](write.md#check-it)).
 3. Add it to your lab with [Add your own](../services/add.md#your-own),

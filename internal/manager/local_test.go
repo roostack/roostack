@@ -217,3 +217,33 @@ func TestInstallChecksPolicy(t *testing.T) {
 	}
 	m.Wait()
 }
+
+// The package editor's Check with this Roostack says all that adding the
+// package would, without adding it, and how it stands with the package
+// policy (SPEC.md §8.3.7).
+func TestCheckLocalPackage(t *testing.T) {
+	m, _ := newManager(t)
+	data := pkgtest.Read(t, "forgejo")
+
+	c, err := m.CheckLocalPackage(data)
+	if err != nil || len(c.Errors) != 0 || len(c.Policy) != 0 || len(c.Risks) != 0 {
+		t.Fatalf("a good package: %+v %v", c, err)
+	}
+	if m.IsLocal("forgejo") {
+		t.Error("checking added it")
+	}
+	c, _ = m.CheckLocalPackage(unpinned(data))
+	if len(c.Errors) != 0 || len(c.Risks) != 1 || len(c.Policy) != 1 || !strings.Contains(c.Risks[0], "pin the image by digest") {
+		t.Errorf("an unpinned image: %+v", c)
+	}
+	c, _ = m.CheckLocalPackage([]byte("schema: roostack/v1alpha1\nname: Bad\n"))
+	if len(c.Errors) < 2 || !strings.Contains(strings.Join(c.Errors, "\n"), `name: "Bad" must be lowercase`) {
+		t.Errorf("an invalid package: every problem, one a line: %+v", c)
+	}
+	// What adding refuses, all at once: the registry's name, and too new.
+	m.Version = "v0.0.5"
+	c, _ = m.CheckLocalPackage(pkgtest.Read(t, "vaultwarden"))
+	if all := strings.Join(c.Errors, "\n"); !strings.Contains(all, "needs Roostack 0.1 or newer") || !strings.Contains(all, "has a package called vaultwarden already") {
+		t.Errorf("adding would refuse it twice over: %+v", c)
+	}
+}

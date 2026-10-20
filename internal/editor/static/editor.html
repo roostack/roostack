@@ -1,0 +1,132 @@
+<!-- Roostack's package editor (SPEC.md §8.3.7, "The package editor"). The
+     same markup in Roostack, on roostack.cloud and in the single-file
+     download; editor.js reads the data attributes (where it runs, the
+     Roostack version, the help site, the lab's addresses) and fills the
+     form and the YAML. Shown only to pages with scripts: without them,
+     the note below says so. -->
+<div class="pe" data-editor data-view="start">
+  <noscript><p class="pe-note">The package editor runs in your browser, so it needs JavaScript.</p></noscript>
+
+  <div class="pe-head">
+    <div class="pe-head-title">
+      <h1>Package editor</h1>
+      <p class="pe-lede pe-only-roostack">Write a package for a service of your own. It all happens in your browser: nothing is sent to your lab until you choose <strong>Check with this Roostack</strong> or <strong>Add to this lab</strong>.</p>
+      <p class="pe-lede pe-only-standalone">Write a package for Roostack: a service for your own lab, or for the <a href="https://github.com/roostack/services" rel="noopener">service registry</a>. It all happens in your browser, and nothing you type is sent anywhere.</p>
+    </div>
+    <div class="pe-head-actions pe-only-edit">
+      <button type="button" class="pe-button secondary" data-act="start">Start again</button>
+      <button type="button" class="pe-button secondary" data-act="download">Download <span data-file>package.yaml</span></button>
+      <button type="button" class="pe-button secondary pe-only-roostack" data-act="check">Check with this Roostack</button>
+      <button type="button" class="pe-button pe-only-roostack" data-act="add">Add to this lab…</button>
+    </div>
+  </div>
+
+  <!-- ============ Start ============ -->
+  <section class="pe-view" data-view-name="start" aria-label="Start">
+    <div class="pe-draft" data-draft hidden>
+      <p><strong>Carry on where you left off?</strong> <span data-draft-what></span></p>
+      <button type="button" class="pe-button" data-act="draft">Carry on</button>
+    </div>
+    <div class="pe-starts">
+      <button type="button" class="pe-start" data-act="import-view">
+        <span class="pe-icon" data-icon="import"></span><strong>Import from Docker Compose</strong>
+        <span>Paste or open the app's <code>compose.yaml</code>. What fits Roostack comes across; the rest is listed, with why.</span>
+      </button>
+      <button type="button" class="pe-start" data-act="open">
+        <span class="pe-icon" data-icon="documents"></span><strong>Open a package file</strong>
+        <span>A <code>.yaml</code> package you started before, or one from the service registry to change.</span>
+      </button>
+      <button type="button" class="pe-start" data-act="scratch">
+        <span class="pe-icon" data-icon="plus"></span><strong>Start from scratch</strong>
+        <span>An empty package with the parts every one needs.</span>
+      </button>
+    </div>
+    <input type="file" accept=".yaml,.yml,text/yaml" data-open-file hidden>
+    <div class="pe-card pe-examples">
+      <h2>Or start from an example</h2>
+      <p class="pe-hint">The service registry's packages closest to most apps, as <a data-help-link="packages/write" href="#">Write a package</a> describes them.</p>
+      <div class="pe-example-list" data-examples></div>
+    </div>
+    <p class="pe-hint pe-only-roostack">Already wrote one? <a href="/catalog/add">Add it from a file</a>.</p>
+    <p class="pe-hint pe-only-website">It works without a network too: <a href="/package-editor/roostack-package-editor.html" download>download the editor</a> (one file) and open it in your browser.</p>
+  </section>
+
+  <!-- ============ Import ============ -->
+  <section class="pe-view" data-view-name="import" aria-label="Import from Docker Compose">
+    <div class="pe-import">
+      <div class="pe-card">
+        <h2>The app's Compose file</h2>
+        <p class="pe-hint">Paste it below, or <button type="button" class="pe-link" data-act="open-compose">open a file</button>. Only this file is read: an <code>env_file</code> or <code>.env</code> isn't, so paste what's in it in the second box if you want its values.</p>
+        <label class="pe-label" for="pe-compose">compose.yaml</label>
+        <textarea id="pe-compose" class="pe-code pe-textarea" rows="18" spellcheck="false" autocomplete="off" data-compose placeholder="services:
+  app:
+    image: …"></textarea>
+        <details class="pe-env">
+          <summary>Its .env (optional)</summary>
+          <label class="pe-label" for="pe-env">.env</label>
+          <textarea id="pe-env" class="pe-code pe-textarea" rows="5" spellcheck="false" autocomplete="off" data-env placeholder="DB_PASSWORD=…"></textarea>
+        </details>
+        <input type="file" accept=".yaml,.yml,text/yaml" data-compose-file hidden>
+        <p class="pe-error" data-import-error role="alert" hidden></p>
+        <div class="pe-actions"><button type="button" class="pe-button" data-act="import">Import</button><button type="button" class="pe-button secondary" data-act="start">Back</button></div>
+      </div>
+      <div class="pe-card pe-report" data-report hidden>
+        <h2>What came across</h2>
+        <p data-report-summary></p>
+        <div data-report-groups></div>
+        <div class="pe-actions"><button type="button" class="pe-button" data-act="imported">Open in the editor</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Edit ============ -->
+  <section class="pe-view" data-view-name="edit" aria-label="Edit">
+    <details class="pe-card pe-imported" data-imported hidden>
+      <summary>What the import did</summary>
+      <div data-imported-groups></div>
+    </details>
+
+    <div class="pe-card pe-server" data-server hidden aria-live="polite"></div>
+
+    <div class="pe-card pe-problems" data-problems>
+      <div class="pe-problems-head">
+        <h2>Problems</h2>
+        <div class="pe-tally" data-tally></div>
+        <label class="pe-switch"><input type="checkbox" data-local> For my own lab only <small>(allows registry errors, for local use only)</small></label>
+      </div>
+      <ol class="pe-problem-list" data-problem-list></ol>
+      <button type="button" class="pe-link pe-more" data-act="more" hidden></button>
+    </div>
+
+    <div class="pe-tabs" role="tablist" aria-label="Show">
+      <button type="button" role="tab" data-tab="form" aria-selected="true">Form</button>
+      <button type="button" role="tab" data-tab="yaml" aria-selected="false">YAML</button>
+      <button type="button" role="tab" data-tab="problems" aria-selected="false">Problems <span class="pe-pill pe-pill-bad" data-tab-count hidden></span></button>
+    </div>
+
+    <div class="pe-panes">
+      <div class="pe-form" data-pane="form">
+        <nav class="pe-index" aria-label="Parts of the package" data-index></nav>
+        <p class="pe-note pe-stale" data-stale hidden>The YAML doesn't read as YAML just now, so the form shows it as it last was. Fix the line the problems name, and the form follows again.</p>
+        <div data-form></div>
+      </div>
+      <div class="pe-yaml" data-pane="yaml">
+        <div class="pe-yaml-head">
+          <strong data-file>package.yaml</strong>
+          <span class="pe-hint">Edit either side; comments are kept.</span>
+        </div>
+        <div class="pe-editor">
+          <div class="pe-gutter" aria-hidden="true" data-gutter></div>
+          <textarea class="pe-code pe-source" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off" aria-label="The package, as YAML" data-source></textarea>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Add to this lab: a plain form, so the lab's own checks and messages
+       answer as when a file is uploaded. -->
+  <form method="post" enctype="multipart/form-data" data-add-form hidden>
+    <textarea name="package_text"></textarea>
+    <input type="file" name="icon">
+  </form>
+</div>

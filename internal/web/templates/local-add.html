@@ -6,6 +6,7 @@
   </div>
 </div>
 <section class="card narrow">
+  <p>Don't have a package file yet? <a href="/catalog/editor">Write one in the package editor</a>: it can start from the app's Docker Compose file, and checks it as you go.</p>
   {{/* Wording chosen by the Owner (2026-10-14), SPEC.md §8.3.4. */}}
   {{notice "warn" "Nobody has reviewed this package. Services from the service registry are checked before they're offered; a package you add isn't. It decides which app runs and what it's given, so only add one you wrote or got from someone you trust."}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}

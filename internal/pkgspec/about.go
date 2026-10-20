@@ -63,8 +63,8 @@ const LicenceClosed = "closed"
 
 // Category is one of the catalog's filters.
 type Category struct {
-	Key   string
-	Title string
+	Key   string `json:"key"`
+	Title string `json:"title"`
 }
 
 // Categories is the fixed list a package's categories come from, agreed
@@ -93,10 +93,12 @@ func CategoryTitle(key string) string {
 }
 
 // MaxCategories and MaxKeywords keep a package's filters and search terms
-// to the point.
+// to the point; maxMaker and maxKeyword are in bytes.
 const (
 	MaxCategories = 3
 	MaxKeywords   = 10
+	maxMaker      = 100
+	maxKeyword    = 40
 )
 
 // Requires says what a package needs to run (SPEC.md §8.3.5).
@@ -299,7 +301,7 @@ func CheckIcon(data []byte) error {
 // policy's (Policy).
 func (p *Package) validateAbout(v *validator) {
 	a := p.About
-	if len(a.Maker) > 100 {
+	if len(a.Maker) > maxMaker {
 		v.addf("about.maker: at most 100 characters; say who makes it in a few words")
 	}
 	for _, f := range []struct{ at, val string }{
@@ -345,7 +347,7 @@ func (p *Package) validateAbout(v *validator) {
 	}
 	seen := map[string]bool{}
 	for i, k := range a.Keywords {
-		if k == "" || k != strings.TrimSpace(k) || len(k) > 40 {
+		if k == "" || k != strings.TrimSpace(k) || len(k) > maxKeyword {
 			v.addf("about.keywords[%d]: %q must be a word or short phrase (up to 40 characters, no spaces around it)", i, k)
 		}
 		if seen[strings.ToLower(k)] {

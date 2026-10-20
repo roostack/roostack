@@ -1,11 +1,15 @@
 package web
 
 import (
+	"encoding/json"
 	"errors"
+	"html/template"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
+	"roostack.cloud/roostack/internal/editor"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
@@ -51,6 +55,11 @@ func (s *Server) localAddSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
+	// From the package editor, the package's text (SPEC.md §8.3.7). A
+	// browser sends a text box's lines ending CRLF; files keep LF.
+	if data == nil && r.FormValue("package_text") != "" {
+		data = []byte(strings.ReplaceAll(r.FormValue("package_text"), "\r\n", "\n"))
+	}
 	icon, err := uploaded(r, "icon")
 	if err != nil {
 		s.serverError(w, err)
@@ -67,6 +76,41 @@ func (s *Server) localAddSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "services", "added a package of their own: "+p.Name+" "+p.Version)
 	redirect(w, r, "/catalog?added="+url.QueryEscape(p.Name))
+}
+
+// localEditorPage is the package editor (SPEC.md §8.3.7, "The package
+// editor"): its markup in the page, its scripts and styles from /editor/.
+func (s *Server) localEditorPage(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	markup := editor.Markup(editor.Options{Where: editor.InRoostack, Version: s.Version, Help: "/help/",
+		Check: "/catalog/editor/check", Add: "/catalog/add"})
+	s.render(w, "local-editor", map[string]any{"User": currentUser(r), "Editor": template.HTML(markup),
+		"Scripts": editor.Scripts, "Stylesheet": editor.Stylesheet})
+}
+
+// localEditorCheck is the package editor's Check with this Roostack: the
+// lab's own checks of the package sent (as YAML), without adding it.
+func (s *Server) localEditorCheck(w http.ResponseWriter, r *http.Request) {
+	if s.Manager == nil {
+		http.NotFound(w, r)
+		return
+	}
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, manager.LocalPackageMaxBytes+1))
+	if err != nil {
+		http.Error(w, "That's too large for a package.", http.StatusRequestEntityTooLarge)
+		return
+	}
+	c, err := s.Manager.CheckLocalPackage(data)
+	if err != nil {
+		s.serverError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	json.NewEncoder(w).Encode(c)
 }
 
 // uploaded is the file sent in a form field, or nil if none was chosen.

@@ -3,7 +3,9 @@ package manager
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
+	"strings"
 
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/pkgspec"
@@ -90,11 +92,14 @@ func (m *Manager) AddLocalPackage(data, icon []byte) (*pkgspec.Package, error) {
 	if err != nil {
 		return nil, formErrorf("Roostack can't read that package: %s", err)
 	}
-	if err := generate.Check(p); err != nil {
-		return nil, formErrorf("Roostack can't set that package up: %s", err)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	problems, err := m.localProblems(p, data)
+	if err != nil {
+		return nil, err
 	}
-	if !p.RunsOn(m.Version) {
-		return nil, formErrorf("%s needs Roostack %s or newer. Update Roostack first, or change requires.roostack if it doesn't need it.", p.Title, p.Requires.Roostack)
+	if len(problems) > 0 {
+		return nil, formErrorf("%s", problems[0])
 	}
 	switch {
 	case p.About.Icon != "" && icon == nil:
@@ -104,15 +109,31 @@ func (m *Manager) AddLocalPackage(data, icon []byte) (*pkgspec.Package, error) {
 			return nil, formErrorf("The logo: %s. It must be a square PNG, at least %d×%d pixels.", err, pkgspec.IconMinSize, pkgspec.IconMinSize)
 		}
 	}
+	if err := state.SaveLocalPackage(m.Lab.Paths, p, data, icon); err != nil {
+		return nil, err
+	}
+	m.Log.Info("added a package of your own", "package", p.Name, "version", p.Version, "risks", len(p.Risks()))
+	return p, nil
+}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
+// localProblems is what stops a valid package being added as one of the
+// Owner's own, each a sentence saying what to change: it doesn't render,
+// it needs a newer Roostack, its name is the registry's, or its version is
+// in use with a different file. m.mu must be held.
+func (m *Manager) localProblems(p *pkgspec.Package, data []byte) ([]string, error) {
+	var problems []string
+	if err := generate.Check(p); err != nil {
+		problems = append(problems, fmt.Sprintf("Roostack can't set that package up: %s", err))
+	}
+	if !p.RunsOn(m.Version) {
+		problems = append(problems, fmt.Sprintf("%s needs Roostack %s or newer. Update Roostack first, or change requires.roostack if it doesn't need it.", p.Title, p.Requires.Roostack))
+	}
 	// Every name is one package (decided by the Owner, 2026-10-14). A
 	// service installed from a package of that name doesn't stop it: it
 	// may have come from this one, removed from the list since.
 	if !m.IsLocal(p.Name) {
 		if _, err := state.CatalogVersion(m.Lab.Paths, p.Name); err == nil {
-			return nil, formErrorf("The service registry has a package called %s already: give yours another name.", p.Name)
+			problems = append(problems, fmt.Sprintf("The service registry has a package called %s already: give yours another name.", p.Name))
 		}
 	}
 	// A service may use this version already, from the lab's copy, which
@@ -120,15 +141,46 @@ func (m *Manager) AddLocalPackage(data, icon []byte) (*pkgspec.Package, error) {
 	kept, err := os.ReadFile(m.Lab.Paths.LabPackageFile(p.Name, p.Version))
 	switch {
 	case err == nil && !bytes.Equal(kept, data):
-		return nil, formErrorf("A service uses %s %s already, and this file is different: give the changed package a new version.", p.Name, p.Version)
+		problems = append(problems, fmt.Sprintf("A service uses %s %s already, and this file is different: give the changed package a new version.", p.Name, p.Version))
 	case err != nil && !errors.Is(err, os.ErrNotExist):
 		return nil, err
 	}
-	if err := state.SaveLocalPackage(m.Lab.Paths, p, data, icon); err != nil {
-		return nil, err
+	return problems, nil
+}
+
+// LocalPackageCheck is what Roostack says about a package of the Owner's
+// own before it's added: the package editor's Check with this Roostack
+// (SPEC.md §8.3.7, "The package editor"). Errors stop it being added
+// (as AddLocalPackage would say); Policy is everything the registry's
+// package policy refuses, and Risks the part a package of your own is
+// confirmed with when it's installed.
+type LocalPackageCheck struct {
+	Errors []string `json:"errors"`
+	Policy []string `json:"policy"`
+	Risks  []string `json:"risks"`
+}
+
+// CheckLocalPackage checks a package as AddLocalPackage does, without
+// adding it, and says everything it finds rather than the first.
+func (m *Manager) CheckLocalPackage(data []byte) (LocalPackageCheck, error) {
+	var c LocalPackageCheck
+	if len(data) > LocalPackageMaxBytes {
+		c.Errors = []string{fmt.Sprintf("That's too large for a package (at most %d KB).", LocalPackageMaxBytes/1000)}
+		return c, nil
 	}
-	m.Log.Info("added a package of your own", "package", p.Name, "version", p.Version, "risks", len(p.Risks()))
-	return p, nil
+	p, err := pkgspec.Parse(data)
+	if err != nil {
+		c.Errors = strings.Split(err.Error(), "\n")
+		return c, nil
+	}
+	m.mu.Lock()
+	c.Errors, err = m.localProblems(p, data)
+	m.mu.Unlock()
+	if err != nil {
+		return c, err
+	}
+	c.Policy, c.Risks = p.Policy(), p.Risks()
+	return c, nil
 }
 
 // RemoveLocalPackage deletes one of the Owner's own packages. Services

@@ -51,7 +51,8 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/config` | Lab settings and **all default paths** in one place, including where the lab is (`network: home|internet`, SPEC.md §6.12) |
 | `internal/registry` | The service registry (SPEC §8.3.3): the signed index and key statement, building them from the registry repository (`roostack registry`), and the controller's fetcher (`Updater`: at start, every 4 hours, on opening the catalog) keeping `CatalogDir`. `buildkeys` reports the root keys a build trusts, for `make build` to record and `scripts/build-deb.sh` to check |
 | `internal/imagecheck` | Asks container registries which processors a pinned image has builds for (`make check-images`, the registry's index) |
-| `internal/pkgspec` | The package format (`schema: roostack/v1alpha1`), its validation, and the package policy registry packages follow (SPEC §8.3.4; `Risks` is the part shown for the Owner's own) |
+| `internal/pkgspec` | The package format (`schema: roostack/v1alpha1`), its validation, and the package policy registry packages follow (SPEC §8.3.4; `Risks` is the part shown for the Owner's own); `Describe` gives the package editor what they use |
+| `internal/editor` | The package editor (SPEC §8.3.7): plain HTML, CSS and JavaScript that run in the browser, served at `/editor/` and copied to roostack.cloud; `static/schema.js` generated from `pkgspec.Describe` and `help.yaml`, `check.js` the same checks as `pkgspec`, `compose.js` the Compose import; `Standalone` writes it as one file. Tests: Go (`TestSchemaFile`, `TestCorpusFile`) and Node (`test/`, `make editor-test`) |
 | `internal/instance` | A user's installed service, validated against its package |
 | `internal/generate` | Desired state → Quadlets, Caddy config, secrets, dirs, backup plan; the install summary |
 | `internal/quadlet` | Writing Quadlet/systemd unit files, with escaping |

@@ -653,6 +653,14 @@ func (f *fakeManager) AddLocalPackage(data, icon []byte) (*pkgspec.Package, erro
 	return pkgspec.Parse(data)
 }
 
+func (f *fakeManager) CheckLocalPackage(data []byte) (manager.LocalPackageCheck, error) {
+	p, err := pkgspec.Parse(data)
+	if err != nil {
+		return manager.LocalPackageCheck{Errors: []string{err.Error()}}, nil
+	}
+	return manager.LocalPackageCheck{Policy: p.Policy(), Risks: p.Risks()}, nil
+}
+
 func (f *fakeManager) RemoveLocalPackage(name string) error {
 	if !f.local[name] {
 		return manager.ErrNotFound

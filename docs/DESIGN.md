@@ -175,6 +175,10 @@ Template components are called as functions; everything else is plain HTML with 
 | Ranked list | `{{template "rank-list" .Ranks}}` (`[]rankView`) | Names by count with a bar for each one's share; the rest (`Other`) muted |
 | Choice of period | `nav.period-choice` of links, the current one `aria-current` | How far back a set of figures goes |
 
+### The package editor's own styles
+
+The package editor (`internal/editor`, SPEC §8.3.7) runs in Roostack, on roostack.cloud and opened from a file with only `tokens.css`, so it carries its own styles: `internal/editor/static/editor.css`, every rule under `.pe`, from the purpose tokens and scales only (no raw colours), and looking like the components above (buttons, inputs, cards, pills, chips). Its buttons start plain (`:where(.pe) button`), since `app.css` styles every button as a main action, and `app.css`'s indented open `<details>` leaves `.pe details` alone. Its parts aren't in the gallery: nothing else uses them, and the editor's own page shows them all. Its icons are Roostack's (`import` and `spark` were added for it); `editor.js` draws copies, which `TestEditorIcons` keeps the same. The look was chosen from [docs/mockups/package-editor/](mockups/package-editor/README.md) (2026-10-20).
+
 ### Adding a component
 
 1. Add its CSS to `app.css` (tokens only). If its markup is worth sharing, add a template to `components.html` and a function to `components.go` that checks its arguments (a wrong argument should be an error, not a quietly broken page).

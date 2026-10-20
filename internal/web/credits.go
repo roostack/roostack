@@ -22,6 +22,7 @@ var bundledCredits = []Credit{
 	{Name: "Go standard library", By: "The Go Authors", URL: "https://go.dev", License: "BSD-3-Clause"},
 	{Name: "htmx", URL: "https://htmx.org", License: "0BSD", Note: "Page updates without reloading"},
 	{Name: "Alpine.js", URL: "https://alpinejs.dev", License: "MIT", Note: "Small interactive bits of pages"},
+	{Name: "yaml", By: "Eemeli Aro", URL: "https://eemeli.org/yaml", License: "ISC", Note: "Reading and writing YAML in the package editor, comments kept"},
 	{Name: "Space Grotesk", By: "The Space Grotesk Project Authors", URL: "https://github.com/floriankarsten/space-grotesk",
 		License: "SIL Open Font License 1.1", Note: "The font for headings and figures"},
 	{Name: "SQLite for Go", By: "The Sqlite Authors", URL: "https://gitlab.com/cznic/sqlite", License: "BSD-3-Clause",

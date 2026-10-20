@@ -59,6 +59,7 @@ Key packages:
 | `cloud` | The controller's link to Roostack Cloud (linking, its certificate, unlinking); `cloudtest` fakes Cloud's side for tests |
 | `trust` | Who a connection comes from and what each class may reach: the firewall and Caddy's private list both read it |
 | `units` | The one size formatter (decimal: 1 GB = 1000³ bytes) |
+| `editor` | The package editor (HTML and JavaScript, in the browser): its checks must say what `pkgspec`'s say; a format or policy change updates `check.js` too |
 
 Where things live on a host: see the table in [README.md](README.md). Paths come from `config.Paths`; never hard-code `/srv/roostack` or `/var/lib/roostack` outside `config`.
 
@@ -71,6 +72,8 @@ make verify-release VERSION=x.y.z  # check a published release: its signature, t
 make vet          # go vet + gofmt check
 go test ./...     # all tests
 make golden       # rewrite generator golden files after an intended change; review the diff
+make editor-test  # the package editor's JavaScript tests (Node 20+), including its checks against pkgspec's
+go test ./internal/editor -update-editor   # after a package format or policy change: schema.js, examples.js, the corpus; then make editor-test
 go test ./internal/web -run TestGalleryFile -update-gallery   # regenerate docs/design/gallery.html
 make check-images # after changing an image pin: every pin has amd64 and arm64 builds (asks the registries)
 ```
