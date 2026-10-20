@@ -137,8 +137,8 @@ Immich's `model-cache`).
   its release notes).
 - **Owners and roles:** Compose's user is usually `postgres`; Roostack's
   is `immich`. `--no-owner` (as Roostack's loader already uses) makes
-  everything belong to the loading user. Unverified for Immich: whether
-  anything in its schema names a role.
+  everything belong to the loading user. Checked for Immich in the
+  rehearsal: its dump loaded as `immich` with no error (ASSUMPTIONS W1).
 - **Immich's own database backups** (`UPLOAD_LOCATION/backups/*.sql.gz`,
   made nightly by Immich) are `pg_dumpall` plain SQL, not custom format.
   They matter when the old machine is being wiped (see "Where"): loading
@@ -359,12 +359,24 @@ Immich needs                                   found in the old setup
   reads media.
 - **Stored in the instance:** `libraries:` gains an optional container
   path per library; libraries without one stay at `<package path>/<library>`.
-  Each library at its own path gets a `Volume=` line of its own
-  (read-only, `rslave`, as now). Unverified: what a library bound at its
-  own path does when its drive is unplugged. Roostack's view folders
-  exist because binding a library's mount point directly went stale, so a
-  folder per library holding its mount, bound at the path, may be needed
-  (SPEC §8.1, "On the server").
+- **Unplugging, found in the rehearsal (ASSUMPTIONS W5):** a library bound
+  straight at its own path (`Volume=…/views/plex/films:/movies:ro,rslave`)
+  works, but once its drive is unplugged and plugged back in it stays
+  broken ("Input/output error") until the service restarts, while the view
+  folder at `/media` comes back by itself. The bind takes the drive's mount,
+  not the automount under it. So, proposed:
+  - **Where the old media mounts share a parent** (`/data/movies`,
+    `/data/tv`), the service's view folder goes at that parent (`/data`),
+    each library named after its old subfolder: the view folder as it is
+    today, which comes back by itself.
+  - **Otherwise** (`/movies` and `/tv` at the top), each library is bound
+    at its path, and Roostack **restarts the service when that library's
+    drive comes back** (a Plex restart took about 10 seconds; history
+    kept). The server notices the library's mount changed (its device
+    number differs from when the service started) on its next minute's
+    check.
+  - Shares (SMB, NFS) keep one mount through a NAS's restart, so they
+    probably don't go stale; unverified.
 - **Checked like the editor's Compose import checks folders:** an
   absolute path, not `/`, nothing under `/proc`, `/sys`, `/dev`, `/etc`,
   `/usr`, `/bin`, `/lib`, `/run` and the like, not overlapping the
@@ -543,7 +555,7 @@ same image Roostack's package pins), `UPLOAD_LOCATION` at `/data` (or
 5. Check: sign in, open albums, search for something, upload from a
    phone. Immich's `.immich` files come with the folders. If the old mount
    was `/usr/src/app/upload`, Immich rewrites the paths itself at start
-   (since 1.136; unverified with a loaded dump). Look at Administration →
+   (since 1.136; seen in the rehearsal, ASSUMPTIONS W2). Look at Administration →
    Settings for the external domain (share links) and the
    machine-learning address.
 
@@ -565,7 +577,9 @@ media at `/movies`, `/tv` or similar.
    to the library holding its files and **shown at its old path** (`films`
    at `/movies`), so Plex's database, with its watch history, needs no
    change at all.
-3. Bring `config/`: the old `/config`, matched by its container path.
+3. Bring `config/`: the old `/config`, matched by its container path,
+   made readable on the copy first (`Preferences.xml` is the old
+   `PLEX_UID`'s and 0600).
    `Cache/`, `Codecs/`, `Crash Reports/`, `Logs/` and `Updates/` can be left
    out of the copy. `Preferences.xml` carries the server's identity and its
    sign-in, so it's **the same server** to plex.tv and every app: no claim
@@ -605,10 +619,13 @@ Roostack assumes it owns its server (SPEC §3: a fresh Debian 13).
   moving in place instead of copying isn't proposed (it would change the
   original). Going back means reinstalling the old system, so a backup of
   it first.
-- **Docker and Roostack side by side:** outside SPEC §3 and probably unsafe:
-  both want ports 80 and 443, and Docker's published ports skip the
-  input firewall Roostack's rules assume it controls (unverified,
-  rehearsal item 4).
+- **Docker and Roostack side by side: not safe** (rehearsal,
+  ASSUMPTIONS W7). With Roostack's firewall applied, a port Docker
+  published was still reached from outside, and Docker sets the forward
+  chain to drop, which would stop a hub forwarding between the lab's
+  servers. Both also want ports 80 and 443. The help says to move to
+  another machine, or to reinstall; Roostack could warn when it finds
+  Docker on its server.
 - **Media on a NAS:** stays there as a media library; only an app's own
   writable data (Immich's library) is copied to the server.
 
@@ -630,8 +647,9 @@ Roostack assumes it owns its server (SPEC §3: a fresh Debian 13).
 - **Matching by container path,** with the prefix lines, nested mounts
   split, and anything unmatched chosen by hand.
 - **Media libraries at their old paths,** per service (an instance field
-  and a generator change), once the rehearsal shows how an unplugged
-  drive behaves.
+  and a generator change): the view folder at the old paths' parent where
+  they share one, else each library at its path with a restart when its
+  drive comes back (§3.4).
 - **What's brought:** a folder for each storage, a dump for each database:
   Postgres custom format, MariaDB or MySQL SQL; SQLite with its folder.
 - **The check** with its generic warnings (image and version,
@@ -661,29 +679,20 @@ Roostack assumes it owns its server (SPEC §3: a fresh Debian 13).
 - Help pages for Jellyfin, Vaultwarden, Navidrome and the rest of the
   registry, each short: the tools do the rest.
 
-## 10. Rehearsal on VM 3 (not run yet: it needs Docker)
+## 10. Rehearsal on VM 3 (run 2026-10-20)
 
-To verify before building, on a throwaway VM with Docker and Roostack
-(Docker and Immich's and Plex's Compose images are new to the project, so
-they need the Owner's yes):
+Done by hand on VM 3, with Docker and Immich's and Plex's Compose images
+(the Owner's yes), then destroyed. Full results in docs/ASSUMPTIONS.md,
+section W; the scripts in [migration-rehearsal/](migration-rehearsal/).
 
-1. **Immich:** a Compose Immich at the package's version with its library
-   at `/usr/src/app/upload` and a few hundred photos; `docker inspect`
-   read and matched; a custom dump with `--no-owner`, loaded as user
-   `immich` instead of `postgres`; the folders brought in: do photos,
-   faces and smart search come back, and does Immich rewrite the paths to
-   `/data` itself? Then the same with `/data`, matched with no choices.
-2. **Plex:** a Compose Plex with a library at `/movies`, its config
-   brought in and the library shown at `/movies`: the same identity,
-   history kept, nothing to change in Plex? (A Plex account is needed to
-   claim the test server.)
-3. **A library at its own path,** on a USB drive: unplugged and plugged in
-   again while the service runs, and after a reboot.
-4. **The old-paths search** on Plex's database and Immich's dump: does it
-   find what it should, and how long does it take on a big database?
-5. **Timings** for ~10,000 files, from a USB drive and from an SMB share.
-6. **Docker beside Roostack** on one Debian 13: ports, and what reaches
-   Docker's published ports through Roostack's firewall.
+| | Result |
+|---|---|
+| **Immich** from `/usr/src/app/upload`, 243 photos and videos, two people, an album, a shared link | ✅ Moved in 26 seconds of downtime. A custom dump loaded with Roostack's own restore command, as user `immich` instead of `postgres`, with no error; Immich rewrote every path to `/data` itself; everything counted, every file on disk, old passwords work, the shared link and album are there (W1, W2) |
+| **Plex** with its films at `/movies`, one watched | ✅ Same server identity, library and history, files found after a rescan, with the films shown at `/movies` (W3). 3 of its 121 files weren't readable to Roostack, among them `Preferences.xml` (W4) |
+| **A library at its own path**, unplugged and plugged back in | ❌ Stays broken until the service restarts; the `/media` view comes back by itself (W5). Changed §3.4 |
+| **The old-paths search** | ✅ Found the old paths in Immich's dump and Plex's database (W6) |
+| **Docker beside Roostack** | ❌ Docker's published ports get past Roostack's firewall, and its forward chain drops (W7) |
+| **Timings** | Not measured: a VM's virtual disks don't say anything about real hardware (W8). The estimates stay estimates |
 
 ## 11. Decisions (the Owner chose every recommendation, 2026-10-20)
 

@@ -638,7 +638,10 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [x] The plan (docs/MIGRATION-PLAN.md): what Roostack has to build on, what moving each part of a Compose homelab takes; first drafted as a page per app, then (the Owner, 2026-10-20) as tools for a technical user: sources, the check, copy then switch, undo, help per app
 - [x] Made generic (the Owner, 2026-10-20): the old setup read from pasted `docker inspect` output or the Compose file, folders matched by container path, media libraries shown at their old paths, generic warnings in the check
 - [x] The Owner's decisions (MIGRATION-PLAN.md §11, every recommendation, 2026-10-20): the direction, sources in the first version, what to paste, libraries at their old paths, unreadable files, Postgres dump formats, the rehearsal
-- [ ] Rehearsal on VM 3, once agreed: Docker with Compose Immich and Plex, their data brought into Roostack's packages (Immich's own path rewrite, Plex with its library at its old path, a library at its own path on an unplugged drive, the old-paths search, timings, Docker beside Roostack); docs/ASSUMPTIONS.md entries
+- [x] Rehearsal on VM 3 (2026-10-20, docs/ASSUMPTIONS.md W1-W8): Immich and Plex moved by hand, the old-paths search; a library bound at its own path doesn't survive unplugging (W5); Docker beside Roostack isn't safe (W7)
+- [ ] Decide with the Owner: libraries at their old paths after W5 (the view folder at a shared parent, else a restart when the drive comes back)
+- [ ] Measure a real move's timings on real hardware (W8), and check a share bound at its own path through a NAS restart
+- [ ] Warn when Docker runs on a Roostack server (its published ports get past Roostack's firewall, W7)
 - [ ] Mock-ups of the import page and the install page's "I'll bring its data", before building
 - [ ] The first version, once agreed: read-only sources (drive, share, folder), reading the old setup and matching by container path, libraries at their old paths, the check with its generic warnings, copy and copy again, switch, undo; help: "Moving from Docker Compose", Immich, Plex
 - [ ] Later: a dump uploaded in the browser, plain SQL and `pg_dumpall`, another machine over SSH, a storage hint in the package format, help pages for Jellyfin, Vaultwarden, Navidrome
