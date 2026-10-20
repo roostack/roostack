@@ -1222,9 +1222,9 @@ The Owner wants (2026-10-13) services to pick up an app's patch releases (securi
 - Review: anyone with merge access to the registry repository may review and merge a community package; one approval.
 - The registry repository: `github.com/roostack/services`, created by the Owner (2026-10-13).
 
-### 8.4 Bringing your own data, and moving from Docker Compose — Pending (proposed 2026-10-20)
+### 8.4 Bringing your own data, and moving from Docker Compose — Locked (2026-10-20), the Owner's choices; not built
 
-**A proposal; nothing built.** Details, Immich and Plex step by step, and the decisions to make: [docs/MIGRATION-PLAN.md](docs/MIGRATION-PLAN.md).
+**Decided (2026-10-20), the Owner:** every recommendation in the plan: generic tools as the first version, with short help per app; sources a drive, a share or a folder on the server (uploading a dump later); the old setup read from `docker inspect` output or the Compose file, both; media libraries at their old paths in the first version; files Roostack can't read fixed by the person on their copy (not copied by the agent as root); Postgres dumps in custom format only at first; and a rehearsal on a VM with Docker and Immich's and Plex's Compose images. Nothing built yet. Details, Immich and Plex step by step: [docs/MIGRATION-PLAN.md](docs/MIGRATION-PLAN.md).
 
 Many people who'd use Roostack already run their services with Docker Compose, the Owner included (Immich and Plex). Moving one in must keep everything: photos, libraries, watch history, accounts, settings and, where possible, the addresses phones and TVs already use.
 

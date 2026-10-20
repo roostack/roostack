@@ -633,11 +633,11 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 
 - [x] **The forms' design applied to single sign-on and the package editor** (2026-10-20, after merging them): People's add, change-someone and group forms in dialogs, the role a segmented control, switches; a service's single sign-on choosing who with a segmented control, changed in a dialog; the editor's small fixed choices as segmented controls and its on/off fields as switches; buttons as tall as inputs everywhere. Roostack Cloud's copy of the editor picks these up with its next update of this module (internal/editor)
 
-## Bringing your own data, and moving from Docker Compose (SPEC §8.4, proposed 2026-10-20)
+## Bringing your own data, and moving from Docker Compose (SPEC §8.4, decided 2026-10-20)
 
 - [x] The plan (docs/MIGRATION-PLAN.md): what Roostack has to build on, what moving each part of a Compose homelab takes; first drafted as a page per app, then (the Owner, 2026-10-20) as tools for a technical user: sources, the check, copy then switch, undo, help per app
 - [x] Made generic (the Owner, 2026-10-20): the old setup read from pasted `docker inspect` output or the Compose file, folders matched by container path, media libraries shown at their old paths, generic warnings in the check
-- [ ] The Owner's decisions (MIGRATION-PLAN.md §11): the direction, sources in the first version, what to paste, libraries at their old paths, unreadable files, Postgres dump formats, the rehearsal
+- [x] The Owner's decisions (MIGRATION-PLAN.md §11, every recommendation, 2026-10-20): the direction, sources in the first version, what to paste, libraries at their old paths, unreadable files, Postgres dump formats, the rehearsal
 - [ ] Rehearsal on VM 3, once agreed: Docker with Compose Immich and Plex, their data brought into Roostack's packages (Immich's own path rewrite, Plex with its library at its old path, a library at its own path on an unplugged drive, the old-paths search, timings, Docker beside Roostack); docs/ASSUMPTIONS.md entries
 - [ ] Mock-ups of the import page and the install page's "I'll bring its data", before building
 - [ ] The first version, once agreed: read-only sources (drive, share, folder), reading the old setup and matching by container path, libraries at their old paths, the check with its generic warnings, copy and copy again, switch, undo; help: "Moving from Docker Compose", Immich, Plex

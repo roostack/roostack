@@ -1,6 +1,7 @@
-# Bringing your own data: moving from Docker Compose (proposal, 2026-10-20)
+# Bringing your own data: moving from Docker Compose (decided 2026-10-20)
 
-The details behind SPEC.md §8.4. **A proposal, nothing built.**
+The details behind SPEC.md §8.4. **Decided, not built:** the Owner chose
+every recommendation in §11 on 2026-10-20.
 
 Many people who'd use Roostack already run their services with Docker
 Compose, the Owner included (Immich and Plex). They want to move a
@@ -684,7 +685,7 @@ they need the Owner's yes):
 6. **Docker beside Roostack** on one Debian 13: ports, and what reaches
    Docker's published ports through Roostack's firewall.
 
-## 11. Decisions for the Owner
+## 11. Decisions (the Owner chose every recommendation, 2026-10-20)
 
 1. **The direction:** the tools (§3), generic for any package, with short
    help per app, as the first version.
