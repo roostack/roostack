@@ -1,0 +1,177 @@
+<!doctype html><html data-states="separate:/movies and /tv,parent:/data/movies and /data/tv,check:The check" data-page="import-plex" lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bring Plex's data in · Roostack (mock-up)</title>
+  <link rel="icon" href="../../../internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../../internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/ocean.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/catppuccin.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/gruvbox.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/nord.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/solarized.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/everforest.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/rose-pine.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/tokyo-night.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/app.css">
+  <link rel="stylesheet" href="mock.css">
+</head>
+<body x-data="{ menu: false }">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="#"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="sidebar-lab-name"><span>Roostack</span><strong title="Smiths' lab">Smiths' lab</strong></span></a>
+      <div class="sidebar-nav">
+      <nav class="nav-group" aria-label="Your lab">
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></svg>Home</a>
+        <a class="nav-item" href="#" aria-current="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Services</a>
+        <div class="nav-children"><a class="nav-sub" href="service.html"><img class="nav-logo" src="immich.png" alt="" width="16" height="16" loading="lazy">Immich</a><a class="nav-sub" href="service.html?s=drive" aria-current="page"><img class="nav-logo" src="plex.png" alt="" width="16" height="16" loading="lazy">Plex</a><a class="nav-sub" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add a service…</a></div>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>Backups</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Servers</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Monitoring</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</a>
+      </nav>
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools">
+          <a href="#" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg>Help<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+          <form method="post" action="/account/theme" id="theme-toggle">
+  <input type="hidden" name="theme" value="light">
+  <button type="submit" class="theme-toggle" title="Switch to light theme"
+    aria-label="Theme: auto. Switch to light."><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>Auto</button>
+</form>
+        </div>
+        <div class="who">
+          <a href="#" class="who-link"><span class="avatar" aria-hidden="true">S</span>
+            <span class="who-name"><strong title="sam">sam</strong><span>Owner</span></span></a>
+          <form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></svg><span class="sr-only">Log out</span></button></form>
+        </div>
+      </div>
+    </aside>
+    <div class="main">
+      <header class="page-header">
+        <button type="button" class="menu-button" onclick="document.body.classList.toggle('menu-open')" aria-controls="sidebar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr-only">Menu</span></button>
+        <nav class="crumbs" aria-label="Where you are"><a href="#">Services</a><a href="service.html?s=drive">Plex</a><strong aria-current="page">Bring data in</strong></nav>
+        <a class="page-help" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg><span class="sr-only">Help: </span>Moving from Docker Compose</a>
+      </header>
+      <main class="page">
+<div class="page-head">
+  <div class="page-head-title">
+    <span class="logo-tile"><img src="plex.png" alt="" width="40" height="40"></span>
+    <div>
+      <div class="title-line"><h1>Bring Plex's data in</h1><span class="status status-off">Waiting for its data</span></div>
+      <p class="lede">From your own copy of its files: from Docker Compose, another server or a backup of your own. Roostack only
+        reads your copy, and changes nothing until you switch.</p>
+    </div>
+  </div>
+</div>
+<div class="grid">
+<div class="span-8 grid-column byod-steps">
+  <section class="card byod-step step-done">
+    <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your files</h2><a class="more" href="#">Change</a></div>
+    <p class="step-summary">Folder on nuc: SRV › import › plex, read-only<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><small>config</small></p>
+  </section>
+  <section class="card byod-step step-done">
+    <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your old setup</h2><a class="more" href="#">Change</a></div>
+    <p class="step-summary">docker inspect of <code>plex</code>: Plex 1.43.4.10903, <code>plexinc/pms-docker</code>
+      <small><code>/opt/plex</code> is SRV › import › plex</small></p>
+  </section>
+
+  <section class="card byod-step" data-state="separate parent">
+    <div class="card-head"><h2><span class="step-num">3</span>What goes where</h2></div>
+    <p class="hint">Each of Plex's folders gets the old folder that was at the same place inside the container. Change any that's wrong.</p>
+    <div class="table-wrap"><table class="list byod-map">
+      <thead><tr><th>Plex keeps</th><th>Brought from</th><th><span class="sr-only">Change</span></th></tr></thead>
+      <tbody>
+        <tr><td><strong>Plex's database, settings and artwork</strong><small><code>/config</code> inside Plex · backed up</small></td>
+          <td>SRV › import › plex › config<small>Was <code>/opt/plex/config</code> at <code>/config</code></small></td><td><a href="#">Change…</a></td></tr>
+        <tr class="byod-none"><td><strong>Video being transcoded</strong><small><code>/transcode</code> · Plex makes it again</small></td>
+          <td>Not brought<small>It wasn't a folder of its own before</small></td><td><a href="#">Choose…</a></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 class="byod-sub">Media it read</h3>
+    <p class="hint">Media stays where it is, as media libraries: Plex reads it, and nothing is copied. Each library is shown inside Plex
+      where the old folder was, so Plex finds every film where it expects it, with what everyone has watched.</p>
+    <div class="table-wrap"><table class="list byod-map">
+      <thead><tr><th>Old folder</th><th>Media library</th><th>Inside Plex at</th></tr></thead>
+      <tbody data-state="separate">
+        <tr><td><code>/movies</code><small>was <code>/mnt/media/films</code></small></td>
+          <td><strong>Films</strong><small>MEDIA (USB drive) › films · 40 of 40 sampled files found</small></td><td><code>/movies</code></td></tr>
+        <tr><td><code>/tv</code><small>was <code>/mnt/nas/tv</code></small></td>
+          <td><strong>TV</strong><small>nas.local, share tv (SMB) · 40 of 40 found</small></td><td><code>/tv</code></td></tr>
+        <tr class="byod-none"><td><code>/music</code><small>was <code>/mnt/nas/music</code></small></td>
+          <td>No library holds these files<small><a href="#">Add a media library…</a>, then look again</small></td><td>—</td></tr>
+      </tbody>
+      <tbody data-state="parent">
+        <tr><td><code>/data/movies</code><small>was <code>/mnt/media/films</code></small></td>
+          <td><strong>Films</strong><small>MEDIA (USB drive) › films · 40 of 40 sampled files found</small></td><td><code>/data/movies</code></td></tr>
+        <tr><td><code>/data/tv</code><small>was <code>/mnt/nas/tv</code></small></td>
+          <td><strong>TV</strong><small>nas.local, share tv (SMB) · 40 of 40 found</small></td><td><code>/data/tv</code></td></tr>
+      </tbody>
+    </table></div>
+    <p class="hint" data-state="separate"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg> <code>/movies</code> and <code>/tv</code> aren't in one folder, so each library is shown at its own
+      place. If the Films drive is unplugged, Plex can't see it again until it restarts: Roostack restarts Plex by itself once the
+      drive is back, which takes a few seconds.</p>
+    <p class="hint" data-state="parent">Plex's media folder goes at <code>/data</code>, with Films in it as <code>movies</code> and TV as <code>tv</code>,
+      the names they had. A drive unplugged and plugged back in comes back by itself.</p>
+    <details class="byod-left">
+      <summary>From your old setup, not brought: 1</summary>
+      <ul class="plain"><li><code>/opt/plex/transcode</code>: not a folder of its own here before, see above.</li></ul>
+    </details>
+    <div class="actions-row"><a class="button" href="?s=check">Check</a>
+      <span class="hint">Reads your files. Nothing is copied or changed yet.</span></div>
+  </section>
+
+  <section class="card byod-step step-done" data-state="check">
+    <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>What goes where</h2><a class="more" href="?s=separate">Change</a></div>
+    <p class="step-summary">Plex's config, and Films and TV at <code>/movies</code> and <code>/tv</code><small>Video being transcoded isn't brought; nothing holds <code>/music</code>.</small></p>
+  </section>
+  <section class="card byod-step" data-state="check">
+    <div class="card-head"><h2><span class="step-num">4</span>Check</h2><span class="hint">today 16:02</span></div>
+    <ul class="byod-checks">
+      <li class="check-bad"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg><div><strong>3 files Roostack can't read, in <code>config</code>,</strong> among them
+        <code>Library/Application Support/Plex Media Server/Preferences.xml</code>: only their owner, uid 1000, can. That file is Plex's
+        identity, so it must come. Make them readable on your copy, then check again:
+        <div class="copy-box"><pre class="output">sudo chmod -R a+rX /srv/import/plex</pre>
+          <button type="button" class="icon-button copy-button" title="Copy"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span class="sr-only">Copy</span></button></div></div></li>
+      <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><div><strong>Plex's database names <code>/movies/…</code> 41,200 times and <code>/tv/…</code> 96,310 times:</strong>
+        Films and TV are shown there, so they're right as they are.</div></li>
+      <li class="check-warn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg><div><strong>It names <code>/music/…</code> 8,112 times, and Plex has no <code>/music</code> here.</strong> Add a
+        library for that music and show it at <code>/music</code>, or Plex shows its tracks as unavailable.</div></li>
+      <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><div><strong>The same image and version:</strong> <code>plexinc/pms-docker</code> 1.43.4.10903.</div></li>
+      <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><div><strong>Room for it:</strong> 2.1 GB with 10% to spare; nuc's disk has 210 GB free.</div></li>
+    </ul>
+    <div class="actions-row"><a class="button" href="?s=check">Check again</a></div>
+  </section>
+  <section class="card byod-step step-todo"><div class="card-head"><h2><span class="step-num">5</span>Copy</h2></div></section>
+  <section class="card byod-step step-todo"><div class="card-head"><h2><span class="step-num">6</span>Switch to this data</h2></div></section>
+</div>
+<aside class="span-4 grid-column">
+  <section class="card">
+    <div class="card-head"><h2>On the old machine</h2></div>
+    <p class="hint">Roostack never runs anything there. What you do:</p>
+    <ol class="byod-todo">
+      <li><strong>Copy its config folder</strong> here, or onto a drive. <code>Cache</code>, <code>Codecs</code>, <code>Crash Reports</code>,
+        <code>Logs</code> and <code>Updates</code> can be left out.</li>
+      <li><strong>Plex has no database to dump:</strong> its database is a file in that folder. Stop Plex before the last copy.</li>
+      <li><strong>Keep it stopped</strong> once you switch: two servers with one identity fight over it on plex.tv.</li>
+    </ol>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Help</h2></div>
+    <ul class="plain">
+      <li><a href="#">Moving from Docker Compose</a><br><small class="hint">The steps for any service</small></li>
+      <li><a href="#">Moving Plex</a><br><small class="hint">Its identity, libraries, remote access</small></li>
+    </ul>
+  </section>
+</aside>
+</div>
+      </main>
+      <footer class="site">Roostack <span class="version">0.9.0</span> · <a href="#">About</a> · <a href="#">Design system</a></footer>
+    </div>
+  </div>
+  <script src="mock.js"></script>
+</body>
+</html>

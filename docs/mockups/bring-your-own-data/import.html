@@ -1,0 +1,410 @@
+<!doctype html><html data-states="source:1 Your files,setup:2 Pasting the old setup,paths:2 Where its folders are now,match:3 What goes where,check:4 The check: ready,problems:4 The check: problems,copying:5 Copying,copied:6 Copied: switch,switching:6 Switching,done:Done" data-page="import" lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bring Immich's data in · Roostack (mock-up)</title>
+  <link rel="icon" href="../../../internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../../internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/ocean.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/catppuccin.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/gruvbox.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/nord.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/solarized.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/everforest.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/rose-pine.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/tokyo-night.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/app.css">
+  <link rel="stylesheet" href="mock.css">
+</head>
+<body x-data="{ menu: false }">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="#"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="sidebar-lab-name"><span>Roostack</span><strong title="Smiths' lab">Smiths' lab</strong></span></a>
+      <div class="sidebar-nav">
+      <nav class="nav-group" aria-label="Your lab">
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></svg>Home</a>
+        <a class="nav-item" href="#" aria-current="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Services</a>
+        <div class="nav-children"><a class="nav-sub" href="service.html" aria-current="page"><img class="nav-logo" src="immich.png" alt="" width="16" height="16" loading="lazy">Immich</a><a class="nav-sub" href="service.html?s=drive"><img class="nav-logo" src="plex.png" alt="" width="16" height="16" loading="lazy">Plex</a><a class="nav-sub" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add a service…</a></div>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>Backups</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Servers</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Monitoring</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</a>
+      </nav>
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools">
+          <a href="#" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg>Help<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+          <form method="post" action="/account/theme" id="theme-toggle">
+  <input type="hidden" name="theme" value="light">
+  <button type="submit" class="theme-toggle" title="Switch to light theme"
+    aria-label="Theme: auto. Switch to light."><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>Auto</button>
+</form>
+        </div>
+        <div class="who">
+          <a href="#" class="who-link"><span class="avatar" aria-hidden="true">S</span>
+            <span class="who-name"><strong title="sam">sam</strong><span>Owner</span></span></a>
+          <form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></svg><span class="sr-only">Log out</span></button></form>
+        </div>
+      </div>
+    </aside>
+    <div class="main">
+      <header class="page-header">
+        <button type="button" class="menu-button" onclick="document.body.classList.toggle('menu-open')" aria-controls="sidebar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr-only">Menu</span></button>
+        <nav class="crumbs" aria-label="Where you are"><a href="#">Services</a><a href="service.html?s=wait">Immich</a><strong aria-current="page">Bring data in</strong></nav>
+        <a class="page-help" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg><span class="sr-only">Help: </span>Moving from Docker Compose</a>
+      </header>
+      <main class="page">
+<div class="page-head">
+  <div class="page-head-title">
+    <span class="logo-tile"><img src="immich.png" alt="" width="40" height="40"></span>
+    <div>
+      <div class="title-line"><h1>Bring Immich's data in</h1>
+        <span class="status status-off" data-state="source setup paths match check problems copying copied">Waiting for its data</span>
+        <span class="status status-installing" data-state="switching">Switching</span>
+        <span class="status status-running" data-state="done">Running</span></div>
+      <p class="lede">From your own copy of its files and a dump of its database: from Docker Compose, another server or a backup
+        of your own. Roostack only reads your copy, and changes nothing until you switch.</p>
+    </div>
+  </div>
+</div>
+
+<div class="notice notice-ok" role="status" data-state="done">
+  <p><strong>Immich is running with your data.</strong> Switched today at 15:22, in 3 minutes.</p>
+  <p>Check it: sign in with your old account, open an album, search for something, and upload from a phone. Then look in Immich's
+    Administration → Settings for anything that names the old machine, such as its external domain (used in share links).
+    <a href="#">Moving Immich</a> says what else to look at.</p>
+  <p class="hint">T7 Shield is unmounted: unplug it whenever you like. If something's wrong, you can bring the data in again, or
+    remove Immich and start over.</p>
+</div>
+
+<div class="grid">
+<div class="span-8 grid-column byod-steps">
+
+  <!-- 1. Your files -->
+  <section class="card byod-step" data-state="source">
+    <div class="card-head"><h2><span class="step-num">1</span>Where your files are</h2></div>
+    <p class="hint">Immich's folders and the dump of its database, together or apart. Roostack mounts them read-only while you bring
+      data in: nothing there changes, so they can be the originals.</p>
+    <div class="seg-group">
+      <div class="segmented" role="radiogroup" aria-label="Where they are">
+        <label><input type="radio" name="where" value="drive" checked><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><span>Drive</span></label>
+        <label><input type="radio" name="where" value="folder"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg><span>Folder on nuc</span></label>
+        <label><input type="radio" name="where" value="share"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span>Network share</span></label>
+      </div>
+      <div class="seg-panel" data-seg="1">
+        <p class="hint seg-hint">A USB drive or second disk plugged into nuc, perhaps the old machine's own.</p>
+        <div class="drives">
+          <div class="drive"><label class="check"><input type="radio" name="drive" checked>
+            <span><strong>T7 Shield</strong> <span class="badge">USB drive</span><small>2.0 TB, 1.9 TB free · exfat · Samsung PSSD T7 Shield</small></span></label></div>
+          <div class="drive drive-unusable"><label class="check"><input type="radio" name="drive" disabled>
+            <span><strong>BACKUP</strong> <span class="badge">USB drive</span><small>Your backups' drive</small></span></label></div>
+        </div>
+        <p class="field-label">Folder</p>
+        <div class="folder-choice"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>T7 Shield › immich</strong><small>1 folder, 1 file: library, main.dump</small></span>
+          <a class="button secondary" href="#">Choose a folder…</a></div>
+      </div>
+      <div class="seg-panel" data-seg="2">
+        <p class="hint seg-hint">A folder already on nuc, under /mnt, /media or /srv: copied here with rsync or scp, say.</p>
+        <div class="folder-choice empty"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>No folder chosen yet</strong></span>
+          <a class="button secondary" href="#">Choose a folder…</a></div>
+      </div>
+      <div class="seg-panel" data-seg="3">
+        <p class="hint seg-hint">A folder shared by a NAS or the old machine, as for media libraries: SMB or NFS, a login if it needs one.</p>
+        <p class="hint">(The media libraries' share form: server, share, username and password.)</p>
+      </div>
+    </div>
+    <div class="actions-row"><a class="button" href="?s=setup">Use these files</a></div>
+  </section>
+  <section class="card byod-step step-done" data-state="setup paths match check problems copying copied switching done">
+    <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your files</h2><a class="more" href="?s=source">Change</a></div>
+    <p class="step-summary">T7 Shield › immich, on a USB drive, read-only<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><small>library, main.dump</small></p>
+  </section>
+
+  <!-- 2. The old setup -->
+  <section class="card byod-step step-todo" data-state="source">
+    <div class="card-head"><h2><span class="step-num">2</span>Your old setup <small class="hint">optional</small></h2></div>
+  </section>
+  <section class="card byod-step" data-state="setup paths">
+    <div class="card-head"><h2><span class="step-num">2</span>Your old setup <small class="hint">optional</small></h2></div>
+    <div data-state="setup">
+    <p class="hint">What Immich ran as before tells Roostack which of your folders is which, and what to warn you about. Without it,
+      you choose each folder yourself.</p>
+    <div class="seg-group">
+      <div class="segmented small" role="radiogroup" aria-label="What you'll paste">
+        <label><input type="radio" name="setup" value="inspect" checked><span>docker inspect</span></label>
+        <label><input type="radio" name="setup" value="compose"><span>Compose file</span></label>
+        <label><input type="radio" name="setup" value="none"><span>Neither</span></label>
+      </div>
+      <div class="seg-panel" data-seg="1">
+        <p class="hint seg-hint">Best, if the old containers still exist: it has the real folders, the images and their versions, and the
+          settings with your <code>.env</code> filled in. On the old machine, in Immich's Compose folder, run this and paste what it prints:</p>
+        <div class="copy-box"><pre class="output">docker inspect $(docker compose ps -aq)</pre>
+          <button type="button" class="icon-button copy-button" title="Copy"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span class="sr-only">Copy</span></button></div>
+        <label class="byod-paste">What it printed
+          <textarea rows="7" spellcheck="false">[
+    {
+        "Id": "5f1c9e0b7a3d…",
+        "Created": "2026-08-02T09:14:51.112Z",
+        "Path": "tini",
+        "Args": ["--", "/bin/bash", "-c", "start.sh"],
+        "State": { "Status": "running", "Running": true, …</textarea>
+          <small>Passwords and keys in it are shown as •••. Roostack keeps only the images, folders and settings, for this import,
+            and not the text you paste.</small></label>
+      </div>
+      <div class="seg-panel" data-seg="2">
+        <p class="hint seg-hint">Read as the package editor reads one. Overrides and changes made since the containers started aren't seen.</p>
+        <label class="byod-paste">docker-compose.yml <textarea rows="6" spellcheck="false"></textarea></label>
+        <label class="byod-paste">.env <textarea rows="3" spellcheck="false"></textarea></label>
+      </div>
+      <div class="seg-panel" data-seg="3">
+        <p class="hint seg-hint">You'll choose a folder in your files for each of Immich's, next. The check can't compare versions or settings.</p>
+      </div>
+    </div>
+    <div class="actions-row"><a class="button" href="?s=paths">Read it</a></div>
+    </div>
+
+    <div data-state="paths">
+    <p>Immich's Compose project, <code>immich</code>: 4 containers. <a href="?s=setup" class="hint">Paste again</a></p>
+    <div class="table-wrap"><table class="list byod-map">
+      <thead><tr><th>Old container</th><th class="hide-phone">Image</th><th>Is Immich's</th></tr></thead>
+      <tbody>
+        <tr><td><code>immich_server</code></td><td class="hide-phone"><code>immich-server:v3.3.3</code></td><td>Server</td></tr>
+        <tr><td><code>immich_machine_learning</code></td><td class="hide-phone"><code>immich-machine-learning:v3.3.3</code></td><td>Machine learning</td></tr>
+        <tr><td><code>immich_postgres</code></td><td class="hide-phone"><code>postgres:14-vectorchord0.4.3…</code></td><td>Database "main"</td></tr>
+        <tr><td><code>immich_redis</code></td><td class="hide-phone"><code>valkey:8-bookworm</code></td><td>Database "cache" <small class="hint">nothing to bring</small></td></tr>
+      </tbody>
+    </table></div>
+    <h3 class="byod-sub">Where are the old machine's folders now?</h3>
+    <p class="hint">Your old setup names folders on the old machine. Say where they are in your files: one line covers every folder under it.</p>
+    <div class="byod-prefix">
+      <label>On the old machine <input value="/opt/immich" spellcheck="false" autocapitalize="off"></label>
+      <span class="byod-arrow" aria-hidden="true">→</span>
+      <div><p class="field-label">Is now</p>
+        <div class="folder-choice"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>T7 Shield › immich</strong></span><a class="button secondary small" href="#">Choose…</a></div></div>
+    </div>
+    <p class="hint">Roostack guessed this line from the folder names in your files. Found: <code>/opt/immich/library</code>.
+      Not in your files: <code>/var/lib/docker/volumes/immich_model-cache/_data</code> and <code>/opt/immich/postgres</code>, which aren't needed.</p>
+    <p><button type="button" class="quiet">Add another line</button></p>
+    <div class="actions-row"><a class="button" href="?s=match">Next: what goes where</a></div>
+    </div>
+  </section>
+  <section class="card byod-step step-done" data-state="match check problems copying copied switching done">
+    <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your old setup</h2><a class="more" href="?s=setup">Change</a></div>
+    <p class="step-summary">docker inspect of Immich's Compose project: 4 containers, Immich v3.3.3<small><code>/opt/immich</code> is T7 Shield › immich</small></p>
+  </section>
+
+  <!-- 3. What goes where -->
+  <section class="card byod-step step-todo" data-state="source setup paths">
+    <div class="card-head"><h2><span class="step-num">3</span>What goes where</h2></div>
+  </section>
+  <section class="card byod-step" data-state="match">
+    <div class="card-head"><h2><span class="step-num">3</span>What goes where</h2></div>
+    <p class="hint">Each of Immich's folders gets the old folder that was at the same place inside the container. Change any that's wrong.</p>
+    <div class="table-wrap"><table class="list byod-map">
+      <thead><tr><th>Immich keeps</th><th>Brought from</th><th><span class="sr-only">Change</span></th></tr></thead>
+      <tbody>
+        <tr><td><strong>Your photos and videos</strong><small><code>/data</code> inside Immich · backed up</small></td>
+          <td>T7 Shield › immich › library<small>Was <code>/opt/immich/library</code> at <code>/data</code>, without <code>thumbs</code> and <code>encoded-video</code>, which go below</small></td>
+          <td><a href="#">Change…</a></td></tr>
+        <tr><td><strong>Thumbnails</strong><small><code>/data/thumbs</code> · Immich can make them again</small></td>
+          <td>T7 Shield › immich › library › thumbs</td><td><a href="#">Change…</a></td></tr>
+        <tr><td><strong>Converted videos</strong><small><code>/data/encoded-video</code> · Immich can make them again</small></td>
+          <td>T7 Shield › immich › library › encoded-video</td><td><a href="#">Change…</a></td></tr>
+        <tr class="byod-none"><td><strong>Smart search models</strong><small><code>/cache</code> · Immich can make them again</small></td>
+          <td>Not brought<small>The old volume <code>immich_model-cache</code> isn't in your files. Immich downloads its models again.</small></td>
+          <td><a href="#">Choose…</a></td></tr>
+        <tr><td><strong>Database "main"</strong><small>Postgres 14 · backed up</small></td>
+          <td>T7 Shield › immich › main.dump<small>A dump, found by its name. A custom-format <code>pg_dump</code></small></td><td><a href="#">Change…</a></td></tr>
+      </tbody>
+    </table></div>
+    <details class="byod-left">
+      <summary>From your old setup, not brought: 3</summary>
+      <ul class="plain">
+        <li><code>/opt/immich/postgres</code>, the old database's own files: never copied, as its dump brings the database.</li>
+        <li><code>/etc/localtime</code>, a single file: Roostack gives Immich the lab's time zone itself.</li>
+        <li>Database "cache" (<code>immich_redis</code>): a queue of jobs, nothing to keep.</li>
+      </ul>
+    </details>
+    <div class="actions-row"><a class="button" href="?s=check">Check</a>
+      <span class="hint">Reads your files and the dump. Nothing is copied or changed yet.</span></div>
+  </section>
+  <section class="card byod-step step-done" data-state="check problems copying copied switching done">
+    <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>What goes where</h2><a class="more" href="?s=match">Change</a></div>
+    <p class="step-summary">3 folders and the database<small>Your photos and videos, thumbnails, converted videos, and main.dump. Smart search models aren't brought.</small></p>
+  </section>
+
+  <!-- 4. The check -->
+  <section class="card byod-step step-todo" data-state="source setup paths match">
+    <div class="card-head"><h2><span class="step-num">4</span>Check</h2></div>
+  </section>
+  <section class="card byod-step" data-state="check problems">
+    <div class="card-head"><h2><span class="step-num">4</span>Check</h2><span class="hint">today 14:10</span></div>
+    <ul class="byod-checks" data-state="check">
+      <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><div><strong>Your photos and videos: 118,402 files, 41.2 GB.</strong> All readable. 3 links in it are copied as links.</div></li>
+      <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><div><strong>Thumbnails and converted videos: 237,114 files, 8.4 GB.</strong> All readable.</div></li>
+      <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><div><strong>Room for it.</strong> It needs 54.6 GB with 10% to spare, and Immich's media disk, <em>data</em>, has 1.6 TB free.</div></li>
+      <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><div><strong>Database "main": a dump from Postgres 14.19,</strong> which Immich's database here (14.19) can load. It
+        needs <code>vchord</code>, <code>vector</code>, <code>cube</code> and <code>earthdistance</code>: all there.</div></li>
+      <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><div><strong>The same version.</strong> The old Immich ran v3.3.3, as Immich does here.</div></li>
+      <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><div><strong>No old folders left in the data.</strong> The dump names only folders Immich has here.</div></li>
+      <li class="check-warn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg><div><strong>Two settings the old server had that Roostack doesn't set:</strong> <code>IMMICH_LOG_LEVEL=verbose</code> and
+        <code>IMMICH_CONFIG_FILE=/config/immich.json</code>. A config file's settings belong in Immich's own Administration → Settings
+        before you move, or they're lost.
+        <details class="byod-env"><summary>Every setting it had</summary>
+          <p class="hint">Left out, as Roostack sets them: <code>DB_HOSTNAME</code>, <code>DB_USERNAME</code>, <code>DB_PASSWORD=•••</code>,
+            <code>DB_DATABASE_NAME</code>, <code>REDIS_HOSTNAME</code>, <code>TZ</code>. From the image itself: 14 more.</p></details></div></li>
+      <li class="check-info"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></svg><div><strong>Smart search models aren't brought.</strong> Immich downloads them again as it starts, about 1 GB.</div></li>
+      <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><div><strong>Immich has no data yet,</strong> so nothing is replaced.</div></li>
+    </ul>
+    <ul class="byod-checks" data-state="problems">
+      <li class="check-bad"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg><div><strong>312 files Roostack can't read,</strong> in <code>library/upload</code> and <code>library/profile</code>: only their
+        owner, root, can. Make them readable on your copy, then check again. On a Linux machine, in the folder above <code>immich</code>:
+        <div class="copy-box"><pre class="output">sudo chmod -R a+rX immich</pre>
+          <button type="button" class="icon-button copy-button" title="Copy"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span class="sr-only">Copy</span></button></div></div></li>
+      <li class="check-bad"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg><div><strong>The dump needs <code>vectors</code> (pgvecto.rs), which Immich's database here doesn't have.</strong>
+        Immich moved to VectorChord in v1.133: update the old Immich and let it finish that move, then take the dump again.
+        <a href="#">Immich's upgrade notes</a></div></li>
+      <li class="check-bad"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg><div><strong>Not enough room.</strong> It needs 54.6 GB with 10% to spare, and Immich's media disk, <em>data</em>, has
+        31.2 GB free. Free some space, or add a bigger disk.</div></li>
+      <li class="check-warn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg><div><strong>An older version.</strong> The old Immich ran v1.131.3, and Immich here is v3.3.3. Immich upgrades its data
+        as it first starts, if it can make so big a jump: read its release notes first.</div></li>
+      <li class="check-warn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg><div><strong>Old folders left in the data.</strong> The dump names <code>/usr/src/app/upload</code> 729 times, and Immich
+        has no such folder here. Immich changes its own paths when its folder moves (since v1.136), so for Immich this is expected;
+        other apps may need them changed.</div></li>
+      <li class="check-warn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg><div><strong>Immich has data already: 2,104 photos and videos.</strong> Switching sets it aside, kept until you
+        delete it, so you can put it back.</div></li>
+      <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><div><strong>Thumbnails and converted videos: 237,114 files, 8.4 GB.</strong> All readable.</div></li>
+    </ul>
+    <div class="actions-row" data-state="problems"><a class="button" href="?s=check">Check again</a></div>
+    <div class="actions-row" data-state="check"><a class="button secondary" href="?s=check">Check again</a></div>
+  </section>
+  <section class="card byod-step step-done" data-state="copying copied switching done">
+    <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Check</h2><a class="more" href="?s=check">Details</a></div>
+    <p class="step-summary">Ready, today 14:10<small>49.6 GB in 355,516 files, and the dump. One warning: two settings.</small></p>
+  </section>
+
+  <!-- 5. Copy -->
+  <section class="card byod-step step-todo" data-state="source setup paths match problems">
+    <div class="card-head"><h2><span class="step-num">5</span>Copy</h2></div>
+    <p class="hint" data-state="problems">Once the check finds nothing in the way.</p>
+  </section>
+  <section class="card byod-step" data-state="check copying copied">
+    <div class="card-head"><h2><span class="step-num">5</span>Copy</h2></div>
+    <div data-state="check">
+      <p>Copies your files into Immich's own folders, beside what's there. Immich stays as it is meanwhile, and so does your copy.
+        The old Immich can keep running too: copy again later, and only what changed is copied.</p>
+      <div class="actions-row"><a class="button" href="?s=copying">Copy into Immich</a><span class="hint">About 40 minutes from this drive</span></div>
+    </div>
+    <div class="activity" data-state="copying">
+      <p class="activity-status running"><span class="spinner" aria-hidden="true"></span> Bringing data in: Copying your photos and videos…
+        <small>started today 14:10</small></p>
+      <div class="byod-progress"><div class="meter"><span style="width: 37%"></span></div>
+        <p>18.4 GB of 49.6 GB · 52,310 of 355,516 files · <strong>about 25 minutes left</strong></p></div>
+      <details class="activity-details"><summary>Details</summary>
+        <pre class="output activity-log">==> Copying from T7 Shield › immich (read-only at /run/roostack/import/immich)
+14:10:02 library → /srv/roostack/media/immich/library.incoming: 118,402 files, 41.2 GB to copy
+14:10:02 Leaving out library/thumbs and library/encoded-video (copied to their own folders)
+14:26:40 library/upload/7c1e…/2024/08: 2,311 files
+</pre></details>
+      <p class="hint">You can leave this page: it carries on, even if nuc restarts. <button type="button" class="quiet">Stop copying</button></p>
+    </div>
+    <div data-state="copied">
+      <p><strong>Copied today at 14:52:</strong> 49.6 GB in 355,516 files, in 42 minutes.</p>
+      <p class="hint">Your files can change while the old Immich runs. <em>Copy again</em> copies only what changed (files whose size or
+        time differ), usually in minutes. Switching copies once more anyway.</p>
+      <div class="actions-row"><a class="button secondary" href="?s=copying">Copy again</a></div>
+    </div>
+  </section>
+  <section class="card byod-step step-done" data-state="switching done">
+    <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Copy</h2></div>
+    <p class="step-summary">Copied today at 14:52<small>49.6 GB in 355,516 files, in 42 minutes</small></p>
+  </section>
+
+  <!-- 6. Switch -->
+  <section class="card byod-step step-todo" data-state="source setup paths match check problems copying">
+    <div class="card-head"><h2><span class="step-num">6</span>Switch to this data</h2></div>
+  </section>
+  <section class="card byod-step" data-state="copied">
+    <div class="card-head"><h2><span class="step-num">6</span>Switch to this data</h2></div>
+    <p><strong>First, on the old machine:</strong></p>
+    <ol class="byod-todo">
+      <li><strong>Stop the old Immich, and keep it stopped:</strong> phones would carry on uploading to it. In its Compose folder:
+        <div class="copy-box"><pre class="output">docker compose stop immich-server immich-machine-learning</pre>
+          <button type="button" class="icon-button copy-button" title="Copy"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span class="sr-only">Copy</span></button></div>
+        <small class="hint">And give both <code>restart: "no"</code> in its Compose file, so they don't start again with the machine.</small></li>
+      <li><strong>Take the dump again,</strong> now that nothing writes to the database, onto your copy beside <code>library</code>:
+        <div class="copy-box"><pre class="output">docker exec immich_postgres pg_dump --format=custom --no-owner --username=postgres immich > main.dump</pre>
+          <button type="button" class="icon-button copy-button" title="Copy"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span class="sr-only">Copy</span></button></div></li>
+      <li><strong>Bring your copy up to date,</strong> if you made it by hand: <code>rsync</code> copies only what changed. A share
+        holding the original folders is up to date already.</li>
+    </ol>
+    <p><strong>Then Roostack:</strong></p>
+    <ul class="plain byod-will">
+      <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>Copies what changed since 14:52, once more.</li>
+      <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg>Puts the copy in place of Immich's folders. Immich has no data yet, so nothing is set aside.</li>
+      <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Loads main.dump into Immich's database.</li>
+      <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Starts Immich, and waits for it to answer. If anything fails, Immich goes back to how it was.</li>
+    </ul>
+    <p class="hint">Usually a few minutes; one piece of maintenance, so no backup or restart happens in the middle.</p>
+    <form onsubmit="event.preventDefault(); location.search = '?s=switching'">
+      <label class="check"><input type="checkbox" required><span>The old Immich is stopped, and won't start again</span></label>
+      <button type="submit">Switch to this data</button>
+    </form>
+  </section>
+  <section class="card byod-step" data-state="switching">
+    <div class="card-head"><h2><span class="step-num">6</span>Switch to this data</h2></div>
+    <div class="notice" role="status">
+      <p><strong>Switching Immich to your data.</strong> You can leave this page: it carries on.</p>
+      <ol class="install-steps">
+        <li class="step-done"><span class="mark" aria-hidden="true">✓</span><span>Copying what changed: 12 files</span><small>4 s</small></li>
+        <li class="step-done"><span class="mark" aria-hidden="true">✓</span><span>Putting your data in place</span><small>1 s</small></li>
+        <li class="step-now"><span class="mark" aria-hidden="true"><span class="spinner"></span></span><span>Loading the database (main.dump)…</span><small>for 1 min 12 s</small></li>
+        <li class="step-todo"><span class="mark" aria-hidden="true">○</span><span>Starting Immich</span><small></small></li>
+        <li class="step-todo"><span class="mark" aria-hidden="true">○</span><span>Checking Immich answers</span><small></small></li>
+      </ol>
+    </div>
+    <details class="activity-details"><summary>Details</summary>
+      <pre class="output activity-log">15:20:02 Stopped: roostack-immich-server (it wasn't running)
+15:20:06 library.incoming → library (library was empty)
+15:20:07 pg_restore --clean --if-exists --no-owner -d immich main.dump (as immich, in roostack-immich-db-main)
+</pre></details>
+  </section>
+  <section class="card byod-step step-done" data-state="done">
+    <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Switch to this data</h2><a class="more" href="#">History</a></div>
+    <p class="step-summary">Switched today at 15:22<small>Copied 12 files more, loaded main.dump (19 MB), Immich answered after 41 seconds</small></p>
+  </section>
+</div>
+
+<aside class="span-4 grid-column">
+  <section class="card">
+    <div class="card-head"><h2>On the old machine</h2></div>
+    <p class="hint">Roostack never runs anything there. What you do:</p>
+    <ol class="byod-todo">
+      <li><strong>Copy its folders</strong> onto a drive, or into a folder here with <code>rsync</code>, or leave them on your NAS
+        and choose the share: Roostack only reads them.</li>
+      <li><strong>Take a dump of its database:</strong>
+        <div class="copy-box"><pre class="output">docker exec <span data-state="source setup">&lt;your postgres container&gt;</span><span data-state="paths match check problems copying copied switching done">immich_postgres</span> pg_dump --format=custom --no-owner --username=<span data-state="source setup">&lt;user&gt;</span><span data-state="paths match check problems copying copied switching done">postgres</span> <span data-state="source setup">&lt;database&gt;</span><span data-state="paths match check problems copying copied switching done">immich</span> > main.dump</pre>
+          <button type="button" class="icon-button copy-button" title="Copy"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span class="sr-only">Copy</span></button></div>
+        <small class="hint" data-state="paths match check problems copying copied switching done">Filled in from your old setup.</small>
+        <small class="hint">Custom format only, for now: Immich's own nightly backups (<code>.sql.gz</code>) can't be loaded yet.</small></li>
+      <li><strong>Before the switch,</strong> stop it and keep it stopped: two Immichs would each think they're the one.</li>
+    </ol>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Help</h2></div>
+    <ul class="plain">
+      <li><a href="#">Moving from Docker Compose</a><br><small class="hint">The steps for any service</small></li>
+      <li><a href="#">Moving Immich</a><br><small class="hint">Versions, VectorChord, the external domain, timings</small></li>
+    </ul>
+  </section>
+</aside>
+</div>
+      </main>
+      <footer class="site">Roostack <span class="version">0.9.0</span> · <a href="#">About</a> · <a href="#">Design system</a></footer>
+    </div>
+  </div>
+  <script src="mock.js"></script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+/* Bringing your own data, mock-ups (2026-10-20): only what the real
+   stylesheet lacks. Each part here would become a component in the gallery. */
+
+/* The mock-ups show one state at a time; app.css has no [hidden] rule of its own. */
+[hidden] { display: none !important; }
+
+/* A page of numbered steps (new): each step a card, its number in a disc;
+   a step done shrinks to one line with Change; a step not reached yet is
+   only its heading, muted. */
+.byod-steps { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.byod-map th:first-child { width: 32%; }
+/* As td.wrap would: the cells in the middle wrap. */
+table.list.byod-map td:not(:first-child, :last-child) { white-space: normal; }
+.byod-step .card-head h2 { display: flex; align-items: center; gap: var(--space-3); }
+.step-num { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-fg); font-size: var(--text-sm); font-family: var(--font-sans); }
+.step-num .icon { width: 16px; height: 16px; }
+.step-done .step-num { background: var(--ok-bg); color: var(--ok); }
+.step-done .card-head, .step-todo .card-head { margin-bottom: 0; }
+.step-done { padding-block: var(--space-3); }
+.step-done .card-head h2, .step-todo .card-head h2 { font-size: var(--text-base); }
+.step-summary { margin: var(--space-2) 0 0 calc(28px + var(--space-3)); }
+.step-summary .icon { display: none; }
+.step-summary small { display: block; color: var(--muted); }
+.step-todo { padding-block: var(--space-3); opacity: .6; box-shadow: none; }
+.step-todo .step-num { background: var(--glass-2); color: var(--muted); }
+.step-todo p { margin: var(--space-2) 0 0 calc(28px + var(--space-3)); }
+.byod-sub { font-size: var(--text-base); margin: var(--space-5) 0 var(--space-1); }
+
+/* Pasted text (new): a monospace text area, as tall as what it holds. */
+textarea { display: block; width: 100%; margin-top: var(--space-2); padding: 10px 12px; font: var(--text-sm)/1.45 var(--font-mono);
+  color: inherit; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--radius); resize: vertical; }
+.byod-paste { margin-top: var(--space-3); }
+
+/* An old folder and where it is now, side by side. */
+.byod-prefix { display: grid; grid-template-columns: minmax(10rem, 1fr) auto minmax(14rem, 1.4fr); gap: var(--space-3); align-items: end; }
+.byod-prefix label { margin-bottom: 0; }
+.byod-arrow { padding-bottom: 14px; color: var(--muted); }
+.byod-prefix .folder-choice { margin-top: var(--space-2); padding: 6px var(--space-3); }
+@media (max-width: 640px) { .byod-prefix { grid-template-columns: 1fr; } .byod-arrow { display: none; } }
+
+/* What goes where: a table list whose cells have a second, smaller line. */
+.byod-map td small { display: block; color: var(--muted); font-size: var(--text-xs); margin-top: 2px; }
+.byod-map td:last-child { white-space: nowrap; }
+.byod-none td:nth-child(2) { color: var(--muted); }
+details.byod-left, details.byod-env { margin-top: var(--space-3); }
+details.byod-left > summary, details.byod-env > summary { cursor: pointer; color: var(--muted); font-size: var(--text-sm); }
+
+/* The check's results (new): a mark and a sentence each; ok, warn, bad
+   (stops the copy), info. */
+ul.byod-checks { list-style: none; padding: 0; margin: var(--space-3) 0; display: grid; gap: var(--space-3); }
+ul.byod-checks > li { display: flex; gap: var(--space-3); align-items: flex-start; }
+ul.byod-checks > li > .icon { flex: none; width: 22px; height: 22px; padding: 3px; border-radius: 50%; margin-top: 1px; }
+ul.byod-checks > li > div { min-width: 0; overflow-wrap: anywhere; }
+.check-ok > .icon { background: var(--ok-bg); color: var(--ok); }
+.check-warn > .icon { background: var(--warn-bg); color: var(--warn); }
+.check-bad > .icon { background: var(--bad-bg); color: var(--bad); }
+.check-info > .icon { background: var(--accent-soft); color: var(--accent); }
+ul.byod-checks .copy-box { margin-top: var(--space-2); }
+
+/* The copy's progress: the meter at full width, the figures under it. */
+.byod-progress { margin: var(--space-3) 0; }
+.byod-progress .meter { max-width: none; height: 8px; }
+.byod-progress p { margin: var(--space-2) 0 0; font-size: var(--text-sm); }
+
+/* Things to do on the old machine, and what Roostack will do. */
+ol.byod-todo { padding-left: 1.3em; margin: var(--space-2) 0 var(--space-4); }
+ol.byod-todo > li { margin-bottom: var(--space-3); }
+ol.byod-todo .copy-box { margin: var(--space-2) 0 var(--space-1); }
+ol.byod-todo small { display: block; }
+.byod-will li { display: flex; gap: var(--space-2); align-items: flex-start; margin-bottom: var(--space-2); }
+.byod-will .icon { margin-top: 3px; flex: none; color: var(--accent); }
+.byod-kept-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; }
+p.hint > .icon { width: 16px; height: 16px; vertical-align: -3px; color: var(--warn); }
+
+/* The mock-ups' own switch, bottom right. */
+.mock-bar { position: fixed; right: 12px; bottom: 12px; z-index: 50; display: flex; gap: 4px 6px; flex-wrap: wrap; align-items: center; padding: 6px 8px;
+  max-width: calc(100vw - 24px); border-radius: 10px; background: var(--fg); color: var(--bg); font-size: 13px; box-shadow: 0 4px 20px rgb(0 0 0 / .25); }
+.mock-bar a, .mock-bar button { color: inherit; background: none; border: 0; padding: 2px 6px; font: inherit; cursor: pointer; text-decoration: none; border-radius: 6px; }
+.mock-bar [aria-current] { background: color-mix(in srgb, var(--bg) 22%, transparent); }
+.mock-bar .sep { opacity: .4; }
+.mock-bar select { font: inherit; padding: 1px 4px; border-radius: 6px; width: auto; min-height: 0; margin: 0; color: var(--fg); background: var(--bg); }
+
+/* On phones, each row of what goes where is a block: what it keeps, where
+   from, then Change. */
+@media (max-width: 640px) {
+  table.list.byod-map thead { display: none; }
+  table.list.byod-map, table.list.byod-map tbody, table.list.byod-map tr { display: block; width: 100%; }
+  table.list.byod-map tr { border-top: 1px solid var(--edge); padding: var(--space-2) var(--space-4); }
+  table.list.byod-map td { display: block; border: 0; padding: 2px 0; text-align: left; white-space: normal; }
+  table.list.byod-map td:first-child, table.list.byod-map td:last-child { padding-left: 0; padding-right: 0; }
+}

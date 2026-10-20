@@ -1,0 +1,190 @@
+<!doctype html><html data-states="wait:Immich waiting for its data,copying:Immich while copying,drive:Plex waiting for a drive,running:Plex running (Manage)" data-page="service" lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Immich · Roostack (mock-up)</title>
+  <link rel="icon" href="../../../internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../../internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/ocean.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/catppuccin.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/gruvbox.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/nord.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/solarized.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/everforest.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/rose-pine.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/tokyo-night.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/app.css">
+  <link rel="stylesheet" href="mock.css">
+</head>
+<body x-data="{ menu: false }">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="#"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="sidebar-lab-name"><span>Roostack</span><strong title="Smiths' lab">Smiths' lab</strong></span></a>
+      <div class="sidebar-nav">
+      <nav class="nav-group" aria-label="Your lab">
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></svg>Home</a>
+        <a class="nav-item" href="#" aria-current="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Services</a>
+        <div class="nav-children"><a class="nav-sub" href="service.html" aria-current="page"><img class="nav-logo" src="immich.png" alt="" width="16" height="16" loading="lazy">Immich</a><a class="nav-sub" href="service.html?s=drive"><img class="nav-logo" src="plex.png" alt="" width="16" height="16" loading="lazy">Plex</a><a class="nav-sub" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add a service…</a></div>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>Backups</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Servers</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Monitoring</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</a>
+      </nav>
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools">
+          <a href="#" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg>Help<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+          <form method="post" action="/account/theme" id="theme-toggle">
+  <input type="hidden" name="theme" value="light">
+  <button type="submit" class="theme-toggle" title="Switch to light theme"
+    aria-label="Theme: auto. Switch to light."><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>Auto</button>
+</form>
+        </div>
+        <div class="who">
+          <a href="#" class="who-link"><span class="avatar" aria-hidden="true">S</span>
+            <span class="who-name"><strong title="sam">sam</strong><span>Owner</span></span></a>
+          <form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></svg><span class="sr-only">Log out</span></button></form>
+        </div>
+      </div>
+    </aside>
+    <div class="main">
+      <header class="page-header">
+        <button type="button" class="menu-button" onclick="document.body.classList.toggle('menu-open')" aria-controls="sidebar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr-only">Menu</span></button>
+        <nav class="crumbs" aria-label="Where you are"><a href="#">Services</a><strong aria-current="page"><span data-state="wait copying">Immich</span><span data-state="drive running">Plex</span></strong></nav>
+        <a class="page-help" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg><span class="sr-only">Help: </span>Change a service</a>
+      </header>
+      <main class="page">
+<div class="views">
+
+<!-- Immich, installed with "I'll bring its data" -->
+<div data-state="wait copying">
+<div class="page-head">
+  <div class="page-head-title">
+    <span class="logo-tile"><img src="immich.png" alt="" width="40" height="40"></span>
+    <div>
+      <div class="title-line"><h1>Immich <span class="badge">Official</span></h1><span class="status status-off">Waiting for its data</span></div>
+      <p class="lede">3.3.3 · Photo and video backup, a self-hosted alternative to Google Photos</p>
+    </div>
+  </div>
+  <div class="page-head-actions">
+    <label class="view-switch"><input type="checkbox"><span>Friendly</span><span>Technical</span><span class="sr-only"> view</span></label>
+  </div>
+</div>
+<div class="notice" role="status" data-state="wait">
+  <p><strong>Immich is installed, and waiting for its data.</strong> It stays stopped until you bring its files and database in,
+    from Docker Compose, another server or a backup of your own.</p>
+  <p><a class="button" href="import.html">Bring its data in…</a></p>
+  <p class="hint">Changed your mind? Remove it and install it again to start afresh.</p>
+</div>
+<div class="notice" role="status" data-state="copying">
+  <p><strong>Bringing Immich's data in: copying.</strong> 18.4 GB of 49.6 GB, about 25 minutes left. Immich stays stopped until you switch.</p>
+  <div class="byod-progress"><div class="meter"><span style="width: 37%"></span></div></div>
+  <p><a href="import.html?s=copying">See how it's going</a></p>
+</div>
+<div class="grid friendly-only">
+  <div class="span-8 grid-column">
+  <section class="card">
+    <div class="card-head"><h2>How to reach it</h2></div>
+    <dl class="facts">
+      <dt>Address</dt><dd><span class="address-pending">https://photos.smiths.roost.ac</span> <small class="hint">· ready once its data is in</small></dd>
+      <dt>Reachable from</dt><dd>Devices at home, and on your VPN · <a href="#">Make public…</a></dd>
+      <dt>Runs on</dt><dd>nuc</dd>
+      <dt>Version</dt><dd>3.3.3, up to date · <a href="#">updates when you approve them</a></dd>
+    </dl>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Settings</h2><a class="button secondary small" href="#">Edit settings</a></div>
+    <dl class="facts">
+      <dt>Web address</dt><dd><code>photos.smiths.roost.ac</code></dd>
+      <dt>Smart search and face recognition</dt><dd>On</dd>
+      <dt>Use GPU for video transcoding</dt><dd>Off</dd>
+    </dl>
+  </section>
+  </div>
+  <div class="span-4 grid-column">
+    <section class="card">
+      <div class="card-head"><h2>Backups</h2><a class="more" href="#">Backups</a></div>
+      <p>Not backed up yet: there's nothing in it.</p>
+    </section>
+    <p><a class="danger-link" href="#">Remove Immich…</a></p>
+  </div>
+</div>
+</div>
+
+<!-- Plex, with Films shown at /movies -->
+<div data-state="drive running">
+<div class="page-head">
+  <div class="page-head-title">
+    <span class="logo-tile"><img src="plex.png" alt="" width="40" height="40"></span>
+    <div>
+      <div class="title-line"><h1>Plex <span class="badge">Official</span></h1><span class="status status-running">Running</span></div>
+      <p class="lede">1.43.4.10903 · Plays your films, TV and music on your TV, phone and computer, with Plex's apps, from your own media libraries</p>
+    </div>
+  </div>
+  <div class="page-head-actions">
+    <label class="view-switch"><input type="checkbox"><span>Friendly</span><span>Technical</span><span class="sr-only"> view</span></label>
+    <a class="button" href="#">Open Plex</a>
+  </div>
+</div>
+<div class="notice notice-warn" role="status" data-state="drive">
+  <p><strong>Plex can't see Films: its drive, MEDIA, isn't connected.</strong> Plug it back in and Roostack restarts Plex by itself,
+    within a minute, so Plex sees the films again. That takes a few seconds; what everyone has watched is kept.</p>
+  <p class="hint">Disconnected today at 19:41. Films is shown inside Plex at <code>/movies</code>, and Plex keeps that place
+    open only until it restarts. <a href="#">Why</a></p>
+</div>
+<div class="grid friendly-only">
+  <div class="span-8 grid-column">
+  <section class="card">
+    <div class="card-head"><h2>How to reach it</h2></div>
+    <dl class="facts">
+      <dt>Address</dt><dd><a href="#">https://plex.smiths.roost.ac</a></dd>
+      <dt>Reachable from</dt><dd>Devices at home, and on your VPN · <a href="#">Make public…</a></dd>
+      <dt>Runs on</dt><dd>nuc</dd>
+      <dt>Version</dt><dd>1.43.4.10903, up to date · <a href="#">updates when you approve them</a></dd>
+    </dl>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Settings</h2><a class="button secondary small" href="#">Edit settings</a></div>
+    <dl class="facts">
+      <dt>Web address</dt><dd><code>plex.smiths.roost.ac</code></dd>
+      <dt>Media libraries</dt><dd>Films, at <code>/movies</code> <span data-state="drive" class="pill pill-warn">Drive not connected</span><br>
+        TV, at <code>/tv</code><br><small class="hint">Read-only. Where each is inside Plex is in its settings.</small></dd>
+      <dt>Use the GPU for video transcoding</dt><dd>On</dd>
+      <dt>Updates</dt><dd>When you approve them</dd>
+    </dl>
+  </section>
+  </div>
+  <div class="span-4 grid-column">
+    <section class="card">
+      <div class="card-head"><h2>Backups</h2><a class="more" href="#">Backups</a></div>
+      <span class="big-figure">02:14<small>today</small></span>
+      <p class="hint">Its server's last backup, with everything Plex keeps.</p>
+      <p><a class="button secondary" href="#">Restore Plex…</a></p>
+      <p><a href="import-plex.html">Bring in data from elsewhere…</a><br><small class="hint">Replace its data with a copy of your own,
+        from Docker Compose or another server</small></p>
+    </section>
+    <p><a class="danger-link" href="#">Remove Plex…</a></p>
+  </div>
+</div>
+</div>
+</div>
+<script>
+  // The sidebar marks the service the state shows.
+  (() => {
+    const plex = ["drive", "running"].includes(new URLSearchParams(location.search).get("s"));
+    document.querySelectorAll(".nav-sub").forEach((a) => {
+      const t = a.textContent.trim();
+      if (t === "Immich" || t === "Plex") (t === (plex ? "Plex" : "Immich")) ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current");
+    });
+    document.title = (plex ? "Plex" : "Immich") + " · Roostack (mock-up)";
+  })();
+</script>
+      </main>
+      <footer class="site">Roostack <span class="version">0.9.0</span> · <a href="#">About</a> · <a href="#">Design system</a></footer>
+    </div>
+  </div>
+  <script src="mock.js"></script>
+</body>
+</html>
