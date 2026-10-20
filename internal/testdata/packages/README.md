@@ -14,3 +14,7 @@ them along with the registry.
 Mealie and Stirling-PDF are a revision ahead of the registry: each has the
 `sso` part single sign-on added to the package format (SPEC.md §5.2, an OIDC
 app and a walled one), which the registry's copies gain once it's released.
+Forgejo has its `sso` part and `on: sso` hook too (an app set by a command,
+as the registry's 15.0.10-roostack.2 has them), under the version the tests
+name. Immich is an older version, without single sign-on: the key-saving
+path is tested with a small package of its own (`internal/node`).

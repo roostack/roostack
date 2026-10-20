@@ -317,8 +317,8 @@ func (n *Local) runChecks(ctx context.Context, checks []generate.HealthCheck) st
 		case c.HTTP != "":
 			problem = httpCheck(cctx, c.HTTP)
 		case c.Cmd != "" && n.Exec != nil:
-			if out, err := n.Exec(cctx, c.Container, nil, []string{"/bin/sh", "-c", c.Cmd}); err != nil {
-				problem = "its health check failed: " + lastLines(out, err)
+			if out, errOut, err := n.Exec(cctx, c.Container, nil, []string{"/bin/sh", "-c", c.Cmd}); err != nil {
+				problem = "its health check failed: " + lastLines(append(out, errOut...), err)
 			}
 		}
 		cancel()

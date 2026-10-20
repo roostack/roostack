@@ -496,6 +496,9 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 				actions = append(actions, serviceAction{Name: h.Name, Title: h.Title, Description: h.Description, Fields: inputFields(h)})
 			}
 			data["Actions"] = actions
+			// ?action=connect opens that action: single sign-on's Connect
+			// prompt links to it.
+			data["OpenAction"] = r.URL.Query().Get("action")
 			s.addSettingsData(data, name, p, nil)
 			if access, err := s.Manager.Access(name); err == nil {
 				data["Access"] = access
@@ -564,6 +567,12 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 				c.Error = msg
 			}
 			c.Open = c.On && c.CanChoose && (c.Error != "" || r.URL.Query().Get("sso") == "who")
+			if st, ok := data["Setup"].(manager.HookStatus); ok {
+				c.Hook = st.SSO
+				if a := p.Action(st.SSO.NeedsKey); a != nil {
+					c.Connect, c.ConnectTitle = a.Name, a.Title
+				}
+			}
 			data["SSO"] = c
 		}
 	}

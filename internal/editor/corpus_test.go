@@ -316,6 +316,33 @@ func structural(first map[string]string) [][]edit {
 	add([]edit{{Path: []any{"settings", 99}, YAML: `{key: s1, type: secret}`}, {Path: []any{"containers", c, "env", "S1"}, YAML: `s1`},
 		{Path: []any{"containers", c, "secrets", "S1"}, YAML: `s1`}})
 
+	// A key the app makes (from_hook), and the hooks that save it.
+	for _, v := range []string{`{key: k1, type: string, from_hook: true}`, `{key: k1, type: secret, from_hook: true}`,
+		`{key: k1, type: secret, from_hook: true, generate: true}`, `{key: k1, type: secret, from_hook: true, reveal: true}`,
+		`{key: k1, type: secret, from_hook: true, min_length: 8}`} {
+		add(set(v, "settings", 99))
+	}
+	saver := func(on string) string {
+		return `{on: ` + on + `, name: connect, title: Connect, container: ` + c + `, command: [x], saves: k1}`
+	}
+	add(append(set(`{key: k1, type: secret, from_hook: true}`, "settings", 99), set(saver("action"), "hooks", 99)...))
+	add(append(append(set(`{key: k1, type: secret, from_hook: true}`, "settings", 99), set(saver("action"), "hooks", 98)...),
+		set(`k1`, "containers", c, "secrets", "K1")...))
+	add(append(append(set(`{key: k1, type: secret, from_hook: true}`, "settings", 99), set(saver("action"), "hooks", 98)...),
+		set(`{on: install, container: `+c+`, command: [x], saves: k1, secrets: {K: k1}}`, "hooks", 99)...))
+	add(append(set(`{key: k1, type: secret}`, "settings", 99), set(saver("action"), "hooks", 99)...))
+	add(set(`{on: install, container: `+c+`, command: [x], saves: nope}`, "hooks", 99))
+
+	// sso hooks, and the client secret in hooks.
+	for _, v := range []string{`{on: sso, container: ` + c + `, command: [x]}`, `{on: sso, name: a, container: ` + c + `, command: [x]}`,
+		`{on: sso, container: ` + c + `, command: [x], inputs: [{key: a, type: string}]}`,
+		`{on: sso, container: ` + c + `, command: [x], secrets: {S: sso.client_secret}, env: {A: "{{ .SSO.ClientID }}"}}`,
+		`{on: install, container: ` + c + `, command: [x], secrets: {S: sso.client_secret}}`,
+		`{on: sso, container: ` + c + `, command: [x], saves: x}`} {
+		add(set(v, "hooks", 99))
+	}
+	add(append(set(`{forward_auth: {route: `+r+`}}`, "sso"), set(`{on: sso, container: `+c+`, command: [x], secrets: {S: sso.client_secret}}`, "hooks", 99)...))
+
 	// Hooks.
 	for _, v := range []string{
 		`{on: action, name: Bad, container: nope}`, `{on: x, command: [a]}`,
@@ -350,6 +377,16 @@ func structural(first map[string]string) [][]edit {
 		`{forward_auth: {route: ` + r + `}, secrets: {` + c + `: {S: sso.client_secret}}}`,
 		`{oidc: {route: ` + r + `, redirect_paths: [/l]}, note: "The phone apps still use the app's own accounts."}`,
 		`{oidc: {route: ` + r + `, foo: 1}}`, `{oidc: bogus}`, `{env: {` + c + `: bogus}}`, `{forward_auth: {bypass_paths: bogus}}`, `{forward_auth: {}}`,
+		// Templated redirect paths, escapes, and renamed groups.
+		`{oidc: {route: ` + r + `, redirect_paths: ["/u/{{ pathescape .SSO.ProviderName }}/cb", "x/{{ .SSO.ClientID }}", "/a%20b", "/a%2", "/a%zz"]}}`,
+		`{oidc: {route: ` + r + `, redirect_paths: [/l], groups: {users: user, admins: admin}}}`,
+		`{oidc: {route: ` + r + `, redirect_paths: [/l], groups: {users: User, admins: admin}}}`,
+		`{oidc: {route: ` + r + `, redirect_paths: [/l], groups: {users: same, admins: same}}}`,
+		`{oidc: {route: ` + r + `, redirect_paths: [/l], groups: {users: user}}}`, `{oidc: {route: ` + r + `, redirect_paths: [/l], groups: bogus}}`,
+		// A secret inside a value.
+		`{oidc: {route: ` + r + `, redirect_paths: [/l]}, env: {` + c + `: {A: x}}, secrets: {` + c + `: {D: sso.client_secret}}, secret_env: {` + c +
+			`: {A: "{{ .SSO.ClientSecret }}", B: plain, D: "{{ json .SSO.ClientSecret }}", E: '{"s": {{ json .SSO.ClientSecret }}}', "bad key": "{{ .SSO.ClientSecret }}"}, nope: {C: "{{ .SSO.ClientSecret }}"}}}`,
+		`{forward_auth: {route: ` + r + `}, secret_env: {` + c + `: {A: "{{ .SSO.ClientSecret }}"}}}`, `{secret_env: {` + c + `: bogus}}`,
 	} {
 		add(set(v, "sso"))
 	}

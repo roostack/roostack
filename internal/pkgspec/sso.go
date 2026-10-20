@@ -21,6 +21,12 @@ type SSO struct {
 	Env map[string]map[string]string `yaml:"env"`
 	// Secrets are added the same way: container → variable → SSOClientSecret.
 	Secrets map[string]map[string]string `yaml:"secrets"`
+	// SecretEnv is env whose whole value holds the client secret, such as
+	// Paperless-ngx's JSON list of providers: container → variable → a
+	// template, in which .SSO.ClientSecret is the secret. Roostack makes
+	// the value as a Podman secret, so it's never written into a file it
+	// generates (SPEC.md §5.2, "Secrets inside JSON").
+	SecretEnv map[string]map[string]string `yaml:"secret_env"`
 	// Note says what still uses the app's own sign-in (its phone apps, its
 	// API tokens), shown beside the switch.
 	Note string `yaml:"note"`
@@ -41,6 +47,17 @@ type SSOOIDC struct {
 	// own phone apps (app.immich:///oauth-callback): never http or https,
 	// which could be anyone's site.
 	RedirectURIs []string `yaml:"redirect_uris"`
+	// Groups renames the two groups the app is told about, for apps that
+	// expect their own words (Immich and Audiobookshelf: user and admin).
+	Groups *SSOGroups `yaml:"groups"`
+}
+
+// SSOGroups are the names of the groups in an app's "groups" claim.
+type SSOGroups struct {
+	// Users is everyone with access; Admins the lab's Owners and Admins
+	// among them.
+	Users  string `yaml:"users"`
+	Admins string `yaml:"admins"`
 }
 
 // SSOForwardAuth is an app behind the wall: everyone signs in on the
@@ -56,19 +73,20 @@ type SSOForwardAuth struct {
 
 var (
 	// redirectPathRe allows a trailing slash, which some apps' callbacks
-	// have (Paperless-ngx's /accounts/oidc/<id>/login/callback/).
-	redirectPathRe = regexp.MustCompile(`^(/[A-Za-z0-9._:~-]*)+$`)
+	// have (Paperless-ngx's /accounts/oidc/<id>/login/callback/), and
+	// escapes (%20), which a templated path's values get from pathescape
+	// (Forgejo's /user/oauth2/<the lab's name>/callback).
+	redirectPathRe = regexp.MustCompile(`^(/([A-Za-z0-9._:~-]|%[0-9A-F]{2})*)+$`)
+	// groupNameRe is a group's name in the groups claim.
+	groupNameRe = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
 	// appSchemeRe is a phone app's own address scheme (RFC 8252 §7.1).
 	appSchemeRe = regexp.MustCompile(`^[a-z][a-z0-9+.-]*:/[^\s]*$`)
 )
 
-// SSORedirects are an OIDC app's redirect addresses at its route's URL.
-func (s *SSOOIDC) SSORedirects(routeURL string) []string {
-	var out []string
-	for _, p := range s.RedirectPaths {
-		out = append(out, routeURL+p)
-	}
-	return append(out, s.RedirectURIs...)
+// ValidRedirectPath says whether a redirect path, once its templates are
+// rendered, is a plain path.
+func ValidRedirectPath(p string) bool {
+	return redirectPathRe.MatchString(p) && !strings.Contains(p, "//")
 }
 
 // SSORoute is the route single sign-on is on ("" without it).
@@ -103,8 +121,17 @@ func (p *Package) validateSSO(v *validator) {
 			v.addf("sso.oidc: needs redirect_paths (or redirect_uris)")
 		}
 		for i, rp := range o.RedirectPaths {
-			if !redirectPathRe.MatchString(rp) || strings.Contains(rp, "//") {
+			// A templated path is checked once it's rendered (generate).
+			if templated := strings.Contains(rp, "{{"); templated && !strings.HasPrefix(rp, "/") ||
+				!templated && !ValidRedirectPath(rp) {
 				v.addf("sso.oidc.redirect_paths[%d]: %q must be a path starting with /, with only letters, digits and - _ . : ~ /", i, rp)
+			}
+		}
+		if g := o.Groups; g != nil {
+			if !groupNameRe.MatchString(g.Users) || !groupNameRe.MatchString(g.Admins) {
+				v.addf("sso.oidc.groups: users and admins must each be a lowercase name (letters, digits, - and _)")
+			} else if g.Users == g.Admins {
+				v.addf("sso.oidc.groups: users and admins must differ")
 			}
 		}
 		for i, u := range o.RedirectURIs {
@@ -154,7 +181,26 @@ func (p *Package) validateSSO(v *validator) {
 			}
 		}
 	}
-	if s.ForwardAuth != nil && len(s.Secrets) > 0 {
+	for _, c := range slices.Sorted(maps.Keys(s.SecretEnv)) {
+		if p.Containers[c] == nil {
+			v.addf("sso.secret_env.%s: unknown container", c)
+		}
+		for _, k := range slices.Sorted(maps.Keys(s.SecretEnv[c])) {
+			if !envNameRe.MatchString(k) {
+				v.addf("sso.secret_env.%s.%s: invalid variable name", c, k)
+			}
+			if _, dup := s.Env[c][k]; dup {
+				v.addf("sso.secret_env.%s.%s: also set in sso.env", c, k)
+			}
+			if _, dup := s.Secrets[c][k]; dup {
+				v.addf("sso.secret_env.%s.%s: also set in sso.secrets", c, k)
+			}
+			if !strings.Contains(s.SecretEnv[c][k], ".SSO.ClientSecret") {
+				v.addf("sso.secret_env.%s.%s: must use {{ .SSO.ClientSecret }} (otherwise put it in sso.env)", c, k)
+			}
+		}
+	}
+	if s.ForwardAuth != nil && (len(s.Secrets) > 0 || len(s.SecretEnv) > 0) {
 		v.addf("sso.secrets: only an oidc app has a client secret")
 	}
 }

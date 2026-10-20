@@ -343,6 +343,7 @@
     "Health.http": "HTTPCheck", "Route.monitor": "RouteMonitor", "Route.public": "PublicRules",
     "PublicRules.private_paths": "PrivatePath", "Hook.inputs": "Setting",
     "Package.sso": "SSO", "SSO.oidc": "SSOOIDC", "SSO.forward_auth": "SSOForwardAuth", "SSOForwardAuth.bypass_paths": "PrivatePath",
+    "SSOOIDC.groups": "SSOGroups",
   };
   function goTypeOf(parent, name) { return structNames[parent + "." + name] || "string"; }
 
@@ -358,6 +359,8 @@
   const has = (m, k) => !!m && Object.prototype.hasOwnProperty.call(m, k) && !isNil(m[k]);
   const settingOf = (p, key) => (p.settings || []).find((s) => s.key === key) || null;
   const hasInstallHook = (p) => (p.hooks || []).some((h) => h && h.on === "install");
+  const hasSavingAction = (p, key) => (p.hooks || []).some((h) => h && h.on === "action" && h.saves === key);
+  const validRedirectPath = (rp) => re.ssoRedirectPath.test(rp) && !rp.includes("//");
   const validPort = (n) => n > 0 && n < 65536;
   const isAbs = (s) => s.startsWith("/");
   const validPath = (s) => re.path.test(s);
@@ -402,8 +405,15 @@
       if (!has(p.routes, o.route)) add(`sso.oidc.route: unknown route ${goQuote(o.route)}`);
       if ((o.redirect_paths || []).length + (o.redirect_uris || []).length === 0) add("sso.oidc: needs redirect_paths (or redirect_uris)");
       (o.redirect_paths || []).forEach((rp, i) => {
-        if (!re.ssoRedirectPath.test(rp) || rp.includes("//")) add(`sso.oidc.redirect_paths[${i}]: ${goQuote(rp)} must be a path starting with /, with only letters, digits and - _ . : ~ /`);
+        // A templated path is checked once it's rendered (generate).
+        const templated = rp.includes("{{");
+        if ((templated && !rp.startsWith("/")) || (!templated && !validRedirectPath(rp))) add(`sso.oidc.redirect_paths[${i}]: ${goQuote(rp)} must be a path starting with /, with only letters, digits and - _ . : ~ /`);
       });
+      const g = o.groups;
+      if (!isNil(g)) {
+        if (!re.ssoGroupName.test(g.users) || !re.ssoGroupName.test(g.admins)) add("sso.oidc.groups: users and admins must each be a lowercase name (letters, digits, - and _)");
+        else if (g.users === g.admins) add("sso.oidc.groups: users and admins must differ");
+      }
       (o.redirect_uris || []).forEach((u, i) => {
         if (!re.ssoAppScheme.test(u) || u.startsWith("http:") || u.startsWith("https:")) add(`sso.oidc.redirect_uris[${i}]: ${goQuote(u)} must be a phone app's own address (like app.example:/callback), not a web address`);
       });
@@ -431,7 +441,16 @@
         if (s.secrets[c][k] !== secret) add(`sso.secrets.${c}.${k}: must be ${secret}`);
       }
     }
-    if (!isNil(f) && Object.keys(s.secrets || {}).length > 0) add("sso.secrets: only an oidc app has a client secret");
+    for (const c of sortedKeys(s.secret_env)) {
+      if (!has(p.containers, c)) add(`sso.secret_env.${c}: unknown container`);
+      for (const k of sortedKeys(s.secret_env[c])) {
+        if (!re.envName.test(k)) add(`sso.secret_env.${c}.${k}: invalid variable name`);
+        if (s.env && s.env[c] && Object.prototype.hasOwnProperty.call(s.env[c], k)) add(`sso.secret_env.${c}.${k}: also set in sso.env`);
+        if (s.secrets && s.secrets[c] && Object.prototype.hasOwnProperty.call(s.secrets[c], k)) add(`sso.secret_env.${c}.${k}: also set in sso.secrets`);
+        if (!s.secret_env[c][k].includes(".SSO.ClientSecret")) add(`sso.secret_env.${c}.${k}: must use {{ .SSO.ClientSecret }} (otherwise put it in sso.env)`);
+      }
+    }
+    if (!isNil(f) && (Object.keys(s.secrets || {}).length > 0 || Object.keys(s.secret_env || {}).length > 0)) add("sso.secrets: only an oidc app has a client secret");
   }
 
   function validateSettings(p, add) {
@@ -468,6 +487,11 @@
       }
       if (s.reveal && (s.type !== "secret" || s.install_only)) add(`${at}.reveal: only for secrets that are kept (not install_only)`);
       if (s.generate && s.install_only) add(`${at}: a generated secret can't be install_only (nobody would know it)`);
+      if (s.from_hook) {
+        if (s.type !== "secret") add(`${at}.from_hook: only for secrets`);
+        else if (s.generate || s.install_only || s.reveal || s.min_length !== 0) add(`${at}.from_hook: a hook makes it, so it takes no generate, install_only, reveal or min_length`);
+        else if (!hasSavingAction(p, s.key)) add(`${at}.from_hook: needs an action that saves it (saves: ${s.key}), for services installed before it, or whose key was lost`);
+      }
       if (s.required && s.type !== "string") add(`${at}.required: only for strings (secrets are always required)`);
       if (s.min_length !== 0 && s.type !== "string" && s.type !== "secret") add(`${at}.min_length: only for strings and secrets`);
     });
@@ -499,8 +523,17 @@
           actions.add(h.name);
           if (h.title === "") add(`${at}.title: required (the button's label)`);
           break;
+        case "sso":
+          if (isNil(p.sso)) add(`${at}.on: an sso hook needs the package's sso part`);
+          else if (h.name !== "" || (h.inputs || []).length > 0) add(`${at}: an sso hook takes no name or inputs`);
+          break;
         default:
-          add(`${at}.on: must be "install" or "action"`);
+          add(`${at}.on: must be "install", "action" or "sso"`);
+      }
+      if (h.saves !== "") {
+        const s = settingOf(p, h.saves);
+        if (h.on === "sso") add(`${at}.saves: only install and action hooks save a secret`);
+        else if (!s || !s.from_hook) add(`${at}.saves: ${goQuote(h.saves)} is not a from_hook secret setting`);
       }
       if (!has(p.containers, h.container)) add(`${at}.container: unknown container ${goQuote(h.container)}`);
       if ((h.command || []).length === 0) add(`${at}.command: required`);
@@ -517,6 +550,10 @@
         if (!re.envName.test(k)) add(`${at}.secrets: invalid variable name ${goQuote(k)}`);
         if (h.env && Object.prototype.hasOwnProperty.call(h.env, k)) add(`${at}.secrets.${k}: also set in env`);
         const ref = h.secrets[k];
+        if (ref === L.ssoClientSecret[0]) {
+          if (h.on !== "sso" || isNil(p.sso) || isNil(p.sso.oidc)) add(`${at}.secrets.${k}: ${ref} is only for an sso hook of an oidc app`);
+          continue;
+        }
         if (ref.startsWith("inputs.")) {
           const key = ref.slice("inputs.".length);
           const inp = (h.inputs || []).find((x) => x.key === key);
@@ -577,6 +614,7 @@
       else {
         const s = settingOf(p, c.secrets[k]);
         if (s && s.install_only) add(`${at}.secrets.${k}: ${goQuote(c.secrets[k])} is install_only, so only install hooks can use it`);
+        else if (s && s.from_hook) add(`${at}.secrets.${k}: ${goQuote(c.secrets[k])} is from_hook, so only hooks can use it`);
       }
     }
     (c.mounts || []).forEach((m, i) => {
@@ -1006,8 +1044,14 @@
     });
     const sso = p.sso || {};
     for (const c of sortedKeys(sso.env)) for (const k of sortedKeys(sso.env[c])) where.push([`sso.env.${c}.${k}`, sso.env[c][k], null]);
+    if (sso.oidc) (sso.oidc.redirect_paths || []).forEach((rp, i) => where.push([`sso.oidc.redirect_paths[${i}]`, rp, null]));
+    const secretEnv = new Set();
+    for (const c of sortedKeys(sso.secret_env)) for (const k of sortedKeys(sso.secret_env[c])) {
+      where.push([`sso.secret_env.${c}.${k}`, sso.secret_env[c][k], null]);
+      secretEnv.add(`sso.secret_env.${c}.${k}`);
+    }
     for (const [at, text, hook, isWhen] of where) {
-      for (const msg of checkTemplate(p, text, hook)) out.push(`${at}: ${msg}`);
+      for (const msg of checkTemplate(p, text, hook, secretEnv.has(at))) out.push(`${at}: ${msg}`);
       if (isWhen && !text.includes("{{") && !["true", "false"].includes(text.trim())) out.push(`${at}: a condition must be true or false, or a template that gives one, such as {{ .Settings.x }}`);
     }
     return out;
@@ -1023,7 +1067,7 @@
   };
   const names = (m) => sortedKeys(m).join(", ") || "none";
 
-  function checkTemplate(p, text, hook) {
+  function checkTemplate(p, text, hook, secretEnv) {
     const out = [];
     if (!text.includes("{{")) return out;
     const opens = (text.match(/\{\{/g) || []).length, closes = (text.match(/\}\}/g) || []).length;
@@ -1038,20 +1082,23 @@
       }
       for (const m of action.matchAll(/(?:^|[\s(|$])\$?(\.[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*)/g)) {
         const parts = m[1].slice(1).split(".");
-        const msg = checkChain(p, parts, hook);
+        const msg = checkChain(p, parts, hook, secretEnv);
         if (msg) out.push(msg);
       }
     }
     return [...new Set(out)];
   }
 
-  function checkChain(p, parts, hook) {
+  function checkChain(p, parts, hook, secretEnv) {
     const [top, a, b] = parts;
     const leaf = (set, k, what) => (k === undefined || set[k] ? null : `${what} has no ${k} (it has ${Object.keys(set).join(", ")})`);
     switch (top) {
       case "Service": return leaf(fields.Service, a, ".Service");
       case "Lab": return leaf(fields.Lab, a, ".Lab");
-      case "SSO": return leaf(fields.SSO, a, ".SSO");
+      case "SSO":
+        // generate.SSOContext.ClientSecret: never into a file Roostack writes.
+        if (a === "ClientSecret") return secretEnv ? null : ".SSO.ClientSecret is only for sso.secret_env (or an sso hook's secrets: sso.client_secret)";
+        return leaf(fields.SSO, a, ".SSO");
       case "Settings": {
         if (a === undefined) return null;
         const s = settingOf(p, a);

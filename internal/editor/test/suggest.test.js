@@ -100,7 +100,9 @@ test("an app the registry has is named, with its facts", () => {
 test("the test packages from the registry need nothing much", () => {
   for (const ex of R.examples) {
     const s = suggestions(ex.text);
-    const blocking = s.filter((x) => !["name", "about.releases", "about.support", "routes.web.max_body_size"].includes(x.path));
+    // sso: how the app could take single sign-on, which not every test
+    // package has yet (Immich's is an older version).
+    const blocking = s.filter((x) => !["name", "about.releases", "about.support", "routes.web.max_body_size", "sso"].includes(x.path));
     assert.deepEqual(blocking.map((x) => x.path + ": " + x.message), [], ex.name);
   }
 });
@@ -133,4 +135,29 @@ test("single sign-on's templates: .SSO's fields pass, others are named", () => {
   const msgs = r.problems.map((p) => p.message);
   assert.ok(msgs.some((m) => /sso\.env\.app\.B: \.SSO has no Nope/.test(m)), msgs.join("\n"));
   assert.ok(!msgs.some((m) => /sso\.env\.app\.A/.test(m)), msgs.join("\n"));
+});
+
+test("single sign-on: how an app known to the registry takes it, and its kept key", () => {
+  const api = suggestions(base.replace("ghcr.io/example/notes:2.0", "ghcr.io/immich-app/immich-server:v3.3.3"));
+  assert.match(at(api, "sso")[0].message, /Immich takes its OIDC settings only through its API: .*from_hook/);
+  const cmd = suggestions(base.replace("ghcr.io/example/notes:2.0", "codeberg.org/forgejo/forgejo:15.0.10-rootless"));
+  assert.match(at(cmd, "sso")[0].message, /Forgejo takes its OIDC settings from its admin command: .*on: sso hook/);
+  const json = suggestions(base.replace("ghcr.io/example/notes:2.0", "ghcr.io/paperless-ngx/paperless-ngx:3.3.2"));
+  assert.match(at(json, "sso")[0].message, /sso\.secret_env/);
+
+  // An sso hook given the client secret and .SSO values needs neither
+  // suggestion an env-only app gets; a key with no install hook saving it
+  // gets one.
+  const hooked = base + `  - { key: k, title: K, type: secret, from_hook: true }
+hooks:
+  - { on: action, name: connect, title: Connect, container: app, command: [x], saves: k }
+  - { on: sso, container: app, command: [x], env: { I: "{{ .SSO.Issuer }}" }, secrets: { S: sso.client_secret, K: k } }
+sso:
+  oidc: { route: web, redirect_paths: [/auth/login] }
+  note: Its API keys stay its own.
+`;
+  const s = suggestions(hooked);
+  assert.deepEqual(at(s, "sso.secrets"), []);
+  assert.deepEqual(at(s, "sso.env"), []);
+  assert.match(at(s, "settings.k.from_hook")[0].message, /Make it at install too/);
 });

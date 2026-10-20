@@ -40,17 +40,17 @@ type fakeExec struct {
 	fail  func(n int) bool
 }
 
-func (f *fakeExec) exec(_ context.Context, container string, env map[string]string, cmd []string) ([]byte, error) {
+func (f *fakeExec) exec(_ context.Context, container string, env map[string]string, cmd []string) ([]byte, []byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, env)
 	if container != "roostack-forgejo-app" || cmd[0] != "sh" {
-		return nil, errors.New("unexpected command")
+		return nil, nil, errors.New("unexpected command")
 	}
 	if f.fail != nil && f.fail(len(f.calls)) {
-		return []byte("database not ready"), errors.New("exit status 1")
+		return nil, []byte("database not ready"), errors.New("exit status 1")
 	}
-	return []byte("ok"), nil
+	return []byte("ok"), nil, nil
 }
 
 func newHookManager(t *testing.T) (*Manager, *fakeSecrets, *memKV, *fakeExec) {
@@ -358,5 +358,106 @@ func TestInstallHookStoppedByRemoval(t *testing.T) {
 	local(m).WaitHooks()
 	if st := local(m).InstallStatus(ctx, "forgejo"); st.Pending || st.Running || st.Failed != "" {
 		t.Errorf("status after installing again = %+v, want done", st)
+	}
+}
+
+// Single sign-on's hook (SPEC.md §5.2): run once its install hooks are
+// done, told on with the client secret, not again for the same values,
+// then told off without it, after which the client secret goes.
+func TestSSOHook(t *testing.T) {
+	m, secrets, _, ex := newHookManager(t)
+	ctx := context.Background()
+	if err := m.Install(ctx, "forgejo", forgejoRequest()); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	local(m).WaitHooks()
+	if err := m.SetSSO(ctx, "forgejo", true); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	local(m).WaitHooks()
+	sso := func(on string) []map[string]string {
+		var out []map[string]string
+		for _, c := range ex.calls {
+			if c["ROOSTACK_SSO"] == on {
+				out = append(out, c)
+			}
+		}
+		return out
+	}
+	ons := sso("on")
+	if len(ons) != 1 {
+		t.Fatalf("on runs: %d of %d calls", len(ons), len(ex.calls))
+	}
+	secret := string(secrets.values["roostack-forgejo-sso-client-secret"])
+	if secret == "" || ons[0]["CLIENT_SECRET"] != secret || ons[0]["SOURCE_NAME"] != "lab.example.com" {
+		t.Errorf("on run's env: %v", ons[0])
+	}
+	if st := local(m).InstallStatus(ctx, "forgejo").SSO; !st.On || st.Failed != "" || st.Running {
+		t.Errorf("status %+v", st)
+	}
+	setupLog, _ := m.Activity.Latest(activity.Setup)
+	if setupLog.Title != "Connecting Forgejo to the sign-in page" || strings.Contains(strings.Join(setupLog.Lines, "\n"), secret) {
+		t.Errorf("log %q:\n%s", setupLog.Title, strings.Join(setupLog.Lines, "\n"))
+	}
+
+	// Nothing changed: not run again.
+	m.Apply()
+	m.Wait()
+	local(m).WaitHooks()
+	if n := len(sso("on")); n != 1 {
+		t.Errorf("ran again: %d", n)
+	}
+
+	if err := m.SetSSO(ctx, "forgejo", false); err != nil {
+		t.Fatal(err)
+	}
+	m.Wait()
+	local(m).WaitHooks()
+	offs := sso("off")
+	if v, ok := offs[0]["CLIENT_SECRET"]; len(offs) != 1 || !ok || v != "" {
+		t.Fatalf("off runs: %v", offs)
+	}
+	if _, kept := secrets.values["roostack-forgejo-sso-client-secret"]; kept {
+		t.Error("the client secret must go once it's off")
+	}
+	if st := local(m).InstallStatus(ctx, "forgejo").SSO; st.On || st.Failed != "" {
+		t.Errorf("status %+v", st)
+	}
+}
+
+// A failed sso hook says why on the service's page, and Try again runs it
+// once more.
+func TestSSOHookFailsThenRetry(t *testing.T) {
+	m, _, _, ex := newHookManager(t)
+	ctx := context.Background()
+	failing := false
+	ex.fail = func(int) bool { return failing }
+	m.Install(ctx, "forgejo", forgejoRequest())
+	m.Wait()
+	local(m).WaitHooks()
+	failing = true
+	m.SetSSO(ctx, "forgejo", true)
+	m.Wait()
+	local(m).WaitHooks()
+	st := local(m).InstallStatus(ctx, "forgejo")
+	if !strings.Contains(st.SSO.Failed, "database not ready") || st.Failed != "" {
+		t.Fatalf("status %+v", st)
+	}
+	calls := len(ex.calls)
+	m.Apply() // the same values: waits for Try again
+	m.Wait()
+	local(m).WaitHooks()
+	if len(ex.calls) != calls {
+		t.Errorf("ran again without Try again")
+	}
+	failing = false
+	if err := local(m).RetryInstall(ctx, "forgejo"); err != nil {
+		t.Fatal(err)
+	}
+	local(m).WaitHooks()
+	if st := local(m).InstallStatus(ctx, "forgejo").SSO; !st.On || st.Failed != "" {
+		t.Errorf("after Try again: %+v", st)
 	}
 }

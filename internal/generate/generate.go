@@ -9,6 +9,7 @@ package generate
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"net"
@@ -48,6 +49,10 @@ type Secret struct {
 	// once those succeed: create them if a value is at hand, but a missing
 	// one is not an error.
 	InstallOnly bool
+	// FromHook secrets are a key the app makes, which a hook saves
+	// (pkgspec.Setting.FromHook): never created here, and missing until
+	// then. Listed so backups keep them.
+	FromHook bool
 	// Holds names a Quadlet file that waits while this user secret hasn't
 	// been given (e.g. Caddy until the domain step): the rest of the lab
 	// is applied without it.
@@ -56,7 +61,28 @@ type Secret struct {
 	// included, from the database's password secret: for apps that take
 	// their database only as a URL (databases.<name>.url; SPEC.md §8.1).
 	DBURL *DBURL
+	// Template, if set, makes this secret from another one put into a
+	// text: single sign-on's secret_env (SPEC.md §5.2).
+	Template *SecretTemplate
 }
+
+// SecretTemplate is a secret made from Text, with the From secret's value
+// in place of SSOSecretMarker (JSON-escaped, which leaves a generated
+// secret as it is).
+type SecretTemplate struct {
+	Text string
+	From string
+}
+
+// Value is the template's text with the secret in it.
+func (t SecretTemplate) Value(secret string) string {
+	b, _ := json.Marshal(secret)
+	return strings.ReplaceAll(t.Text, SSOSecretMarker, string(b[1:len(b)-1]))
+}
+
+// Derived says whether a secret is made from another one, so it's made
+// after the secrets it comes from.
+func (s Secret) Derived() bool { return s.DBURL != nil || s.Template != nil }
 
 // DBURL is what a database URL secret is made of. The password comes from
 // the PasswordSecret when the secret is created.
@@ -114,6 +140,10 @@ type Output struct {
 	// the sign-in page; SSOPublic: on its public address, so the sign-in
 	// page is public too.
 	SSO, SSOPublic bool
+	// SSOReach: it reaches the sign-in page even while single sign-on is
+	// off, so the lab serves it (privately): an app its sso hook set may
+	// keep its button after being turned off (SSOReaches).
+	SSOReach bool
 }
 
 // RouteMonitor is how monitoring checks one route: an HTTPS request for
@@ -219,7 +249,7 @@ func newGen(lab config.Lab, p *pkgspec.Package, in *instance.Instance, upstream 
 	return &gen{
 		lab: lab, pkg: p, ctx: buildContext(lab, p, in), upstream: upstream,
 		name: in.ID(), title: cmp.Or(in.Title, p.Title), out: &Output{Service: in.ID()},
-		included: map[string]bool{}, waf: !in.NoWAF, sso: SSOOn(lab, p, in),
+		included: map[string]bool{}, waf: !in.NoWAF, sso: SSOOn(lab, p, in), ssoReach: SSOReaches(lab, p, in),
 	}
 }
 
@@ -237,8 +267,12 @@ type gen struct {
 	included map[string]bool
 	// waf: CrowdSec's AppSec checks its public routes (SPEC.md §6.10).
 	waf bool
-	// sso: single sign-on is on (SSOOn).
-	sso bool
+	// sso: single sign-on is on (SSOOn); ssoReach: its containers reach
+	// the sign-in page (SSOReaches).
+	sso, ssoReach bool
+	// ssoEnvSecrets are each container's secret_env secrets: variable →
+	// the Podman secret's name (ssoSecretEnv).
+	ssoEnvSecrets map[string]map[string]string
 }
 
 func (g *gen) run() error {
@@ -252,6 +286,9 @@ func (g *gen) run() error {
 	}
 
 	if err := g.network(); err != nil {
+		return err
+	}
+	if err := g.ssoSecretEnv(); err != nil {
 		return err
 	}
 	for _, name := range slices.Sorted(maps.Keys(p.Databases)) {
@@ -670,7 +707,7 @@ func (g *gen) secrets() {
 	for _, s := range g.pkg.Settings {
 		if s.Type == pkgspec.SettingSecret {
 			g.out.Secrets = append(g.out.Secrets, Secret{Name: secretName(g.name, s.Key), Generate: s.Generate,
-				Setting: s.Key, InstallOnly: s.InstallOnly})
+				Setting: s.Key, InstallOnly: s.InstallOnly, FromHook: s.FromHook})
 		}
 	}
 	// A database URL, made from its password, for each one a container

@@ -19,11 +19,16 @@ func (f *fakeRun) run(_ context.Context, stdin []byte, args ...string) ([]byte, 
 	return nil, nil
 }
 
+func (f *fakeRun) runSplit(ctx context.Context, stdin []byte, args ...string) ([]byte, []byte, error) {
+	out, err := f.run(ctx, stdin, args...)
+	return out, nil, err
+}
+
 // Values from people (passwords, action inputs) go to podman only on
 // stdin, never in its command line, where any process listing shows them.
 func TestExecPassesEnvOnStdin(t *testing.T) {
 	f := &fakeRun{}
-	_, err := Exec(context.Background(), f.run, "roostack-forgejo-app",
+	_, _, err := Exec(context.Background(), f.runSplit, "roostack-forgejo-app",
 		map[string]string{"PASSWORD": "s3cret pass", "USER": "tyris"}, "forgejo", "admin", "user", "create")
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +42,7 @@ func TestExecPassesEnvOnStdin(t *testing.T) {
 	}
 	// A line break would start another variable in the env file.
 	for _, bad := range []string{"a\nEVIL=1", "a\rb", "a\x00b"} {
-		_, err := Exec(context.Background(), f.run, "c", map[string]string{"X": bad}, "true")
+		_, _, err := Exec(context.Background(), f.runSplit, "c", map[string]string{"X": bad}, "true")
 		if !errors.Is(err, ErrBadEnvValue) {
 			t.Errorf("%q: %v", bad, err)
 		}

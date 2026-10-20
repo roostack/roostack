@@ -12,14 +12,17 @@
   // What the service registry's packages use (roostack/services,
   // 2026-10-20), by image: for apps packaged again, and as examples. It
   // only suggests; the registry's own package is the one to start from.
+  // sso is how the app takes its OIDC settings (docs/SSO-RESEARCH.md):
+  // command (its admin command), api (only its API), json (a JSON value
+  // holding the secret).
   const known = {
     "actualbudget/actual-server": { app: "Actual Budget", licence: "MIT", categories: ["productivity"], login: ["/account/login", "/account/bootstrap"] },
-    "advplyr/audiobookshelf": { app: "Audiobookshelf", licence: "GPL-3.0-only", categories: ["media"], login: ["/login"] },
-    "forgejo/forgejo": { app: "Forgejo", licence: "GPL-3.0-or-later", categories: ["development"], login: ["/user/login", "/user/sign_up"], private: ["/admin"] },
+    "advplyr/audiobookshelf": { app: "Audiobookshelf", licence: "GPL-3.0-only", categories: ["media"], login: ["/login"], sso: "api" },
+    "forgejo/forgejo": { app: "Forgejo", licence: "GPL-3.0-or-later", categories: ["development"], login: ["/user/login", "/user/sign_up"], private: ["/admin"], sso: "command" },
     "library/ghost": { app: "Ghost", licence: "MIT", categories: ["publishing"], login: ["/ghost/api/admin/session", "/ghost/api/admin/authentication"] },
-    "gitea/gitea": { app: "Gitea", licence: "MIT", categories: ["development"], login: ["/user/login", "/user/sign_up"], private: ["/admin"] },
+    "gitea/gitea": { app: "Gitea", licence: "MIT", categories: ["development"], login: ["/user/login", "/user/sign_up"], private: ["/admin"], sso: "command" },
     "hedgedoc/hedgedoc": { app: "HedgeDoc", licence: "AGPL-3.0-only", categories: ["documents"], login: ["/login", "/register"] },
-    "immich-app/immich-server": { app: "Immich", licence: "AGPL-3.0-only", categories: ["photos"], login: ["/api/auth/login"] },
+    "immich-app/immich-server": { app: "Immich", licence: "AGPL-3.0-only", categories: ["photos"], login: ["/api/auth/login"], sso: "api" },
     "jellyfin/jellyfin": { app: "Jellyfin", licence: "GPL-2.0-only", categories: ["media"], login: ["/Users/AuthenticateByName"] },
     "linkwarden/linkwarden": { app: "Linkwarden", licence: "AGPL-3.0-only", categories: ["documents"], login: ["/api/v1/auth/callback/credentials", "/api/v1/users"] },
     "lycheeorg/lychee": { app: "Lychee", licence: "MIT", categories: ["photos"], login: ["/api/v2/Auth::login"], private: ["/install"] },
@@ -27,15 +30,15 @@
     "miniflux/miniflux": { app: "Miniflux", licence: "Apache-2.0", categories: ["productivity"], login: ["/login"] },
     "deluan/navidrome": { app: "Navidrome", licence: "GPL-3.0-only", categories: ["media"], login: ["/auth/login"] },
     "binwiederhier/ntfy": { app: "ntfy", licence: "Apache-2.0 OR GPL-2.0-only", categories: ["productivity"], login: ["/v1/account/token"] },
-    "paperless-ngx/paperless-ngx": { app: "Paperless-ngx", licence: "GPL-3.0-only", categories: ["documents"], login: ["/accounts/login", "/api/token"], private: ["/admin"] },
-    "papra-hq/papra": { app: "Papra", licence: "AGPL-3.0-or-later", categories: ["documents"], login: ["/api/auth/sign-in/email", "/api/auth/sign-up/email"] },
+    "paperless-ngx/paperless-ngx": { app: "Paperless-ngx", licence: "GPL-3.0-only", categories: ["documents"], login: ["/accounts/login", "/api/token"], private: ["/admin"], sso: "json" },
+    "papra-hq/papra": { app: "Papra", licence: "AGPL-3.0-or-later", categories: ["documents"], login: ["/api/auth/sign-in/email", "/api/auth/sign-up/email"], sso: "json" },
     "photoprism/photoprism": { app: "PhotoPrism", licence: "AGPL-3.0-only", categories: ["photos"], login: ["/api/v1/session"] },
     "plexinc/pms-docker": { app: "Plex", licence: "closed", categories: ["media"], login: ["/myplex"] },
     "kozea/radicale": { app: "Radicale", licence: "GPL-3.0-only", categories: ["productivity"], unsafe: true },
     "stirlingtools/stirling-pdf": { app: "Stirling-PDF", licence: "MIT", categories: ["documents"], unsafe: true },
     "louislam/uptime-kuma": { app: "Uptime Kuma", licence: "MIT", categories: ["network"], unsafe: true },
     "vaultwarden/server": { app: "Vaultwarden", licence: "AGPL-3.0-only", categories: ["passwords"], login: ["/identity/connect/token", "/identity/accounts/prelogin"], private: ["/admin"] },
-    "requarks/wiki": { app: "Wiki.js", licence: "AGPL-3.0-only", categories: ["documents"], login: ["/login"] },
+    "requarks/wiki": { app: "Wiki.js", licence: "AGPL-3.0-only", categories: ["documents"], login: ["/login"], sso: "api" },
   };
 
   // Where people sign in, by the framework an app is built with, which its
@@ -235,7 +238,15 @@
     const firstRoute = sorted(pkg.routes)[0];
     const firstContainer = sorted(containers)[0];
     const oidcEnv = envNames.find((n) => /OIDC|OAUTH|OPENID/i.test(n));
-    if (isNil(sso) && firstRoute) {
+    const ssoHooks = (pkg.hooks || []).filter((h) => h && h.on === "sso");
+    const how = {
+      command: (a) => `${a} takes its OIDC settings from its admin command: an sso part (oidc), and an on: sso hook that runs the command when single sign-on is turned on, changed or off (ROOSTACK_SSO=on or off), safe to run again.`,
+      api: (a) => `${a} takes its OIDC settings only through its API: an sso part (oidc), and an on: sso hook that calls it with a key ${a} makes at install and Roostack keeps (a from_hook secret setting, an install hook that saves it, and an action that makes it again for older installs).`,
+      json: (a) => `${a} takes its OIDC provider as a JSON value holding the client secret: an sso part (oidc) with that variable in sso.secret_env, a template using {{ json .SSO.ClientSecret }}, which Roostack makes as a Podman secret.`,
+    };
+    if (isNil(sso) && firstRoute && app && how[app.sso]) {
+      add(make("sso", how[app.sso](app.app)));
+    } else if (isNil(sso) && firstRoute) {
       if (oidcEnv) {
         // No action: only the app's own settings or docs say its callback
         // path, and the part isn't valid without one.
@@ -246,11 +257,18 @@
       }
     }
     if (!isNil(sso) && !isNil(sso.oidc)) {
-      if (Object.keys(sso.secrets || {}).length === 0 && firstContainer) {
-        add(make("sso.secrets", `An OIDC app needs its client secret, which Roostack makes: give it to the container under the variable the app reads (often OIDC_CLIENT_SECRET).`,
+      // The secret and the app's settings reach it as env, inside a value
+      // (secret_env), or through its sso hook.
+      const hookGetsSecret = ssoHooks.some((h) => Object.values(h.secrets || {}).includes(S.lists.ssoClientSecret[0]));
+      if (Object.keys(sso.secrets || {}).length === 0 && Object.keys(sso.secret_env || {}).length === 0 && !hookGetsSecret && firstContainer) {
+        add(make("sso.secrets", `An OIDC app needs its client secret, which Roostack makes: give it to the container under the variable the app reads (often OIDC_CLIENT_SECRET), or to its on: sso hook if a command or its API sets the app.`,
           [set("Give it as OIDC_CLIENT_SECRET", ["sso", "secrets", firstContainer], { OIDC_CLIENT_SECRET: S.lists.ssoClientSecret[0] })]));
       }
-      const usesSSO = Object.values(sso.env || {}).some((m) => Object.values(m || {}).some((v) => String(v).includes(".SSO.")));
+      const usesSSO = [sso.env, sso.secret_env, ...ssoHooks.map((h) => ({ hook: h.env }))].some((byContainer) =>
+        Object.values(byContainer || {}).some((m) => Object.values(m || {}).some((v) => String(v).includes(".SSO."))));
+      if (app && app.sso === "api" && ssoHooks.length > 0 && !(pkg.settings || []).some((s) => s.from_hook)) {
+        add(make("hooks", how.api(app.app)));
+      }
       if (!usesSSO) {
         add(make("sso.env", "Tell the app where the lab's sign-in is, in the variables it reads while single sign-on is on: usually {{ .SSO.DiscoveryURL }} (or {{ .SSO.Issuer }}) and {{ .SSO.ClientID }}; {{ .SSO.AdminGroup }} if it can make the lab's Owners and Admins its admins, and {{ .SSO.ButtonText }} for its sign-in button."));
       }
@@ -259,6 +277,9 @@
 
     // Settings.
     for (const [i, s] of (pkg.settings || []).entries()) {
+      if (s.from_hook && !(pkg.hooks || []).some((h) => h && h.on === "install" && h.saves === s.key)) {
+        add(make(`settings.${s.key}.from_hook`, "Make it at install too, with an install hook that saves it: a new service then needs nobody to type the app's password, as the action does."));
+      }
       if (s.type === "string" && /pass(word)?|secret|token|_key$/.test(s.key)) {
         add(make(`${s.key ? "settings." + s.key : `settings[${i}]`}.type`, "It looks like a password or key: as a secret, it's kept as a Podman secret, never in a file, and the install form hides it.", [set("Make it a secret", ["settings", i, "type"], "secret")]));
       }

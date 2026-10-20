@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"cmp"
 	"fmt"
 
 	"roostack.cloud/roostack/internal/config"
@@ -13,7 +14,7 @@ import (
 // validated instead of when someone installs it. It tries the default
 // settings and every bool flipped, with and without a GPU, so templates
 // behind when: conditions are rendered too. Install hooks and actions are
-// rendered as well.
+// rendered as well, and with single sign-on on where the package takes it.
 func Check(p *pkgspec.Package) error {
 	lab := config.Default()
 	lab.Domain = "lab.example.com"
@@ -44,21 +45,36 @@ func Check(p *pkgspec.Package) error {
 		ports[name] = instance.PortOverride{Enabled: &on}
 	}
 
+	// With single sign-on on too, where the package takes it.
+	ssoChoices := []bool{false}
+	if p.SSO != nil {
+		ssoChoices = append(ssoChoices, true)
+	}
 	for _, settings := range []map[string]any{defaults, flipped} {
 		for _, gpu := range []bool{false, true} {
-			lab.HasGPU = gpu
-			in := &instance.Instance{Package: p.Name, Version: p.Version, Updates: instance.UpdatesNotify,
-				Settings: settings, Routes: routes, Ports: ports}
-			if _, err := Service(lab, p, in); err != nil {
-				return fmt.Errorf("with settings %v, GPU %v: %w", settings, gpu, err)
-			}
-			for _, h := range p.Hooks {
-				inputs := map[string]string{}
-				for _, i := range h.Inputs {
-					inputs[i.Key] = "example"
+			for _, sso := range ssoChoices {
+				lab.HasGPU = gpu
+				in := &instance.Instance{Package: p.Name, Version: p.Version, Updates: instance.UpdatesNotify,
+					Settings: settings, Routes: routes, Ports: ports, SSO: sso}
+				if _, err := Service(lab, p, in); err != nil {
+					if sso {
+						return fmt.Errorf("with settings %v, GPU %v, single sign-on on: %w", settings, gpu, err)
+					}
+					return fmt.Errorf("with settings %v, GPU %v: %w", settings, gpu, err)
 				}
-				if _, err := Hook(lab, p, in, h, inputs); err != nil {
-					return fmt.Errorf("hook %q: %w", h.Name, err)
+				if sso && p.SSO.OIDC != nil {
+					if _, err := SSORedirects(lab, p, in); err != nil {
+						return err
+					}
+				}
+				for _, h := range p.Hooks {
+					inputs := map[string]string{}
+					for _, i := range h.Inputs {
+						inputs[i.Key] = "example"
+					}
+					if _, err := Hook(lab, p, in, h, inputs); err != nil {
+						return fmt.Errorf("hook %q: %w", cmp.Or(h.Name, h.On), err)
+					}
 				}
 			}
 		}

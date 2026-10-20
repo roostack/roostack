@@ -381,12 +381,14 @@ Built and checked end to end on VM3 with Mealie (OIDC) and Stirling-PDF (the wal
 - **People:** `users.name` and `users.sso_id` (the `sub`: random, made when first needed, as `users.id` can be given to a new account after the newest is removed), `user_groups`, `service_access` (no rows: everyone), `sso_tokens`. People page: name, email and groups per person; groups with their members and the services each can use; the sign-in page's look; the two sign-in choices. Members' Home leaves out services with single sign-on they can't use.
 - **The look:** the lab's name, a logo (a square mark beside the name, also the tab's icon; or a wide logo with the name in it, with an optional dark-mode version, otherwise a light panel in dark mode, and an optional tab icon; or the hen), and a built-in theme. PNGs are checked for shape; SVGs with scripts, event handlers or embedded pages are refused, and every logo is served with a sandboxing CSP. Mock-ups: docs/mockups/sso.
 - **The package format** has `sso` (oidc or forward_auth, env and secrets added only while on, a note) and `.SSO` in templates (help/docs/reference/packages.md). Mealie and Stirling-PDF have it in the test fixtures (`internal/testdata/packages`), a revision ahead of the registry.
-- **Not built in this version** (TASKS): the `on: sso` hook (Forgejo, Gitea), apps set through an API with a kept admin key (Immich, Audiobookshelf, Wiki.js), secrets inside JSON (Paperless, Papra), services on another server (refused with a sentence for now), passkeys, signing in to Roostack's own pages, single sign-out, key rotation. Removing a service leaves its access rows (harmless; tidied once `services.go` is free).
+- **Not built in this version** (TASKS): the `on: sso` hook (Forgejo, Gitea), apps set through an API with a kept admin key (Immich, Audiobookshelf, Wiki.js), secrets inside JSON (Paperless, Papra) (all three built the same day: "Connecting the remaining apps" below), services on another server (refused with a sentence for now), passkeys, signing in to Roostack's own pages, single sign-out, key rotation. Removing a service leaves its access rows (harmless; tidied once `services.go` is free).
 - **Found while building:** a custom `dns.directive` without a DNS challenge (`issuer internal`) made Caddy refuse the Caddyfile, as `resolvers` needs one; resolvers are now added only with a `dns` line.
 
-#### Connecting the remaining apps — Proposed (2026-10-20), for the Owner
+#### Connecting the remaining apps — Locked (2026-10-20)
 
-The first version connects apps set by env, and walls. Three ways of connecting an app were designed above but not built. This is how each would work. The questions for the Owner are at the end.
+The first version connects apps set by env, and walls. Three ways of connecting an app were designed above but not built. This is how each works.
+
+**Decided (2026-10-20), the Owner:** every recommendation below, as proposed: the lab's name on Forgejo's button, a key the app makes kept from a hook's output, a Connect action for services installed before their package had one, and Forgejo's source kept on turning off when accounts were made through it.
 
 Facts behind it, read from each app's source at the pinned version (not yet tried on a VM):
 
@@ -611,12 +613,34 @@ Papra is the same, with `AUTH_PROVIDERS_CUSTOMS` (no `_FILE` needed, as Podman p
 - **The registry's packages:** Forgejo, Immich and Paperless-ngx first; then Gitea, Audiobookshelf, Wiki.js and Papra the same way.
 - **Hook output:** before logging or showing a hook's output, Roostack replaces any secret value it passed to the hook with `[secret]`. A careless script can then not leak one. This applies to every hook, not only these.
 
-##### Questions for the Owner
+##### The questions the Owner answered (2026-10-20)
 
 1. **Forgejo's button:** "Sign in with Smith family" (the lab's name, recommended), with redirect paths able to use `.SSO` and the hook keeping the source's ID in Forgejo's data folder? Or a fixed name, "Sign in with single sign-on", which is simpler but reads oddly?
 2. **The kept key:** an API key the app makes, saved from a hook's output (`from_hook` and `saves`, recommended)? Or a Roostack account in each app with a password Roostack generates (one way for every app, but full admin power and visible in the app)?
 3. **Existing installs:** a "Connect Roostack to Immich" action that asks the app's administrator password once (recommended)? Or only new installs get single sign-on for these apps, as nothing is released yet?
 4. **Turning off when accounts were made through it:** keep Forgejo's source, with its button leading to a page saying single sign-on is off (recommended)? Or switch the source off directly in Forgejo's database (cleaner to see, but it bypasses Forgejo and may break with its next version)?
+
+##### As built (2026-10-20)
+
+Built as decided, and checked end to end on VM2 (arm64, the test address and Caddy's own CA as for the first version) with the registry's new revisions, Forgejo 15.0.10-roostack.2, Immich 3.3.3-roostack.2 and Paperless-ngx 3.3.2-roostack.2 (docs/ASSUMPTIONS.md V8–V10). Each was signed in to through the lab's page by a Member (a new account in the app) and by the Owner with two-factor, then turned off.
+
+- **The package format:**
+  - `on: sso` hooks;
+  - `saves` on install hooks and actions, and `from_hook` secret settings;
+  - `sso.secret_env`;
+  - `sso.oidc.groups`;
+  - redirect paths with templates;
+  - the `json` and `pathescape` template functions.
+
+  The rules are in `pkgspec` (`validate.go`, `sso.go`), mirrored in the package editor and its corpus.
+- **Running sso hooks** is `internal/node/ssohooks.go`. After each apply, a service whose fingerprint changed runs its hooks, once its install hooks are done, retried like them. The record (on or off, the fingerprint, any failure, the last output) is a runtime setting, `hooks.<service>.sso`. A failed run waits for Try again (the existing setup retry), not for the next apply. Hooks' output, for every hook, has the secrets they were given replaced by `[secret]`. `podman exec`'s standard output and error now come back apart (`podman.RunSplit`), so a saving hook's key never reaches a log.
+- **Turning off** deletes the client secret once the hooks have run, and any secret env, for every OIDC app, hooks or not. (The first version left the client secret in Podman.) A secret env made for an earlier address is deleted the same way while it's on.
+- **Found on the VM, and fixed:**
+  - *A kept button failed.* Forgejo, with its source kept, answered its button with a 500 error, not the "single sign-on is off" page: with it off, its container had no route to the sign-in host, and the lab no sign-in site. An OIDC app with an sso hook now keeps its `AddHost` while it's installed on a lab with an address, on or off, and the lab keeps its sign-in site (private) while any such app is installed (`generate.SSOReaches`). The button then leads to "Single sign-on is off for Forgejo. Sign in with Forgejo's own password instead." An app set by env (Mealie) loses both when it's off, as before.
+  - *The install form asked for the key.* A `from_hook` key was shown as a secret to type. It's now never asked for, taken from a form, or made by the reconciler, and its absence is no error. It's still listed among the service's secrets, so backups and moves keep it once it exists.
+- **The Single sign-on card** shows a running hook (polling), a failure with Try again, or the Connect action when a key is missing, and the last run under Details. `?action=<name>` opens an action on the service's page, so Connect can link to it. The install summary lists the keys an app makes ("Key: Roostack's key to Immich's settings").
+- **Paperless-ngx doesn't link an existing account by email.** Its administrator, made at install with the Owner's email, got Paperless's "finish signing up" form, as allauth has no setting Paperless exposes for that. The account is connected from its own profile page, signed in with its password once; the package's note says so. Whether a new account gets superuser at its first sign-in or only its second (Paperless syncs groups on an existing social account's sign-in) wasn't checked: the Member was the only new account.
+- **Test only, on the VM:** each app was made to trust Caddy's own CA by an extra variable in a copy of its package (`SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE`), as Mealie was for the first version. A lab with a real certificate needs none of them.
 
 ## 6. Container Runtime — Locked (principle)
 

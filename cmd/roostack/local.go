@@ -55,8 +55,8 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		Log: log,
 		// Package hooks (e.g. creating Forgejo's admin) run with podman exec.
 		State: st, Events: st, Secrets: podman.NewSecrets(),
-		Exec: func(ctx context.Context, container string, env map[string]string, command []string) ([]byte, error) {
-			return podman.Exec(ctx, podman.Run, container, env, command...)
+		Exec: func(ctx context.Context, container string, env map[string]string, command []string) ([]byte, []byte, error) {
+			return podman.Exec(ctx, podman.RunSplit, container, env, command...)
 		},
 		Host: &node.HostSettings{
 			Lab: lab, LabPath: labPath,

@@ -1,0 +1,10 @@
+package: forgejo
+version: 15.0.9-roostack.1
+updates: minor
+sso: true
+settings:
+  admin_username: mum
+  admin_email: mum@example.com
+  signups_allowed: false
+routes:
+  web: { port: 20020 }

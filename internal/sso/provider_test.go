@@ -485,12 +485,17 @@ func TestAdminsGroup(t *testing.T) {
 	ctx := context.Background()
 	id, _ := f.st.CreateUser(ctx, store.User{Username: "robin", PasswordHash: "x", Role: "admin"})
 	robin, _ := f.st.UserByID(ctx, id)
-	c, err := f.p.claims(ctx, robin, allScopes)
+	c, err := f.p.claims(ctx, Client{}, robin, allScopes)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if g := c["groups"].([]string); len(g) != 2 || g[1] != AdminGroup {
 		t.Errorf("an Admin's groups: %v", g)
+	}
+	// An app that expects its own words (Immich: user and admin).
+	renamed, _ := f.p.claims(ctx, Client{UserGroup: "user", AdminGroup: "admin"}, robin, allScopes)
+	if g := renamed["groups"].([]string); len(g) != 2 || g[0] != "user" || g[1] != "admin" {
+		t.Errorf("renamed groups: %v", g)
 	}
 	if _, ok := c["email"]; ok {
 		t.Error("no email, no email claim")

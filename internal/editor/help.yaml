@@ -159,6 +159,10 @@ settings[].reveal:
   label: Admins can see it
   help: 'For a secret that''s kept: Admins can show it on the service''s page (each view is logged), such as a token for the app''s own admin page.'
   link: reference/packages#the-parts
+settings[].from_hook:
+  label: Made by the app
+  help: 'For a secret the app makes, such as an API key for changing its own settings: a hook prints it and Roostack keeps it (the hook''s saves). Never shown, used only by hooks, and needs an action that can make it again.'
+  link: packages/write#single-sign-on
 settings[].install_value:
   label: Value during install
   help: 'Used until the install hooks succeed, whatever was chosen, then the chosen value. For an app that makes its first account only by signing up: sign-ups on while the hook signs the Owner up, then off. Needs an install hook.'
@@ -423,11 +427,11 @@ ports.*.exposure:
 
 hooks:
   label: Setup and actions
-  help: Commands run inside a container, once after the first start (install) or as a button on the service's page (action). Values people type reach them only as environment variables.
+  help: Commands run inside a container, once after the first start (install), as a button on the service's page (action), or when single sign-on is turned on, changed or off (sso). Values people type reach them only as environment variables.
   link: packages/write#settings-setup-and-links
 hooks[].on:
   label: When
-  help: install runs once after the first start, and must be safe to run twice; action is a button on the service's page.
+  help: install runs once after the first start, and must be safe to run twice; action is a button on the service's page; sso runs when single sign-on is turned on, changed (the lab's address or name) or off, told which by ROOSTACK_SSO=on or off, and must be safe to run again.
   link: packages/write#settings-setup-and-links
 hooks[].name:
   label: Name
@@ -457,8 +461,13 @@ hooks[].env:
   link: reference/packages#templates
 hooks[].secrets:
   label: Secrets
-  help: Secret settings as environment variables, or for an action inputs.<key> for a secret input.
+  help: Secret settings as environment variables, or for an action inputs.<key> for a secret input. An sso hook of an OIDC app may also have sso.client_secret, which is empty while single sign-on is off.
   link: reference/packages#the-parts
+hooks[].saves:
+  label: Keeps what it prints
+  help: 'For an install hook or an action: a from_hook secret setting, which becomes what the hook prints on standard output (one line, never shown or logged). Print everything else on standard error, the log.'
+  example: settings_key
+  link: packages/write#single-sign-on
 hooks[].inputs:
   label: Inputs
   help: 'For an action, what to ask for when it runs: strings or secrets.'
@@ -488,6 +497,8 @@ hooks[].inputs[].install_only:
 hooks[].inputs[].reveal:
   same: hooks[].inputs[].default
 hooks[].inputs[].install_value:
+  same: hooks[].inputs[].default
+hooks[].inputs[].from_hook:
   same: hooks[].inputs[].default
 
 links:
@@ -524,8 +535,22 @@ sso.oidc.route:
   link: reference/packages#the-parts
 sso.oidc.redirect_paths:
   label: OIDC callback paths
-  help: Where the sign-in page may send people back to on that address, exactly as the app's OIDC settings say (its callback path).
+  help: Where the sign-in page may send people back to on that address, exactly as the app's OIDC settings say (its callback path). A path may use .SSO, such as Forgejo's /user/oauth2/{{ pathescape .SSO.ProviderName }}/callback.
   example: /auth/login
+  link: reference/packages#the-parts
+sso.oidc.groups:
+  label: Group names the app expects
+  help: 'The two groups the app is told about in its groups claim, renamed for an app that expects its own words: users (everyone with access) and admins (the lab''s Owners and Admins). Immich and Audiobookshelf read user and admin.'
+  link: reference/packages#the-parts
+sso.oidc.groups.users:
+  label: Group name for everyone
+  help: The name of the group everyone with access is in.
+  example: user
+  link: reference/packages#the-parts
+sso.oidc.groups.admins:
+  label: Group name for admins
+  help: The name of the group the lab's Owners and Admins are in too.
+  example: admin
   link: reference/packages#the-parts
 sso.oidc.redirect_uris:
   label: OIDC phone app addresses
@@ -558,6 +583,10 @@ sso.env:
 sso.secrets:
   label: Client secret
   help: 'Gives a container the app''s client secret, which Roostack makes: container, then variable, then sso.client_secret, such as OIDC_CLIENT_SECRET: sso.client_secret. OIDC apps only.'
+  link: reference/packages#the-parts
+sso.secret_env:
+  label: Secret inside a value
+  help: 'For an app that takes its client secret inside a bigger value, such as a JSON list of providers: container, then variable, then a template using {{ .SSO.ClientSecret }} (with json for each value). Roostack makes the value as a Podman secret, never in a file it writes.'
   link: reference/packages#the-parts
 sso.note:
   label: Note

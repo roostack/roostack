@@ -61,8 +61,10 @@ sso:
 	if p.SSORoute() != "web" {
 		t.Errorf("route %q", p.SSORoute())
 	}
-	got := p.SSO.OIDC.SSORedirects("https://app.lab.example")
-	if len(got) != 3 || got[0] != "https://app.lab.example/login" || got[2] != "app.example:///oauth-callback" {
-		t.Errorf("redirects %v", got)
+	for path, want := range map[string]bool{"/login": true, "/user/oauth2/Smith%20family/callback": true,
+		"/a/": true, "//x": false, "/a b": false, "/%2g": false, "login": false} {
+		if ValidRedirectPath(path) != want {
+			t.Errorf("ValidRedirectPath(%q) = %v", path, !want)
+		}
 	}
 }

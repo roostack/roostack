@@ -159,6 +159,7 @@
     <dd>{{.Title}}, port {{.HostPort}}{{if ne .Protocol "tcp"}} ({{.Protocol}}){{end}}<br>
       <small class="hint">{{if .Enabled}}On{{else}}Off until you turn it on, on its page{{end}}; {{if eq .Exposure "public"}}anyone on the internet{{else}}your home network only{{end}}</small></dd>{{end}}
     {{if .GPU}}<dt>Graphics</dt><dd>Uses this server's graphics chip (GPU)</dd>{{end}}
+    {{range .Keys}}<dt>Key</dt><dd>{{.Title}}{{with .Description}}<br><small class="hint">{{.}}</small>{{end}}</dd>{{end}}
     <dt>Memory</dt>
     <dd>{{if .Memory}}{{if .MemoryUnknown}}At least{{else}}About{{end}} {{size .Memory}}{{else}}Its package doesn't say{{end}}
       {{- with .Server}}<br><small class="hint">{{if .This}}This server ({{.Name}}){{else}}{{.Name}}{{end}}

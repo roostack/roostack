@@ -1,6 +1,8 @@
 package generate
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"maps"
 	"slices"
@@ -23,6 +25,24 @@ type HookRun struct {
 	Secrets map[string]string
 	// Inputs maps an environment variable to a secret input's key.
 	Inputs map[string]string
+	// Saves is the Podman secret the hook's standard output becomes
+	// (pkgspec.Hook.Saves), "" for most hooks.
+	Saves string
+}
+
+// Fingerprint identifies what an sso hook would do: its container,
+// command, env and the names of its secrets, never their values. The
+// server runs it again when this changes (SPEC.md §5.2).
+func (r *HookRun) Fingerprint() string {
+	h := sha256.New()
+	fmt.Fprintf(h, "%q %q\n", r.Container, r.Command)
+	for _, k := range slices.Sorted(maps.Keys(r.Env)) {
+		fmt.Fprintf(h, "env %q=%q\n", k, r.Env[k])
+	}
+	for _, k := range slices.Sorted(maps.Keys(r.Secrets)) {
+		fmt.Fprintf(h, "secret %q=%q\n", k, r.Secrets[k])
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // Hook prepares a hook for one installed service. inputs are the action's
@@ -45,11 +65,25 @@ func Hook(lab config.Lab, p *pkgspec.Package, in *instance.Instance, h *pkgspec.
 		run.Env[k] = v
 	}
 	for k, ref := range h.Secrets {
-		if key, ok := strings.CutPrefix(ref, "inputs."); ok {
+		switch key, ok := strings.CutPrefix(ref, "inputs."); {
+		case ok:
 			run.Inputs[k] = key
-		} else {
+		case ref == pkgspec.SSOClientSecret && !ctx.SSO.Enabled:
+			run.Env[k] = "" // gone once it's off
+		case ref == pkgspec.SSOClientSecret:
+			run.Secrets[k] = SSOSecretName(in.ID())
+		default:
 			run.Secrets[k] = secretName(in.ID(), ref)
 		}
+	}
+	if h.On == pkgspec.HookSSO {
+		run.Env["ROOSTACK_SSO"] = "off"
+		if ctx.SSO.Enabled {
+			run.Env["ROOSTACK_SSO"] = "on"
+		}
+	}
+	if h.Saves != "" {
+		run.Saves = secretName(in.ID(), h.Saves)
 	}
 	return run, nil
 }

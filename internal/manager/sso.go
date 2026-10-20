@@ -74,6 +74,16 @@ func (m *Manager) SetSSO(ctx context.Context, name string, on bool) error {
 	return nil
 }
 
+// SSOOff is the title of an installed service on this server whose
+// package takes single sign-on and which has it off, "" for anything else.
+func (m *Manager) SSOOff(name string) string {
+	p, in, err := m.installedService(name)
+	if err != nil || p.SSO == nil || generate.SSOOn(m.Lab, p, in) {
+		return ""
+	}
+	return titleOf(p, in.Title)
+}
+
 // ssoCache is how long the services the sign-in page knows are kept: it
 // asks on every request to a walled service.
 const ssoCache = 5 * time.Second
@@ -114,7 +124,15 @@ func (m *Manager) SSOClients() []sso.Client {
 		host := sub + "." + m.Lab.Domain
 		c := sso.Client{ID: in.ID(), Title: titleOf(p, in.Title), Public: exposure == pkgspec.ExposurePublic}
 		if p.SSO.OIDC != nil {
-			c.RedirectURIs = p.SSO.OIDC.SSORedirects("https://" + host)
+			uris, err := generate.SSORedirects(m.Lab, p, in)
+			if err != nil {
+				m.Log.Error("single sign-on's redirect addresses", "service", in.ID(), "err", err)
+				continue
+			}
+			c.RedirectURIs = uris
+			if g := p.SSO.OIDC.Groups; g != nil {
+				c.UserGroup, c.AdminGroup = g.Users, g.Admins
+			}
 		} else {
 			c.Host = host
 		}

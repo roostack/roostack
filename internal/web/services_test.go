@@ -969,7 +969,7 @@ func TestServiceSetupAndActions(t *testing.T) {
 	}
 	fm.actionOut = "Password changed for mum."
 	code, body := h.post("/services/forgejo/actions/reset-password", url.Values{"input.username": {"mum"}, "input.password": {"a new password"}}, h.srv.URL)
-	if code != http.StatusOK || !strings.Contains(body, "Password changed for mum.") || !strings.Contains(body, "<details class=\"action\" open>") {
+	if code != http.StatusOK || !strings.Contains(body, "Password changed for mum.") || !strings.Contains(body, `<details class="action" id="action-reset-password" open>`) {
 		t.Errorf("action result not shown: %d", code)
 	}
 	fm.actionErr = &manager.ActionError{Title: "Reset a password", Output: "user does not exist"}

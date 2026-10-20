@@ -168,10 +168,11 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	// Generated after the services: CrowdSec runs while any is public, or
 	// Roostack's own pages are (a lab on the internet, SPEC.md §6.3.2).
 	public := lab.PublicUI() || slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.Public })
-	// The sign-in page while any service has single sign-on, public while
-	// one of them is (SPEC.md §5.2).
+	// The sign-in page while any service has single sign-on (or reaches it
+	// while off: generate.SSOReaches), public while one of them is on and
+	// public (SPEC.md §5.2).
 	sys, err := generate.SystemWith(lab, generate.SystemOptions{Public: public,
-		SignIn:       slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.SSO }),
+		SignIn:       slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.SSO || o.SSOReach }),
 		SignInPublic: slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.SSOPublic })})
 	if err != nil {
 		return reconcile.Desired{}, errors.Join(append(errs, err)...)

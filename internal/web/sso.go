@@ -73,6 +73,15 @@ type ssoCard struct {
 	// Open: the dialog choosing who can sign in shows (a mistake in it,
 	// or ?sso=who, its button without scripts).
 	Open bool
+	// HasHook: the app is set by its sso hooks (Forgejo, Immich), whose
+	// last run is Hook (SPEC.md §5.2, "Connecting the remaining apps").
+	HasHook bool
+	Hook    manager.SSOHookStatus
+	// Connect is the action that makes a key the hooks need, while it's
+	// missing, and ConnectTitle its button.
+	Connect, ConnectTitle string
+	// CanManage: the viewer may run actions and Try again.
+	CanManage bool
 }
 
 // ssoChoice is a group or person to tick.
@@ -116,6 +125,8 @@ func (s *Server) ssoCardFor(r *http.Request, name string, p *pkgspec.Package) *s
 	c := &ssoCard{Name: name, Title: p.Title, Note: p.SSO.Note, Wall: p.SSO.ForwardAuth != nil, SignInHost: s.SignInHost,
 		CanChoose: u != nil && u.Role == auth.RoleOwner, ClientID: name}
 	c.Available, c.Why = s.SSO.SSOAvailable(name)
+	c.HasHook = len(p.HooksOn(pkgspec.HookSSO)) > 0
+	c.CanManage = u != nil && auth.Can(u.Role, auth.ManageServices)
 	for _, cl := range s.SSO.SSOClients() {
 		if cl.ID == name {
 			c.On, c.Redirects = true, cl.RedirectURIs

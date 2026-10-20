@@ -642,16 +642,15 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [x] Run the OpenID Foundation's conformance suite (Basic OP and Config OP plans) against the provider before a release (2026-10-20: both pass with no failures after fixing `auth_time`, `prompt=login`/`max_age`, POST to `/authorize` and revoking a reused code's tokens; claims now follow scopes, the Owner's choice; five deliberate warnings; SPEC §5.2, docs/ASSUMPTIONS.md V7)
 - [ ] Run the conformance suite again before each release that changes `internal/sso` or the sign-in page (docs/SSO-CONFORMANCE.md)
 - [ ] Add the `sso` part to the registry's Mealie and Stirling-PDF packages (as in `internal/testdata/packages`), once a Roostack release has it (`requires.roostack`)
-- [ ] An `on: sso` hook (run on turning it on, changing it or off, safe to run again), then Forgejo and Gitea (`admin auth add-oauth` / `update-oauth`)
-- [ ] Proposed 2026-10-20, awaiting the Owner (SPEC §5.2 "Connecting the remaining apps"): the `on: sso` hook, a key the app makes kept from a hook's output (`from_hook`, `saves`), and `sso.secret_env` for secrets inside JSON
+- [x] Connecting the remaining apps (SPEC §5.2, decided by the Owner 2026-10-20, built the same day): the `on: sso` hook (Forgejo), a key the app makes kept from a hook's output (`from_hook`, `saves`, a Connect action; Immich), and `sso.secret_env` for a secret inside JSON (Paperless-ngx); hook output scrubbed of secrets; the client secret deleted once it's off; the sign-in page says when an app's single sign-on is off. Registry packages on roostack-services' `claude/sso-enablement`
+- [ ] Gitea (as Forgejo), Audiobookshelf and Wiki.js (as Immich: Audiobookshelf's key is the administrator's own power, Wiki.js's needs its API turned on), Papra (as Paperless-ngx) in the registry
+- [ ] Uptime Kuma behind the wall: an `on: sso` hook that turns its own sign-in off (a database setting) and back on
 - [ ] Packages with env only: Vaultwarden, Miniflux, Linkwarden, PhotoPrism, Actual Budget, HedgeDoc; check each app's first admin is the installing Owner (Miniflux and Actual need it)
-- [ ] Apps set through their API (Immich, Audiobookshelf, Wiki.js): a kept, generated admin key instead of the install-only password
-- [ ] Secrets inside a JSON value (Paperless-ngx, Papra): templated secret files
 - [ ] Services on another server: the controller makes the client secret and sends it in the assignment; `AddHost` to the controller over WireGuard; Caddy lets the lab's servers reach the sign-in page
 - [ ] Removing a service: delete its `service_access` rows (`internal/web/services.go`, left alone while the package editor changes it)
 - [ ] Check on a lab with a real address: a real certificate, the sign-in page public (CrowdSec, AppSec, the login limit, its DNS record), and a backup and restore keeping the signing key (docs/ASSUMPTIONS.md V6)
 - [ ] Later (SPEC §5.2): passkeys (`go-webauthn`, to agree), "Sign in with single sign-on" on Roostack's own login page, single sign-out (back-channel logout), signing-key rotation, choosing an app's admins per service
-- [ ] The package editor (`internal/editor`, `pkgspec/describe.go`) should learn the `sso` part
+- [x] The package editor (`internal/editor`, `pkgspec/describe.go`) should learn the `sso` part (2026-10-20, and the `on: sso` hook, `saves`, `from_hook`, `secret_env` and renamed groups the same day)
 
 - [x] Licence: Apache-2.0, confirmed 2026-10-18 (SPEC §2.1); `LICENSE` and `NOTICE` added
 - [x] Repository: `github.com/roostack/roostack` (moved from Tyris/roostack by the Owner, 2026-10-18; Cloud's is `roostack/cloud`). The module path `roostack.cloud/roostack` is answered by a go-import page on the website, `roostack.cloud/roostack` (roostack-cloud `site/src/pages/roostack.astro`, and its Worker for each package's path)

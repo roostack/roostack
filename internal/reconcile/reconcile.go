@@ -51,7 +51,8 @@ type Systemd interface {
 type Secrets interface {
 	List(ctx context.Context) (map[string]bool, error)
 	Create(ctx context.Context, name string, value []byte) error
-	// Read is for a database URL secret, made from its password secret.
+	// Read is for a secret made from another: a database URL from its
+	// password, single sign-on's secret env from the client secret.
 	Read(ctx context.Context, name string) ([]byte, error)
 }
 
@@ -248,6 +249,8 @@ func (p *Plan) String() string {
 			how = "generated"
 		case s.DBURL != nil:
 			how = "made from " + s.DBURL.PasswordSecret
+		case s.Template != nil:
+			how = "made from " + s.Template.From
 		}
 		secrets = append(secrets, fmt.Sprintf("%s (%s)", s.Name, how))
 	}
@@ -334,6 +337,9 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 		if s.InstallOnly && !r.hasUserSecret(s.Name) {
 			continue // already used and deleted, or never given
 		}
+		if s.FromHook {
+			continue // the app makes it, and a hook saves it
+		}
 		if s.Holds != "" && !existing[s.Name] && !s.Generate && !r.hasUserSecret(s.Name) {
 			held[s.Holds] = true
 			continue
@@ -343,10 +349,10 @@ func (r *Reconciler) Plan(ctx context.Context, d Desired) (*Plan, error) {
 			existing[s.Name] = true // shared secrets are listed once
 		}
 	}
-	// Database URLs last: each is made from its password, which may be
-	// new in this plan.
+	// Database URLs and single sign-on's secret env last: each is made
+	// from another secret, which may be new in this plan.
 	slices.SortStableFunc(plan.Secrets, func(a, b generate.Secret) int {
-		return cmp.Compare(boolInt(a.DBURL != nil), boolInt(b.DBURL != nil))
+		return cmp.Compare(boolInt(a.Derived()), boolInt(b.Derived()))
 	})
 
 	// Quadlet files. One waiting for a secret is neither written nor
@@ -481,6 +487,9 @@ func (r *Reconciler) Apply(ctx context.Context, p *Plan) error {
 		value, err := r.secretValue(s)
 		if s.DBURL != nil {
 			value, err = r.dbURL(ctx, *s.DBURL, created)
+		}
+		if s.Template != nil {
+			value, err = r.fromTemplate(ctx, *s.Template, created)
 		}
 		if err != nil {
 			return err
@@ -632,6 +641,19 @@ func (r *Reconciler) dbURL(ctx context.Context, d generate.DBURL, created map[st
 		}
 	}
 	return []byte(d.URL(strings.TrimSpace(string(pw)))), nil
+}
+
+// fromTemplate makes a secret_env value from the client secret: one made
+// earlier in this apply, or the one Podman already has.
+func (r *Reconciler) fromTemplate(ctx context.Context, t generate.SecretTemplate, created map[string][]byte) ([]byte, error) {
+	v, ok := created[t.From]
+	if !ok {
+		var err error
+		if v, err = r.Secrets.Read(ctx, t.From); err != nil {
+			return nil, fmt.Errorf("reconcile: reading %s: %w", t.From, err)
+		}
+	}
+	return []byte(t.Value(strings.TrimSpace(string(v)))), nil
 }
 
 func boolInt(b bool) int {

@@ -455,12 +455,14 @@
       more: ["max_body_size", "client_ip_header", ["monitor", "path"], ["monitor", "statuses"], "exposure"] },
     { id: "settings", title: "Settings and setup", lists: [
       { path: ["settings"], add: "Add a setting", title: (v) => v.get && v.get("key"), fields: ["key", "title", "type", "default", "description"],
-        more: ["generate", "required", "min_length", "install_only", "reveal", "install_value"] },
-      { path: ["hooks"], add: "Add a setup step or action", title: (v) => v.get && (v.get("title") || v.get("on")), fields: ["on", "name", "title", "container", "command", "env", "secrets"], more: ["description", "inputs"] },
+        more: ["generate", "required", "min_length", "install_only", "reveal", "install_value", "from_hook"] },
+      { path: ["hooks"], add: "Add a setup step, action or single sign-on step", title: (v) => v.get && (v.get("title") || v.get("on")),
+        fields: ["on", "name", "title", "container", "command", "env", "secrets"], more: ["description", "inputs", "saves"] },
       { path: ["links"], add: "Add a link into the app", title: (v) => v.get && v.get("title"), fields: ["title", "route", "path", "description"] },
     ] },
     { id: "sso", title: "Single sign-on", fields: [["sso", "oidc", "route"], ["sso", "oidc", "redirect_paths"], ["sso", "oidc", "redirect_uris"],
-      ["sso", "forward_auth", "route"], ["sso", "forward_auth", "bypass_paths"], ["sso", "env"], ["sso", "secrets"], ["sso", "note"]] },
+      ["sso", "forward_auth", "route"], ["sso", "forward_auth", "bypass_paths"], ["sso", "env"], ["sso", "secrets"], ["sso", "note"]],
+      more: [["sso", "secret_env"], ["sso", "oidc", "groups", "users"], ["sso", "oidc", "groups", "admins"]] },
     { id: "more", title: "More", map: ["ports"], add: "Add an extra connection", fields: ["title", "container", "port", "host_port", "protocol", "enabled"], more: ["description", "exposure"],
       lists: [{ path: ["upgrade_notes"], add: "Add an upgrade note", title: (v) => v.get && v.get("version"), fields: ["version", "note"] }], extra: [["schema"]] },
   ];
@@ -512,6 +514,12 @@
     if (sectionHelp && sectionHelp.help) sec.append(h("p", { class: "pe-hint" }, sectionHelp.help, " ", helpLink(sectionHelp.link)));
     if (part.fields && !part.map) {
       for (const f of part.fields) sec.append(f === "logo" ? logoField() : fieldEl(f));
+      if (part.more && part.more.length) {
+        const more = h("details", { class: "pe-more-options" }, h("summary", {}, "More options"));
+        for (const f of part.more) more.append(fieldEl(f));
+        if (part.more.some((f) => get(f) !== undefined)) more.open = true;
+        sec.append(more);
+      }
     }
     if (part.map) {
       for (const name of keysOf(part.map)) sec.append(entryCard(part, part.map.concat(name), name));
@@ -721,8 +729,9 @@
     const box = h("div", { class: "pe-rows" });
     const isSecrets = /\.secrets$/.test(hk);
     const ssoSecret = hk === "sso.secrets";
+    const secretEnv = hk === "sso.secret_env";
     const listId = "pe-dl" + (++idn);
-    const refs = ssoSecret ? S.lists.ssoClientSecret : isSecrets ? secretRefs() : templateRefs();
+    const refs = ssoSecret ? S.lists.ssoClientSecret : isSecrets ? secretRefs(hk) : secretEnv ? ["{{ json .SSO.ClientSecret }}"].concat(templateRefs()) : templateRefs();
     box.append(h("datalist", { id: listId }, refs.map((r) => h("option", { value: r }))));
     for (const k of keysOf(path)) {
       const v = textOf(get(path.concat(k)));
@@ -732,7 +741,8 @@
         h("button", { type: "button", class: "pe-button quiet small", "aria-label": `Take out ${k}`, onclick: () => { remove(path.concat(k)); written(true); } }, "Remove")));
     }
     const nk = h("input", { class: "pe-input mono", placeholder: "NAME", "aria-label": "New variable", spellcheck: "false" });
-    const nv = h("input", { class: "pe-input mono", placeholder: ssoSecret ? S.lists.ssoClientSecret[0] : isSecrets ? "a secret setting, or databases.main.password" : "value or {{ template }}", "aria-label": "Its value", list: listId, spellcheck: "false" });
+    const nv = h("input", { class: "pe-input mono", placeholder: ssoSecret ? S.lists.ssoClientSecret[0] : isSecrets ? "a secret setting, or databases.main.password" :
+      secretEnv ? '{"secret": {{ json .SSO.ClientSecret }}}' : "value or {{ template }}", "aria-label": "Its value", list: listId, spellcheck: "false" });
     box.append(h("div", { class: "pe-row pe-row-new" }, nk, nv, h("button", { type: "button", class: "pe-button secondary small", onclick: () => {
       const k = nk.value.trim();
       if (!k) return;
@@ -742,8 +752,10 @@
     return box;
   }
 
-  function secretRefs() {
+  function secretRefs(hk) {
     const out = [];
+    // A hook's secrets: the client secret too, for an sso hook.
+    if (hk === "hooks[].secrets" && get(["sso", "oidc"]) !== undefined) out.push(S.lists.ssoClientSecret[0]);
     for (const s of itemsOf(["settings"])) if (YAML.isMap(s) && s.get("type") === "secret" && s.get("key")) out.push(String(s.get("key")));
     for (const d of keysOf(["databases"])) {
       const t = get(["databases", d, "type"]);
