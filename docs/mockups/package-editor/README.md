@@ -41,7 +41,7 @@ Below, the **form** and the **YAML**, side by side, both editable and kept in st
 - **Smaller suggestions** sit beside their field with a spark icon (categories from the name, the releases address from the source, a health check, keeping `/admin` home-only).
 - The YAML marks lines with problems in the gutter (red: a validation error; amber: a registry error), and the field you're on.
 
-**Phones:** the problems' counts stay at the top; the form, the YAML and the list of problems become three tabs.
+**Phones:** the form, the YAML and the problems become three tabs, the problems' count on their tab. *Changed (2026-10-20, the Owner):* the tab bar comes first and the problems under it, on their own tab; at first the problems' counts sat above the tab bar on every tab.
 
 **On the website and from a file:** no sidebar, no Check or Add; the description says nothing is sent anywhere. On roostack.cloud the editor sits in the site's own frame (its header and footer, dark), which the mock-up only suggests.
 

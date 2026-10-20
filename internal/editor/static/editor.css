@@ -224,8 +224,15 @@ body.pe-page .pe { max-width: 1560px; margin: 0 auto; }
     background: none; font-weight: var(--weight-medium); white-space: nowrap; cursor: pointer; }
   .pe .pe-tabs button[aria-selected="true"] { background: var(--surface); box-shadow: var(--lift, var(--shadow-1)); font-weight: var(--weight-bold); }
   .pe-tabs .pe-pill { padding: 0 8px 0 6px; }
-  .pe[data-tab="form"] .pe-yaml, .pe[data-tab="yaml"] .pe-form, .pe:not([data-tab="problems"]) .pe-problem-list,
-  .pe:not([data-tab="problems"]) .pe-more, .pe[data-tab="problems"] .pe-panes { display: none; }
+  /* The tab bar first, then what its tab shows: the problems (their
+     counts are on the tab), the form or the YAML. What the import did
+     and Roostack's check stay above it. */
+  .pe-view[data-view-name="edit"] { display: flex; flex-direction: column; }
+  .pe-tabs { order: 1; }
+  .pe-problems { order: 2; }
+  .pe-panes { order: 3; }
+  .pe[data-tab="form"] .pe-yaml, .pe[data-tab="yaml"] .pe-form, .pe:not([data-tab="problems"]) .pe-problems,
+  .pe[data-tab="problems"] .pe-panes { display: none; }
   .pe-problems { padding: var(--space-3) var(--space-4); }
   .pe-problem { grid-template-columns: 6.8em minmax(0, 1fr); }
   .pe-problem .pe-line { grid-column: 2; justify-self: start; }
