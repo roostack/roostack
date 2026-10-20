@@ -639,8 +639,8 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [x] Made generic (the Owner, 2026-10-20): the old setup read from pasted `docker inspect` output or the Compose file, folders matched by container path, media libraries shown at their old paths, generic warnings in the check
 - [x] The Owner's decisions (MIGRATION-PLAN.md §11, every recommendation, 2026-10-20): the direction, sources in the first version, what to paste, libraries at their old paths, unreadable files, Postgres dump formats, the rehearsal
 - [x] Rehearsal on VM 3 (2026-10-20, docs/ASSUMPTIONS.md W1-W8): Immich and Plex moved by hand, the old-paths search; a library bound at its own path doesn't survive unplugging (W5); Docker beside Roostack isn't safe (W7)
-- [ ] Decide with the Owner: libraries at their old paths after W5 (the view folder at a shared parent, else a restart when the drive comes back)
-- [ ] Measure a real move's timings on real hardware (W8), and check a share bound at its own path through a NAS restart
+- [x] Libraries at their old paths after W5, the Owner (2026-10-20): the view folder at a shared parent, else a restart when the drive comes back, with the service's page saying so
+- [ ] Measure a real move's timings on real hardware (W8), check a share bound at its own path through a NAS restart, and check the reconnect restart doesn't fire at boot
 - [ ] Warn when Docker runs on a Roostack server (its published ports get past Roostack's firewall, W7)
 - [ ] Mock-ups of the import page and the install page's "I'll bring its data", before building
 - [ ] The first version, once agreed: read-only sources (drive, share, folder), reading the old setup and matching by container path, libraries at their old paths, the check with its generic warnings, copy and copy again, switch, undo; help: "Moving from Docker Compose", Immich, Plex

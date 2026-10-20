@@ -364,7 +364,7 @@ Immich needs                                   found in the old setup
   works, but once its drive is unplugged and plugged back in it stays
   broken ("Input/output error") until the service restarts, while the view
   folder at `/media` comes back by itself. The bind takes the drive's mount,
-  not the automount under it. So, proposed:
+  not the automount under it. **Decided (2026-10-20), the Owner:**
   - **Where the old media mounts share a parent** (`/data/movies`,
     `/data/tv`), the service's view folder goes at that parent (`/data`),
     each library named after its old subfolder: the view folder as it is
@@ -374,7 +374,14 @@ Immich needs                                   found in the old setup
     drive comes back** (a Plex restart took about 10 seconds; history
     kept). The server notices the library's mount changed (its device
     number differs from when the service started) on its next minute's
-    check.
+    check, and not at boot (the service starts after its drives). Until
+    then the service's page says so ("Plex's films drive was
+    disconnected. Roostack will restart Plex when it's back.").
+  - **Considered:** old paths for shares and folders only, with drives
+    falling back to `/media` (app knowledge again for media on USB
+    drives, a common home setup); rewriting paths in the app's database
+    (per-app code); a link inside the container from the old path into
+    `/media` (needs a change to the app's image or how it starts).
   - Shares (SMB, NFS) keep one mount through a NAS's restart, so they
     probably don't go stale; unverified.
 - **Checked like the editor's Compose import checks folders:** an
