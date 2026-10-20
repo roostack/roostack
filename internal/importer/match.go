@@ -83,12 +83,12 @@ const (
 
 // Storage is one of the package's storage and where it's brought from.
 type Storage struct {
-	Name     string `json:"name"`
-	Title    string `json:"title"`
-	Class    string `json:"class"`
-	Media    bool   `json:"media,omitempty"`
-	Path     string `json:"path"`
-	Part     string `json:"part"`
+	Name  string `json:"name"`
+	Title string `json:"title"`
+	Class string `json:"class"`
+	Media bool   `json:"media,omitempty"`
+	Path  string `json:"path"`
+	Part  string `json:"part"`
 	// From is a folder in the person's files ("." for their top, "" when
 	// nothing is brought), By how it was found, Why nothing is.
 	From string `json:"from,omitempty"`

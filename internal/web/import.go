@@ -970,7 +970,6 @@ func (s *Server) importCancelSubmit(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/services/"+url.PathEscape(name), http.StatusSeeOther)
 }
 
-
 // importUnderway says how far bringing a service's data in got, for its
 // page: "copying, 18.4 GB of 49.6 GB".
 func importUnderway(v node.ImportView) string {

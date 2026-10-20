@@ -640,4 +640,6 @@ func (n *Local) RemoveKeptData(ctx context.Context, path string) error {
 }
 
 // stateOutput is what runs of a service now (state.Output).
-func stateOutput(n *Local, s state.Service) (*generate.Output, error) { return state.Output(n.currentLab(), s) }
+func stateOutput(n *Local, s state.Service) (*generate.Output, error) {
+	return state.Output(n.currentLab(), s)
+}
