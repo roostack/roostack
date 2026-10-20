@@ -642,6 +642,31 @@ Built as decided, and checked end to end on VM2 (arm64, the test address and Cad
 - **Paperless-ngx doesn't link an existing account by email.** Its administrator, made at install with the Owner's email, got Paperless's "finish signing up" form, as allauth has no setting Paperless exposes for that. The account is connected from its own profile page, signed in with its password once; the package's note says so. Whether a new account gets superuser at its first sign-in or only its second (Paperless syncs groups on an existing social account's sign-in) wasn't checked: the Member was the only new account.
 - **Test only, on the VM:** each app was made to trust Caddy's own CA by an extra variable in a copy of its package (`SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE`), as Mealie was for the first version. A lab with a real certificate needs none of them.
 
+##### Gitea, Audiobookshelf, Wiki.js and Papra (2026-10-20)
+
+New registry revisions use the same three ways (roostack-services `claude/sso-more-apps`), checked end to end on VM2 (docs/ASSUMPTIONS.md V11–V14):
+
+- **Gitea 28.1.0**, as Forgejo:
+  - Its `update-oauth` sets skip-two-factor whether given or not, so the hook always passes `--skip-local-2fa`.
+  - It reads `preferred_username` itself.
+  - `ACCOUNT_LINKING=auto` links an existing account by username first, then email.
+  - Gitea syncs admin from the groups claim at each sign-in, so an admin made in Gitea who isn't a lab Owner or Admin loses it at their next single sign-on (the package says so).
+- **Audiobookshelf 2.37.1**, as Immich:
+  - Its key can't be narrowed: it has its administrator's whole power, which the setting's description and the install summary say.
+  - Its own discovery (`/auth/openid/config`) fills in the endpoints.
+  - Its root administrator, made at install, has no email, so it's found by username (`authOpenIDMatchExistingBy: username`).
+  - The groups are renamed `user` and `admin`, which it reads.
+- **Wiki.js 2.5.316**, as Immich, through GraphQL:
+  - Its API is turned on for the key, which has full access.
+  - Every existing sign-in method is sent back with the lab's, as `updateStrategies` replaces the whole list.
+  - Off disables the lab's method rather than deleting it, so the accounts it made aren't orphaned.
+  - Wiki.js doesn't read the provider's configuration, doesn't ask for groups, and never links an account it has already. So everyone who signs in gets an account of their own, the lab's Owners and Admins too, and Wiki.js's administration stays with the account made at install.
+  - **Decided (2026-10-20), the Owner:** they join a group named after the lab that can read and edit pages. The hook makes it the first time (or takes the one a failed run made), then only renames it, so changes made in Wiki.js stay. *Considered:* read only (Wiki.js's Guests).
+- **Papra 26.7.0**, as Paperless-ngx, with its provider list in `secret_env`.
+  - Papra makes an account through sign-in only while sign-ups are on, which would also let anyone who reaches it sign up with a password. It links an account it has already only if that account's email is verified, which the install-made one isn't.
+  - **Decided (2026-10-20), the Owner:** single sign-on only. While it's on, sign-ups are on and Papra's email-and-password sign-in is off (`AUTH_PROVIDERS_EMAIL_IS_ENABLED=false`), so nobody can sign up any other way. The account made at install can't be used until it's off again, which the package's note says. *Considered:* sign-ups on beside password sign-in (fine while it's home-only, open to anyone otherwise), and no single sign-on for Papra yet.
+- **Found on the VM:** Wiki.js wants a group's permissions and page rules as lists, not JSON strings. A failed run had already made the group, so a retry now takes a group of that name rather than making a second.
+
 ## 6. Container Runtime — Locked (principle)
 
 - Podman, **rootless where possible**; rootful only where a service genuinely requires it (e.g. low ports, host networking, device access), and this is visible to the user.

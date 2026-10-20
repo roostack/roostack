@@ -34,7 +34,10 @@ The card says what still uses the app's own sign-in, such as its phone
 apps or API tokens, and anything else to know: Paperless-ngx, for one,
 doesn't find an account it already has by its email, so its administrator
 signs in with their password once and connects single sign-on on their
-profile page.
+profile page. Wiki.js gives everyone who signs in an account of their own
+that can read and edit pages (its administration stays with the account
+made at install), and Papra, while single sign-on is on, is reached only
+through the lab's sign-in page.
 
 ### Apps set through their own settings pages
 
