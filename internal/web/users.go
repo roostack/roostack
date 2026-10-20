@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/mail"
 	"strconv"
 	"strings"
 
@@ -29,13 +30,27 @@ func (s *Server) renderUsers(w http.ResponseWriter, r *http.Request, status int,
 		"Roles": []string{auth.RoleOwner, auth.RoleAdmin, auth.RoleMember},
 		// Signing out after inactivity (session.go).
 		"IdleMinutes": int(s.idleLimit(r.Context()).Minutes()), "IdleChoices": idleChoices,
-		"OfferRemember": s.offerRemember(r.Context()), "SignInSaved": r.URL.Query().Get("signin") == "saved"}
+		"OfferRemember": s.offerRemember(r.Context()), "SignInSaved": r.URL.Query().Get("signin") == "saved",
+		"LookSaved": r.URL.Query().Get("look") == "saved"}
+	s.addPeopleSSO(r.Context(), data)
 	for k, v := range extra {
 		data[k] = v
 	}
 	// The add form's dialog opens with a mistake to fix, or from
 	// ?add=someone (its button, without scripts).
 	data["Adding"] = data["Adding"] == true || r.URL.Query().Get("add") == "someone"
+	// ?person=<id> opens that person's dialog (its Change… without scripts).
+	if _, set := data["OpenPerson"]; !set {
+		if id, err := strconv.ParseInt(r.URL.Query().Get("person"), 10, 64); err == nil {
+			data["OpenPerson"] = id
+		}
+	}
+	// ?group=<id> opens that group's dialog (its Change… without scripts).
+	if _, set := data["OpenGroup"]; !set {
+		if id, err := strconv.ParseInt(r.URL.Query().Get("group"), 10, 64); err == nil {
+			data["OpenGroup"] = id
+		}
+	}
 	// A role that isn't one comes back as the first choice.
 	if role, _ := data["NewRole"].(string); !auth.ValidRole(role) {
 		data["NewRole"] = ""
@@ -48,8 +63,9 @@ func (s *Server) renderUsers(w http.ResponseWriter, r *http.Request, status int,
 
 func (s *Server) userAddSubmit(w http.ResponseWriter, r *http.Request) {
 	name, role := strings.TrimSpace(r.FormValue("username")), r.FormValue("role")
+	email := strings.TrimSpace(r.FormValue("email"))
 	fail := func(msg string) {
-		s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": msg, "NewName": name, "NewRole": role, "Adding": true})
+		s.renderUsers(w, r, http.StatusBadRequest, map[string]any{"Error": msg, "NewName": name, "NewRole": role, "NewEmail": email, "Adding": true})
 	}
 	switch {
 	case !auth.ValidUsername(name):
@@ -58,6 +74,12 @@ func (s *Server) userAddSubmit(w http.ResponseWriter, r *http.Request) {
 	case !auth.ValidRole(role):
 		fail("Choose a role.")
 		return
+	}
+	if email != "" {
+		if a, err := mail.ParseAddress(email); err != nil || a.Address != email {
+			fail(email + " isn't an email address.")
+			return
+		}
 	}
 	if _, err := s.Store.UserByUsername(r.Context(), name); err == nil {
 		fail("There's already someone called " + name + ".")
@@ -68,10 +90,17 @@ func (s *Server) userAddSubmit(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, err)
 		return
 	}
-	if _, err := s.Store.CreateUser(r.Context(), store.User{Username: name, PasswordHash: hash, Role: role,
-		MustChangePassword: true}); err != nil {
+	id, err := s.Store.CreateUser(r.Context(), store.User{Username: name, PasswordHash: hash, Role: role,
+		MustChangePassword: true, Email: email})
+	if err != nil {
 		s.serverError(w, err)
 		return
+	}
+	if groups := formIDs(r, "group"); len(groups) > 0 {
+		if err := s.Store.SetUserGroups(r.Context(), id, groups); err != nil {
+			s.serverError(w, err)
+			return
+		}
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "user add", fmt.Sprintf("%s (%s)", name, role))
 	s.renderUsers(w, r, http.StatusOK, map[string]any{"TempFor": name, "TempPassword": password, "TempNew": true})

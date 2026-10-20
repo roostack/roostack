@@ -77,6 +77,22 @@ const (
 // public (Output.Public): then CrowdSec runs, Caddy logs requests for it,
 // and its bouncer checks each public request (SPEC.md §6.11).
 func System(lab config.Lab, public bool) (*SystemOutput, error) {
+	return SystemWith(lab, SystemOptions{Public: public})
+}
+
+// SystemOptions are what the services ask of the lab-wide units.
+type SystemOptions struct {
+	// Public: any service is public (System's public).
+	Public bool
+	// SignIn: a service has single sign-on on (Output.SSO), so Caddy
+	// serves the sign-in page; SignInPublic: one of them is public, and so
+	// is the sign-in page (SPEC.md §5.2).
+	SignIn, SignInPublic bool
+}
+
+// SystemWith is System with everything the services ask for.
+func SystemWith(lab config.Lab, opts SystemOptions) (*SystemOutput, error) {
+	public := opts.Public || opts.SignInPublic
 	out := &SystemOutput{}
 	if lab.IsNode() {
 		// Nodes have no Caddy: the controller's serves their routes.
@@ -170,6 +186,10 @@ func System(lab config.Lab, public bool) (*SystemOutput, error) {
 		EdgeFrom:      lab.EdgeAddrs,
 	}
 	mc.AdminHost = lab.UIHost()
+	if opts.SignIn {
+		mc.SignIn = &caddy.SignInSite{Host: lab.SignInHost(), Upstream: fmt.Sprintf("%s:%d", CaddyHostLoopback, config.SignInPort),
+			Public: opts.SignInPublic, Containers: ContainerHostGateway}
+	}
 	if old != nil {
 		mc.OldDomain, mc.OldDNSDirective = old.Domain, oldDirective
 		mc.OldAdminHost = config.Lab{Domain: old.Domain, DNS: old.DNS}.UIHost()

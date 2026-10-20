@@ -481,6 +481,21 @@ Network=roostack-immich.network</code></pre>
 			{"Choice of period", "nav.period-choice: links, the current one with aria-current.", `
 <nav class="period-choice" aria-label="How far back"><a href="#">Today</a><a href="#" aria-current="true">7 days</a><a href="#">30 days</a></nav>`},
 		}},
+	{ID: "sign-in", Title: "Single sign-on", Intro: "The lab's sign-in page for services and its settings (SPEC.md §5.2; docs/mockups/sso). The sign-in page itself is signin.html, a page of its own in the lab's look.",
+		Examples: []galleryExample{
+			{"Theme choice", "div.theme-swatches of label.theme-swatch: its data-palette sets its theme's colours, shown by three .theme-swatch-dots (background, accent, highlight), with a hidden radio and the theme's name; the chosen one is outlined.", `
+<div class="theme-swatches">
+  <label class="theme-swatch" data-palette="teal"><input type="radio" name="g-palette" value="teal" checked><span class="theme-swatch-dots" aria-hidden="true"><i class="s-bg"></i><i class="s-ac"></i><i class="s-hl"></i></span><span>Teal and violet</span></label>
+  <label class="theme-swatch" data-palette="nord"><input type="radio" name="g-palette" value="nord"><span class="theme-swatch-dots" aria-hidden="true"><i class="s-bg"></i><i class="s-ac"></i><i class="s-hl"></i></span><span>Nord</span></label>
+  <label class="theme-swatch" data-palette="gruvbox"><input type="radio" name="g-palette" value="gruvbox"><span class="theme-swatch-dots" aria-hidden="true"><i class="s-bg"></i><i class="s-ac"></i><i class="s-hl"></i></span><span>Gruvbox</span></label>
+</div>`},
+			{"Services someone can use", "ul.signin-apps: each a link with its logo tile, title and address, on the sign-in page.", `
+<ul class="signin-apps">
+  <li><a href="#"><span class="logo-tile">{{icon "services"}}</span><span><strong>Mealie</strong><small>recipes.smith.family</small></span></a></li>
+</ul>`},
+			{"A group", "ul.group-list of details: the group's name and what it can use, then its form under Change….", `
+<ul class="group-list"><li><details><summary><span class="group-name"><strong>Family</strong><small class="hint">5 people · Mealie</small></span><span class="more">Change…</span></summary><p class="hint">The group's form.</p></details></li></ul>`},
+		}},
 	{ID: "secrets", Title: "Secrets and codes", Intro: "Values to copy, such as a temporary password: shown once, easy to select.",
 		Examples: []galleryExample{
 			{"Secret", "", `
@@ -512,7 +527,12 @@ type renderedExample struct {
 // renderGallery writes the gallery page. static is where the CSS and
 // scripts are ("/static/" in the UI, a relative path for the file).
 func renderGallery(w io.Writer, static string, standalone bool) error {
-	base, err := template.New("design.html").Funcs(templateFuncs).ParseFS(templateFS,
+	// The uptime bar names its days relative to the gallery's own day, not
+	// the clock's, so the generated file is the same whatever day it's made.
+	uptime := func(days []monitor.Day, opts ...string) (template.HTML, error) {
+		return uptimeBarAt(galleryToday, days, opts...)
+	}
+	base, err := template.New("design.html").Funcs(templateFuncs).Funcs(template.FuncMap{"uptimeBar": uptime}).ParseFS(templateFS,
 		"templates/components.html", "templates/parts.html", "templates/design.html")
 	if err != nil {
 		return err
@@ -610,14 +630,16 @@ func (s *Server) galleryPage(w http.ResponseWriter, r *http.Request) {
 	w.Write(buf.Bytes())
 }
 
+// galleryToday is "today" for the gallery's uptime bars: a fixed day, so
+// the gallery file doesn't change from day to day.
+var galleryToday = time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+
 // galleryUptime is 30 days of a check that started 5 days in, was down a
-// few minutes twice and an hour once (fixed dates, so the gallery file
-// doesn't change from day to day).
+// few minutes twice and an hour once, ending on galleryToday.
 func galleryUptime() []monitor.Day {
-	today := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
 	days := make([]monitor.Day, 30)
 	for i := range days {
-		d := monitor.Day{Date: today.AddDate(0, 0, i-29), Checks: 1440, Ups: 1440, State: monitor.DayOK}
+		d := monitor.Day{Date: galleryToday.AddDate(0, 0, i-29), Checks: 1440, Ups: 1440, State: monitor.DayOK}
 		switch {
 		case i < 5:
 			d = monitor.Day{Date: d.Date, State: monitor.DayNone}

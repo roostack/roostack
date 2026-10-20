@@ -136,7 +136,7 @@ func TestInstallAndRemove(t *testing.T) {
 	ctx := context.Background()
 
 	items, err := m.Catalog()
-	if err != nil || len(items) != 2 || items[0].Title != "Immich" || items[0].Installed {
+	if err != nil || len(items) != 4 || items[0].Title != "Immich" || items[0].Installed {
 		t.Fatalf("catalog: %+v %v", items, err)
 	}
 
@@ -176,7 +176,7 @@ func TestInstallAndRemove(t *testing.T) {
 	}
 
 	items, _ = m.Catalog()
-	if !items[1].Installed {
+	if !items[3].Installed {
 		t.Error("vaultwarden should show as installed")
 	}
 
@@ -645,7 +645,7 @@ func TestInstallSummary(t *testing.T) {
 	if _, err := m.Package("later"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("a package needing a newer Roostack is offered: %v", err)
 	}
-	if items, _ := m.Catalog(); len(items) != 2 || !items[1].Icon || len(items[1].Categories) == 0 {
+	if items, _ := m.Catalog(); len(items) != 4 || !items[1].Icon || len(items[1].Categories) == 0 {
 		t.Errorf("catalog: %+v", items)
 	}
 }

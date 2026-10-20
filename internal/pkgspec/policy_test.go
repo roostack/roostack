@@ -329,9 +329,19 @@ func TestQuadletListsAgree(t *testing.T) {
 			if err := quadlet.CheckKey(key); err != nil {
 				t.Errorf("%s.%s: %v", section, key, err)
 			}
-			if r := findQuadletRule(section, key); r != nil && r.denies == nil {
+			if r := findQuadletRule(section, key); r != nil && r.denies == "" {
 				t.Errorf("%s.%s is allowed, but a rule refuses every value of it", section, key)
 			}
+		}
+	}
+}
+
+// Every rule that tests values names a test that exists, so the editor's
+// copy of the rules (Describe) can run it.
+func TestQuadletRulesNameTheirTests(t *testing.T) {
+	for _, r := range quadletRules {
+		if r.denies != "" && valueTests[r.denies] == nil {
+			t.Errorf("%s %v: no value test %q", r.section, r.keys, r.denies)
 		}
 	}
 }

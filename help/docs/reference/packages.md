@@ -225,6 +225,48 @@ routes:
 `links`
 :   Links to the app's own settings pages, shown on the service page.
 
+`sso`
+:   How the app takes [single sign-on](../services/single-sign-on.md),
+    which the Owner turns on per service. One of:
+
+    - `oidc`: the app signs people in through OIDC itself. `route` is the
+      route whose address `redirect_paths` are on (exact paths, such as
+      `/login`); `redirect_uris` are its phone apps' own addresses (such as
+      `app.immich:///oauth-callback`), never `http` or `https`. The app is
+      told only what its scopes ask for: `profile` for `name` and
+      `preferred_username`, `email` for `email`, `groups` for `groups`. If
+      it maps groups to its admins, check it asks for `groups` (Mealie does
+      once `OIDC_ADMIN_GROUP` is set).
+    - `forward_auth`: the app goes behind the wall on `route`: everyone
+      signs in on the lab's sign-in page before a request reaches it.
+      `bypass_paths` stay outside it, each with the `reason` it's safe. Its
+      containers may read who someone is from the `Remote-User`,
+      `Remote-Email`, `Remote-Name` and `Remote-Groups` headers; Roostack
+      removes any a visitor sends.
+
+    `env` (container, then variable) is added to containers only while
+    single sign-on is on, replacing their own value of the same name; its
+    templates have `.SSO` (below). `secrets` gives a container the app's
+    client secret: `OIDC_CLIENT_SECRET: sso.client_secret`. `note` says
+    what still uses the app's own sign-in, shown beside the switch.
+
+    ```yaml
+    sso:
+      oidc:
+        route: web
+        redirect_paths: [/login]
+      env:
+        app:
+          OIDC_AUTH_ENABLED: "true"
+          OIDC_CONFIGURATION_URL: "{{ .SSO.DiscoveryURL }}"
+          OIDC_CLIENT_ID: "{{ .SSO.ClientID }}"
+          OIDC_ADMIN_GROUP: "{{ .SSO.AdminGroup }}"
+      secrets:
+        app:
+          OIDC_CLIENT_SECRET: sso.client_secret
+      note: Phone apps still sign in with the app's own password.
+    ```
+
 ## What a package may not do
 
 Every package in the registry follows a **package policy**, which Roostack
@@ -297,6 +339,12 @@ Values in `env`, `when` and hooks are Go templates:
 | `(index .Containers "<name>").Host` | Another container of the service |
 | `.Lab.Domain`, `.Service.Name` | The lab's domain, and the service's name |
 | `.Lab.TimeZone` | The server's time zone, e.g. `Europe/Berlin` (`UTC` if it isn't known). Containers already run in it; this is for apps with their own time-zone setting |
+| `.SSO.Enabled` | Whether single sign-on is on for the service |
+| `.SSO.Issuer` / `.DiscoveryURL` | `https://login.smith.family` / its `/.well-known/openid-configuration` |
+| `.SSO.AuthorizeURL` / `.TokenURL` / `.UserinfoURL` | The sign-in page's endpoints, for apps that don't read the configuration |
+| `.SSO.ClientID` | The app's ID at the sign-in page: the service's name |
+| `.SSO.ProviderName` / `.ButtonText` | The lab's name / `Sign in with` and the lab's name |
+| `.SSO.UserGroup` / `.AdminGroup` | `users` and `admins`: the `groups` claim (with the `groups` scope) has `users` for everyone with access, and `admins` too for the lab's Owners and Admins |
 
 ## Checking a package
 

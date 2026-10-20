@@ -16,7 +16,7 @@
       {{else}}<div hx-get="/catalog/ready" hx-trigger="every 5s" hx-swap="none">{{notice "info" "Roostack hasn't got the list of services from the service registry yet. This page shows them as soon as it has them."}}</div>{{end}}
     {{end}}
   {{end}}
-  {{with .Added}}{{notice "ok" (printf "Added %s. It's in the list below, marked Your own." .)}}{{end}}
+  {{with .Added}}{{notice "ok" (printf "Added %s. It's in the list below, marked Your own." .Title) (printf "link=/install/%s" .Name) "linkText=Install it"}}{{end}}
   {{with .AddedUpdates}}<div class="notice" role="status"><p>These services run an older version of it, and can update now:</p>
     <ul>{{range .}}<li><a href="/services/{{.Service}}#update">{{.Title}}</a> ({{.FromApp}} → {{.ToApp}})</li>{{end}}</ul></div>{{end}}
   {{with .Needs}}{{notice "warn" (printf "%s needs a newer Roostack (%s or newer), so it can't be installed yet. It can be once Roostack is updated." .Title .NeedsRoostack)}}{{end}}

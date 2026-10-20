@@ -78,11 +78,14 @@ func (u *Unit) Validate() error {
 	return nil
 }
 
-// keyRe is a key systemd and Quadlet read exactly as written: letters and
-// digits, starting with a letter. Both ignore spaces around a key, so
+// KeyPattern is a key systemd and Quadlet read exactly as written: letters
+// and digits, starting with a letter. Both ignore spaces around a key, so
 // "Volume " would be read as Volume, and a key with = or a line break in
-// it would be read as another line.
-var keyRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
+// it would be read as another line. Exported for the package editor
+// (pkgspec.Describe).
+const KeyPattern = `^[A-Za-z][A-Za-z0-9]*$`
+
+var keyRe = regexp.MustCompile(KeyPattern)
 
 // CheckKey says why key can't be written as a unit file key, or nil.
 func CheckKey(key string) error {

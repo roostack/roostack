@@ -12,6 +12,7 @@ Compiled into the `roostack` binary or served by it.
 | [Go standard library](https://go.dev) | BSD-3-Clause | The Go Authors |  |
 | [htmx](https://htmx.org) | 0BSD |  | Page updates without reloading |
 | [Alpine.js](https://alpinejs.dev) | MIT |  | Small interactive bits of pages |
+| [yaml](https://eemeli.org/yaml) | ISC | Eemeli Aro | Reading and writing YAML in the package editor, comments kept |
 | [Space Grotesk](https://github.com/floriankarsten/space-grotesk) | SIL Open Font License 1.1 | The Space Grotesk Project Authors | The font for headings and figures |
 | [SQLite for Go](https://gitlab.com/cznic/sqlite) | BSD-3-Clause | The Sqlite Authors | Roostack's database (SQLite itself is public domain) (Go: `modernc.org/sqlite`) |
 | [libc, mathutil, memory](https://gitlab.com/cznic) | BSD-3-Clause | The modernc.org Authors | Used by SQLite for Go (Go: `modernc.org/libc`, `modernc.org/mathutil`, `modernc.org/memory`) |

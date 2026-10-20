@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"io/fs"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/editor"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/registry"
@@ -67,8 +70,8 @@ func TestAddYourOwn(t *testing.T) {
 	if code != http.StatusOK || len(fm.added) != 1 || !bytes.Equal(fm.added[0], data) {
 		t.Fatalf("adding: status %d, added %d", code, len(fm.added))
 	}
-	if _, body := h.get("/catalog?added=forgejo"); !strings.Contains(body, "Added Forgejo.") {
-		t.Error("the catalog should say it was added")
+	if _, body := h.get("/catalog?added=forgejo"); !strings.Contains(body, "Added Forgejo.") || !strings.Contains(body, `href="/install/forgejo">Install it`) {
+		t.Error("the catalog should say it was added, with a link to install it")
 	}
 
 	fm.failWith = &manager.FormError{Msg: "The service registry has a package called forgejo already: give yours another name."}
@@ -206,5 +209,104 @@ func TestServiceTierBadges(t *testing.T) {
 	}
 	if _, body := h.get("/services/forgejo"); !strings.Contains(body, `<span class="badge badge-warn">Your own</span></h1>`) {
 		t.Error("the service page should show Your own")
+	}
+}
+
+// The package editor (SPEC.md §8.3.7): the Owner's page, with the
+// editor's files; its check answers with the lab's own checks; and what
+// it adds arrives as text, through the same checks as a file.
+func TestPackageEditor(t *testing.T) {
+	h, fm := loggedIn(t, auth.RoleOwner)
+	code, body := h.get("/catalog/editor")
+	if code != http.StatusOK {
+		t.Fatalf("the editor page: %d", code)
+	}
+	for _, want := range []string{`data-editor data-where="roostack"`, `data-check="/catalog/editor/check"`, `data-add="/catalog/add"`,
+		`data-help="/help/"`, `<script src="/editor/check.js" defer></script>`, `<link rel="stylesheet" href="/editor/editor.css">`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the editor page is missing %s", want)
+		}
+	}
+	if code, _ := h.get("/editor/editor.js"); code != http.StatusOK {
+		t.Errorf("the editor's script: %d", code)
+	}
+	if _, body := h.get("/catalog/add"); !strings.Contains(body, `href="/catalog/editor"`) {
+		t.Error("Add your own should link to the editor")
+	}
+
+	check := func(data []byte, origin string) (int, string) {
+		req, _ := http.NewRequest("POST", h.srv.URL+"/catalog/editor/check", bytes.NewReader(data))
+		req.Header.Set("Content-Type", "application/yaml")
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		resp, err := h.client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp.StatusCode, string(b)
+	}
+	data := pkgtest.Read(t, "forgejo")
+	if code, body := check(data, h.srv.URL); code != http.StatusOK || !strings.Contains(body, `"errors":null`) {
+		t.Errorf("checking a good package: %d %s", code, body)
+	}
+	if code, body := check([]byte("name: Bad\n"), h.srv.URL); code != http.StatusOK || !strings.Contains(body, `must be lowercase letters`) {
+		t.Errorf("checking a bad package: %d %s", code, body)
+	}
+	if code, _ := check(data, "https://evil.example"); code != http.StatusForbidden {
+		t.Errorf("a check from another site: %d", code)
+	}
+
+	// Added from the editor: the text, as its form sends it (multipart,
+	// lines ending CRLF), and LF again when it arrives.
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	mw.WriteField("package_text", strings.ReplaceAll(string(data), "\n", "\r\n"))
+	mw.Close()
+	req, _ := http.NewRequest("POST", h.srv.URL+"/catalog/add", &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Origin", h.srv.URL)
+	resp, err := h.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if len(fm.added) != 1 || !bytes.Equal(fm.added[0], data) {
+		t.Errorf("added from the editor: %d packages", len(fm.added))
+	}
+
+	// Only the Owner.
+	h, _ = loggedIn(t, auth.RoleAdmin)
+	if code, body := h.get("/catalog/editor"); code == http.StatusOK && strings.Contains(body, "data-editor") {
+		t.Error("an admin reached the editor")
+	}
+	if code, _ := check(data, h.srv.URL); code == http.StatusOK {
+		t.Error("an admin used the editor's check")
+	}
+}
+
+// The editor draws Roostack's own icons (it runs outside Roostack too, so
+// it has copies): each must be the same as icons.go's.
+func TestEditorIcons(t *testing.T) {
+	js, err := fs.ReadFile(editor.Files(), "editor.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := strings.Index(string(js), "const icons = {")
+	end := strings.Index(string(js)[start:], "\n  };")
+	if start < 0 || end < 0 {
+		t.Fatal("editor.js has no icons")
+	}
+	found := 0
+	for _, m := range regexp.MustCompile(`(?m)^\s+"?([a-z-]+)"?: '([^']*)',$`).FindAllStringSubmatch(string(js)[start:start+end], -1) {
+		found++
+		if icons[m[1]] != m[2] {
+			t.Errorf("editor.js's icon %q isn't icons.go's", m[1])
+		}
+	}
+	if found < 5 {
+		t.Errorf("found %d of editor.js's icons", found)
 	}
 }

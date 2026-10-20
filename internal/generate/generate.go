@@ -110,6 +110,10 @@ type Output struct {
 	// Monitors are how monitoring checks its routes from outside, one per
 	// route with an address (SPEC.md §6.15).
 	Monitors []RouteMonitor
+	// SSO: single sign-on is on for it (SPEC.md §5.2), so the lab serves
+	// the sign-in page; SSOPublic: on its public address, so the sign-in
+	// page is public too.
+	SSO, SSOPublic bool
 }
 
 // RouteMonitor is how monitoring checks one route: an HTTPS request for
@@ -215,7 +219,7 @@ func newGen(lab config.Lab, p *pkgspec.Package, in *instance.Instance, upstream 
 	return &gen{
 		lab: lab, pkg: p, ctx: buildContext(lab, p, in), upstream: upstream,
 		name: in.ID(), title: cmp.Or(in.Title, p.Title), out: &Output{Service: in.ID()},
-		included: map[string]bool{}, waf: !in.NoWAF,
+		included: map[string]bool{}, waf: !in.NoWAF, sso: SSOOn(lab, p, in),
 	}
 }
 
@@ -233,6 +237,8 @@ type gen struct {
 	included map[string]bool
 	// waf: CrowdSec's AppSec checks its public routes (SPEC.md §6.10).
 	waf bool
+	// sso: single sign-on is on (SSOOn).
+	sso bool
 }
 
 func (g *gen) run() error {
@@ -265,6 +271,7 @@ func (g *gen) run() error {
 		return err
 	}
 	g.secrets()
+	g.ssoSecrets()
 	g.storage()
 	return nil
 }
@@ -343,8 +350,12 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 		g.out.HostPorts = append(g.out.HostPorts, HostPort{Name: pn, Title: pp.Title, Port: pc.HostPort,
 			Protocol: pc.Protocol, Exposure: pc.Exposure})
 	}
-	for _, k := range slices.Sorted(maps.Keys(c.Env)) {
-		v, err := g.ctx.render(at+".env."+k, c.Env[k])
+	env, err := g.ssoEnv(name, c.Env)
+	if err != nil {
+		return err
+	}
+	for _, k := range slices.Sorted(maps.Keys(env)) {
+		v, err := g.ctx.render(at+".env."+k, env[k])
 		if err != nil {
 			return err
 		}
@@ -353,6 +364,7 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 	for _, k := range slices.Sorted(maps.Keys(c.Secrets)) {
 		cs.Add("Secret", fmt.Sprintf("%s,type=env,target=%s", secretName(svc, c.Secrets[k]), k))
 	}
+	g.ssoContainer(name, func(k, v string) { cs.Add(k, v) })
 
 	mounts := slices.Clone(c.Mounts)
 	// Parent directories must be mounted before nested ones (ASSUMPTIONS B4).
@@ -606,6 +618,11 @@ func (g *gen) caddySite() error {
 			PrivateExcept:  g.lab.EdgeAddrs,
 			MaxBodySize:    r.MaxBodySize,
 			ClientIPHeader: r.ClientIPHeader,
+			Wall:           g.ssoWall(name),
+		}
+		if g.sso && g.pkg.SSORoute() == name {
+			g.out.SSO = true
+			g.out.SSOPublic = !cr.Private
 		}
 		if !cr.Private {
 			// The package's private paths stay home-only unless the Owner

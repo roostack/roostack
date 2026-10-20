@@ -25,6 +25,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/dnsrecords"
+	"roostack.cloud/roostack/internal/editor"
 	"roostack.cloud/roostack/internal/hosttime"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
@@ -34,6 +35,7 @@ import (
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -146,6 +148,15 @@ type Server struct {
 	StatusPageDir string
 	// Node is the server running the services. Set with Manager.
 	Node ServiceNode
+	// SignIn is the identity provider (internal/sso, SPEC.md §5.2),
+	// served on its own listener (SignInHandler); nil: none. SSO turns
+	// single sign-on on and off for services. SignInHost is
+	// login.<domain>, and SSODir holds the sign-in page's logo.
+	SignIn      *sso.Provider
+	SSO         SSOServices
+	SignInHost  string
+	SSODir      string
+	signInPages *template.Template
 	// Network adds servers to the lab (SPEC.md §10.2). Nil hides it.
 	Network LabNetwork
 	// LabName is what people call the lab (config.Lab.DisplayName).
@@ -298,6 +309,9 @@ type ServiceCatalog interface {
 	// The Owner's own packages ("Add your own", SPEC.md §8.3.4): adding
 	// (or replacing) one, removing one, and the folder they're kept in.
 	AddLocalPackage(data, icon []byte) (*pkgspec.Package, error)
+	// CheckLocalPackage checks one without adding it, for the package
+	// editor's Check with this Roostack (SPEC.md §8.3.7).
+	CheckLocalPackage(data []byte) (manager.LocalPackageCheck, error)
 	RemoveLocalPackage(name string) error
 	LocalPackagesDir() string
 	Remove(ctx context.Context, name string) error
@@ -490,7 +504,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 	if s.help, err = newHelpSite(helpFS); err != nil {
 		return nil, err
 	}
-	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "local-add", "install", "remove", "setup-timezone", "setup-ssh",
+	for _, page := range []string{"login", "totp", "setup", "twofactor", "catalog", "local-add", "local-editor", "install", "remove", "setup-timezone", "setup-ssh",
 		"setup-domain", "setup-backup", "recovery-key", "restarting", "dns-takeover", "setup-restore", "setup-joined",
 		"home", "services", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
@@ -502,6 +516,9 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 			return nil, err
 		}
 		s.pages[page] = t
+	}
+	if s.signInPages, err = parseSignInPages(); err != nil {
+		return nil, err
 	}
 	return s, nil
 }
@@ -515,6 +532,9 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	static, _ := fs.Sub(staticFS, "static")
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", staticHandler(static)))
+	// The package editor's own files (SPEC.md §8.3.7), the same as
+	// roostack.cloud serves.
+	mux.Handle("GET /editor/", http.StripPrefix("/editor/", staticHandler(editor.Files())))
 	mux.Handle("GET /help/", s.help.Handler())
 	mux.Handle("GET /help", http.RedirectHandler("/help/", http.StatusMovedPermanently))
 
@@ -647,6 +667,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /users/{id}/reset-password", s.requireOwner(s.userResetPasswordSubmit))
 	mux.Handle("POST /users/{id}/reset-2fa", s.requireOwner(s.userReset2FASubmit))
 	mux.Handle("POST /users/{id}/remove", s.requireOwner(s.userRemoveSubmit))
+	s.ssoRoutes(mux)
 	mux.Handle("GET /backups/recovery-key", s.requireOwner(s.recoveryKeyShowPage))
 	mux.Handle("POST /backups/recovery-key", s.requireOwner(s.recoveryKeyShowSubmit))
 	mux.Handle("GET /backups/recovery-key/change", s.requireOwner(s.keyChangePage))
@@ -705,6 +726,8 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /catalog", s.require(auth.ManageServices, s.catalogPage))
 	mux.Handle("GET /catalog/ready", s.require(auth.ManageServices, s.catalogReady))
 	mux.Handle("GET /catalog/add", s.requireOwner(s.localAddPage))
+	mux.Handle("GET /catalog/editor", s.requireOwner(s.localEditorPage))
+	mux.Handle("POST /catalog/editor/check", s.requireOwner(s.localEditorCheck))
 	mux.Handle("POST /catalog/add", s.requireOwner(s.localAddSubmit))
 	mux.Handle("POST /catalog/{name}/remove", s.requireOwner(s.localRemoveSubmit))
 	mux.Handle("GET /install/{name}", s.require(auth.ManageServices, s.installPage))

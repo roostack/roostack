@@ -35,6 +35,8 @@ type Package struct {
 	Ports        map[string]*Port      `yaml:"ports"`
 	Hooks        []*Hook               `yaml:"hooks"`
 	Links        []Link                `yaml:"links"`
+	// SSO is how the app takes single sign-on (sso.go, SPEC.md §5.2).
+	SSO *SSO `yaml:"sso"`
 }
 
 // Hook events.

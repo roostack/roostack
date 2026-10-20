@@ -135,6 +135,12 @@ func status(state string) (template.HTML, error) {
 // saying how it went on hover. The option size=mini makes the small one
 // in lists.
 func uptimeBar(days []monitor.Day, opts ...string) (template.HTML, error) {
+	return uptimeBarAt(time.Now(), days, opts...)
+}
+
+// uptimeBarAt is uptimeBar with its days named relative to now ("Today",
+// "Yesterday"), so the gallery can give it a fixed day.
+func uptimeBarAt(now time.Time, days []monitor.Day, opts ...string) (template.HTML, error) {
 	o, err := options("uptimeBar", opts, "size")
 	if err != nil {
 		return "", err
@@ -144,7 +150,6 @@ func uptimeBar(days []monitor.Day, opts ...string) (template.HTML, error) {
 	}
 	type bar struct{ State, Title string }
 	bars := make([]bar, len(days))
-	now := time.Now()
 	for i, d := range days {
 		bars[i] = bar{d.State, d.Title(now)}
 	}

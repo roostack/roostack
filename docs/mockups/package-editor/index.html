@@ -1,0 +1,392 @@
+<!doctype html><html lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Package editor · Roostack (mock-up)</title>
+  <link rel="icon" href="/internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/internal/web/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="/internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="/internal/web/static/css/app.css">
+  <link rel="stylesheet" href="mock.css">
+  <script src="mock.js" defer></script>
+</head>
+<!-- The package editor, mock-up (2026-10-20). Static markup with a few
+     scripted switches (mock.js): which view, where it runs, phone or not,
+     light or dark, and which field's help is open. -->
+<body>
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <!-- On the website, or opened from a downloaded file: no sidebar. -->
+  <header class="bare-header only-standalone">
+    <a class="brand" href="#"><i data-icon="brand"></i><span>Roostack</span></a>
+    <span class="standalone-where only-website">roostack.cloud</span>
+    <span class="standalone-where only-file">roostack-package-editor.html, opened from a file</span>
+  </header>
+
+  <div class="shell">
+    <aside class="sidebar only-roostack" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="#"><i data-icon="brand"></i><span class="sidebar-lab-name"><span>Roostack</span><strong>Smiths' lab</strong></span></a>
+      <div class="sidebar-nav">
+        <nav class="nav-group" aria-label="Your lab">
+          <a class="nav-item" href="#"><i data-icon="home-page"></i>Home</a>
+          <a class="nav-item" href="#" aria-current="true"><i data-icon="services"></i>Services</a>
+          <div class="nav-children">
+            <a class="nav-sub" href="#"><i data-icon="passwords"></i>Vaultwarden</a>
+            <a class="nav-sub" href="#"><i data-icon="photos"></i>Immich</a>
+            <a class="nav-sub" href="#" aria-current="page"><i data-icon="plus"></i>Add a service…</a>
+          </div>
+          <a class="nav-item" href="#"><i data-icon="backups"></i>Backups</a>
+          <a class="nav-item" href="#"><i data-icon="server"></i>Servers</a>
+          <a class="nav-item" href="#"><i data-icon="monitoring"></i>Monitoring</a>
+          <a class="nav-item" href="#"><i data-icon="manage"></i>Settings</a>
+        </nav>
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools"><a href="#"><i data-icon="help"></i>Help</a></div>
+        <div class="who"><a href="#" class="who-link"><span class="avatar" aria-hidden="true">T</span><span class="who-name"><strong>tom</strong><span>Owner</span></span></a></div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="page-header only-roostack">
+        <nav class="crumbs" aria-label="Where you are"><a href="#">Services</a><a href="#">Add a service</a><a href="#">Add your own</a><strong aria-current="page">Package editor</strong></nav>
+        <a class="page-help" href="#"><i data-icon="help"></i>Write a package</a>
+      </header>
+
+      <main class="page pe">
+        <div class="page-head pe-head">
+          <div class="page-head-title">
+            <h1>Package editor</h1>
+            <p class="hint only-roostack">Write a package for a service of your own. It all happens in your browser: nothing is sent to your lab until you choose <strong>Check with this Roostack</strong> or <strong>Add to this lab</strong>.</p>
+            <p class="hint only-standalone">Write a package for Roostack: a service for your own lab, or for the <a href="#">service registry</a>. It all happens in your browser, and nothing you type is sent anywhere.</p>
+          </div>
+          <div class="page-head-actions view-edit-only">
+            <button type="button" class="secondary">Download vikunja.yaml</button>
+            <button type="button" class="secondary only-roostack">Check with this Roostack</button>
+            <button type="button" class="only-roostack">Add to this lab…</button>
+          </div>
+        </div>
+
+        <!-- ============ Start ============ -->
+        <section class="view" data-view="start" aria-label="Start">
+          <div class="pe-starts">
+            <button type="button" class="pe-start" data-go="import">
+              <i data-icon="import"></i><strong>Import from Docker Compose</strong>
+              <span>Paste or open the app's <code>compose.yaml</code>. What fits Roostack comes across; the rest is listed, with why.</span>
+            </button>
+            <button type="button" class="pe-start" data-go="edit">
+              <i data-icon="documents"></i><strong>Open a package file</strong>
+              <span>A <code>.yaml</code> package you started before, or one from the service registry to change.</span>
+            </button>
+            <button type="button" class="pe-start" data-go="edit">
+              <i data-icon="plus"></i><strong>Start from scratch</strong>
+              <span>An empty package with the parts every one needs.</span>
+            </button>
+          </div>
+          <div class="card pe-examples">
+            <h2>Or start from an example</h2>
+            <p class="hint">The service registry's packages closest to most apps, as <a href="#">Write a package</a> describes them.</p>
+            <div class="pe-example-list">
+              <button type="button" class="secondary" data-go="edit"><i data-icon="passwords"></i>Vaultwarden <small>one container, SQLite</small></button>
+              <button type="button" class="secondary" data-go="edit"><i data-icon="development"></i>Forgejo <small>Postgres, an extra connection, a setup step</small></button>
+              <button type="button" class="secondary" data-go="edit"><i data-icon="photos"></i>Immich <small>several containers, a GPU, media</small></button>
+            </div>
+          </div>
+          <p class="hint only-roostack">Already wrote one? <a href="#">Add it from a file</a>.</p>
+          <p class="hint only-website">Works without a network too: <a href="#">download the editor</a> (one file, 160 KB) and open it in your browser.</p>
+        </section>
+
+        <!-- ============ Import ============ -->
+        <section class="view" data-view="import" aria-label="Import from Docker Compose">
+          <div class="pe-import">
+            <div class="card">
+              <h2>Your Compose file</h2>
+              <p class="hint">Paste it, or <a href="#">open a file</a>. Only this file is read: an <code>env_file</code> or <code>.env</code> isn't, so paste what's in it below the file if you want its values.</p>
+              <pre class="pe-code pe-compose"><span class="c-k">services:</span>
+  <span class="c-k">vikunja:</span>
+    <span class="c-k">image:</span> vikunja/vikunja:0.24.6
+    <span class="c-k">environment:</span>
+      <span class="c-k">VIKUNJA_SERVICE_PUBLICURL:</span> http://localhost:3456
+      <span class="c-k">VIKUNJA_DATABASE_HOST:</span> db
+      <span class="c-k">VIKUNJA_DATABASE_PASSWORD:</span> changeme
+      <span class="c-k">VIKUNJA_DATABASE_TYPE:</span> postgres
+      <span class="c-k">VIKUNJA_DATABASE_USER:</span> vikunja
+      <span class="c-k">VIKUNJA_DATABASE_DATABASE:</span> vikunja
+      <span class="c-k">VIKUNJA_SERVICE_JWTSECRET:</span> ${JWT_SECRET}
+    <span class="c-k">ports:</span>
+      - 3456:3456
+    <span class="c-k">volumes:</span>
+      - ./files:/app/vikunja/files
+      - /var/run/docker.sock:/var/run/docker.sock
+    <span class="c-k">depends_on:</span>
+      <span class="c-k">db:</span>
+        <span class="c-k">condition:</span> service_healthy
+    <span class="c-k">restart:</span> unless-stopped
+  <span class="c-k">db:</span>
+    <span class="c-k">image:</span> postgres:17
+    <span class="c-k">environment:</span>
+      <span class="c-k">POSTGRES_PASSWORD:</span> changeme
+      <span class="c-k">POSTGRES_USER:</span> vikunja
+    <span class="c-k">volumes:</span>
+      - ./db:/var/lib/postgresql/data
+    <span class="c-k">restart:</span> unless-stopped
+    <span class="c-k">healthcheck:</span>
+      <span class="c-k">test:</span> ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]</pre>
+            </div>
+            <div class="card pe-report">
+              <h2>What came across</h2>
+              <p>Two services: <strong>vikunja</strong> became the container <code>vikunja</code>, and <strong>db</strong> a Postgres database Roostack runs for it and backs up.</p>
+
+              <h3 class="pe-report-head"><span class="pill pill-ok">9</span> Converted</h3>
+              <ul class="pe-report-list">
+                <li>The image <code>vikunja/vikunja:0.24.6</code>, as <code>docker.io/vikunja/vikunja:0.24.6</code>; the version <code>0.24.6-roostack.1</code> from its tag.</li>
+                <li>Port 3456 as the web address <code>web</code>, at <code>vikunja.</code><em>your lab</em>.</li>
+                <li><code>VIKUNJA_SERVICE_PUBLICURL</code> as the service's own address, <code>{{ .Routes.web.URL }}</code>.</li>
+                <li><code>VIKUNJA_DATABASE_HOST</code>, <code>_USER</code> and <code>_DATABASE</code> as the database's details; <code>_PASSWORD</code> as the password Roostack makes for it.</li>
+                <li><code>${JWT_SECRET}</code> as a secret Roostack generates, <code>jwt_secret</code>.</li>
+                <li><code>./files</code> as the storage <code>files</code>, backed up.</li>
+                <li><code>depends_on: db</code>, as starting after the database.</li>
+              </ul>
+
+              <h3 class="pe-report-head"><span class="pill pill-warn">1</span> Not allowed</h3>
+              <ul class="pe-report-list">
+                <li><code>/var/run/docker.sock</code>: it would give the app control of every container on the server. Roostack never mounts it; if the app needs it for something, that part won't work.</li>
+              </ul>
+
+              <h3 class="pe-report-head"><span class="pill">5</span> Not needed in Roostack</h3>
+              <ul class="pe-report-list">
+                <li><code>restart</code> (both): Roostack restarts services that stop.</li>
+                <li><code>db</code>'s volume, environment and health check: Roostack keeps Postgres's data, makes its user and password, and checks it itself.</li>
+                <li><code>condition: service_healthy</code>: Roostack waits for the database anyway.</li>
+              </ul>
+
+              <h3 class="pe-report-head"><span class="pill pill-hi">6</span> Over to you</h3>
+              <ul class="pe-report-list">
+                <li>Pin the image by its digest (the editor can't look it up offline): <code>skopeo inspect --raw docker://docker.io/vikunja/vikunja:0.24.6 | sha256sum</code></li>
+                <li>Say how much memory each container uses, what the storage holds, and where people sign in.</li>
+                <li>The facts about the project: who makes it, its licence and logo.</li>
+              </ul>
+              <div class="actions-row"><button type="button" data-go="edit">Open in the editor</button><button type="button" class="secondary">Change the Compose file</button></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ Edit ============ -->
+        <section class="view" data-view="edit" aria-label="Edit">
+          <!-- Problems: one strip above both panes. -->
+          <div class="card pe-problems" id="problems">
+            <div class="pe-problems-head">
+              <h2>Problems</h2>
+              <div class="pe-tally">
+                <span class="pill pill-bad">2 validation errors</span>
+                <span class="pill pill-warn">5 registry errors</span>
+                <span class="pill">4 suggestions</span>
+              </div>
+              <label class="pe-switch"><input type="checkbox" checked> For my own lab only <small>(allows registry errors, for local use only)</small></label>
+            </div>
+            <ol class="pe-problem-list">
+              <li class="sev-bad"><span class="sev">Validation</span><span class="msg"><a href="#f-storage" data-help="storage">storage.files.title</a> must be one line of at most 60 characters.</span> <span class="pe-line">line 41</span></li>
+              <li class="sev-bad"><span class="sev">Validation</span><span class="msg"><a href="#f-version">containers.vikunja.env</a>: <code>{{ .Routes.app.URL }}</code> names a web address the package doesn't have (it has <code>web</code>).</span> <span class="pe-line">line 27</span></li>
+              <li class="sev-warn"><span class="sev">Registry</span><span class="msg"><a href="#f-image">containers.vikunja.image</a>: pin the image by digest (name:tag@sha256:…), so every lab runs exactly the image that was reviewed.</span> <span class="pe-line">line 25</span></li>
+              <li class="sev-warn"><span class="sev">Registry</span><span class="msg"><a href="#f-login" data-help="login">routes.web.public</a>: name the pages where people sign in (login_paths), or say why the address shouldn't be public at all (unsafe).</span> <span class="pe-line">line 55</span></li>
+              <li class="sev-warn"><span class="sev">Registry</span><span class="msg"><a href="#f-licence" data-help="licence">about.licence</a>: give the app's licence as an SPDX identifier (e.g. AGPL-3.0-only).</span> <span class="pe-line">line 10</span></li>
+              <li class="pe-more"><button type="button" class="link-button">3 more</button></li>
+            </ol>
+          </div>
+
+          <!-- Phones: the panes become tabs. -->
+          <div class="pe-tabs" role="tablist">
+            <button type="button" role="tab" aria-selected="true" data-tab="form">Form</button>
+            <button type="button" role="tab" aria-selected="false" data-tab="yaml">YAML</button>
+            <button type="button" role="tab" aria-selected="false" data-tab="problems">Problems <span class="pill pill-bad">7</span></button>
+          </div>
+
+          <div class="pe-panes">
+            <!-- ---------- The form ---------- -->
+            <div class="pe-form" data-pane="form">
+              <nav class="pe-index" aria-label="Parts of the package">
+                <a href="#s-name">Name</a><a href="#s-about" class="has-warn">The project</a><a href="#s-containers" class="has-bad">Containers</a><a href="#s-storage" class="has-bad">Data</a><a href="#s-db">Databases</a><a href="#s-routes" class="has-warn">Web address</a><a href="#s-settings">Settings</a><a href="#s-more">More…</a>
+              </nav>
+
+              <section class="card pe-section" id="s-name">
+                <h2>Name and version</h2>
+                <div class="pe-row">
+                  <label>Title<input value="Vikunja"></label>
+                  <label>Name <small>can't change later</small><input value="vikunja" class="mono"></label>
+                </div>
+                <label>Description <small>one line, for the list of services</small><input placeholder="What it does, in one line" value=""></label>
+                <label id="f-version">Version<input value="0.24.6-roostack.1" class="mono"><small>The app's version, then <code>-roostack.</code> and the package's revision.</small></label>
+              </section>
+
+              <section class="card pe-section" id="s-about">
+                <h2>The project <span class="pill pill-warn">3</span></h2>
+                <div class="pe-row">
+                  <label>Who makes it<input placeholder="e.g. a volunteer community"></label>
+                  <label>Source code<input placeholder="https://" value="https://kolaente.dev/vikunja/vikunja"></label>
+                </div>
+                <div class="pe-field is-focus" id="f-licence" data-field="licence">
+                  <label>Licence<input value="AGPL-3.0" class="mono is-warn"></label>
+                  <div class="pe-help" data-help-for="licence">
+                    <p><strong>The app's licence, as an SPDX identifier.</strong> Take it from the project's own licence file or notice.</p>
+                    <div class="pe-suggest">
+                      <p class="pe-suggest-why"><i data-icon="warn"></i><strong>AGPL-3.0</strong> doesn't say whether later versions apply. Read the project's notice: "or (at your option) any later version" means <em>or later</em>.</p>
+                      <div class="pe-chips"><button type="button" class="chip">Use <code>AGPL-3.0-or-later</code></button><button type="button" class="chip">Use <code>AGPL-3.0-only</code></button></div>
+                    </div>
+                    <p class="hint">Closed source, with only an image to run? Use <code>closed</code>, and give the website instead. <a href="#">Package format: about</a></p>
+                  </div>
+                </div>
+                <div class="pe-row">
+                  <label>Logo<span class="pe-file"><button type="button" class="secondary">Choose a PNG…</button><small>square, at least 256×256, at most 100 KB</small></span></label>
+                  <label>Categories <small>one to three</small>
+                    <span class="pe-chips pe-cats"><button type="button" class="chip is-on">Tasks and planning</button><button type="button" class="chip">Documents and notes</button><button type="button" class="chip pe-chip-more">More…</button></span>
+                    <small class="pe-suggested"><i data-icon="spark"></i>Suggested from the name and description</small>
+                  </label>
+                </div>
+                <p class="hint pe-derived"><i data-icon="spark"></i>From the source address: releases at <code>https://kolaente.dev/vikunja/vikunja/releases/tag/v{version}</code>? <button type="button" class="chip">Use it</button></p>
+              </section>
+
+              <section class="card pe-section" id="s-containers">
+                <h2>Containers <span class="pill pill-bad">1</span></h2>
+                <details class="pe-item" open>
+                  <summary><strong>vikunja</strong> <code>docker.io/vikunja/vikunja:0.24.6</code></summary>
+                  <label id="f-image">Image<input value="docker.io/vikunja/vikunja:0.24.6" class="mono is-warn"><small>Not pinned yet: add its digest after the tag (<code>@sha256:…</code>). <a href="#">How to find it</a></small></label>
+                  <div class="pe-row">
+                    <label>Memory it typically uses<input placeholder="e.g. 300 MB"><small>An estimate for the summary before installing, not a limit. <a href="#">Measure it</a> once it runs.</small></label>
+                    <label>Health check<input value="http: port 3456, /api/v1/info" class="mono"><small class="pe-suggested"><i data-icon="spark"></i>Suggested: Vikunja's compose had none</small></label>
+                  </div>
+                  <p class="pe-sub">Environment <span class="hint">5 values, 2 secrets</span> · Mounts <span class="hint">1</span> · Starts after <span class="hint">databases.db</span> · <a href="#">Quadlet lines</a></p>
+                </details>
+                <button type="button" class="secondary small">Add a container</button>
+              </section>
+
+              <section class="card pe-section" id="s-storage">
+                <h2>Data <span class="pill pill-bad">1</span></h2>
+                <div class="pe-field" id="f-storage" data-field="storage">
+                  <div class="pe-row">
+                    <label>files: what it holds<input value="Tasks' attachments, avatars and backgrounds that people upload to their projects" class="is-bad"></label>
+                    <label>Backed up?
+                      <select><option selected>Yes: critical</option><option>No: replaceable (caches, thumbnails)</option></select></label>
+                  </div>
+                  <div class="pe-help" data-help-for="storage" hidden>
+                    <p><strong>A few words for people</strong>, shown before installing as "<em>Attachments</em>, and its database: backed up". At most 60 characters, one line.</p>
+                    <div class="pe-chips"><button type="button" class="chip">Use "Attachments and avatars"</button></div>
+                    <p class="hint">Mounted at <code>/app/vikunja/files</code>: from its name, it's what people upload, so <strong>critical</strong>. Anything people would miss must be critical. <a href="#">Data</a></p>
+                  </div>
+                </div>
+              </section>
+
+              <section class="card pe-section" id="s-routes">
+                <h2>Web address <span class="pill pill-warn">1</span></h2>
+                <div class="pe-row">
+                  <label>web: container and port<input value="vikunja : 3456" class="mono"></label>
+                  <label>Subdomain <small>people can change it</small><input value="vikunja" class="mono"></label>
+                </div>
+                <div class="pe-field" id="f-login" data-field="login">
+                  <label>Where people sign in <small>login_paths</small>
+                    <span class="pe-list-input"><input placeholder="/login" class="mono"><button type="button" class="secondary small">Add</button></span></label>
+                  <div class="pe-help" data-help-for="login" hidden>
+                    <p><strong>The addresses that check a password.</strong> When the Owner makes this address public, visitors from outside get a strict limit on tries there, so nobody can guess passwords quickly.</p>
+                    <div class="pe-suggest">
+                      <p class="pe-suggest-why">Common ones, and the registry apps that use them:</p>
+                      <div class="pe-chips">
+                        <button type="button" class="chip"><code>/api/v1/login</code> <small>the app's API is under /api/v1</small></button>
+                        <button type="button" class="chip"><code>/login</code> <small>Gitea, Miniflux…</small></button>
+                        <button type="button" class="chip"><code>/api/auth/login</code> <small>3 apps</small></button>
+                        <button type="button" class="chip"><code>/user/login</code> <small>Forgejo</small></button>
+                      </div>
+                    </div>
+                    <p class="hint">To be sure: open the app's sign-in page with the browser's developer tools open (Network), sign in, and note where the form is sent. If the address shouldn't be public at all (an API with no login), say why under <strong>Not safe to make public</strong> instead. <a href="#">Its web address</a></p>
+                  </div>
+                </div>
+                <p class="pe-sub">Home-only paths <span class="hint">none</span> · <button type="button" class="chip"><i data-icon="spark"></i>Keep <code>/admin</code> home-only?</button> · <a href="#">More options</a></p>
+              </section>
+
+              <section class="card pe-section pe-collapsed" id="s-settings">
+                <h2>Settings and setup</h2>
+                <p class="pe-sub"><code>jwt_secret</code> <span class="hint">a secret Roostack generates</span> · <a href="#">Add a setting</a> · <a href="#">Add a setup step</a></p>
+              </section>
+            </div>
+
+            <!-- ---------- The YAML ---------- -->
+            <div class="pe-yaml" data-pane="yaml">
+              <div class="pe-yaml-head">
+                <strong>vikunja / 0.24.6-roostack.1.yaml</strong>
+                <span class="hint">Edit either side; comments are kept.</span>
+              </div>
+              <pre class="pe-code pe-lines"><span class="ln">1</span><span class="c-c"># Imported from compose.yaml by Roostack's package editor, 2026-10-20.</span>
+<span class="ln">2</span><span class="c-k">schema:</span> roostack/v1alpha1
+<span class="ln">3</span><span class="c-k">name:</span> vikunja
+<span class="ln">4</span><span class="c-k">title:</span> Vikunja
+<span class="ln">5</span><span class="c-k">description:</span> ""
+<span class="ln">6</span><span class="c-k">version:</span> 0.24.6-roostack.1
+<span class="ln">7</span>
+<span class="ln">8</span><span class="c-k">about:</span>
+<span class="ln">9</span>  <span class="c-k">source:</span> https://kolaente.dev/vikunja/vikunja
+<span class="ln mark-warn is-focus-line">10</span><span class="is-focus-line">  <span class="c-k">licence:</span> AGPL-3.0</span>
+<span class="ln">11</span>  <span class="c-k">icon:</span> icon.png
+<span class="ln">12</span>  <span class="c-k">categories:</span> [productivity]
+<span class="ln">13</span><span class="c-k">requires:</span>
+<span class="ln">14</span>  <span class="c-k">roostack:</span> <span class="c-s">"0.9"</span>               <span class="c-c"># this Roostack</span>
+<span class="ln">15</span>
+<span class="ln">16</span><span class="c-k">settings:</span>
+<span class="ln">17</span>  - <span class="c-k">key:</span> jwt_secret
+<span class="ln">18</span>    <span class="c-k">title:</span> Signing key
+<span class="ln">19</span>    <span class="c-k">type:</span> secret
+<span class="ln">20</span>    <span class="c-k">generate:</span> true             <span class="c-c"># was ${JWT_SECRET}</span>
+<span class="ln">21</span>
+<span class="ln">22</span><span class="c-k">containers:</span>
+<span class="ln">23</span>  <span class="c-k">vikunja:</span>
+<span class="ln">24</span>    <span class="c-c"># Pin by digest: skopeo inspect --raw docker://… | sha256sum</span>
+<span class="ln mark-warn">25</span>    <span class="c-k">image:</span> docker.io/vikunja/vikunja:0.24.6
+<span class="ln">26</span>    <span class="c-k">env:</span>
+<span class="ln mark-bad">27</span>      <span class="c-k">VIKUNJA_SERVICE_PUBLICURL:</span> <span class="c-s">"{{ .Routes.app.URL }}"</span>
+<span class="ln">28</span>      <span class="c-k">VIKUNJA_DATABASE_TYPE:</span> postgres
+<span class="ln">29</span>      <span class="c-k">VIKUNJA_DATABASE_HOST:</span> <span class="c-s">"{{ .Databases.db.Host }}"</span>
+<span class="ln">30</span>      <span class="c-k">VIKUNJA_DATABASE_USER:</span> <span class="c-s">"{{ .Databases.db.User }}"</span>
+<span class="ln">31</span>      <span class="c-k">VIKUNJA_DATABASE_DATABASE:</span> <span class="c-s">"{{ .Databases.db.Name }}"</span>
+<span class="ln">32</span>    <span class="c-k">secrets:</span>
+<span class="ln">33</span>      <span class="c-k">VIKUNJA_DATABASE_PASSWORD:</span> databases.db.password
+<span class="ln">34</span>      <span class="c-k">VIKUNJA_SERVICE_JWTSECRET:</span> jwt_secret
+<span class="ln">35</span>    <span class="c-k">mounts:</span>
+<span class="ln">36</span>      - { <span class="c-k">storage:</span> files, <span class="c-k">path:</span> /app/vikunja/files }
+<span class="ln">37</span>    <span class="c-k">depends_on:</span> [databases.db]
+<span class="ln">38</span>
+<span class="ln">39</span><span class="c-k">storage:</span>
+<span class="ln">40</span>  <span class="c-k">files:</span>
+<span class="ln mark-bad">41</span>    <span class="c-k">title:</span> Tasks' attachments, avatars and backgrounds that…
+<span class="ln">42</span>    <span class="c-k">class:</span> critical
+<span class="ln">43</span>
+<span class="ln">44</span><span class="c-k">databases:</span>
+<span class="ln">45</span>  <span class="c-k">db:</span>
+<span class="ln">46</span>    <span class="c-k">type:</span> postgres
+<span class="ln">47</span>
+<span class="ln">48</span><span class="c-k">routes:</span>
+<span class="ln">49</span>  <span class="c-k">web:</span>
+<span class="ln">50</span>    <span class="c-k">container:</span> vikunja
+<span class="ln">51</span>    <span class="c-k">port:</span> 3456
+<span class="ln">52</span>    <span class="c-k">subdomain:</span> vikunja
+<span class="ln">53</span>    <span class="c-k">exposure:</span> private
+<span class="ln mark-warn">54</span>    <span class="c-k">public:</span> {}</pre>
+            </div>
+          </div>
+        </section>
+      </main>
+      <footer class="site only-roostack">Roostack <span class="version">0.9.0</span> · <a href="#">About</a> · <a href="#">Design system</a></footer>
+      <footer class="site only-standalone">Roostack's package editor, from Roostack 0.9.0 · Apache-2.0 · <a href="#">Package format</a></footer>
+    </div>
+  </div>
+
+  <!-- The mock-up's own controls. -->
+  <div class="mock-bar" aria-label="Mock-up controls">
+    <span class="lbl">View</span>
+    <button type="button" data-set="view=start">Start</button><button type="button" data-set="view=import">Import</button><button type="button" data-set="view=edit">Edit</button>
+    <span class="lbl">In</span>
+    <button type="button" data-set="where=roostack">Roostack</button><button type="button" data-set="where=website">Website</button><button type="button" data-set="where=file">A file</button>
+    <span class="lbl">Help on</span>
+    <button type="button" data-set="help=licence">Licence</button><button type="button" data-set="help=storage">Storage</button><button type="button" data-set="help=login">Sign-in</button>
+    <button type="button" data-toggle="dark">Dark</button><button type="button" data-toggle="phone">Phone</button>
+  </div>
+  <div class="phone-stage" hidden><iframe title="Phone width" src="about:blank"></iframe></div>
+</body>
+</html>

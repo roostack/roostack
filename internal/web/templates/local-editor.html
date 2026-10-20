@@ -1,0 +1,9 @@
+{{define "title"}}Package editor{{end}}
+{{/* The package editor (SPEC.md §8.3.7): its own markup, styles and
+     scripts, the same as roostack.cloud's, from internal/editor. */}}
+{{define "head"}}<link rel="stylesheet" href="/editor/{{.Stylesheet}}">
+  {{range .Scripts}}<script src="/editor/{{.}}" defer></script>
+  {{end}}{{end}}
+{{define "content"}}{{.Editor}}{{end}}
+{{define "page-help"}}{{help "packages/write" "Write a package"}}{{end}}
+{{define "crumbs"}}<a href="/services">Services</a><a href="/catalog">Add a service</a><a href="/catalog/add">Add your own</a><strong aria-current="page">Package editor</strong>{{end}}

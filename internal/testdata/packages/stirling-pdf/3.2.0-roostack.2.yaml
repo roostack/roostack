@@ -1,0 +1,68 @@
+# Stirling-PDF: one container, no database. Image digest looked up
+# 2026-10-18.
+#
+# Without accounts (the Owner's choice, 2026-10-18): since v3 Stirling-PDF's
+# accounts and login are in its proprietary part, and before they were
+# optional anyway. Single sign-on may come once Roostack has a unified
+# login. Anyone who can reach it can use it, so it stays private.
+schema: roostack/v1alpha1
+name: stirling-pdf
+title: Stirling-PDF
+description: Merges, splits, converts, compresses and signs PDFs in your browser, without uploading them anywhere else
+version: 3.2.0-roostack.2
+
+about:
+  maker: Stirling PDF Inc. and contributors
+  website: https://www.stirlingpdf.com
+  source: https://github.com/Stirling-Tools/Stirling-PDF
+  licence: MIT                   # outside app/proprietary, whose features stay off here
+  # A placeholder, not Stirling-PDF's logo: the project states no terms
+  # for using it. Replace before go-live (Roostack's TASKS).
+  icon: icon.png
+  categories: [documents]
+  keywords: [pdf, merge, split, convert, compress, sign, ocr]
+requires:
+  roostack: "0.1"
+
+containers:
+  app:
+    # The image's start script runs as the container's root (Roostack's own
+    # user on the host) and switches to its own user.
+    image: docker.io/stirlingtools/stirling-pdf:3.2.0@sha256:10164ffe04961b02ebc9fa4da12064eeacb8d3bc3e09ceb059f78ce7aaa83207
+    env:
+      SECURITY_ENABLELOGIN: "false"
+      SYSTEM_FILEUPLOADLIMIT: 100MB  # as the route allows
+      SYSTEM_SHOWUPDATE: "false"  # Roostack offers updates
+    mounts:
+      - { storage: configs, path: /configs }
+      - { storage: logs,    path: /logs }
+    health:
+      http: { port: 8080, path: /api/v1/info/status }
+    memory: 1 GB                 # 953 MB in use, measured 2026-10-19 (Java)
+
+storage:
+  configs:
+    title: Settings
+    class: critical
+  logs:
+    title: Stirling-PDF's logs
+    class: replaceable
+
+routes:
+  web:
+    container: app
+    port: 8080
+    subdomain: pdf
+    exposure: private
+    max_body_size: 100MB
+    public:
+      unsafe: >-
+        Stirling-PDF has no accounts here: anyone who reaches it can use it, and
+        your server does the work. Keep it on your home network.
+
+# Single sign-on (SPEC.md §5.2): with no accounts of its own, Stirling-PDF
+# goes behind the wall, so only the people the Owner chooses reach it.
+sso:
+  forward_auth:
+    route: web
+  note: Scripts that use Stirling-PDF's API can't sign in, so they don't work while single sign-on is on.

@@ -69,7 +69,7 @@ func navFor(u *store.User, page string) nav {
 		u.Theme, next = "auto", "light"
 	}
 	landing := slices.Contains([]string{"home", "services", "backups", "settings", "settings-servers", "account", "monitoring"}, page)
-	adding := page == "catalog" || page == "install" || page == "local-add"
+	adding := page == "catalog" || page == "install" || page == "local-add" || page == "local-editor"
 	return nav{Active: active, Landing: landing, Adding: adding, Username: u.Username, Role: u.Role, Theme: u.Theme, NextTheme: next, Palette: userPalette(u), Accent: userAccent(u),
 		Backups: auth.Can(u.Role, auth.ManageServices), Settings: auth.Can(u.Role, auth.ManageHost)}
 }
@@ -110,7 +110,7 @@ func (n nav) Section() *crumb {
 // (TestNavTabs checks every template).
 func navTab(page string) string {
 	if tab, ok := map[string]string{
-		"home": "home", "catalog": "services", "local-add": "services", "install": "services", "remove": "services", "move": "services", "visitors": "services",
+		"home": "home", "catalog": "services", "local-add": "services", "local-editor": "services", "install": "services", "remove": "services", "move": "services", "visitors": "services",
 		"restore": "backups", "recovery-key": "settings", "users": "settings", "dns-takeover": "settings",
 		"account": "account", "twofactor": "account", "account-appearance": "account", "account-notifications": "account",
 		"cloud-open": "settings", "cloud-linked": "settings",
@@ -181,6 +181,7 @@ func (s *Server) pageData(r *http.Request) (map[string]any, error) {
 	}
 	s.withTiers(services)
 	s.withIcons(services, s.Manager != nil && auth.Can(u.Role, auth.ManageServices))
+	services = s.usableBy(r.Context(), u, services)
 	return map[string]any{
 		"User":      u,
 		"Services":  services,
@@ -556,6 +557,15 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	page := "service"
 	if u := s.serviceUptime(r.Context(), name); u != nil && data["CanManage"] == true {
 		data["Uptime"] = u
+	}
+	if p, ok := data["Package"].(*pkgspec.Package); ok {
+		if c := s.ssoCardFor(r, name, p); c != nil {
+			if msg, ok := data["SSOError"].(string); ok {
+				c.Error = msg
+			}
+			c.Open = c.On && c.CanChoose && (c.Error != "" || r.URL.Query().Get("sso") == "who")
+			data["SSO"] = c
+		}
 	}
 	if data["EditSettings"] == true {
 		page = "service-settings"

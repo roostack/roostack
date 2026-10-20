@@ -1,0 +1,167 @@
+# Mealie: one container, SQLite. Image digest looked up 2026-10-18.
+schema: roostack/v1alpha1
+name: mealie
+title: Mealie
+description: Your recipes, meal plans and shopping lists, with recipes imported from any website
+version: 3.29.0-roostack.2
+
+about:
+  maker: Hayden K and the Mealie community
+  website: https://mealie.io
+  source: https://github.com/mealie-recipes/mealie
+  licence: AGPL-3.0-only         # its LICENSE, with no "or later"
+  support: https://github.com/sponsors/hay-kot
+  # A placeholder, not Mealie's logo: the project states no terms for
+  # using it. Replace before go-live (Roostack's TASKS).
+  icon: icon.png
+  categories: [home]
+  keywords: [recipes, cooking, meal plan, shopping list, food, kitchen]
+requires:
+  roostack: "0.1"
+
+settings:
+  # Your account. Mealie starts with a well-known administrator
+  # (changeme@example.com, MyPassword); the install hook below makes it
+  # yours as soon as Mealie answers.
+  - key: admin_email
+    title: Your email address
+    description: For signing in to Mealie
+    type: string
+    required: true
+    install_only: true
+  - key: admin_password
+    title: Your password
+    description: At least 8 characters. Roostack forgets it once the account is yours.
+    type: secret
+    min_length: 8
+    install_only: true           # deleted once the install hook succeeds
+  - key: signups_allowed
+    title: Allow anyone to create an account
+    description: Otherwise you invite people from Mealie's settings
+    type: bool
+    default: false
+
+containers:
+  app:
+    image: ghcr.io/mealie-recipes/mealie:v3.29.0@sha256:78eb28b8776d0bad40c5e605c72b3f4f5976793e491558c7dcbdfc04c835d4bc
+    env:
+      BASE_URL: "{{ .Routes.web.URL }}"
+      ALLOW_SIGNUP: "{{ .Settings.signups_allowed }}"
+      TZ: "{{ .Lab.TimeZone }}"  # Mealie's docs ask for it, for its daily tasks
+      PUID: "1000"               # the user it already runs as: no switching
+      PGID: "1000"
+    mounts:
+      - { storage: data, path: /app/data }
+    health:
+      http: { port: 9000, path: /api/app/about }
+    memory: 250 MB               # 230 MB in use, measured 2026-10-18
+    quadlet:
+      Container:
+        # Run as 1000, mapped to Roostack's user, so the data folder is its
+        # own (the image would otherwise start as root and change owners).
+        User: "1000:1000"
+        UserNS: keep-id:uid=1000,gid=1000
+
+storage:
+  data:
+    title: Your recipes, photos and meal plans
+    class: critical
+
+databases:
+  main:
+    type: sqlite
+    path: data/mealie.db
+
+hooks:
+  # Make the starting administrator yours: your password first, then your
+  # email, so a run stopped halfway can finish next time. Safe to re-run:
+  # once neither the starting login nor yours with its email works, it's
+  # done.
+  - on: install
+    container: app
+    env:
+      ADMIN_EMAIL: "{{ .Settings.admin_email }}"
+    secrets:
+      ADMIN_PASSWORD: admin_password
+    command:
+      - /opt/mealie/bin/python
+      - -c
+      - |
+        import json, os, sys, urllib.error, urllib.parse, urllib.request
+        API = "http://127.0.0.1:9000/api"
+        START_EMAIL, START_PASSWORD = "changeme@example.com", "MyPassword"
+        email, password = os.environ["ADMIN_EMAIL"].strip().lower(), os.environ["ADMIN_PASSWORD"]
+
+        def call(method, path, body=None, token=None, form=False):
+            headers = {"Authorization": "Bearer " + token} if token else {}
+            if form:
+                data, headers["Content-Type"] = urllib.parse.urlencode(body).encode(), "application/x-www-form-urlencoded"
+            else:
+                data, headers["Content-Type"] = json.dumps(body).encode() if body is not None else None, "application/json"
+            with urllib.request.urlopen(urllib.request.Request(API + path, data=data, headers=headers, method=method)) as r:
+                return json.load(r)
+
+        def login(pw):
+            try:
+                return call("POST", "/auth/token", {"username": START_EMAIL, "password": pw}, form=True)["access_token"]
+            except urllib.error.HTTPError as e:
+                if e.code == 401:
+                    return None
+                raise
+
+        try:
+            token, current = login(START_PASSWORD), START_PASSWORD
+            if token is None:
+                token, current = login(password), password
+        except urllib.error.URLError as e:
+            sys.exit(f"Mealie is not answering yet: {e}")
+        if token is None:
+            print("The starting account is yours already.")
+            sys.exit(0)
+        if current != password:
+            call("PUT", "/users/password", {"currentPassword": current, "newPassword": password}, token)
+        me = call("GET", "/users/self", token=token)
+        name = email.split("@")[0]
+        me.update(email=email, username=name, fullName=name)
+        call("PUT", "/users/" + me["id"], me, token)
+        print("The administrator is yours: sign in as " + email + ".")
+
+routes:
+  web:
+    container: app
+    port: 9000
+    subdomain: recipes
+    exposure: private
+    max_body_size: 50MB          # recipe photos and imports
+    public:
+      private_paths:
+        - path: /admin
+          reason: Mealie's site settings, users and backups. Anyone who gets an administrator's password could use them.
+        - path: /api/admin
+          reason: The API behind Mealie's site settings, users and backups.
+      login_paths:
+        - /api/auth/token
+
+# Single sign-on (SPEC.md §5.2): Mealie signs people in through OIDC once
+# the Owner turns it on. It makes their account at their first sign-in, or
+# finds the one with their email (yours, from installing, if it's the
+# email Roostack has for you), and makes the lab's Owners and Admins its
+# admins. Mealie's own passwords keep working.
+sso:
+  oidc:
+    route: web
+    redirect_paths: [/login]
+  env:
+    app:
+      OIDC_AUTH_ENABLED: "true"
+      OIDC_SIGNUP_ENABLED: "true"
+      OIDC_CONFIGURATION_URL: "{{ .SSO.DiscoveryURL }}"
+      OIDC_CLIENT_ID: "{{ .SSO.ClientID }}"
+      OIDC_PROVIDER_NAME: "{{ .SSO.ProviderName }}"
+      OIDC_USER_GROUP: "{{ .SSO.UserGroup }}"
+      OIDC_ADMIN_GROUP: "{{ .SSO.AdminGroup }}"
+      OIDC_REMEMBER_ME: "true"
+  secrets:
+    app:
+      OIDC_CLIENT_SECRET: sso.client_secret
+  note: Mealie's API tokens, for Home Assistant and shortcuts on a phone, are still made in Mealie.

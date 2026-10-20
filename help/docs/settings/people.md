@@ -1,8 +1,9 @@
 # People and access
 
-Everyone who uses Roostack has their own account. These are only for
-Roostack itself: each service (Vaultwarden, Forgejo, …) has its own
-accounts too.
+Everyone who uses Roostack has their own account. With
+[single sign-on](../services/single-sign-on.md) they use it for the lab's
+services too; otherwise each service (Vaultwarden, Forgejo, …) has its own
+accounts.
 
 ## Roles
 
@@ -40,6 +41,16 @@ Turn off two-factor (lost phone)
 
 Remove
 :   They can't log in any more.
+
+## Names, emails and groups
+
+Under **Change…**, a person's **full name** and **email address**: apps
+with single sign-on call them by the name, and find or make their account
+by the email. Their **groups** say which services with single sign-on they
+can use.
+
+**Groups**, such as Family or Friends, are made on the same page. A
+group's **Change…** sets who's in it and the services it can use.
 
 ## Two-factor authentication
 

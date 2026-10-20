@@ -74,6 +74,10 @@ jobs:
       # it's set above, so here they run.
       - name: go test
         run: go test ./...
+      # The package editor's checks against Go's, and its import (SPEC.md
+      # §8.3.7), with the runner image's own Node (20 or later).
+      - name: node --test (the package editor)
+        run: node --version && make editor-test
 
   govulncheck:
     runs-on: ubuntu-24.04

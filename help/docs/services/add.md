@@ -92,6 +92,15 @@ To check a package before adding it, run `roostack validate -local
 package.yaml` on a Roostack server, or any Linux computer with the
 `roostack` command: it shows the same list.
 
+No package file yet? **Write one in the package editor**, linked from
+the same page: it starts from the app's Docker Compose file, a package
+file, or one of the registry's, helps with each field, and checks it as
+you go (see [The package editor](../packages/write.md#the-package-editor)).
+Everything happens in your browser until you choose **Check with this
+Roostack**, which runs your lab's own checks without adding anything, or
+**Add to this lab…**, which adds it as above. The page you land on then
+says it was added, with **Install it**.
+
 ## Needs a newer Roostack
 
 A service marked **Needs a newer Roostack** uses something this version

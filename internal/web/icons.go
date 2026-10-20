@@ -42,6 +42,7 @@ var icons = map[string]string{
 	"globe":    `<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/>`,
 	"cloud":    `<path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 8.5 4.75 4.75 0 0 1 17.5 18z"/>`,
 	"terminal": `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/>`,
+	"sign-in":  `<rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><path d="M12 15v2"/>`,
 	"warn":     `<path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/>`,
 	"chevron":  `<path d="m10 7 5 5-5 5"/>`,
 	"folder":   `<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>`,
@@ -49,6 +50,11 @@ var icons = map[string]string{
 	"copy":     `<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>`,
 	"check":    `<path d="m5 12.5 4.5 4.5L19 7.5"/>`,
 	"plus":     `<path d="M12 5v14M5 12h14"/>`,
+	// The package editor's (SPEC.md §8.3.7): importing a file, and a
+	// suggestion. internal/editor/static/editor.js draws its own copies
+	// (TestEditorIcons).
+	"import": `<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/>`,
+	"spark":  `<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>`,
 	// Roostack's own services.
 	"proxy":    `<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>`,
 	"store":    `<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/>`,

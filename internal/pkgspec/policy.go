@@ -134,8 +134,9 @@ type quadletRule struct {
 	// ending in * for every key starting with it (Exec*), *name* for
 	// every key containing it, or * for every key in the section.
 	keys []string
-	// denies says whether this value is refused; nil refuses any value.
-	denies func(value string) bool
+	// denies names the test in valueTests that says whether a value is
+	// refused; "" refuses any value.
+	denies string
 	// instead says why, and what the package should use instead.
 	instead string
 }
@@ -180,17 +181,17 @@ const (
 // to others (REVIEW-2026-10-16 H2).
 var quadletRules = []quadletRule{
 	// [Container]: folders and files on the server.
-	{section: "Container", keys: []string{"Volume"}, denies: volumeHasSource,
+	{section: "Container", keys: []string{"Volume"}, denies: "volumeHasSource",
 		instead: "a folder from the server or a named volume is outside the service and its backups; use storage: and mounts: (an anonymous Volume=/path is allowed)"},
-	{section: "Container", keys: []string{"Mount"}, denies: func(v string) bool { return !isTmpfsMount(v) },
+	{section: "Container", keys: []string{"Mount"}, denies: "notTmpfsMount",
 		instead: "only type=tmpfs is allowed, one per line, without quotes or backslashes; use storage: and mounts: for the service's folders"},
 	{section: "Container", keys: []string{"Rootfs"},
 		instead: "it runs the container from a folder on the server; use the container's image:"},
 	{section: "Container", keys: []string{"EnvironmentFile", "EnvironmentHost", "ContainersConfModule", "SeccompProfile"},
 		instead: serverFiles},
-	{section: "Container", keys: []string{"LogOpt"}, denies: func(v string) bool { return strings.Contains(strings.ToLower(v), "path") || strings.Contains(v, `\`) },
+	{section: "Container", keys: []string{"LogOpt"}, denies: "logPath",
 		instead: "a log path writes to a file on the server; Roostack keeps the container's log"},
-	{section: "Container", keys: []string{"HealthLogDestination"}, denies: func(v string) bool { return v != "local" && v != "events_logger" },
+	{section: "Container", keys: []string{"HealthLogDestination"}, denies: "healthLogFolder",
 		instead: "a folder for the health log is on the server; use local or events_logger"},
 
 	// [Container]: Podman itself.
@@ -205,17 +206,15 @@ var quadletRules = []quadletRule{
 		instead: "use routes: for web addresses and ports: for other connections"},
 	{section: "Container", keys: []string{"AddDevice"},
 		instead: "use devices: (e.g. gpu: intel)"},
-	{section: "Container", keys: []string{"GroupAdd"}, denies: func(v string) bool {
-		return strings.Contains(strings.ToLower(v), "keep-groups") || strings.Contains(v, `\`)
-	},
+	{section: "Container", keys: []string{"GroupAdd"}, denies: "keepGroups",
 		instead: "keep-groups gives the container the server's groups; use devices: for a GPU"},
 
 	// [Container]: users and namespaces.
-	{section: "Container", keys: []string{"User", "Group"}, denies: isRootUser,
+	{section: "Container", keys: []string{"User", "Group"}, denies: "rootUser",
 		instead: "run as the image's own user, with UserNS=keep-id:uid=…,gid=… if its files need that owner"},
 	{section: "Container", keys: []string{"UIDMap", "GIDMap", "SubUIDMap", "SubGIDMap"},
 		instead: "use UserNS=keep-id:uid=…,gid=… if the service's files need a particular owner"},
-	{section: "Container", keys: []string{"UserNS"}, denies: func(v string) bool { return !isOwnUserNS(v) },
+	{section: "Container", keys: []string{"UserNS"}, denies: "sharedUserNS",
 		instead: "only keep-id, auto, nomap or private: the others share a user namespace beyond the service; use UserNS=keep-id:uid=…,gid=… if the service's files need a particular owner"},
 
 	// [Container]: what Roostack writes itself.
@@ -225,7 +224,7 @@ var quadletRules = []quadletRule{
 		instead: "it could read another service's secrets; use secrets:"},
 	{section: "Container", keys: []string{"ContainerName", "ServiceName"},
 		instead: "Roostack names the containers and their units"},
-	{section: "Container", keys: []string{"Label"}, denies: hasRoostackLabel,
+	{section: "Container", keys: []string{"Label"}, denies: "roostackLabel",
 		instead: "Roostack finds a service's containers by its own io.roostack labels (and write labels without backslashes)"},
 
 	// [Service]: the unit that runs Podman, on the server.
@@ -249,6 +248,22 @@ var quadletRules = []quadletRule{
 		instead: "it acts beyond the service, such as stopping every service of the roostack user"},
 	{section: "Install", keys: []string{"*"},
 		instead: "it ties the service to other units, or names it after one; " + roostackWrites},
+}
+
+// valueTests are the tests a quadletRule refuses a value by, named so
+// the package editor runs the same ones (internal/editor, which a test
+// keeps in step).
+var valueTests = map[string]func(value string) bool{
+	"volumeHasSource": volumeHasSource,
+	"notTmpfsMount":   func(v string) bool { return !isTmpfsMount(v) },
+	"logPath":         func(v string) bool { return strings.Contains(strings.ToLower(v), "path") || strings.Contains(v, `\`) },
+	"healthLogFolder": func(v string) bool { return v != "local" && v != "events_logger" },
+	"keepGroups": func(v string) bool {
+		return strings.Contains(strings.ToLower(v), "keep-groups") || strings.Contains(v, `\`)
+	},
+	"rootUser":      isRootUser,
+	"sharedUserNS":  func(v string) bool { return !isOwnUserNS(v) },
+	"roostackLabel": hasRoostackLabel,
 }
 
 // quadletAllowed are the keys a package may use, by section: an
@@ -308,7 +323,7 @@ func quadletPolicy(q Quadlet) []string {
 					refused = true
 					continue
 				}
-				if rule == nil || rule.denies != nil && !rule.denies(value) {
+				if rule == nil || rule.denies != "" && !valueTests[rule.denies](value) {
 					continue
 				}
 				problems = append(problems, fmt.Sprintf("%s.%s=%s isn't allowed: %s.", section, key, value, rule.instead))
