@@ -463,7 +463,6 @@ Order changed on 2026-09-25: coding started before the Debian 13 prototype, base
 - [ ] Package editor: look up an image's digest and processors from Roostack (`imagecheck`), since the browser can't
 - [ ] Package editor: open a package already added (Your own) to change it; Compose `profiles` as `when:` and a setting; `extends` and several Compose files
 - [ ] Package editor: its table of the registry's apps (sign-in paths, licences) is a copy (suggest.js `known`, 2026-10-20); generate it from the registry's index when the editor runs in Roostack
-- [ ] Flaky test: `web.TestGalleryFile` depends on the day it runs (the uptime bar's "Today" and "Yesterday"), so it fails the day after the gallery was last made (found 2026-10-20)
 - [ ] The guide's "Update it" step, once service updates (SPEC §7) can move a service to a new package version; `roostack package new <name>` (SPEC §8.3.7), if copying a registry package proves awkward
 - [ ] Website (roostack-cloud repository): every package under `/services` (heroes first, a page each at `/services/<name>`) built from the index; `services.ts` facts move into packages' `about:`
 
