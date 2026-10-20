@@ -513,3 +513,50 @@ links[].path:
   help: The page's path, starting with a single /.
   example: /admin
   link: reference/packages#the-parts
+sso:
+  label: Single sign-on
+  help: How the app takes single sign-on, which the Owner turns on per service. Either oidc (the app signs people in through OIDC itself) or forward_auth (everyone signs in on the lab's sign-in page before a request reaches it), not both.
+  link: services/single-sign-on
+sso.oidc.route:
+  label: Route
+  help: The route whose address the redirect paths are on.
+  example: web
+  link: reference/packages#the-parts
+sso.oidc.redirect_paths:
+  label: Redirect paths
+  help: Where the sign-in page may send people back to on that address, exactly as the app's OIDC settings say (its callback path).
+  example: /auth/login
+  link: reference/packages#the-parts
+sso.oidc.redirect_uris:
+  label: Phone app addresses
+  help: The app's phone apps' own callback addresses, if they sign in through the lab too. Never http or https, which could be anyone's site.
+  example: app.immich:///oauth-callback
+  link: reference/packages#the-parts
+sso.forward_auth.route:
+  label: Route
+  help: The route that goes behind the wall. Its containers may read who someone is from the Remote-User, Remote-Email, Remote-Name and Remote-Groups headers; Roostack removes any a visitor sends.
+  example: web
+  link: reference/packages#the-parts
+sso.forward_auth.bypass_paths[].path:
+  label: Path
+  help: 'A path that stays outside the wall, such as an API the phone apps use with the app''s own tokens. Plain, starting with /, with letters, digits and - _ . : between the slashes, and no * or trailing /.'
+  example: /api
+  link: reference/packages#the-parts
+sso.forward_auth.bypass_paths[].reason:
+  label: Why
+  help: Why it's safe without signing in to the lab, such as the app checking its own tokens there.
+  example: The phone apps' API, which checks the app's own tokens.
+  link: reference/packages#the-parts
+sso.env:
+  label: Settings while it's on
+  help: Environment variables added to the named containers only while single sign-on is on (container, then variable), replacing their own value of the same name. Templates have .SSO, such as {{ .SSO.DiscoveryURL }} and {{ .SSO.ClientID }}.
+  link: reference/packages#the-parts
+sso.secrets:
+  label: Client secret
+  help: 'Gives a container the app''s client secret, which Roostack makes: container, then variable, then sso.client_secret, such as OIDC_CLIENT_SECRET: sso.client_secret. OIDC apps only.'
+  link: reference/packages#the-parts
+sso.note:
+  label: Note
+  help: What still uses the app's own sign-in (its phone apps, its API tokens), shown beside the switch on the service's page.
+  example: The phone apps still sign in with the app's own accounts.
+  link: reference/packages#the-parts
