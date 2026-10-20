@@ -32,6 +32,9 @@ then <http://127.0.0.1:8791/docs/mockups/bring-your-own-data/install.html>. The 
 
 ## To decide from these
 
+**Chosen (the Owner, 2026-10-21): every recommendation below**, after a first review that lined up an old path with where it is now, ended each step with Continue, put *On the old machine* first on narrower screens, and showed the result as the last step.
+
+
 1. **One page of steps** (shown) or a page per step. One page: what was chosen stays in view, and Change goes back to any step. A page per step is calmer, but the check and the copy refer back to steps 1-3 all the time. Recommended: one page.
 2. **Install-only settings when bringing data:** hidden (shown), since install hooks are skipped and the administrator comes with the data. Installing over data left from before shows them as optional instead ("filled in, its first-time setup runs again"). Recommended: hidden here.
 3. **Where "Bring in data from elsewhere…" goes** on a running service: the plan says Manage, but a service's page has no Manage menu now. Shown in the Backups card, under Restore (it's a restore from your own files). Alternative: a row in Actions.
