@@ -606,7 +606,21 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 
 ## To discuss with the user
 
-- [ ] Single sign-on for services: the proposal in SPEC §5.2 (2026-10-20; research in docs/SSO-RESEARCH.md). Decided 2026-10-20: Roostack itself is the identity provider, its OIDC part on the standard library. Still to decide: groups in the first version; two-factor on a public sign-in page; how long a sign-in lasts. Mock-ups next (docs/mockups/sso), then a first version with Mealie and Stirling-PDF on a VM
+- [x] Single sign-on for services (SPEC §5.2; research in docs/SSO-RESEARCH.md; mock-ups in docs/mockups/sso). Decided 2026-10-20: Roostack itself is the identity provider, its OIDC part on the standard library, groups in the first version, two-factor as for Roostack with a choice to ask everyone, 30-day "keep me signed in" ticked, the look on People with a mark or a wide logo. Built and checked end to end on VM3 the same day with Mealie (OIDC) and Stirling-PDF (the wall): docs/ASSUMPTIONS.md V1–V6
+
+## Single sign-on: what's next (SPEC §5.2)
+
+- [ ] Run the OpenID Foundation's conformance suite (Basic OP and Config OP plans) against the provider before a release
+- [ ] Add the `sso` part to the registry's Mealie and Stirling-PDF packages (as in `internal/testdata/packages`), once a Roostack release has it (`requires.roostack`)
+- [ ] An `on: sso` hook (run on turning it on, changing it or off, safe to run again), then Forgejo and Gitea (`admin auth add-oauth` / `update-oauth`)
+- [ ] Packages with env only: Vaultwarden, Miniflux, Linkwarden, PhotoPrism, Actual Budget, HedgeDoc; check each app's first admin is the installing Owner (Miniflux and Actual need it)
+- [ ] Apps set through their API (Immich, Audiobookshelf, Wiki.js): a kept, generated admin key instead of the install-only password
+- [ ] Secrets inside a JSON value (Paperless-ngx, Papra): templated secret files
+- [ ] Services on another server: the controller makes the client secret and sends it in the assignment; `AddHost` to the controller over WireGuard; Caddy lets the lab's servers reach the sign-in page
+- [ ] Removing a service: delete its `service_access` rows (`internal/web/services.go`, left alone while the package editor changes it)
+- [ ] Check on a lab with a real address: a real certificate, the sign-in page public (CrowdSec, AppSec, the login limit, its DNS record), and a backup and restore keeping the signing key (docs/ASSUMPTIONS.md V6)
+- [ ] Later (SPEC §5.2): passkeys (`go-webauthn`, to agree), "Sign in with single sign-on" on Roostack's own login page, single sign-out (back-channel logout), signing-key rotation, choosing an app's admins per service
+- [ ] The package editor (`internal/editor`, `pkgspec/describe.go`) should learn the `sso` part
 
 - [x] Licence: Apache-2.0, confirmed 2026-10-18 (SPEC §2.1); `LICENSE` and `NOTICE` added
 - [x] Repository: `github.com/roostack/roostack` (moved from Tyris/roostack by the Owner, 2026-10-18; Cloud's is `roostack/cloud`). The module path `roostack.cloud/roostack` is answered by a go-import page on the website, `roostack.cloud/roostack` (roostack-cloud `site/src/pages/roostack.astro`, and its Worker for each package's path)

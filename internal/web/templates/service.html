@@ -147,6 +147,7 @@
     </dl>
     {{if and .IsOwner .MultiServer}}<p><a href="/services/{{.Service.Name}}/move">Move to another server…</a></p>{{end}}
   </section>
+  {{with .SSO}}{{template "sso-card" .}}{{end}}
   <section class="card">
     <div class="card-head"><h2 id="settings">Settings</h2>{{if .CanManage}}<a class="button secondary small" href="/services/{{.Service.Name}}/settings">Edit settings</a>{{end}}</div>
     <dl class="facts">
@@ -400,4 +401,77 @@ Image: {{.Image}}</code></pre>
     {{with .Service.Ports}}<dt>Ports</dt><dd>{{range .}}{{.Title}}: {{.Port}}/{{.Protocol}} ({{if eq .Exposure "public"}}anywhere{{else}}home network{{end}})<br>{{end}}</dd>{{end}}
   </dl>
 </section>
+{{end}}
+
+{{/* sso-card: a service's single sign-on (SPEC.md §5.2;
+     docs/mockups/sso): the switch, who can sign in, and the details. */}}
+{{define "sso-card"}}
+<section class="card" id="sso">
+  <div class="card-head"><h2>Single sign-on</h2>{{if .On}}<span class="status status-running">On</span>{{else}}<span class="status status-off">Off</span>{{end}}</div>
+  {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .On}}
+  {{if .Wall}}<p>Everyone who opens {{.Title}} signs in on the lab's sign-in page first, so only the people you choose reach it.</p>
+  {{else}}<p>People sign in to {{.Title}} with their account here, on the lab's sign-in page. {{.Title}} makes their account in {{.Title}} the first time
+    they sign in, or finds it by their email address.</p>{{end}}
+  <dl class="facts">
+    <dt>Who can sign in</dt><dd>{{.Summary}}{{if not .Access.Chosen}} <small class="hint">({{.Everyone}} {{if eq .Everyone 1}}person{{else}}people{{end}})</small>{{end}}</dd>
+    {{if not .Wall}}<dt>Admins in {{.Title}}</dt><dd>The lab's Owners and Admins{{with .Admins}}: {{join . ", "}}{{end}}</dd>{{end}}
+    <dt>Sign-in page</dt><dd><a href="https://{{.SignInHost}}" target="_blank" rel="noopener">{{.SignInHost}}{{template "new-window"}}</a>
+      <small class="hint">· {{if .SignInPublic}}public, as a service using it is{{else}}from home and your VPN, like the services using it{{end}}</small></dd>
+    {{range .Bypass}}<dt>Without signing in</dt><dd><code>{{.Path}}</code> <small class="hint">· {{.Reason}}</small></dd>{{end}}
+    {{with .Note}}<dt>Still its own sign-in</dt><dd>{{.}}</dd>{{end}}
+  </dl>
+  {{if .CanChoose}}
+  <details class="sso-change"{{if .Error}} open{{end}}>
+    <summary>Change who can sign in</summary>
+    <form method="post" action="/services/{{.Name}}/sso/access" class="sso-who">{{template "sso-who" .}}<button type="submit" class="secondary">Save</button></form>
+  </details>
+  {{end}}
+  <details class="technical">
+    <summary>Details</summary>
+    <dl class="facts">
+      <dt>Client ID</dt><dd><code>{{.ClientID}}</code></dd>
+      {{range .Redirects}}<dt>Goes back to</dt><dd><code>{{.}}</code></dd>{{end}}
+      <dt>Provider</dt><dd><code>https://{{.SignInHost}}</code></dd>
+      {{with .EnvNames}}<dt>Given to {{$.Title}}</dt><dd>{{range $i, $e := .}}{{if $i}}, {{end}}<code>{{$e}}</code>{{end}}<br>
+        <small class="hint">The Technical view shows their values; the secret is a Podman secret, never in a file.</small></dd>{{end}}
+      {{if .Wall}}<dt>The wall</dt><dd><small class="hint">Before each request reaches {{.Title}}, Caddy asks Roostack whether the person is signed in and may use it.
+        Roostack's cookie for this address is removed first, so {{.Title}} never sees it.</small></dd>{{end}}
+    </dl>
+  </details>
+  <div class="sso-off">
+    {{confirm (printf "/services/%s/sso" .Name) (printf "Turn off single sign-on for %s? %s" .Title (offText .)) "Turn off single sign-on…" "quiet danger" "sso=off"}}
+  </div>
+  {{else}}
+  {{if .Available}}
+  <p>Let people sign in to {{.Title}} with their account here{{if .Wall}}, on the lab's sign-in page, before they reach it{{else}}, instead of a password of {{.Title}}'s own{{end}}.</p>
+  <ul class="plain sso-steps">
+    <li>{{icon "sign-in"}}<span>Roostack {{if .Wall}}puts {{.Title}} behind the lab's sign-in page{{else}}registers {{.Title}} with the lab's sign-in page, and gives {{.Title}} its settings and a secret{{end}}.</span></li>
+    {{if not .Wall}}<li>{{icon "changes"}}<span>{{.Title}} restarts, which takes a few seconds.</span></li>
+    <li>{{icon "users"}}<span>Accounts already in {{.Title}} are found by their email address, so check each person's email on <a href="/settings/people">People</a>.</span></li>{{end}}
+    {{with .Note}}<li>{{icon "help"}}<span>{{.}}</span></li>{{end}}
+  </ul>
+  <form method="post" action="/services/{{.Name}}/sso" class="sso-who">
+    <input type="hidden" name="sso" value="on">
+    {{if .CanChoose}}{{template "sso-who" .}}{{end}}
+    <button type="submit">Turn on single sign-on</button>
+  </form>
+  {{else}}<p class="hint">{{.Why}}</p>{{end}}
+  {{end}}
+</section>
+{{end}}
+
+{{define "sso-who"}}
+<fieldset>
+  <legend>Who can sign in to {{.Title}}</legend>
+  <label class="check"><input type="radio" name="who" value="all"{{if not .Access.Chosen}} checked{{end}}>
+    <span>Everyone in the lab<small>All {{.Everyone}} {{if eq .Everyone 1}}person{{else}}people{{end}}, and anyone you add later.</small></span></label>
+  <label class="check"><input type="radio" name="who" value="chosen"{{if .Access.Chosen}} checked{{end}}>
+    <span>Chosen groups and people</span></label>
+  <div class="sso-choose">
+    {{range .Groups}}<label class="check"><input type="checkbox" name="group" value="{{.ID}}"{{if .Checked}} checked{{end}}><span>{{.Name}}{{with .Detail}}<small>{{.}}</small>{{end}}</span></label>{{end}}
+    {{range .People}}<label class="check"><input type="checkbox" name="person" value="{{.ID}}"{{if .Checked}} checked{{end}}><span>{{.Name}}{{with .Detail}}<small>{{.}}</small>{{end}}</span></label>{{end}}
+    {{if not .Groups}}<p class="hint">Make groups, such as Family, on <a href="/settings/people#groups">People</a>.</p>{{end}}
+  </div>
+</fieldset>
 {{end}}

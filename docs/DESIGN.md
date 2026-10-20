@@ -174,6 +174,9 @@ Template components are called as functions; everything else is plain HTML with 
 | Bar chart | `{{template "bar-chart" .Chart}}` (a `barChart`: caption and `barView`s) | Counts over time, a column a period; heights through `data-height` (app.js, as for `data-width`); the exact figure on hover and for screen readers |
 | Ranked list | `{{template "rank-list" .Ranks}}` (`[]rankView`) | Names by count with a bar for each one's share; the rest (`Other`) muted |
 | Choice of period | `nav.period-choice` of links, the current one `aria-current` | How far back a set of figures goes |
+| Theme choice | `div.theme-swatches` of `label.theme-swatch[data-palette]` (a hidden radio, `.theme-swatch-dots` with `i.s-bg`, `i.s-ac`, `i.s-hl`, the name) | Choosing one of the built-in themes for something lab-wide (the sign-in page's colours, SPEC §5.2): each shows its own theme's colours, since its `data-palette` sets them; the chosen one outlined in the accent |
+| Sign-in page | `signin.html`, a page of its own: `.signin-page` with a `.card.narrow.signin-card` (`.signin-brand`: the lab's mark or `{{brandMark}}` and its name, or `.signin-wide` with a wide logo, `.on-light` for a light panel in dark mode), `.signin-to` (the app), `ul.signin-apps` | The lab's sign-in page for services (SPEC §5.2), in the lab's look: no sidebar, no scripts. Mock-ups: docs/mockups/sso |
+| Groups | `ul.group-list` of `details` (`summary` with `.group-name` and `.more`), each with its form | Settings → People's groups |
 
 ### Adding a component
 

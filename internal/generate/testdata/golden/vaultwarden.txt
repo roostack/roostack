@@ -47,6 +47,10 @@ handle @vaultwarden-web {
 		not vars roostack_edge yes
 	}
 	abort @vaultwarden-web-external
+	request_header -Remote-User
+	request_header -Remote-Email
+	request_header -Remote-Name
+	request_header -Remote-Groups
 	reverse_proxy 169.254.1.3:20001
 }
 

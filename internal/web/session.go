@@ -110,7 +110,8 @@ func (s *Server) sessionSettingsSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.SetSetting(r.Context(), idleKey, strconv.Itoa(n))
 	s.Store.SetSetting(r.Context(), rememberKey, remember)
-	s.Store.Audit(r.Context(), currentUser(r), "settings", "sign out after "+idleText(n)+`; "keep me signed in" `+remember)
+	signIn := s.saveSignInChoices(r)
+	s.Store.Audit(r.Context(), currentUser(r), "settings", "sign out after "+idleText(n)+`; "keep me signed in" `+remember+signIn)
 	redirect(w, r, "/settings/people?signin=saved#signing-in")
 }
 

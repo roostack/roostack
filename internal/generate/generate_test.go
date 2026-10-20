@@ -35,6 +35,9 @@ func TestGolden(t *testing.T) {
 		{"immich-no-ml", "immich", "immich-no-ml.instance.yaml"},
 		// A second copy: everything named after it, not the package.
 		{"immich-second", "immich", "immich-second.instance.yaml"},
+		// Single sign-on on (SPEC.md §5.2): an OIDC app, and a walled one.
+		{"mealie-sso", "mealie", "mealie-sso.instance.yaml"},
+		{"stirling-pdf-sso", "stirling-pdf", "stirling-pdf-sso.instance.yaml"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

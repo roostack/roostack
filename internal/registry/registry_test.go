@@ -120,7 +120,7 @@ func (r *testRegistry) fetcher(dir string) *Fetcher {
 func TestFetch(t *testing.T) {
 	r := newTestRegistry(t)
 	ix := r.build()
-	if len(ix.Packages) != 3 || ix.Packages["vaultwarden"].Tier != TierOfficial ||
+	if len(ix.Packages) != 5 || ix.Packages["vaultwarden"].Tier != TierOfficial ||
 		len(ix.Packages["vaultwarden"].Versions["1.34.3-roostack.1"].Architectures) != 2 {
 		t.Fatalf("index: %+v", ix.Packages["vaultwarden"])
 	}
@@ -130,7 +130,7 @@ func TestFetch(t *testing.T) {
 		t.Fatal(err)
 	}
 	st := f.Status()
-	if st.Error != "" || st.Packages != 3 || st.Serial != ix.Serial || st.Commit != "abc123" || st.Fetched.IsZero() {
+	if st.Error != "" || st.Packages != 5 || st.Serial != ix.Serial || st.Commit != "abc123" || st.Fetched.IsZero() {
 		t.Fatalf("status: %+v", st)
 	}
 	paths := config.Paths{CatalogDir: dir}
@@ -369,7 +369,7 @@ func TestBuildCheckOnly(t *testing.T) {
 	os.RemoveAll(filepath.Join(r.repo, "keys"))
 	out := t.TempDir()
 	ix, err := Build(BuildOptions{Repo: r.repo, Out: out, Now: r.now})
-	if err != nil || len(ix.Packages) != 3 {
+	if err != nil || len(ix.Packages) != 5 {
 		t.Fatalf("%v %v", ix, err)
 	}
 	if entries, _ := os.ReadDir(out); len(entries) != 0 {

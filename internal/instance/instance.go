@@ -67,6 +67,9 @@ type Instance struct {
 	// firewall) for this service's public addresses, after a warning
 	// (SPEC.md §6.10 item 4). Only the Owner can: a package has no say.
 	NoWAF bool `yaml:"no_waf,omitempty"`
+	// SSO: single sign-on is on (SPEC.md §5.2), for a package that takes
+	// it. Who may sign in is runtime data (store.Access).
+	SSO bool `yaml:"sso,omitempty"`
 	// Libraries are the media libraries of its server it may read, for a
 	// package that reads them (SPEC.md §8.1, "Media libraries"): chosen at
 	// install (all, by default) and in its settings.

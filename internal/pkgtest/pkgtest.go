@@ -14,7 +14,7 @@ import (
 )
 
 // Names are the packages there are fixtures for.
-var Names = []string{"forgejo", "immich", "vaultwarden"}
+var Names = []string{"forgejo", "immich", "mealie", "stirling-pdf", "vaultwarden"}
 
 // Dir is the fixtures' folder, found from the working directory (a test
 // runs in its package's folder) by looking up for go.mod, so it works

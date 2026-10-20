@@ -49,6 +49,11 @@ const (
 	// SetupPort is where the first-run setup pages are served to the home
 	// network over HTTPS until setup is done (SPEC.md §6.3.2).
 	SetupPort = 8443
+	// SignInPort is where the sign-in page for services listens on the
+	// host's loopback, beside the UI (single sign-on, SPEC.md §5.2): a
+	// listener of its own, so nothing reaching it can reach Roostack's own
+	// pages. Caddy reaches it like the UI.
+	SignInPort = 8482
 )
 
 // Paths are the filesystem locations Roostack reads and writes.
@@ -113,6 +118,13 @@ func (p Paths) LabPackageFile(name, version string) string {
 // BackupStoreDir is where this server keeps backups it stores for other
 // servers (SPEC.md §10.10), next to the media folder on the big disk.
 func (p Paths) BackupStoreDir() string { return filepath.Join(filepath.Dir(p.MediaDir), "backups") }
+
+// SSODir holds single sign-on's files (SPEC.md §5.2): the signing key and
+// the sign-in page's logo. Under the state folder, so they're backed up.
+func (p Paths) SSODir() string { return filepath.Join(p.StateDir, "sso") }
+
+// SigningKeyFile is the key ID tokens are signed with (0600).
+func (p Paths) SigningKeyFile() string { return filepath.Join(p.SSODir(), "signing-key.pem") }
 
 // MailPasswordFile holds the SMTP server's password (0600).
 func (p Paths) MailPasswordFile() string { return filepath.Join(p.StateDir, "mail-password") }
@@ -491,6 +503,10 @@ func (l Lab) UIHost() string {
 	}
 	return "roost." + l.Domain
 }
+
+// SignInHost is the sign-in page for services, login.<domain> (single
+// sign-on, SPEC.md §5.2).
+func (l Lab) SignInHost() string { return "login." + l.Domain }
 
 // HasAddress reports whether the lab has an address (a roost.ac name or
 // its own domain): until then its services have no web addresses and

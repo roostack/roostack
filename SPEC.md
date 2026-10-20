@@ -108,7 +108,7 @@ A single coordinator in `roostack` sequences every disruptive operation (backups
 
 ## 5. Users & Access — Locked
 
-- **Roostack accounts are separate from service accounts in v1.** Roostack manages who can log in to Roostack; each service (Immich, Vaultwarden, …) manages its own users. Unifying them is part of the deferred SSO decision, and the design should allow Roostack to become the identity source later (a proposal for it, 2026-10-20: §5.2).
+- **Roostack accounts are separate from service accounts in v1.** Roostack manages who can log in to Roostack; each service (Immich, Vaultwarden, …) manages its own users. Unifying them is part of the deferred SSO decision, and the design should allow Roostack to become the identity source later (single sign-on, decided and built 2026-10-20: §5.2).
 - **Fixed roles (not customisable in v1):**
 
 | Role | Permissions |
@@ -131,9 +131,9 @@ A single coordinator in `roostack` sequences every disruptive operation (backups
 - **Desired state:** readable YAML files in `/var/lib/roostack/` (Principles 2 and 4).
 - **Runtime data** (users, sessions, audit log, job history): a **SQLite** database in `/var/lib/roostack/`. A single file, no server, easy to back up. The backup prepare step must take a consistent copy (SQLite online backup / `VACUUM INTO`), not a raw copy of the file.
 
-### 5.2 Single sign-on for services — Proposal (2026-10-20); who signs people in Locked (2026-10-20)
+### 5.2 Single sign-on for services — Locked (2026-10-20); first version as built (2026-10-20)
 
-One sign-in for the apps a lab runs, managed from Roostack. **Decided (2026-10-20), the Owner:** Roostack itself is the identity provider, and its OIDC part is written with the standard library. The rest is still a proposal: each part ends with the choice it needs. The research behind it (every identity provider worth a look, and how each registry package can take single sign-on) is in [docs/SSO-RESEARCH.md](docs/SSO-RESEARCH.md).
+One sign-in for the apps a lab runs, managed from Roostack. **Decided (2026-10-20), the Owner:** Roostack itself is the identity provider, and its OIDC part is written with the standard library; then, after the mock-ups, every recommendation below (groups in the first version, two-factor as for Roostack's own pages with a choice to ask everyone, "Keep me signed in" ticked for 30 days, the look on People) and a logo of either kind. The first version is built: see "As built (2026-10-20)" at the end of this section. The research behind it (every identity provider worth a look, and how each registry package can take single sign-on) is in [docs/SSO-RESEARCH.md](docs/SSO-RESEARCH.md).
 
 **What the Owner asked for (2026-10-20):** one login for the lab's apps (Immich, Forgejo, Vaultwarden and so on); signing in to Roostack itself too, optionally; people, groups and who can use each service managed from Roostack; simple enough for an Owner who isn't a sysadmin; opting a service in should be a line in its package and a switch on its page, with Roostack registering the app, placing its secret and setting its addresses; and a sign-in page that looks like the lab's own (a logo, colours and a name, which the Owner can change).
 
@@ -195,16 +195,16 @@ One sign-in for the apps a lab runs, managed from Roostack. **Decided (2026-10-2
   - `groups`, holding only `users`, plus `admins` for the app's admins.
 
   The lab's group names stay in Roostack; the app learns only what it needs.
-- **To decide:** groups in the first version (recommended, as asked), or "everyone or chosen people" first and groups later.
+- **Decided (2026-10-20):** groups in the first version, as asked. Considered: "everyone or chosen people" first.
 
 #### Signing in
 
 - **Where:** `login.<domain>` (a reserved subdomain, like `roost`). It serves only the sign-in pages and the OIDC endpoints; Roostack's own pages stay at `roost.<domain>`, private as before.
 - **How:** the same sign-in as Roostack's (username or email, password, then the second factor where it applies), and passkeys there when Roostack has them (§5, "Passkeys later"; a new module, `go-webauthn`, to agree then).
 - **Two-factor:** as for Roostack (Owners always; Admins while anything signs in from outside), and the Owner can require it of everyone.
-- **To decide:**
-  - two-factor when the sign-in page is public: required for everyone signing in from outside home (safer, but family members must enrol), or as above (recommended for the first version, with a notice on the page that makes it public);
-  - how long a sign-in lasts: recommended, with "Keep me signed in" (ticked by default here, unlike Roostack's own pages) 30 days on that device, otherwise until the browser closes. The apps keep their own sessions after that, as they do today.
+- **Decided (2026-10-20):**
+  - two-factor as for Roostack's own pages, with a setting to ask everyone (Settings → People → Signing in). Considered: requiring it of everyone signing in from outside home (safer, but family members must enrol);
+  - how long a sign-in lasts: with "Keep me signed in" (ticked by default here, unlike Roostack's own pages) 30 days on that device, otherwise until the browser closes (and at most 12 hours). The apps keep their own sessions after that, as they do today.
 - **Signing out** of the sign-in page ends the walled apps' access at once. Apps that use OIDC keep their own session until people sign out there; the page says so. Single sign-out across apps (back-channel logout) comes later.
 - **Roostack's own pages:** later, a "Sign in with single sign-on" button on Roostack's login page. The two sessions stay separate, so Roostack's shorter idle limit (§5) still applies to its own pages.
 
@@ -361,6 +361,22 @@ Later, the same choices could become the lab's default look for new people and R
 
 - Podman, **rootless where possible**; rootful only where a service genuinely requires it (e.g. low ports, host networking, device access), and this is visible to the user.
 - **Rationale:** security is a priority; rootless limits the blast radius of a compromised container.
+
+
+#### As built (2026-10-20)
+
+Built and checked end to end on VM3 with Mealie (OIDC) and Stirling-PDF (the wall), docs/ASSUMPTIONS.md V1–V6.
+
+- **The provider** is `internal/sso`, standard library only: an RSA key (`/var/lib/roostack/sso/signing-key.pem`, made at first start), RS256 ID tokens, discovery, `/authorize` (the code flow; PKCE with S256 when the app sends a challenge, `plain` refused), `/token` (codes once each, a minute; refresh tokens rotated at each use; `client_secret_basic` or `client_secret_post`), `/userinfo`, `/jwks`, `/sign-out` (also apps' `end_session_endpoint`). Access tokens are opaque and stored (hashed) like refresh tokens, so they stop with the sign-in, the person's access or the person. Unit tests cover the flow and every refusal; **the OpenID Foundation's conformance suite hasn't been run yet** (TASKS).
+- **The sign-in page** is `internal/web/signin.go` and `templates/signin.html`, on its own listener, `127.0.0.1:8482` (`config.SignInPort`), which serves nothing of Roostack's own pages and no scripts at all. It answers its own host, Caddy's `/check`, and the walled services' `/.roostack/sign-in/callback`. Its session is a `sessions` row with origin `sign-in`, which Roostack's idle limit leaves alone. Signed in, the page itself lists the services you can use, and signs you out.
+- **A walled service** gets a cookie on its own address after a one-time hand-off (`internal/sso/forward.go`). Caddy's wall is one `route` block (header removal, callback, `forward_auth` outside the bypass paths, the cookie removed before the service); `Remote-*` headers are removed on every route, walled or not.
+- **The client secret** is a generated Podman secret, `roostack-<service>-sso-client-secret`, which the provider reads back (and keeps a few minutes) to check the app's requests: nothing new to store, and it's in the service's backup. Considered: a hash in the database (a second copy to keep in step).
+- **Reaching the provider from inside:** `AddHost=login.<domain>:host-gateway` on an OIDC app's containers; Caddy sees them as `169.254.1.2`, which the private sign-in page lets in (`generate.ContainerHostGateway`, V1).
+- **People:** `users.name` and `users.sso_id` (the `sub`: random, made when first needed, as `users.id` can be given to a new account after the newest is removed), `user_groups`, `service_access` (no rows: everyone), `sso_tokens`. People page: name, email and groups per person; groups with their members and the services each can use; the sign-in page's look; the two sign-in choices. Members' Home leaves out services with single sign-on they can't use.
+- **The look:** the lab's name, a logo (a square mark beside the name, also the tab's icon; or a wide logo with the name in it, with an optional dark-mode version, otherwise a light panel in dark mode, and an optional tab icon; or the hen), and a built-in theme. PNGs are checked for shape; SVGs with scripts, event handlers or embedded pages are refused, and every logo is served with a sandboxing CSP. Mock-ups: docs/mockups/sso.
+- **The package format** has `sso` (oidc or forward_auth, env and secrets added only while on, a note) and `.SSO` in templates (help/docs/reference/packages.md). Mealie and Stirling-PDF have it in the test fixtures (`internal/testdata/packages`), a revision ahead of the registry.
+- **Not built in this version** (TASKS): the `on: sso` hook (Forgejo, Gitea), apps set through an API with a kept admin key (Immich, Audiobookshelf, Wiki.js), secrets inside JSON (Paperless, Papra), services on another server (refused with a sentence for now), passkeys, signing in to Roostack's own pages, single sign-out, key rotation, the conformance suite. Removing a service leaves its access rows (harmless; tidied once `services.go` is free).
+- **Found while building:** a custom `dns.directive` without a DNS challenge (`issuer internal`) made Caddy refuse the Caddyfile, as `resolvers` needs one; resolvers are now added only with a `dns` line.
 
 ### 6.1 Roostack Process Architecture — Locked
 
@@ -1365,7 +1381,7 @@ Until now each server's backups could only be restored onto that server, and a f
 
 ## Deferred Decisions (post-MVP)
 
-- SSO platform, and whether it is mandatory (linked to unifying Roostack and service accounts, §5): proposed 2026-10-20, §5.2, for the Owner to decide
+- SSO platform, and whether it is mandatory (linked to unifying Roostack and service accounts, §5): decided 2026-10-20: Roostack itself, §5.2
 - Default DNS manager (e.g. Pi-hole) and split-horizon DNS
 - ~~Built-in uptime monitoring~~ Decided (2026-10-19): Roostack's own checks (§6.15)
 - Remote access / remote support for the person who set up the lab

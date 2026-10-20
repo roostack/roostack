@@ -30,6 +30,8 @@ type Context struct {
 	Containers map[string]ContainerContext
 	// Inputs are an action hook's inputs (non-secret only).
 	Inputs map[string]string
+	// SSO is single sign-on's values (sso.go, SPEC.md §5.2).
+	SSO SSOContext
 }
 
 // ContainerContext describes a sibling container.
@@ -90,6 +92,7 @@ func buildContext(lab config.Lab, p *pkgspec.Package, in *instance.Instance) *Co
 		Ports:      map[string]PortContext{},
 		Databases:  map[string]DatabaseContext{},
 		Containers: map[string]ContainerContext{},
+		SSO:        ssoContext(lab, p, in),
 	}
 	for name := range p.Containers {
 		ctx.Containers[name] = ContainerContext{Host: containerUnitName(in.ID(), name)}

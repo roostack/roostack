@@ -147,6 +147,11 @@ func publicHostsOf(lab config.Lab, services []state.Service, old bool) []string 
 	}
 	for _, s := range services {
 		_, routes := generate.Values(lab, s.Package, s.Instance)
+		if rc, ok := routes[s.Package.SSORoute()]; ok && rc.Exposure == pkgspec.ExposurePublic && generate.SSOOn(lab, s.Package, s.Instance) {
+			// The sign-in page is public while a service using it is
+			// (SPEC.md §5.2).
+			hosts = append(hosts, lab.SignInHost())
+		}
 		for _, rc := range routes {
 			if rc.Exposure != pkgspec.ExposurePublic {
 				continue
