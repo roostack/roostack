@@ -633,13 +633,14 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 
 - [x] **The forms' design applied to single sign-on and the package editor** (2026-10-20, after merging them): People's add, change-someone and group forms in dialogs, the role a segmented control, switches; a service's single sign-on choosing who with a segmented control, changed in a dialog; the editor's small fixed choices as segmented controls and its on/off fields as switches; buttons as tall as inputs everywhere. Roostack Cloud's copy of the editor picks these up with its next update of this module (internal/editor)
 
-## Bringing services from Docker Compose (SPEC §8.4, proposed 2026-10-20)
+## Bringing your own data, and moving from Docker Compose (SPEC §8.4, proposed 2026-10-20)
 
-- [x] The plan: what Roostack has to build on, what moving each part of a Compose homelab takes, Immich and Plex step by step, the journey, safety, a first version and questions (docs/MIGRATION-PLAN.md)
-- [ ] The Owner's answers to the plan's questions (§13): their homelab (same machine or new, where the files are, versions, GPU, addresses, access) and the design choices (a page in Roostack, Plex's path rewrite, matching versions, `rsync`)
-- [ ] Rehearsal on VM 3, once agreed: Docker with Compose Immich and Plex, then their data into Roostack's packages (Immich's own path rewrite, `Plex SQLite`'s, timings, Docker beside Roostack); docs/ASSUMPTIONS.md entries
-- [ ] The first version, once agreed: `internal/migrate` (read, plan, copy, move, back) with the Immich and Plex recipes, the page, the help pages
-- [ ] Later: the same machine (a read-only mount of the old disk, a dump file such as Immich's own backups), Jellyfin, Vaultwarden and Navidrome, an older Immich, a recipe part in the package format
+- [x] The plan (docs/MIGRATION-PLAN.md): what Roostack has to build on, what moving each part of a Compose homelab takes; first drafted as a page per app, then (the Owner, 2026-10-20) as tools for a technical user: sources, the check, copy then switch, undo, help per app
+- [ ] The Owner's decisions (MIGRATION-PLAN.md §11): the direction, sources in the first version, unreadable files, Postgres dump formats, the rehearsal
+- [ ] Rehearsal on VM 3, once agreed: Docker with Compose Immich and Plex, their data brought into Roostack's packages (Immich's own path rewrite, Plex's paths both ways, timings, Docker beside Roostack); docs/ASSUMPTIONS.md entries
+- [ ] Mock-ups of the import page and the install page's "I'll bring its data", before building
+- [ ] The first version, once agreed: read-only sources (drive, share, folder), the check, copy and copy again, switch, undo; help: "Moving from Docker Compose", Immich, Plex
+- [ ] Later: a dump uploaded in the browser, plain SQL and `pg_dumpall`, another machine over SSH, a storage hint in the package format, help pages for Jellyfin, Vaultwarden, Navidrome
 
 ## To discuss with the user
 

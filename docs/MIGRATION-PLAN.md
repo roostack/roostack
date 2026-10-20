@@ -1,21 +1,31 @@
-# Bringing services from Docker Compose: the plan (proposal, 2026-10-20)
+# Bringing your own data: moving from Docker Compose (proposal, 2026-10-20)
 
-The details behind SPEC.md §8.4. **A proposal, nothing built:** the
-Owner's answers to the questions at the end decide the first version.
+The details behind SPEC.md §8.4. **A proposal, nothing built.**
 
 Many people who'd use Roostack already run their services with Docker
-Compose, the Owner included (Immich and Plex). This plan is how they move
-a service into Roostack **keeping everything**: photos, libraries, watch
+Compose, the Owner included (Immich and Plex). They want to move a
+service into Roostack **keeping everything**: photos, libraries, watch
 history, accounts, settings and, where possible, the addresses their
 phones and TVs already use.
 
+**The direction (the Owner, 2026-10-20).** A first draft proposed a page
+that reads the old machine over SSH and moves each app with a recipe of
+its own. The Owner's view: moving is too dependent on each app for that
+to be the starting point. Instead, Roostack gives a **technical user the
+tools to do it themselves**, step by step: they take their own backup
+(the files, and a database dump), put it where Roostack can see it (a USB
+drive, a network share, a folder on the server), and Roostack brings it
+into a service, like a restore from files rather than from a backup. The
+per-app knowledge goes into help pages. The first draft's automation stays
+possible later, on top of the same tools (§7).
+
 **Unverified** marks what needs a rehearsal on a VM before it's relied on
-(listed in "Rehearsal on VM 3", near the end).
+(§10).
 
 ## Words
 
 - **Old service:** the app as it runs today, in Docker Compose, on the
-  **old machine** (which may be the same computer, see "Where").
+  **old machine** (which may be the same computer, see §2 and §6).
 - **Compose project:** one `docker-compose.yml` and the containers it
   makes (Immich's server, machine learning, Postgres and Redis are one
   project).
@@ -24,10 +34,11 @@ phones and TVs already use.
   container under `/var/lib/docker/volumes/<name>/_data`.
 - **Dump:** a database written out as one file (`pg_dump`), which another
   database server of the same kind can load.
-- **First copy / final pass:** copying the data while the old service
-  keeps running (hours), then stopping it and copying only what changed
-  (minutes). Roostack already moves services between servers this way
-  (SPEC §10.10, "Copy directly").
+- **Storage:** one of a package's named folders (Immich's `library`,
+  `thumbs`, `encoded`; Plex's `config`), each with a title the pages show
+  ("Your photos and videos").
+- **Bringing data in** (the feature): filling a service's storage and
+  databases from files the person brings, instead of from a backup.
 
 ## 1. What Roostack already has to build on
 
@@ -69,11 +80,12 @@ Immich's `model-cache`).
   running containers is:** the image and its digest, every mount with its
   real host path (named volumes included), the environment after
   interpolation, devices, network mode, the Compose project's labels.
-  The plan reads that, and the Compose file only when Docker can't be
-  asked.
-- **Each package storage gets one or more old folders.** A recipe per app
-  (below) says which container path goes where, what's skipped (caches,
-  machine-learning models, logs) and what's renamed.
+  The help pages say to check the mounts there
+  (`docker inspect --format '{{json .Mounts}}' <container>`).
+- **Each package storage gets one or more old folders:** which container
+  path goes where, what can be skipped (caches, machine-learning models,
+  logs) and what's renamed is the per-app knowledge the help pages give
+  (§5).
 
 ### Who owns the files
 
@@ -92,8 +104,8 @@ Immich's `model-cache`).
   then sets the owner each storage needs (from the package), as moves and
   restores already do under `podman unshare`.
 - **Reading the old files needs root on the old machine** (Postgres and
-  Plex keep private files). Over SSH that means a user with `sudo`; on
-  the same machine, the agent's read-only, read-as-owner mount.
+  Plex keep private files), so the person's copy, or a share's or drive's
+  mount, must leave them readable to Roostack (§3.1).
 
 ### Databases inside Compose
 
@@ -104,9 +116,8 @@ Immich's `model-cache`).
   Roostack's own backups and restores already work, so the loader is
   there and tested.
 - **The dump comes from the running old database**, read-only:
-  `docker exec <db> pg_dump --format=custom --username=<user> <db>`,
-  streamed to Roostack. Taken twice: once with the first copy (to check
-  it loads), and again after the old app stops (the real one).
+  `docker exec <db> pg_dump --format=custom --no-owner --username=<user> <db>`,
+  taken after the old app stops (§3.3).
 - **Versions:** the old Postgres's major version must be the package's or
   older. A custom-format dump from Postgres 16 can't be read by Postgres
   14's `pg_restore` (its file format is newer). Immich's Compose file has
@@ -141,17 +152,15 @@ Immich's `model-cache`).
 - **Environment variables** in Compose are mostly what the package already
   sets (database host and password, time zone, ports). The few that are
   the user's choices map to package settings (Immich's machine learning
-  on or off). The recipe says which; the rest are listed in the plan as
-  "not brought over", with their values, so nothing is silently lost.
+  on or off). The help pages say which; the rest the person compares.
 - **Settings that name the old world** need a look after the move:
   Immich's *external domain* (used in share links), its machine-learning
   URL if it was changed from the default, an OAuth provider; Plex's
-  custom server access URLs and remote-access port. The check step lists
-  each one it finds.
+  custom server access URLs and remote-access port. The help pages list
+  them.
 - **A config file mounted into the container** (Immich's
-  `IMMICH_CONFIG_FILE`) is shown in the plan; the first version stops and
-  asks for it to be removed (its settings go back in the database through
-  Immich's admin page) rather than guessing.
+  `IMMICH_CONFIG_FILE`): its settings go back into the database through
+  Immich's admin page before moving.
 
 ### Large media: left in place, or copied
 
@@ -198,7 +207,7 @@ Immich's `model-cache`).
   subdomain (Roostack lets it be changed), then at the move the name
   points at Roostack instead (Roostack manages its domain's records, §6.5.1;
   a router or Pi-hole entry is changed by hand), and phones, share links
-  and bookmarks carry on. A new address works too: the check page then
+  and bookmarks carry on. A new address works too: the help then
   lists what to change (each phone's server address; share links already
   sent out stop working; Immich's *external domain*).
 - **Plex's remote access** in Compose is often port 32400 forwarded on the
@@ -207,515 +216,372 @@ Immich's `model-cache`).
   networking, so remote access goes through that address (or Plex's
   relay), and TVs that discover servers on the network may need the
   server picked once. Unverified: what Plex's apps do on a home network
-  without host networking. To ask the Owner how they reach Plex from
-  outside.
+  without host networking.
 
 ### GPUs
 
 - **Intel and AMD graphics** (`/dev/dri`) work in Roostack: Plex's
-  hardware transcoding (with Plex Pass), Immich's video transcoding. The
-  plan reads the old container's devices and turns the package's setting
-  on.
+  hardware transcoding (with Plex Pass), Immich's video transcoding.
 - **NVIDIA** (`runtime: nvidia`, `deploy.resources…devices`) isn't
   supported: Plex would transcode on the CPU, and Immich's
-  CUDA machine-learning image isn't the package's. The plan says so before
-  anything is copied. NVIDIA support is its own piece of work (the
+  CUDA machine-learning image isn't the package's. NVIDIA support is its own piece of work (the
   container toolkit with rootless Podman), not proposed here.
 - **Immich's machine learning on a GPU** (CUDA, OpenVINO): the package
   runs it on the CPU. The faces and smart search already computed are in
   the database and move with it; only new photos use the CPU.
 
-## 3. Immich, step by step
+## 3. The tools: bringing data into a service
 
-**From** a typical Compose install (Immich's own `docker-compose.yml`):
-`immich_server`, `immich_machine_learning`, `immich_postgres`
-(`ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0`),
-`immich_redis`; `UPLOAD_LOCATION` mounted at `/data` (or, before Immich
-1.133, at `/usr/src/app/upload`); `DB_DATA_LOCATION` for Postgres.
+Five pieces, each useful alone, together a "restore from your own files"
+for any package. None of them knows about Immich or Plex: they read the
+package (its storage, its databases) and nothing else.
 
-**To** the registry's `immich` package (3.3.3-roostack.1; 2.1.0 also
-listed): its `library` storage at `/data`, `thumbs` at `/data/thumbs`,
-`encoded` at `/data/encoded-video`, all on the media disk; `model-cache`;
-its Postgres (the same image); Valkey.
+### 3.1 Where Roostack can see your files (the source)
 
-### What moves where
+The person chooses where their files are, using what Roostack already
+has for media libraries and backup drives. Every source is **mounted
+read-only** for the import and unmounted afterwards, so Roostack can't
+change the original even by mistake.
 
-| Old (inside `UPLOAD_LOCATION`) | New | Why |
-|---|---|---|
-| `library/`, `upload/`, `profile/`, `backups/` and the `.immich` files | `media/immich/library/` (the same names) | Originals, uploads in progress, profile pictures, Immich's own DB backups. Critical. |
-| `thumbs/` | `media/immich/thumbs/` | Replaceable, but **copied**: making them again for 100,000 photos takes many hours of CPU. |
-| `encoded-video/` | `media/immich/encoded/` | Replaceable, copied for the same reason. |
-| The database | Loaded from a dump into Roostack's `immich` database | Users, albums, faces, smart search, settings. |
-| `model-cache` volume, Redis | Not copied | Downloaded again; a job queue. |
-
-Immich writes a `.immich` file in each folder and checks them at start;
-they come with the folders.
-
-**Paths in the database.** Immich stores each file's full path as the
-container sees it (`/data/library/…`, or `/usr/src/app/upload/library/…`
-on old installs). Roostack's package mounts at `/data`, so an install
-already at `/data` needs nothing. One at `/usr/src/app/upload`: since
-Immich 1.136, Immich notices at start that its media location has moved
-and rewrites the paths itself (Immich's documentation, "Inconsistent media
-location"). Unverified with a loaded dump: rehearsal item 1.
-
-### Versions
-
-- **The old Immich must be the package's version** in the first version
-  (3.3.3, or 2.1.0 if the lab installs that). "Never change the version
-  and the machine in one step": if something's wrong afterwards, it's
-  clear which step did it, and Immich's upgrade notes apply to their
-  usual setup. The plan reads the old version from the image (and
-  `/api/server/version`) and says which version to update the Compose
-  install to first, with a link to Immich's release notes.
-- **Postgres:** the same major version (14 for every Immich Compose file
-  since 1.133). VectorChord, not pgvecto.rs, in `pg_extension`.
-- Later: allowing an older Immich, letting Immich's own migrations run at
-  the first start in Roostack (as an update does), for the jumps Immich
-  supports.
-
-### Order
-
-1. **Check** (nothing changes): versions, extensions, sizes, space on the
-   media disk (originals + thumbnails + encoded videos + 10%), the
-   address, GPU, a mounted config file.
-2. **Install** the `immich` instance without starting it (its database
-   container and secrets are made), with machine learning set as before.
-3. **First copy** while the old Immich runs: the folders above into
-   `<storage>.incoming`, resumable. Then a **trial dump** loaded into the
-   new database, to find any problem before the downtime (then emptied
-   again).
-4. **The move** (downtime): stop the old `immich_server` and machine
-   learning (the database keeps running); copy what changed; take the
-   real dump; stop the old database; swap the folders in; load the dump;
-   start Immich in Roostack.
-5. **Check:** Immich answers; its version; the number of photos and videos
-   and of people in the new database equals the old's; **every original's
-   file exists** (each `originalPath` in the database, looked up on disk:
-   seconds for 100,000 files); the paths were rewritten if the location
-   moved; settings that name the old world (external domain, OAuth,
-   machine-learning URL).
-6. **The person checks:** signs in, opens a few albums, uploads a photo
-   from a phone with the new (or same) address. Then **Keep it** or **Go
-   back**.
-
-### How long
-
-Estimates, to be measured in the rehearsal:
-
-| | 100,000 photos, ~1 TB | Notes |
-|---|---|---|
-| First copy over 1 Gb/s Ethernet | ~3 hours | ~100 MB/s; while Immich keeps running. 2.5 Gb/s: ~1¼ hours. |
-| First copy from a USB 3 hard disk | ~1½-2 hours | ~150-200 MB/s |
-| Thumbnails and encoded videos | +10-20% of that | Hundreds of thousands of small files: slower per byte |
-| Final pass | a few minutes | Mostly listing files; only new uploads are copied |
-| Dump and load | 5-20 minutes | A 1-3 GB database; the vector indexes are built again on load |
-| **Downtime** | **about half an hour** | |
-
-### Going back
-
-Until **Keep it**: stop Immich in Roostack (its copy kept, or removed by
-choice) and start the old containers. The old machine's files and
-database were never written to, so it's exactly as it was at the move.
-After **Keep it**, going back loses what changed in Roostack since (new
-uploads), so it's no longer offered as a button; the help says how.
-
-## 4. Plex, step by step
-
-**From** a typical Compose install: `plexinc/pms-docker` or
-`lscr.io/linuxserver/plex`, a `/config` folder or volume, media folders
-(`/movies`, `/tv`, `/data/media`…, often from a NAS mounted on the old
-machine), sometimes `network_mode: host`, `/dev/dri`, `PLEX_CLAIM`.
-
-**To** the registry's `plex` package (1.43.4): Plex's own image, its
-`config` storage at `/config`, `transcode`, and the chosen media
-libraries at `/media/<library>`, read-only.
-
-### What moves where
-
-| Old | New | Why |
-|---|---|---|
-| `/config/Library/Application Support/Plex Media Server/` (`Preferences.xml`, `Plug-in Support/Databases/`, `Metadata/`, `Media/`) | `services/plex/config/` (the same layout: both images use it) | The server's identity and sign-in, the library database (watch history, collections, playlists, edits), artwork and preview thumbnails. Critical; can be many GB and a million small files. |
-| `Cache/`, `Codecs/`, `Crash Reports/`, `Logs/`, `Updates/` | Not copied | Made again. Codecs depend on the processor. |
-| `/transcode` | Not copied | Temporary. |
-| The media folders | **Not copied:** media libraries in Roostack (the NAS share, or the drive) | Read-only, left where they are. |
-
-**Who Plex is.** `Preferences.xml` holds the server's identity
-(`MachineIdentifier`, `ProcessedMachineIdentifier`) and its sign-in to
-plex.tv (`PlexOnlineToken`). Copied as they are, the new server **is** the
-old one to plex.tv and every app: same name, same libraries, same people
-with access, no claim code. So **the two must never run at once**; the old
-one is stopped before the new one starts, and kept from starting again
-(`docker update --restart=no`, undone on going back).
-
-**Library paths.** Plex's database names every file by its path inside
-the container (`/movies/Alien (1979)/Alien.mkv`). In Roostack the same file
-is `/media/<library>/Alien (1979)/Alien.mkv`. Two ways to tell Plex:
-
-- **A. Rewrite the paths in the copy** (recommended): with the copy's
-  Plex stopped, run Plex's own SQLite (`Plex SQLite`, in Plex's image, as
-  Plex's search tables need its own build) from the pinned image on the
-  copied database: each library's folder (`section_locations.root_path`)
-  and each file (`media_parts.file`, and stream `url`s) from the old prefix
-  to the new. Seconds. Everything stays as it was: watch history,
-  "recently added", analysis, chosen artwork. It's not Plex's documented
-  way, but it runs only on the copy, and the check below proves it. A
-  library whose old path is already `/media/<name>` needs nothing.
-  Unverified: rehearsal item 2.
-- **B. Plex's own way** (Plex's "Move an install to another system"
-  article): turn off "Empty trash automatically after every scan", add the
-  new folder to each library, scan, remove the old folder, then empty
-  trash, clean bundles and optimise the database. Plex matches the files
-  again; people report watch history kept, but moved items may show as
-  recently added. Hours for a big library, and done in Plex's pages. The
-  fallback if A fails a check, and what the help describes for a manual
-  move.
-
-**Matching old folders to libraries.** The plan lists each old media
-mount and suggests the Roostack library holding the same files (a sample
-of file names looked up in each library), for the person to confirm or
-add (a share, a drive). A folder no library holds stops the plan, saying
-which.
-
-### Versions
-
-The old Plex must be the package's version **or older** (Plex upgrades
-its database itself at start, as every Plex update does; a newer
-database in an older Plex isn't safe). Plex updates often, so an old
-server newer than the package is likely: the plan says so, and the
-answer is waiting for the package's next version, or the "follow
-upstream" update choice (§8.3.8).
-
-### Order
-
-1. **Check:** version, the media folders matched to libraries (each old
-   file path has a new one), space for the config folder, GPU (Intel:
-   on; NVIDIA: says it's not supported), host networking (says what
-   changes), the address.
-2. **Install** `plex` without starting it, with the chosen libraries.
-3. **First copy** of the config folder (without the caches) while the old
-   Plex runs.
-4. **The move:** stop the old Plex and keep it stopped; copy what changed
-   (the database files are now quiet); rewrite the paths in the copy;
-   swap it in; start.
-5. **Check:** `/identity` gives the old `MachineIdentifier`; it's claimed;
-   the number of libraries, items and files equal the old database's;
-   **every file in the database exists** in the new container (a list
-   from the database, looked up in the libraries); Plex answers at its
-   address.
-6. **The person checks:** a TV or phone app finds the server, plays
-   something, shows what's been watched. **Keep it** or **Go back**.
-
-### How long
-
-| | A big library (5,000 films and shows, 20-50 GB config) | Notes |
-|---|---|---|
-| First copy | 20 minutes to 2 hours | Mostly the number of files in `Metadata/` and `Media/` (video preview thumbnails are the biggest part) |
-| Final pass | a few minutes | |
-| Path rewrite | seconds | |
-| **Downtime** | **10-20 minutes** | |
-
-### Going back
-
-Stop Plex in Roostack, set the old container's restart policy back and
-start it. The old config was never written to. Watch history made in
-Roostack meanwhile stays in Roostack's copy (and on plex.tv for what
-plex.tv syncs).
-
-## 5. The person's journey
-
-**Where it starts:** "Bring a service from Docker Compose" on **Add
-services** (the catalog), beside "Add your own", and as a line in the
-first-run wizard's last step ("Already run services with Docker? Bring
-them over"). Owner only: it reads another machine with root rights.
-
-1. **Where are they now?**
-   - **Another machine** (the first version): its address and an SSH user
-     who can use `sudo`. Roostack makes a key for this move and shows the
-     one line to add to that user's `~/.ssh/authorized_keys` (a
-     **Copy** button, and "Tell me more" saying what Roostack will run
-     there: only reads, plus stopping and starting the containers being
-     moved). **Check the connection** confirms SSH, `sudo`, Docker and
-     `rsync`, and shows the machine's fingerprint to compare.
-   - Later: **a disk or folder on this server** (the old machine's disk
-     moved over, or the same machine), and **a database dump file**.
-2. **What runs there.** Roostack lists the Compose projects and their
-   containers (`docker ps`, `docker inspect`): those it can bring (Immich,
-   Plex: "Bring to Roostack") and those it can't yet ("No package for
-   this yet: you can write one, the editor imports its Compose file",
-   linking the package editor with the file).
-3. **The plan** (a dry run: nothing changes anywhere). One page, sections
-   with a status each:
-   - **What moves:** each old folder → its new place, size and number of
-     files; what's left out and why (caches, models); the database and
-     its size.
-   - **Versions:** old and package versions, Postgres, extensions. A
-     mismatch says what to do ("Update Immich in your Compose file to
-     v3.3.3 first: Immich's notes →").
-   - **Space:** what's needed on each disk and what's free.
-   - **Media:** each old media folder and the library it becomes, to
-     confirm.
-   - **Address:** the old one and the new; "Keep `photos.example.com`"
-     when it's under the lab's domain; what changes otherwise.
-   - **What will be different:** NVIDIA, host networking, remote access,
-     settings not brought over (with their values).
-   - **Time:** the first copy's estimate (the service keeps running) and
-     the downtime's.
-   - Problems stop it here, each with what to do. **Start the first
-     copy.**
-4. **First copy:** the `activity` component, with progress (bytes, files,
-   an estimated finish) and Details. It survives a restart of Roostack and
-   continues where it was; "Copy what's changed" can be run again any
-   time, so the person chooses when the downtime is. The page can be
-   left; Home shows it under way.
-5. **The move:** says exactly what happens and for how long ("Immich will
-   be unavailable for about 25 minutes. Roostack will stop it on
-   old-nuc, copy what's changed, …"), then **Move now**. One activity,
-   one step at a time. A step that fails stops there, starts the old
-   service again, and says so.
-6. **Check:** the automatic checks, each ✓ or what's wrong, then what to
-   check yourself (sign in, open the phone app; "your phones' Immich app
-   needs the new address: …"). **Keep it** / **Go back to the old one**.
-7. **Done:** the service is a Roostack service like any other (backed up
-   tonight: the page suggests a backup now, as the photos are new to the
-   backups). Roostack forgets its SSH key and reminds the person to remove
-   the line from the old machine. It says which folders on the old
-   machine can be deleted when they're happy; **Roostack never deletes
-   them.**
-
-A record of each move (its plan, the commands run on the old machine, the
-checks' results) is kept in History (§6.14).
-
-## 6. What Roostack automates, and what stays manual
-
-### How much to automate: the options
-
-| | What | For | Against |
+| Source | How it's chosen | Good for | Owners |
 |---|---|---|---|
-| **A. A help guide** per app | Pages with the exact commands: dump, copy, `chown`, install over the data | Small; useful for any app; technical users can follow it | Every step by hand as root on two machines; ownership, versions and paths are easy to get wrong; Roostack can't check anything. Doesn't suit "nothing magical, but nothing hard" |
-| **B. A command** (`roostack import compose …`) | The same engine as C, run in a terminal on the server | Scriptable; quicker to build than pages | Compose users are technical, but Roostack's rule is that managing the lab needs no terminal (§2); a second interface to keep |
-| **C. A page in Roostack** (recommended) | The journey above: reads the old machine, plans, copies, moves, checks, goes back | Checks before anything changes; the downtime short and chosen; going back is a button; everything shown with its log | The most to build; one recipe per app |
-| **D. Any Compose service** | The editor's import makes a package, then the same copy for its folders and database | Covers apps the registry lacks | Without a recipe, Roostack can't know paths inside the app's data, its version rules or how to check it; later, on top of C |
+| **A USB drive or second disk** plugged into the server | The drive cards (as backup drives and media libraries), then the folder picker | Carrying a copy from the old machine; the old machine's own data disk moved over | ext4: the old owners (see below). exFAT, NTFS: everything Roostack's |
+| **A network share** (SMB or NFS) | The media libraries' share form: server, share, optional login, **Check** | A NAS holding the data already (often the original folders themselves); a share on the old machine | SMB: everything Roostack's. NFS: the NAS's owners |
+| **A folder on the server** | The folder picker, under `/mnt`, `/media` or `/srv` (as media libraries) | Files copied with `rsync` or `scp` by the person; the same machine | As copied |
 
-**Recommended: C, with a help page per app that says what each step does
-(A's content, for the curious and for apps without a recipe).** B can
-come later from the same engine if wanted.
+- **The original can be the source.** Nothing needs a second copy just for
+  Roostack: a share holding the old `UPLOAD_LOCATION` can be pointed at
+  directly, as it's only read. Only the dump is a new file.
+- **Files Roostack can't read** stop the check with a count and the owner
+  of most ("312 files only root can read, in `postgres/`…"): the person
+  makes them readable on their copy, or copies with `rsync --chown`, or
+  for a drive ticks "read them as <owner>" (the media libraries'
+  idmapped mount, one owner from 1000 up). **Considered:** the agent
+  copying as root, which reads anything; not proposed, as it puts a large
+  file copy behind the root boundary the agent is meant to keep small
+  (SPEC §6.1), and the person can always fix the owners on their own copy.
+- **Later:** a dump uploaded through the browser (for when the files are
+  already on a share but the dump is on a laptop); another machine over
+  SSH (the first draft's way, with `rsync`).
 
-### Recipes: in Roostack's code first
+### 3.2 What you bring: a folder for each storage, a dump for each database
 
-A **recipe** says, for one app: which images it recognises; which
-container paths go to which storage, and what's skipped; which container
-is the database and how to dump it; which settings come from the old
-environment; its version rules; any rewrite (Plex's paths); and its
-checks.
+The import page shows **what the service needs**, from its package:
 
-- **First in Roostack's code** (a small package, `internal/migrate`, one
-  file per app), for Immich and Plex. Two apps will show which parts are
-  just data.
-- **Then, once the shape is clear, the data part moves into the package
-  format** (a `migrate:` part: images, path mapping, what to skip,
-  settings), so the registry can add apps without a Roostack release;
-  checks and rewrites stay in code, named by the package. A format
-  change needs its own decision (policy, editor, `requires.roostack`).
+```
+Immich needs:
+  Your photos and videos  (library)   critical     → /data inside Immich
+  Thumbnails              (thumbs)    replaceable  → /data/thumbs
+  Converted videos        (encoded)   replaceable  → /data/encoded-video
+  Smart search models     (model-cache) replaceable → /cache
+  Database "main"         Postgres 14, from ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
+```
 
-### Automated, and why
+- **Each storage gets a folder**, picked in the source. A folder named
+  like the storage (`library/`, `thumbs/`) is matched by itself; others
+  are chosen. Replaceable storage can be left out (the app makes it
+  again); critical storage left out needs a tick ("Start Immich without
+  its photos and videos").
+- **Each database gets a dump file**, matched by its name
+  (`main.dump`, `main.sql`, `main.sql.gz`) or chosen.
+- **Where inside the container each storage goes** is shown, because
+  that's what the person compares with their Compose file's mounts
+  (`/data` in both? then the old `UPLOAD_LOCATION` is `library`).
+- **Help per app** (§5) says which old folders are which, for the apps in
+  the registry; a package with none still shows the table.
+- **Later, if wanted:** an optional hint in the package format for each
+  storage and database ("Immich's `UPLOAD_LOCATION`, without `thumbs/` and
+  `encoded-video/`"), shown in the table, so the registry can add the
+  hints without a help page. A format change: its own decision.
 
-- **Reading the old setup** (`docker inspect`): exact, and the source of
-  most mistakes when done by hand.
-- **Every check** before and after: versions, space, ownership, every
-  file accounted for.
-- **Copying, with resuming and passes:** hours of data; a broken
-  connection mustn't mean starting again.
-- **Owners, the database dump and load, path rewrites:** where manual
-  moves usually go wrong.
-- **Stopping and starting the old containers** (`docker stop`, `start`,
-  `update --restart`): the downtime and going back depend on doing it at
-  the right moment. Nothing else is changed on the old machine.
+### 3.3 Taking the backup on the old machine
 
-### Manual, and why
+Roostack never runs anything on the old machine, but the import page
+shows the commands to run there, filled in with the package's names and
+the database's type (the old container's name stays a placeholder):
 
-- **Giving Roostack access to the old machine** (adding the key line):
-  only the person can, and should, decide that.
-- **Updating the old app to the right version first:** in their own
-  Compose setup, with the app's own notes; Roostack says which version.
-- **DNS outside Roostack** (a router, Pi-hole, another provider):
-  Roostack says what to change.
-- **Each phone's app**, if the address changes.
-- **Router port forwards** for Plex.
-- **Deleting the old data:** never automatic.
+| Database | Command (on the old machine) | Format |
+|---|---|---|
+| Postgres | `docker exec <your postgres container> pg_dump --format=custom --no-owner --username=<user> <database> > main.dump` | Custom: what Roostack's restores already load |
+| MariaDB, MySQL | `docker exec <container> mariadb-dump --single-transaction --routines --triggers --events -u<user> -p<password> <database> > main.sql` | SQL |
+| SQLite (Plex, Jellyfin, Vaultwarden) | Nothing: stop the app, then copy its folder | The file comes with its storage |
+| Redis, Valkey | Nothing | |
 
-## 7. Safety
+- **Stop the app before the dump and the last copy** (its database can
+  keep running for `pg_dump`). The page and help say so, and why: a dump
+  taken while the app writes is consistent in itself, but the files
+  copied after it may not match it.
+- **Two passes for big data** (§3.5): copy while the old service runs, then
+  stop it, dump, and copy again; only what changed is copied the second
+  time.
 
-- **The original is only ever read.** Over SSH, `rsync` reads (no
-  `--remove-source-files`, ever) and `pg_dump` reads. On this server
-  (later), the old folder is mounted **read-only** by the agent. The only
-  changes on the old machine are stopping and starting the containers
-  being moved, and their restart policy, each undone on going back.
-- **Nothing replaces anything until the copy is checked:** data lands in
-  `<storage>.incoming` and is swapped in only at the move; anything
-  already in the service's folders is kept aside (`.before-import-<time>`),
-  as restores do.
-- **Space first:** the plan refuses to start without room for the copy
-  plus 10% on each disk, and the copy stops (resumable) if the disk gets
-  within the lab's "running out of space" level. The first copy is
-  outside the service's folders' backups until it's swapped in, so it
-  doesn't bloat a backup half-way.
-- **Downtime is short and chosen:** only the final pass, the dump and the
-  start. The move says how long beforehand.
-- **One move at a time**, as a maintenance job (§3.2): no reboot or backup
-  in the middle of the move itself. The first copy runs beside other work
-  (it reads the old machine and writes only the new folders).
-- **Never both running:** for Plex (one identity on plex.tv), and for
-  Immich (phones would upload to whichever answered). The old one is
-  stopped first and kept stopped.
-- **Going back** is a button until **Keep it**.
-- **Secrets:** the SSH key is Roostack's, 0600, made for one move and
-  deleted after; the old database's password is never needed
-  (`docker exec` as the database's own user); nothing is logged that
-  `docker inspect` shows as a secret (variables named like passwords
-  are shown as `•••`).
-- **Untrusted input:** the old machine is the person's, but a stream from
-  it is checked like a move's (no links out of the folder, no `..`), and
-  nothing it says is run.
+### 3.4 The check (nothing changes)
 
-## 8. Where: same machine, new machine, NAS
+Before anything is copied, Roostack reads the source and says what it
+found, as a list with ✓ or what to do:
 
-Roostack assumes it owns its server (§3: a fresh Debian 13). That
-shapes the choices:
+- **Each folder:** found, its size and number of files, how many Roostack
+  can't read (§3.1), links pointing out of it (copied as links, never
+  followed; shown).
+- **Space** on each disk the service's storage is on (the media disk for
+  `location: media`): the copy plus 10%, or it stops.
+- **Each dump:** its format, and for Postgres, from `pg_restore --list` in
+  the package's own database container: the Postgres version it came from
+  (newer than the package's: refused, with why; the same or older: fine)
+  and the extensions it creates, each looked up in that container's
+  `pg_available_extensions` ("Immich's dump needs `vectors`
+  (pgvecto.rs), which this Postgres doesn't have: finish Immich's
+  VectorChord migration first"). A MariaDB or MySQL dump: its header.
+- **The service has data already:** it's kept aside, not lost (§3.5).
+- **The app's version:** Roostack can't read it from files, so it says
+  plainly: "Bring data from Immich 3.3.3, the version this lab runs. Data
+  from another version may not start; update the old one first."
 
-- **A new machine (recommended, the first version).** The old machine
-  keeps running until the move; going back is instant; the copy is over
-  the network. The common case for someone getting a NUC for Roostack.
-- **The same machine, reinstalled.** The old machine becomes the Roostack
-  server: Debian 13 and Roostack on its system disk, its data disks
-  kept. The old Docker can't be asked any more, so: stop the old services
-  first, keep a database dump (Immich's own backup is one), then after
-  installing Roostack, read the old disk through a read-only mount and
-  load the dump file. Copying needs the space twice on that disk; moving
-  in place would need a backup first. **Later**, and riskier: the old
-  setup can't be started again without reinstalling.
-- **Docker and Roostack side by side on one Debian 13.** Not supported by
-  §3, and probably not safe: both want ports 80 and 443, and Docker's
-  published ports skip the host's input firewall (they're forwarded),
-  which Roostack's firewall assumes it controls. Unverified: rehearsal
-  item 4. If it works with care, it could be a short-lived bridge
-  ("install Roostack, move each service, remove Docker"); if not, the
-  page says to use another machine.
-- **Media on a NAS:** stays there. Roostack mounts the share as a media
-  library (read-only), and Plex's paths are rewritten to it. The NAS
-  can be read by the old and new servers at once, so the media is never
-  copied or moved. An **Immich library on a NAS** has to come onto the
-  server's disk (see "Large media").
+### 3.5 Copy, then switch
 
-## 9. Which apps first
+- **Copy:** each folder goes into the service's `<storage>.incoming`
+  while everything keeps running (the service in Roostack, and the old
+  one). Long, with progress (bytes, files, an estimated finish) in the
+  `activity` component. It survives a restart of Roostack and carries on.
+  **Copy again** copies only what changed (same size and time: skipped),
+  so the person can copy for hours while the old service runs, then stop
+  it and copy again in minutes.
+- **Switch to this data** (the downtime): stop the service, copy what
+  changed one last time, move its current data aside
+  (`<dir>.before-import-<time>`), swap `.incoming` in, load each dump
+  (Roostack's restore loader), start, and check that it answers its health
+  check. One maintenance job (SPEC §3.2): no backup or reboot in the middle. A
+  failure puts the data from before back and starts the service again, as
+  a restore does.
+- **Owners:** the copy writes everything as Roostack's user, which is the
+  container's root, as in folders Roostack makes; the owners on the source
+  are never copied. A package whose app runs as another user inside its
+  container without `keep-id` gets that user's mapped owner (`podman
+  unshare chown`), from the package's own lines.
+- **Undo:** the data from before the switch is listed with the restore's
+  kept copies ("Before bringing data in, 20 October 14:02"), and can be put
+  back or deleted there. Nothing is deleted without the Owner.
 
-1. **Immich and Plex** (the Owner's own; they cover the hard parts:
-   Postgres with extensions, big writable media, SQLite, server
-   identity, media left on a NAS, path rewrites).
-2. **Jellyfin** (Plex's shape, without plex.tv: its SQLite database also
-   names files by path), **Vaultwarden** (a folder and SQLite, or
-   Postgres; passwords matter most to people), **Navidrome** (a folder;
-   music libraries).
-3. **Paperless-ngx, Forgejo/Gitea, Mealie, Audiobookshelf, Uptime Kuma,
-   PhotoPrism** (MariaDB), the rest of the registry as people ask.
+### 3.6 Starting a service with your data
 
-Each app is a recipe and a help page, so later ones are small once the
-engine exists.
+- **On the install page:** "I'll bring its data" (beside the settings).
+  The service is installed and **left stopped**, its `install_only`
+  settings optional and its install hooks not run, as installing over
+  data from before already does (SPEC §8.3.4): Immich doesn't make a new
+  administrator, Plex needs no claim code. Its page says "Waiting for its
+  data" with **Bring data in…**.
+- **On a service's page:** Manage → **Bring in data from elsewhere…**,
+  for a service already running (replacing its data; the check says so).
+- **Help:** a section, "Moving from Docker Compose": the steps in general,
+  then a page per app (§5).
 
-## 10. A first version, small enough to build soon
+### 3.7 What stays the person's job, and the problems it brings
 
-- **Immich and Plex, from another machine over SSH,** with the journey
-  above: plan, first copy (repeatable), move, check, keep or go back.
-- **Versions must match** (Immich exactly; Plex the same or older;
-  Postgres the same major).
-- **Media libraries** must already be added in Roostack (the plan links to
-  Settings → Media libraries when one's missing).
-- **Recipes in code** (`internal/migrate`); the copy and dump stream into
-  `node.ImportData` and `LoadDumps`; one new store table for moves in
-  progress; the page is one template with the `activity` component.
-- **Help:** "Bring a service from Docker Compose", with a page each for
-  Immich and Plex saying what Roostack does at each step (and how to do
-  it by hand).
-- **Needs the Owner's yes:** `rsync` as a dependency of the Roostack
-  package (Debian's; resumable, and only sends what changed; the
-  alternative is tar over Go's SSH client, `golang.org/x/crypto/ssh`,
-  already a dependency, with resuming written by hand). The old machine
-  needs `rsync` too (one `apt install`; the plan checks).
-- **Not in it:** the same machine, dump files, apps beyond the two, NVIDIA,
-  an older Immich, a "try it first" run of the copy, moving in place.
+The tools move files and databases; what they mean inside each app is
+left to the person and the help. Known problems, and what helps:
 
-Rough size: the engine (read, plan, copy, move, back) and both recipes,
-one page with its steps, help; about the size of moving services between
-servers (§10.10) plus the recipes.
+| Problem | Where it bites | What helps |
+|---|---|---|
+| **App version** | Any app: newer data in an older app may not start; much older may need the app's own upgrade path | The check's warning; the help says to update the old one first. Roostack's update flow takes it on from there |
+| **Paths inside the app's data** | Plex (every file by its path), Jellyfin; Immich only if the old mount wasn't `/data` | Immich rewrites its own (since 1.136). Plex: help with both ways (§5). Media libraries' paths are `/media/<library>` |
+| **Postgres newer than the package's** | A dump from 16 into 14 | Refused by the check, with why |
+| **pg_dumpall and plain SQL dumps** | Immich's own nightly backups are these | The help says to make a custom dump instead; loading plain SQL is "later" |
+| **Files only root can read** | Docker's root-owned folders; NFS with root squash | The check counts them and says what to do (§3.1) |
+| **Settings in environment variables** | Anything the old Compose file set that the package doesn't | Shown in the help per app; the person compares |
+| **A config file mounted into the container** | Immich's `IMMICH_CONFIG_FILE` | The help: move its settings into Immich's admin page first |
+| **Addresses** | Phone apps, share links, bookmarks | Keep the same address where possible: the lab's domain the old one, and the service's subdomain changed to match. Otherwise each phone is changed by hand |
+| **The old service starting again** | Plex (one identity on plex.tv, two servers fight); Immich (phones upload to the old one) | The help: stop it and set `restart: "no"` before the switch |
+| **NVIDIA GPUs** | Plex's transcoding, Immich's machine learning | Not supported: CPU instead; the help says so |
+| **Writable storage on a NAS** | An Immich library on a share | Copied onto the server's disk; Roostack keeps an app's own storage local |
+| **Downtime** | Big libraries | Copy, then copy again (§3.5) |
 
-## 11. What this needs from other work
+## 4. Safety
 
-- **Single sign-on (§5.2, another session):** nothing for the first
-  version. When Immich's single sign-on is built, it should link people
-  who arrive with their accounts (by email) rather than make new ones,
-  and replace an OAuth setting pointing at an old provider.
-- **Media libraries:** used as they are. "Storage on a network share" for
-  an app's own data isn't proposed.
-- **The package format:** unchanged in the first version (recipes in
-  code).
+- **The original is only read:** every source is mounted read-only, and
+  Roostack runs nothing on the old machine.
+- **Nothing replaces anything until it's switched:** the copy lands in
+  `.incoming`; the service's own data is moved aside at the switch, kept
+  until the Owner deletes it, and can be put back.
+- **Space first:** the check refuses without room for the copy plus 10%,
+  and the copy stops (to carry on later) if a disk reaches the lab's
+  "running out of space" level. `.incoming` folders are left out of
+  backups until they're switched in, so a half-done copy doesn't land in
+  tonight's backup.
+- **Untrusted input:** whatever is on the source is copied as data, never
+  run. Links are copied as links and never followed (as a move's checks
+  do: SPEC §10.10); device files, sockets and names with `..` are refused.
+- **The switch is one maintenance job**, and on failure the data from
+  before comes back.
+- **Owner only**, audited: bringing data in replaces a service's data.
 
-## 12. Rehearsal on VM 3 (not run yet: it needs Docker)
+## 5. Immich and Plex with these tools (the help pages)
+
+### Immich
+
+**From** Immich's own Compose file: `immich_server`, `immich_postgres`
+(`ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0`, the
+same image Roostack's package pins), `UPLOAD_LOCATION` at `/data` (or
+`/usr/src/app/upload` before Immich 1.133).
+
+1. Update the old Immich to the package's version (3.3.3), and finish
+   Immich's VectorChord migration if it's older than 1.133.
+2. Install Immich in Roostack with "I'll bring its data".
+3. On a share or drive Roostack can see, have:
+   - `library/`: the old `UPLOAD_LOCATION` itself, **without** its
+     `thumbs/` and `encoded-video/` (Roostack's package keeps those apart).
+     With the original on a NAS, point at it directly and choose
+     `thumbs` and `encoded` as its subfolders.
+   - `thumbs/`, `encoded/`: the old `thumbs/` and `encoded-video/`.
+     Replaceable, but worth bringing: making thumbnails again for 100,000
+     photos takes many hours.
+   - `main.dump`: `docker exec immich_postgres pg_dump --format=custom
+     --no-owner --username=postgres immich > main.dump`.
+4. Copy while the old Immich runs. Then stop it (`docker compose stop
+   immich-server immich-machine-learning`), take the dump, copy again,
+   switch.
+5. Check: sign in, open albums, search for something, upload from a
+   phone. Immich's `.immich` files come with the folders. If the old mount
+   was `/usr/src/app/upload`, Immich rewrites the paths itself at start
+   (since 1.136; unverified with a loaded dump). Look at Administration →
+   Settings for the external domain (share links) and the
+   machine-learning address.
+
+Timings (estimates): 1 TB of photos takes about 3 hours over 1 Gb/s
+Ethernet, 1½-2 hours from a USB 3 hard disk, plus 10-20% for thumbnails
+(many small files). The second copy takes minutes, the dump and load
+5-20 minutes (vector indexes are built again), so **about half an hour of
+downtime**.
+
+### Plex
+
+**From** `plexinc/pms-docker` or `lscr.io/linuxserver/plex`: `/config`,
+media at `/movies`, `/tv` or similar.
+
+1. Add the media as **media libraries** in Roostack (the NAS share or the
+   drive), so Plex reads it where it is; nothing is copied.
+2. Install Plex in Roostack with "I'll bring its data", reading those
+   libraries.
+3. Bring `config/`: the old `/config`, the folder holding `Library/`.
+   `Cache/`, `Codecs/`, `Crash Reports/`, `Logs/` and `Updates/` can be left
+   out of the copy. `Preferences.xml` carries the server's identity and its
+   sign-in, so it's **the same server** to plex.tv and every app: no claim
+   code, same people with access.
+4. Stop the old Plex **and keep it stopped** (`restart: "no"`), copy again,
+   switch. Never run both.
+5. **Paths:** the files are now under `/media/<library>/…`. Two ways:
+   - Plex's own (its article "Move an install to another system"): turn off
+     "Empty trash automatically after every scan" first, add each new
+     folder to its library, scan, remove the old folder, then empty trash,
+     clean bundles and optimise the database. Slow for a big library;
+     moved items may show as recently added.
+   - Rewrite them in the database with Plex's own SQLite (`Plex SQLite`,
+     in Plex's image) while Plex is stopped, from the old prefix to the
+     new: quick, keeps everything, but by hand and not Plex's documented
+     way; the help gives the commands once they're rehearsed
+     (unverified).
+   - Libraries mounted at `/media/<name>` before need neither.
+6. Remote access: Roostack serves Plex at `plex.<domain>` through its own
+   proxy, not on port 32400, and doesn't allow host networking, so a
+   forwarded port and discovery on the home network work differently
+   (unverified: what Plex's apps do).
+
+Timings: the config's first copy is 20 minutes to 2 hours for a big
+library (it's the number of files in `Metadata/` and `Media/`); the
+downtime 10-20 minutes plus the path change.
+
+### Then
+
+Jellyfin (Plex's shape, without plex.tv), Vaultwarden, Navidrome, and the
+rest of the registry as people ask: each is a help page, since the tools
+are the same.
+
+## 6. Where: same machine, new machine, NAS
+
+Roostack assumes it owns its server (SPEC §3: a fresh Debian 13).
+
+- **A new machine:** the old one keeps running until the switch, and going
+  back is starting it again. The files reach Roostack on a drive, a share
+  (the old machine can offer one), or with `rsync` into a folder.
+- **The same machine, reinstalled:** stop the services, take the dumps
+  onto the data disk, reinstall the system disk with Debian 13 and
+  Roostack, then bring the data in from that disk (a folder on the
+  server, or the drive). The copy needs the space twice on that disk;
+  moving in place instead of copying isn't proposed (it would change the
+  original). Going back means reinstalling the old system, so a backup of
+  it first.
+- **Docker and Roostack side by side:** outside SPEC §3 and probably unsafe:
+  both want ports 80 and 443, and Docker's published ports skip the
+  input firewall Roostack's rules assume it controls (unverified,
+  rehearsal item 4).
+- **Media on a NAS:** stays there as a media library; only an app's own
+  writable data (Immich's library) is copied to the server.
+
+## 7. Options considered
+
+| | What | Why not first |
+|---|---|---|
+| **A. Help pages only** | Commands to copy into `/srv/roostack/…`, `chown`, and load a dump by hand | Roostack's folders, owners and database names are internal; doing it by hand behind a running Roostack is easy to get wrong, and nothing is checked |
+| **B. The tools above** (recommended) | Sources, the check, copy then switch, undo; help per app | |
+| **C. A page per app that does it all** (the first draft) | Reads the old machine over SSH, recipes per app, stops the old containers, rewrites Plex's paths | Each app is its own project; the Owner, 2026-10-20: start with tools. It can come later on top of B (B's copy, check and switch are its steps) |
+| **D. Any Compose service** | The package editor's import makes a package; B brings its data | Already possible once B exists: the editor makes the package, B the data |
+
+## 8. A first version
+
+- **Sources:** a drive or disk, a network share, a folder on the server.
+- **What's brought:** a folder for each storage, a dump for each database:
+  Postgres custom format, MariaDB or MySQL SQL; SQLite with its folder.
+- **The check, copy and copy again, switch, undo**, from the install page
+  ("I'll bring its data") and a service's Manage menu.
+- **Help:** "Moving from Docker Compose", and pages for Immich and Plex.
+- **Built from:** the drive and share code of media libraries (a
+  read-only mount for the import), the folder picker, `node.CommitData`
+  and the restore loader, `LoadDumps`, the kept copies of restores, the
+  left-data install path. New: the copy (a Go copy that skips unchanged
+  files, run as Roostack's user, with progress), the check, the import
+  page, a store table for imports in progress.
+- **No new dependencies:** the copy is local (Go's standard library), and
+  `pg_restore --list` runs in the package's own database image.
+
+## 9. Later
+
+- A dump uploaded through the browser; plain SQL and `pg_dumpall` dumps
+  (Immich's own backups); Postgres from an older major version checked on
+  a VM first.
+- Another machine over SSH (`rsync`), so nothing has to be carried.
+- A hint per storage and database in the package format (§3.2).
+- The first draft's automation for the most asked-for apps (§7, C).
+
+## 10. Rehearsal on VM 3 (not run yet: it needs Docker)
 
 To verify before building, on a throwaway VM with Docker and Roostack
-(Docker itself and Immich's and Plex's Compose images are new to the
-project, so they need the Owner's yes):
+(Docker and Immich's and Plex's Compose images are new to the project, so
+they need the Owner's yes):
 
-1. **Immich:** a Compose Immich at the package's version, with the
-   library mounted at `/usr/src/app/upload` and a few hundred photos.
-   Dump with `pg_dump --format=custom`, load with Roostack's loader
-   (`--no-owner`, user `immich` instead of `postgres`), copy the folders,
-   start the package: do the photos, faces and smart search come back, and
+1. **Immich:** a Compose Immich at the package's version with its library
+   at `/usr/src/app/upload` and a few hundred photos; a custom dump with
+   `--no-owner`, loaded as user `immich` instead of `postgres`; the
+   folders brought in: do photos, faces and smart search come back, and
    does Immich rewrite the paths to `/data` itself?
-2. **Plex:** a Compose Plex with a library at `/movies`; copy its config,
-   rewrite the paths with `Plex SQLite` to `/media/films`, start the
-   package: same identity, history kept, files play? (Needs a Plex
-   account to claim the test server: the Owner's, or a throwaway one.)
-3. **Timings** for a library of ~10,000 files, to calibrate the
-   estimates.
-4. **Docker beside Roostack** on one Debian 13: ports, Roostack's
-   nftables rules against Docker's, what reaches Docker's published ports.
-   Decides whether "the same machine" can ever be side by side.
+2. **Plex:** a Compose Plex with a library at `/movies`, its config
+   brought in, then both ways of changing the paths (Plex's, and `Plex
+   SQLite`): same identity, history kept? (A Plex account is needed to
+   claim the test server.)
+3. **Timings** for ~10,000 files, from a USB drive and from an SMB share.
+4. **Docker beside Roostack** on one Debian 13: ports, and what reaches
+   Docker's published ports through Roostack's firewall.
 
-## 13. Questions for the Owner
+## 11. Decisions for the Owner
 
-About your homelab (they shape the first version):
-
-1. **Same machine or another?** Will Roostack run on a new machine, with
-   the old one kept running until the move, or will the old machine be
-   wiped and reinstalled with Roostack?
-2. **Where do the files live, and how much?** Immich's `UPLOAD_LOCATION`
-   (a local disk, a USB disk, a NAS?), roughly how many photos and how
-   many TB; Plex's media (a NAS share, SMB or NFS? a local disk?) and the
-   size of Plex's config folder.
-3. **Immich:** which version, which Postgres image, external libraries
-   (folders Immich reads but didn't upload)? Machine learning on a GPU?
-   Sign-in through an OAuth provider?
-4. **Plex:** which image (Plex's or linuxserver's) and version? A GPU
-   (Intel or NVIDIA)? Plex Pass? `network_mode: host`? How do you reach it
-   from outside home (a forwarded port 32400, Plex's relay, a VPN)?
-5. **Addresses:** what are they now, through which proxy, and on which
-   domain? Should Roostack's lab use that domain, so the addresses stay?
-6. **Access:** can Roostack reach the old machine over SSH as a user with
-   `sudo`? Is it fine for Roostack to stop and start the old containers
-   itself?
-7. **The network between them:** 1 Gb/s, 2.5 Gb/s, Wi-Fi?
-
-About the design:
-
-8. **How much to automate:** the page (C), recommended, or a guide (A) or
-   command (B) first?
-9. **Plex's paths:** rewrite them in the copy (A, recommended) or Plex's
-   own add-and-remove (B)?
-10. **Versions:** require the old app's version to match the package's in
-    the first version (recommended)?
-11. **Dependencies and the rehearsal:** `rsync` as a dependency, and
-    Docker plus Immich's and Plex's Compose images on VM 3 for the
-    rehearsal?
+1. **This direction:** the tools (§3), with help per app, as the first
+   version; the first draft's automation later if wanted.
+2. **Sources in the first version:** drive, share, folder on the server.
+   Add uploading a dump through the browser now, or later?
+3. **Files Roostack can't read:** the person fixes the owners on their copy
+   (recommended), or the agent copies as root?
+4. **Postgres dumps:** custom format only at first (recommended), or plain
+   SQL and `pg_dumpall` too (Immich's own backups)?
+5. **The rehearsal:** Docker and Immich's and Plex's Compose images on
+   VM 3?
 
 ## Sources
 
@@ -727,4 +593,4 @@ About the design:
   (the page refused our fetch; its steps as quoted in search results and
   Plex's forums, 2026-10-20).
 - Roostack: SPEC §6.7, §6.8, §6.9, §8.1 (media libraries), §8.3.4,
-  §8.3.7, §10.10; the code named in "What Roostack already has".
+  §8.3.7, §10.10; the code named in §1.
