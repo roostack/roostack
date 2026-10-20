@@ -667,6 +667,35 @@ New registry revisions use the same three ways (roostack-services `claude/sso-mo
   - **Decided (2026-10-20), the Owner:** single sign-on only. While it's on, sign-ups are on and Papra's email-and-password sign-in is off (`AUTH_PROVIDERS_EMAIL_IS_ENABLED=false`), so nobody can sign up any other way. The account made at install can't be used until it's off again, which the package's note says. *Considered:* sign-ups on beside password sign-in (fine while it's home-only, open to anyone otherwise), and no single sign-on for Papra yet.
 - **Found on the VM:** Wiki.js wants a group's permissions and page rules as lists, not JSON strings. A failed run had already made the group, so a retry now takes a group of that name rather than making a second.
 
+##### The rest of the registry (2026-10-21)
+
+**Asked by the Owner:** everything working before merging.
+
+New revisions are on the same registry branch, checked end to end on VM2 (docs/ASSUMPTIONS.md V15, V16):
+- Mealie and Stirling-PDF, as in the test fixtures (checked for the first version, V3, V4);
+- Vaultwarden, Miniflux, Linkwarden, Actual Budget and HedgeDoc, all set by env;
+- Navidrome, behind the wall with header login.
+
+`requires.roostack` stays `"0.1"`: no release has been tagged, the first will be v0.1.0, and development builds run every package. So it's right as long as these branches are merged before v0.1.0 (TASKS).
+
+- **What each needed:**
+  - **Vaultwarden:** `SSO_AUTH_ONLY_NOT_SESSION`, so it keeps its own sessions, as the sign-in page's access tokens last an hour. The master password still unlocks each vault.
+  - **Miniflux:** finds accounts only by the provider's ID. Its install-made administrator is linked from its own Settings, and until then signing in through the lab with that username is refused ("This user already exists").
+  - **Linkwarden:** stores an email only when it sends mail, so its install-made administrator can't be linked. It keeps its password, and the lab's sign-in with the same username is refused (`OAuthCreateAccount`).
+  - **Actual Budget:** the first person to sign in becomes its owner, after typing the server password once. Turned off, Actual still lists OpenID as its method, and the server password works with Password on its sign-in page.
+  - **HedgeDoc:** every address is given, as it has no discovery. Accounts are keyed by `sub`.
+  - **Navidrome:** reads `Remote-User` (below). `/rest` (Subsonic apps) and `/share` stay outside the wall.
+- **Navidrome trusts the header only from its own address.**
+  - Requests Caddy forwards arrive at a container from its own address (rootless port forwarding).
+  - Another container reaching it directly arrives from its network's gateway.
+  - So Navidrome starts through a one-line shell that sets `ND_EXTAUTH_TRUSTEDSOURCES` to its own address (`/32`) while single sign-on is on.
+  - With the range open, a forged header from another app's container made Navidrome create that account. With its own address only, the forged header was ignored.
+- **Found on the VM, not fixed here:** a container can reach another service's container across their Podman networks. One app's container fetched Navidrome's directly, so a compromised app could bypass a wall (and Caddy) to reach another service. Each service network should be isolated (netavark's `isolate` option); TASKS has it, as a change of its own.
+- **Decided (2026-10-21), the Owner:**
+  - **Not for now:** Uptime Kuma (its login can be turned off only over its live connection with its account password) and PhotoPrism (its free edition makes people who sign in guests, and won't link its admin).
+  - **Later:** Lychee (it knows only a few named providers, none at our addresses) and Ghost (it would need a custom adapter).
+  - **Not sensible:** Jellyfin, Plex, ntfy and Radicale. Their own apps sign in themselves, and Radicale's header login would leave its CalDAV paths open.
+
 ## 6. Container Runtime — Locked (principle)
 
 - Podman, **rootless where possible**; rootful only where a service genuinely requires it (e.g. low ports, host networking, device access), and this is visible to the user.

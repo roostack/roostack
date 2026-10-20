@@ -37,7 +37,13 @@ signs in with their password once and connects single sign-on on their
 profile page. Wiki.js gives everyone who signs in an account of their own
 that can read and edit pages (its administration stays with the account
 made at install), and Papra, while single sign-on is on, is reached only
-through the lab's sign-in page.
+through the lab's sign-in page. Where the app had an administrator before
+(made when you installed it), some apps find it by your username or email
+and some can't: the card's note says which, and what to do.
+
+Some apps can't take single sign-on: Jellyfin, Plex, ntfy and Radicale,
+whose phone, TV and desktop apps sign in by themselves, and, for now,
+Uptime Kuma, PhotoPrism, Lychee and Ghost.
 
 ### Apps set through their own settings pages
 
