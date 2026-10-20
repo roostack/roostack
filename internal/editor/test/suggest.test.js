@@ -104,3 +104,33 @@ test("the test packages from the registry need nothing much", () => {
     assert.deepEqual(blocking.map((x) => x.path + ": " + x.message), [], ex.name);
   }
 });
+
+test("single sign-on: offered where the app could take it, and what an OIDC part still needs", () => {
+  const oidc = suggestions(base.replace("      TZ: Europe/London\n", "      TZ: Europe/London\n      OIDC_CLIENT_ID: notes\n"));
+  assert.equal(at(oidc, "sso").length, 1);
+  assert.match(at(oidc, "sso")[0].message, /OIDC_CLIENT_ID suggests the app can sign people in through OIDC/);
+
+  const walled = suggestions(base.replace("ghcr.io/example/notes:2.0", "docker.io/stirlingtools/stirling-pdf:3.2.0"));
+  assert.deepEqual(at(walled, "sso").flatMap((x) => x.actions.map((a) => a.label)), ["Put it behind the lab's sign-in"]);
+
+  const part = base + "sso:\n  oidc: { route: web, redirect_paths: [/auth/callback] }\n";
+  const s = suggestions(part);
+  assert.deepEqual(at(s, "sso.secrets").flatMap((x) => x.actions.map((a) => a.label)), ["Give it as OIDC_CLIENT_SECRET"]);
+  assert.equal(at(s, "sso.env").length, 1);
+  assert.equal(at(s, "sso.note").length, 1);
+  for (const x of s.filter((x) => x.path.startsWith("sso")).concat(at(walled, "sso"))) {
+    for (const a of x.actions) {
+      const text = apply(x.path === "sso" ? base.replace("ghcr.io/example/notes:2.0", "docker.io/stirlingtools/stirling-pdf:3.2.0") : part, a);
+      const r = R.check.run(text, { local: true });
+      assert.deepEqual(r.problems.filter((p) => p.kind === "validation").map((p) => p.message), [], `${x.path}: ${a.label}`);
+    }
+  }
+});
+
+test("single sign-on's templates: .SSO's fields pass, others are named", () => {
+  const text = base + "sso:\n  oidc: { route: web, redirect_paths: [/auth/callback] }\n  env:\n    app: { A: \"{{ .SSO.DiscoveryURL }}\", B: \"{{ .SSO.Nope }}\" }\n";
+  const r = R.check.run(text, { local: true });
+  const msgs = r.problems.map((p) => p.message);
+  assert.ok(msgs.some((m) => /sso\.env\.app\.B: \.SSO has no Nope/.test(m)), msgs.join("\n"));
+  assert.ok(!msgs.some((m) => /sso\.env\.app\.A/.test(m)), msgs.join("\n"));
+});

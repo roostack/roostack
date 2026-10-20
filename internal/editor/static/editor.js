@@ -459,6 +459,8 @@
       { path: ["hooks"], add: "Add a setup step or action", title: (v) => v.get && (v.get("title") || v.get("on")), fields: ["on", "name", "title", "container", "command", "env", "secrets"], more: ["description", "inputs"] },
       { path: ["links"], add: "Add a link into the app", title: (v) => v.get && v.get("title"), fields: ["title", "route", "path", "description"] },
     ] },
+    { id: "sso", title: "Single sign-on", fields: [["sso", "oidc", "route"], ["sso", "oidc", "redirect_paths"], ["sso", "oidc", "redirect_uris"],
+      ["sso", "forward_auth", "route"], ["sso", "forward_auth", "bypass_paths"], ["sso", "env"], ["sso", "secrets"], ["sso", "note"]] },
     { id: "more", title: "More", map: ["ports"], add: "Add an extra connection", fields: ["title", "container", "port", "host_port", "protocol", "enabled"], more: ["description", "exposure"],
       lists: [{ path: ["upgrade_notes"], add: "Add an upgrade note", title: (v) => v.get && v.get("version"), fields: ["version", "note"] }], extra: [["schema"]] },
   ];
@@ -471,8 +473,10 @@
   const references = {
     "routes.*.container": ["containers"], "ports.*.container": ["containers"], "hooks[].container": ["containers"],
     "links[].route": ["routes"], "containers.*.mounts[].storage": ["storage"],
+    "sso.oidc.route": ["routes"], "sso.forward_auth.route": ["routes"],
   };
-  const long = new Set(["upgrade_notes[].note", "routes.*.public.unsafe", "routes.*.public.private_paths[].reason", "containers.*.health.cmd", "settings[].description", "hooks[].description"]);
+  const long = new Set(["upgrade_notes[].note", "routes.*.public.unsafe", "routes.*.public.private_paths[].reason", "containers.*.health.cmd", "settings[].description", "hooks[].description",
+    "sso.note", "sso.forward_auth.bypass_paths[].reason"]);
 
   function renderForm() {
     const form = $("[data-form]");
@@ -502,7 +506,7 @@
   function renderPart(part) {
     const sec = h("section", { class: "pe-card pe-section", id: "pe-" + part.id, "data-part": part.id },
       h("h2", {}, part.title, h("span", { class: "pe-pill pe-part-count", hidden: true })));
-    const sectionHelp = part.map ? help(part.map) : part.id === "about" ? S.help.about : null;
+    const sectionHelp = part.map ? help(part.map) : part.id === "about" || part.id === "sso" ? S.help[part.id] : null;
     if (sectionHelp && sectionHelp.help) sec.append(h("p", { class: "pe-hint" }, sectionHelp.help, " ", helpLink(sectionHelp.link)));
     if (part.fields && !part.map) {
       for (const f of part.fields) sec.append(f === "logo" ? logoField() : fieldEl(f));
@@ -610,6 +614,9 @@
     } else if (f.type === "map" && f.item.type === "string") {
       input = mapInput(path, hk);
       wrap.append(h("span", { class: "pe-label" }, hp.label || path[path.length - 1]), input);
+    } else if (f.type === "map" && f.item.type === "map") {
+      input = containerMapsInput(path, hk);
+      wrap.append(h("span", { class: "pe-label" }, hp.label || path[path.length - 1]), input);
     } else if (f.type === "list" && f.item.type === "object") {
       input = rowsInput(path, f, hk);
       wrap.append(h("span", { class: "pe-label" }, hp.label || path[path.length - 1]), input);
@@ -677,11 +684,35 @@
   }
 
   // mapInput is env or secrets: a variable and its value per row.
+  // containerMapsInput draws a map of containers, each with its own
+  // variables (sso.env, sso.secrets): a block per container, and a way to
+  // add one of the package's other containers.
+  function containerMapsInput(path, hk) {
+    const box = h("div", { class: "pe-container-maps" });
+    const present = keysOf(path);
+    for (const c of present) {
+      box.append(h("div", { class: "pe-container-map", "data-path": pathKey(path.concat(c)) },
+        h("span", { class: "pe-inline" }, h("strong", {}, c),
+          h("button", { type: "button", class: "pe-button quiet small", "aria-label": `Take out ${c}`, onclick: () => { remove(path.concat(c)); written(true); } }, "Remove")),
+        mapInput(path.concat(c), hk)));
+    }
+    const others = keysOf(["containers"]).filter((c) => !present.includes(c));
+    if (others.length) {
+      box.append(h("select", { class: "pe-input", "aria-label": "Add a container", onchange: (e) => {
+        if (!e.target.value) return;
+        state.doc.setIn(path.concat(e.target.value), state.doc.createNode({}));
+        written(true);
+      } }, h("option", { value: "" }, "Add a container…"), others.map((c) => h("option", { value: c }, c))));
+    }
+    return box;
+  }
+
   function mapInput(path, hk) {
     const box = h("div", { class: "pe-rows" });
     const isSecrets = /\.secrets$/.test(hk);
+    const ssoSecret = hk === "sso.secrets";
     const listId = "pe-dl" + (++idn);
-    const refs = isSecrets ? secretRefs() : templateRefs();
+    const refs = ssoSecret ? S.lists.ssoClientSecret : isSecrets ? secretRefs() : templateRefs();
     box.append(h("datalist", { id: listId }, refs.map((r) => h("option", { value: r }))));
     for (const k of keysOf(path)) {
       const v = textOf(get(path.concat(k)));
@@ -691,7 +722,7 @@
         h("button", { type: "button", class: "pe-button quiet small", "aria-label": `Take out ${k}`, onclick: () => { remove(path.concat(k)); written(true); } }, "Remove")));
     }
     const nk = h("input", { class: "pe-input mono", placeholder: "NAME", "aria-label": "New variable", spellcheck: "false" });
-    const nv = h("input", { class: "pe-input mono", placeholder: isSecrets ? "a secret setting, or databases.main.password" : "value or {{ template }}", "aria-label": "Its value", list: listId, spellcheck: "false" });
+    const nv = h("input", { class: "pe-input mono", placeholder: ssoSecret ? S.lists.ssoClientSecret[0] : isSecrets ? "a secret setting, or databases.main.password" : "value or {{ template }}", "aria-label": "Its value", list: listId, spellcheck: "false" });
     box.append(h("div", { class: "pe-row pe-row-new" }, nk, nv, h("button", { type: "button", class: "pe-button secondary small", onclick: () => {
       const k = nk.value.trim();
       if (!k) return;
@@ -718,6 +749,9 @@
     for (const s of itemsOf(["settings"])) if (YAML.isMap(s) && s.get("type") !== "secret" && s.get("key")) out.push(`{{ .Settings.${s.get("key")} }}`);
     for (const d of keysOf(["databases"])) if (get(["databases", d, "type"]) !== "sqlite") out.push(`{{ .Databases.${d}.Host }}`, `{{ .Databases.${d}.Port }}`, `{{ .Databases.${d}.User }}`, `{{ .Databases.${d}.Name }}`);
     for (const c of keysOf(["containers"])) out.push(`{{ (index .Containers "${c}").Host }}`);
+    if (get(["sso"]) !== undefined) {
+      for (const k of ["DiscoveryURL", "Issuer", "ClientID", "AdminGroup", "UserGroup", "ButtonText", "ProviderName", "AuthorizeURL", "TokenURL", "UserinfoURL", "Enabled"]) out.push(`{{ .SSO.${k} }}`);
+    }
     out.push("{{ .Lab.TimeZone }}", "{{ .Lab.Domain }}", "{{ .Service.Name }}");
     return out;
   }

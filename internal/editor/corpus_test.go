@@ -338,6 +338,22 @@ func structural(first map[string]string) [][]edit {
 		add(set(v, "ports", "x"))
 	}
 
+	// Single sign-on (sso.go): each of validateSSO's checks, and values the
+	// decoder refuses.
+	for _, v := range []string{`{}`, `null`, `bogus`, `{oidc: {route: ` + r + `, redirect_paths: [/l]}, forward_auth: {route: ` + r + `}}`,
+		`{oidc: {route: nope}}`, `{oidc: {route: ` + r + `, redirect_paths: [login, "/a//b", /ok/, "/a b", /a/b.c:~d]}}`,
+		`{oidc: {route: ` + r + `, redirect_uris: ["https://x.com/cb", "app.x:/cb", "http://x", "Bad:/x", "app.immich:///oauth-callback", "x:/a b"]}}`,
+		`{forward_auth: {route: ` + r + `, bypass_paths: [{path: /api, reason: x}, {path: /api, reason: " "}, {path: "/a*", reason: y}, {path: /b/, reason: z}]}}`,
+		`{forward_auth: {route: nope}}`, `{forward_auth: {route: ` + r + `}}`,
+		`{oidc: {route: ` + r + `, redirect_paths: [/l]}, env: {nope: {A: x}, ` + c + `: {"bad key": y, OK: "{{ .SSO.ClientID }}"}}}`,
+		`{oidc: {route: ` + r + `, redirect_paths: [/l]}, secrets: {` + c + `: {S: sso.client_secret, T: other, "bad key": sso.client_secret}, nope: {S: sso.client_secret}}}`,
+		`{forward_auth: {route: ` + r + `}, secrets: {` + c + `: {S: sso.client_secret}}}`,
+		`{oidc: {route: ` + r + `, redirect_paths: [/l]}, note: "The phone apps still use the app's own accounts."}`,
+		`{oidc: {route: ` + r + `, foo: 1}}`, `{oidc: bogus}`, `{env: {` + c + `: bogus}}`, `{forward_auth: {bypass_paths: bogus}}`, `{forward_auth: {}}`,
+	} {
+		add(set(v, "sso"))
+	}
+
 	// Upgrade notes.
 	for _, v := range []string{`[{version: "", note: x}]`, `[{version: 1.0, note: ""}]`, `[{version: "1.0", note: a}, {version: "1.0", note: b}]`, `[{version: "1.0", note: " "}]`} {
 		add(set(v, "upgrade_notes"))

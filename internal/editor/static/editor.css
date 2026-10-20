@@ -246,3 +246,8 @@ body.pe-page .pe { max-width: 1560px; margin: 0 auto; }
   body.pe-page { padding: var(--space-4); }
   .pe .pe-button { white-space: normal; }
 }
+
+/* sso.env and sso.secrets: a block of variables per container. */
+.pe-container-maps { display: grid; gap: var(--space-3); margin-top: var(--space-1); }
+.pe-container-map { display: grid; gap: var(--space-1); padding-left: var(--space-3); border-left: 2px solid var(--border); }
+.pe-container-map > .pe-inline { justify-content: space-between; }

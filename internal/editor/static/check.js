@@ -342,6 +342,7 @@
     "Package.links": "Link", "Container.mounts": "Mount", "Container.devices": "Device", "Container.health": "Health",
     "Health.http": "HTTPCheck", "Route.monitor": "RouteMonitor", "Route.public": "PublicRules",
     "PublicRules.private_paths": "PrivatePath", "Hook.inputs": "Setting",
+    "Package.sso": "SSO", "SSO.oidc": "SSOOIDC", "SSO.forward_auth": "SSOForwardAuth", "SSOForwardAuth.bypass_paths": "PrivatePath",
   };
   function goTypeOf(parent, name) { return structNames[parent + "." + name] || "string"; }
 
@@ -380,6 +381,7 @@
     for (const n of sortedKeys(p.routes)) validateRoute(p, add, n, p.routes[n]);
     for (const n of sortedKeys(p.ports)) validatePortDef(p, add, n, p.ports[n]);
     validateHooks(p, add);
+    validateSSO(p, add);
     (p.links || []).forEach((l, i) => {
       const at = `links[${i}]`;
       if (l.title === "") add(`${at}.title: required`);
@@ -387,6 +389,49 @@
       if (!l.path.startsWith("/") || l.path.startsWith("//")) add(`${at}.path: must start with a single /`);
     });
     return errs;
+  }
+
+  // validateSSO is Package.validateSSO (pkgspec/sso.go).
+  function validateSSO(p, add) {
+    const s = p.sso;
+    if (isNil(s)) return;
+    if (isNil(s.oidc) && isNil(s.forward_auth)) add("sso: needs oidc or forward_auth");
+    else if (!isNil(s.oidc) && !isNil(s.forward_auth)) add("sso: oidc or forward_auth, not both");
+    const o = s.oidc;
+    if (!isNil(o)) {
+      if (!has(p.routes, o.route)) add(`sso.oidc.route: unknown route ${goQuote(o.route)}`);
+      if ((o.redirect_paths || []).length + (o.redirect_uris || []).length === 0) add("sso.oidc: needs redirect_paths (or redirect_uris)");
+      (o.redirect_paths || []).forEach((rp, i) => {
+        if (!re.ssoRedirectPath.test(rp) || rp.includes("//")) add(`sso.oidc.redirect_paths[${i}]: ${goQuote(rp)} must be a path starting with /, with only letters, digits and - _ . : ~ /`);
+      });
+      (o.redirect_uris || []).forEach((u, i) => {
+        if (!re.ssoAppScheme.test(u) || u.startsWith("http:") || u.startsWith("https:")) add(`sso.oidc.redirect_uris[${i}]: ${goQuote(u)} must be a phone app's own address (like app.example:/callback), not a web address`);
+      });
+    }
+    const f = s.forward_auth;
+    if (!isNil(f)) {
+      if (!has(p.routes, f.route)) add(`sso.forward_auth.route: unknown route ${goQuote(f.route)}`);
+      const seen = new Set();
+      (f.bypass_paths || []).forEach((bp, i) => {
+        if (!validPath(bp.path)) add(`sso.forward_auth.bypass_paths[${i}].path: ${goQuote(bp.path)} must start with / and have only letters, digits and - _ . : / (no * or trailing /)`);
+        if (goTrim(bp.reason) === "") add(`sso.forward_auth.bypass_paths[${i}].reason: say why it's safe without signing in`);
+        if (seen.has(bp.path)) add(`sso.forward_auth.bypass_paths[${i}].path: ${goQuote(bp.path)} is listed twice`);
+        seen.add(bp.path);
+      });
+    }
+    for (const c of sortedKeys(s.env)) {
+      if (!has(p.containers, c)) add(`sso.env.${c}: unknown container`);
+      for (const k of sortedKeys(s.env[c])) if (!re.envName.test(k)) add(`sso.env.${c}.${k}: invalid variable name`);
+    }
+    const secret = L.ssoClientSecret[0];
+    for (const c of sortedKeys(s.secrets)) {
+      if (!has(p.containers, c)) add(`sso.secrets.${c}: unknown container`);
+      for (const k of sortedKeys(s.secrets[c])) {
+        if (!re.envName.test(k)) add(`sso.secrets.${c}.${k}: invalid variable name`);
+        if (s.secrets[c][k] !== secret) add(`sso.secrets.${c}.${k}: must be ${secret}`);
+      }
+    }
+    if (!isNil(f) && Object.keys(s.secrets || {}).length > 0) add("sso.secrets: only an oidc app has a client secret");
   }
 
   function validateSettings(p, add) {
@@ -959,6 +1004,8 @@
       if (!h) return;
       for (const k of sortedKeys(h.env)) where.push([`hooks[${i}].env.${k}`, h.env[k], h]);
     });
+    const sso = p.sso || {};
+    for (const c of sortedKeys(sso.env)) for (const k of sortedKeys(sso.env[c])) where.push([`sso.env.${c}.${k}`, sso.env[c][k], null]);
     for (const [at, text, hook, isWhen] of where) {
       for (const msg of checkTemplate(p, text, hook)) out.push(`${at}: ${msg}`);
       if (isWhen && !text.includes("{{") && !["true", "false"].includes(text.trim())) out.push(`${at}: a condition must be true or false, or a template that gives one, such as {{ .Settings.x }}`);
@@ -971,6 +1018,8 @@
     route: { Subdomain: 1, Host: 1, URL: 1, Exposure: 1, Port: 1, PublicPaths: 1 },
     port: { Enabled: 1, HostPort: 1, Protocol: 1, Exposure: 1 },
     database: { Host: 1, Port: 1, User: 1, Name: 1 }, container: { Host: 1 },
+    // generate.SSOContext.
+    SSO: { Enabled: 1, Issuer: 1, DiscoveryURL: 1, AuthorizeURL: 1, TokenURL: 1, UserinfoURL: 1, ClientID: 1, ProviderName: 1, ButtonText: 1, UserGroup: 1, AdminGroup: 1 },
   };
   const names = (m) => sortedKeys(m).join(", ") || "none";
 
@@ -1002,6 +1051,7 @@
     switch (top) {
       case "Service": return leaf(fields.Service, a, ".Service");
       case "Lab": return leaf(fields.Lab, a, ".Lab");
+      case "SSO": return leaf(fields.SSO, a, ".SSO");
       case "Settings": {
         if (a === undefined) return null;
         const s = settingOf(p, a);
@@ -1037,7 +1087,7 @@
         return null;
       }
     }
-    return `.${top} isn't something a template can use (try .Settings, .Routes, .Databases, .Ports, .Containers, .Lab or .Service)`;
+    return `.${top} isn't something a template can use (try .Settings, .Routes, .Databases, .Ports, .Containers, .Lab, .Service or .SSO)`;
   }
 
   // ---------- Finding a problem's place ----------

@@ -229,6 +229,34 @@
       }
     }
 
+    // Single sign-on (SPEC.md §5.2): whether the app could take it, and
+    // what an OIDC part still needs.
+    const sso = pkg.sso;
+    const firstRoute = sorted(pkg.routes)[0];
+    const firstContainer = sorted(containers)[0];
+    const oidcEnv = envNames.find((n) => /OIDC|OAUTH|OPENID/i.test(n));
+    if (isNil(sso) && firstRoute) {
+      if (oidcEnv) {
+        // No action: only the app's own settings or docs say its callback
+        // path, and the part isn't valid without one.
+        add(make("sso", `${oidcEnv} suggests the app can sign people in through OIDC. With a single sign-on part (oidc, on the ${firstRoute} address), the Owner can let people use the lab's own sign-in for it: give the app's callback path, which its OIDC settings or docs name, then its client ID, discovery address and secret.`));
+      } else if (app && app.unsafe) {
+        add(make("sso", `${app.app} has no sign-in of its own. Behind the lab's sign-in wall (forward_auth), everyone signs in on the lab's page before reaching it, once the Owner turns single sign-on on.`,
+          [set("Put it behind the lab's sign-in", ["sso"], { forward_auth: { route: firstRoute } })]));
+      }
+    }
+    if (!isNil(sso) && !isNil(sso.oidc)) {
+      if (Object.keys(sso.secrets || {}).length === 0 && firstContainer) {
+        add(make("sso.secrets", `An OIDC app needs its client secret, which Roostack makes: give it to the container under the variable the app reads (often OIDC_CLIENT_SECRET).`,
+          [set("Give it as OIDC_CLIENT_SECRET", ["sso", "secrets", firstContainer], { OIDC_CLIENT_SECRET: S.lists.ssoClientSecret[0] })]));
+      }
+      const usesSSO = Object.values(sso.env || {}).some((m) => Object.values(m || {}).some((v) => String(v).includes(".SSO.")));
+      if (!usesSSO) {
+        add(make("sso.env", "Tell the app where the lab's sign-in is, in the variables it reads while single sign-on is on: usually {{ .SSO.DiscoveryURL }} (or {{ .SSO.Issuer }}) and {{ .SSO.ClientID }}; {{ .SSO.AdminGroup }} if it can make the lab's Owners and Admins its admins, and {{ .SSO.ButtonText }} for its sign-in button."));
+      }
+      if (sso.note === "") add(make("sso.note", "Say what still uses the app's own sign-in, such as its phone apps or API tokens: it's shown beside the switch."));
+    }
+
     // Settings.
     for (const [i, s] of (pkg.settings || []).entries()) {
       if (s.type === "string" && /pass(word)?|secret|token|_key$/.test(s.key)) {

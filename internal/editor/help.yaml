@@ -518,24 +518,28 @@ sso:
   help: How the app takes single sign-on, which the Owner turns on per service. Either oidc (the app signs people in through OIDC itself) or forward_auth (everyone signs in on the lab's sign-in page before a request reaches it), not both.
   link: services/single-sign-on
 sso.oidc.route:
-  label: Route
+  label: OIDC, on the address
   help: The route whose address the redirect paths are on.
   example: web
   link: reference/packages#the-parts
 sso.oidc.redirect_paths:
-  label: Redirect paths
+  label: OIDC callback paths
   help: Where the sign-in page may send people back to on that address, exactly as the app's OIDC settings say (its callback path).
   example: /auth/login
   link: reference/packages#the-parts
 sso.oidc.redirect_uris:
-  label: Phone app addresses
+  label: OIDC phone app addresses
   help: The app's phone apps' own callback addresses, if they sign in through the lab too. Never http or https, which could be anyone's site.
   example: app.immich:///oauth-callback
   link: reference/packages#the-parts
 sso.forward_auth.route:
-  label: Route
+  label: Sign-in wall, in front of the address
   help: The route that goes behind the wall. Its containers may read who someone is from the Remote-User, Remote-Email, Remote-Name and Remote-Groups headers; Roostack removes any a visitor sends.
   example: web
+  link: reference/packages#the-parts
+sso.forward_auth.bypass_paths:
+  label: Paths outside the wall
+  help: Addresses that stay reachable without signing in to the lab, each with why that's safe, such as an API the phone apps use with the app's own tokens, or share links.
   link: reference/packages#the-parts
 sso.forward_auth.bypass_paths[].path:
   label: Path

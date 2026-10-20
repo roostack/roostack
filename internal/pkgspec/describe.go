@@ -87,8 +87,12 @@ func Describe() Description {
 			"roostack":       roostackVersionRe.String(),
 			"memory":         memoryRe.String(),
 			"quadletKey":     quadlet.KeyPattern,
+			// Single sign-on's (sso.go).
+			"ssoRedirectPath": redirectPathRe.String(),
+			"ssoAppScheme":    appSchemeRe.String(),
 		},
 		Lists: map[string][]string{
+			"ssoClientSecret":    {SSOClientSecret},
 			"settingTypes":       {SettingBool, SettingString, SettingInt, SettingSecret},
 			"classes":            {ClassCritical, ClassReplaceable},
 			"locations":          {LocationService, LocationMedia},

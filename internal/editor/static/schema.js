@@ -687,6 +687,8 @@
   "roostack": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\.(0|[1-9][0-9]*))?$",
   "settingKey": "^[a-z][a-z0-9_]{0,62}$",
   "spdxID": "^[A-Za-z0-9][A-Za-z0-9.-]*\\+?$",
+  "ssoAppScheme": "^[a-z][a-z0-9+.-]*:/[^\\s]*$",
+  "ssoRedirectPath": "^(/[A-Za-z0-9._:~-]*)+$",
   "subdomain": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
   "version": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
  },
@@ -741,6 +743,9 @@
    "string",
    "int",
    "secret"
+  ],
+  "ssoClientSecret": [
+   "sso.client_secret"
   ]
  },
  "categories": [
@@ -1750,6 +1755,11 @@
    "help": "Environment variables added to the named containers only while single sign-on is on (container, then variable), replacing their own value of the same name. Templates have .SSO, such as {{ .SSO.DiscoveryURL }} and {{ .SSO.ClientID }}.",
    "link": "reference/packages#the-parts"
   },
+  "sso.forward_auth.bypass_paths": {
+   "label": "Paths outside the wall",
+   "help": "Addresses that stay reachable without signing in to the lab, each with why that's safe, such as an API the phone apps use with the app's own tokens, or share links.",
+   "link": "reference/packages#the-parts"
+  },
   "sso.forward_auth.bypass_paths[].path": {
    "label": "Path",
    "help": "A path that stays outside the wall, such as an API the phone apps use with the app's own tokens. Plain, starting with /, with letters, digits and - _ . : between the slashes, and no * or trailing /.",
@@ -1763,7 +1773,7 @@
    "link": "reference/packages#the-parts"
   },
   "sso.forward_auth.route": {
-   "label": "Route",
+   "label": "Sign-in wall, in front of the address",
    "help": "The route that goes behind the wall. Its containers may read who someone is from the Remote-User, Remote-Email, Remote-Name and Remote-Groups headers; Roostack removes any a visitor sends.",
    "example": "web",
    "link": "reference/packages#the-parts"
@@ -1775,19 +1785,19 @@
    "link": "reference/packages#the-parts"
   },
   "sso.oidc.redirect_paths": {
-   "label": "Redirect paths",
+   "label": "OIDC callback paths",
    "help": "Where the sign-in page may send people back to on that address, exactly as the app's OIDC settings say (its callback path).",
    "example": "/auth/login",
    "link": "reference/packages#the-parts"
   },
   "sso.oidc.redirect_uris": {
-   "label": "Phone app addresses",
+   "label": "OIDC phone app addresses",
    "help": "The app's phone apps' own callback addresses, if they sign in through the lab too. Never http or https, which could be anyone's site.",
    "example": "app.immich:///oauth-callback",
    "link": "reference/packages#the-parts"
   },
   "sso.oidc.route": {
-   "label": "Route",
+   "label": "OIDC, on the address",
    "help": "The route whose address the redirect paths are on.",
    "example": "web",
    "link": "reference/packages#the-parts"
