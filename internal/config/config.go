@@ -73,6 +73,9 @@ type Paths struct {
 const (
 	LibraryRoot  = "/mnt/roostack-library"
 	LibraryViews = "/mnt/roostack-library-views"
+	// ImportRoot holds a folder per service being brought data, where
+	// the person's copy is mounted read-only (SPEC.md §8.4).
+	ImportRoot = "/mnt/roostack-import"
 )
 
 // LibraryView is a service's folder of the media libraries it may read.

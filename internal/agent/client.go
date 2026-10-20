@@ -238,6 +238,22 @@ func (c *Client) MountLibrary(ctx context.Context, l Library) error {
 	return c.call(ctx, http.MethodPut, "/v1/libraries/"+url.PathEscape(l.Name), l, nil)
 }
 
+// MountImport mounts the place to bring data into a service from,
+// read-only (a share's password goes to the agent, which keeps it root's
+// only), and says where (SPEC.md §8.4).
+func (c *Client) MountImport(ctx context.Context, service string, l Library) (string, error) {
+	var out struct {
+		Path string `json:"path"`
+	}
+	err := c.call(ctx, http.MethodPut, "/v1/imports/"+url.PathEscape(service), l, &out)
+	return out.Path, err
+}
+
+// UnmountImport unmounts the place to bring data into a service from.
+func (c *Client) UnmountImport(ctx context.Context, service string) error {
+	return c.call(ctx, http.MethodDelete, "/v1/imports/"+url.PathEscape(service), nil, nil)
+}
+
 // UnmountLibrary unmounts a media library and forgets it.
 func (c *Client) UnmountLibrary(ctx context.Context, name string) error {
 	return c.call(ctx, http.MethodDelete, "/v1/libraries/"+url.PathEscape(name), nil, nil)

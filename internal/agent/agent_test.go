@@ -82,6 +82,11 @@ func (f *fakeHost) SetLibraryViews(service string, libs []string, at map[string]
 	}
 	return nil
 }
+func (f *fakeHost) MountImport(service string, l Library) (string, error) {
+	f.library = &l
+	return "/mnt/roostack-import/" + service, nil
+}
+func (f *fakeHost) UnmountImport(service string) error { f.unmounted = "import " + service; return nil }
 func (f *fakeHost) CheckShare(s Share) (FolderList, error) {
 	return FolderList{Folders: []FolderEntry{{Name: s.Path}}}, nil
 }

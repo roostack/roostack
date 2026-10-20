@@ -160,8 +160,30 @@ func (h LinuxHost) MountLibrary(l Library) error {
 	if !ValidLibraryName(l.Name) {
 		return fmt.Errorf("%q can't name a library: lower-case letters, digits and -", printable(l.Name))
 	}
+	return h.mountAt(l, librarySpot(l.Name))
+}
+
+// mountSpot is where a read-only mount of a folder or share goes, and how
+// fstab marks it: a media library's, or the place to bring data in from
+// (import.go). A spot has one line in fstab, under one of its tags.
+type mountSpot struct {
+	target              string
+	folderTag, shareTag string
+	// login is a share's login file.
+	login string
+}
+
+// librarySpot is a media library's spot.
+func librarySpot(name string) mountSpot {
+	return mountSpot{target: filepath.Join(LibraryRoot, name), folderTag: libraryTag(name), shareTag: shareTag(name),
+		login: shareLoginFile(name)}
+}
+
+// mountAt mounts a library's place (a folder on a drive or the server, or
+// a share) read-only at a spot, for good (fstab), replacing what was there.
+func (h LinuxHost) mountAt(l Library, spot mountSpot) error {
 	if l.Share != nil {
-		return h.mountShare(l)
+		return h.mountShare(l, spot)
 	}
 	base, sub, err := h.libraryBase(l, false)
 	if err != nil {
@@ -187,10 +209,10 @@ func (h LinuxHost) MountLibrary(l Library) error {
 		}
 		idmap = fmt.Sprintf("u:%d:%d:1 g:%d:%d:1", l.AsOwner.UID, h.UID, l.AsOwner.GID, h.GID)
 	}
-	if err := os.MkdirAll(LibraryRoot, 0o755); err != nil {
+	target := spot.target
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return err
 	}
-	target := filepath.Join(LibraryRoot, l.Name)
 	if err := os.Mkdir(target, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
 		return err
 	}
@@ -211,7 +233,7 @@ func (h LinuxHost) MountLibrary(l Library) error {
 	}
 	automount := strings.TrimSuffix(unit, ".mount") + ".automount"
 	exec.Command("systemctl", "stop", automount, unit).Run() // replacing one, or a stale mount
-	tab := withBlock(removeBlock(string(data), libraryTag(l.Name)), libraryTag(l.Name), line)
+	tab := withBlock(removeBlock(removeBlock(string(data), spot.folderTag), spot.shareTag), spot.folderTag, line)
 	if err := os.WriteFile(fstab, []byte(tab), 0o644); err != nil {
 		return err
 	}
@@ -256,7 +278,18 @@ func (h LinuxHost) UnmountLibrary(name string) error {
 			os.Remove(filepath.Join(LibraryViews, v.service+".at", v.name))
 		}
 	}
-	// Media drives no library mounts from any more.
+	tab = pruneMediaDrives(tab)
+	if err := os.WriteFile(fstab, []byte(tab), 0o644); err != nil {
+		return err
+	}
+	exec.Command("systemctl", "daemon-reload").Run()
+	os.Remove(target)
+	return nil
+}
+
+// pruneMediaDrives unmounts and forgets the media drives nothing mounts
+// from any more (no library, nor a place to bring data in from).
+func pruneMediaDrives(tab string) string {
 	for _, mp := range mediaDriveMounts(tab) {
 		if !strings.Contains(tab, "x-systemd.requires-mounts-for="+fstabEscape(mp)) {
 			tab = removeMediaDrive(tab, mp)
@@ -266,12 +299,7 @@ func (h LinuxHost) UnmountLibrary(name string) error {
 			os.Remove(mp)
 		}
 	}
-	if err := os.WriteFile(fstab, []byte(tab), 0o644); err != nil {
-		return err
-	}
-	exec.Command("systemctl", "daemon-reload").Run()
-	os.Remove(target)
-	return nil
+	return tab
 }
 
 // Libraries lists the libraries in fstab: mounted or not, connected or not.

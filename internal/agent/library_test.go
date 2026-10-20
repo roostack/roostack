@@ -66,6 +66,13 @@ func TestLibraryFstab(t *testing.T) {
 	if v, e := viewEntries(tab), libraryEntries(tab); len(v) != 1 || len(e) != 1 {
 		t.Errorf("the second view's entry read as a view %+v or library %+v", v, e)
 	}
+	// Nor is a place to bring data in from, though its drive is kept.
+	line, _ = libraryLine("/mnt/roostack-media-data/immich", "/mnt/roostack-import/immich", "/mnt/roostack-media-data", "")
+	tab = withBlock(tab, importTag("immich"), line)
+	if v, e, a := viewEntries(tab), libraryEntries(tab), atEntries(tab); len(v) != 1 || len(e) != 1 || len(a) != 1 {
+		t.Errorf("an import read as a view %+v, library %+v or second view %+v", v, e, a)
+	}
+	tab = removeBlock(tab, importTag("immich"))
 	tab = removeBlock(tab, atTag("plex", "films", "movies"))
 	tab = removeBlock(tab, viewTag("plex", "films"))
 	tab = removeBlock(tab, libraryTag("films"))
@@ -212,6 +219,14 @@ func TestLibraryAPI(t *testing.T) {
 	}
 	if err := c.UnmountLibrary(t.Context(), "films"); err != nil || host.unmounted != "films" {
 		t.Errorf("unmount %q %v", host.unmounted, err)
+	}
+	// The place to bring a service's data in from (SPEC.md §8.4).
+	if path, err := c.MountImport(t.Context(), "immich", Library{Drive: "1111-2222", Sub: "immich"}); err != nil ||
+		path != "/mnt/roostack-import/immich" || host.library.Sub != "immich" {
+		t.Errorf("import mounted at %q: %+v %v", path, host.library, err)
+	}
+	if err := c.UnmountImport(t.Context(), "immich"); err != nil || host.unmounted != "import immich" {
+		t.Errorf("import unmounted %q %v", host.unmounted, err)
 	}
 }
 

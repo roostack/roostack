@@ -182,12 +182,9 @@ func writeLogin(path string, s Share) error {
 
 // mountShare mounts a share library for good: its line in fstab, at the
 // library's mount point, automounted.
-func (h LinuxHost) mountShare(l Library) error {
+func (h LinuxHost) mountShare(l Library, spot mountSpot) error {
 	if h.UID == 0 {
 		return errors.New("the roostack user isn't known")
-	}
-	if !ValidLibraryName(l.Name) {
-		return fmt.Errorf("%q can't name a library", printable(l.Name))
 	}
 	s := *l.Share
 	s.Password = "" // the login is in its file
@@ -196,15 +193,15 @@ func (h LinuxHost) mountShare(l Library) error {
 	}
 	login := ""
 	if s.Type == "smb" && s.Username != "" {
-		login = shareLoginFile(l.Name)
+		login = spot.login
 		if _, err := os.Stat(login); err != nil {
 			return errors.New("the share's login isn't on this server: add the library again")
 		}
 	}
-	if err := os.MkdirAll(LibraryRoot, 0o755); err != nil {
+	target := spot.target
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return err
 	}
-	target := filepath.Join(LibraryRoot, l.Name)
 	if err := os.Mkdir(target, 0o755); err != nil && !errors.Is(err, os.ErrExist) {
 		return err
 	}
@@ -223,8 +220,8 @@ func (h LinuxHost) mountShare(l Library) error {
 	}
 	automount := strings.TrimSuffix(unit, ".mount") + ".automount"
 	exec.Command("systemctl", "stop", automount, unit).Run()
-	tab := removeBlock(removeBlock(string(data), libraryTag(l.Name)), shareTag(l.Name))
-	tab = withBlock(tab, shareTag(l.Name), line)
+	tab := removeBlock(removeBlock(string(data), spot.folderTag), spot.shareTag)
+	tab = withBlock(tab, spot.shareTag, line)
 	if err := os.WriteFile(fstab, []byte(tab), 0o644); err != nil {
 		return err
 	}

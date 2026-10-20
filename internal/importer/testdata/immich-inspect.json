@@ -1,0 +1,48 @@
+[
+    {
+        "Id": "5f1c9e0b7a3d0000000000000000000000000000000000000000000000000001",
+        "Name": "/immich_server",
+        "State": { "Status": "running", "Running": true },
+        "HostConfig": { "Binds": ["/opt/immich/library:/data:rw", "/etc/localtime:/etc/localtime:ro"], "NetworkMode": "immich_default", "Runtime": "runc", "DeviceRequests": null },
+        "Mounts": [
+            { "Type": "bind", "Source": "/opt/immich/library", "Destination": "/data", "Mode": "rw", "RW": true, "Propagation": "rprivate" },
+            { "Type": "bind", "Source": "/etc/localtime", "Destination": "/etc/localtime", "Mode": "ro", "RW": false, "Propagation": "rprivate" }
+        ],
+        "Config": {
+            "Hostname": "5f1c9e0b7a3d",
+            "Env": ["DB_PASSWORD=postgres", "DB_USERNAME=postgres", "DB_DATABASE_NAME=immich", "IMMICH_LOG_LEVEL=verbose", "UPLOAD_LOCATION=./library",
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "NODE_ENV=production"],
+            "Image": "ghcr.io/immich-app/immich-server:v2.1.0",
+            "Labels": { "com.docker.compose.project": "immich", "com.docker.compose.service": "immich-server" }
+        }
+    },
+    {
+        "Id": "5f1c9e0b7a3d0000000000000000000000000000000000000000000000000002",
+        "Name": "/immich_machine_learning",
+        "HostConfig": { "Runtime": "runc" },
+        "Mounts": [
+            { "Type": "volume", "Name": "immich_model-cache", "Source": "/var/lib/docker/volumes/immich_model-cache/_data", "Destination": "/cache", "Driver": "local", "RW": true }
+        ],
+        "Config": { "Env": ["PATH=/opt/venv/bin:/usr/bin"], "Image": "ghcr.io/immich-app/immich-machine-learning:v2.1.0",
+            "Labels": { "com.docker.compose.project": "immich", "com.docker.compose.service": "immich-machine-learning" } }
+    },
+    {
+        "Id": "5f1c9e0b7a3d0000000000000000000000000000000000000000000000000003",
+        "Name": "/immich_postgres",
+        "HostConfig": { "Runtime": "runc" },
+        "Mounts": [
+            { "Type": "bind", "Source": "/opt/immich/postgres", "Destination": "/var/lib/postgresql/data", "RW": true }
+        ],
+        "Config": { "Env": ["POSTGRES_PASSWORD=postgres", "POSTGRES_USER=postgres", "POSTGRES_DB=immich"],
+            "Image": "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23",
+            "Labels": { "com.docker.compose.project": "immich", "com.docker.compose.service": "database" } }
+    },
+    {
+        "Id": "5f1c9e0b7a3d0000000000000000000000000000000000000000000000000004",
+        "Name": "/immich_redis",
+        "HostConfig": { "Runtime": "runc" },
+        "Mounts": [],
+        "Config": { "Env": [], "Image": "docker.io/valkey/valkey:8-bookworm",
+            "Labels": { "com.docker.compose.project": "immich", "com.docker.compose.service": "redis" } }
+    }
+]

@@ -98,6 +98,10 @@ type Host interface {
 	// keeps an SMB login for a library, root's only (shares.go).
 	CheckShare(s Share) (FolderList, error)
 	SaveShareLogin(name string, s Share) error
+	// MountImport mounts the place to bring a service's data in from,
+	// read-only, returning where; UnmountImport forgets it (import.go).
+	MountImport(service string, l Library) (string, error)
+	UnmountImport(service string) error
 	// RemoveWireGuard takes an interface down and deletes its
 	// configuration (e.g. the server left its lab).
 	RemoveWireGuard(iface string) error
@@ -347,6 +351,27 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		s.Log.Info("share login saved", "library", r.PathValue("name"), "server", sh.Server) // never the password
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})
+	// Bringing data into a service (SPEC.md §8.4).
+	mux.HandleFunc("PUT /v1/imports/{service}", func(w http.ResponseWriter, r *http.Request) {
+		var l Library
+		if !decode(w, r, 8<<10, &l) {
+			return
+		}
+		path, err := s.Host.MountImport(r.PathValue("service"), l)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		s.Log.Info("mounted a place to bring data in from", "service", r.PathValue("service"), "at", path) // never a password
+		writeJSON(w, http.StatusOK, map[string]string{"path": path})
+	})
+	mux.HandleFunc("DELETE /v1/imports/{service}", func(w http.ResponseWriter, r *http.Request) {
+		if err := s.Host.UnmountImport(r.PathValue("service")); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})
 	mux.HandleFunc("DELETE /v1/library-views/{service}", func(w http.ResponseWriter, r *http.Request) {

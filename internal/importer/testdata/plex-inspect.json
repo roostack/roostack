@@ -1,0 +1,15 @@
+[
+    {
+        "Name": "/plex",
+        "HostConfig": { "NetworkMode": "host", "Runtime": "nvidia",
+            "DeviceRequests": [{ "Driver": "nvidia", "Count": -1, "Capabilities": [["gpu"]] }] },
+        "Mounts": [
+            { "Type": "bind", "Source": "/opt/plex/config", "Destination": "/config", "RW": true },
+            { "Type": "bind", "Source": "/opt/plex/transcode", "Destination": "/transcode", "RW": true },
+            { "Type": "bind", "Source": "/mnt/media/films", "Destination": "/movies", "RW": false },
+            { "Type": "bind", "Source": "/mnt/nas/tv", "Destination": "/tv", "RW": false }
+        ],
+        "Config": { "Env": ["PLEX_UID=1000", "PLEX_GID=1000", "PLEX_CLAIM=claim-xyz", "TZ=Europe/London"],
+            "Image": "plexinc/pms-docker:1.43.4.10903-e5521bd8c" }
+    }
+]

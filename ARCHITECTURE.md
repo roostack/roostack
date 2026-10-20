@@ -68,7 +68,8 @@ The reconciler only touches files it owns (`roostack-*` Quadlets and `*.caddy` s
 | `internal/pkgtest` | For tests: finds the package fixtures in `internal/testdata/packages` and copies them into a catalog |
 | `internal/systemd` | `systemctl --user` wrapper |
 | `internal/podman` | The few direct `podman` calls (secrets, `exec` for package hooks) |
-| `internal/agent` | Agent server and client: firewall ruleset, time zone, OS updates, reboot, WireGuard interfaces, backup drives and folders, SSH's keys-only drop-in and key logins (`ssh.go`), and checks for host changes Roostack didn't make |
+| `internal/agent` | Agent server and client: firewall ruleset, time zone, OS updates, reboot, WireGuard interfaces, backup drives and folders, media libraries and services' views of them, the read-only place to bring a service's data in from (`import.go`, `/mnt/roostack-import/<service>`), SSH's keys-only drop-in and key logins (`ssh.go`), and checks for host changes Roostack didn't make |
+| `internal/importer` | Bringing your own data into a service (SPEC.md §8.4), without state: reading an old setup (`docker inspect`; the Compose file is read in the browser), matching its folders to the package's storage by container path (`Match`, `GuessPrefixes`), the check's rules (dumps, images, settings, old paths in the data) and the copy (`Scan`, `Copy`: only what changed, links as links, nothing written outside through `os.Root`) |
 | `internal/web/static/css`, `docs/DESIGN.md` | Design system: tokens, built-in themes, components; gallery at `/design` and `docs/design/gallery.html` |
 | `internal/nodeid` | This server's identity (node ID and name) |
 | `authkit` | Passwords (argon2id), tokens and two-factor codes (TOTP), public so Roostack Cloud's repository uses the same code; Cloud also turns on a pepper and sealed two-factor secrets. Fuzz-tested (the inputs fuzzing found are kept in `testdata/fuzz`) |

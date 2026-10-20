@@ -1,0 +1,84 @@
+# Plex Media Server: one container; it plays the media libraries chosen for
+# it. Closed source, from Plex's own image (the Owner's choice, 2026-10-18:
+# it's made for running yourself). Image digest looked up 2026-10-19.
+schema: roostack/v1alpha1
+name: plex
+title: Plex
+description: Plays your films, TV and music on your TV, phone and computer, with Plex's apps, from your own media libraries
+version: 1.43.4.10903-roostack.1
+
+about:
+  maker: Plex, Inc.
+  website: https://www.plex.tv
+  licence: closed
+  # A placeholder, not Plex's logo: Plex's brand terms ask for permission.
+  # Replace before go-live (Roostack's TASKS).
+  icon: icon.png
+  categories: [media]
+  keywords: [films, tv, music, streaming, media server]
+requires:
+  roostack: "0.1"
+
+settings:
+  - key: claim_token
+    title: Claim code (optional)
+    description: >-
+      From plex.tv/claim, signed in to your Plex account: it links this server
+      to your account as it first starts, and works once, for 4 minutes.
+      Without it, open Plex from your home network and sign in to claim it.
+    type: string
+    default: ""
+  - key: hardware_acceleration
+    title: Use the GPU for video transcoding
+    description: Hardware transcoding also needs Plex Pass, turned on in Plex's settings.
+    type: bool
+    default: auto                # on if Roostack detects a supported GPU
+
+containers:
+  app:
+    # The image starts as the container's root and runs Plex as its plex
+    # user, here uid 0 too (PLEX_UID): Roostack's own user on the host, so
+    # Plex can read a media library read as its owner.
+    image: docker.io/plexinc/pms-docker:1.43.4.10903-e5521bd8c@sha256:e0ab27395614a8e1a4fdf84c6bc60ac664915cfdde70c52d030c7728a1c48e14
+    env:
+      PLEX_UID: "0"
+      PLEX_GID: "0"
+      PLEX_CLAIM: "{{ .Settings.claim_token }}"   # once and short-lived: ignored once claimed
+      ADVERTISE_IP: "{{ .Routes.web.URL }}"
+      TZ: "{{ .Lab.TimeZone }}"
+    mounts:
+      - { storage: config,    path: /config }
+      - { storage: transcode, path: /transcode }
+      # The media libraries chosen for it, read-only: add them in Plex as
+      # its libraries, from /media/<library>.
+      - { libraries: true, path: /media }
+    devices:
+      - gpu: intel
+        when: "{{ .Settings.hardware_acceleration }}"
+    health:
+      http: { port: 32400, path: /identity }
+    memory: 300 MB               # 92 MB idle, 213 MB on first start, measured 2026-10-19; more while transcoding
+    quadlet:
+      Container:
+        HostName: plex           # the server's name in Plex's apps, until renamed there
+
+storage:
+  config:
+    title: Plex's database, settings and artwork
+    class: critical              # can grow to several GB with a large collection
+  transcode:
+    title: Video being transcoded
+    class: replaceable
+
+routes:
+  web:
+    container: app
+    port: 32400
+    subdomain: plex
+    exposure: private
+    max_body_size: 100MB
+    public:
+      # People sign in at plex.tv; /myplex is where the server itself is
+      # claimed and signed in to an account.
+      login_paths:
+        - /myplex
