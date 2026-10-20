@@ -1,0 +1,192 @@
+<!doctype html><html data-states="on:On,off:Off,turning:Turning on" data-page="mealie" lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mealie · Roostack (mock-up)</title>
+  <link rel="icon" href="../../../internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../../internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/ocean.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/catppuccin.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/gruvbox.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/nord.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/solarized.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/everforest.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/rose-pine.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/tokyo-night.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/app.css">
+  <link rel="stylesheet" href="mock.css">
+</head>
+<body x-data="{ menu: false }">
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="#"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="sidebar-lab-name"><span>Roostack</span><strong title="Smiths' lab">Smiths' lab</strong></span></a>
+      <div class="sidebar-nav">
+      <nav class="nav-group" aria-label="Your lab">
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></svg>Home</a>
+        <a class="nav-item" href="#" aria-current="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Services</a>
+        <div class="nav-children"><a class="nav-sub" href="#"><img class="nav-logo" src="immich.png" alt="" width="16" height="16" loading="lazy">Immich</a><a class="nav-sub" href="service.html" aria-current="page"><img class="nav-logo" src="mealie.png" alt="" width="16" height="16" loading="lazy">Mealie</a><a class="nav-sub" href="wall.html"><img class="nav-logo" src="stirling-pdf.png" alt="" width="16" height="16" loading="lazy">Stirling-PDF</a><a class="nav-sub" href="#"><img class="nav-logo" src="vaultwarden.png" alt="" width="16" height="16" loading="lazy">Vaultwarden</a><a class="nav-sub" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add a service…</a></div>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>Backups</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Servers</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Monitoring</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</a>
+      </nav>
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools">
+          <a href="#" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg>Help<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+          <form method="post" action="/account/theme" id="theme-toggle">
+  <input type="hidden" name="theme" value="light">
+  <button type="submit" class="theme-toggle" title="Switch to light theme"
+    aria-label="Theme: auto. Switch to light."><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>Auto</button>
+</form>
+        </div>
+        <div class="who">
+          <a href="#" class="who-link"><span class="avatar" aria-hidden="true">S</span>
+            <span class="who-name"><strong title="sam">sam</strong><span>Owner</span></span></a>
+          <form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></svg><span class="sr-only">Log out</span></button></form>
+        </div>
+      </div>
+    </aside>
+    <div class="main">
+      <header class="page-header">
+        <button type="button" class="menu-button" onclick="document.body.classList.toggle('menu-open')" aria-controls="sidebar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr-only">Menu</span></button>
+        <nav class="crumbs" aria-label="Where you are"><a href="#">Services</a><strong aria-current="page">Mealie</strong></nav>
+        <a class="page-help" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg><span class="sr-only">Help: </span>Change a service</a>
+      </header>
+      <main class="page">
+<div class="views">
+<div class="page-head">
+  <div class="page-head-title">
+    <span class="logo-tile"><img class="x" src="mealie.png" alt="" width="40" height="40" loading="lazy"></span>
+    <div>
+      <div class="title-line"><h1>Mealie</h1><span class="status status-running">Running</span></div>
+      <p class="lede">3.29.0 · Your recipes, meal plans and shopping lists, with recipes imported from any website</p>
+    </div>
+  </div>
+  <div class="page-head-actions">
+    <label class="view-switch"><input type="checkbox"><span>Friendly</span><span>Technical</span><span class="sr-only"> view</span></label>
+    <a class="button" href="#">Open Mealie<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+  </div>
+</div>
+<div class="grid friendly-only">
+  <div class="span-8 grid-column">
+  <section class="card">
+    <div class="card-head"><h2>How to reach it</h2></div>
+    <dl class="facts">
+      <dt>Address</dt><dd><a href="#">https://recipes.smiths.roost.ac</a></dd>
+      <dt>Reachable from</dt><dd>Devices at home, and on your VPN · <a href="#">Make public…</a></dd>
+      <dt>Runs on</dt><dd>nuc</dd>
+      <dt>Version</dt><dd>3.29.0, up to date · <a href="#">updates automatically</a></dd>
+    </dl>
+  </section>
+  <section class="card" id="sso">
+    <div class="card-head"><h2>Single sign-on</h2>
+      <span class="status status-running" data-state="on">On</span><span class="status status-off" data-state="off" hidden>Off</span><span class="status status-installing" data-state="turning" hidden>Turning on</span></div>
+
+    <div data-state="on">
+      <p>People sign in to Mealie with their Smiths' lab account, on the lab's sign-in page. Mealie makes their account in Mealie the first time
+        they sign in, or finds it by their email address.</p>
+      <dl class="facts">
+        <dt>Who can sign in</dt><dd>Family <small class="hint">(5 people)</small></dd>
+        <dt>Admins in Mealie</dt><dd>The lab's Owners and Admins: sam and robin</dd>
+        <dt>Sign-in page</dt><dd><a href="signin.html">login.smiths.roost.ac</a> <small class="hint">· from home and your VPN, like Mealie</small></dd>
+        <dt>Still its own password</dt><dd>Mealie's API tokens, for Home Assistant and phone shortcuts. Make them in Mealie.</dd>
+      </dl>
+      <details class="sso-change">
+        <summary>Change who can sign in</summary>
+        
+      <form class="sso-who" onsubmit="event.preventDefault()">
+        <fieldset>
+          <legend>Who can sign in to Mealie</legend>
+          <label class="check"><input type="radio" name="who-on" value="all" id="who-on-all">
+            <span>Everyone in the lab<small>All 6 people, and anyone you add later.</small></span></label>
+          <label class="check"><input type="radio" name="who-on" value="chosen" id="who-on-chosen" checked>
+            <span>Chosen groups and people</span></label>
+          <div class="sso-choose">
+            <label class="check"><input type="checkbox" id="who-on-family" checked><span>Family<small>sam, robin, mum, dad, ella</small></span></label>
+            <label class="check"><input type="checkbox" id="who-on-friends"><span>Friends<small>jo</small></span></label>
+            <p class="hint">Or people one by one: <a href="#">choose people…</a></p>
+          </div>
+        </fieldset>
+        <button type="submit" class="secondary">Save</button>
+      </form>
+      </details>
+      <details class="technical">
+        <summary>Details</summary>
+        <dl class="facts">
+          <dt>Client ID</dt><dd><code>mealie</code></dd>
+          <dt>Goes back to</dt><dd><code>https://recipes.smiths.roost.ac/login</code></dd>
+          <dt>Provider</dt><dd><code>https://login.smiths.roost.ac</code></dd>
+          <dt>Given to Mealie</dt><dd><code>OIDC_AUTH_ENABLED=true</code><br><code>OIDC_CONFIGURATION_URL=https://login.smiths.roost.ac/.well-known/openid-configuration</code><br>
+            <code>OIDC_CLIENT_ID=mealie</code><br><code>OIDC_PROVIDER_NAME=Smiths' lab</code><br><code>OIDC_USER_GROUP=users</code> · <code>OIDC_ADMIN_GROUP=admins</code><br>
+            <code>OIDC_CLIENT_SECRET</code> <small class="hint">from the Podman secret <code>roostack-mealie-sso_client_secret</code></small></dd>
+          <dt>Last change</dt><dd>Turned on by sam, 20 October at 14:02 · <a href="#">History</a></dd>
+        </dl>
+      </details>
+      <div class="sso-off">
+        <button type="button" class="quiet danger" onclick="location.search='?s=off'">Turn off single sign-on…</button>
+      </div>
+    </div>
+
+    <div data-state="off" hidden>
+      <p>Let people sign in to Mealie with their Smiths' lab account, instead of a password of Mealie's own.</p>
+      <ul class="plain sso-steps">
+        <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><path d="M12 15v2"/></svg>Roostack registers Mealie with the lab's sign-in page, and gives Mealie its settings and a secret.</li>
+        <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.5-4.5L3 9"/><path d="M3 4v5h5"/><path d="M4 13a8 8 0 0 0 14.5 4.5L21 15"/><path d="M21 20v-5h-5"/></svg>Mealie restarts, which takes a few seconds.</li>
+        <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c2.8 0 5 2.2 5 5"/></svg>Your own account in Mealie is found by its email (sam@smith.family), so you keep your recipes.</li>
+      </ul>
+      
+      <form class="sso-who" onsubmit="event.preventDefault()">
+        <fieldset>
+          <legend>Who can sign in to Mealie</legend>
+          <label class="check"><input type="radio" name="who-off" value="all" id="who-off-all" checked>
+            <span>Everyone in the lab<small>All 6 people, and anyone you add later.</small></span></label>
+          <label class="check"><input type="radio" name="who-off" value="chosen" id="who-off-chosen">
+            <span>Chosen groups and people</span></label>
+          <div class="sso-choose">
+            <label class="check"><input type="checkbox" id="who-off-family" checked><span>Family<small>sam, robin, mum, dad, ella</small></span></label>
+            <label class="check"><input type="checkbox" id="who-off-friends"><span>Friends<small>jo</small></span></label>
+            <p class="hint">Or people one by one: <a href="#">choose people…</a></p>
+          </div>
+        </fieldset>
+        <button type="submit" class="secondary">Save</button>
+      </form>
+      <p><button type="button" onclick="location.search='?s=turning'">Turn on single sign-on</button></p>
+    </div>
+
+    <div data-state="turning" hidden>
+      <p class="activity-line"><strong>Single sign-on: Restarting Mealie…</strong></p>
+      <ol class="steps sso-progress">
+        <li class="done">Registered Mealie with the sign-in page</li>
+        <li class="done">Gave Mealie its settings and secret</li>
+        <li class="now">Restarting Mealie</li>
+        <li>Checking Mealie answers the sign-in page</li>
+      </ol>
+      <details class="activity-details"><summary>Details</summary>
+        <pre class="output">14:02:11 Client mealie: redirect https://recipes.smiths.roost.ac/login
+14:02:11 Secret roostack-mealie-sso_client_secret made
+14:02:12 Applying: roostack-mealie-app.container changed (6 lines)
+14:02:13 systemctl --user restart roostack-mealie-app</pre></details>
+    </div>
+  </section>
+
+  </div>
+  <div class="span-4 grid-column">
+    <section class="card">
+      <div class="card-head"><h2>Backups</h2><a class="more" href="#">Backups</a></div>
+      <span class="big-figure">02:14<small>today</small></span>
+      <p class="hint">Its server's last backup, with everything Mealie keeps.</p>
+    </section>
+    <p><a class="danger-link" href="#">Remove Mealie…</a></p>
+  </div>
+</div>
+</div>
+      </main>
+      <footer class="site">Roostack <span class="version">0.9.0</span> · <a href="#">About</a> · <a href="#">Design system</a></footer>
+    </div>
+  </div>
+  <script src="mock.js"></script>
+</body>
+</html>

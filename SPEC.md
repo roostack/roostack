@@ -131,9 +131,9 @@ A single coordinator in `roostack` sequences every disruptive operation (backups
 - **Desired state:** readable YAML files in `/var/lib/roostack/` (Principles 2 and 4).
 - **Runtime data** (users, sessions, audit log, job history): a **SQLite** database in `/var/lib/roostack/`. A single file, no server, easy to back up. The backup prepare step must take a consistent copy (SQLite online backup / `VACUUM INTO`), not a raw copy of the file.
 
-### 5.2 Single sign-on for services — Proposal (2026-10-20), for the Owner to decide
+### 5.2 Single sign-on for services — Proposal (2026-10-20); who signs people in Locked (2026-10-20)
 
-One sign-in for the apps a lab runs, managed from Roostack. Nothing here is decided: each part ends with the choice it needs. The research behind it (every identity provider worth a look, and how each registry package can take single sign-on) is in [docs/SSO-RESEARCH.md](docs/SSO-RESEARCH.md).
+One sign-in for the apps a lab runs, managed from Roostack. **Decided (2026-10-20), the Owner:** Roostack itself is the identity provider, and its OIDC part is written with the standard library. The rest is still a proposal: each part ends with the choice it needs. The research behind it (every identity provider worth a look, and how each registry package can take single sign-on) is in [docs/SSO-RESEARCH.md](docs/SSO-RESEARCH.md).
 
 **What the Owner asked for (2026-10-20):** one login for the lab's apps (Immich, Forgejo, Vaultwarden and so on); signing in to Roostack itself too, optionally; people, groups and who can use each service managed from Roostack; simple enough for an Owner who isn't a sysadmin; opting a service in should be a line in its package and a switch on its page, with Roostack registering the app, placing its secret and setting its addresses; and a sign-in page that looks like the lab's own (a logo, colours and a name, which the Owner can change).
 
@@ -180,9 +180,7 @@ One sign-in for the apps a lab runs, managed from Roostack. Nothing here is deci
    - **Zitadel, Authentik, Keycloak, Logto:** each needs Postgres and 0.5–2 GB.
    - **lldap:** a directory only, with nothing to add while Roostack holds the people.
 
-**To decide:** (a) Roostack itself, or Authelia. (b) If Roostack: write the OIDC part with the standard library (as `awssig` and `authkit` were: about the size of the backup plan's code, nothing new to vet or update), or use `zitadel/oidc` (well used and very active, but about fifteen new modules). Recommended: the standard library, with the conformance suite as the check.
-
-The rest of this section assumes option 1. Most of it (packages, the UI, groups, the look) would be the same with Authelia.
+**Decided (2026-10-20), the Owner:** (a) Roostack itself, as recommended. (b) The OIDC part is written with the standard library, as `awssig` and `authkit` were: about the size of the backup plan's code, with nothing new to vet or update, and the OpenID Foundation's conformance suite as the check. Considered: `zitadel/oidc` (well used and very active, but about fifteen new modules).
 
 #### People, groups and access
 
@@ -293,7 +291,7 @@ sso:
 - **Installing:** a service whose package supports it has single sign-on on by default when the lab has it set up, so new apps start with it.
 - **Settings → People:** groups; each person's services; the Sign-in page (below).
 - **The dashboard** shows each person only the services they can use; Owners and Admins still see every service.
-- **Mock-ups** of these pages come before building, as for any large UI change.
+- **Mock-ups (2026-10-20):** [docs/mockups/sso](docs/mockups/sso/README.md): the sign-in page, Mealie's and Stirling-PDF's cards, and People with groups and the sign-in page's look.
 
 #### The look of the sign-in page
 

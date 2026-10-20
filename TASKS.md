@@ -606,7 +606,7 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 
 ## To discuss with the user
 
-- [ ] Single sign-on for services: the proposal in SPEC §5.2 (2026-10-20; research in docs/SSO-RESEARCH.md). To decide: Roostack itself as the identity provider or Authelia; the OIDC part on the standard library or `zitadel/oidc`; groups in the first version; two-factor on a public sign-in page; how long a sign-in lasts. Then mock-ups, then a first version with Mealie and Stirling-PDF on a VM
+- [ ] Single sign-on for services: the proposal in SPEC §5.2 (2026-10-20; research in docs/SSO-RESEARCH.md). Decided 2026-10-20: Roostack itself is the identity provider, its OIDC part on the standard library. Still to decide: groups in the first version; two-factor on a public sign-in page; how long a sign-in lasts. Mock-ups next (docs/mockups/sso), then a first version with Mealie and Stirling-PDF on a VM
 
 - [x] Licence: Apache-2.0, confirmed 2026-10-18 (SPEC §2.1); `LICENSE` and `NOTICE` added
 - [x] Repository: `github.com/roostack/roostack` (moved from Tyris/roostack by the Owner, 2026-10-18; Cloud's is `roostack/cloud`). The module path `roostack.cloud/roostack` is answered by a go-import page on the website, `roostack.cloud/roostack` (roostack-cloud `site/src/pages/roostack.astro`, and its Worker for each package's path)
