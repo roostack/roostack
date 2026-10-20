@@ -45,6 +45,7 @@
         <a href="#cards">Cards and facts</a>
         <a href="#forms">Forms</a>
         <a href="#choosing">Choosing</a>
+        <a href="#steps">Steps and checks</a>
         <a href="#lists">Lists</a>
         <a href="#space">Disk space</a>
         <a href="#tables">Tables</a>
@@ -1250,7 +1251,9 @@ Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;</pre>
 <span class="status status-failed">Failed</span>
 <span class="status status-stopped">Stopped</span>
 <span class="status status-waiting">Waiting to be restored</span>
-<span class="status status-registry-stop">Stopped by Roostack</span></div>
+<span class="status status-registry-stop">Stopped by Roostack</span>
+<span class="status status-awaiting-data">Waiting for its data</span>
+<span class="status status-switching">Switching</span></div>
             <div class="panel" data-mode="dark"><span class="status status-running">Running</span>
 <span class="status status-installing">Installing</span>
 <span class="status status-updating">Updating</span>
@@ -1258,7 +1261,9 @@ Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;</pre>
 <span class="status status-failed">Failed</span>
 <span class="status status-stopped">Stopped</span>
 <span class="status status-waiting">Waiting to be restored</span>
-<span class="status status-registry-stop">Stopped by Roostack</span></div>
+<span class="status status-registry-stop">Stopped by Roostack</span>
+<span class="status status-awaiting-data">Waiting for its data</span>
+<span class="status status-switching">Switching</span></div>
           </div>
           <details>
             <summary>Markup</summary>
@@ -1271,9 +1276,11 @@ Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;</pre>
 {{status &#34;failed&#34;}}
 {{status &#34;stopped&#34;}}
 {{status &#34;waiting&#34;}}
-{{status &#34;registry-stop&#34;}}</pre>
+{{status &#34;registry-stop&#34;}}
+{{status &#34;awaiting-data&#34;}}
+{{status &#34;switching&#34;}}</pre>
             <p class="markup-label">Renders as</p>
-            <pre class="output">&lt;span class=&#34;status status-running&#34;&gt;Running&lt;/span&gt;&lt;span class=&#34;status status-installing&#34;&gt;Installing&lt;/span&gt;&lt;span class=&#34;status status-updating&#34;&gt;Updating&lt;/span&gt;&lt;span class=&#34;status status-starting&#34;&gt;Starting&lt;/span&gt;&lt;span class=&#34;status status-failed&#34;&gt;Failed&lt;/span&gt;&lt;span class=&#34;status status-stopped&#34;&gt;Stopped&lt;/span&gt;&lt;span class=&#34;status status-waiting&#34;&gt;Waiting to be restored&lt;/span&gt;&lt;span class=&#34;status status-registry-stop&#34;&gt;Stopped by Roostack&lt;/span&gt;</pre>
+            <pre class="output">&lt;span class=&#34;status status-running&#34;&gt;Running&lt;/span&gt;&lt;span class=&#34;status status-installing&#34;&gt;Installing&lt;/span&gt;&lt;span class=&#34;status status-updating&#34;&gt;Updating&lt;/span&gt;&lt;span class=&#34;status status-starting&#34;&gt;Starting&lt;/span&gt;&lt;span class=&#34;status status-failed&#34;&gt;Failed&lt;/span&gt;&lt;span class=&#34;status status-stopped&#34;&gt;Stopped&lt;/span&gt;&lt;span class=&#34;status status-waiting&#34;&gt;Waiting to be restored&lt;/span&gt;&lt;span class=&#34;status status-registry-stop&#34;&gt;Stopped by Roostack&lt;/span&gt;&lt;span class=&#34;status status-awaiting-data&#34;&gt;Waiting for its data&lt;/span&gt;&lt;span class=&#34;status status-switching&#34;&gt;Switching&lt;/span&gt;</pre>
             
           </details>
         </div>
@@ -2200,6 +2207,314 @@ Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;</pre>
     &lt;/ul&gt;
     &lt;p class=&#34;picker-here hint&#34;&gt;MEDIA › Films holds 3 folders, 1 file.&lt;/p&gt;
     &lt;div class=&#34;dialog-actions&#34;&gt;&lt;a class=&#34;button secondary&#34; href=&#34;#&#34; data-cancel&gt;Cancel&lt;/a&gt;&lt;a class=&#34;button&#34; href=&#34;#&#34; data-use&gt;Use Films&lt;/a&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
+      </section>
+      
+      <section id="steps">
+        <h2>Steps and checks</h2>
+        <p class="hint">For work done in steps on one page (bringing a service&#39;s data in, SPEC.md §8.4; the Owner&#39;s choice of mock-ups, docs/mockups/bring-your-own-data): numbered step cards, a check&#39;s results, a path and where it is now, a long copy&#39;s progress, and what to do elsewhere.</p>
+        
+        <div class="example">
+          <h3>Steps of a page <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">section.card.step-card with an h2 holding span.step-num (the step&#39;s number): the step open now. .step-done: a step done, its number a tick, one line (p.step-summary, a small line under it) and a Change link (.more). .step-todo: a step not reached yet, only its heading, muted. .step-result: the last step, done, holding the result. Each step ends with Continue, unless its button acts within it. In .steps-layout, the steps (.steps) go beside .steps-aside and .steps-help, the aside first below 1100 px.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><section class="card step-card step-done">
+  <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your files</h2><a class="more" href="#">Change</a></div>
+  <p class="step-summary">T7 Shield › immich<small>Read-only</small></p>
+</section>
+<section class="card step-card">
+  <div class="card-head"><h2><span class="step-num">2</span>Your old setup <small class="hint">optional</small></h2></div>
+  <p class="hint">What it ran as before tells Roostack which of your folders is which.</p>
+  <div class="actions-row"><button type="button">Continue</button></div>
+</section>
+<section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">3</span>What goes where</h2></div></section></div>
+            <div class="panel" data-mode="dark"><section class="card step-card step-done">
+  <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your files</h2><a class="more" href="#">Change</a></div>
+  <p class="step-summary">T7 Shield › immich<small>Read-only</small></p>
+</section>
+<section class="card step-card">
+  <div class="card-head"><h2><span class="step-num">2</span>Your old setup <small class="hint">optional</small></h2></div>
+  <p class="hint">What it ran as before tells Roostack which of your folders is which.</p>
+  <div class="actions-row"><button type="button">Continue</button></div>
+</section>
+<section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">3</span>What goes where</h2></div></section></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;section class=&#34;card step-card step-done&#34;&gt;
+  &lt;div class=&#34;card-head&#34;&gt;&lt;h2&gt;&lt;span class=&#34;step-num&#34;&gt;{{icon &#34;check&#34;}}&lt;/span&gt;Your files&lt;/h2&gt;&lt;a class=&#34;more&#34; href=&#34;#&#34;&gt;Change&lt;/a&gt;&lt;/div&gt;
+  &lt;p class=&#34;step-summary&#34;&gt;T7 Shield › immich&lt;small&gt;Read-only&lt;/small&gt;&lt;/p&gt;
+&lt;/section&gt;
+&lt;section class=&#34;card step-card&#34;&gt;
+  &lt;div class=&#34;card-head&#34;&gt;&lt;h2&gt;&lt;span class=&#34;step-num&#34;&gt;2&lt;/span&gt;Your old setup &lt;small class=&#34;hint&#34;&gt;optional&lt;/small&gt;&lt;/h2&gt;&lt;/div&gt;
+  &lt;p class=&#34;hint&#34;&gt;What it ran as before tells Roostack which of your folders is which.&lt;/p&gt;
+  &lt;div class=&#34;actions-row&#34;&gt;&lt;button type=&#34;button&#34;&gt;Continue&lt;/button&gt;&lt;/div&gt;
+&lt;/section&gt;
+&lt;section class=&#34;card step-card step-todo&#34;&gt;&lt;div class=&#34;card-head&#34;&gt;&lt;h2&gt;&lt;span class=&#34;step-num&#34;&gt;3&lt;/span&gt;What goes where&lt;/h2&gt;&lt;/div&gt;&lt;/section&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;section class=&#34;card step-card step-done&#34;&gt;
+  &lt;div class=&#34;card-head&#34;&gt;
+    &lt;h2&gt;&lt;span class=&#34;step-num&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;m5 12.5 4.5 4.5L19 7.5&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;Your files&lt;/h2&gt;&lt;a class=&#34;more&#34; href=&#34;#&#34;&gt;Change&lt;/a&gt;
+  &lt;/div&gt;
+  &lt;p class=&#34;step-summary&#34;&gt;T7 Shield › immich&lt;small&gt;Read-only&lt;/small&gt;&lt;/p&gt;
+&lt;/section&gt;
+&lt;section class=&#34;card step-card&#34;&gt;
+  &lt;div class=&#34;card-head&#34;&gt;
+    &lt;h2&gt;&lt;span class=&#34;step-num&#34;&gt;2&lt;/span&gt;Your old setup&lt;small class=&#34;hint&#34;&gt;optional&lt;/small&gt;&lt;/h2&gt;
+  &lt;/div&gt;
+  &lt;p class=&#34;hint&#34;&gt;What it ran as before tells Roostack which of your folders is which.&lt;/p&gt;
+  &lt;div class=&#34;actions-row&#34;&gt;
+    &lt;button type=&#34;button&#34;&gt;Continue&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/section&gt;
+&lt;section class=&#34;card step-card step-todo&#34;&gt;
+  &lt;div class=&#34;card-head&#34;&gt;
+    &lt;h2&gt;&lt;span class=&#34;step-num&#34;&gt;3&lt;/span&gt;What goes where&lt;/h2&gt;
+  &lt;/div&gt;
+&lt;/section&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>A check&#39;s results <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">ul.check-list of li.check-ok, .check-warn, .check-bad (in the way: nothing goes on until it&#39;s fixed) or .check-info, each an icon (check, warn, close, spark) and a div: its first sentence in bold, then more, sometimes a copyBox or a ul.code-list.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><ul class="check-list">
+  <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><div><strong>Your photos and videos: 118,402 files, 41.2 GB.</strong> All readable.</div></li>
+  <li class="check-warn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg><div><strong>An older version.</strong> The old one ran 1.131.3; this one is 3.3.3.</div></li>
+  <li class="check-bad"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg><div><strong>312 files Roostack can't read, in library:</strong> make them readable on your copy, then check again:
+    <div class="copy-box" x-data="{ copied: false }">
+  <pre class="output" x-ref="text">sudo chmod -R a&#43;rX immich</pre>
+  <button type="button" class="icon-button copy-button" title="Copy" x-bind:title="copied ? 'Copied' : 'Copy'"
+    x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+    ><span x-show="!copied"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg></span><span x-show="copied" x-cloak><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span><span class="sr-only" aria-live="polite" x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+</div></div></li>
+  <li class="check-info"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></svg><div><strong>Smart search models: not brought.</strong> Immich makes them again.</div></li>
+</ul></div>
+            <div class="panel" data-mode="dark"><ul class="check-list">
+  <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><div><strong>Your photos and videos: 118,402 files, 41.2 GB.</strong> All readable.</div></li>
+  <li class="check-warn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg><div><strong>An older version.</strong> The old one ran 1.131.3; this one is 3.3.3.</div></li>
+  <li class="check-bad"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg><div><strong>312 files Roostack can't read, in library:</strong> make them readable on your copy, then check again:
+    <div class="copy-box" x-data="{ copied: false }">
+  <pre class="output" x-ref="text">sudo chmod -R a&#43;rX immich</pre>
+  <button type="button" class="icon-button copy-button" title="Copy" x-bind:title="copied ? 'Copied' : 'Copy'"
+    x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+    ><span x-show="!copied"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg></span><span x-show="copied" x-cloak><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span><span class="sr-only" aria-live="polite" x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+</div></div></li>
+  <li class="check-info"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></svg><div><strong>Smart search models: not brought.</strong> Immich makes them again.</div></li>
+</ul></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;ul class=&#34;check-list&#34;&gt;
+  &lt;li class=&#34;check-ok&#34;&gt;{{icon &#34;check&#34;}}&lt;div&gt;&lt;strong&gt;Your photos and videos: 118,402 files, 41.2 GB.&lt;/strong&gt; All readable.&lt;/div&gt;&lt;/li&gt;
+  &lt;li class=&#34;check-warn&#34;&gt;{{icon &#34;warn&#34;}}&lt;div&gt;&lt;strong&gt;An older version.&lt;/strong&gt; The old one ran 1.131.3; this one is 3.3.3.&lt;/div&gt;&lt;/li&gt;
+  &lt;li class=&#34;check-bad&#34;&gt;{{icon &#34;close&#34;}}&lt;div&gt;&lt;strong&gt;312 files Roostack can&#39;t read, in library:&lt;/strong&gt; make them readable on your copy, then check again:
+    {{copyBox &#34;sudo chmod -R a&#43;rX immich&#34;}}&lt;/div&gt;&lt;/li&gt;
+  &lt;li class=&#34;check-info&#34;&gt;{{icon &#34;spark&#34;}}&lt;div&gt;&lt;strong&gt;Smart search models: not brought.&lt;/strong&gt; Immich makes them again.&lt;/div&gt;&lt;/li&gt;
+&lt;/ul&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;ul class=&#34;check-list&#34;&gt;
+  &lt;li class=&#34;check-ok&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;m5 12.5 4.5 4.5L19 7.5&#34;/&gt;&lt;/svg&gt;
+    &lt;div&gt;&lt;strong&gt;Your photos and videos: 118,402 files, 41.2 GB.&lt;/strong&gt;All readable.&lt;/div&gt;
+  &lt;/li&gt;
+  &lt;li class=&#34;check-warn&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M12 4 2.5 20h19z&#34;/&gt;&lt;path d=&#34;M12 10v4M12 17h.01&#34;/&gt;&lt;/svg&gt;
+    &lt;div&gt;&lt;strong&gt;An older version.&lt;/strong&gt;The old one ran 1.131.3; this one is 3.3.3.&lt;/div&gt;
+  &lt;/li&gt;
+  &lt;li class=&#34;check-bad&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M6 6l12 12M18 6 6 18&#34;/&gt;&lt;/svg&gt;
+    &lt;div&gt;&lt;strong&gt;312 files Roostack can&#39;t read, in library:&lt;/strong&gt;make them readable on your copy, then check again:
+      &lt;div class=&#34;copy-box&#34; x-data=&#34;{ copied: false }&#34;&gt;
+        &lt;pre class=&#34;output&#34; x-ref=&#34;text&#34;&gt;sudo chmod -R a&amp;#43;rX immich&lt;/pre&gt;
+        &lt;button type=&#34;button&#34; class=&#34;icon-button copy-button&#34; title=&#34;Copy&#34; x-bind:title=&#34;copied ? &#39;Copied&#39; : &#39;Copy&#39;&#34;
+    x-on:click=&#34;roostackCopy($refs.text).then(() =&gt;{ copied = true; setTimeout(() =&gt; copied = false, 2000) })&#34; &gt;&lt;span x-show=&#34;!copied&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;8&#34; y=&#34;8&#34; width=&#34;12&#34; height=&#34;12&#34; rx=&#34;2&#34;/&gt;&lt;path d=&#34;M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;span x-show=&#34;copied&#34; x-cloak&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;m5 12.5 4.5 4.5L19 7.5&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;span class=&#34;sr-only&#34; aria-live=&#34;polite&#34; x-text=&#34;copied ? &#39;Copied&#39; : &#39;Copy&#39;&#34;&gt;Copy&lt;/span&gt;
+        &lt;/button&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/li&gt;
+  &lt;li class=&#34;check-info&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6&#34;/&gt;&lt;/svg&gt;
+    &lt;div&gt;&lt;strong&gt;Smart search models: not brought.&lt;/strong&gt;Immich makes them again.&lt;/div&gt;
+  &lt;/li&gt;
+&lt;/ul&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>A path and where it is now <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">.path-row: a label and an input (the path), an arrow, a .field-label and a .folder-choice (where it is now), the two lined up on one row; one under another on phones.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form>
+  <div class="path-row">
+    <label class="path-old-label" for="g-old">On the old machine</label>
+    <span class="field-label path-now-label">Is now</span>
+    <input class="path-old" id="g-old" value="/opt/immich">
+    <span class="path-arrow" aria-hidden="true">→</span>
+    <div class="folder-choice path-now"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>T7 Shield › immich</strong></span><a class="button secondary small" href="#">Choose…</a></div>
+  </div>
+</form></div>
+            <div class="panel" data-mode="dark"><form>
+  <div class="path-row">
+    <label class="path-old-label" for="g-old">On the old machine</label>
+    <span class="field-label path-now-label">Is now</span>
+    <input class="path-old" id="g-old" value="/opt/immich">
+    <span class="path-arrow" aria-hidden="true">→</span>
+    <div class="folder-choice path-now"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>T7 Shield › immich</strong></span><a class="button secondary small" href="#">Choose…</a></div>
+  </div>
+</form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;form&gt;
+  &lt;div class=&#34;path-row&#34;&gt;
+    &lt;label class=&#34;path-old-label&#34; for=&#34;g-old&#34;&gt;On the old machine&lt;/label&gt;
+    &lt;span class=&#34;field-label path-now-label&#34;&gt;Is now&lt;/span&gt;
+    &lt;input class=&#34;path-old&#34; id=&#34;g-old&#34; value=&#34;/opt/immich&#34;&gt;
+    &lt;span class=&#34;path-arrow&#34; aria-hidden=&#34;true&#34;&gt;→&lt;/span&gt;
+    &lt;div class=&#34;folder-choice path-now&#34;&gt;{{icon &#34;folder&#34;}}&lt;span class=&#34;path&#34;&gt;&lt;strong&gt;T7 Shield › immich&lt;/strong&gt;&lt;/span&gt;&lt;a class=&#34;button secondary small&#34; href=&#34;#&#34;&gt;Choose…&lt;/a&gt;&lt;/div&gt;
+  &lt;/div&gt;
+&lt;/form&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;form&gt;
+  &lt;div class=&#34;path-row&#34;&gt;
+    &lt;label class=&#34;path-old-label&#34; for=&#34;g-old&#34;&gt;On the old machine&lt;/label&gt;&lt;span class=&#34;field-label path-now-label&#34;&gt;Is now&lt;/span&gt;
+    &lt;input class=&#34;path-old&#34; id=&#34;g-old&#34; value=&#34;/opt/immich&#34;&gt;&lt;span class=&#34;path-arrow&#34; aria-hidden=&#34;true&#34;&gt;→&lt;/span&gt;
+    &lt;div class=&#34;folder-choice path-now&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;path&#34;&gt;&lt;strong&gt;T7 Shield › immich&lt;/strong&gt;&lt;/span&gt;&lt;a class=&#34;button secondary small&#34; href=&#34;#&#34;&gt;Choose…&lt;/a&gt;&lt;/div&gt;&lt;/div&gt;
+&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Pasted text <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">A textarea: monospace, as tall as it&#39;s given (rows), for text pasted from elsewhere (docker inspect&#39;s output, a Compose file).</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><form><label>What it printed <textarea rows="3" spellcheck="false">[ { "Name": "/immich_server", … } ]</textarea></label></form></div>
+            <div class="panel" data-mode="dark"><form><label>What it printed <textarea rows="3" spellcheck="false">[ { "Name": "/immich_server", … } ]</textarea></label></form></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;form&gt;&lt;label&gt;What it printed &lt;textarea rows=&#34;3&#34; spellcheck=&#34;false&#34;&gt;[ { &#34;Name&#34;: &#34;/immich_server&#34;, … } ]&lt;/textarea&gt;&lt;/label&gt;&lt;/form&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Progress of a long copy <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">.progress: a .meter at full width (its span&#39;s width through data-width) and the figures under it, in an activity status line&#39;s card.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><p class="activity-status running"><span class="spinner" aria-hidden="true"></span> Copying: Your photos and videos… <small>started 14:10</small></p>
+<div class="progress"><div class="meter"><span data-width="37"></span></div><p>18.4 GB of 49.6 GB · 52,310 of 355,516 files · <strong>about 25 minutes left</strong></p></div></div>
+            <div class="panel" data-mode="dark"><p class="activity-status running"><span class="spinner" aria-hidden="true"></span> Copying: Your photos and videos… <small>started 14:10</small></p>
+<div class="progress"><div class="meter"><span data-width="37"></span></div><p>18.4 GB of 49.6 GB · 52,310 of 355,516 files · <strong>about 25 minutes left</strong></p></div></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;p class=&#34;activity-status running&#34;&gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt; Copying: Your photos and videos… &lt;small&gt;started 14:10&lt;/small&gt;&lt;/p&gt;
+&lt;div class=&#34;progress&#34;&gt;&lt;div class=&#34;meter&#34;&gt;&lt;span data-width=&#34;37&#34;&gt;&lt;/span&gt;&lt;/div&gt;&lt;p&gt;18.4 GB of 49.6 GB · 52,310 of 355,516 files · &lt;strong&gt;about 25 minutes left&lt;/strong&gt;&lt;/p&gt;&lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>What to do elsewhere, and what Roostack will do <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">ol.todo-list: steps for the person to take on another machine, each with its command in a copyBox. ul.plain.will-list: what Roostack will do, an icon each.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><ol class="todo-list">
+  <li><strong>Stop the old Immich, and keep it stopped.</strong> <div class="copy-box" x-data="{ copied: false }">
+  <pre class="output" x-ref="text">docker compose stop immich-server</pre>
+  <button type="button" class="icon-button copy-button" title="Copy" x-bind:title="copied ? 'Copied' : 'Copy'"
+    x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+    ><span x-show="!copied"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg></span><span x-show="copied" x-cloak><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span><span class="sr-only" aria-live="polite" x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+</div></li>
+</ol>
+<ul class="plain will-list">
+  <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>Copies what changed since the last copy, once more.</li>
+  <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Starts Immich, and waits for it to answer.</li>
+</ul></div>
+            <div class="panel" data-mode="dark"><ol class="todo-list">
+  <li><strong>Stop the old Immich, and keep it stopped.</strong> <div class="copy-box" x-data="{ copied: false }">
+  <pre class="output" x-ref="text">docker compose stop immich-server</pre>
+  <button type="button" class="icon-button copy-button" title="Copy" x-bind:title="copied ? 'Copied' : 'Copy'"
+    x-on:click="roostackCopy($refs.text).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"
+    ><span x-show="!copied"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg></span><span x-show="copied" x-cloak><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span><span class="sr-only" aria-live="polite" x-text="copied ? 'Copied' : 'Copy'">Copy</span></button>
+</div></li>
+</ol>
+<ul class="plain will-list">
+  <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>Copies what changed since the last copy, once more.</li>
+  <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>Starts Immich, and waits for it to answer.</li>
+</ul></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;ol class=&#34;todo-list&#34;&gt;
+  &lt;li&gt;&lt;strong&gt;Stop the old Immich, and keep it stopped.&lt;/strong&gt; {{copyBox &#34;docker compose stop immich-server&#34;}}&lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul class=&#34;plain will-list&#34;&gt;
+  &lt;li&gt;{{icon &#34;import&#34;}}Copies what changed since the last copy, once more.&lt;/li&gt;
+  &lt;li&gt;{{icon &#34;check&#34;}}Starts Immich, and waits for it to answer.&lt;/li&gt;
+&lt;/ul&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;ol class=&#34;todo-list&#34;&gt;
+  &lt;li&gt;&lt;strong&gt;Stop the old Immich, and keep it stopped.&lt;/strong&gt;
+    &lt;div class=&#34;copy-box&#34; x-data=&#34;{ copied: false }&#34;&gt;
+      &lt;pre class=&#34;output&#34; x-ref=&#34;text&#34;&gt;docker compose stop immich-server&lt;/pre&gt;
+      &lt;button type=&#34;button&#34; class=&#34;icon-button copy-button&#34; title=&#34;Copy&#34; x-bind:title=&#34;copied ? &#39;Copied&#39; : &#39;Copy&#39;&#34;
+    x-on:click=&#34;roostackCopy($refs.text).then(() =&gt;{ copied = true; setTimeout(() =&gt; copied = false, 2000) })&#34; &gt;&lt;span x-show=&#34;!copied&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;rect x=&#34;8&#34; y=&#34;8&#34; width=&#34;12&#34; height=&#34;12&#34; rx=&#34;2&#34;/&gt;&lt;path d=&#34;M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;span x-show=&#34;copied&#34; x-cloak&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;m5 12.5 4.5 4.5L19 7.5&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;&lt;span class=&#34;sr-only&#34; aria-live=&#34;polite&#34; x-text=&#34;copied ? &#39;Copied&#39; : &#39;Copy&#39;&#34;&gt;Copy&lt;/span&gt;
+      &lt;/button&gt;
+    &lt;/div&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+&lt;ul class=&#34;plain will-list&#34;&gt;
+  &lt;li&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M12 3v12M7 10l5 5 5-5&#34;/&gt;&lt;path d=&#34;M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4&#34;/&gt;&lt;/svg&gt;Copies what changed since the last copy, once more.&lt;/li&gt;
+  &lt;li&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;m5 12.5 4.5 4.5L19 7.5&#34;/&gt;&lt;/svg&gt;Starts Immich, and waits for it to answer.&lt;/li&gt;
+&lt;/ul&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>A table list whose rows stack on phones <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">table.list.stack-phone: each cell may have a smaller second line (small); tr.row-muted for what isn&#39;t brought; on phones each row is a block. A middle cell that may be long is td.wrap.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><div class="table-wrap"><table class="list stack-phone">
+  <thead><tr><th>Immich keeps</th><th>Brought from</th><th><span class="sr-only">Change</span></th></tr></thead>
+  <tbody>
+    <tr><td><strong>Your photos and videos</strong><small><code>/data</code> · backed up</small></td><td class="wrap">T7 Shield › immich › library<small>Was <code>/opt/immich/library</code></small></td><td><a href="#">Change…</a></td></tr>
+    <tr class="row-muted"><td><strong>Smart search models</strong><small><code>/cache</code></small></td><td class="wrap">Not brought<small>Immich makes them again.</small></td><td><a href="#">Choose…</a></td></tr>
+  </tbody>
+</table></div></div>
+            <div class="panel" data-mode="dark"><div class="table-wrap"><table class="list stack-phone">
+  <thead><tr><th>Immich keeps</th><th>Brought from</th><th><span class="sr-only">Change</span></th></tr></thead>
+  <tbody>
+    <tr><td><strong>Your photos and videos</strong><small><code>/data</code> · backed up</small></td><td class="wrap">T7 Shield › immich › library<small>Was <code>/opt/immich/library</code></small></td><td><a href="#">Change…</a></td></tr>
+    <tr class="row-muted"><td><strong>Smart search models</strong><small><code>/cache</code></small></td><td class="wrap">Not brought<small>Immich makes them again.</small></td><td><a href="#">Choose…</a></td></tr>
+  </tbody>
+</table></div></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;div class=&#34;table-wrap&#34;&gt;&lt;table class=&#34;list stack-phone&#34;&gt;
+  &lt;thead&gt;&lt;tr&gt;&lt;th&gt;Immich keeps&lt;/th&gt;&lt;th&gt;Brought from&lt;/th&gt;&lt;th&gt;&lt;span class=&#34;sr-only&#34;&gt;Change&lt;/span&gt;&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;&lt;td&gt;&lt;strong&gt;Your photos and videos&lt;/strong&gt;&lt;small&gt;&lt;code&gt;/data&lt;/code&gt; · backed up&lt;/small&gt;&lt;/td&gt;&lt;td class=&#34;wrap&#34;&gt;T7 Shield › immich › library&lt;small&gt;Was &lt;code&gt;/opt/immich/library&lt;/code&gt;&lt;/small&gt;&lt;/td&gt;&lt;td&gt;&lt;a href=&#34;#&#34;&gt;Change…&lt;/a&gt;&lt;/td&gt;&lt;/tr&gt;
+    &lt;tr class=&#34;row-muted&#34;&gt;&lt;td&gt;&lt;strong&gt;Smart search models&lt;/strong&gt;&lt;small&gt;&lt;code&gt;/cache&lt;/code&gt;&lt;/small&gt;&lt;/td&gt;&lt;td class=&#34;wrap&#34;&gt;Not brought&lt;small&gt;Immich makes them again.&lt;/small&gt;&lt;/td&gt;&lt;td&gt;&lt;a href=&#34;#&#34;&gt;Choose…&lt;/a&gt;&lt;/td&gt;&lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;&lt;/div&gt;</pre>
             
           </details>
         </div>

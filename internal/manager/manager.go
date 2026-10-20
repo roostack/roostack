@@ -301,6 +301,10 @@ type InstallRequest struct {
 	// asked), all of them (SPEC.md §8.1, "Media libraries").
 	Libraries       []string
 	LibrariesChosen bool
+	// BringData installs it to wait for its data (SPEC.md §8.4): only
+	// its databases run, its install-only settings aren't asked for and
+	// its install hooks don't run (the Owner only, in the web layer).
+	BringData bool
 }
 
 func formErrorf(format string, args ...any) error {
@@ -327,11 +331,13 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 			keep = len(m.leftData(ctx, d.Host, id)) > 0
 		}
 	}
+	keep = keep || req.BringData
 	in, id, err := m.draft(p, req, false, keep)
 	if err != nil {
 		return err
 	}
 	in.Local = m.IsLocal(p.Name)
+	in.AwaitingData = req.BringData
 	secrets := map[string][]byte{}
 	for _, s := range p.Settings {
 		if s.Type != pkgspec.SettingSecret || s.Generate || keep && s.InstallOnly {

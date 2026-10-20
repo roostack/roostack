@@ -857,9 +857,9 @@
 {{define "setting-fields"}}
 {{$text := false}}{{range .}}{{if ne .Kind "checkbox"}}{{$text = true}}{{end}}{{end}}
 {{if $text}}<div class="field-row">
-  {{range .}}{{if ne .Kind "checkbox"}}<label>{{.Title}}
+  {{range .}}{{if ne .Kind "checkbox"}}<label{{if .InstallOnly}} x-show="!bring"{{end}}>{{.Title}}
     <input type="{{.Kind}}" name="{{.Key}}" value="{{.Value}}" {{if eq .Kind "password"}}autocomplete="new-password"{{end}}
-      {{if .Required}}required{{end}} {{with .MinLength}}minlength="{{.}}"{{end}}>
+      {{if .Required}}required{{end}} {{with .MinLength}}minlength="{{.}}"{{end}}{{if .InstallOnly}} x-bind:disabled="bring"{{end}}>
     {{with .Description}}<small>{{.}}</small>{{end}}
   </label>{{end}}{{end}}
 </div>{{end}}

@@ -1,0 +1,20 @@
+;
+; Archive created at 2026-10-20 09:14:51 UTC
+;     dbname: immich
+;     TOC Entries: 512
+;     Compression: gzip
+;     Dump Version: 1.14-0
+;     Format: CUSTOM
+;     Integer: 4 bytes
+;     Offset: 8 bytes
+;     Dumped from database version: 14.19 (Debian 14.19-1.pgdg120+1)
+;     Dumped by pg_dump version: 14.19 (Debian 14.19-1.pgdg120+1)
+;
+; Selected TOC Entries:
+;
+4; 3079 16386 EXTENSION - cube
+4120; 0 0 COMMENT - EXTENSION cube
+5; 3079 16472 EXTENSION - earthdistance
+6; 3079 16490 EXTENSION - vchord
+7; 3079 16489 EXTENSION - vector
+268; 1259 16700 TABLE public asset postgres

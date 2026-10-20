@@ -199,6 +199,14 @@ Template components are called as functions; everything else is plain HTML with 
 | Theme choice | `div.theme-swatches` of `label.theme-swatch[data-palette]` (a hidden radio, `.theme-swatch-dots` with `i.s-bg`, `i.s-ac`, `i.s-hl`, the name) | Choosing one of the built-in themes for something lab-wide (the sign-in page's colours, SPEC §5.2): each shows its own theme's colours, since its `data-palette` sets them; the chosen one outlined in the accent |
 | Sign-in page | `signin.html`, a page of its own: `.signin-page` with a `.card.narrow.signin-card` (`.signin-brand`: the lab's mark or `{{brandMark}}` and its name, or `.signin-wide` with a wide logo, `.on-light` for a light panel in dark mode), `.signin-to` (the app), `ul.signin-apps` | The lab's sign-in page for services (SPEC §5.2), in the lab's look: no sidebar, no scripts. Mock-ups: docs/mockups/sso |
 | Groups | `ul.group-list` of `details` (`summary` with `.group-name` and `.more`), each with its form | Settings → People's groups |
+| Steps of a page | `.steps-layout` of `.steps` (`section.card.step-card`s: `h2 > span.step-num`; `.step-done` with `p.step-summary` and a Change `.more`, `.step-todo`, `.step-result`), `.steps-aside`, `.steps-help` | Bringing a service's data in (SPEC.md §8.4; the Owner's choice of mock-ups, docs/mockups/bring-your-own-data, 2026-10-21): one page of numbered steps, each ending with Continue, the result as the last step; the aside first below 1100 px |
+| Check results | `ul.check-list` of `li.check-ok`/`-warn`/`-bad`/`-info`: an icon and a `div` (first sentence bold, a `copyBox` or `ul.code-list`) | What a check found before anything changes; bad stops what's next |
+| A path and where it is now | `.path-row`: `label.path-old-label`, `.path-now-label`, `input.path-old`, `.path-arrow`, `.folder-choice.path-now` | Two fields lined up on one row, one under another on phones |
+| Pasted text | `textarea` (every one: monospace, the inputs' look) | Text pasted from elsewhere (docker inspect, a Compose file, a join code) |
+| Progress | `.progress`: `.meter` (`span[data-width]`) and a `p` of figures | A long copy's progress, under its activity line |
+| To do elsewhere | `ol.todo-list` (each with its `copyBox`), `ul.plain.will-list` (an icon each) | What the person does on another machine, and what Roostack will do |
+| Rows that stack | `table.list.stack-phone` (a `small` second line in a cell, `tr.row-muted`) | A table list whose rows are blocks on phones |
+| Kept copy's actions | `.kept-actions` | Put back… and Delete on a kept copy |
 
 ### The package editor's own styles
 

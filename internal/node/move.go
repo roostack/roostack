@@ -19,6 +19,7 @@ import (
 
 	"roostack.cloud/roostack/internal/backup"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/state"
 )
 
 // Moving a service between servers by copying its data directly (SPEC.md
@@ -58,9 +59,11 @@ type Mover interface {
 	// LoadDumps stops the service, loads its databases from the dumps in
 	// its data (after a move through a backup), and starts it again.
 	LoadDumps(ctx context.Context, service string) error
-	// KeptData lists folders moves left behind; RemoveKeptData deletes one.
+	// KeptData lists folders moves left behind; RemoveKeptData deletes
+	// one, PutBackKeptData puts one back in place of its service's data.
 	KeptData(ctx context.Context) ([]KeptFolder, error)
 	RemoveKeptData(ctx context.Context, path string) error
+	PutBackKeptData(ctx context.Context, path string) error
 }
 
 // Launcher runs a command as the roostack user outside Roostack's sandbox
@@ -515,20 +518,26 @@ func (n *Local) LoadDumps(ctx context.Context, service string) error {
 	return n.Reconciler.Systemd.Start(ctx, out.Units...)
 }
 
-// KeptFolder is a service's data folder a move left behind.
+// KeptFolder is a service's data folder a move, or bringing data in,
+// left behind.
 type KeptFolder struct {
 	Path    string
 	Service string
 	// MovedAway: the old copy of a service that moved to another server
 	// (otherwise, data that was here before a service moved in).
 	MovedAway bool
-	Time      time.Time
-	Size      int64 // bytes, -1 if unknown
+	// Imported: its data from before data was brought in (SPEC.md §8.4);
+	// FailedImport: what was brought, set aside when putting that back.
+	Imported, FailedImport bool
+	Time                   time.Time
+	Size                   int64 // bytes, -1 if unknown
 }
 
-// keptName matches kept folders' names: <service>.before-move-<time> or
-// <service>.moved-<note>-<time>.
-var keptName = regexp.MustCompile(`^([a-z0-9-]+)\.(before-move-|moved-[a-z0-9-]*-)(\d{8}-\d{6})$`)
+// keptName matches kept folders' names: <service>.before-move-<time>,
+// <service>.moved-<note>-<time>, and bringing data in's
+// <service>.before-import-<time> and .failed-import-<time>, and what a put
+// back replaced, <service>.before-put-back-<time>.
+var keptName = regexp.MustCompile(`^([a-z0-9-]+)\.(before-move-|before-import-|failed-import-|before-put-back-|moved-[a-z0-9-]*-)(\d{8}-\d{6})$`)
 
 // KeptData lists folders moves left on this server, newest first.
 func (n *Local) KeptData(ctx context.Context) ([]KeptFolder, error) {
@@ -547,7 +556,8 @@ func (n *Local) KeptData(ctx context.Context) ([]KeptFolder, error) {
 				continue
 			}
 			t, _ := time.ParseInLocation(timeLayout, m[3], time.Local)
-			k := KeptFolder{Path: filepath.Join(base, e.Name()), Service: m[1], MovedAway: m[2] != "before-move-", Time: t, Size: -1}
+			k := KeptFolder{Path: filepath.Join(base, e.Name()), Service: m[1], MovedAway: strings.HasPrefix(m[2], "moved-"),
+				Imported: m[2] == "before-import-", FailedImport: m[2] == "failed-import-", Time: t, Size: -1}
 			if out, err := n.unshare(ctx, "du", "-sb", k.Path).Output(); err == nil {
 				if f := strings.Fields(string(out)); len(f) > 0 {
 					k.Size, _ = strconv.ParseInt(f[0], 10, 64)
@@ -558,6 +568,58 @@ func (n *Local) KeptData(ctx context.Context) ([]KeptFolder, error) {
 	}
 	slices.SortFunc(kept, func(a, b KeptFolder) int { return b.Time.Compare(a.Time) })
 	return kept, nil
+}
+
+// PutBackKeptData puts a kept folder (with its sibling in the other data
+// folder, of the same moment) back in place of its service's data, which
+// is kept in turn as .before-put-back-<time> (SPEC.md §8.4). Its service
+// must run here; it's stopped meanwhile. The databases come back with the
+// folder: it holds their own files, not dumps. An old copy left by a move
+// away (.moved-) can't be put back: the service runs elsewhere.
+func (n *Local) PutBackKeptData(ctx context.Context, path string) error {
+	dir, name := filepath.Split(filepath.Clean(path))
+	dir = filepath.Clean(dir)
+	m := keptName.FindStringSubmatch(name)
+	if (dir != filepath.Clean(n.Lab.Paths.ServicesDir) && dir != filepath.Clean(n.Lab.Paths.MediaDir)) || m == nil ||
+		strings.HasPrefix(m[2], "moved-") {
+		return ErrNotFound
+	}
+	service, suffix := m[1], "."+m[2]+m[3]
+	s, ok := n.service(service)
+	if !ok {
+		return formErrorf("%s doesn't run on this server, so its data can't be put back here.", service)
+	}
+	live, err := stateOutput(n, s)
+	if err != nil {
+		return err
+	}
+	if err := n.Reconciler.Systemd.Stop(ctx, live.Units...); err != nil {
+		return err
+	}
+	now := ".before-put-back-" + time.Now().Format(timeLayout)
+	for _, d := range n.DataDirs(service) {
+		if _, err := os.Stat(d + suffix); err != nil {
+			continue
+		}
+		if _, err := os.Stat(d); err == nil {
+			if err := os.Rename(d, d+now); err != nil {
+				return err
+			}
+		}
+		if err := os.Rename(d+suffix, d); err != nil {
+			return err
+		}
+	}
+	out, err := generate.Service(n.currentLab(), s.Package, s.Instance)
+	if err != nil {
+		return err
+	}
+	for _, d := range out.Dirs {
+		if err := os.MkdirAll(d, 0o750); err != nil {
+			return err
+		}
+	}
+	return n.Reconciler.Systemd.Start(ctx, live.Units...)
 }
 
 // RemoveKeptData deletes a kept folder for good. Only folders KeptData
@@ -576,3 +638,6 @@ func (n *Local) RemoveKeptData(ctx context.Context, path string) error {
 	}
 	return nil
 }
+
+// stateOutput is what runs of a service now (state.Output).
+func stateOutput(n *Local, s state.Service) (*generate.Output, error) { return state.Output(n.currentLab(), s) }

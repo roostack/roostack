@@ -23,6 +23,7 @@ type fakeRestores struct {
 	restored []string
 	removed  []string
 	pending  bool
+	putBack  []string
 }
 
 func (f *fakeRestores) Snapshots(context.Context, string) ([]backup.Snapshot, error) {
@@ -39,6 +40,10 @@ func (f *fakeRestores) Pending() bool                          { return f.pendin
 func (f *fakeRestores) Kept(string) ([]backup.KeptCopy, error) { return f.kept, nil }
 func (f *fakeRestores) RemoveKept(_ context.Context, _, p string) error {
 	f.removed = append(f.removed, p)
+	return nil
+}
+func (f *fakeRestores) PutBack(_ context.Context, _, p string) error {
+	f.putBack = append(f.putBack, p)
 	return nil
 }
 
@@ -133,6 +138,14 @@ func TestRestoreFlow(t *testing.T) {
 	if len(fr.removed) != 1 {
 		t.Error("kept copy not removed")
 	}
+	// Every kept copy can be put back (SPEC.md §8.4).
+	if !strings.Contains(body, "Put back…") {
+		t.Error("no Put back on a kept copy")
+	}
+	h.post("/backups/restore/vaultwarden/kept/put-back", url.Values{"path": {fr.kept[0].Path}}, h.srv.URL)
+	if len(fr.putBack) != 1 || fr.putBack[0] != fr.kept[0].Path {
+		t.Errorf("put back %v", fr.putBack)
+	}
 
 	// Admins can't restore.
 	ha, _ := loggedIn(t, auth.RoleAdmin)
@@ -148,7 +161,8 @@ func TestRestoreFlow(t *testing.T) {
 // otherServer is another server in the lab, with no activities.
 type otherServer struct{ *fakeManager }
 
-func (otherServer) Media() node.Media { return nil }
+func (otherServer) Media() node.Media     { return nil }
+func (otherServer) Imports() node.Imports { return nil }
 
 func (otherServer) Identity() nodeid.Identity {
 	return nodeid.Identity{ID: "n-9876543210", Name: "vps"}

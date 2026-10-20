@@ -87,12 +87,13 @@ func (s *Server) Handler() http.Handler {
 	svc := func(r *http.Request) string { return r.PathValue("service") }
 	s.guestHostRoutes(handle, decode)
 	s.mediaRoutes(handle, decode)
+	s.importRoutes(handle, decode)
 
 	handle("GET /v1/status", func(r *http.Request) (any, error) {
 		st := n.Status()
 		w := WireStatus{Running: st.Running, LastRun: st.LastRun, Finished: st.Finished, Version: s.Version(),
 			Backups: n.Backups() != nil, Restores: n.Restores() != nil, Updates: n.Updates() != nil,
-			Settings: n.Settings() != nil}
+			Settings: n.Settings() != nil, Imports: n.Imports() != nil}
 		if p, ok := n.(Processor); ok {
 			w.Arch = p.Arch()
 		}
@@ -217,6 +218,17 @@ func (s *Server) Handler() http.Handler {
 			return nil, err
 		}
 		return x.Kept(svc(r))
+	})
+	handle("POST /v1/restores/{service}/kept/put-back", func(r *http.Request) (any, error) {
+		x, err := restores()
+		if err != nil {
+			return nil, err
+		}
+		var req struct{ Path string }
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		return nil, x.PutBack(ctx(r), svc(r), req.Path)
 	})
 	handle("POST /v1/restores/{service}/kept/remove", func(r *http.Request) (any, error) {
 		x, err := restores()
@@ -458,6 +470,17 @@ func (s *Server) Handler() http.Handler {
 			return nil, err
 		}
 		return mv.KeptData(ctx(r))
+	})
+	handle("POST /v1/kept/put-back", func(r *http.Request) (any, error) {
+		mv, err := mover()
+		if err != nil {
+			return nil, err
+		}
+		var req struct{ Path string }
+		if err := decode(r, &req); err != nil {
+			return nil, err
+		}
+		return nil, mv.PutBackKeptData(ctx(r), req.Path)
 	})
 	handle("POST /v1/kept/remove", func(r *http.Request) (any, error) {
 		mv, err := mover()

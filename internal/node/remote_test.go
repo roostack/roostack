@@ -87,6 +87,7 @@ func (f *fakeNode) Restores() Restores { return nil }
 func (f *fakeNode) Updates() Updates   { return nil }
 func (f *fakeNode) Settings() Settings { return f.settings }
 func (f *fakeNode) Media() Media       { return f.media }
+func (f *fakeNode) Imports() Imports   { return nil }
 
 type fakeSettings struct{ zone string }
 

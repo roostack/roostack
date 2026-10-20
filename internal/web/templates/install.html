@@ -26,7 +26,9 @@
        they're edited (SPEC.md §8.2). */}}
   <form method="post" action="/install/{{.Package.Name}}" id="install-form" data-pkgname="{{.Package.Name}}" data-title="{{.Title}}" data-suffix="{{.Suffix}}" data-sub="{{.Subdomain}}"
     data-pkgtitle="{{.Package.Title}}" data-base="{{.BaseSubdomain}}" data-max="{{.MaxSuffix}}"
+    data-bring="{{if .BringData}}yes{{end}}"
     x-data="{ title: $el.dataset.title, suffix: $el.dataset.suffix, sub: $el.dataset.sub, ownSuffix: false, ownSub: false,
+      bring: $el.dataset.bring === 'yes',
       slug(t) { return t.toLowerCase().replace($el.dataset.pkgtitle.toLowerCase(), '').replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '').slice(0, Number($el.dataset.max)).replace(/-+$/, '') },
       titleChanged() { if (!this.ownSuffix) { this.suffix = this.slug(this.title); this.suffixChanged(false) } },
@@ -113,9 +115,25 @@
     </div>
     {{end}}
     {{end}}
+    {{if .IsOwner}}
+    {{/* Bringing its data in (SPEC.md §8.4, the Owner's choice of mock-ups,
+         2026-10-21): installed and left stopped, its first-time settings
+         not asked for. */}}
+    <hr class="form-rule">
+    <h2 class="form-section">Its data</h2>
+    <div class="seg-group" x-on:change="if ($event.target.name === 'data') bring = $event.target.value === 'bring'">
+      {{segmented "data" "Its data" (or (and .BringData "bring") "afresh") (choice "afresh" "Start afresh" "spark") (choice "bring" "I'll bring its data" "import")}}
+      <p class="seg-panel hint seg-hint" data-seg="1">{{.Package.Title}} starts empty{{if .Fields}}, with what you set below{{end}}.</p>
+      <p class="seg-panel hint seg-hint" data-seg="2">From Docker Compose, another server or a backup of your own: its files and a dump of
+        its database. Roostack installs {{.Package.Title}} and leaves it stopped; then you bring your data in, and it starts with it: its
+        accounts and settings too.</p>
+    </div>
+    {{end}}
     {{with .Fields}}
     <hr class="form-rule">
     <h2 class="form-section">{{$.Package.Title}}'s settings</h2>
+    {{if $.IsOwner}}<p class="hint" x-show="bring" x-cloak>What {{$.Package.Title}} needs only for its first start isn't asked for: its accounts come with
+      its data.</p>{{end}}
     {{range .}}{{if .KeepsFirst}}<p class="hint">With its data from before, leave these empty: {{$.Package.Title}} keeps what it has,
       its accounts too. Filled in, its first-time setup runs again with them.</p>{{end}}{{end}}
     {{template "setting-fields" .}}
@@ -125,7 +143,7 @@
     <label class="check"><input type="checkbox" name="accept_risks" required>
       <span>I've read what it asks for, and want to install it anyway</span></label>
     {{end}}
-    <button type="submit">Install</button>
+    {{if .IsOwner}}<button type="submit" x-text="bring ? 'Install, then bring its data' : 'Install'">Install</button>{{else}}<button type="submit">Install</button>{{end}}
   </form>
   {{end}}
 </section>
@@ -143,6 +161,10 @@
   hx-include="#install-form" hx-params="{{.Params}}" hx-sync="this:replace" hx-swap="outerHTML" hx-disinherit="*">
   <h2>What {{.Package.Title}} sets up</h2>
   {{if .Err}}<p class="hint">It can't be worked out yet: {{.Err}}</p>{{else}}
+  {{if .BringData}}<div class="notice" role="status">
+    <p><strong>{{$.Package.Title}} waits for its data.</strong> It's installed and stays stopped until you bring its data in. Nothing is
+      copied until you say so.</p>
+  </div>{{end}}
   {{with .LeftData}}<div class="notice" role="status">
     <p><strong>{{$.Package.Title}}'s data from before is still on {{$.Server.Name}}</strong>, from when it was installed there and removed.
       It starts with that data, as it was: everything in it comes back, accounts and passwords too.</p>

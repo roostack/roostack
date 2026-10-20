@@ -644,7 +644,9 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [ ] Warn when Docker runs on a Roostack server (its published ports get past Roostack's firewall, W7)
 - [x] Mock-ups of the import page and the install page's "I'll bring its data", before building ([docs/mockups/bring-your-own-data](docs/mockups/bring-your-own-data/README.md)); approved by the Owner with every recommendation (2026-10-21)
 - [x] Libraries at their own paths (2026-10-21): `library_paths` in the instance, a second view folder at a shared parent or binds one by one, restart when a bound library's drive comes back, the settings field and the drive warnings (unit-tested; to try on a VM with the Plex move)
-- [ ] The first version, once agreed: read-only sources (drive, share, folder), reading the old setup and matching by container path, libraries at their old paths, the check with its generic warnings, copy and copy again, switch, undo; help: "Moving from Docker Compose", Immich, Plex
+- [x] The first version (2026-10-21): read-only sources (drive, share, folder), reading the old setup (docker inspect in Go, the Compose file in the browser) and matching by container path, the check with its generic warnings, copy and copy again, switch, Put back on every kept copy, "I'll bring its data" on the install page; help: "Moving from Docker Compose", Immich, Plex
+- [ ] Bringing data in: a move of a Compose Immich and Plex on a dev VM through the real pages
+- [ ] Bringing data in, later: leaving subfolders out of a copy ("Leave out…" on a row); a dump uploaded through the browser; plain SQL and `pg_dumpall` (Immich's nightly backups); a check that warns about Docker found on the server (ASSUMPTIONS W7); the import's check and copy logs from another server on the page (only its progress shows there now)
 - [ ] Later: a dump uploaded in the browser, plain SQL and `pg_dumpall`, another machine over SSH, a storage hint in the package format, help pages for Jellyfin, Vaultwarden, Navidrome
 
 ## To discuss with the user

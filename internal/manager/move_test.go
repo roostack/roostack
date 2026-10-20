@@ -175,6 +175,9 @@ func (m *movingServer) KeptData(context.Context) ([]node.KeptFolder, error) {
 func (m *movingServer) RemoveKeptData(_ context.Context, path string) error {
 	return m.did("remove " + path)
 }
+func (m *movingServer) PutBackKeptData(_ context.Context, path string) error {
+	return m.did("put back " + path)
+}
 
 func setUpMove(t *testing.T) (*Manager, *movingServer, *movingServer) {
 	t.Helper()

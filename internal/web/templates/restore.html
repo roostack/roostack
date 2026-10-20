@@ -70,13 +70,19 @@
 
   {{with .Kept}}
   <h2>Kept copies</h2>
-  <p class="hint">Data a restore or a move set aside. Delete it once you're happy with the restore, to free up space.</p>
+  <p class="hint">Data a restore, a move or bringing data in set aside. Put one back if you'd rather have it, or delete it once you're happy,
+    to free up space.</p>
   <ul class="kept">
     {{range .}}
     <li>
-      <span>{{if .Failed}}From a restore that didn't finish{{else}}Kept aside{{end}} {{when .Time}}{{with .ServerName}} on {{.}}{{end}}<br><code>{{.Path}}</code></span>
-      {{confirm (printf "/backups/restore/%s/kept/remove" $.Service.Name) "Delete this copy permanently?" "Delete" "quiet danger"
-        (printf "path=%s" .Path) (printf "server=%s" .Server)}}
+      <span><strong>{{.What}}</strong>, {{when .Time}}{{with .ServerName}} on {{.}}{{end}}<br><code>{{.Path}}</code></span>
+      <span class="kept-actions">
+        {{if .CanPutBack}}{{confirm (printf "/backups/restore/%s/kept/put-back" $.Service.Name)
+          (printf "Put back %s's data from this copy? %s stops for a moment; its data now is kept here instead, so you can change your mind again." $.Service.Title $.Service.Title)
+          "Put back…" "secondary" (printf "path=%s" .Path) (printf "server=%s" .Server)}}{{end}}
+        {{confirm (printf "/backups/restore/%s/kept/remove" $.Service.Name) "Delete this copy permanently?" "Delete" "quiet danger"
+          (printf "path=%s" .Path) (printf "server=%s" .Server)}}
+      </span>
     </li>
     {{end}}
   </ul>

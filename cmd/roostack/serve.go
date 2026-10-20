@@ -676,6 +676,13 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 		if mgr.Updating(s.Name()) != nil {
 			v.Status = web.StatusUpdating
 		}
+		if s.Instance.AwaitingData {
+			// Installed to wait for its data (SPEC.md §8.4).
+			v.Status = web.StatusAwaitingData
+		}
+		if mgr.Switching(s.Name()) {
+			v.Status = web.StatusSwitching
+		}
 		if s.Instance.Waiting {
 			// Its server is gone: it runs nowhere until restored (SPEC.md §10.10).
 			v.Status, v.Server = web.StatusWaiting, ""

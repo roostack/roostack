@@ -429,6 +429,16 @@ func (m *Manager) KeptData(ctx context.Context, serverID string) ([]node.KeptFol
 }
 
 // RemoveKeptData deletes a folder a move left on a server, for good.
+// PutBackKeptData puts a folder kept on a server back in place of its
+// service's data (node.Local.PutBackKeptData).
+func (m *Manager) PutBackKeptData(ctx context.Context, serverID, path string) error {
+	mv, ok := m.node(serverID).(node.Mover)
+	if !ok {
+		return ErrNotFound
+	}
+	return mv.PutBackKeptData(ctx, path)
+}
+
 func (m *Manager) RemoveKeptData(ctx context.Context, serverID, path string) error {
 	mv, ok := m.node(serverID).(node.Mover)
 	if !ok {

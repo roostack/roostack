@@ -40,6 +40,9 @@ const (
 	LabRestore = "lab-restore"
 	// Build is building Roostack's Caddy image in the background.
 	Build = "build"
+	// Import is bringing a service's data in from the person's own copy
+	// (SPEC.md §8.4): one log per service (ImportFor).
+	Import = "import"
 	// LibraryRestart is restarting a service whose library, bound at a
 	// path of its own, came back (SPEC.md §8.4).
 	LibraryRestart = "library-restart"
@@ -48,6 +51,9 @@ const (
 // BackupSetupFor is the BackupSetup log of one server: the controller
 // sets up every server's backups, and keeps a log for each.
 func BackupSetupFor(serverID string) string { return BackupSetup + "." + serverID }
+
+// ImportFor is the Import log of one service.
+func ImportFor(service string) string { return Import + "." + service }
 
 // BackupKeyFor is the BackupKey log of one account (its provider ID).
 func BackupKeyFor(providerID string) string { return BackupKey + "." + providerID }

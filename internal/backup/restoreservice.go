@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 
@@ -96,6 +97,42 @@ func (r *Restores) Kept(name string) ([]KeptCopy, error) {
 		return nil, err
 	}
 	return KeptCopies(svc)
+}
+
+// PutBack puts one kept copy back (Restorer.PutBack), as a piece of
+// maintenance, in the background.
+func (r *Restores) PutBack(ctx context.Context, name, path string) error {
+	svc, title, err := r.Lookup(name)
+	if err != nil {
+		return err
+	}
+	if kept, err := KeptCopies(svc); err != nil || !slices.ContainsFunc(kept, func(k KeptCopy) bool { return k.Path == path }) {
+		return fmt.Errorf("%s is not a copy kept by a restore", path)
+	}
+	r.mu.Lock()
+	if r.pending {
+		r.mu.Unlock()
+		return ErrRestoreQueued
+	}
+	r.pending = true
+	r.mu.Unlock()
+	act := r.Activity.Start(activity.Restore, "Putting back "+title+"'s kept copy")
+	act.Step("Waiting for other maintenance to finish")
+	r.Coord.Submit(maintenance.Job{
+		Name: "putting back " + title + "'s kept copy",
+		Run: func(ctx context.Context, h *maintenance.Handle) (err error) {
+			defer func() {
+				r.mu.Lock()
+				r.pending = false
+				r.mu.Unlock()
+				act.Finish(err)
+			}()
+			restorer := *r.Restorer
+			restorer.Log = act
+			return restorer.PutBack(ctx, svc, path)
+		},
+	})
+	return nil
 }
 
 // RemoveKept deletes one kept copy.

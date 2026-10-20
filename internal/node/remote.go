@@ -398,6 +398,11 @@ func (x remoteRestores) Kept(service string) ([]backup.KeptCopy, error) {
 	return out, err
 }
 
+func (x remoteRestores) PutBack(ctx context.Context, service, path string) error {
+	return x.r.call(ctx, http.MethodPost, "/v1/restores/"+url.PathEscape(service)+"/kept/put-back",
+		map[string]string{"Path": path}, nil)
+}
+
 func (x remoteRestores) RemoveKept(ctx context.Context, service, path string) error {
 	return x.r.call(ctx, http.MethodPost, "/v1/restores/"+url.PathEscape(service)+"/kept/remove",
 		map[string]string{"Path": path}, nil)
@@ -683,6 +688,10 @@ func (r *Remote) KeptData(ctx context.Context) ([]KeptFolder, error) {
 	var out []KeptFolder
 	err := r.call(ctx, http.MethodGet, "/v1/kept", nil, &out)
 	return out, err
+}
+
+func (r *Remote) PutBackKeptData(ctx context.Context, path string) error {
+	return r.call(ctx, http.MethodPost, "/v1/kept/put-back", map[string]string{"Path": path}, nil)
 }
 
 func (r *Remote) RemoveKeptData(ctx context.Context, path string) error {

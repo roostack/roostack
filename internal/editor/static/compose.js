@@ -701,6 +701,52 @@
     return { yaml: out.toString({ flowCollectionPadding: false, lineWidth: 0 }), report, summary, name: pkg.name, version: pkg.version };
   }
 
+  // ---------- Reading an old setup (SPEC.md §8.4) ----------
+
+  // readSetup reads a Compose file (with its .env) as the old setup of a
+  // service whose data is being brought into Roostack, in the shape
+  // Roostack's importer.Setup takes: each service's image, mounts (host
+  // path or named volume, and where in the container) and environment.
+  // Values of variables named like secrets are masked here, so they never
+  // leave the browser.
+  const secretLike = /pass|secret|token|key|private|credential|auth|salt|cookie|jwt|dsn|_url$/i;
+  function readSetup(text, opts) {
+    opts = opts || {};
+    const doc = YAML.parseDocument(String(text || ""), { merge: true, uniqueKeys: false });
+    if (doc.errors.length) return { error: `That isn't a Compose file Roostack can read: ${doc.errors[0].message.split("\n")[0]}` };
+    const compose = doc.toJS({ maxAliasCount: -1 }) || {};
+    if (!compose || typeof compose !== "object" || !compose.services || typeof compose.services !== "object") {
+      return { error: "That isn't a Compose file: it has no services:." };
+    }
+    const vars = parseEnvFile(opts.env);
+    const missing = new Set();
+    const I = (s) => interpolate(s, vars, missing);
+    const project = compose.name ? I(compose.name) : "";
+    const containers = [];
+    for (const [name, s] of Object.entries(compose.services)) {
+      if (!s || typeof s !== "object" || !s.image) continue;
+      // An env_file (Immich's .env) gives the container every variable in
+      // it; the .env pasted stands for it.
+      const env = Object.assign(s.env_file ? Object.assign({}, vars) : {}, envMap(s.environment, I));
+      for (const k of Object.keys(env)) if (secretLike.test(k) && env[k] !== "") env[k] = "•••";
+      const mounts = [];
+      for (const v of [].concat(s.volumes || [])) {
+        const m = volumeOf(v, I);
+        if (!m || !m.target) continue;
+        if (m.type === "volume" && m.source) {
+          // Docker keeps a named volume's files here, named after the project.
+          mounts.push({ source: `/var/lib/docker/volumes/${project ? project + "_" : ""}${m.source}/_data`, target: m.target, volume: m.source, ro: m.ro });
+        } else if (m.type === "bind") {
+          mounts.push({ source: m.source, target: m.target, ro: m.ro });
+        }
+      }
+      const nvidia = s.runtime === "nvidia" || /nvidia/.test(JSON.stringify(s.deploy || {}));
+      containers.push({ name: s.container_name ? I(s.container_name) : name, service: name, image: I(s.image), mounts, env, nvidia });
+    }
+    if (!containers.length) return { error: "None of its services has an image Roostack can read." };
+    return { setup: { from: "compose", project, containers }, missing: [...missing].sort() };
+  }
+
   // envMap reads Compose's environment, a map or a list of KEY=VALUE.
   function envMap(e, I) {
     const out = {};
@@ -755,5 +801,5 @@
     return null;
   }
 
-  R.compose = { importCompose, imageParts, memoryOf, interpolate, shellWords, storageGuess, safeName, versionFromTag };
+  R.compose = { importCompose, readSetup, imageParts, memoryOf, interpolate, shellWords, storageGuess, safeName, versionFromTag };
 })(globalThis.RoostackEditor = globalThis.RoostackEditor || {});

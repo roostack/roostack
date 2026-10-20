@@ -60,6 +60,13 @@ const (
 // (SPEC.md §10.10).
 const StatusWaiting = "waiting"
 
+// StatusAwaitingData is a service installed to wait for its data, and
+// StatusSwitching one being switched to it (SPEC.md §8.4).
+const (
+	StatusAwaitingData = "awaiting-data"
+	StatusSwitching    = "switching"
+)
+
 // ServiceView is one row on the dashboard.
 type ServiceView struct {
 	Name   string
@@ -247,6 +254,7 @@ type ServiceManager interface {
 	Withdrawals
 	ServiceUpdates
 	BackupJunk
+	DataImports
 	// BackupAccess is what a server's own credential can do at one of its
 	// backups: whether they'd survive it being taken over (SPEC.md §10.10).
 	BackupAccess(ctx context.Context, serverID, ref string) manager.Access
@@ -265,6 +273,15 @@ type ServiceManager interface {
 	CheckRollback(ctx context.Context, serverID, ref string, before time.Time) error
 	RollbackChecked(serverID, ref string) *manager.RollbackPlan
 	RollBack(ctx context.Context, serverID, ref string, before time.Time) error
+}
+
+// DataImports brings a service's data in from the person's own copy
+// (SPEC.md §8.4): its server keeps the import (node.Imports), and the
+// controller switches it in.
+type DataImports interface {
+	ImportsOf(service string) (node.Imports, error)
+	SwitchImport(ctx context.Context, service string) error
+	Switching(service string) bool
 }
 
 // LabRestores restores a service from any of the lab's backups, onto any
@@ -339,6 +356,7 @@ type LabServers interface {
 	RenameServer(ctx context.Context, id, name string) error
 	KeptData(ctx context.Context, serverID string) ([]node.KeptFolder, error)
 	RemoveKeptData(ctx context.Context, serverID, path string) error
+	PutBackKeptData(ctx context.Context, serverID, path string) error
 	// Direct links between servers for backups (SPEC.md §10.10): where a
 	// server is reached directly (typed by the Owner), and how one server
 	// reaches another's backup store.
@@ -509,7 +527,8 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		"home", "services", "service", "backups", "restore", "error", "settings-server-gone", "settings-server-unreachable", "settings", "account", "account-appearance", "account-notifications", "users", "about",
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
-		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check"} {
+		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check",
+		"import", "import-folders"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -565,6 +584,10 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /partials/services", s.require(auth.ViewDashboard, s.servicesPartial))
 	mux.Handle("GET /services/{name}", s.require(auth.ManageServices, s.servicePage))
 	mux.Handle("GET /services/{name}/settings", s.require(auth.ManageServices, s.serviceSettingsPage))
+	// Bringing a service's data in (SPEC.md §8.4): the Owner only.
+	mux.Handle("GET /services/{name}/import", s.requireOwner(s.importPage))
+	mux.Handle("GET /services/{name}/import/folders", s.requireOwner(s.importFoldersPage))
+	mux.Handle("GET /services/{name}/import/browse", s.requireOwner(s.importBrowsePage))
 	mux.Handle("GET /backups", s.require(auth.ManageServices, s.backupsPage))
 	mux.Handle("GET /partials/backups", s.require(auth.ManageServices, s.backupsPartial))
 	mux.Handle("GET /settings", s.requireOwner(s.settingsPage))
@@ -680,6 +703,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /backups/restore/{name}", s.requireOwner(s.restorePage))
 	mux.Handle("POST /backups/restore/{name}", s.requireOwner(s.restoreSubmit))
 	mux.Handle("POST /backups/restore/{name}/kept/remove", s.requireOwner(s.removeKeptSubmit))
+	mux.Handle("POST /backups/restore/{name}/kept/put-back", s.requireOwner(s.putBackKeptSubmit))
 	mux.Handle("POST /settings/updates/run", s.requireOwner(s.updateNowSubmit))
 	mux.Handle("POST /settings/updates/series", s.requireOwner(s.seriesAcceptSubmit))
 	mux.Handle("POST /settings/updates/registry/check", s.requireOwner(s.registryCheckSubmit))
@@ -737,6 +761,15 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /install/{name}/icon.png", s.require(auth.ManageServices, s.packageIcon))
 	mux.Handle("POST /services/{name}/ports/{port}", s.require(auth.ManageServices, s.portSubmit))
 	mux.Handle("POST /services/{name}/settings", s.require(auth.ManageServices, s.settingsSubmit))
+	mux.Handle("POST /services/{name}/import/source", s.requireOwner(s.importSourceSubmit))
+	mux.Handle("POST /services/{name}/import/setup", s.requireOwner(s.importSetupSubmit))
+	mux.Handle("POST /services/{name}/import/paths", s.requireOwner(s.importPathsSubmit))
+	mux.Handle("POST /services/{name}/import/choices", s.requireOwner(s.importChoicesSubmit))
+	mux.Handle("POST /services/{name}/import/check", s.requireOwner(s.importCheckSubmit))
+	mux.Handle("POST /services/{name}/import/copy", s.requireOwner(s.importCopySubmit))
+	mux.Handle("POST /services/{name}/import/stop", s.requireOwner(s.importStopSubmit))
+	mux.Handle("POST /services/{name}/import/switch", s.requireOwner(s.importSwitchSubmit))
+	mux.Handle("POST /services/{name}/import/cancel", s.requireOwner(s.importCancelSubmit))
 	mux.Handle("POST /services/{name}/libraries", s.require(auth.ManageServices, s.serviceLibrariesSubmit))
 	mux.Handle("POST /services/{name}/reveal/{key}", s.require(auth.ManageServices, s.revealSubmit))
 	mux.Handle("POST /services/{name}/setup/retry", s.require(auth.ManageServices, s.retrySetupSubmit))

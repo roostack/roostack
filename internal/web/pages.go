@@ -111,6 +111,7 @@ func (n nav) Section() *crumb {
 func navTab(page string) string {
 	if tab, ok := map[string]string{
 		"home": "home", "catalog": "services", "local-add": "services", "local-editor": "services", "install": "services", "remove": "services", "move": "services", "visitors": "services",
+		"import": "services", "import-folders": "services",
 		"restore": "backups", "recovery-key": "settings", "users": "settings", "dns-takeover": "settings",
 		"account": "account", "twofactor": "account", "account-appearance": "account", "account-notifications": "account",
 		"cloud-open": "settings", "cloud-linked": "settings",
@@ -570,6 +571,14 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	if s.Libraries != nil {
 		if c, err := s.Libraries.ServiceLibraries(r.Context(), name); err == nil && c.Reads {
 			data["Libraries"] = c
+		}
+	}
+	// Bringing its data in, under way (SPEC.md §8.4): the Owner's.
+	if data["IsOwner"] == true {
+		if x, err := s.Manager.ImportsOf(name); err == nil {
+			if v, err := x.Import(r.Context(), name); err == nil && v.Source != nil && v.Switched.IsZero() {
+				data["ImportUnderway"] = importUnderway(v)
+			}
 		}
 	}
 	if data["EditSettings"] == true {

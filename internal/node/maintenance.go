@@ -25,6 +25,8 @@ type Restores interface {
 	Pending() bool
 	Kept(service string) ([]backup.KeptCopy, error)
 	RemoveKept(ctx context.Context, service, path string) error
+	// PutBack puts a kept copy back in place of the data (SPEC.md §8.4).
+	PutBack(ctx context.Context, service, path string) error
 }
 
 // Updates is a server's OS updates and restarts.

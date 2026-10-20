@@ -270,6 +270,53 @@ func KeptCopies(svc *generate.Output) ([]KeptCopy, error) {
 	return kept, nil
 }
 
+// PutBack puts a kept copy back in place of a service's data, with the
+// copies of its other folders from the same moment, and its databases
+// from the dumps among them (SPEC.md §8.4: every kept copy can be put
+// back). The data it replaces is kept in turn, as before a restore, so
+// changing one's mind again is a put back too. The service is stopped
+// meanwhile and started again.
+func (r *Restorer) PutBack(ctx context.Context, svc *generate.Output, path string) error {
+	kept, err := KeptCopies(svc)
+	if err != nil {
+		return err
+	}
+	i := slices.IndexFunc(kept, func(k KeptCopy) bool { return k.Path == path })
+	if i < 0 {
+		return fmt.Errorf("%s is not a copy kept by a restore", path)
+	}
+	suffix := strings.TrimPrefix(path, kept[i].Of)
+	now := keptBefore + r.Now().Format(keptTimeLayout)
+	r.Log.Step("Stopping %s", svc.Service)
+	if err := r.Units.Stop(ctx, svc.Units...); err != nil {
+		return err
+	}
+	r.Log.Step("Putting the kept copy back (what's there now is kept)")
+	for _, dir := range svc.Backup.Include {
+		if _, err := os.Stat(dir + suffix); err != nil {
+			continue
+		}
+		if _, err := os.Stat(dir); err == nil {
+			if err := os.Rename(dir, dir+now); err != nil {
+				return err
+			}
+			r.Log.Printf("%s → %s", dir, dir+now)
+		}
+		if err := os.Rename(dir+suffix, dir); err != nil {
+			return err
+		}
+		r.Log.Printf("%s → %s", dir+suffix, dir)
+	}
+	if len(svc.Backup.Prepare) > 0 {
+		r.Log.Step("Putting the database back")
+	}
+	if err := r.LoadDumps(ctx, svc); err != nil {
+		return err
+	}
+	r.Log.Step("Starting %s", svc.Service)
+	return r.Units.Start(ctx, svc.Units...)
+}
+
 // RemoveKept deletes a kept copy. Only paths KeptCopies returns for the
 // service are accepted. Files may belong to container users, so it runs
 // inside podman unshare.

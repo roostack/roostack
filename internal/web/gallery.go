@@ -186,7 +186,9 @@ Network=roostack-immich.network</code></pre>
 {{status "failed"}}
 {{status "stopped"}}
 {{status "waiting"}}
-{{status "registry-stop"}}`},
+{{status "registry-stop"}}
+{{status "awaiting-data"}}
+{{status "switching"}}`},
 			{"Badges", "", `
 {{badge "Preview"}}
 {{badge "New" "highlight"}}
@@ -356,6 +358,59 @@ Network=roostack-immich.network</code></pre>
 			{"Folder picker", "The folder chosen as a value (.folder-choice: the folder icon, the place and what it holds, then a secondary button), which opens the picker: template \"folder-picker\" with a folderPicker, the folders opened so far as crumbs, the folders here (each opening on a click, with what it holds), what this one holds, Cancel and Use. A link with data-picker=\"ID\" shows it in pickerDialog ID PLACE (app.js loads the link's page into the dialog, and Use replaces the page's PLACE); without scripts the same link is a page.", `
 <div class="folder-choice">{{icon "folder"}}<span class="path"><strong>MEDIA › Films</strong><small>3 folders, 1 file</small></span><a class="button secondary" href="#">Choose a folder…</a></div>
 <div class="gallery-picker">{{template "folder-picker" .Picker}}</div>`},
+		}},
+	{ID: "steps", Title: "Steps and checks", Intro: "For work done in steps on one page (bringing a service's data in, SPEC.md §8.4; the Owner's choice of mock-ups, docs/mockups/bring-your-own-data): numbered step cards, a check's results, a path and where it is now, a long copy's progress, and what to do elsewhere.",
+		Examples: []galleryExample{
+			{"Steps of a page", "section.card.step-card with an h2 holding span.step-num (the step's number): the step open now. .step-done: a step done, its number a tick, one line (p.step-summary, a small line under it) and a Change link (.more). .step-todo: a step not reached yet, only its heading, muted. .step-result: the last step, done, holding the result. Each step ends with Continue, unless its button acts within it. In .steps-layout, the steps (.steps) go beside .steps-aside and .steps-help, the aside first below 1100 px.", `
+<section class="card step-card step-done">
+  <div class="card-head"><h2><span class="step-num">{{icon "check"}}</span>Your files</h2><a class="more" href="#">Change</a></div>
+  <p class="step-summary">T7 Shield › immich<small>Read-only</small></p>
+</section>
+<section class="card step-card">
+  <div class="card-head"><h2><span class="step-num">2</span>Your old setup <small class="hint">optional</small></h2></div>
+  <p class="hint">What it ran as before tells Roostack which of your folders is which.</p>
+  <div class="actions-row"><button type="button">Continue</button></div>
+</section>
+<section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">3</span>What goes where</h2></div></section>`},
+			{"A check's results", "ul.check-list of li.check-ok, .check-warn, .check-bad (in the way: nothing goes on until it's fixed) or .check-info, each an icon (check, warn, close, spark) and a div: its first sentence in bold, then more, sometimes a copyBox or a ul.code-list.", `
+<ul class="check-list">
+  <li class="check-ok">{{icon "check"}}<div><strong>Your photos and videos: 118,402 files, 41.2 GB.</strong> All readable.</div></li>
+  <li class="check-warn">{{icon "warn"}}<div><strong>An older version.</strong> The old one ran 1.131.3; this one is 3.3.3.</div></li>
+  <li class="check-bad">{{icon "close"}}<div><strong>312 files Roostack can't read, in library:</strong> make them readable on your copy, then check again:
+    {{copyBox "sudo chmod -R a+rX immich"}}</div></li>
+  <li class="check-info">{{icon "spark"}}<div><strong>Smart search models: not brought.</strong> Immich makes them again.</div></li>
+</ul>`},
+			{"A path and where it is now", ".path-row: a label and an input (the path), an arrow, a .field-label and a .folder-choice (where it is now), the two lined up on one row; one under another on phones.", `
+<form>
+  <div class="path-row">
+    <label class="path-old-label" for="g-old">On the old machine</label>
+    <span class="field-label path-now-label">Is now</span>
+    <input class="path-old" id="g-old" value="/opt/immich">
+    <span class="path-arrow" aria-hidden="true">→</span>
+    <div class="folder-choice path-now">{{icon "folder"}}<span class="path"><strong>T7 Shield › immich</strong></span><a class="button secondary small" href="#">Choose…</a></div>
+  </div>
+</form>`},
+			{"Pasted text", "A textarea: monospace, as tall as it's given (rows), for text pasted from elsewhere (docker inspect's output, a Compose file).", `
+<form><label>What it printed <textarea rows="3" spellcheck="false">[ { "Name": "/immich_server", … } ]</textarea></label></form>`},
+			{"Progress of a long copy", ".progress: a .meter at full width (its span's width through data-width) and the figures under it, in an activity status line's card.", `
+<p class="activity-status running"><span class="spinner" aria-hidden="true"></span> Copying: Your photos and videos… <small>started 14:10</small></p>
+<div class="progress"><div class="meter"><span data-width="37"></span></div><p>18.4 GB of 49.6 GB · 52,310 of 355,516 files · <strong>about 25 minutes left</strong></p></div>`},
+			{"What to do elsewhere, and what Roostack will do", "ol.todo-list: steps for the person to take on another machine, each with its command in a copyBox. ul.plain.will-list: what Roostack will do, an icon each.", `
+<ol class="todo-list">
+  <li><strong>Stop the old Immich, and keep it stopped.</strong> {{copyBox "docker compose stop immich-server"}}</li>
+</ol>
+<ul class="plain will-list">
+  <li>{{icon "import"}}Copies what changed since the last copy, once more.</li>
+  <li>{{icon "check"}}Starts Immich, and waits for it to answer.</li>
+</ul>`},
+			{"A table list whose rows stack on phones", "table.list.stack-phone: each cell may have a smaller second line (small); tr.row-muted for what isn't brought; on phones each row is a block. A middle cell that may be long is td.wrap.", `
+<div class="table-wrap"><table class="list stack-phone">
+  <thead><tr><th>Immich keeps</th><th>Brought from</th><th><span class="sr-only">Change</span></th></tr></thead>
+  <tbody>
+    <tr><td><strong>Your photos and videos</strong><small><code>/data</code> · backed up</small></td><td class="wrap">T7 Shield › immich › library<small>Was <code>/opt/immich/library</code></small></td><td><a href="#">Change…</a></td></tr>
+    <tr class="row-muted"><td><strong>Smart search models</strong><small><code>/cache</code></small></td><td class="wrap">Not brought<small>Immich makes them again.</small></td><td><a href="#">Choose…</a></td></tr>
+  </tbody>
+</table></div>`},
 		}},
 	{ID: "lists", Title: "Lists", Intro: "Rows with borders for lists of things you can act on.",
 		Examples: []galleryExample{

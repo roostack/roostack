@@ -106,6 +106,11 @@ type keptView struct {
 	Server, ServerName string
 	Failed             bool // a rolled-back partial restore
 	Time               time.Time
+	// What it is, for people: "Before bringing data in", say (SPEC.md §8.4).
+	What string
+	// CanPutBack: it can go back in place of the data (it's on the
+	// service's server, or kept by its restores).
+	CanPutBack bool
 }
 
 func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc ServiceView, errMsg string, status int) {
@@ -134,7 +139,8 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 			return
 		}
 		for _, k := range copies {
-			kept = append(kept, keptView{Path: k.Path, Failed: k.Failed, Time: k.Time})
+			kept = append(kept, keptView{Path: k.Path, Failed: k.Failed, Time: k.Time, CanPutBack: !k.Failed,
+				What: map[bool]string{true: "From a restore that didn't finish", false: "Kept aside"}[k.Failed]})
 		}
 	}
 	// Data a restore from elsewhere (or a move) set aside, on any server.
@@ -145,7 +151,17 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 		}
 		for _, f := range folders {
 			if f.Service == svc.Name {
-				kept = append(kept, keptView{Path: f.Path, Server: m.ID, ServerName: m.Name, Time: f.Time})
+				v := keptView{Path: f.Path, Server: m.ID, ServerName: m.Name, Time: f.Time, What: "Kept aside",
+					CanPutBack: !f.MovedAway && m.ID == host}
+				switch {
+				case f.Imported:
+					v.What = "Before bringing data in"
+				case f.FailedImport:
+					v.What = "Brought in, then set aside"
+				case f.MovedAway:
+					v.What = "The old copy, after moving"
+				}
+				kept = append(kept, v)
 			}
 		}
 	}
@@ -245,6 +261,35 @@ func (s *Server) restoreSubmit(w http.ResponseWriter, r *http.Request) {
 		what += " onto " + to
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "restore", what)
+	redirect(w, r, "/backups/restore/"+svc.Name)
+}
+
+// putBackKeptSubmit puts a kept copy back in place of a service's data
+// (SPEC.md §8.4): what's there now is kept in turn.
+func (s *Server) putBackKeptSubmit(w http.ResponseWriter, r *http.Request) {
+	svc, ok := s.restoreService(w, r)
+	if !ok {
+		return
+	}
+	path, server := r.FormValue("path"), r.FormValue("server")
+	var err error
+	switch x := s.restores(r); {
+	case server != "":
+		err = s.Manager.PutBackKeptData(r.Context(), server, path)
+	case x != nil:
+		err = x.PutBack(r.Context(), svc.Name, path)
+	default:
+		err = node.ErrNotFound
+	}
+	if msg, ok := userMessage(err); ok {
+		s.renderRestore(w, r, svc, msg, http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		s.renderRestore(w, r, svc, "Couldn't put the copy back: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	s.Store.Audit(r.Context(), currentUser(r), "restore", "put back kept copy "+path)
 	redirect(w, r, "/backups/restore/"+svc.Name)
 }
 

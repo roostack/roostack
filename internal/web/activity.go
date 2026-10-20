@@ -23,6 +23,8 @@ var activityPerm = map[string]auth.Permission{
 	activity.ServiceUpdate: auth.ManageServices,
 	// Rolling backups back (SPEC.md §10.10).
 	activity.BackupRollback: auth.ManageHost,
+	// Bringing a service's data in (SPEC.md §8.4).
+	activity.Import: auth.ManageHost,
 	// A service restarted as its library's drive came back (SPEC.md §8.4).
 	activity.LibraryRestart: auth.ManageServices,
 }
@@ -42,7 +44,7 @@ type activityView struct {
 func (s *Server) activityFor(r *http.Request, kind string) *activityView {
 	base, forServer, _ := strings.Cut(kind, ".")
 	perm, ok := activityPerm[base]
-	if !ok || !auth.Can(currentUser(r).Role, perm) || (forServer != "" && base != activity.BackupSetup && base != activity.BackupKey && base != activity.BackupRollback) {
+	if !ok || !auth.Can(currentUser(r).Role, perm) || (forServer != "" && base != activity.BackupSetup && base != activity.BackupKey && base != activity.BackupRollback && base != activity.Import) {
 		return nil
 	}
 	n := s.serverOf(r)

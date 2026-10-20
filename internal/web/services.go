@@ -31,6 +31,9 @@ type formField struct {
 	// KeepsFirst: the first of a package's install-only settings, over
 	// its data from before (left empty, the app keeps what it has).
 	KeepsFirst bool
+	// InstallOnly: used only by its first-time setup, so not asked for
+	// when its data is brought in (SPEC.md §8.4).
+	InstallOnly bool
 }
 
 // inputFields builds the form fields for an action's inputs.
@@ -255,6 +258,11 @@ func (s *Server) installSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), u, "install", s.installAudit(p, req))
+	if req.BringData {
+		// Its page says it waits for its data, with the way in.
+		redirect(w, r, "/services/"+url.PathEscape(cmp.Or(req.Name, p.Name)))
+		return
+	}
 	redirect(w, r, "/")
 }
 
@@ -268,6 +276,9 @@ func (s *Server) installAudit(p *pkgspec.Package, req manager.InstallRequest) st
 	}
 	if req.Public {
 		detail += ", public"
+	}
+	if req.BringData {
+		detail += ", waiting for its data"
 	}
 	if c := s.Manager.CheckPackage(p); req.AcceptRisks && c.Local && len(c.Problems) > 0 {
 		detail += "; accepted risks: " + strings.Join(c.Problems, "; ")
@@ -293,6 +304,8 @@ func (s *Server) installRequest(r *http.Request, form url.Values, p *pkgspec.Pac
 		// when an Owner installs them; an Admin's start private, since
 		// only an Owner makes anything public (§6.11).
 		Public: s.onInternet() && auth.Can(currentUser(r).Role, auth.ManageHost) && form.Get("public") == "on",
+		// Bringing its data (SPEC.md §8.4): the Owner only.
+		BringData: form.Get("data") == "bring" && auth.Can(currentUser(r).Role, auth.ManageHost),
 	}
 	// The media libraries ticked for the server chosen (SPEC.md §8.1).
 	if form.Get("libraries_chosen") != "" {
@@ -328,7 +341,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 			continue // Roostack creates these
 		}
 		f := formField{Key: "setting." + st.Key, Title: st.Title, Description: st.Description,
-			Required: st.Required || st.Type == pkgspec.SettingSecret, MinLength: st.MinLength}
+			Required: st.Required || st.Type == pkgspec.SettingSecret, MinLength: st.MinLength, InstallOnly: st.InstallOnly}
 		if f.Title == "" {
 			f.Title = st.Key
 		}
@@ -468,6 +481,7 @@ func (s *Server) installData(r *http.Request, p *pkgspec.Package, submitted map[
 		"CanInstall":    len(policy.Problems) == 0 || (policy.Local && owner),
 		"Summary":       summary,
 		"Credit":        newProjectCredit(p),
+		"BringData":     owner && submitted != nil && submitted["data"] != nil && submitted["data"][0] == "bring",
 		"Internet":      s.onInternet(),
 		"Public":        owner && (submitted == nil || public),
 		"Unsafe":        unsafe,

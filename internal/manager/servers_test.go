@@ -86,6 +86,7 @@ func (f *fakeRemote) Backups() node.Backups   { return f.backups }
 func (f *fakeRemote) Restores() node.Restores { return nil }
 func (f *fakeRemote) Updates() node.Updates   { return nil }
 func (f *fakeRemote) Media() node.Media       { return f.media }
+func (f *fakeRemote) Imports() node.Imports   { return nil }
 
 func (f *fakeRemote) Settings() node.Settings {
 	f.mu.Lock()

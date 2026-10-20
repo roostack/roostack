@@ -78,11 +78,13 @@ type installSummaryView struct {
 	// Params are the form fields the summary is asked for with: every
 	// one but the passwords, which it doesn't need (htmx's hx-params).
 	Params string
+	// BringData: it's installed to wait for its data (SPEC.md §8.4).
+	BringData bool
 }
 
 // installSummary works out the summary for an install request.
 func (s *Server) installSummary(p *pkgspec.Package, req manager.InstallRequest) *installSummaryView {
-	v := &installSummaryView{Package: p, Internet: s.onInternet(), NoAddress: s.Domain == "", Params: "*"}
+	v := &installSummaryView{Package: p, Internet: s.onInternet(), NoAddress: s.Domain == "", Params: "*", BringData: req.BringData}
 	var secrets []string
 	for _, st := range p.Settings {
 		if st.Type == pkgspec.SettingSecret && !st.Generate {

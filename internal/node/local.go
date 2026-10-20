@@ -59,6 +59,9 @@ type Node interface {
 	Settings() Settings
 	// Media is its media libraries (media.go); nil when it can't have any.
 	Media() Media
+	// Imports is bringing data into its services (import.go); nil when
+	// it can't.
+	Imports() Imports
 }
 
 // Assignment is what the controller wants a node to run.
@@ -159,7 +162,10 @@ type Local struct {
 	// Libraries mounts media libraries and services' views of them
 	// (libraries.go; optional: without it, none are mounted).
 	Libraries LibraryAgent
-	Version   string
+	// ImportAgent mounts the person's copy of a service's data, to bring
+	// it in (import.go; optional: without it, data can't be brought).
+	ImportAgent ImportAgent
+	Version     string
 
 	sizes sizes
 
@@ -223,6 +229,8 @@ type Local struct {
 	// libWatch is what the watch of libraries at their own paths saw last
 	// (libwatch.go).
 	libWatch libraryWatch
+	// imp is bringing data into services (import.go).
+	imp imports
 }
 
 // Identity is this server's identity.
@@ -231,6 +239,14 @@ func (n *Local) Identity() nodeid.Identity { return n.ID }
 // Apply records the latest assignment and applies it in the background. If
 // an apply is running, another follows it, so the latest always wins.
 func (n *Local) Apply(a Assignment) {
+	// The first assignment says which services are here: a copy that a
+	// restart interrupted carries on (import.go).
+	n.imp.mu.Lock()
+	if !n.imp.resumed && n.State != nil {
+		n.imp.resumed = true
+		defer func() { go n.resumeImports(context.Background()) }()
+	}
+	n.imp.mu.Unlock()
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	if n.userSecrets == nil {

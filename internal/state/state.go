@@ -38,6 +38,30 @@ type Stop struct {
 	LastBackup bool `json:"last_backup,omitempty"`
 }
 
+// Output is what runs of a service on its server: generate.Service's, but
+// only its network and databases while Roostack has stopped it (SPEC.md
+// §8.3.4) or it waits for its data to be brought in (SPEC.md §8.4).
+func Output(lab config.Lab, s Service) (*generate.Output, error) {
+	out, err := generate.Service(lab, s.Package, s.Instance)
+	if err != nil {
+		return nil, err
+	}
+	trim(out, s)
+	return out, nil
+}
+
+// trim leaves out of a service's output what doesn't run now (Output).
+func trim(out *generate.Output, s Service) {
+	switch {
+	case s.Stop != nil:
+		generate.Stop(out, s.Package, s.Stop.LastBackup)
+	case s.Instance != nil && s.Instance.AwaitingData:
+		// Its databases run (empty until the switch loads them), so
+		// what's brought can be checked against them.
+		generate.Stop(out, s.Package, true)
+	}
+}
+
 // Name is the service's ID (instance.Instance.ID): a second copy of a
 // package has its own (SPEC.md §8.2).
 func (s Service) Name() string {
@@ -142,13 +166,11 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 				errs = append(errs, err)
 			}
 		}
-		if s.Stop != nil {
-			generate.Stop(out, s.Package, s.Stop.LastBackup)
-		}
+		trim(out, s)
 		d.Services = append(d.Services, out)
 	}
 	for _, s := range proxied {
-		if s.Stop != nil {
+		if s.Stop != nil || (s.Instance != nil && s.Instance.AwaitingData) {
 			continue // its server has stopped it: nothing to pass on
 		}
 		out, err := generate.ProxySite(lab, s.Package, s.Instance, s.Addr)

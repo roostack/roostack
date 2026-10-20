@@ -14,7 +14,7 @@
   </div>
   <div class="page-head-actions">
     <label class="view-switch"><input type="checkbox"><span>Friendly</span><span>Technical</span><span class="sr-only"> view</span></label>
-    {{if and .Service.URLs (not .Service.Install) (not .Service.NoAddress) (ne .Service.Status "registry-stop")}}
+    {{if and .Service.URLs (not .Service.Install) (not .Service.NoAddress) (ne .Service.Status "registry-stop") (ne .Service.Status "awaiting-data")}}
     <a class="button" href="{{index .Service.URLs 0}}" target="_blank" rel="noopener">Open {{.Service.Title}}{{template "new-window"}}</a>{{end}}
   </div>
 </div>
@@ -71,6 +71,21 @@
   </div>
   {{end}}
   {{template "service-update" .}}
+  {{if eq .Service.Status "awaiting-data"}}
+  {{/* Installed to wait for its data (SPEC.md §8.4). */}}
+  <div class="notice" role="status">
+    {{with .ImportUnderway}}<p><strong>Bringing {{$.Service.Title}}'s data in: {{.}}.</strong> {{$.Service.Title}} stays stopped until you switch.</p>
+    <p><a class="button" href="/services/{{$.Service.Name}}/import">See how it's going</a></p>
+    {{else}}<p><strong>{{.Service.Title}} is installed, and waiting for its data.</strong> It stays stopped until its files and database are
+      brought in, from Docker Compose, another server or a backup of your own.</p>
+    {{if .IsOwner}}<p><a class="button" href="/services/{{.Service.Name}}/import">Bring its data in…</a></p>
+    <p class="hint">Changed your mind? Remove it and install it again to start afresh.</p>
+    {{else}}<p class="hint">The Owner brings it in.</p>{{end}}{{end}}
+  </div>
+  {{else}}{{with .ImportUnderway}}
+  <div class="notice" role="status"><p><strong>Bringing {{$.Service.Title}}'s data in: {{.}}.</strong> It runs as before until you switch.
+    <a href="/services/{{$.Service.Name}}/import">See how it's going</a></p></div>
+  {{end}}{{end}}
   {{with .Libraries}}{{with .Gone}}
   {{/* A library bound at a place of its own, its drive gone (SPEC.md
        §8.4): the server restarts the service once it's back. */}}
@@ -148,6 +163,7 @@
       {{if .Service.NoAddress}}<dt>Address</dt><dd>{{template "address-waiting" $}}</dd>{{end}}
       {{range $u := .Service.URLs}}<dt>Address</dt><dd>{{if $.Service.Install}}<span class="address-pending">{{.}}</span> <small class="hint">· ready once installed</small>
         {{- else if eq $.Service.Status "registry-stop"}}<span class="address-pending">{{.}}</span> <small class="hint">· off while it's stopped</small>
+        {{- else if eq $.Service.Status "awaiting-data"}}<span class="address-pending">{{.}}</span> <small class="hint">· ready once its data is in</small>
         {{- else}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}{{template "new-window"}}</a>
         {{- with $.Old}}{{with .URL $u}}<br><small class="hint">Until {{date $.Old.Until}} also at its old address, {{.}}</small>{{end}}{{end}}{{end}}</dd>{{end}}
       {{if not .Service.NoAddress}}{{range .Access}}<dt>Reachable from</dt><dd>{{if .Public}}Anyone on the internet{{else}}{{template "private-where" $.Internet}}{{end}}{{if gt (len $.Access) 1}} <small>({{.Host}})</small>{{end}}
@@ -212,7 +228,9 @@
       {{if not .Service.LastBackup.IsZero}}{{$w := whenParts .Service.LastBackup}}<span class="big-figure">{{index $w 1}}<small>{{index $w 0}}</small></span>
       <p class="hint">Its server's last backup, with everything {{.Service.Title}} keeps.</p>
       {{else if .Service.Server}}<p>Not backed up yet.</p>{{end}}
-      {{if .IsOwner}}<p><a class="button secondary" href="/backups/restore/{{.Service.Name}}">Restore {{.Service.Title}}…</a></p>{{end}}
+      {{if .IsOwner}}<p><a class="button secondary" href="/backups/restore/{{.Service.Name}}">Restore {{.Service.Title}}…</a></p>
+      {{if and (ne .Service.Status "awaiting-data") (not .ImportUnderway)}}<p><a href="/services/{{.Service.Name}}/import">Bring in data from elsewhere…</a><br>
+        <small class="hint">Replace its data with a copy of your own, from Docker Compose or another server</small></p>{{end}}{{end}}
     </section>
     {{/* What CrowdSec's AppSec refused, while it's public (SPEC.md §6.10). */}}
     {{with .WAF}}

@@ -37,6 +37,10 @@ import (
 )
 
 type fakeManager struct {
+	// imports is bringing data in (the server's, node.Imports), and
+	// switched the services switched to it.
+	imports  node.Imports
+	switched []string
 	// summaries are the install summaries asked for.
 	summaries []manager.InstallRequest
 	// serverMemory is the install summary's server (nuc, 3.6 GB free of 8
@@ -246,6 +250,18 @@ func (f *fakeManager) DiskSpaces(context.Context) ([]node.DiskSpace, error) {
 
 func (f *fakeManager) Settings() node.Settings { return f.settings }
 func (f *fakeManager) Media() node.Media       { return nil }
+func (f *fakeManager) Imports() node.Imports   { return f.imports }
+func (f *fakeManager) ImportsOf(string) (node.Imports, error) {
+	if f.imports == nil {
+		return nil, &manager.FormError{Msg: "Data can't be brought into services on that server."}
+	}
+	return f.imports, nil
+}
+func (f *fakeManager) SwitchImport(_ context.Context, service string) error {
+	f.switched = append(f.switched, service)
+	return nil
+}
+func (f *fakeManager) Switching(string) bool { return false }
 
 // The fake is also the lab's one server.
 func (f *fakeManager) Identity() nodeid.Identity {
@@ -340,6 +356,10 @@ func (f *fakeManager) KeptData(_ context.Context, id string) ([]node.KeptFolder,
 }
 func (f *fakeManager) RemoveKeptData(_ context.Context, id, path string) error {
 	f.serverOps = append(f.serverOps, "delete "+path+" on "+id)
+	return nil
+}
+func (f *fakeManager) PutBackKeptData(_ context.Context, id, path string) error {
+	f.serverOps = append(f.serverOps, "put back "+path+" on "+id)
 	return nil
 }
 func (f *fakeManager) MoveInfo(_ context.Context, name string) (manager.MoveInfo, error) {

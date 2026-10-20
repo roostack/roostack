@@ -1,0 +1,11 @@
+{{define "title"}}Choose a folder{{end}}
+{{define "crumbs"}}<a href="/services">Services</a><a href="{{.PickerBack}}">Bring data in</a><strong aria-current="page">Choose a folder</strong>{{end}}
+{{define "page-help"}}{{help "services/bring-data" "Moving from Docker Compose"}}{{end}}
+{{define "content"}}
+{{/* The folder picker as a page: what the import page's dialog shows (its
+     #folder-picker), and the way through without scripts. */}}
+<div class="page-head"><div><h1>Choose a folder</h1></div></div>
+<section class="card section">
+  {{template "folder-picker" .Picker}}
+</section>
+{{end}}

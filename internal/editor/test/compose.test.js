@@ -163,3 +163,28 @@ test("healthchecks, users, limits and Quadlet lines", () => {
   // Every Quadlet line it writes is one the policy allows.
   assert.deepEqual(check.problems.filter((p) => /quadlet/.test(p.message)).map((p) => p.message), []);
 });
+
+// An old setup read from a Compose file, for bringing a service's data
+// into Roostack (SPEC.md §8.4): images, mounts by container path, named
+// volumes' folders, and the environment with secrets masked.
+test("readSetup reads Immich's Compose file as its old setup", () => {
+  const env = "UPLOAD_LOCATION=./library\nDB_DATA_LOCATION=./postgres\nIMMICH_VERSION=v3.3.3\nDB_PASSWORD=postgres\nDB_USERNAME=postgres\nDB_DATABASE_NAME=immich\n";
+  const got = R.compose.readSetup(fixture("immich"), { env });
+  assert.equal(got.error, undefined);
+  const s = got.setup;
+  assert.equal(s.from, "compose");
+  assert.equal(s.project, "immich");
+  const byName = Object.fromEntries(s.containers.map((c) => [c.name, c]));
+  const server = byName.immich_server;
+  assert.equal(server.service, "immich-server");
+  assert.equal(server.image, "ghcr.io/immich-app/immich-server:v3.3.3");
+  assert.deepEqual(server.mounts[0], { source: "./library", target: "/data", ro: false });
+  assert.equal(server.env.DB_PASSWORD, "•••");
+  assert.equal(server.env.UPLOAD_LOCATION, "./library");
+  assert.deepEqual(byName.immich_machine_learning.mounts[0],
+    { source: "/var/lib/docker/volumes/immich_model-cache/_data", target: "/cache", volume: "model-cache", ro: false });
+  assert.equal(byName.immich_postgres.env.POSTGRES_PASSWORD, "•••");
+  assert.equal(byName.immich_postgres.env.POSTGRES_USER, "postgres");
+  assert.match(R.compose.readSetup("services: [\n").error, /isn't a Compose file Roostack can read/);
+  assert.match(R.compose.readSetup("services:\n  a: { build: . }\n").error, /None of its services/);
+});

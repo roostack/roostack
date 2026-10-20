@@ -171,6 +171,8 @@ type WireStatus struct {
 	Restores bool `json:"restores"`
 	Updates  bool `json:"updates"`
 	Settings bool `json:"settings"`
+	// Imports: data can be brought into its services (SPEC.md §8.4).
+	Imports bool `json:"imports,omitempty"`
 	// Addrs are its home-network addresses, and Links when each of its
 	// direct links last connected (Unix time, 0 never), by the other
 	// server's public key (SPEC.md §10.10).

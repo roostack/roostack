@@ -82,6 +82,10 @@ type Instance struct {
 	// where it expects. Libraries without one are only in the package's
 	// libraries folder (/media/<library>); every library is there too.
 	LibraryPaths map[string]string `yaml:"library_paths,omitempty"`
+	// AwaitingData: installed with "I'll bring its data" (SPEC.md §8.4),
+	// so only its databases run, and its install hooks don't, until its
+	// data is switched in.
+	AwaitingData bool `yaml:"awaiting_data,omitempty"`
 }
 
 // RouteOverride holds user changes to a package route. Empty fields keep the
