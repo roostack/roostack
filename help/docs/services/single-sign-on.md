@@ -83,7 +83,9 @@ PNG or SVG, up to 200 KB. SVGs with scripts are refused.
       (`127.0.0.1:8482`), separate from Roostack's own pages. It's an
       **OpenID Connect provider**: discovery at
       `/.well-known/openid-configuration`, the authorisation-code flow
-      (with PKCE when the app sends it), refresh tokens, and ID tokens
+      (with PKCE when the app sends it), refresh tokens (each swapped once,
+      then working again for a minute for an app retrying after a lost
+      answer), and ID tokens
       signed RS256 with the key in `/var/lib/roostack/sso/signing-key.pem`.
     - Apps are told `sub` (a fixed random ID per person), and what their
       scopes ask for: `name` and `preferred_username` (`profile`), `email`

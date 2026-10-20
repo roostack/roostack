@@ -32,6 +32,11 @@ const (
 	// RefreshLifetime is a refresh token's longest; it also ends with the
 	// sign-in it came from, whichever is first.
 	RefreshLifetime = 30 * 24 * time.Hour
+	// RefreshGrace is how long a refresh token still works once used, for
+	// an app whose answer was lost on the way (a timeout): its retry gets
+	// new tokens, and those it never received are revoked. After that, a
+	// used refresh token is refused (SPEC.md §5.2).
+	RefreshGrace = time.Minute
 )
 
 // Groups an app is told a person is in (the "groups" claim): every person
@@ -111,6 +116,7 @@ type Provider struct {
 
 	mu       sync.Mutex
 	codes    map[string]*authCode
+	rotated  map[string]*rotation
 	handoffs map[string]*handoff
 	secrets  map[string]cachedSecret
 }
@@ -127,6 +133,16 @@ type authCode struct {
 	// (RFC 6749 §4.1.2), so it's kept, used, until it expires.
 	used   bool
 	tokens []string
+}
+
+// rotation is a refresh token just used, kept in memory for RefreshGrace:
+// a restart means the app signs in again, as with codes.
+type rotation struct {
+	token store.SSOToken
+	// tokens are the access and refresh tokens it was swapped for last,
+	// revoked if it's used again.
+	tokens []string
+	until  time.Time
 }
 
 // handoff takes a walled service's visitor from the sign-in host back to
@@ -442,24 +458,86 @@ func (p *Provider) codeGrant(w http.ResponseWriter, r *http.Request, c Client) {
 	p.codeTokens(code, p.issue(w, r, c, u, ac.session, ac.sessionEnds, ac.authTime, ac.scope, ac.nonce))
 }
 
+// refreshGrant swaps a refresh token for new tokens. Each refresh token is
+// swapped once, then works again only for RefreshGrace, for an app retrying
+// after a lost answer: the retry revokes what the last swap gave.
 func (p *Provider) refreshGrant(w http.ResponseWriter, r *http.Request, c Client) {
+	ctx := r.Context()
 	hash := authkit.HashToken(r.PostForm.Get("refresh_token"))
-	t, u, err := p.Store.LookupSSOToken(r.Context(), hash, store.TokenRefresh)
-	if err != nil || t.Service != c.ID {
-		tokenError(w, http.StatusBadRequest, "invalid_grant", "the refresh token is wrong, used or ended")
+	var rot *rotation
+	t, _, err := p.Store.LookupSSOToken(ctx, hash, store.TokenRefresh)
+	if err == nil && t.Service == c.ID {
+		if ok, err := p.Store.DeleteSSOToken(ctx, hash); err == nil && ok {
+			rot = p.rotate(hash, *t)
+		}
+	}
+	if rot == nil {
+		// Used already (or two requests raced): a retry within the grace.
+		rot = p.retry(hash, c.ID)
+		if rot == nil {
+			tokenError(w, http.StatusBadRequest, "invalid_grant", "the refresh token is wrong, used or ended")
+			return
+		}
+		p.revoke(ctx, rot, "a refresh token used again")
+	}
+	t = &rot.token
+	u, err := p.Store.UserByID(ctx, t.UserID)
+	if err != nil {
+		tokenError(w, http.StatusBadRequest, "invalid_grant", "that person is gone")
 		return
 	}
-	// Each refresh token works once: a new one comes with the new tokens.
-	if ok, err := p.Store.DeleteSSOToken(r.Context(), hash); err != nil || !ok {
-		tokenError(w, http.StatusBadRequest, "invalid_grant", "the refresh token was used already")
-		return
-	}
-	si, err := p.Store.SignInSession(r.Context(), t.Session)
+	si, err := p.Store.SignInSession(ctx, t.Session)
 	if err != nil {
 		tokenError(w, http.StatusBadRequest, "invalid_grant", "the sign-in has ended")
 		return
 	}
-	p.issue(w, r, c, u, t.Session, si.Expires, si.At, t.Scope, "")
+	tokens := p.issue(w, r, c, u, t.Session, si.Expires, si.At, t.Scope, "")
+	p.mu.Lock()
+	rot.tokens = tokens
+	p.mu.Unlock()
+}
+
+// rotate keeps a refresh token just used for RefreshGrace.
+func (p *Provider) rotate(hash string, t store.SSOToken) *rotation {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	now := p.now()
+	for k, rt := range p.rotated {
+		if now.After(rt.until) {
+			delete(p.rotated, k)
+		}
+	}
+	if p.rotated == nil {
+		p.rotated = map[string]*rotation{}
+	}
+	rot := &rotation{token: t, until: now.Add(RefreshGrace)}
+	p.rotated[hash] = rot
+	return rot
+}
+
+// retry is a refresh token used within RefreshGrace by its own app, or
+// nil. The grace counts from the first use, however many retries.
+func (p *Provider) retry(hash, client string) *rotation {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	rot := p.rotated[hash]
+	if rot == nil || p.now().After(rot.until) || rot.token.Service != client {
+		return nil
+	}
+	return rot
+}
+
+// revoke ends the tokens rot was last swapped for.
+func (p *Provider) revoke(ctx context.Context, rot *rotation, why string) {
+	p.mu.Lock()
+	tokens := rot.tokens
+	rot.tokens = nil
+	p.mu.Unlock()
+	for _, h := range tokens {
+		if _, err := p.Store.DeleteSSOToken(ctx, h); err != nil {
+			p.Log.Error("revoking tokens", "service", rot.token.Service, "why", why, "err", err)
+		}
+	}
 }
 
 // issue answers with an access token, a refresh token and an ID token,

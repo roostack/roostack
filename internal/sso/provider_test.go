@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -210,6 +211,8 @@ func TestCodeFlow(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatalf("refresh %d %s", w.Code, w.Body)
 	}
+	later := time.Now().Add(2 * RefreshGrace)
+	f.p.Now = func() time.Time { return later }
 	if again := token(f, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tk.Refresh}}, true); again.Code != 400 {
 		t.Errorf("a used refresh token: %d", again.Code)
 	}
@@ -267,6 +270,72 @@ func TestCodeReuse(t *testing.T) {
 	f.p.Now = func() time.Time { return later }
 	if w := token(f, form, true); w.Code != 400 {
 		t.Errorf("code once expired: %d", w.Code)
+	}
+}
+
+// A used refresh token works again for RefreshGrace, for an app whose
+// answer was lost: the retry gets new tokens and revokes those it never
+// received. After that, or once the sign-in ends, it's refused.
+func TestRefreshGrace(t *testing.T) {
+	f := newFixture(t)
+	now := time.Now()
+	f.p.Now = func() time.Time { return now }
+	code := codeFrom(t, must(authorize(t, f, authQuery())))
+	first := decode(t, token(f, url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {callback}}, true))
+	refresh := func(tok string) (int, tokens) {
+		w := token(f, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tok}}, true)
+		if w.Code != 200 {
+			return w.Code, tokens{}
+		}
+		return w.Code, decode(t, w)
+	}
+	userinfo := func(access string) int {
+		r := httptest.NewRequest(http.MethodGet, PathUserInfo, nil)
+		r.Header.Set("Authorization", "Bearer "+access)
+		w := httptest.NewRecorder()
+		f.p.UserInfo(w, r)
+		return w.Code
+	}
+
+	_, lost := refresh(first.Refresh) // the answer the app never got
+	now = now.Add(RefreshGrace / 2)
+	code2, retried := refresh(first.Refresh)
+	if code2 != 200 || retried.Refresh == lost.Refresh {
+		t.Fatalf("retry within the grace: %d", code2)
+	}
+	if userinfo(lost.Access) != 401 {
+		t.Error("the lost access token still works")
+	}
+	if c, _ := refresh(lost.Refresh); c != 400 {
+		t.Errorf("the lost refresh token: %d", c)
+	}
+	if userinfo(retried.Access) != 200 {
+		t.Error("the retry's access token doesn't work")
+	}
+	if f.p.retry(authkit.HashToken(first.Refresh), "stirling-pdf") != nil {
+		t.Error("another app's retry")
+	}
+
+	// The grace counts from the first use.
+	now = now.Add(RefreshGrace/2 + time.Second)
+	if c, _ := refresh(first.Refresh); c != 400 {
+		t.Errorf("after the grace: %d", c)
+	}
+	if userinfo(retried.Access) != 200 {
+		t.Error("a refused retry revoked the tokens in use")
+	}
+
+	// Signing out ends the grace too.
+	c3, next := refresh(retried.Refresh)
+	if c3 != 200 {
+		t.Fatalf("refresh: %d", c3)
+	}
+	f.st.DeleteSession(context.Background(), "sess-hash")
+	if c, _ := refresh(retried.Refresh); c != 400 {
+		t.Errorf("retry after signing out: %d", c)
+	}
+	if c, _ := refresh(next.Refresh); c != 400 {
+		t.Errorf("refresh after signing out: %d", c)
 	}
 }
 
