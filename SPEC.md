@@ -358,12 +358,6 @@ Later, the same choices could become the lab's default look for new people and R
   - single sign-out;
   - signing-key rotation.
 
-## 6. Container Runtime — Locked (principle)
-
-- Podman, **rootless where possible**; rootful only where a service genuinely requires it (e.g. low ports, host networking, device access), and this is visible to the user.
-- **Rationale:** security is a priority; rootless limits the blast radius of a compromised container.
-
-
 #### As built (2026-10-20)
 
 Built and checked end to end on VM3 with Mealie (OIDC) and Stirling-PDF (the wall), and against the OpenID Foundation's conformance suite on VM4, docs/ASSUMPTIONS.md V1–V7.
@@ -389,6 +383,245 @@ Built and checked end to end on VM3 with Mealie (OIDC) and Stirling-PDF (the wal
 - **The package format** has `sso` (oidc or forward_auth, env and secrets added only while on, a note) and `.SSO` in templates (help/docs/reference/packages.md). Mealie and Stirling-PDF have it in the test fixtures (`internal/testdata/packages`), a revision ahead of the registry.
 - **Not built in this version** (TASKS): the `on: sso` hook (Forgejo, Gitea), apps set through an API with a kept admin key (Immich, Audiobookshelf, Wiki.js), secrets inside JSON (Paperless, Papra), services on another server (refused with a sentence for now), passkeys, signing in to Roostack's own pages, single sign-out, key rotation. Removing a service leaves its access rows (harmless; tidied once `services.go` is free).
 - **Found while building:** a custom `dns.directive` without a DNS challenge (`issuer internal`) made Caddy refuse the Caddyfile, as `resolvers` needs one; resolvers are now added only with a `dns` line.
+
+#### Connecting the remaining apps — Proposed (2026-10-20), for the Owner
+
+The first version connects apps set by env, and walls. Three ways of connecting an app were designed above but not built. This is how each would work. The questions for the Owner are at the end.
+
+Facts behind it, read from each app's source at the pinned version (not yet tried on a VM):
+
+- **Forgejo 15:** `forgejo admin auth add-oauth` and `update-oauth` (which changes only the flags given). `auth list` prints `ID`, `Name`, `Type` and `Enabled`, separated by tabs.
+  - There is no flag to turn a source off.
+  - `auth delete` refuses a source that any account was made through ("login source is still used by some users").
+  - The button says "Sign in with <the source's name>", and the callback is `/user/oauth2/<the name, escaped>/callback`.
+- **Immich 3.3:**
+  - Its OIDC settings are part of its whole server configuration (`GET` and `PUT /api/admin/config`, all of it at once).
+  - API keys can be limited to what they may do: `adminConfig.read` and `adminConfig.update` are enough.
+  - A key belongs to an Immich account, here the administrator the install hook makes. It is made by `POST /api/api-keys` with that account's sign-in.
+  - Its image has `node` and `curl`.
+- **Audiobookshelf 2.37:** an API key acts as the account it's made for, with all of that account's power. Its sign-in settings take a `PATCH`.
+- **Wiki.js 2.5:** its API must be turned on first. A key has full access, or a group's. Setting a sign-in method replaces the whole list, so a hook must read the list and send `local` back.
+- **Paperless-ngx 3.3:** its OIDC provider is a JSON value, `PAPERLESS_SOCIALACCOUNT_PROVIDERS`, with the client secret inside. Its image reads any `PAPERLESS_*_FILE` variable from a file.
+- **Papra 26.7:** its providers are a JSON value, `AUTH_PROVIDERS_CUSTOMS`, secret inside. It has no `_FILE` variables, but takes a config file.
+
+##### 1. The `on: sso` hook
+
+**The format.** A hook with `on: sso`, like `on: install`: no name, run in order with any others. The `hook:` field sketched under `sso.oidc` above is dropped: one way to say it, not two.
+
+```yaml
+hooks:
+  - on: sso
+    title: Connect Forgejo to the lab's sign-in page
+    container: app
+    env:
+      SOURCE_NAME: "{{ .SSO.ProviderName }}"
+      DISCOVERY_URL: "{{ .SSO.DiscoveryURL }}"
+      CLIENT_ID: "{{ .SSO.ClientID }}"
+      ADMIN_GROUP: "{{ .SSO.AdminGroup }}"
+    secrets:
+      CLIENT_SECRET: sso.client_secret        # empty while single sign-on is off
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        id_file=/var/lib/gitea/roostack-sso-source     # in Forgejo's own data, so it's backed up with it
+        id=$(cat "$id_file" 2>/dev/null || true)
+        if [ "$ROOSTACK_SSO" = off ]; then
+          [ -n "$id" ] || { echo "Nothing to undo."; exit 0; }
+          if forgejo admin auth delete --id "$id" 2>err; then rm -f "$id_file"; echo "Single sign-on removed."
+          elif grep -q "still used" err; then echo "Kept: accounts were made through it. Its button now says single sign-on is off." >&2
+          else cat err >&2; exit 1; fi
+          exit 0
+        fi
+        set -- --name "$SOURCE_NAME" --provider openidConnect --key "$CLIENT_ID" --secret "$CLIENT_SECRET" \
+          --auto-discover-url "$DISCOVERY_URL" --scopes openid --scopes email --scopes profile --scopes groups \
+          --group-claim-name groups --admin-group "$ADMIN_GROUP"
+        if [ -n "$id" ] && forgejo admin auth list | awk -F'\t+' -v id="$id" 'NR > 1 && $1 == id { f = 1 } END { exit !f }'; then
+          forgejo admin auth update-oauth --id "$id" "$@"; echo "Single sign-on updated."
+        else
+          forgejo admin auth add-oauth "$@"
+          forgejo admin auth list | awk -F'\t+' -v n="$SOURCE_NAME" 'NR > 1 && $2 == n { print $1 }' > "$id_file"
+          echo "Single sign-on added."
+        fi
+```
+
+Forgejo's `sso` part gains `env` for its container while on: `FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION: "true"`, `ACCOUNT_LINKING: auto` (an existing account with the same email is linked, not refused), and `USERNAME: nickname` (which reads `preferred_username`). Its redirect path names the source, so redirect paths may use `.SSO` templates and a new `pathescape` function: `/user/oauth2/{{ pathescape .SSO.ProviderName }}/callback`. Renaming the lab then renames the source and its redirect address in one apply. Gitea is the same.
+
+**What it gets:**
+
+- `ROOSTACK_SSO=on` or `off`, set by Roostack;
+- the env and secrets the hook lists, as for any hook. `.SSO` values are there whether it's on or off, so an `off` run can find what to undo;
+- `sso.client_secret` as a hook secret, for an OIDC app only. It is empty in an `off` run.
+
+**When it runs.** After each apply on the server that runs the service, once the service has started and its install hooks are done. Roostack keeps a fingerprint of the hook's last successful run in its database (`hooks.<service>.sso`): a SHA-256 of on or off, the hook's command, its rendered env, and the names of its secrets (never their values). It runs the hook when that fingerprint changes. So it runs:
+
+- when single sign-on is turned on or off;
+- when what it was given changes: the lab's address or name, or a package update that changes the hook;
+- after installing, for a service installed with single sign-on on (the default).
+
+An `off` run happens only after an `on` run did. A service that never had single sign-on runs nothing.
+
+**As whom, and where its log shows.** As install hooks do: `podman exec` into the named container, as the container's own user. It's retried every 10 seconds for up to 10 minutes while the app starts. It shows as an activity, "Connecting Forgejo to the sign-in page", in the activity log. The service's Single sign-on card shows its last run under **Details**, with the time.
+
+**On failure:**
+
+- The service keeps running, and the switch stays as chosen.
+- The card says "Forgejo isn't connected to the sign-in page yet", with the last lines of output and **Try again**.
+- A failed `on` run means the app's button may be missing, or may still carry the old settings.
+- A failed `off` run leaves a button that leads to the sign-in page. For a service without single sign-on, the sign-in page answers "Single sign-on is off for Forgejo: sign in with its own password", with a link back. This is new, and better than the bare "unknown client" error any leftover would get today.
+
+**Turning it off cleanly.** The apply removes the app's sso env and client, then the hook runs with `off`.
+
+- Forgejo deletes the source, or keeps it if accounts were made through it (Forgejo refuses otherwise).
+- Accounts made through single sign-on have no password of their own. The switch's confirmation says so: "People who signed in with single sign-on will need a password: give them one with Reset a password".
+- The client secret is deleted once the `off` run succeeds, as §5.2 says ("the client and its secret go"). The first version leaves it in Podman.
+
+**The rules a package must follow.** `on: sso` needs an `sso` part. It takes no `name` or `inputs`. `sso.client_secret` is allowed only with `sso.oidc`. Install-only secrets aren't allowed: they're gone by then. A walled app may have one too: Uptime Kuma's wall needs its own sign-in turned off, and back on when the wall goes.
+
+##### 2. Apps set through their own API: a key the app makes, kept by Roostack
+
+**The credential.** Immich, Audiobookshelf and Wiki.js make their own keys: none takes a key Roostack chooses. So the app makes it, and a hook hands it to Roostack:
+
+- a **secret setting with `from_hook: true`**: its value is what a hook prints, never typed by anyone nor made by Roostack;
+- a hook with **`saves: <that setting>`**. What it prints on **standard output** becomes the secret, and nothing else. Its standard error is its log.
+
+```yaml
+settings:
+  - key: settings_key
+    title: Roostack's key to Immich's settings
+    description: Made by Immich at install, for setting up single sign-on. Never shown.
+    type: secret
+    from_hook: true
+
+hooks:
+  - on: install                      # the administrator, as today (unchanged)
+    ...
+  - on: install
+    title: Make a key for Roostack
+    container: server
+    env: { ADMIN_EMAIL: "{{ .Settings.admin_email }}" }
+    secrets: { ADMIN_PASSWORD: admin_password }   # still there: install-only secrets go once all install hooks succeed
+    saves: settings_key
+    command: [node, -e, "...sign in; delete any key named Roostack; POST /api/api-keys {name: 'Roostack', permissions: ['adminConfig.read', 'adminConfig.update']}; print its secret, and only it, on stdout"]
+  - on: action
+    name: connect
+    title: Connect Roostack to Immich
+    description: Roostack needs a key to Immich's settings to set up single sign-on. Type Immich's administrator email and password once; Roostack keeps only the key.
+    container: server
+    inputs:
+      - { key: email, title: Administrator email, type: string }
+      - { key: password, title: Administrator password, type: secret }
+    env: { ADMIN_EMAIL: "{{ .Inputs.email }}" }
+    secrets: { ADMIN_PASSWORD: inputs.password }
+    saves: settings_key
+    command: [node, -e, "...the same script"]
+  - on: sso
+    title: Set Immich's sign-in
+    container: server
+    env:
+      ISSUER: "{{ .SSO.Issuer }}"
+      CLIENT_ID: "{{ .SSO.ClientID }}"
+      BUTTON: "{{ .SSO.ButtonText }}"
+    secrets:
+      API_KEY: settings_key
+      CLIENT_SECRET: sso.client_secret
+    command: [node, -e, "...GET /api/admin/config; on: oauth = {enabled, issuerUrl, clientId, clientSecret, buttonText, autoRegister: true, scope: 'openid email profile groups', roleClaim: 'groups'}; off: oauth.enabled = false, clientSecret = ''; PUT it back"]
+```
+
+Immich makes someone an admin when a claim it's told to read holds `admin`. Audiobookshelf reads `admin` or `user` from its group claim, and refuses anyone with neither. Today's `groups` claim holds `users` and `admins`. So **a package may rename the two groups** the provider sends it: `sso.oidc.groups: { users: user, admins: admin }`. `.SSO.UserGroup` and `.SSO.AdminGroup` follow. Considered: a role claim of its own per package (one more claim to build, for the same result).
+
+**How it runs.** A saving hook runs like any hook, with three differences:
+
+- Its standard output is read by Roostack and never shown or logged. It must be one line of 1 to 4096 printable characters; anything else fails the hook with "printed something that isn't a key", without showing it.
+- The value replaces the secret (`podman secret create --replace`), so a new key takes over from the last one. The scripts delete their old "Roostack" key first, so the app holds only one.
+- It runs only when its own event comes: at install, or the action's button.
+
+**Where the key lives, and its power:**
+
+- A Podman secret, `roostack-<service>-<key>`, on the server that runs the service. It's in the service's backup, like every secret, so a restored Immich keeps working.
+- Never shown: `from_hook` can't be `reveal`. Never in a container's env: only hooks may use it. Never logged.
+- **Immich's key** can read and change Immich's server settings, and nothing else: no photos, no accounts. Changing settings is still a lot of power (pointing Immich's sign-in somewhere else would let that place sign in as anyone), so it's kept like an admin password.
+- **Audiobookshelf's key** is the administrator's own power, and **Wiki.js's** is full access: neither app offers less. The package's install summary and its `from_hook` setting's title say so.
+- What can read it: the roostack user, which already holds every service's secrets and data. A compromised app holds its own key only while a hook runs in it, and it already has its own data.
+
+**Existing installs, and a lost key.** A service installed before its package had a key, or whose key Immich lost (its administrator was deleted, say), has the `connect` action. The Single sign-on card offers it in place of the switch while the key is missing: "First connect Roostack to Immich: this needs Immich's administrator password once."
+
+- A package whose `sso` hook uses a `from_hook` secret must have an action that saves it. The install hook that saves it is recommended but optional.
+- With the key missing, the `sso` hook fails, saying so.
+
+**Considered:**
+
+- **A Roostack account in each app, with a generated password Roostack keeps:** works for every app. But it's full admin power, it shows in the app's list of people, and it can be used from anywhere the app is reachable.
+- **Writing the app's database directly** (Immich keeps its settings in `system_metadata`): no credential at all, but it bypasses the app's checks and caching, and breaks when the app changes its tables.
+- **Immich's config file:** it freezes every other setting in Immich's pages.
+
+No new image is needed: Immich, Audiobookshelf and Wiki.js all have `node` in their own images.
+
+##### 3. Secrets inside JSON: an env value Roostack makes as a secret
+
+**The format.** `sso.secret_env`: per container, a variable and a template for its whole value. In it, `.SSO.ClientSecret` is available. A new `json` function (also in every other template) writes a value as a JSON string, quoted and escaped, since the lab's name may hold quotes.
+
+```yaml
+sso:
+  oidc:
+    route: web
+    redirect_paths: [/accounts/oidc/roostack/login/callback/]
+  env:
+    app:
+      PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
+      PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
+      PAPERLESS_SOCIAL_ACCOUNT_SYNC_SUPERUSER_GROUP: "{{ .SSO.AdminGroup }}"
+  secret_env:
+    app:
+      PAPERLESS_SOCIALACCOUNT_PROVIDERS: >-
+        {"openid_connect": {"SCOPE": ["openid", "profile", "email", "groups"],
+         "APPS": [{"provider_id": "roostack", "name": {{ json .SSO.ProviderName }},
+                   "client_id": {{ json .SSO.ClientID }}, "secret": {{ json .SSO.ClientSecret }},
+                   "settings": {"server_url": {{ json .SSO.DiscoveryURL }}}}]}}
+```
+
+**How it runs.** It works as `databases.<name>.url` does today, which is made from the database's password:
+
+1. The generator renders the template with a placeholder for the secret. It never has the secret.
+2. The reconciler makes a Podman secret from that text, putting the client secret (JSON-escaped) in the placeholder's place.
+3. The container gets the secret as `Secret=…,type=env,target=PAPERLESS_SOCIALACCOUNT_PROVIDERS`.
+
+The secret's name ends in a short hash of the rendered text (without the secret). A changed lab address or name then gives a new name, so the Quadlet changes and the app restarts with the new value. Roostack removes the service's secrets of that kind that it no longer uses.
+
+**Where the secret goes:** only into Podman's secret store, where every other secret already is. Never into a Quadlet, unit, Caddy file or any file Roostack writes. `.SSO.ClientSecret` exists only in `secret_env` templates: anywhere else, the package check refuses it.
+
+Papra is the same, with `AUTH_PROVIDERS_CUSTOMS` (no `_FILE` needed, as Podman passes it as env).
+
+**Considered:**
+
+- **A wrapper around the image's entrypoint** that builds the JSON from a mounted secret file: each image's entrypoint and shell would have to be known and kept in step, and Papra's rootless image may have no shell.
+- **Paperless's `_FILE` variables:** these only move the whole value into a file, which Roostack would still have to make. A Podman secret passed as env does the same with nothing on disk.
+- **Papra's config file:** written by Roostack into the app's folder, with the secret in it.
+
+**One thing to check on the VM:** Paperless gives an admin from the group claim only when an existing account signs in. So someone's first sign-in may make an ordinary account, and their second makes them an admin. If so, the package's note says so.
+
+##### What else changes
+
+- **The package editor** follows every change:
+  - help for `on: sso`, `saves`, `from_hook`, `secret_env` and `sso.oidc.groups`;
+  - the same checks in `check.js`, with corpus cases;
+  - the hook in "Settings and setup", and `secret_env` and the claims in "Single sign-on";
+  - suggestions: an OIDC app with no env and no `sso` hook, an `sso` hook using a `from_hook` key with no action to make it, a `from_hook` setting no hook saves.
+- **The registry's packages:** Forgejo, Immich and Paperless-ngx first; then Gitea, Audiobookshelf, Wiki.js and Papra the same way.
+- **Hook output:** before logging or showing a hook's output, Roostack replaces any secret value it passed to the hook with `[secret]`. A careless script can then not leak one. This applies to every hook, not only these.
+
+##### Questions for the Owner
+
+1. **Forgejo's button:** "Sign in with Smith family" (the lab's name, recommended), with redirect paths able to use `.SSO` and the hook keeping the source's ID in Forgejo's data folder? Or a fixed name, "Sign in with single sign-on", which is simpler but reads oddly?
+2. **The kept key:** an API key the app makes, saved from a hook's output (`from_hook` and `saves`, recommended)? Or a Roostack account in each app with a password Roostack generates (one way for every app, but full admin power and visible in the app)?
+3. **Existing installs:** a "Connect Roostack to Immich" action that asks the app's administrator password once (recommended)? Or only new installs get single sign-on for these apps, as nothing is released yet?
+4. **Turning off when accounts were made through it:** keep Forgejo's source, with its button leading to a page saying single sign-on is off (recommended)? Or switch the source off directly in Forgejo's database (cleaner to see, but it bypasses Forgejo and may break with its next version)?
+
+## 6. Container Runtime — Locked (principle)
+
+- Podman, **rootless where possible**; rootful only where a service genuinely requires it (e.g. low ports, host networking, device access), and this is visible to the user.
+- **Rationale:** security is a priority; rootless limits the blast radius of a compromised container.
 
 ### 6.1 Roostack Process Architecture — Locked
 

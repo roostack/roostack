@@ -621,6 +621,7 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [ ] Run the conformance suite again before each release that changes `internal/sso` or the sign-in page (docs/SSO-CONFORMANCE.md)
 - [ ] Add the `sso` part to the registry's Mealie and Stirling-PDF packages (as in `internal/testdata/packages`), once a Roostack release has it (`requires.roostack`)
 - [ ] An `on: sso` hook (run on turning it on, changing it or off, safe to run again), then Forgejo and Gitea (`admin auth add-oauth` / `update-oauth`)
+- [ ] Proposed 2026-10-20, awaiting the Owner (SPEC §5.2 "Connecting the remaining apps"): the `on: sso` hook, a key the app makes kept from a hook's output (`from_hook`, `saves`), and `sso.secret_env` for secrets inside JSON
 - [ ] Packages with env only: Vaultwarden, Miniflux, Linkwarden, PhotoPrism, Actual Budget, HedgeDoc; check each app's first admin is the installing Owner (Miniflux and Actual need it)
 - [ ] Apps set through their API (Immich, Audiobookshelf, Wiki.js): a kept, generated admin key instead of the install-only password
 - [ ] Secrets inside a JSON value (Paperless-ngx, Papra): templated secret files
