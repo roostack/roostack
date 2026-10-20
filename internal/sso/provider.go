@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -88,6 +89,9 @@ type Session struct {
 	// Remember: "keep me signed in". Otherwise walled services' cookies
 	// end when the browser closes, like the sign-in's own.
 	Remember bool
+	// AuthTime is when they last typed their password for it (OIDC's
+	// auth_time).
+	AuthTime time.Time
 }
 
 // Provider is the identity provider.
@@ -117,8 +121,12 @@ type authCode struct {
 	client, redirectURI, nonce, challenge, scope string
 	userID                                       int64
 	session                                      string
-	sessionEnds                                  time.Time
+	sessionEnds, authTime                        time.Time
 	expires                                      time.Time
+	// used: swapped already. A code used again revokes the tokens it gave
+	// (RFC 6749 §4.1.2), so it's kept, used, until it expires.
+	used   bool
+	tokens []string
 }
 
 // handoff takes a walled service's visitor from the sign-in host back to
@@ -173,8 +181,13 @@ func (p *Provider) Discovery(w http.ResponseWriter, r *http.Request) {
 		"token_endpoint_auth_methods_supported": []string{"client_secret_basic", "client_secret_post"},
 		"code_challenge_methods_supported":      []string{"S256"},
 		"scopes_supported":                      []string{"openid", "profile", "email", "groups", "offline_access"},
-		"claims_supported": []string{"sub", "iss", "aud", "exp", "iat", "nonce", "name", "preferred_username",
-			"email", "email_verified", "groups"},
+		"claims_supported": []string{"sub", "iss", "aud", "exp", "iat", "auth_time", "nonce", "azp", "name",
+			"preferred_username", "email", "email_verified", "groups"},
+		// Request objects and the claims parameter aren't supported; say so,
+		// as request_uri_parameter_supported is true when left out.
+		"request_parameter_supported":     false,
+		"request_uri_parameter_supported": false,
+		"claims_parameter_supported":      false,
 	})
 }
 
@@ -196,6 +209,21 @@ type AuthRequest struct {
 	// PromptNone: the app asks not to show anything; if nobody is signed
 	// in, it's told so.
 	PromptNone bool
+	// PromptLogin: the app asks for the password to be typed again, even
+	// if someone is signed in.
+	PromptLogin bool
+	// MaxAge is how long ago, at most, the password may have been typed
+	// (seconds); -1 if the app didn't say.
+	MaxAge int
+}
+
+// SignInAgain says whether the person signed in must type their password
+// again first (prompt=login, or max_age passed).
+func (req *AuthRequest) SignInAgain(s Session, now time.Time) bool {
+	if req.PromptLogin {
+		return true
+	}
+	return req.MaxAge >= 0 && now.Sub(s.AuthTime) > time.Duration(req.MaxAge)*time.Second
 }
 
 // AuthError is a refused authorisation request. Once the client and its
@@ -219,12 +247,23 @@ func (p *Provider) ParseAuthorize(q url.Values) (*AuthRequest, *AuthError) {
 	if !slices.Contains(c.RedirectURIs, redirect) {
 		return nil, &AuthError{Message: c.Title + " asked to come back to an address Roostack doesn't know for it, so it wasn't signed in."}
 	}
+	prompt := strings.Fields(q.Get("prompt"))
 	req := &AuthRequest{Client: c, RedirectURI: redirect, State: q.Get("state"), Nonce: q.Get("nonce"),
-		Scope: q.Get("scope"), Challenge: q.Get("code_challenge"), PromptNone: q.Get("prompt") == "none"}
+		Scope: q.Get("scope"), Challenge: q.Get("code_challenge"), PromptNone: slices.Contains(prompt, "none"),
+		PromptLogin: slices.Contains(prompt, "login"), MaxAge: -1}
 	fail := func(code, desc string) (*AuthRequest, *AuthError) {
 		return nil, &AuthError{Redirect: errorRedirect(redirect, req.State, code, desc), Message: desc}
 	}
+	if v := q.Get("max_age"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			return fail("invalid_request", "max_age must be a number of seconds")
+		}
+		req.MaxAge = n
+	}
 	switch {
+	case req.PromptNone && len(prompt) > 1:
+		return fail("invalid_request", "prompt=none can't be used with other prompt values")
 	case q.Get("response_type") != "code":
 		return fail("unsupported_response_type", "only the code flow is supported")
 	case !slices.Contains(strings.Fields(req.Scope), "openid"):
@@ -286,7 +325,7 @@ func (p *Provider) Approve(req *AuthRequest, s Session) (string, error) {
 	}
 	p.codes[authkit.HashToken(code)] = &authCode{client: req.Client.ID, redirectURI: req.RedirectURI, nonce: req.Nonce,
 		challenge: req.Challenge, scope: req.Scope, userID: s.User.ID, session: s.Hash, sessionEnds: s.Expires,
-		expires: now.Add(CodeLifetime)}
+		authTime: s.AuthTime, expires: now.Add(CodeLifetime)}
 	q := url.Values{"code": {code}}
 	if req.State != "" {
 		q.Set("state", req.State)
@@ -295,17 +334,50 @@ func (p *Provider) Approve(req *AuthRequest, s Session) (string, error) {
 	return addQuery(req.RedirectURI, q), nil
 }
 
-// takeCode returns a code's request and forgets it: a code works once.
+// takeCode returns a code's request and marks it used: a code works once.
+// A code used before comes back with used set, so its tokens can be
+// revoked.
 func (p *Provider) takeCode(code string) *authCode {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	key := authkit.HashToken(code)
 	c := p.codes[key]
-	delete(p.codes, key)
 	if c == nil || p.now().After(c.expires) {
+		delete(p.codes, key)
 		return nil
 	}
-	return c
+	if c.used {
+		return c
+	}
+	first := *c
+	c.used = true
+	return &first
+}
+
+// codeTokens records the tokens a code gave, to revoke if it's used again.
+func (p *Provider) codeTokens(code string, tokens []string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if c := p.codes[authkit.HashToken(code)]; c != nil {
+		c.tokens = tokens
+	}
+}
+
+// revokeCode ends the tokens a code gave, when someone tries it again
+// (RFC 6749 §4.1.2): the code may have been stolen.
+func (p *Provider) revokeCode(ctx context.Context, ac *authCode) {
+	p.mu.Lock()
+	tokens := ac.tokens
+	ac.tokens = nil
+	p.mu.Unlock()
+	for _, h := range tokens {
+		if _, err := p.Store.DeleteSSOToken(ctx, h); err != nil {
+			p.Log.Error("revoking a reused code's tokens", "service", ac.client, "err", err)
+		}
+	}
+	if len(tokens) > 0 {
+		p.Log.Warn("an app's code was used twice; its tokens are revoked", "service", ac.client)
+	}
 }
 
 // tokenError is the token endpoint's refusal (RFC 6749 §5.2).
@@ -342,7 +414,12 @@ func (p *Provider) Token(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Provider) codeGrant(w http.ResponseWriter, r *http.Request, c Client) {
-	ac := p.takeCode(r.PostForm.Get("code"))
+	code := r.PostForm.Get("code")
+	ac := p.takeCode(code)
+	if ac != nil && ac.used {
+		p.revokeCode(r.Context(), ac)
+		ac = nil
+	}
 	switch {
 	case ac == nil || ac.client != c.ID:
 		tokenError(w, http.StatusBadRequest, "invalid_grant", "the code is wrong, used or too old")
@@ -362,7 +439,7 @@ func (p *Provider) codeGrant(w http.ResponseWriter, r *http.Request, c Client) {
 		tokenError(w, http.StatusBadRequest, "invalid_grant", "that person is gone")
 		return
 	}
-	p.issue(w, r, c, u, ac.session, ac.sessionEnds, ac.scope, ac.nonce)
+	p.codeTokens(code, p.issue(w, r, c, u, ac.session, ac.sessionEnds, ac.authTime, ac.scope, ac.nonce))
 }
 
 func (p *Provider) refreshGrant(w http.ResponseWriter, r *http.Request, c Client) {
@@ -377,56 +454,62 @@ func (p *Provider) refreshGrant(w http.ResponseWriter, r *http.Request, c Client
 		tokenError(w, http.StatusBadRequest, "invalid_grant", "the refresh token was used already")
 		return
 	}
-	_, ends, _, err := p.Store.SignInSession(r.Context(), t.Session)
+	si, err := p.Store.SignInSession(r.Context(), t.Session)
 	if err != nil {
 		tokenError(w, http.StatusBadRequest, "invalid_grant", "the sign-in has ended")
 		return
 	}
-	p.issue(w, r, c, u, t.Session, ends, t.Scope, "")
+	p.issue(w, r, c, u, t.Session, si.Expires, si.At, t.Scope, "")
 }
 
 // issue answers with an access token, a refresh token and an ID token,
-// once the person is checked to still have access.
-func (p *Provider) issue(w http.ResponseWriter, r *http.Request, c Client, u *store.User, session string, sessionEnds time.Time, scope, nonce string) {
+// once the person is checked to still have access. It returns the tokens'
+// hashes (none if it refused).
+func (p *Provider) issue(w http.ResponseWriter, r *http.Request, c Client, u *store.User, session string, sessionEnds, authTime time.Time, scope, nonce string) []string {
 	ctx := r.Context()
 	if ok, err := p.Store.CanUse(ctx, c.ID, u.ID); err != nil || !ok {
 		tokenError(w, http.StatusBadRequest, "invalid_grant", "this person may no longer use this app")
-		return
+		return nil
 	}
-	claims, err := p.claims(ctx, u)
+	claims, err := p.claims(ctx, u, scope)
 	if err != nil {
 		p.serverError(w, err)
-		return
+		return nil
 	}
 	now := p.now()
 	access, err := p.newToken(ctx, store.TokenAccess, c.ID, u.ID, session, scope, earliest(now.Add(AccessLifetime), sessionEnds))
 	if err != nil {
 		p.serverError(w, err)
-		return
+		return nil
 	}
 	refresh, err := p.newToken(ctx, store.TokenRefresh, c.ID, u.ID, session, scope, earliest(now.Add(RefreshLifetime), sessionEnds))
 	if err != nil {
 		p.serverError(w, err)
-		return
+		return nil
 	}
+	tokens := []string{authkit.HashToken(access), authkit.HashToken(refresh)}
 	claims["iss"] = p.Issuer()
 	claims["aud"] = c.ID
 	claims["azp"] = c.ID
 	claims["iat"] = now.Unix()
 	claims["exp"] = now.Add(AccessLifetime).Unix()
+	// Always there, as apps may ask with max_age (OIDC Core §2), and the
+	// same after a refresh (§12.2).
+	claims["auth_time"] = authTime.Unix()
 	if nonce != "" {
 		claims["nonce"] = nonce
 	}
 	idToken, err := p.Key.Sign(claims)
 	if err != nil {
 		p.serverError(w, err)
-		return
+		return tokens
 	}
 	p.Store.Audit(ctx, u, "single sign-on", "signed in to "+c.ID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"access_token": access, "token_type": "Bearer", "expires_in": int(AccessLifetime.Seconds()),
 		"refresh_token": refresh, "id_token": idToken, "scope": scope,
 	})
+	return tokens
 }
 
 func earliest(a, b time.Time) time.Time {
@@ -446,26 +529,38 @@ func (p *Provider) newToken(ctx context.Context, kind, client string, userID int
 	return tok, err
 }
 
+// allScopes are every scope with claims: what a walled service is told.
+const allScopes = "openid profile email groups"
+
 // claims are what an app is told about a person, in its ID token and from
-// userinfo: every app gets the same few facts, whatever scopes it asked
-// for, since they're Roostack's own and the Owner turned the app on.
-func (p *Provider) claims(ctx context.Context, u *store.User) (map[string]any, error) {
+// userinfo: sub always, and the rest by the scopes it asked for (profile:
+// name and username; email: the address; groups: the groups claim), so an
+// app learns only what it needs (SPEC.md §5.2, decided 2026-10-20 after
+// the conformance suite).
+func (p *Provider) claims(ctx context.Context, u *store.User, scope string) (map[string]any, error) {
 	sub, err := p.Store.EnsureSSOID(ctx, u.ID)
 	if err != nil {
 		return nil, err
 	}
-	groups := []string{UserGroup}
-	if u.Role == auth.RoleOwner || u.Role == auth.RoleAdmin {
-		groups = append(groups, AdminGroup)
+	c := map[string]any{"sub": sub}
+	scopes := strings.Fields(scope)
+	if slices.Contains(scopes, "profile") {
+		name := u.Name
+		if name == "" {
+			name = u.Username
+		}
+		c["preferred_username"], c["name"] = u.Username, name
 	}
-	name := u.Name
-	if name == "" {
-		name = u.Username
-	}
-	c := map[string]any{"sub": sub, "preferred_username": u.Username, "name": name, "groups": groups}
-	if u.Email != "" {
+	if slices.Contains(scopes, "email") && u.Email != "" {
 		// Typed by the Owner or by the person while signed in.
 		c["email"], c["email_verified"] = u.Email, true
+	}
+	if slices.Contains(scopes, "groups") {
+		groups := []string{UserGroup}
+		if u.Role == auth.RoleOwner || u.Role == auth.RoleAdmin {
+			groups = append(groups, AdminGroup)
+		}
+		c["groups"] = groups
 	}
 	return c, nil
 }
@@ -487,7 +582,7 @@ func (p *Provider) UserInfo(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
 		return
 	}
-	claims, err := p.claims(r.Context(), u)
+	claims, err := p.claims(r.Context(), u, t.Scope)
 	if err != nil {
 		p.serverError(w, err)
 		return

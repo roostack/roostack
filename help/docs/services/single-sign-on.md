@@ -85,9 +85,14 @@ PNG or SVG, up to 200 KB. SVGs with scripts are refused.
       `/.well-known/openid-configuration`, the authorisation-code flow
       (with PKCE when the app sends it), refresh tokens, and ID tokens
       signed RS256 with the key in `/var/lib/roostack/sso/signing-key.pem`.
-    - Apps are told `sub` (a fixed random ID per person), `name`,
-      `preferred_username`, `email`, `email_verified`, and `groups`:
-      `users`, plus `admins` for the lab's Owners and Admins.
+    - Apps are told `sub` (a fixed random ID per person), and what their
+      scopes ask for: `name` and `preferred_username` (`profile`), `email`
+      and `email_verified` (`email`), and `groups` (`groups`): `users`,
+      plus `admins` for the lab's Owners and Admins. ID tokens also carry
+      `auth_time`; `prompt=login` and `max_age` ask for the password
+      again.
+    - Checked with the OpenID Foundation's conformance suite (Basic OP and
+      Config OP plans).
     - An app's client ID is the service's name; its secret is the Podman
       secret `roostack-<service>-sso-client-secret`. Its container finds
       `login.` your address through an `AddHost` line pointing at the

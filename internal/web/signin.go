@@ -70,7 +70,9 @@ func (s *Server) SignInHandler() http.Handler {
 	mux.HandleFunc("GET "+sso.PathJWKS, p.JWKS)
 	mux.HandleFunc("POST "+sso.PathToken, p.Token)
 	mux.HandleFunc(sso.PathUserInfo, p.UserInfo)
+	// OIDC Core §3.1.2.1: GET and POST alike.
 	mux.HandleFunc("GET "+sso.PathAuthorize, s.signInAuthorize)
+	mux.HandleFunc("POST "+sso.PathAuthorize, s.signInAuthorize)
 	mux.HandleFunc("GET "+sso.PathStart, s.signInStart)
 	mux.HandleFunc("GET /{$}", s.signInHome)
 	mux.HandleFunc("GET /sign-in", s.signInPage)
@@ -107,8 +109,10 @@ func (s *Server) SignInHandler() http.Handler {
 			return
 		}
 		// Forms are this page's own (CSRF); apps' calls to the token and
-		// userinfo endpoints come from their servers, with no Origin.
-		if r.Method == http.MethodPost && r.URL.Path != sso.PathToken && r.URL.Path != sso.PathUserInfo {
+		// userinfo endpoints come from their servers, with no Origin. An
+		// app may post its authorisation request from its own page: that's
+		// no more than the link it could send instead.
+		if r.Method == http.MethodPost && r.URL.Path != sso.PathToken && r.URL.Path != sso.PathUserInfo && r.URL.Path != sso.PathAuthorize {
 			if o, err := url.Parse(r.Header.Get("Origin")); err != nil || !strings.EqualFold(o.Host, r.Host) {
 				http.Error(w, "Cross-site request rejected.", http.StatusForbidden)
 				return
@@ -132,11 +136,11 @@ func (s *Server) signInSession(r *http.Request) (sso.Session, bool) {
 		return sso.Session{}, false
 	}
 	hash := authkit.HashToken(c.Value)
-	u, expires, remember, err := s.Store.SignInSession(r.Context(), hash)
+	si, err := s.Store.SignInSession(r.Context(), hash)
 	if err != nil {
 		return sso.Session{}, false
 	}
-	return sso.Session{User: u, Hash: hash, Expires: expires, Remember: remember}, true
+	return sso.Session{User: si.User, Hash: hash, Expires: si.Expires, Remember: si.Remember, AuthTime: si.At}, true
 }
 
 // safeNext keeps where to go after signing in to the sign-in page's own
@@ -236,9 +240,15 @@ func (s *Server) ownerName(ctx context.Context) string {
 	return owners[0].Username
 }
 
-// signInAuthorize is an app sending someone to sign in (OIDC).
+// signInAuthorize is an app sending someone to sign in (OIDC), with the
+// request in the query or, posted, in the form.
 func (s *Server) signInAuthorize(w http.ResponseWriter, r *http.Request) {
-	req, aerr := s.SignIn.ParseAuthorize(r.URL.Query())
+	if err := r.ParseForm(); err != nil {
+		s.renderSignIn(w, r, http.StatusBadRequest, signInView{State: "error", Error: "This request can't be read."})
+		return
+	}
+	params := r.Form
+	req, aerr := s.SignIn.ParseAuthorize(params)
 	if aerr != nil {
 		if aerr.Redirect != "" {
 			http.Redirect(w, r, aerr.Redirect, http.StatusFound)
@@ -248,12 +258,20 @@ func (s *Server) signInAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sess, ok := s.signInSession(r)
-	if !ok {
+	if !ok || req.SignInAgain(sess, time.Now()) {
 		if req.PromptNone {
 			http.Redirect(w, r, req.LoginRequired(), http.StatusFound)
 			return
 		}
-		http.Redirect(w, r, "/sign-in?"+url.Values{"next": {r.URL.RequestURI()}}.Encode(), http.StatusSeeOther)
+		// Once signed in, carry on with the same request, less what asked
+		// for signing in again (it's just been done).
+		next := url.Values{}
+		for k, v := range params {
+			if k != "prompt" && k != "max_age" {
+				next[k] = v
+			}
+		}
+		http.Redirect(w, r, "/sign-in?"+url.Values{"next": {sso.PathAuthorize + "?" + next.Encode()}}.Encode(), http.StatusSeeOther)
 		return
 	}
 	if ok, err := s.Store.CanUse(r.Context(), req.Client.ID, sess.User.ID); err != nil || !ok {
@@ -475,7 +493,25 @@ func (s *Server) signInCode(w http.ResponseWriter, r *http.Request) {
 }
 
 // startSignIn signs someone in on the sign-in page and goes on to next.
+// Someone already signed in here who signs in again (an app asked for a
+// fresh sign-in) keeps their sign-in, and what it handed out; someone else
+// signing in on this browser ends it.
 func (s *Server) startSignIn(w http.ResponseWriter, r *http.Request, u *store.User, remember bool, next, how string) {
+	if old, ok := s.signInSession(r); ok {
+		if old.User.ID == u.ID {
+			if err := s.Store.SignedInAgain(r.Context(), old.Hash, time.Now()); err != nil {
+				s.serverError(w, err)
+				return
+			}
+			s.Store.Audit(r.Context(), u, "signed in", strings.TrimSpace("again on the sign-in page for services "+how))
+			http.Redirect(w, r, next, http.StatusSeeOther)
+			return
+		}
+		if err := s.Store.DeleteSession(r.Context(), old.Hash); err != nil {
+			s.serverError(w, err)
+			return
+		}
+	}
 	token, err := authkit.NewToken()
 	if err != nil {
 		s.serverError(w, err)

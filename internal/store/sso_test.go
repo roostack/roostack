@@ -129,10 +129,40 @@ func TestSSOTokens(t *testing.T) {
 	if err := s.DeleteExpiredSessions(ctx, 30*time.Minute); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, _, err := s.SignInSession(ctx, "old"); err != nil {
+	if _, err := s.SignInSession(ctx, "old"); err != nil {
 		t.Errorf("sign-in after the idle limit: %v", err)
 	}
 	if _, _, _, err := s.SessionInfo(ctx, "ui"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("Roostack's own idle session: %v", err)
+	}
+}
+
+// A sign-in knows when its password was typed (OIDC's auth_time), and
+// signing in again moves that on without a new sign-in.
+func TestSignedInAgain(t *testing.T) {
+	s, ctx := open(t), context.Background()
+	id, _ := s.CreateUser(ctx, User{Username: "mum", PasswordHash: "x", Role: "member"})
+	before := time.Now().Truncate(time.Second)
+	if err := s.CreateSessionAt(ctx, OriginSignIn, "sess", id, time.Now().Add(time.Hour), true); err != nil {
+		t.Fatal(err)
+	}
+	si, err := s.SignInSession(ctx, "sess")
+	if err != nil || si.User.ID != id || !si.Remember || si.At.Before(before) || si.At.After(time.Now()) {
+		t.Fatalf("SignInSession = %+v, %v", si, err)
+	}
+	later := time.Now().Add(time.Hour).Truncate(time.Second)
+	if err := s.SignedInAgain(ctx, "sess", later); err != nil {
+		t.Fatal(err)
+	}
+	if si, err := s.SignInSession(ctx, "sess"); err != nil || !si.At.Equal(later) {
+		t.Errorf("after signing in again: %+v, %v", si, err)
+	}
+	// Only a sign-in for services.
+	s.CreateSessionAt(ctx, "", "ui", id, time.Now().Add(time.Hour), false)
+	s.SignedInAgain(ctx, "ui", later)
+	var at int64
+	s.db.QueryRow(`SELECT signed_in_at FROM sessions WHERE token_hash = 'ui'`).Scan(&at)
+	if at == later.Unix() {
+		t.Error("SignedInAgain changed a session of Roostack's own pages")
 	}
 }

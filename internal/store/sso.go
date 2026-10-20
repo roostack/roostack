@@ -310,15 +310,38 @@ func (s *Store) DeleteSSOToken(ctx context.Context, hash string) (bool, error) {
 	return n == 1, nil
 }
 
-// SignInSession is a sign-in's person, when it ends, and whether it's
-// "keep me signed in", for the sign-in page's own cookie.
-func (s *Store) SignInSession(ctx context.Context, tokenHash string) (u *User, expires time.Time, remember bool, err error) {
-	var ends int64
-	row := s.db.QueryRowContext(ctx, `SELECT `+userColumns+`, s.expires_at, s.remember
+// SignIn is a sign-in on the sign-in page for services.
+type SignIn struct {
+	User    *User
+	Expires time.Time
+	// Remember: "keep me signed in".
+	Remember bool
+	// At is when the person last typed their password for it (OIDC's
+	// auth_time).
+	At time.Time
+}
+
+// SignInSession is a sign-in, for the sign-in page's own cookie.
+func (s *Store) SignInSession(ctx context.Context, tokenHash string) (*SignIn, error) {
+	var ends, at int64
+	var remember bool
+	row := s.db.QueryRowContext(ctx, `SELECT `+userColumns+`, s.expires_at, s.remember, s.signed_in_at
 		FROM sessions s JOIN users ON users.id = s.user_id
 		WHERE s.token_hash = ? AND s.expires_at > ? AND s.origin = ?`, tokenHash, time.Now().Unix(), OriginSignIn)
-	u, err = scanUserRow(scanTail{row, []any{&ends, &remember}})
-	return u, time.Unix(ends, 0), remember, err
+	u, err := scanUserRow(scanTail{row, []any{&ends, &remember, &at}})
+	if err != nil {
+		return nil, err
+	}
+	return &SignIn{User: u, Expires: time.Unix(ends, 0), Remember: remember, At: time.Unix(at, 0)}, nil
+}
+
+// SignedInAgain records that someone typed their password again for a
+// sign-in (an app asked for a fresh one), keeping the sign-in and what it
+// handed out.
+func (s *Store) SignedInAgain(ctx context.Context, tokenHash string, at time.Time) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE sessions SET signed_in_at = ? WHERE token_hash = ? AND origin = ?`,
+		at.Unix(), tokenHash, OriginSignIn)
+	return err
 }
 
 // UserByEmail finds the one person with an email address

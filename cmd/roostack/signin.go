@@ -28,7 +28,7 @@ func startSignIn(ctx context.Context, lab config.Lab, st *store.Store, srv *web.
 	}
 	srv.SignIn = &sso.Provider{Store: st, Key: key, Log: log,
 		Issuer:  func() string { return "https://" + lab.SignInHost() },
-		Clients: mgr.SSOClients,
+		Clients: conformanceClients(mgr.SSOClients),
 		// The app's secret is the Podman secret Roostack made for it on
 		// this server (only the controller's services have single sign-on
 		// for now).

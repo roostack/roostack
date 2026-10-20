@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/manager"
@@ -217,6 +219,85 @@ func TestSignInOIDC(t *testing.T) {
 	}
 	if resp, _ := call(t, srv, c, "GET", signInHost, authorize, nil); resp.StatusCode != http.StatusSeeOther {
 		t.Errorf("after signing out: %d", resp.StatusCode)
+	}
+}
+
+// An app may post its request (OIDC Core §3.1.2.1), from its own page, and
+// ask for the password again (prompt=login, max_age): the same sign-in
+// goes on, with a new time. Someone else signing in on the browser ends
+// the last person's sign-in.
+func TestSignInFresh(t *testing.T) {
+	h := newHarness(t, "")
+	srv, c := withSignIn(t, h, &fakeSSO{on: map[string]bool{"mealie": true}})
+	ctx := context.Background()
+	addPerson(t, h.store, "mum", "member")
+	addPerson(t, h.store, "dad", "member")
+	request := url.Values{"client_id": {"mealie"}, "redirect_uri": {"https://recipes.lab.example.com/login"},
+		"response_type": {"code"}, "scope": {"openid"}, "state": {"xyz"}}
+	signIn := func(who, next string) *http.Response {
+		t.Helper()
+		resp, _ := call(t, srv, c, "POST", signInHost, "/sign-in", url.Values{"username": {who}, "password": {"a long password"}, "next": {next}})
+		if resp.StatusCode != http.StatusSeeOther {
+			t.Fatalf("signing in %s: %d", who, resp.StatusCode)
+		}
+		return resp
+	}
+	signIn("mum", "/")
+	first := c.Jar.(*plainJar).cookies[signInCookie].Value
+	hash := authkit.HashToken(first)
+	h.store.SignedInAgain(ctx, hash, time.Now().Add(-time.Hour))
+
+	// Posted from the app's page, which isn't the sign-in page's origin.
+	req, _ := http.NewRequest("POST", srv.URL+sso.PathAuthorize, strings.NewReader(request.Encode()))
+	req.Host = signInHost
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", "https://recipes.lab.example.com")
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if loc := resp.Header.Get("Location"); resp.StatusCode != http.StatusFound || !strings.Contains(loc, "code=") {
+		t.Errorf("posted request: %d %q", resp.StatusCode, loc)
+	}
+
+	for _, ask := range [][2]string{{"prompt", "login"}, {"max_age", "60"}} {
+		q := url.Values{ask[0]: {ask[1]}}
+		for k, v := range request {
+			q[k] = v
+		}
+		resp, _ := call(t, srv, c, "GET", signInHost, sso.PathAuthorize+"?"+q.Encode(), nil)
+		loc, _ := url.Parse(resp.Header.Get("Location"))
+		next := loc.Query().Get("next")
+		if resp.StatusCode != http.StatusSeeOther || loc.Path != "/sign-in" || strings.Contains(next, ask[0]) || !strings.Contains(next, "client_id=mealie") {
+			t.Fatalf("%s=%s: %d %q", ask[0], ask[1], resp.StatusCode, loc)
+		}
+		// prompt=none can't be answered then.
+		q.Set("prompt", "none")
+		if ask[0] == "max_age" {
+			resp, _ := call(t, srv, c, "GET", signInHost, sso.PathAuthorize+"?"+q.Encode(), nil)
+			if loc := resp.Header.Get("Location"); !strings.Contains(loc, "error=login_required") {
+				t.Errorf("max_age with prompt=none: %q", loc)
+			}
+		}
+		resp = signIn("mum", next)
+		if len(resp.Cookies()) != 0 || c.Jar.(*plainJar).cookies[signInCookie].Value != first {
+			t.Errorf("%s: signing in again made a new sign-in", ask[0])
+		}
+		si, err := h.store.SignInSession(ctx, hash)
+		if err != nil || time.Since(si.At) > time.Minute {
+			t.Errorf("%s: sign-in time %v, %v", ask[0], si, err)
+		}
+		resp, _ = call(t, srv, c, "GET", signInHost, resp.Header.Get("Location"), nil)
+		if loc := resp.Header.Get("Location"); resp.StatusCode != http.StatusFound || !strings.Contains(loc, "code=") {
+			t.Errorf("%s: back to the app: %d %q", ask[0], resp.StatusCode, loc)
+		}
+		h.store.SignedInAgain(ctx, hash, time.Now().Add(-time.Hour))
+	}
+
+	signIn("dad", "/")
+	if _, err := h.store.SignInSession(ctx, hash); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("mum's sign-in after dad signed in on her browser: %v", err)
 	}
 }
 

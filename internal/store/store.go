@@ -347,6 +347,9 @@ var migrations = []string{
 		created_at   INTEGER NOT NULL
 	);
 	CREATE INDEX sso_tokens_session ON sso_tokens (session_hash);`,
+	// When someone last typed their password for a session (OIDC's
+	// auth_time, SPEC.md §5.2): apps can ask for a recent sign-in.
+	`ALTER TABLE sessions ADD COLUMN signed_in_at INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // OriginSetup marks sessions signed in on the setup pages on the home
@@ -942,9 +945,10 @@ func (s *Store) CreateSessionRemember(ctx context.Context, tokenHash string, use
 // CreateSessionAt stores a session signed in at origin ("" or
 // OriginSetup), where alone it works.
 func (s *Store) CreateSessionAt(ctx context.Context, origin, tokenHash string, userID int64, expires time.Time, remember bool) error {
+	now := time.Now().Unix()
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO sessions (token_hash, user_id, expires_at, last_seen, remember, origin) VALUES (?, ?, ?, ?, ?, ?)`,
-		tokenHash, userID, expires.Unix(), time.Now().Unix(), remember, origin)
+		`INSERT INTO sessions (token_hash, user_id, expires_at, last_seen, remember, origin, signed_in_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		tokenHash, userID, expires.Unix(), now, remember, origin, now)
 	return err
 }
 

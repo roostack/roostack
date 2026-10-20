@@ -191,11 +191,12 @@ One sign-in for the apps a lab runs, managed from Roostack. **Decided (2026-10-2
 - **Roles stay as they are** (Owner, Admin, Member): they say what someone may do in Roostack. Groups say which apps they use.
 - **What an app is told:**
   - `sub`, a fixed ID per person that never changes, even if they're renamed or the lab moves;
-  - `preferred_username`, `name`, `email` and `email_verified`;
-  - `groups`, holding only `users`, plus `admins` for the app's admins.
+  - with the `profile` scope, `preferred_username` and `name`; with `email`, `email` and `email_verified`;
+  - with `groups`, `groups`, holding only `users`, plus `admins` for the app's admins.
 
   The lab's group names stay in Roostack; the app learns only what it needs.
 - **Decided (2026-10-20):** groups in the first version, as asked. Considered: "everyone or chosen people" first.
+- **Decided (2026-10-20), the Owner, after the conformance suite:** claims follow the scopes an app asks for, in its ID token and from userinfo alike (Mealie asks for `openid email profile groups`). Considered: every app told the same few facts whatever it asked for (as first built: simplest, but an app learns more than it needs, and the suite warns), and strict OIDC, with people's details only from userinfo (breaks apps that read them from the ID token alone).
 
 #### Signing in
 
@@ -365,9 +366,18 @@ Later, the same choices could become the lab's default look for new people and R
 
 #### As built (2026-10-20)
 
-Built and checked end to end on VM3 with Mealie (OIDC) and Stirling-PDF (the wall), docs/ASSUMPTIONS.md V1–V6.
+Built and checked end to end on VM3 with Mealie (OIDC) and Stirling-PDF (the wall), and against the OpenID Foundation's conformance suite on VM4, docs/ASSUMPTIONS.md V1–V7.
 
-- **The provider** is `internal/sso`, standard library only: an RSA key (`/var/lib/roostack/sso/signing-key.pem`, made at first start), RS256 ID tokens, discovery, `/authorize` (the code flow; PKCE with S256 when the app sends a challenge, `plain` refused), `/token` (codes once each, a minute; refresh tokens rotated at each use; `client_secret_basic` or `client_secret_post`), `/userinfo`, `/jwks`, `/sign-out` (also apps' `end_session_endpoint`). Access tokens are opaque and stored (hashed) like refresh tokens, so they stop with the sign-in, the person's access or the person. Unit tests cover the flow and every refusal; **the OpenID Foundation's conformance suite hasn't been run yet** (TASKS).
+- **The provider** is `internal/sso`, standard library only: an RSA key (`/var/lib/roostack/sso/signing-key.pem`, made at first start), RS256 ID tokens, discovery, `/authorize` (the code flow, by GET or POST; PKCE with S256 when the app sends a challenge, `plain` refused), `/token` (codes once each, a minute; refresh tokens rotated at each use; `client_secret_basic` or `client_secret_post`), `/userinfo`, `/jwks`, `/sign-out` (also apps' `end_session_endpoint`). Access tokens are opaque and stored (hashed) like refresh tokens, so they stop with the sign-in, the person's access or the person. Unit tests cover the flow and every refusal.
+- **The OpenID Foundation's conformance suite** (release 5.3.3, Basic OP and Config OP plans, a static client) passes with no failures (2026-10-20, docs/ASSUMPTIONS.md V7; how to run it again: docs/SSO-CONFORMANCE.md). Its first run found, and these were fixed:
+  - no `auth_time` in ID tokens: now always there, from when the person last typed their password (`sessions.signed_in_at`), and kept by a refresh;
+  - `prompt=login` and `max_age` didn't ask for the password again: now they send the person back to the sign-in page (and `prompt=none` gets `login_required`). Signing in again as the same person keeps the sign-in and what it handed out, with a new time; someone else signing in on that browser ends the last person's sign-in;
+  - an authorisation request posted from the app's page was refused as cross-site (OIDC Core §3.1.2.1 asks for POST too): `/authorize` takes it, as a link could send the same;
+  - a code used twice didn't revoke the tokens it gave (RFC 6749 §4.1.2 asks that it should): a used code is kept until it expires, and a second try ends its access and refresh tokens;
+  - every app was told every claim: they now follow its scopes (decided above);
+  - discovery now says `request_parameter_supported`, `request_uri_parameter_supported` and `claims_parameter_supported` are false (the second is true when left out).
+
+  Left as they are, deliberately (the suite's warnings): no `given_name`, `birthdate` and the like with `profile` (Roostack doesn't hold them); `email` in the ID token with the `email` scope, as many apps read it there; no `acr` claim when `acr_values` asks (one way of signing in); the `claims` request parameter isn't supported. Request objects (`request`, `request_uri`) are refused with `request_not_supported`, which the suite accepts. The implicit and hybrid flows and dynamic registration aren't built, so their plans don't apply.
 - **The sign-in page** is `internal/web/signin.go` and `templates/signin.html`, on its own listener, `127.0.0.1:8482` (`config.SignInPort`), which serves nothing of Roostack's own pages and no scripts at all. It answers its own host, Caddy's `/check`, and the walled services' `/.roostack/sign-in/callback`. Its session is a `sessions` row with origin `sign-in`, which Roostack's idle limit leaves alone. Signed in, the page itself lists the services you can use, and signs you out.
 - **A walled service** gets a cookie on its own address after a one-time hand-off (`internal/sso/forward.go`). Caddy's wall is one `route` block (header removal, callback, `forward_auth` outside the bypass paths, the cookie removed before the service); `Remote-*` headers are removed on every route, walled or not.
 - **The client secret** is a generated Podman secret, `roostack-<service>-sso-client-secret`, which the provider reads back (and keeps a few minutes) to check the app's requests: nothing new to store, and it's in the service's backup. Considered: a hash in the database (a second copy to keep in step).
@@ -375,7 +385,7 @@ Built and checked end to end on VM3 with Mealie (OIDC) and Stirling-PDF (the wal
 - **People:** `users.name` and `users.sso_id` (the `sub`: random, made when first needed, as `users.id` can be given to a new account after the newest is removed), `user_groups`, `service_access` (no rows: everyone), `sso_tokens`. People page: name, email and groups per person; groups with their members and the services each can use; the sign-in page's look; the two sign-in choices. Members' Home leaves out services with single sign-on they can't use.
 - **The look:** the lab's name, a logo (a square mark beside the name, also the tab's icon; or a wide logo with the name in it, with an optional dark-mode version, otherwise a light panel in dark mode, and an optional tab icon; or the hen), and a built-in theme. PNGs are checked for shape; SVGs with scripts, event handlers or embedded pages are refused, and every logo is served with a sandboxing CSP. Mock-ups: docs/mockups/sso.
 - **The package format** has `sso` (oidc or forward_auth, env and secrets added only while on, a note) and `.SSO` in templates (help/docs/reference/packages.md). Mealie and Stirling-PDF have it in the test fixtures (`internal/testdata/packages`), a revision ahead of the registry.
-- **Not built in this version** (TASKS): the `on: sso` hook (Forgejo, Gitea), apps set through an API with a kept admin key (Immich, Audiobookshelf, Wiki.js), secrets inside JSON (Paperless, Papra), services on another server (refused with a sentence for now), passkeys, signing in to Roostack's own pages, single sign-out, key rotation, the conformance suite. Removing a service leaves its access rows (harmless; tidied once `services.go` is free).
+- **Not built in this version** (TASKS): the `on: sso` hook (Forgejo, Gitea), apps set through an API with a kept admin key (Immich, Audiobookshelf, Wiki.js), secrets inside JSON (Paperless, Papra), services on another server (refused with a sentence for now), passkeys, signing in to Roostack's own pages, single sign-out, key rotation. Removing a service leaves its access rows (harmless; tidied once `services.go` is free).
 - **Found while building:** a custom `dns.directive` without a DNS challenge (`issuer internal`) made Caddy refuse the Caddyfile, as `resolvers` needs one; resolvers are now added only with a `dns` line.
 
 ### 6.1 Roostack Process Architecture — Locked

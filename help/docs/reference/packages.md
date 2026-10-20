@@ -232,7 +232,11 @@ routes:
     - `oidc`: the app signs people in through OIDC itself. `route` is the
       route whose address `redirect_paths` are on (exact paths, such as
       `/login`); `redirect_uris` are its phone apps' own addresses (such as
-      `app.immich:///oauth-callback`), never `http` or `https`.
+      `app.immich:///oauth-callback`), never `http` or `https`. The app is
+      told only what its scopes ask for: `profile` for `name` and
+      `preferred_username`, `email` for `email`, `groups` for `groups`. If
+      it maps groups to its admins, check it asks for `groups` (Mealie does
+      once `OIDC_ADMIN_GROUP` is set).
     - `forward_auth`: the app goes behind the wall on `route`: everyone
       signs in on the lab's sign-in page before a request reaches it.
       `bypass_paths` stay outside it, each with the `reason` it's safe. Its
@@ -340,7 +344,7 @@ Values in `env`, `when` and hooks are Go templates:
 | `.SSO.AuthorizeURL` / `.TokenURL` / `.UserinfoURL` | The sign-in page's endpoints, for apps that don't read the configuration |
 | `.SSO.ClientID` | The app's ID at the sign-in page: the service's name |
 | `.SSO.ProviderName` / `.ButtonText` | The lab's name / `Sign in with` and the lab's name |
-| `.SSO.UserGroup` / `.AdminGroup` | `users` and `admins`: the `groups` claim has `users` for everyone with access, and `admins` too for the lab's Owners and Admins |
+| `.SSO.UserGroup` / `.AdminGroup` | `users` and `admins`: the `groups` claim (with the `groups` scope) has `users` for everyone with access, and `admins` too for the lab's Owners and Admins |
 
 ## Checking a package
 

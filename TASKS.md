@@ -606,11 +606,12 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 
 ## To discuss with the user
 
-- [x] Single sign-on for services (SPEC §5.2; research in docs/SSO-RESEARCH.md; mock-ups in docs/mockups/sso). Decided 2026-10-20: Roostack itself is the identity provider, its OIDC part on the standard library, groups in the first version, two-factor as for Roostack with a choice to ask everyone, 30-day "keep me signed in" ticked, the look on People with a mark or a wide logo. Built and checked end to end on VM3 the same day with Mealie (OIDC) and Stirling-PDF (the wall): docs/ASSUMPTIONS.md V1–V6
+- [x] Single sign-on for services (SPEC §5.2; research in docs/SSO-RESEARCH.md; mock-ups in docs/mockups/sso). Decided 2026-10-20: Roostack itself is the identity provider, its OIDC part on the standard library, groups in the first version, two-factor as for Roostack with a choice to ask everyone, 30-day "keep me signed in" ticked, the look on People with a mark or a wide logo. Built and checked end to end on VM3 the same day with Mealie (OIDC) and Stirling-PDF (the wall): docs/ASSUMPTIONS.md V1–V6; the conformance suite passes (V7)
 
 ## Single sign-on: what's next (SPEC §5.2)
 
-- [ ] Run the OpenID Foundation's conformance suite (Basic OP and Config OP plans) against the provider before a release
+- [x] Run the OpenID Foundation's conformance suite (Basic OP and Config OP plans) against the provider before a release (2026-10-20: both pass with no failures after fixing `auth_time`, `prompt=login`/`max_age`, POST to `/authorize` and revoking a reused code's tokens; claims now follow scopes, the Owner's choice; five deliberate warnings; SPEC §5.2, docs/ASSUMPTIONS.md V7)
+- [ ] Run the conformance suite again before each release that changes `internal/sso` or the sign-in page (docs/SSO-CONFORMANCE.md)
 - [ ] Add the `sso` part to the registry's Mealie and Stirling-PDF packages (as in `internal/testdata/packages`), once a Roostack release has it (`requires.roostack`)
 - [ ] An `on: sso` hook (run on turning it on, changing it or off, safe to run again), then Forgejo and Gitea (`admin auth add-oauth` / `update-oauth`)
 - [ ] Packages with env only: Vaultwarden, Miniflux, Linkwarden, PhotoPrism, Actual Budget, HedgeDoc; check each app's first admin is the installing Owner (Miniflux and Actual need it)

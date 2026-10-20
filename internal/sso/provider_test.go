@@ -9,11 +9,13 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"maps"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -63,7 +65,11 @@ func newFixture(t *testing.T) *fixture {
 		},
 		ClientSecret: func(_ context.Context, id string) ([]byte, error) { return []byte(secret + "\n"), nil },
 	}
-	return &fixture{p: p, st: st, mum: mum, session: Session{User: mum, Hash: "sess-hash", Expires: expires}}
+	si, err := st.SignInSession(ctx, "sess-hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &fixture{p: p, st: st, mum: mum, session: Session{User: mum, Hash: "sess-hash", Expires: expires, AuthTime: si.At}}
 }
 
 func authorize(t *testing.T, f *fixture, q url.Values) (string, *AuthError) {
@@ -81,7 +87,7 @@ func authorize(t *testing.T, f *fixture, q url.Values) (string, *AuthError) {
 
 func authQuery(extra ...string) url.Values {
 	q := url.Values{"client_id": {"mealie"}, "redirect_uri": {callback}, "response_type": {"code"},
-		"scope": {"openid profile email"}, "state": {"st8"}, "nonce": {"n0nce"}}
+		"scope": {"openid profile email groups"}, "state": {"st8"}, "nonce": {"n0nce"}}
 	for i := 0; i+1 < len(extra); i += 2 {
 		q.Set(extra[i], extra[i+1])
 	}
@@ -184,9 +190,9 @@ func TestCodeFlow(t *testing.T) {
 	if g := c["groups"].([]any); len(g) != 1 || g[0] != UserGroup {
 		t.Errorf("a Member's groups: %v", g)
 	}
-	// A code works once.
-	if w := token(f, url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {callback}}, true); w.Code != 400 {
-		t.Errorf("code again: %d %s", w.Code, w.Body)
+	authTime := float64(f.session.AuthTime.Unix())
+	if c["auth_time"] != authTime {
+		t.Errorf("auth_time %v, want %v", c["auth_time"], authTime)
 	}
 
 	// Userinfo.
@@ -207,6 +213,10 @@ func TestCodeFlow(t *testing.T) {
 	if again := token(f, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tk.Refresh}}, true); again.Code != 400 {
 		t.Errorf("a used refresh token: %d", again.Code)
 	}
+	// A refreshed ID token keeps when they signed in (OIDC Core §12.2).
+	if c := verify(t, f, decode(t, w).ID); c["auth_time"] != authTime || c["sub"] != verify(t, f, tk.ID)["sub"] {
+		t.Errorf("refreshed claims %v", c)
+	}
 
 	// Losing access stops refreshing and userinfo.
 	tk2 := decode(t, w)
@@ -220,6 +230,71 @@ func TestCodeFlow(t *testing.T) {
 	f.p.UserInfo(uw, r)
 	if uw.Code != 401 {
 		t.Errorf("userinfo without access: %d", uw.Code)
+	}
+}
+
+// A code works once; trying it again revokes the tokens it gave, as it
+// may have been stolen (RFC 6749 §4.1.2).
+func TestCodeReuse(t *testing.T) {
+	f := newFixture(t)
+	code := codeFrom(t, must(authorize(t, f, authQuery())))
+	form := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {callback}}
+	tk := decode(t, token(f, form, true))
+	userinfo := func() int {
+		r := httptest.NewRequest(http.MethodGet, PathUserInfo, nil)
+		r.Header.Set("Authorization", "Bearer "+tk.Access)
+		w := httptest.NewRecorder()
+		f.p.UserInfo(w, r)
+		return w.Code
+	}
+	if userinfo() != 200 {
+		t.Fatal("the access token doesn't work")
+	}
+	if w := token(f, form, true); w.Code != 400 || decode(t, w).Error != "invalid_grant" {
+		t.Errorf("code again: %d %s", w.Code, w.Body)
+	}
+	if code := userinfo(); code != 401 {
+		t.Errorf("access token after the code was reused: %d", code)
+	}
+	if w := token(f, url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tk.Refresh}}, true); w.Code != 400 {
+		t.Errorf("refresh token after the code was reused: %d", w.Code)
+	}
+	// Still refused after that, and long after.
+	if w := token(f, form, true); w.Code != 400 {
+		t.Errorf("code a third time: %d", w.Code)
+	}
+	later := time.Now().Add(2 * CodeLifetime)
+	f.p.Now = func() time.Time { return later }
+	if w := token(f, form, true); w.Code != 400 {
+		t.Errorf("code once expired: %d", w.Code)
+	}
+}
+
+// An app can ask for the password to be typed again: prompt=login always,
+// max_age once that long has passed since it was.
+func TestSignInAgain(t *testing.T) {
+	f := newFixture(t)
+	s := f.session
+	s.AuthTime = time.Now().Add(-10 * time.Minute)
+	for _, c := range []struct {
+		q    url.Values
+		want bool
+	}{
+		{authQuery(), false},
+		{authQuery("prompt", "login"), true},
+		{authQuery("prompt", "consent login"), true},
+		{authQuery("prompt", "consent"), false},
+		{authQuery("max_age", "0"), true},
+		{authQuery("max_age", "60"), true},
+		{authQuery("max_age", "3600"), false},
+	} {
+		req, err := f.p.ParseAuthorize(c.q)
+		if err != nil {
+			t.Fatalf("%v: %v", c.q, err.Message)
+		}
+		if got := req.SignInAgain(s, time.Now()); got != c.want {
+			t.Errorf("prompt=%q max_age=%q: %v", c.q.Get("prompt"), c.q.Get("max_age"), got)
+		}
 	}
 }
 
@@ -247,6 +322,9 @@ func TestAuthorizeRefusals(t *testing.T) {
 		"implicit":        authQuery("response_type", "token"),
 		"no openid":       authQuery("scope", "profile"),
 		"plain challenge": authQuery("code_challenge", "abc", "code_challenge_method", "plain"),
+		"none and login":  authQuery("prompt", "none login"),
+		"max_age words":   authQuery("max_age", "an hour"),
+		"max_age < 0":     authQuery("max_age", "-1"),
 	} {
 		_, err := f.p.ParseAuthorize(q)
 		if err == nil || !strings.HasPrefix(err.Redirect, callback+"?") || !strings.Contains(err.Redirect, "state=st8") {
@@ -296,13 +374,49 @@ func TestTokenChecks(t *testing.T) {
 	}
 }
 
+// An app is told only what its scopes ask for, in the ID token and from
+// userinfo alike.
+func TestClaimsByScope(t *testing.T) {
+	f := newFixture(t)
+	for scope, want := range map[string]string{
+		"openid":                      "sub",
+		"openid email":                "email email_verified sub",
+		"openid profile":              "name preferred_username sub",
+		"openid groups":               "groups sub",
+		"openid email profile groups": "email email_verified groups name preferred_username sub",
+	} {
+		code := codeFrom(t, must(authorize(t, f, authQuery("scope", scope))))
+		tk := decode(t, token(f, url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {callback}}, true))
+		var person []string
+		for k := range verify(t, f, tk.ID) {
+			if !slices.Contains([]string{"iss", "aud", "azp", "iat", "exp", "auth_time", "nonce"}, k) {
+				person = append(person, k)
+			}
+		}
+		slices.Sort(person)
+		if got := strings.Join(person, " "); got != want {
+			t.Errorf("%q: ID token has %s", scope, got)
+		}
+		r := httptest.NewRequest(http.MethodGet, PathUserInfo, nil)
+		r.Header.Set("Authorization", "Bearer "+tk.Access)
+		w := httptest.NewRecorder()
+		f.p.UserInfo(w, r)
+		var info map[string]any
+		json.Unmarshal(w.Body.Bytes(), &info)
+		keys := slices.Sorted(maps.Keys(info))
+		if got := strings.Join(keys, " "); got != want {
+			t.Errorf("%q: userinfo has %s", scope, got)
+		}
+	}
+}
+
 // Owners and Admins are in the admins group.
 func TestAdminsGroup(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	id, _ := f.st.CreateUser(ctx, store.User{Username: "robin", PasswordHash: "x", Role: "admin"})
 	robin, _ := f.st.UserByID(ctx, id)
-	c, err := f.p.claims(ctx, robin)
+	c, err := f.p.claims(ctx, robin, allScopes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -430,5 +544,11 @@ func TestDiscovery(t *testing.T) {
 	json.Unmarshal(body, &d)
 	if d["issuer"] != issuer || d["token_endpoint"] != issuer+PathToken || d["jwks_uri"] != issuer+PathJWKS {
 		t.Errorf("%s", body)
+	}
+	// Left out, request_uri_parameter_supported would mean true.
+	for _, k := range []string{"request_parameter_supported", "request_uri_parameter_supported", "claims_parameter_supported"} {
+		if v, ok := d[k]; !ok || v != false {
+			t.Errorf("%s: %v", k, v)
+		}
 	}
 }
