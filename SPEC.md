@@ -298,7 +298,10 @@ sso:
 The sign-in page uses the design system, so its look is a few lab-wide choices on Settings → People → Sign-in page:
 
 - **the name:** the lab name (Settings → Lab name), already shown in the sidebar and on error pages;
-- **a logo:** a new lab logo the Owner uploads, PNG or SVG, square, at most 200 KB, shown in place of the hen; also the sign-in page's favicon;
+- **a logo**, one of three kinds (the Owner, 2026-10-20: a mark with the name, or a full-width logo with the name in it). PNG or SVG, at most 200 KB.
+  - **A mark, with the name beside it:** square, like an app icon, in place of the hen. It's also the page's icon in the browser tab.
+  - **A wide logo, with the name in it:** shown on its own in place of the name, up to four times as wide as it is tall. The name is still the page's title and what screen readers say. Optionally, a version for dark mode; without one, the logo sits on a light panel when the device is in dark mode, so dark lettering stays readable. Optionally, a square icon for the browser tab; without one, the hen.
+  - **None:** the hen, with the name.
 - **colours:** one of the built-in themes and its accent (§3.2), so every choice passes the contrast checks in light and dark; the page follows the visitor's device for light or dark.
 
 Later, the same choices could become the lab's default look for new people and Roostack's own login page. Considered: custom CSS (easy to break, and nothing a non-technical Owner would use); free colour pickers (can fail contrast).

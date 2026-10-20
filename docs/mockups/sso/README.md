@@ -15,14 +15,14 @@ Then open <http://127.0.0.1:8791/docs/mockups/sso/signin.html>. The bar at the b
 - the page;
 - that page's states;
 - light or dark;
-- on the sign-in page, the lab's theme (all nine) and whether the lab has a logo.
+- on the sign-in page, the lab's theme (all nine) and its logo: a mark with the name, a wide logo with the name in it, or none.
 
-Choices go into the address (`?s=code&m=dark&t=nord&logo=0`).
+Choices go into the address (`?s=code&m=dark&t=nord&logo=wide`; `logo=0` is none).
 
 ## The pages
 
 - **`signin.html`: the sign-in page at `login.<domain>`.**
-  - **The look:** the lab's logo and name in the lab's theme, with "to continue to" naming the app.
+  - **The look:** the lab's logo and name in the lab's theme, with "to continue to" naming the app. The logo is a square mark beside the name, or a wide logo with the name in it (added 2026-10-20, the Owner's idea), which sits on a light panel in dark mode when there's no dark version.
   - **Its states:** signing in, the second step, someone without access ("You can't use Immich yet", saying who to ask), signed in (the page itself lists the services you can use, and signs you out), and signed out (saying which apps keep their own sign-in).
   - **Keep me signed in** is ticked by default here, with a line about shared computers.
 - **`service.html`: Mealie's page, an OIDC app.**
@@ -37,7 +37,7 @@ Choices go into the address (`?s=code&m=dark&t=nord&logo=0`).
 - **`people.html`: Settings → People.**
   - **The people table** gains each person's email, which single sign-on needs (dad has none, and the table says so), and their groups.
   - **Groups:** a group's members, and the services they can use.
-  - **The sign-in page's look:** a live preview, the name (the lab name), a logo, and the colours (the built-in themes).
+  - **The sign-in page's look:** a live preview, the name (the lab name), the logo (a mark, a wide logo with optional dark-mode and browser-tab versions, or none), and the colours (the built-in themes).
   - **Signing in** gains the sign-in page's two choices.
   - **Add someone** gains an email and groups.
 

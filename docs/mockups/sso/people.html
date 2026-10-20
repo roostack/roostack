@@ -133,9 +133,22 @@
     </dl>
     <fieldset>
       <legend>Logo</legend>
-      <div class="logo-row"><span class="logo-now"><svg class="lab-logo" viewBox="0 0 64 64" role="img" aria-label="Smiths' lab logo"><rect width="64" height="64" rx="16" fill="#c2410c"/><path d="M14 33 32 17l18 16" fill="none" stroke="#fff7ed" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 30v16h24V30" fill="none" stroke="#fff7ed" stroke-width="4.5" stroke-linejoin="round"/><path d="M32 43.5c-4.5-3-7-5.3-7-8a3.6 3.6 0 0 1 7-1.4 3.6 3.6 0 0 1 7 1.4c0 2.7-2.5 5-7 8z" fill="#fff7ed"/></svg></span>
-        <span><input type="file" id="look-logo" accept="image/png,image/svg+xml"><small class="hint">PNG or SVG, square, up to 200 KB. Also the page's icon in the browser.</small>
-        <button type="button" class="quiet" id="look-logo-remove">Use Roostack's hen instead</button></span></div>
+      <label class="check"><input type="radio" name="look-logo" id="look-logo-mark" value="mark" checked>
+        <span>A mark, with the name beside it<small>Square, like an app icon. It's also the page's icon in the browser tab.</small></span></label>
+      <div class="logo-row logo-for-mark"><span class="logo-now"><svg class="lab-logo" viewBox="0 0 64 64" role="img" aria-label="Smiths' lab logo"><rect width="64" height="64" rx="16" fill="#c2410c"/><path d="M14 33 32 17l18 16" fill="none" stroke="#fff7ed" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 30v16h24V30" fill="none" stroke="#fff7ed" stroke-width="4.5" stroke-linejoin="round"/><path d="M32 43.5c-4.5-3-7-5.3-7-8a3.6 3.6 0 0 1 7-1.4 3.6 3.6 0 0 1 7 1.4c0 2.7-2.5 5-7 8z" fill="#fff7ed"/></svg></span>
+        <span><input type="file" id="look-mark-file" accept="image/png,image/svg+xml"><small class="hint">PNG or SVG, square, up to 200 KB.</small></span></div>
+      <label class="check"><input type="radio" name="look-logo" id="look-logo-wide" value="wide">
+        <span>A wide logo, with the name in it<small>Shown on its own, in place of the name. Up to four times as wide as it is tall.</small></span></label>
+      <div class="logo-for-wide">
+        <div class="logo-row"><span class="logo-now wide"><svg class="wide-logo" viewBox="0 0 280 64" role="img" aria-label="Smiths' lab"><rect x="0" y="4" width="56" height="56" rx="14" fill="#c2410c"/><path d="M12 33 28 19l16 14" fill="none" stroke="#fff7ed" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 30v14h22V30" fill="none" stroke="#fff7ed" stroke-width="4" stroke-linejoin="round"/><path d="M28 41.5c-4-2.6-6.2-4.7-6.2-7.1a3.2 3.2 0 0 1 6.2-1.2 3.2 3.2 0 0 1 6.2 1.2c0 2.4-2.2 4.5-6.2 7.1z" fill="#fff7ed"/><text x="70" y="36" font-family="Georgia, 'Times New Roman', serif" font-size="30" font-weight="700" fill="#7c2d12">The Smiths</text><text x="71" y="55" font-family="Georgia, 'Times New Roman', serif" font-size="13" letter-spacing="3.2" fill="#9a3412">HOME · EST. 2019</text></svg></span></div>
+        <label>The logo <input type="file" id="look-wide-file" accept="image/png,image/svg+xml"><small class="hint">PNG or SVG, up to 200 KB.</small></label>
+        <label>For dark mode <span class="hint">(optional)</span> <input type="file" id="look-wide-dark" accept="image/png,image/svg+xml">
+          <small class="hint">A version with light lettering. Without one, the logo sits on a light panel when the device is in dark mode, so dark lettering stays readable.</small></label>
+        <label>Browser tab icon <span class="hint">(optional)</span> <input type="file" id="look-wide-icon" accept="image/png,image/svg+xml">
+          <small class="hint">Square. Without one, the tab shows Roostack's hen.</small></label>
+      </div>
+      <label class="check"><input type="radio" name="look-logo" id="look-logo-none" value="0">
+        <span>None<small>Roostack's hen, with the name beside it.</small></span></label>
     </fieldset>
     <fieldset>
       <legend>Colours</legend>

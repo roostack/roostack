@@ -13,7 +13,18 @@
 .signin-brand { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5); }
 .signin-brand svg { width: 44px; height: 44px; flex: none; border-radius: 12px; }
 .signin-brand strong { font-family: var(--font-display); font-size: var(--text-lg, 1.2rem); }
+/* The lab's logo: a square mark beside the name (the default), a wide logo with the name in it, or none (the hen). */
 html[data-logo="0"] .with-logo, html:not([data-logo="0"]) .with-hen { display: none; }
+.brand-wide { display: none; }
+html[data-logo="wide"] .brand-wide { display: flex; }
+html[data-logo="wide"] .brand-mark-name { display: none; }
+.wide-tile { display: inline-flex; max-width: 100%; }
+.signin-brand .wide-logo, .logo-now.wide .wide-logo { width: auto; height: 56px; max-width: 100%; border-radius: 0; }
+/* No dark version: the logo sits on a light panel in dark mode, so dark lettering stays readable. */
+[data-mode="dark"] .wide-tile, [data-mode="dark"] .logo-now.wide { background: #fbf7f2; padding: 8px 14px; border-radius: 12px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode="light"]) .wide-tile, :root:not([data-mode="light"]) .logo-now.wide { background: #fbf7f2; padding: 8px 14px; border-radius: 12px; }
+}
 .signin-to { display: flex; align-items: center; gap: var(--space-2); color: var(--muted); margin: 0; flex-wrap: wrap; }
 .signin-to strong { color: var(--fg); }
 .signin-to .logo-tile, .signin-apps .logo-tile, .group-list .logo-tile { width: 28px; height: 28px; padding: 3px; border-radius: 8px; }
@@ -70,7 +81,12 @@ html[data-embed="1"] .signin-page { padding-block: 24px; }
 
 .look-preview { border: 1px solid var(--edge); border-radius: 12px; overflow: hidden; height: 300px; position: relative; background: var(--canvas); margin-bottom: var(--space-4); }
 .look-preview iframe { border: 0; width: 166.67%; height: 500px; transform: scale(.6); transform-origin: 0 0; pointer-events: none; }
-.logo-row { display: flex; gap: var(--space-3); align-items: flex-start; }
+.logo-row { display: flex; gap: var(--space-3); align-items: flex-start; margin: 0 0 var(--space-4) 30px; }
+.logo-for-wide { margin: 0 0 var(--space-4) 30px; }
+.logo-for-wide label { display: block; margin-bottom: var(--space-3); }
+.logo-for-wide label input { display: block; margin-top: var(--space-1); max-width: 100%; }
+.logo-now.wide { display: inline-flex; max-width: 100%; }
+.look-form:not(:has(#look-logo-mark:checked)) .logo-for-mark, .look-form:not(:has(#look-logo-wide:checked)) .logo-for-wide { display: none; }
 .logo-now svg { width: 56px; height: 56px; border-radius: 14px; }
 .logo-row input[type="file"] { max-width: 100%; }
 .logo-row small { display: block; margin: var(--space-1) 0; }
@@ -96,4 +112,4 @@ html[data-embed="1"] .signin-page { padding-block: 24px; }
 .mock-bar a, .mock-bar button { color: inherit; background: none; border: 0; padding: 2px 6px; font: inherit; cursor: pointer; text-decoration: none; border-radius: 6px; }
 .mock-bar [aria-current] { background: color-mix(in srgb, var(--bg) 22%, transparent); }
 .mock-bar .sep { opacity: .4; }
-.mock-bar select { font: inherit; padding: 1px 4px; border-radius: 6px; width: auto; min-height: 0; margin: 0; }
+.mock-bar select { font: inherit; padding: 1px 4px; border-radius: 6px; width: auto; min-height: 0; margin: 0; color: var(--fg); background: var(--bg); }

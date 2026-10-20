@@ -13,7 +13,7 @@
 
   if (q.get("m")) root.dataset.mode = q.get("m");
   if (q.get("t")) root.dataset.palette = q.get("t");
-  if (q.get("logo") === "0") root.dataset.logo = "0";
+  if (q.get("logo")) root.dataset.logo = q.get("logo"); // "wide", or "0" for none
   if (q.get("embed") === "1") root.dataset.embed = "1";
 
   // Each page's states: elements with data-state show only in theirs.
@@ -28,17 +28,11 @@
   if (frame) {
     const update = () => {
       const t = document.querySelector('input[name="look-theme"]:checked').value;
-      const logo = frame.dataset.logo === "0" ? "&logo=0" : "";
+      const l = document.querySelector('input[name="look-logo"]:checked').value;
+      const logo = l === "mark" ? "" : "&logo=" + l;
       frame.src = "signin.html?embed=1&t=" + t + logo + (q.get("m") ? "&m=" + q.get("m") : "");
     };
-    document.querySelectorAll('input[name="look-theme"]').forEach((r) => r.addEventListener("change", update));
-    const remove = document.getElementById("look-logo-remove");
-    remove.addEventListener("click", () => {
-      frame.dataset.logo = frame.dataset.logo === "0" ? "1" : "0";
-      remove.textContent = frame.dataset.logo === "0" ? "Use the lab's logo again" : "Use Roostack's hen instead";
-      document.querySelector(".logo-now").style.opacity = frame.dataset.logo === "0" ? ".3" : "1";
-      update();
-    });
+    document.querySelectorAll('input[name="look-theme"], input[name="look-logo"]').forEach((r) => r.addEventListener("change", update));
     update();
   }
 
@@ -83,10 +77,15 @@
     }
     sel.onchange = () => { location.search = link({ t: sel.value }); };
     add(sel);
-    const l = document.createElement("a");
-    l.href = link({ logo: q.get("logo") === "0" ? null : "0" });
-    l.textContent = q.get("logo") === "0" ? "Lab's logo" : "No logo";
-    add(l);
+    const ls = document.createElement("select");
+    ls.setAttribute("aria-label", "The lab's logo");
+    for (const [v, name] of [["", "Mark and name"], ["wide", "Wide logo"], ["0", "No logo"]]) {
+      const o = document.createElement("option");
+      o.value = v; o.textContent = name; o.selected = (q.get("logo") || "") === v;
+      ls.append(o);
+    }
+    ls.onchange = () => { location.search = link({ logo: ls.value || null }); };
+    add(ls);
   }
   document.body.append(bar);
 })();
