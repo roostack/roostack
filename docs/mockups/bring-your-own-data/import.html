@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="../../../internal/web/static/css/themes/rose-pine.css">
   <link rel="stylesheet" href="../../../internal/web/static/css/themes/tokyo-night.css">
   <link rel="stylesheet" href="../../../internal/web/static/css/app.css">
-  <link rel="stylesheet" href="mock.css">
+  <link rel="stylesheet" href="mock.css?v=1792504057">
 </head>
 <body x-data="{ menu: false }">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -70,16 +70,7 @@
   </div>
 </div>
 
-<div class="notice notice-ok" role="status" data-state="done">
-  <p><strong>Immich is running with your data.</strong> Switched today at 15:22, in 3 minutes.</p>
-  <p>Check it: sign in with your old account, open an album, search for something, and upload from a phone. Then look in Immich's
-    Administration → Settings for anything that names the old machine, such as its external domain (used in share links).
-    <a href="#">Moving Immich</a> says what else to look at.</p>
-  <p class="hint">T7 Shield is unmounted: unplug it whenever you like. If something's wrong, you can bring the data in again, or
-    remove Immich and start over.</p>
-</div>
-
-<div class="grid">
+<div class="grid byod-layout">
 <div class="span-8 grid-column byod-steps">
 
   <!-- 1. Your files -->
@@ -115,7 +106,7 @@
         <p class="hint">(The media libraries' share form: server, share, username and password.)</p>
       </div>
     </div>
-    <div class="actions-row"><a class="button" href="?s=setup">Use these files</a></div>
+    <div class="actions-row"><a class="button" href="?s=setup">Continue</a></div>
   </section>
   <section class="card byod-step step-done" data-state="setup paths match check problems copying copied switching done">
     <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your files</h2><a class="more" href="?s=source">Change</a></div>
@@ -179,15 +170,16 @@
     <h3 class="byod-sub">Where are the old machine's folders now?</h3>
     <p class="hint">Your old setup names folders on the old machine. Say where they are in your files: one line covers every folder under it.</p>
     <div class="byod-prefix">
-      <label>On the old machine <input value="/opt/immich" spellcheck="false" autocapitalize="off"></label>
+      <label class="byod-old-label" for="old-1">On the old machine</label>
+      <span class="field-label byod-now-label" id="now-1">Is now</span>
+      <input class="byod-old-input" id="old-1" value="/opt/immich" spellcheck="false" autocapitalize="off">
       <span class="byod-arrow" aria-hidden="true">→</span>
-      <div><p class="field-label">Is now</p>
-        <div class="folder-choice"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>T7 Shield › immich</strong></span><a class="button secondary small" href="#">Choose…</a></div></div>
+      <div class="folder-choice byod-now" aria-labelledby="now-1"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>T7 Shield › immich</strong></span><a class="button secondary small" href="#">Choose…</a></div>
     </div>
     <p class="hint">Roostack guessed this line from the folder names in your files. Found: <code>/opt/immich/library</code>.
       Not in your files: <code>/var/lib/docker/volumes/immich_model-cache/_data</code> and <code>/opt/immich/postgres</code>, which aren't needed.</p>
     <p><button type="button" class="quiet">Add another line</button></p>
-    <div class="actions-row"><a class="button" href="?s=match">Next: what goes where</a></div>
+    <div class="actions-row"><a class="button" href="?s=match">Continue</a></div>
     </div>
   </section>
   <section class="card byod-step step-done" data-state="match check problems copying copied switching done">
@@ -227,8 +219,8 @@
         <li>Database "cache" (<code>immich_redis</code>): a queue of jobs, nothing to keep.</li>
       </ul>
     </details>
-    <div class="actions-row"><a class="button" href="?s=check">Check</a>
-      <span class="hint">Reads your files and the dump. Nothing is copied or changed yet.</span></div>
+    <div class="actions-row"><a class="button" href="?s=check">Continue</a>
+      <span class="hint">Roostack then reads your files and the dump to check them. Nothing is copied or changed yet.</span></div>
   </section>
   <section class="card byod-step step-done" data-state="check problems copying copied switching done">
     <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>What goes where</h2><a class="more" href="?s=match">Change</a></div>
@@ -371,14 +363,22 @@
 15:20:07 pg_restore --clean --if-exists --no-owner -d immich main.dump (as immich, in roostack-immich-db-main)
 </pre></details>
   </section>
-  <section class="card byod-step step-done" data-state="done">
-    <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Switch to this data</h2><a class="more" href="#">History</a></div>
-    <p class="step-summary">Switched today at 15:22<small>Copied 12 files more, loaded main.dump (19 MB), Immich answered after 41 seconds</small></p>
+  <section class="card byod-step step-result" data-state="done">
+    <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Switched to this data</h2><a class="more" href="#">History</a></div>
+    <div class="notice notice-ok" role="status">
+      <p><strong>Immich is running with your data.</strong> Switched today at 15:22, in 3 minutes: 12 files more copied, main.dump
+        (19 MB) loaded, and Immich answered after 41 seconds.</p>
+    </div>
+    <p><strong>Check it:</strong> sign in with your old account, open an album, search for something, and upload from a phone. Then
+      look in Immich's Administration → Settings for anything that names the old machine, such as its external domain (used in share
+      links). <a href="#">Moving Immich</a> says what else to look at.</p>
+    <p class="hint">T7 Shield is unmounted: unplug it whenever you like. If something's wrong, you can bring the data in again, or
+      remove Immich and start over.</p>
+    <div class="actions-row"><a class="button" href="service.html">Go to Immich</a></div>
   </section>
 </div>
 
-<aside class="span-4 grid-column">
-  <section class="card">
+<aside class="card span-4 byod-old" aria-label="On the old machine">
     <div class="card-head"><h2>On the old machine</h2></div>
     <p class="hint">Roostack never runs anything there. What you do:</p>
     <ol class="byod-todo">
@@ -391,20 +391,19 @@
         <small class="hint">Custom format only, for now: Immich's own nightly backups (<code>.sql.gz</code>) can't be loaded yet.</small></li>
       <li><strong>Before the switch,</strong> stop it and keep it stopped: two Immichs would each think they're the one.</li>
     </ol>
-  </section>
-  <section class="card">
+</aside>
+<aside class="card span-4 byod-help" aria-label="Help">
     <div class="card-head"><h2>Help</h2></div>
     <ul class="plain">
       <li><a href="#">Moving from Docker Compose</a><br><small class="hint">The steps for any service</small></li>
       <li><a href="#">Moving Immich</a><br><small class="hint">Versions, VectorChord, the external domain, timings</small></li>
     </ul>
-  </section>
 </aside>
 </div>
       </main>
       <footer class="site">Roostack <span class="version">0.9.0</span> · <a href="#">About</a> · <a href="#">Design system</a></footer>
     </div>
   </div>
-  <script src="mock.js"></script>
+  <script src="mock.js?v=1792504057"></script>
 </body>
 </html>

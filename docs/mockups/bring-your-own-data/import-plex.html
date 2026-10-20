@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="../../../internal/web/static/css/themes/rose-pine.css">
   <link rel="stylesheet" href="../../../internal/web/static/css/themes/tokyo-night.css">
   <link rel="stylesheet" href="../../../internal/web/static/css/app.css">
-  <link rel="stylesheet" href="mock.css">
+  <link rel="stylesheet" href="mock.css?v=1792504057">
 </head>
 <body x-data="{ menu: false }">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -66,7 +66,7 @@
     </div>
   </div>
 </div>
-<div class="grid">
+<div class="grid byod-layout">
 <div class="span-8 grid-column byod-steps">
   <section class="card byod-step step-done">
     <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your files</h2><a class="more" href="#">Change</a></div>
@@ -120,8 +120,8 @@
       <summary>From your old setup, not brought: 1</summary>
       <ul class="plain"><li><code>/opt/plex/transcode</code>: not a folder of its own here before, see above.</li></ul>
     </details>
-    <div class="actions-row"><a class="button" href="?s=check">Check</a>
-      <span class="hint">Reads your files. Nothing is copied or changed yet.</span></div>
+    <div class="actions-row"><a class="button" href="?s=check">Continue</a>
+      <span class="hint">Roostack then reads your files to check them. Nothing is copied or changed yet.</span></div>
   </section>
 
   <section class="card byod-step step-done" data-state="check">
@@ -148,8 +148,7 @@
   <section class="card byod-step step-todo"><div class="card-head"><h2><span class="step-num">5</span>Copy</h2></div></section>
   <section class="card byod-step step-todo"><div class="card-head"><h2><span class="step-num">6</span>Switch to this data</h2></div></section>
 </div>
-<aside class="span-4 grid-column">
-  <section class="card">
+<aside class="card span-4 byod-old" aria-label="On the old machine">
     <div class="card-head"><h2>On the old machine</h2></div>
     <p class="hint">Roostack never runs anything there. What you do:</p>
     <ol class="byod-todo">
@@ -158,20 +157,19 @@
       <li><strong>Plex has no database to dump:</strong> its database is a file in that folder. Stop Plex before the last copy.</li>
       <li><strong>Keep it stopped</strong> once you switch: two servers with one identity fight over it on plex.tv.</li>
     </ol>
-  </section>
-  <section class="card">
+</aside>
+<aside class="card span-4 byod-help" aria-label="Help">
     <div class="card-head"><h2>Help</h2></div>
     <ul class="plain">
       <li><a href="#">Moving from Docker Compose</a><br><small class="hint">The steps for any service</small></li>
       <li><a href="#">Moving Plex</a><br><small class="hint">Its identity, libraries, remote access</small></li>
     </ul>
-  </section>
 </aside>
 </div>
       </main>
       <footer class="site">Roostack <span class="version">0.9.0</span> · <a href="#">About</a> · <a href="#">Design system</a></footer>
     </div>
   </div>
-  <script src="mock.js"></script>
+  <script src="mock.js?v=1792504057"></script>
 </body>
 </html>

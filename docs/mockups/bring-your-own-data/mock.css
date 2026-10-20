@@ -32,12 +32,35 @@ textarea { display: block; width: 100%; margin-top: var(--space-2); padding: 10p
   color: inherit; background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--radius); resize: vertical; }
 .byod-paste { margin-top: var(--space-3); }
 
-/* An old folder and where it is now, side by side. */
-.byod-prefix { display: grid; grid-template-columns: minmax(10rem, 1fr) auto minmax(14rem, 1.4fr); gap: var(--space-3); align-items: end; }
-.byod-prefix label { margin-bottom: 0; }
-.byod-arrow { padding-bottom: 14px; color: var(--muted); }
-.byod-prefix .folder-choice { margin-top: var(--space-2); padding: 6px var(--space-3); }
-@media (max-width: 640px) { .byod-prefix { grid-template-columns: 1fr; } .byod-arrow { display: none; } }
+/* An old folder and where it is now, side by side: labels on one row,
+   the input and the folder on the next, centred on each other; on phones
+   one under another. */
+.byod-prefix { display: grid; grid-template-columns: minmax(10rem, 1fr) auto minmax(14rem, 1.4fr);
+  grid-template-areas: "old-l . now-l" "old arrow now"; gap: var(--space-2) var(--space-3); align-items: center; }
+.byod-prefix > label { grid-area: old-l; margin: 0; }
+.byod-now-label { grid-area: now-l; margin: 0; }
+.byod-old-input { grid-area: old; margin: 0; }
+.byod-arrow { grid-area: arrow; color: var(--muted); }
+.byod-now { grid-area: now; margin: 0; min-height: 46px; padding: 4px 4px 4px var(--space-3); }
+@media (max-width: 640px) {
+  .byod-prefix { grid-template-columns: 1fr; grid-template-areas: "old-l" "old" "now-l" "now"; }
+  .byod-arrow { display: none; }
+  .byod-now-label { margin-top: var(--space-2); }
+}
+
+/* The page's layout: the steps, with what to do on the old machine and the
+   help beside them; below 1100 px, what to do on the old machine comes
+   first (it's what step 1 needs), the help last. */
+.byod-layout { grid-template-rows: auto 1fr; }
+.byod-layout > .byod-steps { grid-row: 1 / span 2; }
+.byod-layout > .byod-old, .byod-layout > .byod-help { align-self: start; }
+@media (max-width: 1100px) {
+  .byod-layout { grid-template-rows: none; }
+  .byod-layout > .byod-steps { grid-row: auto; }
+  .byod-layout > .byod-old { order: -1; }
+}
+/* The last step, done: the result, as the step's own content. */
+.step-result .step-num { background: var(--ok-bg); color: var(--ok); }
 
 /* What goes where: a table list whose cells have a second, smaller line. */
 .byod-map td small { display: block; color: var(--muted); font-size: var(--text-xs); margin-top: 2px; }
