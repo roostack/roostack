@@ -457,7 +457,12 @@ type renderedExample struct {
 // renderGallery writes the gallery page. static is where the CSS and
 // scripts are ("/static/" in the UI, a relative path for the file).
 func renderGallery(w io.Writer, static string, standalone bool) error {
-	base, err := template.New("design.html").Funcs(templateFuncs).ParseFS(templateFS,
+	// The uptime bar names its days relative to the gallery's own day, not
+	// the clock's, so the generated file is the same whatever day it's made.
+	uptime := func(days []monitor.Day, opts ...string) (template.HTML, error) {
+		return uptimeBarAt(galleryToday, days, opts...)
+	}
+	base, err := template.New("design.html").Funcs(templateFuncs).Funcs(template.FuncMap{"uptimeBar": uptime}).ParseFS(templateFS,
 		"templates/components.html", "templates/parts.html", "templates/design.html")
 	if err != nil {
 		return err
@@ -551,14 +556,16 @@ func (s *Server) galleryPage(w http.ResponseWriter, r *http.Request) {
 	w.Write(buf.Bytes())
 }
 
+// galleryToday is "today" for the gallery's uptime bars: a fixed day, so
+// the gallery file doesn't change from day to day.
+var galleryToday = time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+
 // galleryUptime is 30 days of a check that started 5 days in, was down a
-// few minutes twice and an hour once (fixed dates, so the gallery file
-// doesn't change from day to day).
+// few minutes twice and an hour once, ending on galleryToday.
 func galleryUptime() []monitor.Day {
-	today := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
 	days := make([]monitor.Day, 30)
 	for i := range days {
-		d := monitor.Day{Date: today.AddDate(0, 0, i-29), Checks: 1440, Ups: 1440, State: monitor.DayOK}
+		d := monitor.Day{Date: galleryToday.AddDate(0, 0, i-29), Checks: 1440, Ups: 1440, State: monitor.DayOK}
 		switch {
 		case i < 5:
 			d = monitor.Day{Date: d.Date, State: monitor.DayNone}
