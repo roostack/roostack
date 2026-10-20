@@ -1099,6 +1099,21 @@ func TestServiceSettings(t *testing.T) {
 	if libs.setLibs != before {
 		t.Error("unchanged libraries set again")
 	}
+	// A library at a place of its own (SPEC.md §8.4), under Details.
+	_, body = h.get("/services/forgejo/settings")
+	if !strings.Contains(body, `name="library_path.films" value=""`) || !strings.Contains(body, `placeholder="/media/films"`) ||
+		!strings.Contains(body, "all in <code>/media</code>") {
+		t.Error("no place for a library's path")
+	}
+	h.post("/services/forgejo/settings", url.Values{"subdomain": {"code"}, "libraries_chosen": {"1"}, "library": {"music"},
+		"library_paths_shown": {"1"}, "library_path.music": {"/music"}}, h.srv.URL)
+	if libs.setLibs != before+1 || libs.svcPaths["music"] != "/music" {
+		t.Errorf("a library's path: %d calls, %v", libs.setLibs-before, libs.svcPaths)
+	}
+	_, body = h.get("/services/forgejo/settings")
+	if !strings.Contains(body, `name="library_path.music" value="/music"`) || !strings.Contains(body, "Music at <code>/music</code>, the rest in") {
+		t.Error("the library's path isn't shown")
+	}
 	h.server.Libraries = nil
 
 	// Vaultwarden's admin token is shown on request, and audited.

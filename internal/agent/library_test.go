@@ -58,6 +58,15 @@ func TestLibraryFstab(t *testing.T) {
 	if e := libraryEntries(tab); len(e) != 1 {
 		t.Errorf("a view isn't a library: %+v", e)
 	}
+	// A library in the second view folder (SPEC.md §8.4) is neither.
+	tab, _ = withView(tab, atTag("plex", "films", "movies"), "films", "/mnt/roostack-library-views/plex.at/movies")
+	if v := atEntries(tab); len(v) != 1 || v[0] != (atEntry{"plex", "films", "movies"}) {
+		t.Errorf("second view = %+v", v)
+	}
+	if v, e := viewEntries(tab), libraryEntries(tab); len(v) != 1 || len(e) != 1 {
+		t.Errorf("the second view's entry read as a view %+v or library %+v", v, e)
+	}
+	tab = removeBlock(tab, atTag("plex", "films", "movies"))
 	tab = removeBlock(tab, viewTag("plex", "films"))
 	tab = removeBlock(tab, libraryTag("films"))
 	tab = removeMediaDrive(tab, "/mnt/roostack-media-data")
@@ -194,7 +203,8 @@ func TestLibraryAPI(t *testing.T) {
 	if libs, err := c.Libraries(t.Context()); err != nil || len(libs) != 1 || !libs[0].Mounted {
 		t.Errorf("libraries %+v %v", libs, err)
 	}
-	if err := c.SetLibraryViews(t.Context(), "plex", []string{"films", "music"}); err != nil || strings.Join(host.views, " ") != "plex films music" {
+	if err := c.SetLibraryViews(t.Context(), "plex", []string{"films", "music"}, map[string]string{"movies": "films"}); err != nil ||
+		strings.Join(host.views, " ") != "plex films music movies=films" {
 		t.Errorf("views %q %v", host.views, err)
 	}
 	if err := c.RemoveLibraryViews(t.Context(), "plex"); err != nil || strings.Join(host.views, " ") != "removed plex" {

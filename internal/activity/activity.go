@@ -40,6 +40,9 @@ const (
 	LabRestore = "lab-restore"
 	// Build is building Roostack's Caddy image in the background.
 	Build = "build"
+	// LibraryRestart is restarting a service whose library, bound at a
+	// path of its own, came back (SPEC.md §8.4).
+	LibraryRestart = "library-restart"
 )
 
 // BackupSetupFor is the BackupSetup log of one server: the controller

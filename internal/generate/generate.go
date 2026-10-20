@@ -81,6 +81,14 @@ type Output struct {
 	// ReadsLibraries: a container mounts its view of the media libraries,
 	// which the server makes before starting it (SPEC.md §8.1).
 	ReadsLibraries bool
+	// LibraryAt is what goes in its second view folder, for libraries at
+	// their old paths' shared parent: name → library; LibraryBinds are the
+	// libraries bound one by one at their paths, whose server restarts
+	// LibraryUnits (the containers binding them) when their drive comes
+	// back (SPEC.md §8.4).
+	LibraryAt    map[string]string
+	LibraryBinds []string
+	LibraryUnits []string
 	// Quadlets go in config.Paths.QuadletDir().
 	Quadlets []File
 	// CaddySite goes in <CaddyDir>/sites/. Nil when the service has no routes.
@@ -217,15 +225,16 @@ func ProxySite(lab config.Lab, p *pkgspec.Package, in *instance.Instance, addr s
 
 func newGen(lab config.Lab, p *pkgspec.Package, in *instance.Instance, upstream string) *gen {
 	return &gen{
-		lab: lab, pkg: p, ctx: buildContext(lab, p, in), upstream: upstream,
+		lab: lab, pkg: p, inst: in, ctx: buildContext(lab, p, in), upstream: upstream,
 		name: in.ID(), title: cmp.Or(in.Title, p.Title), out: &Output{Service: in.ID()},
 		included: map[string]bool{}, waf: !in.NoWAF, sso: SSOOn(lab, p, in),
 	}
 }
 
 type gen struct {
-	lab config.Lab
-	pkg *pkgspec.Package
+	lab  config.Lab
+	pkg  *pkgspec.Package
+	inst *instance.Instance
 	// name is the service's ID (instance.ID): everything is named after it.
 	// title is what people call it (its error pages say it).
 	name, title string
@@ -377,6 +386,23 @@ func (g *gen) container(name string, c *pkgspec.Container) error {
 			// folder before starting it.
 			cs.Add("Volume", config.LibraryView(svc)+":"+m.Path+":ro,rslave")
 			g.out.ReadsLibraries = true
+			// Libraries at paths of their own too (SPEC.md §8.4): the
+			// second view folder at their shared parent, or each bound
+			// from the view folder (instance.PlaceLibraries).
+			pl := g.inst.PlaceLibraries(g.pkg)
+			if pl.Parent != "" {
+				cs.Add("Volume", config.LibraryAtView(svc)+":"+pl.Parent+":ro,rslave")
+				g.out.LibraryAt = pl.Names
+			}
+			for _, l := range slices.Sorted(maps.Keys(pl.Binds)) {
+				cs.Add("Volume", filepath.Join(config.LibraryView(svc), l)+":"+pl.Binds[l]+":ro,rslave")
+				if !slices.Contains(g.out.LibraryBinds, l) {
+					g.out.LibraryBinds = append(g.out.LibraryBinds, l)
+				}
+			}
+			if len(pl.Binds) > 0 {
+				g.out.LibraryUnits = append(g.out.LibraryUnits, containerUnitName(svc, name)+".service")
+			}
 			continue
 		}
 		vol := g.storagePath(m.Storage) + ":" + m.Path

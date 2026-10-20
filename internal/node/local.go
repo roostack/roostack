@@ -219,6 +219,10 @@ type Local struct {
 
 	// updates are services updating here (update.go).
 	updates updates
+
+	// libWatch is what the watch of libraries at their own paths saw last
+	// (libwatch.go).
+	libWatch libraryWatch
 }
 
 // Identity is this server's identity.

@@ -255,6 +255,14 @@ func (s *Server) attention(r *http.Request) []attentionItem {
 				if svc.Status == StatusWaiting {
 					continue
 				}
+				// A library at a place of its own whose drive is gone: it
+				// restarts once the drive is back (SPEC.md §8.4).
+				if s.Libraries != nil {
+					if c, err := s.Libraries.ServiceLibraries(r.Context(), svc.Name); err == nil && len(c.Gone) > 0 {
+						add(levelWarning, fmt.Sprintf("%s can't see %s: %s isn't connected. Plug it back in, and Roostack restarts %s by itself.",
+							svc.Title, joinAnd(c.Gone), plural(len(c.Gone), "its drive", "their drives"), svc.Title), "/services/"+svc.Name, "View")
+					}
+				}
 				// Asked of the server each service runs on.
 				n := s.Manager.NodeFor(svc.Name)
 				if n == nil {

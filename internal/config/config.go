@@ -78,6 +78,11 @@ const (
 // LibraryView is a service's folder of the media libraries it may read.
 func LibraryView(service string) string { return filepath.Join(LibraryViews, service) }
 
+// LibraryAtView is a service's second view folder, for libraries shown at
+// their old paths' shared parent (SPEC.md §8.4), each under its old
+// folder's name. A service's name has no ".", so it's never another's.
+func LibraryAtView(service string) string { return filepath.Join(LibraryViews, service+".at") }
+
 // QuadletDir is where rootless Quadlet files for the roostack user live.
 func (p Paths) QuadletDir() string {
 	return filepath.Join(p.HomeDir, ".config", "containers", "systemd")

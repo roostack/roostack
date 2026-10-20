@@ -3,6 +3,7 @@ package web
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -158,8 +159,19 @@ func (s *Server) settingsSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == nil && s.Libraries != nil && r.PostForm.Get("libraries_chosen") != "" {
 		chosen := r.PostForm["library"]
-		if c, cerr := s.Libraries.ServiceLibraries(r.Context(), name); cerr != nil || !sameSet(c.Chosen, chosen) {
-			err = s.Libraries.SetServiceLibraries(r.Context(), name, chosen)
+		// Where each is inside it, if a place of its own (SPEC.md §8.4).
+		var paths map[string]string
+		if r.PostForm.Get("library_paths_shown") != "" {
+			paths = map[string]string{}
+			for k, v := range r.PostForm {
+				if l, ok := strings.CutPrefix(k, "library_path."); ok && strings.TrimSpace(v[0]) != "" {
+					paths[l] = strings.TrimSpace(v[0])
+				}
+			}
+		}
+		c, cerr := s.Libraries.ServiceLibraries(r.Context(), name)
+		if cerr != nil || !sameSet(c.Chosen, chosen) || (paths != nil && !maps.Equal(paths, c.Paths) && (len(paths) > 0 || len(c.Paths) > 0)) {
+			err = s.Libraries.SetServiceLibraries(r.Context(), name, chosen, paths)
 		}
 	}
 	msg, isForm := userMessage(err)

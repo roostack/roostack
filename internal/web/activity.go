@@ -23,6 +23,8 @@ var activityPerm = map[string]auth.Permission{
 	activity.ServiceUpdate: auth.ManageServices,
 	// Rolling backups back (SPEC.md §10.10).
 	activity.BackupRollback: auth.ManageHost,
+	// A service restarted as its library's drive came back (SPEC.md §8.4).
+	activity.LibraryRestart: auth.ManageServices,
 }
 
 // activityView is one activity's live status and log (parts.html).

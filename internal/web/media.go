@@ -34,7 +34,7 @@ type LibraryManager interface {
 	AddLibrary(ctx context.Context, req manager.LibraryRequest) error
 	RemoveLibrary(ctx context.Context, serverID, name string) error
 	SetLibraryReaders(ctx context.Context, serverID, name string, services []string) error
-	SetServiceLibraries(ctx context.Context, service string, libraries []string) error
+	SetServiceLibraries(ctx context.Context, service string, libraries []string, paths map[string]string) error
 	ServerLibraryChoices(ctx context.Context, serverID string) []store.MediaLibrary
 	ServiceLibraries(ctx context.Context, service string) (manager.ServiceLibraryChoice, error)
 }
@@ -518,7 +518,7 @@ func (s *Server) serviceLibrariesSubmit(w http.ResponseWriter, r *http.Request) 
 	}
 	r.ParseForm()
 	name := r.PathValue("name")
-	err := s.Libraries.SetServiceLibraries(r.Context(), name, r.Form["library"])
+	err := s.Libraries.SetServiceLibraries(r.Context(), name, r.Form["library"], nil)
 	if msg, ok := userMessage(err); ok {
 		http.Error(w, msg, http.StatusBadRequest)
 		return

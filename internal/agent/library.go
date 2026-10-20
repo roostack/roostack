@@ -249,6 +249,13 @@ func (h LinuxHost) UnmountLibrary(name string) error {
 			os.Remove(filepath.Join(LibraryViews, v.service, v.library))
 		}
 	}
+	for _, v := range atEntries(tab) {
+		if v.library == name {
+			tab = removeBlock(tab, atTag(v.service, v.library, v.name))
+			stopMount(filepath.Join(LibraryViews, v.service+".at", v.name))
+			os.Remove(filepath.Join(LibraryViews, v.service+".at", v.name))
+		}
+	}
 	// Media drives no library mounts from any more.
 	for _, mp := range mediaDriveMounts(tab) {
 		if !strings.Contains(tab, "x-systemd.requires-mounts-for="+fstabEscape(mp)) {
@@ -828,8 +835,10 @@ func mountUnit(path string) (string, error) {
 
 // SetLibraryViews sets which libraries a service may read: bind mounts of
 // them in its view folder (made even when empty, as its containers bind
-// it), automounted after its library.
-func (h LinuxHost) SetLibraryViews(service string, libraries []string) error {
+// it), automounted after its library. at fills its second view folder, for
+// libraries at their old paths' shared parent (SPEC.md §8.4): the old
+// folder's name → a library it may read.
+func (h LinuxHost) SetLibraryViews(service string, libraries []string, at map[string]string) error {
 	if !serviceName.MatchString(service) {
 		return fmt.Errorf("%q isn't a service's name", printable(service))
 	}
@@ -848,6 +857,15 @@ func (h LinuxHost) SetLibraryViews(service string, libraries []string) error {
 			return fmt.Errorf("there's no library %q on this server", printable(l))
 		}
 		want[l] = true
+	}
+	at = maps.Clone(at)
+	for name, l := range at {
+		if !atName.MatchString(name) {
+			return fmt.Errorf("%q can't name a folder of libraries", printable(name))
+		}
+		if !want[l] {
+			return fmt.Errorf("%s doesn't read the library %q", service, printable(l))
+		}
 	}
 	view := filepath.Join(LibraryViews, service)
 	var start []string
@@ -871,14 +889,43 @@ func (h LinuxHost) SetLibraryViews(service string, libraries []string) error {
 		if err := os.Mkdir(target, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
 			return err
 		}
-		lib := filepath.Join(LibraryRoot, l)
-		line, err := checkedFstabLine([]string{lib, target, "none",
-			"bind,ro,nofail,x-systemd.automount,x-systemd.requires-mounts-for=" + lib, "0", "0"})
-		if err != nil {
+		if tab, err = withView(tab, viewTag(service, l), l, target); err != nil {
 			return err
 		}
-		tab = withBlock(tab, viewTag(service, l), line)
 		start = append(start, target)
+	}
+	// The second view folder: what's there and not wanted goes, then what's
+	// missing comes.
+	atView := filepath.Join(LibraryViews, service+".at")
+	for _, v := range atEntries(tab) {
+		if v.service != service {
+			continue
+		}
+		if at[v.name] == v.library {
+			delete(at, v.name) // there already
+			continue
+		}
+		tab = removeBlock(tab, atTag(service, v.library, v.name))
+		stopMount(filepath.Join(atView, v.name))
+		os.Remove(filepath.Join(atView, v.name))
+	}
+	if len(at) > 0 {
+		if err := os.Mkdir(atView, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+			return err
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(at)) {
+		target := filepath.Join(atView, name)
+		if err := os.Mkdir(target, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+			return err
+		}
+		if tab, err = withView(tab, atTag(service, at[name], name), at[name], target); err != nil {
+			return err
+		}
+		start = append(start, target)
+	}
+	if !slices.ContainsFunc(atEntries(tab), func(v atEntry) bool { return v.service == service }) {
+		os.Remove(atView) // only once empty
 	}
 	if tab != string(data) {
 		if err := os.WriteFile(fstab, []byte(tab), 0o644); err != nil {
@@ -898,16 +945,61 @@ func (h LinuxHost) SetLibraryViews(service string, libraries []string) error {
 	return nil
 }
 
-// RemoveLibraryViews removes a service's view folder and its mounts (the
-// service was removed, or reads no libraries any more).
+// withView adds a view of library l at target to fstab, under tag.
+func withView(tab, tag, l, target string) (string, error) {
+	lib := filepath.Join(LibraryRoot, l)
+	line, err := checkedFstabLine([]string{lib, target, "none",
+		"bind,ro,nofail,x-systemd.automount,x-systemd.requires-mounts-for=" + lib, "0", "0"})
+	if err != nil {
+		return "", err
+	}
+	return withBlock(tab, tag, line), nil
+}
+
+// RemoveLibraryViews removes a service's view folders and their mounts
+// (the service was removed, or reads no libraries any more).
 func (h LinuxHost) RemoveLibraryViews(service string) error {
-	if err := h.SetLibraryViews(service, nil); err != nil {
+	if err := h.SetLibraryViews(service, nil, nil); err != nil {
 		return err
 	}
-	if err := os.Remove(filepath.Join(LibraryViews, service)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
+	for _, dir := range []string{filepath.Join(LibraryViews, service), filepath.Join(LibraryViews, service+".at")} {
+		if err := os.Remove(dir); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
 	}
 	return nil
+}
+
+// atName is a folder's name in a second view folder: an old folder's name
+// (instance.CheckLibraryPath allows the same).
+var atName = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]{0,63}$`)
+
+// atTag marks a library in a service's second view folder, under a name.
+func atTag(service, library, name string) string {
+	return "# Added by Roostack: " + service + " reads media library " + library + " as " + name
+}
+
+// atEntry is a library in a service's second view folder.
+type atEntry struct{ service, library, name string }
+
+// atEntries reads the second view folders' entries in fstab.
+func atEntries(tab string) []atEntry {
+	var out []atEntry
+	for _, l := range strings.Split(tab, "\n") {
+		rest, ok := strings.CutPrefix(l, "# Added by Roostack: ")
+		if !ok {
+			continue
+		}
+		svc, rest, ok := strings.Cut(rest, " reads media library ")
+		if !ok {
+			continue
+		}
+		lib, name, ok := strings.Cut(rest, " as ")
+		if ok && serviceName.MatchString(svc) && ValidLibraryName(lib) && atName.MatchString(name) {
+			out = append(out, atEntry{svc, lib, name})
+		}
+	}
+	return out
 }
 
 // viewTag marks a service's view of a library in fstab.

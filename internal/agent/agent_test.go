@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -73,8 +75,11 @@ func (f *fakeHost) LibraryFolders(l Library) (FolderList, error) {
 }
 func (f *fakeHost) MountLibrary(l Library) error     { f.library = &l; return nil }
 func (f *fakeHost) UnmountLibrary(name string) error { f.unmounted = name; return nil }
-func (f *fakeHost) SetLibraryViews(service string, libs []string) error {
+func (f *fakeHost) SetLibraryViews(service string, libs []string, at map[string]string) error {
 	f.views = append([]string{service}, libs...)
+	for _, name := range slices.Sorted(maps.Keys(at)) {
+		f.views = append(f.views, name+"="+at[name])
+	}
 	return nil
 }
 func (f *fakeHost) CheckShare(s Share) (FolderList, error) {

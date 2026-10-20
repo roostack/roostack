@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"html"
 	"net/http"
 	"net/url"
 	"slices"
@@ -25,8 +26,13 @@ type fakeLibraries struct {
 	folderOf []agent.Library
 	// reader is the service that reads libraries (ServiceLibraries).
 	reader string
-	// setLibs counts SetServiceLibraries calls.
-	setLibs int
+	// setLibs counts SetServiceLibraries calls; svcPaths are the paths
+	// last given.
+	setLibs  int
+	svcPaths map[string]string
+	// gone are the libraries bound at their own paths whose drive is
+	// unplugged (ServiceLibraries).
+	gone []string
 }
 
 func newFakeLibraries() *fakeLibraries {
@@ -72,8 +78,11 @@ func (f *fakeLibraries) SetLibraryReaders(_ context.Context, server, name string
 	f.readers[server+"/"+name] = services
 	return nil
 }
-func (f *fakeLibraries) SetServiceLibraries(_ context.Context, service string, libs []string) error {
+func (f *fakeLibraries) SetServiceLibraries(_ context.Context, service string, libs []string, paths map[string]string) error {
 	f.svcLibs[service] = libs
+	if paths != nil {
+		f.svcPaths = paths
+	}
 	f.setLibs++
 	return nil
 }
@@ -88,7 +97,7 @@ func (f *fakeLibraries) ServiceLibraries(_ context.Context, service string) (man
 	if !ok {
 		chosen = []string{"films"}
 	}
-	return manager.ServiceLibraryChoice{Reads: true, ServerName: "nuc", Chosen: chosen,
+	return manager.ServiceLibraryChoice{Reads: true, ServerName: "nuc", Chosen: chosen, Inside: "/media", Paths: f.svcPaths, Gone: f.gone,
 		Choices: []store.MediaLibrary{{ServerID: "n-1", Name: "films", Title: "Films"}, {ServerID: "n-1", Name: "music", Title: "Music"}}}, nil
 }
 
@@ -264,5 +273,32 @@ func TestMediaLibraryPage(t *testing.T) {
 	h.post("/services/plex/libraries", url.Values{"library": {"films"}}, h.srv.URL)
 	if got := libs.svcLibs["plex"]; !slices.Equal(got, []string{"films"}) {
 		t.Errorf("a service's libraries: %q", got)
+	}
+}
+
+// A library at a place of its own whose drive is unplugged (SPEC.md §8.4):
+// its service's page and Home say so, and that it restarts once it's back.
+func TestLibraryDriveGone(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleAdmin)
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "forgejo", Title: "Plex", Status: "running", URLs: []string{"https://plex.lab.example.com"}}}, nil
+	}
+	libs := newFakeLibraries()
+	libs.reader, libs.svcPaths, libs.gone = "forgejo", map[string]string{"films": "/movies"}, []string{"Films"}
+	h.server.Libraries = libs
+	_, body := h.get("/services/forgejo")
+	for _, want := range []string{"Plex can't see Films: its drive isn't connected.", "restarts Plex by itself",
+		"Films, at <code>/movies</code> <span class=\"pill pill-warn\">Drive not connected</span>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("its page lacks %q", want)
+		}
+	}
+	if _, body = h.get("/"); !strings.Contains(html.UnescapeString(body), "Plex can't see Films: its drive isn't connected.") ||
+		!strings.Contains(html.UnescapeString(body), "Plug it back in, and Roostack restarts Plex by itself.") {
+		t.Error("Home doesn't say the drive is gone")
+	}
+	libs.gone = nil
+	if _, body = h.get("/services/forgejo"); strings.Contains(body, "can't see") || !strings.Contains(body, "Films, at <code>/movies</code><br>") {
+		t.Error("a connected drive is said to be gone")
 	}
 }

@@ -567,13 +567,13 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			data["SSO"] = c
 		}
 	}
+	if s.Libraries != nil {
+		if c, err := s.Libraries.ServiceLibraries(r.Context(), name); err == nil && c.Reads {
+			data["Libraries"] = c
+		}
+	}
 	if data["EditSettings"] == true {
 		page = "service-settings"
-		if s.Libraries != nil {
-			if c, err := s.Libraries.ServiceLibraries(r.Context(), name); err == nil && c.Reads {
-				data["Libraries"] = c
-			}
-		}
 		// A form that came back keeps what was chosen.
 		if sub, ok := data["Submitted"].(url.Values); ok {
 			if c, ok := data["Libraries"].(manager.ServiceLibraryChoice); ok && sub.Get("libraries_chosen") != "" {

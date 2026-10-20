@@ -40,6 +40,20 @@
               <span>{{.Title}}</span></label>{{end}}
           </div>
           <small class="hint">Read-only for {{$.Service.Title}}, in its media folder, and not backed up. <a href="/settings/media">Media libraries</a></small>
+          {{/* A library at a place of its own inside it, as its old
+               container had it (SPEC.md §8.4): rarely changed, so under
+               Details, open when one has one. */}}
+          <details class="form-more"{{if or .Paths $.Submitted}} open{{end}}>
+            <summary>Where each is inside {{$.Service.Title}}: {{if .Paths}}{{range $i, $l := .Choices}}{{with index $.Libraries.Paths $l.Name}}{{$l.Title}} at <code>{{.}}</code>, {{end}}{{end}}the rest{{else}}all{{end}} in <code>{{.Inside}}</code></summary>
+            <input type="hidden" name="library_paths_shown" value="1">
+            <p class="hint">Only for an app that remembers where every file is, moved from another server: give a library the place its old
+              container had it, so {{$.Service.Title}} finds each file where it expects. Empty is <code>{{.Inside}}/</code> and the library's name.</p>
+            <div class="field-row">
+            {{range .Choices}}<label>{{.Title}}
+              <input name="library_path.{{.Name}}" value="{{if $.Submitted}}{{$.Submitted.Get (printf "library_path.%s" .Name)}}{{else}}{{index $.Libraries.Paths .Name}}{{end}}"
+                placeholder="{{$.Libraries.Inside}}/{{.Name}}" autocapitalize="off" spellcheck="false"></label>{{end}}
+            </div>
+          </details>
           {{else}}<p class="hint">{{.ServerName}} has no media libraries yet. <a href="/settings/media">Add one</a>, and choose
             {{$.Service.Title}} to read it.</p>{{end}}
         </fieldset>

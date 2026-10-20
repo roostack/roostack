@@ -643,6 +643,7 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [ ] Measure a real move's timings on real hardware (W8), check a share bound at its own path through a NAS restart, and check the reconnect restart doesn't fire at boot
 - [ ] Warn when Docker runs on a Roostack server (its published ports get past Roostack's firewall, W7)
 - [x] Mock-ups of the import page and the install page's "I'll bring its data", before building ([docs/mockups/bring-your-own-data](docs/mockups/bring-your-own-data/README.md)); approved by the Owner with every recommendation (2026-10-21)
+- [x] Libraries at their own paths (2026-10-21): `library_paths` in the instance, a second view folder at a shared parent or binds one by one, restart when a bound library's drive comes back, the settings field and the drive warnings (unit-tested; to try on a VM with the Plex move)
 - [ ] The first version, once agreed: read-only sources (drive, share, folder), reading the old setup and matching by container path, libraries at their old paths, the check with its generic warnings, copy and copy again, switch, undo; help: "Moving from Docker Compose", Immich, Plex
 - [ ] Later: a dump uploaded in the browser, plain SQL and `pg_dumpall`, another machine over SSH, a storage hint in the package format, help pages for Jellyfin, Vaultwarden, Navidrome
 

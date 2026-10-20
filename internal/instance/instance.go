@@ -5,6 +5,7 @@ package instance
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"maps"
@@ -74,6 +75,13 @@ type Instance struct {
 	// package that reads them (SPEC.md §8.1, "Media libraries"): chosen at
 	// install (all, by default) and in its settings.
 	Libraries []string `yaml:"libraries,omitempty"`
+	// LibraryPaths gives a library it reads a place of its own inside its
+	// containers (SPEC.md §8.4, "Media libraries at their old paths"): the
+	// path its old container had it at (films at /movies), so an app that
+	// keeps every file's path in its database (Plex, Jellyfin) finds them
+	// where it expects. Libraries without one are only in the package's
+	// libraries folder (/media/<library>); every library is there too.
+	LibraryPaths map[string]string `yaml:"library_paths,omitempty"`
 }
 
 // RouteOverride holds user changes to a package route. Empty fields keep the
@@ -200,6 +208,13 @@ func (in *Instance) Validate(p *pkgspec.Package) error {
 	if len(in.Libraries) > 0 && !p.ReadsLibraries() {
 		add("libraries: the package reads no media libraries")
 	}
+	for _, l := range slices.Sorted(maps.Keys(in.LibraryPaths)) {
+		if err := CheckLibraryPath(p, in.LibraryPaths, l); err != nil {
+			add("library_paths.%s: %q: %v", l, in.LibraryPaths[l], err)
+		} else if !slices.Contains(in.Libraries, l) {
+			add("library_paths.%s: it doesn't read that library", l)
+		}
+	}
 	if !slices.Contains([]string{UpdatesNotify, UpdatesPatch, UpdatesMinor, UpdatesAll}, in.Updates) {
 		add("updates: must be notify, patch, minor or all; got %q", in.Updates)
 	}
@@ -284,4 +299,104 @@ func (in *Instance) AllowsUpdate(kind string) bool {
 // ValidUpdates says whether s is an update policy.
 func ValidUpdates(s string) bool {
 	return s == UpdatesNotify || s == UpdatesPatch || s == UpdatesMinor || s == UpdatesAll
+}
+
+// libraryPathRe is a container path a library can be shown at: plain
+// folder names, so it goes into a Quadlet Volume= line as it is.
+var libraryPathRe = regexp.MustCompile(`^(/[A-Za-z0-9_][A-Za-z0-9._-]*)+$`)
+
+// systemPaths are a container's own folders, which a library mustn't hide
+// (as the package editor's Compose import refuses them).
+var systemPaths = []string{"/bin", "/boot", "/dev", "/etc", "/lib", "/lib32", "/lib64", "/libx32", "/proc",
+	"/run", "/sbin", "/sys", "/usr", "/var/lib", "/var/run"}
+
+// CheckLibraryPath checks the path library l is given in paths: absolute
+// and plain, not a system folder, not overlapping any of the package's
+// mounts or another library's path (SPEC.md §8.4). The error says why, for
+// people ("it overlaps …").
+func CheckLibraryPath(p *pkgspec.Package, paths map[string]string, l string) error {
+	at := paths[l]
+	if !libraryNameRe.MatchString(l) {
+		return fmt.Errorf("%q isn't a media library's name", l)
+	}
+	if !libraryPathRe.MatchString(at) || strings.Contains(at+"/", "/../") || strings.Contains(at+"/", "/./") {
+		return errors.New("it must be a folder's full path inside the container, with only letters, digits and - _ .")
+	}
+	for _, sys := range systemPaths {
+		if within(at, sys) || within(sys, at) {
+			return fmt.Errorf("it's one of the container's own folders (%s)", sys)
+		}
+	}
+	for _, cn := range slices.Sorted(maps.Keys(p.Containers)) {
+		for _, m := range p.Containers[cn].Mounts {
+			if within(at, m.Path) || within(m.Path, at) {
+				return fmt.Errorf("it overlaps %s, where %s already has a folder", m.Path, p.Title)
+			}
+		}
+	}
+	for _, other := range slices.Sorted(maps.Keys(paths)) {
+		if other != l && (within(at, paths[other]) || within(paths[other], at)) {
+			return fmt.Errorf("it overlaps %s, where the library %s is", paths[other], other)
+		}
+	}
+	return nil
+}
+
+// within says whether path p is dir or inside it.
+func within(p, dir string) bool {
+	return p == dir || strings.HasPrefix(p, strings.TrimSuffix(dir, "/")+"/")
+}
+
+// LibraryPlacement is where a service's libraries with paths of their own
+// go (SPEC.md §8.4). A library bound straight at its own path stays broken
+// once its drive is unplugged and plugged back in, until the service
+// restarts (docs/ASSUMPTIONS.md W5), while a folder of libraries comes back
+// by itself. So when every such path has the same parent folder, that
+// folder is a second view folder with each library in it under its old
+// name; otherwise each library is bound at its path, and its server
+// restarts the service when the library's drive comes back.
+type LibraryPlacement struct {
+	// Parent is the view folder's path inside the containers, and Names
+	// what's in it: the old folder's name → the library.
+	Parent string
+	Names  map[string]string
+	// Binds are libraries bound one by one: library → its path.
+	Binds map[string]string
+}
+
+// noViewAt are folders a view folder never goes at, though a library may
+// be inside one: images keep their own files there, which the view would
+// hide (systemPaths are refused outright).
+var noViewAt = []string{"/", "/app", "/opt", "/srv", "/var"}
+
+// PlaceLibraries works out where the instance's libraries with paths go,
+// for its package p: a view folder at their shared parent, unless the
+// parent is one of noViewAt or holds one of the package's own mounts
+// (the view is read-only, so nothing could be mounted inside it).
+func (in *Instance) PlaceLibraries(p *pkgspec.Package) LibraryPlacement {
+	var pl LibraryPlacement
+	if len(in.LibraryPaths) == 0 {
+		return pl
+	}
+	var parents []string
+	for _, at := range in.LibraryPaths {
+		parents = append(parents, cmp.Or(at[:strings.LastIndex(at, "/")], "/"))
+	}
+	slices.Sort(parents)
+	parent := parents[0]
+	shared := parents[len(parents)-1] == parent && !slices.Contains(noViewAt, parent)
+	for _, c := range p.Containers {
+		for _, m := range c.Mounts {
+			shared = shared && !within(m.Path, parent)
+		}
+	}
+	if shared {
+		pl.Parent, pl.Names = parent, map[string]string{}
+		for l, at := range in.LibraryPaths {
+			pl.Names[at[len(parent)+1:]] = l
+		}
+		return pl
+	}
+	pl.Binds = maps.Clone(in.LibraryPaths)
+	return pl
 }

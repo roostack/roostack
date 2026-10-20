@@ -853,6 +853,84 @@ containers:
 	}
 }
 
+// Libraries at their old paths (SPEC.md §8.4): at a shared parent, the
+// second view folder goes there; otherwise each library is bound from the
+// view folder at its own path, and named for its server's check.
+func TestLibraryPaths(t *testing.T) {
+	p, err := pkgspec.Parse([]byte(`
+schema: roostack/v1alpha1
+name: player
+title: Player
+version: "1"
+storage:
+  config: { class: critical }
+containers:
+  app:
+    image: example/player:1
+    mounts:
+      - { storage: config, path: /config }
+      - { libraries: true, path: /media }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := func(paths map[string]string) (string, *Output) {
+		t.Helper()
+		out, err := Service(testLab(), p, &instance.Instance{Package: "player", Version: "1", Updates: "notify",
+			Libraries: []string{"films", "tv"}, LibraryPaths: paths})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, q := range out.Quadlets {
+			if q.Name == "roostack-player-app.container" {
+				return q.Content, out
+			}
+		}
+		t.Fatal("no app container")
+		return "", nil
+	}
+	got, out := app(map[string]string{"films": "/data/movies", "tv": "/data/tv"})
+	if !strings.Contains(got, "Volume=/mnt/roostack-library-views/player:/media:ro,rslave\n"+
+		"Volume=/mnt/roostack-library-views/player.at:/data:ro,rslave\n") || len(out.LibraryBinds) != 0 ||
+		out.LibraryAt["movies"] != "films" || out.LibraryAt["tv"] != "tv" {
+		t.Errorf("a shared parent: %v %v\n%s", out.LibraryAt, out.LibraryBinds, got)
+	}
+	got, out = app(map[string]string{"films": "/movies", "tv": "/tv"})
+	if !strings.Contains(got, "Volume=/mnt/roostack-library-views/player/films:/movies:ro,rslave\n"+
+		"Volume=/mnt/roostack-library-views/player/tv:/tv:ro,rslave\n") || out.LibraryAt != nil ||
+		!slices.Equal(out.LibraryBinds, []string{"films", "tv"}) || !slices.Equal(out.LibraryUnits, []string{"roostack-player-app.service"}) {
+		t.Errorf("at the top: %v %v\n%s", out.LibraryAt, out.LibraryBinds, got)
+	}
+	// Under /srv, a view folder would hide what the image keeps there.
+	if _, out = app(map[string]string{"films": "/srv/movies", "tv": "/srv/tv"}); len(out.LibraryBinds) != 2 {
+		t.Errorf("under /srv: %v %v", out.LibraryAt, out.LibraryBinds)
+	}
+	for paths, want := range map[string]string{
+		"/etc/films": "one of the container's own folders",
+		"/config/x":  "overlaps /config",
+		"/media/x":   "overlaps /media",
+		"films":      "full path",
+		"/a b":       "full path",
+		"/x/../etc":  "full path",
+	} {
+		_, err := Service(testLab(), p, &instance.Instance{Package: "player", Version: "1", Updates: "notify",
+			Libraries: []string{"films"}, LibraryPaths: map[string]string{"films": paths}})
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: want %q, got %v", paths, want, err)
+		}
+	}
+	_, err = Service(testLab(), p, &instance.Instance{Package: "player", Version: "1", Updates: "notify",
+		Libraries: []string{"films", "tv"}, LibraryPaths: map[string]string{"films": "/data", "tv": "/data/tv"}})
+	if err == nil || !strings.Contains(err.Error(), "where the library") {
+		t.Errorf("nested libraries: %v", err)
+	}
+	_, err = Service(testLab(), p, &instance.Instance{Package: "player", Version: "1", Updates: "notify",
+		LibraryPaths: map[string]string{"films": "/movies"}})
+	if err == nil || !strings.Contains(err.Error(), "doesn't read that library") {
+		t.Errorf("a library it doesn't read: %v", err)
+	}
+}
+
 // Each route with an address gets a monitor (SPEC.md §6.15): the
 // container's health path when the route leads to its port, or the
 // package's monitor settings.

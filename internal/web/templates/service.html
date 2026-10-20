@@ -71,6 +71,17 @@
   </div>
   {{end}}
   {{template "service-update" .}}
+  {{with .Libraries}}{{with .Gone}}
+  {{/* A library bound at a place of its own, its drive gone (SPEC.md
+       §8.4): the server restarts the service once it's back. */}}
+  <div class="notice notice-warn" role="status">
+    <p><strong>{{$.Service.Title}} can't see {{joinAnd .}}: {{if eq (len .) 1}}its drive isn't{{else}}their drives aren't{{end}} connected.</strong>
+      Plug {{if eq (len .) 1}}it{{else}}them{{end}} back in and Roostack restarts {{$.Service.Title}} by itself, within a minute, so it sees
+      {{if eq (len .) 1}}it{{else}}them{{end}} again. That takes a few seconds, and nothing in {{$.Service.Title}} is lost.</p>
+    <p class="hint">{{$.Service.Title}} shows {{if eq (len .) 1}}this library{{else}}these libraries{{end}} at a place of its own, as its
+      old container did, and keeps that place open only until it restarts.</p>
+  </div>
+  {{end}}{{end}}
   {{if eq .Service.Status "waiting"}}
   {{notice "warn" (printf "%s isn't running: its server, %s, is gone. Restore it from its backups, onto any server." .Service.Title (or .Service.WasOn "a server that's gone")) (printf "link=/backups/restore/%s" .Service.Name) "linkText=Restore…"}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
@@ -152,6 +163,9 @@
     <div class="card-head"><h2 id="settings">Settings</h2>{{if .CanManage}}<a class="button secondary small" href="/services/{{.Service.Name}}/settings">Edit settings</a>{{end}}</div>
     <dl class="facts">
       {{if .HasRoute}}<dt>Web address</dt><dd>{{if .Domain}}<code>{{.Subdomain}}.{{.Domain}}</code>{{else}}<code>{{.Subdomain}}</code> <span class="hint">· once your lab has an address</span>{{end}}</dd>{{end}}
+      {{with .Libraries}}{{if .Chosen}}<dt>Media libraries</dt>
+      <dd>{{range $i, $c := .Choices}}{{if has $.Libraries.Chosen $c.Name}}{{$c.Title}}{{with index $.Libraries.Paths $c.Name}}, at <code>{{.}}</code>{{end}}
+        {{- if has $.Libraries.Gone $c.Title}} <span class="pill pill-warn">Drive not connected</span>{{end}}<br>{{end}}{{end}}</dd>{{end}}{{end}}
       {{range .SettingFields}}<dt>{{.Title}}</dt><dd>{{if eq .Kind "checkbox"}}{{if .Checked}}On{{else}}Off{{end}}{{else if eq .Kind "password"}}Set{{else}}{{or .Value "Not set"}}{{end}}</dd>{{end}}
       {{with .UpdatePolicy}}<dt>Updates</dt><dd>{{updatePolicyText .}}</dd>{{end}}
     </dl>

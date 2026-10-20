@@ -78,6 +78,9 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 	}
 	// Finished logs are kept as history (SPEC.md §6.14).
 	local.KeepHistory()
+	// Services restart when a library they bind at a path of its own comes
+	// back (SPEC.md §8.4).
+	go local.WatchLibraries(ctx)
 	// Backups and restores cover the services this server runs, as its
 	// assignment says (a node keeps no instance files of its own).
 	assigned := func() (config.Lab, []state.Service, error) {

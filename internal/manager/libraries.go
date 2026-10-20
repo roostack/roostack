@@ -4,12 +4,15 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
 
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 )
@@ -390,8 +393,10 @@ func (m *Manager) setReadersLocked(serverID, name string, readers []string) erro
 }
 
 // SetServiceLibraries sets which of its server's libraries a service may
-// read (its settings).
-func (m *Manager) SetServiceLibraries(ctx context.Context, service string, libraries []string) error {
+// read (its settings), and where any of them is inside it, if not in its
+// libraries folder (SPEC.md §8.4: library → a container path; nil keeps
+// the paths it has, for the libraries it still reads).
+func (m *Manager) SetServiceLibraries(ctx context.Context, service string, libraries []string, paths map[string]string) error {
 	p, in, err := m.installedService(service)
 	if err != nil {
 		return err
@@ -402,6 +407,23 @@ func (m *Manager) SetServiceLibraries(ctx context.Context, service string, libra
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	in.Libraries = m.chosenLibraries(ctx, in.Host, libraries, true)
+	if paths == nil {
+		paths = in.LibraryPaths
+	}
+	in.LibraryPaths = nil
+	for _, l := range in.Libraries {
+		if at := strings.TrimSpace(paths[l]); at != "" {
+			if in.LibraryPaths == nil {
+				in.LibraryPaths = map[string]string{}
+			}
+			in.LibraryPaths[l] = strings.TrimSuffix(at, "/")
+		}
+	}
+	for _, l := range slices.Sorted(maps.Keys(in.LibraryPaths)) {
+		if err := instance.CheckLibraryPath(p, in.LibraryPaths, l); err != nil {
+			return formErrorf("%s can't be at %s inside %s: %v.", m.libraryTitle(ctx, in.Host, l), in.LibraryPaths[l], p.Title, err)
+		}
+	}
 	if err := in.Save(state.InstanceFile(m.Lab, service)); err != nil {
 		return err
 	}
@@ -465,12 +487,22 @@ func (m *Manager) LibraryReaders(ctx context.Context, serverID string) ([]Librar
 }
 
 // ServiceLibraryChoice is what a service's settings show about media
-// libraries: whether it reads any, those of its server, and its choice.
+// libraries: whether it reads any, those of its server, and its choice;
+// where each is inside it (Inside, the package's folder for them, unless
+// Paths gives one a place of its own, SPEC.md §8.4).
 type ServiceLibraryChoice struct {
 	Reads      bool
 	ServerName string
 	Choices    []store.MediaLibrary
 	Chosen     []string
+	Inside     string
+	Paths      map[string]string
+	// Binds are the libraries bound one by one at their paths, which it
+	// sees again after their drive was unplugged only once it restarts
+	// (instance.PlaceLibraries); Gone are those of them whose drive isn't
+	// connected now (their titles), as far as its server says.
+	Binds []string
+	Gone  []string
 }
 
 // ServiceLibraries says which libraries a service may read, of its
@@ -480,9 +512,64 @@ func (m *Manager) ServiceLibraries(ctx context.Context, service string) (Service
 	if err != nil {
 		return ServiceLibraryChoice{}, err
 	}
-	c := ServiceLibraryChoice{Reads: p.ReadsLibraries(), Chosen: in.Libraries, ServerName: m.nameOf(cmp.Or(in.Host, m.Lab.NodeID))}
+	c := ServiceLibraryChoice{Reads: p.ReadsLibraries(), Chosen: in.Libraries, ServerName: m.nameOf(cmp.Or(in.Host, m.Lab.NodeID)),
+		Paths: in.LibraryPaths, Inside: librariesPath(p)}
 	if c.Reads {
 		c.Choices = m.ServerLibraryChoices(ctx, in.Host)
 	}
+	c.Binds = slices.Sorted(maps.Keys(in.PlaceLibraries(p).Binds))
+	if len(c.Binds) > 0 {
+		c.Gone = m.goneLibraries(ctx, cmp.Or(in.Host, m.Lab.NodeID), c.Binds)
+	}
 	return c, nil
+}
+
+// librariesPath is where a package's containers have the media libraries
+// ("/media"), or "".
+func librariesPath(p *pkgspec.Package) string {
+	for _, c := range p.Containers {
+		for _, mt := range c.Mounts {
+			if mt.Libraries {
+				return mt.Path
+			}
+		}
+	}
+	return ""
+}
+
+// libraryTitle is a server's library's title, or its name.
+func (m *Manager) libraryTitle(ctx context.Context, serverID, name string) string {
+	for _, l := range m.ServerLibraryChoices(ctx, serverID) {
+		if l.Name == name {
+			return l.Title
+		}
+	}
+	return name
+}
+
+// goneLibraries are those of a server's libraries whose drive isn't
+// connected, by title (none when the server can't be asked).
+func (m *Manager) goneLibraries(ctx context.Context, serverID string, names []string) []string {
+	n := m.node(serverID)
+	if n == nil {
+		return nil
+	}
+	if r, ok := n.(RemoteServer); ok && r.Settings() == nil {
+		return nil // not reachable
+	}
+	media := n.Media()
+	if media == nil {
+		return nil
+	}
+	libs, err := media.Libraries(ctx)
+	if err != nil {
+		return nil
+	}
+	var gone []string
+	for _, l := range libs {
+		if slices.Contains(names, l.Name) && !l.Connected {
+			gone = append(gone, m.libraryTitle(ctx, serverID, l.Name))
+		}
+	}
+	return gone
 }

@@ -90,8 +90,9 @@ type Host interface {
 	UnmountLibrary(name string) error
 	Libraries() ([]LibraryStatus, error)
 	// SetLibraryViews sets the libraries a service may read (its view
-	// folder); RemoveLibraryViews removes its folder.
-	SetLibraryViews(service string, libraries []string) error
+	// folder), and those at their old paths' shared parent (its second
+	// view folder: name → library); RemoveLibraryViews removes its folders.
+	SetLibraryViews(service string, libraries []string, at map[string]string) error
 	RemoveLibraryViews(service string) error
 	// CheckShare mounts a share for a moment to list it; SaveShareLogin
 	// keeps an SMB login for a library, root's only (shares.go).
@@ -312,12 +313,13 @@ func (s *Server) Handler() http.Handler {
 	})
 	mux.HandleFunc("PUT /v1/library-views/{service}", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Libraries []string `json:"libraries"`
+			Libraries []string          `json:"libraries"`
+			At        map[string]string `json:"at,omitempty"`
 		}
 		if !decode(w, r, 8<<10, &req) {
 			return
 		}
-		if err := s.Host.SetLibraryViews(r.PathValue("service"), req.Libraries); err != nil {
+		if err := s.Host.SetLibraryViews(r.PathValue("service"), req.Libraries, req.At); err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}
