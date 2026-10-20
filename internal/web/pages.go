@@ -181,6 +181,7 @@ func (s *Server) pageData(r *http.Request) (map[string]any, error) {
 	}
 	s.withTiers(services)
 	s.withIcons(services, s.Manager != nil && auth.Can(u.Role, auth.ManageServices))
+	services = s.usableBy(r.Context(), u, services)
 	return map[string]any{
 		"User":      u,
 		"Services":  services,
@@ -556,6 +557,14 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 	page := "service"
 	if u := s.serviceUptime(r.Context(), name); u != nil && data["CanManage"] == true {
 		data["Uptime"] = u
+	}
+	if p, ok := data["Package"].(*pkgspec.Package); ok {
+		if c := s.ssoCardFor(r, name, p); c != nil {
+			if msg, ok := data["SSOError"].(string); ok {
+				c.Error = msg
+			}
+			data["SSO"] = c
+		}
 	}
 	if data["EditSettings"] == true {
 		page = "service-settings"

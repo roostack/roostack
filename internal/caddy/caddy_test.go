@@ -51,6 +51,10 @@ handle @vw-web {
 	}
 	route {
 		abort @vw-web-private-paths
+		request_header -Remote-User
+		request_header -Remote-Email
+		request_header -Remote-Name
+		request_header -Remote-Groups
 		crowdsec
 		rate_limit {
 			zone vw-web-login {
@@ -102,6 +106,10 @@ func TestPublicRouteWAF(t *testing.T) {
 		not remote_ip 100.96.0.2/32
 	}
 	route {
+		request_header -Remote-User
+		request_header -Remote-Email
+		request_header -Remote-Name
+		request_header -Remote-Groups
 		crowdsec
 		rate_limit {
 			zone vw-web {
@@ -375,5 +383,75 @@ func TestStatusPage(t *testing.T) {
 	c.StatusPage = false
 	if main, _ = Main(c); strings.Contains(main, "@status") {
 		t.Errorf("served while off:\n%s", main)
+	}
+}
+
+// A walled route (SPEC.md §5.2): in one route block, visitors' Remote-*
+// headers removed, the sign-in callback, forward auth outside the bypass
+// paths, and the cookie kept from the service.
+func TestWall(t *testing.T) {
+	wall := &Wall{Upstream: "169.254.1.3:8482", Service: "pdf", Bypass: []string{"/api"}}
+	site, err := Site("pdf", []Route{{ID: "pdf-web", Host: "pdf.example.com", Upstream: "169.254.1.3:20003", Private: true, Wall: wall}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `	abort @pdf-web-external
+	route {
+		request_header -Remote-User
+		request_header -Remote-Email
+		request_header -Remote-Name
+		request_header -Remote-Groups
+		handle /.roostack/sign-in/* {
+			reverse_proxy 169.254.1.3:8482
+		}
+		@pdf-web-walled not path /api /api/*
+		forward_auth @pdf-web-walled 169.254.1.3:8482 {
+			uri /check?service=pdf
+			copy_headers Remote-User Remote-Email Remote-Name Remote-Groups
+		}
+		reverse_proxy 169.254.1.3:20003 {
+			header_up Cookie "roostack_sso=[^;]*;?[ ]*" ""
+		}
+	}
+}
+`
+	if !strings.HasSuffix(site, want) {
+		t.Errorf("walled route:\n%s\nwant the end:\n%s", site, want)
+	}
+	// Public: the same, after the bans, limits and AppSec.
+	site, err = Site("pdf", []Route{{ID: "pdf-web", Host: "pdf.example.com", Upstream: "169.254.1.3:20003", WAF: true, Wall: wall}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if i, j := strings.Index(site, "appsec"), strings.Index(site, "forward_auth"); i < 0 || j < i {
+		t.Errorf("public walled route:\n%s", site)
+	}
+	for _, w := range []*Wall{{Upstream: "a:1"}, {Upstream: "a:1", Service: "x&y"}, {Upstream: "a:1", Service: "x", Bypass: []string{"/a*"}}} {
+		if _, err := Site("x", []Route{{ID: "x", Host: "x", Upstream: "a:1", Wall: w}}); err == nil {
+			t.Errorf("expected an error for %+v", w)
+		}
+	}
+}
+
+// The sign-in page's site: private, or public with the login limit.
+func TestSignInSite(t *testing.T) {
+	for _, public := range []bool{false, true} {
+		main, err := Main(MainConfig{Domain: "lab.example", DNSDirective: "dns cloudflare {env.CF}", AdminUpstream: "169.254.1.3:8480",
+			SignIn: &SignInSite{Host: "login.lab.example", Upstream: "169.254.1.3:8482", Public: public, Containers: "169.254.1.2"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(main, "@roostack-sign-in host login.lab.example") || !strings.Contains(main, "reverse_proxy 169.254.1.3:8482") {
+			t.Errorf("public %v:\n%s", public, main)
+		}
+		if got := strings.Contains(main, "zone roostack-sign-in-login"); got != public {
+			t.Errorf("public %v: login limit %v", public, got)
+		}
+		if got := strings.Contains(main, "abort @roostack-sign-in-external"); got == public {
+			t.Errorf("public %v: kept to home %v", public, got)
+		}
+		if got := strings.Contains(main, "remote_ip "+PrivateRanges+" 169.254.1.2\n"); got == public {
+			t.Errorf("public %v: this server's containers let in %v", public, got)
+		}
 	}
 }

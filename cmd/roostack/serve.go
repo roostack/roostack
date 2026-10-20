@@ -171,6 +171,9 @@ func serve(args []string) error {
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
 	srv.Libraries = mgr
 	srv.UIHost = lab.UIHost()
+	if err := startSignIn(ctx, lab, st, srv, mgr, local, log); err != nil {
+		return err
+	}
 	// The lab's name as it is now: the setup wizard names it without a
 	// restart (it waits for the wizard's end, if anything asks for one),
 	// so Cloud, the network's join codes and other labs' guests would

@@ -35,6 +35,7 @@ import (
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -147,6 +148,15 @@ type Server struct {
 	StatusPageDir string
 	// Node is the server running the services. Set with Manager.
 	Node ServiceNode
+	// SignIn is the identity provider (internal/sso, SPEC.md §5.2),
+	// served on its own listener (SignInHandler); nil: none. SSO turns
+	// single sign-on on and off for services. SignInHost is
+	// login.<domain>, and SSODir holds the sign-in page's logo.
+	SignIn      *sso.Provider
+	SSO         SSOServices
+	SignInHost  string
+	SSODir      string
+	signInPages *template.Template
 	// Network adds servers to the lab (SPEC.md §10.2). Nil hides it.
 	Network LabNetwork
 	// LabName is what people call the lab (config.Lab.DisplayName).
@@ -507,6 +517,9 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		}
 		s.pages[page] = t
 	}
+	if s.signInPages, err = parseSignInPages(); err != nil {
+		return nil, err
+	}
 	return s, nil
 }
 
@@ -653,6 +666,7 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /users/{id}/reset-password", s.requireOwner(s.userResetPasswordSubmit))
 	mux.Handle("POST /users/{id}/reset-2fa", s.requireOwner(s.userReset2FASubmit))
 	mux.Handle("POST /users/{id}/remove", s.requireOwner(s.userRemoveSubmit))
+	s.ssoRoutes(mux)
 	mux.Handle("GET /backups/recovery-key", s.requireOwner(s.recoveryKeyShowPage))
 	mux.Handle("POST /backups/recovery-key", s.requireOwner(s.recoveryKeyShowSubmit))
 	mux.Handle("GET /backups/recovery-key/change", s.requireOwner(s.keyChangePage))

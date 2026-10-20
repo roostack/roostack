@@ -304,11 +304,62 @@ var migrations = []string{
 		alert       INTEGER NOT NULL DEFAULT 1,
 		created_at  INTEGER NOT NULL
 	);`,
+	// Single sign-on (SPEC.md §5.2): each person's full name, and the ID
+	// apps know them by (made when first needed, never reused, unlike
+	// users.id, which SQLite may give a new account after the newest is
+	// removed); groups of people; who may sign in to each service (no
+	// rows: everyone; kind 'chosen' marks a choice, then 'group' and
+	// 'user' rows are the groups and people chosen); and what the sign-in
+	// page hands out, each tied to the sign-in it came from: apps' access
+	// and refresh tokens, and walled services' cookies.
+	`ALTER TABLE users ADD COLUMN name TEXT NOT NULL DEFAULT '';
+	ALTER TABLE users ADD COLUMN sso_id TEXT NOT NULL DEFAULT '';
+	CREATE TABLE user_groups (
+		id         INTEGER PRIMARY KEY AUTOINCREMENT,
+		name       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+		created_at INTEGER NOT NULL
+	);
+	CREATE TABLE user_group_members (
+		group_id INTEGER NOT NULL REFERENCES user_groups(id) ON DELETE CASCADE,
+		user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		PRIMARY KEY (group_id, user_id)
+	);
+	CREATE TABLE service_access (
+		service TEXT NOT NULL,
+		kind    TEXT NOT NULL,
+		ref     INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (service, kind, ref)
+	);
+	CREATE TRIGGER service_access_user AFTER DELETE ON users BEGIN
+		DELETE FROM service_access WHERE kind = 'user' AND ref = OLD.id;
+	END;
+	CREATE TRIGGER service_access_group AFTER DELETE ON user_groups BEGIN
+		DELETE FROM service_access WHERE kind = 'group' AND ref = OLD.id;
+	END;
+	CREATE TABLE sso_tokens (
+		token_hash   TEXT PRIMARY KEY,
+		kind         TEXT NOT NULL,
+		service      TEXT NOT NULL,
+		user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		session_hash TEXT NOT NULL REFERENCES sessions(token_hash) ON DELETE CASCADE,
+		scope        TEXT NOT NULL DEFAULT '',
+		expires_at   INTEGER NOT NULL,
+		created_at   INTEGER NOT NULL
+	);
+	CREATE INDEX sso_tokens_session ON sso_tokens (session_hash);`,
+	// When someone last typed their password for a session (OIDC's
+	// auth_time, SPEC.md §5.2): apps can ask for a recent sign-in.
+	`ALTER TABLE sessions ADD COLUMN signed_in_at INTEGER NOT NULL DEFAULT 0;`,
 }
 
 // OriginSetup marks sessions signed in on the setup pages on the home
 // network (SPEC.md §6.3.2).
 const OriginSetup = "setup"
+
+// OriginSignIn marks sessions signed in on the sign-in page for services,
+// login.<domain> (single sign-on, SPEC.md §5.2). Roostack's own idle limit
+// doesn't apply to them: they last until they expire.
+const OriginSignIn = "sign-in"
 
 // Open opens (creating if needed) and migrates the database.
 func Open(path string) (*Store, error) {
@@ -435,7 +486,13 @@ type User struct {
 	// Palette is the colour theme (internal/web themes), "" for the default.
 	Palette string
 	// Accent is the theme's accent colour, "" for its default.
-	Accent    string
+	Accent string
+	// Name is their full name, for apps with single sign-on ("" if not
+	// given: apps are told their username).
+	Name string
+	// SSOID is the ID apps know them by (SPEC.md §5.2), "" until first
+	// needed (EnsureSSOID).
+	SSOID     string
 	CreatedAt time.Time
 }
 
@@ -813,7 +870,7 @@ func (s *Store) SetPassword(ctx context.Context, username, hash string, temporar
 }
 
 const userColumns = `users.id, users.username, users.password_hash, users.role,
-	users.totp_secret, users.totp_last_step, users.totp_failures, users.totp_failed_at, users.must_change_password, users.theme, users.palette, users.accent, users.email, users.notify, users.created_at`
+	users.totp_secret, users.totp_last_step, users.totp_failures, users.totp_failed_at, users.must_change_password, users.theme, users.palette, users.accent, users.email, users.notify, users.name, users.sso_id, users.created_at`
 
 // UserByID looks up an account.
 func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
@@ -860,7 +917,7 @@ func scanUserRow(row interface{ Scan(...any) error }) (*User, error) {
 	var u User
 	var created, failedAt int64
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &u.TOTPLastStep,
-		&u.TOTPFailures, &failedAt, &u.MustChangePassword, &u.Theme, &u.Palette, &u.Accent, &u.Email, &u.Notify, &created)
+		&u.TOTPFailures, &failedAt, &u.MustChangePassword, &u.Theme, &u.Palette, &u.Accent, &u.Email, &u.Notify, &u.Name, &u.SSOID, &created)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -888,9 +945,10 @@ func (s *Store) CreateSessionRemember(ctx context.Context, tokenHash string, use
 // CreateSessionAt stores a session signed in at origin ("" or
 // OriginSetup), where alone it works.
 func (s *Store) CreateSessionAt(ctx context.Context, origin, tokenHash string, userID int64, expires time.Time, remember bool) error {
+	now := time.Now().Unix()
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO sessions (token_hash, user_id, expires_at, last_seen, remember, origin) VALUES (?, ?, ?, ?, ?, ?)`,
-		tokenHash, userID, expires.Unix(), time.Now().Unix(), remember, origin)
+		`INSERT INTO sessions (token_hash, user_id, expires_at, last_seen, remember, origin, signed_in_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		tokenHash, userID, expires.Unix(), now, remember, origin, now)
 	return err
 }
 
@@ -947,11 +1005,18 @@ func (s *Store) DeleteSession(ctx context.Context, tokenHash string) error {
 }
 
 // DeleteExpiredSessions removes old sessions: past their expiry, or (when
-// idle isn't 0) unused for longer than idle, unless kept signed in.
+// idle isn't 0) unused for longer than idle, unless kept signed in or
+// signed in on the sign-in page for services (OriginSignIn), whose own
+// expiry is their limit. Their tokens go with them.
 func (s *Store) DeleteExpiredSessions(ctx context.Context, idle time.Duration) error {
 	now := time.Now()
-	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at <= ? OR (? > 0 AND remember = 0 AND last_seen < ?)`,
-		now.Unix(), int64(idle.Seconds()), now.Add(-idle).Unix())
+	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE expires_at <= ?
+		OR (? > 0 AND remember = 0 AND origin != ? AND last_seen < ?)`,
+		now.Unix(), int64(idle.Seconds()), OriginSignIn, now.Add(-idle).Unix())
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `DELETE FROM sso_tokens WHERE expires_at <= ?`, now.Unix())
 	return err
 }
 

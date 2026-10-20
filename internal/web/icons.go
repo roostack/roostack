@@ -42,6 +42,7 @@ var icons = map[string]string{
 	"globe":    `<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/>`,
 	"cloud":    `<path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 8.5 4.75 4.75 0 0 1 17.5 18z"/>`,
 	"terminal": `<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/>`,
+	"sign-in":  `<rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/><path d="M12 15v2"/>`,
 	"warn":     `<path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/>`,
 	"chevron":  `<path d="m10 7 5 5-5 5"/>`,
 	"plus":     `<path d="M12 5v14M5 12h14"/>`,

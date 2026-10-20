@@ -1,0 +1,115 @@
+<!doctype html>
+{{- /* The sign-in page for services, login.<domain> (SPEC.md §5.2): the
+     lab's look (signInLook), no sidebar, no scripts. One page, a section
+     per State. Mock-ups: docs/mockups/sso. */ -}}
+<html lang="en" data-palette="{{.Look.Palette}}"{{with .Look.Accent}} data-accent="{{.}}"{{end}}{{if eq .Look.Logo "wide"}} data-logo="wide"{{end}}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{if eq .State "home"}}Your services{{else if .App}}Sign in to {{.App}}{{else}}Sign in{{end}} · {{.LabName}}</title>
+  <link rel="icon" href="/favicon.ico?v={{.Look.Version}}">
+  <link rel="preload" href="/static/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/themes/{{.Look.Palette}}.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="bare">
+    <main class="page signin-page">
+      <section class="card narrow signin-card">
+        {{if eq .Look.Logo "wide"}}
+        <div class="signin-brand"><span class="signin-wide{{if not (.Look.Has "dark")}} on-light{{end}}">
+          <picture>
+            {{if .Look.Has "dark"}}<source srcset="/look/dark?v={{.Look.Version}}" media="(prefers-color-scheme: dark)">{{end}}
+            <img src="/look/wide?v={{.Look.Version}}" alt="{{.LabName}}">
+          </picture></span></div>
+        {{else}}
+        <div class="signin-brand">
+          {{if eq .Look.Logo "mark"}}<img class="signin-mark" src="/look/mark?v={{.Look.Version}}" alt="" width="44" height="44">{{else}}{{brandMark}}{{end}}
+          <strong>{{.LabName}}</strong>
+        </div>
+        {{end}}
+
+        {{if eq .State "sign-in"}}
+        <h1>Sign in</h1>
+        {{template "signin-to" .}}
+        {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+        <form method="post" action="/sign-in">
+          <input type="hidden" name="next" value="{{.Next}}">
+          <label>Username or email
+            <input name="username" value="{{.Username}}" autocomplete="username" autocapitalize="off" required autofocus>
+          </label>
+          <label>Password
+            <input name="password" type="password" autocomplete="current-password" required>
+          </label>
+          <label class="check"><input type="checkbox" name="remember"{{if .Remember}} checked{{end}}>
+            <span>Keep me signed in<small>On this device, for 30 days. Untick it on a computer other people use.</small></span></label>
+          <button type="submit" class="wide">Sign in</button>
+        </form>
+        <p class="hint">Forgotten your password? Ask {{.Owner}}, who looks after {{.LabName}}.</p>
+
+        {{else if eq .State "code"}}
+        <h1>One more step</h1>
+        {{template "signin-to" .}}
+        {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+        <form method="post" action="/sign-in/code">
+          <input type="hidden" name="next" value="{{.Next}}">
+          <label>Code from your authenticator app
+            <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required autofocus>
+          </label>
+          <button type="submit" class="wide">Continue</button>
+        </form>
+        <p class="hint">Lost your phone? Ask {{.Owner}}, who can turn two-factor off for you.</p>
+
+        {{else if eq .State "blocked"}}
+        <h1>Sign in</h1>
+        {{template "signin-to" .}}
+        <p>{{.Error}}</p>
+        <p><a class="button secondary" href="{{.RoostackURL}}">Open Roostack</a></p>
+        <p class="hint">Roostack's pages work only at home, or on the lab's VPN.</p>
+
+        {{else if eq .State "denied"}}
+        <h1>You can't use {{.App}} yet</h1>
+        <p>{{capitalise .Owner}}, who looks after {{.LabName}}, chooses who can use each service. Ask them to add you to {{.App}}.</p>
+        {{with .User}}<form method="post" action="/sign-out" class="signin-who"><span class="hint">Signed in as <strong>{{.Username}}</strong></span>
+          <button type="submit" class="quiet">Not you? Sign out</button></form>{{end}}
+        <p><a class="button secondary" href="/">Your services</a></p>
+
+        {{else if eq .State "home"}}
+        <h1>Hello, {{with .User}}{{or .Name .Username}}{{end}}</h1>
+        {{if .Apps}}
+        <p>You're signed in to {{.LabName}}. These are the services you can use:</p>
+        <ul class="signin-apps">
+          {{range .Apps}}<li><a href="{{.URL}}"><span class="logo-tile"><img src="{{.Logo}}" alt="" width="28" height="28"></span>
+            <span><strong>{{.Title}}</strong><small>{{.Host}}</small></span></a></li>{{end}}
+        </ul>
+        {{else}}
+        <p>You're signed in to {{.LabName}}, but there's no service you can use with it yet. {{capitalise .Owner}} chooses who can use each one.</p>
+        {{end}}
+        <form method="post" action="/sign-out"><button type="submit" class="secondary">Sign out</button></form>
+        {{if not .Until.IsZero}}<p class="hint">Signed in on this device until {{date .Until}}.</p>{{end}}
+
+        {{else if eq .State "out"}}
+        <h1>You've signed out</h1>
+        <p>Services behind the sign-in page need you to sign in again straight away. Apps that keep their own sign-in, such as
+          Mealie or Immich, stay signed in until you sign out there too, so do that if this isn't your device.</p>
+        <p><a class="button" href="/sign-in">Sign in again</a></p>
+
+        {{else}}
+        <h1>Something's not right</h1>
+        <p>{{.Error}}</p>
+        <p><a class="button secondary" href="/">Your services</a></p>
+        {{end}}
+      </section>
+      <details class="signin-foot hint">
+        <summary>{{.LabName}} runs on Roostack · What is this page?</summary>
+        <p>One account for the services {{.LabName}} runs. You sign in here once, and each service knows it's you.
+          Your password is never given to the services.</p>
+      </details>
+    </main>
+  </div>
+</body>
+</html>
+
+{{define "signin-to"}}{{with .App}}<p class="signin-to">to continue to {{with $.AppLogo}}<span class="logo-tile"><img src="{{.}}" alt="" width="20" height="20"></span>{{end}}<strong>{{.}}</strong></p>{{end}}{{end}}

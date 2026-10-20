@@ -110,7 +110,44 @@ type Route struct {
 	// request on a public route (SPEC.md §6.10 item 4): on unless the
 	// Owner turned it off for the service. Needs MainConfig.AppSecURL.
 	WAF bool
+	// Wall puts the route behind single sign-on's forward auth (SPEC.md
+	// §5.2); nil: none.
+	Wall *Wall
 }
+
+// Wall is forward auth in front of a route (SPEC.md §5.2): Caddy asks
+// the sign-in listener (Upstream) about each request, except to Bypass
+// paths, and passes it on only for someone signed in and allowed in,
+// telling the service who with RemoteHeaders. The sign-in listener also
+// answers WallCallbackPath on the route's address, where it sets the
+// service's own cookie (WallCookie), which Caddy removes before a request
+// reaches the service.
+type Wall struct {
+	Upstream string
+	Service  string
+	Bypass   []string
+}
+
+// RemoteHeaders are who someone is, for a walled service. Caddy removes
+// any a visitor sends, on every route, so no request can claim to be from
+// someone signed in.
+var RemoteHeaders = []string{"Remote-User", "Remote-Email", "Remote-Name", "Remote-Groups"}
+
+// Single sign-on's paths and cookie on a walled service's address
+// (internal/sso, which tests they match).
+const (
+	WallCallbackPath = "/.roostack/sign-in"
+	WallCheckPath    = "/check"
+	WallCookie       = "roostack_sso"
+)
+
+// SignInSubdomain is the sign-in page for services, login.<domain>
+// (single sign-on, SPEC.md §5.2). No service may use it.
+const SignInSubdomain = "login"
+
+// SignInLoginPaths get the strict rate limit when the sign-in page is
+// public: the password, then the code.
+var SignInLoginPaths = []string{"/sign-in"}
 
 // CheckPattern is the only path on a public address that reaches
 // Roostack: a check link with its token, nothing else (internal/public).
@@ -168,7 +205,19 @@ func Site(service string, routes []Route) (string, error) {
 			if r.MaxBodySize != "" {
 				fmt.Fprintf(&b, "\trequest_body {\n\t\tmax_size %s\n\t}\n", r.MaxBodySize)
 			}
-			b.WriteString(r.reverseProxy("\t"))
+			if r.Wall != nil {
+				// In a route block, which runs in the order written: Caddy
+				// would otherwise run forward_auth before request_header,
+				// which would remove what it set.
+				b.WriteString("\troute {\n")
+				b.WriteString(stripRemote("\t\t"))
+				b.WriteString(r.wall("\t\t"))
+				b.WriteString(r.reverseProxy("\t\t"))
+				b.WriteString("\t}\n")
+			} else {
+				b.WriteString(stripRemote("\t"))
+				b.WriteString(r.reverseProxy("\t"))
+			}
 		} else {
 			publicRoute(&b, r)
 		}
@@ -216,6 +265,7 @@ func publicRoute(b *strings.Builder, r Route) {
 	if len(r.PrivatePaths) > 0 {
 		fmt.Fprintf(b, "\t\tabort @%s-private-paths\n", r.ID)
 	}
+	b.WriteString(stripRemote("\t\t"))
 	b.WriteString("\t\tcrowdsec\n")
 	b.WriteString("\t\trate_limit {\n")
 	if len(r.LoginPaths) > 0 {
@@ -235,19 +285,63 @@ func publicRoute(b *strings.Builder, r Route) {
 	if r.MaxBodySize != "" {
 		fmt.Fprintf(b, "\t\trequest_body {\n\t\t\tmax_size %s\n\t\t}\n", r.MaxBodySize)
 	}
+	if r.Wall != nil {
+		b.WriteString(r.wall("\t\t"))
+	}
 	b.WriteString(r.reverseProxy("\t\t"))
 	b.WriteString("\t}\n")
+}
+
+// stripRemote removes the headers a walled service reads who someone is
+// from, at indent: only Caddy's forward auth sets them.
+func stripRemote(indent string) string {
+	var b strings.Builder
+	for _, h := range RemoteHeaders {
+		fmt.Fprintf(&b, "%srequest_header -%s\n", indent, h)
+	}
+	return b.String()
+}
+
+// wall is a walled route's forward auth, at indent, inside its route
+// block: the sign-in listener's callback on the service's address, then
+// the check for every other request but the bypass paths (SPEC.md §5.2).
+func (r Route) wall(indent string) string {
+	w := r.Wall
+	var b strings.Builder
+	fmt.Fprintf(&b, "%shandle %s/* {\n%s\treverse_proxy %s\n%s}\n", indent, WallCallbackPath, indent, w.Upstream, indent)
+	matcher := ""
+	if len(w.Bypass) > 0 {
+		matcher = "@" + r.ID + "-walled "
+		fmt.Fprintf(&b, "%s@%s-walled not path %s\n", indent, r.ID, pathPatterns(w.Bypass))
+	}
+	fmt.Fprintf(&b, "%sforward_auth %s%s {\n%s\turi %s?service=%s\n%s\tcopy_headers %s\n%s}\n",
+		indent, matcher, w.Upstream, indent, WallCheckPath, w.Service, indent, strings.Join(RemoteHeaders, " "), indent)
+	return b.String()
 }
 
 // reverseProxy is the directive passing a request to the service, at
 // indent: with the visitor's address in the service's own header, if it
 // names one.
 func (r Route) reverseProxy(indent string) string {
-	if r.ClientIPHeader == "" {
+	var ups []string
+	if r.ClientIPHeader != "" {
+		ups = append(ups, fmt.Sprintf("header_up %s {remote_host}", r.ClientIPHeader))
+	}
+	if r.Wall != nil {
+		// The service's single sign-on cookie stays between the browser
+		// and Roostack: the service never sees it (SPEC.md §5.2).
+		ups = append(ups, fmt.Sprintf(`header_up Cookie "%s=[^;]*;?[ ]*" ""`, WallCookie))
+	}
+	if len(ups) == 0 {
 		return fmt.Sprintf("%sreverse_proxy %s\n", indent, r.Upstream)
 	}
-	return fmt.Sprintf("%sreverse_proxy %s {\n%s\theader_up %s {remote_host}\n%s}\n",
-		indent, r.Upstream, indent, r.ClientIPHeader, indent)
+	var b strings.Builder
+	fmt.Fprintf(&b, "%sreverse_proxy %s {\n", indent, r.Upstream)
+	for _, u := range ups {
+		fmt.Fprintf(&b, "%s\t%s\n", indent, u)
+	}
+	fmt.Fprintf(&b, "%s}\n", indent)
+	return b.String()
 }
 
 func (r Route) privateFrom() string {
@@ -304,6 +398,16 @@ func (r Route) validate() error {
 	if r.ID == "" || r.Host == "" || r.Upstream == "" {
 		return errors.New("caddy route: id, host and upstream are required")
 	}
+	if w := r.Wall; w != nil {
+		if w.Upstream == "" || w.Service == "" || strings.ContainsAny(w.Upstream+w.Service, " \t\n{}\"#&?") {
+			return fmt.Errorf("caddy route %s: invalid wall", r.ID)
+		}
+		for _, p := range w.Bypass {
+			if !strings.HasPrefix(p, "/") || strings.ContainsAny(p, " \t\n{}\"#*") {
+				return fmt.Errorf("caddy route %s: invalid bypass path %q", r.ID, p)
+			}
+		}
+	}
 	return nil
 }
 
@@ -350,6 +454,21 @@ type MainConfig struct {
 	// StatusPage serves the lab's public status page at
 	// status.<domain>, from StatusPageDir (SPEC.md §6.15).
 	StatusPage bool
+	// SignIn serves the sign-in page for services (single sign-on, SPEC.md
+	// §5.2) while any service has it on; nil: none.
+	SignIn *SignInSite
+}
+
+// SignInSite is the sign-in page for services at Host (login.<domain>),
+// answered by the sign-in listener at Upstream. Public once a service
+// with single sign-on is: people outside couldn't sign in to it otherwise.
+type SignInSite struct {
+	Host, Upstream string
+	Public         bool
+	// Containers is where this server's containers come from, as Caddy
+	// sees them (generate.ContainerHostGateway): OIDC apps swap codes for
+	// tokens here themselves, so a private sign-in page lets them in too.
+	Containers string
 }
 
 // StatusPageDir is where the public status page's files are inside
@@ -481,7 +600,12 @@ func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now st
 	for _, line := range strings.Split(strings.TrimSpace(directive), "\n") {
 		fmt.Fprintf(b, "\t\t%s\n", line)
 	}
-	fmt.Fprintf(b, "\t\tresolvers %s\n", CertResolvers)
+	// Resolvers are for checking a DNS challenge: a directive without one
+	// (lab.yaml's dns.directive, e.g. "issuer internal" on a test lab)
+	// can't have them.
+	if strings.Contains(directive, "dns ") {
+		fmt.Fprintf(b, "\t\tresolvers %s\n", CertResolvers)
+	}
 	b.WriteString("\t}\n")
 	if c.AccessLog != "" {
 		fmt.Fprintf(b, "\tlog {\n\t\toutput file %s {\n\t\t\troll_size 20MiB\n\t\t\troll_keep 5\n\t\t}\n\t\tformat json\n\t}\n", c.AccessLog)
@@ -499,6 +623,32 @@ func site(b *strings.Builder, c MainConfig, domain, adminHost, directive, now st
 		}
 		// Indent the admin handler into the site block, skipping its header.
 		_, body, _ := strings.Cut(admin, "\n")
+		for _, line := range strings.Split(strings.TrimSpace(body), "\n") {
+			fmt.Fprintf(b, "\t%s\n", line)
+		}
+	}
+	if s := c.SignIn; s != nil && now == "" && (!edge || s.Public) {
+		// The sign-in page for services (SPEC.md §5.2): reached through
+		// an edge only when it's public, like a service.
+		from := cmp.Or(c.PrivateFrom, PrivateRanges)
+		if s.Containers != "" {
+			if err := checkPrefixes([]string{s.Containers}); err != nil {
+				return fmt.Errorf("caddy: sign-in page: %w", err)
+			}
+			from += " " + s.Containers
+		}
+		route := Route{ID: "roostack-sign-in", Title: "Sign-in", Host: s.Host, Upstream: s.Upstream,
+			Private: !s.Public, PrivateFrom: from, PrivateExcept: c.EdgeFrom}
+		if s.Public {
+			route.LoginPaths = SignInLoginPaths
+			route.WAF = c.AppSecURL != ""
+		}
+		signIn, err := Site("roostack-sign-in", []Route{route})
+		if err != nil {
+			return err
+		}
+		_, body, _ := strings.Cut(signIn, "\n")
+		b.WriteString("\n")
 		for _, line := range strings.Split(strings.TrimSpace(body), "\n") {
 			fmt.Fprintf(b, "\t%s\n", line)
 		}

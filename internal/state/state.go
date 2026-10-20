@@ -112,8 +112,9 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	// Every hostname must be unique across the lab, including the admin UI.
 	hosts := map[string]string{lab.UIHost(): "the Roostack admin UI",
 		caddy.LinkSubdomain + "." + lab.Domain:   "Roostack's address for other servers and labs",
-		caddy.StatusSubdomain + "." + lab.Domain: "the lab's public status page"}
-	ports := map[int]string{lab.UIPort: "the Roostack admin UI"}
+		caddy.StatusSubdomain + "." + lab.Domain: "the lab's public status page",
+		lab.SignInHost():                         "the sign-in page for services"}
+	ports := map[int]string{lab.UIPort: "the Roostack admin UI", config.SignInPort: "the sign-in page for services"}
 	hostPorts := map[string]string{} // "2222/tcp" -> service
 	var errs []error
 	for _, s := range services {
@@ -167,7 +168,11 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	// Generated after the services: CrowdSec runs while any is public, or
 	// Roostack's own pages are (a lab on the internet, SPEC.md §6.3.2).
 	public := lab.PublicUI() || slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.Public })
-	sys, err := generate.System(lab, public)
+	// The sign-in page while any service has single sign-on, public while
+	// one of them is (SPEC.md §5.2).
+	sys, err := generate.SystemWith(lab, generate.SystemOptions{Public: public,
+		SignIn:       slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.SSO }),
+		SignInPublic: slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.SSOPublic })})
 	if err != nil {
 		return reconcile.Desired{}, errors.Join(append(errs, err)...)
 	}

@@ -111,6 +111,10 @@ WantedBy=default.target
 			not vars roostack_edge yes
 		}
 		route {
+			request_header -Remote-User
+			request_header -Remote-Email
+			request_header -Remote-Name
+			request_header -Remote-Groups
 			crowdsec
 			rate_limit {
 				zone roostack-admin-login {

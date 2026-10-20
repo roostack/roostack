@@ -1,0 +1,115 @@
+/* Single sign-on mock-ups (2026-10-20): only what the real stylesheet lacks. */
+
+/* The mock-ups show one state at a time; app.css has no [hidden] rule of its own. */
+[hidden] { display: none !important; }
+
+/* The sign-in page at login.<domain>: the bare layout, one narrow card. */
+.signin-page { display: grid; gap: var(--space-3); justify-items: center; padding-block: var(--space-6, 32px); }
+.signin-card { margin: 0; width: 100%; }
+.signin-card h1 { margin: 0 0 var(--space-1); }
+.signin-card form { margin-top: var(--space-4); }
+.signin-card label:not(.check) { display: block; margin-bottom: var(--space-4); }
+.signin-card label:not(.check) input { display: block; width: 100%; margin-top: var(--space-1); }
+.signin-brand { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5); }
+.signin-brand svg { width: 44px; height: 44px; flex: none; border-radius: 12px; }
+.signin-brand strong { font-family: var(--font-display); font-size: var(--text-lg, 1.2rem); }
+/* The lab's logo: a square mark beside the name (the default), a wide logo with the name in it, or none (the hen). */
+html[data-logo="0"] .with-logo, html:not([data-logo="0"]) .with-hen { display: none; }
+.brand-wide { display: none; }
+html[data-logo="wide"] .brand-wide { display: flex; }
+html[data-logo="wide"] .brand-mark-name { display: none; }
+.wide-tile { display: inline-flex; max-width: 100%; }
+.signin-brand .wide-logo, .logo-now.wide .wide-logo { width: auto; height: 56px; max-width: 100%; border-radius: 0; }
+/* No dark version: the logo sits on a light panel in dark mode, so dark lettering stays readable. */
+[data-mode="dark"] .wide-tile, [data-mode="dark"] .logo-now.wide { background: #fbf7f2; padding: 8px 14px; border-radius: 12px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode="light"]) .wide-tile, :root:not([data-mode="light"]) .logo-now.wide { background: #fbf7f2; padding: 8px 14px; border-radius: 12px; }
+}
+.signin-to { display: flex; align-items: center; gap: var(--space-2); color: var(--muted); margin: 0; flex-wrap: wrap; }
+.signin-to strong { color: var(--fg); }
+.signin-to .logo-tile, .signin-apps .logo-tile, .group-list .logo-tile { width: 28px; height: 28px; padding: 3px; border-radius: 8px; }
+.signin-to .logo-tile img { width: 20px; height: 20px; }
+button.wide { width: 100%; }
+.signin-foot { margin: 0; text-align: center; max-width: 460px; }
+.signin-apps { list-style: none; padding: 0; margin: var(--space-3) 0 var(--space-4); display: grid; gap: var(--space-2); }
+.signin-apps a { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: 12px;
+  border: 1px solid var(--edge); background: var(--glass); color: var(--fg); text-decoration: none; }
+.signin-apps a:hover { border-color: var(--edge-strong); }
+.signin-apps .logo-tile { width: 40px; height: 40px; }
+.signin-apps small { display: block; color: var(--muted); }
+html[data-embed="1"] .mock-bar, html[data-embed="1"] .signin-foot { display: none; }
+html[data-embed="1"] body { overflow: hidden; }
+html[data-embed="1"] .signin-page { padding-block: 24px; }
+
+/* The Single sign-on card on a service's page. */
+.status-off { background: var(--glass-2, var(--surface-2)); color: var(--muted); }
+.status-off::before { background: var(--muted); }
+.sso-steps li { display: flex; gap: var(--space-2); align-items: flex-start; margin-bottom: var(--space-2); }
+.sso-steps .icon { margin-top: 3px; flex: none; color: var(--accent); }
+.sso-who fieldset { border: 0; padding: 0; margin: var(--space-3) 0; }
+.sso-who legend { font-weight: var(--weight-bold, 600); margin-bottom: var(--space-2); }
+.sso-choose { margin-left: 30px; }
+.sso-who:has(input[value="all"]:checked) .sso-choose { opacity: .55; pointer-events: none; }
+.sso-change > summary, .group-list summary { cursor: pointer; color: var(--accent); font-weight: var(--weight-medium, 500); }
+.sso-change { margin: var(--space-2) 0; }
+.sso-off { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); }
+.sso-progress li.done { color: var(--muted); }
+.sso-progress li.done::marker { content: "✓  "; color: var(--ok); }
+.sso-progress li.now { font-weight: var(--weight-bold, 600); }
+
+/* People: the table, groups and the sign-in page's look. */
+.person { display: flex; align-items: center; gap: var(--space-3); }
+.warn-text { color: var(--warn); font-size: var(--text-sm); }
+.group-list { list-style: none; padding: 0; margin: 0 0 var(--space-4); display: grid; gap: var(--space-2); }
+.group-list > li { border: 1px solid var(--edge); border-radius: 12px; padding: var(--space-3) var(--space-4); background: var(--glass); }
+.group-list summary { list-style: none; display: flex; align-items: center; gap: var(--space-3); color: var(--fg); }
+.group-list summary::-webkit-details-marker { display: none; }
+.group-list summary .more { margin-left: auto; color: var(--accent); font-size: var(--text-sm); }
+.group-name small { display: block; }
+.group-form { margin-top: var(--space-4); }
+.group-form fieldset, .look-form fieldset, .add-person fieldset { border: 0; padding: 0; margin: 0 0 var(--space-4); }
+.group-form legend, .look-form legend, .add-person legend { font-weight: var(--weight-bold, 600); margin-bottom: var(--space-2); }
+.group-form > label, .add-person label:not(.check) { display: block; margin-bottom: var(--space-4); }
+.group-form > label input, .add-person label:not(.check) input { display: block; width: 100%; max-width: 24rem; margin-top: var(--space-1); }
+.two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-4); }
+.with-logo-inline { display: inline-flex; align-items: center; gap: var(--space-2); }
+.with-logo-inline img { border-radius: 4px; }
+.form-row { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; }
+.add-group { display: flex; gap: var(--space-3); align-items: flex-end; flex-wrap: wrap; }
+.add-group label { margin: 0; }
+.add-group input { display: block; margin-top: var(--space-1); }
+
+.look-preview { border: 1px solid var(--edge); border-radius: 12px; overflow: hidden; height: 300px; position: relative; background: var(--canvas); margin-bottom: var(--space-4); }
+.look-preview iframe { border: 0; width: 166.67%; height: 500px; transform: scale(.6); transform-origin: 0 0; pointer-events: none; }
+.logo-row { display: flex; gap: var(--space-3); align-items: flex-start; margin: 0 0 var(--space-4) 30px; }
+.logo-for-wide { margin: 0 0 var(--space-4) 30px; }
+.logo-for-wide label { display: block; margin-bottom: var(--space-3); }
+.logo-for-wide label input { display: block; margin-top: var(--space-1); max-width: 100%; }
+.logo-now.wide { display: inline-flex; max-width: 100%; }
+.look-form:not(:has(#look-logo-mark:checked)) .logo-for-mark, .look-form:not(:has(#look-logo-wide:checked)) .logo-for-wide { display: none; }
+.logo-now svg { width: 56px; height: 56px; border-radius: 14px; }
+.logo-row input[type="file"] { max-width: 100%; }
+.logo-row small { display: block; margin: var(--space-1) 0; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: var(--space-2); }
+.swatch { display: flex; align-items: center; gap: var(--space-2); padding: 6px 10px; border: 1px solid var(--edge); border-radius: 10px; cursor: pointer; font-size: var(--text-sm); }
+.swatch:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.swatch { position: relative; margin: 0; width: 100%; justify-self: stretch; min-width: 0; }
+.swatch input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.swatch > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.swatch:has(input:focus-visible) { box-shadow: var(--focus-ring); }
+.swatch-dots { display: inline-flex; }
+.swatch-dots i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgb(0 0 0 / .15); margin-right: -4px; }
+.swatch .s-bg { background: var(--pal-bg-l); } .swatch .s-ac { background: var(--pal-accent-l); } .swatch .s-hl { background: var(--pal-highlight-l); }
+
+@media (max-width: 700px) {
+  .two-col { grid-template-columns: minmax(0, 1fr); }
+  .look-preview { height: 260px; }
+}
+
+/* The mock-ups' own switch, bottom right. */
+.mock-bar { position: fixed; right: 12px; bottom: 12px; z-index: 50; display: flex; gap: 4px 6px; flex-wrap: wrap; align-items: center; padding: 6px 8px;
+  max-width: calc(100vw - 24px); border-radius: 10px; background: var(--fg); color: var(--bg); font-size: 13px; box-shadow: 0 4px 20px rgb(0 0 0 / .25); }
+.mock-bar a, .mock-bar button { color: inherit; background: none; border: 0; padding: 2px 6px; font: inherit; cursor: pointer; text-decoration: none; border-radius: 6px; }
+.mock-bar [aria-current] { background: color-mix(in srgb, var(--bg) 22%, transparent); }
+.mock-bar .sep { opacity: .4; }
+.mock-bar select { font: inherit; padding: 1px 4px; border-radius: 6px; width: auto; min-height: 0; margin: 0; color: var(--fg); background: var(--bg); }

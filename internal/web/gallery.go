@@ -426,6 +426,21 @@ Network=roostack-immich.network</code></pre>
 			{"Choice of period", "nav.period-choice: links, the current one with aria-current.", `
 <nav class="period-choice" aria-label="How far back"><a href="#">Today</a><a href="#" aria-current="true">7 days</a><a href="#">30 days</a></nav>`},
 		}},
+	{ID: "sign-in", Title: "Single sign-on", Intro: "The lab's sign-in page for services and its settings (SPEC.md §5.2; docs/mockups/sso). The sign-in page itself is signin.html, a page of its own in the lab's look.",
+		Examples: []galleryExample{
+			{"Theme choice", "div.theme-swatches of label.theme-swatch: its data-palette sets its theme's colours, shown by three .theme-swatch-dots (background, accent, highlight), with a hidden radio and the theme's name; the chosen one is outlined.", `
+<div class="theme-swatches">
+  <label class="theme-swatch" data-palette="teal"><input type="radio" name="g-palette" value="teal" checked><span class="theme-swatch-dots" aria-hidden="true"><i class="s-bg"></i><i class="s-ac"></i><i class="s-hl"></i></span><span>Teal and violet</span></label>
+  <label class="theme-swatch" data-palette="nord"><input type="radio" name="g-palette" value="nord"><span class="theme-swatch-dots" aria-hidden="true"><i class="s-bg"></i><i class="s-ac"></i><i class="s-hl"></i></span><span>Nord</span></label>
+  <label class="theme-swatch" data-palette="gruvbox"><input type="radio" name="g-palette" value="gruvbox"><span class="theme-swatch-dots" aria-hidden="true"><i class="s-bg"></i><i class="s-ac"></i><i class="s-hl"></i></span><span>Gruvbox</span></label>
+</div>`},
+			{"Services someone can use", "ul.signin-apps: each a link with its logo tile, title and address, on the sign-in page.", `
+<ul class="signin-apps">
+  <li><a href="#"><span class="logo-tile">{{icon "services"}}</span><span><strong>Mealie</strong><small>recipes.smith.family</small></span></a></li>
+</ul>`},
+			{"A group", "ul.group-list of details: the group's name and what it can use, then its form under Change….", `
+<ul class="group-list"><li><details><summary><span class="group-name"><strong>Family</strong><small class="hint">5 people · Mealie</small></span><span class="more">Change…</span></summary><p class="hint">The group's form.</p></details></li></ul>`},
+		}},
 	{ID: "secrets", Title: "Secrets and codes", Intro: "Values to copy, such as a temporary password: shown once, easy to select.",
 		Examples: []galleryExample{
 			{"Secret", "", `

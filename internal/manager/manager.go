@@ -32,6 +32,7 @@ import (
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/s3api"
+	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/state"
 )
 
@@ -137,6 +138,11 @@ type Manager struct {
 	links linkState
 	// keyMu makes recovery key changes one at a time (keychange.go).
 	keyMu sync.Mutex
+	// ssoClients are the services the sign-in page knows, as last read
+	// (at ssoAt), guarded by ssoMu (sso.go).
+	ssoMu      sync.Mutex
+	ssoClients []sso.Client
+	ssoAt      time.Time
 	// junk is what the junk checks remember (quarantine.go).
 	junk junkState
 	// statusPage is the public status page's switch as last set (nil:

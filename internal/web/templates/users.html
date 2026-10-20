@@ -3,10 +3,12 @@
 <div class="page-head">
   <div>
     <h1>People</h1>
-    <p class="lede">Who can log in to Roostack. Each service (Forgejo, Vaultwarden, …) still has its own accounts.</p>
+    <p class="lede">{{if .SSO}}Who can sign in to the lab: to Roostack, and to the services with single sign-on.{{else}}Who can log in to Roostack. Each service (Forgejo, Vaultwarden, …) still has its own accounts.{{end}}</p>
   </div>
 </div>
-<section class="card medium">
+<div class="grid">
+<section class="card span-12" id="people">
+  <div class="card-head"><h2>People</h2><a class="button secondary small" href="#add">Add someone</a></div>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{with .Done}}{{notice "ok" .}}{{end}}
   {{with .TempPassword}}
@@ -18,15 +20,26 @@
   {{end}}
 
   <ul class="users">
-    {{range .Users}}
+    {{range .Users}}{{$u := .}}
     <li>
-      <div class="user-line">
-        <span><strong>{{.Username}}</strong>{{if eq .ID $.User.ID}} <span class="hint">(you)</span>{{end}}<br>
-          <small class="hint">{{roleName .Role}} · two-factor {{if .TOTPSecret}}on{{else}}off{{end}}{{if .MustChangePassword}} · hasn't chosen a password yet{{end}}</small></span>
+      <div class="user-line person-line">
+        <span class="avatar" aria-hidden="true">{{initial .Username}}</span>
+        <span class="person-name"><strong>{{.Username}}</strong>{{if eq .ID $.User.ID}} <span class="hint">(you)</span>{{end}}{{with .Name}}<br><small class="hint">{{.}}</small>{{end}}</span>
+        <span class="person-email">{{if .Email}}{{.Email}}{{else if $.SSO}}<small class="warn-text">No email: add one to give them services with single sign-on</small>{{else}}<small class="hint">No email</small>{{end}}</span>
+        <span class="person-role">{{roleName .Role}}<br><small class="hint">two-factor {{if .TOTPSecret}}on{{else}}off{{end}}{{if .MustChangePassword}} · hasn't chosen a password yet{{end}}</small></span>
+        {{if $.SSO}}<span class="person-groups">{{range index $.UserGroups .ID}}<span class="badge">{{.}}</span> {{end}}</span>{{end}}
       </div>
-      {{if ne .ID $.User.ID}}
       <details class="user-actions">
         <summary>Change…</summary>
+        <form method="post" action="/users/{{.ID}}/details" class="person-details">
+          <label>Full name <input name="name" value="{{.Name}}" autocomplete="off" maxlength="100"><small>What apps call them. Optional.</small></label>
+          <label>Email address <input name="email" type="email" value="{{.Email}}" autocomplete="off"><small>{{if $.SSO}}Services with single sign-on find or make their account by it. {{end}}Roostack's emails go here too.</small></label>
+          {{if and $.SSO $.Groups}}<fieldset><legend>Groups</legend>
+            {{range $.Groups}}<label class="check"><input type="checkbox" name="group" value="{{.ID}}"{{if .Has $u.ID}} checked{{end}}><span>{{.Name}}</span></label>{{end}}
+          </fieldset>{{end}}
+          <button type="submit" class="secondary">Save</button>
+        </form>
+        {{if ne .ID $.User.ID}}
         <form method="post" action="/users/{{.ID}}/role" class="inline-form">
           <label>Role
             <select name="role" class="inline">{{$role := .Role}}{{range $.Roles}}<option value="{{.}}" {{if eq . $role}}selected{{end}}>{{roleName .}}</option>{{end}}</select>
@@ -43,42 +56,141 @@
         {{end}}
         {{confirm (printf "/users/%d/remove" .ID) (printf "Remove %s? They will no longer be able to log in." .Username)
           (printf "Remove %s" .Username) "quiet danger"}}
+        {{end}}
       </details>
-      {{end}}
     </li>
     {{end}}
   </ul>
+  <p class="hint">The role says what someone can do in Roostack.{{if .SSO}} Groups say which services with single sign-on they can use.{{end}}</p>
+</section>
 
-  <h2>Add someone</h2>
-  <form method="post" action="/users">
-    <label>Username <input name="username" value="{{.NewName}}" required autocapitalize="off" autocomplete="off" maxlength="32"></label>
-    <fieldset>
-      <legend>What can they do?</legend>
-      <label class="check"><input type="radio" name="role" value="member" {{if or (not .NewRole) (eq .NewRole "member")}}checked{{end}}>
-        <span>Member<small>Sees the services and their links.</small></span></label>
-      <label class="check"><input type="radio" name="role" value="admin" {{if eq .NewRole "admin"}}checked{{end}}>
-        <span>Admin<small>Also installs, changes and removes services, and runs backups.</small></span></label>
-      <label class="check"><input type="radio" name="role" value="owner" {{if eq .NewRole "owner"}}checked{{end}}>
-        <span>Owner<small>Everything, including this server's settings, restores and people. Needs two-factor.</small></span></label>
-    </fieldset>
-    <button type="submit">Add</button>
+{{if .SSO}}
+<section class="card span-7" id="groups">
+  <div class="card-head"><h2>Groups</h2></div>
+  {{with .GroupError}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .Groups}}
+  <ul class="group-list">
+    {{range .Groups}}{{$g := .}}
+    <li>
+      <details{{if eq .ID $.OpenGroup}} open{{end}}>
+        <summary><span class="group-name"><strong>{{.Name}}</strong><small class="hint">{{len .Members}} {{if eq (len .Members) 1}}person{{else}}people{{end}}{{with .ServiceTitles}} · {{.}}{{end}}</small></span><span class="more">Change…</span></summary>
+        <form method="post" action="/settings/people/groups/{{.ID}}" class="group-form">
+          <label>Name <input name="name" value="{{.Name}}" required maxlength="60"></label>
+          <fieldset><legend>Who's in it</legend><div class="two-col">
+            {{range $.Users}}<label class="check"><input type="checkbox" name="member" value="{{.ID}}"{{if $g.Has .ID}} checked{{end}}><span>{{.Username}}{{with .Name}}<small>{{.}}</small>{{end}}</span></label>{{end}}
+          </div></fieldset>
+          {{if $.SSOServices}}<fieldset><legend>Services they can use</legend><div class="two-col">
+            {{range $.SSOServices}}<label class="check"><input type="checkbox" name="service" value="{{.Name}}"{{if or .Everyone ($g.Uses .Name)}} checked{{end}}{{if .Everyone}} disabled{{end}}>
+              <span><span class="with-logo-inline">{{if .Logo}}<img src="{{.Logo}}" alt="" width="18" height="18">{{end}}{{.Title}}</span>{{if .Everyone}}<small>Everyone in the lab can use it.</small>{{end}}</span></label>{{end}}
+          </div>
+          <p class="hint">Only services with single sign-on are listed. Each service's page says who can use it, too.</p></fieldset>{{end}}
+          <div class="form-row"><button type="submit">Save</button>
+            {{confirm (printf "/settings/people/groups/%d/remove" .ID) (printf "Delete the group %s? Its people stay; they lose the services they could use only through it." .Name)
+              (printf "Delete %s…" .Name) "quiet danger"}}</div>
+        </form>
+      </details>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}<p class="hint">Groups are lists of people, such as Family or Friends, to choose who can use a service.</p>{{end}}
+  <form method="post" action="/settings/people/groups" class="add-group">
+    <label>New group <input name="name" placeholder="Family" required maxlength="60"></label>
+    <button type="submit" class="secondary">Add group</button>
   </form>
 </section>
-<section class="card section" id="signing-in">
+
+<section class="card span-5" id="sign-in-page">
+  <div class="card-head"><h2>Sign-in page</h2>{{with .SignInURL}}<a class="more" href="{{.}}" target="_blank" rel="noopener">Open it{{template "new-window"}}</a>{{end}}</div>
+  <p class="hint">What people see at <code>{{.SignInHost}}</code> when they sign in to a service.</p>
+  {{with .LookError}}<p class="error" role="alert">{{.}}</p>{{end}}
+  {{if .LookSaved}}{{notice "ok" "Saved. The sign-in page looks like this from now on."}}{{end}}
+  <form method="post" action="/settings/people/sign-in-page" enctype="multipart/form-data" class="look-form">
+    <dl class="facts">
+      <dt>Name</dt><dd>{{.LabName}} <small class="hint">· the lab's name, <a href="/settings/lab">change it</a></small></dd>
+    </dl>
+    <fieldset>
+      <legend>Logo</legend>
+      <label class="check"><input type="radio" name="logo" value="mark"{{if eq .Look.Logo "mark"}} checked{{end}}>
+        <span>A mark, with the name beside it<small>Square, like an app icon. It's also the page's icon in the browser tab.</small></span></label>
+      <div class="logo-sub logo-for-mark">
+        {{if .Look.Has "mark"}}<img class="logo-now" src="/settings/people/look/mark?v={{.Look.Version}}" alt="The mark now" width="56" height="56">{{end}}
+        <label>{{if .Look.Has "mark"}}Replace it{{else}}The mark{{end}} <input type="file" name="logo_mark" accept="image/png,image/svg+xml"><small>PNG or SVG, square, up to 200 KB.</small></label>
+      </div>
+      <label class="check"><input type="radio" name="logo" value="wide"{{if eq .Look.Logo "wide"}} checked{{end}}>
+        <span>A wide logo, with the name in it<small>Shown on its own, in place of the name. Up to four times as wide as it is tall.</small></span></label>
+      <div class="logo-sub logo-for-wide">
+        {{if .Look.Has "wide"}}<img class="logo-now wide" src="/settings/people/look/wide?v={{.Look.Version}}" alt="The wide logo now" height="56">{{end}}
+        <label>The logo <input type="file" name="logo_wide" accept="image/png,image/svg+xml"><small>PNG or SVG, up to 200 KB.</small></label>
+        <label>For dark mode <span class="hint">(optional)</span> <input type="file" name="logo_dark" accept="image/png,image/svg+xml">
+          <small>A version with light lettering. Without one, the logo sits on a light panel when the device is in dark mode, so dark lettering stays readable.</small></label>
+        {{if .Look.Has "dark"}}<label class="check"><input type="checkbox" name="remove_dark"><span>Remove the dark mode version</span></label>{{end}}
+        <label>Browser tab icon <span class="hint">(optional)</span> <input type="file" name="logo_icon" accept="image/png,image/svg+xml">
+          <small>Square. Without one, the tab shows Roostack's hen.</small></label>
+        {{if .Look.Has "icon"}}<label class="check"><input type="checkbox" name="remove_icon"><span>Remove the browser tab icon</span></label>{{end}}
+      </div>
+      <label class="check"><input type="radio" name="logo" value=""{{if eq .Look.Logo ""}} checked{{end}}>
+        <span>None<small>Roostack's hen, with the name beside it.</small></span></label>
+    </fieldset>
+    <fieldset>
+      <legend>Colours</legend>
+      <div class="theme-swatches">
+        {{range .Themes}}<label class="theme-swatch" data-palette="{{.ID}}"><input type="radio" name="palette" value="{{.ID}}"{{if eq .ID $.Look.Palette}} checked{{end}}>
+          <span class="theme-swatch-dots" aria-hidden="true"><i class="s-bg"></i><i class="s-ac"></i><i class="s-hl"></i></span><span>{{.Name}}</span></label>{{end}}
+      </div>
+      <p class="hint">Light or dark follows each visitor's device. Every theme is checked to be easy to read in both.</p>
+    </fieldset>
+    <button type="submit">Save</button>
+  </form>
+</section>
+{{end}}
+
+<section class="card span-12" id="signing-in">
   <h2>Signing in</h2>
   {{if .SignInSaved}}{{notice "ok" "Saved. It applies from each person's next page."}}{{end}}
   <form method="post" action="/settings/signing-in">
-    <label>Sign people out after <select name="idle">
+    <label>Sign people out {{if .SSO}}of Roostack's pages {{end}}after <select name="idle">
       {{range .IdleChoices}}<option value="{{.}}"{{if eq . $.IdleMinutes}} selected{{end}}>{{idleText .}}</option>{{end}}
     </select> without activity</label>
     <p class="hint">Opening a page or sending a form counts as activity; pages refreshing themselves don't. When the time's up,
       the page goes back to the login page, so a screen left open doesn't stay signed in.</p>
     <label class="check"><input type="checkbox" name="remember"{{if .OfferRemember}} checked{{end}}>
-      <span>Offer "Keep me signed in" on the login page<small>For someone's own device: they stay signed in on that browser for
+      <span>Offer "Keep me signed in" on {{if .SSO}}Roostack's {{else}}the {{end}}login page<small>For someone's own device: they stay signed in on that browser for
         30 days, without the limit above.</small></span></label>
+    {{if .SSO}}
+    <input type="hidden" name="sso" value="1">
+    <label class="check"><input type="checkbox" name="signin_remember"{{if .SignInRemember}} checked{{end}}>
+      <span>On the sign-in page for services, keep people signed in for 30 days unless they untick it<small>Services are what family use every day; Roostack's own pages keep the shorter limit above.</small></span></label>
+    <label class="check"><input type="checkbox" name="signin_two_factor"{{if .SignInTwoFactor}} checked{{end}}>
+      <span>Ask everyone for two-factor on the sign-in page for services<small>Owners always need it, and Admins whenever Roostack's pages can be reached from the internet.</small></span></label>
+    {{end}}
     <button type="submit" class="secondary">Save</button>
   </form>
 </section>
+
+<section class="card span-12" id="add">
+  <h2>Add someone</h2>
+  <form method="post" action="/users" class="add-person">
+    <div class="two-col">
+      <label>Username <input name="username" value="{{.NewName}}" required autocapitalize="off" autocomplete="off" maxlength="32"></label>
+      <label>Email address <input name="email" type="email" value="{{.NewEmail}}" autocomplete="off">{{if .SSO}}<small>Services with single sign-on use it to find or make their account.</small>{{end}}</label>
+    </div>
+    <fieldset>
+      <legend>What can they do{{if .SSO}} in Roostack{{end}}?</legend>
+      <label class="check"><input type="radio" name="role" value="member" {{if or (not .NewRole) (eq .NewRole "member")}}checked{{end}}>
+        <span>Member<small>Sees the services{{if .SSO}} they can use{{end}} and their links.</small></span></label>
+      <label class="check"><input type="radio" name="role" value="admin" {{if eq .NewRole "admin"}}checked{{end}}>
+        <span>Admin<small>Also installs, changes and removes services, and runs backups.</small></span></label>
+      <label class="check"><input type="radio" name="role" value="owner" {{if eq .NewRole "owner"}}checked{{end}}>
+        <span>Owner<small>Everything, including this server's settings, restores and people. Needs two-factor.</small></span></label>
+    </fieldset>
+    {{if and .SSO .Groups}}<fieldset>
+      <legend>Groups</legend>
+      {{range .Groups}}<label class="check"><input type="checkbox" name="group" value="{{.ID}}"><span>{{.Name}}</span></label>{{end}}
+    </fieldset>{{end}}
+    <button type="submit">Add</button>
+  </form>
+</section>
+</div>
 {{end}}
 
 {{define "page-help"}}{{help "settings/people" "People and access"}}{{end}}
