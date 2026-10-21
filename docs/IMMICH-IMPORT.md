@@ -263,9 +263,11 @@ read it.
 
 ## 5. The person's journey
 
-On Immich's page in Roostack, a card **Bring in photos**: "Bring in
-photos and videos from Google Photos, iCloud or a folder, with their
-dates, places and albums." **Bring in photos from…** opens the steps.
+On Immich's page in Roostack, a card **Migrate photos**: "Migrate photos
+and videos from Google Photos or a folder (Apple iCloud next) into Immich,
+with their dates, places and albums." **Migrate photos from…** opens the
+steps. **The wording is "migrate"** (the Owner, 2026-10-21), not "bring
+in", which keeps it apart from §8.4's "Bring in data from elsewhere…".
 People who aren't Owners or Admins reach the same steps from a page of
 their own (§6.1). Each step is one page of the flow, in the
 forms' design (docs/DESIGN.md "Forms"), with Continue. Mock-ups:
@@ -298,7 +300,7 @@ forms' design (docs/DESIGN.md "Forms"), with Continue. Mock-ups:
    - Space: "Needs about 395 GB on <disk>; 1.2 TB free."
    - The next backup: "Your next backup will be about 395 GB larger."
    - Choices, with Roostack's defaults (§8).
-6. **Bring them in.** The status line and progress ("Uploading: 12,034 of
+6. **Migrate them.** The status line and progress ("Uploading: 12,034 of
    52,292, 98 GB of 395 GB, about 6 hours left"), Stop, and the log under
    Details. The page can be closed; the import carries on.
 7. **Done:** a summary (§7) that stays on Immich's page until it's
@@ -318,7 +320,7 @@ through single sign-on, which have none).
 - **The link:** **Make a key in Immich** opens Immich's own page for it,
   `<Immich's address>/user-settings?isOpen=api-keys` (the accordion's key
   in Immich 3.3.4's settings page; the VM test checks it opens there), in
-  a new tab. Beside it: name it "Roostack import", and tick these
+  a new tab. Beside it: name it "Roostack migration", and tick these
   permissions, listed as Immich lists them:
   `asset.read`, `asset.statistics`, `asset.update`, `asset.upload`,
   `asset.copy`, `asset.delete`, `asset.download`, `album.create`,
@@ -371,28 +373,33 @@ pages:** the account and password are the same, but they sign in again.
 §5.2, later); with it, the link from the sign-in page would need no second
 sign-in.
 
-**The Owner's switch.** On Immich's page, under Bring in photos: **Who can
-bring in photos**: *Everyone who uses Immich* (the default) or *Owners and
-Admins*. Everyone who uses Immich is single sign-on's "Who can sign in"
+**The Owner's choice.** On Immich's page, in the Migrate photos card: **Who
+can migrate photos**, a segmented control: *Everyone who uses Immich* (the
+default) or *Owners and Admins*. Everyone who uses Immich is single sign-on's "Who can sign in"
 for Immich when it's on, else every Member. Their own photos go into their
 own account with their own key; the Owner is told (as Roostack's
 notifications are, §6.13) when an import starts and ends, whose, and how
 big.
 
-**Where they may read from, chosen by the Owner** with the switch (shown
-while it's *Everyone who uses Immich*), any of:
+**Where they may read from, chosen by the Owner** (shown under
+*Everyone who uses Immich*):
 
-- **USB drives they plug into the server,** and any folder on them. Never
-  a backup drive, the system disk, or a drive holding a media library;
-  those show greyed, with why. Ticked by default.
-- **A network share, with their own login to it.** Ticked by default.
-- **Places the Owner names:** a folder on a drive or on the server (the
-  folder picker), a share with the Owner's login (kept root's only, as
-  §8.4's are), or a media library, each with a title ("Family NAS ›
-  Takeouts"). People pick one and can step into its folders, never above
-  it. Everyone allowed sees what's in a place, so a place per person, or
-  a folder per person inside one, is the Owner's choice; the page says
-  so.
+- **USB drives they plug into the server** (a switch, on), and any folder
+  on them. Never a backup drive, the system disk, or a drive holding a
+  media library; those show greyed, with why.
+- **Network shares, with their own login** (a switch, on).
+- **Additional locations** (the Owner, 2026-10-21): folders the Owner sets
+  up, each with **Remove**, added with **Add a location**, a dialog: a
+  folder on a drive or on the server (the folder picker), or a share with
+  the Owner's login (kept root's only, as §8.4's are), and its name for
+  people ("Family NAS › Takeouts"). People pick one and can step into its
+  folders, never above it. No tickbox: the list is what's offered, so with
+  none, nothing is; an empty list says "You haven't defined any additional
+  locations that people can migrate photos from. Press Add a location
+  below to add one." Everyone allowed sees what's in a location, so a
+  location per person, or a folder per person inside one, is the Owner's
+  choice; the page says so. *Changed* from the first mock-up's "Places you
+  name" tickbox, whose list below it wasn't clearly part of it.
 
 Owners and Admins can always use anything (drives, shares, the server's
 folders, media libraries), as on §8.4's pages. The agent's checks are the
@@ -401,13 +408,13 @@ when they pick it, not only in the page.
 
 **The page: `roost.<domain>/immich-photos`.** A short page in a layout of
 its own: the lab's name and logo as the sign-in page shows them, none of
-the control panel's menus, just bringing in photos and the person's own
-imports (in progress and the last summary, with its log). The same steps
+the control panel's menus, just migrating photos and the person's own
+migrations (in progress and the last summary, with its log). The same steps
 as §5. Where a lab runs more than one Immich (§8.2), it asks which first,
 listing only those the person uses. Linked from:
 
 - Immich's card on their dashboard;
-- the sign-in page, once someone's signed in there ("Bring your photos
+- the sign-in page, once someone's signed in there ("Migrate your photos
   into Immich", shown only to people allowed, and only when the lab runs
   Immich);
 - an address the Owner can send people, and the help.
@@ -423,7 +430,7 @@ by single sign-on): apart from the control panel, but nothing for a lab
 without single sign-on, and it puts a page that starts work on the
 server's drives on a site that may face the internet; the same pages could
 be served there later. An app of its own behind single sign-on's wall:
-another address and certificate, for nothing more. For the places: drives
+another address and certificate, for nothing more. For where they may read from: drives
 and shares only, never the server's folders (no way for an Owner to offer
 a folder they'd filled); anything an Admin can use (people could browse
 the server's folders and media).
@@ -495,7 +502,7 @@ store, like a backup's result), shown on Immich's page and in History.
 
 - **The source is never changed:** it's mounted read-only, and
   immich-go's delete options aren't used.
-- **The check first:** "Bring them in" is offered only after a check of
+- **The check first:** "Migrate them" is offered only after a check of
   the same source and account (a new check if either changed).
 - **Space:** refused if the disk can't hold it, before anything is
   uploaded; the run stops by itself if free space falls under 5%.
@@ -610,8 +617,12 @@ except whose photos:
 
 9. **Where others do it** (the same day): a page of its own on Roostack's
    site, `/immich-photos`, linked from the sign-in page too; open by
-   default to everyone who uses Immich; the Owner chooses the places they
-   may read from when opening it (§6.1).
+   default to everyone who uses Immich; the Owner chooses where they may
+   read from when opening it (§6.1).
+10. **The mock-ups** ([docs/mockups/immich-import](mockups/immich-import/README.md),
+    the same day): "Migrate", not "bring in"; additional locations as a
+    list with Add a location, not a tickbox; the forms' design (docs/DESIGN.md
+    "Forms") throughout.
 
 **Still open:** "Sign in with single sign-on" on Roostack's own login page
 (SPEC §5.2, later) would let the sign-in page's link open the import page

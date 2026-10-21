@@ -16,12 +16,14 @@
   const states = (root.dataset.states || "").split(",").filter(Boolean).map((s) => s.split(":"));
   const state = q.get("s") || (states[0] && states[0][0]);
   document.querySelectorAll("[data-state]").forEach((el) => { el.hidden = !el.dataset.state.split(" ").includes(state); });
+  // A dialog shown in this state opens as it would on the page.
+  document.querySelectorAll("dialog[data-modal]:not([hidden])").forEach((d) => d.showModal());
 
   const bar = document.createElement("nav");
   bar.className = "mock-bar";
   bar.setAttribute("aria-label", "Mock-ups");
   const sep = () => { const s = document.createElement("span"); s.className = "sep"; s.textContent = "|"; bar.append(s); };
-  const pages = [["service.html", "Immich's page"], ["import.html", "Bring in photos (Admins)"], ["immich-photos.html", "/immich-photos (everyone)"],
+  const pages = [["service.html", "Immich's page"], ["import.html", "Migrate photos (Admins)"], ["immich-photos.html", "/immich-photos (everyone)"],
     ["signin.html", "Sign-in page"]];
   for (const [href, name] of pages) {
     const a = document.createElement("a");

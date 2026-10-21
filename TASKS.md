@@ -656,9 +656,10 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [x] Research (2026-10-21): what Google Takeout, Apple's export and the other platforms give today; Immich's CLI, immich-go, GPTH and the rest; what Immich's API allows (a key uploads only into its own account)
 - [x] The proposal ([docs/IMMICH-IMPORT.md](docs/IMMICH-IMPORT.md)): the journey, getting the export onto the server, whose account, the checks and summary, what's kept, safety, a first version, new dependencies, questions
 - [x] The Owner's answers (2026-10-21): every recommendation, except that the person always makes and pastes an Immich key; Apple a fast-follow; others than Owners and Admins from the first version, if the Owner allows
-- [x] The Owner's answers on who else may use it (2026-10-21): `/immich-photos`, a page of its own linked from the sign-in page too; everyone who uses Immich by default; the Owner chooses the places others may read from
+- [x] The Owner's answers on who else may use it (2026-10-21): `/immich-photos`, a page of its own linked from the sign-in page too; everyone who uses Immich by default; the Owner chooses where others may read from
 - [x] Mock-ups ([docs/mockups/immich-import](docs/mockups/immich-import/README.md), 2026-10-21): Immich's card with the Owner's choices, the steps for Owners and Admins, `/immich-photos`, the sign-in page's link
-- [ ] The Owner's choices from the mock-ups (their README, "To decide from these"), then build
+- [x] The Owner on the mock-ups (2026-10-21): "Migrate", not "bring in"; additional locations as a list with Add a location (a dialog) and an empty state, not a tickbox; the forms' design throughout. Reworked the same day
+- [ ] The Owner's choices from the reworked mock-ups (their README, "To decide from these"), then build, following docs/DESIGN.md "Forms"
 - [ ] Separately (SPEC §5.2, later): "Sign in with single sign-on" on Roostack's own login page, so the sign-in page's link needs no second sign-in
 - [ ] The first version: Google Takeout and a plain folder, from a drive, share or server folder; tested on VM 1 with a synthetic Takeout (§13)
 - [ ] Straight after: Apple's privacy export (and a Mac's export as a plain folder)
