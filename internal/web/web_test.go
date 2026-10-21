@@ -308,6 +308,52 @@ func TestLoginLogout(t *testing.T) {
 	}
 }
 
+// Logging in comes back to the page someone asked for (?next=), through a
+// two-factor code and choosing their own password, and never goes to
+// another site.
+func TestLoginComesBack(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleAdmin)
+	h.post("/logout", nil, h.srv.URL)
+	ctx := context.Background()
+	hash, _ := authkit.HashPassword("temporary password")
+	h.store.CreateUser(ctx, store.User{Username: "dad", PasswordHash: hash, Role: auth.RoleAdmin, MustChangePassword: true})
+
+	_, body := h.get("/services")
+	if !strings.Contains(body, `<input type="hidden" name="next" value="/services">`) {
+		t.Fatal("the login page should remember the page asked for")
+	}
+	_, body = h.post("/login", url.Values{"username": {"dad"}, "password": {"temporary password"}, "next": {"/services"}}, h.srv.URL)
+	if !strings.Contains(body, "using a temporary password") || !strings.Contains(strings.ToLower(body), `action="/account/password?next=%2fservices"`) {
+		t.Fatal("choosing a password first should carry on to the page asked for")
+	}
+	_, body = h.post("/account/password?next=%2Fservices", url.Values{"current": {"temporary password"},
+		"password": {"my own long password"}, "confirm": {"my own long password"}}, h.srv.URL)
+	if !strings.Contains(body, "<title>Services · Roostack</title>") {
+		t.Error("after choosing a password: not the page asked for")
+	}
+
+	// With a two-factor code.
+	h.post("/logout", nil, h.srv.URL)
+	secret, _ := authkit.NewTOTPSecret()
+	u, _ := h.store.UserByUsername(ctx, "dad")
+	h.store.SetTOTP(ctx, u.ID, secret, 0)
+	h.post("/login", url.Values{"username": {"dad"}, "password": {"my own long password"}, "next": {"/services"}}, h.srv.URL)
+	code, _ := authkit.TOTPCode(secret, nowFunc())
+	if _, body := h.post("/login/totp", url.Values{"code": {code}}, h.srv.URL); !strings.Contains(body, "<title>Services · Roostack</title>") {
+		t.Error("after a two-factor code: not the page asked for")
+	}
+
+	for next, want := range map[string]string{
+		"/immich-photos": "/immich-photos", "/services/immich?x=1#photos": "/services/immich?x=1#photos",
+		"//evil.example/": "/", "https://evil.example/": "/", "/\\evil.example": "/", "services": "/",
+		"/login?next=/x": "/", "/login/totp": "/", "": "/", "/a\nb": "/",
+	} {
+		if got := localNext(next); got != want {
+			t.Errorf("localNext(%q) = %q, want %q", next, got, want)
+		}
+	}
+}
+
 // An unknown username gets the same answer as a wrong password; a broken
 // database is a server error, not a wrong password.
 func TestLoginUnknownUserAndBrokenStore(t *testing.T) {

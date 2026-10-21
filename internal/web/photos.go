@@ -852,7 +852,7 @@ func (s *Server) photoSettingsSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "photos", fmt.Sprintf("%s: who can migrate photos: %s", name,
 		map[bool]string{true: "Owners and Admins", false: "everyone who uses it"}[set.OwnersOnly]))
-	http.Redirect(w, r, "/services/"+url.PathEscape(name)+"#photos", http.StatusSeeOther)
+	http.Redirect(w, r, photosSavedHref(name, "saved"), http.StatusSeeOther)
 }
 
 // photoLocationRemoveSubmit removes one of the Owner's locations.
@@ -871,7 +871,7 @@ func (s *Server) photoLocationRemoveSubmit(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "photos", name+": removed the location "+r.PathValue("location"))
-	http.Redirect(w, r, "/services/"+url.PathEscape(name)+"#photos", http.StatusSeeOther)
+	http.Redirect(w, r, photosSavedHref(name, "removed"), http.StatusSeeOther)
 }
 
 // photoCard is the Migrate photos card and call to action on Immich's
@@ -889,9 +889,21 @@ type photoCard struct {
 	Address          string
 	Error            string
 	CanSettings      bool
+	// Saved says what the Owner just changed (?photos=, photoSaved).
+	Saved string
 	// Host is the server Immich runs on, where locations go; Me is who's
 	// looking.
 	Host, Me string
+}
+
+// photoSaved is what the card says after the Owner changes it: its
+// ?photos= after saving. A query, not only #photos, so that a form in a
+// dialog on the same page (Add a location) reloads it.
+var photoSaved = map[string]string{"saved": "Saved.", "added": "Location added.", "removed": "Location removed."}
+
+// photosSavedHref is a service's page after the Owner changed its card.
+func photosSavedHref(name, what string) string {
+	return "/services/" + url.PathEscape(name) + "?photos=" + what + "#photos"
 }
 
 // photoCardFor is Immich's card, for its page ("" when the service isn't

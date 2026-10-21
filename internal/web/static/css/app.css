@@ -990,6 +990,10 @@ form.confirm { display: inline; }
 dialog.dialog.form-dialog { position: fixed; width: min(34rem, calc(100vw - 2 * var(--space-4))); max-width: none;
   max-height: calc(100dvh - 2 * var(--space-4)); overflow-y: auto; margin: auto; padding: var(--space-5); }
 dialog.form-dialog:not(:modal) { position: static; width: auto; margin: var(--space-4) 0 0; box-shadow: none; }
+/* A wider form, loaded as it opens (data-load): adding a media library or
+   a location, with drive cards; it scrolls inside the dialog. */
+dialog.dialog.form-dialog.wide { width: min(44rem, calc(100vw - 2 * var(--space-4))); max-height: calc(100dvh - 4 * var(--space-4)); overflow: auto; }
+dialog.form-dialog .dialog-body > form.card { box-shadow: none; border: 0; padding: 0; margin: 0; background: none; }
 .dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
 .dialog-head h2 { margin: 0; }
 dialog.form-dialog .dialog-actions { margin-top: var(--space-4); }

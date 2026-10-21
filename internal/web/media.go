@@ -21,6 +21,7 @@ import (
 // they read.
 
 func init() {
+	templateFuncs["dialogFor"] = dialogFor
 	// join lists strings with a separator, e.g. services reading a library.
 	templateFuncs["join"] = strings.Join
 }
@@ -109,6 +110,22 @@ type mediaAddView struct {
 	// its page; PhotosTitle is the Immich's title.
 	PhotosFor, PhotosTitle string
 }
+
+// LookAgain is the form again, after plugging a drive in.
+func (v mediaAddView) LookAgain() string {
+	q := url.Values{"server": {v.Server}}
+	if v.PhotosFor != "" {
+		q.Set("photos", v.PhotosFor)
+	}
+	return mediaAddHref(q)
+}
+
+// addDialog is an empty form dialog a data-load link fills (components.html
+// "add-dialog").
+type addDialog struct{ ID, Title, Back string }
+
+// dialogFor makes an addDialog in a template.
+func dialogFor(id, title, back string) addDialog { return addDialog{id, title, back} }
 
 // mediaAddHref is the add page with a place chosen.
 func mediaAddHref(q url.Values) string { return "/settings/media/add?" + q.Encode() }
@@ -459,7 +476,7 @@ func (s *Server) mediaAddSubmit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.Store.Audit(r.Context(), currentUser(r), "photos", pf+": added the location "+strings.TrimSpace(req.Title))
-		http.Redirect(w, r, "/services/"+url.PathEscape(pf)+"#photos", http.StatusSeeOther)
+		redirect(w, r, photosSavedHref(pf, "added"))
 		return
 	}
 	err := s.Libraries.AddLibrary(r.Context(), req)
@@ -472,7 +489,7 @@ func (s *Server) mediaAddSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "media", "added the media library "+strings.TrimSpace(req.Title))
-	http.Redirect(w, r, "/settings/media", http.StatusSeeOther)
+	redirect(w, r, "/settings/media")
 }
 
 // mediaLibrary finds a library by its server and name.

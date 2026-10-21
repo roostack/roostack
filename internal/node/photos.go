@@ -143,6 +143,10 @@ type PhotoRun struct {
 	// Building: the migration tool's image is being built first.
 	Building bool              `json:"building,omitempty"`
 	Tally    photoimport.Tally `json:"tally"`
+	// LogRead is how much of this pass's log Tally has counted, so that
+	// following the run again after Roostack or the server restarts
+	// doesn't count its lines twice.
+	LogRead int64 `json:"log_read,omitempty"`
 	// Before and After are the account's counts; LibraryBefore and
 	// LibraryAfter the library folder's size, so the summary says what
 	// Immich itself counts.
@@ -817,15 +821,14 @@ func (n *Local) watchPhotos(ctx context.Context, service, who string, log *activ
 		n.pho.mu.Unlock()
 	}()
 	unit := photoUnit(service)
-	var offset int64
 	for {
-		offset = n.readPhotoLog(ctx, service, who, offset)
+		n.readPhotoLog(ctx, service, who)
 		running, code, found, err := n.PhotoUnits.Exited(ctx, unit)
 		switch {
 		case err != nil:
 			n.Log.Warn("reading the photo migration's unit", "unit", unit, "err", err)
 		case !found:
-			n.readPhotoLog(ctx, service, who, offset)
+			n.readPhotoLog(ctx, service, who)
 			if st := n.loadPhotos(ctx, service).People[who]; st != nil && st.Run != nil && st.Run.Stopped {
 				log.Finish(nil) // stopped, and systemd has cleared it already
 				n.endPhotos(ctx, service, who, func(r *PhotoRun) {})
@@ -836,7 +839,7 @@ func (n *Local) watchPhotos(ctx context.Context, service, who string, log *activ
 			n.endPhotos(ctx, service, who, func(r *PhotoRun) { r.Interrupted = true })
 			return
 		case !running:
-			n.readPhotoLog(ctx, service, who, offset)
+			n.readPhotoLog(ctx, service, who)
 			n.PhotoUnits.Forget(ctx, unit)
 			st := n.loadPhotos(ctx, service).People[who]
 			stopped := st != nil && st.Run != nil && st.Run.Stopped
@@ -844,6 +847,10 @@ func (n *Local) watchPhotos(ctx context.Context, service, who string, log *activ
 			case stopped:
 				log.Finish(nil)
 				n.endPhotos(ctx, service, who, func(r *PhotoRun) {})
+			case code == 137: // killed: Podman's 128+9, the limit's OOM kill
+				err := fmt.Errorf("the migration tool ran out of memory (it may use %s on this server). What came is in Immich, and Carry on goes on from there", photoimport.ToolMemoryText)
+				log.Finish(err)
+				n.endPhotos(ctx, service, who, func(r *PhotoRun) { r.Err = err.Error() })
 			case code != 0:
 				err := fmt.Errorf("the migration tool stopped with an error (%d): its log under Details says why", code)
 				log.Finish(err)
@@ -862,33 +869,38 @@ func (n *Local) watchPhotos(ctx context.Context, service, who string, log *activ
 	}
 }
 
-// readPhotoLog adds the log's new lines to the run's tally, from offset;
-// it returns where it got to.
-func (n *Local) readPhotoLog(ctx context.Context, service, who string, offset int64) int64 {
+// readPhotoLog adds the log's new lines to the run's tally, from where
+// it got to (PhotoRun.LogRead).
+func (n *Local) readPhotoLog(ctx context.Context, service, who string) {
 	f, err := os.Open(n.photoLog(service, who))
 	if err != nil {
-		return offset
+		return
 	}
 	defer f.Close()
-	if _, err := f.Seek(offset, io.SeekStart); err != nil {
-		return offset
-	}
-	// Only whole lines: the last may still be being written.
-	b, err := io.ReadAll(io.LimitReader(f, 64<<20))
-	if err != nil {
-		return offset
-	}
-	end := strings.LastIndexByte(string(b), '\n') + 1
-	if end == 0 {
-		return offset
+	if fi, err := f.Stat(); err != nil {
+		return
+	} else if st := n.loadPhotos(ctx, service).People[who]; st == nil || st.Run == nil || fi.Size() <= st.Run.LogRead {
+		return // nothing new
 	}
 	n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
-		if st.Run != nil {
+		if st.Run == nil {
+			return nil
+		}
+		if _, err := f.Seek(st.Run.LogRead, io.SeekStart); err != nil {
+			return nil
+		}
+		// Only whole lines: the last may still be being written.
+		b, err := io.ReadAll(io.LimitReader(f, 64<<20))
+		if err != nil {
+			return nil
+		}
+		end := strings.LastIndexByte(string(b), '\n') + 1
+		if end > 0 {
 			st.Run.Tally.Read(strings.NewReader(string(b[:end])))
+			st.Run.LogRead += int64(end)
 		}
 		return nil
 	})
-	return offset + int64(end)
 }
 
 // endPhotos records a run's end that isn't a finish (stopped, interrupted,

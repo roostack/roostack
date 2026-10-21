@@ -205,3 +205,10 @@
   <button type="button" class="icon-button picker-close">{{icon "close"}}<span class="sr-only">Close</span></button>
   <div class="picker-body"></div>
 </dialog>{{end}}
+
+{{/* add-dialog: an empty form dialog whose body a data-load link fills
+     as it opens (app.js). Its dot is web.dialogFor's. */}}
+{{define "add-dialog"}}<dialog class="dialog form-dialog wide" id="{{.ID}}" aria-labelledby="{{.ID}}-title">
+  <div class="dialog-head"><h2 id="{{.ID}}-title">{{.Title}}</h2><a class="icon-button" href="{{.Back}}" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
+  <div class="dialog-body"></div>
+</dialog>{{end}}

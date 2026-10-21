@@ -10,11 +10,15 @@
   </div>
 </div>
 {{range .Servers}}
+{{/* Adding a library is a form in a dialog (docs/DESIGN.md "Forms"),
+     filled from its own page as it opens: it asks the server about its
+     drives. Without scripts, the button is that page. */}}
+{{if .CanHave}}{{template "add-dialog" (dialogFor (printf "add-library-%s" .ServerID) "Add a media library" "/settings/media")}}{{end}}
 {{if $.Several}}<h2 class="area-heading">On {{.ServerName}}{{if .This}} (this server){{end}}</h2>{{end}}
 {{if .Libraries}}
 <section class="card">
   <div class="card-head"><h2>{{len .Libraries}} {{if eq (len .Libraries) 1}}library{{else}}libraries{{end}}</h2>
-    {{if .CanHave}}<a class="button secondary" href="/settings/media/add?server={{.ServerID}}">Add a library…</a>{{end}}</div>
+    {{if .CanHave}}<a class="button secondary" href="/settings/media/add?server={{.ServerID}}" data-dialog="add-library-{{.ServerID}}" data-load="form.media-add">Add a library…</a>{{end}}</div>
   <div class="table-wrap"><table class="list">
     <thead><tr><th>Library</th><th class="hide-phone">Read by</th><th></th></tr></thead>
     <tbody>
@@ -34,7 +38,7 @@
 <section class="card section">
   {{if .CanHave}}
   <p>No media libraries on {{.ServerName}} yet.{{if $.Several}} Each server has its own: services on other servers can't see these.{{end}}</p>
-  <a class="button secondary" href="/settings/media/add?server={{.ServerID}}">Add a library…</a>
+  <a class="button secondary" href="/settings/media/add?server={{.ServerID}}" data-dialog="add-library-{{.ServerID}}" data-load="form.media-add">Add a library…</a>
   {{else}}
   <p class="hint">{{.ServerName}} can't have media libraries: it isn't answering, or its Roostack is too old.</p>
   {{end}}

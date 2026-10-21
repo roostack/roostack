@@ -5,6 +5,7 @@
   {{with .Expired}}{{notice "info" (printf "You were signed out after %d minutes without activity. Log in again to carry on." .)}}{{end}}
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <form method="post" action="/login">
+    {{with .Next}}{{if ne . "/"}}<input type="hidden" name="next" value="{{.}}">{{end}}{{end}}
     <label>Username
       <input name="username" value="{{.Username}}" autocomplete="username" required autofocus>
     </label>

@@ -40,6 +40,7 @@ type fakePhotoUnits struct {
 	args    []string
 	log     string // written to the run's log file when it starts
 	vanish  bool
+	code    int // its exit status
 	stopped bool
 	polls   int
 }
@@ -62,7 +63,7 @@ func (f *fakePhotoUnits) Exited(context.Context, string) (bool, int, bool, error
 	if f.vanish {
 		return false, 0, false, nil
 	}
-	return f.polls < 2, 0, true, nil
+	return f.polls < 2, f.code, true, nil
 }
 func (f *fakePhotoUnits) Stop(context.Context, ...string) error {
 	f.mu.Lock()
@@ -236,6 +237,11 @@ func TestPhotoMigration(t *testing.T) {
 	if r := st.Run; r.Err != "" || r.Tally.Sent != 2 || r.Tally.Had != 1 || r.Tally.Found != 3 || r.After.Photos != 10 || r.Passes != 1 {
 		t.Errorf("run %+v", r)
 	}
+	// Following it again (as after Roostack restarts) counts its log once.
+	n.readPhotoLog(ctx, "immich", "anna")
+	if r := n.loadPhotos(ctx, "immich").People["anna"].Run; r.Tally.Sent != 2 || r.Tally.Found != 3 {
+		t.Errorf("the log was counted twice: %+v", r.Tally)
+	}
 	args := strings.Join(units.args, " ")
 	for _, want := range []string{"roostack-photos-immich podman run --rm", "--network roostack-immich", "--memory 1g",
 		export + ":/export:ro,rslave", "--secret roostack-photos-immich-anna,type=env,target=IMMICH_GO_UPLOAD_API_KEY",
@@ -290,6 +296,19 @@ func TestPhotoMigration(t *testing.T) {
 	st = waitPhotos(t, n, func(s *PhotoState) bool { return s.Run != nil && !s.Run.Running })
 	if r := st.Run; r.Passes != 2 || r.Earlier != 2 || r.Migrated() != 3 || r.HadBefore() != 0 || r.FirstStarted.IsZero() {
 		t.Errorf("carried on: passes %d, earlier %d, migrated %d, had before %d", r.Passes, r.Earlier, r.Migrated(), r.HadBefore())
+	}
+
+	// Killed for memory (Podman's 137), it says so, and that it carries on.
+	x.SetPhotoKey(ctx, "immich", "anna", "good-key")
+	x.CheckPhotos(ctx, "immich", "anna")
+	waitPhotos(t, n, func(s *PhotoState) bool { return !s.Checking })
+	units.code, units.polls = 137, 0
+	if err := x.StartPhotos(ctx, "immich", "anna"); err != nil {
+		t.Fatal(err)
+	}
+	st = waitPhotos(t, n, func(s *PhotoState) bool { return s.Run != nil && !s.Run.Running })
+	if !strings.Contains(st.Run.Err, "ran out of memory (it may use 1 GB") || !strings.Contains(st.Run.Err, "Carry on") {
+		t.Errorf("out of memory: %q", st.Run.Err)
 	}
 
 	// Forgetting it unmounts and forgets the key.

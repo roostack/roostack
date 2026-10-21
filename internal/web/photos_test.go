@@ -274,12 +274,16 @@ func TestPhotoCard(t *testing.T) {
 	_, body := h.get("/services/immich")
 	for _, want := range []string{"Moving from Google Photos or iCloud?", `href="/services/immich/photos">Migrate photos…`, `id="photos"`,
 		"Who can migrate photos", "You haven't defined any additional locations that people can migrate photos from.",
-		`href="/settings/media/add?server=nuc&amp;photos=immich">Add a location`, "/immich-photos"} {
+		`href="/settings/media/add?server=nuc&amp;photos=immich" data-dialog="add-location-immich" data-load="form.media-add">Add a location`,
+		`<dialog class="dialog form-dialog wide" id="add-location-immich"`, "/immich-photos"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Immich's page lacks %q", want)
 		}
 	}
-	h.post("/services/immich/photos/settings", url.Values{"who": {"everyone"}, "drives": {"on"}}, h.srv.URL)
+	_, body = h.post("/services/immich/photos/settings", url.Values{"who": {"everyone"}, "drives": {"on"}}, h.srv.URL)
+	if !strings.Contains(body, "Saved.") {
+		t.Error("saving the card doesn't say so")
+	}
 	if f.settings.OwnersOnly || f.settings.NoDrives || !f.settings.NoShares {
 		t.Errorf("settings %+v", f.settings)
 	}
@@ -288,8 +292,8 @@ func TestPhotoCard(t *testing.T) {
 	if !strings.Contains(body, "Family NAS › Takeouts") || strings.Contains(body, "You haven't defined") {
 		t.Error("a location isn't listed")
 	}
-	h.post("/services/immich/photos/locations/takeouts/remove", url.Values{}, h.srv.URL)
-	if len(f.locations) != 0 {
+	_, body = h.post("/services/immich/photos/locations/takeouts/remove", url.Values{}, h.srv.URL)
+	if len(f.locations) != 0 || !strings.Contains(body, "Location removed.") {
 		t.Error("the location wasn't removed")
 	}
 	// A migration running shows at the top, instead of the call to action.

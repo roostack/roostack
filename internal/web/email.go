@@ -198,7 +198,8 @@ func (s *Server) renderNotifications(w http.ResponseWriter, r *http.Request, ext
 		ready = m.Configured()
 	}
 	data := map[string]any{"User": u, "Groups": groupsFor(u.Role), "Chosen": userGroups(u), "MailReady": ready,
-		"Owner": auth.Can(u.Role, auth.ManageHost), "NeedEmail": ownerNeedsEmail(u)}
+		"Owner": auth.Can(u.Role, auth.ManageHost), "NeedEmail": ownerNeedsEmail(u),
+		"Action": withQuery("/account/notifications", nextQuery(r))}
 	for k, v := range extra {
 		data[k] = v
 	}
@@ -248,7 +249,7 @@ func (s *Server) notificationsSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ownerNeedsEmail(u) { // asked for it before anything else: carry on
-		redirect(w, r, "/")
+		redirect(w, r, nextOf(r))
 		return
 	}
 	redirect(w, r, "/account/notifications?saved=1")

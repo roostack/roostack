@@ -218,3 +218,17 @@ func TestTally(t *testing.T) {
 		t.Errorf("unreadable = %+v (Takeout's own JSON files aren't photos)", tl.Unreadable)
 	}
 }
+
+// A log line reads as the server's time of day, what happened and its
+// details, never a key.
+func TestReadable(t *testing.T) {
+	defer func(l *time.Location) { time.Local = l }(time.Local)
+	time.Local = time.FixedZone("AEDT", 11*3600)
+	got := Readable(`{"time":"2026-10-21T09:31:19.5Z","level":"WARN","msg":"uploaded","file":"IMG_1.jpg","api-key":"…4f2a"}`)
+	if got != "20:31:19 WARN uploaded file=IMG_1.jpg" {
+		t.Errorf("Readable = %q", got)
+	}
+	if got := Readable("not json"); got != "not json" {
+		t.Errorf("not JSON: %q", got)
+	}
+}

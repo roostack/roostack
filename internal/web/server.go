@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -510,7 +511,8 @@ func (s *Server) updates(r *http.Request) HostUpdates {
 type pendingLogin struct {
 	userID   int64
 	expires  time.Time
-	remember bool // "keep me signed in" was ticked
+	remember bool   // "keep me signed in" was ticked
+	next     string // the page to go to afterwards (localNext)
 }
 
 // NewServer prepares templates. setupToken is empty if users already exist.
@@ -850,15 +852,68 @@ func (s *Server) requireLogin(h http.HandlerFunc) http.Handler {
 			return
 		}
 		if currentUser(r) == nil {
+			q := url.Values{}
 			if sessionOf(r).Expired {
-				redirect(w, r, "/login?expired=1")
-			} else {
-				redirect(w, r, "/login")
+				q.Set("expired", "1")
 			}
+			if next := pageOf(r); next != "/" {
+				q.Set("next", next)
+			}
+			redirect(w, r, withQuery("/login", q))
 			return
 		}
 		h(w, r)
 	})
+}
+
+// pageOf is the page r asked for, to come back to after logging in or a
+// step Roostack asks for first (a new password, two-factor): its path and
+// query, or for an htmx request the page it came from. "/" for anything
+// else (a form sent, another site).
+func pageOf(r *http.Request) string {
+	if r.Method != http.MethodGet {
+		return "/"
+	}
+	if r.Header.Get("HX-Request") == "true" {
+		u, err := url.Parse(r.Header.Get("HX-Current-URL"))
+		if err != nil || u.Host != r.Host {
+			return "/"
+		}
+		return localNext(u.RequestURI())
+	}
+	return localNext(r.URL.RequestURI())
+}
+
+// localNext is where to go after logging in: a page of Roostack's own
+// (a path on this address, never another site's, nor logging in again),
+// or "/".
+func localNext(next string) string {
+	u, err := url.Parse(next)
+	if err != nil || !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") ||
+		strings.ContainsAny(next, "\\\r\n") || u.Host != "" || u.Path == "/login" || strings.HasPrefix(u.Path, "/login/") {
+		return "/"
+	}
+	return next
+}
+
+// nextOf is the page to go on to from r's ?next=, or "/".
+func nextOf(r *http.Request) string { return localNext(r.URL.Query().Get("next")) }
+
+// firstThen is path, coming back to r's page afterwards (?next=).
+func firstThen(path string, r *http.Request) string {
+	next := pageOf(r)
+	if u, _ := url.Parse(next); next == "/" || u.Path == path {
+		return path
+	}
+	return withQuery(path, url.Values{"next": {next}})
+}
+
+// withQuery is path with q, if any.
+func withQuery(path string, q url.Values) string {
+	if len(q) == 0 {
+		return path
+	}
+	return path + "?" + q.Encode()
 }
 
 // require checks the user is logged in and has a permission. Those who
@@ -868,15 +923,15 @@ func (s *Server) require(p auth.Permission, h http.HandlerFunc) http.Handler {
 	return s.requireLogin(func(w http.ResponseWriter, r *http.Request) {
 		u := currentUser(r)
 		if u.TOTPSecret == "" && s.twoFactorRequired(u) {
-			redirect(w, r, s.twoFactorPath(r, u))
+			redirect(w, r, firstThen(s.twoFactorPath(r, u), r))
 			return
 		}
 		if u.MustChangePassword {
-			redirect(w, r, "/account")
+			redirect(w, r, firstThen("/account", r))
 			return
 		}
 		if ownerNeedsEmail(u) {
-			redirect(w, r, "/account/notifications")
+			redirect(w, r, firstThen("/account/notifications", r))
 			return
 		}
 		// Owners finish the setup wizard next.

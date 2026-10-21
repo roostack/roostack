@@ -907,8 +907,10 @@
      photos from…, and the Owner's choices (one form, one Save; locations
      added in a page of their own and removed at once). */}}
 {{define "photos-card"}}
+{{if .CanSettings}}{{template "add-dialog" (dialogFor (printf "add-location-%s" .Name) "Add a location" (printf "/services/%s#photos" .Name))}}{{end}}
 <section class="card" id="photos">
   <div class="card-head"><h2>Migrate photos</h2></div>
+  {{with .Saved}}{{notice "ok" .}}{{end}}
   <p>Migrate photos and videos from Google Photos or a folder (Apple iCloud next) into {{.Title}}, with their dates, places and albums.</p>
   {{with .Error}}<p class="hint">{{.}}</p>{{end}}
   {{if .List}}
@@ -941,7 +943,7 @@
             <button type="submit" class="secondary small" formaction="/services/{{$.Name}}/photos/locations/{{.Name}}/remove" formnovalidate>Remove</button></div>{{end}}
         </div>{{else}}
         <p class="locations-empty">You haven't defined any additional locations that people can migrate photos from. Press <strong>Add a location</strong> below to add one.</p>{{end}}
-        <p><a class="button secondary" href="/settings/media/add?server={{.Host}}&amp;photos={{.Name}}">Add a location</a></p>
+        <p><a class="button secondary" href="/settings/media/add?server={{.Host}}&amp;photos={{.Name}}" data-dialog="add-location-{{.Name}}" data-load="form.media-add">Add a location</a></p>
         <hr class="form-rule">
         <h2 class="form-section">Send them here</h2>
         {{copyBox .Address}}

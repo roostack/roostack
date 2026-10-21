@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"html"
+	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -108,7 +109,8 @@ func TestMediaPage(t *testing.T) {
 	h.server.Libraries = newFakeLibraries()
 	_, body := h.get("/settings/media")
 	for _, want := range []string{"Media libraries", "Films", "The drive MEDIA › Films", "Connected", "read as its owner, sam", "Plex",
-		`href="/settings/media/n-1/films"`, `href="/settings/media/add?server=n-1"`} {
+		`href="/settings/media/n-1/films"`, `href="/settings/media/add?server=n-1" data-dialog="add-library-n-1" data-load="form.media-add"`,
+		`<dialog class="dialog form-dialog wide" id="add-library-n-1"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the list lacks %q", want)
 		}
@@ -198,6 +200,30 @@ func TestMediaAdd(t *testing.T) {
 	if _, body := h.post("/settings/media/add", form, h.srv.URL); !strings.Contains(body, "Give the library a name") ||
 		!strings.Contains(body, "MEDIA › Films") {
 		t.Errorf("a form error comes back on the page, with the folder chosen:\n%s", body)
+	}
+
+	// From the dialog (htmx), a mistake comes back as the form, and once
+	// it's added, the browser goes to the list.
+	htmx := func(form url.Values) (*http.Response, string) {
+		req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/settings/media/add", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Origin", h.srv.URL)
+		req.Header.Set("HX-Request", "true")
+		resp, err := h.client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return resp, string(b)
+	}
+	if resp, body := htmx(form); resp.Header.Get("HX-Redirect") != "" || !strings.Contains(body, "Give the library a name") ||
+		!strings.Contains(body, `hx-post="/settings/media/add" hx-target="this" hx-select="form.media-add" hx-swap="outerHTML ignoreTitle:true"`) {
+		t.Errorf("a mistake in the dialog: %s", resp.Header.Get("HX-Redirect"))
+	}
+	form.Set("title", "Films")
+	if resp, _ := htmx(form); resp.Header.Get("HX-Redirect") != "/settings/media" {
+		t.Errorf("added from the dialog: HX-Redirect %q", resp.Header.Get("HX-Redirect"))
 	}
 }
 

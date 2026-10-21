@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	"roostack.cloud/roostack/internal/pkgspec"
 )
@@ -28,6 +29,8 @@ const (
 	ToolImage    = "localhost/roostack-immich-go:" + ToolVersion
 	ToolBuildDir = "/usr/share/roostack/immich-go"
 	ToolMemory   = "1g"
+	// ToolMemoryText is ToolMemory for people.
+	ToolMemoryText = "1 GB"
 )
 
 // Permissions are what a key needs (immich-go's docs/installation.md at
@@ -154,9 +157,13 @@ func Readable(line string) string {
 	if json.Unmarshal([]byte(line), &l) != nil {
 		return line
 	}
+	// The time of day, on the server's clock like the rest of the page
+	// (immich-go's container is on UTC).
 	at, _ := l["time"].(string)
-	if len(at) >= 19 {
-		at = at[11:19] // the time of day
+	if t, err := time.Parse(time.RFC3339Nano, at); err == nil {
+		at = t.Local().Format("15:04:05")
+	} else if len(at) >= 19 {
+		at = at[11:19]
 	}
 	msg, _ := l["msg"].(string)
 	var b strings.Builder
