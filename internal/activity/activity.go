@@ -48,6 +48,9 @@ const (
 	// LibraryRestart is restarting a service whose library, bound at a
 	// path of its own, came back (SPEC.md §8.4).
 	LibraryRestart = "library-restart"
+	// Photos is migrating photos into Immich (SPEC.md §8.5): one log per
+	// service and person (PhotosFor).
+	Photos = "photos"
 )
 
 // BackupSetupFor is the BackupSetup log of one server: the controller
@@ -56,6 +59,9 @@ func BackupSetupFor(serverID string) string { return BackupSetup + "." + serverI
 
 // ImportFor is the Import log of one service.
 func ImportFor(service string) string { return Import + "." + service }
+
+// PhotosFor is the Photos log of one person's migration into a service.
+func PhotosFor(service, who string) string { return Photos + "." + service + "." + who }
 
 // ImportRunFor is the ImportRun log of one service.
 func ImportRunFor(service string) string { return ImportRun + "." + service }

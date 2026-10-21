@@ -145,6 +145,9 @@ type Server struct {
 	Manager ServiceManager
 	// Libraries are the media libraries (media.go); nil: none.
 	Libraries LibraryManager
+	// Photos migrates photos into Immich (photos.go, SPEC.md §8.5); nil:
+	// none.
+	Photos PhotoMigrations
 	// Monitor runs monitoring's checks (monitor.go, SPEC.md §6.15); nil:
 	// none (a server that isn't the controller). AutoChecks are the
 	// manager's (services and servers). StatusPage switches the public
@@ -528,7 +531,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		"settings-domain", "settings-network", "settings-email", "settings-history", "settings-history-event", "settings-updates", "settings-servers", "move", "settings-storage", "settings-lab",
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
 		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check",
-		"import", "import-folders"} {
+		"import", "import-folders", "photos", "photos-home", "photos-folders"} {
 		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
@@ -585,6 +588,18 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /services/{name}", s.require(auth.ManageServices, s.servicePage))
 	mux.Handle("GET /services/{name}/settings", s.require(auth.ManageServices, s.serviceSettingsPage))
 	// Bringing a service's data in (SPEC.md §8.4): the Owner only.
+	// Migrating photos into Immich (SPEC.md §8.5): the steps on Immich's
+	// page for Owners and Admins, and in a page of their own for everyone
+	// the Owner allows (photos.go checks who).
+	mux.Handle("GET /immich-photos", s.require(auth.ViewDashboard, s.photosHome))
+	mux.Handle("GET /immich-photos/{name}", s.require(auth.ViewDashboard, s.photosOwnPage))
+	mux.Handle("GET /immich-photos/{name}/folders", s.require(auth.ViewDashboard, func(w http.ResponseWriter, r *http.Request) {
+		s.photoFoldersPage(w, r, false)
+	}))
+	mux.Handle("GET /services/{name}/photos", s.require(auth.ManageServices, s.photosPanelPage))
+	mux.Handle("GET /services/{name}/photos/folders", s.require(auth.ManageServices, func(w http.ResponseWriter, r *http.Request) {
+		s.photoFoldersPage(w, r, true)
+	}))
 	mux.Handle("GET /services/{name}/import", s.requireOwner(s.importPage))
 	mux.Handle("GET /services/{name}/import/folders", s.requireOwner(s.importFoldersPage))
 	mux.Handle("GET /services/{name}/import/browse", s.requireOwner(s.importBrowsePage))
@@ -761,6 +776,18 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("GET /install/{name}/icon.png", s.require(auth.ManageServices, s.packageIcon))
 	mux.Handle("POST /services/{name}/ports/{port}", s.require(auth.ManageServices, s.portSubmit))
 	mux.Handle("POST /services/{name}/settings", s.require(auth.ManageServices, s.settingsSubmit))
+	mux.Handle("POST /immich-photos/{name}/from", s.require(auth.ViewDashboard, s.photoKindSubmit))
+	mux.Handle("POST /immich-photos/{name}/export", s.require(auth.ViewDashboard, s.photoGuidedSubmit))
+	mux.Handle("POST /immich-photos/{name}/where", s.require(auth.ViewDashboard, s.photoSourceSubmit))
+	mux.Handle("POST /immich-photos/{name}/key", s.require(auth.ViewDashboard, s.photoKeySubmit))
+	mux.Handle("POST /immich-photos/{name}/choices", s.require(auth.ViewDashboard, s.photoChoicesSubmit))
+	mux.Handle("POST /immich-photos/{name}/check", s.require(auth.ViewDashboard, s.photoCheckSubmit))
+	mux.Handle("POST /immich-photos/{name}/start", s.require(auth.ViewDashboard, s.photoStartSubmit))
+	mux.Handle("POST /immich-photos/{name}/stop", s.require(auth.ViewDashboard, s.photoStopSubmit))
+	mux.Handle("POST /immich-photos/{name}/forget", s.require(auth.ViewDashboard, s.photoForgetSubmit))
+	mux.Handle("POST /services/{name}/photos/settings", s.requireOwner(s.photoSettingsSubmit))
+	mux.Handle("POST /services/{name}/photos/hide", s.require(auth.ManageServices, s.photoHideSubmit))
+	mux.Handle("POST /services/{name}/photos/locations/{location}/remove", s.requireOwner(s.photoLocationRemoveSubmit))
 	mux.Handle("POST /services/{name}/import/source", s.requireOwner(s.importSourceSubmit))
 	mux.Handle("POST /services/{name}/import/setup", s.requireOwner(s.importSetupSubmit))
 	mux.Handle("POST /services/{name}/import/paths", s.requireOwner(s.importPathsSubmit))
@@ -996,6 +1023,12 @@ func (s *Server) render(w http.ResponseWriter, page string, data map[string]any)
 	if u, ok := data["User"].(*store.User); ok && u != nil {
 		n := navFor(u, page)
 		n.Monitoring = s.Monitor != nil
+		// A page shared by two places says which it's in now (adding a
+		// location for migrating photos is the media library form, under
+		// Services).
+		if tab, ok := data["NavActive"].(string); ok {
+			n.Active = tab
+		}
 		data["Nav"] = n
 		// Every page's footer shows Roostack's version.
 		if _, set := data["Version"]; !set {

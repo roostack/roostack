@@ -228,6 +228,30 @@ func TestLibraryAPI(t *testing.T) {
 	if err := c.UnmountImport(t.Context(), "immich"); err != nil || host.unmounted != "import immich" {
 		t.Errorf("import unmounted %q %v", host.unmounted, err)
 	}
+	// A person's export for migrating photos (SPEC.md §8.5).
+	if path, err := c.MountPhotos(t.Context(), "immich", "anna.s", Library{Drive: "1111-2222", Sub: "Takeout"}); err != nil ||
+		path != "/mnt/roostack-import/immich.photos.anna.s" || host.library.Sub != "Takeout" {
+		t.Errorf("photos mounted at %q: %+v %v", path, host.library, err)
+	}
+	if err := c.UnmountPhotos(t.Context(), "immich", "anna.s"); err != nil || host.unmounted != "photos immich anna.s" {
+		t.Errorf("photos unmounted %q %v", host.unmounted, err)
+	}
+}
+
+// A person's export is only ever mounted at their own spot: a service or
+// account name that isn't one is refused before anything is touched.
+func TestPhotoNames(t *testing.T) {
+	for _, c := range []struct{ service, who string }{{"immich", "../etc"}, {"Immich", "anna"}, {"immich", ""}, {"immich/x", "anna"}, {"immich", ".anna"}} {
+		if err := checkPhotoNames(c.service, c.who); err == nil {
+			t.Errorf("%q %q should be refused", c.service, c.who)
+		}
+	}
+	if err := checkPhotoNames("immich", "anna.s_1-x"); err != nil {
+		t.Error(err)
+	}
+	if got := photoSpot("immich", "anna").target; got != "/mnt/roostack-import/immich.photos.anna" {
+		t.Errorf("spot %q", got)
+	}
 }
 
 // A share is checked before anything is mounted: a server's name or

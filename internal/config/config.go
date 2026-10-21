@@ -131,6 +131,10 @@ func (p Paths) BackupStoreDir() string { return filepath.Join(filepath.Dir(p.Med
 // the sign-in page's logo. Under the state folder, so they're backed up.
 func (p Paths) SSODir() string { return filepath.Join(p.StateDir, "sso") }
 
+// PhotosDir holds a folder per service photos are being migrated into
+// (SPEC.md §8.5): immich-go's log of each run, which Roostack reads.
+func (p Paths) PhotosDir() string { return filepath.Join(p.StateDir, "photos") }
+
 // SigningKeyFile is the key ID tokens are signed with (0600).
 func (p Paths) SigningKeyFile() string { return filepath.Join(p.SSODir(), "signing-key.pem") }
 

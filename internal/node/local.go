@@ -165,7 +165,13 @@ type Local struct {
 	// ImportAgent mounts the person's copy of a service's data, to bring
 	// it in (import.go; optional: without it, data can't be brought).
 	ImportAgent ImportAgent
-	Version     string
+	// PhotoAgent mounts a person's export, and PhotoUnits runs immich-go,
+	// to migrate photos into Immich (photos.go; optional: without both,
+	// photos can't be migrated). OnPhotos hears when a migration ends.
+	PhotoAgent PhotoAgent
+	PhotoUnits PhotoUnits
+	OnPhotos   func(ctx context.Context, s PhotoSummary)
+	Version    string
 
 	sizes sizes
 
@@ -233,6 +239,8 @@ type Local struct {
 	libWatch libraryWatch
 	// imp is bringing data into services (import.go).
 	imp imports
+	// pho is migrating photos into Immich (photos.go).
+	pho photos
 }
 
 // Identity is this server's identity.

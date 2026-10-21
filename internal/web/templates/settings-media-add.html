@@ -1,10 +1,14 @@
-{{define "title"}}Add a media library{{end}}
-{{define "crumbs"}}<a href="/settings">Settings</a><a href="/settings/media">Media libraries</a><strong aria-current="page">Add a library</strong>{{end}}
-{{define "page-help"}}{{help "servers/media-libraries" "Media libraries"}}{{end}}
+{{define "title"}}{{if .Add.PhotosFor}}Add a location{{else}}Add a media library{{end}}{{end}}
+{{define "crumbs"}}{{if .Add.PhotosFor}}<a href="/services">Services</a><a href="/services/{{.Add.PhotosFor}}#photos">{{.Add.PhotosTitle}}</a><strong aria-current="page">Add a location</strong>
+{{- else}}<a href="/settings">Settings</a><a href="/settings/media">Media libraries</a><strong aria-current="page">Add a library</strong>{{end}}{{end}}
+{{define "page-help"}}{{if .Add.PhotosFor}}{{help "services/immich-migrate" "Migrating photos into Immich"}}{{else}}{{help "servers/media-libraries" "Media libraries"}}{{end}}{{end}}
 {{define "content"}}
 {{with .Add}}
-<div class="page-head"><div><h1>Add a media library</h1>
-  <p class="lede">On {{.ServerName}}. Services you choose can read it but never change it, and it isn't backed up.</p></div></div>
+{{if .PhotosFor}}<div class="page-head"><div><h1>Add a location</h1>
+  <p class="lede">A folder people can migrate photos into {{.PhotosTitle}} from, on {{.ServerName}}. Everyone who can migrate photos
+    sees what's in it, so a folder per person keeps them apart. Roostack only reads it, and no service does.</p></div></div>
+{{else}}<div class="page-head"><div><h1>Add a media library</h1>
+  <p class="lede">On {{.ServerName}}. Services you choose can read it but never change it, and it isn't backed up.</p></div></div>{{end}}
 {{/* One form (SPEC.md §8.1): where it is, chosen with the segmented
      control (each choice's fields show by CSS, so it works without
      scripts; the server uses only the chosen one's), then its name and the
@@ -17,6 +21,7 @@
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   <h2>Where is it?</h2>
   <input type="hidden" name="server" value="{{.Server}}">
+  {{with .PhotosFor}}<input type="hidden" name="photos" value="{{.}}">{{end}}
   <div class="seg-group">
     {{segmented "where" "Where it is" .Where (choice "drive" "Drive" "disk") (choice "folder" (printf "Folder on %s" .ServerName) "server") (choice "share" "Network share" "network")}}
 
@@ -77,9 +82,14 @@
   </div>
 
   <hr class="form-rule">
+  {{if .PhotosFor}}
+  <label>Its name, for people <input class="name-input" name="title" value="{{.Title}}" maxlength="60" placeholder="Family NAS › Takeouts" required x-model="title" x-on:input="edited = true">
+    <small>What people see when they choose where their photos are.</small></label>
+  {{else}}
   <label>Name <input class="name-input" name="title" value="{{.Title}}" maxlength="60" placeholder="Films" required x-model="title" x-on:input="edited = true">
     <small>What it's called on your pages, and its folder's name inside services, in lower case.</small></label>
-  {{if .Readers}}
+  {{end}}
+  {{if .PhotosFor}}{{else if .Readers}}
   <fieldset><legend>Services that can read it</legend>
     <div class="check-row">
       {{range .Readers}}<label class="check"><input type="checkbox" name="service" value="{{.Name}}"{{if .Checked}} checked{{end}}><span>{{.Title}}</span></label>{{end}}
@@ -87,7 +97,7 @@
   </fieldset>
   {{else}}<p class="hint">No service on {{.ServerName}} reads media libraries yet: the ones you install choose theirs.</p>{{end}}
   {{/* The button says what happens: a share is checked first. */}}
-  <button type="submit"><span x-show="where !== 'share'">Add library</span><span x-show="where === 'share'" x-cloak>Check and add the share</span></button>
+  <button type="submit"><span x-show="where !== 'share'">{{if .PhotosFor}}Add location{{else}}Add library{{end}}</span><span x-show="where === 'share'" x-cloak>Check and add the share</span></button>
   <p class="hint" x-show="where === 'share'" x-cloak>Roostack mounts a share read-only for a moment to check it first; nothing is saved if that fails.</p>
   {{pickerDialog "folder-picker-dialog" "#place-drive"}}
   {{pickerDialog "server-picker-dialog" "#place-folder"}}

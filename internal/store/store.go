@@ -350,6 +350,10 @@ var migrations = []string{
 	// When someone last typed their password for a session (OIDC's
 	// auth_time, SPEC.md §5.2): apps can ask for a recent sign-in.
 	`ALTER TABLE sessions ADD COLUMN signed_in_at INTEGER NOT NULL DEFAULT 0;`,
+	// A media library kept for migrating photos into one Immich (SPEC.md
+	// §8.5, "Additional locations"): its service's name; no service reads
+	// it. Empty for the libraries services read.
+	`ALTER TABLE media_libraries ADD COLUMN photos_for TEXT NOT NULL DEFAULT '';`,
 }
 
 // OriginSetup marks sessions signed in on the setup pages on the home

@@ -48,8 +48,12 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		Libraries: agentClient,
 		// Bringing a service's data in (SPEC.md §8.4).
 		ImportAgent: agentClient,
-		Version:     version,
-		Lab:         lab,
+		// Migrating photos into Immich (SPEC.md §8.5): the export mounted
+		// by the agent, immich-go run in a unit that outlives Roostack.
+		PhotoAgent: agentClient,
+		PhotoUnits: sd,
+		Version:    version,
+		Lab:        lab,
 		Reconciler: &reconcile.Reconciler{Paths: lab.Paths, Systemd: sd, Secrets: podman.NewSecrets(),
 			// New containers' images are downloaded as their own step, with
 			// podman's output in the apply's log (SPEC.md §6.3.3).

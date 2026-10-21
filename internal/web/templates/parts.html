@@ -73,7 +73,8 @@
       <td><div class="list-name">{{logo .IconURL .DrawnIcon}}<div>{{if $.CanManage}}<a href="/services/{{.Name}}">{{.Title}}</a>{{else}}{{.Title}}{{end}} {{template "tier-badge" .}}
         <small>{{if .Install}}{{template "install-line" .}}
           {{- else if eq .Status "waiting"}}Its server, {{or .WasOn "a server that's gone"}}, is gone
-          {{- else if and .Package (ne .Package .Name)}}{{.Package}}{{end}}</small></div></div></td>
+          {{- else if and .Package (ne .Package .Name)}}{{.Package}}{{end}}</small>
+        {{- if not $.CanManage}}{{with $.Migratable}}{{if index . $svc.Name}}<small><a href="/immich-photos/{{$svc.Name}}">Migrate your photos into it</a></small>{{end}}{{end}}{{end}}</div></div></td>
       <td>{{status .Status}}{{if and .Update $.CanManage (ne .Status "updating")}} <a href="/services/{{.Name}}#update">{{badge "Update" "highlight"}}</a>{{end}}</td>
       <td class="hide-phone wrap">{{if .Install}}{{range .URLs}}<span class="address-pending">{{trimScheme .}}</span>{{end}}
         {{- else if .NoAddress}}{{template "address-waiting" $}}
@@ -866,4 +867,90 @@
 {{range .}}{{if eq .Kind "checkbox"}}<label class="check"><input type="checkbox" class="switch" role="switch" name="{{.Key}}" {{if .Checked}}checked{{end}}>
   <span>{{.Title}}{{with .Description}}<small>{{.}}</small>{{end}}</span></label>
 {{end}}{{end}}
+{{end}}
+
+{{/* photos-cta: the call to action at the top of Immich's page (SPEC.md
+     §8.5): before anyone has migrated photos, a slim card saying what it
+     does; while a migration runs, its progress; when one stopped, Carry
+     on. Its dot is a web.photoCard. */}}
+{{define "photos-cta"}}
+{{if .Running}}{{with .Running}}
+<section class="card cta" aria-label="Migrating photos">
+  <span class="cta-icon">{{icon "import"}}</span>
+  <div class="cta-text"><h2>{{.Who}} is migrating photos{{with .Kind}} from {{if eq . "google"}}Google{{else}}a folder{{end}}{{end}}</h2>
+    {{with .Run}}{{if .Tally.Found}}<div class="progress"><div class="meter"><span data-width="{{runPercent .}}"></span></div>
+      <p>{{count .Tally.Done}} of {{count .Tally.Found}}{{with runTimeLeft .}} · <strong>about {{.}} left</strong>{{end}}</p></div>
+      {{else}}<p>{{if .Building}}Getting the migration tool ready…{{else}}Starting…{{end}}</p>{{end}}{{end}}</div>
+  <div class="cta-actions"><a class="button secondary" href="/services/{{$.Name}}/photos{{if ne .Who $.Me}}?who={{.Who}}{{end}}">Watch</a></div>
+</section>
+{{end}}{{else if .Stopped}}{{with .Stopped}}
+<section class="card cta cta-warn" aria-label="Migrating photos">
+  <span class="cta-icon">{{icon "warn"}}</span>
+  <div class="cta-text"><h2>{{.Who}}'s migration stopped</h2>
+    <p>{{with .Run}}{{if .Interrupted}}When the server restarted{{else if .Err}}With an error{{else}}It was stopped{{end}}, {{when .Finished}}. {{count (add .Migrated .HadBefore)}} are in Immich;
+      carrying on skips them, so nothing comes twice.{{end}}</p></div>
+  <div class="cta-actions"><form method="post" action="/immich-photos/{{$.Name}}/start"><input type="hidden" name="panel" value="1">
+    <input type="hidden" name="who" value="{{.Who}}"><button type="submit">Carry on</button></form></div>
+</section>
+{{end}}{{else if not .Hidden}}
+<section class="card cta" aria-label="Migrating photos">
+  <span class="cta-icon">{{icon "import"}}</span>
+  <div class="cta-text"><h2>Moving from Google Photos or iCloud?</h2>
+    <p>Migrate your photos and videos into {{.Title}}, with their dates, places and albums. Roostack walks you through it.</p></div>
+  <div class="cta-actions"><a class="button" href="/services/{{.Name}}/photos">Migrate photos…</a>
+    <form method="post" action="/services/{{.Name}}/photos/hide"><button type="submit" class="quiet">Hide</button></form></div>
+</section>
+{{end}}
+{{end}}
+
+{{/* photos-card: Immich's Migrate photos card: the migrations, Migrate
+     photos from…, and the Owner's choices (one form, one Save; locations
+     added in a page of their own and removed at once). */}}
+{{define "photos-card"}}
+<section class="card" id="photos">
+  <div class="card-head"><h2>Migrate photos</h2></div>
+  <p>Migrate photos and videos from Google Photos or a folder (Apple iCloud next) into {{.Title}}, with their dates, places and albums.</p>
+  {{with .Error}}<p class="hint">{{.}}</p>{{end}}
+  {{if .List}}
+  <div class="table-wrap"><table class="list stack-phone">
+    <thead><tr><th>Whose</th><th>From</th><th>When</th><th>Result</th></tr></thead>
+    <tbody>{{range .List}}<tr><td>{{.Who}}{{with .Account}} <small class="hint">{{.}}</small>{{end}}</td><td class="wrap">{{kindTitle .Kind}}{{with .Source}}<br><small class="hint">{{.}}</small>{{end}}</td>
+      <td>{{if .Run}}{{when .Run.Started}}{{else}}{{when .Updated}}{{end}}</td>
+      <td>{{migrationResult .}}</td></tr>{{end}}</tbody>
+  </table></div>
+  {{end}}
+  <div class="actions-row"><a class="button" href="/services/{{.Name}}/photos">Migrate photos from…</a></div>
+  {{if .CanSettings}}
+  <hr class="form-rule">
+  <form method="post" action="/services/{{.Name}}/photos/settings">
+    <h2 class="form-section">Who can migrate photos</h2>
+    <div class="seg-group">
+      {{segmented "who" "Who can migrate photos" (or (and .Settings.OwnersOnly "admins") "everyone") (choice "everyone" "Everyone who uses Immich" "users") (choice "admins" "Owners and Admins")}}
+      <div class="seg-panel" data-seg="1">
+        <p class="hint seg-hint">Into their own Immich account, with a key they make there, from their own page. You're emailed when one starts and ends.</p>
+        <hr class="form-rule">
+        <h2 class="form-section">Where they can migrate photos from</h2>
+        <label class="check"><input type="checkbox" class="switch" role="switch" name="drives"{{if not .Settings.NoDrives}} checked{{end}}><span>USB drives they plug into the server<small>Never your backups' drive, the system disk, or a drive with a media library.</small></span></label>
+        <label class="check"><input type="checkbox" class="switch" role="switch" name="shares"{{if not .Settings.NoShares}} checked{{end}}><span>Network shares, with their own login</span></label>
+        <hr class="form-rule">
+        <h2 class="form-section">Additional locations</h2>
+        <p class="hint">Folders you set up for people to migrate from: on a drive, on the server, or on a share with your login. Everyone who can migrate photos sees what's in them, so a folder per person keeps them apart.</p>
+        {{if .Locations}}<div class="locations">{{range .Locations}}
+          <div class="folder-choice location">{{if .ShareType}}{{icon "network"}}{{else if .Drive}}{{icon "disk"}}{{else}}{{icon "folder"}}{{end}}
+            <span class="path"><strong>{{.Title}}</strong><small>{{libraryWhereText .}}</small></span>
+            <button type="submit" class="secondary small" formaction="/services/{{$.Name}}/photos/locations/{{.Name}}/remove" formnovalidate>Remove</button></div>{{end}}
+        </div>{{else}}
+        <p class="locations-empty">You haven't defined any additional locations that people can migrate photos from. Press <strong>Add a location</strong> below to add one.</p>{{end}}
+        <p><a class="button secondary" href="/settings/media/add?server={{.Host}}&amp;photos={{.Name}}">Add a location</a></p>
+        <hr class="form-rule">
+        <h2 class="form-section">Send them here</h2>
+        {{copyBox .Address}}
+        <p class="hint">It's linked from their dashboard and from the sign-in page too.</p>
+      </div>
+      <p class="seg-panel hint seg-hint" data-seg="2">Only Owners and Admins, from here. Everyone else can ask one of you.</p>
+    </div>
+    <div class="actions-row"><button type="submit">Save</button></div>
+  </form>
+  {{end}}
+</section>
 {{end}}

@@ -23,7 +23,7 @@
         <td class="list-name"><span>{{.Title}}
           <small{{if and (not .Unknown) (not .Connected)}} class="warn"{{end}}>{{.Where}} ·
             {{if .Unknown}}its server isn't answering{{else if and (not .Connected) .ShareType}}Not answering: check {{.ShareServer}} is on and on the network. Until then services see an empty folder.{{else if not .Connected}}Not connected: plug it in. Until then services see an empty folder.{{else if not .Mounted}}not mounted yet{{else}}Connected{{with .Size}} · on a {{size .}} disk{{end}}{{end}}{{with .OwnerName}} · read as its owner, {{.}}{{end}}</small></span></td>
-        <td class="hide-phone">{{with .ReadBy}}{{join . ", "}}{{else}}No service yet{{end}}</td>
+        <td class="hide-phone">{{if .PhotosFor}}For migrating photos into <a href="/services/{{.PhotosFor}}#photos">{{.PhotosFor}}</a>{{else}}{{with .ReadBy}}{{join . ", "}}{{else}}No service yet{{end}}{{end}}</td>
         <td><a href="/settings/media/{{.ServerID}}/{{.Name}}">Manage</a></td>
       </tr>
     {{end}}

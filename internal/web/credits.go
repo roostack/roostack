@@ -47,6 +47,8 @@ var programCredits = []Credit{
 	{Name: "Podman", URL: "https://podman.io", License: "Apache 2.0", Note: "Runs services in containers"},
 	{Name: "Caddy", URL: "https://caddyserver.com", License: "Apache 2.0", Note: "Web addresses and HTTPS certificates"},
 	{Name: "restic", URL: "https://restic.net", License: "BSD-2-Clause", Note: "Backups"},
+	{Name: "immich-go", URL: "https://github.com/simulot/immich-go", License: "AGPL-3.0", By: "simulot",
+		Note: "Migrating photos into Immich; built from its source on the server, the first time it's needed"},
 	{Name: "Debian", URL: "https://www.debian.org", License: "Various free licences", Note: "The operating system, and its updates"},
 }
 

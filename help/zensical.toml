@@ -24,6 +24,7 @@ nav = [
     "services/settings.md",
     "services/public.md",
     "services/single-sign-on.md",
+    "services/immich-migrate.md",
     "services/bring-data.md",
     "services/bring-data-immich.md",
     "services/bring-data-plex.md",

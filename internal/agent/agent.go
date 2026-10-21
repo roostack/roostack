@@ -102,6 +102,11 @@ type Host interface {
 	// read-only, returning where; UnmountImport forgets it (import.go).
 	MountImport(service string, l Library) (string, error)
 	UnmountImport(service string) error
+	// MountPhotos mounts a person's export for migrating photos into a
+	// service, read-only, returning where; UnmountPhotos forgets it
+	// (photos.go).
+	MountPhotos(service, who string, l Library) (string, error)
+	UnmountPhotos(service, who string) error
 	// RemoveWireGuard takes an interface down and deletes its
 	// configuration (e.g. the server left its lab).
 	RemoveWireGuard(iface string) error
@@ -369,6 +374,27 @@ func (s *Server) Handler() http.Handler {
 	})
 	mux.HandleFunc("DELETE /v1/imports/{service}", func(w http.ResponseWriter, r *http.Request) {
 		if err := s.Host.UnmountImport(r.PathValue("service")); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})
+	// Migrating photos into Immich (SPEC.md §8.5).
+	mux.HandleFunc("PUT /v1/photos/{service}/{who}", func(w http.ResponseWriter, r *http.Request) {
+		var l Library
+		if !decode(w, r, 8<<10, &l) {
+			return
+		}
+		path, err := s.Host.MountPhotos(r.PathValue("service"), r.PathValue("who"), l)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+		s.Log.Info("mounted an export to migrate photos from", "service", r.PathValue("service"), "who", r.PathValue("who"), "at", path) // never a password
+		writeJSON(w, http.StatusOK, map[string]string{"path": path})
+	})
+	mux.HandleFunc("DELETE /v1/photos/{service}/{who}", func(w http.ResponseWriter, r *http.Request) {
+		if err := s.Host.UnmountPhotos(r.PathValue("service"), r.PathValue("who")); err != nil {
 			writeError(w, http.StatusBadRequest, err)
 			return
 		}

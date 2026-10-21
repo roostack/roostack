@@ -125,6 +125,7 @@ func navTab(page string) string {
 	}
 	for _, p := range []struct{ prefix, tab string }{
 		{"settings", "settings"}, {"setup-", "settings"}, {"service", "services"}, {"backups", "backups"}, {"monitoring", "monitoring"},
+		{"photos", "services"},
 	} {
 		if strings.HasPrefix(page, p.prefix) {
 			return p.tab
@@ -224,6 +225,15 @@ func (s *Server) homePartial(w http.ResponseWriter, r *http.Request) {
 // figures across the top (docs/DESIGN.md "Layout").
 func (s *Server) homeData(r *http.Request, data map[string]any) {
 	data["Attention"] = s.attention(r)
+	// Members see a link to migrate their photos into each Immich they may
+	// (SPEC.md §8.5).
+	if u := currentUser(r); !isAdmin(u) {
+		m := map[string]bool{}
+		for _, ps := range s.migratable(r.Context(), u) {
+			m[ps.Name] = true
+		}
+		data["Migratable"] = m
+	}
 	if data["CanManage"] == true {
 		servers := s.serverViews(r)
 		data["Servers"] = servers
@@ -506,6 +516,11 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 				if v := s.wafCard(r.Context(), access); v != nil {
 					data["WAF"] = v
 				}
+			}
+			// Migrating photos into Immich (SPEC.md §8.5): the call to
+			// action at the top and the card.
+			if c := s.photoCardFor(r.Context(), currentUser(r), name); c != nil {
+				data["PhotoCard"] = c
 			}
 			// The registry withdrew its version (SPEC.md §8.3.4).
 			if wd := s.Manager.Withdrawals(r.Context())[name]; wd != nil {

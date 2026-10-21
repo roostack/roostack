@@ -254,6 +254,21 @@ func (c *Client) UnmountImport(ctx context.Context, service string) error {
 	return c.call(ctx, http.MethodDelete, "/v1/imports/"+url.PathEscape(service), nil, nil)
 }
 
+// MountPhotos mounts a person's export for migrating photos into a
+// service, read-only, and says where (SPEC.md §8.5).
+func (c *Client) MountPhotos(ctx context.Context, service, who string, l Library) (string, error) {
+	var out struct {
+		Path string `json:"path"`
+	}
+	err := c.call(ctx, http.MethodPut, "/v1/photos/"+url.PathEscape(service)+"/"+url.PathEscape(who), l, &out)
+	return out.Path, err
+}
+
+// UnmountPhotos unmounts a person's export.
+func (c *Client) UnmountPhotos(ctx context.Context, service, who string) error {
+	return c.call(ctx, http.MethodDelete, "/v1/photos/"+url.PathEscape(service)+"/"+url.PathEscape(who), nil, nil)
+}
+
 // UnmountLibrary unmounts a media library and forgets it.
 func (c *Client) UnmountLibrary(ctx context.Context, name string) error {
 	return c.call(ctx, http.MethodDelete, "/v1/libraries/"+url.PathEscape(name), nil, nil)

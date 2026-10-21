@@ -23,13 +23,16 @@ type MediaLibrary struct {
 	// ShareType ("smb" or "nfs"), ShareServer, SharePath and ShareUser
 	// make it a network share; its password isn't kept here.
 	ShareType, ShareServer, SharePath, ShareUser string
-	Created                                      time.Time
+	// PhotosFor is the Immich it's kept for, as a place people migrate
+	// photos from (SPEC.md §8.5): no service reads it.
+	PhotosFor string
+	Created   time.Time
 }
 
 // MediaLibraries lists every server's media libraries, by server and name.
 func (s *Store) MediaLibraries(ctx context.Context) ([]MediaLibrary, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT server_id, name, title, drive, drive_name, sub, folder,
-		owner_uid, owner_gid, owner_name, share_type, share_server, share_path, share_user, created_at
+		owner_uid, owner_gid, owner_name, share_type, share_server, share_path, share_user, photos_for, created_at
 		FROM media_libraries ORDER BY server_id, title, name`)
 	if err != nil {
 		return nil, err
@@ -40,7 +43,8 @@ func (s *Store) MediaLibraries(ctx context.Context) ([]MediaLibrary, error) {
 		var l MediaLibrary
 		var created int64
 		if err := rows.Scan(&l.ServerID, &l.Name, &l.Title, &l.Drive, &l.DriveName, &l.Sub, &l.Folder,
-			&l.OwnerUID, &l.OwnerGID, &l.OwnerName, &l.ShareType, &l.ShareServer, &l.SharePath, &l.ShareUser, &created); err != nil {
+			&l.OwnerUID, &l.OwnerGID, &l.OwnerName, &l.ShareType, &l.ShareServer, &l.SharePath, &l.ShareUser, &l.PhotosFor,
+			&created); err != nil {
 			return nil, err
 		}
 		l.Created = time.Unix(created, 0)
@@ -56,14 +60,15 @@ func (s *Store) SetMediaLibrary(ctx context.Context, l MediaLibrary) error {
 		l.Created = time.Now()
 	}
 	_, err := s.db.ExecContext(ctx, `INSERT INTO media_libraries (server_id, name, title, drive, drive_name, sub, folder,
-		owner_uid, owner_gid, owner_name, share_type, share_server, share_path, share_user, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		owner_uid, owner_gid, owner_name, share_type, share_server, share_path, share_user, photos_for, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(server_id, name) DO UPDATE SET title = excluded.title, drive = excluded.drive,
 		drive_name = excluded.drive_name, sub = excluded.sub, folder = excluded.folder, owner_uid = excluded.owner_uid,
 		owner_gid = excluded.owner_gid, owner_name = excluded.owner_name, share_type = excluded.share_type,
-		share_server = excluded.share_server, share_path = excluded.share_path, share_user = excluded.share_user`,
+		share_server = excluded.share_server, share_path = excluded.share_path, share_user = excluded.share_user,
+		photos_for = excluded.photos_for`,
 		l.ServerID, l.Name, l.Title, l.Drive, l.DriveName, l.Sub, l.Folder, l.OwnerUID, l.OwnerGID, l.OwnerName,
-		l.ShareType, l.ShareServer, l.SharePath, l.ShareUser, l.Created.Unix())
+		l.ShareType, l.ShareServer, l.SharePath, l.ShareUser, l.PhotosFor, l.Created.Unix())
 	return err
 }
 

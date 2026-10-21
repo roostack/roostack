@@ -1,6 +1,7 @@
 # Bringing photos into Immich from other platforms (2026-10-21)
 
-The details behind SPEC.md §8.5. **Decided, not built.** The Owner
+The details behind SPEC.md §8.5. **Decided; the first version is built**
+(SPEC.md §8.5 "As built", tried on VM1: docs/ASSUMPTIONS.md X1–X10). The Owner
 agreed the proposal on 2026-10-21 with two changes: a key is always made
 by the person in Immich and pasted (§6), and Apple's export follows the
 first version straight away (§10). They also asked that people other than
@@ -164,8 +165,8 @@ Takeout:
 - makes albums from album folders, and marks favourites and archived
   photos;
 - leaves the trash out (`--include-trashed=false`);
-- tags people's names as `people/<name>`, and tags everything
-  `takeout/<date>` so an import can be found afterwards;
+- tags people's names as `People/<name>`, and tags everything
+  `takeout-<when Google made it>` (immich-go's tag, e.g. `takeout-20261019T091234Z`) so an import can be found afterwards;
 - stacks bursts, RAW with JPEG, and HEIC with JPEG;
 - skips what Immich already has, by checksum. Running it again is how it
   resumes.
@@ -470,8 +471,14 @@ directory (its last few KB, not the whole file) gives, in seconds:
   for thumbnails and converted videos (same disk, `location: media`),
   against what's free. Not enough refuses, with the numbers.
 
-Then **immich-go `--dry-run`** with the key: what it would upload, what
-Immich already has, what it can't match.
+**Not immich-go's dry run (changed while building, 2026-10-21).** The
+proposal ran `immich-go --dry-run` here. But its dry run reads every photo in full, to compare
+its checksum with Immich's (`app/upload/advice.go` at v0.32.0), so on a
+400 GB export it takes as long as reading all of it: an hour or more from
+a USB drive, longer from a NAS. The check is Roostack's quick look, the
+key's account and its counts, and the space instead: seconds. What Immich
+already has is counted as the migration goes, and said in the summary.
+Considered: the dry run as a second, optional "thorough check".
 
 **During:** immich-go's JSON log (`--log-type JSON`) is read for the
 progress line and kept as the log. Its format isn't documented as stable,
@@ -512,7 +519,7 @@ store, like a backup's result), shown on Immich's page and in History.
 | Archived | Immich's archive | VM |
 | Trash | Left out (a choice to bring them, archived) | Counted |
 | Locked Folder | Left out and counted, if Takeout has it (**unverified**; immich-go doesn't know it, so it would otherwise land in the timeline). Later: into Immich's Locked Folder | VM, with a synthetic one |
-| People | Names as tags `people/<name>`. Immich finds faces itself; names can't be put on its faces | VM |
+| People | Names as tags `People/<name>`. Immich finds faces itself; names can't be put on its faces | VM |
 | Edited copies | Both kept, the edit stacked on the original | VM |
 | Bursts, RAW + JPEG, Live Photos | Stacked; a Live Photo's two halves joined | VM |
 | Partner's photos | **Left out** by default (immich-go brings them): in a family lab the partner brings their own, and Immich's partner sharing shows them | Counted |
@@ -536,7 +543,7 @@ store, like a backup's result), shown on Immich's page and in History.
 - **Backups:** the photos are Immich's library (`critical`), so the next
   backup carries them; the check says how much that adds and whether the
   backup's place has room.
-- **Undo:** everything brought in is tagged `takeout/<date>`, so Immich can
+- **Undo:** everything brought in is tagged `takeout-<when Google made it>` (immich-go's tag, e.g. `takeout-20261019T091234Z`), so Immich can
   show (and the person can delete) exactly that import. Roostack doesn't
   offer a one-click undo: deleting photos is the person's call, in Immich.
 - **Secrets:** Roostack never asks for an Immich password. The pasted
@@ -631,7 +638,7 @@ except whose photos:
    folder; **Apple's export a fast-follow** (§10).
 6. **The defaults:** trash left out, partner's photos left out, untitled
    albums left out, people as tags, archived as archived, everything tagged
-   `takeout/<date>`, Immich's jobs not paused.
+   `takeout-<when Google made it>` (immich-go's tag, e.g. `takeout-20261019T091234Z`), Immich's jobs not paused.
 7. **The upload share (Samba):** later, as its own piece.
 8. **People other than Owners and Admins** can bring in their own photos
    from the first version, if the Owner allows it.

@@ -15,7 +15,7 @@
 </section>
 <section class="card section">
   <h2>Services that can read it</h2>
-  {{if $.Readers}}
+  {{if and $.Readers (not $.Library.PhotosFor)}}
   <form method="post" action="/settings/media/{{.ServerID}}/{{.Name}}/readers">
     {{range $.Readers}}<label class="check"><input type="checkbox" name="service" value="{{.Name}}"{{if has .Libraries $.Library.Name}} checked{{end}}><span>{{.Title}}</span></label>{{end}}
     <button type="submit" class="secondary">Save</button>

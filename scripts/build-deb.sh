@@ -94,6 +94,7 @@ elif [[ ${ROOSTACK_DEV_BUILD:-} != 1 ]]; then
     exit 1
 fi
 install -D -m 0644 build/caddy/Containerfile "$ROOT/usr/share/roostack/caddy/Containerfile"
+install -D -m 0644 build/immich-go/Containerfile "$ROOT/usr/share/roostack/immich-go/Containerfile"
 install -D -m 0755 packaging/deb/installed-message "$ROOT/usr/share/roostack/installed-message"
 # The starting lab.yaml: no address yet (SPEC.md §6.6).
 install -D -m 0644 packaging/deb/lab.yaml "$ROOT/usr/share/roostack/lab.yaml"

@@ -87,6 +87,10 @@
         {{else}}
         <p>You're signed in to {{.LabName}}, but there's no service you can use with it yet. {{capitalise .Owner}} chooses who can use each one.</p>
         {{end}}
+        {{if .Photos}}<div class="signin-extra">
+          <a href="{{.RoostackURL}}/immich-photos">{{icon "import"}}<span><strong>Migrate your photos into Immich</strong>
+            <small>From Google Photos or a folder. You sign in to Roostack's pages again, with the same account.</small></span></a>
+        </div>{{end}}
         <form method="post" action="/sign-out"><button type="submit" class="secondary">Sign out</button></form>
         {{if not .Until.IsZero}}<p class="hint">Signed in on this device until {{date .Until}}.</p>{{end}}
 
