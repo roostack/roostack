@@ -1,11 +1,11 @@
 # Bringing photos into Immich from other platforms (2026-10-21)
 
-The details behind SPEC.md §8.5. **Mostly decided, not built.** The Owner
+The details behind SPEC.md §8.5. **Decided, not built.** The Owner
 agreed the proposal on 2026-10-21 with two changes: a key is always made
 by the person in Immich and pasted (§6), and Apple's export follows the
 first version straight away (§10). They also asked that people other than
 Owners and Admins can use it from the first version, if the Owner allows
-it (§6.1): that design is proposed and waits for their answers (§12).
+it, and chose how (§6.1).
 
 For many people Immich is the reason to have a home lab at all, and the
 hard part is leaving Google Photos or iCloud with a lifetime of photos.
@@ -351,65 +351,82 @@ administrator's key. Roostack doesn't (`--pause-immich-jobs=false`): the
 import is slower on a small server but needs no administrator's key, and
 Immich keeps working through its queue as photos arrive.
 
-## 6.1 Who can use it: everyone the Owner allows (proposed)
+## 6.1 Who can use it: everyone the Owner allows
 
 **Asked (2026-10-21), the Owner:** people who aren't Owners or Admins
 should be able to bring in their own photos from the first version, and
-the Owner decides whether they can. Possibly with a page outside
-Roostack's control panel, or reached from the single sign-on page.
+the Owner decides whether they can. **Decided the same day, the Owner:**
+a page of its own on Roostack's site, at `/immich-photos`, linked from the
+sign-in page too; open by default to everyone who uses Immich; and the
+places they may read from chosen by the Owner when opening it.
 
 What's there today: Roostack's people all have Roostack accounts, with a
 role (SPEC §5). **Members** only see the dashboard: the services they can
 use, and their status. With single sign-on, the same people sign in to
 apps at `login.<domain>`, which serves only the sign-in pages; Roostack's
-own pages are at `roost.<domain>`, on the home network.
+own pages are at `roost.<domain>`, usually on the home network only.
+**Someone signed in on the sign-in page isn't signed in to Roostack's
+pages:** the account and password are the same, but they sign in again.
+"Sign in with single sign-on" on Roostack's login page is planned (SPEC
+§5.2, later); with it, the link from the sign-in page would need no second
+sign-in.
 
 **The Owner's switch.** On Immich's page, under Bring in photos: **Who can
-bring in photos**: *Owners and Admins*, or *Everyone who uses Immich*
-(single sign-on's "Who can sign in" for Immich when it's on, else every
-Member). Proposed default: *Everyone who uses Immich*, since it's their
-own photos into their own account with their own key; the Owner can
-narrow it. The Owner is told (as Roostack's notifications are, §6.13)
-when an import starts and ends, with whose and how big.
+bring in photos**: *Everyone who uses Immich* (the default) or *Owners and
+Admins*. Everyone who uses Immich is single sign-on's "Who can sign in"
+for Immich when it's on, else every Member. Their own photos go into their
+own account with their own key; the Owner is told (as Roostack's
+notifications are, §6.13) when an import starts and ends, whose, and how
+big.
 
-**Where they do it: a page of its own, three ways considered:**
+**Where they may read from, chosen by the Owner** with the switch (shown
+while it's *Everyone who uses Immich*), any of:
 
-1. **On Roostack's site, in a layout of its own (recommended for the first
-   version):** `roost.<domain>/photos`, a short page showing the lab's name
-   and logo as the sign-in page does, with none of the control panel's
-   menus: just bringing in photos, and the person's own imports. Members
-   sign in with their Roostack account, as they do today (the same
-   password as the sign-in page's). It's linked from Immich's card on
-   their dashboard, from the sign-in page once someone's signed in there
-   ("Bring your photos into Immich"), and from the address the Owner can
-   send people. Owners and Admins use the same page or Immich's service
-   page. Works with or without single sign-on, and adds nothing to the
-   sign-in site. When Roostack's own pages get "Sign in with single
-   sign-on" (SPEC §5.2, later), it's one click from there.
-2. **On the sign-in site itself** (`login.<domain>/photos`), signed in by
-   the single sign-on session: truly apart from the control panel, but a
-   lab without single sign-on would have nothing for Members, and it puts
-   a page that starts work on the server's drives on a site that may be
-   reachable from the internet (when any app is public). It could come
-   later, serving the same pages from option 1 on another address.
-3. **An app of its own** (`photos-import.<domain>`, behind single
-   sign-on's wall): another address, certificate and card on the
-   dashboard, for nothing option 2 doesn't give.
+- **USB drives they plug into the server,** and any folder on them. Never
+  a backup drive, the system disk, or a drive holding a media library;
+  those show greyed, with why. Ticked by default.
+- **A network share, with their own login to it.** Ticked by default.
+- **Places the Owner names:** a folder on a drive or on the server (the
+  folder picker), a share with the Owner's login (kept root's only, as
+  §8.4's are), or a media library, each with a title ("Family NAS ›
+  Takeouts"). People pick one and can step into its folders, never above
+  it. Everyone allowed sees what's in a place, so a place per person, or
+  a folder per person inside one, is the Owner's choice; the page says
+  so.
 
-**What someone who isn't an Owner or Admin may choose**, since the agent
-mounts what they pick and they mustn't browse the server:
+Owners and Admins can always use anything (drives, shares, the server's
+folders, media libraries), as on §8.4's pages. The agent's checks are the
+same for everyone; what someone may pick is checked again on the server
+when they pick it, not only in the page.
 
-- **a USB drive plugged into the server,** and folders on it: not a backup
-  drive, the system disk, or a drive holding a media library (those show
-  greyed, with why);
-- **a network share,** with their own login to it;
-- **not** folders on the server or media libraries (Owners and Admins
-  only).
+**The page: `roost.<domain>/immich-photos`.** A short page in a layout of
+its own: the lab's name and logo as the sign-in page shows them, none of
+the control panel's menus, just bringing in photos and the person's own
+imports (in progress and the last summary, with its log). The same steps
+as §5. Where a lab runs more than one Immich (§8.2), it asks which first,
+listing only those the person uses. Linked from:
 
-They see only their own imports (in progress and the last summary), and
-their import's log. Owners and Admins see everyone's on Immich's page.
-One import runs per server at a time; a second is refused with whose is
-running and about how long it has left (a queue later, if wanted).
+- Immich's card on their dashboard;
+- the sign-in page, once someone's signed in there ("Bring your photos
+  into Immich", shown only to people allowed, and only when the lab runs
+  Immich);
+- an address the Owner can send people, and the help.
+
+Owners and Admins use the same page or Immich's service page, and see
+everyone's imports on Immich's page. A person who isn't allowed sees who
+to ask, as single sign-on's "no access" page does. One import runs per
+server at a time; a second is refused with whose is running and about how
+long it has left (a queue later, if wanted).
+
+*Considered:* the page on the sign-in site (`login.<domain>/…`, signed in
+by single sign-on): apart from the control panel, but nothing for a lab
+without single sign-on, and it puts a page that starts work on the
+server's drives on a site that may face the internet; the same pages could
+be served there later. An app of its own behind single sign-on's wall:
+another address and certificate, for nothing more. For the places: drives
+and shares only, never the server's folders (no way for an Owner to offer
+a folder they'd filled); anything an Admin can use (people could browse
+the server's folders and media).
 
 ## 7. Checked before and after, and the summary
 
@@ -549,8 +566,8 @@ store, like a backup's result), shown on Immich's page and in History.
 4. A cloud drive as the source (Takeout delivered to Dropbox, OneDrive or
    Box).
 5. PhotoPrism's YAML sidecars and albums.
-6. The import pages on the sign-in site too (§6.1, option 2), and a queue
-   for imports.
+6. The import pages on the sign-in site too (§6.1), and a queue for
+   imports.
 
 ## 11. New dependencies (agreed 2026-10-21, the Owner)
 
@@ -591,18 +608,14 @@ except whose photos:
 8. **People other than Owners and Admins** can bring in their own photos
    from the first version, if the Owner allows it.
 
-**Open, for the Owner (§6.1):**
+9. **Where others do it** (the same day): a page of its own on Roostack's
+   site, `/immich-photos`, linked from the sign-in page too; open by
+   default to everyone who uses Immich; the Owner chooses the places they
+   may read from when opening it (§6.1).
 
-1. **Where others do it:** a page of its own on Roostack's site, without
-   the control panel's menus, linked from their dashboard and the sign-in
-   page (option 1)? Recommended for the first version, with the sign-in
-   site (option 2) later.
-2. **The Owner's switch's default:** *Everyone who uses Immich*,
-   with the Owner told when an import starts and ends? Recommended. Or
-   *Owners and Admins* until the Owner opens it.
-3. **What they may read from:** a USB drive (not a backup or media drive)
-   or a share with their own login, but not the server's folders or media
-   libraries? Recommended.
+**Still open:** "Sign in with single sign-on" on Roostack's own login page
+(SPEC §5.2, later) would let the sign-in page's link open the import page
+without a second sign-in. It's its own piece of work, not part of this.
 
 ## 13. The test
 
