@@ -990,6 +990,10 @@ form.confirm { display: inline; }
 dialog.dialog.form-dialog { position: fixed; width: min(34rem, calc(100vw - 2 * var(--space-4))); max-width: none;
   max-height: calc(100dvh - 2 * var(--space-4)); overflow-y: auto; margin: auto; padding: var(--space-5); }
 dialog.form-dialog:not(:modal) { position: static; width: auto; margin: var(--space-4) 0 0; box-shadow: none; }
+/* A wider form, loaded as it opens (data-load): adding a media library or
+   a location, with drive cards; it scrolls inside the dialog. */
+dialog.dialog.form-dialog.wide { width: min(44rem, calc(100vw - 2 * var(--space-4))); max-height: calc(100dvh - 4 * var(--space-4)); overflow: auto; }
+dialog.form-dialog .dialog-body > form.card { box-shadow: none; border: 0; padding: 0; margin: 0; background: none; }
 .dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
 .dialog-head h2 { margin: 0; }
 dialog.form-dialog .dialog-actions { margin-top: var(--space-4); }
@@ -1323,3 +1327,66 @@ ul.kept > li { flex-wrap: wrap; }
 ul.kept > li > span:first-child { flex: 1 1 14em; }
 .kept-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: flex-end; align-items: center; }
 .kept-actions button { white-space: nowrap; }
+
+/* Migrating photos into Immich (SPEC.md §8.5, docs/mockups/immich-import). */
+
+/* A call to action at the top of a service's page: a slim card with an
+   icon, a line or two and its button; while the work runs its progress,
+   when it stopped what happened and Carry on. Stacks on phones. */
+.cta { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-4); padding-block: var(--space-3); }
+.cta-icon { display: inline-grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-fg); }
+.cta-icon .icon { width: 20px; height: 20px; color: inherit; }
+.cta-warn .cta-icon { background: var(--warn-bg); color: var(--warn); }
+.cta-text { flex: 1; min-width: 0; }
+.cta-text h2 { margin: 0; font-size: var(--text-base); }
+.cta-text p { margin: 2px 0 0; color: var(--muted); font-size: var(--text-sm); }
+.cta-text .progress { margin-top: var(--space-2); }
+.cta-actions { display: flex; gap: var(--space-2); flex: none; align-items: center; }
+.cta-actions form { margin: 0; }
+@media (max-width: 640px) {
+  .cta { flex-wrap: wrap; }
+  .cta-text { flex-basis: calc(100% - 40px - var(--space-4)); }
+  .cta-actions { width: 100%; }
+}
+
+/* A key's permissions: a compact list of code names in columns. */
+.perm-list { list-style: none; padding: 0; margin: var(--space-2) 0 0; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 2px var(--space-3); }
+.perm-list code { font-size: var(--text-sm); }
+.key-form { margin-top: var(--space-3); }
+.key-form input { flex: 1; min-width: 0; font-family: var(--font-mono); }
+
+/* The guide's numbered steps: room between them. */
+.guide-list li + li { margin-top: var(--space-2); }
+
+/* The check's figures inside a step card: four side by side, two by two
+   on phones. */
+.import-figures { margin: var(--space-3) 0; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 640px) { .import-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* An empty list's note: nothing yet, and how to add one. */
+.locations { display: grid; gap: var(--space-2); margin-bottom: var(--space-3); }
+.locations-empty { padding: var(--space-3) var(--space-4); border: 1px dashed var(--border-strong); border-radius: var(--radius);
+  color: var(--muted); font-size: var(--text-sm); margin: 0 0 var(--space-3); }
+
+/* Folders in a location, each opening it. */
+.location-folders { margin: var(--space-2) 0 0; display: grid; gap: var(--space-1); }
+.location-folders a { display: inline-flex; align-items: center; gap: var(--space-2); }
+
+/* A page of its own (.Own in the layout): the lab's name and who's signed
+   in, and the page in one column. */
+.own-header { justify-content: space-between; }
+.own-brand { display: inline-flex; align-items: center; gap: var(--space-2); color: inherit; text-decoration: none; }
+.own-brand strong { font-family: var(--font-display); font-size: var(--text-lg, 1.2rem); }
+.own-brand .brand-mark { width: 32px; height: 32px; }
+.own-who { display: inline-flex; align-items: center; gap: var(--space-2); }
+.own-page { width: 100%; max-width: 760px; display: grid; gap: var(--space-4); padding-inline: var(--space-4); }
+.own-steps { display: grid; gap: var(--space-4); }
+.own-foot { text-align: center; }
+
+/* The sign-in page's link to migrating photos, below the services. */
+.signin-extra a { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: 12px;
+  border: 1px dashed var(--edge-strong); color: inherit; text-decoration: none; margin-bottom: var(--space-4); }
+.signin-extra .icon { width: 28px; height: 28px; flex: none; color: var(--accent); }
+.signin-extra small { display: block; color: var(--muted); }

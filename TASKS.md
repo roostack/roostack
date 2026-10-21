@@ -651,6 +651,33 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [ ] Bringing data in, later: leaving subfolders out of a copy ("Leave out…" on a row); a dump uploaded through the browser; plain SQL and `pg_dumpall` (Immich's nightly backups); a check that warns about Docker found on the server (ASSUMPTIONS W7); the import's check and copy logs from another server on the page (only its progress shows there now)
 - [ ] Later: a dump uploaded in the browser, plain SQL and `pg_dumpall`, another machine over SSH, a storage hint in the package format, help pages for Jellyfin, Vaultwarden, Navidrome
 
+## Bringing photos into Immich from other platforms (SPEC §8.5, decided 2026-10-21)
+
+- [x] Research (2026-10-21): what Google Takeout, Apple's export and the other platforms give today; Immich's CLI, immich-go, GPTH and the rest; what Immich's API allows (a key uploads only into its own account)
+- [x] The proposal ([docs/IMMICH-IMPORT.md](docs/IMMICH-IMPORT.md)): the journey, getting the export onto the server, whose account, the checks and summary, what's kept, safety, a first version, new dependencies, questions
+- [x] The Owner's answers (2026-10-21): every recommendation, except that the person always makes and pastes an Immich key; Apple a fast-follow; others than Owners and Admins from the first version, if the Owner allows
+- [x] The Owner's answers on who else may use it (2026-10-21): `/immich-photos`, a page of its own linked from the sign-in page too; everyone who uses Immich by default; the Owner chooses where others may read from
+- [x] Mock-ups ([docs/mockups/immich-import](docs/mockups/immich-import/README.md), 2026-10-21): Immich's card with the Owner's choices, the steps for Owners and Admins, `/immich-photos`, the sign-in page's link
+- [x] The Owner on the mock-ups (2026-10-21): "Migrate", not "bring in"; additional locations as a list with Add a location (a dialog) and an empty state, not a tickbox; the forms' design throughout. Reworked the same day
+- [x] The Owner's choices on the mock-ups (2026-10-21): at the top but not a large card (proposed: a slim call to action, the card lower, awaiting a yes); the slow-download warning; what to migrate as a step before the check; "Other locations". Reworked the same day
+- [x] The first version (2026-10-21): immich-go built from source on the server; the quick look, the key checked with Immich, the run in a unit that outlives Roostack, Stop and Carry on; Immich's call to action and card with the Owner's choices and additional locations (media libraries kept for migrations); the steps on Immich's page and on `/immich-photos` for everyone allowed; links from the dashboard and sign-in page; emails; help page; tried on VM1 with synthetic Takeouts (ASSUMPTIONS X1–X9)
+- [ ] Photo migration, still to try (ASSUMPTIONS X10): a share as the source, real videos and HEICs and a Live Photo pair (make them with Immich's ffmpeg for `maketakeout -videos-from`), a real Takeout's localised names, a library over 50,000 photos, the time zone shown for a sidecar-only date, the emails with a mail server, amd64
+- [ ] Photo migration into an Immich on another server: the node's photo calls over the lab API (as `importwire.go` does for §8.4); refused with a sentence until then
+- [x] Signing in returns to the page asked for (2026-10-21, `?next=`, SPEC §5): the sign-in page's link lands on `/immich-photos`. "Sign in with single sign-on" on Roostack's login page is branch `claude/roostack-sso-signin`'s
+- [x] Add a library… and Add a location are forms in dialogs, loaded as they open (2026-10-21, the Owner)
+- [x] Large-library tests on VM 1 (2026-10-21, ASSUMPTIONS X11–X13): 50,313 photos' memory, a reboot mid-run and Carry on, out of memory. Fixed: a run followed again after a restart counted its log twice; out of memory now says so; Details' times are the server's
+- [x] immich-go's memory (the Owner, 2026-10-21): half the server's by default, three quarters the Owner's choice on the card, `GOMEMLIMIT`, killed first if the server runs short, running out explained (ASSUMPTIONS X14)
+- [x] Carrying on by itself after a restart, once the export is back; not after a failure, nor twice without progress (X15)
+- [ ] **Open, the Owner's call:** immich-go's catalogue patch (frees each folder's once handled: live data at the end −25%, peak unchanged): carry it, offer it upstream (PR prepared, not sent), or neither
+- [ ] Upstream ideas for immich-go's memory, if offered: a slimmer record of the account's assets (ID, checksum, name, date, size), finished tracker records dropped, a resume record so a carry-on doesn't re-read what's done
+- [ ] Photo migration where the export is (decided 2026-10-21): immich-go on the server the drive is in, or Immich's for a share or folder, reaching Immich over the lab network, with "Immich on another server" below
+- [ ] `maketakeout`: a fake `.psd` is expected to be left out, but Immich takes `.psd` files: list it as an asset, or make it something else
+- [ ] Separately (SPEC §5.2, later): "Sign in with single sign-on" on Roostack's own login page, so the sign-in page's link needs no second sign-in
+- [ ] The first version: Google Takeout and a plain folder, from a drive, share or server folder; tested on VM 1 with a synthetic Takeout (§13)
+- [ ] Straight after: Apple's privacy export (and a Mac's export as a plain folder)
+- [ ] Before shipping: immich-go's next release (this week's Live Photo and resume fixes)
+- [ ] Later: an upload share (Samba), the Locked Folder and trash, Flickr and Facebook, cloud drives, PhotoPrism, the pages on the sign-in site too, a queue of imports
+
 ## To discuss with the user
 
 - [x] Single sign-on for services (SPEC §5.2; research in docs/SSO-RESEARCH.md; mock-ups in docs/mockups/sso). Decided 2026-10-20: Roostack itself is the identity provider, its OIDC part on the standard library, groups in the first version, two-factor as for Roostack with a choice to ask everyone, 30-day "keep me signed in" ticked, the look on People with a mark or a wide logo. Built and checked end to end on VM3 the same day with Mealie (OIDC) and Stirling-PDF (the wall): docs/ASSUMPTIONS.md V1–V6; the conformance suite passes (V7)

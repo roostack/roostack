@@ -87,6 +87,14 @@ func (f *fakeHost) MountImport(service string, l Library) (string, error) {
 	return "/mnt/roostack-import/" + service, nil
 }
 func (f *fakeHost) UnmountImport(service string) error { f.unmounted = "import " + service; return nil }
+func (f *fakeHost) MountPhotos(service, who string, l Library) (string, error) {
+	f.library = &l
+	return ImportRoot + "/" + PhotoSpotName(service, who), nil
+}
+func (f *fakeHost) UnmountPhotos(service, who string) error {
+	f.unmounted = "photos " + service + " " + who
+	return nil
+}
 func (f *fakeHost) CheckShare(s Share) (FolderList, error) {
 	return FolderList{Folders: []FolderEntry{{Name: s.Path}}}, nil
 }

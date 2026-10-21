@@ -21,6 +21,7 @@ import (
 // they read.
 
 func init() {
+	templateFuncs["dialogFor"] = dialogFor
 	// join lists strings with a separator, e.g. services reading a library.
 	templateFuncs["join"] = strings.Join
 }
@@ -104,14 +105,38 @@ type mediaAddView struct {
 	// The share form's values, kept when it comes back (never the
 	// password).
 	ShareType, ShareServer, SharePath, ShareUser string
+	// PhotosFor makes it an additional location for migrating photos into
+	// that Immich (SPEC.md §8.5): the same form, with no services, back to
+	// its page; PhotosTitle is the Immich's title.
+	PhotosFor, PhotosTitle string
 }
+
+// LookAgain is the form again, after plugging a drive in.
+func (v mediaAddView) LookAgain() string {
+	q := url.Values{"server": {v.Server}}
+	if v.PhotosFor != "" {
+		q.Set("photos", v.PhotosFor)
+	}
+	return mediaAddHref(q)
+}
+
+// addDialog is an empty form dialog a data-load link fills (components.html
+// "add-dialog").
+type addDialog struct{ ID, Title, Back string }
+
+// dialogFor makes an addDialog in a template.
+func dialogFor(id, title, back string) addDialog { return addDialog{id, title, back} }
 
 // mediaAddHref is the add page with a place chosen.
 func mediaAddHref(q url.Values) string { return "/settings/media/add?" + q.Encode() }
 
 // DriveHref chooses a drive (its whole drive), for its radio's refresh.
 func (v mediaAddView) DriveHref(d agent.Drive) string {
-	return mediaAddHref(url.Values{"server": {v.Server}, "where": {"drive"}, "drive": {d.UUID}, "name": {d.Name}})
+	q := url.Values{"server": {v.Server}, "where": {"drive"}, "drive": {d.UUID}, "name": {d.Name}}
+	if v.PhotosFor != "" {
+		q.Set("photos", v.PhotosFor)
+	}
+	return mediaAddHref(q)
 }
 
 func (s *Server) mediaAddPage(w http.ResponseWriter, r *http.Request) {
@@ -206,6 +231,14 @@ func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg s
 	posted := r.Method == http.MethodPost
 	v := mediaAddView{Server: sv.ServerID, ServerName: sv.ServerName, Where: q.Get("where"), Error: errMsg,
 		Roots: agent.LibraryFolderRoots}
+	if pf := q.Get("photos"); pf != "" {
+		ps, ok := s.photoService(r.Context(), pf)
+		if !ok || ps.Host != sv.ServerID {
+			http.NotFound(w, r)
+			return
+		}
+		v.PhotosFor, v.PhotosTitle = ps.Name, ps.Title
+	}
 	if !slices.Contains([]string{"drive", "folder", "share"}, v.Where) {
 		v.Where = "drive"
 		if q.Get("folder") != "" {
@@ -250,6 +283,9 @@ func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg s
 		s.serverError(w, err)
 		return
 	}
+	if v.PhotosFor != "" {
+		readers = nil // no service reads a location for migrations
+	}
 	for _, rd := range readers {
 		v.Readers = append(v.Readers, mediaReader{Name: rd.Name, Title: rd.Title, Checked: !posted || slices.Contains(q["service"], rd.Name)})
 	}
@@ -267,6 +303,11 @@ func (s *Server) renderMediaAdd(w http.ResponseWriter, r *http.Request, errMsg s
 		v.Title = v.Place.Name
 	}
 	data["Add"] = v
+	if v.PhotosFor != "" {
+		data["NavActive"] = "services"
+		s.render(w, "settings-media-add", data)
+		return
+	}
 	s.render(w, "settings-media-add", withArea(data, "media"))
 }
 
@@ -316,8 +357,15 @@ func (s *Server) mediaFoldersPage(w http.ResponseWriter, r *http.Request) {
 	}
 	server := sv.ServerID
 	back := url.Values{"server": {server}}
+	photos := q.Get("photos")
+	if photos != "" {
+		back.Set("photos", photos)
+	}
 	at := func(set url.Values) string {
 		u := url.Values{"server": {server}}
+		if photos != "" {
+			u.Set("photos", photos)
+		}
 		for k, vs := range set {
 			u[k] = vs
 		}
@@ -417,6 +465,20 @@ func (s *Server) mediaAddSubmit(w http.ResponseWriter, r *http.Request) {
 			req.Share.Username, req.Share.Password = "", ""
 		}
 	}
+	if pf := r.FormValue("photos"); pf != "" && s.Photos != nil {
+		err := s.Photos.AddPhotoLocation(r.Context(), pf, req)
+		if msg, ok := userMessage(err); ok {
+			s.renderMediaAdd(w, r, msg)
+			return
+		}
+		if err != nil {
+			s.serverError(w, err)
+			return
+		}
+		s.Store.Audit(r.Context(), currentUser(r), "photos", pf+": added the location "+strings.TrimSpace(req.Title))
+		redirect(w, r, photosSavedHref(pf, "added"))
+		return
+	}
 	err := s.Libraries.AddLibrary(r.Context(), req)
 	if msg, ok := userMessage(err); ok {
 		s.renderMediaAdd(w, r, msg)
@@ -427,7 +489,7 @@ func (s *Server) mediaAddSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(r.Context(), currentUser(r), "media", "added the media library "+strings.TrimSpace(req.Title))
-	http.Redirect(w, r, "/settings/media", http.StatusSeeOther)
+	redirect(w, r, "/settings/media")
 }
 
 // mediaLibrary finds a library by its server and name.

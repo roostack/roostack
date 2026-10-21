@@ -192,6 +192,9 @@ type signInView struct {
 	Code, Away bool
 	// PagesHost is Roostack's pages' address (home), if they sign in here.
 	PagesHost string
+	// Photos: the person may migrate photos into Immich (SPEC.md §8.5),
+	// on Roostack's own pages.
+	Photos bool
 }
 
 type signInApp struct {
@@ -374,6 +377,7 @@ func (s *Server) signInHome(w http.ResponseWriter, r *http.Request) {
 			v.Apps = append(v.Apps, signInApp{Title: c.Title, URL: "https://" + host + "/", Logo: "/look/app/" + c.ID, Host: host})
 		}
 	}
+	v.Photos = len(s.migratable(r.Context(), sess.User)) > 0
 	s.renderSignIn(w, r, http.StatusOK, v)
 }
 

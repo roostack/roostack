@@ -1,0 +1,194 @@
+<!doctype html><html data-states="idle:Before any migration,add-location:Add a location,locations:A location added,running:A migration running,stopped:A migration stopped,hidden:Call to action hidden,admins:Owners and Admins only" lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Immich · Roostack (mock-up)</title>
+  <link rel="icon" href="../../../internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../../internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/app.css">
+  <link rel="stylesheet" href="mock.css">
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="#"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="sidebar-lab-name"><span>Roostack</span><strong title="Smiths' lab">Smiths' lab</strong></span></a>
+      <div class="sidebar-nav">
+      <nav class="nav-group" aria-label="Your lab">
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></svg>Home</a>
+        <a class="nav-item" href="#" aria-current="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Services</a>
+        <div class="nav-children"><a class="nav-sub" href="service.html" aria-current="page"><img class="nav-logo" src="immich.png" alt="" width="16" height="16" loading="lazy">Immich</a><a class="nav-sub" href="#"><img class="nav-logo" src="mealie.png" alt="" width="16" height="16" loading="lazy">Mealie</a><a class="nav-sub" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add a service…</a></div>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>Backups</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Servers</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Monitoring</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</a>
+      </nav>
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools">
+          <a href="#" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg>Help<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+          <form method="post" action="/account/theme" id="theme-toggle">
+  <input type="hidden" name="theme" value="light">
+  <button type="submit" class="theme-toggle" title="Switch to light theme"
+    aria-label="Theme: auto. Switch to light."><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>Auto</button>
+</form>
+        </div>
+        <div class="who">
+          <a href="#" class="who-link"><span class="avatar" aria-hidden="true">S</span>
+            <span class="who-name"><strong title="sam">sam</strong><span>Owner</span></span></a>
+          <form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></svg><span class="sr-only">Log out</span></button></form>
+        </div>
+      </div>
+    </aside>
+    <div class="main">
+      <header class="page-header">
+        <button type="button" class="menu-button" onclick="document.body.classList.toggle('menu-open')" aria-controls="sidebar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr-only">Menu</span></button>
+        <nav class="crumbs" aria-label="Where you are"><a href="#">Services</a><strong aria-current="page">Immich</strong></nav>
+        <a class="page-help" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg><span class="sr-only">Help: </span>Immich</a>
+      </header>
+      <main class="page">
+<div class="page-head">
+  <div class="page-head-title">
+    <span class="logo-tile"><img src="immich.png" alt="" width="40" height="40"></span>
+    <div>
+      <div class="title-line"><h1>Immich</h1><span class="status status-running">Running</span></div>
+      <p class="lede">Photo and video backup, a self-hosted alternative to Google Photos. <a href="#">photos.smiths.roost.ac</a></p>
+    </div>
+  </div>
+</div>
+<section class="card cta" data-state="idle add-location locations admins">
+  <span class="cta-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span>
+  <div class="cta-text"><h2>Moving from Google Photos or iCloud?</h2>
+    <p>Migrate your photos and videos into Immich, with their dates, places and albums. Roostack walks you through it.</p></div>
+  <div class="cta-actions"><a class="button" href="import.html">Migrate photos…</a><button type="button" class="quiet" onclick="location.search='?s=hidden'">Hide</button></div>
+</section>
+<section class="card cta" data-state="running">
+  <span class="cta-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span>
+  <div class="cta-text"><h2>Anna is migrating photos from Google</h2>
+    <div class="progress"><div class="meter"><span style="width: 25%"></span></div><p>12,034 of 52,292 · <strong>about 6 hours left</strong></p></div></div>
+  <div class="cta-actions"><a class="button secondary" href="import.html?s=running">Watch</a></div>
+</section>
+<section class="card cta cta-warn" data-state="stopped">
+  <span class="cta-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.2h.01"/></svg></span>
+  <div class="cta-text"><h2>Anna's migration stopped</h2>
+    <p>At 14:52, when nuc lost power. 16,210 of 52,292 are in Immich; carrying on skips them, so nothing comes twice.</p></div>
+  <div class="cta-actions"><a class="button" href="import.html?s=stopped">Carry on</a></div>
+</section>
+
+<div class="grid">
+  <section class="card span-8 mock-muted"><div class="card-head"><h2>Its other cards</h2></div>
+    <p class="hint">Address, single sign-on, settings, backups and the rest, as today.</p></section>
+  <section class="card span-8" id="photos" data-state="idle add-location locations running stopped hidden">
+  <div class="card-head"><h2>Migrate photos</h2><a class="more" href="#">History</a></div>
+  <p>Migrate photos and videos from Google Photos or a folder (Apple iCloud next) into Immich, with their dates, places and albums.</p>
+  <div class="table-wrap" data-state="running stopped hidden"><table class="list stack-phone">
+    <thead><tr><th>Whose</th><th>From</th><th>When</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr data-state="running"><td>Anna</td><td>Google Photos</td><td>Today, 11:40</td><td>Running</td></tr>
+      <tr data-state="stopped"><td>Anna</td><td>Google Photos</td><td>Today, 11:40</td><td>Stopped: <a href="import.html?s=stopped">carry on</a></td></tr>
+      <tr><td>Ben</td><td>A folder: Ben's drive › Phone</td><td>18 Oct</td><td>3,204 photos, 211 videos</td></tr>
+    </tbody></table></div>
+  <div class="actions-row"><a class="button" href="import.html">Migrate photos from…</a></div>
+  <hr class="form-rule">
+  <form>
+    <h2 class="form-section">Who can migrate photos</h2>
+    <div class="seg-group">
+      <div class="segmented" role="radiogroup" aria-label="Who can migrate photos"><label><input type="radio" name="who" value="everyone" checked><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c2.8 0 5 2.2 5 5"/></svg><span>Everyone who uses Immich</span></label><label><input type="radio" name="who" value="admins"><span>Owners and Admins</span></label></div>
+      <div class="seg-panel" data-seg="1">
+        <p class="hint seg-hint">Into their own Immich account, with a key they make there, from their own page. You're emailed when one
+          starts and ends.</p>
+        <hr class="form-rule">
+        <h2 class="form-section">Where they can migrate photos from</h2>
+        <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>USB drives they plug into nuc<small>Never your
+          backups' drive, the system disk, or a drive with a media library.</small></span></label>
+        <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Network shares, with their own login</span></label>
+        <hr class="form-rule">
+        <h2 class="form-section">Additional locations</h2>
+        <p class="hint">Folders you set up for people to migrate from: on a drive, on nuc, or on a share with your login. Everyone who can
+          migrate photos sees what's in them, so a folder per person keeps them apart.</p>
+        <div class="locations" data-state="locations running stopped hidden add-location"><div class="folder-choice location"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span class="path"><strong>Family NAS › Takeouts</strong><small>A share, with your login · 3 folders</small></span>
+        <button type="button" class="secondary small">Remove</button></div></div>
+        <div data-state="idle"><p class="locations-empty">You haven't defined any additional locations that people can migrate photos from.
+        Press <strong>Add a location</strong> below to add one.</p></div>
+        <p><a class="button secondary" href="?s=add-location" data-dialog="add-location">Add a location</a></p>
+        <hr class="form-rule">
+        <h2 class="form-section">Send them here</h2>
+        <div class="copy-box"><pre class="output">https://roost.smiths.roost.ac/immich-photos</pre><button type="button" class="icon-button copy-button" title="Copy"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span class="sr-only">Copy</span></button></div>
+        <p class="hint">It's linked from their dashboard and from the sign-in page too.</p>
+      </div>
+      <p class="seg-panel hint seg-hint" data-seg="2">Only Owners and Admins, from here. Everyone else can ask one of you.</p>
+    </div>
+    <div class="actions-row"><button type="button">Save</button></div>
+  </form>
+</section>
+  <section class="card span-8" id="photos" data-state="admins">
+  <div class="card-head"><h2>Migrate photos</h2><a class="more" href="#">History</a></div>
+  <p>Migrate photos and videos from Google Photos or a folder (Apple iCloud next) into Immich, with their dates, places and albums.</p>
+  <div class="table-wrap" data-state="running stopped hidden"><table class="list stack-phone">
+    <thead><tr><th>Whose</th><th>From</th><th>When</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr data-state="running"><td>Anna</td><td>Google Photos</td><td>Today, 11:40</td><td>Running</td></tr>
+      <tr data-state="stopped"><td>Anna</td><td>Google Photos</td><td>Today, 11:40</td><td>Stopped: <a href="import.html?s=stopped">carry on</a></td></tr>
+      <tr><td>Ben</td><td>A folder: Ben's drive › Phone</td><td>18 Oct</td><td>3,204 photos, 211 videos</td></tr>
+    </tbody></table></div>
+  <div class="actions-row"><a class="button" href="import.html">Migrate photos from…</a></div>
+  <hr class="form-rule">
+  <form>
+    <h2 class="form-section">Who can migrate photos</h2>
+    <div class="seg-group">
+      <div class="segmented" role="radiogroup" aria-label="Who can migrate photos"><label><input type="radio" name="who" value="everyone"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14c2.8 0 5 2.2 5 5"/></svg><span>Everyone who uses Immich</span></label><label><input type="radio" name="who" value="admins" checked><span>Owners and Admins</span></label></div>
+      <div class="seg-panel" data-seg="1">
+        <p class="hint seg-hint">Into their own Immich account, with a key they make there, from their own page. You're emailed when one
+          starts and ends.</p>
+        <hr class="form-rule">
+        <h2 class="form-section">Where they can migrate photos from</h2>
+        <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>USB drives they plug into nuc<small>Never your
+          backups' drive, the system disk, or a drive with a media library.</small></span></label>
+        <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Network shares, with their own login</span></label>
+        <hr class="form-rule">
+        <h2 class="form-section">Additional locations</h2>
+        <p class="hint">Folders you set up for people to migrate from: on a drive, on nuc, or on a share with your login. Everyone who can
+          migrate photos sees what's in them, so a folder per person keeps them apart.</p>
+        <div class="locations" data-state="locations running stopped hidden add-location"><div class="folder-choice location"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span class="path"><strong>Family NAS › Takeouts</strong><small>A share, with your login · 3 folders</small></span>
+        <button type="button" class="secondary small">Remove</button></div></div>
+        <div data-state="idle"><p class="locations-empty">You haven't defined any additional locations that people can migrate photos from.
+        Press <strong>Add a location</strong> below to add one.</p></div>
+        <p><a class="button secondary" href="?s=add-location" data-dialog="add-location">Add a location</a></p>
+        <hr class="form-rule">
+        <h2 class="form-section">Send them here</h2>
+        <div class="copy-box"><pre class="output">https://roost.smiths.roost.ac/immich-photos</pre><button type="button" class="icon-button copy-button" title="Copy"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span class="sr-only">Copy</span></button></div>
+        <p class="hint">It's linked from their dashboard and from the sign-in page too.</p>
+      </div>
+      <p class="seg-panel hint seg-hint" data-seg="2">Only Owners and Admins, from here. Everyone else can ask one of you.</p>
+    </div>
+    <div class="actions-row"><button type="button">Save</button></div>
+  </form>
+</section>
+</div>
+<dialog class="dialog form-dialog" data-modal data-state="add-location" aria-labelledby="add-location-title">
+  <div class="dialog-head"><h2 id="add-location-title">Add a location</h2><a class="icon-button" href="?s=locations" data-close><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg><span class="sr-only">Close</span></a></div>
+  <form>
+    <div class="seg-group">
+      <div class="segmented" role="radiogroup" aria-label="Where it is"><label><input type="radio" name="where" value="drive"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><span>Drive</span></label><label><input type="radio" name="where" value="folder"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg><span>Folder on nuc</span></label><label><input type="radio" name="where" value="share" checked><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span>Network share</span></label></div>
+      <div class="seg-panel" data-seg="1"><p class="hint seg-hint">A folder on a USB drive or second disk plugged into nuc.</p>
+        <div class="drives"><div class="drive"><label class="check"><input type="radio" name="drive" value="media2" checked><span><strong>Media</strong> <span class="badge">Second disk</span><small>4 TB, 1.2 TB free · ext4</small></span></label></div><div class="drive drive-unusable"><label class="check"><input type="radio" name="drive" value="b2" disabled><span><strong>Backups</strong> <span class="badge">USB drive</span><small>Your backups' drive</small></span></label></div></div>
+        <div class="folder-choice"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>Media › Takeouts</strong><small>3 folders</small></span><a class="button secondary small" href="#">Choose…</a></div></div>
+      <div class="seg-panel" data-seg="2"><p class="hint seg-hint">A folder already on nuc, under /mnt, /media or /srv.</p><div class="folder-choice empty"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>No folder chosen yet</strong></span><a class="button secondary small" href="#">Choose…</a></div></div>
+      <div class="seg-panel" data-seg="3">
+        <p class="hint seg-hint">A folder shared by a NAS or another computer. Your login is kept on nuc, readable only by Roostack's agent.</p>
+        <div class="segmented small" role="radiogroup" aria-label="Kind of share"><label><input type="radio" name="kind" value="smb" checked><span>SMB</span></label><label><input type="radio" name="kind" value="nfs"><span>NFS</span></label></div>
+        <div class="field-row"><label>Server <input value="nas.home"></label><label>Share <input value="Takeouts"></label></div>
+        <div class="field-row"><label>Username <input value="sam"></label><label>Password <input type="password" value="example-not-real"></label></div>
+      </div>
+    </div>
+    <label>Its name, for people <input value="Family NAS › Takeouts"></label>
+    <div class="dialog-actions"><a class="button secondary" href="?s=locations" data-close>Cancel</a><button type="button">Check and add</button></div>
+  </form>
+</dialog>
+      </main>
+    </div>
+  </div>
+  <script src="mock.js"></script>
+</body>
+</html>

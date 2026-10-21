@@ -1,0 +1,78 @@
+/* Bringing photos into Immich, mock-ups (2026-10-21): only what the real
+   stylesheet lacks. Each part here would become a component in the gallery. */
+
+/* The mock-ups show one state at a time; app.css has no [hidden] rule of its own. */
+[hidden] { display: none !important; }
+
+/* The guide's numbered steps: room between them. */
+.guide-list li + li { margin-top: var(--space-2); }
+
+/* The key's permissions (new): a compact list in columns, as Immich names them. */
+.perm-details { margin-top: var(--space-2); }
+.perm-list { list-style: none; padding: 0; margin: var(--space-2) 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 2px var(--space-3); }
+.perm-list code { font-size: var(--text-sm); }
+.key-form { margin-top: var(--space-3); }
+.key-form input { flex: 1; min-width: 0; font-family: var(--font-mono); }
+
+/* The check's figures, inside a step card: smaller cards. */
+.import-figures { margin: var(--space-3) 0; }
+
+/* Additional locations (new): each a folder value with Remove; none yet
+   is a dashed box saying how to add one. */
+.locations { display: grid; gap: var(--space-2); margin-bottom: var(--space-3); }
+.locations-empty { padding: var(--space-3) var(--space-4); border: 1px dashed var(--border-strong); border-radius: var(--radius);
+  color: var(--muted); font-size: var(--text-sm); margin: 0 0 var(--space-3); }
+
+/* A card standing for the rest of a page. */
+.mock-muted { opacity: .6; box-shadow: none; }
+
+/* /immich-photos (new): a page of its own, with the lab's name and logo
+   and who's signed in, and nothing of the control panel. */
+.photos-header { justify-content: space-between; }
+.photos-brand { display: inline-flex; align-items: center; gap: var(--space-2); color: inherit; text-decoration: none; }
+.photos-brand strong { font-family: var(--font-display); font-size: var(--text-lg, 1.2rem); }
+.photos-mark svg { width: 32px; height: 32px; display: block; border-radius: 9px; }
+.photos-who { display: inline-flex; align-items: center; gap: var(--space-2); }
+.photos-page { width: 100%; max-width: 760px; display: grid; gap: var(--space-4); padding-inline: var(--space-4); }
+.photos-head { display: flex; gap: var(--space-3); align-items: flex-start; }
+.photos-head h1 { margin: 0; }
+.photos-steps { display: grid; gap: var(--space-4); }
+.photos-foot { text-align: center; }
+
+/* The sign-in page's link to bringing in photos (new): below the services. */
+.signin-extra a { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: 12px;
+  border: 1px dashed var(--edge-strong); color: inherit; text-decoration: none; margin-bottom: var(--space-4); }
+.signin-extra .icon { width: 28px; height: 28px; flex: none; color: var(--accent); }
+.signin-extra small { display: block; color: var(--muted); }
+
+/* The mock-ups' own switch, bottom right. */
+.mock-bar { position: fixed; right: 12px; bottom: 12px; z-index: 50; display: flex; gap: 4px 6px; flex-wrap: wrap; align-items: center; padding: 6px 8px;
+  max-width: calc(100vw - 24px); border-radius: 10px; background: var(--fg); color: var(--bg); font-size: 13px; box-shadow: 0 4px 20px rgb(0 0 0 / .25); }
+.mock-bar a, .mock-bar button { color: inherit; background: none; border: 0; padding: 2px 6px; font: inherit; cursor: pointer; text-decoration: none; border-radius: 6px; }
+.mock-bar [aria-current] { background: color-mix(in srgb, var(--bg) 22%, transparent); }
+.mock-bar .sep { opacity: .4; }
+.mock-bar select { font: inherit; padding: 1px 4px; border-radius: 6px; width: auto; min-height: 0; margin: 0; color: var(--fg); background: var(--bg); }
+
+/* The check's four figures side by side, two by two on phones. */
+.import-figures { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 640px) { .import-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* A call to action at the top of a service's page (new): a slim card with
+   an icon, a line or two and its button; while the work runs it's the
+   progress, and when it stopped, what happened and Carry on. Stacks on
+   phones. */
+.cta { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-4); padding-block: var(--space-3); }
+.cta-icon { display: inline-grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-fg); }
+.cta-icon .icon { width: 20px; height: 20px; color: inherit; }
+.cta-warn .cta-icon { background: var(--warn-bg); color: var(--warn); }
+.cta-text { flex: 1; min-width: 0; }
+.cta-text h2 { margin: 0; font-size: var(--text-base); }
+.cta-text p { margin: 2px 0 0; color: var(--muted); font-size: var(--text-sm); }
+.cta-text .progress { margin-top: var(--space-2); }
+.cta-actions { display: flex; gap: var(--space-2); flex: none; }
+@media (max-width: 640px) {
+  .cta { flex-wrap: wrap; }
+  .cta-text { flex-basis: calc(100% - 40px - var(--space-4)); }
+  .cta-actions { width: 100%; }
+}

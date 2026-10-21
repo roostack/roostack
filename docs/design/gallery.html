@@ -2010,7 +2010,7 @@ Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;</pre>
         
         <div class="example">
           <h3>Form in a dialog <span class="badge badge-highlight">Template component</span></h3>
-          <p class="hint">Adding one thing to a list (a check, someone, an invite, a server): a secondary button, a link with data-dialog=&#34;ID&#34; and an href that opens the page with ?add=…, opens dialog.form-dialog ID: .dialog-head (the heading and a close link), the form, .dialog-actions (a data-close Cancel link, then its button). The page renders it open when its form came back with a mistake, or from ?add=…; app.js makes an open one modal, and without scripts it shows in the page as a card. The first field has autofocus. Here, open in the page as without scripts.</p>
+          <p class="hint">Adding one thing to a list (a check, someone, an invite, a server): a secondary button, a link with data-dialog=&#34;ID&#34; and an href that opens the page with ?add=…, opens dialog.form-dialog ID: .dialog-head (the heading and a close link), the form, .dialog-actions (a data-close Cancel link, then its button). The page renders it open when its form came back with a mistake, or from ?add=…; app.js makes an open one modal, and without scripts it shows in the page as a card. The first field has autofocus. A form that needs its own page&#39;s work (the drives a server has) is loaded as it opens: the link also has data-load=&#34;SELECTOR&#34; and the dialog is template &#34;add-dialog&#34; (dialogFor ID TITLE BACK), an empty .dialog-body that app.js fills with SELECTOR from the link&#39;s page; the form sends itself with htmx (a mistake comes back in the dialog, success is HX-Redirect). Here, open in the page as without scripts.</p>
           <div class="panels">
             <div class="panel" data-mode="light"><dialog class="dialog form-dialog" open aria-labelledby="gallery-dialog-title">
   <div class="dialog-head"><h2 id="gallery-dialog-title">Add a check</h2><a class="icon-button" href="#" data-close><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg><span class="sr-only">Close</span></a></div>
@@ -2423,6 +2423,115 @@ Network=roostack-immich.network&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;</pre>
             
             <pre class="output">&lt;p class=&#34;activity-status running&#34;&gt;&lt;span class=&#34;spinner&#34; aria-hidden=&#34;true&#34;&gt;&lt;/span&gt; Copying: Your photos and videos… &lt;small&gt;started 14:10&lt;/small&gt;&lt;/p&gt;
 &lt;div class=&#34;progress&#34;&gt;&lt;div class=&#34;meter&#34;&gt;&lt;span data-width=&#34;37&#34;&gt;&lt;/span&gt;&lt;/div&gt;&lt;p&gt;18.4 GB of 49.6 GB · 52,310 of 355,516 files · &lt;strong&gt;about 25 minutes left&lt;/strong&gt;&lt;/p&gt;&lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>A call to action <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">section.card.cta at the top of a service&#39;s page, under its heading: .cta-icon, .cta-text (an h2 and a line, or a .progress) and .cta-actions. Slim, not a card of its own design (the Owner, 2026-10-21: &#34;weird for one service to have a very large and completely different UI right at the top&#34;). .cta-warn when something stopped. Migrating photos into Immich: before anyone has, while one runs, when one stopped.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><section class="card cta">
+  <span class="cta-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span>
+  <div class="cta-text"><h2>Moving from Google Photos or iCloud?</h2>
+    <p>Migrate your photos and videos into Immich, with their dates, places and albums. Roostack walks you through it.</p></div>
+  <div class="cta-actions"><a class="button" href="#">Migrate photos…</a><button type="button" class="quiet">Hide</button></div>
+</section>
+<section class="card cta cta-warn">
+  <span class="cta-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg></span>
+  <div class="cta-text"><h2>Anna's migration stopped</h2><p>When the server restarted. 16,210 are in Immich; carrying on skips them.</p></div>
+  <div class="cta-actions"><button type="button">Carry on</button></div>
+</section></div>
+            <div class="panel" data-mode="dark"><section class="card cta">
+  <span class="cta-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span>
+  <div class="cta-text"><h2>Moving from Google Photos or iCloud?</h2>
+    <p>Migrate your photos and videos into Immich, with their dates, places and albums. Roostack walks you through it.</p></div>
+  <div class="cta-actions"><a class="button" href="#">Migrate photos…</a><button type="button" class="quiet">Hide</button></div>
+</section>
+<section class="card cta cta-warn">
+  <span class="cta-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg></span>
+  <div class="cta-text"><h2>Anna's migration stopped</h2><p>When the server restarted. 16,210 are in Immich; carrying on skips them.</p></div>
+  <div class="cta-actions"><button type="button">Carry on</button></div>
+</section></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;section class=&#34;card cta&#34;&gt;
+  &lt;span class=&#34;cta-icon&#34;&gt;{{icon &#34;import&#34;}}&lt;/span&gt;
+  &lt;div class=&#34;cta-text&#34;&gt;&lt;h2&gt;Moving from Google Photos or iCloud?&lt;/h2&gt;
+    &lt;p&gt;Migrate your photos and videos into Immich, with their dates, places and albums. Roostack walks you through it.&lt;/p&gt;&lt;/div&gt;
+  &lt;div class=&#34;cta-actions&#34;&gt;&lt;a class=&#34;button&#34; href=&#34;#&#34;&gt;Migrate photos…&lt;/a&gt;&lt;button type=&#34;button&#34; class=&#34;quiet&#34;&gt;Hide&lt;/button&gt;&lt;/div&gt;
+&lt;/section&gt;
+&lt;section class=&#34;card cta cta-warn&#34;&gt;
+  &lt;span class=&#34;cta-icon&#34;&gt;{{icon &#34;warn&#34;}}&lt;/span&gt;
+  &lt;div class=&#34;cta-text&#34;&gt;&lt;h2&gt;Anna&#39;s migration stopped&lt;/h2&gt;&lt;p&gt;When the server restarted. 16,210 are in Immich; carrying on skips them.&lt;/p&gt;&lt;/div&gt;
+  &lt;div class=&#34;cta-actions&#34;&gt;&lt;button type=&#34;button&#34;&gt;Carry on&lt;/button&gt;&lt;/div&gt;
+&lt;/section&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;section class=&#34;card cta&#34;&gt;&lt;span class=&#34;cta-icon&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M12 3v12M7 10l5 5 5-5&#34;/&gt;&lt;path d=&#34;M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;
+  &lt;div class=&#34;cta-text&#34;&gt;
+    &lt;h2&gt;Moving from Google Photos or iCloud?&lt;/h2&gt;
+    &lt;p&gt;Migrate your photos and videos into Immich, with their dates, places and albums. Roostack walks you through it.&lt;/p&gt;
+  &lt;/div&gt;
+  &lt;div class=&#34;cta-actions&#34;&gt;&lt;a class=&#34;button&#34; href=&#34;#&#34;&gt;Migrate photos…&lt;/a&gt;
+    &lt;button type=&#34;button&#34; class=&#34;quiet&#34;&gt;Hide&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/section&gt;
+&lt;section class=&#34;card cta cta-warn&#34;&gt;&lt;span class=&#34;cta-icon&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;path d=&#34;M12 4 2.5 20h19z&#34;/&gt;&lt;path d=&#34;M12 10v4M12 17h.01&#34;/&gt;&lt;/svg&gt;&lt;/span&gt;
+  &lt;div class=&#34;cta-text&#34;&gt;
+    &lt;h2&gt;Anna&#39;s migration stopped&lt;/h2&gt;
+    &lt;p&gt;When the server restarted. 16,210 are in Immich; carrying on skips them.&lt;/p&gt;
+  &lt;/div&gt;
+  &lt;div class=&#34;cta-actions&#34;&gt;
+    &lt;button type=&#34;button&#34;&gt;Carry on&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/section&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>An empty list&#39;s note <span class="badge badge-highlight">Template component</span></h3>
+          <p class="hint">p.locations-empty: a dashed box where a list will be, saying there&#39;s nothing yet and how to add one (the Owner&#39;s words, 2026-10-21). .locations holds the list once there is one: folder choices with Remove.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><p class="locations-empty">You haven't defined any additional locations that people can migrate photos from. Press <strong>Add a location</strong> below to add one.</p>
+<div class="locations"><div class="folder-choice location"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span class="path"><strong>Family NAS › Takeouts</strong><small>A share on nas.home, with your login</small></span>
+  <button type="button" class="secondary small">Remove</button></div></div></div>
+            <div class="panel" data-mode="dark"><p class="locations-empty">You haven't defined any additional locations that people can migrate photos from. Press <strong>Add a location</strong> below to add one.</p>
+<div class="locations"><div class="folder-choice location"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span class="path"><strong>Family NAS › Takeouts</strong><small>A share on nas.home, with your login</small></span>
+  <button type="button" class="secondary small">Remove</button></div></div></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <p class="markup-label">In a template</p>
+            <pre class="output">&lt;p class=&#34;locations-empty&#34;&gt;You haven&#39;t defined any additional locations that people can migrate photos from. Press &lt;strong&gt;Add a location&lt;/strong&gt; below to add one.&lt;/p&gt;
+&lt;div class=&#34;locations&#34;&gt;&lt;div class=&#34;folder-choice location&#34;&gt;{{icon &#34;network&#34;}}&lt;span class=&#34;path&#34;&gt;&lt;strong&gt;Family NAS › Takeouts&lt;/strong&gt;&lt;small&gt;A share on nas.home, with your login&lt;/small&gt;&lt;/span&gt;
+  &lt;button type=&#34;button&#34; class=&#34;secondary small&#34;&gt;Remove&lt;/button&gt;&lt;/div&gt;&lt;/div&gt;</pre>
+            <p class="markup-label">Renders as</p>
+            <pre class="output">&lt;p class=&#34;locations-empty&#34;&gt;You haven&#39;t defined any additional locations that people can migrate photos from. Press&lt;strong&gt;Add a location&lt;/strong&gt;below to add one.&lt;/p&gt;
+&lt;div class=&#34;locations&#34;&gt;
+  &lt;div class=&#34;folder-choice location&#34;&gt;&lt;svg class=&#34;icon&#34; viewBox=&#34;0 0 24 24&#34; aria-hidden=&#34;true&#34; focusable=&#34;false&#34; fill=&#34;none&#34; stroke=&#34;currentColor&#34; stroke-width=&#34;1.8&#34; stroke-linecap=&#34;round&#34; stroke-linejoin=&#34;round&#34;&gt;&lt;circle cx=&#34;5&#34; cy=&#34;12&#34; r=&#34;2.5&#34;/&gt;&lt;circle cx=&#34;19&#34; cy=&#34;5&#34; r=&#34;2.5&#34;/&gt;&lt;circle cx=&#34;19&#34; cy=&#34;19&#34; r=&#34;2.5&#34;/&gt;&lt;path d=&#34;m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8&#34;/&gt;&lt;/svg&gt;&lt;span class=&#34;path&#34;&gt;&lt;strong&gt;Family NAS › Takeouts&lt;/strong&gt;&lt;small&gt;A share on nas.home, with your login&lt;/small&gt;&lt;/span&gt;
+    &lt;button type=&#34;button&#34; class=&#34;secondary small&#34;&gt;Remove&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</pre>
+            
+          </details>
+        </div>
+        
+        <div class="example">
+          <h3>Permissions <span class="badge">HTML and CSS classes</span></h3>
+          <p class="hint">ul.perm-list: code names in columns, as another app names them (an Immich key&#39;s permissions to tick). Usually inside details.form-more.</p>
+          <div class="panels">
+            <div class="panel" data-mode="light"><ul class="perm-list"><li><code>asset.read</code></li><li><code>asset.upload</code></li><li><code>album.create</code></li><li><code>albumAsset.create</code></li><li><code>stack.create</code></li><li><code>tag.create</code></li></ul></div>
+            <div class="panel" data-mode="dark"><ul class="perm-list"><li><code>asset.read</code></li><li><code>asset.upload</code></li><li><code>album.create</code></li><li><code>albumAsset.create</code></li><li><code>stack.create</code></li><li><code>tag.create</code></li></ul></div>
+          </div>
+          <details>
+            <summary>Markup</summary>
+            
+            <pre class="output">&lt;ul class=&#34;perm-list&#34;&gt;&lt;li&gt;&lt;code&gt;asset.read&lt;/code&gt;&lt;/li&gt;&lt;li&gt;&lt;code&gt;asset.upload&lt;/code&gt;&lt;/li&gt;&lt;li&gt;&lt;code&gt;album.create&lt;/code&gt;&lt;/li&gt;&lt;li&gt;&lt;code&gt;albumAsset.create&lt;/code&gt;&lt;/li&gt;&lt;li&gt;&lt;code&gt;stack.create&lt;/code&gt;&lt;/li&gt;&lt;li&gt;&lt;code&gt;tag.create&lt;/code&gt;&lt;/li&gt;&lt;/ul&gt;</pre>
             
           </details>
         </div>

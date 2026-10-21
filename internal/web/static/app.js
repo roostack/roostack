@@ -92,6 +92,10 @@
   // opens it, its data-close links close it; without scripts they're
   // links to the page with it open (as a card), and without it. One the
   // page opened (a form that came back with a mistake) becomes a dialog.
+  // With data-load="<selector>" too, the dialog's .dialog-body is filled
+  // with that part of the page the link leads to (the form's own page)
+  // as it opens: for a form that asks the server about drives, which
+  // would slow every page it's on (adding a media library).
   document.addEventListener("DOMContentLoaded", () => {
     for (const d of document.querySelectorAll("dialog.form-dialog[open]")) {
       d.close();
@@ -103,6 +107,13 @@
     const dialog = open && document.getElementById(open.dataset.dialog);
     if (dialog) {
       e.preventDefault();
+      const body = open.dataset.load && dialog.querySelector(".dialog-body");
+      if (body && window.htmx) {
+        body.replaceChildren(Object.assign(document.createElement("p"), { className: "hint", textContent: "Looking at the drives…" }));
+        htmx.ajax("GET", open.href, { target: body, select: open.dataset.load, swap: "innerHTML ignoreTitle:true" }).then(() => {
+          if (!body.querySelector(open.dataset.load)) body.firstChild.textContent = "Roostack couldn't show this. Close it and try again.";
+        });
+      }
       dialog.showModal();
       return;
     }

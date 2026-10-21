@@ -170,6 +170,10 @@ func serve(args []string) error {
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
 	srv.Libraries = mgr
+	// Migrating photos into Immich (SPEC.md §8.5): its pages, and the
+	// email when one ends.
+	srv.Photos = mgr
+	local.OnPhotos = srv.PhotosEnded
 	srv.UIHost = lab.UIHost()
 	if err := startSignIn(ctx, lab, st, srv, mgr, local, log); err != nil {
 		return err

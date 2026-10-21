@@ -218,6 +218,9 @@ type LibraryRequest struct {
 	// Share, if set, makes it a network share (its password only goes to
 	// the server, to check it and keep its login).
 	Share *agent.Share
+	// PhotosFor keeps it for migrating photos into that Immich (SPEC.md
+	// §8.5): no service reads it.
+	PhotosFor string
 }
 
 // libraryNameRe and LibraryName: a library's name comes from its title.
@@ -265,7 +268,7 @@ func (m *Manager) AddLibrary(ctx context.Context, req LibraryRequest) error {
 		return err
 	}
 	lib := store.MediaLibrary{ServerID: req.Server, Name: name, Title: title, Drive: req.Drive, DriveName: req.DriveName,
-		Sub: list.Path, Folder: req.Folder}
+		Sub: list.Path, Folder: req.Folder, PhotosFor: req.PhotosFor}
 	if req.AsOwner {
 		o := list.Check.Owner
 		if o == nil || req.Drive == "" {
@@ -305,7 +308,7 @@ func (m *Manager) addShare(ctx context.Context, req LibraryRequest, name, title 
 		return formErrorf("%s", userText(err))
 	}
 	lib := store.MediaLibrary{ServerID: req.Server, Name: name, Title: title, ShareType: sh.Type, ShareServer: sh.Server,
-		SharePath: sh.Path, ShareUser: sh.Username}
+		SharePath: sh.Path, ShareUser: sh.Username, PhotosFor: req.PhotosFor}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if err := m.Libraries.SetMediaLibrary(ctx, lib); err != nil {
@@ -432,7 +435,8 @@ func (m *Manager) SetServiceLibraries(ctx context.Context, service string, libra
 	return nil
 }
 
-// ServerLibraryChoices are a server's libraries, for checkboxes.
+// ServerLibraryChoices are a server's libraries, for checkboxes: not those
+// kept for migrating photos (SPEC.md §8.5), which no service reads.
 func (m *Manager) ServerLibraryChoices(ctx context.Context, serverID string) []store.MediaLibrary {
 	if m.Libraries == nil {
 		return nil
@@ -444,7 +448,7 @@ func (m *Manager) ServerLibraryChoices(ctx context.Context, serverID string) []s
 	}
 	var out []store.MediaLibrary
 	for _, l := range libs {
-		if l.ServerID == cmp.Or(serverID, m.Lab.NodeID) {
+		if l.ServerID == cmp.Or(serverID, m.Lab.NodeID) && l.PhotosFor == "" {
 			out = append(out, l)
 		}
 	}

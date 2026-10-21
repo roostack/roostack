@@ -58,15 +58,15 @@ func (s *Server) requireOwner(h http.HandlerFunc) http.Handler {
 			return
 		}
 		if u.TOTPSecret == "" {
-			redirect(w, r, s.twoFactorPath(r, u))
+			redirect(w, r, firstThen(s.twoFactorPath(r, u), r))
 			return
 		}
 		if u.MustChangePassword {
-			redirect(w, r, "/account")
+			redirect(w, r, firstThen("/account", r))
 			return
 		}
 		if ownerNeedsEmail(u) {
-			redirect(w, r, "/account/notifications")
+			redirect(w, r, firstThen("/account/notifications", r))
 			return
 		}
 		h(w, r)

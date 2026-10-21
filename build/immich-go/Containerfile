@@ -1,0 +1,28 @@
+# immich-go, which migrates photos into Immich from Google Photos and other
+# platforms (SPEC.md §8.5, docs/IMMICH-IMPORT.md §3). Its releases aren't
+# signed, so Roostack builds it from source on the server that runs Immich,
+# the first time someone migrates photos.
+#
+# Everything is pinned (SPEC.md §8.1): the builder image by tag and digest
+# (Caddy's own, so a server that built Caddy has it already), and
+# immich-go by version, whose source and every module it needs are then
+# fixed by Go's checksum database. GOTOOLCHAIN=local keeps the builder's Go
+# rather than downloading another. The result holds only the static
+# binary. To update: change VERSION here and photoimport.ToolVersion,
+# build, and migrate the synthetic Takeout on a VM
+# (docs/immich-import-test).
+#
+# Build: podman build -t roostack-immich-go build/immich-go
+FROM docker.io/library/caddy:2.11.4-builder@sha256:369218c81ca6d6af249981221b3a5c764d886dd5b058f51d144066de13f2418d AS builder
+ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS=-trimpath GOBIN=/out
+ARG VERSION=v0.32.0
+RUN go install -ldflags="-s -w -X github.com/simulot/immich-go/app.Version=${VERSION}" -tags timetzdata \
+    github.com/simulot/immich-go@${VERSION}
+
+FROM scratch
+COPY --from=builder /out/immich-go /immich-go
+# immich-go writes its log and cache under its home; Roostack mounts a
+# folder of its own at /work.
+ENV HOME=/work
+WORKDIR /work
+ENTRYPOINT ["/immich-go"]

@@ -156,6 +156,9 @@ func (s *Server) toSignInPage(w http.ResponseWriter, r *http.Request) {
 	q := url.Values{}
 	if r.Method == http.MethodGet && r.Header.Get("HX-Request") != "true" && r.URL.Path != "/login" {
 		q.Set("next", r.URL.RequestURI())
+	} else if next := r.URL.Query().Get("next"); r.URL.Path == "/login" && next != "" {
+		// /login?next=… (the page asked for before logging in) carries on.
+		q.Set("next", next)
 	}
 	if sessionOf(r).Expired || r.URL.Query().Get("expired") == "1" {
 		q.Set("away", "1")
@@ -165,16 +168,6 @@ func (s *Server) toSignInPage(w http.ResponseWriter, r *http.Request) {
 		to += "?" + q.Encode()
 	}
 	redirect(w, r, to)
-}
-
-// localNext keeps a page of Roostack's own to go to after signing in, or
-// "/" (no other address, and not the login pages).
-func localNext(next string) string {
-	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.ContainsAny(next, "\\\r\n") ||
-		next == "/login" || strings.HasPrefix(next, "/login?") || strings.HasPrefix(next, "/login/") || strings.HasPrefix(next, "/logout") {
-		return "/"
-	}
-	return next
 }
 
 // pagesStart sets the trip's cookie and goes to the sign-in page.

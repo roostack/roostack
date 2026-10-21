@@ -13,7 +13,7 @@
   <h2>Change password</h2>
   {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
   {{with .Done}}{{notice "ok" .}}{{end}}
-  <form method="post" action="/account/password">
+  <form method="post" action="{{.Action}}">
     <label>Current password <input name="current" type="password" autocomplete="current-password" required></label>
     <label>New password <input name="password" type="password" autocomplete="new-password" required minlength="12">
       <small>At least 12 characters. A few random words works well.</small></label>

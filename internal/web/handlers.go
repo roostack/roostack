@@ -4,6 +4,7 @@ import (
 	"errors"
 	"html/template"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -126,7 +127,7 @@ func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 		s.toSignInPage(w, r)
 		return
 	}
-	s.renderLogin(w, r, map[string]any{})
+	s.renderLogin(w, r, map[string]any{"Next": nextOf(r)})
 }
 
 func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
@@ -156,14 +157,14 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 		s.Store.Audit(r.Context(), nil, "failed login", who+" from "+r.RemoteAddr)
 		time.Sleep(failedLoginDelay)
 		w.WriteHeader(http.StatusUnauthorized)
-		s.renderLogin(w, r, map[string]any{"Error": "Wrong username or password.", "Username": username})
+		s.renderLogin(w, r, map[string]any{"Error": "Wrong username or password.", "Username": username, "Next": localNext(r.FormValue("next"))})
 		return
 	}
 	if u.TOTPSecret != "" {
 		// Say so now rather than after a code that can't work.
 		if until := authkit.TOTPLockedUntil(u.TOTPFailures, u.TOTPFailedAt); time.Now().Before(until) {
 			w.WriteHeader(http.StatusTooManyRequests)
-			s.renderLogin(w, r, map[string]any{"Error": lockedMessage(until), "Username": username})
+			s.renderLogin(w, r, map[string]any{"Error": lockedMessage(until), "Username": username, "Next": localNext(r.FormValue("next"))})
 			return
 		}
 		s.startPending(w, r, u)
@@ -175,7 +176,7 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), u, "login", "")
 	s.noteDevice(w, r, u)
-	redirect(w, r, "/")
+	redirect(w, r, localNext(r.FormValue("next")))
 }
 
 // startPending records a login that passed the password step and asks for
@@ -193,7 +194,8 @@ func (s *Server) startPending(w http.ResponseWriter, r *http.Request, u *store.U
 			delete(s.pending, k)
 		}
 	}
-	s.pending[originOf(r)+authkit.HashToken(token)] = &pendingLogin{userID: u.ID, expires: now.Add(pendingDuration), remember: r.FormValue("remember") == "on"}
+	s.pending[originOf(r)+authkit.HashToken(token)] = &pendingLogin{userID: u.ID, expires: now.Add(pendingDuration),
+		remember: r.FormValue("remember") == "on", next: localNext(r.FormValue("next"))}
 	s.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{
 		Name: pendingCookie, Value: token, Path: "/login", MaxAge: int(pendingDuration.Seconds()),
@@ -258,7 +260,7 @@ func (s *Server) loginTOTP(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Store.Audit(r.Context(), u, "login", "with two-factor code")
 	s.noteDevice(w, r, u)
-	redirect(w, r, "/")
+	redirect(w, r, p.next)
 }
 
 // twoFactorPage turns on two-factor: a page of the account, or for the
@@ -290,7 +292,7 @@ func (s *Server) twoFactorElsewhere(w http.ResponseWriter, r *http.Request, u *s
 	case r.URL.Path == wizardTwoFactor && u.TOTPSecret != "":
 		redirect(w, r, s.wizardNext(r))
 	case u.TOTPSecret == "" && r.URL.Path != s.twoFactorPath(r, u):
-		redirect(w, r, s.twoFactorPath(r, u))
+		redirect(w, r, firstThen(s.twoFactorPath(r, u), r))
 	default:
 		return false
 	}
@@ -336,7 +338,7 @@ func (s *Server) twoFactorSubmit(w http.ResponseWriter, r *http.Request) {
 		redirect(w, r, s.wizardNext(r))
 		return
 	}
-	redirect(w, r, "/")
+	redirect(w, r, nextOf(r))
 }
 
 func (s *Server) twoFactorData(r *http.Request, u *store.User, secret, errMsg string) map[string]any {
@@ -359,8 +361,17 @@ func (s *Server) twoFactorData(r *http.Request, u *store.User, secret, errMsg st
 		"Required":  s.twoFactorRequired(u),
 		"Owner":     u.Role == auth.RoleOwner,
 		"Error":     errMsg,
-		"Action":    r.URL.Path,
+		"Action":    withQuery(r.URL.Path, nextQuery(r)),
 	}
+}
+
+// nextQuery keeps r's ?next= for a form's action, so the step after it
+// carries on to that page.
+func nextQuery(r *http.Request) url.Values {
+	if next := nextOf(r); next != "/" {
+		return url.Values{"next": {next}}
+	}
+	return nil
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {

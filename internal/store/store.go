@@ -354,6 +354,10 @@ var migrations = []string{
 	// someone signed in at login.<domain> (SPEC.md §5.2): it ends with it.
 	`ALTER TABLE sessions ADD COLUMN sign_in TEXT REFERENCES sessions(token_hash) ON DELETE CASCADE;
 	CREATE INDEX sessions_sign_in ON sessions (sign_in);`,
+	// A media library kept for migrating photos into one Immich (SPEC.md
+	// §8.5, "Additional locations"): its service's name; no service reads
+	// it. Empty for the libraries services read.
+	`ALTER TABLE media_libraries ADD COLUMN photos_for TEXT NOT NULL DEFAULT '';`,
 }
 
 // OriginSetup marks sessions signed in on the setup pages on the home

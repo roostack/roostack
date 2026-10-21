@@ -1,0 +1,294 @@
+<!doctype html><html data-states="from:1 Where from,guide:2 Google's Takeout,where:3 Where the zips are,key:4 The key,key-missing:4 A key missing permissions,choose:5 What to migrate,check:6 Check: ready,problems:6 Check: problems,running:7 Migrating them,stopped:7 Stopped,done:Done: the summary" lang="en" data-palette="teal">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Migrate photos into Immich · Roostack (mock-up)</title>
+  <link rel="icon" href="../../../internal/web/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../../internal/web/static/css/tokens.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/themes/teal.css">
+  <link rel="stylesheet" href="../../../internal/web/static/css/app.css">
+  <link rel="stylesheet" href="mock.css">
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Roostack">
+      <a class="sidebar-lab" href="#"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect class="bm-f-soft" width="64" height="64" rx="14"/><g transform="translate(-3.6 .6) scale(1.2)"><path class="bm-f-hi" d="M34.5 14C33 11 34 8.2 36.3 8.6C36.6 6.2 39.6 5.6 40.4 7.8C42.2 6.9 44.2 8.6 43.2 11.2C42.8 12.4 42 13.4 41 14Z"/><path class="bm-f-hi" d="M43.4 18C45.8 18.4 46.6 21.8 45.2 24.2C43.4 23.6 42.4 20.4 43.4 18Z"/><path class="bm-f-fg" d="M44.2 14.6 49.2 16.6 44.4 18.6Z"/><path class="bm-f-fg bm-s-soft" d="M24 35C30 37.5 38 36 41 30C43 26 43.5 23 42.6 20.6L44.6 18.6C44.9 12.6 42.2 10.4 39 10.4C35.8 10.4 33.4 12.8 33.4 16C33.4 18.5 32.4 20 30 21C26 22.6 22 22.6 19.6 21.4C17 18 14.5 14.5 11.6 12.6C11.2 15.6 12 18 13.4 19.8C11.6 19 9.6 18.8 8 19.4C9.6 21.4 11.6 22.6 13.6 23.4C12.2 23.8 10.8 24.6 10 25.6C12 26.6 14 26.8 15.4 26.6C17 31 20 34 24 35Z" stroke-width="1.1" stroke-linejoin="round"/><circle class="bm-f-soft" cx="40.2" cy="14.6" r="1.3"/><path class="bm-s-fg" d="M27 34V37.4M25.4 37.4H29" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path class="bm-s-fg" d="M31.4 34V37.4M29.8 37.4H33.4" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><rect class="bm-f-fg" x="8" y="46.5" width="48" height="11.5" rx="3.2"/><circle class="bm-f-led" cx="15" cy="52.25" r="2.8"/></svg><span class="sidebar-lab-name"><span>Roostack</span><strong title="Smiths' lab">Smiths' lab</strong></span></a>
+      <div class="sidebar-nav">
+      <nav class="nav-group" aria-label="Your lab">
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></svg>Home</a>
+        <a class="nav-item" href="#" aria-current="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Services</a>
+        <div class="nav-children"><a class="nav-sub" href="service.html" aria-current="page"><img class="nav-logo" src="immich.png" alt="" width="16" height="16" loading="lazy">Immich</a><a class="nav-sub" href="#"><img class="nav-logo" src="mealie.png" alt="" width="16" height="16" loading="lazy">Mealie</a><a class="nav-sub" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add a service…</a></div>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/></svg>Backups</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>Servers</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Monitoring</a>
+        <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Settings</a>
+      </nav>
+      </div>
+      <div class="sidebar-foot">
+        <div class="sidebar-tools">
+          <a href="#" target="_blank" rel="noopener"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg>Help<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+          <form method="post" action="/account/theme" id="theme-toggle">
+  <input type="hidden" name="theme" value="light">
+  <button type="submit" class="theme-toggle" title="Switch to light theme"
+    aria-label="Theme: auto. Switch to light."><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>Auto</button>
+</form>
+        </div>
+        <div class="who">
+          <a href="#" class="who-link"><span class="avatar" aria-hidden="true">S</span>
+            <span class="who-name"><strong title="sam">sam</strong><span>Owner</span></span></a>
+          <form method="post" action="/logout"><button type="submit" class="icon-button" title="Log out"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H4"/></svg><span class="sr-only">Log out</span></button></form>
+        </div>
+      </div>
+    </aside>
+    <div class="main">
+      <header class="page-header">
+        <button type="button" class="menu-button" onclick="document.body.classList.toggle('menu-open')" aria-controls="sidebar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span class="sr-only">Menu</span></button>
+        <nav class="crumbs" aria-label="Where you are"><a href="#">Services</a><a href="service.html">Immich</a><strong aria-current="page">Migrate photos</strong></nav>
+        <a class="page-help" href="#"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.3"/><path d="M12 16.8h.01"/></svg><span class="sr-only">Help: </span>Migrating photos</a>
+      </header>
+      <main class="page">
+<div class="page-head">
+  <div class="page-head-title">
+    <span class="logo-tile"><img src="immich.png" alt="" width="40" height="40"></span>
+    <div>
+      <div class="title-line"><h1>Migrate photos into Immich</h1><span class="status status-running">Running</span></div>
+      <p class="lede">From Google Photos or a folder, with their dates, places and albums, into one person's Immich account. Roostack only
+        reads your export: nothing there changes.</p>
+    </div>
+  </div>
+</div>
+<div class="grid steps-layout">
+  <div class="span-8 grid-column steps">
+<section class="card step-card" data-state="from">
+  <div class="card-head"><h2><span class="step-num">1</span>Where are your photos now?</h2></div>
+  <form>
+  <div class="seg-group">
+    <div class="segmented" role="radiogroup" aria-label="Where from"><label><input type="radio" name="from" value="google" checked><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 8.5 4.75 4.75 0 0 1 17.5 18z"/></svg><span>Google Photos</span></label><label><input type="radio" name="from" value="folder"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span>A folder of photos</span></label><label><input type="radio" name="from" value="apple" disabled><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 8.5 4.75 4.75 0 0 1 17.5 18z"/></svg><span>Apple iCloud (next)</span></label></div>
+    <p class="seg-panel hint seg-hint" data-seg="1">From a Google Takeout export: dates, places, albums, descriptions, favourites and archived photos.</p>
+    <p class="seg-panel hint seg-hint" data-seg="2">From a computer, a phone's backup, OneDrive, Dropbox or another app: the dates and places in the
+      files, and their XMP sidecars if there are any. Each folder can become an album.</p>
+  </div>
+  <div class="actions-row"><button type="button">Continue</button></div>
+  </form>
+</section>
+<section class="card step-card step-done" data-state="guide where key key-missing choose check problems"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Where from</h2><a class="more" href="#">Change</a></div>
+  <p class="step-summary">Google Photos (Takeout)</p></section>
+<section class="card step-card step-done" data-state="running stopped done"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Where from</h2></div>
+  <p class="step-summary">Google Photos (Takeout)</p></section>
+<div data-state="from"><section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">2</span>Get your photos from Google</h2></div></section>
+</div><section class="card step-card" data-state="guide">
+  <div class="card-head"><h2><span class="step-num">2</span>Get your photos from Google</h2></div>
+  <p>Google gives you everything in Google Photos as a few large zip files, called a <strong>Takeout</strong>.</p>
+  <div class="notice notice-warn" role="note"><p><strong>This can be very slow, so it may take you several days.</strong> Google can take a day or
+    more to make the files, and downloading hundreds of GB from Google is often slow and sometimes stops part-way. Take your time: Roostack
+    keeps your place, so close this page whenever you like and come back to Migrate photos on Immich's page when the files are ready.</p></div>
+  <ol class="todo-list guide-list">
+    <li>Open <a href="https://takeout.google.com" target="_blank" rel="noopener">takeout.google.com<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>, signed in to the
+      Google account whose photos these are.</li>
+    <li>Click <strong>Deselect all</strong>, then tick only <strong>Google Photos</strong>. Leave "All photo albums included" as it is.</li>
+    <li>Click <strong>Next step</strong>, and choose: <em>Send download link via email</em>, <em>Export once</em>,
+      file type <strong>.zip</strong>, size <strong>50 GB</strong>. Then <strong>Create export</strong>.</li>
+    <li>Google emails you when it's ready. <strong>Download every part</strong> (each is a zip of up to
+      50 GB) within 7 days: Google lets you download each one 5 times.</li>
+    <li>Copy all the parts into one folder on a USB drive or your NAS. <strong>Don't unzip them</strong>: Roostack reads them as they are.
+      You need about as much room as Google Photos says you use, plus a tenth.</li>
+  </ol>
+  <p class="hint">Your Google account isn't changed: your photos stay in Google Photos until you delete them there.
+    <a href="#">Tell me more</a></p>
+  <div class="actions-row"><button type="button">I have the zip files</button></div>
+</section>
+<section class="card step-card step-done" data-state="where key key-missing choose check problems running stopped done"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Get your photos from Google</h2></div>
+  <p class="step-summary">You have the zip files</p></section>
+<div data-state="from guide"><section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">3</span>Where are the zip files?</h2></div></section>
+</div><section class="card step-card" data-state="where">
+  <div class="card-head"><h2><span class="step-num">3</span>Where are the zip files?</h2></div>
+  <p class="hint">Roostack only reads them: it mounts them read-only, so nothing there can change.</p>
+  <form>
+  <div class="seg-group">
+    <div class="segmented" role="radiogroup" aria-label="Where they are"><label><input type="radio" name="where" value="drive" checked><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><span>Drive</span></label><label><input type="radio" name="where" value="folder"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg><span>Folder on nuc</span></label><label><input type="radio" name="where" value="share"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span>Network share</span></label></div>
+    <div class="seg-panel" data-seg="1">
+      <p class="hint seg-hint">A USB drive or second disk plugged into nuc.</p>
+      <div class="drives">
+        <div class="drive"><label class="check"><input type="radio" name="drive" value="t7" checked><span><strong>T7 Shield</strong> <span class="badge">USB drive</span><small>2 TB, 1.4 TB free · exfat · Samsung PSSD T7</small></span></label></div>
+        <div class="drive"><label class="check"><input type="radio" name="drive" value="media"><span><strong>Media</strong> <span class="badge">Second disk</span><small>4 TB, 1.2 TB free · ext4 · Holds media library Films</small></span></label></div>
+        <div class="drive drive-unusable"><label class="check"><input type="radio" name="drive" value="backups" disabled><span><strong>Backups</strong> <span class="badge">USB drive</span><small>Your backups' drive</small></span></label></div>
+      </div>
+      <label class="field-label" id="zips-at">The folder with the zip files</label>
+      <div class="folder-choice"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>T7 Shield › Takeout</strong><small>9 zip files, 412 GB</small></span><a class="button secondary small" href="#">Choose…</a></div>
+    </div>
+    <div class="seg-panel" data-seg="2"><p class="hint seg-hint">A folder already on nuc, under /mnt, /media or /srv.</p><div class="folder-choice empty"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg><span class="path"><strong>No folder chosen yet</strong></span><a class="button secondary small" href="#">Choose…</a></div></div>
+    <div class="seg-panel" data-seg="3"><p class="hint seg-hint">A folder shared by a NAS or another computer.</p></div>
+  </div>
+  <div class="actions-row"><button type="button">Continue</button></div>
+  </form>
+</section>
+<section class="card step-card step-done" data-state="key key-missing choose check problems"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Where are the zip files?</h2><a class="more" href="#">Change</a></div>
+  <p class="step-summary">T7 Shield › Takeout<small>9 zip files, 412 GB, read-only</small></p></section>
+<section class="card step-card step-done" data-state="running stopped done"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Where are the zip files?</h2></div>
+  <p class="step-summary">T7 Shield › Takeout<small>9 zip files, 412 GB, read-only</small></p></section>
+<div data-state="from guide where"><section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">4</span>Your Immich key</h2></div></section>
+</div><section class="card step-card" data-state="key">
+  <div class="card-head"><h2><span class="step-num">4</span>Your Immich key</h2></div>
+  <p>The photos go into the Immich account the key belongs to, so the person whose photos these are makes it, signed in to Immich as themselves. Roostack never needs an Immich password.</p>
+  <ol class="todo-list">
+    <li><a class="button secondary" href="https://photos.smiths.roost.ac/user-settings?isOpen=api-keys" target="_blank" rel="noopener">Make a key in Immich<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+      <small class="hint">Opens your Immich settings at API keys. Signed in as someone else there? Sign out of Immich first.</small></li>
+    <li><strong>New API key</strong>: name it <code>Roostack migration</code> and tick these 15 permissions. Roostack says if any are missing.
+      <details class="perm-details"><summary>The permissions</summary><ul class="perm-list"><li><code>asset.read</code></li><li><code>asset.statistics</code></li><li><code>asset.update</code></li><li><code>asset.upload</code></li><li><code>asset.copy</code></li><li><code>asset.delete</code></li><li><code>asset.download</code></li><li><code>album.create</code></li><li><code>album.read</code></li><li><code>albumAsset.create</code></li><li><code>server.about</code></li><li><code>stack.create</code></li><li><code>tag.asset</code></li><li><code>tag.create</code></li><li><code>user.read</code></li></ul></details></li>
+    <li><strong>Create</strong>, then copy the key Immich shows you, and paste it here.</li>
+  </ol>
+  <form class="inline-form key-form"><label class="sr-only" for="key">Your Immich key</label>
+    <input id="key" type="password" value="example-key-not-real" autocomplete="off" spellcheck="false" placeholder="Paste the key">
+    <button type="button">Check the key</button></form>
+</section>
+<section class="card step-card" data-state="key-missing">
+  <div class="card-head"><h2><span class="step-num">4</span>Your Immich key</h2></div>
+  <ul class="check-list">
+    <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/></svg><div><strong>Ella Smith's Immich account</strong> (ella@smiths.example): the photos go there.</div></li>
+
+    <li class="check-bad"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg><div><strong>3 permissions are missing:</strong> <code>album.create</code>, <code>stack.create</code> and <code>tag.create</code>. In <a href="https://photos.smiths.roost.ac/user-settings?isOpen=api-keys" target="_blank" rel="noopener">Immich's API keys<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>, edit the key named "Roostack migration", tick them, and save. The key stays the same, so there's nothing to paste again.</div></li>
+
+  </ul>
+  <div class="actions-row"><button type="button">Check again</button><a class="button quiet" href="#">Use another key</a></div>
+</section>
+<section class="card step-card step-done" data-state="choose check problems"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your Immich key</h2><a class="more" href="#">Change</a></div>
+  <p class="step-summary">Anna Smith · anna@smiths.example<small>Kept until the migration's done</small></p></section>
+<section class="card step-card step-done" data-state="running stopped"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your Immich key</h2></div>
+  <p class="step-summary">Anna Smith · anna@smiths.example<small>Kept until the migration's done</small></p></section>
+<section class="card step-card step-done" data-state="done"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your Immich key</h2></div>
+  <p class="step-summary">Anna Smith · anna@smiths.example<small>Forgotten now</small></p></section>
+<div data-state="from guide where key key-missing"><section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">5</span>What to migrate</h2></div></section>
+</div><section class="card step-card" data-state="choose">
+  <div class="card-head"><h2><span class="step-num">5</span>What to migrate</h2></div>
+  <p class="hint">Roostack had a quick look in the zip files: 61,204 photos and 3,977 videos, 214 albums. Choose what comes; Roostack's
+    suggestions are set.</p>
+  <form>
+    <label class="check"><input type="checkbox" class="switch" role="switch"><span>Photos in Google's trash<small>1,203. They'd be archived in Immich.</small></span></label>
+    <label class="check"><input type="checkbox" class="switch" role="switch"><span>Photos a partner shared with you<small>41. They can migrate their own into their account.</small></span></label>
+    <label class="check"><input type="checkbox" class="switch" role="switch"><span>Albums without a name<small>3, named after their dates.</small></span></label>
+    <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>People's names as tags<small>Google's names, as <code>people/Anna</code>. Immich finds faces itself.</small></span></label>
+    <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Stack bursts, RAW with JPEG, and edited copies<small>One photo shown, the others behind it.</small></span></label>
+    <div class="actions-row"><button type="button">Continue</button></div>
+  </form>
+</section>
+<section class="card step-card step-done" data-state="check problems"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>What to migrate</h2><a class="more" href="#">Change</a></div>
+  <p class="step-summary">Roostack's suggestions<small>Not the trash, a partner's photos or albums without a name</small></p></section>
+<section class="card step-card step-done" data-state="running stopped done"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>What to migrate</h2></div>
+  <p class="step-summary">Roostack's suggestions<small>Not the trash, a partner's photos or albums without a name</small></p></section>
+<div data-state="from guide where key key-missing choose"><section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">6</span>Check</h2></div></section>
+</div><section class="card step-card" data-state="check">
+  <div class="card-head"><h2><span class="step-num">6</span>Check</h2><a class="more" href="#">Check again</a></div>
+  <p class="hint">Roostack read the zip files and asked Immich what it already has. Nothing is migrated yet.</p>
+  <ul class="figures import-figures">
+  <li class="card"><span class="figure-label">Photos</span><span class="figure-value">61,204</span><span class="figure-note">March 2009 to October 2026</span></li>
+  <li class="card"><span class="figure-label">Videos</span><span class="figure-value">3,977</span><span class="figure-note">1 h 52 min of them</span></li>
+  <li class="card"><span class="figure-label">Albums</span><span class="figure-value">214</span><span class="figure-note">3 without a name, left out</span></li>
+  <li class="card"><span class="figure-label">Size</span><span class="figure-value">395 GB</span><span class="figure-note">9 zip files, 412 GB</span></li>
+</ul>
+  <ul class="check-list">
+    <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/></svg><div><strong>All 9 parts are here</strong>, from one Takeout made on 19 October 2026.</div></li>
+
+    <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/></svg><div><strong>Room for them:</strong> about 435 GB with Immich's thumbnails, on Media; 1.2 TB free.</div></li>
+
+    <li class="check-info"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></svg><div><strong>8,912 are in Anna's account already</strong> (from the phone app, say): they're skipped.</div></li>
+
+    <li class="check-info"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></svg><div><strong>Left out, as you chose:</strong> 1,203 in Google's trash, 41 a partner shared with you, 3 albums without a name.</div></li>
+
+    <li class="check-info"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></svg><div><strong>14 files that can't be migrated</strong> (a <code>.psd</code>, Pixel <code>.MP</code> motion files): left out, listed in the summary.</div></li>
+
+    <li class="check-warn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.2h.01"/></svg><div><strong>Your next backup will be about 395 GB larger.</strong> Your main backup's drive has 1.6 TB free.</div></li>
+
+  </ul>
+  <div class="actions-row"><button type="button">Migrate them</button></div>
+  <p class="hint">About 6 hours on this server. You can close this page: it carries on, and you're emailed when it's done.</p>
+</section>
+<section class="card step-card" data-state="problems">
+  <div class="card-head"><h2><span class="step-num">6</span>Check</h2></div>
+  <ul class="check-list">
+    <li class="check-bad"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg><div><strong>Part 8 of 9 isn't here.</strong> The folder has <code>takeout-20261019T0912Z-001.zip</code> to <code>-009</code> but not <code>-008</code>. Download it from Google's email (each part can be downloaded 5 times), copy it into the folder, and check again.</div></li>
+
+    <li class="check-bad"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg><div><strong>Not enough room:</strong> about 435 GB is needed on Media, which has 210 GB free. Free some space, or <a href="#">move Immich's photos to a bigger disk</a>.</div></li>
+
+    <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/></svg><div><strong>Zip files, not .tgz:</strong> Roostack can read them as they are.</div></li>
+
+  </ul>
+  <div class="actions-row"><button type="button">Check again</button></div>
+</section>
+<section class="card step-card step-done" data-state="running stopped done"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Check</h2></div>
+  <p class="step-summary">61,204 photos and 3,977 videos, 395 GB<small>8,912 already in Immich, 1,247 left out</small></p></section>
+<div data-state="from guide where key key-missing choose check problems"><section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">7</span>Migrate them</h2></div></section>
+</div><section class="card step-card" data-state="running">
+  <div class="card-head"><h2><span class="step-num">7</span>Migrating them</h2></div>
+  <div class="activity">
+  <p class="activity-status running"><span class="spinner" aria-hidden="true"></span> Migrating photos… <small>started 11:40</small></p>
+  <div class="progress"><div class="meter"><span style="width: 25%"></span></div><p>12,034 of 52,292 · 98 GB of 395 GB · <strong>about 6 hours left</strong></p></div>
+  <details class="activity-details"><summary>Details</summary>
+<pre class="output activity-log">==&gt; Reading 9 zip files from T7 Shield › Takeout (read-only)
+==&gt; Asking Immich what it has: 8,912 of these already
+Uploaded Photos from 2014/IMG_2041.JPG (date and place from Google)
+Uploaded Photos from 2014/IMG_2042.JPG (date and place from Google)
+Album "Lisbon 2014": 212 photos
+Skipped Photos from 2015/PXL_20150611.MP (Immich can't read .MP)
+</pre></details>
+  </div>
+  <div class="actions-row"><button type="button" class="secondary">Stop</button></div>
+  <p class="hint">You can close this page: it carries on, and you're emailed when it's done. Immich shows the photos as they arrive.</p>
+</section>
+<section class="card step-card" data-state="stopped">
+  <div class="card-head"><h2><span class="step-num">7</span>Migrating them</h2></div>
+  <div class="activity">
+  <p class="activity-status">Stopped at 14:52 <small>nuc lost power</small></p>
+  <div class="progress"><div class="meter"><span style="width: 31%"></span></div><p>16,210 of 52,292 · 122 GB of 395 GB · nothing lost: what's in stays in</p></div>
+  <details class="activity-details"><summary>Details</summary>
+<pre class="output activity-log">==&gt; Reading 9 zip files from T7 Shield › Takeout (read-only)
+==&gt; Asking Immich what it has: 8,912 of these already
+Uploaded Photos from 2014/IMG_2041.JPG (date and place from Google)
+Uploaded Photos from 2014/IMG_2042.JPG (date and place from Google)
+Album "Lisbon 2014": 212 photos
+Skipped Photos from 2015/PXL_20150611.MP (Immich can't read .MP)
+</pre></details>
+  </div>
+  <div class="actions-row"><button type="button">Carry on</button><a class="button quiet" href="#">Start again from the check</a></div>
+  <p class="hint">Carry on skips what's already in Immich, so nothing comes twice.</p>
+</section>
+<section class="card step-card step-result" data-state="done">
+  <div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Migrated</h2><a class="more" href="#">History</a></div>
+  <div class="notice notice-ok" role="status"><p><strong>48,301 photos and 3,140 videos are in Anna's Immich account,</strong> with 211 albums.
+    Took 6 h 12 min, finished 17:52.</p></div>
+  <ul class="check-list">
+    <li class="check-ok"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/></svg><div><strong>Immich counts 51,441 more</strong> in Anna's account: the same as Roostack migrated.</div></li>
+
+    <li class="check-info"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></svg><div><strong>Already there, skipped:</strong> 8,912.</div></li>
+
+    <li class="check-info"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></svg><div><strong>Left out:</strong> 1,203 in Google's trash, 41 a partner shared, 3 albums without a name.</div></li>
+
+    <li class="check-warn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.2h.01"/></svg><div><strong>14 files that couldn't be migrated,</strong> and <strong>3 photos without Google's date</strong> (their sidecar couldn't be matched): <a href="#">see which</a>. They're still in your Takeout.</div></li>
+
+    <li class="check-info"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></svg><div><strong>Uses 397 GB</strong> on Media, which has 803 GB free.</div></li>
+
+  </ul>
+  <p><strong>What happens now:</strong> Immich is making thumbnails and finding faces. For this many photos that takes a day or two; photos
+    show up in search as it goes. Everything migrated is tagged <code>takeout/2026-10-21</code> in Immich.</p>
+  <p class="hint">Roostack has forgotten your key. You can <a href="https://photos.smiths.roost.ac/user-settings?isOpen=api-keys" target="_blank" rel="noopener">delete it in Immich<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>.
+    Your zip files aren't needed any more: unplug the drive whenever you like.</p>
+  <div class="actions-row"><a class="button" href="https://photos.smiths.roost.ac" target="_blank" rel="noopener">Open Immich<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>
+    <a class="button secondary" href="#">Migrate more photos…</a></div>
+</section>
+
+  </div>
+  <aside class="card span-4 steps-help" aria-label="Help">
+    <div class="card-head"><h2>Help</h2></div>
+    <ul class="plain">
+      <li><a href="#" target="_blank" rel="noopener">Migrating photos from Google<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a><br><small class="hint">Takeout step by step, and what comes</small></li>
+      <li><a href="#" target="_blank" rel="noopener">Migrating a folder of photos<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a><br><small class="hint">From a computer, OneDrive, Dropbox or another app</small></li>
+    </ul>
+    <p class="hint">Stuck? Ask the person whose photos these are.</p>
+  </aside>
+</div>
+      </main>
+    </div>
+  </div>
+  <script src="mock.js"></script>
+</body>
+</html>

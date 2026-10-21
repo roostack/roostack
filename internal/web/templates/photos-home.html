@@ -1,0 +1,25 @@
+{{define "title"}}Migrate your photos into Immich{{end}}
+{{define "crumbs"}}<strong aria-current="page">Migrate photos</strong>{{end}}
+{{define "content"}}
+{{/* /immich-photos (SPEC.md §8.5): the Immich someone may migrate into,
+     when the lab runs more than one, or who to ask. With just one, it
+     goes straight there. */}}
+<div class="page-head own-head"><div><h1>Migrate your photos into Immich</h1>
+  <p class="lede">From Google Photos or a folder, with their dates, places and albums, into your own Immich account.</p></div></div>
+{{if .Choices}}
+<section class="card">
+  <div class="card-head"><h2>Which Immich?</h2></div>
+  <p>{{.LabName}} runs more than one. Choose the one you use:</p>
+  <ul class="signin-apps">{{range .Choices}}
+    <li><a href="/immich-photos/{{.Name}}"><span class="logo-tile">{{icon "photos"}}</span>
+      <span><strong>{{.Title}}</strong>{{with index $.PhotoHosts .Name}}<small>{{.}}</small>{{end}}</span></a></li>{{end}}
+  </ul>
+</section>
+{{else}}
+<section class="card">
+  <div class="card-head"><h2>Ask {{.Owner}} first</h2></div>
+  <p>Migrating photos into Immich is for the people who look after this lab. {{capitalise .Owner}} can do it for you, or let everyone who uses
+    Immich do it themselves.</p>
+</section>
+{{end}}
+{{end}}

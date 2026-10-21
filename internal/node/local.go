@@ -165,7 +165,13 @@ type Local struct {
 	// ImportAgent mounts the person's copy of a service's data, to bring
 	// it in (import.go; optional: without it, data can't be brought).
 	ImportAgent ImportAgent
-	Version     string
+	// PhotoAgent mounts a person's export, and PhotoUnits runs immich-go,
+	// to migrate photos into Immich (photos.go; optional: without both,
+	// photos can't be migrated). OnPhotos hears when a migration ends.
+	PhotoAgent PhotoAgent
+	PhotoUnits PhotoUnits
+	OnPhotos   func(ctx context.Context, s PhotoSummary)
+	Version    string
 
 	sizes sizes
 
@@ -233,6 +239,8 @@ type Local struct {
 	libWatch libraryWatch
 	// imp is bringing data into services (import.go).
 	imp imports
+	// pho is migrating photos into Immich (photos.go).
+	pho photos
 }
 
 // Identity is this server's identity.
@@ -242,11 +250,15 @@ func (n *Local) Identity() nodeid.Identity { return n.ID }
 // an apply is running, another follows it, so the latest always wins.
 func (n *Local) Apply(a Assignment) {
 	// The first assignment says which services are here: a copy that a
-	// restart interrupted carries on (import.go).
+	// restart interrupted carries on (import.go), and so does a photo
+	// migration (photos.go).
 	n.imp.mu.Lock()
 	if !n.imp.resumed && n.State != nil {
 		n.imp.resumed = true
-		defer func() { go n.resumeImports(context.Background()) }()
+		defer func() {
+			go n.resumeImports(context.Background())
+			go n.resumePhotos(context.Background())
+		}()
 	}
 	n.imp.mu.Unlock()
 	n.mu.Lock()

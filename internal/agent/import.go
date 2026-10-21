@@ -39,7 +39,12 @@ func (h LinuxHost) MountImport(service string, l Library) (string, error) {
 	if !serviceName.MatchString(service) {
 		return "", fmt.Errorf("%q isn't a service's name", printable(service))
 	}
-	spot := importSpot(service)
+	return h.mountPlace(importSpot(service), l)
+}
+
+// mountPlace mounts a place to read from at its spot, read-only, with a
+// share's login kept root's only until it's unmounted (mountAt).
+func (h LinuxHost) mountPlace(spot mountSpot, l Library) (string, error) {
 	if l.Share != nil {
 		if err := checkShare(*l.Share); err != nil {
 			return "", err
@@ -67,7 +72,12 @@ func (h LinuxHost) UnmountImport(service string) error {
 	if !serviceName.MatchString(service) {
 		return fmt.Errorf("%q isn't a service's name", printable(service))
 	}
-	spot := importSpot(service)
+	return unmountPlace(importSpot(service))
+}
+
+// unmountPlace unmounts a place to read from and forgets it, with its
+// login; a drive mounted for it goes too once nothing else mounts from it.
+func unmountPlace(spot mountSpot) error {
 	stopMount(spot.target)
 	data, err := os.ReadFile(fstab)
 	if err != nil {

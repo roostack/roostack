@@ -328,7 +328,7 @@ Network=roostack-immich.network</code></pre>
   </div>
   <label>Name <input class="name-input" value="Films"></label>
 </form>`},
-			{"Form in a dialog", "Adding one thing to a list (a check, someone, an invite, a server): a secondary button, a link with data-dialog=\"ID\" and an href that opens the page with ?add=…, opens dialog.form-dialog ID: .dialog-head (the heading and a close link), the form, .dialog-actions (a data-close Cancel link, then its button). The page renders it open when its form came back with a mistake, or from ?add=…; app.js makes an open one modal, and without scripts it shows in the page as a card. The first field has autofocus. Here, open in the page as without scripts.", `
+			{"Form in a dialog", "Adding one thing to a list (a check, someone, an invite, a server): a secondary button, a link with data-dialog=\"ID\" and an href that opens the page with ?add=…, opens dialog.form-dialog ID: .dialog-head (the heading and a close link), the form, .dialog-actions (a data-close Cancel link, then its button). The page renders it open when its form came back with a mistake, or from ?add=…; app.js makes an open one modal, and without scripts it shows in the page as a card. The first field has autofocus. A form that needs its own page's work (the drives a server has) is loaded as it opens: the link also has data-load=\"SELECTOR\" and the dialog is template \"add-dialog\" (dialogFor ID TITLE BACK), an empty .dialog-body that app.js fills with SELECTOR from the link's page; the form sends itself with htmx (a mistake comes back in the dialog, success is HX-Redirect). Here, open in the page as without scripts.", `
 <dialog class="dialog form-dialog" open aria-labelledby="gallery-dialog-title">
   <div class="dialog-head"><h2 id="gallery-dialog-title">Add a check</h2><a class="icon-button" href="#" data-close>{{icon "close"}}<span class="sr-only">Close</span></a></div>
   <form>
@@ -395,6 +395,24 @@ Network=roostack-immich.network</code></pre>
 			{"Progress of a long copy", ".progress: a .meter at full width (its span's width through data-width) and the figures under it, in an activity status line's card.", `
 <p class="activity-status running"><span class="spinner" aria-hidden="true"></span> Copying: Your photos and videos… <small>started 14:10</small></p>
 <div class="progress"><div class="meter"><span data-width="37"></span></div><p>18.4 GB of 49.6 GB · 52,310 of 355,516 files · <strong>about 25 minutes left</strong></p></div>`},
+			{"A call to action", "section.card.cta at the top of a service's page, under its heading: .cta-icon, .cta-text (an h2 and a line, or a .progress) and .cta-actions. Slim, not a card of its own design (the Owner, 2026-10-21: \"weird for one service to have a very large and completely different UI right at the top\"). .cta-warn when something stopped. Migrating photos into Immich: before anyone has, while one runs, when one stopped.", `
+<section class="card cta">
+  <span class="cta-icon">{{icon "import"}}</span>
+  <div class="cta-text"><h2>Moving from Google Photos or iCloud?</h2>
+    <p>Migrate your photos and videos into Immich, with their dates, places and albums. Roostack walks you through it.</p></div>
+  <div class="cta-actions"><a class="button" href="#">Migrate photos…</a><button type="button" class="quiet">Hide</button></div>
+</section>
+<section class="card cta cta-warn">
+  <span class="cta-icon">{{icon "warn"}}</span>
+  <div class="cta-text"><h2>Anna's migration stopped</h2><p>When the server restarted. 16,210 are in Immich; carrying on skips them.</p></div>
+  <div class="cta-actions"><button type="button">Carry on</button></div>
+</section>`},
+			{"An empty list's note", "p.locations-empty: a dashed box where a list will be, saying there's nothing yet and how to add one (the Owner's words, 2026-10-21). .locations holds the list once there is one: folder choices with Remove.", `
+<p class="locations-empty">You haven't defined any additional locations that people can migrate photos from. Press <strong>Add a location</strong> below to add one.</p>
+<div class="locations"><div class="folder-choice location">{{icon "network"}}<span class="path"><strong>Family NAS › Takeouts</strong><small>A share on nas.home, with your login</small></span>
+  <button type="button" class="secondary small">Remove</button></div></div>`},
+			{"Permissions", "ul.perm-list: code names in columns, as another app names them (an Immich key's permissions to tick). Usually inside details.form-more.", `
+<ul class="perm-list"><li><code>asset.read</code></li><li><code>asset.upload</code></li><li><code>album.create</code></li><li><code>albumAsset.create</code></li><li><code>stack.create</code></li><li><code>tag.create</code></li></ul>`},
 			{"What to do elsewhere, and what Roostack will do", "ol.todo-list: steps for the person to take on another machine, each with its command in a copyBox. ul.plain.will-list: what Roostack will do, an icon each.", `
 <ol class="todo-list">
   <li><strong>Stop the old Immich, and keep it stopped.</strong> {{copyBox "docker compose stop immich-server"}}</li>

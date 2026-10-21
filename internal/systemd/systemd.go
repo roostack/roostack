@@ -167,3 +167,46 @@ func (m *Manager) SystemStatus(ctx context.Context, units ...string) ([]UnitStat
 	}
 	return parseShow(out), nil
 }
+
+// RunDetached runs a command in a transient unit of the roostack user's
+// that outlives Roostack (systemd-run --user without --wait): for work
+// that takes hours, such as migrating photos (SPEC.md §8.5). The unit
+// stays after its command ends (RemainAfterExit), so Exited can say how
+// it went even if Roostack restarted meanwhile; Forget clears it.
+func (m *Manager) RunDetached(ctx context.Context, unit string, name string, args ...string) error {
+	full := append([]string{"--user", "--quiet", "--unit=" + unit, "--property=RemainAfterExit=yes",
+		"--property=KillMode=mixed", "--property=TimeoutStopSec=60", "--", name}, args...)
+	_, err := m.Run(ctx, "systemd-run", full...)
+	return err
+}
+
+// Exited says whether a unit RunDetached started is still running, and
+// its command's exit code once it isn't; found is false when systemd has
+// no such unit (the server restarted since).
+func (m *Manager) Exited(ctx context.Context, unit string) (running bool, code int, found bool, err error) {
+	out, err := m.systemctl(ctx, "show", "--property=LoadState,ActiveState,SubState,ExecMainStatus", unit+".service")
+	if err != nil {
+		return false, 0, false, err
+	}
+	props := map[string]string{}
+	sc := bufio.NewScanner(bytes.NewReader(out))
+	for sc.Scan() {
+		k, v, _ := strings.Cut(sc.Text(), "=")
+		props[k] = v
+	}
+	if props["LoadState"] != "loaded" || props["ActiveState"] == "inactive" {
+		return false, 0, false, nil
+	}
+	code, _ = strconv.Atoi(props["ExecMainStatus"])
+	running = props["ActiveState"] == "activating" || (props["ActiveState"] == "active" && props["SubState"] == "running") ||
+		props["ActiveState"] == "deactivating"
+	return running, code, true, nil
+}
+
+// Forget stops a unit RunDetached started, if it's still there, and
+// clears it (a failed one stays until reset).
+func (m *Manager) Forget(ctx context.Context, unit string) error {
+	m.systemctl(ctx, "stop", unit+".service")
+	m.systemctl(ctx, "reset-failed", unit+".service")
+	return nil
+}

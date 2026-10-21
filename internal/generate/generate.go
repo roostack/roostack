@@ -815,6 +815,19 @@ func addTimezone(cs *quadlet.Section, lab config.Lab) {
 
 func containerUnitName(svc, container string) string { return "roostack-" + svc + "-" + container }
 
+// ContainerName is a service's container's name, which is also its host
+// name on the service's network (NetworkName).
+func ContainerName(svc, container string) string { return containerUnitName(svc, container) }
+
+// NetworkName is a service's own Podman network (SPEC.md §6.4).
+func NetworkName(svc string) string { return "roostack-" + svc }
+
+// StoragePath is the host folder of a service's storage (SPEC.md §6.7).
+func StoragePath(lab config.Lab, p *pkgspec.Package, in *instance.Instance, storage string) string {
+	g := &gen{lab: lab, pkg: p, name: in.ID()}
+	return g.storagePath(storage)
+}
+
 func dbUnitName(svc, db string) string { return "roostack-" + svc + "-db-" + db }
 
 // secretName maps a package secret reference to a Podman secret name.

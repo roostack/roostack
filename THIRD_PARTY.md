@@ -46,4 +46,5 @@ Installed alongside Roostack and run by it; not part of Roostack.
 | [Podman](https://podman.io) | Apache 2.0 |  | Runs services in containers |
 | [Caddy](https://caddyserver.com) | Apache 2.0 |  | Web addresses and HTTPS certificates |
 | [restic](https://restic.net) | BSD-2-Clause |  | Backups |
+| [immich-go](https://github.com/simulot/immich-go) | AGPL-3.0 | simulot | Migrating photos into Immich; built from its source on the server, the first time it's needed |
 | [Debian](https://www.debian.org) | Various free licences |  | The operating system, and its updates |

@@ -108,6 +108,10 @@
           {{with .PagesHost}}<li><a href="https://{{.}}/"><span class="logo-tile"><img src="/static/favicon.svg" alt="" width="28" height="28"></span>
             <span><strong>Roostack</strong><small>The lab's own pages, and your account</small></span></a></li>{{end}}
         </ul>{{end}}
+        {{if .Photos}}<div class="signin-extra">
+          <a href="{{.RoostackURL}}/immich-photos">{{icon "import"}}<span><strong>Migrate your photos into Immich</strong>
+            <small>From Google Photos or a folder. You sign in to Roostack's pages again, with the same account.</small></span></a>
+        </div>{{end}}
         <form method="post" action="/sign-out"><button type="submit" class="secondary">Sign out</button></form>
         {{if not .Until.IsZero}}<p class="hint">Signed in on this device until {{date .Until}}.</p>{{end}}
 
