@@ -83,7 +83,7 @@ Nothing was run on a VM: findings that need one say so.
 
 **Found in passing.** §2 lists 16 things that are behaviour, not quality: real bugs, or inconsistencies the Owner should rule on. They're small, but a quality pass mustn't change behaviour without agreement, so they're listed apart. The most pressing:
 - **Cloud's first production deploy would stop with every service down** (§2, P1).
-- **Moving a service through a backup** leaves it running without its databases when they fail to load, where a restore deliberately leaves it stopped (P3).
+- **When a restore's or a move's databases fail to load,** the service is stopped, but nothing keeps it stopped. The next apply on that server, or a reboot, starts it on files without their databases: the half-restored state the 2026-10-16 fix meant to prevent (P3).
 - **`/etc/fstab` is edited in seven places** with no lock and no atomic write (P5).
 
 **What not to do.** Splitting `internal/web` into feature sub-packages now: it's days of work for little more than file moves and narrower interfaces give (§4.1). Also don't share code between the repositories for its own sake: the Cloudflare clients, the lab CAs, the S3 fakes and the session code look alike but serve different threat models (§3.5).
@@ -109,13 +109,18 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Change:** add the query and call it from the console's hourly job (`cloud:cmd/cloud/adminconsole.go:351`).
 - **Effort:** S. **Risk:** low. **Decision:** no.
 
-**P3. A move through a backup and a restore handle a failed database load differently.**
+**P3. After a failed database load, a restored or moved service is stopped, but only until the next apply.**
 - **Where:**
-  - `internal/manager/restore.go:355-361`: since the security review of 2026-10-16, a restore whose databases don't load leaves the service stopped, "so it doesn't run half-restored".
-  - `finishMove` (`internal/manager/move.go:250-256`), used by a move through a backup: after `switchHost` the service already runs on the new server. If `LoadDumps` fails, it returns `false, err` and the service keeps running there without its databases.
-- **Why:** the two are copies of one procedure (D11), and the fix went into one copy only.
-- **Change:** make the move behave like the restore, as part of one `transferJob` (D11) or on its own first.
-- **Effort:** S. **Risk:** low. **Decision:** yes (is the difference intended?).
+  - `node.Local.LoadDumps` (`internal/node/move.go:502-519`) stops the service's units, loads the dumps, and starts the units only if that worked. Both a restore (`internal/manager/restore.go:355-363`) and a move through a backup (`finishMove`, `internal/manager/move.go:250-256`) call it after the service has been switched to its new server.
+  - Nothing then holds it stopped: every apply starts all of a server's desired units (`internal/reconcile/reconcile.go:175`, "StartUnits are all desired units"), and the units are `WantedBy=default.target` (`internal/generate/generate.go:862`). The next apply on that server (any install or setting change there) or a reboot starts the service on files without their databases.
+  - The restore's error promises it "stays stopped; restore it again to retry", and the comment cites the security review of 2026-10-16 ("it would run half-restored"). The move's error doesn't say it's stopped at all.
+  - In a move, the old copy is still intact on the old server at that point: it's set aside only after the load succeeds (`move.go:257`). A restore has no such copy.
+- **Why:** the 2026-10-16 fix holds for minutes, not until someone acts. For an app that sets itself up on an empty database (e.g. offering its first-run admin page), that's the state the review meant to rule out.
+- **Change:**
+  - For a move: switch the service back to the old server and start it there, so a failed move changes nothing; leave the new server's copy as kept data.
+  - For a restore: hold the service stopped in its desired state, as a withdrawn package already is (`state.Service.Stop`; `generate.Stop` leaves out its containers), with a "needs attention" item that says why and offers "Restore again". A start by hand clears the hold.
+  - Fold both into one `transferJob` later (D11).
+- **Effort:** S (the move), M (the hold, with its page). **Risk:** low. **Decision:** yes (the two behaviours, and the wording). **Not verified:** read from the code; check on a VM by making a dump fail, then applying an unrelated change.
 
 **P4. `config.Update` says concurrent edits are safe, but nothing locks it.**
 - **Where:** `internal/config/config.go:617-631`. It reads `lab.yaml`, applies the change and saves. It's called from `manager` (through `UpdateLab`), `node/settings.go:274, 301, 324, 373, 437`, `setup` and `mail`, all in one process.
@@ -151,10 +156,11 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 - **Change:** fixed by one size formatter (§3.3).
 - **Effort:** S. **Risk:** low. **Decision:** no.
 
-**P9. Cloud's two relay statistics disagree about when a month starts.**
-- **Where:** the portal's `relayFigures` (`cloud:internal/web/portal.go:530`) starts the month in UTC; the lab API's `relayStats` (`cloud:internal/api/api.go:755-859`) in the lab's time zone. Both run the same four queries.
-- **Change:** one function (S16).
-- **Effort:** M. **Risk:** medium. **Decision:** yes (which is right?).
+**P9. Which month does relay bandwidth count in?**
+- **Where:** the portal's "this month's bandwidth" (`cloud:internal/web/portal.go:530`) sums `relay_usage`, which has one row per lab per UTC day, so it can only be a UTC month. Visits, on the portal and in the lab API's `relayStats` (`cloud:internal/api/api.go:755-859`), are hourly, so both show them in the lab's own time zone. The code is consistent with its data. What's unwritten is which month the relay's monthly allowance (and later its bill) counts: DESIGN §3c says "monthly" without a zone.
+- **Why:** in Sydney the first 11 hours of each month count towards the month before, and a lab can change its time zone.
+- **Change:** if UTC, write it in DESIGN §3c and say "(UTC)" where the figure is shown; nothing else changes. If the lab's or the account's zone, the edges would have to report bytes hourly: a change to the data model.
+- **Effort:** S (UTC), M (another zone). **Risk:** low. **Decision:** yes.
 
 **P10. Cloud's email isn't wrapped or encoded for 7-bit servers.**
 - **Where:** `cloud:internal/mail/mail.go:133` sends `Content-Transfer-Encoding: 8bit` without checking the server's `8BITMIME`, and doesn't wrap lines. RFC 5322 limits a line to 998 octets. Roostack's mail uses quoted-printable (`internal/mail/mail.go:209-214`).
@@ -186,15 +192,19 @@ These aren't quality findings. Each needs the Owner's agreement before it's chan
 **P15. Remote node calls drop errors and use a fresh context.**
 - **Where:** `internal/node/remote.go:389` (`remoteRestores.Pending`), `:424` and `:433` (`remoteUpdates.Pending`, `RestartStatus`) discard the error.
   - These and their siblings (`Backups.RunNow`, `Restores.Restore/Kept`, `Settings.Timezones/SSHAccess/RestartPolicy`) take no `ctx`, so `Remote` uses `context.Background()` with a 3-minute timeout.
-  - A page that asks for them waits up to three minutes for a server that's down, even after the person has gone.
+  - A request that asks for them can't be cancelled when the person leaves the page; the 3-minute timeout is the only bound.
 - **Change:** add `ctx` to those interface methods; return the errors.
 - **Effort:** M. **Risk:** low. **Decision:** no.
 
-**P16. The deb's subordinate ID range may overlap a second person's.**
-- **Where:** `packaging/deb/postinst:25` hard-codes `200000-265535`. By Debian's defaults a second login user gets 165536–231071.
-- **Why:** an overlap would let that user's containers and Roostack's share IDs.
-- **Change:** `useradd --add-subids-for-system`, or pick a free range.
-- **Effort:** S. **Risk:** low. **Decision:** yes. **Not verified:** worked out from shadow's defaults; needs a VM check.
+**P16. The deb's subordinate ID range can overlap one that was there before.**
+- **Where:** `packaging/deb/postinst:25` gives the `roostack` user a fixed `200000-265535` with `usermod --add-subuids`, which doesn't check for overlaps.
+  - By Debian's defaults the first login user gets 100000–165535 and a second 165536–231071.
+  - So the fixed range overlaps when a second login user, or anyone's own rootless Podman with a range in 165536–265535, existed before Roostack was installed.
+  - A user made afterwards should get a free range, since shadow skips ranges already taken.
+  - Nothing in Roostack depends on 200000. ASSUMPTIONS B1's example (`100998`) comes from a dev VM set up before the package.
+- **Why:** two accounts sharing subordinate IDs means the same host uid owns files in both's containers, so one can read or change the other's container files. It's rare on a NUC with one person, plausible on a reused server.
+- **Change:** `useradd --system --add-subids-for-system` when the user is made (line 19), so shadow picks a free range, and drop the `usermod`. Only fresh installs are supported, so nothing needs migrating. Update ASSUMPTIONS B1.
+- **Effort:** S. **Risk:** low. **Decision:** yes. **Not verified:** that Debian 13's shadow has `--add-subids-for-system` (shadow 4.11 and later should), and that it skips taken ranges. Check on a VM with a second user made before the install.
 
 ---
 
@@ -1130,9 +1140,9 @@ Each its own session, in any order, once waves 1 and 2 have landed:
 Grouped. Everything not listed here can go ahead once the plan is agreed.
 
 **Behaviour (§2):**
-- P3: should a move through a backup stop the service when its databases don't load, as a restore does?
-- P9: should a relay month start in UTC or in the lab's zone?
-- P16: how should the subordinate ID range be chosen?
+- P3: after a failed database load, should a move switch back to the old server, and should a restore hold the service stopped until someone acts?
+- P9: does the relay's monthly allowance count in UTC?
+- P16: may shadow choose the `roostack` user's subordinate ID range?
 - And approval for the rest of §2.
 
 **Public API and sharing:**
