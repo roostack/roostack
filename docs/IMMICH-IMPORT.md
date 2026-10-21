@@ -268,8 +268,8 @@ photos and videos from Google Photos, iCloud or a folder, with their
 dates, places and albums." **Bring in photos from…** opens the steps.
 People who aren't Owners or Admins reach the same steps from a page of
 their own (§6.1). Each step is one page of the flow, in the
-forms' design (docs/DESIGN.md "Forms"), with Continue; mock-ups first,
-before building.
+forms' design (docs/DESIGN.md "Forms"), with Continue. Mock-ups:
+[docs/mockups/immich-import](mockups/immich-import/README.md).
 
 1. **Where from?** Google Photos (Takeout), a folder of photos, and (straight
    after the first version) Apple iCloud. Each with a line on what comes ("dates, places, albums,

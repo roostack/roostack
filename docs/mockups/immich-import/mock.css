@@ -1,0 +1,64 @@
+/* Bringing photos into Immich, mock-ups (2026-10-21): only what the real
+   stylesheet lacks. Each part here would become a component in the gallery. */
+
+/* The mock-ups show one state at a time; app.css has no [hidden] rule of its own. */
+[hidden] { display: none !important; }
+
+/* Where from (new): a choice per source, each a bordered row with what
+   comes; one coming later is shown, greyed. */
+.from-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; border: 0; }
+.from-option { padding: var(--space-3); border: 1px solid var(--edge); border-radius: 12px; margin: 0; }
+.from-option:has(input:checked) { border-color: var(--accent); }
+.from-option small { display: block; margin-top: 2px; }
+.from-soon { opacity: .6; }
+
+/* The guide's numbered steps: room between them. */
+.guide-list li + li { margin-top: var(--space-2); }
+
+/* The key's permissions (new): a compact list in columns, as Immich names them. */
+.perm-details { margin-top: var(--space-2); }
+.perm-list { list-style: none; padding: 0; margin: var(--space-2) 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 2px var(--space-3); }
+.perm-list code { font-size: var(--text-sm); }
+.key-form { margin-top: var(--space-3); }
+.key-form input { flex: 1; min-width: 0; font-family: var(--font-mono); }
+
+/* The check's figures, inside a step card: smaller cards. */
+.import-figures { margin: var(--space-3) 0; }
+
+/* Places the Owner names: the folder choice, with its kind and Remove. */
+.place-list li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.place-list .folder-choice { flex: 1; min-width: 14rem; }
+
+/* A card standing for the rest of a page. */
+.mock-muted { opacity: .6; box-shadow: none; }
+
+/* /immich-photos (new): a page of its own, with the lab's name and logo
+   and who's signed in, and nothing of the control panel. */
+.photos-header { justify-content: space-between; }
+.photos-brand { display: inline-flex; align-items: center; gap: var(--space-2); color: inherit; text-decoration: none; }
+.photos-brand strong { font-family: var(--font-display); font-size: var(--text-lg, 1.2rem); }
+.photos-mark svg { width: 32px; height: 32px; display: block; border-radius: 9px; }
+.photos-who { display: inline-flex; align-items: center; gap: var(--space-2); }
+.photos-page { width: 100%; max-width: 760px; display: grid; gap: var(--space-4); padding-inline: var(--space-4); }
+.photos-head { display: flex; gap: var(--space-3); align-items: flex-start; }
+.photos-head h1 { margin: 0; }
+.photos-steps { display: grid; gap: var(--space-4); }
+.photos-foot { text-align: center; }
+
+/* The sign-in page's link to bringing in photos (new): below the services. */
+.signin-extra a { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: 12px;
+  border: 1px dashed var(--edge-strong); color: inherit; text-decoration: none; margin-bottom: var(--space-4); }
+.signin-extra .icon { width: 28px; height: 28px; flex: none; color: var(--accent); }
+.signin-extra small { display: block; color: var(--muted); }
+
+/* The mock-ups' own switch, bottom right. */
+.mock-bar { position: fixed; right: 12px; bottom: 12px; z-index: 50; display: flex; gap: 4px 6px; flex-wrap: wrap; align-items: center; padding: 6px 8px;
+  max-width: calc(100vw - 24px); border-radius: 10px; background: var(--fg); color: var(--bg); font-size: 13px; box-shadow: 0 4px 20px rgb(0 0 0 / .25); }
+.mock-bar a, .mock-bar button { color: inherit; background: none; border: 0; padding: 2px 6px; font: inherit; cursor: pointer; text-decoration: none; border-radius: 6px; }
+.mock-bar [aria-current] { background: color-mix(in srgb, var(--bg) 22%, transparent); }
+.mock-bar .sep { opacity: .4; }
+.mock-bar select { font: inherit; padding: 1px 4px; border-radius: 6px; width: auto; min-height: 0; margin: 0; color: var(--fg); background: var(--bg); }
+
+/* The check's four figures side by side, two by two on phones. */
+.import-figures { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 640px) { .import-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
