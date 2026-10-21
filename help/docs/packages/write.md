@@ -234,6 +234,35 @@ before, a service may be installed with its `install_only` settings left
 empty, and its install hooks don't run then. `links` point to the app's own
 settings pages.
 
+## Single sign-on
+
+If the app can sign people in through OIDC, or has no sign-in of its own,
+an `sso` part lets the Owner turn on [single
+sign-on](../services/single-sign-on.md) for it with a switch. How the app
+takes its OIDC settings decides what the part needs:
+
+- **Environment variables** (Mealie, Vaultwarden): the variables in
+  `sso.env`, the client secret in `sso.secrets`.
+- **Its admin command** (Forgejo, Gitea): an `on: sso` hook that runs it.
+  It's told `ROOSTACK_SSO=on` or `off`, and runs again whenever what it's
+  given changes, so it must be safe to run again: find what it made last
+  time and update it, rather than adding another. Forgejo's keeps its
+  sign-in source's ID in Forgejo's own data.
+- **Only its API** (Immich, Audiobookshelf, Wiki.js): an `on: sso` hook
+  that calls the API with a key the app makes. Make the key in an install
+  hook that `saves` it into a `from_hook` secret setting (it prints only
+  the key on standard output, the rest on standard error), and add an
+  action that makes one again from the administrator's password, for
+  services installed before. Ask the app for the least power it offers:
+  Immich's key can only read and change its settings.
+- **A value holding the secret** (Paperless-ngx's JSON): `sso.secret_env`,
+  with `{{ json .SSO.ClientSecret }}` where the secret goes.
+- **No sign-in of its own** (Stirling-PDF): `forward_auth`, a wall in
+  front of it.
+
+The registry's Forgejo, Immich and Paperless-ngx packages show each.
+[The package reference](../reference/packages.md) has every field.
+
 ## Check it
 
 On a Roostack server, or any Linux computer with the `roostack` command:

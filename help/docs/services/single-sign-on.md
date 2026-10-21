@@ -23,8 +23,54 @@ Owner chooses who can sign in. Roostack then:
 - for an app with no accounts of its own (such as Stirling-PDF), puts it
   **behind the sign-in page**: everyone signs in before they reach it.
 
+Some apps keep their sign-in settings in their own database (Forgejo,
+Immich): once the app has restarted, Roostack runs its **single sign-on
+step** inside it, which sets them. The card says while it runs, and if it
+fails, why, with **Try again**; the app keeps working with its own
+passwords meanwhile. Roostack runs the step again by itself when your
+lab's address or name changes.
+
 The card says what still uses the app's own sign-in, such as its phone
-apps or API tokens.
+apps or API tokens, and anything else to know: Paperless-ngx, for one,
+doesn't find an account it already has by its email, so its administrator
+signs in with their password once and connects single sign-on on their
+profile page. Wiki.js gives everyone who signs in an account of their own
+that can read and edit pages (its administration stays with the account
+made at install), and Papra, while single sign-on is on, is reached only
+through the lab's sign-in page. Where the app had an administrator before
+(made when you installed it), some apps find it by your username or email
+and some can't: the card's note says which, and what to do.
+
+Some apps can't take single sign-on: Jellyfin, Plex, ntfy and Radicale,
+whose phone, TV and desktop apps sign in by themselves, and, for now,
+Uptime Kuma, PhotoPrism, Lychee and Ghost.
+
+### Apps set through their own settings pages
+
+Immich takes its sign-in settings only from its administrator, so Roostack
+keeps a **key to Immich's settings**, which Immich makes when it's
+installed. The key can read and change Immich's settings and nothing else
+(no photos, no accounts); Roostack never shows it, and it's in Immich's
+backup like its other secrets.
+
+An Immich installed before Roostack kept this key asks you to **connect
+Roostack to Immich** first: the card's link opens the action, which asks
+for Immich's administrator email and password once. Roostack uses them to
+make the key and keeps only the key. Use it again if the key is lost, for
+example after Immich's administrator account was deleted.
+
+## Turning it off
+
+**Turn off single sign-on…** on the card. People then sign in with the
+app's own passwords again. Accounts the app made when someone first
+signed in with single sign-on have no password of their own: give each
+one a password in the app (Forgejo's **Reset a password** action, say).
+
+For an app set by its single sign-on step, Roostack runs the step once
+more to undo it, then deletes the app's client secret. Forgejo keeps its
+"Sign in with …" button if accounts were made through it (it won't delete
+a sign-in method that's in use); the button then leads to a page saying
+single sign-on is off.
 
 ## Who can sign in
 
@@ -96,9 +142,22 @@ PNG or SVG, up to 200 KB. SVGs with scripts are refused.
     - Checked with the OpenID Foundation's conformance suite (Basic OP and
       Config OP plans).
     - An app's client ID is the service's name; its secret is the Podman
-      secret `roostack-<service>-sso-client-secret`. Its container finds
-      `login.` your address through an `AddHost` line pointing at the
-      server's Caddy.
+      secret `roostack-<service>-sso-client-secret`, deleted once single
+      sign-on is off. Its container finds `login.` your address through an
+      `AddHost` line pointing at the server's Caddy.
+    - An app set by its single sign-on step (an `on: sso` hook) gets
+      `ROOSTACK_SSO=on` or `off`; Roostack keeps a fingerprint of what it
+      was last given (on or off, its command and settings, its secrets'
+      names but not their values) and runs it whenever that changes. Its
+      output is on the card's **Details**, with any secret replaced by
+      `[secret]`.
+    - Immich's key is the Podman secret `roostack-immich-settings_key`,
+      an Immich API key named Roostack with only the `adminConfig.read`
+      and `adminConfig.update` permissions.
+    - Paperless-ngx's provider list, which holds its client secret, is a
+      Podman secret made from a template
+      (`roostack-<service>-sso-env-…`), passed as an environment variable:
+      never in a file Roostack writes.
     - Walled services use Caddy's `forward_auth`. Each service's address
       gets its own cookie, which Caddy removes before the request reaches
       the service; `Remote-*` headers from visitors are removed on every

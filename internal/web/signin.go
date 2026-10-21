@@ -47,6 +47,11 @@ type SSOServices interface {
 	SSOAvailable(name string) (bool, string)
 	SetSSO(ctx context.Context, name string, on bool) error
 	SSOClients() []sso.Client
+	// SSOOff is the title of an installed service whose package takes
+	// single sign-on but which has it off ("" otherwise): an app may keep
+	// its button after it's turned off (Forgejo, with accounts made
+	// through it).
+	SSOOff(name string) string
 }
 
 var _ SSOServices = (*manager.Manager)(nil)
@@ -254,7 +259,11 @@ func (s *Server) signInAuthorize(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, aerr.Redirect, http.StatusFound)
 			return
 		}
-		s.renderSignIn(w, r, http.StatusBadRequest, signInView{State: "error", Error: aerr.Message})
+		msg := aerr.Message
+		if title := s.SSO.SSOOff(params.Get("client_id")); title != "" {
+			msg = "Single sign-on is off for " + title + ". Sign in with " + title + "'s own password instead."
+		}
+		s.renderSignIn(w, r, http.StatusBadRequest, signInView{State: "error", Error: msg})
 		return
 	}
 	sess, ok := s.signInSession(r)

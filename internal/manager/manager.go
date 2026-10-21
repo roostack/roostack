@@ -39,10 +39,11 @@ import (
 // Types shared with the node that does the work (internal/node), under
 // the names the web layer uses.
 type (
-	FormError   = node.FormError
-	ApplyStatus = node.ApplyStatus
-	HookStatus  = node.HookStatus
-	ActionError = node.ActionError
+	FormError     = node.FormError
+	ApplyStatus   = node.ApplyStatus
+	HookStatus    = node.HookStatus
+	SSOHookStatus = node.SSOHookStatus
+	ActionError   = node.ActionError
 )
 
 // ErrNotFound means no such package or installed service.
@@ -340,7 +341,9 @@ func (m *Manager) Install(ctx context.Context, name string, req InstallRequest) 
 	in.AwaitingData = req.BringData
 	secrets := map[string][]byte{}
 	for _, s := range p.Settings {
-		if s.Type != pkgspec.SettingSecret || s.Generate || keep && s.InstallOnly {
+		// A key the app makes (from_hook) comes only from its hook, never
+		// from the form.
+		if s.Type != pkgspec.SettingSecret || s.Generate || s.FromHook || keep && s.InstallOnly {
 			continue
 		}
 		v := req.Secrets[s.Key]

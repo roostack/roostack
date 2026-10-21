@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -39,20 +40,24 @@ type KV interface {
 
 // SecretStore reads and deletes Podman secrets.
 type SecretStore interface {
+	List(ctx context.Context) (map[string]bool, error)
 	Read(ctx context.Context, name string) ([]byte, error)
 	Remove(ctx context.Context, name string) error
 	Replace(ctx context.Context, name string, value []byte) error
 }
 
 // ExecFunc runs a command in a container (podman exec) with env passed
-// safely, returning its output.
-type ExecFunc func(ctx context.Context, container string, env map[string]string, command []string) ([]byte, error)
+// safely, returning its standard output and standard error apart.
+type ExecFunc func(ctx context.Context, container string, env map[string]string, command []string) (stdout, stderr []byte, err error)
 
-// HookStatus is the state of a service's install hooks.
+// HookStatus is the state of a service's install hooks, and of its single
+// sign-on hooks (ssohooks.go).
 type HookStatus struct {
 	Running bool   // setting up now
 	Pending bool   // waiting for the service to start
 	Failed  string // why the last attempt failed
+	// SSO is its sso hooks' last run, for the Single sign-on card.
+	SSO SSOHookStatus
 }
 
 // ActionError is an action that ran but failed; Output is what it printed.
@@ -92,7 +97,7 @@ func (n *Local) InstallStatus(ctx context.Context, name string) HookStatus {
 	n.mu.Lock()
 	running := n.hooksRunning[name]
 	n.mu.Unlock()
-	st := HookStatus{Running: running, Pending: v == hookPending && !running}
+	st := HookStatus{Running: running, Pending: v == hookPending && !running, SSO: n.ssoStatus(ctx, name)}
 	if msg, failed := strings.CutPrefix(v, hookFailed); failed {
 		st.Failed = msg
 	}
@@ -101,7 +106,7 @@ func (n *Local) InstallStatus(ctx context.Context, name string) HookStatus {
 
 // RetryInstall tries a service's failed install again: its containers, if
 // one didn't download or start (an apply now, install.go), or else its
-// failed install hooks.
+// failed install hooks, or else its failed single sign-on hooks.
 func (n *Local) RetryInstall(ctx context.Context, name string) error {
 	if p := n.installProgress(name); p != nil && p.Failed != "" {
 		n.Reapply("Trying " + name + "'s install again")
@@ -115,6 +120,9 @@ func (n *Local) RetryInstall(ctx context.Context, name string) error {
 		return err
 	}
 	if !strings.HasPrefix(v, hookFailed) {
+		if n.retrySSO(ctx, name) {
+			n.startInstallHooks()
+		}
 		return nil
 	}
 	if err := n.State.SetSetting(ctx, hookKey(name), hookPending); err != nil {
@@ -124,8 +132,9 @@ func (n *Local) RetryInstall(ctx context.Context, name string) error {
 	return nil
 }
 
-// startInstallHooks runs pending install hooks in the background, unless
-// that is already happening.
+// startInstallHooks runs pending install hooks in the background, then
+// single sign-on hooks whose values changed, unless that is already
+// happening.
 func (n *Local) startInstallHooks() {
 	if n.State == nil || n.Exec == nil {
 		return
@@ -145,6 +154,7 @@ func (n *Local) startInstallHooks() {
 		defer close(done)
 		for {
 			n.runPendingHooks(context.Background())
+			n.runSSOHooks(context.Background())
 			n.mu.Lock()
 			if !n.hooksAgain {
 				n.hooksBusy = false
@@ -263,25 +273,91 @@ func (n *Local) runInstallHooks(ctx context.Context, s state.Service) (err error
 		if err := n.hookSecrets(ctx, run, nil); err != nil {
 			return err
 		}
-		for attempt := 1; ; attempt++ {
-			act.Printf("Attempt %d: running in %s", attempt, run.Container) // env holds secrets: never logged
-			out, err := n.Exec(ctx, run.Container, run.Env, run.Command)
-			act.Write(out)
-			if err == nil {
-				break
-			}
-			act.Printf("%v. %s may still be starting; trying again in %s.", err, s.Title(), retry)
-			select {
-			case <-ctx.Done():
-				if errors.Is(context.Cause(ctx), errSetupStopped) {
-					return errSetupStopped
-				}
-				return fmt.Errorf("%s didn't finish setting up: %s", s.Title(), lastLines(out, err))
-			case <-time.After(retry):
-			}
+		if _, err := n.retryHook(ctx, act, retry, s.Title(), run); err != nil {
+			return fmt.Errorf("%s didn't finish setting up: %w", s.Title(), err)
 		}
 	}
 	return nil
+}
+
+// retryHook runs a hook until it succeeds, as a service that has just
+// (re)started may not be ready yet, or ctx ends. It returns the hook's
+// output, without secrets; its error holds the last attempt's output.
+func (n *Local) retryHook(ctx context.Context, act *activity.Log, retry time.Duration, title string, run *generate.HookRun) ([]byte, error) {
+	for attempt := 1; ; attempt++ {
+		act.Printf("Attempt %d: running in %s", attempt, run.Container) // env holds secrets: never logged
+		out, err := n.execHook(ctx, run)
+		act.Write(out)
+		if err == nil {
+			return out, nil
+		}
+		act.Printf("%v. %s may still be starting; trying again in %s.", err, title, retry)
+		select {
+		case <-ctx.Done():
+			if errors.Is(context.Cause(ctx), errSetupStopped) {
+				return out, errSetupStopped
+			}
+			return out, errors.New(lastLines(out, err))
+		case <-time.After(retry):
+		}
+	}
+}
+
+// execHook runs a prepared hook once and returns what it printed, with
+// any secret it was given replaced by [secret], so a careless script
+// can't leak one into the log (SPEC.md §5.2). A hook that saves a secret
+// prints only its value on standard output: Roostack keeps it as that
+// secret and shows only the hook's standard error.
+func (n *Local) execHook(ctx context.Context, run *generate.HookRun) ([]byte, error) {
+	var secrets []string
+	for k := range run.Secrets {
+		secrets = append(secrets, run.Env[k])
+	}
+	for k := range run.Inputs {
+		secrets = append(secrets, run.Env[k])
+	}
+	stdout, stderr, err := n.Exec(ctx, run.Container, run.Env, run.Command)
+	if run.Saves == "" {
+		return scrub(append(stdout, stderr...), secrets), err
+	}
+	out := scrub(stderr, secrets)
+	if err != nil {
+		return out, err
+	}
+	value := strings.TrimSpace(string(stdout))
+	if !savable(value) {
+		return out, errors.New("it printed something that isn't a key (one line of up to 4096 printable characters, no spaces), so Roostack didn't keep it")
+	}
+	if err := n.Secrets.Replace(ctx, run.Saves, []byte(value)); err != nil {
+		return out, fmt.Errorf("keeping what it made: %w", err)
+	}
+	return append(out, "Roostack kept the key it made.\n"...), nil
+}
+
+// savable says whether a saving hook's output looks like a key or token:
+// one line of printable ASCII without spaces.
+func savable(v string) bool {
+	if v == "" || len(v) > 4096 {
+		return false
+	}
+	for _, r := range v {
+		if r <= ' ' || r > '~' {
+			return false
+		}
+	}
+	return true
+}
+
+// scrub replaces each secret value in out with [secret]. Values shorter
+// than four characters are left alone: they would match ordinary words.
+func scrub(out []byte, secrets []string) []byte {
+	slices.SortFunc(secrets, func(a, b string) int { return len(b) - len(a) }) // longest first
+	for _, v := range secrets {
+		if len(v) >= 4 {
+			out = bytes.ReplaceAll(out, []byte(v), []byte("[secret]"))
+		}
+	}
+	return out
 }
 
 // hookSecrets adds secret values to a hook's environment: secret settings
@@ -337,7 +413,7 @@ func (n *Local) RunAction(ctx context.Context, name, action string, inputs map[s
 	if err := n.hookSecrets(ctx, run, values); err != nil {
 		return "", err
 	}
-	out, err := n.Exec(ctx, run.Container, run.Env, run.Command)
+	out, err := n.execHook(ctx, run)
 	if err != nil {
 		return "", &ActionError{Title: h.Title, Output: lastLines(out, err), Err: err}
 	}

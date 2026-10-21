@@ -1,6 +1,7 @@
 package sso
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -83,6 +84,10 @@ type Client struct {
 	Host string
 	// Public: its address is public, so the sign-in page is too.
 	Public bool
+	// UserGroup and AdminGroup rename the groups claim's users and admins
+	// for an app that expects its own words (Immich: user and admin;
+	// the package's sso.oidc.groups). Empty: UserGroup and AdminGroup.
+	UserGroup, AdminGroup string
 }
 
 // Session is someone signed in on the sign-in page.
@@ -549,7 +554,7 @@ func (p *Provider) issue(w http.ResponseWriter, r *http.Request, c Client, u *st
 		tokenError(w, http.StatusBadRequest, "invalid_grant", "this person may no longer use this app")
 		return nil
 	}
-	claims, err := p.claims(ctx, u, scope)
+	claims, err := p.claims(ctx, c, u, scope)
 	if err != nil {
 		p.serverError(w, err)
 		return nil
@@ -615,7 +620,7 @@ const allScopes = "openid profile email groups"
 // name and username; email: the address; groups: the groups claim), so an
 // app learns only what it needs (SPEC.md §5.2, decided 2026-10-20 after
 // the conformance suite).
-func (p *Provider) claims(ctx context.Context, u *store.User, scope string) (map[string]any, error) {
+func (p *Provider) claims(ctx context.Context, cl Client, u *store.User, scope string) (map[string]any, error) {
 	sub, err := p.Store.EnsureSSOID(ctx, u.ID)
 	if err != nil {
 		return nil, err
@@ -634,9 +639,9 @@ func (p *Provider) claims(ctx context.Context, u *store.User, scope string) (map
 		c["email"], c["email_verified"] = u.Email, true
 	}
 	if slices.Contains(scopes, "groups") {
-		groups := []string{UserGroup}
+		groups := []string{cmp.Or(cl.UserGroup, UserGroup)}
 		if u.Role == auth.RoleOwner || u.Role == auth.RoleAdmin {
-			groups = append(groups, AdminGroup)
+			groups = append(groups, cmp.Or(cl.AdminGroup, AdminGroup))
 		}
 		c["groups"] = groups
 	}
@@ -660,7 +665,8 @@ func (p *Provider) UserInfo(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
 		return
 	}
-	claims, err := p.claims(r.Context(), u, t.Scope)
+	cl, _ := p.Client(t.Service)
+	claims, err := p.claims(r.Context(), cl, u, t.Scope)
 	if err != nil {
 		p.serverError(w, err)
 		return

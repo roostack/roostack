@@ -146,6 +146,16 @@ func (p *Package) validateSettings(v *validator) {
 		if s.Generate && s.InstallOnly {
 			v.addf("%s: a generated secret can't be install_only (nobody would know it)", at)
 		}
+		if s.FromHook {
+			switch {
+			case s.Type != SettingSecret:
+				v.addf("%s.from_hook: only for secrets", at)
+			case s.Generate || s.InstallOnly || s.Reveal || s.MinLength != 0:
+				v.addf("%s.from_hook: a hook makes it, so it takes no generate, install_only, reveal or min_length", at)
+			case !p.hasSavingAction(s.Key):
+				v.addf("%s.from_hook: needs an action that saves it (saves: %s), for services installed before it, or whose key was lost", at, s.Key)
+			}
+		}
 		if s.Required && s.Type != SettingString {
 			v.addf("%s.required: only for strings (secrets are always required)", at)
 		}
@@ -179,8 +189,24 @@ func (p *Package) validateHooks(v *validator) {
 			if h.Title == "" {
 				v.addf("%s.title: required (the button's label)", at)
 			}
+		case HookSSO:
+			switch {
+			case p.SSO == nil:
+				v.addf("%s.on: an sso hook needs the package's sso part", at)
+			case h.Name != "" || len(h.Inputs) > 0:
+				v.addf("%s: an sso hook takes no name or inputs", at)
+			}
 		default:
-			v.addf("%s.on: must be %q or %q", at, HookInstall, HookAction)
+			v.addf("%s.on: must be %q, %q or %q", at, HookInstall, HookAction, HookSSO)
+		}
+		if h.Saves != "" {
+			s := p.Setting(h.Saves)
+			switch {
+			case h.On == HookSSO:
+				v.addf("%s.saves: only install and action hooks save a secret", at)
+			case s == nil || !s.FromHook:
+				v.addf("%s.saves: %q is not a from_hook secret setting", at, h.Saves)
+			}
 		}
 		if p.Containers[h.Container] == nil {
 			v.addf("%s.container: unknown container %q", at, h.Container)
@@ -215,6 +241,12 @@ func (p *Package) validateHooks(v *validator) {
 				v.addf("%s.secrets.%s: also set in env", at, k)
 			}
 			ref := h.Secrets[k]
+			if ref == SSOClientSecret {
+				if h.On != HookSSO || p.SSO == nil || p.SSO.OIDC == nil {
+					v.addf("%s.secrets.%s: %s is only for an sso hook of an oidc app", at, k, ref)
+				}
+				continue
+			}
 			if key, ok := strings.CutPrefix(ref, "inputs."); ok {
 				if in := h.Input(key); in == nil || in.Type != SettingSecret {
 					v.addf("%s.secrets.%s: %q is not a secret input", at, k, ref)
@@ -320,6 +352,8 @@ func (p *Package) validateContainer(v *validator, name string, c *Container) {
 			v.addf("%s.secrets.%s: %v", at, k, err)
 		} else if s := p.Setting(c.Secrets[k]); s != nil && s.InstallOnly {
 			v.addf("%s.secrets.%s: %q is install_only, so only install hooks can use it", at, k, c.Secrets[k])
+		} else if s != nil && s.FromHook {
+			v.addf("%s.secrets.%s: %q is from_hook, so only hooks can use it", at, k, c.Secrets[k])
 		}
 	}
 	for i, m := range c.Mounts {
@@ -560,6 +594,16 @@ func installValueFits(typ string, v any) bool {
 	case SettingInt:
 		_, ok := v.(int)
 		return ok
+	}
+	return false
+}
+
+// hasSavingAction reports whether an action hook saves the setting.
+func (p *Package) hasSavingAction(key string) bool {
+	for _, h := range p.Hooks {
+		if h != nil && h.On == HookAction && h.Saves == key {
+			return true
+		}
 	}
 	return false
 }

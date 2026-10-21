@@ -39,6 +39,12 @@ func (f *fakeSSO) SetSSO(_ context.Context, name string, on bool) error {
 	f.on[name] = on
 	return nil
 }
+func (f *fakeSSO) SSOOff(name string) string {
+	if titles := map[string]string{"mealie": "Mealie", "forgejo": "Forgejo"}; !f.on[name] {
+		return titles[name]
+	}
+	return ""
+}
 func (f *fakeSSO) SSOClients() []sso.Client {
 	var out []sso.Client
 	if f.on["mealie"] {
@@ -46,6 +52,9 @@ func (f *fakeSSO) SSOClients() []sso.Client {
 	}
 	if f.on["stirling-pdf"] {
 		out = append(out, sso.Client{ID: "stirling-pdf", Title: "Stirling-PDF", Host: "pdf.lab.example.com"})
+	}
+	if f.on["forgejo"] {
+		out = append(out, sso.Client{ID: "forgejo", Title: "Forgejo", RedirectURIs: []string{"https://git.lab.example.com/user/oauth2/lab.example.com/callback"}})
 	}
 	return out
 }
@@ -56,6 +65,9 @@ type ssoPackages struct{ *fakeManager }
 func (m ssoPackages) Package(name string) (*pkgspec.Package, error) {
 	if name == "mealie" || name == "stirling-pdf" {
 		return pkgspec.Load(pkgtest.File(name))
+	}
+	if name == "photos" {
+		return pkgspec.Parse([]byte(photosPackage))
 	}
 	return m.fakeManager.Package(name)
 }
@@ -463,6 +475,92 @@ func TestServiceSSOCard(t *testing.T) {
 	}
 	if code, _ := ha.post("/services/mealie/sso/access", url.Values{"who": {"chosen"}}, ha.srv.URL); code != http.StatusForbidden {
 		t.Errorf("an Admin choosing who: %d", code)
+	}
+}
+
+// An app set by its sso hook (Forgejo): the card says while it runs and
+// when it failed, with Try again, and shows its last run in Details; the
+// sign-in page tells someone whose app keeps a button once it's off.
+func TestServiceSSOHookCard(t *testing.T) {
+	h, fm := loggedIn(t, "owner")
+	fs := &fakeSSO{on: map[string]bool{"forgejo": true}}
+	srv, c := withSignIn(t, h, fs)
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "forgejo", Title: "Forgejo", Status: "running", Package: "forgejo", URLs: []string{"https://git.lab.example.com"}}}, nil
+	}
+	fm.setup = map[string]manager.HookStatus{"forgejo": {SSO: manager.SSOHookStatus{Running: true, On: true}}}
+	if _, body := h.get("/services/forgejo"); !strings.Contains(body, "Connecting Forgejo to the sign-in page") || !strings.Contains(body, `hx-select="#sso-hook"`) {
+		t.Error("running: no polling notice")
+	}
+	fm.setup["forgejo"] = manager.HookStatus{SSO: manager.SSOHookStatus{On: false, Failed: "Forgejo didn't answer"}}
+	_, body := h.get("/services/forgejo")
+	for _, want := range []string{"Forgejo isn't connected to the sign-in page yet", "Forgejo didn&#39;t answer", `action="/services/forgejo/setup/retry"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("failed card missing %q", want)
+		}
+	}
+	fm.setup["forgejo"] = manager.HookStatus{SSO: manager.SSOHookStatus{On: true, Output: "Added single sign-on to Forgejo.", At: time.Now()}}
+	if _, body := h.get("/services/forgejo"); !strings.Contains(body, "Added single sign-on to Forgejo.") || strings.Contains(body, "isn't connected") {
+		t.Error("done: no last run in Details, or still failed")
+	}
+
+	// Off, with Forgejo's button kept: the sign-in page says so.
+	fs.on["forgejo"] = false
+	q := url.Values{"client_id": {"forgejo"}, "redirect_uri": {"https://git.lab.example.com/user/oauth2/lab.example.com/callback"},
+		"response_type": {"code"}, "scope": {"openid"}}
+	if _, body := call(t, srv, c, http.MethodGet, signInHost, "/authorize?"+q.Encode(), nil); !strings.Contains(body, "Single sign-on is off for Forgejo") {
+		t.Errorf("off: %s", body)
+	}
+}
+
+// photosPackage is an app set through its own API, like Immich, whose sso
+// hook needs a key it makes (SPEC.md §5.2).
+const photosPackage = `
+schema: roostack/v1alpha1
+name: photos
+title: Photos
+version: 1.0.0-roostack.1
+settings:
+  - { key: settings_key, title: Roostack's key to Photos' settings, type: secret, from_hook: true }
+containers:
+  server:
+    image: example.org/photos:1@sha256:0000000000000000000000000000000000000000000000000000000000000000
+routes:
+  web: { container: server, port: 2283, subdomain: photos, exposure: private }
+hooks:
+  - on: action
+    name: connect
+    title: Connect Roostack to Photos
+    container: server
+    inputs: [{ key: password, title: Password, type: secret }]
+    secrets: { ADMIN_PASSWORD: inputs.password }
+    saves: settings_key
+    command: [make-key]
+  - on: sso
+    container: server
+    secrets: { API_KEY: settings_key, CLIENT_SECRET: sso.client_secret }
+    command: [set-sign-in]
+sso:
+  oidc: { route: web, redirect_paths: [/auth/login] }
+`
+
+// Without the key its sso hook needs (installed before its package made
+// one), the card asks to connect first, linking to the action, which the
+// link opens.
+func TestServiceSSOConnect(t *testing.T) {
+	h, fm := loggedIn(t, "owner")
+	withSignIn(t, h, &fakeSSO{on: map[string]bool{}})
+	h.server.Services = func(context.Context) ([]ServiceView, error) {
+		return []ServiceView{{Name: "photos", Title: "Photos", Status: "running", Package: "photos", URLs: []string{"https://photos.lab.example.com"}}}, nil
+	}
+	fm.setup = map[string]manager.HookStatus{"photos": {SSO: manager.SSOHookStatus{NeedsKey: "connect"}}}
+	_, body := h.get("/services/photos")
+	if !strings.Contains(body, "First connect Roostack to Photos") || !strings.Contains(body, `href="/services/photos?action=connect#action-connect"`) ||
+		strings.Contains(body, "Turn on single sign-on</button>") {
+		t.Error("no Connect prompt, or the switch is offered without the key")
+	}
+	if _, body := h.get("/services/photos?action=connect"); !strings.Contains(body, `id="action-connect" open`) {
+		t.Error("?action=connect doesn't open the action")
 	}
 }
 

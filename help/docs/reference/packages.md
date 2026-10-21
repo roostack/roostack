@@ -152,7 +152,11 @@ routes:
     Podman secrets, never in files. A setting that isn't a secret can have
     an `install_value`, used until the install hooks succeed (or while
     they've failed and wait for Try again); the package needs an install
-    hook for it.
+    hook for it. A secret with `from_hook: true` is made by the app itself
+    and handed to Roostack by a hook that `saves` it (below): a key Immich
+    makes for its own settings, say. It's never shown, only hooks may use
+    it, and the package needs an action that saves it too, for services
+    installed before it or whose key was lost.
 
 `containers`
 :   Each container: an `image` (pinned by tag and digest), `command`,
@@ -218,9 +222,25 @@ routes:
 
 `hooks`
 :   Commands run inside a container: `on: install` once after the first
-    start (such as creating an admin account), or `on: action`, a button on
-    the service page with `inputs`. Values people type reach the command
-    only as environment variables.
+    start (such as creating an admin account), `on: action`, a button on
+    the service page with `inputs`, or `on: sso`, run when single sign-on
+    is turned on, changed (the lab's address or name) or off, for an app
+    set by a command or its own API (below). Values people type reach the
+    command only as environment variables, and any secret it's given is
+    replaced by `[secret]` in what it prints before that's shown.
+
+    An install hook or action with `saves: <setting>` hands Roostack a key
+    the app made: it prints the key, and only the key, on standard output,
+    which becomes that `from_hook` secret and is never shown or logged; it
+    prints everything else on standard error, its log.
+
+    An `on: sso` hook gets `ROOSTACK_SSO=on` or `off`, and must be safe to
+    run again: it runs again whenever what it's given changes, and once
+    more, with `off`, when single sign-on is turned off. Its `env` may use
+    `.SSO`; an OIDC app's may have `sso.client_secret` in its `secrets`,
+    which is empty while it's off. It runs once the service has started
+    and its install hooks are done, retried for up to 10 minutes; the
+    service's Single sign-on card shows its last run.
 
 `links`
 :   Links to the app's own settings pages, shown on the service page.
@@ -247,8 +267,27 @@ routes:
     `env` (container, then variable) is added to containers only while
     single sign-on is on, replacing their own value of the same name; its
     templates have `.SSO` (below). `secrets` gives a container the app's
-    client secret: `OIDC_CLIENT_SECRET: sso.client_secret`. `note` says
+    client secret: `OIDC_CLIENT_SECRET: sso.client_secret`. `secret_env`
+    is for an app that takes the secret inside a bigger value, such as
+    Paperless-ngx's JSON list of providers: a template using
+    `{{ json .SSO.ClientSecret }}`, which Roostack makes as a Podman secret
+    and passes as that variable, never written into a file. `note` says
     what still uses the app's own sign-in, shown beside the switch.
+
+    A redirect path may use `.SSO` (Forgejo's names its sign-in source:
+    `/user/oauth2/{{ pathescape .SSO.ProviderName }}/callback`).
+    `oidc.groups` renames the two groups the app is told about, for an app
+    that expects its own words: `{ users: user, admins: admin }` for
+    Immich, which makes someone its admin when the claim holds `admin`.
+
+    How each kind of app is connected:
+
+    | The app takes its settings | The package has |
+    |---|---|
+    | from env (Mealie, Vaultwarden) | `env` and `secrets` |
+    | from its admin command (Forgejo, Gitea) | an `on: sso` hook running the command |
+    | only through its API (Immich, Audiobookshelf, Wiki.js) | an `on: sso` hook calling the API with a `from_hook` key the app made at install (an install hook that `saves` it, and an action that makes it again) |
+    | as a value holding the secret (Paperless-ngx, Papra) | `secret_env` |
 
     ```yaml
     sso:
@@ -344,7 +383,12 @@ Values in `env`, `when` and hooks are Go templates:
 | `.SSO.AuthorizeURL` / `.TokenURL` / `.UserinfoURL` | The sign-in page's endpoints, for apps that don't read the configuration |
 | `.SSO.ClientID` | The app's ID at the sign-in page: the service's name |
 | `.SSO.ProviderName` / `.ButtonText` | The lab's name / `Sign in with` and the lab's name |
-| `.SSO.UserGroup` / `.AdminGroup` | `users` and `admins`: the `groups` claim (with the `groups` scope) has `users` for everyone with access, and `admins` too for the lab's Owners and Admins |
+| `.SSO.UserGroup` / `.AdminGroup` | `users` and `admins` (or the names `sso.oidc.groups` gives): the `groups` claim (with the `groups` scope) has `users` for everyone with access, and `admins` too for the lab's Owners and Admins |
+| `.SSO.ClientSecret` | The app's client secret, in `sso.secret_env` only: anywhere else it would land in a file Roostack writes |
+
+Two functions help: `json` writes a value as a JSON string, quoted and
+escaped (`{{ json .SSO.ProviderName }}`), and `pathescape` escapes it for
+an address's path.
 
 ## Checking a package
 

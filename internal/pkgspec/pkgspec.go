@@ -48,6 +48,11 @@ const (
 	// HookAction is a button on the service page (e.g. "Reset admin
 	// password"), run by an Admin.
 	HookAction = "action"
+	// HookSSO runs when single sign-on is turned on, changed or turned
+	// off, with ROOSTACK_SSO=on|off, for apps set by a command or their
+	// own API (Forgejo, Immich). It must be safe to run again (SPEC.md
+	// §5.2, "Connecting the remaining apps").
+	HookSSO = "sso"
 )
 
 // Hook runs a command inside one of the service's containers.
@@ -56,7 +61,7 @@ const (
 // environment variables, never templated into the command itself, so they
 // can't change what a shell script does.
 type Hook struct {
-	On          string `yaml:"on"`   // install or action
+	On          string `yaml:"on"`   // install, action or sso
 	Name        string `yaml:"name"` // actions: used in URLs
 	Title       string `yaml:"title"`
 	Description string `yaml:"description"`
@@ -70,6 +75,10 @@ type Hook struct {
 	Secrets map[string]string `yaml:"secrets"`
 	// Inputs are asked for when an action runs (string or secret).
 	Inputs []Setting `yaml:"inputs"`
+	// Saves names a from_hook secret setting: what the hook prints on
+	// standard output becomes its value, and is never shown or logged
+	// (install and action hooks only). Its standard error is its log.
+	Saves string `yaml:"saves"`
 }
 
 // HooksOn returns the package's hooks for an event, in order.
@@ -139,6 +148,11 @@ type Setting struct {
 	// make the first account by signing up, then the chosen value (SPEC.md
 	// §8.1). Not for secrets.
 	InstallValue any `yaml:"install_value"`
+	// FromHook secrets are made by the app itself and handed to Roostack
+	// by a hook that saves them (Hook.Saves): e.g. an API key Immich makes,
+	// kept so a hook can change its sign-in settings later. Never shown,
+	// and only hooks may use them (SPEC.md §5.2).
+	FromHook bool `yaml:"from_hook"`
 }
 
 // Link points into the app's own pages, where most of its settings live

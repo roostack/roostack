@@ -358,12 +358,6 @@ Later, the same choices could become the lab's default look for new people and R
   - single sign-out;
   - signing-key rotation.
 
-## 6. Container Runtime — Locked (principle)
-
-- Podman, **rootless where possible**; rootful only where a service genuinely requires it (e.g. low ports, host networking, device access), and this is visible to the user.
-- **Rationale:** security is a priority; rootless limits the blast radius of a compromised container.
-
-
 #### As built (2026-10-20)
 
 Built and checked end to end on VM3 with Mealie (OIDC) and Stirling-PDF (the wall), and against the OpenID Foundation's conformance suite on VM4, docs/ASSUMPTIONS.md V1–V7.
@@ -387,8 +381,325 @@ Built and checked end to end on VM3 with Mealie (OIDC) and Stirling-PDF (the wal
 - **People:** `users.name` and `users.sso_id` (the `sub`: random, made when first needed, as `users.id` can be given to a new account after the newest is removed), `user_groups`, `service_access` (no rows: everyone), `sso_tokens`. People page: name, email and groups per person; groups with their members and the services each can use; the sign-in page's look; the two sign-in choices. Members' Home leaves out services with single sign-on they can't use.
 - **The look:** the lab's name, a logo (a square mark beside the name, also the tab's icon; or a wide logo with the name in it, with an optional dark-mode version, otherwise a light panel in dark mode, and an optional tab icon; or the hen), and a built-in theme. PNGs are checked for shape; SVGs with scripts, event handlers or embedded pages are refused, and every logo is served with a sandboxing CSP. Mock-ups: docs/mockups/sso.
 - **The package format** has `sso` (oidc or forward_auth, env and secrets added only while on, a note) and `.SSO` in templates (help/docs/reference/packages.md). Mealie and Stirling-PDF have it in the test fixtures (`internal/testdata/packages`), a revision ahead of the registry.
-- **Not built in this version** (TASKS): the `on: sso` hook (Forgejo, Gitea), apps set through an API with a kept admin key (Immich, Audiobookshelf, Wiki.js), secrets inside JSON (Paperless, Papra), services on another server (refused with a sentence for now), passkeys, signing in to Roostack's own pages, single sign-out, key rotation. Removing a service leaves its access rows (harmless; tidied once `services.go` is free).
+- **Not built in this version** (TASKS): the `on: sso` hook (Forgejo, Gitea), apps set through an API with a kept admin key (Immich, Audiobookshelf, Wiki.js), secrets inside JSON (Paperless, Papra) (all three built the same day: "Connecting the remaining apps" below), services on another server (refused with a sentence for now), passkeys, signing in to Roostack's own pages, single sign-out, key rotation. Removing a service leaves its access rows (harmless; tidied once `services.go` is free).
 - **Found while building:** a custom `dns.directive` without a DNS challenge (`issuer internal`) made Caddy refuse the Caddyfile, as `resolvers` needs one; resolvers are now added only with a `dns` line.
+
+#### Connecting the remaining apps — Locked (2026-10-20)
+
+The first version connects apps set by env, and walls. Three ways of connecting an app were designed above but not built. This is how each works.
+
+**Decided (2026-10-20), the Owner:** every recommendation below, as proposed: the lab's name on Forgejo's button, a key the app makes kept from a hook's output, a Connect action for services installed before their package had one, and Forgejo's source kept on turning off when accounts were made through it.
+
+Facts behind it, read from each app's source at the pinned version (not yet tried on a VM):
+
+- **Forgejo 15:** `forgejo admin auth add-oauth` and `update-oauth` (which changes only the flags given). `auth list` prints `ID`, `Name`, `Type` and `Enabled`, separated by tabs.
+  - There is no flag to turn a source off.
+  - `auth delete` refuses a source that any account was made through ("login source is still used by some users").
+  - The button says "Sign in with <the source's name>", and the callback is `/user/oauth2/<the name, escaped>/callback`.
+- **Immich 3.3:**
+  - Its OIDC settings are part of its whole server configuration (`GET` and `PUT /api/admin/config`, all of it at once).
+  - API keys can be limited to what they may do: `adminConfig.read` and `adminConfig.update` are enough.
+  - A key belongs to an Immich account, here the administrator the install hook makes. It is made by `POST /api/api-keys` with that account's sign-in.
+  - Its image has `node` and `curl`.
+- **Audiobookshelf 2.37:** an API key acts as the account it's made for, with all of that account's power. Its sign-in settings take a `PATCH`.
+- **Wiki.js 2.5:** its API must be turned on first. A key has full access, or a group's. Setting a sign-in method replaces the whole list, so a hook must read the list and send `local` back.
+- **Paperless-ngx 3.3:** its OIDC provider is a JSON value, `PAPERLESS_SOCIALACCOUNT_PROVIDERS`, with the client secret inside. Its image reads any `PAPERLESS_*_FILE` variable from a file.
+- **Papra 26.7:** its providers are a JSON value, `AUTH_PROVIDERS_CUSTOMS`, secret inside. It has no `_FILE` variables, but takes a config file.
+
+##### 1. The `on: sso` hook
+
+**The format.** A hook with `on: sso`, like `on: install`: no name, run in order with any others. The `hook:` field sketched under `sso.oidc` above is dropped: one way to say it, not two.
+
+```yaml
+hooks:
+  - on: sso
+    title: Connect Forgejo to the lab's sign-in page
+    container: app
+    env:
+      SOURCE_NAME: "{{ .SSO.ProviderName }}"
+      DISCOVERY_URL: "{{ .SSO.DiscoveryURL }}"
+      CLIENT_ID: "{{ .SSO.ClientID }}"
+      ADMIN_GROUP: "{{ .SSO.AdminGroup }}"
+    secrets:
+      CLIENT_SECRET: sso.client_secret        # empty while single sign-on is off
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        id_file=/var/lib/gitea/roostack-sso-source     # in Forgejo's own data, so it's backed up with it
+        id=$(cat "$id_file" 2>/dev/null || true)
+        if [ "$ROOSTACK_SSO" = off ]; then
+          [ -n "$id" ] || { echo "Nothing to undo."; exit 0; }
+          if forgejo admin auth delete --id "$id" 2>err; then rm -f "$id_file"; echo "Single sign-on removed."
+          elif grep -q "still used" err; then echo "Kept: accounts were made through it. Its button now says single sign-on is off." >&2
+          else cat err >&2; exit 1; fi
+          exit 0
+        fi
+        set -- --name "$SOURCE_NAME" --provider openidConnect --key "$CLIENT_ID" --secret "$CLIENT_SECRET" \
+          --auto-discover-url "$DISCOVERY_URL" --scopes openid --scopes email --scopes profile --scopes groups \
+          --group-claim-name groups --admin-group "$ADMIN_GROUP"
+        if [ -n "$id" ] && forgejo admin auth list | awk -F'\t+' -v id="$id" 'NR > 1 && $1 == id { f = 1 } END { exit !f }'; then
+          forgejo admin auth update-oauth --id "$id" "$@"; echo "Single sign-on updated."
+        else
+          forgejo admin auth add-oauth "$@"
+          forgejo admin auth list | awk -F'\t+' -v n="$SOURCE_NAME" 'NR > 1 && $2 == n { print $1 }' > "$id_file"
+          echo "Single sign-on added."
+        fi
+```
+
+Forgejo's `sso` part gains `env` for its container while on: `FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION: "true"`, `ACCOUNT_LINKING: auto` (an existing account with the same email is linked, not refused), and `USERNAME: nickname` (which reads `preferred_username`). Its redirect path names the source, so redirect paths may use `.SSO` templates and a new `pathescape` function: `/user/oauth2/{{ pathescape .SSO.ProviderName }}/callback`. Renaming the lab then renames the source and its redirect address in one apply. Gitea is the same.
+
+**What it gets:**
+
+- `ROOSTACK_SSO=on` or `off`, set by Roostack;
+- the env and secrets the hook lists, as for any hook. `.SSO` values are there whether it's on or off, so an `off` run can find what to undo;
+- `sso.client_secret` as a hook secret, for an OIDC app only. It is empty in an `off` run.
+
+**When it runs.** After each apply on the server that runs the service, once the service has started and its install hooks are done. Roostack keeps a fingerprint of the hook's last successful run in its database (`hooks.<service>.sso`): a SHA-256 of on or off, the hook's command, its rendered env, and the names of its secrets (never their values). It runs the hook when that fingerprint changes. So it runs:
+
+- when single sign-on is turned on or off;
+- when what it was given changes: the lab's address or name, or a package update that changes the hook;
+- after installing, for a service installed with single sign-on on (the default).
+
+An `off` run happens only after an `on` run did. A service that never had single sign-on runs nothing.
+
+**As whom, and where its log shows.** As install hooks do: `podman exec` into the named container, as the container's own user. It's retried every 10 seconds for up to 10 minutes while the app starts. It shows as an activity, "Connecting Forgejo to the sign-in page", in the activity log. The service's Single sign-on card shows its last run under **Details**, with the time.
+
+**On failure:**
+
+- The service keeps running, and the switch stays as chosen.
+- The card says "Forgejo isn't connected to the sign-in page yet", with the last lines of output and **Try again**.
+- A failed `on` run means the app's button may be missing, or may still carry the old settings.
+- A failed `off` run leaves a button that leads to the sign-in page. For a service without single sign-on, the sign-in page answers "Single sign-on is off for Forgejo: sign in with its own password", with a link back. This is new, and better than the bare "unknown client" error any leftover would get today.
+
+**Turning it off cleanly.** The apply removes the app's sso env and client, then the hook runs with `off`.
+
+- Forgejo deletes the source, or keeps it if accounts were made through it (Forgejo refuses otherwise).
+- Accounts made through single sign-on have no password of their own. The switch's confirmation says so: "People who signed in with single sign-on will need a password: give them one with Reset a password".
+- The client secret is deleted once the `off` run succeeds, as §5.2 says ("the client and its secret go"). The first version leaves it in Podman.
+
+**The rules a package must follow.** `on: sso` needs an `sso` part. It takes no `name` or `inputs`. `sso.client_secret` is allowed only with `sso.oidc`. Install-only secrets aren't allowed: they're gone by then. A walled app may have one too: Uptime Kuma's wall needs its own sign-in turned off, and back on when the wall goes.
+
+##### 2. Apps set through their own API: a key the app makes, kept by Roostack
+
+**The credential.** Immich, Audiobookshelf and Wiki.js make their own keys: none takes a key Roostack chooses. So the app makes it, and a hook hands it to Roostack:
+
+- a **secret setting with `from_hook: true`**: its value is what a hook prints, never typed by anyone nor made by Roostack;
+- a hook with **`saves: <that setting>`**. What it prints on **standard output** becomes the secret, and nothing else. Its standard error is its log.
+
+```yaml
+settings:
+  - key: settings_key
+    title: Roostack's key to Immich's settings
+    description: Made by Immich at install, for setting up single sign-on. Never shown.
+    type: secret
+    from_hook: true
+
+hooks:
+  - on: install                      # the administrator, as today (unchanged)
+    ...
+  - on: install
+    title: Make a key for Roostack
+    container: server
+    env: { ADMIN_EMAIL: "{{ .Settings.admin_email }}" }
+    secrets: { ADMIN_PASSWORD: admin_password }   # still there: install-only secrets go once all install hooks succeed
+    saves: settings_key
+    command: [node, -e, "...sign in; delete any key named Roostack; POST /api/api-keys {name: 'Roostack', permissions: ['adminConfig.read', 'adminConfig.update']}; print its secret, and only it, on stdout"]
+  - on: action
+    name: connect
+    title: Connect Roostack to Immich
+    description: Roostack needs a key to Immich's settings to set up single sign-on. Type Immich's administrator email and password once; Roostack keeps only the key.
+    container: server
+    inputs:
+      - { key: email, title: Administrator email, type: string }
+      - { key: password, title: Administrator password, type: secret }
+    env: { ADMIN_EMAIL: "{{ .Inputs.email }}" }
+    secrets: { ADMIN_PASSWORD: inputs.password }
+    saves: settings_key
+    command: [node, -e, "...the same script"]
+  - on: sso
+    title: Set Immich's sign-in
+    container: server
+    env:
+      ISSUER: "{{ .SSO.Issuer }}"
+      CLIENT_ID: "{{ .SSO.ClientID }}"
+      BUTTON: "{{ .SSO.ButtonText }}"
+    secrets:
+      API_KEY: settings_key
+      CLIENT_SECRET: sso.client_secret
+    command: [node, -e, "...GET /api/admin/config; on: oauth = {enabled, issuerUrl, clientId, clientSecret, buttonText, autoRegister: true, scope: 'openid email profile groups', roleClaim: 'groups'}; off: oauth.enabled = false, clientSecret = ''; PUT it back"]
+```
+
+Immich makes someone an admin when a claim it's told to read holds `admin`. Audiobookshelf reads `admin` or `user` from its group claim, and refuses anyone with neither. Today's `groups` claim holds `users` and `admins`. So **a package may rename the two groups** the provider sends it: `sso.oidc.groups: { users: user, admins: admin }`. `.SSO.UserGroup` and `.SSO.AdminGroup` follow. Considered: a role claim of its own per package (one more claim to build, for the same result).
+
+**How it runs.** A saving hook runs like any hook, with three differences:
+
+- Its standard output is read by Roostack and never shown or logged. It must be one line of 1 to 4096 printable characters; anything else fails the hook with "printed something that isn't a key", without showing it.
+- The value replaces the secret (`podman secret create --replace`), so a new key takes over from the last one. The scripts delete their old "Roostack" key first, so the app holds only one.
+- It runs only when its own event comes: at install, or the action's button.
+
+**Where the key lives, and its power:**
+
+- A Podman secret, `roostack-<service>-<key>`, on the server that runs the service. It's in the service's backup, like every secret, so a restored Immich keeps working.
+- Never shown: `from_hook` can't be `reveal`. Never in a container's env: only hooks may use it. Never logged.
+- **Immich's key** can read and change Immich's server settings, and nothing else: no photos, no accounts. Changing settings is still a lot of power (pointing Immich's sign-in somewhere else would let that place sign in as anyone), so it's kept like an admin password.
+- **Audiobookshelf's key** is the administrator's own power, and **Wiki.js's** is full access: neither app offers less. The package's install summary and its `from_hook` setting's title say so.
+- What can read it: the roostack user, which already holds every service's secrets and data. A compromised app holds its own key only while a hook runs in it, and it already has its own data.
+
+**Existing installs, and a lost key.** A service installed before its package had a key, or whose key Immich lost (its administrator was deleted, say), has the `connect` action. The Single sign-on card offers it in place of the switch while the key is missing: "First connect Roostack to Immich: this needs Immich's administrator password once."
+
+- A package whose `sso` hook uses a `from_hook` secret must have an action that saves it. The install hook that saves it is recommended but optional.
+- With the key missing, the `sso` hook fails, saying so.
+
+**Considered:**
+
+- **A Roostack account in each app, with a generated password Roostack keeps:** works for every app. But it's full admin power, it shows in the app's list of people, and it can be used from anywhere the app is reachable.
+- **Writing the app's database directly** (Immich keeps its settings in `system_metadata`): no credential at all, but it bypasses the app's checks and caching, and breaks when the app changes its tables.
+- **Immich's config file:** it freezes every other setting in Immich's pages.
+
+No new image is needed: Immich, Audiobookshelf and Wiki.js all have `node` in their own images.
+
+##### 3. Secrets inside JSON: an env value Roostack makes as a secret
+
+**The format.** `sso.secret_env`: per container, a variable and a template for its whole value. In it, `.SSO.ClientSecret` is available. A new `json` function (also in every other template) writes a value as a JSON string, quoted and escaped, since the lab's name may hold quotes.
+
+```yaml
+sso:
+  oidc:
+    route: web
+    redirect_paths: [/accounts/oidc/roostack/login/callback/]
+  env:
+    app:
+      PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
+      PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
+      PAPERLESS_SOCIAL_ACCOUNT_SYNC_SUPERUSER_GROUP: "{{ .SSO.AdminGroup }}"
+  secret_env:
+    app:
+      PAPERLESS_SOCIALACCOUNT_PROVIDERS: >-
+        {"openid_connect": {"SCOPE": ["openid", "profile", "email", "groups"],
+         "APPS": [{"provider_id": "roostack", "name": {{ json .SSO.ProviderName }},
+                   "client_id": {{ json .SSO.ClientID }}, "secret": {{ json .SSO.ClientSecret }},
+                   "settings": {"server_url": {{ json .SSO.DiscoveryURL }}}}]}}
+```
+
+**How it runs.** It works as `databases.<name>.url` does today, which is made from the database's password:
+
+1. The generator renders the template with a placeholder for the secret. It never has the secret.
+2. The reconciler makes a Podman secret from that text, putting the client secret (JSON-escaped) in the placeholder's place.
+3. The container gets the secret as `Secret=…,type=env,target=PAPERLESS_SOCIALACCOUNT_PROVIDERS`.
+
+The secret's name ends in a short hash of the rendered text (without the secret). A changed lab address or name then gives a new name, so the Quadlet changes and the app restarts with the new value. Roostack removes the service's secrets of that kind that it no longer uses.
+
+**Where the secret goes:** only into Podman's secret store, where every other secret already is. Never into a Quadlet, unit, Caddy file or any file Roostack writes. `.SSO.ClientSecret` exists only in `secret_env` templates: anywhere else, the package check refuses it.
+
+Papra is the same, with `AUTH_PROVIDERS_CUSTOMS` (no `_FILE` needed, as Podman passes it as env).
+
+**Considered:**
+
+- **A wrapper around the image's entrypoint** that builds the JSON from a mounted secret file: each image's entrypoint and shell would have to be known and kept in step, and Papra's rootless image may have no shell.
+- **Paperless's `_FILE` variables:** these only move the whole value into a file, which Roostack would still have to make. A Podman secret passed as env does the same with nothing on disk.
+- **Papra's config file:** written by Roostack into the app's folder, with the secret in it.
+
+**One thing to check on the VM:** Paperless gives an admin from the group claim only when an existing account signs in. So someone's first sign-in may make an ordinary account, and their second makes them an admin. If so, the package's note says so.
+
+##### What else changes
+
+- **The package editor** follows every change:
+  - help for `on: sso`, `saves`, `from_hook`, `secret_env` and `sso.oidc.groups`;
+  - the same checks in `check.js`, with corpus cases;
+  - the hook in "Settings and setup", and `secret_env` and the claims in "Single sign-on";
+  - suggestions: an OIDC app with no env and no `sso` hook, an `sso` hook using a `from_hook` key with no action to make it, a `from_hook` setting no hook saves.
+- **The registry's packages:** Forgejo, Immich and Paperless-ngx first; then Gitea, Audiobookshelf, Wiki.js and Papra the same way.
+- **Hook output:** before logging or showing a hook's output, Roostack replaces any secret value it passed to the hook with `[secret]`. A careless script can then not leak one. This applies to every hook, not only these.
+
+##### The questions the Owner answered (2026-10-20)
+
+1. **Forgejo's button:** "Sign in with Smith family" (the lab's name, recommended), with redirect paths able to use `.SSO` and the hook keeping the source's ID in Forgejo's data folder? Or a fixed name, "Sign in with single sign-on", which is simpler but reads oddly?
+2. **The kept key:** an API key the app makes, saved from a hook's output (`from_hook` and `saves`, recommended)? Or a Roostack account in each app with a password Roostack generates (one way for every app, but full admin power and visible in the app)?
+3. **Existing installs:** a "Connect Roostack to Immich" action that asks the app's administrator password once (recommended)? Or only new installs get single sign-on for these apps, as nothing is released yet?
+4. **Turning off when accounts were made through it:** keep Forgejo's source, with its button leading to a page saying single sign-on is off (recommended)? Or switch the source off directly in Forgejo's database (cleaner to see, but it bypasses Forgejo and may break with its next version)?
+
+##### As built (2026-10-20)
+
+Built as decided, and checked end to end on VM2 (arm64, the test address and Caddy's own CA as for the first version) with the registry's new revisions, Forgejo 15.0.10-roostack.2, Immich 3.3.3-roostack.2 and Paperless-ngx 3.3.2-roostack.2 (docs/ASSUMPTIONS.md V8–V10). Each was signed in to through the lab's page by a Member (a new account in the app) and by the Owner with two-factor, then turned off.
+
+- **The package format:**
+  - `on: sso` hooks;
+  - `saves` on install hooks and actions, and `from_hook` secret settings;
+  - `sso.secret_env`;
+  - `sso.oidc.groups`;
+  - redirect paths with templates;
+  - the `json` and `pathescape` template functions.
+
+  The rules are in `pkgspec` (`validate.go`, `sso.go`), mirrored in the package editor and its corpus.
+- **Running sso hooks** is `internal/node/ssohooks.go`. After each apply, a service whose fingerprint changed runs its hooks, once its install hooks are done, retried like them. The record (on or off, the fingerprint, any failure, the last output) is a runtime setting, `hooks.<service>.sso`. A failed run waits for Try again (the existing setup retry), not for the next apply. Hooks' output, for every hook, has the secrets they were given replaced by `[secret]`. `podman exec`'s standard output and error now come back apart (`podman.RunSplit`), so a saving hook's key never reaches a log.
+- **Turning off** deletes the client secret once the hooks have run, and any secret env, for every OIDC app, hooks or not. (The first version left the client secret in Podman.) A secret env made for an earlier address is deleted the same way while it's on.
+- **Found on the VM, and fixed:**
+  - *A kept button failed.* Forgejo, with its source kept, answered its button with a 500 error, not the "single sign-on is off" page: with it off, its container had no route to the sign-in host, and the lab no sign-in site. An OIDC app with an sso hook now keeps its `AddHost` while it's installed on a lab with an address, on or off, and the lab keeps its sign-in site (private) while any such app is installed (`generate.SSOReaches`). The button then leads to "Single sign-on is off for Forgejo. Sign in with Forgejo's own password instead." An app set by env (Mealie) loses both when it's off, as before.
+  - *The install form asked for the key.* A `from_hook` key was shown as a secret to type. It's now never asked for, taken from a form, or made by the reconciler, and its absence is no error. It's still listed among the service's secrets, so backups and moves keep it once it exists.
+- **The Single sign-on card** shows a running hook (polling), a failure with Try again, or the Connect action when a key is missing, and the last run under Details. `?action=<name>` opens an action on the service's page, so Connect can link to it. The install summary lists the keys an app makes ("Key: Roostack's key to Immich's settings").
+- **Paperless-ngx doesn't link an existing account by email.** Its administrator, made at install with the Owner's email, got Paperless's "finish signing up" form, as allauth has no setting Paperless exposes for that. The account is connected from its own profile page, signed in with its password once; the package's note says so. Whether a new account gets superuser at its first sign-in or only its second (Paperless syncs groups on an existing social account's sign-in) wasn't checked: the Member was the only new account.
+- **Test only, on the VM:** each app was made to trust Caddy's own CA by an extra variable in a copy of its package (`SSL_CERT_FILE`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE`), as Mealie was for the first version. A lab with a real certificate needs none of them.
+
+##### Gitea, Audiobookshelf, Wiki.js and Papra (2026-10-20)
+
+New registry revisions use the same three ways (roostack-services `claude/sso-more-apps`), checked end to end on VM2 (docs/ASSUMPTIONS.md V11–V14):
+
+- **Gitea 28.1.0**, as Forgejo:
+  - Its `update-oauth` sets skip-two-factor whether given or not, so the hook always passes `--skip-local-2fa`.
+  - It reads `preferred_username` itself.
+  - `ACCOUNT_LINKING=auto` links an existing account by username first, then email.
+  - Gitea syncs admin from the groups claim at each sign-in, so an admin made in Gitea who isn't a lab Owner or Admin loses it at their next single sign-on (the package says so).
+- **Audiobookshelf 2.37.1**, as Immich:
+  - Its key can't be narrowed: it has its administrator's whole power, which the setting's description and the install summary say.
+  - Its own discovery (`/auth/openid/config`) fills in the endpoints.
+  - Its root administrator, made at install, has no email, so it's found by username (`authOpenIDMatchExistingBy: username`).
+  - The groups are renamed `user` and `admin`, which it reads.
+- **Wiki.js 2.5.316**, as Immich, through GraphQL:
+  - Its API is turned on for the key, which has full access.
+  - Every existing sign-in method is sent back with the lab's, as `updateStrategies` replaces the whole list.
+  - Off disables the lab's method rather than deleting it, so the accounts it made aren't orphaned.
+  - Wiki.js doesn't read the provider's configuration, doesn't ask for groups, and never links an account it has already. So everyone who signs in gets an account of their own, the lab's Owners and Admins too, and Wiki.js's administration stays with the account made at install.
+  - **Decided (2026-10-20), the Owner:** they join a group named after the lab that can read and edit pages. The hook makes it the first time (or takes the one a failed run made), then only renames it, so changes made in Wiki.js stay. *Considered:* read only (Wiki.js's Guests).
+- **Papra 26.7.0**, as Paperless-ngx, with its provider list in `secret_env`.
+  - Papra makes an account through sign-in only while sign-ups are on, which would also let anyone who reaches it sign up with a password. It links an account it has already only if that account's email is verified, which the install-made one isn't.
+  - **Decided (2026-10-20), the Owner:** single sign-on only. While it's on, sign-ups are on and Papra's email-and-password sign-in is off (`AUTH_PROVIDERS_EMAIL_IS_ENABLED=false`), so nobody can sign up any other way. The account made at install can't be used until it's off again, which the package's note says. *Considered:* sign-ups on beside password sign-in (fine while it's home-only, open to anyone otherwise), and no single sign-on for Papra yet.
+- **Found on the VM:** Wiki.js wants a group's permissions and page rules as lists, not JSON strings. A failed run had already made the group, so a retry now takes a group of that name rather than making a second.
+
+##### The rest of the registry (2026-10-21)
+
+**Asked by the Owner:** everything working before merging.
+
+New revisions are on the same registry branch, checked end to end on VM2 (docs/ASSUMPTIONS.md V15, V16):
+- Mealie and Stirling-PDF, as in the test fixtures (checked for the first version, V3, V4);
+- Vaultwarden, Miniflux, Linkwarden, Actual Budget and HedgeDoc, all set by env;
+- Navidrome, behind the wall with header login.
+
+`requires.roostack` stays `"0.1"`: no release has been tagged, the first will be v0.1.0, and development builds run every package. So it's right as long as these branches are merged before v0.1.0 (TASKS).
+
+- **What each needed:**
+  - **Vaultwarden:** `SSO_AUTH_ONLY_NOT_SESSION`, so it keeps its own sessions, as the sign-in page's access tokens last an hour. The master password still unlocks each vault.
+  - **Miniflux:** finds accounts only by the provider's ID. Its install-made administrator is linked from its own Settings, and until then signing in through the lab with that username is refused ("This user already exists").
+  - **Linkwarden:** stores an email only when it sends mail, so its install-made administrator can't be linked. It keeps its password, and the lab's sign-in with the same username is refused (`OAuthCreateAccount`).
+  - **Actual Budget:** the first person to sign in becomes its owner, after typing the server password once. Turned off, Actual still lists OpenID as its method, and the server password works with Password on its sign-in page.
+  - **HedgeDoc:** every address is given, as it has no discovery. Accounts are keyed by `sub`.
+  - **Navidrome:** reads `Remote-User` (below). `/rest` (Subsonic apps) and `/share` stay outside the wall.
+- **Navidrome trusts the header only from its own address.**
+  - Requests Caddy forwards arrive at a container from its own address (rootless port forwarding).
+  - Another container reaching it directly arrives from its network's gateway.
+  - So Navidrome starts through a one-line shell that sets `ND_EXTAUTH_TRUSTEDSOURCES` to its own address (`/32`) while single sign-on is on.
+  - With the range open, a forged header from another app's container made Navidrome create that account. With its own address only, the forged header was ignored.
+- **Found on the VM, fixed the same day:** a container could reach another service's container across their Podman networks. One app's container fetched Navidrome's directly, so a compromised app could bypass a wall (and Caddy) to reach another service. Each service's network is now isolated (§6.4, "Each service's network is isolated"); Navidrome still trusts the header only from its own address, as a second layer.
+- **Decided (2026-10-21), the Owner:**
+  - **Not for now:** Uptime Kuma (its login can be turned off only over its live connection with its account password) and PhotoPrism (its free edition makes people who sign in guests, and won't link its admin).
+  - **Later:** Lychee (it knows only a few named providers, none at our addresses) and Ghost (it would need a custom adapter).
+  - **Not sensible:** Jellyfin, Plex, ntfy and Radicale. Their own apps sign in themselves, and Radicale's header login would leave its CalDAV paths open.
+
+## 6. Container Runtime — Locked (principle)
+
+- Podman, **rootless where possible**; rootful only where a service genuinely requires it (e.g. low ports, host networking, device access), and this is visible to the user.
+- **Rationale:** security is a priority; rootless limits the blast radius of a compromised container.
 
 ### 6.1 Roostack Process Architecture — Locked
 
@@ -519,6 +830,12 @@ Part of "encryption anyone can check" (TASKS): what a lab runs should be checkab
   - The generated files are plain text a homelabber can inspect (Principle 4), and they are declarative (Principle 2).
 - **Rejected:** podman-compose. It is community-maintained, supports only part of the Compose spec, and needs extra pieces for boot and restart handling. Also rejected: running docker-compose against the Podman API socket, which brings back a daemon-style model with the same lifecycle gaps.
 - Rootless services need `loginctl enable-linger` for the service user so they start at boot without anyone logging in.
+- **Each service's network is isolated — as built (2026-10-21):** every service has its own Podman network, `roostack-<service>`, with all of its containers and databases on it (packages can't choose another, §8.3.4). Its `.network` file sets `Options=isolate=strict`, netavark's strict isolation, so a container on another network can't reach this one's containers at all, and they can't reach any other network's.
+  - **Why:** before this, one app's container reached another service's container directly, from its network's gateway (found on a VM while connecting Navidrome to single sign-on, §5.2). A compromised app could then go past Caddy, the WAF and a single sign-on wall to any other service, and send headers that only Caddy should send. The only ways in are now the ones meant for it: Caddy, through the routes' ports published on 127.0.0.1 (§6.5); a service's `ports:` on the server's address; and the lab's own addresses, which go through Caddy like anyone's.
+  - **What still works (checked on a VM, docs/ASSUMPTIONS.md C14):** a service's own containers reaching each other by name and their databases; Caddy reaching the published ports; containers reaching the sign-in page through `host-gateway` (§5.2) and the internet through pasta. Nothing else crossed networks: Caddy and CrowdSec run on pasta (CrowdSec on rootless Podman's default, which is pasta), not on a service network.
+  - **Strict, not `isolate=true`:** `true` only keeps isolated networks apart, so a container on a network without it (Podman's default network, or one made by hand as the roostack user) still reached every service.
+  - **Existing labs:** Podman doesn't change a network that already exists when its file changes (Quadlet's `podman network create --ignore`, ASSUMPTIONS C8), so a lab installed before this keeps open networks (removing a service doesn't delete its network either, C9) until each is removed by hand (`podman network rm`, with the service stopped) or the lab is installed fresh. Only fresh installs are supported before release, so the reconciler doesn't recreate them. *Considered:* the reconciler removing a network whose file changed (stopping the service's containers first): worth doing if a network's options change again after release.
+  - *Considered:* one pod per service (its containers share one network namespace), which isolates as well but changes how every package's containers find each other and publish ports; and firewall rules of Roostack's own inside the rootless network namespace (netavark manages that firewall and sets it up again whenever a network starts, so it would be a second set of rules to keep in step).
 
 ### 6.5 Reverse Proxy & TLS — Locked
 
@@ -1257,7 +1574,7 @@ Many people who'd use Roostack already run their services with Docker Compose, t
 - **The rules, in `internal/importer`:** `docker inspect` output is read in Go; secrets' values (names with pass, secret, token, key…) are masked as soon as it's read and never kept. Old containers are matched to the package's by image repository, else by name (`immich-server` is `server`); databases by kind. Each storage gets the old mount at its path or the deepest one above it, translated by the prefix lines; what another storage of the same container is mounted inside, or another storage's folder inside it, isn't copied into it. The first line is guessed: a folder named like the old one, up to three down, whose parents match most. A dump is found by name (`main.dump`, `<package>.sql`…, or the only one), a media library by the files the old data names under the old path (a sample, looked up in each library), else by name. The copy is Go's: a file with the same size and time is left, what's gone is removed, links are copied as links, and everything is written through `os.Root`, so a link in the copy can't lead outside it.
 - **On the service's server (`node.Imports`, `internal/node/import*.go`):** the import is kept in the server's runtime settings (`import.<service>`): where the copy is, the old setup, the prefix lines, the person's choices, the last check and the copy's progress; what goes where is worked out afresh from them and the files each time it's asked. The check and the copy run in the background, one at a time per service; a copy a restart interrupted carries on at the first assignment. The check reads each dump with the package's own database image in a throwaway container with no network (`pg_restore --list`, `postgres --version`, the image's `extension/*.control`), the old images and settings against the package's (leaving out what the package sets and the image's own defaults, from `podman image inspect`), and old container paths in the dumps (as text, `pg_restore -f -`) and in SQLite files found by their header. A container running as a numeric `User=` without `keep-id` gets its storage's copy chowned to that user (`podman unshare chown`). The same over the lab API for other servers (`/v1/imports/…`).
 - **The switch (`manager.SwitchImport`):** driven by the controller as an update is: the service's server downloads its images and holds its maintenance queue (`node.Updater`), then each step runs there in the background and the controller follows it (a step can take longer than a lab API call may): stop, copy what changed, commit (`.before-import-<time>`, and the service's other folders, such as its database's, made empty), load the dumps (only the databases running), then start: a service that waited for its data starts by its instance losing `awaiting_data` (and gaining the libraries matched, at their old paths), applied as usual. Then its health check, as an update's. A failure puts the data from before back (the copy set aside as `.failed-import-<time>`) and the instance as it was.
-- **Waiting for its data:** `awaiting_data: true` in the instance (installed with "I'll bring its data"): only its network and databases run (`state.Output`, as `generate.Stop`), its install-only settings aren't asked for, its install hooks don't run, its address isn't served yet; it shows as "Waiting for its data" with Bring its data in. Considered: starting it empty instead from that page (its first sign-up would be open, as no administrator was made): removing and installing it again is the way.
+- **Waiting for its data:** `awaiting_data: true` in the instance (installed with "I'll bring its data"): only its network and databases run (`state.Output`, as `generate.Stop`), its install-only settings aren't asked for, its install hooks don't run, nor its single sign-on hooks until the switch (they then set up the app as brought in), its address isn't served yet; it shows as "Waiting for its data" with Bring its data in. Considered: starting it empty instead from that page (its first sign-up would be open, as no administrator was made): removing and installing it again is the way.
 - **Put back:** a kept copy of a restore goes back with its other folders of the same moment and its databases loaded from the dumps among them (`backup.Restorer.PutBack`, a maintenance job); a move's or an import's (a whole service folder) goes back with its sibling folder, its databases' own files in it (`node.PutBackKeptData`). What it replaces is kept in turn (`.before-restore-<time>`, `.before-put-back-<time>`), so changing one's mind again is a put back too. An old copy left by a move away can't be put back (it runs elsewhere now).
 - **Tried through the real pages (2026-10-21, VM4, docs/ASSUMPTIONS.md W9–W12):** a Compose Immich from a USB drive and a Compose Plex from a folder on the server, each moved with everything kept. What it found, now fixed: the reconnect watcher opens each bound library's folder rather than `stat`ing it, as only opening makes an automount mount (W11); a service waiting for its data has only the empty folders its install made, which are dropped at the switch rather than kept as "data from before" (folders a container's user owns, which Roostack may not remove, are kept); the check fetches the package's image first, so its own defaults (`LANG`, `TERM`…) aren't reported as the old container's settings; the page, left open, is drawn again whole when the switch ends, so its status and side panel change too; the finished page names the media libraries brought (stored at the switch, as the copy is unmounted then) and what to do with the copy by its kind (unplug a drive, delete a folder); the backed-up folders come first in "What goes where".
 - **The Compose file** is read in the browser by the package editor's `compose.js` (`readSetup`: images, binds and named volumes, the environment with the `.env` filled in, secrets masked there), loaded on the import page with `/static/import.js`; only what it found is sent.

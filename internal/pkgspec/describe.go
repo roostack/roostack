@@ -90,6 +90,7 @@ func Describe() Description {
 			// Single sign-on's (sso.go).
 			"ssoRedirectPath": redirectPathRe.String(),
 			"ssoAppScheme":    appSchemeRe.String(),
+			"ssoGroupName":    groupNameRe.String(),
 		},
 		Lists: map[string][]string{
 			"ssoClientSecret":    {SSOClientSecret},
@@ -98,7 +99,7 @@ func Describe() Description {
 			"locations":          {LocationService, LocationMedia},
 			"databaseTypes":      {DBSQLite, DBPostgres, DBMySQL, DBMariaDB, DBRedis},
 			"exposures":          {ExposurePrivate, ExposurePublic},
-			"hookEvents":         {HookInstall, HookAction},
+			"hookEvents":         {HookInstall, HookAction, HookSSO},
 			"gpuKinds":           gpuKinds,
 			"quadletSections":    quadletSections,
 			"deprecatedLicences": deprecatedLicences,

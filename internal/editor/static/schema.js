@@ -149,6 +149,10 @@
       {
        "name": "install_value",
        "type": "any"
+      },
+      {
+       "name": "from_hook",
+       "type": "bool"
       }
      ]
     }
@@ -557,9 +561,17 @@
          {
           "name": "install_value",
           "type": "any"
+         },
+         {
+          "name": "from_hook",
+          "type": "bool"
          }
         ]
        }
+      },
+      {
+       "name": "saves",
+       "type": "string"
       }
      ]
     }
@@ -616,6 +628,21 @@
         "item": {
          "type": "string"
         }
+       },
+       {
+        "name": "groups",
+        "type": "object",
+        "ptr": true,
+        "fields": [
+         {
+          "name": "users",
+          "type": "string"
+         },
+         {
+          "name": "admins",
+          "type": "string"
+         }
+        ]
        }
       ]
      },
@@ -668,6 +695,16 @@
       }
      },
      {
+      "name": "secret_env",
+      "type": "map",
+      "item": {
+       "type": "map",
+       "item": {
+        "type": "string"
+       }
+      }
+     },
+     {
       "name": "note",
       "type": "string"
      }
@@ -688,7 +725,8 @@
   "settingKey": "^[a-z][a-z0-9_]{0,62}$",
   "spdxID": "^[A-Za-z0-9][A-Za-z0-9.-]*\\+?$",
   "ssoAppScheme": "^[a-z][a-z0-9+.-]*:/[^\\s]*$",
-  "ssoRedirectPath": "^(/[A-Za-z0-9._:~-]*)+$",
+  "ssoGroupName": "^[a-z][a-z0-9_-]{0,31}$",
+  "ssoRedirectPath": "^(/([A-Za-z0-9._:~-]|%[0-9A-F]{2})*)+$",
   "subdomain": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
   "version": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$"
  },
@@ -726,7 +764,8 @@
   ],
   "hookEvents": [
    "install",
-   "action"
+   "action",
+   "sso"
   ],
   "locations": [
    "service",
@@ -1387,7 +1426,7 @@
   },
   "hooks": {
    "label": "Setup and actions",
-   "help": "Commands run inside a container, once after the first start (install) or as a button on the service's page (action). Values people type reach them only as environment variables.",
+   "help": "Commands run inside a container, once after the first start (install), as a button on the service's page (action), or when single sign-on is turned on, changed or off (sso). Values people type reach them only as environment variables.",
    "link": "packages/write#settings-setup-and-links"
   },
   "hooks[].command": {
@@ -1424,6 +1463,11 @@
    "label": "Description",
    "help": "A sentence under the title, if the title doesn't say it all.",
    "link": "packages/write#settings-setup-and-links"
+  },
+  "hooks[].inputs[].from_hook": {
+   "label": "Default",
+   "help": "Not for inputs.",
+   "link": "reference/packages#the-parts"
   },
   "hooks[].inputs[].generate": {
    "label": "Default",
@@ -1481,12 +1525,18 @@
   },
   "hooks[].on": {
    "label": "When",
-   "help": "install runs once after the first start, and must be safe to run twice; action is a button on the service's page.",
+   "help": "install runs once after the first start, and must be safe to run twice; action is a button on the service's page; sso runs when single sign-on is turned on, changed (the lab's address or name) or off, told which by ROOSTACK_SSO=on or off, and must be safe to run again.",
    "link": "packages/write#settings-setup-and-links"
+  },
+  "hooks[].saves": {
+   "label": "Keeps what it prints",
+   "help": "For an install hook or an action: a from_hook secret setting, which becomes what the hook prints on standard output (one line, never shown or logged). Print everything else on standard error, the log.",
+   "example": "settings_key",
+   "link": "packages/write#single-sign-on"
   },
   "hooks[].secrets": {
    "label": "Secrets",
-   "help": "Secret settings as environment variables, or for an action inputs.\u003ckey\u003e for a secret input.",
+   "help": "Secret settings as environment variables, or for an action inputs.\u003ckey\u003e for a secret input. An sso hook of an OIDC app may also have sso.client_secret, which is empty while single sign-on is off.",
    "link": "reference/packages#the-parts"
   },
   "hooks[].title": {
@@ -1697,6 +1747,11 @@
    "help": "A sentence under the title, if the title doesn't say it all.",
    "link": "packages/write#settings-setup-and-links"
   },
+  "settings[].from_hook": {
+   "label": "Made by the app",
+   "help": "For a secret the app makes, such as an API key for changing its own settings: a hook prints it and Roostack keeps it (the hook's saves). Never shown, used only by hooks, and needs an action that can make it again.",
+   "link": "packages/write#single-sign-on"
+  },
   "settings[].generate": {
    "label": "Roostack makes it",
    "help": "For a secret: Roostack creates a random value, so nobody has to think of one.",
@@ -1784,9 +1839,26 @@
    "example": "The phone apps still sign in with the app's own accounts.",
    "link": "reference/packages#the-parts"
   },
+  "sso.oidc.groups": {
+   "label": "Group names the app expects",
+   "help": "The two groups the app is told about in its groups claim, renamed for an app that expects its own words: users (everyone with access) and admins (the lab's Owners and Admins). Immich and Audiobookshelf read user and admin.",
+   "link": "reference/packages#the-parts"
+  },
+  "sso.oidc.groups.admins": {
+   "label": "Group name for admins",
+   "help": "The name of the group the lab's Owners and Admins are in too.",
+   "example": "admin",
+   "link": "reference/packages#the-parts"
+  },
+  "sso.oidc.groups.users": {
+   "label": "Group name for everyone",
+   "help": "The name of the group everyone with access is in.",
+   "example": "user",
+   "link": "reference/packages#the-parts"
+  },
   "sso.oidc.redirect_paths": {
    "label": "OIDC callback paths",
-   "help": "Where the sign-in page may send people back to on that address, exactly as the app's OIDC settings say (its callback path).",
+   "help": "Where the sign-in page may send people back to on that address, exactly as the app's OIDC settings say (its callback path). A path may use .SSO, such as Forgejo's /user/oauth2/{{ pathescape .SSO.ProviderName }}/callback.",
    "example": "/auth/login",
    "link": "reference/packages#the-parts"
   },
@@ -1800,6 +1872,11 @@
    "label": "OIDC, on the address",
    "help": "The route whose address the redirect paths are on.",
    "example": "web",
+   "link": "reference/packages#the-parts"
+  },
+  "sso.secret_env": {
+   "label": "Secret inside a value",
+   "help": "For an app that takes its client secret inside a bigger value, such as a JSON list of providers: container, then variable, then a template using {{ .SSO.ClientSecret }} (with json for each value). Roostack makes the value as a Podman secret, never in a file it writes.",
    "link": "reference/packages#the-parts"
   },
   "sso.secrets": {

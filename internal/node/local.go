@@ -211,6 +211,8 @@ type Local struct {
 
 	hooksBusy, hooksAgain bool
 	hooksRunning          map[string]bool
+	// ssoRunning: a service's single sign-on hooks are running.
+	ssoRunning map[string]bool
 	// hooksCancel stops a service's running setup, when the service is
 	// removed or installed afresh meanwhile (errSetupStopped).
 	hooksCancel map[string]context.CancelCauseFunc
@@ -266,6 +268,7 @@ func (n *Local) Apply(a Assignment) {
 			if _, still := n.serviceLocked(s.Name()); !still {
 				n.stopSetupLocked(s.Name())
 				n.State.SetSetting(context.Background(), hookKey(s.Name()), "")
+				n.State.SetSetting(context.Background(), ssoKey(s.Name()), "")
 			}
 		}
 		for _, name := range a.SetUp {
@@ -275,6 +278,8 @@ func (n *Local) Apply(a Assignment) {
 			if err := n.State.SetSetting(context.Background(), hookKey(name), hookPending); err != nil {
 				n.Log.Error("recording pending setup", "service", name, "err", err)
 			}
+			// A new app knows nothing of single sign-on yet.
+			n.State.SetSetting(context.Background(), ssoKey(name), "")
 			for k, v := range a.Secrets {
 				if strings.HasPrefix(k, SecretName(name, "")) {
 					if n.replaceSecrets == nil {

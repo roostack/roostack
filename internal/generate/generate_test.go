@@ -38,6 +38,8 @@ func TestGolden(t *testing.T) {
 		// Single sign-on on (SPEC.md §5.2): an OIDC app, and a walled one.
 		{"mealie-sso", "mealie", "mealie-sso.instance.yaml"},
 		{"stirling-pdf-sso", "stirling-pdf", "stirling-pdf-sso.instance.yaml"},
+		// An app set by a command, in its sso hook (Forgejo).
+		{"forgejo-sso", "forgejo", "forgejo-sso.instance.yaml"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

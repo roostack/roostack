@@ -87,7 +87,7 @@ func (s *Server) installSummary(p *pkgspec.Package, req manager.InstallRequest) 
 	v := &installSummaryView{Package: p, Internet: s.onInternet(), NoAddress: s.Domain == "", Params: "*", BringData: req.BringData}
 	var secrets []string
 	for _, st := range p.Settings {
-		if st.Type == pkgspec.SettingSecret && !st.Generate {
+		if st.Type == pkgspec.SettingSecret && !st.Generate && !st.FromHook {
 			secrets = append(secrets, "setting."+st.Key)
 		}
 	}

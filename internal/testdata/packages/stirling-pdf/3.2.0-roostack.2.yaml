@@ -3,8 +3,8 @@
 #
 # Without accounts (the Owner's choice, 2026-10-18): since v3 Stirling-PDF's
 # accounts and login are in its proprietary part, and before they were
-# optional anyway. Single sign-on may come once Roostack has a unified
-# login. Anyone who can reach it can use it, so it stays private.
+# optional anyway. Anyone who can reach it can use it, so it stays
+# private; with single sign-on on, it's behind the lab's sign-in (below).
 schema: roostack/v1alpha1
 name: stirling-pdf
 title: Stirling-PDF

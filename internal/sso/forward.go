@@ -49,7 +49,7 @@ func (p *Provider) Check(w http.ResponseWriter, r *http.Request) {
 		t, u, err := p.Store.LookupSSOToken(r.Context(), authkit.HashToken(cookie.Value), store.TokenHost)
 		if err == nil && t.Service == c.ID {
 			if ok, err := p.Store.CanUse(r.Context(), c.ID, u.ID); err == nil && ok {
-				claims, err := p.claims(r.Context(), u, allScopes)
+				claims, err := p.claims(r.Context(), c, u, allScopes)
 				if err != nil {
 					p.serverError(w, err)
 					return

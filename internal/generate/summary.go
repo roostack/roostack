@@ -39,6 +39,11 @@ type Summary struct {
 	// them (the generator's Output).
 	Dirs   []string
 	Backup BackupPlan
+	// Keys are keys the app makes that Roostack keeps (from_hook secret
+	// settings), such as one to Immich's settings for single sign-on:
+	// said before installing, as they're kept like a password (SPEC.md
+	// §5.2).
+	Keys []pkgspec.Setting
 }
 
 // Kept is one of a service's stores: a storage folder or a database.
@@ -111,6 +116,11 @@ func Summarize(lab config.Lab, p *pkgspec.Package, in *instance.Instance) (*Summ
 		s.Kept = append(s.Kept, k)
 	}
 
+	for _, st := range p.Settings {
+		if st.FromHook {
+			s.Keys = append(s.Keys, st)
+		}
+	}
 	if s.Parts, s.GPU, err = g.parts(); err != nil {
 		return nil, err
 	}

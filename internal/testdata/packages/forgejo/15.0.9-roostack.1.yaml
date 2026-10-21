@@ -151,6 +151,61 @@ hooks:
     # explicitly (accounts created by "admin user create" have it set).
     command: [sh, -c, 'forgejo admin user change-password --username "$USERNAME" --password "$NEW_PASSWORD" --must-change-password=false && echo "Password changed for $USERNAME."']
 
+
+  # Single sign-on (SPEC.md §5.2): Forgejo keeps its sign-in sources in
+  # its database, set by its admin command. Safe to run again: the source's
+  # ID is kept in Forgejo's own data (backed up with it), so a changed lab
+  # address or name updates the same source.
+  - on: sso
+    title: Connect Forgejo to the lab's sign-in page
+    container: app
+    env:
+      SOURCE_NAME: "{{ .SSO.ProviderName }}"   # the button: "Sign in with <the lab's name>"
+      DISCOVERY_URL: "{{ .SSO.DiscoveryURL }}"
+      CLIENT_ID: "{{ .SSO.ClientID }}"
+      ADMIN_GROUP: "{{ .SSO.AdminGroup }}"
+    secrets:
+      CLIENT_SECRET: sso.client_secret         # empty while it's off
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        id_file=/var/lib/gitea/roostack-sso-source
+        # Fields are tab-separated (an LDAP source's type has spaces).
+        source_id() { forgejo admin auth list | awk -F'\t+' -v k="$1" -v v="$2" 'NR > 1 && $k == v { print $1 }' | tail -n 1; }
+        id=$(cat "$id_file" 2>/dev/null || true)
+        [ -z "$id" ] || [ -n "$(source_id 1 "$id")" ] || id=""   # deleted in Forgejo meanwhile
+        if [ "$ROOSTACK_SSO" = off ]; then
+          if [ -z "$id" ]; then echo "Forgejo has no single sign-on to remove."; exit 0; fi
+          if out=$(forgejo admin auth delete --id "$id" 2>&1); then
+            rm -f "$id_file"
+            echo "Removed single sign-on from Forgejo."
+          elif echo "$out" | grep -q "still used"; then
+            # Forgejo keeps a source accounts were made through. Its button
+            # now leads to the sign-in page, which says it's off.
+            echo "Kept Forgejo's sign-in source: accounts were made through it."
+          else
+            echo "$out" >&2
+            exit 1
+          fi
+          exit 0
+        fi
+        [ -n "$id" ] || id=$(source_id 2 "$SOURCE_NAME")
+        set -- --name "$SOURCE_NAME" --provider openidConnect --key "$CLIENT_ID" --secret "$CLIENT_SECRET" \
+          --auto-discover-url "$DISCOVERY_URL" --scopes openid --scopes email --scopes profile --scopes groups \
+          --group-claim-name groups --admin-group "$ADMIN_GROUP"
+        if [ -n "$id" ]; then
+          forgejo admin auth update-oauth --id "$id" "$@"
+          echo "$id" > "$id_file"
+          echo "Updated Forgejo's single sign-on."
+        else
+          # The lab's sign-in page asks for two-factor itself.
+          forgejo admin auth add-oauth "$@" --skip-local-2fa
+          source_id 2 "$SOURCE_NAME" > "$id_file"
+          echo "Added single sign-on to Forgejo."
+        fi
+
 ports:
   ssh:
     title: Git over SSH
@@ -159,3 +214,20 @@ ports:
     port: 2222
     host_port: 2222              # port 22 is the machine's own SSH
     # off by default; private (home network only) by default
+
+# Single sign-on (SPEC.md §5.2): set by Forgejo's admin command, in the
+# sso hook above. Accounts are made at first sign-in, or linked by email.
+sso:
+  oidc:
+    route: web
+    redirect_paths:
+      - "/user/oauth2/{{ pathescape .SSO.ProviderName }}/callback"
+  env:
+    app:
+      FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION: "true"
+      FORGEJO__oauth2_client__ACCOUNT_LINKING: auto      # an account with the same email is linked
+      FORGEJO__oauth2_client__USERNAME: nickname         # reads preferred_username
+      # New accounts come only through single sign-on while it's on.
+      FORGEJO__service__DISABLE_REGISTRATION: "false"
+      FORGEJO__service__ALLOW_ONLY_EXTERNAL_REGISTRATION: "true"
+  note: Git over HTTPS and SSH still use Forgejo's own tokens and keys.

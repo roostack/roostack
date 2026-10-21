@@ -365,6 +365,62 @@ containers:
 	}
 }
 
+// Single sign-on's secret env is made from the client secret put into
+// its template, made in the same apply or already in Podman (SPEC.md
+// §5.2, "Secrets inside JSON").
+func TestSecretFromTemplate(t *testing.T) {
+	e := newEnv(t)
+	p, err := pkgspec.Parse([]byte(`
+schema: roostack/v1alpha1
+name: docs
+title: Docs
+version: "1"
+containers:
+  web: { image: example/docs:1 }
+routes:
+  web: { container: web, port: 8000, subdomain: docs }
+sso:
+  oidc: { route: web, redirect_paths: [/cb] }
+  secret_env:
+    web: { PROVIDERS: '{"secret": {{ json .SSO.ClientSecret }}}' }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.lab.Domain = "lab.example.com"
+	in := &instance.Instance{Package: "docs", Version: "1", Updates: "notify", SSO: true,
+		Routes: map[string]instance.RouteOverride{"web": {Port: 20050}}}
+	out, err := generate.Service(e.lab, p, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sys, err := generate.System(e.lab, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := Desired{System: sys, Services: []*generate.Output{out}}
+	plan := e.apply(t, d)
+	var name string
+	for _, s := range out.Secrets {
+		if s.Template != nil {
+			name = s.Name
+		}
+	}
+	if s := plan.String(); name == "" || !strings.Contains(s, name+" (made from "+generate.SSOSecretName("docs")+")") {
+		t.Errorf("plan:\n%s", s)
+	}
+	secret := string(e.secrets.values[generate.SSOSecretName("docs")])
+	want := `{"secret": "` + secret + `"}`
+	if secret == "" || string(e.secrets.values[name]) != want {
+		t.Fatalf("value = %q, want %q", e.secrets.values[name], want)
+	}
+	delete(e.secrets.values, name)
+	e.apply(t, d)
+	if got := string(e.secrets.values[name]); got != want {
+		t.Errorf("made again from the existing secret: %q", got)
+	}
+}
+
 func TestLeavesUnownedFilesAlone(t *testing.T) {
 	e := newEnv(t)
 	dir := e.lab.Paths.QuadletDir()

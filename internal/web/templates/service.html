@@ -250,7 +250,7 @@
     <section class="card">
     <div class="card-head"><h2>Actions</h2></div>
     {{range .}}
-    <details class="action" {{if and $.ActionResult (eq (index $.ActionResult "action") .Name)}}open{{end}}>
+    <details class="action" id="action-{{.Name}}" {{if or (and $.ActionResult (eq (index $.ActionResult "action") .Name)) (eq $.OpenAction .Name)}}open{{end}}>
       <summary>{{.Title}}</summary>
       {{with .Description}}<p class="hint">{{.}}</p>{{end}}
       {{if and $.ActionResult (eq (index $.ActionResult "action") .Name)}}
@@ -445,6 +445,7 @@ Image: {{.Image}}</code></pre>
   {{if .Wall}}<p>Everyone who opens {{.Title}} signs in on the lab's sign-in page first, so only the people you choose reach it.</p>
   {{else}}<p>People sign in to {{.Title}} with their account here, on the lab's sign-in page. {{.Title}} makes their account in {{.Title}} the first time
     they sign in, or finds it by their email address.</p>{{end}}
+  {{template "sso-hook" .}}
   <dl class="facts">
     <dt>Who can sign in</dt><dd>{{.Summary}}{{if not .Access.Chosen}} <small class="hint">({{.Everyone}} {{if eq .Everyone 1}}person{{else}}people{{end}})</small>{{end}}</dd>
     {{if not .Wall}}<dt>Admins in {{.Title}}</dt><dd>The lab's Owners and Admins{{with .Admins}}: {{join . ", "}}{{end}}</dd>{{end}}
@@ -478,13 +479,20 @@ Image: {{.Image}}</code></pre>
         <small class="hint">The Technical view shows their values; the secret is a Podman secret, never in a file.</small></dd>{{end}}
       {{if .Wall}}<dt>The wall</dt><dd><small class="hint">Before each request reaches {{.Title}}, Caddy asks Roostack whether the person is signed in and may use it.
         Roostack's cookie for this address is removed first, so {{.Title}} never sees it.</small></dd>{{end}}
+      {{if and .HasHook (not .Hook.At.IsZero)}}<dt>Set in {{.Title}}</dt><dd>By its single sign-on step, {{when .Hook.At}}
+        <small class="hint">· Roostack runs it again when single sign-on is turned off, or the lab's address or name changes.</small></dd>{{end}}
     </dl>
+    {{if and .HasHook .Hook.Output}}<pre class="output">{{.Hook.Output}}</pre>{{end}}
   </details>
   <div class="sso-off">
     {{confirm (printf "/services/%s/sso" .Name) (printf "Turn off single sign-on for %s? %s" .Title (offText .)) "Turn off single sign-on…" "quiet danger" "sso=off"}}
   </div>
   {{else}}
-  {{if .Available}}
+  {{template "sso-hook" .}}
+  {{if and .Available .Connect}}
+  {{/* A failed run above already offers Connect. */}}
+  {{if not .Hook.Failed}}{{notice "warn" (printf "First connect Roostack to %s: Roostack needs a key to %s's settings to set up single sign-on, and making one needs %s's administrator password once." .Title .Title .Title) (printf "link=/services/%s?action=%s#action-%s" .Name .Connect .Connect) (printf "linkText=%s…" .ConnectTitle)}}{{end}}
+  {{else if .Available}}
   <p>Let people sign in to {{.Title}} with their account here{{if .Wall}}, on the lab's sign-in page, before they reach it{{else}}, instead of a password of {{.Title}}'s own{{end}}.</p>
   <ul class="plain sso-steps">
     <li>{{icon "sign-in"}}<span>Roostack {{if .Wall}}puts {{.Title}} behind the lab's sign-in page{{else}}registers {{.Title}} with the lab's sign-in page, and gives {{.Title}} its settings and a secret{{end}}.</span></li>
@@ -500,6 +508,25 @@ Image: {{.Image}}</code></pre>
   {{else}}<p class="hint">{{.Why}}</p>{{end}}
   {{end}}
 </section>
+{{end}}
+
+{{define "sso-hook"}}
+{{/* An app set by its sso hooks: whether they're running or failed
+     (SPEC.md §5.2). Polls while running, swapping only this part. */}}
+{{if .HasHook}}
+{{if .Hook.Running}}
+<p id="sso-hook" class="notice" role="status" hx-get="/services/{{.Name}}" hx-trigger="every 3s" hx-select="#sso-hook" hx-swap="outerHTML">
+  {{if .On}}Connecting {{.Title}} to the sign-in page…{{else}}Disconnecting {{.Title}} from the sign-in page…{{end}}</p>
+{{else if .Hook.Failed}}
+<div id="sso-hook" class="notice notice-error" role="alert">
+  <p><strong>{{if .On}}{{.Title}} isn't connected to the sign-in page yet.{{else}}{{.Title}} wasn't disconnected from the sign-in page.{{end}}</strong>
+    {{.Title}} is running{{if .On}}, but its own sign-in still works as before{{else}}; its single sign-on button now leads to a page saying it's off{{end}}.</p>
+  <pre class="output">{{.Hook.Failed}}</pre>
+  {{if .CanManage}}{{if .Connect}}<p><a class="button" href="/services/{{.Name}}?action={{.Connect}}#action-{{.Connect}}">{{.ConnectTitle}}…</a></p>
+  {{else}}<form method="post" action="/services/{{.Name}}/setup/retry"><button type="submit">Try again</button></form>{{end}}{{end}}
+</div>
+{{else}}<span id="sso-hook" hidden></span>{{end}}
+{{end}}
 {{end}}
 
 {{define "sso-who"}}

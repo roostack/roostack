@@ -4,7 +4,9 @@ import (
 	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"text/template"
 
@@ -222,13 +224,25 @@ func mysqlIdent(service, db string) string {
 	return id[:23] + "_" + hex.EncodeToString(sum[:])[:8]
 }
 
+// templateFuncs are the functions packages' templates may use beyond Go's
+// own: json writes a value as a JSON string (a lab's name may hold
+// quotes), pathescape escapes it for a URL path (Forgejo's callback holds
+// its sign-in source's name).
+var templateFuncs = template.FuncMap{
+	"json": func(v any) (string, error) {
+		b, err := json.Marshal(v)
+		return string(b), err
+	},
+	"pathescape": url.PathEscape,
+}
+
 // render executes a template string against the context. Strings without
 // template syntax are returned unchanged.
 func (c *Context) render(where, s string) (string, error) {
 	if !strings.Contains(s, "{{") {
 		return s, nil
 	}
-	t, err := template.New(where).Option("missingkey=error").Parse(s)
+	t, err := template.New(where).Option("missingkey=error").Funcs(templateFuncs).Parse(s)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", where, err)
 	}
