@@ -108,7 +108,7 @@ For a service `<svc>`:
 
 | Thing | Name |
 |---|---|
-| Service network | `roostack-<svc>` (file `roostack-<svc>.network`) |
+| Service network | `roostack-<svc>` (file `roostack-<svc>.network`), isolated from every other network (`isolate=strict`, SPEC §6.4) |
 | Container | `roostack-<svc>-<container>` (unit `roostack-<svc>-<container>.service`) |
 | Route port | `127.0.0.1:<port>`, from 20000–29999, stored as `routes.<name>.port` in the instance file |
 | Database container | `roostack-<svc>-db-<name>` |

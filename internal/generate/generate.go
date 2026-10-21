@@ -313,10 +313,18 @@ func (g *gen) run() error {
 	return nil
 }
 
+// network writes the service's own Podman network, isolated from every
+// other network (netavark's strict mode), so another service's container
+// can't reach this one's directly, past Caddy, the WAF and a single
+// sign-on wall (SPEC.md §6.4, docs/ASSUMPTIONS.md C14). Strict, not
+// isolate=true, which still lets in networks that aren't isolated, such
+// as Podman's default one.
 func (g *gen) network() error {
 	var u quadlet.Unit
 	u.Section("Unit").Add("Description", "Roostack "+g.name+": network")
-	u.Section("Network").Add("NetworkName", "roostack-"+g.name)
+	ns := u.Section("Network")
+	ns.Add("NetworkName", "roostack-"+g.name)
+	ns.Add("Options", "isolate=strict")
 	return g.addQuadlet("roostack-"+g.name+".network", &u)
 }
 
