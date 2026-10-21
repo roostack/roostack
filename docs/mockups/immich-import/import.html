@@ -1,4 +1,4 @@
-<!doctype html><html data-states="from:1 Where from,guide:2 Google's Takeout,where:3 Where the zips are,key:4 The key,key-missing:4 A key missing permissions,check:5 Check: ready,problems:5 Check: problems,running:6 Migrating them,stopped:6 Stopped,done:Done: the summary" lang="en" data-palette="teal">
+<!doctype html><html data-states="from:1 Where from,guide:2 Google's Takeout,where:3 Where the zips are,key:4 The key,key-missing:4 A key missing permissions,choose:5 What to migrate,check:6 Check: ready,problems:6 Check: problems,running:7 Migrating them,stopped:7 Stopped,done:Done: the summary" lang="en" data-palette="teal">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -72,22 +72,24 @@
   <div class="actions-row"><button type="button">Continue</button></div>
   </form>
 </section>
-<section class="card step-card step-done" data-state="guide where key key-missing check problems"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Where from</h2><a class="more" href="#">Change</a></div>
+<section class="card step-card step-done" data-state="guide where key key-missing choose check problems"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Where from</h2><a class="more" href="#">Change</a></div>
   <p class="step-summary">Google Photos (Takeout)</p></section>
 <section class="card step-card step-done" data-state="running stopped done"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Where from</h2></div>
   <p class="step-summary">Google Photos (Takeout)</p></section>
 <div data-state="from"><section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">2</span>Get your photos from Google</h2></div></section>
 </div><section class="card step-card" data-state="guide">
   <div class="card-head"><h2><span class="step-num">2</span>Get your photos from Google</h2></div>
-  <p>Google gives you everything in Google Photos as a few large zip files, called a <strong>Takeout</strong>. It takes a few minutes of
-    your time, then Google needs from a few hours to a few days to make it.</p>
+  <p>Google gives you everything in Google Photos as a few large zip files, called a <strong>Takeout</strong>.</p>
+  <div class="notice notice-warn" role="note"><p><strong>This can be very slow, so it may take you several days.</strong> Google can take a day or
+    more to make the files, and downloading hundreds of GB from Google is often slow and sometimes stops part-way. Take your time: Roostack
+    keeps your place, so close this page whenever you like and come back to Migrate photos on Immich's page when the files are ready.</p></div>
   <ol class="todo-list guide-list">
     <li>Open <a href="https://takeout.google.com" target="_blank" rel="noopener">takeout.google.com<span class="new-window"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="sr-only"> (opens in a new window)</span></span></a>, signed in to the
       Google account whose photos these are.</li>
     <li>Click <strong>Deselect all</strong>, then tick only <strong>Google Photos</strong>. Leave "All photo albums included" as it is.</li>
     <li>Click <strong>Next step</strong>, and choose: <em>Send download link via email</em>, <em>Export once</em>,
       file type <strong>.zip</strong>, size <strong>50 GB</strong>. Then <strong>Create export</strong>.</li>
-    <li>Google emails you when it's ready: usually the same day. <strong>Download every part</strong> (each is a zip of up to
+    <li>Google emails you when it's ready. <strong>Download every part</strong> (each is a zip of up to
       50 GB) within 7 days: Google lets you download each one 5 times.</li>
     <li>Copy all the parts into one folder on a USB drive or your NAS. <strong>Don't unzip them</strong>: Roostack reads them as they are.
       You need about as much room as Google Photos says you use, plus a tenth.</li>
@@ -96,7 +98,7 @@
     <a href="#">Tell me more</a></p>
   <div class="actions-row"><button type="button">I have the zip files</button></div>
 </section>
-<section class="card step-card step-done" data-state="where key key-missing check problems running stopped done"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Get your photos from Google</h2></div>
+<section class="card step-card step-done" data-state="where key key-missing choose check problems running stopped done"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Get your photos from Google</h2></div>
   <p class="step-summary">You have the zip files</p></section>
 <div data-state="from guide"><section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">3</span>Where are the zip files?</h2></div></section>
 </div><section class="card step-card" data-state="where">
@@ -121,7 +123,7 @@
   <div class="actions-row"><button type="button">Continue</button></div>
   </form>
 </section>
-<section class="card step-card step-done" data-state="key key-missing check problems"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Where are the zip files?</h2><a class="more" href="#">Change</a></div>
+<section class="card step-card step-done" data-state="key key-missing choose check problems"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Where are the zip files?</h2><a class="more" href="#">Change</a></div>
   <p class="step-summary">T7 Shield › Takeout<small>9 zip files, 412 GB, read-only</small></p></section>
 <section class="card step-card step-done" data-state="running stopped done"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Where are the zip files?</h2></div>
   <p class="step-summary">T7 Shield › Takeout<small>9 zip files, 412 GB, read-only</small></p></section>
@@ -150,15 +152,33 @@
   </ul>
   <div class="actions-row"><button type="button">Check again</button><a class="button quiet" href="#">Use another key</a></div>
 </section>
-<section class="card step-card step-done" data-state="check problems"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your Immich key</h2><a class="more" href="#">Change</a></div>
+<section class="card step-card step-done" data-state="choose check problems"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your Immich key</h2><a class="more" href="#">Change</a></div>
   <p class="step-summary">Anna Smith · anna@smiths.example<small>Kept until the migration's done</small></p></section>
 <section class="card step-card step-done" data-state="running stopped"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your Immich key</h2></div>
   <p class="step-summary">Anna Smith · anna@smiths.example<small>Kept until the migration's done</small></p></section>
 <section class="card step-card step-done" data-state="done"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Your Immich key</h2></div>
   <p class="step-summary">Anna Smith · anna@smiths.example<small>Forgotten now</small></p></section>
-<div data-state="from guide where key key-missing"><section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">5</span>Check</h2></div></section>
+<div data-state="from guide where key key-missing"><section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">5</span>What to migrate</h2></div></section>
+</div><section class="card step-card" data-state="choose">
+  <div class="card-head"><h2><span class="step-num">5</span>What to migrate</h2></div>
+  <p class="hint">Roostack had a quick look in the zip files: 61,204 photos and 3,977 videos, 214 albums. Choose what comes; Roostack's
+    suggestions are set.</p>
+  <form>
+    <label class="check"><input type="checkbox" class="switch" role="switch"><span>Photos in Google's trash<small>1,203. They'd be archived in Immich.</small></span></label>
+    <label class="check"><input type="checkbox" class="switch" role="switch"><span>Photos a partner shared with you<small>41. They can migrate their own into their account.</small></span></label>
+    <label class="check"><input type="checkbox" class="switch" role="switch"><span>Albums without a name<small>3, named after their dates.</small></span></label>
+    <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>People's names as tags<small>Google's names, as <code>people/Anna</code>. Immich finds faces itself.</small></span></label>
+    <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Stack bursts, RAW with JPEG, and edited copies<small>One photo shown, the others behind it.</small></span></label>
+    <div class="actions-row"><button type="button">Continue</button></div>
+  </form>
+</section>
+<section class="card step-card step-done" data-state="check problems"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>What to migrate</h2><a class="more" href="#">Change</a></div>
+  <p class="step-summary">Roostack's suggestions<small>Not the trash, a partner's photos or albums without a name</small></p></section>
+<section class="card step-card step-done" data-state="running stopped done"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>What to migrate</h2></div>
+  <p class="step-summary">Roostack's suggestions<small>Not the trash, a partner's photos or albums without a name</small></p></section>
+<div data-state="from guide where key key-missing choose"><section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">6</span>Check</h2></div></section>
 </div><section class="card step-card" data-state="check">
-  <div class="card-head"><h2><span class="step-num">5</span>Check</h2><a class="more" href="#">Check again</a></div>
+  <div class="card-head"><h2><span class="step-num">6</span>Check</h2><a class="more" href="#">Check again</a></div>
   <p class="hint">Roostack read the zip files and asked Immich what it already has. Nothing is migrated yet.</p>
   <ul class="figures import-figures">
   <li class="card"><span class="figure-label">Photos</span><span class="figure-value">61,204</span><span class="figure-note">March 2009 to October 2026</span></li>
@@ -173,25 +193,18 @@
 
     <li class="check-info"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></svg><div><strong>8,912 are in Anna's account already</strong> (from the phone app, say): they're skipped.</div></li>
 
-    <li class="check-info"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></svg><div><strong>Left out:</strong> 1,203 in Google's trash, 41 a partner shared with you, 3 albums without a name. You can change this below.</div></li>
+    <li class="check-info"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></svg><div><strong>Left out, as you chose:</strong> 1,203 in Google's trash, 41 a partner shared with you, 3 albums without a name.</div></li>
 
     <li class="check-info"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/></svg><div><strong>14 files that can't be migrated</strong> (a <code>.psd</code>, Pixel <code>.MP</code> motion files): left out, listed in the summary.</div></li>
 
     <li class="check-warn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.2h.01"/></svg><div><strong>Your next backup will be about 395 GB larger.</strong> Your main backup's drive has 1.6 TB free.</div></li>
 
   </ul>
-  <details class="form-more"><summary>What to migrate: as Roostack suggests</summary>
-    <label class="check"><input type="checkbox" class="switch" role="switch"><span>Photos in Google's trash<small>1,203. They'd be archived in Immich.</small></span></label>
-    <label class="check"><input type="checkbox" class="switch" role="switch"><span>Photos a partner shared with you<small>41. They can migrate their own into their account.</small></span></label>
-    <label class="check"><input type="checkbox" class="switch" role="switch"><span>Albums without a name<small>3, named after their dates.</small></span></label>
-    <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>People's names as tags<small>Google's names, as <code>people/Anna</code>. Immich finds faces itself.</small></span></label>
-    <label class="check"><input type="checkbox" class="switch" role="switch" checked><span>Stack bursts, RAW with JPEG, and edited copies<small>One photo shown, the others behind it.</small></span></label>
-  </details>
   <div class="actions-row"><button type="button">Migrate them</button></div>
   <p class="hint">About 6 hours on this server. You can close this page: it carries on, and you're emailed when it's done.</p>
 </section>
 <section class="card step-card" data-state="problems">
-  <div class="card-head"><h2><span class="step-num">5</span>Check</h2></div>
+  <div class="card-head"><h2><span class="step-num">6</span>Check</h2></div>
   <ul class="check-list">
     <li class="check-bad"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg><div><strong>Part 8 of 9 isn't here.</strong> The folder has <code>takeout-20261019T0912Z-001.zip</code> to <code>-009</code> but not <code>-008</code>. Download it from Google's email (each part can be downloaded 5 times), copy it into the folder, and check again.</div></li>
 
@@ -204,9 +217,9 @@
 </section>
 <section class="card step-card step-done" data-state="running stopped done"><div class="card-head"><h2><span class="step-num"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span>Check</h2></div>
   <p class="step-summary">61,204 photos and 3,977 videos, 395 GB<small>8,912 already in Immich, 1,247 left out</small></p></section>
-<div data-state="from guide where key key-missing check problems"><section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">6</span>Migrate them</h2></div></section>
+<div data-state="from guide where key key-missing choose check problems"><section class="card step-card step-todo"><div class="card-head"><h2><span class="step-num">7</span>Migrate them</h2></div></section>
 </div><section class="card step-card" data-state="running">
-  <div class="card-head"><h2><span class="step-num">6</span>Migrating them</h2></div>
+  <div class="card-head"><h2><span class="step-num">7</span>Migrating them</h2></div>
   <div class="activity">
   <p class="activity-status running"><span class="spinner" aria-hidden="true"></span> Migrating photos… <small>started 11:40</small></p>
   <div class="progress"><div class="meter"><span style="width: 25%"></span></div><p>12,034 of 52,292 · 98 GB of 395 GB · <strong>about 6 hours left</strong></p></div>
@@ -223,9 +236,9 @@ Skipped Photos from 2015/PXL_20150611.MP (Immich can't read .MP)
   <p class="hint">You can close this page: it carries on, and you're emailed when it's done. Immich shows the photos as they arrive.</p>
 </section>
 <section class="card step-card" data-state="stopped">
-  <div class="card-head"><h2><span class="step-num">6</span>Migrating them</h2></div>
+  <div class="card-head"><h2><span class="step-num">7</span>Migrating them</h2></div>
   <div class="activity">
-  <p class="activity-status">Stopped at 14:52 <small>by Sam</small></p>
+  <p class="activity-status">Stopped at 14:52 <small>nuc lost power</small></p>
   <div class="progress"><div class="meter"><span style="width: 31%"></span></div><p>16,210 of 52,292 · 122 GB of 395 GB · nothing lost: what's in stays in</p></div>
   <details class="activity-details"><summary>Details</summary>
 <pre class="output activity-log">==&gt; Reading 9 zip files from T7 Shield › Takeout (read-only)

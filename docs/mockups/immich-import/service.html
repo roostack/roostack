@@ -1,4 +1,4 @@
-<!doctype html><html data-states="idle:No locations yet,add-location:Add a location,locations:A location added,running:A migration running,admins:Owners and Admins only" lang="en" data-palette="teal">
+<!doctype html><html data-states="idle:Before any migration,add-location:Add a location,locations:A location added,running:A migration running,stopped:A migration stopped,hidden:Call to action hidden,admins:Owners and Admins only" lang="en" data-palette="teal">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -57,18 +57,36 @@
     </div>
   </div>
 </div>
+<section class="card cta" data-state="idle add-location locations admins">
+  <span class="cta-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span>
+  <div class="cta-text"><h2>Moving from Google Photos or iCloud?</h2>
+    <p>Migrate your photos and videos into Immich, with their dates, places and albums. Roostack walks you through it.</p></div>
+  <div class="cta-actions"><a class="button" href="import.html">Migrate photos…</a><button type="button" class="quiet" onclick="location.search='?s=hidden'">Hide</button></div>
+</section>
+<section class="card cta" data-state="running">
+  <span class="cta-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span>
+  <div class="cta-text"><h2>Anna is migrating photos from Google</h2>
+    <div class="progress"><div class="meter"><span style="width: 25%"></span></div><p>12,034 of 52,292 · <strong>about 6 hours left</strong></p></div></div>
+  <div class="cta-actions"><a class="button secondary" href="import.html?s=running">Watch</a></div>
+</section>
+<section class="card cta cta-warn" data-state="stopped">
+  <span class="cta-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 2.5 20h19z"/><path d="M12 10v4.5M12 17.2h.01"/></svg></span>
+  <div class="cta-text"><h2>Anna's migration stopped</h2>
+    <p>At 14:52, when nuc lost power. 16,210 of 52,292 are in Immich; carrying on skips them, so nothing comes twice.</p></div>
+  <div class="cta-actions"><a class="button" href="import.html?s=stopped">Carry on</a></div>
+</section>
+
 <div class="grid">
-  <section class="card span-8" id="photos" data-state="idle add-location locations running">
+  <section class="card span-8 mock-muted"><div class="card-head"><h2>Its other cards</h2></div>
+    <p class="hint">Address, single sign-on, settings, backups and the rest, as today.</p></section>
+  <section class="card span-8" id="photos" data-state="idle add-location locations running stopped hidden">
   <div class="card-head"><h2>Migrate photos</h2><a class="more" href="#">History</a></div>
   <p>Migrate photos and videos from Google Photos or a folder (Apple iCloud next) into Immich, with their dates, places and albums.</p>
-  <div class="activity" data-state="running">
-    <p class="activity-status running"><span class="spinner" aria-hidden="true"></span> Anna is migrating photos from Google… <small>started 11:40</small></p>
-    <div class="progress"><div class="meter"><span style="width: 25%"></span></div><p>12,034 of 52,292 · <strong>about 6 hours left</strong> · <a href="import.html?s=running">Watch</a></p></div>
-  </div>
-  <div class="table-wrap" data-state="running"><table class="list stack-phone">
+  <div class="table-wrap" data-state="running stopped hidden"><table class="list stack-phone">
     <thead><tr><th>Whose</th><th>From</th><th>When</th><th>Result</th></tr></thead>
     <tbody>
-      <tr><td>Anna</td><td>Google Photos</td><td>Today, 11:40</td><td>Running</td></tr>
+      <tr data-state="running"><td>Anna</td><td>Google Photos</td><td>Today, 11:40</td><td>Running</td></tr>
+      <tr data-state="stopped"><td>Anna</td><td>Google Photos</td><td>Today, 11:40</td><td>Stopped: <a href="import.html?s=stopped">carry on</a></td></tr>
       <tr><td>Ben</td><td>A folder: Ben's drive › Phone</td><td>18 Oct</td><td>3,204 photos, 211 videos</td></tr>
     </tbody></table></div>
   <div class="actions-row"><a class="button" href="import.html">Migrate photos from…</a></div>
@@ -89,7 +107,7 @@
         <h2 class="form-section">Additional locations</h2>
         <p class="hint">Folders you set up for people to migrate from: on a drive, on nuc, or on a share with your login. Everyone who can
           migrate photos sees what's in them, so a folder per person keeps them apart.</p>
-        <div class="locations" data-state="locations running add-location"><div class="folder-choice location"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span class="path"><strong>Family NAS › Takeouts</strong><small>A share, with your login · 3 folders</small></span>
+        <div class="locations" data-state="locations running stopped hidden add-location"><div class="folder-choice location"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span class="path"><strong>Family NAS › Takeouts</strong><small>A share, with your login · 3 folders</small></span>
         <button type="button" class="secondary small">Remove</button></div></div>
         <div data-state="idle"><p class="locations-empty">You haven't defined any additional locations that people can migrate photos from.
         Press <strong>Add a location</strong> below to add one.</p></div>
@@ -107,14 +125,11 @@
   <section class="card span-8" id="photos" data-state="admins">
   <div class="card-head"><h2>Migrate photos</h2><a class="more" href="#">History</a></div>
   <p>Migrate photos and videos from Google Photos or a folder (Apple iCloud next) into Immich, with their dates, places and albums.</p>
-  <div class="activity" data-state="running">
-    <p class="activity-status running"><span class="spinner" aria-hidden="true"></span> Anna is migrating photos from Google… <small>started 11:40</small></p>
-    <div class="progress"><div class="meter"><span style="width: 25%"></span></div><p>12,034 of 52,292 · <strong>about 6 hours left</strong> · <a href="import.html?s=running">Watch</a></p></div>
-  </div>
-  <div class="table-wrap" data-state="running"><table class="list stack-phone">
+  <div class="table-wrap" data-state="running stopped hidden"><table class="list stack-phone">
     <thead><tr><th>Whose</th><th>From</th><th>When</th><th>Result</th></tr></thead>
     <tbody>
-      <tr><td>Anna</td><td>Google Photos</td><td>Today, 11:40</td><td>Running</td></tr>
+      <tr data-state="running"><td>Anna</td><td>Google Photos</td><td>Today, 11:40</td><td>Running</td></tr>
+      <tr data-state="stopped"><td>Anna</td><td>Google Photos</td><td>Today, 11:40</td><td>Stopped: <a href="import.html?s=stopped">carry on</a></td></tr>
       <tr><td>Ben</td><td>A folder: Ben's drive › Phone</td><td>18 Oct</td><td>3,204 photos, 211 videos</td></tr>
     </tbody></table></div>
   <div class="actions-row"><a class="button" href="import.html">Migrate photos from…</a></div>
@@ -135,7 +150,7 @@
         <h2 class="form-section">Additional locations</h2>
         <p class="hint">Folders you set up for people to migrate from: on a drive, on nuc, or on a share with your login. Everyone who can
           migrate photos sees what's in them, so a folder per person keeps them apart.</p>
-        <div class="locations" data-state="locations running add-location"><div class="folder-choice location"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span class="path"><strong>Family NAS › Takeouts</strong><small>A share, with your login · 3 folders</small></span>
+        <div class="locations" data-state="locations running stopped hidden add-location"><div class="folder-choice location"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="m7.2 10.9 9.6-4.8M7.2 13.1l9.6 4.8"/></svg><span class="path"><strong>Family NAS › Takeouts</strong><small>A share, with your login · 3 folders</small></span>
         <button type="button" class="secondary small">Remove</button></div></div>
         <div data-state="idle"><p class="locations-empty">You haven't defined any additional locations that people can migrate photos from.
         Press <strong>Add a location</strong> below to add one.</p></div>
@@ -150,9 +165,6 @@
     <div class="actions-row"><button type="button">Save</button></div>
   </form>
 </section>
-  <section class="card span-4 mock-muted"><div class="card-head"><h2>Its other cards</h2></div>
-    <p class="hint">Address, single sign-on, settings, backups and the rest, as today. Migrate photos goes first: it's what a new Immich
-      is for.</p></section>
 </div>
 <dialog class="dialog form-dialog" data-modal data-state="add-location" aria-labelledby="add-location-title">
   <div class="dialog-head"><h2 id="add-location-title">Add a location</h2><a class="icon-button" href="?s=locations" data-close><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg><span class="sr-only">Close</span></a></div>

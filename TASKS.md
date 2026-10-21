@@ -659,7 +659,8 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [x] The Owner's answers on who else may use it (2026-10-21): `/immich-photos`, a page of its own linked from the sign-in page too; everyone who uses Immich by default; the Owner chooses where others may read from
 - [x] Mock-ups ([docs/mockups/immich-import](docs/mockups/immich-import/README.md), 2026-10-21): Immich's card with the Owner's choices, the steps for Owners and Admins, `/immich-photos`, the sign-in page's link
 - [x] The Owner on the mock-ups (2026-10-21): "Migrate", not "bring in"; additional locations as a list with Add a location (a dialog) and an empty state, not a tickbox; the forms' design throughout. Reworked the same day
-- [ ] The Owner's choices from the reworked mock-ups (their README, "To decide from these"), then build, following docs/DESIGN.md "Forms"
+- [x] The Owner's choices on the mock-ups (2026-10-21): at the top but not a large card (proposed: a slim call to action, the card lower, awaiting a yes); the slow-download warning; what to migrate as a step before the check; "Other locations". Reworked the same day
+- [ ] Build the first version, following docs/DESIGN.md "Forms" and the mock-ups
 - [ ] Separately (SPEC §5.2, later): "Sign in with single sign-on" on Roostack's own login page, so the sign-in page's link needs no second sign-in
 - [ ] The first version: Google Takeout and a plain folder, from a drive, share or server folder; tested on VM 1 with a synthetic Takeout (§13)
 - [ ] Straight after: Apple's privacy export (and a Mac's export as a plain folder)

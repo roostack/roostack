@@ -274,37 +274,57 @@ forms' design (docs/DESIGN.md "Forms"), with Continue. Mock-ups:
 [docs/mockups/immich-import](mockups/immich-import/README.md).
 
 1. **Where from?** Google Photos (Takeout), a folder of photos, and (straight
-   after the first version) Apple iCloud. Each with a line on what comes ("dates, places, albums,
-   descriptions, favourites and archived photos").
-2. **Get your export** (a guide, skippable if you have it):
+   after the first version) Apple iCloud, as a segmented control with what
+   comes under the chosen one.
+2. **Get your export** (a guide, skipped with "I have the zip files"):
+   - First, a warning (the Owner, 2026-10-21): getting the files from
+     Google can be very slow, so it may take several days; Roostack keeps
+     their place, and they come back when the files are ready.
    - Takeout: open takeout.google.com, **Deselect all**, tick only Google
      Photos (All photo albums included), **Next step**, *Send download link
      via email*, *Export once*, file type **.zip**, size **50 GB**,
-     **Create export**. Google emails when it's ready: usually the same
-     day, sometimes days. Download every part within 7 days (each can be
-     downloaded 5 times) and copy them all into one folder on a USB drive
-     or your NAS. Don't unpack them. About 1.1× the space your Google
-     Photos uses.
-   - With pictures, and "Tell me more" linking to the help page.
+     **Create export**. Google emails when it's ready. Download every part
+     within 7 days (each can be downloaded 5 times) and copy them all into
+     one folder on a USB drive or your NAS. Don't unpack them. About 1.1×
+     the space your Google Photos uses.
+   - "Tell me more" links to the help page.
 3. **Where is it?** A drive, a folder on a NAS, or a folder on the server
    (§4).
 4. **Your Immich key:** a link straight to the page in Immich where it's
    made, the permissions to tick, and a box to paste it (§6).
-5. **Check** (the dry run, §7): Roostack reads the zips and asks immich-go
+5. **What to migrate** (the Owner, 2026-10-21: a step of its own, before
+   the check, which it changes): the choices of §8 as switches, Roostack's
+   suggestions set, with counts from a quick look in the zips.
+6. **Check** (the dry run, §7): Roostack reads the zips and asks immich-go
    what it would do, without uploading anything. The result:
    - "Parts 1 to 9 of 9, 412 GB. 61,204 photos and 3,977 videos from
      March 2009 to October 2026, 214 albums."
    - "Already in Immich: 8,912 (skipped)."
-   - What won't come, with counts and why: in Google's trash, files Immich
-     can't read, sidecars without a photo.
+   - What won't come, with counts and why: as chosen in step 5, files
+     Immich can't read, sidecars without a photo.
    - Space: "Needs about 395 GB on <disk>; 1.2 TB free."
    - The next backup: "Your next backup will be about 395 GB larger."
-   - Choices, with Roostack's defaults (§8).
-6. **Migrate them.** The status line and progress ("Uploading: 12,034 of
+7. **Migrate them.** The status line and progress ("Uploading: 12,034 of
    52,292, 98 GB of 395 GB, about 6 hours left"), Stop, and the log under
-   Details. The page can be closed; the import carries on.
-7. **Done:** a summary (§7) that stays on Immich's page until it's
+   Details. The page can be closed; the migration carries on.
+8. **Done:** a summary (§7) that stays on Immich's page until it's
    dismissed, and an email if email is set up.
+
+**Where it starts (proposed, for the Owner's yes; they asked for it at the top, but not as a large card of its own):** at the top of Immich's page,
+a slim call to action ("Moving from Google Photos or iCloud?", **Migrate
+photos…**, Hide) until someone has migrated photos or the Owner hides it;
+the Migrate photos card, with the Owner's choices and the list of
+migrations, sits below the page's other cards. A large card of its own at
+the top was "weird for one service".
+
+**Leaving and coming back.** The steps and the migration live on the
+server, not in the browser. The steps keep their place until the
+migration is done or cancelled, so someone waiting days for Google comes
+back to where they were. A running migration is shown in the call to
+action at the top of Immich's page, with **Watch**, and on `/immich-photos`
+for its person; closing the page changes nothing, and they're emailed when
+it ends. One that stopped (Stop, a restart, a power cut) shows there with
+**Carry on** (§9).
 
 ## 6. Whose photos: a key the person makes
 
@@ -392,7 +412,8 @@ big.
   up, each with **Remove**, added with **Add a location**, a dialog: a
   folder on a drive or on the server (the folder picker), or a share with
   the Owner's login (kept root's only, as §8.4's are), and its name for
-  people ("Family NAS › Takeouts"). People pick one and can step into its
+  people ("Family NAS › Takeouts"). Others see them as **Other
+  locations** (the Owner, 2026-10-21). People pick one and can step into its
   folders, never above it. No tickbox: the list is what's offered, so with
   none, nothing is; an empty list says "You haven't defined any additional
   locations that people can migrate photos from. Press Add a location
@@ -623,6 +644,11 @@ except whose photos:
     the same day): "Migrate", not "bring in"; additional locations as a
     list with Add a location, not a tickbox; the forms' design (docs/DESIGN.md
     "Forms") throughout.
+11. **On the reworked mock-ups** (the same day): at the top, but not as a
+    large card (a slim call to action proposed); the Owner's choices in the card; the guide
+    as a step, with the slow-download warning; what to migrate as a step of
+    its own before the check; a second migration refused; "Other
+    locations".
 
 **Still open:** "Sign in with single sign-on" on Roostack's own login page
 (SPEC §5.2, later) would let the sign-in page's link open the import page

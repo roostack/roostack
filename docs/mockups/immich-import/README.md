@@ -42,10 +42,17 @@ It keeps it apart from §8.4's "Bring in data from elsewhere…", which moves an
 
 ### `service.html`: Immich's page
 
-A card, **Migrate photos**, comes first. It's what a new Immich is for, so the other cards follow it (shown as one muted card). The card holds:
+**At the top, a call to action** (the Owner, 2026-10-21: at the top, but not a large, different UI for one service). It's a slim card under the page's heading:
+
+- *Before any migration:* "Moving from Google Photos or iCloud?", a line on what it does, **Migrate photos…** and **Hide**. It stays until someone has migrated photos or the Owner hides it.
+- *A migration running:* whose, its progress and time left, and **Watch**. This is how anyone who left the steps comes back to them.
+- *A migration stopped* (Stop, a restart, a power cut): what happened, how many are in, and **Carry on**, which skips what's there already.
+- *Hidden, or after a migration:* nothing at the top.
+
+**Lower down, the Migrate photos card**, after the page's other cards, holds:
 
 - A line on what it does, and **Migrate photos from…**.
-- *A migration running:* its progress, with **Watch**, and a list of migrations (whose, from, when, result).
+- The list of migrations: whose, from, when, result (a stopped one with *carry on*).
 - One settings form with one **Save**:
   - **Who can migrate photos:** a segmented control, *Everyone who uses Immich* (the default) or *Owners and Admins*, with the chosen one's note under it. The rest of the form shows only under *Everyone who uses Immich*.
   - **Where they can migrate photos from:** two switches, *USB drives they plug into nuc* and *Network shares, with their own login*, both on.
@@ -53,7 +60,7 @@ A card, **Migrate photos**, comes first. It's what a new Immich is for, so the o
   - **Add a location** opens a dialog:
     - Drive, Folder on nuc or Network share, as a segmented control: drive cards and a folder, a folder, or the share's fields with the Owner's login;
     - then its name for people, and **Check and add**.
-    
+
     It's added (or removed) at once, like the other "add one thing" dialogs, not by Save.
   - **Send them here:** `/immich-photos`'s address in a copy box.
 
@@ -62,27 +69,30 @@ A card, **Migrate photos**, comes first. It's what a new Immich is for, so the o
 One page of numbered steps, as §8.4's import page has: a step that's done shrinks to a line with **Change**. Once the migration has started, there's no Change. Help is beside the steps.
 
 1. **Where are your photos now?** A segmented control: Google Photos, A folder of photos, Apple iCloud (next, greyed). The chosen one's note says what comes.
-2. **Get your photos from Google:** the Takeout guide, five steps with the exact settings (Deselect all, Google Photos, email link, once, zip, 50 GB). It ends with how long Google takes, the 7 days and 5 downloads, and to copy the parts unzipped into one folder. **I have the zip files** moves on.
+2. **Get your photos from Google:** the Takeout guide.
+   - First, a warning (the Owner, 2026-10-21): this can be very slow, so it may take several days. Google can take a day or more to make the files, and downloading hundreds of GB is often slow and sometimes stops part-way. Roostack keeps your place: close the page and come back when the files are ready.
+   - Then five steps with the exact settings (Deselect all, Google Photos, email link, once, zip, 50 GB), the 7 days and 5 downloads, and to copy the parts unzipped into one folder.
+   - **I have the zip files** moves on.
 3. **Where are the zip files?** Drive, folder on nuc or network share, as §8.4's step 1. The backups' drive is greyed. The folder shows how many zips and their size.
 4. **Your Immich key:**
    - **Make a key in Immich** opens `/user-settings?isOpen=api-keys` in a new tab.
    - The name to give it (`Roostack migration`), and the 15 permissions to tick (folded).
    - The key's box with **Check the key** after it.
    - *Missing permissions:* whose account it is (✓), then which are missing by name, with how to add them without making a new key.
-5. **Check:**
+5. **What to migrate** (the Owner, 2026-10-21: a step of its own, before the check, since it changes what the check says): Roostack's quick look in the zips gives the counts. Switches with Roostack's suggestions set: trash, partner's photos, albums without a name, people as tags, stacks.
+6. **Check:**
    - Four figures: photos with their date range, videos, albums, size.
    - The results:
      - all parts here;
      - room on the disk;
      - already in the account (skipped);
-     - left out and why;
+     - left out, as chosen;
      - files that can't be migrated;
      - the next backup's size.
-   - **What to migrate: as Roostack suggests** (folded) holds the defaults as switches: trash, partner's photos, albums without a name, people as tags, stacks.
    - Then **Migrate them**, with how long it will take.
    - *Problems:* a missing part (by its file name) and not enough room, each saying what to do.
-6. **Migrating them:** the activity component, with progress (count, size, time left), **Stop** and the log under Details. You can leave the page.
-   - *Stopped:* **Carry on**, which skips what's in, or **Start again from the check**.
+7. **Migrating them:** the activity component, with progress (count, size, time left), **Stop** and the log under Details. You can leave the page.
+   - *Stopped* (here, nuc lost power): **Carry on**, which skips what's in, or **Start again from the check**.
    - *Done:* the summary as the last step, **Migrated**:
      - Immich's own count against Roostack's;
      - skipped, left out, couldn't be migrated (with **see which**);
@@ -98,7 +108,7 @@ The lab's name and logo, who's signed in, and nothing of the control panel. It h
 - **Step 3** offers only what the Owner allowed:
   - *Your drive*: the backups' and the media library's drives greyed, with why;
   - *Network share*, with their own login;
-  - *Sam's locations*: the additional locations.
+  - *Other locations*: the additional locations the Owner set up.
 - **The key** is "yours, when you make it signed in to Immich as yourself".
 - **Three states before the steps:**
   - *Which Immich*, when the lab runs two;
@@ -109,14 +119,22 @@ The lab's name and logo, who's signed in, and nothing of the control panel. It h
 
 Under the services they use, **Migrate your photos into Immich**. It's shown only to people allowed, when the lab runs Immich, and says they'll sign in to Roostack again with the same account. Single sign-on to Roostack's own pages is a separate piece of work.
 
-## To decide from these
+## Leaving and coming back
 
-1. **The card first on Immich's page** (shown), or among the other cards, or as an action. Recommended: first. It's what a new Immich is for, and people who've migrated their photos come back to migrate more.
-2. **The Owner's choices inside the card** (shown), or in Immich's Settings. Recommended: in the card, where the Owner sees who can use it.
-3. **The Takeout guide as a step** (shown, skipped with "I have the zip files"), or only in the help. Recommended: a step. It's the part people get wrong (tgz, unzipping, missing a part).
-4. **The defaults folded away** under "What to migrate: as Roostack suggests" (shown), or shown as switches. Recommended: folded.
-5. **A second migration while one runs:** refused, saying whose is running and for how long (shown), or queued. Recommended: refused at first.
-6. **The additional locations shown to others as "Sam's locations"** (shown), or "Other locations". Recommended: the Owner's name, so people know who set them up.
+The steps and a migration live on the server, not in the browser:
+
+- **The steps keep their place** until the migration is done or cancelled. Someone waiting days for Google opens Immich's page (or `/immich-photos`) again and is where they left off.
+- **A migration runs on the server** (a transient unit of the roostack user, SPEC §6.1), so closing the page, or the browser, changes nothing. The call to action at the top of Immich's page shows its progress, as does `/immich-photos` for the person whose it is. They're emailed when it ends.
+- **A migration that stopped** (Stop, Roostack restarting, a power cut) shows as stopped, with **Carry on**. It runs immich-go again, which skips what Immich has by checksum and fills albums in, so nothing comes twice.
+
+## Decided (2026-10-21), the Owner
+
+1. **At the top, but not as a large, different UI** ("Feels weird for one service to have a very large and completely different UI right at the top... open to ideas"). **Proposed here, for the Owner's yes:** a slim call to action at the top, with the card below the page's other cards; the call to action also shows a running or stopped migration.
+2. **The Owner's choices in the card.**
+3. **The Takeout guide as a step**, with a warning that getting the files can be very slow and take several days, and that Roostack keeps their place.
+4. **What to migrate as a step of its own**, before the check ("it's really important, and just having it unfolded makes the check card too big"; it changes the check's summary).
+5. **A second migration while one runs is refused**, saying whose is running and for how long.
+6. **"Other locations"** is what others see for the Owner's additional locations.
 
 ## New components (for the gallery when built)
 
