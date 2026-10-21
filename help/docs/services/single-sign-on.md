@@ -121,7 +121,9 @@ sign in again. The sign-in page lists Roostack's pages with the services.
   too, and the other way round.
 
 Through the SSH tunnel, at a local address, or before any service uses
-single sign-on, Roostack's own login page is the way in, as before. It's
+single sign-on, Roostack's own login page is the way in, as before. So it
+is while the sign-in page can't be reached yet, such as while the first
+service to use it is still downloading: Roostack checks every few seconds. It's
 also at `/login?here` on Roostack's address, should the sign-in page
 ever be out of reach.
 

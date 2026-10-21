@@ -40,6 +40,8 @@ func startSignIn(ctx context.Context, lab config.Lab, st *store.Store, srv *web.
 		},
 	}
 	srv.SSO, srv.SignInHost, srv.SSODir = mgr, lab.SignInHost(), lab.Paths.SSODir()
+	// Roostack's own pages sign in there once Caddy serves it (SPEC.md §5.2).
+	srv.SignInServed = srv.CaddyServesSignIn(manager.CaddyLocal)
 
 	addr := fmt.Sprintf("%s:%d", lab.UIBind, config.SignInPort)
 	httpSrv := &http.Server{Addr: addr, Handler: srv.SignInHandler(), ReadHeaderTimeout: 10 * time.Second}

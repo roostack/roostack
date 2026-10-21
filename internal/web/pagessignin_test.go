@@ -249,6 +249,25 @@ func TestPagesSignInEdges(t *testing.T) {
 	if resp, _ := call(t, h.srv, victim, "GET", "localhost:18481", "/", nil); resp.Header.Get("Location") != "/login" {
 		t.Errorf("through the tunnel: %q", resp.Header.Get("Location"))
 	}
+	// Not until Caddy serves the sign-in page: an apply turning single
+	// sign-on on reloads Caddy last.
+	served := false
+	h.server.SignInServed = func(context.Context) bool { return served }
+	h.server.served = servedCheck{}
+	if resp, _ := call(t, h.srv, victim, "GET", pagesHost, "/", nil); resp.Header.Get("Location") != "/login" {
+		t.Errorf("before Caddy serves the sign-in page: %q", resp.Header.Get("Location"))
+	}
+	if resp, body := call(t, h.srv, victim, "GET", pagesHost, "/login", nil); resp.StatusCode != 200 || strings.Contains(body, "sign in with the lab") {
+		t.Errorf("own login page before Caddy serves the sign-in page: %d", resp.StatusCode)
+	}
+	served = true
+	if resp, _ := call(t, h.srv, victim, "GET", pagesHost, "/", nil); resp.Header.Get("Location") != "/login" {
+		t.Errorf("the answer isn't kept a few seconds: %q", resp.Header.Get("Location"))
+	}
+	h.server.served = servedCheck{}
+	if resp, _ := call(t, h.srv, victim, "GET", pagesHost, "/", nil); !strings.HasPrefix(resp.Header.Get("Location"), pathPagesStart) {
+		t.Errorf("once Caddy serves the sign-in page: %q", resp.Header.Get("Location"))
+	}
 	fs.on["mealie"] = false
 	if resp, _ := call(t, h.srv, victim, "GET", pagesHost, "/", nil); resp.Header.Get("Location") != "/login" {
 		t.Errorf("without single sign-on: %q", resp.Header.Get("Location"))
@@ -258,6 +277,30 @@ func TestPagesSignInEdges(t *testing.T) {
 		if got := localNext(next); got != "/" {
 			t.Errorf("localNext(%q) = %q", next, got)
 		}
+	}
+}
+
+// Roostack asks Caddy whether it serves the sign-in page: yes only when
+// the answer comes from its own sign-in listener.
+func TestCaddyServesSignIn(t *testing.T) {
+	h := newHarness(t, "")
+	withSignIn(t, h, &fakeSSO{on: map[string]bool{"mealie": true}})
+	ctx := context.Background()
+	caddy := httptest.NewTLSServer(h.server.SignInHandler()) // as Caddy forwards login.<domain>
+	t.Cleanup(caddy.Close)
+	if !h.server.CaddyServesSignIn(caddy.Listener.Addr().String())(ctx) {
+		t.Error("Caddy serving the sign-in page: no")
+	}
+	other := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Caddy's own page"))
+	}))
+	t.Cleanup(other.Close)
+	if h.server.CaddyServesSignIn(other.Listener.Addr().String())(ctx) {
+		t.Error("Caddy without the sign-in page: yes")
+	}
+	other.Close()
+	if h.server.CaddyServesSignIn(other.Listener.Addr().String())(ctx) {
+		t.Error("no Caddy: yes")
 	}
 }
 

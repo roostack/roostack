@@ -89,6 +89,7 @@ func withSignIn(t *testing.T, h *harness, fs *fakeSSO) (*httptest.Server, *http.
 	}
 	s := h.server
 	s.SSO, s.SignInHost, s.SSODir, s.UIHost = fs, signInHost, t.TempDir(), "roost.lab.example.com"
+	s.SignInServed = func(context.Context) bool { return true } // Caddy serves it
 	s.SignIn = &sso.Provider{Store: h.store, Key: key, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Issuer: func() string { return "https://" + signInHost }, Clients: fs.SSOClients,
 		ClientSecret: func(context.Context, string) ([]byte, error) { return []byte("app-secret"), nil }}

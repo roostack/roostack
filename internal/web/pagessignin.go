@@ -2,6 +2,9 @@ package web
 
 import (
 	"context"
+	"crypto/tls"
+	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -38,6 +41,9 @@ const (
 	// there after Roostack's idle limit.
 	signInPagesPath   = "/roostack"
 	signInConfirmPath = "/roostack/confirm"
+	// signInServedPath answers Roostack asking, through Caddy, whether
+	// Caddy serves the sign-in page yet (signInServed).
+	signInServedPath = "/roostack/served"
 )
 
 // pagesHandoff is a sign-in on its way to Roostack's pages.
@@ -65,7 +71,83 @@ func (s *Server) pagesSignIn(r *http.Request) bool {
 		!isHTTPS(r) || !strings.EqualFold(hostOnly(r.Host), s.UIHost) {
 		return false
 	}
-	return len(s.SSO.SSOClients()) > 0
+	return len(s.SSO.SSOClients()) > 0 && s.signInServed(r.Context())
+}
+
+// servedCheck is an answer to whether Caddy serves the sign-in page, and
+// when it was asked.
+type servedCheck struct {
+	ok bool
+	at time.Time
+}
+
+// signInServed says whether Caddy serves the sign-in page: a service has
+// single sign-on on as soon as it's turned on, but Caddy serves
+// login.<domain> only once the apply reloads it, after downloading the
+// service's image (minutes), or never if the apply fails (SPEC.md §5.2).
+// Until then Roostack's own pages keep their own login. The answer is kept
+// a minute once yes, 5 seconds while no, so someone waiting gets in soon
+// after it changes.
+func (s *Server) signInServed(ctx context.Context) bool {
+	s.mu.Lock()
+	c := s.served
+	s.mu.Unlock()
+	keep := 5 * time.Second
+	if c.ok {
+		keep = time.Minute
+	}
+	if !c.at.IsZero() && time.Since(c.at) < keep {
+		return c.ok
+	}
+	ok := s.SignInServed != nil && s.SignInServed(ctx)
+	if ok != c.ok && !c.at.IsZero() {
+		s.Log.Info("Roostack's pages sign in through the sign-in page", "now", ok)
+	}
+	s.mu.Lock()
+	s.served = servedCheck{ok: ok, at: time.Now()}
+	s.mu.Unlock()
+	return ok
+}
+
+// CaddyServesSignIn asks Caddy, at caddy (this server's, as monitoring
+// does: manager.CaddyLocal), for the sign-in page's signInServedPath, and
+// says whether the answer came from this sign-in listener. Only whether
+// Caddy routes the name is asked, so its certificate isn't checked (it
+// may still be on its way) and nothing is sent.
+func (s *Server) CaddyServesSignIn(caddy string) func(context.Context) bool {
+	return func(ctx context.Context) bool {
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		tr := &http.Transport{
+			TLSClientConfig:   &tls.Config{ServerName: s.SignInHost, InsecureSkipVerify: true},
+			DisableKeepAlives: true,
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, network, caddy)
+			},
+		}
+		defer tr.CloseIdleConnections()
+		client := &http.Client{Transport: tr, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+s.SignInHost+signInServedPath, nil)
+		if err != nil {
+			return false
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			return false
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
+		return resp.StatusCode == http.StatusOK && authkit.TokensEqual(string(body), s.servedToken)
+	}
+}
+
+// signInServedAnswer answers CaddyServesSignIn. The token isn't a secret
+// (anyone who can reach the sign-in page may read it): it only shows the
+// answer came from this listener, not Caddy's own page or another site.
+func (s *Server) signInServedAnswer(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	io.WriteString(w, s.servedToken)
 }
 
 // toSignInPage sends someone without a session to start the trip, back to

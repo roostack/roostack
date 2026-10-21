@@ -81,6 +81,7 @@ func (s *Server) SignInHandler() http.Handler {
 	mux.HandleFunc("GET "+sso.PathStart, s.signInStart)
 	mux.HandleFunc("GET "+signInPagesPath, s.signInToPages)
 	mux.HandleFunc("POST "+signInConfirmPath, s.signInConfirm)
+	mux.HandleFunc("GET "+signInServedPath, s.signInServedAnswer)
 	mux.HandleFunc("GET /{$}", s.signInHome)
 	mux.HandleFunc("GET /sign-in", s.signInPage)
 	mux.HandleFunc("POST /sign-in", s.signInSubmit)

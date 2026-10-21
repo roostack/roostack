@@ -138,6 +138,11 @@ type Server struct {
 	// handoffs are sign-ins at login.<domain> on their way to Roostack's
 	// own pages, keyed by the one-time code's hash (pagessignin.go).
 	handoffs map[string]*pagesHandoff
+	// served is the last answer to whether Caddy serves the sign-in page
+	// (signInServed), and servedToken what the sign-in listener answers
+	// the question with, so the answer can only come from it.
+	served      servedCheck
+	servedToken string
 	// stepUpFailures counts wrong passwords or codes per user when showing
 	// the recovery key (recoverykey.go).
 	stepUpFailures map[int64]int
@@ -162,11 +167,15 @@ type Server struct {
 	// served on its own listener (SignInHandler); nil: none. SSO turns
 	// single sign-on on and off for services. SignInHost is
 	// login.<domain>, and SSODir holds the sign-in page's logo.
-	SignIn      *sso.Provider
-	SSO         SSOServices
-	SignInHost  string
-	SSODir      string
-	signInPages *template.Template
+	SignIn     *sso.Provider
+	SSO        SSOServices
+	SignInHost string
+	// SignInServed asks whether Caddy serves the sign-in page yet
+	// (CaddyServesSignIn); nil: never, so Roostack's own pages keep their
+	// own login.
+	SignInServed func(context.Context) bool
+	SSODir       string
+	signInPages  *template.Template
 	// Network adds servers to the lab (SPEC.md §10.2). Nil hides it.
 	Network LabNetwork
 	// LabName is what people call the lab (config.Lab.DisplayName).
@@ -524,6 +533,9 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		setupPasses: map[string]time.Time{}}
 	var err error
 	if s.bootID, err = authkit.NewToken(); err != nil {
+		return nil, err
+	}
+	if s.servedToken, err = authkit.NewToken(); err != nil {
 		return nil, err
 	}
 	if s.help, err = newHelpSite(helpFS); err != nil {
