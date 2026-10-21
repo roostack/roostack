@@ -651,6 +651,14 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [ ] Bringing data in, later: leaving subfolders out of a copy ("Leave out…" on a row); a dump uploaded through the browser; plain SQL and `pg_dumpall` (Immich's nightly backups); a check that warns about Docker found on the server (ASSUMPTIONS W7); the import's check and copy logs from another server on the page (only its progress shows there now)
 - [ ] Later: a dump uploaded in the browser, plain SQL and `pg_dumpall`, another machine over SSH, a storage hint in the package format, help pages for Jellyfin, Vaultwarden, Navidrome
 
+## Bringing photos into Immich from other platforms (SPEC §8.5, proposed 2026-10-21)
+
+- [x] Research (2026-10-21): what Google Takeout, Apple's export and the other platforms give today; Immich's CLI, immich-go, GPTH and the rest; what Immich's API allows (a key uploads only into its own account)
+- [x] The proposal ([docs/IMMICH-IMPORT.md](docs/IMMICH-IMPORT.md)): the journey, getting the export onto the server, whose account, the checks and summary, what's kept, safety, a first version, new dependencies, questions
+- [ ] The Owner's answers (IMMICH-IMPORT.md §12), then mock-ups of the steps before building
+- [ ] The first version: Google Takeout and a plain folder, from a drive, share or server folder; tested on VM 1 with a synthetic Takeout (§13)
+- [ ] Later: Apple's privacy export, an upload share (Samba), the Locked Folder and trash, members importing into their own account, Flickr and Facebook, cloud drives, PhotoPrism
+
 ## To discuss with the user
 
 - [x] Single sign-on for services (SPEC §5.2; research in docs/SSO-RESEARCH.md; mock-ups in docs/mockups/sso). Decided 2026-10-20: Roostack itself is the identity provider, its OIDC part on the standard library, groups in the first version, two-factor as for Roostack with a choice to ask everyone, 30-day "keep me signed in" ticked, the look on People with a mark or a wide logo. Built and checked end to end on VM3 the same day with Mealie (OIDC) and Stirling-PDF (the wall): docs/ASSUMPTIONS.md V1–V6; the conformance suite passes (V7)
