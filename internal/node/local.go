@@ -250,11 +250,15 @@ func (n *Local) Identity() nodeid.Identity { return n.ID }
 // an apply is running, another follows it, so the latest always wins.
 func (n *Local) Apply(a Assignment) {
 	// The first assignment says which services are here: a copy that a
-	// restart interrupted carries on (import.go).
+	// restart interrupted carries on (import.go), and so does a photo
+	// migration (photos.go).
 	n.imp.mu.Lock()
 	if !n.imp.resumed && n.State != nil {
 		n.imp.resumed = true
-		defer func() { go n.resumeImports(context.Background()) }()
+		defer func() {
+			go n.resumeImports(context.Background())
+			go n.resumePhotos(context.Background())
+		}()
 	}
 	n.imp.mu.Unlock()
 	n.mu.Lock()

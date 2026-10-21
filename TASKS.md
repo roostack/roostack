@@ -666,9 +666,11 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [x] Signing in returns to the page asked for (2026-10-21, `?next=`, SPEC §5): the sign-in page's link lands on `/immich-photos`. "Sign in with single sign-on" on Roostack's login page is branch `claude/roostack-sso-signin`'s
 - [x] Add a library… and Add a location are forms in dialogs, loaded as they open (2026-10-21, the Owner)
 - [x] Large-library tests on VM 1 (2026-10-21, ASSUMPTIONS X11–X13): 50,313 photos' memory, a reboot mid-run and Carry on, out of memory. Fixed: a run followed again after a restart counted its log twice; out of memory now says so; Details' times are the server's
-- [ ] **Open, the Owner's call:** immich-go's memory limit (1 GB is too little to carry on a library over about 80,000 photos, X11): a limit from the server's memory with immich-go the kernel's first choice to kill (proposed), or a fixed larger one
-- [ ] **Open, the Owner's call:** carry on by itself after a reboot (power cut) when the export is still there, or wait for Carry on (today)
-- [ ] **Open, the Owner's call:** where immich-go runs when Immich, the export and the controller are on different servers (with "Immich on another server" below)
+- [x] immich-go's memory (the Owner, 2026-10-21): half the server's by default, three quarters the Owner's choice on the card, `GOMEMLIMIT`, killed first if the server runs short, running out explained (ASSUMPTIONS X14)
+- [x] Carrying on by itself after a restart, once the export is back; not after a failure, nor twice without progress (X15)
+- [ ] **Open, the Owner's call:** immich-go's catalogue patch (frees each folder's once handled: live data at the end −25%, peak unchanged): carry it, offer it upstream (PR prepared, not sent), or neither
+- [ ] Upstream ideas for immich-go's memory, if offered: a slimmer record of the account's assets (ID, checksum, name, date, size), finished tracker records dropped, a resume record so a carry-on doesn't re-read what's done
+- [ ] Photo migration where the export is (decided 2026-10-21): immich-go on the server the drive is in, or Immich's for a share or folder, reaching Immich over the lab network, with "Immich on another server" below
 - [ ] `maketakeout`: a fake `.psd` is expected to be left out, but Immich takes `.psd` files: list it as an asset, or make it something else
 - [ ] Separately (SPEC §5.2, later): "Sign in with single sign-on" on Roostack's own login page, so the sign-in page's link needs no second sign-in
 - [ ] The first version: Google Takeout and a plain folder, from a drive, share or server folder; tested on VM 1 with a synthetic Takeout (§13)

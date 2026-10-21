@@ -30,6 +30,9 @@ type PhotoSettings struct {
 	// a share with their own login.
 	NoDrives bool `json:"no_drives,omitempty"`
 	NoShares bool `json:"no_shares,omitempty"`
+	// Memory: how much of the server's memory a migration may use
+	// (photoimport.MemoryShares, "" for half), kept on Immich's server too.
+	Memory string `json:"memory,omitempty"`
 }
 
 func photoSettingsKey(service string) string { return "photo-settings." + service }
@@ -106,6 +109,16 @@ func (m *Manager) SetPhotoSettings(ctx context.Context, service string, s PhotoS
 	}
 	if m.Settings == nil {
 		return formErrorf("Settings can't be kept here.")
+	}
+	if s.Memory == "" {
+		s.Memory = photoimport.MemoryHalf
+	}
+	x, err := m.PhotosOf(service)
+	if err != nil {
+		return err
+	}
+	if err := x.SetPhotoMemory(ctx, service, s.Memory); err != nil {
+		return err
 	}
 	b, err := json.Marshal(s)
 	if err != nil {

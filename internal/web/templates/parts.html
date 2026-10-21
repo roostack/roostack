@@ -951,6 +951,12 @@
       </div>
       <p class="seg-panel hint seg-hint" data-seg="2">Only Owners and Admins, from here. Everyone else can ask one of you.</p>
     </div>
+    <hr class="form-rule">
+    <h2 class="form-section">Memory for migrations</h2>
+    {{segmented "memory" "Memory for migrations" (or .Settings.Memory "half") (choice "half" (printf "Half this server's · %s" (size .Memory.Half))) (choice "most" (printf "Three quarters · %s" (size .Memory.Most)))}}
+    <p class="hint">The migration tool keeps a list of every photo in the export and in the account while it runs, so a large library needs more:
+      half lets it migrate roughly {{count .Memory.Photos}} photos. If one needs more, it stops and says so; what came stays in Immich, and it carries on once it has more.
+      While one runs, what it uses isn't there for your other services.</p>
     <div class="actions-row"><button type="submit">Save</button></div>
   </form>
   {{end}}

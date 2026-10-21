@@ -252,6 +252,11 @@
   <div class="card-head"><h2><span class="step-num">7</span>Migrating them</h2></div>
   <div class="activity">
     {{if .Running}}<p class="activity-status running"><span class="spinner" aria-hidden="true"></span> {{if .Building}}Getting the migration tool ready…{{else}}Migrating photos…{{end}} <small>started {{when .Started}}</small></p>
+    {{else if .OutOfMemory}}<p class="activity-status failed">Ran out of memory {{when .Finished}}</p>
+    <p class="error" role="alert">This library needs more memory than the {{size .Memory}} the migration tool may use on this server: it keeps a list of every photo in the export and in the account while it runs. What came is in Immich.</p>
+    <p class="hint">{{if $p.MostMemory}}Migrations already use three quarters of this server's memory: a library this large needs a server with more.
+      {{- else if $p.IsOwner}}Give migrations more memory on <a href="/services/{{$p.Name}}#photos">{{$p.Title}}'s page</a> (Memory for migrations), then Carry on.
+      {{- else}}Ask {{$p.Owner}} to give migrations more memory, then Carry on.{{end}}</p>
     {{else if .Err}}<p class="activity-status failed">Stopped with an error {{when .Finished}}</p><p class="error" role="alert">{{.Err}}.</p>
     {{else if .Interrupted}}<p class="activity-status">Stopped {{when .Finished}} <small>the server restarted</small></p>
     {{else}}<p class="activity-status">Stopped {{when .Finished}}</p>{{end}}

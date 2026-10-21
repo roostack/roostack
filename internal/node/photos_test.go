@@ -3,6 +3,7 @@ package node
 import (
 	"archive/zip"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -34,12 +35,13 @@ func (f *fakePhotoAgent) UnmountPhotos(_ context.Context, service, who string) e
 }
 
 // fakePhotoUnits runs immich-go as a test would want it: its log written
-// at once, then the unit ends (or vanishes, as after a restart).
+// at once, then the unit ends (or vanishes, as after a restart: vanish
+// is how many runs do).
 type fakePhotoUnits struct {
 	mu      sync.Mutex
 	args    []string
 	log     string // written to the run's log file when it starts
-	vanish  bool
+	vanish  int
 	code    int // its exit status
 	stopped bool
 	polls   int
@@ -60,7 +62,8 @@ func (f *fakePhotoUnits) Exited(context.Context, string) (bool, int, bool, error
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.polls++
-	if f.vanish {
+	if f.vanish > 0 {
+		f.vanish--
 		return false, 0, false, nil
 	}
 	return f.polls < 2, f.code, true, nil
@@ -243,7 +246,7 @@ func TestPhotoMigration(t *testing.T) {
 		t.Errorf("the log was counted twice: %+v", r.Tally)
 	}
 	args := strings.Join(units.args, " ")
-	for _, want := range []string{"roostack-photos-immich podman run --rm", "--network roostack-immich", "--memory 1g",
+	for _, want := range []string{"roostack-photos-immich podman run --rm", "--network roostack-immich", "--oom-score-adj 1000",
 		export + ":/export:ro,rslave", "--secret roostack-photos-immich-anna,type=env,target=IMMICH_GO_UPLOAD_API_KEY",
 		photoimport.ToolImage + " upload from-google-photos", "--server=http://roostack-immich-server:2283",
 		"/export/takeout-20261019T091234Z-001.zip /export/takeout-20261019T091234Z-002.zip /export/takeout-20261019T091234Z-003.zip"} {
@@ -265,19 +268,22 @@ func TestPhotoMigration(t *testing.T) {
 		t.Errorf("the log shown:\n%s", v.Log)
 	}
 
-	// A run whose unit vanished (the server restarted) is interrupted, and
-	// carries on from the page.
+	// A run whose unit vanished (the server restarted) while its export
+	// isn't there (a drive not back yet) is interrupted, and carries on
+	// from the page.
 	x.SetPhotoKey(ctx, "immich", "anna", "good-key") // a new key: check again
 	x.CheckPhotos(ctx, "immich", "anna")
 	waitPhotos(t, n, func(s *PhotoState) bool { return !s.Checking })
-	units.vanish, units.polls = true, 0
+	units.vanish, units.polls = 1, 0
+	os.Rename(export, export+".away")
 	if err := x.StartPhotos(ctx, "immich", "anna"); err != nil {
 		t.Fatal(err)
 	}
 	st = waitPhotos(t, n, func(s *PhotoState) bool { return s.Run != nil && !s.Run.Running })
-	if !st.Run.Interrupted || st.Run.Passes != 1 {
+	if !st.Run.Interrupted || st.Run.Passes != 1 || st.Run.Auto {
 		t.Errorf("interrupted run %+v", st.Run)
 	}
+	os.Rename(export+".away", export)
 
 	// Carrying on is another pass of the same migration: what the first
 	// sent is added up, and isn't counted as what Immich had before.
@@ -285,7 +291,7 @@ func TestPhotoMigration(t *testing.T) {
 		st.Run.Tally.Sent = 2
 		return nil
 	})
-	units.vanish, units.polls = false, 0
+	units.polls = 0
 	units.log = strings.Join([]string{
 		`{"msg":"discovered image","file":"a"}`, `{"msg":"discovered image","file":"b"}`, `{"msg":"discovered image","file":"c"}`,
 		`{"msg":"server has duplicate","file":"a"}`, `{"msg":"server has duplicate","file":"b"}`, `{"msg":"uploaded successfully","file":"c"}`,
@@ -298,7 +304,23 @@ func TestPhotoMigration(t *testing.T) {
 		t.Errorf("carried on: passes %d, earlier %d, migrated %d, had before %d", r.Passes, r.Earlier, r.Migrated(), r.HadBefore())
 	}
 
-	// Killed for memory (Podman's 137), it says so, and that it carries on.
+	// With its export there, a run the restart stopped carries on by
+	// itself, as another pass.
+	x.SetPhotoKey(ctx, "immich", "anna", "good-key")
+	x.CheckPhotos(ctx, "immich", "anna")
+	waitPhotos(t, n, func(s *PhotoState) bool { return !s.Checking })
+	units.vanish, units.polls = 1, 0
+	if err := x.StartPhotos(ctx, "immich", "anna"); err != nil {
+		t.Fatal(err)
+	}
+	st = waitPhotos(t, n, func(s *PhotoState) bool { return s.Run != nil && !s.Run.Running && s.Run.Passes == 2 })
+	if r := st.Run; !r.Auto || r.Interrupted || r.Err != "" || r.Migrated() != 2 {
+		t.Errorf("carried on by itself: %+v", r)
+	}
+
+	// Killed for memory (Podman's 137), it says so, with its limit: half
+	// the server's memory here, at least 1 GB (GOMEMLIMIT three quarters
+	// of it), and immich-go first to go should the server run short.
 	x.SetPhotoKey(ctx, "immich", "anna", "good-key")
 	x.CheckPhotos(ctx, "immich", "anna")
 	waitPhotos(t, n, func(s *PhotoState) bool { return !s.Checking })
@@ -307,8 +329,22 @@ func TestPhotoMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	st = waitPhotos(t, n, func(s *PhotoState) bool { return s.Run != nil && !s.Run.Running })
-	if !strings.Contains(st.Run.Err, "ran out of memory (it may use 1 GB") || !strings.Contains(st.Run.Err, "Carry on") {
-		t.Errorf("out of memory: %q", st.Run.Err)
+	limit, total := n.PhotoMemory(ctx, "immich")
+	if r := st.Run; !r.OutOfMemory || !strings.Contains(r.Err, "ran out of memory") || r.Memory != limit || limit != max(1<<30, total/2) {
+		t.Errorf("out of memory: %+v (limit %d of %d)", r, limit, total)
+	}
+	args = strings.Join(units.args, " ")
+	if !strings.Contains(args, fmt.Sprintf("--memory %d --oom-score-adj 1000 --env GOMEMLIMIT=%dMiB", limit, limit*3/4>>20)) {
+		t.Errorf("podman's memory flags:\n%s", args)
+	}
+	if err := x.SetPhotoMemory(ctx, "immich", "most"); err != nil {
+		t.Fatal(err)
+	}
+	if l, total := n.PhotoMemory(ctx, "immich"); l != max(1<<30, total*3/4) {
+		t.Errorf("three quarters: %d of %d", l, total)
+	}
+	if err := x.SetPhotoMemory(ctx, "immich", "all"); err == nil {
+		t.Error("a share that isn't a choice was taken")
 	}
 
 	// Forgetting it unmounts and forgets the key.

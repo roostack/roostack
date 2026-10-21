@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -68,6 +69,11 @@ type Photos interface {
 	// PhotoFolders lists the folders in a folder of one of the Owner's
 	// locations (sub "" for its top), with how many zip files each holds.
 	PhotoFolders(ctx context.Context, location, sub string) ([]PhotoFolder, error)
+	// SetPhotoMemory is the Owner's choice of how much of this server's
+	// memory a migration may use (photoimport.MemoryShares); PhotoMemory
+	// what that is here.
+	SetPhotoMemory(ctx context.Context, service, share string) error
+	PhotoMemory(ctx context.Context, service string) (limit, total int64)
 }
 
 // PhotoFolder is a folder in a location.
@@ -143,6 +149,12 @@ type PhotoRun struct {
 	// Building: the migration tool's image is being built first.
 	Building bool              `json:"building,omitempty"`
 	Tally    photoimport.Tally `json:"tally"`
+	// Memory is what immich-go could use (photoimport.Memory);
+	// OutOfMemory: it needed more, and the kernel stopped it. Auto: this
+	// pass was carried on by Roostack after the server restarted.
+	Memory      int64 `json:"memory,omitempty"`
+	OutOfMemory bool  `json:"out_of_memory,omitempty"`
+	Auto        bool  `json:"auto,omitempty"`
 	// LogRead is how much of this pass's log Tally has counted, so that
 	// following the run again after Roostack or the server restarts
 	// doesn't count its lines twice.
@@ -262,9 +274,12 @@ type PhotoSummary struct {
 // photoKey is a service's migrations in the runtime settings.
 func photoKey(service string) string { return "photos." + service }
 
-// photoSet is what's kept for a service: each person's migration.
+// photoSet is what's kept for a service: each person's migration, and
+// the Owner's choice of how much memory immich-go may use
+// (photoimport.MemoryShares).
 type photoSet struct {
 	People map[string]*PhotoState `json:"people"`
+	Memory string                 `json:"memory,omitempty"`
 }
 
 // photos is this server's migrations.
@@ -280,6 +295,9 @@ var (
 	photoImportRoot = config.ImportRoot
 	photoLibRoot    = config.LibraryRoot
 	photoPoll       = 5 * time.Second
+	// photoBootWait is how long carrying on after a restart waits for
+	// Immich to be back.
+	photoBootWait = 15 * time.Minute
 )
 
 // Photos is migrating photos into this server's Immich; nil without an
@@ -739,7 +757,8 @@ func (n *Local) runPhotos(ctx context.Context, service, who string) {
 			return nil
 		})
 	}
-	args, err := n.photoCommand(service, who, st)
+	limit, _ := n.PhotoMemory(ctx, service)
+	args, err := n.photoCommand(service, who, st, limit)
 	if err != nil {
 		fail(err)
 		return
@@ -750,6 +769,12 @@ func (n *Local) runPhotos(ctx context.Context, service, who string) {
 		return
 	}
 	os.Remove(n.photoLog(service, who)) // each pass logs afresh; the tally adds up
+	n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+		if st.Run != nil {
+			st.Run.Memory = limit
+		}
+		return nil
+	})
 	log.Step("Migrating photos into %s's account", st.Account.Name)
 	unit := photoUnit(service)
 	n.PhotoUnits.Forget(ctx, unit) // a run before, done or failed
@@ -762,8 +787,10 @@ func (n *Local) runPhotos(ctx context.Context, service, who string) {
 
 // photoCommand is podman's command line for a person's run: immich-go in
 // its own container on Immich's network, the export read-only, their
-// work folder for its log, and the key from its Podman secret.
-func (n *Local) photoCommand(service, who string, st *PhotoState) ([]string, error) {
+// work folder for its log, and the key from its Podman secret. It may use
+// memory bytes, and should the server run short, the kernel stops it
+// before anything else (--oom-score-adj).
+func (n *Local) photoCommand(service, who string, st *PhotoState, memory int64) ([]string, error) {
 	s, err := n.photoService(service)
 	if err != nil {
 		return nil, err
@@ -785,13 +812,39 @@ func (n *Local) photoCommand(service, who string, st *PhotoState) ([]string, err
 		return nil, err
 	}
 	args := []string{"run", "--rm", "--name", photoUnit(service), "--network", generate.NetworkName(service),
-		"--memory", photoimport.ToolMemory, "--pull", "never",
+		"--memory", strconv.FormatInt(memory, 10), "--oom-score-adj", "1000",
+		"--env", "GOMEMLIMIT=" + photoimport.GoMemLimit(memory), "--pull", "never",
 		"--volume", photoDir(service, who, st.Source) + ":/export:ro,rslave",
 		"--volume", n.photoWork(service, who) + ":/work",
 		"--secret", photoKeySecret(service, who) + ",type=env,target=" + photoimport.KeyEnv,
 		"--label", "io.roostack.service=" + service, "--label", "io.roostack.component=photo-migration",
 		photoimport.ToolImage}
 	return append(args, tool...), nil
+}
+
+func (n *Local) SetPhotoMemory(ctx context.Context, service, share string) error {
+	if _, err := n.photoService(service); err != nil {
+		return err
+	}
+	if _, ok := photoimport.MemoryShares[share]; !ok {
+		return formErrorf("Choose how much memory migrations may use.")
+	}
+	n.pho.mu.Lock()
+	defer n.pho.mu.Unlock()
+	set := n.loadPhotos(ctx, service)
+	set.Memory = share
+	b, err := json.Marshal(set)
+	if err != nil {
+		return err
+	}
+	return n.State.SetSetting(ctx, photoKey(service), string(b))
+}
+
+func (n *Local) PhotoMemory(ctx context.Context, service string) (limit, total int64) {
+	if m, err := n.Memory(ctx); err == nil {
+		total = m.Total
+	}
+	return photoimport.Memory(total, n.loadPhotos(ctx, service).Memory), total
 }
 
 // photoActivity is a person's migration's live log (activity.PhotosFor).
@@ -836,6 +889,9 @@ func (n *Local) watchPhotos(ctx context.Context, service, who string, log *activ
 			}
 			// Gone without Roostack seeing it end: the server restarted.
 			log.Finish(errors.New("it stopped when the server restarted"))
+			if n.carryOnAfterRestart(ctx, service, who) {
+				return
+			}
 			n.endPhotos(ctx, service, who, func(r *PhotoRun) { r.Interrupted = true })
 			return
 		case !running:
@@ -847,10 +903,10 @@ func (n *Local) watchPhotos(ctx context.Context, service, who string, log *activ
 			case stopped:
 				log.Finish(nil)
 				n.endPhotos(ctx, service, who, func(r *PhotoRun) {})
-			case code == 137: // killed: Podman's 128+9, the limit's OOM kill
-				err := fmt.Errorf("the migration tool ran out of memory (it may use %s on this server). What came is in Immich, and Carry on goes on from there", photoimport.ToolMemoryText)
+			case code == 137: // killed: Podman's 128+9, out of memory
+				err := errors.New("the migration tool ran out of memory")
 				log.Finish(err)
-				n.endPhotos(ctx, service, who, func(r *PhotoRun) { r.Err = err.Error() })
+				n.endPhotos(ctx, service, who, func(r *PhotoRun) { r.Err, r.OutOfMemory = err.Error(), true })
 			case code != 0:
 				err := fmt.Errorf("the migration tool stopped with an error (%d): its log under Details says why", code)
 				log.Finish(err)
@@ -867,6 +923,60 @@ func (n *Local) watchPhotos(ctx context.Context, service, who string, log *activ
 		case <-time.After(photoPoll):
 		}
 	}
+}
+
+// carryOnAfterRestart carries on a run the server's restart stopped (a
+// power cut, say), by itself, as another pass (the Owner, 2026-10-21):
+// once its export is there again, and not when the pass before was
+// carried on this way and sent nothing, so a run that can't get going
+// doesn't go round. It reports whether it did; if not, the page offers
+// Carry on. A run that failed (out of memory, say) never carries on by
+// itself: it would fail again.
+func (n *Local) carryOnAfterRestart(ctx context.Context, service, who string) bool {
+	st := n.loadPhotos(ctx, service).People[who]
+	if st == nil || st.Run == nil || st.Source == nil || (st.Run.Auto && st.Run.Migrated() == st.Run.Earlier) {
+		return false
+	}
+	if entries, err := os.ReadDir(photoDir(service, who, st.Source)); err != nil || len(entries) == 0 {
+		return false // the drive isn't back, say
+	}
+	// After a reboot Immich may not be back yet: immich-go would give up
+	// at once (seen on the VM). Immich answering about the key says it is.
+	key, err := n.Secrets.Read(ctx, photoKeySecret(service, who))
+	if err != nil {
+		return false
+	}
+	for deadline := time.Now().Add(photoBootWait); ; {
+		if _, err := n.immichAccount(ctx, service, string(key)); err == nil {
+			break
+		} else if time.Now().After(deadline) {
+			n.Log.Warn("Immich isn't answering: not carrying on a photo migration", "service", service, "who", who, "err", err)
+			return false
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(photoPoll):
+		}
+	}
+	// Ended quietly (no email: it goes on), then started again.
+	n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+		if st.Run != nil {
+			st.Run.Running, st.Run.Building, st.Run.Finished, st.Run.Interrupted = false, false, time.Now(), true
+		}
+		return nil
+	})
+	if err := n.StartPhotos(ctx, service, who); err != nil {
+		n.Log.Warn("carrying on a photo migration after a restart", "service", service, "who", who, "err", err)
+		return false
+	}
+	n.updatePhotos(ctx, service, who, func(st *PhotoState) error {
+		if st.Run != nil {
+			st.Run.Auto = true
+		}
+		return nil
+	})
+	return true
 }
 
 // readPhotoLog adds the log's new lines to the run's tally, from where

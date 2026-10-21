@@ -113,9 +113,26 @@ Before anything is sent, the check looks in your export and at Immich:
 page; you're emailed when it's done. Immich shows the photos as they
 arrive. One migration runs on a server at a time.
 
-**Stop** stops it, and so does the server restarting. What's in Immich
-stays there: **Carry on** runs it again and skips what's in, so nothing
-comes twice.
+**Stop** stops it. What's in Immich stays there: **Carry on** runs it
+again and skips what's in, so nothing comes twice. Carrying on reads the
+whole export again to check each photo, so for a large one it takes a
+while before new photos arrive.
+
+If the server restarts (a power cut, say), the migration carries on by
+itself once the server is back and the export is there; if the drive
+isn't plugged in, the page waits for **Carry on**.
+
+### Large libraries and memory {#memory}
+
+While it runs, the migration tool keeps a list of every photo in the
+export and in the account, so a large library needs more memory. It may
+use half the server's memory, which is enough for a few hundred thousand
+photos on a server with 4 GB. If a library needs more, it stops and says
+it ran out of memory: what came stays in Immich. The Owner can give
+migrations three quarters of the server's memory (**Memory for
+migrations** on Immich's **Migrate photos** card), then **Carry on**.
+While a migration runs, the memory it uses isn't there for other
+services; if the server runs short, the migration is stopped first.
 
 The summary at the end says what came, what was already there, what was
 left out and why, and which files couldn't be migrated. Immich then makes
@@ -129,6 +146,9 @@ On Immich's page, the **Migrate photos** card:
   sign-on on, those who can sign in to it), or *Owners and Admins*.
 - **Where they can migrate photos from**: USB drives they plug in, and
   network shares with their own login.
+- **Memory for migrations**: half the server's memory (the default), or
+  three quarters for a very large library ([Large libraries and
+  memory](#memory)).
 - **Additional locations**: folders you set up for everyone, on a drive,
   the server or a share with your login. Everyone who can migrate sees
   what's in them, so a folder per person keeps them apart. They're listed

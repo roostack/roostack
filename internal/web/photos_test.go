@@ -49,6 +49,12 @@ func (f *fakePhotos) SetPhotoSettings(_ context.Context, _ string, s manager.Pho
 	return nil
 }
 func (f *fakePhotos) PhotoLocations(context.Context, string) []store.MediaLibrary { return f.locations }
+
+// The server has 8 GB.
+func (f *fakePhotos) SetPhotoMemory(context.Context, string, string) error { return nil }
+func (f *fakePhotos) PhotoMemory(context.Context, string) (int64, int64) {
+	return photoimport.Memory(8e9, f.settings.Memory), 8e9
+}
 func (f *fakePhotos) AddPhotoLocation(_ context.Context, service string, req manager.LibraryRequest) error {
 	f.locations = append(f.locations, store.MediaLibrary{Name: manager.LibraryName(req.Title), Title: req.Title, PhotosFor: service})
 	return nil
@@ -280,9 +286,15 @@ func TestPhotoCard(t *testing.T) {
 			t.Errorf("Immich's page lacks %q", want)
 		}
 	}
-	_, body = h.post("/services/immich/photos/settings", url.Values{"who": {"everyone"}, "drives": {"on"}}, h.srv.URL)
-	if !strings.Contains(body, "Saved.") {
-		t.Error("saving the card doesn't say so")
+	for _, want := range []string{"Memory for migrations", `name="memory" value="half" checked`, "Half this server&#39;s · 4.0 GB",
+		"Three quarters · 6.0 GB", "roughly 600,000 photos"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the card lacks %q", want)
+		}
+	}
+	_, body = h.post("/services/immich/photos/settings", url.Values{"who": {"everyone"}, "drives": {"on"}, "memory": {"most"}}, h.srv.URL)
+	if !strings.Contains(body, "Saved.") || f.settings.Memory != "most" || !strings.Contains(body, `name="memory" value="most" checked`) {
+		t.Errorf("saving the card: %q", f.settings.Memory)
 	}
 	if f.settings.OwnersOnly || f.settings.NoDrives || !f.settings.NoShares {
 		t.Errorf("settings %+v", f.settings)
@@ -391,5 +403,32 @@ func TestPhotoReached(t *testing.T) {
 		if got := v(); got != s.want {
 			t.Errorf("%d: reached %d, want %d", i, got, s.want)
 		}
+	}
+}
+
+// A run that ran out of memory says so, how much it had, and what to do:
+// the Owner raises it on Immich's card; once it's three quarters, that a
+// larger library needs a server with more.
+func TestPhotoOutOfMemory(t *testing.T) {
+	h, _ := loggedIn(t, auth.RoleOwner)
+	f := newFakePhotos()
+	h.server.Photos, h.server.Services = f, immichServices
+	st := f.st("u")
+	st.Kind, st.Guided, st.HasKey, st.ChoicesSet = photoimport.KindGoogle, true, true, true
+	st.Source = &node.PhotoSource{Kind: "folder"}
+	st.Scan = &photoimport.Scan{Kind: "google", Parts: []photoimport.Part{{Number: 1}}, Photos: 1}
+	st.Account = &node.PhotoAccount{}
+	st.Check = &node.PhotoCheck{Needs: 10, Free: 100}
+	st.Run = &node.PhotoRun{Finished: time.Now(), Err: "the migration tool ran out of memory", OutOfMemory: true, Memory: 4e9}
+	_, body := h.get("/services/immich/photos")
+	for _, want := range []string{"Ran out of memory", "more memory than the 4.0 GB", "What came is in Immich",
+		`Give migrations more memory on <a href="/services/immich#photos">Immich's page</a>`, ">Carry on</button>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page lacks %q", want)
+		}
+	}
+	f.settings.Memory = "most"
+	if _, body := h.get("/services/immich/photos"); !strings.Contains(body, "already use three quarters") {
+		t.Error("at three quarters, the page doesn't say a larger server is needed")
 	}
 }

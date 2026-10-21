@@ -74,8 +74,11 @@ type photoPage struct {
 	// Watching: an Owner or Admin looking at someone else's migration.
 	Watching bool
 	Error    string
-	// Owner names who to ask.
-	Owner string
+	// Owner names who to ask; IsOwner: the Owner is looking. MostMemory:
+	// migrations may already use three quarters of the server's memory.
+	Owner      string
+	IsOwner    bool
+	MostMemory bool
 	// ImmichURL is Immich's own address; KeyURL its page for API keys.
 	ImmichURL, KeyURL string
 	Permissions       []string
@@ -254,7 +257,8 @@ func (s *Server) renderPhotos(w http.ResponseWriter, r *http.Request, panel bool
 		return
 	}
 	pg := &photoPage{Name: name, Title: ps.Title, Panel: panel, Admin: isAdmin(u), Error: errMsg,
-		Owner: s.ownerName(r.Context()), Permissions: photoimport.Permissions,
+		Owner: s.ownerName(r.Context()), IsOwner: u.Role == auth.RoleOwner, Permissions: photoimport.Permissions,
+		MostMemory: s.Photos.PhotoSettings(r.Context(), name).Memory == photoimport.MemoryMost,
 		Post: "/immich-photos/" + url.PathEscape(name), Service: s.photoServiceView(r, name, isAdmin(u))}
 	pg.Base = pg.Post
 	if panel {
@@ -845,8 +849,15 @@ func (s *Server) photoSettingsSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	set := manager.PhotoSettings{OwnersOnly: r.FormValue("who") == "admins", NoDrives: r.FormValue("drives") != "on",
-		NoShares: r.FormValue("shares") != "on"}
+		NoShares: r.FormValue("shares") != "on", Memory: r.FormValue("memory")}
+	if _, ok := photoimport.MemoryShares[set.Memory]; !ok {
+		set.Memory = photoimport.MemoryHalf
+	}
 	if err := s.Photos.SetPhotoSettings(r.Context(), name, set); err != nil {
+		if msg, ok := userMessage(err); ok {
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
 		s.serverError(w, err)
 		return
 	}
@@ -891,9 +902,19 @@ type photoCard struct {
 	CanSettings      bool
 	// Saved says what the Owner just changed (?photos=, photoSaved).
 	Saved string
+	// Memory is what a migration may use with each choice, on Immich's
+	// server.
+	Memory photoMemory
 	// Host is the server Immich runs on, where locations go; Me is who's
 	// looking.
 	Host, Me string
+}
+
+// photoMemory is the card's choice of memory for migrations.
+type photoMemory struct {
+	Half, Most int64
+	// Photos is roughly how large a library half lets them migrate.
+	Photos int64
 }
 
 // photoSaved is what the card says after the Owner changes it: its
@@ -924,6 +945,10 @@ func (s *Server) photoCardFor(ctx context.Context, u *store.User, name string) *
 		s.Log.Error("reading photo migrations", "service", name, "err", err)
 		return c
 	}
+	_, total := x.PhotoMemory(ctx, name)
+	half := photoimport.Memory(total, photoimport.MemoryHalf)
+	c.Memory = photoMemory{Half: half, Most: photoimport.Memory(total, photoimport.MemoryMost),
+		Photos: half * photoimport.PhotosPerGB / 1e9 / 10_000 * 10_000}
 	list, err := x.PhotoList(ctx, name)
 	if err != nil {
 		s.Log.Error("reading photo migrations", "service", name, "err", err)

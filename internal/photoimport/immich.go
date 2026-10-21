@@ -20,18 +20,49 @@ const (
 	LibraryStorage = "library"
 )
 
-// The migration tool (build/immich-go): its version, the image Roostack
-// builds from it on the server, and its memory limit (immich-go has run
-// out of memory on large runs, #1395; a limit keeps it from taking the
-// server down with it).
+// The migration tool (build/immich-go): its version and the image
+// Roostack builds from it on the server.
 const (
 	ToolVersion  = "v0.32.0"
 	ToolImage    = "localhost/roostack-immich-go:" + ToolVersion
 	ToolBuildDir = "/usr/share/roostack/immich-go"
-	ToolMemory   = "1g"
-	// ToolMemoryText is ToolMemory for people.
-	ToolMemoryText = "1 GB"
 )
+
+// immich-go keeps a list of every photo in the export and in the account
+// until it ends (docs/ASSUMPTIONS.md X11, X14): about 1.5 KB each, so a
+// library's needs grow with it. It may use a share of the server's
+// memory, the Owner's choice (Memory), at least MinMemory, and Go's
+// collector is told to keep it under three quarters of that (GoMemLimit),
+// which nearly halves what it uses beyond its list. Past the limit the
+// kernel stops it, and it says so (SPEC.md §8.5).
+const (
+	MemoryHalf = "half"
+	MemoryMost = "most"
+	MinMemory  = 1 << 30
+)
+
+// MemoryShares are the choices of memory, as a fraction of the server's.
+var MemoryShares = map[string]float64{MemoryHalf: 0.5, MemoryMost: 0.75}
+
+// Memory is what immich-go may use on a server with total bytes of
+// memory, given the Owner's choice ("" is half).
+func Memory(total int64, share string) int64 {
+	f, ok := MemoryShares[share]
+	if !ok {
+		f = MemoryShares[MemoryHalf]
+	}
+	return max(MinMemory, int64(float64(total)*f))
+}
+
+// GoMemLimit is GOMEMLIMIT for a memory limit: Go's collector works harder
+// as the program nears it, leaving room for what isn't Go's heap.
+func GoMemLimit(limit int64) string { return fmt.Sprintf("%dMiB", limit*3/4>>20) }
+
+// PhotosPerGB is a rough guide to the library a GB lets immich-go
+// migrate (X14: about 1.5 KB a photo, for each photo in the export and
+// again once it's in Immich, under GoMemLimit), kept low for real
+// libraries' longer names and albums.
+const PhotosPerGB = 150_000
 
 // Permissions are what a key needs (immich-go's docs/installation.md at
 // v0.32.0): reading what's there, uploading, albums, stacks and tags.

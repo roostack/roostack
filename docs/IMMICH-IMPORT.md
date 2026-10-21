@@ -656,6 +656,30 @@ except whose photos:
     as a step, with the slow-download warning; what to migrate as a step of
     its own before the check; a second migration refused; "Other
     locations".
+12. **After the first version** (the same day, on the VM's large-library
+    tests, docs/ASSUMPTIONS.md X11–X15):
+    - **Memory:** immich-go may use half the server's memory by default
+      (at least 1 GB), and the Owner can raise it to three quarters on
+      Immich's card ("Memory for migrations"), explained as a limit. Go's
+      collector is told to stay under three quarters of that
+      (`GOMEMLIMIT`), which nearly halved what it used, and the kernel
+      stops immich-go first if the server runs short. Running out says so,
+      and what to do. *Considered:* a fixed 3 GB; any amount typed;
+      raising it only after a failure.
+    - **immich-go's memory isn't a leak:** it keeps a list of every photo
+      in the export and the account until it ends (about 1.5 KB each),
+      and Go's default collector let it grow to about twice that. A
+      one-line patch freeing each folder's catalogue once handled lowers
+      what's held late in a run by a quarter but not the peak. **Open, the
+      Owner's call:** proposed, not carried in Roostack's build, and
+      offered upstream (a PR prepared, not sent).
+    - **After a restart** (a power cut), a migration carries on by itself
+      once its export is there again; never after a failure (out of
+      memory would fail again), nor twice in a row without progress.
+    - **Where immich-go runs** when Immich and the export are on different
+      servers: where the export is (the server the drive is plugged into,
+      or Immich's for a share or folder), reaching Immich over the lab
+      network; the controller keeps the pages and choices. Not built yet.
 
 **Still open:** "Sign in with single sign-on" on Roostack's own login page
 (SPEC §5.2, later) would let the sign-in page's link open the import page
