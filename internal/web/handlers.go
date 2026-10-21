@@ -9,6 +9,7 @@ import (
 
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/sso"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -117,6 +118,12 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 	if s.needsSetup() {
 		redirect(w, r, "/setup")
+		return
+	}
+	// Roostack's own login page stays at /login?here, for when the sign-in
+	// page can't be reached.
+	if s.pagesSignIn(r) && !r.URL.Query().Has("here") {
+		s.toSignInPage(w, r)
 		return
 	}
 	s.renderLogin(w, r, map[string]any{})
@@ -357,16 +364,32 @@ func (s *Server) twoFactorData(r *http.Request, u *store.User, secret, errMsg st
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
-	s.endSession(w, r)
+	if s.endSession(w, r) {
+		// Signed out of the sign-in page too: it says so.
+		redirect(w, r, "https://"+s.SignInHost+sso.PathSignOut)
+		return
+	}
 	redirect(w, r, "/login")
 }
 
-// endSession logs this browser out.
-func (s *Server) endSession(w http.ResponseWriter, r *http.Request) {
+// endSession logs this browser out, and out of the sign-in at
+// login.<domain> its session came from, if any (one sign-in, one
+// sign-out: SPEC.md §5.2). It reports whether there was one.
+func (s *Server) endSession(w http.ResponseWriter, r *http.Request) bool {
+	signedIn := false
 	if c, err := r.Cookie(sessionCookie); err == nil {
-		s.Store.DeleteSession(r.Context(), authkit.HashToken(c.Value))
+		hash := authkit.HashToken(c.Value)
+		if signIn, err := s.Store.SessionSignIn(r.Context(), hash); err == nil && signIn != "" {
+			s.Store.DeleteSession(r.Context(), signIn) // and this session with it
+			signedIn = true
+			if u := currentUser(r); u != nil {
+				s.Store.Audit(r.Context(), u, "signed out", "of Roostack's pages and the sign-in page")
+			}
+		}
+		s.Store.DeleteSession(r.Context(), hash)
 	}
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true})
+	return signedIn
 }
 
 func capitalize(s string) string {

@@ -62,6 +62,25 @@
         </form>
         <p class="hint">Lost your phone? Ask {{.Owner}}, who can turn two-factor off for you.</p>
 
+        {{else if eq .State "confirm"}}
+        <h1>Confirm it's you</h1>
+        {{template "signin-to" .}}
+        {{with .Error}}<p class="error" role="alert">{{.}}</p>{{end}}
+        <p>{{if .Away}}You've been away from Roostack's pages for a while. {{end}}They can change the whole lab, so they ask again
+          after a while without use. Your other services stay signed in.</p>
+        <form method="post" action="/roostack/confirm">
+          <input type="hidden" name="state" value="{{.Trip}}">
+          <input type="hidden" name="next" value="{{.Next}}">
+          {{if .Code}}<label>Code from your authenticator app
+            <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" required autofocus>
+          </label>{{else}}<label>Password
+            <input name="password" type="password" autocomplete="current-password" required autofocus>
+          </label>{{end}}
+          <button type="submit" class="wide">Continue</button>
+        </form>
+        {{with .User}}<form method="post" action="/sign-out" class="signin-who"><span class="hint">Signed in as <strong>{{.Username}}</strong></span>
+          <button type="submit" class="quiet">Not you? Sign out</button></form>{{end}}
+
         {{else if eq .State "blocked"}}
         <h1>Sign in</h1>
         {{template "signin-to" .}}
@@ -80,13 +99,15 @@
         <h1>Hello, {{with .User}}{{or .Name .Username}}{{end}}</h1>
         {{if .Apps}}
         <p>You're signed in to {{.LabName}}. These are the services you can use:</p>
-        <ul class="signin-apps">
-          {{range .Apps}}<li><a href="{{.URL}}"><span class="logo-tile"><img src="{{.Logo}}" alt="" width="28" height="28"></span>
-            <span><strong>{{.Title}}</strong><small>{{.Host}}</small></span></a></li>{{end}}
-        </ul>
         {{else}}
         <p>You're signed in to {{.LabName}}, but there's no service you can use with it yet. {{capitalise .Owner}} chooses who can use each one.</p>
         {{end}}
+        {{if or .Apps .PagesHost}}<ul class="signin-apps">
+          {{range .Apps}}<li><a href="{{.URL}}"><span class="logo-tile"><img src="{{.Logo}}" alt="" width="28" height="28"></span>
+            <span><strong>{{.Title}}</strong><small>{{.Host}}</small></span></a></li>{{end}}
+          {{with .PagesHost}}<li><a href="https://{{.}}/"><span class="logo-tile"><img src="/static/favicon.svg" alt="" width="28" height="28"></span>
+            <span><strong>Roostack</strong><small>The lab's own pages, and your account</small></span></a></li>{{end}}
+        </ul>{{end}}
         <form method="post" action="/sign-out"><button type="submit" class="secondary">Sign out</button></form>
         {{if not .Until.IsZero}}<p class="hint">Signed in on this device until {{date .Until}}.</p>{{end}}
 

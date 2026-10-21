@@ -91,3 +91,9 @@ a screen left open goes back to the login page when the time's up.
 On the login page, **Keep me signed in** keeps that browser signed in for
 30 days, without the time limit. Use it only on a device that's yours
 alone. An Owner can stop offering it, under **Signing in**.
+
+Once a service uses [single sign-on](../services/single-sign-on.md),
+Roostack's pages sign in through the lab's sign-in page instead. There,
+Members stay signed in for as long as their sign-in lasts; Owners and
+Admins still have the time limit, and then enter their two-factor code to
+carry on ([Roostack's own pages](../services/single-sign-on.md#roostacks-own-pages)).

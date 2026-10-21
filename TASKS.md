@@ -671,7 +671,9 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [ ] Services on another server: the controller makes the client secret and sends it in the assignment; `AddHost` to the controller over WireGuard; Caddy lets the lab's servers reach the sign-in page
 - [ ] Removing a service: delete its `service_access` rows (`internal/web/services.go`, left alone while the package editor changes it)
 - [ ] Check on a lab with a real address: a real certificate, the sign-in page public (CrowdSec, AppSec, the login limit, its DNS record), and a backup and restore keeping the signing key (docs/ASSUMPTIONS.md V6)
-- [ ] Later (SPEC §5.2): passkeys (`go-webauthn`, to agree), "Sign in with single sign-on" on Roostack's own login page, single sign-out (back-channel logout), signing-key rotation, choosing an app's admins per service
+- [x] Signing in to Roostack's own pages at `login.<domain>` (SPEC §5.2, the Owner, 2026-10-21: one sign-in instead of a button; Members as long as the sign-in, Owners and Admins Roostack's idle limit then their two-factor code; one sign-out), built the same day: a one-time code back to `roost.<domain>`, sessions linked to the sign-in, the sign-in page public while Roostack's pages are
+- [ ] Roostack's pages send people to `login.<domain>` as soon as a service has single sign-on on, but Caddy serves that name only once the apply gets there: during the first apply (an image download) or after one that failed, someone without a session at `roost.<domain>` reaches a page that doesn't answer, with `/login?here` the only way in. Send them there only once Caddy serves the sign-in page (docs/ASSUMPTIONS.md V17)
+- [ ] Later (SPEC §5.2): passkeys (`go-webauthn`, to agree), single sign-out (back-channel logout), signing-key rotation, choosing an app's admins per service
 - [x] The package editor (`internal/editor`, `pkgspec/describe.go`) should learn the `sso` part (2026-10-20, and the `on: sso` hook, `saves`, `from_hook`, `secret_env` and renamed groups the same day)
 
 - [x] Licence: Apache-2.0, confirmed 2026-10-18 (SPEC §2.1); `LICENSE` and `NOTICE` added

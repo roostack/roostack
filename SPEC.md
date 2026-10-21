@@ -207,7 +207,42 @@ One sign-in for the apps a lab runs, managed from Roostack. **Decided (2026-10-2
   - two-factor as for Roostack's own pages, with a setting to ask everyone (Settings → People → Signing in). Considered: requiring it of everyone signing in from outside home (safer, but family members must enrol);
   - how long a sign-in lasts: with "Keep me signed in" (ticked by default here, unlike Roostack's own pages) 30 days on that device, otherwise until the browser closes (and at most 12 hours). The apps keep their own sessions after that, as they do today.
 - **Signing out** of the sign-in page ends the walled apps' access at once. Apps that use OIDC keep their own session until people sign out there; the page says so. Single sign-out across apps (back-channel logout) comes later.
-- **Roostack's own pages:** later, a "Sign in with single sign-on" button on Roostack's login page. The two sessions stay separate, so Roostack's shorter idle limit (§5) still applies to its own pages.
+- **Roostack's own pages:** first planned as a "Sign in with single sign-on" button on Roostack's login page, with the two sessions kept apart. Changed (2026-10-21), the Owner: signing in at `login.<domain>` should count for Roostack's pages too. How: the next section.
+
+#### Signing in to Roostack's own pages — Locked (2026-10-21), as built the same day
+
+**What the Owner asked (2026-10-21):** "If I sign in there, it should count as signed in for the control panel." One sign-in for the apps and for Roostack's pages, not a button and a second sign-in. It also makes the Immich photo page (§8.5, `roost.<domain>/immich-photos`, linked from the sign-in page) open straight away for someone signed in there.
+
+**Decided (2026-10-21), the Owner:** one sign-in, as proposed below; Roostack's pages stay open as long as the sign-in for Members, while Owners and Admins keep Roostack's idle limit and then confirm with their two-factor code only; one sign-out.
+
+**One sign-in, at `login.<domain>`.**
+
+- **Going to `roost.<domain>` without a session** sends the browser to the lab's sign-in page (with the lab's look), and back. Someone already signed in there comes straight back, signed in to Roostack's pages too, with no page in between. They return to the page they asked for (an address on `roost.<domain>` only).
+- **How the sign-in carries over: a one-time code**, as the walls do (`internal/sso/forward.go`). The sign-in page sends the browser back to `roost.<domain>/login/sign-in` with a code that lasts a minute and works once; Roostack swaps it for its own session cookie, on `roost.<domain>` only. To stop someone else's code signing a browser in as them (login CSRF), the trip starts on `roost.<domain>`, which sets a short-lived cookie the code is tied to.
+  - Considered: **Roostack as an OIDC client of itself**, with a client, a secret and a token call. Both ends are the same process with the same database, so OIDC would add a secret, a network call and token checks for nothing.
+  - Considered: **one cookie for the whole domain.** Already refused for the apps (§5.2, walls): every app would receive it.
+- **The two sessions stay two rows, linked.** Roostack's session records the sign-in it came from:
+  - **signing out** of either ends both (and the walls' access, as signing out of the sign-in page does now). Considered: signing out of Roostack's pages alone leaving the sign-in;
+  - **the sign-in ending** (its 12 hours or 30 days) ends Roostack's session too;
+  - **a person removed or given a new password** loses both, as now (a changed role takes effect at their next page, as now).
+- **Two-factor:** the sign-in page already asks what Roostack asks (Owners always; Admins while Roostack's pages are public; everyone if the Owner chose so), so a sign-in there meets Roostack's rules. Someone the sign-in page turns away until they do something on Roostack's pages (a temporary password to change, two-factor to turn on) is sent on to Roostack's pages for that step alone, as Roostack's own login does now, instead of being stuck between the two.
+- **How long Roostack's pages stay open** (Roostack's idle limit, §5, 30 minutes by default, and the sign-in page's length, 30 days with "Keep me signed in", ticked by default, differ):
+  - **Members:** as long as the sign-in. Their pages hold nothing to protect beyond the sign-in page itself (their dashboard and their own account).
+  - **Owners and Admins:** Roostack's idle limit, as on its own login. After it, the next page of Roostack's sends them to the sign-in page, which asks them to confirm it's them with their **two-factor code only** (the sign-in already had their password), then returns them to that page. An Admin without two-factor types their password instead. Their apps and their sign-in carry on meanwhile: an Owner's open settings on a forgotten laptop can restore backups or remove services, an app's page can't.
+  - Considered: everyone as long as the sign-in (simplest, but an Owner's settings would stay open for 30 days on that device, "Keep me signed in" being ticked by default); everyone keeping the idle limit, Members too; asking Owners and Admins for their password and code again (as Roostack's own login does; the Owner chose the code alone, quicker, still needing their phone).
+- **Roostack's own login page stays** for the ways in that aren't `roost.<domain>`: the SSH tunnel, a local address, a lab without an address, and as the way in if the sign-in page can't be reached. A sign-in there is Roostack's only, as today.
+- **The sign-in page's home** lists Roostack's pages with the services (mock-up to follow).
+- **The audit log:** "login" with "through the sign-in page" (the sign-in itself is already recorded as "signed in"); a code refused ("failed login", from where); signing out of both; and, for Owners and Admins, confirming with a code after the idle limit (and a code that didn't work).
+
+**As built (2026-10-21):** `internal/web/pagessignin.go`.
+
+- **The trip:** a page of Roostack's needing a session, at `roost.<domain>` over HTTPS while a service has single sign-on on, goes to `/login/sign-in`, which sets a cookie of its own (10 minutes, that path only) and sends the browser to `login.<domain>/roostack` with the cookie's hash and the page to return to. Signed in there, the browser goes back to `/login/sign-in/callback` with a code (in memory, a minute, once); Roostack takes it only with the matching cookie. `/login` itself goes on to the sign-in page there; Roostack's own login form stays at `/login?here`, and links to the sign-in page.
+- **The link:** `sessions.sign_in`, a foreign key to the sign-in's row with `ON DELETE CASCADE`, so whatever ends a sign-in (signing out, its expiry, someone signing in as another person on that browser) ends the session made from it. The session expires with the sign-in, and its cookie outlives the browser only if the sign-in's does.
+- **The idle limit:** a Member's session is stored as "keep me signed in" (no idle limit); Roostack checks the role at each page, so someone made an Admin since keeps the limit. Owners and Admins confirm when their sign-in's password was typed (`signed_in_at`) longer ago than the idle limit, so one who signs in for an app and opens Roostack's pages within it isn't asked twice; confirming doesn't change `signed_in_at`, which apps read as `auth_time` for a password.
+- **Turned away by the sign-in page** (a temporary password, or two-factor still to turn on), someone on the way to Roostack's pages goes on there with a session of Roostack's pages alone (the code step first if they have two-factor), as Roostack's own login allows, and isn't signed in for apps.
+- **Who can reach the sign-in page:** now also public while Roostack's own pages are (a lab on the internet whose UI isn't kept to an SSH tunnel), or someone outside couldn't sign in to them; a service's card says which.
+- Tests: `internal/web/pagessignin_test.go` (the trip, a code used twice or in another browser, the Member's and the Owner's idle limit, an Admin's password, a temporary password, signing out each way, the ways in that keep Roostack's own login).
+
 
 #### How each kind of app is connected
 
@@ -352,7 +387,7 @@ Later, the same choices could become the lab's default look for new people and R
   - checked end to end on a VM with **Mealie** (OIDC, admin group) and **Stirling-PDF** (the wall), then Forgejo (a command).
 - **Later:**
   - passkeys;
-  - signing in to Roostack's own pages;
+  - signing in to Roostack's own pages (built 2026-10-21, as one sign-in: "Signing in to Roostack's own pages" above);
   - apps set through their API (Immich, Audiobookshelf, Wiki.js) and secrets inside JSON (Paperless, Papra);
   - choosing an app's admins per service;
   - single sign-out;
@@ -381,7 +416,7 @@ Built and checked end to end on VM3 with Mealie (OIDC) and Stirling-PDF (the wal
 - **People:** `users.name` and `users.sso_id` (the `sub`: random, made when first needed, as `users.id` can be given to a new account after the newest is removed), `user_groups`, `service_access` (no rows: everyone), `sso_tokens`. People page: name, email and groups per person; groups with their members and the services each can use; the sign-in page's look; the two sign-in choices. Members' Home leaves out services with single sign-on they can't use.
 - **The look:** the lab's name, a logo (a square mark beside the name, also the tab's icon; or a wide logo with the name in it, with an optional dark-mode version, otherwise a light panel in dark mode, and an optional tab icon; or the hen), and a built-in theme. PNGs are checked for shape; SVGs with scripts, event handlers or embedded pages are refused, and every logo is served with a sandboxing CSP. Mock-ups: docs/mockups/sso.
 - **The package format** has `sso` (oidc or forward_auth, env and secrets added only while on, a note) and `.SSO` in templates (help/docs/reference/packages.md). Mealie and Stirling-PDF have it in the test fixtures (`internal/testdata/packages`), a revision ahead of the registry.
-- **Not built in this version** (TASKS): the `on: sso` hook (Forgejo, Gitea), apps set through an API with a kept admin key (Immich, Audiobookshelf, Wiki.js), secrets inside JSON (Paperless, Papra) (all three built the same day: "Connecting the remaining apps" below), services on another server (refused with a sentence for now), passkeys, signing in to Roostack's own pages, single sign-out, key rotation. Removing a service leaves its access rows (harmless; tidied once `services.go` is free).
+- **Not built in this version** (TASKS): the `on: sso` hook (Forgejo, Gitea), apps set through an API with a kept admin key (Immich, Audiobookshelf, Wiki.js), secrets inside JSON (Paperless, Papra) (all three built the same day: "Connecting the remaining apps" below), services on another server (refused with a sentence for now), passkeys, signing in to Roostack's own pages (built 2026-10-21, above), single sign-out, key rotation. Removing a service leaves its access rows (harmless; tidied once `services.go` is free).
 - **Found while building:** a custom `dns.directive` without a DNS challenge (`issuer internal`) made Caddy refuse the Caddyfile, as `resolvers` needs one; resolvers are now added only with a `dns` line.
 
 #### Connecting the remaining apps — Locked (2026-10-20)

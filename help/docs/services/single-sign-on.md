@@ -98,15 +98,40 @@ Someone with a temporary password chooses their own on Roostack's pages
 first.
 
 **Signing out** of the sign-in page ends access to services behind it at
-once. Apps that keep their own sign-in (Mealie, say) stay signed in until
-you sign out there too.
+once, and to Roostack's own pages. Apps that keep their own sign-in
+(Mealie, say) stay signed in until you sign out there too.
+
+## Roostack's own pages
+
+Once a service uses single sign-on, Roostack's own pages sign in through
+the same page: open them at their address (`roost.` and your lab's
+address) and you're sent to the sign-in page, then straight back, to the
+page you asked for. Someone already signed in there for a service doesn't
+sign in again. The sign-in page lists Roostack's pages with the services.
+
+- **Members** stay signed in to Roostack's pages for as long as their
+  sign-in lasts.
+- **Owners and Admins** are still signed out of Roostack's pages after
+  the time chosen under **Settings → People → Signing in** without using
+  them (30 minutes unless you change it), since those pages can change the
+  whole lab. They then enter their **two-factor code** on the sign-in page
+  (an Admin without two-factor, their password) and carry on; their
+  services stay signed in meanwhile.
+- **Signing out** of Roostack's pages signs you out of the sign-in page
+  too, and the other way round.
+
+Through the SSH tunnel, at a local address, or before any service uses
+single sign-on, Roostack's own login page is the way in, as before. It's
+also at `/login?here` on Roostack's address, should the sign-in page
+ever be out of reach.
 
 ## Who can reach the sign-in page
 
 The same people who can reach the services using it: home and VPN only
 while they're all private, and anyone once one of them is
-[public](public.md), with the same protection as a public service
-(CrowdSec, known exploits blocked, a strict limit on password tries).
+[public](public.md), or once Roostack's own pages are (a lab on the
+internet), with the same protection as a public service (CrowdSec, known
+exploits blocked, a strict limit on password tries).
 
 ## Its look
 
@@ -164,3 +189,9 @@ PNG or SVG, up to 200 KB. SVGs with scripts are refused.
       address.
     - Groups, who can use each service and sign-ins are in Roostack's
       database, backed up with the server.
+    - Roostack's own pages sign in through `/login/sign-in`, which sets a
+      short-lived cookie and goes to `login.…/roostack`; the sign-in page
+      sends the browser back to `/login/sign-in/callback` with a code that
+      works once, within a minute, and only in the browser holding that
+      cookie. The session it makes there is linked to the sign-in in the
+      `sessions` table (`sign_in`), and is deleted with it.

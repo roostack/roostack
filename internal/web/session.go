@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -74,7 +75,7 @@ func activityRequest(r *http.Request) bool {
 // it returns the request with the user, or marks it expired.
 func (s *Server) checkSession(r *http.Request, hash string, u *store.User, lastSeen time.Time, remember bool) *http.Request {
 	now := time.Now()
-	if limit := s.idleLimit(r.Context()); !remember && limit > 0 && now.Sub(lastSeen) > limit {
+	if limit := s.idleLimit(r.Context()); limit > 0 && now.Sub(lastSeen) > limit && (!remember || s.linkedNotMember(r.Context(), hash, u)) {
 		s.Store.DeleteSession(r.Context(), hash)
 		return r.WithContext(context.WithValue(r.Context(), sessionKey{}, sessionState{Expired: true}))
 	}
@@ -87,9 +88,21 @@ func (s *Server) checkSession(r *http.Request, hash string, u *store.User, lastS
 	return r.WithContext(context.WithValue(ctx, sessionKey{}, sessionState{Remember: remember}))
 }
 
+// linkedNotMember reports whether a session kept from the idle limit
+// came from a sign-in at login.<domain> for someone who's no longer a
+// Member: Owners and Admins keep the idle limit there (pagessignin.go).
+func (s *Server) linkedNotMember(ctx context.Context, hash string, u *store.User) bool {
+	if u.Role == auth.RoleMember {
+		return false
+	}
+	signIn, err := s.Store.SessionSignIn(ctx, hash)
+	return err == nil && signIn != ""
+}
+
 // renderLogin shows the login page, saying why if a session just ended.
 func (s *Server) renderLogin(w http.ResponseWriter, r *http.Request, data map[string]any) {
 	data["OfferRemember"] = s.offerRemember(r.Context())
+	data["SignInPage"] = s.pagesSignIn(r)
 	if r.URL.Query().Get("expired") == "1" && data["Error"] == nil {
 		data["Expired"] = int(s.idleLimit(r.Context()).Minutes())
 	}

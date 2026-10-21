@@ -135,6 +135,9 @@ type Server struct {
 	// for a 2FA code, keyed by token hash. In memory: a restart just means
 	// logging in again.
 	pending map[string]*pendingLogin
+	// handoffs are sign-ins at login.<domain> on their way to Roostack's
+	// own pages, keyed by the one-time code's hash (pagessignin.go).
+	handoffs map[string]*pagesHandoff
 	// stepUpFailures counts wrong passwords or codes per user when showing
 	// the recovery key (recoverykey.go).
 	stepUpFailures map[int64]int
@@ -508,12 +511,16 @@ type pendingLogin struct {
 	userID   int64
 	expires  time.Time
 	remember bool // "keep me signed in" was ticked
+	// pagesOnly: a sign-in at login.<domain> that the sign-in page itself
+	// turns away (a temporary password, two-factor to turn on), going on to
+	// Roostack's pages for that step alone (pagessignin.go).
+	pagesOnly bool
 }
 
 // NewServer prepares templates. setupToken is empty if users already exist.
 func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, error), setupToken string, log *slog.Logger) (*Server, error) {
 	s := &Server{Store: st, Services: services, Log: log, setupToken: setupToken,
-		pending: map[string]*pendingLogin{}, stepUpFailures: map[int64]int{}, pages: map[string]*template.Template{},
+		pending: map[string]*pendingLogin{}, handoffs: map[string]*pagesHandoff{}, stepUpFailures: map[int64]int{}, pages: map[string]*template.Template{},
 		setupPasses: map[string]time.Time{}}
 	var err error
 	if s.bootID, err = authkit.NewToken(); err != nil {
@@ -572,6 +579,8 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.HandleFunc("POST /login", s.loginSubmit)
 	mux.HandleFunc("POST /login/totp", s.loginTOTP)
 	mux.HandleFunc("POST /logout", s.logout)
+	mux.HandleFunc("GET "+pathPagesStart, s.pagesStart)
+	mux.HandleFunc("GET "+pathPagesCallback, s.pagesCallback)
 
 	mux.Handle("GET /account/2fa", s.requireLogin(s.twoFactorPage))
 	mux.Handle("POST /account/2fa", s.requireLogin(s.twoFactorSubmit))
@@ -823,6 +832,10 @@ func (s *Server) requireLogin(h http.HandlerFunc) http.Handler {
 			return
 		}
 		if currentUser(r) == nil {
+			if s.pagesSignIn(r) {
+				s.toSignInPage(w, r)
+				return
+			}
 			if sessionOf(r).Expired {
 				redirect(w, r, "/login?expired=1")
 			} else {

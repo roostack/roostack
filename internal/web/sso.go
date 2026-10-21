@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"roostack.cloud/roostack/internal/auth"
+	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/store"
@@ -53,9 +54,11 @@ type ssoCard struct {
 	Wall bool
 	Note string
 	// SignInHost is the sign-in page's address, and SignInPublic whether
-	// it's public (it follows the services).
+	// it's public (it follows the services and Roostack's pages).
 	SignInHost   string
 	SignInPublic bool
+	// PagesPublic: it's public because Roostack's own pages are.
+	PagesPublic bool
 	// Who can sign in: everyone, or the groups and people chosen.
 	Access   store.Access
 	Groups   []ssoChoice
@@ -132,8 +135,12 @@ func (s *Server) ssoCardFor(r *http.Request, name string, p *pkgspec.Package) *s
 			c.On, c.Redirects = true, cl.RedirectURIs
 		}
 	}
+	// The sign-in page is public while any service using it is, or
+	// Roostack's own pages are (they sign in there too).
+	nc := s.network()
+	c.PagesPublic = nc.Saved == config.NetworkInternet && !nc.UITunnelOnly
+	c.SignInPublic = c.PagesPublic
 	for _, cl := range s.SSO.SSOClients() {
-		// The sign-in page is public while any service using it is.
 		c.SignInPublic = c.SignInPublic || cl.Public
 	}
 	if p.SSO.ForwardAuth != nil {

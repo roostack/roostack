@@ -79,6 +79,8 @@ func (s *Server) SignInHandler() http.Handler {
 	mux.HandleFunc("GET "+sso.PathAuthorize, s.signInAuthorize)
 	mux.HandleFunc("POST "+sso.PathAuthorize, s.signInAuthorize)
 	mux.HandleFunc("GET "+sso.PathStart, s.signInStart)
+	mux.HandleFunc("GET "+signInPagesPath, s.signInToPages)
+	mux.HandleFunc("POST "+signInConfirmPath, s.signInConfirm)
 	mux.HandleFunc("GET /{$}", s.signInHome)
 	mux.HandleFunc("GET /sign-in", s.signInPage)
 	mux.HandleFunc("POST /sign-in", s.signInSubmit)
@@ -149,9 +151,10 @@ func (s *Server) signInSession(r *http.Request) (sso.Session, bool) {
 }
 
 // safeNext keeps where to go after signing in to the sign-in page's own
-// authorisation and hand-off pages, or its home.
+// authorisation and hand-off pages (to walled services and to Roostack's
+// pages), or its home.
 func safeNext(next string) string {
-	for _, p := range []string{sso.PathAuthorize + "?", sso.PathStart + "?"} {
+	for _, p := range []string{sso.PathAuthorize + "?", sso.PathStart + "?", signInPagesPath + "?"} {
 		if strings.HasPrefix(next, p) && !strings.ContainsAny(next, "\r\n\\") {
 			return next
 		}
@@ -181,6 +184,13 @@ type signInView struct {
 	Owner string
 	// RoostackURL is Roostack's own pages, for things done there.
 	RoostackURL string
+	// Trip is a trip from Roostack's pages (pagessignin.go), on the step
+	// confirming it's them; Code says it asks for a two-factor code (not
+	// the password), and Away that their session there just ended.
+	Trip       string
+	Code, Away bool
+	// PagesHost is Roostack's pages' address (home), if they sign in here.
+	PagesHost string
 }
 
 type signInApp struct {
@@ -209,6 +219,9 @@ func (s *Server) renderSignIn(w http.ResponseWriter, r *http.Request, status int
 
 // appFor is the app a next address leads to, and its logo.
 func (s *Server) appFor(next string) (string, string) {
+	if _, ok := pagesTripFrom(next); ok {
+		return "Roostack", "/static/favicon.svg"
+	}
 	u, err := url.Parse(next)
 	if err != nil {
 		return "", ""
@@ -343,6 +356,9 @@ func (s *Server) signInHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v := signInView{State: "home", User: sess.User, Until: sess.Expires}
+	if s.SSO != nil && len(s.SSO.SSOClients()) > 0 {
+		v.PagesHost = s.UIHost
+	}
 	for _, c := range s.SignIn.Clients() {
 		if ok, err := s.Store.CanUse(r.Context(), c.ID, sess.User.ID); err != nil || !ok {
 			continue
@@ -403,14 +419,22 @@ func (s *Server) signInSubmit(w http.ResponseWriter, r *http.Request) {
 		again(http.StatusUnauthorized, "Wrong username or password.")
 		return
 	}
-	if u.MustChangePassword {
-		s.renderSignIn(w, r, http.StatusForbidden, signInView{State: "blocked", Next: next,
-			Error: "You have a temporary password. Choose your own on Roostack's pages first, then sign in here with it."})
+	blocked := ""
+	switch {
+	case u.MustChangePassword:
+		blocked = "You have a temporary password. Choose your own on Roostack's pages first, then sign in here with it."
+	case u.TOTPSecret == "" && s.signInNeedsTwoFactor(ctx, u):
+		blocked = "Your account needs two-factor authentication. Turn it on on Roostack's pages first, then sign in here."
+	}
+	trip, toPages := pagesTripFrom(next)
+	if blocked != "" && !toPages {
+		s.renderSignIn(w, r, http.StatusForbidden, signInView{State: "blocked", Next: next, Error: blocked})
 		return
 	}
-	if u.TOTPSecret == "" && s.signInNeedsTwoFactor(ctx, u) {
-		s.renderSignIn(w, r, http.StatusForbidden, signInView{State: "blocked", Next: next,
-			Error: "Your account needs two-factor authentication. Turn it on on Roostack's pages first, then sign in here."})
+	if blocked != "" && u.TOTPSecret == "" {
+		// On the way to Roostack's pages: they go on there for that step
+		// alone, as Roostack's own login would let them.
+		s.handOffPages(w, r, u, nil, trip, " (Roostack's pages only, until they've done what the sign-in page asks)")
 		return
 	}
 	if u.TOTPSecret != "" {
@@ -430,7 +454,8 @@ func (s *Server) signInSubmit(w http.ResponseWriter, r *http.Request) {
 				delete(s.pending, k)
 			}
 		}
-		s.pending[pendingSignIn+authkit.HashToken(token)] = &pendingLogin{userID: u.ID, expires: now.Add(pendingDuration), remember: remember}
+		s.pending[pendingSignIn+authkit.HashToken(token)] = &pendingLogin{userID: u.ID, expires: now.Add(pendingDuration), remember: remember,
+			pagesOnly: blocked != ""}
 		s.mu.Unlock()
 		http.SetCookie(w, &http.Cookie{Name: signInPendingCookie, Value: token, Path: "/sign-in", MaxAge: int(pendingDuration.Seconds()),
 			HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: isHTTPS(r)})
@@ -496,6 +521,10 @@ func (s *Server) signInCode(w http.ResponseWriter, r *http.Request) {
 	u, err := s.Store.UserByID(r.Context(), p.userID)
 	if err != nil {
 		s.serverError(w, err)
+		return
+	}
+	if trip, ok := pagesTripFrom(next); ok && p.pagesOnly {
+		s.handOffPages(w, r, u, nil, trip, " with two-factor code (Roostack's pages only)")
 		return
 	}
 	s.startSignIn(w, r, u, p.remember, next, "with two-factor code")

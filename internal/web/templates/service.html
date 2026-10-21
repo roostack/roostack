@@ -450,7 +450,7 @@ Image: {{.Image}}</code></pre>
     <dt>Who can sign in</dt><dd>{{.Summary}}{{if not .Access.Chosen}} <small class="hint">({{.Everyone}} {{if eq .Everyone 1}}person{{else}}people{{end}})</small>{{end}}</dd>
     {{if not .Wall}}<dt>Admins in {{.Title}}</dt><dd>The lab's Owners and Admins{{with .Admins}}: {{join . ", "}}{{end}}</dd>{{end}}
     <dt>Sign-in page</dt><dd><a href="https://{{.SignInHost}}" target="_blank" rel="noopener">{{.SignInHost}}{{template "new-window"}}</a>
-      <small class="hint">· {{if .SignInPublic}}public, as a service using it is{{else}}from home and your VPN, like the services using it{{end}}</small></dd>
+      <small class="hint">· {{if .PagesPublic}}public, as Roostack's pages are{{else if .SignInPublic}}public, as a service using it is{{else}}from home and your VPN, like the services using it{{end}}</small></dd>
     {{range .Bypass}}<dt>Without signing in</dt><dd><code>{{.Path}}</code> <small class="hint">· {{.Reason}}</small></dd>{{end}}
     {{with .Note}}<dt>Still its own sign-in</dt><dd>{{.}}</dd>{{end}}
   </dl>

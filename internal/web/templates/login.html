@@ -15,6 +15,7 @@
       <span>Keep me signed in<small>On this browser, for 30 days, even when you're away. Only on a device that's yours alone.</small></span></label>{{end}}
     <button type="submit">Log in</button>
   </form>
+  {{if .SignInPage}}<p class="hint">Or <a href="/login/sign-in">sign in with the lab's sign-in page</a>, as for its services.</p>{{end}}
   <p class="hint">Forgotten your password, or lost your phone? <a href="/help/trouble/locked-out/" target="_blank" rel="noopener">Getting back in{{template "new-window"}}</a>.</p>
 </section>
 {{end}}

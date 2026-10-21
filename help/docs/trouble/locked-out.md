@@ -29,6 +29,14 @@ sudo roostack user reset-2fa <your username>
 
 Log in with your password, and set two-factor up again with your new phone.
 
+## The sign-in page won't open
+
+If your lab uses [single sign-on](../services/single-sign-on.md),
+Roostack's pages send you to the lab's sign-in page. If that page can't be
+reached, add `/login?here` to Roostack's address (`https://roost.` and your
+lab's address) for Roostack's own login page, or use the
+[SSH tunnel](../start/first-run.md).
+
 ## "Too many wrong two-factor codes"
 
 After five wrong two-factor codes in a row, Roostack accepts no code for

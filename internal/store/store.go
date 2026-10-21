@@ -350,6 +350,10 @@ var migrations = []string{
 	// When someone last typed their password for a session (OIDC's
 	// auth_time, SPEC.md §5.2): apps can ask for a recent sign-in.
 	`ALTER TABLE sessions ADD COLUMN signed_in_at INTEGER NOT NULL DEFAULT 0;`,
+	// The sign-in a session of Roostack's own pages came from, when
+	// someone signed in at login.<domain> (SPEC.md §5.2): it ends with it.
+	`ALTER TABLE sessions ADD COLUMN sign_in TEXT REFERENCES sessions(token_hash) ON DELETE CASCADE;
+	CREATE INDEX sessions_sign_in ON sessions (sign_in);`,
 }
 
 // OriginSetup marks sessions signed in on the setup pages on the home
@@ -952,6 +956,29 @@ func (s *Store) CreateSessionAt(ctx context.Context, origin, tokenHash string, u
 	return err
 }
 
+// CreateLinkedSession stores a session of Roostack's own pages made from
+// a sign-in at login.<domain> (signIn, its hash): it lasts no longer, and
+// ends when the sign-in does (SPEC.md §5.2).
+func (s *Store) CreateLinkedSession(ctx context.Context, tokenHash string, userID int64, signIn string, expires time.Time, remember bool) error {
+	now := time.Now().Unix()
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO sessions (token_hash, user_id, expires_at, last_seen, remember, origin, signed_in_at, sign_in)
+		 VALUES (?, ?, ?, ?, ?, '', ?, ?)`,
+		tokenHash, userID, expires.Unix(), now, remember, now, signIn)
+	return err
+}
+
+// SessionSignIn is the sign-in a session of Roostack's own pages came from
+// (its hash), or "" for one signed in on Roostack's own login page.
+func (s *Store) SessionSignIn(ctx context.Context, tokenHash string) (string, error) {
+	var signIn sql.NullString
+	err := s.db.QueryRowContext(ctx, `SELECT sign_in FROM sessions WHERE token_hash = ? AND origin = ''`, tokenHash).Scan(&signIn)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return signIn.String, err
+}
+
 // SessionInfo is a session's user, when it was last used, and whether it's
 // "keep me signed in", for a session of Roostack's own pages.
 func (s *Store) SessionInfo(ctx context.Context, tokenHash string) (u *User, lastSeen time.Time, remember bool, err error) {
@@ -998,7 +1025,8 @@ func (s *Store) SessionUser(ctx context.Context, tokenHash string) (*User, error
 		 WHERE s.token_hash = ? AND s.expires_at > ? AND s.origin = ''`, tokenHash, time.Now().Unix()))
 }
 
-// DeleteSession logs a session out.
+// DeleteSession logs a session out, and the sessions of Roostack's own
+// pages made from it if it's a sign-in.
 func (s *Store) DeleteSession(ctx context.Context, tokenHash string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE token_hash = ?`, tokenHash)
 	return err

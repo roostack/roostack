@@ -192,10 +192,11 @@ func Desired(lab config.Lab, services []Service, proxied ...Proxied) (reconcile.
 	public := lab.PublicUI() || slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.Public })
 	// The sign-in page while any service has single sign-on (or reaches it
 	// while off: generate.SSOReaches), public while one of them is on and
-	// public (SPEC.md §5.2).
-	sys, err := generate.SystemWith(lab, generate.SystemOptions{Public: public,
-		SignIn:       slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.SSO || o.SSOReach }),
-		SignInPublic: slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.SSOPublic })})
+	// public, or Roostack's own pages are, which sign in there too
+	// (SPEC.md §5.2).
+	signIn := slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.SSO || o.SSOReach })
+	sys, err := generate.SystemWith(lab, generate.SystemOptions{Public: public, SignIn: signIn,
+		SignInPublic: signIn && lab.PublicUI() || slices.ContainsFunc(d.Services, func(o *generate.Output) bool { return o.SSOPublic })})
 	if err != nil {
 		return reconcile.Desired{}, errors.Join(append(errs, err)...)
 	}
