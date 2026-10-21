@@ -651,13 +651,16 @@ Every page the two review rounds changed, in Roostack and Roostack Cloud, at 128
 - [ ] Bringing data in, later: leaving subfolders out of a copy ("Leave out…" on a row); a dump uploaded through the browser; plain SQL and `pg_dumpall` (Immich's nightly backups); a check that warns about Docker found on the server (ASSUMPTIONS W7); the import's check and copy logs from another server on the page (only its progress shows there now)
 - [ ] Later: a dump uploaded in the browser, plain SQL and `pg_dumpall`, another machine over SSH, a storage hint in the package format, help pages for Jellyfin, Vaultwarden, Navidrome
 
-## Bringing photos into Immich from other platforms (SPEC §8.5, proposed 2026-10-21)
+## Bringing photos into Immich from other platforms (SPEC §8.5, decided 2026-10-21)
 
 - [x] Research (2026-10-21): what Google Takeout, Apple's export and the other platforms give today; Immich's CLI, immich-go, GPTH and the rest; what Immich's API allows (a key uploads only into its own account)
 - [x] The proposal ([docs/IMMICH-IMPORT.md](docs/IMMICH-IMPORT.md)): the journey, getting the export onto the server, whose account, the checks and summary, what's kept, safety, a first version, new dependencies, questions
-- [ ] The Owner's answers (IMMICH-IMPORT.md §12), then mock-ups of the steps before building
+- [x] The Owner's answers (2026-10-21): every recommendation, except that the person always makes and pastes an Immich key; Apple a fast-follow; others than Owners and Admins from the first version, if the Owner allows
+- [ ] The Owner's answers on who else may use it and where (IMMICH-IMPORT.md §6.1, §12 "Open"), then mock-ups of the steps before building
 - [ ] The first version: Google Takeout and a plain folder, from a drive, share or server folder; tested on VM 1 with a synthetic Takeout (§13)
-- [ ] Later: Apple's privacy export, an upload share (Samba), the Locked Folder and trash, members importing into their own account, Flickr and Facebook, cloud drives, PhotoPrism
+- [ ] Straight after: Apple's privacy export (and a Mac's export as a plain folder)
+- [ ] Before shipping: immich-go's next release (this week's Live Photo and resume fixes)
+- [ ] Later: an upload share (Samba), the Locked Folder and trash, Flickr and Facebook, cloud drives, PhotoPrism, the pages on the sign-in site too, a queue of imports
 
 ## To discuss with the user
 

@@ -1,8 +1,11 @@
-# Bringing photos into Immich from other platforms (a proposal, 2026-10-21)
+# Bringing photos into Immich from other platforms (2026-10-21)
 
-The details behind SPEC.md §8.5. **A proposal for the Owner, not decided
-and not built.** The questions are in §12; nothing is built until they're
-answered.
+The details behind SPEC.md §8.5. **Mostly decided, not built.** The Owner
+agreed the proposal on 2026-10-21 with two changes: a key is always made
+by the person in Immich and pasted (§6), and Apple's export follows the
+first version straight away (§10). They also asked that people other than
+Owners and Admins can use it from the first version, if the Owner allows
+it (§6.1): that design is proposed and waits for their answers (§12).
 
 For many people Immich is the reason to have a home lab at all, and the
 hard part is leaving Google Photos or iCloud with a lifetime of photos.
@@ -214,6 +217,9 @@ Its weak points, which the design covers:
   small work folder for its log, and the key as an environment variable
   from a Podman secret (`IMMICH_GO_UPLOAD_API_KEY`), never on a command
   line. A memory limit and `--concurrent-tasks` suited to the server.
+  `--on-errors continue`, rather than its default `stop`, so one unreadable
+  file doesn't end a six-hour import: every error is counted and named in
+  the summary.
 - **Its version belongs to Roostack,** not to the package: the pin is in
   Roostack's source, updated with Roostack's releases, with the Immich
   versions it's been tried with. A package moving Immich to a version
@@ -257,15 +263,16 @@ read it.
 
 ## 5. The person's journey
 
-On Immich's page in Roostack, a card **Bring in photos** (for Admins;
-§6 says whose account): "Bring in photos and videos from Google Photos,
-iCloud or a folder, with their dates, places and albums." **Bring in
-photos from…** opens the steps. Each step is one page of the flow, in the
+On Immich's page in Roostack, a card **Bring in photos**: "Bring in
+photos and videos from Google Photos, iCloud or a folder, with their
+dates, places and albums." **Bring in photos from…** opens the steps.
+People who aren't Owners or Admins reach the same steps from a page of
+their own (§6.1). Each step is one page of the flow, in the
 forms' design (docs/DESIGN.md "Forms"), with Continue; mock-ups first,
 before building.
 
-1. **Where from?** Google Photos (Takeout), a folder of photos, and later
-   Apple iCloud. Each with a line on what comes ("dates, places, albums,
+1. **Where from?** Google Photos (Takeout), a folder of photos, and (straight
+   after the first version) Apple iCloud. Each with a line on what comes ("dates, places, albums,
    descriptions, favourites and archived photos").
 2. **Get your export** (a guide, skippable if you have it):
    - Takeout: open takeout.google.com, **Deselect all**, tick only Google
@@ -279,7 +286,8 @@ before building.
    - With pictures, and "Tell me more" linking to the help page.
 3. **Where is it?** A drive, a folder on a NAS, or a folder on the server
    (§4).
-4. **Whose photos?** The Immich account they go into (§6).
+4. **Your Immich key:** a link straight to the page in Immich where it's
+   made, the permissions to tick, and a box to paste it (§6).
 5. **Check** (the dry run, §7): Roostack reads the zips and asks immich-go
    what it would do, without uploading anything. The result:
    - "Parts 1 to 9 of 9, 412 GB. 61,204 photos and 3,977 videos from
@@ -296,32 +304,46 @@ before building.
 7. **Done:** a summary (§7) that stays on Immich's page until it's
    dismissed, and an email if email is set up.
 
-## 6. Whose photos
+## 6. Whose photos: a key the person makes
 
 An import goes into exactly one Immich account, because an Immich key can
-only upload into its own account. So the import needs a key of the
-person whose photos they are:
+only upload into its own account, and an administrator can't make a key
+for someone else. **Decided (2026-10-21), the Owner:** the person always
+makes the key themselves in Immich and pastes it. Roostack never asks for
+an Immich password. Considered: Roostack signing in with the person's
+email and password and making the key itself (one step less, but a
+password typed into Roostack for another app, and no use for accounts made
+through single sign-on, which have none).
 
-- **Sign in as them** (recommended for most): the form asks for that
-  Immich account's email and password. Typed by the person themselves,
-  ideally, or by an Admin who knows it. A hook, as single sign-on's
-  Connect action does, signs in and makes a key named "Roostack import"
-  with only what the import needs:
+- **The link:** **Make a key in Immich** opens Immich's own page for it,
+  `<Immich's address>/user-settings?isOpen=api-keys` (the accordion's key
+  in Immich 3.3.4's settings page; the VM test checks it opens there), in
+  a new tab. Beside it: name it "Roostack import", and tick these
+  permissions, listed as Immich lists them:
   `asset.read`, `asset.statistics`, `asset.update`, `asset.upload`,
   `asset.copy`, `asset.delete`, `asset.download`, `album.create`,
   `album.read`, `albumAsset.create`, `server.about`, `stack.create`,
   `tag.asset`, `tag.create`, `user.read` (immich-go's own list; the VM
   test checks whether `asset.delete` and `asset.download` can be left
-  out, as the import shouldn't need to delete or download anything).
-  Roostack keeps the key as a Podman secret only while the import exists,
-  then deletes it in Immich and in Podman. The password isn't kept.
-- **Paste a key** for accounts without a password (made through single
-  sign-on): the page says where in Immich to make one (Account settings →
-  API keys) and which permissions to tick, and checks it (`GET
-  /api/users/me`) before going on, showing whose it is.
-
-The page always says whose account it is ("Into Anna's Immich account,
-anna@example.com"), from the key itself.
+  out, as the import shouldn't need to delete or download anything, so
+  the list is as short as it can be).
+- **The check, as it's pasted:** Roostack asks Immich about the key
+  itself, from the server (`GET /api/api-keys/me`, which any key may call,
+  returns its name and permissions; `GET /api/users/me` whose it is). It
+  then says, before going on:
+  - whose account it is: "Into Anna's Immich account, anna@example.com";
+  - any permission missing, by name ("Tick album.create and stack.create
+    too: edit the key in Immich, then check again"); editing a key's
+    permissions in Immich keeps the same key, so nothing needs pasting
+    again;
+  - a key that may do everything (`all`) works, with a note that a
+    limited one is safer.
+- **Kept only while it's needed:** a Podman secret for the import's life,
+  passed to immich-go by name, never on a command line or in a log.
+  Roostack forgets it when the import is done or cancelled, and the
+  summary says so, with a link to delete it in Immich (Roostack can't:
+  that would need one more permission, `apiKey.delete`, for little gain).
+  A later import asks for a key again.
 
 **Pausing Immich's jobs:** immich-go pauses Immich's thumbnails, video
 conversion and face recognition while it uploads, which needs an
@@ -329,10 +351,65 @@ administrator's key. Roostack doesn't (`--pause-immich-jobs=false`): the
 import is slower on a small server but needs no administrator's key, and
 Immich keeps working through its queue as photos arrive.
 
-**Who may start one:** Admins, for any account they can sign in to or have
-a key for. Later: a lab member starting an import into their own account
-from their own page, once lab people and Immich accounts are one (single
-sign-on).
+## 6.1 Who can use it: everyone the Owner allows (proposed)
+
+**Asked (2026-10-21), the Owner:** people who aren't Owners or Admins
+should be able to bring in their own photos from the first version, and
+the Owner decides whether they can. Possibly with a page outside
+Roostack's control panel, or reached from the single sign-on page.
+
+What's there today: Roostack's people all have Roostack accounts, with a
+role (SPEC §5). **Members** only see the dashboard: the services they can
+use, and their status. With single sign-on, the same people sign in to
+apps at `login.<domain>`, which serves only the sign-in pages; Roostack's
+own pages are at `roost.<domain>`, on the home network.
+
+**The Owner's switch.** On Immich's page, under Bring in photos: **Who can
+bring in photos**: *Owners and Admins*, or *Everyone who uses Immich*
+(single sign-on's "Who can sign in" for Immich when it's on, else every
+Member). Proposed default: *Everyone who uses Immich*, since it's their
+own photos into their own account with their own key; the Owner can
+narrow it. The Owner is told (as Roostack's notifications are, §6.13)
+when an import starts and ends, with whose and how big.
+
+**Where they do it: a page of its own, three ways considered:**
+
+1. **On Roostack's site, in a layout of its own (recommended for the first
+   version):** `roost.<domain>/photos`, a short page showing the lab's name
+   and logo as the sign-in page does, with none of the control panel's
+   menus: just bringing in photos, and the person's own imports. Members
+   sign in with their Roostack account, as they do today (the same
+   password as the sign-in page's). It's linked from Immich's card on
+   their dashboard, from the sign-in page once someone's signed in there
+   ("Bring your photos into Immich"), and from the address the Owner can
+   send people. Owners and Admins use the same page or Immich's service
+   page. Works with or without single sign-on, and adds nothing to the
+   sign-in site. When Roostack's own pages get "Sign in with single
+   sign-on" (SPEC §5.2, later), it's one click from there.
+2. **On the sign-in site itself** (`login.<domain>/photos`), signed in by
+   the single sign-on session: truly apart from the control panel, but a
+   lab without single sign-on would have nothing for Members, and it puts
+   a page that starts work on the server's drives on a site that may be
+   reachable from the internet (when any app is public). It could come
+   later, serving the same pages from option 1 on another address.
+3. **An app of its own** (`photos-import.<domain>`, behind single
+   sign-on's wall): another address, certificate and card on the
+   dashboard, for nothing option 2 doesn't give.
+
+**What someone who isn't an Owner or Admin may choose**, since the agent
+mounts what they pick and they mustn't browse the server:
+
+- **a USB drive plugged into the server,** and folders on it: not a backup
+  drive, the system disk, or a drive holding a media library (those show
+  greyed, with why);
+- **a network share,** with their own login to it;
+- **not** folders on the server or media libraries (Owners and Admins
+  only).
+
+They see only their own imports (in progress and the last summary), and
+their import's log. Owners and Admins see everyone's on Immich's page.
+One import runs per server at a time; a second is refused with whose is
+running and about how long it has left (a queue later, if wanted).
 
 ## 7. Checked before and after, and the summary
 
@@ -417,9 +494,10 @@ store, like a backup's result), shown on Immich's page and in History.
 - **Undo:** everything brought in is tagged `takeout/<date>`, so Immich can
   show (and the person can delete) exactly that import. Roostack doesn't
   offer a one-click undo: deleting photos is the person's call, in Immich.
-- **Secrets:** the password isn't kept; the key is a Podman secret for the
-  import's life, deleted in Immich and Podman at the end; neither is ever
-  logged or put on a command line.
+- **Secrets:** Roostack never asks for an Immich password. The pasted
+  key is a Podman secret for the import's life, forgotten at the end (the
+  summary links to deleting it in Immich), and never logged or put on a
+  command line.
 
 ## 10. A first version, and what follows
 
@@ -429,68 +507,104 @@ store, like a backup's result), shown on Immich's page and in History.
   album as a choice), the plain folder costing little once the rest
   exists.
 - From a drive, a share or a folder on the server.
-- Into one Immich account per import, by signing in or a pasted key.
+- Into one Immich account per import, with a key the person makes.
+- For Owners and Admins, and for everyone else the Owner allows (§6.1).
 - The pre-check, dry run, import, progress, summary and help page above.
 - The Immich package unchanged (no format change, so nothing for the
   package editor): Roostack recognises the `immich` package and reaches
   its `server` container by the route's port.
 
+**Straight after it: Apple (decided 2026-10-21, the Owner: a fast-follow).**
+
+- **The export:** privacy.apple.com → *Request a copy of your data* →
+  *iCloud Photos* → a size for each part → wait (Apple says it can take a
+  few days) → download every part within 14 days, onto a drive or NAS, as
+  with Takeout. The guide says plainly that it **doesn't work with
+  Advanced Data Protection on** (Apple leaves end-to-end-encrypted photos
+  out): turn it off for the export, or use a Mac (below).
+- **What's in it:** the originals, `Albums/<name>.csv` and
+  `Photo Details.csv` (each photo's original date, favourite, hidden and
+  deleted flags). immich-go `from-icloud` reads it, using the albums and
+  dates; whether it reads the zip parts in place, as it does Takeout's, is
+  **unverified** (else they're unpacked onto the same drive first, and the
+  space check counts it).
+- **What Roostack adds:** after immich-go, Roostack applies the flags it
+  ignores, through Immich's API with the same key (`asset.update`):
+  favourites as favourites; *Recently deleted* left out, as Google's trash
+  is; *Hidden* into Immich's Locked Folder, which needs the person to have
+  set Immich's PIN (**unverified**; else left out and counted, as Google's
+  Locked Folder is).
+- **From a Mac:** Photos' *Export Unmodified Original* with *Export IPTC
+  as XMP*, or osxphotos, into a folder with XMP sidecars: the plain-folder
+  import, with a guide of its own. Keeps dates, places, descriptions and
+  keywords; albums only as folders.
+
 **Then, each its own piece:**
 
-1. Apple's privacy export (`from-icloud`), with Roostack applying the
-   favourite and hidden flags immich-go ignores (through the API, after).
-2. An upload share on the home network (Samba).
-3. The Locked Folder into Immich's Locked Folder, and the trash into
+1. An upload share on the home network (Samba).
+2. Google's Locked Folder into Immich's Locked Folder, and the trash into
    Immich's trash.
-4. Lab members importing into their own account.
-5. Flickr, Facebook and Instagram, whose dates live only in JSON (a
+3. Flickr, Facebook and Instagram, whose dates live only in JSON (a
    converter to XMP, then the plain folder).
-6. A cloud drive as the source (Takeout delivered to Dropbox, OneDrive or
+4. A cloud drive as the source (Takeout delivered to Dropbox, OneDrive or
    Box).
-7. PhotoPrism's YAML sidecars and albums.
+5. PhotoPrism's YAML sidecars and albums.
+6. The import pages on the sign-in site too (§6.1, option 2), and a queue
+   for imports.
 
-## 11. New dependencies (each needs the Owner's yes)
+## 11. New dependencies (agreed 2026-10-21, the Owner)
 
 - **immich-go v0.32.0** (AGPL-3.0, Go), built from source on the server in
   `build/immich-go/Containerfile`, pinned by version, checked by Go's
   checksum database; listed in THIRD_PARTY.md. It runs as its own program
   in its own container and isn't linked into Roostack, so Roostack's
   Apache-2.0 licence isn't affected; its source is public, unchanged.
+  Moved to its next release before this ships.
 - **The builder's base image,** pinned by digest: Caddy's builder if its Go
   is 1.26 or newer, else the official `golang` image. The final image holds
   only the binary.
 - Nothing else: the pre-check and summary are Roostack's Go (the standard
   library's `archive/zip`).
 
-## 12. Questions for the Owner
+## 12. Decisions, and what's still open
 
-1. **The tool:** immich-go, built from source at a pinned version as
-   above? Recommended. (Alternatives in §3.)
-2. **Its version:** build v0.32.0 now, and move to the next release
-   before this ships (it has this week's Live Photo and resume fixes)?
-   Recommended. Or pin a commit from `main` now.
-3. **A Roostack feature for Immich,** not a package-format feature?
-   Recommended: the steps, guides, checks and summary are particular to
-   Immich and its tool. Considered: generic "long actions" in the package
+**Decided (2026-10-21), the Owner:** "In general I agree with everything",
+except whose photos:
+
+1. **The tool:** immich-go, built from source at a pinned version.
+2. **Its version:** v0.32.0 now; its next release (with this week's Live
+   Photo and resume fixes) before this ships.
+3. **A Roostack feature for Immich,** not a package-format feature ("It's
+   explicit to Immich"). Considered: generic "long actions" in the package
    format (a tool container that runs on demand, an action that runs in
-   the background with a folder input), which other apps might use later
-   (Paperless's documents, Audiobookshelf's books); the Immich package
-   would then carry the tool's pin and commands, and Roostack would show
-   only its log, not counts or a summary. Better done when a second app
-   needs it.
-4. **Whose photos:** signing in as the person (a temporary key, deleted
-   after) and pasting a key, both? Recommended. Admins only in the first
-   version?
-5. **The first version's scope:** Takeout and a plain folder, from a
-   drive, share or server folder; Apple's export next? Recommended.
+   the background with a folder input), with Roostack showing only a log.
+4. **Whose photos:** the person makes a key in Immich and pastes it, with
+   a link straight to Immich's page (§6). Roostack never signs in to
+   Immich with a password. *Changed from the proposal,* which offered
+   signing in as the person too.
+5. **The scope:** Takeout and a plain folder, from a drive, share or server
+   folder; **Apple's export a fast-follow** (§10).
 6. **The defaults:** trash left out, partner's photos left out, untitled
    albums left out, people as tags, archived as archived, everything tagged
-   `takeout/<date>`, Immich's jobs not paused? Recommended as listed.
-7. **The upload share (Samba):** worth its own piece soon, for people
-   without a spare drive or a NAS? It's the one "later" item that helps
-   the least technical people most.
+   `takeout/<date>`, Immich's jobs not paused.
+7. **The upload share (Samba):** later, as its own piece.
+8. **People other than Owners and Admins** can bring in their own photos
+   from the first version, if the Owner allows it.
 
-## 13. The test, once agreed
+**Open, for the Owner (§6.1):**
+
+1. **Where others do it:** a page of its own on Roostack's site, without
+   the control panel's menus, linked from their dashboard and the sign-in
+   page (option 1)? Recommended for the first version, with the sign-in
+   site (option 2) later.
+2. **The Owner's switch's default:** *Everyone who uses Immich*,
+   with the Owner told when an import starts and ends? Recommended. Or
+   *Owners and Admins* until the Owner opens it.
+3. **What they may read from:** a USB drive (not a backup or media drive)
+   or a share with their own login, but not the server's folders or media
+   libraries? Recommended.
+
+## 13. The test
 
 On VM 1 (`ROOSTACK_VM=1 scripts/dev-vm.sh`), destroyed afterwards. A
 **synthetic Takeout**, made by a script in `docs/immich-import-test/`
@@ -500,9 +614,12 @@ truncated names, "(1)" duplicates, edited copies, a Live Photo pair split
 across two zips, album folders with `metadata.json` in English and German,
 trash, archive, a partner's photo, an untitled album, a Locked Folder;
 split into several zips, one left out to test the missing-part check, and
-a large run for memory. Then: the check, the dry run, the import, a stop
-and carry-on, a second run (nothing new), and Immich's own pages and API to
-confirm every row of §8, desktop and phone width.
+a large run for memory. Then: a key with permissions missing, and one with
+all of them; the check, the dry run, the import, a stop and carry-on, a
+second run (nothing new), and Immich's own pages and API to confirm every
+row of §8. As an Owner and as a Member (the Owner's switch both ways, a
+backup drive refused to the Member), desktop and phone width. Apple's
+export, when it's built, the same way with a synthetic privacy export.
 
 ## Sources (read 2026-10-21)
 
