@@ -30,7 +30,7 @@ Security problems go to [SECURITY.md](SECURITY.md), not to an issue. Everyone ta
 
 ## What you need
 
-- **Go** 1.26 or newer, the module's minimum. CI and releases build with Go 1.27.2.
+- **Go** 1.26 or newer, the module's minimum. CI and releases build with Go 1.27.3.
 - **Node** 20 or newer, for the package editor's JavaScript tests (`make test` runs them). They need no packages installed.
 - **restic**, so the backup tests run rather than skip: `brew install restic` on a Mac, `apt install restic` on Debian. CI uses restic 0.18.0, Debian 13's.
 - **[uv](https://docs.astral.sh/uv/)**, to build the help site. Without it, Roostack builds without its help pages and says so at `/help/`.

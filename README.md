@@ -63,7 +63,7 @@ curl -fsSL https://dl.roostack.cloud/install.sh | sudo sh
 
 [CONTRIBUTING.md](CONTRIBUTING.md) has the whole of it: building, testing, the dev VM, the conventions, and where to start reading. In short, you need:
 
-- Go 1.26 or newer (the module's minimum; CI and releases build with Go 1.27.2);
+- Go 1.26 or newer (the module's minimum; CI and releases build with Go 1.27.3);
 - Node 20 or newer for the package editor's tests, which `make test` runs;
 - [uv](https://docs.astral.sh/uv/) to build the help site (without it, Roostack builds without its help pages);
 - restic, so the backup tests run rather than skip (CI uses 0.18.0).
@@ -95,7 +95,7 @@ To try it on a Debian 13 VM, use `scripts/dev-vm.sh` as above; it runs [scripts/
 
 ### Continuous integration
 
-GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) checks every pull request and every push to `main`, on Ubuntu 24.04 with Go 1.27.2:
+GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) checks every pull request and every push to `main`, on Ubuntu 24.04 with Go 1.27.3:
 
 - `make vet`: `go vet` and gofmt;
 - staticcheck, with its default checks less ST1005 ([staticcheck.conf](staticcheck.conf)), since errors people can fix are whole sentences;
