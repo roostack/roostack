@@ -256,7 +256,7 @@ func (m *Manager) Catalog() ([]CatalogItem, error) {
 // installed service uses the lab's own copy (ServicePackage, SPEC.md
 // §8.3.1).
 func (m *Manager) Package(name string) (*pkgspec.Package, error) {
-	if !validName(name) {
+	if !pkgspec.ValidName(name) {
 		return nil, ErrNotFound
 	}
 	p, err := state.LoadLocalPackage(m.Lab.Paths, name)
@@ -610,7 +610,7 @@ func (m *Manager) PackageIcon(name string) ([]byte, error) {
 	path := filepath.Join(m.Lab.Paths.CatalogPackageDir(name), "icon.png")
 	p, err := m.Package(name)
 	switch {
-	case errors.Is(err, ErrNotFound) && validName(name):
+	case errors.Is(err, ErrNotFound) && pkgspec.ValidName(name):
 	case err != nil:
 		return nil, err
 	case m.IsLocal(name):
@@ -718,7 +718,7 @@ func checkTitle(title string, p *pkgspec.Package) (string, error) {
 // SPEC.md §8.2). Empty goes back to its package's title. Only the pages
 // change: nothing is applied.
 func (m *Manager) SetTitle(ctx context.Context, name, title string) error {
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return ErrNotFound
 	}
 	m.mu.Lock()
@@ -751,7 +751,7 @@ func (m *Manager) ServicePackage(name string) (*pkgspec.Package, error) {
 // package's for a first copy) and its package. The package's Title is
 // the service's own, if it has one, for the messages that use it.
 func (m *Manager) installedService(name string) (*pkgspec.Package, *instance.Instance, error) {
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return nil, nil, ErrNotFound
 	}
 	in, err := instance.Load(state.InstanceFile(m.Lab, name))
@@ -878,7 +878,7 @@ func (m *Manager) UpdateSettings(ctx context.Context, name string, req SettingsR
 // Remove takes a service out of desired state and applies the change. Its
 // data stays on disk (SPEC.md: the reconciler never deletes data).
 func (m *Manager) Remove(ctx context.Context, name string) error {
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return ErrNotFound
 	}
 	m.mu.Lock()
@@ -981,15 +981,3 @@ func MainRoute(p *pkgspec.Package) string {
 	return names[0]
 }
 
-// validName guards against path tricks in names taken from URLs.
-func validName(name string) bool {
-	if name == "" || len(name) > instance.MaxName {
-		return false
-	}
-	for _, c := range name {
-		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-') {
-			return false
-		}
-	}
-	return true
-}

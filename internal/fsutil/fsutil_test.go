@@ -83,3 +83,39 @@ func TestCopyFile(t *testing.T) {
 		t.Errorf("left behind: %v", entries)
 	}
 }
+
+// Within is a security check (the agent's folders, a restore's paths), so
+// each edge case is pinned (the quality review of 2026-10-21, D4).
+func TestWithin(t *testing.T) {
+	for _, c := range []struct {
+		path, dir string
+		want      bool
+	}{
+		{"/srv/a", "/srv/a", true},
+		{"/srv/a/b", "/srv/a", true},
+		{"/srv/a/b/c", "/srv/a", true},
+		{"/srv/ab", "/srv/a", false}, // a prefix, but not a folder in it
+		{"/srv", "/srv/a", false},
+		{"/srv/a/", "/srv/a", true}, // trailing slashes
+		{"/srv/a/b", "/srv/a/", true},
+		{"/srv/ab", "/srv/a/", false},
+		{"/srv/a/../b", "/srv/a", false}, // climbs out
+		{"/srv/a/b/..", "/srv/a", true},
+		{"/srv/b/../a/c", "/srv/a", true},
+		{"/srv/a", "/", true}, // the root holds every absolute path
+		{"/", "/", true},
+		{"/", "/srv", false},
+		{"srv/a", "/", false}, // relative against absolute, both ways
+		{"/srv/a", "srv", false},
+		{"a/b", "a", true},
+		{"a", ".", true},
+		{".", ".", true},
+		{"../a", ".", false},
+		{"..", ".", false},
+		{"", "/srv", false},
+	} {
+		if got := Within(c.path, c.dir); got != c.want {
+			t.Errorf("Within(%q, %q) = %v, want %v", c.path, c.dir, got, c.want)
+		}
+	}
+}

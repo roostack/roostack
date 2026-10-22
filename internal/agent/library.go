@@ -18,6 +18,7 @@ import (
 	"unicode"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Media libraries (SPEC.md §8.1, "Media libraries"): folders of media
@@ -47,6 +48,9 @@ const LibraryRoot = config.LibraryRoot
 const LibraryViews = config.LibraryViews
 
 // serviceName is a service's ID (instance names), for its view folder.
+// It's deliberately looser than instance.ValidName, which the agent
+// doesn't import: it accepts what any version of roostack might send,
+// and only guards against path tricks (no slash, no dot, no "..").
 var serviceName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,62}$`)
 
 // LibraryFolderRoots are where a library can be a folder already on the
@@ -395,7 +399,7 @@ func (h LinuxHost) libraryBase(l Library, browse bool) (base, sub string, err er
 // Roostack's own (its data, the libraries' mount points, its drives').
 func ownFolder(p string) bool {
 	for _, own := range []string{"/srv/roostack", LibraryRoot, "/mnt/roostack-"} {
-		if p == own || strings.HasPrefix(p, own+"/") || (strings.HasSuffix(own, "-") && strings.HasPrefix(p, own)) {
+		if fsutil.Within(p, own) || (strings.HasSuffix(own, "-") && strings.HasPrefix(p, own)) {
 			return true
 		}
 	}

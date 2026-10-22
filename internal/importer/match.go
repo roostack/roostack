@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
 
@@ -361,7 +362,7 @@ func readsLibraries(p *pkgspec.Package, part string) bool {
 // container's storage (so it's part of a storage's, not media).
 func overStorage(p *pkgspec.Package, part, target string) bool {
 	for _, m := range p.Containers[part].Mounts {
-		if m.Storage != "" && within(m.Path, target) {
+		if m.Storage != "" && fsutil.Within(m.Path, target) {
 			return true
 		}
 	}
@@ -382,16 +383,11 @@ func covering(mounts []Mount, p string) (int, bool) {
 		if t == "" {
 			t = "/"
 		}
-		if within(p, t) && len(t) > len(at) {
+		if fsutil.Within(p, t) && len(t) > len(at) {
 			best, at = i, t
 		}
 	}
 	return best, best >= 0
-}
-
-// within says whether path p is dir or inside it.
-func within(p, dir string) bool {
-	return p == dir || dir == "/" || strings.HasPrefix(p, dir+"/")
 }
 
 // joinOld adds a container path's rest to an old folder.

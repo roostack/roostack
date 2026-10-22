@@ -385,7 +385,7 @@ func (m *Manager) keptVersions() map[string]string {
 // UpdatePolicy is how a service updates (instance.Updates*; notify if
 // it can't be read).
 func (m *Manager) UpdatePolicy(name string) string {
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return instance.UpdatesNotify
 	}
 	in, err := instance.Load(state.InstanceFile(m.Lab, name))
@@ -403,7 +403,7 @@ func (m *Manager) SetUpdatePolicy(ctx context.Context, name, policy string) erro
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	path := state.InstanceFile(m.Lab, name)
-	if !validName(name) {
+	if !instance.ValidName(name) {
 		return ErrNotFound
 	}
 	in, err := instance.Load(path)
@@ -425,7 +425,7 @@ func (m *Manager) UpdateService(ctx context.Context, name, to, by string, accept
 	u := m.AvailableUpdates(ctx)[name]
 	switch {
 	case u == nil:
-		if !validName(name) {
+		if !instance.ValidName(name) {
 			return ErrNotFound
 		}
 		return usererr.New("There's no update for this service now.")

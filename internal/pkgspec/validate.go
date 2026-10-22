@@ -13,6 +13,8 @@ import (
 )
 
 var (
+	// A package's name, not a service's ID (instance.ValidName): it's
+	// shorter, so a second copy's ID can add a dash and more.
 	nameRe       = regexp.MustCompile(`^[a-z][a-z0-9-]{0,30}$`)
 	settingKeyRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
 	envNameRe    = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)

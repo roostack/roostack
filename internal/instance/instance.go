@@ -351,29 +351,25 @@ func CheckLibraryPath(p *pkgspec.Package, paths map[string]string, l string) err
 		return errors.New("it must be a folder's full path inside the container, with only letters, digits and - _ .")
 	}
 	for _, sys := range systemPaths {
-		if within(at, sys) || within(sys, at) {
+		if fsutil.Within(at, sys) || fsutil.Within(sys, at) {
 			return fmt.Errorf("it's one of the container's own folders (%s)", sys)
 		}
 	}
 	for _, cn := range slices.Sorted(maps.Keys(p.Containers)) {
 		for _, m := range p.Containers[cn].Mounts {
-			if within(at, m.Path) || within(m.Path, at) {
+			if fsutil.Within(at, m.Path) || fsutil.Within(m.Path, at) {
 				return fmt.Errorf("it overlaps %s, where %s already has a folder", m.Path, p.Title)
 			}
 		}
 	}
 	for _, other := range slices.Sorted(maps.Keys(paths)) {
-		if other != l && (within(at, paths[other]) || within(paths[other], at)) {
+		if other != l && (fsutil.Within(at, paths[other]) || fsutil.Within(paths[other], at)) {
 			return fmt.Errorf("it overlaps %s, where the library %s is", paths[other], other)
 		}
 	}
 	return nil
 }
 
-// within says whether path p is dir or inside it.
-func within(p, dir string) bool {
-	return p == dir || strings.HasPrefix(p, strings.TrimSuffix(dir, "/")+"/")
-}
 
 // LibraryPlacement is where a service's libraries with paths of their own
 // go (SPEC.md §8.4). A library bound straight at its own path stays broken
@@ -415,7 +411,7 @@ func (in *Instance) PlaceLibraries(p *pkgspec.Package) LibraryPlacement {
 	shared := parents[len(parents)-1] == parent && !slices.Contains(noViewAt, parent)
 	for _, c := range p.Containers {
 		for _, m := range c.Mounts {
-			shared = shared && !within(m.Path, parent)
+			shared = shared && !fsutil.Within(m.Path, parent)
 		}
 	}
 	if shared {

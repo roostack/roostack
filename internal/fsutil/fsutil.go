@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // WriteFile writes data to path atomically: into a new temporary file in
@@ -62,4 +63,25 @@ func write(path string, r io.Reader, perm os.FileMode) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
+}
+
+// Within reports whether path is dir or inside it. It compares the paths
+// as written, cleaned first (so a trailing slash or "a/../b" can't fool
+// it), without looking at the disk: a caller that cares about symlinks
+// resolves them first. "/" holds every absolute path, "." every relative
+// one that doesn't climb out with "..", and an absolute path is never
+// within a relative folder, nor the other way round.
+func Within(path, dir string) bool {
+	path, dir = filepath.Clean(path), filepath.Clean(dir)
+	switch {
+	case path == dir:
+		return true
+	case filepath.IsAbs(path) != filepath.IsAbs(dir):
+		return false
+	case dir == "/":
+		return true
+	case dir == ".":
+		return path != ".." && !strings.HasPrefix(path, "../")
+	}
+	return strings.HasPrefix(path, dir+"/")
 }

@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"roostack.cloud/roostack/internal/fsutil"
 )
 
 // Backup folders: the setup wizard offers "a disk or folder on this
@@ -86,7 +88,7 @@ func prepareFolder(dir string, roots []string, uid, gid int) (string, error) {
 // rootOf returns the root in roots that p is in (or is), or "".
 func rootOf(p string, roots []string) string {
 	for _, r := range roots {
-		if p == r || strings.HasPrefix(p, r+"/") {
+		if fsutil.Within(p, r) {
 			return r
 		}
 	}

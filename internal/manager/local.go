@@ -29,7 +29,7 @@ func (m *Manager) LocalPackagesDir() string { return m.Lab.Paths.LocalPackagesDi
 
 // IsLocal reports whether a package is one of the Owner's own.
 func (m *Manager) IsLocal(name string) bool {
-	if !validName(name) {
+	if !pkgspec.ValidName(name) {
 		return false
 	}
 	_, err := os.Stat(m.Lab.Paths.LocalPackageDir(name))

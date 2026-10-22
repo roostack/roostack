@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/usererr"
@@ -38,7 +39,7 @@ func linkPrivate(access []manager.RouteAccess, l pkgspec.Link, internet bool) st
 		}
 		closed := !ra.Public
 		for _, pp := range ra.PrivatePaths {
-			if !pp.Open && (l.Path == pp.Path || strings.HasPrefix(l.Path, pp.Path+"/")) {
+			if !pp.Open && fsutil.Within(l.Path, pp.Path) {
 				closed = true
 			}
 		}

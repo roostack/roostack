@@ -15,6 +15,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/usererr"
@@ -310,7 +311,7 @@ func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJ
 		act.Step("Copying %s's data from the backup to %s", j.title, m.nameOf(j.to))
 	}
 	for dir, path := range []string{filepath.Join(m.Lab.Paths.ServicesDir, j.name), filepath.Join(m.Lab.Paths.MediaDir, j.name)} {
-		if !slices.ContainsFunc(j.snap.Paths, func(p string) bool { return p == path || strings.HasPrefix(p, path+"/") }) {
+		if !slices.ContainsFunc(j.snap.Paths, func(p string) bool { return fsutil.Within(p, path) }) {
 			continue // e.g. no media folder
 		}
 		// Anything left from an earlier attempt goes first.

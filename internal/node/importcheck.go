@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
+	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/importer"
 	"roostack.cloud/roostack/internal/pkgspec"
@@ -399,7 +400,7 @@ func oldPaths(p *pkgspec.Package, setup *importer.Setup, plan importer.Plan) ([]
 			kept := shown[t] != ""
 			for _, c := range p.Containers {
 				for _, pm := range c.Mounts {
-					kept = kept || t == pm.Path || strings.HasPrefix(t, pm.Path+"/")
+					kept = kept || fsutil.Within(t, pm.Path)
 				}
 			}
 			if !kept || shown[t] != "" {

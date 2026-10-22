@@ -180,7 +180,7 @@ Grouped by layer, from the commands down. Sub-packages that exist only for tests
 | Package | Purpose |
 |---|---|
 | `internal/units` | The one size formatter (decimal units: 1 GB = 1000³ bytes) |
-| `internal/fsutil` | Writing a file atomically: a unique temporary file in the same folder, its mode set, synced, then renamed. `WritePrivate` (0600) is how secrets and private state are written, and `CopyFile` streams a copy the same way |
+| `internal/fsutil` | Writing a file atomically: a unique temporary file in the same folder, its mode set, synced, then renamed. `WritePrivate` (0600) is how secrets and private state are written, and `CopyFile` streams a copy the same way. `Within` is the one "is this path inside that folder?" |
 | `internal/usererr` | The one error a person can fix: a sentence saying what to change, which the web layer shows as it is (`usererr.Message`); any other error is a server error |
 | `tools/maketakeout` | Writes a synthetic Google Photos Takeout, never real photos, for testing photo migration on a VM ([its README](tools/maketakeout/README.md)) |
 

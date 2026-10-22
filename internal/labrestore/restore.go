@@ -152,7 +152,7 @@ func allowed(snap backup.Snapshot, what string, exact, under []string) error {
 	for _, p := range snap.Paths {
 		ok := filepath.IsAbs(p) && filepath.Clean(p) == p && slices.Contains(exact, p)
 		for _, dir := range under {
-			ok = ok || filepath.IsAbs(p) && filepath.Clean(p) == p && (p == dir || strings.HasPrefix(p, dir+"/"))
+			ok = ok || filepath.IsAbs(p) && filepath.Clean(p) == p && fsutil.Within(p, dir)
 		}
 		if !ok {
 			return fmt.Errorf("%s holds %s, which isn't one of the places Roostack restores (Roostack's state folder, the secrets store and "+
