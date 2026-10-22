@@ -204,22 +204,18 @@ func (h LinuxHost) mountShare(l Library, spot mountSpot) error {
 	if err != nil {
 		return err
 	}
-	data, err := os.ReadFile(fstab)
-	if err != nil {
-		return err
-	}
 	unit, err := mountUnit(target)
 	if err != nil {
 		return err
 	}
 	automount := strings.TrimSuffix(unit, ".mount") + ".automount"
-	exec.Command("systemctl", "stop", automount, unit).Run()
-	tab := removeBlock(removeBlock(string(data), spot.folderTag), spot.shareTag)
-	tab = withBlock(tab, spot.shareTag, line)
-	if err := os.WriteFile(fstab, []byte(tab), 0o644); err != nil {
+	if err := editFstab(func(tab string) (string, error) {
+		exec.Command("systemctl", "stop", automount, unit).Run()
+		tab = removeBlock(removeBlock(tab, spot.folderTag), spot.shareTag)
+		return withBlock(tab, spot.shareTag, line), nil
+	}); err != nil {
 		return err
 	}
-	exec.Command("systemctl", "daemon-reload").Run()
 	// The automount only: the share is mounted when a service first looks,
 	// so a NAS that's off doesn't hold anything up.
 	if out, err := exec.Command("systemctl", "start", automount).CombinedOutput(); err != nil {

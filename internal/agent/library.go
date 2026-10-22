@@ -223,21 +223,17 @@ func (h LinuxHost) mountAt(l Library, spot mountSpot) error {
 	if err != nil {
 		return err
 	}
-	data, err := os.ReadFile(fstab)
-	if err != nil {
-		return err
-	}
 	unit, err := mountUnit(target)
 	if err != nil {
 		return err
 	}
 	automount := strings.TrimSuffix(unit, ".mount") + ".automount"
-	exec.Command("systemctl", "stop", automount, unit).Run() // replacing one, or a stale mount
-	tab := withBlock(removeBlock(removeBlock(string(data), spot.folderTag), spot.shareTag), spot.folderTag, line)
-	if err := os.WriteFile(fstab, []byte(tab), 0o644); err != nil {
+	if err := editFstab(func(tab string) (string, error) {
+		exec.Command("systemctl", "stop", automount, unit).Run() // replacing one, or a stale mount
+		return withBlock(removeBlock(removeBlock(tab, spot.folderTag), spot.shareTag), spot.folderTag, line), nil
+	}); err != nil {
 		return err
 	}
-	exec.Command("systemctl", "daemon-reload").Run()
 	if out, err := exec.Command("systemctl", "start", automount, unit).CombinedOutput(); err != nil {
 		return fmt.Errorf("mounting it: %w: %s", err, strings.TrimSpace(string(out)))
 	}
@@ -256,33 +252,29 @@ func (h LinuxHost) UnmountLibrary(name string) error {
 		return err
 	}
 	exec.Command("systemctl", "stop", strings.TrimSuffix(unit, ".mount")+".automount", unit).Run()
-	data, err := os.ReadFile(fstab)
-	if err != nil {
+	if err := editFstab(func(tab string) (string, error) {
+		tab = removeBlock(tab, libraryTag(name))
+		tab = removeBlock(tab, shareTag(name))
+		os.Remove(shareLoginFile(name))
+		// Services' views of it go first.
+		for _, v := range viewEntries(tab) {
+			if v.library == name {
+				tab = removeBlock(tab, viewTag(v.service, v.library))
+				stopMount(filepath.Join(LibraryViews, v.service, v.library))
+				os.Remove(filepath.Join(LibraryViews, v.service, v.library))
+			}
+		}
+		for _, v := range atEntries(tab) {
+			if v.library == name {
+				tab = removeBlock(tab, atTag(v.service, v.library, v.name))
+				stopMount(filepath.Join(LibraryViews, v.service+".at", v.name))
+				os.Remove(filepath.Join(LibraryViews, v.service+".at", v.name))
+			}
+		}
+		return pruneMediaDrives(tab), nil
+	}); err != nil {
 		return err
 	}
-	tab := removeBlock(string(data), libraryTag(name))
-	tab = removeBlock(tab, shareTag(name))
-	os.Remove(shareLoginFile(name))
-	// Services' views of it go first.
-	for _, v := range viewEntries(tab) {
-		if v.library == name {
-			tab = removeBlock(tab, viewTag(v.service, v.library))
-			stopMount(filepath.Join(LibraryViews, v.service, v.library))
-			os.Remove(filepath.Join(LibraryViews, v.service, v.library))
-		}
-	}
-	for _, v := range atEntries(tab) {
-		if v.library == name {
-			tab = removeBlock(tab, atTag(v.service, v.library, v.name))
-			stopMount(filepath.Join(LibraryViews, v.service+".at", v.name))
-			os.Remove(filepath.Join(LibraryViews, v.service+".at", v.name))
-		}
-	}
-	tab = pruneMediaDrives(tab)
-	if err := os.WriteFile(fstab, []byte(tab), 0o644); err != nil {
-		return err
-	}
-	exec.Command("systemctl", "daemon-reload").Run()
 	os.Remove(target)
 	return nil
 }
@@ -304,7 +296,7 @@ func pruneMediaDrives(tab string) string {
 
 // Libraries lists the libraries in fstab: mounted or not, connected or not.
 func (h LinuxHost) Libraries() ([]LibraryStatus, error) {
-	data, err := os.ReadFile(fstab)
+	data, err := readFstab()
 	if err != nil {
 		return nil, err
 	}
@@ -363,11 +355,11 @@ func (h LinuxHost) libraryBase(l Library, browse bool) (base, sub string, err er
 		if !d.Usable {
 			return "", "", errors.New("that drive has no filesystem Roostack can read")
 		}
-		data, err := os.ReadFile(fstab)
+		data, err := readFstab()
 		if err != nil {
 			return "", "", err
 		}
-		if backupDrive(string(data), d.UUID) {
+		if backupDrive(data, d.UUID) {
 			return "", "", errors.New("that's a backup drive: keep media on another drive")
 		}
 		// Where it's mounted: its fstab line if it has one (Roostack's
@@ -645,40 +637,40 @@ func (h LinuxHost) mountMediaDrive(d Drive) (string, error) {
 	if !ValidUUID(d.UUID) {
 		return "", fmt.Errorf("the drive's filesystem has an odd UUID (%q)", printable(d.UUID))
 	}
-	data, err := os.ReadFile(fstab)
-	if err != nil {
-		return "", err
+	var mp string
+	known := false
+	err := editFstab(func(tab string) (string, error) {
+		if mp = fstabMount(tab, d.UUID); mp != "" {
+			known = true // in fstab already (e.g. unplugged now, or another library's)
+			return tab, nil
+		}
+		name := strings.Trim(mountName.ReplaceAllString(strings.ToLower(d.Name), "-"), "-")
+		if name == "" || len(name) > 32 {
+			name = d.UUID[:8]
+		}
+		mp = "/mnt/roostack-media-" + name
+		if entries, err := os.ReadDir(mp); err == nil && len(entries) > 0 {
+			mp += "-" + strings.ReplaceAll(d.UUID, "-", "")[:6]
+		}
+		if err := os.MkdirAll(mp, 0o755); err != nil {
+			return "", err
+		}
+		fsType, opts := d.FSType, "ro,nosuid,nodev,noexec,nofail,x-systemd.automount,x-systemd.device-timeout=10s"
+		if fsType == "ntfs" {
+			fsType = "ntfs3"
+		}
+		if slices.Contains(foreignFS, d.FSType) {
+			opts += fmt.Sprintf(",uid=%d,gid=%d,umask=022", h.UID, h.GID)
+		}
+		line, err := checkedFstabLine([]string{"UUID=" + d.UUID, mp, fsType, opts, "0", "2"})
+		if err != nil {
+			return "", err
+		}
+		return withBlock(tab, mediaDriveTag(mp, d.Name), line), nil
+	})
+	if err != nil || known {
+		return mp, err
 	}
-	if mp := fstabMount(string(data), d.UUID); mp != "" {
-		return mp, nil // in fstab already (e.g. unplugged now, or another library's)
-	}
-	name := strings.Trim(mountName.ReplaceAllString(strings.ToLower(d.Name), "-"), "-")
-	if name == "" || len(name) > 32 {
-		name = d.UUID[:8]
-	}
-	mp := "/mnt/roostack-media-" + name
-	if entries, err := os.ReadDir(mp); err == nil && len(entries) > 0 {
-		mp += "-" + strings.ReplaceAll(d.UUID, "-", "")[:6]
-	}
-	if err := os.MkdirAll(mp, 0o755); err != nil {
-		return "", err
-	}
-	fsType, opts := d.FSType, "ro,nosuid,nodev,noexec,nofail,x-systemd.automount,x-systemd.device-timeout=10s"
-	if fsType == "ntfs" {
-		fsType = "ntfs3"
-	}
-	if slices.Contains(foreignFS, d.FSType) {
-		opts += fmt.Sprintf(",uid=%d,gid=%d,umask=022", h.UID, h.GID)
-	}
-	line, err := checkedFstabLine([]string{"UUID=" + d.UUID, mp, fsType, opts, "0", "2"})
-	if err != nil {
-		return "", err
-	}
-	tab := withBlock(string(data), mediaDriveTag(mp, d.Name), line)
-	if err := os.WriteFile(fstab, []byte(tab), 0o644); err != nil {
-		return "", err
-	}
-	exec.Command("systemctl", "daemon-reload").Run()
 	unit, err := mountUnit(mp)
 	if err != nil {
 		return "", err
@@ -870,96 +862,92 @@ func (h LinuxHost) SetLibraryViews(service string, libraries []string, at map[st
 	if !serviceName.MatchString(service) {
 		return fmt.Errorf("%q isn't a service's name", printable(service))
 	}
-	data, err := os.ReadFile(fstab)
+	var start []string
+	err := editFstab(func(tab string) (string, error) {
+		var err error
+		known := map[string]bool{}
+		for _, e := range append(libraryEntries(tab), shareEntries(tab)...) {
+			known[e.name] = true
+		}
+		want := map[string]bool{}
+		for _, l := range libraries {
+			if !ValidLibraryName(l) || !known[l] {
+				return "", fmt.Errorf("there's no library %q on this server", printable(l))
+			}
+			want[l] = true
+		}
+		at = maps.Clone(at)
+		for name, l := range at {
+			if !atName.MatchString(name) {
+				return "", fmt.Errorf("%q can't name a folder of libraries", printable(name))
+			}
+			if !want[l] {
+				return "", fmt.Errorf("%s doesn't read the library %q", service, printable(l))
+			}
+		}
+		view := filepath.Join(LibraryViews, service)
+		for _, v := range viewEntries(tab) {
+			if v.service == service && !want[v.library] {
+				tab = removeBlock(tab, viewTag(service, v.library))
+				stopMount(filepath.Join(view, v.library))
+				os.Remove(filepath.Join(view, v.library))
+			}
+			if v.service == service {
+				delete(want, v.library) // there already
+			}
+		}
+		for _, dir := range []string{LibraryViews, view} {
+			if err := os.Mkdir(dir, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+				return "", err
+			}
+		}
+		for _, l := range slices.Sorted(maps.Keys(want)) {
+			target := filepath.Join(view, l)
+			if err := os.Mkdir(target, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+				return "", err
+			}
+			if tab, err = withView(tab, viewTag(service, l), l, target); err != nil {
+				return "", err
+			}
+			start = append(start, target)
+		}
+		// The second view folder: what's there and not wanted goes, then what's
+		// missing comes.
+		atView := filepath.Join(LibraryViews, service+".at")
+		for _, v := range atEntries(tab) {
+			if v.service != service {
+				continue
+			}
+			if at[v.name] == v.library {
+				delete(at, v.name) // there already
+				continue
+			}
+			tab = removeBlock(tab, atTag(service, v.library, v.name))
+			stopMount(filepath.Join(atView, v.name))
+			os.Remove(filepath.Join(atView, v.name))
+		}
+		if len(at) > 0 {
+			if err := os.Mkdir(atView, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+				return "", err
+			}
+		}
+		for _, name := range slices.Sorted(maps.Keys(at)) {
+			target := filepath.Join(atView, name)
+			if err := os.Mkdir(target, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+				return "", err
+			}
+			if tab, err = withView(tab, atTag(service, at[name], name), at[name], target); err != nil {
+				return "", err
+			}
+			start = append(start, target)
+		}
+		if !slices.ContainsFunc(atEntries(tab), func(v atEntry) bool { return v.service == service }) {
+			os.Remove(atView) // only once empty
+		}
+		return tab, nil
+	})
 	if err != nil {
 		return err
-	}
-	tab := string(data)
-	known := map[string]bool{}
-	for _, e := range append(libraryEntries(tab), shareEntries(tab)...) {
-		known[e.name] = true
-	}
-	want := map[string]bool{}
-	for _, l := range libraries {
-		if !ValidLibraryName(l) || !known[l] {
-			return fmt.Errorf("there's no library %q on this server", printable(l))
-		}
-		want[l] = true
-	}
-	at = maps.Clone(at)
-	for name, l := range at {
-		if !atName.MatchString(name) {
-			return fmt.Errorf("%q can't name a folder of libraries", printable(name))
-		}
-		if !want[l] {
-			return fmt.Errorf("%s doesn't read the library %q", service, printable(l))
-		}
-	}
-	view := filepath.Join(LibraryViews, service)
-	var start []string
-	for _, v := range viewEntries(tab) {
-		if v.service == service && !want[v.library] {
-			tab = removeBlock(tab, viewTag(service, v.library))
-			stopMount(filepath.Join(view, v.library))
-			os.Remove(filepath.Join(view, v.library))
-		}
-		if v.service == service {
-			delete(want, v.library) // there already
-		}
-	}
-	for _, dir := range []string{LibraryViews, view} {
-		if err := os.Mkdir(dir, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
-			return err
-		}
-	}
-	for _, l := range slices.Sorted(maps.Keys(want)) {
-		target := filepath.Join(view, l)
-		if err := os.Mkdir(target, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
-			return err
-		}
-		if tab, err = withView(tab, viewTag(service, l), l, target); err != nil {
-			return err
-		}
-		start = append(start, target)
-	}
-	// The second view folder: what's there and not wanted goes, then what's
-	// missing comes.
-	atView := filepath.Join(LibraryViews, service+".at")
-	for _, v := range atEntries(tab) {
-		if v.service != service {
-			continue
-		}
-		if at[v.name] == v.library {
-			delete(at, v.name) // there already
-			continue
-		}
-		tab = removeBlock(tab, atTag(service, v.library, v.name))
-		stopMount(filepath.Join(atView, v.name))
-		os.Remove(filepath.Join(atView, v.name))
-	}
-	if len(at) > 0 {
-		if err := os.Mkdir(atView, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
-			return err
-		}
-	}
-	for _, name := range slices.Sorted(maps.Keys(at)) {
-		target := filepath.Join(atView, name)
-		if err := os.Mkdir(target, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
-			return err
-		}
-		if tab, err = withView(tab, atTag(service, at[name], name), at[name], target); err != nil {
-			return err
-		}
-		start = append(start, target)
-	}
-	if !slices.ContainsFunc(atEntries(tab), func(v atEntry) bool { return v.service == service }) {
-		os.Remove(atView) // only once empty
-	}
-	if tab != string(data) {
-		if err := os.WriteFile(fstab, []byte(tab), 0o644); err != nil {
-			return err
-		}
-		exec.Command("systemctl", "daemon-reload").Run()
 	}
 	for _, target := range start {
 		unit, err := mountUnit(target)

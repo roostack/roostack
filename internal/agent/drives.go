@@ -301,12 +301,12 @@ func (h LinuxHost) Drives() ([]Drive, error) {
 	if err != nil {
 		return nil, fmt.Errorf("lsblk: %w", err)
 	}
-	tab, err := os.ReadFile(fstab)
+	tab, err := readFstab()
 	if err != nil {
 		return nil, err
 	}
 	free, _ := statfs("/srv")
-	drives, err := parseDrives(out, free, string(tab), resolvePath)
+	drives, err := parseDrives(out, free, tab, resolvePath)
 	if err != nil {
 		return nil, err
 	}
@@ -378,9 +378,6 @@ func (h LinuxHost) UseDrive(id string) (UsedDrive, error) {
 	return UsedDrive{Dir: d.Mount, UUID: d.UUID}, nil
 }
 
-// fstab is the file mounts are recorded in (tests replace it).
-var fstab = "/etc/fstab"
-
 // mountForGood mounts a filesystem under /mnt, recorded in fstab by UUID
 // (nofail: a missing drive doesn't hold up booting).
 func (h LinuxHost) mountForGood(d Drive) (string, error) {
@@ -391,51 +388,39 @@ func (h LinuxHost) mountForGood(d Drive) (string, error) {
 	if name == "" || len(name) > 32 {
 		name = d.UUID[:8]
 	}
-	data, err := os.ReadFile(fstab)
-	if err != nil {
-		return "", err
-	}
-	// Known already (e.g. chosen before, then unplugged): the same place.
-	mp := fstabMount(string(data), d.UUID)
-	known := mp != ""
-	if !known {
-		mp = "/mnt/roostack-" + name
-		if entries, err := os.ReadDir(mp); err == nil && len(entries) > 0 {
-			mp += "-" + strings.ReplaceAll(d.UUID, "-", "")[:6]
-		}
-	}
-	if err := os.MkdirAll(mp, 0o755); err != nil {
-		return "", err
-	}
-	line, err := fstabLine(d, mp, h.UID, h.GID)
-	if err != nil {
-		return "", err
-	}
-	if known {
-		// A line Roostack wrote before is brought up to date.
-		if updated := updateFstab(string(data), d.UUID, line); updated != string(data) {
-			if err := os.WriteFile(fstab, []byte(updated), 0o644); err != nil {
-				return "", err
+	var mp string
+	err := editFstab(func(tab string) (string, error) {
+		// Known already (e.g. chosen before, then unplugged): the same place.
+		mp = fstabMount(tab, d.UUID)
+		known := mp != ""
+		if !known {
+			mp = "/mnt/roostack-" + name
+			if entries, err := os.ReadDir(mp); err == nil && len(entries) > 0 {
+				mp += "-" + strings.ReplaceAll(d.UUID, "-", "")[:6]
 			}
 		}
-	} else {
-		f, err := os.OpenFile(fstab, os.O_APPEND|os.O_WRONLY, 0)
+		if err := os.MkdirAll(mp, 0o755); err != nil {
+			return "", err
+		}
+		line, err := fstabLine(d, mp, h.UID, h.GID)
 		if err != nil {
 			return "", err
+		}
+		if known {
+			// A line Roostack wrote before is brought up to date.
+			return updateFstab(tab, d.UUID, line), nil
 		}
 		prefix := ""
-		if len(data) > 0 && !strings.HasSuffix(string(data), "\n") {
+		if len(tab) > 0 && !strings.HasSuffix(tab, "\n") {
 			prefix = "\n"
 		}
-		_, err = fmt.Fprintf(f, "%s# Added by Roostack: a backup drive (%s)\n%s\n", prefix, printable(d.Name), line)
-		f.Close()
-		if err != nil {
-			return "", err
-		}
+		return tab + fmt.Sprintf("%s# Added by Roostack: a backup drive (%s)\n%s\n", prefix, printable(d.Name), line), nil
+	})
+	if err != nil {
+		return "", err
 	}
 	// systemd mounts it (from fstab): a plain mount would stay inside this
 	// agent's own mount namespace (PrivateTmp).
-	exec.Command("systemctl", "daemon-reload").Run()
 	unit, err := exec.Command("systemd-escape", "--path", mp).Output()
 	if err != nil {
 		return "", err
