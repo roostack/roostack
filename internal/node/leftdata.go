@@ -4,13 +4,10 @@ import (
 	"context"
 	"errors"
 	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 
 	"roostack.cloud/roostack/internal/instance"
-	"roostack.cloud/roostack/internal/labnet"
 )
 
 // LeftData is a server that can say whether a service's data from before
@@ -50,15 +47,4 @@ func (n *Local) LeftData(_ context.Context, name string) ([]string, error) {
 		}
 	}
 	return out, nil
-}
-
-// LeftData asks the server over the lab API.
-func (r *Remote) LeftData(ctx context.Context, name string) ([]string, error) {
-	var out []string
-	err := r.call(ctx, http.MethodGet, "/v1/services/"+url.PathEscape(name)+"/left-data", nil, &out)
-	// A server from before answers the route it doesn't know 404.
-	if re := (*labnet.RemoteError)(nil); errors.As(err, &re) && re.Status == http.StatusNotFound {
-		return nil, ErrNotFound
-	}
-	return out, err
 }

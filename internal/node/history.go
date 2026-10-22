@@ -2,8 +2,6 @@ package node
 
 import (
 	"context"
-	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -81,27 +79,4 @@ func (n *Local) CullHistory(ctx context.Context, before time.Time) (int64, error
 		return 0, nil
 	}
 	return n.Events.CullHistory(ctx, before)
-}
-
-// History asks the server.
-func (r *Remote) History(ctx context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
-	q := url.Values{"kind": {kind}, "limit": {strconv.Itoa(limit)}}
-	if !before.IsZero() {
-		q.Set("before", strconv.FormatInt(before.Unix(), 10))
-	}
-	var out []store.Event
-	err := r.call(ctx, http.MethodGet, "/v1/history?"+q.Encode(), nil, &out)
-	return out, err
-}
-
-func (r *Remote) HistoryEvent(ctx context.Context, id int64) (store.Event, error) {
-	var out store.Event
-	err := r.call(ctx, http.MethodGet, "/v1/history/"+strconv.FormatInt(id, 10), nil, &out)
-	return out, err
-}
-
-func (r *Remote) CullHistory(ctx context.Context, before time.Time) (int64, error) {
-	var out struct{ Deleted int64 }
-	err := r.call(ctx, http.MethodPost, "/v1/history/cull", map[string]int64{"before": before.Unix()}, &out)
-	return out.Deleted, err
 }

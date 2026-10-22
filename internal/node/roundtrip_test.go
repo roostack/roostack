@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http/httptest"
@@ -755,6 +756,113 @@ func TestRoundTrip(t *testing.T) {
 			if !covered[prefix+name] {
 				t.Errorf("no round trip for %s%s", prefix, name)
 			}
+		}
+	}
+}
+
+// bareNode is a node with no capabilities: only Node's methods, and none
+// of its maintenance jobs, settings, media or imports.
+type bareNode struct{ Node }
+
+func (bareNode) Backups() Backups   { return nil }
+func (bareNode) Restores() Restores { return nil }
+func (bareNode) Updates() Updates   { return nil }
+func (bareNode) Settings() Settings { return nil }
+func (bareNode) Media() Media       { return nil }
+func (bareNode) Imports() Imports   { return nil }
+
+// A server without a capability answers "not found" to each of its
+// routes, so the controller knows it isn't there, rather than a server
+// error (updates to services gave a 500 before the quality review of
+// 2026-10-21, S9).
+func TestRoundTripWithout(t *testing.T) {
+	ctrl, nodeID, lab := servers(t)
+	api := &Server{Node: bareNode{rtNode{&rtRec{}}}, ControllerID: "n-0000000001"}
+	srv := httptest.NewUnstartedServer(api.Handler())
+	srv.TLS, _ = nodeID.ServerTLS()
+	srv.StartTLS()
+	defer srv.Close()
+	r, err := NewRemote(ctrl, nodeid.Identity{ID: "n-0000000002", Name: "vps"}, netip.MustParseAddr("100.96.0.2"), lab,
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.URL = srv.URL
+	ctx := context.Background()
+	if r.Backups() != nil || r.Restores() != nil || r.Updates() != nil || r.Settings() != nil || r.Imports() != nil {
+		t.Error("a server without capabilities shouldn't offer them")
+	}
+	// The capabilities as the controller would call them, had the
+	// server's status said otherwise.
+	backups, restores, updates, settings := remoteBackups{r}, remoteRestores{r}, remoteUpdates{r}, remoteSettings{r}
+	media, imports := remoteMedia{r}, remoteImports{r}
+	errs := map[string]func() error{
+		"Leave":  func() error { return r.Leave(ctx) },
+		"Rename": func() error { return r.Rename(ctx, "attic") },
+
+		"Backups.Status":     func() error { _, err := backups.Status(ctx); return err },
+		"Backups.RunNow":     func() error { return backups.RunNow(ctx) },
+		"Restores.Snapshots": func() error { _, err := restores.Snapshots(ctx, "immich"); return err },
+		"Restores.Restore":   func() error { return restores.Restore(ctx, "immich", "abc") },
+		"Restores.Pending":   func() error { _, err := restores.Pending(ctx); return err },
+		"Restores.Kept":      func() error { _, err := restores.Kept(ctx, "immich"); return err },
+		"Restores.Outcome":   func() error { _, err := restores.Outcome(ctx, "immich"); return err },
+		"Restores.PutBack":   func() error { return restores.PutBack(ctx, "immich", "/k") },
+		"Restores.RemoveKept": func() error {
+			return restores.RemoveKept(ctx, "immich", "/k")
+		},
+		"Updates.Last":                   func() error { _, err := updates.Last(ctx); return err },
+		"Updates.Submit":                 func() error { return updates.Submit(ctx) },
+		"Updates.RestartNow":             func() error { return updates.RestartNow(ctx) },
+		"Updates.HostChanges":            func() error { _, err := updates.HostChanges(ctx); return err },
+		"Updates.AcknowledgeHostChanges": func() error { return updates.AcknowledgeHostChanges(ctx) },
+		"Updates.Series":                 func() error { _, err := updates.Series(ctx); return err },
+		"Updates.AcceptSeries":           func() error { return updates.AcceptSeries(ctx, "0.5") },
+		"Settings.Timezones":             func() error { _, _, err := settings.Timezones(ctx); return err },
+		"Settings.SetTimezone":           func() error { _, err := settings.SetTimezone(ctx, "Etc/UTC"); return err },
+		"Settings.SSHAccess":             func() error { _, err := settings.SSHAccess(ctx, true); return err },
+		"Settings.SetSSH":                func() error { return settings.SetSSH(ctx, SSHChange{}) },
+		"Settings.PromoteBackupCopy":     func() error { return settings.PromoteBackupCopy(ctx, "b", BackupCopy{}) },
+		"Settings.SetBackupCopies":       func() error { return settings.SetBackupCopies(ctx, nil) },
+		"Settings.SetBackupDestination":  func() error { return settings.SetBackupDestination(ctx, BackupDestination{}) },
+		"Settings.SetRestartPolicy":      func() error { return settings.SetRestartPolicy(ctx, "window", 4) },
+
+		"ExportData":      func() error { return r.ExportData(ctx, "immich", 0, time.Time{}, io.Discard) },
+		"ImportData":      func() error { return r.ImportData(ctx, "immich", 0, strings.NewReader(""), 0) },
+		"ListData":        func() error { _, err := r.ListData(ctx, "immich", 0); return err },
+		"PruneData":       func() error { return r.PruneData(ctx, "immich", 0, nil) },
+		"CommitData":      func() error { _, err := r.CommitData(ctx, "immich"); return err },
+		"SetAsideData":    func() error { _, err := r.SetAsideData(ctx, "immich", "x"); return err },
+		"DataSize":        func() error { _, err := r.DataSize(ctx, "immich"); return err },
+		"LoadDumps":       func() error { return r.LoadDumps(ctx, "immich") },
+		"StopService":     func() error { return r.StopService(ctx, "immich") },
+		"StartService":    func() error { return r.StartService(ctx, "immich") },
+		"ExportSecrets":   func() error { _, err := r.ExportSecrets(ctx, "immich"); return err },
+		"ImportSecrets":   func() error { return r.ImportSecrets(ctx, nil) },
+		"KeptData":        func() error { _, err := r.KeptData(ctx); return err },
+		"PutBackKeptData": func() error { return r.PutBackKeptData(ctx, "/k") },
+		"RemoveKeptData":  func() error { return r.RemoveKeptData(ctx, "/k") },
+		"StartUpdate":     func() error { _, err := r.StartUpdate(ctx, UpdateRequest{}); return err },
+		"UpdateStatus":    func() error { _, err := r.UpdateStatus(ctx, "u-1"); return err },
+		"FinishUpdate":    func() error { return r.FinishUpdate(ctx, "u-1") },
+		"CheckHealth":     func() error { _, err := r.CheckHealth(ctx, "immich"); return err },
+		"DiskSpaces":      func() error { _, err := r.DiskSpaces(ctx); return err },
+		"Memory":          func() error { _, err := r.Memory(ctx); return err },
+		"LeftData":        func() error { _, err := r.LeftData(ctx, "immich"); return err },
+		"History":         func() error { _, err := r.History(ctx, time.Time{}, "", 10); return err },
+		"HistoryEvent":    func() error { _, err := r.HistoryEvent(ctx, 1); return err },
+		"CullHistory":     func() error { _, err := r.CullHistory(ctx, rtSince); return err },
+
+		"Media.Drives":           func() error { _, err := media.Drives(ctx); return err },
+		"Media.Libraries":        func() error { _, err := media.Libraries(ctx); return err },
+		"Imports.Import":         func() error { _, err := imports.Import(ctx, "immich"); return err },
+		"Imports.CancelImport":   func() error { return imports.CancelImport(ctx, "immich") },
+		"Imports.SetImportSetup": func() error { return imports.SetImportSetup(ctx, "immich", nil) },
+		"Imports.SwitchImport":   func() error { return imports.SwitchImport(ctx, "immich", SwitchStop) },
+	}
+	for name, do := range errs {
+		if err := do(); !errors.Is(err, ErrNotFound) {
+			t.Errorf("%s: %v, want not found", name, err)
 		}
 	}
 }
