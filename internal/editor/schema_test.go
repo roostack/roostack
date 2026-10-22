@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -120,6 +121,26 @@ func schemaJS(t *testing.T) []byte {
 	return out.Bytes()
 }
 
+// testPackages are the test packages (internal/testdata/packages) the
+// editor offers to start from, in the order it shows them, and the bases
+// the corpus changes. This is their one list: corpus.test.js finds them
+// in examples.js.
+var testPackages = []string{"vaultwarden", "forgejo", "immich"}
+
+// testPackage reads a test package's file, the one there is of it.
+func testPackage(t *testing.T, name string) (file string, data []byte) {
+	t.Helper()
+	files, _ := filepath.Glob(filepath.Join("..", "testdata", "packages", name, "*-roostack.*.yaml"))
+	if len(files) != 1 {
+		t.Fatalf("%s: want one package file, found %v", name, files)
+	}
+	data, err := os.ReadFile(files[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return files[0], data
+}
+
 // examplesJS is static/examples.js: the registry packages the editor
 // offers to start from, from this repository's copies of them.
 func examplesJS(t *testing.T) []byte {
@@ -136,20 +157,13 @@ func examplesJS(t *testing.T) []byte {
 		"immich":      "several containers, a GPU, media",
 	}
 	var examples []example
-	for _, name := range []string{"vaultwarden", "forgejo", "immich"} {
-		files, _ := filepath.Glob(filepath.Join("..", "testdata", "packages", name, "*-roostack.*.yaml"))
-		if len(files) != 1 {
-			t.Fatalf("%s: want one package file, found %v", name, files)
-		}
-		data, err := os.ReadFile(files[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+	for _, name := range testPackages {
+		file, data := testPackage(t, name)
 		p, err := pkgspec.Parse(data)
 		if err != nil {
 			t.Fatal(err)
 		}
-		examples = append(examples, example{name, p.Title, about[name], filepath.Base(files[0]), string(data)})
+		examples = append(examples, example{name, p.Title, about[name], filepath.Base(file), string(data)})
 	}
 	b, err := json.MarshalIndent(examples, "", " ")
 	if err != nil {
@@ -182,14 +196,37 @@ func TestSchemaFile(t *testing.T) {
 	checkFile(t, filepath.Join("static", "examples.js"), examplesJS(t))
 }
 
-// Every script and the stylesheet the page loads are there, and the
-// single-file editor holds them all.
-func TestStandalone(t *testing.T) {
-	for _, name := range append(slices.Clone(Scripts), Stylesheet, "editor.html") {
+// The manifest (static/scripts.json) names every script there is, so a
+// new one can't be missing from a page, and the files it names are there.
+func TestManifest(t *testing.T) {
+	scripts, err := fs.Glob(Files(), "*.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(slices.Sorted(slices.Values(scripts)), slices.Sorted(slices.Values(Scripts))) {
+		t.Errorf("scripts.json names %v; static has %v", Scripts, scripts)
+	}
+	if len(Scripts) == 0 || Scripts[len(Scripts)-1] != "editor.js" {
+		t.Errorf("scripts.json: editor.js, the page itself, must load last: %v", Scripts)
+	}
+	for _, name := range []string{manifest.Stylesheet, manifest.Markup} {
 		if _, err := Files().Open(name); err != nil {
-			t.Errorf("%s: %v", name, err)
+			t.Errorf("scripts.json: %v", err)
 		}
 	}
+	vendored, err := os.ReadFile(filepath.Join("static", "VENDORED.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range manifest.Vendored {
+		if !slices.Contains(Scripts, name) || !strings.Contains(string(vendored), "| "+name+" |") {
+			t.Errorf("scripts.json: %s is vendored, so it must be one of the scripts and in VENDORED.md's table", name)
+		}
+	}
+}
+
+// The single-file editor holds every script and the stylesheet.
+func TestStandalone(t *testing.T) {
 	page, err := Standalone(Options{Version: "0.9.0", Help: "https://help.roostack.cloud/"}, []byte(":root{}"))
 	if err != nil {
 		t.Fatal(err)

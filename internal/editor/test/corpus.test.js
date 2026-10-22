@@ -11,13 +11,9 @@ const R = require("./load.js");
 
 const root = path.join(__dirname, "..");
 const cases = JSON.parse(fs.readFileSync(path.join(root, "testdata", "corpus.json"), "utf8"));
-const bases = {
-  vaultwarden: "vaultwarden/1.34.3-roostack.1.yaml",
-  forgejo: "forgejo/15.0.9-roostack.1.yaml",
-  immich: "immich/2.1.0-roostack.1.yaml",
-};
-const baseText = {};
-for (const [k, f] of Object.entries(bases)) baseText[k] = fs.readFileSync(path.join(root, "..", "testdata", "packages", f), "utf8");
+// The bases are the test packages the editor offers as examples
+// (examples.js, generated from the same files by schema_test.go).
+const baseText = Object.fromEntries(R.examples.map((e) => [e.name, e.text]));
 
 // applyEdits makes a case's package from its base, as corpus_test.go does.
 function applyEdits(text, edits) {
