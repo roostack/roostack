@@ -24,9 +24,10 @@ import (
 
 // newLocal builds this server (SPEC.md §10.1): it applies its services,
 // runs their hooks, its maintenance jobs and its own settings, whether it
-// is the controller or a node.
+// is the controller or a node. Its backups get Roostack Cloud backup's
+// keys from cloudKeys.
 func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Identity, st *store.Store,
-	log *slog.Logger, restart func()) (*node.Local, *agent.Client, *maintenance.Coordinator, error) {
+	log *slog.Logger, restart func(), cloudKeys *cloudBackupKeys) (*node.Local, *agent.Client, *maintenance.Coordinator, error) {
 	agentClient := agent.NewClient(agent.DefaultSocket)
 	agentClient.KeysFile = backup.WireGuardKeysFile(lab.Paths)
 	sd := systemd.New()
@@ -91,15 +92,14 @@ func newLocal(ctx context.Context, lab config.Lab, labPath string, id nodeid.Ide
 		lab, services := local.Assigned()
 		return lab, services, nil
 	}
-	jobs, coord, err := startMaintenance(ctx, lab, st, log, agentClient, local.Activity, assigned)
-	if err != nil {
+	jobs := &serverJobs{lab: lab, st: st, log: log, agent: agentClient, acts: local.Activity, services: assigned,
+		cloudKeys: cloudKeys}
+	var err error
+	if local.Jobs, err = jobs.start(ctx); err != nil {
 		return nil, nil, nil, err
 	}
-	local.Jobs = jobs
 	// Disk use is counted right after the nightly backup, while restic's
 	// reads of the files are still cached (SPEC.md §6.7).
-	if b, ok := jobs.Backups.(*backup.Service); ok {
-		b.AfterBackup = local.CountSizes
-	}
-	return local, agentClient, coord, nil
+	jobs.backups.AfterBackup = local.CountSizes
+	return local, agentClient, jobs.coord, nil
 }
