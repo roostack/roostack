@@ -21,6 +21,15 @@ import (
 var version = "dev"
 
 func main() {
+	// Replacing /etc/fstab, which the agent's sandbox can't do: the agent
+	// runs this in a short systemd job of its own (agent.CommitFstab).
+	if len(os.Args) == 2 && os.Args[1] == agent.CommitFstabCommand {
+		if err := agent.CommitFstab(); err != nil {
+			fmt.Fprintln(os.Stderr, "roostack-agent:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	socket := flag.String("socket", agent.DefaultSocket, "Unix socket to listen on")
 	userName := flag.String("user", "roostack", "unprivileged user allowed to call the agent")
 	firewallFile := flag.String("firewall-file", agent.DefaultFirewallFile, "where the applied firewall is saved")

@@ -690,7 +690,7 @@ The review of both repositories is [docs/QUALITY-REVIEW-2026-10-21.md](docs/QUAL
   - [ ] P3's follow-up: check a failed move through a backup on two VMs (only fakes so far)
 - [ ] Wave 1: the parallel batches 1a–1j (§11)
 - [ ] Wave 2: the shared helpers, one at a time (§11)
-  - [ ] P5's follow-ups: one parser for the `# Added by Roostack:` blocks, with typed tag constructors (the edits share `editFstab` since wave 0); and whether `/etc/fstab` should be written atomically, which needs `ReadWritePaths=/etc` in the agent's sandbox (the Owner's call, SPEC §6.1 "Editing `/etc/fstab`")
+  - [ ] P5's follow-up: one parser for the `# Added by Roostack:` blocks, with typed tag constructors (the edits share `editFstab` since wave 0, and `/etc/fstab` is replaced in one step since 2026-10-22, SPEC §6.1 "Editing `/etc/fstab`")
   - [ ] D1: the atomic writes of files that aren't private (0644: generated files, Caddy's, the registry's, `labnet`'s certificates) still have their own copies; switch them to `fsutil.WriteFile`, and add `fsutil.CopyFile` for the streamed copies (`labrestore.copyFile`, `node/importcopy.go`). Wave 0 (P7) moved every private (0600) and 0640 file to `fsutil` (2026-10-22)
 - [ ] Wave 3: the structural changes the Owner chooses (§11)
 
