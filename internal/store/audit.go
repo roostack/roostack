@@ -9,22 +9,7 @@ import (
 
 // AuditSince lists audit rows after id, oldest first (at most 200).
 func (s *Store) AuditSince(ctx context.Context, id int64) ([]AuditEntry, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, at, username, action, detail FROM audit_log WHERE id > ? ORDER BY id LIMIT 200`, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []AuditEntry
-	for rows.Next() {
-		var e AuditEntry
-		var at int64
-		if err := rows.Scan(&e.ID, &at, &e.Username, &e.Action, &e.Detail); err != nil {
-			return nil, err
-		}
-		e.At = time.Unix(at, 0)
-		out = append(out, e)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.db, scanAudit, `SELECT id, at, username, action, detail FROM audit_log WHERE id > ? ORDER BY id LIMIT 200`, id)
 }
 
 // LastAuditID is the newest audit row's id (0 if none).
@@ -64,23 +49,19 @@ func (s *Store) Events(ctx context.Context, before time.Time, kind string, limit
 	if before.IsZero() {
 		before = time.Now().Add(time.Minute)
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id, started, finished, kind, title, status, error FROM events
+	return queryAll(ctx, s.db, scanEvent, `SELECT id, started, finished, kind, title, status, error FROM events
 		WHERE finished < ? AND (? = '' OR kind = ?) ORDER BY finished DESC, id DESC LIMIT ?`, before.Unix(), kind, kind, limit)
-	if err != nil {
-		return nil, err
+}
+
+// scanEvent reads an event without its output.
+func scanEvent(row scanner) (Event, error) {
+	var e Event
+	var started, finished int64
+	if err := row.Scan(&e.ID, &started, &finished, &e.Kind, &e.Title, &e.Status, &e.Error); err != nil {
+		return e, err
 	}
-	defer rows.Close()
-	var out []Event
-	for rows.Next() {
-		var e Event
-		var started, finished int64
-		if err := rows.Scan(&e.ID, &started, &finished, &e.Kind, &e.Title, &e.Status, &e.Error); err != nil {
-			return nil, err
-		}
-		e.Started, e.Finished = time.Unix(started, 0), time.Unix(finished, 0)
-		out = append(out, e)
-	}
-	return out, rows.Err()
+	e.Started, e.Finished = time.Unix(started, 0), time.Unix(finished, 0)
+	return e, nil
 }
 
 // EventByID is one event, with its output.
@@ -101,23 +82,8 @@ func (s *Store) AuditBefore(ctx context.Context, before time.Time, limit int) ([
 	if before.IsZero() {
 		before = time.Now().Add(time.Minute)
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id, at, username, action, detail FROM audit_log WHERE at < ? ORDER BY at DESC, id DESC LIMIT ?`,
+	return queryAll(ctx, s.db, scanAudit, `SELECT id, at, username, action, detail FROM audit_log WHERE at < ? ORDER BY at DESC, id DESC LIMIT ?`,
 		before.Unix(), limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []AuditEntry
-	for rows.Next() {
-		var e AuditEntry
-		var at int64
-		if err := rows.Scan(&e.ID, &at, &e.Username, &e.Action, &e.Detail); err != nil {
-			return nil, err
-		}
-		e.At = time.Unix(at, 0)
-		out = append(out, e)
-	}
-	return out, rows.Err()
 }
 
 // CullHistory deletes events finished before before; it returns how
@@ -165,21 +131,16 @@ func (s *Store) Audit(ctx context.Context, u *User, action, detail string) error
 
 // RecentAudit returns the newest entries first.
 func (s *Store) RecentAudit(ctx context.Context, limit int) ([]AuditEntry, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT at, username, action, detail FROM audit_log ORDER BY id DESC LIMIT ?`, limit)
-	if err != nil {
-		return nil, err
+	return queryAll(ctx, s.db, scanAudit, `SELECT id, at, username, action, detail FROM audit_log ORDER BY id DESC LIMIT ?`, limit)
+}
+
+// scanAudit reads an audit row: id, at, username, action, detail.
+func scanAudit(row scanner) (AuditEntry, error) {
+	var e AuditEntry
+	var at int64
+	if err := row.Scan(&e.ID, &at, &e.Username, &e.Action, &e.Detail); err != nil {
+		return e, err
 	}
-	defer rows.Close()
-	var out []AuditEntry
-	for rows.Next() {
-		var e AuditEntry
-		var at int64
-		if err := rows.Scan(&at, &e.Username, &e.Action, &e.Detail); err != nil {
-			return nil, err
-		}
-		e.At = time.Unix(at, 0)
-		out = append(out, e)
-	}
-	return out, rows.Err()
+	e.At = time.Unix(at, 0)
+	return e, nil
 }

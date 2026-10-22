@@ -23,6 +23,28 @@ type Store struct {
 	db *sql.DB
 }
 
+// scanner is a *sql.Row or *sql.Rows.
+type scanner interface{ Scan(...any) error }
+
+// queryAll runs a query and reads each of its rows with scan: the loop
+// every list would otherwise write out.
+func queryAll[T any](ctx context.Context, db *sql.DB, scan func(scanner) (T, error), query string, args ...any) ([]T, error) {
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []T
+	for rows.Next() {
+		v, err := scan(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
 // migrations are applied in order; never edit one that has shipped.
 var migrations = []string{
 	`CREATE TABLE users (

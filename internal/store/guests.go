@@ -54,30 +54,10 @@ func (s *Store) Guests(ctx context.Context, now time.Time) ([]Guest, error) {
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM storage_guests WHERE joined = 0 AND expires_at <= ?`, now.Unix()); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT `+guestColumns+` FROM storage_guests ORDER BY name`)
+	out, err := queryAll(ctx, s.db, scanGuest, `SELECT `+guestColumns+` FROM storage_guests ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []Guest
-	for rows.Next() {
-		var g Guest
-		var joined int
-		var exp, created, removed int64
-		if err := rows.Scan(&g.ID, &g.Name, &g.Quota, &g.Addr, &g.PublicKey, &joined, &g.TokenHash, &exp, &g.Port,
-			&g.StoreHash, &g.AdminHash, &created, &removed); err != nil {
-			return nil, err
-		}
-		g.Joined, g.Expires, g.Created = joined == 1, time.Unix(exp, 0), time.Unix(created, 0)
-		if removed > 0 {
-			g.Removed = time.Unix(removed, 0)
-		}
-		out = append(out, g)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	rows.Close()
 	users, err := s.db.QueryContext(ctx, `SELECT guest_id, name, hash FROM storage_guest_users`)
 	if err != nil {
 		return nil, err
@@ -99,6 +79,21 @@ func (s *Store) Guests(ctx context.Context, now time.Time) ([]Guest, error) {
 		}
 	}
 	return out, users.Err()
+}
+
+func scanGuest(row scanner) (Guest, error) {
+	var g Guest
+	var joined int
+	var exp, created, removed int64
+	if err := row.Scan(&g.ID, &g.Name, &g.Quota, &g.Addr, &g.PublicKey, &joined, &g.TokenHash, &exp, &g.Port,
+		&g.StoreHash, &g.AdminHash, &created, &removed); err != nil {
+		return g, err
+	}
+	g.Joined, g.Expires, g.Created = joined == 1, time.Unix(exp, 0), time.Unix(created, 0)
+	if removed > 0 {
+		g.Removed = time.Unix(removed, 0)
+	}
+	return g, nil
 }
 
 // SetGuestUser adds or changes one of a guest lab's store users.

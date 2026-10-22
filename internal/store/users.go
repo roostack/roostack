@@ -65,7 +65,7 @@ func (s *Store) ListUsers(ctx context.Context) ([]User, error) {
 	defer rows.Close()
 	var users []User
 	for rows.Next() {
-		u, err := scanUserRow(rows)
+		u, err := scanUser(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -260,7 +260,7 @@ func (s *Store) CreateFirstUser(ctx context.Context, u User) (bool, error) {
 
 // UserByUsername looks up an account (case-insensitive).
 func (s *Store) UserByUsername(ctx context.Context, username string) (*User, error) {
-	return s.scanUser(s.db.QueryRowContext(ctx,
+	return scanUser(s.db.QueryRowContext(ctx,
 		`SELECT `+userColumns+` FROM users WHERE username = ?`, username))
 }
 
@@ -286,7 +286,7 @@ const userColumns = `users.id, users.username, users.password_hash, users.role,
 
 // UserByID looks up an account.
 func (s *Store) UserByID(ctx context.Context, id int64) (*User, error) {
-	return s.scanUser(s.db.QueryRowContext(ctx, `SELECT `+userColumns+` FROM users WHERE id = ?`, id))
+	return scanUser(s.db.QueryRowContext(ctx, `SELECT `+userColumns+` FROM users WHERE id = ?`, id))
 }
 
 // SetTOTP enables two-factor authentication for a user.
@@ -323,9 +323,8 @@ func (s *Store) AddTOTPFailure(ctx context.Context, userID int64, now time.Time)
 	return n, err
 }
 
-func (s *Store) scanUser(row *sql.Row) (*User, error) { return scanUserRow(row) }
-
-func scanUserRow(row interface{ Scan(...any) error }) (*User, error) {
+// scanUser reads userColumns; a missing row is ErrNotFound.
+func scanUser(row scanner) (*User, error) {
 	var u User
 	var created, failedAt int64
 	err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.TOTPSecret, &u.TOTPLastStep,

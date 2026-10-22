@@ -137,20 +137,13 @@ func (s *Store) UpdateBackupProvider(ctx context.Context, p BackupProvider) erro
 
 // BackupProviders lists the providers.
 func (s *Store) BackupProviders(ctx context.Context) ([]BackupProvider, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, kind, name, config FROM backup_providers ORDER BY name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []BackupProvider
-	for rows.Next() {
-		var p BackupProvider
-		if err := rows.Scan(&p.ID, &p.Kind, &p.Name, &p.Config); err != nil {
-			return nil, err
-		}
-		out = append(out, p)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.db, scanProvider, `SELECT id, kind, name, config FROM backup_providers ORDER BY name`)
+}
+
+func scanProvider(row scanner) (BackupProvider, error) {
+	var p BackupProvider
+	err := row.Scan(&p.ID, &p.Kind, &p.Name, &p.Config)
+	return p, err
 }
 
 // BackupTarget is where a server backs up.
@@ -210,43 +203,35 @@ func (s *Store) RemoveLostBackup(ctx context.Context, serverID string) error {
 
 // LostBackups lists the lost main backups.
 func (s *Store) LostBackups(ctx context.Context) ([]LostBackup, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT server_id, host_name, lost_at FROM lost_backups ORDER BY server_id`)
-	if err != nil {
-		return nil, err
+	return queryAll(ctx, s.db, scanLostBackup, `SELECT server_id, host_name, lost_at FROM lost_backups ORDER BY server_id`)
+}
+
+func scanLostBackup(row scanner) (LostBackup, error) {
+	var l LostBackup
+	var lost int64
+	if err := row.Scan(&l.ServerID, &l.HostName, &lost); err != nil {
+		return l, err
 	}
-	defer rows.Close()
-	var out []LostBackup
-	for rows.Next() {
-		var l LostBackup
-		var lost int64
-		if err := rows.Scan(&l.ServerID, &l.HostName, &lost); err != nil {
-			return nil, err
-		}
-		l.Lost = time.Unix(lost, 0)
-		out = append(out, l)
-	}
-	return out, rows.Err()
+	l.Lost = time.Unix(lost, 0)
+	return l, nil
 }
 
 // BackupTargets lists where each server backs up.
 func (s *Store) BackupTargets(ctx context.Context) ([]BackupTarget, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT server_id, provider, repository, store_host, store_hash, scoped_key, created_at
-		FROM backup_targets ORDER BY server_id`)
-	if err != nil {
-		return nil, err
+	return queryAll(ctx, s.db, scanTarget, `SELECT `+targetColumns+` FROM backup_targets ORDER BY server_id`)
+}
+
+// targetColumns are backup_targets' and backup_copies', for scanTarget.
+const targetColumns = `server_id, provider, repository, store_host, store_hash, scoped_key, created_at`
+
+func scanTarget(row scanner) (BackupTarget, error) {
+	var t BackupTarget
+	var created int64
+	if err := row.Scan(&t.ServerID, &t.Provider, &t.Repository, &t.StoreHost, &t.StoreHash, &t.ScopedKey, &created); err != nil {
+		return t, err
 	}
-	defer rows.Close()
-	var out []BackupTarget
-	for rows.Next() {
-		var t BackupTarget
-		var created int64
-		if err := rows.Scan(&t.ServerID, &t.Provider, &t.Repository, &t.StoreHost, &t.StoreHash, &t.ScopedKey, &created); err != nil {
-			return nil, err
-		}
-		t.Created = time.Unix(created, 0)
-		out = append(out, t)
-	}
-	return out, rows.Err()
+	t.Created = time.Unix(created, 0)
+	return t, nil
 }
 
 // SetBackupCopy records an extra copy of a server's backups (one per
@@ -262,23 +247,7 @@ func (s *Store) SetBackupCopy(ctx context.Context, t BackupTarget) error {
 
 // BackupCopies lists every server's extra copies.
 func (s *Store) BackupCopies(ctx context.Context) ([]BackupTarget, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT server_id, provider, repository, store_host, store_hash, scoped_key, created_at
-		FROM backup_copies ORDER BY server_id, created_at`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []BackupTarget
-	for rows.Next() {
-		var t BackupTarget
-		var created int64
-		if err := rows.Scan(&t.ServerID, &t.Provider, &t.Repository, &t.StoreHost, &t.StoreHash, &t.ScopedKey, &created); err != nil {
-			return nil, err
-		}
-		t.Created = time.Unix(created, 0)
-		out = append(out, t)
-	}
-	return out, rows.Err()
+	return queryAll(ctx, s.db, scanTarget, `SELECT `+targetColumns+` FROM backup_copies ORDER BY server_id, created_at`)
 }
 
 // RemoveBackupCopy forgets an extra copy (its backups stay where they are).

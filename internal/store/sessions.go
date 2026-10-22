@@ -16,12 +16,7 @@ const OriginSetup = "setup"
 // doesn't apply to them: they last until they expire.
 const OriginSignIn = "sign-in"
 
-// CreateSession stores a session. Only a hash of the token is stored.
-func (s *Store) CreateSession(ctx context.Context, tokenHash string, userID int64, expires time.Time) error {
-	return s.CreateSessionRemember(ctx, tokenHash, userID, expires, false)
-}
-
-// CreateSessionRemember stores a session; remember: "keep me signed in"
+// CreateSessionRemember stores a session (only a hash of its token); remember: "keep me signed in"
 // (no sign-out for inactivity).
 func (s *Store) CreateSessionRemember(ctx context.Context, tokenHash string, userID int64, expires time.Time, remember bool) error {
 	return s.CreateSessionAt(ctx, "", tokenHash, userID, expires, remember)
@@ -73,7 +68,7 @@ func (s *Store) SessionInfoAt(ctx context.Context, origin, tokenHash string) (u 
 	row := s.db.QueryRowContext(ctx, `SELECT `+userColumns+`, s.last_seen, s.remember
 		 FROM sessions s JOIN users ON users.id = s.user_id
 		 WHERE s.token_hash = ? AND s.expires_at > ? AND s.origin = ?`, tokenHash, time.Now().Unix(), origin)
-	u, err = scanUserRow(scanTail{row, []any{&seen, &remember}})
+	u, err = scanUser(scanTail{row, []any{&seen, &remember}})
 	return u, time.Unix(seen, 0), remember, err
 }
 
@@ -96,14 +91,6 @@ func (t scanTail) Scan(dest ...any) error { return t.row.Scan(append(dest, t.ext
 func (s *Store) TouchSession(ctx context.Context, tokenHash string, now time.Time) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE sessions SET last_seen = ? WHERE token_hash = ?`, now.Unix(), tokenHash)
 	return err
-}
-
-// SessionUser returns the user for a valid, unexpired session.
-func (s *Store) SessionUser(ctx context.Context, tokenHash string) (*User, error) {
-	return s.scanUser(s.db.QueryRowContext(ctx,
-		`SELECT `+userColumns+`
-		 FROM sessions s JOIN users ON users.id = s.user_id
-		 WHERE s.token_hash = ? AND s.expires_at > ? AND s.origin = ''`, tokenHash, time.Now().Unix()))
 }
 
 // DeleteSession logs a session out, and the sessions of Roostack's own

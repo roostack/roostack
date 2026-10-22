@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"time"
 )
 
@@ -104,62 +103,44 @@ func (s *Store) AddMonitorResult(ctx context.Context, r MonitorResult) error {
 
 const monitorResultCols = `key, at, up, paused, status, millis, error, cert_issued, cert_expires`
 
-func scanMonitorResults(rows *sql.Rows) ([]MonitorResult, error) {
-	defer rows.Close()
-	var out []MonitorResult
-	for rows.Next() {
-		var r MonitorResult
-		var at, issued, expires int64
-		var up, paused int
-		if err := rows.Scan(&r.Key, &at, &up, &paused, &r.Status, &r.Millis, &r.Err, &issued, &expires); err != nil {
-			return nil, err
-		}
-		r.At, r.Up, r.Paused = time.Unix(at, 0), up == 1, paused == 1
-		r.CertIssued, r.CertExpires = timeOrZero(issued), timeOrZero(expires)
-		out = append(out, r)
+func scanMonitorResult(row scanner) (MonitorResult, error) {
+	var r MonitorResult
+	var at, issued, expires int64
+	var up, paused int
+	if err := row.Scan(&r.Key, &at, &up, &paused, &r.Status, &r.Millis, &r.Err, &issued, &expires); err != nil {
+		return r, err
 	}
-	return out, rows.Err()
+	r.At, r.Up, r.Paused = time.Unix(at, 0), up == 1, paused == 1
+	r.CertIssued, r.CertExpires = timeOrZero(issued), timeOrZero(expires)
+	return r, nil
 }
 
 // MonitorResults are a check's results since a time, oldest first.
 func (s *Store) MonitorResults(ctx context.Context, key string, since time.Time) ([]MonitorResult, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+monitorResultCols+` FROM monitor_results
+	return queryAll(ctx, s.db, scanMonitorResult, `SELECT `+monitorResultCols+` FROM monitor_results
 		WHERE key = ? AND at >= ? ORDER BY at, rowid`, key, since.Unix())
-	if err != nil {
-		return nil, err
-	}
-	return scanMonitorResults(rows)
 }
 
 // LastMonitorResults are a check's n latest results, newest first.
 func (s *Store) LastMonitorResults(ctx context.Context, key string, n int) ([]MonitorResult, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+monitorResultCols+` FROM monitor_results
+	return queryAll(ctx, s.db, scanMonitorResult, `SELECT `+monitorResultCols+` FROM monitor_results
 		WHERE key = ? ORDER BY at DESC, rowid DESC LIMIT ?`, key, n)
-	if err != nil {
-		return nil, err
-	}
-	return scanMonitorResults(rows)
 }
 
 // MonitorHours are a check's hourly summaries since a time, oldest first.
 func (s *Store) MonitorHours(ctx context.Context, key string, since time.Time) ([]MonitorHour, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT key, hour, checks, ups, paused, millis_sum, millis_max FROM monitor_hours
+	return queryAll(ctx, s.db, scanMonitorHour, `SELECT key, hour, checks, ups, paused, millis_sum, millis_max FROM monitor_hours
 		WHERE key = ? AND hour >= ? ORDER BY hour`, key, since.Truncate(time.Hour).Unix())
-	if err != nil {
-		return nil, err
+}
+
+func scanMonitorHour(row scanner) (MonitorHour, error) {
+	var h MonitorHour
+	var hour int64
+	if err := row.Scan(&h.Key, &hour, &h.Checks, &h.Ups, &h.Paused, &h.MillisSum, &h.MillisMax); err != nil {
+		return h, err
 	}
-	defer rows.Close()
-	var out []MonitorHour
-	for rows.Next() {
-		var h MonitorHour
-		var hour int64
-		if err := rows.Scan(&h.Key, &hour, &h.Checks, &h.Ups, &h.Paused, &h.MillisSum, &h.MillisMax); err != nil {
-			return nil, err
-		}
-		h.Hour = time.Unix(hour, 0)
-		out = append(out, h)
-	}
-	return out, rows.Err()
+	h.Hour = time.Unix(hour, 0)
+	return h, nil
 }
 
 // StartMonitorOutage records that a check went down.
@@ -177,23 +158,18 @@ func (s *Store) EndMonitorOutage(ctx context.Context, key string, ended time.Tim
 // MonitorOutages are a check's outages that started since a time (or are
 // still going), newest first.
 func (s *Store) MonitorOutages(ctx context.Context, key string, since time.Time) ([]MonitorOutage, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT key, started, ended, error FROM monitor_outages
+	return queryAll(ctx, s.db, scanMonitorOutage, `SELECT key, started, ended, error FROM monitor_outages
 		WHERE key = ? AND (started >= ? OR ended = 0) ORDER BY started DESC, rowid DESC`, key, unixOrZero(since))
-	if err != nil {
-		return nil, err
+}
+
+func scanMonitorOutage(row scanner) (MonitorOutage, error) {
+	var o MonitorOutage
+	var started, ended int64
+	if err := row.Scan(&o.Key, &started, &ended, &o.Err); err != nil {
+		return o, err
 	}
-	defer rows.Close()
-	var out []MonitorOutage
-	for rows.Next() {
-		var o MonitorOutage
-		var started, ended int64
-		if err := rows.Scan(&o.Key, &started, &ended, &o.Err); err != nil {
-			return nil, err
-		}
-		o.Started, o.Ended = time.Unix(started, 0), timeOrZero(ended)
-		out = append(out, o)
-	}
-	return out, rows.Err()
+	o.Started, o.Ended = time.Unix(started, 0), timeOrZero(ended)
+	return o, nil
 }
 
 // PruneMonitor deletes results from before one time, and summaries and
@@ -222,23 +198,18 @@ func (s *Store) ForgetMonitorCheck(ctx context.Context, key string) error {
 
 // MonitorChecks lists the checks people added, oldest first.
 func (s *Store) MonitorChecks(ctx context.Context) ([]MonitorCheck, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, address, skip_verify, alert, created_at FROM monitor_checks ORDER BY id`)
-	if err != nil {
-		return nil, err
+	return queryAll(ctx, s.db, scanMonitorCheck, `SELECT id, name, address, skip_verify, alert, created_at FROM monitor_checks ORDER BY id`)
+}
+
+func scanMonitorCheck(row scanner) (MonitorCheck, error) {
+	var c MonitorCheck
+	var skip, alert int
+	var created int64
+	if err := row.Scan(&c.ID, &c.Name, &c.Address, &skip, &alert, &created); err != nil {
+		return c, err
 	}
-	defer rows.Close()
-	var out []MonitorCheck
-	for rows.Next() {
-		var c MonitorCheck
-		var skip, alert int
-		var created int64
-		if err := rows.Scan(&c.ID, &c.Name, &c.Address, &skip, &alert, &created); err != nil {
-			return nil, err
-		}
-		c.SkipVerify, c.Alert, c.Created = skip == 1, alert == 1, time.Unix(created, 0)
-		out = append(out, c)
-	}
-	return out, rows.Err()
+	c.SkipVerify, c.Alert, c.Created = skip == 1, alert == 1, time.Unix(created, 0)
+	return c, nil
 }
 
 // AddMonitorCheck adds someone's check and returns its ID.

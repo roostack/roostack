@@ -52,22 +52,17 @@ func (s *Store) JoinCodes(ctx context.Context, now time.Time) ([]JoinCode, error
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM join_codes WHERE expires_at <= ?`, now.Unix()); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT token_hash, addr, public_key, expires_at, dial FROM join_codes ORDER BY addr`)
-	if err != nil {
-		return nil, err
+	return queryAll(ctx, s.db, scanJoinCode, `SELECT token_hash, addr, public_key, expires_at, dial FROM join_codes ORDER BY addr`)
+}
+
+func scanJoinCode(row scanner) (JoinCode, error) {
+	var c JoinCode
+	var exp int64
+	if err := row.Scan(&c.TokenHash, &c.Addr, &c.PublicKey, &exp, &c.Dial); err != nil {
+		return c, err
 	}
-	defer rows.Close()
-	var out []JoinCode
-	for rows.Next() {
-		var c JoinCode
-		var exp int64
-		if err := rows.Scan(&c.TokenHash, &c.Addr, &c.PublicKey, &exp, &c.Dial); err != nil {
-			return nil, err
-		}
-		c.Expires = time.Unix(exp, 0)
-		out = append(out, c)
-	}
-	return out, rows.Err()
+	c.Expires = time.Unix(exp, 0)
+	return c, nil
 }
 
 // Join uses a join code: it adds the server at the code's address and
@@ -105,26 +100,21 @@ func (s *Store) Join(ctx context.Context, tokenHash string, m Server, now time.T
 
 // Servers lists the other servers in the lab.
 func (s *Store) Servers(ctx context.Context) ([]Server, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, addr, public_key, joined_at, cert_serial, prev_serial, cert_expires, dial
+	return queryAll(ctx, s.db, scanServer, `SELECT id, name, addr, public_key, joined_at, cert_serial, prev_serial, cert_expires, dial
 		FROM servers ORDER BY name`)
-	if err != nil {
-		return nil, err
+}
+
+func scanServer(row scanner) (Server, error) {
+	var m Server
+	var joined, expires int64
+	if err := row.Scan(&m.ID, &m.Name, &m.Addr, &m.PublicKey, &joined, &m.CertSerial, &m.PrevSerial, &expires, &m.Dial); err != nil {
+		return m, err
 	}
-	defer rows.Close()
-	var out []Server
-	for rows.Next() {
-		var m Server
-		var joined, expires int64
-		if err := rows.Scan(&m.ID, &m.Name, &m.Addr, &m.PublicKey, &joined, &m.CertSerial, &m.PrevSerial, &expires, &m.Dial); err != nil {
-			return nil, err
-		}
-		m.JoinedAt = time.Unix(joined, 0)
-		if expires > 0 {
-			m.CertExpires = time.Unix(expires, 0)
-		}
-		out = append(out, m)
+	m.JoinedAt = time.Unix(joined, 0)
+	if expires > 0 {
+		m.CertExpires = time.Unix(expires, 0)
 	}
-	return out, rows.Err()
+	return m, nil
 }
 
 // SetServerCert records the certificate a server may use, and the one it
