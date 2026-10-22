@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -182,11 +181,4 @@ func mountPoint(path string) string {
 		}
 		path = up
 	}
-}
-
-// DiskSpaces asks the server.
-func (r *Remote) DiskSpaces(ctx context.Context) ([]DiskSpace, error) {
-	var out []DiskSpace
-	err := r.call(ctx, http.MethodGet, "/v1/disks", nil, &out)
-	return out, err
 }

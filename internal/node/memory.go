@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -74,11 +73,4 @@ func parseMeminfo(f io.Reader) (MemoryInfo, error) {
 		return MemoryInfo{}, errors.New("meminfo: no MemTotal or MemAvailable")
 	}
 	return m, nil
-}
-
-// Memory asks the server.
-func (r *Remote) Memory(ctx context.Context) (MemoryInfo, error) {
-	var out MemoryInfo
-	err := r.call(ctx, http.MethodGet, "/v1/memory", nil, &out)
-	return out, err
 }
