@@ -65,10 +65,15 @@ func TestServiceRecordsRuns(t *testing.T) {
 	if err := svc.Submit(); !errors.Is(err, ErrAlreadyQueued) {
 		t.Errorf("second submit: %v, want ErrAlreadyQueued", err)
 	}
-	wait := func() *Status {
+	// wait waits for a run other than before to be recorded. A run can
+	// take no time at all (a plan that fails), and Status reads the last
+	// run before the coordinator, so one Status can show the run before
+	// with this one already finished.
+	wait := func(before *store.BackupRun) *Status {
 		for i := 0; i < 600; i++ {
 			s, _ := svc.Status(ctx)
-			if !s.Running && !s.Queued && s.Last != nil {
+			if !s.Running && !s.Queued && s.Last != nil && (before == nil || s.Last.SnapshotID != before.SnapshotID ||
+				s.Last.Error != before.Error || !s.Last.Started.Equal(before.Started)) {
 				return &s
 			}
 			time.Sleep(50 * time.Millisecond)
@@ -76,7 +81,7 @@ func TestServiceRecordsRuns(t *testing.T) {
 		t.Fatal("backup did not finish")
 		return nil
 	}
-	s := wait()
+	s := wait(nil)
 	if !s.Last.OK || s.LastOK == nil || s.LastOK.SnapshotID == "" || !s.LocalOnly {
 		t.Fatalf("status after success: %+v %+v", s, s.Last)
 	}
@@ -105,8 +110,7 @@ func TestServiceRecordsRuns(t *testing.T) {
 	if err := svc.Submit(); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(100 * time.Millisecond)
-	s = wait()
+	s = wait(s.Last)
 	if s.Last.OK || s.Last.Error != "plan broke" || s.LastOK == nil {
 		t.Errorf("status after failure: last=%+v lastOK=%+v", s.Last, s.LastOK)
 	}

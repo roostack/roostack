@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // The lab was restored on another machine (a newer generation backs up
@@ -56,13 +57,8 @@ func TestFenceRestored(t *testing.T) {
 	if err := svc.Submit(); err != nil {
 		t.Fatal(err)
 	}
-	for deadline := time.Now().Add(60 * time.Second); svc.Fenced(ctx) == nil && time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
-	}
-	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-		if st, _ := svc.Status(ctx); !st.Running && !st.Queued {
-			break
-		}
-	}
+	testwait.For(t, 60*time.Second, func() bool { return svc.Fenced(ctx) != nil })
+	testwait.For(t, 10*time.Second, func() bool { st, _ := svc.Status(ctx); return !st.Running && !st.Queued })
 	if after, _ := repo.Snapshots(ctx, TagRoostack); len(after) != len(before) {
 		t.Errorf("the old copy uploaded %d snapshots", len(after)-len(before))
 	}

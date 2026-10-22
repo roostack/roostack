@@ -13,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // relayWG is the agent's WireGuard for the relay's interface.
@@ -39,9 +40,7 @@ func TestCloudStanding(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.Confirm(link.Status().Waiting.Code)
-	for i := 0; i < 200 && !link.Status().Linked; i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
+	testwait.For(t, 10*time.Second, func() bool { return link.Status().Linked })
 	if err := link.ClaimName(ctx, "smiths"); err != nil {
 		t.Fatal(err)
 	}
@@ -171,9 +170,7 @@ func TestCloudRecipients(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.Confirm(link.Status().Waiting.Code)
-	for i := 0; i < 200 && !link.Status().Linked; i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
+	testwait.For(t, 10*time.Second, func() bool { return link.Status().Linked })
 	if _, body := h.get("/settings/email"); !strings.Contains(body, "Roostack Cloud hears of them at the lab's next daily check-in") {
 		t.Error("not told before the first report")
 	}
@@ -215,9 +212,7 @@ func TestCloudBackupSpace(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.Confirm(link.Status().Waiting.Code)
-	for i := 0; i < 200 && !link.Status().Linked; i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
+	testwait.For(t, 10*time.Second, func() bool { return link.Status().Linked })
 	fm.destination = "cloud"
 	f.StorageQuota, f.StorageUsed = 10_000_000_000, 5_000_000_000
 	if err := link.Check(ctx); err != nil {

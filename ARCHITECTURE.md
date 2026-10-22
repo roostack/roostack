@@ -98,6 +98,7 @@ Grouped by layer, from the commands down. Sub-packages that exist only for tests
 | `internal/imagecheck` | Asks container registries which processors a pinned image has builds for (`make check-images`, the registry's index) |
 | `internal/nodeid` | This server's identity (node ID and name) |
 | `internal/pkgtest` | For tests: finds the package fixtures in `internal/testdata/packages` and copies them into a catalog |
+| `internal/testwait` | For tests: waits for what another goroutine does, and fails the test when its deadline passes |
 
 ### From desired state to running services
 

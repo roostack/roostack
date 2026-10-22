@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/public"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // TestPublicEdge: at home, the Owner chooses how visitors come in: port
@@ -240,9 +241,7 @@ func TestPublicRelay(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.Confirm(link.Status().Waiting.Code)
-	for i := 0; i < 200 && !link.Status().Linked; i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
+	testwait.For(t, 10*time.Second, func() bool { return link.Status().Linked })
 	if err := link.ClaimName(context.Background(), "smiths"); err != nil {
 		t.Fatal(err)
 	}

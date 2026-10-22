@@ -22,6 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/pkgtest"
 	"roostack.cloud/roostack/internal/reconcile"
 	"roostack.cloud/roostack/internal/state"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // syncKV is settings in memory, safe for the copy's goroutine.
@@ -95,9 +96,7 @@ func immichPackage(t *testing.T) *pkgspec.Package {
 // waitImport waits until a service's check or copy has finished.
 func waitImport(t *testing.T, n *Local, service string) ImportState {
 	t.Helper()
-	for i := 0; i < 500 && n.importBusy(service); i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
+	testwait.For(t, 30*time.Second, func() bool { return !n.importBusy(service) })
 	return n.loadImport(t.Context(), service)
 }
 

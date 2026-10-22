@@ -22,6 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // healthNode is the controller's own server, whose services' health the
@@ -347,14 +348,24 @@ func TestServiceUpdate(t *testing.T) {
 	m.SetUpdatePolicy(ctx, "vaultwarden", "notify")
 	m.RegistryChanged()
 	m.Wait()
-	time.Sleep(100 * time.Millisecond)
+	// RegistryChanged decides in its own goroutine, with UpdateStopped:
+	// deciding again here, and waiting for that, shows what it decides
+	// without waiting a while to see that nothing happens.
+	m.UpdateStopped(ctx)
 	if m.Updating("vaultwarden") != nil {
 		t.Fatal("notify only offers it")
 	}
-	m.SetUpdatePolicy(ctx, "vaultwarden", "patch")
+	// Counted before the policy changes, so the update is counted once,
+	// whichever goroutine starts it.
 	runs := backups.runs
+	m.SetUpdatePolicy(ctx, "vaultwarden", "patch")
 	m.RegistryChanged()
-	time.Sleep(100 * time.Millisecond)
+	// Started in the background: wait for it to start (or to have
+	// finished already), then for it to finish.
+	testwait.For(t, 20*time.Second, func() bool {
+		in, _ := instance.Load(state.InstanceFile(m.Lab, "vaultwarden"))
+		return m.Updating("vaultwarden") != nil || in.Version == "1.34.7-roostack.1"
+	})
 	waitUpdated(t, m, "vaultwarden")
 	in, _ = instance.Load(state.InstanceFile(m.Lab, "vaultwarden"))
 	if rec := m.LastUpdate(ctx, "vaultwarden"); in.Version != "1.34.7-roostack.1" || !rec.Automatic || backups.runs != runs+1 {

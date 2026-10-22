@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/nodeid"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 type fakeAgent struct {
@@ -104,11 +105,10 @@ func TestHubJoin(t *testing.T) {
 	// The switch happens joinSwitchDelay after the join: wait for it
 	// rather than for a fixed time, so a busy machine doesn't fail this.
 	var keys []string
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		if keys = ag.peerKeys(); !slices.Contains(keys, joinPub+" 100.96.0.2/32") {
-			break
-		}
-	}
+	testwait.For(t, 10*time.Second, func() bool {
+		keys = ag.peerKeys()
+		return !slices.Contains(keys, joinPub+" 100.96.0.2/32")
+	})
 	if !slices.Contains(keys, ownPub+" 100.96.0.2/32") || slices.Contains(keys, joinPub+" 100.96.0.2/32") {
 		t.Errorf("the server's own key must replace the one-time key: %v", keys)
 	}
@@ -185,7 +185,7 @@ func TestHubDials(t *testing.T) {
 	if servers, _ := st.Servers(ctx); len(servers) != 1 || servers[0].Name != "n-0000000002" {
 		t.Errorf("servers: %+v", servers)
 	}
-	time.Sleep(50 * time.Millisecond)
+	testwait.For(t, 10*time.Second, func() bool { _, ok := dialled(ownPub); return ok })
 	if p, ok := dialled(ownPub); !ok || p.Endpoint != "203.0.113.7:51820" || p.Keepalive != Keepalive {
 		t.Errorf("the joined server's peer: %+v", p)
 	}

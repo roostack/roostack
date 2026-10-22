@@ -19,6 +19,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/cloud/cloudtest"
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // fakeCloud starts a fake Cloud over HTTPS and a lab's link to it.
@@ -51,17 +52,7 @@ func link(t *testing.T, f *cloudtest.Fake, s *Service, name string) {
 	if err := f.Confirm(w.Code); err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, func() bool { return s.Status().Linked })
-}
-
-func waitFor(t *testing.T, ok func() bool) {
-	t.Helper()
-	for i := 0; i < 300 && !ok(); i++ {
-		time.Sleep(10 * time.Millisecond)
-	}
-	if !ok() {
-		t.Fatal("timed out")
-	}
+	testwait.For(t, 10*time.Second, func() bool { return s.Status().Linked })
 }
 
 func TestLinkCheckUnlink(t *testing.T) {
@@ -656,12 +647,7 @@ func TestRelay(t *testing.T) {
 	f.DomainVerified = false
 	rctx, stop := context.WithCancel(ctx)
 	go s.RefreshRelay(rctx, 10*time.Millisecond)
-	for i := 0; i < 200; i++ {
-		if _, d := s.RelayName(); d != nil && !d.Verified {
-			break
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+	testwait.For(t, 10*time.Second, func() bool { _, d := s.RelayName(); return d != nil && !d.Verified })
 	stop()
 	if _, d := s.RelayName(); d == nil || d.Verified {
 		t.Errorf("after refreshing: %+v", d)

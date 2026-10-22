@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 type memJournal struct {
@@ -76,25 +78,13 @@ func (e *env) job(name string, err error) Job {
 	return Job{Name: name, Run: func(context.Context, *Handle) error { e.record(name); return err }}
 }
 
-// waitFor polls until cond is true (the coordinator runs in a goroutine).
-func waitFor(t *testing.T, what string, cond func() bool) {
-	t.Helper()
-	for i := 0; i < 200; i++ {
-		if cond() {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for %s", what)
-}
-
 func TestChainStopsOnFailure(t *testing.T) {
 	e := newEnv(t, at(2, 12, 0))
 	e.start()
 	defer e.cancel()
 	e.c.Submit(e.job("backup", errors.New("disk full")), e.job("update vaultwarden", nil))
 	e.c.Submit(e.job("backup", nil), e.job("update immich", nil))
-	waitFor(t, "jobs", func() bool { return len(e.events()) == 3 })
+	testwait.For(t, 10*time.Second, func() bool { return len(e.events()) == 3 })
 	want := []string{"backup", "backup", "update immich"}
 	if got := e.events(); !reflect.DeepEqual(got, want) {
 		t.Errorf("ran %v, want %v (updates must not run after a failed backup)", got, want)
@@ -142,7 +132,7 @@ func TestRebootWaitsForJob(t *testing.T) {
 		<-release
 		return nil
 	}})
-	waitFor(t, "restore to start", func() bool { return len(e.events()) == 1 })
+	testwait.For(t, 10*time.Second, func() bool { return len(e.events()) == 1 })
 	e.c.RequestReboot()
 	e.setNow(at(3, 4, 30)) // pending for over 24h, in the window
 	e.ticks <- at(3, 4, 30)
@@ -169,7 +159,7 @@ func TestInterruptResumableJob(t *testing.T) {
 		<-ctx.Done()
 		return ctx.Err()
 	}}, e.job("update vaultwarden", nil))
-	waitFor(t, "upload", func() bool { return len(e.events()) == 1 })
+	testwait.For(t, 10*time.Second, func() bool { return len(e.events()) == 1 })
 	e.c.RequestReboot()
 
 	e.ticks <- at(2, 4, 0) // pending only a moment: keep waiting
@@ -197,7 +187,7 @@ func TestInterruptResumableJob(t *testing.T) {
 	e2.c.Journal = e.journal
 	e2.start()
 	defer e2.cancel()
-	waitFor(t, "resume", func() bool { return len(e2.events()) == 1 })
+	testwait.For(t, 10*time.Second, func() bool { return len(e2.events()) == 1 })
 	if got := e2.events()[0]; got != "backup (resumed)" {
 		t.Errorf("first job after reboot = %q", got)
 	}
@@ -216,12 +206,12 @@ func TestHold(t *testing.T) {
 	}})
 	e.start()
 	defer e.cancel()
-	waitFor(t, "backup to start", func() bool { return len(e.events()) == 1 })
+	testwait.For(t, 10*time.Second, func() bool { return len(e.events()) == 1 })
 	e.c.Hold()
 	e.c.Submit(e.job("updates", nil))
 	e.c.RequestReboot()
 	close(release)
-	waitFor(t, "backup to finish", func() bool { return e.c.Status().Running == nil })
+	testwait.For(t, 10*time.Second, func() bool { return e.c.Status().Running == nil })
 	e.ticks <- time.Time{}
 	if got := e.events(); len(got) != 1 || e.rebootCount() != 0 {
 		t.Errorf("held: ran %v, reboots %d; want the running job to finish and nothing more", got, e.rebootCount())

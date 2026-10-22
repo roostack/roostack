@@ -9,6 +9,7 @@ import (
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/testwait"
 )
 
 // Finished logs become history, with their output; routine ones (nothing
@@ -36,11 +37,10 @@ func TestKeepHistory(t *testing.T) {
 	f.Finish(errors.New("boom"))
 
 	var events []store.Event
-	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		if events, _ = n.History(ctx, time.Time{}, "", 10); len(events) == 2 {
-			break
-		}
-	}
+	testwait.For(t, 10*time.Second, func() bool {
+		events, _ = n.History(ctx, time.Time{}, "", 10)
+		return len(events) == 2
+	})
 	if len(events) != 2 {
 		t.Fatalf("events: %+v", events)
 	}
