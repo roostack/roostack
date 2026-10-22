@@ -14,8 +14,9 @@
 # 5. publish: apt-publish.yml takes `release-files` and publishes them at
 #    dl.roostack.cloud and in the apt repository.
 #
-# Actions are pinned by commit, with the release in a comment: update
-# both together.
+# The tools' versions (Go, govulncheck, uv) are in .github/versions.env,
+# which each job reads first, as of the tag. Actions are pinned by commit,
+# with the release in a comment: update both together.
 name: Release
 
 on:
@@ -34,19 +35,6 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  # The Go releases are built with: scripts/build-release.sh's GO_RELEASE
-  # (which makes the go tool fetch it if this one differs) and ci.yml's.
-  GO_VERSION: "1.27.2"
-  GOVULNCHECK_VERSION: v1.9.0
-  # uv, which builds the help site with the Zensical in help/uv.lock,
-  # from uv's release, checked against the SHA-256 in its .sha256 file.
-  # The aarch64 one is for rebuilding on an ARM machine
-  # (scripts/verify-release.sh reads these).
-  UV_VERSION: "0.12.22"
-  UV_SHA256: b9980552309f09c15172b8be828555e375097f16deb459795ce7bfd200380f0b
-  UV_SHA256_AARCH64: 6f66a14e8239871fb477f9746c941fedfa77e8fe28a8bc7c07e1dc7f53a66712
-
 jobs:
   check:
     runs-on: ubuntu-24.04
@@ -58,6 +46,8 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Versions
+        run: grep -E '^[A-Z0-9_]+=' .github/versions.env >> "$GITHUB_ENV"
       # Only a release of reviewed code: the tag's commit is on main, and
       # the tag is the one git describe gives (as the build checks again).
       - name: The tag is on main
@@ -113,6 +103,10 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           path: ${{ matrix.path }}
+      # The same Go as build-release.sh, which reads the same file.
+      - name: Versions
+        working-directory: ${{ matrix.path }}
+        run: grep -E '^[A-Z0-9_]+=' .github/versions.env >> "$GITHUB_ENV"
       # No cache: a release is built from nothing but its source, so
       # nothing another workflow saved can reach it.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0

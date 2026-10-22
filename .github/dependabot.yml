@@ -1,0 +1,25 @@
+# Dependabot's monthly pull requests, one per ecosystem with every update
+# grouped in it (the Owner, 2026-10-22; quality review G2): the actions the
+# workflows pin by commit, and Go's modules in go.mod. Each still needs the
+# maintainer's review, as any dependency change does (CONTRIBUTING.md).
+# A Go module's update fails TestThirdPartyFile until THIRD_PARTY.md is
+# regenerated on its branch (make generated).
+# The tools' versions Dependabot can't see are in .github/versions.env,
+# updated by hand.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      go:
+        patterns: ["*"]

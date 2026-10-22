@@ -166,7 +166,7 @@ Docs are part of the change, in the same commit. Write them for someone new to t
 ## Commits and pull requests
 
 - Commit a finished, tested piece of work, with a message that says what changed and why: a subject of 72 characters at most, then a wrapped body. Don't commit half-done work.
-- A pull request says what changed, how you checked it, and anything you couldn't check. CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `make vet`, the whole suite with restic, govulncheck and actionlint on every pull request.
+- A pull request says what changed, how you checked it, and anything you couldn't check. CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `make vet`, staticcheck, the whole suite with restic, the help site's strict build, a check that the files Python generates are up to date, shellcheck, actionlint and govulncheck on every pull request.
 
 ## Licence
 

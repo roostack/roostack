@@ -89,11 +89,11 @@ byte, so the published binaries can be checked against the published
 source rather than taken on trust. `scripts/build-release.sh` (`make
 release`) fixes everything that could otherwise differ:
 
-- **Go:** the release's Go (`GO_RELEASE`, fetched by the go tool if it's
-  another), `-trimpath` (no folder names) and an empty build ID (`make
-  build` does both for every build), no cgo, no `go.work`, no settings from
-  the builder's go env file, the baseline processor level (`GOAMD64=v1`,
-  `GOARM64=v8.0`).
+- **Go:** the release's Go (`GO_VERSION` in `.github/versions.env`,
+  fetched by the go tool if it's another), `-trimpath` (no folder names)
+  and an empty build ID (`make build` does both for every build), no cgo,
+  no `go.work`, no settings from the builder's go env file, the baseline
+  processor level (`GOAMD64=v1`, `GOARM64=v8.0`).
 - **The help site:** Zensical exactly as `help/uv.lock` pins it, refusing a
   lock that's out of date. Its output has no dates or paths in it (checked
   2026-10-18: two builds in different folders and on Python 3.12 and 3.15
@@ -145,8 +145,9 @@ order:
    compare with the one published (below, and on roostack.cloud);
 3. builds the tag afresh, in the image the release was built in (the
    tag's `release.yml` pins it by digest), with the same uv (checked
-   against the SHA-256 in `release.yml`) and the release's own Go (the
-   go tool fetches it, checked against Go's checksum database);
+   against the SHA-256 in the tag's `.github/versions.env`) and the
+   release's own Go (the go tool fetches it, checked against Go's
+   checksum database);
 4. compares each rebuilt file's SHA-256 with the signed `SHA256SUMS`, file
    by file, and ends with a plain verdict: "Roostack 0.1.0 matches its
    source", or "DOES NOT MATCH" with the files that differ.
