@@ -2,7 +2,8 @@
 /* The pause button: red-outlined, not a primary action, so it isn't pressed by mistake. */
 a.button.pause-button { background: none; color: var(--bad); border: 1px solid var(--bad); }
 a.button.pause-button:hover { background: var(--bad-bg); }
-a.button.pause-button .icon, button.danger .icon { width: 16px; height: 16px; margin-right: 6px; vertical-align: -3px; }
+/* An icon in a button takes the button's text colour (the stylesheet's .icon is muted, which shows green on red). */
+a.button.pause-button .icon, button.danger .icon { width: 16px; height: 16px; margin-right: 6px; vertical-align: -3px; color: currentColor; }
 .page-head-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
 /* What would be paused, on the pause page. */
 .pause-list { display: grid; gap: var(--space-3); margin: var(--space-3) 0; }
