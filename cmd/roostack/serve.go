@@ -40,6 +40,7 @@ import (
 	"roostack.cloud/roostack/internal/public"
 	"roostack.cloud/roostack/internal/registry"
 	"roostack.cloud/roostack/internal/setup"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/systemd"
@@ -507,16 +508,7 @@ func serve(args []string) error {
 	go srv.RunHistoryCull(ctx)
 	// Direct links between servers that don't connect fall back to the
 	// controller (SPEC.md §10.10).
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Minute):
-				mgr.CheckLinks(ctx)
-			}
-		}
-	}()
+	go sleep.Every(ctx, time.Minute, func() { mgr.CheckLinks(ctx) })
 	srv.DetectNetwork = public.DetectNetwork
 	srv.RestorePending = func() bool { _, ok := labrestore.Pending(lab.Paths); return ok }
 	// A new install can instead become a lab restored from its backups.
@@ -820,18 +812,7 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 	// Debian's own apt timers may also install an update that needs a
 	// restart; notice it.
 	updates.CheckReboot()
-	go func() {
-		t := time.NewTicker(30 * time.Minute)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				updates.CheckReboot()
-			}
-		}
-	}()
+	go sleep.Every(ctx, 30*time.Minute, func() { updates.CheckReboot() })
 	// Failed backups are tried again (backup/retry.go).
 	go svc.WatchRetries(ctx)
 	// A night the server was off is caught up, and a new lab's first
@@ -841,10 +822,8 @@ func startMaintenance(ctx context.Context, lab config.Lab, st *store.Store, log 
 		wait := catchUpDelay
 		for {
 			svc.CatchUpAt(time.Now().Add(wait))
-			select {
-			case <-ctx.Done():
+			if !sleep.For(ctx, wait) {
 				return
-			case <-time.After(wait):
 			}
 			wait = time.Hour
 			why, err := svc.CatchUp(ctx)

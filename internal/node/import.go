@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/importer"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
@@ -447,10 +448,8 @@ func (n *Local) CancelImport(ctx context.Context, service string) error {
 	}
 	n.StopImportCopy(ctx, service)
 	for n.importBusy(service) {
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 100*time.Millisecond) {
 			return ctx.Err()
-		case <-time.After(100 * time.Millisecond):
 		}
 	}
 	if err := n.ImportAgent.UnmountImport(ctx, service); err != nil {

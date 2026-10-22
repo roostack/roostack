@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/internal/agent"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -294,10 +295,8 @@ func (s *Service) seriesToInstall(ctx context.Context) string {
 func (s *Service) WatchSeries(ctx context.Context, first, every time.Duration) {
 	wait := first
 	for {
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, wait) {
 			return
-		case <-time.After(wait):
 		}
 		wait = every
 		if err := s.CheckSeries(ctx); err != nil {

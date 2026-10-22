@@ -22,6 +22,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/photoimport"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
@@ -919,10 +920,8 @@ func (n *Local) watchPhotos(ctx context.Context, service, who string, log *activ
 			}
 			return
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, photoPoll) {
 			return
-		case <-time.After(photoPoll):
 		}
 	}
 }
@@ -955,10 +954,8 @@ func (n *Local) carryOnAfterRestart(ctx context.Context, service, who string) bo
 			n.Log.Warn("Immich isn't answering: not carrying on a photo migration", "service", service, "who", who, "err", err)
 			return false
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, photoPoll) {
 			return false
-		case <-time.After(photoPoll):
 		}
 	}
 	// Ended quietly (no email: it goes on), then started again.

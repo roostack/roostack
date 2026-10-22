@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/sleep"
 )
 
 // forwardToRemote passes this lab's servers' backups to its storage at
@@ -36,10 +37,8 @@ func forwardToRemote(ctx context.Context, lab config.Lab, r manager.RemoteStorag
 				if ln, err = net.Listen("tcp", addr); err == nil {
 					break
 				}
-				select {
-				case <-ctx.Done():
+				if !sleep.For(ctx, 10*time.Second) {
 					return
-				case <-time.After(10 * time.Second):
 				}
 			}
 			srv := &http.Server{Handler: proxy, ReadHeaderTimeout: 30 * time.Second}

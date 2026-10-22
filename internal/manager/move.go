@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
@@ -277,10 +278,8 @@ func waitApplied(ctx context.Context, n node.Node, t time.Time) error {
 		if st := n.Status(); !st.Running && st.LastRun.After(t) {
 			return st.LastErr
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 2*time.Second) {
 			return ctx.Err()
-		case <-time.After(2 * time.Second):
 		}
 	}
 	return fmt.Errorf("%s didn't finish applying in time", n.Identity().Name)
@@ -364,10 +363,8 @@ func waitBackup(ctx context.Context, b node.Backups, t time.Time) (*store.Backup
 			}
 			return st.Last, nil
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 5*time.Second) {
 			return nil, ctx.Err()
-		case <-time.After(5 * time.Second):
 		}
 	}
 }

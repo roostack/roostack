@@ -17,6 +17,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
@@ -727,10 +728,8 @@ func (m *Manager) awaitHold(ctx context.Context, act *activity.Log, u *Update, u
 				return st, errors.New("its server let go of the update")
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, statusEvery) {
 			return st, ctx.Err()
-		case <-time.After(statusEvery):
 		}
 	}
 }
@@ -798,10 +797,8 @@ func (m *Manager) checkHealth(ctx context.Context, act *activity.Log, up node.Up
 				failedSince = time.Now()
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, healthEvery) {
 			return ctx.Err()
-		case <-time.After(healthEvery):
 		}
 	}
 	return fmt.Errorf("It still wasn't working after %s: %s", minutes(healthWait), problem)

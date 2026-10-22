@@ -16,6 +16,7 @@ import (
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/nodeid"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -98,10 +99,8 @@ func (h *Hub) Start(ctx context.Context) {
 			} else {
 				wait = peerSync
 			}
-			select {
-			case <-ctx.Done():
+			if !sleep.For(ctx, wait) {
 				return
-			case <-time.After(wait):
 			}
 		}
 	}()

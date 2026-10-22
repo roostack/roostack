@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -179,17 +180,8 @@ func (m *Monitor) Run(ctx context.Context) {
 	if every == 0 {
 		every = time.Minute
 	}
-	t := time.NewTicker(every)
-	defer t.Stop()
 	m.Round(ctx)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			m.Round(ctx)
-		}
-	}
+	sleep.Every(ctx, every, func() { m.Round(ctx) })
 }
 
 // parallel is how many checks run at once.

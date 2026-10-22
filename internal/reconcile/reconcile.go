@@ -29,6 +29,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/fsutil"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/systemd"
 )
 
@@ -117,10 +118,8 @@ func (r *Reconciler) start(ctx context.Context, log *activity.Log, units ...stri
 	log.Printf("Starting failed; waiting for systemd to try again: %v", err)
 	deadline := time.Now().Add(cmp.Or(r.Settle, 30*time.Second))
 	for time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 2*time.Second) {
 			return err
-		case <-time.After(2 * time.Second):
 		}
 		states, serr := st.Status(ctx, units...)
 		if serr == nil && len(states) == len(units) && !slices.ContainsFunc(states, func(s systemd.UnitStatus) bool {

@@ -25,6 +25,7 @@ import (
 	"roostack.cloud/roostack/authkit"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/generate"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -225,10 +226,8 @@ func (h *GuestHub) Start(ctx context.Context) {
 					wait = 10 * time.Second
 				}
 			}
-			select {
-			case <-ctx.Done():
+			if !sleep.For(ctx, wait) {
 				return
-			case <-time.After(wait):
 			}
 		}
 	}()
@@ -451,10 +450,8 @@ func (h *GuestHub) ServeGuests(ctx context.Context) {
 				}
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 10*time.Second) {
 			return
-		case <-time.After(10 * time.Second):
 		}
 	}
 	srv := &http.Server{Handler: h.Handler(), ReadHeaderTimeout: 10 * time.Second}

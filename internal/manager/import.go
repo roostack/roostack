@@ -14,6 +14,7 @@ import (
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/usererr"
 )
@@ -246,10 +247,8 @@ func runSwitchStep(ctx context.Context, x node.Imports, service, name string) ([
 			}
 			return v.Kept, nil
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, statusEvery) {
 			return nil, ctx.Err()
-		case <-time.After(statusEvery):
 		}
 	}
 	return nil, fmt.Errorf("%s took too long (%v)", name, lastErr)

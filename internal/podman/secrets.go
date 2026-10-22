@@ -6,9 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"strings"
-	"sync/atomic"
 
 	"roostack.cloud/roostack/internal/systemd"
 )
@@ -27,11 +25,8 @@ type Secrets struct {
 // (SPEC.md §6.1).
 func NewSecrets() *Secrets { return &Secrets{Run: run} }
 
-var seq atomic.Int64
-
 func run(ctx context.Context, stdin []byte, args ...string) ([]byte, error) {
-	unit := fmt.Sprintf("roostack-podman-%d-%d", os.Getpid(), seq.Add(1))
-	cmd := systemd.UserCommand(ctx, unit, nil, "podman", args...)
+	cmd := systemd.UserCommand(ctx, systemd.TransientUnit("podman", args...), nil, "podman", args...)
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}

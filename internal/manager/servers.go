@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/destination"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/node"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
@@ -627,10 +628,8 @@ func (m *Manager) MatchTimezone(ctx context.Context, id string) {
 				return
 			}
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, 5*time.Second) {
 			return
-		case <-time.After(5 * time.Second):
 		}
 	}
 	m.Log.Warn("a new server didn't answer, so it keeps its own time zone", "server", m.nameOf(id))

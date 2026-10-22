@@ -27,6 +27,7 @@ import (
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/agent"
 	"roostack.cloud/roostack/internal/maintenance"
+	"roostack.cloud/roostack/internal/sleep"
 	"roostack.cloud/roostack/internal/store"
 )
 
@@ -270,10 +271,8 @@ func (s *Service) follow(ctx context.Context, mark runMark) (Result, error) {
 			return Result{At: s.Now(), Summary: "Roostack stopped waiting for the OS updates started " +
 				mark.Started.Local().Format("2 January 15:04") + ": " + why + ". Its log is " + agent.UpdatesLog + "."}, nil
 		}
-		select {
-		case <-ctx.Done():
+		if !sleep.For(ctx, every) {
 			return Result{}, ctx.Err()
-		case <-time.After(every):
 		}
 	}
 }
