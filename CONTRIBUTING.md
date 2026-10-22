@@ -31,7 +31,7 @@ Security problems go to [SECURITY.md](SECURITY.md), not to an issue. Everyone ta
 ## What you need
 
 - **Go** 1.26 or newer, the module's minimum. CI and releases build with Go 1.27.3.
-- **Node** 20 or newer, for the package editor's JavaScript tests (`make test` runs them). They need no packages installed.
+- **Node** 20 or newer, for the package editor's JavaScript tests and the public help's password gate's (`make test` runs both). They need no packages installed.
 - **restic**, so the backup tests run rather than skip: `brew install restic` on a Mac, `apt install restic` on Debian. CI uses restic 0.18.0, Debian 13's.
 - **[uv](https://docs.astral.sh/uv/)**, to build the help site. Without it, Roostack builds without its help pages and says so at `/help/`.
 - **QEMU**, for the dev VM: `brew install qemu` on a Mac; on Debian, `qemu-system-x86` (or `qemu-system-arm` with `qemu-efi-aarch64`); on Arch, `qemu-system-x86_64` (or `qemu-system-aarch64` with `edk2-aarch64`).
@@ -64,7 +64,7 @@ bin/roostack serve -lab <file> -listen 127.0.0.1:8480
 
 ## Testing
 
-- `go test ./...` runs every Go test, and `make editor-test` the editor's JavaScript tests, including its checks against `pkgspec`'s on every package of the corpus.
+- `go test ./...` runs every Go test, `make editor-test` the editor's JavaScript tests, including its checks against `pkgspec`'s on every package of the corpus, and `make gate-test` the public help's password gate's (`help/worker`).
 - **The backup tests use the real restic** and skip without it, silently unless you run `go test -v`. With restic on your `PATH` they run; `ROOSTACK_RESTIC_BIN=/path/to/restic` picks a particular binary. A skipped test has hidden a breakage before, so make sure they ran.
 - **Web tests** drive the real handlers through `httptest`, with fakes for the layers underneath (`fakeManager`, `fakeSetup`, `fakeBackups` and the rest in `internal/web/fakes_test.go`, where `fakeManager` is one embedded fake per area), and the harness in `harness_test.go`, where `loggedIn(t, role)` signs in. The harness fails a page that shows `<no value>` or a printf's `%!`, which is what a template shows for data it wasn't given. Add to the fakes rather than going around them.
 - **Manager and backup tests** use a real SQLite store and real restic.

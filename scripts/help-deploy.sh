@@ -19,7 +19,9 @@ uv run zensical build --strict
 # Scripts: only the site's own files, and each inline script by its
 # SHA-256 hash, worked out from the built pages so they always match.
 # Styles allow 'unsafe-inline': Zensical's search box injects a stylesheet
-# (the same reasoning as the help inside Roostack, SPEC.md §6.3.1).
+# (the same reasoning as the help inside Roostack, SPEC.md §6.3.1). The
+# other headers are the website's (site/tools/headers.mjs in Roostack
+# Cloud's repository): keep the two alike.
 python3 -I - site "$mode" <<'PY'
 import base64, hashlib, pathlib, re, sys
 site = pathlib.Path(sys.argv[1])
@@ -45,6 +47,8 @@ csp = "; ".join([
     ("Strict-Transport-Security", "max-age=31536000"),
     ("X-Content-Type-Options", "nosniff"),
     ("Referrer-Policy", "strict-origin-when-cross-origin"),
+    ("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()"),
+    ("Cross-Origin-Opener-Policy", "same-origin"),
 ] + ([] if sys.argv[2] == "--production" else [("X-Robots-Tag", "noindex, nofollow")])))
 print(f"_headers: {len(hashes)} inline scripts hashed")
 PY
