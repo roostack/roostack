@@ -15,6 +15,7 @@ import (
 	"roostack.cloud/roostack/internal/config"
 	"roostack.cloud/roostack/internal/generate"
 	"roostack.cloud/roostack/internal/sleep"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Libraries bound one by one at paths of their own (SPEC.md §8.4, "Media
@@ -102,22 +103,14 @@ func (n *Local) checkLibraryMounts(ctx context.Context, mountinfo func() string)
 		}
 		libs := restart[svc]
 		act.Printf("The media %s %s %s back. %s shows %s at a place of its own, and sees %s again only once it restarts.",
-			oneOrMany(len(libs), "library", "libraries"), strings.Join(libs, ", "), oneOrMany(len(libs), "is", "are"),
-			titles[svc], oneOrMany(len(libs), "it", "them"), oneOrMany(len(libs), "it", "them"))
+			words.Plural(len(libs), "library", "libraries"), strings.Join(libs, ", "), words.Plural(len(libs), "is", "are"),
+			titles[svc], words.Plural(len(libs), "it", "them"), words.Plural(len(libs), "it", "them"))
 		err := n.Reconciler.Systemd.Restart(ctx, units[svc]...)
 		if err != nil {
 			n.Log.Error("restarting a service for its library", "service", svc, "err", err)
 		}
 		act.Finish(err)
 	}
-}
-
-// oneOrMany picks one's word or many's.
-func oneOrMany(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return many
 }
 
 // running says whether the units are all active (a service stopped on

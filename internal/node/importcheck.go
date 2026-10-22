@@ -24,6 +24,7 @@ import (
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // The check before anything is copied (SPEC.md §8.4, docs/MIGRATION-PLAN.md
@@ -110,9 +111,9 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		for _, db := range c.SQLite {
 			sqlite = append(sqlite, filepath.Join(dir, filepath.FromSlash(db)))
 		}
-		head := fmt.Sprintf("%s: %s, %s.", sp.Title, countText(c.Files, "file"), units.Bytes(c.Bytes))
+		head := fmt.Sprintf("%s: %s, %s.", sp.Title, words.Count(c.Files, "file", "files"), units.Bytes(c.Bytes))
 		if c.Unreadable > 0 {
-			it := add(importer.LevelBad, fmt.Sprintf("%s Roostack can't read, in %s:", countText(c.Unreadable, "file or folder", "files and folders"),
+			it := add(importer.LevelBad, fmt.Sprintf("%s Roostack can't read, in %s:", words.Count(c.Unreadable, "file or folder", "files and folders"),
 				pathFor(sp.From)),
 				fmt.Sprintf("for example %s. Only their owner (%s) can read them. Make them readable on your copy, then check again:",
 					pathFor(path.Join(sp.From, c.Example)), ownerText(c.Owner)))
@@ -121,11 +122,11 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		}
 		more := "All readable."
 		if c.Links > 0 {
-			more += fmt.Sprintf(" %s in it %s copied as %s, never followed.", countText(c.Links, "link"), oneOrMany(int(c.Links), "is", "are"),
-				oneOrMany(int(c.Links), "a link", "links"))
+			more += fmt.Sprintf(" %s in it %s copied as %s, never followed.", words.Count(c.Links, "link", "links"), words.Plural(int(c.Links), "is", "are"),
+				words.Plural(int(c.Links), "a link", "links"))
 		}
 		if c.Special > 0 {
-			more += fmt.Sprintf(" %s (sockets, devices) aren't copied.", countText(c.Special, "special file"))
+			more += fmt.Sprintf(" %s (sockets, devices) aren't copied.", words.Count(c.Special, "special file", "special files"))
 		}
 		add(importer.LevelOK, head, more)
 	}
@@ -219,7 +220,7 @@ func (n *Local) runImportCheck(ctx context.Context, s state.Service, act *activi
 		act.Step("Fetching %s's image to compare its settings", title)
 		n.pullImage(ctx, act, newImage)
 		if diff := importer.EnvDiff(oc.Env, set, n.imageEnv(ctx, newImage)); len(diff) > 0 {
-			it := add(importer.LevelWarn, fmt.Sprintf("%s the old %s had that Roostack doesn't set:", countText(int64(len(diff)), "setting"), m.Old),
+			it := add(importer.LevelWarn, fmt.Sprintf("%s the old %s had that Roostack doesn't set:", words.Count(int64(len(diff)), "setting", "settings"), m.Old),
 				"compare them with "+title+"'s settings here, and its own settings page. A config file's settings belong in "+title+"'s own settings before you move, or they're lost.")
 			it.List = diff
 		}
@@ -311,7 +312,7 @@ func (n *Local) checkPgDump(ctx context.Context, act *activity.Log, label, title
 				"Its file format is too new for this one to read. Data can't go to an older Postgres: wait for a package that has a newer one.")
 		} else {
 			add(importer.LevelBad, label+" isn't a dump Roostack can load.",
-				"It should be what pg_dump --format=custom writes (Immich's own nightly backups, .sql.gz, can't be loaded yet). "+firstLineOf(string(list)))
+				"It should be what pg_dump --format=custom writes (Immich's own nightly backups, .sql.gz, can't be loaded yet). "+words.FirstLine(strings.TrimSpace(string(list))))
 		}
 		return
 	}
@@ -335,13 +336,13 @@ func (n *Local) checkPgDump(ctx context.Context, act *activity.Log, label, title
 		}
 	}
 	if len(missing) > 0 {
-		add(importer.LevelBad, fmt.Sprintf("%s needs %s, which %s's database here doesn't have.", label, codeList(missing), title),
+		add(importer.LevelBad, fmt.Sprintf("%s needs %s, which %s's database here doesn't have.", label, words.And(missing), title),
 			"Move the old app off it first, by its own upgrade steps (Immich's from pgvecto.rs to VectorChord, say), then take the dump again.")
 		return
 	}
 	more := fmt.Sprintf("%s's database here (%v) can load it.", title, have)
 	if len(d.Extensions) > 0 {
-		more += fmt.Sprintf(" It needs %s: all there.", codeList(d.Extensions))
+		more += fmt.Sprintf(" It needs %s: all there.", words.And(d.Extensions))
 	}
 	add(importer.LevelOK, fmt.Sprintf("%s: a dump from Postgres %s,", label, d.Version), more)
 }
@@ -500,18 +501,6 @@ func appVersionOf(p *pkgspec.Package) string {
 	return v
 }
 
-// countText says how many of something: "1 file", "355,516 files".
-func countText(n int64, one string, many ...string) string {
-	word := one + "s"
-	if len(many) > 0 {
-		word = many[0]
-	}
-	if n == 1 {
-		return "1 " + one
-	}
-	return units.Count(n) + " " + word
-}
-
 // ownerText names a file's owner on the server, for people.
 func ownerText(uid int) string {
 	if uid == 0 {
@@ -549,21 +538,4 @@ func shellQuote(s string) string {
 		return s
 	}
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
-// codeList lists names: "vchord, vector and cube".
-func codeList(names []string) string {
-	switch len(names) {
-	case 0:
-		return ""
-	case 1:
-		return names[0]
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
-}
-
-// firstLineOf is text's first line.
-func firstLineOf(s string) string {
-	s, _, _ = strings.Cut(strings.TrimSpace(s), "\n")
-	return s
 }

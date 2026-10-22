@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/maintenance"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Changing the recovery key (SPEC.md §6.9): a new key is made and shown,
@@ -290,7 +291,7 @@ func (m *Manager) addNewKey(ctx context.Context, act *activity.Log, k *KeyChange
 			return err
 		}()
 		if err != nil {
-			kr.Error = firstLine(err.Error())
+			kr.Error = words.FirstLine(strings.TrimSpace(err.Error()))
 			act.Printf("%s", m.aboutServer(kr.ServerID, kr.Error))
 			continue
 		}
@@ -329,7 +330,7 @@ func (m *Manager) removeOldKey(ctx context.Context, act *activity.Log, k *KeyCha
 			return repo.RemoveKey(ctx, kr.OldKey)
 		}()
 		if err != nil {
-			kr.Error = firstLine(err.Error())
+			kr.Error = words.FirstLine(strings.TrimSpace(err.Error()))
 			act.Printf("%s", m.aboutServer(kr.ServerID, kr.Error))
 			continue
 		}

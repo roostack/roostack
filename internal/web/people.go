@@ -12,6 +12,7 @@ import (
 
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // People's single sign-on parts (SPEC.md §5.2; docs/mockups/sso): each
@@ -89,9 +90,9 @@ func (s *Server) addPeopleSSO(ctx context.Context, data map[string]any) {
 		}
 		switch {
 		case len(names) > 0 && slices.ContainsFunc(ticks, func(t ssoServiceTick) bool { return t.Everyone }):
-			v.ServiceTitles = joinWords(names) + ", and the services everyone can use"
+			v.ServiceTitles = words.And(names) + ", and the services everyone can use"
 		case len(names) > 0:
-			v.ServiceTitles = joinWords(names)
+			v.ServiceTitles = words.And(names)
 		case len(ticks) > 0:
 			v.ServiceTitles = "the services everyone can use"
 		}
@@ -102,17 +103,6 @@ func (s *Server) addPeopleSSO(ctx context.Context, data map[string]any) {
 	}
 	data["Groups"] = views
 	data["UserGroups"] = byUser
-}
-
-// joinWords is "a", "a and b", "a, b and c".
-func joinWords(w []string) string {
-	switch len(w) {
-	case 0:
-		return ""
-	case 1:
-		return w[0]
-	}
-	return strings.Join(w[:len(w)-1], ", ") + " and " + w[len(w)-1]
 }
 
 // formIDs are a form's ticked IDs.

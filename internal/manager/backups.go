@@ -25,6 +25,7 @@ import (
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/units"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Backups across servers (SPEC.md §10.10): each server chooses where it
@@ -410,7 +411,7 @@ func (m *Manager) createRepository(ctx context.Context, act *activity.Log, serve
 		if time.Now().After(deadline) {
 			return fail(fmt.Errorf("creating the repository: %w", err))
 		}
-		act.Printf("Attempt %d: %v; trying again shortly", attempt, firstLine(err.Error()))
+		act.Printf("Attempt %d: %v; trying again shortly", attempt, words.FirstLine(strings.TrimSpace(err.Error())))
 		time.Sleep(10 * time.Second)
 	}
 	// The controller's own backups use the recovery key itself; any other
@@ -534,7 +535,7 @@ func (m *Manager) forgetServerBackups(ctx context.Context, serverID string) {
 				continue
 			}
 			act.Printf("%s couldn't be told (%v), so its nightly copy there fails until its backups change on its Backups page.",
-				m.nameOf(t.ServerID), firstLine(err.Error()))
+				m.nameOf(t.ServerID), words.FirstLine(strings.TrimSpace(err.Error())))
 		}
 		m.BackupStore.RemoveBackupCopy(ctx, t.ServerID, t.Provider)
 	}
@@ -669,17 +670,9 @@ func (m *Manager) onServer(id string) string {
 // keeping …"), or, in a lab of one, is the line alone ("Keeping …").
 func (m *Manager) aboutServer(id, line string) string {
 	if id == m.Lab.NodeID && m.alone() {
-		if line == "" {
-			return line
-		}
-		return strings.ToUpper(line[:1]) + line[1:]
+		return words.Capitalise(line)
 	}
 	return m.nameOf(id) + ": " + line
-}
-
-func firstLine(s string) string {
-	s, _, _ = strings.Cut(strings.TrimSpace(s), "\n")
-	return s
 }
 
 // BackupTargetOf is where a server backs up, if the controller set it up
@@ -776,7 +769,7 @@ func (m *Manager) pruneJob(only map[string]bool, try int) maintenance.Job {
 				// prune there (docs/ASSUMPTIONS.md N1); a running
 				// backup's lock stays.
 				if n, err := repo.Unlock(ctx); err != nil {
-					act.Printf("Couldn't clear old locks: %s", firstLine(err.Error()))
+					act.Printf("Couldn't clear old locks: %s", words.FirstLine(strings.TrimSpace(err.Error())))
 				} else if n == 1 {
 					act.Printf("Cleared an old lock left by a backup that didn't finish")
 				} else if n > 1 {

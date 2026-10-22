@@ -18,6 +18,7 @@ import (
 	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Restoring a service from any of the lab's backups, onto any server
@@ -95,7 +96,7 @@ func (m *Manager) ServiceBackups(ctx context.Context, name string) ([]BackupMome
 				}
 			}
 			if err != nil {
-				problems[i] = fmt.Sprintf("Couldn't read %s backups at %s: %s", m.backupsOf(kr.ServerID), where, firstLine(err.Error()))
+				problems[i] = fmt.Sprintf("Couldn't read %s backups at %s: %s", m.backupsOf(kr.ServerID), where, words.FirstLine(strings.TrimSpace(err.Error())))
 			}
 		})
 	}

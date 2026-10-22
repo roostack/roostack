@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"roostack.cloud/roostack/cloudapi"
-	"roostack.cloud/roostack/internal/units"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Visitors through Roostack Cloud's relay (SPEC.md §10.5): counts Cloud's
@@ -168,7 +168,7 @@ func hourBars(periods []cloudapi.RelayPeriod, now time.Time) []barView {
 			label = strconv.Itoa(h) + ":00"
 		}
 		labels = append(labels, label)
-		titles = append(titles, countOf(byHour[h], "visitor")+" from "+strconv.Itoa(h)+":00")
+		titles = append(titles, words.Count(byHour[h], "visitor", "visitors")+" from "+strconv.Itoa(h)+":00")
 	}
 	return bars(vals, labels, titles)
 }
@@ -196,7 +196,7 @@ func dayBars(periods []cloudapi.RelayPeriod, now time.Time, n int) []barView {
 			label = "Today"
 		}
 		labels = append(labels, label)
-		titles = append(titles, d.Format("Mon 2 Jan")+": "+countOf(byDay[d.Format(time.DateOnly)], "visitor"))
+		titles = append(titles, d.Format("Mon 2 Jan")+": "+words.Count(byDay[d.Format(time.DateOnly)], "visitor", "visitors"))
 	}
 	return bars(vals, labels, titles)
 }
@@ -217,7 +217,7 @@ func monthBars(periods []cloudapi.RelayPeriod, now time.Time) []barView {
 		m := first.AddDate(0, -i, 0)
 		vals = append(vals, byMonth[m.Format("2006-01")])
 		labels = append(labels, m.Format("Jan"))
-		titles = append(titles, m.Format("January 2006")+": "+countOf(byMonth[m.Format("2006-01")], "visitor"))
+		titles = append(titles, m.Format("January 2006")+": "+words.Count(byMonth[m.Format("2006-01")], "visitor", "visitors"))
 	}
 	return bars(vals, labels, titles)
 }
@@ -266,12 +266,4 @@ func topCountries(counts map[string]int64, total int64, n int) []rankView {
 		}
 	}
 	return rows
-}
-
-// countOf says a count of things: "1 visitor", "1,284 visitors".
-func countOf(n int64, thing string) string {
-	if n == 1 {
-		return "1 " + thing
-	}
-	return units.Count(n) + " " + thing + "s"
 }

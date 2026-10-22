@@ -3,7 +3,6 @@ package web
 import (
 	"cmp"
 	"errors"
-	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/pkgspec"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Installing a service, step by step (SPEC.md §6.3.3): the service's page,
@@ -22,7 +22,7 @@ import (
 const longStep = 5 * time.Minute
 
 // tookText is how long something took, or has taken so far (to is zero):
-// "14 s", "3 min", "1 h 5 min".
+// "14 s", "3 min", "1 h 5 min" (words.ExactDuration).
 func tookText(from, to time.Time) string {
 	if from.IsZero() {
 		return ""
@@ -30,14 +30,7 @@ func tookText(from, to time.Time) string {
 	if to.IsZero() {
 		to = time.Now()
 	}
-	d := to.Sub(from).Round(time.Second)
-	switch {
-	case d < time.Minute:
-		return fmt.Sprintf("%d s", int(d.Seconds()))
-	case d < time.Hour:
-		return fmt.Sprintf("%d min", int(d.Minutes()))
-	}
-	return fmt.Sprintf("%d h %d min", int(d.Hours()), int(d.Minutes())%60)
+	return words.ExactDuration(to.Sub(from))
 }
 
 // installSummaryView is what installing a service would set up, shown

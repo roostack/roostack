@@ -11,6 +11,7 @@ import (
 	"roostack.cloud/roostack/internal/auth"
 	"roostack.cloud/roostack/internal/store"
 	"roostack.cloud/roostack/internal/usererr"
+	"roostack.cloud/roostack/internal/words"
 )
 
 func (s *Server) setupPage(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +65,7 @@ func (s *Server) setupSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := authkit.CheckPasswordPolicy(password); err != nil {
-		fail(capitalize(err.Error()) + ".")
+		fail(words.Capitalise(err.Error()) + ".")
 		return
 	}
 	hash, err := authkit.HashPassword(password)

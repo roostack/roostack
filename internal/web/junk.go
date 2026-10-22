@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"roostack.cloud/roostack/internal/manager"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // Files the controller found in backups and couldn't read (SPEC.md
@@ -39,21 +39,18 @@ func (s *Server) junkAttention(ctx context.Context, l *attentionList) {
 			continue
 		}
 		l.add(attentionItem{Key: "junk:" + rep.ServerID + ":" + rep.Provider, Level: levelProblem,
-			Text: capitalise(backups) + " on " + rep.Where + " " + hold + " " + files + " Roostack can't read, which " +
-				plural(len(rep.Files), "stops", "stop") + " those backups working, and Roostack couldn't remove " + them + ".",
+			Text: words.Capitalise(backups) + " on " + rep.Where + " " + hold + " " + files + " Roostack can't read, which " +
+				words.Plural(len(rep.Files), "stops", "stop") + " those backups working, and Roostack couldn't remove " + them + ".",
 			Link: "/backups/junk", LinkText: "What to do"})
 	}
 }
 
-// orList joins names as "a, b or c".
+// orList joins names as "a, b or c", or says "nobody" if there are none.
 func orList(names []string) string {
-	switch len(names) {
-	case 0:
+	if len(names) == 0 {
 		return "nobody"
-	case 1:
-		return names[0]
 	}
-	return strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
+	return words.Or(names)
 }
 
 func (s *Server) junkPage(w http.ResponseWriter, r *http.Request) {

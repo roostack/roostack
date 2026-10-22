@@ -13,6 +13,7 @@ import (
 	"roostack.cloud/roostack/internal/reconcile"
 	"roostack.cloud/roostack/internal/state"
 	"roostack.cloud/roostack/internal/store"
+	"roostack.cloud/roostack/internal/words"
 )
 
 // A new service's install, step by step (SPEC.md §6.3.3): downloading and
@@ -400,9 +401,9 @@ func containerLabel(title, service, unit, image string, only bool) string {
 	engine := imageName(image)
 	if strings.HasPrefix(part, "db-") {
 		if engine == "valkey" || engine == "redis" {
-			return "the cache (" + upperFirst(engine) + ")"
+			return "the cache (" + words.Capitalise(engine) + ")"
 		}
-		return "the database (" + upperFirst(engine) + ")"
+		return "the database (" + words.Capitalise(engine) + ")"
 	}
 	if only {
 		return title
@@ -419,15 +420,6 @@ func imageName(image string) string {
 	}
 	image, _, _ = strings.Cut(image, ":")
 	return image
-}
-
-func upperFirst(s string) string {
-	if s == "" {
-		return s
-	}
-	r := []rune(s)
-	r[0] = unicode.ToUpper(r[0])
-	return string(r)
 }
 
 func lowerFirst(s string) string {
