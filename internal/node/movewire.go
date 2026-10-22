@@ -21,6 +21,9 @@ func dataPath(service, rest string, dir int) string {
 // noteRequest says why a service's folders are set aside (SetAsideData).
 type noteRequest struct{ Note string }
 
+// Mover asks the server to move its services' data.
+func (r *Remote) Mover() Mover { return r }
+
 // streamClient is for data streams, which can take hours: no overall
 // timeout (the caller's context stops them).
 func (r *Remote) streamClient() *http.Client {
@@ -142,7 +145,7 @@ func dirOf(r *http.Request) int {
 // moveRoutes serves Mover on the lab API. The data itself goes as a tar
 // stream, out and in, straight on mux.
 func (s *Server) moveRoutes(mux *http.ServeMux, handle handleFunc) {
-	mover := implemented[Mover](s.Node)
+	mover := offered(s.Node.Mover)
 	stream := func(pattern string, fn func(w http.ResponseWriter, r *http.Request, mv Mover) error) {
 		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 			if !s.fromController(w, r) {

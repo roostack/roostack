@@ -140,9 +140,9 @@ func diskTitle(d node.DiskSpace) string {
 // serverSpaces asks a server for its disks (nil if it can't say), with
 // the space promised to other labs on the disk holding the backup store,
 // and a warning for each disk running low.
-func (s *Server) serverSpaces(ctx context.Context, m serverRef, n any) *serverDisks {
-	d, ok := n.(node.Disks)
-	if !ok {
+func (s *Server) serverSpaces(ctx context.Context, m serverRef, n ServiceNode) *serverDisks {
+	d := n.Disks()
+	if d == nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)

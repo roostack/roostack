@@ -88,6 +88,19 @@ func (f *fakeRemote) Updates() node.Updates   { return nil }
 func (f *fakeRemote) Media() node.Media       { return f.media }
 func (f *fakeRemote) Imports() node.Imports   { return nil }
 
+// Capabilities: it hosts guests, says its processor and its links, and
+// moves, updates and reports nothing else.
+func (f *fakeRemote) Mover() node.Mover         { return nil }
+func (f *fakeRemote) Updater() node.Updater     { return nil }
+func (f *fakeRemote) Disks() node.Disks         { return nil }
+func (f *fakeRemote) Memory() node.Memory       { return nil }
+func (f *fakeRemote) LeftData() node.LeftData   { return nil }
+func (f *fakeRemote) History() node.History     { return nil }
+func (f *fakeRemote) Linked() node.Linked       { return f }
+func (f *fakeRemote) GuestHost() node.GuestHost { return f }
+func (f *fakeRemote) Processor() node.Processor { return f }
+func (f *fakeRemote) Photos() node.Photos       { return nil }
+
 func (f *fakeRemote) Settings() node.Settings {
 	f.mu.Lock()
 	defer f.mu.Unlock()

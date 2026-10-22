@@ -115,8 +115,8 @@ func (m *Manager) reachable(id string) bool {
 // disk's (not one only for the backup store), else its system disk's.
 // -1 if unknown.
 func (m *Manager) freeForServices(ctx context.Context, id string) int64 {
-	d, ok := m.node(id).(node.Disks)
-	if !ok {
+	d := node.Capability(m.node(id), node.Node.Disks)
+	if d == nil {
 		return -1
 	}
 	disks, err := d.DiskSpaces(ctx)
@@ -149,7 +149,7 @@ func (m *Manager) RestoreLostServer(ctx context.Context, id string, names []stri
 		if to == id || !m.reachable(to) {
 			return formErrorf("Choose a server that's connected to restore onto.")
 		}
-		if _, ok := m.node(to).(node.Mover); !ok {
+		if node.Capability(m.node(to), node.Node.Mover) == nil {
 			return formErrorf("Choose a server in this lab.")
 		}
 	}
@@ -242,7 +242,7 @@ func (m *Manager) restoreNewest(ctx context.Context, act *activity.Log, name, ti
 	if err != nil {
 		return err
 	}
-	dst := m.node(to).(node.Mover)
+	dst := m.node(to).Mover()
 	return m.restoreFrom(ctx, act, restoreJob{name: name, title: title, host: host, to: to, repo: repo,
 		snap: place.Snapshot, from: fmt.Sprintf("%s's backup at %s", place.ServerName, place.Where)}, dst)
 }

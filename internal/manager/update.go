@@ -549,8 +549,8 @@ func (m *Manager) runUpdate(u *Update, why string, automatic bool, by string, ba
 	host := cmp.Or(old.Instance.Host, m.Lab.NodeID)
 	rec.Server = host
 	n := m.node(host)
-	up, ok := n.(node.Updater)
-	if !ok {
+	up := node.Capability(n, node.Node.Updater)
+	if up == nil {
 		err = fmt.Errorf("Roostack can't reach %s's server", u.Title)
 		return rec
 	}

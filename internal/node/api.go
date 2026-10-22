@@ -132,20 +132,11 @@ func capRoute[T any](handle handleFunc, get func() (T, bool)) func(pattern strin
 }
 
 // offered is a capability a Node method returns, nil when the server
-// doesn't have it (Backups, Settings...).
+// doesn't have it (Backups, Mover...).
 func offered[T any](get func() T) func() (T, bool) {
 	return func() (T, bool) {
 		x := get()
 		return x, any(x) != nil
-	}
-}
-
-// implemented is a capability the node has by implementing T (Mover,
-// History...).
-func implemented[T any](n Node) func() (T, bool) {
-	return func() (T, bool) {
-		x, ok := n.(T)
-		return x, ok
 	}
 }
 

@@ -39,6 +39,9 @@ type Updater interface {
 	CheckHealth(ctx context.Context, service string) (Health, error)
 }
 
+// Updater is this server, which updates its own services.
+func (n *Local) Updater() Updater { return n }
+
 // UpdateRequest is an update about to happen on this server.
 type UpdateRequest struct {
 	// Title names it in the maintenance queue ("Updating Immich").

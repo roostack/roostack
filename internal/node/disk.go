@@ -45,6 +45,9 @@ type Disks interface {
 	DiskSpaces(ctx context.Context) ([]DiskSpace, error)
 }
 
+// Disks is this server, which reads its own disks.
+func (n *Local) Disks() Disks { return n }
+
 // StoreDisk is the disk holding the backup store, if it's in disks.
 func StoreDisk(disks []DiskSpace) (DiskSpace, bool) {
 	for _, d := range disks {
