@@ -119,7 +119,7 @@ func TestRestoreAgainChoosesTheBackup(t *testing.T) {
 	if !strings.Contains(body, `data-moment="n-0123456789@`) && !strings.Contains(body, "Restoring from") {
 		t.Fatal("no restore form")
 	}
-	if !strings.Contains(body, momentLabel(older, time.Now())) || !strings.Contains(body, `value="backup:n-0123456789@8550fc0abbbb"`) {
+	if !strings.Contains(body, html.EscapeString(momentLabel(older, time.Now()))) || !strings.Contains(body, `value="backup:n-0123456789@8550fc0abbbb"`) {
 		t.Error("the older backup should be listed")
 	}
 	if i := strings.Index(body, `<strong x-text="label">`); i < 0 || !strings.HasPrefix(body[i+len(`<strong x-text="label">`):], html.EscapeString(momentLabel(older, time.Now()))) {
