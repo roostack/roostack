@@ -1140,24 +1140,6 @@ func (s *Server) photoServiceView(r *http.Request, name string, admin bool) Serv
 	return ServiceView{Name: name, Title: name, DrawnIcon: categoryIcon(nil)}
 }
 
-func init() {
-	templateFuncs["kindTitle"] = photoimport.KindTitle
-	templateFuncs["photoTotals"] = photoTotals
-	templateFuncs["choicesText"] = choicesText
-	templateFuncs["leftOutText"] = leftOutText
-	templateFuncs["sentPhotos"] = func(r *node.PhotoRun) int64 { return r.Migrated() }
-	templateFuncs["immichMore"] = func(before, after node.PhotoAccount) int64 {
-		return after.Photos + after.Videos - before.Photos - before.Videos
-	}
-	templateFuncs["durationText"] = func(from, to time.Time) string { return roughDuration(to.Sub(from)) }
-	templateFuncs["add"] = func(a, b int64) int64 { return a + b }
-	templateFuncs["sub"] = func(a, b int64) int64 { return max(0, a-b) }
-	templateFuncs["runPercent"] = func(r *node.PhotoRun) int { return photoProgressOf(r).Percent }
-	templateFuncs["runTimeLeft"] = func(r *node.PhotoRun) string { return photoProgressOf(r).TimeLeft }
-	templateFuncs["migrationResult"] = migrationResult
-	templateFuncs["libraryWhereText"] = libraryWhereText
-}
-
 // migrationResult is a migration's result, for the card's list.
 func migrationResult(m node.PhotoSummary) string {
 	r := m.Run

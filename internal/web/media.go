@@ -20,12 +20,6 @@ import (
 // manages each; services' install pages and settings choose the libraries
 // they read.
 
-func init() {
-	templateFuncs["dialogFor"] = dialogFor
-	// join lists strings with a separator, e.g. services reading a library.
-	templateFuncs["join"] = strings.Join
-}
-
 // LibraryManager is the manager's media library operations.
 type LibraryManager interface {
 	MediaLibraries(ctx context.Context) ([]manager.ServerLibraries, error)

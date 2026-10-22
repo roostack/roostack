@@ -33,15 +33,6 @@ type ServiceUpdates interface {
 // StatusUpdating is a service updating to a newer version.
 const StatusUpdating = "updating"
 
-func init() {
-	templateFuncs["appVersion"] = appVersion
-	// sentence ends an error's text with a full stop.
-	templateFuncs["sentence"] = func(s string) string { return strings.TrimRight(strings.TrimSpace(s), ".") + "." }
-	templateFuncs["revision"] = func(v string) string { return strings.TrimPrefix(v[len(upstream(v)):], "-roostack.") }
-	templateFuncs["updateKind"] = updateKindText
-	templateFuncs["updatePolicyText"] = updatePolicyText
-}
-
 // updatePolicyText says how a service updates (its update policy), as
 // its settings page offers it.
 func updatePolicyText(policy string) string {

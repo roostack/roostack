@@ -4,120 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"html/template"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/activity"
 	"roostack.cloud/roostack/internal/backup"
-	"roostack.cloud/roostack/internal/labrestore"
-	"roostack.cloud/roostack/internal/monitor"
-	"roostack.cloud/roostack/internal/units"
 )
 
 // backupStale is when the dashboard warns that backups aren't happening.
 const backupStale = 48 * time.Hour
-
-var templateFuncs = template.FuncMap{
-	"when": whenText,
-	// daysText and certWarning are monitoring's (monitor.go).
-	"daysText":    daysText,
-	"certWarning": func(st monitor.Status) string { return certWarningText(st, time.Now()) },
-	// retryText says when a failed backup is tried again (" Roostack tries
-	// again today 14:00."), or nothing.
-	"retryText": retryText,
-	"stale":     isStale,
-	// firstLine and otherLines split an error: restic's own first line,
-	// then what follows (a stack trace, at worst), shown under Details.
-	"firstLine":  firstLine,
-	"otherLines": otherLines,
-	// shownRepo is a backup's address without its password.
-	"shownRepo": labrestore.Shown,
-	// date is a day, e.g. 28 September 2027.
-	"date": func(t time.Time) string { return t.Local().Format("2 January 2006") },
-	// has says whether a list has an item.
-	"has": func(list []string, item string) bool { return slices.Contains(list, item) },
-	// joinAnd lists names for people: "Films, TV and Music".
-	"joinAnd": joinAnd,
-	// list makes a slice, e.g. {{range list "light" "dark"}}.
-	"list": func(items ...string) []string { return items },
-	// percent shows progress, or nothing if it's unknown (-1).
-	"size": sizeText,
-	"gb":   func(b int64) int64 { return b / units.GB },
-	// image is a container image without its digest (shown in full on
-	// hover): docker.io/vaultwarden/server:1.34.3.
-	"image": func(ref string) string { name, _, _ := strings.Cut(ref, "@"); return name },
-	// shortCommit is a git commit's first 12 characters, or all of it
-	// if it's shorter (an index can say anything there).
-	"shortCommit": func(c string) string {
-		if r := []rune(c); len(r) > 12 {
-			return string(r[:12])
-		}
-		return c
-	},
-	"percent": func(p int) string {
-		if p < 0 {
-			return ""
-		}
-		return fmt.Sprintf("%d%%", p)
-	},
-	// palette is the built-in theme (internal/web/static/css/themes).
-	"palette": func() string { return DefaultPalette },
-	"themes":  func() []Theme { return Themes },
-	"bytes":   func(n uint64) string { return units.Bytes(int64(n)) },
-	// count is a count with thousands separators ("1,284").
-	"count":    units.Count,
-	"idleText": idleText,
-	// initial is a name's first letter, capitalised: the person's avatar
-	// in the sidebar.
-	"initial": func(name string) string {
-		for _, r := range name {
-			return strings.ToUpper(string(r))
-		}
-		return "?"
-	},
-	// roleName shows a role as people say it ("Owner").
-	"roleName": capitalise,
-	// capitalise starts a word with a capital ("running" → "Running").
-	"capitalise": capitalise,
-	// whenParts is a time as when shows it, split into its day and its
-	// clock time ("today", "02:00"), for a big figure.
-	"whenParts": func(t time.Time) [2]string {
-		w := whenText(t)
-		if i := strings.LastIndex(w, " "); i > 0 {
-			return [2]string{w[:i], w[i+1:]}
-		}
-		return [2]string{"", w}
-	},
-	// sentences splits text after its first sentence: the attention
-	// items' bold line, and the rest under it ("" if there's no more).
-	"sentences": firstSentence,
-	// trimScheme shows a web address without its https:// (in tables).
-	"trimScheme": func(u string) string {
-		return strings.TrimPrefix(strings.TrimPrefix(u, "https://"), "http://")
-	},
-}
-
-// firstSentence splits text into its first sentence and the rest: at
-// the first ". ", "? " or "! " followed by a capital letter.
-func firstSentence(text string) [2]string {
-	for i := 0; i+2 < len(text); i++ {
-		if strings.ContainsRune(".?!", rune(text[i])) && text[i+1] == ' ' && text[i+2] >= 'A' && text[i+2] <= 'Z' {
-			return [2]string{text[:i+1], text[i+2:]}
-		}
-	}
-	return [2]string{text, ""}
-}
-
-// otherLines is what follows text's first line (notify.go's firstLine),
-// or "": restic's stack trace after its error, at worst, which has no
-// break points and widens a phone's page, so it's shown under Details.
-func otherLines(text string) string {
-	_, rest, _ := strings.Cut(text, "\n")
-	return strings.TrimSpace(rest)
-}
 
 // capitalise starts s with a capital letter (ASCII; roles and states).
 func capitalise(s string) string {

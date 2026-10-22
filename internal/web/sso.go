@@ -20,16 +20,6 @@ import (
 // switch, who can sign in, and the details. Owners and Admins turn it on
 // (it changes a service); only Owners choose who can sign in.
 
-func init() {
-	// offText says what turning single sign-on off does, for its confirm.
-	templateFuncs["offText"] = func(c *ssoCard) string {
-		if c.Wall {
-			return "Anyone who can reach " + c.Title + " can use it again, without signing in."
-		}
-		return "People sign in with " + c.Title + "'s own passwords again; accounts it made at single sign-on have none, so they'd need one set in " + c.Title + "."
-	}
-}
-
 // ssoRoutes are single sign-on's pages in Roostack's own UI: the card
 // on a service's page, and groups and the sign-in page's look on People.
 func (s *Server) ssoRoutes(mux *http.ServeMux) {

@@ -59,7 +59,7 @@ var _ SSOServices = (*manager.Manager)(nil)
 // signInPages are the sign-in page's templates: a page of their own,
 // without Roostack's sidebar.
 func parseSignInPages() (*template.Template, error) {
-	return template.New("signin.html").Funcs(templateFuncs).ParseFS(templateFS, "templates/signin.html", "templates/components.html")
+	return template.New("signin.html").Funcs(templateFuncs()).ParseFS(templateFS, "templates/signin.html", "templates/components.html")
 }
 
 // SignInHandler serves the sign-in page for services, on its own

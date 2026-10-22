@@ -558,7 +558,7 @@ func NewServer(st *store.Store, services func(context.Context) ([]ServiceView, e
 		"backups-recovery-key", "service-public", "service-settings", "settings-public", "backups-key-change", "settings-cloud", "cloud-open", "cloud-linked", "visitors",
 		"backups-junk", "setup-finished", "settings-media", "settings-media-add", "settings-media-folders", "settings-media-library", "monitoring", "monitoring-check",
 		"import", "import-folders", "photos", "photos-home", "photos-folders"} {
-		t, err := template.New("layout.html").Funcs(templateFuncs).ParseFS(templateFS,
+		t, err := template.New("layout.html").Funcs(templateFuncs()).ParseFS(templateFS,
 			"templates/layout.html", "templates/components.html", "templates/parts.html", "templates/"+page+".html")
 		if err != nil {
 			return nil, err

@@ -606,7 +606,7 @@ func renderGallery(w io.Writer, static string, standalone bool) error {
 	uptime := func(days []monitor.Day, opts ...string) (template.HTML, error) {
 		return uptimeBarAt(galleryToday, days, opts...)
 	}
-	base, err := template.New("design.html").Funcs(templateFuncs).Funcs(template.FuncMap{"uptimeBar": uptime}).ParseFS(templateFS,
+	base, err := template.New("design.html").Funcs(templateFuncs()).Funcs(template.FuncMap{"uptimeBar": uptime}).ParseFS(templateFS,
 		"templates/components.html", "templates/parts.html", "templates/design.html")
 	if err != nil {
 		return err

@@ -5,13 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"path"
 	"slices"
 	"strings"
 	"time"
 
 	"roostack.cloud/roostack/internal/manager"
-	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
 
@@ -21,22 +19,6 @@ import (
 // longStep is how long a step runs before the page says it's taking longer
 // than usual (and whether it's still moving).
 const longStep = 5 * time.Minute
-
-func init() {
-	templateFuncs["took"] = tookText
-	templateFuncs["add1"] = func(i int) int { return i + 1 }
-	templateFuncs["lowerFirst"] = func(s string) string {
-		if s == "" {
-			return s
-		}
-		return strings.ToLower(s[:1]) + s[1:]
-	}
-	// slowStep: the install's current step has run for longer than usual.
-	templateFuncs["slowStep"] = func(p *node.InstallProgress) bool {
-		s := p.Step()
-		return !s.Started.IsZero() && time.Since(s.Started) > longStep
-	}
-}
 
 // tookText is how long something took, or has taken so far (to is zero):
 // "14 s", "3 min", "1 h 5 min".
@@ -263,14 +245,6 @@ func licenceURL(spdx string) string {
 		return ""
 	}
 	return "https://spdx.org/licenses/" + strings.TrimSuffix(spdx, "+") + ".html"
-}
-
-func init() {
-	templateFuncs["licenceName"] = licenceName
-	templateFuncs["licenceURL"] = licenceURL
-	templateFuncs["databaseName"] = databaseName
-	templateFuncs["pathBase"] = path.Base
-	templateFuncs["pathDir"] = path.Dir
 }
 
 // databaseName is a database type's name, as its makers write it.

@@ -26,7 +26,7 @@ import (
 var statusPageFiles = []string{"css/tokens.css", "css/themes/teal.css", "css/app.css", "css/status.css", "fonts/space-grotesk-latin.woff2"}
 
 var statusPageTemplate = sync.OnceValues(func() (*template.Template, error) {
-	return template.New("status-page.html").Funcs(templateFuncs).ParseFS(templateFS, "templates/status-page.html")
+	return template.New("status-page.html").Funcs(templateFuncs()).ParseFS(templateFS, "templates/status-page.html")
 })
 
 // statusRow is one check on the status page.

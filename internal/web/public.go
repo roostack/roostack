@@ -529,10 +529,6 @@ func (s *Server) publicSharingSubmit(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, "/settings/public")
 }
 
-func init() {
-	templateFuncs["publicState"] = func(state string) string { return publicState[state] }
-}
-
 // publicState is a record's state for people.
 var publicState = map[string]string{
 	dnsrecords.PublicOK:       "Points at your home",

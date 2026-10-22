@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"roostack.cloud/roostack/internal/errpage"
 	"roostack.cloud/roostack/internal/monitor"
 )
 
@@ -29,47 +28,25 @@ import (
 // there. A wrong argument (e.g. an unknown kind) is an error, which
 // becomes an error page and fails tests rather than rendering quietly.
 
-var componentFuncs = template.FuncMap{
-	"notice":        notice,
-	"noticeList":    noticeList,
-	"status":        status,
-	"badge":         badge,
-	"logo":          logo,
-	"back":          back,
-	"help":          helpLink,
-	"confirm":       confirmButton,
-	"confirmSubmit": confirmSubmit,
-	"copyBox":       copyBox,
-	"activity":      activityBlock,
-	"icon":          icon,
-	"server":        serverChip,
-	"builtinIcon":   builtinIcon,
-	"uptimeBar":     uptimeBar,
-	"checkState":    checkState,
-	"segmented":     segmented,
-	"choice":        segChoice,
-	"folderCounts":  folderCounts,
-	"pickerDialog":  pickerDialog,
-	"brandMark":     func() template.HTML { return brandMark },
-	// errorScene NAME ID: an error scene (internal/errpage), its wash's
-	// SVG ID made unique on the page by ID.
-	"errorScene": func(name, id string) template.HTML { return template.HTML(errpage.Scene(name, id)) },
+// components is the parsed components.html. It's parsed on first use
+// rather than as the variable's value: its functions (templateFuncs)
+// render components, which would make that value depend on itself.
+var components struct {
+	once sync.Once
+	t    *template.Template
+	err  error
 }
 
-func init() {
-	for name, fn := range componentFuncs {
-		templateFuncs[name] = fn
-	}
+// componentTemplates is components.html, parsed once.
+func componentTemplates() (*template.Template, error) {
+	components.once.Do(func() {
+		components.t, components.err = template.New("components").Funcs(templateFuncs()).ParseFS(templateFS, "templates/components.html")
+	})
+	return components.t, components.err
 }
-
-// components is the parsed components.html, loaded on first use (after
-// templateFuncs, which it needs, is complete).
-var components = sync.OnceValues(func() (*template.Template, error) {
-	return template.New("components").Funcs(templateFuncs).ParseFS(templateFS, "templates/components.html")
-})
 
 func renderComponent(name string, data any) (template.HTML, error) {
-	t, err := components()
+	t, err := componentTemplates()
 	if err != nil {
 		return "", err
 	}
