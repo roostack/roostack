@@ -37,7 +37,7 @@ func TestKeepHistory(t *testing.T) {
 
 	var events []store.Event
 	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		if events, _ = n.History(ctx, time.Time{}, "", 10); len(events) == 2 {
+		if events, _ = n.HistoryPage(ctx, time.Time{}, "", 10); len(events) == 2 {
 			break
 		}
 	}

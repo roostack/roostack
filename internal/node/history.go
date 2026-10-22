@@ -24,11 +24,14 @@ type HistoryStore interface {
 
 // History is a server's history (Local and Remote).
 type History interface {
-	History(ctx context.Context, before time.Time, kind string, limit int) ([]store.Event, error)
+	HistoryPage(ctx context.Context, before time.Time, kind string, limit int) ([]store.Event, error)
 	HistoryEvent(ctx context.Context, id int64) (store.Event, error)
 	// CullHistory deletes events finished before before.
 	CullHistory(ctx context.Context, before time.Time) (int64, error)
 }
+
+// History is this server's own history.
+func (n *Local) History() History { return n }
 
 // maxEventOutput caps an event's log (the activity log keeps its last 2000
 // lines; this bounds very long lines too).
@@ -56,7 +59,7 @@ func (n *Local) KeepHistory() {
 	}
 }
 
-func (n *Local) History(ctx context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
+func (n *Local) HistoryPage(ctx context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
 	if n.Events == nil {
 		return nil, nil
 	}

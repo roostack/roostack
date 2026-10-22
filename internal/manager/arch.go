@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"roostack.cloud/roostack/internal/node"
 	"roostack.cloud/roostack/internal/pkgspec"
 )
 
@@ -23,7 +22,7 @@ func (m *Manager) archOf(ctx context.Context, id string) string {
 	if n == nil {
 		return ""
 	}
-	if p, ok := n.(node.Processor); ok {
+	if p := n.Processor(); p != nil {
 		if a := p.Arch(); a != "" {
 			if id != m.Lab.NodeID && m.Settings != nil && m.setting(ctx, serverArchKey+id) != a {
 				if err := m.Settings.SetSetting(ctx, serverArchKey+id, a); err != nil {

@@ -10,6 +10,9 @@ import (
 
 func updatePath(id, rest string) string { return "/v1/updates/" + url.PathEscape(id) + rest }
 
+// Updater asks the server to update its services.
+func (r *Remote) Updater() Updater { return r }
+
 func (r *Remote) StartUpdate(ctx context.Context, req UpdateRequest) (string, error) {
 	var id string
 	err := r.call(ctx, http.MethodPost, "/v1/updates", req, &id)
@@ -34,7 +37,7 @@ func (r *Remote) CheckHealth(ctx context.Context, service string) (Health, error
 
 // updateRoutes serves Updater on the lab API.
 func (s *Server) updateRoutes(handle handleFunc) {
-	update := capRoute(handle, implemented[Updater](s.Node))
+	update := capRoute(handle, offered(s.Node.Updater))
 	update("POST /v1/updates", func(u Updater, r *http.Request) (any, error) {
 		req, err := body[UpdateRequest](r)
 		if err != nil {

@@ -80,11 +80,11 @@ func (m *Manager) PhotosOf(service string) (node.Photos, error) {
 	if n == nil {
 		return nil, formErrorf("Roostack can't reach the server %s runs on.", ps.Title)
 	}
-	l, ok := n.(interface{ Photos() node.Photos })
-	if !ok {
+	// Not on the lab API yet: another server's Photos is nil.
+	if n != m.Node {
 		return nil, formErrorf("Photos can be migrated only into an Immich on %s for now.", m.nameOf(m.Lab.NodeID))
 	}
-	x := l.Photos()
+	x := n.Photos()
 	if x == nil {
 		return nil, formErrorf("Photos can't be migrated into services on that server.")
 	}

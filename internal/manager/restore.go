@@ -195,8 +195,8 @@ func (m *Manager) RestoreService(ctx context.Context, name, id, to string) error
 	if !ok || snapID == "" {
 		return formErrorf("Choose a backup to restore.")
 	}
-	dst, ok := m.node(to).(node.Mover)
-	if !ok {
+	dst := node.Capability(m.node(to), node.Node.Mover)
+	if dst == nil {
 		return formErrorf("Choose a server in this lab.")
 	}
 	if r, ok := m.node(to).(RemoteServer); ok && r.Settings() == nil {
@@ -280,7 +280,7 @@ type restoreJob struct {
 // (RestoreService).
 func (m *Manager) restoreFrom(ctx context.Context, act *activity.Log, j restoreJob, dst node.Mover) (err error) {
 	act.Printf("The backup from %s, in %s (%s)", j.snap.Time.Local().Format("Mon 2 Jan 15:04"), j.from, j.snap.Short)
-	src, _ := m.node(j.host).(node.Mover)
+	src := node.Capability(m.node(j.host), node.Node.Mover)
 	reachable := src != nil
 	if r, ok := m.node(j.host).(RemoteServer); ok && r.Settings() == nil {
 		reachable = false

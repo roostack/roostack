@@ -24,6 +24,12 @@ type cullRequest struct {
 // cullReply is how many events were forgotten.
 type cullReply struct{ Deleted int64 }
 
+// Disks, Memory, LeftData and History ask the server.
+func (r *Remote) Disks() Disks       { return r }
+func (r *Remote) Memory() Memory     { return r }
+func (r *Remote) LeftData() LeftData { return r }
+func (r *Remote) History() History   { return r }
+
 // DiskSpaces asks the server.
 func (r *Remote) DiskSpaces(ctx context.Context) ([]DiskSpace, error) {
 	var out []DiskSpace
@@ -31,15 +37,15 @@ func (r *Remote) DiskSpaces(ctx context.Context) ([]DiskSpace, error) {
 	return out, err
 }
 
-// Memory asks the server.
-func (r *Remote) Memory(ctx context.Context) (MemoryInfo, error) {
+// MemoryInfo asks the server.
+func (r *Remote) MemoryInfo(ctx context.Context) (MemoryInfo, error) {
 	var out MemoryInfo
 	err := r.call(ctx, http.MethodGet, "/v1/memory", nil, &out)
 	return out, err
 }
 
-// LeftData asks the server over the lab API.
-func (r *Remote) LeftData(ctx context.Context, name string) ([]string, error) {
+// LeftDataDirs asks the server over the lab API.
+func (r *Remote) LeftDataDirs(ctx context.Context, name string) ([]string, error) {
 	var out []string
 	err := r.call(ctx, http.MethodGet, servicePath(name, "/left-data"), nil, &out)
 	// A server from before answers the route it doesn't know 404.
@@ -49,8 +55,8 @@ func (r *Remote) LeftData(ctx context.Context, name string) ([]string, error) {
 	return out, err
 }
 
-// History asks the server.
-func (r *Remote) History(ctx context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
+// HistoryPage asks the server.
+func (r *Remote) HistoryPage(ctx context.Context, before time.Time, kind string, limit int) ([]store.Event, error) {
 	q := url.Values{"kind": {kind}, "limit": {strconv.Itoa(limit)}}
 	if !before.IsZero() {
 		q.Set("before", strconv.FormatInt(before.Unix(), 10))
@@ -75,23 +81,23 @@ func (r *Remote) CullHistory(ctx context.Context, before time.Time) (int64, erro
 // hostRoutes serves Disks, Memory, LeftData and History on the lab API.
 func (s *Server) hostRoutes(handle handleFunc) {
 	n := s.Node
-	disks := capRoute(handle, implemented[Disks](n))
+	disks := capRoute(handle, offered(n.Disks))
 	disks("GET /v1/disks", func(d Disks, r *http.Request) (any, error) { return d.DiskSpaces(r.Context()) })
-	memory := capRoute(handle, implemented[Memory](n))
-	memory("GET /v1/memory", func(m Memory, r *http.Request) (any, error) { return m.Memory(r.Context()) })
-	leftData := capRoute(handle, implemented[LeftData](n))
+	memory := capRoute(handle, offered(n.Memory))
+	memory("GET /v1/memory", func(m Memory, r *http.Request) (any, error) { return m.MemoryInfo(r.Context()) })
+	leftData := capRoute(handle, offered(n.LeftData))
 	leftData("GET /v1/services/{service}/left-data", func(l LeftData, r *http.Request) (any, error) {
-		return l.LeftData(r.Context(), svcOf(r))
+		return l.LeftDataDirs(r.Context(), svcOf(r))
 	})
 
-	history := capRoute(handle, implemented[History](n))
+	history := capRoute(handle, offered(n.History))
 	history("GET /v1/history", func(h History, r *http.Request) (any, error) {
 		var before time.Time
 		if v, err := strconv.ParseInt(r.URL.Query().Get("before"), 10, 64); err == nil {
 			before = time.Unix(v, 0)
 		}
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-		return h.History(r.Context(), before, r.URL.Query().Get("kind"), min(max(limit, 1), 200))
+		return h.HistoryPage(r.Context(), before, r.URL.Query().Get("kind"), min(max(limit, 1), 200))
 	})
 	history("GET /v1/history/{id}", func(h History, r *http.Request) (any, error) {
 		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)

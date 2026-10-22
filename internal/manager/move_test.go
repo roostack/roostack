@@ -74,6 +74,10 @@ func (m *movingServer) did(op string) error {
 	return nil
 }
 func (m *movingServer) DataDirs(string) []string { return nil }
+
+// Mover is the server itself (fakeRemote's is nil).
+func (m *movingServer) Mover() node.Mover { return m }
+
 func (m *movingServer) ExportData(_ context.Context, _ string, dir int, since time.Time, w io.Writer) error {
 	m.mu.Lock()
 	out := map[string]file{}

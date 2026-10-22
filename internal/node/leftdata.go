@@ -14,18 +14,21 @@ import (
 // is still on it (removing a service keeps its data), for the install page
 // to say it will be used (SPEC.md §8.1, "hooks").
 type LeftData interface {
-	// LeftData lists the service's data folders that have something in
-	// them (none: it would start afresh).
-	LeftData(ctx context.Context, name string) ([]string, error)
+	// LeftDataDirs lists the service's data folders that have something
+	// in them (none: it would start afresh).
+	LeftDataDirs(ctx context.Context, name string) ([]string, error)
 }
+
+// LeftData is this server, which looks in its own folders.
+func (n *Local) LeftData() LeftData { return n }
 
 var (
 	_ LeftData = (*Local)(nil)
 	_ LeftData = (*Remote)(nil)
 )
 
-// LeftData looks in the service's folders on this server.
-func (n *Local) LeftData(_ context.Context, name string) ([]string, error) {
+// LeftDataDirs looks in the service's folders on this server.
+func (n *Local) LeftDataDirs(_ context.Context, name string) ([]string, error) {
 	if !instance.ValidName(name) {
 		return nil, ErrNotFound
 	}

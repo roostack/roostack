@@ -29,8 +29,19 @@ import (
 )
 
 // Node is a server in the lab, as the controller sees it (SPEC.md §10.3).
-// Local runs on this server; a remote implementation will speak the same
-// operations to other servers over Roostack's network.
+// Local runs on this server; Remote speaks the same operations to other
+// servers over Roostack's network.
+//
+// Each capability a server may not have (Backups, Mover, Photos...) is a
+// method that returns nil when it doesn't; callers check for nil, and
+// Capability also covers a server that is itself nil (one that left the
+// lab). Remote's Backups, Restores, Updates, Settings and Imports look at
+// the server's cached status (WireStatus), so they're nil while it
+// doesn't answer; its other capabilities are always there, and the server
+// answers "not found" to one it lacks. Photos isn't on the lab API yet,
+// so Remote's is nil. Local's return the Local itself, so a type that
+// embeds Local and overrides a capability's methods overrides its
+// capability method too.
 type Node interface {
 	Identity() nodeid.Identity
 	// Apply hands the node its latest assignment; the node works towards
@@ -63,6 +74,34 @@ type Node interface {
 	// Imports is bringing data into its services (import.go); nil when
 	// it can't.
 	Imports() Imports
+	// Mover moves services' data to and from it (move.go); Updater
+	// updates its services (update.go).
+	Mover() Mover
+	Updater() Updater
+	// Disks, Memory, LeftData and History are what the controller reads
+	// about it (disk.go, memory.go, leftdata.go, history.go).
+	Disks() Disks
+	Memory() Memory
+	LeftData() LeftData
+	History() History
+	// Linked reports its direct links to other servers and GuestHost
+	// keeps other labs' backups (guesthost.go); Processor says what kind
+	// of processor it has (arch.go).
+	Linked() Linked
+	GuestHost() GuestHost
+	Processor() Processor
+	// Photos migrates photos into its Immich (photos.go).
+	Photos() Photos
+}
+
+// Capability is one of n's capabilities, named by a method expression
+// such as node.Node.Mover, or nil when n itself is nil.
+func Capability[T any](n Node, capability func(Node) T) T {
+	if n == nil {
+		var none T
+		return none
+	}
+	return capability(n)
 }
 
 // Assignment is what the controller wants a node to run.

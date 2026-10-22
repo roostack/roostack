@@ -71,6 +71,9 @@ type Mover interface {
 	PutBackKeptData(ctx context.Context, path string) error
 }
 
+// Mover is this server, which moves its own services' data.
+func (n *Local) Mover() Mover { return n }
+
 // Launcher runs a command as the roostack user outside Roostack's sandbox
 // (systemd-run --user), streaming stdin and stdout.
 type Launcher func(ctx context.Context, env []string, name string, args ...string) *exec.Cmd
