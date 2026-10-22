@@ -26,6 +26,10 @@ type Restores interface {
 	// says the server couldn't be asked.
 	Pending(ctx context.Context) (bool, error)
 	Kept(ctx context.Context, service string) ([]backup.KeptCopy, error)
+	// Outcome is how the service's last restore or put back here ended,
+	// for the controller to hold it stopped if its databases didn't load
+	// (SPEC.md §6.9, "A restore that didn't finish").
+	Outcome(ctx context.Context, service string) (backup.RestoreOutcome, error)
 	RemoveKept(ctx context.Context, service, path string) error
 	// PutBack puts a kept copy back in place of the data (SPEC.md §8.4).
 	PutBack(ctx context.Context, service, path string) error

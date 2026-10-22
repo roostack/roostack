@@ -37,6 +37,10 @@ import (
 )
 
 type fakeManager struct {
+	// held are the Owner's choices for held services ("start immich",
+	// "put-back immich"); failedMoves the moves that went back.
+	held        []string
+	failedMoves map[string]manager.FailedMove
 	// imports is bringing data in (the server's, node.Imports), and
 	// switched the services switched to it.
 	imports  node.Imports

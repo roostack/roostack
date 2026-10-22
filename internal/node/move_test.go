@@ -8,10 +8,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
+	"strings"
 	"syscall"
 	"testing"
 
 	"roostack.cloud/roostack/internal/config"
+	"roostack.cloud/roostack/internal/instance"
+	"roostack.cloud/roostack/internal/pkgspec"
+	"roostack.cloud/roostack/internal/pkgtest"
+	"roostack.cloud/roostack/internal/reconcile"
+	"roostack.cloud/roostack/internal/state"
 )
 
 // direct runs "podman unshare <cmd>" as plain <cmd> (tests have no podman).
@@ -62,6 +69,31 @@ func TestKeptData(t *testing.T) {
 	}
 	if _, err := os.Stat(live); err != nil {
 		t.Error("the live folder must stay")
+	}
+}
+
+// What a move that didn't finish copied is set aside as
+// <service>.failed-move-<time>, and listed as such (SPEC.md §10.10).
+func TestFailedMoveSetAside(t *testing.T) {
+	root := t.TempDir()
+	lab := config.Default()
+	lab.Paths.ServicesDir, lab.Paths.MediaDir = filepath.Join(root, "services"), filepath.Join(root, "media")
+	n := &Local{Lab: lab, Launch: direct}
+	os.MkdirAll(filepath.Join(lab.Paths.ServicesDir, "immich", "data"), 0o755)
+	ctx := context.Background()
+	aside, err := n.SetAsideData(ctx, "immich", FailedMove)
+	if err != nil || len(aside) != 1 || !strings.HasPrefix(filepath.Base(aside[0]), "immich.failed-move-") {
+		t.Fatalf("aside %v, %v", aside, err)
+	}
+	if service, _, ok := strings.Cut(filepath.Base(aside[0]), FailedMoveSuffix); !ok || service != "immich" {
+		t.Errorf("FailedMoveSuffix doesn't cut %s", aside[0])
+	}
+	kept, err := n.KeptData(ctx)
+	if err != nil || len(kept) != 1 || !kept[0].FailedMove || kept[0].MovedAway || kept[0].Service != "immich" {
+		t.Errorf("kept %+v, %v", kept, err)
+	}
+	if err := n.PutBackKeptData(ctx, aside[0]); err == nil {
+		t.Error("it doesn't run here, so it can't be put back here")
 	}
 }
 
@@ -166,5 +198,49 @@ func TestImportDataStaysInside(t *testing.T) {
 	}
 	if fi, err := os.Stat(filepath.Join(outside, "victim")); err != nil || fi.Sys().(*syscall.Stat_t).Nlink != 1 {
 		t.Error("something links to the victim")
+	}
+}
+
+// recordingUnits records the units started and stopped.
+type recordingUnits struct {
+	fakeUnits
+	stopped, started []string
+}
+
+func (r *recordingUnits) Stop(_ context.Context, units ...string) error {
+	r.stopped = append(r.stopped, units...)
+	return nil
+}
+func (r *recordingUnits) Start(_ context.Context, units ...string) error {
+	r.started = append(r.started, units...)
+	return nil
+}
+
+// A held service (SPEC.md §6.9) has only its databases' units, so
+// stopping and starting it, to restore or move it, touches only those.
+func TestStopHeldService(t *testing.T) {
+	p, err := pkgspec.Parse(pkgtest.Read(t, "forgejo"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sd := &recordingUnits{}
+	n := &Local{Lab: config.Lab{Paths: config.Paths{ServicesDir: t.TempDir(), MediaDir: t.TempDir()}},
+		Reconciler: &reconcile.Reconciler{Systemd: sd}}
+	in := &instance.Instance{Package: "forgejo", Version: p.Version, Updates: "notify", Held: &instance.Hold{Error: "no"},
+		Routes: map[string]instance.RouteOverride{"web": {Port: 20001}}}
+	n.assignment = Assignment{Services: []state.Service{{Package: p, Instance: in}}}
+	ctx := context.Background()
+	if err := n.StopService(ctx, "forgejo"); err != nil {
+		t.Fatal(err)
+	}
+	n.StartService(ctx, "forgejo")
+	if len(sd.stopped) == 0 || !slices.Equal(sd.stopped, sd.started) || slices.Contains(sd.stopped, "roostack-forgejo-app.service") {
+		t.Errorf("stopped %v, started %v: want only its databases", sd.stopped, sd.started)
+	}
+	in.Held = nil
+	sd.stopped = nil
+	n.StopService(ctx, "forgejo")
+	if !slices.Contains(sd.stopped, "roostack-forgejo-app.service") {
+		t.Errorf("not held, all of it stops: %v", sd.stopped)
 	}
 }

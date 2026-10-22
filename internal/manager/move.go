@@ -128,6 +128,7 @@ func (m *Manager) MoveService(ctx context.Context, name, to, way string) error {
 	default:
 		return formErrorf("Choose how to move it.")
 	}
+	m.forgetFailedMove(ctx, name)
 	act := m.Activity.Start(activity.Move, fmt.Sprintf("Moving %s to %s", p.Title, m.nameOf(to)))
 	go func() {
 		ctx := context.Background()
@@ -252,7 +253,15 @@ func (m *Manager) finishMove(ctx context.Context, act *activity.Log, name, title
 			return false, err
 		}
 		if err := dst.LoadDumps(ctx, name); err != nil {
-			return false, err
+			// Its old copy is still whole: it goes back there (SPEC.md
+			// §10.10), or is held stopped here if it can't.
+			return false, m.moveBack(ctx, act, name, title, from, to, dst, err)
+		}
+	}
+	// Moved again after a move that couldn't go back: no longer held.
+	if _, in, err := m.installedService(name); err == nil && in.Held != nil && in.Held.MovedFrom != "" {
+		if _, err := m.releaseHold(name, "Starting "+title+" on "+m.nameOf(to)+": it's moved"); err != nil {
+			act.Printf("%v", err)
 		}
 	}
 	aside, err := src.SetAsideData(ctx, name, "to-"+m.nameOf(to))
@@ -444,5 +453,12 @@ func (m *Manager) RemoveKeptData(ctx context.Context, serverID, path string) err
 	if !ok {
 		return ErrNotFound
 	}
-	return mv.RemoveKeptData(ctx, path)
+	if err := mv.RemoveKeptData(ctx, path); err != nil {
+		return err
+	}
+	// What a failed move copied is gone: so is its note.
+	if service, _, ok := strings.Cut(filepath.Base(path), node.FailedMoveSuffix); ok {
+		m.forgetFailedMove(ctx, service)
+	}
+	return nil
 }

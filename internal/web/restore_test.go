@@ -40,6 +40,9 @@ func (f *fakeRestores) Pending(context.Context) (bool, error) { return f.pending
 func (f *fakeRestores) Kept(context.Context, string) ([]backup.KeptCopy, error) {
 	return f.kept, nil
 }
+func (f *fakeRestores) Outcome(context.Context, string) (backup.RestoreOutcome, error) {
+	return backup.RestoreOutcome{}, nil
+}
 func (f *fakeRestores) RemoveKept(_ context.Context, _, p string) error {
 	f.removed = append(f.removed, p)
 	return nil

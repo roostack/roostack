@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"go.yaml.in/yaml/v3"
 
@@ -60,6 +61,11 @@ type Instance struct {
 	// stop the service while it has this version. Another version (an
 	// update) isn't covered.
 	StartedAnyway string `yaml:"started_anyway,omitempty"`
+	// Held keeps the service stopped after a restore (or a move through a
+	// backup) that put its files in place but couldn't load its databases
+	// (SPEC.md §6.9, "A restore that didn't finish"): only its databases
+	// run, until the Owner chooses what to do. Nil when it isn't held.
+	Held *Hold `yaml:"held,omitempty"`
 	// Local: installed from a package the Owner added themselves, not one
 	// from the service registry, so its pages say "Your own" (SPEC.md
 	// §8.3.4). Recorded here because the lab's copy of the package is the
@@ -87,6 +93,27 @@ type Instance struct {
 	// so only its databases run, and its install hooks don't, until its
 	// data is switched in.
 	AwaitingData bool `yaml:"awaiting_data,omitempty"`
+}
+
+// Hold is why a service is held stopped (Instance.Held).
+type Hold struct {
+	// Backup is the backup it was restored from, as the restore page
+	// names it ("<repository>@<snapshot>"; "" for a move), and Taken when
+	// that backup was made.
+	Backup string    `yaml:"backup,omitempty"`
+	Taken  time.Time `yaml:"taken"`
+	// Error is why its databases didn't load.
+	Error string    `yaml:"error"`
+	At    time.Time `yaml:"at"`
+	// Kept is the data from before, set aside on the server it runs on,
+	// for putting back ("" if there's none). KeptByRestore: the server's
+	// own restore kept it (backup.Restores.PutBack puts it back);
+	// otherwise the controller's (node.Mover.PutBackKeptData).
+	Kept          string `yaml:"kept,omitempty"`
+	KeptByRestore bool   `yaml:"kept_by_restore,omitempty"`
+	// MovedFrom is the server a move through a backup came from, when its
+	// databases didn't load here and moving it back failed too.
+	MovedFrom string `yaml:"moved_from,omitempty"`
 }
 
 // RouteOverride holds user changes to a package route. Empty fields keep the

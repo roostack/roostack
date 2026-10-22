@@ -25,7 +25,7 @@ Status: items are **unverified** unless marked. ✅ = verified on the Debian 13 
 
 | # | Assumption |
 |---|---|
-| B1 ✅ | Root inside a rootless container = the `roostack` user on the host, so files written by container root appear owned by `roostack`. Files written by a non-root container user (e.g. Postgres uid 999) appear as `subuid_start + uid - 1` (e.g. `232070` with `roostack:231072:65536`; the range is whatever is free at install, A9). **Verified:** container root → uid 999 (`roostack`) on the host. |
+| B1 ✅ | Root inside a rootless container = the `roostack` user on the host, so files written by container root appear owned by `roostack`. Files written by a non-root container user appear as `subuid_start + uid - 1`: on VM3 with `roostack:231072:65536`, Roostack's Postgres (uid 70 in its container) owned its data folder as `231141` (2026-10-22; the range is whatever is free at install, A9). **Verified:** container root → uid 999 (`roostack`) on the host. |
 | B2 ✅ | Backups can read every file by running restic inside `podman unshare` as `roostack`. Restores must also go through `podman unshare` to keep ownership correct. **Verified:** restic runs via `systemd-run --user` + `podman unshare`; a restore inside `podman unshare` brought files back owned by `roostack` (uid 999), and the restored Vaultwarden database opened cleanly. Snapshot contents checked: live SQLite files, the backup key and container images excluded; dumps, state and Podman secrets included. |
 | B3 | `keep-id` is **not** used by default; it will be a per-container option once a package needs it. |
 | B4 | Bind-mounting subdirectories inside another bind mount (Immich `/data` + `/data/thumbs`) works; mounts are emitted parent-first. |

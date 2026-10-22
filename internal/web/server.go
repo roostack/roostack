@@ -28,6 +28,7 @@ import (
 	"roostack.cloud/roostack/internal/dnsrecords"
 	"roostack.cloud/roostack/internal/editor"
 	"roostack.cloud/roostack/internal/hosttime"
+	"roostack.cloud/roostack/internal/instance"
 	"roostack.cloud/roostack/internal/labnet"
 	"roostack.cloud/roostack/internal/manager"
 	"roostack.cloud/roostack/internal/monitor"
@@ -103,6 +104,9 @@ type ServiceView struct {
 	// IconURL is its package's logo, for those who manage services, and
 	// DrawnIcon the icon shown without one (withIcons).
 	IconURL, DrawnIcon string
+	// Held: it's held stopped after a restore (or a move) that didn't
+	// finish (Status is StatusHeld; SPEC.md §6.9).
+	Held *instance.Hold
 }
 
 // Server serves the web UI.
@@ -268,6 +272,7 @@ type ServiceManager interface {
 	RecoveryKeys
 	LabRestores
 	Withdrawals
+	Holds
 	ServiceUpdates
 	BackupJunk
 	DataImports
@@ -693,6 +698,8 @@ func (s *Server) handler(gate func(http.Handler) http.Handler) http.Handler {
 	mux.Handle("POST /services/{name}/public/{route}/check", s.requireOwner(s.publicCheckNew))
 	mux.Handle("POST /services/{name}/public/{route}/waf", s.requireOwner(s.wafSubmit))
 	mux.Handle("POST /services/{name}/start-anyway", s.requireOwner(s.startAnywaySubmit))
+	mux.Handle("POST /services/{name}/held/start", s.requireOwner(s.heldStartSubmit))
+	mux.Handle("POST /services/{name}/held/put-back", s.requireOwner(s.heldPutBackSubmit))
 	mux.Handle("GET /settings/public", s.requireOwner(s.publicSettingsPage))
 	mux.Handle("POST /settings/public/sharing", s.requireOwner(s.publicSharingSubmit))
 	mux.Handle("POST /settings/public/edge", s.requireOwner(s.publicEdgeSubmit))

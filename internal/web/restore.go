@@ -167,6 +167,8 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 					v.What = "Replaced by putting a copy back"
 				case f.MovedAway:
 					v.What = "The old copy, after moving"
+				case f.FailedMove:
+					v.What = "From a move that didn't finish"
 				}
 				kept = append(kept, v)
 			}
@@ -174,6 +176,12 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 	}
 	data := map[string]any{"User": currentUser(r), "Service": svc, "Groups": groups, "Notes": notes,
 		"Servers": servers, "Host": host, "Kept": kept, "Pending": pending, "Error": errMsg}
+	if len(groups) > 0 {
+		// The newest backup, or the one asked for (?backup=: "Restore
+		// again…" after a restore that didn't finish, SPEC.md §6.9).
+		chosen, place := chosenBackup(groups, r.FormValue("backup"))
+		data["Chosen"], data["ChosenPlace"], data["NewestID"] = chosen, place, groups[0].Moments[0].ID
+	}
 	if a := s.restoreActivity(r, svc); a != nil {
 		data["RestoreActivity"] = a
 		data["Pending"] = pending || a.Running()
@@ -184,6 +192,22 @@ func (s *Server) renderRestore(w http.ResponseWriter, r *http.Request, svc Servi
 	}
 	w.WriteHeader(status)
 	s.render(w, "restore", data)
+}
+
+// chosenBackup is the moment and place of the backup with this ID, or the
+// newest.
+func chosenBackup(groups []restoreGroup, id string) (restoreMoment, restorePlace) {
+	for _, g := range groups {
+		for _, mo := range g.Moments {
+			for _, p := range mo.Places {
+				if id != "" && p.ID == id {
+					return mo, p
+				}
+			}
+		}
+	}
+	first := groups[0].Moments[0]
+	return first, first.Places[0]
 }
 
 // justRestored is how long after a restore its page leads with the result.

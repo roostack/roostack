@@ -167,7 +167,8 @@ func serve(args []string) error {
 		},
 		UpdateLab: func(change func(*config.Lab)) error { return config.Update(*labPath, change) },
 		Submit:    func(j maintenance.Job) { coord.Submit(j) },
-		Settings:  st}
+		Settings:  st,
+		Audit:     func(ctx context.Context, action, detail string) { st.Audit(ctx, nil, action, detail) }}
 	mgrRef = mgr
 	srv.Manager, srv.Node, srv.Domain, srv.HasGPU, srv.BackupRepo = mgr, local, lab.Domain, lab.HasGPU, lab.Backup.Repository
 	srv.Libraries = mgr
@@ -688,6 +689,10 @@ func serviceViews(ctx context.Context, lab config.Lab, mgr *manager.Manager, log
 		if mgr.Switching(s.Name()) {
 			v.Status = web.StatusSwitching
 		}
+		if s.Instance.Held != nil {
+			// Held after a restore that didn't finish (SPEC.md §6.9).
+			v.Status, v.Held = web.StatusHeld, s.Instance.Held
+		}
 		if s.Instance.Waiting {
 			// Its server is gone: it runs nowhere until restored (SPEC.md §10.10).
 			v.Status, v.Server = web.StatusWaiting, ""
@@ -890,7 +895,10 @@ func lookupService(services serverServices, name string) (*generate.Output, stri
 	}
 	for _, s := range list {
 		if s.Name() == name {
-			out, err := generate.Service(lab, s.Package, s.Instance)
+			// What runs of it now: only its databases while it's held after
+			// a restore that didn't finish, so restoring it again stops
+			// and starts only units that exist (SPEC.md §6.9).
+			out, err := state.Output(lab, s)
 			return out, s.Title(), err
 		}
 	}

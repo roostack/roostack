@@ -527,6 +527,10 @@ func (s *Server) renderServiceWith(w http.ResponseWriter, r *http.Request, extra
 			if wd := s.Manager.Withdrawals(r.Context())[name]; wd != nil {
 				data["Withdrawal"] = wd
 			}
+			// Held after a restore that didn't finish (SPEC.md §6.9).
+			if v := s.heldViewOf(data["Service"].(ServiceView)); v != nil {
+				data["Held"] = v
+			}
 			// A newer version (SPEC.md §7).
 			s.addUpdateData(r, data, name)
 			if data["UpdateDone"] == true {

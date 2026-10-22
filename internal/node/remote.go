@@ -398,6 +398,12 @@ func (x remoteRestores) Kept(ctx context.Context, service string) ([]backup.Kept
 	return out, err
 }
 
+func (x remoteRestores) Outcome(ctx context.Context, service string) (backup.RestoreOutcome, error) {
+	var out backup.RestoreOutcome
+	err := x.r.call(ctx, http.MethodGet, "/v1/restores/"+url.PathEscape(service)+"/outcome", nil, &out)
+	return out, err
+}
+
 func (x remoteRestores) PutBack(ctx context.Context, service, path string) error {
 	return x.r.call(ctx, http.MethodPost, "/v1/restores/"+url.PathEscape(service)+"/kept/put-back",
 		map[string]string{"Path": path}, nil)

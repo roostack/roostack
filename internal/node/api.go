@@ -213,6 +213,13 @@ func (s *Server) Handler() http.Handler {
 		}
 		return nil, x.Restore(ctx(r), svc(r), req.Snapshot)
 	})
+	handle("GET /v1/restores/{service}/outcome", func(r *http.Request) (any, error) {
+		x, err := restores()
+		if err != nil {
+			return nil, err
+		}
+		return x.Outcome(ctx(r), svc(r))
+	})
 	handle("GET /v1/restores/{service}/kept", func(r *http.Request) (any, error) {
 		x, err := restores()
 		if err != nil {

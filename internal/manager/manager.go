@@ -113,6 +113,9 @@ type Manager struct {
 	// Settings are the controller's settings (store.Store): servers'
 	// locations and direct links (links.go; optional).
 	Settings KV
+	// Audit records what Roostack did by itself in the audit log, such as
+	// a restore that worked ending a hold (hold.go; optional).
+	Audit func(ctx context.Context, action, detail string)
 	// RegistryIndex is the newest index the controller has fetched from
 	// the service registry (registry.Fetcher.Index; nil before the first),
 	// for withdrawals of installed services (withdrawals.go; optional).

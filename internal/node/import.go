@@ -613,8 +613,10 @@ func capitalise(s string) string {
 }
 
 // liveOutput is what runs of a service now: all of it, or only its
-// network and databases while it waits for its data or is stopped by
-// Roostack (generate.Stop), as the controller's assignment has it.
+// network and databases while it waits for its data, is stopped by
+// Roostack or is held after a restore that didn't finish (generate.Stop),
+// as the controller's assignment has it. Its app's units don't exist
+// then, so they can't be stopped or started.
 func (n *Local) liveOutput(service string) (*generate.Output, error) {
 	s, ok := n.service(service)
 	if !ok {
